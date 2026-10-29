@@ -19,6 +19,14 @@ Sem o servidor ligado, o jogo entra sozinho no **modo solo**, com as mesmas regr
 
 Para publicar (Oracle Cloud ou Render): `npm run build` e depois `npm start`. O servidor entrega o jogo e o multiplayer na mesma porta (variável `PORT`, padrão 2567).
 
+### Testar no celular pelo Render (grátis)
+
+1. Entre em [render.com](https://render.com) com a conta do GitHub.
+2. **New → Blueprint**, escolha o repositório `rpg-realista` (o arquivo `render.yaml` já configura tudo).
+3. Espere o primeiro build (uns 5 minutos) e abra o endereço `https://rpg-realista-xxxx.onrender.com` no celular.
+
+No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita depois disso demora cerca de 1 minuto para acordar.
+
 ## Controles
 
 | Ação | Celular | PC |

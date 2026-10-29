@@ -1,0 +1,9 @@
+# Configuração para o Render (plano grátis): o mesmo servidor entrega o jogo e o multiplayer.
+services:
+  - type: web
+    name: rpg-realista
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /saude
