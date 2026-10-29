@@ -1,0 +1,14 @@
+{
+  "name": "rpg-realista",
+  "private": true,
+  "type": "module",
+  "workspaces": ["client", "server", "shared"],
+  "scripts": {
+    "dev": "concurrently -n servidor,cliente -c yellow,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "8.2.2"
+  }
+}

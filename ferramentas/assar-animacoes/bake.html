@@ -1,0 +1,27 @@
+<!doctype html><html><body>
+<script src="node_modules/three/build/three.min.js"></script>
+<script src="node_modules/three/examples/js/libs/fflate.min.js"></script>
+<script src="node_modules/three/examples/js/loaders/FBXLoader.js"></script>
+<script>
+window.bake=async function(files){
+  const out={};const L=new THREE.FBXLoader();
+  for(const f of files){
+    const buf=await (await fetch('fbx/'+f+'.fbx')).arrayBuffer();
+    const g=L.parse(buf,'');const c=g.animations[0];
+    const tr=[];
+    for(const t of c.tracks){
+      const isQ=/\.quaternion$/.test(t.name), isHipP=/Hips\.position$/.test(t.name);
+      if(!isQ&&!isHipP)continue;
+      // reduz para 30 fps
+      const times=[],vals=[];const n=t.getValueSize();let last=-1;
+      for(let i=0;i<t.times.length;i++){const tm=t.times[i];if(last>=0&&tm-last<1/30-1e-4&&i<t.times.length-1)continue;last=tm;
+        times.push(Math.round(tm*1000)/1000);for(let k=0;k<n;k++){const v=t.values[i*n+k];vals.push(isQ?Math.round(v*1e4)/1e4:Math.round(v*100)/100)}}
+      // trilha constante vira 1 chave
+      let constant=true;for(let i=n;i<vals.length&&constant;i++)if(Math.abs(vals[i]-vals[i%n])>2e-4)constant=false;
+      tr.push(constant?[t.name,[0],vals.slice(0,n)]:[t.name,times,vals]);
+    }
+    out[f]={d:Math.round(c.duration*1000)/1000,t:tr};
+  }
+  return out;
+};
+</script></body></html>
