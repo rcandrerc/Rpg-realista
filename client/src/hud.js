@@ -11,6 +11,10 @@ export class Hud {
 
   montarBotoes({ usar, pular, dash, rolar }) {
     [0, 1, 2, 3, 4].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(this.indice(i)); }));
+    // golpe base: segurando o botão ele continua golpeando (as outras habilidades não)
+    this.segurando = false; // id do dedo que segura
+    $('b0').addEventListener('pointerdown', (e) => { this.segurando = e.pointerId; });
+    for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, (e) => { if (e.pointerId === this.segurando) this.segurando = false; });
     $('b9').addEventListener('pointerdown', (e) => { e.preventDefault(); usar(9); });
     $('bt').addEventListener('pointerdown', (e) => { e.preventDefault(); this.trocar(); });
     $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); dash(); });
