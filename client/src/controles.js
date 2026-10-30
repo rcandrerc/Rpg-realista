@@ -14,6 +14,10 @@ export class Controles {
     });
     addEventListener('keyup', (e) => { this.teclas[e.code] = false; });
 
+    // celular: impede o zoom da página com dois dedos e com toque duplo (o jogo usa a tela inteira)
+    for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && document.getElementById('sheet').hidden) e.preventDefault(); }, { passive: false });
+
     const pad = document.getElementById('pad'), knob = document.getElementById('knob');
     let id = null;
     const mv = (e) => {
