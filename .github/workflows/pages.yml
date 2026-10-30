@@ -1,4 +1,4 @@
-# Publica o jogo (só a parte do navegador) no GitHub Pages a cada push na main.
+# Publica o jogo no GitHub Pages a cada push na main (e o pacote do servidor em /servidor, que a Oracle baixa sozinha).
 # Sem servidor o jogo roda no modo solo; para multiplayer, abra com ?servidor=wss://endereco-do-servidor
 name: Publicar no GitHub Pages
 
@@ -30,6 +30,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: bash ferramentas/servidor/empacotar.sh # o servidor sai junto; a máquina da Oracle se atualiza a partir daqui
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
