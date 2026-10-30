@@ -11,6 +11,7 @@ import { Criador } from './criador.js';
 import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
 import { aplicarEstilo, botaoEstilo } from './estilo.js';
+import { PainelHeroi } from './layout.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -101,6 +102,8 @@ hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a esp
 
 // build (habilidades nos botões) também fica guardada no aparelho
 let build = (() => { try { return JSON.parse(localStorage.getItem('build')); } catch { return null; } })();
+// foto e nível no painel de vida; toque abre Status, segurar 2 s edita os botões
+const painel = new PainelHeroi(renderer, () => ({ eu, nome: $('nome').textContent, build: build || BUILD_PADRAO }));
 if (!buildValida(build)) build = [...BUILD_PADRAO];
 hud.mostrarBuild(build);
 hud.montarEscolhaHabilidades(build, (b) => {
@@ -152,6 +155,7 @@ function quadro() {
     if ((hud.segurando !== false || controles.teclas.KeyJ) && t - ultimoBase > 0.2) { ultimoBase = t; usar(hud.indice(0)); }
     rede.passo(dt);
     mundo.atualizar(t);
+    painel.atualizar(mundo.scene, corpos.get(rede.meuId)?.corpo);
     for (const c of corpos.values()) c.corpo.atualizar(dt);
     for (const [id, c] of corpos) if (c.tipo === 'jogador') efeitos.corpo(id, c.corpo, c.info, dt);
     efeitos.atualizar(dt, t, camera, renderer);
