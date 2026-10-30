@@ -1,10 +1,12 @@
 // Estilo visual do mundo. "anime" = mundo pintado (sombra em degraus, texturas repintadas pela paleta do jogo,
 // luz clara e cores vivas), para combinar com os personagens VRoid. "atual" = cenário fotográfico de antes.
-// Escolha: ?estilo=anime|atual na URL ou o botão Estilo do menu (fica guardado no aparelho).
+// O pintado é o padrão. Escolha: ?estilo=anime|atual na URL ou o botão Estilo do menu (fica guardado no aparelho).
 import * as THREE from 'three';
 
-const lerGuardado = () => { try { return localStorage.getItem('estilo'); } catch { return null; } };
-export const estilo = new URLSearchParams(location.search).get('estilo') || lerGuardado() || 'atual';
+// chave nova: quem só testou o botão quando o padrão era o realista volta para o pintado
+const CHAVE = 'estiloMundo';
+const lerGuardado = () => { try { return localStorage.getItem(CHAVE); } catch { return null; } };
+export const estilo = new URLSearchParams(location.search).get('estilo') || lerGuardado() || 'anime';
 export const anime = estilo === 'anime';
 
 // Texturas: no estilo anime cada foto da Poly Haven (..._diff_1k.jpg) troca pela versão pintada
@@ -114,7 +116,7 @@ export function botaoEstilo(menu) {
   b.textContent = anime ? 'Estilo: pintado' : 'Estilo: realista';
   b.onclick = () => {
     const novo = anime ? 'atual' : 'anime';
-    try { localStorage.setItem('estilo', novo); } catch { /* sem armazenamento: vale a URL */ }
+    try { localStorage.setItem(CHAVE, novo); } catch { /* sem armazenamento: vale a URL */ }
     const u = new URL(location.href); u.searchParams.set('estilo', novo); location.href = u.href;
   };
   menu.insertBefore(b, menu.firstChild);
