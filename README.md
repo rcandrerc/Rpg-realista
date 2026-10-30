@@ -42,6 +42,7 @@ No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita
 | Pular (no ar, de novo: mortal) | botão Pular | Espaço |
 | Dash | botão Dash | E |
 | Rolar no chão | botão Rolar | Q |
+| Escalar (pedra baixa sobe sozinho; rocha alta: andar contra ela agarra, frente sobe, trás desce, lados andam pela parede; Pular solta; Dash ou correr contra ela corre pela parede) | joystick | WASD |
 | Escolher habilidades | botão Habilidades | botão Habilidades |
 | Câmera (girar, olhar para cima e para baixo, zoom) | arrastar a tela; dois dedos para o zoom | arrastar, roda do mouse |
 
@@ -71,11 +72,11 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | --- | --- | --- |
 | Heróis anime (Ruiva e 7 amostras VRoid) e a horda Bando Sombrio (Amostra M e Fumiriya, só inimigos) | VRoid Hub (Ruiva, de 水銀メイド, ©2026MercuryMaid, licença VRM 1.0 com uso comercial; crédito não obrigatório) e amostras VRoid CC0, repositório New-Game-Anime-fontes | VRM 1.0 / CC0 |
 | Soldado realista (opção do herói e NPCs) | Mixamo, via exemplos do Three.js | Mixamo |
-| Animações de combate e movimento (combo de espada, estocada, cortes, magias, pulo, mortal, pouso) | Mixamo, repositório New-Game-Anime-fontes | Mixamo (uso no jogo liberado) |
+| Animações de combate e movimento (combo de espada, estocada, cortes, magias, pulo, mortal, pouso) e as 14 de escalada (subir pedra, parede, escada, correr na parede, ficar pendurado) | Mixamo, repositório New-Game-Anime-fontes | Mixamo (uso no jogo liberado) |
 | Efeitos de magia (círculo com pentagrama, fogo, fumaça, rastros) | desenhados no código, receita do jogo de hábitos (New-Game-Anime) | próprio |
-| Céu, chão, pedras, samambaias, caixotes | Poly Haven | CC0 |
+| Céu, chão, pedras, samambaias, caixotes, a rocha escalável (Namaqualand Boulder 04) e a madeira da escada (weathered_brown_planks) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
 
-As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (33 animações, 880 KB). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.
+As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.
 
 O jogador escolhe o herói no botão **Personagem** (fica guardado no aparelho). Os avatares VRoid AvatarSample A, B e C não entram no jogo. Para trocar ou adicionar, veja `ferramentas/assar-animacoes`.
