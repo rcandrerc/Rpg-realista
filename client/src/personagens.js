@@ -349,6 +349,73 @@ function tingirVRM(vrm, id, tinta) {
   });
 }
 
+// ---------- formato do rosto (criador): olhos, nariz e boca maiores ou menores ----------
+// O VRoid não traz esse ajuste. Aqui ele vira um morph a mais na malha do rosto: cada parte cresce a partir do seu centro
+// e a pele em volta acompanha, cada vez menos com a distância. Influência = tamanho - 1 (negativa diminui).
+const ROSTO = ['olhosT', 'narizT', 'bocaT'];
+const nomeMat = (o) => (Array.isArray(o.material) ? o.material[0] : o.material).name; // pele vem com contorno: [material, contorno]
+const suave = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function formarRosto(vrm) {
+  const malhas = [];
+  vrm.scene.traverse((o) => { if (o.isMesh && o.geometry.morphAttributes.position && /Face|Eye/.test(nomeMat(o))) malhas.push(o); });
+  const de = (re) => malhas.filter((m) => re.test(nomeMat(m)));
+  const pontos = (lista, filtro = () => true) => {
+    const r = [];
+    for (const m of lista) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const v = new THREE.Vector3().fromBufferAttribute(p, i); if (filtro(v)) r.push(v); } }
+    return r;
+  };
+  const media = (l) => l.reduce((a, v) => a.add(v), new THREE.Vector3()).divideScalar(Math.max(1, l.length));
+  const olho = /EyeWhite|EyeIris|EyeHighlight|EyeExtra|FaceEyeline|FaceEyelash/, boca = /FaceMouth/;
+  const brancos = pontos(de(/EyeWhite/)), pele = pontos(de(/_SKIN/));
+  if (!malhas.length || brancos.length < 6 || !pele.length) return null;
+  const lados = [media(brancos.filter((v) => v.x > 0)), media(brancos.filter((v) => v.x <= 0))];
+  const frente = vrm.meta?.metaVersion === '0' ? -1 : 1, sep = lados[0].distanceTo(lados[1]); // VRM antigo olha para -Z na malha
+  const raioOlho = (c) => Math.max(...brancos.filter((v) => Math.sign(v.x) === Math.sign(c.x)).map((v) => Math.hypot(v.x - c.x, v.y - c.y)));
+  const bocaPts = pontos(de(boca)), caixa = new THREE.Box3().setFromPoints(bocaPts.length ? bocaPts : [new THREE.Vector3()]);
+  const cBoca = caixa.getCenter(new THREE.Vector3()), rBoca = Math.max(sep * 0.12, (caixa.max.x - caixa.min.x) / 2);
+  // nariz: o ponto mais à frente da pele no meio do rosto, entre os olhos e a boca
+  const yOlho = (lados[0].y + lados[1].y) / 2, yNariz = yOlho + (cBoca.y - yOlho) * 0.62;
+  const meio = pele.filter((v) => Math.abs(v.x) < sep * 0.12 && Math.abs(v.y - yNariz) < Math.abs(cBoca.y - yOlho) * 0.3);
+  const ponta = meio.reduce((a, v) => (!a || v.z * frente > a.z * frente ? v : a), null);
+  const rNariz = sep * 0.3, cNariz = ponta ? ponta.clone().setZ(ponta.z - frente * rNariz * 0.5) : null;
+  // [centro, raio cheio, raio até sumir, só no plano do rosto?, quem sempre vai junto]
+  const partes = {
+    olhosT: lados.map((c) => { const r = raioOlho(c); return [c, r, r * 1.6, true, olho]; }),
+    narizT: cNariz ? [[cNariz, rNariz * 0.45, rNariz, false, null]] : [],
+    bocaT: bocaPts.length ? [[cBoca, rBoca, rBoca * 1.8, true, boca]] : [],
+  };
+  const info = [];
+  for (const m of malhas) {
+    const g = m.geometry, p = g.attributes.position, idx = [];
+    for (const k of ROSTO) {
+      const d = new Float32Array(p.count * 3), v = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        // a parte mais perto (cada olho só mexe no seu lado)
+        const lista = partes[k].filter(([c]) => partes[k].length < 2 || Math.sign(c.x) === Math.sign(v.x || 1));
+        for (const [c, r0, r1, plano, junto] of lista) {
+          const w = junto?.test(nomeMat(m)) ? 1 : 1 - suave(r0, r1, v.distanceTo(c));
+          if (!w) continue;
+          d[i * 3] = (v.x - c.x) * w; d[i * 3 + 1] = (v.y - c.y) * w; d[i * 3 + 2] = plano ? 0 : (v.z - c.z) * w;
+        }
+      }
+      g.morphAttributes.position.push(new THREE.BufferAttribute(d, 3));
+      if (g.morphAttributes.normal) g.morphAttributes.normal.push(new THREE.BufferAttribute(new Float32Array(p.count * 3), 3));
+      m.morphTargetInfluences.push(0); idx.push(m.morphTargetInfluences.length - 1);
+      m.morphTargetDictionary[k] = idx[idx.length - 1];
+    }
+    info.push({ m, idx });
+  }
+  return info;
+}
+const rostos = new WeakMap(); // vrm -> morphs do rosto já montados
+// só monta o morph quando o rosto foi mexido (NPCs e inimigos ficam como vieram)
+function aplicarRosto(vrm, aparencia) {
+  const vals = ROSTO.map((k) => (aparencia?.[k] ?? 1) - 1);
+  if (!rostos.has(vrm)) { if (vals.every((x) => !x)) return; rostos.set(vrm, formarRosto(vrm) || []); }
+  for (const { m, idx } of rostos.get(vrm)) idx.forEach((i, j) => { m.morphTargetInfluences[i] = vals[j]; });
+}
+
 const eixo = (x, y, z, ang) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(x, y, z), ang);
 // Posição das armas no VRM, em relação ao corpo em pose T (olhando para +Z).
 // O braço ao descer gira em torno de Z, então o que aponta para +Z continua para a frente.
@@ -427,7 +494,7 @@ export class Corpo {
   }
   montarVRM(vrm, armas) {
     if (this.removido) { VRMUtils.deepDispose(vrm.scene); return; }
-    if (this.tinta) tingirVRM(vrm, this.visual, this.tinta);
+    if (this.tinta) { tingirVRM(vrm, this.visual, this.tinta); aplicarRosto(vrm, this.tinta); }
     this.vrm = vrm;
     this.inclina.add(vrm.scene);
     this.maosOssos = [vrm.humanoid.getRawBoneNode('rightHand'), vrm.humanoid.getRawBoneNode('leftHand')];
@@ -484,7 +551,7 @@ export class Corpo {
   repintar(aparencia) {
     this.tinta = aparencia || {};
     this.root.scale.setScalar(this.escalaBase * (aparencia?.altura || 1));
-    if (this.vrm) tingirVRM(this.vrm, this.visual, this.tinta);
+    if (this.vrm) { tingirVRM(this.vrm, this.visual, this.tinta); aplicarRosto(this.vrm, this.tinta); }
   }
   // Recebe o estado vindo da simulação
   aplicar(e) {
@@ -520,6 +587,10 @@ export class Corpo {
   lamina() {
     const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA || this.modo === 'Magia') return null; // nas costas não deixa rastro
     return [e.localToWorld(LAMINA.base.clone()), e.localToWorld(LAMINA.ponta.clone())];
+  }
+  // criador aberto: guarda as armas (a câmera chega perto do rosto)
+  mostrarArmas(v) {
+    for (const a of [...(this.armas.espada || []), this.cajado]) if (a) a.visible = v;
   }
   remover() {
     this.removido = true; this.scene.remove(this.root);
