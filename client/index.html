@@ -118,8 +118,8 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 #hab .close:disabled{opacity:.45}
 #hab .sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
  #criar{position:fixed;inset:0;z-index:15;pointer-events:none}
-body.criando .acts,body.criando .pad,body.criando #padZona,body.criando .menu,body.criando .net,body.criando #toast,body.criando .tag3d{display:none}
-#criar .cp{pointer-events:auto;position:absolute;top:0;right:0;bottom:0;width:min(440px,54vw);background:rgba(14,12,9,.9);border-left:1px solid var(--line);overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 14px) max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 14px) 16px;display:grid;gap:10px;align-content:start;touch-action:pan-y}
+body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,body.criando .menu,body.criando .net,body.criando #toast,body.criando .tag3d{display:none}
+#criar .cp{pointer-events:auto;position:absolute;top:0;right:0;bottom:0;width:min(440px,54vw);background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 14px) max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 14px) 16px;display:grid;gap:10px;align-content:start;touch-action:pan-y}
 #criar h2{font-family:var(--display);color:var(--gold);margin:0;font-size:1.25rem}
 #criar .crow{display:grid;gap:5px}
 #criar .crow>b{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -128,13 +128,13 @@ body.criando .acts,body.criando .pad,body.criando #padZona,body.criando .menu,bo
 #criar .bases img{width:56px;height:56px;object-fit:cover;border-radius:4px}
 #criar .bases button.on,#criar .cores button.on{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
 #criar .cores{display:flex;flex-wrap:wrap;gap:7px}
-#criar .cores button{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.25);padding:0}
-#criar .cores button.orig{background:repeating-linear-gradient(45deg,#3a352c 0 4px,#24201a 4px 8px);color:var(--ink);font-size:.55rem}
+#criar .cores button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);padding:0}
+#criar .cores button.orig{background:var(--panel);color:var(--muted);font-size:.55rem}
 #criar input[type=range]{width:100%;accent-color:var(--gold)}
 #criar .muted{color:var(--muted);font-size:.72rem;margin:0}
 #criar .cbot{display:flex;gap:8px}
 #criar .cbot button{flex:1;border-radius:6px;padding:10px;font:700 .9rem var(--body);border:1px solid var(--gold);background:transparent;color:var(--gold)}
-#criar .cbot .ok{background:var(--gold);color:#14120e}
+#criar .cbot .ok{background:var(--gold);color:var(--panel)}
 </style>
 </head>
 <body>
