@@ -1,5 +1,6 @@
 // Interface na tela: barras, botões de habilidade, escolha da build, nomes sobre as cabeças, números de dano
 import * as THREE from 'three';
+import { icone } from './icones.js';
 import { ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, ESPACOS_ESPADA, ESPACOS_MAGIA, HEROI, MOVIMENTO } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
@@ -18,7 +19,7 @@ export class Hud {
     $('infoBtn').addEventListener('click', () => { $('sheet').hidden = false; });
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     $('style').textContent = ARMA.nome;
-    document.querySelector('#b9 .lbl').textContent = CURA.nome;
+    this.simbolo('b9', 'cura', CURA.nome);
     this.mostrarBuild(this.build);
   }
   // Botão na tela -> comando da simulação: 0 = golpe (ou 10 = disparo), 1 a 4 = espada (ou 5 a 8 = magia)
@@ -28,10 +29,12 @@ export class Hud {
   mostrarBuild(build) {
     this.build = build; const m = this.modo === 'Magia';
     document.querySelector('.acts').classList.toggle('magia', m);
-    document.querySelector('#b0 .lbl').textContent = m ? BASICO_MAGIA.nome : BASICO.nome;
-    document.querySelector('#bt .lbl').textContent = m ? '⇄ Espada' : '⇄ Magia';
-    for (let i = 1; i <= 4; i++) { const k = build[this.indice(i) - 1]; document.querySelector(`#b${i} .lbl`).textContent = HABILIDADES[k].nome; $('b' + i).dataset.tipo = HABILIDADES[k].tipo; }
+    this.simbolo('b0', m ? 'magia' : 'basico', m ? BASICO_MAGIA.nome : BASICO.nome);
+    this.simbolo('bt', 'troca', m ? 'Trocar para espada' : 'Trocar para magia');
+    for (let i = 1; i <= 4; i++) { const k = build[this.indice(i) - 1]; this.simbolo('b' + i, k, HABILIDADES[k].nome); $('b' + i).dataset.tipo = HABILIDADES[k].tipo; }
   }
+  // Nos botões só o símbolo; o nome fica para leitor de tela e para o dedo parado em cima (title)
+  simbolo(id, k, nome) { const b = $(id); b.querySelector('.lbl').innerHTML = icone(k); b.setAttribute('aria-label', nome); b.title = nome; }
   // Painel da build: toque para pôr ou tirar. 4 de espada (modo espada) e 4 de magia (modo magia), na ordem da escolha
   montarEscolhaHabilidades(atual, aoSalvar) {
     const grade = $('hgrid'); let escolha = [...atual];
@@ -39,24 +42,33 @@ export class Hud {
     const desenhar = () => {
       const o = ordem();
       grade.querySelectorAll('button').forEach((b) => {
-        const n = o.indexOf(b.dataset.k); b.classList.toggle('on', n >= 0); b.querySelector('.n').textContent = n >= 0 ? n + 1 : '';
+        const n = o.indexOf(b.dataset.k); b.classList.toggle('on', n >= 0); b.querySelector('.n').textContent = n >= 0 ? (n % ESPACOS_ESPADA) + 1 : '';
       });
       const ne = escolha.filter((k) => HABILIDADES[k].tipo === 'Espada').length, nm = escolha.length - ne;
       $('salvarHab').disabled = ne !== ESPACOS_ESPADA || nm !== ESPACOS_MAGIA;
       $('habConta').textContent = `Espada ${ne} de ${ESPACOS_ESPADA} · Magia ${nm} de ${ESPACOS_MAGIA}`;
     };
-    for (const [k, h] of Object.entries(HABILIDADES)) {
-      const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
-      b.innerHTML = '<span class="n"></span><small></small><b></b><span class="d"></span>';
-      b.querySelector('small').textContent = h.tipo + (h.mana ? ` · ${h.mana} de mana` : '') + ` · ${h.cd} s`;
-      b.querySelector('b').textContent = h.nome; b.querySelector('.d').textContent = h.desc;
-      b.addEventListener('click', () => {
-        const n = escolha.indexOf(k), mesmos = escolha.filter((x) => HABILIDADES[x].tipo === h.tipo);
-        const max = h.tipo === 'Espada' ? ESPACOS_ESPADA : ESPACOS_MAGIA;
-        if (n >= 0) escolha.splice(n, 1); else if (mesmos.length < max) escolha.push(k); else escolha[escolha.indexOf(mesmos[max - 1])] = k; // cheio: troca a última do mesmo tipo
-        desenhar();
-      });
-      grade.appendChild(b);
+    // duas listas separadas: golpes de espada e magias
+    grade.className = '';
+    for (const tipo of ['Espada', 'Magia']) {
+      const tit = document.createElement('h3'); tit.className = 'htit ' + tipo.toLowerCase();
+      tit.textContent = tipo === 'Espada' ? `Golpes de espada (escolha ${ESPACOS_ESPADA})` : `Magias (escolha ${ESPACOS_MAGIA})`;
+      const lista = document.createElement('div'); lista.className = 'hgrid';
+      grade.append(tit, lista);
+      for (const [k, h] of Object.entries(HABILIDADES)) {
+        if (h.tipo !== tipo) continue;
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k; b.dataset.tipo = tipo;
+        b.innerHTML = `<span class="n"></span><span class="ic">${icone(k)}</span><b></b><small></small><span class="d"></span>`;
+        b.querySelector('small').textContent = (h.mana ? `${h.mana} de mana · ` : 'sem mana · ') + `recarga ${h.cd} s`;
+        b.querySelector('b').textContent = h.nome; b.querySelector('.d').textContent = h.desc;
+        b.addEventListener('click', () => {
+          const n = escolha.indexOf(k), mesmos = escolha.filter((x) => HABILIDADES[x].tipo === h.tipo);
+          const max = h.tipo === 'Espada' ? ESPACOS_ESPADA : ESPACOS_MAGIA;
+          if (n >= 0) escolha.splice(n, 1); else if (mesmos.length < max) escolha.push(k); else escolha[escolha.indexOf(mesmos[max - 1])] = k; // cheio: troca a última do mesmo tipo
+          desenhar();
+        });
+        lista.appendChild(b);
+      }
     }
     $('habBtn').addEventListener('click', () => { escolha = [...this.build]; desenhar(); $('hab').hidden = false; });
     $('fecharHab').addEventListener('click', () => { $('hab').hidden = true; });
