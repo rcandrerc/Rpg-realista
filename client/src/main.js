@@ -65,7 +65,8 @@ function receber(foto, eventos) {
 }
 
 // ---------- comandos do jogador ----------
-const usar = (i) => rede?.enviar('habilidade', i);
+let ultimoBase = 0;
+const usar = (i) => { if (i === 0 || i === 10) ultimoBase = t; rede?.enviar('habilidade', i); }; // 0 golpe, 10 disparo
 const pular = () => rede?.enviar('pular');
 const dash = () => rede?.enviar('dash');
 const rolar = () => rede?.enviar('rolar');
@@ -121,6 +122,8 @@ function quadro() {
   const dt = Math.min(relogio.getDelta(), 0.05); t += dt;
   if (rede) {
     enviarEntrada(dt);
+    // golpe base segurado (botão ou tecla J): repete; o servidor guarda o próximo golpe enquanto o atual termina
+    if ((hud.segurando !== false || controles.teclas.KeyJ) && t - ultimoBase > 0.2) { ultimoBase = t; usar(hud.indice(0)); }
     rede.passo(dt);
     mundo.atualizar(t);
     for (const c of corpos.values()) c.corpo.atualizar(dt);

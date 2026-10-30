@@ -38,6 +38,8 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 .weapons button.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
 .weapons button.on small{color:var(--gold)}
 .pad{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);left:max(22px,env(safe-area-inset-left,0px));width:128px;height:128px;border-radius:50%;background:var(--panel);border:1px solid var(--line);touch-action:none}
+#padZona{position:fixed;left:0;bottom:0;width:44vw;height:72vh;touch-action:none}
+.pad{transition:opacity .15s;opacity:.55}.pad.ativo{opacity:1}
 .knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(239,231,214,.85)}
 .acts{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);right:max(16px,env(safe-area-inset-right,0px));width:360px;height:240px;pointer-events:none}
 .acts button{pointer-events:auto}
@@ -126,6 +128,7 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 <div class="menu"><button class="info" id="telaBtn" type="button">Tela cheia</button><button class="info" id="habBtn" type="button">Habilidades</button><button class="info" id="pickBtn" type="button">Personagem</button><button class="info" id="infoBtn" type="button">Esboço do jogo</button></div>
 <div class="net" id="net">Conectando…</div>
 <div id="toast"></div>
+<div id="padZona"></div>
 <div class="pad" id="pad"><div class="knob" id="knob"></div></div>
 <div class="acts">
   <button id="b0" type="button"><span class="cdv"></span><span class="lbl"></span></button>

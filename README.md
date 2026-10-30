@@ -37,8 +37,8 @@ No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita
 
 | Ação | Celular | PC |
 | --- | --- | --- |
-| Andar / correr | joystick (até o fim corre) | WASD, Shift corre |
-| Golpe (ou Disparo no modo magia), 4 habilidades, Trocar espada/magia e Cura | botões à direita | J; K, L, I, U; R; H |
+| Andar / correr | joystick: aparece onde o dedo encosta na metade esquerda (até o fim corre) | WASD, Shift corre |
+| Golpe (ou Disparo no modo magia; segurar repete), 4 habilidades, Trocar espada/magia e Cura | botões à direita | J; K, L, I, U; R; H |
 | Pular (no ar, de novo: mortal) | botão Pular | Espaço |
 | Dash | botão Dash | E |
 | Rolar no chão | botão Rolar | Q |

@@ -18,18 +18,33 @@ export class Controles {
     for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
     document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && ['sheet', 'pick', 'hab'].every((id) => document.getElementById(id).hidden)) e.preventDefault(); }, { passive: false });
 
-    const pad = document.getElementById('pad'), knob = document.getElementById('knob');
-    let id = null;
+    // joystick que aparece onde o dedo encosta (metade esquerda de baixo da tela); solto, volta para o canto
+    const pad = document.getElementById('pad'), knob = document.getElementById('knob'), zona = document.getElementById('padZona');
+    let id = null, cx = 0, cy = 0;
     const mv = (e) => {
-      const r = pad.getBoundingClientRect(), R = r.width / 2;
-      let x = e.clientX - r.left - R, y = e.clientY - r.top - R; const d = Math.hypot(x, y);
+      const R = pad.offsetWidth / 2;
+      let x = e.clientX - cx, y = e.clientY - cy; const d = Math.hypot(x, y);
       if (d > R) { x *= R / d; y *= R / d; }
       knob.style.transform = `translate(${x}px,${y}px)`; this.joy = { x: x / R, y: y / R };
     };
-    pad.addEventListener('pointerdown', (e) => { id = e.pointerId; pad.setPointerCapture(id); mv(e); });
-    pad.addEventListener('pointermove', (e) => { if (e.pointerId === id) mv(e); });
-    const fim = (e) => { if (e.pointerId !== id) return; id = null; this.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
-    pad.addEventListener('pointerup', fim); pad.addEventListener('pointercancel', fim);
+    const inicio = (e, flutua) => {
+      if (id !== null) return;
+      e.preventDefault(); id = e.pointerId; e.currentTarget.setPointerCapture(id);
+      const R = pad.offsetWidth / 2;
+      if (flutua) { // centro do joystick no dedo, sem sair da tela
+        cx = Math.min(innerWidth - R - 4, Math.max(R + 4, e.clientX)); cy = Math.min(innerHeight - R - 4, Math.max(R + 4, e.clientY));
+        Object.assign(pad.style, { left: `${cx - R}px`, top: `${cy - R}px`, bottom: 'auto' });
+      } else { const r = pad.getBoundingClientRect(); cx = r.left + R; cy = r.top + R; }
+      pad.classList.add('ativo'); mv(e);
+    };
+    zona.addEventListener('pointerdown', (e) => inicio(e, true));
+    pad.addEventListener('pointerdown', (e) => inicio(e, false));
+    for (const el of [zona, pad]) el.addEventListener('pointermove', (e) => { if (e.pointerId === id) mv(e); });
+    const fim = (e) => {
+      if (e.pointerId !== id) return; id = null; this.joy = { x: 0, y: 0 }; knob.style.transform = '';
+      pad.classList.remove('ativo'); pad.style.left = pad.style.top = pad.style.bottom = '';
+    };
+    for (const el of [zona, pad]) { el.addEventListener('pointerup', fim); el.addEventListener('pointercancel', fim); }
 
     // câmera: um dedo (ou o mouse) gira para os lados e para cima/baixo; dois dedos afastando/juntando dão zoom
     const toques = new Map(); let pinca = 0;
