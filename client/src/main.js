@@ -70,8 +70,10 @@ const pular = () => rede?.enviar('pular');
 const dash = () => rede?.enviar('dash');
 const rolar = () => rede?.enviar('rolar');
 controles.aoTeclar = (code) => {
-  if (code === 'KeyJ') usar(0); if (code === 'KeyK') usar(1); if (code === 'KeyL') usar(2); if (code === 'KeyI') usar(3);
-  if (code === 'KeyU') usar(4); if (code === 'KeyO') usar(5); if (code === 'KeyP') usar(6); if (code === 'KeyH') usar(7); if (code === 'KeyM') usar(8);
+  const tecla = { KeyJ: 0, KeyK: 1, KeyL: 2, KeyI: 3, KeyU: 4 };
+  if (code in tecla) usar(hud.indice(tecla[code]));
+  if (code === 'KeyH') usar(9);
+  if (code === 'KeyR' || code === 'Tab') hud.trocar();
   if (code === 'Space') pular();
   if (code === 'KeyE' || code === 'ShiftRight') dash();
   if (code === 'KeyQ') rolar();

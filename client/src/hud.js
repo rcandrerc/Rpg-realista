@@ -1,39 +1,49 @@
 // Interface na tela: barras, botões de habilidade, escolha da build, nomes sobre as cabeças, números de dano
 import * as THREE from 'three';
-import { ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, HEROI, MOVIMENTO } from '@rpg/shared';
+import { ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, ESPACOS_ESPADA, ESPACOS_MAGIA, HEROI, MOVIMENTO } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const v = new THREE.Vector3();
 
 export class Hud {
-  constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.build = [...BUILD_PADRAO]; }
+  constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.build = [...BUILD_PADRAO]; this.modo = 'Espada'; }
 
   montarBotoes({ usar, pular, dash, rolar }) {
-    [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(i); }));
+    [0, 1, 2, 3, 4].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(this.indice(i)); }));
+    $('b9').addEventListener('pointerdown', (e) => { e.preventDefault(); usar(9); });
+    $('bt').addEventListener('pointerdown', (e) => { e.preventDefault(); this.trocar(); });
     $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); dash(); });
     $('bp').addEventListener('pointerdown', (e) => { e.preventDefault(); pular(); });
     $('br').addEventListener('pointerdown', (e) => { e.preventDefault(); rolar(); });
     $('infoBtn').addEventListener('click', () => { $('sheet').hidden = false; });
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     $('style').textContent = ARMA.nome;
-    document.querySelector('#b0 .lbl').textContent = BASICO.nome;
-    document.querySelector('#b7 .lbl').textContent = CURA.nome;
-    document.querySelector('#b8 .lbl').textContent = BASICO_MAGIA.nome;
+    document.querySelector('#b9 .lbl').textContent = CURA.nome;
     this.mostrarBuild(this.build);
   }
+  // Botão na tela -> comando da simulação: 0 = golpe (ou 10 = disparo), 1 a 4 = espada (ou 5 a 8 = magia)
+  indice(i) { const m = this.modo === 'Magia'; return i === 0 ? (m ? 10 : 0) : m ? i + ESPACOS_ESPADA : i; }
+  // Troca espada <-> magia na hora, sem recarga
+  trocar() { this.modo = this.modo === 'Espada' ? 'Magia' : 'Espada'; this.mostrarBuild(this.build); }
   mostrarBuild(build) {
-    this.build = build;
-    build.forEach((k, i) => { document.querySelector(`#b${i + 1} .lbl`).textContent = HABILIDADES[k].nome; $('b' + (i + 1)).dataset.tipo = HABILIDADES[k].tipo; });
+    this.build = build; const m = this.modo === 'Magia';
+    document.querySelector('.acts').classList.toggle('magia', m);
+    document.querySelector('#b0 .lbl').textContent = m ? BASICO_MAGIA.nome : BASICO.nome;
+    document.querySelector('#bt .lbl').textContent = m ? '⇄ Espada' : '⇄ Magia';
+    for (let i = 1; i <= 4; i++) { const k = build[this.indice(i) - 1]; document.querySelector(`#b${i} .lbl`).textContent = HABILIDADES[k].nome; $('b' + i).dataset.tipo = HABILIDADES[k].tipo; }
   }
-  // Painel da build: toque para pôr ou tirar; a ordem da escolha é a ordem dos botões
+  // Painel da build: toque para pôr ou tirar. 4 de espada (modo espada) e 4 de magia (modo magia), na ordem da escolha
   montarEscolhaHabilidades(atual, aoSalvar) {
     const grade = $('hgrid'); let escolha = [...atual];
+    const ordem = () => [...escolha.filter((k) => HABILIDADES[k].tipo === 'Espada'), ...escolha.filter((k) => HABILIDADES[k].tipo === 'Magia')];
     const desenhar = () => {
+      const o = ordem();
       grade.querySelectorAll('button').forEach((b) => {
-        const n = escolha.indexOf(b.dataset.k); b.classList.toggle('on', n >= 0); b.querySelector('.n').textContent = n >= 0 ? n + 1 : '';
+        const n = o.indexOf(b.dataset.k); b.classList.toggle('on', n >= 0); b.querySelector('.n').textContent = n >= 0 ? n + 1 : '';
       });
-      $('salvarHab').disabled = escolha.length !== ESPACOS_BUILD;
-      $('habConta').textContent = `${escolha.length} de ${ESPACOS_BUILD} escolhidas`;
+      const ne = escolha.filter((k) => HABILIDADES[k].tipo === 'Espada').length, nm = escolha.length - ne;
+      $('salvarHab').disabled = ne !== ESPACOS_ESPADA || nm !== ESPACOS_MAGIA;
+      $('habConta').textContent = `Espada ${ne} de ${ESPACOS_ESPADA} · Magia ${nm} de ${ESPACOS_MAGIA}`;
     };
     for (const [k, h] of Object.entries(HABILIDADES)) {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
@@ -41,15 +51,16 @@ export class Hud {
       b.querySelector('small').textContent = h.tipo + (h.mana ? ` · ${h.mana} de mana` : '') + ` · ${h.cd} s`;
       b.querySelector('b').textContent = h.nome; b.querySelector('.d').textContent = h.desc;
       b.addEventListener('click', () => {
-        const n = escolha.indexOf(k);
-        if (n >= 0) escolha.splice(n, 1); else if (escolha.length < ESPACOS_BUILD) escolha.push(k); else { escolha[ESPACOS_BUILD - 1] = k; }
+        const n = escolha.indexOf(k), mesmos = escolha.filter((x) => HABILIDADES[x].tipo === h.tipo);
+        const max = h.tipo === 'Espada' ? ESPACOS_ESPADA : ESPACOS_MAGIA;
+        if (n >= 0) escolha.splice(n, 1); else if (mesmos.length < max) escolha.push(k); else escolha[escolha.indexOf(mesmos[max - 1])] = k; // cheio: troca a última do mesmo tipo
         desenhar();
       });
       grade.appendChild(b);
     }
     $('habBtn').addEventListener('click', () => { escolha = [...this.build]; desenhar(); $('hab').hidden = false; });
     $('fecharHab').addEventListener('click', () => { $('hab').hidden = true; });
-    $('salvarHab').addEventListener('click', () => { $('hab').hidden = true; aoSalvar([...escolha]); this.mostrarBuild([...escolha]); this.aviso('Build salva'); });
+    $('salvarHab').addEventListener('click', () => { $('hab').hidden = true; escolha = ordem(); aoSalvar([...escolha]); this.mostrarBuild([...escolha]); this.aviso('Build salva'); });
     desenhar();
   }
   montarEscolhaPersonagem(lista, atual, aoEscolher) {
@@ -94,7 +105,8 @@ export class Hud {
   }
   barras(vida, mana) { $('hpb').style.width = vida * 100 + '%'; $('mpb').style.width = mana * 100 + '%'; }
   recargas(eu) {
-    ['basico', ...this.build, 'cura', 'magia'].forEach((k, i) => {
+    [0, 1, 2, 3, 4, 9].forEach((i) => {
+      const n = i === 9 ? 9 : this.indice(i), k = n === 0 ? 'basico' : n === 9 ? 'cura' : n === 10 ? 'magia' : this.build[n - 1];
       const h = k === 'basico' ? BASICO : k === 'cura' ? CURA : k === 'magia' ? BASICO_MAGIA : HABILIDADES[k], resta = eu.cds[k] || 0;
       document.querySelector(`#b${i} .cdv`).style.transform = `scaleY(${h.cd ? Math.min(1, resta / h.cd) : 0})`;
     });

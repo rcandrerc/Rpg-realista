@@ -20,7 +20,7 @@ class SalaClareira extends Room {
   onCreate() {
     this.sim = new Simulacao(MAPA_CLAREIRA);
     this.onMessage('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
-    this.onMessage('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 8) this.sim.usarHabilidade(c.sessionId, i); });
+    this.onMessage('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.onMessage('build', (c, b) => this.sim.definirBuild(c.sessionId, b));
     this.onMessage('rolar', (c) => this.sim.rolar(c.sessionId));
     this.onMessage('pular', (c) => this.sim.pular(c.sessionId));

@@ -106,12 +106,14 @@ function cometa(estilo, tam, comp) {
 // Lâmina de energia do Corte Aéreo: meia-lua deitada, mais forte no meio
 const GEO_LUA = (() => { const g = new THREE.RingGeometry(0.62, 1, 40, 2, 0, Math.PI); g.rotateX(-Math.PI / 2); g.rotateY(Math.PI); return g; })();
 const MAT_LUA = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: ADD, side: THREE.DoubleSide, toneMapped: false,
-  uniforms: { t: TEMPO, c0: { value: new THREE.Color(0xffffff) }, c1: { value: new THREE.Color(0x2ec8ff) } },
+  uniforms: { t: TEMPO, op: { value: 1 }, c0: { value: new THREE.Color(0xffffff) }, c1: { value: new THREE.Color(0x2ec8ff) } },
   vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform float t; uniform vec3 c0; uniform vec3 c1; varying vec2 vP; ${RUIDO}
+  fragmentShader: `uniform float t; uniform float op; uniform vec3 c0; uniform vec3 c1; varying vec2 vP; ${RUIDO}
     void main(){ float r = length(vP), ang = atan(vP.y, vP.x); float meio = sin(clamp(ang, 0.0, 3.1416)); float borda = smoothstep(0.62, 0.9, r) * (1.0 - smoothstep(0.94, 1.0, r));
       float n = fbm(vec3(ang * 3.0, r * 6.0, t * 9.0)); float k = borda * pow(meio, 1.6) * (0.7 + n * 0.6);
-      gl_FragColor = vec4(mix(c1, c0, smoothstep(0.55, 1.0, k)), k); }` });
+      gl_FragColor = vec4(mix(c1, c0, smoothstep(0.55, 1.0, k)), k * op); }` });
+// cópia com cor e transparência próprias (o tempo continua o mesmo de todos)
+const matLua = (cor) => { const m = MAT_LUA.clone(); m.uniforms.t = TEMPO; m.uniforms.c1.value.set(cor); return m; };
 
 // Uma camada somando luz + uma por baixo, normal, para o desenho aparecer também no chão claro
 function circuloMalha(tex) {
@@ -196,7 +198,7 @@ export class Efeitos {
     // luzes fixas reaproveitadas (criar luz no meio do jogo faz o celular recompilar os materiais e engasgar)
     this.luzes = Array.from({ length: 4 }, () => { const l = new THREE.PointLight(0xffffff, 0, 8, 2); scene.add(l); return { l, dono: null, int: 0, vida: 0, max: 1 }; });
     this.rastros = new Map(); // id do corpo -> { dash: Faixa, lamina: Faixa }
-    this.meteoros = []; this.raios = []; this.agenda = [];
+    this.meteoros = []; this.raios = []; this.agenda = []; this.giros = [];
   }
 
   // ---------- partículas ----------
@@ -244,7 +246,13 @@ export class Efeitos {
       case 'campo': return this.campo(e);
       case 'chuva': return this.chuva(e);
       case 'conjura': { const c = corpos.get(e.id); if (c) this.conjura(c.corpo, e); return; }
-      case 'dash': { const c = corpos.get(e.id); if (c) this.trilhos(e.id).dashT = e.dur || 0.3; return; }
+      case 'dash': {
+        const c = corpos.get(e.id); if (!c) return;
+        const r = this.trilhos(e.id); r.dashT = e.dur || 0.3; r.forte = e.forte ? r.dashT : 0;
+        if (e.forte) { const p = c.corpo.root.position; this.fumacaChao(p.x, p.z, 0.8, 14, 0x9a948a, 1.4); this.surto(p.x, 0.3, p.z, 18, 0xffffff, 0x3aa8ff, 5, 0.1); }
+        return;
+      }
+      case 'impacto': return this.impacto(e);
       case 'fenda': return this.fenda(e);
       case 'raio': return this.raio(e);
       case 'vortice': return this.vortice(e);
@@ -287,7 +295,19 @@ export class Efeitos {
   explosao(e) {
     const cores = corDe(e.fx), [cb, cc] = cores;
     if (e.fx === 'vortice') { this.area(e.x, e.z, e.r, cores, 1.6); this.surto(e.x, 0.8, e.z, 50, 0xffffff, cc, 10, 0.14); return; }
-    if (e.fx === 'giro') { this.anel(e.x, e.z, e.r, cc, 0.4); this.surto(e.x, 0.9, e.z, 24, cb, cc, 7); return; }
+    if (e.fx === 'giro') { // Giro da Lâmina: três cortes de luz rodando em volta, disco no chão, faíscas e clarão
+      const R = e.r, g = new THREE.Group(), mats = [];
+      for (let j = 0; j < 3; j++) {
+        const m = matLua(0x8fd0ff); mats.push(m);
+        const l = new THREE.Mesh(GEO_LUA, m); l.scale.setScalar(R * 0.9); l.rotation.set(0.12 * (j - 1), j * 2.094, 0); l.frustumCulled = false; l.renderOrder = 4; g.add(l);
+      }
+      g.position.set(e.x, 0.9, e.z); this.scene.add(g); this.giros.push({ g, mats, t: 0, dur: 0.38, gira: 16, cresce: 0.25 });
+      this.anel(e.x, e.z, R, 0xeef4ff, 0.35); this.area(e.x, e.z, R * 0.95, [0xfff0c0, 0xffb84a], 0.5);
+      for (let i = 0; i < 24; i++) { const a = i / 24 * 6.283, v = rnd(5, 9); this.part(this.FOGO, e.x + Math.cos(a) * R * 0.5, 0.9, e.z + Math.sin(a) * R * 0.5, Math.cos(a) * v, rnd(0, 2), Math.sin(a) * v, 0.45, 0.09 * H, 0.01, i % 2 ? 0xffffff : 0xffe08a, 0x8fd0ff, 1, -3, 2); }
+      this.part(this.FOGO, e.x, 0.9, e.z, 0, 0, 0, 0.25, 1.2, 3.2, 0xffffff, 0xcfe9ff, 0.5);
+      this.luz(0xcfe9ff, 4, R * 3, 0.35).l.position.set(e.x, 1.2, e.z);
+      return;
+    }
     if (e.fx === 'onda') { // anel de gelo que corre para fora
       this.area(e.x, e.z, e.r, cores, 0.8);
       for (let i = 0; i < 80; i++) {
@@ -310,7 +330,7 @@ export class Efeitos {
       m = cometa('gelo', e.tam * 0.8, 2.2);
       const cristal = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xdff6ff, toneMapped: false }));
       cristal.scale.set(e.tam * 0.7, e.tam * 0.7, e.tam * 4.2); cristal.position.z = e.tam * 1.2; m.add(cristal); m.userData.cristal = cristal;
-    } else m = cometa(estilo, e.tam, estilo === 'arcano' ? 1.4 : 2.6 + e.tam * 4);
+    } else m = cometa(estilo, e.tam, estilo === 'arcano' ? 2.2 : 2.6 + e.tam * 4);
     m.position.set(e.x, e.y, e.z);
     const dir = new THREE.Vector3(e.dx, e.dy, e.dz);
     m.lookAt(m.position.clone().add(dir));
@@ -354,6 +374,15 @@ export class Efeitos {
       o.position.set(x + 2.5, 9, z + 1.2); o.lookAt(x, 0, z); o.visible = false; this.scene.add(o);
       this.meteoros.push({ o, de: o.position.clone(), para: new THREE.Vector3(x, 0, z), t: -(0.25 + k * 0.22 + n * 0.06) + 0.35, dur: 0.35, cb, cc });
     }
+  }
+  // Estocada da Investida acertando: corte de luz de pé no alvo, faíscas e clarão
+  impacto(e) {
+    const [cb, cc] = corDe(e.fx), m = matLua(cc), g = new THREE.Group(), l = new THREE.Mesh(GEO_LUA, m);
+    l.rotation.set(Math.PI / 2, 0, 0.5); l.scale.setScalar(1.2); l.frustumCulled = false; l.renderOrder = 4; g.add(l);
+    g.position.set(e.x, 1.05, e.z); g.rotation.y = e.ry; this.scene.add(g); this.giros.push({ g, mats: [m], t: 0, dur: 0.25, gira: 0, cresce: 1.2 });
+    this.surto(e.x, 1.1, e.z, 26, 0xffffff, cc, 8, 0.1); this.anel(e.x, e.z, 1.2, cc, 0.3);
+    for (let i = 0; i < 12; i++) this.part(this.FOGO, e.x, 1.1, e.z, Math.sin(e.ry) * rnd(6, 12) + rnd(-2, 2), rnd(-1, 2), Math.cos(e.ry) * rnd(6, 12) + rnd(-2, 2), 0.3, 0.07 * H, 0.01, 0xffffff, cb, 1, -2, 2);
+    this.luz(cb, 3.5, 6, 0.25).l.position.set(e.x, 1.2, e.z);
   }
   // Fenda de Fogo: explosões em fila, uma depois da outra, saindo da espada
   fenda(e) {
@@ -401,9 +430,14 @@ export class Efeitos {
   // chamado todo quadro para cada jogador
   corpo(id, corpo, info, dt) {
     const r = this.trilhos(id);
-    const dash = info?.anim === 'dash' || r.dashT > 0; r.dashT -= dt;
+    const dash = info?.anim === 'dash' || r.dashT > 0; r.dashT -= dt; r.forte = Math.max(0, (r.forte || 0) - dt);
     const p = corpo.root.position;
-    r.dash.passo(dt, dash ? [0.12, 0.31, 0.51, 0.7, 0.9].map((k) => new THREE.Vector3(p.x, p.y + H * k, p.z)) : null, PERFIL_DASH, 0.42);
+    r.dash.passo(dt, dash ? [0.12, 0.31, 0.51, 0.7, 0.9].map((k) => new THREE.Vector3(p.x, p.y + H * k, p.z)) : null, PERFIL_DASH, r.forte > 0 ? 0.75 : 0.42);
+    if (r.forte > 0) for (let k = 0; k < 4; k++) { // linhas de vento e faíscas ficando para trás
+      const y = p.y + rnd(0.2, 1.6);
+      this.part(this.FOGO, p.x + rnd(-0.3, 0.3), y, p.z + rnd(-0.3, 0.3), rnd(-0.3, 0.3), rnd(-0.2, 0.2), rnd(-0.3, 0.3), rnd(0.2, 0.35), 0.08 * H, 0.01, 0xffffff, 0x3aa8ff, 0.9, 0, 0);
+      if (k < 2) this.part(this.FUMA, p.x, p.y + 0.1, p.z, rnd(-1, 1), rnd(0.2, 0.8), rnd(-1, 1), 0.6, 0.2 * H, 0.5 * H, 0xb0a898, 0x6a6458, 0.35, 0.3, 1.5);
+    }
     const golpe = info?.acao?.lamina && corpo.lamina();
     r.lamina.passo(dt, golpe || null, PERFIL_LAMINA, 0.7);
   }
@@ -416,6 +450,12 @@ export class Efeitos {
       const r = this.raios[i]; r.t += dt; const u = r.t / r.dur;
       r.g.visible = u < 0.15 || Math.random() < 0.8; r.g.children.forEach((m, k) => { m.material.opacity = [0.35, 0.9, 1][k] * Math.max(0, 1 - u); });
       if (u >= 1) { this.scene.remove(r.g); r.g.children.forEach((m) => { m.geometry.dispose(); m.material.dispose(); }); this.raios.splice(i, 1); }
+    }
+    for (let i = this.giros.length - 1; i >= 0; i--) {
+      const q = this.giros[i]; q.t += dt; const u = q.t / q.dur;
+      q.g.rotation.y += q.gira * dt; q.g.scale.setScalar(1 + q.cresce * u);
+      q.mats.forEach((m) => { m.uniforms.op.value = Math.max(0, u < 0.2 ? u * 5 : 1 - (u - 0.2) / 0.8); });
+      if (u >= 1) { this.scene.remove(q.g); q.mats.forEach((m) => m.dispose()); this.giros.splice(i, 1); }
     }
     this.FOGO.mat.uniforms.esc.value = this.FUMA.mat.uniforms.esc.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
     // círculos de quem está conjurando
