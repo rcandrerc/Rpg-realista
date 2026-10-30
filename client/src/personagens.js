@@ -195,6 +195,49 @@ function clipesVRM(vrm) {
 
 const vrmLoader = new GLTFLoader();
 vrmLoader.register((p) => new VRMLoaderPlugin(p));
+// Cópias do mesmo personagem (uma horda inteira, os NPCs) reaproveitam as texturas da primeira: a imagem só é decodificada uma vez
+const texturasVRM = new Map(); // id -> [Texture por índice do glTF]
+let lendo = null; // id do VRM sendo lido agora (um de cada vez, ver fila)
+vrmLoader.register(() => ({ name: 'texturasRepetidas', loadTexture: (i) => { const t = texturasVRM.get(lendo)?.[i]; return t ? Promise.resolve(t) : null; } }));
+// No celular as texturas diminuem (o personagem ocupa pouco da tela): 1024 no herói, 512 nos outros. Cada VRM chega a ~150 MB
+// de textura em 2048 e o celular fechava a página ao carregar o herói, os NPCs e o bando juntos.
+const CELULAR = matchMedia('(pointer: coarse)').matches;
+let principal = null;
+const limiteTextura = (id) => (!CELULAR ? Infinity : id === principal ? 1024 : 512);
+async function encolher(tex, max) {
+  const img = tex.image;
+  if (!img || Math.max(img.width, img.height) <= max || typeof createImageBitmap !== 'function') return;
+  const k = max / Math.max(img.width, img.height);
+  try {
+    tex.image = await createImageBitmap(img, { resizeWidth: Math.round(img.width * k), resizeHeight: Math.round(img.height * k), resizeQuality: 'high', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    img.close?.(); tex.needsUpdate = true;
+  } catch { /* sem redimensionar: fica a original */ }
+}
+let fila = Promise.resolve();
+function lerVRM(id, buf) {
+  const vez = fila.then(async () => {
+    lendo = id;
+    const gltf = await new Promise((ok, nao) => vrmLoader.parse(buf.slice(0), '', ok, nao));
+    if (!texturasVRM.has(id)) {
+      const n = gltf.parser.json.textures?.length || 0, lista = [];
+      for (let i = 0; i < n; i++) { lista[i] = await gltf.parser.getDependency('texture', i); await encolher(lista[i], limiteTextura(id)); }
+      texturasVRM.set(id, lista);
+    }
+    return gltf;
+  });
+  fila = vez.catch(() => {});
+  return vez;
+}
+const baixarVRM = (id) => {
+  if (!cacheVRM.has(id)) cacheVRM.set(id, fetch(`assets/personagens/vrm/${id}.vrm`).then((r) => { if (!r.ok) throw new Error(`${id}.vrm: ${r.status}`); return r.arrayBuffer(); }));
+  return cacheVRM.get(id);
+};
+// O personagem do jogador entra na frente da fila (texturas maiores e é ele que a tela de carregamento espera)
+const adiantado = new Map(); // id -> gltf já lido, para o primeiro Corpo desse personagem
+export function aquecerVRM(id) {
+  principal = id;
+  if (!texturasVRM.has(id) && !adiantado.has(id)) adiantado.set(id, baixarVRM(id).then((buf) => lerVRM(id, buf)));
+}
 const cacheVRM = new Map(); // id -> ArrayBuffer (baixa uma vez, cada jogador ganha a sua cópia)
 const materiaisVRM = new Map(); // id -> { nome do material: material } (cópias do mesmo personagem dividem as texturas)
 // O cabelo do VRoid vem em dezenas de pedacinhos (um desenho cada). Junta os que têm o mesmo material
@@ -232,9 +275,8 @@ function juntarMalhas(raiz) {
 }
 
 async function carregarVRM(id) {
-  if (!cacheVRM.has(id)) cacheVRM.set(id, fetch(`assets/personagens/vrm/${id}.vrm`).then((r) => r.arrayBuffer()));
-  const buf = await cacheVRM.get(id);
-  const gltf = await new Promise((ok, nao) => vrmLoader.parse(buf.slice(0), '', ok, nao));
+  const pronto = adiantado.get(id); adiantado.delete(id); // só o primeiro Corpo usa o já lido
+  const gltf = pronto ? await pronto : await lerVRM(id, await baixarVRM(id));
   const vrm = gltf.userData.vrm;
   VRMUtils.removeUnnecessaryVertices(gltf.scene);
   VRMUtils.removeUnnecessaryJoints(gltf.scene);
@@ -244,7 +286,7 @@ async function carregarVRM(id) {
   if (!materiaisVRM.has(id)) materiaisVRM.set(id, {});
   const mats = materiaisVRM.get(id), trocar = (m) => {
     if (!mats[m.name]) { mats[m.name] = m; return m; }
-    if (mats[m.name] !== m) { for (const k in m) if (m[k]?.isTexture) m[k].dispose(); m.dispose(); }
+    if (mats[m.name] !== m) m.dispose(); // as texturas já são as mesmas (texturasRepetidas)
     return mats[m.name];
   };
   vrm.scene.traverse((o) => {
