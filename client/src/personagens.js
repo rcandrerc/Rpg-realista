@@ -9,6 +9,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
 import { carregarGLTF } from './cena.js';
 
+const ESCALANDO = new Set(ANIMS_ESCALADA);
 let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, LAMINA = null;
 
 export async function carregarPersonagens() {
@@ -18,7 +19,7 @@ export async function carregarPersonagens() {
     fetch('assets/personagens/anims.json.gz').then((r) => r.arrayBuffer()),
   ]);
   BASE = base;
-  ANIM_CRU = JSON.parse(strFromU8(gunzipSync(new Uint8Array(gz))));
+  ANIM_CRU = ajustarEscalada(JSON.parse(strFromU8(gunzipSync(new Uint8Array(gz)))));
   CLIPES = clipesSoldado(ANIM_CRU);
   for (const a of base.animations) CLIPES[a.name] = a;
   ESPADA = espada.scene;
@@ -101,6 +102,23 @@ function cortar(clip, t0, t1, nome) {
   });
   return new THREE.AnimationClip(nome, t1 - t0, trilhas);
 }
+// Escalada: quem leva o corpo pelo caminho é o jogo (ESCALADA[...].traj), então o quadril da animação não anda para os lados
+// nem para a frente (senão o corpo ia o dobro e pulava de volta no fim). As da escada vêm do Mixamo viradas de costas
+// (o boneco gira 180° e anda 1 m para o lado para pegar a escada): tira o giro e ela fica sempre de frente para a escada.
+function ajustarEscalada(cru) {
+  const tw = new THREE.Quaternion(), q = new THREE.Quaternion();
+  for (const nome of ANIMS_ESCALADA) {
+    for (const [n, , v] of cru[nome]?.t || []) {
+      if (/Hips\.position$/.test(n)) for (let i = 0; i < v.length; i += 3) { v[i] = 0; v[i + 2] = 0; }
+      if (/ladder/.test(nome) && /Hips\.quaternion$/.test(n)) for (let i = 0; i < v.length; i += 4) {
+        q.fromArray(v, i); tw.set(0, q.y, 0, q.w).normalize();
+        q.premultiply(tw.invert()).toArray(v, i);
+      }
+    }
+  }
+  return cru;
+}
+
 // Junta os pedaços (CORTES) e tira o sobe-desce do quadril das animações de pulo. vertical = índice da altura na posição do quadril
 function completar(clipes, vertical) {
   for (const [nome, [arq, ini, fim]] of Object.entries(CORTES)) if (clipes[arq]) clipes[nome] = cortar(clipes[arq], clipes[arq].duration * ini, clipes[arq].duration * fim, nome);
@@ -482,7 +500,8 @@ export class Corpo {
     this.modo = modo;
     const por = (obj, l) => { l.pai.add(obj); obj.position.copy(l.pos); obj.quaternion.copy(l.quat); obj.scale.setScalar(l.escala); };
     const P = this.armasPos, esp = this.armas.espada[0];
-    if (modo === 'Magia') { por(esp, P.espadaCostas); this.maoCajado.add(this.cajado); this.cajado.scale.setScalar(1 / this.maoCajado.getWorldScale(new THREE.Vector3()).x * this.root.scale.x); }
+    if (modo === 'Escalada') { por(esp, P.espadaCostas); por(this.cajado, P.cajadoCostas); } // escalando: as duas nas costas, mãos livres
+    else if (modo === 'Magia') { por(esp, P.espadaCostas); this.maoCajado.add(this.cajado); this.cajado.scale.setScalar(1 / this.maoCajado.getWorldScale(new THREE.Vector3()).x * this.root.scale.x); }
     else { por(esp, P.espadaMao); por(this.cajado, P.cajadoCostas); }
   }
   // cajado na mão: segue a mão, mas fica em pé (levemente inclinado para a frente), seja qual for a animação
@@ -558,7 +577,9 @@ export class Corpo {
     this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
-    if (e.modo) this.armar(e.modo);
+    const escalando = ESCALANDO.has(e.acao?.nome) || ESCALANDO.has(e.anim);
+    const modo = escalando ? 'Escalada' : e.modo || (this.modo === 'Escalada' ? 'Espada' : null);
+    if (modo) this.armar(modo);
     if (e.acao && e.acaoSeq !== this.seq) this.tocarUmaVez(e.acao);
     else if (!e.acao) this.tocarLaco(e.anim);
     this.seq = e.acaoSeq;
@@ -585,7 +606,7 @@ export class Corpo {
   maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
   // base e ponta da lâmina no mundo, se a espada estiver na mão
   lamina() {
-    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA || this.modo === 'Magia') return null; // nas costas não deixa rastro
+    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA || this.modo === 'Magia' || this.modo === 'Escalada') return null; // nas costas não deixa rastro
     return [e.localToWorld(LAMINA.base.clone()), e.localToWorld(LAMINA.ponta.clone())];
   }
   // criador aberto: guarda as armas (a câmera chega perto do rosto)
