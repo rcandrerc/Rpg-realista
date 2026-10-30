@@ -1,4 +1,4 @@
-// Joystick na tela, teclado e câmera (arrastar para girar, roda do mouse para aproximar)
+// Joystick na tela, teclado e câmera (arrastar para girar, roda do mouse ou dois dedos para o zoom)
 import * as THREE from 'three';
 
 export class Controles {
@@ -31,18 +31,29 @@ export class Controles {
     const fim = (e) => { if (e.pointerId !== id) return; id = null; this.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
     pad.addEventListener('pointerup', fim); pad.addEventListener('pointercancel', fim);
 
-    let cid = null, lx = 0, ly = 0;
-    canvas.addEventListener('pointerdown', (e) => { cid = e.pointerId; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(cid); });
-    canvas.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== cid) return;
-      this.yaw -= (e.clientX - lx) * 0.006;
-      this.pitch = Math.min(1.05, Math.max(0.05, this.pitch + (e.clientY - ly) * 0.004));
-      lx = e.clientX; ly = e.clientY;
+    // câmera: um dedo (ou o mouse) gira para os lados e para cima/baixo; dois dedos afastando/juntando dão zoom
+    const toques = new Map(); let pinca = 0;
+    const distPinca = () => { const [a, b] = [...toques.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId); toques.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (toques.size === 2) pinca = distPinca();
     });
-    canvas.addEventListener('pointerup', () => { cid = null; });
-    canvas.addEventListener('pointercancel', () => { cid = null; });
-    canvas.addEventListener('wheel', (e) => { this.dist = Math.min(9, Math.max(3, this.dist + e.deltaY * 0.004)); }, { passive: true });
+    canvas.addEventListener('pointermove', (e) => {
+      const t = toques.get(e.pointerId); if (!t) return;
+      const dx = e.clientX - t.x, dy = e.clientY - t.y; t.x = e.clientX; t.y = e.clientY;
+      if (toques.size >= 2) {
+        const d = distPinca(); if (pinca > 0 && d > 0) this.zoom(pinca / d); pinca = d;
+      } else {
+        this.yaw -= dx * 0.006;
+        this.pitch = Math.min(1.2, Math.max(-0.6, this.pitch + dy * 0.004));
+      }
+    });
+    const solta = (e) => { toques.delete(e.pointerId); pinca = toques.size === 2 ? distPinca() : 0; };
+    canvas.addEventListener('pointerup', solta);
+    canvas.addEventListener('pointercancel', solta);
+    canvas.addEventListener('wheel', (e) => { this.zoom(Math.exp(e.deltaY * 0.001)); }, { passive: true });
   }
+  zoom(fator) { this.dist = Math.min(14, Math.max(2, this.dist * fator)); }
   // Direção de movimento no mundo, relativa à câmera
   direcao() {
     let ix = this.joy.x, iy = this.joy.y; const k = this.teclas;
@@ -54,9 +65,11 @@ export class Controles {
     return v;
   }
   correndo() { return !!(this.teclas.ShiftLeft || this.teclas.ShiftRight || Math.hypot(this.joy.x, this.joy.y) > 0.9); }
+  // Abaixo da linha do ombro a câmera encosta no chão e passa a olhar para cima (dá para ver o céu)
   posicionarCamera(camera, alvo) {
     const c = Math.cos(this.pitch) * this.dist;
-    camera.position.set(alvo.x - Math.sin(this.yaw) * c, alvo.y + Math.sin(this.pitch) * this.dist, alvo.z - Math.cos(this.yaw) * c);
-    camera.lookAt(alvo);
+    const y = Math.max(0.3, alvo.y + Math.sin(this.pitch) * this.dist);
+    camera.position.set(alvo.x - Math.sin(this.yaw) * c, y, alvo.z - Math.cos(this.yaw) * c);
+    camera.lookAt(alvo.x, alvo.y + Math.max(0, -Math.sin(this.pitch)) * this.dist * 1.2, alvo.z);
   }
 }

@@ -1,6 +1,6 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
-import { A, DURACAO, ARMA, BASICO, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, CURA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -78,8 +78,8 @@ export class Simulacao {
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
     if (!j.chao || j.arrancada) return;
-    const chave = i === 0 ? 'basico' : j.build[i - 1];
-    let h = i === 0 ? BASICO : HABILIDADES[chave]; if (!h) return;
+    const chave = i === 0 ? 'basico' : i === 7 ? 'cura' : j.build[i - 1];
+    let h = i === 0 ? BASICO : i === 7 ? CURA : HABILIDADES[chave]; if (!h) return;
     if ((j.cds[chave] || 0) > this.tempo) return;
     if (h.mana && j.mana < h.mana) { this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' }); return; }
     j.mana -= h.mana || 0;
