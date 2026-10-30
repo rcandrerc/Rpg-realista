@@ -1,6 +1,6 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
-import { A, DURACAO, ARMAS, HEROI, TIPOS_INIMIGO } from './dados.js';
+import { A, DURACAO, ARMAS, HEROI, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -30,10 +30,11 @@ export class Simulacao {
     return { id: 'e' + this.proxId++, x: 0, z: 0, ry: 0, trava: 0, defesa: 0, morto: false, anim: 'Idle',
       acao: null, acaoSeq: 0, dash: null, ...extra };
   }
-  adicionarJogador(id, nome) {
+  adicionarJogador(id, nome, visual) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
-      vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, arma: 'espada', cds: {}, entrada: { mx: 0, mz: 0, correr: false } });
+      vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, arma: 'espada', cds: {}, entrada: { mx: 0, mz: 0, correr: false },
+      visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
     this.jogadores.set(id, j);
     return j;
   }
@@ -61,6 +62,10 @@ export class Simulacao {
     const m = Math.hypot(e.mx || 0, e.mz || 0);
     const k = m > 1 ? 1 / m : 1; // nunca mais rápido que o permitido
     j.entrada = { mx: (e.mx || 0) * k, mz: (e.mz || 0) * k, correr: !!e.correr };
+  }
+  trocarVisual(id, visual) {
+    const j = this.jogadores.get(id);
+    if (j && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
   }
   trocarArma(id, arma) {
     const j = this.jogadores.get(id); if (!j || !ARMAS[arma] || j.morto) return;
@@ -282,7 +287,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), arma: j.arma,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), arma: j.arma, visual: j.visual,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo })),
     };

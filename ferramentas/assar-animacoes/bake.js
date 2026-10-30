@@ -5,6 +5,6 @@ const srv=http.createServer((q,r)=>{const p=path.join(__dirname,decodeURICompone
   const files=fs.readdirSync(path.join(__dirname,'fbx')).map(f=>f.replace('.fbx',''));
   const out=await pg.evaluate(f=>bake(f),files);
   fs.writeFileSync(path.join(__dirname,'anims.json'),JSON.stringify(out));
-  for(const k in out)console.log(k,out[k].d,out[k].t.length);
+  for(const k in out)if(out[k].t)console.log(k,out[k].d,out[k].t.length);
   await b.close();srv.close();
 });

@@ -1,6 +1,6 @@
 // Ponto de entrada do cliente: monta a cena, conecta no servidor e desenha o que a simulação manda.
 import * as THREE from 'three';
-import { ARMAS, ORDEM_ARMAS, HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO } from '@rpg/shared';
+import { ARMAS, ORDEM_ARMAS, HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from '@rpg/shared';
 import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo } from './personagens.js';
 import { Efeitos } from './efeitos.js';
@@ -20,15 +20,18 @@ const hud = new Hud(camera);
 
 let mundo, efeitos, rede;
 const corpos = new Map(); // id -> { corpo, info }
+window.jogo = { controles, corpos }; // para testes no console do navegador
 let eu = null; // meu estado mais recente
 let ultimaArma = null;
 
 function corpoDe(e, tipo) {
   let c = corpos.get(e.id);
+  // jogador trocou de personagem: refaz o corpo
+  if (c && tipo === 'jogador' && c.visual !== e.visual) { c.corpo.remover(); c.corpo = new Corpo(mundo.scene, { armas: 'heroi', visual: e.visual }); c.visual = e.visual; }
   if (c) return c;
   if (tipo === 'jogador') {
     const meu = e.id === rede.meuId;
-    c = { corpo: new Corpo(mundo.scene, { cor: meu ? null : 0x9aa7b5, armas: 'heroi' }), tipo };
+    c = { corpo: new Corpo(mundo.scene, { armas: 'heroi', visual: e.visual }), tipo, visual: e.visual };
     if (!meu) c.tag = hud.etiqueta(e.nome, 'ally');
   } else {
     const t = TIPOS_INIMIGO[e.tipo];
@@ -77,6 +80,15 @@ controles.aoTeclar = (code) => {
   if (code === 'Tab' && eu) trocar(ORDEM_ARMAS[(ORDEM_ARMAS.indexOf(eu.arma) + 1) % ORDEM_ARMAS.length]);
 };
 hud.montarBotoes({ usar, rolar, trocar });
+
+// personagem escolhido fica guardado neste aparelho
+const lerEscolha = () => { try { return localStorage.getItem('personagem'); } catch { return null; } };
+let escolhido = lerEscolha();
+if (!PERSONAGENS.some((p) => p.id === escolhido)) escolhido = PERSONAGEM_PADRAO;
+hud.montarEscolhaPersonagem(PERSONAGENS, escolhido, (id) => {
+  try { localStorage.setItem('personagem', id); } catch { /* sem armazenamento: vale só nesta visita */ }
+  rede?.enviar('visual', id);
+});
 
 let ultimaEntrada = '', tempoEntrada = 0;
 function enviarEntrada(dt) {
@@ -135,9 +147,12 @@ function quadro() {
     }
     msg('Conectando ao servidor…');
     const nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
-    rede = await conectar(mapa, nome, receber, (t) => hud.rede(t));
+    rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t));
     hud.rede(rede.modo === 'online' ? 'Online' : 'Modo solo (sem servidor)');
     $('nome').textContent = nome;
+    msg('Carregando o seu personagem…');
+    // espera o próprio corpo ficar pronto (o personagem anime baixa uns 15 a 20 MB na primeira vez)
+    for (let i = 0; i < 600 && !corpos.get(rede.meuId)?.corpo.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     hud.montarEsboco();
     $('load').hidden = true;
     setTimeout(() => hud.aviso('Troque de arma no alto da tela'), 600);
