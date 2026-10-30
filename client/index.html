@@ -82,17 +82,17 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 .say{max-width:220px;white-space:normal;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-bottom:4px;font-size:.78rem;text-shadow:none}
 .dmg{position:fixed;left:0;top:0;pointer-events:none;font:700 1rem var(--body);color:#ffd08a;text-shadow:0 2px 4px #000;transform:translate(-50%,-50%)}
 .dmg.heal{color:#9be08f}
-#sheet,#pick,#hab{position:fixed;inset:0;background:rgba(10,9,7,.88);overflow:auto;z-index:15;padding-block:calc(env(safe-area-inset-top,0px) + 20px) calc(env(safe-area-inset-bottom,0px) + 24px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));touch-action:pan-y;user-select:text;-webkit-user-select:text}
-#sheet .in,#pick .in,#hab .in{max-width:760px;margin:0 auto;display:grid;gap:18px}
-#sheet h2,#pick h2,#hab h2{font-family:var(--display);color:var(--gold);margin:0;font-size:1.5rem;text-wrap:balance}
+#sheet,#hab{position:fixed;inset:0;background:rgba(10,9,7,.88);overflow:auto;z-index:15;padding-block:calc(env(safe-area-inset-top,0px) + 20px) calc(env(safe-area-inset-bottom,0px) + 24px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));touch-action:pan-y;user-select:text;-webkit-user-select:text}
+#sheet .in,#hab .in{max-width:760px;margin:0 auto;display:grid;gap:18px}
+#sheet h2,#hab h2{font-family:var(--display);color:var(--gold);margin:0;font-size:1.5rem;text-wrap:balance}
 #sheet h3{font-family:var(--display);margin:0 0 6px;font-size:1.05rem}
-#sheet p,#sheet li,#pick p,#hab p{color:var(--ink);line-height:1.5;max-width:65ch}
-#sheet .muted,#pick .muted,#hab .muted{color:var(--muted)}
+#sheet p,#sheet li,#hab p{color:var(--ink);line-height:1.5;max-width:65ch}
+#sheet .muted,#hab .muted{color:var(--muted)}
 #sheet .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 #sheet .card{border:1px solid var(--line);border-radius:6px;padding:12px;min-width:0}
 #sheet .card small{color:var(--gold);text-transform:uppercase;letter-spacing:.08em;font-weight:700;font-size:.7rem}
 #sheet ul{margin:0;padding-left:18px;display:grid;gap:4px}
-#sheet .close,#pick .close,#hab .close{justify-self:start;background:var(--gold);color:#14120e;border:0;border-radius:6px;padding:8px 16px;font:700 .9rem var(--body)}
+#sheet .close,#hab .close{justify-self:start;background:var(--gold);color:#14120e;border:0;border-radius:6px;padding:8px 16px;font:700 .9rem var(--body)}
 .help{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 6px);left:0;right:0;text-align:center;font-size:.74rem;color:var(--muted);pointer-events:none}
 @media (pointer:coarse),(max-width:760px){.help{display:none}}
 @media (max-width:420px){.weapons button{min-width:52px;padding:5px 6px}}
@@ -117,11 +117,24 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 #hab .linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 #hab .close:disabled{opacity:.45}
 #hab .sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
-.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
-.pgrid button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px;color:var(--ink);font:600 .8rem var(--body);display:grid;gap:6px;justify-items:center}
-.pgrid button.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
-.pgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#2a2620}
-.pgrid .sem{width:100%;aspect-ratio:1;border-radius:4px;background:#2a2620;display:grid;place-items:center;color:var(--muted);font-size:.7rem}
+ #criar{position:fixed;inset:0;z-index:15;pointer-events:none}
+body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,body.criando .menu,body.criando .net,body.criando #toast,body.criando .tag3d{display:none}
+#criar .cp{pointer-events:auto;position:absolute;top:0;right:0;bottom:0;width:min(440px,54vw);background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 14px) max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 14px) 16px;display:grid;gap:10px;align-content:start;touch-action:pan-y}
+#criar h2{font-family:var(--display);color:var(--gold);margin:0;font-size:1.25rem}
+#criar .crow{display:grid;gap:5px}
+#criar .crow>b{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#criar .bases{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+#criar .bases button{flex:0 0 64px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px;color:var(--ink);font:600 .62rem var(--body);display:grid;gap:3px;justify-items:center}
+#criar .bases img{width:56px;height:56px;object-fit:cover;border-radius:4px}
+#criar .bases button.on,#criar .cores button.on{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+#criar .cores{display:flex;flex-wrap:wrap;gap:7px}
+#criar .cores button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);padding:0}
+#criar .cores button.orig{background:var(--panel);color:var(--muted);font-size:.55rem}
+#criar input[type=range]{width:100%;accent-color:var(--gold)}
+#criar .muted{color:var(--muted);font-size:.72rem;margin:0}
+#criar .cbot{display:flex;gap:8px}
+#criar .cbot button{flex:1;border-radius:6px;padding:10px;font:700 .9rem var(--body);border:1px solid var(--gold);background:transparent;color:var(--gold)}
+#criar .cbot .ok{background:var(--gold);color:var(--panel)}
 </style>
 </head>
 <body>
@@ -168,12 +181,18 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
     <div class="linha"><button class="close" id="salvarHab" type="button">Salvar build</button><button class="close sec" id="fecharHab" type="button">Voltar sem salvar</button><span class="muted" id="habConta"></span></div>
   </div>
 </div>
-<div id="pick" hidden>
-  <div class="in">
-    <h2>Escolha o seu personagem</h2>
-    <p class="muted">Só muda a aparência: as armas e as habilidades são as mesmas. Os outros jogadores veem a sua escolha. Cada personagem anime baixa uns 15 a 20 MB na primeira vez.</p>
-    <div class="pgrid" id="pgrid"></div>
-    <button class="close" id="closePick" type="button">Voltar ao jogo</button>
+<div id="criar" hidden>
+  <div class="cp">
+    <h2>Crie o seu personagem</h2>
+    <div class="crow"><b>Corpo</b><div class="bases" id="cBases"></div></div>
+    <div class="crow"><b>Cabelo</b><div class="cores" data-k="cabelo"></div></div>
+    <div class="crow"><b>Olhos</b><div class="cores" data-k="olhos"></div></div>
+    <div class="crow"><b>Pele</b><div class="cores" data-k="pele"></div></div>
+    <div class="crow"><b>Roupa</b><div class="cores" data-k="roupa"></div></div>
+    <div class="crow"><b>Calça e saia</b><div class="cores" data-k="calca"></div></div>
+    <div class="crow"><b>Altura</b><input type="range" id="cAltura" min="0.92" max="1.08" step="0.01" value="1"></div>
+    <p class="muted" id="cNota">Os outros jogadores veem o seu personagem assim. Cada corpo baixa uns 15 a 20 MB na primeira vez.</p>
+    <div class="cbot"><button type="button" id="cSorte">Aleatório</button><button type="button" class="ok" id="cPronto">Pronto</button></div>
   </div>
 </div>
 <div id="sheet" hidden>

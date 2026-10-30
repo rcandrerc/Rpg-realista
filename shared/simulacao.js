@@ -1,7 +1,7 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, aparenciaValida, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -73,6 +73,10 @@ export class Simulacao {
   trocarVisual(id, visual) {
     const j = this.jogadores.get(id);
     if (j && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
+  }
+  // Cores e altura do criador de personagem (os outros jogadores veem igual)
+  definirAparencia(id, a) {
+    const j = this.jogadores.get(id); if (j) j.aparencia = aparenciaValida(a);
   }
   // Habilidades escolhidas pelo jogador para os botões (a build)
   definirBuild(id, build) {
@@ -577,7 +581,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual, modo: j.modo, missoes: j.missoes,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v })),
     };
