@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, BUILD_PADRAO, buildValida } from '@rpg/shared';
 import { criarRenderizador, montarCena } from './cena.js';
-import { carregarPersonagens, Corpo } from './personagens.js';
+import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
 import { entrarNaConta, sairDaConta } from './conta.js';
@@ -118,7 +118,7 @@ const lerAparencia = () => { try { return JSON.parse(localStorage.getItem('apare
 const primeiraVez = !lerEscolha() && !lerAparencia();
 const criador = new Criador(escolhido, lerAparencia(), (visual, aparencia) => {
   try { localStorage.setItem('personagem', visual); localStorage.setItem('aparencia', JSON.stringify(aparencia)); } catch { /* vale só nesta visita */ }
-  if (visual !== escolhido) { escolhido = visual; rede?.enviar('visual', visual); }
+  if (visual !== escolhido) { escolhido = visual; aquecerVRM(visual); rede?.enviar('visual', visual); }
   rede?.enviar('aparencia', aparencia);
 });
 hud.montarTelaCheia();
@@ -184,6 +184,7 @@ function quadro() {
     msg('Carregando o mundo…');
     mundo = await montarCena(renderer, mapa);
     msg('Carregando os personagens…');
+    aquecerVRM(escolhido); // o herói vai na frente dos NPCs e do bando
     await carregarPersonagens();
     efeitos = new Efeitos(mundo.scene);
     // NPCs da vila: chegue perto e toque em Falar (ou tecla F); o que cada um faz está em Simulacao.falar
