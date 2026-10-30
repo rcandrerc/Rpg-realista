@@ -79,7 +79,7 @@ export const ESCALADA = {
 export const PARADO_PAREDE = { agarrado: 'mx_hanging_by_hands_against_wall', beirada: 'mx_hanging_from_a_ledge_idle', balanca: 'mx_hanging_by_hands_gently_swaying' };
 // Todas as animações de escalada: o cliente tira delas o sobe-desce e o anda do quadril (quem move é o jogo)
 export const ANIMS_ESCALADA = [...Object.values(ESCALADA).map((e) => e.anim), ...Object.values(PARADO_PAREDE)];
-export const SUBIDA = { degrau: 0.45, mini: 1.95, empurrar: 0.18, maoAcima: 1.53 }; // m: sobe andando; mini escalada até; tempo empurrando; altura da beirada acima do corpo para subir no topo
+export const SUBIDA = { degrau: 0.45, mini: 1.95, empurrar: 0.18, maoAcima: 1.53, topo: 1.6 }; // m: sobe andando; mini escalada até; tempo empurrando; altura das mãos acima do corpo; topo: beirada no máximo isso acima do corpo para subir no topo (a animação sobe 1,29 m)
 
 // Uma arma só: a espada mágica. Corta e solta magia; o jogador monta a build escolhendo as habilidades.
 // "at" = fração da animação em que acerta; ts = velocidade da animação; "hits" = vários acertos na mesma animação;
