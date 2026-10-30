@@ -5,9 +5,10 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CORTES, SEM_ALTURA } from '@rpg/shared';
 import { carregarGLTF } from './cena.js';
 
-let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, ESCUDO = null;
+let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, ESCUDO = null, LAMINA = null;
 
 export async function carregarPersonagens() {
   const [base, espada, escudo, gz] = await Promise.all([
@@ -21,6 +22,11 @@ export async function carregarPersonagens() {
   CLIPES = clipesSoldado(ANIM_CRU);
   for (const a of base.animations) CLIPES[a.name] = a;
   ESPADA = espada.scene;
+  // base e ponta da lâmina (no espaço da espada), para o rastro do golpe: ao longo do lado mais comprido
+  const bb = new THREE.Box3().setFromObject(ESPADA), tam = bb.getSize(new THREE.Vector3()), eixoL = tam.x > tam.y ? (tam.x > tam.z ? 'x' : 'z') : (tam.y > tam.z ? 'y' : 'z');
+  const c = bb.getCenter(new THREE.Vector3()), ponta = c.clone(), cabo = c.clone(), longe = Math.abs(bb.max[eixoL]) > Math.abs(bb.min[eixoL]) ? 'max' : 'min';
+  ponta[eixoL] = bb[longe][eixoL]; cabo[eixoL] = c[eixoL] + (bb[longe][eixoL] - c[eixoL]) * -0.25;
+  LAMINA = { base: cabo, ponta };
   ESPADA.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshStandardMaterial({ color: 0xc9c2b4, metalness: 0.92, roughness: 0.28 }); o.castShadow = true; } });
   ESCUDO = escudo.scene;
   ESCUDO.traverse((o) => {
@@ -32,6 +38,29 @@ export async function carregarPersonagens() {
 }
 
 const trilha = (n, t, v) => (/quaternion$/.test(n) ? new THREE.QuaternionKeyframeTrack(n, t, v) : new THREE.VectorKeyframeTrack(n, t, v));
+
+// Recorta um pedaço da animação (de t0 a t1 segundos) e começa do zero
+function cortar(clip, t0, t1, nome) {
+  const trilhas = clip.tracks.map((tr) => {
+    const n = tr.getValueSize(), it = tr.createInterpolant(), tempos = [0], valores = [...it.evaluate(t0)];
+    for (let i = 0; i < tr.times.length; i++) {
+      if (tr.times[i] <= t0 + 1e-4 || tr.times[i] >= t1 - 1e-4) continue;
+      tempos.push(tr.times[i] - t0); for (let k = 0; k < n; k++) valores.push(tr.values[i * n + k]);
+    }
+    tempos.push(t1 - t0); valores.push(...it.evaluate(t1));
+    return new tr.constructor(tr.name, tempos, valores);
+  });
+  return new THREE.AnimationClip(nome, t1 - t0, trilhas);
+}
+// Junta os pedaços (CORTES) e tira o sobe-desce do quadril das animações de pulo. vertical = índice da altura na posição do quadril
+function completar(clipes, vertical) {
+  for (const [nome, [arq, ini, fim]] of Object.entries(CORTES)) if (clipes[arq]) clipes[nome] = cortar(clipes[arq], clipes[arq].duration * ini, clipes[arq].duration * fim, nome);
+  for (const nome of SEM_ALTURA) {
+    const tr = clipes[nome]?.tracks.find((x) => /\.position$/.test(x.name)); if (!tr) continue;
+    const y0 = tr.values[vertical]; for (let i = vertical; i < tr.values.length; i += 3) tr.values[i] = y0;
+  }
+  return clipes;
+}
 
 // O soldado é Z-para-cima e as animações do Mixamo são Y-para-cima: gira o quadril 90° em X.
 function clipesSoldado(cru) {
@@ -50,7 +79,7 @@ function clipesSoldado(cru) {
     });
     clipes[nome] = new THREE.AnimationClip(nome, cru[nome].d, trilhas);
   }
-  return clipes;
+  return completar(clipes, 2);
 }
 
 // ---------- VRoid (VRM) ----------
@@ -70,6 +99,8 @@ for (const lado of ['Left', 'Right']) {
 }
 // Nos personagens VRoid as animações básicas também vêm do Mixamo
 const LACO_VRM = { Idle: 'parada', Walk: 'andar', Run: 'corrida' };
+// Estados de movimento que tocam uma vez só (os outros repetem)
+const UMA_VEZ = new Set(['pulo', 'puloCorrendo', 'mortal', 'pouso']);
 
 // Converte as animações do esqueleto do Mixamo para o esqueleto normalizado do VRM
 function clipesVRM(vrm) {
@@ -100,7 +131,7 @@ function clipesVRM(vrm) {
     }
     clipes[nome] = new THREE.AnimationClip(nome, ANIM_CRU[nome].d, trilhas);
   }
-  return clipes;
+  return completar(clipes, 1);
 }
 
 const vrmLoader = new GLTFLoader();
@@ -159,6 +190,8 @@ export class Corpo {
     this.acoes = {}; this.atual = null; this.seq = -1; this.estado = null;
     this.alvo = new THREE.Vector3(); this.alvoRy = 0; this.primeira = true;
     this.armas = {}; this.piscar = 2 + Math.random() * 3;
+    this.inclina = new THREE.Group(); this.root.add(this.inclina); // o corpo inclina para a frente no dash
+    this.anim = null; this.maosOssos = [];
     scene.add(this.root);
     if (visual !== 'soldado') {
       carregarVRM(visual).then((vrm) => this.montarVRM(vrm, armas)).catch((e) => { console.error('VRM', visual, e); this.montarSoldado(cor, 'heroi'); });
@@ -172,9 +205,10 @@ export class Corpo {
       if (cor) { o.material = o.material.clone(); o.material.color.setHex(cor); }
       o.material.envMapIntensity = 0.8;
     });
-    this.root.add(corpo);
+    this.inclina.add(corpo);
     this.mixer = new THREE.AnimationMixer(corpo); this.clipes = CLIPES;
     const mao = corpo.getObjectByName('mixamorigRightHand'), maoE = corpo.getObjectByName('mixamorigLeftHand');
+    this.maosOssos = [mao, maoE];
     const por = (obj, osso, p, r, s) => { obj.position.set(...p); obj.rotation.set(...r); obj.scale.setScalar(s); osso.add(obj); return obj; };
     if (armas === 'heroi') {
       this.armas.espada = [por(ESPADA.clone(), mao, [0, 8, 3], [Math.PI / 2, 0, 0], 100), por(ESCUDO.clone(), maoE, [0, 6, -4], [0, Math.PI / 2, 0], 100)];
@@ -186,7 +220,8 @@ export class Corpo {
   montarVRM(vrm, armas) {
     if (this.removido) { VRMUtils.deepDispose(vrm.scene); return; }
     this.vrm = vrm;
-    this.root.add(vrm.scene);
+    this.inclina.add(vrm.scene);
+    this.maosOssos = [vrm.humanoid.getRawBoneNode('rightHand'), vrm.humanoid.getRawBoneNode('leftHand')];
     vrm.update(0); this.root.updateMatrixWorld(true);
     // as armas são presas na pose T, antes de qualquer animação
     const prender = (obj, cfg) => {
@@ -224,9 +259,13 @@ export class Corpo {
     return this.acoes[nome];
   }
   tocarLaco(nome, fade = 0.22) {
-    if (this.atual === nome) return;
+    let ts = 1;
+    if (nome === 'dash') { nome = 'Run'; ts = 1.9; fade = 0.05; } // dash: corrida acelerada com o corpo inclinado
+    if (UMA_VEZ.has(nome)) fade = 0.08;
+    if (this.atual === nome) { this.acao(nome)?.setEffectiveTimeScale(ts); return; }
     const a = this.acao(nome); if (!a) return;
-    a.reset().setLoop(THREE.LoopRepeat).setEffectiveTimeScale(1).fadeIn(fade).play();
+    a.reset().setLoop(UMA_VEZ.has(nome) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity).setEffectiveTimeScale(ts).fadeIn(fade).play();
+    a.clampWhenFinished = true;
     if (this.atual) this.acao(this.atual)?.fadeOut(fade);
     this.atual = nome;
   }
@@ -240,7 +279,7 @@ export class Corpo {
   mostrarArma(k) { this.armaVisivel = k; for (const g in this.armas) this.armas[g].forEach((o) => { o.visible = g === k; }); }
   // Recebe o estado vindo da simulação
   aplicar(e) {
-    this.alvo.set(e.x, 0, e.z); this.alvoRy = e.ry;
+    this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
     if (e.acao && e.acaoSeq !== this.seq) this.tocarUmaVez(e.acao);
@@ -250,6 +289,7 @@ export class Corpo {
   atualizar(dt) {
     const k = 1 - Math.exp(-dt * 14); // suaviza o movimento entre as fotos do servidor
     this.root.position.lerp(this.alvo, k);
+    this.inclina.rotation.x += ((this.anim === 'dash' ? 0.42 : 0) - this.inclina.rotation.x) * Math.min(1, dt * 18);
     const d = Math.atan2(Math.sin(this.alvoRy - this.root.rotation.y), Math.cos(this.alvoRy - this.root.rotation.y));
     this.root.rotation.y += d * k;
     this.mixer?.update(dt);
@@ -262,6 +302,13 @@ export class Corpo {
       this.vrm.update(dt);
     }
     const gema = this.armas.cajado?.[0].userData.gema; if (gema) gema.rotation.y += dt * 1.5;
+  }
+  // posição das mãos no mundo (para o brilho da magia)
+  maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
+  // base e ponta da lâmina no mundo, se a espada estiver na mão
+  lamina() {
+    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA) return null;
+    return [e.localToWorld(LAMINA.base.clone()), e.localToWorld(LAMINA.ponta.clone())];
   }
   remover() {
     this.removido = true; this.scene.remove(this.root);

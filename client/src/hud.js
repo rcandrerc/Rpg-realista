@@ -1,6 +1,6 @@
 // Interface na tela: barras, botões de arma e habilidade, nomes sobre as cabeças, números de dano
 import * as THREE from 'three';
-import { ARMAS, ORDEM_ARMAS, HEROI } from '@rpg/shared';
+import { ARMAS, ORDEM_ARMAS, MOVIMENTO } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const v = new THREE.Vector3();
@@ -8,7 +8,7 @@ const v = new THREE.Vector3();
 export class Hud {
   constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.arma = 'espada'; }
 
-  montarBotoes({ usar, rolar, trocar }) {
+  montarBotoes({ usar, pular, dash, trocar }) {
     const wb = $('weapons');
     ORDEM_ARMAS.forEach((k) => {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
@@ -16,7 +16,8 @@ export class Hud {
       b.addEventListener('click', () => trocar(k)); wb.appendChild(b);
     });
     [0, 1, 2, 3].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(i); }));
-    $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); rolar(); });
+    $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); dash(); });
+    $('bp').addEventListener('pointerdown', (e) => { e.preventDefault(); pular(); });
     $('infoBtn').addEventListener('click', () => { $('sheet').hidden = false; });
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     this.mostrarArma('espada');
@@ -55,7 +56,7 @@ export class Hud {
     const cards = $('skillCards');
     ORDEM_ARMAS.forEach((k) => {
       const w = ARMAS[k]; const c = document.createElement('div'); c.className = 'card';
-      c.innerHTML = `<small>${w.nome} = ${w.estilo}</small><h3>${w.desc}</h3><ul><li><b>${w.basico.nome}</b>: golpe básico, ${w.basico.dmg} de dano.</li>${
+      c.innerHTML = `<small>${w.nome} = ${w.estilo}</small><h3>${w.desc}</h3><ul><li><b>${w.basico.nome}</b>: ${w.basico.desc || `golpe básico, ${w.basico.dmg} de dano.`}</li>${
         w.habilidades.map((s) => `<li><b>${s.nome}</b>: ${s.desc} Recarga ${s.cd} s${s.mana ? `, ${s.mana} de mana` : ''}.</li>`).join('')}</ul>`;
       cards.appendChild(c);
     });
@@ -73,7 +74,7 @@ export class Hud {
       const resta = eu.cds[eu.arma + i] || 0;
       document.querySelector(`#b${i} .cdv`).style.transform = `scaleY(${s.cd ? Math.min(1, resta / s.cd) : 0})`;
     });
-    document.querySelector('#bd .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.rolar || 0) / HEROI.rolarCd)})`;
+    document.querySelector('#bd .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.dash || 0) / MOVIMENTO.dashCd)})`;
   }
   rede(texto) { $('net').textContent = texto; }
   aviso(t) { const el = $('toast'); el.textContent = t; el.style.opacity = 1; this.avisoT = 1.6; }

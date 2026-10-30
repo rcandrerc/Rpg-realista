@@ -58,7 +58,8 @@ function modoSolo(mapa, nome, visual, aoReceber) {
     entrada: (m) => sim.entrada('solo', m),
     habilidade: (i) => sim.usarHabilidade('solo', i),
     arma: (k) => sim.trocarArma('solo', k),
-    rolar: () => sim.rolar('solo'),
+    pular: () => sim.pular('solo'),
+    dash: () => sim.dash('solo'),
     visual: (v) => sim.trocarVisual('solo', v),
   };
   return {
