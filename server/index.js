@@ -23,6 +23,7 @@ class SalaClareira extends Room {
     this.onMessage('habilidade', (c, i) => { if ([0, 1, 2, 3].includes(i)) this.sim.usarHabilidade(c.sessionId, i); });
     this.onMessage('arma', (c, k) => { if (ORDEM_ARMAS.includes(k)) this.sim.trocarArma(c.sessionId, k); });
     this.onMessage('rolar', (c) => this.sim.rolar(c.sessionId));
+    this.onMessage('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v)));
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
   }
 
@@ -38,7 +39,7 @@ class SalaClareira extends Room {
 
   onJoin(client, opcoes) {
     const nome = String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
-    this.sim.adicionarJogador(client.sessionId, nome);
+    this.sim.adicionarJogador(client.sessionId, nome, opcoes?.visual);
   }
 
   async onLeave(client, consentiu) {

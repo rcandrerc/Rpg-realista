@@ -18,16 +18,16 @@ function enderecoServidor() {
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const comPrazo = (p, ms) => Promise.race([p, new Promise((_, nao) => setTimeout(() => nao(new Error('sem resposta')), ms))]);
 
-export async function conectar(mapa, nome, aoReceber, aoMudarStatus = () => {}) {
+export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}) {
   const endereco = enderecoServidor();
-  if (!endereco) return modoSolo(mapa, nome, aoReceber);
+  if (!endereco) return modoSolo(mapa, nome, visual, aoReceber);
   const cliente = new Client(endereco);
   let sala;
   try {
-    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome }), 4000);
+    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual }), 4000);
   } catch (e) {
     console.warn('Servidor indisponível, jogando no modo solo:', e.message);
-    return modoSolo(mapa, nome, aoReceber);
+    return modoSolo(mapa, nome, visual, aoReceber);
   }
   const rede = { modo: 'online', meuId: sala.sessionId, passo: () => {} };
   rede.enviar = (tipo, msg) => { if (sala.connection.isOpen) sala.send(tipo, msg); };
@@ -51,14 +51,15 @@ export async function conectar(mapa, nome, aoReceber, aoMudarStatus = () => {}) 
   return rede;
 }
 
-function modoSolo(mapa, nome, aoReceber) {
+function modoSolo(mapa, nome, visual, aoReceber) {
   const sim = new Simulacao(mapa);
-  sim.adicionarJogador('solo', nome);
+  sim.adicionarJogador('solo', nome, visual);
   const cmd = {
     entrada: (m) => sim.entrada('solo', m),
     habilidade: (i) => sim.usarHabilidade('solo', i),
     arma: (k) => sim.trocarArma('solo', k),
     rolar: () => sim.rolar('solo'),
+    visual: (v) => sim.trocarVisual('solo', v),
   };
   return {
     modo: 'solo', meuId: 'solo',

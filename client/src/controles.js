@@ -8,7 +8,7 @@ export class Controles {
     this.aoTeclar = null;
     addEventListener('keydown', (e) => {
       this.teclas[e.code] = true;
-      if (!document.getElementById('sheet').hidden) return;
+      if (!document.getElementById('sheet').hidden || !document.getElementById('pick').hidden) return;
       if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.aoTeclar?.(e.code);
     });

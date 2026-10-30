@@ -22,6 +22,13 @@ window.bake=async function(files){
     }
     out[f]={d:Math.round(c.duration*1000)/1000,t:tr};
   }
+  // pose de descanso do esqueleto do Mixamo: necessária para passar as animações para o VRM
+  const g=L.parse(await (await fetch('fbx/'+files[0]+'.fbx')).arrayBuffer(),'');g.updateMatrixWorld(true);
+  const rest={};const q=new THREE.Quaternion();
+  g.traverse(o=>{if(!o.isBone)return;const inv=o.getWorldQuaternion(new THREE.Quaternion()).invert();const pw=o.parent.getWorldQuaternion(new THREE.Quaternion());
+    rest[o.name]=[...inv.toArray().map(v=>Math.round(v*1e5)/1e5),...pw.toArray().map(v=>Math.round(v*1e5)/1e5)]});
+  const hips=g.getObjectByName('mixamorigHips');
+  out._rest={ossos:rest,alturaQuadril:Math.round(hips.position.y*100)/100};
   return out;
 };
 </script></body></html>

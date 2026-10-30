@@ -94,3 +94,20 @@ export const MAPA_CLAREIRA = {
   pedras: [[6, -8, 1.9], [-9, -4, 1.4], [-5, 9, 2.2], [11, 6, 1.6], [-14, -12, 2.5], [15, -11, 1.3], [2, 14, 2.0], [-17, 6, 1.8]],
   obstaculos: [{ x: -2.8, z: -5.7, r: 1.1 }],
 };
+
+// Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
+// Trocar o corpo não muda nada no combate: é só visual.
+export const PERSONAGENS = [
+  { id: 'ruiva', nome: 'Ruiva', tipo: 'vrm' },
+  { id: 'vita', nome: 'Vita', tipo: 'vrm' },
+  { id: 'vivi', nome: 'Vivi', tipo: 'vrm' },
+  { id: 'victoria', nome: 'Victoria', tipo: 'vrm' },
+  { id: 'shino', nome: 'Shino', tipo: 'vrm' },
+  { id: 'shibu', nome: 'Shibu', tipo: 'vrm' },
+  { id: 'shibu_sombrio', nome: 'Shibu Sombrio', tipo: 'vrm' },
+  { id: 'fumiriya', nome: 'Fumiriya', tipo: 'vrm' },
+  { id: 'cabelo_f', nome: 'Amostra F', tipo: 'vrm' },
+  { id: 'cabelo_m', nome: 'Amostra M', tipo: 'vrm' },
+  { id: 'soldado', nome: 'Soldado (realista)', tipo: 'glb' },
+];
+export const PERSONAGEM_PADRAO = 'ruiva';

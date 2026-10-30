@@ -1,0 +1,9 @@
+{
+  "name": "RPG Realista",
+  "short_name": "RPG",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#14120e",
+  "theme_color": "#14120e"
+}

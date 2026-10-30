@@ -21,6 +21,36 @@ export class Hud {
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     this.mostrarArma('espada');
   }
+  montarEscolhaPersonagem(lista, atual, aoEscolher) {
+    const grade = $('pgrid');
+    const marcar = (id) => grade.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+    for (const p of lista) {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.id = p.id;
+      b.innerHTML = (p.tipo === 'vrm' ? `<img alt="" src="assets/personagens/vrm/${p.id}.jpg">` : '<span class="sem">realista</span>') + '<span></span>';
+      b.lastChild.textContent = p.nome;
+      b.addEventListener('click', () => { marcar(p.id); aoEscolher(p.id); $('pick').hidden = true; this.aviso(p.nome); });
+      grade.appendChild(b);
+    }
+    marcar(atual);
+    $('pickBtn').addEventListener('click', () => { $('pick').hidden = false; });
+    $('closePick').addEventListener('click', () => { $('pick').hidden = true; });
+    // Tela cheia: no Android funciona direto; no iPhone o navegador não deixa, então ensina o atalho
+    const tela = $('telaBtn');
+    const pode = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+    tela.addEventListener('click', async () => {
+      const el = document.documentElement;
+      if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+      if (!pode) { this.aviso('No iPhone: Compartilhar → Adicionar à Tela de Início'); this.avisoT = 5; return; }
+      try {
+        await (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' });
+        await screen.orientation?.lock?.('landscape').catch(() => {});
+      } catch { this.aviso('O navegador não deixou abrir em tela cheia'); }
+    });
+    const rotulo = () => { tela.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? 'Sair da tela cheia' : 'Tela cheia'; };
+    document.addEventListener('fullscreenchange', rotulo); document.addEventListener('webkitfullscreenchange', rotulo);
+    // aberto pelo atalho da tela inicial já está sem a barra do navegador
+    if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) tela.hidden = true;
+  }
   montarEsboco() {
     const cards = $('skillCards');
     ORDEM_ARMAS.forEach((k) => {
