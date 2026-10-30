@@ -29,7 +29,7 @@ Esse endereço vai em `SERVIDOR_PARA_PAGES` (`client/src/rede.js`).
 
 1. Abra [console.cloud.google.com](https://console.cloud.google.com) com a sua conta Google e crie um projeto (nome: `RPG Realista`).
 2. Menu → **APIs e serviços → Tela de consentimento OAuth** (ou **Google Auth Platform → Branding**): nome do app `RPG Realista`, e-mail de suporte = o seu, tipo de usuário **Externo**. Salve.
-3. Em **Público-alvo**, clique em **Publicar aplicativo** (senão só contas de teste conseguem entrar). Como o jogo só pede nome e e-mail, o Google não exige verificação.
+3. Em **Branding**, preencha: página inicial `https://rcandrerc.github.io/Rpg-realista/`, política de privacidade `https://rcandrerc.github.io/Rpg-realista/privacidade.html` e domínio autorizado `rcandrerc.github.io`. Depois, em **Público-alvo**, clique em **Publicar app** (enquanto estiver em "Testando", só os usuários de teste conseguem entrar). Como o jogo só pede nome e e-mail, o Google não exige verificação.
 4. **Credenciais (ou Clientes) → Criar credenciais → ID do cliente OAuth**, tipo **Aplicativo da Web**.
 5. Em **Origens JavaScript autorizadas**, adicione:
    - `https://rcandrerc.github.io`
