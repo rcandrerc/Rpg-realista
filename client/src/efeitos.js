@@ -2,6 +2,7 @@
 // explosões de fogo, cometas com cauda de fogo, lança de gelo, raios, campo de chamas, chuva de meteoros, rastro da espada e do dash.
 // Mesma receita do jogo de hábitos (New-Game-Anime): partículas de fogo somando luz e fumaça por cima.
 import * as THREE from 'three';
+import { anime } from './estilo.js';
 
 const H = 1.65; // altura de referência de um corpo (m)
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -15,6 +16,16 @@ const FXCOR = {
   investida: [0xd8f4ff, 0x3aa8ff], furia: [0xfff0b0, 0xff3d0a], corte: [0xdffaff, 0x2ec8ff], fenda: [0xffe6a0, 0xff4a12],
   lanca: [0xe8f8ff, 0x3a9cff], raio: [0xeef6ff, 0x5aa8ff], rajada: [0xfff2b0, 0xff7a1a], vortice: [0xf0dcff, 0x8a3dff], magia: [0xece2ff, 0x8a5cff],
 };
+// Estilo anime: golpes de espada ganham cor própria (aço claro), separada das magias de fogo,
+// e cada elemento fica com uma cor só: fogo laranja, gelo azul, raio amarelo, arcano roxo.
+// (os golpes da espada que usam a lâmina de energia já vinham em azul; o raio celeste era azul como o gelo)
+if (anime) Object.assign(FXCOR, {
+  raio: [0xfffbe0, 0xffd23a],
+  relampago: [0xffffff, 0xbcd6f0], giro: [0xffffff, 0xbcd6f0], salto: [0xffffff, 0xbcd6f0], investida: [0xffffff, 0xbcd6f0],
+  furia: [0xffffff, 0xbcd6f0], corte: [0xffffff, 0xbcd6f0], // a Fenda de Fogo continua fogo
+});
+// no mundo claro o brilho somado estoura: fogo e luzes das magias mais contidos
+const BRILHO = anime ? 0.65 : 1;
 const MAGIA = new Set(['bola', 'explosao', 'chamas', 'meteoros', 'onda', 'cura', 'barreira', 'lanca', 'raio', 'rajada', 'vortice', 'magia']);
 const corDe = (k) => FXCOR[k] || FXCOR.bola;
 
@@ -138,7 +149,7 @@ function lote(scene, n, aditivo) {
   const mat = new THREE.ShaderMaterial({
     uniforms: { mapa: { value: texBola }, esc: { value: 600 } }, transparent: true, depthWrite: false, blending: aditivo ? ADD : THREE.NormalBlending,
     vertexShader: 'attribute vec4 cor; attribute float tam; uniform float esc; varying vec4 vc; void main(){ vc = cor; vec4 mv = modelViewMatrix * vec4(position, 1.0); float z = -mv.z; gl_PointSize = min(tam * esc / max(0.1, z), esc * 0.35); vc.a *= clamp((z - 0.6) / 1.2, 0.0, 1.0); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'uniform sampler2D mapa; varying vec4 vc; void main(){ float a = texture2D(mapa, gl_PointCoord).a; gl_FragColor = vec4(vc.rgb, vc.a * a); }',
+    fragmentShader: `uniform sampler2D mapa; varying vec4 vc; void main(){ float a = texture2D(mapa, gl_PointCoord).a; gl_FragColor = vec4(vc.rgb, vc.a * a * ${aditivo ? BRILHO.toFixed(2) : '1.0'}); }`,
   });
   const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = aditivo ? 3 : 1; scene.add(pts);
   return { n, geo, mat, P: [] };
@@ -551,7 +562,7 @@ export class Efeitos {
     }
     // luzes reaproveitadas
     for (const q of this.luzes) {
-      if (q.vida > 0) { q.vida -= dt; q.l.intensity = q.int * Math.min(1, q.vida / Math.min(0.3, q.max)); } else q.l.intensity = 0;
+      if (q.vida > 0) { q.vida -= dt; q.l.intensity = q.int * BRILHO * Math.min(1, q.vida / Math.min(0.3, q.max)); } else q.l.intensity = 0;
     }
     lotePasso(this.FOGO, dt); lotePasso(this.FUMA, dt);
   }

@@ -90,6 +90,7 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | Vila: texturas das casas (palha, reboco, enxaimel, pedra, portas, venezianas), casca e folhas das árvores, caminho de terra e calçamento da praça. As casas, a ferraria, o poço e as árvores são montados em código (client/src/vila.js) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
 | Cajado mágico (madeira, anéis de bronze e cristal) | feito no código, com a textura medieval_wood da Poly Haven | CC0 / próprio |
+| Texturas pintadas do estilo anime (client/public/assets/cenario/pintado/): as mesmas texturas da Poly Haven repintadas pela paleta do jogo | geradas por ferramentas/pintar-texturas/pintar.py a partir das texturas CC0 acima | CC0 / próprio |
 
 As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.
 

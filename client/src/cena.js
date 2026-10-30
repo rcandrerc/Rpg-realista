@@ -5,6 +5,7 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Terreno } from '@rpg/shared';
 import { mascaraVila, misturarChao, montarVila } from './vila.js';
+import { anime, PALETA } from './estilo.js';
 
 export const gltfLoader = new GLTFLoader();
 export const carregarGLTF = (url) => gltfLoader.loadAsync(url);
@@ -49,7 +50,7 @@ export async function montarCena(renderer, mapa) {
   const matChao = new THREE.MeshStandardMaterial({
     map: ladrilho('assets/cenario/chao/forrest_ground_01_diff_1k.jpg', 70, true),
     normalMap: ladrilho('assets/cenario/chao/forrest_ground_01_nor_gl_1k.jpg', 70),
-    normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.95, color: 0xa89f8c,
+    normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.95, color: anime ? 0xe8f0d8 : 0xa89f8c,
   });
   // caminhos de terra e a praça de pedra entram no próprio chão (vila.js)
   const masc = mascaraVila(mapa.vila);
@@ -89,7 +90,9 @@ function criarGrama(raio, masc) {
     do { a = Math.random() * 6.283; r = Math.sqrt(Math.random()) * raio * 1.15; } while (masc.peso(Math.cos(a) * r, Math.sin(a) * r) > 0.2 && ++k < 20);
     d.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); d.rotation.set(0, Math.random() * 6.283, 0);
     const s = rnd(0.7, 1.3); d.scale.set(s, s * rnd(0.6, 1.4), s); d.updateMatrix(); mesh.setMatrixAt(i, d.matrix);
-    cor.setHSL(rnd(0.16, 0.24), rnd(0.25, 0.45), rnd(0.16, 0.3)); mesh.setColorAt(i, cor);
+    if (anime) { const [h, sa, l] = PALETA.grama; cor.setHSL(rnd(...h), rnd(...sa), rnd(...l)); } // grama de desenho: verde vivo
+    else cor.setHSL(rnd(0.16, 0.24), rnd(0.25, 0.45), rnd(0.16, 0.3));
+    mesh.setColorAt(i, cor);
   }
   mesh.receiveShadow = true;
   return { mesh, uniforms };
