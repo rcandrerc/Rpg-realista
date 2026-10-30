@@ -8,7 +8,7 @@ export class Controles {
     this.aoTeclar = null;
     addEventListener('keydown', (e) => {
       this.teclas[e.code] = true;
-      if (!document.getElementById('sheet').hidden || !document.getElementById('pick').hidden) return;
+      if (['sheet', 'pick', 'hab'].some((id) => !document.getElementById(id).hidden)) return;
       if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.aoTeclar?.(e.code);
     });
@@ -16,7 +16,7 @@ export class Controles {
 
     // celular: impede o zoom da página com dois dedos e com toque duplo (o jogo usa a tela inteira)
     for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
-    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && document.getElementById('sheet').hidden) e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && ['sheet', 'pick', 'hab'].every((id) => document.getElementById(id).hidden)) e.preventDefault(); }, { passive: false });
 
     const pad = document.getElementById('pad'), knob = document.getElementById('knob');
     let id = null;

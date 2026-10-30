@@ -1,5 +1,5 @@
 // Corpos 3D. O herói pode ser um personagem VRoid (anime) ou o soldado realista.
-// NPCs e bandidos usam o soldado com cores diferentes.
+// As hordas inimigas também são VRoid (personagens que o jogador não escolhe); NPCs usam o soldado.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
@@ -8,13 +8,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CORTES, SEM_ALTURA } from '@rpg/shared';
 import { carregarGLTF } from './cena.js';
 
-let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, ESCUDO = null, LAMINA = null;
+let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, LAMINA = null;
 
 export async function carregarPersonagens() {
-  const [base, espada, escudo, gz] = await Promise.all([
+  const [base, espada, gz] = await Promise.all([
     carregarGLTF('assets/personagens/heroi_provisorio.glb'),
     carregarGLTF('assets/armas/espada.gltf'),
-    carregarGLTF('assets/armas/escudo.gltf'),
     fetch('assets/personagens/anims.json.gz').then((r) => r.arrayBuffer()),
   ]);
   BASE = base;
@@ -27,15 +26,26 @@ export async function carregarPersonagens() {
   const c = bb.getCenter(new THREE.Vector3()), ponta = c.clone(), cabo = c.clone(), longe = Math.abs(bb.max[eixoL]) > Math.abs(bb.min[eixoL]) ? 'max' : 'min';
   ponta[eixoL] = bb[longe][eixoL]; cabo[eixoL] = c[eixoL] + (bb[longe][eixoL] - c[eixoL]) * -0.25;
   LAMINA = { base: cabo, ponta };
-  ESPADA.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshStandardMaterial({ color: 0xc9c2b4, metalness: 0.92, roughness: 0.28 }); o.castShadow = true; } });
-  ESCUDO = escudo.scene;
-  ESCUDO.traverse((o) => {
-    if (!o.isMesh) return;
-    const metal = /Metal/.test(o.material.name);
-    o.material = new THREE.MeshStandardMaterial({ color: metal ? 0x8d8a84 : 0x6e4a2c, metalness: metal ? 0.85 : 0, roughness: 0.6 });
-    o.castShadow = true;
-  });
+  ESPADA.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 }
+
+// Espada mágica: aço com brilho próprio na cor da magia e uma película de luz em volta
+const espadas = new Map();
+function espadaMagica(cor) {
+  if (!espadas.has(cor)) {
+    const aco = new THREE.MeshStandardMaterial({ color: 0xd4dbe6, metalness: 0.9, roughness: 0.22, emissive: cor, emissiveIntensity: 0.55 });
+    const brilho = new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    espadas.set(cor, { aco, brilho });
+  }
+  const m = espadas.get(cor), e = ESPADA.clone();
+  e.traverse((o) => {
+    if (!o.isMesh || o.userData.pelicula) return;
+    o.material = m.aco;
+    const p = new THREE.Mesh(o.geometry, m.brilho); p.scale.setScalar(1.12); p.userData.pelicula = true; p.castShadow = false; o.add(p);
+  });
+  return e;
+}
+const COR_HEROI = 0x5fb4ff;
 
 const trilha = (n, t, v) => (/quaternion$/.test(n) ? new THREE.QuaternionKeyframeTrack(n, t, v) : new THREE.VectorKeyframeTrack(n, t, v));
 
@@ -137,6 +147,7 @@ function clipesVRM(vrm) {
 const vrmLoader = new GLTFLoader();
 vrmLoader.register((p) => new VRMLoaderPlugin(p));
 const cacheVRM = new Map(); // id -> ArrayBuffer (baixa uma vez, cada jogador ganha a sua cópia)
+const materiaisVRM = new Map(); // id -> { nome do material: material } (cópias do mesmo personagem dividem as texturas)
 async function carregarVRM(id) {
   if (!cacheVRM.has(id)) cacheVRM.set(id, fetch(`assets/personagens/vrm/${id}.vrm`).then((r) => r.arrayBuffer()));
   const buf = await cacheVRM.get(id);
@@ -145,30 +156,19 @@ async function carregarVRM(id) {
   VRMUtils.removeUnnecessaryVertices(gltf.scene);
   VRMUtils.removeUnnecessaryJoints(gltf.scene);
   VRMUtils.rotateVRM0(vrm); // VRM antigo olha para -Z; o jogo usa +Z
-  vrm.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  // várias cópias do mesmo personagem (uma horda inteira) usam os mesmos materiais: a memória de textura não multiplica
+  if (!materiaisVRM.has(id)) materiaisVRM.set(id, {});
+  const mats = materiaisVRM.get(id), trocar = (m) => {
+    if (!mats[m.name]) { mats[m.name] = m; return m; }
+    if (mats[m.name] !== m) { for (const k in m) if (m[k]?.isTexture) m[k].dispose(); m.dispose(); }
+    return mats[m.name];
+  };
+  vrm.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.frustumCulled = false;
+    o.material = Array.isArray(o.material) ? o.material.map(trocar) : trocar(o.material);
+  });
   return vrm;
-}
-
-// ---------- armas montadas à mão ----------
-function cajado() {
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.7, 165, 8), new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 0.8 })));
-  const anel = new THREE.Mesh(new THREE.TorusGeometry(5, 1.3, 8, 16), new THREE.MeshStandardMaterial({ color: 0x8a6b3c, metalness: 0.6, roughness: 0.4 }));
-  anel.position.y = 86; g.add(anel);
-  const gema = new THREE.Mesh(new THREE.OctahedronGeometry(4.2), new THREE.MeshStandardMaterial({ color: 0x8fd0ff, emissive: 0x2f8fff, emissiveIntensity: 2.2, roughness: 0.15 }));
-  gema.position.y = 86; g.add(gema); g.userData.gema = gema;
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  return g;
-}
-function arco() {
-  const g = new THREE.Group();
-  const curva = new THREE.CatmullRomCurve3([[0, -62, 0], [0, -40, 10], [0, 0, 14], [0, 40, 10], [0, 62, 0]].map((p) => new THREE.Vector3(...p)));
-  g.add(new THREE.Mesh(new THREE.TubeGeometry(curva, 24, 2.2, 7), new THREE.MeshStandardMaterial({ color: 0x6b4a2c, roughness: 0.6 })));
-  const pega = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 12, 8), new THREE.MeshStandardMaterial({ color: 0x2a1d14, roughness: 0.9 }));
-  pega.position.z = 14; g.add(pega);
-  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 124, 4), new THREE.MeshBasicMaterial({ color: 0xddd6c6 })));
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  return g;
 }
 
 const eixo = (x, y, z, ang) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(x, y, z), ang);
@@ -176,16 +176,13 @@ const eixo = (x, y, z, ang) => new THREE.Quaternion().setFromAxisAngle(new THREE
 // O braço ao descer gira em torno de Z, então o que aponta para +Z continua para a frente.
 const ARMAS_VRM = {
   espada: { mao: 'rightHand', giro: eixo(1, 0, 0, Math.PI / 2), desloc: [0, -0.02, 0.02], escala: 1 },
-  escudo: { mao: 'leftHand', giro: eixo(0, 0, 1, Math.PI / 2).multiply(eixo(0, 1, 0, Math.PI / 2)), desloc: [0, 0, 0], escala: 0.65 },
-  // cajado e arco são presos já na pose parada, em pé, para ficarem na vertical ao lado do corpo
-  cajado: { mao: 'rightHand', parado: true, giro: new THREE.Quaternion(), desloc: [0, 0.3, 0.02], escala: 0.01 },
-  arco: { mao: 'leftHand', parado: true, giro: new THREE.Quaternion(), desloc: [0, 0.05, 0.03], escala: 0.01 },
 };
 
 export class Corpo {
   // visual: 'soldado' (padrão), id de um VRM, ou cor para NPC/bandido
-  constructor(scene, { cor, escala = 1, armas = 'heroi', visual = 'soldado' }) {
-    this.scene = scene; this.visual = visual;
+  // armas: 'heroi' (espada mágica azul), 'inimigo' (espada mágica na cor do brilho) ou 'nenhuma'; bravo: cara de raiva
+  constructor(scene, { cor, escala = 1, armas = 'heroi', visual = 'soldado', brilho = COR_HEROI, bravo = false }) {
+    this.scene = scene; this.visual = visual; this.brilho = brilho; this.bravo = bravo;
     this.root = new THREE.Group(); this.root.scale.setScalar(escala);
     this.acoes = {}; this.atual = null; this.seq = -1; this.estado = null;
     this.alvo = new THREE.Vector3(); this.alvoRy = 0; this.primeira = true;
@@ -210,11 +207,7 @@ export class Corpo {
     const mao = corpo.getObjectByName('mixamorigRightHand'), maoE = corpo.getObjectByName('mixamorigLeftHand');
     this.maosOssos = [mao, maoE];
     const por = (obj, osso, p, r, s) => { obj.position.set(...p); obj.rotation.set(...r); obj.scale.setScalar(s); osso.add(obj); return obj; };
-    if (armas === 'heroi') {
-      this.armas.espada = [por(ESPADA.clone(), mao, [0, 8, 3], [Math.PI / 2, 0, 0], 100), por(ESCUDO.clone(), maoE, [0, 6, -4], [0, Math.PI / 2, 0], 100)];
-      this.armas.cajado = [por(cajado(), mao, [0, 7, -22], [-Math.PI / 2, 0, 0], 1)];
-      this.armas.arco = [por(arco(), maoE, [0, 6, 2], [0, 0, 0], 1)];
-    } else if (armas === 'espada') por(ESPADA.clone(), mao, [0, 8, 3], [Math.PI / 2, 0, 0], 100);
+    if (armas !== 'nenhuma') this.armas.espada = [por(espadaMagica(this.brilho), mao, [0, 8, 3], [Math.PI / 2, 0, 0], 100)];
     this.pronto();
   }
   montarVRM(vrm, armas) {
@@ -236,19 +229,10 @@ export class Corpo {
     };
     this.mixer = new THREE.AnimationMixer(vrm.scene);
     this.clipes = clipesVRM(vrm);
-    if (armas === 'heroi') {
-      this.armas.espada = [prender(ESPADA.clone(), ARMAS_VRM.espada), prender(ESCUDO.clone(), ARMAS_VRM.escudo)];
-      // põe o corpo na pose parada por um instante para prender cajado e arco
-      const parado = this.mixer.clipAction(this.clipes.parada).play();
-      this.mixer.update(0); vrm.update(0); this.root.updateMatrixWorld(true);
-      this.armas.cajado = [prender(cajado(), ARMAS_VRM.cajado)];
-      this.armas.arco = [prender(arco(), ARMAS_VRM.arco)];
-      parado.stop(); this.mixer.update(0);
-    }
+    if (armas !== 'nenhuma') this.armas.espada = [prender(espadaMagica(this.brilho), ARMAS_VRM.espada)];
     this.pronto();
   }
   pronto() {
-    if (this.armaVisivel) this.mostrarArma(this.armaVisivel);
     this.atual = null;
     if (this.estado) { const e = this.estado; this.estado = null; this.seq = -1; this.aplicar(e); } else this.tocarLaco('Idle');
   }
@@ -276,7 +260,6 @@ export class Corpo {
     if (this.atual && this.atual !== nome) this.acao(this.atual)?.fadeOut(0.12);
     this.atual = nome;
   }
-  mostrarArma(k) { this.armaVisivel = k; for (const g in this.armas) this.armas[g].forEach((o) => { o.visible = g === k; }); }
   // Recebe o estado vindo da simulação
   aplicar(e) {
     this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
@@ -299,9 +282,9 @@ export class Corpo {
       const p = this.piscar < 0 ? Math.max(0, 1 - Math.abs(this.piscar + 0.08) / 0.08) : 0;
       if (this.piscar < -0.16) this.piscar = 2 + Math.random() * 4;
       this.vrm.expressionManager?.setValue('blink', p);
+      if (this.bravo) this.vrm.expressionManager?.setValue('angry', 0.8); // inimigo: cara de raiva
       this.vrm.update(dt);
     }
-    const gema = this.armas.cajado?.[0].userData.gema; if (gema) gema.rotation.y += dt * 1.5;
   }
   // posição das mãos no mundo (para o brilho da magia)
   maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
@@ -312,6 +295,6 @@ export class Corpo {
   }
   remover() {
     this.removido = true; this.scene.remove(this.root);
-    if (this.vrm) VRMUtils.deepDispose(this.vrm.scene);
+    if (this.vrm) this.vrm.scene.traverse((o) => { if (o.isMesh) o.geometry.dispose(); }); // materiais ficam: outras cópias usam
   }
 }

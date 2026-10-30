@@ -1,6 +1,6 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
-import { A, DURACAO, ARMAS, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -33,7 +33,7 @@ export class Simulacao {
   adicionarJogador(id, nome, visual) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
-      vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, arma: 'espada', cds: {}, entrada: { mx: 0, mz: 0, correr: false },
+      vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
       fila: null, pulos: 0, puloT: 9, mortal: 0, pouso: 0, arrancada: null, arrancadaNoAr: false, comboN: 0, comboAte: 0,
       visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
     this.jogadores.set(id, j);
@@ -68,19 +68,18 @@ export class Simulacao {
     const j = this.jogadores.get(id);
     if (j && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
   }
-  trocarArma(id, arma) {
-    const j = this.jogadores.get(id); if (!j || !ARMAS[arma] || j.morto) return;
-    j.arma = arma;
-    this.evento({ t: 'anel', x: j.x, z: j.z, r: 1.4, cor: 0xd9a54a, dur: 0.4 });
+  // Habilidades escolhidas pelo jogador para os botões (a build)
+  definirBuild(id, build) {
+    const j = this.jogadores.get(id); if (!j || !buildValida(build)) return;
+    j.build = [...build];
   }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto) return;
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
     if (!j.chao || j.arrancada) return;
-    const arma = ARMAS[j.arma];
-    let h = i === 0 ? arma.basico : arma.habilidades[i - 1]; if (!h) return;
-    const chave = j.arma + i;
+    const chave = i === 0 ? 'basico' : j.build[i - 1];
+    let h = i === 0 ? BASICO : HABILIDADES[chave]; if (!h) return;
     if ((j.cds[chave] || 0) > this.tempo) return;
     if (h.mana && j.mana < h.mana) { this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' }); return; }
     j.mana -= h.mana || 0;
@@ -88,16 +87,18 @@ export class Simulacao {
     // combo: tocando de novo logo depois do golpe, vem o próximo corte
     let n = 0;
     if (h.combo) { n = this.tempo < j.comboAte ? (j.comboN + 1) % h.combo.length : 0; h = { ...h, ...h.combo[n] }; }
+    h = { ...h, chave };
     const alvo = this.maisPerto(j);
     if (alvo && !h.salto) this.virarPara(j, alvo);
     const d = this.tocar(j, h.anim, h.ts || 1, h.segurar || 0);
     if (h.combo) { j.comboN = n; j.comboAte = this.tempo + d + 0.35; }
+    if (h.lamina) j.acao.lamina = true;
     const at = h.segurar ? 0.05 : d * (h.at || 0.5);
     if (!h.segurar && !h.salto && !h.hits) j.trava = Math.min(d, at + 0.45); // libera o próximo comando logo depois do impacto
     if (h.segurar) { j.defesa = h.defesa; this.depois(h.segurar, () => { j.defesa = 0; }); }
     if (h.avanco) this.empurrar(j, h.avanco, h.hits ? d * 0.8 : at || 0.3);
     if (h.salto) this.empurrar(j, h.salto, d * 0.6);
-    if (h.fx) this.evento({ t: 'conjura', id: j.id, arma: j.arma, i, dur: r2(h.segurar || d) });
+    if (h.fx) this.evento({ t: 'conjura', id: j.id, hab: chave, dur: r2(h.segurar || d) });
     if (h.hits) h.hits.forEach((f) => this.depois(d * f, () => this.efeitoHabilidade(j, h)));
     else this.depois(at, () => this.efeitoHabilidade(j, h));
   }
@@ -107,6 +108,18 @@ export class Simulacao {
     if (!j || j.morto || j.trava > 0 || j.arrancada) return;
     if (j.chao) { j.vy = MOVIMENTO.pulo; j.chao = false; j.pulos = 1; j.puloT = 0; j.pouso = 0; }
     else if (j.pulos < 2) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
+  }
+  // Rolamento no chão: nenhum golpe pega durante a maior parte dele
+  rolar(id) {
+    const j = this.jogadores.get(id);
+    if (!j || j.morto || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
+    j.cds.rolar = this.tempo + HEROI.rolarCd;
+    const { mx, mz } = j.entrada;
+    if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
+    const d = this.tocar(j, A.roll, 1.25);
+    this.empurrar(j, 4.2, d);
+    j.defesa = 1;
+    this.depois(d * 0.7, () => { j.defesa = 0; });
   }
   // Arrancada reta para onde o jogador aponta (no ar, uma por pulo). Nenhum golpe pega durante ela.
   dash(id) {
@@ -149,9 +162,10 @@ export class Simulacao {
       const acerta = h.area ? d < h.area : d < h.alcance && Math.abs(angDif(Math.atan2(o.x - c.x, o.z - c.z), c.ry)) < h.arco / 2;
       if (!acerta) continue;
       this.ferir(o, h.dmg, c);
-      if (h.area && d > 0) { o.x += (o.x - c.x) / d * 1.2; o.z += (o.z - c.z) / d * 1.2; this.colidir(o); }
+      const emp = h.empurra || 1.2;
+      if (h.area && d > 0) { o.x += (o.x - c.x) / d * emp; o.z += (o.z - c.z) / d * emp; this.colidir(o); }
     }
-    if (h.area) this.evento({ t: 'explosao', x: r2(c.x), z: r2(c.z), r: h.area, cor: 0xffd27a });
+    if (h.area && c.tipo === 'jogador') this.evento({ t: 'explosao', x: r2(c.x), z: r2(c.z), r: h.area, fx: h.chave });
   }
   lancar(c, h, alvo) {
     const f = this.aFrente(c, 0.6);
@@ -276,7 +290,7 @@ export class Simulacao {
     if (j.mortal > 0) return 'mortal';
     if (!j.chao) return j.pulos === 1 && j.vy > 0 && j.puloT < 0.45 ? (correr && andando ? 'puloCorrendo' : 'pulo') : 'queda';
     if (j.pouso > 0 && !andando) return 'pouso';
-    return andando ? (correr ? 'Run' : 'Walk') : ARMAS[j.arma].idle;
+    return andando ? (correr ? 'Run' : 'Walk') : ARMA.idle;
   }
   passoInimigo(b, dt) {
     if (b.morto || b.trava > 0) return;
@@ -335,7 +349,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), arma: j.arma, visual: j.visual,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo })),
     };

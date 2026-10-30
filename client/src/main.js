@@ -1,6 +1,6 @@
 // Ponto de entrada do cliente: monta a cena, conecta no servidor e desenha o que a simulação manda.
 import * as THREE from 'three';
-import { ARMAS, ORDEM_ARMAS, HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from '@rpg/shared';
+import { HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, BUILD_PADRAO, buildValida } from '@rpg/shared';
 import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo } from './personagens.js';
 import { Efeitos } from './efeitos.js';
@@ -22,7 +22,6 @@ let mundo, efeitos, rede;
 const corpos = new Map(); // id -> { corpo, info }
 window.jogo = { controles, corpos }; // para testes no console do navegador
 let eu = null; // meu estado mais recente
-let ultimaArma = null;
 
 function corpoDe(e, tipo) {
   let c = corpos.get(e.id);
@@ -35,7 +34,7 @@ function corpoDe(e, tipo) {
     if (!meu) c.tag = hud.etiqueta(e.nome, 'ally');
   } else {
     const t = TIPOS_INIMIGO[e.tipo];
-    c = { corpo: new Corpo(mundo.scene, { cor: t.cor, escala: t.escala, armas: 'espada' }), tipo };
+    c = { corpo: new Corpo(mundo.scene, { escala: t.escala, armas: 'inimigo', visual: t.visual, brilho: t.brilho, bravo: true }), tipo };
     c.tag = hud.etiqueta(e.nome, 'inimigo');
   }
   corpos.set(e.id, c);
@@ -48,7 +47,7 @@ function receber(foto, eventos) {
   for (const j of foto.jogadores) {
     vivos.add(j.id);
     const c = corpoDe(j, 'jogador');
-    c.info = j; c.corpo.aplicar(j); c.corpo.mostrarArma(j.arma);
+    c.info = j; c.corpo.aplicar(j);
     if (j.id === rede.meuId) eu = j;
   }
   for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e); }
@@ -61,10 +60,6 @@ function receber(foto, eventos) {
   }
   if (eu) {
     hud.barras(eu.vida / eu.vidaMax, eu.mana / HEROI.mana);
-    if (eu.arma !== ultimaArma) {
-      if (ultimaArma) hud.aviso(ARMAS[eu.arma].nome + ' · ' + ARMAS[eu.arma].estilo);
-      ultimaArma = eu.arma; hud.mostrarArma(eu.arma);
-    }
     hud.recargas(eu);
   }
 }
@@ -73,15 +68,24 @@ function receber(foto, eventos) {
 const usar = (i) => rede?.enviar('habilidade', i);
 const pular = () => rede?.enviar('pular');
 const dash = () => rede?.enviar('dash');
-const trocar = (k) => rede?.enviar('arma', k);
+const rolar = () => rede?.enviar('rolar');
 controles.aoTeclar = (code) => {
   if (code === 'KeyJ') usar(0); if (code === 'KeyK') usar(1); if (code === 'KeyL') usar(2); if (code === 'KeyI') usar(3);
   if (code === 'Space') pular();
   if (code === 'KeyE' || code === 'ShiftRight') dash();
-  if (code === 'Digit1') trocar('espada'); if (code === 'Digit2') trocar('cajado'); if (code === 'Digit3') trocar('arco');
-  if (code === 'Tab' && eu) trocar(ORDEM_ARMAS[(ORDEM_ARMAS.indexOf(eu.arma) + 1) % ORDEM_ARMAS.length]);
+  if (code === 'KeyQ') rolar();
 };
-hud.montarBotoes({ usar, pular, dash, trocar });
+hud.montarBotoes({ usar, pular, dash, rolar });
+
+// build (habilidades nos botões) também fica guardada no aparelho
+let build = (() => { try { return JSON.parse(localStorage.getItem('build')); } catch { return null; } })();
+if (!buildValida(build)) build = [...BUILD_PADRAO];
+hud.mostrarBuild(build);
+hud.montarEscolhaHabilidades(build, (b) => {
+  build = b;
+  try { localStorage.setItem('build', JSON.stringify(b)); } catch { /* sem armazenamento: vale só nesta visita */ }
+  rede?.enviar('build', b);
+});
 
 // personagem escolhido fica guardado neste aparelho
 const lerEscolha = () => { try { return localStorage.getItem('personagem'); } catch { return null; } };
@@ -152,13 +156,14 @@ function quadro() {
     const nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
     rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t));
     hud.rede(rede.modo === 'online' ? 'Online' : 'Modo solo (sem servidor)');
+    rede.enviar('build', build);
     $('nome').textContent = nome;
     msg('Carregando o seu personagem…');
     // espera o próprio corpo ficar pronto (o personagem anime baixa uns 15 a 20 MB na primeira vez)
     for (let i = 0; i < 600 && !corpos.get(rede.meuId)?.corpo.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     hud.montarEsboco();
     $('load').hidden = true;
-    setTimeout(() => hud.aviso('Troque de arma no alto da tela'), 600);
+    setTimeout(() => hud.aviso('Monte a sua build em Habilidades'), 600);
   } catch (e) {
     msg('Não foi possível carregar: ' + e.message); console.error(e);
   }

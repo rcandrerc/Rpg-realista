@@ -7,13 +7,14 @@ const H = 1.65; // altura de referência de um corpo (m)
 const rnd = (a, b) => a + Math.random() * (b - a);
 const ADD = THREE.AdditiveBlending;
 
-// Cores (brilho, cor) de cada habilidade com círculo: por arma e botão
+// Cores (brilho, cor) de cada habilidade (ids de HABILIDADES em shared/dados.js)
 const FXCOR = {
-  espada: [0xfff0b0, 0xff3d0a],
-  cajado1: [0xfff2b0, 0xff7a1a], cajado2: [0xe4ffd8, 0x36c060], cajado3: [0xffe6a0, 0xff4a12],
-  arco: [0xf2ffd8, 0x6ccf3a],
+  bola: [0xfff2b0, 0xff7a1a], explosao: [0xffe6a0, 0xff4a12], chamas: [0xffe6a0, 0xff4a12], meteoros: [0xffe0a0, 0xff5a12],
+  onda: [0xbfe6ff, 0x2a7dff], cura: [0xe4ffd8, 0x36c060], barreira: [0xd8f0ff, 0x4f9cff],
+  relampago: [0xfff0b0, 0xff3d0a], giro: [0xfff0b0, 0xff3d0a], salto: [0xfff0b0, 0xff3d0a],
 };
-const corDe = (arma, i) => FXCOR[arma + i] || FXCOR[arma] || FXCOR.cajado1;
+const MAGIA = new Set(['bola', 'explosao', 'chamas', 'meteoros', 'onda', 'cura', 'barreira']);
+const corDe = (k) => FXCOR[k] || FXCOR.bola;
 
 // ---------- texturas desenhadas no canvas ----------
 const texBola = (() => {
@@ -132,6 +133,7 @@ export class Efeitos {
     // luzes fixas reaproveitadas (criar luz no meio do jogo faz o celular recompilar os materiais e engasgar)
     this.luzes = Array.from({ length: 4 }, () => { const l = new THREE.PointLight(0xffffff, 0, 8, 2); scene.add(l); return { l, dono: null, int: 0, vida: 0, max: 1 }; });
     this.rastros = new Map(); // id do corpo -> { dash: Faixa, lamina: Faixa }
+    this.meteoros = [];
   }
 
   // ---------- partículas ----------
@@ -175,7 +177,7 @@ export class Efeitos {
       case 'proj': return this.projetil(e);
       case 'projFim': return this.fimProjetil(e);
       case 'anel': return this.anel(e.x, e.z, e.r, e.cor, e.dur);
-      case 'explosao': return this.area(e.x, e.z, e.r, [0xfff0b0, 0xff3d0a]);
+      case 'explosao': return this.explosao(e);
       case 'campo': return this.campo(e);
       case 'chuva': return this.chuva(e);
       case 'conjura': { const c = corpos.get(e.id); if (c) this.conjura(c.corpo, e); return; }
@@ -185,14 +187,21 @@ export class Efeitos {
   }
   // Começo da habilidade: círculo no chão, coluna de luz, labaredas e fumaça
   conjura(corpo, e) {
-    const [cb, cc] = corDe(e.arma, e.i), magia = e.arma !== 'espada';
-    const r = (e.arma === 'cajado' && e.i === 3 ? 1.75 : magia ? 1.45 : 1.35) * H;
+    const [cb, cc] = corDe(e.hab), magia = MAGIA.has(e.hab);
+    const r = (e.hab === 'explosao' || e.hab === 'chamas' ? 1.75 : e.hab === 'onda' ? 1.65 : magia ? 1.45 : 1.35) * H;
     const g = new THREE.Group(), a = circuloMalha(TEXC[0]), b = circuloMalha(TEXC[1]);
     const col = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 32, 1, true), new THREE.MeshBasicMaterial({ map: texColuna, color: cc, transparent: true, opacity: 0,
       blending: ADD, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false }));
     col.position.y = 0.5; col.renderOrder = 2; g.add(a, b, col); this.scene.add(g);
     const p = corpo.root.position;
-    this.circulos.push({ g, a, b, col, corpo, cb, cc, r, magia, t: 0, dur: e.dur, f: 0, vivo: true, luz: this.luz(cc, 1, 7, e.dur + 0.3, corpo) });
+    let bolha = null;
+    if (e.hab === 'barreira') { // bolha de luz em volta do corpo
+      bolha = new THREE.Group();
+      const mat = (op, wire) => new THREE.MeshBasicMaterial({ color: cc, transparent: true, opacity: op, blending: ADD, depthWrite: false, wireframe: wire, toneMapped: false });
+      bolha.add(new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), mat(0.14, false)), new THREE.Mesh(new THREE.IcosahedronGeometry(1.04, 1), mat(0.4, true)));
+      g.add(bolha);
+    }
+    this.circulos.push({ g, a, b, col, bolha, corpo, cb, cc, r, magia, t: 0, dur: e.dur, f: 0, vivo: true, luz: this.luz(cc, 1.2, 7, e.dur + 0.3, corpo) });
     this.fumacaChao(p.x, p.z, r * 0.9, 22);
     for (let i = 0; i < 36; i++) { const ang = i / 36 * 6.283; this.labareda(p.x + Math.cos(ang) * r * 0.9, 0.05, p.z + Math.sin(ang) * r * 0.9, cb, cc, 1.6); }
     for (let i = 0; i < 24; i++) { const ang = Math.random() * 6.283, d = r * Math.sqrt(Math.random()) * 0.8; this.labareda(p.x + Math.cos(ang) * d, 0.05, p.z + Math.sin(ang) * d, cb, cc, 1.2); }
@@ -207,6 +216,21 @@ export class Efeitos {
     for (let i = 0; i < nf; i++) { const a = Math.random() * 6.283, d = r * Math.sqrt(Math.random()); this.labareda(x + Math.cos(a) * d, 0.05, z + Math.sin(a) * d, cb, cc, 1.1 + 0.5 * forte); }
     this.surto(x, 0.4 * H, z, Math.round(40 * forte), cb, cc, 9); this.fumacaChao(x, z, r * 0.8, Math.round(30 * forte), 0x77707e, 1.6);
     this.part(this.FOGO, x, 0.5 * H, z, 0, 0, 0, 0.3, r * 0.7, r * 1.4, 0xffffff, cc, 0.6);
+  }
+  // Habilidades de área em volta do jogador: cada uma com o seu jeito
+  explosao(e) {
+    const cores = corDe(e.fx), [cb, cc] = cores;
+    if (e.fx === 'giro') { this.anel(e.x, e.z, e.r, cc, 0.4); this.surto(e.x, 0.9, e.z, 24, cb, cc, 7); return; }
+    if (e.fx === 'onda') { // anel de gelo que corre para fora
+      this.area(e.x, e.z, e.r, cores, 0.8);
+      for (let i = 0; i < 80; i++) {
+        const a = i / 80 * 6.283, v = e.r * 2.6;
+        this.part(this.FOGO, e.x + Math.cos(a) * 0.4, 0.3 * H, e.z + Math.sin(a) * 0.4, Math.cos(a) * v, 0, Math.sin(a) * v, 0.45, 0.35 * H, 0.15 * H, cb, cc, 1, 0, 1.2);
+        this.part(this.FUMA, e.x + Math.cos(a) * 0.4, 0.1, e.z + Math.sin(a) * 0.4, Math.cos(a) * v * 0.8, rnd(0.2, 0.8), Math.sin(a) * v * 0.8, 0.7, 0.25 * H, 0.5 * H, 0xdff4ff, 0x6f9fd8, 0.5, 0, 1.4);
+      }
+      return;
+    }
+    this.area(e.x, e.z, e.r, cores, e.fx === 'explosao' ? 1.5 : 1);
   }
   projetil(e) {
     let m;
@@ -225,6 +249,7 @@ export class Efeitos {
     const dir = new THREE.Vector3(e.dx, e.dy, e.dz);
     m.lookAt(m.position.clone().add(dir));
     this.scene.add(m);
+    if (e.fogo) { this.surto(e.x, e.y, e.z, 26, 0xfff2b0, e.cor, 6); m.scale.setScalar(1.15); }
     const luz = e.flecha && !e.atravessa ? null : this.luz(e.cor, e.flecha ? 1.2 : e.fogo ? 3 : 1.6, e.fogo ? 7 : 4, 2.5, m);
     this.projeteis.set(e.id, { m, dir, vel: e.vel, vida: 2.5, e, luz, t: 0 });
   }
@@ -244,27 +269,26 @@ export class Efeitos {
   }
   // Círculo de Chamas: pentagrama aceso no chão por alguns segundos, com fogo saindo dele
   campo(e) {
-    const [cb, cc] = FXCOR.cajado3;
+    const [cb, cc] = FXCOR.chamas;
     this.area(e.x, e.z, e.r, [cb, cc], 1.2);
     const m = circuloMalha(TEXC[0]); m.position.set(e.x, 0.07, e.z); m.scale.setScalar(e.r); this.scene.add(m);
     const luz = this.luz(cc, 2.5, e.r * 3, e.dur);
     luz.l.position.set(e.x, 0.9, e.z);
     this.campos.push({ m, x: e.x, z: e.z, r: e.r, t: 0, dur: e.dur, cb, cc });
   }
+  // Chuva de Meteoros: pentagrama no chão do alvo e bolas de fogo caindo em ondas
   chuva(e) {
-    const [cb, cc] = FXCOR.arco;
-    const m = circuloMalha(TEXC[1]); m.position.set(e.x, 0.07, e.z); m.scale.setScalar(e.r); this.scene.add(m);
-    this.campos.push({ m, x: e.x, z: e.z, r: e.r, t: 0, dur: 0.4 + e.ondas * 0.22, cb, cc, fraco: true });
-    for (let k = 0; k < e.ondas; k++) setTimeout(() => {
-      for (let i = 0; i < 7; i++) {
-        const a = Math.random() * 6.28, d = Math.random() * e.r;
-        const s = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.8, 4), new THREE.MeshStandardMaterial({ color: 0x6b4a2c }));
-        s.position.set(e.x + Math.cos(a) * d, 6, e.z + Math.sin(a) * d); this.scene.add(s);
-        this.lista.push({ m: s, vida: 0.5, max: 0.5, cai: true });
-      }
-    }, (0.25 + k * 0.22) * 1000);
+    const [cb, cc] = FXCOR.meteoros;
+    const m = circuloMalha(TEXC[0]); m.position.set(e.x, 0.07, e.z); m.scale.setScalar(e.r); this.scene.add(m);
+    this.campos.push({ m, x: e.x, z: e.z, r: e.r, t: 0, dur: 0.6 + e.ondas * 0.22, cb, cc, fraco: true });
+    const geo = new THREE.SphereGeometry(0.2, 12, 8);
+    for (let k = 0; k < e.ondas; k++) for (let n = 0; n < 3; n++) {
+      const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * e.r * 0.9, x = e.x + Math.cos(a) * d, z = e.z + Math.sin(a) * d;
+      const o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xfff2c8, toneMapped: false }));
+      o.position.set(x + 2.5, 9, z + 1.2); o.visible = false; this.scene.add(o);
+      this.meteoros.push({ o, de: o.position.clone(), para: new THREE.Vector3(x, 0, z), t: -(0.25 + k * 0.22 + n * 0.06) + 0.35, dur: 0.35, cb, cc });
+    }
   }
-
   // ---------- rastros que seguem os corpos ----------
   trilhos(id) {
     let r = this.rastros.get(id);
@@ -277,7 +301,7 @@ export class Efeitos {
     const dash = info?.anim === 'dash' || r.dashT > 0; r.dashT -= dt;
     const p = corpo.root.position;
     r.dash.passo(dt, dash ? [0.12, 0.31, 0.51, 0.7, 0.9].map((k) => new THREE.Vector3(p.x, p.y + H * k, p.z)) : null, PERFIL_DASH, 0.42);
-    const golpe = info?.acao && info.arma === 'espada' && corpo.lamina();
+    const golpe = info?.acao?.lamina && corpo.lamina();
     r.lamina.passo(dt, golpe || null, PERFIL_LAMINA, 0.7);
   }
   esquecer(id) { const r = this.rastros.get(id); if (r) { r.dash.remover(this.scene); r.lamina.remover(this.scene); this.rastros.delete(id); } }
@@ -294,6 +318,10 @@ export class Efeitos {
       if (c.vivo) { c.a.scale.setScalar(r * ent * pulso); c.b.scale.setScalar(r * 0.62 * ent); c.col.scale.set(r * 0.8 * ent, H * 1.5, r * 0.8 * ent); }
       else c.a.scale.multiplyScalar(1 + dt * 0.6);
       c.a.rotation.z = c.t * 0.9; c.b.rotation.z = -c.t * 1.6;
+      if (c.bolha) {
+        c.bolha.position.y = p.y + 0.85; c.bolha.scale.setScalar(1.05 * ent * (1 + Math.sin(c.t * 6) * 0.03)); c.bolha.rotation.y = c.t * 0.8;
+        c.bolha.children.forEach((m, k) => { m.material.opacity = (k ? 0.4 : 0.14) * Math.max(0, c.f); });
+      }
       c.a.definir(cc, Math.max(0, c.f)); c.b.definir(cc, Math.max(0, c.f) * 0.9); c.col.material.opacity = Math.max(0, c.f) * 0.45;
       if (c.vivo) {
         if (Math.random() < dt * 40) { const a = Math.random() * 6.283; this.labareda(p.x + Math.cos(a) * r * 0.9, 0.05, p.z + Math.sin(a) * r * 0.9, cb, cc, 0.8); }
@@ -306,7 +334,11 @@ export class Efeitos {
         }
         c.luz.l.position.set(p.x, p.y + 0.9 * H, p.z); c.luz.int = 1 + Math.sin(c.t * 20) * 0.25;
       }
-      if (c.f <= 0) { this.scene.remove(c.g); c.a.descartar(); c.b.descartar(); c.col.geometry.dispose(); c.col.material.dispose(); this.circulos.splice(i, 1); }
+      if (c.f <= 0) {
+        this.scene.remove(c.g); c.a.descartar(); c.b.descartar(); c.col.geometry.dispose(); c.col.material.dispose();
+        c.bolha?.children.forEach((m) => { m.geometry.dispose(); m.material.dispose(); });
+        this.circulos.splice(i, 1);
+      }
     }
     // explosões
     for (let i = this.areas.length - 1; i >= 0; i--) {
@@ -341,6 +373,15 @@ export class Efeitos {
       }
       if (p.luz?.dono === p.m) { p.luz.l.position.copy(o); p.luz.vida = 1; }
       if (p.vida <= 0) this.tirarProjetil(id, p);
+    }
+    // meteoros: descem em diagonal deixando fogo e explodem no chão
+    for (let i = this.meteoros.length - 1; i >= 0; i--) {
+      const q = this.meteoros[i]; q.t += dt; if (q.t < 0) continue;
+      const u = Math.min(1, q.t / q.dur); q.o.visible = true; q.o.position.lerpVectors(q.de, q.para, u * u);
+      const o = q.o.position;
+      for (let k = 0; k < 3; k++) this.part(this.FOGO, o.x + rnd(-0.1, 0.1), o.y + rnd(-0.1, 0.1), o.z + rnd(-0.1, 0.1), rnd(-0.4, 0.4), rnd(0, 1), rnd(-0.4, 0.4), rnd(0.25, 0.45), 0.35 * H, 0.04 * H, q.cb, q.cc, 0.9, 1.5, 0.5);
+      this.part(this.FUMA, o.x, o.y, o.z, rnd(-0.3, 0.3), rnd(0, 0.6), rnd(-0.3, 0.3), 0.5, 0.25 * H, 0.45 * H, 0xff9a1a, 0x3a0a04, 0.7, 1, 0.5);
+      if (u >= 1) { this.scene.remove(q.o); q.o.material.dispose(); this.meteoros.splice(i, 1); this.area(q.para.x, q.para.z, 1.1, [q.cb, q.cc], 0.45); }
     }
     // anéis e flechas caindo
     for (let i = this.lista.length - 1; i >= 0; i--) {
