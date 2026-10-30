@@ -70,6 +70,9 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 .tag3d .hb{width:64px;height:5px;background:rgba(0,0,0,.5);border-radius:3px;margin:3px auto 0;overflow:hidden}
 .tag3d .hb i{display:block;height:100%;background:var(--hp)}
 .tag3d.npc b{color:var(--gold)}
+.tag3d .falar{pointer-events:auto;display:block;margin:5px auto 0;padding:7px 18px;border-radius:16px;border:1px solid var(--gold);background:rgba(18,14,10,.82);color:var(--gold);font-family:var(--display);font-size:.85rem;cursor:pointer}
+.tag3d .falar[hidden]{display:none}
+#missao{margin-top:6px;font-size:.74rem;color:var(--gold);text-shadow:0 1px 3px #000}
 .say{max-width:220px;white-space:normal;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-bottom:4px;font-size:.78rem;text-shadow:none}
 .dmg{position:fixed;left:0;top:0;pointer-events:none;font:700 1rem var(--body);color:#ffd08a;text-shadow:0 2px 4px #000;transform:translate(-50%,-50%)}
 .dmg.heal{color:#9be08f}
@@ -123,6 +126,7 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
     <div class="who"><span id="nome">Andarilho</span> <span id="style">Espada mágica</span></div>
     <div class="bar"><i id="hpb"></i></div>
     <div class="bar"><i id="mpb"></i></div>
+    <div id="missao" hidden></div>
   </div>
 </div>
 <div class="menu"><button class="info" id="telaBtn" type="button">Tela cheia</button><button class="info" id="habBtn" type="button">Habilidades</button><button class="info" id="pickBtn" type="button">Personagem</button><button class="info" id="infoBtn" type="button">Esboço do jogo</button></div>

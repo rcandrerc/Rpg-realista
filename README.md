@@ -43,6 +43,7 @@ No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita
 | Dash | botão Dash | E |
 | Rolar no chão | botão Rolar | Q |
 | Escalar (pedra baixa sobe sozinho; rocha alta: andar contra ela agarra, frente sobe, trás desce, lados andam pela parede; Pular solta; Dash ou correr contra ela corre pela parede) | joystick | WASD |
+| Falar com NPC (cura, missão, habilidades, dicas) | botão Falar em cima dele, quando perto | F |
 | Escolher habilidades | botão Habilidades | botão Habilidades |
 | Câmera (girar, olhar para cima e para baixo, zoom) | arrastar a tela; dois dedos para o zoom | arrastar, roda do mouse |
 
@@ -74,7 +75,8 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | Soldado realista (opção do herói e NPCs) | Mixamo, via exemplos do Three.js | Mixamo |
 | Animações de combate e movimento (combo de espada, estocada, cortes, magias, pulo, mortal, pouso) e as 14 de escalada (subir pedra, parede, escada, correr na parede, ficar pendurado) | Mixamo, repositório New-Game-Anime-fontes | Mixamo (uso no jogo liberado) |
 | Efeitos de magia (círculo com pentagrama, fogo, fumaça, rastros) | desenhados no código, receita do jogo de hábitos (New-Game-Anime) | próprio |
-| Céu, chão, pedras, samambaias, caixotes, a rocha escalável (Namaqualand Boulder 04) e a madeira da escada (weathered_brown_planks) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
+| Céu, chão, pedras, samambaias, caixotes, mesa, baldes, tocos, as rochas escaláveis (Namaqualand Boulder 04) e a madeira da escada (weathered_brown_planks); pedras, samambaia, toco e rocha em versões leves (polyhaven/derivados) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
+| Vila: texturas das casas (palha, reboco, enxaimel, pedra, portas, venezianas), casca e folhas das árvores, caminho de terra e calçamento da praça. As casas, a ferraria, o poço e as árvores são montados em código (client/src/vila.js) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
 
 As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.

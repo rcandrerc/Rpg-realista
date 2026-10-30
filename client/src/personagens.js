@@ -2,6 +2,7 @@
 // As hordas inimigas também são VRoid (personagens que o jogador não escolhe); NPCs usam o soldado.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -158,6 +159,40 @@ const vrmLoader = new GLTFLoader();
 vrmLoader.register((p) => new VRMLoaderPlugin(p));
 const cacheVRM = new Map(); // id -> ArrayBuffer (baixa uma vez, cada jogador ganha a sua cópia)
 const materiaisVRM = new Map(); // id -> { nome do material: material } (cópias do mesmo personagem dividem as texturas)
+// O cabelo do VRoid vem em dezenas de pedacinhos (um desenho cada). Junta os que têm o mesmo material
+// num só, refazendo os índices dos ossos: um personagem cai de ~130 para ~15 chamadas de desenho.
+function juntarMalhas(raiz) {
+  const grupos = new Map();
+  raiz.traverse((o) => {
+    if (!o.isSkinnedMesh || Array.isArray(o.material) || Object.keys(o.geometry.morphAttributes).length) return;
+    const k = o.material.uuid + '|' + o.parent.uuid;
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(o);
+  });
+  for (const lista of grupos.values()) {
+    if (lista.length < 2 || lista.some((o) => !o.bindMatrix.equals(lista[0].bindMatrix) || !o.matrix.equals(lista[0].matrix))) continue;
+    const ossos = [], inversas = [], indice = new Map();
+    const geos = lista.map((o) => {
+      const g = o.geometry.clone(), si = g.attributes.skinIndex;
+      const mapa = o.skeleton.bones.map((b, i) => {
+        if (!indice.has(b)) { indice.set(b, ossos.length); ossos.push(b); inversas.push(o.skeleton.boneInverses[i].clone()); }
+        return indice.get(b);
+      });
+      const novo = new THREE.Uint16BufferAttribute(si.count * 4, 4), de = (i) => mapa[i] ?? 0;
+      for (let i = 0; i < si.count; i++) novo.setXYZW(i, de(si.getX(i)), de(si.getY(i)), de(si.getZ(i)), de(si.getW(i)));
+      g.setAttribute('skinIndex', novo);
+      return g;
+    });
+    let junto; try { junto = mergeGeometries(geos); } catch { junto = null; }
+    if (!junto) continue;
+    const m = new THREE.SkinnedMesh(junto, lista[0].material);
+    m.name = lista[0].name; m.castShadow = true; m.frustumCulled = false; m.matrix.copy(lista[0].matrix); m.matrix.decompose(m.position, m.quaternion, m.scale);
+    lista[0].parent.add(m);
+    m.bind(new THREE.Skeleton(ossos, inversas), lista[0].bindMatrix);
+    for (const o of lista) o.removeFromParent();
+  }
+}
+
 async function carregarVRM(id) {
   if (!cacheVRM.has(id)) cacheVRM.set(id, fetch(`assets/personagens/vrm/${id}.vrm`).then((r) => r.arrayBuffer()));
   const buf = await cacheVRM.get(id);
@@ -166,6 +201,7 @@ async function carregarVRM(id) {
   VRMUtils.removeUnnecessaryVertices(gltf.scene);
   VRMUtils.removeUnnecessaryJoints(gltf.scene);
   VRMUtils.rotateVRM0(vrm); // VRM antigo olha para -Z; o jogo usa +Z
+  juntarMalhas(vrm.scene);
   // várias cópias do mesmo personagem (uma horda inteira) usam os mesmos materiais: a memória de textura não multiplica
   if (!materiaisVRM.has(id)) materiaisVRM.set(id, {});
   const mats = materiaisVRM.get(id), trocar = (m) => {

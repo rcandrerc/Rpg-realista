@@ -135,40 +135,119 @@ export const TIPOS_INIMIGO = {
   lider: { nome: 'Lâmina Sombria', horda: 'Bando Sombrio', visual: 'fumiriya', vida: 200, dano: 16, intervalo: 1.8, escala: 1.12, brilho: 0xff2a3a },
 };
 
+// Missões que os NPCs dão. horda = qual bando conta (TIPOS_INIMIGO[..].horda). {faltam} vira o número.
+export const MISSOES = {
+  bando: {
+    nome: 'Expulsar o Bando Sombrio', horda: 'Bando Sombrio', total: 4,
+    pedido: 'O Bando Sombrio acampou no leste, no fim do caminho. Derrube quatro deles e volte aqui.',
+    andamento: 'Ainda faltam {faltam}. O acampamento fica no leste, é só seguir o caminho de terra.',
+    pronto: 'Você conseguiu! A vila está em dívida com você, andarilho.',
+    depois: 'Graças a você a estrada do leste anda mais calma.',
+  },
+};
+
 // Mapa da Clareira de Vael. Cada mapa novo vira um objeto como este.
-export const MAPA_CLAREIRA = {
-  id: 'clareira',
-  nome: 'Clareira (mapa de teste)',
-  raio: 34,
-  nascimento: { x: 0, z: 0 },
-  inimigos: [
-    { tipo: 'sombrio', x: 9, z: 10 },
-    { tipo: 'sombrio', x: -11, z: 12 },
-    { tipo: 'sombrio', x: 12, z: -2 },
-    { tipo: 'lider', x: 15, z: -8 },
-  ],
-  npcs: [
-    { nome: 'Tomás, o ferreiro', x: -2.2, z: -3.6, ry: 0.6, cor: 0xc9b48a, falas: [
-      'O Bando Sombrio acampou no leste da clareira. Cuidado com a Lâmina Sombria.',
-      'Essa espada corta e conjura. Escolha as suas habilidades e monte o seu jeito de lutar.',
-    ] },
-  ],
-  // Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala a rocha grande.
-  // modelo = grade de alturas em shared/rochas.js (musgoN = pedra N do rock_moss_set_01); y = quanto fica enterrada
-  rochas: [
+// Vila do começo: casas, praça, caminhos e árvores. Tudo aqui é sólido (servidor) e desenhado igual no cliente (client/src/vila.js).
+const PRACA = { x: -6, z: -14, r: 4.6 };
+const CASAS = [
+  // w = largura (frente), d = fundo, h = altura da parede; a porta fica na frente (+z do giro ry), virada para a praça
+  { id: 'lider', x: -6, z: -23.2, w: 7.4, d: 5.6, h: 3.6, chamine: true },
+  { id: 'casa1', x: -15.5, z: -17.5, w: 5.6, d: 4.6, h: 2.8, chamine: true },
+  { id: 'casa2', x: -16.5, z: -8.5, w: 5, d: 4.4, h: 2.7 },
+  { id: 'curandeira', x: 4, z: -20.5, w: 5.4, d: 4.6, h: 2.8, chamine: true },
+  { id: 'casa3', x: 5.5, z: -12.5, w: 4.8, d: 4.2, h: 2.6 },
+  { id: 'ferraria', x: 4.4, z: -5, w: 4.4, d: 3.6, h: 2.6, ry: -1.25, aberta: true, chamine: true }, // virada para o caminho
+].map((c) => ({ ...c, ry: c.ry ?? Math.atan2(PRACA.x - c.x, PRACA.z - c.z) }));
+const portaDe = (c, dist = 1.2) => ({ x: c.x + Math.sin(c.ry) * (c.d / 2 + dist), z: c.z + Math.cos(c.ry) * (c.d / 2 + dist) });
+// caminhos de terra (linhas de pontos, largura em metros)
+const CAMINHOS = [
+  { largura: 2.4, pontos: [[0, 1], [-1.5, -4], [-4, -8.5], [PRACA.x, PRACA.z]] },
+  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste, onde o Bando Sombrio acampou
+  ...CASAS.map((c) => ({ largura: 1.5, pontos: [[PRACA.x, PRACA.z], [portaDe(c, 0.6).x, portaDe(c, 0.6).z]] })),
+];
+// Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala as grandes.
+// modelo = grade de alturas em shared/rochas.js (musgoN = pedra N do rock_moss_set_01); y = quanto fica enterrada
+const ROCHAS = [
     { modelo: 'boulder04', x: -7, z: 7, s: 2.4, ry: 0, grande: true },
+    { modelo: 'boulder04', x: -12.6, z: 12.6, s: 3.9, ry: 1.1, grande: true }, // a maior: lá de cima se vê a vila
     { modelo: 'boulder04', x: 5, z: 4, s: 0.72, ry: 2 },
-    { modelo: 'musgo0', x: 6, z: -8, s: 1.9, ry: 0.5, y: -0.1 },
-    { modelo: 'musgo1', x: -9, z: -4, s: 1.4, ry: 2.1, y: -0.1 },
-    { modelo: 'musgo3', x: 11, z: 6, s: 1.6, ry: 1.2, y: -0.1 },
-    { modelo: 'musgo4', x: -14, z: -12, s: 2.5, ry: 4, y: -0.1 },
+    { modelo: 'musgo0', x: 10, z: -16.5, s: 1.9, ry: 0.5, y: -0.1 },
+    { modelo: 'musgo1', x: -9, z: -3, s: 1.4, ry: 2.1, y: -0.1 },
+    { modelo: 'musgo3', x: 11, z: 9, s: 1.6, ry: 1.2, y: -0.1 },
+    { modelo: 'musgo4', x: -25, z: -2, s: 2.5, ry: 4, y: -0.1 },
     { modelo: 'musgo5', x: 15, z: -11, s: 1.3, ry: 0.8, y: -0.1 },
     { modelo: 'musgo0', x: 2, z: 14, s: 2, ry: 3, y: -0.1 },
-    { modelo: 'musgo1', x: -17, z: 6, s: 1.8, ry: 5.1, y: -0.1 },
+    { modelo: 'musgo1', x: -19, z: 4, s: 1.8, ry: 5.1, y: -0.1 },
+];
+// árvores espalhadas em volta (sorteio fixo: servidor e cliente veem as mesmas)
+function sortearArvores() {
+  let sem = 1234; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const livre = (x, z) => {
+    if (x > -22 && x < 11 && z > -28.5 && z < -1.5) return false; // vila
+    if (Math.hypot(x - 18, z - 3) < 8) return false; // acampamento do Bando
+    if (Math.hypot(x, z) < 6) return false; // onde o herói nasce
+    if (Math.hypot(x + 10, z - 10) < 9) return false; // rochas grandes
+    if (ROCHAS.some((r) => Math.hypot(x - r.x, z - r.z) < 2.2 * r.s + 1)) return false;
+    return true;
+  };
+  const lista = [];
+  for (let t = 0; lista.length < 46 && t < 3000; t++) {
+    const a = rnd(0, 6.283), r = rnd(9, 31), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (!livre(x, z) || lista.some((o) => Math.hypot(o.x - x, o.z - z) < 3.6)) continue;
+    lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.8, 1.25).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: lista.length % 3 });
+  }
+  // algumas na vila, para sombra
+  lista.push({ x: -12, z: -12.5, s: 1.1, ry: 1, v: 0 }, { x: -11.5, z: -26.5, s: 0.95, ry: 2, v: 1 }, { x: -1, z: -26, s: 1.2, ry: 4, v: 2 }, { x: -20, z: -13, s: 1, ry: 3, v: 1 });
+  return lista;
+}
+
+export const MAPA_CLAREIRA = {
+  id: 'clareira',
+  nome: 'Vila da Clareira',
+  raio: 34,
+  nascimento: { x: 0, z: 1 },
+  inimigos: [
+    { tipo: 'sombrio', x: 16, z: 6 },
+    { tipo: 'sombrio', x: 20, z: -2 },
+    { tipo: 'sombrio', x: 14, z: 0 },
+    { tipo: 'lider', x: 22, z: 3 },
   ],
+  // NPCs da vila. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
+  npcs: [
+    { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, cor: 0x7a5a3a, funcao: 'missao', missao: 'bando', falas: [
+      'Andarilho, o Bando Sombrio acampou no leste. Expulse os quatro e a vila te deve uma.',
+      'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
+    ] },
+    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, cor: 0xc9b48a, funcao: 'habilidades', falas: [
+      'Essa espada corta e conjura. Fale comigo para escolher os seus golpes e magias.',
+      'Bigorna boa é bigorna quente. Volte quando quiser trocar a build.',
+    ] },
+    { id: 'curandeira', nome: 'Irmã Lúcia, a curandeira', x: 1.4, z: -17.6, ry: -1, cor: 0xe6e0d0, funcao: 'cura', falas: [
+      'Ferido? Fale comigo e eu cuido de você.',
+      'As ervas da clareira curam quase tudo. Quase.',
+    ] },
+    { id: 'andarilho', nome: 'Bento, o andarilho', x: -3.5, z: 5.2, ry: 2.4, cor: 0x56604a, funcao: 'dica', falas: [
+      'Já subiu na rocha mais alta, perto daqui? Lá de cima se vê a vila inteira.',
+      'A escada na rocha menor é o jeito fácil. Na grande, só escalando.',
+      'Pedra baixa você sobe andando. Na alta, agarre e vá subindo. Correndo contra ela, dá até para correr pela parede.',
+    ] },
+    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, cor: 0x8a3b3b, funcao: 'loja', falas: [
+      'Minha carroça chega em breve com mercadoria da cidade.',
+      'Tenho de tudo um pouco... quer dizer, vou ter.',
+    ] },
+  ],
+  rochas: ROCHAS,
   // escada de madeira encostada na rocha grande: pé no chão e topo na beirada
   escadas: [{ x: -7, z: 4, ry: 0, topo: { x: -7, z: 5.3 } }],
-  obstaculos: [{ x: -2.8, z: -5.7, r: 1.1 }],
+  // sólidos pequenos: poço da praça, caixotes da ferraria, banca da comerciante
+  obstaculos: [{ x: PRACA.x, z: PRACA.z, r: 1.15 }, { x: 6.6, z: -2.4, r: 0.8 }, { x: -10.7, z: -12.3, r: 0.75 }],
+  // objetos de enfeite (Poly Haven) desenhados pelo cliente; os que atrapalham a passagem estão em obstaculos
+  props: [
+    { tipo: 'caixote', x: 6.4, z: -2.2, ry: 0.4 }, { tipo: 'caixote', x: 7.2, z: -2.9, s: 0.8, ry: 1.1 }, { tipo: 'caixote', x: 6.6, z: -2.3, s: 0.7, ry: 0.9, y: 0.62 },
+    { tipo: 'mesa', x: -10.7, z: -12.3, ry: 0.9 }, { tipo: 'caixote', x: -11.6, z: -11.2, s: 0.8, ry: 0.3 }, { tipo: 'balde', x: -9.9, z: -13.3, ry: 1 },
+    { tipo: 'balde', x: PRACA.x + 1.25, z: PRACA.z + 0.5, ry: 2 }, { tipo: 'toco', x: -18.5, z: -14, ry: 1 }, { tipo: 'toco', x: 8.6, z: -19, s: 0.8, ry: 3 },
+  ],
+  vila: { praca: PRACA, casas: CASAS, caminhos: CAMINHOS, arvores: sortearArvores() },
 };
 
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
