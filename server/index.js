@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, ORDEM_ARMAS } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA } from '@rpg/shared';
 
 const { Server, Room } = colyseus;
 const { WebSocketTransport } = wsTransport;
@@ -21,7 +21,8 @@ class SalaClareira extends Room {
     this.sim = new Simulacao(MAPA_CLAREIRA);
     this.onMessage('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.onMessage('habilidade', (c, i) => { if ([0, 1, 2, 3].includes(i)) this.sim.usarHabilidade(c.sessionId, i); });
-    this.onMessage('arma', (c, k) => { if (ORDEM_ARMAS.includes(k)) this.sim.trocarArma(c.sessionId, k); });
+    this.onMessage('build', (c, b) => this.sim.definirBuild(c.sessionId, b));
+    this.onMessage('rolar', (c) => this.sim.rolar(c.sessionId));
     this.onMessage('pular', (c) => this.sim.pular(c.sessionId));
     this.onMessage('dash', (c) => this.sim.dash(c.sessionId));
     this.onMessage('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v)));

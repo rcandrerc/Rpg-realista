@@ -1,26 +1,54 @@
-// Interface na tela: barras, botões de arma e habilidade, nomes sobre as cabeças, números de dano
+// Interface na tela: barras, botões de habilidade, escolha da build, nomes sobre as cabeças, números de dano
 import * as THREE from 'three';
-import { ARMAS, ORDEM_ARMAS, MOVIMENTO } from '@rpg/shared';
+import { ARMA, BASICO, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, HEROI, MOVIMENTO } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const v = new THREE.Vector3();
 
 export class Hud {
-  constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.arma = 'espada'; }
+  constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.build = [...BUILD_PADRAO]; }
 
-  montarBotoes({ usar, pular, dash, trocar }) {
-    const wb = $('weapons');
-    ORDEM_ARMAS.forEach((k) => {
-      const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
-      b.innerHTML = `${ARMAS[k].nome}<small>${ARMAS[k].estilo}</small>`;
-      b.addEventListener('click', () => trocar(k)); wb.appendChild(b);
-    });
+  montarBotoes({ usar, pular, dash, rolar }) {
     [0, 1, 2, 3].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(i); }));
     $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); dash(); });
     $('bp').addEventListener('pointerdown', (e) => { e.preventDefault(); pular(); });
+    $('br').addEventListener('pointerdown', (e) => { e.preventDefault(); rolar(); });
     $('infoBtn').addEventListener('click', () => { $('sheet').hidden = false; });
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
-    this.mostrarArma('espada');
+    $('style').textContent = ARMA.nome;
+    document.querySelector('#b0 .lbl').textContent = BASICO.nome;
+    this.mostrarBuild(this.build);
+  }
+  mostrarBuild(build) {
+    this.build = build;
+    build.forEach((k, i) => { document.querySelector(`#b${i + 1} .lbl`).textContent = HABILIDADES[k].nome; $('b' + (i + 1)).dataset.tipo = HABILIDADES[k].tipo; });
+  }
+  // Painel da build: toque para pôr ou tirar; a ordem da escolha é a ordem dos botões
+  montarEscolhaHabilidades(atual, aoSalvar) {
+    const grade = $('hgrid'); let escolha = [...atual];
+    const desenhar = () => {
+      grade.querySelectorAll('button').forEach((b) => {
+        const n = escolha.indexOf(b.dataset.k); b.classList.toggle('on', n >= 0); b.querySelector('.n').textContent = n >= 0 ? n + 1 : '';
+      });
+      $('salvarHab').disabled = escolha.length !== ESPACOS_BUILD;
+      $('habConta').textContent = `${escolha.length} de ${ESPACOS_BUILD} escolhidas`;
+    };
+    for (const [k, h] of Object.entries(HABILIDADES)) {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
+      b.innerHTML = '<span class="n"></span><small></small><b></b><span class="d"></span>';
+      b.querySelector('small').textContent = h.tipo + (h.mana ? ` · ${h.mana} de mana` : '') + ` · ${h.cd} s`;
+      b.querySelector('b').textContent = h.nome; b.querySelector('.d').textContent = h.desc;
+      b.addEventListener('click', () => {
+        const n = escolha.indexOf(k);
+        if (n >= 0) escolha.splice(n, 1); else if (escolha.length < ESPACOS_BUILD) escolha.push(k); else { escolha[ESPACOS_BUILD - 1] = k; }
+        desenhar();
+      });
+      grade.appendChild(b);
+    }
+    $('habBtn').addEventListener('click', () => { escolha = [...this.build]; desenhar(); $('hab').hidden = false; });
+    $('fecharHab').addEventListener('click', () => { $('hab').hidden = true; });
+    $('salvarHab').addEventListener('click', () => { $('hab').hidden = true; aoSalvar([...escolha]); this.mostrarBuild([...escolha]); this.aviso('Build salva'); });
+    desenhar();
   }
   montarEscolhaPersonagem(lista, atual, aoEscolher) {
     const grade = $('pgrid');
@@ -54,26 +82,21 @@ export class Hud {
   }
   montarEsboco() {
     const cards = $('skillCards');
-    ORDEM_ARMAS.forEach((k) => {
-      const w = ARMAS[k]; const c = document.createElement('div'); c.className = 'card';
-      c.innerHTML = `<small>${w.nome} = ${w.estilo}</small><h3>${w.desc}</h3><ul><li><b>${w.basico.nome}</b>: ${w.basico.desc || `golpe básico, ${w.basico.dmg} de dano.`}</li>${
-        w.habilidades.map((s) => `<li><b>${s.nome}</b>: ${s.desc} Recarga ${s.cd} s${s.mana ? `, ${s.mana} de mana` : ''}.</li>`).join('')}</ul>`;
+    for (const tipo of ['Espada', 'Magia']) {
+      const c = document.createElement('div'); c.className = 'card';
+      const lista = Object.values(HABILIDADES).filter((h) => h.tipo === tipo);
+      c.innerHTML = `<small>${tipo}</small><h3>${tipo === 'Espada' ? 'Golpes da lâmina' : 'Magias da espada'}</h3><ul>${
+        (tipo === 'Espada' ? [BASICO, ...lista] : lista).map((h) => `<li><b>${h.nome}</b>: ${h.desc}${h.cd >= 1 ? ` Recarga ${h.cd} s${h.mana ? `, ${h.mana} de mana` : ''}.` : ''}</li>`).join('')}</ul>`;
       cards.appendChild(c);
-    });
-  }
-  mostrarArma(k) {
-    this.arma = k; const w = ARMAS[k];
-    $('style').textContent = w.estilo;
-    document.querySelectorAll('#weapons button').forEach((b) => b.classList.toggle('on', b.dataset.k === k));
-    [w.basico, ...w.habilidades].forEach((s, i) => { document.querySelector(`#b${i} .lbl`).textContent = s.nome; });
+    }
   }
   barras(vida, mana) { $('hpb').style.width = vida * 100 + '%'; $('mpb').style.width = mana * 100 + '%'; }
   recargas(eu) {
-    const w = ARMAS[eu.arma];
-    [w.basico, ...w.habilidades].forEach((s, i) => {
-      const resta = eu.cds[eu.arma + i] || 0;
-      document.querySelector(`#b${i} .cdv`).style.transform = `scaleY(${s.cd ? Math.min(1, resta / s.cd) : 0})`;
+    ['basico', ...this.build].forEach((k, i) => {
+      const h = k === 'basico' ? BASICO : HABILIDADES[k], resta = eu.cds[k] || 0;
+      document.querySelector(`#b${i} .cdv`).style.transform = `scaleY(${h.cd ? Math.min(1, resta / h.cd) : 0})`;
     });
+    document.querySelector('#br .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.rolar || 0) / HEROI.rolarCd)})`;
     document.querySelector('#bd .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.dash || 0) / MOVIMENTO.dashCd)})`;
   }
   rede(texto) { $('net').textContent = texto; }
