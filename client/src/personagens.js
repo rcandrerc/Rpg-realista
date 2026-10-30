@@ -5,7 +5,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { CORTES, SEM_ALTURA } from '@rpg/shared';
+import { CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
 import { carregarGLTF } from './cena.js';
 
 let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, LAMINA = null;
@@ -68,6 +68,10 @@ function completar(clipes, vertical) {
   for (const nome of SEM_ALTURA) {
     const tr = clipes[nome]?.tracks.find((x) => /\.position$/.test(x.name)); if (!tr) continue;
     const y0 = tr.values[vertical]; for (let i = vertical; i < tr.values.length; i += 3) tr.values[i] = y0;
+  }
+  for (const nome of SEM_AVANCO) {
+    const tr = clipes[nome]?.tracks.find((x) => /\.position$/.test(x.name)); if (!tr) continue;
+    for (let k = 0; k < 3; k++) if (k !== vertical) for (let i = k; i < tr.values.length; i += 3) tr.values[i] = tr.values[k];
   }
   return clipes;
 }

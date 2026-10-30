@@ -78,9 +78,9 @@ export class Simulacao {
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
     if (!j.chao || j.arrancada) return;
-    // 0 = golpe de espada, 1 a 6 = build, 7 = cura, 8 = disparo de magia
-    const chave = i === 0 ? 'basico' : i === 7 ? 'cura' : i === 8 ? 'magia' : j.build[i - 1];
-    let h = i === 0 ? BASICO : i === 7 ? CURA : i === 8 ? BASICO_MAGIA : HABILIDADES[chave]; if (!h) return;
+    // 0 = golpe de espada, 1 a 8 = build (4 de espada e 4 de magia), 9 = cura, 10 = disparo de magia
+    const chave = i === 0 ? 'basico' : i === 9 ? 'cura' : i === 10 ? 'magia' : j.build[i - 1];
+    let h = i === 0 ? BASICO : i === 9 ? CURA : i === 10 ? BASICO_MAGIA : HABILIDADES[chave]; if (!h) return;
     if ((j.cds[chave] || 0) > this.tempo) return;
     if (h.mana && j.mana < h.mana) { this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' }); return; }
     j.mana -= h.mana || 0;
@@ -97,10 +97,12 @@ export class Simulacao {
     const at = h.segurar ? 0.05 : d * (h.at || 0.5);
     if (!h.segurar && !h.salto && !h.hits) j.trava = Math.min(d, at + 0.45); // libera o próximo comando logo depois do impacto
     if (h.segurar) { j.defesa = h.defesa; this.depois(h.segurar, () => { j.defesa = 0; }); }
-    if (h.avanco) this.empurrar(j, h.avanco, h.avancoT ? d * h.avancoT : h.hits ? d * 0.8 : at || 0.3);
+    // investida: para logo na frente do alvo, para o golpe sair assim que chega
+    const metros = h.dash && alvo ? Math.max(1.5, Math.min(h.avanco, dist(alvo, j) - 1.1)) : h.avanco;
+    if (h.avanco) this.empurrar(j, metros, h.avancoT ? d * h.avancoT : h.hits ? d * 0.8 : at || 0.3);
     if (h.dash) { // investida: arranca como no dash e nenhum golpe pega durante a arrancada
       j.defesa = 1; this.depois(d * h.avancoT, () => { j.defesa = 0; });
-      this.evento({ t: 'dash', id: j.id, dur: r2(d * h.avancoT) });
+      this.evento({ t: 'dash', id: j.id, dur: r2(d * h.avancoT + 0.12), forte: 1 });
     }
     if (h.puxa) this.depois(d * h.puxa.de, () => this.puxar(j, h));
     if (h.salto) this.empurrar(j, h.salto, d * 0.6);
@@ -184,6 +186,7 @@ export class Simulacao {
       const acerta = h.area ? d < h.area : d < h.alcance && Math.abs(angDif(Math.atan2(o.x - c.x, o.z - c.z), c.ry)) < h.arco / 2;
       if (!acerta) continue;
       this.ferir(o, h.dmg, c);
+      if (h.impacto) this.evento({ t: 'impacto', x: r2(o.x), z: r2(o.z), ry: r2(c.ry), fx: h.chave });
       const emp = h.empurra || 1.2;
       if (h.area && d > 0) { o.x += (o.x - c.x) / d * emp; o.z += (o.z - c.z) / d * emp; this.colidir(o); }
     }

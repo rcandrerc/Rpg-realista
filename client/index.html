@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
 <style>
 /* Layout: cena 3D em tela cheia. Vida/mana no alto à esquerda, troca de arma no alto à direita,
-   joystick embaixo à esquerda, golpe + 6 habilidades + pular, dash e rolar embaixo à direita. Jogo de visual único (escuro). */
+   joystick embaixo à esquerda, golpe + 4 habilidades + trocar, cura, pular, dash e rolar embaixo à direita. Jogo de visual único (escuro). */
 :root{
   --ink:#efe7d6; --muted:#b9ad97; --panel:rgba(18,16,12,.58); --line:rgba(239,231,214,.2);
   --gold:#d9a54a; --hp:#b8432f; --mp:#3f7fc0; --cd:rgba(10,8,6,.72);
@@ -48,12 +48,13 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 .acts .cdv{position:absolute;inset:0;background:var(--cd);transform-origin:bottom;transform:scaleY(0);pointer-events:none}
 .acts .lbl{position:relative}
 #b0{width:84px;height:84px;right:0;bottom:0;font-size:.8rem;border-color:var(--gold)}
-/* 6 habilidades em dois arcos em volta do Golpe; Pular, Dash e Rolar à esquerda */
-.acts .sk{width:56px;height:56px;font-size:.6rem;line-height:1}
-#b1{right:31px;bottom:110px} #b2{right:83px;bottom:83px} #b3{right:110px;bottom:31px}
-#b8{width:58px;height:58px;right:96px;bottom:212px;font-size:.66rem;border-color:rgba(170,140,255,.85)!important;box-shadow:inset 0 0 14px rgba(140,100,255,.45)!important}
-#b7{right:272px;bottom:137px;border-color:rgba(130,230,150,.75);box-shadow:inset 0 0 12px rgba(60,200,100,.4)}
-#b4{right:43px;bottom:176px} #b5{right:131px;bottom:131px} #b6{right:176px;bottom:43px}
+/* Golpe (ou Disparo) e 4 habilidades em arco em volta; o botão Trocar alterna espada e magia; Pular, Dash e Rolar à esquerda */
+.acts .sk{width:60px;height:60px;font-size:.62rem;line-height:1}
+#b1{right:12px;bottom:122px} #b2{right:69px;bottom:106px} #b3{right:106px;bottom:69px} #b4{right:122px;bottom:12px}
+#bt{width:54px;height:54px;right:15px;bottom:196px;font-size:.62rem;border-color:var(--gold);background:radial-gradient(circle at 50% 35%,rgba(217,165,74,.45),rgba(40,30,12,.8) 75%)}
+.acts.magia #b0{border-color:rgba(170,140,255,.9);box-shadow:inset 0 0 16px rgba(140,100,255,.5)}
+.acts.magia #bt{border-color:rgba(170,140,255,.9);background:radial-gradient(circle at 50% 35%,rgba(140,100,255,.45),rgba(24,14,48,.8) 75%)}
+#b9{right:272px;bottom:137px;border-color:rgba(130,230,150,.75);box-shadow:inset 0 0 12px rgba(60,200,100,.4)}
 #bd{width:50px;height:50px;right:237px;bottom:87px;font-size:.66rem;background:radial-gradient(circle at 50% 35%,rgba(58,182,216,.55),rgba(12,74,98,.75) 75%);border-color:rgba(200,240,255,.6)}
 #br{width:50px;height:50px;right:305px;bottom:75px;font-size:.66rem;background:radial-gradient(circle at 50% 35%,rgba(58,182,216,.55),rgba(12,74,98,.75) 75%);border-color:rgba(200,240,255,.6)}
 #bp{width:62px;height:62px;right:249px;bottom:9px;font-size:.72rem;background:radial-gradient(circle at 50% 35%,rgba(58,182,216,.55),rgba(12,74,98,.75) 75%);border-color:rgba(200,240,255,.6)}
@@ -121,20 +122,18 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
   <button class="sk" id="b2" type="button"><span class="cdv"></span><span class="lbl"></span></button>
   <button class="sk" id="b3" type="button"><span class="cdv"></span><span class="lbl"></span></button>
   <button class="sk" id="b4" type="button"><span class="cdv"></span><span class="lbl"></span></button>
-  <button class="sk" id="b5" type="button"><span class="cdv"></span><span class="lbl"></span></button>
-  <button class="sk" id="b6" type="button"><span class="cdv"></span><span class="lbl"></span></button>
-  <button class="sk" id="b7" type="button"><span class="cdv"></span><span class="lbl"></span></button>
-  <button id="b8" type="button" data-tipo="Magia"><span class="cdv"></span><span class="lbl"></span></button>
+  <button class="sk" id="b9" type="button"><span class="cdv"></span><span class="lbl"></span></button>
+  <button id="bt" type="button"><span class="lbl"></span></button>
   <button id="bd" type="button"><span class="cdv"></span><span class="lbl">Dash</span></button>
   <button id="bp" type="button"><span class="lbl">Pular</span></button>
   <button id="br" type="button"><span class="cdv"></span><span class="lbl">Rolar</span></button>
 </div>
-<div class="help">WASD anda · Shift corre · J golpe · M disparo · K L I U O P habilidades · H cura · roda do mouse ou dois dedos: zoom · Espaço pula (no ar, de novo: mortal) · E dash · Q rola · arraste para girar a câmera</div>
+<div class="help">WASD anda · Shift corre · J golpe (ou disparo) · K L I U habilidades · R troca espada/magia · H cura · roda do mouse ou dois dedos: zoom · Espaço pula (no ar, de novo: mortal) · E dash · Q rola · arraste para girar a câmera</div>
 
 <div id="hab" hidden>
   <div class="in">
     <h2>Monte a sua build</h2>
-    <p class="muted">A espada mágica corta e conjura. Escolha 6 habilidades para os botões, de espada, de magia ou misturadas. A ordem em que você toca é a ordem dos botões: as 3 primeiras ficam junto do Golpe e as outras 3 no arco de fora. A Cura tem botão próprio.</p>
+    <p class="muted">A espada mágica corta e conjura. Escolha 4 habilidades de espada e 4 de magia. O botão Trocar alterna na hora (sem recarga): no modo espada ficam o Golpe e as 4 de espada; no modo magia, o Disparo e as 4 de magia. A ordem em que você toca é a ordem dos botões. A Cura tem botão próprio.</p>
     <div class="hgrid" id="hgrid"></div>
     <div class="linha"><button class="close" id="salvarHab" type="button">Salvar build</button><button class="close sec" id="fecharHab" type="button">Voltar sem salvar</button><span class="muted" id="habConta"></span></div>
   </div>
