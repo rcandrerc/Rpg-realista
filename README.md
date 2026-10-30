@@ -6,7 +6,7 @@ Não existe classe: o herói usa uma espada mágica que corta e solta magia, e o
 
 ## Como rodar
 
-Precisa do [Node.js](https://nodejs.org) 20 ou mais novo.
+Precisa do [Node.js](https://nodejs.org) 22 ou mais novo.
 
 ```bash
 npm install
@@ -33,6 +33,14 @@ Atenção: mesmo com o repositório privado, o site do Pages é público. Qualqu
 
 No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita depois disso demora cerca de 1 minuto para acordar.
 
+### Conta (login só com Google)
+
+As contas ficam no próprio servidor, num arquivo SQLite em `dados/contas.db` (na Oracle: `/opt/rpg/dados`), sem Firebase. O servidor faz uma cópia por dia em `dados/copias/` e guarda as últimas 14. Precisa do Node 22 (usa o `node:sqlite`).
+
+O login só liga quando `GOOGLE_CLIENT_ID` (`shared/conta.js`) tem o ID do cliente OAuth. Vazio, o jogo funciona como antes, sem conta. O passo a passo para criar o ID no Google Cloud está em `ferramentas/servidor/LEIAME.md`.
+
+Cada conta guarda o nome (vem do Google), o personagem e a build. A mesma conta em dois aparelhos: o mais antigo sai.
+
 ## Controles
 
 | Ação | Celular | PC |
@@ -54,6 +62,7 @@ shared/    regras e dados, iguais para cliente e servidor
   dados.js       armas, habilidades, inimigos, mapa (mexa aqui para criar conteúdo)
   simulacao.js   combate, movimento, inimigos (sem gráficos)
 server/    Node.js + Colyseus: roda a simulação 20x por segundo e manda o mundo para todos
+  contas.js      contas (Google) e sessões, em SQLite
 client/    Three.js: desenha o que a simulação manda
   src/cena.js         céu, chão, grama, objetos do mapa
   src/personagens.js  corpos 3D, animações, armas na mão
@@ -61,6 +70,7 @@ client/    Three.js: desenha o que a simulação manda
   src/hud.js          barras, botões, nomes, números de dano
   src/controles.js    joystick, teclado, câmera
   src/rede.js         conexão com o servidor (e modo solo)
+  src/conta.js        tela "Entrar com Google" e sessão guardada no aparelho
   public/assets/      modelos, texturas, céu e animações
 ferramentas/assar-animacoes/  converte os .fbx do Mixamo em um arquivo pequeno para o jogo
 ```

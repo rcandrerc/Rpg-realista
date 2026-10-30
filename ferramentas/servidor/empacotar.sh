@@ -7,7 +7,7 @@ cd "$(dirname "$0")/../.."
 saida=client/dist/servidor
 mkdir -p "$saida"
 npx esbuild server/index.js --bundle --platform=node --format=esm --target=node20 --outfile="$saida/servidor.mjs" \
-  --external:colyseus --external:@colyseus/ws-transport --external:express
+  --external:colyseus --external:@colyseus/ws-transport --external:express --external:jose
 cp ferramentas/servidor/package.json "$saida/package.json"
 echo "${GITHUB_SHA:-$(git rev-parse HEAD)}" > "$saida/versao.txt"
 echo "Servidor empacotado em $saida ($(cat "$saida/versao.txt"))"
