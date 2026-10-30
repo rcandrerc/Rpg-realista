@@ -366,8 +366,12 @@ export class Simulacao {
   }
   // a beirada: o ponto mais alto da pedra logo à frente
   beirada(j) {
-    const e = j.esc?.escada;
-    return e ? e.alt : this.terreno.frente(j.x, j.z, j.ry, 1.0, null).topo; // na escada, a beirada é o topo dela
+    const e = j.esc?.escada; if (e) return e.alt; // na escada, a beirada é o topo dela
+    const T = this.terreno, fx = Math.sin(j.ry), fz = Math.cos(j.ry);
+    // casa: a beirada é o alto da parede (onde começa o telhado), não o telhado subindo lá atrás;
+    // senão ela escalava acima do beiral e ficava "escalando" em cima do telhado
+    if (T.rochaEm(j.x + fx * 0.8, j.z + fz * 0.8)?.casa) for (let d = 0.05; d <= 1.2; d += 0.05) { const h = T.altura(j.x + fx * d, j.z + fz * d); if (h > j.y + SUBIDA.degrau) return h; }
+    return T.frente(j.x, j.z, j.ry, 1.0, null).topo;
   }
   // encosta o corpo na parede (na altura do peito) e vira de frente para a pedra
   ajustarParede(j) {
