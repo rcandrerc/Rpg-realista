@@ -81,13 +81,14 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 
 | O que | Origem | Licença |
 | --- | --- | --- |
-| Heróis anime (Ruiva e 7 amostras VRoid) e a horda Bando Sombrio (Amostra M e Fumiriya, só inimigos) | VRoid Hub (Ruiva, de 水銀メイド, ©2026MercuryMaid, licença VRM 1.0 com uso comercial; crédito não obrigatório) e amostras VRoid CC0, repositório New-Game-Anime-fontes | VRM 1.0 / CC0 |
+| Heróis anime (Ruiva e 7 amostras VRoid), os NPCs da vila (Fumiriya, Amostra M, Shino e Vivi, com cabelo e roupa repintados no código) e a horda Bando Sombrio (Amostra M e Fumiriya, cada um com cores e tamanho próprios) | VRoid Hub (Ruiva, de 水銀メイド, ©2026MercuryMaid, licença VRM 1.0 com uso comercial; crédito não obrigatório) e amostras VRoid CC0, repositório New-Game-Anime-fontes | VRM 1.0 / CC0 |
 | Soldado realista (opção do herói e NPCs) | Mixamo, via exemplos do Three.js | Mixamo |
 | Animações de combate e movimento (combo de espada, estocada, cortes, magias, pulo, mortal, pouso) e as 14 de escalada (subir pedra, parede, escada, correr na parede, ficar pendurado) | Mixamo, repositório New-Game-Anime-fontes | Mixamo (uso no jogo liberado) |
 | Efeitos de magia (círculo com pentagrama, fogo, fumaça, rastros) | desenhados no código, receita do jogo de hábitos (New-Game-Anime) | próprio |
 | Céu, chão, pedras, samambaias, caixotes, mesa, baldes, tocos, as rochas escaláveis (Namaqualand Boulder 04) e a madeira da escada (weathered_brown_planks); pedras, samambaia, toco e rocha em versões leves (polyhaven/derivados) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Vila: texturas das casas (palha, reboco, enxaimel, pedra, portas, venezianas), casca e folhas das árvores, caminho de terra e calçamento da praça. As casas, a ferraria, o poço e as árvores são montados em código (client/src/vila.js) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
+| Cajado mágico (madeira, anéis de bronze e cristal) | feito no código, com a textura medieval_wood da Poly Haven | CC0 / próprio |
 
 As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.
 

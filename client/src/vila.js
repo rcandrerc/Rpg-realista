@@ -3,6 +3,7 @@
 // e juntadas por material: a vila inteira custa poucas chamadas de desenho.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Terreno, TELHADO } from '@rpg/shared';
 
 const PASTA = 'assets/cenario/vila/';
 const texL = new THREE.TextureLoader();
@@ -189,7 +190,7 @@ function enxaimel(J, p, Y0, Y1, aberturas) {
   return Ym;
 }
 // telhado de duas águas com a cumeeira ao longo da largura (x)
-function telhado(J, w, d, Y1, { beiral = 0.5, pontas = 0.38, esp = 0.3, inclinacao = 0.82 } = {}) {
+function telhado(J, w, d, Y1, { beiral, pontas, esp, inclinacao } = TELHADO) { // mesmos números da altura do telhado no servidor
   const sobe = (d / 2) * inclinacao, a = Math.atan2(sobe, d / 2), L = (d / 2 + beiral) / Math.cos(a) + 0.1, topo = Y1 + sobe;
   for (const s of [1, -1]) {
     const base = new THREE.Matrix4().makeTranslation(0, topo, 0).multiply(new THREE.Matrix4().makeRotationX(s * a));
@@ -382,17 +383,14 @@ export function montarVila(scene, mapa) {
   return { atualizar: (t) => { tempo.value = t; mats.brasa.emissiveIntensity = 1.6 + Math.sin(t * 3.1) * 0.25 + Math.sin(t * 7.3) * 0.12; } };
 }
 
-// Câmera não entra nas casas: se a linha herói -> câmera passa por dentro de uma, a câmera chega mais perto
-export function cameraForaDasCasas(vila) {
-  const caixas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.6, hd: c.d / 2 + 0.7, alt: (c.aberta ? 0.22 : 0.42) + c.h + (c.d / 2) * 0.82 + 0.4 }));
-  const dentro = (x, y, z) => caixas.some((k) => {
-    const dx = x - k.x, dz = z - k.z;
-    return y < k.alt && Math.abs(dx * k.cos - dz * k.sin) < k.hw && Math.abs(dx * k.sin + dz * k.cos) < k.hd;
-  });
+// Câmera não entra nas casas nem nas pedras: se a linha herói -> câmera passa por dentro, a câmera chega mais perto
+export function cameraForaDasCasas(mapa) {
+  const T = new Terreno(mapa);
   return (camera, alvo) => {
     const p = camera.position, dx = p.x - alvo.x, dy = p.y - alvo.y, dz = p.z - alvo.z;
     for (let t = 0.15; t <= 1; t += 0.05) {
-      if (dentro(alvo.x + dx * t, alvo.y + dy * t, alvo.z + dz * t)) { const k = Math.max(0.12, t - 0.08); p.set(alvo.x + dx * k, alvo.y + dy * k, alvo.z + dz * k); return; }
+      const x = alvo.x + dx * t, y = alvo.y + dy * t, z = alvo.z + dz * t;
+      if (T.altura(x, z) > y - 0.25) { const k = Math.max(0.12, t - 0.08); p.set(alvo.x + dx * k, alvo.y + dy * k, alvo.z + dz * k); return; }
     }
   };
 }
