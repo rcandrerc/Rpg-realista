@@ -1,6 +1,6 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
-import { A, DURACAO, ARMA, BASICO, CURA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -34,7 +34,7 @@ export class Simulacao {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
-      fila: null, pulos: 0, puloT: 9, mortal: 0, pouso: 0, arrancada: null, arrancadaNoAr: false, comboN: 0, comboAte: 0,
+      fila: null, pulos: 0, puloT: 9, mortal: 0, pouso: 0, arrancada: null, arrancadaNoAr: false, combos: {},
       visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
     this.jogadores.set(id, j);
     return j;
@@ -78,25 +78,31 @@ export class Simulacao {
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
     if (!j.chao || j.arrancada) return;
-    const chave = i === 0 ? 'basico' : i === 7 ? 'cura' : j.build[i - 1];
-    let h = i === 0 ? BASICO : i === 7 ? CURA : HABILIDADES[chave]; if (!h) return;
+    // 0 = golpe de espada, 1 a 6 = build, 7 = cura, 8 = disparo de magia
+    const chave = i === 0 ? 'basico' : i === 7 ? 'cura' : i === 8 ? 'magia' : j.build[i - 1];
+    let h = i === 0 ? BASICO : i === 7 ? CURA : i === 8 ? BASICO_MAGIA : HABILIDADES[chave]; if (!h) return;
     if ((j.cds[chave] || 0) > this.tempo) return;
     if (h.mana && j.mana < h.mana) { this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' }); return; }
     j.mana -= h.mana || 0;
     j.cds[chave] = this.tempo + h.cd;
     // combo: tocando de novo logo depois do golpe, vem o próximo corte
-    let n = 0;
-    if (h.combo) { n = this.tempo < j.comboAte ? (j.comboN + 1) % h.combo.length : 0; h = { ...h, ...h.combo[n] }; }
+    let n = 0; const cb = j.combos[chave] || { n: 0, ate: 0 };
+    if (h.combo) { n = this.tempo < cb.ate ? (cb.n + 1) % h.combo.length : 0; h = { ...h, ...h.combo[n] }; }
     h = { ...h, chave };
     const alvo = this.maisPerto(j);
     if (alvo && !h.salto) this.virarPara(j, alvo);
     const d = this.tocar(j, h.anim, h.ts || 1, h.segurar || 0);
-    if (h.combo) { j.comboN = n; j.comboAte = this.tempo + d + 0.35; }
+    if (h.combo) j.combos[chave] = { n, ate: this.tempo + d + 0.35 };
     if (h.lamina) j.acao.lamina = true;
     const at = h.segurar ? 0.05 : d * (h.at || 0.5);
     if (!h.segurar && !h.salto && !h.hits) j.trava = Math.min(d, at + 0.45); // libera o próximo comando logo depois do impacto
     if (h.segurar) { j.defesa = h.defesa; this.depois(h.segurar, () => { j.defesa = 0; }); }
-    if (h.avanco) this.empurrar(j, h.avanco, h.hits ? d * 0.8 : at || 0.3);
+    if (h.avanco) this.empurrar(j, h.avanco, h.avancoT ? d * h.avancoT : h.hits ? d * 0.8 : at || 0.3);
+    if (h.dash) { // investida: arranca como no dash e nenhum golpe pega durante a arrancada
+      j.defesa = 1; this.depois(d * h.avancoT, () => { j.defesa = 0; });
+      this.evento({ t: 'dash', id: j.id, dur: r2(d * h.avancoT) });
+    }
+    if (h.puxa) this.depois(d * h.puxa.de, () => this.puxar(j, h));
     if (h.salto) this.empurrar(j, h.salto, d * 0.6);
     if (h.fx) this.evento({ t: 'conjura', id: j.id, hab: chave, dur: r2(h.segurar || d) });
     if (h.hits) h.hits.forEach((f) => this.depois(d * f, () => this.efeitoHabilidade(j, h)));
@@ -137,7 +143,23 @@ export class Simulacao {
   // ---------- combate ----------
   efeitoHabilidade(j, h) {
     if (j.morto) return;
-    if (h.proj) this.lancar(j, h, this.maisPerto(j));
+    if (h.proj?.leque) { // vários tiros abertos em leque, o do meio no alvo
+      const alvo = this.maisPerto(j); if (alvo) this.virarPara(j, alvo);
+      const n = h.proj.leque;
+      for (let k = 0; k < n; k++) this.lancar(j, h, null, (k - (n - 1) / 2) * 0.28);
+    } else if (h.proj) this.lancar(j, h, this.maisPerto(j));
+    else if (h.linha) { // trilha de explosões saindo da espada para a frente
+      const L = h.linha, ry = j.ry, x0 = j.x, z0 = j.z, atingidos = new Set();
+      this.evento({ t: 'fenda', x: r2(x0), z: r2(z0), ry: r2(ry), comp: L.comp, passos: L.passos, larg: L.larg });
+      for (let k = 0; k < L.passos; k++) this.depois(k * 0.07, () => {
+        const d = 1.2 + (L.comp - 1.2) * k / (L.passos - 1), p = { x: x0 + Math.sin(ry) * d, z: z0 + Math.cos(ry) * d };
+        for (const o of this.inimigosDe(j)) if (!atingidos.has(o) && dist(o, p) < L.larg) { atingidos.add(o); this.ferir(o, L.dmg, j); }
+      });
+    } else if (h.raios) { // raios do céu nos inimigos mais perto (ou à frente, se não houver)
+      const alvos = this.inimigosDe(j).filter((o) => dist(o, j) < h.raios.alcance).sort((a, b) => dist(a, j) - dist(b, j)).slice(0, h.raios.n);
+      if (!alvos.length) { const p = this.aFrente(j, 5); this.evento({ t: 'raio', x: r2(p.x), z: r2(p.z) }); }
+      alvos.forEach((o, k) => this.depois(k * 0.12, () => { this.evento({ t: 'raio', x: r2(o.x), z: r2(o.z) }); this.ferir(o, h.raios.dmg, j); }));
+    }
     else if (h.cura) {
       const n = Math.min(h.cura, j.vidaMax - j.vida); j.vida += n;
       this.evento({ t: 'cura', alvo: j.id, n });
@@ -167,12 +189,21 @@ export class Simulacao {
     }
     if (h.area && c.tipo === 'jogador') this.evento({ t: 'explosao', x: r2(c.x), z: r2(c.z), r: h.area, fx: h.chave });
   }
-  lancar(c, h, alvo) {
+  // Vórtice: arrasta para perto quem estiver em volta; a explosão vem depois (efeitoHabilidade)
+  puxar(j, h) {
+    if (j.morto) return;
+    this.evento({ t: 'vortice', x: r2(j.x), z: r2(j.z), r: h.puxa.r });
+    for (const o of this.inimigosDe(j)) {
+      const d = dist(o, j); if (d > h.puxa.r || d < 1.3) continue;
+      const t = 0.45, m = d - 1.1; o.dash = { vx: (j.x - o.x) / d * m / t, vz: (j.z - o.z) / d * m / t, t };
+    }
+  }
+  lancar(c, h, alvo, giro = 0) {
     const f = this.aFrente(c, 0.6);
-    const de = { x: f.x, y: 1.35, z: f.z };
-    let dx = Math.sin(c.ry), dy = 0, dz = Math.cos(c.ry);
+    const de = { x: f.x, y: h.proj.estilo === 'corte' ? 1 : 1.35, z: f.z };
+    let dx = Math.sin(c.ry + giro), dy = 0, dz = Math.cos(c.ry + giro);
     if (alvo) { dx = alvo.x - de.x; dy = 1.1 - de.y; dz = alvo.z - de.z; const n = Math.hypot(dx, dy, dz) || 1; dx /= n; dy /= n; dz /= n; }
-    const p = { id: this.proxId++, ...de, dx, dy, dz, h, dono: c, vida: 2.2, acertou: new Set() };
+    const p = { id: this.proxId++, ...de, dx, dy, dz, h, dono: c, vida: h.proj.vida || 2.2, acertou: new Set() };
     this.projeteis.push(p);
     this.evento({ t: 'proj', id: p.id, x: r2(de.x), y: de.y, z: r2(de.z), dx: r2(dx), dy: r2(dy), dz: r2(dz), ...h.proj });
   }
@@ -323,7 +354,7 @@ export class Simulacao {
       for (const o of this.inimigosDe(p.dono)) {
         if (p.acertou.has(o)) continue;
         const esc = TIPOS_INIMIGO[o.tipo]?.escala || 1;
-        if (Math.hypot(o.x - p.x, o.z - p.z) < 0.6 && p.y < 2.1 * esc) {
+        if (Math.hypot(o.x - p.x, o.z - p.z) < (p.h.proj.largura || 0.6) && p.y < 2.1 * esc) {
           p.acertou.add(o); this.ferir(o, p.h.dmg, p.dono);
           if (!p.h.proj.atravessa) { fim = true; break; }
         }
@@ -331,7 +362,7 @@ export class Simulacao {
       if (!fim) continue;
       const ex = p.h.proj.explosao;
       if (ex) for (const o of this.inimigosDe(p.dono)) if (!p.acertou.has(o) && Math.hypot(o.x - p.x, o.z - p.z) < ex) this.ferir(o, Math.round(p.h.dmg * 0.6), p.dono);
-      this.evento({ t: 'projFim', id: p.id, x: r2(p.x), y: r2(p.y), z: r2(p.z), explosao: ex || 0, cor: p.h.proj.cor });
+      this.evento({ t: 'projFim', id: p.id, x: r2(p.x), y: r2(p.y), z: r2(p.z), explosao: ex || 0, cor: p.h.proj.cor, estilo: p.h.proj.estilo });
       this.projeteis.splice(i, 1);
     }
   }

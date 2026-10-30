@@ -1,5 +1,5 @@
 // Efeitos visuais disparados pelos eventos da simulação: círculo mágico com pentagrama ao conjurar,
-// explosões de fogo, bola de fogo com rastro, campo de chamas, chuva de flechas, rastro da espada e do dash.
+// explosões de fogo, cometas com cauda de fogo, lança de gelo, raios, campo de chamas, chuva de meteoros, rastro da espada e do dash.
 // Mesma receita do jogo de hábitos (New-Game-Anime): partículas de fogo somando luz e fumaça por cima.
 import * as THREE from 'three';
 
@@ -12,8 +12,10 @@ const FXCOR = {
   bola: [0xfff2b0, 0xff7a1a], explosao: [0xffe6a0, 0xff4a12], chamas: [0xffe6a0, 0xff4a12], meteoros: [0xffe0a0, 0xff5a12],
   onda: [0xbfe6ff, 0x2a7dff], cura: [0xe4ffd8, 0x36c060], barreira: [0xd8f0ff, 0x4f9cff],
   relampago: [0xfff0b0, 0xff3d0a], giro: [0xfff0b0, 0xff3d0a], salto: [0xfff0b0, 0xff3d0a],
+  investida: [0xd8f4ff, 0x3aa8ff], furia: [0xfff0b0, 0xff3d0a], corte: [0xdffaff, 0x2ec8ff], fenda: [0xffe6a0, 0xff4a12],
+  lanca: [0xe8f8ff, 0x3a9cff], raio: [0xeef6ff, 0x5aa8ff], rajada: [0xfff2b0, 0xff7a1a], vortice: [0xf0dcff, 0x8a3dff], magia: [0xece2ff, 0x8a5cff],
 };
-const MAGIA = new Set(['bola', 'explosao', 'chamas', 'meteoros', 'onda', 'cura', 'barreira']);
+const MAGIA = new Set(['bola', 'explosao', 'chamas', 'meteoros', 'onda', 'cura', 'barreira', 'lanca', 'raio', 'rajada', 'vortice', 'magia']);
 const corDe = (k) => FXCOR[k] || FXCOR.bola;
 
 // ---------- texturas desenhadas no canvas ----------
@@ -49,6 +51,67 @@ const texColuna = (() => {
   g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.35, 'rgba(255,255,255,0.3)'); g.addColorStop(1, 'rgba(255,255,255,0)');
   x.fillStyle = g; x.fillRect(0, 0, 4, 128); return new THREE.CanvasTexture(c);
 })();
+
+// ---------- cometas: cabeça e cauda com fogo de verdade (ruído animado no shader) ----------
+// Cada estilo tem 3 cores: núcleo (quase branco), meio e borda. Os materiais são compartilhados por todos os tiros.
+const ESTILOS = {
+  fogo: [0xfff6c8, 0xffa21a, 0xff2a06], gelo: [0xffffff, 0x9fe6ff, 0x2a72ff], arcano: [0xffffff, 0xc4a4ff, 0x5a22ff], raio: [0xffffff, 0xa8d8ff, 0x3a7dff],
+};
+const TEMPO = { value: 0 };
+const RUIDO = `
+  float hs(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float rd(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hs(i), hs(i + vec3(1,0,0)), f.x), mix(hs(i + vec3(0,1,0)), hs(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(hs(i + vec3(0,0,1)), hs(i + vec3(1,0,1)), f.x), mix(hs(i + vec3(0,1,1)), hs(i + vec3(1,1,1)), f.x), f.y), f.z); }
+  float fbm(vec3 p){ return 0.55 * rd(p) + 0.3 * rd(p * 2.1 + 3.1) + 0.15 * rd(p * 4.3 + 7.7); }`;
+// cauda: tubo que abre para trás (eixo -Z, de 0 na cabeça até 1 na ponta)
+const GEO_CAUDA = (() => { const g = new THREE.CylinderGeometry(1, 0.42, 1, 18, 10, true); g.translate(0, 0.5, 0); g.rotateX(-Math.PI / 2); return g; })();
+const GEO_CABECA = new THREE.SphereGeometry(1, 20, 14);
+function matCauda([c0, c1, c2], forca, veloc) {
+  return new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: ADD, side: THREE.DoubleSide, toneMapped: false,
+    uniforms: { t: TEMPO, c0: { value: new THREE.Color(c0) }, c1: { value: new THREE.Color(c1) }, c2: { value: new THREE.Color(c2) }, forca: { value: forca }, veloc: { value: veloc } },
+    vertexShader: `varying float vL; varying float vA; varying float vB; void main(){ vL = -position.z; vA = atan(position.y, position.x);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0); vec3 n = normalize(normalMatrix * normal); vB = abs(dot(n, normalize(-mv.xyz)));
+      gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float t; uniform vec3 c0; uniform vec3 c1; uniform vec3 c2; uniform float forca; uniform float veloc; varying float vL; varying float vA; varying float vB; ${RUIDO}
+      void main(){ vec3 q = vec3(cos(vA) * 2.6, sin(vA) * 2.6, vL * 7.0 - t * veloc);
+        float n = fbm(q), m = fbm(vec3(q.xy * 1.7, q.z * 2.3) + vec3(5.2, 1.3, t * veloc * 0.5));
+        float lin = pow(1.0 - vL, 1.2), chama = smoothstep(0.42, 0.8, n * 0.75 + m * 0.45 + lin * 0.4 - vL * 0.25);
+        float a = chama * pow(lin, 1.3) * pow(vB, 1.1) * forca * 0.7;
+        vec3 cor = mix(c2, c1, smoothstep(0.15, 0.8, chama * lin)); cor = mix(cor, c0, smoothstep(0.8, 1.05, chama * (1.0 - vL * 2.0)));
+        gl_FragColor = vec4(cor, a); }` });
+}
+function matCabeca([c0, c1, c2]) {
+  return new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: ADD, toneMapped: false,
+    uniforms: { t: TEMPO, c0: { value: new THREE.Color(c0) }, c1: { value: new THREE.Color(c1) }, c2: { value: new THREE.Color(c2) } },
+    vertexShader: 'varying vec3 vP; varying float vB; void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vB = abs(dot(normalize(normalMatrix * normal), normalize(-mv.xyz))); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: `uniform float t; uniform vec3 c0; uniform vec3 c1; uniform vec3 c2; varying vec3 vP; varying float vB; ${RUIDO}
+      void main(){ float n = fbm(vP * 3.2 + vec3(0.0, 0.0, -t * 8.0)); float k = pow(vB, 1.5);
+        vec3 cor = mix(c2, c1, smoothstep(0.2, 0.75, k + n * 0.45)); cor = mix(cor, c0, smoothstep(0.8, 1.15, k + n * 0.25));
+        gl_FragColor = vec4(cor * (0.7 + n * 0.6), smoothstep(0.25, 0.7, k * 0.8 + n * 0.55) * 0.95); }` });
+}
+const MAT_COMETA = {};
+const materiaisCometa = (estilo) => MAT_COMETA[estilo] || (MAT_COMETA[estilo] = {
+  cabeca: matCabeca(ESTILOS[estilo]), cauda: matCauda(ESTILOS[estilo], 1, 6), nucleo: matCauda([ESTILOS[estilo][0], ESTILOS[estilo][0], ESTILOS[estilo][1]], 0.3, 8) });
+// Cometa: cabeça de fogo, cauda larga por fora e um núcleo claro por dentro. tam = raio da cabeça, comp = tamanho da cauda (m)
+function cometa(estilo, tam, comp) {
+  const M = materiaisCometa(estilo), g = new THREE.Group();
+  const cabeca = new THREE.Mesh(GEO_CABECA, M.cabeca); cabeca.scale.setScalar(tam * 1.25);
+  const cauda = new THREE.Mesh(GEO_CAUDA, M.cauda); cauda.scale.set(tam * 2.1, tam * 2.1, comp);
+  const nucleo = new THREE.Mesh(GEO_CAUDA, M.nucleo); nucleo.scale.set(tam * 1.0, tam * 1.0, comp * 0.6);
+  for (const m of [cauda, nucleo, cabeca]) { m.frustumCulled = false; m.renderOrder = 3; g.add(m); }
+  cauda.renderOrder = 2; g.userData.cometa = { cabeca, cauda, nucleo, tam, comp };
+  return g;
+}
+// Lâmina de energia do Corte Aéreo: meia-lua deitada, mais forte no meio
+const GEO_LUA = (() => { const g = new THREE.RingGeometry(0.62, 1, 40, 2, 0, Math.PI); g.rotateX(-Math.PI / 2); g.rotateY(Math.PI); return g; })();
+const MAT_LUA = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: ADD, side: THREE.DoubleSide, toneMapped: false,
+  uniforms: { t: TEMPO, c0: { value: new THREE.Color(0xffffff) }, c1: { value: new THREE.Color(0x2ec8ff) } },
+  vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform float t; uniform vec3 c0; uniform vec3 c1; varying vec2 vP; ${RUIDO}
+    void main(){ float r = length(vP), ang = atan(vP.y, vP.x); float meio = sin(clamp(ang, 0.0, 3.1416)); float borda = smoothstep(0.62, 0.9, r) * (1.0 - smoothstep(0.94, 1.0, r));
+      float n = fbm(vec3(ang * 3.0, r * 6.0, t * 9.0)); float k = borda * pow(meio, 1.6) * (0.7 + n * 0.6);
+      gl_FragColor = vec4(mix(c1, c0, smoothstep(0.55, 1.0, k)), k); }` });
 
 // Uma camada somando luz + uma por baixo, normal, para o desenho aparecer também no chão claro
 function circuloMalha(tex) {
@@ -133,7 +196,7 @@ export class Efeitos {
     // luzes fixas reaproveitadas (criar luz no meio do jogo faz o celular recompilar os materiais e engasgar)
     this.luzes = Array.from({ length: 4 }, () => { const l = new THREE.PointLight(0xffffff, 0, 8, 2); scene.add(l); return { l, dono: null, int: 0, vida: 0, max: 1 }; });
     this.rastros = new Map(); // id do corpo -> { dash: Faixa, lamina: Faixa }
-    this.meteoros = [];
+    this.meteoros = []; this.raios = []; this.agenda = [];
   }
 
   // ---------- partículas ----------
@@ -181,7 +244,10 @@ export class Efeitos {
       case 'campo': return this.campo(e);
       case 'chuva': return this.chuva(e);
       case 'conjura': { const c = corpos.get(e.id); if (c) this.conjura(c.corpo, e); return; }
-      case 'dash': { const c = corpos.get(e.id); if (c) this.trilhos(e.id).dashT = 0.3; return; }
+      case 'dash': { const c = corpos.get(e.id); if (c) this.trilhos(e.id).dashT = e.dur || 0.3; return; }
+      case 'fenda': return this.fenda(e);
+      case 'raio': return this.raio(e);
+      case 'vortice': return this.vortice(e);
       default:
     }
   }
@@ -220,6 +286,7 @@ export class Efeitos {
   // Habilidades de área em volta do jogador: cada uma com o seu jeito
   explosao(e) {
     const cores = corDe(e.fx), [cb, cc] = cores;
+    if (e.fx === 'vortice') { this.area(e.x, e.z, e.r, cores, 1.6); this.surto(e.x, 0.8, e.z, 50, 0xffffff, cc, 10, 0.14); return; }
     if (e.fx === 'giro') { this.anel(e.x, e.z, e.r, cc, 0.4); this.surto(e.x, 0.9, e.z, 24, cb, cc, 7); return; }
     if (e.fx === 'onda') { // anel de gelo que corre para fora
       this.area(e.x, e.z, e.r, cores, 0.8);
@@ -233,34 +300,34 @@ export class Efeitos {
     this.area(e.x, e.z, e.r, cores, e.fx === 'explosao' ? 1.5 : 1);
   }
   projetil(e) {
+    const estilo = e.estilo || 'fogo', [cb, cc] = estilo === 'fogo' ? [0xfff2b0, e.cor] : [0xffffff, e.cor];
     let m;
-    if (e.flecha) {
-      m = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.8, 5), new THREE.MeshStandardMaterial({ color: 0x6b4a2c }));
-      m.geometry.rotateX(Math.PI / 2);
-      const ponta = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 5), new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.8, roughness: 0.3 }));
-      ponta.rotation.x = Math.PI / 2; ponta.position.z = 0.44; m.add(ponta);
-    } else {
-      // orbe de luz com aura pulsando
-      m = new THREE.Mesh(new THREE.SphereGeometry(e.tam, 14, 10), new THREE.MeshBasicMaterial({ color: 0xfff6d8, toneMapped: false }));
-      const aura = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({ color: e.cor, transparent: true, opacity: 0.5, blending: ADD, depthWrite: false, toneMapped: false }));
-      aura.scale.setScalar(2); m.add(aura); m.userData.aura = aura;
-    }
+    if (estilo === 'corte') { // meia-lua de energia
+      m = new THREE.Group(); const lua = new THREE.Mesh(GEO_LUA, MAT_LUA); lua.scale.setScalar(e.tam * 1.4); lua.rotation.z = 0.35; lua.frustumCulled = false; lua.renderOrder = 3;
+      const lua2 = new THREE.Mesh(GEO_LUA, MAT_LUA); lua2.scale.setScalar(e.tam * 1.15); lua2.position.z = -0.25; lua2.rotation.z = 0.35; lua2.frustumCulled = false;
+      m.add(lua, lua2); m.userData.lua = lua;
+    } else if (estilo === 'gelo') { // lança de cristal com cauda de geada
+      m = cometa('gelo', e.tam * 0.8, 2.2);
+      const cristal = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xdff6ff, toneMapped: false }));
+      cristal.scale.set(e.tam * 0.7, e.tam * 0.7, e.tam * 4.2); cristal.position.z = e.tam * 1.2; m.add(cristal); m.userData.cristal = cristal;
+    } else m = cometa(estilo, e.tam, estilo === 'arcano' ? 1.4 : 2.6 + e.tam * 4);
     m.position.set(e.x, e.y, e.z);
     const dir = new THREE.Vector3(e.dx, e.dy, e.dz);
     m.lookAt(m.position.clone().add(dir));
     this.scene.add(m);
-    if (e.fogo) { this.surto(e.x, e.y, e.z, 26, 0xfff2b0, e.cor, 6); m.scale.setScalar(1.15); }
-    const luz = e.flecha && !e.atravessa ? null : this.luz(e.cor, e.flecha ? 1.2 : e.fogo ? 3 : 1.6, e.fogo ? 7 : 4, 2.5, m);
-    this.projeteis.set(e.id, { m, dir, vel: e.vel, vida: 2.5, e, luz, t: 0 });
+    this.surto(e.x, e.y, e.z, estilo === 'arcano' ? 10 : 26, cb, cc, estilo === 'arcano' ? 3 : 6, estilo === 'arcano' ? 0.07 : 0.12);
+    const luz = estilo === 'arcano' ? null : this.luz(cc, estilo === 'fogo' ? 3 : 2, estilo === 'fogo' ? 7 : 5, 2.5, m);
+    this.projeteis.set(e.id, { m, dir, vel: e.vel, vida: e.vida || 2.5, e, estilo, luz, t: 0 });
   }
   fimProjetil(e) {
     const p = this.projeteis.get(e.id);
     if (p) { this.tirarProjetil(e.id, p); }
     const cor = new THREE.Color(e.cor), clara = cor.clone().lerp(new THREE.Color(0xffffff), 0.6).getHex();
-    if (e.explosao) this.area(e.x, e.z, e.explosao, [clara, e.cor], 0.8);
-    else if (p && !p.e.flecha) this.surto(e.x, e.y, e.z, 14, clara, e.cor, 4, 0.08);
+    if (e.explosao) { this.area(e.x, e.z, e.explosao, [clara, e.cor], 0.8); this.surto(e.x, e.y, e.z, 30, 0xfff2b0, e.cor, 8, 0.14); }
+    else if (e.estilo === 'gelo') { this.surto(e.x, e.y, e.z, 30, 0xffffff, e.cor, 6, 0.1); this.fumacaChao(e.x, e.z, 0.8, 8, 0xdff4ff, 0.8); }
+    else this.surto(e.x, e.y, e.z, 16, clara, e.cor, 4, 0.08);
   }
-  tirarProjetil(id, p) { this.scene.remove(p.m); if (p.luz?.dono === p.m) { p.luz.vida = 0; p.luz.dono = null; } this.projeteis.delete(id); }
+  tirarProjetil(id, p) { this.scene.remove(p.m); p.m.userData.cristal?.geometry.dispose(); if (p.luz?.dono === p.m) { p.luz.vida = 0; p.luz.dono = null; } this.projeteis.delete(id); }
   anel(x, z, r, cor, dur) {
     const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.82, r, 48),
       new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.8, side: THREE.DoubleSide, toneMapped: false, depthWrite: false, blending: ADD }));
@@ -281,13 +348,49 @@ export class Efeitos {
     const [cb, cc] = FXCOR.meteoros;
     const m = circuloMalha(TEXC[0]); m.position.set(e.x, 0.07, e.z); m.scale.setScalar(e.r); this.scene.add(m);
     this.campos.push({ m, x: e.x, z: e.z, r: e.r, t: 0, dur: 0.6 + e.ondas * 0.22, cb, cc, fraco: true });
-    const geo = new THREE.SphereGeometry(0.2, 12, 8);
     for (let k = 0; k < e.ondas; k++) for (let n = 0; n < 3; n++) {
       const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * e.r * 0.9, x = e.x + Math.cos(a) * d, z = e.z + Math.sin(a) * d;
-      const o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xfff2c8, toneMapped: false }));
-      o.position.set(x + 2.5, 9, z + 1.2); o.visible = false; this.scene.add(o);
+      const o = cometa('fogo', 0.26, 4.2);
+      o.position.set(x + 2.5, 9, z + 1.2); o.lookAt(x, 0, z); o.visible = false; this.scene.add(o);
       this.meteoros.push({ o, de: o.position.clone(), para: new THREE.Vector3(x, 0, z), t: -(0.25 + k * 0.22 + n * 0.06) + 0.35, dur: 0.35, cb, cc });
     }
+  }
+  // Fenda de Fogo: explosões em fila, uma depois da outra, saindo da espada
+  fenda(e) {
+    const cores = FXCOR.fenda;
+    for (let k = 0; k < e.passos; k++) {
+      const d = 1.2 + (e.comp - 1.2) * k / (e.passos - 1), x = e.x + Math.sin(e.ry) * d, z = e.z + Math.cos(e.ry) * d;
+      this.agenda.push({ t: k * 0.07, fn: () => { this.area(x, z, e.larg * 0.9, cores, 0.55); this.surto(x, 0.2, z, 14, cores[0], cores[1], 7, 0.13); } });
+    }
+  }
+  // Raio Celeste: um raio em zigue-zague do céu até o chão, com clarão e estalo no chão
+  raio(e) {
+    const [cb, cc] = FXCOR.raio, g = new THREE.Group(), pts = []; let x = 0, z = 0;
+    for (let k = 0; k <= 14; k++) { const y = 16 * (1 - k / 14); pts.push(new THREE.Vector3(x, y, z)); x += rnd(-0.55, 0.55); z += rnd(-0.55, 0.55); x *= 0.85; z *= 0.85; }
+    pts[pts.length - 1].set(0, 0, 0);
+    const fita = (larg, cor, op) => { // tira virada para a câmera em cada trecho
+      const pos = []; for (const p of pts) pos.push(p.x - larg, p.y, p.z, p.x + larg, p.y, p.z);
+      const idx = []; for (let k = 0; k < pts.length - 1; k++) { const a = k * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: op, blending: ADD, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false }));
+      m.frustumCulled = false; m.renderOrder = 4; return m;
+    };
+    g.add(fita(0.5, cc, 0.35), fita(0.16, cb, 0.9), fita(0.05, 0xffffff, 1)); g.position.set(e.x, 0, e.z); this.scene.add(g);
+    this.raios.push({ g, t: 0, dur: 0.4 });
+    this.luz(cb, 7, 14, 0.35).l.position.set(e.x, 3, e.z);
+    this.area(e.x, e.z, 1.4, [cb, cc], 0.7); this.surto(e.x, 0.3, e.z, 34, 0xffffff, cc, 9, 0.12); this.anel(e.x, e.z, 1.8, cc, 0.45);
+  }
+  // Vórtice: espiral roxa puxando partículas para o centro
+  vortice(e) {
+    const [cb, cc] = FXCOR.vortice;
+    for (let i = 0; i < 90; i++) {
+      const a = Math.random() * 6.283, d = e.r * rnd(0.5, 1), x = e.x + Math.cos(a) * d, z = e.z + Math.sin(a) * d, v = d / 0.55;
+      const vx = -Math.cos(a) * v * 0.8 - Math.sin(a) * v * 0.6, vz = -Math.sin(a) * v * 0.8 + Math.cos(a) * v * 0.6;
+      this.part(this.FOGO, x, rnd(0.1, 1.6), z, vx, rnd(-0.2, 0.4), vz, 0.55, 0.12 * H, 0.03 * H, cb, cc, 1, 0, 0);
+      if (i % 3 === 0) this.part(this.FUMA, x, 0.15, z, vx * 0.8, 0.2, vz * 0.8, 0.7, 0.3 * H, 0.15 * H, 0x6a3a9a, 0x1a0a2a, 0.45, 0, 0);
+    }
+    const m = circuloMalha(TEXC[1]); m.position.set(e.x, 0.07, e.z); m.scale.setScalar(e.r); this.scene.add(m);
+    this.campos.push({ m, x: e.x, z: e.z, r: e.r, t: 0, dur: 0.9, cb, cc, fraco: true, encolhe: true });
   }
   // ---------- rastros que seguem os corpos ----------
   trilhos(id) {
@@ -307,6 +410,13 @@ export class Efeitos {
   esquecer(id) { const r = this.rastros.get(id); if (r) { r.dash.remover(this.scene); r.lamina.remover(this.scene); this.rastros.delete(id); } }
 
   atualizar(dt, t, camera, renderer) {
+    TEMPO.value = t;
+    for (let i = this.agenda.length - 1; i >= 0; i--) { const a = this.agenda[i]; a.t -= dt; if (a.t <= 0) { this.agenda.splice(i, 1); a.fn(); } }
+    for (let i = this.raios.length - 1; i >= 0; i--) {
+      const r = this.raios[i]; r.t += dt; const u = r.t / r.dur;
+      r.g.visible = u < 0.15 || Math.random() < 0.8; r.g.children.forEach((m, k) => { m.material.opacity = [0.35, 0.9, 1][k] * Math.max(0, 1 - u); });
+      if (u >= 1) { this.scene.remove(r.g); r.g.children.forEach((m) => { m.geometry.dispose(); m.material.dispose(); }); this.raios.splice(i, 1); }
+    }
     this.FOGO.mat.uniforms.esc.value = this.FUMA.mat.uniforms.esc.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
     // círculos de quem está conjurando
     for (let i = this.circulos.length - 1; i >= 0; i--) {
@@ -347,29 +457,38 @@ export class Efeitos {
       a.m.scale.setScalar(a.r * (0.3 + 0.75 * (1 - (1 - u) ** 3))); a.m.rotation.z = a.t * 1.2;
       a.m.definir(a.cc, u < 0.1 ? u * 10 : 1 - (u - 0.1) / 0.9);
     }
-    // campos de fogo e a área da chuva de flechas
+    // campos de fogo, a área da chuva de meteoros e o vórtice
     for (let i = this.campos.length - 1; i >= 0; i--) {
       const f = this.campos[i]; f.t += dt;
       const op = Math.min(1, f.t * 4, (f.dur - f.t) * 2);
-      f.m.rotation.z = f.t * 0.7; f.m.definir(f.cc, Math.max(0, op) * (f.fraco ? 0.7 : 0.9));
+      f.m.rotation.z = f.t * (f.encolhe ? 4 : 0.7); if (f.encolhe) f.m.scale.setScalar(f.r * Math.max(0.3, 1 - f.t / f.dur));
+      f.m.definir(f.cc, Math.max(0, op) * (f.fraco ? 0.7 : 0.9));
       if (!f.fraco) {
         let n = dt * 70; while (n > 0) { if (Math.random() < n) { const a = Math.random() * 6.283, d = f.r * Math.sqrt(Math.random()); this.labareda(f.x + Math.cos(a) * d, 0.05, f.z + Math.sin(a) * d, f.cb, f.cc, 1.1); } n -= 1; }
         if (Math.random() < dt * 30) this.poeira(f.x, f.z, f.r, 1, f.cb, f.cc);
       }
       if (f.t >= f.dur) { this.scene.remove(f.m); f.m.descartar(); this.campos.splice(i, 1); }
     }
-    // projéteis: a bola de fogo deixa rastro de fogo e fumaça; a faísca, brilhos
+    // projéteis: o cometa de fogo solta brasas e fumaça pela cauda; gelo solta geada; o disparo, faíscas
     for (const [id, p] of this.projeteis) {
       p.m.position.addScaledVector(p.dir, p.vel * dt); p.vida -= dt; p.t += dt;
-      const o = p.m.position;
-      if (p.m.userData.aura) {
-        p.m.userData.aura.scale.setScalar(2 + Math.sin(p.t * 30) * 0.3);
-        const cor = p.e.cor, vx = -p.dir.x * p.vel, vz = -p.dir.z * p.vel;
-        if (p.e.fogo) {
-          this.part(this.FOGO, o.x, o.y, o.z, 0, 0, 0, 0.08, 0.75 * H * p.e.tam, 0.5 * H * p.e.tam, 0xfff2b0, cor, 0.9);
-          for (let k = 0; k < 3; k++) this.part(this.FUMA, o.x + rnd(-0.1, 0.1), o.y + rnd(-0.1, 0.1), o.z + rnd(-0.1, 0.1), vx * 0.05 + rnd(-0.5, 0.5), rnd(0.2, 1.2), vz * 0.05 + rnd(-0.5, 0.5), rnd(0.25, 0.4), 0.42 * H * p.e.tam * 4, 0.08 * H, 0xff9a1a, 0x5a0d02, 0.85, 1.5, 0.5);
-          for (let k = 0; k < 3; k++) this.part(this.FOGO, o.x + rnd(-0.08, 0.08), o.y + rnd(-0.08, 0.08), o.z + rnd(-0.08, 0.08), vx * 0.08 + rnd(-0.4, 0.4), rnd(0, 0.8), vz * 0.08 + rnd(-0.4, 0.4), rnd(0.25, 0.45), 0.3 * H * p.e.tam * 4, 0.04 * H, 0xffd27a, 0xff3a0a, 0.9, 1.5, 0.5);
-        } else if (Math.random() < 0.8) this.part(this.FOGO, o.x, o.y, o.z, rnd(-0.4, 0.4), rnd(-0.2, 0.4), rnd(-0.4, 0.4), 0.3, 0.12 * H, 0.01, 0xffffff, cor, 0.9, 0, 1);
+      const o = p.m.position, cor = p.e.cor, vx = -p.dir.x * p.vel, vy = -p.dir.y * p.vel, vz = -p.dir.z * p.vel, tm = p.e.tam;
+      const cm = p.m.userData.cometa;
+      if (cm) { const k = 1 + Math.sin(p.t * 31) * 0.08; cm.cabeca.scale.setScalar(cm.tam * 1.25 * k); cm.cauda.scale.z = cm.comp * Math.min(1, p.t * 6) * (1 + Math.sin(p.t * 23) * 0.06); cm.nucleo.scale.z = cm.cauda.scale.z * 0.6; }
+      if (p.estilo === 'fogo') {
+        this.part(this.FOGO, o.x, o.y, o.z, 0, 0, 0, 0.08, 1.6 * tm * 4 * 0.5, tm * 2, 0xfff2b0, cor, 0.7);
+        for (let k = 0; k < 2; k++) this.part(this.FUMA, o.x + rnd(-0.1, 0.1), o.y + rnd(-0.1, 0.1), o.z + rnd(-0.1, 0.1), vx * 0.1 + rnd(-0.4, 0.4), vy * 0.1 + rnd(0.2, 1), vz * 0.1 + rnd(-0.4, 0.4), rnd(0.35, 0.6), tm * 1.2, tm * 4, 0xff7a1a, 0x2a0a04, 0.3, 1.2, 0.8);
+        for (let k = 0; k < 4; k++) { const f = rnd(0, 0.6); this.part(this.FOGO, o.x + vx * f * 0.1 + rnd(-0.1, 0.1), o.y + vy * f * 0.1 + rnd(-0.1, 0.1), o.z + vz * f * 0.1 + rnd(-0.1, 0.1), vx * 0.15 + rnd(-0.6, 0.6), rnd(-0.3, 0.9), vz * 0.15 + rnd(-0.6, 0.6), rnd(0.2, 0.5), tm * rnd(0.4, 0.9), 0.01, 0xffe08a, 0xff3a0a, 1, -2, 1); }
+      } else if (p.estilo === 'gelo') {
+        for (let k = 0; k < 3; k++) this.part(this.FOGO, o.x + rnd(-0.08, 0.08), o.y + rnd(-0.08, 0.08), o.z + rnd(-0.08, 0.08), vx * 0.1 + rnd(-0.5, 0.5), rnd(-0.5, 0.3), vz * 0.1 + rnd(-0.5, 0.5), rnd(0.3, 0.6), 0.05 * H, 0.01, 0xffffff, cor, 1, -3, 1);
+        this.part(this.FUMA, o.x, o.y, o.z, rnd(-0.3, 0.3), rnd(-0.2, 0.2), rnd(-0.3, 0.3), 0.6, 0.15 * H, 0.35 * H, 0xeaf8ff, 0x8fbfe8, 0.35, -0.3, 1);
+      } else if (p.estilo === 'arcano') {
+        this.part(this.FOGO, o.x, o.y, o.z, rnd(-0.4, 0.4), rnd(-0.2, 0.4), rnd(-0.4, 0.4), 0.3, 0.1 * H, 0.01, 0xffffff, cor, 0.9, 0, 1);
+      } else if (p.estilo === 'corte') {
+        const s2 = 1 + p.t * 0.6; p.m.scale.setScalar(s2); p.m.userData.lua.material.opacity = 1;
+        for (let k = 0; k < 3; k++) { const a = rnd(-1.4, 1.4), r = tm * 1.4 * s2; const lx = Math.sin(a) * r, lz = Math.cos(a) * r * 0.5;
+          const ry = Math.atan2(p.dir.x, p.dir.z), cx = o.x + Math.cos(ry) * lx + Math.sin(ry) * lz, cz = o.z - Math.sin(ry) * lx + Math.cos(ry) * lz;
+          this.part(this.FOGO, cx, o.y + Math.sin(a) * 0.3, cz, vx * 0.05, rnd(-0.2, 0.4), vz * 0.05, 0.35, 0.06 * H, 0.01, 0xffffff, cor, 0.9, 0, 1); }
       }
       if (p.luz?.dono === p.m) { p.luz.l.position.copy(o); p.luz.vida = 1; }
       if (p.vida <= 0) this.tirarProjetil(id, p);
@@ -381,9 +500,9 @@ export class Efeitos {
       const o = q.o.position;
       for (let k = 0; k < 3; k++) this.part(this.FOGO, o.x + rnd(-0.1, 0.1), o.y + rnd(-0.1, 0.1), o.z + rnd(-0.1, 0.1), rnd(-0.4, 0.4), rnd(0, 1), rnd(-0.4, 0.4), rnd(0.25, 0.45), 0.35 * H, 0.04 * H, q.cb, q.cc, 0.9, 1.5, 0.5);
       this.part(this.FUMA, o.x, o.y, o.z, rnd(-0.3, 0.3), rnd(0, 0.6), rnd(-0.3, 0.3), 0.5, 0.25 * H, 0.45 * H, 0xff9a1a, 0x3a0a04, 0.7, 1, 0.5);
-      if (u >= 1) { this.scene.remove(q.o); q.o.material.dispose(); this.meteoros.splice(i, 1); this.area(q.para.x, q.para.z, 1.1, [q.cb, q.cc], 0.45); }
+      if (u >= 1) { this.scene.remove(q.o); this.meteoros.splice(i, 1); this.area(q.para.x, q.para.z, 1.1, [q.cb, q.cc], 0.45); }
     }
-    // anéis e flechas caindo
+    // anéis
     for (let i = this.lista.length - 1; i >= 0; i--) {
       const e = this.lista[i]; e.vida -= dt; const k = Math.max(0, e.vida / e.max);
       if (e.cai) e.m.position.y = Math.max(0.2, 6 * k);
