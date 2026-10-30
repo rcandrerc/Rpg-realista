@@ -24,7 +24,7 @@ export class Simulacao {
     const vila = mapa.vila || { casas: [], arvores: [] };
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })),
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 }))];
-    // casas: retângulo girado (meia largura / meia profundidade), ninguém atravessa parede
+    // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
@@ -40,7 +40,7 @@ export class Simulacao {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
-      fila: null, missoes: {}, falas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
+      fila: null, modo: 'Espada', missoes: {}, falas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
       visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
     this.jogadores.set(id, j);
     return j;
@@ -49,7 +49,7 @@ export class Simulacao {
   criarInimigo(sp) {
     const t = TIPOS_INIMIGO[sp.tipo];
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: t.vida, vidaMax: t.vida,
-      ataqueCd: 1 + Math.random(), sp });
+      ataqueCd: 1 + Math.random(), sp, v: this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
     this.inimigos.push(e);
   }
@@ -79,8 +79,14 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !buildValida(build)) return;
     j.build = [...build];
   }
+  // Espada na mão ou cajado na mão (a outra arma fica nas costas)
+  trocarModo(id, modo) {
+    const j = this.jogadores.get(id);
+    if (j && (modo === 'Espada' || modo === 'Magia')) j.modo = modo;
+  }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc) return;
+    if (i !== 9) j.modo = i === 10 || i > 4 ? 'Magia' : 'Espada'; // golpe usa a espada, magia usa o cajado
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
     if (!j.chao || j.arrancada) return;
@@ -298,7 +304,7 @@ export class Simulacao {
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }
-    for (const k of this.casas) {
+    if (c.tipo !== 'jogador') for (const k of this.casas) { // o herói usa a altura de verdade (escala a parede, anda no telhado)
       const dx = c.x - k.x, dz = c.z - k.z;
       const lx = dx * k.cos - dz * k.sin, lz = dx * k.sin + dz * k.cos; // no sistema da casa
       const px = k.hw - Math.abs(lx), pz = k.hd - Math.abs(lz);
@@ -362,7 +368,7 @@ export class Simulacao {
   // encosta o corpo na parede (na altura do peito) e vira de frente para a pedra
   ajustarParede(j) {
     const T = this.terreno, r = T.rochaEm(j.x + Math.sin(j.ry) * 0.8, j.z + Math.cos(j.ry) * 0.8);
-    if (r) j.ry = Math.atan2(r.x - j.x, r.z - j.z);
+    if (r) j.ry = r.casa ? T.deFrentePara(r, j.x, j.z) : Math.atan2(r.x - j.x, r.z - j.z);
     const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
     for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + 0.4), j.z + fz * (d + 0.4)) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
   }
@@ -571,9 +577,9 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual, missoes: j.missoes,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual, modo: j.modo, missoes: j.missoes,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
-      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo })),
+      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v })),
     };
   }
 }

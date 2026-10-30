@@ -29,7 +29,7 @@ export class Hud {
   // Botão na tela -> comando da simulação: 0 = golpe (ou 10 = disparo), 1 a 4 = espada (ou 5 a 8 = magia)
   indice(i) { const m = this.modo === 'Magia'; return i === 0 ? (m ? 10 : 0) : m ? i + ESPACOS_ESPADA : i; }
   // Troca espada <-> magia na hora, sem recarga
-  trocar() { this.modo = this.modo === 'Espada' ? 'Magia' : 'Espada'; this.mostrarBuild(this.build); }
+  trocar() { this.modo = this.modo === 'Espada' ? 'Magia' : 'Espada'; this.mostrarBuild(this.build); this.aoTrocar?.(this.modo); }
   mostrarBuild(build) {
     this.build = build; const m = this.modo === 'Magia';
     document.querySelector('.acts').classList.toggle('magia', m);

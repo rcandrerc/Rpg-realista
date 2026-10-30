@@ -48,6 +48,44 @@ function espadaMagica(cor) {
 }
 const COR_HEROI = 0x5fb4ff;
 
+// Cajado mágico (feito no código): haste de madeira, anéis de bronze e um cristal que brilha na cor da magia.
+// A origem é o ponto onde a mão segura; o cajado cresce para +Y.
+const cajados = new Map();
+function cajadoMagico(cor) {
+  if (!cajados.has(cor)) {
+    const casca = new THREE.TextureLoader().load('assets/cenario/vila/medieval_wood_diff_1k.jpg');
+    casca.encoding = THREE.sRGBEncoding; casca.wrapS = casca.wrapT = THREE.RepeatWrapping;
+    const madeira = new THREE.MeshStandardMaterial({ map: casca, color: 0xe0b48a, roughness: 0.7 });
+    const bronze = new THREE.MeshStandardMaterial({ color: 0xb48c4c, metalness: 0.9, roughness: 0.32 });
+    const cristal = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: cor, emissiveIntensity: 1.5, roughness: 0.15, metalness: 0.1 });
+    const brilho = new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    const haste = new THREE.CylinderGeometry(0.017, 0.023, 1.5, 8, 12), p = haste.attributes.position, uv = haste.attributes.uv;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setX(i, p.getX(i) + Math.sin(y * 2.3) * 0.01); uv.setXY(i, uv.getX(i) * 0.2, uv.getY(i) * 1.5); }
+    haste.translate(0, 0.2, 0); haste.computeVertexNormals();
+    const pecas = [haste];
+    for (let k = 0; k < 3; k++) { // três garras de madeira segurando o cristal
+      const a = k * 2.094, c = Math.cos(a), sn = Math.sin(a);
+      const curva = new THREE.CatmullRomCurve3([[0, 0.92, 0], [0.05, 0.99, 0], [0.065, 1.08, 0], [0.03, 1.2, 0], [0.008, 1.24, 0]].map(([x, y]) => new THREE.Vector3(x * c, y, x * sn)));
+      const g = new THREE.TubeGeometry(curva, 12, 0.008, 5); g.deleteAttribute('uv'); g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      pecas.push(g);
+    }
+    const aneis = [0.9, 0.1, -0.12, -0.53].map((y) => new THREE.TorusGeometry(0.025, 0.006, 6, 14).rotateX(Math.PI / 2).translate(0, y, 0));
+    const pedra = new THREE.OctahedronGeometry(0.048, 1).scale(1, 1.7, 1).translate(0, 1.08, 0);
+    cajados.set(cor, { geo: { madeira: mergeGeometries(pecas.map((g) => g.toNonIndexed())), bronze: mergeGeometries(aneis), pedra }, madeira, bronze, cristal, brilho });
+  }
+  const m = cajados.get(cor), g = new THREE.Group();
+  const madeira = new THREE.Mesh(m.geo.madeira, m.madeira), bronze = new THREE.Mesh(m.geo.bronze, m.bronze), pedra = new THREE.Mesh(m.geo.pedra, m.cristal);
+  const aura = new THREE.Mesh(m.geo.pedra, m.brilho); aura.scale.set(1.6, 1.3, 1.6); aura.position.y = 1.08 - 1.08 * 1.3; // aura em volta do cristal
+  for (const o of [madeira, bronze, pedra]) o.castShadow = true;
+  g.add(madeira, bronze, pedra, aura);
+  return g;
+}
+// Onde fica a arma que não está na mão: nas costas, na diagonal (no espaço do corpo olhando para +Z)
+const COSTAS = {
+  espada: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI - 0.5)), desloc: [0.17, 0.2, -0.15] },
+  cajado: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.55)), desloc: [0.05, -0.32, -0.17] },
+};
+
 const trilha = (n, t, v) => (/quaternion$/.test(n) ? new THREE.QuaternionKeyframeTrack(n, t, v) : new THREE.VectorKeyframeTrack(n, t, v));
 
 // Recorta um pedaço da animação (de t0 a t1 segundos) e começa do zero
@@ -217,6 +255,51 @@ async function carregarVRM(id) {
   return vrm;
 }
 
+// ---------- variações de cor (NPCs e inimigos com o mesmo modelo, mas cabelo e roupa diferentes) ----------
+// Pinta a textura pela luminosidade: mantém o desenho (mechas, dobras, costuras) e troca a cor, inclusive para mais claro.
+const tingidas = new Map();
+function tingir(tex, cor) {
+  const k = tex.uuid + ':' + cor;
+  if (tingidas.has(k)) return tingidas.get(k);
+  const img = tex.image, lado = Math.min(1024, img.width), alto = Math.round(img.height * lado / img.width);
+  const cv = document.createElement('canvas'); cv.width = lado; cv.height = alto;
+  const g = cv.getContext('2d'); g.drawImage(img, 0, 0, lado, alto);
+  const dados = g.getImageData(0, 0, lado, alto), px = dados.data;
+  let soma = 0, n = 0;
+  for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 8) { soma += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11; n++; }
+  const media = Math.max(8, soma / Math.max(1, n)), c = new THREE.Color(cor), alvo = [c.r * 255, c.g * 255, c.b * 255];
+  for (let i = 0; i < px.length; i += 4) {
+    const l = Math.min(1.7, (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / media), f = 0.35 + 0.65 * l;
+    px[i] = Math.min(255, alvo[0] * f); px[i + 1] = Math.min(255, alvo[1] * f); px[i + 2] = Math.min(255, alvo[2] * f);
+  }
+  g.putImageData(dados, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.flipY = tex.flipY; t.encoding = tex.encoding; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT;
+  tingidas.set(k, t);
+  return t;
+}
+// tinta = { cabelo, roupa, calca } (cores 0xRRGGBB). Materiais tingidos são divididos entre cópias iguais.
+const materiaisTingidos = new Map();
+function tingirVRM(vrm, id, tinta) {
+  const parte = (nome) => (/HAIR/.test(nome) ? tinta.cabelo : /Bottoms/.test(nome) ? tinta.calca ?? tinta.roupa : /Tops|Accessory/.test(nome) ? tinta.roupa : null);
+  vrm.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const troca = (m) => {
+      const cor = parte(m.name); if (cor == null || !m.map) return m;
+      const k = id + '|' + m.name + '|' + cor;
+      if (!materiaisTingidos.has(k)) {
+        const novo = m.clone(), mesma = m.shadeMultiplyTexture === m.map;
+        novo.map = tingir(m.map, cor);
+        if (m.shadeMultiplyTexture) novo.shadeMultiplyTexture = mesma ? novo.map : tingir(m.shadeMultiplyTexture, cor);
+        if (novo.shadeColorFactor) novo.shadeColorFactor.set(cor).multiplyScalar(0.55).lerp(new THREE.Color(0.45, 0.4, 0.45), 0.3);
+        materiaisTingidos.set(k, novo);
+      }
+      return materiaisTingidos.get(k);
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(troca) : troca(o.material);
+  });
+}
+
 const eixo = (x, y, z, ang) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(x, y, z), ang);
 // Posição das armas no VRM, em relação ao corpo em pose T (olhando para +Z).
 // O braço ao descer gira em torno de Z, então o que aponta para +Z continua para a frente.
@@ -227,8 +310,9 @@ const ARMAS_VRM = {
 export class Corpo {
   // visual: 'soldado' (padrão), id de um VRM, ou cor para NPC/bandido
   // armas: 'heroi' (espada mágica azul), 'inimigo' (espada mágica na cor do brilho) ou 'nenhuma'; bravo: cara de raiva
-  constructor(scene, { cor, escala = 1, armas = 'heroi', visual = 'soldado', brilho = COR_HEROI, bravo = false }) {
-    this.scene = scene; this.visual = visual; this.brilho = brilho; this.bravo = bravo;
+  // tinta: cores novas de cabelo e roupa para o VRM (NPCs e inimigos variados)
+  constructor(scene, { cor, escala = 1, armas = 'heroi', visual = 'soldado', brilho = COR_HEROI, bravo = false, tinta = null }) {
+    this.scene = scene; this.visual = visual; this.brilho = brilho; this.bravo = bravo; this.tinta = tinta;
     this.root = new THREE.Group(); this.root.scale.setScalar(escala);
     this.acoes = {}; this.atual = null; this.seq = -1; this.estado = null;
     this.alvo = new THREE.Vector3(); this.alvoRy = 0; this.primeira = true;
@@ -254,10 +338,47 @@ export class Corpo {
     this.maosOssos = [mao, maoE];
     const por = (obj, osso, p, r, s) => { obj.position.set(...p); obj.rotation.set(...r); obj.scale.setScalar(s); osso.add(obj); return obj; };
     if (armas !== 'nenhuma') this.armas.espada = [por(espadaMagica(this.brilho), mao, [0, 8, 3], [Math.PI / 2, 0, 0], 100)];
+    if (armas === 'heroi') this.prepararCajado(corpo.getObjectByName('mixamorigSpine2'), mao, corpo);
     this.pronto();
+  }
+  // Herói: cajado nas costas (modo espada) ou na mão (modo magia); a espada faz o caminho contrário
+  prepararCajado(costas, mao, raiz) {
+    if (!costas || !mao) return;
+    raiz.updateMatrixWorld(true);
+    const qRoot = this.root.getWorldQuaternion(new THREE.Quaternion());
+    // preso rígido num osso, com giro e posição dados no espaço do corpo (na pose de descanso, agora)
+    const fixo = (obj, cfg) => {
+      const qOsso = costas.getWorldQuaternion(new THREE.Quaternion()), escala = 1 / costas.getWorldScale(new THREE.Vector3()).x;
+      const p = costas.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(...cfg.desloc).applyQuaternion(qRoot));
+      return { pos: costas.worldToLocal(p), quat: qOsso.invert().multiply(qRoot).multiply(cfg.giro), escala: escala * this.root.scale.x };
+    };
+    const esp = this.armas.espada[0];
+    this.armasPos = {
+      espadaMao: { pai: esp.parent, pos: esp.position.clone(), quat: esp.quaternion.clone(), escala: esp.scale.x },
+      espadaCostas: { pai: costas, ...fixo(esp, COSTAS.espada) },
+      cajadoCostas: { pai: costas, ...fixo(null, COSTAS.cajado) },
+    };
+    this.cajado = cajadoMagico(this.brilho); this.maoCajado = mao;
+    this.modo = null; this.armar('Espada');
+  }
+  armar(modo) {
+    if (!this.cajado || modo === this.modo) return;
+    this.modo = modo;
+    const por = (obj, l) => { l.pai.add(obj); obj.position.copy(l.pos); obj.quaternion.copy(l.quat); obj.scale.setScalar(l.escala); };
+    const P = this.armasPos, esp = this.armas.espada[0];
+    if (modo === 'Magia') { por(esp, P.espadaCostas); this.maoCajado.add(this.cajado); this.cajado.scale.setScalar(1 / this.maoCajado.getWorldScale(new THREE.Vector3()).x * this.root.scale.x); }
+    else { por(esp, P.espadaMao); por(this.cajado, P.cajadoCostas); }
+  }
+  // cajado na mão: segue a mão, mas fica em pé (levemente inclinado para a frente), seja qual for a animação
+  segurarCajado() {
+    if (this.modo !== 'Magia' || !this.cajado) return;
+    const mao = this.maoCajado, q = this.root.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.18, 0, -0.08)));
+    this.cajado.position.set(0, 0, 0);
+    this.cajado.quaternion.copy(mao.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));
   }
   montarVRM(vrm, armas) {
     if (this.removido) { VRMUtils.deepDispose(vrm.scene); return; }
+    if (this.tinta) tingirVRM(vrm, this.visual, this.tinta);
     this.vrm = vrm;
     this.inclina.add(vrm.scene);
     this.maosOssos = [vrm.humanoid.getRawBoneNode('rightHand'), vrm.humanoid.getRawBoneNode('leftHand')];
@@ -276,6 +397,7 @@ export class Corpo {
     this.mixer = new THREE.AnimationMixer(vrm.scene);
     this.clipes = clipesVRM(vrm);
     if (armas !== 'nenhuma') this.armas.espada = [prender(espadaMagica(this.brilho), ARMAS_VRM.espada)];
+    if (armas === 'heroi') this.prepararCajado(vrm.humanoid.getRawBoneNode('upperChest') || vrm.humanoid.getRawBoneNode('chest'), vrm.humanoid.getRawBoneNode('rightHand'), vrm.scene);
     this.pronto();
   }
   pronto() {
@@ -314,6 +436,7 @@ export class Corpo {
     this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
+    if (e.modo) this.armar(e.modo);
     if (e.acao && e.acaoSeq !== this.seq) this.tocarUmaVez(e.acao);
     else if (!e.acao) this.tocarLaco(e.anim);
     this.seq = e.acaoSeq;
@@ -334,12 +457,13 @@ export class Corpo {
       if (this.bravo) this.vrm.expressionManager?.setValue('angry', 0.8); // inimigo: cara de raiva
       this.vrm.update(dt);
     }
+    this.segurarCajado();
   }
   // posição das mãos no mundo (para o brilho da magia)
   maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
   // base e ponta da lâmina no mundo, se a espada estiver na mão
   lamina() {
-    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA) return null;
+    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA || this.modo === 'Magia') return null; // nas costas não deixa rastro
     return [e.localToWorld(LAMINA.base.clone()), e.localToWorld(LAMINA.ponta.clone())];
   }
   remover() {

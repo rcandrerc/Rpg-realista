@@ -19,7 +19,7 @@ const renderer = criarRenderizador(canvas);
 const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 400);
 const controles = new Controles(canvas);
 const hud = new Hud(camera);
-const segurarCamera = cameraForaDasCasas(mapa.vila);
+const segurarCamera = cameraForaDasCasas(mapa);
 
 let mundo, efeitos, rede;
 const corpos = new Map(); // id -> { corpo, info }
@@ -36,8 +36,8 @@ function corpoDe(e, tipo) {
     c = { corpo: new Corpo(mundo.scene, { armas: 'heroi', visual: e.visual }), tipo, visual: e.visual };
     if (!meu) c.tag = hud.etiqueta(e.nome, 'ally');
   } else {
-    const t = TIPOS_INIMIGO[e.tipo];
-    c = { corpo: new Corpo(mundo.scene, { escala: t.escala, armas: 'inimigo', visual: t.visual, brilho: t.brilho, bravo: true }), tipo };
+    const t = TIPOS_INIMIGO[e.tipo], sp = mapa.inimigos[e.v] || {}; // cada um do bando com o seu visual
+    c = { corpo: new Corpo(mundo.scene, { escala: t.escala * (sp.escala || 1), armas: 'inimigo', visual: sp.visual || t.visual, tinta: sp.tinta, brilho: t.brilho, bravo: true }), tipo };
     c.tag = hud.etiqueta(e.nome, 'inimigo');
   }
   corpos.set(e.id, c);
@@ -92,6 +92,7 @@ controles.aoTeclar = (code) => {
   if (code === 'KeyF') falar();
 };
 hud.montarBotoes({ usar, pular, dash, rolar });
+hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a espada das costas
 
 // build (habilidades nos botões) também fica guardada no aparelho
 let build = (() => { try { return JSON.parse(localStorage.getItem('build')); } catch { return null; } })();
@@ -170,7 +171,7 @@ function quadro() {
     efeitos = new Efeitos(mundo.scene);
     // NPCs da vila: chegue perto e toque em Falar (ou tecla F); o que cada um faz está em Simulacao.falar
     for (const n of mapa.npcs) {
-      const c = new Corpo(mundo.scene, { cor: n.cor, armas: 'nenhuma' });
+      const c = new Corpo(mundo.scene, { visual: n.visual, tinta: n.tinta, escala: n.escala || 1, armas: 'nenhuma' });
       c.aplicar({ x: n.x, z: n.z, ry: n.ry, anim: 'Idle', acao: null, acaoSeq: 0 });
       hud.adicionarNpc(n, c.root, falar);
       corpos.set('npc:' + n.id, { corpo: c, tipo: 'npc' });

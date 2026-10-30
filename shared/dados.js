@@ -206,32 +206,33 @@ export const MAPA_CLAREIRA = {
   nome: 'Vila da Clareira',
   raio: 34,
   nascimento: { x: 0, z: 1 },
+  // cada inimigo do bando tem cabelo, roupa e tamanho próprios (visual/tinta/escala mudam o padrão do tipo)
   inimigos: [
-    { tipo: 'sombrio', x: 16, z: 6 },
-    { tipo: 'sombrio', x: 20, z: -2 },
-    { tipo: 'sombrio', x: 14, z: 0 },
-    { tipo: 'lider', x: 22, z: 3 },
+    { tipo: 'sombrio', x: 16, z: 6, visual: 'cabelo_m', tinta: { cabelo: 0x6e1414, roupa: 0x22222a, calca: 0x2e2a26 } },
+    { tipo: 'sombrio', x: 20, z: -2, visual: 'fumiriya', escala: 1.05, tinta: { cabelo: 0x5c5f66, roupa: 0x35263f, calca: 0x1f1c22 } },
+    { tipo: 'sombrio', x: 14, z: 0, visual: 'cabelo_m', escala: 0.94, tinta: { cabelo: 0xd6d3cc, roupa: 0x2b3624, calca: 0x3a3226 } },
+    { tipo: 'lider', x: 22, z: 3, visual: 'fumiriya', tinta: { cabelo: 0x9c1424, roupa: 0x141414, calca: 0x2a0d10 } },
   ],
-  // NPCs da vila. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
+  // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
   npcs: [
-    { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, cor: 0x7a5a3a, funcao: 'missao', missao: 'bando', falas: [
+    { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, visual: 'fumiriya', escala: 1.03, tinta: { cabelo: 0xc9c7c2, roupa: 0x5b3a24, calca: 0x3b3229 }, funcao: 'missao', missao: 'bando', falas: [
       'Andarilho, o Bando Sombrio acampou no leste. Expulse os quatro e a vila te deve uma.',
       'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
     ] },
-    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, cor: 0xc9b48a, funcao: 'habilidades', falas: [
+    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', falas: [
       'Essa espada corta e conjura. Fale comigo para escolher os seus golpes e magias.',
       'Bigorna boa é bigorna quente. Volte quando quiser trocar a build.',
     ] },
-    { id: 'curandeira', nome: 'Irmã Lúcia, a curandeira', x: 1.4, z: -17.6, ry: -1, cor: 0xe6e0d0, funcao: 'cura', falas: [
+    { id: 'curandeira', nome: 'Irmã Lúcia, a curandeira', x: 1.4, z: -17.6, ry: -1, visual: 'shino', tinta: { cabelo: 0xe4e0d8, roupa: 0xe8e1cf, calca: 0x6d7f8c }, funcao: 'cura', falas: [
       'Ferido? Fale comigo e eu cuido de você.',
       'As ervas da clareira curam quase tudo. Quase.',
     ] },
-    { id: 'andarilho', nome: 'Bento, o andarilho', x: -3.5, z: 5.2, ry: 2.4, cor: 0x56604a, funcao: 'dica', falas: [
+    { id: 'andarilho', nome: 'Bento, o andarilho', x: -3.5, z: 5.2, ry: 2.4, visual: 'fumiriya', escala: 0.9, tinta: { cabelo: 0x8a4a22, roupa: 0x4f5e36, calca: 0x4a3c2c }, funcao: 'dica', falas: [
       'Já subiu na rocha mais alta, perto daqui? Lá de cima se vê a vila inteira.',
       'A escada na rocha menor é o jeito fácil. Na grande, só escalando.',
       'Pedra baixa você sobe andando. Na alta, agarre e vá subindo. Correndo contra ela, dá até para correr pela parede.',
     ] },
-    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, cor: 0x8a3b3b, funcao: 'loja', falas: [
+    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', falas: [
       'Minha carroça chega em breve com mercadoria da cidade.',
       'Tenho de tudo um pouco... quer dizer, vou ter.',
     ] },
