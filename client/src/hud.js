@@ -1,7 +1,7 @@
 // Interface na tela: barras, botões de habilidade, escolha da build, nomes sobre as cabeças, números de dano
 import * as THREE from 'three';
 import { icone } from './icones.js';
-import { ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, ESPACOS_ESPADA, ESPACOS_MAGIA, HEROI, MOVIMENTO } from '@rpg/shared';
+import { ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, ESPACOS_ESPADA, ESPACOS_MAGIA, HEROI, MOVIMENTO, MISSOES } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const v = new THREE.Vector3();
@@ -147,14 +147,35 @@ export class Hud {
     el.style.transform = `translate(${s.x}px,${s.y}px) translate(-50%,-100%)`;
     const hb = el.querySelector('.hb i'); if (hb && info) hb.style.width = (info.vida / info.vidaMax * 100) + '%';
   }
-  adicionarNpc(n, obj) { this.npcLista.push({ n, obj, el: this.etiqueta(n.nome, 'npc'), fala: 0 }); }
-  npcs(perto) {
+  // NPC: perto dele aparece o botão Falar em cima da cabeça; a resposta vem da simulação (evento 'fala')
+  adicionarNpc(n, obj, aoFalar) {
+    const el = this.etiqueta(n.nome, 'npc'), b = document.createElement('button');
+    b.type = 'button'; b.className = 'falar'; b.textContent = 'Falar'; b.hidden = true;
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); aoFalar(); });
+    el.appendChild(b);
+    this.npcLista.push({ n, obj, el, b, falaT: 0 });
+  }
+  npcPerto(perto) { return this.npcLista.find((p) => p.obj.position.distanceTo(perto) < 3); }
+  npcs(perto, dt) {
+    const junto = this.npcPerto(perto);
     for (const p of this.npcLista) {
       this.posicionarEtiqueta(p.el, p.obj, null, perto);
-      const say = p.el.querySelector('.say'), junto = p.obj.position.distanceTo(perto) < 4;
-      if (junto && say.hidden) say.textContent = p.n.falas[p.fala++ % p.n.falas.length];
-      say.hidden = !junto;
+      p.b.hidden = p !== junto;
+      p.falaT -= dt; p.el.querySelector('.say').hidden = p.falaT <= 0;
+      if (p.obj.position.distanceTo(perto) > 6) p.falaT = 0; // foi embora: a conversa acaba
     }
+  }
+  fala(ev) {
+    const p = this.npcLista.find((q) => q.n.id === ev.npc); if (!p) return;
+    p.el.querySelector('.say').textContent = ev.texto; p.falaT = 3 + ev.texto.length * 0.05;
+  }
+  missoes(eu) {
+    let t = '';
+    for (const [k, m] of Object.entries(eu.missoes || {})) {
+      const M = MISSOES[k]; if (!M || m.entregue) continue;
+      t = m.n >= M.total ? `${M.nome}: volte ao líder da vila` : `${M.nome}: ${m.n} de ${M.total}`;
+    }
+    const el = $('missao'); if (el.textContent !== t) el.textContent = t; el.hidden = !t;
   }
   numero(obj, texto, cura) {
     const el = document.createElement('div'); el.className = 'dmg' + (cura ? ' heal' : ''); el.textContent = texto;

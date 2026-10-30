@@ -1,7 +1,7 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -21,7 +21,11 @@ export class Simulacao {
     this.proxId = 1;
     // pedras: o herói usa a altura de verdade (pode subir); os inimigos só contornam um círculo
     this.terreno = new Terreno(mapa);
-    this.obstaculos = [...mapa.obstaculos];
+    const vila = mapa.vila || { casas: [], arvores: [] };
+    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })),
+      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 }))];
+    // casas: retângulo girado (meia largura / meia profundidade), ninguém atravessa parede
+    this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
@@ -36,7 +40,7 @@ export class Simulacao {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
-      fila: null, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
+      fila: null, missoes: {}, falas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
       visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
     this.jogadores.set(id, j);
     return j;
@@ -113,6 +117,39 @@ export class Simulacao {
     else this.depois(at, () => this.efeitoHabilidade(j, h));
   }
   // No chão pula; no ar, o segundo pulo é um mortal para a frente
+  // Botão Falar: o NPC mais perto responde conforme a função dele (cura, missão, habilidades, dica, loja)
+  falar(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto) return;
+    let npc = null, md = 3.2;
+    for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md) { md = d; npc = n; } }
+    if (!npc) return;
+    const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
+    const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
+    if (npc.funcao === 'cura') {
+      if (j.vida >= j.vidaMax && j.mana >= HEROI.mana) return diga('Você está inteiro. Volte quando precisar.');
+      const n = j.vidaMax - j.vida; j.vida = j.vidaMax; j.mana = HEROI.mana;
+      if (n > 0) this.evento({ t: 'cura', alvo: j.id, n });
+      return diga('Pronto, novinho em folha. Vá com cuidado lá fora.');
+    }
+    if (npc.funcao === 'missao') {
+      const M = MISSOES[npc.missao], m = j.missoes[npc.missao];
+      if (!m) { j.missoes[npc.missao] = { n: 0, entregue: false }; this.evento({ t: 'aviso', para: j.id, texto: 'Missão nova: ' + M.nome }); return diga(M.pedido); }
+      if (m.entregue) return diga(M.depois);
+      if (m.n >= M.total) { m.entregue = true; this.evento({ t: 'aviso', para: j.id, texto: 'Missão cumprida: ' + M.nome }); return diga(M.pronto); }
+      return diga(M.andamento.replace('{faltam}', M.total - m.n));
+    }
+    if (npc.funcao === 'habilidades') return diga(npc.falas[0], { abrir: 'habilidades' });
+    diga(proxima());
+  }
+  // Inimigo caiu: conta para quem está numa missão contra a horda dele (vale para todos do grupo)
+  contarMissao(c) {
+    const horda = TIPOS_INIMIGO[c.tipo]?.horda;
+    for (const j of this.jogadores.values()) for (const [k, m] of Object.entries(j.missoes)) {
+      const M = MISSOES[k]; if (M.horda !== horda || m.entregue || m.n >= M.total) continue;
+      m.n++;
+      this.evento({ t: 'aviso', para: j.id, texto: m.n >= M.total ? `${M.horda}: ${m.n}/${M.total}. Volte à vila!` : `${M.horda}: ${m.n}/${M.total}` });
+    }
+  }
   pular(id) {
     const j = this.jogadores.get(id);
     if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
@@ -234,6 +271,7 @@ export class Simulacao {
         this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' });
       });
     } else {
+      this.contarMissao(c);
       this.depois(8, () => {
         this.inimigos.splice(this.inimigos.indexOf(c), 1);
         this.criarInimigo(c.sp);
@@ -259,6 +297,15 @@ export class Simulacao {
     for (const k of c.tipo === 'jogador' ? this.obstaculos : [...this.obstaculos, ...this.obstaculosRocha]) {
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
+    }
+    for (const k of this.casas) {
+      const dx = c.x - k.x, dz = c.z - k.z;
+      const lx = dx * k.cos - dz * k.sin, lz = dx * k.sin + dz * k.cos; // no sistema da casa
+      const px = k.hw - Math.abs(lx), pz = k.hd - Math.abs(lz);
+      if (px <= 0 || pz <= 0) continue;
+      let nx = lx, nz = lz;
+      if (px < pz) nx = Math.sign(lx || 1) * k.hw; else nz = Math.sign(lz || 1) * k.hd;
+      c.x = k.x + nx * k.cos + nz * k.sin; c.z = k.z - nx * k.sin + nz * k.cos;
     }
     for (const o of this.todos()) {
       if (o === c || o.morto || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
@@ -524,7 +571,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual, missoes: j.missoes,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo })),
     };

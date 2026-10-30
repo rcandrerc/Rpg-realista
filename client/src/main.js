@@ -8,6 +8,7 @@ import { conectar, enderecoServidor } from './rede.js';
 import { entrarNaConta, sairDaConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Controles } from './controles.js';
+import { cameraForaDasCasas } from './vila.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -18,10 +19,11 @@ const renderer = criarRenderizador(canvas);
 const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 400);
 const controles = new Controles(canvas);
 const hud = new Hud(camera);
+const segurarCamera = cameraForaDasCasas(mapa.vila);
 
 let mundo, efeitos, rede;
 const corpos = new Map(); // id -> { corpo, info }
-window.jogo = { controles, corpos }; // para testes no console do navegador
+window.jogo = { controles, corpos, renderer }; // para testes no console do navegador
 let eu = null; // meu estado mais recente
 
 function corpoDe(e, tipo) {
@@ -57,11 +59,18 @@ function receber(foto, eventos) {
   for (const ev of eventos) {
     if (ev.t === 'dano' || ev.t === 'cura') { const c = corpos.get(ev.alvo); if (c) hud.numero(c.corpo.root, (ev.t === 'cura' ? '+' : '-') + ev.n, ev.t === 'cura'); }
     else if (ev.t === 'aviso') hud.aviso(ev.texto);
+    else if (ev.t === 'fala') {
+      hud.fala(ev);
+      const n = corpos.get('npc:' + ev.npc), d = mapa.npcs.find((q) => q.id === ev.npc);
+      if (n && d && eu) n.corpo.aplicar({ x: d.x, z: d.z, ry: Math.atan2(eu.x - d.x, eu.z - d.z), anim: 'Idle', acao: null, acaoSeq: 0 }); // vira para quem fala com ele
+      if (ev.abrir === 'habilidades') setTimeout(() => $('habBtn').click(), 1200);
+    }
     else efeitos.evento(ev, corpos);
   }
   if (eu) {
     hud.barras(eu.vida / eu.vidaMax, eu.mana / HEROI.mana);
     hud.recargas(eu);
+    hud.missoes(eu);
   }
 }
 
@@ -71,6 +80,7 @@ const usar = (i) => { if (i === 0 || i === 10) ultimoBase = t; rede?.enviar('hab
 const pular = () => rede?.enviar('pular');
 const dash = () => rede?.enviar('dash');
 const rolar = () => rede?.enviar('rolar');
+const falar = () => rede?.enviar('falar');
 controles.aoTeclar = (code) => {
   const tecla = { KeyJ: 0, KeyK: 1, KeyL: 2, KeyI: 3, KeyU: 4 };
   if (code in tecla) usar(hud.indice(tecla[code]));
@@ -79,6 +89,7 @@ controles.aoTeclar = (code) => {
   if (code === 'Space') pular();
   if (code === 'KeyE' || code === 'ShiftRight') dash();
   if (code === 'KeyQ') rolar();
+  if (code === 'KeyF') falar();
 };
 hud.montarBotoes({ usar, pular, dash, rolar });
 
@@ -136,10 +147,10 @@ function quadro() {
     if (meu) {
       const p = meu.corpo.root.position;
       { const yAntes = alvoCam.y; alvoCam.lerp(tmp.set(p.x, p.y + 1.35, p.z), Math.min(1, dt * 7)); alvoCam.y = yAntes + (p.y + 1.35 - yAntes) * Math.min(1, dt * 3.5); } // na altura sobe devagar: pulo balança pouco, rocha a câmera acompanha
-      controles.posicionarCamera(camera, alvoCam);
+      controles.posicionarCamera(camera, alvoCam); segurarCamera(camera, alvoCam);
       mundo.sol.position.set(p.x + 14, 22, p.z + 8); mundo.sol.target.position.copy(p);
       for (const c of corpos.values()) if (c.tag) hud.posicionarEtiqueta(c.tag, c.corpo.root, c.info, p);
-      hud.npcs(p);
+      hud.npcs(p, dt);
     }
     hud.atualizar(dt);
     renderer.render(mundo.scene, camera);
@@ -157,12 +168,12 @@ function quadro() {
     msg('Carregando os personagens…');
     await carregarPersonagens();
     efeitos = new Efeitos(mundo.scene);
-    // NPCs são só visuais por enquanto (falam quando o jogador chega perto)
+    // NPCs da vila: chegue perto e toque em Falar (ou tecla F); o que cada um faz está em Simulacao.falar
     for (const n of mapa.npcs) {
       const c = new Corpo(mundo.scene, { cor: n.cor, armas: 'nenhuma' });
       c.aplicar({ x: n.x, z: n.z, ry: n.ry, anim: 'Idle', acao: null, acaoSeq: 0 });
-      hud.adicionarNpc(n, c.root);
-      corpos.set('npc:' + n.nome, { corpo: c, tipo: 'npc' });
+      hud.adicionarNpc(n, c.root, falar);
+      corpos.set('npc:' + n.id, { corpo: c, tipo: 'npc' });
     }
     msg('Conectando ao servidor…');
     let nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';

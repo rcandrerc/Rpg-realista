@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Terreno } from '@rpg/shared';
+import { mascaraVila, misturarChao, montarVila } from './vila.js';
 
 export const gltfLoader = new GLTFLoader();
 export const carregarGLTF = (url) => gltfLoader.loadAsync(url);
@@ -45,25 +46,30 @@ export async function montarCena(renderer, mapa) {
     if (srgb) t.encoding = THREE.sRGBEncoding;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
   };
-  const chao = new THREE.Mesh(new THREE.CircleGeometry(160, 64), new THREE.MeshStandardMaterial({
+  const matChao = new THREE.MeshStandardMaterial({
     map: ladrilho('assets/cenario/chao/forrest_ground_01_diff_1k.jpg', 70, true),
     normalMap: ladrilho('assets/cenario/chao/forrest_ground_01_nor_gl_1k.jpg', 70),
     normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.95, color: 0xa89f8c,
-  }));
+  });
+  // caminhos de terra e a praça de pedra entram no próprio chão (vila.js)
+  const masc = mascaraVila(mapa.vila);
+  misturarChao(matChao, masc);
+  const chao = new THREE.Mesh(new THREE.CircleGeometry(160, 64), matChao);
   chao.rotation.x = -Math.PI / 2; chao.receiveShadow = true; scene.add(chao);
 
-  const grama = criarGrama(mapa.raio);
+  const grama = criarGrama(mapa.raio, masc);
   scene.add(grama.mesh);
-  await colocarObjetos(scene, mapa);
-  return { scene, sol, atualizar: (t) => { grama.uniforms.uTime.value = t; } };
+  const vila = montarVila(scene, mapa);
+  await colocarObjetos(scene, mapa, masc);
+  return { scene, sol, atualizar: (t) => { grama.uniforms.uTime.value = t; vila.atualizar(t); } };
 }
 
 function rnd(a, b) { return a + Math.random() * (b - a); }
 
-// Grama instanciada que balança com o vento
-function criarGrama(raio) {
+// Grama instanciada que balança com o vento (não nasce nos caminhos, na praça nem nas casas)
+function criarGrama(raio, masc) {
   const uniforms = { uTime: { value: 0 } };
-  const g = new THREE.PlaneGeometry(0.06, 0.3, 1, 3); g.translate(0, 0.15, 0);
+  const g = new THREE.PlaneGeometry(0.06, 0.3, 1, 2); g.translate(0, 0.15, 0);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setX(i, p.getX(i) * (1 - y * 1.7)); p.setZ(i, y * y * 0.4); }
   const m = new THREE.MeshStandardMaterial({ color: 0x8a9450, roughness: 0.95, side: THREE.DoubleSide });
@@ -79,7 +85,8 @@ function criarGrama(raio) {
   const mesh = new THREE.InstancedMesh(g, m, N);
   const d = new THREE.Object3D(), cor = new THREE.Color();
   for (let i = 0; i < N; i++) {
-    const a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * raio * 1.15;
+    let a, r, k = 0;
+    do { a = Math.random() * 6.283; r = Math.sqrt(Math.random()) * raio * 1.15; } while (masc.peso(Math.cos(a) * r, Math.sin(a) * r) > 0.2 && ++k < 20);
     d.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); d.rotation.set(0, Math.random() * 6.283, 0);
     const s = rnd(0.7, 1.3); d.scale.set(s, s * rnd(0.6, 1.4), s); d.updateMatrix(); mesh.setMatrixAt(i, d.matrix);
     cor.setHSL(rnd(0.16, 0.24), rnd(0.25, 0.45), rnd(0.16, 0.3)); mesh.setColorAt(i, cor);
@@ -88,26 +95,47 @@ function criarGrama(raio) {
   return { mesh, uniforms };
 }
 
+// Muitas cópias do mesmo modelo viram InstancedMesh: uma chamada de desenho por parte, não por cópia
+// (src = cena de um glTF, com as posições das partes; ou uma malha solta, usada como está na origem)
+function instanciar(scene, src, lista, sombra = true) {
+  src.updateMatrixWorld(true);
+  const d = new THREE.Object3D(), m = new THREE.Matrix4(), solta = src.isMesh;
+  src.traverse((o) => {
+    if (!o.isMesh || !lista.length) return;
+    const base = solta ? new THREE.Matrix4() : o.matrixWorld;
+    const im = new THREE.InstancedMesh(o.geometry, o.material, lista.length);
+    lista.forEach((p, i) => {
+      d.position.set(p.x, p.y || 0, p.z); d.rotation.set(0, p.ry || 0, 0); d.scale.setScalar(p.s || 1); d.updateMatrix();
+      im.setMatrixAt(i, m.multiplyMatrices(d.matrix, base));
+    });
+    im.castShadow = sombra; im.receiveShadow = true; im.frustumCulled = false; scene.add(im);
+  });
+}
+
 // Pedras, samambaias e caixotes do Poly Haven, nas posições do mapa
-async function colocarObjetos(scene, mapa) {
-  const [pedras, samambaia, caixote, rocha] = await Promise.all([
-    carregarGLTF('assets/cenario/rock_moss_set_01/rock_moss_set_01_1k.gltf'),
-    carregarGLTF('assets/cenario/fern_02/fern_02_1k.gltf'),
+async function colocarObjetos(scene, mapa, masc) {
+  const [pedras, pedrasLonge, samambaia, caixote, rocha, mesa, balde, toco] = await Promise.all([
+    carregarGLTF('assets/cenario/rock_moss_set_01/rock_moss_set_01_leve.gltf'), // versões simplificadas: perto e longe
+    carregarGLTF('assets/cenario/rock_moss_set_01/rock_moss_set_01_longe.gltf'),
+    carregarGLTF('assets/cenario/fern_02/fern_02_leve.gltf'),
     carregarGLTF('assets/cenario/wooden_crate_01/wooden_crate_01_1k.gltf'),
-    carregarGLTF('assets/cenario/namaqualand_boulder_04/namaqualand_boulder_04_2k.gltf'),
+    carregarGLTF('assets/cenario/namaqualand_boulder_04/namaqualand_boulder_04_leve.gltf'), // versão simplificada (12 mil triângulos)
+    carregarGLTF('assets/cenario/wooden_table_02/wooden_table_02_1k.gltf'),
+    carregarGLTF('assets/cenario/wooden_bucket_02/wooden_bucket_02_1k.gltf'),
+    carregarGLTF('assets/cenario/tree_stump_01/tree_stump_01_leve.gltf'),
   ]);
   const sombra = (o) => o.traverse((c) => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; } });
-  const partes = []; pedras.scene.traverse((o) => { if (o.isMesh) partes.push(o); });
+  const partes = [], longe = [];
+  pedras.scene.traverse((o) => { if (o.isMesh) partes.push(o); });
+  pedrasLonge.scene.traverse((o) => { if (o.isMesh) longe.push(o); });
   let semente = 7; const srnd = (a, b) => { semente = (semente * 16807) % 2147483647; return a + (semente / 2147483647) * (b - a); };
-  const pedra = (i, x, z, s) => {
-    const o = partes[i % partes.length].clone(); o.position.set(x, -0.1, z); o.rotation.set(0, srnd(0, 6.28), 0);
-    o.scale.setScalar(s); o.castShadow = o.receiveShadow = true; scene.add(o);
-  };
-  // anel de pedras que fecha a área
+  // anel de pedras que fecha a área (uma InstancedMesh por tipo de pedra)
+  const anel = longe.map(() => []);
   for (let i = 0; i < 46; i++) {
     const a = i / 46 * 6.283 + srnd(-0.05, 0.05), r = mapa.raio + srnd(-1, 2.5);
-    pedra(i, Math.cos(a) * r, Math.sin(a) * r, srnd(2.6, 5.2));
+    anel[i % longe.length].push({ x: Math.cos(a) * r, y: -0.1, z: Math.sin(a) * r, ry: srnd(0, 6.28), s: srnd(2.6, 5.2) });
   }
+  longe.forEach((o, i) => instanciar(scene, o, anel[i]));
   // pedras do caminho: mesma posição, giro e tamanho que o servidor usa para saber a altura (shared/terreno.js)
   let malhaRocha; rocha.scene.traverse((o) => { if (o.isMesh) malhaRocha = o; });
   for (const r of mapa.rochas) {
@@ -124,9 +152,16 @@ async function colocarObjetos(scene, mapa) {
   madeira.map.encoding = THREE.sRGBEncoding;
   for (const e of mapa.escadas || []) scene.add(escadaDeMadeira(e, terreno.altura(e.topo.x, e.topo.z), madeira));
   const por = (src, x, z, s, ry, y = 0) => { const o = src.clone(); o.position.set(x, y, z); o.scale.setScalar(s); o.rotation.y = ry; sombra(o); scene.add(o); };
-  for (let i = 0; i < 70; i++) { const a = srnd(0, 6.28), r = Math.sqrt(srnd(0.05, 1)) * (mapa.raio - 1.5); por(samambaia.scene, Math.cos(a) * r, Math.sin(a) * r, srnd(0.7, 1.4), srnd(0, 6.28)); }
-  // canto do ferreiro
-  por(caixote.scene, -3.2, -5.4, 1, 0.4); por(caixote.scene, -2.4, -6.1, 0.8, 1.1); por(caixote.scene, -3.0, -5.5, 0.7, 0.9, 0.62);
+  // samambaias: soltas pelo mapa e em volta das árvores, fora dos caminhos (sem sombra: são muitas e baixas)
+  const fetos = [];
+  for (let i = 0; i < 40; i++) {
+    const a = srnd(0, 6.28), r = Math.sqrt(srnd(0.05, 1)) * (mapa.raio - 1.5), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (masc.peso(x, z) < 0.1) fetos.push({ x, z, s: srnd(0.7, 1.4), ry: srnd(0, 6.28) });
+  }
+  for (const a of mapa.vila.arvores) if (srnd(0, 1) < 0.4 && masc.peso(a.x, a.z) < 0.1) fetos.push({ x: a.x + srnd(-1, 1), z: a.z + srnd(-1, 1), s: srnd(0.6, 1.1), ry: srnd(0, 6.28) });
+  instanciar(scene, samambaia.scene, fetos, false);
+  // caixotes ao lado da ferraria, banca da comerciante, baldes e tocos
+  for (const p of mapa.props || []) por({ caixote, mesa, balde, toco }[p.tipo].scene, p.x, p.z, p.s || 1, p.ry || 0, p.y || 0);
 }
 
 // Escada de madeira encostada na rocha: duas laterais e degraus a cada 30 cm, tudo numa malha só

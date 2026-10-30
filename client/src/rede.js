@@ -65,6 +65,7 @@ function modoSolo(mapa, nome, visual, aoReceber) {
     pular: () => sim.pular('solo'),
     dash: () => sim.dash('solo'),
     visual: (v) => sim.trocarVisual('solo', v),
+    falar: () => sim.falar('solo'),
   };
   return {
     modo: 'solo', meuId: 'solo',
