@@ -19,6 +19,12 @@ Sem o servidor ligado, o jogo entra sozinho no **modo solo**, com as mesmas regr
 
 Para publicar (Oracle Cloud ou Render): `npm run build` e depois `npm start`. O servidor entrega o jogo e o multiplayer na mesma porta (variável `PORT`, padrão 2567).
 
+### GitHub Pages (só o jogo, modo solo)
+
+A cada push na `main`, o GitHub publica o jogo em `https://rcandrerc.github.io/Rpg-realista/`. Para ligar: **Settings → Pages → Source: GitHub Actions** (uma vez só). O Pages não roda servidor, então lá o jogo abre no modo solo. Quando o servidor estiver no ar, coloque o endereço dele em `SERVIDOR_PARA_PAGES` (`client/src/rede.js`) ou abra com `?servidor=wss://endereco-do-servidor`.
+
+Atenção: mesmo com o repositório privado, o site do Pages é público. Qualquer pessoa com o link joga e consegue baixar os arquivos do jogo.
+
 ### Testar no celular pelo Render (grátis)
 
 1. Entre em [render.com](https://render.com) com a conta do GitHub.

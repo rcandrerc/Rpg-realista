@@ -2,9 +2,13 @@
 import { Client } from 'colyseus.js';
 import { Simulacao } from '@rpg/shared';
 
+// Servidor usado quando o jogo é aberto pelo GitHub Pages (que não roda servidor). Vazio = modo solo.
+const SERVIDOR_PARA_PAGES = '';
+
 function enderecoServidor() {
   const forcado = new URLSearchParams(location.search).get('servidor');
   if (forcado) return forcado;
+  if (location.hostname.endsWith('github.io')) return SERVIDOR_PARA_PAGES || null;
   const ws = location.protocol === 'https:' ? 'wss' : 'ws';
   // no "npm run dev" a página vem do Vite (porta 5173) e o servidor fica na 2567
   const porta = location.port === '5173' ? '2567' : location.port;
@@ -15,7 +19,9 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const comPrazo = (p, ms) => Promise.race([p, new Promise((_, nao) => setTimeout(() => nao(new Error('sem resposta')), ms))]);
 
 export async function conectar(mapa, nome, aoReceber, aoMudarStatus = () => {}) {
-  const cliente = new Client(enderecoServidor());
+  const endereco = enderecoServidor();
+  if (!endereco) return modoSolo(mapa, nome, aoReceber);
+  const cliente = new Client(endereco);
   let sala;
   try {
     sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome }), 4000);
