@@ -1,0 +1,10 @@
+{
+  "name": "rpg-servidor",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "colyseus": "0.15.17",
+    "@colyseus/ws-transport": "0.15.3",
+    "express": "4.21.2"
+  }
+}
