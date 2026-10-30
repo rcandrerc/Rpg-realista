@@ -308,7 +308,10 @@ export class Simulacao {
     return null;
   }
   // a beirada: o ponto mais alto da pedra logo à frente
-  beirada(j) { return this.terreno.frente(j.x, j.z, j.ry, 1.6, null).topo; }
+  beirada(j) {
+    const e = j.esc?.escada;
+    return e ? e.alt : this.terreno.frente(j.x, j.z, j.ry, 1.0, null).topo; // na escada, a beirada é o topo dela
+  }
   // encosta o corpo na parede (na altura do peito) e vira de frente para a pedra
   ajustarParede(j) {
     const T = this.terreno, r = T.rochaEm(j.x + Math.sin(j.ry) * 0.8, j.z + Math.cos(j.ry) * 0.8);
@@ -348,7 +351,7 @@ export class Simulacao {
   // andando no chão contra uma pedra: decide se sobe (escada, corrida na parede, mini escalada ou agarra na parede)
   tentarEscalar(j, correr, dt) {
     const { mx, mz } = j.entrada, ry = Math.atan2(mx, mz);
-    for (const e of this.escadas) if (Math.hypot(j.x - e.x, j.z - e.z) < 0.9 && Math.cos(angDif(ry, e.ry)) > 0.6) return this.pegarEscada(j, e);
+    for (const e of this.escadas) if (Math.hypot(j.x - (e.x - Math.sin(e.ry) * 0.2), j.z - (e.z - Math.cos(e.ry) * 0.2)) < 0.55 && Math.cos(angDif(ry, e.ry)) > 0.6) return this.pegarEscada(j, e); // de frente para a escada, no pé dela
     if (correr) {
       const f = this.paredeAFrente(j, ry, 3.1);
       if (f && f.dist >= 1.5) { j.ry = ry; j.esc = { parado: 0 }; return this.iniciarClip(j, 'corridaParede', { hs: (f.dist - 0.4) / 2.79, depois: () => this.agarrar(j) }); }
@@ -368,11 +371,12 @@ export class Simulacao {
       const p = [0, 1, 2].map((n) => tr[i][n] * (1 - a) + tr[i + 1][n] * a);
       j.y = c.y + p[1] * c.vs;
       if (s.escada && c.nome !== 'topo') { // na escada: o corpo vai um pouco atrás da linha da escada
-        const e = s.escada, t = Math.max(0, Math.min(1, (j.y + 0.9) / e.alt)); // escada inclinada: as mãos (acima do corpo) é que seguram nela
-        j.x = e.x + (e.topo.x - e.x) * t - fx * 0.3; j.z = e.z + (e.topo.z - e.z) * t - fz * 0.3;
+        const e = s.escada, t = Math.max(0, Math.min(1, (j.y + 0.5) / e.alt)); // escada inclinada: segue a linha um pouco acima do corpo (mãos e pés nos degraus)
+        j.x = e.x + (e.topo.x - e.x) * t - fx * 0.35; j.z = e.z + (e.topo.z - e.z) * t - fz * 0.35;
       } else { j.x = c.x + lx * p[0] * c.ls + fx * p[2] * c.hs; j.z = c.z + lz * p[0] * c.ls + fz * p[2] * c.hs; }
-      if (u >= 1) { s.clip = null; j.trava = 0; j.acao = null; c.depois?.(); }
-      return;
+      if (u < 1) return;
+      s.clip = null; j.trava = 0; j.acao = null; c.depois?.();
+      if (j.esc !== s || s.clip) return; // ficou em pé ou já emendou outro pedaço
     }
     // agarrado: o controle para a frente sobe, para trás desce, para os lados anda pela parede
     const { mx, mz } = j.entrada, m = Math.hypot(mx, mz);
@@ -380,9 +384,9 @@ export class Simulacao {
     s.parado += dt;
     if (m > 0.5 && frente > 0.5 * m) {
       s.parado = 0;
-      if (falta <= SUBIDA.maoAcima + 0.55) return this.subirNoTopo(j);
+      if (falta <= SUBIDA.topo) return this.subirNoTopo(j);
       if (s.escada) return this.iniciarClip(j, 'subirEscada', { hs: 0, ls: 0, depois: () => this.agarrar(j) });
-      return this.iniciarClip(j, 'subirParede', { vs: Math.max(0.35, Math.min(1, (falta - SUBIDA.maoAcima) / 1.06)), depois: () => this.agarrar(j) });
+      return this.iniciarClip(j, 'subirParede', { vs: Math.max(0.3, Math.min(1, (falta - 1.29) / 1.06)), depois: () => this.agarrar(j) }); // para com a beirada na altura do 'topo'
     }
     if (m > 0.5 && frente < -0.5 * m) {
       s.parado = 0;
@@ -395,7 +399,7 @@ export class Simulacao {
       const sx = j.x + lx * Math.sign(lado) * 0.5, sz = j.z + lz * Math.sign(lado) * 0.5;
       if (T.altura(sx + fx * 0.8, sz + fz * 0.8) > j.y + 0.9) return this.iniciarClip(j, lado > 0 ? 'esquerda' : 'direita', { depois: () => this.agarrar(j) });
     }
-    j.anim = falta < SUBIDA.maoAcima + 0.7 ? PARADO_PAREDE.beirada : s.parado > 4 && s.parado % 8 < 4 ? PARADO_PAREDE.balanca : PARADO_PAREDE.agarrado;
+    j.anim = falta < SUBIDA.topo + 0.3 ? PARADO_PAREDE.beirada : s.parado > 4 && s.parado % 8 < 4 ? PARADO_PAREDE.balanca : PARADO_PAREDE.agarrado;
   }
 
   // ---------- passo da simulação ----------

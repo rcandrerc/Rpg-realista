@@ -265,7 +265,10 @@ export class Corpo {
   }
   tocarUmaVez({ nome, ts, segurar }) {
     const a = this.acao(nome); if (!a) return;
-    a.reset().setLoop(segurar ? THREE.LoopRepeat : THREE.LoopOnce, Infinity).setEffectiveTimeScale(ts || 1).fadeIn(0.12).play();
+    const deNovo = this.atual === nome && a.isRunning(); // a mesma animação emendada (escalar, subir a escada): recomeça sem passar pela pose de descanso
+    a.reset().setLoop(segurar ? THREE.LoopRepeat : THREE.LoopOnce, Infinity).setEffectiveTimeScale(ts || 1);
+    if (deNovo) a.stopFading().setEffectiveWeight(1); else a.fadeIn(0.12);
+    a.play();
     a.clampWhenFinished = true;
     if (this.atual && this.atual !== nome) this.acao(this.atual)?.fadeOut(0.12);
     this.atual = nome;
