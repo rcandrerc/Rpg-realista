@@ -85,10 +85,21 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 .help{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 6px);left:0;right:0;text-align:center;font-size:.74rem;color:var(--muted);pointer-events:none}
 @media (pointer:coarse),(max-width:760px){.help{display:none}}
 @media (max-width:420px){.weapons button{min-width:52px;padding:5px 6px}}
-.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
-.hgrid button{position:relative;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;color:var(--ink);font:400 .82rem/1.35 var(--body);display:grid;gap:3px}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:6px}
+.hgrid button{position:relative;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 30px 10px 10px;color:var(--ink);font:400 .82rem/1.35 var(--body);display:grid;grid-template-columns:40px 1fr;column-gap:10px;row-gap:2px;align-items:start}
+.hgrid button>:not(.ic):not(.n){grid-column:2}
+.hgrid .ic{grid-row:1/span 3;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(217,165,74,.7);background:rgba(40,30,12,.6)}
+.hgrid button[data-tipo="Magia"] .ic{border-color:rgba(140,190,255,.75);background:rgba(16,30,56,.6)}
+.hgrid .ic .ico{width:24px;height:24px}
+.htit{font-family:var(--display);color:var(--gold);margin:4px 0 0;font-size:1.05rem}
+.htit.magia{color:#9cc8ff}
+.ico{fill:none;stroke:#fff;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 1px #000c);pointer-events:none;display:block}
+.acts .ico{width:30px;height:30px;margin:auto}
+#b0 .ico{width:40px;height:40px}
+#b9 .ico,#bt .ico{width:26px;height:26px}
+.acts .lbl{display:grid;place-items:center;height:100%}
 .hgrid button.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
-.hgrid small{color:var(--gold);text-transform:uppercase;letter-spacing:.06em;font-size:.66rem;font-weight:700}
+.hgrid small{color:var(--muted);font-size:.7rem;font-weight:700}
 .hgrid b{font-family:var(--display);font-size:.95rem}
 .hgrid .d{color:var(--muted)}
 .hgrid .n{position:absolute;top:8px;right:10px;font:700 1rem var(--display);color:var(--gold)}
