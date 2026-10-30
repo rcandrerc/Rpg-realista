@@ -79,19 +79,7 @@ export class Hud {
     $('salvarHab').addEventListener('click', () => { $('hab').hidden = true; escolha = ordem(); aoSalvar([...escolha]); this.mostrarBuild([...escolha]); this.aviso('Build salva'); });
     desenhar();
   }
-  montarEscolhaPersonagem(lista, atual, aoEscolher) {
-    const grade = $('pgrid');
-    const marcar = (id) => grade.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
-    for (const p of lista) {
-      const b = document.createElement('button'); b.type = 'button'; b.dataset.id = p.id;
-      b.innerHTML = (p.tipo === 'vrm' ? `<img alt="" src="assets/personagens/vrm/${p.id}.jpg">` : '<span class="sem">realista</span>') + '<span></span>';
-      b.lastChild.textContent = p.nome;
-      b.addEventListener('click', () => { marcar(p.id); aoEscolher(p.id); $('pick').hidden = true; this.aviso(p.nome); });
-      grade.appendChild(b);
-    }
-    marcar(atual);
-    $('pickBtn').addEventListener('click', () => { $('pick').hidden = false; });
-    $('closePick').addEventListener('click', () => { $('pick').hidden = true; });
+  montarTelaCheia() {
     // Tela cheia: no Android funciona direto; no iPhone o navegador não deixa, então ensina o atalho
     const tela = $('telaBtn');
     const pode = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);

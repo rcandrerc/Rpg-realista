@@ -52,6 +52,7 @@ Cada conta guarda o nome (vem do Google), o personagem e a build. A mesma conta 
 | Rolar no chão | botão Rolar | Q |
 | Escalar (pedra baixa sobe sozinho; rocha alta: andar contra ela agarra, frente sobe, trás desce, lados andam pela parede; Pular solta; Dash ou correr contra ela corre pela parede) | joystick | WASD |
 | Falar com NPC (cura, missão, habilidades, dicas) | botão Falar em cima dele, quando perto | F |
+| Criar o personagem (corpo, cores de cabelo, olhos, pele, roupa e altura) | botão Personagem (abre sozinho na primeira vez) | botão Personagem |
 | Escolher habilidades | botão Habilidades | botão Habilidades |
 | Câmera (girar, olhar para cima e para baixo, zoom) | arrastar a tela; dois dedos para o zoom | arrastar, roda do mouse |
 
