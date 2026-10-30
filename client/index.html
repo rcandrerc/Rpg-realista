@@ -23,6 +23,12 @@ html,body{height:100%}
 body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block}
 #load{position:fixed;inset:0;display:grid;place-items:center;background:#14120e;z-index:20;text-align:center;padding-inline:max(16px,env(safe-area-inset-left,0px))}
+#entrar{position:fixed;inset:0;z-index:21;display:grid;place-items:center;text-align:center;overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 20px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 20px) max(16px,env(safe-area-inset-left,0px));background:radial-gradient(ellipse at 50% 30%,rgba(217,165,74,.16),transparent 60%),linear-gradient(#1b1812,#0e0c09);touch-action:pan-y;user-select:text;-webkit-user-select:text}
+#entrar .in{max-width:420px;display:grid;gap:14px;justify-items:center}
+#entrar h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,3rem);margin:0;letter-spacing:.06em;color:var(--gold)}
+#entrar p{margin:0;color:var(--muted);line-height:1.5;text-wrap:pretty}
+#botaoGoogle{min-height:44px}
+#entrarErro{min-height:1.5em;color:#e6b38a!important;font-size:.9rem}
 #load h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,3rem);margin:0;letter-spacing:.06em;color:var(--gold)}
 #load p{color:var(--muted);margin:.4rem 0 0}
 .top{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
@@ -118,6 +124,12 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 <body>
 <canvas id="c"></canvas>
 <div id="load"><div><h1>RPG Realista</h1><p id="loadmsg">Preparando o mundo…</p></div></div>
+<div id="entrar" hidden><div class="in">
+  <h1>RPG Realista</h1>
+  <p>Entre com a sua conta Google para jogar. O seu personagem e a sua build ficam salvos na conta, em qualquer aparelho.</p>
+  <div id="botaoGoogle"></div>
+  <p id="entrarErro" role="status" aria-live="polite"></p>
+</div></div>
 <div class="top">
   <div class="vitals">
     <div class="who"><span id="nome">Andarilho</span> <span id="style">Espada mágica</span></div>
@@ -125,7 +137,7 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
     <div class="bar"><i id="mpb"></i></div>
   </div>
 </div>
-<div class="menu"><button class="info" id="telaBtn" type="button">Tela cheia</button><button class="info" id="habBtn" type="button">Habilidades</button><button class="info" id="pickBtn" type="button">Personagem</button><button class="info" id="infoBtn" type="button">Esboço do jogo</button></div>
+<div class="menu"><button class="info" id="telaBtn" type="button">Tela cheia</button><button class="info" id="habBtn" type="button">Habilidades</button><button class="info" id="pickBtn" type="button">Personagem</button><button class="info" id="infoBtn" type="button">Esboço do jogo</button><button class="info" id="sairBtn" type="button" hidden>Sair da conta</button></div>
 <div class="net" id="net">Conectando…</div>
 <div id="toast"></div>
 <div id="padZona"></div>
