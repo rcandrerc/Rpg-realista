@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Terreno } from '@rpg/shared';
 
 export const gltfLoader = new GLTFLoader();
 export const carregarGLTF = (url) => gltfLoader.loadAsync(url);
@@ -88,10 +90,11 @@ function criarGrama(raio) {
 
 // Pedras, samambaias e caixotes do Poly Haven, nas posições do mapa
 async function colocarObjetos(scene, mapa) {
-  const [pedras, samambaia, caixote] = await Promise.all([
+  const [pedras, samambaia, caixote, rocha] = await Promise.all([
     carregarGLTF('assets/cenario/rock_moss_set_01/rock_moss_set_01_1k.gltf'),
     carregarGLTF('assets/cenario/fern_02/fern_02_1k.gltf'),
     carregarGLTF('assets/cenario/wooden_crate_01/wooden_crate_01_1k.gltf'),
+    carregarGLTF('assets/cenario/namaqualand_boulder_04/namaqualand_boulder_04_2k.gltf'),
   ]);
   const sombra = (o) => o.traverse((c) => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; } });
   const partes = []; pedras.scene.traverse((o) => { if (o.isMesh) partes.push(o); });
@@ -105,9 +108,41 @@ async function colocarObjetos(scene, mapa) {
     const a = i / 46 * 6.283 + srnd(-0.05, 0.05), r = mapa.raio + srnd(-1, 2.5);
     pedra(i, Math.cos(a) * r, Math.sin(a) * r, srnd(2.6, 5.2));
   }
-  mapa.pedras.forEach(([x, z, s], i) => pedra(i, x, z, s));
+  // pedras do caminho: mesma posição, giro e tamanho que o servidor usa para saber a altura (shared/terreno.js)
+  let malhaRocha; rocha.scene.traverse((o) => { if (o.isMesh) malhaRocha = o; });
+  for (const r of mapa.rochas) {
+    const o = (r.modelo === 'boulder04' ? malhaRocha : partes[+r.modelo.slice(5)]).clone();
+    o.position.set(r.x, r.y || 0, r.z); o.rotation.set(0, r.ry, 0); o.scale.setScalar(r.s);
+    o.castShadow = o.receiveShadow = true; scene.add(o);
+  }
+  const terreno = new Terreno(mapa), texL = new THREE.TextureLoader();
+  const madeira = new THREE.MeshStandardMaterial({
+    map: texL.load('assets/cenario/madeira/weathered_brown_planks_diff_1k.jpg', (t) => { t.encoding = THREE.sRGBEncoding; }),
+    normalMap: texL.load('assets/cenario/madeira/weathered_brown_planks_nor_gl_1k.jpg'),
+    roughnessMap: texL.load('assets/cenario/madeira/weathered_brown_planks_arm_1k.jpg'), metalness: 0,
+  });
+  madeira.map.encoding = THREE.sRGBEncoding;
+  for (const e of mapa.escadas || []) scene.add(escadaDeMadeira(e, terreno.altura(e.topo.x, e.topo.z), madeira));
   const por = (src, x, z, s, ry, y = 0) => { const o = src.clone(); o.position.set(x, y, z); o.scale.setScalar(s); o.rotation.y = ry; sombra(o); scene.add(o); };
   for (let i = 0; i < 70; i++) { const a = srnd(0, 6.28), r = Math.sqrt(srnd(0.05, 1)) * (mapa.raio - 1.5); por(samambaia.scene, Math.cos(a) * r, Math.sin(a) * r, srnd(0.7, 1.4), srnd(0, 6.28)); }
   // canto do ferreiro
   por(caixote.scene, -3.2, -5.4, 1, 0.4); por(caixote.scene, -2.4, -6.1, 0.8, 1.1); por(caixote.scene, -3.0, -5.5, 0.7, 0.9, 0.62);
+}
+
+// Escada de madeira encostada na rocha: duas laterais e degraus a cada 30 cm, tudo numa malha só
+function escadaDeMadeira(e, alt, material) {
+  const base = new THREE.Vector3(e.x, 0, e.z), topo = new THREE.Vector3(e.topo.x, alt, e.topo.z);
+  const dir = topo.clone().sub(base), comp = dir.length() + 0.45; dir.normalize(); // passa um pouco da beirada
+  const lado = new THREE.Vector3(Math.cos(e.ry), 0, -Math.sin(e.ry)), frente = new THREE.Vector3().crossVectors(lado, dir).normalize();
+  const giro = new THREE.Matrix4().makeBasis(lado, dir, frente);
+  const peca = (larg, alt2, prof, x, y, rz = 0) => {
+    const g = new THREE.BoxGeometry(larg, alt2, prof);
+    const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * larg * 0.6 + x, uv.getY(i) * alt2 * 0.6 + y); // madeira sem esticar
+    g.rotateZ(rz); g.translate(x, y, 0); return g;
+  };
+  const partes = [peca(0.07, comp, 0.06, -0.24, comp / 2, 0.01), peca(0.07, comp, 0.06, 0.24, comp / 2, -0.01)];
+  for (let y = 0.3; y < comp - 0.2; y += 0.3) partes.push(peca(0.56, 0.045, 0.045, 0, y, Math.sin(y * 7) * 0.015));
+  const g = mergeGeometries(partes); g.applyMatrix4(giro);
+  const m = new THREE.Mesh(g, material); m.position.copy(base); m.castShadow = m.receiveShadow = true;
+  return m;
 }

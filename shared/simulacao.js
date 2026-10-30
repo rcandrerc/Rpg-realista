@@ -1,6 +1,7 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
-import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { Terreno } from './terreno.js';
+import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -18,23 +19,24 @@ export class Simulacao {
     this.timers = [];
     this.eventos = [];
     this.proxId = 1;
-    this.obstaculos = [
-      ...mapa.pedras.map(([x, z, s]) => ({ x, z, r: s * 0.6 })),
-      ...mapa.obstaculos,
-    ];
+    // pedras: o herói usa a altura de verdade (pode subir); os inimigos só contornam um círculo
+    this.terreno = new Terreno(mapa);
+    this.obstaculos = [...mapa.obstaculos];
+    this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
+    this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
   }
 
   // ---------- entidades ----------
   novoCorpo(extra) {
     return { id: 'e' + this.proxId++, x: 0, z: 0, ry: 0, trava: 0, defesa: 0, morto: false, anim: 'Idle',
-      acao: null, acaoSeq: 0, dash: null, y: 0, vy: 0, chao: true, ...extra };
+      acao: null, acaoSeq: 0, dash: null, y: 0, vy: 0, chao: true, esc: null, ...extra };
   }
   adicionarJogador(id, nome, visual) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
-      fila: null, pulos: 0, puloT: 9, mortal: 0, pouso: 0, arrancada: null, arrancadaNoAr: false, combos: {},
+      fila: null, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
       visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
     this.jogadores.set(id, j);
     return j;
@@ -74,7 +76,7 @@ export class Simulacao {
     j.build = [...build];
   }
   usarHabilidade(id, i) {
-    const j = this.jogadores.get(id); if (!j || j.morto) return;
+    const j = this.jogadores.get(id); if (!j || j.morto || j.esc) return;
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
     if (!j.chao || j.arrancada) return;
@@ -113,6 +115,7 @@ export class Simulacao {
   // No chão pula; no ar, o segundo pulo é um mortal para a frente
   pular(id) {
     const j = this.jogadores.get(id);
+    if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
     if (!j || j.morto || j.trava > 0 || j.arrancada) return;
     if (j.chao) { j.vy = MOVIMENTO.pulo; j.chao = false; j.pulos = 1; j.puloT = 0; j.pouso = 0; }
     else if (j.pulos < 2) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
@@ -120,7 +123,7 @@ export class Simulacao {
   // Rolamento no chão: nenhum golpe pega durante a maior parte dele
   rolar(id) {
     const j = this.jogadores.get(id);
-    if (!j || j.morto || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
+    if (!j || j.morto || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
     j.cds.rolar = this.tempo + HEROI.rolarCd;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -132,10 +135,11 @@ export class Simulacao {
   // Arrancada reta para onde o jogador aponta (no ar, uma por pulo). Nenhum golpe pega durante ela.
   dash(id) {
     const j = this.jogadores.get(id);
-    if (!j || j.morto || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
+    if (!j || j.morto || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
     j.cds.dash = this.tempo + MOVIMENTO.dashCd;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
+    if (j.chao && this.correrNaParede(j)) return; // dash contra a rocha: corre pela parede
     j.arrancada = { t: MOVIMENTO.dashTempo, dx: Math.sin(j.ry), dz: Math.cos(j.ry) };
     j.mortal = 0; j.pouso = 0;
     if (!j.chao) { j.vy = Math.max(0, j.vy); j.arrancadaNoAr = true; }
@@ -183,6 +187,7 @@ export class Simulacao {
   corpoACorpo(c, h) {
     for (const o of this.inimigosDe(c)) {
       const d = dist(o, c);
+      if (Math.abs((o.y || 0) - (c.y || 0)) > 1.6) continue; // em cima da pedra o golpe não alcança quem está embaixo
       const acerta = h.area ? d < h.area : d < h.alcance && Math.abs(angDif(Math.atan2(o.x - c.x, o.z - c.z), c.ry)) < h.arco / 2;
       if (!acerta) continue;
       this.ferir(o, h.dmg, c);
@@ -203,9 +208,9 @@ export class Simulacao {
   }
   lancar(c, h, alvo, giro = 0) {
     const f = this.aFrente(c, 0.6);
-    const de = { x: f.x, y: h.proj.estilo === 'corte' ? 1 : 1.35, z: f.z };
+    const de = { x: f.x, y: (c.y || 0) + (h.proj.estilo === 'corte' ? 1 : 1.35), z: f.z };
     let dx = Math.sin(c.ry + giro), dy = 0, dz = Math.cos(c.ry + giro);
-    if (alvo) { dx = alvo.x - de.x; dy = 1.1 - de.y; dz = alvo.z - de.z; const n = Math.hypot(dx, dy, dz) || 1; dx /= n; dy /= n; dz /= n; }
+    if (alvo) { dx = alvo.x - de.x; dy = (alvo.y || 0) + 1.1 - de.y; dz = alvo.z - de.z; const n = Math.hypot(dx, dy, dz) || 1; dx /= n; dy /= n; dz /= n; }
     const p = { id: this.proxId++, ...de, dx, dy, dz, h, dono: c, vida: h.proj.vida || 2.2, acertou: new Set() };
     this.projeteis.push(p);
     this.evento({ t: 'proj', id: p.id, x: r2(de.x), y: de.y, z: r2(de.z), dx: r2(dx), dy: r2(dy), dz: r2(dz), ...h.proj });
@@ -216,10 +221,10 @@ export class Simulacao {
     alvo.vida = Math.max(0, alvo.vida - n);
     this.evento({ t: 'dano', alvo: alvo.id, n });
     if (alvo.vida <= 0) this.morrer(alvo);
-    else if (alvo.defesa <= 0 && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
+    else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
   }
   morrer(c) {
-    c.morto = true; c.dash = null; c.arrancada = null;
+    c.morto = true; c.dash = null; c.arrancada = null; c.esc = null;
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
@@ -251,19 +256,147 @@ export class Simulacao {
     return d;
   }
   colidir(c) {
-    for (const k of this.obstaculos) {
+    for (const k of c.tipo === 'jogador' ? this.obstaculos : [...this.obstaculos, ...this.obstaculosRocha]) {
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }
     for (const o of this.todos()) {
-      if (o === c || o.morto) continue;
+      if (o === c || o.morto || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { c.x = o.x + dx / d * 0.7; c.z = o.z + dz / d * 0.7; }
     }
     const r = Math.hypot(c.x, c.z), lim = this.mapa.raio - 2.2;
     if (r > lim) { c.x *= lim / r; c.z *= lim / r; }
   }
-  mover(c, dx, dz) { c.x += dx; c.z += dz; this.colidir(c); }
+  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); c.x += dx; c.z += dz; this.colidir(c); }
+  // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
+  moverJogador(j, dx, dz) {
+    const T = this.terreno, lim = j.y + SUBIDA.degrau;
+    const vai = (x, z) => {
+      const h = T.altura(x, z); if (h > lim) return false;
+      j.x = x; j.z = z;
+      if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
+      return true;
+    };
+    if (!vai(j.x + dx, j.z + dz)) { j.bloqueado = true; if (!vai(j.x + dx, j.z)) vai(j.x, j.z + dz); }
+    this.colidir(j);
+  }
+
+  // ---------- escalada ----------
+  // Toca um pedaço de escalada; o corpo segue o caminho do quadril da animação (esticado por vs, hs e ls)
+  iniciarClip(j, nome, { vs = 1, hs = 1, ls = 1, depois = null } = {}) {
+    const e = ESCALADA[nome], dur = DURACAO[e.anim] / e.ts;
+    j.esc = j.esc || { parado: 0 };
+    j.esc.clip = { nome, t: 0, dur, vs, hs, ls, x: j.x, y: j.y, z: j.z, depois };
+    j.acao = { nome: e.anim, ts: e.ts }; j.acaoSeq++; j.trava = dur;
+    j.chao = false; j.vy = 0; j.arrancada = null; j.dash = null; j.empurra = 0;
+  }
+  ficarEmPe(j) {
+    j.esc = null; j.y = this.terreno.altura(j.x, j.z); j.chao = true; j.vy = 0; j.trava = 0; j.acao = null; j.pulos = 0; j.anim = this.animMovimento(j, false, false);
+  }
+  soltar(j) { // larga a parede e cai
+    const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
+    j.esc = null; j.trava = 0; j.acao = null; j.x -= fx * 0.35; j.z -= fz * 0.35; j.vy = 1; j.chao = false; j.pulos = 2;
+  }
+  // primeira coisa alta à frente: distância até uma pedra mais alta que a mini escalada, se antes dela o caminho for livre
+  paredeAFrente(j, ry, ate) {
+    const fx = Math.sin(ry), fz = Math.cos(ry);
+    for (let d = 0.1; d <= ate; d += 0.1) {
+      const h = this.terreno.altura(j.x + fx * d, j.z + fz * d);
+      if (h > j.y + SUBIDA.degrau) return h > j.y + SUBIDA.mini ? { dist: d, r: this.terreno.rochaEm(j.x + fx * d, j.z + fz * d) } : null;
+    }
+    return null;
+  }
+  // a beirada: o ponto mais alto da pedra logo à frente
+  beirada(j) { return this.terreno.frente(j.x, j.z, j.ry, 1.6, null).topo; }
+  // encosta o corpo na parede (na altura do peito) e vira de frente para a pedra
+  ajustarParede(j) {
+    const T = this.terreno, r = T.rochaEm(j.x + Math.sin(j.ry) * 0.8, j.z + Math.cos(j.ry) * 0.8);
+    if (r) j.ry = Math.atan2(r.x - j.x, r.z - j.z);
+    const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
+    for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + 0.4), j.z + fz * (d + 0.4)) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
+  }
+  // fica agarrado na parede
+  agarrar(j) { j.esc = j.esc || { parado: 0 }; j.esc.clip = null; j.esc.parado = 0; j.chao = false; j.vy = 0; j.anim = PARADO_PAREDE.agarrado; if (!j.esc.escada) this.ajustarParede(j); }
+  // pedra baixa: mini escalada até em cima
+  miniSubida(j, ry) {
+    const T = this.terreno, fx = Math.sin(ry), fz = Math.cos(ry), topo = T.frente(j.x, j.z, ry, 1.6, null).topo;
+    let d = 0.3; for (; d < 1.6; d += 0.1) if (T.altura(j.x + fx * d, j.z + fz * d) >= topo - 0.2) break;
+    j.ry = ry;
+    this.iniciarClip(j, 'miniSubida', { vs: (topo - j.y) / 1.38, hs: Math.min(1.7, d + 0.3) / 1.15, depois: () => this.ficarEmPe(j) });
+  }
+  // da beirada para cima da pedra
+  subirNoTopo(j) {
+    const T = this.terreno, fx = Math.sin(j.ry), fz = Math.cos(j.ry), topo = this.beirada(j);
+    let d = 0.3; for (; d < 2; d += 0.1) if (T.altura(j.x + fx * d, j.z + fz * d) >= topo - 0.25) break;
+    this.iniciarClip(j, 'topo', { vs: Math.max(0.3, (topo - j.y) / 1.29), hs: Math.min(2.2, d + 0.35) / 0.49, depois: () => this.ficarEmPe(j) });
+  }
+  pegarEscada(j, e) {
+    j.ry = e.ry; j.x = e.x; j.z = e.z; j.esc = { parado: 0, escada: e };
+    this.iniciarClip(j, 'pegarEscada', { hs: 0, ls: 0, depois: () => this.agarrar(j) });
+  }
+  // dash contra a rocha alta: corre pela parede (reto ou na diagonal, se a pedra estiver à direita)
+  correrNaParede(j) {
+    const f = this.paredeAFrente(j, j.ry, 2.9); if (!f || f.dist < 0.5 || !f.r) return false;
+    const lado = angDif(Math.atan2(f.r.x - j.x, f.r.z - j.z), j.ry);
+    j.esc = { parado: 0 };
+    if (lado < -0.35) this.iniciarClip(j, 'diagonal', { hs: Math.max(0.3, (f.dist - 0.3) / 1.44), depois: () => this.agarrar(j) });
+    else this.iniciarClip(j, 'correrNaParede', { hs: Math.max(0.2, (f.dist - 0.4) / 2.69), depois: () => this.agarrar(j) });
+    this.evento({ t: 'dash', id: j.id });
+    return true;
+  }
+  // andando no chão contra uma pedra: decide se sobe (escada, corrida na parede, mini escalada ou agarra na parede)
+  tentarEscalar(j, correr, dt) {
+    const { mx, mz } = j.entrada, ry = Math.atan2(mx, mz);
+    for (const e of this.escadas) if (Math.hypot(j.x - e.x, j.z - e.z) < 0.9 && Math.cos(angDif(ry, e.ry)) > 0.6) return this.pegarEscada(j, e);
+    if (correr) {
+      const f = this.paredeAFrente(j, ry, 3.1);
+      if (f && f.dist >= 1.5) { j.ry = ry; j.esc = { parado: 0 }; return this.iniciarClip(j, 'corridaParede', { hs: (f.dist - 0.4) / 2.79, depois: () => this.agarrar(j) }); }
+    }
+    if (!j.bloqueado) { j.empurra = 0; return; }
+    j.empurra += dt; if (j.empurra < SUBIDA.empurrar) return;
+    const topo = this.terreno.frente(j.x, j.z, ry, 1.6, null).topo;
+    if (topo - j.y <= SUBIDA.mini) return this.miniSubida(j, ry);
+    j.ry = ry; this.agarrar(j);
+  }
+  passoEscalada(j, dt) {
+    const s = j.esc, T = this.terreno;
+    const fx = Math.sin(j.ry), fz = Math.cos(j.ry), lx = Math.cos(j.ry), lz = -Math.sin(j.ry);
+    if (s.clip) {
+      const c = s.clip; c.t += dt;
+      const u = Math.min(1, c.t / c.dur), tr = ESCALADA[c.nome].traj, k = u * (tr.length - 1), i = Math.min(tr.length - 2, Math.floor(k)), a = k - i;
+      const p = [0, 1, 2].map((n) => tr[i][n] * (1 - a) + tr[i + 1][n] * a);
+      j.y = c.y + p[1] * c.vs;
+      if (s.escada && c.nome !== 'topo') { // na escada: o corpo vai um pouco atrás da linha da escada
+        const e = s.escada, t = Math.max(0, Math.min(1, (j.y + 0.9) / e.alt)); // escada inclinada: as mãos (acima do corpo) é que seguram nela
+        j.x = e.x + (e.topo.x - e.x) * t - fx * 0.3; j.z = e.z + (e.topo.z - e.z) * t - fz * 0.3;
+      } else { j.x = c.x + lx * p[0] * c.ls + fx * p[2] * c.hs; j.z = c.z + lz * p[0] * c.ls + fz * p[2] * c.hs; }
+      if (u >= 1) { s.clip = null; j.trava = 0; j.acao = null; c.depois?.(); }
+      return;
+    }
+    // agarrado: o controle para a frente sobe, para trás desce, para os lados anda pela parede
+    const { mx, mz } = j.entrada, m = Math.hypot(mx, mz);
+    const frente = mx * fx + mz * fz, lado = mx * lx + mz * lz, falta = this.beirada(j) - j.y;
+    s.parado += dt;
+    if (m > 0.5 && frente > 0.5 * m) {
+      s.parado = 0;
+      if (falta <= SUBIDA.maoAcima + 0.55) return this.subirNoTopo(j);
+      if (s.escada) return this.iniciarClip(j, 'subirEscada', { hs: 0, ls: 0, depois: () => this.agarrar(j) });
+      return this.iniciarClip(j, 'subirParede', { vs: Math.max(0.35, Math.min(1, (falta - SUBIDA.maoAcima) / 1.06)), depois: () => this.agarrar(j) });
+    }
+    if (m > 0.5 && frente < -0.5 * m) {
+      s.parado = 0;
+      const chao = T.altura(j.x - fx * 0.3, j.z - fz * 0.3), alt = j.y - chao;
+      if (alt < 0.25) { j.esc = null; j.trava = 0; j.y = Math.max(chao, j.y); j.chao = false; return; }
+      return this.iniciarClip(j, 'descerParede', { vs: Math.min(1, alt / 1.06), depois: () => (j.y - T.altura(j.x - fx * 0.3, j.z - fz * 0.3) < 0.3 ? this.ficarEmPe(j) : this.agarrar(j)) });
+    }
+    if (!s.escada && m > 0.5 && Math.abs(lado) > 0.5 * m) {
+      s.parado = 0;
+      const sx = j.x + lx * Math.sign(lado) * 0.5, sz = j.z + lz * Math.sign(lado) * 0.5;
+      if (T.altura(sx + fx * 0.8, sz + fz * 0.8) > j.y + 0.9) return this.iniciarClip(j, lado > 0 ? 'esquerda' : 'direita', { depois: () => this.agarrar(j) });
+    }
+    j.anim = falta < SUBIDA.maoAcima + 0.7 ? PARADO_PAREDE.beirada : s.parado > 4 && s.parado % 8 < 4 ? PARADO_PAREDE.balanca : PARADO_PAREDE.agarrado;
+  }
 
   // ---------- passo da simulação ----------
   passo(dt) {
@@ -291,9 +424,11 @@ export class Simulacao {
   }
   passoJogador(j, dt) {
     j.mana = Math.min(HEROI.mana, j.mana + HEROI.manaPorSeg * dt);
+    if (j.esc && !j.morto) return this.passoEscalada(j, dt);
     this.passoVertical(j, dt);
     if (j.morto || j.trava > 0) return;
     const { mx, mz, correr } = j.entrada, m = Math.hypot(mx, mz);
+    j.bloqueado = false;
     if (j.arrancada) {
       const a = j.arrancada, x = 1 - a.t / MOVIMENTO.dashTempo, v = MOVIMENTO.dashVel * (1.6 * (1 - x) ** 0.7 + 0.15); // sai rápido e freia
       this.mover(j, a.dx * v * dt, a.dz * v * dt);
@@ -304,16 +439,18 @@ export class Simulacao {
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);
     }
+    if (j.chao && !j.arrancada && m > 0.5) { this.tentarEscalar(j, correr, dt); if (j.esc) return; } else j.empurra = 0;
     j.anim = this.animMovimento(j, m > 0.15, correr);
   }
   // Queda, pouso e o tempo do mortal
   passoVertical(j, dt) {
+    const chao = this.terreno.altura(j.x, j.z); // chão ou topo da pedra
     if (j.arrancada) j.vy = 0; else if (!j.chao || j.vy > 0) j.vy -= MOVIMENTO.gravidade * dt;
     j.y += j.vy * dt;
-    if (j.y <= 0) {
+    if (j.y <= chao + 0.001) {
       if (!j.chao && j.vy < -3) j.pouso = DURACAO.pouso * 0.6;
       if (!j.chao) { j.pulos = 0; j.mortal = 0; j.arrancadaNoAr = false; }
-      j.y = 0; j.vy = 0; j.chao = true;
+      j.y = chao; j.vy = 0; j.chao = true;
     } else j.chao = false;
     j.puloT += dt;
     if (j.mortal > 0) j.mortal = Math.max(0, j.mortal - dt);
@@ -331,12 +468,12 @@ export class Simulacao {
     const t = TIPOS_INIMIGO[b.tipo];
     const alvo = this.maisPerto(b, 14);
     b.ataqueCd -= dt;
-    if (alvo && dist(alvo, b) < 1.9) {
+    if (alvo && dist(alvo, b) < 1.9 && Math.abs(alvo.y - b.y) < 1.3) {
       this.virarPara(b, alvo); b.anim = A.swordIdle;
       if (b.ataqueCd <= 0) {
         b.ataqueCd = t.intervalo;
         const d = this.tocar(b, Math.random() < 0.5 ? A.slash : A.slash2, 1.1);
-        this.depois(d * 0.45, () => { if (!b.morto && !alvo.morto && dist(alvo, b) < 2.4) this.ferir(alvo, t.dano, b); });
+        this.depois(d * 0.45, () => { if (!b.morto && !alvo.morto && dist(alvo, b) < 2.4 && Math.abs(alvo.y - b.y) < 1.3) this.ferir(alvo, t.dano, b); });
       }
     } else if (alvo) {
       const d = dist(alvo, b); this.virarPara(b, alvo);
@@ -353,11 +490,11 @@ export class Simulacao {
     for (let i = this.projeteis.length - 1; i >= 0; i--) {
       const p = this.projeteis[i], v = p.h.proj.vel;
       p.vida -= dt; p.x += p.dx * v * dt; p.y += p.dy * v * dt; p.z += p.dz * v * dt;
-      let fim = p.vida <= 0 || p.y < 0;
+      let fim = p.vida <= 0 || p.y < this.terreno.altura(p.x, p.z); // bate no chão ou na pedra
       for (const o of this.inimigosDe(p.dono)) {
         if (p.acertou.has(o)) continue;
         const esc = TIPOS_INIMIGO[o.tipo]?.escala || 1;
-        if (Math.hypot(o.x - p.x, o.z - p.z) < (p.h.proj.largura || 0.6) && p.y < 2.1 * esc) {
+        if (Math.hypot(o.x - p.x, o.z - p.z) < (p.h.proj.largura || 0.6) && p.y - (o.y || 0) < 2.1 * esc && p.y > (o.y || 0) - 0.3) {
           p.acertou.add(o); this.ferir(o, p.h.dmg, p.dono);
           if (!p.h.proj.atravessa) { fim = true; break; }
         }

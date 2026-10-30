@@ -129,7 +129,7 @@ function quadro() {
     const meu = corpos.get(rede.meuId);
     if (meu) {
       const p = meu.corpo.root.position;
-      alvoCam.lerp(tmp.set(p.x, p.y * 0.6 + 1.35, p.z), Math.min(1, dt * 7));
+      { const yAntes = alvoCam.y; alvoCam.lerp(tmp.set(p.x, p.y + 1.35, p.z), Math.min(1, dt * 7)); alvoCam.y = yAntes + (p.y + 1.35 - yAntes) * Math.min(1, dt * 3.5); } // na altura sobe devagar: pulo balança pouco, rocha a câmera acompanha
       controles.posicionarCamera(camera, alvoCam);
       mundo.sol.position.set(p.x + 14, 22, p.z + 8); mundo.sol.target.position.copy(p);
       for (const c of corpos.values()) if (c.tag) hud.posicionarEtiqueta(c.tag, c.corpo.root, c.info, p);

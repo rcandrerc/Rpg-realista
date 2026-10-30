@@ -54,6 +54,7 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
 function modoSolo(mapa, nome, visual, aoReceber) {
   const sim = new Simulacao(mapa);
   sim.adicionarJogador('solo', nome, visual);
+  window.jogo = Object.assign(window.jogo || {}, { sim }); // para testes no console
   const cmd = {
     entrada: (m) => sim.entrada('solo', m),
     habilidade: (i) => sim.usarHabilidade('solo', i),

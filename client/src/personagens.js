@@ -5,7 +5,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
+import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
 import { carregarGLTF } from './cena.js';
 
 let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, LAMINA = null;
@@ -72,6 +72,12 @@ function completar(clipes, vertical) {
   for (const nome of SEM_AVANCO) {
     const tr = clipes[nome]?.tracks.find((x) => /\.position$/.test(x.name)); if (!tr) continue;
     for (let k = 0; k < 3; k++) if (k !== vertical) for (let i = k; i < tr.values.length; i += 3) tr.values[i] = tr.values[k];
+  }
+  // escalada: o servidor sobe e desce o corpo pelo caminho do quadril, então o quadril fica na altura de quem está em pé
+  const pe = clipes.parada?.tracks.find((x) => /\.position$/.test(x.name))?.values[vertical];
+  for (const nome of ANIMS_ESCALADA) {
+    const tr = clipes[nome]?.tracks.find((x) => /\.position$/.test(x.name)); if (!tr || pe == null) continue;
+    for (let i = vertical; i < tr.values.length; i += 3) tr.values[i] = pe;
   }
   return clipes;
 }
