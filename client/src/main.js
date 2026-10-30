@@ -71,6 +71,7 @@ const dash = () => rede?.enviar('dash');
 const rolar = () => rede?.enviar('rolar');
 controles.aoTeclar = (code) => {
   if (code === 'KeyJ') usar(0); if (code === 'KeyK') usar(1); if (code === 'KeyL') usar(2); if (code === 'KeyI') usar(3);
+  if (code === 'KeyU') usar(4); if (code === 'KeyO') usar(5); if (code === 'KeyP') usar(6); if (code === 'KeyH') usar(7);
   if (code === 'Space') pular();
   if (code === 'KeyE' || code === 'ShiftRight') dash();
   if (code === 'KeyQ') rolar();

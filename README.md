@@ -38,12 +38,12 @@ No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita
 | Ação | Celular | PC |
 | --- | --- | --- |
 | Andar / correr | joystick (até o fim corre) | WASD, Shift corre |
-| Golpe e habilidades | botões à direita | J, K, L, I |
+| Golpe, 6 habilidades e Cura | botões à direita | J; K, L, I, U, O, P; H |
 | Pular (no ar, de novo: mortal) | botão Pular | Espaço |
 | Dash | botão Dash | E |
 | Rolar no chão | botão Rolar | Q |
 | Escolher habilidades | botão Habilidades | botão Habilidades |
-| Câmera | arrastar a tela | arrastar, roda do mouse |
+| Câmera (girar, olhar para cima e para baixo, zoom) | arrastar a tela; dois dedos para o zoom | arrastar, roda do mouse |
 
 ## Como o código é organizado
 
