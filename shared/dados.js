@@ -273,7 +273,7 @@ export const CRIADOR = {
   calca: [null, 0x222226, 0x3c3a52, 0x5a4632, 0x2a3a5a, 0x6e1e2a, 0x7a7c80, 0x4a5a32, 0xe8e2d4],
   altura: [0.92, 1.08],
   // formato do rosto: tamanho dos olhos, do nariz e da boca (1 = original)
-  rosto: { olhosT: [0.8, 1.3], narizT: [0.6, 1.8], bocaT: [0.7, 1.4] },
+  rosto: { olhosT: [0.75, 1.25], narizT: [0.7, 1.3], bocaT: [0.7, 1.3] },
 };
 // Aparência mandada pelo jogador: só cores da lista e altura dentro do limite (o resto vira a cor original)
 export function aparenciaValida(a) {
