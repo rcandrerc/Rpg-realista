@@ -252,9 +252,10 @@ export const MAPA_CLAREIRA = {
 };
 
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
-// Os personagens das hordas inimigas (TIPOS_INIMIGO) não entram aqui.
-// Trocar o corpo não muda nada no combate: é só visual.
+// As duas bases (VRoid CC0) vêm primeiro: o criador de personagem pinta cabelo, olhos, pele e roupa em cima delas.
 export const PERSONAGENS = [
+  { id: 'cabelo_f', nome: 'Base feminina', tipo: 'vrm', base: true },
+  { id: 'cabelo_m', nome: 'Base masculina', tipo: 'vrm', base: true },
   { id: 'ruiva', nome: 'Ruiva', tipo: 'vrm' },
   { id: 'vita', nome: 'Vita', tipo: 'vrm' },
   { id: 'vivi', nome: 'Vivi', tipo: 'vrm' },
@@ -262,7 +263,23 @@ export const PERSONAGENS = [
   { id: 'shino', nome: 'Shino', tipo: 'vrm' },
   { id: 'shibu', nome: 'Shibu', tipo: 'vrm' },
   { id: 'shibu_sombrio', nome: 'Shibu Sombrio', tipo: 'vrm' },
-  { id: 'cabelo_f', nome: 'Amostra F', tipo: 'vrm' },
-  { id: 'soldado', nome: 'Soldado (realista)', tipo: 'glb' },
 ];
+// Cores do criador (null = a cor original do modelo). O servidor só aceita cores desta lista.
+export const CRIADOR = {
+  cabelo: [null, 0x1c1a1f, 0x3b2619, 0x6b4429, 0xa8401c, 0xd9b36c, 0xe9e4d8, 0x9a9894, 0x2f4f9c, 0xd9799a, 0x3f7a4a, 0x5b3a8a, 0x9c1c24],
+  olhos: [null, 0x6b3f22, 0xb07a2a, 0x3d8a4a, 0x3a6fd0, 0x8a96a0, 0x7a4ac0, 0xc02a2a, 0xe0b030],
+  pele: [null, 0xffe6d6, 0xf3cdb0, 0xe2ad88, 0xc68a62, 0x996344, 0x6e4530],
+  roupa: [null, 0xf0eee8, 0x222226, 0x24345c, 0x6e1e2a, 0x4a5a32, 0x6b4a2e, 0x7a7c80, 0xa8322c, 0x7aa6d0, 0x5a3a7a],
+  calca: [null, 0x222226, 0x3c3a52, 0x5a4632, 0x2a3a5a, 0x6e1e2a, 0x7a7c80, 0x4a5a32, 0xe8e2d4],
+  altura: [0.92, 1.08],
+};
+// Aparência mandada pelo jogador: só cores da lista e altura dentro do limite (o resto vira a cor original)
+export function aparenciaValida(a) {
+  if (!a || typeof a !== 'object') return null;
+  const r = {};
+  for (const k of ['cabelo', 'olhos', 'pele', 'roupa', 'calca']) r[k] = CRIADOR[k].includes(a[k]) ? a[k] : null;
+  const [min, max] = CRIADOR.altura;
+  r.altura = Number.isFinite(a.altura) ? Math.round(Math.min(max, Math.max(min, a.altura)) * 100) / 100 : 1;
+  return r;
+}
 export const PERSONAGEM_PADRAO = 'ruiva';

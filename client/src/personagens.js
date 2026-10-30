@@ -256,20 +256,23 @@ async function carregarVRM(id) {
 }
 
 // ---------- variações de cor (NPCs e inimigos com o mesmo modelo, mas cabelo e roupa diferentes) ----------
-// Pinta a textura pela luminosidade: mantém o desenho (mechas, dobras, costuras) e troca a cor, inclusive para mais claro.
+// troca: pinta pela luminosidade (mantém mechas, dobras e costuras e troca a cor, inclusive para mais claro).
+// razao: multiplica cada canal (pele: o rosado da bochecha e da boca continua, só o tom muda).
 const tingidas = new Map();
-function tingir(tex, cor) {
-  const k = tex.uuid + ':' + cor;
+function tingir(tex, cor, modo = 'troca') {
+  const k = tex.uuid + ':' + cor + ':' + modo;
   if (tingidas.has(k)) return tingidas.get(k);
   const img = tex.image, lado = Math.min(1024, img.width), alto = Math.round(img.height * lado / img.width);
   const cv = document.createElement('canvas'); cv.width = lado; cv.height = alto;
   const g = cv.getContext('2d'); g.drawImage(img, 0, 0, lado, alto);
   const dados = g.getImageData(0, 0, lado, alto), px = dados.data;
-  let soma = 0, n = 0;
-  for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 8) { soma += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11; n++; }
-  const media = Math.max(8, soma / Math.max(1, n)), c = new THREE.Color(cor), alvo = [c.r * 255, c.g * 255, c.b * 255];
+  const soma = [0, 0, 0]; let n = 0;
+  for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 8) { soma[0] += px[i]; soma[1] += px[i + 1]; soma[2] += px[i + 2]; n++; }
+  const med = soma.map((v) => Math.max(8, v / Math.max(1, n))), lumMed = Math.max(8, med[0] * 0.3 + med[1] * 0.59 + med[2] * 0.11);
+  const c = new THREE.Color(cor), alvo = [c.r * 255, c.g * 255, c.b * 255];
   for (let i = 0; i < px.length; i += 4) {
-    const l = Math.min(1.7, (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / media), f = 0.35 + 0.65 * l;
+    if (modo === 'razao') { for (let k = 0; k < 3; k++) px[i + k] = Math.min(255, px[i + k] * alvo[k] / med[k]); continue; }
+    const l = Math.min(1.7, (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / lumMed), f = 0.35 + 0.65 * l;
     px[i] = Math.min(255, alvo[0] * f); px[i + 1] = Math.min(255, alvo[1] * f); px[i + 2] = Math.min(255, alvo[2] * f);
   }
   g.putImageData(dados, 0, 0);
@@ -278,20 +281,24 @@ function tingir(tex, cor) {
   tingidas.set(k, t);
   return t;
 }
-// tinta = { cabelo, roupa, calca } (cores 0xRRGGBB). Materiais tingidos são divididos entre cópias iguais.
+// tinta = { cabelo, olhos, pele, roupa, calca } (cores 0xRRGGBB; null = cor original). Materiais tingidos são divididos entre cópias iguais.
 const materiaisTingidos = new Map();
+const PARTES = [[/HAIR/, 'cabelo'], [/EyeIris/, 'olhos'], [/SKIN/, 'pele'], [/Bottoms/, 'calca'], [/Tops|Accessory/, 'roupa']];
 function tingirVRM(vrm, id, tinta) {
-  const parte = (nome) => (/HAIR/.test(nome) ? tinta.cabelo : /Bottoms/.test(nome) ? tinta.calca ?? tinta.roupa : /Tops|Accessory/.test(nome) ? tinta.roupa : null);
   vrm.scene.traverse((o) => {
     if (!o.isMesh) return;
-    const troca = (m) => {
-      const cor = parte(m.name); if (cor == null || !m.map) return m;
-      const k = id + '|' + m.name + '|' + cor;
+    const troca = (atual) => {
+      const m = atual.userData.base || atual; // sempre pinta a partir do material original
+      const parte = PARTES.find(([re]) => re.test(m.name))?.[1];
+      const cor = parte && (parte === 'calca' ? tinta.calca ?? tinta.roupa : tinta[parte]);
+      if (cor == null || !m.map) return m;
+      const modo = parte === 'pele' ? 'razao' : 'troca', k = id + '|' + m.name + '|' + cor;
       if (!materiaisTingidos.has(k)) {
         const novo = m.clone(), mesma = m.shadeMultiplyTexture === m.map;
-        novo.map = tingir(m.map, cor);
-        if (m.shadeMultiplyTexture) novo.shadeMultiplyTexture = mesma ? novo.map : tingir(m.shadeMultiplyTexture, cor);
-        if (novo.shadeColorFactor) novo.shadeColorFactor.set(cor).multiplyScalar(0.55).lerp(new THREE.Color(0.45, 0.4, 0.45), 0.3);
+        novo.userData = { base: m };
+        novo.map = tingir(m.map, cor, modo);
+        if (m.shadeMultiplyTexture) novo.shadeMultiplyTexture = mesma ? novo.map : tingir(m.shadeMultiplyTexture, cor, modo);
+        if (novo.shadeColorFactor && modo === 'troca') novo.shadeColorFactor.set(cor).multiplyScalar(0.55).lerp(new THREE.Color(0.45, 0.4, 0.45), 0.3);
         materiaisTingidos.set(k, novo);
       }
       return materiaisTingidos.get(k);
@@ -312,7 +319,7 @@ export class Corpo {
   // armas: 'heroi' (espada mágica azul), 'inimigo' (espada mágica na cor do brilho) ou 'nenhuma'; bravo: cara de raiva
   // tinta: cores novas de cabelo e roupa para o VRM (NPCs e inimigos variados)
   constructor(scene, { cor, escala = 1, armas = 'heroi', visual = 'soldado', brilho = COR_HEROI, bravo = false, tinta = null }) {
-    this.scene = scene; this.visual = visual; this.brilho = brilho; this.bravo = bravo; this.tinta = tinta;
+    this.scene = scene; this.visual = visual; this.brilho = brilho; this.bravo = bravo; this.tinta = tinta; this.escalaBase = escala;
     this.root = new THREE.Group(); this.root.scale.setScalar(escala);
     this.acoes = {}; this.atual = null; this.seq = -1; this.estado = null;
     this.alvo = new THREE.Vector3(); this.alvoRy = 0; this.primeira = true;
@@ -430,6 +437,12 @@ export class Corpo {
     a.clampWhenFinished = true;
     if (this.atual && this.atual !== nome) this.acao(this.atual)?.fadeOut(0.12);
     this.atual = nome;
+  }
+  // Criador de personagem: troca as cores e a altura na hora, sem recarregar o modelo
+  repintar(aparencia) {
+    this.tinta = aparencia || {};
+    this.root.scale.setScalar(this.escalaBase * (aparencia?.altura || 1));
+    if (this.vrm) tingirVRM(this.vrm, this.visual, this.tinta);
   }
   // Recebe o estado vindo da simulação
   aplicar(e) {
