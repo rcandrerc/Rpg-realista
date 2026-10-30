@@ -9,6 +9,7 @@ import { entrarNaConta, sairDaConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
+import { aplicarEstilo } from './estilo.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -21,7 +22,7 @@ const controles = new Controles(canvas);
 const hud = new Hud(camera);
 const segurarCamera = cameraForaDasCasas(mapa);
 
-let mundo, efeitos, rede;
+let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
 window.jogo = { controles, corpos, renderer }; // para testes no console do navegador
 let eu = null; // meu estado mais recente
@@ -154,7 +155,7 @@ function quadro() {
       hud.npcs(p, dt);
     }
     hud.atualizar(dt);
-    renderer.render(mundo.scene, camera);
+    if (pos) pos.render(); else renderer.render(mundo.scene, camera);
   }
   requestAnimationFrame(quadro);
 }
@@ -198,6 +199,7 @@ function quadro() {
     // espera o próprio corpo ficar pronto (o personagem anime baixa uns 15 a 20 MB na primeira vez)
     for (let i = 0; i < 600 && !corpos.get(rede.meuId)?.corpo.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     hud.montarEsboco();
+    pos = aplicarEstilo(renderer, mundo.scene, camera, mundo.sol);
     $('load').hidden = true;
     setTimeout(() => hud.aviso('Monte a sua build em Habilidades'), 600);
   } catch (e) {
