@@ -1,6 +1,6 @@
 // Interface na tela: barras, botões de habilidade, escolha da build, nomes sobre as cabeças, números de dano
 import * as THREE from 'three';
-import { ARMA, BASICO, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, HEROI, MOVIMENTO } from '@rpg/shared';
+import { ARMA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, BUILD_PADRAO, ESPACOS_BUILD, HEROI, MOVIMENTO } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const v = new THREE.Vector3();
@@ -9,7 +9,7 @@ export class Hud {
   constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.build = [...BUILD_PADRAO]; }
 
   montarBotoes({ usar, pular, dash, rolar }) {
-    [0, 1, 2, 3, 4, 5, 6, 7].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(i); }));
+    [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(i); }));
     $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); dash(); });
     $('bp').addEventListener('pointerdown', (e) => { e.preventDefault(); pular(); });
     $('br').addEventListener('pointerdown', (e) => { e.preventDefault(); rolar(); });
@@ -18,6 +18,7 @@ export class Hud {
     $('style').textContent = ARMA.nome;
     document.querySelector('#b0 .lbl').textContent = BASICO.nome;
     document.querySelector('#b7 .lbl').textContent = CURA.nome;
+    document.querySelector('#b8 .lbl').textContent = BASICO_MAGIA.nome;
     this.mostrarBuild(this.build);
   }
   mostrarBuild(build) {
@@ -87,14 +88,14 @@ export class Hud {
       const c = document.createElement('div'); c.className = 'card';
       const lista = Object.values(HABILIDADES).filter((h) => h.tipo === tipo);
       c.innerHTML = `<small>${tipo}</small><h3>${tipo === 'Espada' ? 'Golpes da lâmina' : 'Magias da espada'}</h3><ul>${
-        (tipo === 'Espada' ? [BASICO, ...lista] : [...lista, CURA]).map((h) => `<li><b>${h.nome}</b>: ${h.desc}${h.cd >= 1 ? ` Recarga ${h.cd} s${h.mana ? `, ${h.mana} de mana` : ''}.` : ''}</li>`).join('')}</ul>`;
+        (tipo === 'Espada' ? [BASICO, ...lista] : [BASICO_MAGIA, ...lista, CURA]).map((h) => `<li><b>${h.nome}</b>: ${h.desc}${h.cd >= 1 ? ` Recarga ${h.cd} s${h.mana ? `, ${h.mana} de mana` : ''}.` : ''}</li>`).join('')}</ul>`;
       cards.appendChild(c);
     }
   }
   barras(vida, mana) { $('hpb').style.width = vida * 100 + '%'; $('mpb').style.width = mana * 100 + '%'; }
   recargas(eu) {
-    ['basico', ...this.build, 'cura'].forEach((k, i) => {
-      const h = k === 'basico' ? BASICO : k === 'cura' ? CURA : HABILIDADES[k], resta = eu.cds[k] || 0;
+    ['basico', ...this.build, 'cura', 'magia'].forEach((k, i) => {
+      const h = k === 'basico' ? BASICO : k === 'cura' ? CURA : k === 'magia' ? BASICO_MAGIA : HABILIDADES[k], resta = eu.cds[k] || 0;
       document.querySelector(`#b${i} .cdv`).style.transform = `scaleY(${h.cd ? Math.min(1, resta / h.cd) : 0})`;
     });
     document.querySelector('#br .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.rolar || 0) / HEROI.rolarCd)})`;
