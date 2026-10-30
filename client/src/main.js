@@ -4,7 +4,8 @@ import { HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, BU
 import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo } from './personagens.js';
 import { Efeitos } from './efeitos.js';
-import { conectar } from './rede.js';
+import { conectar, enderecoServidor } from './rede.js';
+import { entrarNaConta, sairDaConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Controles } from './controles.js';
 
@@ -100,6 +101,8 @@ hud.montarEscolhaPersonagem(PERSONAGENS, escolhido, (id) => {
   rede?.enviar('visual', id);
 });
 
+$('sairBtn').addEventListener('click', async () => { await sairDaConta(enderecoServidor()); location.reload(); });
+
 let ultimaEntrada = '', tempoEntrada = 0;
 function enviarEntrada(dt) {
   const m = controles.direcao();
@@ -146,6 +149,9 @@ function quadro() {
 
 (async () => {
   try {
+    // o login do Google aparece logo, enquanto o mundo carrega por trás
+    const servidor = enderecoServidor();
+    const primeiraEntrada = entrarNaConta(servidor);
     msg('Carregando o mundo…');
     mundo = await montarCena(renderer, mapa);
     msg('Carregando os personagens…');
@@ -159,8 +165,20 @@ function quadro() {
       corpos.set('npc:' + n.nome, { corpo: c, tipo: 'npc' });
     }
     msg('Conectando ao servidor…');
-    const nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
-    rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t));
+    let nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
+    // Conta Google: o nome, o personagem e a build vêm da conta (salvos no servidor)
+    for (let tentativa = 0; ; tentativa++) {
+      const entrada = await (tentativa === 0 ? primeiraEntrada : entrarNaConta(servidor));
+      if (entrada) {
+        const { conta } = entrada;
+        nome = conta.nome;
+        if (conta.visual) { escolhido = conta.visual; document.querySelectorAll('#pgrid button').forEach((b) => b.classList.toggle('on', b.dataset.id === escolhido)); }
+        if (conta.build) { build = conta.build; hud.mostrarBuild(build); }
+        $('sairBtn').hidden = false;
+      }
+      try { rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t), entrada?.sessao); break; }
+      catch (e) { if (!e.login || tentativa > 0) throw e; try { localStorage.removeItem('sessao'); } catch { /* nada guardado */ } }
+    }
     hud.rede(rede.modo === 'online' ? 'Online' : 'Modo solo (sem servidor)');
     rede.enviar('build', build);
     $('nome').textContent = nome;

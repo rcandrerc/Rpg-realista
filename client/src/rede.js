@@ -5,7 +5,7 @@ import { Simulacao } from '@rpg/shared';
 // Servidor usado quando o jogo é aberto pelo GitHub Pages (que não roda servidor). Vazio = modo solo.
 const SERVIDOR_PARA_PAGES = '';
 
-function enderecoServidor() {
+export function enderecoServidor() {
   const forcado = new URLSearchParams(location.search).get('servidor');
   if (forcado) return forcado;
   if (location.hostname.endsWith('github.io')) return SERVIDOR_PARA_PAGES || null;
@@ -18,14 +18,15 @@ function enderecoServidor() {
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const comPrazo = (p, ms) => Promise.race([p, new Promise((_, nao) => setTimeout(() => nao(new Error('sem resposta')), ms))]);
 
-export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}) {
+export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}, sessao = null) {
   const endereco = enderecoServidor();
   if (!endereco) return modoSolo(mapa, nome, visual, aoReceber);
   const cliente = new Client(endereco);
   let sala;
   try {
-    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual }), 4000);
+    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual, sessao }), 4000);
   } catch (e) {
+    if (e.code === 401) throw Object.assign(new Error('sessão vencida'), { login: true }); // pede o login do Google de novo
     console.warn('Servidor indisponível, jogando no modo solo:', e.message);
     return modoSolo(mapa, nome, visual, aoReceber);
   }
@@ -38,6 +39,7 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
     s.onLeave(async (codigo) => {
       console.warn('Conexão caiu, código', codigo);
       if (codigo === 1000) return; // saiu de propósito
+      if (codigo === 4001) { aoMudarStatus('Sua conta entrou em outro aparelho.'); return; }
       aoMudarStatus('Reconectando…');
       const token = s.reconnectionToken;
       for (let tentativa = 0; tentativa < 8; tentativa++) {
