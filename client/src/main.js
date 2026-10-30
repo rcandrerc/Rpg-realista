@@ -159,8 +159,11 @@ function quadro() {
       { const yAntes = alvoCam.y; alvoCam.lerp(tmp.set(p.x, p.y + 1.35, p.z), Math.min(1, dt * 7)); alvoCam.y = yAntes + (p.y + 1.35 - yAntes) * Math.min(1, dt * 3.5); } // na altura sobe devagar: pulo balança pouco, rocha a câmera acompanha
       if (criador.aberto) { // criador aberto: câmera de frente para o herói, ele no meio do espaço livre da tela
         if (!camCriador) camCriador = { yaw: controles.yaw, pitch: controles.pitch, dist: controles.dist };
-        Object.assign(controles, { yaw: meu.corpo.root.rotation.y + Math.PI, pitch: 0.06, dist: 2.4 });
-      } else if (camCriador) { Object.assign(controles, camCriador); camCriador = null; }
+        meu.corpo.mostrarArmas(false);
+        const rosto = criador.foco === 'rosto', k = Math.min(1, dt * 6), cabeca = meu.corpo.vrm?.humanoid.getRawBoneNode('head');
+        Object.assign(controles, { yaw: meu.corpo.root.rotation.y + Math.PI, pitch: controles.pitch + ((rosto ? 0 : 0.06) - controles.pitch) * k, dist: controles.dist + ((rosto ? 0.7 : 2.4) - controles.dist) * k });
+        if (rosto && cabeca) alvoCam.copy(cabeca.getWorldPosition(tmp)).y += 0.06; // mexendo no rosto: câmera bem perto dele
+      } else if (camCriador) { Object.assign(controles, camCriador); camCriador = null; meu.corpo.mostrarArmas(true); }
       controles.posicionarCamera(camera, alvoCam); segurarCamera(camera, alvoCam);
       const desloc = criador.largura() / 2;
       if (desloc !== deslocCam) { deslocCam = desloc; if (desloc) camera.setViewOffset(innerWidth, innerHeight, desloc, 0, innerWidth, innerHeight); else camera.clearViewOffset(); }

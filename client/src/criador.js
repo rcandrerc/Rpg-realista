@@ -10,7 +10,7 @@ export class Criador {
   // aoMudar(visual, aparencia) a cada toque
   constructor(visual, aparencia, aoMudar) {
     this.visual = visual; this.aparencia = aparenciaValida(aparencia) || aparenciaValida({}); this.aoMudar = aoMudar;
-    this.aberto = false;
+    this.aberto = false; this.foco = 'corpo'; // 'rosto': câmera perto do rosto
     const bases = $('cBases');
     for (const p of PERSONAGENS.filter((q) => q.tipo === 'vrm')) {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.id = p.id;
@@ -29,13 +29,16 @@ export class Criador {
         lista.appendChild(b);
       }
     }
-    $('cAltura').addEventListener('input', (e) => { this.aparencia.altura = +e.target.value; this.mudou(); });
+    $('cAltura').addEventListener('input', (e) => { this.aparencia.altura = +e.target.value; this.foco = 'corpo'; this.mudou(); });
+    // formato do rosto: a câmera chega perto do rosto enquanto mexe nesses
+    for (const f of document.querySelectorAll('#criar .cfaixa')) f.addEventListener('input', () => { this.aparencia[f.dataset.k] = +f.value; this.foco = 'rosto'; this.mudou(); });
+    $('criar').addEventListener('click', (e) => { if (e.target.closest('button')) this.foco = 'corpo'; });
     $('cSorte').addEventListener('click', () => this.sortear());
     $('cPronto').addEventListener('click', () => this.fechar());
     $('pickBtn').addEventListener('click', () => this.abrir());
     this.marcar();
   }
-  abrir() { this.aberto = true; $('criar').hidden = false; document.body.classList.add('criando'); } // some o resto da interface
+  abrir() { this.aberto = true; this.foco = 'corpo'; $('criar').hidden = false; document.body.classList.add('criando'); } // some o resto da interface
   fechar() { this.aberto = false; $('criar').hidden = true; document.body.classList.remove('criando'); }
   // largura do painel (para a câmera pôr o herói no meio do que sobra da tela)
   largura() { return this.aberto ? $('criar').querySelector('.cp').offsetWidth : 0; }
@@ -45,6 +48,7 @@ export class Criador {
     this.visual = bases[Math.floor(Math.random() * bases.length)].id;
     for (const k of ['cabelo', 'olhos', 'pele', 'roupa', 'calca']) this.aparencia[k] = um(CRIADOR[k]);
     const [min, max] = CRIADOR.altura; this.aparencia.altura = Math.round((min + Math.random() * (max - min)) * 100) / 100;
+    for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) this.aparencia[k] = Math.round((1 + (Math.random() - 0.5) * 0.6 * (hi - lo)) * 100) / 100; // sem os extremos
     this.mudou();
   }
   mudou() { this.aparencia = aparenciaValida(this.aparencia); this.marcar(); this.aoMudar(this.visual, { ...this.aparencia }); }
@@ -55,5 +59,6 @@ export class Criador {
       lista.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === String(atual ?? '')));
     }
     $('cAltura').value = this.aparencia.altura;
+    for (const f of document.querySelectorAll('#criar .cfaixa')) f.value = this.aparencia[f.dataset.k];
   }
 }

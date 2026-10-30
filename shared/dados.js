@@ -272,6 +272,8 @@ export const CRIADOR = {
   roupa: [null, 0xf0eee8, 0x222226, 0x24345c, 0x6e1e2a, 0x4a5a32, 0x6b4a2e, 0x7a7c80, 0xa8322c, 0x7aa6d0, 0x5a3a7a],
   calca: [null, 0x222226, 0x3c3a52, 0x5a4632, 0x2a3a5a, 0x6e1e2a, 0x7a7c80, 0x4a5a32, 0xe8e2d4],
   altura: [0.92, 1.08],
+  // formato do rosto: tamanho dos olhos, do nariz e da boca (1 = original)
+  rosto: { olhosT: [0.8, 1.3], narizT: [0.6, 1.8], bocaT: [0.7, 1.4] },
 };
 // Aparência mandada pelo jogador: só cores da lista e altura dentro do limite (o resto vira a cor original)
 export function aparenciaValida(a) {
@@ -280,6 +282,7 @@ export function aparenciaValida(a) {
   for (const k of ['cabelo', 'olhos', 'pele', 'roupa', 'calca']) r[k] = CRIADOR[k].includes(a[k]) ? a[k] : null;
   const [min, max] = CRIADOR.altura;
   r.altura = Number.isFinite(a.altura) ? Math.round(Math.min(max, Math.max(min, a.altura)) * 100) / 100 : 1;
+  for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) r[k] = Number.isFinite(a[k]) ? Math.round(Math.min(hi, Math.max(lo, a[k])) * 100) / 100 : 1;
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
