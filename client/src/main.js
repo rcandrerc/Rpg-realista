@@ -9,7 +9,7 @@ import { entrarNaConta, sairDaConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
-import { aplicarEstilo } from './estilo.js';
+import { aplicarEstilo, botaoEstilo } from './estilo.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -21,6 +21,7 @@ const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 400);
 const controles = new Controles(canvas);
 const hud = new Hud(camera);
 const segurarCamera = cameraForaDasCasas(mapa);
+botaoEstilo(document.querySelector('.menu'));
 
 let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
