@@ -52,12 +52,12 @@ function receber(foto, eventos) {
     if (j.id === rede.meuId) eu = j;
   }
   for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e); }
-  for (const [id, c] of corpos) if (c.tipo !== 'npc' && !vivos.has(id)) { c.corpo.remover(); c.tag?.remove(); corpos.delete(id); }
+  for (const [id, c] of corpos) if (c.tipo !== 'npc' && !vivos.has(id)) { c.corpo.remover(); c.tag?.remove(); efeitos.esquecer(id); corpos.delete(id); }
 
   for (const ev of eventos) {
     if (ev.t === 'dano' || ev.t === 'cura') { const c = corpos.get(ev.alvo); if (c) hud.numero(c.corpo.root, (ev.t === 'cura' ? '+' : '-') + ev.n, ev.t === 'cura'); }
     else if (ev.t === 'aviso') hud.aviso(ev.texto);
-    else efeitos.evento(ev);
+    else efeitos.evento(ev, corpos);
   }
   if (eu) {
     hud.barras(eu.vida / eu.vidaMax, eu.mana / HEROI.mana);
@@ -71,15 +71,17 @@ function receber(foto, eventos) {
 
 // ---------- comandos do jogador ----------
 const usar = (i) => rede?.enviar('habilidade', i);
-const rolar = () => rede?.enviar('rolar');
+const pular = () => rede?.enviar('pular');
+const dash = () => rede?.enviar('dash');
 const trocar = (k) => rede?.enviar('arma', k);
 controles.aoTeclar = (code) => {
   if (code === 'KeyJ') usar(0); if (code === 'KeyK') usar(1); if (code === 'KeyL') usar(2); if (code === 'KeyI') usar(3);
-  if (code === 'Space') rolar();
+  if (code === 'Space') pular();
+  if (code === 'KeyE' || code === 'ShiftRight') dash();
   if (code === 'Digit1') trocar('espada'); if (code === 'Digit2') trocar('cajado'); if (code === 'Digit3') trocar('arco');
   if (code === 'Tab' && eu) trocar(ORDEM_ARMAS[(ORDEM_ARMAS.indexOf(eu.arma) + 1) % ORDEM_ARMAS.length]);
 };
-hud.montarBotoes({ usar, rolar, trocar });
+hud.montarBotoes({ usar, pular, dash, trocar });
 
 // personagem escolhido fica guardado neste aparelho
 const lerEscolha = () => { try { return localStorage.getItem('personagem'); } catch { return null; } };
@@ -115,11 +117,12 @@ function quadro() {
     rede.passo(dt);
     mundo.atualizar(t);
     for (const c of corpos.values()) c.corpo.atualizar(dt);
-    efeitos.atualizar(dt, t);
+    for (const [id, c] of corpos) if (c.tipo === 'jogador') efeitos.corpo(id, c.corpo, c.info, dt);
+    efeitos.atualizar(dt, t, camera, renderer);
     const meu = corpos.get(rede.meuId);
     if (meu) {
       const p = meu.corpo.root.position;
-      alvoCam.lerp(tmp.set(p.x, 1.35, p.z), Math.min(1, dt * 7));
+      alvoCam.lerp(tmp.set(p.x, p.y * 0.6 + 1.35, p.z), Math.min(1, dt * 7));
       controles.posicionarCamera(camera, alvoCam);
       mundo.sol.position.set(p.x + 14, 22, p.z + 8); mundo.sol.target.position.copy(p);
       for (const c of corpos.values()) if (c.tag) hud.posicionarEtiqueta(c.tag, c.corpo.root, c.info, p);
