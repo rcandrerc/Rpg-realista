@@ -258,7 +258,7 @@ function ajustarResolucao() {
   if (fps < 50 && resol.atual > RESOLUCAO_MIN && agora > resol.travado) {
     resol.antes = { fps, pr: resol.atual }; resol.bons = 0;
     if (resol.atual < resol.teto) resol.teto = resol.atual; // subir até aqui já deu queda: não insiste
-    mudarResolucao(Math.max(RESOLUCAO_MIN, resol.atual - 0.15));
+    mudarResolucao(Math.max(RESOLUCAO_MIN, resol.atual - 0.1)); // passos pequenos: a nitidez não "pula"
   } else if (fps > 57) {
     if (++resol.bons >= 3 && resol.atual < resol.teto) { resol.bons = 0; mudarResolucao(Math.min(resol.teto, resol.atual + 0.1)); }
   } else resol.bons = 0;
