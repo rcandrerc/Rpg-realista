@@ -442,6 +442,8 @@ const ARMAS_VRM = {
   espada: { mao: 'rightHand', giro: eixo(1, 0, 0, Math.PI / 2), desloc: [0, -0.02, 0.02], escala: 1 },
 };
 
+// ritmo do balanço montado (ciclo em segundos, igual ao das animações do lobo) e quanto o corpo mexe
+const MONTADO_PASSO = { parado: { ciclo: 2, forca: 0.3 }, andar: { ciclo: 0.5, forca: 0.6 }, correr: { ciclo: 0.6, forca: 1.4 } };
 const TMP_A = new THREE.Vector3(), TMP_B = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_EULER = new THREE.Euler();
 
 export class Corpo {
@@ -582,15 +584,30 @@ export class Corpo {
     if (id) this.montaria = new Montaria(id, this.root);
     else this.inclina.position.set(0, 0, 0);
   }
-  // Pernas abertas em volta do lobo, joelhos dobrados (por cima da animação parada)
-  sentar() {
+  // Montado: pernas abertas em volta do lobo, corpo agachado para a frente e mãos no pelo do pescoço.
+  // O tronco balança no ritmo do lobo (mais forte correndo). Vai por cima da animação parada.
+  sentar(dt) {
     const h = this.vrm?.humanoid; if (!h) return;
     const f = this.vrm.meta?.metaVersion === '0' ? -1 : 1; // VRM antigo olha para -Z nos ossos
-    for (const [lado, s] of [['left', 1], ['right', -1]]) {
-      h.getNormalizedBoneNode(lado + 'UpperLeg')?.quaternion.setFromEuler(TMP_EULER.set(-1.25 * f, 0, 0.55 * s * f, 'ZXY'));
-      h.getNormalizedBoneNode(lado + 'LowerLeg')?.quaternion.setFromEuler(TMP_EULER.set(1.5 * f, 0, 0, 'XYZ'));
-      h.getNormalizedBoneNode(lado + 'Foot')?.quaternion.setFromEuler(TMP_EULER.set(-0.3 * f, 0, 0, 'XYZ'));
+    const osso = (n) => h.getNormalizedBoneNode(n);
+    const por = (n, x, y, z, ordem = 'XYZ') => osso(n)?.quaternion.setFromEuler(TMP_EULER.set(x * f, y, z * f, ordem));
+    const passo = MONTADO_PASSO[this.montaria.atual] || MONTADO_PASSO.parado;
+    this.balanco = ((this.balanco || 0) + dt / passo.ciclo) % 1;
+    const s = Math.sin(this.balanco * Math.PI * 2), b = passo.forca;
+    for (const [lado, l] of [['left', 1], ['right', -1]]) {
+      por(lado + 'UpperLeg', -1.25, 0, 0.55 * l, 'ZXY');
+      por(lado + 'LowerLeg', 1.5 + 0.15 * b * s, 0, 0);
+      por(lado + 'Foot', -0.3, 0, 0);
+      // braços para a frente e para baixo, cotovelo dobrado, mãos agarrando o pelo
+      por(lado + 'UpperArm', 0, -1.25 * l, -0.35 * l, 'YZX');
+      por(lado + 'LowerArm', 0, -0.5 * l - 0.1 * b * s * l, -0.35 * l, 'XYZ');
+      por(lado + 'Hand', 0, 0, -0.35 * l);
     }
+    por('spine', 0.6 + 0.08 * b * s, 0, 0);
+    por('chest', 0.4 + 0.06 * b * s, 0, 0);
+    por('upperChest', 0.15, 0, 0);
+    por('neck', -0.5 - 0.06 * b * s, 0, 0);
+    por('head', -0.4, 0, 0);
   }
   // Recebe o estado vindo da simulação
   aplicar(e) {
@@ -601,8 +618,8 @@ export class Corpo {
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
     const escalando = ESCALANDO.has(e.acao?.nome) || ESCALANDO.has(e.anim);
-    const modo = escalando ? 'Escalada' : e.modo || (this.modo === 'Escalada' ? 'Espada' : null);
-    if (modo) this.armar(modo);
+    const modo = escalando || this.montaria ? 'Escalada' : e.modo || (this.modo === 'Escalada' ? 'Espada' : null);
+    if (modo) this.armar(modo); // escalando ou montado: espada e cajado nas costas, mãos livres
     if (e.acao && e.acaoSeq !== this.seq) this.tocarUmaVez(e.acao);
     else if (!e.acao) this.tocarLaco(e.anim);
     this.seq = e.acaoSeq;
@@ -632,7 +649,7 @@ export class Corpo {
     m.atualizar(dt);
     const quadril = this.vrm?.humanoid.getNormalizedBoneNode('hips'), sela = m.sela?.getWorldPosition(TMP_A);
     if (!quadril || !sela) return; // o lobo ainda está carregando
-    this.sentar();
+    this.sentar(dt);
     this.root.updateMatrixWorld(true);
     sela.y += 0.2 * m.dados.escala / 1.9; // da coluna até o lombo
     // quanto falta para o quadril chegar na sela, no espaço do corpo
