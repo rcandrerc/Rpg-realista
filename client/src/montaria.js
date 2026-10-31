@@ -100,7 +100,7 @@ export class Montaria {
   // ponto da juba logo atrás das orelhas, do lado do cavaleiro (lat = -1 ou 1, eixo x do lobo)
   pegada(lat, alvo) {
     this.grupo.worldToLocal(this.nuca.getWorldPosition(alvo));
-    alvo.x += lat * 0.07; alvo.y += 0.05; alvo.z -= 0.04;
+    alvo.x += lat * 0.06; alvo.y += 0.09; alvo.z -= 0.02;
     return this.grupo.localToWorld(alvo);
   }
   remover() { this.removido = true; this.pai.remove(this.grupo); }

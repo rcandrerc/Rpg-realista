@@ -85,6 +85,9 @@ function cajadoMagico(cor) {
 // Onde fica a arma que não está na mão: nas costas, na diagonal (no espaço do corpo olhando para +Z)
 // Montado: o tronco vai deitado para a frente; as armas das costas ficam como se ele estivesse em pé, giradas para trás
 const MONTADO_ATRAS = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.6, 0, 0));
+// a espada ainda deita de lado: o cabo sai por cima do ombro, ao lado da cabeça (com o cajado forma um X)
+const MONTADO_ESPADA = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.6, 0, 0.45));
+const MAO_DEDOS = new THREE.Vector3(), MAO_PALMA = new THREE.Vector3(), MAO_M = new THREE.Matrix4(), MAO_M2 = new THREE.Matrix4();
 const COSTAS = {
   espada: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI - 0.5)), desloc: [0.17, 0.2, -0.15] },
   cajado: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.55)), desloc: [0.05, -0.32, -0.17] },
@@ -621,9 +624,6 @@ export class Corpo {
       por(lado + 'Foot', -0.3, 0, 0);
       // ombros puxados para a frente (os braços esticam até o pescoço do lobo em segurar)
       por(lado + 'Shoulder', 0, -0.3 * l, -0.1 * l);
-      por(lado + 'Hand', 0, 0, -0.25 * l);
-      for (const dedo of ['Index', 'Middle', 'Ring', 'Little']) for (const [parte, g] of [['Proximal', 1.1], ['Intermediate', 1.2], ['Distal', 0.8]]) por(lado + dedo + parte, 0, 0, -g * l);
-      por(lado + 'ThumbMetacarpal', 0, -0.4 * l, 0); por(lado + 'ThumbProximal', 0, -0.5 * l, 0);
     }
     por('spine', 0.6 + 0.08 * b * s, 0, 0);
     por('chest', 0.4 + 0.06 * b * s, 0, 0);
@@ -635,14 +635,38 @@ export class Corpo {
   // para compensar o tronco deitado: a ponta fica atrás da nuca, sem cruzar o rosto
   armasMontado() {
     const qRoot = this.root.getWorldQuaternion(TMP_Q), P = this.armasPos;
-    for (const [obj, l] of [[this.armas.espada?.[0], P?.espadaCostas], [this.cajado, P?.cajadoCostas]]) {
+    for (const [obj, l, giro] of [[this.armas.espada?.[0], P?.espadaCostas, MONTADO_ESPADA], [this.cajado, P?.cajadoCostas, MONTADO_ATRAS]]) {
       if (!obj?.parent || !l || obj.parent !== l.pai) continue;
       obj.parent.updateWorldMatrix(true, false);
       // giro para trás no espaço do corpo, aplicado por cima da posição normal nas costas
-      const atras = IK_Q.copy(qRoot).multiply(MONTADO_ATRAS).multiply(TMP_Q2.copy(qRoot).invert());
+      const atras = IK_Q.copy(qRoot).multiply(giro).multiply(TMP_Q2.copy(qRoot).invert());
       const mundo = atras.multiply(obj.parent.getWorldQuaternion(TMP_Q2).multiply(l.quat));
       obj.quaternion.copy(obj.parent.getWorldQuaternion(TMP_Q2).invert().multiply(mundo));
     }
+  }
+  // Mão fechada na juba: dedos apontando para a frente e para baixo, palma virada para o pescoço,
+  // cada falange dobrada ~70° e o polegar por cima
+  agarrar(lado, mao, lat) {
+    const h = this.vrm.humanoid, osso = (n) => h.getNormalizedBoneNode(n), m = this.montaria;
+    const meio = osso(lado + 'MiddleProximal'); if (!meio) return;
+    // base da mão na pose de descanso (T): dedos no eixo do braço, palma para baixo
+    const a = MAO_DEDOS.copy(meio.position).normalize(), b = MAO_PALMA.set(0, -1, 0);
+    MAO_M.makeBasis(a, b, IK_D.crossVectors(a, b));
+    // base desejada no mundo, nos eixos do lobo
+    const eixo = (x, y, z, v) => m.grupo.localToWorld(v.set(x, y, z)).sub(m.grupo.localToWorld(IK_R.set(0, 0, 0))).normalize();
+    const dentro = -lat;
+    const F = eixo(dentro * 0.3, -0.6, 0.7, IK_E);
+    const Pn = eixo(dentro, -0.2, 0.5, IK_T); Pn.addScaledVector(F, -Pn.dot(F)).normalize();
+    MAO_M2.makeBasis(F, Pn, IK_P.crossVectors(F, Pn));
+    const qMundo = IK_Q.setFromRotationMatrix(MAO_M2.multiply(MAO_M.transpose()));
+    mao.parent.updateWorldMatrix(true, false);
+    mao.quaternion.copy(mao.parent.getWorldQuaternion(TMP_Q2).invert().multiply(qMundo));
+    // fecha os dedos: gira cada falange em volta do eixo (dedos x palma), puxando para a palma
+    const dobra = IK_D.crossVectors(a, b).normalize();
+    for (const dedo of ['Index', 'Middle', 'Ring', 'Little']) for (const [parte, g] of [['Proximal', 1.2], ['Intermediate', 1.25], ['Distal', 1.0]]) osso(lado + dedo + parte)?.quaternion.setFromAxisAngle(dobra, g);
+    // polegar fecha por cima dos dedos (no T o polegar aponta para a frente: dobra em volta do eixo x, para a palma)
+    const X = IK_R.set(1, 0, 0);
+    for (const [parte, g] of [['ThumbMetacarpal', 0.55], ['ThumbProximal', 0.75], ['ThumbDistal', 0.7]]) osso(lado + parte)?.quaternion.setFromAxisAngle(X, g);
   }
   // Mãos agarradas na juba, logo atrás das orelhas do lobo; cotovelos para fora e para baixo (nunca para dentro do tronco)
   segurar() {
@@ -659,6 +683,7 @@ export class Corpo {
       const alvo = m.pegada(lat, TMP_B);
       const polo = TMP_A.sub(peito.getWorldPosition(IK_S)).normalize().addScaledVector(BAIXO, 0.7);
       alcancar(sup, inf, mao, alvo, polo);
+      this.agarrar(lado, mao, lat);
     }
     // pernas: coxas abraçando as costelas do lobo, joelho para a frente e pés para trás, colados no flanco
     const sela = m.posSela(SELA_L); if (!sela) return;
