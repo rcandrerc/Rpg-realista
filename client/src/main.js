@@ -24,6 +24,8 @@ const controles = new Controles(canvas);
 const hud = new Hud(camera);
 const segurarCamera = cameraForaDasCasas(mapa);
 botaoEstilo(document.querySelector('.menu'));
+// Teste da montaria: botão "Lobo" no menu de cima (ou tecla M) sobe e desce do lobo
+{ const b = document.createElement('button'); b.className = 'info'; b.type = 'button'; b.textContent = 'Lobo'; b.onclick = () => montar(); document.querySelector('.menu')?.prepend(b); }
 
 let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
@@ -87,6 +89,7 @@ const pular = () => rede?.enviar('pular');
 const dash = () => rede?.enviar('dash');
 const rolar = () => rede?.enviar('rolar');
 const falar = () => rede?.enviar('falar');
+const montar = () => rede?.enviar('montar');
 controles.aoTeclar = (code) => {
   const tecla = { KeyJ: 0, KeyK: 1, KeyL: 2, KeyI: 3, KeyU: 4 };
   if (code in tecla) usar(hud.indice(tecla[code]));
@@ -96,6 +99,7 @@ controles.aoTeclar = (code) => {
   if (code === 'KeyE' || code === 'ShiftRight') dash();
   if (code === 'KeyQ') rolar();
   if (code === 'KeyF') falar();
+  if (code === 'KeyM') montar();
 };
 hud.montarBotoes({ usar, pular, dash, rolar });
 hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a espada das costas
