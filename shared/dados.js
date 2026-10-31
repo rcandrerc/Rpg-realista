@@ -211,6 +211,10 @@ export const MAPA_CLAREIRA = {
   nome: 'Vila da Clareira',
   raio: 34,
   nascimento: { x: 0, z: 1 },
+  // Modelos de teste parados perto do começo (para ver a qualidade no jogo antes de virarem personagem). altura em metros
+  testes3d: [
+    { id: 'menina_ia', modelo: 'assets/testes/menina_ia.glb', x: 1.8, z: 4, ry: Math.PI, altura: 1.25 },
+  ],
   // cada inimigo do bando tem cabelo, roupa e tamanho próprios (visual/tinta/escala mudam o padrão do tipo)
   inimigos: [
     { tipo: 'sombrio', x: 16, z: 6, visual: 'cabelo_m', tinta: { cabelo: 0x6e1414, roupa: 0x22222a, calca: 0x2e2a26 } },

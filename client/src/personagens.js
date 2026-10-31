@@ -596,7 +596,8 @@ export class Corpo {
   aplicar(e) {
     this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
     if ('montado' in e) this.montar(e.montado);
-    if (this.montaria) { this.montaria.aplicar(e.anim); e = { ...e, anim: 'Idle' }; } // montado: o lobo anda, o herói fica sentado
+    // montado: o lobo anda e o herói fica sentado; enquanto o lobo não aparece, o herói anda normal
+    if (this.montaria) { this.montaria.aplicar(e.anim); if (this.montaria.mixer) e = { ...e, anim: 'Idle' }; }
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
     const escalando = ESCALANDO.has(e.acao?.nome) || ESCALANDO.has(e.anim);
