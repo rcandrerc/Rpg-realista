@@ -24,6 +24,7 @@ export class Hud {
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     $('style').textContent = ARMA.nome;
     this.simbolo('b9', 'cura', CURA.nome);
+    this.simbolo('bp', 'pular', 'Pular'); this.simbolo('bd', 'dash', 'Dash'); this.simbolo('br', 'rolar', 'Rolar');
     this.mostrarBuild(this.build);
   }
   // Botão na tela -> comando da simulação: 0 = golpe (ou 10 = disparo), 1 a 4 = espada (ou 5 a 8 = magia)
