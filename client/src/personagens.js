@@ -445,6 +445,25 @@ const ARMAS_VRM = {
 // ritmo do balanço montado (ciclo em segundos, igual ao das animações do lobo) e quanto o corpo mexe
 const MONTADO_PASSO = { parado: { ciclo: 2, forca: 0.3 }, andar: { ciclo: 0.5, forca: 0.6 }, correr: { ciclo: 0.6, forca: 1.4 } };
 const TMP_A = new THREE.Vector3(), TMP_B = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_EULER = new THREE.Euler();
+const IK_S = new THREE.Vector3(), IK_T = new THREE.Vector3(), IK_E = new THREE.Vector3(), IK_D = new THREE.Vector3(), IK_P = new THREE.Vector3(), IK_R = new THREE.Vector3();
+const SELA_L = new THREE.Vector3(), IK_Q = new THREE.Quaternion(), BAIXO = new THREE.Vector3(0, -1, 0);
+// Braço de dois ossos (ombro-cotovelo-mão) até o alvo, com o cotovelo apontando para o lado do polo.
+// Ossos normalizados do VRM: na pose de descanso não têm rotação, então a direção do osso é a posição do filho.
+function alcancar(sup, inf, mao, alvo, polo) {
+  sup.parent.updateWorldMatrix(true, false);
+  const S = sup.getWorldPosition(IK_S), esc = sup.getWorldScale(IK_R).x;
+  const L1 = inf.position.length() * esc, L2 = mao.position.length() * esc;
+  const D = IK_D.subVectors(alvo, S); const d = Math.min(Math.max(D.length(), 1e-4), (L1 + L2) * 0.995); D.normalize();
+  const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  const P = IK_P.copy(polo).addScaledVector(D, -polo.dot(D)).normalize();
+  const E = IK_E.copy(S).addScaledVector(D, a).addScaledVector(P, h); // cotovelo
+  sup.parent.getWorldQuaternion(IK_Q).invert();
+  sup.quaternion.setFromUnitVectors(IK_R.copy(inf.position).normalize(), IK_T.subVectors(E, S).normalize().applyQuaternion(IK_Q));
+  sup.updateWorldMatrix(false, false);
+  sup.getWorldQuaternion(IK_Q).invert();
+  const fim = IK_T.copy(S).addScaledVector(D, d); // a mão vai até onde o braço alcança na direção do alvo
+  inf.quaternion.setFromUnitVectors(IK_R.copy(mao.position).normalize(), fim.sub(E).normalize().applyQuaternion(IK_Q));
+}
 
 export class Corpo {
   // visual: 'soldado' (padrão), id de um VRM, ou cor para NPC/bandido
@@ -598,16 +617,47 @@ export class Corpo {
       por(lado + 'UpperLeg', -1.25, 0, 0.55 * l, 'ZXY');
       por(lado + 'LowerLeg', 1.5 + 0.15 * b * s, 0, 0);
       por(lado + 'Foot', -0.3, 0, 0);
-      // braços para a frente e para baixo, cotovelo dobrado, mãos agarrando o pelo
-      por(lado + 'UpperArm', 0, -1.25 * l, -0.35 * l, 'YZX');
-      por(lado + 'LowerArm', 0, -0.5 * l - 0.1 * b * s * l, -0.35 * l, 'XYZ');
-      por(lado + 'Hand', 0, 0, -0.35 * l);
+      // ombros puxados para a frente (os braços esticam até o pescoço do lobo em segurar)
+      por(lado + 'Shoulder', 0, -0.3 * l, -0.1 * l);
+      por(lado + 'Hand', 0, 0, -0.25 * l);
+      for (const dedo of ['Index', 'Middle', 'Ring', 'Little']) for (const [parte, g] of [['Proximal', 1.1], ['Intermediate', 1.2], ['Distal', 0.8]]) por(lado + dedo + parte, 0, 0, -g * l);
+      por(lado + 'ThumbMetacarpal', 0, -0.4 * l, 0); por(lado + 'ThumbProximal', 0, -0.5 * l, 0);
     }
     por('spine', 0.6 + 0.08 * b * s, 0, 0);
     por('chest', 0.4 + 0.06 * b * s, 0, 0);
     por('upperChest', 0.15, 0, 0);
     por('neck', -0.5 - 0.06 * b * s, 0, 0);
     por('head', -0.4, 0, 0);
+  }
+  // Mãos agarradas na juba, logo atrás das orelhas do lobo; cotovelos para fora e para baixo (nunca para dentro do tronco)
+  segurar() {
+    const h = this.vrm?.humanoid, m = this.montaria; if (!h || !m.nuca) return;
+    const osso = (n) => h.getNormalizedBoneNode(n);
+    const peito = osso('upperChest') || osso('chest');
+    m.grupo.updateWorldMatrix(true, true);
+    for (const lado of ['left', 'right']) {
+      const sup = osso(lado + 'UpperArm'), inf = osso(lado + 'LowerArm'), mao = osso(lado + 'Hand');
+      if (!sup || !inf || !mao) continue;
+      sup.parent.updateWorldMatrix(true, false);
+      const S = sup.getWorldPosition(TMP_A);
+      const lat = Math.sign(m.grupo.worldToLocal(TMP_B.copy(S)).x) || 1;
+      const alvo = m.pegada(lat, TMP_B);
+      const polo = TMP_A.sub(peito.getWorldPosition(IK_S)).normalize().addScaledVector(BAIXO, 0.7);
+      alcancar(sup, inf, mao, alvo, polo);
+    }
+    // pernas: coxas abraçando as costelas do lobo, joelho para a frente e pés para trás, colados no flanco
+    const sela = m.posSela(SELA_L); if (!sela) return;
+    m.grupo.worldToLocal(sela);
+    const fr = TMP_A.set(0, 0, 1).applyQuaternion(m.grupo.getWorldQuaternion(TMP_Q));
+    for (const [lado, lat] of [['left', 1], ['right', -1]]) {
+      const sup = osso(lado + 'UpperLeg'), inf = osso(lado + 'LowerLeg'), pe = osso(lado + 'Foot');
+      if (!sup || !inf || !pe) continue;
+      sup.parent.updateWorldMatrix(true, false);
+      const l = Math.sign(m.grupo.worldToLocal(sup.getWorldPosition(TMP_B)).x) || lat;
+      const alvo = m.grupo.localToWorld(TMP_B.set(sela.x + l * m.dados.flanco, sela.y - 0.13, sela.z - 0.17));
+      const polo = IK_E.copy(fr).add(m.grupo.localToWorld(IK_T.set(l, 0, 0)).sub(m.grupo.localToWorld(IK_R.set(0, 0, 0))).normalize().multiplyScalar(0.6));
+      alcancar(sup, inf, pe, alvo, IK_P.copy(polo));
+    }
   }
   // Recebe o estado vindo da simulação
   aplicar(e) {
@@ -647,7 +697,7 @@ export class Corpo {
     const m = this.montaria;
     m.grupo.scale.setScalar(m.dados.escala / this.root.scale.x); // o lobo não cresce junto com a altura do herói
     m.atualizar(dt);
-    const quadril = this.vrm?.humanoid.getNormalizedBoneNode('hips'), sela = m.sela?.getWorldPosition(TMP_A);
+    const quadril = this.vrm?.humanoid.getNormalizedBoneNode('hips'), sela = m.posSela?.(TMP_A);
     if (!quadril || !sela) return; // o lobo ainda está carregando
     this.sentar(dt);
     this.root.updateMatrixWorld(true);
@@ -655,6 +705,8 @@ export class Corpo {
     // quanto falta para o quadril chegar na sela, no espaço do corpo
     const d = sela.sub(quadril.getWorldPosition(TMP_B)).applyQuaternion(this.root.getWorldQuaternion(TMP_Q).invert()).divideScalar(this.root.scale.x);
     this.inclina.position.add(d);
+    this.root.updateMatrixWorld(true);
+    this.segurar();
   }
   // posição das mãos no mundo (para o brilho da magia)
   maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
