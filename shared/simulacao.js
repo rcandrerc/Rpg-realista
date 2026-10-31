@@ -24,7 +24,7 @@ export class Simulacao {
     this.terreno = new Terreno(mapa);
     const vila = mapa.vila || { casas: [], arvores: [] };
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })),
-      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 }))];
+      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes];
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
@@ -370,6 +370,7 @@ export class Simulacao {
   }
   colidir(c) {
     for (const k of c.tipo === 'jogador' ? this.obstaculos : [...this.obstaculos, ...this.obstaculosRocha]) {
+      if (k.alto != null && (c.y || 0) > k.alto) continue; // por cima (esteio da ferraria visto do telhado)
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }
@@ -395,7 +396,7 @@ export class Simulacao {
   moverJogador(j, dx, dz) {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;
     const vai = (x, z) => {
-      const h = T.altura(x, z); if (h > lim) return false;
+      const h = T.altura(x, z, j.y); if (h > lim) return false;
       j.x = x; j.z = z;
       if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
       return true;
@@ -414,18 +415,21 @@ export class Simulacao {
     j.chao = false; j.vy = 0; j.arrancada = null; j.dash = null; j.empurra = 0;
   }
   ficarEmPe(j) {
-    j.esc = null; j.y = this.terreno.altura(j.x, j.z); j.chao = true; j.vy = 0; j.trava = 0; j.acao = null; j.pulos = 0; j.anim = this.animMovimento(j, false, false);
+    const h = this.terreno.altura(j.x, j.z, j.y), cai = h < j.y - 0.3; // pousou fora (ponta de pedra, canto da chaminé): cai em vez de teleportar para baixo
+    j.esc = null; if (!cai) j.y = h; j.chao = !cai; j.vy = 0; j.trava = 0; j.acao = null; j.pulos = 0; j.anim = this.animMovimento(j, false, false);
   }
   soltar(j) { // larga a parede e cai
     const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
     j.esc = null; j.trava = 0; j.acao = null; j.x -= fx * 0.35; j.z -= fz * 0.35; j.vy = 1; j.chao = false; j.pulos = 2;
   }
-  // primeira coisa alta à frente: distância até uma pedra mais alta que a mini escalada, se antes dela o caminho for livre
+  // primeira coisa alta à frente: distância até uma pedra mais alta que a mini escalada, se antes dela o caminho for livre.
+  // Debaixo de telhado (ferraria) não tem escalada: lá em cima é teto.
   paredeAFrente(j, ry, ate) {
-    const fx = Math.sin(ry), fz = Math.cos(ry);
+    const T = this.terreno, fx = Math.sin(ry), fz = Math.cos(ry);
+    if (T.teto(j.x, j.z, j.y) < Infinity) return null;
     for (let d = 0.1; d <= ate; d += 0.1) {
-      const h = this.terreno.altura(j.x + fx * d, j.z + fz * d);
-      if (h > j.y + SUBIDA.degrau) return h > j.y + SUBIDA.mini ? { dist: d, r: this.terreno.rochaEm(j.x + fx * d, j.z + fz * d) } : null;
+      const h = T.altura(j.x + fx * d, j.z + fz * d, j.y);
+      if (h > j.y + SUBIDA.degrau) return h > j.y + SUBIDA.mini ? { dist: d, r: T.rochaEm(j.x + fx * d, j.z + fz * d, j.y) } : null;
     }
     return null;
   }
@@ -435,30 +439,38 @@ export class Simulacao {
     const T = this.terreno, fx = Math.sin(j.ry), fz = Math.cos(j.ry);
     // casa: a beirada é o alto da parede (onde começa o telhado), não o telhado subindo lá atrás;
     // senão ela escalava acima do beiral e ficava "escalando" em cima do telhado
-    if (T.rochaEm(j.x + fx * 0.8, j.z + fz * 0.8)?.casa) for (let d = 0.05; d <= 1.2; d += 0.05) { const h = T.altura(j.x + fx * d, j.z + fz * d); if (h > j.y + SUBIDA.degrau) return h; }
-    return T.frente(j.x, j.z, j.ry, 1.0, null).topo;
+    // (se logo atrás da beirada algo sobe reto, como a chaminé da ferraria, a parede continua até lá em cima)
+    if (T.rochaEm(j.x + fx * 0.8, j.z + fz * 0.8, j.y)?.casa) for (let d = 0.05; d <= 1.2; d += 0.05) {
+      const h = T.altura(j.x + fx * d, j.z + fz * d, j.y); if (h <= j.y + SUBIDA.degrau) continue;
+      const atras = T.frente(j.x + fx * d, j.z + fz * d, j.ry, 0.6, null, j.y).topo;
+      return atras > h + 0.8 ? atras : h;
+    }
+    return T.frente(j.x, j.z, j.ry, 1.0, null, j.y).topo;
   }
   // encosta o corpo na parede (na altura do peito) e vira de frente para a pedra
   ajustarParede(j) {
-    const T = this.terreno, r = T.rochaEm(j.x + Math.sin(j.ry) * 0.8, j.z + Math.cos(j.ry) * 0.8);
+    const T = this.terreno, r = T.rochaEm(j.x + Math.sin(j.ry) * 0.8, j.z + Math.cos(j.ry) * 0.8, j.y);
     if (r) j.ry = r.casa ? T.deFrentePara(r, j.x, j.z) : Math.atan2(r.x - j.x, r.z - j.z);
     const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
-    for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + 0.4), j.z + fz * (d + 0.4)) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
+    for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + 0.4), j.z + fz * (d + 0.4), j.y) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
   }
   // fica agarrado na parede
   agarrar(j) { j.esc = j.esc || { parado: 0 }; j.esc.clip = null; j.esc.parado = 0; j.chao = false; j.vy = 0; j.anim = PARADO_PAREDE.agarrado; if (!j.esc.escada) this.ajustarParede(j); }
   // pedra baixa: mini escalada até em cima
   miniSubida(j, ry) {
-    const T = this.terreno, fx = Math.sin(ry), fz = Math.cos(ry), topo = T.frente(j.x, j.z, ry, 1.6, null).topo;
-    let d = 0.3; for (; d < 1.6; d += 0.1) if (T.altura(j.x + fx * d, j.z + fz * d) >= topo - 0.2) break;
+    const T = this.terreno, fx = Math.sin(ry), fz = Math.cos(ry), topo = T.frente(j.x, j.z, ry, 1.6, null, j.y).topo;
+    let d = 0.3; for (; d < 1.6; d += 0.1) if (T.altura(j.x + fx * d, j.z + fz * d, j.y) >= topo - 0.2) break;
+    // pousa em cima (mureta fina: não passa do outro lado)
+    let pousa = d; while (pousa < d + 0.3 && T.altura(j.x + fx * (pousa + 0.05), j.z + fz * (pousa + 0.05), j.y) >= topo - 0.2) pousa += 0.05;
     j.ry = ry;
-    this.iniciarClip(j, 'miniSubida', { vs: (topo - j.y) / 1.38, hs: Math.min(1.7, d + 0.3) / 1.15, depois: () => this.ficarEmPe(j) });
+    this.iniciarClip(j, 'miniSubida', { vs: (topo - j.y) / 1.38, hs: Math.min(1.7, pousa) / 1.15, depois: () => this.ficarEmPe(j) });
   }
   // da beirada para cima da pedra
   subirNoTopo(j) {
     const T = this.terreno, fx = Math.sin(j.ry), fz = Math.cos(j.ry), topo = this.beirada(j);
-    let d = 0.3; for (; d < 2; d += 0.1) if (T.altura(j.x + fx * d, j.z + fz * d) >= topo - 0.25) break;
-    this.iniciarClip(j, 'topo', { vs: Math.max(0.3, (topo - j.y) / 1.29), hs: Math.min(2.2, d + 0.35) / 0.49, depois: () => this.ficarEmPe(j) });
+    let d = 0.3; for (; d < 2; d += 0.1) if (T.altura(j.x + fx * d, j.z + fz * d, j.y) >= topo - 0.25) break;
+    let pousa = d; while (pousa < d + 0.35 && T.altura(j.x + fx * (pousa + 0.05), j.z + fz * (pousa + 0.05), j.y) >= topo - 0.25) pousa += 0.05; // topo estreito (chaminé): não passa do outro lado
+    this.iniciarClip(j, 'topo', { vs: Math.max(0.3, (topo - j.y) / 1.29), hs: Math.min(2.2, pousa) / 0.49, depois: () => this.ficarEmPe(j) });
   }
   pegarEscada(j, e) {
     j.ry = e.ry; j.x = e.x; j.z = e.z; j.esc = { parado: 0, escada: e };
@@ -484,8 +496,9 @@ export class Simulacao {
     }
     if (!j.bloqueado) { j.empurra = 0; return; }
     j.empurra += dt; if (j.empurra < SUBIDA.empurrar) return;
-    const topo = this.terreno.frente(j.x, j.z, ry, 1.6, null).topo;
+    const topo = this.terreno.frente(j.x, j.z, ry, 1.6, null, j.y).topo;
     if (topo - j.y <= SUBIDA.mini) return this.miniSubida(j, ry);
+    if (this.terreno.teto(j.x, j.z, j.y) < Infinity) { j.empurra = 0; return; } // debaixo de telhado: não escala a parede de dentro
     j.ry = ry; this.agarrar(j);
   }
   passoEscalada(j, dt) {
@@ -516,14 +529,14 @@ export class Simulacao {
     }
     if (m > 0.5 && frente < -0.5 * m) {
       s.parado = 0;
-      const chao = T.altura(j.x - fx * 0.3, j.z - fz * 0.3), alt = j.y - chao;
+      const chao = T.altura(j.x - fx * 0.3, j.z - fz * 0.3, j.y), alt = j.y - chao;
       if (alt < 0.25) { j.esc = null; j.trava = 0; j.y = Math.max(chao, j.y); j.chao = false; return; }
-      return this.iniciarClip(j, 'descerParede', { vs: Math.min(1, alt / 1.06), depois: () => (j.y - T.altura(j.x - fx * 0.3, j.z - fz * 0.3) < 0.3 ? this.ficarEmPe(j) : this.agarrar(j)) });
+      return this.iniciarClip(j, 'descerParede', { vs: Math.min(1, alt / 1.06), depois: () => (j.y - T.altura(j.x - fx * 0.3, j.z - fz * 0.3, j.y) < 0.3 ? this.ficarEmPe(j) : this.agarrar(j)) });
     }
     if (!s.escada && m > 0.5 && Math.abs(lado) > 0.5 * m) {
       s.parado = 0;
       const sx = j.x + lx * Math.sign(lado) * 0.5, sz = j.z + lz * Math.sign(lado) * 0.5;
-      if (T.altura(sx + fx * 0.8, sz + fz * 0.8) > j.y + 0.9) return this.iniciarClip(j, lado > 0 ? 'esquerda' : 'direita', { depois: () => this.agarrar(j) });
+      if (T.altura(sx + fx * 0.8, sz + fz * 0.8, j.y) > j.y + 0.9) return this.iniciarClip(j, lado > 0 ? 'esquerda' : 'direita', { depois: () => this.agarrar(j) });
     }
     j.anim = falta < SUBIDA.topo + 0.3 ? PARADO_PAREDE.beirada : s.parado > 4 && s.parado % 8 < 4 ? PARADO_PAREDE.balanca : PARADO_PAREDE.agarrado;
   }
@@ -579,9 +592,11 @@ export class Simulacao {
   }
   // Queda, pouso e o tempo do mortal
   passoVertical(j, dt) {
-    const chao = this.terreno.altura(j.x, j.z); // chão ou topo da pedra
+    const chao = this.terreno.altura(j.x, j.z, j.y); // chão ou topo da pedra
     if (j.arrancada) j.vy = 0; else if (!j.chao || j.vy > 0) j.vy -= MOVIMENTO.gravidade * dt;
     j.y += j.vy * dt;
+    const teto = this.terreno.teto(j.x, j.z, j.y - j.vy * dt) - HEROI.altura; // debaixo do telhado: a cabeça bate e volta
+    if (j.y > teto && j.vy > 0) { j.y = Math.max(chao, teto); j.vy = 0; }
     if (j.y <= chao + 0.001) {
       if (!j.chao && j.vy < -3) j.pouso = DURACAO.pouso * 0.6;
       if (!j.chao) { j.pulos = 0; j.mortal = 0; j.arrancadaNoAr = false; }
@@ -626,7 +641,7 @@ export class Simulacao {
       const p = this.projeteis[i], v = p.h.proj.vel;
       this.ator = p.dono;
       p.vida -= dt; p.x += p.dx * v * dt; p.y += p.dy * v * dt; p.z += p.dz * v * dt;
-      let fim = p.vida <= 0 || p.y < this.terreno.altura(p.x, p.z); // bate no chão ou na pedra
+      let fim = p.vida <= 0 || p.y < this.terreno.altura(p.x, p.z, p.y); // bate no chão ou na pedra
       for (const o of this.inimigosDe(p.dono)) {
         if (p.acertou.has(o)) continue;
         const esc = TIPOS_INIMIGO[o.tipo]?.escala || 1;
