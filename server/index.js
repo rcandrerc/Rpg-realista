@@ -100,8 +100,11 @@ app.get('/saude', (_req, res) => res.json({ ok: true, contas: !!contas }));
 app.use('/conta', (_req, res, next) => (contas ? next() : res.status(404).json({ erro: 'contas desligadas' })), express.json({ limit: '8kb' }));
 const sessaoDe = (req) => (req.headers.authorization || '').replace(/^Bearer /, '');
 app.post('/conta/entrar', async (req, res) => {
-  try { res.json(await contas.entrar(req.body?.credencial)); }
-  catch (e) { console.warn('Login recusado:', e.message); res.status(401).json({ erro: 'Não foi possível confirmar a conta Google.' }); }
+  const modo = ['criar', 'entrar'].includes(req.body?.modo) ? req.body.modo : undefined;
+  try { res.json(await contas.entrar(req.body?.credencial, modo)); }
+  catch (e) {
+    if (e.semConta) return res.status(404).json({ erro: 'Essa conta Google ainda não tem personagem.', semConta: true });
+    console.warn('Login recusado:', e.message); res.status(401).json({ erro: 'Não foi possível confirmar a conta Google.' }); }
 });
 app.get('/conta/eu', (req, res) => {
   const conta = contas.porSessao(sessaoDe(req));

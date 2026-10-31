@@ -63,12 +63,15 @@ export class Contas {
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
   }
 
-  // Entrar com Google: cria a conta na primeira vez. Devolve { sessao, conta }.
-  async entrar(credencial) {
+  // Login com Google. modo 'entrar' só entra em conta que já existe (sem conta → erro semConta);
+  // 'criar' (ou sem modo) cria a conta na primeira vez. Devolve { sessao, conta, nova }.
+  async entrar(credencial, modo) {
     const g = await this.verificar(String(credencial || ''));
     if (!g?.sub) throw new Error('crachá do Google sem identificação');
     const agora = Date.now();
     let c = this.q.porGoogle.get(g.sub);
+    const nova = !c;
+    if (!c && modo === 'entrar') throw Object.assign(new Error('sem conta'), { semConta: true });
     if (!c) {
       const nome = String(g.given_name || g.name || 'Andarilho').slice(0, 20);
       this.q.criar.run(g.sub, g.email || null, nome, agora, agora);
@@ -77,7 +80,7 @@ export class Contas {
     } else this.q.tocar.run(g.email || c.email, agora, c.id);
     const sessao = crypto.randomBytes(32).toString('base64url');
     this.q.novaSessao.run(resumo(sessao), c.id, agora + VALIDADE_SESSAO);
-    return { sessao, conta: publica(c) };
+    return { sessao, conta: publica(c), nova };
   }
 
   // Sessão guardada no aparelho → conta (ou null). Cada uso empurra a validade para mais 60 dias.

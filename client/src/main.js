@@ -225,12 +225,14 @@ function quadro() {
       corpos.set('npc:' + n.id, { corpo: c, tipo: 'npc' });
     }
     msg('Conectando ao servidor…');
+    let jaTinhaConta = false;
     let nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
     // Conta Google: o nome, o personagem e a build vêm da conta (salvos no servidor)
     for (let tentativa = 0; ; tentativa++) {
       const entrada = await (tentativa === 0 ? primeiraEntrada : entrarNaConta(servidor));
       if (entrada) {
         const { conta } = entrada;
+        jaTinhaConta = !!entrada.jaTinha;
         nome = conta.nome;
         if (conta.visual) { escolhido = conta.visual; criador.visual = escolhido; criador.marcar(); }
         else primeiraVez = true; // conta nova (mesmo num aparelho que já jogou): começa criando o personagem
@@ -251,7 +253,7 @@ function quadro() {
     pos = aplicarEstilo(renderer, mundo.scene, camera, mundo.sol);
     $('load').hidden = true;
     if (primeiraVez) criador.abrir(); // primeira vez no jogo: começa criando o personagem
-    else setTimeout(() => hud.aviso('Monte a sua build em Habilidades'), 600);
+    else setTimeout(() => hud.aviso(jaTinhaConta ? 'Você já tinha conta: entrou nela' : 'Monte a sua build em Habilidades'), 600);
   } catch (e) {
     msg('Não foi possível carregar: ' + e.message); console.error(e);
   }

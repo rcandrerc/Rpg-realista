@@ -24,10 +24,17 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 #c{position:fixed;inset:0;width:100%;height:100%;display:block}
 #load{position:fixed;inset:0;display:grid;place-items:center;background:#14120e;z-index:20;text-align:center;padding-inline:max(16px,env(safe-area-inset-left,0px))}
 #entrar{position:fixed;inset:0;z-index:21;display:grid;place-items:center;text-align:center;overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 20px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 20px) max(16px,env(safe-area-inset-left,0px));background:radial-gradient(ellipse at 50% 30%,rgba(217,165,74,.16),transparent 60%),linear-gradient(#1b1812,#0e0c09);touch-action:pan-y;user-select:text;-webkit-user-select:text}
-#entrar .in{max-width:420px;display:grid;gap:14px;justify-items:center}
+#entrar .in{max-width:560px;display:grid;gap:14px;justify-items:center}
+#entrar .opcoes{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;width:100%}
+#entrar .opcao{flex:1 1 230px;max-width:262px;display:grid;grid-template-rows:auto 1fr auto;gap:8px;justify-items:center;align-items:center;padding:14px 12px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+#entrar .opcao h2{font-family:var(--display);font-size:1.05rem;letter-spacing:.05em;margin:0;color:var(--ink)}
+#entrar .opcao.principal{border-color:rgba(217,165,74,.55);box-shadow:0 0 0 1px rgba(217,165,74,.18) inset}
+#entrar .opcao.principal h2{color:var(--gold)}
+#entrar .opcao p{font-size:.88rem}
+#entrarCriar{min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--gold);background:rgba(217,165,74,.16);color:var(--ink);font:600 .95rem var(--body);cursor:pointer}
 #entrar h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,3rem);margin:0;letter-spacing:.06em;color:var(--gold)}
 #entrar p{margin:0;color:var(--muted);line-height:1.5;text-wrap:pretty}
-#botaoGoogle{min-height:44px}
+#botaoCriar,#botaoEntrar{min-height:44px}
 #entrarErro{min-height:1.5em;color:#e6b38a!important;font-size:.9rem}
 #load h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,3rem);margin:0;letter-spacing:.06em;color:var(--gold)}
 #load p{color:var(--muted);margin:.4rem 0 0}
@@ -216,9 +223,13 @@ body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,bod
 <div id="load"><div><h1>RPG Realista</h1><p id="loadmsg">Preparando o mundo…</p></div></div>
 <div id="entrar" hidden><div class="in">
   <h1>RPG Realista</h1>
-  <p>Entre com a sua conta Google para jogar. O seu personagem e a sua build ficam salvos na conta, em qualquer aparelho.</p>
-  <div id="botaoGoogle"></div>
+  <p>O seu personagem e a sua build ficam salvos na sua conta Google, em qualquer aparelho.</p>
+  <div class="opcoes">
+    <section class="opcao principal"><h2>Criar conta</h2><p>Primeira vez? Crie a conta e monte o seu personagem.</p><div id="botaoCriar"></div></section>
+    <section class="opcao"><h2>Entrar</h2><p>Já joga? Continue de onde parou.</p><div id="botaoEntrar"></div></section>
+  </div>
   <p id="entrarErro" role="status" aria-live="polite"></p>
+  <button id="entrarCriar" type="button" hidden>Criar conta com este Google</button>
 </div></div>
 <div class="top">
   <div class="vitals">

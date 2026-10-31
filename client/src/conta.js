@@ -32,30 +32,42 @@ function carregarGoogle() {
   return gsi;
 }
 
-// Mostra a tela "Entrar com Google" e espera o jogador entrar
+// Mostra a tela com dois caminhos, "Criar conta" e "Entrar" (os dois pelo Google), e espera o jogador entrar.
+// Os dois botões são do próprio Google (só ele entrega o crachá); o click_listener diz qual foi tocado.
 async function telaDeLogin(servidor) {
-  const tela = $('entrar'), erro = $('entrarErro');
-  tela.hidden = false; erro.textContent = '';
+  const tela = $('entrar'), erro = $('entrarErro'), criarMesmo = $('entrarCriar');
+  tela.hidden = false; erro.textContent = ''; criarMesmo.hidden = true;
   let google;
   try { google = await carregarGoogle(); }
   catch { erro.textContent = 'Não foi possível abrir o login do Google. Confira a internet e recarregue a página.'; return new Promise(() => {}); }
   return new Promise((pronto) => {
+    let modo = 'entrar'; // o "Continuar como …" do Google (sem tocar em botão) conta como Entrar
+    const enviar = async (credencial, m) => {
+      criarMesmo.hidden = true;
+      erro.textContent = m === 'criar' ? 'Criando a conta…' : 'Entrando…';
+      try {
+        const r = await pedir(servidor, '/conta/entrar', { corpo: { credencial, modo: m } });
+        if (r.dados.semConta) {
+          erro.textContent = 'Essa conta Google ainda não tem personagem. Quer criar agora?';
+          criarMesmo.onclick = () => enviar(credencial, 'criar');
+          criarMesmo.hidden = false;
+          return;
+        }
+        if (!r.ok) throw new Error(r.dados.erro || 'O servidor recusou o login.');
+        guardar(r.dados.sessao);
+        tela.hidden = true;
+        pronto({ ...r.dados, jaTinha: m === 'criar' && r.dados.nova === false });
+      } catch (e) { erro.textContent = e.message === 'Failed to fetch' ? 'Servidor fora do ar. Tente de novo daqui a pouco.' : e.message; }
+    };
     google.initialize({
       client_id: GOOGLE_CLIENT_ID,
       ux_mode: 'popup',
       cancel_on_tap_outside: false,
-      callback: async ({ credential }) => {
-        erro.textContent = 'Entrando…';
-        try {
-          const r = await pedir(servidor, '/conta/entrar', { corpo: { credencial: credential } });
-          if (!r.ok) throw new Error(r.dados.erro || 'O servidor recusou o login.');
-          guardar(r.dados.sessao);
-          tela.hidden = true;
-          pronto(r.dados);
-        } catch (e) { erro.textContent = e.message === 'Failed to fetch' ? 'Servidor fora do ar. Tente de novo daqui a pouco.' : e.message; }
-      },
+      callback: ({ credential }) => enviar(credential, modo),
     });
-    google.renderButton($('botaoGoogle'), { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', locale: 'pt-BR', width: 260 });
+    const estilo = { theme: 'filled_black', size: 'large', shape: 'pill', locale: 'pt-BR', width: 230 };
+    google.renderButton($('botaoCriar'), { ...estilo, text: 'signup_with', click_listener: () => { modo = 'criar'; } });
+    google.renderButton($('botaoEntrar'), { ...estilo, theme: 'outline', text: 'signin_with', click_listener: () => { modo = 'entrar'; } });
     google.prompt(); // aparece o "Continuar como …" quando o Google já conhece a pessoa
   });
 }
