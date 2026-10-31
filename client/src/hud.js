@@ -24,6 +24,7 @@ export class Hud {
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     $('style').textContent = ARMA.nome;
     this.simbolo('b9', 'cura', CURA.nome);
+    this.simbolo('bp', 'pular', 'Pular'); this.simbolo('bd', 'dash', 'Dash'); this.simbolo('br', 'rolar', 'Rolar');
     this.mostrarBuild(this.build);
   }
   // Botão na tela -> comando da simulação: 0 = golpe (ou 10 = disparo), 1 a 4 = espada (ou 5 a 8 = magia)
@@ -105,7 +106,10 @@ export class Hud {
       cards.appendChild(c);
     }
   }
-  barras(vida, mana) { $('hpb').style.width = vida * 100 + '%'; $('mpb').style.width = mana * 100 + '%'; }
+  barras(vida, vidaMax, mana, manaMax) {
+    $('hpb').style.width = vida / vidaMax * 100 + '%'; $('mpb').style.width = mana / manaMax * 100 + '%';
+    $('hpt').textContent = `${Math.ceil(vida)} / ${vidaMax}`; $('mpt').textContent = `${Math.floor(mana)} / ${manaMax}`;
+  }
   recargas(eu) {
     [0, 1, 2, 3, 4, 9].forEach((i) => {
       const n = i === 9 ? 9 : this.indice(i), k = n === 0 ? 'basico' : n === 9 ? 'cura' : n === 10 ? 'magia' : this.build[n - 1];

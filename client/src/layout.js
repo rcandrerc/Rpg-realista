@@ -5,7 +5,7 @@ import { HABILIDADES, HEROI } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const SEGURAR = 2000; // ms para entrar no modo de edição
-const CHAVE = 'layoutBotoes';
+const CHAVE = 'layoutBotoes2'; // 2: botões na distribuição do Quimera (a arrumação antiga não serve mais)
 const BOTOES = ['b0', 'b1', 'b2', 'b3', 'b4', 'b9', 'bt', 'bd', 'bp', 'br'];
 const NOMES = { b0: 'Golpe', b9: 'Cura', bt: 'Trocar', bd: 'Dash', bp: 'Pular', br: 'Rolar' };
 const ESCALA = [0.6, 1.6];
