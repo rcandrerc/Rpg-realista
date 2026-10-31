@@ -18,17 +18,18 @@ export function enderecoServidor() {
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const comPrazo = (p, ms) => Promise.race([p, new Promise((_, nao) => setTimeout(() => nao(new Error('sem resposta')), ms))]);
 
-export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}, sessao = null) {
+// criando: entra já no palco do criador (fora do mundo, sem levar dano)
+export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}, sessao = null, criando = false) {
   const endereco = enderecoServidor();
-  if (!endereco) return modoSolo(mapa, nome, visual, aoReceber);
+  if (!endereco) return modoSolo(mapa, nome, visual, aoReceber, criando);
   const cliente = new Client(endereco);
   let sala;
   try {
-    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual, sessao }), 4000);
+    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual, sessao, criando }), 4000);
   } catch (e) {
     if (e.code === 401) throw Object.assign(new Error('sessão vencida'), { login: true }); // pede o login do Google de novo
     console.warn('Servidor indisponível, jogando no modo solo:', e.message);
-    return modoSolo(mapa, nome, visual, aoReceber);
+    return modoSolo(mapa, nome, visual, aoReceber, criando);
   }
   const rede = { modo: 'online', meuId: sala.sessionId, passo: () => {} };
   rede.enviar = (tipo, msg) => { if (sala.connection.isOpen) sala.send(tipo, msg); };
@@ -53,9 +54,10 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
   return rede;
 }
 
-function modoSolo(mapa, nome, visual, aoReceber) {
+function modoSolo(mapa, nome, visual, aoReceber, criando) {
   const sim = new Simulacao(mapa);
   sim.adicionarJogador('solo', nome, visual);
+  sim.definirCriando('solo', criando);
   window.jogo = Object.assign(window.jogo || {}, { sim }); // para testes no console
   const cmd = {
     entrada: (m) => sim.entrada('solo', m),
@@ -69,6 +71,7 @@ function modoSolo(mapa, nome, visual, aoReceber) {
     montar: () => sim.montar('solo'),
     modo: (m) => sim.trocarModo('solo', m),
     aparencia: (a) => sim.definirAparencia('solo', a),
+    criando: (v) => sim.definirCriando('solo', v),
   };
   return {
     modo: 'solo', meuId: 'solo',

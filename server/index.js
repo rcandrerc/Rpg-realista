@@ -33,6 +33,7 @@ class SalaClareira extends Room {
     this.onMessage('pular', (c) => this.sim.pular(c.sessionId));
     this.onMessage('dash', (c) => this.sim.dash(c.sessionId));
     this.onMessage('aparencia', (c, a) => this.sim.definirAparencia(c.sessionId, a));
+    this.onMessage('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
     this.onMessage('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.onMessage('falar', (c) => this.sim.falar(c.sessionId));
     this.onMessage('montar', (c) => this.sim.montar(c.sessionId));
@@ -67,6 +68,7 @@ class SalaClareira extends Room {
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
+    if (opcoes?.criando === true) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
     if (conta && !conta.visual) contas.salvarVisual(conta.id, String(opcoes?.visual)); // conta nova: guarda o personagem que já usava no aparelho
   }
 

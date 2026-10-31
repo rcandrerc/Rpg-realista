@@ -36,7 +36,7 @@ const texBola = (() => {
   x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
 })();
 // Círculo mágico: anéis, runas e pentagrama (ou estrela de seis pontas no anel de dentro)
-function texCirculo(estrela) {
+export function texCirculo(estrela) {
   const T = 512, c = document.createElement('canvas'); c.width = c.height = T; const x = c.getContext('2d'), m = T / 2;
   x.strokeStyle = '#fff'; x.fillStyle = '#fff'; x.shadowColor = '#fff'; x.shadowBlur = 14; x.lineCap = x.lineJoin = 'round';
   const roda = (rr, w) => { x.lineWidth = w; x.beginPath(); x.arc(m, m, rr, 0, 7); x.stroke(); };

@@ -55,7 +55,7 @@ export class Simulacao {
   }
   todos() { return [...this.jogadores.values(), ...this.inimigos]; }
   inimigosDe(c) {
-    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto);
+    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando);
   }
   maisPerto(c, max = 22) {
     let melhor = null, md = max;
@@ -65,7 +65,7 @@ export class Simulacao {
 
   // ---------- comandos vindos dos jogadores ----------
   entrada(id, e) {
-    const j = this.jogadores.get(id); if (!j) return;
+    const j = this.jogadores.get(id); if (!j || j.criando) return;
     const m = Math.hypot(e.mx || 0, e.mz || 0);
     const k = m > 1 ? 1 / m : 1; // nunca mais rápido que o permitido
     j.entrada = { mx: (e.mx || 0) * k, mz: (e.mz || 0) * k, correr: !!e.correr };
@@ -73,12 +73,18 @@ export class Simulacao {
   // Sobe ou desce da montaria (teste: por enquanto todo jogador tem o lobo)
   montar(id) {
     const j = this.jogadores.get(id);
-    if (!j || j.morto || j.esc || j.trava > 0) return;
+    if (!j || j.morto || j.esc || j.criando || j.trava > 0) return;
     j.montado = j.montado ? null : 'lobo';
   }
   trocarVisual(id, visual) {
     const j = this.jogadores.get(id);
     if (j && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
+  }
+  // Criando o personagem (no palco, fora do mapa): ninguém vê, nenhum inimigo persegue, não leva dano e não age
+  definirCriando(id, v) {
+    const j = this.jogadores.get(id); if (!j) return;
+    j.criando = !!v;
+    if (j.criando) { j.entrada = { mx: 0, mz: 0, correr: false }; j.fila = null; j.montado = null; }
   }
   // Cores e altura do criador de personagem (os outros jogadores veem igual)
   definirAparencia(id, a) {
@@ -95,7 +101,7 @@ export class Simulacao {
     if (j && (modo === 'Espada' || modo === 'Magia')) j.modo = modo;
   }
   usarHabilidade(id, i) {
-    const j = this.jogadores.get(id); if (!j || j.morto || j.esc) return;
+    const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
     j.montado = null; // luta a pé
     if (i !== 9) j.modo = i === 10 || i > 4 ? 'Magia' : 'Espada'; // golpe usa a espada, magia usa o cajado
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
@@ -136,7 +142,7 @@ export class Simulacao {
   // No chão pula; no ar, o segundo pulo é um mortal para a frente
   // Botão Falar: o NPC mais perto responde conforme a função dele (cura, missão, habilidades, dica, loja)
   falar(id) {
-    const j = this.jogadores.get(id); if (!j || j.morto) return;
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     let npc = null, md = 3.2;
     for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md) { md = d; npc = n; } }
     if (!npc) return;
@@ -170,14 +176,14 @@ export class Simulacao {
   pular(id) {
     const j = this.jogadores.get(id);
     if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
-    if (!j || j.morto || j.trava > 0 || j.arrancada) return;
+    if (!j || j.morto || j.criando || j.trava > 0 || j.arrancada) return;
     if (j.chao) { j.vy = MOVIMENTO.pulo; j.chao = false; j.pulos = 1; j.puloT = 0; j.pouso = 0; }
     else if (j.pulos < 2) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
   }
   // Rolamento no chão: nenhum golpe pega durante a maior parte dele
   rolar(id) {
     const j = this.jogadores.get(id);
-    if (!j || j.morto || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
+    if (!j || j.morto || j.criando || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
     j.cds.rolar = this.tempo + HEROI.rolarCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -189,7 +195,7 @@ export class Simulacao {
   // Arrancada reta para onde o jogador aponta (no ar, uma por pulo). Nenhum golpe pega durante ela.
   dash(id) {
     const j = this.jogadores.get(id);
-    if (!j || j.morto || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
+    if (!j || j.morto || j.criando || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
     j.cds.dash = this.tempo + MOVIMENTO.dashCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -270,7 +276,7 @@ export class Simulacao {
     this.evento({ t: 'proj', id: p.id, x: r2(de.x), y: de.y, z: r2(de.z), dx: r2(dx), dy: r2(dy), dz: r2(dz), ...h.proj });
   }
   ferir(alvo, n, de) {
-    if (alvo.morto || alvo.arrancada) return;
+    if (alvo.morto || alvo.arrancada || alvo.criando) return;
     if (alvo.defesa > 0) n = Math.round(n * (1 - alvo.defesa));
     alvo.vida = Math.max(0, alvo.vida - n);
     this.evento({ t: 'dano', alvo: alvo.id, n });
@@ -325,7 +331,7 @@ export class Simulacao {
       c.x = k.x + nx * k.cos + nz * k.sin; c.z = k.z - nx * k.sin + nz * k.cos;
     }
     for (const o of this.todos()) {
-      if (o === c || o.morto || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
+      if (o === c || o.morto || o.criando || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { c.x = o.x + dx / d * 0.7; c.z = o.z + dz / d * 0.7; }
     }
@@ -593,7 +599,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), mana: Math.round(j.mana), build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), criando: !!j.criando, mana: Math.round(j.mana), build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v })),
     };

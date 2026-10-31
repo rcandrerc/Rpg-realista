@@ -99,10 +99,11 @@ export function aplicarEstilo(renderer, scene, camera, sol) {
   const telaCena = new THREE.Scene(); telaCena.add(quad);
   const telaCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   return {
-    render() {
+    // outra cena (o palco do criador) usa o mesmo passe: s e c trocam a cena e a câmera
+    render(s = scene, c = camera) {
       renderer.getDrawingBufferSize(tam);
       if (alvo.width !== tam.x || alvo.height !== tam.y) alvo.setSize(tam.x, tam.y);
-      renderer.setRenderTarget(alvo); renderer.render(scene, camera);
+      renderer.setRenderTarget(alvo); renderer.render(s, c);
       renderer.setRenderTarget(null); renderer.render(telaCena, telaCam);
     },
   };
