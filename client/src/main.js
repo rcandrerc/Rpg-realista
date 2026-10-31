@@ -69,6 +69,7 @@ function receber(foto, eventos) {
   for (const ev of eventos) {
     if (ev.t === 'dano' || ev.t === 'cura') { const c = corpos.get(ev.alvo); if (c) hud.numero(c.corpo.root, (ev.t === 'cura' ? '+' : '-') + ev.n, ev.t === 'cura'); }
     else if (ev.t === 'aviso') hud.aviso(ev.texto);
+    else if (ev.t === 'criadorNegado') { hud.aviso(ev.texto); criador.fechar(); } // o servidor não deixou sair do mundo
     else if (ev.t === 'fala') {
       hud.fala(ev);
       const n = corpos.get('npc:' + ev.npc), d = mapa.npcs.find((q) => q.id === ev.npc);

@@ -14,6 +14,9 @@ const { WebSocketTransport } = wsTransport;
 
 const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
+// Limite de mensagens por jogador (balde que enche 60 por segundo, guarda até 120).
+// O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
+const LIMITE = { porSeg: 60, max: 120, custo: { build: 20, visual: 20, aparencia: 10 } };
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID;
@@ -26,19 +29,31 @@ class SalaClareira extends Room {
 
   onCreate() {
     this.sim = new Simulacao(MAPA_CLAREIRA);
-    this.onMessage('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
-    this.onMessage('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
-    this.onMessage('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
-    this.onMessage('rolar', (c) => this.sim.rolar(c.sessionId));
-    this.onMessage('pular', (c) => this.sim.pular(c.sessionId));
-    this.onMessage('dash', (c) => this.sim.dash(c.sessionId));
-    this.onMessage('aparencia', (c, a) => this.sim.definirAparencia(c.sessionId, a));
-    this.onMessage('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
-    this.onMessage('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
-    this.onMessage('falar', (c) => this.sim.falar(c.sessionId));
-    this.onMessage('montar', (c) => this.sim.montar(c.sessionId));
-    this.onMessage('visual', (c, v) => { this.sim.trocarVisual(c.sessionId, String(v)); if (contas && c.auth) contas.salvarVisual(c.auth.id, String(v)); });
+    this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
+    this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
+    this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
+    this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
+    this.ouvir('pular', (c) => this.sim.pular(c.sessionId));
+    this.ouvir('dash', (c) => this.sim.dash(c.sessionId));
+    this.ouvir('aparencia', (c, a) => this.sim.definirAparencia(c.sessionId, a));
+    this.ouvir('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
+    this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
+    this.ouvir('falar', (c) => this.sim.falar(c.sessionId));
+    this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
+    this.ouvir('visual', (c, v) => { this.sim.trocarVisual(c.sessionId, String(v)); if (contas && c.auth) contas.salvarVisual(c.auth.id, String(v)); });
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
+  }
+
+  // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
+  ouvir(tipo, fn) {
+    const custo = LIMITE.custo[tipo] || 1;
+    this.onMessage(tipo, (c, m) => {
+      const agora = Date.now(), b = (c.userData ||= {}).balde ||= { n: LIMITE.max, t: agora };
+      b.n = Math.min(LIMITE.max, b.n + ((agora - b.t) / 1000) * LIMITE.porSeg); b.t = agora;
+      if (b.n < custo) return;
+      b.n -= custo;
+      fn(c, m);
+    });
   }
 
   tick() {
@@ -63,7 +78,7 @@ class SalaClareira extends Room {
     const conta = contas ? client.auth : null;
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
-      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) { outro.userData = { substituido: true }; outro.leave(4001); }
+      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) { (outro.userData ||= {}).substituido = true; outro.leave(4001); }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual);
