@@ -1,5 +1,5 @@
 // Criador de personagem: escolhe o corpo (base feminina, masculina ou um dos prontos) e pinta cabelo, olhos, pele e roupa.
-// Muda na hora no próprio herói (a câmera vem para a frente dele); o resultado fica guardado no aparelho.
+// Muda na hora no herói, que fica num palco fora do mapa (client/src/palco.js); o resultado fica guardado no aparelho.
 import { PERSONAGENS, CRIADOR, aparenciaValida } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
@@ -38,8 +38,9 @@ export class Criador {
     $('pickBtn').addEventListener('click', () => this.abrir());
     this.marcar();
   }
-  abrir() { this.aberto = true; this.foco = 'corpo'; $('criar').hidden = false; document.body.classList.add('criando'); } // some o resto da interface
-  fechar() { this.aberto = false; $('criar').hidden = true; document.body.classList.remove('criando'); }
+  // aoAlternar(aberto): o herói vai para o palco e sai do mundo enquanto cria (main.js)
+  abrir() { if (this.aberto) return; this.aberto = true; this.foco = 'corpo'; $('criar').hidden = false; document.body.classList.add('criando'); this.aoAlternar?.(true); } // some o resto da interface
+  fechar() { if (!this.aberto) return; this.aberto = false; $('criar').hidden = true; document.body.classList.remove('criando'); this.aoAlternar?.(false); }
   // largura do painel (para a câmera pôr o herói no meio do que sobra da tela)
   largura() { return this.aberto ? $('criar').querySelector('.cp').offsetWidth : 0; }
   sortear() {
