@@ -93,32 +93,42 @@ def pesar(ob,suave=0.015):
     bpy.ops.object.vertex_group_normalize_all(lock_active=False)
     ob.parent=arm; mod=ob.modifiers.new('Armature','ARMATURE'); mod.object=arm
 pesar(o)
-# ---- mechas do rabo: anéis de cartões inclinados para trás, como um espanador
+# ---- mechas do rabo: tufos de 3 cartões girados 60° em volta do eixo (de trás fica redondo),
+# cada cartão curvado (3 fileiras de vértices) e inclinado para trás, como um espanador
 import random; random.seed(3)
-vs=[];fs=[];uvs=[];ns=[];ts=[]
+from mathutils import Matrix
+vs=[];fs=[];uvs=[];ns=[]
 X=Vector((1,0,0))
 ANEIS=9
 for a in range(ANEIS+1):
     t=0.06+0.94*a/ANEIS; p,D=no_rabo(min(t,0.999))
     Ry=D.cross(X).normalized()
     r=0.07*(1-0.45*t)+0.02*math.sin(math.pi*t)
-    k=6 if a<ANEIS else 4
+    k=5 if a<ANEIS else 3
     for j in range(k):
-        th=2*math.pi*j/k+a*0.55+random.uniform(-0.2,0.2)
+        th=2*math.pi*j/k+a*0.7+random.uniform(-0.25,0.25)
         n=(X*math.cos(th)+Ry*math.sin(th)).normalized()
-        incl=math.radians(30 if a<ANEIS else 12)
+        incl=math.radians(28 if a<ANEIS else 10)
         dc=(D*math.cos(incl)+n*math.sin(incl)).normalized()
-        L=(0.13+0.04*math.sin(math.pi*t))*random.uniform(0.85,1.1); Wd=0.10*(1-0.3*t)
-        wv=n.cross(D).normalized()
+        L=(0.13+0.04*math.sin(math.pi*t))*random.uniform(0.85,1.1); Wd=0.085*(1-0.3*t)
         base=p+n*r*(0.35 if a<ANEIS else 0.0)-dc*0.01
-        q=[base-wv*Wd/2,base+wv*Wd/2,base+dc*L+wv*Wd*0.4,base+dc*L-wv*Wd*0.4]
-        i0=len(vs); vs+=q; fs.append((i0,i0+1,i0+2,i0+3))
-        u0=random.choice([0,0.5]); uvs.append([(u0,0),(u0+0.5,0),(u0+0.5,1),(u0,1)])
-        nn=(n*0.8+dc*0.2).normalized(); ns+= [nn]*4
+        for pl in range(3):
+            # plano girado em volta da direção da mecha
+            rot=Matrix.Rotation(math.radians(60*pl),3,dc)
+            wv=(rot@n.cross(D)).normalized(); nout=(rot@n).normalized()
+            if nout.dot(n)<0: nout=-nout
+            u0=random.choice([0,0.5]); i0=len(vs)
+            for f,(dv,lw) in enumerate(((0,1.0),(0.5,0.85),(1.0,0.55))):
+                # curva: a ponta dobra para fora (afasta do eixo do rabo)
+                c=base+dc*L*dv+n*(0.025*dv*dv)
+                vs+=[c-wv*Wd*lw/2,c+wv*Wd*lw/2]; uvs+=[(u0,dv),(u0+0.5,dv)]
+                nn=(n*0.75+nout*0.15+dc*0.1).normalized(); ns+=[nn,nn]
+            for f in range(2):
+                b0=i0+2*f; fs.append((b0,b0+1,b0+3,b0+2))
 me=bpy.data.meshes.new('Pelo'); me.from_pydata([tuple(v) for v in vs],[],fs); me.update()
 ul=me.uv_layers.new(name='UVMap')
-for pi,p in enumerate(me.polygons):
-    for k,li in enumerate(p.loop_indices): ul.data[li].uv=uvs[pi][k]
+for p in me.polygons:
+    for li in p.loop_indices: ul.data[li].uv=uvs[me.loops[li].vertex_index]
 me.normals_split_custom_set([tuple(ns[me.loops[li].vertex_index]) for p in me.polygons for li in p.loop_indices])
 pelo=bpy.data.objects.new('Pelo',me); bpy.context.scene.collection.objects.link(pelo)
 mat=bpy.data.materials.new('lobo_pelo'); mat.use_nodes=True; mat.blend_method='CLIP'; mat.alpha_threshold=0.5; mat.use_backface_culling=False

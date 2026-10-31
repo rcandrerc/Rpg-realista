@@ -83,6 +83,8 @@ function cajadoMagico(cor) {
   return g;
 }
 // Onde fica a arma que não está na mão: nas costas, na diagonal (no espaço do corpo olhando para +Z)
+// Montado: o tronco vai deitado para a frente; as armas das costas ficam como se ele estivesse em pé, giradas para trás
+const MONTADO_ATRAS = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.6, 0, 0));
 const COSTAS = {
   espada: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI - 0.5)), desloc: [0.17, 0.2, -0.15] },
   cajado: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.55)), desloc: [0.05, -0.32, -0.17] },
@@ -444,7 +446,7 @@ const ARMAS_VRM = {
 
 // ritmo do balanço montado (ciclo em segundos, igual ao das animações do lobo) e quanto o corpo mexe
 const MONTADO_PASSO = { parado: { ciclo: 2, forca: 0.3 }, andar: { ciclo: 0.5, forca: 0.6 }, correr: { ciclo: 0.6, forca: 1.4 } };
-const TMP_A = new THREE.Vector3(), TMP_B = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_EULER = new THREE.Euler();
+const TMP_A = new THREE.Vector3(), TMP_B = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_Q2 = new THREE.Quaternion(), TMP_EULER = new THREE.Euler();
 const IK_S = new THREE.Vector3(), IK_T = new THREE.Vector3(), IK_E = new THREE.Vector3(), IK_D = new THREE.Vector3(), IK_P = new THREE.Vector3(), IK_R = new THREE.Vector3();
 const SELA_L = new THREE.Vector3(), IK_Q = new THREE.Quaternion(), BAIXO = new THREE.Vector3(0, -1, 0);
 // Braço de dois ossos (ombro-cotovelo-mão) até o alvo, com o cotovelo apontando para o lado do polo.
@@ -524,7 +526,7 @@ export class Corpo {
     this.modo = modo;
     const por = (obj, l) => { l.pai.add(obj); obj.position.copy(l.pos); obj.quaternion.copy(l.quat); obj.scale.setScalar(l.escala); };
     const P = this.armasPos, esp = this.armas.espada[0];
-    if (modo === 'Escalada') { por(esp, P.espadaCostas); por(this.cajado, P.cajadoCostas); } // escalando: as duas nas costas, mãos livres
+    if (modo === 'Escalada' || modo === 'Montado') { por(esp, P.espadaCostas); por(this.cajado, P.cajadoCostas); } // escalando: as duas nas costas, mãos livres
     else if (modo === 'Magia') { por(esp, P.espadaCostas); this.maoCajado.add(this.cajado); this.cajado.scale.setScalar(1 / this.maoCajado.getWorldScale(new THREE.Vector3()).x * this.root.scale.x); }
     else { por(esp, P.espadaMao); por(this.cajado, P.cajadoCostas); }
   }
@@ -629,6 +631,19 @@ export class Corpo {
     por('neck', -0.5 - 0.06 * b * s, 0, 0);
     por('head', -0.4, 0, 0);
   }
+  // Montado: espada e cajado continuam presos nas costas, mas o suporte gira para trás (no eixo do lado do corpo)
+  // para compensar o tronco deitado: a ponta fica atrás da nuca, sem cruzar o rosto
+  armasMontado() {
+    const qRoot = this.root.getWorldQuaternion(TMP_Q), P = this.armasPos;
+    for (const [obj, l] of [[this.armas.espada?.[0], P?.espadaCostas], [this.cajado, P?.cajadoCostas]]) {
+      if (!obj?.parent || !l || obj.parent !== l.pai) continue;
+      obj.parent.updateWorldMatrix(true, false);
+      // giro para trás no espaço do corpo, aplicado por cima da posição normal nas costas
+      const atras = IK_Q.copy(qRoot).multiply(MONTADO_ATRAS).multiply(TMP_Q2.copy(qRoot).invert());
+      const mundo = atras.multiply(obj.parent.getWorldQuaternion(TMP_Q2).multiply(l.quat));
+      obj.quaternion.copy(obj.parent.getWorldQuaternion(TMP_Q2).invert().multiply(mundo));
+    }
+  }
   // Mãos agarradas na juba, logo atrás das orelhas do lobo; cotovelos para fora e para baixo (nunca para dentro do tronco)
   segurar() {
     const h = this.vrm?.humanoid, m = this.montaria; if (!h || !m.nuca) return;
@@ -654,8 +669,10 @@ export class Corpo {
       if (!sup || !inf || !pe) continue;
       sup.parent.updateWorldMatrix(true, false);
       const l = Math.sign(m.grupo.worldToLocal(sup.getWorldPosition(TMP_B)).x) || lat;
-      const alvo = m.grupo.localToWorld(TMP_B.set(sela.x + l * m.dados.flanco, sela.y - 0.13, sela.z - 0.17));
-      const polo = IK_E.copy(fr).add(m.grupo.localToWorld(IK_T.set(l, 0, 0)).sub(m.grupo.localToWorld(IK_R.set(0, 0, 0))).normalize().multiplyScalar(0.6));
+      // pé dobrado para trás na linha da barriga, colado no flanco
+      const alvo = m.grupo.localToWorld(TMP_B.set(sela.x + l * m.dados.flanco, sela.y - 0.12, sela.z - 0.24));
+      // joelho para a frente e para baixo, pouco aberto: aperta o flanco logo atrás da escápula
+      const polo = IK_E.copy(fr).addScaledVector(BAIXO, 0.5).add(m.grupo.localToWorld(IK_T.set(l, 0, 0)).sub(m.grupo.localToWorld(IK_R.set(0, 0, 0))).normalize().multiplyScalar(0.3));
       alcancar(sup, inf, pe, alvo, IK_P.copy(polo));
     }
   }
@@ -668,7 +685,7 @@ export class Corpo {
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
     const escalando = ESCALANDO.has(e.acao?.nome) || ESCALANDO.has(e.anim);
-    const modo = escalando || this.montaria ? 'Escalada' : e.modo || (this.modo === 'Escalada' ? 'Espada' : null);
+    const modo = escalando ? 'Escalada' : this.montaria ? 'Montado' : e.modo || (this.modo === 'Escalada' || this.modo === 'Montado' ? 'Espada' : null);
     if (modo) this.armar(modo); // escalando ou montado: espada e cajado nas costas, mãos livres
     if (e.acao && e.acaoSeq !== this.seq) this.tocarUmaVez(e.acao);
     else if (!e.acao) this.tocarLaco(e.anim);
@@ -691,6 +708,7 @@ export class Corpo {
       if (this.bravo) this.vrm.expressionManager?.setValue('angry', 0.8); // inimigo: cara de raiva
       this.vrm.update(dt);
     }
+    if (this.modo === 'Montado') this.armasMontado();
     this.segurarCajado();
   }
   assentar(dt) {
@@ -712,7 +730,7 @@ export class Corpo {
   maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
   // base e ponta da lâmina no mundo, se a espada estiver na mão
   lamina() {
-    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA || this.modo === 'Magia' || this.modo === 'Escalada') return null; // nas costas não deixa rastro
+    const e = this.armas.espada?.[0]; if (!e || !e.visible || !LAMINA || this.modo === 'Magia' || this.modo === 'Escalada' || this.modo === 'Montado') return null; // nas costas não deixa rastro
     return [e.localToWorld(LAMINA.base.clone()), e.localToWorld(LAMINA.ponta.clone())];
   }
   // criador aberto: guarda as armas (a câmera chega perto do rosto)

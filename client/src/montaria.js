@@ -42,7 +42,7 @@ export class Montaria {
     for (const o of malhas) {
       o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
       if (anime) o.material = toon(o.material);
-      if (o.material.alphaTest > 0) continue; // mechas de pelo (cartões recortados): sem contorno
+      if (o.material.alphaTest > 0) { o.material.alphaToCoverage = true; continue; } // mechas de pelo: ponta suave (MSAA), sem contorno
       const borda = new THREE.SkinnedMesh(o.geometry, contorno(0.015 / this.dados.escala));
       borda.bind(o.skeleton, o.bindMatrix); borda.frustumCulled = false;
       o.parent.add(borda);

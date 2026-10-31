@@ -10,14 +10,20 @@ def c(nome,var):
 # base cheia na raiz (some dentro do rabo)
 for i in range(130):
     x=random.uniform(0.02,0.98)*W; base=W; L=random.uniform(0.55,0.98)*W*(1-abs(x/W-0.5)*0.5)
-    larg=random.uniform(0.035,0.07)*W; curva=random.uniform(-0.08,0.08)*W
+    larg=random.uniform(0.035,0.07)*W; curva=random.uniform(-0.16,0.16)*W
     nome='escuro' if i<40 else ("meio" if i<95 else 'claro')
     pts_l=[];pts_r=[]
     for s in range(13):
-        t=s/12; y=base-L*t; cx=x+curva*t*t; w=larg*(1-t)**0.8/2
+        t=s/12; y=base-L*t; cx=x+curva*t*t; w=larg*(1-t)**1.3/2
         pts_l.append((cx-w,y)); pts_r.append((cx+w,y))
     d.polygon(pts_l+pts_r[::-1],fill=c(nome,0.12))
 im=im.resize((N,N),Image.LANCZOS)
+# ponta suave: o alfa cai nos últimos 35% de cada fio (de cima)
+a=im.getchannel('A').filter(ImageFilter.GaussianBlur(1.2)); pa=a.load()
+for y in range(N):
+    k=min(1.0,(y/N)/0.35+0.35)
+    for x in range(N): pa[x,y]=int(pa[x,y]*k)
+im.putalpha(a)
 # raiz mais escura (sombra entre as mechas)
 px=im.load()
 for y in range(N):
