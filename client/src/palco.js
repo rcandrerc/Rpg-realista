@@ -46,12 +46,13 @@ export class Palco {
     scene.fog = new THREE.Fog(0x4a4f86, 9, 34);
 
     // luz: principal quente de cima, contra-luz azul que recorta o contorno, céu e chão suaves
-    const sol = this.sol = new THREE.DirectionalLight(PALETA.sol, 1.35);
-    sol.position.set(2.5, 6, 4); sol.castShadow = true; sol.shadow.mapSize.set(1024, 1024);
+    const sol = this.sol = new THREE.DirectionalLight(PALETA.sol, 1.0);
+    // de frente, uns 40° de lado: o rosto ganha um lado de meia-sombra
+    sol.position.set(3.6, 5, 4.3); sol.castShadow = true; sol.shadow.mapSize.set(1024, 1024);
     Object.assign(sol.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 1, far: 15 });
     sol.shadow.bias = -0.0004; sol.shadow.normalBias = 0.02;
-    const contra = new THREE.DirectionalLight(0x8fb4ff, 0.9); contra.position.set(-3, 3, -4);
-    scene.add(sol, contra, new THREE.HemisphereLight(PALETA.ceuLuz, 0x6a5a7a, 0.6));
+    const contra = new THREE.DirectionalLight(0x8fb4ff, 0.55); contra.position.set(-3, 3, -4);
+    scene.add(sol, contra, new THREE.HemisphereLight(PALETA.ceuLuz, 0x6a5a7a, 0.4));
 
     // tablado redondo de pedra (textura pintada da praça) com borda de pedra empilhada
     const tex = new THREE.TextureLoader(), lad = (url, rx, ry) => {
