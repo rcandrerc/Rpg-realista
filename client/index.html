@@ -158,7 +158,8 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 .net[data-nivel=ruim] #netTxt{color:#f2b6a4}
 .tag3d.ally b{color:#9fc6e8}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 88px * var(--ui));transform:translateX(-50%);font-family:var(--display);font-size:calc(1.15rem * var(--ui));color:var(--gold);text-shadow:0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
-.tag3d{position:fixed;left:0;top:0;pointer-events:none;transform:translate(-50%,-100%);text-align:center;font-size:.75rem;font-weight:700;text-shadow:1px 0 2px #000,-1px 0 2px #000,0 1px 2px #000,0 -1px 2px #000;white-space:nowrap}
+.tag3d{position:fixed;left:0;top:0;z-index:1;pointer-events:none;transform:translate(-50%,-100%);text-align:center;font-size:.75rem;font-weight:700;text-shadow:1px 0 2px #000,-1px 0 2px #000,0 1px 2px #000,0 -1px 2px #000;white-space:nowrap}
+.top,.pad,.acts,#toast,.help{z-index:3} /* painel de vida e botões ficam por cima dos nomes de NPC e inimigos */
 .tag3d b{display:block;font-family:var(--display);font-size:.8rem;font-weight:700;-webkit-text-stroke:.4px #000}
 .tag3d .hb{width:64px;height:5px;background:rgba(0,0,0,.5);border-radius:3px;margin:3px auto 0;overflow:hidden}
 .tag3d .hb i{display:block;height:100%;background:var(--hp)}

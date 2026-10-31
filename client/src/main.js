@@ -5,6 +5,7 @@ import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
+import { Previsao } from './previsao.js';
 import { entrarNaConta, sairDaConta, apagarConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Criador } from './criador.js';
@@ -32,6 +33,20 @@ let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
 window.jogo = { controles, corpos, renderer }; // para testes no console do navegador
 let eu = null; // meu estado mais recente
+let previsao = null; // online: o meu herói anda na hora no aparelho (client/src/previsao.js)
+// Relógio do servidor: a tela mostra os outros um pouco no passado (atraso), sempre entre duas fotos que já chegaram.
+// O atraso cresce sozinho quando a internet oscila (fotos chegando fora do ritmo) e volta a diminuir quando ela firma.
+const relogioServ = { dif: null, osc: 0, atraso: 0.1 };
+function marcarFoto(tempo) {
+  const amostra = tempo - performance.now() / 1000, r = relogioServ;
+  if (r.dif == null || amostra - r.dif > 1 || amostra - r.dif < -2) r.dif = amostra; // primeira foto ou relógio pulou (reconectou)
+  else if (amostra > r.dif) r.dif += (amostra - r.dif) * 0.5; // foto adiantada: a internet está mais rápida que a estimativa
+  else r.dif += (amostra - r.dif) * 0.02;
+  r.osc = r.osc * 0.92 + Math.abs(amostra - r.dif) * 0.08;
+  const alvo = Math.min(0.35, Math.max(0.1, 0.06 + r.osc * 2.5));
+  r.atraso += (alvo - r.atraso) * (alvo > r.atraso ? 0.3 : 0.02); // sobe rápido, desce devagar
+}
+const horaServ = () => (relogioServ.dif == null ? null : performance.now() / 1000 + relogioServ.dif - relogioServ.atraso);
 
 function corpoDe(e, tipo) {
   let c = corpos.get(e.id);
@@ -56,14 +71,22 @@ function corpoDe(e, tipo) {
 // Chamado a cada foto do mundo (20 por segundo no online, todo quadro no solo)
 function receber(foto, eventos) {
   const vivos = new Set();
+  const online = rede.modo === 'online', tf = online ? foto.tempo : null;
+  if (online) marcarFoto(foto.tempo);
   for (const j of foto.jogadores) {
     vivos.add(j.id);
     const c = corpoDe(j, 'jogador');
-    c.info = j; c.corpo.aplicar(j);
+    c.info = j;
+    if (j.id === rede.meuId && previsao) {
+      // foto chega ~ping atrasada; a previsão compara com onde o herói estava naquela hora
+      previsao.corrigir(j, foto.inimigos, ((rede.ping ?? 100) / 1000) + 0.03);
+      c.corpo.previsto = previsao.ativo;
+      if (!previsao.ativo) c.corpo.aplicar(j, tf);
+    } else c.corpo.aplicar(j, tf);
     c.corpo.root.visible = !j.criando; // quem está criando o personagem ainda não entrou no mundo
     if (j.id === rede.meuId) eu = j;
   }
-  for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e); }
+  for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e, tf); }
   for (const [id, c] of corpos) if (c.tipo !== 'npc' && !vivos.has(id)) { c.corpo.remover(); c.tag?.remove(); efeitos.esquecer(id); corpos.delete(id); }
 
   for (const ev of eventos) {
@@ -86,12 +109,14 @@ function receber(foto, eventos) {
 
 // ---------- comandos do jogador ----------
 let ultimoBase = 0;
-const usar = (i) => { if (i === 0 || i === 10) ultimoBase = t; rede?.enviar('habilidade', i); }; // 0 golpe, 10 disparo
-const pular = () => rede?.enviar('pular');
-const dash = () => rede?.enviar('dash');
-const rolar = () => rede?.enviar('rolar');
+// manda para o servidor e, no online, faz o mesmo na previsão (o herói reage na hora)
+const enviar = (tipo, msg) => { rede?.enviar(tipo, msg); previsao?.cmd(tipo, msg); };
+const usar = (i) => { if (i === 0 || i === 10) ultimoBase = t; enviar('habilidade', i); }; // 0 golpe, 10 disparo
+const pular = () => enviar('pular');
+const dash = () => enviar('dash');
+const rolar = () => enviar('rolar');
 const falar = () => rede?.enviar('falar');
-const montar = () => rede?.enviar('montar');
+const montar = () => enviar('montar');
 controles.aoTeclar = (code) => {
   const tecla = { KeyJ: 0, KeyK: 1, KeyL: 2, KeyI: 3, KeyU: 4 };
   if (code in tecla) usar(hud.indice(tecla[code]));
@@ -104,7 +129,7 @@ controles.aoTeclar = (code) => {
   if (code === 'KeyM') montar();
 };
 hud.montarBotoes({ usar, pular, dash, rolar, montar }); // lobo: botão redondo de baixo (ou tecla M)
-hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a espada das costas
+hud.aoTrocar = (m) => enviar('modo', m); // tira o cajado (magia) ou a espada das costas
 
 // build (habilidades nos botões) também fica guardada no aparelho
 let build = (() => { try { return JSON.parse(localStorage.getItem('build')); } catch { return null; } })();
@@ -116,7 +141,7 @@ hud.mostrarBuild(build);
 hud.montarEscolhaHabilidades(build, (b) => {
   build = b;
   try { localStorage.setItem('build', JSON.stringify(b)); } catch { /* sem armazenamento: vale só nesta visita */ }
-  rede?.enviar('build', b);
+  enviar('build', b);
 });
 
 // personagem escolhido fica guardado neste aparelho
@@ -171,6 +196,7 @@ function enviarEntrada(dt) {
   const m = criador.aberto ? { x: 0, z: 0 } : controles.direcao(); // criando o personagem: fica parado
   const e = { mx: Math.round(m.x * 100) / 100, mz: Math.round(m.z * 100) / 100, correr: controles.correndo() };
   const s = JSON.stringify(e);
+  previsao?.cmd('entrada', e); // a previsão recebe todo quadro; o servidor só quando muda
   tempoEntrada -= dt;
   if (s !== ultimaEntrada || tempoEntrada <= 0) { rede.enviar('entrada', e); ultimaEntrada = s; tempoEntrada = 0.25; }
 }
@@ -202,9 +228,15 @@ function quadro() {
     // golpe base segurado (botão ou tecla J): repete; o servidor guarda o próximo golpe enquanto o atual termina
     if ((hud.segurando !== false || controles.teclas.KeyJ) && t - ultimoBase > 0.2) { ultimoBase = t; usar(hud.indice(0)); }
     rede.passo(dt);
+    if (previsao) {
+      previsao.passo(dt);
+      const c = corpos.get(rede.meuId);
+      if (c && previsao.ativo) { c.info = { ...c.info, ...previsao.estado() }; c.corpo.aplicar(c.info); }
+    }
     mundo.atualizar(t);
     painel.atualizar(mundo.scene, corpos.get(rede.meuId)?.corpo);
-    for (const c of corpos.values()) c.corpo.atualizar(dt);
+    const tVer = rede.modo === 'online' ? horaServ() : null;
+    for (const c of corpos.values()) c.corpo.atualizar(dt, c.tipo === 'npc' ? null : tVer);
     for (const [id, c] of corpos) if (c.tipo === 'jogador') efeitos.corpo(id, c.corpo, c.info, dt);
     efeitos.atualizar(dt, t, camera, renderer);
     const meu = corpos.get(rede.meuId);
@@ -271,7 +303,8 @@ function quadro() {
       catch (e) { if (!e.login || tentativa > 0) throw e; try { localStorage.removeItem('sessao'); } catch { /* nada guardado */ } }
     }
     hud.rede('Online');
-    rede.enviar('build', build);
+    if (rede.modo === 'online') previsao = new Previsao(mapa, rede.meuId);
+    enviar('build', build);
     if (primeiraVez) rede.enviar('aparencia', criador.aparencia); // a aparência só muda no criador
     $('nome').textContent = nome;
     msg('Carregando o seu personagem…');

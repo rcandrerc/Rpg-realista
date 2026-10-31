@@ -610,8 +610,14 @@ export class Corpo {
     por('head', -0.4, 0, 0);
   }
   // Recebe o estado vindo da simulação
-  aplicar(e) {
+  // t: hora do servidor em que essa foto foi tirada (online). Com ela o corpo desliza entre as fotos em vez de pular.
+  aplicar(e, t = null) {
     this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
+    if (t != null) {
+      const a = this.amostras ||= [];
+      if (!a.length || t > a[a.length - 1].t) a.push({ t, x: e.x, y: e.y || 0, z: e.z, ry: e.ry });
+      if (a.length > 12) a.shift();
+    } else this.amostras = null;
     if ('montado' in e) this.montar(e.montado);
     // montado: o lobo anda e o herói fica sentado; enquanto o lobo não aparece, o herói anda normal
     if (this.montaria) { this.montaria.aplicar(e.anim); if (this.montaria.mixer) e = { ...e, anim: 'Idle' }; }
@@ -624,12 +630,35 @@ export class Corpo {
     else if (!e.acao) this.tocarLaco(e.anim);
     this.seq = e.acaoSeq;
   }
-  atualizar(dt) {
-    const k = 1 - Math.exp(-dt * 14); // suaviza o movimento entre as fotos do servidor
-    this.root.position.lerp(this.alvo, k);
+  // Acha as duas fotos em volta de tVer e liga uma na outra. Se a próxima foto atrasar, segue um pouco na mesma direção
+  // (até 0,1 s) e depois espera parado, em vez de pular.
+  interpolar(tVer) {
+    const a = this.amostras;
+    while (a.length > 2 && a[1].t <= tVer) a.shift();
+    let p, q;
+    if (a.length === 1 || tVer <= a[0].t) { p = q = a[0]; }
+    else { p = a[0]; q = a[1]; }
+    let k = q.t > p.t ? (tVer - p.t) / (q.t - p.t) : 0;
+    k = Math.max(0, Math.min(k, 1 + 0.1 / Math.max(0.05, q.t - p.t)));
+    if (Math.hypot(q.x - p.x, q.z - p.z) > 6) k = k < 1 ? 0 : 1; // teleporte de verdade (renasceu): não atravessa o mapa deslizando
+    if (k > 1 && a.length === 1) k = 1;
+    const d = Math.atan2(Math.sin(q.ry - p.ry), Math.cos(q.ry - p.ry));
+    this.alvo.set(p.x + (q.x - p.x) * k, p.y + (q.y - p.y) * k, p.z + (q.z - p.z) * k);
+    this.alvoRy = p.ry + d * Math.min(k, 1);
+    return true;
+  }
+  // tVer: hora do servidor que a tela está mostrando agora (um pouco no passado, para sempre ter duas fotos para ligar)
+  atualizar(dt, tVer = null) {
+    if (tVer != null && this.amostras?.length && this.interpolar(tVer)) {
+      this.root.position.copy(this.alvo); this.root.rotation.y = this.alvoRy;
+    } else {
+      // previsto (o meu herói) ou modo solo: segue o alvo com uma suavização curta
+      const k = 1 - Math.exp(-dt * (this.previsto ? 30 : 14));
+      this.root.position.lerp(this.alvo, k);
+      const d = Math.atan2(Math.sin(this.alvoRy - this.root.rotation.y), Math.cos(this.alvoRy - this.root.rotation.y));
+      this.root.rotation.y += d * k;
+    }
     this.inclina.rotation.x += ((this.anim === 'dash' ? 0.42 : 0) - this.inclina.rotation.x) * Math.min(1, dt * 18);
-    const d = Math.atan2(Math.sin(this.alvoRy - this.root.rotation.y), Math.cos(this.alvoRy - this.root.rotation.y));
-    this.root.rotation.y += d * k;
     this.mixer?.update(dt);
     if (this.montaria) this.assentar(dt);
     if (this.vrm) {
