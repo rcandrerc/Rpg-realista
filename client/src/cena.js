@@ -10,9 +10,14 @@ import { anime, PALETA } from './estilo.js';
 export const gltfLoader = new GLTFLoader();
 export const carregarGLTF = (url) => gltfLoader.loadAsync(url);
 
+export const RESOLUCAO_MAX = Math.min(devicePixelRatio, 1.75);
+
 export function criarRenderizador(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  // No estilo pintado a cena é desenhada num alvo que já tem antisserrilhado (estilo.js); a tela só recebe o passe
+  // de cor por cima. Ligar o antisserrilhado da tela também gastava memória e banda à toa, todo quadro.
+  const msaaNoPasse = anime && typeof WebGL2RenderingContext !== 'undefined';
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !msaaNoPasse, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(RESOLUCAO_MAX);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.82;
