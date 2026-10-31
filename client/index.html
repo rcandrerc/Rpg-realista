@@ -100,7 +100,7 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 .knob{position:absolute;left:50%;top:50%;width:calc(52px * var(--ui));height:calc(52px * var(--ui));margin:calc(-26px * var(--ui)) 0 0 calc(-26px * var(--ui));border-radius:50%;background:rgba(239,231,214,.85)}
 /* Botões de luta na mesma distribuição do Quimera: golpe grande no canto, habilidades em arco em volta,
    Cura dentro do arco, Trocar no alto à direita e Rolar, Dash e Pular numa fileira embaixo */
-.acts{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);right:max(16px,env(safe-area-inset-right,0px));width:400px;height:270px;pointer-events:none}
+.acts{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);right:max(16px,env(safe-area-inset-right,0px));width:425px;height:270px;pointer-events:none}
 .acts button{pointer-events:auto}
 .acts{transform:scale(var(--ui));transform-origin:bottom right}
 .acts button{position:absolute;width:54px;height:54px;border-radius:50%;border:3px solid #4a3a24;box-shadow:0 0 0 1px #8a6a2c,0 3px 10px rgba(0,0,0,.35);background:radial-gradient(circle at 35% 30%,#4d4160,#1b1524);color:var(--ink);font:700 .7rem/1.05 var(--body);touch-action:none;overflow:hidden;padding:0}
@@ -114,15 +114,15 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 #b0{width:80px;height:80px;right:0;bottom:56px;background:radial-gradient(circle at 35% 30%,#6a3b2a,#231310)}
 .acts .sk{font-size:.62rem;line-height:1}
 /* skills em arco, uma em cima da outra, à esquerda do golpe; Trocar no topo e Cura embaixo do golpe */
-#b1{right:65px;bottom:159px} #b2{right:106px;bottom:115px} #b3{right:116px;bottom:54px} #b4{right:90px;bottom:0}
-#bt{width:46px;height:46px;right:10px;bottom:177px;background:radial-gradient(circle at 35% 30%,#7a5a2a,#2a1c0c)}
+#b1{right:64px;bottom:169px} #b2{right:106px;bottom:132px} #b3{right:125px;bottom:79px} #b4{right:115px;bottom:23px}
+#bt{width:46px;height:46px;right:13px;bottom:185px;background:radial-gradient(circle at 35% 30%,#7a5a2a,#2a1c0c)}
 .acts.magia #b0{background:radial-gradient(circle at 35% 30%,#5b3f8f,#1d1233)}
 .acts.magia #bt{background:radial-gradient(circle at 35% 30%,#5b3f8f,#1d1233)}
 #b9{width:48px;height:48px;right:16px;bottom:2px;background:radial-gradient(circle at 35% 30%,#3b6a46,#12241a)}
-#bp{width:58px;height:58px;right:168px;bottom:0}
-#bd{width:50px;height:50px;right:234px;bottom:2px}
-#br{width:50px;height:50px;right:292px;bottom:2px}
-#bm{width:50px;height:50px;right:350px;bottom:2px;background:radial-gradient(circle at 35% 30%,#3d5270,#121b2a)}
+#bp{width:58px;height:58px;right:190px;bottom:0}
+#bd{width:50px;height:50px;right:256px;bottom:2px}
+#br{width:50px;height:50px;right:314px;bottom:2px}
+#bm{width:50px;height:50px;right:372px;bottom:2px;background:radial-gradient(circle at 35% 30%,#3d5270,#121b2a)}
 /* Barra de cima (como a do Quimera): ícones que recolhem na seta e voltam pra frente */
 .topo{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:max(16px,env(safe-area-inset-right,0px));transform:scale(var(--ui));transform-origin:top right;display:flex;gap:6px;align-items:center;z-index:5}
 .topo .itens{display:flex;gap:6px;transition:transform .28s cubic-bezier(.3,.7,.3,1),opacity .2s}
