@@ -17,6 +17,11 @@ function contorno(espessura) {
   return m;
 }
 
+// Baixa os modelos logo no começo: tocar no lobo não espera o download (no 4G levava vários segundos)
+export function prepararMontarias() {
+  for (const [id, d] of Object.entries(MONTARIAS)) if (!modelos.has(id)) modelos.set(id, carregarGLTF(d.modelo));
+}
+
 // Estados do jogador -> animação da montaria
 const ANIM = { Walk: 'andar', Run: 'correr' };
 

@@ -12,6 +12,7 @@ import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
 import { aplicarEstilo, botaoEstilo } from './estilo.js';
 import { PainelHeroi } from './layout.js';
+import { prepararMontarias } from './montaria.js';
 import { Palco } from './palco.js';
 import { montarMenu } from './menu.js';
 
@@ -214,6 +215,7 @@ function quadro() {
     msg('Carregando os personagens…');
     aquecerVRM(escolhido); // o herói vai na frente dos NPCs e do bando
     await carregarPersonagens();
+    prepararMontarias(); // o lobo baixa por trás, enquanto o jogo conecta
     efeitos = new Efeitos(mundo.scene);
     // NPCs da vila: chegue perto e toque em Falar (ou tecla F); o que cada um faz está em Simulacao.falar
     for (const n of mapa.npcs) {
