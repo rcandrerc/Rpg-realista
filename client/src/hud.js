@@ -9,7 +9,7 @@ const v = new THREE.Vector3();
 export class Hud {
   constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.build = [...BUILD_PADRAO]; this.modo = 'Espada'; }
 
-  montarBotoes({ usar, pular, dash, rolar }) {
+  montarBotoes({ usar, pular, dash, rolar, montar }) {
     [0, 1, 2, 3, 4].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(this.indice(i)); }));
     // golpe base: segurando o botão ele continua golpeando (as outras habilidades não)
     this.segurando = false; // id do dedo que segura
@@ -20,11 +20,12 @@ export class Hud {
     $('bd').addEventListener('pointerdown', (e) => { e.preventDefault(); dash(); });
     $('bp').addEventListener('pointerdown', (e) => { e.preventDefault(); pular(); });
     $('br').addEventListener('pointerdown', (e) => { e.preventDefault(); rolar(); });
+    $('bm').addEventListener('pointerdown', (e) => { e.preventDefault(); montar(); });
     $('infoBtn').addEventListener('click', () => { $('sheet').hidden = false; });
     $('closeSheet').addEventListener('click', () => { $('sheet').hidden = true; });
     $('style').textContent = ARMA.nome;
     this.simbolo('b9', 'cura', CURA.nome);
-    this.simbolo('bp', 'pular', 'Pular'); this.simbolo('bd', 'dash', 'Dash'); this.simbolo('br', 'rolar', 'Rolar');
+    this.simbolo('bp', 'pular', 'Pular'); this.simbolo('bd', 'dash', 'Dash'); this.simbolo('br', 'rolar', 'Rolar'); this.simbolo('bm', 'lobo', 'Montar ou descer do lobo');
     this.mostrarBuild(this.build);
   }
   // Botão na tela -> comando da simulação: 0 = golpe (ou 10 = disparo), 1 a 4 = espada (ou 5 a 8 = magia)
