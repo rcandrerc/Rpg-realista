@@ -291,3 +291,10 @@ export function aparenciaValida(a) {
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
+// Nome do personagem: 3 a 16 letras, números ou espaços (sem espaço sobrando). Devolve o nome limpo ou null.
+export const NOME = { min: 3, max: 16 };
+export function nomeValido(n) {
+  if (typeof n !== 'string') return null;
+  const s = n.normalize('NFC').replace(/\s+/g, ' ').trim();
+  return s.length >= NOME.min && s.length <= NOME.max && /^[\p{L}\p{N} ]+$/u.test(s) ? s : null;
+}

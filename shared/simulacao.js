@@ -1,7 +1,7 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -36,12 +36,14 @@ export class Simulacao {
     return { id: 'e' + this.proxId++, x: 0, z: 0, ry: 0, trava: 0, defesa: 0, morto: false, anim: 'Idle',
       acao: null, acaoSeq: 0, dash: null, y: 0, vy: 0, chao: true, esc: null, ...extra };
   }
-  adicionarJogador(id, nome, visual) {
+  // opcoes.podeCriar: personagem ainda não foi criado (o criador abre uma vez só); opcoes.aparencia: a que já foi criada
+  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null } = {}) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
       fila: null, modo: 'Espada', missoes: {}, falas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
-      visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO });
+      visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
+    if (aparencia) j.aparencia = aparenciaValida(aparencia);
     this.jogadores.set(id, j);
     return j;
   }
@@ -78,24 +80,31 @@ export class Simulacao {
     if (!j || j.morto || j.esc || j.criando || j.trava > 0) return;
     j.montado = j.montado ? null : 'lobo';
   }
+  // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
   trocarVisual(id, visual) {
     const j = this.jogadores.get(id);
-    if (j && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
+    if (j?.criando && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
   }
-  // Criando o personagem (no palco, fora do mapa): ninguém vê, nenhum inimigo persegue, não leva dano e não age
+  // Criando o personagem (no palco, fora do mapa): ninguém vê, nenhum inimigo persegue, não leva dano e não age.
+  // Só entra quem ainda não criou o personagem; sair é sempre permitido.
   definirCriando(id, v) {
     const j = this.jogadores.get(id); if (!j) return;
-    // quem acabou de levar dano não some do mundo (senão abrir o criador viraria escudo contra golpes)
-    if (v && !j.criando && this.tempo - (j.feridoEm ?? -Infinity) < 5) {
-      this.evento({ t: 'criadorNegado', para: id, texto: 'Saia do combate para mudar o visual' });
-      return;
-    }
+    if (v && !j.podeCriar) return;
     j.criando = !!v;
     if (j.criando) { j.entrada = { mx: 0, mz: 0, correr: false }; j.fila = null; j.montado = null; }
   }
   // Cores e altura do criador de personagem (os outros jogadores veem igual)
   definirAparencia(id, a) {
-    const j = this.jogadores.get(id); if (j) j.aparencia = aparenciaValida(a);
+    const j = this.jogadores.get(id); if (j?.criando) j.aparencia = aparenciaValida(a);
+  }
+  // "Pronto" no criador: grava nome, corpo e aparência de vez. Devolve o que valeu (para salvar na conta) ou null.
+  concluirCriacao(id, p) {
+    const j = this.jogadores.get(id); if (!j?.criando || !j.podeCriar) return null;
+    const nome = nomeValido(p?.nome); if (!nome) return null;
+    if (PERSONAGENS.some((q) => q.id === p.visual)) j.visual = p.visual;
+    j.aparencia = aparenciaValida(p.aparencia);
+    j.nome = nome; j.podeCriar = false; j.criando = false;
+    return { nome, visual: j.visual, aparencia: j.aparencia };
   }
   // Habilidades escolhidas pelo jogador para os botões (a build)
   definirBuild(id, build) {
@@ -286,7 +295,6 @@ export class Simulacao {
     if (alvo.morto || alvo.arrancada || alvo.criando) return;
     if (alvo.defesa > 0) n = Math.round(n * (1 - alvo.defesa));
     alvo.vida = Math.max(0, alvo.vida - n);
-    alvo.feridoEm = this.tempo;
     this.evento({ t: 'dano', alvo: alvo.id, n });
     if (alvo.vida <= 0) this.morrer(alvo);
     else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);

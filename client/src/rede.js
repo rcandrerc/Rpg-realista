@@ -19,17 +19,17 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const comPrazo = (p, ms) => Promise.race([p, new Promise((_, nao) => setTimeout(() => nao(new Error('sem resposta')), ms))]);
 
 // criando: entra já no palco do criador (fora do mundo, sem levar dano)
-export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}, sessao = null, criando = false) {
+export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = () => {}, sessao = null, criando = false, aparencia = null) {
   const endereco = enderecoServidor();
-  if (!endereco) return modoSolo(mapa, nome, visual, aoReceber, criando);
+  if (!endereco) return modoSolo(mapa, nome, visual, aoReceber, criando, aparencia);
   const cliente = new Client(endereco);
   let sala;
   try {
-    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual, sessao, criando }), 4000);
+    sala = await comPrazo(cliente.joinOrCreate(mapa.id, { nome, visual, sessao, criando, aparencia }), 4000);
   } catch (e) {
     if (e.code === 401) throw Object.assign(new Error('sessão vencida'), { login: true }); // pede o login do Google de novo
     console.warn('Servidor indisponível, jogando no modo solo:', e.message);
-    return modoSolo(mapa, nome, visual, aoReceber, criando);
+    return modoSolo(mapa, nome, visual, aoReceber, criando, aparencia);
   }
   const rede = { modo: 'online', meuId: sala.sessionId, passo: () => {} };
   rede.enviar = (tipo, msg) => { if (sala.connection.isOpen) sala.send(tipo, msg); };
@@ -41,6 +41,7 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
       console.warn('Conexão caiu, código', codigo);
       if (codigo === 1000) return; // saiu de propósito
       if (codigo === 4001) { aoMudarStatus('Sua conta entrou em outro aparelho.'); return; }
+      if (codigo === 4002) { aoMudarStatus('Conta apagada.'); return; }
       aoMudarStatus('Reconectando…');
       const token = s.reconnectionToken;
       for (let tentativa = 0; tentativa < 8; tentativa++) {
@@ -54,9 +55,9 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
   return rede;
 }
 
-function modoSolo(mapa, nome, visual, aoReceber, criando) {
+function modoSolo(mapa, nome, visual, aoReceber, criando, aparencia) {
   const sim = new Simulacao(mapa);
-  sim.adicionarJogador('solo', nome, visual);
+  sim.adicionarJogador('solo', nome, visual, { podeCriar: criando, aparencia });
   sim.definirCriando('solo', criando);
   window.jogo = Object.assign(window.jogo || {}, { sim }); // para testes no console
   const cmd = {
@@ -72,6 +73,7 @@ function modoSolo(mapa, nome, visual, aoReceber, criando) {
     modo: (m) => sim.trocarModo('solo', m),
     aparencia: (a) => sim.definirAparencia('solo', a),
     criando: (v) => sim.definirCriando('solo', v),
+    pronto: (p) => sim.concluirCriacao('solo', p),
   };
   return {
     modo: 'solo', meuId: 'solo',

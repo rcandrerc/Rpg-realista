@@ -5,7 +5,7 @@ import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
-import { entrarNaConta, sairDaConta } from './conta.js';
+import { entrarNaConta, sairDaConta, apagarConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Criador } from './criador.js';
 import { Controles } from './controles.js';
@@ -69,7 +69,6 @@ function receber(foto, eventos) {
   for (const ev of eventos) {
     if (ev.t === 'dano' || ev.t === 'cura') { const c = corpos.get(ev.alvo); if (c) hud.numero(c.corpo.root, (ev.t === 'cura' ? '+' : '-') + ev.n, ev.t === 'cura'); }
     else if (ev.t === 'aviso') hud.aviso(ev.texto);
-    else if (ev.t === 'criadorNegado') { hud.aviso(ev.texto); criador.fechar(); } // o servidor não deixou sair do mundo
     else if (ev.t === 'fala') {
       hud.fala(ev);
       const n = corpos.get('npc:' + ev.npc), d = mapa.npcs.find((q) => q.id === ev.npc);
@@ -126,7 +125,9 @@ let escolhido = lerEscolha();
 if (!PERSONAGENS.some((p) => p.id === escolhido)) escolhido = PERSONAGEM_PADRAO;
 // cores e altura do criador de personagem também ficam no aparelho
 const lerAparencia = () => { try { return JSON.parse(localStorage.getItem('aparencia')); } catch { return null; } };
-let primeiraVez = !lerEscolha() && !lerAparencia();
+// o criador abre uma vez só: na criação da conta (ou, sem conta, na primeira vez neste aparelho)
+const lerCriado = () => { try { return localStorage.getItem('personagemCriado') === '1'; } catch { return false; } };
+let primeiraVez = !lerCriado() && !lerEscolha();
 const criador = new Criador(escolhido, lerAparencia(), (visual, aparencia) => {
   try { localStorage.setItem('personagem', visual); localStorage.setItem('aparencia', JSON.stringify(aparencia)); } catch { /* vale só nesta visita */ }
   if (visual !== escolhido) { escolhido = visual; aquecerVRM(visual); rede?.enviar('visual', visual); }
@@ -139,9 +140,31 @@ criador.aoAlternar = (aberto) => {
   if (aberto) { palco ||= new Palco(renderer); camCriador = { yaw: controles.yaw, pitch: controles.pitch, dist: controles.dist }; deslocCam = -1; }
   else if (camCriador) { Object.assign(controles, camCriador); camCriador = null; }
 };
+// "Pronto" no criador (com nome válido): o servidor grava de vez e o criador não abre mais
+criador.aoConcluir = ({ nome, visual, aparencia }) => {
+  rede?.enviar('pronto', { nome, visual, aparencia });
+  try { localStorage.setItem('personagemCriado', '1'); localStorage.setItem('nomePersonagem', nome); } catch { /* vale só nesta visita */ }
+  $('nome').textContent = nome;
+  setTimeout(() => hud.aviso('Monte a sua build em Habilidades'), 600);
+};
 hud.montarTelaCheia();
 
 $('sairBtn').addEventListener('click', async () => { await sairDaConta(enderecoServidor()); location.reload(); });
+// Apagar conta: o primeiro toque pede confirmação, o segundo (em até 4 s) apaga
+let confirmaApagar = 0;
+$('apagarBtn').addEventListener('click', async () => {
+  const b = $('apagarBtn');
+  if (Date.now() > confirmaApagar) {
+    confirmaApagar = Date.now() + 4000; b.textContent = 'Toque de novo para apagar tudo';
+    setTimeout(() => { if (Date.now() > confirmaApagar) b.textContent = 'Apagar conta'; }, 4100);
+    return;
+  }
+  b.disabled = true; b.textContent = 'Apagando…';
+  try { await apagarConta(enderecoServidor()); }
+  catch (e) { b.disabled = false; b.textContent = 'Apagar conta'; confirmaApagar = 0; hud.aviso(e.message); return; }
+  for (const k of ['personagem', 'aparencia', 'build', 'personagemCriado', 'nomePersonagem']) try { localStorage.removeItem(k); } catch { /* nada guardado */ }
+  location.reload();
+});
 
 let ultimaEntrada = '', tempoEntrada = 0;
 function enviarEntrada(dt) {
@@ -224,24 +247,31 @@ function quadro() {
       corpos.set('npc:' + n.id, { corpo: c, tipo: 'npc' });
     }
     msg('Conectando ao servidor…');
-    let nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
+    let jaTinhaConta = false;
+    let nome = new URLSearchParams(location.search).get('nome') || (() => { try { return localStorage.getItem('nomePersonagem'); } catch { return null; } })() || 'Andarilho';
     // Conta Google: o nome, o personagem e a build vêm da conta (salvos no servidor)
     for (let tentativa = 0; ; tentativa++) {
       const entrada = await (tentativa === 0 ? primeiraEntrada : entrarNaConta(servidor));
       if (entrada) {
         const { conta } = entrada;
+        jaTinhaConta = !!entrada.jaTinha;
         nome = conta.nome;
-        if (conta.visual) { escolhido = conta.visual; criador.visual = escolhido; criador.marcar(); }
-        else primeiraVez = true; // conta nova (mesmo num aparelho que já jogou): começa criando o personagem
+        primeiraVez = !conta.visual; // conta sem personagem: começa criando (uma vez só)
+        if (conta.visual) {
+          escolhido = conta.visual; criador.visual = escolhido;
+          if (conta.aparencia) criador.aparencia = conta.aparencia;
+          criador.marcar();
+          try { localStorage.setItem('personagem', escolhido); localStorage.setItem('aparencia', JSON.stringify(criador.aparencia)); localStorage.setItem('personagemCriado', '1'); } catch { /* vale só nesta visita */ }
+        }
         if (conta.build) { build = conta.build; hud.mostrarBuild(build); }
-        $('sairBtn').hidden = false;
+        $('sairBtn').hidden = false; $('apagarBtn').hidden = false;
       }
-      try { rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t), entrada?.sessao, primeiraVez); break; }
+      try { rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t), entrada?.sessao, primeiraVez, criador.aparencia); break; }
       catch (e) { if (!e.login || tentativa > 0) throw e; try { localStorage.removeItem('sessao'); } catch { /* nada guardado */ } }
     }
     hud.rede(rede.modo === 'online' ? 'Online' : 'Modo solo (sem servidor)');
     rede.enviar('build', build);
-    rede.enviar('aparencia', criador.aparencia);
+    if (primeiraVez) rede.enviar('aparencia', criador.aparencia); // a aparência só muda no criador
     $('nome').textContent = nome;
     msg('Carregando o seu personagem…');
     // espera o próprio corpo ficar pronto (o personagem anime baixa uns 15 a 20 MB na primeira vez)
@@ -249,8 +279,8 @@ function quadro() {
     hud.montarEsboco();
     pos = aplicarEstilo(renderer, mundo.scene, camera, mundo.sol);
     $('load').hidden = true;
-    if (primeiraVez) criador.abrir(); // primeira vez no jogo: começa criando o personagem
-    else setTimeout(() => hud.aviso('Monte a sua build em Habilidades'), 600);
+    if (primeiraVez) criador.abrir(); // conta nova: cria o personagem e o nome (uma vez só)
+    else setTimeout(() => hud.aviso(jaTinhaConta ? 'Você já tinha conta: entrou nela' : 'Monte a sua build em Habilidades'), 600);
   } catch (e) {
     msg('Não foi possível carregar: ' + e.message); console.error(e);
   }
