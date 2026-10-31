@@ -80,22 +80,20 @@ export class Hud {
     desenhar();
   }
   montarTelaCheia() {
-    // Tela cheia: no Android funciona direto; no iPhone o navegador não deixa, então ensina o atalho
-    const tela = $('telaBtn');
-    const pode = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
-    tela.addEventListener('click', async () => {
-      const el = document.documentElement;
-      if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
-      if (!pode) { this.aviso('No iPhone: Compartilhar → Adicionar à Tela de Início'); this.avisoT = 5; return; }
+    // Sempre em tela cheia e deitado: o navegador só deixa entrar depois de um toque, então qualquer toque
+    // na tela liga a tela cheia (e de novo se a pessoa sair dela). Travar deitado gira o jogo mesmo com a
+    // rotação automática do celular desligada. No iPhone o navegador não deixa: usa o atalho da tela inicial.
+    const el = document.documentElement, pedir = el.requestFullscreen || el.webkitRequestFullscreen;
+    const cheia = () => document.fullscreenElement || document.webkitFullscreenElement;
+    if (!pedir || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) return;
+    const ligar = async () => {
+      if (cheia()) return;
       try {
-        await (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' });
+        await pedir.call(el, { navigationUI: 'hide' });
         await screen.orientation?.lock?.('landscape').catch(() => {});
-      } catch { this.aviso('O navegador não deixou abrir em tela cheia'); }
-    });
-    const rotulo = () => { tela.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? 'Sair da tela cheia' : 'Tela cheia'; };
-    document.addEventListener('fullscreenchange', rotulo); document.addEventListener('webkitfullscreenchange', rotulo);
-    // aberto pelo atalho da tela inicial já está sem a barra do navegador
-    if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) tela.hidden = true;
+      } catch {}
+    };
+    addEventListener('pointerup', ligar, true);
   }
   montarEsboco() {
     const cards = $('skillCards');
