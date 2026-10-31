@@ -127,7 +127,8 @@ export class Hud {
   conexao(rede, dt) {
     const agora = performance.now(); // relógio de verdade (o dt do jogo é limitado e esconderia quadros lentos)
     this.qN = (this.qN || 0) + 1; this.q0 ??= agora;
-    if (agora - this.q0 >= 1000) { this.fps = Math.round(this.qN * 1000 / (agora - this.q0)); this.qN = 0; this.q0 = agora; }
+    // a primeira leitura sai rápido para o FPS aparecer junto desde o começo
+    if (agora - this.q0 >= (this.fps ? 1000 : 400)) { this.fps = Math.round(this.qN * 1000 / (agora - this.q0)); this.qN = 0; this.q0 = agora; }
     if ((this.netT -= dt) > 0) return;
     this.netT = 0.25;
     const t = this.netTexto || 'Conectando…';
@@ -138,7 +139,7 @@ export class Hud {
     else if (performance.now() - rede.ultimaFoto > 1500) { nivel = 'ruim'; txt = 'Servidor sem resposta'; }
     else if (rede.ping == null) { nivel = 'espera'; txt = 'Online'; }
     else { const ms = Math.round(rede.ping); nivel = ms <= 100 ? 'bom' : ms <= 200 ? 'medio' : 'ruim'; txt = `${ms} ms`; }
-    if (this.fps && rede) txt += ` · ${this.fps} FPS`;
+    if (this.fps != null && rede) txt += ` · ${this.fps} FPS`;
     const el = $('net');
     if (el.dataset.nivel !== nivel) el.dataset.nivel = nivel;
     const s = $('netTxt'); if (s.textContent !== txt) s.textContent = txt;
