@@ -1,26 +1,32 @@
-// Previsão do próprio herói no modo online.
-// O celular roda as mesmas regras (shared/simulacao.js) só para o seu herói, então ele anda, pula e ataca na hora,
-// sem esperar a ida e volta até o servidor. O servidor continua decidindo tudo (dano, vida, posição de verdade):
-// a cada foto do mundo a previsão compara com o servidor e corrige aos poucos (ou de uma vez, se a diferença for grande).
+// O próprio herói no modo online é decidido no celular.
+// O celular roda as mesmas regras (shared/simulacao.js) só para o seu herói: anda, pula, dá dash e ataca na hora,
+// com efeitos e números de dano na hora. A posição vai para o servidor 20 vezes por segundo e ele só confere
+// (Simulacao.posicaoCliente: velocidade, altura, limite do mapa). Se não bater, chega um "corrigir" e o herói volta.
+// Dano de verdade, vida, morte, mana e recompensas continuam sendo do servidor.
 import { Simulacao, A } from '@rpg/shared';
 
-const CORRIGE = 0.15; // fração do erro corrigida a cada foto (20 por segundo): some em uns 300 ms sem dar tranco
-const PULO_GRANDE = 3.5; // diferença em metros que vira teleporte (renasceu, empurrão forte, servidor recusou algo)
 const COPIA = ['vida', 'vidaMax', 'mana', 'build', 'criando', 'missoes'];
+// efeitos das próprias ações que o celular mostra sozinho (o servidor manda os mesmos com "de" = eu, e esses são ignorados)
+export const EFEITOS_LOCAIS = new Set(['proj', 'projFim', 'fenda', 'raio', 'anel', 'campo', 'chuva', 'conjura', 'cura', 'dano', 'dash', 'explosao', 'impacto', 'vortice']);
 
 export class Previsao {
   constructor(mapa, id) {
     this.id = id;
     this.sim = new Simulacao(mapa);
-    // inimigos aqui são só cópias paradas das posições do servidor: servem para o golpe mirar e para colidir.
-    // Quem mexe neles e quem decide dano é o servidor.
+    this.sim.proxId = 1e6; // tiros daqui com números que não se misturam com os do servidor
+    // inimigos aqui são só cópias das posições do servidor: servem para mirar, colidir e mostrar o número do dano.
+    // Quem mexe neles e quem tira vida de verdade é o servidor.
     this.sim.inimigos = [];
     this.sim.passoInimigo = () => {};
-    this.sim.ferir = () => {};
+    this.sim.ferir = (alvo, n) => {
+      if (alvo.tipo === 'jogador' || alvo.morto) return;
+      alvo.vida = Math.max(0, alvo.vida - n); if (alvo.vida <= 0) alvo.morto = true;
+      this.sim.evento({ t: 'dano', alvo: alvo.id, n });
+    };
     this.j = null;
-    this.hist = []; // onde o herói estava em cada quadro (para comparar com a foto, que chega atrasada)
     this.ativo = false;
     this.ultSeqServ = -1;
+    this.envio = 0;
   }
 
   // comandos: os mesmos que vão para o servidor
@@ -37,56 +43,36 @@ export class Previsao {
     else if (tipo === 'build') s.definirBuild(id, msg);
   }
 
-  passo(dt) {
-    if (!this.j) return;
-    this.sim.passo(dt); // eventos daqui são descartados: efeitos e números de dano vêm do servidor
-    const j = this.j;
-    this.hist.push({ t: this.sim.tempo, x: j.x, y: j.y, z: j.z });
-    while (this.hist.length > 2 && this.hist[0].t < this.sim.tempo - 2) this.hist.shift();
-  }
-
-  // posição prevista há "atraso" segundos (o que o servidor está mostrando agora)
-  passado(atraso) {
-    const t = this.sim.tempo - atraso, h = this.hist;
-    if (!h.length) return null;
-    if (t <= h[0].t) return h[0];
-    for (let i = h.length - 1; i > 0; i--) {
-      if (h[i - 1].t <= t) {
-        const a = h[i - 1], b = h[i], k = b.t > a.t ? (t - a.t) / (b.t - a.t) : 1;
-        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k };
-      }
+  // anda um quadro; devolve os efeitos das minhas ações para mostrar já. enviar(pos) a cada 50 ms.
+  passo(dt, enviar) {
+    if (!this.j) return [];
+    const ev = this.sim.passo(dt).filter((e) => EFEITOS_LOCAIS.has(e.t));
+    if (this.ativo && (this.envio -= dt) <= 0) {
+      this.envio = 0.05;
+      const j = this.j, r2 = (n) => Math.round(n * 100) / 100;
+      enviar({ x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry), anim: j.anim });
     }
-    return h[h.length - 1];
+    return ev;
   }
 
   encostar(s) {
-    const j = this.j;
-    Object.assign(j, { x: s.x, y: s.y || 0, z: s.z, ry: s.ry, vy: 0, chao: true, arrancada: null, dash: null, esc: null, trava: 0, acao: null, fila: null, pulos: 0, mortal: 0 });
-    this.hist = [];
+    const j = this.j; if (!j) return;
+    Object.assign(j, { x: s.x, y: s.y || 0, z: s.z, ry: s.ry ?? j.ry, vy: 0, chao: true, arrancada: null, dash: null, esc: null, trava: 0, acao: null, fila: null, pulos: 0, mortal: 0 });
   }
 
-  // chegou foto do servidor: s = meu estado lá, atraso = quanto tempo a foto está atrasada em relação ao meu quadro
-  corrigir(s, inimigos, atraso) {
+  // chegou foto do servidor: s = meu estado lá
+  corrigir(s, inimigos) {
     if (!this.j) { this.j = this.sim.adicionarJogador(this.id, s.nome, s.visual); this.encostar(s); }
     const j = this.j;
     for (const k of COPIA) j[k] = s[k];
-    // cópias dos inimigos (para a mira e a colisão)
     this.sim.inimigos = inimigos.map((e) => ({ id: e.id, tipo: e.tipo, x: e.x, y: e.y, z: e.z, ry: e.ry, morto: e.morto, vida: e.vida, vidaMax: e.vidaMax }));
-    // morto ou no palco do criador: quem manda é o servidor, a previsão só espera
+    // morto ou no palco do criador: quem manda é o servidor, o celular só espera
     const podePrever = !s.morto && !s.criando;
     if (!podePrever) { this.ativo = false; j.morto = !!s.morto; this.encostar(s); this.ultSeqServ = s.acaoSeq; return; }
     if (!this.ativo) { this.ativo = true; j.morto = false; j.modo = s.modo; j.montado = s.montado; this.encostar(s); this.ultSeqServ = s.acaoSeq; return; }
     // levou um golpe lá no servidor: a reação também trava o herói aqui
-    if (s.acaoSeq !== this.ultSeqServ && s.acao?.nome === A.hit && (j.acao?.nome !== A.hit)) this.sim.tocar(j, A.hit, 1.4);
+    if (s.acaoSeq !== this.ultSeqServ && s.acao?.nome === A.hit && j.acao?.nome !== A.hit) this.sim.tocar(j, A.hit, 1.4);
     this.ultSeqServ = s.acaoSeq;
-    const p = this.passado(atraso);
-    if (!p) return;
-    const ex = s.x - p.x, ez = s.z - p.z, ey = (s.y || 0) - p.y;
-    if (Math.hypot(ex, ez) > PULO_GRANDE || Math.abs(ey) > PULO_GRANDE) { this.encostar(s); return; }
-    // corrige um pouco agora e desloca o histórico junto (para não corrigir o mesmo erro duas vezes)
-    const dx = ex * CORRIGE, dz = ez * CORRIGE;
-    j.x += dx; j.z += dz;
-    for (const h of this.hist) { h.x += dx; h.z += dz; }
   }
 
   // o que vai para o corpo na tela

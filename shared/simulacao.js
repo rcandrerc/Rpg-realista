@@ -1,7 +1,7 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -19,6 +19,7 @@ export class Simulacao {
     this.timers = [];
     this.eventos = [];
     this.proxId = 1;
+    this.ator = null; // quem está agindo agora: vai junto nos eventos (campo "de"), para o celular não repetir o efeito que ele já mostrou
     // pedras: o herói usa a altura de verdade (pode subir); os inimigos só contornam um círculo
     this.terreno = new Terreno(mapa);
     const vila = mapa.vila || { casas: [], arvores: [] };
@@ -116,8 +117,39 @@ export class Simulacao {
     const j = this.jogadores.get(id);
     if (j && (modo === 'Espada' || modo === 'Magia')) j.modo = modo;
   }
+  // O celular decide o movimento do próprio herói e manda a posição (20 vezes por segundo); aqui só conferimos.
+  // Velocidade: um "balde" de metros que enche na velocidade máxima de corrida (+30%) e guarda até ORCAMENTO.burst
+  // (para dash, rolamento e golpes que avançam). Altura: nem embaixo do chão nem voando. Mapa: dentro do limite.
+  // Se não bater, o herói fica onde o servidor sabe que ele está e o celular recebe "corrigir" (volta para lá).
+  posicaoCliente(id, p) {
+    const j = this.jogadores.get(id);
+    if (!j || j.morto || j.criando) return false;
+    const num = (v) => typeof v === 'number' && Number.isFinite(v);
+    if (!p || !num(p.x) || !num(p.y) || !num(p.z) || !num(p.ry)) return false;
+    const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : HEROI.correr) * 1.3;
+    if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
+    j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
+    const d = Math.hypot(p.x - j.x, p.z - j.z), chao = this.terreno.altura(p.x, p.z);
+    const ok = d <= j.orc + 0.05 && p.y >= chao - 0.6 && p.y <= chao + ORCAMENTO.altura && Math.hypot(p.x, p.z) <= this.mapa.raio;
+    if (!ok) {
+      this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
+      j.cliente = null;
+      return false;
+    }
+    j.orc -= d;
+    j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
+    j.chao = p.y - chao < 0.15; j.vy = 0;
+    if (typeof p.anim === 'string' && p.anim.length < 64) j.anim = p.anim; // só aparência, para os outros jogadores
+    j.cliente = { t: this.tempo };
+    return true;
+  }
+  guiado(j) { return j.tipo === 'jogador' && j.cliente && !j.morto && this.tempo - j.cliente.t < 0.5; }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
+    const antes = this.ator; this.ator = j;
+    try { this.usarHabilidadeDe(j, id, i); } finally { this.ator = antes; }
+  }
+  usarHabilidadeDe(j, id, i) {
     j.montado = null; // luta a pé
     if (i !== 9) j.modo = i === 10 || i > 4 ? 'Magia' : 'Espada'; // golpe usa a espada, magia usa o cajado
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
@@ -219,7 +251,7 @@ export class Simulacao {
     j.arrancada = { t: MOVIMENTO.dashTempo, dx: Math.sin(j.ry), dz: Math.cos(j.ry) };
     j.mortal = 0; j.pouso = 0;
     if (!j.chao) { j.vy = Math.max(0, j.vy); j.arrancadaNoAr = true; }
-    this.evento({ t: 'dash', id: j.id });
+    this.evento({ t: 'dash', id: j.id, de: j.id });
   }
 
   // ---------- combate ----------
@@ -319,8 +351,12 @@ export class Simulacao {
   }
 
   // ---------- ajudantes ----------
-  evento(e) { this.eventos.push(e); }
-  depois(dt, fn) { this.timers.push({ t: this.tempo + dt, fn }); }
+  evento(e) { if (this.ator && e.de === undefined && e.t !== 'aviso' && e.t !== 'fala') e.de = this.ator.id; this.eventos.push(e); }
+  // o que roda depois guarda quem agiu (o golpe que acerta 0,3 s depois continua sendo do mesmo herói)
+  depois(dt, fn) {
+    const ator = this.ator;
+    this.timers.push({ t: this.tempo + dt, fn: ator ? () => { const a = this.ator; this.ator = ator; try { fn(); } finally { this.ator = a; } } : fn });
+  }
   aFrente(c, d) { return { x: c.x + Math.sin(c.ry) * d, z: c.z + Math.cos(c.ry) * d }; }
   virarPara(c, alvo) { c.ry = Math.atan2(alvo.x - c.x, alvo.z - c.z); }
   empurrar(c, metros, t) { c.dash = { vx: Math.sin(c.ry) * metros / t, vz: Math.cos(c.ry) * metros / t, t }; }
@@ -500,7 +536,7 @@ export class Simulacao {
     vencidos.forEach((t) => t.fn());
 
     for (const c of this.todos()) {
-      if (c.dash && c.dash.t > 0) { this.mover(c, c.dash.vx * dt, c.dash.vz * dt); c.dash.t -= dt; }
+      if (c.dash && c.dash.t > 0) { if (!this.guiado(c)) this.mover(c, c.dash.vx * dt, c.dash.vz * dt); c.dash.t -= dt; } // guiado: o celular já fez o avanço
       if (c.trava > 0 && c.trava !== Infinity) {
         c.trava -= dt;
         if (c.trava <= 0) {
@@ -518,6 +554,10 @@ export class Simulacao {
   }
   passoJogador(j, dt) {
     j.mana = Math.min(HEROI.mana, j.mana + HEROI.manaPorSeg * dt);
+    if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
+      if (j.arrancada) { j.arrancada.t -= dt; if (j.arrancada.t <= 0) j.arrancada = null; }
+      return;
+    }
     if (j.esc && !j.morto) return this.passoEscalada(j, dt);
     this.passoVertical(j, dt);
     if (j.morto) j.montado = null;
@@ -584,6 +624,7 @@ export class Simulacao {
   passoProjeteis(dt) {
     for (let i = this.projeteis.length - 1; i >= 0; i--) {
       const p = this.projeteis[i], v = p.h.proj.vel;
+      this.ator = p.dono;
       p.vida -= dt; p.x += p.dx * v * dt; p.y += p.dy * v * dt; p.z += p.dz * v * dt;
       let fim = p.vida <= 0 || p.y < this.terreno.altura(p.x, p.z); // bate no chão ou na pedra
       for (const o of this.inimigosDe(p.dono)) {
@@ -600,13 +641,16 @@ export class Simulacao {
       this.evento({ t: 'projFim', id: p.id, x: r2(p.x), y: r2(p.y), z: r2(p.z), explosao: ex || 0, cor: p.h.proj.cor, estilo: p.h.proj.estilo });
       this.projeteis.splice(i, 1);
     }
+    this.ator = null;
   }
   passoCampos(dt) {
     for (let i = this.campos.length - 1; i >= 0; i--) {
       const f = this.campos[i]; f.vida -= dt; f.tique -= dt;
+      this.ator = f.dono;
       if (f.tique <= 0) { f.tique = 0.5; for (const o of this.inimigosDe(f.dono)) if (dist(o, f) < f.r) this.ferir(o, Math.round(f.dps * 0.5), f.dono); }
       if (f.vida <= 0) this.campos.splice(i, 1);
     }
+    this.ator = null;
   }
 
   // ---------- o que vai para a tela ----------
