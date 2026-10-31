@@ -42,6 +42,8 @@ class SalaClareira extends Room {
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.ouvir('falar', (c) => this.sim.falar(c.sessionId));
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
+    // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
+    this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) c.send('pong', t); });
     this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador
     // "Pronto" no criador: nome, corpo e aparência ficam gravados na conta e o criador não abre mais
     this.ouvir('pronto', (c, p) => {
