@@ -1,7 +1,7 @@
 // Ponto de entrada do cliente: monta a cena, conecta no servidor e desenha o que a simulação manda.
 import * as THREE from 'three';
 import { HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, BUILD_PADRAO, buildValida } from '@rpg/shared';
-import { criarRenderizador, montarCena } from './cena.js';
+import { criarRenderizador, montarCena, RESOLUCAO_MAX } from './cena.js';
 import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
@@ -223,6 +223,48 @@ function redimensionar() {
 }
 addEventListener('resize', redimensionar); redimensionar();
 
+// ---------- desempenho no celular ----------
+// Personagens fora da tela (e com a sombra fora dela) não são desenhados.
+const frustum = new THREE.Frustum(), projTela = new THREE.Matrix4(), luzSol = new THREE.Vector3();
+function cortarForaDaTela() {
+  camera.updateMatrixWorld();
+  frustum.setFromProjectionMatrix(projTela.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  luzSol.subVectors(mundo.sol.position, mundo.sol.target.position).normalize();
+  for (const c of corpos.values()) c.corpo.cortar(frustum, luzSol);
+}
+
+// Resolução que se ajusta sozinha (só no celular): se o FPS cair, a imagem fica um pouco menos nítida em vez de travar,
+// e volta ao máximo quando sobra fôlego. Se baixar não ajudar (aparelho ou Chrome travado em 30, economia de bateria),
+// volta e não mexe mais por um tempo.
+const RESOLUCAO_MIN = TOQUE ? Math.min(RESOLUCAO_MAX, 1.2) : RESOLUCAO_MAX;
+const resol = { atual: RESOLUCAO_MAX, teto: RESOLUCAO_MAX, ini: 0, n: 0, bons: 0, antes: null, travado: 0 };
+function mudarResolucao(v) {
+  resol.atual = Math.round(v * 100) / 100;
+  renderer.setPixelRatio(resol.atual); renderer.setSize(innerWidth, innerHeight, false);
+}
+function ajustarResolucao() {
+  const agora = performance.now();
+  if (!resol.ini) { resol.ini = agora; resol.travado = agora + 20000; } // começo: o resto dos personagens ainda está chegando
+  resol.n++;
+  const passou = (agora - resol.ini) / 1000;
+  if (passou < 2.5 || RESOLUCAO_MIN >= RESOLUCAO_MAX) return;
+  const fps = resol.n / passou; resol.ini = agora; resol.n = 0;
+  if (document.hidden || criador.aberto) return;
+  if (resol.antes) { // acabou de baixar: confere se adiantou
+    const ajudou = fps >= resol.antes.fps * 1.08;
+    if (!ajudou) { mudarResolucao(resol.antes.pr); resol.travado = agora + 60000; }
+    resol.antes = null; return;
+  }
+  if (fps < 50 && resol.atual > RESOLUCAO_MIN && agora > resol.travado) {
+    resol.antes = { fps, pr: resol.atual }; resol.bons = 0;
+    if (resol.atual < resol.teto) resol.teto = resol.atual; // subir até aqui já deu queda: não insiste
+    mudarResolucao(Math.max(RESOLUCAO_MIN, resol.atual - 0.1)); // passos pequenos: a nitidez não "pula"
+  } else if (fps > 57) {
+    if (++resol.bons >= 3 && resol.atual < resol.teto) { resol.bons = 0; mudarResolucao(Math.min(resol.teto, resol.atual + 0.1)); }
+  } else resol.bons = 0;
+}
+setInterval(() => { resol.teto = RESOLUCAO_MAX; }, 120000); // de tempos em tempos tenta a imagem mais nítida de novo
+
 // ---------- laço principal ----------
 const relogio = new THREE.Clock(), alvoCam = new THREE.Vector3(), tmp = new THREE.Vector3();
 let t = 0;
@@ -261,7 +303,11 @@ function quadro() {
       const desloc = criador.largura() / 2;
       if (desloc !== deslocCam) { deslocCam = desloc; palco.camera.aspect = camera.aspect; palco.camera.setViewOffset(innerWidth, innerHeight, desloc, 0, innerWidth, innerHeight); }
       if (pos) pos.render(palco.scene, palco.camera); else renderer.render(palco.scene, palco.camera);
-    } else if (pos) pos.render(); else renderer.render(mundo.scene, camera);
+    } else {
+      cortarForaDaTela();
+      if (pos) pos.render(); else renderer.render(mundo.scene, camera);
+    }
+    ajustarResolucao();
   }
   requestAnimationFrame(quadro);
 }

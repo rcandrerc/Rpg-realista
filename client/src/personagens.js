@@ -450,6 +450,7 @@ const ARMAS_VRM = {
 
 // ritmo do balanço montado (ciclo em segundos, igual ao das animações do lobo) e quanto o corpo mexe
 const MONTADO_PASSO = { parado: { ciclo: 2, forca: 0.3 }, andar: { ciclo: 0.5, forca: 0.6 }, correr: { ciclo: 0.6, forca: 1.4 } };
+const CORTE_P = new THREE.Vector3(), CORTE_E = new THREE.Sphere();
 const TMP_A = new THREE.Vector3(), TMP_B = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_Q2 = new THREE.Quaternion(), TMP_EULER = new THREE.Euler();
 const IK_S = new THREE.Vector3(), IK_T = new THREE.Vector3(), IK_E = new THREE.Vector3(), IK_D = new THREE.Vector3(), IK_P = new THREE.Vector3(), IK_R = new THREE.Vector3();
 const SELA_L = new THREE.Vector3(), IK_Q = new THREE.Quaternion(), BAIXO = new THREE.Vector3(0, -1, 0);
@@ -601,6 +602,18 @@ export class Corpo {
     this.tinta = aparencia || {};
     this.root.scale.setScalar(this.escalaBase * (aparencia?.altura || 1));
     if (this.vrm) { tingirVRM(this.vrm, this.visual, this.tinta); aplicarRosto(this.vrm, this.tinta); }
+  }
+  // Fora da tela não desenha (nem na sombra): cada personagem anime tem ~40 mil triângulos e é desenhado duas vezes
+  // por quadro (tela + sombra). Conta também a sombra: a esfera vai do corpo até a ponta da sombra no chão, do lado
+  // contrário ao sol (luz = direção do sol), para a sombra de quem está fora da tela não sumir de repente.
+  cortar(frustum, luz) {
+    const p = this.root.position, e = this.root.scale.x, topo = p.y + 1.8 * e, k = topo / Math.max(luz.y, 0.2);
+    CORTE_P.set(p.x - luz.x * k, 0, p.z - luz.z * k); // ponta da sombra no chão
+    CORTE_E.center.set(p.x, p.y + e, p.z).add(CORTE_P).multiplyScalar(0.5);
+    CORTE_E.radius = CORTE_E.center.distanceTo(CORTE_P) + (this.montaria ? 3 : 1.6) * e;
+    const v = frustum.intersectsSphere(CORTE_E);
+    this.inclina.visible = v;
+    if (this.montaria) this.montaria.grupo.visible = v;
   }
   // Montaria: o lobo vai embaixo do herói, que senta na sela (quadril preso no osso das costas do lobo)
   montar(id) {
