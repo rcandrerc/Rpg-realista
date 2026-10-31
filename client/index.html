@@ -151,7 +151,11 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 #menuJogo button.perigo{color:#e6a08a;border-color:rgba(230,160,138,.35)}
 #menuJogo button:active{transform:scale(.97)}
 .info{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 10px;font:600 .78rem var(--body)}
-.net{position:fixed;top:calc(env(safe-area-inset-top,0px) + 68px * var(--ui));transform:scale(var(--ui));transform-origin:top right;right:max(16px,env(safe-area-inset-right,0px));font:700 .7rem var(--body);color:var(--ink);pointer-events:none;background:rgba(22,18,14,.72);border:1px solid rgba(236,206,140,.4);border-radius:10px;padding:3px 9px}
+.net{position:fixed;top:calc(env(safe-area-inset-top,0px) + 68px * var(--ui));transform:scale(var(--ui));transform-origin:top right;right:max(16px,env(safe-area-inset-right,0px));font:700 .7rem var(--body);color:var(--ink);pointer-events:none;background:rgba(22,18,14,.72);border:1px solid rgba(236,206,140,.4);border-radius:10px;padding:3px 9px;display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.net .pt{width:7px;height:7px;border-radius:50%;flex:none;background:var(--pt,#9a8f7c);box-shadow:0 0 6px var(--pt,transparent)}
+.net[data-nivel=bom]{--pt:#6fd36a}.net[data-nivel=medio]{--pt:#e8c54a}.net[data-nivel=ruim]{--pt:#e8664a}
+.net[data-nivel=aviso]{--pt:#e8a04a}.net[data-nivel=espera],.net[data-nivel=solo]{--pt:#9a8f7c;box-shadow:none}
+.net[data-nivel=ruim] #netTxt{color:#f2b6a4}
 .tag3d.ally b{color:#9fc6e8}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 88px * var(--ui));transform:translateX(-50%);font-family:var(--display);font-size:calc(1.15rem * var(--ui));color:var(--gold);text-shadow:0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
 .tag3d{position:fixed;left:0;top:0;pointer-events:none;transform:translate(-50%,-100%);text-align:center;font-size:.75rem;font-weight:700;text-shadow:1px 0 2px #000,-1px 0 2px #000,0 1px 2px #000,0 -1px 2px #000;white-space:nowrap}
@@ -254,7 +258,7 @@ body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,bod
   </div>
   <button class="ib" id="recolherBtn" type="button" aria-label="Recolher menu" title="Recolher menu" aria-expanded="true" aria-controls="barraItens"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="#e6c98a" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 </nav>
-<div class="net" id="net">Conectando…</div>
+<div class="net" id="net" data-nivel="espera" role="status" aria-live="polite"><i class="pt" aria-hidden="true"></i><span id="netTxt">Conectando…</span></div>
 <div id="menuJogo" role="dialog" aria-label="Menu" hidden><div class="caixa">
   <h2>Menu</h2>
   <div class="lista">

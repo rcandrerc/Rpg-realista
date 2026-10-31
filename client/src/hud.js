@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
 const v = new THREE.Vector3();
 
 export class Hud {
-  constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.build = [...BUILD_PADRAO]; this.modo = 'Espada'; }
+  constructor(camera) { this.camera = camera; this.pops = []; this.npcLista = []; this.avisoT = 0; this.netT = 0; this.build = [...BUILD_PADRAO]; this.modo = 'Espada'; }
 
   montarBotoes({ usar, pular, dash, rolar, montar }) {
     [0, 1, 2, 3, 4].forEach((i) => $('b' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); usar(this.indice(i)); }));
@@ -120,7 +120,29 @@ export class Hud {
     document.querySelector('#br .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.rolar || 0) / HEROI.rolarCd)})`;
     document.querySelector('#bd .cdv').style.transform = `scaleY(${Math.min(1, (eu.cds.dash || 0) / MOVIMENTO.dashCd)})`;
   }
-  rede(texto) { $('net').textContent = texto; }
+  // Situação da conexão (mensagens como "Reconectando…"); 'Online' deixa o ping aparecer
+  rede(texto) { this.netTexto = texto; this.netT = 0; }
+  // Ping e conexão no canto: bolinha verde (até 100 ms), amarela (até 200 ms) ou vermelha. Atualiza 4 vezes por segundo.
+  // Junto vai o FPS do aparelho: se o FPS cair, o atraso é do celular e não da internet.
+  conexao(rede, dt) {
+    const agora = performance.now(); // relógio de verdade (o dt do jogo é limitado e esconderia quadros lentos)
+    this.qN = (this.qN || 0) + 1; this.q0 ??= agora;
+    if (agora - this.q0 >= 1000) { this.fps = Math.round(this.qN * 1000 / (agora - this.q0)); this.qN = 0; this.q0 = agora; }
+    if ((this.netT -= dt) > 0) return;
+    this.netT = 0.25;
+    const t = this.netTexto || 'Conectando…';
+    let nivel, txt;
+    if (!rede) { nivel = 'espera'; txt = t; }
+    else if (rede.modo !== 'online') { nivel = 'solo'; txt = 'Solo (sem servidor)'; }
+    else if (!rede.conectado || t !== 'Online') { nivel = /Sem|apagada|outro/.test(t) ? 'ruim' : 'aviso'; txt = t; }
+    else if (performance.now() - rede.ultimaFoto > 1500) { nivel = 'ruim'; txt = 'Servidor sem resposta'; }
+    else if (rede.ping == null) { nivel = 'espera'; txt = 'Online'; }
+    else { const ms = Math.round(rede.ping); nivel = ms <= 100 ? 'bom' : ms <= 200 ? 'medio' : 'ruim'; txt = `${ms} ms`; }
+    if (this.fps && rede) txt += ` · ${this.fps} FPS`;
+    const el = $('net');
+    if (el.dataset.nivel !== nivel) el.dataset.nivel = nivel;
+    const s = $('netTxt'); if (s.textContent !== txt) s.textContent = txt;
+  }
   aviso(t) { const el = $('toast'); el.textContent = t; el.style.opacity = 1; this.avisoT = 1.6; }
 
   tela(obj, altura) {

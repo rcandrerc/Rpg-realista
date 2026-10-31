@@ -196,6 +196,7 @@ const relogio = new THREE.Clock(), alvoCam = new THREE.Vector3(), tmp = new THRE
 let t = 0;
 function quadro() {
   const dt = Math.min(relogio.getDelta(), 0.05); t += dt;
+  hud.conexao(rede, dt);
   if (rede) {
     enviarEntrada(dt);
     // golpe base segurado (botão ou tecla J): repete; o servidor guarda o próximo golpe enquanto o atual termina
@@ -269,7 +270,7 @@ function quadro() {
       try { rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t), entrada?.sessao, primeiraVez, criador.aparencia); break; }
       catch (e) { if (!e.login || tentativa > 0) throw e; try { localStorage.removeItem('sessao'); } catch { /* nada guardado */ } }
     }
-    hud.rede(rede.modo === 'online' ? 'Online' : 'Modo solo (sem servidor)');
+    hud.rede('Online');
     rede.enviar('build', build);
     if (primeiraVez) rede.enviar('aparencia', criador.aparencia); // a aparência só muda no criador
     $('nome').textContent = nome;

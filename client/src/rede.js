@@ -31,14 +31,23 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
     console.warn('Servidor indisponível, jogando no modo solo:', e.message);
     return modoSolo(mapa, nome, visual, aoReceber, criando, aparencia);
   }
-  const rede = { modo: 'online', meuId: sala.sessionId, passo: () => {} };
+  // ping: ida e volta de uma mensagem até o servidor, medida a cada 2 s (média suave das últimas)
+  // ultimaFoto: quando chegou a última foto do mundo (se parar de chegar, a conexão travou)
+  const rede = { modo: 'online', meuId: sala.sessionId, passo: () => {}, ping: null, ultimaFoto: performance.now(), conectado: true };
   rede.enviar = (tipo, msg) => { if (sala.connection.isOpen) sala.send(tipo, msg); };
+  const medir = () => rede.enviar('ping', Math.round(performance.now() * 10) / 10);
+  setInterval(medir, 2000); medir();
 
   const ligar = (s) => {
     sala = s;
-    s.onMessage('mundo', (m) => aoReceber(m.foto, m.eventos));
+    s.onMessage('mundo', (m) => { rede.ultimaFoto = performance.now(); aoReceber(m.foto, m.eventos); });
+    s.onMessage('pong', (t) => {
+      const ms = performance.now() - t;
+      if (ms >= 0 && ms < 30000) rede.ping = rede.ping == null ? ms : rede.ping * 0.6 + ms * 0.4;
+    });
     s.onLeave(async (codigo) => {
       console.warn('Conexão caiu, código', codigo);
+      rede.conectado = false; rede.ping = null;
       if (codigo === 1000) return; // saiu de propósito
       if (codigo === 4001) { aoMudarStatus('Sua conta entrou em outro aparelho.'); return; }
       if (codigo === 4002) { aoMudarStatus('Conta apagada.'); return; }
@@ -46,7 +55,7 @@ export async function conectar(mapa, nome, visual, aoReceber, aoMudarStatus = ()
       const token = s.reconnectionToken;
       for (let tentativa = 0; tentativa < 8; tentativa++) {
         await espera(1000 + tentativa * 1000);
-        try { ligar(await comPrazo(cliente.reconnect(token), 4000)); aoMudarStatus('Online'); return; } catch { /* tenta de novo */ }
+        try { ligar(await comPrazo(cliente.reconnect(token), 4000)); rede.conectado = true; rede.ultimaFoto = performance.now(); aoMudarStatus('Online'); medir(); return; } catch { /* tenta de novo */ }
       }
       aoMudarStatus('Sem conexão. Recarregue a página.');
     });
