@@ -5,9 +5,9 @@ import { HABILIDADES, HEROI } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const SEGURAR = 2000; // ms para entrar no modo de edição
-const CHAVE = 'layoutBotoes2'; // 2: botões na distribuição do Quimera (a arrumação antiga não serve mais)
-const BOTOES = ['b0', 'b1', 'b2', 'b3', 'b4', 'b9', 'bt', 'bd', 'bp', 'br'];
-const NOMES = { b0: 'Golpe', b9: 'Cura', bt: 'Trocar', bd: 'Dash', bp: 'Pular', br: 'Rolar' };
+const CHAVE = 'layoutBotoes3'; // 3: skills em coluna ao lado do golpe, Cura embaixo (a arrumação antiga não serve mais)
+const BOTOES = ['b0', 'b1', 'b2', 'b3', 'b4', 'b9', 'bt', 'bd', 'bp', 'br', 'bm'];
+const NOMES = { b0: 'Golpe', b9: 'Cura', bt: 'Trocar', bd: 'Dash', bp: 'Pular', br: 'Rolar', bm: 'Lobo' };
 const ESCALA = [0.6, 1.6];
 
 const ler = () => { try { return JSON.parse(localStorage.getItem(CHAVE)) || {}; } catch { return {}; } };

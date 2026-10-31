@@ -27,8 +27,6 @@ const controles = new Controles(canvas);
 const hud = new Hud(camera);
 const segurarCamera = cameraForaDasCasas(mapa);
 botaoEstilo($('menuEstilo'));
-// Teste da montaria: ícone do lobo na barra de cima (ou tecla M) sobe e desce do lobo
-$('loboBtn')?.addEventListener('click', () => montar());
 
 let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
@@ -105,7 +103,7 @@ controles.aoTeclar = (code) => {
   if (code === 'KeyF') falar();
   if (code === 'KeyM') montar();
 };
-hud.montarBotoes({ usar, pular, dash, rolar });
+hud.montarBotoes({ usar, pular, dash, rolar, montar }); // lobo: botão redondo de baixo (ou tecla M)
 hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a espada das costas
 
 // build (habilidades nos botões) também fica guardada no aparelho

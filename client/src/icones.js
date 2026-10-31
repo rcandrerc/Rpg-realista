@@ -9,6 +9,7 @@ const ICO = {
   // movimento (como os do Quimera)
   pular: `<path d="M12 20V7M6.5 12L12 6.5l5.5 5.5" stroke-width="2.6"/><path d="M8 3h8"/>`,
   dash: '<path d="M10 12h11M16.5 7.5L21 12l-4.5 4.5" stroke-width="2.6"/><path d="M3 8h5M2 12h5M3 16h5"/>',
+  lobo: `<path d="M4.5 3.5l4 4.5h7l4-4.5-.5 8 2.5 3.5-4.5 2-2.5 4h-5l-2.5-4-4.5-2L5 11.5z" ${F}/><path d="M8 11l2 .8M16 11l-2 .8M10.5 16.5h3l-1.5 1.5z"/>`,
   rolar: `<circle cx="12" cy="12" r="3.2" ${F}/><path d="M19.5 9.5A8 8 0 1 0 20 14"/><path d="M20.5 5v4.5H16"/>`,
   // espada
   relampago: `<path d="M13.5 2L5 13.5h6L9.5 22 19 9.5h-6.2L13.5 2z" ${F}/>`,

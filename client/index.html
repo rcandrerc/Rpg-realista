@@ -100,7 +100,7 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 .knob{position:absolute;left:50%;top:50%;width:calc(52px * var(--ui));height:calc(52px * var(--ui));margin:calc(-26px * var(--ui)) 0 0 calc(-26px * var(--ui));border-radius:50%;background:rgba(239,231,214,.85)}
 /* Botões de luta na mesma distribuição do Quimera: golpe grande no canto, habilidades em arco em volta,
    Cura dentro do arco, Trocar no alto à direita e Rolar, Dash e Pular numa fileira embaixo */
-.acts{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);right:max(16px,env(safe-area-inset-right,0px));width:360px;height:270px;pointer-events:none}
+.acts{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);right:max(16px,env(safe-area-inset-right,0px));width:425px;height:270px;pointer-events:none}
 .acts button{pointer-events:auto}
 .acts{transform:scale(var(--ui));transform-origin:bottom right}
 .acts button{position:absolute;width:54px;height:54px;border-radius:50%;border:3px solid #4a3a24;box-shadow:0 0 0 1px #8a6a2c,0 3px 10px rgba(0,0,0,.35);background:radial-gradient(circle at 35% 30%,#4d4160,#1b1524);color:var(--ink);font:700 .7rem/1.05 var(--body);touch-action:none;overflow:hidden;padding:0}
@@ -111,16 +111,18 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 .acts button:focus-visible,.ib:focus-visible,#menuJogo button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .acts .cdv{position:absolute;inset:0;background:var(--cd);transform-origin:bottom;transform:scaleY(0);pointer-events:none}
 .acts .lbl{position:relative}
-#b0{width:80px;height:80px;right:0;bottom:0;background:radial-gradient(circle at 35% 30%,#6a3b2a,#231310)}
+#b0{width:80px;height:80px;right:0;bottom:56px;background:radial-gradient(circle at 35% 30%,#6a3b2a,#231310)}
 .acts .sk{font-size:.62rem;line-height:1}
-#b1{right:13px;bottom:113px} #b2{right:84px;bottom:84px} #b3{right:113px;bottom:13px} #b4{right:167px;bottom:63px}
-#bt{width:46px;height:46px;right:0;bottom:217px;background:radial-gradient(circle at 35% 30%,#7a5a2a,#2a1c0c)}
+/* skills em arco, uma em cima da outra, à esquerda do golpe; Trocar no topo e Cura embaixo do golpe */
+#b1{right:64px;bottom:169px} #b2{right:106px;bottom:132px} #b3{right:125px;bottom:79px} #b4{right:115px;bottom:23px}
+#bt{width:46px;height:46px;right:13px;bottom:185px;background:radial-gradient(circle at 35% 30%,#7a5a2a,#2a1c0c)}
 .acts.magia #b0{background:radial-gradient(circle at 35% 30%,#5b3f8f,#1d1233)}
 .acts.magia #bt{background:radial-gradient(circle at 35% 30%,#5b3f8f,#1d1233)}
-#b9{width:48px;height:48px;right:131px;bottom:131px;background:radial-gradient(circle at 35% 30%,#3b6a46,#12241a)}
-#bp{width:58px;height:58px;right:176px;bottom:0}
-#bd{width:50px;height:50px;right:240px;bottom:2px}
-#br{width:50px;height:50px;right:300px;bottom:2px}
+#b9{width:48px;height:48px;right:16px;bottom:2px;background:radial-gradient(circle at 35% 30%,#3b6a46,#12241a)}
+#bp{width:58px;height:58px;right:190px;bottom:0}
+#bd{width:50px;height:50px;right:256px;bottom:2px}
+#br{width:50px;height:50px;right:314px;bottom:2px}
+#bm{width:50px;height:50px;right:372px;bottom:2px;background:radial-gradient(circle at 35% 30%,#3d5270,#121b2a)}
 /* Barra de cima (como a do Quimera): ícones que recolhem na seta e voltam pra frente */
 .topo{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:max(16px,env(safe-area-inset-right,0px));transform:scale(var(--ui));transform-origin:top right;display:flex;gap:6px;align-items:center;z-index:5}
 .topo .itens{display:flex;gap:6px;transition:transform .28s cubic-bezier(.3,.7,.3,1),opacity .2s}
@@ -180,7 +182,7 @@ body.editando .top,body.editando .topo,body.editando #padZona,body.editando .pad
 .ico{fill:none;stroke:#fff;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 1px #000c);pointer-events:none;display:block}
 .acts .ico{width:30px;height:30px;margin:auto}
 #b0 .ico{width:40px;height:40px}
-#b9 .ico,#bt .ico,#bd .ico,#br .ico{width:26px;height:26px}
+#b9 .ico,#bt .ico,#bd .ico,#br .ico,#bm .ico{width:26px;height:26px}
 #b0 .ico{width:42px;height:42px}
 .acts .lbl{display:grid;place-items:center;height:100%}
 .hgrid button.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
@@ -233,7 +235,6 @@ body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,bod
     <button class="ib" id="habBtn" type="button" aria-label="Habilidades" title="Habilidades"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C9.5 4.8 6.5 4.4 3 5v13.5c3.5-.6 6.5-.2 9 1.5 2.5-1.7 5.5-2.1 9-1.5V5c-3.5-.6-6.5-.2-9 1.5z" fill="#7a3f2a"/><path d="M12 7.6C9.8 6.2 7.3 5.8 4.6 6.1v10.8c2.7-.2 5.2.2 7.4 1.4 2.2-1.2 4.7-1.6 7.4-1.4V6.1c-2.7-.3-5.2.1-7.4 1.5z" fill="#f4e6c4"/><path d="M12 7.6v10.7" stroke="#c9a46a" stroke-width=".9"/><path d="M16 8.6l.75 1.6 1.75.25-1.27 1.22.3 1.73L16 12.6l-1.53.8.3-1.73-1.27-1.22 1.75-.25z" fill="#5aa8ff"/><path d="M6.4 10h3.6M6.4 12.3h3.6M6.4 14.6h2.6" stroke="#b89a6a" stroke-width=".9" stroke-linecap="round"/></svg></button>
     <button class="ib" id="pickBtn" type="button" aria-label="Personagem" title="Personagem"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.6" r="4.4" fill="#f2c9a0"/><path d="M7.4 8.4c0-3.4 2.2-5.4 4.8-5.4 2.9 0 4.6 2.1 4.6 5.2-1.6-.2-3.6-1-4.9-2.6-.9 1.6-2.6 2.6-4.5 2.8z" fill="#d2552e"/><path d="M4.5 21c.6-4.1 3.6-6.6 7.5-6.6s6.9 2.5 7.5 6.6z" fill="#5a7fc0"/><path d="M10 14.6l2 2.2 2-2.2" fill="#f4e6c4"/></svg></button>
     <button class="ib" id="bolsaBtn" type="button" aria-label="Status e equipamento" title="Status e equipamento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7" stroke="#e6c98a" stroke-width="2" fill="none"/><rect x="4" y="7" width="16" height="14" rx="4" fill="#b8793e"/><rect x="4" y="7" width="16" height="5" rx="2.5" fill="#cf9150"/><rect x="8.5" y="12.5" width="7" height="5" rx="1.5" fill="#8a5a2c"/><circle cx="12" cy="15" r="1.1" fill="#e6c98a"/></svg></button>
-    <button class="ib" id="loboBtn" type="button" aria-label="Montar no lobo" title="Montar no lobo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3l4.5 5h7L20 3l-.5 8.5L22 15l-5 2-2.5 4h-5L7 17l-5-2 2.5-3.5z" fill="#3a4a66"/><path d="M8.5 13.5l3.5 1.5 3.5-1.5-1.5 4.5h-4z" fill="#a3acb6"/><path d="M7.5 10.5l2.5 1M16.5 10.5l-2.5 1" stroke="#ffb02e" stroke-width="1.6" stroke-linecap="round"/><path d="M11 18.5h2l-1 1.2z" fill="#1b2333"/></svg></button>
     <button class="ib" id="infoBtn" type="button" aria-label="Esboço do jogo" title="Esboço do jogo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h11a2 2 0 0 1 2 2v12.5a2.5 2.5 0 0 1-2.5 2.5H7.5A2.5 2.5 0 0 1 5 18.5V5a1 1 0 0 1 1-1z" fill="#f4e6c4"/><path d="M5 18.5A2.5 2.5 0 0 1 7.5 16H19v2.5a2.5 2.5 0 0 1-2.5 2.5H7.5A2.5 2.5 0 0 1 5 18.5z" fill="#d9bf8a"/><path d="M8.5 7.5h7M8.5 10h7M8.5 12.5h4.5" stroke="#8a6a3c" stroke-width="1.2" stroke-linecap="round"/><path d="M15 12l3.5-3.5 1.4 1.4-3.5 3.5-2 .6z" fill="#d9a54a"/></svg></button>
     <button class="ib" id="menuBtn" type="button" aria-label="Menu" title="Menu" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" stroke="#e6c98a" stroke-width="2.4" stroke-linecap="round"/></svg></button>
   </div>
@@ -267,6 +268,7 @@ body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,bod
   <button id="bd" type="button"><span class="cdv"></span><span class="lbl"></span></button>
   <button id="bp" type="button"><span class="lbl"></span></button>
   <button id="br" type="button"><span class="cdv"></span><span class="lbl"></span></button>
+  <button id="bm" type="button"><span class="lbl"></span></button>
 </div>
 <div class="help">WASD anda · Shift corre · J golpe (ou disparo) · K L I U habilidades · R troca espada/magia · H cura · roda do mouse ou dois dedos: zoom · Espaço pula (no ar, de novo: mortal) · E dash · Q rola · arraste para girar a câmera</div>
 
