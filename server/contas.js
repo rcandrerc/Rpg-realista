@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { PERSONAGENS, buildValida } from '@rpg/shared';
+import { PERSONAGENS, buildValida, aparenciaValida } from '@rpg/shared';
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
@@ -39,6 +39,7 @@ export class Contas {
         nome TEXT NOT NULL,
         visual TEXT,
         build TEXT,
+        aparencia TEXT,
         criada INTEGER NOT NULL,
         ultimo_acesso INTEGER NOT NULL
       );
@@ -47,6 +48,8 @@ export class Contas {
         conta INTEGER NOT NULL REFERENCES contas(id),
         expira INTEGER NOT NULL
       );`);
+    // bancos criados antes da coluna aparencia
+    if (!this.db.prepare('PRAGMA table_info(contas)').all().some((c) => c.name === 'aparencia')) this.db.exec('ALTER TABLE contas ADD COLUMN aparencia TEXT');
     this.q = {
       porGoogle: this.db.prepare('SELECT * FROM contas WHERE google = ?'),
       criar: this.db.prepare('INSERT INTO contas (google, email, nome, criada, ultimo_acesso) VALUES (?, ?, ?, ?, ?)'),
@@ -56,7 +59,9 @@ export class Contas {
       renovar: this.db.prepare('UPDATE sessoes SET expira = ? WHERE resumo = ?'),
       apagarSessao: this.db.prepare('DELETE FROM sessoes WHERE resumo = ?'),
       limpar: this.db.prepare('DELETE FROM sessoes WHERE expira < ?'),
-      visual: this.db.prepare('UPDATE contas SET visual = ? WHERE id = ?'),
+      personagem: this.db.prepare('UPDATE contas SET nome = ?, visual = ?, aparencia = ? WHERE id = ? AND visual IS NULL'),
+      apagarSessoes: this.db.prepare('DELETE FROM sessoes WHERE conta = ?'),
+      apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
     };
     this.copiar();
@@ -95,7 +100,11 @@ export class Contas {
 
   sair(sessao) { if (typeof sessao === 'string') this.q.apagarSessao.run(resumo(sessao)); }
 
-  salvarVisual(id, visual) { if (PERSONAGENS.some((p) => p.id === visual)) this.q.visual.run(visual, id); }
+  // Personagem criado (uma vez só: depois que a conta tem visual, não muda mais)
+  salvarPersonagem(id, { nome, visual, aparencia }) {
+    if (PERSONAGENS.some((p) => p.id === visual)) this.q.personagem.run(nome, visual, JSON.stringify(aparencia), id);
+  }
+  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); }
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
 
   // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 14)
@@ -117,5 +126,7 @@ export class Contas {
 function publica(c) {
   let build = null;
   try { build = c.build ? JSON.parse(c.build) : null; } catch { /* build antiga inválida: usa a padrão */ }
-  return { id: c.id, nome: c.nome, visual: c.visual, build: buildValida(build) ? build : null };
+  let aparencia = null;
+  try { aparencia = c.aparencia ? aparenciaValida(JSON.parse(c.aparencia)) : null; } catch { /* inválida: usa a padrão */ }
+  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null };
 }

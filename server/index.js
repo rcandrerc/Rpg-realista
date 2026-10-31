@@ -16,7 +16,8 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 60 por segundo, guarda até 120).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 60, max: 120, custo: { build: 20, visual: 20, aparencia: 10 } };
+const LIMITE = { porSeg: 60, max: 120, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20 } };
+const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID;
@@ -28,6 +29,7 @@ class SalaClareira extends Room {
   maxClients = 16;
 
   onCreate() {
+    salas.add(this);
     this.sim = new Simulacao(MAPA_CLAREIRA);
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
@@ -40,7 +42,12 @@ class SalaClareira extends Room {
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.ouvir('falar', (c) => this.sim.falar(c.sessionId));
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
-    this.ouvir('visual', (c, v) => { this.sim.trocarVisual(c.sessionId, String(v)); if (contas && c.auth) contas.salvarVisual(c.auth.id, String(v)); });
+    this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador
+    // "Pronto" no criador: nome, corpo e aparência ficam gravados na conta e o criador não abre mais
+    this.ouvir('pronto', (c, p) => {
+      const r = this.sim.concluirCriacao(c.sessionId, p);
+      if (r && contas && c.auth) contas.salvarPersonagem(c.auth.id, r);
+    });
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
   }
 
@@ -81,11 +88,14 @@ class SalaClareira extends Room {
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) { (outro.userData ||= {}).substituido = true; outro.leave(4001); }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
-    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual);
+    // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
+    const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
+    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia });
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
-    if (opcoes?.criando === true) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
-    if (conta && !conta.visual) contas.salvarVisual(conta.id, String(opcoes?.visual)); // conta nova: guarda o personagem que já usava no aparelho
+    if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
   }
+
+  onDispose() { salas.delete(this); }
 
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
@@ -126,6 +136,15 @@ app.get('/conta/eu', (req, res) => {
   conta ? res.json({ conta }) : res.status(401).json({ erro: 'login' });
 });
 app.post('/conta/sair', (req, res) => { contas.sair(sessaoDe(req)); res.json({ ok: true }); });
+// Apaga a conta de vez (personagem, build e sessões). Quem estiver jogando com ela sai da sala.
+app.post('/conta/apagar', (req, res) => {
+  const conta = contas.porSessao(sessaoDe(req));
+  if (!conta) return res.status(401).json({ erro: 'login' });
+  contas.apagar(conta.id);
+  for (const sala of salas) for (const c of sala.clients) if (c.auth?.id === conta.id) { (c.userData ||= {}).substituido = true; c.leave(4002); }
+  console.log(`Conta apagada: ${conta.id}`);
+  res.json({ ok: true });
+});
 
 const servidor = http.createServer(app);
 const gameServer = new Server({ transport: new WebSocketTransport({ server: servidor, pingInterval: 5000, pingMaxRetries: 4 }) });

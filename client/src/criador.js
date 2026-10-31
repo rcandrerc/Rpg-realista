@@ -1,6 +1,7 @@
 // Criador de personagem: escolhe o corpo (base feminina, masculina ou um dos prontos) e pinta cabelo, olhos, pele e roupa.
-// Muda na hora no herói, que fica num palco fora do mapa (client/src/palco.js); o resultado fica guardado no aparelho.
-import { PERSONAGENS, CRIADOR, aparenciaValida } from '@rpg/shared';
+// Muda na hora no herói, que fica num palco fora do mapa (client/src/palco.js). Abre uma vez só, na criação da conta,
+// e no Pronto o nome, o corpo e a aparência ficam gravados de vez (Simulacao.concluirCriacao).
+import { PERSONAGENS, CRIADOR, NOME, aparenciaValida, nomeValido } from '@rpg/shared';
 
 const $ = (id) => document.getElementById(id);
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
@@ -34,8 +35,15 @@ export class Criador {
     for (const f of document.querySelectorAll('#criar .cfaixa')) f.addEventListener('input', () => { this.aparencia[f.dataset.k] = +f.value; this.foco = 'rosto'; this.mudou(); });
     $('criar').addEventListener('click', (e) => { if (e.target.closest('button')) this.foco = 'corpo'; });
     $('cSorte').addEventListener('click', () => this.sortear());
-    $('cPronto').addEventListener('click', () => this.fechar());
-    $('pickBtn').addEventListener('click', () => this.abrir());
+    // Pronto: só com nome válido. Depois disso o criador não abre mais (aoConcluir avisa o servidor)
+    $('cNome').maxLength = NOME.max;
+    $('cNome').addEventListener('input', () => { $('cErro').textContent = ''; });
+    $('cPronto').addEventListener('click', () => {
+      const nome = nomeValido($('cNome').value);
+      if (!nome) { $('cErro').textContent = `Dê um nome ao personagem: de ${NOME.min} a ${NOME.max} letras ou números.`; $('cNome').focus(); return; }
+      this.aoConcluir?.({ nome, visual: this.visual, aparencia: { ...this.aparencia } });
+      this.fechar();
+    });
     this.marcar();
   }
   // aoAlternar(aberto): o herói vai para o palco e sai do mundo enquanto cria (main.js)

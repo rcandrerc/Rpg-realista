@@ -96,3 +96,15 @@ export async function sairDaConta(servidor) {
   try { window.google?.accounts.id.disableAutoSelect(); } catch { /* Google não carregou */ }
   if (sessao) await pedir(servidor, '/conta/sair', { sessao, corpo: {} }).catch(() => {});
 }
+
+// Apaga a conta no servidor (personagem, build e sessões) e esquece a sessão deste aparelho
+export async function apagarConta(servidor) {
+  const sessao = lerSessao();
+  if (!sessao || !servidor) throw new Error('Sem conta para apagar.');
+  let r;
+  try { r = await pedir(servidor, '/conta/apagar', { sessao, corpo: {} }); }
+  catch { throw new Error('Servidor fora do ar. Tente de novo daqui a pouco.'); }
+  if (!r.ok) throw new Error(r.dados.erro === 'login' ? 'Sessão vencida: entre de novo para apagar.' : 'Não foi possível apagar a conta.');
+  guardar(null);
+  try { window.google?.accounts.id.disableAutoSelect(); } catch { /* Google não carregou */ }
+}

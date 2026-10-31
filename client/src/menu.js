@@ -1,4 +1,4 @@
-// Barra de cima (no jeito do Quimera): ícones de Habilidades, Personagem, Status, Esboço e Menu.
+// Barra de cima (no jeito do Quimera): ícones de Habilidades, Status, Esboço e Menu.
 // A seta recolhe os ícones (fica guardado no aparelho) e traz de volta. O Menu abre a janela do jogo.
 const $ = (id) => document.getElementById(id);
 const CHAVE = 'menuRecolhido';
@@ -25,7 +25,6 @@ export function montarMenu({ status, editarBotoes }) {
   item('mVoltar', () => {});
   item('mStatus', status);
   item('mHab', () => $('habBtn').click());
-  item('mPerso', () => $('pickBtn').click());
   item('mBotoes', editarBotoes);
   item('mEsboco', () => $('infoBtn').click());
 }

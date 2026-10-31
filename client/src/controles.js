@@ -7,8 +7,9 @@ export class Controles {
     this.yaw = Math.PI * 0.85; this.pitch = 0.3; this.dist = 5.2;
     this.aoTeclar = null;
     addEventListener('keydown', (e) => {
+      if (e.target.closest?.('input, textarea')) return; // digitando (nome do personagem): não mexe no herói
       this.teclas[e.code] = true;
-      if (['sheet', 'pick', 'hab'].some((id) => !document.getElementById(id).hidden)) return;
+      if (['sheet', 'hab', 'criar'].some((id) => document.getElementById(id)?.hidden === false)) return;
       if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.aoTeclar?.(e.code);
     });
@@ -16,7 +17,7 @@ export class Controles {
 
     // celular: impede o zoom da página com dois dedos e com toque duplo (o jogo usa a tela inteira)
     for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
-    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && ['sheet', 'pick', 'hab'].every((id) => document.getElementById(id).hidden)) e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && ['sheet', 'hab'].every((id) => document.getElementById(id)?.hidden !== false)) e.preventDefault(); }, { passive: false });
 
     // joystick que aparece onde o dedo encosta (metade esquerda de baixo da tela); solto, volta para o canto
     const pad = document.getElementById('pad'), knob = document.getElementById('knob'), zona = document.getElementById('padZona');
