@@ -14,9 +14,9 @@ const { WebSocketTransport } = wsTransport;
 
 const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
-// Limite de mensagens por jogador (balde que enche 60 por segundo, guarda até 120).
+// Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 60, max: 120, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -42,6 +42,8 @@ class SalaClareira extends Room {
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.ouvir('falar', (c) => this.sim.falar(c.sessionId));
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
+    // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
+    this.ouvir('pos', (c, p) => this.sim.posicaoCliente(c.sessionId, p));
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
     this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) c.send('pong', t); });
     this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador

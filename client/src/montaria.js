@@ -8,6 +8,7 @@ import { anime, toon } from './estilo.js';
 
 const modelos = new Map(); // id -> Promise<gltf>
 const COR_CONTORNO = 0x1b2333;
+const TMP_V = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_Q2 = new THREE.Quaternion(), TMP_Q3 = new THREE.Quaternion();
 
 function contorno(espessura) {
   const m = new THREE.MeshBasicMaterial({ color: COR_CONTORNO, side: THREE.BackSide });
@@ -41,12 +42,16 @@ export class Montaria {
     for (const o of malhas) {
       o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
       if (anime) o.material = toon(o.material);
+      if (o.material.alphaTest > 0) { o.material.alphaToCoverage = true; continue; } // mechas de pelo: ponta suave (MSAA), sem contorno
       const borda = new THREE.SkinnedMesh(o.geometry, contorno(0.015 / this.dados.escala));
       borda.bind(o.skeleton, o.bindMatrix); borda.frustumCulled = false;
       o.parent.add(borda);
     }
     this.grupo.add(m);
-    this.sela = m.getObjectByName('coluna');
+    this.sela = m.getObjectByName('coluna'); this.selaFrente = m.getObjectByName('peito');
+    this.nuca = m.getObjectByName('cabeca'); // começo da cabeça: logo atrás das orelhas
+    this.rabo = [1, 2, 3, 4, 5].map((i) => m.getObjectByName('cauda' + i)).filter(Boolean);
+    this.mola = { ang: 0, vel: 0, ry: null };
     this.mixer = new THREE.AnimationMixer(m);
     this.clipes = Object.fromEntries(g.animations.map((c) => [c.name, c]));
     this.atual = null; this.tocar(this.estado || 'parado');
@@ -60,12 +65,43 @@ export class Montaria {
     this.atual = nome;
   }
   aplicar(anim) { this.tocar(ANIM[anim] || 'parado'); }
-  atualizar(dt) { this.mixer?.update(dt); }
-  // onde o quadril do cavaleiro fica, no espaço do pai
+  atualizar(dt) {
+    if (!this.mixer) return;
+    this.mixer.update(dt);
+    this.balancarRabo(dt);
+  }
+  // Rabo com mola: quando o lobo vira, o rabo fica para trás e depois balança até assentar (mais solto na ponta)
+  balancarRabo(dt) {
+    const r = this.rabo, mo = this.mola; if (!r?.length || dt <= 0) return;
+    this.grupo.getWorldQuaternion(TMP_Q); TMP_V.set(0, 0, 1).applyQuaternion(TMP_Q);
+    const ry = Math.atan2(TMP_V.x, TMP_V.z);
+    if (mo.ry === null) mo.ry = ry;
+    const giro = Math.atan2(Math.sin(ry - mo.ry), Math.cos(ry - mo.ry)) / dt; mo.ry = ry;
+    const alvo = THREE.MathUtils.clamp(-giro * 0.12, -0.5, 0.5);
+    mo.vel += ((alvo - mo.ang) * 60 - mo.vel * 7) * Math.min(dt, 0.05);
+    mo.ang += mo.vel * Math.min(dt, 0.05);
+    if (Math.abs(mo.ang) < 1e-3) return;
+    this.grupo.updateWorldMatrix(true, true);
+    r.forEach((osso, i) => {
+      // gira em volta do "para cima" do mundo, no espaço do pai do osso
+      osso.parent.getWorldQuaternion(TMP_Q2);
+      TMP_Q3.setFromAxisAngle(TMP_V.set(0, 1, 0).applyQuaternion(TMP_Q2.clone().invert()), mo.ang * (0.35 + 0.15 * i));
+      osso.quaternion.premultiply(TMP_Q3);
+      osso.updateWorldMatrix(false, true);
+    });
+  }
+  // onde o quadril do cavaleiro fica (no mundo): nas costas, entre o lombo e a cernelha
   posSela(alvo) {
     if (!this.sela) return null;
-    this.pai.updateMatrixWorld(true);
-    return this.pai.worldToLocal(this.sela.getWorldPosition(alvo));
+    this.sela.getWorldPosition(alvo);
+    if (this.selaFrente) alvo.lerp(this.selaFrente.getWorldPosition(TMP_V), this.dados.sela ?? 0.3);
+    return alvo;
+  }
+  // ponto da juba logo atrás das orelhas, do lado do cavaleiro (lat = -1 ou 1, eixo x do lobo)
+  pegada(lat, alvo) {
+    this.grupo.worldToLocal(this.nuca.getWorldPosition(alvo));
+    alvo.x += lat * 0.06; alvo.y += 0.09; alvo.z -= 0.02;
+    return this.grupo.localToWorld(alvo);
   }
   remover() { this.removido = true; this.pai.remove(this.grupo); }
 }

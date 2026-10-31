@@ -52,7 +52,7 @@ Cada conta guarda o nome (vem do Google), o personagem e a build. A mesma conta 
 | Rolar no chão | botão Rolar | Q |
 | Escalar (pedra baixa sobe sozinho; rocha alta: andar contra ela agarra, frente sobe, trás desce, lados andam pela parede; Pular solta; Dash ou correr contra ela corre pela parede) | joystick | WASD |
 | Falar com NPC (cura, missão, habilidades, dicas) | botão Falar em cima dele, quando perto | F |
-| Montar no lobo / descer (teste; golpe, dash ou rolar também desce) | ícone do lobo na barra de cima | M |
+| Montar no lobo / descer (teste; golpe, dash ou rolar também desce) | botão redondo do lobo, embaixo | M |
 | Criar o personagem (corpo, cores de cabelo, olhos, pele, roupa e altura) | botão Personagem (abre sozinho na primeira vez) | botão Personagem |
 | Escolher habilidades | botão Habilidades | botão Habilidades |
 | Câmera (girar, olhar para cima e para baixo, zoom) | arrastar a tela; dois dedos para o zoom | arrastar, roda do mouse |
@@ -91,7 +91,7 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | Vila: texturas das casas (palha, reboco, enxaimel, pedra, portas, venezianas), casca e folhas das árvores, caminho de terra e calçamento da praça. As casas, a ferraria, o poço e as árvores são montados em código (client/src/vila.js) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
 | Cajado mágico (madeira, anéis de bronze e cristal) | feito no código, com a textura medieval_wood da Poly Haven | CC0 / próprio |
-| Lobo (montaria de teste): modelo, esqueleto e 6 animações | gerado por IA (desenho FLUX.1-schnell, Apache 2.0; 3D TRELLIS, MIT) e montado no Blender por ferramentas/monstros-ia | próprio (saída das IAs sem restrição de uso comercial) |
+| Lobo (montaria de teste): modelo, esqueleto (rabo de 5 ossos), mechas de pelo do rabo e 6 animações | gerado por IA (desenho FLUX.1-schnell, Apache 2.0; 3D TRELLIS, MIT) e montado no Blender por ferramentas/monstros-ia | próprio (saída das IAs sem restrição de uso comercial) |
 | Texturas pintadas do estilo anime (client/public/assets/cenario/pintado/): as mesmas texturas da Poly Haven repintadas pela paleta do jogo | geradas por ferramentas/pintar-texturas/pintar.py a partir das texturas CC0 acima | CC0 / próprio |
 
 As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.
