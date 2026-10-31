@@ -67,7 +67,7 @@ async function telaDeLogin(servidor) {
     });
     const estilo = { theme: 'filled_black', size: 'large', shape: 'pill', locale: 'pt-BR', width: 230 };
     google.renderButton($('botaoCriar'), { ...estilo, text: 'signup_with', click_listener: () => { modo = 'criar'; } });
-    google.renderButton($('botaoEntrar'), { ...estilo, theme: 'outline', text: 'signin_with', click_listener: () => { modo = 'entrar'; } });
+    google.renderButton($('botaoEntrar'), { ...estilo, text: 'signin_with', click_listener: () => { modo = 'entrar'; } });
     google.prompt(); // aparece o "Continuar como …" quando o Google já conhece a pessoa
   });
 }
