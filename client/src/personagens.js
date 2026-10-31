@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { VRMLoaderPlugin, VRMUtils, VRMSpringBoneCollider, VRMSpringBoneColliderShapeCapsule } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
@@ -28,7 +28,8 @@ export async function carregarPersonagens() {
   const bb = new THREE.Box3().setFromObject(ESPADA), tam = bb.getSize(new THREE.Vector3()), eixoL = tam.x > tam.y ? (tam.x > tam.z ? 'x' : 'z') : (tam.y > tam.z ? 'y' : 'z');
   const c = bb.getCenter(new THREE.Vector3()), ponta = c.clone(), cabo = c.clone(), longe = Math.abs(bb.max[eixoL]) > Math.abs(bb.min[eixoL]) ? 'max' : 'min';
   ponta[eixoL] = bb[longe][eixoL]; cabo[eixoL] = c[eixoL] + (bb[longe][eixoL] - c[eixoL]) * -0.25;
-  LAMINA = { base: cabo, ponta };
+  const pomo = c.clone(); pomo[eixoL] = bb[longe === 'max' ? 'min' : 'max'][eixoL];
+  LAMINA = { base: cabo, ponta, pomo };
   ESPADA.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 }
 
@@ -86,7 +87,7 @@ function cajadoMagico(cor) {
 // Montado: o tronco vai deitado para a frente; as armas das costas ficam como se ele estivesse em pé, giradas para trás
 const MONTADO_ATRAS = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.6, 0, 0));
 // a espada ainda deita de lado: o cabo sai por cima do ombro, ao lado da cabeça (com o cajado forma um X)
-const MONTADO_ESPADA = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.6, 0, 0.45));
+const MONTADO_ESPADA = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.6, 0, 0.62));
 const MAO_DEDOS = new THREE.Vector3(), MAO_PALMA = new THREE.Vector3(), MAO_M = new THREE.Matrix4(), MAO_M2 = new THREE.Matrix4();
 const COSTAS = {
   espada: { giro: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI - 0.5)), desloc: [0.17, 0.2, -0.15] },
@@ -642,6 +643,31 @@ export class Corpo {
       const atras = IK_Q.copy(qRoot).multiply(giro).multiply(TMP_Q2.copy(qRoot).invert());
       const mundo = atras.multiply(obj.parent.getWorldQuaternion(TMP_Q2).multiply(l.quat));
       obj.quaternion.copy(obj.parent.getWorldQuaternion(TMP_Q2).invert().multiply(mundo));
+      // espada: afasta do rabo de cavalo (para o lado dela e para trás), o cabelo cai entre as costas e a lâmina
+      if (giro === MONTADO_ESPADA) {
+        const p = obj.parent.localToWorld(IK_T.copy(l.pos)).add(IK_E.set(0.07, 0.02, -0.06).multiplyScalar(this.root.scale.x).applyQuaternion(qRoot));
+        obj.position.copy(obj.parent.worldToLocal(p));
+      }
+    }
+    this.colisorEspada(true);
+  }
+  // Montado: a espada vira um colisor (cápsula de 4 cm do pomo à ponta) para o cabelo (spring bones) desviar dela
+  colisorEspada(ligar) {
+    const mola = this.vrm?.springBoneManager, esp = this.armas.espada?.[0];
+    if (!mola || !esp || !LAMINA) return;
+    if (!this.grupoEspada) {
+      const c = new VRMSpringBoneCollider(new VRMSpringBoneColliderShapeCapsule({ offset: LAMINA.pomo.clone(), tail: LAMINA.ponta.clone(), radius: 0.04 }));
+      c.name = 'colisorEspada'; esp.add(c);
+      this.grupoEspada = { colliders: [c], name: 'espada' };
+    }
+    const g = this.grupoEspada;
+    if (ligar) g.colliders[0].updateWorldMatrix(true, false);
+    if (!!ligar === !!this.espadaColide) return;
+    this.espadaColide = !!ligar;
+    for (const j of mola.joints) {
+      const i = j.colliderGroups.indexOf(g);
+      if (ligar && i < 0) j.colliderGroups.push(g);
+      else if (!ligar && i >= 0) j.colliderGroups.splice(i, 1);
     }
   }
   // Mão fechada na juba: dedos apontando para a frente e para baixo, palma virada para o pescoço,
@@ -733,7 +759,7 @@ export class Corpo {
       if (this.bravo) this.vrm.expressionManager?.setValue('angry', 0.8); // inimigo: cara de raiva
       this.vrm.update(dt);
     }
-    if (this.modo === 'Montado') this.armasMontado();
+    if (this.modo === 'Montado') this.armasMontado(); else if (this.espadaColide) this.colisorEspada(false);
     this.segurarCajado();
   }
   assentar(dt) {
