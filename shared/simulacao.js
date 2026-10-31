@@ -66,9 +66,11 @@ export class Simulacao {
   // ---------- comandos vindos dos jogadores ----------
   entrada(id, e) {
     const j = this.jogadores.get(id); if (!j || j.criando) return;
-    const m = Math.hypot(e.mx || 0, e.mz || 0);
+    // só número de verdade (texto, NaN ou infinito viram 0): o cliente manda a direção, a velocidade é daqui
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const mx = num(e?.mx), mz = num(e?.mz), m = Math.hypot(mx, mz);
     const k = m > 1 ? 1 / m : 1; // nunca mais rápido que o permitido
-    j.entrada = { mx: (e.mx || 0) * k, mz: (e.mz || 0) * k, correr: !!e.correr };
+    j.entrada = { mx: mx * k, mz: mz * k, correr: e?.correr === true };
   }
   // Sobe ou desce da montaria (teste: por enquanto todo jogador tem o lobo)
   montar(id) {
@@ -83,6 +85,11 @@ export class Simulacao {
   // Criando o personagem (no palco, fora do mapa): ninguém vê, nenhum inimigo persegue, não leva dano e não age
   definirCriando(id, v) {
     const j = this.jogadores.get(id); if (!j) return;
+    // quem acabou de levar dano não some do mundo (senão abrir o criador viraria escudo contra golpes)
+    if (v && !j.criando && this.tempo - (j.feridoEm ?? -Infinity) < 5) {
+      this.evento({ t: 'criadorNegado', para: id, texto: 'Saia do combate para mudar o visual' });
+      return;
+    }
     j.criando = !!v;
     if (j.criando) { j.entrada = { mx: 0, mz: 0, correr: false }; j.fila = null; j.montado = null; }
   }
@@ -279,6 +286,7 @@ export class Simulacao {
     if (alvo.morto || alvo.arrancada || alvo.criando) return;
     if (alvo.defesa > 0) n = Math.round(n * (1 - alvo.defesa));
     alvo.vida = Math.max(0, alvo.vida - n);
+    alvo.feridoEm = this.tempo;
     this.evento({ t: 'dano', alvo: alvo.id, n });
     if (alvo.vida <= 0) this.morrer(alvo);
     else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
