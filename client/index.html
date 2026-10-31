@@ -12,7 +12,7 @@
 <style>
 /* Layout: cena 3D em tela cheia. Vida/mana no alto à esquerda, troca de arma no alto à direita,
    joystick embaixo à esquerda, golpe + 4 habilidades + trocar, cura, pular, dash e rolar embaixo à direita. Jogo de visual único (escuro). */
-:root{
+:root{--ui:1;
   --ink:#efe7d6; --muted:#b9ad97; --panel:rgba(18,16,12,.58); --line:rgba(239,231,214,.2);
   --gold:#d9a54a; --hp:#b8432f; --mp:#3f7fc0; --cd:rgba(10,8,6,.72);
   --display:"Cinzel",Georgia,serif; --body:"Alegreya Sans",system-ui,sans-serif;
@@ -31,7 +31,7 @@ body{background:#14120e;color:var(--ink);font-family:var(--body);overflow:hidden
 #entrarErro{min-height:1.5em;color:#e6b38a!important;font-size:.9rem}
 #load h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,3rem);margin:0;letter-spacing:.06em;color:var(--gold)}
 #load p{color:var(--muted);margin:.4rem 0 0}
-.top{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
+.top{position:fixed;transform:scale(var(--ui));transform-origin:top left;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
 .vitals{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;backdrop-filter:blur(6px);width:min(230px,44vw)}
 .vitals .who{font-family:var(--display);font-size:.95rem;display:flex;justify-content:space-between;gap:8px}
 .vitals .who span{font-family:var(--body);font-size:.78rem;color:var(--gold);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
@@ -93,13 +93,13 @@ body.editando .top,body.editando .menu,body.editando #padZona,body.editando .pad
 .weapons button small{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .weapons button.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
 .weapons button.on small{color:var(--gold)}
-.pad{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);left:max(22px,env(safe-area-inset-left,0px));width:128px;height:128px;border-radius:50%;background:var(--panel);border:1px solid var(--line);touch-action:none}
+.pad{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);left:max(22px,env(safe-area-inset-left,0px));width:calc(128px * var(--ui));height:calc(128px * var(--ui));border-radius:50%;background:var(--panel);border:1px solid var(--line);touch-action:none}
 #padZona{position:fixed;left:0;bottom:0;width:44vw;height:72vh;touch-action:none}
 .pad{transition:opacity .15s;opacity:.55}.pad.ativo{opacity:1}
-.knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(239,231,214,.85)}
+.knob{position:absolute;left:50%;top:50%;width:calc(52px * var(--ui));height:calc(52px * var(--ui));margin:calc(-26px * var(--ui)) 0 0 calc(-26px * var(--ui));border-radius:50%;background:rgba(239,231,214,.85)}
 .acts{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);right:max(16px,env(safe-area-inset-right,0px));width:360px;height:240px;pointer-events:none}
 .acts button{pointer-events:auto}
-@media (max-height:340px){.acts{transform:scale(.82);transform-origin:bottom right}}
+.acts{transform:scale(var(--ui));transform-origin:bottom right}
 .acts button[data-tipo="Magia"]{border-color:rgba(140,190,255,.7);box-shadow:inset 0 0 12px rgba(95,180,255,.35)}
 .acts button{position:absolute;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:700 .7rem/1.05 var(--body);touch-action:none;overflow:hidden;padding:4px;backdrop-filter:blur(6px)}
 .acts button:focus-visible,.weapons button:focus-visible,.info:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
@@ -116,11 +116,11 @@ body.editando .top,body.editando .menu,body.editando #padZona,body.editando .pad
 #bd{width:50px;height:50px;right:237px;bottom:87px;font-size:.66rem;background:radial-gradient(circle at 50% 35%,rgba(58,182,216,.55),rgba(12,74,98,.75) 75%);border-color:rgba(200,240,255,.6)}
 #br{width:50px;height:50px;right:305px;bottom:75px;font-size:.66rem;background:radial-gradient(circle at 50% 35%,rgba(58,182,216,.55),rgba(12,74,98,.75) 75%);border-color:rgba(200,240,255,.6)}
 #bp{width:62px;height:62px;right:249px;bottom:9px;font-size:.72rem;background:radial-gradient(circle at 50% 35%,rgba(58,182,216,.55),rgba(12,74,98,.75) 75%);border-color:rgba(200,240,255,.6)}
-.menu{position:fixed;top:calc(env(safe-area-inset-top,0px) + 74px);right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:70vw}
+.menu{position:fixed;top:calc(env(safe-area-inset-top,0px) + 74px * var(--ui));transform:scale(var(--ui));transform-origin:top right;right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(70vw / var(--ui))}
 .info{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 10px;font:600 .78rem var(--body)}
-.net{position:fixed;top:calc(env(safe-area-inset-top,0px) + 112px);right:max(16px,env(safe-area-inset-right,0px));font-size:.72rem;color:var(--muted);pointer-events:none}
+.net{position:fixed;top:calc(env(safe-area-inset-top,0px) + 112px * var(--ui));transform:scale(var(--ui));transform-origin:top right;right:max(16px,env(safe-area-inset-right,0px));font-size:.72rem;color:var(--muted);pointer-events:none}
 .tag3d.ally b{color:#9fc6e8}
-#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 88px);transform:translateX(-50%);font-family:var(--display);font-size:1.15rem;color:var(--gold);text-shadow:0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 88px * var(--ui));transform:translateX(-50%);font-family:var(--display);font-size:calc(1.15rem * var(--ui));color:var(--gold);text-shadow:0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
 .tag3d{position:fixed;left:0;top:0;pointer-events:none;transform:translate(-50%,-100%);text-align:center;font-size:.75rem;text-shadow:0 1px 3px #000;white-space:nowrap}
 .tag3d b{display:block;font-family:var(--display);font-size:.78rem}
 .tag3d .hb{width:64px;height:5px;background:rgba(0,0,0,.5);border-radius:3px;margin:3px auto 0;overflow:hidden}

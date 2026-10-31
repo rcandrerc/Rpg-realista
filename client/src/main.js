@@ -138,7 +138,16 @@ function enviarEntrada(dt) {
   if (s !== ultimaEntrada || tempoEntrada <= 0) { rede.enviar('entrada', e); ultimaEntrada = s; tempoEntrada = 0.25; }
 }
 
+// Botões e painéis com o mesmo tamanho na tela, mesmo se o zoom do Chrome for mudado: no celular a
+// interface acompanha a altura da tela (407 px = celular do André deitado, com zoom 100%).
+const TOQUE = matchMedia('(pointer: coarse)').matches;
+function escalaInterface() {
+  const k = TOQUE ? Math.min(1.6, Math.max(0.75, Math.min(innerWidth, innerHeight) / 407)) : 1;
+  document.documentElement.style.setProperty('--ui', k.toFixed(3));
+}
+
 function redimensionar() {
+  escalaInterface();
   renderer.setSize(innerWidth, innerHeight, false); deslocCam = -1; // refaz o deslocamento da câmera do criador
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
 }
