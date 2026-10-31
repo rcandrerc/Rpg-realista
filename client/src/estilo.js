@@ -42,7 +42,7 @@ function degraus() {
 const cache = new Map();
 let grad;
 const BASE = THREE.Material.prototype.onBeforeCompile;
-function toon(m) {
+export function toon(m) {
   if (!m || !m.isMeshStandardMaterial) return m;
   if (cache.has(m)) return cache.get(m);
   grad ||= degraus();

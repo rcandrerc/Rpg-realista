@@ -1,7 +1,7 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, aparenciaValida, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -70,6 +70,12 @@ export class Simulacao {
     const k = m > 1 ? 1 / m : 1; // nunca mais rápido que o permitido
     j.entrada = { mx: (e.mx || 0) * k, mz: (e.mz || 0) * k, correr: !!e.correr };
   }
+  // Sobe ou desce da montaria (teste: por enquanto todo jogador tem o lobo)
+  montar(id) {
+    const j = this.jogadores.get(id);
+    if (!j || j.morto || j.esc || j.criando || j.trava > 0) return;
+    j.montado = j.montado ? null : 'lobo';
+  }
   trocarVisual(id, visual) {
     const j = this.jogadores.get(id);
     if (j && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
@@ -78,7 +84,7 @@ export class Simulacao {
   definirCriando(id, v) {
     const j = this.jogadores.get(id); if (!j) return;
     j.criando = !!v;
-    if (j.criando) { j.entrada = { mx: 0, mz: 0, correr: false }; j.fila = null; }
+    if (j.criando) { j.entrada = { mx: 0, mz: 0, correr: false }; j.fila = null; j.montado = null; }
   }
   // Cores e altura do criador de personagem (os outros jogadores veem igual)
   definirAparencia(id, a) {
@@ -96,6 +102,7 @@ export class Simulacao {
   }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
+    j.montado = null; // luta a pé
     if (i !== 9) j.modo = i === 10 || i > 4 ? 'Magia' : 'Espada'; // golpe usa a espada, magia usa o cajado
     // tocou um pouco antes do golpe atual acabar: guarda e solta assim que ele termina (o combo não perde o ritmo)
     if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { i, ate: this.tempo + 0.5 }; return; }
@@ -177,7 +184,7 @@ export class Simulacao {
   rolar(id) {
     const j = this.jogadores.get(id);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
-    j.cds.rolar = this.tempo + HEROI.rolarCd;
+    j.cds.rolar = this.tempo + HEROI.rolarCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
     const d = this.tocar(j, A.roll, 1.25);
@@ -189,7 +196,7 @@ export class Simulacao {
   dash(id) {
     const j = this.jogadores.get(id);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
-    j.cds.dash = this.tempo + MOVIMENTO.dashCd;
+    j.cds.dash = this.tempo + MOVIMENTO.dashCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
     if (j.chao && this.correrNaParede(j)) return; // dash contra a rocha: corre pela parede
@@ -497,20 +504,21 @@ export class Simulacao {
     j.mana = Math.min(HEROI.mana, j.mana + HEROI.manaPorSeg * dt);
     if (j.esc && !j.morto) return this.passoEscalada(j, dt);
     this.passoVertical(j, dt);
+    if (j.morto) j.montado = null;
     if (j.morto || j.trava > 0) return;
-    const { mx, mz, correr } = j.entrada, m = Math.hypot(mx, mz);
+    const { mx, mz, correr } = j.entrada, m = Math.hypot(mx, mz), mont = MONTARIAS[j.montado];
     j.bloqueado = false;
     if (j.arrancada) {
       const a = j.arrancada, x = 1 - a.t / MOVIMENTO.dashTempo, v = MOVIMENTO.dashVel * (1.6 * (1 - x) ** 0.7 + 0.15); // sai rápido e freia
       this.mover(j, a.dx * v * dt, a.dz * v * dt);
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
-      const v = correr ? HEROI.correr : HEROI.andar;
+      const v = mont ? (correr ? mont.correr : mont.andar) : correr ? HEROI.correr : HEROI.andar;
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);
     }
-    if (j.chao && !j.arrancada && m > 0.5) { this.tentarEscalar(j, correr, dt); if (j.esc) return; } else j.empurra = 0;
+    if (j.chao && !j.arrancada && m > 0.5 && !mont) { this.tentarEscalar(j, correr, dt); if (j.esc) return; } else j.empurra = 0;
     j.anim = this.animMovimento(j, m > 0.15, correr);
   }
   // Queda, pouso e o tempo do mortal
@@ -591,7 +599,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), criando: !!j.criando, mana: Math.round(j.mana), build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), criando: !!j.criando, mana: Math.round(j.mana), build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v })),
     };

@@ -36,6 +36,7 @@ class SalaClareira extends Room {
     this.onMessage('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
     this.onMessage('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.onMessage('falar', (c) => this.sim.falar(c.sessionId));
+    this.onMessage('montar', (c) => this.sim.montar(c.sessionId));
     this.onMessage('visual', (c, v) => { this.sim.trocarVisual(c.sessionId, String(v)); if (contas && c.auth) contas.salvarVisual(c.auth.id, String(v)); });
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
   }

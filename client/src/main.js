@@ -26,6 +26,8 @@ const controles = new Controles(canvas);
 const hud = new Hud(camera);
 const segurarCamera = cameraForaDasCasas(mapa);
 botaoEstilo($('menuEstilo'));
+// Teste da montaria: ícone do lobo na barra de cima (ou tecla M) sobe e desce do lobo
+$('loboBtn')?.addEventListener('click', () => montar());
 
 let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
@@ -90,6 +92,7 @@ const pular = () => rede?.enviar('pular');
 const dash = () => rede?.enviar('dash');
 const rolar = () => rede?.enviar('rolar');
 const falar = () => rede?.enviar('falar');
+const montar = () => rede?.enviar('montar');
 controles.aoTeclar = (code) => {
   const tecla = { KeyJ: 0, KeyK: 1, KeyL: 2, KeyI: 3, KeyU: 4 };
   if (code in tecla) usar(hud.indice(tecla[code]));
@@ -99,6 +102,7 @@ controles.aoTeclar = (code) => {
   if (code === 'KeyE' || code === 'ShiftRight') dash();
   if (code === 'KeyQ') rolar();
   if (code === 'KeyF') falar();
+  if (code === 'KeyM') montar();
 };
 hud.montarBotoes({ usar, pular, dash, rolar });
 hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a espada das costas

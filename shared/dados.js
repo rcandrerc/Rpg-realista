@@ -127,6 +127,11 @@ export const buildValida = (b) => Array.isArray(b) && b.length === ESPACOS_BUILD
 export const HEROI = { vida: 120, mana: 100, manaPorSeg: 7, andar: 1.8, correr: 5.4, rolarCd: 1.2, renascer: 3.5 };
 // Pulo (no ar, de novo: mortal), dash (arrancada curta; nenhum golpe pega) e rolamento no chão. Velocidades em m/s.
 export const MOVIMENTO = { pulo: 6.2, gravidade: 17, dashVel: 11, dashTempo: 0.28, dashCd: 0.9 };
+// Montarias (teste): o herói sobe e anda mais rápido. Habilidade, dash, rolar ou escalar fazem descer.
+// modelo: GLB com as animações parado, andar, correr (feito por IA: ferramentas/monstros-ia). escala: tamanho no jogo.
+export const MONTARIAS = {
+  lobo: { nome: 'Lobo', modelo: 'assets/monstros/lobo.glb', andar: 3, correr: 9, escala: 1.9 },
+};
 
 // Inimigos: cada horda usa um personagem anime que o jogador não pode escolher (nunca fica igual ao herói).
 // Mudam tamanho, números e o brilho da espada. Hordas novas entram aqui.

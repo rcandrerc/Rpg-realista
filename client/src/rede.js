@@ -68,6 +68,7 @@ function modoSolo(mapa, nome, visual, aoReceber, criando) {
     dash: () => sim.dash('solo'),
     visual: (v) => sim.trocarVisual('solo', v),
     falar: () => sim.falar('solo'),
+    montar: () => sim.montar('solo'),
     modo: (m) => sim.trocarModo('solo', m),
     aparencia: (a) => sim.definirAparencia('solo', a),
     criando: (v) => sim.definirCriando('solo', v),

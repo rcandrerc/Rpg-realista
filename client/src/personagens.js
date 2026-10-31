@@ -8,6 +8,7 @@ import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
 import { carregarGLTF } from './cena.js';
+import { Montaria } from './montaria.js';
 
 const ESCALANDO = new Set(ANIMS_ESCALADA);
 let BASE = null, CLIPES = {}, ANIM_CRU = null, ESPADA = null, LAMINA = null;
@@ -441,6 +442,8 @@ const ARMAS_VRM = {
   espada: { mao: 'rightHand', giro: eixo(1, 0, 0, Math.PI / 2), desloc: [0, -0.02, 0.02], escala: 1 },
 };
 
+const TMP_A = new THREE.Vector3(), TMP_B = new THREE.Vector3(), TMP_Q = new THREE.Quaternion(), TMP_EULER = new THREE.Euler();
+
 export class Corpo {
   // visual: 'soldado' (padrão), id de um VRM, ou cor para NPC/bandido
   // armas: 'heroi' (espada mágica azul), 'inimigo' (espada mágica na cor do brilho) ou 'nenhuma'; bravo: cara de raiva
@@ -572,9 +575,28 @@ export class Corpo {
     this.root.scale.setScalar(this.escalaBase * (aparencia?.altura || 1));
     if (this.vrm) { tingirVRM(this.vrm, this.visual, this.tinta); aplicarRosto(this.vrm, this.tinta); }
   }
+  // Montaria: o lobo vai embaixo do herói, que senta na sela (quadril preso no osso das costas do lobo)
+  montar(id) {
+    if (id === this.montadoId) return;
+    this.montaria?.remover(); this.montaria = null; this.montadoId = id;
+    if (id) this.montaria = new Montaria(id, this.root);
+    else this.inclina.position.set(0, 0, 0);
+  }
+  // Pernas abertas em volta do lobo, joelhos dobrados (por cima da animação parada)
+  sentar() {
+    const h = this.vrm?.humanoid; if (!h) return;
+    const f = this.vrm.meta?.metaVersion === '0' ? -1 : 1; // VRM antigo olha para -Z nos ossos
+    for (const [lado, s] of [['left', 1], ['right', -1]]) {
+      h.getNormalizedBoneNode(lado + 'UpperLeg')?.quaternion.setFromEuler(TMP_EULER.set(-1.25 * f, 0, 0.55 * s * f, 'ZXY'));
+      h.getNormalizedBoneNode(lado + 'LowerLeg')?.quaternion.setFromEuler(TMP_EULER.set(1.5 * f, 0, 0, 'XYZ'));
+      h.getNormalizedBoneNode(lado + 'Foot')?.quaternion.setFromEuler(TMP_EULER.set(-0.3 * f, 0, 0, 'XYZ'));
+    }
+  }
   // Recebe o estado vindo da simulação
   aplicar(e) {
     this.alvo.set(e.x, e.y || 0, e.z); this.alvoRy = e.ry; this.anim = e.anim;
+    if ('montado' in e) this.montar(e.montado);
+    if (this.montaria) { this.montaria.aplicar(e.anim); e = { ...e, anim: 'Idle' }; } // montado: o lobo anda, o herói fica sentado
     if (this.primeira) { this.root.position.copy(this.alvo); this.root.rotation.y = e.ry; this.primeira = false; }
     if (!this.mixer) { this.estado = e; return; }
     const escalando = ESCALANDO.has(e.acao?.nome) || ESCALANDO.has(e.anim);
@@ -591,6 +613,7 @@ export class Corpo {
     const d = Math.atan2(Math.sin(this.alvoRy - this.root.rotation.y), Math.cos(this.alvoRy - this.root.rotation.y));
     this.root.rotation.y += d * k;
     this.mixer?.update(dt);
+    if (this.montaria) this.assentar(dt);
     if (this.vrm) {
       // piscar de vez em quando
       this.piscar -= dt;
@@ -601,6 +624,19 @@ export class Corpo {
       this.vrm.update(dt);
     }
     this.segurarCajado();
+  }
+  assentar(dt) {
+    const m = this.montaria;
+    m.grupo.scale.setScalar(m.dados.escala / this.root.scale.x); // o lobo não cresce junto com a altura do herói
+    m.atualizar(dt);
+    const quadril = this.vrm?.humanoid.getNormalizedBoneNode('hips'), sela = m.sela?.getWorldPosition(TMP_A);
+    if (!quadril || !sela) return; // o lobo ainda está carregando
+    this.sentar();
+    this.root.updateMatrixWorld(true);
+    sela.y += 0.2 * m.dados.escala / 1.9; // da coluna até o lombo
+    // quanto falta para o quadril chegar na sela, no espaço do corpo
+    const d = sela.sub(quadril.getWorldPosition(TMP_B)).applyQuaternion(this.root.getWorldQuaternion(TMP_Q).invert()).divideScalar(this.root.scale.x);
+    this.inclina.position.add(d);
   }
   // posição das mãos no mundo (para o brilho da magia)
   maos() { return this.maosOssos.filter(Boolean).map((o) => o.getWorldPosition(new THREE.Vector3())); }
@@ -614,6 +650,7 @@ export class Corpo {
     for (const a of [...(this.armas.espada || []), this.cajado]) if (a) a.visible = v;
   }
   remover() {
+    this.montaria?.remover();
     this.removido = true; this.scene.remove(this.root);
     if (this.vrm) this.vrm.scene.traverse((o) => { if (o.isMesh) o.geometry.dispose(); }); // materiais ficam: outras cópias usam
   }
