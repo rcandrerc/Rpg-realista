@@ -5,7 +5,7 @@ import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
-import { Previsao } from './previsao.js';
+import { Previsao, EFEITOS_LOCAIS } from './previsao.js';
 import { entrarNaConta, sairDaConta, apagarConta } from './conta.js';
 import { Hud } from './hud.js';
 import { Criador } from './criador.js';
@@ -33,7 +33,7 @@ let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
 window.jogo = { controles, corpos, renderer }; // para testes no console do navegador
 let eu = null; // meu estado mais recente
-let previsao = null; // online: o meu herói anda na hora no aparelho (client/src/previsao.js)
+let previsao = null; // online: o meu herói é decidido no aparelho e o servidor confere (client/src/previsao.js)
 // Relógio do servidor: a tela mostra os outros um pouco no passado (atraso), sempre entre duas fotos que já chegaram.
 // O atraso cresce sozinho quando a internet oscila (fotos chegando fora do ritmo) e volta a diminuir quando ela firma.
 const relogioServ = { dif: null, osc: 0, atraso: 0.1 };
@@ -78,8 +78,8 @@ function receber(foto, eventos) {
     const c = corpoDe(j, 'jogador');
     c.info = j;
     if (j.id === rede.meuId && previsao) {
-      // foto chega ~ping atrasada; a previsão compara com onde o herói estava naquela hora
-      previsao.corrigir(j, foto.inimigos, ((rede.ping ?? 100) / 1000) + 0.03);
+      // o meu herói é do celular: a foto só traz vida, mana e o resto que o servidor decide
+      previsao.corrigir(j, foto.inimigos);
       c.corpo.previsto = previsao.ativo;
       if (!previsao.ativo) c.corpo.aplicar(j, tf);
     } else c.corpo.aplicar(j, tf);
@@ -89,7 +89,18 @@ function receber(foto, eventos) {
   for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e, tf); }
   for (const [id, c] of corpos) if (c.tipo !== 'npc' && !vivos.has(id)) { c.corpo.remover(); c.tag?.remove(); efeitos.esquecer(id); corpos.delete(id); }
 
+  // efeitos das minhas próprias ações já apareceram na hora pelo celular: os do servidor são ignorados
+  mostrarEventos(previsao?.ativo ? eventos.filter((ev) => !(ev.de === rede.meuId && EFEITOS_LOCAIS.has(ev.t))) : eventos);
+  if (eu) {
+    hud.barras(eu.vida, eu.vidaMax, eu.mana, HEROI.mana);
+    hud.recargas(eu);
+    hud.missoes(eu);
+  }
+}
+
+function mostrarEventos(eventos) {
   for (const ev of eventos) {
+    if (ev.t === 'corrigir') { previsao?.encostar(ev); continue; } // o servidor não aceitou a posição: volta para onde ele sabe
     if (ev.t === 'dano' || ev.t === 'cura') { const c = corpos.get(ev.alvo); if (c) hud.numero(c.corpo.root, (ev.t === 'cura' ? '+' : '-') + ev.n, ev.t === 'cura'); }
     else if (ev.t === 'aviso') hud.aviso(ev.texto);
     else if (ev.t === 'fala') {
@@ -99,11 +110,6 @@ function receber(foto, eventos) {
       if (ev.abrir === 'habilidades') setTimeout(() => $('habBtn').click(), 1200);
     }
     else efeitos.evento(ev, corpos);
-  }
-  if (eu) {
-    hud.barras(eu.vida, eu.vidaMax, eu.mana, HEROI.mana);
-    hud.recargas(eu);
-    hud.missoes(eu);
   }
 }
 
@@ -229,7 +235,7 @@ function quadro() {
     if ((hud.segurando !== false || controles.teclas.KeyJ) && t - ultimoBase > 0.2) { ultimoBase = t; usar(hud.indice(0)); }
     rede.passo(dt);
     if (previsao) {
-      previsao.passo(dt);
+      mostrarEventos(previsao.passo(dt, (p) => rede.enviar('pos', p))); // golpes e efeitos na hora
       const c = corpos.get(rede.meuId);
       if (c && previsao.ativo) { c.info = { ...c.info, ...previsao.estado() }; c.corpo.aplicar(c.info); }
     }
