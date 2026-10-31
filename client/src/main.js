@@ -12,6 +12,7 @@ import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
 import { aplicarEstilo, botaoEstilo } from './estilo.js';
 import { PainelHeroi } from './layout.js';
+import { Palco } from './palco.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -57,6 +58,7 @@ function receber(foto, eventos) {
     vivos.add(j.id);
     const c = corpoDe(j, 'jogador');
     c.info = j; c.corpo.aplicar(j);
+    c.corpo.root.visible = !j.criando; // quem está criando o personagem ainda não entrou no mundo
     if (j.id === rede.meuId) eu = j;
   }
   for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e); }
@@ -118,14 +120,20 @@ let escolhido = lerEscolha();
 if (!PERSONAGENS.some((p) => p.id === escolhido)) escolhido = PERSONAGEM_PADRAO;
 // cores e altura do criador de personagem também ficam no aparelho
 const lerAparencia = () => { try { return JSON.parse(localStorage.getItem('aparencia')); } catch { return null; } };
-const primeiraVez = !lerEscolha() && !lerAparencia();
+let primeiraVez = !lerEscolha() && !lerAparencia();
 const criador = new Criador(escolhido, lerAparencia(), (visual, aparencia) => {
   try { localStorage.setItem('personagem', visual); localStorage.setItem('aparencia', JSON.stringify(aparencia)); } catch { /* vale só nesta visita */ }
   if (visual !== escolhido) { escolhido = visual; aquecerVRM(visual); rede?.enviar('visual', visual); }
   rede?.enviar('aparencia', aparencia);
 });
+// Criando o personagem: o herói vai para o palco (fora do mapa) e o servidor tira ele do mundo, sem dano e sem inimigos
+let palco = null, camCriador = null, deslocCam = -1;
+criador.aoAlternar = (aberto) => {
+  rede?.enviar('criando', aberto);
+  if (aberto) { palco ||= new Palco(renderer); camCriador = { yaw: controles.yaw, pitch: controles.pitch, dist: controles.dist }; deslocCam = -1; }
+  else if (camCriador) { Object.assign(controles, camCriador); camCriador = null; }
+};
 hud.montarTelaCheia();
-let camCriador = null, deslocCam = 0; // câmera guardada e deslocamento da tela enquanto o criador está aberto
 
 $('sairBtn').addEventListener('click', async () => { await sairDaConta(enderecoServidor()); location.reload(); });
 
@@ -150,6 +158,7 @@ function redimensionar() {
   escalaInterface();
   renderer.setSize(innerWidth, innerHeight, false); deslocCam = -1; // refaz o deslocamento da câmera do criador
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  if (palco) { palco.camera.aspect = camera.aspect; palco.camera.updateProjectionMatrix(); }
 }
 addEventListener('resize', redimensionar); redimensionar();
 
@@ -172,22 +181,19 @@ function quadro() {
     if (meu) {
       const p = meu.corpo.root.position;
       { const yAntes = alvoCam.y; alvoCam.lerp(tmp.set(p.x, p.y + 1.35, p.z), Math.min(1, dt * 7)); alvoCam.y = yAntes + (p.y + 1.35 - yAntes) * Math.min(1, dt * 3.5); } // na altura sobe devagar: pulo balança pouco, rocha a câmera acompanha
-      if (criador.aberto) { // criador aberto: câmera de frente para o herói, ele no meio do espaço livre da tela
-        if (!camCriador) camCriador = { yaw: controles.yaw, pitch: controles.pitch, dist: controles.dist };
-        meu.corpo.mostrarArmas(false);
-        const rosto = criador.foco === 'rosto', k = Math.min(1, dt * 6), cabeca = meu.corpo.vrm?.humanoid.getRawBoneNode('head');
-        Object.assign(controles, { yaw: meu.corpo.root.rotation.y + Math.PI, pitch: controles.pitch + ((rosto ? 0 : 0.06) - controles.pitch) * k, dist: controles.dist + ((rosto ? 0.7 : 2.4) - controles.dist) * k });
-        if (rosto && cabeca) alvoCam.copy(cabeca.getWorldPosition(tmp)).y += 0.06; // mexendo no rosto: câmera bem perto dele
-      } else if (camCriador) { Object.assign(controles, camCriador); camCriador = null; meu.corpo.mostrarArmas(true); }
       controles.posicionarCamera(camera, alvoCam); segurarCamera(camera, alvoCam);
-      const desloc = criador.largura() / 2;
-      if (desloc !== deslocCam) { deslocCam = desloc; if (desloc) camera.setViewOffset(innerWidth, innerHeight, desloc, 0, innerWidth, innerHeight); else camera.clearViewOffset(); }
       mundo.sol.position.set(p.x + 14, 22, p.z + 8); mundo.sol.target.position.copy(p);
       for (const c of corpos.values()) if (c.tag) hud.posicionarEtiqueta(c.tag, c.corpo.root, c.info, p);
       hud.npcs(p, dt);
     }
     hud.atualizar(dt);
-    if (pos) pos.render(); else renderer.render(mundo.scene, camera);
+    if (criador.aberto && palco) { // no palco: arrastar gira o herói; ele fica no meio do espaço livre ao lado do painel
+      palco.vestir(criador.visual, criador.aparencia);
+      palco.atualizar(dt, camCriador ? camCriador.yaw - controles.yaw : 0, criador.foco === 'rosto');
+      const desloc = criador.largura() / 2;
+      if (desloc !== deslocCam) { deslocCam = desloc; palco.camera.aspect = camera.aspect; palco.camera.setViewOffset(innerWidth, innerHeight, desloc, 0, innerWidth, innerHeight); }
+      if (pos) pos.render(palco.scene, palco.camera); else renderer.render(palco.scene, palco.camera);
+    } else if (pos) pos.render(); else renderer.render(mundo.scene, camera);
   }
   requestAnimationFrame(quadro);
 }
@@ -219,10 +225,11 @@ function quadro() {
         const { conta } = entrada;
         nome = conta.nome;
         if (conta.visual) { escolhido = conta.visual; criador.visual = escolhido; criador.marcar(); }
+        else primeiraVez = true; // conta nova (mesmo num aparelho que já jogou): começa criando o personagem
         if (conta.build) { build = conta.build; hud.mostrarBuild(build); }
         $('sairBtn').hidden = false;
       }
-      try { rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t), entrada?.sessao); break; }
+      try { rede = await conectar(mapa, nome, escolhido, receber, (t) => hud.rede(t), entrada?.sessao, primeiraVez); break; }
       catch (e) { if (!e.login || tentativa > 0) throw e; try { localStorage.removeItem('sessao'); } catch { /* nada guardado */ } }
     }
     hud.rede(rede.modo === 'online' ? 'Online' : 'Modo solo (sem servidor)');

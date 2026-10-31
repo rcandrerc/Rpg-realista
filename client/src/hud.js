@@ -131,7 +131,7 @@ export class Hud {
   }
   posicionarEtiqueta(el, obj, info, perto) {
     const s = this.tela(obj, 2.05);
-    el.hidden = !s.vis || obj.position.distanceTo(perto) > 18;
+    el.hidden = !s.vis || !obj.visible || obj.position.distanceTo(perto) > 18; // invisível: jogador criando o personagem
     el.style.transform = `translate(${s.x}px,${s.y}px) translate(-50%,-100%)`;
     const hb = el.querySelector('.hb i'); if (hb && info) hb.style.width = (info.vida / info.vidaMax * 100) + '%';
   }
