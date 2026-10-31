@@ -3,7 +3,7 @@ import { Client } from 'colyseus.js';
 import { Simulacao } from '@rpg/shared';
 
 // Servidor usado quando o jogo é aberto pelo GitHub Pages (que não roda servidor). Vazio = modo solo.
-const SERVIDOR_PARA_PAGES = '';
+const SERVIDOR_PARA_PAGES = 'wss://163-176-80-126.sslip.io'; // Oracle Cloud (São Paulo)
 
 export function enderecoServidor() {
   const forcado = new URLSearchParams(location.search).get('servidor');
