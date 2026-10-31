@@ -10,4 +10,4 @@ nt.links.new(e.outputs['Color'],bsdf.inputs['Emission Color']); bsdf.inputs['Emi
 bsdf.inputs['Roughness'].default_value=0.9; bsdf.inputs['Metallic'].default_value=0.0
 for tr in bpy.data.objects['Esqueleto'].animation_data.nla_tracks: tr.mute=False
 bpy.ops.export_scene.gltf(filepath=out,export_format='GLB',export_animations=True,export_animation_mode='ACTIONS',
-  export_image_format='JPEG',export_jpeg_quality=85,export_skins=True,export_all_influences=False,export_yup=True,export_apply=False)
+  export_image_format='AUTO',export_skins=True,export_all_influences=False,export_yup=True,export_apply=False)
