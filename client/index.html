@@ -85,7 +85,8 @@ body.editando .acts{z-index:21}
 body.editando .acts button{outline:2px dashed rgba(239,231,214,.55);outline-offset:2px}
 body.editando .acts button.sel{outline:2px solid var(--gold)}
 body.editando .top,body.editando .barra,body.editando #padZona,body.editando .pad{pointer-events:none}
-.bar{height:8px;border-radius:4px;background:rgba(0,0,0,.45);margin-top:6px;overflow:hidden}
+.bar{position:relative;height:13px;border-radius:5px;background:rgba(0,0,0,.45);margin-top:5px;overflow:hidden}
+.bar b{position:absolute;inset:0;display:grid;place-items:center;font:800 .62rem/1 var(--body);color:#fff;font-variant-numeric:tabular-nums;text-shadow:1px 0 1px #000,-1px 0 1px #000,0 1px 1px #000,0 -1px 1px #000}
 .bar i{display:block;height:100%;width:100%;transition:width .2s}
 #hpb{background:var(--hp)} #mpb{background:var(--mp)}
 .weapons{display:flex;gap:6px;pointer-events:auto}
@@ -104,7 +105,9 @@ body.editando .top,body.editando .barra,body.editando #padZona,body.editando .pa
 .acts{transform:scale(var(--ui));transform-origin:bottom right}
 .acts button{position:absolute;width:54px;height:54px;border-radius:50%;border:3px solid #4a3a24;box-shadow:0 0 0 1px #8a6a2c,0 3px 10px rgba(0,0,0,.35);background:radial-gradient(circle at 35% 30%,#4d4160,#1b1524);color:var(--ink);font:700 .7rem/1.05 var(--body);touch-action:none;overflow:hidden;padding:0}
 .acts button:active{transform:scale(.93)}
-.acts button[data-tipo="Magia"]{background:radial-gradient(circle at 35% 30%,#37548a,#111a31)}
+/* tipo legível de longe: espada com anel de aço, magia azul */
+.acts button[data-tipo="Espada"]{background:radial-gradient(circle at 35% 30%,#4a4f5c,#16181f);box-shadow:0 0 0 1.5px #bcd6f0,0 3px 10px rgba(0,0,0,.35)}
+.acts button[data-tipo="Magia"]{background:radial-gradient(circle at 35% 30%,#2f6fd0,#0d1e45);box-shadow:0 0 0 1.5px #7fb6ff,0 3px 10px rgba(0,0,0,.35)}
 .acts button:focus-visible,.ib:focus-visible,#menuJogo button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .acts .cdv{position:absolute;inset:0;background:var(--cd);transform-origin:bottom;transform:scaleY(0);pointer-events:none}
 .acts .lbl{position:relative}
@@ -141,8 +144,8 @@ body.editando .top,body.editando .barra,body.editando #padZona,body.editando .pa
 .net{position:fixed;top:calc(env(safe-area-inset-top,0px) + 68px * var(--ui));transform:scale(var(--ui));transform-origin:top right;right:max(16px,env(safe-area-inset-right,0px));font:700 .7rem var(--body);color:var(--ink);pointer-events:none;background:rgba(22,18,14,.72);border:1px solid rgba(236,206,140,.4);border-radius:10px;padding:3px 9px}
 .tag3d.ally b{color:#9fc6e8}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 88px * var(--ui));transform:translateX(-50%);font-family:var(--display);font-size:calc(1.15rem * var(--ui));color:var(--gold);text-shadow:0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
-.tag3d{position:fixed;left:0;top:0;pointer-events:none;transform:translate(-50%,-100%);text-align:center;font-size:.75rem;text-shadow:0 1px 3px #000;white-space:nowrap}
-.tag3d b{display:block;font-family:var(--display);font-size:.78rem}
+.tag3d{position:fixed;left:0;top:0;pointer-events:none;transform:translate(-50%,-100%);text-align:center;font-size:.75rem;font-weight:700;text-shadow:1px 0 2px #000,-1px 0 2px #000,0 1px 2px #000,0 -1px 2px #000;white-space:nowrap}
+.tag3d b{display:block;font-family:var(--display);font-size:.8rem;font-weight:700;-webkit-text-stroke:.4px #000}
 .tag3d .hb{width:64px;height:5px;background:rgba(0,0,0,.5);border-radius:3px;margin:3px auto 0;overflow:hidden}
 .tag3d .hb i{display:block;height:100%;background:var(--hp)}
 .tag3d.npc b{color:var(--gold)}
@@ -220,8 +223,8 @@ body.criando .top,body.criando .acts,body.criando .pad,body.criando #padZona,bod
 <div class="top">
   <div class="vitals">
     <div class="who"><span id="nome">Andarilho</span> <span id="style">Espada mágica</span></div>
-    <div class="bar"><i id="hpb"></i></div>
-    <div class="bar"><i id="mpb"></i></div>
+    <div class="bar"><i id="hpb"></i><b id="hpt"></b></div>
+    <div class="bar"><i id="mpb"></i><b id="mpt"></b></div>
     <div id="missao" hidden></div>
   </div>
 </div>

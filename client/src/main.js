@@ -75,7 +75,7 @@ function receber(foto, eventos) {
     else efeitos.evento(ev, corpos);
   }
   if (eu) {
-    hud.barras(eu.vida / eu.vidaMax, eu.mana / HEROI.mana);
+    hud.barras(eu.vida, eu.vidaMax, eu.mana, HEROI.mana);
     hud.recargas(eu);
     hud.missoes(eu);
   }
