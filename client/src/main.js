@@ -12,6 +12,7 @@ import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
 import { aplicarEstilo, botaoEstilo } from './estilo.js';
 import { PainelHeroi } from './layout.js';
+import { montarMenu } from './menu.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -23,7 +24,7 @@ const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 400);
 const controles = new Controles(canvas);
 const hud = new Hud(camera);
 const segurarCamera = cameraForaDasCasas(mapa);
-botaoEstilo(document.querySelector('.menu'));
+botaoEstilo($('menuEstilo'));
 
 let mundo, efeitos, rede, pos;
 const corpos = new Map(); // id -> { corpo, info }
@@ -74,7 +75,7 @@ function receber(foto, eventos) {
     else efeitos.evento(ev, corpos);
   }
   if (eu) {
-    hud.barras(eu.vida / eu.vidaMax, eu.mana / HEROI.mana);
+    hud.barras(eu.vida, eu.vidaMax, eu.mana, HEROI.mana);
     hud.recargas(eu);
     hud.missoes(eu);
   }
@@ -104,6 +105,7 @@ hud.aoTrocar = (m) => rede?.enviar('modo', m); // tira o cajado (magia) ou a esp
 let build = (() => { try { return JSON.parse(localStorage.getItem('build')); } catch { return null; } })();
 // foto e nível no painel de vida; toque abre Status, segurar 2 s edita os botões
 const painel = new PainelHeroi(renderer, () => ({ eu, nome: $('nome').textContent, build: build || BUILD_PADRAO }));
+montarMenu({ status: () => painel.abrirStatus(), editarBotoes: () => painel.editar(true) });
 if (!buildValida(build)) build = [...BUILD_PADRAO];
 hud.mostrarBuild(build);
 hud.montarEscolhaHabilidades(build, (b) => {

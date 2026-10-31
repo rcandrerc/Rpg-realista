@@ -6,6 +6,10 @@ const ICO = {
   magia: `<circle cx="12" cy="12" r="4.2" ${F}/><circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>`,
   cura: `<path d="M12 20.5s-8-4.8-8-10.4A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 8 2.5c0 5.6-8 10.4-8 10.4z" ${F}/><path d="M12 10v6M9 13h6"/>`,
   troca: '<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>',
+  // movimento (como os do Quimera)
+  pular: `<path d="M12 20V7M6.5 12L12 6.5l5.5 5.5" stroke-width="2.6"/><path d="M8 3h8"/>`,
+  dash: '<path d="M10 12h11M16.5 7.5L21 12l-4.5 4.5" stroke-width="2.6"/><path d="M3 8h5M2 12h5M3 16h5"/>',
+  rolar: `<circle cx="12" cy="12" r="3.2" ${F}/><path d="M19.5 9.5A8 8 0 1 0 20 14"/><path d="M20.5 5v4.5H16"/>`,
   // espada
   relampago: `<path d="M13.5 2L5 13.5h6L9.5 22 19 9.5h-6.2L13.5 2z" ${F}/>`,
   giro: '<path d="M19.5 13a7.5 7.5 0 1 1-2.6-7.3"/><path d="M17 2.5V6h3.5"/><path d="M12 12l5-5M10 10l4 4"/>',
