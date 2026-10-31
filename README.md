@@ -92,7 +92,6 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
 | Cajado mágico (madeira, anéis de bronze e cristal) | feito no código, com a textura medieval_wood da Poly Haven | CC0 / próprio |
 | Lobo (montaria de teste): modelo, esqueleto e 6 animações | gerado por IA (desenho FLUX.1-schnell, Apache 2.0; 3D TRELLIS, MIT) e montado no Blender por ferramentas/monstros-ia | próprio (saída das IAs sem restrição de uso comercial) |
-| Menina de teste parada perto do começo (só para ver a qualidade; sem esqueleto) | gerada por TRELLIS (MIT) a partir de uma imagem enviada pelo André; a origem da imagem não é conhecida, então não vira personagem do jogo sem conferir a licença | teste |
 | Texturas pintadas do estilo anime (client/public/assets/cenario/pintado/): as mesmas texturas da Poly Haven repintadas pela paleta do jogo | geradas por ferramentas/pintar-texturas/pintar.py a partir das texturas CC0 acima | CC0 / próprio |
 
 As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.

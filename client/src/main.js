@@ -1,7 +1,7 @@
 // Ponto de entrada do cliente: monta a cena, conecta no servidor e desenha o que a simulação manda.
 import * as THREE from 'three';
 import { HEROI, MAPA_CLAREIRA, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, BUILD_PADRAO, buildValida } from '@rpg/shared';
-import { criarRenderizador, montarCena, carregarGLTF } from './cena.js';
+import { criarRenderizador, montarCena } from './cena.js';
 import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
@@ -10,7 +10,7 @@ import { Hud } from './hud.js';
 import { Criador } from './criador.js';
 import { Controles } from './controles.js';
 import { cameraForaDasCasas } from './vila.js';
-import { aplicarEstilo, botaoEstilo, anime, toon } from './estilo.js';
+import { aplicarEstilo, botaoEstilo } from './estilo.js';
 import { PainelHeroi } from './layout.js';
 import { prepararMontarias } from './montaria.js';
 import { Palco } from './palco.js';
@@ -224,13 +224,6 @@ function quadro() {
       hud.adicionarNpc(n, c.root, falar);
       corpos.set('npc:' + n.id, { corpo: c, tipo: 'npc' });
     }
-    // modelos de teste (feitos por IA), parados perto do começo
-    for (const m of mapa.testes3d || []) carregarGLTF(m.modelo).then((g) => {
-      const o = g.scene, caixa = new THREE.Box3().setFromObject(o), k = m.altura / caixa.getSize(tmp).y;
-      o.scale.setScalar(k); o.position.set(m.x, -caixa.min.y * k, m.z); o.rotation.y = m.ry;
-      o.traverse((q) => { if (q.isMesh) { q.castShadow = q.receiveShadow = true; if (anime) q.material = toon(q.material); } });
-      mundo.scene.add(o);
-    }).catch((e) => console.error('Teste 3D', m.id, e));
     msg('Conectando ao servidor…');
     let nome = new URLSearchParams(location.search).get('nome') || 'Andarilho';
     // Conta Google: o nome, o personagem e a build vêm da conta (salvos no servidor)
