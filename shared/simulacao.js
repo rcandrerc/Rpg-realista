@@ -129,8 +129,10 @@ export class Simulacao {
     const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : HEROI.correr) * 1.3;
     if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
     j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
-    const d = Math.hypot(p.x - j.x, p.z - j.z), chao = this.terreno.altura(p.x, p.z);
-    const ok = d <= j.orc + 0.05 && p.y >= chao - 0.6 && p.y <= chao + ORCAMENTO.altura && Math.hypot(p.x, p.z) <= this.mapa.raio;
+    const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
+    // embaixo: vale o chão mais baixo num palmo em volta (agarrado na parede, o corpo fica rente a ela)
+    let baixo = chao; for (const [ox, oz] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) baixo = Math.min(baixo, T.altura(p.x + ox, p.z + oz, p.y));
+    const ok = d <= j.orc + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && Math.hypot(p.x, p.z) <= this.mapa.raio;
     if (!ok) {
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
       j.cliente = null;
@@ -448,8 +450,14 @@ export class Simulacao {
     return T.frente(j.x, j.z, j.ry, 1.0, null, j.y).topo;
   }
   // encosta o corpo na parede (na altura do peito) e vira de frente para a pedra
+  // (agarrou de lado, andando quase paralelo à parede: procura a parede também para os lados e fica de frente para ela;
+  // senão ficava torto, colado demais, e a escalada entrava na casa: o servidor recusava e ela ficava "em pé" no meio da parede)
   ajustarParede(j) {
-    const T = this.terreno, r = T.rochaEm(j.x + Math.sin(j.ry) * 0.8, j.z + Math.cos(j.ry) * 0.8, j.y);
+    const T = this.terreno;
+    let r = null;
+    for (const da of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.57, -1.57]) {
+      r = T.rochaEm(j.x + Math.sin(j.ry + da) * 0.8, j.z + Math.cos(j.ry + da) * 0.8, j.y); if (r) break;
+    }
     if (r) j.ry = r.casa ? T.deFrentePara(r, j.x, j.z) : Math.atan2(r.x - j.x, r.z - j.z);
     const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
     for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + 0.4), j.z + fz * (d + 0.4), j.y) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
