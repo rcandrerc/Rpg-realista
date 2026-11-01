@@ -236,11 +236,18 @@ func part(L: Lote, x: float, y: float, z: float, vx: float, vy: float, vz: float
 	L.P.append_array(PackedFloat32Array([x, y, z, vx, vy, vz, 0.0, vida, t0, t1, k0.r, k0.g, k0.b, k1.r, k1.g, k1.b, a, sobe, arrasto]))
 
 func _lote_passo(L: Lote, dt: float) -> void:
-	var P := L.P
 	var S := Lote.S
-	var total := P.size() / S
-	var vivo := 0
+	var total := L.P.size() / S
+	if total == 0: # sem partícula: não manda nada para a placa de vídeo
+		if L.mm.visible_instance_count != 0:
+			L.mm.visible_instance_count = 0
+		return
+	# solta as listas do lote antes de mexer (senão o Godot copia a lista inteira a cada quadro)
+	var P := L.P
+	L.P = PackedFloat32Array()
 	var buf := L.buf
+	L.buf = PackedFloat32Array()
+	var vivo := 0
 	for i in total:
 		var o := i * S
 		var t := P[o + 6] + dt
@@ -718,6 +725,7 @@ class Faixa:
 	var pts: Array = []
 	var im: ImmediateMesh
 	var mi: MeshInstance3D
+	var vazia := false
 
 func _faixa(n: int, v: int, cor, vida: float) -> Faixa:
 	var f := Faixa.new()
@@ -740,9 +748,14 @@ func _faixa_passo(f: Faixa, dt: float, linha, perfil: Array, forca: float) -> vo
 		p.t += dt
 	while f.pts.size() > f.N or (f.pts.size() > 0 and f.pts.back().t > f.vida):
 		f.pts.pop_back()
-	f.im.clear_surfaces()
 	if f.pts.size() < 2:
+		if f.vazia:
+			return
+		f.vazia = true
+		f.im.clear_surfaces()
 		return
+	f.vazia = false
+	f.im.clear_surfaces()
 	f.im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var n := f.pts.size()
 	for i in n - 1:
@@ -785,7 +798,13 @@ func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
 	_faixa_passo(r.lamina, dt, lamina, PERFIL_LAMINA, 0.7)
 
 # ---------------------------------------------------------------- quadro a quadro
+var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_passo(dt)
+	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+
+func _passo(dt: float) -> void:
 	var i := agenda.size() - 1
 	while i >= 0:
 		agenda[i].t -= dt

@@ -24,3 +24,7 @@ lights_and_shadows/directional_shadow/soft_shadow_filter_quality=2
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/volta_login/plugin.cfg")

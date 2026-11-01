@@ -110,12 +110,13 @@ export async function apagarConta(servidor) {
 }
 
 // Ligar o app do celular (APK) a esta conta: o app abre o site com ?vincular=CODIGO, a pessoa entra com o Google aqui
-// e o servidor guarda uma sessão nova para o app buscar pelo código. Devolve o texto para mostrar na tela.
+// e o servidor guarda uma sessão nova para o app buscar pelo código. Depois a página abre o app de novo sozinha.
+export const VOLTAR_APP = 'intent://voltar#Intent;scheme=rpgaethra;package=com.rcandrerc.rpgprototipo;end';
 export async function ligarApp(servidor, codigo) {
   const entrada = await entrarNaConta(servidor);
-  if (!entrada) return 'Servidor fora do ar. Tente de novo daqui a pouco.';
+  if (!entrada) return { ok: false, texto: 'Servidor fora do ar. Tente de novo daqui a pouco.' };
   try {
     const r = await pedir(servidor, '/conta/vincular', { sessao: entrada.sessao, corpo: { codigo } });
-    return r.ok ? `App ligado na conta de ${entrada.conta.nome}! Feche esta aba e volte para o app do jogo.` : 'Esse pedido venceu. Toque em Entrar no app de novo.';
-  } catch { return 'Servidor fora do ar. Tente de novo daqui a pouco.'; }
+    return r.ok ? { ok: true, texto: `Pronto, ${entrada.conta.nome}! Voltando para o jogo…` } : { ok: false, texto: 'Esse pedido venceu. Toque em Entrar no app de novo.' };
+  } catch { return { ok: false, texto: 'Servidor fora do ar. Tente de novo daqui a pouco.' }; }
 }

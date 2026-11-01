@@ -43,6 +43,11 @@ func _ready() -> void:
 	if OS.get_environment("RPG_SESSAO") != "": # só para teste
 		sessao = OS.get_environment("RPG_SESSAO")
 
+# voltou para o app (o site abre o jogo depois do login): busca a sessão na hora
+func _notification(o: int) -> void:
+	if o == NOTIFICATION_APPLICATION_FOCUS_IN or o == NOTIFICATION_APPLICATION_RESUMED:
+		_espera_vinculo = 0.0
+
 func guardar(s: String) -> void:
 	sessao = s
 	var cfg := ConfigFile.new()
@@ -111,7 +116,7 @@ func pedir(metodo: String, caminho: String, corpo = null, com_sessao := true) ->
 
 func entrar_na_sala() -> void:
 	estado.emit("Entrando no mundo…")
-	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho")})
+	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho"), "json": true})
 	if r.codigo != 200 or not r.dados.has("room"):
 		estado.emit("Não deu para entrar na sala")
 		caiu.emit("sala")
@@ -137,7 +142,13 @@ func enviar(tipo: String, dados = null) -> void:
 		b.append_array(MP.codificar(dados))
 	ws.send(b)
 
+var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_passo(dt)
+	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+
+func _passo(dt: float) -> void:
 	_tempo += dt
 	# esperando o login no navegador
 	if _codigo != "" and not _pedindo:
@@ -208,6 +219,9 @@ func _receber(p: PackedByteArray) -> void:
 		ROOM_DATA:
 			var tipo = MP.ler(b)
 			var dados = MP.ler(b) if b.get_position() < p.size() else null
+			if str(tipo) == "mundoJ" and dados is String: # o mundo em JSON (mais rápido de ler aqui)
+				mensagem.emit("mundo", JSON.parse_string(dados))
+				return
 			if str(tipo) == "pong" and dados is int:
 				ping_ms = Time.get_ticks_msec() - dados
 				return

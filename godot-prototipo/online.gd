@@ -21,6 +21,7 @@ var _ultima_entrada := {}
 var _tentar_de_novo := -1.0
 var _build_ok := false
 var _pronto := false
+var _status_t := 0.0
 var jogadores := 0
 # tela de login
 var tela: CanvasLayer
@@ -139,7 +140,9 @@ func esconder_login() -> void:
 func atualizar_status(_t := "") -> void:
 	if ligado:
 		var p := "" if rede.ping_ms < 0 else " · %d ms" % rede.ping_ms
-		status.text = "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
+		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
+		if status.text != txt: # trocar o texto refaz o layout: só quando muda
+			status.text = txt
 	elif _t != "" and _t != "Online":
 		status.text = _t
 	else:
@@ -408,7 +411,13 @@ func evento(ev: Dictionary) -> void:
 				fx.dash(no, float(ev.get("dur", 0.28)), ev.get("forte", 0) == 1)
 
 # ---------- quadro a quadro ----------
+var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_passo(dt)
+	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+
+func _passo(dt: float) -> void:
 	if _tentar_de_novo > 0.0:
 		_tentar_de_novo -= dt
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":
@@ -443,4 +452,7 @@ func _process(dt: float) -> void:
 		if ent != _ultima_entrada:
 			_ultima_entrada = ent
 			rede.enviar("entrada", ent)
-	atualizar_status()
+	_status_t -= dt
+	if _status_t <= 0.0:
+		_status_t = 0.5
+		atualizar_status()
