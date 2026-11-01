@@ -460,7 +460,8 @@ export class Simulacao {
     }
     if (r) j.ry = r.casa ? T.deFrentePara(r, j.x, j.z) : Math.atan2(r.x - j.x, r.z - j.z);
     const fx = Math.sin(j.ry), fz = Math.cos(j.ry);
-    for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + 0.4), j.z + fz * (d + 0.4), j.y) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
+    const longe = r?.casa ? SUBIDA.parede : 0.4; // pedra é torta: fica um pouco mais longe
+    for (let d = -0.5; d <= 1.2; d += 0.05) if (T.altura(j.x + fx * (d + longe), j.z + fz * (d + longe), j.y) > j.y + 0.9) { j.x += fx * d; j.z += fz * d; return; }
   }
   // fica agarrado na parede
   agarrar(j) { j.esc = j.esc || { parado: 0 }; j.esc.clip = null; j.esc.parado = 0; j.chao = false; j.vy = 0; j.anim = PARADO_PAREDE.agarrado; if (!j.esc.escada) this.ajustarParede(j); }
