@@ -7,6 +7,7 @@ const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Andar = preload("res://andar.gd")
+const Online = preload("res://online.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -36,6 +37,7 @@ var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (ig
 var terreno
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
+var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
 var mascara: Image
 
 # ---------- herói ----------
@@ -112,6 +114,8 @@ func _ready() -> void:
 	hud.nome = "Ruiva"
 	mostrar_build()
 	montar_teste()
+	online = Online.new(self)
+	add_child(online)
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -416,6 +420,8 @@ func mais_perto(pos: Vector3, max_d: float):
 	return melhor
 
 func ferir(e: Dictionary, dmg: float, de: Vector3) -> void:
+	if e.estado == "morto" or on(): # online: quem acerta e quanto tira é o servidor
+		return
 	if e.estado == "morto":
 		return
 	dmg = round(dmg * randf_range(0.9, 1.1))
@@ -476,6 +482,13 @@ func comecar(nome: String, ts: float, hits: Array, ao_acertar: Callable, extra :
 	acao = {"nome": nome, "t": 0.0, "dur": dur, "hits": hits.duplicate(), "feitos": 0, "fn": ao_acertar}
 	acao.merge(extra)
 
+func on() -> bool:
+	return online != null and online.ligado
+
+func rede(tipo: String, dados = null) -> void:
+	if on():
+		online.enviar(tipo, dados)
+
 func pode_agir() -> bool:
 	return h.morto <= 0.0 and acao.is_empty() and mov.esc == null
 
@@ -488,6 +501,7 @@ func usar(qual: String) -> void:
 			basico()
 		"troca":
 			armar("Magia" if h.modo == "Espada" else "Espada")
+			rede("modo", h.modo)
 			mostrar_build()
 			hud.aviso("Modo espada" if h.modo == "Espada" else "Modo magia")
 		"cura":
@@ -495,6 +509,7 @@ func usar(qual: String) -> void:
 				return
 			h.mana -= D.CURA.mana
 			recargas["cura"] = D.CURA.cd
+			rede("habilidade", 9)
 			fx.conjura(heroi, "cura", heroi_anim.get_animation(D.CURA.anim).length / D.CURA.ts, maos)
 			comecar(D.CURA.anim, D.CURA.ts, D.CURA.hits, func(_i):
 				h.vida = min(D.HEROI.vida, h.vida + D.CURA.cura)
@@ -505,6 +520,7 @@ func usar(qual: String) -> void:
 				return
 			var p: String = mov.pular()
 			if p != "":
+				rede("pular")
 				acao = {}
 				heroi_anim.play(p, 0.06, 1.2)
 		"dash":
@@ -515,12 +531,14 @@ func usar(qual: String) -> void:
 			if mov.esc == null and mov.arrancada == null:
 				return
 			recargas["dash"] = D.MOVIMENTO.dash_cd
+			rede("dash")
 			if not na_parede:
 				fx.dash(heroi, D.MOVIMENTO.dash_tempo, false)
 		"rolar":
 			if not pode_agir() or recargas.get("rolar", 0.0) > 0.0 or not mov.chao:
 				return
 			recargas["rolar"] = D.HEROI.rolar_cd
+			rede("rolar")
 			var dir := direcao_joystick()
 			if dir.length() > 0.1:
 				mov.ry = atan2(dir.x, dir.z)
@@ -540,6 +558,7 @@ func basico() -> void:
 			return
 	h.ultimo_basico = tempo
 	virar_para_inimigo()
+	rede("habilidade", 0 if h.modo == "Espada" else 10)
 	if h.modo == "Espada":
 		var combo: Array = D.BASICO.combo
 		var i: int = h.combo if tempo < h.combo_ate else 0
@@ -575,6 +594,7 @@ func habilidade(i: int) -> void:
 	h.mana -= hab.get("mana", 0)
 	recargas[k] = hab.cd
 	virar_para_inimigo()
+	rede("habilidade", 1 + i if h.modo == "Espada" else 5 + i)
 	var extra := {"lamina": hab.tipo == "Espada"}
 	if hab.has("avanco"):
 		extra.merge({"avanco": hab.avanco, "avanco_t": hab.get("avanco_t", 0.5)})
@@ -642,7 +662,8 @@ func _process(dt: float) -> void:
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
 	atualizar_heroi(dt)
-	atualizar_inimigos(dt)
+	if not on():
+		atualizar_inimigos(dt)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira)
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
@@ -668,6 +689,8 @@ func _process(dt: float) -> void:
 
 func atualizar_heroi(dt: float) -> void:
 	if h.morto > 0.0:
+		if on():
+			return # online: o servidor levanta o herói
 		h.morto -= dt
 		if h.morto <= 0.0:
 			h.vida = D.HEROI.vida
