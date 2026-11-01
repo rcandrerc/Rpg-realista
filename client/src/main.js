@@ -6,7 +6,7 @@ import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
 import { Previsao, EFEITOS_LOCAIS } from './previsao.js';
-import { entrarNaConta, sairDaConta, apagarConta } from './conta.js';
+import { entrarNaConta, sairDaConta, apagarConta, ligarApp } from './conta.js';
 import { Hud } from './hud.js';
 import { Criador } from './criador.js';
 import { Controles } from './controles.js';
@@ -332,6 +332,9 @@ function quadro() {
   try {
     // o login do Google aparece logo, enquanto o mundo carrega por trás
     const servidor = enderecoServidor();
+    // aberto pelo app do celular só para fazer o login: entra, liga o app e para por aqui
+    const codigoApp = new URLSearchParams(location.search).get('vincular');
+    if (codigoApp) { msg('Entrando para ligar o app…'); msg(await ligarApp(servidor, codigoApp)); return; }
     const primeiraEntrada = entrarNaConta(servidor);
     msg('Carregando o mundo…');
     mundo = await montarCena(renderer, mapa);
