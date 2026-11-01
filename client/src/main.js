@@ -6,7 +6,7 @@ import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
 import { Previsao, EFEITOS_LOCAIS } from './previsao.js';
-import { entrarNaConta, sairDaConta, apagarConta, ligarApp } from './conta.js';
+import { entrarNaConta, sairDaConta, apagarConta, ligarApp, VOLTAR_APP } from './conta.js';
 import { Hud } from './hud.js';
 import { Criador } from './criador.js';
 import { Controles } from './controles.js';
@@ -334,7 +334,19 @@ function quadro() {
     const servidor = enderecoServidor();
     // aberto pelo app do celular só para fazer o login: entra, liga o app e para por aqui
     const codigoApp = new URLSearchParams(location.search).get('vincular');
-    if (codigoApp) { msg('Entrando para ligar o app…'); msg(await ligarApp(servidor, codigoApp)); return; }
+    if (codigoApp) {
+      msg('Entrando para ligar o app…');
+      const r = await ligarApp(servidor, codigoApp);
+      msg(r.texto);
+      if (r.ok) {
+        location.href = VOLTAR_APP; // abre o app de novo (o Chrome pode pedir um toque: fica o botão)
+        const b = document.createElement('a');
+        b.href = VOLTAR_APP; b.textContent = 'Voltar para o jogo';
+        b.style.cssText = 'display:inline-block;margin-top:18px;padding:14px 28px;border-radius:30px;background:#ee9e40;color:#1a1208;font-weight:700;text-decoration:none;font-size:18px';
+        $('loadmsg').after(b);
+      }
+      return;
+    }
     const primeiraEntrada = entrarNaConta(servidor);
     msg('Carregando o mundo…');
     mundo = await montarCena(renderer, mapa);

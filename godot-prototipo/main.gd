@@ -993,6 +993,8 @@ func proxima_etapa() -> void:
 func atualizar_teste(dt: float) -> void:
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
+	if online:
+		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
@@ -1001,7 +1003,7 @@ func atualizar_teste(dt: float) -> void:
 			soma_proc += proc
 		txt += "\nTestando %d/%d: %s…" % [etapa + 1, etapas.size(), etapas[etapa].nome]
 		if t_etapa >= ESPERA + MEDE:
-			resultados.append("%s: %.0f FPS" % [etapas[etapa].nome, quadros / MEDE])
+			resultados.append("%s: %.0f FPS · %.1f ms" % [etapas[etapa].nome, quadros / MEDE, soma_proc / max(1, quadros)])
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)

@@ -70,10 +70,13 @@ class SalaClareira extends Room {
   tick() {
     const eventos = this.sim.passo(TICK);
     const foto = this.sim.foto();
+    let fotoJson = null;
     for (const c of this.clients) {
       // avisos pessoais vão só para quem precisa
       const meus = eventos.filter((e) => !e.para || e.para === c.sessionId);
-      c.send('mundo', { foto, eventos: meus });
+      // o app Godot pede em JSON (lá ler JSON é bem mais rápido que MessagePack); o site continua igual
+      if (c.userData?.json) c.send('mundoJ', `{"foto":${fotoJson ??= JSON.stringify(foto)},"eventos":${JSON.stringify(meus)}}`);
+      else c.send('mundo', { foto, eventos: meus });
     }
   }
 
@@ -86,6 +89,7 @@ class SalaClareira extends Room {
   }
 
   onJoin(client, opcoes) {
+    if (opcoes?.json === true) (client.userData ||= {}).json = true;
     const conta = contas ? client.auth : null;
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
