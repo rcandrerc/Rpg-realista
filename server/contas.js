@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { PERSONAGENS, buildValida, aparenciaValida } from '@rpg/shared';
+import { PERSONAGENS, buildValida, aparenciaValida, progressoValido } from '@rpg/shared';
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
@@ -49,7 +49,10 @@ export class Contas {
         expira INTEGER NOT NULL
       );`);
     // bancos criados antes da coluna aparencia
-    if (!this.db.prepare('PRAGMA table_info(contas)').all().some((c) => c.name === 'aparencia')) this.db.exec('ALTER TABLE contas ADD COLUMN aparencia TEXT');
+    // bancos criados antes das colunas aparencia e progresso (nível, atributos e skills)
+    const colunas = this.db.prepare('PRAGMA table_info(contas)').all().map((c) => c.name);
+    if (!colunas.includes('aparencia')) this.db.exec('ALTER TABLE contas ADD COLUMN aparencia TEXT');
+    if (!colunas.includes('progresso')) this.db.exec('ALTER TABLE contas ADD COLUMN progresso TEXT');
     this.q = {
       porGoogle: this.db.prepare('SELECT * FROM contas WHERE google = ?'),
       criar: this.db.prepare('INSERT INTO contas (google, email, nome, criada, ultimo_acesso) VALUES (?, ?, ?, ?, ?)'),
@@ -63,6 +66,7 @@ export class Contas {
       apagarSessoes: this.db.prepare('DELETE FROM sessoes WHERE conta = ?'),
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
+      progresso: this.db.prepare('UPDATE contas SET progresso = ? WHERE id = ?'),
     };
     this.copiar();
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
@@ -113,6 +117,7 @@ export class Contas {
   }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); }
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
+  salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
 
   // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 14)
   copiar() {
@@ -135,5 +140,7 @@ function publica(c) {
   try { build = c.build ? JSON.parse(c.build) : null; } catch { /* build antiga inválida: usa a padrão */ }
   let aparencia = null;
   try { aparencia = c.aparencia ? aparenciaValida(JSON.parse(c.aparencia)) : null; } catch { /* inválida: usa a padrão */ }
-  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null };
+  let progresso = null;
+  try { progresso = c.progresso ? progressoValido(JSON.parse(c.progresso)) : null; } catch { /* inválido: começa do nível 1 */ }
+  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso };
 }

@@ -16,7 +16,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20, botoes: 10, atributo: 5 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -34,6 +34,10 @@ class SalaClareira extends Room {
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
+    // skills do Quimera (shared/progresso.js): usar, os 6 botões da tela e os pontos de atributo
+    this.ouvir('habQ', (c, k) => { if (typeof k === 'string' && k.length < 32) this.sim.usarHabQ(c.sessionId, k); });
+    this.ouvir('botoes', (c, b) => this.sim.definirBotoes(c.sessionId, b));
+    this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));
     this.ouvir('dash', (c) => this.sim.dash(c.sessionId));
@@ -53,6 +57,17 @@ class SalaClareira extends Room {
       if (r && contas && c.auth) contas.salvarPersonagem(c.auth.id, r);
     });
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
+    this.clock.setInterval(() => this.salvarProgressos(), 15000); // nível, XP e skills vão para a conta
+  }
+
+  // Grava na conta o progresso de quem mudou desde a última vez
+  salvarProgressos() {
+    if (!contas) return;
+    const porSessao = new Map(this.clients.map((c) => [c.sessionId, c.auth]));
+    for (const { id, prog } of this.sim.progressosParaSalvar()) {
+      const conta = porSessao.get(id) || this.contaDe?.get(id);
+      if (conta) contas.salvarProgresso(conta.id, prog);
+    }
   }
 
   // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
@@ -93,24 +108,30 @@ class SalaClareira extends Room {
     const conta = contas ? client.auth : null;
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
-      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) { (outro.userData ||= {}).substituido = true; outro.leave(4001); }
+      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
+        const velho = this.sim.jogadores.get(outro.sessionId)?.prog; if (velho) conta.progresso = velho; // o mais novo vale
+        (outro.userData ||= {}).substituido = true; outro.leave(4001);
+      }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
-    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia });
+    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso });
+    if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
   }
 
-  onDispose() { salas.delete(this); }
+  onDispose() { this.salvarProgressos(); salas.delete(this); }
 
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
     if (!consentiu && !client.userData?.substituido) {
       try { await this.allowReconnection(client, 20); return; } catch { /* não voltou a tempo */ }
     }
+    this.salvarProgressos(); // grava antes de tirar o herói do mundo
     this.sim.removerJogador(client.sessionId);
+    this.contaDe?.delete(client.sessionId);
   }
 }
 

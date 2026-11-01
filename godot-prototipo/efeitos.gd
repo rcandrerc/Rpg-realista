@@ -15,8 +15,9 @@ const FXCOR := {
 	"bola": ["fff2b0", "ff7a1a"], "explosao": ["ffe6a0", "ff4a12"], "meteoros": ["ffe0a0", "ff5a12"],
 	"cura": ["e4ffd8", "36c060"], "raio": ["fffbe0", "ffd23a"], "magia": ["ece2ff", "8a5cff"],
 	"relampago": ["ffffff", "bcd6f0"], "giro": ["ffffff", "bcd6f0"], "salto": ["ffffff", "bcd6f0"], "investida": ["ffffff", "bcd6f0"],
+	"gelo": ["eafcff", "3fb4ff"], "escudo": ["fff6d6", "ffbf3a"], "vortice": ["f2e6ff", "7a3cff"], "nivel": ["fff6d0", "ffb42a"],
 }
-const MAGIA := ["bola", "explosao", "meteoros", "cura", "raio", "magia"]
+const MAGIA := ["bola", "explosao", "meteoros", "cura", "raio", "magia", "gelo", "escudo", "vortice"]
 const ESTILOS := {"fogo": ["fff6c8", "ffa21a", "ff2a06"], "arcano": ["ffffff", "c4a4ff", "5a22ff"]}
 
 func cor_de(k: String) -> Array:
@@ -171,6 +172,19 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabl
 uniform vec4 cor = vec4(1.0);
 uniform float op = 1.0;
 void fragment() { ALBEDO = cor.rgb; ALPHA = op; }
+"""
+# bolha do Escudo Arcano e casca de gelo: borda acesa (fresnel), miolo quase transparente
+const SH_BOLHA := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
+uniform vec4 cor = vec4(1.0);
+uniform float op = 1.0;
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.2);
+	float faixa = 0.5 + 0.5 * sin(UV.y * 40.0 - TIME * 3.0);
+	ALBEDO = mix(cor.rgb, vec3(1.0), f * 0.5);
+	ALPHA = op * (0.06 + f * 0.85 + faixa * f * 0.25);
+}
 """
 # rastro: cada vértice traz a força (COLOR.a)
 const SH_FAIXA := """
@@ -468,6 +482,7 @@ var raios: Array = []
 var meteoros: Array = []
 var projeteis: Array = []
 var agenda: Array = []
+var bolhas: Array = [] # escudo, gelo e atordoado presos num corpo: {m, corpo, t, dur, op, alt, gira}
 var rastros := {} # nó -> {dash, lamina, dash_t, forte}
 
 func _ready() -> void:
@@ -687,9 +702,11 @@ func cura(alvo: Node3D) -> void:
 		part(FOGO, p.x + cos(a) * d, p.y + randf_range(0.1, 1.2), p.z + sin(a) * d, 0, randf_range(0.8, 1.8), 0, randf_range(0.7, 1.2), 0.08 * H, 0.02 * H, "e4ffd8", "36c060", 1.0, 0.5, 0.5)
 
 # Número de dano (ou cura) que sobe e some
-func numero(pos: Vector3, valor: float, cor := Color.WHITE) -> void:
+func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
-	l.text = str(int(round(valor)))
+	l.text = str(int(round(valor))) + ("!" if critico else "")
+	if critico:
+		l.scale = Vector3.ONE * 1.45
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
 	l.font_size = 64
@@ -716,6 +733,99 @@ func dash(corpo: Node3D, dur: float, forte: bool) -> void:
 		var p := corpo.global_position
 		fumaca_chao(p.x, p.z, 0.8, 14, "9a948a", 1.4)
 		surto(p.x, p.y + 0.3, p.z, 18, "ffffff", "3aa8ff", 5.0, 0.1)
+
+# Corpo envolvido (Escudo Arcano, casca de gelo) ou anel de estrelas girando na cabeça (atordoado)
+func _bolha(corpo: Node3D, cor, dur: float, raio: float, alt: float, op: float, achatar := 1.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var esf := SphereMesh.new()
+	esf.radius = raio
+	esf.height = raio * 2.0 * achatar
+	esf.radial_segments = 32
+	esf.rings = 16
+	mi.mesh = esf
+	mi.material_override = material("bolha", SH_BOLHA, {"cor": c(cor), "op": 0.0})
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	mi.global_position = corpo.global_position + Vector3(0, alt, 0)
+	bolhas.append({"m": mi, "corpo": corpo, "t": 0.0, "dur": dur, "op": op, "alt": alt, "gira": 0.0})
+	return mi
+
+func escudo(corpo: Node3D, dur: float) -> void:
+	escudo_fim(corpo)
+	_bolha(corpo, "ffc24a", dur, 0.95, 0.95, 0.9, 1.15)
+	var p := corpo.global_position
+	anel(p.x, p.z, 1.1, "ffd36a", 0.5, p.y)
+	surto(p.x, p.y + 1.0, p.z, 30, "fff6d6", "ffbf3a", 4.0, 0.08)
+	luz("ffc24a", 2.5, 5.0, 0.5).l.global_position = p + Vector3(0, 1.2, 0)
+
+# o escudo acabou ou quebrou: some com um estalo dourado
+func escudo_fim(corpo: Node3D) -> void:
+	for b in bolhas:
+		if b.corpo == corpo and b.alt > 0.5 and b.t < b.dur - 0.3:
+			b.dur = b.t + 0.3
+			var p: Vector3 = b.m.global_position
+			surto(p.x, p.y, p.z, 24, "fff6d6", "ffbf3a", 6.0, 0.08)
+
+# Abraço do Vórtice: anel roxo e partículas correndo em espiral para o centro
+func vortice(x: float, z: float, r: float, y := 0.0) -> void:
+	anel(x, z, r, "9a5cff", 0.6, y)
+	anel(x, z, r * 0.55, "c8a8ff", 0.45, y)
+	for i in 70:
+		var a := randf() * TAU
+		var d := r * randf_range(0.6, 1.0)
+		var v := d / randf_range(0.35, 0.55)
+		var tang := randf_range(2.0, 4.0)
+		part(FOGO, x + cos(a) * d, y + randf_range(0.2, 1.4), z + sin(a) * d, -cos(a) * v - sin(a) * tang, randf_range(-0.2, 0.4), -sin(a) * v + cos(a) * tang,
+			randf_range(0.35, 0.55), 0.11 * H, 0.02, "f2e6ff", "7a3cff", 1.0, 0.0, 0.5)
+	fumaca_chao(x, z, r * 0.7, 18, "5a4a7a", 1.2)
+	luz("8a4aff", 3.0, r * 2.0, 0.6).l.global_position = Vector3(x, y + 1.0, z)
+
+# congelado (casca de gelo azul) ou atordoado (estrelas na cabeça)
+func status(corpo: Node3D, k: String, dur: float) -> void:
+	for b in bolhas: # já tinha: só estica o tempo
+		if b.corpo == corpo and b.get("k", "") == k:
+			b.dur = max(b.dur, b.t + dur)
+			return
+	var p := corpo.global_position
+	if k == "congela":
+		var m := _bolha(corpo, "8fdcff", dur, 0.75, 0.85, 1.0, 1.35)
+		bolhas[-1].k = k
+		surto(p.x, p.y + 0.9, p.z, 26, "eafcff", "3fb4ff", 3.5, 0.09)
+		m.scale = Vector3(1.0, 1.0, 1.0)
+	else:
+		var g := Node3D.new()
+		add_child(g)
+		for i in 5:
+			var e := MeshInstance3D.new()
+			var q := SphereMesh.new()
+			q.radius = 0.055
+			q.height = 0.11
+			q.radial_segments = 8
+			q.rings = 4
+			e.mesh = q
+			e.material_override = material("basico", SH_BASICO, {"cor": c("ffe27a"), "op": 1.0})
+			e.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var a := i / 5.0 * TAU
+			e.position = Vector3(cos(a) * 0.32, 0, sin(a) * 0.32)
+			g.add_child(e)
+		g.global_position = p + Vector3(0, 2.0, 0)
+		bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 2.0 * corpo.scale.y, "gira": 5.0, "k": k})
+
+func status_fim(corpo: Node3D) -> void:
+	for b in bolhas:
+		if b.corpo == corpo and b.has("k"):
+			b.dur = min(b.dur, b.t + 0.2)
+
+# subiu de nível: coluna dourada, anel e brilho subindo
+func subir_nivel(corpo: Node3D) -> void:
+	var p := corpo.global_position
+	conjura(corpo, "nivel", 1.4)
+	anel(p.x, p.z, 2.2, "ffd36a", 1.0, p.y)
+	for i in 60:
+		var a := randf() * TAU
+		var d := randf_range(0.1, 0.9)
+		part(FOGO, p.x + cos(a) * d, p.y + randf_range(0.0, 0.6), p.z + sin(a) * d, 0, randf_range(2.0, 4.5), 0, randf_range(0.8, 1.4), 0.1 * H, 0.02, "fff6d0", "ffb42a", 1.0, 0.6, 0.3)
+	luz("ffc24a", 4.0, 8.0, 1.2, corpo)
 
 # ---------------------------------------------------------------- rastros
 class Faixa:
@@ -812,6 +922,23 @@ func _passo(dt: float) -> void:
 			var fn: Callable = agenda[i].fn
 			agenda.remove_at(i)
 			fn.call()
+		i -= 1
+	# bolhas presas nos corpos (escudo, gelo, atordoado)
+	i = bolhas.size() - 1
+	while i >= 0:
+		var b: Dictionary = bolhas[i]
+		b.t += dt
+		if not is_instance_valid(b.corpo) or b.t >= b.dur:
+			b.m.queue_free()
+			bolhas.remove_at(i)
+			i -= 1
+			continue
+		b.m.global_position = b.corpo.global_position + Vector3(0, b.alt, 0)
+		if b.gira != 0.0:
+			b.m.rotation.y += b.gira * dt
+		if b.op >= 0.0:
+			var k: float = min(1.0, b.t / 0.2) * min(1.0, (b.dur - b.t) / 0.3)
+			b.m.material_override.set_shader_parameter("op", b.op * k)
 		i -= 1
 	# raios
 	i = raios.size() - 1
@@ -955,9 +1082,9 @@ func _passo(dt: float) -> void:
 		if mundo != null:
 			var alvo = mundo.inimigo_em(o, 0.7)
 			if alvo:
-				mundo.ferir(alvo, p.dmg, o)
+				mundo.ferir(alvo, p.dmg, o, p.info.get("hab"))
 				if p.info.has("explosao"):
-					mundo.dano_area(o, p.info.explosao, p.dmg * 0.6, null)
+					mundo.dano_area(o, p.info.explosao, p.dmg * 0.6, p.info.get("hab"))
 				acabou = true
 		if not acabou and mundo != null and o.y < mundo.terreno.altura(o.x, o.z, o.y) + 0.05:
 			acabou = true # bateu na pedra ou no chão

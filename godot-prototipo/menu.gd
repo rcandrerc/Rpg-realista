@@ -1,0 +1,584 @@
+extends CanvasLayer
+# Menu do personagem (ideia do Quimera, com cara mais adulta): abre tocando no painel de vida.
+# Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Cabeça, Corpo, Pés | Arma, Acessório, Capa).
+# Direita: abas Status (nível, XP, pontos de atributo e os números do herói) e Habilidades (Espada, Cajado e Gerais,
+# com nível de cada skill, o que melhora no próximo e em qual dos 6 botões da tela ela fica). Passivas no fim.
+# Quem decide é o servidor (online manda "atributo" e "botoes"); sem internet muda só neste celular.
+
+const OURO := Color(0.80, 0.64, 0.36)
+const OURO_CLARO := Color(0.95, 0.82, 0.55)
+const TEXTO := Color(0.93, 0.89, 0.80)
+const APAGADO := Color(0.60, 0.56, 0.49)
+const FUNDO := Color(0.075, 0.065, 0.055, 0.97)
+const FUNDO2 := Color(0.12, 0.105, 0.088, 1.0)
+const FUNDO3 := Color(0.17, 0.148, 0.12, 1.0)
+const BORDA := Color(0.42, 0.33, 0.20, 1.0)
+const VERDE := Color(0.45, 0.78, 0.45)
+
+const ARVORES := {"espada": "Espada", "cajado": "Cajado", "geral": "Gerais"}
+const ARVORE_TXT := {
+	"espada": "Com a espada na mão. Escala com Força. Cada skill sobe de nível usando.",
+	"cajado": "Com o cajado na mão. Escala com Inteligência. Cada skill sobe de nível usando.",
+	"geral": "Servem com a espada e com o cajado. Cada skill sobe de nível usando.",
+}
+const SLOTS := [["cabeca", "Cabeça"], ["corpo", "Corpo"], ["pes", "Pés"], ["arma", "Arma"], ["acessorio", "Acessório"], ["capa", "Capa"]]
+
+var m # main.gd
+var raiz: Control
+var aba := "status"
+var arvore := "espada"
+var conteudo: VBoxContainer
+var rolagem: ScrollContainer
+var botoes_aba := {}
+var botoes_arvore := {}
+var linha_arvores: HBoxContainer
+var titulo_nivel: Label
+var vp: SubViewport
+var boneco: Node3D
+var boneco_anim: AnimationPlayer
+var boneco_modo := ""
+var esp: Node3D
+var caj: Node3D
+var giro := 0.4
+var arrastando := false
+var slot_arma: Dictionary = {}
+var _rolagem_y := {}
+
+func _init(principal) -> void:
+	m = principal
+	layer = 20 # acima da tela de login e do status online
+
+func _ready() -> void:
+	raiz = Control.new()
+	raiz.set_anchors_preset(Control.PRESET_FULL_RECT)
+	raiz.visible = false
+	add_child(raiz)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0, 0, 0, 0.55)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	raiz.add_child(escuro)
+	# moldura principal
+	var moldura := Panel.new()
+	moldura.set_anchors_preset(Control.PRESET_FULL_RECT)
+	moldura.offset_left = 22
+	moldura.offset_top = 14
+	moldura.offset_right = -22
+	moldura.offset_bottom = -14
+	moldura.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 10, 14))
+	raiz.add_child(moldura)
+	var tudo := HBoxContainer.new()
+	tudo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tudo.offset_left = 18
+	tudo.offset_top = 14
+	tudo.offset_right = -18
+	tudo.offset_bottom = -14
+	tudo.add_theme_constant_override("separation", 18)
+	moldura.add_child(tudo)
+	tudo.add_child(montar_esquerda())
+	tudo.add_child(montar_direita())
+	# fechar (canto de cima à direita)
+	var x := Fechar.new()
+	x.position = Vector2(-50, 8)
+	x.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	x.offset_left = -52
+	x.offset_top = 8
+	x.offset_right = -12
+	x.offset_bottom = 48
+	x.gui_input.connect(func(ev): if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed): fechar())
+	moldura.add_child(x)
+
+# ---------- peças de estilo ----------
+static func caixa(cor: Color, borda: Color, b := 1, raio := 6, sombra := 0) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = cor
+	s.border_color = borda
+	s.set_border_width_all(b)
+	s.set_corner_radius_all(raio)
+	if sombra > 0:
+		s.shadow_color = Color(0, 0, 0, 0.55)
+		s.shadow_size = sombra
+	s.content_margin_left = 10
+	s.content_margin_right = 10
+	s.content_margin_top = 6
+	s.content_margin_bottom = 6
+	return s
+
+static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_size_override("font_size", tam)
+	l.add_theme_color_override("font_color", cor)
+	return l
+
+func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
+	var b := Button.new()
+	b.text = t
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", tam)
+	estilo_botao(b, ativo)
+	b.pressed.connect(fn)
+	return b
+
+static func estilo_botao(b: Button, ativo: bool) -> void:
+	var n := caixa(FUNDO3 if ativo else FUNDO2, OURO if ativo else BORDA, 1, 6)
+	var p := caixa(FUNDO3.lightened(0.08), OURO_CLARO, 1, 6)
+	var d := caixa(Color(0.1, 0.09, 0.08, 0.9), Color(0.25, 0.21, 0.16), 1, 6)
+	b.add_theme_stylebox_override("normal", n)
+	b.add_theme_stylebox_override("hover", n)
+	b.add_theme_stylebox_override("pressed", p)
+	b.add_theme_stylebox_override("disabled", d)
+	b.add_theme_color_override("font_color", OURO_CLARO if ativo else TEXTO)
+	b.add_theme_color_override("font_hover_color", OURO_CLARO if ativo else TEXTO)
+	b.add_theme_color_override("font_pressed_color", OURO_CLARO)
+	b.add_theme_color_override("font_disabled_color", Color(0.4, 0.37, 0.32))
+
+static func icone_tex(nome: String) -> Texture2D:
+	return load("res://icones/%s.svg" % nome) if nome != "" else null
+
+# ---------- esquerda: herói 3D e equipamentos ----------
+func montar_esquerda() -> Control:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(430, 0)
+	col.add_theme_constant_override("separation", 6)
+	var cab := HBoxContainer.new()
+	cab.add_child(rotulo("PERSONAGEM", 13, OURO))
+	col.add_child(cab)
+	titulo_nivel = rotulo("", 20, TEXTO)
+	col.add_child(titulo_nivel)
+	var meio := HBoxContainer.new()
+	meio.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	meio.add_theme_constant_override("separation", 8)
+	col.add_child(meio)
+	var esq := VBoxContainer.new()
+	esq.alignment = BoxContainer.ALIGNMENT_CENTER
+	esq.add_theme_constant_override("separation", 14)
+	var dir := VBoxContainer.new()
+	dir.alignment = BoxContainer.ALIGNMENT_CENTER
+	dir.add_theme_constant_override("separation", 14)
+	for i in 6:
+		var s := slot(SLOTS[i][0], SLOTS[i][1])
+		(esq if i < 3 else dir).add_child(s)
+	meio.add_child(esq)
+	# palco do herói
+	var palco := SubViewportContainer.new()
+	palco.stretch = true
+	palco.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	palco.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	palco.mouse_filter = Control.MOUSE_FILTER_STOP
+	palco.gui_input.connect(_girar)
+	vp = SubViewport.new()
+	vp.own_world_3d = true
+	vp.transparent_bg = true
+	vp.msaa_3d = Viewport.MSAA_2X
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	palco.add_child(vp)
+	meio.add_child(palco)
+	meio.add_child(dir)
+	var dica := rotulo("Arraste o personagem para girar", 12, APAGADO)
+	dica.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(dica)
+	montar_palco()
+	return col
+
+# lugar de equipamento: moldura escura com o nome; a arma mostra a que está na mão (o resto vem com a mochila)
+func slot(id: String, nome: String) -> Control:
+	var c := VBoxContainer.new()
+	c.add_theme_constant_override("separation", 2)
+	var p := Panel.new()
+	p.custom_minimum_size = Vector2(66, 66)
+	p.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), BORDA, 1, 8))
+	var ic := TextureRect.new()
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 12
+	ic.offset_top = 12
+	ic.offset_right = -12
+	ic.offset_bottom = -12
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = Color(1, 1, 1, 0.9)
+	p.add_child(ic)
+	c.add_child(p)
+	var l := rotulo(nome, 11, APAGADO)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	c.add_child(l)
+	if id == "arma":
+		slot_arma = {"icone": ic, "painel": p}
+	return c
+
+func montar_palco() -> void:
+	var cam := Camera3D.new()
+	cam.fov = 30
+	cam.position = Vector3(0, 1.05, 4.6)
+	cam.look_at_from_position(cam.position, Vector3(0, 0.88, 0))
+	vp.add_child(cam)
+	var amb := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.55, 0.5, 0.45)
+	env.ambient_light_energy = 0.9
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	amb.environment = env
+	vp.add_child(amb)
+	var chave := DirectionalLight3D.new() # luz principal quente e um contraluz frio, como estúdio
+	chave.light_color = Color(1.0, 0.92, 0.8)
+	chave.light_energy = 1.25
+	chave.rotation = Vector3(deg_to_rad(-30), deg_to_rad(35), 0)
+	vp.add_child(chave)
+	var contra := DirectionalLight3D.new()
+	contra.light_color = Color(0.6, 0.72, 1.0)
+	contra.light_energy = 0.8
+	contra.rotation = Vector3(deg_to_rad(-15), deg_to_rad(200), 0)
+	vp.add_child(contra)
+	# chão: disco escuro com brilho dourado
+	var disco := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.75
+	cil.bottom_radius = 0.8
+	cil.height = 0.04
+	disco.mesh = cil
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.09, 0.08, 0.07)
+	mat.metallic = 0.6
+	mat.roughness = 0.35
+	mat.emission_enabled = true
+	mat.emission = Color(0.35, 0.25, 0.1)
+	mat.emission_energy_multiplier = 0.25
+	disco.material_override = mat
+	disco.position.y = -0.02
+	vp.add_child(disco)
+	boneco = m.modelo("ruiva")
+	boneco.get_parent().remove_child(boneco)
+	vp.add_child(boneco)
+	boneco.position = Vector3.ZERO
+	boneco_anim = boneco.find_child("AnimationPlayer", true, false)
+	esp = m.nova_arma("espada")
+	caj = m.nova_arma("cajado")
+
+func armar_boneco() -> void:
+	if boneco_modo == m.h.modo:
+		return
+	boneco_modo = m.h.modo
+	var esq: Skeleton3D = m.esqueleto(boneco)
+	var L: Dictionary = m.armas_lugar.ruiva
+	m.prender(esq, esp, L.espadaMao if boneco_modo == "Espada" else L.espadaCostas)
+	m.prender(esq, caj, L.cajadoCostas if boneco_modo == "Espada" else L.get("cajadoMao", L.cajadoCostas))
+	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else "parada", 0.2)
+	if slot_arma:
+		slot_arma.icone.texture = icone_tex("basico" if boneco_modo == "Espada" else "magia")
+		slot_arma.painel.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.055, 1), OURO, 1, 8))
+
+func _girar(ev: InputEvent) -> void:
+	if ev is InputEventScreenDrag:
+		giro += ev.relative.x * 0.012
+	elif ev is InputEventMouseMotion and (ev.button_mask & MOUSE_BUTTON_MASK_LEFT):
+		giro += ev.relative.x * 0.012
+
+# ---------- direita: abas ----------
+func montar_direita() -> Control:
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 8)
+	var abas := HBoxContainer.new()
+	abas.add_theme_constant_override("separation", 6)
+	for a in [["status", "Status"], ["habilidades", "Habilidades"]]:
+		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
+		b.custom_minimum_size = Vector2(150, 40)
+		botoes_aba[a[0]] = b
+		abas.add_child(b)
+	col.add_child(abas)
+	linha_arvores = HBoxContainer.new()
+	linha_arvores.add_theme_constant_override("separation", 6)
+	for k in ARVORES:
+		var b := botao(ARVORES[k], func(): trocar_arvore(k), 14)
+		b.custom_minimum_size = Vector2(110, 34)
+		botoes_arvore[k] = b
+		linha_arvores.add_child(b)
+	col.add_child(linha_arvores)
+	var fundo := PanelContainer.new()
+	fundo.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fundo.add_theme_stylebox_override("panel", caixa(Color(0.055, 0.048, 0.04, 1), Color(0.24, 0.2, 0.14), 1, 8))
+	rolagem = ScrollContainer.new()
+	rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	rolagem.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fundo.add_child(rolagem)
+	conteudo = VBoxContainer.new()
+	conteudo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	conteudo.add_theme_constant_override("separation", 8)
+	rolagem.add_child(conteudo)
+	col.add_child(fundo)
+	return col
+
+func trocar_aba(a: String) -> void:
+	aba = a
+	atualizar()
+	rolagem.scroll_vertical = 0
+
+func trocar_arvore(k: String) -> void:
+	arvore = k
+	atualizar()
+	rolagem.scroll_vertical = 0
+
+func abrir() -> void:
+	if m.h.modo == "Magia":
+		arvore = "cajado"
+	raiz.visible = true
+	m.hud.bloqueado = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	boneco_modo = ""
+	atualizar()
+
+func fechar() -> void:
+	raiz.visible = false
+	m.hud.bloqueado = false
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+func aberto() -> bool:
+	return raiz != null and raiz.visible
+
+func _process(dt: float) -> void:
+	if not aberto():
+		return
+	if boneco:
+		boneco.rotation.y = lerp_angle(boneco.rotation.y, giro, min(1.0, dt * 10.0))
+	armar_boneco()
+
+# ---------- conteúdo ----------
+func atualizar() -> void:
+	if not aberto():
+		return
+	var P = m.P
+	titulo_nivel.text = "%s  ·  Nível %d" % [m.hud.nome, P.prog.nivel]
+	for k in botoes_aba:
+		estilo_botao(botoes_aba[k], k == aba)
+	linha_arvores.visible = aba == "habilidades"
+	for k in botoes_arvore:
+		estilo_botao(botoes_arvore[k], k == arvore)
+	var y := rolagem.scroll_vertical
+	for c in conteudo.get_children():
+		conteudo.remove_child(c)
+		c.queue_free()
+	if aba == "status":
+		montar_status()
+	else:
+		montar_habilidades()
+	await get_tree().process_frame
+	rolagem.scroll_vertical = y
+
+func separador(t: String) -> void:
+	var l := rotulo(t.to_upper(), 12, OURO)
+	conteudo.add_child(l)
+	var linha := ColorRect.new()
+	linha.color = Color(0.42, 0.33, 0.2, 0.6)
+	linha.custom_minimum_size = Vector2(0, 1)
+	conteudo.add_child(linha)
+
+func barra(frac: float, cor: Color, alto := 8.0) -> Control:
+	var fundo := Panel.new()
+	fundo.custom_minimum_size = Vector2(0, alto)
+	fundo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fundo.add_theme_stylebox_override("panel", caixa(Color(0.03, 0.03, 0.03), Color(0.25, 0.2, 0.14), 1, 3))
+	var cheio := Panel.new()
+	cheio.anchor_right = clamp(frac, 0.0, 1.0)
+	cheio.anchor_bottom = 1.0
+	cheio.add_theme_stylebox_override("panel", caixa(cor, cor.lightened(0.2), 0, 3))
+	fundo.add_child(cheio)
+	return fundo
+
+func montar_status() -> void:
+	var P = m.P
+	var p: Dictionary = P.prog
+	separador("Nível")
+	var lv := HBoxContainer.new()
+	lv.add_child(rotulo("Nível %d" % p.nivel, 20, OURO_CLARO))
+	var xp_txt := rotulo("  XP %d / %d" % [p.xp, P.xp_prox] if p.nivel < int(P.dados.nivelMax) else "  Nível máximo", 14, APAGADO)
+	lv.add_child(xp_txt)
+	conteudo.add_child(lv)
+	conteudo.add_child(barra(float(p.xp) / max(1, P.xp_prox), Color(0.85, 0.66, 0.3)))
+	separador("Atributos")
+	conteudo.add_child(rotulo("Pontos livres: %d" % p.pontos, 15, VERDE if p.pontos > 0 else APAGADO))
+	for k in ["for", "des", "int", "vit"]:
+		var a: Dictionary = P.dados.atributos[k]
+		var linha := HBoxContainer.new()
+		linha.add_theme_constant_override("separation", 10)
+		var txt := VBoxContainer.new()
+		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		txt.add_theme_constant_override("separation", 0)
+		txt.add_child(rotulo(a.nome, 16, TEXTO))
+		var d := rotulo(a.desc, 12, APAGADO)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(d)
+		linha.add_child(txt)
+		var v := rotulo(str(p.atr[k]), 20, OURO_CLARO)
+		v.custom_minimum_size = Vector2(36, 0)
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		linha.add_child(v)
+		var mais := botao("+", func(): distribuir(k), 20, p.pontos > 0)
+		mais.custom_minimum_size = Vector2(44, 40)
+		mais.disabled = p.pontos <= 0
+		linha.add_child(mais)
+		conteudo.add_child(linha)
+	separador("Herói")
+	var st: Dictionary = P.st
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 28)
+	g.add_theme_constant_override("v_separation", 4)
+	var itens := [
+		["Vida", "%d / %d" % [ceil(m.h.vida), st.vidaMax]], ["Mana", "%d / %d" % [floor(m.h.mana), st.manaMax]],
+		["Defesa", "%d (-%s%% de dano)" % [st.defesa, P.num(st.reducao * 100, 0)]], ["Crítico", "%s%%" % P.num(st.critico * 100, 1)],
+		["Dano físico", P.num(st.danoFisico, 1)], ["Dano mágico", P.num(st.danoMagico, 1)],
+		["Recarga", "-%s%%" % P.num(st.recarga * 100, 0)], ["Regeneração", "%s vida/s · %s mana/s" % [P.num(st.regenVida, 1), P.num(st.regenMana, 1)]],
+	]
+	for it in itens:
+		var c := HBoxContainer.new()
+		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var n := rotulo(it[0], 14, APAGADO)
+		n.custom_minimum_size = Vector2(110, 0)
+		c.add_child(n)
+		c.add_child(rotulo(it[1], 14, TEXTO))
+		g.add_child(c)
+	conteudo.add_child(g)
+
+func distribuir(k: String) -> void:
+	if m.on():
+		m.rede("atributo", k) # o servidor confere e devolve o progresso novo
+	elif m.P.distribuir(k):
+		atualizar()
+
+func montar_habilidades() -> void:
+	var P = m.P
+	separador("Seus botões na tela")
+	var bt := HBoxContainer.new()
+	bt.add_theme_constant_override("separation", 8)
+	for i in P.prog.botoes.size():
+		var k = P.prog.botoes[i]
+		var s := Panel.new()
+		s.custom_minimum_size = Vector2(54, 54)
+		s.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO if k != null else BORDA, 1, 27))
+		var n := rotulo(str(i + 1), 11, OURO)
+		n.position = Vector2(4, 1)
+		if k != null:
+			var ic := TextureRect.new()
+			ic.texture = icone_tex(P.ICONE.get(k, ""))
+			ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+			ic.offset_left = 9
+			ic.offset_top = 9
+			ic.offset_right = -9
+			ic.offset_bottom = -9
+			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			s.add_child(ic)
+		s.add_child(n)
+		bt.add_child(s)
+	conteudo.add_child(bt)
+	var info := rotulo(ARVORE_TXT[arvore], 13, APAGADO)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(info)
+	separador("Skills")
+	var ids := []
+	for id in P.habs:
+		var h: Dictionary = P.habs[id]
+		if h.arvore == arvore:
+			ids.append(id)
+	var ordem := func(id): return int(P.habs[id].libera) * 2 + (0 if P.habs[id].get("basico", false) else 1)
+	ids.sort_custom(func(a, b): return ordem.call(a) < ordem.call(b))
+	for id in ids:
+		conteudo.add_child(linha_skill(id))
+	separador("Passivas")
+	for k in P.dados.passivas:
+		var pv: Dictionary = P.dados.passivas[k]
+		var ok: bool = P.passiva(k)
+		var l := HBoxContainer.new()
+		l.add_theme_constant_override("separation", 10)
+		var marca := Panel.new()
+		marca.custom_minimum_size = Vector2(12, 12)
+		marca.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		marca.add_theme_stylebox_override("panel", caixa(VERDE if ok else Color(0.2, 0.18, 0.15), BORDA, 1, 6))
+		l.add_child(marca)
+		l.add_child(rotulo(pv.nome, 15, TEXTO if ok else APAGADO))
+		l.add_child(rotulo(pv.desc if ok else "Libera no nível %d. %s" % [int(pv.libera), pv.desc], 13, APAGADO))
+		conteudo.add_child(l)
+
+func linha_skill(id: String) -> Control:
+	var P = m.P
+	var base: Dictionary = P.habs[id]
+	var livre: bool = P.liberada(id)
+	var nv: int = P.nivel_de(id)
+	var h: Dictionary = P.hab_pronta(id)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1) if livre else Color(0.07, 0.063, 0.055, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	var moldura := Panel.new()
+	moldura.custom_minimum_size = Vector2(52, 52)
+	moldura.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	moldura.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO.darkened(0.2) if livre else BORDA, 1, 26))
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.ICONE.get(id, ""))
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 9
+	ic.offset_top = 9
+	ic.offset_right = -9
+	ic.offset_bottom = -9
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = Color(1, 1, 1) if livre else Color(0.45, 0.45, 0.45)
+	moldura.add_child(ic)
+	l.add_child(moldura)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	var cab := HBoxContainer.new()
+	cab.add_child(rotulo(base.nome, 16, TEXTO if livre else APAGADO))
+	if livre:
+		cab.add_child(rotulo("   Nv %d/%d" % [nv, P.maximo(id)], 13, OURO))
+	txt.add_child(cab)
+	var d := rotulo(base.desc if livre else "Libera no nível %d. %s" % [int(base.libera), base.desc], 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(d)
+	var nums := rotulo(P.linha(h), 13, Color(0.85, 0.8, 0.7) if livre else APAGADO)
+	nums.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(nums)
+	if livre and not base.get("basico", false):
+		if nv < P.maximo(id):
+			var uso := HBoxContainer.new()
+			uso.add_theme_constant_override("separation", 8)
+			var b := barra(float(P.uso_de(id)) / P.usos_para_subir(nv), Color(0.55, 0.42, 0.2), 6)
+			b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			uso.add_child(b)
+			uso.add_child(rotulo("%d/%d usos" % [P.uso_de(id), P.usos_para_subir(nv)], 11, APAGADO))
+			txt.add_child(uso)
+		txt.add_child(rotulo(P.proximo(id), 12, Color(0.6, 0.75, 0.55)))
+		# em qual botão da tela ela fica
+		var bs := HBoxContainer.new()
+		bs.add_theme_constant_override("separation", 5)
+		bs.add_child(rotulo("Botão:", 13, APAGADO))
+		for i in P.prog.botoes.size():
+			var nb := botao(str(i + 1), func(): por_no_botao(id, i), 14, P.prog.botoes[i] == id)
+			nb.custom_minimum_size = Vector2(40, 34)
+			bs.add_child(nb)
+		txt.add_child(bs)
+	elif base.get("basico", false):
+		txt.add_child(rotulo("Golpe da arma na mão (botão grande)", 12, Color(0.6, 0.75, 0.55)))
+	l.add_child(txt)
+	return cx
+
+func por_no_botao(id: String, i: int) -> void:
+	m.P.por_no_botao(id, i)
+	m.rede("botoes", m.P.prog.botoes)
+	atualizar()
+
+# X de fechar desenhado (sem depender de símbolo na fonte)
+class Fechar extends Control:
+	func _ready() -> void:
+		custom_minimum_size = Vector2(40, 40)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+	func _draw() -> void:
+		var c := size * 0.5
+		draw_circle(c, 19, Color(0.12, 0.105, 0.088))
+		draw_arc(c, 19, 0, TAU, 32, Color(0.8, 0.64, 0.36), 1.5, true)
+		var r := 7.0
+		draw_line(c + Vector2(-r, -r), c + Vector2(r, r), Color(0.95, 0.82, 0.55), 2.5, true)
+		draw_line(c + Vector2(-r, r), c + Vector2(r, -r), Color(0.95, 0.82, 0.55), 2.5, true)

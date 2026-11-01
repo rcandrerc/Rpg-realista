@@ -8,6 +8,8 @@ const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
+const Progresso = preload("res://progresso.gd")
+const Menu = preload("res://menu.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -15,8 +17,8 @@ const LACOS := ["parada", "andar", "corrida", "espada_parada", "queda", "parede_
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), só no acampamento do leste, nunca dentro da vila
 const BANDO := [
-	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp"},
-	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15},
+	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp", "tipo": "imp"},
+	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15, "tipo": "chefe"},
 ]
 const NPCS := [
 	{"id": "fumiriya", "x": -6.0, "z": -18.6, "nome": "Aldo, o líder da vila"},
@@ -25,6 +27,7 @@ const NPCS := [
 	{"id": "vita", "x": -4.0, "z": 9.0, "nome": "Bento"},
 	{"id": "victoria", "x": 6.0, "z": 6.0, "nome": "Tomás, o ferreiro"},
 ]
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
 var sol: DirectionalLight3D
@@ -49,10 +52,11 @@ var espada: Node3D
 var cajado: Node3D
 var mao_direita := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
-	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0}
+	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0}
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
-var build: Array = D.BUILD_PADRAO.duplicate()
+var P # progresso.gd: nível, atributos, skills e os 6 botões
+var menu # menu.gd: menu do personagem (toque na barra de vida)
 var tempo := 0.0
 
 # ---------- outros ----------
@@ -79,6 +83,9 @@ const MEDE := 5.0
 
 func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
+	P = Progresso.new()
+	h.vida = P.st.vidaMax
+	h.mana = P.st.manaMax
 	armas_lugar = JSON.parse_string(FileAccess.get_file_as_string("res://modelos/armas.json"))
 	mundo = JSON.parse_string(FileAccess.get_file_as_string("res://dados/mundo.json"))
 	terreno = Terreno.new(mundo)
@@ -100,7 +107,10 @@ func _ready() -> void:
 	add_child(fx)
 	criar_heroi()
 	for b in BANDO:
-		criar_inimigo(b.id, Vector3(b.x, 0, b.z), b.get("nome", "Inimigo"), b.get("escala", 1.0))
+		var e := criar_inimigo(b.id, Vector3(b.x, 0, b.z), b.get("nome", "Inimigo"), b.get("escala", 1.0))
+		e.tipo = b.tipo
+		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
+		e.vida = e.vida_max
 	for n in NPCS:
 		criar_npc(n.id, Vector3(n.x, 0, n.z), n.nome)
 	camera = Camera3D.new()
@@ -114,6 +124,8 @@ func _ready() -> void:
 	hud.soltou.connect(func(a): if a == "basico": h.segurando = false)
 	hud.nome = "Ruiva"
 	mostrar_build()
+	menu = Menu.new(self)
+	add_child(menu)
 	montar_teste()
 	online = Online.new(self)
 	add_child(online)
@@ -325,7 +337,8 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	else:
 		contorno(no, 0.012)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
-		"estado": "vagar", "t": randf() * 3.0, "alvo": pos, "cd": 0.0, "golpe": -1.0}
+		"estado": "vagar", "t": randf() * 3.0, "alvo": pos, "cd": 0.0, "golpe": -1.0, "vida_max": D.INIMIGO.vida, "tipo": id,
+		"parado": 0.0, "lento": 0.0, "lento_k": 0.0, "vuln": 0.0, "vuln_k": 0.0, "puxao": Vector3.ZERO, "puxao_t": 0.0}
 	e.barra = barra_vida(no, nome, Color(0.85, 0.25, 0.2))
 	inimigos.append(e)
 	return e
@@ -444,15 +457,20 @@ func mais_perto(pos: Vector3, max_d: float):
 			melhor = e
 	return melhor
 
-func ferir(e: Dictionary, dmg: float, de: Vector3) -> void:
+# hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir
+func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	if e.estado == "morto" or on(): # online: quem acerta e quanto tira é o servidor
 		return
-	if e.estado == "morto":
-		return
-	dmg = round(dmg * randf_range(0.9, 1.1))
+	dmg *= randf_range(0.92, 1.08)
+	var crit: bool = randf() < P.st.critico
+	if crit:
+		dmg *= 1.6
+	if e.vuln > tempo:
+		dmg *= 1.0 + e.vuln_k
+	dmg = max(1.0, round(dmg))
 	e.vida -= dmg
-	fx.numero(e.no.position, dmg, Color(1, 0.95, 0.6))
-	e.barra.scale.x = max(0.001, e.vida / D.INIMIGO.vida)
+	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
+	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
 	if empurra.length() > 0.01:
@@ -460,20 +478,45 @@ func ferir(e: Dictionary, dmg: float, de: Vector3) -> void:
 	if e.vida <= 0:
 		e.estado = "morto"
 		e.t = D.INIMIGO.renascer
+		e.parado = 0.0
+		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = false
 		e.barra.visible = false
-	else:
-		e.estado = "apanhar"
-		e.t = 0.45
-		e.anim.play("apanhar", 0.05, 1.6)
+		var subiu: String = P.ganhar_xp(int(P.dados.xpInimigo.get(e.tipo, 5)))
+		if subiu != "":
+			h.vida = P.st.vidaMax
+			h.mana = P.st.manaMax
+			hud.aviso(subiu)
+			fx.subir_nivel(heroi)
+		return
+	if hab is Dictionary:
+		var chefe: float = 0.5 if e.tipo == "chefe" else 1.0
+		if hab.has("lento"):
+			e.lento = tempo + hab.lento.dur
+			e.lento_k = hab.lento.k
+		if hab.has("vulneravel"):
+			e.vuln = tempo + hab.vulneravel.dur
+			e.vuln_k = hab.vulneravel.k
+		for k in ["atordoa", "congela"]:
+			if hab.has(k):
+				e.parado = max(e.parado, tempo + hab[k] * chefe)
+				e.golpe = -1.0
+				fx.status(e.no, k, hab[k] * chefe)
+				if k == "congela":
+					e.anim.speed_scale = 0.0
+	if e.parado > tempo:
+		return
+	e.estado = "apanhar"
+	e.t = 0.45
+	e.anim.play("apanhar", 0.05, 1.6)
 
-func dano_area(pos: Vector3, raio: float, dmg: float, _quem) -> void:
+func dano_area(pos: Vector3, raio: float, dmg: float, hab = null) -> void:
 	for e in inimigos.duplicate():
 		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio:
-			ferir(e, dmg, pos)
+			ferir(e, dmg, pos, hab)
 
-func dano_arco(alcance: float, arco: float, dmg: float) -> Array:
+func dano_arco(alcance: float, arco: float, dmg: float, hab = null) -> Array:
 	var frente := Vector3(sin(heroi.rotation.y), 0, cos(heroi.rotation.y))
 	var acertou := []
 	for e in inimigos.duplicate():
@@ -485,7 +528,7 @@ func dano_arco(alcance: float, arco: float, dmg: float) -> Array:
 		d.y = 0
 		if d.length() < alcance + 0.4 and (d.length() < 0.6 or frente.angle_to(d) < arco * 0.5):
 			acertou.append(e.no.position)
-			ferir(e, dmg, heroi.position)
+			ferir(e, dmg, heroi.position, hab)
 	return acertou
 
 func virar_para_inimigo() -> void:
@@ -537,7 +580,7 @@ func usar(qual: String) -> void:
 			rede("habilidade", 9)
 			fx.conjura(heroi, "cura", heroi_anim.get_animation(D.CURA.anim).length / D.CURA.ts, maos)
 			comecar(D.CURA.anim, D.CURA.ts, D.CURA.hits, func(_i):
-				h.vida = min(D.HEROI.vida, h.vida + D.CURA.cura)
+				h.vida = min(P.st.vidaMax, h.vida + D.CURA.cura)
 				fx.cura(heroi)
 				fx.numero(heroi.position, D.CURA.cura, Color("7dffa0")))
 		"pular":
@@ -568,10 +611,14 @@ func usar(qual: String) -> void:
 			if dir.length() > 0.1:
 				mov.ry = atan2(dir.x, dir.z)
 			comecar("rolar", 1.15, [], func(_i): pass, {"anda": 6.0})
+		"menu":
+			menu.abrir()
 		_:
 			if qual.begins_with("hab"):
 				habilidade(int(qual.substr(3)))
 
+# ---------- skills do Quimera (progresso.gd / shared/progresso.js) ----------
+# Golpe básico: o da arma na mão (combo de 4 cortes com a espada, 3 tiros com o cajado)
 func basico() -> void:
 	if h.morto > 0.0:
 		return
@@ -583,24 +630,23 @@ func basico() -> void:
 			return
 	h.ultimo_basico = tempo
 	virar_para_inimigo()
-	rede("habilidade", 0 if h.modo == "Espada" else 10)
+	var id := "espada_basico" if h.modo == "Espada" else "cajado_basico"
+	rede("habQ", id)
+	var hab: Dictionary = P.hab_pronta(id)
+	var combo: Array = hab.combo
+	var i: int = (h.combo if tempo < h.combo_ate else 0) % combo.size()
+	var g: Dictionary = combo[i]
+	h.combo = (i + 1) % combo.size()
 	if h.modo == "Espada":
-		var combo: Array = D.BASICO.combo
-		var i: int = h.combo if tempo < h.combo_ate else 0
-		var g: Dictionary = combo[i]
-		h.combo = (i + 1) % combo.size()
 		comecar(g.anim, g.ts, [g.at], func(_k):
-			dano_arco(D.BASICO.alcance, D.BASICO.arco, g.dmg), {"basico": true, "lamina": true})
-		h.combo_ate = tempo + acao.dur + 0.6
+			dano_arco(hab.alcance, hab.arco, g.dmg, hab), {"basico": true, "lamina": true})
 	else:
-		var combo: Array = D.BASICO_MAGIA.combo
-		var i: int = h.combo if tempo < h.combo_ate else 0
-		i = i % combo.size()
-		var g: Dictionary = combo[i]
-		h.combo = (i + 1) % combo.size()
+		var info: Dictionary = hab.proj.duplicate()
+		info.cor = Color(info.cor)
+		info.hab = hab
 		comecar(g.anim, g.ts, [g.at], func(_k):
-			fx.projetil(ponto_mao(), mira(), D.BASICO_MAGIA.proj, g.dmg, 18.0), {"basico": true})
-		h.combo_ate = tempo + acao.dur + 0.6
+			fx.projetil(ponto_mao(), mira(), info, g.dmg, 18.0), {"basico": true})
+	h.combo_ate = tempo + acao.dur + 0.6
 
 func mira() -> Vector3:
 	var e = mais_perto(heroi.position, 18.0)
@@ -609,71 +655,120 @@ func mira() -> Vector3:
 		return d.normalized()
 	return frente()
 
+# Botão de skill i (0 a 5): a que o jogador pôs nele no menu do personagem
 func habilidade(i: int) -> void:
-	var k: String = build[i if h.modo == "Espada" else 4 + i]
-	var hab: Dictionary = D.HABILIDADES[k]
-	if not pode_agir() or recargas.get(k, 0.0) > 0.0 or h.mana < hab.get("mana", 0):
-		if recargas.get(k, 0.0) <= 0.0 and h.mana < hab.get("mana", 0):
-			hud.aviso("Sem mana")
+	var k = P.prog.botoes[i]
+	if k == null or not P.habs.has(k):
+		hud.aviso("Escolha uma skill no menu do personagem")
 		return
+	var hab: Dictionary = P.hab_pronta(k)
+	if not pode_agir() or recargas.get(k, 0.0) > 0.0 or not mov.chao:
+		return
+	if h.mana < hab.get("mana", 0):
+		hud.aviso("Mana insuficiente")
+		return
+	# skill de espada pega a espada, de cajado pega o cajado; as gerais servem com qualquer uma
+	var arma: String = "Espada" if hab.arvore == "espada" else "Magia" if hab.arvore == "cajado" else h.modo
+	if arma != h.modo:
+		armar(arma)
+		mostrar_build()
 	h.mana -= hab.get("mana", 0)
 	recargas[k] = hab.cd
-	virar_para_inimigo()
-	rede("habilidade", 1 + i if h.modo == "Espada" else 5 + i)
-	var extra := {"lamina": hab.tipo == "Espada"}
-	if hab.has("avanco"):
-		extra.merge({"avanco": hab.avanco, "avanco_t": hab.get("avanco_t", 0.5)})
+	if not hab.has("salto"):
+		virar_para_inimigo()
+	rede("habQ", k)
+	if not on():
+		var subiu: String = P.contar_uso(k)
+		if subiu != "":
+			hud.aviso(subiu)
 	var dur: float = heroi_anim.get_animation(hab.anim).length / hab.ts
-	fx.conjura(heroi, k, dur, maos)
-	if k == "investida": # arranca como no dash, com vento e faíscas
-		fx.dash(heroi, dur * hab.get("avanco_t", 0.2) + 0.12, true)
-	comecar(hab.anim, hab.ts, hab.hits, func(n: int): efeito(k, hab, n), extra)
+	var extra := {"lamina": hab.arvore == "espada"}
+	if hab.has("avanco"):
+		var metros: float = hab.avanco
+		if hab.get("dash", false): # investida: para logo na frente do alvo
+			var alvo = mais_perto(heroi.position, hab.avanco + 2.0)
+			if alvo:
+				metros = clamp(alvo.no.position.distance_to(heroi.position) - 1.1, 1.5, hab.avanco)
+		extra.merge({"avanco": metros, "avanco_t": hab.get("avancoT", 0.8 if hab.has("hits") else hab.get("at", 0.5))})
+	if hab.has("salto"):
+		extra.merge({"avanco": hab.salto, "avanco_t": 0.6})
+		fx.dash(heroi, dur * 0.6, true)
+	var fxk: String = P.FX.get(k, "magia")
+	if hab.get("fx", false):
+		fx.conjura(heroi, fxk, dur, maos)
+	if hab.get("dash", false):
+		fx.dash(heroi, dur * hab.get("avancoT", 0.2) + 0.12, true)
+	var hits: Array = hab.hits if hab.has("hits") else [hab.get("at", 0.5)]
+	if hab.has("puxa"): # vórtice: puxa logo no começo
+		hits = [hab.puxa.de]
+	comecar(hab.anim, hab.ts, hits, func(n: int): efeito(k, hab, n), extra)
 
 func maos() -> Array:
 	return [ponto_mao()]
 
-func efeito(k: String, hab: Dictionary, n: int) -> void:
+func efeito(k: String, hab: Dictionary, _n: int) -> void:
 	var p0 := heroi.position
-	match k:
-		"investida", "relampago":
-			for alvo in dano_arco(hab.alcance, hab.arco, hab.dmg):
-				if k == "investida": # estocada acertando: corte de luz de pé no alvo
-					fx.impacto(alvo.x, alvo.z, heroi.rotation.y, k, alvo.y)
-		"giro":
-			dano_area(p0, hab.area, hab.dmg, heroi)
-			fx.explosao_hab("giro", p0.x, p0.z, hab.area, p0.y)
-		"salto":
-			dano_area(p0, hab.area, hab.dmg, heroi)
-			fx.explosao_hab("salto", p0.x, p0.z, hab.area, p0.y)
-		"bola":
-			fx.projetil(ponto_mao(), mira(), hab.proj, hab.dmg, 20.0)
-		"raio": # raios do céu nos inimigos mais perto, um depois do outro
-			var alvos := []
-			for e in inimigos:
-				if e.estado != "morto" and e.no.position.distance_to(p0) < hab.alcance:
-					alvos.append(e)
-			alvos.sort_custom(func(a, b): return a.no.position.distance_to(p0) < b.no.position.distance_to(p0))
-			if alvos.is_empty():
-				var f := p0 + frente() * 5.0
-				fx.raio(f.x, f.z, terreno.altura(f.x, f.z))
-			for j in min(hab.raios, alvos.size()):
-				var e = alvos[j]
-				fx.agenda.append({"t": j * 0.12, "fn": func():
-					var q: Vector3 = e.no.position
-					fx.raio(q.x, q.z, q.y)
-					ferir(e, hab.dmg, q)})
-		"explosao":
-			dano_area(p0, hab.area, hab.dmg, heroi)
-			fx.explosao_hab("explosao", p0.x, p0.z, hab.area, p0.y)
-		"meteoros": # área do alvo; cada onda fere quem estiver dentro
-			var e = mais_perto(p0, 22.0)
-			var centro: Vector3 = e.no.position if e else p0 + frente() * 8.0
-			var r: float = hab.chuva.r
-			fx.chuva(centro.x, centro.z, r, hab.chuva.ondas, func(_p: Vector3): dano_area(centro, r, hab.chuva.dmg, heroi))
+	var fxk: String = P.FX.get(k, "magia")
+	if hab.has("proj"):
+		var info: Dictionary = hab.proj.duplicate()
+		info.cor = Color(info.cor)
+		info.hab = hab
+		fx.projetil(ponto_mao(), mira(), info, hab.dmg, 20.0)
+	elif hab.has("raios"): # raios do céu pulando de inimigo em inimigo
+		var alvos := []
+		for e in inimigos:
+			if e.estado != "morto" and e.no.position.distance_to(p0) < hab.raios.alcance:
+				alvos.append(e)
+		alvos.sort_custom(func(a, b): return a.no.position.distance_to(p0) < b.no.position.distance_to(p0))
+		if alvos.is_empty():
+			var f := p0 + frente() * 5.0
+			fx.raio(f.x, f.z, terreno.altura(f.x, f.z))
+		for j in min(int(hab.raios.n), alvos.size()):
+			var e = alvos[j]
+			fx.agenda.append({"t": j * 0.12, "fn": func():
+				var q: Vector3 = e.no.position
+				fx.raio(q.x, q.z, q.y)
+				ferir(e, hab.dmg, q, hab)})
+	elif hab.has("chuva"): # área do alvo; cada onda fere quem estiver dentro
+		var e = mais_perto(p0, 22.0)
+		var centro: Vector3 = e.no.position if e else p0 + frente() * 8.0
+		var r: float = hab.chuva.r
+		fx.chuva(centro.x, centro.z, r, int(hab.chuva.ondas), func(_p: Vector3): dano_area(centro, r, hab.dmg, hab))
+	elif hab.has("curaPct"):
+		var n: float = min(round(P.st.vidaMax * hab.curaPct), P.st.vidaMax - h.vida)
+		h.vida += n
+		fx.cura(heroi)
+		fx.numero(heroi.position, n, Color("7dffa0"))
+		if hab.has("grupo"):
+			fx.anel(p0.x, p0.z, hab.grupo.r, "9be08f", 0.9, p0.y)
+	elif hab.has("escudo"):
+		h.escudo = float(hab.escudo.absorve)
+		h.escudo_ate = tempo + float(hab.escudo.dur)
+		fx.escudo(heroi, float(hab.escudo.dur))
+	elif hab.has("puxa"):
+		fx.vortice(p0.x, p0.z, hab.puxa.r, p0.y)
+		for e in inimigos:
+			if e.estado == "morto":
+				continue
+			var d: Vector3 = p0 - e.no.position
+			d.y = 0
+			if d.length() < hab.puxa.r and d.length() > 1.3:
+				e.puxao = d.normalized() * (d.length() - 1.1) / 0.45
+				e.puxao_t = 0.45
+	elif hab.has("area"):
+		dano_area(p0, hab.area, hab.dmg, hab)
+		fx.explosao_hab(fxk, p0.x, p0.z, hab.area, p0.y)
+	elif hab.get("dmg", 0) > 0:
+		for alvo in dano_arco(hab.alcance, hab.arco, hab.dmg, hab):
+			if hab.get("impacto", false):
+				fx.impacto(alvo.x, alvo.z, heroi.rotation.y, fxk, alvo.y)
 
+# botões da tela: os 6 escolhidos no menu; o golpe grande mostra a arma na mão
 func mostrar_build() -> void:
-	var ini := 0 if h.modo == "Espada" else 4
-	hud.mostrar_build(build.slice(ini, ini + 4), h.modo)
+	var icones := []
+	for k in P.prog.botoes:
+		icones.append(P.ICONE.get(k, "") if k != null else "")
+	hud.mostrar_build(icones, h.modo)
 
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
@@ -699,14 +794,21 @@ func _process(dt: float) -> void:
 	camera.position = alvo_cam + Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * dist
 	camera.look_at(alvo_cam)
 	# HUD
-	hud.vida = h.vida / D.HEROI.vida
-	hud.mana = h.mana / D.HEROI.mana
-	hud.texto_vida = "%d/%d" % [ceil(h.vida), D.HEROI.vida]
-	hud.texto_mana = "%d/%d" % [floor(h.mana), D.HEROI.mana]
-	var ini := 0 if h.modo == "Espada" else 4
-	for i in 4:
-		var k: String = build[ini + i]
-		hud.recarga("hab%d" % i, recargas.get(k, 0.0), D.HABILIDADES[k].cd)
+	hud.vida = h.vida / P.st.vidaMax
+	hud.mana = h.mana / P.st.manaMax
+	hud.texto_vida = "%d/%d" % [ceil(h.vida), P.st.vidaMax]
+	hud.texto_mana = "%d/%d" % [floor(h.mana), P.st.manaMax]
+	hud.nivel = P.prog.nivel
+	hud.xp = float(P.prog.xp) / max(1, P.xp_prox)
+	hud.escudo = h.escudo > 0.0 and h.escudo_ate > tempo
+	for i in P.prog.botoes.size():
+		var k = P.prog.botoes[i]
+		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
+	if P.mudou:
+		P.mudou = false
+		mostrar_build()
+		if menu:
+			menu.atualizar()
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
 	hud.recarga("dash", recargas.get("dash", 0.0), D.MOVIMENTO.dash_cd)
 	hud.recarga("rolar", recargas.get("rolar", 0.0), D.HEROI.rolar_cd)
@@ -718,13 +820,17 @@ func atualizar_heroi(dt: float) -> void:
 			return # online: o servidor levanta o herói
 		h.morto -= dt
 		if h.morto <= 0.0:
-			h.vida = D.HEROI.vida
-			h.mana = D.HEROI.mana
+			h.vida = P.st.vidaMax
+			h.mana = P.st.manaMax
 			mov.por_em(D.NASCIMENTO)
 			heroi.position = mov.posicao()
 			heroi_anim.play("parada", 0.2)
 		return
-	h.mana = min(D.HEROI.mana, h.mana + D.HEROI.mana_por_seg * dt)
+	h.mana = min(P.st.manaMax, h.mana + P.st.regenMana * dt)
+	if not on():
+		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * dt)
+	if h.escudo_ate <= tempo:
+		h.escudo = 0.0
 	if h.segurando and tempo - h.ultimo_basico > 0.2:
 		basico()
 	var dir := direcao_joystick()
@@ -844,10 +950,18 @@ func atualizar_inimigos(dt: float) -> void:
 		e.t -= dt
 		e.cd -= dt
 		var no: Node3D = e.no
+		if e.puxao_t > 0.0: # puxado pelo vórtice
+			e.puxao_t -= dt
+			no.position += e.puxao * dt
+		# atordoado ou congelado: fica parado (congelado até a animação para)
+		if e.estado != "morto" and e.parado > tempo:
+			continue
+		if e.anim.speed_scale != 1.0:
+			e.anim.speed_scale = 1.0
 		match e.estado:
 			"morto":
 				if e.t <= 0.0:
-					e.vida = D.INIMIGO.vida
+					e.vida = e.vida_max
 					e.estado = "vagar"
 					no.position = e.centro
 					e.barra.visible = true
@@ -876,7 +990,7 @@ func atualizar_inimigos(dt: float) -> void:
 			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
 			if d > D.INIMIGO.alcance or dy >= 1.3:
 				if d > 1.2:
-					var v: float = D.INIMIGO.vel if d > 5.0 else 1.7
+					var v: float = (D.INIMIGO.vel if d > 5.0 else 1.7) * ((1.0 - e.lento_k) if e.lento > tempo else 1.0)
 					no.position += ate.normalized() * v * dt
 					var a := "corrida" if d > 5.0 else "andar"
 					if e.anim.current_animation != a:
@@ -909,6 +1023,16 @@ func atualizar_inimigos(dt: float) -> void:
 				e.anim.play("espada_parada", 0.2)
 
 func ferir_heroi(dmg: float) -> void:
+	dmg = max(1.0, round(dmg * (1.0 - P.st.reducao)))
+	if h.escudo > 0.0 and h.escudo_ate > tempo: # Escudo Arcano segura primeiro
+		var seg: float = min(h.escudo, dmg)
+		h.escudo -= seg
+		dmg -= seg
+		if h.escudo <= 0.0:
+			fx.escudo_fim(heroi)
+		if dmg <= 0.0:
+			fx.numero(heroi.position, 0, Color(1, 0.9, 0.5))
+			return
 	h.vida -= dmg
 	fx.numero(heroi.position, dmg, Color(1, 0.45, 0.4))
 	if h.vida <= 0.0:
