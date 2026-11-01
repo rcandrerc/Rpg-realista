@@ -442,15 +442,20 @@ func dano_area(pos: Vector3, raio: float, dmg: float, _quem) -> void:
 		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio:
 			ferir(e, dmg, pos)
 
-func dano_arco(alcance: float, arco: float, dmg: float) -> void:
+func dano_arco(alcance: float, arco: float, dmg: float) -> Array:
 	var frente := Vector3(sin(heroi.rotation.y), 0, cos(heroi.rotation.y))
+	var acertou := []
 	for e in inimigos.duplicate():
 		if e.estado == "morto":
 			continue
 		var d: Vector3 = e.no.position - heroi.position
+		if abs(d.y) > 1.6: # em cima da pedra o golpe não alcança quem está embaixo
+			continue
 		d.y = 0
 		if d.length() < alcance + 0.4 and (d.length() < 0.6 or frente.angle_to(d) < arco * 0.5):
+			acertou.append(e.no.position)
 			ferir(e, dmg, heroi.position)
+	return acertou
 
 func virar_para_inimigo() -> void:
 	var e = mais_perto(heroi.position, 8.0)
@@ -490,7 +495,7 @@ func usar(qual: String) -> void:
 				return
 			h.mana -= D.CURA.mana
 			recargas["cura"] = D.CURA.cd
-			fx.circulo(heroi.position, Color("7dffa0"), 1.6)
+			fx.conjura(heroi, "cura", heroi_anim.get_animation(D.CURA.anim).length / D.CURA.ts, maos)
 			comecar(D.CURA.anim, D.CURA.ts, D.CURA.hits, func(_i):
 				h.vida = min(D.HEROI.vida, h.vida + D.CURA.cura)
 				fx.cura(heroi)
@@ -511,7 +516,7 @@ func usar(qual: String) -> void:
 				return
 			recargas["dash"] = D.MOVIMENTO.dash_cd
 			if not na_parede:
-				fx._faiscas(heroi.position + Vector3(0, 0.6, 0), Color("bfe6ff"), 12, 2.0, 0.35)
+				fx.dash(heroi, D.MOVIMENTO.dash_tempo, false)
 		"rolar":
 			if not pode_agir() or recargas.get("rolar", 0.0) > 0.0 or not mov.chao:
 				return
@@ -541,8 +546,7 @@ func basico() -> void:
 		var g: Dictionary = combo[i]
 		h.combo = (i + 1) % combo.size()
 		comecar(g.anim, g.ts, [g.at], func(_k):
-			dano_arco(D.BASICO.alcance, D.BASICO.arco, g.dmg)
-			fx.corte(heroi.position, heroi.rotation.y, Color("8fd8ff"), 1.5), {"basico": true})
+			dano_arco(D.BASICO.alcance, D.BASICO.arco, g.dmg), {"basico": true, "lamina": true})
 		h.combo_ate = tempo + acao.dur + 0.6
 	else:
 		var combo: Array = D.BASICO_MAGIA.combo
@@ -571,52 +575,56 @@ func habilidade(i: int) -> void:
 	h.mana -= hab.get("mana", 0)
 	recargas[k] = hab.cd
 	virar_para_inimigo()
-	var cor_magia := Color("ffb060") if hab.tipo == "Magia" else Color("8fd8ff")
-	var extra := {}
+	var extra := {"lamina": hab.tipo == "Espada"}
 	if hab.has("avanco"):
-		extra = {"avanco": hab.avanco, "avanco_t": hab.get("avanco_t", 0.5)}
-	var dur_aprox: float = heroi_anim.get_animation(hab.anim).length / hab.ts
-	fx.circulo(heroi.position, cor_magia, dur_aprox, 3.2 if hab.tipo == "Magia" else 2.6)
+		extra.merge({"avanco": hab.avanco, "avanco_t": hab.get("avanco_t", 0.5)})
+	var dur: float = heroi_anim.get_animation(hab.anim).length / hab.ts
+	fx.conjura(heroi, k, dur, maos)
+	if k == "investida": # arranca como no dash, com vento e faíscas
+		fx.dash(heroi, dur * hab.get("avanco_t", 0.2) + 0.12, true)
 	comecar(hab.anim, hab.ts, hab.hits, func(n: int): efeito(k, hab, n), extra)
 
+func maos() -> Array:
+	return [ponto_mao()]
+
 func efeito(k: String, hab: Dictionary, n: int) -> void:
+	var p0 := heroi.position
 	match k:
 		"investida", "relampago":
-			dano_arco(hab.alcance, hab.arco, hab.dmg)
-			fx.corte(heroi.position, heroi.rotation.y, Color("bfe9ff") if k == "relampago" else Color("8fd8ff"), 1.7)
-			if k == "relampago" and n == hab.hits.size() - 1:
-				fx.raio(heroi.position + frente() * 1.6)
+			for alvo in dano_arco(hab.alcance, hab.arco, hab.dmg):
+				if k == "investida": # estocada acertando: corte de luz de pé no alvo
+					fx.impacto(alvo.x, alvo.z, heroi.rotation.y, k, alvo.y)
 		"giro":
-			dano_area(heroi.position, hab.area, hab.dmg, heroi)
-			fx.anel(heroi.position, Color("8fd8ff"), hab.area, 0.45)
-			fx.corte(heroi.position, heroi.rotation.y + n * 1.5, Color("8fd8ff"), 2.4)
+			dano_area(p0, hab.area, hab.dmg, heroi)
+			fx.explosao_hab("giro", p0.x, p0.z, hab.area, p0.y)
 		"salto":
-			var p := heroi.position + frente() * 0.8
-			dano_area(p, hab.area, hab.dmg, heroi)
-			fx.explosao(p, Color("ffd27a"), hab.area * 0.7)
+			dano_area(p0, hab.area, hab.dmg, heroi)
+			fx.explosao_hab("salto", p0.x, p0.z, hab.area, p0.y)
 		"bola":
 			fx.projetil(ponto_mao(), mira(), hab.proj, hab.dmg, 20.0)
-		"raio":
+		"raio": # raios do céu nos inimigos mais perto, um depois do outro
 			var alvos := []
 			for e in inimigos:
-				if e.estado != "morto" and e.no.position.distance_to(heroi.position) < hab.alcance:
+				if e.estado != "morto" and e.no.position.distance_to(p0) < hab.alcance:
 					alvos.append(e)
-			alvos.sort_custom(func(a, b): return a.no.position.distance_to(heroi.position) < b.no.position.distance_to(heroi.position))
-			for j in min(hab.raios, alvos.size()):
-				fx.raio(alvos[j].no.position)
-				ferir(alvos[j], hab.dmg, alvos[j].no.position)
+			alvos.sort_custom(func(a, b): return a.no.position.distance_to(p0) < b.no.position.distance_to(p0))
 			if alvos.is_empty():
-				fx.raio(heroi.position + frente() * 5.0)
+				var f := p0 + frente() * 5.0
+				fx.raio(f.x, f.z, terreno.altura(f.x, f.z))
+			for j in min(hab.raios, alvos.size()):
+				var e = alvos[j]
+				fx.agenda.append({"t": j * 0.12, "fn": func():
+					var q: Vector3 = e.no.position
+					fx.raio(q.x, q.z, q.y)
+					ferir(e, hab.dmg, q)})
 		"explosao":
-			dano_area(heroi.position, hab.area, hab.dmg, heroi)
-			fx.explosao(heroi.position, Color("ff8a3a"), hab.area)
-		"meteoros":
-			var e = mais_perto(heroi.position, 16.0)
-			var centro: Vector3 = e.no.position if e else heroi.position + frente() * 6.0
-			for onda in hab.chuva.ondas:
-				get_tree().create_timer(onda * 0.3).timeout.connect(func():
-					var alvo := centro + Vector3(randf_range(-1.5, 1.5), 0, randf_range(-1.5, 1.5))
-					fx.meteoro(alvo, func(p: Vector3): dano_area(p, hab.chuva.r * 0.6, hab.chuva.dmg, heroi)))
+			dano_area(p0, hab.area, hab.dmg, heroi)
+			fx.explosao_hab("explosao", p0.x, p0.z, hab.area, p0.y)
+		"meteoros": # área do alvo; cada onda fere quem estiver dentro
+			var e = mais_perto(p0, 22.0)
+			var centro: Vector3 = e.no.position if e else p0 + frente() * 8.0
+			var r: float = hab.chuva.r
+			fx.chuva(centro.x, centro.z, r, hab.chuva.ondas, func(_p: Vector3): dano_area(centro, r, hab.chuva.dmg, heroi))
 
 func mostrar_build() -> void:
 	var ini := 0 if h.modo == "Espada" else 4
@@ -743,6 +751,11 @@ func atualizar_heroi(dt: float) -> void:
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
 		cajado.global_transform = Transform3D(heroi.global_transform.basis * Basis.from_euler(Vector3(0.18, 0, -0.08)), mao)
+	# rastro da espada durante o golpe e do vento no dash
+	var lamina = null
+	if not acao.is_empty() and acao.get("lamina", false) and h.modo == "Espada" and mov.esc == null:
+		lamina = [espada.global_transform * Vector3(0, 0.2, 0), espada.global_transform * Vector3(0, 0.92, 0)]
+	fx.corpo_passo(heroi, dt, mov.arrancada != null, lamina)
 	sol.global_position = heroi.position
 
 # inimigos não atravessam casas, pedras, árvores e o poço (como Simulacao.colidir no servidor)
