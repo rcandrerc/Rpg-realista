@@ -17,7 +17,7 @@ export const ESCOLHA_ANIMS = {
   },
   Imp: {
     Idle: 'Idle_Loop', Walk: 'Walk_Loop', Run: 'Sprint_Loop', [A.swordIdle]: 'Sword_Idle',
-    [A.slash]: 'Sword_Regular_A', [A.slash2]: 'Zombie_Scratch', [A.hit]: 'Hit_Chest', [A.death]: 'Death01',
+    [A.slash]: 'Punch_Cross', [A.slash2]: 'Punch_Jab', [A.hit]: 'Hit_Chest', [A.death]: 'Death01',
   },
 };
 
