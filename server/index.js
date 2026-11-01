@@ -140,6 +140,28 @@ app.get('/conta/eu', (req, res) => {
   conta ? res.json({ conta }) : res.status(401).json({ erro: 'login' });
 });
 app.post('/conta/sair', (req, res) => { contas.sair(sessaoDe(req)); res.json({ ok: true }); });
+// Ligar o app (APK) à conta: o app abre o site com ?vincular=CODIGO; quem fez login no site manda o código aqui
+// e o app busca a sessão nova pelo mesmo código (vale 5 minutos e só uma vez). A senha do Google nunca passa pelo app.
+const vinculos = new Map(); // codigo -> { sessao, ate }
+const CODIGO = /^[A-Za-z0-9]{16,64}$/;
+const limparVinculos = () => { const agora = Date.now(); for (const [k, v] of vinculos) if (v.ate < agora) vinculos.delete(k); };
+app.post('/conta/vincular', (req, res) => {
+  const conta = contas.porSessao(sessaoDe(req));
+  if (!conta) return res.status(401).json({ erro: 'login' });
+  const codigo = String(req.body?.codigo || '');
+  if (!CODIGO.test(codigo)) return res.status(400).json({ erro: 'código inválido' });
+  limparVinculos();
+  if (vinculos.size > 500) return res.status(503).json({ erro: 'tente de novo' });
+  vinculos.set(codigo, { sessao: contas.novaSessaoPara(conta.id), ate: Date.now() + 5 * 60 * 1000 });
+  res.json({ ok: true });
+});
+app.get('/conta/vinculo/:codigo', (req, res) => {
+  limparVinculos();
+  const v = vinculos.get(String(req.params.codigo));
+  if (!v) return res.status(404).json({ erro: 'ainda não' });
+  vinculos.delete(String(req.params.codigo));
+  res.json({ sessao: v.sessao });
+});
 // Apaga a conta de vez (personagem, build e sessões). Quem estiver jogando com ela sai da sala.
 app.post('/conta/apagar', (req, res) => {
   const conta = contas.porSessao(sessaoDe(req));

@@ -98,6 +98,13 @@ export class Contas {
     return publica(c);
   }
 
+  // Sessão nova para a mesma conta (ligar o app do celular a partir do login feito no site)
+  novaSessaoPara(id) {
+    const sessao = crypto.randomBytes(32).toString('base64url');
+    this.q.novaSessao.run(resumo(sessao), id, Date.now() + VALIDADE_SESSAO);
+    return sessao;
+  }
+
   sair(sessao) { if (typeof sessao === 'string') this.q.apagarSessao.run(resumo(sessao)); }
 
   // Personagem criado (uma vez só: depois que a conta tem visual, não muda mais)

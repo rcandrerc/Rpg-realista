@@ -108,3 +108,14 @@ export async function apagarConta(servidor) {
   guardar(null);
   try { window.google?.accounts.id.disableAutoSelect(); } catch { /* Google não carregou */ }
 }
+
+// Ligar o app do celular (APK) a esta conta: o app abre o site com ?vincular=CODIGO, a pessoa entra com o Google aqui
+// e o servidor guarda uma sessão nova para o app buscar pelo código. Devolve o texto para mostrar na tela.
+export async function ligarApp(servidor, codigo) {
+  const entrada = await entrarNaConta(servidor);
+  if (!entrada) return 'Servidor fora do ar. Tente de novo daqui a pouco.';
+  try {
+    const r = await pedir(servidor, '/conta/vincular', { sessao: entrada.sessao, corpo: { codigo } });
+    return r.ok ? `App ligado na conta de ${entrada.conta.nome}! Pode voltar para o jogo.` : 'Esse pedido venceu. Toque em Entrar no app de novo.';
+  } catch { return 'Servidor fora do ar. Tente de novo daqui a pouco.'; }
+}
