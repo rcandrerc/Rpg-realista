@@ -2,8 +2,10 @@ extends CanvasLayer
 # Menu do personagem (ideia do Quimera, com cara mais adulta): abre tocando no painel de vida.
 # Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Cabeça, Corpo, Pés | Arma, Acessório, Capa).
 # Direita: abas Status (nível, XP, pontos de atributo e os números do herói) e Habilidades (Espada, Cajado e Gerais,
-# com nível de cada skill, o que melhora no próximo e em qual dos 6 botões da tela ela fica). Passivas no fim.
-# Quem decide é o servidor (online manda "atributo" e "botoes"); sem internet muda só neste celular.
+# com nível de cada skill, o que melhora no próximo e em qual botão de cada barra ela fica). Passivas no fim.
+# Duas barras como no Quimera: a da espada e a do cajado (Trocar mostra a outra); toque em dois botões da barra para
+# trocar de lugar. Quem decide é o servidor (online manda "atributo" e "barra"); sem internet muda só neste celular.
+# A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
 const OURO := Color(0.80, 0.64, 0.36)
 const OURO_CLARO := Color(0.95, 0.82, 0.55)
@@ -42,7 +44,10 @@ var caj: Node3D
 var giro := 0.4
 var arrastando := false
 var slot_arma: Dictionary = {}
-var _rolagem_y := {}
+var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
+var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
+var _arrasto_dentro := false
+var _arrasto_soma := 0.0
 
 func _init(principal) -> void:
 	m = principal
@@ -116,7 +121,9 @@ func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", tam)
 	estilo_botao(b, ativo)
-	b.pressed.connect(fn)
+	b.pressed.connect(func():
+		if not _arrastou:
+			fn.call())
 	return b
 
 static func estilo_botao(b: Button, ativo: bool) -> void:
@@ -340,6 +347,26 @@ func fechar() -> void:
 func aberto() -> bool:
 	return raiz != null and raiz.visible
 
+# rolar a lista arrastando o dedo (em cima de qualquer coisa: linha, botão, texto)
+func _input(ev: InputEvent) -> void:
+	if not aberto() or rolagem == null:
+		return
+	if ev is InputEventScreenTouch:
+		if ev.pressed:
+			_arrasto_dentro = rolagem.get_global_rect().has_point(ev.position)
+			_arrasto_soma = 0.0
+			_arrastou = false
+		else:
+			_arrasto_dentro = false
+			if _arrastou: # deixa o soltar passar, mas o botão não dispara (o pressed vem antes de zerar)
+				(func(): _arrastou = false).call_deferred()
+	elif ev is InputEventScreenDrag and _arrasto_dentro:
+		_arrasto_soma += abs(ev.relative.y)
+		if _arrasto_soma > 12.0:
+			_arrastou = true
+		rolagem.scroll_vertical -= int(round(ev.relative.y))
+		get_viewport().set_input_as_handled()
+
 func _process(dt: float) -> void:
 	if not aberto():
 		return
@@ -377,7 +404,7 @@ func separador(t: String) -> void:
 	linha.custom_minimum_size = Vector2(0, 1)
 	conteudo.add_child(linha)
 
-func barra(frac: float, cor: Color, alto := 8.0) -> Control:
+func barra_prog(frac: float, cor: Color, alto := 8.0) -> Control:
 	var fundo := Panel.new()
 	fundo.custom_minimum_size = Vector2(0, alto)
 	fundo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -398,7 +425,7 @@ func montar_status() -> void:
 	var xp_txt := rotulo("  XP %d / %d" % [p.xp, P.xp_prox] if p.nivel < int(P.dados.nivelMax) else "  Nível máximo", 14, APAGADO)
 	lv.add_child(xp_txt)
 	conteudo.add_child(lv)
-	conteudo.add_child(barra(float(p.xp) / max(1, P.xp_prox), Color(0.85, 0.66, 0.3)))
+	conteudo.add_child(barra_prog(float(p.xp) / max(1, P.xp_prox), Color(0.85, 0.66, 0.3)))
 	separador("Atributos")
 	conteudo.add_child(rotulo("Pontos livres: %d" % p.pontos, 15, VERDE if p.pontos > 0 else APAGADO))
 	for k in ["for", "des", "int", "vit"]:
@@ -452,30 +479,12 @@ func distribuir(k: String) -> void:
 
 func montar_habilidades() -> void:
 	var P = m.P
-	separador("Seus botões na tela")
-	var bt := HBoxContainer.new()
-	bt.add_theme_constant_override("separation", 8)
-	for i in P.prog.botoes.size():
-		var k = P.prog.botoes[i]
-		var s := Panel.new()
-		s.custom_minimum_size = Vector2(54, 54)
-		s.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO if k != null else BORDA, 1, 27))
-		var n := rotulo(str(i + 1), 12, OURO)
-		n.position = Vector2(4, 1)
-		if k != null:
-			var ic := TextureRect.new()
-			ic.texture = icone_tex(P.ICONE.get(k, ""))
-			ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-			ic.offset_left = 9
-			ic.offset_top = 9
-			ic.offset_right = -9
-			ic.offset_bottom = -9
-			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			s.add_child(ic)
-		s.add_child(n)
-		bt.add_child(s)
-	conteudo.add_child(bt)
+	for b in (["espada", "cajado"] if arvore == "geral" else [arvore]):
+		separador("Barra da espada" if b == "espada" else "Barra do cajado")
+		conteudo.add_child(linha_barra(b))
+	var dica := rotulo("Trocar mostra a outra barra. Toque em dois botões para trocar de lugar; em cada skill, escolha o número do botão (tocar de novo tira).", 12, APAGADO)
+	dica.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(dica)
 	var info := rotulo(ARVORE_TXT[arvore], 13, APAGADO)
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(info)
@@ -549,30 +558,109 @@ func linha_skill(id: String) -> Control:
 		if nv < P.maximo(id):
 			var uso := HBoxContainer.new()
 			uso.add_theme_constant_override("separation", 8)
-			var b := barra(float(P.uso_de(id)) / P.usos_para_subir(nv), Color(0.55, 0.42, 0.2), 6)
+			var b := barra_prog(float(P.uso_de(id)) / P.usos_para_subir(nv), Color(0.55, 0.42, 0.2), 6)
 			b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			uso.add_child(b)
 			uso.add_child(rotulo("%d/%d usos" % [P.uso_de(id), P.usos_para_subir(nv)], 12, APAGADO))
 			txt.add_child(uso)
 		txt.add_child(rotulo(P.proximo(id), 12, Color(0.6, 0.75, 0.55)))
-		# em qual botão da tela ela fica
-		var bs := HBoxContainer.new()
-		bs.add_theme_constant_override("separation", 5)
-		bs.add_child(rotulo("Botão:", 13, APAGADO))
-		for i in P.prog.botoes.size():
-			var nb := botao(str(i + 1), func(): por_no_botao(id, i), 14, P.prog.botoes[i] == id)
-			nb.custom_minimum_size = Vector2(40, 34)
-			bs.add_child(nb)
-		txt.add_child(bs)
+	if not base.get("basico", false):
+		# em qual botão de cada barra ela fica (as gerais servem nas duas)
+		for barra in ["espada", "cajado"]:
+			if not P.cabe(id, barra):
+				continue
+			var bs := HBoxContainer.new()
+			bs.add_theme_constant_override("separation", 5)
+			bs.add_child(rotulo("Espada:" if barra == "espada" else "Cajado:", 13, APAGADO))
+			var lista: Array = P.prog.barras[barra]
+			for i in lista.size():
+				var nb := botao(str(i + 1), func(): por_no_botao(id, barra, i), 14, lista[i] == id)
+				nb.custom_minimum_size = Vector2(40, 34)
+				bs.add_child(nb)
+			txt.add_child(bs)
 	elif base.get("basico", false):
 		txt.add_child(rotulo("Golpe da arma na mão (botão grande)", 12, Color(0.6, 0.75, 0.55)))
 	l.add_child(txt)
 	return cx
 
-func por_no_botao(id: String, i: int) -> void:
-	m.P.por_no_botao(id, i)
-	m.rede("botoes", m.P.prog.botoes)
+# a barra (6 botões): toque em um e depois em outro para trocar de lugar; Padrão volta ao começo
+func linha_barra(barra: String) -> Control:
+	var P = m.P
+	var bt := HBoxContainer.new()
+	bt.add_theme_constant_override("separation", 8)
+	var lista: Array = P.prog.barras[barra]
+	for i in lista.size():
+		var k = lista[i]
+		var escolhido: bool = _sel != null and _sel[0] == barra and _sel[1] == i
+		var s := Button.new()
+		s.focus_mode = Control.FOCUS_NONE
+		s.custom_minimum_size = Vector2(56, 56)
+		var est := caixa(Color(0.16, 0.13, 0.08, 1) if escolhido else Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else OURO if k != null else BORDA, 2 if escolhido else 1, 28)
+		for e in ["normal", "hover", "pressed"]:
+			s.add_theme_stylebox_override(e, est)
+		s.pressed.connect(func():
+			if not _arrastou:
+				tocar_barra(barra, i))
+		var n := rotulo(str(i + 1), 12, OURO)
+		n.position = Vector2(5, 1)
+		if k != null and P.habs.has(k):
+			var ic := TextureRect.new()
+			ic.texture = icone_tex(P.ICONE.get(k, ""))
+			ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+			ic.offset_left = 10
+			ic.offset_top = 10
+			ic.offset_right = -10
+			ic.offset_bottom = -10
+			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if not P.liberada(k):
+				ic.modulate = Color(0.4, 0.4, 0.4)
+				var nv := rotulo("Nv %d" % int(P.habs[k].libera), 11, APAGADO)
+				nv.position = Vector2(14, 38)
+				s.add_child(ic)
+				s.add_child(nv)
+			else:
+				s.add_child(ic)
+		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		s.add_child(n)
+		bt.add_child(s)
+	var pd := botao("Padrão", func(): barra_padrao(barra), 13)
+	pd.custom_minimum_size = Vector2(76, 40)
+	pd.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bt.add_child(pd)
+	return bt
+
+func tocar_barra(barra: String, i: int) -> void:
+	if _sel == null or _sel[0] != barra:
+		_sel = [barra, i]
+	elif _sel[1] == i:
+		_sel = null
+	else:
+		var b: Array = m.P.prog.barras[barra]
+		var t = b[i]
+		b[i] = b[_sel[1]]
+		b[_sel[1]] = t
+		_sel = null
+		mandar_barra(barra)
 	atualizar()
+
+func barra_padrao(barra: String) -> void:
+	m.P.prog.barras[barra] = m.P.dados.botoesPadrao[barra].duplicate()
+	_sel = null
+	mandar_barra(barra)
+	atualizar()
+
+func por_no_botao(id: String, barra: String, i: int) -> void:
+	var b: Array = m.P.prog.barras[barra]
+	m.P.por_no_botao("" if b[i] == id else id, barra, i)
+	_sel = null
+	mandar_barra(barra)
+	atualizar()
+
+func mandar_barra(barra: String) -> void:
+	m.P.mudou = true
+	m.rede("barra", {"barra": barra, "lista": m.P.prog.barras[barra]})
 
 # X de fechar desenhado (sem depender de símbolo na fonte)
 class Fechar extends Control:

@@ -1,6 +1,6 @@
 extends RefCounted
 # Progressão do herói (ideia do Quimera), igual a shared/progresso.js: nível e XP, atributos, skills que sobem
-# de nível usando e os 6 botões da tela. Online quem decide é o servidor (chega no evento "prog");
+# de nível usando e as duas barras de 6 botões (a da espada e a do cajado; Trocar mostra a outra). Online quem decide é o servidor (chega no evento "prog");
 # sem internet o app usa as mesmas contas, a partir do último progresso da conta (treino: não grava na conta).
 # Os números das skills vêm de dados/habilidades.json (gerado por client/exportar-godot/mundo.mjs).
 
@@ -31,7 +31,7 @@ func _init() -> void:
 	definir(p if p is Dictionary else novo())
 
 func novo() -> Dictionary:
-	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "botoes": dados.botoesPadrao.duplicate()}
+	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true)}
 
 func definir(p: Dictionary) -> void:
 	prog = p
@@ -43,8 +43,14 @@ func definir(p: Dictionary) -> void:
 		prog.atr[k] = int(prog.atr[k])
 	if not prog.has("habs") or not (prog.habs is Dictionary):
 		prog.habs = {}
-	if not (prog.get("botoes") is Array) or prog.botoes.size() != int(dados.nBotoes):
-		prog.botoes = dados.botoesPadrao.duplicate()
+	var barras = prog.get("barras")
+	if not (barras is Dictionary):
+		barras = {}
+	for b in ["espada", "cajado"]:
+		if not (barras.get(b) is Array) or barras[b].size() != int(dados.nBotoes):
+			barras[b] = dados.botoesPadrao[b].duplicate()
+	prog.barras = barras
+	prog.erase("botoes")
 	st = calcular_status()
 	xp_prox = xp_proximo(prog.nivel)
 	mudou = true
@@ -97,27 +103,26 @@ func maximo(id: String) -> int:
 func liberada(id: String) -> bool:
 	return prog.nivel >= int(habs[id].libera)
 
-# números da skill no nível nv (dano +15%, área +5%, recarga -6% por nível), como habNoNivel
+# números da skill no nível nv, como habNoNivel: dano +18% (o Lm do Quimera), recarga -6% e os campos de "nv" somados
 func hab_nivel(id: String, nv := -1) -> Dictionary:
 	if nv < 0:
 		nv = nivel_de(id)
 	var h: Dictionary = habs[id].duplicate(true)
 	var k := nv - 1
 	h.nv = nv
-	h.pct = float(h.get("pct", 0)) * (1 + 0.15 * k)
-	if h.has("area"):
-		h.area = snappedf(h.area * (1 + 0.05 * k), 0.01)
+	h.id = id
+	h.pct = float(h.get("pct", 0)) * (1 + 0.18 * k)
 	if h.has("cd") and not h.get("basico", false):
-		h.cd = snappedf(h.cd * (1 - 0.06 * k), 0.01)
-	if h.has("combo"):
-		for c in h.combo:
-			c.pct = c.pct * (1 + 0.15 * k)
-	if h.has("escudo"):
-		h.escudo.absorve = round(h.escudo.absorve * (1 + 0.15 * k))
-	if h.has("curaPct"):
-		h.curaPct = h.curaPct * (1 + 0.08 * k)
-	if h.has("salto"):
-		h.salto = snappedf(h.salto * (1 + 0.04 * k), 0.01)
+		h.cd = h.cd * (1 - 0.06 * k)
+	var cresce: Dictionary = habs[id].get("nv", {})
+	for c in cresce:
+		var v: float = float(cresce[c]) * k
+		if c == "explosao":
+			h.proj.explosao = float(h.proj.explosao) + v
+		elif c == "lentoK":
+			h.lento.k = float(h.lento.k) + v
+		else:
+			h[c] = float(h[c]) + v
 	return h
 
 # pronta para usar: dano em pontos (pelo atributo da árvore) e recarga com a Destreza
@@ -125,11 +130,10 @@ func hab_pronta(id: String) -> Dictionary:
 	var h := hab_nivel(id)
 	var dano: float = st.danoMagico if h.arvore == "cajado" else st.danoFisico if h.arvore == "espada" else max(st.danoFisico, st.danoMagico)
 	h.dmg = dano * h.pct
-	if h.has("combo"):
-		for c in h.combo:
-			c.dmg = dano * c.pct
 	if h.has("cd") and not h.get("basico", false):
 		h.cd = h.cd * (1 - st.recarga)
+	if h.tipo == "escudo":
+		h.absorve = round(h.absorve + st.defesa * h.defK)
 	return h
 
 # ---------- texto do menu (igual ao Quimera: "Dano 220% · Área 2,2 m · Mana 10 · Recarga 1,1 s") ----------
@@ -141,42 +145,35 @@ static func num(v: float, casas := 1) -> String:
 
 func linha(h: Dictionary) -> String:
 	var p := []
-	if h.has("combo"):
-		p.append("Dano %s%%–%s%%" % [num(h.combo[0].pct * 100, 0), num(h.combo[-1].pct * 100, 0)])
-	elif h.get("pct", 0) > 0:
+	if h.get("pct", 0) > 0:
 		var golpes: int = h.hits.size() if h.has("hits") else 1
 		p.append("Dano %s%%%s" % [num(h.pct * 100, 0), (" ×%d" % golpes) if golpes > 1 else ""])
+	if h.has("alcance"):
+		p.append("Alcance %s m" % num(h.alcance))
 	if h.has("area"):
 		p.append("Raio %s m" % num(h.area))
 	if h.has("proj") and h.proj.has("explosao"):
 		p.append("Área %s m" % num(h.proj.explosao))
-	if h.has("chuva"):
-		p.append("Raio %s m" % num(h.chuva.r))
-	if h.has("raios"):
-		p.append("Alvos %d" % int(h.raios.n))
-	if h.has("salto"):
-		p.append("Distância %s m" % num(h.salto))
-	if h.has("avanco") and h.get("dash", false):
-		p.append("Distância %s m" % num(h.avanco, 0))
+	if h.has("alvos"):
+		p.append("Alvos %d" % int(round(h.alvos)))
+	if h.has("distancia"):
+		p.append("Distância %s m" % num(h.distancia))
 	if h.has("curaPct"):
-		p.append("Cura %s%%" % num(h.curaPct * 100, 0))
-		if h.has("grupo"):
-			p.append("Grupo (%s m) %s%%" % [num(h.grupo.r, 0), num(h.grupo.pct * 100, 0)])
-	if h.has("escudo"):
-		p.append("Absorve %d · Duração %s s" % [int(h.escudo.absorve), num(h.escudo.dur, 0)])
-	if h.has("puxa"):
-		p.append("Puxa (%s m)" % num(h.puxa.r))
-	if h.has("atordoa"):
+		p.append("Cura %s%% · perto %s%%" % [num(h.curaPct * 100, 0), num(h.curaPct * 50, 0)])
+	if h.has("absorve"):
+		p.append("Absorve %d · %s s" % [int(h.absorve), num(h.duracao, 0)])
+	if h.has("atordoa") and h.tipo != "puxar":
 		p.append("Atordoa %s s" % num(h.atordoa))
 	if h.has("congela"):
 		p.append("Congela %s s" % num(h.congela))
 	if h.has("lento"):
-		p.append("Lentidão %s%% · %s s" % [num(h.lento.k * 100, 0), num(h.lento.dur, 0)])
+		p.append("Lentidão %s%% · %s s" % [num(h.lento.k * 100, 1), num(h.lento.dur, 0)])
 	if h.has("vulneravel"):
-		p.append("Dano recebido +%s%% · %s s" % [num(h.vulneravel.k * 100, 0), num(h.vulneravel.dur, 0)])
+		p.append("Quebrado +%s%% · %s s" % [num(h.vulneravel.k * 100, 0), num(h.vulneravel.dur, 0)])
+	if h.has("canal"):
+		p.append("Concentra %s s" % num(h.canal, 2))
 	p.append(("Mana %d" % int(h.mana)) if h.get("mana", 0) > 0 else "Sem mana")
-	if not h.get("basico", false):
-		p.append("Recarga %s s" % num(h.cd))
+	p.append("Recarga %s s" % num(h.cd))
 	return " · ".join(p)
 
 func proximo(id: String) -> String:
@@ -188,14 +185,13 @@ func proximo(id: String) -> String:
 	var p := []
 	if b.get("pct", 0) > 0:
 		p.append("Dano %s%%" % num(b.pct * 100, 0))
-	if b.has("area"):
-		p.append("Raio %s m" % num(b.area))
-	if b.has("salto"):
-		p.append("Distância %s m" % num(b.salto))
-	if b.has("escudo"):
-		p.append("Absorve %d" % int(b.escudo.absorve))
+	for c in ["alcance", "area", "distancia", "alvos", "congela", "atordoa"]:
+		if b.has(c) and not is_equal_approx(float(b[c]), float(a[c])):
+			p.append({"alcance": "Alcance %s m", "area": "Raio %s m", "distancia": "Distância %s m", "alvos": "Alvos %s", "congela": "Congela %s s", "atordoa": "Atordoa %s s"}[c] % num(b[c]))
 	if b.has("curaPct"):
 		p.append("Cura %s%%" % num(b.curaPct * 100, 0))
+	if b.has("absorve"):
+		p.append("Absorve +12")
 	if b.get("cd", 0) != a.get("cd", 0):
 		p.append("Recarga %s s" % num(b.cd))
 	return "Próximo: " + " · ".join(p)
@@ -240,11 +236,22 @@ func distribuir(k: String) -> bool:
 	mudou = true
 	return true
 
-# põe a skill no botão i (se já estava em outro, troca de lugar)
-func por_no_botao(id: String, i: int) -> void:
-	var b: Array = prog.botoes
-	var antes := b.find(id)
-	if antes >= 0:
-		b[antes] = b[i]
-	b[i] = id
+# a skill serve nessa barra? (espada só na da espada, cajado só na do cajado, as gerais nas duas)
+func cabe(id: String, barra: String) -> bool:
+	return habs.has(id) and not habs[id].get("basico", false) and (habs[id].arvore == "geral" or habs[id].arvore == barra)
+
+# barra da arma na mão
+static func barra_de(modo: String) -> String:
+	return "espada" if modo == "Espada" else "cajado"
+
+# põe a skill no botão i da barra (se já estava em outro botão dela, troca de lugar); id "" esvazia o botão
+func por_no_botao(id: String, barra: String, i: int) -> void:
+	var b: Array = prog.barras[barra]
+	if id == "":
+		b[i] = null
+	else:
+		var antes := b.find(id)
+		if antes >= 0:
+			b[antes] = b[i]
+		b[i] = id
 	mudou = true

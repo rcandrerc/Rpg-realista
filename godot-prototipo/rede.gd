@@ -19,6 +19,7 @@ signal entrou(meu_id: String, conta: Dictionary)
 signal mensagem(tipo, dados)
 signal caiu(motivo: String)
 signal precisa_login # sem sessão guardada (ou vencida): mostrar o botão Entrar com Google
+signal escolher_conta(conta: Dictionary) # abriu o jogo com conta salva: perguntar se entra com ela ou troca
 
 var servidor := SERVIDOR # dá para trocar no teste (variável RPG_SERVIDOR)
 var sessao := ""
@@ -54,8 +55,9 @@ func guardar(s: String) -> void:
 	cfg.set_value("conta", "sessao", s)
 	cfg.save(ARQUIVO)
 
-# Começo: com sessão guardada, confere e entra direto; sem, pede login
-func iniciar() -> void:
+# Começo: com sessão guardada, confere e entra (perguntar = abriu o jogo agora: mostra a janela de escolher a conta);
+# sem sessão, pede login
+func iniciar(perguntar := false) -> void:
 	if sessao == "":
 		precisa_login.emit()
 		return
@@ -63,6 +65,10 @@ func iniciar() -> void:
 	var r := await pedir("GET", "/conta/eu")
 	if r.codigo == 200:
 		conta = r.dados.get("conta", {})
+		if perguntar:
+			estado.emit("")
+			escolher_conta.emit(conta)
+			return
 		entrar_na_sala()
 	elif r.codigo == 401:
 		guardar("")
@@ -117,6 +123,15 @@ func entrar_pelo_site() -> void:
 	_vinculo_ate = _tempo + 300.0
 	_espera_vinculo = 2.0
 	estado.emit("Faça o login no navegador e volte para o jogo")
+
+# janela do começo: entrar com a conta salva, ou sair dela e abrir a escolha de conta do Google
+func continuar() -> void:
+	estado.emit("Conectando…")
+	entrar_na_sala()
+
+func trocar_conta() -> void:
+	sair_da_conta()
+	entrar_com_google()
 
 func sair_da_conta() -> void:
 	if _login_nativo:

@@ -16,7 +16,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20, botoes: 10, atributo: 5 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20, barra: 10, atributo: 5 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -34,9 +34,13 @@ class SalaClareira extends Room {
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
-    // skills do Quimera (shared/progresso.js): usar, os 6 botões da tela e os pontos de atributo
-    this.ouvir('habQ', (c, k) => { if (typeof k === 'string' && k.length < 32) this.sim.usarHabQ(c.sessionId, k); });
-    this.ouvir('botoes', (c, b) => this.sim.definirBotoes(c.sessionId, b));
+    // skills do Quimera (shared/progresso.js): usar, as duas barras de 6 botões e os pontos de atributo
+    this.ouvir('habQ', (c, k) => {
+      if (typeof k === 'string' && k.length < 32) this.sim.usarHabQ(c.sessionId, k);
+      else if (k && typeof k.id === 'string' && k.id.length < 32) this.sim.usarHabQ(c.sessionId, { id: k.id, dx: Number(k.dx) || 0, dz: Number(k.dz) || 0 });
+    });
+    this.ouvir('cancelar', (c) => this.sim.cancelarCanal(c.sessionId)); // andou no meio da magia concentrada
+    this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));

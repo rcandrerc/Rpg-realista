@@ -34,49 +34,57 @@ export function calcularStatus(p, passivas = {}) {
   };
 }
 
-// Habilidades. arvore: espada (escala com Força), cajado (Inteligência) ou geral. libera = nível do herói.
-// pct = dano em % do dano base; max = nível máximo da skill. Os campos de efeito são os mesmos da Simulacao
-// (area, alcance/arco, proj, raios, chuva, cura, hits, avanco...) e mais: atordoa, congela, lento, vulneravel, escudo, salto, cadeia.
+// Habilidades: as do Quimera (armas/armas.js e index.html), com os mesmos números e o mesmo jeito de funcionar.
+// arvore: espada (escala com Força), cajado (Inteligência) ou geral (serve com as duas). libera = nível do herói.
+// tipo = como a skill funciona (cada tipo tem o seu código na Simulacao e no Godot, igual a uma função do Quimera).
+// pct = dano em % do dano base (+18% por nível da skill, o Lm do Quimera); nv = quanto cada campo cresce por nível;
+// dur = segundos da animação; hits = segundos em que o golpe acerta; canal = segundos concentrando antes de soltar
+// (andar cancela e devolve 70% da mana); at = em que parte da animação a magia sai; empurra = metros que o inimigo voa.
 export const HABS = {
   // ----- espada -----
-  espada_basico: { nome: 'Ataque de espada', arvore: 'espada', basico: true, max: 5, libera: 1, pct: 0.95, alcance: 2.3, arco: 1.6, cd: 0.15, lamina: true,
-    vulneravel: { k: 0.06, dur: 4 }, combo: [{ anim: 'combo1', ts: 1.45, at: 0.5, pct: 0.95 }, { anim: 'combo2', ts: 1.45, at: 0.53, pct: 1.0 },
-      { anim: 'combo3', ts: 1.45, at: 0.58, pct: 1.05 }, { anim: 'combo4', ts: 1.35, at: 0.41, pct: 1.55 }],
-    desc: 'Combo de 4 cortes. Quem leva fica vulnerável (+6% de dano recebido por 4 s).' },
-  corte_duplo: { nome: 'Corte Duplo', arvore: 'espada', libera: 1, anim: A.cruzado, ts: 1.3, hits: [0.35, 0.6], pct: 1.1, alcance: 2.4, arco: 2.6, mana: 10, cd: 1.1, lamina: true, fx: true, icone: 'corte',
-    desc: 'Dois cortes em cruz na frente.' },
-  giro: { nome: 'Giro da Lâmina', arvore: 'espada', libera: 1, anim: A.giro, ts: 1.2, hits: [0.52, 0.74], pct: 0.85, area: 4, mana: 22, cd: 5.8, lamina: true, fx: true, icone: 'giro',
-    desc: 'Salta girando e corta tudo em volta, duas vezes.' },
-  golpe_esmagador: { nome: 'Golpe Esmagador', arvore: 'espada', libera: 5, anim: A.jump, ts: 1.1, at: 0.55, pct: 3.2, area: 2.8, avanco: 3.5, atordoa: 1.5, mana: 32, cd: 9.6, lamina: true, fx: true, efeito: 'salto', icone: 'salto',
-    desc: 'Pula para a frente e crava a espada no chão. Atordoa.' },
-  pisao_sismico: { nome: 'Pisão Sísmico', arvore: 'espada', libera: 8, anim: A.descendente, ts: 1.15, at: 0.45, pct: 1.1, area: 5.1, atordoa: 3.8, mana: 28, cd: 11.6, lamina: true, fx: true, efeito: 'pisao', icone: 'pisao',
-    desc: 'A espada racha o chão em volta e atordoa todo mundo perto.' },
-  investida: { nome: 'Investida', arvore: 'espada', libera: 14, anim: 'investida', ts: 1.5, hits: [0.22, 0.78], pct: 1.3, alcance: 2.8, arco: 2.4, avanco: 9, avancoT: 0.2, mana: 26, cd: 6.7, lamina: true, fx: true, dash: true, impacto: true, icone: 'investida',
-    desc: 'Dash até o alvo e já crava a estocada, depois um corte.' },
+  espada_basico: { nome: 'Ataque de espada', arvore: 'espada', tipo: 'basicoEspada', basico: true, max: 5, libera: 1, pct: 0.95, alcance: 3.2, arco: 2.2, persegue: 12,
+    cd: 0.5, comboZera: 0.8, empurra: 0.55, vulneravel: { k: 0.06, dur: 4 },
+    combo: [{ anim: 'combo1', dur: 0.48, hit: 0.24 }, { anim: 'combo2', dur: 0.48, hit: 0.26 }, { anim: 'combo3', dur: 0.48, hit: 0.28 }, { anim: 'combo4', dur: 0.48, hit: 0.19 }],
+    desc: 'Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s).' },
+  corte_duplo: { nome: 'Corte Duplo', arvore: 'espada', tipo: 'corte', libera: 1, anim: A.cruzado, dur: 0.85, hits: [0.24, 0.66], lunge: { r: 7, para: 1.6 },
+    ponto: 1.7, area: 2.2, nv: { area: 0.15 }, pct: 1.1, empurra: 0.55, mana: 10, cd: 1.1, icone: 'corte',
+    desc: 'Avança até o inimigo mais perto e dá dois cortes na frente.' },
+  giro: { nome: 'Giro da Lâmina', arvore: 'espada', tipo: 'giro', libera: 1, anim: A.giro, dur: 1.2, hits: [0.52, 0.74], area: 4, nv: { area: 0.24 }, pct: 0.85, empurra: 1.1,
+    mana: 22, cd: 6, icone: 'giro', desc: 'Gira a espada e corta tudo em volta, duas vezes. Dá para andar girando.' },
+  golpe_esmagador: { nome: 'Golpe Esmagador', arvore: 'espada', tipo: 'esmagar', libera: 5, anim: A.jump, dur: 1.25, hits: [0.71], lunge: { r: 7, para: 1.4 },
+    ponto: 1.6, area: 2.8, nv: { area: 0.15 }, pct: 3.2, empurra: 0.75, atordoa: 1.5, mana: 32, cd: 10, icone: 'salto',
+    desc: 'Avança e crava a espada no chão na frente. Atordoa (chefes não).' },
+  pisao_sismico: { nome: 'Pisão Sísmico', arvore: 'espada', tipo: 'pisao', libera: 8, anim: A.descendente, dur: 0.8, hits: [0.42], area: 5.1, pct: 1.1, empurra: 0.35,
+    atordoa: 3.8, nv: { area: 0.26, atordoa: 0.3 }, mana: 28, cd: 12, icone: 'pisao', desc: 'A espada racha o chão em volta e atordoa todo mundo perto.' },
+  investida: { nome: 'Investida', arvore: 'espada', tipo: 'investida', libera: 14, anim: 'investida', dur: 1.1, hits: [0.48], alcance: 9, dashT: 0.36, largura: 1.6,
+    alvos: 3, nv: { alvos: 1 }, pct: 1.3, cai: 0.85, empurra: 1.45, mana: 26, cd: 7, icone: 'investida',
+    desc: 'Dash atravessando os inimigos em linha até o alvo (precisa de alvo a até 9 m).' },
   // ----- cajado -----
-  cajado_basico: { nome: 'Ataque básico', arvore: 'cajado', basico: true, max: 5, libera: 1, pct: 0.9, cd: 0.15, lento: { k: 0.15, dur: 2 },
-    proj: { vel: 18, cor: 0x9a6bff, tam: 0.24, estilo: 'arcano', largura: 0.8, vida: 0.5 },
-    combo: [{ anim: 'magia1', ts: 1.5, at: 0.34, pct: 0.9 }, { anim: 'magia2', ts: 1.5, at: 0.44, pct: 0.95 }, { anim: 'magia3', ts: 1.35, at: 0.4, pct: 1.3 }],
-    desc: 'Tiros de energia que deixam o alvo lento. Não gasta mana.' },
-  bola_fogo: { nome: 'Bola de Fogo', arvore: 'cajado', libera: 1, anim: A.bolt, ts: 1.7, at: 0.43, pct: 2.2, proj: { vel: 14, cor: 0xff7a2a, tam: 0.26, explosao: 2.2, estilo: 'fogo' }, mana: 10, cd: 1.1, fx: true, icone: 'bola',
-    desc: 'Cometa de fogo que explode no alvo.' },
-  anel_chamas: { nome: 'Anel de Chamas', arvore: 'cajado', libera: 1, anim: A.ground, ts: 1.6, at: 0.6, pct: 1.7, area: 5, mana: 22, cd: 5.8, fx: true, efeito: 'explosao', icone: 'explosao',
-    desc: 'Fogo explode no chão em volta de você.' },
-  meteoro: { nome: 'Meteoro', arvore: 'cajado', libera: 5, anim: A.rain, ts: 1.2, at: 0.6, pct: 1.1, chuva: { r: 5, ondas: 3 }, mana: 32, cd: 9.6, fx: true, icone: 'meteoros',
-    desc: 'Meteoros caem na área do alvo.' },
-  nova_gelo: { nome: 'Nova de Gelo', arvore: 'cajado', libera: 8, anim: A.onda, ts: 1.8, at: 0.45, pct: 1.1, area: 6, congela: 3.8, mana: 28, cd: 11.6, fx: true, efeito: 'gelo', icone: 'gelo',
-    desc: 'Onda de gelo em volta que congela os inimigos.' },
-  raio_cadeia: { nome: 'Raio em Cadeia', arvore: 'cajado', libera: 14, anim: A.ceu, ts: 1.3, at: 0.3, pct: 1.3, raios: { n: 3, alcance: 14 }, mana: 26, cd: 6.7, fx: true, icone: 'raio',
-    desc: 'Raios do céu pulam de inimigo em inimigo (3 alvos).' },
+  cajado_basico: { nome: 'Faísca', arvore: 'cajado', tipo: 'basicoMagia', basico: true, max: 5, libera: 1, pct: 0.9, alcance: 9, cd: 0.5,
+    lento: { k: 0.15, dur: 2 }, nv: { alcance: 0.5, lentoK: 0.025 },
+    proj: { vel: 18, cor: 0xff8a3a, tam: 0.22, estilo: 'fogo', largura: 0.8, vida: 0.9 },
+    combo: [{ anim: 'magia1', dur: 0.58, hit: 0.17 }, { anim: 'magia2', dur: 0.58, hit: 0.17 }],
+    desc: 'Faísca de fogo que mira sozinha no inimigo mais perto (até 9 m) e deixa lento. Não gasta mana.' },
+  bola_fogo: { nome: 'Bola de Fogo', arvore: 'cajado', tipo: 'bola', libera: 1, anim: A.bolt, at: 0.43, canal: 0.55, alcance: 11, pct: 2.2,
+    proj: { vel: 16, cor: 0xff7a2a, tam: 0.26, explosao: 2.2, estilo: 'fogo' }, nv: { explosao: 0.15 }, mana: 10, cd: 1.1, icone: 'bola',
+    desc: 'Cometa de fogo no alvo (até 11 m) que explode na área.' },
+  anel_chamas: { nome: 'Anel de Chamas', arvore: 'cajado', tipo: 'anel', libera: 1, anim: A.ground, at: 0.6, canal: 0.6, area: 5, nv: { area: 0.3 }, pct: 1.7, empurra: 1.45,
+    mana: 22, cd: 6, icone: 'explosao', desc: 'Um pulinho e o fogo explode no chão em volta de você.' },
+  meteoro: { nome: 'Meteoro', arvore: 'cajado', tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 5, nv: { area: 0.3 }, queda: 0.75, pct: 3.2,
+    empurra: 1.1, mana: 32, cd: 10, icone: 'meteoros', desc: 'Marca o chão do alvo e uma rocha em chamas cai ali.' },
+  nova_gelo: { nome: 'Nova de Gelo', arvore: 'cajado', tipo: 'gelo', libera: 8, anim: A.onda, at: 0.45, canal: 0.75, area: 6, congela: 3.8, nv: { area: 0.3, congela: 0.3 },
+    pct: 1.1, empurra: 0.55, mana: 28, cd: 12, icone: 'gelo', desc: 'Onda de gelo em volta que congela os inimigos.' },
+  raio_cadeia: { nome: 'Raio em Cadeia', arvore: 'cajado', tipo: 'cadeia', libera: 14, anim: A.ceu, at: 0.3, canal: 0.35, alcance: 11, pula: 5.5, alvos: 3, nv: { alvos: 1 },
+    pct: 1.3, cai: 0.85, mana: 26, cd: 7, icone: 'raio', desc: 'Raio da mão no alvo que pula de inimigo em inimigo.' },
   // ----- gerais (servem com espada e cajado) -----
-  salto_arcano: { nome: 'Salto Arcano', arvore: 'geral', libera: 1, anim: 'mortal', ts: 1.4, at: 0.2, salto: 5.5, mana: 14, cd: 3.9, icone: 'salto_arcano',
-    desc: 'Some e reaparece mais à frente.' },
-  cura_floresta: { nome: 'Cura da Floresta', arvore: 'geral', libera: 6, anim: A.heal, ts: 1.2, at: 0.55, curaPct: 0.22, grupo: { r: 8, pct: 0.11 }, mana: 30, cd: 17.4, fx: true, icone: 'cura',
-    desc: 'Recupera vida sua e um pouco de quem estiver perto.' },
-  escudo_arcano: { nome: 'Escudo Arcano', arvore: 'geral', libera: 10, anim: A.block, ts: 1, at: 0.3, escudo: { absorve: 42, dur: 10 }, mana: 25, cd: 19.3, fx: true, icone: 'escudo',
-    desc: 'Uma bolha de luz que segura o dano por 10 s.' },
-  vortice: { nome: 'Abraço do Vórtice', arvore: 'geral', libera: 1, anim: A.vortice, ts: 1.3, at: 0.3, puxa: { r: 8, de: 0.12 }, mana: 24, cd: 15.4, fx: true, icone: 'vortice',
-    desc: 'Puxa os inimigos em volta para perto de você.' },
+  salto_arcano: { nome: 'Salto Arcano', arvore: 'geral', tipo: 'teleporte', libera: 1, distancia: 5.5, nv: { distancia: 0.6 }, mana: 14, cd: 4, icone: 'salto_arcano',
+    desc: 'Some e reaparece mais à frente, para onde o joystick aponta (para na parede).' },
+  cura_floresta: { nome: 'Cura da Floresta', arvore: 'geral', tipo: 'cura', libera: 6, anim: A.heal, at: 0.55, canal: 0.8, curaPct: 0.22, nv: { curaPct: 0.06 }, grupo: 8,
+    mana: 30, cd: 18, icone: 'cura', desc: 'Recupera vida sua; quem estiver perto (8 m) recebe metade.' },
+  escudo_arcano: { nome: 'Escudo Arcano', arvore: 'geral', tipo: 'escudo', libera: 10, anim: A.block, dur: 0.6, absorve: 37, nv: { absorve: 12 }, defK: 1.5, duracao: 10,
+    mana: 25, cd: 20, icone: 'escudo', desc: 'Uma bolha de luz que segura o dano por 10 s (mais forte com a Defesa).' },
+  vortice: { nome: 'Abraço do Vórtice', arvore: 'geral', tipo: 'puxar', libera: 1, anim: A.vortice, at: 0.3, canal: 0.4, area: 8, nv: { area: 0.4 }, atordoa: 0.32,
+    mana: 24, cd: 16, icone: 'vortice', desc: 'Puxa os inimigos em volta para perto de você (não puxa chefes). Não tira vida.' },
 };
 // Passivas: valem sozinhas a partir do nível do herói
 export const PASSIVAS = {
@@ -85,28 +93,36 @@ export const PASSIVAS = {
   sorte_arcana: { nome: 'Sorte Arcana', libera: 7, desc: 'Crítico +2%' },
 };
 export const SKILL_MAX = 10;
-export const BOTOES_PADRAO = ['corte_duplo', 'giro', 'bola_fogo', 'anel_chamas', 'salto_arcano', 'vortice'];
+// Duas barras, como no Quimera: a da espada e a do cajado (Trocar mostra a outra). As gerais servem nas duas.
+// Padrão: as skills de espada numa e as de magia na outra, na ordem do Quimera; dá para mudar no menu.
 export const N_BOTOES = 6;
+export const BARRAS = ['espada', 'cajado'];
+export const BOTOES_PADRAO = {
+  espada: ['corte_duplo', 'giro', 'golpe_esmagador', 'pisao_sismico', 'investida', 'vortice'],
+  cajado: ['bola_fogo', 'anel_chamas', 'salto_arcano', 'meteoro', 'nova_gelo', 'raio_cadeia'],
+};
+// a skill serve nessa barra? (espada só na da espada, cajado só na do cajado, geral nas duas)
+export const cabeNaBarra = (id, barra) => !!HABS[id] && !HABS[id].basico && (HABS[id].arvore === 'geral' || HABS[id].arvore === barra);
 
 // Usos para subir a skill do nível nv para nv+1
 export const usosParaSubir = (nv) => 6 + 4 * nv;
 
-// Números da skill no nível dela: dano +15%, área +5% e recarga -6% por nível
+// Números da skill no nível dela, como no Quimera: dano +18% (Lm), recarga -6% e cada campo de nv somado por nível
 export function habNoNivel(id, nv) {
   const h = HABS[id]; if (!h) return null;
   const k = nv - 1;
-  const r = { ...h, nv, pct: h.pct * (1 + 0.15 * k) };
-  if (h.area) r.area = +(h.area * (1 + 0.05 * k)).toFixed(2);
-  if (h.cd && !h.basico) r.cd = +(h.cd * (1 - 0.06 * k)).toFixed(2);
-  if (h.combo) r.combo = h.combo.map((c) => ({ ...c, pct: c.pct * (1 + 0.15 * k) }));
-  if (h.escudo) r.escudo = { ...h.escudo, absorve: Math.round(h.escudo.absorve * (1 + 0.15 * k)) };
-  if (h.curaPct) r.curaPct = h.curaPct * (1 + 0.08 * k);
-  if (h.salto) r.salto = +(h.salto * (1 + 0.04 * k)).toFixed(2);
+  const r = { ...h, nv, pct: (h.pct || 0) * (1 + 0.18 * k) };
+  if (h.cd && !h.basico) r.cd = +(h.cd * (1 - 0.06 * k)).toFixed(3);
+  for (const [c, v] of Object.entries(h.nv || {})) {
+    if (c === 'explosao') r.proj = { ...h.proj, explosao: +(h.proj.explosao + v * k).toFixed(3) };
+    else if (c === 'lentoK') r.lento = { ...h.lento, k: +(h.lento.k + v * k).toFixed(3) };
+    else r[c] = +(h[c] + v * k).toFixed(3);
+  }
   return r;
 }
 
 export function progressoNovo() {
-  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, botoes: [...BOTOES_PADRAO] };
+  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao() };
 }
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
 export function progressoValido(p) {
@@ -119,7 +135,15 @@ export function progressoValido(p) {
   const gastos = Object.values(n.atr).reduce((s, v) => s + v - 3, 0);
   n.pontos = Math.max(0, PONTOS_POR_NIVEL * (n.nivel - 1) - gastos);
   for (const [id, s] of Object.entries(p.habs || {})) if (HABS[id]) n.habs[id] = { nv: int(s?.nv, 1, HABS[id].max || SKILL_MAX, 1), uso: int(s?.uso, 0, 1e6, 0) };
-  if (Array.isArray(p.botoes) && p.botoes.length === N_BOTOES) n.botoes = p.botoes.map((b) => (HABS[b] && !HABS[b].basico ? b : null));
+  // conta antiga (uma barra só, campo botoes): começa com as barras padrão
+  for (const b of BARRAS) n.barras[b] = barraValida(p.barras?.[b], b) || n.barras[b];
   return n;
+}
+export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));
+// 6 botões: só skill que serve nessa barra, sem repetir (null = vazio). Devolve null se não for uma lista de 6.
+export function barraValida(lista, barra) {
+  if (!Array.isArray(lista) || lista.length !== N_BOTOES) return null;
+  const vistos = new Set();
+  return lista.map((k) => { if (typeof k !== 'string' || !cabeNaBarra(k, barra) || vistos.has(k)) return null; vistos.add(k); return k; });
 }
 export const passivasDe = (p) => Object.fromEntries(Object.entries(PASSIVAS).map(([k, v]) => [k, p.nivel >= v.libera]));
