@@ -5,10 +5,12 @@ extends Node3D
 const D = preload("res://dados.gd")
 const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
+const Terreno = preload("res://terreno.gd")
+const Andar = preload("res://andar.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "corrida", "espada_parada"]
+const LACOS := ["parada", "andar", "corrida", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
 const BANDO := [
 	{"id": "cabelo_m", "x": 16.0, "z": 6.0}, {"id": "fumiriya", "x": 20.0, "z": -2.0},
@@ -29,7 +31,11 @@ var grama: MultiMeshInstance3D
 var hud
 var fx
 var cache := {}
-var armas_lugar := {}
+var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (cada corpo tem a mão num jeito)
+var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
+var terreno
+var mov # andar.gd: como o herói anda, colide e escala
+var _clip_visto := -1
 var mascara: Image
 
 # ---------- herói ----------
@@ -71,6 +77,9 @@ const MEDE := 5.0
 func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	armas_lugar = JSON.parse_string(FileAccess.get_file_as_string("res://modelos/armas.json"))
+	mundo = JSON.parse_string(FileAccess.get_file_as_string("res://dados/mundo.json"))
+	terreno = Terreno.new(mundo)
+	mov = Andar.new(terreno, mundo)
 	mascara = load("res://modelos/mascara_vila.png").get_image()
 	if mascara.is_compressed():
 		mascara.decompress()
@@ -279,19 +288,25 @@ func criar_heroi() -> void:
 	heroi.position = D.NASCIMENTO
 	heroi_anim = heroi.find_child("AnimationPlayer", true, false)
 	heroi_esq = esqueleto(heroi)
-	mao_direita = heroi_esq.find_bone(armas_lugar.espadaMao.osso)
+	mao_direita = heroi_esq.find_bone(armas_lugar.ruiva.espadaMao.osso)
+	mov.por_em(D.NASCIMENTO)
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
 	armar("Espada")
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
-	h.modo = modo
-	if modo == "Espada":
-		prender(heroi_esq, espada, armas_lugar.espadaMao)
-		prender(heroi_esq, cajado, armas_lugar.cajadoCostas)
+	if modo != "Escalada":
+		h.modo = modo
+	var L: Dictionary = armas_lugar.ruiva
+	if modo == "Escalada": # escalando: as duas nas costas, mãos livres
+		prender(heroi_esq, espada, L.espadaCostas)
+		prender(heroi_esq, cajado, L.cajadoCostas)
+	elif modo == "Espada":
+		prender(heroi_esq, espada, L.espadaMao)
+		prender(heroi_esq, cajado, L.cajadoCostas)
 	else:
-		prender(heroi_esq, espada, armas_lugar.espadaCostas)
+		prender(heroi_esq, espada, L.espadaCostas)
 		if cajado.get_parent():
 			cajado.get_parent().remove_child(cajado)
 		heroi.add_child(cajado) # na mão: segue a mão mas fica de pé (como no site), ver _process
@@ -299,7 +314,7 @@ func armar(modo: String) -> void:
 func criar_inimigo(id: String, pos: Vector3) -> Dictionary:
 	var no := modelo(id)
 	no.position = pos
-	prender(esqueleto(no), nova_arma("espada"), armas_lugar.espadaMao)
+	prender(esqueleto(no), nova_arma("espada"), armas_lugar[id].espadaMao)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
 		"estado": "vagar", "t": randf() * 3.0, "alvo": pos, "cd": 0.0, "golpe": -1.0}
 	e.barra = barra_vida(no, "Sombrio", Color(0.85, 0.25, 0.2))
@@ -441,7 +456,8 @@ func virar_para_inimigo() -> void:
 	var e = mais_perto(heroi.position, 8.0)
 	if e:
 		var d: Vector3 = e.no.position - heroi.position
-		heroi.rotation.y = atan2(d.x, d.z)
+		mov.ry = atan2(d.x, d.z)
+		heroi.rotation.y = mov.ry
 
 func frente() -> Vector3:
 	return Vector3(sin(heroi.rotation.y), 0, cos(heroi.rotation.y))
@@ -456,7 +472,7 @@ func comecar(nome: String, ts: float, hits: Array, ao_acertar: Callable, extra :
 	acao.merge(extra)
 
 func pode_agir() -> bool:
-	return h.morto <= 0.0 and acao.is_empty()
+	return h.morto <= 0.0 and acao.is_empty() and mov.esc == null
 
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
@@ -480,27 +496,29 @@ func usar(qual: String) -> void:
 				fx.cura(heroi)
 				fx.numero(heroi.position, D.CURA.cura, Color("7dffa0")))
 		"pular":
-			if h.pulos < 2 and (acao.is_empty() or acao.get("pulo", false)):
-				h.vy = D.MOVIMENTO.pulo
-				h.pulos += 1
+			if not acao.is_empty() and not acao.get("pulo", false):
+				return
+			var p: String = mov.pular()
+			if p != "":
 				acao = {}
-				heroi_anim.play("pulo" if h.pulos == 1 else "mortal", 0.06, 1.2)
+				heroi_anim.play(p, 0.06, 1.2)
 		"dash":
-			if recargas.get("dash", 0.0) > 0.0 or (not acao.is_empty() and not acao.get("pulo", false)):
+			if recargas.get("dash", 0.0) > 0.0 or not acao.is_empty() or mov.esc != null:
+				return
+			var dir := direcao_joystick()
+			var na_parede: bool = mov.dash(dir.x, dir.z)
+			if mov.esc == null and mov.arrancada == null:
 				return
 			recargas["dash"] = D.MOVIMENTO.dash_cd
-			h.dash = D.MOVIMENTO.dash_tempo
-			var dir := direcao_joystick()
-			h.dash_dir = dir if dir.length() > 0.1 else frente()
-			heroi.rotation.y = atan2(h.dash_dir.x, h.dash_dir.z)
-			fx._faiscas(heroi.position + Vector3(0, 0.6, 0), Color("bfe6ff"), 12, 2.0, 0.35)
+			if not na_parede:
+				fx._faiscas(heroi.position + Vector3(0, 0.6, 0), Color("bfe6ff"), 12, 2.0, 0.35)
 		"rolar":
-			if not pode_agir() or recargas.get("rolar", 0.0) > 0.0 or heroi.position.y > 0.05:
+			if not pode_agir() or recargas.get("rolar", 0.0) > 0.0 or not mov.chao:
 				return
 			recargas["rolar"] = D.HEROI.rolar_cd
 			var dir := direcao_joystick()
 			if dir.length() > 0.1:
-				heroi.rotation.y = atan2(dir.x, dir.z)
+				mov.ry = atan2(dir.x, dir.z)
 			comecar("rolar", 1.15, [], func(_i): pass, {"anda": 6.0})
 		_:
 			if qual.begins_with("hab"):
@@ -646,72 +664,121 @@ func atualizar_heroi(dt: float) -> void:
 		if h.morto <= 0.0:
 			h.vida = D.HEROI.vida
 			h.mana = D.HEROI.mana
-			heroi.position = D.NASCIMENTO
+			mov.por_em(D.NASCIMENTO)
+			heroi.position = mov.posicao()
 			heroi_anim.play("parada", 0.2)
 		return
 	h.mana = min(D.HEROI.mana, h.mana + D.HEROI.mana_por_seg * dt)
 	if h.segurando and tempo - h.ultimo_basico > 0.2:
 		basico()
 	var dir := direcao_joystick()
-	# ação em andamento: golpes acertam no tempo certo da animação
+	var forca: float = hud.mover.length()
+	mov.outros.clear()
+	for e in inimigos:
+		if e.estado != "morto":
+			mov.outros.append(e.no.position)
+	for n in npcs:
+		mov.outros.append(n.no.position)
+	# ação em andamento: golpes acertam no tempo certo da animação; avanço e rolamento andam pelo terreno
 	if not acao.is_empty():
 		acao.t += dt
 		var frac: float = acao.t / acao.dur
 		while acao.feitos < acao.hits.size() and frac >= acao.hits[acao.feitos]:
 			acao.fn.call(acao.feitos)
 			if acao.is_empty():
-				return
+				break
 			acao.feitos += 1
-		if acao.has("avanco") and acao.t < acao.dur * acao.avanco_t:
-			heroi.position += frente() * acao.avanco / (acao.dur * acao.avanco_t) * dt
-		if acao.has("anda"):
-			heroi.position += frente() * acao.anda * (1.0 - frac) * dt * 1.4
-		if acao.t >= acao.dur:
-			acao = {}
-	# pulo e gravidade (o chão da vila é plano)
-	if heroi.position.y > 0.0 or h.vy > 0.0:
-		h.vy -= D.MOVIMENTO.gravidade * dt
-		heroi.position.y += h.vy * dt
-		if heroi.position.y <= 0.0:
-			heroi.position.y = 0.0
-			h.vy = 0.0
-			h.pulos = 0
-			if acao.is_empty():
-				heroi_anim.play("pouso", 0.05, 1.4)
-				acao = {"nome": "pouso", "t": 0.0, "dur": 0.25, "hits": [], "feitos": 0, "fn": func(_i): pass, "pulo": true}
-	# dash
-	if h.dash > 0.0:
-		h.dash -= dt
-		heroi.position += h.dash_dir * D.MOVIMENTO.dash_vel * dt
-	# andar e correr
-	var no_ar := heroi.position.y > 0.0
-	if acao.is_empty() or acao.get("pulo", false):
-		if dir.length() > 0.0:
-			var forca: float = hud.mover.length()
-			var vel: float = D.HEROI.andar if forca < 0.55 else D.HEROI.correr
-			heroi.position += dir.normalized() * vel * dt
-			heroi.rotation.y = lerp_angle(heroi.rotation.y, atan2(dir.x, dir.z), min(1.0, dt * 14.0))
-			if not no_ar and acao.is_empty():
-				var a := "andar" if forca < 0.55 else "corrida"
-				if heroi_anim.current_animation != a:
-					heroi_anim.play(a, 0.15)
-		elif not no_ar and acao.is_empty():
-			var parado := "parada" if h.modo == "Magia" else "espada_parada"
-			if heroi_anim.current_animation != parado:
-				heroi_anim.play(parado, 0.2)
-	# não sai do mapa
-	var plano := Vector2(heroi.position.x, heroi.position.z)
-	if plano.length() > RAIO:
-		plano = plano.normalized() * RAIO
-		heroi.position.x = plano.x
-		heroi.position.z = plano.y
+		if not acao.is_empty():
+			var f := frente()
+			if acao.has("avanco") and acao.t < acao.dur * acao.avanco_t:
+				var v: float = acao.avanco / (acao.dur * acao.avanco_t) * dt
+				mov.mover(f.x * v, f.z * v)
+			if acao.has("anda"):
+				var v2: float = acao.anda * (1.0 - frac) * dt * 1.4
+				mov.mover(f.x * v2, f.z * v2)
+			if acao.t >= acao.dur:
+				acao = {}
+	var estava_escalando: bool = mov.esc != null
+	var estava_no_chao: bool = mov.chao
+	mov.passo(dt, dir.x, dir.z, forca >= 0.55, acao.is_empty() or acao.get("pulo", false))
+	heroi.position = mov.posicao()
+	heroi.rotation.y = mov.ry
+	# armas: escalando, as duas nas costas
+	if mov.esc != null and not estava_escalando:
+		acao = {}
+		armar("Escalada")
+	elif mov.esc == null and estava_escalando:
+		armar(h.modo)
+	# animação
+	if mov.esc != null:
+		if mov.anim != "" and (heroi_anim.current_animation != mov.anim or mov.clip_seq != _clip_visto) and heroi_anim.has_animation(mov.anim):
+			_clip_visto = mov.clip_seq
+			var clip_esc: bool = mov.anim.begins_with("esc_")
+			var vel := 1.0
+			if clip_esc:
+				vel = heroi_anim.get_animation(mov.anim).length / max(0.05, float(mundo.escalada[mov.anim.substr(4)].dur))
+			var mesma: bool = heroi_anim.current_animation == mov.anim
+			heroi_anim.play(mov.anim, 0.12, vel)
+			if mesma:
+				heroi_anim.seek(0.0, true)
+	elif acao.is_empty():
+		var a := ""
+		if mov.arrancada != null:
+			a = "corrida"
+		elif mov.mortal > 0.0:
+			a = "mortal"
+		elif not mov.chao:
+			a = "pulo" if mov.pulos == 1 and mov.vy > 0 and mov.pulo_t < 0.45 else "queda"
+		elif mov.pouso > 0.0 and dir.length() < 0.15:
+			a = "pouso"
+		elif dir.length() > 0.15:
+			a = "corrida" if forca >= 0.55 else "andar"
+		else:
+			a = "parada" if h.modo == "Magia" else "espada_parada"
+		if not estava_no_chao and mov.chao and a != "pouso":
+			pass
+		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
+			heroi_anim.play(a, 0.15)
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
-	if h.modo == "Magia":
+	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
 		cajado.global_transform = Transform3D(heroi.global_transform.basis * Basis.from_euler(Vector3(0.18, 0, -0.08)), mao)
 	sol.global_position = heroi.position
 
+# inimigos não atravessam casas, pedras, árvores e o poço (como Simulacao.colidir no servidor)
+func colidir_inimigo(no: Node3D) -> void:
+	var p := no.position
+	for lista in [mundo.obstaculos, mundo.rochasInimigo]:
+		for k in lista:
+			var dx: float = p.x - k.x
+			var dz: float = p.z - k.z
+			var d := sqrt(dx * dx + dz * dz)
+			var mm: float = k.r + 0.35
+			if d < mm and d > 0:
+				p.x = k.x + dx / d * mm
+				p.z = k.z + dz / d * mm
+	for k in mundo.casasInimigo:
+		var dx: float = p.x - k.x
+		var dz: float = p.z - k.z
+		var lx: float = dx * k.cos - dz * k.sin
+		var lz: float = dx * k.sin + dz * k.cos
+		var px: float = k.hw - abs(lx)
+		var pz: float = k.hd - abs(lz)
+		if px <= 0 or pz <= 0:
+			continue
+		var nx := lx
+		var nz := lz
+		if px < pz:
+			nx = (1.0 if lx >= 0 else -1.0) * k.hw
+		else:
+			nz = (1.0 if lz >= 0 else -1.0) * k.hd
+		p.x = k.x + nx * k.cos + nz * k.sin
+		p.z = k.z - nx * k.sin + nz * k.cos
+	no.position = p
+
 func atualizar_inimigos(dt: float) -> void:
+	for e in inimigos:
+		colidir_inimigo(e.no)
 	for e in inimigos:
 		e.t -= dt
 		e.cd -= dt
@@ -725,7 +792,7 @@ func atualizar_inimigos(dt: float) -> void:
 					e.barra.visible = true
 					e.barra.scale.x = 1.0
 					e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
-					e.anim.play("parada", 0.2)
+					e.anim.play("espada_parada", 0.2)
 				continue
 			"apanhar":
 				if e.t <= 0.0:
@@ -734,28 +801,37 @@ func atualizar_inimigos(dt: float) -> void:
 		var ate: Vector3 = heroi.position - no.position
 		ate.y = 0
 		var d := ate.length()
-		if e.golpe >= 0.0: # golpe em andamento: acerta na metade
+		var dy: float = abs(heroi.position.y - no.position.y)
+		if e.golpe >= 0.0: # corte em andamento: acerta perto da metade (como no servidor: 45% da animação)
 			e.golpe += dt
-			if e.golpe > 0.55 and not e.get("acertou", false):
+			if e.golpe > e.golpe_at and not e.get("acertou", false):
 				e.acertou = true
-				if d < D.INIMIGO.alcance + 0.4 and h.morto <= 0.0 and h.dash <= 0.0 and acao.get("nome", "") != "rolar":
+				if d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.arrancada == null and mov.esc == null and acao.get("nome", "") != "rolar":
 					ferir_heroi(D.INIMIGO.dmg)
-			if e.golpe > 1.1:
+			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
 			continue
 		if h.morto <= 0.0 and d < D.INIMIGO.visao:
 			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
-			if d > D.INIMIGO.alcance:
-				no.position += ate.normalized() * D.INIMIGO.vel * dt
-				if e.anim.current_animation != "corrida":
-					e.anim.play("corrida", 0.15)
+			if d > D.INIMIGO.alcance or dy >= 1.3:
+				if d > 1.2:
+					var v: float = D.INIMIGO.vel if d > 5.0 else 1.7
+					no.position += ate.normalized() * v * dt
+					var a := "corrida" if d > 5.0 else "andar"
+					if e.anim.current_animation != a:
+						e.anim.play(a, 0.15)
+				elif e.anim.current_animation != "espada_parada":
+					e.anim.play("espada_parada", 0.2)
 			elif e.cd <= 0.0:
 				e.cd = D.INIMIGO.ataque_cd
 				e.golpe = 0.0
 				e.acertou = false
-				e.anim.play("combo1" if randf() < 0.5 else "combo2", 0.08, 1.3)
-			elif e.anim.current_animation != "parada" and not e.anim.is_playing():
-				e.anim.play("parada", 0.2)
+				var g := "golpe1" if randf() < 0.5 else "golpe2"
+				e.golpe_dur = e.anim.get_animation(g).length / 1.1
+				e.golpe_at = e.golpe_dur * 0.45
+				e.anim.play(g, 0.08, 1.1)
+			elif e.anim.current_animation != "espada_parada":
+				e.anim.play("espada_parada", 0.2)
 		else:
 			# passeia perto de onde nasceu
 			if e.t <= 0.0:
@@ -768,8 +844,8 @@ func atualizar_inimigos(dt: float) -> void:
 				no.rotation.y = lerp_angle(no.rotation.y, atan2(ir.x, ir.z), min(1.0, dt * 6.0))
 				if e.anim.current_animation != "andar":
 					e.anim.play("andar", 0.2)
-			elif e.anim.current_animation != "parada":
-				e.anim.play("parada", 0.2)
+			elif e.anim.current_animation != "espada_parada":
+				e.anim.play("espada_parada", 0.2)
 
 func ferir_heroi(dmg: float) -> void:
 	h.vida -= dmg

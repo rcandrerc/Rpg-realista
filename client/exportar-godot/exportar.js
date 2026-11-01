@@ -1,7 +1,7 @@
 // Ferramenta: exporta a vila e os personagens anime (com animações já convertidas) em GLB para o protótipo Godot.
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
-import { MAPA_CLAREIRA, A } from '@rpg/shared';
+import { MAPA_CLAREIRA, A, ESCALADA, PARADO_PAREDE } from '@rpg/shared';
 import { criarRenderizador, montarCena } from '../src/cena.js';
 import { carregarPersonagens, Corpo } from '../src/personagens.js';
 
@@ -39,6 +39,14 @@ async function principal() {
   const vila = new THREE.Group();
   for (const o of [...mundo.scene.children]) {
     if (o.isLight || o === mundo.grama) continue;
+    if (o.isInstancedMesh) { // anel de pedras e samambaias: uma cópia solta por instância (o Godot não lê instâncias do glTF)
+      const m = new THREE.Matrix4();
+      for (let i = 0; i < o.count; i++) {
+        const c = new THREE.Mesh(o.geometry, o.material); o.getMatrixAt(i, m);
+        m.decompose(c.position, c.quaternion, c.scale); c.name = o.name || 'instancia'; vila.add(c);
+      }
+      continue;
+    }
     vila.add(o.clone());
   }
   simplificar(vila);
@@ -52,33 +60,37 @@ async function principal() {
     parada: 'parada', andar: 'andar', corrida: 'corrida', espada_parada: A.swordIdle,
     combo1: 'combo1', combo2: 'combo2', combo3: 'combo3', combo4: 'combo4', magia1: 'magia1', magia2: 'magia2', magia3: 'magia3',
     investida: 'investida', giro: A.giro, salto: A.jump, relampago: A.raio, bola: A.bolt, raio: A.ceu, explosao: A.ground, meteoros: A.rain,
-    cura: A.heal, rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death,
+    cura: A.heal, rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death, queda: 'queda',
+    // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)
+    ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
+    ...Object.fromEntries(Object.entries(PARADO_PAREDE).map(([k, n]) => ['parede_' + k, n])),
   };
-  const ANIMS_OUTROS = { parada: 'parada', andar: 'andar', corrida: 'corrida', combo1: 'combo1', combo2: 'combo2', apanhar: A.hit, morrer: A.death };
+  // inimigos lutam como no servidor: guarda de espada parada e os cortes A.slash / A.slash2
+  const ANIMS_OUTROS = { parada: 'parada', andar: 'andar', corrida: 'corrida', espada_parada: A.swordIdle, golpe1: A.slash, golpe2: A.slash2, apanhar: A.hit, morrer: A.death };
   const armas = {};
   for (const id of ids) {
     const heroi = id === 'ruiva';
-    const c = new Corpo(mundo.scene, { visual: id, armas: heroi ? 'heroi' : 'nenhuma' });
+    const c = new Corpo(mundo.scene, { visual: id, armas: 'heroi' }); // todos: o lugar das armas muda de corpo para corpo
     for (let i = 0; i < 600 && !c.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     const vrm = c.vrm; if (!vrm) { console.log('sem vrm', id); continue; }
     // grava os ossos de verdade (não os normalizados) quadro a quadro
     const ossos = []; vrm.scene.traverse((o) => { if (o.isBone) ossos.push(o); });
     const clipes = [];
-    if (heroi) {
+    if (c.armasPos) {
       // armas saem em arquivos próprios; aqui só guardo onde cada uma fica presa (osso + posição local)
       const l = c.armasPos, osso = (o) => o.name;
       const dado = (x) => ({ osso: osso(x.pai), pos: x.pos.toArray(), quat: x.quat.toArray(), escala: x.escala });
       const esp = c.armas.espada[0], caj = c.cajado;
-      armas.lugares = { espadaMao: dado(l.espadaMao), espadaCostas: dado(l.espadaCostas), cajadoCostas: dado(l.cajadoCostas),
+      armas[id] = { espadaMao: dado(l.espadaMao), espadaCostas: dado(l.espadaCostas), cajadoCostas: dado(l.cajadoCostas),
         cajadoMao: { osso: c.maoCajado.name, pos: [0, 0, 0], quat: [0, 0, 0, 1], escala: l.cajadoCostas.escala } };
-      for (const [nome, obj] of [['espada', esp], ['cajado', caj]]) {
+      for (const [nome, obj] of heroi ? [['espada', esp], ['cajado', caj]] : []) {
         obj.parent?.remove(obj);
         const copia = obj.clone(); copia.position.set(0, 0, 0); copia.quaternion.identity(); copia.scale.setScalar(1);
         const tirar = []; copia.traverse((o) => { if (o.userData.pelicula) tirar.push(o); }); tirar.forEach((o) => o.parent.remove(o));
         simplificar(copia);
         saida['arma_' + nome] = b64(await exportar(copia));
       }
-      saida.armas_json = btoa(JSON.stringify(armas.lugares));
+      if (!heroi) { [esp, caj].forEach((o) => o?.parent?.remove(o)); }
     }
     for (const [nome, fonte] of Object.entries(heroi ? ANIMS_HEROI : ANIMS_OUTROS)) {
       const clip = c.clipes[fonte]; if (!clip) { console.log('falta anim', id, nome, fonte); continue; }
@@ -110,6 +122,7 @@ async function principal() {
     saida[id] = b64(await exportar(grupo, clipes));
     console.log(id, 'ok', clipes.map((x) => x.name).join(','));
   }
+  saida.armas_json = btoa(JSON.stringify(armas));
   saida.fim = true;
 }
 principal().catch((e) => { console.error(e); saida.erro = String(e.stack || e); });

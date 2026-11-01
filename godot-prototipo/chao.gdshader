@@ -4,7 +4,7 @@ render_mode diffuse_toon, specular_disabled;
 uniform sampler2D grama_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D terra_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pedra_tex : source_color, filter_linear_mipmap, repeat_enable;
-uniform sampler2D mascara : filter_linear;
+uniform sampler2D mascara : filter_linear, repeat_disable;
 // as mesmas fotos lidas sem conversão de cor: a borda da trilha usa o brilho linear, como no site
 uniform sampler2D grama_cru : filter_linear_mipmap, repeat_enable;
 uniform sampler2D pedra_cru : filter_linear_mipmap, repeat_enable;
