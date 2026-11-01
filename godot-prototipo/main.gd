@@ -13,9 +13,10 @@ const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
 const LACOS := ["parada", "andar", "corrida", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
+# inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), só no acampamento do leste, nunca dentro da vila
 const BANDO := [
-	{"id": "cabelo_m", "x": 16.0, "z": 6.0}, {"id": "fumiriya", "x": 20.0, "z": -2.0},
-	{"id": "cabelo_m", "x": 14.0, "z": 0.0}, {"id": "fumiriya", "x": 22.0, "z": 3.0},
+	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp"},
+	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15},
 ]
 const NPCS := [
 	{"id": "fumiriya", "x": -6.0, "z": -18.6, "nome": "Aldo, o líder da vila"},
@@ -99,7 +100,7 @@ func _ready() -> void:
 	add_child(fx)
 	criar_heroi()
 	for b in BANDO:
-		criar_inimigo(b.id, Vector3(b.x, 0, b.z))
+		criar_inimigo(b.id, Vector3(b.x, 0, b.z), b.get("nome", "Inimigo"), b.get("escala", 1.0))
 	for n in NPCS:
 		criar_npc(n.id, Vector3(n.x, 0, n.z), n.nome)
 	camera = Camera3D.new()
@@ -315,15 +316,39 @@ func armar(modo: String) -> void:
 			cajado.get_parent().remove_child(cajado)
 		heroi.add_child(cajado) # na mão: segue a mão mas fica de pé (como no site), ver _process
 
-func criar_inimigo(id: String, pos: Vector3) -> Dictionary:
+func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -> Dictionary:
 	var no := modelo(id)
 	no.position = pos
-	prender(esqueleto(no), nova_arma("espada"), armas_lugar[id].espadaMao)
+	no.scale *= escala
+	if armas_lugar.has(id): # humano (VRoid) luta de espada; monstro do Bestiário luta com garra e soco
+		prender(esqueleto(no), nova_arma("espada"), armas_lugar[id].espadaMao)
+	else:
+		contorno(no, 0.012)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
 		"estado": "vagar", "t": randf() * 3.0, "alvo": pos, "cd": 0.0, "golpe": -1.0}
-	e.barra = barra_vida(no, "Sombrio", Color(0.85, 0.25, 0.2))
+	e.barra = barra_vida(no, nome, Color(0.85, 0.25, 0.2))
 	inimigos.append(e)
 	return e
+
+# contorno escuro de desenho nos monstros (como o MToon da Ruiva): casca um pouco maior, só o lado de trás
+var mat_contorno := {}
+func contorno(no: Node3D, metros: float) -> void:
+	for mi in no.find_children("*", "MeshInstance3D", true, false):
+		var k: float = snappedf(metros / max(0.0001, mi.global_transform.basis.get_scale().x), 0.0001)
+		if not mat_contorno.has(k):
+			var c := StandardMaterial3D.new()
+			c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			c.cull_mode = BaseMaterial3D.CULL_FRONT
+			c.grow = true
+			c.grow_amount = k
+			c.albedo_color = Color(0.1, 0.07, 0.06)
+			mat_contorno[k] = c
+		for i in mi.mesh.get_surface_count():
+			var m = mi.mesh.surface_get_material(i)
+			if m is BaseMaterial3D and m.next_pass == null:
+				var n: BaseMaterial3D = m.duplicate()
+				n.next_pass = mat_contorno[k]
+				mi.set_surface_override_material(i, n)
 
 func criar_npc(id: String, pos: Vector3, nome: String) -> void:
 	var no := modelo(id)

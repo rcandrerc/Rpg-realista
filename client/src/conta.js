@@ -116,6 +116,6 @@ export async function ligarApp(servidor, codigo) {
   if (!entrada) return 'Servidor fora do ar. Tente de novo daqui a pouco.';
   try {
     const r = await pedir(servidor, '/conta/vincular', { sessao: entrada.sessao, corpo: { codigo } });
-    return r.ok ? `App ligado na conta de ${entrada.conta.nome}! Pode voltar para o jogo.` : 'Esse pedido venceu. Toque em Entrar no app de novo.';
+    return r.ok ? `App ligado na conta de ${entrada.conta.nome}! Feche esta aba e volte para o app do jogo.` : 'Esse pedido venceu. Toque em Entrar no app de novo.';
   } catch { return 'Servidor fora do ar. Tente de novo daqui a pouco.'; }
 }
