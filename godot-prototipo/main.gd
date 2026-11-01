@@ -690,7 +690,7 @@ func basico_espada() -> void:
 		if acertou.is_empty() and vivo(alvo) and alvo.no.position.distance_to(heroi.position) < 3.6:
 			ferir(alvo, hab.dmg, heroi.position, hab)
 		var f := heroi.position + frente() * 1.4
-		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"livre": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
+		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"cancela": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
 	segurar_pose(0.35)
 
 # Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
@@ -769,7 +769,7 @@ func habilidade(i: int) -> void:
 		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos)
 		comecar_q(hab.anim, dur, [hab.canal], func(_n):
 			acao.canal = false
-			acao.livre = true
+			acao.cancela = true
 			recargas[k] = hab.cd
 			contar_offline(k)
 			soltar(k, hab, alvo if vivo(alvo) else alvo_hab(hab), dir), {"canal": true, "hab": k, "mana": hab.get("mana", 0)})
@@ -813,12 +813,12 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
 				var p: Vector3 = heroi.position + frente() * hab.ponto
 				dano_area(p, hab.area, hab.dmg, hab)
-				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y), {"livre": true, "lamina": true})
+				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y), {"cancela": true, "lamina": true})
 		"giro", "pisao":
 			fx.conjura(heroi, fxk, hab.dur, maos)
 			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
 				dano_area(heroi.position, hab.area, hab.dmg, hab)
-				fx.explosao_hab(fxk, heroi.position.x, heroi.position.z, hab.area, heroi.position.y), {"livre": true, "lamina": true})
+				fx.explosao_hab(fxk, heroi.position.x, heroi.position.z, hab.area, heroi.position.y), {"cancela": true, "lamina": true})
 		"investida": # dash atravessando os inimigos em linha
 			var L: float = min(hab.alcance, alvo.no.position.distance_to(p0) + 2.5)
 			var f := frente()
@@ -885,7 +885,7 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 			fx.numero(heroi.position, n, Color("7dffa0"))
 			fx.anel(p0.x, p0.z, hab.grupo, "9be08f", 0.9, p0.y)
 		"escudo":
-			comecar_q(hab.anim, hab.dur, [], func(_n): pass, {"livre": true})
+			comecar_q(hab.anim, hab.dur, [], func(_n): pass, {"cancela": true})
 			h.escudo = float(hab.absorve)
 			h.escudo_ate = tempo + float(hab.duracao)
 			fx.escudo(heroi, float(hab.duracao))
@@ -1066,9 +1066,13 @@ func atualizar_heroi(dt: float) -> void:
 	var estava_escalando: bool = mov.esc != null
 	var estava_no_chao: bool = mov.chao
 	# golpe e skill de espada não travam: anda enquanto bate, virado para o alvo
+	# golpe de espada e skills plantam o pé; depois que o golpe acerta, mexer o joystick corta o resto e o herói anda
+	# (como nos RPGs de referência: dá para girar em volta do alvo entre um golpe e outro)
+	if not acao.is_empty() and acao.get("cancela", false) and forca > 0.15 and acao.feitos >= acao.hits.size():
+		acao = {}
 	var livre: bool = acao.is_empty() or acao.get("pulo", false) or acao.get("livre", false)
-	# atacando anda mais devagar (P.dados.andarAtacando da velocidade normal), mudando aos poucos (sem tranco)
-	var k_alvo: float = float(P.dados.andarAtacando) if not acao.is_empty() and acao.get("livre", false) else 1.0
+	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
+	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null, h.vel_k)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
