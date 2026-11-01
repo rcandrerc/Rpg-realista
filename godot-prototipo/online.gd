@@ -234,19 +234,12 @@ func meu(j: Dictionary) -> void:
 		m.heroi.position = m.mov.posicao()
 		m.heroi_anim.play("parada", 0.2)
 	h.vida = float(j.vida)
-	# a build vem da conta; se tiver habilidade que o app ainda não tem, manda a padrão do app
-	if not _build_ok:
-		_build_ok = true
-		var b: Array = j.get("build", [])
-		var conhecidas := b.size() == 8
-		for k in b:
-			if not D.HABILIDADES.has(k):
-				conhecidas = false
-		if conhecidas:
-			m.build = b.duplicate()
-		else:
-			rede.enviar("build", m.build)
-		m.mostrar_build()
+	# Escudo Arcano (o que sobra dele vem do servidor)
+	var esc := float(j.get("escudo", 0))
+	if esc <= 0.0 and h.escudo > 0.0:
+		m.fx.escudo_fim(m.heroi)
+	h.escudo = esc
+	h.escudo_ate = m.tempo + 1.0 if esc > 0.0 else 0.0
 	# recargas: vale a maior (o servidor pode ter começado um pouco depois)
 	var cds: Dictionary = j.get("cds", {})
 	for k in cds:
@@ -337,6 +330,17 @@ func inimigo(c: Dictionary) -> void:
 		e.no.position = e.alvo
 		_barra_visivel(e, true)
 		e.anim.play("espada_parada", 0.2)
+	# atordoado / congelado (vem do servidor): estrelas ou gelo, e o congelado para a animação
+	var ef := str(c.get("ef", "")) if c.get("ef") != null else ""
+	if ef != e.get("ef", ""):
+		e.ef = ef
+		e.anim.speed_scale = 0.0 if ef == "congelado" else 1.0
+		if ef == "congelado" or ef == "atordoado":
+			m.fx.status(e.no, "congela" if ef == "congelado" else "atordoa", 3.0)
+		else:
+			m.fx.status_fim(e.no)
+	if ef == "congelado" or ef == "atordoado":
+		return
 	if not c.morto:
 		animar(e, c)
 
@@ -353,11 +357,29 @@ func evento(ev: Dictionary) -> void:
 	var meu := str(ev.get("de", "")) == meu_id
 	var fx = m.fx
 	match t:
+		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
+			m.P.do_servidor(ev)
+			return
+		"nivel":
+			var no = corpos.get(str(ev.id))
+			if no:
+				fx.subir_nivel(no)
+			return
+		"escudo":
+			var no = corpos.get(str(ev.id))
+			if no:
+				if float(ev.n) > 0.0:
+					if not meu:
+						fx.escudo(no, float(ev.dur))
+				else:
+					fx.escudo_fim(no)
+			return
 		"dano":
 			var no = corpos.get(str(ev.alvo))
 			if no:
 				var eu: bool = str(ev.alvo) == meu_id
-				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.95, 0.6))
+				var crit: bool = ev.get("crit", false) == true
+				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 				if eu and m.acao.is_empty() and m.mov.esc == null:
 					m.heroi_anim.play("apanhar", 0.05, 1.4)
 			return
@@ -390,13 +412,19 @@ func evento(ev: Dictionary) -> void:
 		"explosao":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.explosao_hab(str(ev.get("fx", "explosao")), x, z, float(ev.r), m.terreno.altura(x, z))
+			var k := str(ev.get("fx", "explosao"))
+			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.terreno.altura(x, z))
 		"chuva":
 			fx.chuva(float(ev.x), float(ev.z), float(ev.r), int(ev.ondas), func(_p): pass)
 		"impacto":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.impacto(x, z, float(ev.ry), str(ev.get("fx", "investida")), m.terreno.altura(x, z))
+			var k := str(ev.get("fx", "investida"))
+			fx.impacto(x, z, float(ev.ry), m.P.FX.get(k, k), m.terreno.altura(x, z))
+		"vortice":
+			var x := float(ev.x)
+			var z := float(ev.z)
+			fx.vortice(x, z, float(ev.r), m.terreno.altura(x, z))
 		"anel":
 			var x := float(ev.x)
 			var z := float(ev.z)
@@ -404,7 +432,7 @@ func evento(ev: Dictionary) -> void:
 		"conjura":
 			var no = corpos.get(str(ev.id))
 			if no and no != m.heroi:
-				fx.conjura(no, str(ev.hab), float(ev.dur), func(): return [no.position + Vector3(0, 1.2, 0)])
+				fx.conjura(no, m.P.FX.get(str(ev.hab), str(ev.hab)), float(ev.dur), func(): return [no.position + Vector3(0, 1.2, 0)])
 		"dash":
 			var no = corpos.get(str(ev.id))
 			if no and no != m.heroi:

@@ -54,13 +54,16 @@ async function principal() {
   console.log('vila ok');
 
   await carregarPersonagens();
-  const ids = ['ruiva', 'cabelo_m', 'fumiriya', 'shino', 'vivi', 'vita', 'victoria', 'shibu', 'shibu_sombrio'];
+  // ?so=ruiva exporta só esse personagem (e pula a vila)
+  const so = new URLSearchParams(location.search).get('so');
+  const ids = ['ruiva', 'cabelo_m', 'fumiriya', 'shino', 'vivi', 'vita', 'victoria', 'shibu', 'shibu_sombrio'].filter((id) => !so || id === so);
   // herói: todas as animações que a HUD usa; os outros: andar, correr, atacar, apanhar e cair
   const ANIMS_HEROI = {
     parada: 'parada', andar: 'andar', corrida: 'corrida', espada_parada: A.swordIdle,
     combo1: 'combo1', combo2: 'combo2', combo3: 'combo3', combo4: 'combo4', magia1: 'magia1', magia2: 'magia2', magia3: 'magia3',
     investida: 'investida', giro: A.giro, salto: A.jump, relampago: A.raio, bola: A.bolt, raio: A.ceu, explosao: A.ground, meteoros: A.rain,
-    cura: A.heal, rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death, queda: 'queda',
+    cura: A.heal, cruzado: A.cruzado, descendente: A.descendente, onda: A.onda, vortice: A.vortice, bloqueio: A.block,
+    rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death, queda: 'queda',
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)
     ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
     ...Object.fromEntries(Object.entries(PARADO_PAREDE).map(([k, n]) => ['parede_' + k, n])),

@@ -71,8 +71,42 @@ func iniciar() -> void:
 		estado.emit("Servidor fora do ar")
 		caiu.emit("fora")
 
-# Botão "Entrar com Google": abre o site para o login e fica esperando o servidor liberar a sessão
+# Botão "Entrar com Google": janela do próprio Google dentro do app (plugin LoginGoogle). Se ela não der
+# (app ainda não cadastrado no Google Cloud, celular sem Play Services), cai no login pelo site.
+const CLIENT_ID_WEB := "21985745474-qfl366rlb5c357rnh8p520sd46al3m48.apps.googleusercontent.com" # o mesmo de shared/conta.js
+var _login_nativo = null
 func entrar_com_google() -> void:
+	if Engine.has_singleton("LoginGoogle"):
+		if _login_nativo == null:
+			_login_nativo = Engine.get_singleton("LoginGoogle")
+			_login_nativo.login_ok.connect(_nativo_ok)
+			_login_nativo.login_erro.connect(_nativo_erro)
+		estado.emit("Entrando…")
+		_login_nativo.entrar(CLIENT_ID_WEB)
+	else:
+		entrar_pelo_site()
+
+func _nativo_ok(token: String, _nome: String) -> void:
+	estado.emit("Entrando…")
+	# "criar" entra na conta que já existe ou cria uma na primeira vez (o servidor confere o crachá do Google)
+	var r := await pedir("POST", "/conta/entrar", {"credencial": token, "modo": "criar"}, false)
+	if r.codigo == 200 and r.dados.has("sessao"):
+		guardar(str(r.dados.sessao))
+		iniciar()
+	else:
+		estado.emit("O servidor não aceitou o login. Tente de novo.")
+		precisa_login.emit()
+
+func _nativo_erro(msg: String) -> void:
+	push_warning("login nativo: " + msg)
+	if msg == "cancelado":
+		estado.emit("Login cancelado")
+		precisa_login.emit()
+	else:
+		entrar_pelo_site()
+
+# Login pelo site: abre o navegador e fica esperando o servidor liberar a sessão
+func entrar_pelo_site() -> void:
 	var letras := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	var cripto := Crypto.new()
 	var bytes := cripto.generate_random_bytes(32)
@@ -85,6 +119,8 @@ func entrar_com_google() -> void:
 	estado.emit("Faça o login no navegador e volte para o jogo")
 
 func sair_da_conta() -> void:
+	if _login_nativo:
+		_login_nativo.sair()
 	if sessao != "":
 		pedir("POST", "/conta/sair", {})
 	guardar("")

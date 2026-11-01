@@ -114,7 +114,7 @@ export class PainelHeroi {
     const linha = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
     $('statusAtrib').innerHTML = [
       linha('Vida', `${Math.ceil(eu?.vida ?? HEROI.vida)} / ${eu?.vidaMax ?? HEROI.vida}`),
-      linha('Mana', `${Math.floor(eu?.mana ?? HEROI.mana)} / ${HEROI.mana}`),
+      linha('Mana', `${Math.floor(eu?.mana ?? HEROI.mana)} / ${eu?.manaMax ?? HEROI.mana}`),
       linha('Mana por segundo', HEROI.manaPorSeg),
       linha('Velocidade', `${HEROI.correr} m/s correndo`),
     ].join('');

@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
@@ -17,7 +17,7 @@ const anims = {
   parada: 'Idle', andar: 'Walk', corrida: 'Run', espada_parada: A.swordIdle, queda: 'queda', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso',
   combo1: 'combo1', combo2: 'combo2', combo3: 'combo3', combo4: 'combo4', magia1: 'magia1', magia2: 'magia2', magia3: 'magia3',
   investida: 'investida', giro: A.giro, salto: A.jump, relampago: A.raio, bola: A.bolt, raio: A.ceu, explosao: A.ground, meteoros: A.rain,
-  cura: A.heal, rolar: A.roll, apanhar: A.hit, morrer: A.death, golpe1: A.slash, golpe2: A.slash2,
+  cura: A.heal, cruzado: A.cruzado, descendente: A.descendente, onda: A.onda, vortice: A.vortice, bloqueio: A.block, rolar: A.roll, apanhar: A.hit, morrer: A.death, golpe1: A.slash, golpe2: A.slash2,
   ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
   ...Object.fromEntries(Object.entries(PARADO_PAREDE).map(([k, n]) => ['parede_' + k, n])),
 };
@@ -35,3 +35,17 @@ const mundo = {
 };
 fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo.json', import.meta.url), JSON.stringify(mundo));
 console.log('mundo.json:', solidos.length, 'sólidos,', mundo.obstaculos.length, 'obstáculos,', grades.length, 'grades');
+
+// Skills do Quimera (shared/progresso.js) para o menu do personagem e o modo sem internet do Godot.
+// A animação já vai com o nome do Godot; as cores vão em texto (#rrggbb).
+const godot = Object.fromEntries(Object.entries(anims).map(([g, n]) => [n, g]));
+const cor = (v) => (typeof v === 'number' ? '#' + v.toString(16).padStart(6, '0') : v);
+const limpar = (o) => JSON.parse(JSON.stringify(o, (k, v) => (k === 'cor' ? cor(v) : k === 'anim' ? godot[v] || v : v)));
+const habs = {
+  habs: limpar(HABS), passivas: PASSIVAS, atributos: ATRIBUTOS, pontosPorNivel: PONTOS_POR_NIVEL, nivelMax: NIVEL_MAX,
+  skillMax: SKILL_MAX, botoesPadrao: BOTOES_PADRAO, nBotoes: N_BOTOES, xpInimigo: XP_INIMIGO,
+};
+const faltam = Object.entries(habs.habs).flatMap(([k, h]) => [h.anim, ...(h.combo || []).map((c) => c.anim)].filter((a) => a && !anims[a]).map((a) => k + ':' + a));
+if (faltam.length) console.log('ATENÇÃO, animação sem nome no Godot:', faltam.join(', '));
+fs.writeFileSync(new URL('../../godot-prototipo/dados/habilidades.json', import.meta.url), JSON.stringify(habs, null, 1));
+console.log('habilidades.json:', Object.keys(HABS).length, 'skills');

@@ -93,7 +93,7 @@ function receber(foto, eventos) {
   // efeitos das minhas próprias ações já apareceram na hora pelo celular: os do servidor são ignorados
   mostrarEventos(previsao?.ativo ? eventos.filter((ev) => !(ev.de === rede.meuId && EFEITOS_LOCAIS.has(ev.t))) : eventos);
   if (eu) {
-    hud.barras(eu.vida, eu.vidaMax, eu.mana, HEROI.mana);
+    hud.barras(eu.vida, eu.vidaMax, eu.mana, eu.manaMax ?? HEROI.mana);
     hud.recargas(eu);
     hud.missoes(eu);
   }
