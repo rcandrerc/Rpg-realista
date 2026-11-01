@@ -16,6 +16,7 @@ import { PainelHeroi } from './layout.js';
 import { prepararMontarias } from './montaria.js';
 import { Palco } from './palco.js';
 import { montarMenu } from './menu.js';
+import { Diagnostico } from './diagnostico.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -265,11 +266,26 @@ function ajustarResolucao() {
 }
 setInterval(() => { resol.teto = RESOLUCAO_MAX; }, 120000); // de tempos em tempos tenta a imagem mais nítida de novo
 
+// ---------- teste de desempenho (?diag=1): client/src/diagnostico.js ----------
+const diagEstado = { semPasse: false };
+const diag = new URLSearchParams(location.search).has('diag') ? new Diagnostico({
+  renderer, estado: diagEstado,
+  resolucao: (v) => mudarResolucao(v),
+  grama: (v) => { if (mundo?.grama) mundo.grama.visible = v; },
+  personagens: (v) => { for (const c of corpos.values()) c.corpo.root.visible = v; },
+  restaurar() {
+    mudarResolucao(RESOLUCAO_MAX); renderer.shadowMap.autoUpdate = true; diagEstado.semPasse = false;
+    if (mundo?.grama) mundo.grama.visible = true;
+    for (const c of corpos.values()) c.corpo.root.visible = true;
+  },
+}) : null;
+
 // ---------- laço principal ----------
 const relogio = new THREE.Clock(), alvoCam = new THREE.Vector3(), tmp = new THREE.Vector3();
 let t = 0;
 function quadro() {
-  const dt = Math.min(relogio.getDelta(), 0.05); t += dt;
+  const t0 = performance.now(), dtReal = relogio.getDelta();
+  const dt = Math.min(dtReal, 0.05); t += dt;
   hud.conexao(rede, dt);
   if (rede) {
     enviarEntrada(dt);
@@ -305,9 +321,9 @@ function quadro() {
       if (pos) pos.render(palco.scene, palco.camera); else renderer.render(palco.scene, palco.camera);
     } else {
       cortarForaDaTela();
-      if (pos) pos.render(); else renderer.render(mundo.scene, camera);
+      if (pos && !diagEstado.semPasse) pos.render(); else renderer.render(mundo.scene, camera);
     }
-    ajustarResolucao();
+    if (diag?.ativo || diag?.res.length) diag.quadro(dtReal, performance.now() - t0); else ajustarResolucao();
   }
   requestAnimationFrame(quadro);
 }
