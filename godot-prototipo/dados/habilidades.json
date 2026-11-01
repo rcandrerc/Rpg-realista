@@ -3,14 +3,17 @@
   "espada_basico": {
    "nome": "Ataque de espada",
    "arvore": "espada",
+   "tipo": "basicoEspada",
    "basico": true,
    "max": 5,
    "libera": 1,
    "pct": 0.95,
-   "alcance": 2.3,
-   "arco": 1.6,
-   "cd": 0.15,
-   "lamina": true,
+   "alcance": 3.2,
+   "arco": 2.2,
+   "persegue": 12,
+   "cd": 0.5,
+   "comboZera": 0.8,
+   "empurra": 0.55,
    "vulneravel": {
     "k": 0.06,
     "dur": 4
@@ -18,327 +21,365 @@
    "combo": [
     {
      "anim": "combo1",
-     "ts": 1.45,
-     "at": 0.5,
-     "pct": 0.95
+     "dur": 0.48,
+     "hit": 0.24
     },
     {
      "anim": "combo2",
-     "ts": 1.45,
-     "at": 0.53,
-     "pct": 1
+     "dur": 0.48,
+     "hit": 0.26
     },
     {
      "anim": "combo3",
-     "ts": 1.45,
-     "at": 0.58,
-     "pct": 1.05
+     "dur": 0.48,
+     "hit": 0.28
     },
     {
      "anim": "combo4",
-     "ts": 1.35,
-     "at": 0.41,
-     "pct": 1.55
+     "dur": 0.48,
+     "hit": 0.19
     }
    ],
-   "desc": "Combo de 4 cortes. Quem leva fica vulnerável (+6% de dano recebido por 4 s)."
+   "desc": "Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s)."
   },
   "corte_duplo": {
    "nome": "Corte Duplo",
    "arvore": "espada",
+   "tipo": "corte",
    "libera": 1,
    "anim": "cruzado",
-   "ts": 1.3,
+   "dur": 0.85,
    "hits": [
-    0.35,
-    0.6
+    0.24,
+    0.66
    ],
+   "lunge": {
+    "r": 7,
+    "para": 1.6
+   },
+   "ponto": 1.7,
+   "area": 2.2,
+   "nv": {
+    "area": 0.15
+   },
    "pct": 1.1,
-   "alcance": 2.4,
-   "arco": 2.6,
+   "empurra": 0.55,
    "mana": 10,
    "cd": 1.1,
-   "lamina": true,
-   "fx": true,
    "icone": "corte",
-   "desc": "Dois cortes em cruz na frente."
+   "desc": "Avança até o inimigo mais perto e dá dois cortes na frente."
   },
   "giro": {
    "nome": "Giro da Lâmina",
    "arvore": "espada",
+   "tipo": "giro",
    "libera": 1,
    "anim": "giro",
-   "ts": 1.2,
+   "dur": 1.2,
    "hits": [
     0.52,
     0.74
    ],
-   "pct": 0.85,
    "area": 4,
+   "nv": {
+    "area": 0.24
+   },
+   "pct": 0.85,
+   "empurra": 1.1,
    "mana": 22,
-   "cd": 5.8,
-   "lamina": true,
-   "fx": true,
+   "cd": 6,
    "icone": "giro",
-   "desc": "Salta girando e corta tudo em volta, duas vezes."
+   "desc": "Gira a espada e corta tudo em volta, duas vezes. Dá para andar girando."
   },
   "golpe_esmagador": {
    "nome": "Golpe Esmagador",
    "arvore": "espada",
+   "tipo": "esmagar",
    "libera": 5,
    "anim": "salto",
-   "ts": 1.1,
-   "at": 0.55,
-   "pct": 3.2,
+   "dur": 1.25,
+   "hits": [
+    0.71
+   ],
+   "lunge": {
+    "r": 7,
+    "para": 1.4
+   },
+   "ponto": 1.6,
    "area": 2.8,
-   "avanco": 3.5,
+   "nv": {
+    "area": 0.15
+   },
+   "pct": 3.2,
+   "empurra": 0.75,
    "atordoa": 1.5,
    "mana": 32,
-   "cd": 9.6,
-   "lamina": true,
-   "fx": true,
-   "efeito": "salto",
+   "cd": 10,
    "icone": "salto",
-   "desc": "Pula para a frente e crava a espada no chão. Atordoa."
+   "desc": "Avança e crava a espada no chão na frente. Atordoa (chefes não)."
   },
   "pisao_sismico": {
    "nome": "Pisão Sísmico",
    "arvore": "espada",
+   "tipo": "pisao",
    "libera": 8,
    "anim": "descendente",
-   "ts": 1.15,
-   "at": 0.45,
-   "pct": 1.1,
+   "dur": 0.8,
+   "hits": [
+    0.42
+   ],
    "area": 5.1,
+   "pct": 1.1,
+   "empurra": 0.35,
    "atordoa": 3.8,
+   "nv": {
+    "area": 0.26,
+    "atordoa": 0.3
+   },
    "mana": 28,
-   "cd": 11.6,
-   "lamina": true,
-   "fx": true,
-   "efeito": "pisao",
+   "cd": 12,
    "icone": "pisao",
    "desc": "A espada racha o chão em volta e atordoa todo mundo perto."
   },
   "investida": {
    "nome": "Investida",
    "arvore": "espada",
+   "tipo": "investida",
    "libera": 14,
    "anim": "investida",
-   "ts": 1.5,
+   "dur": 1.1,
    "hits": [
-    0.22,
-    0.78
+    0.48
    ],
+   "alcance": 9,
+   "dashT": 0.36,
+   "largura": 1.6,
+   "alvos": 3,
+   "nv": {
+    "alvos": 1
+   },
    "pct": 1.3,
-   "alcance": 2.8,
-   "arco": 2.4,
-   "avanco": 9,
-   "avancoT": 0.2,
+   "cai": 0.85,
+   "empurra": 1.45,
    "mana": 26,
-   "cd": 6.7,
-   "lamina": true,
-   "fx": true,
-   "dash": true,
-   "impacto": true,
+   "cd": 7,
    "icone": "investida",
-   "desc": "Dash até o alvo e já crava a estocada, depois um corte."
+   "desc": "Dash atravessando os inimigos em linha até o alvo (precisa de alvo a até 9 m)."
   },
   "cajado_basico": {
-   "nome": "Ataque básico",
+   "nome": "Faísca",
    "arvore": "cajado",
+   "tipo": "basicoMagia",
    "basico": true,
    "max": 5,
    "libera": 1,
    "pct": 0.9,
-   "cd": 0.15,
+   "alcance": 9,
+   "cd": 0.5,
    "lento": {
     "k": 0.15,
     "dur": 2
    },
+   "nv": {
+    "alcance": 0.5,
+    "lentoK": 0.025
+   },
    "proj": {
     "vel": 18,
-    "cor": "#9a6bff",
-    "tam": 0.24,
-    "estilo": "arcano",
+    "cor": "#ff8a3a",
+    "tam": 0.22,
+    "estilo": "fogo",
     "largura": 0.8,
-    "vida": 0.5
+    "vida": 0.9
    },
    "combo": [
     {
      "anim": "magia1",
-     "ts": 1.5,
-     "at": 0.34,
-     "pct": 0.9
+     "dur": 0.58,
+     "hit": 0.17
     },
     {
      "anim": "magia2",
-     "ts": 1.5,
-     "at": 0.44,
-     "pct": 0.95
-    },
-    {
-     "anim": "magia3",
-     "ts": 1.35,
-     "at": 0.4,
-     "pct": 1.3
+     "dur": 0.58,
+     "hit": 0.17
     }
    ],
-   "desc": "Tiros de energia que deixam o alvo lento. Não gasta mana."
+   "desc": "Faísca de fogo que mira sozinha no inimigo mais perto (até 9 m) e deixa lento. Não gasta mana."
   },
   "bola_fogo": {
    "nome": "Bola de Fogo",
    "arvore": "cajado",
+   "tipo": "bola",
    "libera": 1,
    "anim": "bola",
-   "ts": 1.7,
    "at": 0.43,
+   "canal": 0.55,
+   "alcance": 11,
    "pct": 2.2,
    "proj": {
-    "vel": 14,
+    "vel": 16,
     "cor": "#ff7a2a",
     "tam": 0.26,
     "explosao": 2.2,
     "estilo": "fogo"
    },
+   "nv": {
+    "explosao": 0.15
+   },
    "mana": 10,
    "cd": 1.1,
-   "fx": true,
    "icone": "bola",
-   "desc": "Cometa de fogo que explode no alvo."
+   "desc": "Cometa de fogo no alvo (até 11 m) que explode na área."
   },
   "anel_chamas": {
    "nome": "Anel de Chamas",
    "arvore": "cajado",
+   "tipo": "anel",
    "libera": 1,
    "anim": "explosao",
-   "ts": 1.6,
    "at": 0.6,
-   "pct": 1.7,
+   "canal": 0.6,
    "area": 5,
+   "nv": {
+    "area": 0.3
+   },
+   "pct": 1.7,
+   "empurra": 1.45,
    "mana": 22,
-   "cd": 5.8,
-   "fx": true,
-   "efeito": "explosao",
+   "cd": 6,
    "icone": "explosao",
-   "desc": "Fogo explode no chão em volta de você."
+   "desc": "Um pulinho e o fogo explode no chão em volta de você."
   },
   "meteoro": {
    "nome": "Meteoro",
    "arvore": "cajado",
+   "tipo": "meteoro",
    "libera": 5,
    "anim": "meteoros",
-   "ts": 1.2,
    "at": 0.6,
-   "pct": 1.1,
-   "chuva": {
-    "r": 5,
-    "ondas": 3
+   "canal": 1.4,
+   "alcance": 12,
+   "area": 5,
+   "nv": {
+    "area": 0.3
    },
+   "queda": 0.75,
+   "pct": 3.2,
+   "empurra": 1.1,
    "mana": 32,
-   "cd": 9.6,
-   "fx": true,
+   "cd": 10,
    "icone": "meteoros",
-   "desc": "Meteoros caem na área do alvo."
+   "desc": "Marca o chão do alvo e uma rocha em chamas cai ali."
   },
   "nova_gelo": {
    "nome": "Nova de Gelo",
    "arvore": "cajado",
+   "tipo": "gelo",
    "libera": 8,
    "anim": "onda",
-   "ts": 1.8,
    "at": 0.45,
-   "pct": 1.1,
+   "canal": 0.75,
    "area": 6,
    "congela": 3.8,
+   "nv": {
+    "area": 0.3,
+    "congela": 0.3
+   },
+   "pct": 1.1,
+   "empurra": 0.55,
    "mana": 28,
-   "cd": 11.6,
-   "fx": true,
-   "efeito": "gelo",
+   "cd": 12,
    "icone": "gelo",
    "desc": "Onda de gelo em volta que congela os inimigos."
   },
   "raio_cadeia": {
    "nome": "Raio em Cadeia",
    "arvore": "cajado",
+   "tipo": "cadeia",
    "libera": 14,
    "anim": "raio",
-   "ts": 1.3,
    "at": 0.3,
-   "pct": 1.3,
-   "raios": {
-    "n": 3,
-    "alcance": 14
+   "canal": 0.35,
+   "alcance": 11,
+   "pula": 5.5,
+   "alvos": 3,
+   "nv": {
+    "alvos": 1
    },
+   "pct": 1.3,
+   "cai": 0.85,
    "mana": 26,
-   "cd": 6.7,
-   "fx": true,
+   "cd": 7,
    "icone": "raio",
-   "desc": "Raios do céu pulam de inimigo em inimigo (3 alvos)."
+   "desc": "Raio da mão no alvo que pula de inimigo em inimigo."
   },
   "salto_arcano": {
    "nome": "Salto Arcano",
    "arvore": "geral",
+   "tipo": "teleporte",
    "libera": 1,
-   "anim": "mortal",
-   "ts": 1.4,
-   "at": 0.2,
-   "salto": 5.5,
+   "distancia": 5.5,
+   "nv": {
+    "distancia": 0.6
+   },
    "mana": 14,
-   "cd": 3.9,
+   "cd": 4,
    "icone": "salto_arcano",
-   "desc": "Some e reaparece mais à frente."
+   "desc": "Some e reaparece mais à frente, para onde o joystick aponta (para na parede)."
   },
   "cura_floresta": {
    "nome": "Cura da Floresta",
    "arvore": "geral",
+   "tipo": "cura",
    "libera": 6,
    "anim": "cura",
-   "ts": 1.2,
    "at": 0.55,
+   "canal": 0.8,
    "curaPct": 0.22,
-   "grupo": {
-    "r": 8,
-    "pct": 0.11
+   "nv": {
+    "curaPct": 0.06
    },
+   "grupo": 8,
    "mana": 30,
-   "cd": 17.4,
-   "fx": true,
+   "cd": 18,
    "icone": "cura",
-   "desc": "Recupera vida sua e um pouco de quem estiver perto."
+   "desc": "Recupera vida sua; quem estiver perto (8 m) recebe metade."
   },
   "escudo_arcano": {
    "nome": "Escudo Arcano",
    "arvore": "geral",
+   "tipo": "escudo",
    "libera": 10,
    "anim": "bloqueio",
-   "ts": 1,
-   "at": 0.3,
-   "escudo": {
-    "absorve": 42,
-    "dur": 10
+   "dur": 0.6,
+   "absorve": 37,
+   "nv": {
+    "absorve": 12
    },
+   "defK": 1.5,
+   "duracao": 10,
    "mana": 25,
-   "cd": 19.3,
-   "fx": true,
+   "cd": 20,
    "icone": "escudo",
-   "desc": "Uma bolha de luz que segura o dano por 10 s."
+   "desc": "Uma bolha de luz que segura o dano por 10 s (mais forte com a Defesa)."
   },
   "vortice": {
    "nome": "Abraço do Vórtice",
    "arvore": "geral",
+   "tipo": "puxar",
    "libera": 1,
    "anim": "vortice",
-   "ts": 1.3,
    "at": 0.3,
-   "puxa": {
-    "r": 8,
-    "de": 0.12
+   "canal": 0.4,
+   "area": 8,
+   "nv": {
+    "area": 0.4
    },
+   "atordoa": 0.32,
    "mana": 24,
-   "cd": 15.4,
-   "fx": true,
+   "cd": 16,
    "icone": "vortice",
-   "desc": "Puxa os inimigos em volta para perto de você."
+   "desc": "Puxa os inimigos em volta para perto de você (não puxa chefes). Não tira vida."
   }
  },
  "passivas": {
@@ -379,14 +420,24 @@
  "pontosPorNivel": 2,
  "nivelMax": 30,
  "skillMax": 10,
- "botoesPadrao": [
-  "corte_duplo",
-  "giro",
-  "bola_fogo",
-  "anel_chamas",
-  "salto_arcano",
-  "vortice"
- ],
+ "botoesPadrao": {
+  "espada": [
+   "corte_duplo",
+   "giro",
+   "golpe_esmagador",
+   "pisao_sismico",
+   "investida",
+   "salto_arcano"
+  ],
+  "cajado": [
+   "bola_fogo",
+   "anel_chamas",
+   "salto_arcano",
+   "meteoro",
+   "nova_gelo",
+   "raio_cadeia"
+  ]
+ },
  "nBotoes": 6,
  "xpInimigo": {
   "puglin": 6,

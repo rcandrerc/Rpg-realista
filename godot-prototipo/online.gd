@@ -28,6 +28,11 @@ var tela: CanvasLayer
 var painel: Control
 var aviso_login: Label
 var status: Button
+var titulo: Label
+var sub: Label
+var b_continuar: Button
+var b_trocar: Button
+var b_google: Button
 
 func _init(principal) -> void:
 	m = principal
@@ -43,11 +48,12 @@ func _ready() -> void:
 		aviso_login.text = t
 		atualizar_status(t))
 	rede.precisa_login.connect(mostrar_login)
+	rede.escolher_conta.connect(mostrar_escolha)
 	rede.entrou.connect(ao_entrar)
 	rede.mensagem.connect(ao_receber)
 	rede.caiu.connect(ao_cair)
 	montar_tela()
-	rede.iniciar()
+	rede.iniciar(true)
 
 # ---------- tela de login ----------
 func montar_tela() -> void:
@@ -93,19 +99,26 @@ func montar_tela() -> void:
 	col.add_theme_constant_override("separation", 14)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	painel.add_child(col)
-	var titulo := Label.new()
+	titulo = Label.new()
 	titulo.text = "Jogar online"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	titulo.add_theme_font_size_override("font_size", 30)
 	titulo.add_theme_color_override("font_color", Color(1, 0.86, 0.6))
 	col.add_child(titulo)
-	var sub := Label.new()
+	sub = Label.new()
 	sub.text = "Entre com a mesma conta Google do site.\nO login abre no navegador e depois volta para cá."
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.add_theme_color_override("font_color", Color(0.9, 0.87, 0.82))
 	col.add_child(sub)
-	col.add_child(_botao("Entrar com Google", Color(0.93, 0.62, 0.25), func(): rede.entrar_com_google()))
+	b_continuar = _botao("Entrar", Color(0.93, 0.62, 0.25), func():
+		esconder_login()
+		rede.continuar())
+	col.add_child(b_continuar)
+	b_trocar = _botao("Trocar de conta", Color(0.42, 0.36, 0.5), func(): rede.trocar_conta())
+	col.add_child(b_trocar)
+	b_google = _botao("Entrar com Google", Color(0.93, 0.62, 0.25), func(): rede.entrar_com_google())
+	col.add_child(b_google)
 	col.add_child(_botao("Jogar sozinho", Color(0.3, 0.3, 0.36), func(): esconder_login()))
 	aviso_login = Label.new()
 	aviso_login.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -129,8 +142,25 @@ func _botao(texto: String, cor: Color, fn: Callable) -> Button:
 	return b
 
 func mostrar_login() -> void:
+	titulo.text = "Jogar online"
+	sub.text = "Entre com a sua conta Google.\nA janela do Google abre aqui mesmo no jogo."
+	b_continuar.visible = false
+	b_trocar.visible = false
+	b_google.visible = true
 	painel.visible = true
 	m.hud.set_process_input(false) # os toques não mexem no joystick por trás
+	atualizar_status("")
+
+# abriu o jogo com conta salva: entra com ela ou troca de conta (pedido do André: perguntar toda vez)
+func mostrar_escolha(conta: Dictionary) -> void:
+	titulo.text = "Bem-vindo de volta"
+	sub.text = "Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % str(conta.get("nome", "sem nome"))
+	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
+	b_continuar.visible = true
+	b_trocar.visible = true
+	b_google.visible = false
+	painel.visible = true
+	m.hud.set_process_input(false)
 	atualizar_status("")
 
 func esconder_login() -> void:
@@ -416,6 +446,24 @@ func evento(ev: Dictionary) -> void:
 			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.terreno.altura(x, z))
 		"chuva":
 			fx.chuva(float(ev.x), float(ev.z), float(ev.r), int(ev.ondas), func(_p): pass)
+		"meteoro":
+			var x := float(ev.x)
+			var z := float(ev.z)
+			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.terreno.altura(x, z), func(_p): pass)
+		"cadeia":
+			var x := float(ev.x)
+			var z := float(ev.z)
+			fx.cadeia(Vector3(float(ev.x0), float(ev.y0), float(ev.z0)), Vector3(x, m.terreno.altura(x, z) + 1.0, z))
+		"teleporte":
+			var x0 := float(ev.x0)
+			var z0 := float(ev.z0)
+			var x := float(ev.x)
+			var z := float(ev.z)
+			fx.teleporte(Vector3(x0, m.terreno.altura(x0, z0), z0), Vector3(x, m.terreno.altura(x, z), z))
+			var no = corpos.get(str(ev.id))
+			if no and no != m.heroi and outros.has(str(ev.id)): # aparece direto lá (sem deslizar)
+				outros[str(ev.id)].alvo = Vector3(x, m.terreno.altura(x, z), z)
+				no.position = outros[str(ev.id)].alvo
 		"impacto":
 			var x := float(ev.x)
 			var z := float(ev.z)

@@ -666,6 +666,74 @@ func chuva(x: float, z: float, r: float, ondas: int, ao_cair: Callable) -> void:
 			o.visible = false
 			meteoros.append({"o": o, "de": de, "para": alvo, "t": -(0.25 + k * 0.22 + n * 0.06) + 0.35, "dur": 0.35, "cb": cores[0], "cc": cores[1], "fn": ao_cair if n == 0 else Callable()})
 
+# Meteoro do Quimera: runa no chão do alvo e UMA rocha em chamas que cai depois de "queda" segundos. ao_cair(pos) = dano
+func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Callable) -> void:
+	var cores := cor_de("meteoros")
+	var m := circulo_malha(true)
+	m.position = Vector3(x, y + 0.07, z)
+	m.scale = Vector3.ONE * r
+	campos.append({"m": m, "x": x, "z": z, "r": r, "t": 0.0, "dur": queda + 0.45, "cb": cores[0], "cc": cores[1], "fraco": false})
+	var alvo := Vector3(x, y, z)
+	var o := cometa("fogo", 0.75, 7.0)
+	var de := alvo + Vector3(4.0, 15.0, 2.0)
+	o.position = de
+	o.look_at_from_position(de, alvo, Vector3.UP)
+	o.visible = false
+	var cai := 0.4
+	meteoros.append({"o": o, "de": de, "para": alvo, "t": -(queda - cai), "dur": cai, "cb": cores[0], "cc": cores[1], "fn": ao_cair, "r_imp": r, "forte": 1.6})
+	luz(cores[1], 2.0, r * 2.0, queda).l.global_position = alvo + Vector3(0, 1.0, 0)
+
+# Raio em Cadeia: zigue-zague de luz da mão (ou do último alvo) até o próximo alvo
+func cadeia(de: Vector3, para: Vector3) -> void:
+	var cores := cor_de("raio")
+	var d := para - de
+	var lado := d.cross(Vector3.UP)
+	lado = lado.normalized() if lado.length() > 0.01 else Vector3.RIGHT
+	var pts := []
+	for k in 11:
+		var j := 0.0 if k == 0 or k == 10 else 1.0
+		pts.append(de + d * (k / 10.0) + (lado * randf_range(-0.35, 0.35) + Vector3(0, randf_range(-0.3, 0.3), 0)) * j)
+	var g := Node3D.new()
+	add_child(g)
+	var mats := []
+	for f in [[0.32, cores[1], 0.35], [0.1, cores[0], 0.9], [0.035, "ffffff", 1.0]]:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for k in 10:
+			var a: Vector3 = pts[k]
+			var b: Vector3 = pts[k + 1]
+			for off in [Vector3(0, f[0], 0), lado * f[0]]: # duas fitas cruzadas: aparece de qualquer lado
+				var q := [a - off, a + off, b - off, b + off]
+				for i in [0, 1, 2, 1, 3, 2]:
+					st.add_vertex(q[i])
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = material("basico", SH_BASICO, {"cor": c(f[1]), "op": f[2]})
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.add_child(mi)
+		mats.append([mi.material_override, f[2]])
+	raios.append({"g": g, "mats": mats, "t": 0.0, "dur": 0.3})
+	surto(para.x, para.y, para.z, 22, "ffffff", cores[1], 6.0, 0.1)
+	luz(cores[0], 4.0, 8.0, 0.25).l.global_position = para
+
+# Salto Arcano: some num estouro roxo e aparece no destino com anel, disco e runa (como o blink do Quimera)
+func teleporte(de: Vector3, para: Vector3) -> void:
+	var cb := "f2e6ff"
+	var cc := "8a4aff"
+	surto(de.x, de.y + 1.0, de.z, 36, cb, cc, 5.0, 0.1)
+	fumaca_chao(de.x, de.z, 0.8, 12, "5a4a7a", 1.0)
+	for k in 10: # rastro de faíscas entre os dois pontos
+		var p := de.lerp(para, k / 9.0) + Vector3(0, 1.0, 0)
+		part(FOGO, p.x, p.y, p.z, randf_range(-0.5, 0.5), randf_range(-0.2, 0.6), randf_range(-0.5, 0.5), randf_range(0.3, 0.5), 0.12 * H, 0.02, cb, cc, 1.0, 0.3, 1.0)
+	surto(para.x, para.y + 1.0, para.z, 40, cb, cc, 6.0, 0.1)
+	anel(para.x, para.z, 1.4, "b58cff", 0.45, para.y)
+	anel(para.x, para.z, 0.8, "f2e6ff", 0.3, para.y)
+	var m := circulo_malha(true)
+	m.position = para + Vector3(0, 0.07, 0)
+	m.scale = Vector3.ONE * 1.3
+	campos.append({"m": m, "x": para.x, "z": para.z, "r": 1.3, "t": 0.0, "dur": 0.55, "cb": cb, "cc": cc, "fraco": true})
+	luz(cc, 3.0, 6.0, 0.35).l.global_position = para + Vector3(0, 1.2, 0)
+
 # Projétil: cometa de fogo ou tiro arcano. Voa até acertar alguém ou acabar o alcance
 func projetil(de: Vector3, dir: Vector3, info: Dictionary, dmg: float, alcance := 20.0) -> void:
 	var estilo: String = info.get("estilo", "fogo")
@@ -1110,7 +1178,7 @@ func _passo(dt: float) -> void:
 		if u >= 1:
 			q.o.queue_free()
 			meteoros.remove_at(i)
-			area(q.para.x, q.para.z, 1.1, [q.cb, q.cc], 0.45)
+			area(q.para.x, q.para.z, q.get("r_imp", 1.1), [q.cb, q.cc], q.get("forte", 0.45), q.para.y)
 			if q.fn.is_valid():
 				q.fn.call(q.para)
 		i -= 1

@@ -52,7 +52,8 @@ var espada: Node3D
 var cajado: Node3D
 var mao_direita := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
-	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0}
+	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
+	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0}
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -461,10 +462,10 @@ func mais_perto(pos: Vector3, max_d: float):
 func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	if e.estado == "morto" or on(): # online: quem acerta e quanto tira é o servidor
 		return
-	dmg *= randf_range(0.92, 1.08)
+	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
 	var crit: bool = randf() < P.st.critico
 	if crit:
-		dmg *= 1.6
+		dmg *= 2.0
 	if e.vuln > tempo:
 		dmg *= 1.0 + e.vuln_k
 	dmg = max(1.0, round(dmg))
@@ -473,8 +474,10 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
-	if empurra.length() > 0.01:
-		e.no.position += empurra.normalized() * 0.25
+	var metros: float = float(hab.get("empurra", 0.25)) if hab is Dictionary else 0.25
+	if empurra.length() > 0.01 and e.tipo != "chefe": # o inimigo voa para longe (em 0,22 s)
+		e.puxao = empurra.normalized() * metros / 0.22
+		e.puxao_t = 0.22
 	if e.vida <= 0:
 		e.estado = "morto"
 		e.t = D.INIMIGO.renascer
@@ -492,14 +495,14 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		return
 	if hab is Dictionary:
 		var chefe: float = 0.5 if e.tipo == "chefe" else 1.0
-		if hab.has("lento"):
+		if hab.has("lento"): # no chefe lentidão e Quebrado valem metade
 			e.lento = tempo + hab.lento.dur
-			e.lento_k = hab.lento.k
+			e.lento_k = hab.lento.k * chefe
 		if hab.has("vulneravel"):
 			e.vuln = tempo + hab.vulneravel.dur
-			e.vuln_k = hab.vulneravel.k
+			e.vuln_k = hab.vulneravel.k * chefe
 		for k in ["atordoa", "congela"]:
-			if hab.has(k):
+			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo == "chefe"):
 				e.parado = max(e.parado, tempo + hab[k] * chefe)
 				e.golpe = -1.0
 				fx.status(e.no, k, hab[k] * chefe)
@@ -563,6 +566,11 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
+	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe básico
+		if acao.get("canal", false):
+			cancelar_canal()
+		elif acao.get("basico", false):
+			acao = {}
 	match qual:
 		"basico":
 			h.segurando = true
@@ -617,158 +625,305 @@ func usar(qual: String) -> void:
 			if qual.begins_with("hab"):
 				habilidade(int(qual.substr(3)))
 
-# ---------- skills do Quimera (progresso.gd / shared/progresso.js) ----------
-# Golpe básico: o da arma na mão (combo de 4 cortes com a espada, 3 tiros com o cajado)
+# ---------- skills do Quimera (progresso.gd / shared/progresso.js; cada tipo = uma função do Quimera) ----------
+# a barra da arma na mão (Trocar mostra a outra)
+func barra_atual() -> Array:
+	return P.prog.barras[P.barra_de(h.modo)]
+
+func vivo(e) -> bool:
+	return e is Dictionary and e.estado != "morto"
+
+func virar_para(e) -> void:
+	if vivo(e):
+		var d: Vector3 = e.no.position - heroi.position
+		mov.ry = atan2(d.x, d.z)
+		heroi.rotation.y = mov.ry
+
+# toca a animação durando dur segundos; hits em segundos (como as skills do Quimera)
+func comecar_q(nome: String, dur: float, hits: Array, ao_acertar: Callable, extra := {}) -> void:
+	var fr := []
+	for t in hits:
+		fr.append(float(t) / dur)
+	comecar(nome, heroi_anim.get_animation(nome).length / dur, fr, ao_acertar, extra)
+
+func sem_alvo() -> void:
+	if tempo - h.sem_alvo > 1.2:
+		h.sem_alvo = tempo
+		hud.aviso("Longe demais" if mais_perto(heroi.position, 40.0) else "Nenhum inimigo por perto")
+
+# Golpe básico da arma na mão. Não trava: dá para andar enquanto bate (como no Quimera)
 func basico() -> void:
-	if h.morto > 0.0:
+	if h.morto > 0.0 or mov.esc != null or not acao.is_empty() or recargas.get("basico", 0.0) > 0.0:
 		return
-	# emenda o próximo golpe do combo no fim do atual
-	if not acao.is_empty():
-		if acao.get("basico", false) and acao.t > acao.dur * 0.7:
-			acao = {}
-		else:
-			return
 	h.ultimo_basico = tempo
-	virar_para_inimigo()
-	var id := "espada_basico" if h.modo == "Espada" else "cajado_basico"
-	rede("habQ", id)
-	var hab: Dictionary = P.hab_pronta(id)
-	var combo: Array = hab.combo
-	var i: int = (h.combo if tempo < h.combo_ate else 0) % combo.size()
-	var g: Dictionary = combo[i]
-	h.combo = (i + 1) % combo.size()
 	if h.modo == "Espada":
-		comecar(g.anim, g.ts, [g.at], func(_k):
-			dano_arco(hab.alcance, hab.arco, g.dmg, hab), {"basico": true, "lamina": true})
+		basico_espada()
 	else:
-		var info: Dictionary = hab.proj.duplicate()
-		info.cor = Color(info.cor)
-		info.hab = hab
-		comecar(g.anim, g.ts, [g.at], func(_k):
-			fx.projetil(ponto_mao(), mira(), info, g.dmg, 18.0), {"basico": true})
-	h.combo_ate = tempo + acao.dur + 0.6
+		basico_magia()
 
-func mira() -> Vector3:
-	var e = mais_perto(heroi.position, 18.0)
-	if e:
-		var d: Vector3 = (e.no.position + Vector3(0, 1.0, 0)) - ponto_mao()
-		return d.normalized()
-	return frente()
+# Espada: combo de 4 cortes (0,48 s cada, volta ao 1º depois de 0,8 s sem bater). Alvo longe (até 12 m): corre até ele
+func basico_espada() -> void:
+	var hab: Dictionary = P.hab_pronta("espada_basico")
+	var alvo = mais_perto(heroi.position, hab.alcance)
+	if alvo == null:
+		var longe = mais_perto(heroi.position, hab.persegue)
+		if longe:
+			h.pend = {"e": longe, "t": 3.0}
+			recargas["basico"] = 0.15
+		else:
+			sem_alvo()
+			recargas["basico"] = 0.25
+		return
+	h.pend = null
+	virar_para(alvo)
+	var i: int = 0 if tempo - h.combo_fim > hab.comboZera else (h.combo + 1) % hab.combo.size()
+	h.combo = i
+	var g: Dictionary = hab.combo[i]
+	h.combo_fim = tempo + g.dur
+	recargas["basico"] = hab.cd
+	rede("habQ", "espada_basico")
+	comecar_q(g.anim, g.dur, [g.hit], func(_k):
+		var acertou := dano_arco(hab.alcance, hab.arco, hab.dmg, hab)
+		if acertou.is_empty() and vivo(alvo) and alvo.no.position.distance_to(heroi.position) < 3.6:
+			ferir(alvo, hab.dmg, heroi.position, hab)
+		var f := heroi.position + frente() * 1.4
+		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"livre": true, "lamina": true, "alvo": alvo, "basico": true})
 
-# Botão de skill i (0 a 5): a que o jogador pôs nele no menu do personagem
+# Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
+func basico_magia() -> void:
+	var hab: Dictionary = P.hab_pronta("cajado_basico")
+	var alvo = mais_perto(heroi.position, hab.alcance + 0.5)
+	if alvo == null:
+		sem_alvo()
+		recargas["basico"] = 0.25
+		return
+	virar_para(alvo)
+	h.mao = 1 - h.mao
+	var g: Dictionary = hab.combo[h.mao]
+	recargas["basico"] = hab.cd
+	rede("habQ", "cajado_basico")
+	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
+
+func atirar(hab: Dictionary, alvo, alcance: float) -> void:
+	var info: Dictionary = hab.proj.duplicate()
+	info.cor = Color(info.cor)
+	info.hab = hab
+	var de := ponto_mao()
+	var dir := frente()
+	if vivo(alvo):
+		dir = ((alvo.no.position + Vector3(0, 1.0, 0)) - de).normalized()
+	fx.projetil(de, dir, info, hab.dmg, alcance)
+
+# o alvo que a skill precisa (igual a Simulacao.alvoHab): sem ninguém no alcance ela nem sai. false = não pode
+func alvo_hab(hab: Dictionary):
+	var t: String = hab.tipo
+	if t == "corte" or t == "esmagar":
+		return mais_perto(heroi.position, hab.lunge.r)
+	if t in ["bola", "cadeia", "meteoro", "investida"]:
+		var e = mais_perto(heroi.position, hab.alcance + 0.5)
+		return e if e else false
+	if t in ["anel", "gelo", "puxar"]:
+		var e = mais_perto(heroi.position, hab.area)
+		return e if e else false
+	return null
+
+# Botão i da barra da arma na mão
 func habilidade(i: int) -> void:
-	var k = P.prog.botoes[i]
+	var k = barra_atual()[i]
 	if k == null or not P.habs.has(k):
 		hud.aviso("Escolha uma skill no menu do personagem")
 		return
-	var hab: Dictionary = P.hab_pronta(k)
-	if not pode_agir() or recargas.get(k, 0.0) > 0.0 or not mov.chao:
+	if not P.liberada(k):
+		hud.aviso("Libera no nível %d" % int(P.habs[k].libera))
 		return
+	if h.morto > 0.0 or mov.esc != null or not mov.chao or not acao.is_empty() or recargas.get(k, 0.0) > 0.0:
+		return # como no Quimera: não corta uma skill no meio
+	var hab: Dictionary = P.hab_pronta(k)
 	if h.mana < hab.get("mana", 0):
 		hud.aviso("Mana insuficiente")
 		return
-	# skill de espada pega a espada, de cajado pega o cajado; as gerais servem com qualquer uma
-	var arma: String = "Espada" if hab.arvore == "espada" else "Magia" if hab.arvore == "cajado" else h.modo
-	if arma != h.modo:
-		armar(arma)
-		mostrar_build()
+	var alvo = alvo_hab(hab)
+	if alvo is bool:
+		sem_alvo()
+		return
+	h.pend = null
 	h.mana -= hab.get("mana", 0)
+	virar_para(alvo)
+	var dir := direcao_joystick()
+	rede("habQ", {"id": k, "dx": snappedf(dir.x, 0.01), "dz": snappedf(dir.z, 0.01)} if hab.tipo == "teleporte" else k)
+	if hab.has("canal"): # magia concentrada: andar (joystick forte), pular ou dar dash cancela e devolve 70% da mana
+		var dur: float = hab.canal / hab.at
+		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos)
+		comecar_q(hab.anim, dur, [hab.canal], func(_n):
+			acao.canal = false
+			acao.livre = true
+			recargas[k] = hab.cd
+			contar_offline(k)
+			soltar(k, hab, alvo if vivo(alvo) else alvo_hab(hab), dir), {"canal": true, "hab": k, "mana": hab.get("mana", 0)})
+		return
 	recargas[k] = hab.cd
-	if not hab.has("salto"):
-		virar_para_inimigo()
-	rede("habQ", k)
+	contar_offline(k)
+	soltar(k, hab, alvo, dir)
+
+func contar_offline(k: String) -> void:
 	if not on():
 		var subiu: String = P.contar_uso(k)
 		if subiu != "":
 			hud.aviso(subiu)
-	var dur: float = heroi_anim.get_animation(hab.anim).length / hab.ts
-	var extra := {"lamina": hab.arvore == "espada"}
-	if hab.has("avanco"):
-		var metros: float = hab.avanco
-		if hab.get("dash", false): # investida: para logo na frente do alvo
-			var alvo = mais_perto(heroi.position, hab.avanco + 2.0)
-			if alvo:
-				metros = clamp(alvo.no.position.distance_to(heroi.position) - 1.1, 1.5, hab.avanco)
-		extra.merge({"avanco": metros, "avanco_t": hab.get("avancoT", 0.8 if hab.has("hits") else hab.get("at", 0.5))})
-	if hab.has("salto"):
-		extra.merge({"avanco": hab.salto, "avanco_t": 0.6})
-		fx.dash(heroi, dur * 0.6, true)
+
+func cancelar_canal(motivo := "Cancelado") -> void:
+	if not acao.get("canal", false):
+		return
+	h.mana = min(P.st.manaMax, h.mana + acao.mana * 0.7)
+	acao = {}
+	fx.status_fim(heroi)
+	rede("cancelar")
+	hud.aviso(motivo)
+	heroi_anim.play("parada" if h.modo == "Magia" else "espada_parada", 0.15)
+
+# passo rápido até o inimigo (lunge do Quimera, antes do Corte Duplo e do Golpe Esmagador)
+func lunge(alvo, para: float) -> void:
+	if not vivo(alvo):
+		return
+	var d: float = Vector2(alvo.no.position.x - heroi.position.x, alvo.no.position.z - heroi.position.z).length() - para
+	if d > 0.3:
+		var t: float = min(0.25, 0.05 + d * 0.04)
+		h.lunge = {"v": frente() * d / t, "t": t, "fantasma": false}
+
+func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
+	var p0 := heroi.position
 	var fxk: String = P.FX.get(k, "magia")
-	if hab.get("fx", false):
-		fx.conjura(heroi, fxk, dur, maos)
-	if hab.get("dash", false):
-		fx.dash(heroi, dur * hab.get("avancoT", 0.2) + 0.12, true)
-	var hits: Array = hab.hits if hab.has("hits") else [hab.get("at", 0.5)]
-	if hab.has("puxa"): # vórtice: puxa logo no começo
-		hits = [hab.puxa.de]
-	comecar(hab.anim, hab.ts, hits, func(n: int): efeito(k, hab, n), extra)
+	match hab.tipo:
+		"corte", "esmagar":
+			lunge(alvo, hab.lunge.para)
+			fx.conjura(heroi, fxk, hab.dur, maos)
+			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
+				var p: Vector3 = heroi.position + frente() * hab.ponto
+				dano_area(p, hab.area, hab.dmg, hab)
+				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y), {"livre": true, "lamina": true})
+		"giro", "pisao":
+			fx.conjura(heroi, fxk, hab.dur, maos)
+			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
+				dano_area(heroi.position, hab.area, hab.dmg, hab)
+				fx.explosao_hab(fxk, heroi.position.x, heroi.position.z, hab.area, heroi.position.y), {"livre": true, "lamina": true})
+		"investida": # dash atravessando os inimigos em linha
+			var L: float = min(hab.alcance, alvo.no.position.distance_to(p0) + 2.5)
+			var f := frente()
+			h.lunge = {"v": f * L / hab.dashT, "t": hab.dashT, "fantasma": true}
+			fx.dash(heroi, hab.dashT + 0.12, true)
+			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
+				var linha := []
+				for e in inimigos:
+					if e.estado == "morto":
+						continue
+					var d: Vector3 = e.no.position - p0
+					var a: float = d.x * f.x + d.z * f.z
+					var lado: float = abs(d.x * f.z - d.z * f.x)
+					if a > -0.5 and a < L + 1.0 and lado < hab.largura:
+						linha.append([a, e])
+				linha.sort_custom(func(x, y): return x[0] < y[0])
+				for i in min(linha.size(), int(round(hab.alvos))):
+					var e = linha[i][1]
+					ferir(e, hab.dmg * pow(hab.cai, i), p0, hab)
+					fx.impacto(e.no.position.x, e.no.position.z, heroi.rotation.y, fxk, e.no.position.y), {"lamina": true})
+		"bola":
+			atirar(hab, alvo, hab.alcance + 6.0)
+		"anel":
+			mov.vy = 3.2 # pulinho
+			mov.chao = false
+			dano_area(p0, hab.area, hab.dmg, hab)
+			fx.explosao_hab(fxk, p0.x, p0.z, hab.area, p0.y)
+		"gelo":
+			dano_area(p0, hab.area, hab.dmg, hab)
+			fx.explosao_hab(fxk, p0.x, p0.z, hab.area, p0.y)
+		"meteoro":
+			var c: Vector3 = alvo.no.position if vivo(alvo) else p0 + frente() * 5.0
+			fx.meteoro(c.x, c.z, hab.area, hab.queda, terreno.altura(c.x, c.z), func(_p): dano_area(c, hab.area, hab.dmg, hab))
+		"cadeia": # da mão no alvo, depois pula para o mais perto dele (5,5 m)
+			var feitos := []
+			var de := ponto_mao()
+			var e = alvo
+			for i in int(round(hab.alvos)):
+				if not vivo(e):
+					break
+				feitos.append(e)
+				var n: float = hab.dmg * pow(hab.cai, i)
+				var a: Vector3 = de
+				var alvo_i = e
+				fx.agenda.append({"t": i * 0.08, "fn": func():
+					if vivo(alvo_i):
+						fx.cadeia(a, alvo_i.no.position + Vector3(0, 1.0, 0))
+						ferir(alvo_i, n, a, hab)})
+				de = e.no.position + Vector3(0, 1.0, 0)
+				var prox = null
+				var md: float = hab.pula
+				for q in inimigos:
+					var dq: float = q.no.position.distance_to(e.no.position)
+					if q.estado != "morto" and not feitos.has(q) and dq < md:
+						md = dq
+						prox = q
+				e = prox
+		"teleporte":
+			teleportar(hab, dir)
+		"cura":
+			var n: float = min(round(P.st.vidaMax * hab.curaPct), P.st.vidaMax - h.vida)
+			h.vida += n
+			fx.cura(heroi)
+			fx.numero(heroi.position, n, Color("7dffa0"))
+			fx.anel(p0.x, p0.z, hab.grupo, "9be08f", 0.9, p0.y)
+		"escudo":
+			comecar_q(hab.anim, hab.dur, [], func(_n): pass, {"livre": true})
+			h.escudo = float(hab.absorve)
+			h.escudo_ate = tempo + float(hab.duracao)
+			fx.escudo(heroi, float(hab.duracao))
+		"puxar": # puxa para perto (não puxa chefe) e segura um instante; não tira vida
+			fx.vortice(p0.x, p0.z, hab.area, p0.y)
+			for e in inimigos:
+				if e.estado == "morto" or e.tipo == "chefe":
+					continue
+				var d: Vector3 = p0 - e.no.position
+				d.y = 0
+				if d.length() < hab.area:
+					e.puxao = d.normalized() * max(0.0, d.length() - 1.6) / 0.3
+					e.puxao_t = 0.3
+					e.parado = max(e.parado, tempo + hab.atordoa)
+
+# Salto Arcano: some e aparece até 5,5 m (+0,6 por nível) para onde o joystick aponta, parando antes da parede
+func teleportar(hab: Dictionary, dir: Vector3) -> void:
+	var f := Vector3(dir.x, 0, dir.z).normalized() if dir.length() > 0.15 else frente()
+	mov.ry = atan2(f.x, f.z)
+	heroi.rotation.y = mov.ry
+	var de := heroi.position
+	var outros_antes: Array = mov.outros.duplicate()
+	mov.outros.clear() # passa por cima de quem estiver no caminho
+	for i in int(round(hab.distancia / 0.25)):
+		var x0: float = mov.x
+		var z0: float = mov.z
+		var y0: float = mov.y
+		mov.bloqueado = false
+		mov.mover(f.x * 0.25, f.z * 0.25)
+		if mov.bloqueado or Vector2(mov.x - x0, mov.z - z0).length() < 0.2:
+			mov.x = x0
+			mov.z = z0
+			mov.y = y0
+			break
+	mov.outros = outros_antes
+	heroi.position = mov.posicao()
+	fx.teleporte(de, heroi.position)
+	heroi.visible = false
+	fx.agenda.append({"t": 0.1, "fn": func(): heroi.visible = true})
 
 func maos() -> Array:
 	return [ponto_mao()]
 
-func efeito(k: String, hab: Dictionary, _n: int) -> void:
-	var p0 := heroi.position
-	var fxk: String = P.FX.get(k, "magia")
-	if hab.has("proj"):
-		var info: Dictionary = hab.proj.duplicate()
-		info.cor = Color(info.cor)
-		info.hab = hab
-		fx.projetil(ponto_mao(), mira(), info, hab.dmg, 20.0)
-	elif hab.has("raios"): # raios do céu pulando de inimigo em inimigo
-		var alvos := []
-		for e in inimigos:
-			if e.estado != "morto" and e.no.position.distance_to(p0) < hab.raios.alcance:
-				alvos.append(e)
-		alvos.sort_custom(func(a, b): return a.no.position.distance_to(p0) < b.no.position.distance_to(p0))
-		if alvos.is_empty():
-			var f := p0 + frente() * 5.0
-			fx.raio(f.x, f.z, terreno.altura(f.x, f.z))
-		for j in min(int(hab.raios.n), alvos.size()):
-			var e = alvos[j]
-			fx.agenda.append({"t": j * 0.12, "fn": func():
-				var q: Vector3 = e.no.position
-				fx.raio(q.x, q.z, q.y)
-				ferir(e, hab.dmg, q, hab)})
-	elif hab.has("chuva"): # área do alvo; cada onda fere quem estiver dentro
-		var e = mais_perto(p0, 22.0)
-		var centro: Vector3 = e.no.position if e else p0 + frente() * 8.0
-		var r: float = hab.chuva.r
-		fx.chuva(centro.x, centro.z, r, int(hab.chuva.ondas), func(_p: Vector3): dano_area(centro, r, hab.dmg, hab))
-	elif hab.has("curaPct"):
-		var n: float = min(round(P.st.vidaMax * hab.curaPct), P.st.vidaMax - h.vida)
-		h.vida += n
-		fx.cura(heroi)
-		fx.numero(heroi.position, n, Color("7dffa0"))
-		if hab.has("grupo"):
-			fx.anel(p0.x, p0.z, hab.grupo.r, "9be08f", 0.9, p0.y)
-	elif hab.has("escudo"):
-		h.escudo = float(hab.escudo.absorve)
-		h.escudo_ate = tempo + float(hab.escudo.dur)
-		fx.escudo(heroi, float(hab.escudo.dur))
-	elif hab.has("puxa"):
-		fx.vortice(p0.x, p0.z, hab.puxa.r, p0.y)
-		for e in inimigos:
-			if e.estado == "morto":
-				continue
-			var d: Vector3 = p0 - e.no.position
-			d.y = 0
-			if d.length() < hab.puxa.r and d.length() > 1.3:
-				e.puxao = d.normalized() * (d.length() - 1.1) / 0.45
-				e.puxao_t = 0.45
-	elif hab.has("area"):
-		dano_area(p0, hab.area, hab.dmg, hab)
-		fx.explosao_hab(fxk, p0.x, p0.z, hab.area, p0.y)
-	elif hab.get("dmg", 0) > 0:
-		for alvo in dano_arco(hab.alcance, hab.arco, hab.dmg, hab):
-			if hab.get("impacto", false):
-				fx.impacto(alvo.x, alvo.z, heroi.rotation.y, fxk, alvo.y)
-
-# botões da tela: os 6 escolhidos no menu; o golpe grande mostra a arma na mão
+# botões da tela: a barra da arma na mão (skill ainda não liberada aparece apagada)
 func mostrar_build() -> void:
 	var icones := []
-	for k in P.prog.botoes:
+	var travados := []
+	for k in barra_atual():
 		icones.append(P.ICONE.get(k, "") if k != null else "")
-	hud.mostrar_build(icones, h.modo)
+		travados.append(k != null and not P.liberada(k))
+	hud.mostrar_build(icones, h.modo, travados)
 
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
@@ -801,9 +956,11 @@ func _process(dt: float) -> void:
 	hud.nivel = P.prog.nivel
 	hud.xp = float(P.prog.xp) / max(1, P.xp_prox)
 	hud.escudo = h.escudo > 0.0 and h.escudo_ate > tempo
-	for i in P.prog.botoes.size():
-		var k = P.prog.botoes[i]
+	var barra: Array = barra_atual()
+	for i in barra.size():
+		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
+	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
@@ -835,12 +992,45 @@ func atualizar_heroi(dt: float) -> void:
 		basico()
 	var dir := direcao_joystick()
 	var forca: float = hud.mover.length()
+	# espada: tocou o golpe com o alvo longe, corre até ele e bate quando chega (o joystick cancela)
+	if h.pend != null:
+		var pe: Dictionary = h.pend
+		pe.t -= dt
+		var e = pe.e
+		if forca > 0.15 or pe.t <= 0.0 or not vivo(e) or h.modo != "Espada":
+			h.pend = null
+		else:
+			var d: Vector3 = e.no.position - heroi.position
+			d.y = 0
+			if d.length() < 2.9 + 0.25:
+				h.pend = null
+				recargas["basico"] = 0.0
+				basico()
+			else:
+				dir = d.normalized()
+				forca = 1.0
+	# magia concentrada: o herói fica parado; puxar o joystick com força cancela
+	if acao.get("canal", false):
+		if forca > 0.55:
+			cancelar_canal()
+		else:
+			dir = Vector3.ZERO
+			forca = 0.0
 	mov.outros.clear()
-	for e in inimigos:
-		if e.estado != "morto":
-			mov.outros.append(e.no.position)
-	for n in npcs:
-		mov.outros.append(n.no.position)
+	var fantasma: bool = h.lunge != null and h.lunge.fantasma
+	if not fantasma:
+		for e in inimigos:
+			if e.estado != "morto":
+				mov.outros.append(e.no.position)
+		for n in npcs:
+			mov.outros.append(n.no.position)
+	if h.lunge != null: # passo rápido até o alvo (lunge) ou o dash da Investida
+		var lg: Dictionary = h.lunge
+		var passo: float = min(dt, lg.t)
+		mov.mover(lg.v.x * passo, lg.v.z * passo)
+		lg.t -= dt
+		if lg.t <= 0.0:
+			h.lunge = null
 	# ação em andamento: golpes acertam no tempo certo da animação; avanço e rolamento andam pelo terreno
 	if not acao.is_empty():
 		acao.t += dt
@@ -862,7 +1052,12 @@ func atualizar_heroi(dt: float) -> void:
 				acao = {}
 	var estava_escalando: bool = mov.esc != null
 	var estava_no_chao: bool = mov.chao
-	mov.passo(dt, dir.x, dir.z, forca >= 0.55, acao.is_empty() or acao.get("pulo", false))
+	# golpe e skill de espada não travam: anda enquanto bate, virado para o alvo
+	var livre: bool = acao.is_empty() or acao.get("pulo", false) or acao.get("livre", false)
+	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null)
+	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
+		var da: Vector3 = acao.alvo.no.position - heroi.position
+		mov.ry = atan2(da.x, da.z)
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
 	# armas: escalando, as duas nas costas
