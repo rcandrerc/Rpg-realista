@@ -67,7 +67,7 @@ export async function montarCena(renderer, mapa) {
   scene.add(grama.mesh);
   const vila = montarVila(scene, mapa);
   await colocarObjetos(scene, mapa, masc);
-  return { scene, sol, atualizar: (t) => { grama.uniforms.uTime.value = t; vila.atualizar(t); } };
+  return { scene, sol, grama: grama.mesh, atualizar: (t) => { grama.uniforms.uTime.value = t; vila.atualizar(t); } };
 }
 
 function rnd(a, b) { return a + Math.random() * (b - a); }
