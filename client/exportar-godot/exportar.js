@@ -1,7 +1,7 @@
 // Ferramenta: exporta a vila e os personagens anime (com animações já convertidas) em GLB para o protótipo Godot.
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
-import { MAPA_CLAREIRA } from '@rpg/shared';
+import { MAPA_CLAREIRA, A } from '@rpg/shared';
 import { criarRenderizador, montarCena } from '../src/cena.js';
 import { carregarPersonagens, Corpo } from '../src/personagens.js';
 
@@ -47,15 +47,41 @@ async function principal() {
 
   await carregarPersonagens();
   const ids = ['ruiva', 'cabelo_m', 'fumiriya', 'shino', 'vivi', 'vita', 'victoria', 'shibu', 'shibu_sombrio'];
+  // herói: todas as animações que a HUD usa; os outros: andar, correr, atacar, apanhar e cair
+  const ANIMS_HEROI = {
+    parada: 'parada', andar: 'andar', corrida: 'corrida', espada_parada: A.swordIdle,
+    combo1: 'combo1', combo2: 'combo2', combo3: 'combo3', combo4: 'combo4', magia1: 'magia1', magia2: 'magia2', magia3: 'magia3',
+    investida: 'investida', giro: A.giro, salto: A.jump, relampago: A.raio, bola: A.bolt, raio: A.ceu, explosao: A.ground, meteoros: A.rain,
+    cura: A.heal, rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death,
+  };
+  const ANIMS_OUTROS = { parada: 'parada', andar: 'andar', corrida: 'corrida', combo1: 'combo1', combo2: 'combo2', apanhar: A.hit, morrer: A.death };
+  const armas = {};
   for (const id of ids) {
-    const c = new Corpo(mundo.scene, { visual: id, armas: 'nenhuma' });
+    const heroi = id === 'ruiva';
+    const c = new Corpo(mundo.scene, { visual: id, armas: heroi ? 'heroi' : 'nenhuma' });
     for (let i = 0; i < 600 && !c.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     const vrm = c.vrm; if (!vrm) { console.log('sem vrm', id); continue; }
     // grava os ossos de verdade (não os normalizados) quadro a quadro
     const ossos = []; vrm.scene.traverse((o) => { if (o.isBone) ossos.push(o); });
     const clipes = [];
-    for (const nome of ['parada', 'andar', 'corrida']) {
-      const clip = c.clipes[nome]; if (!clip) continue;
+    if (heroi) {
+      // armas saem em arquivos próprios; aqui só guardo onde cada uma fica presa (osso + posição local)
+      const l = c.armasPos, osso = (o) => o.name;
+      const dado = (x) => ({ osso: osso(x.pai), pos: x.pos.toArray(), quat: x.quat.toArray(), escala: x.escala });
+      const esp = c.armas.espada[0], caj = c.cajado;
+      armas.lugares = { espadaMao: dado(l.espadaMao), espadaCostas: dado(l.espadaCostas), cajadoCostas: dado(l.cajadoCostas),
+        cajadoMao: { osso: c.maoCajado.name, pos: [0, 0, 0], quat: [0, 0, 0, 1], escala: l.cajadoCostas.escala } };
+      for (const [nome, obj] of [['espada', esp], ['cajado', caj]]) {
+        obj.parent?.remove(obj);
+        const copia = obj.clone(); copia.position.set(0, 0, 0); copia.quaternion.identity(); copia.scale.setScalar(1);
+        const tirar = []; copia.traverse((o) => { if (o.userData.pelicula) tirar.push(o); }); tirar.forEach((o) => o.parent.remove(o));
+        simplificar(copia);
+        saida['arma_' + nome] = b64(await exportar(copia));
+      }
+      saida.armas_json = btoa(JSON.stringify(armas.lugares));
+    }
+    for (const [nome, fonte] of Object.entries(heroi ? ANIMS_HEROI : ANIMS_OUTROS)) {
+      const clip = c.clipes[fonte]; if (!clip) { console.log('falta anim', id, nome, fonte); continue; }
       c.mixer.stopAllAction(); const a = c.mixer.clipAction(clip); a.reset().play();
       const fps = 30, n = Math.max(2, Math.round(clip.duration * fps) + 1), tempos = [];
       const qs = ossos.map(() => []), ps = ossos.map(() => []);

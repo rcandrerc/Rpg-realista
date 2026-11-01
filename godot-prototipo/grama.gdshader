@@ -11,6 +11,6 @@ void vertex() {
 	VERTEX.z += cos(TIME * 1.3 + wp.z * 0.4) * 0.05 * k;
 }
 void fragment() {
-	ALBEDO = mix(cor_base, cor_ponta, altura) * COLOR.rgb;
+	ALBEDO = COLOR.rgb * mix(0.95, 1.3, altura);
 	ROUGHNESS = 0.95;
 }
