@@ -7,8 +7,8 @@ extends CanvasLayer
 signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 
-const COR_FUNDO := Color(0.13, 0.14, 0.27, 0.92)
-const COR_BORDA := Color(0.55, 0.62, 0.85, 0.9)
+const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
+const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao menu do personagem
 const COR_GOLPE := Color(0.33, 0.16, 0.12, 0.95)
 const COR_TROCA := Color(0.33, 0.24, 0.12, 0.95)
 const COR_CURA := Color(0.12, 0.3, 0.2, 0.95)
@@ -43,11 +43,11 @@ func _ready() -> void:
 	_tela.draw.connect(_desenhar)
 	add_child(_tela)
 	# posições pensadas numa tela de 1280x576 (deitada); contadas a partir do canto de baixo à direita
-	_botao("troca", Vector2(60, 264), 28, "troca", COR_TROCA)
+	_botao("troca", Vector2(46, 250), 28, "troca", COR_TROCA)
 	# as 6 skills escolhidas no menu do personagem, num arco em volta do golpe
 	for i in 6:
-		var ang := deg_to_rad(80.0 - 24.0 * i)
-		_botao("hab%d" % i, Vector2(80, 158) + Vector2(cos(ang), sin(ang)) * 165.0, 33, "", COR_FUNDO)
+		var ang := deg_to_rad(80.0 - 25.0 * i)
+		_botao("hab%d" % i, Vector2(80, 158) + Vector2(cos(ang), sin(ang)) * 172.0, 33, "", COR_FUNDO)
 	_botao("basico", Vector2(80, 158), 56, "basico", COR_GOLPE)
 	_botao("cura", Vector2(80, 58), 31, "cura", COR_CURA)
 	_botao("pular", Vector2(333, 64), 34, "pular", COR_FUNDO)

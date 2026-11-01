@@ -8,7 +8,7 @@ extends CanvasLayer
 const OURO := Color(0.80, 0.64, 0.36)
 const OURO_CLARO := Color(0.95, 0.82, 0.55)
 const TEXTO := Color(0.93, 0.89, 0.80)
-const APAGADO := Color(0.60, 0.56, 0.49)
+const APAGADO := Color(0.72, 0.68, 0.60) # #b8ae9a
 const FUNDO := Color(0.075, 0.065, 0.055, 0.97)
 const FUNDO2 := Color(0.12, 0.105, 0.088, 1.0)
 const FUNDO3 := Color(0.17, 0.148, 0.12, 1.0)
@@ -198,11 +198,14 @@ func slot(id: String, nome: String) -> Control:
 	ic.modulate = Color(1, 1, 1, 0.9)
 	p.add_child(ic)
 	c.add_child(p)
-	var l := rotulo(nome, 11, APAGADO)
+	var l := rotulo(nome, 12, APAGADO)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	c.add_child(l)
 	if id == "arma":
 		slot_arma = {"icone": ic, "painel": p}
+	else: # vazio: silhueta do item bem apagada
+		ic.texture = icone_tex("eq_" + id)
+		ic.modulate = Color(0.85, 0.75, 0.55, 0.25)
 	return c
 
 func montar_palco() -> void:
@@ -215,20 +218,21 @@ func montar_palco() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_CLEAR_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.55, 0.5, 0.45)
-	env.ambient_light_energy = 0.9
+	env.ambient_light_color = Color(0.45, 0.42, 0.4)
+	env.ambient_light_energy = 0.5
+	env.tonemap_exposure = 0.85
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	amb.environment = env
 	vp.add_child(amb)
 	var chave := DirectionalLight3D.new() # luz principal quente e um contraluz frio, como estúdio
 	chave.light_color = Color(1.0, 0.92, 0.8)
-	chave.light_energy = 1.25
-	chave.rotation = Vector3(deg_to_rad(-30), deg_to_rad(35), 0)
+	chave.light_energy = 0.8
+	chave.rotation = Vector3(deg_to_rad(-25), deg_to_rad(45), 0) # luz-chave lateral a 45°: aparece o degrau de sombra do anime
 	vp.add_child(chave)
 	var contra := DirectionalLight3D.new()
 	contra.light_color = Color(0.6, 0.72, 1.0)
-	contra.light_energy = 0.8
-	contra.rotation = Vector3(deg_to_rad(-15), deg_to_rad(200), 0)
+	contra.light_energy = 0.9
+	contra.rotation = Vector3(deg_to_rad(-20), deg_to_rad(170), 0) # recorte atrás
 	vp.add_child(contra)
 	# chão: disco escuro com brilho dourado
 	var disco := MeshInstance3D.new()
@@ -456,7 +460,7 @@ func montar_habilidades() -> void:
 		var s := Panel.new()
 		s.custom_minimum_size = Vector2(54, 54)
 		s.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO if k != null else BORDA, 1, 27))
-		var n := rotulo(str(i + 1), 11, OURO)
+		var n := rotulo(str(i + 1), 12, OURO)
 		n.position = Vector2(4, 1)
 		if k != null:
 			var ic := TextureRect.new()
@@ -548,7 +552,7 @@ func linha_skill(id: String) -> Control:
 			var b := barra(float(P.uso_de(id)) / P.usos_para_subir(nv), Color(0.55, 0.42, 0.2), 6)
 			b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			uso.add_child(b)
-			uso.add_child(rotulo("%d/%d usos" % [P.uso_de(id), P.usos_para_subir(nv)], 11, APAGADO))
+			uso.add_child(rotulo("%d/%d usos" % [P.uso_de(id), P.usos_para_subir(nv)], 12, APAGADO))
 			txt.add_child(uso)
 		txt.add_child(rotulo(P.proximo(id), 12, Color(0.6, 0.75, 0.55)))
 		# em qual botão da tela ela fica
