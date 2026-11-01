@@ -53,7 +53,7 @@ var cajado: Node3D
 var mao_direita := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
-	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0}
+	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0}
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -549,7 +549,7 @@ func ponto_mao() -> Vector3:
 
 func comecar(nome: String, ts: float, hits: Array, ao_acertar: Callable, extra := {}) -> void:
 	var dur: float = heroi_anim.get_animation(nome).length / ts
-	heroi_anim.play(nome, 0.08, ts)
+	heroi_anim.play(nome, extra.get("fade", 0.08), ts)
 	acao = {"nome": nome, "t": 0.0, "dur": dur, "hits": hits.duplicate(), "feitos": 0, "fn": ao_acertar}
 	acao.merge(extra)
 
@@ -653,6 +653,8 @@ func sem_alvo() -> void:
 
 # Golpe básico da arma na mão. Não trava: dá para andar enquanto bate (como no Quimera)
 func basico() -> void:
+	if acao.get("basico", false) and acao.t >= acao.fim: # o golpe anterior já acabou (só segura a pose): emenda
+		acao = {}
 	if h.morto > 0.0 or mov.esc != null or not acao.is_empty() or recargas.get("basico", 0.0) > 0.0:
 		return
 	h.ultimo_basico = tempo
@@ -679,6 +681,7 @@ func basico_espada() -> void:
 	var i: int = 0 if tempo - h.combo_fim > hab.comboZera else (h.combo + 1) % hab.combo.size()
 	h.combo = i
 	var g: Dictionary = hab.combo[i]
+	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
 	h.combo_fim = tempo + g.dur
 	recargas["basico"] = hab.cd
 	rede("habQ", "espada_basico")
@@ -687,7 +690,8 @@ func basico_espada() -> void:
 		if acertou.is_empty() and vivo(alvo) and alvo.no.position.distance_to(heroi.position) < 3.6:
 			ferir(alvo, hab.dmg, heroi.position, hab)
 		var f := heroi.position + frente() * 1.4
-		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"livre": true, "lamina": true, "alvo": alvo, "basico": true})
+		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"livre": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
+	segurar_pose(0.35)
 
 # Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
 func basico_magia() -> void:
@@ -703,6 +707,15 @@ func basico_magia() -> void:
 	recargas["basico"] = hab.cd
 	rede("habQ", "cajado_basico")
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
+	segurar_pose(0.35)
+
+# o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
+# sem voltar para a corrida no meio (era o "pulo" que aparecia no loop do combo)
+func segurar_pose(extra: float) -> void:
+	var hit_s: float = acao.hits[0] * acao.dur
+	acao.fim = acao.dur
+	acao.dur += extra
+	acao.hits = [hit_s / acao.dur]
 
 func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 	var info: Dictionary = hab.proj.duplicate()
@@ -1054,7 +1067,10 @@ func atualizar_heroi(dt: float) -> void:
 	var estava_no_chao: bool = mov.chao
 	# golpe e skill de espada não travam: anda enquanto bate, virado para o alvo
 	var livre: bool = acao.is_empty() or acao.get("pulo", false) or acao.get("livre", false)
-	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null)
+	# atacando anda mais devagar (P.dados.andarAtacando da velocidade normal), mudando aos poucos (sem tranco)
+	var k_alvo: float = float(P.dados.andarAtacando) if not acao.is_empty() and acao.get("livre", false) else 1.0
+	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
+	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null, h.vel_k)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
 		mov.ry = atan2(da.x, da.z)

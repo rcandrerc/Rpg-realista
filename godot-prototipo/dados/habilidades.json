@@ -427,7 +427,7 @@
    "golpe_esmagador",
    "pisao_sismico",
    "investida",
-   "salto_arcano"
+   "vortice"
   ],
   "cajado": [
    "bola_fogo",
@@ -445,5 +445,6 @@
   "chefe": 25,
   "sombrio": 6,
   "lider": 20
- }
+ },
+ "andarAtacando": 0.4
 }

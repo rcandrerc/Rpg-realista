@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATACANDO } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
@@ -43,7 +43,7 @@ const cor = (v) => (typeof v === 'number' ? '#' + v.toString(16).padStart(6, '0'
 const limpar = (o) => JSON.parse(JSON.stringify(o, (k, v) => (k === 'cor' ? cor(v) : k === 'anim' ? godot[v] || v : v)));
 const habs = {
   habs: limpar(HABS), passivas: PASSIVAS, atributos: ATRIBUTOS, pontosPorNivel: PONTOS_POR_NIVEL, nivelMax: NIVEL_MAX,
-  skillMax: SKILL_MAX, botoesPadrao: BOTOES_PADRAO, nBotoes: N_BOTOES, xpInimigo: XP_INIMIGO,
+  skillMax: SKILL_MAX, botoesPadrao: BOTOES_PADRAO, nBotoes: N_BOTOES, xpInimigo: XP_INIMIGO, andarAtacando: ANDAR_ATACANDO,
 };
 const faltam = Object.entries(habs.habs).flatMap(([k, h]) => [h.anim, ...(h.combo || []).map((c) => c.anim)].filter((a) => a && !anims[a]).map((a) => k + ':' + a));
 if (faltam.length) console.log('ATENÇÃO, animação sem nome no Godot:', faltam.join(', '));

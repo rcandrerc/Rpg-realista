@@ -96,6 +96,8 @@ export const SKILL_MAX = 10;
 // Duas barras, como no Quimera: a da espada e a do cajado (Trocar mostra a outra). As gerais servem nas duas.
 // Padrão: as skills de espada numa e as de magia na outra, na ordem do Quimera; dá para mudar no menu.
 export const N_BOTOES = 6;
+// Andando enquanto ataca (golpe básico e skills de espada): fração da velocidade normal (corrida 5,4 m/s -> 2,2 m/s)
+export const ANDAR_ATACANDO = 0.4;
 export const BARRAS = ['espada', 'cajado'];
 export const BOTOES_PADRAO = {
   espada: ['corte_duplo', 'giro', 'golpe_esmagador', 'pisao_sismico', 'investida', 'vortice'],
