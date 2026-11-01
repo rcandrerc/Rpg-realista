@@ -7,6 +7,7 @@ import { VRMLoaderPlugin, VRMUtils, VRMSpringBoneCollider, VRMSpringBoneCollider
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
+import { montarMonstro } from './bestiario.js';
 import { carregarGLTF } from './cena.js';
 import { Montaria } from './montaria.js';
 
@@ -485,7 +486,9 @@ export class Corpo {
     this.inclina = new THREE.Group(); this.root.add(this.inclina); // o corpo inclina para a frente no dash
     this.anim = null; this.maosOssos = [];
     scene.add(this.root);
-    if (visual !== 'soldado') {
+    if (visual.startsWith('bst:')) {
+      montarMonstro(visual.slice(4)).then((m) => this.montarBestiario(m)).catch((e) => { console.error('Bestiário', visual, e); this.montarSoldado(cor, 'nenhuma'); });
+    } else if (visual !== 'soldado') {
       carregarVRM(visual).then((vrm) => this.montarVRM(vrm, armas)).catch((e) => { console.error('VRM', visual, e); this.montarSoldado(cor, 'heroi'); });
     } else this.montarSoldado(cor, armas);
   }
@@ -541,6 +544,13 @@ export class Corpo {
     const mao = this.maoCajado, q = this.root.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.18, 0, -0.08)));
     this.cajado.position.set(0, 0, 0);
     this.cajado.quaternion.copy(mao.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));
+  }
+  // Monstro do Bestiário (teste com ?monstros=bestiario, client/src/bestiario.js): sem arma, golpes de garra e soco
+  montarBestiario({ cena, mixer, clipes, maos }) {
+    if (this.removido) return;
+    this.inclina.add(cena);
+    this.mixer = mixer; this.clipes = clipes; this.maosOssos = maos;
+    this.pronto();
   }
   montarVRM(vrm, armas) {
     if (this.removido) { VRMUtils.deepDispose(vrm.scene); return; }

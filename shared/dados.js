@@ -138,16 +138,19 @@ export const MONTARIAS = {
 
 // Inimigos: cada horda usa um personagem anime que o jogador não pode escolher (nunca fica igual ao herói).
 // Mudam tamanho, números e o brilho da espada. Hordas novas entram aqui.
+// Monstros do Bestiário (Quaternius): visual 'bst:<Nome>' = client/src/bestiario.js (site) e godot-prototipo/modelos/<nome>.glb.
+// Atacam com garra e soco, sem espada. Nascem só no acampamento do leste, nunca dentro da vila.
 export const TIPOS_INIMIGO = {
-  sombrio: { nome: 'Sombrio', horda: 'Bando Sombrio', visual: 'cabelo_m', vida: 90, dano: 9, intervalo: 2.4, escala: 1, brilho: 0x8a3dff },
-  lider: { nome: 'Lâmina Sombria', horda: 'Bando Sombrio', visual: 'fumiriya', vida: 200, dano: 16, intervalo: 1.8, escala: 1.12, brilho: 0xff2a3a },
+  puglin: { nome: 'Puglin', horda: 'Monstros do Leste', visual: 'bst:Puglin', vida: 80, dano: 8, intervalo: 2.2, escala: 1, brilho: 0x8a3dff },
+  imp: { nome: 'Imp', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 110, dano: 11, intervalo: 2.4, escala: 1, brilho: 0xff6a2a },
+  chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.9, escala: 1.15, brilho: 0xff2a3a },
 };
 
 // Missões que os NPCs dão. horda = qual bando conta (TIPOS_INIMIGO[..].horda). {faltam} vira o número.
 export const MISSOES = {
   bando: {
-    nome: 'Expulsar o Bando Sombrio', horda: 'Bando Sombrio', total: 4,
-    pedido: 'O Bando Sombrio acampou no leste, no fim do caminho. Derrube quatro deles e volte aqui.',
+    nome: 'Expulsar os monstros do leste', horda: 'Monstros do Leste', total: 4,
+    pedido: 'Monstros apareceram no leste, no fim do caminho. Derrube quatro deles e volte aqui.',
     andamento: 'Ainda faltam {faltam}. O acampamento fica no leste, é só seguir o caminho de terra.',
     pronto: 'Você conseguiu! A vila está em dívida com você, andarilho.',
     depois: 'Graças a você a estrada do leste anda mais calma.',
@@ -170,7 +173,7 @@ const portaDe = (c, dist = 1.2) => ({ x: c.x + Math.sin(c.ry) * (c.d / 2 + dist)
 // caminhos de terra (linhas de pontos, largura em metros)
 const CAMINHOS = [
   { largura: 2.4, pontos: [[0, 1], [-1.5, -4], [-4, -8.5], [PRACA.x, PRACA.z]] },
-  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste, onde o Bando Sombrio acampou
+  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste, onde os monstros aparecem
   ...CASAS.map((c) => ({ largura: 1.5, pontos: [[PRACA.x, PRACA.z], [portaDe(c, 0.6).x, portaDe(c, 0.6).z]] })),
 ];
 // Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala as grandes.
@@ -214,17 +217,17 @@ export const MAPA_CLAREIRA = {
   nome: 'Vila da Clareira',
   raio: 34,
   nascimento: { x: 0, z: 1 },
-  // cada inimigo do bando tem cabelo, roupa e tamanho próprios (visual/tinta/escala mudam o padrão do tipo)
+  // inimigos: só no acampamento do leste (x >= 17), longe das casas; renascem no mesmo lugar
   inimigos: [
-    { tipo: 'sombrio', x: 16, z: 6, visual: 'cabelo_m', tinta: { cabelo: 0x6e1414, roupa: 0x22222a, calca: 0x2e2a26 } },
-    { tipo: 'sombrio', x: 20, z: -2, visual: 'fumiriya', escala: 1.05, tinta: { cabelo: 0x5c5f66, roupa: 0x35263f, calca: 0x1f1c22 } },
-    { tipo: 'sombrio', x: 14, z: 0, visual: 'cabelo_m', escala: 0.94, tinta: { cabelo: 0xd6d3cc, roupa: 0x2b3624, calca: 0x3a3226 } },
-    { tipo: 'lider', x: 22, z: 3, visual: 'fumiriya', tinta: { cabelo: 0x9c1424, roupa: 0x141414, calca: 0x2a0d10 } },
+    { tipo: 'puglin', x: 18, z: 6 },
+    { tipo: 'imp', x: 22, z: -2 },
+    { tipo: 'puglin', x: 17, z: 1 },
+    { tipo: 'chefe', x: 24, z: 3 },
   ],
   // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
   npcs: [
     { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, visual: 'fumiriya', escala: 1.03, tinta: { cabelo: 0xc9c7c2, roupa: 0x5b3a24, calca: 0x3b3229 }, funcao: 'missao', missao: 'bando', falas: [
-      'Andarilho, o Bando Sombrio acampou no leste. Expulse os quatro e a vila te deve uma.',
+      'Andarilho, monstros apareceram no leste. Derrube quatro deles e a vila te deve uma.',
       'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
     ] },
     { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', falas: [

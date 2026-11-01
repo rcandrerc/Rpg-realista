@@ -1,0 +1,39 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Converter animações do Bestiário</title></head>
+<body><p>Ferramenta (só no vite dev): converte animações da Universal Animation Library para os monstros do Bestiário. Veja ferramentas/bestiario/LEIAME.md.</p>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { ESCOLHA_ANIMS } from '/src/bestiario.js';
+const L = new GLTFLoader();
+const UAL = await Promise.all(['UAL1_Standard', 'UAL2_Standard'].map((n) => L.loadAsync('tmp-bestiario/' + n + '.glb')));
+const descanso = (raiz) => { const r = {}; raiz.traverse((o) => { if (o.isBone) r[o.name] = { q: o.quaternion.clone(), p: o.position.clone() }; }); return r; };
+const restU = descanso(UAL[0].scene);
+const todas = UAL.flatMap((u) => u.animations);
+function converter(clip, restM, nome) {
+  const tracks = [];
+  const k = restM.pelvis.p.length() / restU.pelvis.p.length();
+  for (const tr of clip.tracks) {
+    const [osso, prop] = tr.name.split('.');
+    if (!restM[osso] || !restU[osso]) continue;
+    if (prop === 'quaternion') {
+      const v = Float32Array.from(tr.values), q = new THREE.Quaternion(), a = restM[osso].q.clone().multiply(restU[osso].q.clone().invert());
+      for (let i = 0; i < v.length; i += 4) { q.fromArray(v, i); q.premultiply(a); q.toArray(v, i); }
+      tracks.push(new THREE.QuaternionKeyframeTrack(tr.name, tr.times, v));
+    } else if (prop === 'position' && osso === 'pelvis') {
+      const v = Float32Array.from(tr.values, (x) => x * k);
+      tracks.push(new THREE.VectorKeyframeTrack(tr.name, tr.times, v));
+    }
+  }
+  const c = new THREE.AnimationClip(nome, clip.duration, tracks); c.optimize(); return c;
+}
+const saida = {};
+for (const [monstro, escolha] of Object.entries(ESCOLHA_ANIMS)) {
+  const g = await L.loadAsync('assets/monstros/bestiario/' + monstro + '.glb');
+  const restM = descanso(g.scene);
+  saida[monstro] = Object.entries(escolha).map(([jogo, ual]) => {
+    const c = todas.find((a) => a.name === ual); if (!c) throw new Error('sem ' + ual);
+    return THREE.AnimationClip.toJSON(converter(c, restM, jogo));
+  });
+}
+window.resultado = saida;
+</script></body></html>
