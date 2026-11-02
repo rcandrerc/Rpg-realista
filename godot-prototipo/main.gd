@@ -18,6 +18,7 @@ const Inclinar = preload("res://inclinar.gd")
 const Aparencia = preload("res://aparencia.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
+const MenuTopo = preload("res://menu_topo.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -63,6 +64,8 @@ var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolament
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
+var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
+var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
 const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
@@ -179,6 +182,9 @@ func _ready() -> void:
 	montar_teste()
 	online = Online.new(self)
 	add_child(online)
+	menu_topo = MenuTopo.new(self)
+	add_child(menu_topo)
+	hud.menu_topo = menu_topo
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -683,7 +689,7 @@ func parar_golpe(seg: float) -> void:
 	Engine.time_scale = 0.05
 
 func vibrar(ms: int) -> void:
-	if OS.has_feature("mobile"):
+	if OS.has_feature("mobile") and vibracao:
 		Input.vibrate_handheld(ms)
 
 # inimigo pisca branco por um instante quando apanha
@@ -1716,7 +1722,7 @@ func montar_teste() -> void:
 	rotulo.anchor_right = 1.0
 	rotulo.offset_left = -330
 	rotulo.offset_right = -14
-	rotulo.offset_top = 64
+	rotulo.offset_top = 124 # abaixo do botão Teste (o menu do topo fica no canto)
 	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tela.add_child(rotulo)
 	botao_teste = Button.new()
@@ -1726,8 +1732,8 @@ func montar_teste() -> void:
 	botao_teste.anchor_right = 1.0
 	botao_teste.offset_left = -110
 	botao_teste.offset_right = -14
-	botao_teste.offset_top = 14
-	botao_teste.offset_bottom = 56
+	botao_teste.offset_top = 72 # abaixo do menu do topo
+	botao_teste.offset_bottom = 114
 	botao_teste.pressed.connect(comecar_teste)
 	tela.add_child(botao_teste)
 	etapas = [

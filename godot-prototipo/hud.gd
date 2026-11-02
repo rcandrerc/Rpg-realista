@@ -34,6 +34,7 @@ var xp := 0.0 # 0..1 até o próximo nível
 var escudo := false
 var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhuma
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
+var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joystick nem câmera
 const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem
 var modo := "Espada"
 var _icones := {}
@@ -116,6 +117,8 @@ func _input(ev: InputEvent) -> void:
 			soltar_tudo()
 		return
 	if ev is InputEventScreenTouch:
+		if ev.pressed and menu_topo and menu_topo.cobre(ev.position):
+			return
 		if ev.pressed and PAINEL.has_point(ev.position):
 			apertou.emit("menu")
 			return
