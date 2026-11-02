@@ -19,6 +19,7 @@ const Aparencia = preload("res://aparencia.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 const MenuTopo = preload("res://menu_topo.gd")
+const Combate = preload("res://combate.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -39,6 +40,9 @@ var camera: Camera3D
 var grama: MultiMeshInstance3D
 var hud
 var fx
+var combate # combate.gd: aviso antes do golpe do monstro, tranco, firme, esquiva, morte em fumaça
+var _lenta_ate := 0.0 # câmera lenta (só o tempo): esquiva e último inimigo
+var _lenta_k := 1.0
 var cache := {}
 var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (cada corpo tem a mão num jeito)
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
@@ -85,7 +89,7 @@ const FILA_TEMPO := 0.3 # s que um botão apertado na hora errada fica guardado 
 const FILA_PULO := 0.15 # o pulo apertado pouco antes de pousar sai no pouso
 const HITSTOP := 0.05 # s de congelada no golpe que acerta
 const HITSTOP_FORTE := 0.085 # 4º golpe do combo, skill e crítico
-const TREME := 0.22
+const TREME := 0.15 # André 2026-11-02: pouca mudança de câmera no combate (era 0,22)
 const TREME_FORTE := 0.38
 var fila = null # botão guardado: {q, ate}
 var _hitstop_ate := 0.0
@@ -149,6 +153,7 @@ func _ready() -> void:
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
+	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
 		var e := criar_inimigo(b.id, Vector3(b.x, 0, b.z), b.get("nome", "Inimigo"), b.get("escala", 1.0))
@@ -604,7 +609,13 @@ func mais_perto(pos: Vector3, max_d: float):
 
 # hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir
 func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
-	if e.estado == "morto" or on(): # online: quem acerta e quanto tira é o servidor
+	if e.estado == "morto":
+		return
+	if on(): # online: quem acerta e quanto tira é o servidor; o tranco, o flash e a congelada saem na hora aqui
+		var forte_on: bool = h.golpe_forte or not (hab is Dictionary and hab.has("combo"))
+		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada")
+		piscar(e.no)
+		combate.reacao(e.no, de, forte_on)
 		return
 	trabalho.combate()
 	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
@@ -613,6 +624,10 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		dmg *= 2.0
 	if e.vuln > tempo:
 		dmg *= 1.0 + e.vuln_k
+	if h.get("contra_ate", 0.0) > tempo: # contra-ataque depois da esquiva (como Simulacao.ferir)
+		dmg *= float(D.COMBATE.contraK)
+		crit = true
+		h.contra_ate = 0.0
 	dmg = max(1.0, round(dmg))
 	e.vida -= dmg
 	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
@@ -620,11 +635,23 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	var basico_hab: bool = hab is Dictionary and hab.has("combo")
 	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
 	piscar(e.no)
+	# resistência: muitos golpes seguidos e o monstro fica firme (aguenta e revida), como no servidor
+	if tempo - e.get("golpe_t", -9.0) > D.COMBATE.firmeJanela:
+		e.golpes = 0
+	e.golpe_t = tempo
+	e.golpes = e.get("golpes", 0) + 1
+	if e.vida > 0.0 and e.golpes >= int(D.COMBATE.firmeGolpes.get(e.tipo, 6)) and e.get("firme", 0.0) <= tempo and e.parado <= tempo:
+		e.firme = tempo + D.COMBATE.firmeDur
+		e.golpes = 0
+		e.cd = min(e.cd, 0.25)
+		combate.firme(e.no, D.COMBATE.firmeDur)
+	var firme: bool = e.get("firme", 0.0) > tempo
+	combate.reacao(e.no, de, h.golpe_forte or not basico_hab)
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
 	var metros: float = float(hab.get("empurra", 0.25)) if hab is Dictionary else 0.25
-	if empurra.length() > 0.01 and e.tipo != "chefe": # o inimigo voa para longe (em 0,22 s)
+	if empurra.length() > 0.01 and e.tipo != "chefe" and not firme: # o inimigo voa para longe (em 0,22 s)
 		e.puxao = empurra.normalized() * metros / 0.22
 		e.puxao_t = 0.22
 	if e.vida <= 0:
@@ -633,6 +660,11 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		e.parado = 0.0
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
+		e.golpe = -1.0
+		if e.tipo != "chefe" and empurra.length() > 0.01: # o golpe final joga o corpo para trás
+			e.puxao = empurra.normalized() * D.COMBATE.voaMorte / 0.35
+			e.puxao_t = 0.35
+		combate.morreu(e.no)
 		sons.tocar("morte", -2.0, 0.1, e.no.position)
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = false
 		e.barra.visible = false
@@ -658,8 +690,9 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 				fx.status(e.no, k, hab[k] * chefe)
 				if k == "congela":
 					e.anim.speed_scale = 0.0
-	if e.parado > tempo:
+	if e.parado > tempo or firme: # atordoado, congelado ou firme: não para o que está fazendo
 		return
+	e.golpe = -1.0 # apanhou no meio do preparo: o golpe dele foi cortado
 	e.estado = "apanhar"
 	e.t = 0.45
 	e.anim.play("apanhar", 0.05, 1.6)
@@ -687,6 +720,13 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool) -> void:
 func parar_golpe(seg: float) -> void:
 	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	Engine.time_scale = 0.05
+
+# câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
+func lenta(seg: float, k: float) -> void:
+	_lenta_ate = max(_lenta_ate, Time.get_ticks_usec() / 1000000.0 + seg)
+	_lenta_k = k
+	if Engine.time_scale > k:
+		Engine.time_scale = k
 
 func vibrar(ms: int) -> void:
 	if OS.has_feature("mobile") and vibracao:
@@ -1229,8 +1269,9 @@ func direcao_joystick() -> Vector3:
 func _process(dt: float) -> void:
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
-	if Engine.time_scale < 1.0 and Time.get_ticks_usec() / 1000000.0 >= _hitstop_ate:
-		Engine.time_scale = 1.0
+	var agora_s: float = Time.get_ticks_usec() / 1000000.0
+	if Engine.time_scale < 1.0 and agora_s >= _hitstop_ate:
+		Engine.time_scale = _lenta_k if agora_s < _lenta_ate else 1.0
 	tempo += dt
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
@@ -1243,6 +1284,7 @@ func _process(dt: float) -> void:
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	_flash_passo(dt_real)
+	combate.passo(dt_real)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
@@ -1553,7 +1595,8 @@ func barras_perto() -> void:
 
 # Câmera não atravessa casa, telhado, pedra nem tronco: anda do herói até a câmera e para 0,2 m antes do que bater
 # (copa de árvore deixa passar). Mesmas formas que o movimento usa (terreno.gd e obstáculos do mundo.json).
-func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
+# sem_minerio: os veios de minério não puxam a câmera (André 2026-11-02: chegava perto e virava primeira pessoa)
+func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false) -> float:
 	var t := 0.35
 	while t <= ate:
 		var p := de + dir * t
@@ -1562,7 +1605,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
 		for k in mundo.obstaculos:
 			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
 				return max(0.6, t - 0.2)
-		if trabalho and trabalho.dentro_de_pedra(p):
+		if trabalho and not sem_minerio and trabalho.dentro_de_pedra(p):
 			return max(0.6, t - 0.2)
 		t += 0.2
 	return ate
@@ -1624,6 +1667,7 @@ func atualizar_inimigos(dt: float) -> void:
 					e.barra.scale.x = 1.0
 					e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
 					e.anim.play("espada_parada", 0.2)
+					combate.voltou(no)
 				continue
 			"apanhar":
 				if e.t <= 0.0:
@@ -1633,17 +1677,39 @@ func atualizar_inimigos(dt: float) -> void:
 		ate.y = 0
 		var d := ate.length()
 		var dy: float = abs(heroi.position.y - no.position.y)
-		if e.golpe >= 0.0: # corte em andamento: acerta perto da metade (como no servidor: 45% da animação)
+		if e.golpe >= 0.0: # corte em andamento: preparo devagar, depois acerta perto da metade (como no servidor)
 			e.golpe += dt
+			if e.get("preparo", 0.0) > 0.0 and e.golpe >= e.preparo: # fim do preparo: o golpe sai rápido
+				e.preparo = 0.0
+				var pos_a: float = e.anim.current_animation_position
+				e.anim.play(e.anim.current_animation, 0.0, D.COMBATE.golpeTs)
+				e.anim.seek(pos_a, true)
 			if e.golpe > e.golpe_at and not e.get("acertou", false):
 				e.acertou = true
-				if d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.arrancada == null and mov.esc == null and acao.get("nome", "") != "rolar":
+				if h.morto <= 0.0 and mov.esc == null and d < 6.0 and (mov.arrancada != null or acao.get("nome", "") == "rolar"):
+					h.contra_ate = tempo + D.COMBATE.contraDur # rolou ou deu dash na hora: esquiva e contra-ataque
+					combate.esquiva(heroi)
+				elif d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.esc == null:
 					ferir_heroi(D.INIMIGO.dmg)
 					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
 			continue
-		if h.morto <= 0.0 and d < D.INIMIGO.visao:
+		if e.get("vez", false) and (h.morto > 0.0 or d > 5.0):
+			e.vez = false
+		# no máximo COMBATE.aoMesmoTempo batem juntos; os outros rodeiam a COMBATE.roda m esperando a vez
+		var na_vez := 0
+		for o in inimigos:
+			if o != e and o.estado != "morto" and o.get("vez", false):
+				na_vez += 1
+		if h.morto <= 0.0 and not e.get("vez", false) and na_vez >= int(D.COMBATE.aoMesmoTempo) and d < D.COMBATE.roda + 1.2:
+			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
+			var lado_r: float = 1.0 if inimigos.find(e) % 2 == 1 else -1.0
+			var lado_v := Vector3(ate.z, 0, -ate.x).normalized() * lado_r * D.COMBATE.rodaVel
+			no.position += (lado_v + ate.normalized() * (d - D.COMBATE.roda) * 1.5) * dt
+			if e.anim.current_animation != "andar":
+				e.anim.play("andar", 0.15)
+		elif h.morto <= 0.0 and d < D.INIMIGO.visao:
 			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
 			if d > D.INIMIGO.alcance or dy >= 1.3:
 				if d > 1.2:
@@ -1658,10 +1724,19 @@ func atualizar_inimigos(dt: float) -> void:
 				e.cd = D.INIMIGO.ataque_cd
 				e.golpe = 0.0
 				e.acertou = false
+				e.vez = true
+				# preparo: o braço vai para trás bem devagar e o corpo acende vermelho; depois o golpe sai rápido
 				var g := "golpe1" if randf() < 0.5 else "golpe2"
-				e.golpe_dur = e.anim.get_animation(g).length / 1.1
-				e.golpe_at = e.golpe_dur * 0.45
-				e.anim.play(g, 0.08, 1.1)
+				var C: Dictionary = D.COMBATE
+				var pr: float = float(C.preparo.get(e.tipo, 0.5))
+				var L: float = e.anim.get_animation(g).length
+				e.preparo = pr
+				e.golpe_at = pr + max(0.05, L * C.acerto - pr * C.preparoTs) / C.golpeTs
+				e.golpe_dur = pr + max(0.1, L - pr * C.preparoTs) / C.golpeTs
+				e.anim.play(g, 0.08, C.preparoTs)
+				combate.preparo(no, pr)
+				if randf() < 0.5:
+					e.vez = false # passa a vez para quem está rodeando
 			elif e.anim.current_animation != "espada_parada":
 				e.anim.play("espada_parada", 0.2)
 		else:
@@ -1696,6 +1771,8 @@ func ferir_heroi(dmg: float) -> void:
 	h.vida -= dmg
 	fx.numero(heroi.position, dmg, Color(1, 0.45, 0.4))
 	apanhou()
+	if acao.is_empty() and mov.esc == null and h.vida > 0.0: # a heroína sente o golpe (online vem do servidor igual)
+		heroi_anim.play("apanhar", 0.05, 1.4)
 	if h.vida <= 0.0:
 		h.vida = 0.0
 		h.morto = D.HEROI.renascer
@@ -1706,6 +1783,7 @@ func ferir_heroi(dmg: float) -> void:
 # o herói levou dano: tranco na câmera, som e vibração (offline e online)
 func apanhou() -> void:
 	cam.tremer(0.45)
+	hud.levou_dano()
 	sons.tocar("apanhar", -2.0, 0.1)
 	vibrar(60)
 

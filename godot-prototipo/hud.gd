@@ -42,6 +42,10 @@ var aviso_txt := ""
 var _aviso_t := 0.0
 var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros avisos
 var _destaque_t := 0.0
+var _dano_t := 0.0 # levou golpe: borda vermelha rápida (e fraca, contínua, com a vida baixa)
+
+func levou_dano() -> void:
+	_dano_t = 0.35
 
 func _ready() -> void:
 	_tela = Control.new()
@@ -185,6 +189,8 @@ func _process(dt: float) -> void:
 		_aviso_t -= dt
 	if _destaque_t > 0:
 		_destaque_t -= dt
+	if _dano_t > 0:
+		_dano_t -= dt
 	_tela.queue_redraw()
 
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
@@ -195,7 +201,28 @@ func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) 
 	_tela.draw_string_outline(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.7))
 	_tela.draw_string(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 
+# borda vermelha da tela: golpe recebido (forte e rápida) ou vida abaixo de 30% (fraca, pulsando)
+func _borda_dano() -> void:
+	var a: float = clamp(_dano_t / 0.35, 0.0, 1.0) * 0.45
+	if vida < 0.3 and vida > 0.0:
+		a = max(a, (0.3 - vida) / 0.3 * (0.16 + 0.08 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)))
+	if a <= 0.01:
+		return
+	var t := _tela.size
+	var faixas := 10
+	var larg: float = min(t.x, t.y) * 0.11
+	for i in faixas:
+		var k: float = 1.0 - float(i) / faixas
+		var w: float = larg / faixas
+		var c := Color(0.75, 0.02, 0.02, a * k * k)
+		var o: float = w * i
+		_tela.draw_rect(Rect2(o, o, t.x - o * 2.0, w), c)
+		_tela.draw_rect(Rect2(o, t.y - o - w, t.x - o * 2.0, w), c)
+		_tela.draw_rect(Rect2(o, o + w, w, t.y - (o + w) * 2.0), c)
+		_tela.draw_rect(Rect2(t.x - o - w, o + w, w, t.y - (o + w) * 2.0), c)
+
 func _desenhar() -> void:
+	_borda_dano()
 	var f := ThemeDB.fallback_font
 	# painel do herói
 	var p0 := Vector2(18, 14)

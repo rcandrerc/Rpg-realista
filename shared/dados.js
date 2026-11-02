@@ -154,6 +154,17 @@ export const TIPOS_INIMIGO = {
   chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.9, escala: 1.15, brilho: 0xff2a3a },
 };
 
+// Combate dos monstros (André 2026-11-02, "combate amador"): o monstro avisa antes de bater (preparo, em s, com a
+// animação bem devagar e um brilho vermelho), no máximo `aoMesmoTempo` batem no mesmo herói (os outros rodeiam a
+// `roda` m), aguenta `firmeGolpes` golpes seguidos e fica firme (não para de apanhar, revida) por `firmeDur` s.
+// Rolar ou dar dash na hora do golpe = esquiva: o próximo golpe do herói em `contraDur` s vale `contraK`x e é crítico.
+export const COMBATE_INIMIGO = {
+  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  aoMesmoTempo: 2, roda: 3.4, rodaVel: 1.1,
+  firmeGolpes: { puglin: 6, imp: 6, chefe: 4 }, firmeJanela: 1.6, firmeDur: 2.0,
+  contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
+};
+
 // Missões que os NPCs dão. horda = qual bando conta (TIPOS_INIMIGO[..].horda). {faltam} vira o número.
 export const MISSOES = {
   bando: {

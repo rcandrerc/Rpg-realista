@@ -6,6 +6,9 @@ extends RefCounted
 # - abre o campo de visão correndo e no dash (sensação de velocidade);
 # - treme no golpe que acerta e afunda um pouco no pouso;
 # - não atravessa parede (main.distancia_livre) e sobe por cima do ombro quando fica muito perto.
+# - André (2026-11-02): nunca vira primeira pessoa. A câmera
+#   nunca chega mais perto que DIST_MIN (o "por cima do ombro" ficou guardado, mas não liga mais).
+#   Minério não puxa a câmera; parede, árvore e poço ainda puxam, só até DIST_MIN.
 
 # ajuste aqui testando no celular
 const SENS_GIRO := 0.006 # rad por pixel arrastado (lado)
@@ -16,6 +19,7 @@ const ANTECIPA := 0.22 # segundos de antecipação para onde ele corre
 const SEGUE_APOS := 1.1 # s sem mexer na câmera para ela começar a ir para as costas
 const SEGUE_VEL := 1.6 # rad/s máximos girando para as costas (na corrida)
 const FOV_BASE := 52.0
+const DIST_MIN := 2.6 # m: mais perto que isso parecia primeira pessoa
 const FOV_CORRIDA := 5.0 # graus a mais correndo
 const FOV_DASH := 9.0 # graus a mais no dash
 
@@ -94,7 +98,7 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		_afunda += _afunda_v * h
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
-	var livre: float = m.distancia_livre(foco_base, dir_cam, dist)
+	var livre: float = max(DIST_MIN, m.distancia_livre(foco_base, dir_cam, dist, true))
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
 	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
 	# muito perto (parede atrás): sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado
@@ -102,6 +106,10 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	var lado := Vector3(cos(yaw), 0, -sin(yaw))
 	var foco := foco_base + Vector3(0, 0.62 * ombro, 0) - lado * 0.42 * ombro
 	cam.position = foco + dir_cam * max(dist_cam, 0.6)
+	# encostada na parede/chão: não entra no chão (sobe um pouco por cima)
+	var chao_cam: float = m.terreno.altura(cam.position.x, cam.position.z, cam.position.y + 1.5) + 0.3
+	if cam.position.y < chao_cam and chao_cam - cam.position.y < 2.5:
+		cam.position.y = chao_cam
 	cam.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
 	# tremida: trauma² (golpe fraco quase não treme, forte treme bem), cai rápido
 	if trauma > 0.0:
