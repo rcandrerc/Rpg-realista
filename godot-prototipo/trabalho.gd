@@ -305,6 +305,10 @@ func tocar_botao() -> void:
 	if not m.on():
 		m.hud.aviso("A coleta só funciona online (o que você coleta fica na sua conta)")
 		return
+	var C: Dictionary = m.P.dados.coleta[perto.tipo]
+	if m.P.prof_nivel(str(C.prof)) < int(C.get("nivel", 1)):
+		m.hud.aviso("%s: precisa de %s Nv %d" % [C.nome, m.P.dados.profissoes[C.prof].nome, int(C.nivel)])
+		return
 	if m.P.vigor() < m.P.custo_vigor(str(m.P.dados.coleta[perto.tipo].prof), float(m.P.dados.coleta[perto.tipo].vigor)):
 		m.hud.aviso("Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)")
 		return

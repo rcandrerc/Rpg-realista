@@ -585,6 +585,7 @@ export class Simulacao {
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
+    if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.virarPara(j, no);

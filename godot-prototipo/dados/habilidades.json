@@ -690,6 +690,20 @@
    "venda": 8,
    "desc": "Cobre fundido na forja. Vira joia e ponteira de cajado."
   },
+  "carvao": {
+   "nome": "Carvão",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Lenha queimada na forja. Misturado ao ferro, vira aço."
+  },
+  "barra_aco": {
+   "nome": "Barra de aço",
+   "mat": true,
+   "pilha": 50,
+   "venda": 20,
+   "desc": "Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores."
+  },
   "couro": {
    "nome": "Couro",
    "mat": true,
@@ -982,6 +996,7 @@
   "ferro": {
    "nome": "Veio de ferro",
    "prof": "min",
+   "nivel": 5,
    "vigor": 2,
    "tempo": 2.4,
    "cargas": 3,
@@ -1010,6 +1025,7 @@
   "cristal": {
    "nome": "Veio de cristal",
    "prof": "min",
+   "nivel": 8,
    "vigor": 3,
    "tempo": 2.8,
    "cargas": 2,
@@ -1048,6 +1064,25 @@
    },
    "vigor": 1,
    "nivel": 1
+  },
+  "carvao": {
+   "prof": "fer",
+   "faz": "carvao",
+   "usa": {
+    "lenha": 2
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "barra_aco": {
+   "prof": "fer",
+   "faz": "barra_aco",
+   "usa": {
+    "barra_ferro": 1,
+    "carvao": 2
+   },
+   "vigor": 2,
+   "nivel": 5
   },
   "barra_cobre": {
    "prof": "fer",
