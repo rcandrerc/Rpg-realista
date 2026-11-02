@@ -97,6 +97,7 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | Texturas pintadas do estilo anime (client/public/assets/cenario/pintado/): as mesmas texturas da Poly Haven repintadas pela paleta do jogo | geradas por ferramentas/pintar-texturas/pintar.py a partir das texturas CC0 acima | CC0 / próprio |
 | Sons do app Godot (godot-prototipo/sons/): passos na grama, impactos, corte, pano, moedas, sacar a espada | Kenney (Impact Sounds e RPG Audio), repositório New-Game-Anime-fontes (pacotes_cc0/) | CC0 |
 | Sons do app Godot: vento do golpe, dash, magia, tiro, explosão, cura, subir de nível e queda do monstro | gerados por ferramentas/sons/gerar.py | CC0 / próprio |
+| Capa do Aethra no fundo da tela de login do app Godot (godot-prototipo/ui/capa_aethra.jpg) | gerada por IA (AlbedoBase XL, SDXL, pela rede grátis AI Horde) e retocada; título com a fonte Cinzel Decorative (Google Fonts). Arquivos e scripts em /mnt/project-files/aethra-arte/ | próprio (licença CreativeML Open RAIL++-M libera uso comercial da imagem gerada); fonte SIL OFL |
 
 As animações ficam juntas em `client/public/assets/personagens/anims.json.gz` (47 animações, 1,2 MB; 14 delas de escalada). O mesmo arquivo serve para o soldado e para os personagens VRoid: `client/src/personagens.js` converte do esqueleto do Mixamo para o do VRM na hora.
 
