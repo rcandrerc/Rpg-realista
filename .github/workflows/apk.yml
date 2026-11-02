@@ -1,0 +1,107 @@
+# Gera o APK do app Godot. Push na main: publica no release "apk" (link fixo para baixar no celular).
+# Pull request: gera para testar (Artifacts da execução). Detalhes e a chave de assinatura: ferramentas/apk/LEIAME.md
+name: APK do app Godot
+
+on:
+  push:
+    branches: [main]
+    paths: ['godot-prototipo/**', 'client/**', 'shared/**', '.github/workflows/apk.yml']
+  pull_request:
+    paths: ['godot-prototipo/**', 'client/**', 'shared/**', '.github/workflows/apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT: 4.5-stable
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false # o APK antigo (godot-prototipo/apk) não precisa ser baixado
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Chromium para exportar os modelos
+        run: |
+          npm install --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Modelos (vila, personagens, monstros) para godot-prototipo/modelos
+        run: |
+          (cd client && npx vite --port 5173 > /tmp/vite.log 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:5173 > /dev/null && break; sleep 1; done
+          node client/exportar-godot/gerar-modelos.mjs
+      - name: Godot e modelos de exportação
+        run: |
+          cd /tmp
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_linux.x86_64.zip
+          curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
+          unzip -q godot.zip && unzip -q tpl.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.5.stable
+          mv templates/* ~/.local/share/godot/export_templates/4.5.stable/
+          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_linux.x86_64" >> $GITHUB_ENV
+      - name: Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35" > /dev/null
+          mkdir -p ~/.config/godot
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > ~/.config/godot/editor_settings-4.5.tres
+      - name: Chave de assinatura
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_SENHA: ${{ secrets.ANDROID_KEYSTORE_SENHA }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > /tmp/rpg.keystore
+            SENHA="$KS_SENHA"
+            ALIAS="${KS_ALIAS:-rpg}"
+          else
+            # sem os secrets: chave descartável (para instalar o próximo APK, desinstale o anterior)
+            echo "::warning::Sem ANDROID_KEYSTORE_BASE64 nos Secrets: APK assinado com chave descartável (ver ferramentas/apk/LEIAME.md)"
+            SENHA=$(openssl rand -hex 16)
+            ALIAS=rpg
+            keytool -genkeypair -keystore /tmp/rpg.keystore -alias $ALIAS -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$SENHA" -keypass "$SENHA" -dname "CN=RPG Realista, C=BR" > /dev/null
+          fi
+          echo "::add-mask::$SENHA"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=/tmp/rpg.keystore" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$ALIAS" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$SENHA" >> $GITHUB_ENV
+      - name: Exportar o APK
+        working-directory: godot-prototipo
+        run: |
+          # a versão sobe a cada build: o Android aceita instalar por cima
+          sed -i "s/^version\/code=.*/version\/code=$((100 + ${{ github.run_number }}))/" export_presets.cfg
+          sed -i "s/^version\/name=.*/version\/name=\"0.2.${{ github.run_number }}\"/" export_presets.cfg
+          $GODOT_BIN --headless --import || true
+          $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
+          ls -la $GITHUB_WORKSPACE/rpg-realista.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpg-realista-apk
+          path: rpg-realista.apk
+          retention-days: 14
+      - name: Publicar no release "apk"
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view apk > /dev/null 2>&1 || gh release create apk --target main --prerelease --title "APK mais recente" --notes "Gerado sozinho a cada push na main."
+          gh release upload apk rpg-realista.apk --clobber
+          gh release edit apk --notes "APK do app Godot, gerado sozinho a cada push na main. Último build: ${GITHUB_SHA::7} (execução ${{ github.run_number }})."

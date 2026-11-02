@@ -24,6 +24,13 @@ var anim := "" # animação de escalada pedida agora ("" = a do chão, escolhida
 var outros: Array = [] # posições de quem não deixa passar (inimigos, NPCs)
 var _depois := ""
 var clip_seq := 0 # muda a cada pedaço de escalada novo (para recomeçar a animação mesmo se for a mesma) # o que fazer quando o pedaço de escalada acaba
+# inércia: velocidade de verdade no chão (m/s), que chega aos poucos na que o joystick pede
+var vx := 0.0
+var vz := 0.0
+var fora_do_chao := 0.0 # segundos desde que saiu do chão sem pular (coyote time: ainda dá para pular)
+var ry_mira = null # virar para o alvo do golpe aos poucos (em vez de estalar)
+var giro := 0.0 # velocidade de giro do corpo (rad/s), para inclinar nas curvas
+var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 func _init(terreno, mundo: Dictionary) -> void:
 	T = terreno
@@ -40,6 +47,20 @@ func por_em(p: Vector3) -> void:
 	chao = true
 	esc = null
 	arrancada = null
+	vx = 0.0
+	vz = 0.0
+	ry_mira = null
+
+# velocidade no chão (m/s): a locomoção mistura parada, andar e corrida por ela
+func velocidade() -> float:
+	return Vector2(vx, vz).length()
+
+# virar para o alvo em ~0,1 s (golpe, skill); quem precisa da direção já usa ry_mira
+func mirar(r: float) -> void:
+	ry_mira = r
+
+func direcao() -> float:
+	return ry_mira if ry_mira != null else ry
 
 func ad(a: float, b: float) -> float:
 	return atan2(sin(a - b), cos(a - b))
@@ -99,7 +120,7 @@ func pular() -> String:
 		return ""
 	if arrancada != null:
 		return ""
-	if chao:
+	if chao or (pulos == 0 and fora_do_chao < COYOTE and vy <= 0.0): # saiu da beirada agora há pouco: ainda vale
 		vy = m.movimento.pulo
 		chao = false
 		pulos = 1
@@ -121,6 +142,7 @@ func dash(mx: float, mz: float) -> bool:
 		ry = atan2(mx, mz)
 	if chao and correr_na_parede():
 		return true
+	ry_mira = null
 	arrancada = {"t": float(m.movimento.dashTempo), "dx": sin(ry), "dz": cos(ry)}
 	mortal = 0.0
 	pouso = 0.0
@@ -144,6 +166,8 @@ func passo_vertical(dt: float) -> void:
 		if not chao and vy < -3:
 			pouso = 0.64
 		if not chao:
+			pousou = clamp((-vy - 2.0) / 8.0, 0.0, 1.0) if vy < -2.0 else 0.0
+		if not chao:
 			pulos = 0
 			mortal = 0.0
 			arrancada_no_ar = false
@@ -152,26 +176,53 @@ func passo_vertical(dt: float) -> void:
 		chao = true
 	else:
 		chao = false
+	fora_do_chao = 0.0 if chao else fora_do_chao + dt
 	pulo_t += dt
 	mortal = max(0.0, mortal - dt)
 	pouso = max(0.0, pouso - dt)
 
-# Um quadro no chão. mx/mz = direção no mundo (0..1), livre = pode andar (sem golpe em andamento)
+# Um quadro no chão. mx/mz = direção no mundo com a força do joystick (0..1), livre = pode andar (sem golpe em andamento)
 # velocidades do herói (iguais a HEROI em shared/dados.js) e a velocidade "natural" das animações:
 # o quanto o pé de apoio anda para trás por segundo com a animação em 1x (medido em teste_passo.gd).
-# A animação toca em CORRIDA / PASSO_CORRIDA: o pé acompanha o chão e não parece que desliza.
+# A animação toca em velocidade / PASSO_*: o pé acompanha o chão e não parece que desliza.
 const CORRIDA := 5.4
 const ANDAR := 1.8
 const PASSO_CORRIDA := 4.0
 const PASSO_ANDAR := 1.15
+# sensação do movimento (ajuste aqui testando no celular)
+const ACELERA := 26.0 # m/s² arrancando (0 a 5,4 m/s em ~0,2 s)
+const FREIA := 38.0 # m/s² soltando o joystick (para em ~0,15 s)
+const VIRA_FREIA := 55.0 # m/s² mudando de sentido (o corpo freia antes de sair para o outro lado)
+const NO_AR := 0.35 # controle no ar (fração da aceleração)
+const GIRO_MAX := 13.0 # rad/s que o corpo gira (~750°/s: meia volta em 0,24 s)
+const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
+const COYOTE := 0.12 # s depois de sair da beirada em que o pulo ainda vale
+const SUBPASSO := 1.0 / 60.0 # o movimento roda em passos de 1/60 s: pulo e corrida iguais a 30 ou 60 FPS
+
+# velocidade que a força do joystick pede: devagar no começo, andar até a metade e corrida no fim (sem degrau)
+static func vel_joystick(forca: float) -> float:
+	if forca < 0.15:
+		return 0.0
+	if forca < 0.5:
+		return ANDAR * lerp(0.55, 1.0, (forca - 0.15) / 0.35)
+	return lerp(ANDAR, CORRIDA, smoothstep(0.5, 0.9, forca))
+
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
+	var n: int = max(1, ceili(dt / SUBPASSO - 0.001))
+	for i in n:
+		_passo(dt / n, mx, mz, correr, livre, vel_k)
+
+func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	if esc != null:
 		passo_escalada(dt, mx, mz)
+		vx = 0.0
+		vz = 0.0
 		return
 	anim = ""
 	passo_vertical(dt)
 	bloqueado = false
-	var mag := Vector2(mx, mz).length()
+	var mag: float = min(1.0, Vector2(mx, mz).length())
+	var ry0 := ry
 	if arrancada != null:
 		var a: Dictionary = arrancada
 		var u: float = 1.0 - a.t / m.movimento.dashTempo
@@ -180,10 +231,45 @@ func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 
 		a.t -= dt
 		if a.t <= 0:
 			arrancada = null
-	elif livre and mag > 0.15:
-		var vel: float = (CORRIDA if correr else ANDAR) * vel_k
-		mover(mx * vel * dt, mz * vel * dt)
-		ry += ad(atan2(mx, mz), ry) * min(1.0, dt * 12.0)
+			# sai do dash correndo na mesma direção (sem parar seco)
+			var sai: float = CORRIDA if mag > 0.5 else 1.5
+			vx = a.dx * sai
+			vz = a.dz * sai
+	else:
+		# velocidade que o joystick pede
+		var alvo := Vector2.ZERO
+		if livre and mag > 0.15:
+			alvo = Vector2(mx, mz).normalized() * vel_joystick(mag) * vel_k
+		var v := Vector2(vx, vz)
+		var k: float
+		if alvo.length() < 0.01:
+			k = FREIA
+		elif v.length() > 0.5 and v.dot(alvo) < 0.0:
+			k = VIRA_FREIA
+		else:
+			k = ACELERA
+		if not chao:
+			k *= NO_AR
+		v = v.move_toward(alvo, k * dt)
+		vx = v.x
+		vz = v.y
+		if v.length() > 0.001:
+			var x0 := x
+			var z0 := z
+			mover(vx * dt, vz * dt)
+			if bloqueado: # bateu: a velocidade fica só no que andou (não acumula contra a parede)
+				vx = (x - x0) / dt
+				vz = (z - z0) / dt
+		# corpo vira para onde o joystick aponta, com giro limitado (sem estalar)
+		if ry_mira != null:
+			var d: float = ad(ry_mira, ry)
+			ry += clamp(d, -GIRO_MIRA * dt, GIRO_MIRA * dt)
+			if abs(d) < 0.02:
+				ry_mira = null
+		elif livre and mag > 0.15:
+			var d2: float = ad(atan2(mx, mz), ry)
+			ry += clamp(d2, -GIRO_MAX * dt, GIRO_MAX * dt)
+	giro = lerp(giro, ad(ry, ry0) / max(dt, 0.0001), min(1.0, dt * 10.0))
 	if livre and chao and arrancada == null and mag > 0.5:
 		tentar_escalar(mx, mz, correr, dt)
 	else:

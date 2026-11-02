@@ -302,6 +302,7 @@ func outro(j: Dictionary) -> void:
 		outros[id] = o
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
+	_amostra(o, o.alvo, o.ry)
 	corpos[id] = o.no
 	if o.barra:
 		o.barra.scale.x = max(0.001, float(j.vida) / max(1.0, float(j.vidaMax)))
@@ -346,6 +347,7 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)
+	_amostra(e, e.alvo, e.ry)
 	if float(c.vida) < float(e.get("vida", c.vida)):
 		e.combate = m.tempo + 5.0 # levou dano: nome aparece por 5 s
 	e.vida = float(c.vida)
@@ -357,10 +359,12 @@ func inimigo(c: Dictionary) -> void:
 	if c.morto and e.estado != "morto":
 		e.estado = "morto"
 		e.anim.play("morrer", 0.1)
+		m.sons.tocar("morte", -2.0, 0.1, e.no.position)
 		_barra_visivel(e, false)
 	elif not c.morto and e.estado == "morto":
 		e.estado = "vivo"
 		e.no.position = e.alvo
+		e.buf = []
 		_barra_visivel(e, true)
 		e.anim.play("espada_parada", 0.2)
 	# atordoado / congelado (vem do servidor): estrelas ou gelo, e o congelado para a animação
@@ -418,8 +422,15 @@ func evento(ev: Dictionary) -> void:
 				var eu: bool = str(ev.alvo) == meu_id
 				var crit: bool = ev.get("crit", false) == true
 				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
+				if eu:
+					m.apanhou()
 				if eu and m.acao.is_empty() and m.mov.esc == null:
 					m.heroi_anim.play("apanhar", 0.05, 1.4)
+				if meu and not eu and float(ev.n) > 0.0:
+					m.piscar(no)
+					# o golpe de espada já deu o tranco na hora; skills e tiros dão aqui, quando o servidor confirma
+					if m.tempo - m._impacto_t > 0.2:
+						m.impacto_golpe(no.position, true, crit, false)
 			return
 		"cura":
 			if str(ev.alvo) != meu_id and corpos.has(str(ev.alvo)):
@@ -476,6 +487,7 @@ func evento(ev: Dictionary) -> void:
 			var no = corpos.get(str(ev.id))
 			if no and no != m.heroi and outros.has(str(ev.id)): # aparece direto lá (sem deslizar)
 				outros[str(ev.id)].alvo = Vector3(x, m.terreno.altura(x, z), z)
+				outros[str(ev.id)].buf = []
 				no.position = outros[str(ev.id)].alvo
 		"impacto":
 			var x := float(ev.x)
@@ -499,6 +511,41 @@ func evento(ev: Dictionary) -> void:
 			if no and no != m.heroi:
 				fx.dash(no, float(ev.get("dur", 0.28)), ev.get("forte", 0) == 1)
 
+# ---------- interpolação de quem vem do servidor ----------
+const ATRASO := 0.1 # s atrás do servidor: sempre tem duas fotos para andar entre elas
+
+func _agora() -> float:
+	return Time.get_ticks_usec() / 1000000.0
+
+func _amostra(o: Dictionary, p: Vector3, ry: float) -> void:
+	if not o.has("buf"):
+		o.buf = []
+	o.buf.append([_agora(), p, ry])
+	while o.buf.size() > 8:
+		o.buf.pop_front()
+
+func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
+	var buf: Array = o.get("buf", [])
+	var t := _agora() - ATRASO
+	if buf.size() < 2 or t >= buf[buf.size() - 1][0] or t < buf[0][0]:
+		# sem duas fotos em volta (começo, ou o servidor atrasou): desliza até a última
+		var k: float = min(1.0, dt * 10.0)
+		no.position = no.position.lerp(o.alvo, k)
+		no.rotation.y = lerp_angle(no.rotation.y, o.get("ry", no.rotation.y), k)
+		return
+	var i := buf.size() - 2
+	while i > 0 and buf[i][0] > t:
+		i -= 1
+	var a: Array = buf[i]
+	var b: Array = buf[i + 1]
+	var u: float = clamp((t - a[0]) / max(0.001, b[0] - a[0]), 0.0, 1.0)
+	var p: Vector3 = (a[1] as Vector3).lerp(b[1], u)
+	if p.distance_to(no.position) > 6.0: # teleporte ou renascer: vai direto
+		no.position = p
+	else:
+		no.position = no.position.lerp(p, min(1.0, dt * 25.0))
+	no.rotation.y = lerp_angle(no.rotation.y, lerp_angle(a[2], b[2], u), min(1.0, dt * 15.0))
+
 # ---------- quadro a quadro ----------
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
@@ -513,17 +560,15 @@ func _passo(dt: float) -> void:
 			rede.iniciar()
 	if not ligado:
 		return
-	# outros jogadores e inimigos deslizam até a posição do servidor (chega 20 vezes por segundo)
-	var k: float = min(1.0, dt * 12.0)
+	# outros jogadores e inimigos: o servidor manda a posição 20 vezes por segundo; aqui eles andam entre as duas
+	# últimas fotos com 0,1 s de atraso (velocidade constante, sem os tranquinhos de antes)
 	for id in outros:
 		var o: Dictionary = outros[id]
-		o.no.position = o.no.position.lerp(o.alvo, k)
-		o.no.rotation.y = lerp_angle(o.no.rotation.y, o.ry, k)
+		_interpolar(o, o.no, dt)
 		o.uma_vez = max(0.0, o.uma_vez - dt)
 	for e in m.inimigos:
 		if e.has("alvo") and e.estado != "morto":
-			e.no.position = e.no.position.lerp(e.alvo, k)
-			e.no.rotation.y = lerp_angle(e.no.rotation.y, e.get("ry", e.no.rotation.y), k)
+			_interpolar(e, e.no, dt)
 			e.uma_vez = max(0.0, e.get("uma_vez", 0.0) - dt)
 	# minha posição (o servidor confere velocidade e altura)
 	_pos_t -= dt

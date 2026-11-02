@@ -14,6 +14,7 @@ const COR_TROCA := Color(0.33, 0.24, 0.12, 0.95)
 const COR_CURA := Color(0.12, 0.3, 0.2, 0.95)
 
 var mover := Vector2.ZERO # joystick (-1..1)
+const JOY_RAIO := 90.0 # px do centro até a borda: andar até a metade, correr no fim (era 60, curto demais)
 var giro_cam := Vector2.ZERO # quanto o dedo da câmera andou neste quadro
 var botoes: Array = [] # {acao, centro (a partir do canto de baixo à direita), raio, icone, cor, cd, cd_max}
 var _toques := {} # índice do dedo -> "joy" | "cam" | acao
@@ -131,10 +132,10 @@ func _input(ev: InputEvent) -> void:
 		var o = _toques.get(ev.index)
 		if o == "joy":
 			_joy_dedo = ev.position
-			var d: Vector2 = (_joy_dedo - _joy_centro) / 60.0
+			var d: Vector2 = (_joy_dedo - _joy_centro) / JOY_RAIO
 			mover = d.limit_length(1.0)
-			if d.length() > 1.6: # o joystick vem atrás do dedo
-				_joy_centro = _joy_dedo - d.normalized() * 60.0 * 1.6
+			if d.length() > 1.4: # o joystick vem atrás do dedo
+				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * 1.4
 		elif o == "cam":
 			giro_cam += ev.relative
 
@@ -176,7 +177,7 @@ func _desenhar() -> void:
 	if _toques.values().has("joy"):
 		_tela.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.12))
 		_tela.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.25), false, 2.0)
-		_tela.draw_circle(_joy_centro + mover * 60.0, 40, Color(1, 1, 1, 0.55))
+		_tela.draw_circle(_joy_centro + mover * JOY_RAIO, 40, Color(1, 1, 1, 0.55))
 	# botões
 	for b in botoes:
 		if b.oculto:

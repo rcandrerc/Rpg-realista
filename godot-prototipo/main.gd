@@ -11,6 +11,10 @@ const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
 const BracoEspada = preload("res://braco_espada.gd")
+const AnimHeroi = preload("res://anim_heroi.gd")
+const CameraHeroi = preload("res://camera_heroi.gd")
+const Sons = preload("res://sons.gd")
+const Inclinar = preload("res://inclinar.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -42,14 +46,14 @@ var mascara: Image
 
 # ---------- herói ----------
 var heroi: Node3D
-var heroi_anim: AnimationPlayer
+var heroi_anim # anim_heroi.gd: AnimationTree com locomoção misturada e ações por cima (mesma cara do AnimationPlayer)
 var heroi_esq: Skeleton3D
 var espada: Node3D
 var cajado: Node3D
 var mao_direita := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
-	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0}
+	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false}
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -61,12 +65,23 @@ var inimigos: Array = []
 var npcs: Array = []
 var extras: Array = []
 
-var yaw := 0.6
-var pitch := 0.35
-var dist := 5.2
-var alvo_cam := Vector3.ZERO
-var dist_cam := 5.2
-var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada # distância de verdade (menor quando algo fica entre o herói e a câmera)
+var cam # camera_heroi.gd: segue com mola, vai para as costas correndo, treme no golpe
+var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada
+var inclinar # inclinar.gd: tronco inclina na curva e o quadril afunda no pouso
+var sons # sons.gd
+# sensação do combate (ajuste aqui testando no celular)
+const FILA_TEMPO := 0.3 # s que um botão apertado na hora errada fica guardado esperando poder sair
+const FILA_PULO := 0.15 # o pulo apertado pouco antes de pousar sai no pouso
+const HITSTOP := 0.05 # s de congelada no golpe que acerta
+const HITSTOP_FORTE := 0.085 # 4º golpe do combo, skill e crítico
+const TREME := 0.22
+const TREME_FORTE := 0.38
+var fila = null # botão guardado: {q, ate}
+var _hitstop_ate := 0.0
+var _impacto_quadro := -1
+var _passo_dist := 0.0 # metros andados desde o último som de passo
+var _quadril := 0.0 # afundada do quadril no pouso (m)
+var _flash := {} # Node3D do inimigo -> {mat, t}
 
 # teste de desempenho
 var etapas := []
@@ -113,10 +128,13 @@ func _ready() -> void:
 	for n in mundo.get("npcs", []):
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
-	camera.fov = 52
 	camera.far = 400
 	add_child(camera)
-	alvo_cam = heroi.position + Vector3(0, 1.35, 0)
+	cam = CameraHeroi.new(self, camera)
+	cam.colocar(heroi.position)
+	sons = Sons.new()
+	add_child(sons)
+	sons.ouvinte = heroi
 	hud = Hud.new()
 	add_child(hud)
 	hud.apertou.connect(usar)
@@ -307,7 +325,7 @@ func nova_arma(nome: String) -> Node3D:
 func criar_heroi() -> void:
 	heroi = modelo("ruiva")
 	heroi.position = D.NASCIMENTO
-	heroi_anim = heroi.find_child("AnimationPlayer", true, false)
+	heroi_anim = AnimHeroi.new(heroi.find_child("AnimationPlayer", true, false))
 	heroi_esq = esqueleto(heroi)
 	mao_direita = heroi_esq.find_bone(armas_lugar.ruiva.espadaMao.osso)
 	mov.por_em(D.NASCIMENTO)
@@ -319,6 +337,10 @@ func criar_heroi() -> void:
 	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
 	var L: Dictionary = armas_lugar.ruiva.espadaMao
 	braco.preparar(heroi_esq, Basis(Quaternion(L.quat[0], L.quat[1], L.quat[2], L.quat[3])))
+	inclinar = Inclinar.new()
+	heroi_esq.add_child(inclinar)
+	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
+	inclinar.preparar(heroi_esq)
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -527,6 +549,9 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	e.vida -= dmg
 	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
 	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
+	var basico_hab: bool = hab is Dictionary and hab.has("combo")
+	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
+	piscar(e.no)
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
@@ -540,6 +565,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		e.parado = 0.0
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
+		sons.tocar("morte", -2.0, 0.1, e.no.position)
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = false
 		e.barra.visible = false
 		var subiu: String = P.ganhar_xp(int(P.dados.xpInimigo.get(e.tipo, 5)))
@@ -570,13 +596,74 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	e.t = 0.45
 	e.anim.play("apanhar", 0.05, 1.6)
 
+# ---------- peso do golpe: congelada, tremida, flash, som e vibração ----------
+# Golpe que acertou (uma vez por quadro, mesmo pegando vários inimigos). forte = último do combo ou skill.
+var _impacto_t := -9.0
+func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool) -> void:
+	if _impacto_quadro == Engine.get_process_frames():
+		return
+	_impacto_quadro = Engine.get_process_frames()
+	_impacto_t = tempo
+	var pesado := forte or crit
+	parar_golpe(HITSTOP_FORTE if pesado else HITSTOP)
+	cam.tremer(TREME_FORTE if pesado else TREME)
+	sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
+	if lamina:
+		sons.tocar("corte", -7.0, 0.1, pos)
+		# faíscas do corte no ponto do golpe
+		var p := pos + Vector3(0, 1.05, 0) - frente() * 0.25
+		fx.surto(p.x, p.y, p.z, 14 if pesado else 9, "ffffff", "ffd27a", 6.0 if pesado else 4.5, 0.08)
+	vibrar(40 if pesado else 22)
+
+# tudo para por um instante (Engine.time_scale), como nos jogos de ação; volta pelo relógio de verdade
+func parar_golpe(seg: float) -> void:
+	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
+	Engine.time_scale = 0.05
+
+func vibrar(ms: int) -> void:
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(ms)
+
+# inimigo pisca branco por um instante quando apanha
+func piscar(no: Node3D) -> void:
+	if not is_instance_valid(no):
+		return
+	var f = _flash.get(no)
+	if f == null:
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(1, 1, 1, 0)
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		var malhas := []
+		for mi in no.find_children("*", "MeshInstance3D", true, false):
+			if not (mi.mesh is QuadMesh): # o corpo, não a barra de vida
+				malhas.append(mi)
+		f = {"mat": mat, "t": 0.0, "malhas": malhas}
+		_flash[no] = f
+	f.t = 0.11
+	for mi in f.malhas:
+		mi.material_overlay = f.mat
+
+func _flash_passo(dt: float) -> void:
+	for no in _flash.keys():
+		var f: Dictionary = _flash[no]
+		if f.t <= 0.0:
+			continue
+		f.t -= dt
+		f.mat.albedo_color.a = clamp(f.t / 0.11, 0.0, 1.0) * 0.85
+		if f.t <= 0.0:
+			for mi in f.malhas:
+				if is_instance_valid(mi):
+					mi.material_overlay = null
+
 func dano_area(pos: Vector3, raio: float, dmg: float, hab = null) -> void:
 	for e in inimigos.duplicate():
 		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio:
 			ferir(e, dmg, pos, hab)
 
 func dano_arco(alcance: float, arco: float, dmg: float, hab = null) -> Array:
-	var frente := Vector3(sin(heroi.rotation.y), 0, cos(heroi.rotation.y))
+	var frente := frente()
 	var acertou := []
 	for e in inimigos.duplicate():
 		if e.estado == "morto":
@@ -594,11 +681,12 @@ func virar_para_inimigo() -> void:
 	var e = mais_perto(heroi.position, 8.0)
 	if e:
 		var d: Vector3 = e.no.position - heroi.position
-		mov.ry = atan2(d.x, d.z)
-		heroi.rotation.y = mov.ry
+		mov.mirar(atan2(d.x, d.z))
 
+# para onde o herói está virado (ou virando: o golpe já mira no alvo enquanto o corpo gira)
 func frente() -> Vector3:
-	return Vector3(sin(heroi.rotation.y), 0, cos(heroi.rotation.y))
+	var r: float = mov.direcao()
+	return Vector3(sin(r), 0, cos(r))
 
 func ponto_mao() -> Vector3:
 	return heroi_esq.global_transform * heroi_esq.get_bone_global_pose(mao_direita).origin
@@ -619,26 +707,38 @@ func rede(tipo: String, dados = null) -> void:
 func pode_agir() -> bool:
 	return h.morto <= 0.0 and acao.is_empty() and mov.esc == null
 
+# Botão apertado. Se não dá para fazer agora (golpe ainda no fim, no ar, recarga quase acabando), o botão fica
+# guardado um instante (fila) e sai assim que der: o combo e as skills emendam sem perder toque.
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe básico
+	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
 			cancelar_canal()
-		elif acao.get("basico", false):
-			acao = {}
+		elif acao.get("basico", false) or (acao.get("cancela", false) and acao.feitos >= acao.hits.size()):
+			acao = {} # golpe que já acertou: esquiva na hora
+	if _tentar(qual):
+		fila = null
+	elif qual != "troca" and qual != "menu" and qual != "loja":
+		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
+
+# tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
+func _tentar(qual: String) -> bool:
 	match qual:
 		"basico":
 			h.segurando = true
-			basico()
+			return basico()
 		"troca":
 			armar("Magia" if h.modo == "Espada" else "Espada")
 			rede("modo", h.modo)
 			mostrar_build()
 			hud.aviso("Modo espada" if h.modo == "Espada" else "Modo magia")
+			sons.tocar("sacar", -4.0)
 		"cura":
-			if not pode_agir() or recargas.get("cura", 0.0) > 0.0 or h.mana < D.CURA.mana:
-				return
+			if recargas.get("cura", 0.0) > FILA_TEMPO or h.mana < D.CURA.mana:
+				return true
+			if not pode_agir() or recargas.get("cura", 0.0) > 0.0:
+				return false
 			h.mana -= D.CURA.mana
 			recargas["cura"] = D.CURA.cd
 			rede("habilidade", 9)
@@ -649,32 +749,45 @@ func usar(qual: String) -> void:
 				fx.numero(heroi.position, D.CURA.cura, Color("7dffa0")))
 		"pular":
 			if not acao.is_empty() and not acao.get("pulo", false):
-				return
+				return false
 			var p: String = mov.pular()
-			if p != "":
-				rede("pular")
-				acao = {}
-				heroi_anim.play(p, 0.06, 1.2)
+			if p == "":
+				return false # no ar sem pulo sobrando: se pousar logo, pula no pouso
+			rede("pular")
+			acao = {}
+			heroi_anim.play(p, 0.06, 1.2)
+			sons.tocar("pano", -8.0)
+			if p == "mortal":
+				sons.tocar("golpe", -6.0, 0.05, null, 0.7)
 		"dash":
+			if recargas.get("dash", 0.0) > FILA_TEMPO:
+				return true
 			if recargas.get("dash", 0.0) > 0.0 or not acao.is_empty() or mov.esc != null:
-				return
+				return false
 			var dir := direcao_joystick()
 			var na_parede: bool = mov.dash(dir.x, dir.z)
 			if mov.esc == null and mov.arrancada == null:
-				return
+				return true # não deu (já usou o dash no ar)
 			recargas["dash"] = D.MOVIMENTO.dash_cd
 			rede("dash")
 			if not na_parede:
 				fx.dash(heroi, D.MOVIMENTO.dash_tempo, false)
+			heroi.rotation.y = mov.ry
 		"rolar":
+			if recargas.get("rolar", 0.0) > FILA_TEMPO:
+				return true
 			if not pode_agir() or recargas.get("rolar", 0.0) > 0.0 or not mov.chao:
-				return
+				return false
 			recargas["rolar"] = D.HEROI.rolar_cd
 			rede("rolar")
 			var dir := direcao_joystick()
 			if dir.length() > 0.1:
 				mov.ry = atan2(dir.x, dir.z)
+				mov.ry_mira = null
+				heroi.rotation.y = mov.ry
 			comecar("rolar", 1.15, [], func(_i): pass, {"anda": 6.0})
+			sons.tocar("pano", -4.0)
+			sons.tocar("dash", -10.0, 0.1, null, 0.8)
 		"menu":
 			menu.abrir()
 		"loja":
@@ -682,7 +795,8 @@ func usar(qual: String) -> void:
 			menu.abrir("loja")
 		_:
 			if qual.begins_with("hab"):
-				habilidade(int(qual.substr(3)))
+				return habilidade(int(qual.substr(3)))
+	return true
 
 # ---------- skills do Quimera (progresso.gd / shared/progresso.js; cada tipo = uma função do Quimera) ----------
 # a barra da arma na mão (Trocar mostra a outra)
@@ -695,8 +809,7 @@ func vivo(e) -> bool:
 func virar_para(e) -> void:
 	if vivo(e):
 		var d: Vector3 = e.no.position - heroi.position
-		mov.ry = atan2(d.x, d.z)
-		heroi.rotation.y = mov.ry
+		mov.mirar(atan2(d.x, d.z)) # vira em ~0,1 s (antes estalava na hora)
 
 # toca a animação durando dur segundos; hits em segundos (como as skills do Quimera)
 func comecar_q(nome: String, dur: float, hits: Array, ao_acertar: Callable, extra := {}) -> void:
@@ -711,16 +824,17 @@ func sem_alvo() -> void:
 		hud.aviso("Longe demais" if mais_perto(heroi.position, 40.0) else "Nenhum inimigo por perto")
 
 # Golpe básico da arma na mão. Não trava: dá para andar enquanto bate (como no Quimera)
-func basico() -> void:
+func basico() -> bool:
 	if acao.get("basico", false) and acao.t >= acao.fim: # o golpe anterior já acabou (só segura a pose): emenda
 		acao = {}
 	if h.morto > 0.0 or mov.esc != null or not acao.is_empty() or recargas.get("basico", 0.0) > 0.0:
-		return
+		return false
 	h.ultimo_basico = tempo
 	if h.modo == "Espada":
 		basico_espada()
 	else:
 		basico_magia()
+	return true
 
 # Espada: combo de 4 cortes (0,48 s cada, volta ao 1º depois de 0,8 s sem bater). Alvo longe (até 12 m): corre até ele
 func basico_espada() -> void:
@@ -744,11 +858,21 @@ func basico_espada() -> void:
 	h.combo_fim = tempo + g.dur
 	recargas["basico"] = max(hab.cd, g.dur) # o 4º golpe é mais longo: o próximo espera ele terminar
 	rede("habQ", "espada_basico")
+	var ultimo: bool = i == hab.combo.size() - 1
 	comecar_q(g.anim, g.dur, [g.hit], func(_k):
+		h.golpe_forte = ultimo # o último corte do combo pesa mais (congela e treme mais)
 		var acertou := dano_arco(hab.alcance, hab.arco, hab.dmg, hab)
 		if acertou.is_empty() and vivo(alvo) and alvo.no.position.distance_to(heroi.position) < 3.6:
 			ferir(alvo, hab.dmg, heroi.position, hab)
+			if on():
+				acertou.append(alvo.no.position)
+		h.golpe_forte = false
+		if not acertou.is_empty() and on(): # online o dano vem do servidor, mas a sensação do corte é na hora
+			impacto_golpe(acertou[0], ultimo, false, true)
 		acertou.clear(), {"cancela": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
+	# vento da lâmina um pouco antes do corte
+	var vento_t: float = max(0.0, g.hit - 0.12)
+	fx.agenda.append({"t": vento_t, "fn": func(): sons.tocar("golpe", -3.0 if ultimo else -5.0, 0.08, null, 0.85 if ultimo else 1.0)})
 	segurar_pose(0.35)
 
 # Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
@@ -765,6 +889,7 @@ func basico_magia() -> void:
 	recargas["basico"] = hab.cd
 	rede("habQ", "cajado_basico")
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
+	heroi_anim.so_tronco = true # andando, as pernas continuam no passo e só os braços atiram
 	segurar_pose(0.35)
 
 # o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
@@ -799,24 +924,26 @@ func alvo_hab(hab: Dictionary):
 	return null
 
 # Botão i da barra da arma na mão
-func habilidade(i: int) -> void:
+func habilidade(i: int) -> bool:
 	var k = barra_atual()[i]
 	if k == null or not P.habs.has(k):
 		hud.aviso("Escolha uma skill no menu do personagem")
-		return
+		return true
 	if not P.liberada(k):
 		hud.aviso("Libera no nível %d" % int(P.habs[k].libera))
-		return
+		return true
+	if recargas.get(k, 0.0) > FILA_TEMPO:
+		return true
 	if h.morto > 0.0 or mov.esc != null or not mov.chao or not acao.is_empty() or recargas.get(k, 0.0) > 0.0:
-		return # como no Quimera: não corta uma skill no meio
+		return false # como no Quimera: não corta uma skill no meio (fica na fila e sai quando a outra acabar)
 	var hab: Dictionary = P.hab_pronta(k)
 	if h.mana < hab.get("mana", 0):
 		hud.aviso("Mana insuficiente")
-		return
+		return true
 	var alvo = alvo_hab(hab)
 	if alvo is bool:
 		sem_alvo()
-		return
+		return true
 	h.pend = null
 	h.mana -= hab.get("mana", 0)
 	virar_para(alvo)
@@ -831,10 +958,11 @@ func habilidade(i: int) -> void:
 			recargas[k] = hab.cd
 			contar_offline(k)
 			soltar(k, hab, alvo if vivo(alvo) else alvo_hab(hab), dir), {"canal": true, "hab": k, "mana": hab.get("mana", 0)})
-		return
+		return true
 	recargas[k] = hab.cd
 	contar_offline(k)
 	soltar(k, hab, alvo, dir)
+	return true
 
 func contar_offline(k: String) -> void:
 	if not on():
@@ -1008,10 +1136,14 @@ func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
 	if m.length() < 0.15:
 		return Vector3.ZERO
-	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, yaw)
+	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
 # ---------- quadro a quadro ----------
 func _process(dt: float) -> void:
+	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
+	var dt_real: float = dt / max(Engine.time_scale, 0.001)
+	if Engine.time_scale < 1.0 and Time.get_ticks_usec() / 1000000.0 >= _hitstop_ate:
+		Engine.time_scale = 1.0
 	tempo += dt
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
@@ -1020,26 +1152,14 @@ func _process(dt: float) -> void:
 		atualizar_inimigos(dt)
 	barras_perto()
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
-	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"]
+	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
-	# câmera em volta do herói (arrastar o dedo do lado direito gira)
+	_flash_passo(dt_real)
+	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
-	yaw -= g.x * 0.006
-	pitch = clamp(pitch + g.y * 0.004, -0.3, 1.1)
-	var alvo := heroi.position + Vector3(0, 1.35, 0)
-	alvo_cam = alvo_cam.lerp(alvo, min(1.0, dt * 7.0))
-	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
-	var livre := distancia_livre(alvo_cam, dir_cam, dist)
-	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
-	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
-	# muito perto (parede atrás): a câmera sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado
-	var ombro: float = clamp((1.3 - dist_cam) / 0.7, 0.0, 1.0)
-	var lado_cam := Vector3(cos(yaw), 0, -sin(yaw))
-	var foco := alvo_cam + Vector3(0, 0.62 * ombro, 0) - lado_cam * 0.42 * ombro # ombro esquerdo: o cajado nas costas fica do lado direito
-	camera.position = foco + dir_cam * max(dist_cam, 0.6)
-	camera.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
+	cam.atualizar(min(dt_real, 0.1), g)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
@@ -1083,6 +1203,12 @@ func atualizar_heroi(dt: float) -> void:
 		h.escudo = 0.0
 	if h.segurando and tempo - h.ultimo_basico > 0.2:
 		basico()
+	# botão guardado na fila: sai assim que der
+	if fila != null:
+		if tempo > fila.ate:
+			fila = null
+		elif _tentar(fila.q):
+			fila = null
 	var dir := direcao_joystick()
 	var forca: float = hud.mover.length()
 	# espada: tocou o golpe com o alvo longe, corre até ele e bate quando chega (o joystick cancela)
@@ -1154,10 +1280,10 @@ func atualizar_heroi(dt: float) -> void:
 	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
-	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null, h.vel_k)
+	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
-		mov.ry = atan2(da.x, da.z)
+		mov.mirar(atan2(da.x, da.z))
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
 	# armas: escalando, as duas nas costas
@@ -1188,12 +1314,11 @@ func atualizar_heroi(dt: float) -> void:
 			a = "pulo" if mov.pulos == 1 and mov.vy > 0 and mov.pulo_t < 0.45 else "queda"
 		elif mov.pouso > 0.0 and dir.length() < 0.15:
 			a = "pouso"
-		elif dir.length() > 0.15:
-			a = "corrida" if forca >= 0.55 else "andar"
+		elif dir.length() > 0.15 or mov.velocidade() > 0.6:
+			# a mistura parada/andar/corrida vem da velocidade de verdade (anim_heroi.gd); o nome é para o servidor
+			a = "corrida" if mov.velocidade() > 3.2 else "andar"
 		else:
 			a = "parada" if h.modo == "Magia" else "espada_parada"
-		if not estava_no_chao and mov.chao and a != "pouso":
-			pass
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
 			# andar e correr no ritmo da velocidade: o pé acompanha o chão (sem parecer que desliza)
 			heroi_anim.play(a, 0.15, ritmo(a) if mov.arrancada == null else 1.0)
@@ -1207,6 +1332,45 @@ func atualizar_heroi(dt: float) -> void:
 		lamina = [espada.global_transform * Vector3(0, 0.2, 0), espada.global_transform * Vector3(0, 0.92, 0)]
 	fx.corpo_passo(heroi, dt, mov.arrancada != null, lamina)
 	sol.global_position = heroi.position
+	corpo_vivo(dt, estava_no_chao)
+
+# o que dá peso ao corpo: mistura da locomoção, inclinar na curva, afundar no pouso e o som dos passos
+func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
+	var vel: float = mov.velocidade()
+	var vel_anim: float = vel
+	if mov.arrancada != null:
+		vel_anim = mov.CORRIDA * 1.2
+	elif not mov.chao or mov.esc != null:
+		vel_anim = 0.0
+	heroi_anim.atualizar(dt, vel_anim)
+	# inclina para dentro da curva correndo (giro em rad/s x velocidade)
+	var incl := 0.0
+	if mov.chao and mov.esc == null and acao.is_empty():
+		incl = clamp(-mov.giro * vel * 0.02, -0.22, 0.22)
+	inclinar.inclinacao = lerp(inclinar.inclinacao, incl, min(1.0, dt * 8.0))
+	# pouso: câmera e quadril afundam, poeira e som (mesmo correndo)
+	if mov.pousou > 0.0:
+		var q: float = mov.pousou
+		mov.pousou = 0.0
+		cam.afundar(0.05 + q * 0.12)
+		_quadril = 0.04 + q * 0.08
+		sons.tocar("pouso_forte" if q > 0.6 else "pouso", -6.0 + q * 5.0, 0.08)
+		fx.fumaca_chao(heroi.position.x, heroi.position.z, 0.5 + q * 0.5, int(4 + q * 8), "9a948a", 0.6 + q * 0.6)
+		if q > 0.6:
+			vibrar(25)
+	elif mov.chao and not estava_no_chao:
+		sons.tocar("pouso", -10.0, 0.08)
+	_quadril = move_toward(_quadril, 0.0, dt * 0.5)
+	inclinar.afunda = _quadril
+	# passos: um som a cada passada (mais longa correndo), só no chão
+	if mov.chao and mov.esc == null and vel > 0.5:
+		_passo_dist += vel * dt
+		var passada: float = lerp(0.75, 1.45, clamp((vel - 1.8) / 3.6, 0.0, 1.0))
+		if _passo_dist >= passada:
+			_passo_dist = 0.0
+			sons.tocar("passo", -14.0 + vel * 1.4, 0.12)
+	else:
+		_passo_dist = 0.6
 
 # monstros não entram uns nos outros: 1,2 m entre os centros (raio de uns 0,6 m cada), como Simulacao.colidir
 const SEPARACAO := 1.2
@@ -1388,12 +1552,19 @@ func ferir_heroi(dmg: float) -> void:
 			return
 	h.vida -= dmg
 	fx.numero(heroi.position, dmg, Color(1, 0.45, 0.4))
+	apanhou()
 	if h.vida <= 0.0:
 		h.vida = 0.0
 		h.morto = D.HEROI.renascer
 		acao = {}
 		heroi_anim.play("morrer", 0.1)
 		hud.aviso("Você caiu! Voltando...")
+
+# o herói levou dano: tranco na câmera, som e vibração (offline e online)
+func apanhou() -> void:
+	cam.tremer(0.45)
+	sons.tocar("apanhar", -2.0, 0.1)
+	vibrar(60)
 
 # ---------- teste de desempenho (botão Teste) ----------
 func montar_teste() -> void:
