@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, CRIADOR, NOME } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
@@ -49,6 +49,8 @@ const habs = {
   // mochila, equipamento e loja (shared/dados.js)
   nivelSemTomo: NIVEL_SEM_TOMO, itens: ITENS, raridades: RARIDADES.map((r) => ({ nome: r.nome, cor: cor(r.cor) })), lugares: LUGARES, mochila: MOCHILA,
   conjunto: CONJUNTO, vendaEquip: VENDA_EQUIP, vendaTomo: VENDA_TOMO, romano: ROMANO, loja: LOJA, lojaDistancia: LOJA_DISTANCIA,
+  // criador de personagem: cores (número 0xRRGGBB, null = original), altura e formato do rosto; nome de 3 a 16 letras
+  criador: CRIADOR, nome: NOME,
 };
 const faltam = Object.entries(habs.habs).flatMap(([k, h]) => [h.anim, ...(h.combo || []).map((c) => c.anim)].filter((a) => a && !anims[a]).map((a) => k + ':' + a));
 if (faltam.length) console.log('ATENÇÃO, animação sem nome no Godot:', faltam.join(', '));
