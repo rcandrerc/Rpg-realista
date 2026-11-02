@@ -70,10 +70,12 @@ jobs:
           if [ -n "$KS_B64" ]; then
             echo "$KS_B64" | base64 -d > /tmp/rpg.keystore
             SENHA="$KS_SENHA"
-            ALIAS="${KS_ALIAS:-rpg}"
+            ALIAS="${KS_ALIAS:-prototipo}"
+            echo "TEM_CHAVE=1" >> $GITHUB_ENV
           else
-            # sem os secrets: chave descartável (para instalar o próximo APK, desinstale o anterior)
-            echo "::warning::Sem ANDROID_KEYSTORE_BASE64 nos Secrets: APK assinado com chave descartável (ver ferramentas/apk/LEIAME.md)"
+            # sem os secrets: chave descartável só para conferir que o build funciona. Esse APK NÃO vai para o release:
+            # com outra chave o login Google não abre e o celular não instala por cima.
+            echo "::warning::Sem ANDROID_KEYSTORE_BASE64 nos Secrets: APK de teste com chave descartável, sem login Google (ver ferramentas/apk/LEIAME.md)"
             SENHA=$(openssl rand -hex 16)
             ALIAS=rpg
             keytool -genkeypair -keystore /tmp/rpg.keystore -alias $ALIAS -keyalg RSA -keysize 2048 -validity 10000 \
@@ -92,13 +94,15 @@ jobs:
           $GODOT_BIN --headless --import || true
           $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
           ls -la $GITHUB_WORKSPACE/rpg-realista.apk
+          # SHA-1 da assinatura (o login Google exige 08:B6:1B:...:0D:CC, a chave oficial)
+          $(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner verify --print-certs $GITHUB_WORKSPACE/rpg-realista.apk | grep -i "SHA-1"
       - uses: actions/upload-artifact@v4
         with:
           name: rpg-realista-apk
           path: rpg-realista.apk
           retention-days: 14
       - name: Publicar no release "apk"
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.TEM_CHAVE == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
