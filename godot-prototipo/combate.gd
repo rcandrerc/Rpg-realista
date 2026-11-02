@@ -21,7 +21,7 @@ var fx
 var _corpos := {} # Node3D do monstro -> estado (mola, brilho, morte)
 var _mat_preparo: ShaderMaterial
 var _mat_firme: ShaderMaterial
-var _arco_mat: StandardMaterial3D
+var _arco_sh: Shader
 var _arco_malha: Mesh
 
 # brilho só na borda do corpo (fresnel): o miolo do monstro continua com a cor e a sombra dele (direção de arte)
@@ -39,17 +39,33 @@ void fragment() {
 const BRILHO_MAX := 0.62
 const ARCO_COR := Color("c2401a")
 const ARCO_ALFA := 0.4
+const ARCO_R0 := 0.4
+const ARCO_R1 := 1.8 # m: alcance do golpe
+# arco do preparo (direção de arte): só contorno de fora (8 cm, alfa 0,45) e um degradê por dentro que vai de 0
+# no monstro até 0,15 na ponta, e avança para fora conforme o preparo (mostra o tempo até o golpe)
+const SH_ARCO := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec4 cor : source_color = vec4(0.76, 0.25, 0.1, 1.0);
+uniform float prog = 0.0;
+uniform float aparece = 0.0;
+uniform float borda_k = 0.057;
+void fragment() {
+	float r = UV.x;
+	float borda = step(1.0 - borda_k, r) * 0.45;
+	float miolo = r * 0.15 * step(r, prog);
+	ALBEDO = cor.rgb;
+	ALPHA = max(borda, miolo) * aparece;
+}
+"""
 
 func _init(principal) -> void:
 	m = principal
 	fx = m.fx
 	_mat_preparo = _brilho_mat(Color(1.0, 0.12, 0.05))
 	_mat_firme = _brilho_mat(Color(1.0, 0.55, 0.1))
-	_arco_mat = StandardMaterial3D.new()
-	_arco_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_arco_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_arco_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_arco_mat.vertex_color_use_as_albedo = true
+	_arco_sh = Shader.new()
+	_arco_sh.code = SH_ARCO
 	_arco_malha = _malha_arco()
 
 func _brilho_mat(cor: Color) -> ShaderMaterial:
@@ -65,16 +81,16 @@ func _malha_arco() -> Mesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var N := 24
-	var r0 := 0.55
-	var r1 := 2.2
+	var r0 := ARCO_R0
+	var r1 := ARCO_R1
 	var abre := deg_to_rad(55.0)
 	for i in N:
 		var a0: float = -abre + 2.0 * abre * i / N
 		var a1: float = -abre + 2.0 * abre * (i + 1) / N
 		var p := [Vector3(sin(a0) * r0, 0, cos(a0) * r0), Vector3(sin(a0) * r1, 0, cos(a0) * r1), Vector3(sin(a1) * r0, 0, cos(a1) * r0), Vector3(sin(a1) * r1, 0, cos(a1) * r1)]
-		var c := [Color(ARCO_COR, 0.35), Color(ARCO_COR, 1.0), Color(ARCO_COR, 0.35), Color(ARCO_COR, 1.0)] # mais forte na ponta do alcance
+		var uv := [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)] # x: 0 no monstro, 1 na ponta
 		for k in [0, 1, 2, 1, 3, 2]:
-			st.set_color(c[k])
+			st.set_uv(uv[k])
 			st.add_vertex(p[k])
 	return st.commit()
 
@@ -124,7 +140,11 @@ func preparo(no: Node3D, dur: float) -> void:
 	if c.arco == null:
 		var a := MeshInstance3D.new()
 		a.mesh = _arco_malha
-		a.material_override = _arco_mat.duplicate()
+		var am := ShaderMaterial.new()
+		am.shader = _arco_sh
+		am.set_shader_parameter("cor", ARCO_COR)
+		am.set_shader_parameter("borda_k", 0.08 / (ARCO_R1 - ARCO_R0))
+		a.material_override = am
 		a.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		no.add_child(a)
 		c.arco = a
@@ -240,19 +260,22 @@ func passo(dt: float) -> void:
 		# brilho na borda: preparo (vermelho crescendo, com o arco no chão) ou firme (laranja pulsando)
 		var mat: ShaderMaterial = null
 		var arco_a := 0.0
+		var arco_prog := 0.0
 		if c.preparo > 0.0:
 			c.preparo -= dt
 			var f: float = 1.0 - clamp(c.preparo / max(0.05, c.preparo_dur), 0.0, 1.0)
 			_mat_preparo.set_shader_parameter("forca", 0.12 + (BRILHO_MAX - 0.12) * f * f)
 			mat = _mat_preparo
-			arco_a = ARCO_ALFA * clamp(f * 2.5, 0.0, 1.0)
+			arco_a = clamp(f * 4.0, 0.0, 1.0)
+			arco_prog = f
 		elif c.firme > 0.0:
 			c.firme -= dt
 			_mat_firme.set_shader_parameter("forca", 0.4 + 0.15 * sin(m.tempo * 14.0))
 			mat = _mat_firme
 		if c.arco != null and is_instance_valid(c.arco):
 			c.arco.visible = arco_a > 0.0
-			c.arco.material_override.albedo_color = Color(1, 1, 1, arco_a)
+			c.arco.material_override.set_shader_parameter("aparece", arco_a)
+			c.arco.material_override.set_shader_parameter("prog", arco_prog)
 		if c.get("firme_txt_t", 0.0) > 0.0 and c.firme_txt != null and is_instance_valid(c.firme_txt):
 			c.firme_txt_t -= dt
 			var a: float = clamp(c.firme_txt_t / 0.6, 0.0, 1.0)

@@ -758,7 +758,9 @@ func vibrar(ms: int) -> void:
 	if OS.has_feature("mobile") and vibracao:
 		Input.vibrate_handheld(ms)
 
-# inimigo pisca branco por um instante quando apanha
+# inimigo pisca branco por um instante quando apanha (direção de arte: no máximo 55% para branco, 0,06 s; era 85% e 0,11 s)
+const FLASH_DUR := 0.06
+const FLASH_MAX := 0.55
 func piscar(no: Node3D) -> void:
 	if not is_instance_valid(no):
 		return
@@ -775,7 +777,7 @@ func piscar(no: Node3D) -> void:
 				malhas.append(mi)
 		f = {"mat": mat, "t": 0.0, "malhas": malhas}
 		_flash[no] = f
-	f.t = 0.11
+	f.t = FLASH_DUR
 	for mi in f.malhas:
 		mi.material_overlay = f.mat
 
@@ -785,7 +787,7 @@ func _flash_passo(dt: float) -> void:
 		if f.t <= 0.0:
 			continue
 		f.t -= dt
-		f.mat.albedo_color.a = clamp(f.t / 0.11, 0.0, 1.0) * 0.85
+		f.mat.albedo_color.a = clamp(f.t / FLASH_DUR, 0.0, 1.0) * FLASH_MAX
 		if f.t <= 0.0:
 			for mi in f.malhas:
 				if is_instance_valid(mi):
