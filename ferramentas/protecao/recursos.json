@@ -1,0 +1,31 @@
+{
+  "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
+  "recursos": [
+    { "nome": "Movimento com inércia (PR #53)", "arquivo": "godot-prototipo/andar.gd", "contem": ["# inércia: velocidade de verdade no chão", "const CORRIDA := 5.4"] },
+    { "nome": "Corpo inclina nas curvas (PR #53)", "arquivo": "godot-prototipo/inclinar.gd", "contem": ["func _process_modification()"] },
+    { "nome": "Sons do combate e dos passos (PR #53)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar("] },
+    { "nome": "Câmera nova por cima do ombro (PR #52/#53)", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["func tremer(", "func afundar("] },
+    { "nome": "Escalada no app (andar.gd)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func tentar_escalar(", "func pegar_escada(", "func subir_no_topo("] },
+    { "nome": "Espada planta o pé e joystick cancela (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["# golpe de espada e skills plantam o pé"] },
+    { "nome": "Magia concentrada cancela e devolve 70% (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["devolve 70% da mana"] },
+    { "nome": "Passada sincronizada com a velocidade (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["var passada: float = lerp(0.75, 1.45"] },
+    { "nome": "Monstros do Bestiário Puglin e Imp (PR #48)", "arquivo": "godot-prototipo/main.gd", "contem": ["\"tipo\": \"puglin\"", "\"tipo\": \"imp\""] },
+    { "nome": "Resolução automática e FPS na tela", "arquivo": "godot-prototipo/main.gd", "contem": ["get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO", "Engine.get_frames_per_second()"] },
+    { "nome": "Folhagem some perto da câmera (PR #52/#57)", "arquivo": "godot-prototipo/main.gd", "contem": ["distance_fade_min_distance"] },
+    { "nome": "Loja da Rosa e poções (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["func perto_da_loja()", "func usar_pocao(", "func mostrar_drop("] },
+    { "nome": "Menu do personagem com abas (PR #50/#52/#57)", "arquivo": "godot-prototipo/menu.gd", "contem": ["[\"status\", \"Status\"]", "[\"habilidades\", \"Habilidades\"]", "[\"mochila\", \"Mochila\"]", "[\"profissoes\", \"Profissões\"]", "[\"loja\", \"Loja\"]", "func montar_habilidades("] },
+    { "nome": "Mochila, equipamento e Tomos (PR #52)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func equipar(", "func usar_tomo(", "func preco_venda(", "func conjunto_ativo("] },
+    { "nome": "Vigor e profissões (PR #57)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func vigor()", "func prof_nivel("] },
+    { "nome": "Estamina, coleta e forja (PR #57)", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["func passo_estamina(", "func tocar_botao()", "func perto_oficina(", "func coletou("] },
+    { "nome": "Minérios facetados e cristal (PR #60/#61)", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["minerio.gdshader", "cristal.gdshader"] },
+    { "nome": "Botões de coletar e forja na HUD (PR #57)", "arquivo": "godot-prototipo/hud.gd", "contem": ["_botao(\"coletar\"", "_botao(\"forja\"", "var estamina :="] },
+    { "nome": "Login Google dentro do app (PR #50)", "arquivo": "godot-prototipo/rede.gd", "contem": ["func entrar_com_google()", "func trocar_conta()", "func entrar_pelo_site()"] },
+    { "nome": "Tela de login com a capa do Aethra (PR #56)", "arquivo": "godot-prototipo/online.gd", "contem": ["capa_aethra"] },
+    { "nome": "Online fluindo: outros jogadores e mobs interpolados", "arquivo": "godot-prototipo/online.gd", "contem": ["func _interpolar(", "func atualizar_status("] },
+    { "nome": "Servidor: ligar o app à conta Google (PR #47)", "arquivo": "server/index.js", "contem": ["app.post('/conta/vincular'"] },
+    { "nome": "Servidor: mensagens do jogo", "arquivo": "server/index.js", "contem": ["this.ouvir('habilidade'", "this.ouvir('item'", "this.ouvir('coletar'", "this.ouvir('criar'", "this.ouvir('aparencia'", "this.ouvir('montar'", "this.ouvir('pos'"] },
+    { "nome": "Servidor confere coleta e criação (PR #57)", "arquivo": "shared/simulacao.js", "contem": ["  coletar(id, m) {", "  criar(id, m) {", "app que conhece a estamina"] },
+    { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
+    { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] }
+  ]
+}
