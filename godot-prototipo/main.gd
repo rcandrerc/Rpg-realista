@@ -99,6 +99,10 @@ var _incl_v := 0.0
 var _vel_ant := 0.0
 var _dir_joy := Vector2.ZERO # para onde o joystick aponta agora (a cabeça vira antes do corpo)
 var _olhar := 0.0
+var _forca_joy := 0.0
+# arrancada (pernas da animação própria, anim_heroi.gd): ritmo da animação e até onde ela vai antes de virar corrida
+const ARR_RITMO := 1.6 # a animação do Mixamo sai devagar (trote); 1,6x acompanha a rampa de ~0,5 s até a corrida
+const ARR_FIM := 1.05 # s da animação: depois disso as pernas voltam para a corrida normal
 var _cansaco := 0.0 # 0 a 1: sobe correndo, desce parado; parado, o peito respira mais forte e mais rápido
 var _respira := 0.0 # fase da respiração
 var _resp_peso := 0.0 # respiração só aparece parado (entra e sai aos poucos)
@@ -1359,6 +1363,7 @@ func atualizar_heroi(dt: float) -> void:
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
+	_forca_joy = forca
 	trabalho.passo_estamina(dt)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
@@ -1433,10 +1438,17 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	# Peso do corpo: molas que passam do ponto e voltam (o "tranco" da freada e da arrancada).
 	# Arrancando, o tronco vai para a frente; freando, vai para trás e o quadril desce; quando para,
 	# a mola joga o tronco para a frente e ele volta ao lugar. Na curva deita para dentro e, ao endireitar, volta balançando.
+	var vel_antes: float = _vel_ant
 	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
 	_vel_ant = vel
 	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
 	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty()
+	# arrancada: saindo do parado com o joystick todo, as pernas tocam a animação de sair correndo
+	if heroi_anim.arrancando <= 0.0:
+		if livre_corpo and vel_antes < 0.4 and _forca_joy > 0.85 and mov.vel_max > 4.0:
+			heroi_anim.arrancar(ARR_RITMO)
+	elif heroi_anim.arrancando > ARR_FIM or not livre_corpo or _forca_joy < 0.15:
+		heroi_anim.soltar_arrancada()
 	var alvo_frente := 0.0
 	var alvo_incl := 0.0
 	if livre_corpo:
