@@ -1,11 +1,11 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
   for: { nome: 'Força', desc: '+6% dano físico (espada) · +4 vida · +1 defesa' },
-  des: { nome: 'Destreza', desc: '+0,15% crítico · -1,3% recarga' },
+  des: { nome: 'Destreza', desc: '+5 estamina · +0,15% crítico · -1,3% recarga' },
   int: { nome: 'Inteligência', desc: '+6% dano mágico (cajado) · +6 mana' },
   vit: { nome: 'Vitalidade', desc: '+8 vida · regeneração' },
 };
@@ -32,7 +32,32 @@ export function calcularStatus(p, passivas = {}) {
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico),
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
     areaK: eq.areaK, // área das skills a mais (conjunto de 6 peças)
+    estaminaMax: Math.round(ESTAMINA.base + ESTAMINA.porNivel * n + ESTAMINA.porDes * a.des),
   };
+}
+
+// ---------- profissões e vigor (Parte 3 do Quimera; dados em shared/dados.js: PROFISSOES, COLETA, RECEITAS) ----------
+export const profNivel = (pts) => Math.min(PROF_MAX, Math.floor(Math.sqrt((pts || 0) / 8)) + 1);
+export const profPontos = (nv) => 8 * (nv - 1) ** 2; // pontos para chegar no nível nv
+export const profRank = (nv) => (nv >= 20 ? 10 : nv >= 19 ? 9 : Math.floor((nv - 1) / 2));
+// o que o rank dá: vigor a menos, rapidez, chance de +1 na coleta
+export const profBonus = (pts) => { const r = profRank(profNivel(pts)); return { rank: r, menosVigor: 0.04 * r, rapidez: 1 + 0.035 * r, extra: 0.02 * r }; };
+// Mercador: quanto a Rosa paga a mais e cobra a menos (0 no Nv 1 até o máximo no Nv 20)
+export const mercador = (pts) => { const k = (profNivel(pts) - 1) / (PROF_MAX - 1); return { venda: MERCADOR.venda * k, compra: MERCADOR.compra * k }; };
+// chance de a peça criada subir de raridade (cada degrau)
+export const chanceRaridade = (pts) => RARIDADE_CRIAR.base + (RARIDADE_CRIAR.max - RARIDADE_CRIAR.base) * (profNivel(pts) - 1) / (PROF_MAX - 1);
+// Vigor de agora: { v, t } guarda quanto tinha no instante t (ms); enche VIGOR.max a cada VIGOR.enche segundos
+export function vigorAgora(vg, agora = Date.now()) {
+  if (!vg) return VIGOR.max;
+  const s = Math.max(0, agora - vg.t) / 1000;
+  return Math.min(VIGOR.max, vg.v + (s / VIGOR.enche) * VIGOR.max);
+}
+// Gasta vigor (devolve false se não tem) e grava o valor de agora
+export function gastarVigor(p, n, agora = Date.now()) {
+  const v = vigorAgora(p.vigor, agora);
+  if (v + 1e-9 < n) return false;
+  p.vigor = { v: Math.round((v - n) * 1000) / 1000, t: agora };
+  return true;
 }
 
 // ---------- equipamento e mochila (dados em shared/dados.js: ITENS, RARIDADES, CONJUNTO) ----------
@@ -87,7 +112,16 @@ export function nomeItem(it) {
   return ITENS[it.k].nome;
 }
 // Quanto a loja paga por uma unidade
-export const precoVenda = (it) => (ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1);
+export const precoVenda = (it, merc = 0) => Math.round((ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1) * (1 + merc));
+// Quantos de um material (ou consumível) tem na mochila, e tirar n deles
+export const contar = (mochila, k) => mochila.reduce((s, o) => s + (o && o.k === k && !o.h ? o.n || 1 : 0), 0);
+export function tirar(mochila, k, n) {
+  for (let i = mochila.length - 1; i >= 0 && n > 0; i--) {
+    const o = mochila[i]; if (!o || o.k !== k || o.h) continue;
+    const t = Math.min(n, o.n || 1); n -= t;
+    if ((o.n || 1) - t <= 0) mochila[i] = null; else o.n -= t;
+  }
+}
 export const mochilaNova = () => Array(MOCHILA).fill(null);
 export const equipNovo = () => Object.fromEntries(LUGARES.map((l) => [l, null]));
 export { ehEquip };
@@ -186,8 +220,10 @@ export function habNoNivel(id, nv) {
 export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
-  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, equip: equipNovo() };
+  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, equip: equipNovo(),
+    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo() };
 }
+export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
 export function progressoValido(p) {
   const n = progressoNovo();
@@ -208,6 +244,10 @@ export function progressoValido(p) {
     p.mochila.slice(0, MOCHILA).forEach((it, i) => { n.mochila[i] = itemValido(it); });
     for (const l of LUGARES) { const it = itemValido(p.equip?.[l]); n.equip[l] = it && ITENS[it.k].lugar === l ? it : null; }
   }
+  // vigor e profissões (conta de antes: vigor cheio e tudo no Nv 1)
+  const agora = Date.now(), num = (v) => typeof v === 'number' && Number.isFinite(v);
+  if (p.vigor && num(p.vigor.v) && num(p.vigor.t)) n.vigor = { v: Math.min(VIGOR.max, Math.max(0, p.vigor.v)), t: Math.min(agora, p.vigor.t) };
+  for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));

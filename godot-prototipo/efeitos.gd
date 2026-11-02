@@ -829,7 +829,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	tw.tween_callback(l.queue_free)
 
 # Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
-func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0) -> void:
+func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, altura := 1.7, tam := 1.0, px := 0.0) -> void:
 	var l := Label3D.new()
 	l.text = t
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -838,15 +838,26 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0) -> void:
 	l.outline_size = 14
 	l.modulate = Color(cor, 0.0)
 	l.outline_modulate = Color(0.06, 0.04, 0.02, 0.0)
-	l.pixel_size = 0.006
+	l.pixel_size = 0.006 * tam
 	add_child(l)
-	l.global_position = pos + Vector3(0, 1.7, 0)
+	l.global_position = pos + Vector3(0, altura, 0)
 	var y0 := l.global_position.y
 	var tw := create_tween()
 	if atraso > 0.0:
 		tw.tween_interval(atraso)
 	tw.tween_method(func(f: float):
-		l.global_position.y = y0 + f * 1.1
+		l.global_position.y = y0 + f * subir
+		# não sai pelo topo da tela: no mínimo 12% abaixo dele
+		var cam := get_viewport().get_camera_3d()
+		if cam:
+			var alto: float = get_viewport().get_visible_rect().size.y
+			if px > 0.0: # tamanho fixo na tela (px de altura de letra), perto ou longe da câmera
+				var dist: float = max(0.3, cam.global_position.distance_to(l.global_position))
+				l.pixel_size = px * 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) / alto / float(l.font_size) * 1.35
+			for _k in 40:
+				if cam.unproject_position(l.global_position).y >= alto * 0.12 + 24.0:
+					break
+				l.global_position.y -= 0.05
 		l.modulate.a = smoothstep(0.0, 0.12, f) * (1.0 - smoothstep(0.7, 1.0, f))
 		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 1.6)
 	tw.tween_callback(l.queue_free)

@@ -1,8 +1,8 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar } from './progresso.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -24,7 +24,12 @@ export class Simulacao {
     // pedras: o herói usa a altura de verdade (pode subir); os inimigos só contornam um círculo
     this.terreno = new Terreno(mapa);
     const vila = mapa.vila || { casas: [], arvores: [] };
-    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })),
+    // onde se coleta (Parte 3): veios do Minerador (v0, v1...) e as árvores do Lenhador (a0, a1...)
+    this.coletaveis = new Map([
+      ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO }]),
+      ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+    ]);
+    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO })),
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes];
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
@@ -44,11 +49,12 @@ export class Simulacao {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
-      fila: null, modo: 'Espada', missoes: {}, falas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
+      fila: null, modo: 'Espada', missoes: {}, falas: {}, sta: 0, staT: 0, semFolego: false, seguida: { k: 1, t: -9 }, combateAte: 0, ciente: false, coleta: null, coletas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
       visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.prog = progressoValido(progresso);
     this.aplicarStatus(j, true);
+    j.sta = j.staMax;
     this.jogadores.set(id, j);
     this.avisarProg(j);
     return j;
@@ -131,7 +137,8 @@ export class Simulacao {
     if (!j || j.morto || j.criando) return false;
     const num = (v) => typeof v === 'number' && Number.isFinite(v);
     if (!p || !num(p.x) || !num(p.y) || !num(p.z) || !num(p.ry)) return false;
-    const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : HEROI.correr) * 1.3;
+    if (p.e === 1) j.ciente = true; // app que conhece a estamina (o Godot): sem fôlego não corre
+    const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3;
     if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
     j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
     const d = Math.hypot(p.x - j.x, p.z - j.z), chao = this.terreno.altura(p.x, p.z);
@@ -143,6 +150,10 @@ export class Simulacao {
       return false;
     }
     if (tele && d > 1) { j.tele = null; j.orc = Math.max(0, j.orc - Math.max(0, d - tele)); } else j.orc -= d;
+    // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
+    const dtc = j.cliente ? Math.min(0.5, this.tempo - j.cliente.t) : 0;
+    if (j.ciente && dtc > 0 && !mont && !j.arrancada && !j.esc && !(j.dash?.t > 0) && !(tele && d > 1) && d / dtc > HEROI.correr * ESTAMINA.trote * 1.12) this.correndo(j, dtc);
+    if (j.coleta && Math.hypot(p.x - j.coleta.x, p.z - j.coleta.z) > 0.5) this.pararColeta(j); // saiu do lugar: para de coletar
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     j.chao = p.y - chao < 0.15; j.vy = 0;
@@ -153,6 +164,7 @@ export class Simulacao {
   guiado(j) { return j.tipo === 'jogador' && j.cliente && !j.morto && this.tempo - j.cliente.t < 0.5; }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
+    if (j.coleta) this.pararColeta(j);
     const antes = this.ator; this.ator = j;
     try { this.usarHabilidadeDe(j, id, i); } finally { this.ator = antes; }
   }
@@ -209,14 +221,14 @@ export class Simulacao {
     const fv = j.vidaMax ? j.vida / j.vidaMax : 1;
     j.pas = passivasDe(j.prog);
     j.st = calcularStatus(j.prog, j.pas);
-    j.vidaMax = j.st.vidaMax; j.manaMax = j.st.manaMax;
+    j.vidaMax = j.st.vidaMax; j.manaMax = j.st.manaMax; j.staMax = j.st.estaminaMax; j.sta = Math.min(j.sta ?? j.staMax, j.staMax);
     if (cheio) { j.vida = j.vidaMax; j.mana = j.manaMax; }
     else { j.vida = Math.min(j.vidaMax, Math.max(j.morto ? 0 : 1, Math.round(fv * j.vidaMax))); j.mana = Math.min(j.mana, j.manaMax); }
   }
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel) });
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now() });
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -280,6 +292,7 @@ export class Simulacao {
     const hid = typeof m === 'string' ? m : m?.id;
     const j = this.jogadores.get(id), base = HABS[hid];
     if (!j || j.morto || j.esc || j.criando || !base) return;
+    if (j.coleta) this.pararColeta(j);
     if (base.libera > j.prog.nivel) return this.evento({ t: 'aviso', para: id, texto: `Libera no nível ${base.libera}` });
     if (!base.basico && !BARRAS.some((b) => j.prog.barras[b].includes(hid))) return;
     const antes = this.ator; this.ator = j;
@@ -489,7 +502,7 @@ export class Simulacao {
       const v = p.mochila.indexOf(null); if (v < 0) return aviso('Mochila cheia');
       p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
     } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
-      if (j.morto) return;
+      if (j.morto || ITENS[it.k].mat) return;
       if (it.k === 'tomo') {
         const s = p.habs[it.h] || { nv: 1, uso: 0 };
         if (s.nv >= it.nv) return aviso(`${HABS[it.h].nome} já está no Nv ${s.nv}`);
@@ -505,19 +518,143 @@ export class Simulacao {
       if (--it.n <= 0) p.mochila[i] = null;
     } else if (m.acao === 'vender' && it) {
       if (!this.pertoDaLoja(j)) return aviso('Venda com a Rosa, a comerciante');
-      const preco = precoVenda(it);
+      const preco = precoVenda(it, mercador(p.prof.mer).venda);
       if (it.n > 1) it.n--; else p.mochila[i] = null;
       p.ouro += preco;
+      this.pontosMercador(j, preco);
       aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
     } else if (m.acao === 'comprar' && LOJA[i]) {
       if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
-      const o = LOJA[i];
-      if (p.ouro < o.preco) return aviso('Ouro insuficiente');
+      const o = LOJA[i], preco = this.precoCompra(j, o);
+      if (p.ouro < preco) return aviso('Ouro insuficiente');
       const novo = ehEquip(o.k) ? { k: o.k, r: o.r } : { k: o.k, n: 1 };
       if (!guardar(p.mochila, novo)) return aviso('Mochila cheia');
-      p.ouro -= o.preco;
+      p.ouro -= preco;
+      this.pontosMercador(j, preco);
       aviso(`Comprou ${nomeItem(novo)}`);
     } else return;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+  }
+  precoCompra(j, o) { return Math.max(1, Math.round(o.preco * (1 - mercador(j.prog.prof.mer).compra))); }
+  pontosMercador(j, ouro) { this.pontosProf(j, 'mer', ouro / MERCADOR.pontoOuro); }
+  // Pontos numa profissão (sobe de nível sozinha, como no Quimera)
+  pontosProf(j, k, n) {
+    if (!PROFISSOES[k] || !(n > 0)) return;
+    const antes = profNivel(j.prog.prof[k]);
+    j.prog.prof[k] = Math.round((j.prog.prof[k] + n) * 1000) / 1000;
+    const nv = profNivel(j.prog.prof[k]);
+    if (nv > antes) {
+      const b = profBonus(j.prog.prof[k]);
+      this.evento({ t: 'aviso', para: j.id, texto: `${PROFISSOES[k].nome} subiu para o Nv ${nv}` + (b.menosVigor ? ` (gasta ${Math.round(b.menosVigor * 100)}% menos vigor)` : '') });
+      this.evento({ t: 'profNivel', para: j.id, prof: k, nv });
+    }
+  }
+
+  // ---------- estamina (Parte 3 do Quimera: shared/dados.js ESTAMINA) ----------
+  emCombate(j) { return j.combateAte > this.tempo; }
+  // Gasto de uma vez (dash, rolamento, mortal): seguido fica mais caro. App antigo (site) não conhece a estamina: passa.
+  gastarEstamina(j, n) {
+    if (!j.ciente) return true;
+    const E = ESTAMINA, k = this.tempo - j.seguida.t < E.seguidaJanela ? Math.min(E.seguidaMax, j.seguida.k + E.seguidaK) : 1;
+    if (j.sta < n * k) { this.evento({ t: 'aviso', para: j.id, texto: 'Sem fôlego!' }); return false; }
+    j.seguida = { k, t: this.tempo };
+    j.sta -= n * k; j.staT = Math.max(j.staT, E.espera);
+    return true;
+  }
+  correndo(j, dt) {
+    const E = ESTAMINA, c = this.emCombate(j);
+    j.sta = Math.max(0, j.sta - E.correr * (c ? E.combateK : 1) * dt);
+    j.staT = Math.max(j.staT, c ? E.esperaCombate : E.espera);
+    if (j.sta <= 0 && !j.semFolego) { j.semFolego = true; this.evento({ t: 'aviso', para: j.id, texto: 'Sem fôlego!' }); }
+  }
+  passoEstamina(j, dt) {
+    const E = ESTAMINA;
+    if (j.staT > 0) { j.staT -= dt; return; }
+    if (j.sta < j.staMax) j.sta = Math.min(j.staMax, j.sta + j.staMax * E.volta * (this.emCombate(j) ? E.voltaCombate : 1) * dt);
+    if (j.semFolego && j.sta >= j.staMax * E.folego) j.semFolego = false;
+  }
+
+  // ---------- coleta: Minerador e Lenhador (shared/dados.js COLETA e VEIOS) ----------
+  // m = { no: 'v3' | 'a12' } (veio ou árvore) ou { parar: true }. Bate sozinho até acabar a carga do veio, o vigor ou o jogador sair.
+  coletar(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m || typeof m.no !== 'string') return;
+    if (m.parar || j.coleta) return this.pararColeta(j, null); // o jogador parou (ou tocou de novo)
+    const no = this.coletaveis.get(m.no), aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!no) return;
+    if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
+    if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
+    const C = COLETA[no.tipo];
+    if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s`);
+    if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    this.virarPara(j, no);
+    this.proximaBatida(j, no);
+  }
+  custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
+  // batidas que ainda restam neste veio para este jogador (cada um tem o seu: ninguém rouba o veio do outro)
+  cargas(j, no) {
+    const s = j.coletas[no.id];
+    if (!s || s.volta <= this.tempo) return COLETA[no.tipo].cargas;
+    return s.n;
+  }
+  proximaBatida(j, no) {
+    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez;
+    j.coleta = { no: no.id, x: j.x, z: j.z, fim: this.tempo + dur };
+    this.evento({ t: 'coleta', id: j.id, no: no.id, dur: r2(dur), prof: C.prof });
+  }
+  batidaColeta(j) {
+    const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
+    const custo = this.custoVigor(j, C);
+    if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    const b = profBonus(p.prof[C.prof]), ganhou = [];
+    const por = (k, n) => { if (guardar(p.mochila, { k, n })) { const g = ganhou.find((x) => x.k === k); if (g) g.n += n; else ganhou.push({ k, nome: ITENS[k].nome, n }); } else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
+    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < b.extra ? 1 : 0));
+    for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch) por(k, 1);
+    const s = j.coletas[no.id] = { n: this.cargas(j, no) - 1, volta: this.tempo + C.volta };
+    this.pontosProf(j, C.prof, C.vigor);
+    if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
+    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta: C.volta });
+    if (!ganhou.length) return this.pararColeta(j, null);
+    if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
+    if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    this.proximaBatida(j, no);
+  }
+  pararColeta(j, motivo = undefined) {
+    if (!j.coleta) return;
+    const no = j.coleta.no; j.coleta = null;
+    this.evento({ t: 'coletaFim', id: j.id, no });
+    if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
+  }
+
+  // ---------- criação: Ferreiro e Alfaiate (shared/dados.js RECEITAS) ----------
+  // m = { r: 'espada' } (receita). Perto da oficina: usa os materiais, gasta vigor e dá a peça (raridade sorteada).
+  criar(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
+    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!R) return;
+    const of = OFICINA[R.prof], npc = (this.mapa.npcs || []).find((n) => n.id === of.npc);
+    if (!npc || dist(npc, j) > OFICINA_DISTANCIA) return aviso(`Crie ${of.onde}`);
+    if (profNivel(p.prof[R.prof]) < R.nivel) return aviso(`Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}`);
+    for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})`);
+    const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
+    if (vigorAgora(p.vigor) < custo) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    let novo;
+    if (ehEquip(R.faz)) {
+      let r = 0; const ch = chanceRaridade(p.prof[R.prof]);
+      while (r < RARIDADE_CRIAR.ate && Math.random() < ch) r++;
+      novo = { k: R.faz, r };
+    } else novo = { k: R.faz, n: 1 };
+    // confere se cabe antes de gastar (numa cópia da mochila sem os materiais)
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    for (const [k, n] of Object.entries(R.usa)) tirar(prova, k, n);
+    if (!guardar(prova, novo)) return aviso('Mochila cheia');
+    gastarVigor(p, custo);
+    p.mochila = prova;
+    this.pontosProf(j, R.prof, R.vigor);
+    this.ganharXP(j, Math.max(1, Math.round(R.vigor)));
+    this.evento({ t: 'criou', para: id, prof: R.prof, nome: nomeItem(novo), r: novo.r ?? -1, x: r2(npc.x), z: r2(npc.z) });
+    aviso(`Criou ${nomeItem(novo)}!`);
     this.aplicarStatus(j);
     this.avisarProg(j);
   }
@@ -531,6 +668,7 @@ export class Simulacao {
     p.ouro += ouro;
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
+    for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch) por({ k, n });
     if (Math.random() < d.equip) {
       let s = Math.random(), r = 0;
       while (r < d.raridade.length - 1 && s >= d.raridade[r]) s -= d.raridade[r++];
@@ -582,17 +720,20 @@ export class Simulacao {
   }
   pular(id) {
     const j = this.jogadores.get(id);
+    if (j?.coleta) this.pararColeta(j);
     if (j?.canal) this.cancelarCanal(j);
     if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
     if (!j || j.morto || j.criando || j.trava > 0 || j.arrancada) return;
     if (j.chao) { j.vy = MOVIMENTO.pulo; j.chao = false; j.pulos = 1; j.puloT = 0; j.pouso = 0; }
-    else if (j.pulos < 2) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
+    else if (j.pulos < 2 && this.gastarEstamina(j, ESTAMINA.mortal)) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
   }
   // Rolamento no chão: nenhum golpe pega durante a maior parte dele
   rolar(id) {
     const j = this.jogadores.get(id);
+    if (j?.coleta) this.pararColeta(j);
     if (j?.canal) this.cancelarCanal(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
+    if (!this.gastarEstamina(j, ESTAMINA.rolar)) return;
     j.cds.rolar = this.tempo + HEROI.rolarCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -604,8 +745,10 @@ export class Simulacao {
   // Arrancada reta para onde o jogador aponta (no ar, uma por pulo). Nenhum golpe pega durante ela.
   dash(id) {
     const j = this.jogadores.get(id);
+    if (j?.coleta) this.pararColeta(j);
     if (j?.canal) this.cancelarCanal(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
+    if (!this.gastarEstamina(j, ESTAMINA.dash)) return;
     j.cds.dash = this.tempo + MOVIMENTO.dashCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -712,6 +855,8 @@ export class Simulacao {
       if (n <= 0) { this.evento({ t: 'dano', alvo: alvo.id, n: 0, escudo: true }); return; }
     }
     alvo.vida = Math.max(0, alvo.vida - n);
+    if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); }
+    if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
     if (h && alvo.tipo !== 'jogador' && alvo.vida > 0) {
@@ -728,6 +873,7 @@ export class Simulacao {
     else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
   }
   morrer(c) {
+    if (c.coleta) this.pararColeta(c, null);
     c.morto = true; c.dash = null; c.arrancada = null; c.esc = null;
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
@@ -968,6 +1114,8 @@ export class Simulacao {
   }
   passoJogador(j, dt) {
     j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * dt);
+    this.passoEstamina(j, dt);
+    if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);
     if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * dt);
     if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
@@ -1081,7 +1229,7 @@ export class Simulacao {
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),

@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
@@ -24,6 +24,8 @@ var _tela: Control
 var _painel: Control
 var vida := 1.0
 var mana := 1.0
+var estamina := 1.0 # barra amarela (Parte 3 do Quimera): correr, dash, rolar e mortal gastam
+var sem_folego := false
 var texto_vida := ""
 var texto_mana := ""
 var nome := "Ruiva"
@@ -32,11 +34,13 @@ var xp := 0.0 # 0..1 até o próximo nível
 var escudo := false
 var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhuma
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
-const PAINEL := Rect2(18, 14, 330, 92) # tocar aqui abre o menu do personagem
+const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem
 var modo := "Espada"
 var _icones := {}
 var aviso_txt := ""
 var _aviso_t := 0.0
+var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros avisos
+var _destaque_t := 0.0
 
 func _ready() -> void:
 	_tela = Control.new()
@@ -57,6 +61,10 @@ func _ready() -> void:
 	_botao("rolar", Vector2(503, 61), 31, "rolar", COR_FUNDO)
 	_botao("loja", Vector2(333, 160), 30, "loja", COR_TROCA) # só aparece perto da Rosa (a comerciante)
 	botoes[-1].oculto = true
+	_botao("coletar", Vector2(421, 160), 30, "pf_min", COR_TROCA) # perto de veio ou árvore: minerar ou cortar lenha
+	botoes[-1].oculto = true
+	_botao("forja", Vector2(333, 160), 30, "pf_fer", COR_TROCA) # perto do Tomás: criar na forja
+	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false})
@@ -73,6 +81,11 @@ func icone(nome_ico: String) -> Texture2D:
 		_icones[nome_ico] = load("res://icones/%s.svg" % nome_ico)
 	return _icones[nome_ico]
 
+func icone_botao(acao: String, ic: String) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.icone = ic
+
 func mostrar_build(icones_modo: Array, modo_atual: String, travados: Array = []) -> void:
 	modo = modo_atual
 	for i in 6:
@@ -87,6 +100,10 @@ func recarga(acao: String, falta: float, total: float) -> void:
 			b.cd_max = max(total, 0.01)
 
 func aviso(t: String) -> void:
+	if t.begins_with("Nível "):
+		destaque_txt = t
+		_destaque_t = 3.2
+		return
 	aviso_txt = t
 	_aviso_t = 2.2
 
@@ -142,6 +159,8 @@ func _input(ev: InputEvent) -> void:
 func _process(dt: float) -> void:
 	if _aviso_t > 0:
 		_aviso_t -= dt
+	if _destaque_t > 0:
+		_destaque_t -= dt
 	_tela.queue_redraw()
 
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
@@ -170,9 +189,11 @@ func _desenhar() -> void:
 	if escudo: # Escudo Arcano ligado: moldura dourada na vida
 		_tela.draw_rect(Rect2(p0 + Vector2(90, 32), Vector2(229, 22)), Color(1, 0.8, 0.35, 0.9), false, 2.0)
 	_barra(p0 + Vector2(92, 58), Vector2(225, 18), mana, Color(0.22, 0.45, 0.85), texto_mana)
-	# XP até o próximo nível (fina, embaixo)
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 82), Vector2(225, 5)), Color(0, 0, 0, 0.5))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 82), Vector2(225 * clamp(xp, 0.0, 1.0), 5)), Color(0.95, 0.75, 0.35))
+	# estamina (amarela; sem fôlego fica ocre até voltar) e XP até o próximo nível (fina, embaixo)
+	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225, 7)), Color(0, 0, 0, 0.5))
+	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225 * clamp(estamina, 0.0, 1.0), 7)), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
+	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225, 4)), Color(0, 0, 0, 0.5))
+	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
 	# joystick
 	if _toques.values().has("joy"):
 		_tela.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.12))
@@ -210,3 +231,10 @@ func _desenhar() -> void:
 		var a: float = clamp(_aviso_t, 0.0, 1.0)
 		_tela.draw_string_outline(f, Vector2((_tela.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.6 * a))
 		_tela.draw_string(f, Vector2((_tela.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.92, 0.7, a))
+	if _destaque_t > 0:
+		var tam := 40
+		var wd := f.get_string_size(destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x
+		var ad: float = clamp(_destaque_t / 0.6, 0.0, 1.0) * clamp((3.2 - _destaque_t) / 0.15, 0.0, 1.0)
+		var pd := Vector2((_tela.size.x - wd) * 0.5, _tela.size.y * 0.36)
+		_tela.draw_string_outline(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, 10, Color(0.16, 0.08, 0.0, 0.85 * ad))
+		_tela.draw_string(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(1.0, 0.8, 0.3, ad))
