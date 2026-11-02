@@ -238,7 +238,7 @@ func nome_item(it) -> String:
 	return dados.itens[it.k].nome
 
 const COR_MAT := {"minerio_ferro": "b9b2a6", "minerio_cobre": "d99060", "cristal": "a98cff", "lenha": "c79a62", "barra_ferro": "d6dbe0",
-	"barra_cobre": "e8a06a", "carvao": "4a4644", "barra_aco": "9fb0c2", "couro": "b07a4a", "tecido": "c9a6e8"}
+	"barra_cobre": "e8a06a", "carvao": "4a4644", "pedra": "9a958c", "barra_aco": "9fb0c2", "couro": "b07a4a", "tecido": "c9a6e8"}
 func cor_item(it) -> Color:
 	if eh_equip(it):
 		return Color(dados.raridades[int(it.r)].cor)
@@ -255,7 +255,7 @@ func cor_item(it) -> Color:
 static func icone_item(it) -> String:
 	if str(it.k).begins_with("barra_"):
 		return "it_barra"
-	if str(it.k).begins_with("minerio_") or it.k == "carvao":
+	if str(it.k).begins_with("minerio_") or it.k == "carvao" or it.k == "pedra":
 		return "it_minerio"
 	return "it_" + ("pocao" if it.k == "pocao_mana" else str(it.k))
 

@@ -17,15 +17,12 @@ var coletando = null # {c, dur, t, n (golpes dados), prof}
 var ferramentas := {} # "min" -> picareta, "len" -> machado
 var perto = null # coletável mais perto (para o botão)
 var indo = null # {o, ate}: tocou em Coletar longe e o herói está andando até encostar
-var _veio_malha: Mesh
-var _veio_mat: Material
-var _veio_tri: TriangleMesh # para achar a superfície da pedra onde a pepita sai
 
-# cores da pedra de cada veio (veio.gdshader): mais fortes que o natural, para um tipo não parecer o outro
-const PEDRA_VEIO := {
-	"cobre": {"tipo": 0, "pedra": Color(0.27, 0.22, 0.2), "veio": Color("f29a5c"), "mancha": Color("3ae0bd")},
-	"ferro": {"tipo": 1, "pedra": Color(0.2, 0.21, 0.23), "veio": Color("e6eef7"), "mancha": Color("b5521f")},
-	"cristal": {"tipo": 2, "pedra": Color(0.4, 0.39, 0.41), "veio": Color.WHITE, "mancha": Color.WHITE},
+# cores de cada veio (minerio.gdshader): o bloco inteiro é o minério bruto, facetado, como a referência do André
+const BLOCO_VEIO := {
+	"cobre": {"escura": Color("8a3416"), "clara": Color("ffbf86"), "metal": 0.75},
+	"ferro": {"escura": Color("23262c"), "clara": Color("b4bfcc"), "metal": 0.7},
+	"cristal": {"escura": Color("17122a"), "clara": Color("3f3266"), "metal": 0.15},
 }
 const COR_MINERIO := {"ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.55, 0.45, 1.0)}
 
@@ -35,7 +32,6 @@ func _init(principal) -> void:
 
 func _ready() -> void:
 	sta = sta_max()
-	_achar_pedra()
 	for c in m.mundo.get("coletaveis", []):
 		var o := {"id": str(c.id), "tipo": str(c.tipo), "pos": Vector3(float(c.x), 0, float(c.z)), "r": float(c.r), "cargas": -1, "volta_ate": -1.0}
 		o.pos.y = m.terreno.altura(o.pos.x, o.pos.z)
@@ -103,15 +99,6 @@ func do_servidor(v: float) -> void:
 
 # ---------- veios e árvores ----------
 # a pedra dos veios é a mesma das rochas de musgo da vila (Poly Haven), já pintada no estilo do jogo
-func _achar_pedra() -> void:
-	var no = m.vila_no.find_child("rock_moss_set_01_rock02", true, false) if m.vila_no else null
-	if no == null:
-		return
-	var mi: MeshInstance3D = no if no is MeshInstance3D else no.find_children("*", "MeshInstance3D", true, false)[0]
-	_veio_malha = mi.mesh
-	_veio_mat = mi.get_active_material(0)
-	_veio_tri = _veio_malha.generate_triangle_mesh()
-
 func _montar_veio(o: Dictionary, ry: float) -> void:
 	var raiz := Node3D.new()
 	raiz.position = o.pos
@@ -121,95 +108,121 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	var rnd := RandomNumberGenerator.new()
 	rnd.seed = hash(o.id)
 	var cor: Color = COR_MINERIO.get(o.tipo, Color.GRAY)
-	var alto_pedra := 1.0
-	var pedra_k := 1.0
-	var pedra_pos := Vector3.ZERO
-	if _veio_malha:
-		var pedra := MeshInstance3D.new()
-		pedra.mesh = _veio_malha
-		# a rocha da vila com o minério por dentro (veio.gdshader): cobre alaranjado, ferro cinza com ferrugem, cristal em pedra clara
-		var pm := ShaderMaterial.new()
-		pm.shader = load("res://veio.gdshader")
-		if _veio_mat is BaseMaterial3D and _veio_mat.albedo_texture:
-			pm.set_shader_parameter("tex_pedra", _veio_mat.albedo_texture)
-		pm.set_shader_parameter("semente", rnd.randf() * 50.0)
-		var P: Dictionary = PEDRA_VEIO.get(o.tipo, PEDRA_VEIO.cristal)
-		pm.set_shader_parameter("tipo", P.tipo)
-		pm.set_shader_parameter("cor_pedra", P.pedra)
-		pm.set_shader_parameter("cor_veio", P.veio)
-		pm.set_shader_parameter("cor_mancha", P.mancha)
-		# contorno escuro de ~1,2 cm, como as outras pedras e os personagens
-		var cont := StandardMaterial3D.new()
-		cont.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		cont.cull_mode = BaseMaterial3D.CULL_FRONT
-		cont.grow = true
-		cont.albedo_color = Color(0.08, 0.06, 0.05)
-		pm.next_pass = cont
-		pedra.material_override = pm
-		o.pedra_mat = pm
-		var aabb: AABB = _veio_malha.get_aabb()
-		var k: float = 1.6 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 1,6 m de largura: chama atenção de longe
-		pedra.scale = Vector3(k, k, k)
-		pedra.position = Vector3(-aabb.get_center().x * k, -aabb.position.y * k - 0.15, -aabb.get_center().z * k)
-		cont.grow_amount = 0.012 / k # o grow é no espaço da malha (antes da escala)
-		pedra.position.y -= 0.1 # base enterrada: não fica pousada em cima da grama
-		pedra_k = k
-		pedra_pos = pedra.position
-		# sombra de contato: mancha escura e suave no chão em volta da base
-		var sombra := MeshInstance3D.new()
-		var pl := PlaneMesh.new()
-		pl.size = Vector2(2.4, 2.4)
-		sombra.mesh = pl
-		sombra.material_override = _mat_sombra()
-		sombra.position.y = 0.03
-		sombra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		raiz.add_child(sombra)
-		alto_pedra = aabb.size.y * k - 0.25
-		raiz.add_child(pedra)
-	# minério cravado na pedra (some quando o veio esgota para você): pepitas de metal ou cristais pontudos
+	var cristal: bool = o.tipo == "cristal"
+	# um material por veio: "cheio" a 0 deixa só este veio cinza quando esgota
+	var B: Dictionary = BLOCO_VEIO.get(o.tipo, BLOCO_VEIO.cristal)
+	var pm := ShaderMaterial.new()
+	pm.shader = load("res://minerio.gdshader")
+	pm.set_shader_parameter("cor_escura", B.escura)
+	pm.set_shader_parameter("cor_clara", B.clara)
+	pm.set_shader_parameter("metal", B.metal)
+	pm.set_shader_parameter("semente", rnd.randf() * 50.0)
+	# contorno escuro de ~1,2 cm, como as outras pedras e os personagens
+	var cont := StandardMaterial3D.new()
+	cont.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cont.cull_mode = BaseMaterial3D.CULL_FRONT
+	cont.grow = true
+	cont.grow_amount = 0.012
+	cont.albedo_color = Color(0.08, 0.06, 0.05)
+	pm.next_pass = cont
+	o.pedra_mat = pm
+	# bloco principal grande e uns pedaços menores em volta, tudo dentro do raio de colisão (0,8 m)
+	var principal := _bloco(rnd, 0.62 if not cristal else 0.6, 0.72 if not cristal else 0.42)
+	var blocos := [[principal, Vector3.ZERO, 0.0]]
+	var n := rnd.randi_range(3, 4)
+	var a0 := rnd.randf() * TAU
+	for i in n:
+		var a: float = a0 + TAU * i / n + rnd.randf_range(-0.4, 0.4)
+		var r: float = rnd.randf_range(0.2, 0.34)
+		blocos.append([_bloco(rnd, r, r * rnd.randf_range(0.8, 1.2)), Vector3(cos(a), 0, sin(a)) * rnd.randf_range(0.5, 0.72), rnd.randf() * TAU])
+	for bl in blocos:
+		var mi := MeshInstance3D.new()
+		mi.mesh = bl[0]
+		mi.material_override = pm
+		mi.position = bl[1]
+		mi.rotation.y = bl[2]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		raiz.add_child(mi)
+	var alto_pedra: float = principal.get_aabb().end.y
+	# sombra de contato: mancha escura e suave no chão em volta da base
+	var sombra := MeshInstance3D.new()
+	var pl := PlaneMesh.new()
+	pl.size = Vector2(2.4, 2.4)
+	sombra.mesh = pl
+	sombra.material_override = _mat_sombra()
+	sombra.position.y = 0.03
+	sombra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	raiz.add_child(sombra)
+	# cristais (somem quando o veio esgota para você)
 	var minerio := Node3D.new()
 	raiz.add_child(minerio)
 	o.minerio = minerio
-	if o.tipo == "cristal":
-		# cacho torto de 9 a 13 cristais de tamanhos diferentes, todos puxados para um lado (não um leque certinho),
-		# cada um nascendo da superfície da pedra (raio de cima para baixo)
+	if cristal:
+		# cacho de 10 a 14 cristais saindo da pedra escura: os do meio grandes e claros, os de fora menores e mais roxos
+		var tri: TriangleMesh = principal.generate_triangle_mesh()
 		var mc := _mat_cristal()
-		var n := rnd.randi_range(9, 13)
-		var a0 := rnd.randf() * TAU
-		for i in n:
-			var a: float = a0 + rnd.randf_range(-1.4, 1.4)
-			var d: float = 0.0 if i == 0 else rnd.randf_range(0.08, 0.46)
-			var alto: float = 1.0 if i == 0 else rnd.randf_range(0.22, 0.8)
+		var nc := rnd.randi_range(10, 14)
+		var ac := rnd.randf() * TAU
+		for i in nc:
+			var a: float = ac + rnd.randf_range(-1.6, 1.6)
+			var d: float = 0.0 if i == 0 else rnd.randf_range(0.06, 0.48)
+			var alto: float = 1.25 if i == 0 else rnd.randf_range(0.3, 1.0) * (1.0 - d * 0.8)
 			var base := Vector3(cos(a) * d, 0, sin(a) * d)
 			var y: float = alto_pedra * 0.8
-			if _veio_tri:
-				var hit: Dictionary = _veio_tri.intersect_ray((base + Vector3(0, 3, 0) - pedra_pos) / pedra_k, Vector3.DOWN)
-				if not hit.is_empty():
-					y = (hit.position as Vector3).y * pedra_k + pedra_pos.y
+			var hit: Dictionary = tri.intersect_ray(base + Vector3(0, 3, 0), Vector3.DOWN)
+			if not hit.is_empty():
+				y = (hit.position as Vector3).y
 			var p := MeshInstance3D.new()
-			p.mesh = _cristal(alto, alto * rnd.randf_range(0.14, 0.2))
+			p.mesh = _cristal(alto, alto * rnd.randf_range(0.13, 0.19))
 			p.material_override = mc
 			p.position = Vector3(base.x, y - alto * 0.12, base.z) # o pé entra na pedra
 			p.rotation_order = EULER_ORDER_YXZ
-			var incl: float = rnd.randf_range(0.05, 0.2) if i == 0 else rnd.randf_range(0.3, 0.95)
+			var incl: float = rnd.randf_range(0.05, 0.18) if i == 0 else rnd.randf_range(0.25, 0.9)
 			p.rotation = Vector3(incl, -a + PI / 2 + rnd.randf_range(-0.3, 0.3), rnd.randf_range(-0.15, 0.15))
 			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			minerio.add_child(p)
 		var luz := OmniLight3D.new()
 		luz.light_color = cor
-		luz.light_energy = 0.75
-		luz.omni_range = 3.5
-		luz.position = Vector3(0, alto_pedra + 0.4, 0)
+		luz.light_energy = 1.3
+		luz.omni_range = 4.0
+		luz.position = Vector3(0, alto_pedra + 0.5, 0)
 		minerio.add_child(luz)
+
+# bloco facetado: esfera de poucas faces com os vértices puxados para dentro e para fora (pedra lascada), base chata
+# enterrada uns 12 cm, normais chapadas e um tom por face (canal r da cor) para as facetas brilharem diferente
+func _bloco(rnd: RandomNumberGenerator, raio: float, alto: float) -> ArrayMesh:
+	var esf := SphereMesh.new()
+	esf.radius = 1.0
+	esf.height = 2.0
+	esf.radial_segments = 7
+	esf.rings = 4
+	var arr := esf.get_mesh_arrays()
+	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+	var puxa := {}
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
+	for t in range(0, idx.size(), 3):
+		st.set_color(Color(rnd.randf(), 0, 0))
+		for j in 3:
+			var v: Vector3 = vs[idx[t + j]]
+			var chave := Vector3i((v * 100.0).round())
+			if not puxa.has(chave):
+				puxa[chave] = Vector3(rnd.randf_range(0.65, 1.2), rnd.randf_range(0.7, 1.2), rnd.randf_range(0.65, 1.2))
+			var q: Vector3 = v * puxa[chave]
+			st.add_vertex(Vector3(q.x * raio, (max(q.y, -0.35) + 0.35) * alto - 0.12, q.z * raio))
+	st.generate_normals()
+	return st.commit()
 
 # cristal: prisma de 6 lados com ponta, normais chapadas; base ciano médio e ponta clara (cor no vértice)
 func _cristal(alto: float, raio: float) -> Mesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(-1)
-	var cb := Color("5b52d6") # pé azul fundo, meio violeta, ponta quase branca (como cristal de verdade, só que mais vivo)
-	var cm := Color("a084f2")
-	var cp := Color("f0eeff")
+	var cb := Color("4a44e0") # pé azul fundo, meio violeta, ponta quase branca (como cristal de verdade, só que mais vivo)
+	var cm := Color("9a80ff")
+	var cp := Color("ffffff")
 	var corpo: float = alto * 0.72
 	for s in 6:
 		var a1: float = TAU * s / 6.0
