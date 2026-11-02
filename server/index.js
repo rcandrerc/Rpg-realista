@@ -46,6 +46,7 @@ class SalaClareira extends Room {
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
     this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, { r: m.r }); });
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
+    this.ouvir('resetar', (c) => this.sim.resetarBuild(c.sessionId)); // Mestre Ivo: atributos de volta (paga em ouro)
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));
     this.ouvir('dash', (c) => this.sim.dash(c.sessionId));

@@ -279,8 +279,19 @@ func aplicar_foto(f: Dictionary) -> void:
 		if not vistos.has(id):
 			outros[id].no.queue_free()
 			outros.erase(id)
+	var com_corpo := {}
 	for e in f.get("inimigos", []):
 		inimigo(e)
+		com_corpo[int(e.get("v", -1))] = true
+	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo
+	for v in m.inimigos.size():
+		var e: Dictionary = m.inimigos[v]
+		if not com_corpo.has(v) and e.estado != "morto":
+			e.estado = "morto"
+			e.no.visible = false
+			_barra_visivel(e, false)
+	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
+	m.trabalho.veios_comuns(f.get("veios", []))
 
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
@@ -521,6 +532,11 @@ func evento(ev: Dictionary) -> void:
 			return
 		"fala":
 			m.hud.aviso(str(ev.texto))
+			if str(ev.get("abrir", "")) == "resetar":
+				m.menu.perguntar_reset(int(ev.get("custo", 0)))
+			return
+		"veio": # alguém bateu num veio de zona de mineração: a pedra some para todo mundo quando esgota
+			m.trabalho.veio_comum(str(ev.no), int(ev.cargas), float(ev.volta))
 			return
 		"drop": # ouro e itens do monstro que eu ajudei a derrubar (já estão na mochila)
 			var x := float(ev.x)

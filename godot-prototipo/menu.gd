@@ -570,6 +570,57 @@ func montar_status() -> void:
 		g.add_child(c)
 	conteudo.add_child(g)
 
+# Mestre Ivo (NPC de resetar a build): janela pequena para confirmar. Online quem confere e cobra é o servidor.
+var _reset: Control
+func perguntar_reset(custo: int) -> void:
+	if _reset:
+		_reset.queue_free()
+	var gastos: int = m.P.pontos_gastos()
+	_reset = Control.new()
+	_reset.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_reset)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0, 0, 0, 0.45)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_reset.add_child(escuro)
+	var caixa_r := PanelContainer.new()
+	caixa_r.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 10, 14))
+	caixa_r.set_anchors_preset(Control.PRESET_CENTER)
+	caixa_r.custom_minimum_size = Vector2(430, 0)
+	caixa_r.position = Vector2(-215, -95)
+	_reset.add_child(caixa_r)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	caixa_r.add_child(col)
+	var t := Label.new()
+	t.text = "Mestre Ivo · Resetar build"
+	t.add_theme_font_size_override("font_size", 20)
+	t.add_theme_color_override("font_color", OURO_CLARO)
+	col.add_child(t)
+	var d := Label.new()
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	d.text = ("Seus atributos voltam pro começo e os %d pontos voltam pra você distribuir de novo. As skills não mudam.\nCusta %d de ouro (você tem %d)." % [gastos, custo, int(m.P.prog.get("ouro", 0))]) if gastos > 0 else "Você ainda não gastou nenhum ponto."
+	d.add_theme_font_size_override("font_size", 15)
+	d.add_theme_color_override("font_color", TEXTO)
+	col.add_child(d)
+	var linha := HBoxContainer.new()
+	linha.alignment = BoxContainer.ALIGNMENT_END
+	linha.add_theme_constant_override("separation", 10)
+	col.add_child(linha)
+	var fechar_r := func():
+		if _reset:
+			_reset.queue_free()
+			_reset = null
+	linha.add_child(botao("Agora não", fechar_r))
+	if gastos > 0:
+		linha.add_child(botao("Resetar (%d de ouro)" % custo, func():
+			fechar_r.call()
+			if m.on():
+				m.rede("resetar") # o servidor confere a distância e o ouro e manda o progresso novo
+			else:
+				m.hud.aviso(m.P.resetar(custo))
+				atualizar(), 15, true))
+
 func distribuir(k: String) -> void:
 	if m.on():
 		m.rede("atributo", k) # o servidor confere e devolve o progresso novo

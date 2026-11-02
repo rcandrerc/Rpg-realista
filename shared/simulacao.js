@@ -1,8 +1,9 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
+import { dentroDoMapa, limitarAoMapa } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -26,7 +27,7 @@ export class Simulacao {
     const vila = mapa.vila || { casas: [], arvores: [] };
     // onde se coleta (Parte 3): veios do Minerador (v0, v1...) e as árvores do Lenhador (a0, a1...)
     this.coletaveis = new Map([
-      ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO }]),
+      ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO, ...(v.mina ? { mina: v.mina } : {}) }]),
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO })),
@@ -36,6 +37,41 @@ export class Simulacao {
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
+    // campos de caça (CACA, regra do Quimera): cada vaga tem um índice v fixo (depois dos inimigos parados) e já começa cheia
+    let v = mapa.inimigos.length;
+    this.cacas = (mapa.caca || []).map((def, ci) => {
+      const c = { def, vagas: def.tipos.map((tipo, k) => ({ tipo, k, v: v + k, e: null })), nx: 0, t: 0 };
+      v += def.tipos.length;
+      for (const vg of c.vagas) this.nascerNaCaca(c, ci, vg, true);
+      return c;
+    });
+    // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
+    this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
+    this.veiosComuns = new Map();
+  }
+  // nasce um monstro na vaga do campo de caça, num ponto ao acaso (longe dos jogadores, fora de pedra, árvore e casa)
+  nascerNaCaca(c, ci, vg, inicio = false) {
+    const d = c.def;
+    for (let t = 0; t < 8; t++) {
+      const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * d.r * d.ate, x = d.x + Math.cos(a) * r, z = d.z + Math.sin(a) * r;
+      if (!inicio && [...this.jogadores.values()].some((j) => !j.morto && Math.hypot(j.x - x, j.z - z) < d.longe)) continue;
+      if (this.obstaculos.some((k) => Math.hypot(k.x - x, k.z - z) < k.r + 0.8) || !dentroDoMapa(this.mapa, x, z, 2.2)) continue;
+      vg.e = this.criarInimigo({ tipo: vg.tipo, x, z, caca: ci, vaga: vg.k, v: vg.v });
+      return true;
+    }
+    return false;
+  }
+  // Quimera (znSp): a cada "passo" s, se falta monstro, nasce um; o próximo em "rapido" s com menos da metade, senão "normal" s
+  passoCacas(dt) {
+    this.cacas.forEach((c, ci) => {
+      const d = c.def;
+      c.t -= dt; if (c.t > 0) return;
+      c.t = d.passo;
+      const vivos = c.vagas.filter((vg) => vg.e).length, vaga = c.vagas.find((vg) => !vg.e);
+      if (!vaga || this.tempo < c.nx) return;
+      if (this.nascerNaCaca(c, ci, vaga)) c.nx = this.tempo + (vivos < d.n / 2 ? d.rapido : d.normal);
+      else c.nx = this.tempo + d.rapido;
+    });
   }
 
   // ---------- entidades ----------
@@ -63,9 +99,10 @@ export class Simulacao {
   criarInimigo(sp) {
     const t = TIPOS_INIMIGO[sp.tipo];
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: t.vida, vidaMax: t.vida,
-      ataqueCd: 1 + Math.random(), sp, v: this.mapa.inimigos.indexOf(sp) });
+      ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
     this.inimigos.push(e);
+    return e;
   }
   todos() { return [...this.jogadores.values(), ...this.inimigos]; }
   inimigosDe(c) {
@@ -150,7 +187,7 @@ export class Simulacao {
     j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
     const d = Math.hypot(p.x - j.x, p.z - j.z), chao = this.terreno.altura(p.x, p.z);
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
-    const ok = d <= j.orc + tele + 0.05 && p.y >= chao - 0.6 && p.y <= chao + ORCAMENTO.altura && Math.hypot(p.x, p.z) <= this.mapa.raio;
+    const ok = d <= j.orc + tele + 0.05 && p.y >= chao - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z);
     if (!ok) {
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
       j.cliente = null;
@@ -263,6 +300,22 @@ export class Simulacao {
     j.prog.atr[k]++; j.prog.pontos--;
     this.aplicarStatus(j);
     this.avisarProg(j);
+  }
+  // Mestre Ivo (NPC funcao 'resetar', perto de onde o herói nasce): atributos voltam para 3 e os pontos voltam; skills ficam
+  custoReset(j) { return Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
+  resetarBuild(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!(this.mapa.npcs || []).some((n) => n.funcao === 'resetar' && dist(n, j) < 4.5)) return aviso('Fale com o Mestre Ivo');
+    const p = j.prog, gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0), custo = this.custoReset(j);
+    if (gastos <= 0) return aviso('Você ainda não gastou nenhum ponto.');
+    if (p.ouro < custo) return aviso(`Falta ouro: custa ${custo}`);
+    p.ouro -= custo;
+    for (const k of Object.keys(p.atr)) p.atr[k] = 3;
+    p.pontos += gastos;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+    aviso(`Build resetada: ${gastos} pontos para distribuir de novo`);
   }
   // Uma das duas barras (espada ou cajado): 6 botões, só skill que serve nela, sem repetir (null = vazio)
   definirBarra(id, m) {
@@ -474,7 +527,7 @@ export class Simulacao {
   }
   // o herói pode ficar ali? (sem pedra alta, casa, árvore ou poço; dentro do mapa) — o Salto Arcano para antes
   livreParaHeroi(j, x, z) {
-    if (Math.hypot(x, z) > this.mapa.raio - 2.2) return false;
+    if (!dentroDoMapa(this.mapa, x, z, 2.2)) return false;
     if (this.terreno.altura(x, z, j.y) > j.y + SUBIDA.degrau) return false;
     for (const k of this.obstaculos) {
       if (k.alto != null && (j.y || 0) > k.alto) continue;
@@ -593,7 +646,7 @@ export class Simulacao {
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
-    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((no.mina ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
@@ -601,6 +654,10 @@ export class Simulacao {
   custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
   // batidas que ainda restam neste veio para este jogador (cada um tem o seu: ninguém rouba o veio do outro)
   cargas(j, no) {
+    if (no.mina) { // zona de mineração: o veio é de todos
+      const s = this.veiosComuns.get(no.id);
+      return !s || s.volta <= this.tempo ? COLETA[no.tipo].cargas : s.n;
+    }
     const s = j.coletas[no.id];
     if (!s || s.volta <= this.tempo) return COLETA[no.tipo].cargas;
     return s.n;
@@ -612,16 +669,20 @@ export class Simulacao {
   }
   batidaColeta(j) {
     const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
+    if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     const b = profBonus(p.prof[C.prof]), ganhou = [];
     const por = (k, n) => { if (guardar(p.mochila, { k, n })) { const g = ganhou.find((x) => x.k === k); if (g) g.n += n; else ganhou.push({ k, nome: ITENS[k].nome, n }); } else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
     for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < b.extra ? 1 : 0));
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch) por(k, 1);
-    const s = j.coletas[no.id] = { n: this.cargas(j, no) - 1, volta: this.tempo + C.volta };
+    const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
+    const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
+    if (no.mina) { this.veiosComuns.set(no.id, s); this.evento({ t: 'veio', no: no.id, cargas: s.n, volta }); } // todo mundo vê a pedra sumir
+    else j.coletas[no.id] = s;
     this.pontosProf(j, C.prof, C.vigor);
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
-    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta: C.volta });
+    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     if (!ganhou.length) return this.pararColeta(j, null);
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
@@ -714,6 +775,7 @@ export class Simulacao {
     }
     if (npc.funcao === 'habilidades') return diga(npc.falas[0], { abrir: 'habilidades' });
     if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
+    if (npc.funcao === 'resetar') return diga(npc.falas[0] + ` Custa ${this.custoReset(j)} de ouro.`, { abrir: 'resetar', custo: this.custoReset(j) });
     diga(proxima());
   }
   // Inimigo caiu: conta para quem está numa missão contra a horda dele (vale para todos do grupo)
@@ -916,7 +978,10 @@ export class Simulacao {
       const xp = XP_INIMIGO[c.tipo] || 5;
       for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) { this.ganharXP(j, xp); this.soltarDrops(c, j); }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
-      this.depois(8, () => {
+      if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
+        const vg = this.cacas[c.sp.caca].vagas[c.sp.vaga];
+        this.depois(this.cacas[c.sp.caca].def.corpo, () => { this.inimigos.splice(this.inimigos.indexOf(c), 1); if (vg.e === c) vg.e = null; });
+      } else this.depois(8, () => {
         this.inimigos.splice(this.inimigos.indexOf(c), 1);
         this.criarInimigo(c.sp);
       });
@@ -962,8 +1027,7 @@ export class Simulacao {
       const m = c.tipo !== 'jogador' && o.tipo !== 'jogador' ? 1.2 : 0.7; // monstro com monstro: ~0,6 m de raio cada
       if (d < m && d > 0) { c.x = o.x + dx / d * m; c.z = o.z + dz / d * m; }
     }
-    const r = Math.hypot(c.x, c.z), lim = this.mapa.raio - 2.2;
-    if (r > lim) { c.x *= lim / r; c.z *= lim / r; }
+    [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
   }
   mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); c.x += dx; c.z += dz; this.colidir(c); }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
@@ -1134,6 +1198,7 @@ export class Simulacao {
     }
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
+    this.passoCacas(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
     const ev = this.eventos; this.eventos = [];
@@ -1286,6 +1351,8 @@ export class Simulacao {
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
+      // veios das zonas de mineração já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
+      veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
     };
   }
 }

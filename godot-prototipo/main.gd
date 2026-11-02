@@ -25,13 +25,13 @@ const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
 const LACOS := ["parada", "andar", "corrida", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
-# inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), só no acampamento do leste, nunca dentro da vila
-const BANDO := [
-	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp", "tipo": "imp"},
-	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15, "tipo": "chefe"},
-]
+# inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
+# saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
+const BANDO := []
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
-const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria"}
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria", "reset": "cabelo_m"}
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
@@ -162,6 +162,7 @@ func _ready() -> void:
 		e.tipo = b.tipo
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
+	montar_cacas()
 	for n in mundo.get("npcs", []):
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
@@ -232,6 +233,8 @@ func montar_chao() -> void:
 	m.set_shader_parameter("terra_tex", load("res://modelos/stony_dirt_path.jpg"))
 	m.set_shader_parameter("pedra_tex", load("res://modelos/cobblestone_floor_01.jpg"))
 	m.set_shader_parameter("mascara", load("res://modelos/mascara_vila.png"))
+	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
+	m.set_shader_parameter("area", Vector3(float(mk.x0), float(mk.z0), float(mk.tam)))
 	m.set_shader_parameter("grama_cru", load("res://modelos/forrest_ground_01.jpg"))
 	m.set_shader_parameter("pedra_cru", load("res://modelos/cobblestone_floor_01.jpg"))
 	var p := PlaneMesh.new()
@@ -243,8 +246,9 @@ func montar_chao() -> void:
 	add_child(chao)
 
 func peso_vila(x: float, z: float) -> float:
-	var i := int((x + 30.0) / 56.0 * mascara.get_width())
-	var j := int((z + 34.0) / 56.0 * mascara.get_height())
+	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
+	var i := int((x - float(mk.x0)) / float(mk.tam) * mascara.get_width())
+	var j := int((z - float(mk.z0)) / float(mk.tam) * mascara.get_height())
 	if i < 0 or j < 0 or i >= mascara.get_width() or j >= mascara.get_height():
 		return 0.0
 	var c := mascara.get_pixel(i, j)
@@ -320,19 +324,35 @@ func montar_grama() -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	mm.mesh = m
-	mm.instance_count = 22000 # mesma quantidade do celular no site
+	# a vila com a mesma quantidade do celular no site; as áreas de fora (mundo.areas depois da primeira) na mesma densidade
+	var n0 := 22000
+	var fora: Array = mundo.get("areas", []).slice(1)
+	var extras: Array = []
+	for o in fora:
+		extras.append(int(n0 * float(o.r) * float(o.r) / pow(RAIO * 1.15, 2) * 0.8))
+	mm.instance_count = n0 + extras.reduce(func(s, n): return s + n, 0)
 	var rng := RandomNumberGenerator.new()
 	for i in mm.instance_count:
+		var cx := 0.0
+		var cz := 0.0
+		var rr := RAIO * 1.15
+		var ini := n0
+		for q in fora.size():
+			if i >= ini:
+				cx = float(fora[q].x)
+				cz = float(fora[q].z)
+				rr = float(fora[q].r) * 1.1
+			ini += extras[q]
 		var a := 0.0
 		var r := 0.0
 		for k in 20: # não nasce nas trilhas, na praça nem colada nas casas
 			a = rng.randf() * TAU
-			r = sqrt(rng.randf()) * RAIO * 1.15
-			if peso_vila(cos(a) * r, sin(a) * r) <= 0.2:
+			r = sqrt(rng.randf()) * rr
+			if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2:
 				break
 		var s := rng.randf_range(0.7, 1.3)
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.6, 1.4), s))
-		mm.set_instance_transform(i, Transform3D(b, Vector3(cos(a) * r, 0, sin(a) * r)))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(cx + cos(a) * r, 0, cz + sin(a) * r)))
 		mm.set_instance_color(i, hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46))) # PALETA.grama do site
 	grama = MultiMeshInstance3D.new()
 	grama.multimesh = mm
@@ -487,6 +507,17 @@ func perto_da_loja() -> bool:
 		if n.funcao == "loja" and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
 			return true
 	return false
+
+func perto_do_npc(funcao: String, metros: float) -> bool:
+	for n in npcs:
+		if n.funcao == funcao and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < metros:
+			return true
+	return false
+
+# preço do Mestre Ivo (RESET_BUILD de shared/dados.js, o mesmo de Simulacao.custoReset)
+func custo_reset() -> int:
+	var R: Dictionary = mundo.get("resetBuild", {"minimo": 50, "porNivel": 10})
+	return max(int(R.minimo), int(R.porNivel) * int(P.prog.nivel))
 
 # poção da mochila: confere se vale a pena; sem internet já recupera aqui (online quem aplica é o servidor)
 func usar_pocao(it: Dictionary) -> bool:
@@ -664,6 +695,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	if e.vida <= 0:
 		e.estado = "morto"
 		e.t = D.INIMIGO.renascer
+		e.morreu = tempo
 		e.parado = 0.0
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
@@ -867,7 +899,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
@@ -876,7 +908,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "loja", "coletar", "forja"]:
+	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
@@ -966,6 +998,11 @@ func _tentar(qual: String) -> bool:
 			trabalho.tocar_botao()
 		"forja": # perto do Tomás: menu na aba Profissões, receitas do Ferreiro
 			menu.abrir("profissoes", "fer")
+		"resetar": # perto do Mestre Ivo: online ele responde com o preço e a janela abre (online.gd "fala")
+			if on():
+				rede("falar")
+			else:
+				menu.perguntar_reset(custo_reset())
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -1348,6 +1385,7 @@ func _process(dt: float) -> void:
 	if not on():
 		atualizar_inimigos(dt)
 	barras_perto()
+	avisar_zona()
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
@@ -1379,6 +1417,7 @@ func _process(dt: float) -> void:
 		hud.sem_mana("hab%d" % i, k != null and P.habs.has(k) and h.mana < float(P.habs[k].get("mana", 0)))
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
 	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
+	hud.mostrar_botao("resetar", perto_do_npc("resetar", 3.0) and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
@@ -1748,9 +1787,97 @@ func colidir_inimigo(no: Node3D) -> void:
 			nz = (1.0 if lz >= 0 else -1.0) * k.hd
 		p.x = k.x + nx * k.cos + nz * k.sin
 		p.z = k.z - nx * k.sin + nz * k.cos
+	var lim: Vector2 = mov.limitar_ao_mapa(p.x, p.z, 2.2) # não passa das pedras que fecham o mapa (como Simulacao.colidir)
+	p.x = lim.x
+	p.z = lim.y
 	no.position = p
 
+# ---------- campo de caça (regra do Quimera, igual a Simulacao.passoCacas do servidor) ----------
+# sempre caca.n monstros: a cada caca.passo s, se falta algum (o corpo já sumiu), nasce um ao acaso no campo, longe
+# do herói; o próximo vem em caca.rapido s com menos da metade vivos, senão em caca.normal s
+var cacas: Array = []
+func montar_cacas() -> void:
+	for ci in mundo.get("caca", []).size():
+		var c: Dictionary = mundo.caca[ci]
+		var k := {"def": c, "vagas": [], "nx": 0.0, "t": 0.0}
+		for i in c.tipos.size():
+			var tipo := str(c.tipos[i])
+			var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), NOME_TIPO.get(tipo, "Inimigo"), 1.15 if tipo == "chefe" else 1.0)
+			e.tipo = tipo
+			e.vida_max = VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)
+			e.vida = e.vida_max
+			e.caca = ci
+			e.centro = e.no.position
+			k.vagas.append(e)
+		cacas.append(k)
+
+# ponto ao acaso no campo (até caca.ate do raio), longe do herói e fora de árvore, pedra e veio
+func ponto_caca(c: Dictionary, inicio := false):
+	for t in 8:
+		var a := randf() * TAU
+		var r: float = sqrt(randf()) * float(c.r) * float(c.ate)
+		var p := Vector3(float(c.x) + cos(a) * r, 0, float(c.z) + sin(a) * r)
+		if not inicio and heroi and Vector2(p.x - heroi.position.x, p.z - heroi.position.z).length() < float(c.longe):
+			continue
+		var livre := true
+		for k in mundo.obstaculos:
+			if Vector2(p.x - float(k.x), p.z - float(k.z)).length() < float(k.r) + 0.8:
+				livre = false
+				break
+		if livre:
+			return p
+	return null if not inicio else Vector3(float(c.x), 0, float(c.z))
+
+func passo_cacas(dt: float) -> void:
+	for k in cacas:
+		var c: Dictionary = k.def
+		k.t -= dt
+		if k.t > 0.0:
+			continue
+		k.t = float(c.passo)
+		var vivos := 0
+		var vaga = null
+		for e in k.vagas:
+			if e.estado != "morto":
+				vivos += 1
+			elif vaga == null and tempo - e.get("morreu", 0.0) >= float(c.corpo):
+				vaga = e
+		if vaga == null or tempo < k.nx:
+			continue
+		var p = ponto_caca(c)
+		if p == null:
+			k.nx = tempo + float(c.rapido)
+			continue
+		k.nx = tempo + (float(c.rapido) if vivos < int(c.n) / 2.0 else float(c.normal))
+		var e: Dictionary = vaga
+		e.vida = e.vida_max
+		e.estado = "vagar"
+		e.no.position = p
+		e.centro = p
+		e.alvo = p
+		e.barra.visible = true
+		e.barra.scale.x = 1.0
+		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
+		e.anim.play("espada_parada", 0.2)
+		combate.voltou(e.no)
+
+# entrou no campo de caça ou na zona de mineração: aviso com o nome (como o Quimera: "Zona de caça: ...")
+var _zona_atual := ""
+func avisar_zona() -> void:
+	var z := ""
+	for c in mundo.get("caca", []):
+		if Vector2(heroi.position.x - float(c.x), heroi.position.z - float(c.z)).length() < float(c.r):
+			z = "Zona de caça: " + str(c.nome)
+	for c in mundo.get("mina", []):
+		if Vector2(heroi.position.x - float(c.x), heroi.position.z - float(c.z)).length() < float(c.r) + 1.0:
+			z = "Mineração: " + str(c.nome)
+	if z != _zona_atual:
+		_zona_atual = z
+		if z != "":
+			hud.aviso(z)
+
 func atualizar_inimigos(dt: float) -> void:
+	passo_cacas(dt)
 	for e in inimigos:
 		colidir_inimigo(e.no)
 	separar_inimigos()
@@ -1768,6 +1895,8 @@ func atualizar_inimigos(dt: float) -> void:
 			e.anim.speed_scale = 1.0
 		match e.estado:
 			"morto":
+				if e.has("caca"): # campo de caça: quem volta é passo_cacas (outra vaga, outro lugar)
+					continue
 				if e.t <= 0.0:
 					e.vida = e.vida_max
 					e.estado = "vagar"
