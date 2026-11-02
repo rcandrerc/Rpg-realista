@@ -796,7 +796,8 @@ func usar(qual: String) -> void:
 func _tentar(qual: String) -> bool:
 	match qual:
 		"basico":
-			h.segurando = true
+			# segura só se o dedo ainda está no botão (um toque que saiu da fila depois de soltar não trava a repetição)
+			h.segurando = hud.segurando("basico")
 			return basico()
 		"troca":
 			armar("Magia" if h.modo == "Espada" else "Espada")
@@ -1288,6 +1289,9 @@ func atualizar_heroi(dt: float) -> void:
 		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * dt)
 	if h.escudo_ate <= tempo:
 		h.escudo = 0.0
+	# repete o ataque básico só enquanto o dedo está no botão; soltou, para na hora (sem deixar o herói farmando sozinho)
+	if h.segurando and not hud.segurando("basico"):
+		h.segurando = false
 	if h.segurando and tempo - h.ultimo_basico > 0.2:
 		basico()
 	# botão guardado na fila: sai assim que der

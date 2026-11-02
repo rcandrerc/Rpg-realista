@@ -114,10 +114,7 @@ func _centro(b: Dictionary) -> Vector2:
 func _input(ev: InputEvent) -> void:
 	if bloqueado:
 		if not _toques.is_empty():
-			_toques.clear()
-			mover = Vector2.ZERO
-			for b in botoes:
-				b.apertado = false
+			soltar_tudo()
 		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed and menu_topo and menu_topo.cobre(ev.position):
@@ -143,7 +140,7 @@ func _input(ev: InputEvent) -> void:
 			_toques.erase(ev.index)
 			if o == "joy":
 				mover = Vector2.ZERO
-			elif o != null and o != "cam":
+			elif o != null and o != "cam" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
 				for b in botoes:
 					if b.acao == o:
 						b.apertado = false
@@ -158,6 +155,30 @@ func _input(ev: InputEvent) -> void:
 				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * 1.4
 		elif o == "cam":
 			giro_cam += ev.relative
+
+# o botão continua apertado só enquanto algum dedo está nele (o ataque básico repete só assim)
+func segurando(acao: String) -> bool:
+	for o in _toques.values():
+		if o == acao:
+			return true
+	return false
+
+# solta todos os dedos de uma vez, avisando cada botão (menu abriu, app saiu da tela, toque perdido)
+func soltar_tudo() -> void:
+	var tinha: Array = _toques.values()
+	_toques.clear()
+	mover = Vector2.ZERO
+	for b in botoes:
+		b.apertado = false
+	for o in tinha:
+		if o != "joy" and o != "cam":
+			soltou.emit(o)
+
+# o Android às vezes não manda o "soltou" (notificação puxada, app minimizado, tela bloqueada): solta tudo
+func _notification(what: int) -> void:
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_WINDOW_FOCUS_OUT]:
+		if not _toques.is_empty():
+			soltar_tudo()
 
 func _process(dt: float) -> void:
 	if _aviso_t > 0:
