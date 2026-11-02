@@ -1039,8 +1039,12 @@ export class Simulacao {
       if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
       return true;
     };
+    const x0 = j.x, y0 = j.y, z0 = j.z, chao0 = j.chao;
     if (!vai(j.x + dx, j.z + dz)) { j.bloqueado = true; if (!vai(j.x + dx, j.z)) vai(j.x, j.z + dz); }
     this.colidir(j);
+    // o empurrão de um obstáculo (tina, bigorna, esteio, outro jogador) não pode jogar o herói para dentro de uma parede:
+    // senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
+    if (T.altura(j.x, j.z, j.y) > lim) { j.x = x0; j.y = y0; j.z = z0; j.chao = chao0; j.bloqueado = true; }
   }
 
   // ---------- escalada ----------
@@ -1066,6 +1070,7 @@ export class Simulacao {
     const T = this.terreno, fx = Math.sin(ry), fz = Math.cos(ry);
     if (T.teto(j.x, j.z, j.y) < Infinity) return null;
     for (let d = 0.1; d <= ate; d += 0.1) {
+      if (T.teto(j.x + fx * d, j.z + fz * d, j.y) < Infinity) return null; // o caminho entra debaixo de um telhado (ferraria aberta): parede lá dentro não se escala correndo
       const h = T.altura(j.x + fx * d, j.z + fz * d, j.y);
       if (h > j.y + SUBIDA.degrau) return h > j.y + SUBIDA.mini ? { dist: d, r: T.rochaEm(j.x + fx * d, j.z + fz * d, j.y) } : null;
     }
