@@ -319,15 +319,17 @@ export const RARIDADES = [
   { nome: 'Comum', cor: 0xcfc8b8 }, { nome: 'Raro', cor: 0x5aa8ff }, { nome: 'Épico', cor: 0xb974ff },
   { nome: 'Lendário', cor: 0xffb03a }, { nome: 'Mítico', cor: 0xff5a72 },
 ];
-// Lugares do corpo: os 6 do menu, Camisa (corpo), Calça (pernas), Botas (pes), Capa, Acessório e Arma
-// (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar). Camisa, calça, botas e capa aparecem no corpo
-// do herói (godot-prototipo/armadura.gd); 'visivel' = o jeito que a peça aparece.
-export const LUGARES = ['corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
+// Lugares do corpo (pedido do André): Capacete (cabeca), Camisa (corpo), Calça ou Short (pernas), Botas (pes), Capa,
+// Acessório e Arma (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar). Capacete, camisa, calça,
+// short, botas e capa aparecem no corpo do herói (godot-prototipo/armadura.gd).
+export const LUGARES = ['cabeca', 'corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
 export const MOCHILA = 32; // 8 x 4, como uma página da mochila do Quimera
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 export const ITENS = {
   // Uma linha só de armadura (serve para espada e magia). Comum é de couro; do Raro em diante, placas de aço.
   peitoral: { nome: 'Peitoral', lugar: 'corpo', st: { defesa: [4, 7, 10, 14, 20], vida: [10, 15, 22, 32, 46], mana: [4, 7, 10, 14, 20] } },
+  chapeu: { nome: 'Capacete', lugar: 'cabeca', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20] } }, // a chave antiga 'chapeu' continua: contas antigas não perdem a peça
+  short: { nome: 'Short', lugar: 'pernas', st: { defesa: [1, 2, 3, 4, 6], vida: [4, 7, 10, 14, 20], mana: [4, 6, 9, 13, 18] } }, // mais leve que a calça: menos defesa, mais mana
   calca: { nome: 'Calça', lugar: 'pernas', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27], mana: [3, 5, 7, 10, 14] } },
   capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30] } },
   botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27] } },
@@ -349,7 +351,7 @@ export const ITENS = {
   carvao: { nome: 'Carvão', mat: true, pilha: 50, venda: 2, desc: 'Lenha queimada na forja. Misturado ao ferro, vira aço.' },
   barra_aco: { nome: 'Barra de aço', mat: true, pilha: 50, venda: 20, desc: 'Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores.' },
   couro: { nome: 'Couro', mat: true, pilha: 50, venda: 3, desc: 'Couro grosso dos Puglins. O alfaiate faz botas e reforços.' },
-  tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças e capas.' },
+  tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
 };
 export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
 export const VENDA_TOMO = 30; // x nível do Tomo
@@ -366,7 +368,7 @@ export const CONJUNTO = [
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
 export const LOJA = [
   { k: 'pocao', preco: 15 }, { k: 'pocao_mana', preco: 18 },
-  ...['peitoral', 'calca', 'botas', 'capa', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
+  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
 ];
 export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
@@ -398,7 +400,7 @@ export const PROFISSOES = {
   min: { nome: 'Minerador', grupo: 'Coleta', desc: 'Minerar veios de ferro, cobre e cristal' },
   len: { nome: 'Lenhador', grupo: 'Coleta', desc: 'Cortar lenha das árvores' },
   fer: { nome: 'Ferreiro', grupo: 'Criação', desc: 'Barras, espadas, cajados e colares na forja do Tomás' },
-  alf: { nome: 'Alfaiate', grupo: 'Criação', desc: 'Calças, capas, botas e óculos na banca da Rosa' },
+  alf: { nome: 'Alfaiate', grupo: 'Criação', desc: 'Calças, shorts, capas, botas e óculos na banca da Rosa' },
   mer: { nome: 'Mercador', grupo: 'Comércio', desc: 'Negociar com a Rosa: vende mais caro e compra mais barato' },
 };
 export const RANKS = ['Novato', 'Veterano', 'Especialista', 'Mestre', 'Autoridade', 'Campeão', 'Adepto', 'Arauto', 'Virtuoso', 'Celebridade', 'Famoso'];
@@ -435,7 +437,8 @@ export const RECEITAS = {
   cajado: { prof: 'fer', faz: 'cajado', usa: { lenha: 4, barra_cobre: 1, cristal: 1 }, vigor: 4, nivel: 2 },
   colar: { prof: 'fer', faz: 'colar', usa: { barra_cobre: 2, cristal: 2 }, vigor: 4, nivel: 4 },
   botas: { prof: 'alf', faz: 'botas', usa: { couro: 4 }, vigor: 8, nivel: 1 },
-  chapeu: { prof: 'alf', faz: 'chapeu', usa: { tecido: 3, couro: 1 }, vigor: 8, nivel: 1 },
+  chapeu: { prof: 'fer', faz: 'chapeu', usa: { barra_ferro: 2, couro: 1 }, vigor: 6, nivel: 2 }, // Capacete
+  short: { prof: 'alf', faz: 'short', usa: { couro: 2, tecido: 1 }, vigor: 8, nivel: 1 },
   capa: { prof: 'alf', faz: 'capa', usa: { tecido: 4, couro: 1 }, vigor: 8, nivel: 2 },
   manto: { prof: 'alf', faz: 'manto', usa: { tecido: 5, couro: 2 }, vigor: 8, nivel: 3 },
   oculos: { prof: 'alf', faz: 'oculos', usa: { barra_cobre: 1, cristal: 1, couro: 1 }, vigor: 8, nivel: 5 },
@@ -443,7 +446,7 @@ export const RECEITAS = {
   calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
   peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },
 };
-// receita de item que não existe (ex.: o chapéu, que virou calça) some sozinha
+// receita de item que não existe (ex.: o manto, que virou peitoral) some sozinha
 for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
 // Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
 export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' } };

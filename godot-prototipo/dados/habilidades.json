@@ -490,6 +490,53 @@
     ]
    }
   },
+  "chapeu": {
+   "nome": "Capacete",
+   "lugar": "cabeca",
+   "st": {
+    "defesa": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "vida": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ]
+   }
+  },
+  "short": {
+   "nome": "Short",
+   "lugar": "pernas",
+   "st": {
+    "defesa": [
+     1,
+     2,
+     3,
+     4,
+     6
+    ],
+    "vida": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ],
+    "mana": [
+     4,
+     6,
+     9,
+     13,
+     18
+    ]
+   }
+  },
   "calca": {
    "nome": "Calça",
    "lugar": "pernas",
@@ -730,7 +777,7 @@
    "mat": true,
    "pilha": 50,
    "venda": 3,
-   "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças e capas."
+   "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas."
   }
  },
  "raridades": [
@@ -756,6 +803,7 @@
   }
  ],
  "lugares": [
+  "cabeca",
   "corpo",
   "pernas",
   "capa",
@@ -855,6 +903,16 @@
    "preco": 18
   },
   {
+   "k": "chapeu",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "chapeu",
+   "r": 1,
+   "preco": 240
+  },
+  {
    "k": "peitoral",
    "r": 0,
    "preco": 60
@@ -871,6 +929,16 @@
   },
   {
    "k": "calca",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "short",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "short",
    "r": 1,
    "preco": 240
   },
@@ -979,7 +1047,7 @@
   "alf": {
    "nome": "Alfaiate",
    "grupo": "Criação",
-   "desc": "Calças, capas, botas e óculos na banca da Rosa"
+   "desc": "Calças, shorts, capas, botas e óculos na banca da Rosa"
   },
   "mer": {
    "nome": "Mercador",
@@ -1147,6 +1215,26 @@
    "faz": "botas",
    "usa": {
     "couro": 4
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "chapeu": {
+   "prof": "fer",
+   "faz": "chapeu",
+   "usa": {
+    "barra_ferro": 2,
+    "couro": 1
+   },
+   "vigor": 6,
+   "nivel": 2
+  },
+  "short": {
+   "prof": "alf",
+   "faz": "short",
+   "usa": {
+    "couro": 2,
+    "tecido": 1
    },
    "vigor": 8,
    "nivel": 1

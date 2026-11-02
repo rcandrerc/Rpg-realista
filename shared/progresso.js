@@ -65,7 +65,7 @@ const ehEquip = (k) => !!ITENS[k]?.lugar;
 // Quantas peças de cada raridade (ou melhor) estão no corpo: 6 lugares, a Arma conta pela melhor entre espada e cajado
 export function pecasDoConjunto(equip = {}) {
   const r = (l) => (equip[l] ? equip[l].r : -1);
-  const lugares = [r('corpo'), r('pernas'), r('capa'), r('pes'), r('acessorio'), Math.max(r('espada'), r('cajado'))];
+  const lugares = [r('cabeca'), r('corpo'), r('pernas'), r('capa'), r('pes'), r('acessorio'), Math.max(r('espada'), r('cajado'))];
   return RARIDADES.map((_, i) => lugares.filter((x) => x >= i).length);
 }
 // Soma das peças e do bônus de conjunto (o melhor de 2, 3 e 6 peças)
@@ -84,9 +84,9 @@ export function bonusEquip(equip = {}) {
   return b;
 }
 // Item na mochila: { k, r } peça (r = raridade 0..4) · { k, n } poção · { k: 'tomo', h, nv, n } Tomo da skill h
-const ANTIGOS = { chapeu: 'calca', manto: 'peitoral' };
+const ANTIGOS = { manto: 'peitoral' };
 export function itemValido(it) {
-  // conta antiga: o Chapéu virou Calça e o Manto virou Peitoral (uma linha só de armadura)
+  // conta antiga: o Manto virou Peitoral (uma linha só de armadura)
   if (it && typeof it === 'object' && ANTIGOS[it.k]) it = { ...it, k: ANTIGOS[it.k] };
   if (!it || typeof it !== 'object' || !ITENS[it.k]) return null;
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -245,7 +245,7 @@ export function progressoValido(p) {
     n.ouro = int(p.ouro, 0, 1e9, 0);
     n.mochila = mochilaNova();
     p.mochila.slice(0, MOCHILA).forEach((it, i) => { n.mochila[i] = itemValido(it); });
-    for (const l of LUGARES) { const it = itemValido(p.equip?.[l] ?? (l === 'pernas' ? p.equip?.cabeca : null)); n.equip[l] = it && ITENS[it.k].lugar === l ? it : null; }
+    for (const l of LUGARES) { const it = itemValido(p.equip?.[l]); n.equip[l] = it && ITENS[it.k].lugar === l ? it : null; }
   }
   // vigor e profissões (conta de antes: vigor cheio e tudo no Nv 1)
   const agora = Date.now(), num = (v) => typeof v === 'number' && Number.isFinite(v);
