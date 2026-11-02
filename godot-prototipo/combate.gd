@@ -352,7 +352,7 @@ func passo(dt: float) -> void:
 			if mat != null and (mi.material_overlay == null or mi.material_overlay == _mat_preparo or mi.material_overlay == _mat_firme):
 				mi.material_overlay = mat
 			elif mat == null and (mi.material_overlay == _mat_preparo or mi.material_overlay == _mat_firme):
-				mi.material_overlay = null
+				mi.material_overlay = mi.get_meta("overlay_base") if mi.has_meta("overlay_base") else null
 		# morte: depois de cair, o corpo encolhe virando fumaça e some
 		if c.morto >= 0.0:
 			c.morto += dt
