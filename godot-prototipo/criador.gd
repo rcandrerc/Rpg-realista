@@ -69,6 +69,7 @@ var b_pronto: Button
 var b_cancelar: Button
 var linha_nome: Control
 var cores_ui := {} # parte -> [[botão, cor]]
+var originais := {} # parte -> botão Original
 var faixas := {} # chave -> HSlider
 var rolagem: ScrollContainer
 var _ao_concluir: Callable
@@ -132,7 +133,7 @@ func montar_palco() -> void:
 	env.sky = ceu
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.5, 0.47, 0.56)
-	env.ambient_light_energy = 0.45
+	env.ambient_light_energy = 0.6
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 0.85
 	env.fog_enabled = true
@@ -321,20 +322,39 @@ func montar_painel() -> Control:
 	linha_nome = ln
 	lista.add_child(ln)
 	for k in Aparencia.CORES:
-		lista.add_child(Menu.rotulo(NOMES[k], 15, OURO_CLARO))
+		var cab := HBoxContainer.new()
+		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
+		rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cab.add_child(rt)
+		# volta para a cor da Ruiva (fica aceso quando é a original)
+		var orig := Button.new()
+		orig.text = "Original"
+		orig.icon = load("res://icones/desfazer.svg")
+		orig.expand_icon = false
+		orig.add_theme_constant_override("icon_max_width", 16)
+		orig.focus_mode = Control.FOCUS_NONE
+		orig.add_theme_font_size_override("font_size", 13)
+		orig.custom_minimum_size = Vector2(104, 30)
+		orig.pressed.connect(func():
+			if _arrastou:
+				return
+			ap[k] = null
+			rosto = false
+			mudou())
+		cab.add_child(orig)
+		lista.add_child(cab)
+		originais[k] = orig
 		var fl := HFlowContainer.new()
 		fl.add_theme_constant_override("h_separation", 6)
 		fl.add_theme_constant_override("v_separation", 6)
 		cores_ui[k] = []
 		for c in criador[k]:
+			if c == null:
+				continue # a original fica no botão Original
 			var b := Button.new()
 			b.focus_mode = Control.FOCUS_NONE
-			b.custom_minimum_size = Vector2(44, 34) if c == null else Vector2(34, 34)
-			if c == null:
-				b.text = "orig."
-				b.add_theme_font_size_override("font_size", 12)
-				b.add_theme_color_override("font_color", TEXTO)
-			var cor = null if c == null else int(c)
+			b.custom_minimum_size = Vector2(34, 34)
+			var cor = int(c)
 			b.pressed.connect(func():
 				if _arrastou:
 					return
@@ -527,12 +547,15 @@ func marcar() -> void:
 			var b: Button = par[0]
 			var c = par[1]
 			var on: bool = c == ap.get(k)
-			var fundo := Color(0.12, 0.105, 0.088) if c == null else Aparencia._cor(c)
+			var fundo := Aparencia._cor(c)
 			var n := Menu.caixa(fundo, OURO_CLARO if on else Color(0.3, 0.25, 0.18), 3 if on else 1, 17)
 			n.content_margin_left = 2
 			n.content_margin_right = 2
 			for s in ["normal", "hover", "pressed"]:
 				b.add_theme_stylebox_override(s, n)
+	for k in originais:
+		Menu.estilo_botao(originais[k], ap.get(k) == null)
+		originais[k].add_theme_color_override("icon_normal_color", OURO_CLARO if ap.get(k) == null else APAGADO)
 	for k in faixas:
 		faixas[k].value = float(ap.get(k, 1.0))
 	_marcando = false
