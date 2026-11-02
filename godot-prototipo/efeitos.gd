@@ -10,6 +10,11 @@ const BRILHO := 0.65 # mundo claro: o brilho somado não pode estourar
 
 var mundo # main.gd (para achar os inimigos nos projéteis)
 
+# som do efeito (sons.gd do main), mais baixo longe do herói
+func _som(nome: String, pos, vol := 0.0, tom := 0.08) -> void:
+	if mundo and mundo.sons:
+		mundo.sons.tocar(nome, vol, tom, pos)
+
 # cores (brilho, cor) de cada habilidade, como no site no estilo anime
 const FXCOR := {
 	"bola": ["fff2b0", "ff7a1a"], "explosao": ["ffe6a0", "ff4a12"], "meteoros": ["ffe0a0", "ff5a12"],
@@ -498,6 +503,7 @@ func _ready() -> void:
 # ---------------------------------------------------------------- efeitos
 # Começo da habilidade: círculo no chão, coluna de luz, labaredas, fumaça e brasas. corpo = nó do personagem
 func conjura(corpo: Node3D, hab: String, dur: float, maos: Callable = Callable()) -> void:
+	_som("magia", corpo.global_position, -4.0)
 	var cores := cor_de(hab)
 	var cb = cores[0]
 	var cc = cores[1]
@@ -551,6 +557,7 @@ func area(x: float, z: float, r: float, cores: Array, forte := 1.0, y := 0.0) ->
 
 # habilidades de área em volta do herói (Explosão, Salto Esmagador, Giro da Lâmina)
 func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0) -> void:
+	_som("explosao", Vector3(x, y, z), -2.0 + min(4.0, r), 0.1)
 	var cores := cor_de(fx)
 	if fx == "giro": # três cortes de luz rodando em volta, disco no chão, faíscas e clarão
 		var g := Node3D.new()
@@ -609,6 +616,7 @@ func impacto(x: float, z: float, ry: float, fx: String, y := 0.0) -> void:
 
 # Raio Celeste: zigue-zague do céu até o chão, com clarão e estalo no chão
 func raio(x: float, z: float, y := 0.0) -> void:
+	_som("explosao", Vector3(x, y, z), -3.0, 0.15)
 	var cores := cor_de("raio")
 	var pts := []
 	var px := 0.0
@@ -684,6 +692,7 @@ func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Call
 
 # Raio em Cadeia: zigue-zague de luz da mão (ou do último alvo) até o próximo alvo
 func cadeia(de: Vector3, para: Vector3) -> void:
+	_som("tiro", para, -4.0, 0.2)
 	var cores := cor_de("raio")
 	var d := para - de
 	var lado := d.cross(Vector3.UP)
@@ -717,6 +726,7 @@ func cadeia(de: Vector3, para: Vector3) -> void:
 
 # Salto Arcano: some num estouro roxo e aparece no destino com anel, disco e runa (como o blink do Quimera)
 func teleporte(de: Vector3, para: Vector3) -> void:
+	_som("dash", para, -2.0, 0.05)
 	var cb := "f2e6ff"
 	var cc := "8a4aff"
 	surto(de.x, de.y + 1.0, de.z, 36, cb, cc, 5.0, 0.1)
@@ -735,6 +745,7 @@ func teleporte(de: Vector3, para: Vector3) -> void:
 
 # Projétil: cometa de fogo ou tiro arcano. Voa até acertar alguém ou acabar o alcance
 func projetil(de: Vector3, dir: Vector3, info: Dictionary, dmg: float, alcance := 20.0) -> void:
+	_som("tiro", de, -3.0 if info.get("estilo", "fogo") == "arcano" else 0.0)
 	var estilo: String = info.get("estilo", "fogo")
 	var cor: Color = info.cor
 	var cb = "fff2b0" if estilo == "fogo" else "ffffff"
@@ -754,6 +765,8 @@ func _fim_projetil(p: Dictionary) -> void:
 		surto(o.x, o.y, o.z, 30, "fff2b0", cor, 8.0, 0.14)
 	else:
 		surto(o.x, o.y, o.z, 16, clara, cor, 4.0, 0.08)
+	if p.info.has("explosao"):
+		_som("explosao", o, -3.0, 0.1)
 	if p.luz != null and p.luz.dono == p.m:
 		p.luz.vida = 0.0
 		p.luz.dono = null
@@ -761,6 +774,7 @@ func _fim_projetil(p: Dictionary) -> void:
 
 # Cura: brilho verde subindo (o círculo vem do conjura)
 func cura(alvo: Node3D) -> void:
+	_som("cura", alvo.global_position, -3.0, 0.02)
 	var p := alvo.global_position
 	anel(p.x, p.z, 1.6, "9be08f", 0.8, p.y)
 	for i in 30:
@@ -839,6 +853,7 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0) -> void:
 
 # Dash: rastro de vento atrás do corpo (forte = investida / dash rápido, com faíscas)
 func dash(corpo: Node3D, dur: float, forte: bool) -> void:
+	_som("dash", corpo.global_position, 0.0 if forte else -3.0)
 	var r := trilhos(corpo)
 	r.dash_t = dur
 	r.forte = dur if forte else 0.0
@@ -881,6 +896,7 @@ func escudo_fim(corpo: Node3D) -> void:
 
 # Abraço do Vórtice: anel roxo e partículas correndo em espiral para o centro
 func vortice(x: float, z: float, r: float, y := 0.0) -> void:
+	_som("magia", Vector3(x, y, z), -2.0, 0.05)
 	anel(x, z, r, "9a5cff", 0.6, y)
 	anel(x, z, r * 0.55, "c8a8ff", 0.45, y)
 	for i in 70:
@@ -931,6 +947,7 @@ func status_fim(corpo: Node3D) -> void:
 
 # subiu de nível: coluna dourada, anel e brilho subindo
 func subir_nivel(corpo: Node3D) -> void:
+	_som("nivel", corpo.global_position, -2.0, 0.0)
 	var p := corpo.global_position
 	conjura(corpo, "nivel", 1.4)
 	anel(p.x, p.z, 2.2, "ffd36a", 1.0, p.y)
@@ -1224,6 +1241,7 @@ func _passo(dt: float) -> void:
 			q.o.queue_free()
 			meteoros.remove_at(i)
 			area(q.para.x, q.para.z, q.get("r_imp", 1.1), [q.cb, q.cc], q.get("forte", 0.45), q.para.y)
+			_som("explosao", q.para, -4.0, 0.15)
 			if q.fn.is_valid():
 				q.fn.call(q.para)
 		i -= 1
