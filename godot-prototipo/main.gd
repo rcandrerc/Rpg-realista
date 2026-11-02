@@ -398,17 +398,15 @@ func usar_pocao(it: Dictionary) -> bool:
 
 # ouro e itens que caíram do monstro: sobem do corpo dele (cor da raridade)
 func mostrar_drop(pos: Vector3, ouro: int, itens: Array) -> void:
+	# uma linha embaixo da outra, saindo com 0,15 s de diferença (direção de arte: sem aviso repetido no topo)
+	var linhas := []
 	if ouro > 0:
-		fx.texto(pos, "+%d ouro" % ouro, Color("ffd36a"), 0.0)
-	var atraso := 0.25
-	var alto := 0.0
+		linhas.append(["+%d ouro" % ouro, Color("ffd36a")])
 	for it in itens:
 		var r := int(it.get("r", -1))
-		alto -= 0.32
-		fx.texto(pos + Vector3(0, alto, 0), str(it.nome), Color(P.dados.raridades[r].cor) if r >= 0 else Color("e8f0ff"), atraso)
-		atraso += 0.3
-		if r >= 1:
-			hud.aviso("Caiu: " + str(it.nome))
+		linhas.append([str(it.nome), Color(P.dados.raridades[r].cor) if r >= 0 else Color("e8f0ff")])
+	for i in linhas.size():
+		fx.texto(pos - Vector3(0, 0.36 * i, 0), linhas[i][0], linhas[i][1], 0.15 * i)
 
 # nome e barra de vida em cima da cabeça
 func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:

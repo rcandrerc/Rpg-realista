@@ -285,15 +285,24 @@ func montar_palco() -> void:
 	cil.height = 0.04
 	disco.mesh = cil
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.09, 0.08, 0.07)
-	mat.metallic = 0.6
-	mat.roughness = 0.35
-	mat.emission_enabled = true
-	mat.emission = Color(0.35, 0.25, 0.1)
-	mat.emission_energy_multiplier = 0.25
+	mat.albedo_color = Color(0.045, 0.04, 0.035) # disco escuro e fosco (o metálico refletia a luz e estourava em branco)
+	mat.roughness = 1.0
+	mat.metallic_specular = 0.05
 	disco.material_override = mat
 	disco.position.y = -0.02
 	vp.add_child(disco)
+	var aro := MeshInstance3D.new() # brilho fraco só na borda
+	var tor := TorusMesh.new()
+	tor.inner_radius = 0.785
+	tor.outer_radius = 0.8
+	aro.mesh = tor
+	var ma := StandardMaterial3D.new()
+	ma.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ma.albedo_color = Color(0.38, 0.29, 0.16)
+	aro.material_override = ma
+	aro.scale.y = 0.3
+	aro.position.y = 0.0
+	vp.add_child(aro)
 	boneco = m.modelo("ruiva")
 	boneco.get_parent().remove_child(boneco)
 	vp.add_child(boneco)

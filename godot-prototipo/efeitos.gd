@@ -799,9 +799,9 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0) -> void:
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
 	l.font_size = 48
-	l.outline_size = 10
+	l.outline_size = 14
 	l.modulate = Color(cor, 0.0)
-	l.outline_modulate = Color(0.08, 0.05, 0.03, 0.0)
+	l.outline_modulate = Color(0.06, 0.04, 0.02, 0.0)
 	l.pixel_size = 0.006
 	add_child(l)
 	l.global_position = pos + Vector3(0, 1.7, 0)
