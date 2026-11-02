@@ -59,11 +59,16 @@ static func vestir(raiz: Node3D, equip) -> void:
 	var esq: Skeleton3D = _esqueleto(raiz)
 	if esq == null:
 		return
+	var tem_capa := false
+	if equip is Dictionary and equip.get("capa") is Dictionary:
+		tem_capa = PECAS.get(str(equip.capa.get("k", ""))) == "capa"
 	for l in LUGARES:
 		var it = equip.get(l) if equip is Dictionary else null
 		var chave := ""
 		if it is Dictionary and PECAS.has(str(it.get("k", ""))):
 			chave = "%s:%d" % [str(it.k), int(it.get("r", 0))]
+			if l == "pernas" and tem_capa:
+				chave += ":capa" # com capa o saiote perde as lâminas de trás (o pano cobre e elas furariam a capa)
 		var nome: String = "Armadura_" + str(l)
 		var velho := esq.get_node_or_null(nome)
 		if velho and velho.get_meta("chave", "") == chave:
@@ -77,7 +82,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 		no.name = nome
 		no.set_meta("chave", chave)
 		esq.add_child(no)
-		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)))
+		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)), tem_capa)
 	_uniforme(raiz, equip if equip is Dictionary else {})
 	# armas nas costas passam por fora da capa
 	var capa := esq.get_node_or_null("Armadura_capa") != null
@@ -167,9 +172,11 @@ static func _fonte(raiz: Node3D, trecho: String) -> MeshInstance3D:
 			return mi
 	return null
 
-static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int) -> void:
+static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int, tem_capa := false) -> void:
 	for pm in pecas(k, r):
 		var parte: String = pm[0]
+		if parte == "saia" and tem_capa:
+			parte = "saia_frente"
 		var mat: String = pm[1]
 		if parte == "capa":
 			_montar_capa(raiz, esq, no, r)
@@ -201,7 +208,7 @@ const REGIOES := {
 	"braco_e": {"fonte": "Tops"}, "braco_d": {"fonte": "Tops"}, 
 	"canela_e": {"fonte": "Body_00"}, "canela_d": {"fonte": "Body_00"}, "cano_e": {"fonte": "Body_00"}, "cano_d": {"fonte": "Body_00"},
 	"sapato": {"fonte": "Shoes"}, "sapato_couro": {"fonte": "Shoes"},
-	"coxa_e": {"fonte": "Body_00"}, "coxa_d": {"fonte": "Body_00"}, "saia": {"fonte": "Bottoms"},
+	"coxa_e": {"fonte": "Body_00"}, "coxa_d": {"fonte": "Body_00"}, "saia": {"fonte": "Bottoms"}, "saia_frente": {"fonte": "Bottoms"},
 }
 
 class Ref:
@@ -282,9 +289,10 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			if p.y < R.y_joelho - 0.03 or p.y > R.y_cintura - 0.12 or ax > 0.17:
 				return Vector2(-1, 0)
 			return Vector2(0.006, p.y)
-		"saia":
+		"saia", "saia_frente":
 			# placas verticais (lâminas) em volta do quadril; começa abaixo da barra da blusa (que cobre o alto da saia)
-			if p.y > R.y_cintura - 0.075:
+			# saia_frente (com capa): só a frente e os lados; atrás fica o pano da capa
+			if p.y > R.y_cintura - 0.075 or (parte == "saia_frente" and p.z < -0.02):
 				return Vector2(-1, 0)
 			return Vector2(0.016, atan2(p.x, p.z) * 0.16 + 0.1) # 5 lâminas (faixa 0,2 no material "saia")
 		"sapato":
@@ -522,6 +530,23 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 		vn[i] = (vn[i] * sinal).normalized()
 		if vn[i] == Vector3.ZERO:
 			vn[i] = nor[i]
+	if parte == "peito":
+		# placa do peito: normal de um elipsoide achatado (frente/trás) misturada à da malha, para o toon dar
+		# uma faixa de sombra limpa no lado oposto à luz em vez de manchas no busto
+		var lo := pos[0]
+		var hi := pos[0]
+		for i in n:
+			lo = lo.min(pos[i])
+			hi = hi.max(pos[i])
+		var c := (lo + hi) * 0.5
+		var rad := ((hi - lo) * 0.5).max(Vector3(0.05, 0.05, 0.05))
+		rad.y *= 1.6 # mais alto que largo: as faixas ficam verticais
+		for i in n:
+			var d := pos[i] - c
+			var en := Vector3(d.x / (rad.x * rad.x), d.y / (rad.y * rad.y), d.z / (rad.z * rad.z)).normalized()
+			if en.dot(vn[i]) < 0.0:
+				continue
+			vn[i] = vn[i].lerp(en, 0.75).normalized()
 	# 8) arrays: casca + parede da borda (espessura)
 	var V := PackedVector3Array(pos)
 	var Nn := PackedVector3Array(vn)
@@ -616,8 +641,8 @@ static func _malha_ombreira(lado: float) -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# x0, x1 (em semi-eixos), escala, ângulo máx (rad): a de cima grande e a de baixo saindo por baixo dela
 	var placas := [[-0.62, 0.42, 1.0, 1.95], [0.3, 0.98, 0.9, 1.8]]
-	var A := 0.142 # 35% maiores (direção de arte)
-	var B := 0.105
+	var A := 0.142 * 0.82 # direção de arte v2: 18% menores que na v1
+	var B := 0.105 * 0.82
 	var NU := 22
 	var NV := 10
 	var k := 0
@@ -630,6 +655,10 @@ static func _malha_ombreira(lado: float) -> ArrayMesh:
 		for j in NV + 1:
 			var fx := lerpf(x0, x1, float(j) / NV)
 			var rr := B * esc * sqrt(maxf(0.04, 1.0 - fx * fx * 0.85))
+			# borda arredondada (raio ~2 cm) nas pontas da lâmina: o casco se curva para dentro, não termina reto como caixa
+			var ponta := minf(fx - x0, x1 - fx) * A
+			var u := clampf(1.0 - ponta / 0.02, 0.0, 1.0)
+			rr -= 0.02 * (1.0 - sqrt(1.0 - u * u))
 			var linha := []
 			for i in NU + 1:
 				var th := lerpf(-tm, tm, float(i) / NU)
@@ -724,7 +753,7 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 			var x := s * larg
 			var curva := (1.0 - s * s)
 			var z_topo := costas - 0.035 + 0.06 * (1.0 - curva)
-			var z_baixo := costas_q - 0.05
+			var z_baixo := costas_q - 0.07 # 3 cm ou mais de folga do saiote e da saia
 			var z := lerpf(z_topo, z_baixo, smoothstep(0.0, 0.45, t)) - 0.04 * curva * t
 			# dobras verticais do pano, mais fundas embaixo
 			z += 0.022 * t * sin(s * PI * 3.0)
