@@ -1023,6 +1023,7 @@
   },
   "arvore": {
    "nome": "Árvore",
+   "esgotado": "esgotada",
    "prof": "len",
    "vigor": 1,
    "tempo": 2,

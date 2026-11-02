@@ -421,7 +421,14 @@ export const RECEITAS = {
   capa: { prof: 'alf', faz: 'capa', usa: { tecido: 4, couro: 1 }, vigor: 8, nivel: 2 },
   manto: { prof: 'alf', faz: 'manto', usa: { tecido: 5, couro: 2 }, vigor: 8, nivel: 3 },
   oculos: { prof: 'alf', faz: 'oculos', usa: { barra_cobre: 1, cristal: 1, couro: 1 }, vigor: 8, nivel: 5 },
+  // peças das armaduras visíveis (camisa, calça, botas, capa, acessório): entram quando o item existir em ITENS
+  calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
+  saiote: { prof: 'alf', faz: 'saiote', usa: { tecido: 3, couro: 2 }, vigor: 8, nivel: 3 },
+  peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },
+  grevas: { prof: 'fer', faz: 'grevas', usa: { barra_ferro: 2, couro: 1 }, vigor: 5, nivel: 2 },
 };
+// receita de item que não existe (ex.: o chapéu, que virou calça) some sozinha
+for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
 // Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
 export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' } };
 export const OFICINA_DISTANCIA = 4.5;
