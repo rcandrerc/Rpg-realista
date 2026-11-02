@@ -3,11 +3,14 @@ extends SkeletonModifier3D
 # - inclinacao: tronco deita para dentro da curva (radianos, + = para a direita);
 # - frente: tronco vai para a frente na arrancada e para trás na freada (radianos, + = para a frente),
 #   dividido pela coluna e pelo peito; o pescoço compensa um pouco para a cabeça ficar firme;
-# - afunda: quadril desce (metros), no pouso e na freada.
+# - afunda: quadril desce (metros), no pouso e na freada;
+# - olhar: cabeça vira antes do corpo para onde o jogador vai.
 
 var inclinacao := 0.0
 var frente := 0.0
 var afunda := 0.0
+var olhar := 0.0 # radianos que a cabeça vira (+ = para a esquerda do corpo), 40% no pescoço e 60% na cabeça
+var _cabeca := -1
 var _coluna := -1
 var _peito := -1
 var _pescoco := -1
@@ -20,6 +23,7 @@ func preparar(esq: Skeleton3D) -> void:
 	_coluna = esq.find_bone("J_Bip_C_Spine")
 	_peito = esq.find_bone("J_Bip_C_Chest")
 	_pescoco = esq.find_bone("J_Bip_C_Neck")
+	_cabeca = esq.find_bone("J_Bip_C_Head")
 	_quadril = esq.find_bone("J_Bip_C_Hips")
 	if _coluna < 0 or _quadril < 0:
 		return
@@ -50,6 +54,8 @@ func _process_modification() -> void:
 	else:
 		_girar(s, _coluna, _lado, f)
 	_girar(s, _pescoco, _lado, -f * 0.45)
+	_girar(s, _pescoco, _cima, olhar * 0.4)
+	_girar(s, _cabeca, _cima, olhar * 0.6)
 	# curva: deita em volta da frente do corpo
 	_girar(s, _coluna, _frente, inclinacao)
 	if afunda > 0.001:

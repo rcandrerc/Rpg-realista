@@ -89,6 +89,11 @@ var _frente_v := 0.0
 var _incl := 0.0
 var _incl_v := 0.0
 var _vel_ant := 0.0
+var _dir_joy := Vector2.ZERO # para onde o joystick aponta agora (a cabeça vira antes do corpo)
+var _olhar := 0.0
+var _cansaco := 0.0 # 0 a 1: sobe correndo, desce parado; parado, o peito respira mais forte e mais rápido
+var _respira := 0.0 # fase da respiração
+var _resp_peso := 0.0 # respiração só aparece parado (entra e sai aos poucos)
 var _acel := 0.0 # aceleração no chão (m/s², suavizada): + arrancando, - freando
 var _flash := {} # Node3D do inimigo -> {mat, t}
 
@@ -1290,6 +1295,7 @@ func atualizar_heroi(dt: float) -> void:
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
+	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
 		mov.mirar(atan2(da.x, da.z))
@@ -1368,7 +1374,21 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	_frente += _frente_v * dt
 	_incl_v += ((alvo_incl - _incl) * MOLA_K * 0.8 - _incl_v * MOLA_AMORT) * dt
 	_incl += _incl_v * dt
-	inclinar.frente = clamp(_frente, -0.4, 0.3)
+	# cansaço e respiração: depois de correr, parado, o peito sobe e desce forte e vai acalmando
+	if vel > 3.5 and mov.chao:
+		_cansaco = min(1.0, _cansaco + dt / 8.0)
+	elif vel < 0.5:
+		_cansaco = max(0.0, _cansaco - dt / 10.0)
+	_respira += dt * TAU * lerp(0.28, 0.75, _cansaco)
+	_resp_peso = move_toward(_resp_peso, 1.0 if livre_corpo and vel < 0.5 else 0.0, dt * 3.0)
+	var resp: float = sin(_respira) * lerp(0.01, 0.05, _cansaco) * _resp_peso
+	inclinar.frente = clamp(_frente + resp, -0.4, 0.3)
+	# cabeça vira antes do corpo para onde o joystick aponta (o corpo vem logo atrás)
+	var alvo_olhar := 0.0
+	if livre_corpo and _dir_joy.length() > 0.1:
+		alvo_olhar = clamp(mov.ad(atan2(_dir_joy.x, _dir_joy.y), mov.ry) * 0.6, -0.7, 0.7)
+	_olhar = lerp(_olhar, alvo_olhar, min(1.0, dt * 12.0))
+	inclinar.olhar = _olhar
 	inclinar.inclinacao = clamp(_incl, -0.32, 0.32)
 	var freada: float = clamp(-_acel / mov.FREIA, 0.0, 1.0) if livre_corpo else 0.0
 	# pouso: câmera e quadril afundam, poeira e som (mesmo correndo)
