@@ -1092,6 +1092,7 @@ func habilidade(i: int) -> bool:
 	var hab: Dictionary = P.hab_pronta(k)
 	if h.mana < hab.get("mana", 0):
 		hud.aviso("Mana insuficiente")
+		hud.negar("hab%d" % i)
 		return true
 	var alvo = alvo_hab(hab)
 	if alvo is bool:
@@ -1289,6 +1290,11 @@ func mostrar_build() -> void:
 		icones.append(P.ICONE.get(k, "") if k != null else "")
 		travados.append(k != null and not P.liberada(k))
 	hud.mostrar_build(icones, h.modo, travados)
+	# borda de cada botão na cor do elemento da skill
+	var barra: Array = barra_atual()
+	for i in barra.size():
+		var k = barra[i]
+		hud.borda("hab%d" % i, Color(fx.cor_de(P.FX.get(k, "magia"))[1]).lightened(0.15) if k != null and P.habs.has(k) else null)
 
 # velocidade da animação de andar/correr para o passo bater com o chão (andar.gd: PASSO_*)
 func ritmo(a: String) -> float:
@@ -1346,6 +1352,7 @@ func _process(dt: float) -> void:
 	for i in barra.size():
 		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
+		hud.sem_mana("hab%d" % i, k != null and P.habs.has(k) and h.mana < float(P.habs[k].get("mana", 0)))
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
 	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
 	if P.mudou:
@@ -1635,6 +1642,36 @@ func barras_perto() -> void:
 		if e.barra.visible != v:
 			e.barra.visible = v
 			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v
+	empilhar_nomes()
+
+# dois ou mais monstros a menos de 1,5 m: os nomes empilham (18 px entre eles) em vez de se encavalar;
+# o "Firme!" fica no lugar do nome enquanto dura (direção de arte)
+const NOME_OFFSET := 52.0
+const NOME_PASSO := (14.0 + 18.0) * 72.0 / 14.0 # letra de 14 px + 18 px de espaço, em unidades da fonte (72)
+func empilhar_nomes() -> void:
+	var lista := []
+	for e in inimigos:
+		if e.barra != null and e.estado != "morto":
+			lista.append(e)
+	if camera:
+		lista.sort_custom(func(a, b): return a.no.global_position.distance_to(camera.global_position) < b.no.global_position.distance_to(camera.global_position))
+	var feitos := []
+	for e in lista:
+		var nome: Label3D = e.barra.get_parent().get_child(e.barra.get_index() - 2)
+		var k := 0
+		for o in feitos:
+			if Vector2(o.no.position.x - e.no.position.x, o.no.position.z - e.no.position.z).length() < 1.5:
+				k += 1
+		if nome.visible:
+			feitos.append(e)
+		nome.offset.y = NOME_OFFSET + k * NOME_PASSO
+		var c = combate._corpos.get(e.no)
+		var firme_on: bool = c != null and c.firme_txt != null and is_instance_valid(c.firme_txt) and c.firme_txt.visible
+		nome.modulate.a = 0.0 if firme_on else 1.0
+		nome.outline_modulate.a = nome.modulate.a
+		if firme_on:
+			c.firme_txt.offset.y = nome.offset.y * 14.0 / 22.0
+			c.firme_txt.position.y = nome.position.y
 
 # Câmera não atravessa casa, telhado, pedra nem tronco: anda do herói até a câmera e para 0,2 m antes do que bater
 # (copa de árvore deixa passar). Mesmas formas que o movimento usa (terreno.gd e obstáculos do mundo.json).

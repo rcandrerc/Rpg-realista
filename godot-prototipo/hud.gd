@@ -72,7 +72,26 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
-	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false})
+	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
+		"pronto_t": 0.0, "nega_t": 0.0, "sem_mana": false, "borda": null})
+
+# apertou e não pôde (sem mana, recarga): o botão treme um instante
+func negar(acao: String) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.nega_t = 0.25
+
+# sem mana para a skill: o botão fica apagado com um véu azul
+func sem_mana(acao: String, v: bool) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.sem_mana = v
+
+# borda do botão na cor do elemento da skill (fogo, gelo, arcano, lâmina); null = a dourada de sempre
+func borda(acao: String, cor) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.borda = cor
 
 func mostrar_botao(acao: String, v: bool) -> void:
 	for b in botoes:
@@ -101,6 +120,8 @@ func mostrar_build(icones_modo: Array, modo_atual: String, travados: Array = [])
 func recarga(acao: String, falta: float, total: float) -> void:
 	for b in botoes:
 		if b.acao == acao:
+			if b.cd > 0.0 and falta <= 0.0 and total > 1.5: # voltou a ficar pronta: brilho que abre
+				b.pronto_t = 0.45
 			b.cd = falta
 			b.cd_max = max(total, 0.01)
 
@@ -191,6 +212,11 @@ func _process(dt: float) -> void:
 		_destaque_t -= dt
 	if _dano_t > 0:
 		_dano_t -= dt
+	for b in botoes:
+		if b.pronto_t > 0.0:
+			b.pronto_t -= dt
+		if b.nega_t > 0.0:
+			b.nega_t -= dt
 	_tela.queue_redraw()
 
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
@@ -255,16 +281,26 @@ func _desenhar() -> void:
 		if b.oculto:
 			continue
 		var c := _centro(b)
+		if b.nega_t > 0.0: # tremidinha de "não deu"
+			c.x += sin(b.nega_t * 90.0) * 5.0 * (b.nega_t / 0.25)
 		var r: float = b.raio * (0.94 if b.apertado else 1.0)
 		_tela.draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.35))
 		_tela.draw_circle(c, r, b.cor)
-		_tela.draw_circle(c, r, COR_BORDA if b.cor == COR_FUNDO else b.cor.lightened(0.35), false, 2.5)
+		var cor_borda: Color = COR_BORDA if b.cor == COR_FUNDO else b.cor.lightened(0.35)
+		if b.borda != null:
+			cor_borda = b.borda
+		_tela.draw_circle(c, r, cor_borda, false, 2.5)
 		var t := icone(b.icone)
 		if t:
 			var s := r * 1.15
 			_tela.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
 		if b.travado: # ainda não liberada no nível do herói
 			_tela.draw_circle(c, r, Color(0, 0, 0, 0.35))
+		elif b.sem_mana and b.cd <= 0.0: # sem mana: apagado com véu azul
+			_tela.draw_circle(c, r, Color(0.05, 0.1, 0.3, 0.55))
+		if b.pronto_t > 0.0: # voltou a ficar pronta: anel que abre e some
+			var k: float = 1.0 - b.pronto_t / 0.45
+			_tela.draw_circle(c, r * (1.0 + 0.35 * k), Color(cor_borda.lightened(0.4), 0.85 * (1.0 - k)), false, 3.0)
 		if b.cd > 0.0:
 			var frac: float = b.cd / b.cd_max
 			_tela.draw_arc(c, r * 0.5, -PI / 2, -PI / 2 + TAU * frac, 24, Color(0, 0, 0, 0.55), r, true)

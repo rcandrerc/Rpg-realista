@@ -150,7 +150,7 @@ func firme(no: Node3D, dur: float) -> void:
 		l.offset = Vector2(0, 52.0 * 14.0 / 22.0)
 		l.modulate = Color(1.0, 0.62, 0.2)
 		l.outline_modulate = Color(0.12, 0.05, 0.0)
-		l.position = Vector3(0, (1.95 + 0.4) / max(0.01, no.scale.y), 0)
+		l.position = Vector3(0, 1.95, 0) # no lugar do nome (main.empilhar_nomes esconde o nome enquanto dura)
 		no.add_child(l)
 		c.firme_txt = l
 	c.firme_txt_t = 0.6
