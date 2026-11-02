@@ -88,9 +88,10 @@ jobs:
       - name: Exportar o APK
         working-directory: godot-prototipo
         run: |
-          # a versão sobe a cada build: o Android aceita instalar por cima
-          sed -i "s/^version\/code=.*/version\/code=$((100 + ${{ github.run_number }}))/" export_presets.cfg
-          sed -i "s/^version\/name=.*/version\/name=\"0.2.${{ github.run_number }}\"/" export_presets.cfg
+          # a versão sobe a cada build: o Android aceita instalar por cima.
+          # Começa em 1000 porque um APK antigo feito à mão saiu com versionCode 200 (0.3): abaixo disso o celular recusa.
+          sed -i "s/^version\/code=.*/version\/code=$((1000 + ${{ github.run_number }}))/" export_presets.cfg
+          sed -i "s/^version\/name=.*/version\/name=\"0.4.${{ github.run_number }}\"/" export_presets.cfg
           $GODOT_BIN --headless --import || true
           $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
           ls -la $GITHUB_WORKSPACE/rpg-realista.apk

@@ -420,7 +420,7 @@
   },
   "des": {
    "nome": "Destreza",
-   "desc": "+0,15% crítico · -1,3% recarga"
+   "desc": "+5 estamina · +0,15% crítico · -1,3% recarga"
   },
   "int": {
    "nome": "Inteligência",
@@ -647,6 +647,83 @@
    "nome": "Tomo",
    "pilha": 20,
    "desc": "Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia."
+  },
+  "minerio_ferro": {
+   "nome": "Minério de ferro",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Sai dos veios de ferro. Na forja, 3 viram uma barra."
+  },
+  "minerio_cobre": {
+   "nome": "Minério de cobre",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Sai dos veios de cobre. Na forja, 3 viram uma barra."
+  },
+  "cristal": {
+   "nome": "Cristal arcano",
+   "mat": true,
+   "pilha": 50,
+   "venda": 8,
+   "desc": "Cristal que guarda magia. Sai dos veios de cristal (e, às vezes, dos de ferro e cobre)."
+  },
+  "lenha": {
+   "nome": "Lenha",
+   "mat": true,
+   "pilha": 50,
+   "venda": 1,
+   "desc": "Madeira cortada das árvores. Alimenta a forja e vira cabo e cajado."
+  },
+  "barra_ferro": {
+   "nome": "Barra de ferro",
+   "mat": true,
+   "pilha": 50,
+   "venda": 8,
+   "desc": "Ferro fundido na forja. Vira lâmina de espada."
+  },
+  "barra_cobre": {
+   "nome": "Barra de cobre",
+   "mat": true,
+   "pilha": 50,
+   "venda": 8,
+   "desc": "Cobre fundido na forja. Vira joia e ponteira de cajado."
+  },
+  "pedra": {
+   "nome": "Pedra",
+   "mat": true,
+   "pilha": 50,
+   "venda": 1,
+   "desc": "Pedra comum que sai junto quando você minera. Serve para construir e para afiar ferramentas."
+  },
+  "carvao": {
+   "nome": "Carvão",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Lenha queimada na forja. Misturado ao ferro, vira aço."
+  },
+  "barra_aco": {
+   "nome": "Barra de aço",
+   "mat": true,
+   "pilha": 50,
+   "venda": 20,
+   "desc": "Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores."
+  },
+  "couro": {
+   "nome": "Couro",
+   "mat": true,
+   "pilha": 50,
+   "venda": 3,
+   "desc": "Couro grosso dos Puglins. O alfaiate faz botas e reforços."
+  },
+  "tecido": {
+   "nome": "Tecido",
+   "mat": true,
+   "pilha": 50,
+   "venda": 3,
+   "desc": "Pano encantado que os Imps carregam. O alfaiate faz chapéus, capas e mantos."
   }
  },
  "raridades": [
@@ -934,5 +1011,279 @@
  "nome": {
   "min": 3,
   "max": 16
- }
+ },
+ "estamina": {
+  "base": 50,
+  "porNivel": 2,
+  "porDes": 5,
+  "correr": 10,
+  "trote": 0.7,
+  "combateK": 1.5,
+  "volta": 0.17,
+  "voltaCombate": 0.55,
+  "espera": 0.9,
+  "esperaCombate": 8,
+  "dash": 8,
+  "rolar": 8,
+  "mortal": 6,
+  "seguidaK": 0.5,
+  "seguidaMax": 2.4,
+  "seguidaJanela": 1.3,
+  "folego": 0.2,
+  "combate": 5
+ },
+ "vigor": {
+  "max": 100,
+  "enche": 21600
+ },
+ "profissoes": {
+  "min": {
+   "nome": "Minerador",
+   "grupo": "Coleta",
+   "desc": "Minerar veios de ferro, cobre e cristal"
+  },
+  "len": {
+   "nome": "Lenhador",
+   "grupo": "Coleta",
+   "desc": "Cortar lenha das árvores"
+  },
+  "fer": {
+   "nome": "Ferreiro",
+   "grupo": "Criação",
+   "desc": "Barras, espadas, cajados e colares na forja do Tomás"
+  },
+  "alf": {
+   "nome": "Alfaiate",
+   "grupo": "Criação",
+   "desc": "Chapéus, mantos, capas, botas e óculos na banca da Rosa"
+  },
+  "mer": {
+   "nome": "Mercador",
+   "grupo": "Comércio",
+   "desc": "Negociar com a Rosa: vende mais caro e compra mais barato"
+  }
+ },
+ "ranks": [
+  "Novato",
+  "Veterano",
+  "Especialista",
+  "Mestre",
+  "Autoridade",
+  "Campeão",
+  "Adepto",
+  "Arauto",
+  "Virtuoso",
+  "Celebridade",
+  "Famoso"
+ ],
+ "profMax": 20,
+ "mercador": {
+  "venda": 0.25,
+  "compra": 0.15,
+  "pontoOuro": 10
+ },
+ "coleta": {
+  "ferro": {
+   "nome": "Veio de ferro",
+   "prof": "min",
+   "nivel": 5,
+   "vigor": 2,
+   "tempo": 2.4,
+   "cargas": 3,
+   "volta": 90,
+   "da": {
+    "minerio_ferro": 1
+   },
+   "raro": {
+    "cristal": 0.05,
+    "pedra": 0.5
+   }
+  },
+  "cobre": {
+   "nome": "Veio de cobre",
+   "prof": "min",
+   "vigor": 1.5,
+   "tempo": 2.2,
+   "cargas": 3,
+   "volta": 90,
+   "da": {
+    "minerio_cobre": 1
+   },
+   "raro": {
+    "cristal": 0.04,
+    "pedra": 0.5
+   }
+  },
+  "cristal": {
+   "nome": "Veio de cristal",
+   "prof": "min",
+   "nivel": 8,
+   "vigor": 3,
+   "tempo": 2.8,
+   "cargas": 2,
+   "volta": 150,
+   "da": {
+    "cristal": 1
+   },
+   "raro": {
+    "cristal": 0.1,
+    "pedra": 0.4
+   }
+  },
+  "arvore": {
+   "nome": "Árvore",
+   "esgotado": "esgotada",
+   "prof": "len",
+   "vigor": 1,
+   "tempo": 2,
+   "cargas": 3,
+   "volta": 60,
+   "da": {
+    "lenha": 1
+   },
+   "raro": {
+    "lenha": 0.25
+   }
+  }
+ },
+ "coletaDistancia": 2.4,
+ "receitas": {
+  "barra_ferro": {
+   "prof": "fer",
+   "faz": "barra_ferro",
+   "usa": {
+    "minerio_ferro": 3,
+    "lenha": 1
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "carvao": {
+   "prof": "fer",
+   "faz": "carvao",
+   "usa": {
+    "lenha": 2
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "barra_aco": {
+   "prof": "fer",
+   "faz": "barra_aco",
+   "usa": {
+    "barra_ferro": 1,
+    "carvao": 2
+   },
+   "vigor": 2,
+   "nivel": 5
+  },
+  "barra_cobre": {
+   "prof": "fer",
+   "faz": "barra_cobre",
+   "usa": {
+    "minerio_cobre": 3,
+    "lenha": 1
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "espada": {
+   "prof": "fer",
+   "faz": "espada",
+   "usa": {
+    "barra_ferro": 3,
+    "lenha": 2
+   },
+   "vigor": 4,
+   "nivel": 1
+  },
+  "cajado": {
+   "prof": "fer",
+   "faz": "cajado",
+   "usa": {
+    "lenha": 4,
+    "barra_cobre": 1,
+    "cristal": 1
+   },
+   "vigor": 4,
+   "nivel": 2
+  },
+  "colar": {
+   "prof": "fer",
+   "faz": "colar",
+   "usa": {
+    "barra_cobre": 2,
+    "cristal": 2
+   },
+   "vigor": 4,
+   "nivel": 4
+  },
+  "botas": {
+   "prof": "alf",
+   "faz": "botas",
+   "usa": {
+    "couro": 4
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "chapeu": {
+   "prof": "alf",
+   "faz": "chapeu",
+   "usa": {
+    "tecido": 3,
+    "couro": 1
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "capa": {
+   "prof": "alf",
+   "faz": "capa",
+   "usa": {
+    "tecido": 4,
+    "couro": 1
+   },
+   "vigor": 8,
+   "nivel": 2
+  },
+  "manto": {
+   "prof": "alf",
+   "faz": "manto",
+   "usa": {
+    "tecido": 5,
+    "couro": 2
+   },
+   "vigor": 8,
+   "nivel": 3
+  },
+  "oculos": {
+   "prof": "alf",
+   "faz": "oculos",
+   "usa": {
+    "barra_cobre": 1,
+    "cristal": 1,
+    "couro": 1
+   },
+   "vigor": 8,
+   "nivel": 5
+  }
+ },
+ "oficina": {
+  "fer": {
+   "npc": "ferreiro",
+   "onde": "na forja do Tomás"
+  },
+  "alf": {
+   "npc": "comerciante",
+   "onde": "na banca da Rosa"
+  }
+ },
+ "oficinaDistancia": 4.5,
+ "raridadeCriar": {
+  "base": 0.06,
+  "max": 0.3,
+  "ate": 2
+ },
+ "heroiCorrer": 5.4
 }
