@@ -546,6 +546,25 @@ func coletou(ev: Dictionary) -> void:
 		var lado := Vector3(cos(m.cam.yaw), 0, -sin(m.cam.yaw)) * 0.55
 		m.fx.texto(m.heroi.position + lado + Vector3(0, 0.3 * i, 0), "+%d %s" % [int(it.n), str(it.nome)], Color("e8d6a8"), 0.1 * i, 0.5, 1.95, 0.55, 26.0) # letra pequena: é informação rápida, não título
 
+# veio de zona de mineração (o minério é de todos): alguém bateu nele (evento "veio" do servidor)
+func veio_comum(id: String, cargas: int, volta: float) -> void:
+	var o = por_id.get(id)
+	if o == null:
+		return
+	o.cargas = cargas
+	o.volta_ate = m.tempo + volta
+	if cargas == 0 and o.has("corpo") and o.corpo.visible:
+		_mostrar_veio(o, false)
+		if coletando != null and coletando.c == o:
+			parar(false)
+
+# a foto do servidor diz quais veios comuns já foram batidos ([id, cargas, s para voltar]): quem entra depois vê igual
+func veios_comuns(lista: Array) -> void:
+	for v in lista:
+		var o = por_id.get(str(v[0]))
+		if o != null and (int(v[1]) != o.cargas or abs(o.volta_ate - (m.tempo + float(v[2]))) > 2.0):
+			veio_comum(str(v[0]), int(v[1]), float(v[2]))
+
 # parou (o servidor mandou "coletaFim", ou o joystick aqui): ferramenta volta para a bolsa, arma volta para a mão
 func parar(avisar_servidor := false) -> void:
 	if coletando == null:

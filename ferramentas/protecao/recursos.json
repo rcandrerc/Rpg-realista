@@ -26,7 +26,7 @@
     { "nome": "Espada planta o pé e joystick cancela (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["# golpe de espada e skills plantam o pé"] },
     { "nome": "Magia concentrada cancela e devolve 70% (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["devolve 70% da mana"] },
     { "nome": "Passada sincronizada com a velocidade (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["var passada: float = lerp(0.75, 1.45"] },
-    { "nome": "Monstros do Bestiário Puglin e Imp (PR #48)", "arquivo": "godot-prototipo/main.gd", "contem": ["\"tipo\": \"puglin\"", "\"tipo\": \"imp\""] },
+    { "nome": "Monstros do Bestiário Puglin e Imp (PR #48)", "arquivo": "godot-prototipo/main.gd", "contem": ["const MODELO_TIPO := {\"puglin\": \"puglin\", \"imp\": \"imp\""] },
     { "nome": "Resolução automática e FPS na tela", "arquivo": "godot-prototipo/main.gd", "contem": ["get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO", "Engine.get_frames_per_second()"] },
     { "nome": "Folhagem some perto da câmera (PR #52/#57)", "arquivo": "godot-prototipo/main.gd", "contem": ["distance_fade_min_distance"] },
     { "nome": "Loja da Rosa e poções (PR #52)", "arquivo": "godot-prototipo/main.gd", "contem": ["func perto_da_loja()", "func usar_pocao(", "func mostrar_drop("] },
@@ -55,6 +55,22 @@
     { "nome": "Sons das skills do Quimera (q_*.ogg)", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const CARGA := {", "const SOM_AREA := {", "\"q_bola_lanca\"", "\"q_meteoro_impacto\"", "func cancelar_conjura("] },
     { "nome": "Meteoro gigante do Quimera: rocha, explosão e cratera", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const METEORO_RAIO", "func meteoro_impacto(", "func _rocha_malha()", "const SH_CRATERA"] },
     { "nome": "Meteoro pega todo mundo na área de 6 m (servidor)", "arquivo": "shared/progresso.js", "contem": ["tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 6"] },
-    { "nome": "Voz que dá para parar (carga das magias)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar_voz(", "func parar("] }
+    { "nome": "Voz que dá para parar (carga das magias)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar_voz(", "func parar("] },
+    { "nome": "Mapa maior: vila + passagem da estradinha + clareira de fora (André 2026-11-02)", "arquivo": "shared/dados.js", "contem": ["areas: [{ x: 0, z: 0, r: 34 }, FORA]", "corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }]", "const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos:"] },
+    { "nome": "Limite do mapa por áreas e corredores (servidor)", "arquivo": "shared/mapa.js", "contem": ["export function dentroDoMapa(", "export function limitarAoMapa("] },
+    { "nome": "Limite do mapa por áreas e corredores (Godot)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func dentro_do_mapa(", "func limitar_ao_mapa(", "static func raio_na_direcao("] },
+    { "nome": "Borda orgânica da clareira (direção de arte)", "arquivo": "shared/mapa.js", "contem": ["export function raioNaDirecao("] },
+    { "nome": "Tronco que tapa a câmera fica transparente (direção de arte)", "arquivo": "godot-prototipo/main.gd", "contem": ["func achar_troncos(", "const TRONCO_PERTO"] },
+    { "nome": "Campo de caça com a regra do Quimera: sempre 10, renasce ao acaso (servidor)", "arquivo": "shared/simulacao.js", "contem": ["passoCacas(dt) {", "nascerNaCaca(c, ci, vg, inicio = false) {", "this.passoCacas(dt);"] },
+    { "nome": "Campo de caça com a regra do Quimera (dados)", "arquivo": "shared/dados.js", "contem": ["export const CACA = [", "passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85"] },
+    { "nome": "Campo de caça no modo sozinho (Godot)", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_cacas(", "func passo_cacas(", "func avisar_zona("] },
+    { "nome": "Veio de cobre pequeno e escasso: minério de todos, volta em 6 min", "arquivo": "shared/dados.js", "contem": ["export const MINA = [", "r: 4.5, veios: 6, volta: 360"] },
+    { "nome": "Veios comuns no servidor (evento veio e foto.veios)", "arquivo": "shared/simulacao.js", "contem": ["this.veiosComuns", "t: 'veio'", "veios: [...this.veiosComuns]"] },
+    { "nome": "Veios comuns no Godot", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["func veio_comum(", "func veios_comuns("] },
+    { "nome": "Mestre Ivo: resetar a build perto de onde o herói nasce (servidor)", "arquivo": "shared/simulacao.js", "contem": ["resetarBuild(id) {", "custoReset(j)", "npc.funcao === 'resetar'"] },
+    { "nome": "Mestre Ivo (dados)", "arquivo": "shared/dados.js", "contem": ["id: 'reset', nome: 'Mestre Ivo, o instrutor'", "export const RESET_BUILD"] },
+    { "nome": "Mestre Ivo (Godot: botão e janela)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func perguntar_reset("] },
+    { "nome": "Mestre Ivo (Godot: reset sem internet)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func resetar(custo: int)", "func pontos_gastos("] },
+    { "nome": "Anel de pedras abre na passagem e fecha a área de fora", "arquivo": "client/src/cena.js", "contem": ["formasDoMapa(mapa)", "// a área de fora e as paredes da passagem"] }
   ]
 }

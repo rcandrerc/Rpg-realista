@@ -26,19 +26,21 @@ function pbr(nome, extra = {}, arm = true) {
 // ---------- chão: caminhos de terra e praça de pedra ----------
 // Máscara pintada num canvas: vermelho = terra batida (caminhos e em volta das casas), verde = calçamento da praça.
 // O chão mistura as texturas por ela (cena.js) e a grama não nasce onde ela marca.
-const AREA = { x0: -30, z0: -34, tam: 56 };
-export function mascaraVila(vila) {
-  const T = 512, px = T / AREA.tam;
+const AREA = { x0: -30, z0: -34, tam: 56 }; // a máscara da vila de antes (sem mapa.mascara)
+let area = AREA;
+export function mascaraVila(vila, m = null) {
+  area = m || AREA; // mapa.mascara: a máscara cobre também a área de fora (estradinha e trilha do cobre)
+  const T = m?.px || 512, px = T / area.tam;
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
   const g = cv.getContext('2d');
   g.fillStyle = '#000'; g.fillRect(0, 0, T, T);
-  const P = (x, z) => [(x - AREA.x0) * px, (z - AREA.z0) * px];
+  const P = (x, z) => [(x - area.x0) * px, (z - area.z0) * px];
   g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round'; g.filter = 'blur(2.5px)';
   semente = 31;
   for (const c of vila.caminhos) {
     // várias passadas tortinhas: borda irregular, como trilha de verdade
     for (let k = 0; k < 4; k++) {
-      g.strokeStyle = 'rgba(255,0,0,0.42)'; g.lineWidth = c.largura * px * rnd(0.75, 1.15);
+      g.strokeStyle = `rgba(255,0,0,${0.42 * (c.forca ?? 1)})`; g.lineWidth = c.largura * px * rnd(0.75, 1.15);
       g.beginPath();
       c.pontos.forEach(([x, z], i) => { const [a, b] = P(x + rnd(-0.25, 0.25), z + rnd(-0.25, 0.25)); i ? g.lineTo(a, b) : g.moveTo(a, b); });
       g.stroke();
@@ -56,17 +58,17 @@ export function mascaraVila(vila) {
   const dados = g.getImageData(0, 0, T, T).data;
   const textura = new THREE.CanvasTexture(cv); textura.flipY = false;
   const peso = (x, z) => {
-    const i = Math.floor((x - AREA.x0) * px), j = Math.floor((z - AREA.z0) * px);
+    const i = Math.floor((x - area.x0) * px), j = Math.floor((z - area.z0) * px);
     if (i < 0 || j < 0 || i >= T || j >= T) return 0;
     const o = (j * T + i) * 4; return Math.max(dados[o], dados[o + 1]) / 255;
   };
-  return { textura, peso, area: AREA };
+  return { textura, peso, area };
 }
 
 // Chão de terra com os caminhos e a praça misturados por shader (uma malha só, sem emenda)
 export function misturarChao(mat, masc) {
   const U = {
-    uMasc: { value: masc.textura }, uArea: { value: new THREE.Vector3(AREA.x0, AREA.z0, AREA.tam) },
+    uMasc: { value: masc.textura }, uArea: { value: new THREE.Vector3(area.x0, area.z0, area.tam) },
     uCam: { value: textura('stony_dirt_path_diff_1k.jpg', true) }, uCamN: { value: textura('stony_dirt_path_nor_gl_1k.jpg') },
     uPra: { value: textura('cobblestone_floor_01_diff_1k.jpg', true) }, uPraN: { value: textura('cobblestone_floor_01_nor_gl_1k.jpg') },
     uTint: { value: new THREE.Vector3(0.82 / mat.color.r, 0.8 / mat.color.g, 0.78 / mat.color.b) },

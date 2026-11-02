@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import zlib from 'node:zlib';
 import { RAIZ } from '@rpg/shared';
@@ -51,6 +51,11 @@ const mundo = {
   anims,
   raiz,
   raio: MAPA_CLAREIRA.raio, nascimento: MAPA_CLAREIRA.nascimento,
+  // mapa andável (shared/mapa.js): vila, passagem da estradinha e a clareira de fora; máscara do chão que cobre tudo
+  areas: MAPA_CLAREIRA.areas, corredores: MAPA_CLAREIRA.corredores, mascara: MAPA_CLAREIRA.mascara,
+  // campo de caça (regra do Quimera) e zona de mineração; o v de cada vaga é o mesmo do servidor
+  caca: (MAPA_CLAREIRA.caca || []).map((c, i, L) => ({ ...c, v0: MAPA_CLAREIRA.inimigos.length + L.slice(0, i).reduce((s, o) => s + o.tipos.length, 0) })),
+  mina: MAPA_CLAREIRA.mina || [], resetBuild: RESET_BUILD,
   solidos, grades,
   casas: T.casas.map((_, i) => i), // índices em solidos que são casa (teto)
   obstaculos: sim.obstaculos.map((k) => ({ x: r4(k.x), z: r4(k.z), r: r4(k.r), ...(k.alto != null ? { alto: r4(k.alto) } : {}) })),
