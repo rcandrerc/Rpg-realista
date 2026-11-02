@@ -59,8 +59,10 @@ export function bonusEquip(equip = {}) {
   return b;
 }
 // Item na mochila: { k, r } peça (r = raridade 0..4) · { k, n } poção · { k: 'tomo', h, nv, n } Tomo da skill h
+const ANTIGOS = { chapeu: 'calca', manto: 'peitoral' };
 export function itemValido(it) {
-  if (it && typeof it === 'object' && it.k === 'chapeu') it = { ...it, k: 'calca' }; // conta antiga: o Chapéu virou Calça
+  // conta antiga: o Chapéu virou Calça e o Manto virou Peitoral (uma linha só de armadura)
+  if (it && typeof it === 'object' && ANTIGOS[it.k]) it = { ...it, k: ANTIGOS[it.k] };
   if (!it || typeof it !== 'object' || !ITENS[it.k]) return null;
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   if (ehEquip(it.k)) return int(it.r, 0, RARIDADES.length - 1) ? { k: it.k, r: it.r } : null;

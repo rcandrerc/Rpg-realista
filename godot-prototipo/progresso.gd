@@ -186,7 +186,10 @@ func cor_item(it) -> Color:
 	return Color.WHITE
 
 static func icone_item(it) -> String:
-	return "it_" + str(it.k) # pintado em icones/itens/<k>.png
+	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
+	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
+		return "it_%s_aco" % it.k
+	return "it_" + str(it.k)
 
 func preco_venda(it) -> int:
 	if eh_equip(it):

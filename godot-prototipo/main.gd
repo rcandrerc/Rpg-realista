@@ -315,6 +315,9 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 	if arma.get_parent():
 		arma.get_parent().remove_child(arma)
 	ba.add_child(arma)
+	if lugar.osso == "J_Bip_C_UpperChest": # nas costas: com capa passa por fora do pano
+		arma.set_meta("afastada", 0.0)
+		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
 	return ba
 
 func nova_arma(nome: String) -> Node3D:

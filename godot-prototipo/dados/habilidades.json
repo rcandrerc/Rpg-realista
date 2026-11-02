@@ -464,35 +464,15 @@
  "nivelSemTomo": 5,
  "itens": {
   "peitoral": {
-   "nome": "Peitoral de Aço",
+   "nome": "Peitoral",
    "lugar": "corpo",
    "st": {
     "defesa": [
-     5,
-     8,
-     11,
-     16,
-     23
-    ],
-    "vida": [
-     12,
-     18,
-     26,
-     38,
-     54
-    ]
-   }
-  },
-  "manto": {
-   "nome": "Manto",
-   "lugar": "corpo",
-   "st": {
-    "defesa": [
-     3,
-     5,
+     4,
      7,
      10,
-     15
+     14,
+     20
     ],
     "vida": [
      10,
@@ -511,7 +491,7 @@
    }
   },
   "calca": {
-   "nome": "Calça de Couro",
+   "nome": "Calça",
    "lugar": "pernas",
    "st": {
     "defesa": [
@@ -522,11 +502,11 @@
      8
     ],
     "vida": [
-     4,
-     7,
-     10,
-     14,
-     20
+     6,
+     9,
+     13,
+     19,
+     27
     ],
     "mana": [
      3,
@@ -534,26 +514,6 @@
      7,
      10,
      14
-    ]
-   }
-  },
-  "saiote": {
-   "nome": "Saiote de Placas",
-   "lugar": "pernas",
-   "st": {
-    "defesa": [
-     3,
-     4,
-     6,
-     8,
-     11
-    ],
-    "vida": [
-     6,
-     9,
-     13,
-     19,
-     27
     ]
    }
   },
@@ -582,26 +542,6 @@
    "lugar": "pes",
    "st": {
     "defesa": [
-     1,
-     2,
-     2,
-     3,
-     5
-    ],
-    "vida": [
-     6,
-     8,
-     12,
-     18,
-     25
-    ]
-   }
-  },
-  "grevas": {
-   "nome": "Grevas de Aço",
-   "lugar": "pes",
-   "st": {
-    "defesa": [
      2,
      3,
      4,
@@ -609,11 +549,11 @@
      8
     ],
     "vida": [
-     8,
-     11,
-     16,
-     23,
-     32
+     6,
+     9,
+     13,
+     19,
+     27
     ]
    }
   },
@@ -848,42 +788,12 @@
    "preco": 240
   },
   {
-   "k": "manto",
-   "r": 0,
-   "preco": 60
-  },
-  {
-   "k": "manto",
-   "r": 1,
-   "preco": 240
-  },
-  {
    "k": "calca",
    "r": 0,
    "preco": 60
   },
   {
    "k": "calca",
-   "r": 1,
-   "preco": 240
-  },
-  {
-   "k": "saiote",
-   "r": 0,
-   "preco": 60
-  },
-  {
-   "k": "saiote",
-   "r": 1,
-   "preco": 240
-  },
-  {
-   "k": "capa",
-   "r": 0,
-   "preco": 60
-  },
-  {
-   "k": "capa",
    "r": 1,
    "preco": 240
   },
@@ -898,12 +808,12 @@
    "preco": 240
   },
   {
-   "k": "grevas",
+   "k": "capa",
    "r": 0,
    "preco": 60
   },
   {
-   "k": "grevas",
+   "k": "capa",
    "r": 1,
    "preco": 240
   },

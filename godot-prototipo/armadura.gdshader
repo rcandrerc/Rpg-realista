@@ -1,17 +1,25 @@
-// Metal, pano e couro das roupas que aparecem no corpo (armadura.gd). Estilo pintado: luz em degraus (toon),
-// reflexo de céu desenhado (claro em cima, escuro embaixo, linha do horizonte), brilho duro e friso dourado na borda.
-// UV2.x = distância até a borda da peça (m), UV2.y = coordenada das lâminas (faixas).
+// Metal, couro e pano da armadura que aparece no corpo (armadura.gd). Toon de 3 degraus com brilho duro, sem reflexo
+// de céu (direção de arte): claro / médio / sombra vêm do script por raridade. Friso dourado na borda das peças.
+// UV2.x = distância até a borda da peça (m), UV2.y = coordenada das lâminas (faixas; < -0.5 = sem faixas).
 shader_type spatial;
-render_mode cull_disabled, diffuse_toon, specular_toon;
+render_mode cull_disabled, ambient_light_disabled, specular_disabled;
 
-uniform vec4 base : source_color = vec4(0.78, 0.84, 0.94, 1.0);
-uniform vec4 friso : source_color = vec4(1.0, 0.78, 0.32, 1.0);
-uniform float brilho = 0.0; // friso das raridades altas brilha
-uniform float tipo = 0.0; // 0 metal, 1 pano, 2 couro
+uniform vec4 claro : source_color = vec4(0.784, 0.839, 0.91, 1.0);  // #c8d6e8
+uniform vec4 medio : source_color = vec4(0.49, 0.576, 0.706, 1.0);  // #7d93b4
+uniform vec4 sombra : source_color = vec4(0.243, 0.298, 0.416, 1.0); // #3e4c6a
+uniform vec4 friso : source_color = vec4(0.851, 0.647, 0.29, 1.0);   // #d9a54a
+uniform vec4 friso_claro : source_color = vec4(0.953, 0.824, 0.478, 1.0); // #f3d27a
+uniform float brilho = 0.0; // friso das raridades altas brilha um pouco
+uniform float duro = 1.0; // 1 metal (brilho duro), 0 couro e pano
 uniform float so_friso = 0.0; // fecho da capa: peça inteira de friso
+uniform float faixa = 0.045; // distância entre as lâminas (m)
+uniform float junta_y = -1.0; // junta entre peito e barriga (coordenada das faixas)
+uniform float ganho = 2.1; // compensa a curva de tom do jogo (ACES 0,68) para as cores chegarem na tela como as da direção de arte
 
 varying float v_dist;
 varying float v_seg;
+varying float v_friso;
+varying float v_esc;
 
 void vertex() {
 	v_dist = UV2.x;
@@ -19,44 +27,37 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 n = FRONT_FACING ? NORMAL : -NORMAL;
-	// friso na borda (1,1 cm) e um sulco fino logo depois dele
 	float f = 1.0 - smoothstep(0.0095, 0.0115, v_dist);
-	float sulco = smoothstep(0.016, 0.0175, v_dist) * (1.0 - smoothstep(0.0195, 0.021, v_dist));
 	f = max(f, so_friso);
-	// lâminas: linhas finas a cada 4,5 cm (só no metal)
+	float sulco = smoothstep(0.016, 0.0175, v_dist) * (1.0 - smoothstep(0.0195, 0.021, v_dist));
 	float lam = 0.0;
-	if (tipo < 0.5 && v_seg > -0.5) {
-		float q = fract(v_seg / 0.045);
-		lam = (1.0 - smoothstep(0.0, 0.06, q)) * smoothstep(0.03, 0.04, v_dist);
+	if (v_seg > -0.5) {
+		float q = fract(v_seg / faixa);
+		lam = (1.0 - smoothstep(0.0, 0.05, q)) * smoothstep(0.03, 0.04, v_dist);
 	}
-	// "céu" refletido pela normal na tela
-	float up = n.y;
-	vec3 ceu = mix(vec3(0.16, 0.18, 0.26), vec3(0.78, 0.82, 0.9), smoothstep(-0.35, 0.5, up));
-	ceu += vec3(0.32) * (1.0 - smoothstep(0.0, 0.07, abs(up - 0.12))); // linha do horizonte
-	float esp = smoothstep(0.9, 0.93, dot(n, normalize(vec3(-0.4, 0.55, 0.75))));
-	vec3 cor;
-	vec3 emis = vec3(0.0);
-	if (tipo < 0.5) {
-		vec3 metal = base.rgb * ceu;
-		vec3 ouro = friso.rgb * mix(vec3(0.55, 0.42, 0.3), vec3(1.25, 1.15, 0.9), smoothstep(-0.3, 0.5, up));
-		cor = mix(metal, ouro, f);
-		cor *= 1.0 - 0.45 * sulco * (1.0 - f);
-		cor *= 1.0 - 0.5 * lam;
-		emis = cor * 0.1 + vec3(esp) * 0.5 + friso.rgb * f * brilho * 0.5;
-	} else {
-		// pano e couro: cor chapada com friso bordado
-		float tecido = tipo < 1.5 ? 0.0 : 0.15;
-		cor = mix(base.rgb, friso.rgb * 0.9, f);
-		cor *= 1.0 - 0.3 * sulco * (1.0 - f);
-		emis = cor * 0.06 + vec3(esp) * tecido * 0.4 + friso.rgb * f * brilho * 0.3;
+	if (junta_y > 0.0) {
+		lam = max(lam, (1.0 - smoothstep(0.004, 0.006, abs(v_seg - junta_y))) * smoothstep(0.03, 0.04, v_dist));
 	}
-	ALBEDO = cor;
-	EMISSION = emis;
-	ROUGHNESS = tipo < 0.5 ? 0.35 : 0.9;
-	METALLIC = 0.0;
-	SPECULAR = tipo < 0.5 ? 0.6 : 0.1;
-	RIM = 0.3;
-	RIM_TINT = 0.6;
-	NORMAL = n;
+	v_friso = f;
+	ALBEDO = vec3(1.0);
+	v_esc = 1.0 - 0.6 * max(lam, sulco * (1.0 - f)); // lâminas e sulco escurecem
+	EMISSION = friso_claro.rgb * f * brilho * 0.25;
+	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
+}
+
+void light() {
+	// sombra projetada (cabelo, ombreira) só tira o degrau claro: no aço polido virava manchas
+	float ndl = dot(NORMAL, LIGHT);
+	float att = ATTENUATION;
+	vec3 c1 = mix(claro.rgb, friso_claro.rgb, v_friso);
+	vec3 c2 = mix(medio.rgb, friso.rgb, v_friso);
+	vec3 c3 = mix(sombra.rgb, friso.rgb * 0.55, v_friso);
+	vec3 c = (ndl > 0.55 && att > 0.5) ? c1 : (ndl > -0.12 ? c2 : c3); // sombra só no lado de trás de verdade (luz embrulha um pouco)
+	float lc = max(max(LIGHT_COLOR.r, LIGHT_COLOR.g), LIGHT_COLOR.b);
+	vec3 tinta = LIGHT_COLOR / max(lc, 0.001);
+	DIFFUSE_LIGHT += c * v_esc * mix(vec3(1.0), tinta, 0.35) * ganho;
+	// brilho duro do metal
+	vec3 h = normalize(LIGHT + VIEW);
+	float e = step(0.993, dot(NORMAL, h)) * step(0.1, ndl) * step(0.5, att) * duro;
+	DIFFUSE_LIGHT += vec3(e) * 0.5 * ganho;
 }
