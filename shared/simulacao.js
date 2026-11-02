@@ -786,7 +786,8 @@ export class Simulacao {
     for (const o of this.todos()) {
       if (o === c || o.morto || o.criando || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz);
-      if (d < 0.7 && d > 0) { c.x = o.x + dx / d * 0.7; c.z = o.z + dz / d * 0.7; }
+      const m = c.tipo !== 'jogador' && o.tipo !== 'jogador' ? 1.2 : 0.7; // monstro com monstro: ~0,6 m de raio cada
+      if (d < m && d > 0) { c.x = o.x + dx / d * m; c.z = o.z + dz / d * m; }
     }
     const r = Math.hypot(c.x, c.z), lim = this.mapa.raio - 2.2;
     if (r > lim) { c.x *= lim / r; c.z *= lim / r; }

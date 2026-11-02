@@ -564,8 +564,7 @@ func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0) -> void:
 			mats.append(l.material_override)
 		g.position = Vector3(x, y + 0.9, z)
 		giros.append({"g": g, "mats": mats, "t": 0.0, "dur": 0.38, "gira": 16.0, "cresce": 0.25})
-		anel(x, z, r, "eef4ff", 0.35, y)
-		area(x, z, r * 0.95, ["fff0c0", "ffb84a"], 0.5, y)
+		area(x, z, r * 0.95, ["fff0c0", "ffb84a"], 0.5, y) # sem o anel branco fino (direção de arte: cara de debug)
 		for i in 24:
 			var a := i / 24.0 * TAU
 			var v := randf_range(5, 9)
@@ -769,6 +768,7 @@ func cura(alvo: Node3D) -> void:
 		var d := randf_range(0.2, 0.7)
 		part(FOGO, p.x + cos(a) * d, p.y + randf_range(0.1, 1.2), p.z + sin(a) * d, 0, randf_range(0.8, 1.8), 0, randf_range(0.7, 1.2), 0.08 * H, 0.02 * H, "e4ffd8", "36c060", 1.0, 0.5, 0.5)
 
+var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
 # Número de dano (ou cura) que sobe e some
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
@@ -783,9 +783,19 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	l.outline_modulate = Color(0.1, 0.05, 0.05)
 	l.pixel_size = 0.006
 	add_child(l)
-	l.global_position = pos + Vector3(randf_range(-0.3, 0.3), 1.9, randf_range(-0.3, 0.3))
+	# espalha para o lado da tela (±0,3 m) e sai 0,1 s depois do anterior, para os números não se encavalarem
+	var cam := get_viewport().get_camera_3d()
+	var lado: Vector3 = cam.global_basis.x if cam else Vector3.RIGHT
+	l.global_position = pos + Vector3(0, 1.9, 0) + lado * randf_range(-0.3, 0.3)
+	var agora := Time.get_ticks_msec() / 1000.0
+	var atraso: float = max(0.0, _prox_numero - agora)
+	_prox_numero = agora + atraso + 0.1
+	l.modulate.a = 0.0 if atraso > 0.0 else 1.0
+	l.outline_modulate.a = l.modulate.a
 	var y0 := l.global_position.y
 	var tw := create_tween()
+	if atraso > 0.0:
+		tw.tween_interval(atraso)
 	tw.tween_method(func(t: float):
 		l.global_position.y = y0 + t * 0.9
 		l.modulate.a = 1.0 - smoothstep(0.5, 1.0, t)

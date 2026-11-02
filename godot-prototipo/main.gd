@@ -10,6 +10,7 @@ const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
+const BracoEspada = preload("res://braco_espada.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -64,6 +65,8 @@ var yaw := 0.6
 var pitch := 0.35
 var dist := 5.2
 var alvo_cam := Vector3.ZERO
+var dist_cam := 5.2
+var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada # distância de verdade (menor quando algo fica entre o herói e a câmera)
 
 # teste de desempenho
 var etapas := []
@@ -306,6 +309,11 @@ func criar_heroi() -> void:
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
 	armar("Espada")
+	braco = BracoEspada.new()
+	heroi_esq.add_child(braco)
+	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
+	var L: Dictionary = armas_lugar.ruiva.espadaMao
+	braco.preparar(heroi_esq, Basis(Quaternion(L.quat[0], L.quat[1], L.quat[2], L.quat[3])))
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -413,27 +421,32 @@ func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	var l := Label3D.new()
 	l.text = nome
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.font_size = 44
-	l.outline_size = 10
-	l.pixel_size = 0.005
+	# tamanho fixo na tela (uns 14 px de letra numa tela de 576 de altura), não cresce quando a câmera chega perto
+	l.fixed_size = true
+	l.font_size = 72 # letra grande em pixel bem pequeno: fica nítida
+	l.outline_size = 16
+	l.pixel_size = 0.00034
+	l.offset = Vector2(0, 52) # em cima da barra
 	l.modulate = Color(1, 0.93, 0.8)
-	l.position = Vector3(0, 2.05, 0)
+	l.position = Vector3(0, 1.95, 0)
 	no.add_child(l)
 	if cor.a == 0:
 		return null
 	var fundo := MeshInstance3D.new()
 	var q := QuadMesh.new()
-	q.size = Vector2(0.8, 0.07)
+	q.size = Vector2(0.1, 0.009) # 60 x 5 px na tela (tamanho fixo, como o nome)
 	fundo.mesh = q
 	var mf := StandardMaterial3D.new()
 	mf.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mf.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	mf.billboard_keep_scale = true
+	mf.fixed_size = true
+	mf.no_depth_test = true
 	mf.albedo_color = Color(0, 0, 0, 0.6)
 	mf.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	fundo.material_override = mf
 	fundo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	fundo.position = Vector3(0, 1.92, 0)
+	fundo.position = Vector3(0, 1.95, 0)
 	no.add_child(fundo)
 	var barra := MeshInstance3D.new()
 	barra.mesh = q
@@ -442,7 +455,7 @@ func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	mb.render_priority = 1
 	barra.material_override = mb
 	barra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	barra.position = Vector3(0, 1.92, 0)
+	barra.position = Vector3(0, 1.95, 0)
 	no.add_child(barra)
 	return barra
 
@@ -729,8 +742,7 @@ func basico_espada() -> void:
 		var acertou := dano_arco(hab.alcance, hab.arco, hab.dmg, hab)
 		if acertou.is_empty() and vivo(alvo) and alvo.no.position.distance_to(heroi.position) < 3.6:
 			ferir(alvo, hab.dmg, heroi.position, hab)
-		var f := heroi.position + frente() * 1.4
-		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"cancela": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
+		acertou.clear(), {"cancela": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
 	segurar_pose(0.35)
 
 # Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
@@ -1000,6 +1012,11 @@ func _process(dt: float) -> void:
 	atualizar_heroi(dt)
 	if not on():
 		atualizar_inimigos(dt)
+	barras_perto()
+	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
+	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"]
+	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
+	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira)
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
@@ -1007,7 +1024,11 @@ func _process(dt: float) -> void:
 	pitch = clamp(pitch + g.y * 0.004, -0.3, 1.1)
 	var alvo := heroi.position + Vector3(0, 1.35, 0)
 	alvo_cam = alvo_cam.lerp(alvo, min(1.0, dt * 7.0))
-	camera.position = alvo_cam + Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * dist
+	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
+	var livre := distancia_livre(alvo_cam, dir_cam, dist)
+	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
+	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
+	camera.position = alvo_cam + dir_cam * dist_cam
 	camera.look_at(alvo_cam)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
@@ -1177,6 +1198,49 @@ func atualizar_heroi(dt: float) -> void:
 	fx.corpo_passo(heroi, dt, mov.arrancada != null, lamina)
 	sol.global_position = heroi.position
 
+# monstros não entram uns nos outros: 1,2 m entre os centros (raio de uns 0,6 m cada), como Simulacao.colidir
+const SEPARACAO := 1.2
+func separar_inimigos() -> void:
+	for i in inimigos.size():
+		var a: Dictionary = inimigos[i]
+		if a.estado == "morto":
+			continue
+		for j in range(i + 1, inimigos.size()):
+			var b: Dictionary = inimigos[j]
+			if b.estado == "morto":
+				continue
+			var d := Vector2(b.no.position.x - a.no.position.x, b.no.position.z - a.no.position.z)
+			var l := d.length()
+			if l < SEPARACAO:
+				var n := d / l if l > 0.001 else Vector2(1, 0)
+				var empurra := (SEPARACAO - l) * 0.5
+				a.no.position -= Vector3(n.x, 0, n.y) * empurra
+				b.no.position += Vector3(n.x, 0, n.y) * empurra
+
+# barra de vida do monstro: some quando ele está com a vida cheia e longe (o nome continua)
+func barras_perto() -> void:
+	for e in inimigos:
+		if e.barra == null or e.estado == "morto":
+			continue
+		var v: bool = e.barra.scale.x < 0.999 or e.no.position.distance_to(heroi.position) < 9.0
+		if e.barra.visible != v:
+			e.barra.visible = v
+			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v
+
+# Câmera não atravessa casa, telhado, pedra nem tronco: anda do herói até a câmera e para 0,2 m antes do que bater
+# (copa de árvore deixa passar). Mesmas formas que o movimento usa (terreno.gd e obstáculos do mundo.json).
+func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
+	var t := 0.35
+	while t <= ate:
+		var p := de + dir * t
+		if terreno.altura(p.x, p.z, p.y) > p.y - 0.25:
+			return max(0.6, t - 0.2)
+		for k in mundo.obstaculos:
+			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
+				return max(0.6, t - 0.2)
+		t += 0.2
+	return ate
+
 # inimigos não atravessam casas, pedras, árvores e o poço (como Simulacao.colidir no servidor)
 func colidir_inimigo(no: Node3D) -> void:
 	var p := no.position
@@ -1211,6 +1275,7 @@ func colidir_inimigo(no: Node3D) -> void:
 func atualizar_inimigos(dt: float) -> void:
 	for e in inimigos:
 		colidir_inimigo(e.no)
+	separar_inimigos()
 	for e in inimigos:
 		e.t -= dt
 		e.cd -= dt
