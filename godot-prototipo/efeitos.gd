@@ -829,7 +829,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	tw.tween_callback(l.queue_free)
 
 # Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
-func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, altura := 1.7, tam := 1.0) -> void:
+func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, altura := 1.7, tam := 1.0, px := 0.0) -> void:
 	var l := Label3D.new()
 	l.text = t
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -851,6 +851,9 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, alt
 		var cam := get_viewport().get_camera_3d()
 		if cam:
 			var alto: float = get_viewport().get_visible_rect().size.y
+			if px > 0.0: # tamanho fixo na tela (px de altura de letra), perto ou longe da câmera
+				var dist: float = max(0.3, cam.global_position.distance_to(l.global_position))
+				l.pixel_size = px * 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) / alto / float(l.font_size) * 1.35
 			for _k in 40:
 				if cam.unproject_position(l.global_position).y >= alto * 0.12 + 24.0:
 					break

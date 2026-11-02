@@ -439,7 +439,7 @@ func coletou(ev: Dictionary) -> void:
 		var it: Dictionary = itens[i]
 		# em cima da cabeça, um pouco para o lado (o aviso de nível fica no meio da tela)
 		var lado := Vector3(cos(m.cam.yaw), 0, -sin(m.cam.yaw)) * 0.55
-		m.fx.texto(m.heroi.position + lado + Vector3(0, 0.3 * i, 0), "+%d %s" % [int(it.n), str(it.nome)], Color("e8d6a8"), 0.1 * i, 0.5, 1.95, 0.55) # letra pequena: é informação rápida, não título
+		m.fx.texto(m.heroi.position + lado + Vector3(0, 0.3 * i, 0), "+%d %s" % [int(it.n), str(it.nome)], Color("e8d6a8"), 0.1 * i, 0.5, 1.95, 0.55, 26.0) # letra pequena: é informação rápida, não título
 
 # parou (o servidor mandou "coletaFim", ou o joystick aqui): ferramenta volta para a bolsa, arma volta para a mão
 func parar(avisar_servidor := false) -> void:
