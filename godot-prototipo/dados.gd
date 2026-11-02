@@ -26,4 +26,8 @@ const CURA := {"nome": "Cura", "anim": "cura", "ts": 1.2, "hits": [0.55], "cura"
 const BUILD_PADRAO := ["investida", "giro", "salto", "relampago", "bola", "raio", "explosao", "meteoros"]
 
 # Bando Sombrio: personagens anime que o jogador não escolhe
+# combate dos monstros: mesmos números de COMBATE_INIMIGO em shared/dados.js (o servidor decide online)
+const COMBATE := {"preparo": {"puglin": 0.5, "imp": 0.55, "chefe": 0.7}, "preparoTs": 0.3, "golpeTs": 1.1, "acerto": 0.45,
+	"aoMesmoTempo": 2, "roda": 3.4, "rodaVel": 1.1, "firmeGolpes": {"puglin": 6, "imp": 6, "chefe": 4}, "firmeJanela": 1.6,
+	"firmeDur": 2.0, "contraDur": 1.5, "contraK": 1.5, "voaMorte": 1.4}
 const INIMIGO := {"vida": 80.0, "dmg": 8, "vel": 3.6, "alcance": 1.9, "visao": 11.0, "ataque_cd": 1.8, "renascer": 6.0}

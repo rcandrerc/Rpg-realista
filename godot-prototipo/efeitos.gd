@@ -1043,11 +1043,16 @@ var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
 var _lado_numero := 1.0
 var _ultimo_numero := {} # coluna (-1 ou 1) -> último número dela
 # Número de dano (ou cura) que sobe e some
+const NUMERO_ALTURA := 2.5 # m acima dos pés: uns 0,3 m acima do nome (direção de arte; era 1,9 e encostava no nome)
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
 	l.text = str(int(round(valor))) + ("!" if critico else "")
-	if critico:
-		l.scale = Vector3.ONE * 1.45
+	var escala_final: float = 1.45 if critico else 1.0
+	var pop: float = 1.9 if critico else 1.5 # nasce grande e encolhe rápido ("pulo" do número)
+	if critico: # crítico: laranja-avermelhado e contorno mais grosso
+		cor = cor.lerp(Color(1.0, 0.42, 0.12), 0.5)
+		l.outline_size = 16
+	l.scale = Vector3.ONE * escala_final * pop
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
 	l.font_size = 64
@@ -1059,7 +1064,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	# espalha para o lado da tela (±0,3 m) e sai 0,1 s depois do anterior, para os números não se encavalarem
 	# uns 25 px para o lado da tela, alternando esquerda e direita (convertido para metros pela distância da câmera)
 	var cam := get_viewport().get_camera_3d()
-	var base := pos + Vector3(0, 1.9, 0)
+	var base := pos + Vector3(0, NUMERO_ALTURA, 0)
 	_lado_numero = -_lado_numero
 	if cam:
 		var px_m: float = 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(base) / max(1.0, get_viewport().get_visible_rect().size.y)
@@ -1068,6 +1073,11 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 		var ult = _ultimo_numero.get(_lado_numero)
 		if is_instance_valid(ult):
 			base.y = max(base.y, ult.global_position.y + 18.0 * px_m + l.font_size * l.pixel_size)
+		# nunca em cima do painel de vida (canto de cima à esquerda): empurra para a direita
+		var sp := cam.unproject_position(base)
+		var painel := Rect2(8, 4, 350, 124)
+		if painel.has_point(sp):
+			base += cam.global_basis.x * (painel.end.x - sp.x + 24.0) * px_m
 	l.global_position = base
 	_ultimo_numero[_lado_numero] = l
 	var agora := Time.get_ticks_msec() / 1000.0
@@ -1080,7 +1090,8 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	if atraso > 0.0:
 		tw.tween_interval(atraso)
 	tw.tween_method(func(t: float):
-		l.global_position.y = y0 + t * 0.9
+		l.global_position.y = y0 + (1.0 - (1.0 - t) * (1.0 - t)) * 0.9 # sobe rápido e desacelera
+		l.scale = Vector3.ONE * escala_final * (1.0 + (pop - 1.0) * max(0.0, 1.0 - t / 0.15))
 		l.modulate.a = 1.0 - smoothstep(0.5, 1.0, t)
 		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 0.8)
 	tw.tween_callback(l.queue_free)
@@ -1285,11 +1296,14 @@ func _faixa_passo(f: Faixa, dt: float, linha, perfil: Array, forca: float) -> vo
 
 func trilhos(corpo: Node3D) -> Dictionary:
 	if not rastros.has(corpo):
-		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0}
+		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0,
+			"lamina2": _faixa(36, 4, "6fbfff", 0.22), "l2_ult": null} # lamina2: brilho largo da espada mágica, curvo, some fazendo a curva do golpe
 	return rastros[corpo]
 
 const PERFIL_DASH := [0.0, 0.55, 1.0, 0.7, 0.0]
 const PERFIL_LAMINA := [0.25, 1.0]
+const PERFIL_LAMINA2 := [0.0, 0.3, 1.0, 0.25] # transparente no lado do cabo, forte na ponta (borda de fora)
+const LAMINA2_SUB := 3 # amostras extras por quadro, girando em volta do herói: o rastro sai curvo mesmo a 30 FPS
 
 # chamado todo quadro para o herói: lamina = [base, ponta] da espada no mundo durante o golpe (ou null)
 func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
@@ -1311,6 +1325,77 @@ func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
 			if k < 2:
 				part(FUMA, p.x, p.y + 0.1, p.z, randf_range(-1, 1), randf_range(0.2, 0.8), randf_range(-1, 1), 0.6, 0.2 * H, 0.5 * H, "b0a898", "6a6458", 0.35, 0.3, 1.5)
 	_faixa_passo(r.lamina, dt, lamina, PERFIL_LAMINA, 0.7)
+	var l2 = null
+	if lamina != null: # do meio da lâmina até um pouco além da ponta
+		var b: Vector3 = lamina[0]
+		var p2: Vector3 = lamina[1]
+		l2 = [b.lerp(p2, 0.3), b.lerp(p2, 0.75), p2, p2 + (p2 - b) * 0.1]
+		# entre o quadro anterior e este: amostras girando em volta do corpo (arco, não reta)
+		if r.l2_ult != null:
+			for s in range(1, LAMINA2_SUB + 1):
+				var u: float = float(s) / (LAMINA2_SUB + 1)
+				var meio := []
+				for k in l2.size():
+					meio.append(_arco_em_volta(r.l2_ult[k], l2[k], p, u))
+				r.lamina2.pts.push_front({"l": meio, "t": -dt * u})
+		r.l2_ult = l2
+	else:
+		r.l2_ult = null
+	_faixa_passo(r.lamina2, dt, l2, PERFIL_LAMINA2, 0.55)
+
+# ponto entre a e b girando em volta do eixo vertical que passa por centro (ângulo, raio e altura interpolados)
+func _arco_em_volta(a: Vector3, b: Vector3, centro: Vector3, u: float) -> Vector3:
+	var va := Vector2(a.x - centro.x, a.z - centro.z)
+	var vb := Vector2(b.x - centro.x, b.z - centro.z)
+	var ang: float = lerp_angle(va.angle(), vb.angle(), u)
+	var raio: float = lerp(va.length(), vb.length(), u)
+	return Vector3(centro.x + cos(ang) * raio, lerp(a.y, b.y, u), centro.z + sin(ang) * raio)
+
+# onda de choque de gelo no chão: anel fino (12% do raio) que abre de 0,4 a 1,6 m em 0,28 s, alfa 0,5 -> 0
+const SH_ONDA_CORTE := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec4 cor : source_color = vec4(0.62, 0.89, 1.0, 1.0);
+uniform float op = 0.5;
+void fragment() {
+	float d = length(UV - 0.5) * 2.0;
+	float anel = smoothstep(0.86, 0.9, d) * (1.0 - smoothstep(0.97, 1.0, d));
+	ALBEDO = cor.rgb;
+	ALPHA = anel * op;
+}
+"""
+func onda_corte(x: float, z: float, y: float) -> void:
+	var mi := MeshInstance3D.new()
+	var q := PlaneMesh.new()
+	q.size = Vector2(2, 2)
+	mi.mesh = q
+	var mat := material("onda_corte", SH_ONDA_CORTE).duplicate()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	mi.global_position = Vector3(x, y + 0.04, z)
+	mi.scale = Vector3.ONE * 0.4
+	var tw := create_tween()
+	tw.tween_method(func(t: float):
+		var r: float = lerp(0.4, 1.6, 1.0 - (1.0 - t) * (1.0 - t))
+		mi.scale = Vector3(r, 1, r)
+		mat.set_shader_parameter("op", 0.5 * (1.0 - t)), 0.0, 1.0, 0.28)
+	tw.tween_callback(mi.queue_free)
+
+# marca do corte da espada no ponto que acertou: meia-lua branca-azulada rápida, na direção do golpe
+func marca_corte(p: Vector3, ry: float, forte: bool) -> void:
+	var g := Node3D.new()
+	add_child(g)
+	var l := lua("bfe6ff")
+	l.rotation = Vector3(PI / 2, 0, randf_range(-0.9, 0.9)) # de pé, inclinada como o golpe
+	l.scale = Vector3.ONE * (0.75 if forte else 0.55)
+	g.add_child(l)
+	g.position = p
+	g.rotation.y = ry
+	giros.append({"g": g, "mats": [l.material_override], "t": 0.0, "dur": 0.16, "gira": 0.0, "cresce": 0.7})
+	if forte: # 4º golpe e crítico: onda de choque de gelo no chão (#9fe3ff)
+		onda_corte(p.x, p.z, p.y - 1.05)
+		poeira(p.x, p.z, 0.8, 8, "c9bda6", "8a7f6c")
 
 # ---------------------------------------------------------------- quadro a quadro
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste

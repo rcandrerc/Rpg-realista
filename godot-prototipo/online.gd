@@ -376,6 +376,13 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 			an.play(a, 0.08, vel)
 			an.seek(0.0, true)
 			o.uma_vez = an.get_animation(a).length / max(0.1, vel)
+			o.prep_fim = -1.0
+			if acao.has("preparo"): # golpe de monstro: começa devagar (preparo) e depois sai rápido (ts2)
+				var pr := float(acao.preparo)
+				var v2 := float(acao.get("ts2", 1.0))
+				o.prep_fim = m.tempo + pr
+				o.prep_v2 = v2
+				o.uma_vez = pr + max(0.1, an.get_animation(a).length - pr * vel) / max(0.1, v2)
 			return
 	if acao is Dictionary and o.uma_vez > 0.0:
 		return
@@ -405,6 +412,8 @@ func inimigo(c: Dictionary) -> void:
 	if c.morto and e.estado != "morto":
 		e.estado = "morto"
 		e.anim.play("morrer", 0.1)
+		e.prep_fim = -1.0
+		m.combate.morreu(e.no)
 		m.sons.tocar("morte", -2.0, 0.1, e.no.position)
 		_barra_visivel(e, false)
 	elif not c.morto and e.estado == "morto":
@@ -413,6 +422,7 @@ func inimigo(c: Dictionary) -> void:
 		e.buf = []
 		_barra_visivel(e, true)
 		e.anim.play("espada_parada", 0.2)
+		m.combate.voltou(e.no)
 	# atordoado / congelado (vem do servidor): estrelas ou gelo, e o congelado para a animação
 	var ef := str(c.get("ef", "")) if c.get("ef") != null else ""
 	if ef != e.get("ef", ""):
@@ -474,6 +484,9 @@ func evento(ev: Dictionary) -> void:
 					m.apanhou()
 				if eu and m.acao.is_empty() and m.mov.esc == null:
 					m.heroi_anim.play("apanhar", 0.05, 1.4)
+				if not eu and float(ev.n) > 0.0 and not m.combate.reagiu_agora(no): # golpe de outro jogador (o meu já reagiu na hora)
+					var quem_bateu = corpos.get(str(ev.get("de", "")))
+					m.combate.reacao(no, quem_bateu.position if quem_bateu else m.heroi.position, false)
 				if meu and not eu and float(ev.n) > 0.0:
 					m.piscar(no)
 					# o golpe de espada já deu o tranco na hora; skills e tiros dão aqui, quando o servidor confirma
@@ -555,6 +568,20 @@ func evento(ev: Dictionary) -> void:
 				outros[str(ev.id)].alvo = Vector3(x, m.terreno.altura(x, z), z)
 				outros[str(ev.id)].buf = []
 				no.position = outros[str(ev.id)].alvo
+		"preparo": # o monstro vai bater: brilho vermelho crescendo
+			var no = corpos.get(str(ev.id))
+			if no:
+				m.combate.preparo(no, float(ev.dur))
+			return
+		"firme": # o monstro aguentou muitos golpes: fica firme e revida
+			var no = corpos.get(str(ev.id))
+			if no:
+				m.combate.firme(no, float(ev.dur))
+			return
+		"esquiva": # rolou ou deu dash na hora do golpe: o próximo golpe vale mais
+			if str(ev.id) == meu_id:
+				m.combate.esquiva(m.heroi)
+			return
 		"impacto":
 			var x := float(ev.x)
 			var z := float(ev.z)
@@ -638,9 +665,14 @@ func _passo(dt: float) -> void:
 		_interpolar(o, o.no, dt)
 		o.uma_vez = max(0.0, o.uma_vez - dt)
 	for e in m.inimigos:
-		if e.has("alvo") and e.estado != "morto":
+		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
 			_interpolar(e, e.no, dt)
 			e.uma_vez = max(0.0, e.get("uma_vez", 0.0) - dt)
+			if e.get("prep_fim", -1.0) > 0.0 and m.tempo >= e.prep_fim: # fim do preparo: o golpe sai rápido
+				e.prep_fim = -1.0
+				var pos_a: float = e.anim.current_animation_position
+				e.anim.play(e.anim.current_animation, 0.0, e.prep_v2)
+				e.anim.seek(pos_a, true)
 	# minha posição (o servidor confere velocidade e altura)
 	_pos_t -= dt
 	if _pos_t <= 0.0 and m.h.morto <= 0.0:
