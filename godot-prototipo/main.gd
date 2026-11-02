@@ -15,6 +15,7 @@ const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Trabalho = preload("res://trabalho.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -43,6 +44,8 @@ var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
 var mascara: Image
+var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
+var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
 
 # ---------- herói ----------
 var heroi: Node3D
@@ -110,6 +113,7 @@ func _ready() -> void:
 	montar_ambiente()
 	var vila: Node3D = load("res://modelos/vila.glb").instantiate()
 	add_child(vila)
+	vila_no = vila
 	for mi in vila.find_children("*", "MeshInstance3D", true, false):
 		if mi.get_aabb().size.x > 200.0: # o chão do site: troco pelo meu, com as trilhas
 			mi.visible = false
@@ -141,6 +145,8 @@ func _ready() -> void:
 	hud.soltou.connect(func(a): if a == "basico": h.segurando = false)
 	hud.nome = "Ruiva"
 	mostrar_build()
+	trabalho = Trabalho.new(self)
+	add_child(trabalho)
 	menu = Menu.new(self)
 	add_child(menu)
 	montar_teste()
@@ -539,6 +545,7 @@ func mais_perto(pos: Vector3, max_d: float):
 func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	if e.estado == "morto" or on(): # online: quem acerta e quanto tira é o servidor
 		return
+	trabalho.combate()
 	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
 	var crit: bool = randf() < P.st.critico
 	if crit:
@@ -712,6 +719,8 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja"]:
+		trabalho.parar(true) # qualquer ação para a coleta
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
 			cancelar_canal()
@@ -719,7 +728,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif qual != "troca" and qual != "menu" and qual != "loja":
+	elif not qual in ["troca", "menu", "loja", "coletar", "forja"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
@@ -750,9 +759,14 @@ func _tentar(qual: String) -> bool:
 		"pular":
 			if not acao.is_empty() and not acao.get("pulo", false):
 				return false
-			var p: String = mov.pular()
+			var folego: bool = trabalho.pode(float(trabalho.E.mortal))
+			var p: String = mov.pular(folego)
 			if p == "":
+				if not folego and not mov.chao and mov.pulos == 1:
+					hud.aviso("Sem fôlego!")
 				return false # no ar sem pulo sobrando: se pousar logo, pula no pouso
+			if p == "mortal":
+				trabalho.gastar(float(trabalho.E.mortal))
 			rede("pular")
 			acao = {}
 			heroi_anim.play(p, 0.06, 1.2)
@@ -764,11 +778,15 @@ func _tentar(qual: String) -> bool:
 				return true
 			if recargas.get("dash", 0.0) > 0.0 or not acao.is_empty() or mov.esc != null:
 				return false
+			if not trabalho.pode(float(trabalho.E.dash)):
+				hud.aviso("Sem fôlego!")
+				return true
 			var dir := direcao_joystick()
 			var na_parede: bool = mov.dash(dir.x, dir.z)
 			if mov.esc == null and mov.arrancada == null:
 				return true # não deu (já usou o dash no ar)
 			recargas["dash"] = D.MOVIMENTO.dash_cd
+			trabalho.gastar(float(trabalho.E.dash))
 			rede("dash")
 			if not na_parede:
 				fx.dash(heroi, D.MOVIMENTO.dash_tempo, false)
@@ -778,6 +796,8 @@ func _tentar(qual: String) -> bool:
 				return true
 			if not pode_agir() or recargas.get("rolar", 0.0) > 0.0 or not mov.chao:
 				return false
+			if not trabalho.gastar(float(trabalho.E.rolar)):
+				return true
 			recargas["rolar"] = D.HEROI.rolar_cd
 			rede("rolar")
 			var dir := direcao_joystick()
@@ -793,6 +813,10 @@ func _tentar(qual: String) -> bool:
 		"loja":
 			rede("falar") # a Rosa responde e o menu abre na Loja
 			menu.abrir("loja")
+		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
+			trabalho.tocar_botao()
+		"forja": # perto do Tomás: menu na aba Profissões, receitas do Ferreiro
+			menu.abrir("profissoes", "fer")
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -1163,6 +1187,8 @@ func _process(dt: float) -> void:
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
+	hud.estamina = trabalho.sta / max(1.0, trabalho.sta_max())
+	hud.sem_folego = trabalho.sem_folego
 	hud.texto_vida = "%d/%d" % [ceil(h.vida), P.st.vidaMax]
 	hud.texto_mana = "%d/%d" % [floor(h.mana), P.st.manaMax]
 	hud.nivel = P.prog.nivel
@@ -1281,6 +1307,7 @@ func atualizar_heroi(dt: float) -> void:
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
+	trabalho.passo_estamina(dt)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
 		mov.mirar(atan2(da.x, da.z))
@@ -1540,6 +1567,9 @@ func atualizar_inimigos(dt: float) -> void:
 				e.anim.play("espada_parada", 0.2)
 
 func ferir_heroi(dmg: float) -> void:
+	trabalho.combate()
+	if trabalho.coletando != null:
+		trabalho.parar(false)
 	dmg = max(1.0, round(dmg * (1.0 - P.st.reducao)))
 	if h.escudo > 0.0 and h.escudo_ate > tempo: # Escudo Arcano segura primeiro
 		var seg: float = min(h.escudo, dmg)

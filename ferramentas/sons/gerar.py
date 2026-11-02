@@ -43,6 +43,15 @@ KENNEY = {
     "moedas": "kenney_rpg-audio/Audio/handleCoins.ogg",
     "apanhar_1": "kenney_impact-sounds/Audio/impactPunch_heavy_002.ogg",
     "apanhar_2": "kenney_impact-sounds/Audio/impactPunch_heavy_003.ogg",
+    # profissões (Parte 3): picareta na pedra, machado na madeira, martelo na bigorna
+    "minerar_1": "kenney_impact-sounds/Audio/impactMining_000.ogg",
+    "minerar_2": "kenney_impact-sounds/Audio/impactMining_001.ogg",
+    "minerar_3": "kenney_impact-sounds/Audio/impactMining_002.ogg",
+    "lenha_1": "kenney_impact-sounds/Audio/impactWood_heavy_000.ogg",
+    "lenha_2": "kenney_impact-sounds/Audio/impactWood_heavy_001.ogg",
+    "lenha_3": "kenney_rpg-audio/Audio/chop.ogg",
+    "forja_1": "kenney_impact-sounds/Audio/impactMetal_medium_000.ogg",
+    "forja_2": "kenney_impact-sounds/Audio/impactMetal_medium_001.ogg",
 }
 
 
