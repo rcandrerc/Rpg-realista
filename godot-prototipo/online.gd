@@ -6,6 +6,7 @@ extends Node
 
 const Rede = preload("res://rede.gd")
 const D = preload("res://dados.gd")
+const Aparencia = preload("res://aparencia.gd")
 
 var m # main.gd
 var rede
@@ -21,6 +22,9 @@ var _ultima_entrada := {}
 var _tentar_de_novo := -1.0
 var _build_ok := false
 var _pronto := false
+var _ap_mandar = null # aparência do criador esperando para ir ao servidor (no máximo 4 por segundo)
+var _ap_t := 0.0
+var _ap_txt := "" # última aparência do meu herói que veio do servidor
 var _status_t := 0.0
 var jogadores := 0
 # tela de login
@@ -243,12 +247,14 @@ func aplicar_foto(f: Dictionary) -> void:
 	jogadores = 0
 	for j in f.get("jogadores", []):
 		if j.get("criando", false):
-			if str(j.id) == meu_id and not _pronto: # conta nova: o app ainda não tem o criador, então entra de Ruiva
+			if str(j.id) == meu_id and not _pronto: # conta nova: abre o criador (a base é a Ruiva)
 				_pronto = true
-				var nome := str(rede.conta.get("nome", "Andarilho")).strip_edges().left(16)
-				if nome.length() < 3:
-					nome = "Andarilho"
-				rede.enviar("pronto", {"nome": nome, "visual": "ruiva", "aparencia": null})
+				var nome := str(rede.conta.get("nome", "")).strip_edges().left(16)
+				m.criador.abrir_criacao(nome, m.aparencia, func(n, a):
+					rede.enviar("pronto", {"nome": n, "visual": "ruiva", "aparencia": a})
+					m.definir_aparencia(a)
+					m.hud.nome = n,
+					func(a): _ap_mandar = a) # os outros jogadores veem mudando na hora
 			continue
 		jogadores += 1
 		if str(j.id) == meu_id:
@@ -265,6 +271,11 @@ func aplicar_foto(f: Dictionary) -> void:
 
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
+	var ap_txt := JSON.stringify(j.get("aparencia"))
+	if ap_txt != _ap_txt: # aparência gravada na conta (vale a do servidor)
+		_ap_txt = ap_txt
+		if j.get("aparencia") is Dictionary:
+			m.definir_aparencia(j.aparencia)
 	h.mana = float(j.mana)
 	if j.has("sta"):
 		m.trabalho.do_servidor(float(j.sta))
@@ -316,7 +327,12 @@ func outro(j: Dictionary) -> void:
 			"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
 		no.position = o.alvo
 		o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
+		o.ap = ""
 		outros[id] = o
+	var ap_txt := JSON.stringify(j.get("aparencia"))
+	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
+		o.ap = ap_txt
+		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador))
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
 	_amostra(o, o.alvo, o.ry)
@@ -597,6 +613,11 @@ func _passo(dt: float) -> void:
 			rede.iniciar()
 	if not ligado:
 		return
+	_ap_t -= dt
+	if _ap_mandar != null and _ap_t <= 0.0:
+		rede.enviar("aparencia", _ap_mandar)
+		_ap_mandar = null
+		_ap_t = 0.25
 	# outros jogadores e inimigos: o servidor manda a posição 20 vezes por segundo; aqui eles andam entre as duas
 	# últimas fotos com 0,1 s de atraso (velocidade constante, sem os tranquinhos de antes)
 	for id in outros:

@@ -63,6 +63,7 @@ export class Contas {
       apagarSessao: this.db.prepare('DELETE FROM sessoes WHERE resumo = ?'),
       limpar: this.db.prepare('DELETE FROM sessoes WHERE expira < ?'),
       personagem: this.db.prepare('UPDATE contas SET nome = ?, visual = ?, aparencia = ? WHERE id = ? AND visual IS NULL'),
+      aparencia: this.db.prepare('UPDATE contas SET aparencia = ? WHERE id = ? AND visual IS NOT NULL'),
       apagarSessoes: this.db.prepare('DELETE FROM sessoes WHERE conta = ?'),
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
@@ -115,6 +116,8 @@ export class Contas {
   salvarPersonagem(id, { nome, visual, aparencia }) {
     if (PERSONAGENS.some((p) => p.id === visual)) this.q.personagem.run(nome, visual, JSON.stringify(aparencia), id);
   }
+  // Aparência mudada depois de criado (só cores, altura e rosto)
+  salvarAparencia(id, aparencia) { this.q.aparencia.run(JSON.stringify(aparencia), id); }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); }
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }

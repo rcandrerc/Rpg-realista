@@ -16,7 +16,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -63,6 +63,11 @@ class SalaClareira extends Room {
     this.ouvir('pronto', (c, p) => {
       const r = this.sim.concluirCriacao(c.sessionId, p);
       if (r && contas && c.auth) contas.salvarPersonagem(c.auth.id, r);
+    });
+    // Mudar a aparência depois de criado (botão Aparência no menu do personagem do app): cores, altura e rosto; nome e corpo ficam
+    this.ouvir('mudarAparencia', (c, a) => {
+      const r = this.sim.mudarAparencia(c.sessionId, a);
+      if (r && contas && c.auth) contas.salvarAparencia(c.auth.id, r);
     });
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
     this.clock.setInterval(() => this.salvarProgressos(), 15000); // nível, XP e skills vão para a conta

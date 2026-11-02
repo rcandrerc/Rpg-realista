@@ -35,6 +35,9 @@
     { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
     { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] },
     { "nome": "Ataque básico repete só com o dedo no botão (PR do ataque que travava)", "arquivo": "godot-prototipo/main.gd", "contem": ["h.segurando = hud.segurando(\"basico\")", "if h.segurando and not hud.segurando(\"basico\"):"] },
-    { "nome": "HUD solta todos os botões ao perder o foco ou abrir o menu", "arquivo": "godot-prototipo/hud.gd", "contem": ["func segurando(acao: String) -> bool:", "func soltar_tudo() -> void:", "NOTIFICATION_APPLICATION_FOCUS_OUT"] }
+    { "nome": "HUD solta todos os botões ao perder o foco ou abrir o menu", "arquivo": "godot-prototipo/hud.gd", "contem": ["func segurando(acao: String) -> bool:", "func soltar_tudo() -> void:", "NOTIFICATION_APPLICATION_FOCUS_OUT"] },
+    { "nome": "Criador de personagem no Godot, a Ruiva é a base (PR #58)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func abrir_criacao(", "func abrir_edicao(", "\"Original\""] },
+    { "nome": "Aparência do herói: cores, altura e rosto (PR #58)", "arquivo": "godot-prototipo/aparencia.gd", "contem": ["static func aplicar(", "const ROSTO := [\"olhosT\", \"narizT\", \"bocaT\"]"] },
+    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] }
   ]
 }
