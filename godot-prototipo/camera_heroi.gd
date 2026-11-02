@@ -73,15 +73,25 @@ func atualizar(dt: float, giro: Vector2) -> void:
 			yaw += clamp(d, -1.0, 1.0) * SEGUE_VEL * forca * dt
 	# mola amortecida até o herói, um pouco à frente de onde ele vai
 	var quer: Vector3 = m.heroi.position + Vector3(0, 1.35, 0) + Vector3(mov.vx, 0, mov.vz) * ANTECIPA
-	var acel: Vector3 = (quer - alvo) * MOLA * MOLA - _vel_alvo * 2.0 * MOLA
-	_vel_alvo += acel * dt
-	alvo += _vel_alvo * dt
+	# em passos de no máximo 1/60 s: num quadro lento (engasgo do celular) a mola dura não explode e joga a câmera
+	# para dentro do chão ou da pedra
+	var resta := dt
+	while resta > 0.0:
+		var h: float = min(resta, 1.0 / 60.0)
+		resta -= h
+		var acel: Vector3 = (quer - alvo) * MOLA * MOLA - _vel_alvo * 2.0 * MOLA
+		_vel_alvo += acel * h
+		alvo += _vel_alvo * h
 	if alvo.distance_to(quer) > 4.0: # teleporte ou renascer: vai direto
 		alvo = quer
 		_vel_alvo = Vector3.ZERO
 	# afundar no pouso (mola rápida que volta)
-	_afunda_v += (-_afunda * 120.0 - _afunda_v * 16.0) * dt
-	_afunda += _afunda_v * dt
+	resta = dt
+	while resta > 0.0:
+		var h: float = min(resta, 1.0 / 60.0)
+		resta -= h
+		_afunda_v += (-_afunda * 120.0 - _afunda_v * 16.0) * h
+		_afunda += _afunda_v * h
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
 	var livre: float = m.distancia_livre(foco_base, dir_cam, dist)

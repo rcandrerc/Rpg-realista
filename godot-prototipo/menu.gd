@@ -7,6 +7,8 @@ extends CanvasLayer
 # trocar de lugar. Quem decide é o servidor (online manda "atributo" e "barra"); sem internet muda só neste celular.
 # Mochila (8 x 4) e Loja da Rosa (Parte 2 do Quimera): toque num item para ver, equipar, usar ou vender; toque num lugar
 # de equipamento para ver a peça e tirar. Online quem decide é o servidor (manda "item"); sem internet muda só aqui.
+# Profissões (Parte 3 do Quimera): vigor, ouro e o nível de cada profissão; Ferreiro e Alfaiate com as receitas
+# (Criar só perto da forja do Tomás ou da banca da Rosa; online quem confere e dá a peça é o servidor, mensagem "criar").
 # A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
 const Armadura = preload("res://armadura.gd")
@@ -38,6 +40,10 @@ var rolagem: ScrollContainer
 var botoes_aba := {}
 var botoes_arvore := {}
 var linha_arvores: HBoxContainer
+var linha_prof: HBoxContainer
+var botoes_prof := {}
+var sub_prof := "lista" # aba Profissões: "lista", "fer" (Ferreiro) ou "alf" (Alfaiate)
+const SUB_PROF := {"lista": "Profissões", "fer": "Ferreiro", "alf": "Alfaiate"}
 var titulo_nivel: Label
 var vp: SubViewport
 var boneco: Node3D
@@ -413,9 +419,9 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["mochila", "Mochila"], ["loja", "Loja"]]:
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["mochila", "Mochila"], ["profissoes", "Profissões"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
-		b.custom_minimum_size = Vector2(128, 40)
+		b.custom_minimum_size = Vector2(126, 40)
 		botoes_aba[a[0]] = b
 		abas.add_child(b)
 	col.add_child(abas)
@@ -427,6 +433,14 @@ func montar_direita() -> Control:
 		botoes_arvore[k] = b
 		linha_arvores.add_child(b)
 	col.add_child(linha_arvores)
+	linha_prof = HBoxContainer.new()
+	linha_prof.add_theme_constant_override("separation", 6)
+	for k in SUB_PROF:
+		var b := botao(SUB_PROF[k], func(): trocar_sub_prof(k), 14)
+		b.custom_minimum_size = Vector2(110, 34)
+		botoes_prof[k] = b
+		linha_prof.add_child(b)
+	col.add_child(linha_prof)
 	var fundo := PanelContainer.new()
 	fundo.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fundo.add_theme_stylebox_override("panel", caixa(Color(0.055, 0.048, 0.04, 1), Color(0.24, 0.2, 0.14), 1, 8))
@@ -446,14 +460,21 @@ func trocar_aba(a: String) -> void:
 	atualizar()
 	rolagem.scroll_vertical = 0
 
+func trocar_sub_prof(k: String) -> void:
+	sub_prof = k
+	atualizar()
+	rolagem.scroll_vertical = 0
+
 func trocar_arvore(k: String) -> void:
 	arvore = k
 	atualizar()
 	rolagem.scroll_vertical = 0
 
-func abrir(qual := "") -> void:
+func abrir(qual := "", sub := "") -> void:
 	if m.h.modo == "Magia":
 		arvore = "cajado"
+	if sub != "":
+		sub_prof = sub
 	if qual != "":
 		aba = qual
 	elif aba == "loja":
@@ -516,6 +537,9 @@ func atualizar() -> void:
 	linha_arvores.visible = aba == "habilidades"
 	for k in botoes_arvore:
 		estilo_botao(botoes_arvore[k], k == arvore)
+	linha_prof.visible = aba == "profissoes"
+	for k in botoes_prof:
+		estilo_botao(botoes_prof[k], k == sub_prof)
 	var y := rolagem.scroll_vertical
 	for c in conteudo.get_children():
 		conteudo.remove_child(c)
@@ -526,6 +550,11 @@ func atualizar() -> void:
 		montar_mochila()
 	elif aba == "loja":
 		montar_loja()
+	elif aba == "profissoes":
+		if sub_prof == "lista":
+			montar_profissoes()
+		else:
+			montar_receitas(sub_prof)
 	else:
 		montar_habilidades()
 	await get_tree().process_frame
@@ -595,6 +624,8 @@ func montar_status() -> void:
 		["Defesa", "%d (-%s%% de dano)" % [st.defesa, P.num(st.reducao * 100, 0)]], ["Crítico", "%s%%" % P.num(st.critico * 100, 1)],
 		["Dano físico", P.num(st.danoFisico, 1)], ["Dano mágico", P.num(st.danoMagico, 1)],
 		["Recarga", "-%s%%" % P.num(st.recarga * 100, 0)], ["Regeneração", "%s vida/s · %s mana/s" % [P.num(st.regenVida, 1), P.num(st.regenMana, 1)]],
+		["Estamina", "%d / %d" % [floor(m.trabalho.sta), m.trabalho.sta_max()]], ["Vigor", "%d / %d" % [floor(P.vigor()), int(P.dados.vigor.max)]],
+		["Ouro", str(int(p.ouro))],
 	]
 	for it in itens:
 		var c := HBoxContainer.new()
@@ -729,6 +760,225 @@ func linha_skill(id: String) -> Control:
 		txt.add_child(rotulo("Golpe da arma na mão (botão grande)", 12, Color(0.6, 0.75, 0.55)))
 	l.add_child(txt)
 	return cx
+
+# ---------- profissões (Parte 3 do Quimera) ----------
+const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer"}
+const COR_VIGOR := Color(0.55, 0.8, 0.42)
+
+func icone_redondo(nome: String, tam: float, cor := Color.WHITE, borda := OURO) -> Control:
+	var moldura := Panel.new()
+	moldura.custom_minimum_size = Vector2(tam, tam)
+	moldura.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	moldura.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), borda.darkened(0.2), 1, int(tam / 2)))
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(nome)
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var f := tam * 0.2
+	ic.offset_left = f
+	ic.offset_top = f
+	ic.offset_right = -f
+	ic.offset_bottom = -f
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = cor
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	moldura.add_child(ic)
+	return moldura
+
+static func tempo_txt(s: float) -> String:
+	var mi := int(ceil(s / 60.0))
+	if mi < 60:
+		return "%d min" % mi
+	return "%d h %02d min" % [mi / 60, mi % 60]
+
+# vigor (energia para trabalhar) e ouro, em cima das profissões e das receitas
+func linha_vigor() -> Control:
+	var P = m.P
+	var v: float = P.vigor()
+	var mx := float(P.dados.vigor.max)
+	var cx := VBoxContainer.new()
+	cx.add_theme_constant_override("separation", 3)
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 8)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex("vigor")
+	ic.custom_minimum_size = Vector2(20, 20)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = COR_VIGOR
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(ic)
+	l.add_child(rotulo("Vigor %d / %d" % [floor(v), int(mx)], 16, COR_VIGOR))
+	l.add_child(rotulo("   cheio" if v >= mx - 0.01 else "   cheio em %s" % tempo_txt(P.vigor_cheio_em()), 13, APAGADO))
+	var esp_ := Control.new()
+	esp_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.add_child(esp_)
+	l.add_child(linha_ouro())
+	cx.add_child(l)
+	cx.add_child(barra_prog(v / mx, COR_VIGOR.darkened(0.15), 7))
+	var d := rotulo("Coletar e criar gastam vigor. Ele volta sozinho: +%d a cada %d h, mesmo com o jogo fechado." % [int(mx), int(P.dados.vigor.enche) / 3600], 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cx.add_child(d)
+	return cx
+
+func montar_profissoes() -> void:
+	var P = m.P
+	conteudo.add_child(linha_vigor())
+	var grupo := ""
+	for k in P.dados.profissoes:
+		var pf: Dictionary = P.dados.profissoes[k]
+		if pf.grupo != grupo:
+			grupo = pf.grupo
+			separador(grupo)
+		conteudo.add_child(linha_prof_card(k))
+	separador("Ranks")
+	var ranks: Array = P.dados.ranks
+	var t := "Sobe sozinha trabalhando. Cada rank (a cada 2 níveis; o 19 e o 20 têm rank próprio): -4% de vigor, +3,5% de rapidez e +2% de chance de +1 na coleta. Criar: mais chance de a peça sair Rara ou Épica."
+	var d := rotulo(t, 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", 18)
+	g.add_theme_constant_override("v_separation", 2)
+	for r in ranks.size():
+		var nv := "20" if r == 10 else "19" if r == 9 else "%d-%d" % [2 * r + 1, 2 * r + 2]
+		g.add_child(rotulo("%s  ·  Nv %s" % [ranks[r], nv], 12, OURO_CLARO if r == 0 else TEXTO))
+	conteudo.add_child(g)
+
+func linha_prof_card(k: String) -> Control:
+	var P = m.P
+	var pf: Dictionary = P.dados.profissoes[k]
+	var nv: int = P.prof_nivel(k)
+	var pts: float = float(P.prog.prof.get(k, 0.0))
+	var b: Dictionary = P.prof_bonus(k)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	l.add_child(icone_redondo(ICONE_PROF[k], 48))
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 10)
+	cab.add_child(rotulo(pf.nome, 16, TEXTO))
+	cab.add_child(rotulo(str(P.dados.ranks[b.rank]), 14, OURO_CLARO))
+	cab.add_child(rotulo("Nv %d" % nv, 13, APAGADO))
+	var esp_ := Control.new()
+	esp_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cab.add_child(esp_)
+	var maxn := int(P.dados.profMax)
+	cab.add_child(rotulo("Nível máximo" if nv >= maxn else "%d / %d pontos" % [floor(pts), int(P.prof_pontos(nv + 1))], 12, OURO_CLARO if nv >= maxn else APAGADO))
+	txt.add_child(cab)
+	var d := rotulo(pf.desc, 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(d)
+	var a: float = P.prof_pontos(nv)
+	var z: float = P.prof_pontos(nv + 1)
+	txt.add_child(barra_prog(1.0 if nv >= maxn else (pts - a) / max(1.0, z - a), Color(0.85, 0.66, 0.3), 6))
+	var bon := []
+	if k == "mer":
+		var mc: Dictionary = P.mercador()
+		bon.append("Rosa paga +%s%% e cobra -%s%%" % [P.num(mc.venda * 100, 0), P.num(mc.compra * 100, 0)])
+		bon.append("1 ponto a cada %d de ouro negociado" % int(P.dados.mercador.pontoOuro))
+	else:
+		if b.menosVigor > 0:
+			bon.append("-%d%% vigor" % round(b.menosVigor * 100))
+		if k in ["min", "len"]:
+			if b.rapidez > 1.0:
+				bon.append("+%s%% mais rápido" % P.num((b.rapidez - 1.0) * 100, 1))
+			if b.extra > 0:
+				bon.append("+%d%% de chance de +1" % round(b.extra * 100))
+		else:
+			bon.append("%s%% de chance de subir a raridade" % P.num(P.chance_raridade(k) * 100, 1))
+	if bon.is_empty():
+		bon.append("Trabalhe para subir de rank")
+	txt.add_child(rotulo(" · ".join(bon), 12, Color(0.6, 0.75, 0.55)))
+	l.add_child(txt)
+	return cx
+
+# receitas do Ferreiro (forja do Tomás) ou do Alfaiate (banca da Rosa)
+func montar_receitas(prof: String) -> void:
+	var P = m.P
+	conteudo.add_child(linha_vigor())
+	var of: Dictionary = P.dados.oficina[prof]
+	var aqui: bool = m.trabalho.perto_oficina(prof)
+	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Para criar, vá %s." % str(of.onde).replace("na ", "até a ")), 13, VERDE if aqui else APAGADO)
+	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(st)
+	separador("Receitas · %s Nv %d" % [P.dados.profissoes[prof].nome, P.prof_nivel(prof)])
+	for r in P.dados.receitas:
+		var R: Dictionary = P.dados.receitas[r]
+		if R.prof == prof:
+			conteudo.add_child(linha_receita(r, R, aqui))
+
+func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
+	var P = m.P
+	var faz := {"k": str(R.faz), "r": 0} if P.dados.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
+	var nv_ok: bool = P.prof_nivel(R.prof) >= int(R.nivel)
+	var custo: float = P.custo_vigor(R.prof, float(R.vigor))
+	var tem := true
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1) if nv_ok else Color(0.07, 0.063, 0.055, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	var c := celula(faz, false, func(): pass, 52)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	var nome: String = P.dados.itens[str(R.faz)].nome
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 10)
+	cab.add_child(rotulo(nome, 15, TEXTO if nv_ok else APAGADO))
+	if not nv_ok:
+		cab.add_child(rotulo("precisa de Nv %d" % int(R.nivel), 12, Color("e0806a")))
+	txt.add_child(cab)
+	if P.eh_equip(faz):
+		var t := rotulo("Sai Comum, com %s%% de chance de subir de raridade · %s" % [P.num(P.chance_raridade(R.prof) * 100, 0), P.texto_item(faz)], 12, APAGADO)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(t)
+	# materiais: verde se tem, vermelho se falta
+	var mats := HFlowContainer.new()
+	mats.add_theme_constant_override("h_separation", 12)
+	for k in R.usa:
+		var n := int(R.usa[k])
+		var t2: int = P.contar(k)
+		if t2 < n:
+			tem = false
+		var ml := HBoxContainer.new()
+		ml.add_theme_constant_override("separation", 4)
+		var ic := TextureRect.new()
+		ic.texture = icone_tex(P.icone_item({"k": k}))
+		ic.custom_minimum_size = Vector2(18, 18)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.modulate = P.cor_item({"k": k})
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ml.add_child(ic)
+		ml.add_child(rotulo("%s %d/%d" % [P.dados.itens[k].nome, t2, n], 12, VERDE if t2 >= n else Color("e0806a")))
+		mats.add_child(ml)
+	var vg := rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR if P.vigor() >= custo else Color("e0806a"))
+	mats.add_child(vg)
+	txt.add_child(mats)
+	l.add_child(txt)
+	var pode: bool = aqui and nv_ok and tem and P.vigor() >= custo
+	var b := botao("Criar", func(): criar(r), 14, pode)
+	b.custom_minimum_size = Vector2(96, 40)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.disabled = not pode
+	l.add_child(b)
+	return cx
+
+func criar(r: String) -> void:
+	if not m.on():
+		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
+		return
+	m.rede("criar", {"r": r})
 
 # ---------- mochila e loja ----------
 func linha_ouro() -> Control:
@@ -873,6 +1123,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		tipo += " · No corpo" if lugar != "" else ""
 	elif it.k == "tomo":
 		tipo = "Tomo de %s" % P.habs[it.h].nome
+	elif P.eh_mat(it):
+		tipo = "Material · %d" % int(it.n)
 	else:
 		tipo = "Consumível · %d" % int(it.n)
 	txt.add_child(rotulo(tipo, 12, APAGADO))
@@ -888,7 +1140,7 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Tirar", {"acao": "tirar", "lugar": lugar}))
 	elif P.eh_equip(it):
 		bs.add_child(botao_acao("Equipar", {"acao": "equipar", "i": i}))
-	else:
+	elif not P.eh_mat(it):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if i >= 0 and m.perto_da_loja():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
@@ -906,7 +1158,9 @@ func montar_loja() -> void:
 	var topo := HBoxContainer.new()
 	topo.add_child(linha_ouro())
 	conteudo.add_child(topo)
-	var d := rotulo("Rosa compra o que você tiver: na Mochila, toque no item e em Vender.", 12, APAGADO)
+	var merc: Dictionary = P.mercador()
+	var txt_merc := "" if merc.venda <= 0.0 else " Mercador Nv %d: ela paga +%s%% e cobra -%s%%." % [P.prof_nivel("mer"), P.num(merc.venda * 100, 0), P.num(merc.compra * 100, 0)]
+	var d := rotulo("Rosa compra o que você tiver: na Mochila, toque no item e em Vender." + txt_merc + " A banca dela também é a do Alfaiate (Profissões → Alfaiate).", 12, APAGADO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(d)
 	separador("À venda")
@@ -924,8 +1178,9 @@ func montar_loja() -> void:
 		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		txt.add_child(t)
 		l.add_child(txt)
-		var pode: bool = int(P.prog.ouro) >= int(o.preco)
-		var b := botao("Comprar · %d" % int(o.preco), func(): acao_item({"acao": "comprar", "i": i}), 14, pode)
+		var preco: int = P.preco_compra(o)
+		var pode: bool = int(P.prog.ouro) >= preco
+		var b := botao("Comprar · %d" % preco, func(): acao_item({"acao": "comprar", "i": i}), 14, pode)
 		b.custom_minimum_size = Vector2(140, 40)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode

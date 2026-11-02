@@ -12,6 +12,7 @@ var prog := {}
 var st := {} # números do herói: vidaMax, manaMax, defesa, danoFisico...
 var xp_prox := 16
 var mudou := false # o menu redesenha quando muda
+var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
 # ícone (icones/*.svg) e cores dos efeitos (efeitos.gd FXCOR) de cada skill
 const ICONE := {"espada_basico": "basico", "cajado_basico": "magia", "corte_duplo": "corte", "giro": "giro", "golpe_esmagador": "salto",
@@ -36,7 +37,7 @@ func novo() -> Dictionary:
 	mochila[0] = {"k": "pocao", "n": 3}
 	mochila[1] = {"k": "pocao_mana", "n": 2}
 	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true),
-		"ouro": 20, "mochila": mochila, "equip": {}}
+		"ouro": 20, "mochila": mochila, "equip": {}, "vigor": {"v": float(dados.vigor.max), "t": agora_ms()}, "prof": {}}
 
 func definir(p: Dictionary) -> void:
 	prog = p
@@ -72,12 +73,25 @@ func definir(p: Dictionary) -> void:
 	prog.equip.erase("cabeca")
 	for l in dados.lugares:
 		prog.equip[l] = item_int(prog.equip.get(l))
+	# vigor e profissões (Parte 3)
+	var vg = prog.get("vigor")
+	if not (vg is Dictionary) or not vg.has("v") or not vg.has("t"):
+		vg = {"v": float(dados.vigor.max), "t": agora_ms()}
+	prog.vigor = {"v": float(vg.v), "t": float(vg.t)}
+	var pf = prog.get("prof")
+	if not (pf is Dictionary):
+		pf = {}
+	for k in dados.profissoes:
+		pf[k] = float(pf.get(k, 0.0))
+	prog.prof = pf
 	st = calcular_status()
 	xp_prox = xp_proximo(prog.nivel)
 	mudou = true
 
 # veio do servidor: vale o que ele diz (e guarda uma cópia para jogar sem internet)
 func do_servidor(ev: Dictionary) -> void:
+	if ev.has("agora"):
+		relogio = float(ev.agora) - Time.get_unix_time_from_system() * 1000.0
 	definir(ev.prog)
 	if ev.has("st"):
 		for k in ev.st:
@@ -109,7 +123,59 @@ func calcular_status() -> Dictionary:
 		"critico": min(1.0, 0.0455 + 0.0015 * a.des + (0.02 if passiva("sorte_arcana") else 0.0) + eq.critico),
 		"recarga": min(0.4, 0.0133 * a.des),
 		"areaK": eq.areaK,
+		"estaminaMax": round(float(dados.estamina.base) + float(dados.estamina.porNivel) * n + float(dados.estamina.porDes) * a.des),
 	}
+
+# ---------- vigor e profissões (igual a shared/progresso.js; dados de shared/dados.js) ----------
+func agora_ms() -> float:
+	return Time.get_unix_time_from_system() * 1000.0 + relogio
+
+func vigor() -> float:
+	var s: float = max(0.0, agora_ms() - float(prog.vigor.t)) / 1000.0
+	return min(float(dados.vigor.max), float(prog.vigor.v) + s / float(dados.vigor.enche) * float(dados.vigor.max))
+
+# segundos até o vigor encher
+func vigor_cheio_em() -> float:
+	return (float(dados.vigor.max) - vigor()) / float(dados.vigor.max) * float(dados.vigor.enche)
+
+static func prof_nivel_pts(pts: float, maxn: int) -> int:
+	return min(maxn, int(floor(sqrt(pts / 8.0))) + 1)
+
+func prof_nivel(k: String) -> int:
+	return prof_nivel_pts(float(prog.prof.get(k, 0.0)), int(dados.profMax))
+
+static func prof_pontos(nv: int) -> float:
+	return 8.0 * (nv - 1) * (nv - 1)
+
+static func prof_rank(nv: int) -> int:
+	return 10 if nv >= 20 else 9 if nv >= 19 else int((nv - 1) / 2)
+
+# o que o rank dá: menos vigor, rapidez e chance de +1 na coleta
+func prof_bonus(k: String) -> Dictionary:
+	var r := prof_rank(prof_nivel(k))
+	return {"rank": r, "menosVigor": 0.04 * r, "rapidez": 1.0 + 0.035 * r, "extra": 0.02 * r}
+
+func mercador() -> Dictionary:
+	var f: float = float(prof_nivel("mer") - 1) / float(int(dados.profMax) - 1)
+	return {"venda": float(dados.mercador.venda) * f, "compra": float(dados.mercador.compra) * f}
+
+func chance_raridade(k: String) -> float:
+	var R: Dictionary = dados.raridadeCriar
+	return float(R.base) + (float(R.max) - float(R.base)) * float(prof_nivel(k) - 1) / float(int(dados.profMax) - 1)
+
+func custo_vigor(k: String, base: float) -> float:
+	return base * (1.0 - prof_bonus(k).menosVigor)
+
+# quantos de um material tem na mochila
+func contar(k: String) -> int:
+	var n := 0
+	for o in prog.mochila:
+		if o != null and o.k == k and not o.has("h"):
+			n += int(o.get("n", 1))
+	return n
+
+func preco_compra(o: Dictionary) -> int:
+	return max(1, int(round(float(o.preco) * (1.0 - mercador().compra))))
 
 # ---------- mochila e equipamento (igual a shared/progresso.js; os dados vêm de shared/dados.js) ----------
 static func item_int(it):
@@ -174,9 +240,13 @@ func nome_item(it) -> String:
 		return "%s %s" % [habs[it.h].tomo, dados.romano[int(it.nv)]]
 	return dados.itens[it.k].nome
 
+const COR_MAT := {"minerio_ferro": "b9b2a6", "minerio_cobre": "d99060", "cristal": "a98cff", "lenha": "c79a62", "barra_ferro": "d6dbe0",
+	"barra_cobre": "e8a06a", "carvao": "4a4644", "pedra": "9a958c", "barra_aco": "9fb0c2", "couro": "b07a4a", "tecido": "c9a6e8"}
 func cor_item(it) -> Color:
 	if eh_equip(it):
 		return Color(dados.raridades[int(it.r)].cor)
+	if COR_MAT.has(it.k):
+		return Color(COR_MAT[it.k])
 	if it.k == "pocao":
 		return Color("ff6b5e")
 	if it.k == "pocao_mana":
@@ -186,17 +256,29 @@ func cor_item(it) -> Color:
 	return Color.WHITE
 
 static func icone_item(it) -> String:
+	if str(it.k).begins_with("barra_"):
+		return "it_barra"
+	if str(it.k).begins_with("minerio_") or it.k == "carvao" or it.k == "pedra":
+		return "it_minerio"
 	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
 	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
 		return "it_%s_aco" % it.k
-	return "it_" + str(it.k)
+	if ResourceLoader.exists("res://icones/itens/%s.png" % it.k):
+		return "it_" + str(it.k)
+	return "it_" + ("pocao" if it.k == "pocao_mana" else str(it.k))
+
+func eh_mat(it) -> bool:
+	return it is Dictionary and dados.itens.has(it.k) and dados.itens[it.k].get("mat", false)
 
 func preco_venda(it) -> int:
+	var v := 0
 	if eh_equip(it):
-		return int(dados.vendaEquip[int(it.r)])
-	if it.k == "tomo":
-		return int(dados.vendaTomo) * int(it.nv)
-	return int(dados.itens[it.k].get("venda", 1))
+		v = int(dados.vendaEquip[int(it.r)])
+	elif it.k == "tomo":
+		v = int(dados.vendaTomo) * int(it.nv)
+	else:
+		v = int(dados.itens[it.k].get("venda", 1))
+	return int(round(v * (1.0 + mercador().venda)))
 
 const NOME_ST := {"vida": "Vida", "mana": "Mana", "defesa": "Defesa", "critico": "Crítico", "danoFisico": "Dano físico", "danoMagico": "Dano mágico",
 	"danoK": "Dano", "areaK": "Área das skills", "regenManaK": "Regeneração de mana"}

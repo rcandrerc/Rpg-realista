@@ -266,6 +266,8 @@ func aplicar_foto(f: Dictionary) -> void:
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	h.mana = float(j.mana)
+	if j.has("sta"):
+		m.trabalho.do_servidor(float(j.sta))
 	if j.morto:
 		if h.morto <= 0.0:
 			h.vida = 0.0
@@ -443,6 +445,8 @@ func evento(ev: Dictionary) -> void:
 			var no = corpos.get(str(ev.alvo))
 			if no:
 				var eu: bool = str(ev.alvo) == meu_id
+				if eu or meu:
+					m.trabalho.combate()
 				var crit: bool = ev.get("crit", false) == true
 				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 				if eu:
@@ -462,6 +466,24 @@ func evento(ev: Dictionary) -> void:
 			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
+			return
+		# profissões (Parte 3): batida de coleta, o que saiu, fim da coleta e peça criada
+		"coleta":
+			if str(ev.id) == meu_id:
+				m.trabalho.comecou(str(ev.no), float(ev.dur), str(ev.get("prof", "min")))
+			return
+		"coletou":
+			m.trabalho.coletou(ev)
+			return
+		"coletaFim":
+			if str(ev.id) == meu_id:
+				m.trabalho.parar(false)
+			return
+		"criou":
+			m.trabalho.criou(ev)
+			return
+		"profNivel":
+			m.sons.tocar("nivel", -6.0)
 			return
 		"fala":
 			m.hud.aviso(str(ev.texto))
@@ -599,7 +621,8 @@ func _passo(dt: float) -> void:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, "Idle")
-		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a})
+		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)
+		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a, "e": 1})
 	# para onde o joystick aponta (o servidor usa no rolamento e no dash)
 	_ent_t -= dt
 	if _ent_t <= 0.0:
