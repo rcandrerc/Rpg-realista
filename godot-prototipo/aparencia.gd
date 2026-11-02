@@ -10,33 +10,32 @@ const ROSTO := ["olhosT", "narizT", "bocaT"]
 const CORES := ["cabelo", "olhos", "pele", "roupa", "calca"]
 
 # troca a cor guardando o claro e escuro da textura ("troca"); a pele multiplica cada canal ("razao"), como no site
+# As contas são feitas no mesmo espaço de cor em que a textura chega no shader (linear no celular; no renderizador de
+# compatibilidade da nuvem ela chega sem converter), então a parte tingida fica igual ao resto em qualquer um.
 const TINTA := """
 uniform vec3 tinta_cor = vec3(1.0);
 uniform vec3 tinta_media = vec3(0.5);
 uniform float tinta_razao = 0.0;
 uniform float tinta_teto = 1.0;
-vec3 tinta_srgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c)); }
-vec3 tinta_linear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
-vec3 tingir_cor(vec3 lin) {
-	vec3 s = tinta_srgb(lin);
+uniform vec3 tinta_piso = vec3(0.0);
+vec3 tingir_cor(vec3 s) {
 	vec3 r;
+	float lm = max(0.003, dot(tinta_media, vec3(0.3, 0.59, 0.11)));
+	float l = dot(s, vec3(0.3, 0.59, 0.11)) / lm;
 	if (tinta_razao > 0.5) {
-		r = min(vec3(1.0), s * tinta_cor / max(tinta_media, vec3(0.03)));
+		r = min(vec3(1.0), s * tinta_cor / max(tinta_media, vec3(0.003)));
 		r = mix(vec3(dot(r, vec3(0.3, 0.59, 0.11))), r, 0.85); // um pouco menos saturada: a luz toon do Godot puxa para o laranja
-		// a luz do Godot deixa a pele clara quase branca: as clara e média escurecem um pouco (sem estourar em laranja), a escura não
-		r *= mix(1.0, 0.8, smoothstep(0.35, 0.85, dot(r, vec3(0.3, 0.59, 0.11))));
+		r = max(r, tinta_piso); // a pele mais escura nunca abaixo de #4a3024 (senão a sombra vira preto)
 		// só a pele: as linhas do desenho (boca, nariz, olhos), bem mais escuras que a pele, ficam como estão
-		float lm = max(0.03, dot(tinta_media, vec3(0.3, 0.59, 0.11)));
-		r = mix(s, r, smoothstep(0.45, 0.8, dot(s, vec3(0.3, 0.59, 0.11)) / lm));
+		r = mix(s, r, smoothstep(0.35, 0.7, l));
 	} else {
-		float lm = max(0.03, dot(tinta_media, vec3(0.3, 0.59, 0.11)));
-		float l = min(1.3, dot(s, vec3(0.3, 0.59, 0.11)) / lm);
-		r = tinta_cor * (0.32 + 0.62 * l);
-		r *= min(1.0, tinta_teto / max(0.001, max(r.r, max(r.g, r.b)))); // limita o claro sem mudar o tom (cortar canal por canal esverdeava o loiro)
+		r = tinta_cor * (0.32 + 0.62 * min(l, 1.3));
+		r *= min(1.0, tinta_teto / max(0.001, max(r.r, max(r.g, r.b)))); // limita o claro sem mudar o tom
 	}
-	return tinta_linear(r);
+	return r;
 }
 """
+
 
 static var _tingidos := {} # "id do material|cor" -> material tingido
 static var _medias := {} # "id da textura|claro" -> cor média (sRGB)
@@ -108,6 +107,12 @@ static func _parte(base, malha: Mesh, i: int) -> String:
 			return p[1]
 	return ""
 
+# cor sRGB no espaço em que a textura chega no shader
+static func _esp(c: Color) -> Vector3:
+	if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+		c = c.srgb_to_linear()
+	return Vector3(c.r, c.g, c.b)
+
 static func _int(c: Color) -> int:
 	return (c.r8 << 16) | (c.g8 << 8) | c.b8
 
@@ -134,7 +139,7 @@ static func _cor(c: int) -> Color:
 
 # shader toon igual ao que o Godot faz para os materiais dos personagens (main.pintar: toon, sem brilho, contorno de luz),
 # com a troca de cor no meio. Um por jeito de transparência e de lado desenhado.
-static func _shader(base: StandardMaterial3D) -> Shader:
+static func _shader(base: StandardMaterial3D, pele := false, rosto := false) -> Shader:
 	var tr := base.transparency
 	var modos := ["blend_mix", "depth_draw_opaque", "diffuse_toon", "specular_disabled",
 		["cull_back", "cull_front", "cull_disabled"][base.cull_mode]]
@@ -146,6 +151,18 @@ static func _shader(base: StandardMaterial3D) -> Shader:
 	elif tr != BaseMaterial3D.TRANSPARENCY_DISABLED:
 		alfa = "ALPHA = albedo.a * t.a;"
 	var rim := "RIM = rim;\n\tRIM_TINT = rim_tint;" if base.rim_enabled else ""
+	# pele: a sombra sai da própria cor (um pouco de luz própria segura o lado escuro, uns 78% do claro) e o rosto não
+	# recebe a sombra do cabelo cheia, senão a pele escura virava preto e a boca e o nariz sumiam
+	var luz := ""
+	if pele:
+		# luz toon própria: o lado da sombra fica com 78% do claro, e a sombra que cai (cabelo no rosto) pesa no máximo 35%
+		luz = """
+void light() {
+	float lado = smoothstep(-0.02, 0.02, dot(NORMAL, LIGHT));
+	float caida = mix(1.0, ATTENUATION, %s);
+	DIFFUSE_LIGHT += LIGHT_COLOR * mix(0.78, 1.0, lado * caida) / PI;
+}
+""" % ("0.35" if rosto else "1.0")
 	var codigo := """shader_type spatial;
 render_mode %s;
 uniform vec4 albedo : source_color = vec4(1.0);
@@ -169,7 +186,7 @@ void fragment() {
 	%s
 	%s
 }
-""" % [", ".join(modos), TINTA, alfa, rim]
+%s""" % [", ".join(modos), TINTA, alfa, rim, luz]
 	if not _shaders.has(codigo):
 		var sh := Shader.new()
 		sh.code = codigo
@@ -182,7 +199,7 @@ static func _tingido(base: StandardMaterial3D, cor: int, parte: String) -> Mater
 		return _tingidos[chave]
 	var alvo := _cor(cor)
 	var sm := ShaderMaterial.new()
-	sm.shader = _shader(base)
+	sm.shader = _shader(base, parte == "pele", parte == "pele" and "Face" in base.resource_name)
 	# o laranja que a Ruiva leva no cabelo e o rosado da pele (main.pintar) não podem somar com a cor nova
 	sm.set_shader_parameter("albedo", Color(1, 1, 1, base.albedo_color.a))
 	sm.set_shader_parameter("texture_albedo", base.albedo_texture)
@@ -191,12 +208,12 @@ static func _tingido(base: StandardMaterial3D, cor: int, parte: String) -> Mater
 	sm.set_shader_parameter("rim_tint", base.rim_tint)
 	sm.set_shader_parameter("uv1_scale", base.uv1_scale)
 	sm.set_shader_parameter("uv1_offset", base.uv1_offset)
-	sm.set_shader_parameter("tinta_cor", Vector3(alvo.r, alvo.g, alvo.b))
-	var med := media(base.albedo_texture, parte == "pele")
-	sm.set_shader_parameter("tinta_media", Vector3(med.r, med.g, med.b))
+	sm.set_shader_parameter("tinta_cor", _esp(alvo))
+	sm.set_shader_parameter("tinta_media", _esp(media(base.albedo_texture, parte == "pele")))
+	sm.set_shader_parameter("tinta_piso", _esp(Color8(0x4a, 0x30, 0x24)))
 	sm.set_shader_parameter("tinta_razao", 1.0 if parte == "pele" else 0.0)
 	# cabelo claro não estoura em branco chapado (a luz do Godot clareia bastante): no máximo uns #b8b5ae no material, para o degrau de sombra aparecer
-	sm.set_shader_parameter("tinta_teto", 0.72 if parte == "cabelo" else 0.95)
+	sm.set_shader_parameter("tinta_teto", _esp(Color.WHITE * (0.62 if parte == "cabelo" else 0.95)).x)
 	sm.render_priority = base.render_priority
 	_tingidos[chave] = sm
 	return sm
