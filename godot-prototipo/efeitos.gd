@@ -829,7 +829,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	tw.tween_callback(l.queue_free)
 
 # Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
-func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, altura := 1.7) -> void:
+func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, altura := 1.7, tam := 1.0) -> void:
 	var l := Label3D.new()
 	l.text = t
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -838,7 +838,7 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, alt
 	l.outline_size = 14
 	l.modulate = Color(cor, 0.0)
 	l.outline_modulate = Color(0.06, 0.04, 0.02, 0.0)
-	l.pixel_size = 0.006
+	l.pixel_size = 0.006 * tam
 	add_child(l)
 	l.global_position = pos + Vector3(0, altura, 0)
 	var y0 := l.global_position.y
