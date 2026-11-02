@@ -33,6 +33,9 @@
     { "nome": "Servidor: mensagens do jogo", "arquivo": "server/index.js", "contem": ["this.ouvir('habilidade'", "this.ouvir('item'", "this.ouvir('coletar'", "this.ouvir('criar'", "this.ouvir('aparencia'", "this.ouvir('montar'", "this.ouvir('pos'"] },
     { "nome": "Servidor confere coleta e criação (PR #57)", "arquivo": "shared/simulacao.js", "contem": ["  coletar(id, m) {", "  criar(id, m) {", "app que conhece a estamina"] },
     { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
-    { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] }
+    { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] },
+    { "nome": "Criador de personagem no Godot, a Ruiva é a base (PR #58)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func abrir_criacao(", "func abrir_edicao(", "\"Original\""] },
+    { "nome": "Aparência do herói: cores, altura e rosto (PR #58)", "arquivo": "godot-prototipo/aparencia.gd", "contem": ["static func aplicar(", "const ROSTO := [\"olhosT\", \"narizT\", \"bocaT\"]"] },
+    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] }
   ]
 }

@@ -15,6 +15,8 @@ const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Aparencia = preload("res://aparencia.gd")
+const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 
 const RAIO := 34.0
@@ -61,6 +63,9 @@ var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolament
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
+var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
+var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
+const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
 var tempo := 0.0
 
 # ---------- outros ----------
@@ -167,6 +172,10 @@ func _ready() -> void:
 	add_child(trabalho)
 	menu = Menu.new(self)
 	add_child(menu)
+	criador = Criador.new(self)
+	add_child(criador)
+	var cfg := ConfigFile.new()
+	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if cfg.load(ARQUIVO_APARENCIA) == OK else {}, false)
 	montar_teste()
 	online = Online.new(self)
 	add_child(online)
@@ -325,6 +334,25 @@ func modelo(id: String) -> Node3D:
 	pintar(no, true, id == "ruiva")
 	molas(no)
 	return no
+
+# aparência do herói (criador de personagem): pinta o herói e o boneco do menu e guarda no celular
+func definir_aparencia(a, salvar := true) -> void:
+	aparencia = Aparencia.valida(a, P.dados.criador)
+	Aparencia.aplicar(heroi, aparencia)
+	if menu and menu.boneco:
+		Aparencia.aplicar(menu.boneco, aparencia)
+	if salvar:
+		var cfg := ConfigFile.new()
+		cfg.set_value("heroi", "aparencia", JSON.stringify(aparencia))
+		cfg.save(ARQUIVO_APARENCIA)
+
+# botão Aparência do menu do personagem: abre o criador sem o nome; online quem grava é o servidor ("mudarAparencia")
+func abrir_aparencia() -> void:
+	criador.abrir_edicao(aparencia, func(a):
+		definir_aparencia(a)
+		if on():
+			rede("mudarAparencia", a)
+		hud.aviso("Aparência salva"))
 
 func esqueleto(no: Node) -> Skeleton3D:
 	var l := no.find_children("*", "Skeleton3D", true, false)

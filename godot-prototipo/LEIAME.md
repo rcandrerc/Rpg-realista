@@ -21,3 +21,12 @@ Para montar à mão:
 - Câmera (mola, seguir por trás, campo de visão, tremida): constantes em `camera_heroi.gd`.
 - Golpe (congelada, tremida, fila de botões): constantes `FILA_TEMPO`, `HITSTOP`, `TREME` em `main.gd`.
 - Sons: `sons.gd` toca os arquivos de `sons/` (gerados por `ferramentas/sons/gerar.py`). Raio do joystick: `JOY_RAIO` em `hud.gd`.
+
+## Criador de personagem
+
+- `criador.gd`: abre sozinho na conta nova (com nome) e pelo botão **Aparência** do menu do personagem (sem nome).
+  A base é sempre a Ruiva; muda cor do cabelo, olhos, pele, roupa e calça, altura e tamanho dos olhos, nariz e boca.
+  As listas de cores e os limites vêm de `CRIADOR` (`shared/dados.js`, copiado para `dados/habilidades.json`).
+- `aparencia.gd`: pinta cada personagem pela cópia dele (shader toon com troca de cor) e mexe nos blend shapes
+  `olhosT`, `narizT`, `bocaT`, que o `client/exportar-godot/exportar.js` grava no GLB da Ruiva.
+- Online: conta nova manda `aparencia` (ao vivo) e `pronto`; depois, o botão Aparência manda `mudarAparencia`.
