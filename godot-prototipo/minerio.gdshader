@@ -40,6 +40,7 @@ void fragment() {
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
 	// facetas que "pegam o sol": algumas faces acendem forte, como o metal polido da referência
 	float reflexo = smoothstep(0.78, 0.95, tom) * (0.6 + 0.4 * clamp(dot(NORMAL, VIEW), 0.0, 1.0));
-	float faisca = step(0.982, ruido(p_obj * 26.0 + vec3(TIME * 0.6, semente, 0.0)));
+	// faísca: acende e some rápido, em lugares diferentes (não fica um pixel branco parado)
+	float faisca = step(0.982, ruido(p_obj * 26.0 + vec3(TIME * 2.5, semente, TIME * 1.7)));
 	EMISSION = (metal_cor * (0.22 + fres * 0.5) + cor_clara * reflexo * 0.75 + vec3(1.0, 0.95, 0.85) * faisca * 2.2) * cheio;
 }
