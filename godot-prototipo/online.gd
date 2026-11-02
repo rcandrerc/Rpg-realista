@@ -158,6 +158,7 @@ func mostrar_login() -> void:
 	b_google.visible = true
 	painel.visible = true
 	capa.visible = true
+	status.visible = false # o aviso do topo ficaria em cima do cabelo e do círculo da arte
 	m.hud.set_process_input(false) # os toques não mexem no joystick por trás
 	atualizar_status("")
 
@@ -171,12 +172,14 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	b_google.visible = false
 	painel.visible = true
 	capa.visible = true
+	status.visible = false # o aviso do topo ficaria em cima do cabelo e do círculo da arte
 	m.hud.set_process_input(false)
 	atualizar_status("")
 
 func esconder_login() -> void:
 	painel.visible = false
 	capa.visible = false
+	status.visible = true
 	m.hud.set_process_input(true)
 
 func atualizar_status(_t := "") -> void:
