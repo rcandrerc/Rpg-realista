@@ -3,6 +3,12 @@
   "recursos": [
     { "nome": "Movimento com inércia (PR #53)", "arquivo": "godot-prototipo/andar.gd", "contem": ["# inércia: velocidade de verdade no chão", "const CORRIDA := 5.4"] },
     { "nome": "Corpo inclina nas curvas (PR #53)", "arquivo": "godot-prototipo/inclinar.gd", "contem": ["func _process_modification()"] },
+    { "nome": "Arrancada em rampa e curva em arco (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func _inercia(", "const ACELERA_FIM", "const CURVA_CORRENDO"] },
+    { "nome": "Freada com derrapada e meia-volta do Mixamo (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func iniciar_manobra(", "iniciar_manobra(\"freada\"", "iniciar_manobra(\"meia_volta\"", "func _passo_manobra("] },
+    { "nome": "Freada e meia-volta no caminho do quadril (PR #55)", "arquivo": "godot-prototipo/dados/mundo.json", "contem": ["\"raiz\"", "\"freada\"", "\"meia_volta\""] },
+    { "nome": "Animações freada e meia-volta no herói (PR #55)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["freada: 'freada', meia_volta: 'meia_volta'"] },
+    { "nome": "Corpo com mola: tranco na freada, cabeça e respiração (PR #55)", "arquivo": "godot-prototipo/main.gd", "contem": ["const MOLA_K", "inclinar.frente =", "inclinar.olhar = _olhar", "_cansaco"] },
+    { "nome": "Ritmo da freada na animação (PR #55)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["func ritmo_acao("] },
     { "nome": "Sons do combate e dos passos (PR #53)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar("] },
     { "nome": "Câmera nova por cima do ombro (PR #52/#53)", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["func tremer(", "func afundar("] },
     { "nome": "Escalada no app (andar.gd)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func tentar_escalar(", "func pegar_escada(", "func subir_no_topo("] },
@@ -26,6 +32,9 @@
     { "nome": "Servidor: mensagens do jogo", "arquivo": "server/index.js", "contem": ["this.ouvir('habilidade'", "this.ouvir('item'", "this.ouvir('coletar'", "this.ouvir('criar'", "this.ouvir('aparencia'", "this.ouvir('montar'", "this.ouvir('pos'"] },
     { "nome": "Servidor confere coleta e criação (PR #57)", "arquivo": "shared/simulacao.js", "contem": ["  coletar(id, m) {", "  criar(id, m) {", "app que conhece a estamina"] },
     { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
-    { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] }
+    { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] },
+    { "nome": "Criador de personagem no Godot, a Ruiva é a base (PR #58)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func abrir_criacao(", "func abrir_edicao(", "\"Original\""] },
+    { "nome": "Aparência do herói: cores, altura e rosto (PR #58)", "arquivo": "godot-prototipo/aparencia.gd", "contem": ["static func aplicar(", "const ROSTO := [\"olhosT\", \"narizT\", \"bocaT\"]"] },
+    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] }
   ]
 }

@@ -160,6 +160,12 @@ func play(nome: String, fade := -1.0, vel := 1.0) -> void:
 	_corpo_vel = vel_fade
 	so_tronco = false
 
+# muda o ritmo da ação que está tocando (a freada derrapa rápido e se arruma devagar)
+func ritmo_acao(v: float) -> void:
+	_ts = v
+	for parte in ["", "u"]:
+		tree.set("parameters/ts%s%d/scale" % [parte, _slot], v)
+
 func seek(t: float, _atualizar := true) -> void:
 	for parte in ["", "u"]:
 		tree.set("parameters/seek%s%d/seek_request" % [parte, _slot], t)

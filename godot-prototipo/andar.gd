@@ -30,6 +30,9 @@ var vz := 0.0
 var fora_do_chao := 0.0 # segundos desde que saiu do chão sem pular (coyote time: ainda dá para pular)
 var ry_mira = null # virar para o alvo do golpe aos poucos (em vez de estalar)
 var giro := 0.0 # velocidade de giro do corpo (rad/s), para inclinar nas curvas
+var manobra = null # andando pelo caminho do quadril de uma animação (freada, meia-volta): {nome, t, r, esc, ry0, px, pz}
+var altura_quadril := 0.9 # metros (main.gd mede no herói): o caminho do quadril vem em alturas de quadril
+var _correu := 0.0 # segundos correndo rápido (freada de verdade só depois de embalar)
 var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
@@ -51,6 +54,7 @@ func por_em(p: Vector3) -> void:
 	vx = 0.0
 	vz = 0.0
 	ry_mira = null
+	manobra = null
 
 # velocidade no chão (m/s): a locomoção mistura parada, andar e corrida por ela
 func velocidade() -> float:
@@ -141,6 +145,7 @@ func dash(mx: float, mz: float) -> bool:
 		return false
 	if Vector2(mx, mz).length() > 0.1:
 		ry = atan2(mx, mz)
+	manobra = null
 	if chao and correr_na_parede():
 		return true
 	ry_mira = null
@@ -191,9 +196,19 @@ const ANDAR := 1.8
 const PASSO_CORRIDA := 4.0
 const PASSO_ANDAR := 1.15
 # sensação do movimento (ajuste aqui testando no celular)
-const ACELERA := 26.0 # m/s² arrancando (0 a 5,4 m/s em ~0,2 s)
-const FREIA := 38.0 # m/s² soltando o joystick (para em ~0,15 s)
-const VIRA_FREIA := 55.0 # m/s² mudando de sentido (o corpo freia antes de sair para o outro lado)
+const ACELERA := 15.0 # m/s² saindo do parado: o primeiro empurrão é forte...
+const ACELERA_FIM := 0.4 # ...e perto da velocidade máxima cai para 40%: chega macio (0 a 5,4 m/s em ~0,5 s)
+const FREIA := 16.0 # m/s² soltando o joystick: a corrida para em ~0,35 s (o corpo freia e dá o tranco no main.gd)
+const VIRA_FREIA := 24.0 # m/s² dando meia-volta: freia no sentido antigo antes de sair para o outro lado
+const CURVA_ANDANDO := 14.0 # rad/s que a direção do movimento vira andando devagar (quase na hora)
+const CURVA_CORRENDO := 4.5 # rad/s correndo: a velocidade faz arco, o corpo "escorrega" um pouco para fora
+const CURVA_PERDA := 0.35 # fração da velocidade perdida numa curva fechada (90° ou mais)
+const MEIA_VOLTA := 2.3 # rad (~130°): acima disso é meia-volta (freia e sai do outro lado), abaixo é curva
+# animações com o caminho do quadril (Mixamo Run To Stop e Running Turn 180, mundo.json raiz)
+const FREADA_MIN := 4.2 # m/s: soltar o joystick acima disso faz a freada com derrapada
+const FREADA_ESC := 0.65 # a derrapada anda 65% do que a animação anda (para em ~0,5 s e ~1,5 m)
+const FREADA_FIM := 1.05 # s da animação: depois disso ela só fica de braço esticado; o jogo volta para a parada
+const MEIA_VOLTA_MIN := 3.8 # m/s: meia-volta acima disso gira com a animação
 const NO_AR := 0.35 # controle no ar (fração da aceleração)
 const GIRO_MAX := 13.0 # rad/s que o corpo gira (~750°/s: meia volta em 0,24 s)
 const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
@@ -241,17 +256,18 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
 			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag) * vel_k, vel_max)
-		var v := Vector2(vx, vz)
-		var k: float
-		if alvo.length() < 0.01:
-			k = FREIA
-		elif v.length() > 0.5 and v.dot(alvo) < 0.0:
-			k = VIRA_FREIA
-		else:
-			k = ACELERA
-		if not chao:
-			k *= NO_AR
-		v = v.move_toward(alvo, k * dt)
+		var s0 := Vector2(vx, vz).length()
+		_correu = _correu + dt if s0 > FREADA_MIN else 0.0
+		if manobra == null and chao and livre and m.has("raiz"):
+			if alvo.length() < 0.01 and s0 > FREADA_MIN and _correu > 0.35:
+				iniciar_manobra("freada", s0)
+			elif alvo.length() > 0.01 and s0 > MEIA_VOLTA_MIN and abs(Vector2(vx, vz).angle_to(alvo)) > MEIA_VOLTA:
+				iniciar_manobra("meia_volta", s0)
+		if manobra != null and _passo_manobra(dt, mag, livre):
+			giro = lerp(giro, ad(ry, ry0) / max(dt, 0.0001), min(1.0, dt * 10.0))
+			empurra = 0.0
+			return
+		var v := _inercia(Vector2(vx, vz), alvo, dt, livre)
 		vx = v.x
 		vz = v.y
 		if v.length() > 0.001:
@@ -276,11 +292,84 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 	else:
 		empurra = 0.0
 
+# Inércia no chão: a velocidade não pula para a que o joystick pede.
+# - arrancada: empurrão forte no começo que vai suavizando até a velocidade de corrida;
+# - curva: a direção do movimento gira com limite (correndo faz arco e perde um pouco de velocidade);
+# - meia-volta: freia no sentido antigo antes de sair para o outro lado;
+# - soltar: freia mantendo a direção (o corpo dá o tranco e volta, em main.gd corpo_vivo).
+func _inercia(v: Vector2, alvo: Vector2, dt: float, livre: bool) -> Vector2:
+	var ar: float = 1.0 if chao else NO_AR
+	var s := v.length()
+	if alvo.length() < 0.01: # golpe em andamento planta os pés mais rápido (~0,15 s)
+		return v.move_toward(Vector2.ZERO, (FREIA if livre else FREIA * 2.4) * ar * dt)
+	if s < 0.3: # saindo do parado: vai direto para onde o joystick aponta
+		return v.move_toward(alvo, ACELERA * ar * dt)
+	var d := v / s
+	var da := alvo.normalized()
+	var ang := d.angle_to(da)
+	if abs(ang) > MEIA_VOLTA:
+		return d * move_toward(s, 0.0, VIRA_FREIA * ar * dt)
+	var q: float = clamp(s / CORRIDA, 0.0, 1.0)
+	var vira: float = lerp(CURVA_ANDANDO, CURVA_CORRENDO, q) * ar * dt
+	d = d.rotated(clamp(ang, -vira, vira))
+	var quer: float = alvo.length() * (1.0 - CURVA_PERDA * clamp(abs(ang) / (PI * 0.5), 0.0, 1.0) * q)
+	if s < quer:
+		s = move_toward(s, quer, ACELERA * lerp(1.0, ACELERA_FIM, q * q) * ar * dt)
+	else:
+		s = move_toward(s, quer, FREIA * 0.7 * ar * dt) # corrida para andar: desacelera sem tranco
+	return d * s
+
+# Freada e meia-volta com animação: o corpo anda (e vira) pelo caminho do quadril da animação, na velocidade em que
+# o herói vinha. Assim o pé derrapa e o corpo freia junto com a animação, sem deslizar.
+func iniciar_manobra(nome: String, vel: float) -> void:
+	var r: Dictionary = m.raiz[nome]
+	var esc: float = FREADA_ESC if nome == "freada" else 1.0
+	var v_anim: float = max(float(r.z[3]) - float(r.z[0]), float(r.z[6]) - float(r.z[3])) * 10.0 * altura_quadril * esc # m/s no começo da animação
+	ry = atan2(vx, vz)
+	ry_mira = null
+	manobra = {"nome": nome, "t": 0.0, "r": clamp(vel / max(v_anim, 0.5), 0.8, 2.5), "esc": esc, "ry0": ry, "px": 0.0, "pz": 0.0}
+
+# ritmo da animação agora (a freada acelera a derrapada, mas o corpo se arruma no ritmo normal)
+func ritmo_manobra() -> float:
+	if manobra == null:
+		return 1.0
+	return manobra.r if manobra.nome != "freada" or manobra.t < 0.85 else 1.3
+
+func _passo_manobra(dt: float, mag: float, livre: bool) -> bool:
+	var mb: Dictionary = manobra
+	if not livre or not chao or (mb.nome == "freada" and mag > 0.15):
+		manobra = null # golpe, pulo ou joystick de novo: sai na hora, com a velocidade que tinha
+		return false
+	var r: Dictionary = m.raiz[mb.nome]
+	mb.t += dt * ritmo_manobra()
+	var u: float = min(mb.t, float(r.d)) * 30.0
+	var i: int = clampi(int(u), 0, r.x.size() - 2)
+	var a: float = u - i
+	var px: float = lerp(float(r.x[i]), float(r.x[i + 1]), a) * altura_quadril * mb.esc
+	var pz: float = lerp(float(r.z[i]), float(r.z[i + 1]), a) * altura_quadril * mb.esc
+	var dx: float = px - mb.px
+	var dz: float = pz - mb.pz
+	mb.px = px
+	mb.pz = pz
+	var c := cos(float(mb.ry0))
+	var sn := sin(float(mb.ry0))
+	var x0 := x
+	var z0 := z
+	mover(dx * c + dz * sn, -dx * sn + dz * c)
+	vx = (x - x0) / max(dt, 0.0001)
+	vz = (z - z0) / max(dt, 0.0001)
+	if mb.nome == "meia_volta":
+		ry = float(mb.ry0) + lerp(float(r.giro[i]), float(r.giro[i + 1]), a)
+	if mb.t >= (FREADA_FIM if mb.nome == "freada" else float(r.d)):
+		manobra = null
+	return true
+
 # ---------- escalada ----------
 func iniciar_clip(nome: String, vs := 1.0, hs := 1.0, ls := 1.0, depois := "") -> void:
 	var e: Dictionary = m.escalada[nome]
 	if esc == null:
 		esc = {"parado": 0.0, "clip": null}
+	manobra = null
 	esc.clip = {"nome": nome, "t": 0.0, "dur": float(e.dur), "vs": vs, "hs": hs, "ls": ls, "x": x, "y": y, "z": z}
 	_depois = depois
 	clip_seq += 1

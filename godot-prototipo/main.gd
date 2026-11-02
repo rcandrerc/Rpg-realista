@@ -89,6 +89,20 @@ var _hitstop_ate := 0.0
 var _impacto_quadro := -1
 var _passo_dist := 0.0 # metros andados desde o último som de passo
 var _quadril := 0.0 # afundada do quadril no pouso (m)
+# molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
+const MOLA_K := 110.0 # força da mola (maior = volta mais rápido)
+const MOLA_AMORT := 10.0 # amortecimento (menor = balança mais vezes; 10 dá um tranco e meio)
+var _frente := 0.0
+var _frente_v := 0.0
+var _incl := 0.0
+var _incl_v := 0.0
+var _vel_ant := 0.0
+var _dir_joy := Vector2.ZERO # para onde o joystick aponta agora (a cabeça vira antes do corpo)
+var _olhar := 0.0
+var _cansaco := 0.0 # 0 a 1: sobe correndo, desce parado; parado, o peito respira mais forte e mais rápido
+var _respira := 0.0 # fase da respiração
+var _resp_peso := 0.0 # respiração só aparece parado (entra e sai aos poucos)
+var _acel := 0.0 # aceleração no chão (m/s², suavizada): + arrancando, - freando
 var _flash := {} # Node3D do inimigo -> {mat, t}
 
 # teste de desempenho
@@ -377,6 +391,13 @@ func criar_heroi() -> void:
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
 	inclinar.preparar(heroi_esq)
+	# altura do quadril do herói (m): a freada e a meia-volta andam pelo caminho do quadril da animação, medido nela
+	var iq := heroi_esq.find_bone("J_Bip_C_Hips")
+	if iq >= 0 and heroi_esq.is_inside_tree():
+		var hq: float = (heroi.global_transform.affine_inverse() * (heroi_esq.global_transform * heroi_esq.get_bone_global_rest(iq).origin)).y
+		if hq > 0.4 and hq < 1.6:
+			mov.altura_quadril = hq
+	print("altura do quadril: ", mov.altura_quadril)
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -1337,6 +1358,7 @@ func atualizar_heroi(dt: float) -> void:
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
+	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
 	trabalho.passo_estamina(dt)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
@@ -1363,7 +1385,9 @@ func atualizar_heroi(dt: float) -> void:
 				heroi_anim.seek(0.0, true)
 	elif acao.is_empty():
 		var a := ""
-		if mov.arrancada != null:
+		if mov.manobra != null and heroi_anim.has_animation(mov.manobra.nome):
+			a = mov.manobra.nome # freada e meia-volta: o corpo anda pelo caminho do quadril da animação (andar.gd)
+		elif mov.arrancada != null:
 			a = "corrida"
 		elif mov.mortal > 0.0:
 			a = "mortal"
@@ -1378,7 +1402,13 @@ func atualizar_heroi(dt: float) -> void:
 			a = "parada" if h.modo == "Magia" else "espada_parada"
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
 			# andar e correr no ritmo da velocidade: o pé acompanha o chão (sem parecer que desliza)
-			heroi_anim.play(a, 0.15, ritmo(a) if mov.arrancada == null else 1.0)
+			if mov.manobra != null and a == mov.manobra.nome:
+				heroi_anim.play(a, 0.1 if a == "meia_volta" else 0.15, mov.ritmo_manobra())
+			else:
+				# saindo da freada: o corpo se arruma devagar (mistura longa)
+				heroi_anim.play(a, 0.35 if heroi_anim.current_animation == "freada" else 0.15, ritmo(a) if mov.arrancada == null else 1.0)
+		elif mov.manobra != null and a == mov.manobra.nome:
+			heroi_anim.ritmo_acao(mov.ritmo_manobra())
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
@@ -1400,11 +1430,39 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif not mov.chao or mov.esc != null:
 		vel_anim = 0.0
 	heroi_anim.atualizar(dt, vel_anim)
-	# inclina para dentro da curva correndo (giro em rad/s x velocidade)
-	var incl := 0.0
-	if mov.chao and mov.esc == null and acao.is_empty():
-		incl = clamp(-mov.giro * vel * 0.02, -0.22, 0.22)
-	inclinar.inclinacao = lerp(inclinar.inclinacao, incl, min(1.0, dt * 8.0))
+	# Peso do corpo: molas que passam do ponto e voltam (o "tranco" da freada e da arrancada).
+	# Arrancando, o tronco vai para a frente; freando, vai para trás e o quadril desce; quando para,
+	# a mola joga o tronco para a frente e ele volta ao lugar. Na curva deita para dentro e, ao endireitar, volta balançando.
+	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
+	_vel_ant = vel
+	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
+	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty()
+	var alvo_frente := 0.0
+	var alvo_incl := 0.0
+	if livre_corpo:
+		alvo_frente = clamp(_acel * (0.016 if _acel > 0.0 else 0.02), -0.3, 0.2)
+		alvo_incl = clamp(-mov.giro * vel * 0.022, -0.26, 0.26)
+	_frente_v += ((alvo_frente - _frente) * MOLA_K - _frente_v * MOLA_AMORT) * dt
+	_frente += _frente_v * dt
+	_incl_v += ((alvo_incl - _incl) * MOLA_K * 0.8 - _incl_v * MOLA_AMORT) * dt
+	_incl += _incl_v * dt
+	# cansaço e respiração: depois de correr, parado, o peito sobe e desce forte e vai acalmando
+	if vel > 3.5 and mov.chao:
+		_cansaco = min(1.0, _cansaco + dt / 8.0)
+	elif vel < 0.5:
+		_cansaco = max(0.0, _cansaco - dt / 10.0)
+	_respira += dt * TAU * lerp(0.28, 0.75, _cansaco)
+	_resp_peso = move_toward(_resp_peso, 1.0 if livre_corpo and vel < 0.5 else 0.0, dt * 3.0)
+	var resp: float = sin(_respira) * lerp(0.01, 0.05, _cansaco) * _resp_peso
+	inclinar.frente = clamp(_frente + resp, -0.4, 0.3)
+	# cabeça vira antes do corpo para onde o joystick aponta (o corpo vem logo atrás)
+	var alvo_olhar := 0.0
+	if livre_corpo and _dir_joy.length() > 0.1:
+		alvo_olhar = clamp(mov.ad(atan2(_dir_joy.x, _dir_joy.y), mov.ry) * 0.6, -0.7, 0.7)
+	_olhar = lerp(_olhar, alvo_olhar, min(1.0, dt * 12.0))
+	inclinar.olhar = _olhar
+	inclinar.inclinacao = clamp(_incl, -0.32, 0.32)
+	var freada: float = clamp(-_acel / mov.FREIA, 0.0, 1.0) if livre_corpo else 0.0
 	# pouso: câmera e quadril afundam, poeira e som (mesmo correndo)
 	if mov.pousou > 0.0:
 		var q: float = mov.pousou
@@ -1418,7 +1476,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif mov.chao and not estava_no_chao:
 		sons.tocar("pouso", -10.0, 0.08)
 	_quadril = move_toward(_quadril, 0.0, dt * 0.5)
-	inclinar.afunda = _quadril
+	inclinar.afunda = _quadril + freada * 0.035
 	# passos: um som a cada passada (mais longa correndo), só no chão
 	if mov.chao and mov.esc == null and vel > 0.5:
 		_passo_dist += vel * dt

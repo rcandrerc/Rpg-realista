@@ -9,5 +9,6 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
   echo "Faltam estes commits da main:"; git log --oneline HEAD..origin/main | head -20
   exit 1
 fi
+node ferramentas/protecao/nada-some.mjs origin/main HEAD
 node ferramentas/protecao/conferir.mjs --main
 echo "Pode gerar o APK."
