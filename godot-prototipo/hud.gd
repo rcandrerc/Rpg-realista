@@ -4,8 +4,9 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "resetar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "resetar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
+signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
 const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao menu do personagem
@@ -18,6 +19,7 @@ const JOY_RAIO := 90.0 # px do centro até a borda: andar até a metade, correr 
 var giro_cam := Vector2.ZERO # quanto o dedo da câmera andou neste quadro
 var botoes: Array = [] # {acao, centro (a partir do canto de baixo à direita), raio, icone, cor, cd, cd_max}
 var _toques := {} # índice do dedo -> "joy" | "cam" | acao
+var _inicio := {} # índice do dedo -> [posição, hora] (joystick e câmera): toque rápido sem arrastar vira "tocou"
 var _joy_centro := Vector2.ZERO
 var _joy_dedo := Vector2.ZERO
 var _tela: Control
@@ -71,6 +73,8 @@ func _ready() -> void:
 	_botao("forja", Vector2(333, 160), 30, "pf_fer", COR_TROCA) # perto do Tomás: criar na forja
 	botoes[-1].oculto = true
 	_botao("resetar", Vector2(333, 160), 30, "desfazer", COR_TROCA) # perto do Mestre Ivo: resetar a build
+	botoes[-1].oculto = true
+	_botao("falar", Vector2(509, 160), 30, "falar", COR_TROCA) # perto de qualquer NPC: abre a janela dele (conversa.gd)
 	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
@@ -156,6 +160,7 @@ func _input(ev: InputEvent) -> void:
 					b.apertado = true
 					apertou.emit(b.acao)
 					return
+			_inicio[ev.index] = [ev.position, Time.get_ticks_msec()]
 			if ev.position.x < _tela.size.x * 0.42:
 				_toques[ev.index] = "joy"
 				_joy_centro = ev.position
@@ -165,6 +170,10 @@ func _input(ev: InputEvent) -> void:
 		else:
 			var o = _toques.get(ev.index)
 			_toques.erase(ev.index)
+			var ini = _inicio.get(ev.index)
+			_inicio.erase(ev.index)
+			if ini != null and (o == "joy" or o == "cam") and Time.get_ticks_msec() - int(ini[1]) < 350 and ev.position.distance_to(ini[0]) < 22.0:
+				tocou.emit(ev.position)
 			if o == "joy":
 				mover = Vector2.ZERO
 			elif o != null and o != "cam" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
@@ -194,6 +203,7 @@ func segurando(acao: String) -> bool:
 func soltar_tudo() -> void:
 	var tinha: Array = _toques.values()
 	_toques.clear()
+	_inicio.clear()
 	mover = Vector2.ZERO
 	for b in botoes:
 		b.apertado = false

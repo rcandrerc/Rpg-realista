@@ -20,6 +20,7 @@ const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
+const Conversa = preload("res://conversa.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -68,6 +69,7 @@ var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolament
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
+var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
@@ -184,6 +186,9 @@ func _ready() -> void:
 	add_child(trabalho)
 	menu = Menu.new(self)
 	add_child(menu)
+	conversa = Conversa.new(self)
+	add_child(conversa)
+	hud.tocou.connect(conversa.tocou_tela)
 	criador = Criador.new(self)
 	add_child(criador)
 	var cfg := ConfigFile.new()
@@ -501,12 +506,22 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
 	no.rotation.y = float(info.get("ry", randf() * TAU))
 	barra_vida(no, nome, Color(0, 0, 0, 0))
-	npcs.append({"no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id))})
+	npcs.append({"no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
+		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
 func perto_da_loja() -> bool:
 	for n in npcs:
 		if n.funcao == "loja" and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
+			return true
+	return false
+
+# perto de quem compra itens (a Rosa ou o Tomás, o ferreiro)? O servidor confere o mesmo (pertoDeQuemCompra)
+func perto_de_quem_compra() -> bool:
+	if perto_da_loja():
+		return true
+	for n in npcs:
+		if "vender" in n.get("acoes", []) and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
 			return true
 	return false
 
@@ -930,7 +945,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
@@ -939,7 +954,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar"]:
+	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
@@ -1025,6 +1040,8 @@ func _tentar(qual: String) -> bool:
 		"loja":
 			rede("falar") # a Rosa responde e o menu abre na Loja
 			menu.abrir("loja")
+		"falar": # perto de um NPC: abre a janela dele (conversa.gd)
+			conversa.tocar_botao()
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
 		"forja": # perto do Tomás: menu na aba Profissões, receitas do Ferreiro
@@ -1399,6 +1416,8 @@ func ritmo(a: String) -> float:
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
 	if m.length() < 0.15:
+		if conversa and conversa.indo != null: # tocou num NPC longe: vai até ele
+			return conversa.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
@@ -1449,6 +1468,7 @@ func _process(dt: float) -> void:
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
 	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
 	hud.mostrar_botao("resetar", perto_do_npc("resetar", 3.0) and h.morto <= 0.0)
+	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
