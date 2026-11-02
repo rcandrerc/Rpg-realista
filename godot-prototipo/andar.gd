@@ -157,6 +157,8 @@ func passo_vertical(dt: float) -> void:
 	pouso = max(0.0, pouso - dt)
 
 # Um quadro no chão. mx/mz = direção no mundo (0..1), livre = pode andar (sem golpe em andamento)
+# corrida: 4,5 m/s (era 5,4; André achou rápido demais em 2026-11-02). O servidor aceita até 5,4 x 1,3.
+const CORRIDA := 4.5
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	if esc != null:
 		passo_escalada(dt, mx, mz)
@@ -174,7 +176,7 @@ func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 
 		if a.t <= 0:
 			arrancada = null
 	elif livre and mag > 0.15:
-		var vel: float = (5.4 if correr else 1.8) * vel_k
+		var vel: float = (CORRIDA if correr else 1.8) * vel_k
 		mover(mx * vel * dt, mz * vel * dt)
 		ry += ad(atan2(mx, mz), ry) * min(1.0, dt * 12.0)
 	if livre and chao and arrancada == null and mag > 0.5:

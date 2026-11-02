@@ -1115,7 +1115,8 @@ func atualizar_heroi(dt: float) -> void:
 		if not estava_no_chao and mov.chao and a != "pouso":
 			pass
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
-			heroi_anim.play(a, 0.15)
+			# a animação de correr foi feita para 5,4 m/s: toca no ritmo da corrida de agora (os pés não deslizam)
+			heroi_anim.play(a, 0.15, mov.CORRIDA / 5.4 if a == "corrida" and mov.arrancada == null else 1.0)
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
