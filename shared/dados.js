@@ -1,6 +1,8 @@
 // Dados do jogo. Cliente e servidor leem este mesmo arquivo:
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
+import { raioNaDirecao } from './mapa.js';
+
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
   slash: 'mx_inward_slashing_with_a_sword_standing_st',
@@ -192,7 +194,14 @@ const portaDe = (c, dist = 1.2) => ({ x: c.x + Math.sin(c.ry) * (c.d / 2 + dist)
 // caminhos de terra (linhas de pontos, largura em metros)
 const CAMINHOS = [
   { largura: 2.4, pontos: [[0, 1], [-1.5, -4], [-4, -8.5], [PRACA.x, PRACA.z]] },
-  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste, onde os monstros aparecem
+  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste: a saída da vila
+  // a estradinha do leste continua: sai da vila pela passagem nas pedras e chega no campo de caça
+  { largura: 2.2, pontos: [[17, -2], [21, -2.2], [24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2], [52, -2], [58, -0.6]] },
+  // trilha estreita até o veio de cobre
+  { largura: 1.5, pontos: [[44, -3.4], [45, -7.5], [46, -11.5]] },
+  // a estradinha some aos poucos na grama do campo de caça (forca = quanto de terra: degradê de ~1 m, não borda reta)
+  { largura: 1.6, forca: 0.55, pontos: [[57, -0.8], [60.5, 0.2]] },
+  { largura: 1.1, forca: 0.3, pontos: [[60, 0], [63, 0.9]] },
   ...CASAS.map((c) => ({ largura: 1.5, pontos: [[PRACA.x, PRACA.z], [portaDe(c, 0.6).x, portaDe(c, 0.6).z]] })),
 ];
 // Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala as grandes.
@@ -228,21 +237,67 @@ function sortearArvores() {
   }
   // algumas na vila, para sombra
   lista.push({ x: -12, z: -12.5, s: 1.1, ry: 1, v: 0 }, { x: -11.5, z: -26.5, s: 0.95, ry: 2, v: 1 }, { x: -1, z: -26, s: 1.2, ry: 4, v: 2 }, { x: -20, z: -13, s: 1, ry: 3, v: 1 });
+  // lá fora (depois das da vila, para os ids a0... das árvores de antes não mudarem): bosque em volta do campo de caça,
+  // que fica aberto e plano no meio (como as zonas de caça do Quimera), e do veio de cobre
+  const longeDe = (x, z, cx, cz, r) => Math.hypot(x - cx, z - cz) > r;
+  const estrada = [[24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2], [52, -2], [58, -0.6], [64, 1]];
+  const naEstrada = (x, z) => estrada.slice(1).some(([bx, bz], i) => { // a menos de 4,5 m da estradinha (a câmera passa sem entrar em tronco)
+    const [ax, az] = estrada[i], vx = bx - ax, vz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
+    return Math.hypot(x - ax - vx * t, z - az - vz * t) < 4.5;
+  });
+  for (let t = 0, n = 0; n < 34 && t < 4000; t++) {
+    const a = rnd(0, 6.283), r = rnd(4, raioNaDirecao(FORA, a) - 2.5), x = FORA.x + Math.cos(a) * r, z = FORA.z + Math.sin(a) * r;
+    if (!longeDe(x, z, CACA[0].x, CACA[0].z, CACA[0].r + 1.5) || !longeDe(x, z, MINA[0].x, MINA[0].z, MINA[0].r + 2.2) || naEstrada(x, z)) continue;
+    if (Math.abs(x - 45.5) < 2.2 && z < -3 && z > -12) continue; // trilha do cobre
+    if (lista.some((o) => Math.hypot(o.x - x, o.z - z) < 3.6)) continue;
+    lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.85, 1.3).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: lista.length % 3 }); n++;
+  }
+  // três árvores grandes em cima da borda de pedras, para quebrar a linha (direção de arte)
+  for (const a of [0.55, 2.35, 4.6]) {
+    const r = raioNaDirecao(FORA, a) + 0.4;
+    lista.push({ x: +(FORA.x + Math.cos(a) * r).toFixed(2), z: +(FORA.z + Math.sin(a) * r).toFixed(2), s: 1.55, ry: +(a * 2).toFixed(2), v: lista.length % 3 });
+  }
   return lista;
 }
+
+// ---------- mapa de fora da vila ----------
+// A vila é o círculo de raio 34; a estradinha do leste sai por uma passagem nas pedras (corredor) e chega numa clareira
+// grande (FORA, borda irregular) com o primeiro campo de caça e um veio de cobre pequeno.
+// borda orgânica (direção de arte): elipse 30 × 23 m alongada para o leste, com ondas na borda (raio varia uns ±20%)
+const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos: [[3, 0.13, 2.1], [2, 0.07, -0.6], [5, 0.05, 2.2]] };
+// Campo de caça (regra das zonas de caça do Quimera, znSp): sempre "n" monstros. A cada "passo" s, se falta algum,
+// nasce um num ponto ao acaso do campo (até 85% do raio, a pelo menos "longe" m de qualquer jogador). O próximo vem
+// em "rapido" s enquanto houver menos da metade, senão em "normal" s. Quem morre some depois de "corpo" s e abre a vaga.
+// tipos: um por vaga (a vaga 0 é sempre Puglin...), para o Godot ter um modelo fixo por vaga.
+export const CACA = [
+  { id: 'caca1', nome: 'Campo de caça', x: 70, z: 2, r: 13, n: 10, tipos: ['puglin', 'puglin', 'imp', 'puglin', 'imp', 'puglin', 'puglin', 'imp', 'puglin', 'imp'],
+    passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 },
+];
+// Veio de cobre (zona de mineração do Quimera, só que pequena e com pouco minério, pedido do André 2026-11-02):
+// "veios" pedras no círculo de raio r. O minério é de todos: quando alguém esgota uma pedra, ela some para todo mundo
+// e volta em "volta" s (no Quimera a pedra minerada volta em 6 min).
+export const MINA = [
+  { id: 'cobre1', nome: 'Veio de cobre', tipo: 'cobre', x: 46, z: -15, r: 4.5, veios: 6, volta: 360 },
+];
+// NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
+// Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
+export const RESET_BUILD = { minimo: 50, porNivel: 10 };
 
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
   raio: 34,
   nascimento: { x: 0, z: 1 },
-  // inimigos: só no acampamento do leste (x >= 17), longe das casas; renascem no mesmo lugar
-  inimigos: [
-    { tipo: 'puglin', x: 18, z: 6 },
-    { tipo: 'imp', x: 22, z: -2 },
-    { tipo: 'puglin', x: 17, z: 1 },
-    { tipo: 'chefe', x: 24, z: 3 },
-  ],
+  // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
+  areas: [{ x: 0, z: 0, r: 34 }, FORA],
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }],
+  // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
+  mascara: { x0: -38, z0: -62, tam: 142, px: 1024 },
+  // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
+  // 2026-11-02): os monstros ficam no campo de caça lá fora (CACA)
+  inimigos: [],
+  caca: CACA,
+  mina: MINA,
   // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
   npcs: [
     { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, visual: 'fumiriya', escala: 1.03, tinta: { cabelo: 0xc9c7c2, roupa: 0x5b3a24, calca: 0x3b3229 }, funcao: 'missao', missao: 'bando', falas: [
@@ -265,6 +320,9 @@ export const MAPA_CLAREIRA = {
     { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', falas: [
       'Minha carroça chega em breve com mercadoria da cidade.',
       'Tenho de tudo um pouco... quer dizer, vou ter.',
+    ] },
+    { id: 'reset', nome: 'Mestre Ivo, o instrutor', x: 2.6, z: 4.6, ry: -2.4, visual: 'cabelo_m', escala: 1.0, tinta: { cabelo: 0x2a2622, roupa: 0x3c4a5e, calca: 0x2b2a30 }, funcao: 'resetar', falas: [
+      'Quer recomeçar a build? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.',
     ] },
   ],
   rochas: ROCHAS,
@@ -426,11 +484,19 @@ export const COLETA = {
 };
 export const COLETA_DISTANCIA = 2.4; // metros da borda do veio ou do tronco
 // Onde ficam os veios (fora da vila e longe do acampamento dos monstros). As árvores do mapa todas dão lenha.
-export const VEIOS = [
-  { tipo: 'ferro', x: -3, z: 16, ry: 0.4 }, { tipo: 'ferro', x: -28, z: -8, ry: 2.1 }, { tipo: 'ferro', x: 12, z: -25, ry: 4 }, { tipo: 'ferro', x: -20, z: 10, ry: 1.2 },
-  { tipo: 'cobre', x: 0, z: 20, ry: 3.3 }, { tipo: 'cobre', x: -8, z: 24, ry: 5 }, { tipo: 'cobre', x: 6, z: -27, ry: 0.9 },
-  { tipo: 'cristal', x: -17, z: 20, ry: 2.6 }, { tipo: 'cristal', x: -6, z: 32, ry: 0.2 },
-];
+// Dentro da vila não tem mais veio (pedido do André 2026-11-02): o cobre fica na zona de mineração lá fora (MINA).
+// Ferro e cristal ficam para depois (COLETA continua sabendo minerá-los).
+// mina = id da zona (o minério é de todos e volta no tempo da zona); sorteio fixo, igual no servidor e no Godot.
+export const VEIOS = MINA.flatMap((z) => {
+  let sem = 777; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const lista = [];
+  for (let t = 0; lista.length < z.veios && t < 500; t++) {
+    const a = rnd(0, 6.283), r = Math.sqrt(rnd(0, 1)) * (z.r - 0.9), x = z.x + Math.cos(a) * r, zz = z.z + Math.sin(a) * r;
+    if (lista.some((o) => Math.hypot(o.x - x, o.z - zz) < 2.3)) continue;
+    lista.push({ tipo: z.tipo, x: +x.toFixed(2), z: +zz.toFixed(2), ry: +rnd(0, 6.28).toFixed(2), mina: z.id });
+  }
+  return lista;
+});
 export const VEIO_RAIO = 0.8; // sólido: ninguém atravessa
 // Receitas (Ferreiro na forja do Tomás, Alfaiate na banca da Rosa): usa os materiais, gasta vigor e dá pontos.
 // Peça de equipamento sai Comum, com chance de subir de raridade (melhor com o nível da profissão: 6% no Nv 1, 30% no Nv 20).

@@ -513,6 +513,28 @@ func distribuir(k: String) -> bool:
 	mudou = true
 	return true
 
+# pontos de atributo já gastos (cada atributo começa em 3)
+func pontos_gastos() -> int:
+	var n := 0
+	for k in prog.atr:
+		n += int(prog.atr[k]) - 3
+	return n
+
+# Mestre Ivo sem internet (treino, como o resto do modo sozinho): mesma conta de Simulacao.resetarBuild
+func resetar(custo: int) -> String:
+	var gastos := pontos_gastos()
+	if gastos <= 0:
+		return "Você ainda não gastou nenhum ponto."
+	if int(prog.get("ouro", 0)) < custo:
+		return "Falta ouro: custa %d" % custo
+	prog.ouro = int(prog.ouro) - custo
+	for k in prog.atr:
+		prog.atr[k] = 3
+	prog.pontos = int(prog.pontos) + gastos
+	st = calcular_status()
+	mudou = true
+	return "Build resetada: %d pontos para distribuir de novo" % gastos
+
 # a skill serve nessa barra? (espada só na da espada, cajado só na do cajado, as gerais nas duas)
 func cabe(id: String, barra: String) -> bool:
 	return habs.has(id) and not habs[id].get("basico", false) and (habs[id].arvore == "geral" or habs[id].arvore == barra)

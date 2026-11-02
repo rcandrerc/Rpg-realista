@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "resetar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
@@ -69,6 +69,8 @@ func _ready() -> void:
 	_botao("coletar", Vector2(421, 160), 30, "pf_min", COR_TROCA) # perto de veio ou árvore: minerar ou cortar lenha
 	botoes[-1].oculto = true
 	_botao("forja", Vector2(333, 160), 30, "pf_fer", COR_TROCA) # perto do Tomás: criar na forja
+	botoes[-1].oculto = true
+	_botao("resetar", Vector2(333, 160), 30, "desfazer", COR_TROCA) # perto do Mestre Ivo: resetar a build
 	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
