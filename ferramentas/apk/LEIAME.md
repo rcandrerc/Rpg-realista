@@ -13,15 +13,16 @@ Godot 4.5 e exporta o APK com o modelo de compilação Android (Gradle).
 
 ## Chave de assinatura (uma vez só)
 
-O Android só instala uma atualização por cima se ela vier assinada com a mesma chave. A chave fica nos Secrets do
-repositório, nunca no código:
+O APK tem que sair sempre com a **chave oficial** do app (`prototipo.keystore`, alias `prototipo`), a mesma cadastrada
+no Google Cloud. Com outra chave o login Google não abre e o celular não instala por cima. A chave e a senha estão no
+repositório privado New-Game-Anime-fontes, em `chaves/android/` (LEIAME de lá). Para o build daqui usar a chave,
+cadastre em Settings → Secrets and variables → Actions → New repository secret:
 
-1. No computador (precisa do Java): `keytool -genkeypair -keystore rpg.keystore -alias rpg -keyalg RSA -keysize 2048 -validity 10000`
-2. `base64 -w0 rpg.keystore` (no Mac: `base64 -i rpg.keystore`) e copie o texto.
-3. GitHub → Settings → Secrets and variables → Actions → New repository secret:
-   `ANDROID_KEYSTORE_BASE64` (o texto), `ANDROID_KEYSTORE_SENHA` (a senha) e `ANDROID_KEYSTORE_ALIAS` (`rpg`).
-4. Guarde o `rpg.keystore` e a senha num lugar seguro (sem eles não dá para atualizar o app na Play Store depois).
+- `ANDROID_KEYSTORE_BASE64`: o arquivo `prototipo.keystore` em texto (`base64 -w0 prototipo.keystore`; no Mac
+  `base64 -i prototipo.keystore`; no Windows `certutil -encode prototipo.keystore saida.txt` e copie o texto do meio,
+  sem as linhas BEGIN/END).
+- `ANDROID_KEYSTORE_SENHA`: a senha da chave.
+- `ANDROID_KEYSTORE_ALIAS`: `prototipo`.
 
-Sem esses secrets o build ainda funciona, mas cria uma chave nova a cada vez: para instalar um APK novo é preciso
-desinstalar o anterior antes. O primeiro APK do Actions também não instala por cima do APK antigo do repositório
-(outra chave): desinstale o app antigo uma vez.
+Sem esses secrets o build ainda roda (para conferir que nada quebrou), mas assina com uma chave descartável e **não
+publica** no release. O log do passo "Exportar o APK" mostra o SHA-1: o certo é `08:B6:1B:...:0D:CC`.
