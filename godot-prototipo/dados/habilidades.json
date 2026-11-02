@@ -1307,7 +1307,8 @@
    "faz": "chapeu",
    "usa": {
     "barra_ferro": 2,
-    "couro": 1
+    "couro": 1,
+    "tecido": 1
    },
    "vigor": 6,
    "nivel": 2
