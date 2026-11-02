@@ -34,8 +34,16 @@
     { "nome": "Servidor confere coleta e criação (PR #57)", "arquivo": "shared/simulacao.js", "contem": ["  coletar(id, m) {", "  criar(id, m) {", "app que conhece a estamina"] },
     { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
     { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] },
+    { "nome": "Ataque básico repete só com o dedo no botão (PR do ataque que travava)", "arquivo": "godot-prototipo/main.gd", "contem": ["h.segurando = hud.segurando(\"basico\")", "if h.segurando and not hud.segurando(\"basico\"):"] },
+    { "nome": "HUD solta todos os botões ao perder o foco ou abrir o menu", "arquivo": "godot-prototipo/hud.gd", "contem": ["func segurando(acao: String) -> bool:", "func soltar_tudo() -> void:", "NOTIFICATION_APPLICATION_FOCUS_OUT"] },
     { "nome": "Criador de personagem no Godot, a Ruiva é a base (PR #58)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func abrir_criacao(", "func abrir_edicao(", "\"Original\""] },
     { "nome": "Aparência do herói: cores, altura e rosto (PR #58)", "arquivo": "godot-prototipo/aparencia.gd", "contem": ["static func aplicar(", "const ROSTO := [\"olhosT\", \"narizT\", \"bocaT\"]"] },
-    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] }
+    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] },
+    { "nome": "Menu do topo que abre e fecha na seta, como o do Quimera (Conta, Multijogador, Configurações)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["func recolher(", "func montar_conta(", "func montar_multi(", "func montar_config(", "func cobre("] },
+    { "nome": "Menu do topo ligado no jogo e na HUD", "arquivo": "godot-prototipo/main.gd", "contem": ["menu_topo = MenuTopo.new(self)", "and vibracao:"] },
+    { "nome": "Sons das skills do Quimera (q_*.ogg)", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const CARGA := {", "const SOM_AREA := {", "\"q_bola_lanca\"", "\"q_meteoro_impacto\"", "func cancelar_conjura("] },
+    { "nome": "Meteoro gigante do Quimera: rocha, explosão e cratera", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const METEORO_RAIO", "func meteoro_impacto(", "func _rocha_malha()", "const SH_CRATERA"] },
+    { "nome": "Meteoro pega todo mundo na área de 6 m (servidor)", "arquivo": "shared/progresso.js", "contem": ["tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 6"] },
+    { "nome": "Voz que dá para parar (carga das magias)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar_voz(", "func parar("] }
   ]
 }

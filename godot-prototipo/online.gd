@@ -228,6 +228,19 @@ func ao_cair(motivo: String) -> void:
 		_tentar_de_novo = 15.0 if rede.sessao != "" else -1.0
 	atualizar_status("Sem conexão" if rede.sessao != "" else "")
 
+# o jogador escolheu sair da sala (menu do topo: Jogar sozinho, Trocar ou Sair da conta): limpa sem tentar voltar
+func desligar() -> void:
+	_tentar_de_novo = -1.0
+	if ligado:
+		ligado = false
+		for id in outros:
+			outros[id].no.queue_free()
+		outros.clear()
+		for e in m.inimigos: # inimigos voltam para a cabeça do celular
+			if e.estado != "morto":
+				e.estado = "vagar"
+	atualizar_status("")
+
 func enviar(tipo: String, dados = null) -> void:
 	if ligado:
 		rede.enviar(tipo, dados)
