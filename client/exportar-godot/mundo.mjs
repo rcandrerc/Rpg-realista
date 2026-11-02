@@ -4,6 +4,8 @@
 import fs from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
+import zlib from 'node:zlib';
+import { RAIZ } from '@rpg/shared';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
 const r4 = (n) => Math.round(n * 1e4) / 1e4;
@@ -21,8 +23,33 @@ const anims = {
   ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
   ...Object.fromEntries(Object.entries(PARADO_PAREDE).map(([k, n]) => ['parede_' + k, n])),
 };
+// caminho do quadril das animações RAIZ (freada, meia-volta): o Godot anda e vira o herói por ele.
+// x/z em alturas de quadril (o Godot multiplica pela altura do quadril do herói), giro em radianos, a 30 quadros por segundo.
+const cru = JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL('../public/assets/personagens/anims.json.gz', import.meta.url))));
+const raiz = {};
+for (const nome of RAIZ) {
+  const a = cru[nome]; if (!a) continue;
+  const tp = a.t.find(([n]) => /Hips\.position$/.test(n)), tq = a.t.find(([n]) => /Hips\.quaternion$/.test(n));
+  const amostra = (tr, t, k) => { // interpolação linear na trilha [nome, tempos, valores] (k valores por chave)
+    const [, ts, vs] = tr; let i = 0; while (i < ts.length - 2 && ts[i + 1] < t) i++;
+    const u = ts.length < 2 ? 0 : Math.min(1, Math.max(0, (t - ts[i]) / (ts[i + 1] - ts[i] || 1)));
+    return Array.from({ length: k }, (_, j) => vs[i * k + j] * (1 - u) + (vs[Math.min(ts.length - 1, i + 1) * k + j] ?? vs[i * k + j]) * u);
+  };
+  const h = cru._rest.alturaQuadril, n = Math.round(a.d * 30) + 1, x = [], z = [], giro = [];
+  const p0 = amostra(tp, 0, 3);
+  let g0 = null, gAnt = 0, volta = 0;
+  for (let k = 0; k < n; k++) {
+    const t = Math.min(a.d, k / 30), p = amostra(tp, t, 3), q = amostra(tq, t, 4);
+    x.push(r4((p[0] - p0[0]) / h)); z.push(r4((p[2] - p0[2]) / h));
+    let g = 2 * Math.atan2(q[1], q[3]); if (g0 == null) g0 = g;
+    g -= g0; while (g - gAnt > Math.PI) g -= 2 * Math.PI; while (g - gAnt < -Math.PI) g += 2 * Math.PI; gAnt = g;
+    giro.push(r4(g));
+  }
+  raiz[nome] = { d: a.d, x, z, giro };
+}
 const mundo = {
   anims,
+  raiz,
   raio: MAPA_CLAREIRA.raio, nascimento: MAPA_CLAREIRA.nascimento,
   solidos, grades,
   casas: T.casas.map((_, i) => i), // índices em solidos que são casa (teto)
