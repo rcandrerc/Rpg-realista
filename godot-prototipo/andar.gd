@@ -190,9 +190,14 @@ const ANDAR := 1.8
 const PASSO_CORRIDA := 4.0
 const PASSO_ANDAR := 1.15
 # sensação do movimento (ajuste aqui testando no celular)
-const ACELERA := 26.0 # m/s² arrancando (0 a 5,4 m/s em ~0,2 s)
-const FREIA := 38.0 # m/s² soltando o joystick (para em ~0,15 s)
-const VIRA_FREIA := 55.0 # m/s² mudando de sentido (o corpo freia antes de sair para o outro lado)
+const ACELERA := 15.0 # m/s² saindo do parado: o primeiro empurrão é forte...
+const ACELERA_FIM := 0.4 # ...e perto da velocidade máxima cai para 40%: chega macio (0 a 5,4 m/s em ~0,5 s)
+const FREIA := 16.0 # m/s² soltando o joystick: a corrida para em ~0,35 s (o corpo freia e dá o tranco no main.gd)
+const VIRA_FREIA := 24.0 # m/s² dando meia-volta: freia no sentido antigo antes de sair para o outro lado
+const CURVA_ANDANDO := 14.0 # rad/s que a direção do movimento vira andando devagar (quase na hora)
+const CURVA_CORRENDO := 4.5 # rad/s correndo: a velocidade faz arco, o corpo "escorrega" um pouco para fora
+const CURVA_PERDA := 0.35 # fração da velocidade perdida numa curva fechada (90° ou mais)
+const MEIA_VOLTA := 2.3 # rad (~130°): acima disso é meia-volta (freia e sai do outro lado), abaixo é curva
 const NO_AR := 0.35 # controle no ar (fração da aceleração)
 const GIRO_MAX := 13.0 # rad/s que o corpo gira (~750°/s: meia volta em 0,24 s)
 const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
@@ -240,17 +245,7 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
 			alvo = Vector2(mx, mz).normalized() * vel_joystick(mag) * vel_k
-		var v := Vector2(vx, vz)
-		var k: float
-		if alvo.length() < 0.01:
-			k = FREIA
-		elif v.length() > 0.5 and v.dot(alvo) < 0.0:
-			k = VIRA_FREIA
-		else:
-			k = ACELERA
-		if not chao:
-			k *= NO_AR
-		v = v.move_toward(alvo, k * dt)
+		var v := _inercia(Vector2(vx, vz), alvo, dt, livre)
 		vx = v.x
 		vz = v.y
 		if v.length() > 0.001:
@@ -274,6 +269,33 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		tentar_escalar(mx, mz, correr, dt)
 	else:
 		empurra = 0.0
+
+# Inércia no chão: a velocidade não pula para a que o joystick pede.
+# - arrancada: empurrão forte no começo que vai suavizando até a velocidade de corrida;
+# - curva: a direção do movimento gira com limite (correndo faz arco e perde um pouco de velocidade);
+# - meia-volta: freia no sentido antigo antes de sair para o outro lado;
+# - soltar: freia mantendo a direção (o corpo dá o tranco e volta, em main.gd corpo_vivo).
+func _inercia(v: Vector2, alvo: Vector2, dt: float, livre: bool) -> Vector2:
+	var ar: float = 1.0 if chao else NO_AR
+	var s := v.length()
+	if alvo.length() < 0.01: # golpe em andamento planta os pés mais rápido (~0,15 s)
+		return v.move_toward(Vector2.ZERO, (FREIA if livre else FREIA * 2.4) * ar * dt)
+	if s < 0.3: # saindo do parado: vai direto para onde o joystick aponta
+		return v.move_toward(alvo, ACELERA * ar * dt)
+	var d := v / s
+	var da := alvo.normalized()
+	var ang := d.angle_to(da)
+	if abs(ang) > MEIA_VOLTA:
+		return d * move_toward(s, 0.0, VIRA_FREIA * ar * dt)
+	var q: float = clamp(s / CORRIDA, 0.0, 1.0)
+	var vira: float = lerp(CURVA_ANDANDO, CURVA_CORRENDO, q) * ar * dt
+	d = d.rotated(clamp(ang, -vira, vira))
+	var quer: float = alvo.length() * (1.0 - CURVA_PERDA * clamp(abs(ang) / (PI * 0.5), 0.0, 1.0) * q)
+	if s < quer:
+		s = move_toward(s, quer, ACELERA * lerp(1.0, ACELERA_FIM, q * q) * ar * dt)
+	else:
+		s = move_toward(s, quer, FREIA * 0.7 * ar * dt) # corrida para andar: desacelera sem tranco
+	return d * s
 
 # ---------- escalada ----------
 func iniciar_clip(nome: String, vs := 1.0, hs := 1.0, ls := 1.0, depois := "") -> void:

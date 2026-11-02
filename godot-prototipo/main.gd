@@ -81,6 +81,15 @@ var _hitstop_ate := 0.0
 var _impacto_quadro := -1
 var _passo_dist := 0.0 # metros andados desde o último som de passo
 var _quadril := 0.0 # afundada do quadril no pouso (m)
+# molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
+const MOLA_K := 110.0 # força da mola (maior = volta mais rápido)
+const MOLA_AMORT := 10.0 # amortecimento (menor = balança mais vezes; 10 dá um tranco e meio)
+var _frente := 0.0
+var _frente_v := 0.0
+var _incl := 0.0
+var _incl_v := 0.0
+var _vel_ant := 0.0
+var _acel := 0.0 # aceleração no chão (m/s², suavizada): + arrancando, - freando
 var _flash := {} # Node3D do inimigo -> {mat, t}
 
 # teste de desempenho
@@ -1343,11 +1352,25 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif not mov.chao or mov.esc != null:
 		vel_anim = 0.0
 	heroi_anim.atualizar(dt, vel_anim)
-	# inclina para dentro da curva correndo (giro em rad/s x velocidade)
-	var incl := 0.0
-	if mov.chao and mov.esc == null and acao.is_empty():
-		incl = clamp(-mov.giro * vel * 0.02, -0.22, 0.22)
-	inclinar.inclinacao = lerp(inclinar.inclinacao, incl, min(1.0, dt * 8.0))
+	# Peso do corpo: molas que passam do ponto e voltam (o "tranco" da freada e da arrancada).
+	# Arrancando, o tronco vai para a frente; freando, vai para trás e o quadril desce; quando para,
+	# a mola joga o tronco para a frente e ele volta ao lugar. Na curva deita para dentro e, ao endireitar, volta balançando.
+	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
+	_vel_ant = vel
+	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
+	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and acao.is_empty()
+	var alvo_frente := 0.0
+	var alvo_incl := 0.0
+	if livre_corpo:
+		alvo_frente = clamp(_acel * (0.016 if _acel > 0.0 else 0.02), -0.3, 0.2)
+		alvo_incl = clamp(-mov.giro * vel * 0.022, -0.26, 0.26)
+	_frente_v += ((alvo_frente - _frente) * MOLA_K - _frente_v * MOLA_AMORT) * dt
+	_frente += _frente_v * dt
+	_incl_v += ((alvo_incl - _incl) * MOLA_K * 0.8 - _incl_v * MOLA_AMORT) * dt
+	_incl += _incl_v * dt
+	inclinar.frente = clamp(_frente, -0.4, 0.3)
+	inclinar.inclinacao = clamp(_incl, -0.32, 0.32)
+	var freada: float = clamp(-_acel / mov.FREIA, 0.0, 1.0) if livre_corpo else 0.0
 	# pouso: câmera e quadril afundam, poeira e som (mesmo correndo)
 	if mov.pousou > 0.0:
 		var q: float = mov.pousou
@@ -1361,7 +1384,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif mov.chao and not estava_no_chao:
 		sons.tocar("pouso", -10.0, 0.08)
 	_quadril = move_toward(_quadril, 0.0, dt * 0.5)
-	inclinar.afunda = _quadril
+	inclinar.afunda = _quadril + freada * 0.035
 	# passos: um som a cada passada (mais longa correndo), só no chão
 	if mov.chao and mov.esc == null and vel > 0.5:
 		_passo_dist += vel * dt
