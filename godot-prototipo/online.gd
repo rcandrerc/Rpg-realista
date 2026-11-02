@@ -346,6 +346,8 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)
+	if float(c.vida) < float(e.get("vida", c.vida)):
+		e.combate = m.tempo + 5.0 # levou dano: nome aparece por 5 s
 	e.vida = float(c.vida)
 	if e.barra:
 		e.barra.scale.x = max(0.001, float(c.vida) / max(1.0, float(c.vidaMax)))
@@ -406,6 +408,11 @@ func evento(ev: Dictionary) -> void:
 					fx.escudo_fim(no)
 			return
 		"dano":
+			var quem = corpos.get(str(ev.get("de", ""))) # monstro que bateu: em combate por 5 s
+			if quem:
+				for e in m.inimigos:
+					if e.no == quem:
+						e.combate = m.tempo + 5.0
 			var no = corpos.get(str(ev.alvo))
 			if no:
 				var eu: bool = str(ev.alvo) == meu_id

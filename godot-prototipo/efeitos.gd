@@ -770,6 +770,7 @@ func cura(alvo: Node3D) -> void:
 
 var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
 var _lado_numero := 1.0
+var _ultimo_numero := {} # coluna (-1 ou 1) -> último número dela
 # Número de dano (ou cura) que sobe e some
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
@@ -792,7 +793,12 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	if cam:
 		var px_m: float = 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(base) / max(1.0, get_viewport().get_visible_rect().size.y)
 		base += cam.global_basis.x * _lado_numero * 25.0 * px_m
+		# na mesma coluna, nasce pelo menos 18 px acima do último que ainda está na tela
+		var ult = _ultimo_numero.get(_lado_numero)
+		if is_instance_valid(ult):
+			base.y = max(base.y, ult.global_position.y + 18.0 * px_m + l.font_size * l.pixel_size)
 	l.global_position = base
+	_ultimo_numero[_lado_numero] = l
 	var agora := Time.get_ticks_msec() / 1000.0
 	var atraso: float = max(0.0, _prox_numero - agora)
 	_prox_numero = agora + atraso + 0.1

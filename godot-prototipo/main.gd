@@ -525,6 +525,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		dmg *= 1.0 + e.vuln_k
 	dmg = max(1.0, round(dmg))
 	e.vida -= dmg
+	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
 	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
@@ -1226,15 +1227,24 @@ func separar_inimigos() -> void:
 				a.no.position -= Vector3(n.x, 0, n.y) * empurra
 				b.no.position += Vector3(n.x, 0, n.y) * empurra
 
-# barra de vida do monstro: some quando ele está com a vida cheia e longe (o nome continua)
+# barra de vida do monstro: some quando ele está com a vida cheia e longe. Nome só do alvo atual (o mais perto, que o
+# golpe pega sozinho) e de quem está em combate (levou ou deu dano nos últimos 5 s): três monstros juntos não encavalam
 func barras_perto() -> void:
+	var alvo = null
+	var md := 12.0
+	for e in inimigos:
+		if e.estado != "morto":
+			var d0: float = e.no.position.distance_to(heroi.position)
+			if d0 < md:
+				md = d0
+				alvo = e
 	for e in inimigos:
 		if e.barra == null or e.estado == "morto":
 			continue
 		var d: float = e.no.position.distance_to(heroi.position)
 		var v: bool = e.barra.scale.x < 0.999 or d < 9.0
 		var nome: Node3D = e.barra.get_parent().get_child(e.barra.get_index() - 2)
-		nome.visible = d < 15.0 # longe: sem nome (dois monstros alinhados não encavalam os nomes)
+		nome.visible = e == alvo or float(e.get("combate", 0.0)) > tempo
 		if e.barra.visible != v:
 			e.barra.visible = v
 			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v
@@ -1325,6 +1335,7 @@ func atualizar_inimigos(dt: float) -> void:
 				e.acertou = true
 				if d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.arrancada == null and mov.esc == null and acao.get("nome", "") != "rolar":
 					ferir_heroi(D.INIMIGO.dmg)
+					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
 			continue
