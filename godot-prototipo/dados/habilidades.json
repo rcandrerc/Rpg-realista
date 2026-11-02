@@ -267,17 +267,17 @@
    "at": 0.6,
    "canal": 1.4,
    "alcance": 12,
-   "area": 5,
+   "area": 6,
    "nv": {
     "area": 0.3
    },
-   "queda": 0.75,
+   "queda": 1.1,
    "pct": 3.2,
-   "empurra": 1.1,
+   "empurra": 1.5,
    "mana": 32,
    "cd": 10,
    "icone": "meteoros",
-   "desc": "Marca o chão do alvo e uma rocha em chamas cai ali."
+   "desc": "Marca o chão do alvo e uma rocha gigante em chamas cai ali e explode, pegando todo mundo em volta."
   },
   "nova_gelo": {
    "tomo": "Tomo do Inverno Eterno",
