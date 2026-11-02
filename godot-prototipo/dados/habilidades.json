@@ -267,17 +267,17 @@
    "at": 0.6,
    "canal": 1.4,
    "alcance": 12,
-   "area": 5,
+   "area": 6,
    "nv": {
     "area": 0.3
    },
-   "queda": 0.75,
+   "queda": 1.1,
    "pct": 3.2,
-   "empurra": 1.1,
+   "empurra": 1.5,
    "mana": 32,
    "cd": 10,
    "icone": "meteoros",
-   "desc": "Marca o chão do alvo e uma rocha em chamas cai ali."
+   "desc": "Marca o chão do alvo e uma rocha gigante em chamas cai ali e explode, pegando todo mundo em volta."
   },
   "nova_gelo": {
    "tomo": "Tomo do Inverno Eterno",
@@ -1004,6 +1004,89 @@
   }
  ],
  "lojaDistancia": 4,
+ "criador": {
+  "cabelo": [
+   null,
+   1841695,
+   3876377,
+   7029801,
+   11026460,
+   14267244,
+   15328472,
+   10131604,
+   3100572,
+   14252442,
+   4160074,
+   5978762,
+   10230820
+  ],
+  "olhos": [
+   null,
+   7028514,
+   11565610,
+   4033098,
+   3829712,
+   9082528,
+   8014528,
+   12593706,
+   14725168
+  ],
+  "pele": [
+   null,
+   16770774,
+   15977904,
+   14855560,
+   13011554,
+   10052420,
+   7226672
+  ],
+  "roupa": [
+   null,
+   15789800,
+   2236966,
+   2372700,
+   7216682,
+   4872754,
+   7031342,
+   8027264,
+   11022892,
+   8038096,
+   5913210
+  ],
+  "calca": [
+   null,
+   2236966,
+   3947090,
+   5916210,
+   2767450,
+   7216682,
+   8027264,
+   4872754,
+   15262420
+  ],
+  "altura": [
+   0.92,
+   1.08
+  ],
+  "rosto": {
+   "olhosT": [
+    0.75,
+    1.25
+   ],
+   "narizT": [
+    0.7,
+    1.3
+   ],
+   "bocaT": [
+    0.7,
+    1.3
+   ]
+  }
+ },
+ "nome": {
+  "min": 3,
+  "max": 16
+ },
  "estamina": {
   "base": 50,
   "porNivel": 2,

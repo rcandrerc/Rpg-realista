@@ -109,6 +109,13 @@ export class Simulacao {
   definirAparencia(id, a) {
     const j = this.jogadores.get(id); if (j?.criando) j.aparencia = aparenciaValida(a);
   }
+  // Aparência mudada depois de criado (fora do criador): cores, altura e rosto. Nome e corpo não mudam.
+  mudarAparencia(id, a) {
+    const j = this.jogadores.get(id); if (!j || j.criando) return null;
+    const ap = aparenciaValida(a); if (!ap) return null;
+    j.aparencia = ap;
+    return ap;
+  }
   // "Pronto" no criador: grava nome, corpo e aparência de vez. Devolve o que valeu (para salvar na conta) ou null.
   concluirCriacao(id, p) {
     const j = this.jogadores.get(id); if (!j?.criando || !j.podeCriar) return null;

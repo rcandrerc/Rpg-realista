@@ -16,7 +16,10 @@ const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
 const Armadura = preload("res://armadura.gd")
+const Aparencia = preload("res://aparencia.gd")
+const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
+const MenuTopo = preload("res://menu_topo.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -62,6 +65,11 @@ var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolament
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
+var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
+var vibracao := true # Configurações: vibrar no golpe e no dano
+var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
+var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
+const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
 var tempo := 0.0
 
 # ---------- outros ----------
@@ -168,9 +176,16 @@ func _ready() -> void:
 	add_child(trabalho)
 	menu = Menu.new(self)
 	add_child(menu)
+	criador = Criador.new(self)
+	add_child(criador)
+	var cfg := ConfigFile.new()
+	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if cfg.load(ARQUIVO_APARENCIA) == OK else {}, false)
 	montar_teste()
 	online = Online.new(self)
 	add_child(online)
+	menu_topo = MenuTopo.new(self)
+	add_child(menu_topo)
+	hud.menu_topo = menu_topo
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -326,6 +341,25 @@ func modelo(id: String) -> Node3D:
 	pintar(no, true, id == "ruiva")
 	molas(no)
 	return no
+
+# aparência do herói (criador de personagem): pinta o herói e o boneco do menu e guarda no celular
+func definir_aparencia(a, salvar := true) -> void:
+	aparencia = Aparencia.valida(a, P.dados.criador)
+	Aparencia.aplicar(heroi, aparencia)
+	if menu and menu.boneco:
+		Aparencia.aplicar(menu.boneco, aparencia)
+	if salvar:
+		var cfg := ConfigFile.new()
+		cfg.set_value("heroi", "aparencia", JSON.stringify(aparencia))
+		cfg.save(ARQUIVO_APARENCIA)
+
+# botão Aparência do menu do personagem: abre o criador sem o nome; online quem grava é o servidor ("mudarAparencia")
+func abrir_aparencia() -> void:
+	criador.abrir_edicao(aparencia, func(a):
+		definir_aparencia(a)
+		if on():
+			rede("mudarAparencia", a)
+		hud.aviso("Aparência salva"))
 
 func esqueleto(no: Node) -> Skeleton3D:
 	var l := no.find_children("*", "Skeleton3D", true, false)
@@ -672,7 +706,7 @@ func parar_golpe(seg: float) -> void:
 	Engine.time_scale = 0.05
 
 func vibrar(ms: int) -> void:
-	if OS.has_feature("mobile"):
+	if OS.has_feature("mobile") and vibracao:
 		Input.vibrate_handheld(ms)
 
 # inimigo pisca branco por um instante quando apanha
@@ -779,7 +813,8 @@ func usar(qual: String) -> void:
 func _tentar(qual: String) -> bool:
 	match qual:
 		"basico":
-			h.segurando = true
+			# segura só se o dedo ainda está no botão (um toque que saiu da fila depois de soltar não trava a repetição)
+			h.segurando = hud.segurando("basico")
 			return basico()
 		"troca":
 			armar("Magia" if h.modo == "Espada" else "Espada")
@@ -1044,6 +1079,7 @@ func cancelar_canal(motivo := "Cancelado") -> void:
 	h.mana = min(P.st.manaMax, h.mana + acao.mana * 0.7)
 	acao = {}
 	fx.status_fim(heroi)
+	fx.cancelar_conjura(heroi)
 	rede("cancelar")
 	hud.aviso(motivo)
 	heroi_anim.play("parada" if h.modo == "Magia" else "espada_parada", 0.15)
@@ -1273,6 +1309,9 @@ func atualizar_heroi(dt: float) -> void:
 		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * dt)
 	if h.escudo_ate <= tempo:
 		h.escudo = 0.0
+	# repete o ataque básico só enquanto o dedo está no botão; soltou, para na hora (sem deixar o herói farmando sozinho)
+	if h.segurando and not hud.segurando("basico"):
+		h.segurando = false
 	if h.segurando and tempo - h.ultimo_basico > 0.2:
 		basico()
 	# botão guardado na fila: sai assim que der
@@ -1702,7 +1741,7 @@ func montar_teste() -> void:
 	rotulo.anchor_right = 1.0
 	rotulo.offset_left = -330
 	rotulo.offset_right = -14
-	rotulo.offset_top = 64
+	rotulo.offset_top = 124 # abaixo do botão Teste (o menu do topo fica no canto)
 	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tela.add_child(rotulo)
 	botao_teste = Button.new()
@@ -1712,8 +1751,8 @@ func montar_teste() -> void:
 	botao_teste.anchor_right = 1.0
 	botao_teste.offset_left = -110
 	botao_teste.offset_right = -14
-	botao_teste.offset_top = 14
-	botao_teste.offset_bottom = 56
+	botao_teste.offset_top = 72 # abaixo do menu do topo
+	botao_teste.offset_bottom = 114
 	botao_teste.pressed.connect(comecar_teste)
 	tela.add_child(botao_teste)
 	etapas = [

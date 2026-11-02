@@ -281,9 +281,20 @@ func montar_esquerda() -> Control:
 		s.offset_top = -MEDALHAO * 0.5 - 6
 		s.offset_bottom = MEDALHAO * 0.5 - 6
 		meio.add_child(s)
+	var pe := HBoxContainer.new()
+	pe.add_theme_constant_override("separation", 10)
 	var dica := rotulo("Arraste o personagem para girar", 12, APAGADO)
+	dica.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	dica.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(dica)
+	dica.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pe.add_child(dica)
+	# criador de personagem sem o nome: cores, altura e rosto
+	var b_ap := botao("Aparência", func():
+		fechar()
+		m.abrir_aparencia(), 14)
+	b_ap.custom_minimum_size = Vector2(120, 34)
+	pe.add_child(b_ap)
+	col.add_child(pe)
 	montar_palco()
 	return col
 
