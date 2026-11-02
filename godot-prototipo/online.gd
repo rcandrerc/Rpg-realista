@@ -33,6 +33,7 @@ var sub: Label
 var b_continuar: Button
 var b_trocar: Button
 var b_google: Button
+var capa: TextureRect # arte do Aethra atrás da tela de login (pedido do André: login com arte, não com o jogo já aparecendo)
 
 func _init(principal) -> void:
 	m = principal
@@ -60,6 +61,14 @@ func montar_tela() -> void:
 	tela = CanvasLayer.new()
 	tela.layer = 5
 	add_child(tela)
+	capa = TextureRect.new()
+	capa.texture = load("res://ui/capa_aethra.jpg")
+	capa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	capa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+	capa.mouse_filter = Control.MOUSE_FILTER_STOP # os toques não passam para o jogo
+	capa.visible = false
+	tela.add_child(capa)
 	status = Button.new()
 	status.flat = true
 	status.add_theme_font_size_override("font_size", 14)
@@ -78,7 +87,7 @@ func montar_tela() -> void:
 
 	painel = PanelContainer.new()
 	var caixa := StyleBoxFlat.new()
-	caixa.bg_color = Color(0.07, 0.06, 0.09, 0.88)
+	caixa.bg_color = Color(0.07, 0.06, 0.09, 0.8)
 	caixa.border_color = Color(0.95, 0.75, 0.42, 0.75)
 	caixa.set_border_width_all(2)
 	caixa.set_corner_radius_all(18)
@@ -89,10 +98,10 @@ func montar_tela() -> void:
 	caixa.shadow_color = Color(0, 0, 0, 0.5)
 	caixa.shadow_size = 16
 	painel.add_theme_stylebox_override("panel", caixa)
-	painel.anchor_left = 0.5
-	painel.anchor_right = 0.5
-	painel.anchor_top = 0.5
-	painel.anchor_bottom = 0.5
+	painel.anchor_left = 0.78 # à direita: a heroína da arte fica à esquerda
+	painel.anchor_right = 0.78
+	painel.anchor_top = 0.63 # abaixo do título "Aethra" da arte
+	painel.anchor_bottom = 0.63
 	painel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	painel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var col := VBoxContainer.new()
@@ -148,6 +157,7 @@ func mostrar_login() -> void:
 	b_trocar.visible = false
 	b_google.visible = true
 	painel.visible = true
+	capa.visible = true
 	m.hud.set_process_input(false) # os toques não mexem no joystick por trás
 	atualizar_status("")
 
@@ -160,11 +170,13 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	b_trocar.visible = true
 	b_google.visible = false
 	painel.visible = true
+	capa.visible = true
 	m.hud.set_process_input(false)
 	atualizar_status("")
 
 func esconder_login() -> void:
 	painel.visible = false
+	capa.visible = false
 	m.hud.set_process_input(true)
 
 func atualizar_status(_t := "") -> void:
