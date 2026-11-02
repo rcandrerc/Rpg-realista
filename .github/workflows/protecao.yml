@@ -1,0 +1,33 @@
+# Proteção contra recurso apagado sem querer (regra do André: atualização não sobrepõe a anterior, a não ser que ele peça).
+# 1) O ramo do PR precisa ter a main mais nova dentro (rebase ou "junta a main" antes do merge).
+# 2) Tudo que está em ferramentas/protecao/recursos.json precisa continuar no código.
+name: Nada some
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: O ramo tem a main mais nova
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch -q origin "${{ github.base_ref }}"
+          if ! git merge-base --is-ancestor "origin/${{ github.base_ref }}" HEAD; then
+            echo "::error::Este ramo não tem a ${{ github.base_ref }} mais nova. Junte a main (ou faça rebase), resolva os conflitos mantendo os dois lados e rode de novo."
+            exit 1
+          fi
+          echo "Ramo em dia com a ${{ github.base_ref }}."
+      - name: Nenhum recurso do jogo sumiu
+        run: node ferramentas/protecao/conferir.mjs --main
