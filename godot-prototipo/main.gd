@@ -355,6 +355,13 @@ func criar_heroi() -> void:
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
 	inclinar.preparar(heroi_esq)
+	# altura do quadril do herói (m): a freada e a meia-volta andam pelo caminho do quadril da animação, medido nela
+	var iq := heroi_esq.find_bone("J_Bip_C_Hips")
+	if iq >= 0 and heroi_esq.is_inside_tree():
+		var hq: float = (heroi.global_transform.affine_inverse() * (heroi_esq.global_transform * heroi_esq.get_bone_global_rest(iq).origin)).y
+		if hq > 0.4 and hq < 1.6:
+			mov.altura_quadril = hq
+	print("altura do quadril: ", mov.altura_quadril)
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -1321,7 +1328,9 @@ func atualizar_heroi(dt: float) -> void:
 				heroi_anim.seek(0.0, true)
 	elif acao.is_empty():
 		var a := ""
-		if mov.arrancada != null:
+		if mov.manobra != null and heroi_anim.has_animation(mov.manobra.nome):
+			a = mov.manobra.nome # freada e meia-volta: o corpo anda pelo caminho do quadril da animação (andar.gd)
+		elif mov.arrancada != null:
 			a = "corrida"
 		elif mov.mortal > 0.0:
 			a = "mortal"
@@ -1336,7 +1345,13 @@ func atualizar_heroi(dt: float) -> void:
 			a = "parada" if h.modo == "Magia" else "espada_parada"
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
 			# andar e correr no ritmo da velocidade: o pé acompanha o chão (sem parecer que desliza)
-			heroi_anim.play(a, 0.15, ritmo(a) if mov.arrancada == null else 1.0)
+			if mov.manobra != null and a == mov.manobra.nome:
+				heroi_anim.play(a, 0.1 if a == "meia_volta" else 0.15, mov.ritmo_manobra())
+			else:
+				# saindo da freada: o corpo se arruma devagar (mistura longa)
+				heroi_anim.play(a, 0.35 if heroi_anim.current_animation == "freada" else 0.15, ritmo(a) if mov.arrancada == null else 1.0)
+		elif mov.manobra != null and a == mov.manobra.nome:
+			heroi_anim.ritmo_acao(mov.ritmo_manobra())
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
@@ -1364,7 +1379,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
 	_vel_ant = vel
 	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
-	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and acao.is_empty()
+	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty()
 	var alvo_frente := 0.0
 	var alvo_incl := 0.0
 	if livre_corpo:

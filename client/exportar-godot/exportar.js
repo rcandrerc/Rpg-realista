@@ -64,6 +64,7 @@ async function principal() {
     investida: 'investida', giro: A.giro, salto: A.jump, relampago: A.raio, bola: A.bolt, raio: A.ceu, explosao: A.ground, meteoros: A.rain,
     cura: A.heal, cruzado: A.cruzado, descendente: A.descendente, onda: A.onda, vortice: A.vortice, bloqueio: A.block,
     rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death, queda: 'queda',
+    freada: 'freada', meia_volta: 'meia_volta', // o jogo anda pelo caminho do quadril (mundo.json raiz)
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)
     ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
     ...Object.fromEntries(Object.entries(PARADO_PAREDE).map(([k, n]) => ['parede_' + k, n])),

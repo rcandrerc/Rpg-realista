@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { VRMLoaderPlugin, VRMUtils, VRMSpringBoneCollider, VRMSpringBoneColliderShapeCapsule } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
+import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO, SEM_GIRO } from '@rpg/shared';
 import { montarMonstro } from './bestiario.js';
 import { carregarGLTF } from './cena.js';
 import { Montaria } from './montaria.js';
@@ -119,6 +119,15 @@ function ajustarEscalada(cru) {
     for (const [n, , v] of cru[nome]?.t || []) {
       if (/Hips\.position$/.test(n)) for (let i = 0; i < v.length; i += 3) { v[i] = 0; v[i + 2] = 0; }
       if (/ladder/.test(nome) && /Hips\.quaternion$/.test(n)) for (let i = 0; i < v.length; i += 4) {
+        q.fromArray(v, i); tw.set(0, q.y, 0, q.w).normalize();
+        q.premultiply(tw.invert()).toArray(v, i);
+      }
+    }
+  }
+  // meia-volta: tira o giro do quadril em volta do corpo (o jogo vira o herói)
+  for (const nome of SEM_GIRO) {
+    for (const [n, , v] of cru[nome]?.t || []) {
+      if (/Hips\.quaternion$/.test(n)) for (let i = 0; i < v.length; i += 4) {
         q.fromArray(v, i); tw.set(0, q.y, 0, q.w).normalize();
         q.premultiply(tw.invert()).toArray(v, i);
       }

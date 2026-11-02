@@ -575,7 +575,7 @@ func _passo(dt: float) -> void:
 	if _pos_t <= 0.0 and m.h.morto <= 0.0:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position
-		var a: String = para_servidor.get(m.heroi_anim.current_animation, "Idle")
+		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
 		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a})
 	# para onde o joystick aponta (o servidor usa no rolamento e no dash)
 	_ent_t -= dt
