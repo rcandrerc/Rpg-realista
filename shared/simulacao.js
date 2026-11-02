@@ -585,7 +585,7 @@ export class Simulacao {
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
-    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: esgotado, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
@@ -607,7 +607,7 @@ export class Simulacao {
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     const b = profBonus(p.prof[C.prof]), ganhou = [];
-    const por = (k, n) => { if (guardar(p.mochila, { k, n })) ganhou.push({ nome: ITENS[k].nome, n }); else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
+    const por = (k, n) => { if (guardar(p.mochila, { k, n })) { const g = ganhou.find((x) => x.k === k); if (g) g.n += n; else ganhou.push({ k, nome: ITENS[k].nome, n }); } else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
     for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < b.extra ? 1 : 0));
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch) por(k, 1);
     const s = j.coletas[no.id] = { n: this.cargas(j, no) - 1, volta: this.tempo + C.volta };
@@ -615,7 +615,7 @@ export class Simulacao {
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta: C.volta });
     if (!ganhou.length) return this.pararColeta(j, null);
-    if (s.n <= 0) return this.pararColeta(j, `${C.nome} esgotado`);
+    if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
   }

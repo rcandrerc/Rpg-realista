@@ -235,8 +235,10 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 				if not personagem and n.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 					# folhagem (copas, samambaias): some em degradê perto da câmera, em vez de virar uma folha gigante na tela
 					n.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
-					n.distance_fade_min_distance = 0.6
-					n.distance_fade_max_distance = 1.5
+					# samambaia e arbusto (baixos, ficam entre a câmera e o herói): somem mais cedo que as copas
+					var baixo: bool = mi.mesh.get_aabb().size.y < 2.0
+					n.distance_fade_min_distance = 1.4 if baixo else 0.6
+					n.distance_fade_max_distance = 3.0 if baixo else 1.5
 				if personagem and "(Outline)" in nome_mat:
 					# contorno escuro de desenho (como o MToon): casca um pouco maior, só o lado de trás
 					n.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -1159,7 +1161,7 @@ func ritmo(a: String) -> float:
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
 	if m.length() < 0.15:
-		return Vector3.ZERO
+		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
 # ---------- quadro a quadro ----------
@@ -1451,6 +1453,8 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
 		for k in mundo.obstaculos:
 			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
 				return max(0.6, t - 0.2)
+		if trabalho and trabalho.dentro_de_pedra(p):
+			return max(0.6, t - 0.2)
 		t += 0.2
 	return ate
 

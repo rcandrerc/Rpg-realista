@@ -16,8 +16,10 @@ var por_id := {}
 var coletando = null # {c, dur, t, n (golpes dados), prof}
 var ferramentas := {} # "min" -> picareta, "len" -> machado
 var perto = null # coletável mais perto (para o botão)
+var indo = null # {o, ate}: tocou em Coletar longe e o herói está andando até encostar
 var _veio_malha: Mesh
 var _veio_mat: Material
+var _veio_tri: TriangleMesh # para achar a superfície da pedra onde a pepita sai
 
 const COR_MINERIO := {"ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.32, 0.72, 0.95)}
 
@@ -36,7 +38,7 @@ func _ready() -> void:
 		coletaveis.append(o)
 		por_id[o.id] = o
 	ferramentas["min"] = _ferramenta("res://ferramentas3d/Pickaxe_Bronze.gltf")
-	ferramentas["len"] = _ferramenta("res://ferramentas3d/Axe_Bronze.gltf")
+	ferramentas["len"] = _ferramenta("res://ferramentas3d/Axe_Bronze.gltf", 1.05) # o machado é mais fino: um pouco maior para ler na mão
 
 # ---------- estamina ----------
 func sta_max() -> float:
@@ -102,6 +104,7 @@ func _achar_pedra() -> void:
 	var mi: MeshInstance3D = no if no is MeshInstance3D else no.find_children("*", "MeshInstance3D", true, false)[0]
 	_veio_malha = mi.mesh
 	_veio_mat = mi.get_active_material(0)
+	_veio_tri = _veio_malha.generate_triangle_mesh()
 
 func _montar_veio(o: Dictionary, ry: float) -> void:
 	var raiz := Node3D.new()
@@ -113,6 +116,8 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	rnd.seed = hash(o.id)
 	var cor: Color = COR_MINERIO.get(o.tipo, Color.GRAY)
 	var alto_pedra := 1.0
+	var pedra_k := 1.0
+	var pedra_pos := Vector3.ZERO
 	if _veio_malha:
 		var pedra := MeshInstance3D.new()
 		pedra.mesh = _veio_malha
@@ -121,44 +126,41 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 			pm.albedo_color = pm.albedo_color * Color(0.78, 0.76, 0.74) # um pouco mais escura que as rochas da vila: o minério aparece
 			pedra.material_override = pm
 		var aabb: AABB = _veio_malha.get_aabb()
-		var k: float = 2.1 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 2 m de largura
+		var k: float = 1.25 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 1,25 m de largura (o minério é que tem que aparecer)
 		pedra.scale = Vector3(k, k, k)
 		pedra.position = Vector3(-aabb.get_center().x * k, -aabb.position.y * k - 0.15, -aabb.get_center().z * k)
+		pedra_k = k
+		pedra_pos = pedra.position
 		alto_pedra = aabb.size.y * k - 0.15
 		raiz.add_child(pedra)
 	# minério cravado na pedra (some quando o veio esgota para você): pepitas de metal ou cristais pontudos
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = cor
-	mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	mat.roughness = 1.0
-	mat.rim_enabled = true
-	mat.rim = 0.6
-	mat.rim_tint = 0.2
-	mat.emission_enabled = true
-	mat.emission = cor
-	mat.emission_energy_multiplier = 0.45 if o.tipo == "cristal" else 0.0
 	var minerio := Node3D.new()
 	raiz.add_child(minerio)
 	o.minerio = minerio
 	if o.tipo == "cristal":
-		for i in 7:
+		# cacho torto de 5 a 7 cristais de tamanhos diferentes, todos puxados para um lado (não um leque certinho),
+		# cada um nascendo da superfície da pedra (raio de cima para baixo)
+		var mc := _mat_cristal()
+		var n := rnd.randi_range(5, 7)
+		var a0 := rnd.randf() * TAU
+		for i in n:
+			var a: float = a0 + rnd.randf_range(-1.4, 1.4)
+			var d: float = 0.0 if i == 0 else rnd.randf_range(0.08, 0.34)
+			var alto: float = 0.62 if i == 0 else rnd.randf_range(0.18, 0.5)
+			var base := Vector3(cos(a) * d, 0, sin(a) * d)
+			var y: float = alto_pedra * 0.8
+			if _veio_tri:
+				var hit: Dictionary = _veio_tri.intersect_ray((base + Vector3(0, 3, 0) - pedra_pos) / pedra_k, Vector3.DOWN)
+				if not hit.is_empty():
+					y = (hit.position as Vector3).y * pedra_k + pedra_pos.y
 			var p := MeshInstance3D.new()
-			var cone := CylinderMesh.new()
-			cone.radial_segments = 6
-			cone.rings = 1
-			cone.height = rnd.randf_range(0.45, 0.85) * (1.25 if i == 0 else 1.0)
-			cone.bottom_radius = rnd.randf_range(0.09, 0.14)
-			cone.top_radius = 0.0
-			p.mesh = cone
-			p.material_override = mat
-			var a := rnd.randf() * TAU
-			var d := 0.0 if i == 0 else rnd.randf_range(0.25, 0.6)
-			p.position = Vector3(cos(a) * d, alto_pedra * (0.85 - d * 0.5) + cone.height * 0.3, sin(a) * d)
-			# inclinado para fora, como um cacho de cristal saindo da pedra
+			p.mesh = _cristal(alto, alto * rnd.randf_range(0.16, 0.24))
+			p.material_override = mc
+			p.position = Vector3(base.x, y - alto * 0.12, base.z) # o pé entra na pedra
 			p.rotation_order = EULER_ORDER_YXZ
-			p.rotation = Vector3(0.0 if i == 0 else rnd.randf_range(0.35, 0.8), -a + PI / 2, 0)
-			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var incl: float = rnd.randf_range(0.05, 0.2) if i == 0 else rnd.randf_range(0.3, 0.95)
+			p.rotation = Vector3(incl, -a + PI / 2 + rnd.randf_range(-0.3, 0.3), rnd.randf_range(-0.15, 0.15))
+			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			minerio.add_child(p)
 		var luz := OmniLight3D.new()
 		luz.light_color = cor
@@ -166,38 +168,160 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		luz.omni_range = 3.5
 		luz.position = Vector3(0, alto_pedra + 0.4, 0)
 		minerio.add_child(luz)
-	elif _veio_malha:
-		# uma faixa de pepitas atravessando a pedra (o veio)
-		var aabb: AABB = _veio_malha.get_aabb()
+	elif _veio_malha and _veio_tri:
+		# pepitas em 3D saindo da rocha: pedaços facetados de 9 a 17 cm, meio enterrados, numa faixa que atravessa a pedra.
+		# o ponto de cada uma vem de um raio contra a malha da pedra, então ela fica colada na superfície e sai pela normal
+		var mp := _mat_pepita(o.tipo)
 		var a0 := rnd.randf() * TAU
-		for i in 11:
+		var n := rnd.randi_range(18, 26) # alguns raios são descartados: sobram umas 14 a 20
+		for i in n:
+			var t: float = (float(i) / float(n - 1)) * 2.0 - 1.0
+			var a: float = a0 + t * 2.1 + rnd.randf_range(-0.2, 0.2)
+			var y: float = alto_pedra * (0.3 + 0.4 * (1.0 - abs(t))) + rnd.randf_range(-0.1, 0.1)
+			var fora := Vector3(cos(a) * 2.0, y, sin(a) * 2.0)
+			var dir := (Vector3(0, y * 0.8, 0) - fora).normalized()
+			var hit: Dictionary = _veio_tri.intersect_ray((fora - pedra_pos) / pedra_k, dir)
+			if hit.is_empty():
+				continue
+			var tam: float = rnd.randf_range(0.09, 0.17) if o.tipo == "cobre" else rnd.randf_range(0.07, 0.13)
+			var nor: Vector3 = (hit.normal as Vector3).normalized()
+			if nor.dot(dir) > 0.0:
+				nor = -nor
+			var ponto: Vector3 = (hit.position as Vector3) * pedra_k + pedra_pos
+			if nor.dot(-dir) < 0.4 or ponto.y < 0.08:
+				continue # raio pegou de raspão a borda da pedra (a pepita ficaria solta no ar) ou embaixo do chão
 			var p := MeshInstance3D.new()
-			p.mesh = _veio_malha
-			p.material_override = mat
-			var t: float = (i / 10.0) * 2.0 - 1.0
-			var a: float = a0 + t * 1.3 + rnd.randf_range(-0.15, 0.15)
-			var d: float = rnd.randf_range(0.55, 0.85)
-			var y: float = alto_pedra * (0.35 + 0.45 * (1.0 - abs(t))) + rnd.randf_range(-0.08, 0.08)
-			var tam: float = rnd.randf_range(0.2, 0.32) / max(0.01, max(aabb.size.x, aabb.size.z))
-			p.scale = Vector3.ONE * tam
-			p.position = Vector3(cos(a) * d, y, sin(a) * d)
-			p.rotation = Vector3(rnd.randf() * TAU, rnd.randf() * TAU, rnd.randf() * TAU)
-			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			p.mesh = _pepita(rnd)
+			p.material_override = mp
+			p.scale = Vector3(tam, tam * rnd.randf_range(0.7, 1.0), tam)
+			p.position = ponto + nor * tam * 0.05 # 45% enterrada na pedra
+			p.basis = Basis(Quaternion(Vector3.UP, nor)) * Basis(Vector3.UP, rnd.randf() * TAU) * Basis.from_scale(p.scale)
+			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			minerio.add_child(p)
 
-func _ferramenta(caminho: String) -> Node3D:
+# cristal: prisma de 6 lados com ponta, normais chapadas; base ciano médio e ponta clara (cor no vértice)
+func _cristal(alto: float, raio: float) -> Mesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
+	var cb := Color("5fc8e0")
+	var cm := Color("8edcf0")
+	var cp := Color("e2f8ff")
+	var corpo: float = alto * 0.72
+	for s in 6:
+		var a1: float = TAU * s / 6.0
+		var a2: float = TAU * (s + 1) / 6.0
+		var b1 := Vector3(cos(a1) * raio, 0, sin(a1) * raio)
+		var b2 := Vector3(cos(a2) * raio, 0, sin(a2) * raio)
+		var t1 := b1 + Vector3(0, corpo, 0)
+		var t2 := b2 + Vector3(0, corpo, 0)
+		var pt := Vector3(0, alto, 0)
+		for v in [[b1, cb], [b2, cb], [t2, cm], [b1, cb], [t2, cm], [t1, cm], [t1, cm], [t2, cm], [pt, cp]]:
+			st.set_color(v[1])
+			st.add_vertex(v[0])
+	st.generate_normals()
+	return st.commit()
+
+var _mat_cr: StandardMaterial3D
+func _mat_cristal() -> StandardMaterial3D:
+	if _mat_cr:
+		return _mat_cr
+	var mt := StandardMaterial3D.new()
+	mt.vertex_color_use_as_albedo = true
+	mt.vertex_color_is_srgb = true # as cores do vértice estão em sRGB (senão o ciano sai lavado, quase branco)
+	mt.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON # degrau de sombra como o resto da cena
+	mt.specular_mode = BaseMaterial3D.SPECULAR_TOON
+	mt.albedo_color = Color(0.62, 0.8, 0.88) # o sol da cena é forte: escurece um pouco para o ciano aparecer
+	mt.roughness = 0.4
+	mt.metallic_specular = 0.5
+	mt.rim_enabled = true
+	mt.rim = 0.25
+	mt.rim_tint = 0.8
+	mt.emission_enabled = true
+	mt.emission = Color("3fa8c8")
+	mt.emission_energy_multiplier = 0.15
+	var c := StandardMaterial3D.new()
+	c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	c.cull_mode = BaseMaterial3D.CULL_FRONT
+	c.grow = true
+	c.grow_amount = 0.008
+	c.albedo_color = Color(0.05, 0.12, 0.16)
+	mt.next_pass = c
+	_mat_cr = mt
+	return mt
+
+# pedaço facetado (uma esfera grosseira com os vértices mexidos e normais chapadas): 1 m de diâmetro antes da escala
+func _pepita(rnd: RandomNumberGenerator) -> Mesh:
+	var esf := SphereMesh.new()
+	esf.radius = 0.5
+	esf.height = 1.0
+	esf.radial_segments = 6
+	esf.rings = 3
+	var arr: Array = esf.get_mesh_arrays()
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+	var mexe := {} # o mesmo vértice repetido na costura tem que andar igual
+	for i in v.size():
+		var chave := Vector3i(roundi(v[i].x * 1000), roundi(v[i].y * 1000), roundi(v[i].z * 1000))
+		if not mexe.has(chave):
+			mexe[chave] = rnd.randf_range(0.75, 1.2)
+		v[i] = v[i] * mexe[chave]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1) # normais por face: arestas duras, cara de minério
+	for i in idx:
+		st.add_vertex(v[i])
+	st.generate_normals()
+	return st.commit()
+
+var _mats_pepita := {}
+func _mat_pepita(tipo: String) -> StandardMaterial3D:
+	if _mats_pepita.has(tipo):
+		return _mats_pepita[tipo]
+	var mt := StandardMaterial3D.new()
+	mt.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	mt.specular_mode = BaseMaterial3D.SPECULAR_TOON # brilho em degrau, só onde a aresta pega a luz
+	mt.albedo_color = Color("c4703a") if tipo == "cobre" else Color("b8c4d2") # claros e brilhantes: saltam da pedra cinza
+	mt.emission_enabled = true # um pouco de brilho próprio para aparecer na sombra
+	mt.emission = mt.albedo_color
+	mt.emission_energy_multiplier = 0.22
+	mt.metallic = 0.75 if tipo == "cobre" else 0.85
+	mt.metallic_specular = 0.7
+	mt.roughness = 0.35 if tipo == "cobre" else 0.3
+	mt.rim_enabled = true
+	mt.rim = 0.9 if tipo == "cobre" else 0.7
+	mt.rim_tint = 0.85 # o brilho da borda puxa a cor do metal (alaranjado no cobre)
+	# contorno escuro, igual ao dos personagens
+	var c := StandardMaterial3D.new()
+	c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	c.cull_mode = BaseMaterial3D.CULL_FRONT
+	c.grow = true
+	c.grow_amount = 0.08 # em metro da malha de 1 m: some a 1 cm no tamanho real
+	c.albedo_color = Color(0.1, 0.07, 0.06)
+	mt.next_pass = c
+	_mats_pepita[tipo] = mt
+	return mt
+
+func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 	var cena = load(caminho)
 	var raiz := Node3D.new()
 	if cena:
 		var f: Node3D = cena.instantiate()
 		raiz.add_child(f)
 		f.position = Vector3(0, 0.36, 0) # o cabo na mão: a ferramenta sai para cima da mão como a espada
-		f.scale = Vector3.ONE * 0.8
+		f.scale = Vector3.ONE * escala
 		for mi in f.find_children("*", "MeshInstance3D", true, false):
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	raiz.visible = false
 	m.add_child(raiz)
 	return raiz
+
+# a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
+func dentro_de_pedra(p: Vector3) -> bool:
+	for o in coletaveis:
+		if o.tipo != "arvore" and p.y < o.pos.y + 1.1 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 0.85:
+			return true
+	return false
 
 func esgotado(o: Dictionary) -> bool:
 	return o.cargas == 0 and o.volta_ate > m.tempo
@@ -220,6 +344,13 @@ func _process(dt: float) -> void:
 			if d < md and not esgotado(o) and abs(o.pos.y - m.heroi.position.y) < 1.5:
 				md = d
 				perto = o
+	if indo != null:
+		if m.hud.mover.length() > 0.15 or m.tempo > indo.ate or esgotado(indo.o) or not m.acao.is_empty():
+			indo = null # mexeu no joystick, fez outra coisa ou não chegou
+		elif _falta(indo.o) <= 0.15:
+			var o: Dictionary = indo.o
+			indo = null
+			m.rede("coletar", {"no": o.id})
 	if coletando != null:
 		_passo_coleta(dt)
 	var ic := "pf_min" if perto != null and perto.tipo != "arvore" else "pf_len"
@@ -250,7 +381,24 @@ func tocar_botao() -> void:
 	if m.P.vigor() < m.P.custo_vigor(str(m.P.dados.coleta[perto.tipo].prof), float(m.P.dados.coleta[perto.tipo].vigor)):
 		m.hud.aviso("Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)")
 		return
+	# longe do veio ou do tronco: anda até encostar e só então começa (a picareta tem que bater na pedra)
+	if _falta(perto) > 0.2:
+		indo = {"o": perto, "ate": m.tempo + 3.0}
+		return
 	m.rede("coletar", {"no": perto.id})
+
+# quanto falta andar até ficar colado no coletável (veio: a pedra tem uns 2 m; árvore: o tronco)
+func _falta(o: Dictionary) -> float:
+	var encosto: float = 1.05 if o.tipo != "arvore" else float(o.r) + 0.5
+	return Vector2(o.pos.x - m.heroi.position.x, o.pos.z - m.heroi.position.z).length() - encosto
+
+# para onde o herói anda sozinho (main.direcao_joystick), ou zero
+func direcao_auto() -> Vector3:
+	if indo == null:
+		return Vector3.ZERO
+	var d: Vector3 = indo.o.pos - m.heroi.position
+	d.y = 0
+	return d.normalized() * 0.5 # andando, não correndo
 
 # o servidor começou uma batida (vem uma por batida; a coleta continua sozinha)
 func comecou(no_id: String, dur: float, prof: String) -> void:
@@ -283,7 +431,7 @@ func _passo_coleta(dt: float) -> void:
 	var n := int(coletando.t / meio)
 	if n != coletando.n and n < 2:
 		coletando.n = n
-		var anim := "descendente" if coletando.prof == "min" else ("golpe1" if m.heroi_anim.has_animation("golpe1") else "cruzado")
+		var anim := "descendente" # picareta e machado: de cima para baixo, de frente para a pedra ou o tronco
 		if m.heroi_anim.has_animation(anim):
 			var vel: float = m.heroi_anim.get_animation(anim).length / meio
 			m.heroi_anim.play(anim, 0.1, vel)
@@ -322,7 +470,9 @@ func coletou(ev: Dictionary) -> void:
 	var itens: Array = ev.get("itens", [])
 	for i in itens.size():
 		var it: Dictionary = itens[i]
-		m.fx.texto(m.heroi.position + Vector3(0, 0.35 + 0.34 * i, 0), "+%d %s" % [int(it.n), str(it.nome)], Color("e8d6a8"), 0.1 * i)
+		# em cima da cabeça, um pouco para o lado (o aviso de nível fica no meio da tela)
+		var lado := Vector3(cos(m.cam.yaw), 0, -sin(m.cam.yaw)) * 0.55
+		m.fx.texto(m.heroi.position + lado + Vector3(0, 0.3 * i, 0), "+%d %s" % [int(it.n), str(it.nome)], Color("e8d6a8"), 0.1 * i, 0.5, 1.95)
 
 # parou (o servidor mandou "coletaFim", ou o joystick aqui): ferramenta volta para a bolsa, arma volta para a mão
 func parar(avisar_servidor := false) -> void:

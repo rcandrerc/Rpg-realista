@@ -39,6 +39,8 @@ var modo := "Espada"
 var _icones := {}
 var aviso_txt := ""
 var _aviso_t := 0.0
+var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros avisos
+var _destaque_t := 0.0
 
 func _ready() -> void:
 	_tela = Control.new()
@@ -98,6 +100,10 @@ func recarga(acao: String, falta: float, total: float) -> void:
 			b.cd_max = max(total, 0.01)
 
 func aviso(t: String) -> void:
+	if t.begins_with("Nível "):
+		destaque_txt = t
+		_destaque_t = 3.2
+		return
 	aviso_txt = t
 	_aviso_t = 2.2
 
@@ -153,6 +159,8 @@ func _input(ev: InputEvent) -> void:
 func _process(dt: float) -> void:
 	if _aviso_t > 0:
 		_aviso_t -= dt
+	if _destaque_t > 0:
+		_destaque_t -= dt
 	_tela.queue_redraw()
 
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
@@ -223,3 +231,10 @@ func _desenhar() -> void:
 		var a: float = clamp(_aviso_t, 0.0, 1.0)
 		_tela.draw_string_outline(f, Vector2((_tela.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.6 * a))
 		_tela.draw_string(f, Vector2((_tela.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.92, 0.7, a))
+	if _destaque_t > 0:
+		var tam := 40
+		var wd := f.get_string_size(destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x
+		var ad: float = clamp(_destaque_t / 0.6, 0.0, 1.0) * clamp((3.2 - _destaque_t) / 0.15, 0.0, 1.0)
+		var pd := Vector2((_tela.size.x - wd) * 0.5, _tela.size.y * 0.36)
+		_tela.draw_string_outline(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, 10, Color(0.16, 0.08, 0.0, 0.85 * ad))
+		_tela.draw_string(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(1.0, 0.8, 0.3, ad))
