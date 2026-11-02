@@ -17,6 +17,8 @@ var coletando = null # {c, dur, t, n (golpes dados), prof}
 var ferramentas := {} # "min" -> picareta, "len" -> machado
 var perto = null # coletável mais perto (para o botão)
 var indo = null # {o, ate}: tocou em Coletar longe e o herói está andando até encostar
+const DuasMaos = preload("res://duas_maos.gd")
+var duas # duas_maos.gd: as duas mãos no cabo da picareta e do machado
 
 # cores de cada veio (minerio.gdshader): o bloco inteiro é o minério bruto, facetado, como a referência do André
 const BLOCO_VEIO := {
@@ -148,6 +150,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		corpo.add_child(mi)
 	var alto_pedra: float = principal.get_aabb().end.y
+	o.tri = principal.generate_triangle_mesh() # para achar a face da pedra onde a picareta bate
 	# sombra de contato: mancha escura e suave no chão em volta da base
 	var sombra := MeshInstance3D.new()
 	var pl := PlaneMesh.new()
@@ -288,8 +291,22 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 		raiz.add_child(f)
 		f.position = Vector3(0, 0.36, 0) # o cabo na mão: a ferramenta sai para cima da mão como a espada
 		f.scale = Vector3.ONE * escala
+		var cx := AABB()
+		var prim := true
 		for mi in f.find_children("*", "MeshInstance3D", true, false):
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			# tamanho no espaço da raiz (o cabo na origem): para pôr as duas mãos no cabo e a cabeça na pedra
+			var tr: Transform3D = f.transform
+			var no: Node = mi
+			var acc := Transform3D.IDENTITY
+			while no != f:
+				acc = (no as Node3D).transform * acc
+				no = no.get_parent()
+			var bx: AABB = (tr * acc) * mi.get_aabb()
+			cx = bx if prim else cx.merge(bx)
+			prim = false
+		raiz.set_meta("base", cx.position.y)
+		raiz.set_meta("topo", cx.end.y)
 	raiz.visible = false
 	m.add_child(raiz)
 	return raiz
@@ -372,7 +389,29 @@ func tocar_botao() -> void:
 # quanto falta andar até ficar colado no coletável (veio: a pedra tem uns 2 m; árvore: o tronco)
 func _falta(o: Dictionary) -> float:
 	var encosto: float = ENCOSTO_VEIO if o.tipo != "arvore" else float(o.r) + 0.5
+	if ferramentas.size() == 2:
+		# a cabeça da ferramenta, no golpe com as duas mãos, para na face da pedra (ou na casca do tronco)
+		var c: Vector2 = _cabeca_golpe(o)
+		encosto = c.x + (_face_veio(o, c.y) if o.tipo != "arvore" else float(o.r) * 0.7)
+		encosto = max(encosto, float(o.r) + 0.72) # mais perto que isso o corpo bate
 	return Vector2(o.pos.x - m.heroi.position.x, o.pos.z - m.heroi.position.z).length() - encosto
+
+# raio da pedra do veio na altura h, do lado de onde o herói está (raio contra o bloco principal)
+func _face_veio(o: Dictionary, h: float) -> float:
+	if not o.has("tri") or m.heroi == null:
+		return 0.62
+	var d: Vector3 = m.heroi.position - o.pos
+	d.y = 0
+	if d.length() < 0.01:
+		return 0.62
+	var raiz: Node3D = o.no
+	var de: Vector3 = raiz.global_transform.affine_inverse() * (o.pos + d.normalized() * 3.0 + Vector3(0, h, 0))
+	var para: Vector3 = raiz.global_transform.basis.inverse() * (-d.normalized())
+	var hit: Dictionary = (o.tri as TriangleMesh).intersect_ray(de, para)
+	if hit.is_empty():
+		return 0.5
+	var p: Vector3 = hit.position
+	return Vector2(p.x, p.z).length()
 
 # distância do centro do veio até o herói na hora de bater: a ponta da picareta desce na face da pedra
 const ENCOSTO_VEIO := 1.95
@@ -419,11 +458,13 @@ func _passo_coleta(dt: float) -> void:
 	var n := int(coletando.t / meio)
 	if n != coletando.n and n < 2:
 		coletando.n = n
-		if m.heroi_anim.has_animation("descendente") and m.heroi_anim.current_animation != "descendente":
+		if not coletando.get("duas", false) and m.heroi_anim.has_animation("descendente") and m.heroi_anim.current_animation != "descendente":
 			m.heroi_anim.play("descendente", 0.12, 0.0)
 		coletando["bateu"] = false
 	var f: float = clamp(fmod(coletando.t, meio) / meio, 0.0, 1.0) if n < 2 else 1.0
-	if m.heroi_anim.current_animation == "descendente":
+	if coletando.get("duas", false):
+		_passo_duas(o, f)
+	elif m.heroi_anim.current_animation == "descendente":
 		m.heroi_anim.seek(_tempo_golpe(f), true)
 	if not coletando.get("bateu", true) and f >= GOLPE_BATE:
 		coletando.bateu = true
@@ -514,6 +555,8 @@ func parar(avisar_servidor := false) -> void:
 		m.rede("coletar", {"no": "", "parar": true})
 	if m.acao.get("nome", "") == "coleta":
 		m.acao = {}
+	if duas != null and is_instance_valid(duas):
+		duas.peso = 0.0
 	for k in ferramentas:
 		ferramentas[k].visible = false
 		if ferramentas[k].get_parent() != m:
@@ -531,6 +574,88 @@ func _segurar_ferramenta(prof: String) -> void:
 	m.armar("Escalada") # as duas armas nas costas
 	m.prender(m.heroi_esq, f, L.espadaMao)
 	f.visible = true
+	# com as duas mãos: a ferramenta sai da mão e o código leva o cabo pelo golpe; as mãos seguem o cabo
+	if _preparar_duas() and coletando != null:
+		f.get_parent().remove_child(f)
+		m.add_child(f)
+		coletando["duas"] = true
+		m.heroi_anim.play("parada", 0.2)
+
+func _preparar_duas() -> bool:
+	if m.heroi_esq == null:
+		return false
+	if duas == null or not is_instance_valid(duas) or duas.get_parent() != m.heroi_esq:
+		if duas != null and is_instance_valid(duas):
+			duas.queue_free()
+		duas = DuasMaos.new()
+		m.heroi_esq.add_child(duas) # por último: depois da animação, do braço da espada e da inclinação
+		duas.preparar(m.heroi_esq)
+	return duas.pronto()
+
+# ---------- golpe com as duas mãos ----------
+# poses do cabo no espaço do herói (x direita, y cima, z frente): ângulo do cabo (graus, 0 = para a frente,
+# 90 = para cima) e onde fica o pé do cabo (a mão de baixo)
+const DUAS_PRONTO := {"ang": 55.0, "pe": Vector3(0.0, 1.0, 0.28)}
+const DUAS_ALTO := {"ang": 155.0, "pe": Vector3(0.0, 1.42, 0.02)}
+const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3)} # picareta: de cima para baixo na face da pedra
+const DUAS_TRONCO := {"ang": -6.0, "pe": Vector3(0.0, 1.12, 0.3)} # machado: quase reto no tronco, na altura do peito
+const DUAS_MAO_BAIXO := 0.04 # m do pé do cabo até a mão esquerda
+const DUAS_MAO_CIMA := 0.2 # até a mão direita
+const DUAS_GIRO := PI / 2.0 # giro da ferramenta em volta do cabo (rad): a ponta da picareta e o fio do machado para a frente
+
+func _pose_golpe(o: Dictionary) -> Dictionary:
+	return DUAS_TRONCO if o.tipo == "arvore" else DUAS_PEDRA
+
+# alcance da cabeça da ferramenta na pose do golpe: quanto ela vai à frente do herói e em que altura
+func _cabeca_golpe(o: Dictionary) -> Vector2:
+	var f: Node3D = ferramentas.get("len" if o.tipo == "arvore" else "min")
+	var P: Dictionary = _pose_golpe(o)
+	var comp: float = float(f.get_meta("topo", 0.8)) - float(f.get_meta("base", 0.0)) - 0.07 if f else 0.7
+	var a: float = deg_to_rad(float(P.ang))
+	return Vector2(P.pe.z + cos(a) * comp, P.pe.y + sin(a) * comp)
+
+func _passo_duas(o: Dictionary, f: float) -> void:
+	var fe: Node3D = ferramentas.get(coletando.prof)
+	if fe == null:
+		return
+	var A: Dictionary = DUAS_PRONTO
+	var B: Dictionary = DUAS_ALTO
+	var k := 0.0
+	var curva := 0.0
+	var G: Dictionary = _pose_golpe(o)
+	if f < 0.45: # ergue devagar
+		k = smoothstep(0.0, 1.0, f / 0.45)
+		curva = lerp(0.25, 0.0, k)
+	elif f < GOLPE_BATE: # desce rápido
+		A = DUAS_ALTO
+		B = G
+		k = (f - 0.45) / (GOLPE_BATE - 0.45)
+		k = k * k
+		curva = k
+	elif f < 0.75: # cravada
+		A = G
+		B = G
+		curva = 1.0
+	else: # puxa de volta
+		A = G
+		B = DUAS_PRONTO
+		k = smoothstep(0.0, 1.0, (f - 0.75) / 0.25)
+		curva = lerp(1.0, 0.25, k)
+	var ang: float = deg_to_rad(lerp(float(A.ang), float(B.ang), k))
+	var pe: Vector3 = (A.pe as Vector3).lerp(B.pe, k)
+	var h: Node3D = m.heroi
+	var frente: Vector3 = Vector3(sin(h.rotation.y), 0, cos(h.rotation.y))
+	var cima := Vector3.UP
+	var dir: Vector3 = frente.cross(cima)
+	var cabo: Vector3 = (frente * cos(ang) + cima * sin(ang)).normalized()
+	var P0: Vector3 = h.global_position + dir * pe.x + cima * pe.y + frente * pe.z
+	var b := Basis(dir, cabo, dir.cross(cabo)).orthonormalized() * Basis(Vector3.UP, DUAS_GIRO)
+	fe.global_transform = Transform3D(b, P0 - cabo * float(fe.get_meta("base", 0.0)))
+	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
+	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
+	duas.cabo = cabo
+	duas.curva = curva
+	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som
 func criou(ev: Dictionary) -> void:
