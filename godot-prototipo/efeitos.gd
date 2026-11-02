@@ -1043,6 +1043,7 @@ var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
 var _lado_numero := 1.0
 var _ultimo_numero := {} # coluna (-1 ou 1) -> último número dela
 # Número de dano (ou cura) que sobe e some
+const NUMERO_ALTURA := 2.5 # m acima dos pés: uns 0,3 m acima do nome (direção de arte; era 1,9 e encostava no nome)
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
 	l.text = str(int(round(valor))) + ("!" if critico else "")
@@ -1063,7 +1064,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	# espalha para o lado da tela (±0,3 m) e sai 0,1 s depois do anterior, para os números não se encavalarem
 	# uns 25 px para o lado da tela, alternando esquerda e direita (convertido para metros pela distância da câmera)
 	var cam := get_viewport().get_camera_3d()
-	var base := pos + Vector3(0, 1.9, 0)
+	var base := pos + Vector3(0, NUMERO_ALTURA, 0)
 	_lado_numero = -_lado_numero
 	if cam:
 		var px_m: float = 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(base) / max(1.0, get_viewport().get_visible_rect().size.y)
@@ -1072,6 +1073,11 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 		var ult = _ultimo_numero.get(_lado_numero)
 		if is_instance_valid(ult):
 			base.y = max(base.y, ult.global_position.y + 18.0 * px_m + l.font_size * l.pixel_size)
+		# nunca em cima do painel de vida (canto de cima à esquerda): empurra para a direita
+		var sp := cam.unproject_position(base)
+		var painel := Rect2(8, 4, 350, 124)
+		if painel.has_point(sp):
+			base += cam.global_basis.x * (painel.end.x - sp.x + 24.0) * px_m
 	l.global_position = base
 	_ultimo_numero[_lado_numero] = l
 	var agora := Time.get_ticks_msec() / 1000.0

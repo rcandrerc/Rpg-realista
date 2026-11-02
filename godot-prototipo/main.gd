@@ -1672,6 +1672,7 @@ func barras_perto() -> void:
 # o "Firme!" fica no lugar do nome enquanto dura (direção de arte)
 const NOME_OFFSET := 52.0
 const NOME_PASSO := (14.0 + 18.0) * 72.0 / 14.0 # letra de 14 px + 18 px de espaço, em unidades da fonte (72)
+const NOME_PASSO_M := 0.42 # m que cada nome empilhado sobe (com a barra junto)
 func empilhar_nomes() -> void:
 	var lista := []
 	for e in inimigos:
@@ -1688,7 +1689,11 @@ func empilhar_nomes() -> void:
 				k += 1
 		if nome.visible:
 			feitos.append(e)
-		nome.offset.y = NOME_OFFSET + k * NOME_PASSO
+		# nome, fundo e barra sobem juntos (4 px entre nome e barra continuam iguais)
+		var y_pilha: float = 1.95 + k * NOME_PASSO_M
+		nome.position.y = y_pilha
+		e.barra.position.y = y_pilha
+		e.barra.get_parent().get_child(e.barra.get_index() - 1).position.y = y_pilha
 		var c = combate._corpos.get(e.no)
 		var firme_on: bool = c != null and c.firme_txt != null and is_instance_valid(c.firme_txt) and c.firme_txt.visible
 		nome.modulate.a = 0.0 if firme_on else 1.0
