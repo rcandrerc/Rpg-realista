@@ -1,0 +1,23 @@
+# Junta o APK já assinado com a chave oficial (dividido em partes por causa do limite de 100 MB do GitHub)
+# e deixa para baixar nos Artifacts desta execução.
+name: APK assinado (chave oficial)
+on:
+  push:
+    branches: [apk-chave-oficial]
+jobs:
+  juntar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - run: |
+          cat apk-assinado/parte_* > rpg-realista.apk
+          echo "f4baeb4e7f2d592711e6792a5558b373f3a321cb7213a16021745cc7d4168e4e  rpg-realista.apk" | sha256sum -c
+          $(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner verify --print-certs rpg-realista.apk | grep -i "SHA-1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpg-realista-apk-chave-oficial
+          path: rpg-realista.apk
+          compression-level: 0
+          retention-days: 30
