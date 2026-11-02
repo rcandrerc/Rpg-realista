@@ -35,6 +35,12 @@ var so_tronco := false # a ação de agora pode tocar só no tronco quando o her
 var _len_andar := 1.0
 var _len_corrida := 1.0
 var _ts := 1.0 # velocidade pedida para a ação de agora
+var _tem_arrancada := false
+const ARR_INICIO := 0.35 # s: antes disso a animação do Mixamo está parada na pose do fuzil (quadril torto)
+var _pernas := 0.0 # quanto as pernas da arrancada mandam (0 = locomoção)
+var _pernas_alvo := 0.0
+var arrancando := 0.0 # segundos de animação da arrancada já tocados (0 = parada)
+var _arr_ritmo := 1.0
 
 func _init(p: AnimationPlayer) -> void:
 	player = p
@@ -111,7 +117,33 @@ func _init(p: AnimationPlayer) -> void:
 	bt.add_node("tronco", tronco, Vector2(840, 300))
 	bt.connect_node("tronco", 0, "corpo")
 	bt.connect_node("tronco", 1, "abu")
-	bt.connect_node("output", 0, "tronco")
+	# arrancada: só o quadril e as pernas da animação de sair correndo, por cima de tudo (os braços ficam com a
+	# corrida e a arma). A animação do Mixamo segura um fuzil, por isso o resto do corpo não toca.
+	if player.has_animation("arrancada"):
+		anim.call("arrancada", "arr", Vector2(600, 1100))
+		bt.add_node("ts_arr", AnimationNodeTimeScale.new(), Vector2(750, 1100))
+		bt.add_node("seek_arr", AnimationNodeTimeSeek.new(), Vector2(900, 1100))
+		bt.connect_node("ts_arr", 0, "arr")
+		bt.connect_node("seek_arr", 0, "ts_arr")
+		var pernas := AnimationNodeBlend2.new()
+		pernas.filter_enabled = true
+		var baixo := {}
+		if esq:
+			for n in ["J_Bip_C_Hips", "J_Bip_L_UpperLeg", "J_Bip_L_LowerLeg", "J_Bip_L_Foot", "J_Bip_L_ToeBase",
+					"J_Bip_R_UpperLeg", "J_Bip_R_LowerLeg", "J_Bip_R_Foot", "J_Bip_R_ToeBase"]:
+				baixo[n] = true
+		var ref_a: Animation = player.get_animation("arrancada")
+		for t in ref_a.get_track_count():
+			var cam := ref_a.track_get_path(t)
+			if cam.get_subname_count() > 0 and baixo.has(str(cam.get_subname(0))):
+				pernas.set_filter_path(cam, true)
+		bt.add_node("pernas", pernas, Vector2(1020, 300))
+		bt.connect_node("pernas", 0, "tronco")
+		bt.connect_node("pernas", 1, "seek_arr")
+		bt.connect_node("output", 0, "pernas")
+		_tem_arrancada = true
+	else:
+		bt.connect_node("output", 0, "tronco")
 	tree.tree_root = bt
 	tree.active = true
 	_aplicar(0.0)
@@ -160,6 +192,25 @@ func play(nome: String, fade := -1.0, vel := 1.0) -> void:
 	_corpo_vel = vel_fade
 	so_tronco = false
 
+# arrancada: as pernas saem do parado com a animação própria (ritmo = quanto mais rápida que o original)
+func arrancar(ritmo: float) -> void:
+	if not _tem_arrancada:
+		return
+	_arr_ritmo = ritmo
+	arrancando = ARR_INICIO
+	tree.set("parameters/ts_arr/scale", ritmo)
+	tree.set("parameters/seek_arr/seek_request", ARR_INICIO)
+	_pernas_alvo = 1.0
+
+func soltar_arrancada() -> void:
+	_pernas_alvo = 0.0
+
+# muda o ritmo da ação que está tocando (a freada derrapa rápido e se arruma devagar)
+func ritmo_acao(v: float) -> void:
+	_ts = v
+	for parte in ["", "u"]:
+		tree.set("parameters/ts%s%d/scale" % [parte, _slot], v)
+
 func seek(t: float, _atualizar := true) -> void:
 	for parte in ["", "u"]:
 		tree.set("parameters/seek%s%d/seek_request" % [parte, _slot], t)
@@ -185,6 +236,11 @@ func atualizar(dt: float, vel: float) -> void:
 	_tronco = move_toward(_tronco, _tronco_alvo, dt * max(_corpo_vel, 6.0))
 	_ab = move_toward(_ab, _ab_alvo, dt * _ab_vel)
 	_idle = move_toward(_idle, _idle_alvo, dt * 5.0)
+	if arrancando > 0.0:
+		arrancando += dt * _arr_ritmo
+	_pernas = move_toward(_pernas, _pernas_alvo, dt * (12.0 if _pernas_alvo > _pernas else 6.0))
+	if _pernas <= 0.0 and _pernas_alvo <= 0.0:
+		arrancando = 0.0
 	_aplicar(dt)
 
 func _aplicar(_dt: float) -> void:
@@ -195,3 +251,5 @@ func _aplicar(_dt: float) -> void:
 	tree.set("parameters/abu/blend_amount", _ab)
 	tree.set("parameters/corpo/blend_amount", _corpo)
 	tree.set("parameters/tronco/blend_amount", _tronco)
+	if _tem_arrancada:
+		tree.set("parameters/pernas/blend_amount", _pernas)

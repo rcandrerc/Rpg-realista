@@ -41,6 +41,10 @@ export const DURACAO = {
   esc_diagonal_wall_run: 1.133, esc_sprint_to_wall_climb: 1.8, esc_start_climbing_ladder: 2.033, esc_wall_run: 2.1,
   mx_hanging_by_hands_against_wall: 2.333, mx_hanging_by_hands_gently_swaying: 2.333, mx_hanging_from_a_ledge_idle: 4.7,
   mx_left_braced_hang_shimmy: 1.167, mx_right_braced_hang_shimmy: 1.167,
+  // Mixamo Run To Stop e Running Turn 180 (app Godot: o jogo leva o corpo pelo caminho do quadril, ver RAIZ)
+  freada: 1.8, meia_volta: 0.667,
+  // Mixamo Rifle Start Run: no app Godot só as pernas e o quadril tocam (os braços seguram fuzil)
+  arrancada: 1.733,
 };
 
 // Pedaços de animação: [arquivo, início, fim] em fração da duração. O combo de espada do Mixamo
@@ -57,7 +61,11 @@ for (const [nome, [arq, ini, fim]] of Object.entries(CORTES)) DURACAO[nome] = DU
 // Nestas o quadril não sobe nem desce na animação: quem dá a altura do pulo é o jogo
 export const SEM_ALTURA = ['pulo', 'puloCorrendo', 'mortal', 'queda'];
 // Nestas o quadril não anda para a frente na animação: quem leva o corpo é o jogo (a investida já sai no impulso)
-export const SEM_AVANCO = ['investida'];
+export const SEM_AVANCO = ['investida', 'freada', 'meia_volta', 'arrancada'];
+// Nestas o quadril não gira em volta do corpo: quem vira o herói é o jogo, pelo giro gravado (meia-volta correndo)
+export const SEM_GIRO = ['meia_volta'];
+// Animações em que o jogo (app Godot) anda e vira o corpo pelo caminho do quadril da própria animação
+export const RAIZ = ['freada', 'meia_volta'];
 
 // Escalada (animações do Mixamo, pasta mixamo/movimento e mixamo/combate do New-Game-Anime-fontes).
 // "traj" = caminho do quadril na animação em 13 pontos: [lado (+ = esquerda), sobe, frente] em metros, já na escala do herói.
