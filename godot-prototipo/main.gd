@@ -1056,6 +1056,7 @@ func cancelar_canal(motivo := "Cancelado") -> void:
 	h.mana = min(P.st.manaMax, h.mana + acao.mana * 0.7)
 	acao = {}
 	fx.status_fim(heroi)
+	fx.cancelar_conjura(heroi)
 	rede("cancelar")
 	hud.aviso(motivo)
 	heroi_anim.play("parada" if h.modo == "Magia" else "espada_parada", 0.15)

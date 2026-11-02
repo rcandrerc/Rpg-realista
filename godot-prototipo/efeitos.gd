@@ -15,6 +15,18 @@ func _som(nome: String, pos, vol := 0.0, tom := 0.08) -> void:
 	if mundo and mundo.sons:
 		mundo.sons.tocar(nome, vol, tom, pos)
 
+# Sons das skills do Quimera (sons/q_*.ogg). CARGA = som enquanto concentra a magia, com o tom que o Quimera usa (CH do mgSnd);
+# SOM_AREA = explosão em volta do herói. Pedido do André (2026-11-02): trocar os sons das skills pelos do Quimera.
+const CARGA := {"bola": ["q_carga_fogo", 1.0], "explosao": ["q_carga_fogo", 1.1], "meteoros": ["q_carga_fogo", 0.85],
+	"gelo": ["q_carga_gelo", 1.0], "cura": ["q_carga_cura", 1.0], "raio": ["q_carga_arcano", 1.1], "vortice": ["q_carga_arcano", 0.9]}
+const SOM_AREA := {"explosao": "q_anel", "gelo": "q_gelo", "giro": "q_golpe", "relampago": "q_golpe"}
+var _raio_som_t := -9.0
+
+func _som_voz(nome: String, pos, vol := 0.0, tom := 0.03, tom_base := 1.0):
+	if mundo and mundo.sons:
+		return mundo.sons.tocar_voz(nome, vol, tom, pos, tom_base)
+	return null
+
 # cores (brilho, cor) de cada habilidade, como no site no estilo anime
 const FXCOR := {
 	"bola": ["fff2b0", "ff7a1a"], "explosao": ["ffe6a0", "ff4a12"], "meteoros": ["ffe0a0", "ff5a12"],
@@ -197,6 +209,83 @@ shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
 uniform vec4 cor = vec4(1.0);
 void fragment() { ALBEDO = mix(cor.rgb, vec3(1.0), 0.3); ALPHA = COLOR.a; }
+"""
+
+# rocha do Meteoro: basalto escuro com rachaduras de lava acesas e borda em brasa
+const SH_ROCHA := """
+shader_type spatial;
+render_mode cull_back;
+uniform float calor = 1.0;
+varying vec3 vP;
+%s
+void vertex() { vP = VERTEX; }
+void fragment() {
+	float n = fbm(vP * 2.4 + vec3(1.7, 0.3, 4.1));
+	float g = fbm(vP * 6.0 + 9.0);
+	float fenda = smoothstep(0.075, 0.0, abs(n - 0.5)) + smoothstep(0.05, 0.0, abs(fbm(vP * 4.2 + 2.0) - 0.48)) * 0.6;
+	fenda = clamp(fenda, 0.0, 1.0);
+	vec3 pedra = mix(vec3(0.07, 0.055, 0.05), vec3(0.24, 0.19, 0.16), g);
+	float borda = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.4);
+	float pulso = 0.85 + 0.15 * sin(TIME * 9.0 + n * 25.0);
+	ALBEDO = pedra * (1.0 - fenda * 0.8);
+	ROUGHNESS = 0.92;
+	SPECULAR = 0.2;
+	EMISSION = (vec3(1.0, 0.42, 0.07) * fenda * 4.0 * pulso + vec3(1.0, 0.32, 0.04) * borda * 2.2 + vec3(0.25, 0.06, 0.0) * g) * calor;
+}
+"""
+# aura de fogo em volta da rocha: só a borda acesa, labaredas correndo para trás
+const SH_AURA := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
+uniform float op = 1.0;
+varying vec3 vP;
+%s
+void vertex() { vP = VERTEX; }
+void fragment() {
+	float f = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+	float n = fbm(vP * 3.0 + vec3(0.0, 0.0, TIME * 7.0));
+	float a = smoothstep(0.45, 0.95, f + n * 0.35 - 0.1) * (1.0 - smoothstep(0.93, 1.0, f));
+	vec3 cor = mix(vec3(0.9, 0.16, 0.02), vec3(1.0, 0.62, 0.18), smoothstep(0.45, 0.9, n));
+	ALBEDO = cor;
+	ALPHA = clamp(a * op * 0.75, 0.0, 1.0);
+}
+"""
+# cúpula da explosão: bola de fogo que cresce, com miolo claro e borda escurecendo
+const SH_DOMO := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
+uniform float op = 1.0;
+varying vec3 vP;
+%s
+void vertex() { vP = VERTEX; }
+void fragment() {
+	float k = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+	float n = fbm(vP * 2.6 + vec3(0.0, -TIME * 3.0, 0.0));
+	float chama = smoothstep(0.25, 0.8, n * 0.85 + k * 0.45);
+	vec3 cor = mix(vec3(0.76, 0.25, 0.1), vec3(1.0, 0.54, 0.23), chama); // vermelho-escuro -> laranja #ff8a3a, sem branco
+	ALBEDO = cor;
+	ALPHA = clamp(chama * op * (0.35 + 0.65 * k), 0.0, 1.0);
+}
+"""
+# cratera do Meteoro no chão: terra queimada com rachaduras em brasa que esfriam (calor 1 -> 0)
+const SH_CRATERA := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
+uniform float calor = 1.0;
+uniform float op = 1.0;
+uniform float semente = 0.0;
+%s
+void fragment() {
+	vec2 p = (UV - 0.5) * 2.0;
+	float r = length(p);
+	float n = fbm(vec3(p * 3.0, semente));
+	float borda = 1.0 - smoothstep(0.55 + n * 0.35, 1.0, r);
+	float fenda = smoothstep(0.06, 0.0, abs(fbm(vec3(p * 5.0, semente + 3.0)) - 0.5)) * (1.0 - smoothstep(0.2, 0.85, r));
+	vec3 queimado = mix(vec3(0.05, 0.04, 0.035), vec3(0.16, 0.12, 0.1), n);
+	vec3 brasa = mix(vec3(1.0, 0.3, 0.03), vec3(1.0, 0.75, 0.3), fenda) * 1.6;
+	ALBEDO = mix(queimado, brasa, fenda * calor);
+	ALPHA = clamp(borda * 0.88 * op + fenda * calor * op, 0.0, 1.0);
+}
 """
 
 var _sh := {}
@@ -397,6 +486,33 @@ func _esfera_malha() -> Mesh:
 		_malhas.esfera = m
 	return _malhas.esfera
 
+# rocha: esfera amassada por ruído (sempre a mesma forma; cada meteoro gira diferente)
+func _rocha_malha() -> Mesh:
+	if not _malhas.has("rocha"):
+		var base := SphereMesh.new()
+		base.radius = 1.0
+		base.height = 2.0
+		base.radial_segments = 28
+		base.rings = 18
+		var arr := base.get_mesh_arrays()
+		var ruido := FastNoiseLite.new()
+		ruido.seed = 7
+		ruido.frequency = 1.1
+		ruido.fractal_octaves = 3
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		for i in idx:
+			var v: Vector3 = vs[i]
+			var d := v.normalized() if v.length() > 0.001 else Vector3.UP
+			var k := 1.0 + ruido.get_noise_3dv(d * 1.3) * 0.32 + ruido.get_noise_3dv(d * 4.0 + Vector3(5, 1, 2)) * 0.07
+			st.add_vertex(d * k * Vector3(1.0, 0.88, 1.06))
+		st.index()
+		st.generate_normals()
+		_malhas.rocha = st.commit()
+	return _malhas.rocha
+
 func _lua_malha() -> Mesh:
 	if not _malhas.has("lua"):
 		var st := SurfaceTool.new()
@@ -485,6 +601,10 @@ var aneis: Array = []
 var giros: Array = []
 var raios: Array = []
 var meteoros: Array = []
+var domos: Array = [] # cúpula de fogo do Meteoro
+var ondas: Array = [] # onda de choque do Meteoro
+var pedras: Array = [] # pedaços da rocha voando
+var crateras: Array = [] # chão queimado em brasa
 var projeteis: Array = []
 var agenda: Array = []
 var bolhas: Array = [] # escudo, gelo e atordoado presos num corpo: {m, corpo, t, dur, op, alt, gira}
@@ -503,7 +623,11 @@ func _ready() -> void:
 # ---------------------------------------------------------------- efeitos
 # Começo da habilidade: círculo no chão, coluna de luz, labaredas, fumaça e brasas. corpo = nó do personagem
 func conjura(corpo: Node3D, hab: String, dur: float, maos: Callable = Callable()) -> void:
-	_som("magia", corpo.global_position, -4.0)
+	var voz = null
+	if CARGA.has(hab):
+		voz = _som_voz(CARGA[hab][0], corpo.global_position, -3.0, 0.02, CARGA[hab][1])
+	else:
+		_som("magia", corpo.global_position, -4.0)
 	var cores := cor_de(hab)
 	var cb = cores[0]
 	var cc = cores[1]
@@ -529,7 +653,7 @@ func conjura(corpo: Node3D, hab: String, dur: float, maos: Callable = Callable()
 	g.add_child(col)
 	var p := corpo.global_position
 	circulos.append({"g": g, "a": a, "b": b, "col": col, "corpo": corpo, "cb": cb, "cc": cc, "r": r, "magia": magia, "t": 0.0, "dur": dur, "f": 0.0, "vivo": true,
-		"luz": luz(cc, 1.2, 7.0, dur + 0.3, corpo), "maos": maos})
+		"luz": luz(cc, 1.2, 7.0, dur + 0.3, corpo), "maos": maos, "voz": voz, "voz_som": voz.stream if voz else null})
 	fumaca_chao(p.x, p.z, r * 0.9, 22)
 	for i in 36:
 		var ang := i / 36.0 * TAU
@@ -542,22 +666,30 @@ func conjura(corpo: Node3D, hab: String, dur: float, maos: Callable = Callable()
 	poeira(p.x, p.z, r, 40, cb, cc)
 
 # Explosão de área: círculo gigante, fogo, fumaça e clarão
-func area(x: float, z: float, r: float, cores: Array, forte := 1.0, y := 0.0) -> void:
-	var m := circulo_malha(true)
-	m.position = Vector3(x, y + 0.06, z)
-	areas.append({"m": m, "t": 0.0, "r": r, "cc": cores[1]})
-	luz(cores[1], 4.0 * forte, r * 3.0, 0.5).l.global_position = Vector3(x, y + 1.2, z)
+# contido = sem o círculo no chão e com clarão laranja curto e fraco (Meteoro: direção de arte, 2026-11-02)
+func area(x: float, z: float, r: float, cores: Array, forte := 1.0, y := 0.0, contido := false) -> void:
+	if not contido:
+		var m := circulo_malha(true)
+		m.position = Vector3(x, y + 0.06, z)
+		areas.append({"m": m, "t": 0.0, "r": r, "cc": cores[1]})
+	luz(cores[1], (2.5 if contido else 4.0) * forte, r * 3.0, 0.5).l.global_position = Vector3(x, y + 1.2, z)
 	for i in int(round(55 * forte)):
 		var a := randf() * TAU
 		var d := r * sqrt(randf())
 		labareda(x + cos(a) * d, y + 0.05, z + sin(a) * d, cores[0], cores[1], 1.1 + 0.5 * forte)
 	surto(x, y + 0.4 * H, z, int(round(40 * forte)), cores[0], cores[1], 9.0)
 	fumaca_chao(x, z, r * 0.8, int(round(30 * forte)), "77707e", 1.6)
-	part(FOGO, x, y + 0.5 * H, z, 0, 0, 0, 0.3, r * 0.7, r * 1.4, "ffffff", cores[1], 0.6)
+	if contido:
+		part(FOGO, x, y + 0.5 * H, z, 0, 0, 0, 0.2, r * 0.5, r * 1.0, "ff8a3a", "c2401a", 0.35)
+	else:
+		part(FOGO, x, y + 0.5 * H, z, 0, 0, 0, 0.3, r * 0.7, r * 1.4, "ffffff", cores[1], 0.6)
 
 # habilidades de área em volta do herói (Explosão, Salto Esmagador, Giro da Lâmina)
 func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0) -> void:
-	_som("explosao", Vector3(x, y, z), -2.0 + min(4.0, r), 0.1)
+	if SOM_AREA.has(fx):
+		_som(SOM_AREA[fx], Vector3(x, y, z), -2.0 if fx in ["giro", "relampago"] else 0.0, 0.05)
+	else:
+		_som("explosao", Vector3(x, y, z), -2.0 + min(4.0, r), 0.1)
 	var cores := cor_de(fx)
 	if fx == "giro": # três cortes de luz rodando em volta, disco no chão, faíscas e clarão
 		var g := Node3D.new()
@@ -598,6 +730,7 @@ func anel(x: float, z: float, r: float, cor, dur: float, y := 0.0) -> void:
 
 # Estocada da Investida acertando: corte de luz de pé no alvo, faíscas e clarão
 func impacto(x: float, z: float, ry: float, fx: String, y := 0.0) -> void:
+	_som("q_golpe", Vector3(x, y, z), -1.0, 0.06)
 	var cores := cor_de(fx)
 	var g := Node3D.new()
 	add_child(g)
@@ -673,26 +806,142 @@ func chuva(x: float, z: float, r: float, ondas: int, ao_cair: Callable) -> void:
 			o.visible = false
 			meteoros.append({"o": o, "de": de, "para": alvo, "t": -(0.25 + k * 0.22 + n * 0.06) + 0.35, "dur": 0.35, "cb": cores[0], "cc": cores[1], "fn": ao_cair if n == 0 else Callable()})
 
-# Meteoro do Quimera: runa no chão do alvo e UMA rocha em chamas que cai depois de "queda" segundos. ao_cair(pos) = dano
+# Meteoro do Quimera: runa no chão do alvo e UMA rocha gigante em chamas que cai depois de "queda" segundos, bate no chão e
+# explode pegando todo mundo na área (pedido do André, 2026-11-02: "aquela bola gigante quando bate no chão, explode e pega todo mundo").
+# ao_cair(pos) = dano (offline; online quem decide é o servidor, em Simulacao.soltarQ)
+const METEORO_RAIO := 1.45 # m: a rocha (o herói tem 1,65 m de altura)
+const METEORO_CAI := 0.85 # s caindo (o resto da "queda" é o aviso no chão)
+const METEORO_ALTO := 22.0 # m de onde ela começa a cair
 func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Callable) -> void:
 	var cores := cor_de("meteoros")
+	# runa de aviso: vermelho-escuro, só linhas, entra em 0,15 s, no máximo 0,5 e some em 0,3 s depois do impacto
 	var m := circulo_malha(true)
 	m.position = Vector3(x, y + 0.07, z)
 	m.scale = Vector3.ONE * r
-	campos.append({"m": m, "x": x, "z": z, "r": r, "t": 0.0, "dur": queda + 0.45, "cb": cores[0], "cc": cores[1], "fraco": false})
+	campos.append({"m": m, "x": x, "z": z, "r": r, "t": 0.0, "dur": queda + 0.3, "cb": cores[0], "cc": "c2401a", "fraco": false, "max": 0.5, "entra": 0.15, "sai": 0.3})
+	anel(x, z, r, "c2401a", queda + 0.3, y) # borda da área, para saber quem vai ser pego
 	var alvo := Vector3(x, y, z)
-	var o := cometa("fogo", 0.75, 7.0)
-	var de := alvo + Vector3(4.0, 15.0, 2.0)
+	# cai 15° inclinada para a câmera, de 22 m: a pedra atravessa a tela em vez de vir de cima, fora da vista
+	var para_cam := Vector3(1.0, 0.0, 0.5).normalized()
+	var cam3 := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam3:
+		var v := cam3.global_position - alvo
+		v.y = 0.0
+		if v.length() > 0.5:
+			para_cam = v.normalized()
+	var de := alvo + Vector3.UP * METEORO_ALTO + para_cam * METEORO_ALTO * tan(deg_to_rad(15.0))
+	var o := cometa("fogo", METEORO_RAIO * 1.05, 16.0)
+	var cm: Dictionary = o.get_meta("cm")
+	cm.cab.visible = false # no lugar da cabeça de fogo vai a rocha com aura
+	var rocha := MeshInstance3D.new()
+	rocha.mesh = _rocha_malha()
+	rocha.material_override = material("rocha_lava", SH_ROCHA % RUIDO, {"calor": 1.0})
+	rocha.scale = Vector3.ONE * METEORO_RAIO
+	rocha.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	o.add_child(rocha)
+	var aura := MeshInstance3D.new()
+	aura.mesh = _esfera_malha()
+	aura.material_override = material("aura_fogo", SH_AURA % RUIDO, {"op": 1.0})
+	aura.scale = Vector3.ONE * METEORO_RAIO * 1.22
+	aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	o.add_child(aura)
 	o.position = de
 	o.look_at_from_position(de, alvo, Vector3.UP)
 	o.visible = false
-	var cai := 0.4
-	meteoros.append({"o": o, "de": de, "para": alvo, "t": -(queda - cai), "dur": cai, "cb": cores[0], "cc": cores[1], "fn": ao_cair, "r_imp": r, "forte": 1.6})
+	var cai: float = min(METEORO_CAI, queda)
+	_som("q_meteoro_cai", alvo, 1.0, 0.03)
+	meteoros.append({"o": o, "de": de, "para": alvo, "t": -(queda - cai), "dur": cai, "cb": cores[0], "cc": cores[1], "fn": ao_cair, "r_imp": r,
+		"forte": 1.6, "gigante": true, "rocha": rocha, "gira": Vector3(randf_range(2, 4), randf_range(-2, 2), randf_range(1, 3))})
 	luz(cores[1], 2.0, r * 2.0, queda).l.global_position = alvo + Vector3(0, 1.0, 0)
+
+# a rocha bateu: clarão, cúpula de fogo, onda de choque, anel de chamas correndo para fora, pedras voando,
+# coluna de fumaça e a cratera em brasa que esfria devagar. Tremida e vibração para quem está perto.
+func meteoro_impacto(p: Vector3, r: float) -> void:
+	var cores := cor_de("meteoros")
+	_som("q_meteoro_impacto", p, 3.0, 0.04)
+	area(p.x, p.z, r, cores, 1.4, p.y, true)
+	luz("ff8a3a", 4.0, r * 4.0, 0.6).l.global_position = p + Vector3(0, 2.0, 0)
+	# cúpula de fogo que cresce e some
+	var d := MeshInstance3D.new()
+	d.mesh = _esfera_malha()
+	d.material_override = material("domo_fogo", SH_DOMO % RUIDO, {"op": 1.0})
+	d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	d.position = p
+	add_child(d)
+	domos.append({"m": d, "t": 0.0, "dur": 0.9, "r": r * 0.85})
+	# coluna de fogo subindo do centro (a explosão tem altura, não é só um disco no chão)
+	for i in 30:
+		var a := randf() * TAU
+		var dd := randf() * r * 0.3
+		part(FOGO, p.x + cos(a) * dd, p.y + 0.3, p.z + sin(a) * dd, cos(a) * randf_range(0.5, 2.0), randf_range(5.0, 13.0), sin(a) * randf_range(0.5, 2.0), randf_range(0.5, 0.9), randf_range(0.45, 0.8) * H, 0.15 * H, "ff9a4a", "c2401a", 0.55, -2.0, 1.2)
+	# onda de choque: argola baixa que corre até além da área
+	for k in 2:
+		var mi := MeshInstance3D.new()
+		var t := TorusMesh.new()
+		t.inner_radius = 0.86
+		t.outer_radius = 1.0
+		t.rings = 64
+		t.ring_segments = 4
+		mi.mesh = t
+		mi.material_override = material("basico", SH_BASICO, {"cor": c("ff8a3a" if k == 0 else "c2401a"), "op": 0.5})
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = p + Vector3(0, 0.15 + k * 0.05, 0)
+		mi.scale = Vector3(0.2, 0.04, 0.2)
+		add_child(mi)
+		ondas.append({"m": mi, "t": -k * 0.08, "dur": 0.5, "r": r * (1.35 - k * 0.25)})
+	# anel de chamas correndo para fora
+	for passo in 6:
+		var rr: float = r * (0.25 + passo * 0.15)
+		agenda.append({"t": passo * 0.05, "fn": func():
+			for i in 22:
+				var a := randf() * TAU
+				labareda(p.x + cos(a) * rr, p.y + 0.05, p.z + sin(a) * rr, "ffd06a", "ff5a12", 1.9)})
+	# coluna de fumaça escura subindo
+	for i in 26:
+		var a := randf() * TAU
+		var dd := randf() * r * 0.35
+		part(FUMA, p.x + cos(a) * dd, p.y + 0.5, p.z + sin(a) * dd, cos(a) * 0.6, randf_range(3.0, 6.5), sin(a) * 0.6, randf_range(1.4, 2.4), 0.9 * H, randf_range(1.6, 2.6) * H, "5a4a46", "26201f", 0.75, -0.6, 0.9)
+	# brasas e faíscas para todo lado
+	for i in 40:
+		var a := randf() * TAU
+		var v := randf_range(5.0, 12.0)
+		part(FOGO, p.x, p.y + 0.6, p.z, cos(a) * v * 0.7, randf_range(4.0, 11.0), sin(a) * v * 0.7, randf_range(0.7, 1.3), 0.08 * H, 0.02 * H, "fff2b0", "ff6a1a", 1.0, -9.0, 0.3)
+	# pedras da rocha que se partiu
+	for i in 12:
+		var a := randf() * TAU
+		var v := randf_range(4.0, 9.0)
+		var pe := MeshInstance3D.new()
+		pe.mesh = _rocha_malha()
+		pe.material_override = material("rocha_lava", SH_ROCHA % RUIDO, {"calor": 1.0})
+		pe.scale = Vector3.ONE * randf_range(0.14, 0.32)
+		pe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pe.position = p + Vector3(cos(a) * 0.6, 0.6, sin(a) * 0.6)
+		add_child(pe)
+		pedras.append({"m": pe, "v": Vector3(cos(a) * v, randf_range(5.0, 10.0), sin(a) * v), "gira": Vector3(randf_range(-9, 9), randf_range(-9, 9), randf_range(-9, 9)), "t": 0.0})
+	# cratera em brasa
+	var cr := MeshInstance3D.new()
+	cr.mesh = _plano(2.0)
+	cr.material_override = material("cratera", SH_CRATERA % RUIDO, {"calor": 1.0, "op": 1.0, "semente": randf() * 50.0})
+	cr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cr.position = p + Vector3(0, 0.05, 0)
+	cr.scale = Vector3.ONE * r * 0.62
+	cr.rotation.y = randf() * TAU
+	add_child(cr)
+	crateras.append({"m": cr, "t": 0.0, "dur": 6.0})
+	# tranco na câmera e vibração, mais fortes perto
+	if mundo and mundo.get("heroi") and mundo.get("cam"):
+		var dist: float = mundo.heroi.global_position.distance_to(p)
+		if dist < 28.0:
+			var q: float = 1.0 - dist / 28.0
+			mundo.cam.tremer(0.75 * q)
+			if mundo.has_method("vibrar"):
+				mundo.vibrar(int(30 + 70 * q))
 
 # Raio em Cadeia: zigue-zague de luz da mão (ou do último alvo) até o próximo alvo
 func cadeia(de: Vector3, para: Vector3) -> void:
-	_som("tiro", para, -4.0, 0.2)
+	if _raio_tempo() - _raio_som_t > 0.25: # um trovão por raio, não um por pulo
+		_raio_som_t = _raio_tempo()
+		_som("q_raio", para, 0.0, 0.05)
 	var cores := cor_de("raio")
 	var d := para - de
 	var lado := d.cross(Vector3.UP)
@@ -724,9 +973,12 @@ func cadeia(de: Vector3, para: Vector3) -> void:
 	surto(para.x, para.y, para.z, 22, "ffffff", cores[1], 6.0, 0.1)
 	luz(cores[0], 4.0, 8.0, 0.25).l.global_position = para
 
+func _raio_tempo() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
 # Salto Arcano: some num estouro roxo e aparece no destino com anel, disco e runa (como o blink do Quimera)
 func teleporte(de: Vector3, para: Vector3) -> void:
-	_som("dash", para, -2.0, 0.05)
+	_som("q_salto", para, -1.0, 0.04)
 	var cb := "f2e6ff"
 	var cc := "8a4aff"
 	surto(de.x, de.y + 1.0, de.z, 36, cb, cc, 5.0, 0.1)
@@ -745,7 +997,10 @@ func teleporte(de: Vector3, para: Vector3) -> void:
 
 # Projétil: cometa de fogo ou tiro arcano. Voa até acertar alguém ou acabar o alcance
 func projetil(de: Vector3, dir: Vector3, info: Dictionary, dmg: float, alcance := 20.0) -> void:
-	_som("tiro", de, -3.0 if info.get("estilo", "fogo") == "arcano" else 0.0)
+	if info.get("estilo", "fogo") == "arcano":
+		_som("tiro", de, -3.0)
+	else: # Bola de Fogo e Faísca: os sons de lançar do Quimera
+		_som("q_bola_lanca" if info.has("explosao") else "q_faisca_lanca", de, 0.0 if info.has("explosao") else -2.0, 0.05)
 	var estilo: String = info.get("estilo", "fogo")
 	var cor: Color = info.cor
 	var cb = "fff2b0" if estilo == "fogo" else "ffffff"
@@ -766,7 +1021,9 @@ func _fim_projetil(p: Dictionary) -> void:
 	else:
 		surto(o.x, o.y, o.z, 16, clara, cor, 4.0, 0.08)
 	if p.info.has("explosao"):
-		_som("explosao", o, -3.0, 0.1)
+		_som("q_bola_explode", o, 0.0, 0.06)
+	elif p.estilo == "fogo":
+		_som("q_faisca_acerto", o, -5.0, 0.06)
 	if p.luz != null and p.luz.dono == p.m:
 		p.luz.vida = 0.0
 		p.luz.dono = null
@@ -774,7 +1031,7 @@ func _fim_projetil(p: Dictionary) -> void:
 
 # Cura: brilho verde subindo (o círculo vem do conjura)
 func cura(alvo: Node3D) -> void:
-	_som("cura", alvo.global_position, -3.0, 0.02)
+	_som("q_cura", alvo.global_position, -2.0, 0.02)
 	var p := alvo.global_position
 	anel(p.x, p.z, 1.6, "9be08f", 0.8, p.y)
 	for i in 30:
@@ -891,6 +1148,7 @@ func _bolha(corpo: Node3D, cor, dur: float, raio: float, alt: float, op: float, 
 
 func escudo(corpo: Node3D, dur: float) -> void:
 	escudo_fim(corpo)
+	_som("q_escudo", corpo.global_position, -2.0, 0.03)
 	_bolha(corpo, "ffc24a", dur, 0.95, 0.95, 0.9, 1.15)
 	var p := corpo.global_position
 	anel(p.x, p.z, 1.1, "ffd36a", 0.5, p.y)
@@ -907,7 +1165,7 @@ func escudo_fim(corpo: Node3D) -> void:
 
 # Abraço do Vórtice: anel roxo e partículas correndo em espiral para o centro
 func vortice(x: float, z: float, r: float, y := 0.0) -> void:
-	_som("magia", Vector3(x, y, z), -2.0, 0.05)
+	_som("q_vortice", Vector3(x, y, z), -1.0, 0.04)
 	anel(x, z, r, "9a5cff", 0.6, y)
 	anel(x, z, r * 0.55, "c8a8ff", 0.45, y)
 	for i in 70:
@@ -950,6 +1208,12 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			g.add_child(e)
 		g.global_position = p + Vector3(0, 2.0, 0)
 		bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 2.0 * corpo.scale.y, "gira": 5.0, "k": k})
+
+# magia concentrada cancelada: o círculo some e a carga para
+func cancelar_conjura(corpo: Node3D) -> void:
+	for k in circulos:
+		if k.corpo == corpo and k.vivo:
+			k.dur = k.t
 
 func status_fim(corpo: Node3D) -> void:
 	for b in bolhas:
@@ -1120,6 +1384,8 @@ func _passo(dt: float) -> void:
 		var r: float = k.r
 		k.t += dt
 		if k.t >= k.dur or not ok:
+			if k.vivo and k.get("voz") != null and mundo and mundo.sons:
+				mundo.sons.parar(k.voz, k.voz_som)
 			k.vivo = false
 		k.f = min(1.0, k.f + dt * 6.0) if k.vivo else k.f - dt * 3.0
 		k.g.position = Vector3(p.x, p.y + 0.07, p.z)
@@ -1186,7 +1452,11 @@ func _passo(dt: float) -> void:
 		fc.t += dt
 		var op: float = min(1.0, min(fc.t * 4.0, (fc.dur - fc.t) * 2.0))
 		fc.m.rotation.y = -fc.t * 0.7
-		circulo_definir(fc.m, fc.cc, max(0.0, op) * (0.7 if fc.fraco else 0.9))
+		if fc.has("max"):
+			op = min(1.0, min(fc.t / fc.entra, (fc.dur - fc.t) / fc.sai))
+			circulo_definir(fc.m, fc.cc, max(0.0, op) * fc.max)
+		else:
+			circulo_definir(fc.m, fc.cc, max(0.0, op) * (0.7 if fc.fraco else 0.9))
 		if fc.t >= fc.dur:
 			fc.m.queue_free()
 			campos.remove_at(i)
@@ -1243,8 +1513,24 @@ func _passo(dt: float) -> void:
 			continue
 		var u: float = min(1.0, q.t / q.dur)
 		q.o.visible = true
-		q.o.global_position = q.de.lerp(q.para, u * u)
+		q.o.global_position = q.de.lerp(q.para, pow(u, 1.5) if q.get("gigante", false) else u * u)
 		var o: Vector3 = q.o.global_position
+		if q.get("gigante", false):
+			q.rocha.rotation += q.gira * dt
+			for k in 5:
+				var a := randf() * TAU
+				var rr := randf_range(0.6, 1.2) * METEORO_RAIO
+				part(FOGO, o.x + cos(a) * rr, o.y + randf_range(-0.6, 0.6), o.z + sin(a) * rr, randf_range(-1, 1), randf_range(1, 3), randf_range(-1, 1), randf_range(0.35, 0.6), 0.6 * H, 0.1 * H, q.cb, q.cc, 0.9, 1.5, 0.5)
+			for k in 2:
+				part(FUMA, o.x + randf_range(-0.8, 0.8), o.y + randf_range(-0.4, 0.8), o.z + randf_range(-0.8, 0.8), randf_range(-0.5, 0.5), randf_range(0.5, 1.5), randf_range(-0.5, 0.5), randf_range(1.0, 1.6), 0.9 * H, 1.7 * H, "6a5048", "201a18", 0.65, 0.4, 0.6)
+			if u >= 1:
+				q.o.queue_free()
+				meteoros.remove_at(i)
+				meteoro_impacto(q.para, q.r_imp)
+				if q.fn.is_valid():
+					q.fn.call(q.para)
+			i -= 1
+			continue
 		for k in 3:
 			part(FOGO, o.x + randf_range(-0.1, 0.1), o.y + randf_range(-0.1, 0.1), o.z + randf_range(-0.1, 0.1), randf_range(-0.4, 0.4), randf_range(0, 1), randf_range(-0.4, 0.4), randf_range(0.25, 0.45), 0.35 * H, 0.04 * H, q.cb, q.cc, 0.9, 1.5, 0.5)
 		part(FUMA, o.x, o.y, o.z, randf_range(-0.3, 0.3), randf_range(0, 0.6), randf_range(-0.3, 0.3), 0.5, 0.25 * H, 0.45 * H, "ff9a1a", "3a0a04", 0.7, 1.0, 0.5)
@@ -1255,6 +1541,70 @@ func _passo(dt: float) -> void:
 			_som("explosao", q.para, -4.0, 0.15)
 			if q.fn.is_valid():
 				q.fn.call(q.para)
+		i -= 1
+	# Meteoro: cúpula de fogo, onda de choque, pedras voando e cratera esfriando
+	i = domos.size() - 1
+	while i >= 0:
+		var dm: Dictionary = domos[i]
+		dm.t += dt
+		var u: float = dm.t / dm.dur
+		if u >= 1:
+			dm.m.queue_free()
+			domos.remove_at(i)
+			i -= 1
+			continue
+		var cresce: float = 1.0 - pow(1.0 - min(1.0, u * 1.6), 3.0)
+		dm.m.scale = Vector3(dm.r, dm.r * 0.85, dm.r) * (0.25 + 0.75 * cresce)
+		dm.m.material_override.set_shader_parameter("op", 0.6 * (1.0 - u * u)) # direção de arte: cúpula + clarão até 0,6
+		i -= 1
+	i = ondas.size() - 1
+	while i >= 0:
+		var od: Dictionary = ondas[i]
+		od.t += dt
+		if od.t < 0:
+			od.m.visible = false
+			i -= 1
+			continue
+		od.m.visible = true
+		var u: float = od.t / od.dur
+		if u >= 1:
+			od.m.queue_free()
+			ondas.remove_at(i)
+			i -= 1
+			continue
+		var rr: float = od.r * (0.15 + 0.85 * (1.0 - pow(1.0 - u, 2.0)))
+		od.m.scale = Vector3(rr, 0.04 + 0.3 * (1.0 - u), rr)
+		od.m.material_override.set_shader_parameter("op", 0.5 * (1.0 - u))
+		i -= 1
+	i = pedras.size() - 1
+	while i >= 0:
+		var pd: Dictionary = pedras[i]
+		pd.t += dt
+		pd.v.y -= 18.0 * dt
+		pd.m.position += pd.v * dt
+		pd.m.rotation += pd.gira * dt
+		var pp: Vector3 = pd.m.position
+		if pd.t < 0.9 and randf() < 0.7:
+			part(FOGO, pp.x, pp.y, pp.z, 0, 0.3, 0, 0.3, 0.14 * H, 0.03 * H, "ffd06a", "ff5a12", 0.8, 0.5, 0.5)
+			part(FUMA, pp.x, pp.y, pp.z, 0, 0.4, 0, 0.6, 0.12 * H, 0.35 * H, "4a3a36", "201a18", 0.5, 0.2, 0.5)
+		var chao: float = mundo.terreno.altura(pp.x, pp.z) if mundo and mundo.get("terreno") else 0.0
+		if (pd.v.y < 0 and pp.y < chao + 0.1) or pd.t > 2.5:
+			fumaca_chao(pp.x, pp.z, 0.3, 4, "6a5e58", 0.6)
+			pd.m.queue_free()
+			pedras.remove_at(i)
+		i -= 1
+	i = crateras.size() - 1
+	while i >= 0:
+		var cr: Dictionary = crateras[i]
+		cr.t += dt
+		var u: float = cr.t / cr.dur
+		if u >= 1:
+			cr.m.queue_free()
+			crateras.remove_at(i)
+			i -= 1
+			continue
+		cr.m.material_override.set_shader_parameter("calor", max(0.0, 1.0 - u * 1.4))
+		cr.m.material_override.set_shader_parameter("op", 1.0 if u < 0.7 else 1.0 - (u - 0.7) / 0.3)
 		i -= 1
 	# anéis
 	i = aneis.size() - 1
