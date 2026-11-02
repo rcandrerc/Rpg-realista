@@ -36,6 +36,8 @@
     { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] },
     { "nome": "Criador de personagem no Godot, a Ruiva é a base (PR #58)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func abrir_criacao(", "func abrir_edicao(", "\"Original\""] },
     { "nome": "Aparência do herói: cores, altura e rosto (PR #58)", "arquivo": "godot-prototipo/aparencia.gd", "contem": ["static func aplicar(", "const ROSTO := [\"olhosT\", \"narizT\", \"bocaT\"]"] },
-    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] }
+    { "nome": "Botão Aparência e mudarAparencia no servidor (PR #58)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarAparencia'"] },
+    { "nome": "Menu do topo que abre e fecha na seta, como o do Quimera (Conta, Multijogador, Configurações)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["func recolher(", "func montar_conta(", "func montar_multi(", "func montar_config(", "func cobre("] },
+    { "nome": "Menu do topo ligado no jogo e na HUD", "arquivo": "godot-prototipo/main.gd", "contem": ["menu_topo = MenuTopo.new(self)", "and vibracao:"] }
   ]
 }
