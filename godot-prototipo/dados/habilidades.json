@@ -36,8 +36,8 @@
     },
     {
      "anim": "combo4",
-     "dur": 0.48,
-     "hit": 0.19
+     "dur": 0.75,
+     "hit": 0.31
     }
    ],
    "desc": "Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s)."

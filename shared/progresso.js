@@ -44,7 +44,7 @@ export const HABS = {
   // ----- espada -----
   espada_basico: { nome: 'Ataque de espada', arvore: 'espada', tipo: 'basicoEspada', basico: true, max: 5, libera: 1, pct: 0.95, alcance: 3.2, arco: 2.2, persegue: 12,
     cd: 0.5, comboZera: 0.8, empurra: 0.55, vulneravel: { k: 0.06, dur: 4 },
-    combo: [{ anim: 'combo1', dur: 0.48, hit: 0.24 }, { anim: 'combo2', dur: 0.48, hit: 0.26 }, { anim: 'combo3', dur: 0.48, hit: 0.28 }, { anim: 'combo4', dur: 0.48, hit: 0.19 }],
+    combo: [{ anim: 'combo1', dur: 0.48, hit: 0.24 }, { anim: 'combo2', dur: 0.48, hit: 0.26 }, { anim: 'combo3', dur: 0.48, hit: 0.28 }, { anim: 'combo4', dur: 0.75, hit: 0.31 }], // o 4º (o golpe forte) com tempo de terminar
     desc: 'Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s).' },
   corte_duplo: { nome: 'Corte Duplo', arvore: 'espada', tipo: 'corte', libera: 1, anim: A.cruzado, dur: 0.85, hits: [0.24, 0.66], lunge: { r: 7, para: 1.6 },
     ponto: 1.7, area: 2.2, nv: { area: 0.15 }, pct: 1.1, empurra: 0.55, mana: 10, cd: 1.1, icone: 'corte',

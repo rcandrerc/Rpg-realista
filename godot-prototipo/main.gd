@@ -683,7 +683,7 @@ func basico_espada() -> void:
 	var g: Dictionary = hab.combo[i]
 	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
 	h.combo_fim = tempo + g.dur
-	recargas["basico"] = hab.cd
+	recargas["basico"] = max(hab.cd, g.dur) # o 4º golpe é mais longo: o próximo espera ele terminar
 	rede("habQ", "espada_basico")
 	comecar_q(g.anim, g.dur, [g.hit], func(_k):
 		var acertou := dano_arco(hab.alcance, hab.arco, hab.dmg, hab)

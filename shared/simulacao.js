@@ -346,6 +346,7 @@ export class Simulacao {
       const cb = j.comboQ || { n: -1, fim: 0 };
       const n = this.tempo - cb.fim > h.comboZera ? 0 : (cb.n + 1) % h.combo.length, g = h.combo[n];
       j.comboQ = { n, fim: this.tempo + g.dur };
+      if (g.dur > h.cd) j.cds[h.id] = this.tempo + g.dur; // o 4º golpe é mais longo
       this.tocarQ(j, g.anim, g.dur); j.acao.lamina = true;
       this.depois(g.hit, () => {
         if (j.morto) return;
