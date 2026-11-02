@@ -4,7 +4,7 @@ render_mode blend_mix, depth_draw_always, cull_back, specular_schlick_ggx;
 // por dentro, borda clara (fresnel), reflexo forte e faíscas que piscam. Sem textura extra e sem ler a tela (leve no celular).
 
 uniform vec3 brilho_cor : source_color = vec3(0.62, 0.5, 1.0);
-uniform float brilho = 0.3;
+uniform float brilho = 0.55;
 
 varying vec3 p_obj;
 

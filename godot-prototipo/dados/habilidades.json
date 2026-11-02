@@ -690,6 +690,13 @@
    "venda": 8,
    "desc": "Cobre fundido na forja. Vira joia e ponteira de cajado."
   },
+  "pedra": {
+   "nome": "Pedra",
+   "mat": true,
+   "pilha": 50,
+   "venda": 1,
+   "desc": "Pedra comum que sai junto quando você minera. Serve para construir e para afiar ferramentas."
+  },
   "carvao": {
    "nome": "Carvão",
    "mat": true,
@@ -1005,7 +1012,8 @@
     "minerio_ferro": 1
    },
    "raro": {
-    "cristal": 0.05
+    "cristal": 0.05,
+    "pedra": 0.5
    }
   },
   "cobre": {
@@ -1019,7 +1027,8 @@
     "minerio_cobre": 1
    },
    "raro": {
-    "cristal": 0.04
+    "cristal": 0.04,
+    "pedra": 0.5
    }
   },
   "cristal": {
@@ -1034,7 +1043,8 @@
     "cristal": 1
    },
    "raro": {
-    "cristal": 0.1
+    "cristal": 0.1,
+    "pedra": 0.4
    }
   },
   "arvore": {
