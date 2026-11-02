@@ -138,15 +138,33 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		pm.set_shader_parameter("cor_pedra", P.pedra)
 		pm.set_shader_parameter("cor_veio", P.veio)
 		pm.set_shader_parameter("cor_mancha", P.mancha)
+		# contorno escuro de ~1,2 cm, como as outras pedras e os personagens
+		var cont := StandardMaterial3D.new()
+		cont.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cont.cull_mode = BaseMaterial3D.CULL_FRONT
+		cont.grow = true
+		cont.albedo_color = Color(0.08, 0.06, 0.05)
+		pm.next_pass = cont
 		pedra.material_override = pm
 		o.pedra_mat = pm
 		var aabb: AABB = _veio_malha.get_aabb()
 		var k: float = 1.25 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 1,25 m de largura (o minério é que tem que aparecer)
 		pedra.scale = Vector3(k, k, k)
 		pedra.position = Vector3(-aabb.get_center().x * k, -aabb.position.y * k - 0.15, -aabb.get_center().z * k)
+		cont.grow_amount = 0.012 / k # o grow é no espaço da malha (antes da escala)
+		pedra.position.y -= 0.1 # base enterrada: não fica pousada em cima da grama
 		pedra_k = k
 		pedra_pos = pedra.position
-		alto_pedra = aabb.size.y * k - 0.15
+		# sombra de contato: mancha escura e suave no chão em volta da base
+		var sombra := MeshInstance3D.new()
+		var pl := PlaneMesh.new()
+		pl.size = Vector2(1.9, 1.9)
+		sombra.mesh = pl
+		sombra.material_override = _mat_sombra()
+		sombra.position.y = 0.03
+		sombra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		raiz.add_child(sombra)
+		alto_pedra = aabb.size.y * k - 0.25
 		raiz.add_child(pedra)
 	# minério cravado na pedra (some quando o veio esgota para você): pepitas de metal ou cristais pontudos
 	var minerio := Node3D.new()
@@ -179,7 +197,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 			minerio.add_child(p)
 		var luz := OmniLight3D.new()
 		luz.light_color = cor
-		luz.light_energy = 1.1
+		luz.light_energy = 0.75
 		luz.omni_range = 3.5
 		luz.position = Vector3(0, alto_pedra + 0.4, 0)
 		minerio.add_child(luz)
@@ -189,9 +207,9 @@ func _cristal(alto: float, raio: float) -> Mesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(-1)
-	var cb := Color("3a3fc8") # pé azul fundo, meio violeta, ponta quase branca (como cristal de verdade, só que mais vivo)
-	var cm := Color("7f63ea")
-	var cp := Color("dfe6ff")
+	var cb := Color("5b52d6") # pé azul fundo, meio violeta, ponta quase branca (como cristal de verdade, só que mais vivo)
+	var cm := Color("a084f2")
+	var cp := Color("f0eeff")
 	var corpo: float = alto * 0.72
 	for s in 6:
 		var a1: float = TAU * s / 6.0
@@ -206,6 +224,22 @@ func _cristal(alto: float, raio: float) -> Mesh:
 			st.add_vertex(v[0])
 	st.generate_normals()
 	return st.commit()
+
+var _mat_sb: ShaderMaterial
+func _mat_sombra() -> ShaderMaterial:
+	if _mat_sb:
+		return _mat_sb
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode unshaded, depth_draw_never, cull_disabled, shadows_disabled;
+void fragment() {
+	float d = length(UV - vec2(0.5)) * 2.0;
+	ALBEDO = vec3(0.04, 0.05, 0.02);
+	ALPHA = (1.0 - smoothstep(0.35, 1.0, d)) * 0.45;
+}"""
+	_mat_sb = ShaderMaterial.new()
+	_mat_sb.shader = sh
+	return _mat_sb
 
 var _mat_cr: StandardMaterial3D
 func _mat_cristal() -> StandardMaterial3D:
@@ -222,8 +256,8 @@ func _mat_cristal() -> StandardMaterial3D:
 	mt.rim = 0.35
 	mt.rim_tint = 0.6
 	mt.emission_enabled = true # brilho de dentro, aparece na sombra
-	mt.emission = Color("5a48d8")
-	mt.emission_energy_multiplier = 0.35
+	mt.emission = Color("7a5ee0")
+	mt.emission_energy_multiplier = 0.22 # abaixo do brilho das magias
 	_mat_cr = mt
 	return mt
 

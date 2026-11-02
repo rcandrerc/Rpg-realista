@@ -1,4 +1,5 @@
 shader_type spatial;
+render_mode diffuse_toon, specular_toon; // mesmo degrau de sombra das outras pedras da vila
 // Pedra dos veios (Parte 3): a textura da rocha da vila, com o minério correndo por dentro dela.
 // tipo 0 = cobre (veios de cobre metálico com manchas verdes de malaquita), 1 = ferro (rocha escura com faixas
 // de ferrugem e brilho de metal), 2 = cristal (rocha clara, os cristais são malhas à parte).
@@ -40,7 +41,11 @@ float veio(vec3 p, float largura) {
 	float r = abs(fbm(q) - 0.5);
 	return 1.0 - smoothstep(largura * 0.4, largura, r);
 }
-float forca_veio(vec3 p) {
+// uns 30% da pedra ficam sem veio (rocha com veio, não rocha toda pintada)
+float regiao(vec3 p) {
+	return smoothstep(0.4, 0.52, fbm(p * 0.8 + vec3(semente * 0.37)));
+}
+float forca_veio_bruta(vec3 p) {
 	if (tipo == 0) {
 		// cobre nativo: veios finos e caroços grossos onde eles se cruzam
 		float fino = max(veio(p, 0.035), veio(p * 1.7 + 5.0, 0.022) * 0.85);
@@ -49,6 +54,10 @@ float forca_veio(vec3 p) {
 	}
 	if (tipo == 1) return veio(p, 0.03);
 	return 0.0;
+}
+
+float forca_veio(vec3 p) {
+	return forca_veio_bruta(p) * regiao(p);
 }
 
 void vertex() {
@@ -75,11 +84,11 @@ void fragment() {
 		metal = v * 0.9;
 		rough = mix(0.85, 0.32, v);
 		// malaquita: pontinhos verdes perto do veio
-		float m = smoothstep(0.66, 0.74, fbm(p_obj * 7.0 + semente + 11.0)) * smoothstep(0.0, 0.5, veio(p_obj, 0.1)) * cheio;
+		float m = smoothstep(0.66, 0.74, fbm(p_obj * 7.0 + semente + 11.0)) * smoothstep(0.0, 0.5, veio(p_obj, 0.1)) * cheio * regiao(p_obj);
 		cor = mix(cor, cor_mancha * (0.8 + var_c * 0.4), m * (1.0 - v));
 	} else if (tipo == 1) {
 		// ferro: ferrugem larga e suja em volta, metal cinza brilhante no meio da faixa
-		float halo = max(veio(p_obj, 0.065), veio(p_obj * 1.4 + 9.0, 0.035)) * cheio;
+		float halo = max(veio(p_obj, 0.065), veio(p_obj * 1.4 + 9.0, 0.035)) * cheio * regiao(p_obj);
 		float sujo = fbm(p_obj * 11.0 + semente);
 		cor = mix(base, cor_mancha * (0.45 + sujo * 0.6), halo * 0.75 * smoothstep(0.35, 0.7, sujo + 0.25));
 		cor = mix(cor, cor_veio * (0.8 + sujo * 0.4), v);
