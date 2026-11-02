@@ -163,11 +163,23 @@ func _vai(nx: float, nz: float) -> bool:
 	return true
 
 func mover(dx: float, dz: float) -> void:
+	var x0 := x
+	var y0 := y
+	var z0 := z
+	var chao0 := chao
 	if not _vai(x + dx, z + dz):
 		bloqueado = true
 		if not _vai(x + dx, z):
 			_vai(x, z + dz)
 	colidir()
+	# o empurrão de um obstáculo (tina, bigorna, esteio, NPC) não pode jogar o herói para dentro de uma parede:
+	# senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
+	if T.altura(x, z, y) > y + m.subida.degrau:
+		x = x0
+		y = y0
+		z = z0
+		chao = chao0
+		bloqueado = true
 
 # ---------- pulo, queda e dash ----------
 func pular(pode_mortal := true) -> String:
@@ -458,6 +470,8 @@ func parede_a_frente(dir: float, ate: float):
 	var fz := cos(dir)
 	var d := 0.1
 	while d <= ate + 0.0001:
+		if T.teto(x + fx * d, z + fz * d, y) < INF:
+			return null # o caminho entra debaixo de um telhado (ferraria aberta): parede lá dentro não se escala correndo
 		var h: float = T.altura(x + fx * d, z + fz * d, y)
 		if h > y + m.subida.degrau:
 			if h > y + m.subida.mini:
