@@ -71,6 +71,7 @@
     { "nome": "Mestre Ivo (dados)", "arquivo": "shared/dados.js", "contem": ["id: 'reset', nome: 'Mestre Ivo, o instrutor'", "export const RESET_BUILD"] },
     { "nome": "Mestre Ivo (Godot: botão e janela)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func perguntar_reset("] },
     { "nome": "Mestre Ivo (Godot: reset sem internet)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func resetar(custo: int)", "func pontos_gastos("] },
-    { "nome": "Anel de pedras abre na passagem e fecha a área de fora", "arquivo": "client/src/cena.js", "contem": ["formasDoMapa(mapa)", "// a área de fora e as paredes da passagem"] }
+    { "nome": "Anel de pedras abre na passagem e fecha a área de fora", "arquivo": "client/src/cena.js", "contem": ["formasDoMapa(mapa)", "// a área de fora e as paredes da passagem"] },
+    { "nome": "Congelado: o monstro vira gelo (sem bolha) e o flash volta para o gelo", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["func _congelar(corpo: Node3D, dur: float)", "const SH_GELO_CORPO", "func _descongelar(b: Dictionary)"] }
   ]
 }

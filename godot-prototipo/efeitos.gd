@@ -203,6 +203,38 @@ void fragment() {
 	ALPHA = op * (0.06 + f * 0.85 + faixa * f * 0.25);
 }
 """
+# corpo congelado: gelo branco azulado por cima do corpo, com cristais (ruído pela posição no mundo), brilho frio
+# na borda e reflexo forte; deixa ver só um pouco da forma por baixo
+const SH_GELO_CORPO := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back, shadows_disabled, specular_schlick_ggx;
+uniform float op = 1.0;
+varying vec3 pm;
+float h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float cel(vec3 p) {
+	vec3 i = floor(p), f = fract(p);
+	float d = 1.0;
+	for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
+		vec3 o = vec3(float(x), float(y), float(z));
+		vec3 r = o + vec3(h(i + o), h(i + o + 3.1), h(i + o + 7.7)) - f;
+		d = min(d, dot(r, r));
+	}
+	return sqrt(d);
+}
+void vertex() { pm = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+	float cr = cel(pm * 7.0);
+	float aresta = smoothstep(0.08, 0.0, abs(cr - 0.42)) * 0.6;
+	vec3 gelo = mix(vec3(0.80, 0.90, 0.98), vec3(0.97, 0.99, 1.0), clamp(cr * 1.3 + f, 0.0, 1.0));
+	ALBEDO = gelo;
+	EMISSION = vec3(0.35, 0.62, 0.95) * f * 0.7 + vec3(0.9, 0.97, 1.0) * aresta * 0.35;
+	ROUGHNESS = 0.18 + cr * 0.2;
+	METALLIC = 0.0;
+	SPECULAR = 0.9;
+	ALPHA = op * clamp(0.78 + f * 0.2 + aresta * 0.2, 0.0, 0.97);
+}
+"""
 # rastro: cada vértice traz a força (COLOR.a)
 const SH_FAIXA := """
 shader_type spatial;
@@ -1196,11 +1228,9 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			b.dur = max(b.dur, b.t + dur)
 			return
 	var p := corpo.global_position
-	if k == "congela":
-		var m := _bolha(corpo, "8fdcff", dur, 0.75, 0.85, 1.0, 1.35)
-		bolhas[-1].k = k
+	if k == "congela": # o próprio corpo vira gelo (branco azulado, brilho frio na borda), sem bolha em volta
+		_congelar(corpo, dur)
 		surto(p.x, p.y + 0.9, p.z, 26, "eafcff", "3fb4ff", 3.5, 0.09)
-		m.scale = Vector3(1.0, 1.0, 1.0)
 	else:
 		var g := Node3D.new()
 		add_child(g)
@@ -1219,6 +1249,31 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			g.add_child(e)
 		g.global_position = p + Vector3(0, 2.0, 0)
 		bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 2.0 * corpo.scale.y, "gira": 5.0, "k": k})
+
+# congelado: uma camada de gelo por cima de cada malha do corpo (material_overlay). O flash do golpe e o aviso de
+# preparo voltam para ela no lugar de limpar (meta "overlay_base"); some em 0,3 s no fim
+func _congelar(corpo: Node3D, dur: float) -> void:
+	var mat := material("gelo_corpo", SH_GELO_CORPO, {"op": 0.0})
+	var malhas := []
+	for mi in corpo.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh is QuadMesh: # a barra de vida fica como está
+			continue
+		mi.set_meta("overlay_base", mat)
+		if mi.material_overlay == null:
+			mi.material_overlay = mat
+		malhas.append(mi)
+	var g := Node3D.new()
+	add_child(g)
+	bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 0.0, "gira": 0.0, "k": "congela", "gelo": mat, "malhas": malhas})
+
+func _descongelar(b: Dictionary) -> void:
+	for mi in b.malhas:
+		if not is_instance_valid(mi):
+			continue
+		if mi.has_meta("overlay_base") and mi.get_meta("overlay_base") == b.gelo:
+			mi.remove_meta("overlay_base")
+		if mi.material_overlay == b.gelo:
+			mi.material_overlay = null
 
 # magia concentrada cancelada: o círculo some e a carga para
 func cancelar_conjura(corpo: Node3D) -> void:
@@ -1419,6 +1474,8 @@ func _passo(dt: float) -> void:
 		var b: Dictionary = bolhas[i]
 		b.t += dt
 		if not is_instance_valid(b.corpo) or b.t >= b.dur:
+			if b.has("gelo"):
+				_descongelar(b)
 			b.m.queue_free()
 			bolhas.remove_at(i)
 			i -= 1
@@ -1426,6 +1483,8 @@ func _passo(dt: float) -> void:
 		b.m.global_position = b.corpo.global_position + Vector3(0, b.alt, 0)
 		if b.gira != 0.0:
 			b.m.rotation.y += b.gira * dt
+		if b.has("gelo"):
+			b.gelo.set_shader_parameter("op", min(1.0, b.t / 0.15) * min(1.0, (b.dur - b.t) / 0.3))
 		if b.op >= 0.0:
 			var k: float = min(1.0, b.t / 0.2) * min(1.0, (b.dur - b.t) / 0.3)
 			b.m.material_override.set_shader_parameter("op", b.op * k)
