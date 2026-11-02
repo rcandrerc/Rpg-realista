@@ -9,6 +9,7 @@
     { "nome": "Animações freada e meia-volta no herói (PR #55)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["freada: 'freada', meia_volta: 'meia_volta'"] },
     { "nome": "Corpo com mola: tranco na freada, cabeça e respiração (PR #55)", "arquivo": "godot-prototipo/main.gd", "contem": ["const MOLA_K", "inclinar.frente =", "inclinar.olhar = _olhar", "_cansaco"] },
     { "nome": "Ritmo da freada na animação (PR #55)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["func ritmo_acao("] },
+    { "nome": "Arrancada com as pernas da animação própria", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["func arrancar(", "parameters/pernas/blend_amount"] },
     { "nome": "Sons do combate e dos passos (PR #53)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar("] },
     { "nome": "Câmera nova por cima do ombro (PR #52/#53)", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["func tremer(", "func afundar("] },
     { "nome": "Escalada no app (andar.gd)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func tentar_escalar(", "func pegar_escada(", "func subir_no_topo("] },
