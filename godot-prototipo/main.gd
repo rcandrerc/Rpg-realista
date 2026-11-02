@@ -506,7 +506,13 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
 	no.rotation.y = float(info.get("ry", randf() * TAU))
 	barra_vida(no, nome, Color(0, 0, 0, 0))
-	npcs.append({"no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
+	# nome do NPC com 14 px na Alegreya (direção de arte: estava pequeno e borrado)
+	for l in no.get_children():
+		if l is Label3D:
+			l.font = load("res://fontes/AlegreyaSans-Bold.ttf")
+			l.pixel_size = 0.00034 * 1.5
+			l.offset = Vector2(0, 52.0 / 1.5)
+	npcs.append({"modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)

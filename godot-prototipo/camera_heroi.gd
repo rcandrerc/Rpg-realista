@@ -38,6 +38,26 @@ var _afunda := 0.0
 var _afunda_v := 0.0
 var _t := 0.0
 var _fov := FOV_BASE
+# janela de um NPC aberta (conversa.gd): a câmera gira em 0,35 s para um 3/4 por cima do ombro
+# (o NPC de frente no terço de cima à esquerda, a Ruiva de costas na borda) e volta ao fechar
+const CONVERSA_T := 0.35
+const CONVERSA_LADO := -0.62 # rad em volta do meio dos dois (lado do ombro)
+const CONVERSA_PITCH := 0.32
+const CONVERSA_DIST := 3.0
+var _conversando := false
+var _conv_k := 0.0
+var _conv := {} # foco, yaw, pitch, dist do enquadramento
+var _antes := {} # yaw, pitch e dist de antes de abrir
+
+func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
+	if not _conversando and _conv_k <= 0.0:
+		_antes = {"yaw": yaw, "pitch": pitch, "dist": dist}
+	_conversando = true
+	var d := Vector3(heroi_pos.x - npc_pos.x, 0, heroi_pos.z - npc_pos.z).normalized()
+	_conv = {"foco": heroi_pos.lerp(npc_pos, 0.55) + Vector3(0, 0.95, 0), "yaw": atan2(d.x, d.z) + CONVERSA_LADO, "pitch": CONVERSA_PITCH, "dist": CONVERSA_DIST}
+
+func soltar_conversa() -> void:
+	_conversando = false
 
 func _init(principal, camera: Camera3D) -> void:
 	m = principal
@@ -96,6 +116,15 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		resta -= h
 		_afunda_v += (-_afunda * 120.0 - _afunda_v * 16.0) * h
 		_afunda += _afunda_v * h
+	# enquadramento da conversa com NPC (vai e volta em CONVERSA_T)
+	_conv_k = move_toward(_conv_k, 1.0 if _conversando else 0.0, dt / CONVERSA_T)
+	if _conv_k > 0.0 and not _conv.is_empty():
+		var s: float = smoothstep(0.0, 1.0, _conv_k)
+		yaw = lerp_angle(float(_antes.yaw), float(_conv.yaw), s)
+		pitch = lerp(float(_antes.pitch), float(_conv.pitch), s)
+		dist = lerp(float(_antes.dist), float(_conv.dist), s)
+		alvo = alvo.lerp(_conv.foco, s)
+		_vel_alvo = Vector3.ZERO
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
 	var livre: float = max(DIST_MIN, m.distancia_livre(foco_base, dir_cam, dist, true))

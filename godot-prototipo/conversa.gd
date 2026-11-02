@@ -27,7 +27,9 @@ var caixa_ui: PanelContainer
 var nome_ui: Label
 var papel_ui: Label
 var fala_ui: Label
-var opcoes: VBoxContainer
+var opcoes: GridContainer
+var retrato_ui: TextureRect
+var _retratos := {} # id do NPC -> SubViewport com o rosto dele
 var npc = null # o NPC com a janela aberta (dicionário de main.npcs)
 var ry_antes := 0.0 # o NPC vira para o herói e depois volta
 var indo = null # {npc, ate, d, t}: tocou no NPC longe e o herói está indo até ele
@@ -54,17 +56,43 @@ func _ready() -> void:
 	caixa_ui.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	caixa_ui.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	caixa_ui.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	caixa_ui.offset_left = -400
-	caixa_ui.offset_right = 400
+	caixa_ui.offset_left = -410
+	caixa_ui.offset_right = 410
 	caixa_ui.offset_bottom = -18
 	raiz.add_child(caixa_ui)
 	var lado := HBoxContainer.new()
-	lado.add_theme_constant_override("separation", 18)
+	lado.add_theme_constant_override("separation", 16)
 	caixa_ui.add_child(lado)
-	# esquerda: quem é e o que disse
+	# retrato do NPC (rosto renderizado do modelo dele), redondo com moldura dourada, como o do herói
+	var moldura := Control.new()
+	moldura.custom_minimum_size = Vector2(96, 96)
+	moldura.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lado.add_child(moldura)
+	retrato_ui = TextureRect.new()
+	retrato_ui.set_anchors_preset(Control.PRESET_FULL_RECT)
+	retrato_ui.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	retrato_ui.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	var sh := Shader.new()
+	sh.code = "shader_type canvas_item;\nvoid fragment(){ vec4 c = texture(TEXTURE, UV); float r = length(UV - vec2(0.5)); COLOR = vec4(c.rgb, c.a * (1.0 - smoothstep(0.47, 0.49, r))); }"
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	retrato_ui.material = mat
+	moldura.add_child(retrato_ui)
+	var aro := Panel.new()
+	aro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	aro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sa := StyleBoxFlat.new()
+	sa.bg_color = Color(0, 0, 0, 0)
+	sa.border_color = Color(0.9, 0.75, 0.4)
+	sa.set_border_width_all(3)
+	sa.set_corner_radius_all(48)
+	sa.anti_aliasing = true
+	aro.add_theme_stylebox_override("panel", sa)
+	moldura.add_child(aro)
+	# meio: quem é e o que disse
 	var txt := VBoxContainer.new()
 	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	txt.add_theme_constant_override("separation", 4)
+	txt.add_theme_constant_override("separation", 3)
 	lado.add_child(txt)
 	nome_ui = Menu.rotulo("", 22, Menu.OURO_CLARO)
 	txt.add_child(nome_ui)
@@ -74,14 +102,16 @@ func _ready() -> void:
 	linha.color = Menu.BORDA
 	linha.custom_minimum_size = Vector2(0, 1)
 	txt.add_child(linha)
-	fala_ui = Menu.rotulo("", 16, Menu.TEXTO)
+	fala_ui = Menu.rotulo("", 15, Menu.TEXTO)
 	fala_ui.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	fala_ui.custom_minimum_size = Vector2(380, 96)
+	fala_ui.custom_minimum_size = Vector2(250, 0)
 	txt.add_child(fala_ui)
-	# direita: o que dá para fazer
-	opcoes = VBoxContainer.new()
-	opcoes.add_theme_constant_override("separation", 6)
-	opcoes.custom_minimum_size = Vector2(250, 0)
+	# direita: o que dá para fazer, em duas colunas (a janela fica baixa, uns 170 px)
+	opcoes = GridContainer.new()
+	opcoes.columns = 2
+	opcoes.add_theme_constant_override("h_separation", 6)
+	opcoes.add_theme_constant_override("v_separation", 6)
+	opcoes.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	lado.add_child(opcoes)
 
 func aberto() -> bool:
@@ -214,16 +244,23 @@ func abrir(n: Dictionary) -> void:
 			t = "Missão: %s" % n.missao
 		opcoes.add_child(_opcao(t, ACOES[a][1], func(): escolher(a)))
 	opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
-	opcoes.add_child(_opcao("Até logo", "", fechar))
+	opcoes.add_child(_opcao("Até logo", "sair", fechar))
+	retrato_ui.texture = _retrato(n)
 	raiz.visible = true
 	m.hud.bloqueado = true
+	m.hud.esconder_combate = true
+	m.cam.olhar_conversa(m.heroi.position, n.no.position)
 	m.sons.tocar("pano", -10.0)
 
 func fechar() -> void:
 	if raiz == null or not raiz.visible:
 		return
 	raiz.visible = false
+	if npc != null and _retratos.has(npc.id):
+		_retratos[npc.id].render_target_update_mode = SubViewport.UPDATE_DISABLED
 	npc = null
+	m.hud.esconder_combate = false
+	m.cam.soltar_conversa()
 	if not m.menu.aberto():
 		m.hud.bloqueado = false
 
@@ -232,8 +269,8 @@ func _opcao(t: String, ic: String, fn: Callable) -> Button:
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.custom_minimum_size = Vector2(250, 40)
-	b.add_theme_font_size_override("font_size", 16)
+	b.custom_minimum_size = Vector2(196, 36)
+	b.add_theme_font_size_override("font_size", 15)
 	b.add_theme_constant_override("icon_max_width", 22)
 	b.add_theme_constant_override("h_separation", 10)
 	if ic != "":
@@ -296,3 +333,50 @@ func fala(npc_id: String, texto: String) -> bool:
 		return false
 	fala_ui.text = texto
 	return true
+
+# rosto do NPC: o modelo dele num palco pequeno (192 px), câmera na altura da cabeça. Fica pronto na
+# primeira conversa e só desenha enquanto a janela dele está aberta.
+func _retrato(n: Dictionary) -> Texture2D:
+	if _retratos.has(n.id):
+		_retratos[n.id].render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		return _retratos[n.id].get_texture()
+	var vp := SubViewport.new()
+	vp.size = Vector2i(192, 192)
+	vp.own_world_3d = true
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	var amb := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.16, 0.13, 0.1)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.85, 0.8, 0.72)
+	env.ambient_light_energy = 0.7
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	amb.environment = env
+	vp.add_child(amb)
+	var sol := DirectionalLight3D.new()
+	sol.light_energy = 1.1
+	sol.rotation = Vector3(-0.5, 0.5, 0)
+	vp.add_child(sol)
+	var corpo: Node3D = m.modelo(str(n.get("modelo", "vivi")))
+	corpo.get_parent().remove_child(corpo)
+	vp.add_child(corpo)
+	corpo.position = Vector3.ZERO
+	corpo.rotation = Vector3.ZERO
+	var cab := Vector3(0, 1.45, 0)
+	var esq: Skeleton3D = m.esqueleto(corpo)
+	if esq:
+		for i in esq.get_bone_count():
+			var nb := esq.get_bone_name(i).to_lower()
+			if nb.ends_with("head") or nb == "cabeca":
+				cab = esq.get_bone_global_rest(i).origin
+				break
+	var c := Camera3D.new()
+	c.fov = 30.0
+	vp.add_child(c)
+	c.position = cab + Vector3(0.12, 0.03, 0.75)
+	c.look_at_from_position(c.position, cab + Vector3(0, -0.01, 0))
+	_retratos[n.id] = vp
+	return vp.get_texture()
