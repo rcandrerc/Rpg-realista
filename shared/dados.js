@@ -304,3 +304,53 @@ export function nomeValido(n) {
   const s = n.normalize('NFC').replace(/\s+/g, ' ').trim();
   return s.length >= NOME.min && s.length <= NOME.max && /^[\p{L}\p{N} ]+$/u.test(s) ? s : null;
 }
+
+// ---------- Itens (Parte 2 do Quimera: mochila, equipamento, drops, Tomos e loja) ----------
+// Raridades e números do Set de Bruxa do Quimera (wiki.html). Cada número vai de Comum até Mítico.
+export const RARIDADES = [
+  { nome: 'Comum', cor: 0xcfc8b8 }, { nome: 'Raro', cor: 0x5aa8ff }, { nome: 'Épico', cor: 0xb974ff },
+  { nome: 'Lendário', cor: 0xffb03a }, { nome: 'Mítico', cor: 0xff5a72 },
+];
+// Lugares do corpo: os 6 do menu (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar)
+export const LUGARES = ['cabeca', 'corpo', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
+export const MOCHILA = 32; // 8 x 4, como uma página da mochila do Quimera
+// st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
+export const ITENS = {
+  chapeu: { nome: 'Chapéu', lugar: 'cabeca', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20] } },
+  manto: { nome: 'Manto', lugar: 'corpo', st: { defesa: [3, 5, 7, 10, 15], vida: [10, 15, 22, 32, 46], mana: [4, 7, 10, 14, 20] } },
+  capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30] } },
+  botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [1, 2, 2, 3, 5], vida: [6, 8, 12, 18, 25] } },
+  oculos: { nome: 'Óculos', lugar: 'acessorio', st: { mana: [4, 8, 12, 18, 25], critico: [0.008, 0.011, 0.015, 0.021, 0.026], vida: [0, 0, 6, 11, 17] } },
+  colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6] } },
+  espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14] } },
+  cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14] } },
+  pocao: { nome: 'Poção de vida', pilha: 20, usar: { vida: 0.35 }, preco: 15, venda: 5, desc: 'Recupera 35% da vida.' },
+  pocao_mana: { nome: 'Poção de mana', pilha: 20, usar: { mana: 0.4 }, preco: 18, venda: 6, desc: 'Recupera 40% da mana.' },
+  tomo: { nome: 'Tomo', pilha: 20, desc: 'Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia.' },
+};
+export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
+export const VENDA_TOMO = 30; // x nível do Tomo
+export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+// Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
+// 2 peças: vida e mana; 3: dano (e defesa); 6: crítico, área das skills e regeneração de mana. Vale o melhor de cada.
+export const CONJUNTO = [
+  null,
+  { 2: { mana: 10 }, 3: { danoK: 0.05 }, 6: { critico: 0.02, regenManaK: 0.25 } },
+  { 2: { vida: 20, mana: 20 }, 3: { danoK: 0.12 }, 6: { critico: 0.04, areaK: 0.15, regenManaK: 0.4 } },
+  { 2: { vida: 40, mana: 35 }, 3: { danoK: 0.2, defesa: 15 }, 6: { critico: 0.06, areaK: 0.25, regenManaK: 0.55 } },
+  { 2: { vida: 70, mana: 60 }, 3: { danoK: 0.3, defesa: 30 }, 6: { critico: 0.08, areaK: 0.35, regenManaK: 0.7 } },
+];
+// Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
+export const LOJA = [
+  { k: 'pocao', preco: 15 }, { k: 'pocao_mana', preco: 18 },
+  ...['chapeu', 'manto', 'capa', 'botas', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
+];
+export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
+// Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
+// ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
+const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.78, 0.2, 0.02, 0, 0] };
+export const DROPS = {
+  puglin: DROP_COMUM, imp: { ...DROP_COMUM, ouro: [4, 9] }, sombrio: DROP_COMUM,
+  lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.5, 0.38, 0.12, 0, 0] },
+  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0] },
+};

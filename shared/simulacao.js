@@ -1,8 +1,8 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip } from './progresso.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -260,6 +260,10 @@ export class Simulacao {
     h.q = true; h.id = hid; h.chave = hid;
     h.dmg = dano * (h.pct || 0);
     if (!base.basico) h.cd = h.cd * (1 - j.st.recarga);
+    if (j.st.areaK && !base.basico) { // conjunto de 6 peças: área das skills maior
+      if (h.area) h.area = r2(h.area * (1 + j.st.areaK));
+      if (h.proj?.explosao) h.proj = { ...h.proj, explosao: r2(h.proj.explosao * (1 + j.st.areaK)) };
+    }
     return h;
   }
   // O alvo que a skill precisa (como no Quimera: sem ninguém no alcance ela nem sai). false = não pode soltar.
@@ -458,12 +462,86 @@ export class Simulacao {
     }
     return true;
   }
-  // Skill sobe de nível usando (a parte dos Tomos vem com a mochila)
+  // Skill sobe de nível usando até o 5; do 6 ao 10 a barra de usos enche e espera o Tomo daquele nível (como no Quimera)
   contarUso(j, hid) {
     const s = j.prog.habs[hid] ||= { nv: 1, uso: 0 }, max = HABS[hid].max || SKILL_MAX;
     if (s.nv >= max) return;
+    const precisa = usosParaSubir(s.nv);
+    if (s.uso >= precisa) return; // cheia: esperando o Tomo
     s.uso++;
-    if (s.uso >= usosParaSubir(s.nv)) { s.uso = 0; s.nv++; this.evento({ t: 'aviso', para: j.id, texto: `${HABS[hid].nome} subiu para Nv ${s.nv}` }); }
+    if (s.uso >= precisa) {
+      if (s.nv < NIVEL_SEM_TOMO) { s.uso = 0; s.nv++; this.evento({ t: 'aviso', para: j.id, texto: `${HABS[hid].nome} subiu para Nv ${s.nv}` }); }
+      else this.evento({ t: 'aviso', para: j.id, texto: `${HABS[hid].nome}: barra cheia. Use o ${HABS[hid].tomo} ${ROMANO[s.nv + 1]}` });
+    }
+    this.avisarProg(j);
+  }
+
+  // ---------- mochila, equipamento e loja (dados em shared/dados.js: ITENS, LOJA, DROPS) ----------
+  // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
+  item(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object' || j.criando) return;
+    const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < MOCHILA ? p.mochila[i] : null;
+    if (m.acao === 'equipar' && it && ehEquip(it.k)) {
+      const l = ITENS[it.k].lugar;
+      p.mochila[i] = p.equip[l]; p.equip[l] = it;
+    } else if (m.acao === 'tirar' && p.equip[m.lugar]) {
+      const v = p.mochila.indexOf(null); if (v < 0) return aviso('Mochila cheia');
+      p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
+    } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
+      if (j.morto) return;
+      if (it.k === 'tomo') {
+        const s = p.habs[it.h] || { nv: 1, uso: 0 };
+        if (s.nv >= it.nv) return aviso(`${HABS[it.h].nome} já está no Nv ${s.nv}`);
+        if (s.nv !== it.nv - 1) return aviso(`Este Tomo é para subir do Nv ${it.nv - 1} para o ${it.nv}`);
+        if (s.uso < usosParaSubir(s.nv)) return aviso(`Encha a barra de usos de ${HABS[it.h].nome} primeiro`);
+        p.habs[it.h] = { nv: it.nv, uso: 0 };
+        aviso(`${HABS[it.h].nome} subiu para Nv ${it.nv}!`);
+      } else {
+        const u = ITENS[it.k].usar;
+        if (u.vida) { if (j.vida >= j.vidaMax) return aviso('A vida já está cheia'); const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
+        if (u.mana) { if (j.mana >= j.manaMax) return aviso('A mana já está cheia'); j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana); }
+      }
+      if (--it.n <= 0) p.mochila[i] = null;
+    } else if (m.acao === 'vender' && it) {
+      if (!this.pertoDaLoja(j)) return aviso('Venda com a Rosa, a comerciante');
+      const preco = precoVenda(it);
+      if (it.n > 1) it.n--; else p.mochila[i] = null;
+      p.ouro += preco;
+      aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
+    } else if (m.acao === 'comprar' && LOJA[i]) {
+      if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
+      const o = LOJA[i];
+      if (p.ouro < o.preco) return aviso('Ouro insuficiente');
+      const novo = ehEquip(o.k) ? { k: o.k, r: o.r } : { k: o.k, n: 1 };
+      if (!guardar(p.mochila, novo)) return aviso('Mochila cheia');
+      p.ouro -= o.preco;
+      aviso(`Comprou ${nomeItem(novo)}`);
+    } else return;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+  }
+  pertoDaLoja(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'loja' && dist(n, j) < LOJA_DISTANCIA); }
+  // Monstro caiu: cada herói que ganhou XP tira a sua sorte (ouro, poções, peça, Tomo de uma skill que ele já tem)
+  soltarDrops(c, j) {
+    const d = DROPS[c.tipo]; if (!d) return;
+    const p = j.prog, ganhou = [];
+    const por = (it) => { if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    const ouro = d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1));
+    p.ouro += ouro;
+    if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
+    if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
+    if (Math.random() < d.equip) {
+      let s = Math.random(), r = 0;
+      while (r < d.raridade.length - 1 && s >= d.raridade[r]) s -= d.raridade[r++];
+      const pecas = Object.keys(ITENS).filter(ehEquip);
+      por({ k: pecas[Math.floor(Math.random() * pecas.length)], r });
+    }
+    if (Math.random() < d.tomo) { // Tomo do próximo nível que a skill vai precisar (do VI ao X)
+      const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
+      if (sk.length) { const h = sk[Math.floor(Math.random() * sk.length)]; por({ k: 'tomo', h, nv: Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1), n: 1 }); }
+    }
+    this.evento({ t: 'drop', para: j.id, x: r2(c.x), z: r2(c.z), ouro, itens: ganhou });
     this.avisarProg(j);
   }
 
@@ -490,6 +568,7 @@ export class Simulacao {
       return diga(M.andamento.replace('{faltam}', M.total - m.n));
     }
     if (npc.funcao === 'habilidades') return diga(npc.falas[0], { abrir: 'habilidades' });
+    if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
     diga(proxima());
   }
   // Inimigo caiu: conta para quem está numa missão contra a horda dele (vale para todos do grupo)
@@ -662,7 +741,7 @@ export class Simulacao {
       this.contarMissao(c);
       // XP para quem bateu nele ou estava perto (grupo)
       const xp = XP_INIMIGO[c.tipo] || 5;
-      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) this.ganharXP(j, xp);
+      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) { this.ganharXP(j, xp); this.soltarDrops(c, j); }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       this.depois(8, () => {
         this.inimigos.splice(this.inimigos.indexOf(c), 1);

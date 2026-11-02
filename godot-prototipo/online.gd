@@ -425,6 +425,11 @@ func evento(ev: Dictionary) -> void:
 		"fala":
 			m.hud.aviso(str(ev.texto))
 			return
+		"drop": # ouro e itens do monstro que eu ajudei a derrubar (já estão na mochila)
+			var x := float(ev.x)
+			var z := float(ev.z)
+			m.mostrar_drop(Vector3(x, m.terreno.altura(x, z), z), int(ev.get("ouro", 0)), ev.get("itens", []))
+			return
 		"corrigir": # o servidor não aceitou a posição: volta para onde ele sabe
 			m.mov.por_em(Vector3(float(ev.x), float(ev.y), float(ev.z)))
 			m.mov.ry = float(ev.ry)

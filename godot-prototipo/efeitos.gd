@@ -792,6 +792,29 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 0.8)
 	tw.tween_callback(l.queue_free)
 
+# Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
+func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0) -> void:
+	var l := Label3D.new()
+	l.text = t
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.font_size = 48
+	l.outline_size = 10
+	l.modulate = Color(cor, 0.0)
+	l.outline_modulate = Color(0.08, 0.05, 0.03, 0.0)
+	l.pixel_size = 0.006
+	add_child(l)
+	l.global_position = pos + Vector3(0, 1.7, 0)
+	var y0 := l.global_position.y
+	var tw := create_tween()
+	if atraso > 0.0:
+		tw.tween_interval(atraso)
+	tw.tween_method(func(f: float):
+		l.global_position.y = y0 + f * 1.1
+		l.modulate.a = smoothstep(0.0, 0.12, f) * (1.0 - smoothstep(0.7, 1.0, f))
+		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 1.6)
+	tw.tween_callback(l.queue_free)
+
 # Dash: rastro de vento atrás do corpo (forte = investida / dash rápido, com faíscas)
 func dash(corpo: Node3D, dur: float, forte: bool) -> void:
 	var r := trilhos(corpo)

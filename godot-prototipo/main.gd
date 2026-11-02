@@ -20,13 +20,8 @@ const BANDO := [
 	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp", "tipo": "imp"},
 	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15, "tipo": "chefe"},
 ]
-const NPCS := [
-	{"id": "fumiriya", "x": -6.0, "z": -18.6, "nome": "Aldo, o líder da vila"},
-	{"id": "shino", "x": -12.0, "z": -8.0, "nome": "Lúcia"},
-	{"id": "vivi", "x": 8.0, "z": -12.0, "nome": "Rosa"},
-	{"id": "vita", "x": -4.0, "z": 9.0, "nome": "Bento"},
-	{"id": "victoria", "x": 6.0, "z": 6.0, "nome": "Tomás, o ferreiro"},
-]
+# NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria"}
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
@@ -112,8 +107,8 @@ func _ready() -> void:
 		e.tipo = b.tipo
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
-	for n in NPCS:
-		criar_npc(n.id, Vector3(n.x, 0, n.z), n.nome)
+	for n in mundo.get("npcs", []):
+		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
 	camera.fov = 52
 	camera.far = 400
@@ -364,12 +359,56 @@ func contorno(no: Node3D, metros: float) -> void:
 				n.next_pass = mat_contorno[k]
 				mi.set_surface_override_material(i, n)
 
-func criar_npc(id: String, pos: Vector3, nome: String) -> void:
+func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	var no := modelo(id)
 	no.position = pos
-	no.rotation.y = randf() * TAU
+	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
+	no.rotation.y = float(info.get("ry", randf() * TAU))
 	barra_vida(no, nome, Color(0, 0, 0, 0))
-	npcs.append({"no": no})
+	npcs.append({"no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id))})
+
+# perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
+func perto_da_loja() -> bool:
+	for n in npcs:
+		if n.funcao == "loja" and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
+			return true
+	return false
+
+# poção da mochila: confere se vale a pena; sem internet já recupera aqui (online quem aplica é o servidor)
+func usar_pocao(it: Dictionary) -> bool:
+	if h.morto > 0.0:
+		return false
+	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
+	if u.has("vida"):
+		if h.vida >= P.st.vidaMax:
+			hud.aviso("A vida já está cheia")
+			return false
+		var n: float = min(P.st.vidaMax - h.vida, round(P.st.vidaMax * float(u.vida)))
+		fx.cura(heroi)
+		fx.numero(heroi.position, n, Color("7dffa0"))
+		if not on():
+			h.vida += n
+	if u.has("mana"):
+		if h.mana >= P.st.manaMax:
+			hud.aviso("A mana já está cheia")
+			return false
+		if not on():
+			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+	return true
+
+# ouro e itens que caíram do monstro: sobem do corpo dele (cor da raridade)
+func mostrar_drop(pos: Vector3, ouro: int, itens: Array) -> void:
+	if ouro > 0:
+		fx.texto(pos, "+%d ouro" % ouro, Color("ffd36a"), 0.0)
+	var atraso := 0.25
+	var alto := 0.0
+	for it in itens:
+		var r := int(it.get("r", -1))
+		alto -= 0.32
+		fx.texto(pos + Vector3(0, alto, 0), str(it.nome), Color(P.dados.raridades[r].cor) if r >= 0 else Color("e8f0ff"), atraso)
+		atraso += 0.3
+		if r >= 1:
+			hud.aviso("Caiu: " + str(it.nome))
 
 # nome e barra de vida em cima da cabeça
 func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
@@ -621,6 +660,9 @@ func usar(qual: String) -> void:
 			comecar("rolar", 1.15, [], func(_i): pass, {"anda": 6.0})
 		"menu":
 			menu.abrir()
+		"loja":
+			rede("falar") # a Rosa responde e o menu abre na Loja
+			menu.abrir("loja")
 		_:
 			if qual.begins_with("hab"):
 				habilidade(int(qual.substr(3)))
@@ -982,6 +1024,7 @@ func _process(dt: float) -> void:
 		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
+	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()

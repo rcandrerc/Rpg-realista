@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -15,24 +15,82 @@ export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45);
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
 export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20 };
 
-// Números do herói a partir do nível e dos atributos (nível 1 com tudo em 3 = vida 120, mana 100, dano 10)
+// Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
-  const a = p.atr, n = p.nivel;
+  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip);
   const nivelK = 1 + 0.08 * (n - 1);
-  const def = a.for + (passivas.pele_pedra ? 3 : 0);
+  const def = a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa;
   return {
-    vidaMax: Math.round(84 + 8 * a.vit + 4 * a.for + 6 * (n - 1)),
-    manaMax: Math.round((82 + 6 * a.int + 2 * (n - 1)) * (passivas.mente_arcana ? 1.1 : 1)),
-    regenMana: 7 + (passivas.mente_arcana ? 0.3 : 0),
+    vidaMax: Math.round(84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida),
+    manaMax: Math.round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (passivas.mente_arcana ? 1.1 : 1)),
+    regenMana: (7 + (passivas.mente_arcana ? 0.3 : 0)) * (1 + eq.regenManaK),
     regenVida: 0.1 * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: 10 * nivelK * (1 + 0.06 * (a.for - 3)),
-    danoMagico: 10 * nivelK * (1 + 0.06 * (a.int - 3)),
-    critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0)),
+    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK),
+    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK),
+    critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico),
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
+    areaK: eq.areaK, // área das skills a mais (conjunto de 6 peças)
   };
 }
+
+// ---------- equipamento e mochila (dados em shared/dados.js: ITENS, RARIDADES, CONJUNTO) ----------
+const ehEquip = (k) => !!ITENS[k]?.lugar;
+// Quantas peças de cada raridade (ou melhor) estão no corpo: 6 lugares, a Arma conta pela melhor entre espada e cajado
+export function pecasDoConjunto(equip = {}) {
+  const r = (l) => (equip[l] ? equip[l].r : -1);
+  const lugares = [r('cabeca'), r('corpo'), r('capa'), r('pes'), r('acessorio'), Math.max(r('espada'), r('cajado'))];
+  return RARIDADES.map((_, i) => lugares.filter((x) => x >= i).length);
+}
+// Soma das peças e do bônus de conjunto (o melhor de 2, 3 e 6 peças)
+export function bonusEquip(equip = {}) {
+  const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
+  for (const l of LUGARES) {
+    const it = equip?.[l]; if (!it || !ITENS[it.k]) continue;
+    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r];
+  }
+  const n = pecasDoConjunto(equip || {});
+  for (const t of [2, 3, 6]) {
+    let melhor = 0;
+    for (let r = 1; r < CONJUNTO.length; r++) if (n[r] >= t) melhor = r;
+    if (melhor) for (const [c, v] of Object.entries(CONJUNTO[melhor][t])) b[c] += v;
+  }
+  return b;
+}
+// Item na mochila: { k, r } peça (r = raridade 0..4) · { k, n } poção · { k: 'tomo', h, nv, n } Tomo da skill h
+export function itemValido(it) {
+  if (!it || typeof it !== 'object' || !ITENS[it.k]) return null;
+  const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+  if (ehEquip(it.k)) return int(it.r, 0, RARIDADES.length - 1) ? { k: it.k, r: it.r } : null;
+  const n = int(it.n, 1, ITENS[it.k].pilha) ? it.n : 1;
+  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n } : null;
+  return { k: it.k, n };
+}
+const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv;
+// Põe na mochila (junta na pilha igual ou no primeiro lugar vazio). Devolve false se não coube.
+export function guardar(mochila, item) {
+  const it = itemValido(item); if (!it) return false;
+  if (it.n) {
+    for (const o of mochila) if (o && mesmo(o, it) && o.n < ITENS[it.k].pilha) {
+      const cabe = Math.min(it.n, ITENS[it.k].pilha - o.n); o.n += cabe; it.n -= cabe;
+      if (it.n <= 0) return true;
+    }
+  }
+  const i = mochila.indexOf(null); if (i < 0) return false;
+  mochila[i] = it; return true;
+}
+export function nomeItem(it) {
+  if (!it || !ITENS[it.k]) return '';
+  if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}`;
+  if (it.k === 'tomo') return `${HABS[it.h].tomo} ${ROMANO[it.nv]}`;
+  return ITENS[it.k].nome;
+}
+// Quanto a loja paga por uma unidade
+export const precoVenda = (it) => (ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1);
+export const mochilaNova = () => Array(MOCHILA).fill(null);
+export const equipNovo = () => Object.fromEntries(LUGARES.map((l) => [l, null]));
+export { ehEquip };
 
 // Habilidades: as do Quimera (armas/armas.js e index.html), com os mesmos números e o mesmo jeito de funcionar.
 // arvore: espada (escala com Força), cajado (Inteligência) ou geral (serve com as duas). libera = nível do herói.
@@ -46,17 +104,17 @@ export const HABS = {
     cd: 0.5, comboZera: 0.8, empurra: 0.55, vulneravel: { k: 0.06, dur: 4 },
     combo: [{ anim: 'combo1', dur: 0.48, hit: 0.24 }, { anim: 'combo2', dur: 0.48, hit: 0.26 }, { anim: 'combo3', dur: 0.48, hit: 0.28 }, { anim: 'combo4', dur: 0.75, hit: 0.31 }], // o 4º (o golpe forte) com tempo de terminar
     desc: 'Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s).' },
-  corte_duplo: { nome: 'Corte Duplo', arvore: 'espada', tipo: 'corte', libera: 1, anim: A.cruzado, dur: 0.85, hits: [0.24, 0.66], lunge: { r: 7, para: 1.6 },
+  corte_duplo: { tomo: 'Manual da Lâmina Gêmea', nome: 'Corte Duplo', arvore: 'espada', tipo: 'corte', libera: 1, anim: A.cruzado, dur: 0.85, hits: [0.24, 0.66], lunge: { r: 7, para: 1.6 },
     ponto: 1.7, area: 2.2, nv: { area: 0.15 }, pct: 1.1, empurra: 0.55, mana: 10, cd: 1.1, icone: 'corte',
     desc: 'Avança até o inimigo mais perto e dá dois cortes na frente.' },
-  giro: { nome: 'Giro da Lâmina', arvore: 'espada', tipo: 'giro', libera: 1, anim: A.giro, dur: 1.2, hits: [0.52, 0.74], area: 4, nv: { area: 0.24 }, pct: 0.85, empurra: 1.1,
+  giro: { tomo: 'Livro do Redemoinho de Aço', nome: 'Giro da Lâmina', arvore: 'espada', tipo: 'giro', libera: 1, anim: A.giro, dur: 1.2, hits: [0.52, 0.74], area: 4, nv: { area: 0.24 }, pct: 0.85, empurra: 1.1,
     mana: 22, cd: 6, icone: 'giro', desc: 'Gira a espada e corta tudo em volta, duas vezes. Dá para andar girando.' },
-  golpe_esmagador: { nome: 'Golpe Esmagador', arvore: 'espada', tipo: 'esmagar', libera: 5, anim: A.jump, dur: 1.25, hits: [0.71], lunge: { r: 7, para: 1.4 },
+  golpe_esmagador: { tomo: 'Tomo do Martelo da Terra', nome: 'Golpe Esmagador', arvore: 'espada', tipo: 'esmagar', libera: 5, anim: A.jump, dur: 1.25, hits: [0.71], lunge: { r: 7, para: 1.4 },
     ponto: 1.6, area: 2.8, nv: { area: 0.15 }, pct: 3.2, empurra: 0.75, atordoa: 1.5, mana: 32, cd: 10, icone: 'salto',
     desc: 'Avança e crava a espada no chão na frente. Atordoa (chefes não).' },
-  pisao_sismico: { nome: 'Pisão Sísmico', arvore: 'espada', tipo: 'pisao', libera: 8, anim: A.descendente, dur: 0.8, hits: [0.42], area: 5.1, pct: 1.1, empurra: 0.35,
+  pisao_sismico: { tomo: 'Crônica do Tremor', nome: 'Pisão Sísmico', arvore: 'espada', tipo: 'pisao', libera: 8, anim: A.descendente, dur: 0.8, hits: [0.42], area: 5.1, pct: 1.1, empurra: 0.35,
     atordoa: 3.8, nv: { area: 0.26, atordoa: 0.3 }, mana: 28, cd: 12, icone: 'pisao', desc: 'A espada racha o chão em volta e atordoa todo mundo perto.' },
-  investida: { nome: 'Investida', arvore: 'espada', tipo: 'investida', libera: 14, anim: 'investida', dur: 1.1, hits: [0.48], alcance: 9, dashT: 0.36, largura: 1.6,
+  investida: { tomo: 'Diário do Cavaleiro Veloz', nome: 'Investida', arvore: 'espada', tipo: 'investida', libera: 14, anim: 'investida', dur: 1.1, hits: [0.48], alcance: 9, dashT: 0.36, largura: 1.6,
     alvos: 3, nv: { alvos: 1 }, pct: 1.3, cai: 0.85, empurra: 1.45, mana: 26, cd: 7, icone: 'investida',
     desc: 'Dash atravessando os inimigos em linha até o alvo (precisa de alvo a até 9 m).' },
   // ----- cajado -----
@@ -65,25 +123,25 @@ export const HABS = {
     proj: { vel: 18, cor: 0xff8a3a, tam: 0.22, estilo: 'fogo', largura: 0.8, vida: 0.9 },
     combo: [{ anim: 'magia1', dur: 0.58, hit: 0.17 }, { anim: 'magia2', dur: 0.58, hit: 0.17 }],
     desc: 'Faísca de fogo que mira sozinha no inimigo mais perto (até 9 m) e deixa lento. Não gasta mana.' },
-  bola_fogo: { nome: 'Bola de Fogo', arvore: 'cajado', tipo: 'bola', libera: 1, anim: A.bolt, at: 0.43, canal: 0.55, alcance: 11, pct: 2.2,
+  bola_fogo: { tomo: 'Grimório das Chamas', nome: 'Bola de Fogo', arvore: 'cajado', tipo: 'bola', libera: 1, anim: A.bolt, at: 0.43, canal: 0.55, alcance: 11, pct: 2.2,
     proj: { vel: 16, cor: 0xff7a2a, tam: 0.26, explosao: 2.2, estilo: 'fogo' }, nv: { explosao: 0.15 }, mana: 10, cd: 1.1, icone: 'bola',
     desc: 'Cometa de fogo no alvo (até 11 m) que explode na área.' },
-  anel_chamas: { nome: 'Anel de Chamas', arvore: 'cajado', tipo: 'anel', libera: 1, anim: A.ground, at: 0.6, canal: 0.6, area: 5, nv: { area: 0.3 }, pct: 1.7, empurra: 1.45,
+  anel_chamas: { tomo: 'Livro do Círculo de Fogo', nome: 'Anel de Chamas', arvore: 'cajado', tipo: 'anel', libera: 1, anim: A.ground, at: 0.6, canal: 0.6, area: 5, nv: { area: 0.3 }, pct: 1.7, empurra: 1.45,
     mana: 22, cd: 6, icone: 'explosao', desc: 'Um pulinho e o fogo explode no chão em volta de você.' },
-  meteoro: { nome: 'Meteoro', arvore: 'cajado', tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 5, nv: { area: 0.3 }, queda: 0.75, pct: 3.2,
+  meteoro: { tomo: 'Códice da Estrela Cadente', nome: 'Meteoro', arvore: 'cajado', tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 5, nv: { area: 0.3 }, queda: 0.75, pct: 3.2,
     empurra: 1.1, mana: 32, cd: 10, icone: 'meteoros', desc: 'Marca o chão do alvo e uma rocha em chamas cai ali.' },
-  nova_gelo: { nome: 'Nova de Gelo', arvore: 'cajado', tipo: 'gelo', libera: 8, anim: A.onda, at: 0.45, canal: 0.75, area: 6, congela: 3.8, nv: { area: 0.3, congela: 0.3 },
+  nova_gelo: { tomo: 'Tomo do Inverno Eterno', nome: 'Nova de Gelo', arvore: 'cajado', tipo: 'gelo', libera: 8, anim: A.onda, at: 0.45, canal: 0.75, area: 6, congela: 3.8, nv: { area: 0.3, congela: 0.3 },
     pct: 1.1, empurra: 0.55, mana: 28, cd: 12, icone: 'gelo', desc: 'Onda de gelo em volta que congela os inimigos.' },
-  raio_cadeia: { nome: 'Raio em Cadeia', arvore: 'cajado', tipo: 'cadeia', libera: 14, anim: A.ceu, at: 0.3, canal: 0.35, alcance: 11, pula: 5.5, alvos: 3, nv: { alvos: 1 },
+  raio_cadeia: { tomo: 'Pergaminho da Tempestade', nome: 'Raio em Cadeia', arvore: 'cajado', tipo: 'cadeia', libera: 14, anim: A.ceu, at: 0.3, canal: 0.35, alcance: 11, pula: 5.5, alvos: 3, nv: { alvos: 1 },
     pct: 1.3, cai: 0.85, mana: 26, cd: 7, icone: 'raio', desc: 'Raio da mão no alvo que pula de inimigo em inimigo.' },
   // ----- gerais (servem com espada e cajado) -----
-  salto_arcano: { nome: 'Salto Arcano', arvore: 'geral', tipo: 'teleporte', libera: 1, distancia: 5.5, nv: { distancia: 0.6 }, mana: 14, cd: 4, icone: 'salto_arcano',
+  salto_arcano: { tomo: 'Atlas dos Passos Arcanos', nome: 'Salto Arcano', arvore: 'geral', tipo: 'teleporte', libera: 1, distancia: 5.5, nv: { distancia: 0.6 }, mana: 14, cd: 4, icone: 'salto_arcano',
     desc: 'Some e reaparece mais à frente, para onde o joystick aponta (para na parede).' },
-  cura_floresta: { nome: 'Cura da Floresta', arvore: 'geral', tipo: 'cura', libera: 6, anim: A.heal, at: 0.55, canal: 0.8, curaPct: 0.22, nv: { curaPct: 0.06 }, grupo: 8,
+  cura_floresta: { tomo: 'Herbário da Floresta', nome: 'Cura da Floresta', arvore: 'geral', tipo: 'cura', libera: 6, anim: A.heal, at: 0.55, canal: 0.8, curaPct: 0.22, nv: { curaPct: 0.06 }, grupo: 8,
     mana: 30, cd: 18, icone: 'cura', desc: 'Recupera vida sua; quem estiver perto (8 m) recebe metade.' },
-  escudo_arcano: { nome: 'Escudo Arcano', arvore: 'geral', tipo: 'escudo', libera: 10, anim: A.block, dur: 0.6, absorve: 37, nv: { absorve: 12 }, defK: 1.5, duracao: 10,
+  escudo_arcano: { tomo: 'Tratado da Égide', nome: 'Escudo Arcano', arvore: 'geral', tipo: 'escudo', libera: 10, anim: A.block, dur: 0.6, absorve: 37, nv: { absorve: 12 }, defK: 1.5, duracao: 10,
     mana: 25, cd: 20, icone: 'escudo', desc: 'Uma bolha de luz que segura o dano por 10 s (mais forte com a Defesa).' },
-  vortice: { nome: 'Abraço do Vórtice', arvore: 'geral', tipo: 'puxar', libera: 1, anim: A.vortice, at: 0.3, canal: 0.4, area: 8, nv: { area: 0.4 }, atordoa: 0.32,
+  vortice: { tomo: 'Livro do Vórtice', nome: 'Abraço do Vórtice', arvore: 'geral', tipo: 'puxar', libera: 1, anim: A.vortice, at: 0.3, canal: 0.4, area: 8, nv: { area: 0.4 }, atordoa: 0.32,
     mana: 24, cd: 16, icone: 'vortice', desc: 'Puxa os inimigos em volta para perto de você (não puxa chefes). Não tira vida.' },
 };
 // Passivas: valem sozinhas a partir do nível do herói
@@ -93,6 +151,7 @@ export const PASSIVAS = {
   sorte_arcana: { nome: 'Sorte Arcana', libera: 7, desc: 'Crítico +2%' },
 };
 export const SKILL_MAX = 10;
+export const NIVEL_SEM_TOMO = 5; // até aqui a skill sobe só usando; do 6 ao 10 precisa do Tomo (Quimera)
 // Duas barras, como no Quimera: a da espada e a do cajado (Trocar mostra a outra). As gerais servem nas duas.
 // Padrão: as skills de espada numa e as de magia na outra, na ordem do Quimera; dá para mudar no menu.
 export const N_BOTOES = 6;
@@ -125,7 +184,9 @@ export function habNoNivel(id, nv) {
 }
 
 export function progressoNovo() {
-  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao() };
+  // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
+  const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
+  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, equip: equipNovo() };
 }
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
 export function progressoValido(p) {
@@ -140,6 +201,13 @@ export function progressoValido(p) {
   for (const [id, s] of Object.entries(p.habs || {})) if (HABS[id]) n.habs[id] = { nv: int(s?.nv, 1, HABS[id].max || SKILL_MAX, 1), uso: int(s?.uso, 0, 1e6, 0) };
   // conta antiga (uma barra só, campo botoes): começa com as barras padrão
   for (const b of BARRAS) n.barras[b] = barraValida(p.barras?.[b], b) || n.barras[b];
+  // mochila e equipamento (conta de antes da mochila: fica com o começo de progressoNovo)
+  if (Array.isArray(p.mochila)) {
+    n.ouro = int(p.ouro, 0, 1e9, 0);
+    n.mochila = mochilaNova();
+    p.mochila.slice(0, MOCHILA).forEach((it, i) => { n.mochila[i] = itemValido(it); });
+    for (const l of LUGARES) { const it = itemValido(p.equip?.[l]); n.equip[l] = it && ITENS[it.k].lugar === l ? it : null; }
+  }
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));

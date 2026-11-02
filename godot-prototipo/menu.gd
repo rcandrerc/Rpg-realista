@@ -5,6 +5,8 @@ extends CanvasLayer
 # com nível de cada skill, o que melhora no próximo e em qual botão de cada barra ela fica). Passivas no fim.
 # Duas barras como no Quimera: a da espada e a do cajado (Trocar mostra a outra); toque em dois botões da barra para
 # trocar de lugar. Quem decide é o servidor (online manda "atributo" e "barra"); sem internet muda só neste celular.
+# Mochila (8 x 4) e Loja da Rosa (Parte 2 do Quimera): toque num item para ver, equipar, usar ou vender; toque num lugar
+# de equipamento para ver a peça e tirar. Online quem decide é o servidor (manda "item"); sem internet muda só aqui.
 # A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
 const OURO := Color(0.80, 0.64, 0.36)
@@ -23,6 +25,7 @@ const ARVORE_TXT := {
 	"cajado": "Com o cajado na mão. Escala com Inteligência. Cada skill sobe de nível usando.",
 	"geral": "Servem com a espada e com o cajado. Cada skill sobe de nível usando.",
 }
+const PLURAL := ["Comuns", "Raras", "Épicas", "Lendárias", "Míticas"] # "3 peças Raras (ou melhores)"
 const SLOTS := [["cabeca", "Cabeça"], ["corpo", "Corpo"], ["pes", "Pés"], ["arma", "Arma"], ["acessorio", "Acessório"], ["capa", "Capa"]]
 
 var m # main.gd
@@ -44,6 +47,9 @@ var caj: Node3D
 var giro := 0.4
 var arrastando := false
 var slot_arma: Dictionary = {}
+var slots_ui := {} # lugar -> {icone, painel}
+var sel_mochila := -1 # item escolhido na mochila
+var sel_equip := "" # peça escolhida no corpo (lugar)
 var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
 var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
 var _arrasto_dentro := false
@@ -208,12 +214,42 @@ func slot(id: String, nome: String) -> Control:
 	var l := rotulo(nome, 12, APAGADO)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	c.add_child(l)
+	slots_ui[id] = {"icone": ic, "painel": p}
 	if id == "arma":
-		slot_arma = {"icone": ic, "painel": p}
-	else: # vazio: silhueta do item bem apagada
-		ic.texture = icone_tex("eq_" + id)
-		ic.modulate = Color(0.85, 0.75, 0.55, 0.25)
+		slot_arma = slots_ui[id]
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.gui_input.connect(func(ev):
+		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
+			tocar_slot(id))
 	return c
+
+func lugar_de(id: String) -> String:
+	return ("espada" if boneco_modo == "Espada" else "cajado") if id == "arma" else id
+
+# peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
+func atualizar_slots() -> void:
+	for id in slots_ui:
+		var u: Dictionary = slots_ui[id]
+		var it = m.P.prog.equip.get(lugar_de(id))
+		var escolhido: bool = sel_equip != "" and sel_equip == lugar_de(id)
+		if it != null:
+			var c: Color = m.P.cor_item(it)
+			u.icone.texture = icone_tex(m.P.icone_item(it))
+			u.icone.modulate = c
+			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.055, 1), OURO_CLARO if escolhido else c.darkened(0.15), 2 if escolhido else 1, 8))
+		else:
+			u.icone.texture = icone_tex("basico" if id == "arma" and boneco_modo == "Espada" else "magia" if id == "arma" else "eq_" + id)
+			u.icone.modulate = Color(0.85, 0.75, 0.55, 0.45 if id == "arma" else 0.25)
+			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else BORDA, 2 if escolhido else 1, 8))
+
+func tocar_slot(id: String) -> void:
+	var l := lugar_de(id)
+	sel_mochila = -1
+	sel_equip = "" if sel_equip == l else l
+	if aba != "mochila":
+		aba = "mochila"
+	atualizar()
 
 func montar_palco() -> void:
 	var cam := Camera3D.new()
@@ -275,9 +311,7 @@ func armar_boneco() -> void:
 	m.prender(esq, esp, L.espadaMao if boneco_modo == "Espada" else L.espadaCostas)
 	m.prender(esq, caj, L.cajadoCostas if boneco_modo == "Espada" else L.get("cajadoMao", L.cajadoCostas))
 	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else "parada", 0.2)
-	if slot_arma:
-		slot_arma.icone.texture = icone_tex("basico" if boneco_modo == "Espada" else "magia")
-		slot_arma.painel.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.055, 1), OURO, 1, 8))
+	atualizar_slots()
 
 func _girar(ev: InputEvent) -> void:
 	if ev is InputEventScreenDrag:
@@ -292,9 +326,9 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"]]:
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["mochila", "Mochila"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
-		b.custom_minimum_size = Vector2(150, 40)
+		b.custom_minimum_size = Vector2(128, 40)
 		botoes_aba[a[0]] = b
 		abas.add_child(b)
 	col.add_child(abas)
@@ -330,9 +364,15 @@ func trocar_arvore(k: String) -> void:
 	atualizar()
 	rolagem.scroll_vertical = 0
 
-func abrir() -> void:
+func abrir(qual := "") -> void:
 	if m.h.modo == "Magia":
 		arvore = "cajado"
+	if qual != "":
+		aba = qual
+	elif aba == "loja":
+		aba = "status"
+	sel_mochila = -1
+	sel_equip = ""
 	raiz.visible = true
 	m.hud.bloqueado = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -380,8 +420,12 @@ func atualizar() -> void:
 		return
 	var P = m.P
 	titulo_nivel.text = "%s  ·  Nível %d" % [m.hud.nome, P.prog.nivel]
+	if aba == "loja" and not m.perto_da_loja():
+		aba = "mochila"
 	for k in botoes_aba:
 		estilo_botao(botoes_aba[k], k == aba)
+	botoes_aba.loja.visible = m.perto_da_loja()
+	atualizar_slots()
 	linha_arvores.visible = aba == "habilidades"
 	for k in botoes_arvore:
 		estilo_botao(botoes_arvore[k], k == arvore)
@@ -391,6 +435,10 @@ func atualizar() -> void:
 		c.queue_free()
 	if aba == "status":
 		montar_status()
+	elif aba == "mochila":
+		montar_mochila()
+	elif aba == "loja":
+		montar_loja()
 	else:
 		montar_habilidades()
 	await get_tree().process_frame
@@ -563,7 +611,19 @@ func linha_skill(id: String) -> Control:
 			uso.add_child(b)
 			uso.add_child(rotulo("%d/%d usos" % [P.uso_de(id), P.usos_para_subir(nv)], 12, APAGADO))
 			txt.add_child(uso)
-		txt.add_child(rotulo(P.proximo(id), 12, Color(0.6, 0.75, 0.55)))
+		var ti: int = P.tomo_para(id)
+		if ti == -2:
+			txt.add_child(rotulo(P.proximo(id), 12, Color(0.6, 0.75, 0.55)))
+		else: # barra cheia do Nv 5 em diante: sobe com o Tomo
+			var lt := HBoxContainer.new()
+			lt.add_theme_constant_override("separation", 8)
+			var nome_t: String = "%s %s" % [base.tomo, P.dados.romano[nv + 1]]
+			lt.add_child(rotulo(("Pronta para o %s" if ti >= 0 else "Precisa do %s (cai dos monstros)") % nome_t, 12, Color("d9b4ff")))
+			if ti >= 0:
+				var bt := botao("Usar Tomo", func(): acao_item({"acao": "usar", "i": ti}), 13, true)
+				bt.custom_minimum_size = Vector2(110, 32)
+				lt.add_child(bt)
+			txt.add_child(lt)
 	if not base.get("basico", false):
 		# em qual botão de cada barra ela fica (as gerais servem nas duas)
 		for barra in ["espada", "cajado"]:
@@ -582,6 +642,241 @@ func linha_skill(id: String) -> Control:
 		txt.add_child(rotulo("Golpe da arma na mão (botão grande)", 12, Color(0.6, 0.75, 0.55)))
 	l.add_child(txt)
 	return cx
+
+# ---------- mochila e loja ----------
+func linha_ouro() -> Control:
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 6)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex("it_ouro")
+	ic.custom_minimum_size = Vector2(22, 22)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = Color("ffd36a")
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(ic)
+	l.add_child(rotulo("%d de ouro" % int(m.P.prog.ouro), 16, Color("ffd36a")))
+	return l
+
+# quadradinho de item: moldura e ícone na cor da raridade, quantidade no canto
+func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
+	var P = m.P
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(tam, tam)
+	var cor: Color = P.cor_item(it) if it != null else BORDA
+	var est := caixa(Color(0.15, 0.12, 0.08, 1) if escolhido else Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else (cor.darkened(0.25) if it != null else Color(0.22, 0.18, 0.13)), 2 if escolhido else 1, 7)
+	for e in ["normal", "hover", "pressed"]:
+		b.add_theme_stylebox_override(e, est)
+	if it != null:
+		var ic := TextureRect.new()
+		ic.texture = icone_tex(P.icone_item(it))
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = tam * 0.17
+		ic.offset_top = tam * 0.17
+		ic.offset_right = -tam * 0.17
+		ic.offset_bottom = -tam * 0.17
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.modulate = cor
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(ic)
+		if it.k == "tomo":
+			var r := rotulo(P.dados.romano[int(it.nv)], 11, Color("fff6c8"))
+			r.position = Vector2(4, 1)
+			r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(r)
+		if int(it.get("n", 1)) > 1:
+			var n := rotulo(str(int(it.n)), 12, TEXTO)
+			n.add_theme_constant_override("outline_size", 4)
+			n.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+			n.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			n.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+			n.offset_left = -30
+			n.offset_top = -19
+			n.offset_right = -4
+			n.offset_bottom = -1
+			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(n)
+	b.pressed.connect(func():
+		if not _arrastou:
+			fn.call())
+	return b
+
+func montar_mochila() -> void:
+	var P = m.P
+	var topo := HBoxContainer.new()
+	topo.add_child(linha_ouro())
+	var esp_ := Control.new()
+	esp_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(esp_)
+	var cheios: int = P.prog.mochila.filter(func(x): return x != null).size()
+	topo.add_child(rotulo("%d / %d" % [cheios, P.prog.mochila.size()], 13, APAGADO))
+	conteudo.add_child(topo)
+	var g := GridContainer.new()
+	g.columns = 8
+	g.add_theme_constant_override("h_separation", 6)
+	g.add_theme_constant_override("v_separation", 6)
+	for i in P.prog.mochila.size():
+		g.add_child(celula(P.prog.mochila[i], i == sel_mochila, func(): tocar_mochila(i)))
+	conteudo.add_child(g)
+	if sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
+		conteudo.add_child(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
+	elif sel_equip != "" and P.prog.equip.get(sel_equip) != null:
+		conteudo.add_child(detalhe(P.prog.equip[sel_equip], -1, sel_equip))
+	else:
+		var d := rotulo("Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar.", 12, APAGADO)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		conteudo.add_child(d)
+	montar_conjunto()
+
+# bônus de conjunto: peças da mesma raridade (ou melhor), como o Set de Bruxa do Quimera
+func montar_conjunto() -> void:
+	var P = m.P
+	separador("Conjunto")
+	var n: Array = P.pecas_conjunto()
+	var ativo: Dictionary = P.conjunto_ativo()
+	var algum := false
+	for t in ["2", "3", "6"]:
+		var r: int = ativo[t]
+		if r > 0:
+			algum = true
+			var l := HBoxContainer.new()
+			l.add_theme_constant_override("separation", 8)
+			l.add_child(rotulo("%s peças %s" % [t, PLURAL[r]], 13, Color(P.dados.raridades[r].cor)))
+			l.add_child(rotulo(P.texto_bonus(r, t), 13, TEXTO))
+			conteudo.add_child(l)
+	var prox := ""
+	for r in range(1, P.dados.raridades.size()):
+		for t in ["2", "3", "6"]:
+			if prox == "" and n[r] < int(t) and ativo[t] < r:
+				prox = "Próximo: %s peças %s (tem %d): %s" % [t, PLURAL[r], n[r], P.texto_bonus(r, t)]
+	if not algum:
+		conteudo.add_child(rotulo("Use 2, 3 ou 6 peças Raras (ou melhores) para ganhar bônus.", 12, APAGADO))
+	if prox != "":
+		var d := rotulo(prox, 12, APAGADO)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		conteudo.add_child(d)
+
+func tocar_mochila(i: int) -> void:
+	sel_equip = ""
+	sel_mochila = -1 if sel_mochila == i or m.P.prog.mochila[i] == null else i
+	atualizar()
+
+# cartão do item escolhido: nome na cor da raridade, o que faz, comparação com a peça do corpo e os botões
+func detalhe(it, i: int, lugar: String) -> Control:
+	var P = m.P
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), P.cor_item(it).darkened(0.3), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	var c := celula(it, false, func(): pass, 60)
+	c.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	l.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	txt.add_child(rotulo(P.nome_item(it), 17, P.cor_item(it)))
+	var tipo := ""
+	if P.eh_equip(it):
+		var lg: String = P.dados.itens[it.k].lugar
+		tipo = {"cabeca": "Cabeça", "corpo": "Corpo", "capa": "Capa", "pes": "Pés", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
+		tipo += " · No corpo" if lugar != "" else ""
+	elif it.k == "tomo":
+		tipo = "Tomo de %s" % P.habs[it.h].nome
+	else:
+		tipo = "Consumível · %d" % int(it.n)
+	txt.add_child(rotulo(tipo, 12, APAGADO))
+	var d := rotulo(P.texto_item(it), 14, TEXTO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(d)
+	if P.eh_equip(it) and lugar == "":
+		var atual = P.prog.equip.get(P.dados.itens[it.k].lugar)
+		txt.add_child(rotulo(("No corpo: %s (%s)" % [P.nome_item(atual), P.texto_item(atual)]) if atual != null else "Lugar vazio no corpo", 12, APAGADO))
+	var bs := HBoxContainer.new()
+	bs.add_theme_constant_override("separation", 8)
+	if lugar != "":
+		bs.add_child(botao_acao("Tirar", {"acao": "tirar", "lugar": lugar}))
+	elif P.eh_equip(it):
+		bs.add_child(botao_acao("Equipar", {"acao": "equipar", "i": i}))
+	else:
+		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
+	if i >= 0 and m.perto_da_loja():
+		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
+	txt.add_child(bs)
+	l.add_child(txt)
+	return cx
+
+func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
+	var b := botao(t, func(): acao_item(msg), 14, ativo)
+	b.custom_minimum_size = Vector2(120, 36)
+	return b
+
+func montar_loja() -> void:
+	var P = m.P
+	var topo := HBoxContainer.new()
+	topo.add_child(linha_ouro())
+	conteudo.add_child(topo)
+	var d := rotulo("Rosa compra o que você tiver: na Mochila, toque no item e em Vender.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	separador("À venda")
+	for i in P.dados.loja.size():
+		var o: Dictionary = P.dados.loja[i]
+		var it := {"k": str(o.k), "n": 1} if not P.dados.itens[str(o.k)].has("lugar") else {"k": str(o.k), "r": int(o.r)}
+		var l := HBoxContainer.new()
+		l.add_theme_constant_override("separation", 12)
+		l.add_child(celula(it, false, func(): pass, 48))
+		var txt := VBoxContainer.new()
+		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		txt.add_theme_constant_override("separation", 0)
+		txt.add_child(rotulo(P.nome_item(it), 15, P.cor_item(it)))
+		var t := rotulo(P.texto_item(it), 12, APAGADO)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(t)
+		l.add_child(txt)
+		var pode: bool = int(P.prog.ouro) >= int(o.preco)
+		var b := botao("Comprar · %d" % int(o.preco), func(): acao_item({"acao": "comprar", "i": i}), 14, pode)
+		b.custom_minimum_size = Vector2(140, 40)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		b.disabled = not pode
+		l.add_child(b)
+		conteudo.add_child(l)
+
+# online o servidor confere e devolve a mochila nova; sem internet muda só neste celular (a loja só funciona online)
+func acao_item(msg: Dictionary) -> void:
+	var P = m.P
+	var i: int = msg.get("i", -1)
+	if msg.acao == "usar" and i >= 0 and P.prog.mochila[i] != null and P.prog.mochila[i].k != "tomo":
+		if not m.usar_pocao(P.prog.mochila[i]): # vida/mana cheia: nem gasta
+			return
+	if msg.acao in ["equipar", "tirar", "vender"]:
+		sel_mochila = -1
+		sel_equip = ""
+	if m.on():
+		m.rede("item", msg)
+		return
+	match msg.acao:
+		"equipar":
+			P.equipar(i)
+		"tirar":
+			var r: String = P.tirar(msg.lugar)
+			if r != "":
+				m.hud.aviso(r)
+		"usar":
+			var it = P.prog.mochila[i]
+			if it.k == "tomo":
+				m.hud.aviso(P.usar_tomo(i))
+			else:
+				P.gastar(i)
+			if P.prog.mochila[i] == null:
+				sel_mochila = -1
+		"vender", "comprar":
+			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
+	m.h.vida = min(m.h.vida, P.st.vidaMax)
+	m.h.mana = min(m.h.mana, P.st.manaMax)
+	atualizar()
 
 # a barra (6 botões): toque em um e depois em outro para trocar de lugar; Padrão volta ao começo
 func linha_barra(barra: String) -> Control:

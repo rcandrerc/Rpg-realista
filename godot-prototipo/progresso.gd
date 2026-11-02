@@ -31,7 +31,12 @@ func _init() -> void:
 	definir(p if p is Dictionary else novo())
 
 func novo() -> Dictionary:
-	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true)}
+	var mochila := []
+	mochila.resize(int(dados.mochila))
+	mochila[0] = {"k": "pocao", "n": 3}
+	mochila[1] = {"k": "pocao_mana", "n": 2}
+	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true),
+		"ouro": 20, "mochila": mochila, "equip": {}}
 
 func definir(p: Dictionary) -> void:
 	prog = p
@@ -51,6 +56,19 @@ func definir(p: Dictionary) -> void:
 			barras[b] = dados.botoesPadrao[b].duplicate()
 	prog.barras = barras
 	prog.erase("botoes")
+	# mochila e equipamento (o JSON traz número como float: volta para int)
+	if not (prog.get("mochila") is Array):
+		var n := novo()
+		prog.mochila = n.mochila
+		prog.ouro = n.ouro
+	prog.mochila.resize(int(dados.mochila))
+	for i in prog.mochila.size():
+		prog.mochila[i] = item_int(prog.mochila[i])
+	prog.ouro = int(prog.get("ouro", 0))
+	if not (prog.get("equip") is Dictionary):
+		prog.equip = {}
+	for l in dados.lugares:
+		prog.equip[l] = item_int(prog.equip.get(l))
 	st = calcular_status()
 	xp_prox = xp_proximo(prog.nivel)
 	mudou = true
@@ -74,19 +92,187 @@ func passiva(k: String) -> bool:
 func calcular_status() -> Dictionary:
 	var a: Dictionary = prog.atr
 	var n: int = prog.nivel
+	var eq := bonus_equip()
 	var nivel_k := 1.0 + 0.08 * (n - 1)
-	var defesa: float = a["for"] + (3 if passiva("pele_pedra") else 0)
+	var defesa: float = a["for"] + (3 if passiva("pele_pedra") else 0) + eq.defesa
 	return {
-		"vidaMax": round(84 + 8 * a.vit + 4 * a["for"] + 6 * (n - 1)),
-		"manaMax": round((82 + 6 * a.int + 2 * (n - 1)) * (1.1 if passiva("mente_arcana") else 1.0)),
-		"regenMana": 7.0 + (0.3 if passiva("mente_arcana") else 0.0),
+		"vidaMax": round(84 + 8 * a.vit + 4 * a["for"] + 6 * (n - 1) + eq.vida),
+		"manaMax": round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (1.1 if passiva("mente_arcana") else 1.0)),
+		"regenMana": (7.0 + (0.3 if passiva("mente_arcana") else 0.0)) * (1.0 + eq.regenManaK),
 		"regenVida": 0.1 * a.vit,
 		"defesa": defesa, "reducao": defesa / (defesa + 24.0),
-		"danoFisico": 10.0 * nivel_k * (1 + 0.06 * (a["for"] - 3)),
-		"danoMagico": 10.0 * nivel_k * (1 + 0.06 * (a.int - 3)),
-		"critico": min(1.0, 0.0455 + 0.0015 * a.des + (0.02 if passiva("sorte_arcana") else 0.0)),
+		"danoFisico": (10.0 * nivel_k * (1 + 0.06 * (a["for"] - 3)) + eq.danoFisico) * (1.0 + eq.danoK),
+		"danoMagico": (10.0 * nivel_k * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1.0 + eq.danoK),
+		"critico": min(1.0, 0.0455 + 0.0015 * a.des + (0.02 if passiva("sorte_arcana") else 0.0) + eq.critico),
 		"recarga": min(0.4, 0.0133 * a.des),
+		"areaK": eq.areaK,
 	}
+
+# ---------- mochila e equipamento (igual a shared/progresso.js; os dados vêm de shared/dados.js) ----------
+static func item_int(it):
+	if not (it is Dictionary) or not it.has("k"):
+		return null
+	var r := {"k": str(it.k)}
+	for c in ["r", "n", "nv"]:
+		if it.has(c):
+			r[c] = int(it[c])
+	if it.has("h"):
+		r.h = str(it.h)
+	return r
+
+func eh_equip(it) -> bool:
+	return it is Dictionary and dados.itens.has(it.k) and dados.itens[it.k].has("lugar")
+
+# quantas peças de cada raridade (ou melhor) estão no corpo; a Arma conta pela melhor entre espada e cajado
+func pecas_conjunto() -> Array:
+	var r := func(l): return int(prog.equip[l].r) if prog.equip.get(l) != null else -1
+	var lugares := [r.call("cabeca"), r.call("corpo"), r.call("capa"), r.call("pes"), r.call("acessorio"), max(r.call("espada"), r.call("cajado"))]
+	var n := []
+	for i in dados.raridades.size():
+		n.append(lugares.filter(func(x): return x >= i).size())
+	return n
+
+# o melhor bônus de conjunto para 2, 3 e 6 peças: {"2": raridade, ...} (0 = nenhum)
+func conjunto_ativo() -> Dictionary:
+	var n := pecas_conjunto()
+	var r := {}
+	for t in ["2", "3", "6"]:
+		r[t] = 0
+		for i in range(1, dados.conjunto.size()):
+			if n[i] >= int(t):
+				r[t] = i
+	return r
+
+func bonus_equip() -> Dictionary:
+	var b := {"vida": 0.0, "mana": 0.0, "defesa": 0.0, "critico": 0.0, "danoFisico": 0.0, "danoMagico": 0.0, "danoK": 0.0, "areaK": 0.0, "regenManaK": 0.0}
+	if not prog.has("equip"):
+		return b
+	for l in dados.lugares:
+		var it = prog.equip.get(l)
+		if it == null or not dados.itens.has(it.k):
+			continue
+		var st: Dictionary = dados.itens[it.k].st
+		for c in st:
+			b[c] += float(st[c][int(it.r)])
+	var ativo := conjunto_ativo()
+	for t in ativo:
+		if ativo[t] > 0:
+			var bon: Dictionary = dados.conjunto[ativo[t]][t]
+			for c in bon:
+				b[c] += float(bon[c])
+	return b
+
+func nome_item(it) -> String:
+	if not (it is Dictionary) or not dados.itens.has(it.k):
+		return ""
+	if eh_equip(it):
+		return "%s %s" % [dados.itens[it.k].nome, dados.raridades[int(it.r)].nome]
+	if it.k == "tomo":
+		return "%s %s" % [habs[it.h].tomo, dados.romano[int(it.nv)]]
+	return dados.itens[it.k].nome
+
+func cor_item(it) -> Color:
+	if eh_equip(it):
+		return Color(dados.raridades[int(it.r)].cor)
+	if it.k == "pocao":
+		return Color("ff6b5e")
+	if it.k == "pocao_mana":
+		return Color("5aa8ff")
+	if it.k == "tomo":
+		return Color("d9b4ff")
+	return Color.WHITE
+
+static func icone_item(it) -> String:
+	return "it_" + ("pocao" if it.k == "pocao_mana" else str(it.k))
+
+func preco_venda(it) -> int:
+	if eh_equip(it):
+		return int(dados.vendaEquip[int(it.r)])
+	if it.k == "tomo":
+		return int(dados.vendaTomo) * int(it.nv)
+	return int(dados.itens[it.k].get("venda", 1))
+
+const NOME_ST := {"vida": "Vida", "mana": "Mana", "defesa": "Defesa", "critico": "Crítico", "danoFisico": "Dano físico", "danoMagico": "Dano mágico",
+	"danoK": "Dano", "areaK": "Área das skills", "regenManaK": "Regeneração de mana"}
+static func texto_st(c: String, v: float) -> String:
+	if c in ["critico", "danoK", "areaK", "regenManaK"]:
+		return "+%s%% %s" % [num(v * 100, 1), NOME_ST[c]]
+	return "+%s %s" % [num(v, 0), NOME_ST[c]]
+
+# o que a peça dá: "+3 Defesa · +7 Vida"
+func texto_item(it) -> String:
+	if eh_equip(it):
+		var p := []
+		var st: Dictionary = dados.itens[it.k].st
+		for c in st:
+			var v: float = float(st[c][int(it.r)])
+			if v > 0:
+				p.append(texto_st(c, v))
+		return " · ".join(p)
+	if it.k == "tomo":
+		return "Sobe %s do Nv %d para o %d (com a barra de usos cheia)." % [habs[it.h].nome, int(it.nv) - 1, int(it.nv)]
+	return str(dados.itens[it.k].get("desc", ""))
+
+func texto_bonus(raridade: int, t: String) -> String:
+	var p := []
+	var bon: Dictionary = dados.conjunto[raridade][t]
+	for c in bon:
+		p.append(texto_st(c, float(bon[c])))
+	return ", ".join(p)
+
+# ---------- sem internet: mexer na mochila só neste celular (não grava na conta, como o resto do treino) ----------
+func equipar(i: int) -> void:
+	var it = prog.mochila[i]
+	if not eh_equip(it):
+		return
+	var l: String = dados.itens[it.k].lugar
+	prog.mochila[i] = prog.equip.get(l)
+	prog.equip[l] = it
+	st = calcular_status()
+	mudou = true
+
+func tirar(l: String) -> String:
+	if prog.equip.get(l) == null:
+		return ""
+	var v: int = prog.mochila.find(null)
+	if v < 0:
+		return "Mochila cheia"
+	prog.mochila[v] = prog.equip[l]
+	prog.equip[l] = null
+	st = calcular_status()
+	mudou = true
+	return ""
+
+# Tomo (sem internet): devolve o aviso; poção quem aplica é o main.gd (vida e mana do herói)
+func usar_tomo(i: int) -> String:
+	var it = prog.mochila[i]
+	var nv := nivel_de(it.h)
+	if nv >= int(it.nv):
+		return "%s já está no Nv %d" % [habs[it.h].nome, nv]
+	if nv != int(it.nv) - 1:
+		return "Este Tomo é para subir do Nv %d para o %d" % [int(it.nv) - 1, int(it.nv)]
+	if uso_de(it.h) < usos_para_subir(nv):
+		return "Encha a barra de usos de %s primeiro" % habs[it.h].nome
+	prog.habs[it.h] = {"nv": int(it.nv), "uso": 0}
+	gastar(i)
+	return "%s subiu para Nv %d!" % [habs[it.h].nome, int(it.nv)]
+
+func gastar(i: int) -> void:
+	prog.mochila[i].n = int(prog.mochila[i].n) - 1
+	if prog.mochila[i].n <= 0:
+		prog.mochila[i] = null
+	mudou = true
+
+# precisa de Tomo agora? (barra de usos cheia do Nv 5 em diante): devolve o lugar do Tomo na mochila, -1 se não tem, -2 se não precisa
+func tomo_para(id: String) -> int:
+	var nv := nivel_de(id)
+	if not habs[id].has("tomo") or nv >= maximo(id) or nv < int(dados.nivelSemTomo) or uso_de(id) < usos_para_subir(nv):
+		return -2
+	for i in prog.mochila.size():
+		var it = prog.mochila[i]
+		if it != null and it.k == "tomo" and it.h == id and int(it.nv) == nv + 1:
+			return i
+	return -1
 
 func nivel_de(id: String) -> int:
 	return int(prog.habs.get(id, {}).get("nv", 1))
@@ -134,6 +320,12 @@ func hab_pronta(id: String) -> Dictionary:
 		h.cd = h.cd * (1 - st.recarga)
 	if h.tipo == "escudo":
 		h.absorve = round(h.absorve + st.defesa * h.defK)
+	var ak: float = st.get("areaK", 0.0)
+	if ak > 0.0 and not h.get("basico", false): # conjunto de 6 peças: área das skills maior
+		if h.has("area"):
+			h.area = snappedf(h.area * (1.0 + ak), 0.01)
+		if h.has("proj") and h.proj.has("explosao"):
+			h.proj.explosao = snappedf(h.proj.explosao * (1.0 + ak), 0.01)
 	return h
 
 # ---------- texto do menu (igual ao Quimera: "Dano 220% · Área 2,2 m · Mana 10 · Recarga 1,1 s") ----------
@@ -219,12 +411,17 @@ func contar_uso(id: String) -> String:
 	prog.habs[id] = s
 	if int(s.nv) >= maximo(id):
 		return ""
+	var precisa := usos_para_subir(int(s.nv))
+	if int(s.uso) >= precisa: # cheia: esperando o Tomo
+		return ""
 	s.uso = int(s.uso) + 1
 	mudou = true
-	if s.uso >= usos_para_subir(int(s.nv)):
-		s.uso = 0
-		s.nv = int(s.nv) + 1
-		return "%s subiu para Nv %d" % [habs[id].nome, s.nv]
+	if s.uso >= precisa:
+		if int(s.nv) < int(dados.nivelSemTomo):
+			s.uso = 0
+			s.nv = int(s.nv) + 1
+			return "%s subiu para Nv %d" % [habs[id].nome, s.nv]
+		return "%s: barra cheia. Use o %s %s" % [habs[id].nome, habs[id].tomo, dados.romano[int(s.nv) + 1]]
 	return ""
 
 func distribuir(k: String) -> bool:
