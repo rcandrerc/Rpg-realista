@@ -622,8 +622,15 @@ const DUAS_MAO_BAIXO := 0.04 # m do pé do cabo até a mão esquerda
 const DUAS_MAO_CIMA := 0.2 # até a mão direita
 const DUAS_GIRO := PI / 2.0 # giro da ferramenta em volta do cabo (rad): a ponta da picareta e o fio do machado para a frente
 
+# machado (pedido do André): golpe de lado, na horizontal, vindo de trás do ombro direito até o tronco, com o fio
+# virado para onde o machado vai. "giro" = para que lado o cabo aponta em volta do herói (graus, 0 = frente,
+# 90 = direita); "ang" = quanto o cabo sobe (graus)
+const LADO_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25)}
+const LADO_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02)}
+const LADO_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32)}
+
 func _pose_golpe(o: Dictionary) -> Dictionary:
-	return DUAS_TRONCO if o.tipo == "arvore" else DUAS_PEDRA
+	return LADO_TRONCO if o.tipo == "arvore" else DUAS_PEDRA
 
 # alcance da cabeça da ferramenta na pose do golpe: quanto ela vai à frente do herói e em que altura
 func _cabeca_golpe(o: Dictionary) -> Vector2:
@@ -631,14 +638,18 @@ func _cabeca_golpe(o: Dictionary) -> Vector2:
 	var P: Dictionary = _pose_golpe(o)
 	var comp: float = float(f.get_meta("topo", 0.8)) - float(f.get_meta("base", 0.0)) - 0.07 if f else 0.7
 	var a: float = deg_to_rad(float(P.ang))
-	return Vector2(P.pe.z + cos(a) * comp, P.pe.y + sin(a) * comp)
+	var g: float = deg_to_rad(float(P.get("giro", 0.0)))
+	return Vector2(P.pe.z + cos(a) * cos(g) * comp, P.pe.y + sin(a) * comp)
 
 func _passo_duas(o: Dictionary, f: float) -> void:
 	var fe: Node3D = ferramentas.get(coletando.prof)
 	if fe == null:
 		return
-	var A: Dictionary = DUAS_PRONTO
-	var B: Dictionary = DUAS_ALTO
+	var lado: bool = o.tipo == "arvore"
+	var PRONTO: Dictionary = LADO_PRONTO if lado else DUAS_PRONTO
+	var ALTO: Dictionary = LADO_ALTO if lado else DUAS_ALTO
+	var A: Dictionary = PRONTO
+	var B: Dictionary = ALTO
 	var k := 0.0
 	var curva := 0.0
 	var G: Dictionary = _pose_golpe(o)
@@ -646,7 +657,7 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 		k = smoothstep(0.0, 1.0, f / 0.45)
 		curva = lerp(0.25, 0.0, k)
 	elif f < GOLPE_BATE: # desce rápido
-		A = DUAS_ALTO
+		A = ALTO
 		B = G
 		k = (f - 0.45) / (GOLPE_BATE - 0.45)
 		k = k * k
@@ -657,7 +668,7 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 		curva = 1.0
 	else: # puxa de volta
 		A = G
-		B = DUAS_PRONTO
+		B = PRONTO
 		k = smoothstep(0.0, 1.0, (f - 0.75) / 0.25)
 		curva = lerp(1.0, 0.25, k)
 	var ang: float = deg_to_rad(lerp(float(A.ang), float(B.ang), k))
@@ -666,14 +677,20 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	var frente: Vector3 = Vector3(sin(h.rotation.y), 0, cos(h.rotation.y))
 	var cima := Vector3.UP
 	var dir: Vector3 = frente.cross(cima)
-	var cabo: Vector3 = (frente * cos(ang) + cima * sin(ang)).normalized()
+	var giro: float = deg_to_rad(lerp(float(A.get("giro", 0.0)), float(B.get("giro", 0.0)), k))
+	var plano: Vector3 = frente * cos(giro) + dir * sin(giro)
+	var cabo: Vector3 = (plano * cos(ang) + cima * sin(ang)).normalized()
 	var P0: Vector3 = h.global_position + dir * pe.x + cima * pe.y + frente * pe.z
-	var b := Basis(dir, cabo, dir.cross(cabo)).orthonormalized() * Basis(Vector3.UP, DUAS_GIRO)
+	# a ferramenta gira em volta do cabo para a ponta (ou o fio) ir na frente do golpe: no golpe de cima o plano
+	# do giro é o vertical (normal = direita); no de lado é o horizontal (normal = cima)
+	var normal: Vector3 = cima if lado else dir
+	var bz: Vector3 = normal.cross(cabo).normalized()
+	var b := Basis(cabo.cross(bz), cabo, bz).orthonormalized() * Basis(Vector3.UP, DUAS_GIRO)
 	fe.global_transform = Transform3D(b, P0 - cabo * float(fe.get_meta("base", 0.0)))
 	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
 	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
 	duas.cabo = cabo
-	duas.curva = curva
+	duas.curva = curva * (0.45 if lado else 1.0)
 	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som
