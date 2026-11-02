@@ -21,7 +21,13 @@ var _veio_malha: Mesh
 var _veio_mat: Material
 var _veio_tri: TriangleMesh # para achar a superfície da pedra onde a pepita sai
 
-const COR_MINERIO := {"ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.32, 0.72, 0.95)}
+# cores da pedra de cada veio (veio.gdshader): mais fortes que o natural, para um tipo não parecer o outro
+const PEDRA_VEIO := {
+	"cobre": {"tipo": 0, "pedra": Color(0.27, 0.22, 0.2), "veio": Color("e08a55"), "mancha": Color("2fcfae")},
+	"ferro": {"tipo": 1, "pedra": Color(0.2, 0.21, 0.23), "veio": Color("d2dae3"), "mancha": Color("8c4420")},
+	"cristal": {"tipo": 2, "pedra": Color(0.4, 0.39, 0.41), "veio": Color.WHITE, "mancha": Color.WHITE},
+}
+const COR_MINERIO := {"ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.55, 0.45, 1.0)}
 
 func _init(principal) -> void:
 	m = principal
@@ -121,10 +127,19 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	if _veio_malha:
 		var pedra := MeshInstance3D.new()
 		pedra.mesh = _veio_malha
-		if _veio_mat:
-			var pm: StandardMaterial3D = _veio_mat.duplicate()
-			pm.albedo_color = pm.albedo_color * Color(0.78, 0.76, 0.74) # um pouco mais escura que as rochas da vila: o minério aparece
-			pedra.material_override = pm
+		# a rocha da vila com o minério por dentro (veio.gdshader): cobre alaranjado, ferro cinza com ferrugem, cristal em pedra clara
+		var pm := ShaderMaterial.new()
+		pm.shader = load("res://veio.gdshader")
+		if _veio_mat is BaseMaterial3D and _veio_mat.albedo_texture:
+			pm.set_shader_parameter("tex_pedra", _veio_mat.albedo_texture)
+		pm.set_shader_parameter("semente", rnd.randf() * 50.0)
+		var P: Dictionary = PEDRA_VEIO.get(o.tipo, PEDRA_VEIO.cristal)
+		pm.set_shader_parameter("tipo", P.tipo)
+		pm.set_shader_parameter("cor_pedra", P.pedra)
+		pm.set_shader_parameter("cor_veio", P.veio)
+		pm.set_shader_parameter("cor_mancha", P.mancha)
+		pedra.material_override = pm
+		o.pedra_mat = pm
 		var aabb: AABB = _veio_malha.get_aabb()
 		var k: float = 1.25 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 1,25 m de largura (o minério é que tem que aparecer)
 		pedra.scale = Vector3(k, k, k)
@@ -138,15 +153,15 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	raiz.add_child(minerio)
 	o.minerio = minerio
 	if o.tipo == "cristal":
-		# cacho torto de 5 a 7 cristais de tamanhos diferentes, todos puxados para um lado (não um leque certinho),
+		# cacho torto de 9 a 13 cristais de tamanhos diferentes, todos puxados para um lado (não um leque certinho),
 		# cada um nascendo da superfície da pedra (raio de cima para baixo)
 		var mc := _mat_cristal()
-		var n := rnd.randi_range(5, 7)
+		var n := rnd.randi_range(9, 13)
 		var a0 := rnd.randf() * TAU
 		for i in n:
 			var a: float = a0 + rnd.randf_range(-1.4, 1.4)
-			var d: float = 0.0 if i == 0 else rnd.randf_range(0.08, 0.34)
-			var alto: float = 0.62 if i == 0 else rnd.randf_range(0.18, 0.5)
+			var d: float = 0.0 if i == 0 else rnd.randf_range(0.06, 0.36)
+			var alto: float = 0.78 if i == 0 else rnd.randf_range(0.16, 0.62)
 			var base := Vector3(cos(a) * d, 0, sin(a) * d)
 			var y: float = alto_pedra * 0.8
 			if _veio_tri:
@@ -154,7 +169,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 				if not hit.is_empty():
 					y = (hit.position as Vector3).y * pedra_k + pedra_pos.y
 			var p := MeshInstance3D.new()
-			p.mesh = _cristal(alto, alto * rnd.randf_range(0.16, 0.24))
+			p.mesh = _cristal(alto, alto * rnd.randf_range(0.14, 0.2))
 			p.material_override = mc
 			p.position = Vector3(base.x, y - alto * 0.12, base.z) # o pé entra na pedra
 			p.rotation_order = EULER_ORDER_YXZ
@@ -164,49 +179,19 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 			minerio.add_child(p)
 		var luz := OmniLight3D.new()
 		luz.light_color = cor
-		luz.light_energy = 0.8
+		luz.light_energy = 1.1
 		luz.omni_range = 3.5
 		luz.position = Vector3(0, alto_pedra + 0.4, 0)
 		minerio.add_child(luz)
-	elif _veio_malha and _veio_tri:
-		# pepitas em 3D saindo da rocha: pedaços facetados de 9 a 17 cm, meio enterrados, numa faixa que atravessa a pedra.
-		# o ponto de cada uma vem de um raio contra a malha da pedra, então ela fica colada na superfície e sai pela normal
-		var mp := _mat_pepita(o.tipo)
-		var a0 := rnd.randf() * TAU
-		var n := rnd.randi_range(18, 26) # alguns raios são descartados: sobram umas 14 a 20
-		for i in n:
-			var t: float = (float(i) / float(n - 1)) * 2.0 - 1.0
-			var a: float = a0 + t * 2.1 + rnd.randf_range(-0.2, 0.2)
-			var y: float = alto_pedra * (0.3 + 0.4 * (1.0 - abs(t))) + rnd.randf_range(-0.1, 0.1)
-			var fora := Vector3(cos(a) * 2.0, y, sin(a) * 2.0)
-			var dir := (Vector3(0, y * 0.8, 0) - fora).normalized()
-			var hit: Dictionary = _veio_tri.intersect_ray((fora - pedra_pos) / pedra_k, dir)
-			if hit.is_empty():
-				continue
-			var tam: float = rnd.randf_range(0.09, 0.17) if o.tipo == "cobre" else rnd.randf_range(0.07, 0.13)
-			var nor: Vector3 = (hit.normal as Vector3).normalized()
-			if nor.dot(dir) > 0.0:
-				nor = -nor
-			var ponto: Vector3 = (hit.position as Vector3) * pedra_k + pedra_pos
-			if nor.dot(-dir) < 0.4 or ponto.y < 0.08:
-				continue # raio pegou de raspão a borda da pedra (a pepita ficaria solta no ar) ou embaixo do chão
-			var p := MeshInstance3D.new()
-			p.mesh = _pepita(rnd)
-			p.material_override = mp
-			p.scale = Vector3(tam, tam * rnd.randf_range(0.7, 1.0), tam)
-			p.position = ponto + nor * tam * 0.05 # 45% enterrada na pedra
-			p.basis = Basis(Quaternion(Vector3.UP, nor)) * Basis(Vector3.UP, rnd.randf() * TAU) * Basis.from_scale(p.scale)
-			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-			minerio.add_child(p)
 
 # cristal: prisma de 6 lados com ponta, normais chapadas; base ciano médio e ponta clara (cor no vértice)
 func _cristal(alto: float, raio: float) -> Mesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(-1)
-	var cb := Color("5fc8e0")
-	var cm := Color("8edcf0")
-	var cp := Color("e2f8ff")
+	var cb := Color("3a3fc8") # pé azul fundo, meio violeta, ponta quase branca (como cristal de verdade, só que mais vivo)
+	var cm := Color("7f63ea")
+	var cp := Color("dfe6ff")
 	var corpo: float = alto * 0.72
 	for s in 6:
 		var a1: float = TAU * s / 6.0
@@ -228,78 +213,18 @@ func _mat_cristal() -> StandardMaterial3D:
 		return _mat_cr
 	var mt := StandardMaterial3D.new()
 	mt.vertex_color_use_as_albedo = true
-	mt.vertex_color_is_srgb = true # as cores do vértice estão em sRGB (senão o ciano sai lavado, quase branco)
-	mt.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON # degrau de sombra como o resto da cena
-	mt.specular_mode = BaseMaterial3D.SPECULAR_TOON
-	mt.albedo_color = Color(0.62, 0.8, 0.88) # o sol da cena é forte: escurece um pouco para o ciano aparecer
-	mt.roughness = 0.4
-	mt.metallic_specular = 0.5
+	mt.vertex_color_is_srgb = true
+	mt.roughness = 0.12 # liso: reflexo forte nas faces
+	mt.metallic_specular = 0.9
+	mt.clearcoat_enabled = true
+	mt.clearcoat = 0.6
 	mt.rim_enabled = true
-	mt.rim = 0.25
-	mt.rim_tint = 0.8
-	mt.emission_enabled = true
-	mt.emission = Color("3fa8c8")
-	mt.emission_energy_multiplier = 0.15
-	var c := StandardMaterial3D.new()
-	c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	c.cull_mode = BaseMaterial3D.CULL_FRONT
-	c.grow = true
-	c.grow_amount = 0.008
-	c.albedo_color = Color(0.05, 0.12, 0.16)
-	mt.next_pass = c
+	mt.rim = 0.35
+	mt.rim_tint = 0.6
+	mt.emission_enabled = true # brilho de dentro, aparece na sombra
+	mt.emission = Color("5a48d8")
+	mt.emission_energy_multiplier = 0.35
 	_mat_cr = mt
-	return mt
-
-# pedaço facetado (uma esfera grosseira com os vértices mexidos e normais chapadas): 1 m de diâmetro antes da escala
-func _pepita(rnd: RandomNumberGenerator) -> Mesh:
-	var esf := SphereMesh.new()
-	esf.radius = 0.5
-	esf.height = 1.0
-	esf.radial_segments = 6
-	esf.rings = 3
-	var arr: Array = esf.get_mesh_arrays()
-	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
-	var mexe := {} # o mesmo vértice repetido na costura tem que andar igual
-	for i in v.size():
-		var chave := Vector3i(roundi(v[i].x * 1000), roundi(v[i].y * 1000), roundi(v[i].z * 1000))
-		if not mexe.has(chave):
-			mexe[chave] = rnd.randf_range(0.75, 1.2)
-		v[i] = v[i] * mexe[chave]
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_smooth_group(-1) # normais por face: arestas duras, cara de minério
-	for i in idx:
-		st.add_vertex(v[i])
-	st.generate_normals()
-	return st.commit()
-
-var _mats_pepita := {}
-func _mat_pepita(tipo: String) -> StandardMaterial3D:
-	if _mats_pepita.has(tipo):
-		return _mats_pepita[tipo]
-	var mt := StandardMaterial3D.new()
-	mt.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	mt.specular_mode = BaseMaterial3D.SPECULAR_TOON # brilho em degrau, só onde a aresta pega a luz
-	mt.albedo_color = Color("c4703a") if tipo == "cobre" else Color("b8c4d2") # claros e brilhantes: saltam da pedra cinza
-	mt.emission_enabled = true # um pouco de brilho próprio para aparecer na sombra
-	mt.emission = mt.albedo_color
-	mt.emission_energy_multiplier = 0.22
-	mt.metallic = 0.75 if tipo == "cobre" else 0.85
-	mt.metallic_specular = 0.7
-	mt.roughness = 0.35 if tipo == "cobre" else 0.3
-	mt.rim_enabled = true
-	mt.rim = 0.9 if tipo == "cobre" else 0.7
-	mt.rim_tint = 0.85 # o brilho da borda puxa a cor do metal (alaranjado no cobre)
-	# contorno escuro, igual ao dos personagens
-	var c := StandardMaterial3D.new()
-	c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	c.cull_mode = BaseMaterial3D.CULL_FRONT
-	c.grow = true
-	c.grow_amount = 0.08 # em metro da malha de 1 m: some a 1 cm no tamanho real
-	c.albedo_color = Color(0.1, 0.07, 0.06)
-	mt.next_pass = c
-	_mats_pepita[tipo] = mt
 	return mt
 
 func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
@@ -334,6 +259,8 @@ func _process(dt: float) -> void:
 	for o in coletaveis:
 		if o.has("minerio") and not o.minerio.visible and not esgotado(o):
 			o.minerio.visible = true
+			if o.has("pedra_mat"):
+				o.pedra_mat.set_shader_parameter("cheio", 1.0)
 			o.cargas = -1
 	# o mais perto que dá para coletar (o botão aparece)
 	perto = null
@@ -467,6 +394,8 @@ func coletou(ev: Dictionary) -> void:
 	o.volta_ate = m.tempo + float(ev.get("volta", 60))
 	if o.cargas == 0 and o.has("minerio"):
 		o.minerio.visible = false
+		if o.has("pedra_mat"):
+			o.pedra_mat.set_shader_parameter("cheio", 0.0) # o minério some da pedra
 	var itens: Array = ev.get("itens", [])
 	for i in itens.size():
 		var it: Dictionary = itens[i]
