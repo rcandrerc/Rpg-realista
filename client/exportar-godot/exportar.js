@@ -115,6 +115,9 @@ async function principal() {
       a.stop();
     }
     c.mixer.stopAllAction(); c.mixer.setTime(0); vrm.humanoid.update();
+    // herói: o formato do rosto do criador (olhosT, narizT, bocaT) vai pronto como blend shape no GLB.
+    // Mexer um pouco monta os morphs (formarRosto em personagens.js); depois volta a zero.
+    if (heroi) { c.repintar({ olhosT: 1.1, narizT: 1.1, bocaT: 1.1 }); c.repintar({}); }
     const cena = vrm.scene;
     const rig = cena.children.filter((o) => /VRMHumanoidRig/.test(o.name));
     rig.forEach((r) => cena.remove(r));
