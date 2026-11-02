@@ -893,8 +893,8 @@ func _flash_passo(dt: float) -> void:
 		f.mat.albedo_color.a = clamp(f.t / FLASH_DUR, 0.0, 1.0) * FLASH_MAX
 		if f.t <= 0.0:
 			for mi in f.malhas:
-				if is_instance_valid(mi):
-					mi.material_overlay = null
+				if is_instance_valid(mi): # congelado: volta para o gelo, não limpa
+					mi.material_overlay = mi.get_meta("overlay_base") if mi.has_meta("overlay_base") else null
 
 func dano_area(pos: Vector3, raio: float, dmg: float, hab = null) -> void:
 	for e in inimigos.duplicate():

@@ -203,6 +203,53 @@ void fragment() {
 	ALPHA = op * (0.06 + f * 0.85 + faixa * f * 0.25);
 }
 """
+# corpo congelado: gelo branco azulado por cima do corpo, com cristais (ruído pela posição no mundo), brilho frio
+# na borda e reflexo forte; deixa ver só um pouco da forma por baixo
+const SH_GELO_CORPO := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back, shadows_disabled, specular_schlick_ggx;
+uniform float op = 1.0;
+varying vec3 pm;
+float h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float cel(vec3 p) {
+	vec3 i = floor(p), f = fract(p);
+	float d = 1.0;
+	for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
+		vec3 o = vec3(float(x), float(y), float(z));
+		vec3 r = o + vec3(h(i + o), h(i + o + 3.1), h(i + o + 7.7)) - f;
+		d = min(d, dot(r, r));
+	}
+	return sqrt(d);
+}
+void vertex() { pm = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
+	float cr = cel(pm * 7.0);
+	float aresta = smoothstep(0.05, 0.0, abs(cr - 0.42));
+	vec3 gelo = mix(vec3(0.239, 0.498, 0.710), vec3(0.549, 0.784, 0.918), smoothstep(0.1, 0.7, cr)); // sombra #3d7fb5 -> base #8cc8ea
+	gelo = mix(gelo, vec3(0.910, 0.973, 1.0), f); // só a borda clareia (#e8f8ff)
+	ALBEDO = gelo;
+	EMISSION = vec3(0.91, 0.97, 1.0) * aresta * step(0.55, h(floor(pm * 7.0))) * 0.6; // brilho duro e pequeno só em algumas arestas
+	ROUGHNESS = 0.75;
+	METALLIC = 0.0;
+	SPECULAR = 0.15;
+	ALPHA = op * 0.7; // no máximo 70%: olhos e silhueta do monstro continuam lendo por baixo
+}
+"""
+# ponta de cristal do congelado: azul-gelo translúcido, borda clara
+const SH_CRISTAL_GELO := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, shadows_disabled, specular_schlick_ggx;
+uniform float op = 1.0;
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+	ALBEDO = mix(vec3(0.549, 0.784, 0.918), vec3(0.910, 0.973, 1.0), f);
+	EMISSION = vec3(0.24, 0.5, 0.71) * 0.35;
+	ROUGHNESS = 0.2;
+	SPECULAR = 0.6;
+	ALPHA = op * (0.75 + f * 0.2);
+}
+"""
 # rastro: cada vértice traz a força (COLOR.a)
 const SH_FAIXA := """
 shader_type spatial;
@@ -1196,11 +1243,9 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			b.dur = max(b.dur, b.t + dur)
 			return
 	var p := corpo.global_position
-	if k == "congela":
-		var m := _bolha(corpo, "8fdcff", dur, 0.75, 0.85, 1.0, 1.35)
-		bolhas[-1].k = k
+	if k == "congela": # o próprio corpo vira gelo (branco azulado, brilho frio na borda), sem bolha em volta
+		_congelar(corpo, dur)
 		surto(p.x, p.y + 0.9, p.z, 26, "eafcff", "3fb4ff", 3.5, 0.09)
-		m.scale = Vector3(1.0, 1.0, 1.0)
 	else:
 		var g := Node3D.new()
 		add_child(g)
@@ -1219,6 +1264,84 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			g.add_child(e)
 		g.global_position = p + Vector3(0, 2.0, 0)
 		bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 2.0 * corpo.scale.y, "gira": 5.0, "k": k})
+
+# congelado: uma camada de gelo por cima de cada malha do corpo (material_overlay). O flash do golpe e o aviso de
+# preparo voltam para ela no lugar de limpar (meta "overlay_base"); some em 0,3 s no fim
+func _congelar(corpo: Node3D, dur: float) -> void:
+	var mat := material("gelo_corpo", SH_GELO_CORPO, {"op": 0.0})
+	var malhas := []
+	for mi in corpo.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh is QuadMesh: # a barra de vida fica como está
+			continue
+		mi.set_meta("overlay_base", mat)
+		if mi.material_overlay == null:
+			mi.material_overlay = mat
+		malhas.append(mi)
+	var g := Node3D.new()
+	add_child(g)
+	var pontas := _pontas_gelo(corpo, malhas, mat)
+	bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 0.0, "gira": 0.0, "k": "congela", "gelo": mat, "malhas": malhas, "pontas": pontas})
+
+# 4 pontas de cristal saindo dos ombros e das costas (o monstro olha para +z, as costas ficam em -z); seguem o corpo e
+# crescem junto do efeito
+func _pontas_gelo(corpo: Node3D, malhas: Array, mat: ShaderMaterial) -> Node3D:
+	# caixa do corpo pelos ossos (a caixa de uma malha com esqueleto vem da pose de ligação e não bate com o corpo)
+	var inv := corpo.global_transform.affine_inverse()
+	var caixa := AABB()
+	var primeira := true
+	for sk in corpo.find_children("*", "Skeleton3D", true, false):
+		for i in sk.get_bone_count():
+			var q: Vector3 = inv * (sk.global_transform * sk.get_bone_global_pose(i).origin)
+			if primeira:
+				caixa = AABB(q, Vector3.ZERO)
+				primeira = false
+			else:
+				caixa = caixa.expand(q)
+	var g := Node3D.new()
+	g.name = "pontas_gelo" # fora do corpo (o flash e o aviso de preparo guardam as malhas do corpo): segue ele a cada quadro
+	add_child(g)
+	g.global_transform = corpo.global_transform
+	if primeira:
+		return g
+	var sz := caixa.size
+	var cristal := material("cristal_gelo", SH_CRISTAL_GELO, {"op": 1.0})
+	var esc: float = 1.0 / max(0.01, corpo.global_transform.basis.get_scale().y)
+	# os ossos ficam por dentro da pele: ombros um pouco para fora da caixa, costas atrás dela
+	var c := caixa.get_center()
+	var fora: float = sz.y * 0.07
+	var costas: float = caixa.position.z - fora
+	# [posição no corpo, inclinação para fora]
+	for p in [[Vector3(c.x - sz.x * 0.5 - fora * 0.3, caixa.position.y + sz.y * 0.84, c.z), Vector3(0.0, 0.0, 0.7)],
+			[Vector3(c.x + sz.x * 0.5 + fora * 0.3, caixa.position.y + sz.y * 0.84, c.z), Vector3(0.0, 0.0, -0.7)],
+			[Vector3(c.x - sz.x * 0.12, caixa.position.y + sz.y * 0.74, costas), Vector3(-0.8, 0.0, 0.25)],
+			[Vector3(c.x + sz.x * 0.14, caixa.position.y + sz.y * 0.6, costas), Vector3(-0.95, 0.0, -0.2)]]:
+		var mi := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 0.045 * esc
+		cone.height = randf_range(0.12, 0.2) * esc
+		cone.radial_segments = 5
+		cone.rings = 1
+		mi.mesh = cone
+		mi.material_override = cristal
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = p[0]
+		mi.rotation = p[1]
+		mi.position += mi.basis.y * cone.height * 0.35
+		mi.scale = Vector3.ONE * 0.01
+		g.add_child(mi)
+	return g
+
+func _descongelar(b: Dictionary) -> void:
+	if is_instance_valid(b.get("pontas")):
+		b.pontas.queue_free()
+	for mi in b.malhas:
+		if not is_instance_valid(mi):
+			continue
+		if mi.has_meta("overlay_base") and mi.get_meta("overlay_base") == b.gelo:
+			mi.remove_meta("overlay_base")
+		if mi.material_overlay == b.gelo:
+			mi.material_overlay = null
 
 # magia concentrada cancelada: o círculo some e a carga para
 func cancelar_conjura(corpo: Node3D) -> void:
@@ -1419,6 +1542,8 @@ func _passo(dt: float) -> void:
 		var b: Dictionary = bolhas[i]
 		b.t += dt
 		if not is_instance_valid(b.corpo) or b.t >= b.dur:
+			if b.has("gelo"):
+				_descongelar(b)
 			b.m.queue_free()
 			bolhas.remove_at(i)
 			i -= 1
@@ -1426,6 +1551,13 @@ func _passo(dt: float) -> void:
 		b.m.global_position = b.corpo.global_position + Vector3(0, b.alt, 0)
 		if b.gira != 0.0:
 			b.m.rotation.y += b.gira * dt
+		if b.has("gelo"):
+			var kg: float = min(1.0, b.t / 0.15) * min(1.0, (b.dur - b.t) / 0.3)
+			b.gelo.set_shader_parameter("op", kg)
+			if is_instance_valid(b.get("pontas")):
+				b.pontas.global_transform = b.corpo.global_transform
+				for pt in b.pontas.get_children():
+					pt.scale = Vector3.ONE * max(0.01, kg)
 		if b.op >= 0.0:
 			var k: float = min(1.0, b.t / 0.2) * min(1.0, (b.dur - b.t) / 0.3)
 			b.m.material_override.set_shader_parameter("op", b.op * k)
