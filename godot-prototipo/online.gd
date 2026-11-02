@@ -33,6 +33,7 @@ var sub: Label
 var b_continuar: Button
 var b_trocar: Button
 var b_google: Button
+var capa: TextureRect # arte do Aethra atrás da tela de login (pedido do André: login com arte, não com o jogo já aparecendo)
 
 func _init(principal) -> void:
 	m = principal
@@ -60,6 +61,14 @@ func montar_tela() -> void:
 	tela = CanvasLayer.new()
 	tela.layer = 5
 	add_child(tela)
+	capa = TextureRect.new()
+	capa.texture = load("res://ui/capa_aethra.jpg")
+	capa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	capa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+	capa.mouse_filter = Control.MOUSE_FILTER_STOP # os toques não passam para o jogo
+	capa.visible = false
+	tela.add_child(capa)
 	status = Button.new()
 	status.flat = true
 	status.add_theme_font_size_override("font_size", 14)
@@ -78,7 +87,7 @@ func montar_tela() -> void:
 
 	painel = PanelContainer.new()
 	var caixa := StyleBoxFlat.new()
-	caixa.bg_color = Color(0.07, 0.06, 0.09, 0.88)
+	caixa.bg_color = Color(0.07, 0.06, 0.09, 0.8)
 	caixa.border_color = Color(0.95, 0.75, 0.42, 0.75)
 	caixa.set_border_width_all(2)
 	caixa.set_corner_radius_all(18)
@@ -89,10 +98,10 @@ func montar_tela() -> void:
 	caixa.shadow_color = Color(0, 0, 0, 0.5)
 	caixa.shadow_size = 16
 	painel.add_theme_stylebox_override("panel", caixa)
-	painel.anchor_left = 0.5
-	painel.anchor_right = 0.5
-	painel.anchor_top = 0.5
-	painel.anchor_bottom = 0.5
+	painel.anchor_left = 0.78 # à direita: a heroína da arte fica à esquerda
+	painel.anchor_right = 0.78
+	painel.anchor_top = 0.63 # abaixo do título "Aethra" da arte
+	painel.anchor_bottom = 0.63
 	painel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	painel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var col := VBoxContainer.new()
@@ -148,6 +157,8 @@ func mostrar_login() -> void:
 	b_trocar.visible = false
 	b_google.visible = true
 	painel.visible = true
+	capa.visible = true
+	status.visible = false # o aviso do topo ficaria em cima do cabelo e do círculo da arte
 	m.hud.set_process_input(false) # os toques não mexem no joystick por trás
 	atualizar_status("")
 
@@ -160,11 +171,15 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	b_trocar.visible = true
 	b_google.visible = false
 	painel.visible = true
+	capa.visible = true
+	status.visible = false # o aviso do topo ficaria em cima do cabelo e do círculo da arte
 	m.hud.set_process_input(false)
 	atualizar_status("")
 
 func esconder_login() -> void:
 	painel.visible = false
+	capa.visible = false
+	status.visible = true
 	m.hud.set_process_input(true)
 
 func atualizar_status(_t := "") -> void:
@@ -251,6 +266,8 @@ func aplicar_foto(f: Dictionary) -> void:
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	h.mana = float(j.mana)
+	if j.has("sta"):
+		m.trabalho.do_servidor(float(j.sta))
 	if j.morto:
 		if h.morto <= 0.0:
 			h.vida = 0.0
@@ -420,6 +437,8 @@ func evento(ev: Dictionary) -> void:
 			var no = corpos.get(str(ev.alvo))
 			if no:
 				var eu: bool = str(ev.alvo) == meu_id
+				if eu or meu:
+					m.trabalho.combate()
 				var crit: bool = ev.get("crit", false) == true
 				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 				if eu:
@@ -439,6 +458,24 @@ func evento(ev: Dictionary) -> void:
 			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
+			return
+		# profissões (Parte 3): batida de coleta, o que saiu, fim da coleta e peça criada
+		"coleta":
+			if str(ev.id) == meu_id:
+				m.trabalho.comecou(str(ev.no), float(ev.dur), str(ev.get("prof", "min")))
+			return
+		"coletou":
+			m.trabalho.coletou(ev)
+			return
+		"coletaFim":
+			if str(ev.id) == meu_id:
+				m.trabalho.parar(false)
+			return
+		"criou":
+			m.trabalho.criou(ev)
+			return
+		"profNivel":
+			m.sons.tocar("nivel", -6.0)
 			return
 		"fala":
 			m.hud.aviso(str(ev.texto))
@@ -576,7 +613,8 @@ func _passo(dt: float) -> void:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
-		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a})
+		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)
+		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a, "e": 1})
 	# para onde o joystick aponta (o servidor usa no rolamento e no dash)
 	_ent_t -= dt
 	if _ent_t <= 0.0:

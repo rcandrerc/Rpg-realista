@@ -33,6 +33,7 @@ var giro := 0.0 # velocidade de giro do corpo (rad/s), para inclinar nas curvas
 var manobra = null # andando pelo caminho do quadril de uma animação (freada, meia-volta): {nome, t, r, esc, ry0, px, pz}
 var altura_quadril := 0.9 # metros (main.gd mede no herói): o caminho do quadril vem em alturas de quadril
 var _correu := 0.0 # segundos correndo rápido (freada de verdade só depois de embalar)
+var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 func _init(terreno, mundo: Dictionary) -> void:
@@ -117,7 +118,7 @@ func mover(dx: float, dz: float) -> void:
 	colidir()
 
 # ---------- pulo, queda e dash ----------
-func pular() -> String:
+func pular(pode_mortal := true) -> String:
 	if esc != null:
 		if esc.clip == null:
 			soltar()
@@ -131,7 +132,7 @@ func pular() -> String:
 		pulo_t = 0.0
 		pouso = 0.0
 		return "pulo"
-	if pulos < 2:
+	if pulos < 2 and pode_mortal:
 		vy = max(vy, m.movimento.pulo * 0.9)
 		pulos = 2
 		mortal = 1.1
@@ -247,14 +248,14 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		if a.t <= 0:
 			arrancada = null
 			# sai do dash correndo na mesma direção (sem parar seco)
-			var sai: float = CORRIDA if mag > 0.5 else 1.5
+			var sai: float = min(CORRIDA, vel_max) if mag > 0.5 else 1.5
 			vx = a.dx * sai
 			vz = a.dz * sai
 	else:
 		# velocidade que o joystick pede
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
-			alvo = Vector2(mx, mz).normalized() * vel_joystick(mag) * vel_k
+			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag) * vel_k, vel_max)
 		var s0 := Vector2(vx, vz).length()
 		_correu = _correu + dt if s0 > FREADA_MIN else 0.0
 		if manobra == null and chao and livre and m.has("raiz"):
