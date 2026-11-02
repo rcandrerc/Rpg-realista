@@ -15,6 +15,7 @@ uniform float so_friso = 0.0; // fecho da capa: peça inteira de friso
 uniform float faixa = 0.045; // distância entre as lâminas (m)
 uniform float junta_y = -1.0; // junta entre peito e barriga (coordenada das faixas)
 uniform float ganho = 2.1; // compensa a curva de tom do jogo (ACES 0,68) para as cores chegarem na tela como as da direção de arte
+uniform float luz_ref = 2.83; // LIGHT_COLOR do sol do jogo (cor x energia 0,9 x PI): luz mais fraca soma menos
 
 varying float v_dist;
 varying float v_seg;
@@ -24,6 +25,10 @@ varying float v_esc;
 void vertex() {
 	v_dist = UV2.x;
 	v_seg = UV2.y;
+}
+
+float v_esc_calc(float lam, float sulco, float f) {
+	return 1.0 - 0.6 * max(lam, sulco * (1.0 - f));
 }
 
 void fragment() {
@@ -40,8 +45,10 @@ void fragment() {
 	}
 	v_friso = f;
 	ALBEDO = vec3(1.0);
-	v_esc = 1.0 - 0.6 * max(lam, sulco * (1.0 - f)); // lâminas e sulco escurecem
-	EMISSION = friso_claro.rgb * f * brilho * 0.25;
+	v_esc = v_esc_calc(lam, sulco, f); // lâminas e sulco escurecem
+	// base: o tom de sombra entra uma vez só (cada luz soma só o que clareia acima dele)
+	vec3 base_s = mix(sombra.rgb, friso.rgb * 0.55, f) * v_esc_calc(lam, sulco, f);
+	EMISSION = base_s * ganho * 0.55 + friso_claro.rgb * f * brilho * 0.25;
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
 }
 
@@ -55,9 +62,10 @@ void light() {
 	vec3 c = (ndl > 0.55 && att > 0.5) ? c1 : (ndl > -0.12 ? c2 : c3); // sombra só no lado de trás de verdade (luz embrulha um pouco)
 	float lc = max(max(LIGHT_COLOR.r, LIGHT_COLOR.g), LIGHT_COLOR.b);
 	vec3 tinta = LIGHT_COLOR / max(lc, 0.001);
-	DIFFUSE_LIGHT += c * v_esc * mix(vec3(1.0), tinta, 0.35) * ganho;
+	float k = clamp(lc / luz_ref, 0.0, 1.3);
+	DIFFUSE_LIGHT += max(c - c3 * 0.55, vec3(0.0)) * v_esc * mix(vec3(1.0), tinta, 0.35) * ganho * k;
 	// brilho duro do metal
 	vec3 h = normalize(LIGHT + VIEW);
 	float e = step(0.993, dot(NORMAL, h)) * step(0.1, ndl) * step(0.5, att) * duro;
-	DIFFUSE_LIGHT += vec3(e) * 0.5 * ganho;
+	DIFFUSE_LIGHT += vec3(e) * 0.5 * ganho * k;
 }
