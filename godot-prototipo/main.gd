@@ -938,6 +938,14 @@ func mostrar_build() -> void:
 		travados.append(k != null and not P.liberada(k))
 	hud.mostrar_build(icones, h.modo, travados)
 
+# velocidade da animação de andar/correr para o passo bater com o chão (andar.gd: PASSO_*)
+func ritmo(a: String) -> float:
+	if a == "corrida":
+		return mov.CORRIDA / mov.PASSO_CORRIDA
+	if a == "andar":
+		return mov.ANDAR / mov.PASSO_ANDAR
+	return 1.0
+
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
 	if m.length() < 0.15:
@@ -1115,8 +1123,8 @@ func atualizar_heroi(dt: float) -> void:
 		if not estava_no_chao and mov.chao and a != "pouso":
 			pass
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
-			# a animação de correr foi feita para 5,4 m/s: toca no ritmo da corrida de agora (os pés não deslizam)
-			heroi_anim.play(a, 0.15, mov.CORRIDA / 5.4 if a == "corrida" and mov.arrancada == null else 1.0)
+			# andar e correr no ritmo da velocidade: o pé acompanha o chão (sem parecer que desliza)
+			heroi_anim.play(a, 0.15, ritmo(a) if mov.arrancada == null else 1.0)
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()

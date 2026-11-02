@@ -335,7 +335,8 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 	if c.get("morto", false):
 		return
 	o.uma_vez = 0.0
-	tocar(an, str(c.get("anim", "Idle")))
+	var nome := str(c.get("anim", "Idle"))
+	tocar(an, nome, m.ritmo(animacao(nome)) if o.has("esq") else 1.0) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:
 	var v := int(c.get("v", -1))
