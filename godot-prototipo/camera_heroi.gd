@@ -135,6 +135,10 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	var lado := Vector3(cos(yaw), 0, -sin(yaw))
 	var foco := foco_base + Vector3(0, 0.62 * ombro, 0) - lado * 0.42 * ombro
 	cam.position = foco + dir_cam * max(dist_cam, 0.6)
+	# conversa: a câmera vai 0,4 m para a direita e 0,2 m para cima, olhando para o mesmo ponto
+	# (a Ruiva e o cajado das costas saem pela borda; o NPC fica onde estava)
+	if _conv_k > 0.0:
+		cam.position += (lado * 0.4 + Vector3(0, 0.2, 0)) * smoothstep(0.0, 1.0, _conv_k)
 	# encostada na parede/chão: não entra no chão (sobe um pouco por cima)
 	var chao_cam: float = m.terreno.altura(cam.position.x, cam.position.z, cam.position.y + 1.5) + 0.3
 	if cam.position.y < chao_cam and chao_cam - cam.position.y < 2.5:
