@@ -43,16 +43,16 @@ float veio(vec3 p, float largura) {
 }
 // uns 30% da pedra ficam sem veio (rocha com veio, não rocha toda pintada)
 float regiao(vec3 p) {
-	return smoothstep(0.4, 0.52, fbm(p * 0.8 + vec3(semente * 0.37)));
+	return smoothstep(0.34, 0.46, fbm(p * 0.8 + vec3(semente * 0.37)));
 }
 float forca_veio_bruta(vec3 p) {
 	if (tipo == 0) {
 		// cobre nativo: veios finos e caroços grossos onde eles se cruzam
-		float fino = max(veio(p, 0.035), veio(p * 1.7 + 5.0, 0.022) * 0.85);
+		float fino = max(veio(p, 0.05), veio(p * 1.7 + 5.0, 0.032) * 0.85);
 		float caroco = smoothstep(0.6, 0.68, fbm(p * 2.6 + semente + 4.0)) * smoothstep(0.0, 0.6, veio(p, 0.14));
 		return max(fino, caroco);
 	}
-	if (tipo == 1) return veio(p, 0.03);
+	if (tipo == 1) return veio(p, 0.045);
 	return 0.0;
 }
 
@@ -82,7 +82,7 @@ void fragment() {
 		vec3 cobre = cor_veio * (0.75 + var_c * 0.55);
 		cor = mix(base, cobre, v);
 		metal = v * 0.9;
-		rough = mix(0.85, 0.32, v);
+		rough = mix(0.85, 0.18, v);
 		// malaquita: pontinhos verdes perto do veio
 		float m = smoothstep(0.66, 0.74, fbm(p_obj * 7.0 + semente + 11.0)) * smoothstep(0.0, 0.5, veio(p_obj, 0.1)) * cheio * regiao(p_obj);
 		cor = mix(cor, cor_mancha * (0.8 + var_c * 0.4), m * (1.0 - v));
@@ -100,5 +100,7 @@ void fragment() {
 	ROUGHNESS = rough;
 	SPECULAR = 0.5;
 	// brilho próprio fraquinho no metal: aparece também na sombra
-	EMISSION = (tipo == 0) ? cor * v * 0.1 : vec3(0.0);
+	// faíscas no metal: pontinhos que acendem e apagam, como reflexo de sol no minério
+	float faisca = step(0.975, ruido(p_obj * 30.0 + vec3(TIME * 0.6, semente, 0.0))) * smoothstep(0.4, 0.8, v);
+	EMISSION = cor * v * (tipo == 0 ? 0.42 : 0.22) + vec3(1.0, 0.92, 0.75) * faisca * 2.0; // o metal brilha: chama atenção
 }

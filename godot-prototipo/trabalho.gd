@@ -23,8 +23,8 @@ var _veio_tri: TriangleMesh # para achar a superfície da pedra onde a pepita sa
 
 # cores da pedra de cada veio (veio.gdshader): mais fortes que o natural, para um tipo não parecer o outro
 const PEDRA_VEIO := {
-	"cobre": {"tipo": 0, "pedra": Color(0.27, 0.22, 0.2), "veio": Color("e08a55"), "mancha": Color("2fcfae")},
-	"ferro": {"tipo": 1, "pedra": Color(0.2, 0.21, 0.23), "veio": Color("d2dae3"), "mancha": Color("8c4420")},
+	"cobre": {"tipo": 0, "pedra": Color(0.27, 0.22, 0.2), "veio": Color("f29a5c"), "mancha": Color("3ae0bd")},
+	"ferro": {"tipo": 1, "pedra": Color(0.2, 0.21, 0.23), "veio": Color("e6eef7"), "mancha": Color("b5521f")},
 	"cristal": {"tipo": 2, "pedra": Color(0.4, 0.39, 0.41), "veio": Color.WHITE, "mancha": Color.WHITE},
 }
 const COR_MINERIO := {"ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.55, 0.45, 1.0)}
@@ -148,7 +148,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		pedra.material_override = pm
 		o.pedra_mat = pm
 		var aabb: AABB = _veio_malha.get_aabb()
-		var k: float = 1.25 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 1,25 m de largura (o minério é que tem que aparecer)
+		var k: float = 1.6 / max(0.01, max(aabb.size.x, aabb.size.z)) # uns 1,6 m de largura: chama atenção de longe
 		pedra.scale = Vector3(k, k, k)
 		pedra.position = Vector3(-aabb.get_center().x * k, -aabb.position.y * k - 0.15, -aabb.get_center().z * k)
 		cont.grow_amount = 0.012 / k # o grow é no espaço da malha (antes da escala)
@@ -158,7 +158,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		# sombra de contato: mancha escura e suave no chão em volta da base
 		var sombra := MeshInstance3D.new()
 		var pl := PlaneMesh.new()
-		pl.size = Vector2(1.9, 1.9)
+		pl.size = Vector2(2.4, 2.4)
 		sombra.mesh = pl
 		sombra.material_override = _mat_sombra()
 		sombra.position.y = 0.03
@@ -178,8 +178,8 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		var a0 := rnd.randf() * TAU
 		for i in n:
 			var a: float = a0 + rnd.randf_range(-1.4, 1.4)
-			var d: float = 0.0 if i == 0 else rnd.randf_range(0.06, 0.36)
-			var alto: float = 0.78 if i == 0 else rnd.randf_range(0.16, 0.62)
+			var d: float = 0.0 if i == 0 else rnd.randf_range(0.08, 0.46)
+			var alto: float = 1.0 if i == 0 else rnd.randf_range(0.22, 0.8)
 			var base := Vector3(cos(a) * d, 0, sin(a) * d)
 			var y: float = alto_pedra * 0.8
 			if _veio_tri:
@@ -241,25 +241,13 @@ void fragment() {
 	_mat_sb.shader = sh
 	return _mat_sb
 
-var _mat_cr: StandardMaterial3D
-func _mat_cristal() -> StandardMaterial3D:
+var _mat_cr: ShaderMaterial
+func _mat_cristal() -> ShaderMaterial:
 	if _mat_cr:
 		return _mat_cr
-	var mt := StandardMaterial3D.new()
-	mt.vertex_color_use_as_albedo = true
-	mt.vertex_color_is_srgb = true
-	mt.roughness = 0.12 # liso: reflexo forte nas faces
-	mt.metallic_specular = 0.9
-	mt.clearcoat_enabled = true
-	mt.clearcoat = 0.6
-	mt.rim_enabled = true
-	mt.rim = 0.35
-	mt.rim_tint = 0.6
-	mt.emission_enabled = true # brilho de dentro, aparece na sombra
-	mt.emission = Color("7a5ee0")
-	mt.emission_energy_multiplier = 0.22 # abaixo do brilho das magias
-	_mat_cr = mt
-	return mt
+	_mat_cr = ShaderMaterial.new()
+	_mat_cr.shader = load("res://cristal.gdshader") # vidro colorido com nuvens, reflexo e faíscas
+	return _mat_cr
 
 func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 	var cena = load(caminho)
@@ -278,7 +266,7 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 # a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
 func dentro_de_pedra(p: Vector3) -> bool:
 	for o in coletaveis:
-		if o.tipo != "arvore" and p.y < o.pos.y + 1.1 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 0.85:
+		if o.tipo != "arvore" and p.y < o.pos.y + 1.4 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0:
 			return true
 	return false
 
@@ -354,7 +342,7 @@ func tocar_botao() -> void:
 
 # quanto falta andar até ficar colado no coletável (veio: a pedra tem uns 2 m; árvore: o tronco)
 func _falta(o: Dictionary) -> float:
-	var encosto: float = 1.05 if o.tipo != "arvore" else float(o.r) + 0.5
+	var encosto: float = 1.25 if o.tipo != "arvore" else float(o.r) + 0.5
 	return Vector2(o.pos.x - m.heroi.position.x, o.pos.z - m.heroi.position.z).length() - encosto
 
 # para onde o herói anda sozinho (main.direcao_joystick), ou zero

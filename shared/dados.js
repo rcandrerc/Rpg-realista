@@ -411,7 +411,7 @@ export const VEIOS = [
   { tipo: 'cobre', x: 0, z: 20, ry: 3.3 }, { tipo: 'cobre', x: -8, z: 24, ry: 5 }, { tipo: 'cobre', x: 6, z: -27, ry: 0.9 },
   { tipo: 'cristal', x: -17, z: 20, ry: 2.6 }, { tipo: 'cristal', x: -6, z: 32, ry: 0.2 },
 ];
-export const VEIO_RAIO = 0.7; // sólido: ninguém atravessa
+export const VEIO_RAIO = 0.8; // sólido: ninguém atravessa
 // Receitas (Ferreiro na forja do Tomás, Alfaiate na banca da Rosa): usa os materiais, gasta vigor e dá pontos.
 // Peça de equipamento sai Comum, com chance de subir de raridade (melhor com o nível da profissão: 6% no Nv 1, 30% no Nv 20).
 export const RECEITAS = {
