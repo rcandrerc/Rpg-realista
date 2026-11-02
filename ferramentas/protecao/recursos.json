@@ -35,6 +35,7 @@
     { "nome": "Vigor e profissões (PR #57)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func vigor()", "func prof_nivel("] },
     { "nome": "Estamina, coleta e forja (PR #57)", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["func passo_estamina(", "func tocar_botao()", "func perto_oficina(", "func coletou("] },
     { "nome": "Minérios facetados e cristal (PR #60/#61)", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["minerio.gdshader", "cristal.gdshader"] },
+    { "nome": "Mineração e lenha com as duas mãos (André 2026-11-02)", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["func _passo_duas(", "func _mostrar_veio(", "duas_maos.gd"] },
     { "nome": "Botões de coletar e forja na HUD (PR #57)", "arquivo": "godot-prototipo/hud.gd", "contem": ["_botao(\"coletar\"", "_botao(\"forja\"", "var estamina :="] },
     { "nome": "Login Google dentro do app (PR #50)", "arquivo": "godot-prototipo/rede.gd", "contem": ["func entrar_com_google()", "func trocar_conta()", "func entrar_pelo_site()"] },
     { "nome": "Tela de login com a capa do Aethra (PR #56)", "arquivo": "godot-prototipo/online.gd", "contem": ["capa_aethra"] },
