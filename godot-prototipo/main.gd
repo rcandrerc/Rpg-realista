@@ -208,6 +208,11 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 					n.emission_enabled = false # o brilho próprio do VRoid deixava pele e cabelo lavados
 				if n.albedo_texture and not personagem:
 					n.albedo_color = n.albedo_color.lerp(Color.WHITE, 0.3)
+				if not personagem and n.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+					# folhagem (copas, samambaias): some em degradê perto da câmera, em vez de virar uma folha gigante na tela
+					n.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+					n.distance_fade_min_distance = 0.6
+					n.distance_fade_max_distance = 1.5
 				if personagem and "(Outline)" in nome_mat:
 					# contorno escuro de desenho (como o MToon): casca um pouco maior, só o lado de trás
 					n.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -1028,8 +1033,12 @@ func _process(dt: float) -> void:
 	var livre := distancia_livre(alvo_cam, dir_cam, dist)
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
 	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
-	camera.position = alvo_cam + dir_cam * dist_cam
-	camera.look_at(alvo_cam)
+	# muito perto (parede atrás): a câmera sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado
+	var ombro: float = clamp((1.3 - dist_cam) / 0.7, 0.0, 1.0)
+	var lado_cam := Vector3(cos(yaw), 0, -sin(yaw))
+	var foco := alvo_cam + Vector3(0, 0.62 * ombro, 0) - lado_cam * 0.42 * ombro # ombro esquerdo: o cajado nas costas fica do lado direito
+	camera.position = foco + dir_cam * max(dist_cam, 0.6)
+	camera.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
@@ -1222,7 +1231,10 @@ func barras_perto() -> void:
 	for e in inimigos:
 		if e.barra == null or e.estado == "morto":
 			continue
-		var v: bool = e.barra.scale.x < 0.999 or e.no.position.distance_to(heroi.position) < 9.0
+		var d: float = e.no.position.distance_to(heroi.position)
+		var v: bool = e.barra.scale.x < 0.999 or d < 9.0
+		var nome: Node3D = e.barra.get_parent().get_child(e.barra.get_index() - 2)
+		nome.visible = d < 15.0 # longe: sem nome (dois monstros alinhados não encavalam os nomes)
 		if e.barra.visible != v:
 			e.barra.visible = v
 			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v

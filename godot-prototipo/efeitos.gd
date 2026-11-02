@@ -769,6 +769,7 @@ func cura(alvo: Node3D) -> void:
 		part(FOGO, p.x + cos(a) * d, p.y + randf_range(0.1, 1.2), p.z + sin(a) * d, 0, randf_range(0.8, 1.8), 0, randf_range(0.7, 1.2), 0.08 * H, 0.02 * H, "e4ffd8", "36c060", 1.0, 0.5, 0.5)
 
 var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
+var _lado_numero := 1.0
 # Número de dano (ou cura) que sobe e some
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
@@ -784,9 +785,14 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	l.pixel_size = 0.006
 	add_child(l)
 	# espalha para o lado da tela (±0,3 m) e sai 0,1 s depois do anterior, para os números não se encavalarem
+	# uns 25 px para o lado da tela, alternando esquerda e direita (convertido para metros pela distância da câmera)
 	var cam := get_viewport().get_camera_3d()
-	var lado: Vector3 = cam.global_basis.x if cam else Vector3.RIGHT
-	l.global_position = pos + Vector3(0, 1.9, 0) + lado * randf_range(-0.3, 0.3)
+	var base := pos + Vector3(0, 1.9, 0)
+	_lado_numero = -_lado_numero
+	if cam:
+		var px_m: float = 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(base) / max(1.0, get_viewport().get_visible_rect().size.y)
+		base += cam.global_basis.x * _lado_numero * 25.0 * px_m
+	l.global_position = base
 	var agora := Time.get_ticks_msec() / 1000.0
 	var atraso: float = max(0.0, _prox_numero - agora)
 	_prox_numero = agora + atraso + 0.1
