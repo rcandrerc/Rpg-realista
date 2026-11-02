@@ -241,7 +241,71 @@ func marcar(no, dt: float) -> void:
 		_marca.scale = Vector3(s, 0.05, s)
 	_marca.material_override.albedo_color.a = 0.55 * _marca_a
 
+# aviso no chão da magia de área enquanto concentra: círculo do tamanho da área, na cor do elemento,
+# borda fina e miolo quase transparente; segue `no` (o herói ou o alvo do Meteoro) e some quando solta
+const SH_AREA := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec4 cor : source_color = vec4(1.0, 0.4, 0.1, 1.0);
+uniform float aparece = 0.0;
+uniform float prog = 0.0;
+uniform float borda_k = 0.03;
+void fragment() {
+	float d = length(UV - 0.5) * 2.0;
+	if (d > 1.0) discard;
+	float borda = step(1.0 - borda_k, d) * 0.45;
+	float miolo = d * 0.12 * step(d, prog);
+	ALBEDO = cor.rgb;
+	ALPHA = max(borda, miolo) * aparece;
+}
+"""
+var _area: MeshInstance3D
+var _area_no: Node3D
+var _area_t := 0.0
+var _area_dur := 0.0
+var _area_fim := false
+func aviso_area(no: Node3D, raio: float, dur: float, cor: Color) -> void:
+	if _area == null:
+		_area = MeshInstance3D.new()
+		var q := PlaneMesh.new()
+		q.size = Vector2(2, 2)
+		_area.mesh = q
+		var sh := Shader.new()
+		sh.code = SH_AREA
+		var mat := ShaderMaterial.new()
+		mat.shader = sh
+		_area.material_override = mat
+		_area.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		m.add_child(_area)
+	_area_no = no
+	_area_t = 0.0
+	_area_dur = max(0.1, dur)
+	_area_fim = false
+	_area.scale = Vector3(raio, 1, raio)
+	_area.material_override.set_shader_parameter("cor", cor)
+	_area.material_override.set_shader_parameter("borda_k", 0.12 / max(0.5, raio))
+	_area.visible = true
+
+func aviso_area_fim() -> void:
+	_area_fim = true
+
+func _area_passo(dt: float) -> void:
+	if _area == null or not _area.visible:
+		return
+	_area_t += dt
+	if _area_t >= _area_dur:
+		_area_fim = true
+	var a: float = clamp(_area_t / 0.15, 0.0, 1.0)
+	if _area_fim:
+		a = 0.0
+		_area.visible = false
+	if is_instance_valid(_area_no):
+		_area.global_position = _area_no.global_position + Vector3(0, 0.05, 0)
+	_area.material_override.set_shader_parameter("aparece", a)
+	_area.material_override.set_shader_parameter("prog", clamp(_area_t / _area_dur, 0.0, 1.0))
+
 func passo(dt: float) -> void:
+	_area_passo(dt)
 	for no in _corpos.keys():
 		if not is_instance_valid(no):
 			_corpos.erase(no)

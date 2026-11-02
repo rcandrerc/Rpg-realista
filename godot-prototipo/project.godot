@@ -28,3 +28,7 @@ pointing/emulate_touch_from_mouse=true
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/volta_login/plugin.cfg", "res://addons/login_google/plugin.cfg")
+
+[gui]
+
+theme/custom_font="res://fontes/AlegreyaSans-Bold.ttf"

@@ -150,6 +150,8 @@ func _ready() -> void:
 	pintar(vila, false)
 	montar_chao()
 	montar_grama()
+	# fonte do jogo (Alegreya Sans, OFL) no lugar da letra padrão do Godot: HUD, menus e números de dano
+	ThemeDB.fallback_font = load("res://fontes/AlegreyaSans-Bold.ttf")
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
@@ -744,8 +746,25 @@ func folhagem_na_frente(dt: float) -> void:
 			f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
 		var tapa: bool = f[1].intersects_segment(a, b) != null
 		var quer: float = (1.0 - FOLHA_ALFA) if tapa else 0.0
-		if mi.transparency != quer:
-			mi.transparency = move_toward(mi.transparency, quer, dt * (1.0 - FOLHA_ALFA) / (0.15 if tapa else 0.4))
+		var atual: float = f[2] if f.size() > 2 else 0.0
+		if atual == quer:
+			continue
+		atual = move_toward(atual, quer, dt * (1.0 - FOLHA_ALFA) / (0.15 if tapa else 0.4))
+		if f.size() < 3:
+			f.append(atual)
+		f[2] = atual
+		# alfa de verdade (sem o pontilhado do dither): cópia do material só enquanto a copa está apagando
+		if atual > 0.0:
+			if mi.material_override == null:
+				var base: BaseMaterial3D = mi.mesh.surface_get_material(0)
+				var mt: BaseMaterial3D = base.duplicate()
+				mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+				mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+				mi.material_override = mt
+			var cor: Color = mi.mesh.surface_get_material(0).albedo_color
+			mi.material_override.albedo_color = Color(cor, cor.a * (1.0 - atual))
+		else:
+			mi.material_override = null
 
 # câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
 func lenta(seg: float, k: float) -> void:
@@ -1108,6 +1127,8 @@ func habilidade(i: int) -> bool:
 	if hab.has("canal"): # magia concentrada: andar (joystick forte), pular ou dar dash cancela e devolve 70% da mana
 		var dur: float = hab.canal / hab.at
 		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos)
+		if hab.has("area"): # aviso no chão de onde a magia vai pegar enquanto concentra (Meteoro: em cima do alvo)
+			combate.aviso_area(alvo.no if hab.tipo == "meteoro" and vivo(alvo) else heroi, float(hab.area), dur, Color(fx.cor_de(P.FX.get(k, "magia"))[1]))
 		comecar_q(hab.anim, dur, [hab.canal], func(_n):
 			acao.canal = false
 			acao.cancela = true
@@ -1133,6 +1154,7 @@ func cancelar_canal(motivo := "Cancelado") -> void:
 	acao = {}
 	fx.status_fim(heroi)
 	fx.cancelar_conjura(heroi)
+	combate.aviso_area_fim()
 	rede("cancelar")
 	hud.aviso(motivo)
 	heroi_anim.play("parada" if h.modo == "Magia" else "espada_parada", 0.15)
