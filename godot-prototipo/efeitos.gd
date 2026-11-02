@@ -1285,11 +1285,13 @@ func _faixa_passo(f: Faixa, dt: float, linha, perfil: Array, forca: float) -> vo
 
 func trilhos(corpo: Node3D) -> Dictionary:
 	if not rastros.has(corpo):
-		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0}
+		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0,
+			"lamina2": _faixa(20, 3, "6fbfff", 0.22)} # lamina2: brilho largo da espada mágica, some fazendo a curva do golpe
 	return rastros[corpo]
 
 const PERFIL_DASH := [0.0, 0.55, 1.0, 0.7, 0.0]
 const PERFIL_LAMINA := [0.25, 1.0]
+const PERFIL_LAMINA2 := [0.0, 0.55, 1.0]
 
 # chamado todo quadro para o herói: lamina = [base, ponta] da espada no mundo durante o golpe (ou null)
 func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
@@ -1311,6 +1313,27 @@ func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
 			if k < 2:
 				part(FUMA, p.x, p.y + 0.1, p.z, randf_range(-1, 1), randf_range(0.2, 0.8), randf_range(-1, 1), 0.6, 0.2 * H, 0.5 * H, "b0a898", "6a6458", 0.35, 0.3, 1.5)
 	_faixa_passo(r.lamina, dt, lamina, PERFIL_LAMINA, 0.7)
+	var l2 = null
+	if lamina != null: # do meio da lâmina até um pouco além da ponta
+		var b: Vector3 = lamina[0]
+		var p2: Vector3 = lamina[1]
+		l2 = [b.lerp(p2, 0.3), b.lerp(p2, 0.75), p2 + (p2 - b) * 0.12]
+	_faixa_passo(r.lamina2, dt, l2, PERFIL_LAMINA2, 0.5)
+
+# marca do corte da espada no ponto que acertou: meia-lua branca-azulada rápida, na direção do golpe
+func marca_corte(p: Vector3, ry: float, forte: bool) -> void:
+	var g := Node3D.new()
+	add_child(g)
+	var l := lua("bfe6ff")
+	l.rotation = Vector3(PI / 2, 0, randf_range(-0.9, 0.9)) # de pé, inclinada como o golpe
+	l.scale = Vector3.ONE * (0.75 if forte else 0.55)
+	g.add_child(l)
+	g.position = p
+	g.rotation.y = ry
+	giros.append({"g": g, "mats": [l.material_override], "t": 0.0, "dur": 0.16, "gira": 0.0, "cresce": 0.7})
+	if forte: # 4º golpe e crítico: anel de choque no chão
+		anel(p.x, p.z, 1.6, "bfe6ff", 0.28, p.y - 1.05)
+		poeira(p.x, p.z, 0.8, 8, "c9bda6", "8a7f6c")
 
 # ---------------------------------------------------------------- quadro a quadro
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste

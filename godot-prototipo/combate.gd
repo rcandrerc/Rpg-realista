@@ -19,22 +19,64 @@ const DESFAZ_DUR := 0.55
 var m # main.gd
 var fx
 var _corpos := {} # Node3D do monstro -> estado (mola, brilho, morte)
-var _mat_preparo: StandardMaterial3D
-var _mat_firme: StandardMaterial3D
+var _mat_preparo: ShaderMaterial
+var _mat_firme: ShaderMaterial
+var _arco_mat: StandardMaterial3D
+var _arco_malha: Mesh
+
+# brilho só na borda do corpo (fresnel): o miolo do monstro continua com a cor e a sombra dele (direção de arte)
+const SH_BORDA := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_back, shadows_disabled;
+uniform vec4 cor : source_color = vec4(1.0, 0.2, 0.05, 1.0);
+uniform float forca = 0.0;
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
+	ALBEDO = cor.rgb;
+	ALPHA = f * forca;
+}
+"""
+const BRILHO_MAX := 0.62
+const ARCO_COR := Color("c2401a")
+const ARCO_ALFA := 0.4
 
 func _init(principal) -> void:
 	m = principal
 	fx = m.fx
 	_mat_preparo = _brilho_mat(Color(1.0, 0.12, 0.05))
 	_mat_firme = _brilho_mat(Color(1.0, 0.55, 0.1))
+	_arco_mat = StandardMaterial3D.new()
+	_arco_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_arco_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_arco_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_arco_mat.vertex_color_use_as_albedo = true
+	_arco_malha = _malha_arco()
 
-func _brilho_mat(cor: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_color = Color(cor, 0.0)
+func _brilho_mat(cor: Color) -> ShaderMaterial:
+	var sh := Shader.new()
+	sh.code = SH_BORDA
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	mat.set_shader_parameter("cor", cor)
 	return mat
+
+# arco no chão à frente do monstro (o alcance do golpe): o jogador lê no celular onde vai pegar
+func _malha_arco() -> Mesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var N := 24
+	var r0 := 0.55
+	var r1 := 2.2
+	var abre := deg_to_rad(55.0)
+	for i in N:
+		var a0: float = -abre + 2.0 * abre * i / N
+		var a1: float = -abre + 2.0 * abre * (i + 1) / N
+		var p := [Vector3(sin(a0) * r0, 0, cos(a0) * r0), Vector3(sin(a0) * r1, 0, cos(a0) * r1), Vector3(sin(a1) * r0, 0, cos(a1) * r0), Vector3(sin(a1) * r1, 0, cos(a1) * r1)]
+		var c := [Color(ARCO_COR, 0.35), Color(ARCO_COR, 1.0), Color(ARCO_COR, 0.35), Color(ARCO_COR, 1.0)] # mais forte na ponta do alcance
+		for k in [0, 1, 2, 1, 3, 2]:
+			st.set_color(c[k])
+			st.add_vertex(p[k])
+	return st.commit()
 
 func _c(no: Node3D) -> Dictionary:
 	var c = _corpos.get(no)
@@ -44,7 +86,7 @@ func _c(no: Node3D) -> Dictionary:
 			if not (mi.mesh is QuadMesh): # o corpo, não a barra de vida
 				malhas.append(mi)
 		c = {"tilt": Vector2.ZERO, "v": Vector2.ZERO, "preparo": 0.0, "preparo_dur": 0.0, "firme": 0.0,
-			"morto": -1.0, "escala": no.scale, "malhas": malhas, "volta": 0.0, "reagiu": -9.0}
+			"morto": -1.0, "escala": no.scale, "malhas": malhas, "volta": 0.0, "reagiu": -9.0, "arco": null, "firme_txt": null}
 		_corpos[no] = c
 	return c
 
@@ -79,13 +121,39 @@ func preparo(no: Node3D, dur: float) -> void:
 	var c := _c(no)
 	c.preparo = dur
 	c.preparo_dur = dur
+	if c.arco == null:
+		var a := MeshInstance3D.new()
+		a.mesh = _arco_malha
+		a.material_override = _arco_mat.duplicate()
+		a.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		no.add_child(a)
+		c.arco = a
+	c.arco.position = Vector3(0, 0.05 / max(0.01, no.scale.y), 0)
+	c.arco.scale = Vector3.ONE / max(0.01, no.scale.x) # mesmo tamanho em metros no monstro grande (chefe)
+	c.arco.visible = true
 
 func firme(no: Node3D, dur: float) -> void:
 	if not is_instance_valid(no):
 		return
 	var c := _c(no)
 	c.firme = dur
-	fx.texto(no.global_position, "Firme!", Color(1.0, 0.62, 0.2), 0.0, 0.7, 2.1, 0.8)
+	# um "Firme!" por monstro, 0,4 m acima do nome, letra de 22 px, some em 0,6 s
+	if c.firme_txt == null or not is_instance_valid(c.firme_txt):
+		var l := Label3D.new()
+		l.text = "Firme!"
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.fixed_size = true
+		l.no_depth_test = true
+		l.font_size = 72
+		l.outline_size = 16
+		l.pixel_size = 0.00034 * 22.0 / 14.0 # o nome tem 14 px
+		l.offset = Vector2(0, 52.0 * 14.0 / 22.0)
+		l.modulate = Color(1.0, 0.62, 0.2)
+		l.outline_modulate = Color(0.12, 0.05, 0.0)
+		l.position = Vector3(0, (1.95 + 0.4) / max(0.01, no.scale.y), 0)
+		no.add_child(l)
+		c.firme_txt = l
+	c.firme_txt_t = 0.6
 	var p: Vector3 = no.global_position
 	fx.surto(p.x, p.y + 1.0, p.z, 10, "ffe0a0", "ff8a1a", 3.5, 0.08)
 
@@ -123,6 +191,36 @@ func voltou(no: Node3D) -> void:
 	var p: Vector3 = no.global_position
 	fx.poeira(p.x, p.z, 0.9, 10, "b8ab95", "7a6f60")
 
+# marca do alvo: anel fino laranja no chão de quem o golpe vai pegar (null = esconde)
+var _marca: MeshInstance3D
+var _marca_a := 0.0
+func marcar(no, dt: float) -> void:
+	if _marca == null:
+		_marca = MeshInstance3D.new()
+		var t := TorusMesh.new()
+		t.inner_radius = 0.62
+		t.outer_radius = 0.7
+		t.rings = 32
+		t.ring_segments = 4
+		_marca.mesh = t
+		_marca.scale = Vector3(1, 0.05, 1)
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.albedo_color = Color(1.0, 0.55, 0.2, 0.0)
+		_marca.material_override = mat
+		_marca.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		m.add_child(_marca)
+	var quer: float = 1.0 if no != null and is_instance_valid(no) and no.visible else 0.0
+	_marca_a = move_toward(_marca_a, quer, dt * 6.0)
+	_marca.visible = _marca_a > 0.01
+	if quer > 0.0:
+		_marca.global_position = no.global_position + Vector3(0, 0.06, 0)
+		var s: float = no.scale.x * (1.0 + 0.04 * sin(m.tempo * 6.0))
+		_marca.scale = Vector3(s, 0.05, s)
+	_marca.material_override.albedo_color.a = 0.55 * _marca_a
+
 func passo(dt: float) -> void:
 	for no in _corpos.keys():
 		if not is_instance_valid(no):
@@ -139,17 +237,28 @@ func passo(dt: float) -> void:
 		c.tilt = c.tilt.limit_length(TRANCO_MAX)
 		no.rotation.x = c.tilt.x
 		no.rotation.z = c.tilt.y
-		# brilho: preparo (vermelho crescendo) ou firme (laranja pulsando)
-		var mat: StandardMaterial3D = null
+		# brilho na borda: preparo (vermelho crescendo, com o arco no chão) ou firme (laranja pulsando)
+		var mat: ShaderMaterial = null
+		var arco_a := 0.0
 		if c.preparo > 0.0:
 			c.preparo -= dt
 			var f: float = 1.0 - clamp(c.preparo / max(0.05, c.preparo_dur), 0.0, 1.0)
-			_mat_preparo.albedo_color.a = 0.12 + 0.5 * f * f
+			_mat_preparo.set_shader_parameter("forca", 0.12 + (BRILHO_MAX - 0.12) * f * f)
 			mat = _mat_preparo
+			arco_a = ARCO_ALFA * clamp(f * 2.5, 0.0, 1.0)
 		elif c.firme > 0.0:
 			c.firme -= dt
-			_mat_firme.albedo_color.a = 0.18 + 0.12 * sin(m.tempo * 14.0)
+			_mat_firme.set_shader_parameter("forca", 0.4 + 0.15 * sin(m.tempo * 14.0))
 			mat = _mat_firme
+		if c.arco != null and is_instance_valid(c.arco):
+			c.arco.visible = arco_a > 0.0
+			c.arco.material_override.albedo_color = Color(1, 1, 1, arco_a)
+		if c.get("firme_txt_t", 0.0) > 0.0 and c.firme_txt != null and is_instance_valid(c.firme_txt):
+			c.firme_txt_t -= dt
+			var a: float = clamp(c.firme_txt_t / 0.6, 0.0, 1.0)
+			c.firme_txt.modulate.a = a
+			c.firme_txt.outline_modulate.a = a
+			c.firme_txt.visible = a > 0.0
 		for mi in c.malhas:
 			if not is_instance_valid(mi):
 				continue

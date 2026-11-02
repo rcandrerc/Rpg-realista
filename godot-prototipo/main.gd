@@ -250,9 +250,14 @@ func peso_vila(x: float, z: float) -> float:
 
 # Estilo pintado do site: sombra em degraus (toon), sem brilho de foto, contorno escuro nos personagens
 var pintados := {}
+var folhas: Array = [] # [MeshInstance3D, AABB no mundo] de copas e samambaias (somem quando tapam o herói)
 func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if not personagem and mi.mesh.get_surface_count() > 0:
+			var m0 = mi.mesh.surface_get_material(0)
+			if m0 is BaseMaterial3D and m0.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				folhas.append([mi, null])
 		for i in mi.mesh.get_surface_count():
 			var m = mi.mesh.surface_get_material(i)
 			if not (m is StandardMaterial3D):
@@ -714,12 +719,33 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool) -> void:
 		# faíscas do corte no ponto do golpe
 		var p := pos + Vector3(0, 1.05, 0) - frente() * 0.25
 		fx.surto(p.x, p.y, p.z, 14 if pesado else 9, "ffffff", "ffd27a", 6.0 if pesado else 4.5, 0.08)
+		fx.marca_corte(p, heroi.rotation.y, pesado)
 	vibrar(40 if pesado else 22)
 
 # tudo para por um instante (Engine.time_scale), como nos jogos de ação; volta pelo relógio de verdade
 func parar_golpe(seg: float) -> void:
 	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	Engine.time_scale = 0.05
+
+# folhagem entre a câmera e o peito do herói (cápsula de 0,8 m) fica transparente: alfa 0,25 em 0,15 s,
+# volta em 0,4 s. Os troncos são outra malha e continuam sólidos. (direção de arte, pacote A)
+const FOLHA_RAIO := 0.8
+const FOLHA_ALFA := 0.25
+func folhagem_na_frente(dt: float) -> void:
+	if camera == null or heroi == null:
+		return
+	var a: Vector3 = camera.global_position
+	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
+	for f in folhas:
+		var mi: MeshInstance3D = f[0]
+		if not is_instance_valid(mi):
+			continue
+		if f[1] == null:
+			f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
+		var tapa: bool = f[1].intersects_segment(a, b) != null
+		var quer: float = (1.0 - FOLHA_ALFA) if tapa else 0.0
+		if mi.transparency != quer:
+			mi.transparency = move_toward(mi.transparency, quer, dt * (1.0 - FOLHA_ALFA) / (0.15 if tapa else 0.4))
 
 # câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
 func lenta(seg: float, k: float) -> void:
@@ -978,6 +1004,7 @@ func basico_espada() -> void:
 	h.pend = null
 	virar_para(alvo)
 	var i: int = 0 if tempo - h.combo_fim > hab.comboZera else (h.combo + 1) % hab.combo.size()
+	passo_golpe(alvo, i == hab.combo.size() - 1)
 	h.combo = i
 	var g: Dictionary = hab.combo[i]
 	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
@@ -1106,6 +1133,18 @@ func cancelar_canal(motivo := "Cancelado") -> void:
 	rede("cancelar")
 	hud.aviso(motivo)
 	heroi_anim.play("parada" if h.modo == "Magia" else "espada_parada", 0.15)
+
+# cada corte do básico dá meio passo para o alvo (o 4º, um passo inteiro), sem encostar nele
+func passo_golpe(alvo, forte: bool) -> void:
+	if not vivo(alvo) or h.lunge != null:
+		return
+	var d: Vector3 = alvo.no.position - heroi.position
+	d.y = 0
+	var falta: float = d.length() - 1.25
+	if falta <= 0.05:
+		return
+	var t := 0.12
+	h.lunge = {"v": d.normalized() * min(falta, 0.8 if forte else 0.4) / t, "t": t, "fantasma": false}
 
 # passo rápido até o inimigo (lunge do Quimera, antes do Corte Duplo e do Golpe Esmagador)
 func lunge(alvo, para: float) -> void:
@@ -1285,10 +1324,14 @@ func _process(dt: float) -> void:
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	_flash_passo(dt_real)
 	combate.passo(dt_real)
+	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m)
+	var marcado = mais_perto(heroi.position, 12.0) if h.morto <= 0.0 else null
+	combate.marcar(marcado.no if marcado else null, dt_real)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
 	cam.atualizar(min(dt_real, 0.1), g)
+	folhagem_na_frente(dt_real)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
