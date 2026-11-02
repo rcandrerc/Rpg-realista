@@ -335,7 +335,8 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 	if c.get("morto", false):
 		return
 	o.uma_vez = 0.0
-	tocar(an, str(c.get("anim", "Idle")))
+	var nome := str(c.get("anim", "Idle"))
+	tocar(an, nome, m.ritmo(animacao(nome)) if o.has("esq") else 1.0) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:
 	var v := int(c.get("v", -1))
@@ -345,6 +346,8 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)
+	if float(c.vida) < float(e.get("vida", c.vida)):
+		e.combate = m.tempo + 5.0 # levou dano: nome aparece por 5 s
 	e.vida = float(c.vida)
 	if e.barra:
 		e.barra.scale.x = max(0.001, float(c.vida) / max(1.0, float(c.vidaMax)))
@@ -405,6 +408,11 @@ func evento(ev: Dictionary) -> void:
 					fx.escudo_fim(no)
 			return
 		"dano":
+			var quem = corpos.get(str(ev.get("de", ""))) # monstro que bateu: em combate por 5 s
+			if quem:
+				for e in m.inimigos:
+					if e.no == quem:
+						e.combate = m.tempo + 5.0
 			var no = corpos.get(str(ev.alvo))
 			if no:
 				var eu: bool = str(ev.alvo) == meu_id
@@ -423,6 +431,11 @@ func evento(ev: Dictionary) -> void:
 			return
 		"fala":
 			m.hud.aviso(str(ev.texto))
+			return
+		"drop": # ouro e itens do monstro que eu ajudei a derrubar (já estão na mochila)
+			var x := float(ev.x)
+			var z := float(ev.z)
+			m.mostrar_drop(Vector3(x, m.terreno.altura(x, z), z), int(ev.get("ouro", 0)), ev.get("itens", []))
 			return
 		"corrigir": # o servidor não aceitou a posição: volta para onde ele sabe
 			m.mov.por_em(Vector3(float(ev.x), float(ev.y), float(ev.z)))

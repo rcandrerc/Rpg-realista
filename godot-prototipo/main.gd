@@ -10,6 +10,7 @@ const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
+const BracoEspada = preload("res://braco_espada.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -20,13 +21,8 @@ const BANDO := [
 	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp", "tipo": "imp"},
 	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15, "tipo": "chefe"},
 ]
-const NPCS := [
-	{"id": "fumiriya", "x": -6.0, "z": -18.6, "nome": "Aldo, o líder da vila"},
-	{"id": "shino", "x": -12.0, "z": -8.0, "nome": "Lúcia"},
-	{"id": "vivi", "x": 8.0, "z": -12.0, "nome": "Rosa"},
-	{"id": "vita", "x": -4.0, "z": 9.0, "nome": "Bento"},
-	{"id": "victoria", "x": 6.0, "z": 6.0, "nome": "Tomás, o ferreiro"},
-]
+# NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria"}
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
@@ -53,7 +49,7 @@ var cajado: Node3D
 var mao_direita := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
-	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0}
+	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0}
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -69,6 +65,8 @@ var yaw := 0.6
 var pitch := 0.35
 var dist := 5.2
 var alvo_cam := Vector3.ZERO
+var dist_cam := 5.2
+var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada # distância de verdade (menor quando algo fica entre o herói e a câmera)
 
 # teste de desempenho
 var etapas := []
@@ -112,8 +110,8 @@ func _ready() -> void:
 		e.tipo = b.tipo
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
-	for n in NPCS:
-		criar_npc(n.id, Vector3(n.x, 0, n.z), n.nome)
+	for n in mundo.get("npcs", []):
+		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
 	camera.fov = 52
 	camera.far = 400
@@ -210,6 +208,11 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 					n.emission_enabled = false # o brilho próprio do VRoid deixava pele e cabelo lavados
 				if n.albedo_texture and not personagem:
 					n.albedo_color = n.albedo_color.lerp(Color.WHITE, 0.3)
+				if not personagem and n.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+					# folhagem (copas, samambaias): some em degradê perto da câmera, em vez de virar uma folha gigante na tela
+					n.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+					n.distance_fade_min_distance = 0.6
+					n.distance_fade_max_distance = 1.5
 				if personagem and "(Outline)" in nome_mat:
 					# contorno escuro de desenho (como o MToon): casca um pouco maior, só o lado de trás
 					n.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -311,6 +314,11 @@ func criar_heroi() -> void:
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
 	armar("Espada")
+	braco = BracoEspada.new()
+	heroi_esq.add_child(braco)
+	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
+	var L: Dictionary = armas_lugar.ruiva.espadaMao
+	braco.preparar(heroi_esq, Basis(Quaternion(L.quat[0], L.quat[1], L.quat[2], L.quat[3])))
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -364,39 +372,86 @@ func contorno(no: Node3D, metros: float) -> void:
 				n.next_pass = mat_contorno[k]
 				mi.set_surface_override_material(i, n)
 
-func criar_npc(id: String, pos: Vector3, nome: String) -> void:
+func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	var no := modelo(id)
 	no.position = pos
-	no.rotation.y = randf() * TAU
+	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
+	no.rotation.y = float(info.get("ry", randf() * TAU))
 	barra_vida(no, nome, Color(0, 0, 0, 0))
-	npcs.append({"no": no})
+	npcs.append({"no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id))})
+
+# perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
+func perto_da_loja() -> bool:
+	for n in npcs:
+		if n.funcao == "loja" and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
+			return true
+	return false
+
+# poção da mochila: confere se vale a pena; sem internet já recupera aqui (online quem aplica é o servidor)
+func usar_pocao(it: Dictionary) -> bool:
+	if h.morto > 0.0:
+		return false
+	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
+	if u.has("vida"):
+		if h.vida >= P.st.vidaMax:
+			hud.aviso("A vida já está cheia")
+			return false
+		var n: float = min(P.st.vidaMax - h.vida, round(P.st.vidaMax * float(u.vida)))
+		fx.cura(heroi)
+		fx.numero(heroi.position, n, Color("7dffa0"))
+		if not on():
+			h.vida += n
+	if u.has("mana"):
+		if h.mana >= P.st.manaMax:
+			hud.aviso("A mana já está cheia")
+			return false
+		if not on():
+			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+	return true
+
+# ouro e itens que caíram do monstro: sobem do corpo dele (cor da raridade)
+func mostrar_drop(pos: Vector3, ouro: int, itens: Array) -> void:
+	# uma linha embaixo da outra, saindo com 0,15 s de diferença (direção de arte: sem aviso repetido no topo)
+	var linhas := []
+	if ouro > 0:
+		linhas.append(["+%d ouro" % ouro, Color("ffd36a")])
+	for it in itens:
+		var r := int(it.get("r", -1))
+		linhas.append([str(it.nome), Color(P.dados.raridades[r].cor) if r >= 0 else Color("e8f0ff")])
+	for i in linhas.size():
+		fx.texto(pos - Vector3(0, 0.36 * i, 0), linhas[i][0], linhas[i][1], 0.15 * i)
 
 # nome e barra de vida em cima da cabeça
 func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	var l := Label3D.new()
 	l.text = nome
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.font_size = 44
-	l.outline_size = 10
-	l.pixel_size = 0.005
+	# tamanho fixo na tela (uns 14 px de letra numa tela de 576 de altura), não cresce quando a câmera chega perto
+	l.fixed_size = true
+	l.font_size = 72 # letra grande em pixel bem pequeno: fica nítida
+	l.outline_size = 16
+	l.pixel_size = 0.00034
+	l.offset = Vector2(0, 52) # em cima da barra
 	l.modulate = Color(1, 0.93, 0.8)
-	l.position = Vector3(0, 2.05, 0)
+	l.position = Vector3(0, 1.95, 0)
 	no.add_child(l)
 	if cor.a == 0:
 		return null
 	var fundo := MeshInstance3D.new()
 	var q := QuadMesh.new()
-	q.size = Vector2(0.8, 0.07)
+	q.size = Vector2(0.1, 0.009) # 60 x 5 px na tela (tamanho fixo, como o nome)
 	fundo.mesh = q
 	var mf := StandardMaterial3D.new()
 	mf.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mf.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	mf.billboard_keep_scale = true
+	mf.fixed_size = true
+	mf.no_depth_test = true
 	mf.albedo_color = Color(0, 0, 0, 0.6)
 	mf.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	fundo.material_override = mf
 	fundo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	fundo.position = Vector3(0, 1.92, 0)
+	fundo.position = Vector3(0, 1.95, 0)
 	no.add_child(fundo)
 	var barra := MeshInstance3D.new()
 	barra.mesh = q
@@ -405,7 +460,7 @@ func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	mb.render_priority = 1
 	barra.material_override = mb
 	barra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	barra.position = Vector3(0, 1.92, 0)
+	barra.position = Vector3(0, 1.95, 0)
 	no.add_child(barra)
 	return barra
 
@@ -470,6 +525,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		dmg *= 1.0 + e.vuln_k
 	dmg = max(1.0, round(dmg))
 	e.vida -= dmg
+	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
 	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
@@ -549,7 +605,7 @@ func ponto_mao() -> Vector3:
 
 func comecar(nome: String, ts: float, hits: Array, ao_acertar: Callable, extra := {}) -> void:
 	var dur: float = heroi_anim.get_animation(nome).length / ts
-	heroi_anim.play(nome, 0.08, ts)
+	heroi_anim.play(nome, extra.get("fade", 0.08), ts)
 	acao = {"nome": nome, "t": 0.0, "dur": dur, "hits": hits.duplicate(), "feitos": 0, "fn": ao_acertar}
 	acao.merge(extra)
 
@@ -621,6 +677,9 @@ func usar(qual: String) -> void:
 			comecar("rolar", 1.15, [], func(_i): pass, {"anda": 6.0})
 		"menu":
 			menu.abrir()
+		"loja":
+			rede("falar") # a Rosa responde e o menu abre na Loja
+			menu.abrir("loja")
 		_:
 			if qual.begins_with("hab"):
 				habilidade(int(qual.substr(3)))
@@ -653,6 +712,8 @@ func sem_alvo() -> void:
 
 # Golpe básico da arma na mão. Não trava: dá para andar enquanto bate (como no Quimera)
 func basico() -> void:
+	if acao.get("basico", false) and acao.t >= acao.fim: # o golpe anterior já acabou (só segura a pose): emenda
+		acao = {}
 	if h.morto > 0.0 or mov.esc != null or not acao.is_empty() or recargas.get("basico", 0.0) > 0.0:
 		return
 	h.ultimo_basico = tempo
@@ -679,15 +740,16 @@ func basico_espada() -> void:
 	var i: int = 0 if tempo - h.combo_fim > hab.comboZera else (h.combo + 1) % hab.combo.size()
 	h.combo = i
 	var g: Dictionary = hab.combo[i]
+	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
 	h.combo_fim = tempo + g.dur
-	recargas["basico"] = hab.cd
+	recargas["basico"] = max(hab.cd, g.dur) # o 4º golpe é mais longo: o próximo espera ele terminar
 	rede("habQ", "espada_basico")
 	comecar_q(g.anim, g.dur, [g.hit], func(_k):
 		var acertou := dano_arco(hab.alcance, hab.arco, hab.dmg, hab)
 		if acertou.is_empty() and vivo(alvo) and alvo.no.position.distance_to(heroi.position) < 3.6:
 			ferir(alvo, hab.dmg, heroi.position, hab)
-		var f := heroi.position + frente() * 1.4
-		fx.anel(f.x, f.z, 0.65, "eef4ff", 0.18, heroi.position.y + 0.9), {"livre": true, "lamina": true, "alvo": alvo, "basico": true})
+		acertou.clear(), {"cancela": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
+	segurar_pose(0.35)
 
 # Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
 func basico_magia() -> void:
@@ -703,6 +765,15 @@ func basico_magia() -> void:
 	recargas["basico"] = hab.cd
 	rede("habQ", "cajado_basico")
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
+	segurar_pose(0.35)
+
+# o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
+# sem voltar para a corrida no meio (era o "pulo" que aparecia no loop do combo)
+func segurar_pose(extra: float) -> void:
+	var hit_s: float = acao.hits[0] * acao.dur
+	acao.fim = acao.dur
+	acao.dur += extra
+	acao.hits = [hit_s / acao.dur]
 
 func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 	var info: Dictionary = hab.proj.duplicate()
@@ -756,7 +827,7 @@ func habilidade(i: int) -> void:
 		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos)
 		comecar_q(hab.anim, dur, [hab.canal], func(_n):
 			acao.canal = false
-			acao.livre = true
+			acao.cancela = true
 			recargas[k] = hab.cd
 			contar_offline(k)
 			soltar(k, hab, alvo if vivo(alvo) else alvo_hab(hab), dir), {"canal": true, "hab": k, "mana": hab.get("mana", 0)})
@@ -800,12 +871,12 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
 				var p: Vector3 = heroi.position + frente() * hab.ponto
 				dano_area(p, hab.area, hab.dmg, hab)
-				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y), {"livre": true, "lamina": true})
+				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y), {"cancela": true, "lamina": true})
 		"giro", "pisao":
 			fx.conjura(heroi, fxk, hab.dur, maos)
 			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
 				dano_area(heroi.position, hab.area, hab.dmg, hab)
-				fx.explosao_hab(fxk, heroi.position.x, heroi.position.z, hab.area, heroi.position.y), {"livre": true, "lamina": true})
+				fx.explosao_hab(fxk, heroi.position.x, heroi.position.z, hab.area, heroi.position.y), {"cancela": true, "lamina": true})
 		"investida": # dash atravessando os inimigos em linha
 			var L: float = min(hab.alcance, alvo.no.position.distance_to(p0) + 2.5)
 			var f := frente()
@@ -872,7 +943,7 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 			fx.numero(heroi.position, n, Color("7dffa0"))
 			fx.anel(p0.x, p0.z, hab.grupo, "9be08f", 0.9, p0.y)
 		"escudo":
-			comecar_q(hab.anim, hab.dur, [], func(_n): pass, {"livre": true})
+			comecar_q(hab.anim, hab.dur, [], func(_n): pass, {"cancela": true})
 			h.escudo = float(hab.absorve)
 			h.escudo_ate = tempo + float(hab.duracao)
 			fx.escudo(heroi, float(hab.duracao))
@@ -925,6 +996,14 @@ func mostrar_build() -> void:
 		travados.append(k != null and not P.liberada(k))
 	hud.mostrar_build(icones, h.modo, travados)
 
+# velocidade da animação de andar/correr para o passo bater com o chão (andar.gd: PASSO_*)
+func ritmo(a: String) -> float:
+	if a == "corrida":
+		return mov.CORRIDA / mov.PASSO_CORRIDA
+	if a == "andar":
+		return mov.ANDAR / mov.PASSO_ANDAR
+	return 1.0
+
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
 	if m.length() < 0.15:
@@ -939,6 +1018,11 @@ func _process(dt: float) -> void:
 	atualizar_heroi(dt)
 	if not on():
 		atualizar_inimigos(dt)
+	barras_perto()
+	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
+	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"]
+	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
+	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira)
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
@@ -946,8 +1030,16 @@ func _process(dt: float) -> void:
 	pitch = clamp(pitch + g.y * 0.004, -0.3, 1.1)
 	var alvo := heroi.position + Vector3(0, 1.35, 0)
 	alvo_cam = alvo_cam.lerp(alvo, min(1.0, dt * 7.0))
-	camera.position = alvo_cam + Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * dist
-	camera.look_at(alvo_cam)
+	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
+	var livre := distancia_livre(alvo_cam, dir_cam, dist)
+	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
+	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
+	# muito perto (parede atrás): a câmera sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado
+	var ombro: float = clamp((1.3 - dist_cam) / 0.7, 0.0, 1.0)
+	var lado_cam := Vector3(cos(yaw), 0, -sin(yaw))
+	var foco := alvo_cam + Vector3(0, 0.62 * ombro, 0) - lado_cam * 0.42 * ombro # ombro esquerdo: o cajado nas costas fica do lado direito
+	camera.position = foco + dir_cam * max(dist_cam, 0.6)
+	camera.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
@@ -961,6 +1053,7 @@ func _process(dt: float) -> void:
 		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
+	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
@@ -1053,8 +1146,15 @@ func atualizar_heroi(dt: float) -> void:
 	var estava_escalando: bool = mov.esc != null
 	var estava_no_chao: bool = mov.chao
 	# golpe e skill de espada não travam: anda enquanto bate, virado para o alvo
+	# golpe de espada e skills plantam o pé; depois que o golpe acerta, mexer o joystick corta o resto e o herói anda
+	# (como nos RPGs de referência: dá para girar em volta do alvo entre um golpe e outro)
+	if not acao.is_empty() and acao.get("cancela", false) and forca > 0.15 and acao.feitos >= acao.hits.size():
+		acao = {}
 	var livre: bool = acao.is_empty() or acao.get("pulo", false) or acao.get("livre", false)
-	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null)
+	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
+	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
+	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
+	mov.passo(dt, dir.x, dir.z, forca >= 0.55, livre and h.lunge == null, h.vel_k)
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
 		mov.ry = atan2(da.x, da.z)
@@ -1095,7 +1195,8 @@ func atualizar_heroi(dt: float) -> void:
 		if not estava_no_chao and mov.chao and a != "pouso":
 			pass
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
-			heroi_anim.play(a, 0.15)
+			# andar e correr no ritmo da velocidade: o pé acompanha o chão (sem parecer que desliza)
+			heroi_anim.play(a, 0.15, ritmo(a) if mov.arrancada == null else 1.0)
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
@@ -1106,6 +1207,61 @@ func atualizar_heroi(dt: float) -> void:
 		lamina = [espada.global_transform * Vector3(0, 0.2, 0), espada.global_transform * Vector3(0, 0.92, 0)]
 	fx.corpo_passo(heroi, dt, mov.arrancada != null, lamina)
 	sol.global_position = heroi.position
+
+# monstros não entram uns nos outros: 1,2 m entre os centros (raio de uns 0,6 m cada), como Simulacao.colidir
+const SEPARACAO := 1.2
+func separar_inimigos() -> void:
+	for i in inimigos.size():
+		var a: Dictionary = inimigos[i]
+		if a.estado == "morto":
+			continue
+		for j in range(i + 1, inimigos.size()):
+			var b: Dictionary = inimigos[j]
+			if b.estado == "morto":
+				continue
+			var d := Vector2(b.no.position.x - a.no.position.x, b.no.position.z - a.no.position.z)
+			var l := d.length()
+			if l < SEPARACAO:
+				var n := d / l if l > 0.001 else Vector2(1, 0)
+				var empurra := (SEPARACAO - l) * 0.5
+				a.no.position -= Vector3(n.x, 0, n.y) * empurra
+				b.no.position += Vector3(n.x, 0, n.y) * empurra
+
+# barra de vida do monstro: some quando ele está com a vida cheia e longe. Nome só do alvo atual (o mais perto, que o
+# golpe pega sozinho) e de quem está em combate (levou ou deu dano nos últimos 5 s): três monstros juntos não encavalam
+func barras_perto() -> void:
+	var alvo = null
+	var md := 12.0
+	for e in inimigos:
+		if e.estado != "morto":
+			var d0: float = e.no.position.distance_to(heroi.position)
+			if d0 < md:
+				md = d0
+				alvo = e
+	for e in inimigos:
+		if e.barra == null or e.estado == "morto":
+			continue
+		var d: float = e.no.position.distance_to(heroi.position)
+		var v: bool = e.barra.scale.x < 0.999 or d < 9.0
+		var nome: Node3D = e.barra.get_parent().get_child(e.barra.get_index() - 2)
+		nome.visible = e == alvo or float(e.get("combate", 0.0)) > tempo
+		if e.barra.visible != v:
+			e.barra.visible = v
+			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v
+
+# Câmera não atravessa casa, telhado, pedra nem tronco: anda do herói até a câmera e para 0,2 m antes do que bater
+# (copa de árvore deixa passar). Mesmas formas que o movimento usa (terreno.gd e obstáculos do mundo.json).
+func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
+	var t := 0.35
+	while t <= ate:
+		var p := de + dir * t
+		if terreno.altura(p.x, p.z, p.y) > p.y - 0.25:
+			return max(0.6, t - 0.2)
+		for k in mundo.obstaculos:
+			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
+				return max(0.6, t - 0.2)
+		t += 0.2
+	return ate
 
 # inimigos não atravessam casas, pedras, árvores e o poço (como Simulacao.colidir no servidor)
 func colidir_inimigo(no: Node3D) -> void:
@@ -1141,6 +1297,7 @@ func colidir_inimigo(no: Node3D) -> void:
 func atualizar_inimigos(dt: float) -> void:
 	for e in inimigos:
 		colidir_inimigo(e.no)
+	separar_inimigos()
 	for e in inimigos:
 		e.t -= dt
 		e.cd -= dt
@@ -1178,6 +1335,7 @@ func atualizar_inimigos(dt: float) -> void:
 				e.acertou = true
 				if d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.arrancada == null and mov.esc == null and acao.get("nome", "") != "rolar":
 					ferir_heroi(D.INIMIGO.dmg)
+					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
 			continue

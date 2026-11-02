@@ -564,8 +564,7 @@ func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0) -> void:
 			mats.append(l.material_override)
 		g.position = Vector3(x, y + 0.9, z)
 		giros.append({"g": g, "mats": mats, "t": 0.0, "dur": 0.38, "gira": 16.0, "cresce": 0.25})
-		anel(x, z, r, "eef4ff", 0.35, y)
-		area(x, z, r * 0.95, ["fff0c0", "ffb84a"], 0.5, y)
+		area(x, z, r * 0.95, ["fff0c0", "ffb84a"], 0.5, y) # sem o anel branco fino (direção de arte: cara de debug)
 		for i in 24:
 			var a := i / 24.0 * TAU
 			var v := randf_range(5, 9)
@@ -769,6 +768,9 @@ func cura(alvo: Node3D) -> void:
 		var d := randf_range(0.2, 0.7)
 		part(FOGO, p.x + cos(a) * d, p.y + randf_range(0.1, 1.2), p.z + sin(a) * d, 0, randf_range(0.8, 1.8), 0, randf_range(0.7, 1.2), 0.08 * H, 0.02 * H, "e4ffd8", "36c060", 1.0, 0.5, 0.5)
 
+var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
+var _lado_numero := 1.0
+var _ultimo_numero := {} # coluna (-1 ou 1) -> último número dela
 # Número de dano (ou cura) que sobe e some
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
@@ -783,13 +785,56 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	l.outline_modulate = Color(0.1, 0.05, 0.05)
 	l.pixel_size = 0.006
 	add_child(l)
-	l.global_position = pos + Vector3(randf_range(-0.3, 0.3), 1.9, randf_range(-0.3, 0.3))
+	# espalha para o lado da tela (±0,3 m) e sai 0,1 s depois do anterior, para os números não se encavalarem
+	# uns 25 px para o lado da tela, alternando esquerda e direita (convertido para metros pela distância da câmera)
+	var cam := get_viewport().get_camera_3d()
+	var base := pos + Vector3(0, 1.9, 0)
+	_lado_numero = -_lado_numero
+	if cam:
+		var px_m: float = 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(base) / max(1.0, get_viewport().get_visible_rect().size.y)
+		base += cam.global_basis.x * _lado_numero * 25.0 * px_m
+		# na mesma coluna, nasce pelo menos 18 px acima do último que ainda está na tela
+		var ult = _ultimo_numero.get(_lado_numero)
+		if is_instance_valid(ult):
+			base.y = max(base.y, ult.global_position.y + 18.0 * px_m + l.font_size * l.pixel_size)
+	l.global_position = base
+	_ultimo_numero[_lado_numero] = l
+	var agora := Time.get_ticks_msec() / 1000.0
+	var atraso: float = max(0.0, _prox_numero - agora)
+	_prox_numero = agora + atraso + 0.1
+	l.modulate.a = 0.0 if atraso > 0.0 else 1.0
+	l.outline_modulate.a = l.modulate.a
 	var y0 := l.global_position.y
 	var tw := create_tween()
+	if atraso > 0.0:
+		tw.tween_interval(atraso)
 	tw.tween_method(func(t: float):
 		l.global_position.y = y0 + t * 0.9
 		l.modulate.a = 1.0 - smoothstep(0.5, 1.0, t)
 		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 0.8)
+	tw.tween_callback(l.queue_free)
+
+# Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
+func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0) -> void:
+	var l := Label3D.new()
+	l.text = t
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.font_size = 48
+	l.outline_size = 14
+	l.modulate = Color(cor, 0.0)
+	l.outline_modulate = Color(0.06, 0.04, 0.02, 0.0)
+	l.pixel_size = 0.006
+	add_child(l)
+	l.global_position = pos + Vector3(0, 1.7, 0)
+	var y0 := l.global_position.y
+	var tw := create_tween()
+	if atraso > 0.0:
+		tw.tween_interval(atraso)
+	tw.tween_method(func(f: float):
+		l.global_position.y = y0 + f * 1.1
+		l.modulate.a = smoothstep(0.0, 0.12, f) * (1.0 - smoothstep(0.7, 1.0, f))
+		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 1.6)
 	tw.tween_callback(l.queue_free)
 
 # Dash: rastro de vento atrás do corpo (forte = investida / dash rápido, com faíscas)

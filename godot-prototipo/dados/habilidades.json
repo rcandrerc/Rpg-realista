@@ -36,13 +36,14 @@
     },
     {
      "anim": "combo4",
-     "dur": 0.48,
-     "hit": 0.19
+     "dur": 0.75,
+     "hit": 0.31
     }
    ],
    "desc": "Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s)."
   },
   "corte_duplo": {
+   "tomo": "Manual da Lâmina Gêmea",
    "nome": "Corte Duplo",
    "arvore": "espada",
    "tipo": "corte",
@@ -70,6 +71,7 @@
    "desc": "Avança até o inimigo mais perto e dá dois cortes na frente."
   },
   "giro": {
+   "tomo": "Livro do Redemoinho de Aço",
    "nome": "Giro da Lâmina",
    "arvore": "espada",
    "tipo": "giro",
@@ -92,6 +94,7 @@
    "desc": "Gira a espada e corta tudo em volta, duas vezes. Dá para andar girando."
   },
   "golpe_esmagador": {
+   "tomo": "Tomo do Martelo da Terra",
    "nome": "Golpe Esmagador",
    "arvore": "espada",
    "tipo": "esmagar",
@@ -119,6 +122,7 @@
    "desc": "Avança e crava a espada no chão na frente. Atordoa (chefes não)."
   },
   "pisao_sismico": {
+   "tomo": "Crônica do Tremor",
    "nome": "Pisão Sísmico",
    "arvore": "espada",
    "tipo": "pisao",
@@ -142,6 +146,7 @@
    "desc": "A espada racha o chão em volta e atordoa todo mundo perto."
   },
   "investida": {
+   "tomo": "Diário do Cavaleiro Veloz",
    "nome": "Investida",
    "arvore": "espada",
    "tipo": "investida",
@@ -207,6 +212,7 @@
    "desc": "Faísca de fogo que mira sozinha no inimigo mais perto (até 9 m) e deixa lento. Não gasta mana."
   },
   "bola_fogo": {
+   "tomo": "Grimório das Chamas",
    "nome": "Bola de Fogo",
    "arvore": "cajado",
    "tipo": "bola",
@@ -232,6 +238,7 @@
    "desc": "Cometa de fogo no alvo (até 11 m) que explode na área."
   },
   "anel_chamas": {
+   "tomo": "Livro do Círculo de Fogo",
    "nome": "Anel de Chamas",
    "arvore": "cajado",
    "tipo": "anel",
@@ -251,6 +258,7 @@
    "desc": "Um pulinho e o fogo explode no chão em volta de você."
   },
   "meteoro": {
+   "tomo": "Códice da Estrela Cadente",
    "nome": "Meteoro",
    "arvore": "cajado",
    "tipo": "meteoro",
@@ -272,6 +280,7 @@
    "desc": "Marca o chão do alvo e uma rocha em chamas cai ali."
   },
   "nova_gelo": {
+   "tomo": "Tomo do Inverno Eterno",
    "nome": "Nova de Gelo",
    "arvore": "cajado",
    "tipo": "gelo",
@@ -293,6 +302,7 @@
    "desc": "Onda de gelo em volta que congela os inimigos."
   },
   "raio_cadeia": {
+   "tomo": "Pergaminho da Tempestade",
    "nome": "Raio em Cadeia",
    "arvore": "cajado",
    "tipo": "cadeia",
@@ -314,6 +324,7 @@
    "desc": "Raio da mão no alvo que pula de inimigo em inimigo."
   },
   "salto_arcano": {
+   "tomo": "Atlas dos Passos Arcanos",
    "nome": "Salto Arcano",
    "arvore": "geral",
    "tipo": "teleporte",
@@ -328,6 +339,7 @@
    "desc": "Some e reaparece mais à frente, para onde o joystick aponta (para na parede)."
   },
   "cura_floresta": {
+   "tomo": "Herbário da Floresta",
    "nome": "Cura da Floresta",
    "arvore": "geral",
    "tipo": "cura",
@@ -346,6 +358,7 @@
    "desc": "Recupera vida sua; quem estiver perto (8 m) recebe metade."
   },
   "escudo_arcano": {
+   "tomo": "Tratado da Égide",
    "nome": "Escudo Arcano",
    "arvore": "geral",
    "tipo": "escudo",
@@ -364,6 +377,7 @@
    "desc": "Uma bolha de luz que segura o dano por 10 s (mais forte com a Defesa)."
   },
   "vortice": {
+   "tomo": "Livro do Vórtice",
    "nome": "Abraço do Vórtice",
    "arvore": "geral",
    "tipo": "puxar",
@@ -427,7 +441,7 @@
    "golpe_esmagador",
    "pisao_sismico",
    "investida",
-   "salto_arcano"
+   "vortice"
   ],
   "cajado": [
    "bola_fogo",
@@ -445,5 +459,397 @@
   "chefe": 25,
   "sombrio": 6,
   "lider": 20
- }
+ },
+ "andarAtirando": 0.7,
+ "nivelSemTomo": 5,
+ "itens": {
+  "chapeu": {
+   "nome": "Chapéu",
+   "lugar": "cabeca",
+   "st": {
+    "defesa": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "vida": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ]
+   }
+  },
+  "manto": {
+   "nome": "Manto",
+   "lugar": "corpo",
+   "st": {
+    "defesa": [
+     3,
+     5,
+     7,
+     10,
+     15
+    ],
+    "vida": [
+     10,
+     15,
+     22,
+     32,
+     46
+    ],
+    "mana": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ]
+   }
+  },
+  "capa": {
+   "nome": "Capa",
+   "lugar": "capa",
+   "st": {
+    "defesa": [
+     1,
+     2,
+     2,
+     3,
+     5
+    ],
+    "mana": [
+     7,
+     10,
+     14,
+     21,
+     30
+    ]
+   }
+  },
+  "botas": {
+   "nome": "Botas",
+   "lugar": "pes",
+   "st": {
+    "defesa": [
+     1,
+     2,
+     2,
+     3,
+     5
+    ],
+    "vida": [
+     6,
+     8,
+     12,
+     18,
+     25
+    ]
+   }
+  },
+  "oculos": {
+   "nome": "Óculos",
+   "lugar": "acessorio",
+   "st": {
+    "mana": [
+     4,
+     8,
+     12,
+     18,
+     25
+    ],
+    "critico": [
+     0.008,
+     0.011,
+     0.015,
+     0.021,
+     0.026
+    ],
+    "vida": [
+     0,
+     0,
+     6,
+     11,
+     17
+    ]
+   }
+  },
+  "colar": {
+   "nome": "Colar de Estrela",
+   "lugar": "acessorio",
+   "st": {
+    "vida": [
+     15,
+     22,
+     30,
+     42,
+     60
+    ],
+    "defesa": [
+     1,
+     2,
+     3,
+     4,
+     6
+    ]
+   }
+  },
+  "espada": {
+   "nome": "Espada",
+   "lugar": "espada",
+   "st": {
+    "danoFisico": [
+     3,
+     5,
+     7,
+     10,
+     14
+    ]
+   }
+  },
+  "cajado": {
+   "nome": "Cajado",
+   "lugar": "cajado",
+   "st": {
+    "danoMagico": [
+     3,
+     5,
+     7,
+     10,
+     14
+    ]
+   }
+  },
+  "pocao": {
+   "nome": "Poção de vida",
+   "pilha": 20,
+   "usar": {
+    "vida": 0.35
+   },
+   "preco": 15,
+   "venda": 5,
+   "desc": "Recupera 35% da vida."
+  },
+  "pocao_mana": {
+   "nome": "Poção de mana",
+   "pilha": 20,
+   "usar": {
+    "mana": 0.4
+   },
+   "preco": 18,
+   "venda": 6,
+   "desc": "Recupera 40% da mana."
+  },
+  "tomo": {
+   "nome": "Tomo",
+   "pilha": 20,
+   "desc": "Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia."
+  }
+ },
+ "raridades": [
+  {
+   "nome": "Comum",
+   "cor": "#cfc8b8"
+  },
+  {
+   "nome": "Raro",
+   "cor": "#5aa8ff"
+  },
+  {
+   "nome": "Épico",
+   "cor": "#b974ff"
+  },
+  {
+   "nome": "Lendário",
+   "cor": "#ffb03a"
+  },
+  {
+   "nome": "Mítico",
+   "cor": "#ff5a72"
+  }
+ ],
+ "lugares": [
+  "cabeca",
+  "corpo",
+  "capa",
+  "pes",
+  "acessorio",
+  "espada",
+  "cajado"
+ ],
+ "mochila": 32,
+ "conjunto": [
+  null,
+  {
+   "2": {
+    "mana": 10
+   },
+   "3": {
+    "danoK": 0.05
+   },
+   "6": {
+    "critico": 0.02,
+    "regenManaK": 0.25
+   }
+  },
+  {
+   "2": {
+    "vida": 20,
+    "mana": 20
+   },
+   "3": {
+    "danoK": 0.12
+   },
+   "6": {
+    "critico": 0.04,
+    "areaK": 0.15,
+    "regenManaK": 0.4
+   }
+  },
+  {
+   "2": {
+    "vida": 40,
+    "mana": 35
+   },
+   "3": {
+    "danoK": 0.2,
+    "defesa": 15
+   },
+   "6": {
+    "critico": 0.06,
+    "areaK": 0.25,
+    "regenManaK": 0.55
+   }
+  },
+  {
+   "2": {
+    "vida": 70,
+    "mana": 60
+   },
+   "3": {
+    "danoK": 0.3,
+    "defesa": 30
+   },
+   "6": {
+    "critico": 0.08,
+    "areaK": 0.35,
+    "regenManaK": 0.7
+   }
+  }
+ ],
+ "vendaEquip": [
+  20,
+  80,
+  250,
+  700,
+  2000
+ ],
+ "vendaTomo": 30,
+ "romano": [
+  "",
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X"
+ ],
+ "loja": [
+  {
+   "k": "pocao",
+   "preco": 15
+  },
+  {
+   "k": "pocao_mana",
+   "preco": 18
+  },
+  {
+   "k": "chapeu",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "chapeu",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "manto",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "manto",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "capa",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "capa",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "botas",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "botas",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "oculos",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "oculos",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "colar",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "colar",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "espada",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "espada",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "cajado",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "cajado",
+   "r": 1,
+   "preco": 240
+  }
+ ],
+ "lojaDistancia": 4
 }

@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
@@ -54,9 +54,16 @@ func _ready() -> void:
 	_botao("pular", Vector2(333, 64), 34, "pular", COR_FUNDO)
 	_botao("dash", Vector2(421, 61), 31, "dash", COR_FUNDO)
 	_botao("rolar", Vector2(503, 61), 31, "rolar", COR_FUNDO)
+	_botao("loja", Vector2(333, 160), 30, "loja", COR_TROCA) # só aparece perto da Rosa (a comerciante)
+	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
-	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false})
+	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false})
+
+func mostrar_botao(acao: String, v: bool) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.oculto = not v
 
 func icone(nome_ico: String) -> Texture2D:
 	if nome_ico == "":
@@ -99,7 +106,7 @@ func _input(ev: InputEvent) -> void:
 			return
 		if ev.pressed:
 			for b in botoes:
-				if ev.position.distance_to(_centro(b)) <= b.raio * 1.15:
+				if not b.oculto and ev.position.distance_to(_centro(b)) <= b.raio * 1.15:
 					_toques[ev.index] = b.acao
 					b.apertado = true
 					apertou.emit(b.acao)
@@ -172,6 +179,8 @@ func _desenhar() -> void:
 		_tela.draw_circle(_joy_centro + mover * 60.0, 40, Color(1, 1, 1, 0.55))
 	# botões
 	for b in botoes:
+		if b.oculto:
+			continue
 		var c := _centro(b)
 		var r: float = b.raio * (0.94 if b.apertado else 1.0)
 		_tela.draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.35))
