@@ -1,6 +1,8 @@
 // Dados do jogo. Cliente e servidor leem este mesmo arquivo:
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
+import { raioNaDirecao } from './mapa.js';
+
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
   slash: 'mx_inward_slashing_with_a_sword_standing_st',
@@ -197,6 +199,9 @@ const CAMINHOS = [
   { largura: 2.2, pontos: [[17, -2], [21, -2.2], [24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2], [52, -2], [58, -0.6]] },
   // trilha estreita até o veio de cobre
   { largura: 1.5, pontos: [[44, -3.4], [45, -7.5], [46, -11.5]] },
+  // a estradinha some aos poucos na grama do campo de caça (forca = quanto de terra: degradê de ~1 m, não borda reta)
+  { largura: 1.6, forca: 0.55, pontos: [[57, -0.8], [60.5, 0.2]] },
+  { largura: 1.1, forca: 0.3, pontos: [[60, 0], [63, 0.9]] },
   ...CASAS.map((c) => ({ largura: 1.5, pontos: [[PRACA.x, PRACA.z], [portaDe(c, 0.6).x, portaDe(c, 0.6).z]] })),
 ];
 // Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala as grandes.
@@ -241,19 +246,25 @@ function sortearArvores() {
     return Math.hypot(x - ax - vx * t, z - az - vz * t) < 4.5;
   });
   for (let t = 0, n = 0; n < 34 && t < 4000; t++) {
-    const a = rnd(0, 6.283), r = rnd(4, FORA.r - 2.5), x = FORA.x + Math.cos(a) * r, z = FORA.z + Math.sin(a) * r;
+    const a = rnd(0, 6.283), r = rnd(4, raioNaDirecao(FORA, a) - 2.5), x = FORA.x + Math.cos(a) * r, z = FORA.z + Math.sin(a) * r;
     if (!longeDe(x, z, CACA[0].x, CACA[0].z, CACA[0].r + 1.5) || !longeDe(x, z, MINA[0].x, MINA[0].z, MINA[0].r + 2.2) || naEstrada(x, z)) continue;
     if (Math.abs(x - 45.5) < 2.2 && z < -3 && z > -12) continue; // trilha do cobre
     if (lista.some((o) => Math.hypot(o.x - x, o.z - z) < 3.6)) continue;
     lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.85, 1.3).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: lista.length % 3 }); n++;
+  }
+  // três árvores grandes em cima da borda de pedras, para quebrar a linha (direção de arte)
+  for (const a of [0.55, 2.35, 4.6]) {
+    const r = raioNaDirecao(FORA, a) + 0.4;
+    lista.push({ x: +(FORA.x + Math.cos(a) * r).toFixed(2), z: +(FORA.z + Math.sin(a) * r).toFixed(2), s: 1.55, ry: +(a * 2).toFixed(2), v: lista.length % 3 });
   }
   return lista;
 }
 
 // ---------- mapa de fora da vila ----------
 // A vila é o círculo de raio 34; a estradinha do leste sai por uma passagem nas pedras (corredor) e chega numa clareira
-// grande (FORA) com o primeiro campo de caça e um veio de cobre pequeno.
-const FORA = { x: 62, z: -3, r: 26 };
+// grande (FORA, borda irregular) com o primeiro campo de caça e um veio de cobre pequeno.
+// borda orgânica (direção de arte): elipse 30 × 23 m alongada para o leste, com ondas na borda (raio varia uns ±20%)
+const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos: [[3, 0.13, 2.1], [2, 0.07, -0.6], [5, 0.05, 2.2]] };
 // Campo de caça (regra das zonas de caça do Quimera, znSp): sempre "n" monstros. A cada "passo" s, se falta algum,
 // nasce um num ponto ao acaso do campo (até 85% do raio, a pelo menos "longe" m de qualquer jogador). O próximo vem
 // em "rapido" s enquanto houver menos da metade, senão em "normal" s. Quem morre some depois de "corpo" s e abre a vaga.
@@ -279,9 +290,9 @@ export const MAPA_CLAREIRA = {
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   areas: [{ x: 0, z: 0, r: 34 }, FORA],
-  corredores: [{ a: [27, -2.7], b: [40, -3.3], larg: 9 }],
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }],
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
-  mascara: { x0: -38, z0: -62, tam: 132, px: 1024 },
+  mascara: { x0: -38, z0: -62, tam: 142, px: 1024 },
   // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
   // 2026-11-02): os monstros ficam no campo de caça lá fora (CACA)
   inimigos: [],

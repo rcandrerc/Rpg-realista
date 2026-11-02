@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Terreno } from '@rpg/shared';
-import { dentroDoMapa, formasDoMapa } from '../../shared/mapa.js';
+import { dentroDoMapa, formasDoMapa, raioNaDirecao } from '../../shared/mapa.js';
 import { mascaraVila, misturarChao, montarVila } from './vila.js';
 import { anime, PALETA } from './estilo.js';
 
@@ -75,7 +75,7 @@ function rnd(a, b) { return a + Math.random() * (b - a); }
 
 // Grama instanciada que balança com o vento (não nasce nos caminhos, na praça nem nas casas)
 function criarGrama(mapa, masc) {
-  const raio = mapa.raio, fora = formasDoMapa(mapa).areas.slice(1); // a vila primeiro; as áreas de fora levam grama na mesma densidade
+  const raio = mapa.raio, fora = formasDoMapa(mapa).areas.slice(1).map((o) => ({ ...o, r: o.r ?? Math.max(o.rx, o.rz) * 1.15 })); // a vila primeiro; as áreas de fora levam grama na mesma densidade
   const uniforms = { uTime: { value: 0 } };
   const g = new THREE.PlaneGeometry(0.06, 0.3, 1, 2); g.translate(0, 0.15, 0);
   const p = g.attributes.position;
@@ -90,7 +90,7 @@ function criarGrama(mapa, masc) {
       transformed.z += cos(uTime * 1.3 + wp.z * .4) * .05 * k;`);
   };
   const N0 = matchMedia('(pointer:coarse)').matches ? 22000 : 40000;
-  const areaVila = Math.PI * (raio * 1.15) ** 2, extras = fora.map((a) => Math.round(N0 * Math.PI * a.r * a.r / areaVila * 0.8));
+  const areaVila = Math.PI * (raio * 1.15) ** 2, extras = fora.map((a) => Math.round(N0 * Math.PI * (a.rx != null ? a.rx * a.rz : a.r * a.r) / areaVila * 0.8));
   const N = N0 + extras.reduce((s, n) => s + n, 0);
   const mesh = new THREE.InstancedMesh(g, m, N);
   const d = new THREE.Object3D(), cor = new THREE.Color();
@@ -98,7 +98,7 @@ function criarGrama(mapa, masc) {
     let a, r, k = 0;
     let cx = 0, cz = 0, rr = raio * 1.15;
     for (let q = 0, n = N0; q < fora.length; q++) { if (i >= n) { cx = fora[q].x; cz = fora[q].z; rr = fora[q].r * 1.1; } n += extras[q]; }
-    do { a = Math.random() * 6.283; r = Math.sqrt(Math.random()) * rr; } while (masc.peso(cx + Math.cos(a) * r, cz + Math.sin(a) * r) > 0.2 && ++k < 20);
+    do { a = Math.random() * 6.283; r = Math.sqrt(Math.random()) * rr; } while ((masc.peso(cx + Math.cos(a) * r, cz + Math.sin(a) * r) > 0.2 || (cx !== 0 && !dentroDoMapa(mapa, cx + Math.cos(a) * r, cz + Math.sin(a) * r, -3))) && ++k < 20);
     d.position.set(cx + Math.cos(a) * r, 0, cz + Math.sin(a) * r); d.rotation.set(0, Math.random() * 6.283, 0);
     const s = rnd(0.7, 1.3); d.scale.set(s, s * rnd(0.6, 1.4), s); d.updateMatrix(); mesh.setMatrixAt(i, d.matrix);
     if (anime) { const [h, sa, l] = PALETA.grama; cor.setHSL(rnd(...h), rnd(...sa), rnd(...l)); } // grama de desenho: verde vivo
@@ -146,7 +146,7 @@ async function colocarObjetos(scene, mapa, masc) {
   // anel de pedras que fecha a área (uma InstancedMesh por tipo de pedra)
   const anel = longe.map(() => []);
   // onde a estradinha sai (passagem para a área de fora) o anel abre: pedra encostada em outra área ou na passagem não entra
-  const F = formasDoMapa(mapa), fora = (x, z, k) => !F.areas.some((o, j) => j !== k && Math.hypot(x - o.x, z - o.z) <= o.r + 2.2) && !F.corredores.some((c) => dentroDoMapa({ areas: [{ x: 0, z: 0, r: -1 }], corredores: [{ ...c, larg: c.larg + 4.4 }] }, x, z));
+  const F = formasDoMapa(mapa), fora = (x, z, k) => !F.areas.some((o, j) => j !== k && Math.hypot(x - o.x, z - o.z) <= raioNaDirecao(o, Math.atan2(z - o.z, x - o.x)) + 2.2) && !F.corredores.some((c) => dentroDoMapa({ areas: [{ x: 0, z: 0, r: -1 }], corredores: [{ ...c, larg: c.larg + 4.4 }] }, x, z));
   for (let i = 0; i < 46; i++) {
     const a = i / 46 * 6.283 + srnd(-0.05, 0.05), r = mapa.raio + srnd(-1, 2.5), ry = srnd(0, 6.28), s = srnd(2.6, 5.2); // mesmo sorteio de antes
     if (!fora(Math.cos(a) * (mapa.raio + 1.5), Math.sin(a) * (mapa.raio + 1.5), 0)) continue;
@@ -157,11 +157,11 @@ async function colocarObjetos(scene, mapa, masc) {
   let q = 0;
   F.areas.forEach((o, k) => {
     if (k === 0) return;
-    const n = Math.round(6.283 * o.r / 4.6);
-    for (let i = 0; i < n; i++) {
-      const a = i / n * 6.283 + frnd(-0.05, 0.05), r = o.r + frnd(0.5, 3), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r;
-      if (!fora(o.x + Math.cos(a) * (o.r + 1.5), o.z + Math.sin(a) * (o.r + 1.5), k)) continue;
-      anel[q++ % longe.length].push({ x, y: -0.1, z, ry: frnd(0, 6.28), s: frnd(2.6, 5.2) });
+    // espaçamento irregular (passo de 3 a 6 m) e tamanhos bem variados (0,7 a 1,4 da pedra média): não lê como compasso
+    for (let a = 0; a < 6.283;) {
+      const R = raioNaDirecao(o, a), r = R + frnd(0.4, 2.6), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r, ry = frnd(0, 6.28), sc = 3.7 * frnd(0.7, 1.4);
+      if (fora(o.x + Math.cos(a) * (R + 1.5), o.z + Math.sin(a) * (R + 1.5), k)) anel[q++ % longe.length].push({ x, y: -0.1, z, ry, s: sc });
+      a += frnd(3, 6) / R;
     }
   });
   for (const c of F.corredores) {
@@ -198,7 +198,7 @@ async function colocarObjetos(scene, mapa, masc) {
   for (const a of mapa.vila.arvores) if (srnd(0, 1) < 0.4 && masc.peso(a.x, a.z) < 0.1) fetos.push({ x: a.x + srnd(-1, 1), z: a.z + srnd(-1, 1), s: srnd(0.6, 1.1), ry: srnd(0, 6.28) });
   // samambaias lá fora: na beira da clareira, fora do campo de caça (aberto) e do veio de cobre
   for (const o of formasDoMapa(mapa).areas.slice(1)) for (let i = 0; i < 26; i++) {
-    const a = frnd(0, 6.28), r = frnd(0.55, 0.95) * (o.r - 1.5), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r;
+    const a = frnd(0, 6.28), r = frnd(0.55, 0.95) * (raioNaDirecao(o, a) - 1.5), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r;
     if (masc.peso(x, z) >= 0.1 || (mapa.caca || []).some((c) => Math.hypot(x - c.x, z - c.z) < c.r) || (mapa.mina || []).some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 1)) continue;
     fetos.push({ x, z, s: frnd(0.7, 1.4), ry: frnd(0, 6.28) });
   }

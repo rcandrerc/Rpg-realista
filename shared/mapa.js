@@ -7,6 +7,17 @@ export const formasDoMapa = (mapa) => ({
   corredores: mapa.corredores || [],
 });
 
+// Raio da área na direção "ang" (radianos, a partir de +x para +z). Círculo: r. Área de borda orgânica: elipse rx × rz
+// com ondas na borda (lobos: [[k, amplitude, fase], ...], o raio varia amplitude × sen(k·ang + fase)).
+export function raioNaDirecao(a, ang) {
+  if (a.rx == null) return a.r;
+  const c = Math.cos(ang) / a.rx, s = Math.sin(ang) / a.rz;
+  let r = 1 / Math.sqrt(c * c + s * s);
+  for (const [k, amp, fase] of a.lobos || []) r *= 1 + amp * Math.sin(k * ang + fase);
+  return r;
+}
+const raioAte = (a, x, z) => raioNaDirecao(a, Math.atan2(z - a.z, x - a.x));
+
 // ponto mais perto de (x, z) no segmento a-b
 function noSegmento(c, x, z) {
   const [ax, az] = c.a, [bx, bz] = c.b, vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1;
@@ -17,7 +28,7 @@ function noSegmento(c, x, z) {
 // (x, z) fica dentro do mapa com "margem" metros de folga da borda?
 export function dentroDoMapa(mapa, x, z, margem = 0) {
   const F = formasDoMapa(mapa);
-  for (const a of F.areas) if (Math.hypot(x - a.x, z - a.z) <= a.r - margem) return true;
+  for (const a of F.areas) if (Math.hypot(x - a.x, z - a.z) <= raioAte(a, x, z) - margem) return true;
   for (const c of F.corredores) { const [px, pz] = noSegmento(c, x, z); if (Math.hypot(x - px, z - pz) <= c.larg / 2 - margem) return true; }
   return false;
 }
@@ -31,7 +42,7 @@ export function limitarAoMapa(mapa, x, z, margem = 0) {
     const d = Math.hypot(x - cx, z - cz), k = d > 0 ? Math.max(0, r) / d : 0, px = cx + (x - cx) * k, pz = cz + (z - cz) * k;
     const dd = Math.hypot(x - px, z - pz); if (dd < md) { md = dd; melhor = [px, pz]; }
   };
-  for (const a of F.areas) ver(a.x, a.z, a.r - margem);
+  for (const a of F.areas) ver(a.x, a.z, raioAte(a, x, z) - margem); // na borda orgânica, o ponto da borda na mesma direção
   for (const c of F.corredores) { const [px, pz] = noSegmento(c, x, z); ver(px, pz, c.larg / 2 - margem); }
   return melhor || [x, z];
 }

@@ -103,12 +103,26 @@ func _no_segmento(c: Dictionary, px: float, pz: float) -> Vector2:
 	var t: float = clamp((Vector2(px, pz) - a).dot(v) / max(0.0001, v.length_squared()), 0.0, 1.0)
 	return a + v * t
 
+# raio da área na direção ang (shared/mapa.js raioNaDirecao): círculo r, ou elipse rx × rz com ondas (lobos)
+static func raio_na_direcao(a: Dictionary, ang: float) -> float:
+	if not a.has("rx"):
+		return float(a.r)
+	var c: float = cos(ang) / float(a.rx)
+	var s: float = sin(ang) / float(a.rz)
+	var r: float = 1.0 / sqrt(c * c + s * s)
+	for l in a.get("lobos", []):
+		r *= 1.0 + float(l[1]) * sin(float(l[0]) * ang + float(l[2]))
+	return r
+
+func _raio_ate(a: Dictionary, px: float, pz: float) -> float:
+	return raio_na_direcao(a, atan2(pz - float(a.z), px - float(a.x)))
+
 func _areas() -> Array:
 	return m.areas if m.get("areas", []).size() > 0 else [{"x": 0.0, "z": 0.0, "r": float(m.raio)}]
 
 func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
 	for a in _areas():
-		if Vector2(px - float(a.x), pz - float(a.z)).length() <= float(a.r) - margem:
+		if Vector2(px - float(a.x), pz - float(a.z)).length() <= _raio_ate(a, px, pz) - margem:
 			return true
 	for c in m.get("corredores", []):
 		if Vector2(px, pz).distance_to(_no_segmento(c, px, pz)) <= float(c.larg) / 2.0 - margem:
@@ -122,7 +136,7 @@ func limitar_ao_mapa(px: float, pz: float, margem := 0.0) -> Vector2:
 	var md := INF
 	var centros: Array = []
 	for a in _areas():
-		centros.append([Vector2(float(a.x), float(a.z)), float(a.r) - margem])
+		centros.append([Vector2(float(a.x), float(a.z)), _raio_ate(a, px, pz) - margem])
 	for c in m.get("corredores", []):
 		centros.append([_no_segmento(c, px, pz), float(c.larg) / 2.0 - margem])
 	for k in centros:

@@ -40,7 +40,7 @@ export function mascaraVila(vila, m = null) {
   for (const c of vila.caminhos) {
     // várias passadas tortinhas: borda irregular, como trilha de verdade
     for (let k = 0; k < 4; k++) {
-      g.strokeStyle = 'rgba(255,0,0,0.42)'; g.lineWidth = c.largura * px * rnd(0.75, 1.15);
+      g.strokeStyle = `rgba(255,0,0,${0.42 * (c.forca ?? 1)})`; g.lineWidth = c.largura * px * rnd(0.75, 1.15);
       g.beginPath();
       c.pontos.forEach(([x, z], i) => { const [a, b] = P(x + rnd(-0.25, 0.25), z + rnd(-0.25, 0.25)); i ? g.lineTo(a, b) : g.moveTo(a, b); });
       g.stroke();

@@ -148,6 +148,7 @@ func _ready() -> void:
 		if mi.get_aabb().size.x > 200.0: # o chão do site: troco pelo meu, com as trilhas
 			mi.visible = false
 	pintar(vila, false)
+	achar_troncos(vila)
 	montar_chao()
 	montar_grama()
 	# fonte do jogo (Alegreya Sans, OFL) no lugar da letra padrão do Godot: HUD, menus e números de dano
@@ -329,7 +330,8 @@ func montar_grama() -> void:
 	var fora: Array = mundo.get("areas", []).slice(1)
 	var extras: Array = []
 	for o in fora:
-		extras.append(int(n0 * float(o.r) * float(o.r) / pow(RAIO * 1.15, 2) * 0.8))
+		var area: float = float(o.rx) * float(o.rz) if o.has("rx") else float(o.r) * float(o.r)
+		extras.append(int(n0 * area / pow(RAIO * 1.15, 2) * 0.8))
 	mm.instance_count = n0 + extras.reduce(func(s, n): return s + n, 0)
 	var rng := RandomNumberGenerator.new()
 	for i in mm.instance_count:
@@ -341,14 +343,14 @@ func montar_grama() -> void:
 			if i >= ini:
 				cx = float(fora[q].x)
 				cz = float(fora[q].z)
-				rr = float(fora[q].r) * 1.1
+				rr = (max(float(fora[q].rx), float(fora[q].rz)) * 1.27) if fora[q].has("rx") else float(fora[q].r) * 1.1
 			ini += extras[q]
 		var a := 0.0
 		var r := 0.0
 		for k in 20: # não nasce nas trilhas, na praça nem colada nas casas
 			a = rng.randf() * TAU
 			r = sqrt(rng.randf()) * rr
-			if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2:
+			if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2 and (i < n0 or mov.dentro_do_mapa(cx + cos(a) * r, cz + sin(a) * r, -3.0)):
 				break
 		var s := rng.randf_range(0.7, 1.3)
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.6, 1.4), s))
@@ -765,6 +767,31 @@ func parar_golpe(seg: float) -> void:
 # volta em 0,4 s. Os troncos são outra malha e continuam sólidos. (direção de arte, pacote A)
 const FOLHA_RAIO := 0.8
 const FOLHA_ALFA := 0.25
+const TRONCO_PERTO := 1.1 # m: tronco a menos disso da câmera (do lado, tapando meia tela) também apaga
+# troncos das árvores (opacos, finos e altos, em cima de uma árvore do mapa): entram no mesmo apagar das copas,
+# assim a câmera não fica atrás de um tronco sem precisar chegar perto (o André não quer a câmera colando no herói)
+var _n_troncos := 0
+func achar_troncos(raiz: Node) -> void:
+	var arv: Array = []
+	for a in mundo.get("coletaveis", []):
+		if str(a.tipo) == "arvore":
+			arv.append(Vector2(float(a.x), float(a.z)))
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
+			continue
+		var m0 = mi.mesh.surface_get_material(0)
+		if not (m0 is BaseMaterial3D) or m0.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+			continue
+		var bb: AABB = mi.global_transform * mi.mesh.get_aabb()
+		if bb.size.y < 2.0 or bb.size.y > 9.0 or bb.size.x > 6.0 or bb.size.z > 6.0: # tronco com os galhos
+			continue
+		var c := Vector2(bb.get_center().x, bb.get_center().z)
+		for a in arv:
+			if c.distance_to(a) < 1.6:
+				folhas.append([mi, null, 0.0, true])
+				_n_troncos += 1
+				break
+
 func folhagem_na_frente(dt: float) -> void:
 	if camera == null or heroi == null:
 		return
@@ -777,6 +804,10 @@ func folhagem_na_frente(dt: float) -> void:
 		if f[1] == null:
 			f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
 		var tapa: bool = f[1].intersects_segment(a, b) != null
+		if not tapa and f.size() > 3: # tronco colado na câmera, de lado
+			var bb: AABB = f[1]
+			var cxz := Vector2(bb.get_center().x, bb.get_center().z)
+			tapa = cxz.distance_to(Vector2(a.x, a.z)) < TRONCO_PERTO + FOLHA_RAIO and (Vector3(cxz.x, a.y, cxz.y) - a).dot(b - a) > 0.0
 		var quer: float = (1.0 - FOLHA_ALFA) if tapa else 0.0
 		var atual: float = f[2] if f.size() > 2 else 0.0
 		if atual == quer:
