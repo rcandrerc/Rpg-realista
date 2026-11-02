@@ -126,6 +126,10 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	cont.albedo_color = Color(0.08, 0.06, 0.05)
 	pm.next_pass = cont
 	o.pedra_mat = pm
+	# o veio inteiro (blocos e cristais) fica neste nó: some quando esgota e volta crescendo
+	var corpo := Node3D.new()
+	raiz.add_child(corpo)
+	o.corpo = corpo
 	# bloco principal grande e uns pedaços menores em volta, tudo dentro do raio de colisão (0,8 m)
 	var principal := _bloco(rnd, 0.62 if not cristal else 0.6, 0.72 if not cristal else 0.42)
 	var blocos := [[principal, Vector3.ZERO, 0.0]]
@@ -142,7 +146,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		mi.position = bl[1]
 		mi.rotation.y = bl[2]
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		raiz.add_child(mi)
+		corpo.add_child(mi)
 	var alto_pedra: float = principal.get_aabb().end.y
 	# sombra de contato: mancha escura e suave no chão em volta da base
 	var sombra := MeshInstance3D.new()
@@ -155,8 +159,22 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	raiz.add_child(sombra)
 	# cristais (somem quando o veio esgota para você)
 	var minerio := Node3D.new()
-	raiz.add_child(minerio)
+	corpo.add_child(minerio)
 	o.minerio = minerio
+	# o que sobra quando o veio esgota: cascalho baixo no chão (o lugar continua ocupado para quem ainda não minerou)
+	var entulho := Node3D.new()
+	entulho.visible = false
+	raiz.add_child(entulho)
+	o.entulho = entulho
+	for i in 7:
+		var r: float = rnd.randf_range(0.07, 0.15)
+		var cas := MeshInstance3D.new()
+		cas.mesh = _bloco(rnd, r, r * 0.5)
+		cas.material_override = _mat_cascalho()
+		var a: float = rnd.randf() * TAU
+		cas.position = Vector3(cos(a), 0, sin(a)) * rnd.randf_range(0.05, 0.55)
+		cas.rotation.y = rnd.randf() * TAU
+		entulho.add_child(cas)
 	if cristal:
 		# cacho de 10 a 14 cristais saindo da pedra escura: os do meio grandes e claros, os de fora menores e mais roxos
 		var tri: TriangleMesh = principal.generate_triangle_mesh()
@@ -292,10 +310,8 @@ func _process(dt: float) -> void:
 		return
 	# veio que voltou: o minério aparece de novo
 	for o in coletaveis:
-		if o.has("minerio") and not o.minerio.visible and not esgotado(o):
-			o.minerio.visible = true
-			if o.has("pedra_mat"):
-				o.pedra_mat.set_shader_parameter("cheio", 1.0)
+		if o.has("corpo") and not o.corpo.visible and not esgotado(o):
+			_mostrar_veio(o, true)
 			o.cargas = -1
 	# o mais perto que dá para coletar (o botão aparece)
 	perto = null
@@ -309,7 +325,7 @@ func _process(dt: float) -> void:
 	if indo != null:
 		if m.hud.mover.length() > 0.15 or m.tempo > indo.ate or esgotado(indo.o) or not m.acao.is_empty():
 			indo = null # mexeu no joystick, fez outra coisa ou não chegou
-		elif _falta(indo.o) <= 0.15:
+		elif abs(_falta(indo.o)) <= 0.15:
 			var o: Dictionary = indo.o
 			indo = null
 			m.rede("coletar", {"no": o.id})
@@ -348,15 +364,18 @@ func tocar_botao() -> void:
 		m.hud.aviso("Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)")
 		return
 	# longe do veio ou do tronco: anda até encostar e só então começa (a picareta tem que bater na pedra)
-	if _falta(perto) > 0.2:
+	if abs(_falta(perto)) > 0.2:
 		indo = {"o": perto, "ate": m.tempo + 3.0}
 		return
 	m.rede("coletar", {"no": perto.id})
 
 # quanto falta andar até ficar colado no coletável (veio: a pedra tem uns 2 m; árvore: o tronco)
 func _falta(o: Dictionary) -> float:
-	var encosto: float = 1.25 if o.tipo != "arvore" else float(o.r) + 0.5
+	var encosto: float = ENCOSTO_VEIO if o.tipo != "arvore" else float(o.r) + 0.5
 	return Vector2(o.pos.x - m.heroi.position.x, o.pos.z - m.heroi.position.z).length() - encosto
+
+# distância do centro do veio até o herói na hora de bater: a ponta da picareta desce na face da pedra
+const ENCOSTO_VEIO := 1.95
 
 # para onde o herói anda sozinho (main.direcao_joystick), ou zero
 func direcao_auto() -> Vector3:
@@ -364,7 +383,8 @@ func direcao_auto() -> Vector3:
 		return Vector3.ZERO
 	var d: Vector3 = indo.o.pos - m.heroi.position
 	d.y = 0
-	return d.normalized() * 0.5 # andando, não correndo
+	# perto demais (colado na pedra), dá uns passos para trás; longe, anda até ela
+	return d.normalized() * (0.5 if _falta(indo.o) > 0.0 else -0.35)
 
 # o servidor começou uma batida (vem uma por batida; a coleta continua sozinha)
 func comecou(no_id: String, dur: float, prof: String) -> void:
@@ -392,27 +412,43 @@ func _passo_coleta(dt: float) -> void:
 		parar(true)
 		return
 	coletando.t += dt
-	# dois golpes por batida: picareta de cima para baixo, machado de lado
+	# dois golpes por batida. A animação é o golpe de espada de cima para baixo, mas tocada por partes e controlada
+	# aqui: ergue a ferramenta, desce rápido até a face da pedra (ou do tronco), fica cravada um instante e volta.
+	# Assim ela nunca segue o movimento da espada para trás do corpo.
 	var meio: float = coletando.dur / 2.0
 	var n := int(coletando.t / meio)
 	if n != coletando.n and n < 2:
 		coletando.n = n
-		var anim := "descendente" # picareta e machado: de cima para baixo, de frente para a pedra ou o tronco
-		if m.heroi_anim.has_animation(anim):
-			var vel: float = m.heroi_anim.get_animation(anim).length / meio
-			m.heroi_anim.play(anim, 0.1, vel)
-			m.heroi_anim.seek(0.0, true)
+		if m.heroi_anim.has_animation("descendente") and m.heroi_anim.current_animation != "descendente":
+			m.heroi_anim.play("descendente", 0.12, 0.0)
 		coletando["bateu"] = false
-	# o golpe encosta na pedra (ou no tronco) perto da metade do movimento
-	var f: float = fmod(coletando.t, meio) / meio
-	if not coletando.get("bateu", true) and f >= 0.5:
+	var f: float = clamp(fmod(coletando.t, meio) / meio, 0.0, 1.0) if n < 2 else 1.0
+	if m.heroi_anim.current_animation == "descendente":
+		m.heroi_anim.seek(_tempo_golpe(f), true)
+	if not coletando.get("bateu", true) and f >= GOLPE_BATE:
 		coletando.bateu = true
 		_impacto(o)
+
+# tempos dentro da animação "descendente" (s): pronto, ferramenta erguida atrás da cabeça, ponta na face da pedra
+const GOLPE_PRONTO := 0.40
+const GOLPE_ALTO := 0.58
+const GOLPE_PEDRA := 0.667
+const GOLPE_BATE := 0.55 # fração da batida em que a ponta encosta
+
+func _tempo_golpe(f: float) -> float:
+	if f < 0.45: # ergue devagar
+		return lerp(GOLPE_PRONTO, GOLPE_ALTO, smoothstep(0.0, 1.0, f / 0.45))
+	if f < GOLPE_BATE: # desce rápido
+		var k: float = (f - 0.45) / (GOLPE_BATE - 0.45)
+		return lerp(GOLPE_ALTO, GOLPE_PEDRA, k * k)
+	if f < 0.75: # cravada na pedra
+		return GOLPE_PEDRA
+	return lerp(GOLPE_PEDRA, GOLPE_PRONTO, smoothstep(0.0, 1.0, (f - 0.75) / 0.25)) # puxa de volta
 
 func _impacto(o: Dictionary) -> void:
 	var d: Vector3 = (o.pos - m.heroi.position)
 	d.y = 0
-	var p: Vector3 = m.heroi.position + d.normalized() * max(0.3, d.length() - o.r * 0.8) + Vector3(0, 0.55 if o.tipo != "arvore" else 0.9, 0)
+	var p: Vector3 = m.heroi.position + d.normalized() * max(0.3, d.length() - o.r * 0.8) + Vector3(0, 0.4 if o.tipo != "arvore" else 0.9, 0)
 	var fx = m.fx
 	if o.tipo == "arvore":
 		m.sons.tocar("lenha", -4.0, 0.08, p)
@@ -424,6 +460,35 @@ func _impacto(o: Dictionary) -> void:
 		fx.poeira(p.x, p.z, 0.4, 5, "8a8070", "b0a898")
 	m.cam.tremer(0.06)
 
+# veio esgotado: a pedra se desfaz (estouro de lascas e poeira) e fica só o cascalho; quando volta, cresce do chão
+func _mostrar_veio(o: Dictionary, mostrar: bool) -> void:
+	o.entulho.visible = not mostrar
+	if o.has("anima"):
+		o.anima.kill()
+	if mostrar:
+		o.corpo.visible = true
+		o.corpo.scale = Vector3.ONE * 0.05
+		o.anima = create_tween()
+		o.anima.tween_property(o.corpo, "scale", Vector3.ONE, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		return
+	var p: Vector3 = o.pos + Vector3(0, 0.45, 0)
+	var c: Color = COR_MINERIO.get(o.tipo, Color.GRAY)
+	m.fx.surto(p.x, p.y, p.z, 26, c.lightened(0.3).to_html(false), c.to_html(false), 5.0, 0.09)
+	m.fx.poeira(p.x, p.z, 0.9, 12, "8a8070", "b0a898")
+	m.sons.tocar("minerar", -1.0, 0.15, p)
+	o.anima = create_tween()
+	o.anima.tween_property(o.corpo, "scale", Vector3(1.15, 0.05, 1.15), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	o.anima.tween_callback(func(): o.corpo.visible = false)
+
+var _mat_cas: StandardMaterial3D
+func _mat_cascalho() -> StandardMaterial3D:
+	if _mat_cas == null:
+		_mat_cas = StandardMaterial3D.new()
+		_mat_cas.albedo_color = Color(0.36, 0.34, 0.31)
+		_mat_cas.roughness = 0.95
+		_mat_cas.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	return _mat_cas
+
 # o servidor mandou o que saiu da batida
 func coletou(ev: Dictionary) -> void:
 	var o = por_id.get(str(ev.no))
@@ -431,10 +496,8 @@ func coletou(ev: Dictionary) -> void:
 		return
 	o.cargas = int(ev.get("cargas", 0))
 	o.volta_ate = m.tempo + float(ev.get("volta", 60))
-	if o.cargas == 0 and o.has("minerio"):
-		o.minerio.visible = false
-		if o.has("pedra_mat"):
-			o.pedra_mat.set_shader_parameter("cheio", 0.0) # o minério some da pedra
+	if o.cargas == 0 and o.has("corpo"):
+		_mostrar_veio(o, false)
 	var itens: Array = ev.get("itens", [])
 	for i in itens.size():
 		var it: Dictionary = itens[i]
