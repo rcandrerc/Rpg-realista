@@ -67,6 +67,9 @@ func definir(p: Dictionary) -> void:
 	prog.ouro = int(prog.get("ouro", 0))
 	if not (prog.get("equip") is Dictionary):
 		prog.equip = {}
+	if prog.equip.get("pernas") == null and prog.equip.get("cabeca") != null: # cópia antiga: o Chapéu virou Calça
+		prog.equip.pernas = prog.equip.cabeca
+	prog.equip.erase("cabeca")
 	for l in dados.lugares:
 		prog.equip[l] = item_int(prog.equip.get(l))
 	st = calcular_status()
@@ -112,7 +115,7 @@ func calcular_status() -> Dictionary:
 static func item_int(it):
 	if not (it is Dictionary) or not it.has("k"):
 		return null
-	var r := {"k": str(it.k)}
+	var r := {"k": "calca" if str(it.k) == "chapeu" else str(it.k)} # conta antiga: o Chapéu virou Calça
 	for c in ["r", "n", "nv"]:
 		if it.has(c):
 			r[c] = int(it[c])
@@ -126,7 +129,7 @@ func eh_equip(it) -> bool:
 # quantas peças de cada raridade (ou melhor) estão no corpo; a Arma conta pela melhor entre espada e cajado
 func pecas_conjunto() -> Array:
 	var r := func(l): return int(prog.equip[l].r) if prog.equip.get(l) != null else -1
-	var lugares := [r.call("cabeca"), r.call("corpo"), r.call("capa"), r.call("pes"), r.call("acessorio"), max(r.call("espada"), r.call("cajado"))]
+	var lugares := [r.call("corpo"), r.call("pernas"), r.call("capa"), r.call("pes"), r.call("acessorio"), max(r.call("espada"), r.call("cajado"))]
 	var n := []
 	for i in dados.raridades.size():
 		n.append(lugares.filter(func(x): return x >= i).size())
@@ -183,7 +186,7 @@ func cor_item(it) -> Color:
 	return Color.WHITE
 
 static func icone_item(it) -> String:
-	return "it_" + ("pocao" if it.k == "pocao_mana" else str(it.k))
+	return "it_" + str(it.k) # pintado em icones/itens/<k>.png
 
 func preco_venda(it) -> int:
 	if eh_equip(it):

@@ -15,6 +15,7 @@ const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Armadura = preload("res://armadura.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -341,6 +342,19 @@ func criar_heroi() -> void:
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
 	inclinar.preparar(heroi_esq)
+
+# roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
+var _roupa := "-"
+func vestir_heroi() -> void:
+	var eq: Dictionary = P.prog.get("equip", {})
+	var k := ""
+	for l in Armadura.LUGARES:
+		var it = eq.get(l)
+		k += (str(it.k) + str(int(it.r)) if it is Dictionary else "") + ","
+	if k == _roupa:
+		return
+	_roupa = k
+	Armadura.vestir(heroi, eq)
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -1155,6 +1169,8 @@ func _process(dt: float) -> void:
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
+	vestir_heroi()
+	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
 	_flash_passo(dt_real)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam

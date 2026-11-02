@@ -311,15 +311,20 @@ export const RARIDADES = [
   { nome: 'Comum', cor: 0xcfc8b8 }, { nome: 'Raro', cor: 0x5aa8ff }, { nome: 'Épico', cor: 0xb974ff },
   { nome: 'Lendário', cor: 0xffb03a }, { nome: 'Mítico', cor: 0xff5a72 },
 ];
-// Lugares do corpo: os 6 do menu (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar)
-export const LUGARES = ['cabeca', 'corpo', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
+// Lugares do corpo: os 6 do menu, Camisa (corpo), Calça (pernas), Botas (pes), Capa, Acessório e Arma
+// (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar). Camisa, calça, botas e capa aparecem no corpo
+// do herói (godot-prototipo/armadura.gd); 'visivel' = o jeito que a peça aparece.
+export const LUGARES = ['corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
 export const MOCHILA = 32; // 8 x 4, como uma página da mochila do Quimera
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 export const ITENS = {
-  chapeu: { nome: 'Chapéu', lugar: 'cabeca', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20] } },
+  peitoral: { nome: 'Peitoral de Aço', lugar: 'corpo', st: { defesa: [5, 8, 11, 16, 23], vida: [12, 18, 26, 38, 54] } },
   manto: { nome: 'Manto', lugar: 'corpo', st: { defesa: [3, 5, 7, 10, 15], vida: [10, 15, 22, 32, 46], mana: [4, 7, 10, 14, 20] } },
+  calca: { nome: 'Calça de Couro', lugar: 'pernas', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20], mana: [3, 5, 7, 10, 14] } },
+  saiote: { nome: 'Saiote de Placas', lugar: 'pernas', st: { defesa: [3, 4, 6, 8, 11], vida: [6, 9, 13, 19, 27] } },
   capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30] } },
   botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [1, 2, 2, 3, 5], vida: [6, 8, 12, 18, 25] } },
+  grevas: { nome: 'Grevas de Aço', lugar: 'pes', st: { defesa: [2, 3, 4, 6, 8], vida: [8, 11, 16, 23, 32] } },
   oculos: { nome: 'Óculos', lugar: 'acessorio', st: { mana: [4, 8, 12, 18, 25], critico: [0.008, 0.011, 0.015, 0.021, 0.026], vida: [0, 0, 6, 11, 17] } },
   colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6] } },
   espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14] } },
@@ -343,7 +348,7 @@ export const CONJUNTO = [
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
 export const LOJA = [
   { k: 'pocao', preco: 15 }, { k: 'pocao_mana', preco: 18 },
-  ...['chapeu', 'manto', 'capa', 'botas', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
+  ...['peitoral', 'manto', 'calca', 'saiote', 'capa', 'botas', 'grevas', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
 ];
 export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).

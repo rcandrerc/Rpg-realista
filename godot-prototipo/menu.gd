@@ -1,6 +1,6 @@
 extends CanvasLayer
 # Menu do personagem (ideia do Quimera, com cara mais adulta): abre tocando no painel de vida.
-# Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Cabeça, Corpo, Pés | Arma, Acessório, Capa).
+# Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Camisa, Calça, Botas | Arma, Acessório, Capa).
 # Direita: abas Status (nível, XP, pontos de atributo e os números do herói) e Habilidades (Espada, Cajado e Gerais,
 # com nível de cada skill, o que melhora no próximo e em qual botão de cada barra ela fica). Passivas no fim.
 # Duas barras como no Quimera: a da espada e a do cajado (Trocar mostra a outra); toque em dois botões da barra para
@@ -9,6 +9,7 @@ extends CanvasLayer
 # de equipamento para ver a peça e tirar. Online quem decide é o servidor (manda "item"); sem internet muda só aqui.
 # A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
+const Armadura = preload("res://armadura.gd")
 const OURO := Color(0.80, 0.64, 0.36)
 const OURO_CLARO := Color(0.95, 0.82, 0.55)
 const TEXTO := Color(0.93, 0.89, 0.80)
@@ -26,7 +27,7 @@ const ARVORE_TXT := {
 	"geral": "Servem com a espada e com o cajado. Cada skill sobe de nível usando.",
 }
 const PLURAL := ["Comuns", "Raras", "Épicas", "Lendárias", "Míticas"] # "3 peças Raras (ou melhores)"
-const SLOTS := [["cabeca", "Cabeça"], ["corpo", "Corpo"], ["pes", "Pés"], ["arma", "Arma"], ["acessorio", "Acessório"], ["capa", "Capa"]]
+const SLOTS := [["corpo", "Camisa"], ["pernas", "Calça"], ["pes", "Botas"], ["arma", "Arma"], ["acessorio", "Acessório"], ["capa", "Capa"]]
 
 var m # main.gd
 var raiz: Control
@@ -146,7 +147,80 @@ static func estilo_botao(b: Button, ativo: bool) -> void:
 	b.add_theme_color_override("font_disabled_color", Color(0.4, 0.37, 0.32))
 
 static func icone_tex(nome: String) -> Texture2D:
+	if nome.begins_with("it_") and ResourceLoader.exists("res://icones/itens/%s.png" % nome.substr(3)):
+		return load("res://icones/itens/%s.png" % nome.substr(3)) # item pintado (godot-prototipo/icones/itens)
 	return load("res://icones/%s.svg" % nome) if nome != "" else null
+
+# ---------- moldura dos itens: fundo com o brilho da cor da raridade, aro na cor e faixa embaixo (como no Quimera) ----------
+static var _fundos := {}
+static func fundo_raridade(cor: Color) -> GradientTexture2D:
+	var k := cor.to_html()
+	if not _fundos.has(k):
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		g.colors = PackedColorArray([Color(cor, 0.62).lerp(Color.WHITE, 0.08), Color(cor.darkened(0.45), 0.55), Color(0.035, 0.03, 0.028, 1)])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.58)
+		t.fill_to = Vector2(1.08, 1.12)
+		t.width = 64
+		t.height = 64
+		_fundos[k] = t
+	return _fundos[k]
+
+# põe (ou troca) a moldura num quadrado de item; cor = raridade; destaque = escolhido
+func moldurar(q: Control, cor: Color, destaque: bool, com_item: bool) -> void:
+	q.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	for n in ["_fundo", "_brilho", "_faixa", "_aro"]:
+		var v := q.get_node_or_null(n)
+		if v:
+			q.remove_child(v)
+			v.queue_free()
+	if com_item:
+		var f := TextureRect.new()
+		f.name = "_fundo"
+		f.texture = fundo_raridade(cor)
+		f.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		f.stretch_mode = TextureRect.STRETCH_SCALE
+		f.set_anchors_preset(Control.PRESET_FULL_RECT)
+		f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(f)
+		q.move_child(f, 0)
+		# reflexo de vidro na metade de cima
+		var b := ColorRect.new()
+		b.name = "_brilho"
+		b.color = Color(1, 1, 1, 0.05)
+		b.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		b.anchor_bottom = 0.42
+		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(b)
+		q.move_child(b, 1)
+		var fx := ColorRect.new()
+		fx.name = "_faixa"
+		fx.color = cor
+		fx.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		fx.offset_top = -3
+		fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(fx)
+	var aro := Panel.new()
+	aro.name = "_aro"
+	aro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	aro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var st := StyleBoxFlat.new()
+	st.draw_center = false
+	st.set_corner_radius_all(8)
+	if destaque:
+		st.border_color = OURO_CLARO
+		st.set_border_width_all(3)
+	elif com_item:
+		st.border_color = cor.lightened(0.1)
+		st.set_border_width_all(2)
+	else:
+		st.border_color = Color(0.22, 0.18, 0.13)
+		st.set_border_width_all(1)
+	aro.add_theme_stylebox_override("panel", st)
+	q.add_child(aro)
 
 # ---------- esquerda: herói 3D e equipamentos ----------
 func montar_esquerda() -> Control:
@@ -202,10 +276,10 @@ func slot(id: String, nome: String) -> Control:
 	p.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), BORDA, 1, 8))
 	var ic := TextureRect.new()
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ic.offset_left = 12
-	ic.offset_top = 12
-	ic.offset_right = -12
-	ic.offset_bottom = -12
+	ic.offset_left = 7
+	ic.offset_top = 7
+	ic.offset_right = -7
+	ic.offset_bottom = -7
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.modulate = Color(1, 1, 1, 0.9)
@@ -229,6 +303,8 @@ func lugar_de(id: String) -> String:
 
 # peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
 func atualizar_slots() -> void:
+	if boneco:
+		Armadura.vestir(boneco, m.P.prog.get("equip", {})) # o boneco veste o mesmo que o herói
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
@@ -236,12 +312,14 @@ func atualizar_slots() -> void:
 		if it != null:
 			var c: Color = m.P.cor_item(it)
 			u.icone.texture = icone_tex(m.P.icone_item(it))
-			u.icone.modulate = c
-			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.055, 1), OURO_CLARO if escolhido else c.darkened(0.15), 2 if escolhido else 1, 8))
+			u.icone.modulate = c if u.icone.texture and u.icone.texture.resource_path.ends_with(".svg") else Color.WHITE
+			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, 8))
+			moldurar(u.painel, c, escolhido, true)
 		else:
 			u.icone.texture = icone_tex("basico" if id == "arma" and boneco_modo == "Espada" else "magia" if id == "arma" else "eq_" + id)
 			u.icone.modulate = Color(0.85, 0.75, 0.55, 0.45 if id == "arma" else 0.25)
-			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else BORDA, 2 if escolhido else 1, 8))
+			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, 8))
+			moldurar(u.painel, BORDA, escolhido, false)
 
 func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
@@ -661,7 +739,6 @@ func linha_ouro() -> Control:
 	ic.custom_minimum_size = Vector2(22, 22)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.modulate = Color("ffd36a")
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(ic)
 	l.add_child(rotulo("%d de ouro" % int(m.P.prog.ouro), 16, Color("ffd36a")))
@@ -674,21 +751,22 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(tam, tam)
 	var cor: Color = P.cor_item(it) if it != null else BORDA
-	var est := caixa(Color(0.15, 0.12, 0.08, 1) if escolhido else Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else (cor.darkened(0.25) if it != null else Color(0.22, 0.18, 0.13)), 2 if escolhido else 1, 7)
+	var est := caixa(Color(0.045, 0.04, 0.036, 1), Color(0, 0, 0, 0), 0, 8)
 	for e in ["normal", "hover", "pressed"]:
 		b.add_theme_stylebox_override(e, est)
 	if it != null:
 		var ic := TextureRect.new()
 		ic.texture = icone_tex(P.icone_item(it))
 		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		ic.offset_left = tam * 0.17
-		ic.offset_top = tam * 0.17
-		ic.offset_right = -tam * 0.17
-		ic.offset_bottom = -tam * 0.17
+		ic.offset_left = tam * 0.08
+		ic.offset_top = tam * 0.08
+		ic.offset_right = -tam * 0.08
+		ic.offset_bottom = -tam * 0.1
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.modulate = cor
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if ic.texture and ic.texture.resource_path.ends_with(".svg"):
+			ic.modulate = cor # desenho de linha (sem pintura ainda): toma a cor do item
 		b.add_child(ic)
 		if it.k == "tomo":
 			var r := rotulo(P.dados.romano[int(it.nv)], 11, Color("fff6c8"))
@@ -707,6 +785,7 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
 			n.offset_bottom = -1
 			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(n)
+	moldurar(b, cor, escolhido, it != null)
 	b.pressed.connect(func():
 		if not _arrastou:
 			fn.call())
@@ -780,7 +859,7 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	var l := HBoxContainer.new()
 	l.add_theme_constant_override("separation", 12)
 	cx.add_child(l)
-	var c := celula(it, false, func(): pass, 60)
+	var c := celula(it, false, func(): pass, 84)
 	c.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	l.add_child(c)
 	var txt := VBoxContainer.new()
@@ -790,7 +869,7 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	var tipo := ""
 	if P.eh_equip(it):
 		var lg: String = P.dados.itens[it.k].lugar
-		tipo = {"cabeca": "Cabeça", "corpo": "Corpo", "capa": "Capa", "pes": "Pés", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
+		tipo = {"corpo": "Camisa", "pernas": "Calça", "capa": "Capa", "pes": "Botas", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
 		tipo += " · No corpo" if lugar != "" else ""
 	elif it.k == "tomo":
 		tipo = "Tomo de %s" % P.habs[it.h].nome

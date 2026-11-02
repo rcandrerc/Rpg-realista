@@ -315,8 +315,16 @@ func outro(j: Dictionary) -> void:
 		no.position = o.alvo
 		o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
 		outros[id] = o
+	var antes: Vector3 = o.alvo
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
+	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
+	var roupa := str(j.get("roupa", ""))
+	if roupa != o.get("roupa", "-"):
+		o.roupa = roupa
+		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
+	if roupa.contains("capa"):
+		m.Armadura.vento(o.no, Vector2(o.alvo.x - antes.x, o.alvo.z - antes.z).length() * 20.0, 0.05)
 	_amostra(o, o.alvo, o.ry)
 	corpos[id] = o.no
 	if o.barra:
