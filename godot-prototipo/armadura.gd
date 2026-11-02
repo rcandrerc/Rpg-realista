@@ -861,6 +861,7 @@ static func _material(tipo: String, r: int) -> Material:
 		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") else 1.0)
 		s.set_shader_parameter("so_friso", 1.0 if tipo == "fecho" else 0.0)
 		if tipo == "saia":
+			s.set_shader_parameter("duro", 0.3) # direção de arte: brilho do saiote a 30% do metal
 			s.set_shader_parameter("faixa", 0.2) # 5 lâminas grandes em volta do quadril
 		if tipo == "peito":
 			s.set_shader_parameter("faixa", 100.0) # sem lâminas: só a junta
