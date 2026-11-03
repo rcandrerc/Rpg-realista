@@ -738,6 +738,9 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 	if arma.get_parent():
 		arma.get_parent().remove_child(arma)
 	ba.add_child(arma)
+	if arma.has_meta("cajado"): # Cajado A: 15% menor (pedido do André) e, na mão, preso na palma em pé
+		arma.scale *= Armas.ESCALA_CAJADO
+		Armas.segurar(esq, arma)
 	if lugar.osso == "J_Bip_C_UpperChest": # nas costas: com capa passa por fora do pano
 		arma.set_meta("afastada", 0.0)
 		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
@@ -748,6 +751,8 @@ func nova_arma(nome: String, do_heroi := true) -> Node3D:
 	if do_heroi and ResourceLoader.exists("res://armas3d/%s.glb" % nome):
 		var n: Node3D = load("res://armas3d/%s.glb" % nome).instantiate()
 		Armas.preparar(n)
+		if nome == "cajado":
+			n.set_meta("cajado", true) # na mão vai para a palma (Armas.segurar)
 		return n
 	var a: Node3D = load("res://modelos/arma_%s.glb" % nome).instantiate()
 	for mi in a.find_children("*", "MeshInstance3D", true, false):
@@ -2233,8 +2238,8 @@ func atualizar_heroi(dt: float) -> void:
 			heroi_anim.ritmo_acao(mov.ritmo_manobra())
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
 	if h.modo == "Magia" and mov.esc == null:
-		var mao := ponto_mao()
-		cajado.global_transform = Transform3D(heroi.global_transform.basis * Basis.from_euler(Vector3(0.18, 0, -0.08)), mao)
+		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
+		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi)
 		if cajado.visible and heroi.visible:
 			Armas.chama(fx.mg, cajado, dt) # chama pintada no topo do Cajado A
 	# rastro da espada durante o golpe e do vento no dash
