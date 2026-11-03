@@ -463,8 +463,35 @@
  "andarAtirando": 0.7,
  "nivelSemTomo": 5,
  "itens": {
+  "peitoral": {
+   "nome": "Peitoral",
+   "lugar": "corpo",
+   "st": {
+    "defesa": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ],
+    "vida": [
+     10,
+     15,
+     22,
+     32,
+     46
+    ],
+    "mana": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ]
+   }
+  },
   "chapeu": {
-   "nome": "Chapéu",
+   "nome": "Capacete",
    "lugar": "cabeca",
    "st": {
     "defesa": [
@@ -483,30 +510,57 @@
     ]
    }
   },
-  "manto": {
-   "nome": "Manto",
-   "lugar": "corpo",
+  "short": {
+   "nome": "Short",
+   "lugar": "pernas",
    "st": {
     "defesa": [
+     1,
+     2,
      3,
-     5,
-     7,
-     10,
-     15
+     4,
+     6
     ],
     "vida": [
-     10,
-     15,
-     22,
-     32,
-     46
-    ],
-    "mana": [
      4,
      7,
      10,
      14,
      20
+    ],
+    "mana": [
+     4,
+     6,
+     9,
+     13,
+     18
+    ]
+   }
+  },
+  "calca": {
+   "nome": "Calça",
+   "lugar": "pernas",
+   "st": {
+    "defesa": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "vida": [
+     6,
+     9,
+     13,
+     19,
+     27
+    ],
+    "mana": [
+     3,
+     5,
+     7,
+     10,
+     14
     ]
    }
   },
@@ -535,18 +589,18 @@
    "lugar": "pes",
    "st": {
     "defesa": [
-     1,
-     2,
      2,
      3,
-     5
+     4,
+     6,
+     8
     ],
     "vida": [
      6,
-     8,
-     12,
-     18,
-     25
+     9,
+     13,
+     19,
+     27
     ]
    }
   },
@@ -723,7 +777,7 @@
    "mat": true,
    "pilha": 50,
    "venda": 3,
-   "desc": "Pano encantado que os Imps carregam. O alfaiate faz chapéus, capas e mantos."
+   "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas."
   }
  },
  "raridades": [
@@ -751,6 +805,7 @@
  "lugares": [
   "cabeca",
   "corpo",
+  "pernas",
   "capa",
   "pes",
   "acessorio",
@@ -858,22 +913,32 @@
    "preco": 240
   },
   {
-   "k": "manto",
+   "k": "peitoral",
    "r": 0,
    "preco": 60
   },
   {
-   "k": "manto",
+   "k": "peitoral",
    "r": 1,
    "preco": 240
   },
   {
-   "k": "capa",
+   "k": "calca",
    "r": 0,
    "preco": 60
   },
   {
-   "k": "capa",
+   "k": "calca",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "short",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "short",
    "r": 1,
    "preco": 240
   },
@@ -884,6 +949,16 @@
   },
   {
    "k": "botas",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "capa",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "capa",
    "r": 1,
    "preco": 240
   },
@@ -1055,7 +1130,7 @@
   "alf": {
    "nome": "Alfaiate",
    "grupo": "Criação",
-   "desc": "Chapéus, mantos, capas, botas e óculos na banca da Rosa"
+   "desc": "Calças, shorts, capas, botas e óculos na banca da Rosa"
   },
   "mer": {
    "nome": "Mercador",
@@ -1228,11 +1303,22 @@
    "nivel": 1
   },
   "chapeu": {
-   "prof": "alf",
+   "prof": "fer",
    "faz": "chapeu",
    "usa": {
-    "tecido": 3,
-    "couro": 1
+    "barra_ferro": 2,
+    "couro": 1,
+    "tecido": 1
+   },
+   "vigor": 6,
+   "nivel": 2
+  },
+  "short": {
+   "prof": "alf",
+   "faz": "short",
+   "usa": {
+    "couro": 2,
+    "tecido": 1
    },
    "vigor": 8,
    "nivel": 1
@@ -1247,16 +1333,6 @@
    "vigor": 8,
    "nivel": 2
   },
-  "manto": {
-   "prof": "alf",
-   "faz": "manto",
-   "usa": {
-    "tecido": 5,
-    "couro": 2
-   },
-   "vigor": 8,
-   "nivel": 3
-  },
   "oculos": {
    "prof": "alf",
    "faz": "oculos",
@@ -1267,6 +1343,26 @@
    },
    "vigor": 8,
    "nivel": 5
+  },
+  "calca": {
+   "prof": "alf",
+   "faz": "calca",
+   "usa": {
+    "couro": 3,
+    "tecido": 1
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "peitoral": {
+   "prof": "fer",
+   "faz": "peitoral",
+   "usa": {
+    "barra_ferro": 4,
+    "couro": 2
+   },
+   "vigor": 6,
+   "nivel": 3
   }
  },
  "oficina": {
