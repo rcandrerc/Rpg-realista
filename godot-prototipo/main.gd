@@ -498,6 +498,7 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 		"estado": "vagar", "t": randf() * 3.0, "alvo": pos, "cd": 0.0, "golpe": -1.0, "vida_max": D.INIMIGO.vida, "tipo": id,
 		"parado": 0.0, "lento": 0.0, "lento_k": 0.0, "vuln": 0.0, "vuln_k": 0.0, "puxao": Vector3.ZERO, "puxao_t": 0.0}
 	e.barra = barra_vida(no, nome, Color(0.85, 0.25, 0.2))
+	nome_legivel(no)
 	inimigos.append(e)
 	return e
 
@@ -602,6 +603,27 @@ func mostrar_drop(pos: Vector3, ouro: int, itens: Array) -> void:
 		linhas.append([str(it.nome), Color(P.dados.raridades[r].cor) if r >= 0 else Color("e8f0ff")])
 	for i in linhas.size():
 		fx.texto(pos - Vector3(0, 0.36 * i, 0), linhas[i][0], linhas[i][1], 0.15 * i)
+
+# nome do monstro legível no celular (direção de arte): Alegreya 1,5x como os NPCs (~21 px numa tela de 576),
+# contorno de ~2 px e letra em MSDF com mipmaps (borda lisa em qualquer tamanho, sem serrilhado)
+var _fonte_nome: FontFile
+func fonte_nome() -> FontFile:
+	if _fonte_nome == null:
+		_fonte_nome = (load("res://fontes/AlegreyaSans-Bold.ttf") as FontFile).duplicate()
+		_fonte_nome.multichannel_signed_distance_field = true
+		_fonte_nome.msdf_pixel_range = 16
+		_fonte_nome.msdf_size = 64
+		_fonte_nome.generate_mipmaps = true
+	return _fonte_nome
+
+func nome_legivel(no: Node3D) -> void:
+	for l in no.get_children():
+		if l is Label3D:
+			l.font = fonte_nome()
+			l.pixel_size = 0.00034 * 1.5
+			l.offset = Vector2(0, 52.0 / 1.5)
+			l.outline_size = 7 # 7 px da letra de 72 = uns 2 px na tela
+			l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 # nome e barra de vida em cima da cabeça
 func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
