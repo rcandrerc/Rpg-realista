@@ -328,10 +328,12 @@ const CURVA_CORRENDO := 4.5 # rad/s correndo: a velocidade faz arco, o corpo "es
 const CURVA_PERDA := 0.35 # fração da velocidade perdida numa curva fechada (90° ou mais)
 const MEIA_VOLTA := 2.3 # rad (~130°): acima disso é meia-volta (freia e sai do outro lado), abaixo é curva
 # animações com o caminho do quadril (Mixamo Run To Stop e Running Turn 180, mundo.json raiz)
-const FREADA_MIN := 4.2 # m/s: soltar o joystick acima disso faz a freada com derrapada
+const FREADA_MIN := 3.3 # m/s: soltar o joystick acima disso faz a freada com derrapada (o trote, 3,78 m/s, também derrapa)
 const FREADA_ESC := 0.65 # a derrapada anda 65% do que a animação anda (para em ~0,5 s e ~1,5 m)
 const FREADA_FIM := 1.05 # s da animação: depois disso ela só fica de braço esticado; o jogo volta para a parada
-const MEIA_VOLTA_MIN := 3.8 # m/s: meia-volta acima disso gira com a animação
+const MEIA_VOLTA_MIN := 3.3 # m/s: meia-volta acima disso gira com a animação (no trote também)
+const FREADA_TROTE := 0.8 # no trote a derrapada anda 80% da da corrida (freia mais curto, mas não fica liso)
+const CURVA_TROTE := 0.85 # no trote a curva já faz 85% do arco da corrida (derrapa um pouco menos)
 const NO_AR := 0.35 # controle no ar (fração da aceleração)
 const GIRO_MAX := 13.0 # rad/s que o corpo gira (~750°/s: meia volta em 0,24 s)
 const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
@@ -435,7 +437,8 @@ func _inercia(v: Vector2, alvo: Vector2, dt: float, livre: bool) -> Vector2:
 	var ang := d.angle_to(da)
 	if abs(ang) > MEIA_VOLTA:
 		return d * move_toward(s, 0.0, VIRA_FREIA * ar * dt)
-	var q: float = clamp(s / CORRIDA, 0.0, 1.0)
+	# quanto a curva "escorrega": já forte no trote (CURVA_TROTE) e inteira na corrida (a corrida fica igual a antes)
+	var q: float = max(clamp(s / CORRIDA, 0.0, 1.0), clamp((s - ANDAR) / (TROTE - ANDAR), 0.0, 1.0) * CURVA_TROTE + clamp((s - TROTE) / (CORRIDA - TROTE), 0.0, 1.0) * (1.0 - CURVA_TROTE))
 	var vira: float = lerp(CURVA_ANDANDO, CURVA_CORRENDO, q) * ar * dt
 	d = d.rotated(clamp(ang, -vira, vira))
 	var quer: float = alvo.length() * (1.0 - CURVA_PERDA * clamp(abs(ang) / (PI * 0.5), 0.0, 1.0) * q)
@@ -450,6 +453,8 @@ func _inercia(v: Vector2, alvo: Vector2, dt: float, livre: bool) -> Vector2:
 func iniciar_manobra(nome: String, vel: float) -> void:
 	var r: Dictionary = m.raiz[nome]
 	var esc: float = FREADA_ESC if nome == "freada" else 1.0
+	if nome == "freada": # trote derrapa um pouco menos que a corrida; a corrida fica igual
+		esc *= lerp(FREADA_TROTE, 1.0, clamp((vel - TROTE) / (CORRIDA - TROTE), 0.0, 1.0))
 	var v_anim: float = max(float(r.z[3]) - float(r.z[0]), float(r.z[6]) - float(r.z[3])) * 10.0 * altura_quadril * esc # m/s no começo da animação
 	ry = atan2(vx, vz)
 	ry_mira = null
