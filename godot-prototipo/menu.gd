@@ -1125,7 +1125,7 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Equipar", {"acao": "equipar", "i": i}))
 	elif not P.eh_mat(it):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
-	if i >= 0 and m.perto_da_loja():
+	if i >= 0 and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
 	txt.add_child(bs)
 	l.add_child(txt)
