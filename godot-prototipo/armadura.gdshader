@@ -26,6 +26,8 @@ varying float v_friso;
 varying float v_esc;
 varying vec3 v_env;
 varying vec3 v_pos;
+uniform vec2 horizonte = vec2(-0.12, 0.08); // faixa escura do reflexo (peitoral: só o que olha para baixo)
+uniform float chao = 0.33; // abaixo da faixa escura, quanto o reflexo leva para voltar ao meio-tom (peitoral: rápido, barriga clara)
 uniform float zenite = 0.45; // quanto o reflexo escurece olhando para o alto (capacete: 0,9)
 uniform float crista_esc = 1.0; // capacete: a crista (UV2.y = 7) 15% mais escura
 uniform float costura = 0.0; // 1: couro com costura tracejada clara logo dentro do friso (direção de arte v6)
@@ -74,9 +76,9 @@ void fragment() {
 	vec3 c2 = mix(medio.rgb, friso.rgb, f);
 	vec3 c3 = mix(sombra.rgb, friso.rgb * 0.45, f);
 	if (ry > 0.42) env = mix(c1, c2, smoothstep(0.5, 0.62, ry) * zenite); // céu: claro perto do horizonte, mais fundo no alto (o topo do capacete não fica cor de pele)
-	else if (ry > 0.08) env = mix(c2, c1, smoothstep(0.30, 0.42, ry));
-	else if (ry > -0.12) env = c3; // horizonte escuro: a faixa que faz o aço parecer aço
-	else env = mix(c3, c2, smoothstep(-0.12, -0.45, ry) * 0.85); // chão rebatido
+	else if (ry > horizonte.y) env = mix(c2, c1, smoothstep(0.30, 0.42, ry));
+	else if (ry > horizonte.x) env = c3; // horizonte escuro: a faixa que faz o aço parecer aço
+	else env = mix(c3, c2, smoothstep(horizonte.x, horizonte.x - chao, ry) * 0.85); // chão rebatido
 	v_env = env * v_esc;
 	vec3 base_s = mix(sombra.rgb, friso.rgb * 0.55, f) * v_esc;
 	if (duro > 0.5) {

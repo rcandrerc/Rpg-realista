@@ -19,7 +19,8 @@ static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
 	match k:
 		"peitoral":
 			var m := "metal" if metal else "couro"
-			return [["peito", "peito" if metal else "couro"], ["ombro_e", m], ["ombro_d", m], ["braco_e", m], ["braco_d", m]]
+			# cinto escuro de 3 cm logo abaixo da ponta do peitoral: é ele que desenha a cintura (direção de arte v7)
+			return [["peito", "peito" if metal else "couro"], ["ombro_e", m], ["ombro_d", m], ["braco_e", m], ["braco_d", m], ["cinto", "cinto"]]
 		"calca":
 			# Épico ou melhor: saiote de 5 lâminas por cima da saia
 			return [["coxa_e", "couro_escuro"], ["coxa_d", "couro_escuro"]] + ([["saia", "saia"]] if r >= 2 else [])
@@ -53,7 +54,7 @@ const COURO := [Color("8a5e3c"), Color("62412b"), Color("392517")]
 const COURO_ESCURO := [Color("6b4a36"), Color("4a3226"), Color("2a1c16")]
 # tecido (blusa, mangas e saia do VRoid por baixo da armadura, e a capa) na cor da raridade:
 # Comum linho marrom, Raro azul, Épico roxo, Lendário laranja, Mítico pink
-const TECIDO := [Color("7a5a3e"), Color("2e5596"), Color("5d2f8e"), Color("b5683a"), Color("ad4c7d")] # Lendário e Mítico 20% menos saturados (direção de arte)
+const TECIDO := [Color("b9a47e"), Color("2e5596"), Color("5d2f8e"), Color("b5683a"), Color("ad4c7d")] # Lendário e Mítico 20% menos saturados; Comum em linho cru (direção de arte v8, separa da couraça marrom)
 const ROUPA := TECIDO # nome antigo (a blusa e a saia lisas usam a cor do tecido)
 const BRILHO := [0.0, 0.0, 0.15, 0.25, 0.6] # o friso das raridades altas brilha um pouco
 const CAPA := [[Color(0.45, 0.33, 0.24), Color(0.3, 0.22, 0.16)], [Color(0.18, 0.33, 0.6), Color(0.1, 0.17, 0.33)],
@@ -69,6 +70,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 	var esq: Skeleton3D = _esqueleto(raiz)
 	if esq == null:
 		return
+	_cintura(raiz, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
 	var tem_capa := false
 	if equip is Dictionary and equip.get("capa") is Dictionary:
 		tem_capa = PECAS.get(str(equip.capa.get("k", ""))) == "capa"
@@ -101,6 +103,120 @@ static func vestir(raiz: Node3D, equip) -> void:
 		if ba is BoneAttachment3D and ba.bone_name == "J_Bip_C_UpperChest":
 			for arma in ba.get_children():
 				costas(esq, arma, capa)
+
+# André 2026-11-03: "tá gordão, sem cintura". A blusa (Tops) e o cós da saia (Bottoms) do VRoid são largos na
+# cintura (~3 cm de folga de cada lado). Uma cópia das malhas é apertada para o centro do corpo entre o quadril e o
+# busto (até 24% na largura, 20% atrás), como roupa colada. A armadura do peito nasce dessa blusa já apertada.
+# Só com peça no corpo: aí a blusa vira tecido liso (sem o contorno do VRoid). Sem armadura, o contorno da camisa de
+# baixo furava o colete apertado em pontos pretos, então a roupa original fica como era.
+static func _cintura(raiz: Node3D, ativo := true) -> void:
+	var esq := _esqueleto(raiz)
+	if esq == null:
+		return
+	var R := _ref(esq)
+	for trecho in ["Tops", "Bottoms"]:
+		var mi := _fonte(raiz, trecho)
+		if mi == null or not (mi.mesh is ArrayMesh):
+			continue
+		if not mi.has_meta("malha_larga"):
+			mi.set_meta("malha_larga", mi.mesh)
+		var orig: ArrayMesh = mi.get_meta("malha_larga")
+		if not ativo:
+			if mi.mesh != orig:
+				var mo := []
+				for i in mi.get_surface_override_material_count():
+					mo.append(mi.get_surface_override_material(i))
+				mi.mesh = orig
+				for i in mini(mo.size(), mi.get_surface_override_material_count()):
+					mi.set_surface_override_material(i, mo[i])
+			continue
+		var chave := "cintura:%d" % orig.get_instance_id()
+		if not _malhas.has(chave):
+			var corpo := _fonte(raiz, "Body_00")
+			_malhas[chave] = _apertar_cintura(orig, R, 1.35 if trecho == "Bottoms" else 1.0, corpo.mesh if corpo else null)
+		if mi.mesh != _malhas[chave]:
+			var mats := []
+			for i in mi.get_surface_override_material_count():
+				mats.append(mi.get_surface_override_material(i))
+			mi.mesh = _malhas[chave]
+			for i in mini(mats.size(), mi.get_surface_override_material_count()):
+				mi.set_surface_override_material(i, mats[i])
+
+# mais = aperta mais (o cós da saia aperta mais que a blusa, para ficar sempre por dentro dela)
+# fecha o saiote (e a saia de baixo) em volta do quadril: raio máximo = raio do alto + tan(17°) x descida
+static func _fechar_saia(pos: PackedVector3Array, R: Ref, folga := 0.0) -> PackedVector3Array:
+	var yt := R.y_cintura - 0.075
+	var rt := 0.0
+	for p in pos:
+		if absf(p.y - yt) < 0.02:
+			rt = maxf(rt, Vector2(p.x, p.z - 0.01).length())
+	if rt <= 0.0:
+		return pos
+	for i in pos.size():
+		var p := pos[i]
+		if p.y >= yt:
+			continue
+		var d := Vector2(p.x, p.z - 0.01)
+		var rmax := rt + folga + tan(deg_to_rad(17.0)) * (yt - p.y)
+		if d.length() > rmax:
+			d = d.normalized() * rmax
+			pos[i] = Vector3(d.x, p.y, d.y + 0.01)
+	return pos
+
+static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh = null) -> ArrayMesh:
+	# contorno do corpo (pele) em fatias de 1 cm: a roupa apertada nunca entra na pele (furava em pontos pretos)
+	var fat := {} # fatia -> [x máx, z de trás, z da frente]
+	if corpo:
+		for p in corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+			if absf(p.x) > 0.2:
+				continue
+			var q := int(round(p.y * 100.0))
+			var f: Array = fat.get(q, [0.0, 9.0, -9.0])
+			fat[q] = [maxf(f[0], absf(p.x)), minf(f[1], p.z), maxf(f[2], p.z)]
+	var meio := lerpf(R.y_cintura, junta_peito, 0.6) # ponto mais fino (acima do umbigo)
+	var y_cinto := R.y_cintura + 0.055 # meio do cinto (ver _malha_cinto)
+	var raio_y := maxf(0.06, (junta_peito - R.y_cintura) * 0.5 + 0.03) # a barra da blusa (quadril) quase não mexe
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		for i in V.size():
+			var p := V[i]
+			if absf(p.x) > 0.2: # mangas (braço em T) ficam
+				continue
+			var k := _sino(absf(p.y - meio), raio_y * (1.25 if mais > 1.0 else 1.0)) * mais
+			if k <= 0.0:
+				continue
+			var cz := 0.03
+			var kz := 1.0 - (0.2 if p.z < cz else 0.1) * k
+			var n := Vector3(p.x * (1.0 - 0.24 * k), p.y, cz + (p.z - cz) * kz)
+			# direção de arte v8: o tecido entra no cinto. Na altura do cinto a blusa fica com a meia-largura dele
+			# (de frente), afinando aos poucos 6 cm acima e 4 cm abaixo, sem degrau (a pele ainda manda: ver abaixo)
+			var wc := 1.0 - smoothstep(0.015, 0.075, p.y - y_cinto) if p.y > y_cinto else 1.0 - smoothstep(0.015, 0.055, y_cinto - p.y)
+			var xcap := X_CINTO - (0.004 if mais > 1.0 else 0.0)
+			if wc > 0.0 and absf(n.x) > xcap:
+				n.x = signf(n.x) * lerpf(absf(n.x), xcap, wc)
+			var q := int(round(p.y * 100.0))
+			for dq in [-1, 0, 1]: # a fatia de cima e a de baixo também (pele inclinada)
+				var f = fat.get(q + dq)
+				if f == null:
+					continue
+				var folga := 0.007
+				if absf(n.x) < f[0] + folga and absf(p.x) >= f[0] + folga:
+					n.x = signf(p.x) * (f[0] + folga)
+				if p.z < cz and n.z > f[1] - folga and p.z <= f[1] - folga:
+					n.z = f[1] - folga
+				if p.z >= cz and n.z < f[2] + folga and p.z >= f[2] + folga:
+					n.z = f[2] + folga
+			V[i] = n
+		if mais > 1.0: # saia de baixo: fecha junto com o saiote (fica por dentro das lâminas)
+			V = _fechar_saia(V, R, -0.012)
+		arr[Mesh.ARRAY_VERTEX] = V
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
 
 # espada e cajado nas costas (presos no UpperChest): com capa, 9 cm mais para trás para não atravessar o pano
 static func costas(esq: Skeleton3D, arma: Node3D, capa: bool) -> void:
@@ -223,6 +339,9 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		if parte.begins_with("ombro"):
 			_montar_ombreira(esq, no, 1.0 if parte == "ombro_e" else -1.0, mat, r)
 			continue
+		if parte == "cinto":
+			_montar_cinto(raiz, esq, no, r)
+			continue
 		var src := _fonte(raiz, REGIOES[parte].fonte)
 		if src == null:
 			continue
@@ -300,11 +419,19 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			# do pescoço (gola metálica cobrindo a gola da blusa) até a cintura, ponta em V na frente; dos lados até a axila
 			# André 2026-11-03: a placa vai só até ~8 cm abaixo do busto (ponta em V); a barriga e as mangas mostram o
 			# tecido colorido por baixo, como na capa do Aethra (antes o tronco todo era casca e parecia traje espacial)
-			var baixo := maxf(R.y_cintura + 0.02, junta_peito - 0.085) + 0.5 * ax + (0.03 if p.z < 0.0 else 0.0)
+			# André 2026-11-03 (tarde): borda de baixo em ponta descendo até a cintura na frente, como na capa do
+			# Aethra (antes era quase reta e lia redonda); atrás e dos lados fica 2 cm abaixo do busto
+			# v8: a cintura fina deste corpo fica ~8 cm acima do osso da cintura (que está no quadril). A ponta desce
+			# até o umbigo, encostando no cinto; dos lados e atrás a placa termina 1 cm abaixo da junta do busto
+			var baixo := junta_peito + 0.01
+			if p.z >= 0.0:
+				baixo = minf(R.y_cintura + 0.072 + 0.6 * ax, baixo) # ponta no umbigo
 			var lado_max := R.x_braco + (0.03 if p.y < R.y_braco - 0.07 else 0.005)
 			if p.y < baixo or p.y > R.y_pescoco + 0.02 or ax > lado_max:
 				return Vector2(-1, 0)
-			return Vector2(0.016, p.y) # a junta peito/barriga fica no shader (junta_y)
+			# 1,1 cm no busto; abaixo dele a placa cola (0,4 cm) e afina junto com a cintura
+			var cola := clampf((junta_peito - p.y) / 0.04, 0.0, 1.0)
+			return Vector2(lerpf(0.011, 0.004, cola), p.y) # a junta peito/barriga fica no shader (junta_y)
 		"ombro_e", "ombro_d":
 			# casco em cúpula no alto do braço e no ombro, por cima do peitoral
 			var dx := ax - (R.x_braco + 0.04)
@@ -522,7 +649,8 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 	var base := pos.duplicate()
 	for i in n:
 		pos[i] = base[i] + nor[i] * off[i]
-	for it in (20 if parte == "peito" else 8): # o peitoral alisa mais: placa, não o desenho do corpo
+	# o peitoral alisava 20 vezes e virava um barril (André: "tá gordão"); agora segue o busto e a cintura
+	for it in (7 if parte == "peito" else 8):
 		var np := pos.duplicate()
 		for i in n:
 			if borda[i]:
@@ -537,6 +665,10 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 			if d < off[i] * 0.6:
 				np[i] += nor[i] * (off[i] * 0.6 - d)
 		pos = np
+	# saiote: as lâminas abriam quase na horizontal (tutu) e alargavam o quadril; agora abrem no máximo ~17 graus
+	if parte.begins_with("saia"):
+		pos = _fechar_saia(pos, R)
+		base = _fechar_saia(base, R, -0.012)
 	# 6) distância até a borda (friso) por relaxamento nas arestas
 	var dist := PackedFloat32Array()
 	dist.resize(n)
@@ -592,7 +724,7 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 			var en := Vector3(d.x / (rad.x * rad.x), d.y / (rad.y * rad.y), d.z / (rad.z * rad.z)).normalized()
 			if en.dot(vn[i]) < 0.0:
 				continue
-			vn[i] = vn[i].lerp(en, 0.75).normalized()
+			vn[i] = vn[i].lerp(en, 0.3).normalized() # pouco: o reflexo desenha o busto e a cintura, não uma bola
 	# 8) arrays: casca + parede da borda (espessura)
 	var V := PackedVector3Array(pos)
 	var Nn := PackedVector3Array(vn)
@@ -661,6 +793,114 @@ static func _preso(esq: Skeleton3D, no: Node3D, osso: String) -> BoneAttachment3
 	ba.bone_name = osso
 	return ba
 
+# cinto (direção de arte v7): faixa de 3 cm logo abaixo da ponta do peitoral, colada na blusa já apertada, com
+# fivela na frente. A malha da blusa é grossa demais para recortar uma faixa tão fina, então o anel é feito aqui:
+# para cada ângulo, o raio é o da blusa naquela altura (+3 mm), e o anel vai preso no osso da cintura.
+const X_CINTO := 0.104 # meia-largura da blusa dentro do cinto (m), de frente
+const CINTO := [Color("3b281c"), Color("2a1b12"), Color("140c08")]
+
+static func _montar_cinto(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
+	var b := esq.find_bone("J_Bip_C_Spine")
+	var tops := _fonte(raiz, "Tops")
+	if b < 0 or tops == null:
+		return
+	var R := _ref(esq)
+	var chave := "cinto:%d" % tops.mesh.get_instance_id()
+	if not _malhas.has(chave):
+		_malhas[chave] = _malha_cinto(tops.mesh, R)
+	if _malhas[chave] == null:
+		return
+	var ba := _preso(esq, no, "J_Bip_C_Spine")
+	var rest := esq.get_bone_global_rest(b)
+	var mi := MeshInstance3D.new()
+	mi.mesh = _malhas[chave][0]
+	mi.material_override = _material("cinto", r)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	mi.transform = rest.affine_inverse()
+	ba.add_child(mi)
+	var fv := MeshInstance3D.new()
+	fv.mesh = _malhas[chave][1]
+	fv.material_override = _material("fecho", r)
+	fv.transform = rest.affine_inverse()
+	ba.add_child(fv)
+
+static func _malha_cinto(tops: Mesh, R: Ref) -> Array:
+	var y1 := R.y_cintura + 0.07 # na parte mais fina da cintura, encostando na ponta do V (o osso fica no quadril)
+	var y0 := y1 - 0.03
+	var V: PackedVector3Array = tops.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var zmin := 9.0
+	var zmax := -9.0
+	for p in V:
+		if p.y > y0 - 0.01 and p.y < y1 + 0.01 and absf(p.x) < 0.2:
+			zmin = minf(zmin, p.z)
+			zmax = maxf(zmax, p.z)
+	if zmin > zmax:
+		return [null, null]
+	var cz := (zmin + zmax) * 0.5
+	var NA := 48
+	var raio := PackedFloat32Array()
+	raio.resize(NA)
+	for p in V:
+		if p.y < y0 - 0.004 or p.y > y1 + 0.004 or absf(p.x) > 0.2: # só a faixa: 1 cm abaixo a blusa já abre no quadril
+			continue
+		var a := atan2(p.x, p.z - cz)
+		var i := posmod(int(round(a / TAU * NA)), NA)
+		raio[i] = maxf(raio[i], Vector2(p.x, p.z - cz).length())
+	# ângulos sem vértice: média dos vizinhos; depois alisa (a blusa tem poucos vértices na cintura)
+	for it in NA:
+		for i in NA:
+			if raio[i] <= 0.0:
+				var a0 := raio[(i + NA - 1) % NA]
+				var a1 := raio[(i + 1) % NA]
+				raio[i] = maxf(a0, a1)
+	for it in 3:
+		var nr := raio.duplicate()
+		for i in NA:
+			nr[i] = maxf(raio[i], (raio[(i + NA - 1) % NA] + raio[i] * 2.0 + raio[(i + 1) % NA]) * 0.25)
+		raio = nr
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# perfil: borda de cima dobrando para dentro, faixa, borda de baixo (couro grosso, 3 mm)
+	var perfil := [[y1, -0.003], [y1 - 0.002, 0.003], [y0 + 0.002, 0.003], [y0, -0.003]]
+	var pts := []
+	for i in NA + 1:
+		var a := TAU * float(i) / NA
+		var d := Vector2(sin(a), cos(a))
+		var rr: float = raio[i % NA]
+		var linha := []
+		for pf in perfil:
+			var q: float = rr + 0.003 + float(pf[1])
+			linha.append(Vector3(d.x * q, float(pf[0]), cz + d.y * q))
+		pts.append(linha)
+	for i in NA:
+		for j in perfil.size() - 1:
+			var a: Vector3 = pts[i][j]
+			var b2: Vector3 = pts[i + 1][j]
+			var c: Vector3 = pts[i + 1][j + 1]
+			var d2: Vector3 = pts[i][j + 1]
+			for v in [a, d2, c, a, c, b2]:
+				var dn := Vector3(v.x, 0.0, v.z - cz).normalized()
+				st.set_normal(dn)
+				st.set_uv(Vector2(float(i) / NA, (v.y - y0) / 0.03))
+				st.set_uv2(Vector2(0.05, -1.0)) # longe da borda: sem friso nem lâminas
+				st.add_vertex(v)
+	var anel := st.commit()
+	# fivela: placa retangular na frente (4 x 3,4 cm), um pouco saltada
+	var rf: float = raio[0] + 0.009
+	var fz := cz + rf
+	var bx := BoxMesh.new()
+	bx.size = Vector3(0.04, 0.034, 0.006)
+	var st2 := SurfaceTool.new()
+	st2.create_from(bx, 0)
+	var fv := ArrayMesh.new()
+	var arr := st2.commit_to_arrays()
+	var P: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	for i in P.size():
+		P[i] += Vector3(0, (y0 + y1) * 0.5, fz)
+	arr[Mesh.ARRAY_VERTEX] = P
+	fv.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return [anel, fv]
+
 static func _montar_ombreira(esq: Skeleton3D, no: Node3D, lado: float, mat: String, r: int) -> void:
 	var osso := "J_Bip_L_UpperArm" if lado > 0.0 else "J_Bip_R_UpperArm"
 	var b := esq.find_bone(osso)
@@ -678,7 +918,9 @@ static func _montar_ombreira(esq: Skeleton3D, no: Node3D, lado: float, mat: Stri
 	var rest := esq.get_bone_global_rest(b)
 	# centro da cúpula: um pouco para fora e acima da junta do ombro (espaço do personagem em T)
 	var c := Vector3(lado * (R.x_braco + 0.035), R.y_braco + 0.008, rest.origin.z - 0.004)
-	mi.transform = rest.affine_inverse() * Transform3D(Basis(), c)
+	# direção de arte v7: 25% menores e inclinadas 10 graus para baixo, acompanhando o ombro (alargavam o tronco)
+	var giro := Basis(Vector3(0, 0, 1), -lado * deg_to_rad(10.0)).scaled(Vector3.ONE * 0.75)
+	mi.transform = rest.affine_inverse() * Transform3D(giro, c)
 	ba.add_child(mi)
 
 # malha em volta do eixo x (o braço em T): lâmina de cima maior e uma menor embaixo, sobrepostas
@@ -905,13 +1147,15 @@ static func _material(tipo: String, r: int) -> Material:
 			c3 = COURO if r == 0 else COURO_ESCURO
 		elif tipo == "couro_escuro":
 			c3 = COURO_ESCURO
+		elif tipo == "cinto":
+			c3 = CINTO
 		s.set_shader_parameter("claro", c3[0])
 		s.set_shader_parameter("medio", c3[1])
 		s.set_shader_parameter("sombra", c3[2])
 		s.set_shader_parameter("friso", FRISO[r][0])
 		s.set_shader_parameter("friso_claro", FRISO[r][1])
 		s.set_shader_parameter("brilho", BRILHO[r])
-		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") or tipo == "elmo_couro" else 1.0)
+		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") or tipo == "elmo_couro" or tipo == "cinto" else 1.0)
 		s.set_shader_parameter("so_friso", 1.0 if tipo == "fecho" else 0.0)
 		s.set_shader_parameter("costura", 1.0 if tipo.begins_with("couro") or tipo == "elmo_couro" else 0.0)
 		if tipo == "saia":
@@ -932,6 +1176,9 @@ static func _material(tipo: String, r: int) -> Material:
 				s.set_shader_parameter("claro", Color("6e4a2b"))
 				s.set_shader_parameter("medio", Color("553820"))
 		if tipo == "peito":
+			# horizonte escuro só no que olha para baixo (faixa fina sob o busto); a barriga fica no meio-tom
+			s.set_shader_parameter("horizonte", Vector2(-0.08, -0.03))
+			s.set_shader_parameter("chao", 0.08) # v8: o escuro fica só numa faixa fina sob o busto
 			s.set_shader_parameter("faixa", 100.0) # sem lâminas: só a junta
 			s.set_shader_parameter("junta_y", junta_peito) # junta de 1 cm entre peito e barriga, 3 cm abaixo do busto
 		# contorno escuro de desenho, igual ao dos personagens
