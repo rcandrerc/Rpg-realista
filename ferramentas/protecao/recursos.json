@@ -1,6 +1,9 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "APK casca: baixa o jogo inteiro em partes e depois só as mudanças (André 2026-11-03)", "arquivo": "godot-prototipo/inicio.gd", "contem": ["func _casca_iniciar(", "func _casca_baixar_completo(", "func _casca_entrar(", "const CONTEUDO_JSON"] },
+    { "nome": "Preset do APK casca", "arquivo": "godot-prototipo/export_presets.cfg", "contem": ["name=\"Android casca\""] },
+    { "nome": "CI gera o APK casca e publica o conteúdo", "arquivo": ".github/workflows/apk.yml", "contem": ["--export-release \"Android casca\"", "publicar-conteudo.sh"] },
     { "nome": "Mago: alvo travado na Faísca (1º ataque pega o mais perto; só troca tocando em outro monstro ou quando ele morre) (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func alvo_travado(", "hud.tocou.connect(tocou_inimigo)", "var alvo = alvo_travado(hab.alcance + 0.5)"] },
     { "nome": "Servidor: mira no alvo travado do mago que o celular manda (v) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["alvoTravado(j, h, m) {", "this.alvoTravado(j, h, m) || this.alvoHab(j, h)"] },
     { "nome": "Quadradinho Mostrar capacete embaixo do medalhão do Capacete e na janela dele (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func linha_mostrar_capacete(", "class Quadradinho extends Control:", "\"Mostrar capacete\""] },

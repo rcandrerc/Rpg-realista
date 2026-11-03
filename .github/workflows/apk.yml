@@ -105,10 +105,21 @@ jobs:
         run: |
           $GODOT_BIN --headless --export-pack Android $GITHUB_WORKSPACE/base-$((1000 + ${{ github.run_number }})).pck
           ls -la $GITHUB_WORKSPACE/base-*.pck
+      - name: APK casca (sem o jogo dentro; baixa tudo ao abrir, ferramentas/atualizacao/LEIAME.md)
+        working-directory: godot-prototipo
+        run: |
+          printf 'atualizacao/casca=true\n' >> project.godot # fica na seção [aethra] gravada acima
+          $GODOT_BIN --headless --export-release "Android casca" $GITHUB_WORKSPACE/rpg-realista-casca.apk
+          ls -la $GITHUB_WORKSPACE/rpg-realista-casca.apk
       - uses: actions/upload-artifact@v4
         with:
           name: rpg-realista-apk
           path: rpg-realista.apk
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpg-realista-casca-apk
+          path: rpg-realista-casca.apk
           retention-days: 14
       - name: Publicar no release "apk"
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.TEM_CHAVE == '1'
@@ -124,3 +135,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CODIGO: ${{ github.run_number }}
         run: bash ferramentas/atualizacao/publicar.sh "$((1000 + CODIGO))"
+      - name: Conteúdo do APK casca (jogo completo em partes + mudanças)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODIGO: ${{ github.run_number }}
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: bash ferramentas/atualizacao/publicar-conteudo.sh "$((1000 + CODIGO))"
