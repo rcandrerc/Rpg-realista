@@ -199,6 +199,7 @@ func abrir(qual: String) -> void:
 func fechar() -> void:
 	janela.visible = false
 	aberta = ""
+	_confirmar_apagar = false # "Voltar ao jogo" na confirmação vale como "Não, manter"
 	if not (m.menu and m.menu.aberto()):
 		m.hud.bloqueado = false
 
@@ -297,7 +298,10 @@ func montar_conta() -> void:
 			o.rede.trocar_conta(), false))
 		# André (2026-11-03): sair da conta sai do jogo online de verdade e volta para a tela de login
 		# (lá continua o "Jogar sozinho"). O jogo é recarregado para não sobrar nada da conta que saiu.
-		_add(_botao("Sair da conta", func(): _sair(o), false, true))
+		_add(_botao("Sair da conta", func(): _sair(o), false)) # sair não destrói nada: cor neutra (direção de arte)
+		var vao := Control.new() # espaço a mais: o Apagar fica longe dos outros para não ser tocado por engano
+		vao.custom_minimum_size = Vector2(0, 16)
+		conteudo.add_child(vao)
 		_add(_botao("Apagar personagem", func():
 			_confirmar_apagar = true
 			montar(), false, true))
