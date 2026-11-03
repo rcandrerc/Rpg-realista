@@ -88,6 +88,9 @@
     { "nome": "Tomás, o ferreiro, compra itens; conversa pelo menu do NPC (servidor)", "arquivo": "shared/simulacao.js", "contem": ["pertoDeQuemCompra(j)", "if (m?.conversa) return diga(proxima());"] },
     { "nome": "Nome dos monstros legível (Alegreya MSDF 1,5x, contorno 2 px)", "arquivo": "godot-prototipo/main.gd", "contem": ["func nome_legivel(no: Node3D)", "func fonte_nome() -> FontFile", "multichannel_signed_distance_field = true"] },
     { "nome": "Congelado: o monstro vira gelo (sem bolha) e o flash volta para o gelo", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["func _congelar(corpo: Node3D, dur: float)", "const SH_GELO_CORPO", "func _descongelar(b: Dictionary)", "func _pontas_gelo("] },
-    { "nome": "Tomás ferreiro: avental de couro, ombros largos e martelo", "arquivo": "godot-prototipo/visual_npc.gd", "contem": ["static func vestir(", "func _avental(", "func _martelo("] }
+    { "nome": "Tomás ferreiro: avental de couro, ombros largos e martelo", "arquivo": "godot-prototipo/visual_npc.gd", "contem": ["static func vestir(", "func _avental(", "func _martelo("] },
+    { "nome": "Espantalho de treino ao lado da ferraria (André 2026-11-03): dados", "arquivo": "shared/dados.js", "contem": ["export const TREINO", "espantalho: { nome: 'Espantalho de treino'", "treino: [{ id: 'espantalho1'"] },
+    { "nome": "Espantalho de treino: nunca morre, sem XP nem item (servidor)", "arquivo": "shared/simulacao.js", "contem": ["ferirTreino(alvo, n, crit, de, h)", "if (alvo.treino) return this.ferirTreino(", "if (b.treino) {"] },
+    { "nome": "Espantalho de treino no app (modelo, sem internet)", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_treino()", "func criar_espantalho(", "func ferir_treino(", "res://treino3d/Dummy.gltf"] }
   ]
 }

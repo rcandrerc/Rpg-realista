@@ -171,6 +171,7 @@ func _ready() -> void:
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
 	montar_cacas()
+	montar_treino()
 	for n in mundo.get("npcs", []):
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
@@ -726,6 +727,9 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada")
 		piscar(e.no)
 		combate.reacao(e.no, de, forte_on)
+		return
+	if e.get("treino", false):
+		ferir_treino(e, dmg, de, hab)
 		return
 	trabalho.combate()
 	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
@@ -1778,11 +1782,11 @@ const SEPARACAO := 1.2
 func separar_inimigos() -> void:
 	for i in inimigos.size():
 		var a: Dictionary = inimigos[i]
-		if a.estado == "morto":
+		if a.estado == "morto" or a.get("treino", false): # o espantalho é obstáculo (mundo.obstaculos), não empurra nem é empurrado
 			continue
 		for j in range(i + 1, inimigos.size()):
 			var b: Dictionary = inimigos[j]
-			if b.estado == "morto":
+			if b.estado == "morto" or b.get("treino", false):
 				continue
 			var d := Vector2(b.no.position.x - a.no.position.x, b.no.position.z - a.no.position.z)
 			var l := d.length()
@@ -1969,6 +1973,102 @@ func passo_cacas(dt: float) -> void:
 		e.anim.play("espada_parada", 0.2)
 		combate.voltou(e.no)
 
+# ---------- espantalho de treino (pedido do André 2026-11-03) ----------
+# Ao lado da ferraria (mundo.treino, de shared/dados.js MAPA_CLAREIRA.treino). Apanha de tudo e mostra o dano, mas
+# não anda, não bate, não morre (a vida acaba e volta cheia na hora; parado `volta` s sem apanhar, enche de novo)
+# e não dá XP nem item. Online quem decide é o servidor (Simulacao.ferirTreino); aqui é o mesmo sem internet.
+# Modelo: Dummy do Fantasy Props MegaKit (Quaternius, CC0), em treino3d/. O balanço do golpe é a mola de combate.gd.
+const ANIMS_TREINO := ["parada", "espada_parada", "andar", "corrida", "apanhar", "morrer", "golpe1", "golpe2"]
+func montar_treino() -> void:
+	for t in mundo.get("treino", []):
+		if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
+			push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
+		inimigos.append(criar_espantalho(t))
+
+func criar_espantalho(t: Dictionary) -> Dictionary:
+	var no := Node3D.new()
+	no.name = "Espantalho"
+	add_child(no)
+	var cena = load("res://treino3d/Dummy.gltf")
+	if cena:
+		var corpo: Node3D = cena.instantiate()
+		no.add_child(corpo)
+		pintar(corpo, false) # mesmo jeito pintado (toon) dos objetos da vila
+	var pos := Vector3(float(t.x), 0, float(t.z))
+	pos.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
+	no.position = pos
+	no.rotation.y = float(t.get("ry", 0.0))
+	# as mesmas animações que os monstros têm (o código de combate e o online chamam pelo nome); são paradas:
+	# quem balança o espantalho no golpe é a mola de combate.gd (reacao)
+	var ap := AnimationPlayer.new()
+	ap.name = "AnimationPlayer"
+	var lib := AnimationLibrary.new()
+	for nome in ANIMS_TREINO:
+		var a := Animation.new()
+		a.length = 0.45 if nome == "apanhar" else 1.0
+		a.loop_mode = Animation.LOOP_NONE if nome == "apanhar" else Animation.LOOP_LINEAR
+		lib.add_animation(nome, a)
+	ap.add_animation_library("", lib)
+	no.add_child(ap)
+	ap.play("parada")
+	var vida := float(t.get("vida", 1000))
+	var e := {"no": no, "anim": ap, "vida": vida, "centro": pos, "estado": "treino", "t": 0.0, "alvo": pos, "cd": 0.0, "golpe": -1.0,
+		"vida_max": vida, "tipo": str(t.get("tipo", "espantalho")), "treino": true, "volta": float(t.get("volta", 4.0)),
+		"parado": 0.0, "lento": 0.0, "lento_k": 0.0, "vuln": 0.0, "vuln_k": 0.0, "puxao": Vector3.ZERO, "puxao_t": 0.0}
+	e.barra = barra_vida(no, str(t.get("nome", "Espantalho de treino")), Color(0.85, 0.62, 0.25))
+	nome_legivel(no)
+	return e
+
+# sem internet: o golpe no espantalho (como Simulacao.ferirTreino) — dano, número, tranco e efeitos; nunca morre
+func ferir_treino(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
+	trabalho.combate()
+	dmg *= randf_range(0.85, 1.15)
+	var crit: bool = randf() < P.st.critico
+	if crit:
+		dmg *= 2.0
+	if e.vuln > tempo:
+		dmg *= 1.0 + e.vuln_k
+	if h.get("contra_ate", 0.0) > tempo:
+		dmg *= float(D.COMBATE.contraK)
+		crit = true
+		h.contra_ate = 0.0
+	dmg = max(1.0, round(dmg))
+	e.vida -= dmg
+	if e.vida <= 0.0:
+		e.vida = e.vida_max # acabou a vida: volta cheia na hora
+	e.golpe_t = tempo
+	e.combate = tempo + 5.0
+	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
+	var basico_hab: bool = hab is Dictionary and hab.has("combo")
+	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
+	piscar(e.no)
+	combate.reacao(e.no, de, h.golpe_forte or not basico_hab)
+	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
+	if hab is Dictionary:
+		if hab.has("lento"):
+			e.lento = tempo + hab.lento.dur
+			e.lento_k = hab.lento.k
+		if hab.has("vulneravel"):
+			e.vuln = tempo + hab.vulneravel.dur
+			e.vuln_k = hab.vulneravel.k
+		for k in ["atordoa", "congela"]:
+			if hab.has(k):
+				e.parado = max(e.parado, tempo + hab[k])
+				fx.status(e.no, k, hab[k])
+
+# sem internet: o espantalho fica plantado; parado um tempo sem apanhar, a vida enche de novo
+func passo_treino(e: Dictionary) -> void:
+	if e.estado == "morto": # um servidor sem espantalho escondeu ele (online.aplicar_foto): sem internet ele volta
+		e.estado = "treino"
+		e.no.visible = true
+		e.barra.visible = true
+		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
+	if e.parado > tempo:
+		return
+	if e.vida < e.vida_max and tempo - e.get("golpe_t", -99.0) > e.volta:
+		e.vida = e.vida_max
+		e.barra.scale.x = 1.0
+
 # entrou no campo de caça ou na zona de mineração: aviso com o nome (como o Quimera: "Zona de caça: ...")
 var _zona_atual := ""
 func avisar_zona() -> void:
@@ -1987,9 +2087,13 @@ func avisar_zona() -> void:
 func atualizar_inimigos(dt: float) -> void:
 	passo_cacas(dt)
 	for e in inimigos:
-		colidir_inimigo(e.no)
+		if not e.get("treino", false): # o espantalho não sai do lugar
+			colidir_inimigo(e.no)
 	separar_inimigos()
 	for e in inimigos:
+		if e.get("treino", false):
+			passo_treino(e)
+			continue
 		e.t -= dt
 		e.cd -= dt
 		var no: Node3D = e.no
