@@ -108,6 +108,7 @@
     { "nome": "Espantalho de treino no app (modelo, sem internet)", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_treino()", "func criar_espantalho(", "func ferir_treino(", "res://treino3d/Dummy.gltf"] },
     { "nome": "Magias novas do cajado com fogo pintado e textura (André 2026-11-03)", "arquivo": "godot-prototipo/magias.gd", "contem": ["const ATLAS := \"res://efeitos/magia_atlas.png\"", "const TOON := 2.0", "func explosao(", "func nova_gelo(", "func portal(", "const GELO_QUEBRA"] },
     { "nome": "Bola de Fogo, Nova de Gelo, Meteoro e Faísca passam pelos efeitos novos", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const NOVAS := [\"bola\", \"gelo\", \"meteoros\"]", "mg.nova_gelo(", "mg.portal(", "\"novo\": true"] },
+    { "nome": "Faísca anda fluida e mais lenta: o acerto não congela o jogo (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func tiro_basico(hab) -> bool:", "if tiro_basico:", "float(P.dados.andarAtirando)"] },
     { "nome": "Animações novas das magias do cajado", "arquivo": "shared/dados.js", "contem": ["mg_basico_d: 1.2", "magiaD: ['mg_basico_d'", "bolaForte: ['mg_bola'", "novaGelo: ['mg_gelo'", "meteoroCeu: ['mg_meteoro'"] },
     { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] }
   ]
