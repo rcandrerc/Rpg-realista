@@ -344,7 +344,7 @@ func lugar_de(id: String) -> String:
 # peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
 func atualizar_slots() -> void:
 	if boneco:
-		Armadura.vestir(boneco, m.P.prog.get("equip", {})) # o boneco veste o mesmo que o herói
+		Armadura.vestir(boneco, m.P.equip_visivel()) # o boneco veste o mesmo que o herói (capacete escondido também)
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
@@ -1201,7 +1201,23 @@ func montar_mochila() -> void:
 		var d := rotulo("Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar.", 12, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
+	montar_capacete()
 	montar_conjunto()
+
+# André 2026-11-03: mostrar ou esconder o capacete (só a aparência; a peça continua equipada e dando o bônus)
+func montar_capacete() -> void:
+	var P = m.P
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 10)
+	var mostra: bool = not P.prog.get("semCapacete", false)
+	var t := rotulo("Capacete aparece no corpo", 14, TEXTO)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(t)
+	var b := botao("Mostrar" if not mostra else "Esconder", func(): acao_item({"acao": "capacete", "mostrar": not mostra}), 14, true)
+	b.custom_minimum_size = Vector2(130, 40)
+	l.add_child(b)
+	conteudo.add_child(l)
 
 # bônus de conjunto: peças da mesma raridade (ou melhor), como o Set de Bruxa do Quimera
 func montar_conjunto() -> void:
@@ -1336,6 +1352,8 @@ func acao_item(msg: Dictionary) -> void:
 		m.rede("item", msg)
 		return
 	match msg.acao:
+		"capacete":
+			P.prog.semCapacete = msg.mostrar == false
 		"equipar":
 			P.equipar(i)
 		"tirar":

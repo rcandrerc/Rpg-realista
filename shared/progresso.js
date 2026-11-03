@@ -225,7 +225,7 @@ export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
   return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, equip: equipNovo(),
-    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo() };
+    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false };
 }
 export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
@@ -252,6 +252,8 @@ export function progressoValido(p) {
   const agora = Date.now(), num = (v) => typeof v === 'number' && Number.isFinite(v);
   if (p.vigor && num(p.vigor.v) && num(p.vigor.t)) n.vigor = { v: Math.min(VIGOR.max, Math.max(0, p.vigor.v)), t: Math.min(agora, p.vigor.t) };
   for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
+  // capacete escondido (André 2026-11-03: opção na tela de equipamento); continua equipado e dando o bônus
+  n.semCapacete = p.semCapacete === true;
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));

@@ -25,10 +25,13 @@ varying float v_seg;
 varying float v_friso;
 varying float v_esc;
 varying vec3 v_env;
+varying vec3 v_pos;
+uniform float costura = 0.0; // 1: couro com costura tracejada clara logo dentro do friso (direção de arte v6)
 
 void vertex() {
 	v_dist = UV2.x;
 	v_seg = UV2.y;
+	v_pos = VERTEX;
 }
 
 float v_esc_calc(float lam, float sulco, float f) {
@@ -50,6 +53,13 @@ void fragment() {
 	v_friso = f;
 	ALBEDO = vec3(1.0);
 	v_esc = v_esc_calc(lam, sulco, f); // lâminas e sulco escurecem
+	float ponto = 0.0;
+	if (costura > 0.5) {
+		// pontos de ~6 mm a cada 1,2 cm na faixa do sulco (coordenada do modelo: não depende da UV)
+		float faixa_c = smoothstep(0.0165, 0.018, v_dist) * (1.0 - smoothstep(0.02, 0.0215, v_dist));
+		ponto = faixa_c * step(0.5, fract((v_pos.x + v_pos.y + v_pos.z) * 83.0));
+		v_esc = mix(v_esc, 1.0, faixa_c);
+	}
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
 	// reflexo do metal: direção refletida no espaço da câmera (y = para cima)
 	vec3 rf = reflect(-VIEW, NORMAL);
@@ -60,7 +70,7 @@ void fragment() {
 	vec3 c1 = mix(claro.rgb, friso_claro.rgb, f);
 	vec3 c2 = mix(medio.rgb, friso.rgb, f);
 	vec3 c3 = mix(sombra.rgb, friso.rgb * 0.45, f);
-	if (ry > 0.42) env = mix(c1, vec3(1.0), smoothstep(0.75, 0.8, ry) * 0.3); // céu (e o sol estourado bem em cima)
+	if (ry > 0.42) env = mix(c1, c2, smoothstep(0.5, 0.95, ry) * 0.45); // céu: claro perto do horizonte, mais fundo no alto (o topo do capacete não fica cor de pele)
 	else if (ry > 0.08) env = mix(c2, c1, smoothstep(0.30, 0.42, ry));
 	else if (ry > -0.12) env = c3; // horizonte escuro: a faixa que faz o aço parecer aço
 	else env = mix(c3, c2, smoothstep(-0.12, -0.45, ry) * 0.85); // chão rebatido
@@ -71,6 +81,7 @@ void fragment() {
 	} else {
 		// base: o tom de sombra entra uma vez só (cada luz soma só o que clareia acima dele)
 		EMISSION = base_s * ganho * 0.55 + friso_claro.rgb * f * brilho * 0.25;
+		EMISSION = mix(EMISSION, friso_claro.rgb * ganho * 0.5, ponto);
 	}
 }
 

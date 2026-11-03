@@ -378,6 +378,8 @@ func outro(j: Dictionary) -> void:
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
 	var roupa := str(j.get("roupa", ""))
+	if j.get("semCapacete", false) == true: # o dono escondeu o capacete
+		roupa = ",".join(PackedStringArray(Array(roupa.split(",", false)).filter(func(p): return not str(p).begins_with("chapeu"))))
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))

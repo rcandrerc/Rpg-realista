@@ -599,6 +599,9 @@ export class Simulacao {
       p.ouro -= preco;
       this.pontosMercador(j, preco);
       aviso(`Comprou ${nomeItem(novo)}`);
+    } else if (m.acao === 'capacete') {
+      // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
+      p.semCapacete = m.mostrar === false;
     } else return;
     this.aplicarStatus(j);
     this.avisarProg(j);
@@ -1368,6 +1371,7 @@ export class Simulacao {
       tempo: r2(this.tempo),
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
         roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
+        semCapacete: !!j.prog.semCapacete, // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),

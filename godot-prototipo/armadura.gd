@@ -803,6 +803,13 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 			var z := lerpf(z_topo, z_baixo, smoothstep(0.0, 0.45, t)) - 0.04 * curva * t
 			# dobras verticais do pano, mais fundas embaixo
 			z += 0.022 * t * sin(s * PI * 3.0)
+			# v6 (direção de arte): pontas de baixo arredondadas (raio 8 cm) e barra levemente ondulada (3 cm),
+			# para a ponta não parecer tábua correndo
+			var dx := (1.0 - absf(s)) * larg
+			var rr := 0.08
+			if dx < rr:
+				y += (rr - sqrt(maxf(0.0, rr * rr - (rr - dx) * (rr - dx)))) * smoothstep(0.82, 1.0, t)
+			y += 0.03 * sin(s * PI * 3.5 + 0.6) * smoothstep(0.85, 1.0, t) * 0.5
 			if t == 0.0:
 				# borda de cima sobe pelos ombros
 				y += 0.03 * (1.0 - curva)
@@ -906,6 +913,7 @@ static func _material(tipo: String, r: int) -> Material:
 		s.set_shader_parameter("brilho", BRILHO[r])
 		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") or tipo == "elmo_couro" else 1.0)
 		s.set_shader_parameter("so_friso", 1.0 if tipo == "fecho" else 0.0)
+		s.set_shader_parameter("costura", 1.0 if tipo.begins_with("couro") or tipo == "elmo_couro" else 0.0)
 		if tipo == "saia":
 			s.set_shader_parameter("duro", 0.6) # lâminas do saiote: reflexo de metal, brilho duro a 60%
 			s.set_shader_parameter("faixa", 0.2) # 5 lâminas grandes em volta do quadril
@@ -961,8 +969,10 @@ static func _cabeca(raiz: Node3D) -> Cabeca:
 		h.c = Vector3(F.get_center().x, base + 0.58 * H, (frente + tras) * 0.5 - 0.005)
 		# André 2026-11-03 ("capacete por cima do cabelo"): casco mais justo na cabeça e cúpula 15% mais baixa
 		# (direção de arte); o cabelo de cima é apertado mais para dentro (_cabelo_apertado)
-		h.raio = Vector3(F.size.x * 0.5 * 1.07, (F.end.y - h.c.y + 0.02) * 0.85, (frente - tras) * 0.5 - 0.004)
-		h.testa = base + 0.63 * H
+		# v6 (direção de arte, André aprovou): mais estreito (~1,15x a cabeça, era ~1,3x) e a borda da frente
+		# ~1 cm acima das sobrancelhas: olhos livres de frente e em 3/4
+		h.raio = Vector3(F.size.x * 0.5 * 0.97, (F.end.y - h.c.y + 0.02) * 0.85, (frente - tras) * 0.5 - 0.01)
+		h.testa = base + 0.74 * H
 		h.bochecha = base + 0.14 * H # protege a bochecha até perto do queixo
 		h.nuca = base + 0.2 * H
 	_cab_cache[k] = h
@@ -972,7 +982,7 @@ static func _cabeca(raiz: Node3D) -> Cabeca:
 static func _borda_elmo(h: Cabeca, a: float) -> float:
 	var x := absf(wrapf(a, -PI, PI))
 	if x < 1.6:
-		return lerpf(h.testa, h.bochecha, smoothstep(0.5, 1.05, x)) # frente aberta, desce pela bochecha
+		return lerpf(h.testa, h.bochecha, smoothstep(0.75, 1.3, x)) # frente aberta (olhos livres em 3/4), desce pela bochecha
 	return lerpf(h.bochecha, h.nuca, smoothstep(1.6, 2.6, x))
 
 static func _ponto_elmo(h: Cabeca, a: float, y: float, folga: float) -> Vector3:
