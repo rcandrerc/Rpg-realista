@@ -15,7 +15,8 @@ def mascara(im, tipo, t):
     if tipo == "circulo": d.ellipse([0, 0, t * 4 - 1, t * 4 - 1], fill=255)
     else: d.rounded_rectangle([0, 0, t * 4 - 1, t * 4 - 1], radius=t * 4 * .28, fill=255)
     im.putalpha(m); return im.resize((t, t), Image.LANCZOS)
-linhas = [("a-sigilo-espada", "a-simples-pequeno", "A · Sigilo + Espada A (recomendada)"), ("b-sigla-A", "b-sigla-A", "B · Sigla A")]
+import os
+linhas = [tuple(x.split("|")) for x in os.environ.get("LINHAS", "a-sigilo-espada|a-simples-pequeno|A · Sigilo + Espada A (recomendada);b-sigla-A|b-sigla-A|B · Sigla A").split(";")]
 W, H = 1800, 1240
 tela = Image.new("RGB", (W, H))
 dd = ImageDraw.Draw(tela)
@@ -35,7 +36,7 @@ for i, (n, pequeno, rot) in enumerate(linhas):
         ic = mascara(adp, "circulo", t); tela.paste(ic, (x, y0 + 90 + (150 - t) // 2), ic)
         d.text((x + t // 2, y0 + 305), f"{t} px", font=F, fill=(200, 215, 235), anchor="mm"); x += t + 60
     if pequeno != n:
-        d.text((500, y0 + 360), "48 e 32 px: versão só com anel e espada", font=F, fill=(220, 230, 245))
+        d.text((500, y0 + 360), os.environ.get("LEGENDA", "48 e 32 px: versão só com anel e espada"), font=F, fill=(220, 230, 245))
 # barra de notificação com a silhueta branca
 nt = Image.open(f"{O}/notificacao_96.png").convert("RGBA")
 y0 = 1130

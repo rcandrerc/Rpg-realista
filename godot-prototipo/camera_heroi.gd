@@ -21,6 +21,9 @@ const SEGUE_VEL := 1.6 # rad/s máximos girando para as costas (na corrida)
 const FOV_BASE := 52.0
 const DIST_MIN := 2.6 # m: mais perto que isso parecia primeira pessoa
 const DIST_MAX := 12.0 # m: zoom mais longe (pinça com dois dedos)
+# faixa do zoom de pinça (André 2026-11-03: estava grande demais; longe pesa no celular). A câmera começa em 5,2 m
+const ZOOM_PERTO := 3.6 # m: o mais perto que a pinça chega (parede e árvore ainda puxam até DIST_MIN)
+const ZOOM_LONGE := 8.0 # m: o mais longe que a pinça chega
 const FOV_CORRIDA := 5.0 # graus a mais correndo
 const FOV_DASH := 9.0 # graus a mais no dash
 
@@ -61,7 +64,7 @@ func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
 func zoom(fator: float) -> void:
 	if is_equal_approx(fator, 1.0) or _conversando or _conv_k > 0.0:
 		return
-	dist = clamp(dist * fator, DIST_MIN, DIST_MAX)
+	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), min(DIST_MAX, ZOOM_LONGE))
 
 func soltar_conversa() -> void:
 	_conversando = false

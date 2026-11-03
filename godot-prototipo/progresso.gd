@@ -37,7 +37,7 @@ func novo() -> Dictionary:
 	mochila[0] = {"k": "pocao", "n": 3}
 	mochila[1] = {"k": "pocao_mana", "n": 2}
 	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true),
-		"ouro": 20, "mochila": mochila, "equip": {}, "vigor": {"v": float(dados.vigor.max), "t": agora_ms()}, "prof": {}}
+		"ouro": 20, "mochila": mochila, "paginas": 1, "equip": {}, "vigor": {"v": float(dados.vigor.max), "t": agora_ms()}, "prof": {}}
 
 func definir(p: Dictionary) -> void:
 	prog = p
@@ -62,7 +62,10 @@ func definir(p: Dictionary) -> void:
 		var n := novo()
 		prog.mochila = n.mochila
 		prog.ouro = n.ouro
-	prog.mochila.resize(int(dados.mochila))
+	# páginas da mochila (André 2026-11-03): cada uma tem dados.mochila lugares (10 x 4); começa com 1 e compra até 4.
+	# Nada some: a mochila só cresce até as páginas que a conta tem, nunca corta lugar com item.
+	prog.paginas = clampi(int(prog.get("paginas", 1)), 1, int(dados.get("mochilaPaginas", 1)))
+	prog.mochila.resize(max(prog.mochila.size(), int(dados.mochila) * int(prog.paginas)))
 	for i in prog.mochila.size():
 		prog.mochila[i] = item_int(prog.mochila[i])
 	prog.ouro = int(prog.get("ouro", 0))
@@ -94,6 +97,39 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("st"):
 		for k in ev.st:
 			st[k] = float(ev.st[k])
+	_guardar_t = GUARDAR_DEPOIS if _guardar_t < 0.0 else _guardar_t
+
+# Cópia no celular do progresso que veio do servidor. Desempenho (2026-11-03): cada monstro morto manda o progresso
+# (XP) e o jogo gravava o arquivo na hora, no meio do quadro: no Android isso dá um tranco bem na morte do bicho.
+# Agora grava no máximo a cada GUARDAR_DEPOIS s, fora do quadro (WorkerThreadPool), e na hora quando o app vai para
+# o fundo ou fecha (main.gd _notification). O servidor continua sendo quem guarda de verdade.
+const GUARDAR_DEPOIS := 8.0
+var _guardar_t := -1.0 # s para gravar; -1 = nada pendente
+var _tarefa := -1
+func passo(dt: float) -> void:
+	if _guardar_t < 0.0:
+		return
+	_guardar_t -= dt
+	if _guardar_t > 0.0:
+		return
+	if _tarefa >= 0 and not WorkerThreadPool.is_task_completed(_tarefa):
+		return # a gravação anterior ainda não terminou: tenta no próximo quadro
+	if _tarefa >= 0:
+		WorkerThreadPool.wait_for_task_completion(_tarefa)
+	_guardar_t = -1.0
+	var txt := JSON.stringify(prog)
+	_tarefa = WorkerThreadPool.add_task(func():
+		var cfg := ConfigFile.new()
+		cfg.set_value("conta", "progresso", txt)
+		cfg.save(ARQUIVO))
+
+func guardar_agora() -> void:
+	if _tarefa >= 0:
+		WorkerThreadPool.wait_for_task_completion(_tarefa)
+		_tarefa = -1
+	if _guardar_t < 0.0:
+		return
+	_guardar_t = -1.0
 	var cfg := ConfigFile.new()
 	cfg.set_value("conta", "progresso", JSON.stringify(prog))
 	cfg.save(ARQUIVO)

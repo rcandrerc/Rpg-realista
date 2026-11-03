@@ -284,18 +284,18 @@ def sigilo3(cx, cy, R, simples=False):
         d.line(pts + [pts[0]], fill=255, width=int(F(.025)), joint="curve")  # 4 linhas (quadrado girado)
     return m
 
-def espada3(cx, topo, gy, Lg):
+def espada3(cx, topo, gy, Lg, ponta=1.25, asa=1.0, cabo=1.44, pomo=1.0):
     """Espada A do jogo: lâmina prateada com veio azul, guarda dourada em asa, gema azul, cabo azul-escuro com tiras cruzadas, pomo em losango."""
     esq = L(); dir_ = L()
-    ImageDraw.Draw(esq).polygon([(cx, topo), (cx, gy), (cx - Lg / 2, gy), (cx - Lg / 2, topo + Lg * 1.25)], fill=255)
-    ImageDraw.Draw(dir_).polygon([(cx, topo), (cx + Lg / 2, topo + Lg * 1.25), (cx + Lg / 2, gy), (cx, gy)], fill=255)
+    ImageDraw.Draw(esq).polygon([(cx, topo), (cx, gy), (cx - Lg / 2, gy), (cx - Lg / 2, topo + Lg * ponta)], fill=255)
+    ImageDraw.Draw(dir_).polygon([(cx, topo), (cx + Lg / 2, topo + Lg * ponta), (cx + Lg / 2, gy), (cx, gy)], fill=255)
     veio = L(); ImageDraw.Draw(veio).polygon([(cx, topo + Lg * 1.5), (cx + Lg * .14, topo + Lg * 2.0), (cx + Lg * .14, gy - Lg * .35), (cx, gy - Lg * .1), (cx - Lg * .14, gy - Lg * .35), (cx - Lg * .14, topo + Lg * 2.0)], fill=255)
     gu = L(); d = ImageDraw.Draw(gu)
     for sx in (-1, 1):  # asas da guarda, pontas viradas para a lâmina
-        P = lambda x, y: (cx + sx * x * Lg, gy + y * Lg)
+        P = lambda x, y: (cx + sx * (.3 + (x - .3) * asa) * Lg, gy + y * asa * Lg)
         d.polygon([P(.3, -.1), P(1.0, -.14), P(1.42, -.3), P(1.72, -.55), P(1.62, -.12), P(1.3, .2), P(.9, .34), P(.3, .4)], fill=255)
     d.polygon([(cx, gy - Lg * .85), (cx + Lg * .6, gy + Lg * .1), (cx, gy + Lg * .95), (cx - Lg * .6, gy + Lg * .1)], fill=255)
-    c0, c1 = gy + Lg * .55, gy + Lg * 1.44
+    c0, c1 = gy + Lg * .55, gy + Lg * cabo
     cab = L(); ImageDraw.Draw(cab).rounded_rectangle([cx - Lg * .23, c0, cx + Lg * .23, c1], radius=Lg * .08, fill=255)
     tiras = L(); dt = ImageDraw.Draw(tiras)
     for i in range(3):
@@ -303,9 +303,9 @@ def espada3(cx, topo, gy, Lg):
         dt.line([(cx - Lg * .23, y0), (cx + Lg * .23, y1)], fill=255, width=int(Lg * .09))
         dt.line([(cx + Lg * .23, y0), (cx - Lg * .23, y1)], fill=255, width=int(Lg * .09))
     tiras = ImageChops.multiply(tiras, cab)
-    pomo = L(); ImageDraw.Draw(pomo).polygon([(cx, c1 - Lg * .15), (cx + Lg * .42, c1 + Lg * .4), (cx, c1 + Lg * 1.05), (cx - Lg * .42, c1 + Lg * .4)], fill=255)
+    pq = pomo; pomo = L(); ImageDraw.Draw(pomo).polygon([(cx, c1 - Lg * .15 * pq), (cx + Lg * .42 * pq, c1 + Lg * .4 * pq), (cx, c1 + Lg * 1.05 * pq), (cx - Lg * .42 * pq, c1 + Lg * .4 * pq)], fill=255)
     g1 = L(); ImageDraw.Draw(g1).ellipse([cx - Lg * .27, gy + Lg * .1 - Lg * .3, cx + Lg * .27, gy + Lg * .1 + Lg * .3], fill=255)
-    g2 = L(); ImageDraw.Draw(g2).polygon([(cx, c1 + Lg * .12), (cx + Lg * .17, c1 + Lg * .4), (cx, c1 + Lg * .7), (cx - Lg * .17, c1 + Lg * .4)], fill=255)
+    g2 = L(); ImageDraw.Draw(g2).polygon([(cx, c1 + Lg * .12 * pq), (cx + Lg * .17 * pq, c1 + Lg * .4 * pq), (cx, c1 + Lg * .7 * pq), (cx - Lg * .17 * pq, c1 + Lg * .4 * pq)], fill=255)
     return dict(esq=esq, dir=dir_, veio=veio, gu=gu, cab=cab, tiras=tiras, pomo=pomo, gemas=ImageChops.lighter(g1, g2))
 
 PRATA_E = gradiente_v((252, 253, 255), (226, 233, 242), (196, 206, 222))
@@ -345,6 +345,185 @@ def silhueta_notificacao():
     m = ImageChops.subtract(m, e["gemas"].filter(ImageFilter.MinFilter(9)))  # gemas vazadas
     out = Image.new("RGBA", (S, S), (255, 255, 255, 0)); out.putalpha(m); return out
 
+# ---------- v3: fusão pedida pelo André: letra A feita de espada + cajado ----------
+def transforma(m, ref, angulo, alvo):
+    return m.rotate(angulo, resample=Image.BICUBIC, center=ref, translate=(alvo[0] - ref[0], alvo[1] - ref[1]))
+
+def cajado(cx, cabeca_y, comp, w, r=None, garra=1.0, aneis=None, anel_e=None, ponteira=None):
+    """Cajado A do jogo: haste escura com anéis dourados, garras douradas segurando a chama laranja."""
+    r = r or w * 1.45
+    haste = L(); ImageDraw.Draw(haste).rounded_rectangle([cx - w / 2, cabeca_y + r * .6, cx + w / 2, cabeca_y + comp], radius=w * .3, fill=255)
+    ouro = L(); d = ImageDraw.Draw(ouro)
+    for y in (aneis or [cabeca_y + comp * t for t in (.28, .55, .8)]):  # anéis
+        h = anel_e or w * .32
+        d.rounded_rectangle([cx - w * .8, y - h, cx + w * .8, y + h], radius=min(h, w * .2), fill=255)
+    pe = cabeca_y + comp
+    if ponteira:  # ponteira curta de metal
+        d.rounded_rectangle([cx - w * .62, pe - w * .1, cx + w * .62, pe + ponteira * .7], radius=w * .15, fill=255)
+        d.polygon([(cx - w * .62, pe + ponteira * .65), (cx + w * .62, pe + ponteira * .65), (cx + w * .3, pe + ponteira), (cx - w * .3, pe + ponteira)], fill=255)
+    else:
+        d.polygon([(cx - w * .7, pe - w * .2), (cx + w * .7, pe - w * .2), (cx, pe + w * 1.3)], fill=255)  # ponteira
+    # base das garras e duas garras curvas em volta da chama
+    d.polygon([(cx - w * 1.1, cabeca_y + r * .55), (cx + w * 1.1, cabeca_y + r * .55), (cx + w * .5, cabeca_y + r * 1.5), (cx - w * .5, cabeca_y + r * 1.5)], fill=255)
+    for sx in (-1, 1):
+        g = lambda v: (.72 + (v - .72) * garra) if v > .72 else v
+        d.polygon([(cx + sx * w * .6, cabeca_y + r * .8), (cx + sx * r * g(1.25), cabeca_y + r * .2), (cx + sx * r * g(1.15), cabeca_y - r * .7),
+                   (cx + sx * r * g(.85), cabeca_y - r * 1.25), (cx + sx * r * g(.95), cabeca_y - r * .5), (cx + sx * r * g(.8), cabeca_y + r * .3), (cx + sx * w * .3, cabeca_y + r * .55)], fill=255)
+    chama = L(); dc = ImageDraw.Draw(chama)
+    dc.ellipse([cx - r * .72, cabeca_y - r * .55, cx + r * .72, cabeca_y + r * .75], fill=255)
+    dc.polygon([(cx - r * .55, cabeca_y - r * .1), (cx, cabeca_y - r * 1.55), (cx + r * .55, cabeca_y - r * .1)], fill=255)  # ponta da chama
+    nucleo = L(); ImageDraw.Draw(nucleo).ellipse([cx - r * .3, cabeca_y - r * .05, cx + r * .3, cabeca_y + r * .5], fill=255)
+    return dict(haste=haste, ouro=ouro, chama=chama, nucleo=nucleo)
+
+FOGO = gradiente_v((255, 236, 150), (255, 150, 40), (200, 60, 15))
+
+def opcao_fusao():
+    bg = fundo_noite(); glow = Image.new("RGB", (S, S)); k = Camada()
+    cx, cy = S * .5, S * .49
+    R = S * .31
+    an = L(); d = ImageDraw.Draw(an)
+    d.ellipse([cx - R, cy - R, cx + R, cy + R], outline=255, width=int(F(.06)))
+    for i in range(4):
+        a = i * math.pi / 2; x, y = cx + math.cos(a) * R, cy + math.sin(a) * R; w = F(.045)
+        d.polygon([(x - w, y), (x, y - w * 1.35), (x + w, y), (x, y + w * 1.35)], fill=255)
+    glow = somar(glow, gema((cx, cy), R * .55), (40, 32, 20), R * .3, 1.0)
+    glow = somar(glow, an, (130, 80, 15), 30, 1.3)
+    k.add(an, bisel(an, OURO, 10), (64, 30, 6), 7)
+    apice = (cx, S * .235)
+    pe_e, pe_d = (S * .335, S * .715), (S * .665, S * .715)
+    ang = math.degrees(math.atan2(pe_d[0] - apice[0], pe_d[1] - apice[1]))  # inclinação das pernas
+    un = lambda p, q: ((q[0] - p[0]) / math.dist(p, q), (q[1] - p[1]) / math.dist(p, q))
+    # cajado = perna esquerda, chama no topo do A
+    wc = F(.042); r = wc * 1.45
+    ap_c = (apice[0] - S * .03, apice[1] + S * .015)
+    de = un(ap_c, pe_e)
+    cab = (ap_c[0] + de[0] * r * 1.7, ap_c[1] + de[1] * r * 1.7)
+    ref_c = (S / 2, S * .2)
+    cj = cajado(ref_c[0], ref_c[1], math.dist(cab, pe_e) - wc * 1.1, wc)
+    ang_c = math.degrees(math.atan2(ap_c[0] - pe_e[0], pe_e[1] - ap_c[1]))
+    cj = {n: transforma(m, ref_c, -ang_c, cab) for n, m in cj.items()}
+    # espada = perna direita, ponta no topo do A, guarda e cabo embaixo (pé do A)
+    Lg = F(.08)
+    ap_e = (apice[0] + S * .03, apice[1] - S * .005)
+    dd = un(ap_e, pe_d)
+    lamina = math.dist(ap_e, pe_d) - Lg * 2.55
+    ref_e = (S / 2, S * .8)
+    e = espada3(ref_e[0], ref_e[1] - lamina, ref_e[1], Lg, 2.1)
+    guarda = (ap_e[0] + dd[0] * lamina, ap_e[1] + dd[1] * lamina)
+    ang_e = math.degrees(math.atan2(pe_d[0] - ap_e[0], pe_d[1] - ap_e[1]))
+    e = {n: transforma(m, ref_e, ang_e, guarda) for n, m in e.items()}
+    # barra do A: faixa dourada com gema azul
+    by = S * .50
+    xb = lambda y, lado: apice[0] + lado * (y - apice[1]) * math.tan(math.radians(ang))
+    barra = L(); db = ImageDraw.Draw(barra)
+    h = F(.04)
+    db.polygon([(xb(by, -1) - F(.035), by - h / 2), (xb(by, 1) + F(.035), by - h / 2), (xb(by + h, 1) + F(.035), by + h / 2), (xb(by + h, -1) - F(.035), by + h / 2)], fill=255)
+    gb = L(); gw = F(.04); ImageDraw.Draw(gb).polygon([(cx - gw, by), (cx, by - gw * 1.3), (cx + gw, by), (cx, by + gw * 1.3)], fill=255)
+    gb_borda = gb.filter(ImageFilter.MaxFilter(17))
+    # desenho: cajado, barra, espada por cima
+    cont = lambda *ms: (lambda u: u.filter(ImageFilter.MaxFilter(2 * int(F(.013)) + 1)))(_uniao(*ms))
+    desenha_espada(k, glow, e)
+    k.add(cont(cj["haste"], cj["ouro"], cj["chama"]), Image.new("RGB", (S, S), (10, 14, 40)))
+    k.add(cj["haste"], gradiente_v((70, 50, 60), (45, 32, 40), (28, 20, 26)))
+    k.add(cj["ouro"], bisel(cj["ouro"], OURO, 6))
+    glow = somar(glow, encolhe_n(cj["chama"]), (150, 70, 10), 40, 1.6)
+    k.brilho(cj["chama"], (255, 140, 40), 16, 1.3)
+    k.add(cj["chama"], FOGO); k.add(cj["nucleo"], Image.new("RGB", (S, S), (255, 248, 210)))
+    k.add(cont(barra, gb_borda), Image.new("RGB", (S, S), (10, 14, 40)))
+    k.add(ImageChops.lighter(barra, gb_borda), bisel(ImageChops.lighter(barra, gb_borda), OURO, 6))
+    k.add(gb, GEMA)
+    return bg, glow, k.rgba()
+
+def opcao_fusao4():
+    """v4 (direção de arte): pernas a ±18°, cruzam num X pequeno no topo, 7% de largura, guarda como serifa."""
+    bg = fundo_noite(); glow = Image.new("RGB", (S, S)); k = Camada()
+    Dp = lambda x, y: (((x - .5) / 1.2 + .5) * S, ((y - .5) / 1.2 + .5) * S)  # ponto do ícone final -> desenho
+    cx, cy = S * .5, S * .49
+    R = S * .31
+    an = L(); d = ImageDraw.Draw(an)
+    d.ellipse([cx - R, cy - R, cx + R, cy + R], outline=255, width=int(F(.06)))
+    for i in range(4):
+        a = i * math.pi / 2; x, y = cx + math.cos(a) * R, cy + math.sin(a) * R; w = F(.045)
+        d.polygon([(x - w, y), (x, y - w * 1.35), (x + w, y), (x, y + w * 1.35)], fill=255)
+    glow = somar(glow, gema((cx, cy), R * .55), (40, 32, 20), R * .3, 1.0)
+    glow = somar(glow, an, (130, 80, 15), 30, 1.3)
+    k.add(an, bisel(an, OURO, 10), (64, 30, 6), 7)
+    T, YC, YB, ANG = .20, .32, .80, 24.0
+    TC = .17  # a chama sobe um pouco mais que a ponta da espada, para as duas aparecerem
+    t = math.tan(math.radians(ANG)); c = math.cos(math.radians(ANG))
+    eixo = (YB - T) / c                      # comprimento de cada perna, ponta até a base, no ícone final
+    W = .07
+    # espada: pé na direita, ponta sai do X para a esquerda
+    Lg = F(W); cabo, pomo = .62, .55
+    abaixo = Lg * (cabo + 1.05 * pomo)
+    lamina = F(eixo) - abaixo
+    ref = (S / 2, S * .85)
+    e = espada3(ref[0], ref[1] - lamina, ref[1], Lg, 2.0, .6, cabo, pomo)
+    ponta_e = Dp(.5 - (YC - T) * t, T)
+    dirb = (math.sin(math.radians(ANG)), math.cos(math.radians(ANG)))  # da ponta para o pé direito
+    guarda = (ponta_e[0] + dirb[0] * lamina, ponta_e[1] + dirb[1] * lamina)
+    e = {n: transforma(m, ref, ANG, guarda) for n, m in e.items()}
+    # cajado: pé na esquerda, chama sai do X para a direita
+    wc = F(W); r = F(.05)
+    topo_c = Dp(.5 + (YC - TC) * t, TC)
+    dirc = (-math.sin(math.radians(ANG)), math.cos(math.radians(ANG)))
+    cab = (topo_c[0] + dirc[0] * r * 1.55, topo_c[1] + dirc[1] * r * 1.55)
+    pont = F(.04)
+    comp = F((YB - TC) / c) - r * 1.55 - pont
+    refc = (S / 2, S * .15)
+    yb_ = T + .55 * (YB - T)
+    cab_y_f = TC + (r * 1.55 / S * 1.2) * c          # altura (ícone final) do centro da cabeça
+    em = lambda y: refc[1] + F((y - cab_y_f) / c)    # altura final -> posição ao longo da haste
+    cj = cajado(refc[0], refc[1], comp, wc * .8, r, .35, [em(yb_ + .065), em((yb_ + YB) / 2 + .03)], F(.0125), pont)
+    cj = {n: transforma(m, refc, -ANG, cab) for n, m in cj.items()}
+    # barra a 55% da altura, 6% de espessura, gema 9%
+    yb = T + .55 * (YB - T)
+    meia = (yb - YC) * t + W / 2 + .025
+    barra = L(); db = ImageDraw.Draw(barra)
+    p0, p1 = Dp(.5 - meia, yb - .03), Dp(.5 + meia, yb + .03)
+    db.rounded_rectangle([p0[0], p0[1], p1[0], p1[1]], radius=F(.012), fill=255)
+    gcen = Dp(.5, yb); gw = F(.09) / 2
+    gb = L(); ImageDraw.Draw(gb).polygon([(gcen[0] - gw * .8, gcen[1]), (gcen[0], gcen[1] - gw), (gcen[0] + gw * .8, gcen[1]), (gcen[0], gcen[1] + gw)], fill=255)
+    gb_borda = gb.filter(ImageFilter.MaxFilter(21))
+    cont = lambda *ms: _uniao(*ms).filter(ImageFilter.MaxFilter(2 * int(F(.013)) + 1))
+    # espada atrás
+    desenha_espada(k, glow, e)
+    # cajado na frente
+    k.add(cont(cj["haste"], cj["ouro"], cj["chama"]), Image.new("RGB", (S, S), (10, 14, 40)))
+    k.add(cj["haste"].filter(ImageFilter.MaxFilter(2 * int(F(.015)) + 1)), bisel(cj["haste"].filter(ImageFilter.MaxFilter(2 * int(F(.015)) + 1)), OURO, 5))
+    k.add(cj["haste"], gradiente_v((128, 86, 52), (106, 68, 40), (80, 50, 28)))
+    k.add(cj["ouro"], bisel(cj["ouro"], OURO, 6))
+    glow = somar(glow, cj["chama"], (150, 70, 10), 40, 1.6)
+    k.brilho(cj["chama"], (255, 140, 40), 16, 1.3)
+    k.add(cj["chama"], FOGO); k.add(cj["nucleo"], Image.new("RGB", (S, S), (255, 248, 210)))
+    # trançado: acima do cruzamento a espada passa por cima do cajado
+    Cx, Cy = Dp(.5, YC)
+    u = (math.sin(math.radians(ANG)), -math.cos(math.radians(ANG)))  # sobe pelo cajado
+    p = (-u[1], u[0])
+    big = S * 2
+    corte = L(); ImageDraw.Draw(corte).polygon([(Cx + p[0] * big, Cy + p[1] * big), (Cx - p[0] * big, Cy - p[1] * big),
+        (Cx - p[0] * big + u[0] * big, Cy - p[1] * big + u[1] * big), (Cx + p[0] * big + u[0] * big, Cy + p[1] * big + u[1] * big)], fill=255)
+    desenha_espada(k, glow, {n: ImageChops.multiply(m, corte) for n, m in e.items()})
+    # anel do cajado bem no cruzamento, escondendo a emenda
+    hl, ht = wc * .95, wc * .3
+    anel = L(); ImageDraw.Draw(anel).polygon([(Cx + p[0] * hl + u[0] * ht, Cy + p[1] * hl + u[1] * ht), (Cx - p[0] * hl + u[0] * ht, Cy - p[1] * hl + u[1] * ht),
+        (Cx - p[0] * hl - u[0] * ht, Cy - p[1] * hl - u[1] * ht), (Cx + p[0] * hl - u[0] * ht, Cy + p[1] * hl - u[1] * ht)], fill=255)
+    k.add(anel, bisel(anel, OURO, 5), (10, 14, 40), int(F(.008)))
+    # barra por cima das duas
+    bb = ImageChops.lighter(barra, gb_borda)
+    k.add(cont(bb), Image.new("RGB", (S, S), (10, 14, 40)))
+    k.add(bb, bisel(bb, OURO, 6))
+    k.brilho(gb, (110, 210, 255), 12, 1.4)
+    k.add(gb, GEMA)
+    return bg, glow, k.rgba()
+
+def _uniao(*ms):
+    u = ms[0]
+    for m in ms[1:]: u = ImageChops.lighter(u, m)
+    return u
+
+def encolhe_n(m): return m
+
 Z = 0.8  # emblema dentro da zona segura do ícone adaptativo (66 de 108)
 def encolhe(im, vazio):
     n = int(S * Z); p = (S - n) // 2
@@ -353,7 +532,7 @@ def encolhe(im, vazio):
 silhueta_notificacao().resize((96, 96), Image.LANCZOS).save(f"{OUT}/notificacao_96.png")
 import os as _o
 QUAIS = _o.environ.get("QUAIS", "a-sigilo-espada,a-simples-pequeno,b-sigla-A").split(",")
-for nome, fn in [x for x in [("a-sigilo-espada", opcao_sigilo_v2), ("a-simples-pequeno", lambda: opcao_sigilo_v2(True)), ("b-sigla-A", opcao_sigla)] if x[0] in QUAIS]:
+for nome, fn in [x for x in [("a-sigilo-espada", opcao_sigilo_v2), ("a-simples-pequeno", lambda: opcao_sigilo_v2(True)), ("b-sigla-A", opcao_sigla), ("d-fusao", opcao_fusao), ("e-fusao4", opcao_fusao4)] if x[0] in QUAIS]:
     bg, glow, fr = fn()
     if True:
         bg = ImageChops.add(bg, encolhe(glow, (0, 0, 0))); fr = encolhe(fr, (0, 0, 0, 0))
