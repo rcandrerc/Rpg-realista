@@ -26,6 +26,8 @@ var caixa: PanelContainer
 var conteudo: VBoxContainer
 var aberta := "" # "conta", "multi" ou "config" ("" = fechada)
 var _atualizar_t := 0.0
+var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo confirmação
+var _apagando := false
 # configurações
 var volume := 100.0 # 0..100 (volume geral do jogo)
 var vibracao := true
@@ -189,6 +191,7 @@ func abrir(qual: String) -> void:
 		fechar()
 		return
 	aberta = qual
+	_confirmar_apagar = false
 	janela.visible = true
 	m.hud.bloqueado = true
 	montar()
@@ -196,6 +199,7 @@ func abrir(qual: String) -> void:
 func fechar() -> void:
 	janela.visible = false
 	aberta = ""
+	_confirmar_apagar = false # "Voltar ao jogo" na confirmação vale como "Não, manter"
 	if not (m.menu and m.menu.aberto()):
 		m.hud.bloqueado = false
 
@@ -281,6 +285,9 @@ func _online():
 func montar_conta() -> void:
 	_cabeca("topo_conta", "Conta")
 	var o = _online()
+	if _confirmar_apagar and o != null and o.rede.sessao != "":
+		montar_apagar(o)
+		return
 	var tem_conta: bool = o != null and o.rede.sessao != ""
 	if tem_conta:
 		_texto("Conta Google: %s" % str(o.rede.conta.get("nome", "sem nome")))
@@ -289,11 +296,15 @@ func montar_conta() -> void:
 			fechar()
 			o.desligar()
 			o.rede.trocar_conta(), false))
-		_add(_botao("Sair da conta", func():
-			fechar()
-			o.desligar()
-			o.rede.sair_da_conta()
-			m.hud.aviso("Você saiu da conta"), false, true))
+		# André (2026-11-03): sair da conta sai do jogo online de verdade e volta para a tela de login
+		# (lá continua o "Jogar sozinho"). O jogo é recarregado para não sobrar nada da conta que saiu.
+		_add(_botao("Sair da conta", func(): _sair(o), false)) # sair não destrói nada: cor neutra (direção de arte)
+		var vao := Control.new() # espaço a mais: o Apagar fica longe dos outros para não ser tocado por engano
+		vao.custom_minimum_size = Vector2(0, 16)
+		conteudo.add_child(vao)
+		_add(_botao("Apagar personagem", func():
+			_confirmar_apagar = true
+			montar(), false, true))
 	else:
 		_texto("Sem conta: jogando sozinho.")
 		_texto("Entre com a sua conta Google para salvar o progresso e jogar online.", Menu.APAGADO, 14)
@@ -301,6 +312,50 @@ func montar_conta() -> void:
 			_add(_botao("Entrar com Google", func():
 				fechar()
 				o.mostrar_login()))
+
+# Confirmação de apagar o personagem (para ninguém apagar sem querer): explica o que some e pede um toque a mais
+func montar_apagar(o) -> void:
+	var nome := str(m.hud.nome) if m.hud.nome != "" else str(o.rede.conta.get("nome", "seu personagem"))
+	_texto("Apagar %s?" % nome, Menu.OURO_CLARO, 19)
+	_texto("O personagem é apagado de vez no servidor: nome, aparência, nível, habilidades, itens e ouro. Não dá para desfazer.", Menu.TEXTO, 15)
+	_texto("Depois é só entrar de novo com a conta Google para criar um personagem novo.", Menu.APAGADO, 14)
+	if _apagando:
+		_texto("Apagando…", Menu.APAGADO, 15)
+		return
+	_add(_botao("Sim, apagar %s" % nome, func(): _apagar(o), false, true))
+	_add(_botao("Não, manter", func():
+		_confirmar_apagar = false
+		montar()))
+
+func _apagar(o) -> void:
+	if _apagando:
+		return
+	_apagando = true
+	montar()
+	o.desligar()
+	var ok: bool = await o.rede.apagar_personagem()
+	_apagando = false
+	if not ok:
+		_confirmar_apagar = false
+		montar()
+		m.hud.aviso("Não deu para apagar agora. Confira a internet e tente de novo.")
+		o.rede.continuar() # volta para o mundo com o mesmo personagem
+		return
+	fechar()
+	_recarregar(o, "Personagem apagado")
+
+func _sair(o) -> void:
+	fechar()
+	o.desligar()
+	o.cobrir("Saindo da conta…")
+	await o.rede.sair_de_vez()
+	_recarregar(o, "Saindo da conta…")
+
+# começa o jogo do zero: sem sessão guardada, abre direto na tela de login (Entrar com Google ou Jogar sozinho)
+func _recarregar(o, texto: String) -> void:
+	o.cobrir(texto)
+	await get_tree().process_frame
+	get_tree().reload_current_scene()
 
 func montar_multi() -> void:
 	_cabeca("topo_multi", "Multijogador")

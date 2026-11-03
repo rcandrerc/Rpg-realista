@@ -141,6 +141,38 @@ func sair_da_conta() -> void:
 	guardar("")
 	fechar()
 
+# André (2026-11-03): "Sair da conta" sai de verdade. Espera o servidor apagar a sessão antes de esquecer a conta
+# (o jogo é recarregado logo depois e o pedido não pode morrer no meio).
+func sair_de_vez() -> void:
+	_sair_google()
+	if sessao != "":
+		await pedir("POST", "/conta/sair", {})
+	guardar("")
+	conta = {}
+	fechar()
+
+# Apagar o personagem (pedido do André, 2026-11-03): apaga a conta do jogo no servidor (nome, corpo, nível, itens,
+# ouro). A conta Google continua; entrando de novo com ela, o servidor cria uma conta nova e o criador abre.
+# Devolve true se o servidor apagou.
+func apagar_personagem() -> bool:
+	if sessao == "":
+		return false
+	var r := await pedir("POST", "/conta/apagar", {})
+	if r.codigo != 200:
+		return false
+	_sair_google()
+	guardar("")
+	conta = {}
+	fechar()
+	return true
+
+# esquece o login do Google no aparelho (na próxima vez a janela do Google pergunta qual conta)
+func _sair_google() -> void:
+	if _login_nativo:
+		_login_nativo.sair()
+	elif Engine.has_singleton("LoginGoogle"):
+		Engine.get_singleton("LoginGoogle").sair()
+
 func fechar() -> void:
 	if ws:
 		ws.close()
