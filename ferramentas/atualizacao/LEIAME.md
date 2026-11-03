@@ -1,5 +1,29 @@
 # Atualização dentro do app (sem baixar APK novo)
 
+## APK casca (pedido do André, 2026-11-03): o APK não traz o jogo
+
+Como nos MMOs: o APK (preset **Android casca**, artefato `rpg-realista-casca-apk`) só tem o motor, a tela de abertura
+(`inicio.tscn`), a capa e as fontes. Ao abrir, `inicio.gd` lê `atualizacao/conteudo.json` no site e baixa:
+
+- **completo**: o jogo inteiro de uma versão, em partes de 45 MB (`completo-ID.parteNN`). Baixa uma parte, confere o
+  sha256, junta e apaga a parte (retoma de onde parou se a internet cair);
+- **deltas**: só o que mudou depois do completo, um por versão (`delta-VERSAO.pck`), carregados em ordem por cima.
+
+`ferramentas/atualizacao/publicar-conteudo.sh` roda em cada push na main: cada build vira um delta novo
+(`godot --export-patch` contra o completo e os deltas anteriores). Quando os deltas somam mais de 60 MB, o build vira
+o completo novo e a corrente zera (o celular baixa o completo de novo uma vez). **Nunca precisa de APK novo por
+tamanho.** APK novo só para mudar `inicio.gd`, `project.godot`, plugins Android ou a versão do Godot.
+
+Onde fica: release **conteudo** (privado, fonte da verdade) e cópia no site pelo `pages.yml`. Com o secret
+`ORACLE_PAR` (link pré-autenticado de escrita do balde) e a variável `ORACLE_URL` (endereço público do balde
+`aethra-jogo`, Oracle Object Storage grátis: 20 GB e 10 TB de download por mês), os arquivos sobem também para a
+Oracle e o `conteudo.json` (campo `url_base`) manda o app baixar de lá. O `conteudo.json` continua no site.
+
+Sem internet na primeira abertura: tela "Sem internet" com **Tentar de novo**. Depois disso, abre com o que já baixou.
+
+O modo antigo abaixo (APK com o jogo dentro + um pacote só) continua funcionando para quem tem o APK antigo.
+
+
 O APK é a "casca": traz o jogo inteiro de uma versão **base**. A cada push na main, o CI gera um pacote `.pck` só com o
 que mudou desde essa base e publica no site do GitHub Pages. Ao abrir, o app confere, baixa (com barra) e carrega.
 

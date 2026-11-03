@@ -199,7 +199,7 @@ func pedir(metodo: String, caminho: String, corpo = null, com_sessao := true) ->
 
 func entrar_na_sala() -> void:
 	estado.emit("Entrando no mundo…")
-	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho"), "json": true})
+	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho"), "json": true, "aoi": true}) # aoi: só o que está perto (server/visao.js)
 	if r.codigo != 200 or not r.dados.has("room"):
 		estado.emit("Não deu para entrar na sala")
 		caiu.emit("sala")

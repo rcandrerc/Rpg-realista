@@ -37,6 +37,7 @@ jobs:
         run: |
           mkdir -p client/dist/atualizacao
           gh release download atualizacao -D client/dist/atualizacao --clobber || echo "Ainda sem release atualizacao"
+          gh release download conteudo -D client/dist/atualizacao --clobber || echo "Ainda sem release conteudo (APK casca)"
           ls -la client/dist/atualizacao
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

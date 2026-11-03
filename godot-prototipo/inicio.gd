@@ -6,6 +6,9 @@ extends Control
 # Aqui: lê o manifesto, baixa o pacote se for mais novo (com barra), confere o sha256 e carrega por cima dos arquivos
 # do APK (ProjectSettings.load_resource_pack). Sem internet, abre o último pacote baixado ou a versão do próprio APK.
 #
+# APK casca (aethra/atualizacao/casca = true, preset "Android casca"): o APK não traz o jogo. Na primeira abertura baixa
+# o jogo inteiro (completo, em partes) e depois só as mudanças (deltas), tudo descrito em conteudo.json. Ver _casca_*.
+#
 # Cuidado: este arquivo NÃO carrega nada do jogo (scripts, cenas) antes do pacote, senão a versão velha fica no cache.
 # Mudanças neste arquivo e no project.godot só chegam com APK novo.
 
@@ -16,6 +19,14 @@ const BAIXANDO := PASTA + "baixando.pck"
 const ESTADO := PASTA + "estado.cfg"
 const CENA_JOGO := "res://main.tscn"
 const ESPERA_MANIFESTO := 6.0 # segundos: sem resposta, entra com o que já tem
+
+# ---- APK casca ----
+const CONTEUDO_JSON := "https://rcandrerc.github.io/Rpg-realista/atualizacao/conteudo.json"
+const PASTA_CONTEUDO := "user://conteudo/"
+const COMPLETO := PASTA_CONTEUDO + "completo.pck"
+const COMPLETO_TMP := PASTA_CONTEUDO + "completo.tmp"
+const PARTE_TMP := PASTA_CONTEUDO + "parte.tmp"
+const ESTADO_CONTEUDO := PASTA_CONTEUDO + "estado.cfg"
 
 const OURO := Color(0.95, 0.80, 0.45)
 const TEXTO := Color(0.96, 0.93, 0.86)
@@ -30,10 +41,23 @@ var detalhe: Label
 var pular: Button
 var baixando := false
 var saindo := false
+var casca := false
+var url_conteudo := CONTEUDO_JSON
+var conteudo := {} # conteudo.json: {"versao", "completo": {"id", "tamanho", "partes": [{"arq", "tamanho", "sha256"}]}, "deltas": [{"versao", "arq", "tamanho", "sha256"}]}
+var feito_bytes := 0 # já baixado nesta abertura (barra soma todos os arquivos)
+var total_bytes := 0
+var tentar: Button
 
 func _ready() -> void:
 	base = str(ProjectSettings.get_setting("aethra/atualizacao/base", ""))
+	casca = bool(ProjectSettings.get_setting("aethra/atualizacao/casca", false))
 	_montar_tela()
+	if casca:
+		if OS.get_environment("RPG_CONTEUDO") != "": # testes: outro endereço
+			url_conteudo = OS.get_environment("RPG_CONTEUDO")
+		DirAccess.make_dir_recursive_absolute(PASTA_CONTEUDO)
+		_casca_iniciar()
+		return
 	DirAccess.make_dir_recursive_absolute(PASTA)
 	if OS.get_environment("RPG_ATUALIZACAO") != "": # testes: outro endereço
 		url_manifesto = OS.get_environment("RPG_ATUALIZACAO")
@@ -52,6 +76,12 @@ func _ready() -> void:
 		_sem_internet()
 
 func _process(_d: float) -> void:
+	if casca:
+		if baixando and http and total_bytes > 0:
+			var agora := feito_bytes + http.get_downloaded_bytes()
+			barra.value = 100.0 * agora / total_bytes
+			detalhe.text = "%s de %s" % [_mb(agora), _mb(total_bytes)]
+		return
 	if baixando and http:
 		var total := http.get_body_size()
 		var feito := http.get_downloaded_bytes()
@@ -171,7 +201,225 @@ func _entrar(pacote: String) -> void:
 	get_tree().change_scene_to_file(CENA_JOGO)
 
 func _pular() -> void:
+	if casca:
+		_casca_entrar()
+		return
 	_entrar(_pacote_valido())
+
+
+# ================= APK casca: o jogo inteiro vem pela internet =================
+func _casca_iniciar() -> void:
+	saindo = false
+	if tentar:
+		tentar.visible = false
+	barra.visible = false
+	_texto("Procurando atualização…", "")
+	var r = await _casca_pedir(url_conteudo + "?t=%d" % Time.get_unix_time_from_system(), "", 8.0)
+	if r == null:
+		_casca_sem_internet()
+		return
+	var m = JSON.parse_string((r as PackedByteArray).get_string_from_utf8())
+	if typeof(m) != TYPE_DICTIONARY or not m.has("completo"):
+		_casca_sem_internet()
+		return
+	conteudo = m
+	var est := _casca_estado()
+	var comp: Dictionary = m.completo
+	var deltas: Array = m.get("deltas", [])
+	var tem_completo := str(est.get_value("c", "completo", "")) == str(comp.id) and FileAccess.file_exists(COMPLETO)
+	var aplicados: Array = est.get_value("c", "deltas", []) if tem_completo else []
+	# os deltas são uma corrente: o que está no celular tem que ser o começo da lista do servidor
+	var faltam: Array = []
+	for i in deltas.size():
+		if i < aplicados.size() and str(aplicados[i]) == str(deltas[i].versao) and FileAccess.file_exists(_casca_delta(deltas[i])):
+			continue
+		faltam = deltas.slice(i)
+		aplicados = aplicados.slice(0, i)
+		break
+	total_bytes = 0
+	feito_bytes = 0
+	if not tem_completo:
+		var feitas := int(est.get_value("c", "partes_ok", 0)) if str(est.get_value("c", "baixando", "")) == str(comp.id) else 0
+		for i in range(feitas, comp.partes.size()):
+			total_bytes += int(comp.partes[i].tamanho)
+	for d in faltam:
+		total_bytes += int(d.tamanho)
+	if total_bytes > 0:
+		baixando = true
+		barra.visible = true
+		pular.visible = tem_completo
+		_texto("Baixando o jogo (primeira vez)…" if not tem_completo else "Baixando atualização…", "")
+	if not tem_completo and not await _casca_baixar_completo(comp, est):
+		_casca_falhou()
+		return
+	for d in faltam:
+		if saindo:
+			return
+		if not await _casca_baixar(_casca_url_base() + str(d.arq), _casca_delta(d), str(d.sha256)):
+			_casca_falhou()
+			return
+		feito_bytes += int(d.tamanho)
+		aplicados.append(str(d.versao))
+		est.set_value("c", "deltas", aplicados)
+		est.save(ESTADO_CONTEUDO)
+	baixando = false
+	if saindo:
+		return
+	_limpar_deltas_velhos(aplicados)
+	_texto("Abrindo…", "versão %s" % str(m.get("versao", "")))
+	_casca_entrar()
+
+# completo em partes: baixa uma, confere, junta no completo.tmp e apaga (cabe em celular com pouco espaço)
+func _casca_baixar_completo(comp: Dictionary, est: ConfigFile) -> bool:
+	if str(est.get_value("c", "baixando", "")) != str(comp.id):
+		est.set_value("c", "baixando", str(comp.id))
+		est.set_value("c", "partes_ok", 0)
+		est.set_value("c", "deltas", [])
+		est.save(ESTADO_CONTEUDO)
+		if FileAccess.file_exists(COMPLETO_TMP):
+			DirAccess.remove_absolute(COMPLETO_TMP)
+	var feitas := int(est.get_value("c", "partes_ok", 0))
+	# o completo.tmp tem que ter exatamente as partes já juntadas; senão recomeça
+	var esperado := 0
+	for i in feitas:
+		esperado += int(comp.partes[i].tamanho)
+	var atual := FileAccess.open(COMPLETO_TMP, FileAccess.READ)
+	var tam_atual := atual.get_length() if atual else 0
+	atual = null
+	if tam_atual != esperado:
+		feitas = 0
+		if FileAccess.file_exists(COMPLETO_TMP):
+			DirAccess.remove_absolute(COMPLETO_TMP)
+	for i in range(feitas, comp.partes.size()):
+		if saindo:
+			return false
+		var p: Dictionary = comp.partes[i]
+		if not await _casca_baixar(_casca_url_base() + str(p.arq), PARTE_TMP, str(p.sha256)):
+			return false
+		var saida := FileAccess.open(COMPLETO_TMP, FileAccess.READ_WRITE if FileAccess.file_exists(COMPLETO_TMP) else FileAccess.WRITE)
+		var entrada := FileAccess.open(PARTE_TMP, FileAccess.READ)
+		if saida == null or entrada == null:
+			return false
+		saida.seek_end()
+		while entrada.get_position() < entrada.get_length():
+			saida.store_buffer(entrada.get_buffer(4 * 1024 * 1024))
+		saida = null
+		entrada = null
+		DirAccess.remove_absolute(PARTE_TMP)
+		feito_bytes += int(p.tamanho)
+		est.set_value("c", "partes_ok", i + 1)
+		est.save(ESTADO_CONTEUDO)
+	if FileAccess.file_exists(COMPLETO):
+		DirAccess.remove_absolute(COMPLETO)
+	DirAccess.rename_absolute(COMPLETO_TMP, COMPLETO)
+	est.set_value("c", "completo", str(comp.id))
+	est.set_value("c", "baixando", "")
+	est.set_value("c", "deltas", [])
+	est.save(ESTADO_CONTEUDO)
+	return true
+
+# baixa um arquivo para destino e confere o sha256
+func _casca_baixar(url: String, destino: String, sha: String) -> bool:
+	if FileAccess.file_exists(destino):
+		DirAccess.remove_absolute(destino)
+	var r = await _casca_pedir(url, destino, 0.0)
+	if r == null:
+		return false
+	if sha != "" and FileAccess.get_sha256(destino) != sha:
+		DirAccess.remove_absolute(destino)
+		return false
+	return true
+
+# um pedido HTTP; devolve o corpo (ou PackedByteArray vazio se foi para arquivo) ou null se falhou
+func _casca_pedir(url: String, arquivo: String, espera: float):
+	if http:
+		http.queue_free()
+	http = HTTPRequest.new()
+	http.use_threads = true
+	http.timeout = espera
+	http.download_file = arquivo
+	add_child(http)
+	if http.request(url) != OK:
+		return null
+	var res: Array = await http.request_completed
+	if res[0] != HTTPRequest.RESULT_SUCCESS or res[1] != 200:
+		return null
+	return res[3]
+
+# onde ficam os arquivos: "url_base" do conteudo.json (ex.: balde da Oracle) ou a mesma pasta do conteudo.json
+func _casca_url_base() -> String:
+	var u := str(conteudo.get("url_base", ""))
+	if u == "":
+		u = url_conteudo.get_base_dir()
+	return u if u.ends_with("/") else u + "/"
+
+func _casca_delta(d: Dictionary) -> String:
+	return PASTA_CONTEUDO + "delta-%s.pck" % str(d.versao)
+
+# apaga deltas que não estão mais na corrente (o servidor juntou tudo num completo novo)
+func _limpar_deltas_velhos(aplicados: Array) -> void:
+	var dir := DirAccess.open(PASTA_CONTEUDO)
+	if dir == null:
+		return
+	for f in dir.get_files():
+		if f.begins_with("delta-") and f.ends_with(".pck") and not aplicados.has(f.trim_prefix("delta-").trim_suffix(".pck")):
+			DirAccess.remove_absolute(PASTA_CONTEUDO + f)
+
+func _casca_estado() -> ConfigFile:
+	var est := ConfigFile.new()
+	est.load(ESTADO_CONTEUDO)
+	return est
+
+func _casca_falhou() -> void:
+	baixando = false
+	if saindo:
+		return
+	if _casca_tem_jogo():
+		_texto("Não deu para baixar agora", "Abrindo a versão que já está no celular.")
+		await get_tree().create_timer(1.5).timeout
+		_casca_entrar()
+	else:
+		_texto("Não deu para baixar o jogo", "Confira a internet e toque em Tentar de novo.")
+		barra.visible = false
+		tentar.visible = true
+
+func _casca_sem_internet() -> void:
+	if _casca_tem_jogo():
+		_casca_entrar()
+	else:
+		_texto("Sem internet", "Na primeira vez o jogo precisa ser baixado. Conecte e toque em Tentar de novo.")
+		tentar.visible = true
+
+func _casca_tem_jogo() -> bool:
+	var est := _casca_estado()
+	return str(est.get_value("c", "completo", "")) != "" and FileAccess.file_exists(COMPLETO)
+
+# carrega o completo e os deltas na ordem (cada um por cima do anterior) e abre o jogo
+func _casca_entrar() -> void:
+	if saindo:
+		return
+	saindo = true
+	baixando = false
+	if http:
+		http.cancel_request()
+	var est := _casca_estado()
+	var ok := ProjectSettings.load_resource_pack(COMPLETO, true)
+	for v in est.get_value("c", "deltas", []):
+		var f := PASTA_CONTEUDO + "delta-%s.pck" % str(v)
+		if ok and FileAccess.file_exists(f):
+			ok = ProjectSettings.load_resource_pack(f, true)
+	print("[atualização] casca: completo ", est.get_value("c", "completo", ""), ", deltas ", est.get_value("c", "deltas", []), ", ok ", ok)
+	if not ok or not ResourceLoader.exists(CENA_JOGO):
+		# pacote estragado: apaga e baixa de novo
+		est.set_value("c", "completo", "")
+		est.save(ESTADO_CONTEUDO)
+		DirAccess.remove_absolute(COMPLETO)
+		_texto("O jogo baixado veio com defeito", "Toque em Tentar de novo para baixar outra vez.")
+		saindo = false
+		tentar.visible = true
+		return
+	await get_tree().process_frame
+	get_tree().change_scene_to_file(CENA_JOGO)
 
 # ---------- tela ----------
 func _montar_tela() -> void:
@@ -239,6 +487,13 @@ func _montar_tela() -> void:
 	pular.offset_right = -16
 	pular.offset_bottom = -12
 	add_child(pular)
+	tentar = Button.new()
+	tentar.text = "Tentar de novo"
+	tentar.visible = false
+	tentar.add_theme_font_size_override("font_size", 18)
+	tentar.custom_minimum_size = Vector2(220, 44)
+	tentar.pressed.connect(_casca_iniciar)
+	caixa.add_child(tentar)
 
 func _rotulo(tam: int, cor: Color) -> Label:
 	var l := Label.new()
