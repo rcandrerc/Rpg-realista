@@ -15,6 +15,7 @@ const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
@@ -416,6 +417,9 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 	if arma.get_parent():
 		arma.get_parent().remove_child(arma)
 	ba.add_child(arma)
+	if lugar.osso == "J_Bip_C_UpperChest": # nas costas: com capa passa por fora do pano
+		arma.set_meta("afastada", 0.0)
+		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
 	return ba
 
 func nova_arma(nome: String) -> Node3D:
@@ -450,6 +454,19 @@ func criar_heroi() -> void:
 		if hq > 0.4 and hq < 1.6:
 			mov.altura_quadril = hq
 	print("altura do quadril: ", mov.altura_quadril)
+
+# roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
+var _roupa := "-"
+func vestir_heroi() -> void:
+	var eq: Dictionary = P.prog.get("equip", {})
+	var k := ""
+	for l in Armadura.LUGARES:
+		var it = eq.get(l)
+		k += (str(it.k) + str(int(it.r)) if it is Dictionary else "") + ","
+	if k == _roupa:
+		return
+	_roupa = k
+	Armadura.vestir(heroi, eq)
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -1454,6 +1471,8 @@ func _process(dt: float) -> void:
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
+	vestir_heroi()
+	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
 	_flash_passo(dt_real)
 	combate.passo(dt_real)
 	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m)
