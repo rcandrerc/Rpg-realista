@@ -49,6 +49,8 @@ export const DURACAO = {
   freada: 1.8, meia_volta: 0.667,
   // Mixamo Rifle Start Run: no app Godot só as pernas e o quadril tocam (os braços seguram fuzil)
   arrancada: 1.733,
+  // Mixamo Jogging (André 2026-11-03): o trote do joystick, 3 passadas por volta
+  trote: 2.567,
   // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
   // 2H Magic Area Attack 01 e 2H Cast Spell 01
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
