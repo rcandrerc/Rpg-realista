@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # para chamar o pages.yml depois de gerar o pacote de atualização
 
 concurrency:
   group: apk-${{ github.ref }}
@@ -92,11 +93,18 @@ jobs:
           # Começa em 1000 porque um APK antigo feito à mão saiu com versionCode 200 (0.3): abaixo disso o celular recusa.
           sed -i "s/^version\/code=.*/version\/code=$((1000 + ${{ github.run_number }}))/" export_presets.cfg
           sed -i "s/^version\/name=.*/version\/name=\"0.4.${{ github.run_number }}\"/" export_presets.cfg
+          # versão base do APK: o app só aceita pacote de atualização feito para esta base (inicio.gd)
+          printf '\n[aethra]\n\natualizacao/base="%s"\n' "$((1000 + ${{ github.run_number }}))" >> project.godot
           $GODOT_BIN --headless --import || true
           $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
           ls -la $GITHUB_WORKSPACE/rpg-realista.apk
           # SHA-1 da assinatura (o login Google exige 08:B6:1B:...:0D:CC, a chave oficial)
           $(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner verify --print-certs $GITHUB_WORKSPACE/rpg-realista.apk | grep -i "SHA-1"
+      - name: Pacote do jogo desta versão (mesmo conteúdo do APK)
+        working-directory: godot-prototipo
+        run: |
+          $GODOT_BIN --headless --export-pack Android $GITHUB_WORKSPACE/base-$((1000 + ${{ github.run_number }})).pck
+          ls -la $GITHUB_WORKSPACE/base-*.pck
       - uses: actions/upload-artifact@v4
         with:
           name: rpg-realista-apk
@@ -110,3 +118,9 @@ jobs:
           gh release view apk > /dev/null 2>&1 || gh release create apk --target main --prerelease --title "APK mais recente" --notes "Gerado sozinho a cada push na main."
           gh release upload apk rpg-realista.apk --clobber
           gh release edit apk --notes "APK do app Godot, gerado sozinho a cada push na main. Último build: ${GITHUB_SHA::7} (execução ${{ github.run_number }})."
+      - name: Atualização dentro do app (pacote só com o que mudou desde o APK base)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODIGO: ${{ github.run_number }}
+        run: bash ferramentas/atualizacao/publicar.sh "$((1000 + CODIGO))"
