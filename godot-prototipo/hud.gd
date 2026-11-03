@@ -420,7 +420,8 @@ func _desenhar() -> void:
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
-		var pc := Vector2((_tela.size.x - tam.x) * 0.5, _tela.size.y * 0.68)
+		var pc := Vector2((_tela.size.x - tam.x) * 0.5, _tela.size.y * 0.3) # acima da cabeça (nos pés ela some no brilho do círculo)
+		_tela.draw_rect(Rect2(pc - Vector2(4, 24), tam + Vector2(8, 28)), Color(0.03, 0.025, 0.02, 0.6)) # fundo escuro: lê contra qualquer luz
 		_tela.draw_rect(Rect2(pc, tam), Color(0.05, 0.04, 0.03, 0.7))
 		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(1.0, 0.78, 0.38))
 		_tela.draw_rect(Rect2(pc - Vector2(1, 1), tam + Vector2(2, 2)), Color(0.925, 0.81, 0.55, 0.9), false, 1.0)
