@@ -196,9 +196,9 @@ export const NIVEL_SEM_TOMO = 5; // até aqui a skill sobe só usando; do 6 ao 1
 // Duas barras, como no Quimera: a da espada e a do cajado (Trocar mostra a outra). As gerais servem nas duas.
 // Padrão: as skills de espada numa e as de magia na outra, na ordem do Quimera; dá para mudar no menu.
 export const N_BOTOES = 6;
-// O tiro básico do cajado sai andando, a esta fração da velocidade normal (corrida 5,4 m/s -> 3,8 m/s).
+// O tiro básico do cajado sai andando, a esta fração da velocidade normal (corrida 5,4 m/s -> 3,2 m/s). André 2026-11-03: mais lento e fluido (era 0,7).
 // Golpe de espada e skills plantam o pé: mexer o joystick depois do golpe corta o resto (escolha do André, 2026-11-01).
-export const ANDAR_ATIRANDO = 0.7;
+export const ANDAR_ATIRANDO = 0.6;
 export const BARRAS = ['espada', 'cajado'];
 export const BOTOES_PADRAO = {
   espada: ['corte_duplo', 'giro', 'golpe_esmagador', 'pisao_sismico', 'investida', 'vortice'],
