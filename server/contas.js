@@ -57,6 +57,8 @@ export class Contas {
     const colunas = this.db.prepare('PRAGMA table_info(contas)').all().map((c) => c.name);
     if (!colunas.includes('aparencia')) this.db.exec('ALTER TABLE contas ADD COLUMN aparencia TEXT');
     if (!colunas.includes('progresso')) this.db.exec('ALTER TABLE contas ADD COLUMN progresso TEXT');
+    // Vila dos Lotes: dono (chave da conta: 'c' + id), nome do dono e o que tem no lote (peças e horta, em JSON)
+    this.db.exec('CREATE TABLE IF NOT EXISTS lotes (id TEXT PRIMARY KEY, dono TEXT, nome TEXT, dados TEXT, atualizado INTEGER)');
     this.q = {
       porGoogle: this.db.prepare('SELECT * FROM contas WHERE google = ?'),
       criar: this.db.prepare('INSERT INTO contas (google, email, nome, criada, ultimo_acesso) VALUES (?, ?, ?, ?, ?)'),
@@ -73,6 +75,11 @@ export class Contas {
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
       progresso: this.db.prepare('UPDATE contas SET progresso = ? WHERE id = ?'),
+      lotes: this.db.prepare('SELECT * FROM lotes'),
+      lote: this.db.prepare('SELECT * FROM lotes WHERE id = ?'),
+      loteDoDono: this.db.prepare('SELECT * FROM lotes WHERE dono = ?'),
+      gravarLote: this.db.prepare('INSERT INTO lotes (id, dono, nome, dados, atualizado) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dono = excluded.dono, nome = excluded.nome, dados = excluded.dados, atualizado = excluded.atualizado'),
+      soltarLotes: this.db.prepare("UPDATE lotes SET dono = NULL, nome = '', dados = '{}' WHERE dono = ?"),
     };
     this.copiar();
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
@@ -125,9 +132,25 @@ export class Contas {
   salvarAparencia(id, aparencia) { this.q.aparencia.run(JSON.stringify(aparencia), id); }
   // Corpo trocado depois de criado (só os da lista: visualValido)
   salvarVisual(id, visual) { if (visualValido(visual)) this.q.visual.run(visual, id); }
-  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); }
+  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); } // conta apagada: o lote volta à venda
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
+
+  // ---------- Vila dos Lotes ----------
+  // todos os lotes guardados (formato de Simulacao.carregarLotes)
+  lotes() { return this.q.lotes.all().map(linhaLote); }
+  lote(id) { const l = this.q.lote.get(id); return l ? linhaLote(l) : null; }
+  loteDoDono(dono) { const l = this.q.loteDoDono.get(dono); return l ? linhaLote(l) : null; }
+  // compra: só se o lote está livre e o jogador não tem outro (vale entre salas diferentes do servidor)
+  reservarLote(id, dono, nome) {
+    const outro = this.q.loteDoDono.get(dono);
+    if (outro && outro.id !== id) return false;
+    const l = this.q.lote.get(id);
+    if (l?.dono && l.dono !== dono) return false;
+    this.q.gravarLote.run(id, dono, nome, JSON.stringify({ pecas: [], horta: {}, prox: 1 }), Date.now());
+    return true;
+  }
+  salvarLote({ id, dono, nome, dados }) { this.q.gravarLote.run(id, dono, nome || '', JSON.stringify(dados || {}), Date.now()); }
 
   // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 14)
   copiar() {
@@ -142,6 +165,12 @@ export class Contas {
       for (const f of velhas) fs.unlinkSync(path.join(pasta, f));
     } catch (e) { console.error('Falha na cópia de segurança das contas:', e.message); }
   }
+}
+
+function linhaLote(l) {
+  let dados = {};
+  try { dados = l.dados ? JSON.parse(l.dados) : {}; } catch { /* estragado: lote vazio */ }
+  return { id: l.id, dono: l.dono || null, nome: l.nome || '', dados };
 }
 
 // O que o jogo (e o próprio jogador) pode ver da conta

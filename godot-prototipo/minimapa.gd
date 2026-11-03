@@ -311,6 +311,9 @@ func _desenhar_grande() -> void:
 	c.draw_rect(Rect2(o - Vector2(3, 3), Vector2(lado, lado) + Vector2(6, 6)), Color("c9a35a"), false, 2.0)
 	# lugares
 	_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
+	var vl: Dictionary = m.mundo.get("vilaLotes", {})
+	if not vl.is_empty(): # Vila dos Lotes (construção e fazenda)
+		_texto(c, em.call(float(vl.x), float(vl.z) - 20.0), str(vl.nome), 15, Color(1, 0.95, 0.85))
 	for mn in m.mundo.get("mina", []):
 		var q: Vector2 = em.call(float(mn.x), float(mn.z))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -7), q + Vector2(6, 0), q + Vector2(0, 7), q + Vector2(-6, 0)]), Color("d9822b"))

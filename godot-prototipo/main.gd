@@ -26,6 +26,7 @@ const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Minimapa = preload("res://minimapa.gd")
 const Rota = preload("res://rota.gd")
+const Construcao = preload("res://construcao.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -87,6 +88,7 @@ var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até 
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
+var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
@@ -231,6 +233,10 @@ func _ready() -> void:
 	minimapa = Minimapa.new(self)
 	add_child(minimapa)
 	hud.minimapa = minimapa
+	construcao = Construcao.new(self)
+	add_child(construcao)
+	hud.construcao = construcao
+	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -1441,7 +1447,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar", "construir", "lote", "bancada"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
@@ -1450,7 +1456,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar", "disparada"]:
+	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar", "disparada", "construir", "lote", "bancada"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -1564,6 +1570,12 @@ func _tentar(qual: String) -> bool:
 			trabalho.tocar_botao()
 		"forja": # perto do Tomás: menu na aba Profissões, receitas do Ferreiro
 			menu.abrir("profissoes", "fer")
+		"bancada": # perto de uma bancada construída: receitas do Alfaiate (construcao.gd)
+			menu.abrir("profissoes", "alf")
+		"construir": # no meu lote: abre ou fecha o modo construção (construcao.gd)
+			construcao.tocar_botao_construir()
+		"lote": # perto da placa de um lote à venda: pergunta se quer comprar
+			construcao.perguntar_compra()
 		"resetar": # perto do Mestre Ivo: online ele responde com o preço e a janela abre (online.gd "fala")
 			if on():
 				rede("falar")

@@ -41,6 +41,7 @@ var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd l
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
 var obst := {} # mundo.obstaculos na mesma grade de 6 m (cada um em toda casa que ele toca, com 1 m de folga)
+var extras: Array = [] # sólidos que mudam com o jogo: peças construídas nos lotes (construcao.gd), [{x, z, r}]
 
 func _init(terreno, mundo: Dictionary) -> void:
 	T = terreno
@@ -111,7 +112,7 @@ func ad(a: float, b: float) -> float:
 
 # ---------- andar e colidir ----------
 func colidir() -> void:
-	for k in m.obstaculos + perto_na_mata(x, z):
+	for k in m.obstaculos + perto_na_mata(x, z) + extras:
 		if k.has("alto") and y > float(k.alto):
 			continue # por cima (esteio da ferraria visto do telhado)
 		var dx: float = x - k.x
