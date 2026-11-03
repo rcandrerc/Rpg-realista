@@ -17,6 +17,11 @@ const COR_CURA := Color(0.12, 0.3, 0.2, 0.95)
 var mover := Vector2.ZERO # joystick (-1..1)
 const JOY_RAIO := 90.0 # px do centro até a borda: andar até a metade, correr no fim (era 60, curto demais)
 var giro_cam := Vector2.ZERO # quanto o dedo da câmera andou neste quadro
+# zoom da câmera (André 2026-11-03: o jogo HTML tinha e sumiu no Godot): dois dedos do lado da câmera
+# afastando aproximam, juntando afastam; a roda do mouse também (teste no PC). Vem como fator (1 = nada)
+var zoom_cam := 1.0
+var _cam_dedos := {} # índice do dedo da câmera -> posição (para medir a pinça)
+var _pinca := 0.0 # distância entre os dois dedos da câmera no quadro anterior (0 = sem pinça)
 var botoes: Array = [] # {acao, centro (a partir do canto de baixo à direita), raio, icone, cor, cd, cd_max}
 var _toques := {} # índice do dedo -> "joy" | "cam" | acao
 var _inicio := {} # índice do dedo -> [posição, hora] (joystick e câmera): toque rápido sem arrastar vira "tocou"
@@ -169,13 +174,20 @@ func _input(ev: InputEvent) -> void:
 					apertou.emit(b.acao)
 					return
 			_inicio[ev.index] = [ev.position, Time.get_ticks_msec()]
-			if ev.position.x < _tela.size.x * 0.42:
+			# já tem um dedo na câmera e o joystick está livre: o segundo dedo é a pinça do zoom, mesmo à esquerda
+			var pinca_esq: bool = not _cam_dedos.is_empty() and not ("joy" in _toques.values())
+			if ev.position.x < _tela.size.x * 0.42 and not pinca_esq:
 				_toques[ev.index] = "joy"
 				_joy_centro = ev.position
 				_joy_dedo = ev.position
 			else:
 				_toques[ev.index] = "cam"
+				_cam_dedos[ev.index] = ev.position
+				_pinca = _dist_pinca()
 		else:
+			if _cam_dedos.has(ev.index):
+				_cam_dedos.erase(ev.index)
+				_pinca = _dist_pinca()
 			var o = _toques.get(ev.index)
 			_toques.erase(ev.index)
 			var ini = _inicio.get(ev.index)
@@ -198,7 +210,29 @@ func _input(ev: InputEvent) -> void:
 			if d.length() > 1.4: # o joystick vem atrás do dedo
 				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * 1.4
 		elif o == "cam":
-			giro_cam += ev.relative
+			_cam_dedos[ev.index] = ev.position
+			if _cam_dedos.size() >= 2: # pinça: zoom, sem girar
+				var d := _dist_pinca()
+				if _pinca > 0.0 and d > 0.0:
+					zoom_cam *= _pinca / d
+				_pinca = d
+			else:
+				giro_cam += ev.relative
+	elif ev is InputEventMouseButton and ev.pressed:
+		if ev.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom_cam *= 0.9
+		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom_cam *= 1.0 / 0.9
+	elif ev is InputEventMagnifyGesture: # touchpad do PC
+		if ev.factor > 0.0:
+			zoom_cam /= ev.factor
+
+# distância entre os dois primeiros dedos da câmera (0 se não tem dois)
+func _dist_pinca() -> float:
+	if _cam_dedos.size() < 2:
+		return 0.0
+	var v: Array = _cam_dedos.values()
+	return (v[0] as Vector2).distance_to(v[1])
 
 # o botão continua apertado só enquanto algum dedo está nele (o ataque básico repete só assim)
 func segurando(acao: String) -> bool:
@@ -212,6 +246,8 @@ func soltar_tudo() -> void:
 	var tinha: Array = _toques.values()
 	_toques.clear()
 	_inicio.clear()
+	_cam_dedos.clear()
+	_pinca = 0.0
 	mover = Vector2.ZERO
 	for b in botoes:
 		b.apertado = false
