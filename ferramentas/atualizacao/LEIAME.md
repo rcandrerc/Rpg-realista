@@ -29,6 +29,9 @@ Depois de assinar o APK do build N (versionCode N) com a chave oficial, crie a e
 
     git tag apk-base-N <commit do build N> && git push origin apk-base-N
 
+Se o push de etiqueta for recusado (a sessão do Claude não pode criar etiquetas), crie um **ramo** `apk-base-N` no
+mesmo commit (`git push origin <commit>:refs/heads/apk-base-N`): o `publicar.sh` aceita os dois.
+
 Sem a etiqueta, o manifesto continua apontando para a base anterior (quem tem o APK antigo segue recebendo atualização).
 
 ## O que o pacote NÃO consegue mudar (precisa APK novo)
