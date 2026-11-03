@@ -11,6 +11,7 @@ const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
 const BracoEspada = preload("res://braco_espada.gd")
+const Armas = preload("res://armas.gd")
 const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
@@ -624,7 +625,12 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
 	return ba
 
-func nova_arma(nome: String) -> Node3D:
+# do_heroi: Espada A e Cajado A (armas3d/, armas.gd); os humanos inimigos seguem com a espada antiga
+func nova_arma(nome: String, do_heroi := true) -> Node3D:
+	if do_heroi and ResourceLoader.exists("res://armas3d/%s.glb" % nome):
+		var n: Node3D = load("res://armas3d/%s.glb" % nome).instantiate()
+		Armas.preparar(n)
+		return n
 	var a: Node3D = load("res://modelos/arma_%s.glb" % nome).instantiate()
 	for mi in a.find_children("*", "MeshInstance3D", true, false):
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -694,7 +700,7 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	no.position = pos
 	no.scale *= escala
 	if armas_lugar.has(id): # humano (VRoid) luta de espada; monstro do Bestiário luta com garra e soco
-		prender(esqueleto(no), nova_arma("espada"), armas_lugar[id].espadaMao)
+		prender(esqueleto(no), nova_arma("espada", false), armas_lugar[id].espadaMao)
 	else:
 		contorno(no, 0.012)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
@@ -2012,6 +2018,8 @@ func atualizar_heroi(dt: float) -> void:
 	if h.modo == "Magia" and mov.esc == null:
 		var mao := ponto_mao()
 		cajado.global_transform = Transform3D(heroi.global_transform.basis * Basis.from_euler(Vector3(0.18, 0, -0.08)), mao)
+		if cajado.visible and heroi.visible:
+			Armas.chama(fx.mg, cajado, dt) # chama pintada no topo do Cajado A
 	# rastro da espada durante o golpe e do vento no dash
 	var lamina = null
 	if not acao.is_empty() and acao.get("lamina", false) and h.modo == "Espada" and mov.esc == null:

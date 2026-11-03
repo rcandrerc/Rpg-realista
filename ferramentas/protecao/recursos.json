@@ -121,6 +121,7 @@
     { "nome": "Modelo do lobo inimigo para o Godot", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["saida.Lobo ="] },
     { "nome": "Nível dos monstros: vida, dano, XP e ouro", "arquivo": "shared/simulacao.js", "contem": ["statusInimigo(sp.tipo, nivel)", "xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)", "pertoNaMata("] },
     { "nome": "Árvores da mata em MultiMesh e monstros longe param", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_mata(vila: Node3D) -> void:", "func grama_da_mata(", "func lod_inimigos() -> void:", "func xp_do_inimigo(e: Dictionary) -> int:"] },
-    { "nome": "Herói colide com as árvores da mata", "arquivo": "godot-prototipo/andar.gd", "contem": ["func perto_na_mata(px: float, pz: float) -> Array:"] }
+    { "nome": "Herói colide com as árvores da mata", "arquivo": "godot-prototipo/andar.gd", "contem": ["func perto_na_mata(px: float, pz: float) -> Array:"] },
+    { "nome": "Espada A e Cajado A do herói (modelos próprios, shader toon com contorno, chama no topo do cajado) (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["const Armas = preload(\"res://armas.gd\")", "res://armas3d/%s.glb", "Armas.preparar(n)", "Armas.chama(fx.mg, cajado, dt)"] }
   ]
 }
