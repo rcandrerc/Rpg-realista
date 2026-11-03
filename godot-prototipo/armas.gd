@@ -29,7 +29,8 @@ const TOPO_CHAMA := Vector3(0, 1.03, 0) # dentro da ponta do cristal de fogo (1,
 # menor"): o cajado ficava com o meio no osso da mão, que nos corpos VRoid fica no punho. Agora o meio dele vai na
 # palma (entre o punho e a junta do dedo do meio, puxado para dentro da mão fechada) e ele fica 15% menor.
 const ESCALA_CAJADO := 0.85
-const INCLINA_CAJADO := Vector3(0.18, 0, -0.08) # em pé, um pouco inclinado (como no site)
+const INCLINA_CAJADO := Vector3(0.18, 0, 0) # em pé, um pouco inclinado para a frente (como no site)
+const INCLINA_FORA := 0.17 # ~10° com o topo para fora do corpo: a chama fica ao lado da cabeça, não na frente do rosto (direção de arte)
 const PALMA_JUNTA := 1.0 # do punho até a junta do dedo do meio
 const PALMA_DEDO := 0.4 # e mais um tanto na direção do dedo dobrado (para dentro da mão fechada)
 
@@ -58,7 +59,10 @@ static func palma(esq: Skeleton3D, mao: int) -> Vector3:
 static func pose_na_mao(esq: Skeleton3D, mao: int, raiz: Node3D) -> Transform3D:
 	var b: Basis = raiz.global_transform.basis
 	var s: float = b.get_scale().x * ESCALA_CAJADO
-	return Transform3D(b.orthonormalized() * Basis.from_euler(INCLINA_CAJADO) * Basis.from_scale(Vector3.ONE * s), palma(esq, mao))
+	var p := palma(esq, mao)
+	var lado: float = (raiz.global_transform.affine_inverse() * p).x # de que lado do corpo está a mão
+	var inc := INCLINA_CAJADO + Vector3(0, 0, INCLINA_FORA if lado < 0.0 else -INCLINA_FORA)
+	return Transform3D(b.orthonormalized() * Basis.from_euler(inc) * Basis.from_scale(Vector3.ONE * s), p)
 
 # o cajado preso no osso da mão (jogadores online, menu do personagem, criador): a cada quadro vai para a palma e
 # fica em pé. Fica dentro do próprio cajado; quando o cajado volta para as costas, não faz nada.
