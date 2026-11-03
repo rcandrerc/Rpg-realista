@@ -256,8 +256,17 @@ func _passo(dt: float) -> void:
 			estado.emit("Caiu a conexão")
 		caiu.emit(motivo)
 		return
+	# Desempenho (2026-11-03): quando a internet engasga, várias fotos do mundo chegam juntas no mesmo quadro e o jogo
+	# lia todas (um tranco). Agora só a mais nova é lida inteira; das outras, só os avisos (dano, morte, XP...)
+	var pacotes: Array[PackedByteArray] = []
 	while ws.get_available_packet_count() > 0:
-		_receber(ws.get_packet())
+		pacotes.append(ws.get_packet())
+	var ultima := -1
+	for i in pacotes.size():
+		if _e_mundo(pacotes[i]):
+			ultima = i
+	for i in pacotes.size():
+		_receber(pacotes[i], i < ultima)
 	if conectado:
 		_ping_t -= dt
 		if _ping_t <= 0.0:
@@ -274,7 +283,17 @@ func _buscar_vinculo() -> void:
 		guardar(str(r.dados.sessao))
 		iniciar()
 
-func _receber(p: PackedByteArray) -> void:
+# o pacote é uma foto do mundo em JSON? ([ROOM_DATA] + "mundoJ" em MessagePack: fixstr de 6 letras)
+const _MUNDO_J := [0xa6, 0x6d, 0x75, 0x6e, 0x64, 0x6f, 0x4a]
+func _e_mundo(p: PackedByteArray) -> bool:
+	if p.size() < 8 or p[0] != ROOM_DATA:
+		return false
+	for i in _MUNDO_J.size():
+		if p[1 + i] != _MUNDO_J[i]:
+			return false
+	return true
+
+func _receber(p: PackedByteArray, so_avisos := false) -> void:
 	if p.is_empty():
 		return
 	var b := StreamPeerBuffer.new()
@@ -303,6 +322,12 @@ func _receber(p: PackedByteArray) -> void:
 			var tipo = MP.ler(b)
 			var dados = MP.ler(b) if b.get_position() < p.size() else null
 			if str(tipo) == "mundoJ" and dados is String: # o mundo em JSON (mais rápido de ler aqui)
+				var k: int = dados.rfind(',"eventos":') if so_avisos else -1
+				if k > 0: # foto velha (chegou outra mais nova junto): só os avisos dela
+					var so = JSON.parse_string("{" + dados.substr(k + 1))
+					if so is Dictionary and so.get("eventos") is Array:
+						mensagem.emit("mundo", so)
+						return
 				mensagem.emit("mundo", JSON.parse_string(dados))
 				return
 			if str(tipo) == "pong" and dados is int:

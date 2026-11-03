@@ -25,6 +25,16 @@ const contas = CLIENT_ID ? new Contas({ pasta: path.resolve(process.env.DADOS ||
 // Páginas que podem pedir login a este servidor (o jogo no GitHub Pages e o "npm run dev")
 const ORIGENS = [/^https:\/\/rcandrerc\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/];
 
+// Desempenho (2026-11-03): a foto mandava os 111 monstros do mapa 20 vezes por segundo para cada jogador (~22 KB,
+// ~3,5 Mbit/s por pessoa) e o celular lia tudo. O app Godot recebe só os monstros a até PERTO metros dele; "perto"
+// avisa o app, que não trata quem ficou de fora (longe) como morto. O app só desenha monstro até 70 m.
+const PERTO = 75; // o app desenha monstro até 70 m (LONGE_INIMIGO)
+function fotoPerto(foto, j) {
+  if (!j) return foto;
+  const r2 = PERTO * PERTO;
+  return { ...foto, perto: PERTO, inimigos: foto.inimigos.filter((e) => (e.x - j.x) ** 2 + (e.z - j.z) ** 2 <= r2) };
+}
+
 class SalaClareira extends Room {
   maxClients = 16;
 
@@ -104,12 +114,11 @@ class SalaClareira extends Room {
   tick() {
     const eventos = this.sim.passo(TICK);
     const foto = this.sim.foto();
-    let fotoJson = null;
     for (const c of this.clients) {
       // avisos pessoais vão só para quem precisa
       const meus = eventos.filter((e) => !e.para || e.para === c.sessionId);
       // o app Godot pede em JSON (lá ler JSON é bem mais rápido que MessagePack); o site continua igual
-      if (c.userData?.json) c.send('mundoJ', `{"foto":${fotoJson ??= JSON.stringify(foto)},"eventos":${JSON.stringify(meus)}}`);
+      if (c.userData?.json) c.send('mundoJ', `{"foto":${JSON.stringify(fotoPerto(foto, this.sim.jogadores.get(c.sessionId)))},"eventos":${JSON.stringify(meus)}}`);
       else c.send('mundo', { foto, eventos: meus });
     }
   }
