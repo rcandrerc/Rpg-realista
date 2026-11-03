@@ -2,7 +2,7 @@
 # Atualização dentro do app (roda no apk.yml, em cada push na main). Detalhes: ferramentas/atualizacao/LEIAME.md
 #
 # 1) Guarda o pacote completo desta versão (base-CODIGO.pck) no release "pacotes" (privado), para virar base no futuro.
-# 2) Descobre qual APK é a base atual: a etiqueta git apk-base-CODIGO mais alta (quem entrega o APK ao André cria).
+# 2) Descobre qual APK é a base atual: a etiqueta ou ramo git apk-base-CODIGO mais alto (quem entrega o APK ao André cria).
 # 3) Gera o pacote só com o que mudou desde essa base (godot --export-patch) e o manifesto.json.
 # 4) Põe os dois no release "atualizacao" e chama o pages.yml, que copia para o site:
 #    https://rcandrerc.github.io/Rpg-realista/atualizacao/manifesto.json  (o app lê daqui: godot-prototipo/inicio.gd)
@@ -20,7 +20,8 @@ gh release view pacotes > /dev/null 2>&1 || gh release create pacotes --target m
 gh release upload pacotes "base-$CODIGO.pck" --clobber
 
 # 2) base atual
-BASE=$(git ls-remote --tags origin 'apk-base-*' | sed 's|.*refs/tags/apk-base-||; s|\^{}||' | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+# vale etiqueta (refs/tags/apk-base-N) ou ramo (refs/heads/apk-base-N): a sessão do Claude só consegue criar ramo
+BASE=$(git ls-remote origin 'refs/tags/apk-base-*' 'refs/heads/apk-base-*' | sed -E 's#.*refs/(tags|heads)/apk-base-##; s#\^\{\}##' | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
 if [ -z "$BASE" ]; then
   echo "::warning::Nenhuma etiqueta apk-base-N ainda: sem atualização dentro do app até alguém marcar o APK entregue."
   exit 0
