@@ -23,7 +23,7 @@ var zoom_cam := 1.0
 var _cam_dedos := {} # índice do dedo da câmera -> posição (para medir a pinça)
 var _pinca := 0.0 # distância entre os dois dedos da câmera no quadro anterior (0 = sem pinça)
 var botoes: Array = [] # {acao, centro (a partir do canto de baixo à direita), raio, icone, cor, cd, cd_max}
-var _toques := {} # índice do dedo -> "joy" | "cam" | acao
+var _toques := {} # índice do dedo -> "joy" | "cam" | "morto" (zona morta) | acao
 var _inicio := {} # índice do dedo -> [posição, hora] (joystick e câmera): toque rápido sem arrastar vira "tocou"
 var _joy_centro := Vector2.ZERO
 var _joy_dedo := Vector2.ZERO
@@ -176,10 +176,14 @@ func _input(ev: InputEvent) -> void:
 					b.apertado = true
 					apertou.emit(b.acao)
 					return
+			# zona morta (André 2026-11-03): dedo perto das skills sem acertar o botão não vira câmera nem pinça
+			if zona_morta(ev.position):
+				_toques[ev.index] = "morto"
+				return
 			_inicio[ev.index] = [ev.position, Time.get_ticks_msec()]
-			# já tem um dedo na câmera e o joystick está livre: o segundo dedo é a pinça do zoom, mesmo à esquerda
-			var pinca_esq: bool = not _cam_dedos.is_empty() and not ("joy" in _toques.values())
-			if ev.position.x < _tela.size.x * 0.42 and not pinca_esq:
+			# lado esquerdo é sempre do joystick: a pinça do zoom só começa com os dois dedos no meio livre da tela
+			# (antes um dedo na câmera fazia o toque no joystick virar pinça e o herói não andava)
+			if ev.position.x < _tela.size.x * 0.42:
 				_toques[ev.index] = "joy"
 				_joy_centro = ev.position
 				_joy_dedo = ev.position
@@ -199,7 +203,7 @@ func _input(ev: InputEvent) -> void:
 				tocou.emit(ev.position)
 			if o == "joy":
 				mover = Vector2.ZERO
-			elif o != null and o != "cam" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
+			elif o != null and o != "cam" and o != "morto" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
 				for b in botoes:
 					if b.acao == o:
 						b.apertado = false
@@ -214,13 +218,15 @@ func _input(ev: InputEvent) -> void:
 				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * 1.4
 		elif o == "cam":
 			_cam_dedos[ev.index] = ev.position
-			if _cam_dedos.size() >= 2: # pinça: zoom, sem girar
+			# pinça: zoom, sem girar. Com o joystick em uso nunca tem pinça: andar + dedo na câmera é sempre girar
+			if _cam_dedos.size() >= 2 and not ("joy" in _toques.values()):
 				var d := _dist_pinca()
 				if _pinca > 0.0 and d > 0.0:
 					zoom_cam *= _pinca / d
 				_pinca = d
 			else:
 				giro_cam += ev.relative
+				_pinca = _dist_pinca() # sem salto de zoom quando o joystick solta com dois dedos na câmera
 	elif ev is InputEventMouseButton and ev.pressed:
 		if ev.button_index == MOUSE_BUTTON_WHEEL_UP:
 			zoom_cam *= 0.9
@@ -229,6 +235,25 @@ func _input(ev: InputEvent) -> void:
 	elif ev is InputEventMagnifyGesture: # touchpad do PC
 		if ev.factor > 0.0:
 			zoom_cam /= ev.factor
+
+# zona morta em volta da HUD de combate: o arco das skills em volta do golpe e uma folga em volta de cada botão.
+# Toque ali sem acertar o botão é ignorado (não gira a câmera, não entra na pinça, não rouba o joystick)
+const FOLGA_BOTAO := 40.0 # px além do alvo do botão
+const FOLGA_ARCO := 45.0 # px além da borda de fora do arco das skills
+func zona_morta(p: Vector2) -> bool:
+	if esconder_combate:
+		return false
+	for b in botoes:
+		if b.oculto:
+			continue
+		var c := _centro(b)
+		if p.distance_to(c) <= b.raio * 1.15 + FOLGA_BOTAO:
+			return true
+		if b.acao == "basico": # o arco inteiro das skills (inclui os vãos entre elas)
+			var v := p - c
+			if v.length() <= 172.0 + 33.0 * 1.15 + FOLGA_ARCO and v.x <= 0.0 + b.raio and v.y <= b.raio:
+				return true
+	return false
 
 # distância entre os dois primeiros dedos da câmera (0 se não tem dois)
 func _dist_pinca() -> float:
@@ -255,7 +280,7 @@ func soltar_tudo() -> void:
 	for b in botoes:
 		b.apertado = false
 	for o in tinha:
-		if o != "joy" and o != "cam":
+		if o != "joy" and o != "cam" and o != "morto":
 			soltou.emit(o)
 
 # o Android às vezes não manda o "soltou" (notificação puxada, app minimizado, tela bloqueada): solta tudo
