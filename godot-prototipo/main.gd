@@ -25,6 +25,7 @@ const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Minimapa = preload("res://minimapa.gd")
+const VoltaVila = preload("res://volta_vila.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -82,6 +83,7 @@ var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
+var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var vibracao := true # Configurações: vibrar no golpe e no dano
@@ -222,6 +224,9 @@ func _ready() -> void:
 	minimapa = Minimapa.new(self)
 	add_child(minimapa)
 	hud.minimapa = minimapa
+	volta = VoltaVila.new(self)
+	add_child(volta)
+	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -1333,6 +1338,8 @@ func usar(qual: String) -> void:
 		return
 	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar"]:
 		trabalho.parar(true) # qualquer ação para a coleta
+	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
+		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
 			cancelar_canal()
@@ -1843,6 +1850,8 @@ func direcao_joystick() -> Vector3:
 func _notification(what: int) -> void:
 	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
 		P.guardar_agora()
+		if volta:
+			volta.guardar(true)
 
 func _process(dt: float) -> void:
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
@@ -1852,6 +1861,7 @@ func _process(dt: float) -> void:
 		Engine.time_scale = _lenta_k if agora_s < _lenta_ate else 1.0
 	tempo += dt
 	P.passo(dt_real) # grava a cópia do progresso fora do quadro (progresso.gd)
+	volta.passo(dt) # Voltar para a vila (canalização) e o lugar guardado no aparelho
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
 	atualizar_heroi(dt)
@@ -1893,7 +1903,8 @@ func _process(dt: float) -> void:
 		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
 		hud.sem_mana("hab%d" % i, k != null and P.habs.has(k) and h.mana < float(P.habs[k].get("mana", 0)))
-	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
+	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else volta.progresso()
+	hud.canal_vila = volta.ativo()
 	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
 	hud.mostrar_botao("resetar", perto_do_npc("resetar", 3.0) and h.morto <= 0.0)
 	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
@@ -1954,6 +1965,13 @@ func atualizar_heroi(dt: float) -> void:
 			else:
 				dir = d.normalized()
 				forca = 1.0
+	# voltando para a vila: parado; mexer o joystick cancela
+	if volta.ativo():
+		if forca > 0.3:
+			volta.cancelar("Você se mexeu: volta para a vila cancelada")
+		else:
+			dir = Vector3.ZERO
+			forca = 0.0
 	# magia concentrada: o herói fica parado; puxar o joystick com força cancela
 	if acao.get("canal", false):
 		if forca > 0.55:
@@ -2647,11 +2665,13 @@ func ferir_heroi(dmg: float) -> void:
 		h.vida = 0.0
 		h.morto = D.HEROI.renascer
 		acao = {}
+		volta.cancelar("")
 		heroi_anim.play("morrer", 0.1)
 		hud.aviso("Você caiu! Voltando...")
 
 # o herói levou dano: tranco na câmera, som e vibração (offline e online)
 func apanhou() -> void:
+	volta.cancelar("Atacado! A volta para a vila parou")
 	cam.tremer(0.45)
 	hud.levou_dano()
 	sons.tocar("apanhar", -2.0, 0.1)

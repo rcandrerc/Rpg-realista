@@ -28,6 +28,7 @@ var _ap_txt := "" # última aparência do meu herói que veio do servidor
 var _visual_txt := "" # último corpo do meu herói que veio do servidor
 var _visual_mandado := "" # corpo do criador que já foi para o servidor (conta nova, ao vivo)
 var _status_t := 0.0
+var _lugar_pendente := false # entrou agora: a primeira foto traz o herói para onde a conta guardou (onde ele saiu)
 var jogadores := 0
 # tela de login
 var tela: CanvasLayer
@@ -243,6 +244,8 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	ligado = true
 	meu_id = id
 	_build_ok = false
+	_lugar_pendente = true
+	m.volta.cancelar("") # a volta para a vila começada sem internet não vale aqui
 	if capa.visible: # vindo da capa ou da tela de login: a capa sai quando a primeira foto do mundo chegar (aplicar_foto)
 		cobrir("Entrando…")
 	else: # já estava jogando (reconexão): nada de capa
@@ -357,10 +360,14 @@ func meu(j: Dictionary) -> void:
 		_ap_txt = ap_txt
 		if j.get("aparencia") is Dictionary:
 			m.definir_aparencia(j.aparencia)
+	if _lugar_pendente and not j.get("criando", false) and not j.morto:
+		_lugar_pendente = false
+		m.volta.colocar(Vector3(float(j.x), float(j.y), float(j.z)), float(j.ry))
 	h.mana = float(j.mana)
 	if j.has("sta"):
 		m.trabalho.do_servidor(float(j.sta))
 	if j.morto:
+		m.volta.cancelar("")
 		if h.morto <= 0.0:
 			h.vida = 0.0
 			h.morto = 999.0 # espera o servidor levantar
@@ -535,6 +542,32 @@ func evento(ev: Dictionary) -> void:
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
+			return
+		"vila": # Voltar para a vila (casinha do menu do topo): começou, desistiu ou chegou na praça
+			var id := str(ev.id)
+			var fase := str(ev.get("fase", ""))
+			if id == meu_id:
+				if fase == "cancela":
+					m.volta.cancelar("") # o aviso do porquê vem do servidor
+				elif fase == "chegou":
+					m.volta.chegar(Vector3(float(ev.x), float(ev.y), float(ev.z)))
+				return # "comeca": aqui no celular já começou na hora do toque
+			var no = corpos.get(id)
+			if no == null:
+				return
+			if fase == "comeca":
+				fx.volta_vila(no, float(ev.get("dur", 8.0)))
+			elif fase == "cancela":
+				fx.volta_vila_fim(no, false)
+			elif fase == "chegou":
+				var x0 := float(ev.x0)
+				var z0 := float(ev.z0)
+				var para := Vector3(float(ev.x), float(ev.y), float(ev.z))
+				if outros.has(id): # aparece direto na praça (sem deslizar o mapa todo)
+					outros[id].alvo = para
+					outros[id].buf = []
+					no.position = para
+				fx.volta_vila_fim(no, true, Vector3(x0, m.terreno.altura(x0, z0), z0))
 			return
 		"nivel":
 			var no = corpos.get(str(ev.id))

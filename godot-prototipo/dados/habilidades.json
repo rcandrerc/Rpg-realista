@@ -1409,5 +1409,10 @@
   "folga": 5,
   "perde": 0.15,
   "min": 0.1
+ },
+ "voltaVila": {
+  "canal": 8,
+  "cd": 600,
+  "vila": 30
  }
 }

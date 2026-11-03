@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, VOLTA_VILA, statusInimigo } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -107,6 +107,7 @@ export class Simulacao {
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.prog = progressoValido(progresso);
     if (testador) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
+    this.nascerOndeSaiu(j);
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
     this.jogadores.set(id, j);
@@ -114,6 +115,56 @@ export class Simulacao {
     return j;
   }
   removerJogador(id) { this.jogadores.delete(id); }
+  // ---------- onde o herói estava (André 2026-11-03) ----------
+  // Saiu do jogo longe da vila: entra de volta no mesmo lugar. Só a morte (ou o Voltar para a vila) leva para a praça.
+  nascerOndeSaiu(j) {
+    const q = j.prog.pos; if (!q) return;
+    const chao = this.terreno.altura(q.x, q.z);
+    if (!dentroDoMapa(this.mapa, q.x, q.z) || q.y < chao - 0.6 || q.y > chao + ORCAMENTO.altura) { delete j.prog.pos; return; } // o mapa mudou: vila
+    Object.assign(j, { x: q.x, y: Math.max(q.y, chao), z: q.z, ry: q.ry, chao: q.y - chao < 0.15 });
+  }
+  // guarda no progresso onde o herói está (vai para a conta junto com o resto, a cada 15 s e quando ele sai)
+  guardarPosicao(j) {
+    if (j.morto || j.criando || j.esc) return;
+    const q = j.prog.pos;
+    if (q && Math.hypot(q.x - j.x, q.z - j.z) < 1 && Math.abs(q.y - j.y) < 0.5) return;
+    j.prog.pos = { x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) };
+    j.progSujo = true;
+  }
+  // ---------- Voltar para a vila (botão da casinha no menu do topo) ----------
+  // Canalização lenta parado; andar, atacar, pular, coletar, levar dano ou tocar de novo cancela. Recarga de 10 min só quando chega.
+  voltarVila(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
+    if (j.vila) return this.cancelarVila(j, null); // tocou de novo na casinha: desiste
+    const V = VOLTA_VILA, falta = (j.prog.vilaAte || 0) - Date.now();
+    if (falta > 0) return this.evento({ t: 'aviso', para: id, texto: `Voltar para a vila: pronto em ${Math.ceil(falta / 60000)} min` });
+    const n = this.mapa.nascimento;
+    if (Math.hypot(j.x - n.x, j.z - n.z) < V.vila) return this.evento({ t: 'aviso', para: id, texto: 'Você já está na vila' });
+    if (j.esc || !j.chao) return;
+    if (j.coleta) this.pararColeta(j);
+    if (j.canal) this.cancelarCanal(j);
+    j.montado = null;
+    const v = j.vila = { x: j.x, z: j.z };
+    this.evento({ t: 'vila', id: j.id, fase: 'comeca', dur: V.canal });
+    this.depois(V.canal, () => { if (j.vila === v && !j.morto && this.jogadores.get(j.id) === j) this.chegarNaVila(j); });
+  }
+  cancelarVila(j, motivo = 'Volta para a vila cancelada') {
+    if (!j?.vila) return;
+    j.vila = null;
+    this.evento({ t: 'vila', id: j.id, fase: 'cancela' });
+    if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
+  }
+  chegarNaVila(j) {
+    j.vila = null;
+    const n = this.mapa.nascimento, x0 = j.x, z0 = j.z;
+    const x = n.x + (Math.random() - 0.5) * 3, z = n.z + (Math.random() - 0.5) * 3, y = this.terreno.altura(x, z);
+    Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
+    j.cliente = null; j.orcT = null; // a próxima posição do celular já é a da vila
+    j.prog.vilaAte = Date.now() + VOLTA_VILA.cd * 1000;
+    delete j.prog.pos;
+    this.avisarProg(j); // o app mostra a recarga na casinha
+    this.evento({ t: 'vila', id: j.id, fase: 'chegou', x0: r2(x0), z0: r2(z0), x: r2(x), y: r2(y), z: r2(z) });
+  }
   criarInimigo(sp) {
     const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = statusInimigo(sp.tipo, nivel); // nível do campo de caça
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
@@ -146,6 +197,7 @@ export class Simulacao {
   montar(id) {
     const j = this.jogadores.get(id);
     if (!j || j.morto || j.esc || j.criando || j.trava > 0) return;
+    this.cancelarVila(j);
     j.montado = j.montado ? null : 'lobo';
   }
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
@@ -235,6 +287,7 @@ export class Simulacao {
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
     if (j.coleta) this.pararColeta(j);
+    this.cancelarVila(j);
     const antes = this.ator; this.ator = j;
     try { this.usarHabilidadeDe(j, id, i); } finally { this.ator = antes; }
   }
@@ -304,6 +357,7 @@ export class Simulacao {
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
   progressosParaSalvar() {
     const r = [];
+    for (const j of this.jogadores.values()) this.guardarPosicao(j);
     for (const j of this.jogadores.values()) if (j.progSujo) { j.progSujo = false; r.push({ id: j.id, prog: j.prog }); }
     return r;
   }
@@ -379,6 +433,7 @@ export class Simulacao {
     const j = this.jogadores.get(id), base = HABS[hid];
     if (!j || j.morto || j.esc || j.criando || !base) return;
     if (j.coleta) this.pararColeta(j);
+    this.cancelarVila(j);
     if (base.libera > j.prog.nivel) return this.evento({ t: 'aviso', para: id, texto: `Libera no nível ${base.libera}` });
     if (!base.basico && !BARRAS.some((b) => j.prog.barras[b].includes(hid))) return;
     const antes = this.ator; this.ator = j;
@@ -678,6 +733,7 @@ export class Simulacao {
   coletar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m || typeof m.no !== 'string') return;
     if (m.parar || j.coleta) return this.pararColeta(j, null); // o jogador parou (ou tocou de novo)
+    this.cancelarVila(j);
     const no = this.coletaveis.get(m.no), aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!no) return;
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
@@ -835,6 +891,7 @@ export class Simulacao {
     const j = this.jogadores.get(id);
     if (j?.coleta) this.pararColeta(j);
     if (j?.canal) this.cancelarCanal(j);
+    this.cancelarVila(j);
     if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
     if (!j || j.morto || j.criando || j.trava > 0 || j.arrancada) return;
     if (j.chao) { j.vy = MOVIMENTO.pulo; j.chao = false; j.pulos = 1; j.puloT = 0; j.pouso = 0; }
@@ -845,6 +902,7 @@ export class Simulacao {
     const j = this.jogadores.get(id);
     if (j?.coleta) this.pararColeta(j);
     if (j?.canal) this.cancelarCanal(j);
+    this.cancelarVila(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
     if (!this.gastarEstamina(j, ESTAMINA.rolar)) return;
     j.cds.rolar = this.tempo + HEROI.rolarCd; j.montado = null;
@@ -860,6 +918,7 @@ export class Simulacao {
     const j = this.jogadores.get(id);
     if (j?.coleta) this.pararColeta(j);
     if (j?.canal) this.cancelarCanal(j);
+    this.cancelarVila(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
     if (!this.gastarEstamina(j, ESTAMINA.dash)) return;
     j.cds.dash = this.tempo + MOVIMENTO.dashCd; j.montado = null;
@@ -972,7 +1031,7 @@ export class Simulacao {
     }
     if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
     alvo.vida = Math.max(0, alvo.vida - n);
-    if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); }
+    if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
     if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
@@ -1028,6 +1087,8 @@ export class Simulacao {
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
+      this.cancelarVila(c, null);
+      if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
       this.depois(HEROI.renascer, () => {
         const n = this.mapa.nascimento;
         Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: 0, vy: 0, chao: true, trava: 0, acao: null });
@@ -1272,6 +1333,7 @@ export class Simulacao {
     return ev;
   }
   passoJogador(j, dt) {
+    if (j.vila && Math.hypot(j.x - j.vila.x, j.z - j.vila.z) > 0.6) this.cancelarVila(j, 'Você se mexeu: volta para a vila cancelada');
     j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * dt);
     this.passoEstamina(j, dt);
     if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);

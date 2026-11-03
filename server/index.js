@@ -55,6 +55,7 @@ class SalaClareira extends Room {
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m)); // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
+    this.ouvir('vila', (c) => this.sim.voltarVila(c.sessionId)); // botão da casinha: canaliza e volta para a vila (recarga de 10 min)
     // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
     this.ouvir('pos', (c, p) => this.sim.posicaoCliente(c.sessionId, p));
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
@@ -128,7 +129,8 @@ class SalaClareira extends Room {
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
-        const velho = this.sim.jogadores.get(outro.sessionId)?.prog; if (velho) conta.progresso = velho; // o mais novo vale
+        const vj = this.sim.jogadores.get(outro.sessionId);
+        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; } // o mais novo vale (com o lugar onde ele estava)
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
     }

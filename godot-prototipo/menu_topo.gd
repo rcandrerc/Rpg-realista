@@ -2,7 +2,9 @@ extends CanvasLayer
 # Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Conta, Multijogador e Configurações
 # e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
-# Regra do André: no topo só entram conta, multijogador e configurações.
+# Regra do André: no topo só entram conta, multijogador e configurações. Pedido dele (2026-11-03): a casinha do Voltar
+# para a vila também fica aqui, na ponta perto da seta; ela não abre janela, começa a canalização (volta_vila.gd) e mostra
+# a recarga de 10 min por cima do ícone.
 
 const Menu = preload("res://menu.gd")
 const ARQUIVO := "user://config.cfg" # escolhas do jogador (menu recolhido, som, vibração, FPS)
@@ -10,13 +12,16 @@ const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
 const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o menu fica à esquerda do minimapa, na altura do centro dele
 # (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
-const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"]]
+const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
 var raiz: Control
 var lugar: Control # onde os ícones ficam (não se mexe)
-var itens: Control # os 3 ícones (o que desliza, encolhe e some)
+var itens: Control # os ícones (o que desliza, encolhe e some)
+var vila_sombra: Panel # casinha em recarga: escurece o ícone
+var vila_txt: Label # minutos e segundos que faltam
+var _vila_t := 0.0
 var seta: Button
 var seta_ico: TextureRect
 var recolhido := false
@@ -62,7 +67,11 @@ func _ready() -> void:
 		var b := _icone(ITENS[i][2], ITENS[i][1])
 		b.position = Vector2(i * (TAM + ESPACO), 0)
 		var k: String = ITENS[i][0]
-		b.pressed.connect(func(): abrir(k))
+		if k == "vila":
+			b.pressed.connect(func(): m.volta.pedir())
+			_recarga_vila(b)
+		else:
+			b.pressed.connect(func(): abrir(k))
 		itens.add_child(b)
 	seta = _icone("topo_seta", "Recolher menu")
 	seta.anchor_left = 1.0
@@ -105,6 +114,37 @@ func _icone(ico: String, dica: String) -> Button:
 	t.pivot_offset = Vector2(15, 15)
 	b.add_child(t)
 	return b
+
+# recarga da casinha: o ícone escurece e o tempo que falta aparece por cima (como as skills da HUD)
+func _recarga_vila(b: Button) -> void:
+	vila_sombra = Panel.new()
+	vila_sombra.add_theme_stylebox_override("panel", Menu.caixa(Color(0.02, 0.015, 0.01, 0.62), Color(0, 0, 0, 0), 0, 15))
+	vila_sombra.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vila_sombra.size = Vector2(TAM, TAM)
+	vila_sombra.visible = false
+	b.add_child(vila_sombra)
+	vila_txt = Label.new()
+	vila_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vila_txt.size = Vector2(TAM, TAM)
+	vila_txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vila_txt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	vila_txt.add_theme_font_size_override("font_size", 15)
+	vila_txt.add_theme_color_override("font_color", Color(1, 0.9, 0.68))
+	vila_txt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	vila_txt.add_theme_constant_override("outline_size", 4)
+	vila_sombra.add_child(vila_txt)
+
+func _atualizar_vila(dt: float) -> void:
+	_vila_t -= dt
+	if vila_sombra == null or m.volta == null or _vila_t > 0.0:
+		return
+	_vila_t = 0.25
+	var f: float = m.volta.falta()
+	vila_sombra.visible = f > 0.0
+	if f > 0.0:
+		var txt: String = m.volta.tempo_txt(f)
+		if vila_txt.text != txt:
+			vila_txt.text = txt
 
 # ---------- abrir e recolher (seta) ----------
 func recolher(sim: bool, animar := true) -> void:
@@ -208,6 +248,7 @@ func aberto() -> bool:
 	return janela != null and janela.visible
 
 func _process(dt: float) -> void:
+	_atualizar_vila(dt)
 	if aberta == "multi" or aberta == "conta": # online, jogadores e ping mudam sozinhos
 		_atualizar_t -= dt
 		if _atualizar_t <= 0.0:

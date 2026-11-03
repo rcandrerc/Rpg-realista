@@ -33,6 +33,7 @@ const FXCOR := {
 	"cura": ["e4ffd8", "36c060"], "raio": ["fffbe0", "ffd23a"], "magia": ["ece2ff", "8a5cff"],
 	"relampago": ["ffffff", "bcd6f0"], "giro": ["ffffff", "bcd6f0"], "salto": ["ffffff", "bcd6f0"], "investida": ["ffffff", "bcd6f0"],
 	"gelo": ["eafcff", "3fb4ff"], "escudo": ["fff6d6", "ffbf3a"], "vortice": ["f2e6ff", "7a3cff"], "nivel": ["fff6d0", "ffb42a"],
+	"vila": ["fff3da", "f2b552"], # Voltar para a vila: luz quente de lareira (volta_vila)
 }
 const MAGIA := ["bola", "explosao", "meteoros", "cura", "raio", "magia", "gelo", "escudo", "vortice"]
 const ESTILOS := {"fogo": ["fff6c8", "ffa21a", "ff2a06"], "arcano": ["ffffff", "c4a4ff", "5a22ff"]}
@@ -1405,6 +1406,122 @@ func subir_nivel(corpo: Node3D) -> void:
 		part(FOGO, p.x + cos(a) * d, p.y + randf_range(0.0, 0.6), p.z + sin(a) * d, 0, randf_range(2.0, 4.5), 0, randf_range(0.8, 1.4), 0.1 * H, 0.02, "fff6d0", "ffb42a", 1.0, 0.6, 0.3)
 	luz("ffc24a", 4.0, 8.0, 1.2, corpo)
 
+# ---------------------------------------------------------------- Voltar para a vila
+# Canalização lenta (André 2026-11-03): o círculo de runas dourado abre devagar no chão e gira, poeira de luz sobe em
+# espiral em volta do corpo cada vez mais forte, e no último terço uma coluna de luz quente cresce até o céu.
+# Chegou: clarão onde estava, rastro de luz e a mesma coluna se apagando na praça. Cancelou: tudo apaga rápido.
+var voltas: Array = [] # {corpo, g, a, b, col, t, dur, f, vivo, luz, voz, voz_som}
+func volta_vila(corpo: Node3D, dur: float) -> void:
+	volta_vila_fim(corpo, false) # uma por corpo
+	var cores := cor_de("vila")
+	var g := Node3D.new()
+	add_child(g)
+	var a := circulo_malha(true)
+	var b := circulo_malha(false)
+	a.reparent(g)
+	b.reparent(g)
+	var col := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 1.0
+	cil.bottom_radius = 1.0
+	cil.height = 1.0
+	cil.radial_segments = 32
+	cil.cap_top = false
+	cil.cap_bottom = false
+	col.mesh = cil
+	col.material_override = material("coluna", SH_COLUNA, {"cor": c(cores[1]), "op": 0.0})
+	col.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(col)
+	var voz = _som_voz("q_carga_cura", corpo.global_position, -4.0, 0.0, 0.72)
+	voltas.append({"corpo": corpo, "g": g, "a": a, "b": b, "col": col, "t": 0.0, "dur": max(0.5, dur), "f": 0.0, "vivo": true,
+		"luz": luz(cores[1], 0.0, 6.0, dur + 0.5, corpo), "voz": voz, "voz_som": voz.stream if voz else null, "cb": cores[0], "cc": cores[1]})
+	var p := corpo.global_position
+	poeira(p.x, p.z, 0.9, 14, cores[0], cores[1])
+
+# chegou = foi para a vila (de = onde estava); senão desistiu
+func volta_vila_fim(corpo: Node3D, chegou: bool, de := Vector3.ZERO) -> void:
+	for v in voltas:
+		if v.corpo == corpo and v.vivo:
+			v.vivo = false
+			if v.luz.dono == corpo:
+				v.luz.vida = min(v.luz.vida, 0.3)
+			if v.voz != null and mundo and mundo.sons:
+				mundo.sons.parar(v.voz, v.voz_som)
+			if chegou:
+				v.g.position = Vector3(de.x, de.y + 0.07, de.z) # o círculo fica onde ele estava e apaga
+	if not chegou or not is_instance_valid(corpo):
+		return
+	var cb: String = cor_de("vila")[0]
+	var cc: String = cor_de("vila")[1]
+	var para := corpo.global_position
+	_som("q_salto", para, -2.0, 0.02)
+	_som("nivel", para, -8.0, 0.0)
+	surto(de.x, de.y + 1.0, de.z, 50, cb, cc, 5.5, 0.12)
+	for i in 30: # a luz sobe de onde ele estava
+		var ang := randf() * TAU
+		var d := randf_range(0.1, 0.8)
+		part(FOGO, de.x + cos(ang) * d, de.y + randf_range(0.2, 1.6), de.z + sin(ang) * d, 0, randf_range(3.0, 6.0), 0, randf_range(0.6, 1.0), 0.1 * H, 0.02, "ffffff", cc, 1.0, 0.8, 0.2)
+	# na praça: anel, faíscas caindo do alto e uma coluna curta se apagando
+	surto(para.x, para.y + 1.0, para.z, 44, cb, cc, 5.0, 0.11)
+	anel(para.x, para.z, 1.8, cc, 0.7, para.y)
+	anel(para.x, para.z, 1.0, cb, 0.45, para.y)
+	for i in 36:
+		var ang := randf() * TAU
+		var d := randf_range(0.2, 1.1)
+		part(FOGO, para.x + cos(ang) * d, para.y + randf_range(1.8, 3.2), para.z + sin(ang) * d, 0, randf_range(-2.5, -1.0), 0, randf_range(0.6, 1.0), 0.08 * H, 0.02, "ffffff", cc, 1.0, -0.3, 0.4)
+	var m := circulo_malha(true)
+	m.position = para + Vector3(0, 0.07, 0)
+	m.scale = Vector3.ONE * 1.5
+	campos.append({"m": m, "x": para.x, "z": para.z, "r": 1.5, "t": 0.0, "dur": 0.9, "cb": cb, "cc": cc, "fraco": true})
+	luz(cc, 3.5, 7.0, 0.8).l.global_position = para + Vector3(0, 1.3, 0)
+
+func _voltas_passo(dt: float) -> void:
+	var i := voltas.size() - 1
+	while i >= 0:
+		var v: Dictionary = voltas[i]
+		var corpo: Node3D = v.corpo
+		var ok := is_instance_valid(corpo)
+		if not ok and v.vivo:
+			v.vivo = false
+		v.t += dt
+		var u: float = clamp(v.t / v.dur, 0.0, 1.0)
+		v.f = min(1.0, v.f + dt * 2.0) if v.vivo else v.f - dt * 2.5
+		var p: Vector3 = corpo.global_position if ok and v.vivo else v.g.position
+		if v.vivo:
+			v.g.position = Vector3(p.x, p.y + 0.07, p.z)
+		var f: float = max(0.0, v.f)
+		# o círculo abre devagar (1,6 s) e gira lento; o anel de dentro gira para o outro lado
+		var abre: float = 1.0 - pow(1.0 - min(1.0, v.t / 1.6), 3.0)
+		var r: float = (0.5 + 1.0 * abre) * (1.0 + 0.04 * sin(v.t * 3.0))
+		v.a.scale = Vector3.ONE * r
+		v.b.scale = Vector3.ONE * r * 0.6
+		v.a.rotation.y = -v.t * 0.5
+		v.b.rotation.y = v.t * 0.9
+		circulo_definir(v.a, v.cc, f * (0.55 + 0.45 * u))
+		circulo_definir(v.b, v.cb, f * 0.8)
+		# coluna de luz: só no último terço, crescendo até o fim
+		var k_col: float = smoothstep(0.62, 1.0, u)
+		v.col.scale = Vector3(0.55 + 0.25 * k_col, 1.0 + 7.0 * k_col, 0.55 + 0.25 * k_col)
+		v.col.position.y = v.col.scale.y * 0.5
+		v.col.material_override.set_shader_parameter("op", f * k_col * 0.55)
+		if v.vivo:
+			v.luz.int = 0.4 + 2.2 * u + sin(v.t * 6.0) * 0.15
+			v.luz.l.global_position = Vector3(p.x, p.y + 1.0, p.z)
+			# poeira de luz subindo em espiral (cada vez mais) e brilho nas mãos erguidas
+			var n: float = dt * (14.0 + 70.0 * u)
+			while n > 0.0:
+				if randf() < n:
+					var ang: float = v.t * 2.2 + randf() * TAU
+					var d: float = r * randf_range(0.55, 0.95)
+					part(FOGO, p.x + cos(ang) * d, p.y + 0.1, p.z + sin(ang) * d, -sin(ang) * 0.6, randf_range(0.9, 1.8) + 1.5 * u, cos(ang) * 0.6, randf_range(1.0, 1.6), 0.06 * H, 0.015, "ffffff", v.cc, 1.0, 0.25, 0.6)
+				n -= 1.0
+			if randf() < dt * (3.0 + 6.0 * u):
+				poeira(p.x, p.z, r, 1, v.cb, v.cc)
+		if v.f <= 0.0:
+			v.g.queue_free()
+			voltas.remove_at(i)
+		i -= 1
+
 # ---------------------------------------------------------------- rastros
 class Faixa:
 	var N: int
@@ -1567,6 +1684,7 @@ func _process(dt: float) -> void:
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
+	_voltas_passo(dt)
 	var i := agenda.size() - 1
 	while i >= 0:
 		agenda[i].t -= dt

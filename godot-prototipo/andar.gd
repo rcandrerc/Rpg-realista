@@ -82,9 +82,10 @@ func perto_obstaculos(px: float, pz: float) -> Array:
 func posicao() -> Vector3:
 	return Vector3(x, y, z)
 
-func por_em(p: Vector3) -> void:
+# usar_y: o lugar guardado diz a altura (em cima de um telhado ou no chão embaixo dele: Voltar para a vila, lugar ao sair)
+func por_em(p: Vector3, usar_y := false) -> void:
 	x = p.x
-	y = T.altura(p.x, p.z)
+	y = T.altura(p.x, p.z, p.y + 0.3) if usar_y else T.altura(p.x, p.z)
 	z = p.z
 	vy = 0.0
 	chao = true
