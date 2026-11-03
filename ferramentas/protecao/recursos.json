@@ -46,6 +46,8 @@
     { "nome": "Movimento com inércia (PR #53)", "arquivo": "godot-prototipo/andar.gd", "contem": ["# inércia: velocidade de verdade no chão", "const CORRIDA := 5.4"] },
     { "nome": "Corpo inclina nas curvas (PR #53)", "arquivo": "godot-prototipo/inclinar.gd", "contem": ["func _process_modification()"] },
     { "nome": "Arrancada em rampa e curva em arco (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func _inercia(", "const ACELERA_FIM", "const CURVA_CORRENDO"] },
+    { "nome": "Trote com a animação própria (Mixamo Jogging) entre o andar e a corrida (André 2026-11-03)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["tem_trote = player.has_animation(\"trote\")", "bt.connect_node(\"rapido\", 0, \"ts_trote\")", "const PASSO_TROTE"] },
+    { "nome": "Animação trote exportada no herói (André 2026-11-03)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["trote: 'trote'"] },
     { "nome": "Freada, meia-volta e curva com derrapada também no trote, não só na corrida (André 2026-11-03)", "arquivo": "godot-prototipo/andar.gd", "contem": ["const FREADA_MIN := 3.3", "const MEIA_VOLTA_MIN := 3.3", "const FREADA_TROTE", "const CURVA_TROTE", "* CURVA_TROTE +"] },
     { "nome": "Trote não gasta estamina por oscilação da rede (média de 0,3 s no servidor) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["j.janCorrida", "if (jan.t >= 0.3)"] },
     { "nome": "Freada com derrapada e meia-volta do Mixamo (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func iniciar_manobra(", "iniciar_manobra(\"freada\"", "iniciar_manobra(\"meia_volta\"", "func _passo_manobra("] },
