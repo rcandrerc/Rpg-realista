@@ -154,6 +154,7 @@ func _ready() -> void:
 	h.mana = P.st.manaMax
 	armas_lugar = JSON.parse_string(FileAccess.get_file_as_string("res://modelos/armas.json"))
 	mundo = JSON.parse_string(FileAccess.get_file_as_string("res://dados/mundo.json"))
+	pre_carregar()
 	terreno = Terreno.new(mundo)
 	mov = Andar.new(terreno, mundo)
 	mascara = load("res://modelos/mascara_vila.png").get_image()
@@ -184,8 +185,10 @@ func _ready() -> void:
 		e.tipo = b.tipo
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
-	montar_cacas()
-	montar_treino()
+	# 111 monstros e os espantalhos nascem aos poucos depois que a tela abre (criar_aos_poucos), na mesma ordem de
+	# antes: o servidor chama cada um pela posição na lista (v). Todos ficam a mais de 70 m de onde o herói nasce.
+	montar_cacas() # só põe na fila
+	_a_criar.append(montar_treino)
 	for n in mundo.get("npcs", []):
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
@@ -369,32 +372,38 @@ func montar_grama() -> void:
 		extras.append(int(n0 * area / pow(RAIO * 1.15, 2) * 0.8))
 	mm.instance_count = n0 + extras.reduce(func(s, n): return s + n, 0)
 	var rng := RandomNumberGenerator.new()
-	for i in mm.instance_count:
-		var cx := 0.0
-		var cz := 0.0
-		var rr := RAIO * 1.15
-		var ini := n0
-		for q in fora.size():
-			if i >= ini:
-				cx = float(fora[q].x)
-				cz = float(fora[q].z)
-				rr = (max(float(fora[q].rx), float(fora[q].rz)) * 1.27) if fora[q].has("rx") else float(fora[q].r) * 1.1
-			ini += extras[q]
-		var a := 0.0
-		var r := 0.0
-		for k in 20: # não nasce nas trilhas, na praça nem colada nas casas
-			a = rng.randf() * TAU
-			r = sqrt(rng.randf()) * rr
-			if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2 and (i < n0 or mov.dentro_do_mapa(cx + cos(a) * r, cz + sin(a) * r, -3.0)):
-				break
-		var s := rng.randf_range(0.7, 1.3)
-		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.6, 1.4), s))
-		mm.set_instance_transform(i, Transform3D(b, Vector3(cx + cos(a) * r, 0, cz + sin(a) * r)))
-		mm.set_instance_color(i, hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46))) # PALETA.grama do site
+	rng.seed = 20261103 # sempre o mesmo sorteio: dá para guardar pronto no celular (grama_guardada)
+	var buf := grama_guardada("vila", mm.instance_count)
+	if buf.size() != mm.instance_count * 16:
+		buf.resize(mm.instance_count * 16)
+		for i in mm.instance_count:
+			var cx := 0.0
+			var cz := 0.0
+			var rr := RAIO * 1.15
+			var ini := n0
+			for q in fora.size():
+				if i >= ini:
+					cx = float(fora[q].x)
+					cz = float(fora[q].z)
+					rr = (max(float(fora[q].rx), float(fora[q].rz)) * 1.27) if fora[q].has("rx") else float(fora[q].r) * 1.1
+				ini += extras[q]
+			var a := 0.0
+			var r := 0.0
+			for k in 20: # não nasce nas trilhas, na praça nem colada nas casas
+				a = rng.randf() * TAU
+				r = sqrt(rng.randf()) * rr
+				if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2 and (i < n0 or mov.dentro_do_mapa(cx + cos(a) * r, cz + sin(a) * r, -3.0)):
+					break
+			var s := rng.randf_range(0.7, 1.3)
+			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.6, 1.4), s))
+			folha(buf, i, b, Vector3(cx + cos(a) * r, 0, cz + sin(a) * r), hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46))) # PALETA.grama do site
+		guardar_grama("vila", buf)
+	mm.buffer = buf
 	grama = MultiMeshInstance3D.new()
 	grama.multimesh = mm
 	grama.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(grama)
+	picar_grama(mm, buf, grama) # o desenho vai em pedaços, filhos deste (o "Sem grama" do Teste ainda esconde tudo)
 	grama_da_mata(m, rng)
 
 # Mata (2026-11-03): chão de floresta com pouca grama, mais cheia nas clareiras. Um pedaço por círculo da mata, que
@@ -406,6 +415,21 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 		if not o.get("mata", false):
 			continue
 		var r0: float = float(o.rx)
+		rng.seed = 7000 + q # sempre o mesmo sorteio por círculo (dá para guardar pronto)
+		var guardada := grama_guardada("mata%d" % q, -1)
+		if guardada.size() >= 16:
+			var mg := MultiMesh.new()
+			mg.transform_format = MultiMesh.TRANSFORM_3D
+			mg.use_colors = true
+			mg.mesh = m
+			mg.instance_count = guardada.size() / 16
+			mg.buffer = guardada
+			var gg := MultiMeshInstance3D.new()
+			gg.multimesh = mg
+			gg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			gg.visibility_range_end = 70.0
+			add_child(gg)
+			continue
 		var pts: Array = []
 		for t in int(r0 * r0 * 3.2):
 			var a := rng.randf() * TAU
@@ -436,16 +460,91 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 		mm.use_colors = true
 		mm.mesh = m
 		mm.instance_count = pts.size()
+		var buf := PackedFloat32Array()
+		buf.resize(pts.size() * 16)
 		for i in pts.size():
 			var sc := rng.randf_range(0.7, 1.3)
 			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.6, 1.4), sc))
-			mm.set_instance_transform(i, Transform3D(b, Vector3(pts[i].x, 0, pts[i].y)))
-			mm.set_instance_color(i, hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46)))
+			folha(buf, i, b, Vector3(pts[i].x, 0, pts[i].y), hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46)))
+		mm.buffer = buf
 		var g := MultiMeshInstance3D.new()
 		g.multimesh = mm
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		g.visibility_range_end = 70.0
 		add_child(g)
+		guardar_grama("mata%d" % q, buf)
+
+# uma folha de grama no formato do MultiMesh (TRANSFORM_3D + cor): 12 números da posição/giro e 4 da cor
+func folha(buf: PackedFloat32Array, i: int, b: Basis, o: Vector3, c: Color) -> void:
+	var k := i * 16
+	buf[k] = b.x.x; buf[k + 1] = b.y.x; buf[k + 2] = b.z.x; buf[k + 3] = o.x
+	buf[k + 4] = b.x.y; buf[k + 5] = b.y.y; buf[k + 6] = b.z.y; buf[k + 7] = o.y
+	buf[k + 8] = b.x.z; buf[k + 9] = b.y.z; buf[k + 10] = b.z.z; buf[k + 11] = o.z
+	buf[k + 12] = c.r; buf[k + 13] = c.g; buf[k + 14] = c.b; buf[k + 15] = c.a
+
+# Grama pronta guardada no celular (2026-11-03): sortear ~40 mil folhas, conferindo trilha, casa e borda do mapa, levava
+# uns 3 s na abertura. O sorteio agora é sempre o mesmo, então na primeira vez ele fica gravado em user://grama/ e nas
+# próximas só lê. Muda o mapa (mundo.json ou a máscara da vila) ou a versão abaixo: sorteia e grava de novo.
+const GRAMA_VERSAO := "1"
+var _grama_chave := ""
+func _chave_grama() -> String:
+	if _grama_chave == "":
+		var hc := HashingContext.new()
+		hc.start(HashingContext.HASH_MD5)
+		hc.update((GRAMA_VERSAO + JSON.stringify(mundo)).to_utf8_buffer())
+		if mascara:
+			hc.update(mascara.get_data())
+		_grama_chave = hc.finish().hex_encode().left(16)
+	return _grama_chave
+
+func grama_guardada(nome: String, n: int) -> PackedFloat32Array:
+	var f := FileAccess.open("user://grama/%s_%s.bin" % [nome, _chave_grama()], FileAccess.READ)
+	if f == null:
+		return PackedFloat32Array()
+	var b := f.get_buffer(f.get_length()).to_float32_array()
+	if n >= 0 and b.size() != n * 16:
+		return PackedFloat32Array()
+	return b
+
+func guardar_grama(nome: String, buf: PackedFloat32Array) -> void:
+	DirAccess.make_dir_recursive_absolute("user://grama")
+	var f := FileAccess.open("user://grama/%s_%s.bin" % [nome, _chave_grama()], FileAccess.WRITE)
+	if f:
+		f.store_buffer(buf.to_byte_array())
+
+# A grama da vila e das áreas de fora era uma peça só: a placa de vídeo desenhava as ~30 mil folhas sempre que qualquer
+# pedacinho aparecia na tela. Agora vai em pedaços de 24 m, e cada pedaço só é desenhado perto (como a grama da mata)
+# e quando está na frente da câmera.
+const GRAMA_PEDACO := 24.0
+const GRAMA_ALCANCE := 92.0 # o pedaço some a 92 m do centro; cada folha some antes, encolhendo de 65 a 75 m (grama.gdshader)
+var grama_pedacos: Array = []
+func picar_grama(mm: MultiMesh, buf: PackedFloat32Array, inteira: MultiMeshInstance3D) -> void:
+	var grupos := {}
+	for i in mm.instance_count:
+		var k := Vector2i(floori(buf[i * 16 + 3] / GRAMA_PEDACO), floori(buf[i * 16 + 11] / GRAMA_PEDACO))
+		if not grupos.has(k):
+			grupos[k] = PackedInt32Array()
+		grupos[k].append(i)
+	for k in grupos:
+		var idx: PackedInt32Array = grupos[k]
+		var parte := PackedFloat32Array()
+		parte.resize(idx.size() * 16)
+		for j in idx.size():
+			for c in 16:
+				parte[j * 16 + c] = buf[idx[j] * 16 + c]
+		var p := MultiMesh.new()
+		p.transform_format = MultiMesh.TRANSFORM_3D
+		p.use_colors = true
+		p.mesh = mm.mesh
+		p.instance_count = idx.size()
+		p.buffer = parte
+		var g := MultiMeshInstance3D.new()
+		g.multimesh = p
+		g.cast_shadow = inteira.cast_shadow
+		g.visibility_range_end = GRAMA_ALCANCE
+		inteira.add_child(g)
+		grama_pedacos.append(g)
+	mm.visible_instance_count = 0 # a peça inteira não desenha mais nada (os pedaços desenham)
 
 # Desempenho (2026-11-03): na mata, a vila inteira (619 peças, a 100-200 m, atrás das árvores e da neblina) ainda era
 # desenhada: ~600 das ~900 chamadas de desenho do quadro. Agora cada peça da vila só é desenhada até uma distância
@@ -1922,6 +2021,8 @@ func _notification(what: int) -> void:
 		P.guardar_agora()
 
 func _process(dt: float) -> void:
+	if not _a_criar.is_empty():
+		criar_aos_poucos()
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
 	var agora_s: float = Time.get_ticks_usec() / 1000000.0
@@ -2403,22 +2504,59 @@ func montar_cacas() -> void:
 		var c: Dictionary = mundo.caca[ci]
 		var k := {"def": c, "vagas": [], "nx": 0.0, "t": 0.0}
 		for i in c.tipos.size():
-			var tipo := str(c.tipos[i])
-			var nv := int(c.get("nivel", 1))
-			var nome: String = NOME_TIPO.get(tipo, "Inimigo") + ("  Nv %d" % nv if c.has("nivel") else "")
-			var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, 1.15 if tipo == "chefe" else 1.0)
-			e.tipo = tipo
-			e.nivel = nv
-			if tipo == "lobo": # bicho de quatro patas: nome e barra mais perto do lombo
-				e.alto = 1.45
-			var st: Dictionary = c.get("status", {}).get(tipo, {}) # vida e dano no nível do campo (statusInimigo do servidor)
-			e.vida_max = float(st.get("vida", VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)))
-			e.dano = float(st.get("dano", D.INIMIGO.dmg))
-			e.vida = e.vida_max
-			e.caca = ci
-			e.centro = e.no.position
-			k.vagas.append(e)
+			_a_criar.append(criar_vaga.bind(k, ci, i)) # um monstro por vez (criar_aos_poucos), na ordem do servidor
 		cacas.append(k)
+
+func criar_vaga(k: Dictionary, ci: int, i: int) -> void:
+	var c: Dictionary = k.def
+	var tipo := str(c.tipos[i])
+	var nv := int(c.get("nivel", 1))
+	var nome: String = NOME_TIPO.get(tipo, "Inimigo") + ("  Nv %d" % nv if c.has("nivel") else "")
+	var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, 1.15 if tipo == "chefe" else 1.0)
+	e.tipo = tipo
+	e.nivel = nv
+	if tipo == "lobo": # bicho de quatro patas: nome e barra mais perto do lombo
+		e.alto = 1.45
+	var st: Dictionary = c.get("status", {}).get(tipo, {}) # vida e dano no nível do campo (statusInimigo do servidor)
+	e.vida_max = float(st.get("vida", VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)))
+	e.dano = float(st.get("dano", D.INIMIGO.dmg))
+	e.vida = e.vida_max
+	e.caca = ci
+	e.centro = e.no.position
+	k.vagas.append(e)
+	entrou_online(e)
+
+# monstro que nasceu da fila (criar_aos_poucos) depois que o jogo já entrou na sala: fica como os outros ficaram ao
+# entrar (online.ao_entrar), parado esperando a foto do servidor
+func entrou_online(e: Dictionary) -> void:
+	if online and online.ligado:
+		e.estado = "vivo"
+		e.seq = -1
+		e.uma_vez = 0.0
+		e.alvo = e.no.position
+
+# Tela de carregamento mais curta (2026-11-03): o que antes nascia tudo de uma vez no _ready (os 111 monstros dos
+# campos de caça e os espantalhos) entra numa fila e nasce aos poucos, poucos milissegundos por quadro.
+var _a_criar: Array = [] # Callables, na ordem em que precisam entrar em inimigos (o v do servidor)
+func criar_aos_poucos() -> void:
+	var t0 := Time.get_ticks_usec()
+	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < 4000:
+		(_a_criar.pop_front() as Callable).call()
+
+# Os modelos grandes (vila, corpos, monstros) começam a carregar todos juntos, em várias linhas do processador, logo no
+# começo. Quando o código chega no load() de cada um, só espera o que ainda falta (antes era um depois do outro).
+func pre_carregar() -> void:
+	var lista := ["res://modelos/vila.glb", "res://modelos/ruiva.glb", "res://treino3d/Dummy.gltf", "res://modelos/arma_espada.glb",
+		"res://armas3d/espada.glb", "res://armas3d/cajado.glb"]
+	for n in mundo.get("npcs", []):
+		lista.append("res://modelos/%s.glb" % MODELO_NPC.get(n.id, "vivi"))
+	for t in MODELO_TIPO.values():
+		lista.append("res://modelos/%s.glb" % t)
+	var vistos := {}
+	for p in lista:
+		if not vistos.has(p) and ResourceLoader.exists(p):
+			vistos[p] = true
+			ResourceLoader.load_threaded_request(p, "", true)
 
 # ponto ao acaso no campo (até caca.ate do raio), longe do herói e fora de árvore, pedra e veio
 func ponto_caca(c: Dictionary, inicio := false):
@@ -2481,6 +2619,7 @@ func montar_treino() -> void:
 		if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
 			push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
 		inimigos.append(criar_espantalho(t))
+		entrou_online(inimigos[-1])
 
 func criar_espantalho(t: Dictionary) -> Dictionary:
 	var no := Node3D.new()
