@@ -94,6 +94,39 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("st"):
 		for k in ev.st:
 			st[k] = float(ev.st[k])
+	_guardar_t = GUARDAR_DEPOIS if _guardar_t < 0.0 else _guardar_t
+
+# Cópia no celular do progresso que veio do servidor. Desempenho (2026-11-03): cada monstro morto manda o progresso
+# (XP) e o jogo gravava o arquivo na hora, no meio do quadro: no Android isso dá um tranco bem na morte do bicho.
+# Agora grava no máximo a cada GUARDAR_DEPOIS s, fora do quadro (WorkerThreadPool), e na hora quando o app vai para
+# o fundo ou fecha (main.gd _notification). O servidor continua sendo quem guarda de verdade.
+const GUARDAR_DEPOIS := 8.0
+var _guardar_t := -1.0 # s para gravar; -1 = nada pendente
+var _tarefa := -1
+func passo(dt: float) -> void:
+	if _guardar_t < 0.0:
+		return
+	_guardar_t -= dt
+	if _guardar_t > 0.0:
+		return
+	if _tarefa >= 0 and not WorkerThreadPool.is_task_completed(_tarefa):
+		return # a gravação anterior ainda não terminou: tenta no próximo quadro
+	if _tarefa >= 0:
+		WorkerThreadPool.wait_for_task_completion(_tarefa)
+	_guardar_t = -1.0
+	var txt := JSON.stringify(prog)
+	_tarefa = WorkerThreadPool.add_task(func():
+		var cfg := ConfigFile.new()
+		cfg.set_value("conta", "progresso", txt)
+		cfg.save(ARQUIVO))
+
+func guardar_agora() -> void:
+	if _tarefa >= 0:
+		WorkerThreadPool.wait_for_task_completion(_tarefa)
+		_tarefa = -1
+	if _guardar_t < 0.0:
+		return
+	_guardar_t = -1.0
 	var cfg := ConfigFile.new()
 	cfg.set_value("conta", "progresso", JSON.stringify(prog))
 	cfg.save(ARQUIVO)
