@@ -3,6 +3,7 @@
   "recursos": [
     { "nome": "APK casca: baixa o jogo inteiro em partes e depois só as mudanças (André 2026-11-03)", "arquivo": "godot-prototipo/inicio.gd", "contem": ["func _casca_iniciar(", "func _casca_baixar_completo(", "func _casca_entrar(", "const CONTEUDO_JSON"] },
     { "nome": "Preset do APK casca", "arquivo": "godot-prototipo/export_presets.cfg", "contem": ["name=\"Android casca\""] },
+    { "nome": "Conteúdo sobe para o balde Oracle Aethra-jofo e o app baixa de lá (André 2026-11-03)", "arquivo": "ferramentas/atualizacao/publicar-conteudo.sh", "contem": ["oracle-par-envio.txt", "Aethra-jofo", ".url_base = $u"] },
     { "nome": "CI gera o APK casca e publica o conteúdo", "arquivo": ".github/workflows/apk.yml", "contem": ["--export-release \"Android casca\"", "publicar-conteudo.sh"] },
     { "nome": "Servidor manda a cada celular só o que está perto (área de interesse) e só o que mudou (André 2026-11-03)", "arquivo": "server/visao.js", "contem": ["export class Visao", "paraJogador(ctx, id)", "maxJogadores:", "\"mapa\":"] },
     { "nome": "Servidor usa a área de interesse para quem pede (aoi)", "arquivo": "server/index.js", "contem": ["this.visao.paraJogador(", "opcoes?.aoi === true"] },

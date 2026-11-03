@@ -62,6 +62,10 @@ else
 fi
 
 # Oracle (opcional): sobe os arquivos novos e aponta o app para lá
+# Sem o secret, usa o link guardado no repositório privado (André autorizou, 2026-11-03). Cópia oficial: fontes chaves/oracle-par-envio.txt
+ARQ_PAR="$(dirname "$0")/oracle-par-envio.txt"
+[ -z "${ORACLE_PAR:-}" ] && [ -f "$ARQ_PAR" ] && ORACLE_PAR="$(head -n1 "$ARQ_PAR")"
+ORACLE_URL="${ORACLE_URL:-https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/}"
 if [ -n "${ORACLE_PAR:-}" ] && [ -n "${ORACLE_URL:-}" ]; then
   for f in "$TMP/novo/"*; do
     [ "$(basename "$f")" = conteudo.json ] && continue
