@@ -5,6 +5,17 @@ O GitHub Pages publica, junto com o jogo, o pacote do servidor em
 A máquina da Oracle confere esse endereço a cada 5 minutos e, se a versão mudou, baixa e reinicia sozinha.
 Ou seja: depois de instalada, todo merge na `main` chega no servidor em poucos minutos, sem mexer na máquina.
 
+## Código do servidor trancado (André 2026-11-03)
+
+O site do GitHub Pages é público, então o código do servidor não fica mais aberto lá.
+Na máquina da Oracle o servidor cria um par de chaves na primeira vez (`/opt/rpg/chave-privada.pem`, nunca sai de lá)
+e mostra a chave pública em `/chave-do-servidor`. A cada merge, o CI pega essa chave, tranca o pacote
+(`trancar.mjs`) e publica só `servidor/pacote.json` + `servidor/pacote-versao.txt`. O próprio servidor confere a cada
+5 minutos, abre o pacote, troca os arquivos e reinicia (`server/atualizar.js`). O `instalar.sh` continua público (não tem código do jogo).
+
+Máquina nova (ainda sem chave): rode o workflow "Publicar no GitHub Pages" à mão com **abrir_servidor** marcado.
+O pacote sai aberto só nessa vez; depois que a máquina subir, rode de novo sem marcar para fechar.
+
 ## Criar a máquina
 
 1. Compute → Instances → Create instance, região Brazil East (São Paulo).
