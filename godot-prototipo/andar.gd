@@ -34,6 +34,9 @@ var manobra = null # andando pelo caminho do quadril de uma animação (freada, 
 var altura_quadril := 0.9 # metros (main.gd mede no herói): o caminho do quadril vem em alturas de quadril
 var _correu := 0.0 # segundos correndo rápido (freada de verdade só depois de embalar)
 var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
+# 3 velocidades (André 2026-11-03): o joystick só anda (1) e trota (2); a corrida de 5,4 m/s, a que gasta estamina,
+# só com o botão de disparada ligado (hud.gd "disparada", main.gd ligar_disparada). Sem fôlego ela desliga sozinha.
+var disparada := false
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
@@ -277,6 +280,7 @@ func passo_vertical(dt: float) -> void:
 # o quanto o pé de apoio anda para trás por segundo com a animação em 1x (medido em teste_passo.gd).
 # A animação toca em velocidade / PASSO_*: o pé acompanha o chão e não parece que desliza.
 const CORRIDA := 5.4
+const TROTE := CORRIDA * 0.7 # = ESTAMINA.trote x HEROI.correr (shared/dados.js): o máximo do joystick, não gasta estamina
 const ANDAR := 1.8
 const PASSO_CORRIDA := 4.0
 const PASSO_ANDAR := 1.15
@@ -300,13 +304,16 @@ const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
 const COYOTE := 0.12 # s depois de sair da beirada em que o pulo ainda vale
 const SUBPASSO := 1.0 / 60.0 # o movimento roda em passos de 1/60 s: pulo e corrida iguais a 30 ou 60 FPS
 
-# velocidade que a força do joystick pede: devagar no começo, andar até a metade e corrida no fim (sem degrau)
-static func vel_joystick(forca: float) -> float:
+# velocidade que a força do joystick pede: devagar no começo, andar até a metade e trote no fim (sem degrau).
+# Com a disparada ligada, o joystick a partir de 30% já pede a corrida inteira.
+static func vel_joystick(forca: float, disparando := false) -> float:
 	if forca < 0.15:
 		return 0.0
+	if disparando and forca >= 0.3:
+		return CORRIDA
 	if forca < 0.5:
 		return ANDAR * lerp(0.55, 1.0, (forca - 0.15) / 0.35)
-	return lerp(ANDAR, CORRIDA, smoothstep(0.5, 0.9, forca))
+	return lerp(ANDAR, TROTE, smoothstep(0.5, 0.9, forca))
 
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	var n: int = max(1, ceili(dt / SUBPASSO - 0.001))
@@ -333,14 +340,14 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		if a.t <= 0:
 			arrancada = null
 			# sai do dash correndo na mesma direção (sem parar seco)
-			var sai: float = min(CORRIDA, vel_max) if mag > 0.5 else 1.5
+			var sai: float = min(CORRIDA if disparada else TROTE, vel_max) if mag > 0.5 else 1.5
 			vx = a.dx * sai
 			vz = a.dz * sai
 	else:
 		# velocidade que o joystick pede
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
-			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag) * vel_k, vel_max)
+			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max)
 		var s0 := Vector2(vx, vz).length()
 		_correu = _correu + dt if s0 > FREADA_MIN else 0.0
 		if manobra == null and chao and livre and m.has("raiz"):
