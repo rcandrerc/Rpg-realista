@@ -351,20 +351,22 @@ func _desenhar_grande() -> void:
 	c.draw_arc(cx, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
 	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)
 	c.draw_line(cx + Vector2(6, -6), cx + Vector2(-6, 6), Color(1, 0.95, 0.85), 2.5, true)
-	# lugar marcado: pino e o botão "Ir para" logo acima dele (dentro da tela)
+	# lugar marcado: pino e o botão "Ir para" a ~70 px dele, do lado com mais espaço livre (direção de arte: o botão
+	# nunca cobre o pino, a rota nem o nome de uma clareira), ligado ao pino por uma linha fina dourada
 	botao_ir = Rect2()
 	if marcado != null:
 		var qm: Vector2 = em.call(marcado.x, marcado.y)
 		_pino(c, qm, 1.15)
 		var metros: float = m.rota.comprimento(previa) if m.rota else 0.0
-		var t1 := "Ir para"
+		var lugar := _clareira_em(marcado)
+		var t1 := "Ir para %s" % lugar if lugar != "" else "Ir para"
 		var t2 := "%d m pela estrada" % int(round(metros))
 		var w: float = max(fonte.get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 36.0
-		var bt := Rect2(qm + Vector2(-w * 0.5, -86.0), Vector2(w, 54.0))
-		if bt.position.y < 6.0:
-			bt.position.y = qm.y + 22.0
-		bt.position.x = clamp(bt.position.x, 6.0, c.size.x - w - 6.0)
+		var bt := _lugar_do_botao(qm, Vector2(w, 54.0), em, Rect2(o, Vector2(lado, lado)))
 		botao_ir = bt.grow(8.0) # dedo: área de toque um pouco maior que o desenho
+		var borda: Vector2 = Vector2(clamp(qm.x, bt.position.x, bt.end.x), clamp(qm.y, bt.position.y, bt.end.y))
+		c.draw_line(qm + (borda - qm).normalized() * 6.0, borda, Color(0.05, 0.04, 0.03, 0.6), 3.0, true)
+		c.draw_line(qm + (borda - qm).normalized() * 6.0, borda, COR_OURO, 1.2, true)
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = Color(0.12, 0.09, 0.05, 0.94)
 		sb.border_color = COR_OURO
@@ -376,10 +378,70 @@ func _desenhar_grande() -> void:
 		_texto(c, bt.position + Vector2(w * 0.5, 19.0), t1, 20, COR_OURO, true, 4)
 		_texto(c, bt.position + Vector2(w * 0.5, 39.0), t2, 13, Color(1, 0.96, 0.88, 0.85), true, 3)
 
-# rota no mapa completo: linha tracejada dourada do herói até o lugar
+# nome da clareira onde caiu o toque ("Puglins Nv 15"), ou ""
+func _clareira_em(p: Vector2) -> String:
+	for cc in m.mundo.get("caca", []):
+		if p.distance_to(Vector2(float(cc.x), float(cc.z))) <= float(cc.get("r", 12.0)) + 2.0:
+			return "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))]
+	return ""
+
+# onde o botão "Ir para" fica: abaixo, à direita, à esquerda ou acima do pino (~70 px), o lugar que cobre menos coisa
+# (pino, rota, marcas e nomes das clareiras) e cabe no mapa
+func _lugar_do_botao(qm: Vector2, tam: Vector2, em: Callable, mapa: Rect2) -> Rect2:
+	var ocupado: Array = [Rect2(qm - Vector2(14, 34), Vector2(28, 40))] # o pino
+	for cc in m.mundo.get("caca", []):
+		var q: Vector2 = em.call(float(cc.x), float(cc.z))
+		var nome := "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))]
+		var nw: float = fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		ocupado.append(Rect2(q - Vector2(13, 13), Vector2(26, 26)))
+		ocupado.append(Rect2(q + Vector2(-nw * 0.5 - 3.0, 12.0), Vector2(nw + 6.0, 20.0)))
+	var rota_px: Array = []
+	for pt in previa:
+		rota_px.append(em.call(pt.x, pt.y))
+	var hp: Vector3 = m.heroi.position
+	rota_px.push_front(em.call(hp.x, hp.z))
+	var melhor := Rect2()
+	var menor := INF
+	var dirs := [Vector2(0, 1), Vector2(1, 0), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]
+	for dist in [70.0, 100.0, 135.0]:
+		for d in dirs:
+			var u: Vector2 = d.normalized()
+			var centro: Vector2 = qm + Vector2(0, -12) + u * (dist + (tam.x * 0.5 * abs(u.x) + tam.y * 0.5 * abs(u.y)) * 0.6)
+			var r := Rect2(centro - tam * 0.5, tam)
+			r.position.x = clamp(r.position.x, mapa.position.x + 4.0, mapa.end.x - tam.x - 4.0)
+			r.position.y = clamp(r.position.y, mapa.position.y + 4.0, mapa.end.y - tam.y - 4.0)
+			var custo: float = dist # mais perto é melhor, se não cobrir nada
+			var rg := r.grow(4.0)
+			for o in ocupado:
+				if rg.intersects(o):
+					custo += 5000.0 + rg.intersection(o).get_area()
+			for k in range(1, rota_px.size()):
+				if _corta(rg, rota_px[k - 1], rota_px[k]):
+					custo += 3000.0
+			if custo < menor - 0.5:
+				menor = custo
+				melhor = r
+	return melhor
+
+# o segmento a-b passa pelo retângulo?
+func _corta(r: Rect2, a: Vector2, b: Vector2) -> bool:
+	var n: int = max(1, int(a.distance_to(b) / 4.0))
+	for k in n + 1:
+		if r.has_point(a.lerp(b, float(k) / n)):
+			return true
+	return false
+
+# rota no mapa completo: linha tracejada dourada do herói até o lugar; durante a viagem o trecho já andado fica
+# apagado (35%), para mostrar o progresso
 func _rota_grande(c: Control, r: PackedVector2Array, de: int, em: Callable) -> void:
 	if r.is_empty():
 		return
+	if de > 0:
+		var ja: Vector2 = em.call(r[0].x, r[0].y)
+		for j in range(1, min(de, r.size() - 1) + 1):
+			var q0: Vector2 = em.call(r[j].x, r[j].y)
+			c.draw_dashed_line(ja, q0, Color(COR_ROTA, 0.35), 2.5, 5.0, true)
+			ja = q0
 	var hp: Vector3 = m.heroi.position
 	var ant: Vector2 = em.call(hp.x, hp.z)
 	for j in range(de, r.size()):
