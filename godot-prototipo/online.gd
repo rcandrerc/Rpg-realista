@@ -29,6 +29,9 @@ var _visual_txt := "" # último corpo do meu herói que veio do servidor
 var _visual_mandado := "" # corpo do criador que já foi para o servidor (conta nova, ao vivo)
 var _status_t := 0.0
 var jogadores := 0
+# Área de interesse (server/visao.js): o servidor manda só o que está perto, e de cada corpo só o que mudou.
+var _srv := {} # id -> tudo o que já chegou daquele corpo (a foto nova completa o que faltou)
+var no_mapa: Array = [] # [[id, x, z], ...] de todos os jogadores da sala (a cada 0,5 s): mapa e minimapa
 # tela de login
 var tela: CanvasLayer
 var painel: Control
@@ -299,12 +302,27 @@ func ao_receber(tipo, dados) -> void:
 	for ev in dados.get("eventos", []):
 		evento(ev)
 
+# corpo que veio pela metade (área de interesse): junta com o que já se sabia dele. "_mexeu" = trouxe posição nova
+func _juntar(c: Dictionary, agora: Dictionary) -> Dictionary:
+	var id := str(c.get("id", ""))
+	var tudo: Dictionary = _srv.get(id, {})
+	tudo.merge(c, true)
+	tudo["_mexeu"] = c.has("x")
+	_srv[id] = tudo
+	agora[id] = true
+	return tudo
+
 func aplicar_foto(f: Dictionary) -> void:
 	corpos.clear()
 	corpos[meu_id] = m.heroi
 	var vistos := {}
 	jogadores = 0
-	for j in f.get("jogadores", []):
+	var aoi := f.has("aoi")
+	var agora := {} # ids que vieram nesta foto (área de interesse)
+	if f.has("mapa"):
+		no_mapa = f.mapa
+	for j0 in f.get("jogadores", []):
+		var j: Dictionary = _juntar(j0, agora) if aoi and str(j0.get("id", "")) != meu_id else j0
 		if j.get("criando", false):
 			if str(j.id) == meu_id and not _pronto: # conta nova: abre o criador (a base é a Ruiva)
 				_pronto = true
@@ -326,14 +344,21 @@ func aplicar_foto(f: Dictionary) -> void:
 		else:
 			vistos[str(j.id)] = true
 			outro(j)
+	if aoi: # quem está na sala inteira (a foto só traz os de perto)
+		jogadores = int(f.get("total", jogadores))
 	for id in outros.keys():
 		if not vistos.has(id):
 			outros[id].no.queue_free()
 			outros.erase(id)
 	var com_corpo := {}
-	for e in f.get("inimigos", []):
+	for e0 in f.get("inimigos", []):
+		var e: Dictionary = _juntar(e0, agora) if aoi else e0
 		inimigo(e)
 		com_corpo[int(e.get("v", -1))] = true
+	if aoi: # quem saiu de perto (ou sumiu do servidor): esquece; se voltar, o servidor manda inteiro de novo
+		for id in _srv.keys():
+			if not agora.has(id):
+				_srv.erase(id)
 	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo
 	for v in m.inimigos.size():
 		var e: Dictionary = m.inimigos[v]
@@ -429,9 +454,11 @@ func outro(j: Dictionary) -> void:
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
-	if roupa.contains("capa"):
+	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
+	if roupa.contains("capa") and mexeu:
 		m.Armadura.vento(o.no, Vector2(o.alvo.x - antes.x, o.alvo.z - antes.z).length() * 20.0, 0.05)
-	_amostra(o, o.alvo, o.ry)
+	if mexeu:
+		_amostra(o, o.alvo, o.ry, j.has("_mexeu"))
 	corpos[id] = o.no
 	if o.barra:
 		o.barra.scale.x = max(0.001, float(j.vida) / max(1.0, float(j.vidaMax)))
@@ -483,7 +510,8 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)
-	_amostra(e, e.alvo, e.ry)
+	if c.get("_mexeu", true): # área de interesse: monstro parado vem só com o id
+		_amostra(e, e.alvo, e.ry, c.has("_mexeu"))
 	if float(c.vida) < float(e.get("vida", c.vida)):
 		e.combate = m.tempo + 5.0 # levou dano: nome aparece por 5 s
 	e.vida = float(c.vida)
@@ -699,10 +727,16 @@ const ATRASO := 0.1 # s atrás do servidor: sempre tem duas fotos para andar ent
 func _agora() -> float:
 	return Time.get_ticks_usec() / 1000000.0
 
-func _amostra(o: Dictionary, p: Vector3, ry: float) -> void:
+func _amostra(o: Dictionary, p: Vector3, ry: float, aoi := false) -> void:
 	if not o.has("buf"):
 		o.buf = []
-	o.buf.append([_agora(), p, ry])
+	var ag := _agora()
+	# área de interesse: parado não manda posição; quando volta a andar, segura onde estava até um instante antes
+	# (senão ele pularia direto para o meio do caminho)
+	if aoi and not o.buf.is_empty() and ag - o.buf[o.buf.size() - 1][0] > 0.15:
+		var u: Array = o.buf[o.buf.size() - 1]
+		o.buf.append([ag - 0.05, u[1], u[2]])
+	o.buf.append([ag, p, ry])
 	while o.buf.size() > 8:
 		o.buf.pop_front()
 
@@ -758,6 +792,8 @@ func _passo(dt: float) -> void:
 		_interpolar(o, o.no, dt)
 		o.uma_vez = max(0.0, o.uma_vez - dt)
 	for e in m.inimigos:
+		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
+			continue
 		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
 			_interpolar(e, e.no, dt)
 			e.uma_vez = max(0.0, e.get("uma_vez", 0.0) - dt)
