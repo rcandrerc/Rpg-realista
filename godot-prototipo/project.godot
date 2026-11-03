@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 config/name="RPG Prototipo Godot"
-run/main_scene="res://main.tscn"
+run/main_scene="res://inicio.tscn"
 config/features=PackedStringArray("4.5", "Mobile")
 
 [display]
