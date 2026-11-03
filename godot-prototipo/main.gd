@@ -26,6 +26,7 @@ const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Minimapa = preload("res://minimapa.gd")
 const Rota = preload("res://rota.gd")
+const Montaria = preload("res://montaria.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -103,6 +104,7 @@ var cam # camera_heroi.gd: segue com mola, vai para as costas correndo, treme no
 var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada
 var inclinar # inclinar.gd: tronco inclina na curva e o quadril afunda no pouso
 var sons # sons.gd
+var montaria = null # montaria.gd: montado no lobo (botão do lobo); null = a pé
 # sensação do combate (ajuste aqui testando no celular)
 const FILA_TEMPO := 0.3 # s que um botão apertado na hora errada fica guardado esperando poder sair
 const FILA_PULO := 0.15 # o pulo apertado pouco antes de pousar sai no pouso
@@ -695,6 +697,7 @@ func trocar_corpo(v, salvar := true) -> void:
 	var novo := corpo_valido(v)
 	if novo == visual and heroi != null:
 		return
+	montar_lobo(false, false) # o lobo segura o esqueleto do corpo antigo (o servidor acerta pela foto)
 	visual = novo
 	if heroi == null:
 		return
@@ -810,17 +813,96 @@ func armar(modo: String) -> void:
 	if modo != "Escalada":
 		h.modo = modo
 	var L: Dictionary = lugar_armas()
-	if modo == "Escalada": # escalando: as duas nas costas, mãos livres
+	if modo == "Escalada" or montaria != null: # escalando ou montado: as duas nas costas, mãos livres
 		prender(heroi_esq, espada, L.espadaCostas)
 		prender(heroi_esq, cajado, L.cajadoCostas)
+		if montaria != null:
+			armas_montado(heroi_esq, espada, cajado)
 	elif modo == "Espada":
+		colisor_espada(heroi_esq, null)
 		prender(heroi_esq, espada, L.espadaMao)
 		prender(heroi_esq, cajado, L.cajadoCostas)
 	else:
+		colisor_espada(heroi_esq, null)
 		prender(heroi_esq, espada, L.espadaCostas)
 		if cajado.get_parent():
 			cajado.get_parent().remove_child(cajado)
 		heroi.add_child(cajado) # na mão: segue a mão mas fica de pé (como no site), ver _process
+
+# Montado: as armas continuam nas costas, mas giram para trás (no eixo do lado do corpo) para compensar o tronco
+# deitado (como no site): ficam rentes às costas, sem cruzar o rosto nem a cabeça
+const MONTADO_ATRAS := deg_to_rad(62.0) # cajado: o tronco deita ~55° (cavalgar.gd)
+# espada (presa pelo cabo, lâmina para baixo e para trás): com o peito deitado a lâmina já aponta para o rabo do lobo;
+# [giro no plano das costas, giro no eixo do lado do corpo (rad)] a deixa rente às costas, e ela desliza
+# MONTADO_ESPADA_RECUA m para trás pela lâmina, para o cabo sair do lado da cabeça
+const MONTADO_ESPADA := [0.0, 0.45]
+const MONTADO_ESPADA_RECUA := 0.22
+func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
+	var b := esq.find_bone("J_Bip_C_UpperChest")
+	if b < 0:
+		return
+	var p := func(n: String) -> Vector3: return esq.get_bone_global_rest(esq.find_bone(n)).origin
+	var cima: Vector3 = (p.call("J_Bip_C_Head") - p.call("J_Bip_C_Hips")).normalized()
+	var dir: Vector3 = (p.call("J_Bip_R_UpperArm") - p.call("J_Bip_L_UpperArm")).normalized()
+	var fr: Vector3 = cima.cross(dir).normalized()
+	if (p.call("J_Bip_R_ToeBase") - p.call("J_Bip_R_Foot")).dot(fr) < 0.0:
+		fr = -fr
+	var rb := esq.get_bone_global_rest(b).basis.orthonormalized().inverse()
+	var lado: Vector3 = (rb * fr.cross(cima)).normalized() # no espaço do osso do peito
+	var normal: Vector3 = (rb * fr).normalized() # para fora das costas
+	caj.basis = Basis(lado, MONTADO_ATRAS) * caj.basis
+	esp.basis = Basis(lado, MONTADO_ESPADA[1]) * Basis(normal, MONTADO_ESPADA[0]) * esp.basis
+	esp.position += esp.basis.y.normalized() * MONTADO_ESPADA_RECUA
+	colisor_espada(esq, esp)
+
+# Montado: a lâmina vira um colisor (cápsula de 4 cm) para o cabelo (molas) cair por fora dela, como no site.
+# esp = null tira o colisor (a pé a espada volta para a mão ou para o lugar de sempre nas costas)
+func colisor_espada(esq: Skeleton3D, esp) -> void:
+	var sim: SpringBoneSimulator3D = null
+	for c in esq.get_children():
+		if c is SpringBoneSimulator3D:
+			sim = c
+			break
+	if sim == null:
+		return
+	var col = sim.get_node_or_null("ColisorEspada")
+	if esp == null:
+		if col:
+			col.queue_free()
+			col.name = "ColisorEspada_fora"
+		return
+	if col == null:
+		col = SpringBoneCollisionCapsule3D.new()
+		col.name = "ColisorEspada"
+		col.radius = 0.04
+		sim.add_child(col)
+	var t: Transform3D = esp.transform # no espaço do osso do peito (a espada está presa nele)
+	var k: float = t.basis.get_scale().y
+	col.bone_name = "J_Bip_C_UpperChest"
+	col.position_offset = t * Vector3(0, 0.56, 0) # meio da lâmina (de 0,2 a 0,92 da espada)
+	col.rotation_offset = t.basis.orthonormalized().get_rotation_quaternion()
+	col.height = 0.72 * k + 0.08
+
+# sobe ou desce do lobo (o servidor também: Simulacao.montar); a pé de novo, as armas voltam para o modo de antes
+func montar_lobo(v: bool, avisar_servidor := true) -> void:
+	if v == (montaria != null):
+		return
+	if v:
+		montaria = Montaria.new(self, "lobo", heroi, heroi_esq)
+		mov.montado = Montaria.DADOS.lobo
+		mov.manobra = null
+		acao = {}
+		h.pend = null
+		heroi_anim.play("parada", 0.2)
+		sons.tocar("pano", -6.0)
+	else:
+		montaria.remover()
+		montaria = null
+		mov.montado = {}
+	armar(h.modo)
+	hud.ligar_botao("montar", v)
+	if avisar_servidor:
+		rede("montar")
 
 func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -> Dictionary:
 	var no := modelo(id)
@@ -1443,6 +1525,11 @@ func usar(qual: String) -> void:
 		return
 	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar"]:
 		trabalho.parar(true) # qualquer ação para a coleta
+	# montado: golpe, skill, cura, dash, rolar, pulo e coleta descem do lobo antes (como no servidor: luta a pé)
+	if montaria != null and (qual in ["basico", "cura", "dash", "rolar", "pular", "coletar"] or qual.begins_with("hab")):
+		montar_lobo(false)
+		if qual == "pular":
+			return # o pulo só desce do lobo
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
 			cancelar_canal()
@@ -1450,14 +1537,14 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar", "disparada"]:
+	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar", "disparada", "montar"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
 # Desliga tocando de novo, quando a estamina acaba (trabalho.gd) ou quando o herói para de andar.
 var _parado_disparada := 0.0
 func ligar_disparada(v: bool) -> void:
-	if v and trabalho.sem_folego:
+	if v and trabalho.sem_folego and montaria == null: # montado quem corre é o lobo
 		hud.aviso("Sem fôlego!")
 		hud.negar("disparada")
 		return
@@ -1478,6 +1565,15 @@ func _tentar(qual: String) -> bool:
 	match qual:
 		"disparada":
 			ligar_disparada(not mov.disparada)
+		"montar": # botão do lobo: sobe (parado ou andando, no chão) ou desce
+			if montaria != null:
+				montar_lobo(false)
+			elif mov.esc != null or not mov.chao or not acao.is_empty() or mov.arrancada != null:
+				hud.negar("montar")
+			else:
+				if trabalho.coletando != null:
+					trabalho.parar(true)
+				montar_lobo(true)
 		"basico":
 			# segura só se o dedo ainda está no botão (um toque que saiu da fila depois de soltar não trava a repetição)
 			h.segurando = hud.segurando("basico")
@@ -2218,7 +2314,9 @@ func atualizar_heroi(dt: float) -> void:
 				heroi_anim.seek(0.0, true)
 	elif acao.is_empty():
 		var a := ""
-		if mov.manobra != null and heroi_anim.has_animation(mov.manobra.nome):
+		if montaria != null:
+			a = "parada" # montado: quem anda é o lobo (cavalgar.gd põe o corpo na sela por cima)
+		elif mov.manobra != null and heroi_anim.has_animation(mov.manobra.nome):
 			a = mov.manobra.nome # freada e meia-volta: o corpo anda pelo caminho do quadril da animação (andar.gd)
 		elif mov.arrancada != null:
 			a = "corrida"
@@ -2243,7 +2341,7 @@ func atualizar_heroi(dt: float) -> void:
 		elif mov.manobra != null and a == mov.manobra.nome:
 			heroi_anim.ritmo_acao(mov.ritmo_manobra())
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
-	if h.modo == "Magia" and mov.esc == null:
+	if h.modo == "Magia" and mov.esc == null and montaria == null:
 		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
 		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi)
 		if cajado.visible and heroi.visible:
@@ -2262,9 +2360,11 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var vel_anim: float = vel
 	if mov.arrancada != null:
 		vel_anim = mov.CORRIDA * 1.2
-	elif not mov.chao or mov.esc != null:
+	elif not mov.chao or mov.esc != null or montaria != null:
 		vel_anim = 0.0
 	heroi_anim.atualizar(dt, vel_anim)
+	if montaria != null:
+		montaria.passo(dt, vel)
 	# Peso do corpo: molas que passam do ponto e voltam (o "tranco" da freada e da arrancada).
 	# Arrancando, o tronco vai para a frente; freando, vai para trás e o quadril desce; quando para,
 	# a mola joga o tronco para a frente e ele volta ao lugar. Na curva deita para dentro e, ao endireitar, volta balançando.
@@ -2272,7 +2372,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
 	_vel_ant = vel
 	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
-	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty()
+	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty() and montaria == null
 	# arrancada: saindo do parado com o joystick todo, as pernas tocam a animação de sair correndo
 	if heroi_anim.arrancando <= 0.0:
 		if livre_corpo and vel_antes < 0.4 and _forca_joy > 0.85 and mov.vel_max > 4.0 and mov.disparada: # arranca só na disparada (o joystick sozinho trota)
@@ -2324,6 +2424,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	if mov.chao and mov.esc == null and vel > 0.5:
 		_passo_dist += vel * dt
 		var passada: float = lerp(0.75, 1.45, clamp((vel - 1.8) / 3.6, 0.0, 1.0))
+		if montaria != null: # patas do lobo: passada mais longa no galope
+			passada = lerp(0.9, 2.6, clamp((vel - 3.0) / 6.0, 0.0, 1.0))
 		if _passo_dist >= passada:
 			_passo_dist = 0.0
 			sons.tocar("passo", -14.0 + vel * 1.4, 0.12)
@@ -2868,6 +2970,7 @@ func ferir_heroi(dmg: float) -> void:
 		h.vida = 0.0
 		h.morto = D.HEROI.renascer
 		acao = {}
+		montar_lobo(false, false) # caiu: desce do lobo (o servidor também)
 		heroi_anim.play("morrer", 0.1)
 		hud.aviso("Você caiu! Voltando...")
 

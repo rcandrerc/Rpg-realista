@@ -7,6 +7,7 @@ extends Node
 const Rede = preload("res://rede.gd")
 const D = preload("res://dados.gd")
 const Aparencia = preload("res://aparencia.gd")
+const Montaria = preload("res://montaria.gd")
 
 var m # main.gd
 var rede
@@ -380,6 +381,7 @@ func aplicar_foto(f: Dictionary) -> void:
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
 		esconder_login()
 
+var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	var ap_txt := JSON.stringify(j.get("aparencia"))
@@ -391,6 +393,14 @@ func meu(j: Dictionary) -> void:
 		_ap_txt = ap_txt
 		if j.get("aparencia") is Dictionary:
 			m.definir_aparencia(j.aparencia)
+	# montaria: o servidor decide (se ele desceu o herói, ou não deixou subir, o app segue depois de um instante)
+	var sm: bool = j.get("montado") != null
+	if sm != (m.montaria != null) and h.morto <= 0.0:
+		_montado_dif += 0.05
+		if _montado_dif > 0.8:
+			m.montar_lobo(sm, false)
+	else:
+		_montado_dif = 0.0
 	h.mana = float(j.mana)
 	if j.has("sta"):
 		m.trabalho.do_servidor(float(j.sta))
@@ -399,6 +409,7 @@ func meu(j: Dictionary) -> void:
 			h.vida = 0.0
 			h.morto = 999.0 # espera o servidor levantar
 			m.acao = {}
+			m.montar_lobo(false, false) # o servidor também desce
 			m.heroi_anim.play("morrer", 0.1)
 			m.hud.aviso("Você caiu!")
 	elif h.morto > 0.0:
@@ -471,16 +482,35 @@ func outro(j: Dictionary) -> void:
 	corpos[id] = o.no
 	if o.barra:
 		o.barra.scale.x = max(0.001, float(j.vida) / max(1.0, float(j.vidaMax)))
+	# montado no lobo (Simulacao.montar): o lobo embaixo, o corpo agachado na sela e as armas nas costas
+	var montado: bool = j.get("montado") != null and not j.get("morto", false)
+	if montado != (o.get("montaria") != null):
+		if montado:
+			o.montaria = Montaria.new(m, str(j.montado) if Montaria.DADOS.has(str(j.montado)) else "lobo", o.no, o.esq)
+			o.vel_m = 0.0
+		else:
+			o.montaria.remover()
+			o.montaria = null
+		o.modo = "" # arruma as armas de novo
 	var modo := str(j.get("modo", "Espada"))
 	if modo != o.modo:
 		o.modo = modo
 		var L: Dictionary = m.lugar_armas(o.visual)
-		if modo == "Espada":
+		if o.get("montaria") != null:
+			m.prender(o.esq, o.espada, L.espadaCostas)
+			m.prender(o.esq, o.cajado, L.cajadoCostas)
+			m.armas_montado(o.esq, o.espada, o.cajado)
+		elif modo == "Espada":
+			m.colisor_espada(o.esq, null)
 			m.prender(o.esq, o.espada, L.espadaMao)
 			m.prender(o.esq, o.cajado, L.cajadoCostas)
 		else:
+			m.colisor_espada(o.esq, null)
 			m.prender(o.esq, o.espada, L.espadaCostas)
 			m.prender(o.esq, o.cajado, L.cajadoMao)
+	if o.get("montaria") != null and not (j.get("acao") is Dictionary):
+		tocar(o.anim, "Idle") # quem anda é o lobo
+		return
 	animar(o, j)
 
 # animação de quem vem do servidor: ação de uma vez (golpe, magia, apanhar) ou o laço do movimento
@@ -817,8 +847,13 @@ func _passo(dt: float) -> void:
 	var dt_pos: float = dt / max(Engine.time_scale, 0.001)
 	for id in outros:
 		var o: Dictionary = outros[id]
+		var antes: Vector3 = o.no.position
 		_interpolar(o, o.no, dt_pos)
 		o.uma_vez = max(0.0, o.uma_vez - dt)
+		if o.get("montaria") != null: # o lobo anda no ritmo do que o corpo andou de verdade neste quadro
+			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
+			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
+			o.montaria.passo(dt, o.vel_m)
 	for e in m.inimigos:
 		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
 			continue
@@ -836,6 +871,8 @@ func _passo(dt: float) -> void:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
+		if m.montaria != null: # montado: vai o passo do lobo (o site e os outros apps põem o lobo andando ou galopando)
+			a = "Run" if m.mov.velocidade() > 4.4 else ("Walk" if m.mov.velocidade() > 0.35 else "Idle")
 		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)
 		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a, "e": 1})
 	# para onde o joystick aponta (o servidor usa no rolamento e no dash)
