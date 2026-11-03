@@ -67,6 +67,7 @@ var heroi_esq: Skeleton3D
 var espada: Node3D
 var cajado: Node3D
 var mao_direita := -1
+var mao_esquerda := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
 	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false}
@@ -435,6 +436,7 @@ func criar_heroi() -> void:
 	heroi_anim = AnimHeroi.new(heroi.find_child("AnimationPlayer", true, false))
 	heroi_esq = esqueleto(heroi)
 	mao_direita = heroi_esq.find_bone(armas_lugar.ruiva.espadaMao.osso)
+	mao_esquerda = heroi_esq.find_bone(String(armas_lugar.ruiva.espadaMao.osso).replace("_R_", "_L_"))
 	mov.por_em(D.NASCIMENTO)
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
@@ -979,6 +981,12 @@ func frente() -> Vector3:
 func ponto_mao() -> Vector3:
 	return heroi_esq.global_transform * heroi_esq.get_bone_global_pose(mao_direita).origin
 
+# mão esquerda (a Faísca alterna as mãos; a Bola de Fogo junta as duas)
+func ponto_mao_esq() -> Vector3:
+	if mao_esquerda < 0:
+		return ponto_mao()
+	return heroi_esq.global_transform * heroi_esq.get_bone_global_pose(mao_esquerda).origin
+
 func comecar(nome: String, ts: float, hits: Array, ao_acertar: Callable, extra := {}) -> void:
 	var dur: float = heroi_anim.get_animation(nome).length / ts
 	heroi_anim.play(nome, extra.get("fade", 0.08), ts)
@@ -1219,6 +1227,10 @@ func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 	info.cor = Color(info.cor)
 	info.hab = hab
 	var de := ponto_mao()
+	if hab.get("basico", false) and h.mao == 1: # Faísca: a 2ª do combo sai da mão esquerda
+		de = ponto_mao_esq()
+	elif hab.tipo == "bola": # Bola de Fogo: sai do meio das duas mãos
+		de = (ponto_mao() + ponto_mao_esq()) * 0.5
 	var dir := frente()
 	if vivo(alvo):
 		dir = ((alvo.no.position + Vector3(0, 1.0, 0)) - de).normalized()
@@ -1266,7 +1278,9 @@ func habilidade(i: int) -> bool:
 	rede("habQ", {"id": k, "dx": snappedf(dir.x, 0.01), "dz": snappedf(dir.z, 0.01)} if hab.tipo == "teleporte" else k)
 	if hab.has("canal"): # magia concentrada: andar (joystick forte), pular ou dar dash cancela e devolve 70% da mana
 		var dur: float = hab.canal / hab.at
-		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos)
+		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos2 if hab.tipo in ["bola", "gelo", "meteoro"] else maos)
+		if hab.tipo == "meteoro" and vivo(alvo): # portal no céu em cima do alvo enquanto concentra
+			fx.meteoro_portal(alvo.no.position.x, alvo.no.position.z, terreno.altura(alvo.no.position.x, alvo.no.position.z), dur + float(hab.queda))
 		if hab.has("area"): # aviso no chão de onde a magia vai pegar enquanto concentra (Meteoro: em cima do alvo)
 			combate.aviso_area(alvo.no if hab.tipo == "meteoro" and vivo(alvo) else heroi, float(hab.area), dur, Color(fx.cor_de(P.FX.get(k, "magia"))[1]))
 		comecar_q(hab.anim, dur, [hab.canal], func(_n):
@@ -1445,6 +1459,9 @@ func teleportar(hab: Dictionary, dir: Vector3) -> void:
 
 func maos() -> Array:
 	return [ponto_mao()]
+
+func maos2() -> Array:
+	return [ponto_mao(), ponto_mao_esq()]
 
 # botões da tela: a barra da arma na mão (skill ainda não liberada aparece apagada)
 func mostrar_build() -> void:
