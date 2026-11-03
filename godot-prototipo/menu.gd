@@ -1,6 +1,6 @@
 extends CanvasLayer
 # Menu do personagem (ideia do Quimera, com cara mais adulta): abre tocando no painel de vida.
-# Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Cabeça, Corpo, Pés | Arma, Acessório, Capa).
+# Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Camisa, Calça, Botas | Arma, Acessório, Capa).
 # Direita: abas Status (nível, XP, pontos de atributo e os números do herói) e Habilidades (Espada, Cajado e Gerais,
 # com nível de cada skill, o que melhora no próximo e em qual botão de cada barra ela fica). Passivas no fim.
 # Duas barras como no Quimera: a da espada e a do cajado (Trocar mostra a outra); toque em dois botões da barra para
@@ -11,6 +11,7 @@ extends CanvasLayer
 # (Criar só perto da forja do Tomás ou da banca da Rosa; online quem confere e dá a peça é o servidor, mensagem "criar").
 # A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
+const Armadura = preload("res://armadura.gd")
 const OURO := Color(0.80, 0.64, 0.36)
 const OURO_CLARO := Color(0.95, 0.82, 0.55)
 const TEXTO := Color(0.93, 0.89, 0.80)
@@ -28,7 +29,14 @@ const ARVORE_TXT := {
 	"geral": "Servem com a espada e com o cajado. Cada skill sobe de nível usando.",
 }
 const PLURAL := ["Comuns", "Raras", "Épicas", "Lendárias", "Míticas"] # "3 peças Raras (ou melhores)"
-const SLOTS := [["cabeca", "Cabeça"], ["corpo", "Corpo"], ["pes", "Pés"], ["arma", "Arma"], ["acessorio", "Acessório"], ["capa", "Capa"]]
+# Lugares do corpo (pedido do André, diferente do Quimera): cada um é um medalhão redondo em volta do boneco, na
+# altura da parte do corpo, ligado a ela por um fio dourado. [id, nome, x, y (fração do palco), osso, lado do texto]
+const SLOTS := [
+	["cabeca", "Capacete", 0.17, 0.1, "J_Bip_C_Head", -1], ["corpo", "Camisa", 0.1, 0.34, "J_Bip_C_UpperChest", -1],
+	["pernas", "Calça ou Short", 0.1, 0.58, "J_Bip_R_UpperLeg", -1], ["pes", "Botas", 0.17, 0.82, "J_Bip_R_Foot", -1],
+	["capa", "Capa", 0.83, 0.16, "J_Bip_L_Shoulder", 1], ["acessorio", "Acessório", 0.9, 0.4, "J_Bip_C_Neck", 1],
+	["arma", "Arma", 0.85, 0.64, "J_Bip_L_Hand", 1]]
+const MEDALHAO := 52.0
 
 var m # main.gd
 var raiz: Control
@@ -53,7 +61,9 @@ var caj: Node3D
 var giro := 0.4
 var arrastando := false
 var slot_arma: Dictionary = {}
-var slots_ui := {} # lugar -> {icone, painel}
+var slots_ui := {} # lugar -> {icone, painel, no}
+var fios: Control # fios dourados dos medalhões até o corpo
+var cam_palco: Camera3D
 var sel_mochila := -1 # item escolhido na mochila
 var sel_equip := "" # peça escolhida no corpo (lugar)
 var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
@@ -152,7 +162,80 @@ static func estilo_botao(b: Button, ativo: bool) -> void:
 	b.add_theme_color_override("font_disabled_color", Color(0.4, 0.37, 0.32))
 
 static func icone_tex(nome: String) -> Texture2D:
+	if nome.begins_with("it_") and ResourceLoader.exists("res://icones/itens/%s.png" % nome.substr(3)):
+		return load("res://icones/itens/%s.png" % nome.substr(3)) # item pintado (godot-prototipo/icones/itens)
 	return load("res://icones/%s.svg" % nome) if nome != "" else null
+
+# ---------- moldura dos itens: fundo com o brilho da cor da raridade, aro na cor e faixa embaixo (como no Quimera) ----------
+static var _fundos := {}
+static func fundo_raridade(cor: Color) -> GradientTexture2D:
+	var k := cor.to_html()
+	if not _fundos.has(k):
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		g.colors = PackedColorArray([Color(cor, 0.62).lerp(Color.WHITE, 0.08), Color(cor.darkened(0.45), 0.55), Color(0.035, 0.03, 0.028, 1)])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.58)
+		t.fill_to = Vector2(1.08, 1.12)
+		t.width = 64
+		t.height = 64
+		_fundos[k] = t
+	return _fundos[k]
+
+# põe (ou troca) a moldura num quadrado de item; cor = raridade; destaque = escolhido
+func moldurar(q: Control, cor: Color, destaque: bool, com_item: bool, raio := 8) -> void:
+	q.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	for n in ["_fundo", "_brilho", "_faixa", "_aro"]:
+		var v := q.get_node_or_null(n)
+		if v:
+			q.remove_child(v)
+			v.queue_free()
+	if com_item:
+		var f := TextureRect.new()
+		f.name = "_fundo"
+		f.texture = fundo_raridade(cor)
+		f.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		f.stretch_mode = TextureRect.STRETCH_SCALE
+		f.set_anchors_preset(Control.PRESET_FULL_RECT)
+		f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(f)
+		q.move_child(f, 0)
+		# reflexo de vidro na metade de cima
+		var b := ColorRect.new()
+		b.name = "_brilho"
+		b.color = Color(1, 1, 1, 0.05)
+		b.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		b.anchor_bottom = 0.42
+		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(b)
+		q.move_child(b, 1)
+		var fx := ColorRect.new()
+		fx.name = "_faixa"
+		fx.color = cor
+		fx.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		fx.offset_top = -3
+		fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(fx)
+	var aro := Panel.new()
+	aro.name = "_aro"
+	aro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	aro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var st := StyleBoxFlat.new()
+	st.draw_center = false
+	st.set_corner_radius_all(raio)
+	if destaque:
+		st.border_color = OURO_CLARO
+		st.set_border_width_all(3)
+	elif com_item:
+		st.border_color = cor.lightened(0.1)
+		st.set_border_width_all(2)
+	else:
+		st.border_color = Color(0.22, 0.18, 0.13)
+		st.set_border_width_all(1)
+	aro.add_theme_stylebox_override("panel", st)
+	q.add_child(aro)
 
 # ---------- esquerda: herói 3D e equipamentos ----------
 func montar_esquerda() -> Control:
@@ -164,25 +247,14 @@ func montar_esquerda() -> Control:
 	col.add_child(cab)
 	titulo_nivel = rotulo("", 20, TEXTO)
 	col.add_child(titulo_nivel)
-	var meio := HBoxContainer.new()
+	# manequim: o boneco no meio de tudo e os medalhões soltos em volta, cada um ligado à parte do corpo
+	var meio := Control.new()
 	meio.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	meio.add_theme_constant_override("separation", 8)
+	meio.clip_contents = true
 	col.add_child(meio)
-	var esq := VBoxContainer.new()
-	esq.alignment = BoxContainer.ALIGNMENT_CENTER
-	esq.add_theme_constant_override("separation", 14)
-	var dir := VBoxContainer.new()
-	dir.alignment = BoxContainer.ALIGNMENT_CENTER
-	dir.add_theme_constant_override("separation", 14)
-	for i in 6:
-		var s := slot(SLOTS[i][0], SLOTS[i][1])
-		(esq if i < 3 else dir).add_child(s)
-	meio.add_child(esq)
-	# palco do herói
 	var palco := SubViewportContainer.new()
 	palco.stretch = true
-	palco.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	palco.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	palco.set_anchors_preset(Control.PRESET_FULL_RECT)
 	palco.mouse_filter = Control.MOUSE_FILTER_STOP
 	palco.gui_input.connect(_girar)
 	vp = SubViewport.new()
@@ -192,7 +264,23 @@ func montar_esquerda() -> Control:
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	palco.add_child(vp)
 	meio.add_child(palco)
-	meio.add_child(dir)
+	fios = Control.new()
+	fios.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fios.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fios.draw.connect(_desenhar_fios)
+	meio.add_child(fios)
+	get_tree().process_frame.connect(fios.queue_redraw)
+	for d in SLOTS:
+		var s := slot(d[0], d[1], d[5])
+		s.anchor_left = d[2]
+		s.anchor_right = d[2]
+		s.anchor_top = d[3]
+		s.anchor_bottom = d[3]
+		s.offset_left = -MEDALHAO * 0.5
+		s.offset_right = MEDALHAO * 0.5
+		s.offset_top = -MEDALHAO * 0.5 - 6
+		s.offset_bottom = MEDALHAO * 0.5 - 6
+		meio.add_child(s)
 	var pe := HBoxContainer.new()
 	pe.add_theme_constant_override("separation", 10)
 	var dica := rotulo("Arraste o personagem para girar", 12, APAGADO)
@@ -211,27 +299,36 @@ func montar_esquerda() -> Control:
 	return col
 
 # lugar de equipamento: moldura escura com o nome; a arma mostra a que está na mão (o resto vem com a mochila)
-func slot(id: String, nome: String) -> Control:
-	var c := VBoxContainer.new()
-	c.add_theme_constant_override("separation", 2)
+func slot(id: String, nome: String, lado := 1) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(MEDALHAO, MEDALHAO)
+	c.size = Vector2(MEDALHAO, MEDALHAO)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var p := Panel.new()
-	p.custom_minimum_size = Vector2(66, 66)
-	p.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), BORDA, 1, 8))
+	p.set_anchors_preset(Control.PRESET_FULL_RECT)
+	p.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), BORDA, 1, int(MEDALHAO * 0.5)))
 	var ic := TextureRect.new()
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ic.offset_left = 12
-	ic.offset_top = 12
-	ic.offset_right = -12
-	ic.offset_bottom = -12
+	ic.offset_left = 8
+	ic.offset_top = 8
+	ic.offset_right = -8
+	ic.offset_bottom = -8
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.modulate = Color(1, 1, 1, 0.9)
 	p.add_child(ic)
 	c.add_child(p)
+	# nome do lado de fora (do lado oposto ao boneco), em cima de uma linha fina
 	var l := rotulo(nome, 12, APAGADO)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	l.offset_left = -60
+	l.offset_right = 60
+	l.offset_top = 2
+	l.offset_bottom = 18
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(l)
-	slots_ui[id] = {"icone": ic, "painel": p}
+	slots_ui[id] = {"icone": ic, "painel": p, "no": c}
 	if id == "arma":
 		slot_arma = slots_ui[id]
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -246,6 +343,8 @@ func lugar_de(id: String) -> String:
 
 # peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
 func atualizar_slots() -> void:
+	if boneco:
+		Armadura.vestir(boneco, m.P.prog.get("equip", {})) # o boneco veste o mesmo que o herói
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
@@ -253,12 +352,14 @@ func atualizar_slots() -> void:
 		if it != null:
 			var c: Color = m.P.cor_item(it)
 			u.icone.texture = icone_tex(m.P.icone_item(it))
-			u.icone.modulate = c
-			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.055, 1), OURO_CLARO if escolhido else c.darkened(0.15), 2 if escolhido else 1, 8))
+			u.icone.modulate = c if u.icone.texture and u.icone.texture.resource_path.ends_with(".svg") else Color.WHITE
+			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
+			moldurar(u.painel, c, escolhido, true, int(MEDALHAO * 0.5))
 		else:
 			u.icone.texture = icone_tex("basico" if id == "arma" and boneco_modo == "Espada" else "magia" if id == "arma" else "eq_" + id)
 			u.icone.modulate = Color(0.85, 0.75, 0.55, 0.45 if id == "arma" else 0.25)
-			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else BORDA, 2 if escolhido else 1, 8))
+			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
+			moldurar(u.painel, BORDA, escolhido, false, int(MEDALHAO * 0.5))
 
 func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
@@ -268,8 +369,38 @@ func tocar_slot(id: String) -> void:
 		aba = "mochila"
 	atualizar()
 
+# fio dourado de cada medalhão até a parte do corpo (segue o boneco quando ele gira)
+func _desenhar_fios() -> void:
+	if boneco == null or cam_palco == null or not is_instance_valid(boneco):
+		return
+	var esq: Skeleton3D = Armadura._esqueleto(boneco)
+	if esq == null:
+		return
+	for d in SLOTS:
+		var u: Dictionary = slots_ui.get(d[0], {})
+		if u.is_empty():
+			continue
+		var b := esq.find_bone(d[4])
+		if b < 0:
+			continue
+		var g: Vector3 = esq.global_transform * esq.get_bone_global_pose(b).origin
+		if d[0] == "cabeca":
+			g.y += 0.1
+		var alvo := cam_palco.unproject_position(g)
+		var no: Control = u.no
+		var centro := no.position + no.size * 0.5
+		var dir := (alvo - centro).normalized()
+		var ini := centro + dir * MEDALHAO * 0.5
+		var tem: bool = m.P.prog.equip.get(lugar_de(d[0])) != null
+		var cor := Color(OURO.r, OURO.g, OURO.b, 0.55 if tem else 0.22)
+		# fio com um cotovelo: sai reto para o lado e desce/sobe até a parte do corpo
+		var cot := Vector2(lerpf(ini.x, alvo.x, 0.45), alvo.y)
+		fios.draw_polyline(PackedVector2Array([ini, cot, alvo]), cor, 1.2, true)
+		fios.draw_circle(alvo, 2.6, cor)
+
 func montar_palco() -> void:
 	var cam := Camera3D.new()
+	cam_palco = cam
 	cam.fov = 30
 	cam.position = Vector3(0, 1.05, 4.6)
 	cam.look_at_from_position(cam.position, Vector3(0, 0.88, 0))
@@ -973,7 +1104,6 @@ func linha_ouro() -> Control:
 	ic.custom_minimum_size = Vector2(22, 22)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.modulate = Color("ffd36a")
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(ic)
 	l.add_child(rotulo("%d de ouro" % int(m.P.prog.ouro), 16, Color("ffd36a")))
@@ -986,21 +1116,22 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(tam, tam)
 	var cor: Color = P.cor_item(it) if it != null else BORDA
-	var est := caixa(Color(0.15, 0.12, 0.08, 1) if escolhido else Color(0.05, 0.045, 0.04, 1), OURO_CLARO if escolhido else (cor.darkened(0.25) if it != null else Color(0.22, 0.18, 0.13)), 2 if escolhido else 1, 7)
+	var est := caixa(Color(0.045, 0.04, 0.036, 1), Color(0, 0, 0, 0), 0, 8)
 	for e in ["normal", "hover", "pressed"]:
 		b.add_theme_stylebox_override(e, est)
 	if it != null:
 		var ic := TextureRect.new()
 		ic.texture = icone_tex(P.icone_item(it))
 		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		ic.offset_left = tam * 0.17
-		ic.offset_top = tam * 0.17
-		ic.offset_right = -tam * 0.17
-		ic.offset_bottom = -tam * 0.17
+		ic.offset_left = tam * 0.08
+		ic.offset_top = tam * 0.08
+		ic.offset_right = -tam * 0.08
+		ic.offset_bottom = -tam * 0.1
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.modulate = cor
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if ic.texture and ic.texture.resource_path.ends_with(".svg"):
+			ic.modulate = cor # desenho de linha (sem pintura ainda): toma a cor do item
 		b.add_child(ic)
 		if it.k == "tomo":
 			var r := rotulo(P.dados.romano[int(it.nv)], 11, Color("fff6c8"))
@@ -1019,6 +1150,7 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
 			n.offset_bottom = -1
 			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(n)
+	moldurar(b, cor, escolhido, it != null)
 	b.pressed.connect(func():
 		if not _arrastou:
 			fn.call())
@@ -1092,7 +1224,7 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	var l := HBoxContainer.new()
 	l.add_theme_constant_override("separation", 12)
 	cx.add_child(l)
-	var c := celula(it, false, func(): pass, 60)
+	var c := celula(it, false, func(): pass, 84)
 	c.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	l.add_child(c)
 	var txt := VBoxContainer.new()
@@ -1102,7 +1234,7 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	var tipo := ""
 	if P.eh_equip(it):
 		var lg: String = P.dados.itens[it.k].lugar
-		tipo = {"cabeca": "Cabeça", "corpo": "Corpo", "capa": "Capa", "pes": "Pés", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
+		tipo = {"corpo": "Camisa", "pernas": "Calça", "capa": "Capa", "pes": "Botas", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
 		tipo += " · No corpo" if lugar != "" else ""
 	elif it.k == "tomo":
 		tipo = "Tomo de %s" % P.habs[it.h].nome

@@ -15,7 +15,9 @@ const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
+const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 const MenuTopo = preload("res://menu_topo.gd")
@@ -32,7 +34,10 @@ const BANDO := []
 const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe"}
 const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
-const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria", "reset": "cabelo_m"}
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
+# NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
+# 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
+const TINGIR_NPC := ["ferreiro"]
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
@@ -413,6 +418,9 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 	if arma.get_parent():
 		arma.get_parent().remove_child(arma)
 	ba.add_child(arma)
+	if lugar.osso == "J_Bip_C_UpperChest": # nas costas: com capa passa por fora do pano
+		arma.set_meta("afastada", 0.0)
+		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
 	return ba
 
 func nova_arma(nome: String) -> Node3D:
@@ -447,6 +455,19 @@ func criar_heroi() -> void:
 		if hq > 0.4 and hq < 1.6:
 			mov.altura_quadril = hq
 	print("altura do quadril: ", mov.altura_quadril)
+
+# roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
+var _roupa := "-"
+func vestir_heroi() -> void:
+	var eq: Dictionary = P.prog.get("equip", {})
+	var k := ""
+	for l in Armadura.LUGARES:
+		var it = eq.get(l)
+		k += (str(it.k) + str(int(it.r)) if it is Dictionary else "") + ","
+	if k == _roupa:
+		return
+	_roupa = k
+	Armadura.vestir(heroi, eq)
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
@@ -512,7 +533,13 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 			l.font = load("res://fontes/AlegreyaSans-Bold.ttf")
 			l.pixel_size = 0.00034 * 1.5
 			l.offset = Vector2(0, 52.0 / 1.5)
-	npcs.append({"modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
+	var ap := {}
+	if str(info.get("id", "")) in TINGIR_NPC and info.get("tinta") is Dictionary:
+		var t: Dictionary = info.tinta
+		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
+		Aparencia.aplicar(no, ap)
+	VisualNpc.vestir(no, str(info.get("id", ""))) # roupa de ofício (avental e martelo do ferreiro)
+	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
@@ -1446,6 +1473,8 @@ func _process(dt: float) -> void:
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
+	vestir_heroi()
+	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
 	_flash_passo(dt_real)
 	combate.passo(dt_real)
 	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m)
