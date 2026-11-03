@@ -788,7 +788,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		return
 	if on(): # online: quem acerta e quanto tira é o servidor; o tranco, o flash e a congelada saem na hora aqui
 		var forte_on: bool = h.golpe_forte or not (hab is Dictionary and hab.has("combo"))
-		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada")
+		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada", tiro_basico(hab))
 		piscar(e.no)
 		combate.reacao(e.no, de, forte_on)
 		return
@@ -811,7 +811,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
 	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	var basico_hab: bool = hab is Dictionary and hab.has("combo")
-	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
+	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada", tiro_basico(hab))
 	piscar(e.no)
 	# resistência: muitos golpes seguidos e o monstro fica firme (aguenta e revida), como no servidor
 	if tempo - e.get("golpe_t", -9.0) > D.COMBATE.firmeJanela:
@@ -879,12 +879,18 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 # ---------- peso do golpe: congelada, tremida, flash, som e vibração ----------
 # Golpe que acertou (uma vez por quadro, mesmo pegando vários inimigos). forte = último do combo ou skill.
 var _impacto_t := -9.0
-func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool) -> void:
+# tiro_basico: a Faísca do cajado acertou. O herói continua andando enquanto atira, então aqui NÃO congela o jogo
+# nem treme a câmera (André 2026-11-03: "correndo e trava, parece lag"); fica o som, o flash, o número e um toque leve.
+func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_basico := false) -> void:
 	if _impacto_quadro == Engine.get_process_frames():
 		return
 	_impacto_quadro = Engine.get_process_frames()
 	_impacto_t = tempo
 	var pesado := forte or crit
+	if tiro_basico:
+		sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
+		vibrar(18 if pesado else 12)
+		return
 	parar_golpe(HITSTOP_FORTE if pesado else HITSTOP)
 	cam.tremer(TREME_FORTE if pesado else TREME)
 	sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
@@ -895,6 +901,10 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool) -> void:
 		fx.surto(p.x, p.y, p.z, 14 if pesado else 9, "ffffff", "ffd27a", 6.0 if pesado else 4.5, 0.08)
 		fx.marca_corte(p, heroi.rotation.y, pesado)
 	vibrar(40 if pesado else 22)
+
+# a Faísca (ataque básico do cajado) é tiro de longe feito andando: o acerto dela não congela o jogo
+func tiro_basico(hab) -> bool:
+	return hab is Dictionary and str(hab.get("tipo", "")) == "basicoMagia"
 
 # tudo para por um instante (Engine.time_scale), como nos jogos de ação; volta pelo relógio de verdade
 func parar_golpe(seg: float) -> void:
@@ -2121,7 +2131,7 @@ func ferir_treino(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	e.combate = tempo + 5.0
 	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	var basico_hab: bool = hab is Dictionary and hab.has("combo")
-	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
+	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada", tiro_basico(hab))
 	piscar(e.no)
 	combate.reacao(e.no, de, h.golpe_forte or not basico_hab)
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
