@@ -1,6 +1,8 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "Mago: alvo travado na Faísca (1º ataque pega o mais perto; só troca tocando em outro monstro ou quando ele morre) (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func alvo_travado(", "hud.tocou.connect(tocou_inimigo)", "var alvo = alvo_travado(hab.alcance + 0.5)"] },
+    { "nome": "Servidor: mira no alvo travado do mago que o celular manda (v) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["alvoTravado(j, h, m) {", "this.alvoTravado(j, h, m) || this.alvoHab(j, h)"] },
     { "nome": "App se chama Aethra e usa o ícone do A de cajado + espada (André 2026-11-03)", "arquivo": "godot-prototipo/export_presets.cfg", "contem": ["package/name=\"Aethra\"", "package/unique_name=\"com.rcandrerc.rpgprototipo\"", "launcher_icons/adaptive_foreground_432x432=\"res://icone_app/frente_432.png\""] },
     { "nome": "Desempenho: vila só é desenhada até uma distância (na mata ela some atrás das árvores) (2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func alcance_da_vila(", "alcance_da_vila(vila)"] },
     { "nome": "Ping do servidor sempre ao lado do FPS (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["txt += \" · ping %d ms\" % online.rede.ping_ms"] },
