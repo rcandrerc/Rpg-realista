@@ -67,6 +67,12 @@ var cam_palco: Camera3D
 var sel_mochila := -1 # item escolhido na mochila
 var pag_mochila := 0 # página da mochila aberta (0..3; André 2026-11-03: 4 páginas de 10 x 4, compradas com ouro)
 var sel_equip := "" # peça escolhida no corpo (lugar)
+# André 2026-11-03: tocar num lugar do corpo abre a janela da peça: Tirar (vai para a mochila; dá para ficar só com a
+# roupa de baixo) e a lista das peças da mochila que servem ali, comparadas com a vestida (melhor ou pior), com Trocar
+var janela: Control # véu escuro + painel da peça (por cima do menu)
+var janela_lugar := "" # lugar aberto ("" = fechada)
+var janela_nome := ""
+var janela_rolagem: ScrollContainer
 var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
 var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
 var _arrasto_dentro := false
@@ -349,7 +355,7 @@ func atualizar_slots() -> void:
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
-		var escolhido: bool = sel_equip != "" and sel_equip == lugar_de(id)
+		var escolhido: bool = (sel_equip != "" and sel_equip == lugar_de(id)) or (janela_lugar != "" and janela_lugar == lugar_de(id))
 		if it != null:
 			var c: Color = m.P.cor_item(it)
 			u.icone.texture = icone_tex(m.P.icone_item(it))
@@ -365,9 +371,13 @@ func atualizar_slots() -> void:
 func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
 	sel_mochila = -1
-	sel_equip = "" if sel_equip == l else l
+	sel_equip = l
 	if aba != "mochila":
 		aba = "mochila"
+	janela_lugar = l
+	for d in SLOTS:
+		if d[0] == id:
+			janela_nome = d[1] if id != "arma" else ("Arma · espada" if l == "espada" else "Arma · cajado")
 	atualizar()
 
 # fio dourado de cada medalhão até a parte do corpo (segue o boneco quando ele gira)
@@ -566,6 +576,7 @@ func abrir(qual := "", sub := "") -> void:
 		aba = "status"
 	sel_mochila = -1
 	sel_equip = ""
+	janela_lugar = ""
 	raiz.visible = true
 	m.hud.bloqueado = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -573,6 +584,7 @@ func abrir(qual := "", sub := "") -> void:
 	atualizar()
 
 func fechar() -> void:
+	fechar_janela(false)
 	raiz.visible = false
 	m.hud.bloqueado = false
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -584,9 +596,10 @@ func aberto() -> bool:
 func _input(ev: InputEvent) -> void:
 	if not aberto() or rolagem == null:
 		return
+	var rol: ScrollContainer = janela_rolagem if janela_aberta() and janela_rolagem != null else rolagem
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
-			_arrasto_dentro = rolagem.get_global_rect().has_point(ev.position)
+			_arrasto_dentro = rol.get_global_rect().has_point(ev.position)
 			_arrasto_soma = 0.0
 			_arrastou = false
 		else:
@@ -597,7 +610,7 @@ func _input(ev: InputEvent) -> void:
 		_arrasto_soma += abs(ev.relative.y)
 		if _arrasto_soma > 12.0:
 			_arrastou = true
-		rolagem.scroll_vertical -= int(round(ev.relative.y))
+		rol.scroll_vertical -= int(round(ev.relative.y))
 		get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
@@ -642,6 +655,7 @@ func atualizar() -> void:
 			montar_receitas(sub_prof)
 	else:
 		montar_habilidades()
+	montar_janela()
 	await get_tree().process_frame
 	rolagem.scroll_vertical = y
 
@@ -1375,6 +1389,255 @@ func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	var b := botao(t, func(): acao_item(msg), 14, ativo)
 	b.custom_minimum_size = Vector2(120, 36)
 	return b
+
+# ---------- janela da peça do corpo (André 2026-11-03) ----------
+# Tirar manda a peça para a mochila (qualquer lugar pode ficar vazio: sem nada, aparece a roupa de baixo branca).
+# Embaixo, as peças da mochila que servem nesse lugar, com o que cada uma ganha ou perde em relação à vestida
+# (verde = melhor, vermelho = pior), as melhores primeiro; Trocar veste e a vestida vai para o lugar dela na mochila
+# (por isso trocar funciona mesmo com a mochila cheia). Online quem decide é o servidor (mensagem "item").
+const MELHOR := Color(0.5, 0.86, 0.45)
+const PIOR := Color(0.92, 0.42, 0.36)
+# peso de cada número só para pôr a lista em ordem (melhor primeiro); o que aparece na tela são os números de verdade
+const PESO_ST := {"vida": 1.0 / 20.0, "mana": 1.0 / 20.0, "defesa": 1.0 / 5.0, "danoFisico": 1.0 / 5.0, "danoMagico": 1.0 / 5.0,
+	"critico": 1.0 / 0.01, "danoK": 1.0 / 0.05, "areaK": 1.0 / 0.05, "regenManaK": 1.0 / 0.05}
+
+func janela_aberta() -> bool:
+	return janela_lugar != "" and janela != null and is_instance_valid(janela) and janela.visible
+
+func fechar_janela(refazer := true) -> void:
+	janela_lugar = ""
+	sel_equip = ""
+	if janela and is_instance_valid(janela):
+		janela.queue_free()
+	janela = null
+	janela_rolagem = null
+	if refazer:
+		atualizar()
+
+# números da peça: {"defesa": 4.0, ...}; null = nada
+func st_item(it) -> Dictionary:
+	var r := {}
+	if m.P.eh_equip(it):
+		var st: Dictionary = m.P.dados.itens[it.k].st
+		for c in st:
+			r[c] = float(st[c][int(it.r)])
+	return r
+
+# diferença da peça nova para a vestida: {"defesa": +2, "mana": -3}
+func diferenca(novo, atual) -> Dictionary:
+	var a := st_item(atual)
+	var n := st_item(novo)
+	var d := {}
+	for c in n.keys() + a.keys():
+		var v: float = n.get(c, 0.0) - a.get(c, 0.0)
+		if abs(v) > 0.00001:
+			d[c] = v
+	return d
+
+func nota(d: Dictionary) -> float:
+	var s := 0.0
+	for c in d:
+		s += d[c] * PESO_ST.get(c, 1.0)
+	return s
+
+# "Melhor", "Pior" ou "Melhor em parte"; e a cor
+func veredito(d: Dictionary) -> Array:
+	var ganha := d.values().any(func(v): return v > 0)
+	var perde := d.values().any(func(v): return v < 0)
+	if ganha and not perde:
+		return ["Melhor", MELHOR]
+	if perde and not ganha:
+		return ["Pior", PIOR]
+	if ganha and perde:
+		return ["Melhor em parte" if nota(d) >= 0 else "Pior em parte", OURO_CLARO]
+	return ["Igual", APAGADO]
+
+# "▲ +2 Defesa   ▼ -3 Mana" com as cores
+func texto_diferenca(d: Dictionary) -> RichTextLabel:
+	var t := RichTextLabel.new()
+	t.bbcode_enabled = true
+	t.fit_content = true
+	t.scroll_active = false
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.add_theme_font_size_override("normal_font_size", 12)
+	var p := []
+	var chaves: Array = d.keys()
+	chaves.sort_custom(func(a, b): return (d[a] > 0) and not (d[b] > 0))
+	for c in chaves:
+		var v: float = d[c]
+		var txt: String = m.P.texto_st(c, abs(v)).substr(1) # tira o "+" (o sinal vem abaixo)
+		p.append("[color=#%s]%s %s%s[/color]" % [(MELHOR if v > 0 else PIOR).to_html(false), "▲" if v > 0 else "▼", "+" if v > 0 else "−", txt])
+	t.text = "  ".join(p) if not p.is_empty() else "[color=#%s]Mesmos números[/color]" % APAGADO.to_html(false)
+	return t
+
+# janela pequena colada no medalhão (André: "o mais enxuta possível, estamos no celular"): a peça vestida em uma linha,
+# Tirar, um aviso curto (é a sua melhor peça / tem peça melhor na mochila) e, se houver, as peças da mochila que servem
+func montar_janela() -> void:
+	if janela and is_instance_valid(janela):
+		janela.queue_free()
+		janela = null
+		janela_rolagem = null
+	if janela_lugar == "" or not aberto():
+		return
+	var P = m.P
+	var l := janela_lugar
+	var atual = P.prog.equip.get(l)
+	janela = Control.new()
+	janela.set_anchors_preset(Control.PRESET_FULL_RECT)
+	raiz.add_child(janela)
+	# véu leve: tocar fora fecha
+	var veu := ColorRect.new()
+	veu.color = Color(0, 0, 0, 0.3)
+	veu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	veu.mouse_filter = Control.MOUSE_FILTER_STOP
+	veu.gui_input.connect(func(ev):
+		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
+			fechar_janela())
+	janela.add_child(veu)
+	var cx := PanelContainer.new()
+	cx.custom_minimum_size = Vector2(430, 0)
+	var est := caixa(FUNDO, OURO.darkened(0.15), 1, 10, 16)
+	est.content_margin_left = 12
+	est.content_margin_right = 12
+	est.content_margin_top = 10
+	est.content_margin_bottom = 10
+	cx.add_theme_stylebox_override("panel", est)
+	janela.add_child(cx)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	cx.add_child(v)
+	# peças da mochila que servem aqui, comparadas com a vestida (melhores primeiro)
+	var opcoes := []
+	for i in P.prog.mochila.size():
+		var it = P.prog.mochila[i]
+		if P.eh_equip(it) and str(P.dados.itens[it.k].lugar) == l:
+			var d := diferenca(it, atual)
+			opcoes.append({"i": i, "it": it, "d": d, "nota": nota(d)})
+	opcoes.sort_custom(func(a, b): return a.nota > b.nota if a.nota != b.nota else int(a.it.r) > int(b.it.r))
+	var melhores: int = opcoes.filter(func(o): return o.nota > 0.0001).size()
+	# linha 1: a peça vestida (ícone, nome, números) e Tirar
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 10)
+	var c := celula(atual, false, func(): pass, 52)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if atual == null: # lugar vazio: o desenho do lugar, apagado
+		var ic := TextureRect.new()
+		ic.texture = icone_tex("eq_" + l if l in ["cabeca", "corpo", "pernas", "pes", "capa", "acessorio"] else ("basico" if l == "espada" else "magia"))
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 10
+		ic.offset_top = 10
+		ic.offset_right = -10
+		ic.offset_bottom = -10
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.modulate = Color(0.85, 0.75, 0.55, 0.3)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		c.add_child(ic)
+	linha.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	txt.add_theme_constant_override("separation", 0)
+	txt.add_child(rotulo(janela_nome.to_upper(), 11, OURO))
+	if atual != null:
+		txt.add_child(rotulo(P.nome_item(atual), 16, P.cor_item(atual)))
+		var d := rotulo(P.texto_item(atual), 12, APAGADO)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(d)
+	else:
+		txt.add_child(rotulo("Nada vestido", 16, APAGADO))
+		if l in ["corpo", "pernas"]:
+			txt.add_child(rotulo("Aparece a roupa de baixo", 12, APAGADO))
+	linha.add_child(txt)
+	var cheia: bool = P.prog.mochila.find(null) < 0
+	if atual != null:
+		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
+		b.custom_minimum_size = Vector2(96, 40)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		b.disabled = cheia
+		linha.add_child(b)
+	v.add_child(linha)
+	# linha 2: o aviso curto
+	var aviso := ""
+	var cor_aviso := OURO_CLARO
+	if atual != null and cheia:
+		aviso = "Mochila cheia: libere um lugar para tirar" + (" (trocar funciona)." if not opcoes.is_empty() else ".")
+		cor_aviso = PIOR
+	elif atual == null:
+		aviso = ("Tem %d peça%s na mochila para este lugar" % [opcoes.size(), "" if opcoes.size() == 1 else "s"]) if not opcoes.is_empty() else "Nenhuma peça na mochila para este lugar"
+		cor_aviso = MELHOR if not opcoes.is_empty() else APAGADO
+	elif melhores > 0:
+		aviso = "▲ Tem peça melhor na mochila" if melhores == 1 else "▲ Tem %d peças melhores na mochila" % melhores
+		cor_aviso = MELHOR
+	else:
+		aviso = "✓ É a sua melhor peça para este lugar"
+	var a := rotulo(aviso, 13, cor_aviso)
+	a.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(a)
+	# linhas 3+: as peças da mochila (até 3 à vista; mais que isso rola)
+	if not opcoes.is_empty():
+		var fio := ColorRect.new()
+		fio.color = Color(OURO, 0.18)
+		fio.custom_minimum_size = Vector2(0, 1)
+		v.add_child(fio)
+		janela_rolagem = ScrollContainer.new()
+		janela_rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		janela_rolagem.custom_minimum_size = Vector2(0, min(opcoes.size(), 3) * 54 - 6)
+		v.add_child(janela_rolagem)
+		var lista := VBoxContainer.new()
+		lista.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lista.add_theme_constant_override("separation", 6)
+		janela_rolagem.add_child(lista)
+		for o in opcoes:
+			lista.add_child(linha_opcao(o, atual != null))
+	# ao lado do medalhão tocado, sem sair da tela
+	_posicionar_janela.call_deferred(cx)
+
+func _posicionar_janela(cx: Control) -> void:
+	if not is_instance_valid(cx):
+		return
+	var tela := raiz.get_viewport_rect().size
+	var alvo := Vector2(tela.x * 0.5, tela.y * 0.5)
+	for id in slots_ui:
+		if lugar_de(id) == janela_lugar:
+			var r: Rect2 = slots_ui[id].no.get_global_rect()
+			alvo = Vector2(r.end.x + 14, r.get_center().y - 40)
+	cx.reset_size()
+	var s := cx.get_combined_minimum_size()
+	cx.position = Vector2(clampf(alvo.x, 12, tela.x - s.x - 12), clampf(alvo.y, 12, tela.y - s.y - 12))
+
+# uma peça da mochila numa linha: ícone, nome + Melhor/Pior, o que ganha e perde, e Trocar (ou Vestir)
+func linha_opcao(o: Dictionary, tem_atual: bool) -> Control:
+	var P = m.P
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 10)
+	var c := celula(o.it, false, func(): pass, 48)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	txt.add_theme_constant_override("separation", 0)
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 8)
+	topo.add_child(rotulo(P.nome_item(o.it), 14, P.cor_item(o.it)))
+	if tem_atual:
+		var ver: Array = veredito(o.d)
+		var tag := rotulo(ver[0], 11, ver[1])
+		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		topo.add_child(tag)
+	txt.add_child(topo)
+	if tem_atual:
+		txt.add_child(texto_diferenca(o.d))
+	else:
+		txt.add_child(rotulo(P.texto_item(o.it), 12, MELHOR))
+	l.add_child(txt)
+	var b := botao("Trocar" if tem_atual else "Vestir", func(): acao_item({"acao": "equipar", "i": int(o.i)}), 14, true)
+	b.custom_minimum_size = Vector2(88, 38)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(b)
+	return l
 
 func montar_loja() -> void:
 	var P = m.P
