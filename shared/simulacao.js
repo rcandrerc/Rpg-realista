@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -31,7 +31,8 @@ export class Simulacao {
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO })),
-      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes];
+      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
+      ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto }))];
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
@@ -45,6 +46,8 @@ export class Simulacao {
       for (const vg of c.vagas) this.nascerNaCaca(c, ci, vg, true);
       return c;
     });
+    // espantalhos de treino (TREINO): o v deles vem depois das vagas dos campos de caça
+    (mapa.treino || []).forEach((sp, k) => this.criarInimigo({ ...sp, v: v + k }));
     // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
@@ -101,6 +104,7 @@ export class Simulacao {
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: t.vida, vidaMax: t.vida,
       ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
+    if (t.treino) { e.treino = true; e.ry = sp.ry || 0; e.anim = 'Idle'; } // espantalho: fica plantado onde está
     this.inimigos.push(e);
     return e;
   }
@@ -900,7 +904,7 @@ export class Simulacao {
       this.ferir(o, h.dmg, c, h);
       if (h.impacto) this.evento({ t: 'impacto', x: r2(o.x), z: r2(o.z), ry: r2(c.ry), fx: h.chave });
       const emp = h.empurra || 1.2;
-      if (h.area && d > 0) { o.x += (o.x - c.x) / d * emp; o.z += (o.z - c.z) / d * emp; this.colidir(o); }
+      if (h.area && d > 0 && !o.treino) { o.x += (o.x - c.x) / d * emp; o.z += (o.z - c.z) / d * emp; this.colidir(o); }
     }
     if (h.area && c.tipo === 'jogador') this.evento({ t: 'explosao', x: r2(c.x), z: r2(c.z), r: h.area, fx: h.chave });
   }
@@ -939,6 +943,7 @@ export class Simulacao {
     if (de?.tipo === 'jogador' && de.contraAte > this.tempo && alvo.tipo !== 'jogador') { // contra-ataque depois da esquiva
       n = Math.round(n * COMBATE_INIMIGO.contraK); crit = true; de.contraAte = 0;
     }
+    if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
     alvo.vida = Math.max(0, alvo.vida - n);
     if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); }
     if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
@@ -973,6 +978,22 @@ export class Simulacao {
     } else if (firme) { /* firme: aguenta o golpe sem parar o que está fazendo */ }
     else if (alvo.parado > this.tempo) { /* atordoado ou congelado: nem reage */ }
     else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
+  }
+  // espantalho de treino: mostra o dano e balança, mas nunca morre (a vida acabou, volta cheia na hora);
+  // sem XP, sem item, sem missão e sem "firme". Congelar, atordoar, lentidão e Quebrado pegam (para testar).
+  ferirTreino(alvo, n, crit, de, h) {
+    alvo.vida -= n;
+    if (alvo.vida <= 0) alvo.vida = alvo.vidaMax;
+    alvo.golpeT = this.tempo;
+    if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
+    this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
+    if (h) {
+      if (h.atordoa) { alvo.parado = Math.max(alvo.parado || 0, this.tempo + h.atordoa); alvo.ef = 'atordoado'; }
+      if (h.congela) { alvo.parado = Math.max(alvo.parado || 0, this.tempo + h.congela); alvo.ef = 'congelado'; }
+      if (h.lento) alvo.lento = { k: h.lento.k, ate: this.tempo + h.lento.dur };
+      if (h.vulneravel) alvo.vuln = { k: h.vulneravel.k, ate: this.tempo + h.vulneravel.dur };
+    }
+    if (!(alvo.parado > this.tempo)) this.tocar(alvo, A.hit, 1.4);
   }
   morrer(c) {
     if (c.coleta) this.pararColeta(c, null);
@@ -1042,7 +1063,7 @@ export class Simulacao {
     }
     [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
   }
-  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); c.x += dx; c.z += dz; this.colidir(c); }
+  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c); }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
   moverJogador(j, dx, dz) {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;
@@ -1278,6 +1299,11 @@ export class Simulacao {
     if (b.morto) return;
     if (b.parado > this.tempo) return; // atordoado ou congelado
     if (b.ef) b.ef = null;
+    if (b.treino) { // espantalho: não anda nem bate; parado um tempo sem apanhar, a vida enche de novo
+      if (b.vida < b.vidaMax && this.tempo - (b.golpeT || 0) > TREINO.volta) b.vida = b.vidaMax;
+      if (b.trava <= 0) b.anim = 'Idle';
+      return;
+    }
     if (b.trava > 0) return;
     const t = TIPOS_INIMIGO[b.tipo];
     const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
