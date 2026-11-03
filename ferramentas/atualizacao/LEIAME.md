@@ -16,8 +16,11 @@ tamanho.** APK novo só para mudar `inicio.gd`, `project.godot`, plugins Android
 
 Onde fica: release **conteudo** (privado, fonte da verdade) e cópia no site pelo `pages.yml`. Com o secret
 `ORACLE_PAR` (link pré-autenticado de escrita do balde) e a variável `ORACLE_URL` (endereço público do balde
-`aethra-jogo`, Oracle Object Storage grátis: 20 GB e 10 TB de download por mês), os arquivos sobem também para a
+`Aethra-jofo`, Oracle Object Storage grátis: 20 GB e 10 TB de download por mês), os arquivos sobem também para a
 Oracle e o `conteudo.json` (campo `url_base`) manda o app baixar de lá. O `conteudo.json` continua no site.
+O endereço público já vem como padrão no script (`https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/`),
+então basta o secret `ORACLE_PAR`. O link de escrita (só grava, vence em 2030-11-03) está em New-Game-Anime-fontes
+`chaves/oracle-par-envio.txt`.
 
 Sem internet na primeira abertura: tela "Sem internet" com **Tentar de novo**. Depois disso, abre com o que já baixou.
 

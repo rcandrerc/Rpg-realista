@@ -62,6 +62,7 @@ else
 fi
 
 # Oracle (opcional): sobe os arquivos novos e aponta o app para lá
+ORACLE_URL="${ORACLE_URL:-https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/}"
 if [ -n "${ORACLE_PAR:-}" ] && [ -n "${ORACLE_URL:-}" ]; then
   for f in "$TMP/novo/"*; do
     [ "$(basename "$f")" = conteudo.json ] && continue
