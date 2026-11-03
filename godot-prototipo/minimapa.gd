@@ -7,7 +7,7 @@ extends CanvasLayer
 # os nomes, o herói e os jogadores são desenhados aqui por cima, nítidos.
 
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
-const MARGEM := Vector2(14, 10) # do canto de cima à direita; o menu do topo fica à esquerda dele (André 2026-11-03:
+const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
 # o minimapa subiu para não encostar nas skills)
 const ALCANCE := 46.0 # metros do centro até a borda do minimapa
 const COR_BICHO := {"puglin": Color("b98cff"), "imp": Color("ff8f45"), "lobo": Color("a9d6ff"), "chefe": Color("ff4a4a")}
