@@ -194,7 +194,9 @@ const portaDe = (c, dist = 1.2) => ({ x: c.x + Math.sin(c.ry) * (c.d / 2 + dist)
 // caminhos de terra (linhas de pontos, largura em metros)
 const CAMINHOS = [
   { largura: 2.4, pontos: [[0, 1], [-1.5, -4], [-4, -8.5], [PRACA.x, PRACA.z]] },
-  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste: a saída da vila
+  // saída da vila para o leste: sai da estrada larga onde o herói nasce, por fora das casas (o André pediu, 2026-11-02:
+  // a estradinha antiga passava espremida entre a casa3 e a ferraria)
+  { largura: 2.4, pontos: [[0, 1], [5, 1.2], [10, 0.4], [14, -0.6], [17.5, -1.6], [21, -2.2]] },
   // a estradinha do leste continua: sai da vila pela passagem nas pedras e chega no campo de caça
   { largura: 2.2, pontos: [[17, -2], [21, -2.2], [24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2], [52, -2], [58, -0.6]] },
   // trilha estreita até o veio de cobre
