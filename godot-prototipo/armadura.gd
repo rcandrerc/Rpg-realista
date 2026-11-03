@@ -168,7 +168,36 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 			if not _malhas.has(chave):
 				_malhas[chave] = _apertar_cintura(alvo, R, 1.35 if trecho == "Bottoms" else 1.0, formas.get("Body_00"))
 			alvo = _malhas[chave]
+			if feminino:
+				var chave_c := "saia_curta:%d" % alvo.get_instance_id()
+				if not _malhas.has(chave_c):
+					_malhas[chave_c] = _saia_curta(alvo, R)
+				alvo = _malhas[chave_c]
 		_trocar_malha(mi, alvo)
+
+# direção de arte v9: nos outros corpos do criador a saia ou o vestido original é mais comprido que o saiote e
+# aparecia por baixo dele (duas roupas, uma sobre a outra). Com peitoral, o tecido abaixo do quadril fecha 10% para
+# dentro e não passa da altura da barra da saia da Ruiva (proporcional ao corpo); na Ruiva nada muda.
+static func _saia_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var barra := R.y_cintura - 0.25 * R.y_cintura / 0.998
+	var topo := R.y_cintura - 0.075
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		for i in V.size():
+			var p := V[i]
+			if p.y >= topo or absf(p.x) > 0.3 or p.y < R.y_pe + 0.05:
+				continue
+			var k := smoothstep(topo, topo - 0.06, p.y) * 0.1
+			var d := Vector2(p.x, p.z - 0.01) * (1.0 - k)
+			V[i] = Vector3(d.x, maxf(p.y, barra), d.y + 0.01)
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
 
 static func _trocar_malha(mi: MeshInstance3D, malha: Mesh) -> void:
 	if mi.mesh == malha:
@@ -311,11 +340,15 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 		if mi == null:
 			continue
 		var it = troca[trecho]
-		if it is Dictionary and PECAS.has(str(it.get("k", ""))):
-			var r := clampi(int(it.get("r", 0)), 0, 4)
-			mi.set_surface_override_material(0, _material_tecido(r))
-		else:
-			mi.set_surface_override_material(0, null)
+		# todas as partes da roupa (vestidos dos outros corpos têm várias): senão a estampa original aparecia
+		for sfc in mi.get_surface_override_material_count():
+			if "Outline" in mi.mesh.surface_get_name(sfc):
+				continue # contorno de desenho dos outros corpos fica escuro
+			if it is Dictionary and PECAS.has(str(it.get("k", ""))):
+				var r := clampi(int(it.get("r", 0)), 0, 4)
+				mi.set_surface_override_material(sfc, _material_tecido(r))
+			elif sfc == 0 or mi.get_surface_override_material(sfc) in _materiais.values():
+				mi.set_surface_override_material(sfc, null) # só tira o que a armadura pôs (a cor da aparência fica)
 	# gravata some com peitoral de aço (a gola metálica fica no lugar dela)
 	var gravata := _fonte(raiz, "Tie")
 	if gravata:
@@ -326,6 +359,7 @@ static func _material_tecido(r: int) -> Material:
 	var chave := "tecido:%d" % r
 	if not _materiais.has(chave):
 		var m := StandardMaterial3D.new()
+		m.set_meta("armadura", true) # a aparência (cor da roupa) não troca o tecido da armadura
 		m.albedo_color = ROUPA[r]
 		m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
@@ -417,6 +451,8 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			_montar_cinto(raiz, esq, no, r)
 			continue
 		var src := _fonte(raiz, REGIOES[parte].fonte)
+		if src == null and REGIOES[parte].fonte == "Bottoms":
+			src = _fonte(raiz, "Tops") # corpos de vestido (sem saia separada): o saiote nasce da barra do vestido
 		if src == null:
 			continue
 		var chave := "%d:%s" % [src.mesh.get_instance_id(), parte]
