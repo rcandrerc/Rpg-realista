@@ -36,9 +36,30 @@ var _correu := 0.0 # segundos correndo rápido (freada de verdade só depois de 
 var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
+var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
+
 func _init(terreno, mundo: Dictionary) -> void:
 	T = terreno
 	m = mundo
+	for a in m.get("mata", []):
+		var k := Vector2i(floori(float(a.x) / 6.0), floori(float(a.z) / 6.0))
+		if not mata.has(k):
+			mata[k] = []
+		mata[k].append({"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)})
+
+# árvores da mata nas 9 casas da grade em volta de (px, pz)
+func perto_na_mata(px: float, pz: float) -> Array:
+	var l: Array = []
+	if mata.is_empty():
+		return l
+	var i := floori(px / 6.0)
+	var j := floori(pz / 6.0)
+	for a in range(i - 1, i + 2):
+		for b in range(j - 1, j + 2):
+			var c = mata.get(Vector2i(a, b))
+			if c != null:
+				l.append_array(c)
+	return l
 
 func posicao() -> Vector3:
 	return Vector3(x, y, z)
@@ -72,7 +93,7 @@ func ad(a: float, b: float) -> float:
 
 # ---------- andar e colidir ----------
 func colidir() -> void:
-	for k in m.obstaculos:
+	for k in m.obstaculos + perto_na_mata(x, z):
 		if k.has("alto") and y > float(k.alto):
 			continue # por cima (esteio da ferraria visto do telhado)
 		var dx: float = x - k.x

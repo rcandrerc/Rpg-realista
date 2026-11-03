@@ -1,7 +1,7 @@
 // Dados do jogo. Cliente e servidor leem este mesmo arquivo:
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
-import { raioNaDirecao } from './mapa.js';
+import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
@@ -162,6 +162,8 @@ export const TIPOS_INIMIGO = {
   puglin: { nome: 'Puglin', horda: 'Monstros do Leste', visual: 'bst:Puglin', vida: 80, dano: 8, intervalo: 2.2, escala: 1, brilho: 0x8a3dff },
   imp: { nome: 'Imp', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 110, dano: 11, intervalo: 2.4, escala: 1, brilho: 0xff6a2a },
   chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.9, escala: 1.15, brilho: 0xff2a3a },
+  // o lobo (feito por IA, ferramentas/monstros-ia) era montaria de teste; virou bicho de caça (pedido do André 2026-11-03)
+  lobo: { nome: 'Lobo', horda: 'Monstros do Leste', visual: 'lobo', vida: 95, dano: 10, intervalo: 2.0, escala: 1, brilho: 0xd8e6ff },
   // espantalho de treino (TREINO, abaixo): não anda, não bate, não morre, não dá XP nem item
   espantalho: { nome: 'Espantalho de treino', horda: 'Treino', visual: 'espantalho', vida: 1000, dano: 0, intervalo: 99, escala: 1, brilho: 0, treino: true },
 };
@@ -177,9 +179,9 @@ export const TREINO = { volta: 4, raio: 0.38, alto: 1.6 }; // alto: a câmera pa
 // `roda` m), aguenta `firmeGolpes` golpes seguidos e fica firme (não para de apanhar, revida) por `firmeDur` s.
 // Rolar ou dar dash na hora do golpe = esquiva: o próximo golpe do herói em `contraDur` s vale `contraK`x e é crítico.
 export const COMBATE_INIMIGO = {
-  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7, lobo: 0.45 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
   aoMesmoTempo: 2, roda: 3.4, rodaVel: 1.1,
-  firmeGolpes: { puglin: 6, imp: 6, chefe: 4 }, firmeJanela: 1.6, firmeDur: 2.0,
+  firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6 }, firmeJanela: 1.6, firmeDur: 2.0,
   contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
 };
 
@@ -207,19 +209,62 @@ const CASAS = [
   { id: 'ferraria', x: 4.4, z: -5, w: 4.4, d: 3.6, h: 2.6, ry: -1.25, aberta: true, chamine: true }, // virada para o caminho
 ].map((c) => ({ ...c, ry: c.ry ?? Math.atan2(PRACA.x - c.x, PRACA.z - c.z) }));
 const portaDe = (c, dist = 1.2) => ({ x: c.x + Math.sin(c.ry) * (c.d / 2 + dist), z: c.z + Math.cos(c.ry) * (c.d / 2 + dist) });
+// ---------- a mata: estrada principal tortuosa e 10 clareiras de caça (pedido do André 2026-11-03) ----------
+// A estradinha de terra do leste vira a estrada principal: atravessa o campo de fora, sai dele pelo sul e segue em
+// curvas pela mata (nunca reta). Nenhum monstro fica perto dela: cada campo de caça é uma clareira plana e limpa
+// (sem árvore nem pedra dentro, só em volta) no meio da mata, a 26 m ou mais da estrada; chega-se por uma trilha
+// estreita que sai da estrada e entra entre as árvores. A mata é andável (árvores espaçadas) e fecha nas bordas.
+const ESTRADA = [[45, -3.2], [48.5, 1.5], [53, 7.5], [58, 13], [62.5, 19], [64, 27], [62, 37], [67, 47], [80, 56], [98, 62],
+  [118, 56], [134, 44], [152, 50], [160, 66], [146, 82], [118, 88], [94, 98], [80, 114], [86, 136], [108, 148], [136, 142],
+  [164, 148], [186, 166]];
+// distância de (x, z) até a linha de pontos L (e o ponto mais perto)
+function pertoDaLinha(L, x, z) {
+  let md = Infinity, mp = L[0];
+  for (let i = 1; i < L.length; i++) {
+    const [ax, az] = L[i - 1], [bx, bz] = L[i], vx = bx - ax, vz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz || 1))), px = ax + vx * t, pz = az + vz * t;
+    const d = Math.hypot(x - px, z - pz); if (d < md) { md = d; mp = [px, pz]; }
+  }
+  return { d: md, p: mp };
+}
+// Os 10 campos de caça, da vila para o fim da estrada (nível 1 ao 25; o herói vai até o 30). Cada um tem UM bicho só
+// (Puglin, Imp ou Lobo, alternando) e o mesmo nível aparece de novo com outro bicho, para o jogador escolher onde
+// subir. A exceção é o Imp Chefe: todo campo tem 1 (pedido do André). caca1 é o campo antigo, agora só de Puglins.
+const CLAREIRAS = [
+  { id: 'caca1', tipo: 'puglin', nivel: 1, x: 77, z: -8 },
+  { id: 'caca2', tipo: 'imp', nivel: 3, x: 34, z: 58 },
+  { id: 'caca3', tipo: 'lobo', nivel: 5, x: 104, z: 30 },
+  { id: 'caca4', tipo: 'puglin', nivel: 5, x: 160, z: 24 },
+  { id: 'caca5', tipo: 'imp', nivel: 10, x: 190, z: 64 },
+  { id: 'caca6', tipo: 'lobo', nivel: 10, x: 50, z: 96 },
+  { id: 'caca7', tipo: 'puglin', nivel: 15, x: 116, z: 118 },
+  { id: 'caca8', tipo: 'imp', nivel: 15, x: 52, z: 150 },
+  { id: 'caca9', tipo: 'lobo', nivel: 20, x: 152, z: 112 },
+  { id: 'caca10', tipo: 'imp', nivel: 25, x: 206, z: 134 },
+];
+const CLAREIRA_R = 12; // raio do campo (área de combate lisa); as árvores começam 1,5 m depois
+// trilha de cada clareira: sai do ponto da estrada mais perto, faz uma curva entre as árvores e entra na clareira
+const TRILHAS = CLAREIRAS.map((c, i) => {
+  const { p } = pertoDaLinha(ESTRADA, c.x, c.z), dx = c.x - p[0], dz = c.z - p[1], L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
+  const lado = i % 2 ? 1 : -1, curva = (L - CLAREIRA_R) * 0.28 * lado;
+  const em = (t, k) => [+(p[0] + dx * t - uz * k).toFixed(2), +(p[1] + dz * t + ux * k).toFixed(2)];
+  const fim = (L - CLAREIRA_R + 2.5) / L;
+  return [[+p[0].toFixed(2), +p[1].toFixed(2)], em(fim * 0.3, curva * 0.8), em(fim * 0.62, curva), em(fim, curva * 0.15)];
+});
+
 // caminhos de terra (linhas de pontos, largura em metros)
 const CAMINHOS = [
   { largura: 2.4, pontos: [[0, 1], [-1.5, -4], [-4, -8.5], [PRACA.x, PRACA.z]] },
   // saída da vila para o leste: sai da estrada larga onde o herói nasce, por fora das casas (o André pediu, 2026-11-02:
   // a estradinha antiga passava espremida entre a casa3 e a ferraria)
   { largura: 2.4, pontos: [[0, 1], [5, 1.2], [10, 0.4], [14, -0.6], [17.5, -1.6], [21, -2.2]] },
-  // a estradinha do leste continua: sai da vila pela passagem nas pedras e chega no campo de caça
-  { largura: 2.2, pontos: [[17, -2], [21, -2.2], [24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2], [52, -2], [58, -0.6]] },
+  // a estradinha do leste continua: sai da vila pela passagem nas pedras e vira a estrada principal (ESTRADA, abaixo)
+  { largura: 2.2, pontos: [[17, -2], [21, -2.2], [24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2]] },
   // trilha estreita até o veio de cobre
   { largura: 1.5, pontos: [[44, -3.4], [45, -7.5], [46, -11.5]] },
-  // a estradinha some aos poucos na grama do campo de caça (forca = quanto de terra: degradê de ~1 m, não borda reta)
-  { largura: 1.6, forca: 0.55, pontos: [[57, -0.8], [60.5, 0.2]] },
-  { largura: 1.1, forca: 0.3, pontos: [[60, 0], [63, 0.9]] },
+  // estrada principal tortuosa pela mata (com o mesmo lastro de terra) e as trilhas que entram na mata até cada clareira
+  { largura: 2.2, pontos: ESTRADA },
+  ...TRILHAS.map((t) => ({ largura: 1.4, forca: 0.6, pontos: t })),
   ...CASAS.map((c) => ({ largura: 1.5, pontos: [[PRACA.x, PRACA.z], [portaDe(c, 0.6).x, portaDe(c, 0.6).z]] })),
 ];
 // Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala as grandes.
@@ -258,11 +303,9 @@ function sortearArvores() {
   // lá fora (depois das da vila, para os ids a0... das árvores de antes não mudarem): bosque em volta do campo de caça,
   // que fica aberto e plano no meio (como as zonas de caça do Quimera), e do veio de cobre
   const longeDe = (x, z, cx, cz, r) => Math.hypot(x - cx, z - cz) > r;
-  const estrada = [[24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2], [52, -2], [58, -0.6], [64, 1]];
-  const naEstrada = (x, z) => estrada.slice(1).some(([bx, bz], i) => { // a menos de 4,5 m da estradinha (a câmera passa sem entrar em tronco)
-    const [ax, az] = estrada[i], vx = bx - ax, vz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
-    return Math.hypot(x - ax - vx * t, z - az - vz * t) < 4.5;
-  });
+  // a estrada agora vira para o sul dentro do campo de fora (ESTRADA) e uma trilha leva ao campo dos Puglins
+  const estrada = [[24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], ...ESTRADA.slice(0, 7)];
+  const naEstrada = (x, z) => pertoDaLinha(estrada, x, z).d < 4.5 || pertoDaLinha(TRILHAS[0], x, z).d < 2.4; // a câmera passa sem entrar em tronco
   for (let t = 0, n = 0; n < 34 && t < 4000; t++) {
     const a = rnd(0, 6.283), r = rnd(4, raioNaDirecao(FORA, a) - 2.5), x = FORA.x + Math.cos(a) * r, z = FORA.z + Math.sin(a) * r;
     if (!longeDe(x, z, CACA[0].x, CACA[0].z, CACA[0].r + 1.5) || !longeDe(x, z, MINA[0].x, MINA[0].z, MINA[0].r + 2.2) || naEstrada(x, z)) continue;
@@ -286,11 +329,78 @@ const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos: [[3, 0.13, 2.1], [2, 0.07, -
 // Campo de caça (regra das zonas de caça do Quimera, znSp): sempre "n" monstros. A cada "passo" s, se falta algum,
 // nasce um num ponto ao acaso do campo (até 85% do raio, a pelo menos "longe" m de qualquer jogador). O próximo vem
 // em "rapido" s enquanto houver menos da metade, senão em "normal" s. Quem morre some depois de "corpo" s e abre a vaga.
-// tipos: um por vaga (a vaga 0 é sempre Puglin...), para o Godot ter um modelo fixo por vaga.
+// tipos: um por vaga, para o Godot ter um modelo fixo por vaga. Cada campo é uma clareira (CLAREIRAS, acima) com um
+// bicho só e 1 Imp Chefe; nivel = nível dos monstros (vida, dano e XP sobem com ele: NIVEL_INIMIGO).
+const NOME_CLAREIRA = { puglin: 'Clareira dos Puglins', imp: 'Clareira dos Imps', lobo: 'Clareira dos Lobos' };
 export const CACA = [
-  { id: 'caca1', nome: 'Campo de caça', x: 70, z: 2, r: 13, n: 10, tipos: ['puglin', 'puglin', 'imp', 'puglin', 'imp', 'puglin', 'puglin', 'imp', 'puglin', 'imp'],
-    passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 },
+  ...CLAREIRAS.map((c) => ({ id: c.id, nome: NOME_CLAREIRA[c.tipo], nivel: c.nivel, bicho: c.tipo, x: c.x, z: c.z, r: CLAREIRA_R,
+    n: 11, tipos: [...Array(10).fill(c.tipo), 'chefe'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 })),
 ];
+// Nível dos monstros: cada nível acima do 1 soma uma fração da vida, do dano, do XP e do ouro de base (TIPOS_INIMIGO,
+// XP_INIMIGO e DROPS). A curva acompanha o herói (dano +8%/nível mais os pontos e o equipamento); XP cai quando o herói
+// passa muito do nível do bicho (acima de "folga" níveis, perde "perde" por nível, até "min").
+export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1 };
+export const statusInimigo = (tipo, nivel = 1) => {
+  const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
+  return { vida: Math.round(t.vida * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (1 + NIVEL_INIMIGO.dano * k)) };
+};
+// A mata andável: círculos de borda ondulada ao longo da estrada e em volta de cada clareira, ligados por corredores
+// (a saída do campo de fora pelo sul e as trilhas). Sem anel de pedra (direção de arte: borda de mata fechada).
+function montarMata() {
+  const areas = [], corredores = [{ a: [63, 12], b: [63.5, 34], larg: 12, mata: true }];
+  const folga = (x, z) => { // quanto falta até a borda do campo de fora e da vila (para a mata não abrir o anel de pedras)
+    const df = Math.hypot(x - FORA.x, z - FORA.z) - raioNaDirecao(FORA, Math.atan2(z - FORA.z, x - FORA.x));
+    return Math.min(df, Math.hypot(x, z) - 34);
+  };
+  const circulo = (x, z, r) => {
+    const n = areas.length, rr = Math.min(r, folga(x, z) - 4);
+    if (rr >= 9) areas.push({ x: +x.toFixed(2), z: +z.toFixed(2), rx: +rr.toFixed(2), rz: +rr.toFixed(2), mata: true, lobos: [[3, 0.07, n * 1.7], [5, 0.05, n * 0.9]] });
+  };
+  for (let i = 5; i < ESTRADA.length - 1; i++) { // a cada ~16 m da estrada
+    const [ax, az] = ESTRADA[i], [bx, bz] = ESTRADA[i + 1], L = Math.hypot(bx - ax, bz - az);
+    for (let d = 0; d < L; d += 16) circulo(ax + (bx - ax) * d / L, az + (bz - az) * d / L, 24);
+  }
+  circulo(...ESTRADA[ESTRADA.length - 1], 20);
+  CLAREIRAS.forEach((c, i) => {
+    if (i === 0) return; // o campo dos Puglins fica dentro do campo de fora
+    circulo(c.x, c.z, CLAREIRA_R + 9);
+    const t = TRILHAS[i];
+    for (let k = 1; k < t.length; k++) corredores.push({ a: t[k - 1], b: t[k], larg: 10, mata: true });
+  });
+  return { areas, corredores };
+}
+const MATA = montarMata();
+// Árvores da mata (enfeite sólido, não dão lenha): espaçadas dentro da área andável (dá para andar entre elas), fechadas
+// num anel em volta de cada clareira e numa faixa densa logo depois da borda. Nada na estrada, nas trilhas nem dentro
+// das clareiras. Sorteio fixo: servidor, site e Godot veem as mesmas (o Godot desenha em MultiMesh, por pedaços).
+function sortearMata() {
+  let sem = 4321; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const M = { areas: MATA.areas, corredores: MATA.corredores };
+  const x0 = Math.min(...MATA.areas.map((a) => a.x - a.rx)) - 12, x1 = Math.max(...MATA.areas.map((a) => a.x + a.rx)) + 12;
+  const z0 = Math.min(...MATA.areas.map((a) => a.z - a.rz)) - 12, z1 = Math.max(...MATA.areas.map((a) => a.z + a.rz)) + 12;
+  const grade = new Map(), cel = 6, chave = (i, j) => i * 10007 + j, lista = [];
+  const livre = (x, z, esp) => {
+    const i = Math.floor(x / cel), j = Math.floor(z / cel);
+    for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) for (const o of grade.get(chave(a, b)) || []) if (Math.hypot(o.x - x, o.z - z) < esp) return false;
+    return true;
+  };
+  const tentativas = Math.round((x1 - x0) * (z1 - z0) / 2.2);
+  for (let t = 0; t < tentativas; t++) {
+    const x = rnd(x0, x1), z = rnd(z0, z1), dentro = dentroDoMapa(M, x, z, 0);
+    if (!dentro && !dentroDoMapa(M, x, z, -9)) continue; // longe demais da borda: ninguém vê
+    const df = Math.hypot(x - FORA.x, z - FORA.z) - raioNaDirecao(FORA, Math.atan2(z - FORA.z, x - FORA.x));
+    if (df < 2 || Math.hypot(x, z) < 37) continue; // o campo de fora e a vila têm as árvores deles
+    if (pertoDaLinha(ESTRADA, x, z).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, x, z).d < 2.2)) continue;
+    const dc = Math.min(...CLAREIRAS.map((c) => Math.hypot(x - c.x, z - c.z)));
+    if (dc < CLAREIRA_R + 1.5) continue; // a área de combate fica limpa
+    const anel = dc < CLAREIRA_R + 5, esp = anel ? 2.7 : dentro ? 5.4 : 3.3;
+    if (!livre(x, z, esp)) continue;
+    const a = { x: +x.toFixed(2), z: +z.toFixed(2), s: +(dentro && !anel ? rnd(0.85, 1.3) : rnd(1, 1.45)).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: lista.length % 3 };
+    lista.push(a);
+    const k = chave(Math.floor(x / cel), Math.floor(z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a);
+  }
+  return lista;
+}
 // Veio de cobre (zona de mineração do Quimera, só que pequena e com pouco minério, pedido do André 2026-11-02):
 // "veios" pedras no círculo de raio r. O minério é de todos: quando alguém esgota uma pedra, ela some para todo mundo
 // e volta em "volta" s (no Quimera a pedra minerada volta em 6 min).
@@ -307,10 +417,13 @@ export const MAPA_CLAREIRA = {
   raio: 34,
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
-  areas: [{ x: 0, z: 0, r: 34 }, FORA],
-  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }],
+  // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas),
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }].concat(MATA.corredores),
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
-  mascara: { x0: -38, z0: -62, tam: 142, px: 1024 },
+  mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
+  // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
+  minimapa: { x0: -44, z0: -44, tam: 288, px: 1024 },
   // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
   // 2026-11-02): os monstros ficam no campo de caça lá fora (CACA)
   inimigos: [],
@@ -361,6 +474,9 @@ export const MAPA_CLAREIRA = {
     { tipo: 'balde', x: PRACA.x + 1.25, z: PRACA.z + 0.5, ry: 2 }, { tipo: 'toco', x: -18.5, z: -14, ry: 1 }, { tipo: 'toco', x: 8.6, z: -19, s: 0.8, ry: 3 },
   ],
   vila: { praca: PRACA, casas: CASAS, caminhos: CAMINHOS, arvores: sortearArvores() },
+  // árvores da mata (enfeite sólido, sem lenha) e a estrada principal (minimapa)
+  mata: sortearMata(),
+  estrada: ESTRADA,
 };
 
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
@@ -476,7 +592,7 @@ export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 // mat: materiais para o alfaiate { item: [chance, quantos] }
 const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.78, 0.2, 0.02, 0, 0] };
 export const DROPS = {
-  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1] } }, sombrio: DROP_COMUM,
+  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1] } }, sombrio: DROP_COMUM,
   lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.5, 0.38, 0.12, 0, 0] },
   chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1] } },
 };

@@ -1,5 +1,5 @@
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Exportar Bestiário para o Godot</title></head>
-<body><p>Ferramenta (só no vite dev): gera Puglin.glb e Imp.glb com as animações já gravadas, nos nomes que o Godot usa.</p>
+<body><p>Ferramenta (só no vite dev): gera Puglin.glb, Imp.glb e Lobo.glb com as animações já gravadas, nos nomes que o Godot usa.</p>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -29,6 +29,19 @@ for (const nome of ['Puglin', 'Imp']) {
   }
   const bin = await new GLTFExporter().parseAsync(g.scene, { binary: true, animations: clipes });
   saida[nome] = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
+}
+// Lobo (feito por IA, ferramentas/monstros-ia): era a montaria de teste e virou bicho de caça (pedido do André
+// 2026-11-03). Vem com as próprias animações; aqui ganham os nomes que o Godot usa nos monstros. Tamanho: o da
+// montaria (1,9) uns 18% menor, como a direção de arte pediu para o lobo inimigo.
+{
+  const g = await L.loadAsync('assets/monstros/lobo.glb');
+  const de = Object.fromEntries(g.animations.map((c) => [c.name, c]));
+  const como = (orig, nome) => { const c = de[orig].clone(); c.name = nome; return c; };
+  const clipes = [como('parado', 'parada'), como('parado', 'espada_parada'), como('andar', 'andar'), como('correr', 'corrida'),
+    como('atacar', 'golpe1'), como('atacar', 'golpe2'), como('dano', 'apanhar'), como('morrer', 'morrer')];
+  const raiz = new THREE.Group(); raiz.add(g.scene); g.scene.scale.multiplyScalar(1.9 * 0.82);
+  const bin = await new GLTFExporter().parseAsync(raiz, { binary: true, animations: clipes });
+  saida.Lobo = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
 }
 window.resultado = saida;
 </script></body></html>

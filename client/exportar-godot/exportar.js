@@ -41,6 +41,8 @@ async function principal() {
     if (o.isLight || o === mundo.grama) continue;
     if (o.isInstancedMesh) { // anel de pedras e samambaias: uma cópia solta por instância (o Godot não lê instâncias do glTF)
       const m = new THREE.Matrix4();
+      // árvores da mata: só o modelo (na origem, sem giro); o Godot faz as cópias em MultiMesh com mundo.mata
+      if (/^mata_/.test(o.name)) { const c = new THREE.Mesh(o.geometry, o.material); c.name = o.name; vila.add(c); continue; }
       for (let i = 0; i < o.count; i++) {
         const c = new THREE.Mesh(o.geometry, o.material); o.getMatrixAt(i, m);
         m.decompose(c.position, c.quaternion, c.scale); c.name = o.name || 'instancia'; vila.add(c);

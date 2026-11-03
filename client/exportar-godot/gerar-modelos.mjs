@@ -31,7 +31,7 @@ const gravar = (nome, b64) => { fs.writeFileSync(path.join(SAIDA, nome), Buffer.
 {
   const p = await pagina();
   await p.goto(`${URL_BASE}/exportar-bestiario-godot.html`);
-  await p.waitForFunction(() => window.resultado && Object.keys(window.resultado).length >= 2, null, { timeout: 600000, polling: 2000 });
+  await p.waitForFunction(() => window.resultado && Object.keys(window.resultado).length >= 3, null, { timeout: 600000, polling: 2000 });
   const r = await p.evaluate(() => window.resultado);
   for (const [k, v] of Object.entries(r)) if (typeof v === 'string' && v.length > 100) gravar(k.toLowerCase().replace(/\.glb$/, '') + '.glb', v);
   await p.close();
@@ -57,6 +57,13 @@ const gravar = (nome, b64) => { fs.writeFileSync(path.join(SAIDA, nome), Buffer.
     return cv.toDataURL('image/png').split(',')[1];
   });
   gravar('mascara_vila.png', png);
+  // minimapa: o mapa todo pintado de cima (client/src/minimapa.js); nomes e o herói o app põe por cima
+  const mini = await p.evaluate(async () => {
+    const { desenharMinimapa } = await import('/src/minimapa.js');
+    const { MAPA_CLAREIRA } = await import('/@id/@rpg/shared');
+    return desenharMinimapa(MAPA_CLAREIRA).toDataURL('image/png').split(',')[1];
+  });
+  gravar('minimapa.png', mini);
   await p.close();
 }
 await navegador.close();

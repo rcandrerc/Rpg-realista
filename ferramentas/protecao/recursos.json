@@ -109,6 +109,15 @@
     { "nome": "Bola de Fogo, Nova de Gelo, Meteoro e Faísca passam pelos efeitos novos", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const NOVAS := [\"bola\", \"gelo\", \"meteoros\"]", "mg.nova_gelo(", "mg.portal(", "\"novo\": true"] },
     { "nome": "Faísca anda fluida e mais lenta: o acerto não congela o jogo (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func tiro_basico(hab) -> bool:", "if tiro_basico:", "float(P.dados.andarAtirando)"] },
     { "nome": "Animações novas das magias do cajado", "arquivo": "shared/dados.js", "contem": ["mg_basico_d: 1.2", "magiaD: ['mg_basico_d'", "bolaForte: ['mg_bola'", "novaGelo: ['mg_gelo'", "meteoroCeu: ['mg_meteoro'"] },
-    { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] }
+    { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] },
+    { "nome": "Minimapa no canto de cima à direita; tocar abre o mapa completo (André 2026-11-03)", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func abrir() -> void:", "func _desenhar_mini() -> void:", "func _desenhar_grande() -> void:", "func cobre(p: Vector2) -> bool:"] },
+    { "nome": "Minimapa entra no jogo e o toque nele não vira câmera", "arquivo": "godot-prototipo/main.gd", "contem": ["minimapa = Minimapa.new(self)", "hud.minimapa = minimapa"] },
+    { "nome": "Desenho do minimapa (gerado no build)", "arquivo": "client/exportar-godot/gerar-modelos.mjs", "contem": ["gravar('minimapa.png', mini);"] },
+    { "nome": "Mata com estrada tortuosa e 10 clareiras de caça, um bicho por clareira + 1 Imp Chefe (André 2026-11-03)", "arquivo": "shared/dados.js", "contem": ["const ESTRADA = [", "const CLAREIRAS = [", "tipos: [...Array(10).fill(c.tipo), 'chefe']", "function sortearMata()", "export const NIVEL_INIMIGO"] },
+    { "nome": "Lobo é bicho de caça (era montaria de teste)", "arquivo": "shared/dados.js", "contem": ["lobo: { nome: 'Lobo', horda: 'Monstros do Leste', visual: 'lobo'"] },
+    { "nome": "Modelo do lobo inimigo para o Godot", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["saida.Lobo ="] },
+    { "nome": "Nível dos monstros: vida, dano, XP e ouro", "arquivo": "shared/simulacao.js", "contem": ["statusInimigo(sp.tipo, nivel)", "xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)", "pertoNaMata("] },
+    { "nome": "Árvores da mata em MultiMesh e monstros longe param", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_mata(vila: Node3D) -> void:", "func grama_da_mata(", "func lod_inimigos() -> void:", "func xp_do_inimigo(e: Dictionary) -> int:"] },
+    { "nome": "Herói colide com as árvores da mata", "arquivo": "godot-prototipo/andar.gd", "contem": ["func perto_na_mata(px: float, pz: float) -> Array:"] }
   ]
 }
