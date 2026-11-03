@@ -86,6 +86,7 @@ func passo_estamina(dt: float) -> void:
 		if sta <= 0.0 and not sem_folego:
 			sem_folego = true
 			m.hud.aviso("Sem fôlego!")
+			mov.disparada = false # acabou a estamina: a disparada desliga e o herói volta ao trote
 	elif sta_t > 0.0:
 		sta_t -= dt
 	else:
