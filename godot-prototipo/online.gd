@@ -25,6 +25,8 @@ var _pronto := false
 var _ap_mandar = null # aparência do criador esperando para ir ao servidor (no máximo 4 por segundo)
 var _ap_t := 0.0
 var _ap_txt := "" # última aparência do meu herói que veio do servidor
+var _visual_txt := "" # último corpo do meu herói que veio do servidor
+var _visual_mandado := "" # corpo do criador que já foi para o servidor (conta nova, ao vivo)
 var _status_t := 0.0
 var jogadores := 0
 # tela de login
@@ -263,11 +265,16 @@ func aplicar_foto(f: Dictionary) -> void:
 			if str(j.id) == meu_id and not _pronto: # conta nova: abre o criador (a base é a Ruiva)
 				_pronto = true
 				var nome := str(rede.conta.get("nome", "")).strip_edges().left(16)
-				m.criador.abrir_criacao(nome, m.aparencia, func(n, a):
-					rede.enviar("pronto", {"nome": n, "visual": "ruiva", "aparencia": a})
+				m.criador.abrir_criacao(nome, m.aparencia, func(n, a, corpo):
+					rede.enviar("pronto", {"nome": n, "visual": corpo, "aparencia": a})
+					m.trocar_corpo(corpo, false)
 					m.definir_aparencia(a)
 					m.hud.nome = n,
-					func(a): _ap_mandar = a) # os outros jogadores veem mudando na hora
+					func(a, corpo):
+						_ap_mandar = a # os outros jogadores veem mudando na hora
+						if corpo != _visual_mandado:
+							_visual_mandado = corpo
+							rede.enviar("visual", corpo), m.visual)
 			continue
 		jogadores += 1
 		if str(j.id) == meu_id:
@@ -296,6 +303,10 @@ func aplicar_foto(f: Dictionary) -> void:
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	var ap_txt := JSON.stringify(j.get("aparencia"))
+	var vis := str(j.get("visual", ""))
+	if vis != "" and vis != _visual_txt: # corpo gravado na conta (vale o do servidor)
+		_visual_txt = vis
+		m.trocar_corpo(vis)
 	if ap_txt != _ap_txt: # aparência gravada na conta (vale a do servidor)
 		_ap_txt = ap_txt
 		if j.get("aparencia") is Dictionary:
@@ -342,12 +353,17 @@ func tocar(no_anim: AnimationPlayer, nome: String, vel := 1.0, fade := 0.15) -> 
 func outro(j: Dictionary) -> void:
 	var id := str(j.id)
 	var o = outros.get(id)
+	var vis: String = m.corpo_valido(j.get("visual", "ruiva")) # corpo que o jogador escolheu no criador
+	if o != null and o.get("visual", "ruiva") != vis: # trocou de corpo: monta de novo
+		o.no.queue_free()
+		outros.erase(id)
+		o = null
 	if o == null:
-		var no: Node3D = m.modelo("ruiva") # por enquanto todo jogador usa o corpo da Ruiva (é o que tem todas as animações)
+		var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
 		var esq: Skeleton3D = m.esqueleto(no)
 		var esp: Node3D = m.nova_arma("espada")
 		var caj: Node3D = m.nova_arma("cajado")
-		o = {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
+		o = {"no": no, "visual": vis, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
 			"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
 		no.position = o.alvo
 		o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
@@ -374,7 +390,7 @@ func outro(j: Dictionary) -> void:
 	var modo := str(j.get("modo", "Espada"))
 	if modo != o.modo:
 		o.modo = modo
-		var L: Dictionary = m.armas_lugar.ruiva
+		var L: Dictionary = m.lugar_armas(o.visual)
 		if modo == "Espada":
 			m.prender(o.esq, o.espada, L.espadaMao)
 			m.prender(o.esq, o.cajado, L.cajadoCostas)
