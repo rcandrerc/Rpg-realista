@@ -373,6 +373,16 @@ export class Simulacao {
     if (t === 'anel' || t === 'gelo' || t === 'puxar') return this.maisPerto(j, h.area) || false;
     return null;
   }
+  // Alvo travado do mago (André 2026-11-03): o celular manda o índice v do monstro que está travado (o 1º ataque
+  // pega o mais perto; só troca tocando em outro ou quando ele morre). Vale se está vivo e no alcance; senão null
+  // e a skill pega o mais perto como antes (celular antigo não manda v).
+  alvoTravado(j, h, m) {
+    if (!m || typeof m !== 'object' || !Number.isInteger(m.v) || m.v < 0) return null;
+    if (!['basicoMagia', 'bola', 'cadeia', 'meteoro'].includes(h.tipo)) return null;
+    const o = this.inimigos.find((e) => e.v === m.v && !e.morto);
+    if (!o || Math.abs((o.y || 0) - (j.y || 0)) > 3) return null;
+    return dist(o, j) < h.alcance + 1.5 ? o : null; // folga de 1 m pelo atraso da rede
+  }
   // Usa uma skill (botão da barra da arma na mão, ou o ataque básico). m: id ou { id, dx, dz } (direção do joystick)
   usarHabQ(id, m) {
     const hid = typeof m === 'string' ? m : m?.id;
@@ -389,7 +399,7 @@ export class Simulacao {
       if (!j.chao || j.arrancada || (j.cds[hid] || 0) > this.tempo) return;
       const h = this.habPronta(j, hid);
       if (h.mana && j.mana < h.mana) return this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' });
-      const alvo = this.alvoHab(j, h);
+      const alvo = this.alvoTravado(j, h, m) || this.alvoHab(j, h);
       if (alvo === false) return this.evento({ t: 'aviso', para: id, texto: this.maisPerto(j, 40) ? 'Longe demais' : 'Nenhum inimigo por perto' });
       if (base.arvore === 'espada') j.modo = 'Espada'; else if (base.arvore === 'cajado') j.modo = 'Magia';
       j.mana -= h.mana || 0;
