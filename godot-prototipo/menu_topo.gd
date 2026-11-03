@@ -4,7 +4,7 @@ extends CanvasLayer
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
 # Regra do André: no topo só entram conta, multijogador e configurações. Pedido dele (2026-11-03): a casinha do Voltar
 # para a vila também fica aqui, na ponta perto da seta; ela não abre janela, começa a canalização (volta_vila.gd) e mostra
-# a recarga de 10 min por cima do ícone.
+# a recarga de 10 min (varredura escura e o tempo embaixo).
 
 const Menu = preload("res://menu.gd")
 const ARQUIVO := "user://config.cfg" # escolhas do jogador (menu recolhido, som, vibração, FPS)
@@ -19,8 +19,8 @@ var m # main.gd
 var raiz: Control
 var lugar: Control # onde os ícones ficam (não se mexe)
 var itens: Control # os ícones (o que desliza, encolhe e some)
-var vila_sombra: Panel # casinha em recarga: escurece o ícone
-var vila_txt: Label # minutos e segundos que faltam
+var vila_sombra # Varredura: casinha em recarga, a parte escura é o que falta
+var vila_txt: Label # minutos e segundos que faltam (embaixo do botão)
 var _vila_t := 0.0
 var seta: Button
 var seta_ico: TextureRect
@@ -115,24 +115,42 @@ func _icone(ico: String, dica: String) -> Button:
 	b.add_child(t)
 	return b
 
-# recarga da casinha: o ícone escurece e o tempo que falta aparece por cima (como as skills da HUD)
+# recarga da casinha (direção de arte): a casinha fica a 40% de brilho, uma varredura escura em sentido horário mostra o
+# tempo que falta e o tempo aparece pequeno embaixo do botão
+class Varredura extends Control:
+	var k := 0.0 # 0..1 que falta
+	func _draw() -> void:
+		if k <= 0.0:
+			return
+		var c := size * 0.5
+		var r := size.x * 0.5 - 2.0
+		var pts := PackedVector2Array([c])
+		var n := maxi(3, int(48 * k))
+		for i in n + 1: # do meio-dia, girando no sentido horário pelo que ainda falta
+			var a := -PI * 0.5 + TAU * (1.0 - k) + TAU * k * float(i) / n
+			pts.append(c + Vector2(cos(a), sin(a)) * r)
+		draw_colored_polygon(pts, Color(0.02, 0.015, 0.01, 0.55))
+
+var vila_ico: TextureRect
 func _recarga_vila(b: Button) -> void:
-	vila_sombra = Panel.new()
-	vila_sombra.add_theme_stylebox_override("panel", Menu.caixa(Color(0.02, 0.015, 0.01, 0.62), Color(0, 0, 0, 0), 0, 15))
-	vila_sombra.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vila_sombra.size = Vector2(TAM, TAM)
-	vila_sombra.visible = false
-	b.add_child(vila_sombra)
+	vila_ico = b.get_child(0)
+	var v := Varredura.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.size = Vector2(TAM, TAM)
+	v.visible = false
+	b.add_child(v)
+	vila_sombra = v
 	vila_txt = Label.new()
 	vila_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vila_txt.size = Vector2(TAM, TAM)
+	vila_txt.position = Vector2(-6, TAM + 1)
+	vila_txt.size = Vector2(TAM + 12, 14)
 	vila_txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vila_txt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	vila_txt.add_theme_font_size_override("font_size", 15)
+	vila_txt.add_theme_font_size_override("font_size", 12)
 	vila_txt.add_theme_color_override("font_color", Color(1, 0.9, 0.68))
 	vila_txt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	vila_txt.add_theme_constant_override("outline_size", 4)
-	vila_sombra.add_child(vila_txt)
+	vila_txt.visible = false
+	b.add_child(vila_txt)
 
 func _atualizar_vila(dt: float) -> void:
 	_vila_t -= dt
@@ -140,8 +158,13 @@ func _atualizar_vila(dt: float) -> void:
 		return
 	_vila_t = 0.25
 	var f: float = m.volta.falta()
-	vila_sombra.visible = f > 0.0
-	if f > 0.0:
+	var em_recarga := f > 0.0
+	vila_sombra.visible = em_recarga
+	vila_txt.visible = em_recarga
+	vila_ico.modulate = Color(1, 1, 1, 0.4) if em_recarga else Color.WHITE
+	if em_recarga:
+		vila_sombra.k = clamp(f / float(m.volta.V.cd), 0.0, 1.0)
+		vila_sombra.queue_redraw()
 		var txt: String = m.volta.tempo_txt(f)
 		if vila_txt.text != txt:
 			vila_txt.text = txt

@@ -40,7 +40,7 @@ var nivel := 1
 var xp := 0.0 # 0..1 até o próximo nível
 var escudo := false
 var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhuma
-var canal_vila := false # a barra é a do Voltar para a vila (dourada, com o nome em cima)
+var canal_vila := false # a barra é a do Voltar para a vila (dourada, com o nome em cima, mais alta na tela)
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
 var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joystick nem câmera
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
@@ -418,16 +418,21 @@ func _desenhar() -> void:
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225 * clamp(estamina, 0.0, 1.0), 7)), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225, 4)), Color(0, 0, 0, 0.5))
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
-	if canal >= 0.0: # concentrando a magia
+	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
+		var tam := Vector2(280, 10)
+		var pc := Vector2((_tela.size.x - tam.x) * 0.5, _tela.size.y * 0.68)
+		_tela.draw_rect(Rect2(pc, tam), Color(0.05, 0.04, 0.03, 0.7))
+		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(1.0, 0.78, 0.38))
+		_tela.draw_rect(Rect2(pc - Vector2(1, 1), tam + Vector2(2, 2)), Color(0.925, 0.81, 0.55, 0.9), false, 1.0)
+		var tv := "Voltando para a vila"
+		var wv := f.get_string_size(tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		_tela.draw_string_outline(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 6), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.6))
+		_tela.draw_string(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 6), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.68))
+	elif canal >= 0.0: # concentrando a magia
 		var tam := Vector2(240, 10)
 		var pc := Vector2((_tela.size.x - tam.x) * 0.5, _tela.size.y - 150)
 		_tela.draw_rect(Rect2(pc - Vector2(2, 2), tam + Vector2(4, 4)), Color(0, 0, 0, 0.55))
-		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(1.0, 0.78, 0.38) if canal_vila else Color(0.75, 0.55, 1.0))
-		if canal_vila:
-			var tv := "Voltando para a vila"
-			var wv := f.get_string_size(tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-			_tela.draw_string_outline(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 8), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.6))
-			_tela.draw_string(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 8), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 0.9, 0.68))
+		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(0.75, 0.55, 1.0))
 		_tela.draw_rect(Rect2(pc - Vector2(2, 2), tam + Vector2(4, 4)), COR_BORDA, false, 1.5)
 	if _aviso_t > 0:
 		var w := f.get_string_size(aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x

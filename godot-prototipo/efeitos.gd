@@ -127,6 +127,30 @@ void fragment() {
 }
 """
 
+# coluna de luz do Voltar para a vila (direção de arte 2026-11-03): cilindro com alpha em degradê (forte na base, some a
+# ~6 m), borda suave pelo fresnel (sem aresta), 7 riscos de luz subindo (~1,5 m/s) e miolo quase branco só no 1,5 m de baixo
+const SH_COLUNA_VILA := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec4 cor = vec4(1.0, 0.824, 0.478, 1.0);
+uniform float op = 0.0;
+uniform float alt = 6.0; // altura de agora (m)
+void fragment() {
+	float h = (1.0 - UV.y) * alt;
+	float sobe = 1.0 - smoothstep(0.0, 6.0, h);
+	sobe *= sobe;
+	float borda = abs(dot(NORMAL, VIEW));
+	borda = smoothstep(0.0, 0.75, borda);
+	float faixa = fract(UV.x * 7.0);
+	float risco = smoothstep(0.42, 0.5, faixa) * (1.0 - smoothstep(0.5, 0.58, faixa));
+	float sobe_risco = fract(h / 2.2 - TIME * 0.68 + floor(UV.x * 7.0) * 0.37);
+	risco *= smoothstep(0.0, 0.25, sobe_risco) * (1.0 - smoothstep(0.55, 1.0, sobe_risco));
+	float miolo = 1.0 - smoothstep(0.0, 1.5, h);
+	ALBEDO = mix(cor.rgb, vec3(1.0, 0.98, 0.92), miolo * 0.75);
+	ALPHA = op * borda * (sobe * 0.8 + risco * sobe * 1.3 + miolo * 0.3);
+}
+"""
+
 const RUIDO := """
 float hs3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float rd(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -1411,6 +1435,7 @@ func subir_nivel(corpo: Node3D) -> void:
 # espiral em volta do corpo cada vez mais forte, e no último terço uma coluna de luz quente cresce até o céu.
 # Chegou: clarão onde estava, rastro de luz e a mesma coluna se apagando na praça. Cancelou: tudo apaga rápido.
 var voltas: Array = [] # {corpo, g, a, b, col, t, dur, f, vivo, luz, voz, voz_som}
+const COLUNA_VILA := {"r": 0.8, "alt": 6.0}
 func volta_vila(corpo: Node3D, dur: float) -> void:
 	volta_vila_fim(corpo, false) # uma por corpo
 	var cores := cor_de("vila")
@@ -1422,14 +1447,15 @@ func volta_vila(corpo: Node3D, dur: float) -> void:
 	b.reparent(g)
 	var col := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 1.0
-	cil.bottom_radius = 1.0
-	cil.height = 1.0
-	cil.radial_segments = 32
+	cil.top_radius = COLUNA_VILA.r
+	cil.bottom_radius = COLUNA_VILA.r
+	cil.height = COLUNA_VILA.alt
+	cil.radial_segments = 40
+	cil.rings = 1
 	cil.cap_top = false
 	cil.cap_bottom = false
 	col.mesh = cil
-	col.material_override = material("coluna", SH_COLUNA, {"cor": c(cores[1]), "op": 0.0})
+	col.material_override = material("coluna_vila", SH_COLUNA_VILA, {"cor": c("ffd27a"), "op": 0.0, "alt": COLUNA_VILA.alt})
 	col.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(col)
 	var voz = _som_voz("q_carga_cura", corpo.global_position, -4.0, 0.0, 0.72)
@@ -1501,9 +1527,11 @@ func _voltas_passo(dt: float) -> void:
 		circulo_definir(v.b, v.cb, f * 0.8)
 		# coluna de luz: só no último terço, crescendo até o fim
 		var k_col: float = smoothstep(0.62, 1.0, u)
-		v.col.scale = Vector3(0.45 + 0.2 * k_col, 1.0 + 7.0 * k_col, 0.45 + 0.2 * k_col)
-		v.col.position.y = v.col.scale.y * 0.5
-		v.col.material_override.set_shader_parameter("op", f * k_col * 0.4)
+		var sy: float = max(0.02, k_col)
+		v.col.scale = Vector3(1.0, sy, 1.0)
+		v.col.position.y = COLUNA_VILA.alt * sy * 0.5
+		v.col.material_override.set_shader_parameter("alt", COLUNA_VILA.alt * sy)
+		v.col.material_override.set_shader_parameter("op", f * min(1.0, k_col * 1.6))
 		if v.vivo:
 			v.luz.int = 0.4 + 2.2 * u + sin(v.t * 6.0) * 0.15
 			v.luz.l.global_position = Vector3(p.x, p.y + 1.0, p.z)
@@ -1513,7 +1541,7 @@ func _voltas_passo(dt: float) -> void:
 				if randf() < n:
 					var ang: float = v.t * 2.2 + randf() * TAU
 					var d: float = r * randf_range(0.55, 0.95)
-					part(FOGO, p.x + cos(ang) * d, p.y + 0.1, p.z + sin(ang) * d, -sin(ang) * 0.6, randf_range(0.9, 1.8) + 1.5 * u, cos(ang) * 0.6, randf_range(1.0, 1.6), 0.06 * H, 0.015, "ffffff", v.cc, 1.0, 0.25, 0.6)
+					part(FOGO, p.x + cos(ang) * d, p.y + 0.1, p.z + sin(ang) * d, -sin(ang) * 0.6, randf_range(0.9, 1.8) + 1.5 * u, cos(ang) * 0.6, randf_range(1.0, 1.6), 0.12 * H, 0.03, "ffffff", v.cc, 1.0, 0.25, 0.6)
 				n -= 1.0
 			if randf() < dt * (3.0 + 6.0 * u):
 				poeira(p.x, p.z, r, 1, v.cb, v.cc)
