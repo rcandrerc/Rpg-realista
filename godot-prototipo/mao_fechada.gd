@@ -9,13 +9,14 @@ var _ossos := [] # [{"i": osso, "q": rotação da mão fechada (local)}]
 var _mao := -1
 var _lado_local := Vector3.ZERO # do indicador ao mindinho, no espaço do osso da mão
 var _cima := Vector3.UP # quadril -> cabeça, espaço do esqueleto
+var _polegar := [-1, -1, -1] # Thumb1, Thumb2 e o osso do indicador onde a ponta do polegar encosta
 var _meio := [] # dedo do meio (1, 2, 3): o furo do punho fica no meio deles
 const GIRO_MAO := 1.0 # quanto o pulso gira para o furo do punho ficar em pé (o cajado passa por dentro)
 
 # quanto cada falange dobra (rad): 1ª, 2ª e 3ª. O mindinho fecha um pouco mais (a mão afunila no cabo).
-const DOBRA := {"Index": [1.2, 1.35, 0.85], "Middle": [1.25, 1.4, 0.85], "Ring": [1.3, 1.4, 0.85], "Little": [1.35, 1.4, 0.85]}
-const POLEGAR_GIRO := -0.75 # o polegar vira para a frente da palma (oposição)
-const POLEGAR_DOBRA := [0.35, 0.55, 0.5] # e dobra por cima dos dedos
+const DOBRA := {"Index": [1.2, 1.35, 1.11], "Middle": [1.25, 1.4, 1.11], "Ring": [1.32, 1.42, 1.13], "Little": [1.38, 1.47, 1.16]} # mindinho ~10° a mais que o indicador; pontas escondidas atrás do cabo
+const POLEGAR_GIRO := 0.0 # (o 1º osso do polegar é apontado a cada quadro, ver _polegar)
+const POLEGAR_DOBRA := [0.0, 0.5, 0.55] # 2ª e 3ª juntas do polegar dobram por cima dos dedos (~30°)
 
 # osso de um dedo da mesma mão (VRoid J_Bip_R_Hand -> J_Bip_R_Index1; Mixamo RightHand -> RightHandIndex1)
 static func osso_dedo(esq: Skeleton3D, mao: int, dedo: String) -> int:
@@ -51,6 +52,7 @@ func preparar(esq: Skeleton3D, mao: int) -> void:
 		return
 	_mao = mao
 	_meio = [m1, m2, osso_dedo(esq, mao, "Middle3")]
+	_polegar = [osso_dedo(esq, mao, "Thumb1"), osso_dedo(esq, mao, "Thumb2"), osso_dedo(esq, mao, "Index2")]
 	_lado_local = (esq.get_bone_global_rest(mao).basis.orthonormalized().inverse() * (o.call(l1) - o.call(i1))).normalized()
 	# na pose de descanso (T) a palma fica para baixo: a normal da palma é a que aponta para longe da cabeça
 	var cima := Vector3.UP
@@ -121,6 +123,21 @@ func _process_modification() -> void:
 	s.set_bone_pose_rotation(_mao, (gp.basis.orthonormalized().inverse() * nova).get_rotation_quaternion())
 	for b in _ossos:
 		s.set_bone_pose_rotation(b.i, s.get_bone_pose_rotation(b.i).slerp(b.q, peso))
+	# polegar (direção de arte): fecha por cima do cabo, apontando para a 2ª falange do indicador, nunca "joinha"
+	if _polegar[0] >= 0 and _polegar[1] >= 0 and _polegar[2] >= 0:
+		var t1: int = _polegar[0]
+		var pt := s.get_bone_parent(t1)
+		var gpt: Transform3D = s.get_bone_global_pose(pt) if pt >= 0 else Transform3D()
+		var pose := s.get_bone_pose(t1)
+		var g1 := gpt * pose
+		var eixo: Vector3 = (g1.basis * s.get_bone_pose(_polegar[1]).origin).normalized()
+		var i2: Vector3 = s.get_bone_global_pose(_polegar[2]).origin
+		var i1: Vector3 = s.get_bone_global_pose(s.get_bone_parent(_polegar[2])).origin
+		var alvo: Vector3 = (i1.lerp(i2, 0.6) - g1.origin).normalized() # ponta encosta no cabo, sem sair do outro lado
+		if eixo.length() > 0.5 and alvo.length() > 0.5 and eixo.dot(alvo) > -0.99:
+			var q := Quaternion(eixo, alvo).slerp(Quaternion(), 1.0 - peso)
+			var nova1: Basis = Basis(q) * g1.basis.orthonormalized()
+			s.set_bone_pose_rotation(t1, (gpt.basis.orthonormalized().inverse() * nova1).get_rotation_quaternion())
 	# onde fica o furo do punho (espaço do esqueleto): Armas.palma põe o meio do cajado aqui
 	if _meio[2] >= 0:
 		var a: Vector3 = s.get_bone_global_pose(_meio[0]).origin
