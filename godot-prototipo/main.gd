@@ -165,6 +165,7 @@ func _ready() -> void:
 			mi.visible = false
 	pintar(vila, false)
 	montar_mata(vila)
+	alcance_da_vila(vila)
 	achar_troncos(vila)
 	montar_chao()
 	montar_grama()
@@ -439,6 +440,22 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		g.visibility_range_end = 70.0
 		add_child(g)
+
+# Desempenho (2026-11-03): na mata, a vila inteira (619 peças, a 100-200 m, atrás das árvores e da neblina) ainda era
+# desenhada: ~600 das ~900 chamadas de desenho do quadro. Agora cada peça da vila só é desenhada até uma distância
+# que depende do tamanho (caixote/balde 60 m, cerca/carroça 90 m, casa e árvore 120 m, maiores sempre), com fade curtinho.
+# Dentro da vila nada muda (tudo fica bem mais perto que isso).
+func alcance_da_vila(vila: Node3D) -> void:
+	for mi in vila.find_children("*", "MeshInstance3D", true, false):
+		if not mi.visible or mi.mesh == null:
+			continue
+		var bb: AABB = mi.global_transform * mi.get_aabb()
+		var tam: float = max(bb.size.x, max(bb.size.y, bb.size.z))
+		if tam >= 20.0:
+			continue # chão, morros e o que marca o horizonte ficam sempre
+		mi.visibility_range_end = 60.0 if tam < 2.0 else (90.0 if tam < 6.0 else 120.0)
+		mi.visibility_range_end_margin = 8.0
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 # Árvores da mata (mundo.mata, as mesmas do servidor): o vila.glb traz um modelo de cada (mata_tronco_v e mata_copa_v,
 # na origem) e aqui elas viram MultiMesh por pedaços de 32 m, desenhados até 80 m (a neblina esconde o resto).
@@ -1822,6 +1839,11 @@ func direcao_joystick() -> Vector3:
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
 # ---------- quadro a quadro ----------
+# app indo para o fundo ou fechando: grava na hora a cópia do progresso que estava esperando
+func _notification(what: int) -> void:
+	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
+		P.guardar_agora()
+
 func _process(dt: float) -> void:
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
@@ -1829,6 +1851,7 @@ func _process(dt: float) -> void:
 	if Engine.time_scale < 1.0 and agora_s >= _hitstop_ate:
 		Engine.time_scale = _lenta_k if agora_s < _lenta_ate else 1.0
 	tempo += dt
+	P.passo(dt_real) # grava a cópia do progresso fora do quadro (progresso.gd)
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
 	atualizar_heroi(dt)
@@ -2163,13 +2186,13 @@ func barras_perto() -> void:
 	var alvo = null
 	var md := 12.0
 	for e in inimigos:
-		if e.estado != "morto":
+		if e.estado != "morto" and not e.get("longe", false):
 			var d0: float = e.no.position.distance_to(heroi.position)
 			if d0 < md:
 				md = d0
 				alvo = e
 	for e in inimigos:
-		if e.barra == null or e.estado == "morto":
+		if e.barra == null or e.estado == "morto" or e.get("longe", false): # longe (outra clareira) nem é desenhado
 			continue
 		var d: float = e.no.position.distance_to(heroi.position)
 		var v: bool = e.barra.scale.x < 0.999 or d < 9.0
@@ -2217,13 +2240,37 @@ func empilhar_nomes() -> void:
 # Câmera não atravessa casa, telhado, pedra nem tronco: anda do herói até a câmera e para 0,2 m antes do que bater
 # (copa de árvore deixa passar). Mesmas formas que o movimento usa (terreno.gd e obstáculos do mundo.json).
 # sem_minerio: os veios de minério não puxam a câmera (André 2026-11-02: chegava perto e virava primeira pessoa)
+# Desempenho (2026-11-03): antes, a cada passo de 0,2 m, juntava os 110 obstáculos do mapa com as árvores de perto e
+# conferia as 22 pedras/casas do chão (uns 3 ms por quadro só na câmera, bem mais no celular). Agora separa uma vez só
+# o que está perto da linha herói-câmera e confere só isso a cada passo (o resultado é o mesmo).
 func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false) -> float:
+	var fim: Vector3 = de + dir * maxf(ate, 0.0)
+	var a2 := Vector2(de.x, de.z)
+	var b2 := Vector2(fim.x, fim.z)
+	var perto: Array = []
+	var vistos := {}
+	for q in [de, (de + fim) * 0.5, fim]:
+		for k in mov.perto_obstaculos(q.x, q.z) + mov.perto_na_mata(q.x, q.z):
+			if vistos.has(k):
+				continue
+			vistos[k] = true
+			var c := Vector2(float(k.x), float(k.z))
+			if Geometry2D.get_closest_point_to_segment(c, a2, b2).distance_to(c) < float(k.r) + 0.2:
+				perto.append(k)
+	var chao: Array = []
+	for r in terreno.solidos:
+		var c := Vector2(r.x, r.z)
+		if Geometry2D.get_closest_point_to_segment(c, a2, b2).distance_to(c) <= r.R:
+			chao.append(r)
 	var t := 0.35
 	while t <= ate:
 		var p := de + dir * t
-		if terreno.altura(p.x, p.z, p.y) > p.y - 0.25:
+		var h := 0.0
+		for r in chao:
+			h = maxf(h, terreno.altura_na(r, p.x, p.z, p.y))
+		if h > p.y - 0.25:
 			return max(0.6, t - 0.2)
-		for k in mundo.obstaculos + mov.perto_na_mata(p.x, p.z):
+		for k in perto:
 			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
 				return max(0.6, t - 0.2)
 		if trabalho and not sem_minerio and trabalho.dentro_de_pedra(p):
@@ -2234,7 +2281,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 # inimigos não atravessam casas, pedras, árvores e o poço (como Simulacao.colidir no servidor)
 func colidir_inimigo(no: Node3D) -> void:
 	var p := no.position
-	for lista in [mundo.obstaculos, mundo.rochasInimigo, mov.perto_na_mata(p.x, p.z)]:
+	for lista in [mov.perto_obstaculos(p.x, p.z), mundo.rochasInimigo, mov.perto_na_mata(p.x, p.z)]: # só os de perto (desempenho)
 		for k in lista:
 			var dx: float = p.x - k.x
 			var dz: float = p.z - k.z
@@ -2685,6 +2732,8 @@ func proxima_etapa() -> void:
 func atualizar_teste(dt: float) -> void:
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
+	if online and online.ligado and online.rede.ping_ms >= 0: # André 2026-11-03: ping do servidor sempre à vista
+		txt += " · ping %d ms" % online.rede.ping_ms
 	if online:
 		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
 	if etapa >= 0:
