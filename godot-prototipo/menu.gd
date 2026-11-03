@@ -451,7 +451,7 @@ func montar_palco() -> void:
 	aro.scale.y = 0.3
 	aro.position.y = 0.0
 	vp.add_child(aro)
-	boneco = m.modelo("ruiva")
+	boneco = m.modelo(m.visual)
 	boneco.get_parent().remove_child(boneco)
 	vp.add_child(boneco)
 	boneco.position = Vector3.ZERO
@@ -459,12 +459,32 @@ func montar_palco() -> void:
 	esp = m.nova_arma("espada")
 	caj = m.nova_arma("cajado")
 
+# o herói trocou de corpo no criador: o boneco do menu troca junto (mesmo lugar, mesma roupa e pintura)
+func trocar_boneco() -> void:
+	if boneco == null or not is_instance_valid(boneco):
+		return
+	var pai := boneco.get_parent()
+	var ry := boneco.rotation.y
+	for a in [esp, caj]: # as armas saem do corpo velho antes de ele sumir
+		if a.get_parent():
+			a.get_parent().remove_child(a)
+	boneco.queue_free()
+	boneco = m.modelo(m.visual)
+	boneco.get_parent().remove_child(boneco)
+	pai.add_child(boneco)
+	boneco.position = Vector3.ZERO
+	boneco.rotation.y = ry
+	boneco_anim = boneco.find_child("AnimationPlayer", true, false)
+	boneco_modo = ""
+	m.Aparencia.aplicar(boneco, m.aparencia)
+	armar_boneco()
+
 func armar_boneco() -> void:
 	if boneco_modo == m.h.modo:
 		return
 	boneco_modo = m.h.modo
 	var esq: Skeleton3D = m.esqueleto(boneco)
-	var L: Dictionary = m.armas_lugar.ruiva
+	var L: Dictionary = m.lugar_armas()
 	m.prender(esq, esp, L.espadaMao if boneco_modo == "Espada" else L.espadaCostas)
 	m.prender(esq, caj, L.cajadoCostas if boneco_modo == "Espada" else L.get("cajadoMao", L.cajadoCostas))
 	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else "parada", 0.2)

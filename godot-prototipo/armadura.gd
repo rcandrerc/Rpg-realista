@@ -204,7 +204,7 @@ static func _esqueleto(raiz: Node) -> Skeleton3D:
 
 static func _fonte(raiz: Node3D, trecho: String) -> MeshInstance3D:
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
-		if mi.mesh and mi.mesh.get_surface_count() > 0 and trecho in mi.mesh.surface_get_name(0):
+		if mi.mesh is ArrayMesh and mi.mesh.get_surface_count() > 0 and trecho in mi.mesh.surface_get_name(0): # as peças feitas em código (cilindro) não têm nome
 			return mi
 	return null
 
