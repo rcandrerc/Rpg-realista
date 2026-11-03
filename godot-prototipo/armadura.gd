@@ -37,22 +37,27 @@ const PECAS := {"chapeu": "cabeca", "peitoral": "corpo", "calca": "pernas", "sho
 const LUGARES := ["cabeca", "corpo", "pernas", "pes", "capa"]
 
 # cores por raridade (Comum, Raro, Épico, Lendário, Mítico): metal, friso, pano da capa (fora, dentro)
-# toon de 3 degraus (direção de arte): [claro, médio, sombra] do metal por raridade e [friso, friso claro]
+# André 2026-11-03: placas com cor de metal de verdade (ferro e aço; o Épico pode puxar um pouco para o roxo) e as
+# partes de tecido na cor da raridade (azul, roxo, laranja, pink). Antes as placas eram lilás e azul-claro lisas e
+# pareciam roupa de astronauta de plástico.
+# metal: [céu refletido (claro), meio-tom, horizonte escuro (sombra)] do reflexo desenhado em armadura.gdshader
 const METAL := [
-	[Color("c9ced4"), Color("8a929c"), Color("474d57")], # Comum: ferro (só o couro usa a cor de couro)
-	[Color("c9d3de"), Color("8c99ab"), Color("4a5466")], # Raro: aço
-	[Color("c9bde3"), Color("8573ad"), Color("43365e")], # Épico: aço violeta
-	[Color("c8d6e8"), Color("7d93b4"), Color("3e4c6a")], # Lendário: aço azul da capa do Aethra
-	[Color("8e6e7c"), Color("4f3542"), Color("24161e")]] # Mítico: aço escuro
-const FRISO := [[Color("a8743c"), Color("d4a060")], [Color("b9c3cf"), Color("eef2f6")], [Color("d9a54a"), Color("f3d27a")],
-	[Color("d9a54a"), Color("f3d27a")], [Color("e07a5a"), Color("ffb08a")]]
+	[Color("d4d8dc"), Color("7b8189"), Color("2c3036")], # Comum: ferro (só o couro usa a cor de couro)
+	[Color("dfe6ee"), Color("7f8c9b"), Color("27303b")], # Raro: aço
+	[Color("ddd8ec"), Color("7c7496"), Color("29233a")], # Épico: aço com um toque violeta
+	[Color("e6ebf2"), Color("838fa1"), Color("252c38")], # Lendário: aço claro polido (friso de ouro)
+	[Color("b4adbf"), Color("4c4656"), Color("16131b")]] # Mítico: aço escurecido (friso de ouro rosé)
+const FRISO := [[Color("a8743c"), Color("d4a060")], [Color("9aa4b0"), Color("e4e9ee")], [Color("c99a45"), Color("f0cf7a")],
+	[Color("d9a54a"), Color("f3d27a")], [Color("d9826e"), Color("ffc2a8")]]
 const COURO := [Color("8a5e3c"), Color("62412b"), Color("392517")]
 const COURO_ESCURO := [Color("6b4a36"), Color("4a3226"), Color("2a1c16")]
-# roupa de baixo (blusa e saia do VRoid) quando a armadura está no corpo: Épico ou melhor = escura; antes, lisa na cor da raridade
-const ROUPA := [Color("6d5a46"), Color("3a5a8a"), Color("2a2f3a"), Color("2a2f3a"), Color("2a2f3a")]
+# tecido (blusa, mangas e saia do VRoid por baixo da armadura, e a capa) na cor da raridade:
+# Comum linho marrom, Raro azul, Épico roxo, Lendário laranja, Mítico pink
+const TECIDO := [Color("7a5a3e"), Color("2e5596"), Color("5d2f8e"), Color("c8641e"), Color("c23a7c")]
+const ROUPA := TECIDO # nome antigo (a blusa e a saia lisas usam a cor do tecido)
 const BRILHO := [0.0, 0.0, 0.15, 0.25, 0.6] # o friso das raridades altas brilha um pouco
-const CAPA := [[Color(0.45, 0.33, 0.24), Color(0.3, 0.22, 0.16)], [Color(0.2, 0.36, 0.62), Color(0.12, 0.2, 0.36)],
-	[Color(0.42, 0.24, 0.6), Color(0.24, 0.13, 0.34)], [Color(0.72, 0.13, 0.12), Color(0.42, 0.07, 0.08)], [Color(0.16, 0.08, 0.12), Color(0.55, 0.08, 0.12)]]
+const CAPA := [[Color(0.45, 0.33, 0.24), Color(0.3, 0.22, 0.16)], [Color(0.18, 0.33, 0.6), Color(0.1, 0.17, 0.33)],
+	[Color(0.37, 0.18, 0.56), Color(0.2, 0.09, 0.31)], [Color(0.8, 0.38, 0.11), Color(0.45, 0.18, 0.06)], [Color(0.78, 0.22, 0.48), Color(0.36, 0.07, 0.2)]]
 
 static var _malhas := {} # "id da malha:parte" -> ArrayMesh pronta
 static var _soldas := {} # id da malha de origem -> malha soldada (sem costuras de UV)
@@ -151,7 +156,8 @@ static func de_texto(t: String) -> Dictionary:
 			r[l] = {"k": k, "r": clampi(int(p.right(1)), 0, 4)}
 	return r
 
-# velocidade do dono (m/s): a capa abre para trás correndo
+# velocidade do dono (m/s): a capa abre para trás correndo. Também sente a curva (o pano vai para fora) e o pulo
+# (sobe na queda), com mola: na freada ela ainda balança um pouco antes de cair.
 static func vento(raiz: Node3D, vel: float, dt: float) -> void:
 	var esq := _esqueleto(raiz)
 	if esq == null:
@@ -162,11 +168,35 @@ static func vento(raiz: Node3D, vel: float, dt: float) -> void:
 	var mi: MeshInstance3D = no.get_meta("capa_mi", null)
 	if mi == null:
 		return
+	dt = maxf(dt, 0.0001)
 	var alvo := clampf(vel / 5.4, 0.0, 1.0)
 	var a: float = no.get_meta("abre", 0.0)
 	a = lerpf(a, alvo, 1.0 - exp(-dt * (5.0 if alvo > a else 2.5)))
 	no.set_meta("abre", a)
 	mi.set_instance_shader_parameter("abre", a)
+	# giro do corpo (rad/s) e velocidade vertical (m/s), medidos pela raiz do personagem
+	var fr := raiz.global_basis.z
+	var ry := atan2(fr.x, fr.z)
+	var ry0: float = no.get_meta("ry", ry)
+	var giro := wrapf(ry - ry0, -PI, PI) / dt
+	no.set_meta("ry", ry)
+	var y0: float = no.get_meta("y", raiz.global_position.y)
+	var vy := (raiz.global_position.y - y0) / dt
+	no.set_meta("y", raiz.global_position.y)
+	# molas: lado (curva) e sobe (queda); passam um pouco do ponto e voltam
+	for q in [["lado", clampf(-giro * 0.22, -1.0, 1.0), 38.0, 7.0], ["sobe", clampf(-vy * 0.18, -1.0, 1.0), 30.0, 6.0]]:
+		var x: float = no.get_meta(q[0], 0.0)
+		var v: float = no.get_meta(q[0] + "_v", 0.0)
+		var h := dt
+		while h > 0.0:
+			var p := minf(h, 1.0 / 60.0)
+			h -= p
+			v += ((float(q[1]) - x) * float(q[2]) - v * float(q[3])) * p
+			x += v * p
+		x = clampf(x, -1.0, 1.0)
+		no.set_meta(q[0], x)
+		no.set_meta(q[0] + "_v", v)
+		mi.set_instance_shader_parameter(q[0], x)
 
 static func _esqueleto(raiz: Node) -> Skeleton3D:
 	var l := raiz.find_children("*", "Skeleton3D", true, false)
@@ -268,7 +298,9 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 		"peito":
 			# do pescoço até a cintura, ponta em V na frente; não pega as mangas
 			# do pescoço (gola metálica cobrindo a gola da blusa) até a cintura, ponta em V na frente; dos lados até a axila
-			var baixo := R.y_cintura - 0.06 + 0.45 * ax + (0.02 if p.z < 0.0 else 0.0) # cobre a barra da blusa
+			# André 2026-11-03: a placa vai só até ~8 cm abaixo do busto (ponta em V); a barriga e as mangas mostram o
+			# tecido colorido por baixo, como na capa do Aethra (antes o tronco todo era casca e parecia traje espacial)
+			var baixo := maxf(R.y_cintura + 0.02, junta_peito - 0.085) + 0.5 * ax + (0.03 if p.z < 0.0 else 0.0)
 			var lado_max := R.x_braco + (0.03 if p.y < R.y_braco - 0.07 else 0.005)
 			if p.y < baixo or p.y > R.y_pescoco + 0.02 or ax > lado_max:
 				return Vector2(-1, 0)
@@ -875,7 +907,7 @@ static func _material(tipo: String, r: int) -> Material:
 		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") or tipo == "elmo_couro" else 1.0)
 		s.set_shader_parameter("so_friso", 1.0 if tipo == "fecho" else 0.0)
 		if tipo == "saia":
-			s.set_shader_parameter("duro", 0.3) # direção de arte: brilho do saiote a 30% do metal
+			s.set_shader_parameter("duro", 0.6) # lâminas do saiote: reflexo de metal, brilho duro a 60%
 			s.set_shader_parameter("faixa", 0.2) # 5 lâminas grandes em volta do quadril
 		if tipo.begins_with("elmo"):
 			s.set_shader_parameter("faixa", 100.0) # sem lâminas; a crista do meio é a junta
@@ -927,7 +959,9 @@ static func _cabeca(raiz: Node3D) -> Cabeca:
 		var frente := F.end.z
 		var tras := frente - 0.98 * H # nuca: o crânio é mais fundo que o rosto
 		h.c = Vector3(F.get_center().x, base + 0.58 * H, (frente + tras) * 0.5 - 0.005)
-		h.raio = Vector3(F.size.x * 0.5 * 1.12, F.end.y - h.c.y + 0.02, (frente - tras) * 0.5 + 0.004)
+		# André 2026-11-03 ("capacete por cima do cabelo"): casco mais justo na cabeça e cúpula 15% mais baixa
+		# (direção de arte); o cabelo de cima é apertado mais para dentro (_cabelo_apertado)
+		h.raio = Vector3(F.size.x * 0.5 * 1.07, (F.end.y - h.c.y + 0.02) * 0.85, (frente - tras) * 0.5 - 0.004)
 		h.testa = base + 0.63 * H
 		h.bochecha = base + 0.14 * H # protege a bochecha até perto do queixo
 		h.nuca = base + 0.2 * H
@@ -982,8 +1016,8 @@ static func _montar_elmo(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String,
 		ba.add_child(anel)
 
 static func _malha_elmo(h: Cabeca) -> ArrayMesh:
-	var NA := 48
-	var NJ := 16
+	var NA := 96 # colunas finas: a crista do meio tem ~1,4 cm de largura
+	var NJ := 28
 	var topo := h.c.y + h.raio.y
 	var V := PackedVector3Array()
 	var U2 := PackedVector2Array()
@@ -994,10 +1028,17 @@ static func _malha_elmo(h: Cabeca) -> ArrayMesh:
 		for i in NA + 1:
 			var a := float(i) / NA * TAU
 			var e := _borda_elmo(h, a)
-			var y := e + (topo - e) * sin(s * PI * 0.5)
-			var p := _ponto_elmo(h, a, y, 0.0)
+			var y := e + (topo - e) * (0.5 * s + 0.5 * sin(s * PI * 0.5)) # linhas mais juntas na faixa da borda
+			# faixa de reforço em volta da borda (2,5 cm de altura, 4 mm para fora) e crista do meio (1 cm, só em cima)
+			var folga := 0.004 * (1.0 - smoothstep(0.022, 0.027, y - e))
+			var p := _ponto_elmo(h, a, y, folga)
+			var dc := absf(p.x - h.c.x) # distância até a linha do meio, da testa à nuca (m)
+			var crista := 0.009 * (1.0 - smoothstep(0.004, 0.014, dc)) * smoothstep(h.c.y - 0.01, h.c.y + 0.03, y)
 			if j == NJ:
 				p = Vector3(h.c.x, topo, h.c.z)
+				crista = 0.009
+			var rad := (p - h.c) / h.raio
+			p += Vector3(rad.x / h.raio.x, maxf(0.0, rad.y) / h.raio.y, rad.z / h.raio.z).normalized() * crista
 			V.append(p)
 			# UV2: distância até a borda (friso) e ângulo (a crista no meio é a "junta" em 0)
 			var meio := absf(wrapf(a, -PI, PI))
@@ -1045,7 +1086,7 @@ static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
 			continue
 		var chave := "cabelo:%d" % orig.get_instance_id()
 		if not _malhas.has(chave):
-			_malhas[chave] = _cabelo_apertado(orig, _cabeca(raiz))
+			_malhas[chave] = _cabelo_apertado(orig, _cabeca(raiz), _bind_cabeca(mi))
 		mi.mesh = _malhas[chave]
 
 static func _malha_cabelo(raiz: Node3D) -> Mesh:
@@ -1074,13 +1115,30 @@ static func _achar_rabo(h: Cabeca, malha: Mesh) -> void:
 		h.rabo = soma / n
 		h.tem_rabo = true
 
-static func _cabelo_apertado(orig: Mesh, h: Cabeca) -> ArrayMesh:
+# índice (no Skin da malha) do osso da cabeça: o cabelo apertado dentro do casco passa a seguir só a cabeça
+static func _bind_cabeca(mi: MeshInstance3D) -> int:
+	var sk: Skin = mi.skin
+	if sk == null:
+		return -1
+	var esq := mi.get_node_or_null(mi.skeleton) as Skeleton3D
+	for i in sk.get_bind_count():
+		var nome := str(sk.get_bind_name(i))
+		if nome == "" and esq and sk.get_bind_bone(i) >= 0:
+			nome = esq.get_bone_name(sk.get_bind_bone(i))
+		if nome == "J_Bip_C_Head":
+			return i
+	return -1
+
+static func _cabelo_apertado(orig: Mesh, h: Cabeca, cabeca := -1) -> ArrayMesh:
 	_achar_rabo(h, orig)
 	var am := ArrayMesh.new()
 	var dentro := h.raio * 0.93 # bem para dentro do casco: nenhum fio aparece por cima
 	for sfc in orig.get_surface_count():
 		var arr := orig.surface_get_arrays(sfc)
 		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var B = arr[Mesh.ARRAY_BONES]
+		var W = arr[Mesh.ARRAY_WEIGHTS]
+		var nb: int = (B.size() / V.size()) if B != null and V.size() > 0 else 0
 		for i in V.size():
 			var p := V[i]
 			var d := p - h.c
@@ -1095,6 +1153,25 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca) -> ArrayMesh:
 					var novo := lado.normalized() * lerpf(lado.length(), 0.022, aperta)
 					p = Vector3(h.rabo.x + novo.x, p.y, h.rabo.z + novo.y)
 					V[i] = p
+			# André 2026-11-03: correndo, as molas do cabelo jogavam os fios para fora do casco. O que fica dentro
+			# dele segue só o osso da cabeça (sem mola); nos 10 cm abaixo da borda a mola volta aos poucos (o rabo de
+			# cavalo balança sem esticar fios de dentro do casco para fora)
+			var rigido := smoothstep(e - 0.1, e - 0.01, p.y)
+			if cabeca >= 0 and rigido > 0.0 and nb > 0:
+				var pw := {}
+				for k in nb:
+					var w0: float = W[i * nb + k] * (1.0 - rigido)
+					if w0 > 0.0:
+						pw[B[i * nb + k]] = pw.get(B[i * nb + k], 0.0) + w0
+				pw[cabeca] = pw.get(cabeca, 0.0) + rigido
+				var ks: Array = pw.keys()
+				ks.sort_custom(func(x, y): return pw[x] > pw[y])
+				var soma := 0.0
+				for k in mini(nb, ks.size()):
+					soma += pw[ks[k]]
+				for k in nb:
+					B[i * nb + k] = ks[k] if k < ks.size() else 0
+					W[i * nb + k] = (pw[ks[k]] / soma) if k < ks.size() else 0.0
 			if cobre <= 0.0:
 				continue
 			# raio "do casco" naquele ponto (parede reta embaixo do centro, cúpula em cima)
@@ -1106,6 +1183,9 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca) -> ArrayMesh:
 			var alvo := h.c + Vector3(d.x, maxf(0.0, d.y), d.z) / f + Vector3(0, minf(0.0, d.y), 0)
 			V[i] = p.lerp(alvo, w)
 		arr[Mesh.ARRAY_VERTEX] = V
+		if cabeca >= 0 and nb > 0:
+			arr[Mesh.ARRAY_BONES] = B
+			arr[Mesh.ARRAY_WEIGHTS] = W
 		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
 		am.surface_set_material(sfc, orig.surface_get_material(sfc))

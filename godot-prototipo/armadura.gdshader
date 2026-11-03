@@ -1,6 +1,9 @@
 // Metal, couro e pano da armadura que aparece no corpo (armadura.gd). Toon de 3 degraus com brilho duro, sem reflexo
 // de céu (direção de arte): claro / médio / sombra vêm do script por raridade. Friso dourado na borda das peças.
 // UV2.x = distância até a borda da peça (m), UV2.y = coordenada das lâminas (faixas; < -0.5 = sem faixas).
+// Metal (duro = 1), André 2026-11-03 ("parece roupa de astronauta de plástico"): o aço agora reflete um "céu"
+// desenhado em faixas, como metal de anime (céu claro em cima, faixa escura do horizonte, chão no meio-tom),
+// com riscos de escovado. A cor da luz só escurece na sombra; o desenho do reflexo é que diz "metal".
 shader_type spatial;
 render_mode cull_disabled, ambient_light_disabled, specular_disabled;
 
@@ -21,6 +24,7 @@ varying float v_dist;
 varying float v_seg;
 varying float v_friso;
 varying float v_esc;
+varying vec3 v_env;
 
 void vertex() {
 	v_dist = UV2.x;
@@ -46,10 +50,28 @@ void fragment() {
 	v_friso = f;
 	ALBEDO = vec3(1.0);
 	v_esc = v_esc_calc(lam, sulco, f); // lâminas e sulco escurecem
-	// base: o tom de sombra entra uma vez só (cada luz soma só o que clareia acima dele)
-	vec3 base_s = mix(sombra.rgb, friso.rgb * 0.55, f) * v_esc_calc(lam, sulco, f);
-	EMISSION = base_s * ganho * 0.55 + friso_claro.rgb * f * brilho * 0.25;
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
+	// reflexo do metal: direção refletida no espaço da câmera (y = para cima)
+	vec3 rf = reflect(-VIEW, NORMAL);
+	float ry = rf.y;
+	// riscos de escovado: o reflexo treme um pouco ao longo da peça
+	ry += (fract(sin(dot(floor(vec2(v_seg * 900.0, v_dist * 40.0)), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.04;
+	vec3 env;
+	vec3 c1 = mix(claro.rgb, friso_claro.rgb, f);
+	vec3 c2 = mix(medio.rgb, friso.rgb, f);
+	vec3 c3 = mix(sombra.rgb, friso.rgb * 0.45, f);
+	if (ry > 0.42) env = mix(c1, vec3(1.0), smoothstep(0.75, 0.8, ry) * 0.55); // céu (e o sol estourado bem em cima)
+	else if (ry > 0.08) env = mix(c2, c1, smoothstep(0.30, 0.42, ry));
+	else if (ry > -0.12) env = c3; // horizonte escuro: a faixa que faz o aço parecer aço
+	else env = mix(c3, c2, smoothstep(-0.12, -0.45, ry) * 0.85); // chão rebatido
+	v_env = env * v_esc;
+	vec3 base_s = mix(sombra.rgb, friso.rgb * 0.55, f) * v_esc;
+	if (duro > 0.5) {
+		EMISSION = v_env * ganho * 0.42 + friso_claro.rgb * f * brilho * 0.25;
+	} else {
+		// base: o tom de sombra entra uma vez só (cada luz soma só o que clareia acima dele)
+		EMISSION = base_s * ganho * 0.55 + friso_claro.rgb * f * brilho * 0.25;
+	}
 }
 
 void light() {
@@ -63,9 +85,15 @@ void light() {
 	float lc = max(max(LIGHT_COLOR.r, LIGHT_COLOR.g), LIGHT_COLOR.b);
 	vec3 tinta = LIGHT_COLOR / max(lc, 0.001);
 	float k = clamp(lc / luz_ref, 0.0, 1.3);
-	DIFFUSE_LIGHT += max(c - c3 * 0.55, vec3(0.0)) * v_esc * mix(vec3(1.0), tinta, 0.35) * ganho * k;
+	if (duro > 0.5) {
+		// metal: a luz só tira da sombra (no sol o reflexo fica inteiro; na sombra cai para ~45%)
+		float sol = (ndl > -0.05 && att > 0.5) ? 1.0 : 0.3;
+		DIFFUSE_LIGHT += v_env * 0.58 * sol * mix(vec3(1.0), tinta, 0.35) * ganho * k;
+	} else {
+		DIFFUSE_LIGHT += max(c - c3 * 0.55, vec3(0.0)) * v_esc * mix(vec3(1.0), tinta, 0.35) * ganho * k;
+	}
 	// brilho duro do metal
 	vec3 h = normalize(LIGHT + VIEW);
-	float e = step(0.993, dot(NORMAL, h)) * step(0.1, ndl) * step(0.5, att) * duro;
-	DIFFUSE_LIGHT += vec3(e) * 0.5 * ganho * k;
+	float e = step(0.985, dot(NORMAL, h)) * step(0.1, ndl) * step(0.5, att) * duro;
+	DIFFUSE_LIGHT += vec3(e) * 0.9 * ganho * k;
 }
