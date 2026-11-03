@@ -1458,12 +1458,12 @@ func _faixa_passo(f: Faixa, dt: float, linha, perfil: Array, forca: float) -> vo
 
 func trilhos(corpo: Node3D) -> Dictionary:
 	if not rastros.has(corpo):
-		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0,
+		# o rastro fino antigo da espada ("lamina", só 2 pontos de largura) saiu: André aprovou tirar (2026-11-03); fica só o largo
+		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "dash_t": 0.0, "forte": 0.0,
 			"lamina2": _faixa(36, 4, "6fbfff", 0.22), "l2_ult": null} # lamina2: brilho largo da espada mágica, curvo, some fazendo a curva do golpe
 	return rastros[corpo]
 
 const PERFIL_DASH := [0.0, 0.55, 1.0, 0.7, 0.0]
-const PERFIL_LAMINA := [0.25, 1.0]
 const PERFIL_LAMINA2 := [0.0, 0.3, 1.0, 0.25] # transparente no lado do cabo, forte na ponta (borda de fora)
 const LAMINA2_SUB := 3 # amostras extras por quadro, girando em volta do herói: o rastro sai curvo mesmo a 30 FPS
 
@@ -1486,7 +1486,6 @@ func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
 			part(FOGO, p.x + randf_range(-0.3, 0.3), y, p.z + randf_range(-0.3, 0.3), randf_range(-0.3, 0.3), randf_range(-0.2, 0.2), randf_range(-0.3, 0.3), randf_range(0.2, 0.35), 0.08 * H, 0.01, "ffffff", "3aa8ff", 0.9)
 			if k < 2:
 				part(FUMA, p.x, p.y + 0.1, p.z, randf_range(-1, 1), randf_range(0.2, 0.8), randf_range(-1, 1), 0.6, 0.2 * H, 0.5 * H, "b0a898", "6a6458", 0.35, 0.3, 1.5)
-	_faixa_passo(r.lamina, dt, lamina, PERFIL_LAMINA, 0.7)
 	var l2 = null
 	if lamina != null: # do meio da lâmina até um pouco além da ponta
 		var b: Vector3 = lamina[0]
