@@ -318,6 +318,7 @@ func _desenhar_combate() -> void:
 			var pulso: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU / 1.2)
 			r *= 1.0 + 0.04 * pulso
 			_combate.draw_circle(c, r - 2.0, Color(0.93, 0.82, 0.32, 0.92))
+			_combate.draw_circle(c, r - 1.0, Color("8a6a2a"), false, 2.5) # borda escura: o círculo não some no âmbar
 			_combate.draw_circle(c, r + 3.0, Color(0.93, 0.82, 0.32, 0.5 + 0.4 * pulso), false, 2.0)
 		var t := icone(b.icone)
 		if t:
