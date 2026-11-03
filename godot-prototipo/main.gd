@@ -32,7 +32,10 @@ const BANDO := []
 const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe"}
 const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
-const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria", "reset": "cabelo_m"}
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
+# NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
+# 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
+const TINGIR_NPC := ["ferreiro"]
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
@@ -512,7 +515,12 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 			l.font = load("res://fontes/AlegreyaSans-Bold.ttf")
 			l.pixel_size = 0.00034 * 1.5
 			l.offset = Vector2(0, 52.0 / 1.5)
-	npcs.append({"modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
+	var ap := {}
+	if str(info.get("id", "")) in TINGIR_NPC and info.get("tinta") is Dictionary:
+		var t: Dictionary = info.tinta
+		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
+		Aparencia.aplicar(no, ap)
+	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
