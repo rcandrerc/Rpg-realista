@@ -17,6 +17,7 @@ const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
+const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 const MenuTopo = preload("res://menu_topo.gd")
@@ -537,6 +538,7 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		var t: Dictionary = info.tinta
 		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
 		Aparencia.aplicar(no, ap)
+	VisualNpc.vestir(no, str(info.get("id", ""))) # roupa de ofício (avental e martelo do ferreiro)
 	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 

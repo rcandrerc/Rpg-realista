@@ -7,6 +7,7 @@ extends CanvasLayer
 
 const Menu = preload("res://menu.gd")
 const Aparencia = preload("res://aparencia.gd")
+const VisualNpc = preload("res://visual_npc.gd")
 const PERTO := 3.0 # metros para o botão aparecer (o servidor responde até 3,2)
 const CHEGOU := 2.2 # andando sozinho: para a esta distância e abre a janela
 
@@ -368,6 +369,7 @@ func _retrato(n: Dictionary) -> Texture2D:
 	corpo.rotation = Vector3.ZERO
 	if not (n.get("aparencia", {}) as Dictionary).is_empty(): # mesma pintura do NPC no mundo
 		Aparencia.aplicar(corpo, n.aparencia)
+	VisualNpc.vestir(corpo, str(n.id))
 	var cab := Vector3(0, 1.45, 0)
 	var esq: Skeleton3D = m.esqueleto(corpo)
 	if esq:
