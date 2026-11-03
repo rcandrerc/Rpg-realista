@@ -4,6 +4,8 @@ Mesma vila e personagens anime do jogo HTML, para comparar FPS no celular (botã
 
 O APK sai sozinho pelo GitHub Actions: veja `ferramentas/apk/LEIAME.md` (link para baixar no celular).
 
+O app se atualiza sozinho ao abrir (tela `inicio.tscn`, baixa só o que mudou desde o APK): veja `ferramentas/atualizacao/LEIAME.md`.
+
 Para montar à mão:
 
 1. `node client/exportar-godot/gerar-modelos.mjs` (com o vite rodando em `client/` e o pacote playwright) faz o passo abaixo
