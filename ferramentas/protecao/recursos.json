@@ -90,6 +90,7 @@
     { "nome": "Botão de esconder capacete no alto da aba Equipamento", "arquivo": "godot-prototipo/menu.gd", "contem": ["\tmontar_capacete() # André não achava"] },
     { "nome": "Vestido dos outros corpos por dentro do saiote e tecido da armadura que a cor da aparência não apaga", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func _saia_curta(", "m.set_meta(\"armadura\", true)"] },
     { "nome": "Aparência mantém o tecido da armadura", "arquivo": "godot-prototipo/aparencia.gd", "contem": ["atual.has_meta(\"armadura\")"] },
+    { "nome": "Menu Aparência mostra o mesmo corpo do jogo: cintura fina e roupa de baixo (André 2026-11-03)", "arquivo": "godot-prototipo/criador.gd", "contem": ["Armadura.vestir(boneco, {})"] },
     { "nome": "Roupa de baixo branca colada no lugar da roupa padrão (André 2026-11-03)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func _roupa_base(", "static func _blusa_curta(", "const ROUPA_BASE :="] },
     { "nome": "Armadura colada: cintura fina e peitoral em ponta descendo (André 2026-11-03)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func _cintura(", "static func _apertar_cintura(", "baixo = minf(R.y_cintura + 0.072 + 0.6 * ax, baixo)", "static func _montar_cinto(", "static func _fechar_saia("] },
     { "nome": "Outros jogadores veem a armadura (PR #59)", "arquivo": "shared/simulacao.js", "contem": ["roupa: roupa(j.prog.equip)"] },

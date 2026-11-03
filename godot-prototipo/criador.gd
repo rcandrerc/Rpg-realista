@@ -10,6 +10,7 @@ extends CanvasLayer
 # incluindo os masculinos (lista CRIADOR.corpos em shared/dados.js; a Ruiva continua o padrão). O servidor grava o corpo.
 
 const Aparencia = preload("res://aparencia.gd")
+const Armadura = preload("res://armadura.gd")
 const Menu = preload("res://menu.gd")
 
 const OURO := Color(0.80, 0.64, 0.36)
@@ -281,6 +282,8 @@ func montar_boneco(id: String) -> void:
 	boneco.rotation.y = ry
 	anim = boneco.find_child("AnimationPlayer", true, false)
 	esq = m.esqueleto(boneco)
+	# André 2026-11-03: a prévia usa o mesmo corpo do jogo (cintura fina e roupa de baixo branca), sem armadura
+	Armadura.vestir(boneco, {})
 	cabeca = -1
 	for i in esq.get_bone_count():
 		var n := esq.get_bone_name(i)
