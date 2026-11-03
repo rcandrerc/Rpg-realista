@@ -563,15 +563,22 @@ func beirada() -> float:
 			d += 0.05
 	return T.frente(x, z, ry, 1.0, null, y).topo
 
+# Agarrou de lado (andando quase paralelo à parede): procura a parede também para os lados e fica de frente para ela.
+# Senão ficava torta e colada demais, a escalada entrava na casa e o servidor recusava a posição (igual ao shared/simulacao.js).
 func ajustar_parede() -> void:
-	var r = T.rocha_em(x + sin(ry) * 0.8, z + cos(ry) * 0.8, y)
+	var r = null
+	for da in [0.0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.57, -1.57]:
+		r = T.rocha_em(x + sin(ry + da) * 0.8, z + cos(ry + da) * 0.8, y)
+		if r != null:
+			break
 	if r != null:
 		ry = T.de_frente_para(r, x, z) if r.casa else atan2(r.x - x, r.z - z)
 	var fx := sin(ry)
 	var fz := cos(ry)
+	var longe: float = float(m.subida.get("parede", 0.32)) if (r != null and r.casa) else 0.4 # pedra é torta: um pouco mais longe
 	var d := -0.5
 	while d <= 1.2001:
-		if T.altura(x + fx * (d + 0.4), z + fz * (d + 0.4), y) > y + 0.9:
+		if T.altura(x + fx * (d + longe), z + fz * (d + longe), y) > y + 0.9:
 			x += fx * d
 			z += fz * d
 			return
