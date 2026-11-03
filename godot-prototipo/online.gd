@@ -343,14 +343,9 @@ func aplicar_foto(f: Dictionary) -> void:
 	for e in f.get("inimigos", []):
 		inimigo(e)
 		com_corpo[int(e.get("v", -1))] = true
-	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo.
-	# Com "perto" (2026-11-03) o servidor só manda os monstros a até "perto" m: quem está longe ficou de fora, não morreu
-	var perto: float = float(f.get("perto", -1.0))
-	var hp: Vector3 = m.heroi.position
+	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo
 	for v in m.inimigos.size():
 		var e: Dictionary = m.inimigos[v]
-		if perto > 0.0 and not com_corpo.has(v) and Vector2(e.no.position.x - hp.x, e.no.position.z - hp.z).length() > perto - 10.0:
-			continue
 		if not com_corpo.has(v) and e.estado != "morto":
 			e.estado = "morto"
 			e.no.visible = false
