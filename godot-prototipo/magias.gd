@@ -107,6 +107,8 @@ const SH_ESPINHO := """
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_opaque, cull_back, shadows_disabled;
 uniform float op = 1.0;
+varying float altura;
+void vertex() { altura = clamp(VERTEX.y + 0.5, 0.0, 1.0); } // 0 na base, 1 na ponta (cone de 1 m)
 void fragment() {
 	vec3 nv = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	vec3 nw = (INV_VIEW_MATRIX * vec4(nv, 0.0)).xyz;
@@ -114,6 +116,7 @@ void fragment() {
 	vec3 c = l > 0.45 ? vec3(0.80, 0.95, 1.0) : l > 0.0 ? vec3(0.42, 0.76, 0.97) : vec3(0.16, 0.42, 0.80);
 	float f = 1.0 - clamp(abs(dot(nv, normalize(-VERTEX))), 0.0, 1.0);
 	c = mix(c, vec3(0.95, 1.0, 1.0), smoothstep(0.55, 0.7, f) * 0.7);
+	c *= mix(0.7, 1.0, altura); // base ~30% mais escura e funda, ponta clara (direção de arte 2026-11-03)
 	ALBEDO = c;
 	ALPHA = 0.9 * op;
 }

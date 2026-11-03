@@ -80,6 +80,7 @@ var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de 
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
+var visual := "ruiva" # corpo do herói (criador: a Ruiva, os masculinos e os outros corpos VRoid, CRIADOR.corpos)
 const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
 var tempo := 0.0
 
@@ -172,6 +173,7 @@ func _ready() -> void:
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
 	montar_cacas()
+	montar_treino()
 	for n in mundo.get("npcs", []):
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
@@ -198,7 +200,10 @@ func _ready() -> void:
 	criador = Criador.new(self)
 	add_child(criador)
 	var cfg := ConfigFile.new()
-	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if cfg.load(ARQUIVO_APARENCIA) == OK else {}, false)
+	var tem_cfg := cfg.load(ARQUIVO_APARENCIA) == OK
+	if tem_cfg: # corpo escolhido da última vez (sem internet vale o do celular; online vale o da conta)
+		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
+	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
 	online = Online.new(self)
 	add_child(online)
@@ -395,15 +400,72 @@ func definir_aparencia(a, salvar := true) -> void:
 	if salvar:
 		var cfg := ConfigFile.new()
 		cfg.set_value("heroi", "aparencia", JSON.stringify(aparencia))
+		cfg.set_value("heroi", "visual", visual)
 		cfg.save(ARQUIVO_APARENCIA)
 
-# botão Aparência do menu do personagem: abre o criador sem o nome; online quem grava é o servidor ("mudarAparencia")
+# botão Aparência do menu do personagem: abre o criador sem o nome; online quem grava é o servidor ("mudarAparencia"
+# e "mudarVisual" para o corpo)
 func abrir_aparencia() -> void:
-	criador.abrir_edicao(aparencia, func(a):
+	criador.abrir_edicao(aparencia, func(a, corpo):
+		var trocou: bool = corpo != visual
+		trocar_corpo(corpo, false)
 		definir_aparencia(a)
 		if on():
 			rede("mudarAparencia", a)
-		hud.aviso("Aparência salva"))
+			if trocou:
+				rede("mudarVisual", corpo)
+		hud.aviso("Aparência salva"), visual)
+
+# corpo que existe no jogo (lista do criador e modelo exportado); senão a Ruiva
+func corpo_valido(v) -> String:
+	var l: Array = P.dados.criador.get("corpos", ["ruiva"])
+	var s := str(v)
+	if s in l and ResourceLoader.exists("res://modelos/%s.glb" % s):
+		return s
+	return "ruiva"
+
+# onde a espada e o cajado ficam presos no corpo do herói (cada corpo tem a mão num jeito)
+func lugar_armas(id := "") -> Dictionary:
+	var k := id if id != "" else visual
+	return armas_lugar.get(k, armas_lugar.ruiva)
+
+# troca o corpo do herói (criador de personagem) no mesmo lugar: refaz o modelo, as armas, a roupa e a pintura
+func trocar_corpo(v, salvar := true) -> void:
+	var novo := corpo_valido(v)
+	if novo == visual and heroi != null:
+		return
+	visual = novo
+	if heroi == null:
+		return
+	var pos: Vector3 = heroi.position
+	var ry: float = heroi.rotation.y
+	var modo: String = h.modo
+	if trabalho:
+		trabalho.parar(true) # a picareta e o machado saem da mão antes (senão iam junto com o corpo velho)
+		for k in trabalho.ferramentas:
+			var f: Node3D = trabalho.ferramentas[k]
+			if f.get_parent() != self:
+				f.get_parent().remove_child(f)
+				add_child(f)
+			f.visible = false
+	acao = {}
+	heroi.queue_free()
+	heroi = null
+	criar_heroi(false)
+	heroi.position = pos
+	heroi.rotation.y = ry
+	armar(modo)
+	_roupa = "-"
+	vestir_heroi()
+	Aparencia.aplicar(heroi, aparencia)
+	if sons:
+		sons.ouvinte = heroi
+	if menu:
+		menu.trocar_boneco()
+	if online and online.get("corpos") is Dictionary:
+		online.corpos[online.meu_id] = heroi
+	if salvar:
+		definir_aparencia(aparencia)
 
 func esqueleto(no: Node) -> Skeleton3D:
 	var l := no.find_children("*", "Skeleton3D", true, false)
@@ -430,21 +492,22 @@ func nova_arma(nome: String) -> Node3D:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	return a
 
-func criar_heroi() -> void:
-	heroi = modelo("ruiva")
+func criar_heroi(nascer := true) -> void:
+	heroi = modelo(visual)
 	heroi.position = D.NASCIMENTO
 	heroi_anim = AnimHeroi.new(heroi.find_child("AnimationPlayer", true, false))
 	heroi_esq = esqueleto(heroi)
-	mao_direita = heroi_esq.find_bone(armas_lugar.ruiva.espadaMao.osso)
-	mao_esquerda = heroi_esq.find_bone(String(armas_lugar.ruiva.espadaMao.osso).replace("_R_", "_L_"))
-	mov.por_em(D.NASCIMENTO)
+	mao_direita = heroi_esq.find_bone(lugar_armas().espadaMao.osso)
+	mao_esquerda = heroi_esq.find_bone(String(lugar_armas().espadaMao.osso).replace("_R_", "_L_").replace("Right", "Left"))
+	if nascer:
+		mov.por_em(D.NASCIMENTO)
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
 	armar("Espada")
 	braco = BracoEspada.new()
 	heroi_esq.add_child(braco)
 	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
-	var L: Dictionary = armas_lugar.ruiva.espadaMao
+	var L: Dictionary = lugar_armas().espadaMao
 	braco.preparar(heroi_esq, Basis(Quaternion(L.quat[0], L.quat[1], L.quat[2], L.quat[3])))
 	inclinar = Inclinar.new()
 	heroi_esq.add_child(inclinar)
@@ -461,7 +524,7 @@ func criar_heroi() -> void:
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
 func vestir_heroi() -> void:
-	var eq: Dictionary = P.prog.get("equip", {})
+	var eq: Dictionary = P.equip_visivel() # sem o capacete se o jogador escondeu (menu, tela de equipamento)
 	var k := ""
 	for l in Armadura.LUGARES:
 		var it = eq.get(l)
@@ -475,7 +538,7 @@ func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
 	if modo != "Escalada":
 		h.modo = modo
-	var L: Dictionary = armas_lugar.ruiva
+	var L: Dictionary = lugar_armas()
 	if modo == "Escalada": # escalando: as duas nas costas, mãos livres
 		prender(heroi_esq, espada, L.espadaCostas)
 		prender(heroi_esq, cajado, L.cajadoCostas)
@@ -728,6 +791,9 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada")
 		piscar(e.no)
 		combate.reacao(e.no, de, forte_on)
+		return
+	if e.get("treino", false):
+		ferir_treino(e, dmg, de, hab)
 		return
 	trabalho.combate()
 	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
@@ -1522,6 +1588,8 @@ func _process(dt: float) -> void:
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
+	cam.zoom(hud.zoom_cam) # dois dedos (pinça) ou roda do mouse
+	hud.zoom_cam = 1.0
 	cam.atualizar(min(dt_real, 0.1), g)
 	folhagem_na_frente(dt_real)
 	# HUD
@@ -1795,11 +1863,11 @@ const SEPARACAO := 1.2
 func separar_inimigos() -> void:
 	for i in inimigos.size():
 		var a: Dictionary = inimigos[i]
-		if a.estado == "morto":
+		if a.estado == "morto" or a.get("treino", false): # o espantalho é obstáculo (mundo.obstaculos), não empurra nem é empurrado
 			continue
 		for j in range(i + 1, inimigos.size()):
 			var b: Dictionary = inimigos[j]
-			if b.estado == "morto":
+			if b.estado == "morto" or b.get("treino", false):
 				continue
 			var d := Vector2(b.no.position.x - a.no.position.x, b.no.position.z - a.no.position.z)
 			var l := d.length()
@@ -1986,6 +2054,102 @@ func passo_cacas(dt: float) -> void:
 		e.anim.play("espada_parada", 0.2)
 		combate.voltou(e.no)
 
+# ---------- espantalho de treino (pedido do André 2026-11-03) ----------
+# Ao lado da ferraria (mundo.treino, de shared/dados.js MAPA_CLAREIRA.treino). Apanha de tudo e mostra o dano, mas
+# não anda, não bate, não morre (a vida acaba e volta cheia na hora; parado `volta` s sem apanhar, enche de novo)
+# e não dá XP nem item. Online quem decide é o servidor (Simulacao.ferirTreino); aqui é o mesmo sem internet.
+# Modelo: Dummy do Fantasy Props MegaKit (Quaternius, CC0), em treino3d/. O balanço do golpe é a mola de combate.gd.
+const ANIMS_TREINO := ["parada", "espada_parada", "andar", "corrida", "apanhar", "morrer", "golpe1", "golpe2"]
+func montar_treino() -> void:
+	for t in mundo.get("treino", []):
+		if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
+			push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
+		inimigos.append(criar_espantalho(t))
+
+func criar_espantalho(t: Dictionary) -> Dictionary:
+	var no := Node3D.new()
+	no.name = "Espantalho"
+	add_child(no)
+	var cena = load("res://treino3d/Dummy.gltf")
+	if cena:
+		var corpo: Node3D = cena.instantiate()
+		no.add_child(corpo)
+		pintar(corpo, false) # mesmo jeito pintado (toon) dos objetos da vila
+	var pos := Vector3(float(t.x), 0, float(t.z))
+	pos.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
+	no.position = pos
+	no.rotation.y = float(t.get("ry", 0.0))
+	# as mesmas animações que os monstros têm (o código de combate e o online chamam pelo nome); são paradas:
+	# quem balança o espantalho no golpe é a mola de combate.gd (reacao)
+	var ap := AnimationPlayer.new()
+	ap.name = "AnimationPlayer"
+	var lib := AnimationLibrary.new()
+	for nome in ANIMS_TREINO:
+		var a := Animation.new()
+		a.length = 0.45 if nome == "apanhar" else 1.0
+		a.loop_mode = Animation.LOOP_NONE if nome == "apanhar" else Animation.LOOP_LINEAR
+		lib.add_animation(nome, a)
+	ap.add_animation_library("", lib)
+	no.add_child(ap)
+	ap.play("parada")
+	var vida := float(t.get("vida", 1000))
+	var e := {"no": no, "anim": ap, "vida": vida, "centro": pos, "estado": "treino", "t": 0.0, "alvo": pos, "cd": 0.0, "golpe": -1.0,
+		"vida_max": vida, "tipo": str(t.get("tipo", "espantalho")), "treino": true, "volta": float(t.get("volta", 4.0)),
+		"parado": 0.0, "lento": 0.0, "lento_k": 0.0, "vuln": 0.0, "vuln_k": 0.0, "puxao": Vector3.ZERO, "puxao_t": 0.0}
+	e.barra = barra_vida(no, str(t.get("nome", "Espantalho de treino")), Color(0.85, 0.62, 0.25))
+	nome_legivel(no)
+	return e
+
+# sem internet: o golpe no espantalho (como Simulacao.ferirTreino) — dano, número, tranco e efeitos; nunca morre
+func ferir_treino(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
+	trabalho.combate()
+	dmg *= randf_range(0.85, 1.15)
+	var crit: bool = randf() < P.st.critico
+	if crit:
+		dmg *= 2.0
+	if e.vuln > tempo:
+		dmg *= 1.0 + e.vuln_k
+	if h.get("contra_ate", 0.0) > tempo:
+		dmg *= float(D.COMBATE.contraK)
+		crit = true
+		h.contra_ate = 0.0
+	dmg = max(1.0, round(dmg))
+	e.vida -= dmg
+	if e.vida <= 0.0:
+		e.vida = e.vida_max # acabou a vida: volta cheia na hora
+	e.golpe_t = tempo
+	e.combate = tempo + 5.0
+	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
+	var basico_hab: bool = hab is Dictionary and hab.has("combo")
+	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
+	piscar(e.no)
+	combate.reacao(e.no, de, h.golpe_forte or not basico_hab)
+	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
+	if hab is Dictionary:
+		if hab.has("lento"):
+			e.lento = tempo + hab.lento.dur
+			e.lento_k = hab.lento.k
+		if hab.has("vulneravel"):
+			e.vuln = tempo + hab.vulneravel.dur
+			e.vuln_k = hab.vulneravel.k
+		for k in ["atordoa", "congela"]:
+			if hab.has(k):
+				e.parado = max(e.parado, tempo + hab[k])
+				fx.status(e.no, k, hab[k])
+
+# sem internet: o espantalho fica plantado; parado um tempo sem apanhar, a vida enche de novo
+func passo_treino(e: Dictionary) -> void:
+	if e.estado == "morto": # um servidor sem espantalho escondeu ele (online.aplicar_foto): sem internet ele volta
+		e.estado = "treino"
+		e.no.visible = true
+		e.barra.visible = true
+		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
+	if e.parado > tempo:
+		return
+	if e.vida < e.vida_max and tempo - e.get("golpe_t", -99.0) > e.volta:
+		e.vida = e.vida_max
+		e.barra.scale.x = 1.0
+
 # entrou no campo de caça ou na zona de mineração: aviso com o nome (como o Quimera: "Zona de caça: ...")
 var _zona_atual := ""
 func avisar_zona() -> void:
@@ -2004,9 +2168,13 @@ func avisar_zona() -> void:
 func atualizar_inimigos(dt: float) -> void:
 	passo_cacas(dt)
 	for e in inimigos:
-		colidir_inimigo(e.no)
+		if not e.get("treino", false): # o espantalho não sai do lugar
+			colidir_inimigo(e.no)
 	separar_inimigos()
 	for e in inimigos:
+		if e.get("treino", false):
+			passo_treino(e)
+			continue
 		e.t -= dt
 		e.cd -= dt
 		var no: Node3D = e.no

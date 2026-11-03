@@ -25,6 +25,8 @@ var _pronto := false
 var _ap_mandar = null # aparência do criador esperando para ir ao servidor (no máximo 4 por segundo)
 var _ap_t := 0.0
 var _ap_txt := "" # última aparência do meu herói que veio do servidor
+var _visual_txt := "" # último corpo do meu herói que veio do servidor
+var _visual_mandado := "" # corpo do criador que já foi para o servidor (conta nova, ao vivo)
 var _status_t := 0.0
 var jogadores := 0
 # tela de login
@@ -38,6 +40,13 @@ var b_continuar: Button
 var b_trocar: Button
 var b_google: Button
 var capa: TextureRect # arte do Aethra atrás da tela de login (pedido do André: login com arte, não com o jogo já aparecendo)
+var carregando: Label # "Conectando…" em cima da capa enquanto ainda não dá para mostrar o jogo
+# André (2026-11-03): ao abrir, o jogo não pode aparecer antes da tela de login / troca de conta / criador.
+# A capa já abre cobrindo tudo e só sai quando o jogador escolhe (login, jogar sozinho) ou quando a primeira foto
+# do servidor chega (aí o criador da conta nova já abriu por cima).
+var _cobrindo := false # capa na tela sem o painel: esperando o servidor
+var _cobrir_t := 0.0 # segurança: sem resposta em alguns segundos, libera o jogo
+const COBRIR_MAX := 12.0
 
 func _init(principal) -> void:
 	m = principal
@@ -51,6 +60,8 @@ func _ready() -> void:
 	add_child(rede)
 	rede.estado.connect(func(t):
 		aviso_login.text = t
+		if _cobrindo and t != "":
+			carregando.text = t
 		atualizar_status(t))
 	rede.precisa_login.connect(mostrar_login)
 	rede.escolher_conta.connect(mostrar_escolha)
@@ -58,6 +69,7 @@ func _ready() -> void:
 	rede.mensagem.connect(ao_receber)
 	rede.caiu.connect(ao_cair)
 	montar_tela()
+	cobrir("Conectando…")
 	rede.iniciar(true)
 
 # ---------- tela de login ----------
@@ -73,6 +85,18 @@ func montar_tela() -> void:
 	capa.mouse_filter = Control.MOUSE_FILTER_STOP # os toques não passam para o jogo
 	capa.visible = false
 	tela.add_child(capa)
+	carregando = Label.new()
+	carregando.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	carregando.add_theme_font_size_override("font_size", 20)
+	carregando.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
+	carregando.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	carregando.add_theme_constant_override("outline_size", 5)
+	carregando.anchor_left = 0.56
+	carregando.anchor_right = 1.0
+	carregando.anchor_top = 0.82
+	carregando.anchor_bottom = 0.92
+	carregando.visible = false
+	tela.add_child(carregando)
 	status = Button.new()
 	status.flat = true
 	status.add_theme_font_size_override("font_size", 14)
@@ -125,7 +149,7 @@ func montar_tela() -> void:
 	sub.add_theme_color_override("font_color", Color(0.9, 0.87, 0.82))
 	col.add_child(sub)
 	b_continuar = _botao("Entrar", Color(0.93, 0.62, 0.25), func():
-		esconder_login()
+		cobrir("Entrando…") # o jogo só aparece quando o servidor mandar o mundo (ou o criador abrir)
 		rede.continuar())
 	col.add_child(b_continuar)
 	b_trocar = _botao("Trocar de conta", Color(0.42, 0.36, 0.5), func(): rede.trocar_conta())
@@ -155,6 +179,8 @@ func _botao(texto: String, cor: Color, fn: Callable) -> Button:
 	return b
 
 func mostrar_login() -> void:
+	_cobrindo = false
+	carregando.visible = false
 	titulo.text = "Jogar online"
 	sub.text = "Entre com a sua conta Google.\nA janela do Google abre aqui mesmo no jogo."
 	b_continuar.visible = false
@@ -168,6 +194,8 @@ func mostrar_login() -> void:
 
 # abriu o jogo com conta salva: entra com ela ou troca de conta (pedido do André: perguntar toda vez)
 func mostrar_escolha(conta: Dictionary) -> void:
+	_cobrindo = false
+	carregando.visible = false
 	titulo.text = "Bem-vindo de volta"
 	sub.text = "Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % str(conta.get("nome", "sem nome"))
 	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
@@ -180,7 +208,20 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	m.hud.set_process_input(false)
 	atualizar_status("")
 
+# só a capa, sem o painel: o jogo ainda não aparece (abrindo o app, entrando na sala)
+func cobrir(texto: String) -> void:
+	_cobrindo = true
+	_cobrir_t = COBRIR_MAX
+	painel.visible = false
+	capa.visible = true
+	carregando.text = texto
+	carregando.visible = true
+	status.visible = false
+	m.hud.set_process_input(false)
+
 func esconder_login() -> void:
+	_cobrindo = false
+	carregando.visible = false
 	painel.visible = false
 	capa.visible = false
 	status.visible = true
@@ -202,7 +243,10 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	ligado = true
 	meu_id = id
 	_build_ok = false
-	esconder_login()
+	if capa.visible: # vindo da capa ou da tela de login: a capa sai quando a primeira foto do mundo chegar (aplicar_foto)
+		cobrir("Entrando…")
+	else: # já estava jogando (reconexão): nada de capa
+		esconder_login()
 	m.hud.nome = str(conta.get("nome", m.hud.nome))
 	m.hud.aviso("Online!")
 	rede.enviar("modo", m.h.modo)
@@ -214,6 +258,8 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 
 func ao_cair(motivo: String) -> void:
 	var estava := ligado
+	if _cobrindo: # servidor fora do ar ao abrir: joga sozinho em vez de ficar parado na capa
+		esconder_login()
 	ligado = false
 	for id in outros:
 		outros[id].no.queue_free()
@@ -263,11 +309,16 @@ func aplicar_foto(f: Dictionary) -> void:
 			if str(j.id) == meu_id and not _pronto: # conta nova: abre o criador (a base é a Ruiva)
 				_pronto = true
 				var nome := str(rede.conta.get("nome", "")).strip_edges().left(16)
-				m.criador.abrir_criacao(nome, m.aparencia, func(n, a):
-					rede.enviar("pronto", {"nome": n, "visual": "ruiva", "aparencia": a})
+				m.criador.abrir_criacao(nome, m.aparencia, func(n, a, corpo):
+					rede.enviar("pronto", {"nome": n, "visual": corpo, "aparencia": a})
+					m.trocar_corpo(corpo, false)
 					m.definir_aparencia(a)
 					m.hud.nome = n,
-					func(a): _ap_mandar = a) # os outros jogadores veem mudando na hora
+					func(a, corpo):
+						_ap_mandar = a # os outros jogadores veem mudando na hora
+						if corpo != _visual_mandado:
+							_visual_mandado = corpo
+							rede.enviar("visual", corpo), m.visual)
 			continue
 		jogadores += 1
 		if str(j.id) == meu_id:
@@ -292,10 +343,16 @@ func aplicar_foto(f: Dictionary) -> void:
 			_barra_visivel(e, false)
 	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
 	m.trabalho.veios_comuns(f.get("veios", []))
+	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
+		esconder_login()
 
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	var ap_txt := JSON.stringify(j.get("aparencia"))
+	var vis := str(j.get("visual", ""))
+	if vis != "" and vis != _visual_txt: # corpo gravado na conta (vale o do servidor)
+		_visual_txt = vis
+		m.trocar_corpo(vis)
 	if ap_txt != _ap_txt: # aparência gravada na conta (vale a do servidor)
 		_ap_txt = ap_txt
 		if j.get("aparencia") is Dictionary:
@@ -342,12 +399,17 @@ func tocar(no_anim: AnimationPlayer, nome: String, vel := 1.0, fade := 0.15) -> 
 func outro(j: Dictionary) -> void:
 	var id := str(j.id)
 	var o = outros.get(id)
+	var vis: String = m.corpo_valido(j.get("visual", "ruiva")) # corpo que o jogador escolheu no criador
+	if o != null and o.get("visual", "ruiva") != vis: # trocou de corpo: monta de novo
+		o.no.queue_free()
+		outros.erase(id)
+		o = null
 	if o == null:
-		var no: Node3D = m.modelo("ruiva") # por enquanto todo jogador usa o corpo da Ruiva (é o que tem todas as animações)
+		var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
 		var esq: Skeleton3D = m.esqueleto(no)
 		var esp: Node3D = m.nova_arma("espada")
 		var caj: Node3D = m.nova_arma("cajado")
-		o = {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
+		o = {"no": no, "visual": vis, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
 			"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
 		no.position = o.alvo
 		o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
@@ -362,6 +424,8 @@ func outro(j: Dictionary) -> void:
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
 	var roupa := str(j.get("roupa", ""))
+	if j.get("semCapacete", false) == true: # o dono escondeu o capacete
+		roupa = ",".join(PackedStringArray(Array(roupa.split(",", false)).filter(func(p): return not str(p).begins_with("chapeu"))))
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
@@ -374,7 +438,7 @@ func outro(j: Dictionary) -> void:
 	var modo := str(j.get("modo", "Espada"))
 	if modo != o.modo:
 		o.modo = modo
-		var L: Dictionary = m.armas_lugar.ruiva
+		var L: Dictionary = m.lugar_armas(o.visual)
 		if modo == "Espada":
 			m.prender(o.esq, o.espada, L.espadaMao)
 			m.prender(o.esq, o.cajado, L.cajadoCostas)
@@ -672,6 +736,10 @@ func _process(dt: float) -> void:
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
+	if _cobrindo:
+		_cobrir_t -= dt
+		if _cobrir_t <= 0.0: # o servidor não respondeu: libera o jogo sozinho (a conexão continua tentando)
+			esconder_login()
 	if _tentar_de_novo > 0.0:
 		_tentar_de_novo -= dt
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":

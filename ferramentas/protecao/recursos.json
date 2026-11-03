@@ -1,6 +1,14 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "Ao abrir, a capa cobre o jogo até o login, a escolha de conta ou o criador (André 2026-11-03)", "arquivo": "godot-prototipo/online.gd", "contem": ["func cobrir(", "cobrir(\"Conectando…\")", "if _cobrindo: # primeira foto"] },
+    { "nome": "Criador: escolher o corpo pelos rostos, sem nome, incluindo os masculinos (André 2026-11-03)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func botao_corpo(", "func fazer_rostos(", "func montar_boneco("] },
+    { "nome": "Herói troca de corpo no lugar (criador)", "arquivo": "godot-prototipo/main.gd", "contem": ["func trocar_corpo(", "func lugar_armas(", "func corpo_valido("] },
+    { "nome": "Servidor grava o corpo escolhido (mudarVisual)", "arquivo": "server/index.js", "contem": ["this.ouvir('mudarVisual'"] },
+    { "nome": "Lista de corpos do criador", "arquivo": "shared/dados.js", "contem": ["corpos: ['ruiva', 'cabelo_m'", "export function visualValido("] },
+    { "nome": "Corpos do criador levam todas as animações do herói", "arquivo": "client/exportar-godot/exportar.js", "contem": ["const jogavel = heroi || CRIADOR.corpos.includes(id);"] },
+    { "nome": "Zoom da câmera com dois dedos (pinça) e roda do mouse (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["var zoom_cam := 1.0", "func _dist_pinca("] },
+    { "nome": "Câmera aplica o zoom entre DIST_MIN e DIST_MAX", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["func zoom(fator: float)", "const DIST_MAX"] },
     { "nome": "Atualização dentro do app: abertura baixa o pacote novo e carrega (André 2026-11-03)", "arquivo": "godot-prototipo/inicio.gd", "contem": ["ProjectSettings.load_resource_pack(", "const MANIFESTO", "func _pacote_valido("] },
     { "nome": "App abre pela tela de atualização", "arquivo": "godot-prototipo/project.godot", "contem": ["run/main_scene=\"res://inicio.tscn\""] },
     { "nome": "CI gera o pacote de atualização do app", "arquivo": ".github/workflows/apk.yml", "contem": ["atualizacao/base=", "ferramentas/atualizacao/publicar.sh", "--export-pack Android"] },
@@ -52,6 +60,11 @@
     { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
     { "nome": "Armadura aparece no corpo: capacete, peitoral, calça/short, botas e capa (PR #59)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func vestir(raiz: Node3D, equip) -> void:", "static func _montar_elmo(", "static func _cabelo(", "static func _malha_capa(", "static func vento("] },
     { "nome": "Lugares Capacete, Camisa, Calça ou Short, Botas, Capa, Acessório e Arma (PR #59)", "arquivo": "shared/dados.js", "contem": ["export const LUGARES = ['cabeca', 'corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];", "peitoral: { nome: 'Peitoral'", "short: { nome: 'Short'", "chapeu: { nome: 'Capacete'"] },
+    { "nome": "Capa voa para trás correndo, sente curva e pulo (André 2026-11-03)", "arquivo": "godot-prototipo/capa.gdshader", "contem": ["d = vec3(d.x, d.y * c - d.z * sn, d.y * sn + d.z * c);", "instance uniform float lado", "instance uniform float sobe"] },
+    { "nome": "Cabelo dentro do capacete segue a cabeça (não atravessa correndo) e tecido na cor da raridade (André 2026-11-03)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func _bind_cabeca(", "const TECIDO :=", "var rigido := smoothstep("] },
+    { "nome": "Placas com reflexo de metal (não plástico) (André 2026-11-03)", "arquivo": "godot-prototipo/armadura.gdshader", "contem": ["vec3 rf = reflect(-VIEW, NORMAL);", "varying vec3 v_env;"] },
+    { "nome": "Mostrar ou esconder o capacete na tela de equipamento, salvo na conta (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func montar_capacete("] },
+    { "nome": "Servidor grava capacete escondido e avisa os outros (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["m.acao === 'capacete'", "semCapacete: !!j.prog.semCapacete"] },
     { "nome": "Outros jogadores veem a armadura (PR #59)", "arquivo": "shared/simulacao.js", "contem": ["roupa: roupa(j.prog.equip)"] },
     { "nome": "Tela de equipamento com medalhões ligados ao corpo e moldura da raridade (PR #59)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func _desenhar_fios() -> void:", "func moldurar(", "func fundo_raridade("] },
     { "nome": "APK instala por cima: versionCode a partir de 1000 (PR #62)", "arquivo": ".github/workflows/apk.yml", "contem": ["$((1000 + ${{ github.run_number }}))"] },
@@ -64,7 +77,7 @@
     { "nome": "Menu do topo ligado no jogo e na HUD", "arquivo": "godot-prototipo/main.gd", "contem": ["menu_topo = MenuTopo.new(self)", "and vibracao:"] },
     { "nome": "Sons das skills do Quimera (q_*.ogg)", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const CARGA := {", "const SOM_AREA := {", "\"q_bola_lanca\"", "\"q_meteoro_impacto\"", "func cancelar_conjura("] },
     { "nome": "Meteoro gigante do Quimera: rocha, explosão e cratera", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const METEORO_RAIO", "func meteoro_impacto(", "func _rocha_malha()", "const SH_CRATERA"] },
-    { "nome": "Meteoro pega todo mundo na área de 6 m (servidor)", "arquivo": "shared/progresso.js", "contem": ["tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 6"] },
+    { "nome": "Meteoro pega todo mundo na área de 6 m (servidor)", "arquivo": "shared/progresso.js", "contem": ["tipo: 'meteoro', libera: 5, anim: A.meteoroCeu, at: 0.76, canal: 1.4, alcance: 12, area: 6"] },
     { "nome": "Voz que dá para parar (carga das magias)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar_voz(", "func parar("] },
     { "nome": "Mapa maior: vila + passagem da estradinha + clareira de fora (André 2026-11-02)", "arquivo": "shared/dados.js", "contem": ["areas: [{ x: 0, z: 0, r: 34 }, FORA]", "corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }]", "const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos:"] },
     { "nome": "Limite do mapa por áreas e corredores (servidor)", "arquivo": "shared/mapa.js", "contem": ["export function dentroDoMapa(", "export function limitarAoMapa("] },
@@ -88,6 +101,13 @@
     { "nome": "Tomás, o ferreiro, compra itens; conversa pelo menu do NPC (servidor)", "arquivo": "shared/simulacao.js", "contem": ["pertoDeQuemCompra(j)", "if (m?.conversa) return diga(proxima());"] },
     { "nome": "Nome dos monstros legível (Alegreya MSDF 1,5x, contorno 2 px)", "arquivo": "godot-prototipo/main.gd", "contem": ["func nome_legivel(no: Node3D)", "func fonte_nome() -> FontFile", "multichannel_signed_distance_field = true"] },
     { "nome": "Congelado: o monstro vira gelo (sem bolha) e o flash volta para o gelo", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["func _congelar(corpo: Node3D, dur: float)", "const SH_GELO_CORPO", "func _descongelar(b: Dictionary)", "func _pontas_gelo("] },
-    { "nome": "Tomás ferreiro: avental de couro, ombros largos e martelo", "arquivo": "godot-prototipo/visual_npc.gd", "contem": ["static func vestir(", "func _avental(", "func _martelo("] }
+    { "nome": "Tomás ferreiro: avental de couro, ombros largos e martelo", "arquivo": "godot-prototipo/visual_npc.gd", "contem": ["static func vestir(", "func _avental(", "func _martelo("] },
+    { "nome": "Espantalho de treino ao lado da ferraria (André 2026-11-03): dados", "arquivo": "shared/dados.js", "contem": ["export const TREINO", "espantalho: { nome: 'Espantalho de treino'", "treino: [{ id: 'espantalho1'"] },
+    { "nome": "Espantalho de treino: nunca morre, sem XP nem item (servidor)", "arquivo": "shared/simulacao.js", "contem": ["ferirTreino(alvo, n, crit, de, h)", "if (alvo.treino) return this.ferirTreino(", "if (b.treino) {"] },
+    { "nome": "Espantalho de treino no app (modelo, sem internet)", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_treino()", "func criar_espantalho(", "func ferir_treino(", "res://treino3d/Dummy.gltf"] },
+    { "nome": "Magias novas do cajado com fogo pintado e textura (André 2026-11-03)", "arquivo": "godot-prototipo/magias.gd", "contem": ["const ATLAS := \"res://efeitos/magia_atlas.png\"", "const TOON := 2.0", "func explosao(", "func nova_gelo(", "func portal(", "const GELO_QUEBRA"] },
+    { "nome": "Bola de Fogo, Nova de Gelo, Meteoro e Faísca passam pelos efeitos novos", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const NOVAS := [\"bola\", \"gelo\", \"meteoros\"]", "mg.nova_gelo(", "mg.portal(", "\"novo\": true"] },
+    { "nome": "Animações novas das magias do cajado", "arquivo": "shared/dados.js", "contem": ["mg_basico_d: 1.2", "magiaD: ['mg_basico_d'", "bolaForte: ['mg_bola'", "novaGelo: ['mg_gelo'", "meteoroCeu: ['mg_meteoro'"] },
+    { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] }
   ]
 }

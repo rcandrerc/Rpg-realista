@@ -66,6 +66,7 @@ func definir(p: Dictionary) -> void:
 	for i in prog.mochila.size():
 		prog.mochila[i] = item_int(prog.mochila[i])
 	prog.ouro = int(prog.get("ouro", 0))
+	prog.semCapacete = prog.get("semCapacete", false) == true
 	if not (prog.get("equip") is Dictionary):
 		prog.equip = {}
 	for l in dados.lugares:
@@ -306,6 +307,13 @@ func texto_bonus(raridade: int, t: String) -> String:
 	return ", ".join(p)
 
 # ---------- sem internet: mexer na mochila só neste celular (não grava na conta, como o resto do treino) ----------
+# o que aparece no corpo: o equipamento, sem o capacete quando o jogador escolheu esconder (o bônus continua)
+func equip_visivel() -> Dictionary:
+	var eq: Dictionary = prog.get("equip", {}).duplicate()
+	if prog.get("semCapacete", false):
+		eq.erase("cabeca")
+	return eq
+
 func equipar(i: int) -> void:
 	var it = prog.mochila[i]
 	if not eh_equip(it):
