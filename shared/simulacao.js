@@ -1,7 +1,9 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO } from './dados.js';
+import { dentroDoMapa, limitarAoMapa } from './mapa.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas } from './progresso.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -23,13 +25,70 @@ export class Simulacao {
     // pedras: o herói usa a altura de verdade (pode subir); os inimigos só contornam um círculo
     this.terreno = new Terreno(mapa);
     const vila = mapa.vila || { casas: [], arvores: [] };
-    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })),
-      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes];
+    // onde se coleta (Parte 3): veios do Minerador (v0, v1...) e as árvores do Lenhador (a0, a1...)
+    this.coletaveis = new Map([
+      ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO, ...(v.mina ? { mina: v.mina } : {}) }]),
+      ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+    ]);
+    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO })),
+      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
+      ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto }))];
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
+    // árvores da mata (são muitas): numa grade de 6 m, cada um só confere as de perto (pertoNaMata)
+    this.mata = new Map();
+    for (const a of mapa.mata || []) {
+      const k = Math.floor(a.x / 6) * 10007 + Math.floor(a.z / 6);
+      if (!this.mata.has(k)) this.mata.set(k, []);
+      this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s });
+    }
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
+    // campos de caça (CACA, regra do Quimera): cada vaga tem um índice v fixo (depois dos inimigos parados) e já começa cheia
+    let v = mapa.inimigos.length;
+    this.cacas = (mapa.caca || []).map((def, ci) => {
+      const c = { def, vagas: def.tipos.map((tipo, k) => ({ tipo, k, v: v + k, e: null })), nx: 0, t: 0 };
+      v += def.tipos.length;
+      for (const vg of c.vagas) this.nascerNaCaca(c, ci, vg, true);
+      return c;
+    });
+    // espantalhos de treino (TREINO): o v deles vem depois das vagas dos campos de caça
+    (mapa.treino || []).forEach((sp, k) => this.criarInimigo({ ...sp, v: v + k }));
+    // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
+    this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
+    this.veiosComuns = new Map();
+  }
+  // árvores da mata nas 9 casas da grade em volta de (x, z)
+  pertoNaMata(x, z) {
+    if (!this.mata.size) return [];
+    const i = Math.floor(x / 6), j = Math.floor(z / 6), l = [];
+    for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) { const c = this.mata.get(a * 10007 + b); if (c) l.push(...c); }
+    return l;
+  }
+  // nasce um monstro na vaga do campo de caça, num ponto ao acaso (longe dos jogadores, fora de pedra, árvore e casa)
+  nascerNaCaca(c, ci, vg, inicio = false) {
+    const d = c.def;
+    for (let t = 0; t < 8; t++) {
+      const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * d.r * d.ate, x = d.x + Math.cos(a) * r, z = d.z + Math.sin(a) * r;
+      if (!inicio && [...this.jogadores.values()].some((j) => !j.morto && Math.hypot(j.x - x, j.z - z) < d.longe)) continue;
+      if (this.obstaculos.some((k) => Math.hypot(k.x - x, k.z - z) < k.r + 0.8) || !dentroDoMapa(this.mapa, x, z, 2.2)) continue;
+      vg.e = this.criarInimigo({ tipo: vg.tipo, x, z, caca: ci, vaga: vg.k, v: vg.v, nivel: d.nivel || 1 });
+      return true;
+    }
+    return false;
+  }
+  // Quimera (znSp): a cada "passo" s, se falta monstro, nasce um; o próximo em "rapido" s com menos da metade, senão "normal" s
+  passoCacas(dt) {
+    this.cacas.forEach((c, ci) => {
+      const d = c.def;
+      c.t -= dt; if (c.t > 0) return;
+      c.t = d.passo;
+      const vivos = c.vagas.filter((vg) => vg.e).length, vaga = c.vagas.find((vg) => !vg.e);
+      if (!vaga || this.tempo < c.nx) return;
+      if (this.nascerNaCaca(c, ci, vaga)) c.nx = this.tempo + (vivos < d.n / 2 ? d.rapido : d.normal);
+      else c.nx = this.tempo + d.rapido;
+    });
   }
 
   // ---------- entidades ----------
@@ -38,23 +97,31 @@ export class Simulacao {
       acao: null, acaoSeq: 0, dash: null, y: 0, vy: 0, chao: true, esc: null, ...extra };
   }
   // opcoes.podeCriar: personagem ainda não foi criado (o criador abre uma vez só); opcoes.aparencia: a que já foi criada
-  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null } = {}) {
+  // opcoes.progresso: nível, atributos e skills guardados na conta (shared/progresso.js)
+  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null, testador = false } = {}) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
-      fila: null, modo: 'Espada', missoes: {}, falas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
-      visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
+      fila: null, modo: 'Espada', missoes: {}, falas: {}, sta: 0, staT: 0, semFolego: false, seguida: { k: 1, t: -9 }, combateAte: 0, ciente: false, coleta: null, coletas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
+      visual: visualValido(visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
+    j.prog = progressoValido(progresso);
+    if (testador) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
+    this.aplicarStatus(j, true);
+    j.sta = j.staMax;
     this.jogadores.set(id, j);
+    this.avisarProg(j);
     return j;
   }
   removerJogador(id) { this.jogadores.delete(id); }
   criarInimigo(sp) {
-    const t = TIPOS_INIMIGO[sp.tipo];
-    const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: t.vida, vidaMax: t.vida,
-      ataqueCd: 1 + Math.random(), sp, v: this.mapa.inimigos.indexOf(sp) });
+    const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = statusInimigo(sp.tipo, nivel); // nível do campo de caça
+    const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
+      nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
+    if (t.treino) { e.treino = true; e.ry = sp.ry || 0; e.anim = 'Idle'; } // espantalho: fica plantado onde está
     this.inimigos.push(e);
+    return e;
   }
   todos() { return [...this.jogadores.values(), ...this.inimigos]; }
   inimigosDe(c) {
@@ -84,7 +151,7 @@ export class Simulacao {
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
   trocarVisual(id, visual) {
     const j = this.jogadores.get(id);
-    if (j?.criando && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
+    if (j?.criando && visualValido(visual)) j.visual = visual;
   }
   // Criando o personagem (no palco, fora do mapa): ninguém vê, nenhum inimigo persegue, não leva dano e não age.
   // Só entra quem ainda não criou o personagem; sair é sempre permitido.
@@ -98,11 +165,25 @@ export class Simulacao {
   definirAparencia(id, a) {
     const j = this.jogadores.get(id); if (j?.criando) j.aparencia = aparenciaValida(a);
   }
+  // Aparência mudada depois de criado (fora do criador): cores, altura e rosto. O nome não muda.
+  mudarAparencia(id, a) {
+    const j = this.jogadores.get(id); if (!j || j.criando) return null;
+    const ap = aparenciaValida(a); if (!ap) return null;
+    j.aparencia = ap;
+    return ap;
+  }
+  // Corpo trocado depois de criado (criador do app Godot, pedido do André 2026-11-03): só os corpos da lista.
+  // Devolve o corpo novo (para gravar na conta) ou null.
+  mudarVisual(id, v) {
+    const j = this.jogadores.get(id); if (!j || j.criando || !visualValido(v)) return null;
+    j.visual = v;
+    return v;
+  }
   // "Pronto" no criador: grava nome, corpo e aparência de vez. Devolve o que valeu (para salvar na conta) ou null.
   concluirCriacao(id, p) {
     const j = this.jogadores.get(id); if (!j?.criando || !j.podeCriar) return null;
     const nome = nomeValido(p?.nome); if (!nome) return null;
-    if (PERSONAGENS.some((q) => q.id === p.visual)) j.visual = p.visual;
+    if (visualValido(p.visual)) j.visual = p.visual;
     j.aparencia = aparenciaValida(p.aparencia);
     j.nome = nome; j.podeCriar = false; j.criando = false;
     return { nome, visual: j.visual, aparencia: j.aparencia };
@@ -126,19 +207,26 @@ export class Simulacao {
     if (!j || j.morto || j.criando) return false;
     const num = (v) => typeof v === 'number' && Number.isFinite(v);
     if (!p || !num(p.x) || !num(p.y) || !num(p.z) || !num(p.ry)) return false;
-    const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : HEROI.correr) * 1.3;
+    if (p.e === 1) j.ciente = true; // app que conhece a estamina (o Godot): sem fôlego não corre
+    const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3;
     if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
     j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
     const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
     // embaixo: vale o chão mais baixo num palmo em volta (agarrado na parede, o corpo fica rente a ela)
     let baixo = chao; for (const [ox, oz] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) baixo = Math.min(baixo, T.altura(p.x + ox, p.z + oz, p.y));
-    const ok = d <= j.orc + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && Math.hypot(p.x, p.z) <= this.mapa.raio;
+    const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
+    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z);
     if (!ok) {
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
       j.cliente = null;
       return false;
     }
-    j.orc -= d;
+    if (tele && d > 1) { j.tele = null; j.orc = Math.max(0, j.orc - Math.max(0, d - tele)); } else j.orc -= d;
+    // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
+    const dtc = j.cliente ? Math.min(0.5, this.tempo - j.cliente.t) : 0;
+    if (j.ciente && dtc > 0 && !mont && !j.arrancada && !j.esc && !(j.dash?.t > 0) && !(tele && d > 1) && d / dtc > HEROI.correr * ESTAMINA.trote * 1.12) this.correndo(j, dtc);
+    if (j.coleta && Math.hypot(p.x - j.coleta.x, p.z - j.coleta.z) > 0.5) this.pararColeta(j); // saiu do lugar: para de coletar
+    if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     j.chao = p.y - chao < 0.15; j.vy = 0;
     if (typeof p.anim === 'string' && p.anim.length < 64) j.anim = p.anim; // só aparência, para os outros jogadores
@@ -148,6 +236,7 @@ export class Simulacao {
   guiado(j) { return j.tipo === 'jogador' && j.cliente && !j.morto && this.tempo - j.cliente.t < 0.5; }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
+    if (j.coleta) this.pararColeta(j);
     const antes = this.ator; this.ator = j;
     try { this.usarHabilidadeDe(j, id, i); } finally { this.ator = antes; }
   }
@@ -159,9 +248,14 @@ export class Simulacao {
     if (!j.chao || j.arrancada) return;
     // 0 = golpe de espada, 1 a 8 = build (4 de espada e 4 de magia), 9 = cura, 10 = disparo de magia
     const chave = i === 0 ? 'basico' : i === 9 ? 'cura' : i === 10 ? 'magia' : j.build[i - 1];
-    let h = i === 0 ? BASICO : i === 9 ? CURA : i === 10 ? BASICO_MAGIA : HABILIDADES[chave]; if (!h) return;
-    if ((j.cds[chave] || 0) > this.tempo) return;
-    if (h.mana && j.mana < h.mana) { this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' }); return; }
+    const h = i === 0 ? BASICO : i === 9 ? CURA : i === 10 ? BASICO_MAGIA : HABILIDADES[chave]; if (!h) return;
+    this.executar(j, chave, h);
+  }
+  // Solta a habilidade h (com a chave da recarga). Devolve true se saiu.
+  executar(j, chave, h) {
+    const id = j.id;
+    if ((j.cds[chave] || 0) > this.tempo) return false;
+    if (h.mana && j.mana < h.mana) { this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' }); return false; }
     j.mana -= h.mana || 0;
     j.cds[chave] = this.tempo + h.cd;
     // combo: tocando de novo logo depois do golpe, vem o próximo corte
@@ -184,23 +278,547 @@ export class Simulacao {
       this.evento({ t: 'dash', id: j.id, dur: r2(d * h.avancoT + 0.12), forte: 1 });
     }
     if (h.puxa) this.depois(d * h.puxa.de, () => this.puxar(j, h));
-    if (h.salto) this.empurrar(j, h.salto, d * 0.6);
+    if (h.salto) {
+      this.empurrar(j, h.salto, d * 0.6);
+      if (h.q) { j.defesa = 1; this.depois(d * 0.6, () => { j.defesa = 0; }); this.evento({ t: 'dash', id: j.id, dur: r2(d * 0.6), forte: 1 }); }
+    }
     if (h.fx) this.evento({ t: 'conjura', id: j.id, hab: chave, dur: r2(h.segurar || d) });
     if (h.hits) h.hits.forEach((f) => this.depois(d * f, () => this.efeitoHabilidade(j, h)));
     else this.depois(at, () => this.efeitoHabilidade(j, h));
+    return true;
   }
+  // ---------- progressão (ideia do Quimera: shared/progresso.js) ----------
+  // Recalcula vida, mana, defesa, dano... a partir do nível e dos atributos. cheio: enche vida e mana.
+  aplicarStatus(j, cheio = false) {
+    const fv = j.vidaMax ? j.vida / j.vidaMax : 1;
+    j.pas = passivasDe(j.prog);
+    j.st = calcularStatus(j.prog, j.pas);
+    j.vidaMax = j.st.vidaMax; j.manaMax = j.st.manaMax; j.staMax = j.st.estaminaMax; j.sta = Math.min(j.sta ?? j.staMax, j.staMax);
+    if (cheio) { j.vida = j.vidaMax; j.mana = j.manaMax; }
+    else { j.vida = Math.min(j.vidaMax, Math.max(j.morto ? 0 : 1, Math.round(fv * j.vidaMax))); j.mana = Math.min(j.mana, j.manaMax); }
+  }
+  // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
+  avisarProg(j) {
+    const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now() });
+    j.progSujo = true;
+  }
+  // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
+  progressosParaSalvar() {
+    const r = [];
+    for (const j of this.jogadores.values()) if (j.progSujo) { j.progSujo = false; r.push({ id: j.id, prog: j.prog }); }
+    return r;
+  }
+  ganharXP(j, n) {
+    const p = j.prog; if (p.nivel >= NIVEL_MAX) return;
+    p.xp += n;
+    let subiu = false;
+    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
+    if (p.nivel >= NIVEL_MAX) p.xp = 0;
+    if (subiu) {
+      this.aplicarStatus(j, true);
+      this.evento({ t: 'nivel', id: j.id, nivel: p.nivel });
+      this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
+    }
+    this.avisarProg(j);
+  }
+  // Ponto livre num atributo (for, des, int, vit)
+  distribuirAtributo(id, k) {
+    const j = this.jogadores.get(id); if (!j || !ATRIBUTOS[k] || j.prog.pontos <= 0) return;
+    j.prog.atr[k]++; j.prog.pontos--;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+  }
+  // Mestre Ivo (NPC funcao 'resetar', perto de onde o herói nasce): atributos voltam para 3 e os pontos voltam; skills ficam
+  custoReset(j) { return Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
+  resetarBuild(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!(this.mapa.npcs || []).some((n) => n.funcao === 'resetar' && dist(n, j) < 4.5)) return aviso('Fale com o Mestre Ivo');
+    const p = j.prog, gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0), custo = this.custoReset(j);
+    if (gastos <= 0) return aviso('Você ainda não gastou nenhum ponto.');
+    if (p.ouro < custo) return aviso(`Falta ouro: custa ${custo}`);
+    p.ouro -= custo;
+    for (const k of Object.keys(p.atr)) p.atr[k] = 3;
+    p.pontos += gastos;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+    aviso(`Build resetada: ${gastos} pontos para distribuir de novo`);
+  }
+  // Uma das duas barras (espada ou cajado): 6 botões, só skill que serve nela, sem repetir (null = vazio)
+  definirBarra(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || !BARRAS.includes(m.barra)) return;
+    const b = barraValida(m.lista, m.barra); if (!b) return;
+    j.prog.barras[m.barra] = b;
+    this.avisarProg(j);
+  }
+  // ---------- skills do Quimera (cada tipo = uma função do Quimera, com os mesmos números) ----------
+  // Números da skill no nível dela, já com o dano em pontos (Força para espada, Inteligência para cajado)
+  habPronta(j, hid) {
+    const base = HABS[hid], h = habNoNivel(hid, j.prog.habs[hid]?.nv || 1);
+    const dano = base.arvore === 'cajado' ? j.st.danoMagico : base.arvore === 'espada' ? j.st.danoFisico : Math.max(j.st.danoFisico, j.st.danoMagico);
+    h.q = true; h.id = hid; h.chave = hid;
+    h.dmg = dano * (h.pct || 0);
+    if (!base.basico) h.cd = h.cd * (1 - j.st.recarga);
+    if (j.st.areaK && !base.basico) { // conjunto de 6 peças: área das skills maior
+      if (h.area) h.area = r2(h.area * (1 + j.st.areaK));
+      if (h.proj?.explosao) h.proj = { ...h.proj, explosao: r2(h.proj.explosao * (1 + j.st.areaK)) };
+    }
+    return h;
+  }
+  // O alvo que a skill precisa (como no Quimera: sem ninguém no alcance ela nem sai). false = não pode soltar.
+  alvoHab(j, h) {
+    const t = h.tipo;
+    if (t === 'basicoEspada') return this.maisPerto(j, h.alcance + 1.5);
+    if (t === 'corte' || t === 'esmagar') return this.maisPerto(j, h.lunge.r);
+    if (t === 'basicoMagia' || t === 'bola' || t === 'cadeia' || t === 'meteoro' || t === 'investida') return this.maisPerto(j, h.alcance + 0.5) || false;
+    if (t === 'anel' || t === 'gelo' || t === 'puxar') return this.maisPerto(j, h.area) || false;
+    return null;
+  }
+  // Alvo travado do mago (André 2026-11-03): o celular manda o índice v do monstro que está travado (o 1º ataque
+  // pega o mais perto; só troca tocando em outro ou quando ele morre). Vale se está vivo e no alcance; senão null
+  // e a skill pega o mais perto como antes (celular antigo não manda v).
+  alvoTravado(j, h, m) {
+    if (!m || typeof m !== 'object' || !Number.isInteger(m.v) || m.v < 0) return null;
+    if (!['basicoMagia', 'bola', 'cadeia', 'meteoro'].includes(h.tipo)) return null;
+    const o = this.inimigos.find((e) => e.v === m.v && !e.morto);
+    if (!o || Math.abs((o.y || 0) - (j.y || 0)) > 3) return null;
+    return dist(o, j) < h.alcance + 1.5 ? o : null; // folga de 1 m pelo atraso da rede
+  }
+  // Usa uma skill (botão da barra da arma na mão, ou o ataque básico). m: id ou { id, dx, dz } (direção do joystick)
+  usarHabQ(id, m) {
+    const hid = typeof m === 'string' ? m : m?.id;
+    const j = this.jogadores.get(id), base = HABS[hid];
+    if (!j || j.morto || j.esc || j.criando || !base) return;
+    if (j.coleta) this.pararColeta(j);
+    if (base.libera > j.prog.nivel) return this.evento({ t: 'aviso', para: id, texto: `Libera no nível ${base.libera}` });
+    if (!base.basico && !BARRAS.some((b) => j.prog.barras[b].includes(hid))) return;
+    const antes = this.ator; this.ator = j;
+    try {
+      j.montado = null;
+      if (j.canal) return; // concentrando outra magia
+      if (j.trava > 0) { if (j.trava < 0.5 && j.trava !== Infinity) j.fila = { q: m, ate: this.tempo + 0.5 }; return; }
+      if (!j.chao || j.arrancada || (j.cds[hid] || 0) > this.tempo) return;
+      const h = this.habPronta(j, hid);
+      if (h.mana && j.mana < h.mana) return this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' });
+      const alvo = this.alvoTravado(j, h, m) || this.alvoHab(j, h);
+      if (alvo === false) return this.evento({ t: 'aviso', para: id, texto: this.maisPerto(j, 40) ? 'Longe demais' : 'Nenhum inimigo por perto' });
+      if (base.arvore === 'espada') j.modo = 'Espada'; else if (base.arvore === 'cajado') j.modo = 'Magia';
+      j.mana -= h.mana || 0;
+      if (alvo) this.virarPara(j, alvo);
+      if (h.canal) { // magia concentrada: sai no fim; andar, pular ou dar dash cancela (volta 70% da mana)
+        const c = j.canal = { hid, h, alvo, x: j.x, z: j.z };
+        this.tocarQ(j, h.anim, h.canal / h.at);
+        j.trava = h.canal;
+        this.evento({ t: 'conjura', id: j.id, hab: hid, dur: r2(h.canal / h.at) });
+        this.depois(h.canal, () => {
+          if (j.canal !== c || j.morto) return;
+          j.canal = null;
+          j.cds[hid] = this.tempo + h.cd;
+          this.soltarQ(j, h, alvo && !alvo.morto ? alvo : this.alvoHab(j, h) || null, m);
+          if (!base.basico) this.contarUso(j, hid);
+        });
+        return;
+      }
+      j.cds[hid] = this.tempo + h.cd;
+      this.soltarQ(j, h, alvo, m);
+      if (!base.basico) this.contarUso(j, hid);
+    } finally { this.ator = antes; }
+  }
+  cancelarCanal(id, motivo = 'Cancelado') {
+    const j = typeof id === 'string' ? this.jogadores.get(id) : id; if (!j?.canal) return;
+    j.mana = Math.min(j.manaMax, j.mana + (j.canal.h.mana || 0) * 0.7);
+    j.canal = null; j.trava = 0; j.acao = null;
+    this.evento({ t: 'aviso', para: j.id, texto: motivo });
+  }
+  // Toca uma animação com a duração em segundos (as skills do Quimera dizem quanto tempo cada uma dura)
+  tocarQ(c, nome, dur) {
+    c.acao = { nome, ts: (DURACAO[nome] || 1) / dur, segurar: false }; c.acaoSeq++;
+    c.trava = dur;
+    return dur;
+  }
+  // golpe do Quimera: dano (com crítico) e o inimigo voa para longe do ponto p
+  bater(j, o, n, h, p = j) {
+    this.ferir(o, n, j, h);
+    if (o.morto || !h.empurra || o.tipo === 'chefe' || o.firmeAte > this.tempo) return;
+    const d = Math.hypot(o.x - p.x, o.z - p.z) || 1, t = 0.22;
+    o.dash = { vx: (o.x - p.x) / d * h.empurra / t, vz: (o.z - p.z) / d * h.empurra / t, t };
+  }
+  areaQ(j, p, r, n, h) {
+    const alvos = this.inimigosDe(j).filter((o) => dist(o, p) < r + 0.3 && Math.abs((o.y || 0) - (j.y || 0)) < 2.2);
+    for (const o of alvos) this.bater(j, o, n, h, p);
+    return alvos;
+  }
+  // passo até o inimigo mais perto antes do golpe (lunge do Quimera); o celular faz o mesmo no herói dele
+  lunge(j, alvo, para, dur) {
+    if (!alvo) return;
+    const d = dist(alvo, j) - para;
+    if (d > 0.3 && !this.guiado(j)) this.empurrar(j, d, dur);
+  }
+  soltarQ(j, h, alvo, m) {
+    const t = h.tipo, chefe = (o) => o.tipo === 'chefe';
+    if (t === 'basicoEspada') {
+      const cb = j.comboQ || { n: -1, fim: 0 };
+      const n = this.tempo - cb.fim > h.comboZera ? 0 : (cb.n + 1) % h.combo.length, g = h.combo[n];
+      j.comboQ = { n, fim: this.tempo + g.dur };
+      if (g.dur > h.cd) j.cds[h.id] = this.tempo + g.dur; // o 4º golpe é mais longo
+      this.tocarQ(j, g.anim, g.dur); j.acao.lamina = true;
+      this.depois(g.hit, () => {
+        if (j.morto) return;
+        let acertou = 0;
+        for (const o of this.inimigosDe(j)) {
+          if (Math.abs((o.y || 0) - (j.y || 0)) > 1.6 || dist(o, j) > h.alcance) continue;
+          if (Math.abs(angDif(Math.atan2(o.x - j.x, o.z - j.z), j.ry)) > h.arco / 2) continue;
+          this.bater(j, o, h.dmg, h); acertou++;
+        }
+        if (!acertou && alvo && !alvo.morto && dist(alvo, j) < 3.6) this.bater(j, alvo, h.dmg, h);
+      });
+    } else if (t === 'basicoMagia') {
+      const mao = j.maoQ = (j.maoQ || 0) ^ 1, g = h.combo[mao];
+      this.tocarQ(j, g.anim, g.dur);
+      this.depois(g.hit, () => { if (!j.morto) this.lancar(j, h, alvo && !alvo.morto ? alvo : null); });
+    } else if (t === 'corte' || t === 'esmagar') {
+      this.lunge(j, alvo, h.lunge.para, 0.2);
+      this.tocarQ(j, h.anim, h.dur); j.acao.lamina = true;
+      this.evento({ t: 'conjura', id: j.id, hab: h.id, dur: h.dur });
+      for (const s of h.hits) this.depois(s, () => {
+        if (j.morto) return;
+        const p = this.aFrente(j, h.ponto);
+        const hh = t === 'esmagar' ? { ...h, atordoa: 0 } : h;
+        for (const o of this.areaQ(j, p, h.area, h.dmg, hh)) if (t === 'esmagar' && !chefe(o) && !o.morto) { o.parado = Math.max(o.parado || 0, this.tempo + h.atordoa); o.ef = 'atordoado'; o.trava = 0; o.acao = null; }
+        this.evento({ t: 'explosao', x: r2(p.x), z: r2(p.z), r: h.area, fx: h.id });
+      });
+    } else if (t === 'giro' || t === 'pisao') {
+      this.tocarQ(j, h.anim, h.dur); j.acao.lamina = true;
+      this.evento({ t: 'conjura', id: j.id, hab: h.id, dur: h.dur });
+      for (const s of h.hits) this.depois(s, () => {
+        if (j.morto) return;
+        this.areaQ(j, j, h.area, h.dmg, h);
+        this.evento({ t: 'explosao', x: r2(j.x), z: r2(j.z), r: h.area, fx: h.id });
+      });
+    } else if (t === 'investida') {
+      const L = Math.min(h.alcance, dist(alvo, j) + 2.5), x0 = j.x, z0 = j.z, dx = Math.sin(j.ry), dz = Math.cos(j.ry);
+      this.tocarQ(j, h.anim, h.dur); j.acao.lamina = true;
+      if (!this.guiado(j)) this.empurrar(j, L, h.dashT);
+      j.defesa = 1; this.depois(h.dashT, () => { j.defesa = 0; });
+      this.evento({ t: 'dash', id: j.id, dur: r2(h.dashT + 0.12), forte: 1 });
+      this.depois(h.hits[0], () => {
+        if (j.morto) return;
+        const linha = this.inimigosDe(j).map((o) => { const a = (o.x - x0) * dx + (o.z - z0) * dz, lado = Math.abs((o.x - x0) * dz - (o.z - z0) * dx); return { o, a, lado }; })
+          .filter((q) => q.a > -0.5 && q.a < L + 1 && q.lado < h.largura).sort((a, b) => a.a - b.a).slice(0, Math.round(h.alvos));
+        linha.forEach((q, i) => { this.bater(j, q.o, h.dmg * h.cai ** i, h, { x: x0, z: z0 }); this.evento({ t: 'impacto', x: r2(q.o.x), z: r2(q.o.z), ry: r2(j.ry), fx: h.id }); });
+      });
+    } else if (t === 'bola') {
+      this.lancar(j, h, alvo);
+    } else if (t === 'anel' || t === 'gelo') {
+      this.areaQ(j, j, h.area, h.dmg, h);
+      this.evento({ t: 'explosao', x: r2(j.x), z: r2(j.z), r: h.area, fx: h.id });
+    } else if (t === 'meteoro') {
+      const p = alvo ? { x: alvo.x, z: alvo.z } : this.aFrente(j, 5);
+      this.evento({ t: 'meteoro', x: r2(p.x), z: r2(p.z), r: h.area, queda: h.queda });
+      this.depois(h.queda, () => this.areaQ(j, p, h.area, h.dmg, h));
+    } else if (t === 'cadeia') {
+      const feitos = [];
+      let de = { x: j.x, y: (j.y || 0) + 1.3, z: j.z }, o = alvo;
+      for (let i = 0; o && i < Math.round(h.alvos); i++) {
+        feitos.push(o);
+        const n = h.dmg * h.cai ** i, alvoI = o, deI = de;
+        this.depois(i * 0.08, () => { this.evento({ t: 'cadeia', x0: r2(deI.x), y0: r2(deI.y), z0: r2(deI.z), x: r2(alvoI.x), z: r2(alvoI.z) }); this.bater(j, alvoI, n, h); });
+        de = { x: o.x, y: (o.y || 0) + 1, z: o.z };
+        let prox = null, md = h.pula;
+        for (const q of this.inimigosDe(j)) { const d = dist(q, o); if (!feitos.includes(q) && d < md) { md = d; prox = q; } }
+        o = prox;
+      }
+    } else if (t === 'teleporte') {
+      const dx = Number.isFinite(m?.dx) ? m.dx : 0, dz = Number.isFinite(m?.dz) ? m.dz : 0, mm = Math.hypot(dx, dz);
+      if (mm > 0.15) j.ry = Math.atan2(dx, dz);
+      const fx = Math.sin(j.ry), fz = Math.cos(j.ry), x0 = j.x, z0 = j.z;
+      let n = 0; const passos = Math.round(h.distancia / 0.25);
+      for (let i = 1; i <= passos; i++) { if (!this.livreParaHeroi(j, x0 + fx * 0.25 * i, z0 + fz * 0.25 * i)) break; n = i; }
+      const x1 = x0 + fx * 0.25 * n, z1 = z0 + fz * 0.25 * n;
+      j.tele = { m: 0.25 * n + 0.6, ate: this.tempo + 1.5 }; // o celular manda a posição nova: vale o salto
+      if (!this.guiado(j)) { j.x = x1; j.z = z1; j.y = this.terreno.altura(x1, z1, j.y); }
+      this.evento({ t: 'teleporte', id: j.id, x0: r2(x0), z0: r2(z0), x: r2(x1), z: r2(z1) });
+    } else if (t === 'cura') {
+      const n = Math.min(Math.round(j.vidaMax * h.curaPct), j.vidaMax - j.vida); j.vida += n;
+      this.evento({ t: 'cura', alvo: j.id, n });
+      for (const o of this.jogadores.values()) {
+        if (o === j || o.morto || o.criando || dist(o, j) > h.grupo) continue;
+        const q = Math.min(Math.round(o.vidaMax * h.curaPct * 0.5), o.vidaMax - o.vida); o.vida += q;
+        if (q > 0) this.evento({ t: 'cura', alvo: o.id, n: q });
+      }
+      this.evento({ t: 'anel', x: r2(j.x), z: r2(j.z), r: h.grupo, cor: 0x9be08f, dur: 0.9 });
+    } else if (t === 'escudo') {
+      this.tocarQ(j, h.anim, h.dur);
+      j.escudo = { n: Math.round(h.absorve + j.st.defesa * h.defK), ate: this.tempo + h.duracao };
+      this.evento({ t: 'escudo', id: j.id, n: j.escudo.n, dur: h.duracao });
+    } else if (t === 'puxar') {
+      this.evento({ t: 'vortice', x: r2(j.x), z: r2(j.z), r: h.area });
+      for (const o of this.inimigosDe(j)) {
+        const d = dist(o, j); if (d > h.area || chefe(o)) continue;
+        const fica = 1.6, tt = 0.3, m2 = Math.max(0, d - fica);
+        o.dash = { vx: (j.x - o.x) / (d || 1) * m2 / tt, vz: (j.z - o.z) / (d || 1) * m2 / tt, t: tt };
+        o.parado = Math.max(o.parado || 0, this.tempo + h.atordoa); o.trava = 0; o.acao = null;
+        (o.atacantes ||= new Set()).add(j.id);
+      }
+    }
+  }
+  // o herói pode ficar ali? (sem pedra alta, casa, árvore ou poço; dentro do mapa) — o Salto Arcano para antes
+  livreParaHeroi(j, x, z) {
+    if (!dentroDoMapa(this.mapa, x, z, 2.2)) return false;
+    if (this.terreno.altura(x, z, j.y) > j.y + SUBIDA.degrau) return false;
+    for (const k of [...this.obstaculos, ...this.pertoNaMata(x, z)]) {
+      if (k.alto != null && (j.y || 0) > k.alto) continue;
+      if (Math.hypot(x - k.x, z - k.z) < k.r + 0.35) return false;
+    }
+    return true;
+  }
+  // Skill sobe de nível usando até o 5; do 6 ao 10 a barra de usos enche e espera o Tomo daquele nível (como no Quimera)
+  contarUso(j, hid) {
+    const s = j.prog.habs[hid] ||= { nv: 1, uso: 0 }, max = HABS[hid].max || SKILL_MAX;
+    if (s.nv >= max) return;
+    const precisa = usosParaSubir(s.nv);
+    if (s.uso >= precisa) return; // cheia: esperando o Tomo
+    s.uso++;
+    if (s.uso >= precisa) {
+      if (s.nv < NIVEL_SEM_TOMO) { s.uso = 0; s.nv++; this.evento({ t: 'aviso', para: j.id, texto: `${HABS[hid].nome} subiu para Nv ${s.nv}` }); }
+      else this.evento({ t: 'aviso', para: j.id, texto: `${HABS[hid].nome}: barra cheia. Use o ${HABS[hid].tomo} ${ROMANO[s.nv + 1]}` });
+    }
+    this.avisarProg(j);
+  }
+
+  // ---------- mochila, equipamento e loja (dados em shared/dados.js: ITENS, LOJA, DROPS) ----------
+  // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
+  //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
+  item(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object' || j.criando) return;
+    const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
+    if (m.acao === 'equipar' && it && ehEquip(it.k)) {
+      const l = ITENS[it.k].lugar;
+      p.mochila[i] = p.equip[l]; p.equip[l] = it;
+    } else if (m.acao === 'tirar' && p.equip[m.lugar]) {
+      const v = p.mochila.indexOf(null); if (v < 0) return aviso('Mochila cheia');
+      p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
+    } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
+      if (j.morto || ITENS[it.k].mat) return;
+      if (it.k === 'tomo') {
+        const s = p.habs[it.h] || { nv: 1, uso: 0 };
+        if (s.nv >= it.nv) return aviso(`${HABS[it.h].nome} já está no Nv ${s.nv}`);
+        if (s.nv !== it.nv - 1) return aviso(`Este Tomo é para subir do Nv ${it.nv - 1} para o ${it.nv}`);
+        if (s.uso < usosParaSubir(s.nv)) return aviso(`Encha a barra de usos de ${HABS[it.h].nome} primeiro`);
+        p.habs[it.h] = { nv: it.nv, uso: 0 };
+        aviso(`${HABS[it.h].nome} subiu para Nv ${it.nv}!`);
+      } else {
+        const u = ITENS[it.k].usar;
+        if (u.vida) { if (j.vida >= j.vidaMax) return aviso('A vida já está cheia'); const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
+        if (u.mana) { if (j.mana >= j.manaMax) return aviso('A mana já está cheia'); j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana); }
+      }
+      if (--it.n <= 0) p.mochila[i] = null;
+    } else if (m.acao === 'vender' && it) {
+      if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
+      const preco = precoVenda(it, mercador(p.prof.mer).venda);
+      if (it.n > 1) it.n--; else p.mochila[i] = null;
+      p.ouro += preco;
+      this.pontosMercador(j, preco);
+      aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
+    } else if (m.acao === 'comprar' && LOJA[i]) {
+      if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
+      const o = LOJA[i], preco = this.precoCompra(j, o);
+      if (p.ouro < preco) return aviso('Ouro insuficiente');
+      const novo = ehEquip(o.k) ? { k: o.k, r: o.r } : { k: o.k, n: 1 };
+      if (!guardar(p.mochila, novo)) return aviso('Mochila cheia');
+      p.ouro -= preco;
+      this.pontosMercador(j, preco);
+      aviso(`Comprou ${nomeItem(novo)}`);
+    } else if (m.acao === 'pagina') {
+      const tem = p.paginas || 1;
+      if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
+      const preco = PAGINA_PRECO[tem];
+      if (p.ouro < preco) return aviso(`Faltam ${preco - p.ouro} de ouro para a página ${tem + 1}`);
+      p.ouro -= preco;
+      liberarPaginas(p, tem + 1);
+      aviso(`Página ${tem + 1} da mochila liberada (+${MOCHILA} lugares)`);
+    } else if (m.acao === 'capacete') {
+      // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
+      p.semCapacete = m.mostrar === false;
+    } else return;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+  }
+  precoCompra(j, o) { return Math.max(1, Math.round(o.preco * (1 - mercador(j.prog.prof.mer).compra))); }
+  pontosMercador(j, ouro) { this.pontosProf(j, 'mer', ouro / MERCADOR.pontoOuro); }
+  // Pontos numa profissão (sobe de nível sozinha, como no Quimera)
+  pontosProf(j, k, n) {
+    if (!PROFISSOES[k] || !(n > 0)) return;
+    const antes = profNivel(j.prog.prof[k]);
+    j.prog.prof[k] = Math.round((j.prog.prof[k] + n) * 1000) / 1000;
+    const nv = profNivel(j.prog.prof[k]);
+    if (nv > antes) {
+      const b = profBonus(j.prog.prof[k]);
+      this.evento({ t: 'aviso', para: j.id, texto: `${PROFISSOES[k].nome} subiu para o Nv ${nv}` + (b.menosVigor ? ` (gasta ${Math.round(b.menosVigor * 100)}% menos vigor)` : '') });
+      this.evento({ t: 'profNivel', para: j.id, prof: k, nv });
+    }
+  }
+
+  // ---------- estamina (Parte 3 do Quimera: shared/dados.js ESTAMINA) ----------
+  emCombate(j) { return j.combateAte > this.tempo; }
+  // Gasto de uma vez (dash, rolamento, mortal): seguido fica mais caro. App antigo (site) não conhece a estamina: passa.
+  gastarEstamina(j, n) {
+    if (!j.ciente) return true;
+    const E = ESTAMINA, k = this.tempo - j.seguida.t < E.seguidaJanela ? Math.min(E.seguidaMax, j.seguida.k + E.seguidaK) : 1;
+    if (j.sta < n * k) { this.evento({ t: 'aviso', para: j.id, texto: 'Sem fôlego!' }); return false; }
+    j.seguida = { k, t: this.tempo };
+    j.sta -= n * k; j.staT = Math.max(j.staT, E.espera);
+    return true;
+  }
+  correndo(j, dt) {
+    const E = ESTAMINA, c = this.emCombate(j);
+    j.sta = Math.max(0, j.sta - E.correr * (c ? E.combateK : 1) * dt);
+    j.staT = Math.max(j.staT, c ? E.esperaCombate : E.espera);
+    if (j.sta <= 0 && !j.semFolego) { j.semFolego = true; this.evento({ t: 'aviso', para: j.id, texto: 'Sem fôlego!' }); }
+  }
+  passoEstamina(j, dt) {
+    const E = ESTAMINA;
+    if (j.staT > 0) { j.staT -= dt; return; }
+    if (j.sta < j.staMax) j.sta = Math.min(j.staMax, j.sta + j.staMax * E.volta * (this.emCombate(j) ? E.voltaCombate : 1) * dt);
+    if (j.semFolego && j.sta >= j.staMax * E.folego) j.semFolego = false;
+  }
+
+  // ---------- coleta: Minerador e Lenhador (shared/dados.js COLETA e VEIOS) ----------
+  // m = { no: 'v3' | 'a12' } (veio ou árvore) ou { parar: true }. Bate sozinho até acabar a carga do veio, o vigor ou o jogador sair.
+  coletar(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m || typeof m.no !== 'string') return;
+    if (m.parar || j.coleta) return this.pararColeta(j, null); // o jogador parou (ou tocou de novo)
+    const no = this.coletaveis.get(m.no), aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!no) return;
+    if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
+    if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
+    const C = COLETA[no.tipo];
+    if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((no.mina ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
+    if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    this.virarPara(j, no);
+    this.proximaBatida(j, no);
+  }
+  custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
+  // batidas que ainda restam neste veio para este jogador (cada um tem o seu: ninguém rouba o veio do outro)
+  cargas(j, no) {
+    if (no.mina) { // zona de mineração: o veio é de todos
+      const s = this.veiosComuns.get(no.id);
+      return !s || s.volta <= this.tempo ? COLETA[no.tipo].cargas : s.n;
+    }
+    const s = j.coletas[no.id];
+    if (!s || s.volta <= this.tempo) return COLETA[no.tipo].cargas;
+    return s.n;
+  }
+  proximaBatida(j, no) {
+    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez;
+    j.coleta = { no: no.id, x: j.x, z: j.z, fim: this.tempo + dur };
+    this.evento({ t: 'coleta', id: j.id, no: no.id, dur: r2(dur), prof: C.prof });
+  }
+  batidaColeta(j) {
+    const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
+    if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
+    const custo = this.custoVigor(j, C);
+    if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    const b = profBonus(p.prof[C.prof]), ganhou = [];
+    const por = (k, n) => { if (guardar(p.mochila, { k, n })) { const g = ganhou.find((x) => x.k === k); if (g) g.n += n; else ganhou.push({ k, nome: ITENS[k].nome, n }); } else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
+    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < b.extra ? 1 : 0));
+    for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch) por(k, 1);
+    const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
+    const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
+    if (no.mina) { this.veiosComuns.set(no.id, s); this.evento({ t: 'veio', no: no.id, cargas: s.n, volta }); } // todo mundo vê a pedra sumir
+    else j.coletas[no.id] = s;
+    this.pontosProf(j, C.prof, C.vigor);
+    if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
+    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
+    if (!ganhou.length) return this.pararColeta(j, null);
+    if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
+    if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    this.proximaBatida(j, no);
+  }
+  pararColeta(j, motivo = undefined) {
+    if (!j.coleta) return;
+    const no = j.coleta.no; j.coleta = null;
+    this.evento({ t: 'coletaFim', id: j.id, no });
+    if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
+  }
+
+  // ---------- criação: Ferreiro e Alfaiate (shared/dados.js RECEITAS) ----------
+  // m = { r: 'espada' } (receita). Perto da oficina: usa os materiais, gasta vigor e dá a peça (raridade sorteada).
+  criar(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
+    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!R) return;
+    const of = OFICINA[R.prof], npc = (this.mapa.npcs || []).find((n) => n.id === of.npc);
+    if (!npc || dist(npc, j) > OFICINA_DISTANCIA) return aviso(`Crie ${of.onde}`);
+    if (profNivel(p.prof[R.prof]) < R.nivel) return aviso(`Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}`);
+    for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})`);
+    const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
+    if (vigorAgora(p.vigor) < custo) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    let novo;
+    if (ehEquip(R.faz)) {
+      let r = 0; const ch = chanceRaridade(p.prof[R.prof]);
+      while (r < RARIDADE_CRIAR.ate && Math.random() < ch) r++;
+      novo = { k: R.faz, r };
+    } else novo = { k: R.faz, n: 1 };
+    // confere se cabe antes de gastar (numa cópia da mochila sem os materiais)
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    for (const [k, n] of Object.entries(R.usa)) tirar(prova, k, n);
+    if (!guardar(prova, novo)) return aviso('Mochila cheia');
+    gastarVigor(p, custo);
+    p.mochila = prova;
+    this.pontosProf(j, R.prof, R.vigor);
+    this.ganharXP(j, Math.max(1, Math.round(R.vigor)));
+    this.evento({ t: 'criou', para: id, prof: R.prof, nome: nomeItem(novo), r: novo.r ?? -1, x: r2(npc.x), z: r2(npc.z) });
+    aviso(`Criou ${nomeItem(novo)}!`);
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+  }
+  // quem compra itens: a Rosa e os NPCs com 'vender' nas acoes (o Tomás, o ferreiro)
+  pertoDeQuemCompra(j) { return this.pertoDaLoja(j) || (this.mapa.npcs || []).some((n) => (n.acoes || []).includes('vender') && dist(n, j) < LOJA_DISTANCIA); }
+  pertoDaLoja(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'loja' && dist(n, j) < LOJA_DISTANCIA); }
+  // Monstro caiu: cada herói que ganhou XP tira a sua sorte (ouro, poções, peça, Tomo de uma skill que ele já tem)
+  soltarDrops(c, j) {
+    const d = DROPS[c.tipo]; if (!d) return;
+    const p = j.prog, ganhou = [];
+    const por = (it) => { if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)));
+    p.ouro += ouro;
+    if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
+    if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
+    for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch) por({ k, n });
+    if (Math.random() < d.equip) {
+      let s = Math.random(), r = 0;
+      while (r < d.raridade.length - 1 && s >= d.raridade[r]) s -= d.raridade[r++];
+      const pecas = Object.keys(ITENS).filter(ehEquip);
+      por({ k: pecas[Math.floor(Math.random() * pecas.length)], r });
+    }
+    if (Math.random() < d.tomo) { // Tomo do próximo nível que a skill vai precisar (do VI ao X)
+      const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
+      if (sk.length) { const h = sk[Math.floor(Math.random() * sk.length)]; por({ k: 'tomo', h, nv: Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1), n: 1 }); }
+    }
+    this.evento({ t: 'drop', para: j.id, x: r2(c.x), z: r2(c.z), ouro, itens: ganhou });
+    this.avisarProg(j);
+  }
+
   // No chão pula; no ar, o segundo pulo é um mortal para a frente
   // Botão Falar: o NPC mais perto responde conforme a função dele (cura, missão, habilidades, dica, loja)
-  falar(id) {
+  // m (opcional, menu do NPC no app): { npc: id de quem tocou, conversa: true = só a próxima fala, sem a função }
+  falar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     let npc = null, md = 3.2;
     for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md) { md = d; npc = n; } }
+    const quem = m && typeof m === 'object' && typeof m.npc === 'string' ? (this.mapa.npcs || []).find((n) => n.id === m.npc) : null;
+    if (quem && dist(quem, j) < 3.2) npc = quem;
     if (!npc) return;
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
+    if (m?.conversa) return diga(proxima());
     if (npc.funcao === 'cura') {
-      if (j.vida >= j.vidaMax && j.mana >= HEROI.mana) return diga('Você está inteiro. Volte quando precisar.');
-      const n = j.vidaMax - j.vida; j.vida = j.vidaMax; j.mana = HEROI.mana;
+      if (j.vida >= j.vidaMax && j.mana >= j.manaMax) return diga('Você está inteiro. Volte quando precisar.');
+      const n = j.vidaMax - j.vida; j.vida = j.vidaMax; j.mana = j.manaMax;
       if (n > 0) this.evento({ t: 'cura', alvo: j.id, n });
       return diga('Pronto, novinho em folha. Vá com cuidado lá fora.');
     }
@@ -212,6 +830,8 @@ export class Simulacao {
       return diga(M.andamento.replace('{faltam}', M.total - m.n));
     }
     if (npc.funcao === 'habilidades') return diga(npc.falas[0], { abrir: 'habilidades' });
+    if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
+    if (npc.funcao === 'resetar') return diga(npc.falas[0] + ` Custa ${this.custoReset(j)} de ouro.`, { abrir: 'resetar', custo: this.custoReset(j) });
     diga(proxima());
   }
   // Inimigo caiu: conta para quem está numa missão contra a horda dele (vale para todos do grupo)
@@ -225,15 +845,20 @@ export class Simulacao {
   }
   pular(id) {
     const j = this.jogadores.get(id);
+    if (j?.coleta) this.pararColeta(j);
+    if (j?.canal) this.cancelarCanal(j);
     if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
     if (!j || j.morto || j.criando || j.trava > 0 || j.arrancada) return;
     if (j.chao) { j.vy = MOVIMENTO.pulo; j.chao = false; j.pulos = 1; j.puloT = 0; j.pouso = 0; }
-    else if (j.pulos < 2) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
+    else if (j.pulos < 2 && this.gastarEstamina(j, ESTAMINA.mortal)) { j.vy = Math.max(j.vy, MOVIMENTO.pulo * 0.9); j.pulos = 2; j.mortal = DURACAO.mortal; }
   }
   // Rolamento no chão: nenhum golpe pega durante a maior parte dele
   rolar(id) {
     const j = this.jogadores.get(id);
+    if (j?.coleta) this.pararColeta(j);
+    if (j?.canal) this.cancelarCanal(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
+    if (!this.gastarEstamina(j, ESTAMINA.rolar)) return;
     j.cds.rolar = this.tempo + HEROI.rolarCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -245,7 +870,10 @@ export class Simulacao {
   // Arrancada reta para onde o jogador aponta (no ar, uma por pulo). Nenhum golpe pega durante ela.
   dash(id) {
     const j = this.jogadores.get(id);
+    if (j?.coleta) this.pararColeta(j);
+    if (j?.canal) this.cancelarCanal(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
+    if (!this.gastarEstamina(j, ESTAMINA.dash)) return;
     j.cds.dash = this.tempo + MOVIMENTO.dashCd; j.montado = null;
     const { mx, mz } = j.entrada;
     if (Math.hypot(mx, mz) > 0.1) j.ry = Math.atan2(mx, mz);
@@ -274,9 +902,21 @@ export class Simulacao {
     } else if (h.raios) { // raios do céu nos inimigos mais perto (ou à frente, se não houver)
       const alvos = this.inimigosDe(j).filter((o) => dist(o, j) < h.raios.alcance).sort((a, b) => dist(a, j) - dist(b, j)).slice(0, h.raios.n);
       if (!alvos.length) { const p = this.aFrente(j, 5); this.evento({ t: 'raio', x: r2(p.x), z: r2(p.z) }); }
-      alvos.forEach((o, k) => this.depois(k * 0.12, () => { this.evento({ t: 'raio', x: r2(o.x), z: r2(o.z) }); this.ferir(o, h.raios.dmg, j); }));
+      alvos.forEach((o, k) => this.depois(k * 0.12, () => { this.evento({ t: 'raio', x: r2(o.x), z: r2(o.z) }); this.ferir(o, h.raios.dmg, j, h); }));
     }
-    else if (h.cura) {
+    else if (h.curaPct) { // Cura da Floresta: % da vida máxima; quem estiver perto recebe um pouco
+      const n = Math.min(Math.round(j.vidaMax * h.curaPct), j.vidaMax - j.vida); j.vida += n;
+      this.evento({ t: 'cura', alvo: j.id, n });
+      if (h.grupo) for (const o of this.jogadores.values()) {
+        if (o === j || o.morto || o.criando || dist(o, j) > h.grupo.r) continue;
+        const m = Math.min(Math.round(o.vidaMax * h.grupo.pct), o.vidaMax - o.vida); o.vida += m;
+        if (m > 0) this.evento({ t: 'cura', alvo: o.id, n: m });
+      }
+      this.evento({ t: 'anel', x: r2(j.x), z: r2(j.z), r: h.grupo?.r || 1.6, cor: 0x9be08f, dur: 0.9 });
+    } else if (h.escudo) {
+      j.escudo = { n: h.escudo.absorve, ate: this.tempo + h.escudo.dur };
+      this.evento({ t: 'escudo', id: j.id, n: j.escudo.n, dur: h.escudo.dur });
+    } else if (h.cura) {
       const n = Math.min(h.cura, j.vidaMax - j.vida); j.vida += n;
       this.evento({ t: 'cura', alvo: j.id, n });
       this.evento({ t: 'anel', x: j.x, z: j.z, r: 1.6, cor: 0x9be08f, dur: 0.8 });
@@ -290,7 +930,7 @@ export class Simulacao {
       const p = a ? { x: a.x, z: a.z } : this.aFrente(j, 8);
       this.evento({ t: 'chuva', x: r2(p.x), z: r2(p.z), r: h.chuva.r, ondas: h.chuva.ondas });
       for (let k = 0; k < h.chuva.ondas; k++) this.depois(0.25 + k * 0.22, () => {
-        for (const o of this.inimigosDe(j)) if (dist(o, p) < h.chuva.r) this.ferir(o, h.chuva.dmg, j);
+        for (const o of this.inimigosDe(j)) if (dist(o, p) < h.chuva.r) this.ferir(o, h.chuva.dmg, j, h);
       });
     } else if (h.dmg) this.corpoACorpo(j, h);
   }
@@ -300,10 +940,10 @@ export class Simulacao {
       if (Math.abs((o.y || 0) - (c.y || 0)) > 1.6) continue; // em cima da pedra o golpe não alcança quem está embaixo
       const acerta = h.area ? d < h.area : d < h.alcance && Math.abs(angDif(Math.atan2(o.x - c.x, o.z - c.z), c.ry)) < h.arco / 2;
       if (!acerta) continue;
-      this.ferir(o, h.dmg, c);
+      this.ferir(o, h.dmg, c, h);
       if (h.impacto) this.evento({ t: 'impacto', x: r2(o.x), z: r2(o.z), ry: r2(c.ry), fx: h.chave });
       const emp = h.empurra || 1.2;
-      if (h.area && d > 0) { o.x += (o.x - c.x) / d * emp; o.z += (o.z - c.z) / d * emp; this.colidir(o); }
+      if (h.area && d > 0 && !o.treino) { o.x += (o.x - c.x) / d * emp; o.z += (o.z - c.z) / d * emp; this.colidir(o); }
     }
     if (h.area && c.tipo === 'jogador') this.evento({ t: 'explosao', x: r2(c.x), z: r2(c.z), r: h.area, fx: h.chave });
   }
@@ -325,27 +965,97 @@ export class Simulacao {
     this.projeteis.push(p);
     this.evento({ t: 'proj', id: p.id, x: r2(de.x), y: de.y, z: r2(de.z), dx: r2(dx), dy: r2(dy), dz: r2(dz), ...h.proj });
   }
-  ferir(alvo, n, de) {
+  // h: a habilidade que acertou (skills do Quimera trazem crítico e efeitos: atordoa, congela, lento, vulnerável)
+  ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando) return;
-    if (alvo.defesa > 0) n = Math.round(n * (1 - alvo.defesa));
+    let crit = false;
+    if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
+    if (alvo.vuln && alvo.vuln.ate > this.tempo) n *= 1 + alvo.vuln.k;
+    if (alvo.st) n *= 1 - alvo.st.reducao; // defesa do herói
+    if (alvo.defesa > 0) n *= 1 - alvo.defesa;
+    n = Math.max(1, Math.round(n));
+    if (alvo.escudo && alvo.escudo.ate > this.tempo) { // Escudo Arcano segura primeiro
+      const seg = Math.min(alvo.escudo.n, n); alvo.escudo.n -= seg; n -= seg;
+      if (alvo.escudo.n <= 0) { alvo.escudo = null; this.evento({ t: 'escudo', id: alvo.id, n: 0, dur: 0 }); }
+      if (n <= 0) { this.evento({ t: 'dano', alvo: alvo.id, n: 0, escudo: true }); return; }
+    }
+    if (de?.tipo === 'jogador' && de.contraAte > this.tempo && alvo.tipo !== 'jogador') { // contra-ataque depois da esquiva
+      n = Math.round(n * COMBATE_INIMIGO.contraK); crit = true; de.contraAte = 0;
+    }
+    if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
     alvo.vida = Math.max(0, alvo.vida - n);
-    this.evento({ t: 'dano', alvo: alvo.id, n });
-    if (alvo.vida <= 0) this.morrer(alvo);
+    if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); }
+    if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
+    this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
+    if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
+    if (h && alvo.tipo !== 'jogador' && alvo.vida > 0) {
+      const ate = (s) => this.tempo + s * (alvo.tipo === 'chefe' ? 0.5 : 1); // chefe sofre metade
+      if (h.atordoa) { alvo.parado = Math.max(alvo.parado || 0, ate(h.atordoa)); alvo.ef = 'atordoado'; }
+      if (h.congela) { alvo.parado = Math.max(alvo.parado || 0, ate(h.congela)); alvo.ef = 'congelado'; }
+      const meio = alvo.tipo === 'chefe' ? 0.5 : 1; // no chefe lentidão e Quebrado valem metade
+      if (h.lento) alvo.lento = { k: h.lento.k * meio, ate: this.tempo + h.lento.dur };
+      if (h.vulneravel) alvo.vuln = { k: h.vulneravel.k * meio, ate: this.tempo + h.vulneravel.dur };
+      if (h.atordoa || h.congela) { alvo.trava = 0; alvo.acao = null; }
+    }
+    let firme = false;
+    if (alvo.tipo !== 'jogador' && alvo.vida > 0) { // resistência: muitos golpes seguidos e o monstro aguenta e revida
+      const CI = COMBATE_INIMIGO;
+      if (this.tempo - (alvo.golpeT || -9) > CI.firmeJanela) alvo.golpes = 0;
+      alvo.golpeT = this.tempo; alvo.golpes = (alvo.golpes || 0) + 1;
+      if (alvo.golpes >= (CI.firmeGolpes[alvo.tipo] ?? 6) && !(alvo.firmeAte > this.tempo) && !(alvo.parado > this.tempo)) {
+        alvo.firmeAte = this.tempo + CI.firmeDur; alvo.golpes = 0; alvo.ataqueCd = Math.min(alvo.ataqueCd, 0.25);
+        this.evento({ t: 'firme', id: alvo.id, dur: CI.firmeDur });
+      }
+      firme = alvo.firmeAte > this.tempo;
+    }
+    if (alvo.vida <= 0) {
+      this.morrer(alvo);
+      if (alvo.tipo !== 'jogador' && de && alvo.tipo !== 'chefe') { // o golpe final joga o corpo para trás
+        const d = Math.hypot(alvo.x - de.x, alvo.z - de.z) || 1, t = 0.35, m = COMBATE_INIMIGO.voaMorte;
+        alvo.dash = { vx: (alvo.x - de.x) / d * m / t, vz: (alvo.z - de.z) / d * m / t, t };
+      }
+    } else if (firme) { /* firme: aguenta o golpe sem parar o que está fazendo */ }
+    else if (alvo.parado > this.tempo) { /* atordoado ou congelado: nem reage */ }
     else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
   }
+  // espantalho de treino: mostra o dano e balança, mas nunca morre (a vida acabou, volta cheia na hora);
+  // sem XP, sem item, sem missão e sem "firme". Congelar, atordoar, lentidão e Quebrado pegam (para testar).
+  ferirTreino(alvo, n, crit, de, h) {
+    alvo.vida -= n;
+    if (alvo.vida <= 0) alvo.vida = alvo.vidaMax;
+    alvo.golpeT = this.tempo;
+    if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
+    this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
+    if (h) {
+      if (h.atordoa) { alvo.parado = Math.max(alvo.parado || 0, this.tempo + h.atordoa); alvo.ef = 'atordoado'; }
+      if (h.congela) { alvo.parado = Math.max(alvo.parado || 0, this.tempo + h.congela); alvo.ef = 'congelado'; }
+      if (h.lento) alvo.lento = { k: h.lento.k, ate: this.tempo + h.lento.dur };
+      if (h.vulneravel) alvo.vuln = { k: h.vulneravel.k, ate: this.tempo + h.vulneravel.dur };
+    }
+    if (!(alvo.parado > this.tempo)) this.tocar(alvo, A.hit, 1.4);
+  }
   morrer(c) {
+    if (c.coleta) this.pararColeta(c, null);
     c.morto = true; c.dash = null; c.arrancada = null; c.esc = null;
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
       this.depois(HEROI.renascer, () => {
         const n = this.mapa.nascimento;
-        Object.assign(c, { morto: false, vida: c.vidaMax, mana: HEROI.mana, x: n.x, z: n.z, y: 0, vy: 0, chao: true, trava: 0, acao: null });
+        Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: 0, vy: 0, chao: true, trava: 0, acao: null });
         this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' });
       });
     } else {
       this.contarMissao(c);
-      this.depois(8, () => {
+      // XP para quem bateu nele ou estava perto (grupo)
+      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) {
+        this.ganharXP(j, xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)); this.soltarDrops(c, j);
+      }
+      c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
+      if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
+        const vg = this.cacas[c.sp.caca].vagas[c.sp.vaga];
+        this.depois(this.cacas[c.sp.caca].def.corpo, () => { this.inimigos.splice(this.inimigos.indexOf(c), 1); if (vg.e === c) vg.e = null; });
+      } else this.depois(8, () => {
         this.inimigos.splice(this.inimigos.indexOf(c), 1);
         this.criarInimigo(c.sp);
       });
@@ -371,7 +1081,7 @@ export class Simulacao {
     return d;
   }
   colidir(c) {
-    for (const k of c.tipo === 'jogador' ? this.obstaculos : [...this.obstaculos, ...this.obstaculosRocha]) {
+    for (const k of c.tipo === 'jogador' ? [...this.obstaculos, ...this.pertoNaMata(c.x, c.z)] : [...this.obstaculos, ...this.obstaculosRocha, ...this.pertoNaMata(c.x, c.z)]) {
       if (k.alto != null && (c.y || 0) > k.alto) continue; // por cima (esteio da ferraria visto do telhado)
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
@@ -388,12 +1098,12 @@ export class Simulacao {
     for (const o of this.todos()) {
       if (o === c || o.morto || o.criando || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz);
-      if (d < 0.7 && d > 0) { c.x = o.x + dx / d * 0.7; c.z = o.z + dz / d * 0.7; }
+      const m = c.tipo !== 'jogador' && o.tipo !== 'jogador' ? 1.2 : 0.7; // monstro com monstro: ~0,6 m de raio cada
+      if (d < m && d > 0) { c.x = o.x + dx / d * m; c.z = o.z + dz / d * m; }
     }
-    const r = Math.hypot(c.x, c.z), lim = this.mapa.raio - 2.2;
-    if (r > lim) { c.x *= lim / r; c.z *= lim / r; }
+    [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
   }
-  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); c.x += dx; c.z += dz; this.colidir(c); }
+  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c); }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
   moverJogador(j, dx, dz) {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;
@@ -403,8 +1113,12 @@ export class Simulacao {
       if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
       return true;
     };
+    const x0 = j.x, y0 = j.y, z0 = j.z, chao0 = j.chao;
     if (!vai(j.x + dx, j.z + dz)) { j.bloqueado = true; if (!vai(j.x + dx, j.z)) vai(j.x, j.z + dz); }
     this.colidir(j);
+    // o empurrão de um obstáculo (tina, bigorna, esteio, outro jogador) não pode jogar o herói para dentro de uma parede:
+    // senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
+    if (T.altura(j.x, j.z, j.y) > lim) { j.x = x0; j.y = y0; j.z = z0; j.chao = chao0; j.bloqueado = true; }
   }
 
   // ---------- escalada ----------
@@ -430,6 +1144,7 @@ export class Simulacao {
     const T = this.terreno, fx = Math.sin(ry), fz = Math.cos(ry);
     if (T.teto(j.x, j.z, j.y) < Infinity) return null;
     for (let d = 0.1; d <= ate; d += 0.1) {
+      if (T.teto(j.x + fx * d, j.z + fz * d, j.y) < Infinity) return null; // o caminho entra debaixo de um telhado (ferraria aberta): parede lá dentro não se escala correndo
       const h = T.altura(j.x + fx * d, j.z + fz * d, j.y);
       if (h > j.y + SUBIDA.degrau) return h > j.y + SUBIDA.mini ? { dist: d, r: T.rochaEm(j.x + fx * d, j.z + fz * d, j.y) } : null;
     }
@@ -563,19 +1278,24 @@ export class Simulacao {
         c.trava -= dt;
         if (c.trava <= 0) {
           c.trava = 0; c.acao = null;
-          if (c.fila) { const f = c.fila; c.fila = null; if (f.ate >= this.tempo) this.usarHabilidade(c.id, f.i); }
+          if (c.fila) { const f = c.fila; c.fila = null; if (f.ate >= this.tempo) { if (f.q) this.usarHabQ(c.id, f.q); else this.usarHabilidade(c.id, f.i); } }
         }
       }
     }
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
+    this.passoCacas(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
     const ev = this.eventos; this.eventos = [];
     return ev;
   }
   passoJogador(j, dt) {
-    j.mana = Math.min(HEROI.mana, j.mana + HEROI.manaPorSeg * dt);
+    j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * dt);
+    this.passoEstamina(j, dt);
+    if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);
+    if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * dt);
+    if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
       if (j.arrancada) { j.arrancada.t -= dt; if (j.arrancada.t <= 0) j.arrancada = null; }
       return;
@@ -623,20 +1343,55 @@ export class Simulacao {
     return andando ? (correr ? 'Run' : 'Walk') : ARMA.idle;
   }
   passoInimigo(b, dt) {
-    if (b.morto || b.trava > 0) return;
+    if (b.morto) return;
+    if (b.parado > this.tempo) return; // atordoado ou congelado
+    if (b.ef) b.ef = null;
+    if (b.treino) { // espantalho: não anda nem bate; parado um tempo sem apanhar, a vida enche de novo
+      if (b.vida < b.vidaMax && this.tempo - (b.golpeT || 0) > TREINO.volta) b.vida = b.vidaMax;
+      if (b.trava <= 0) b.anim = 'Idle';
+      return;
+    }
+    if (b.trava > 0) return;
     const t = TIPOS_INIMIGO[b.tipo];
+    const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
     const alvo = this.maisPerto(b, 14);
     b.ataqueCd -= dt;
-    if (alvo && dist(alvo, b) < 1.9 && Math.abs(alvo.y - b.y) < 1.3) {
-      this.virarPara(b, alvo); b.anim = A.swordIdle;
+    const CI = COMBATE_INIMIGO;
+    if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
+    // no máximo CI.aoMesmoTempo monstros batem no mesmo herói; os outros rodeiam esperando a vez
+    const esperando = alvo && !b.vez && this.inimigos.filter((o) => o !== b && !o.morto && o.vez === alvo.id).length >= CI.aoMesmoTempo;
+    if (alvo && esperando && dist(alvo, b) < CI.roda + 1.2) {
+      this.virarPara(b, alvo);
+      const d = dist(alvo, b), lado = (b.v % 2 ? 1 : -1), perto = (d - CI.roda) * 1.5;
+      const vx = Math.cos(b.ry) * lado * CI.rodaVel + Math.sin(b.ry) * perto, vz = -Math.sin(b.ry) * lado * CI.rodaVel + Math.cos(b.ry) * perto;
+      this.mover(b, vx * dt, vz * dt);
+      b.anim = 'Walk';
+    } else if (alvo && dist(alvo, b) < 1.9 && Math.abs(alvo.y - b.y) < 1.3) {
+      this.virarPara(b, alvo); b.anim = A.swordIdle; b.vez = alvo.id;
       if (b.ataqueCd <= 0) {
         b.ataqueCd = t.intervalo;
-        const d = this.tocar(b, Math.random() < 0.5 ? A.slash : A.slash2, 1.1);
-        this.depois(d * 0.45, () => { if (!b.morto && !alvo.morto && dist(alvo, b) < 2.4 && Math.abs(alvo.y - b.y) < 1.3) this.ferir(alvo, t.dano, b); });
+        // preparo: a animação começa bem devagar (braço para trás) e o celular acende um brilho vermelho
+        const nome = Math.random() < 0.5 ? A.slash : A.slash2, P = CI.preparo[b.tipo] ?? 0.5;
+        const dur = DURACAO[nome] || 1, hit = P + Math.max(0.05, dur * CI.acerto - P * CI.preparoTs) / CI.golpeTs;
+        b.acao = { nome, ts: CI.preparoTs, segurar: false, preparo: P, ts2: CI.golpeTs }; b.acaoSeq++;
+        b.trava = P + Math.max(0.1, dur - P * CI.preparoTs) / CI.golpeTs;
+        this.evento({ t: 'preparo', id: b.id, dur: P });
+        const seq = b.acaoSeq; // apanhou no meio (ou foi atordoado): o golpe foi cortado
+        this.depois(hit, () => {
+          if (b.acaoSeq !== seq || b.parado > this.tempo || b.morto || alvo.morto) return;
+          if ((alvo.defesa >= 1 || alvo.arrancada) && dist(alvo, b) < 6) { // rolou ou deu dash na hora: esquiva e contra-ataque
+            alvo.contraAte = this.tempo + CI.contraDur;
+            this.evento({ t: 'esquiva', id: alvo.id, de: b.id });
+            return;
+          }
+          if (dist(alvo, b) >= 2.4 || Math.abs(alvo.y - b.y) >= 1.3) return;
+          this.ferir(alvo, b.dano ?? t.dano, b);
+        });
+        if (Math.random() < 0.5) b.vez = null; // passa a vez para quem está rodeando
       }
     } else if (alvo) {
       const d = dist(alvo, b); this.virarPara(b, alvo);
-      const v = d > 5 ? 3.6 : 1.7;
+      const v = (d > 5 ? 3.6 : 1.7) * lento;
       this.mover(b, Math.sin(b.ry) * v * dt, Math.cos(b.ry) * v * dt);
       b.anim = d > 5 ? 'Run' : 'Walk';
     } else if (dist(b, b.casa) > 1) {
@@ -655,13 +1410,13 @@ export class Simulacao {
         if (p.acertou.has(o)) continue;
         const esc = TIPOS_INIMIGO[o.tipo]?.escala || 1;
         if (Math.hypot(o.x - p.x, o.z - p.z) < (p.h.proj.largura || 0.6) && p.y - (o.y || 0) < 2.1 * esc && p.y > (o.y || 0) - 0.3) {
-          p.acertou.add(o); this.ferir(o, p.h.dmg, p.dono);
+          p.acertou.add(o); this.ferir(o, p.h.dmg, p.dono, p.h);
           if (!p.h.proj.atravessa) { fim = true; break; }
         }
       }
       if (!fim) continue;
       const ex = p.h.proj.explosao;
-      if (ex) for (const o of this.inimigosDe(p.dono)) if (!p.acertou.has(o) && Math.hypot(o.x - p.x, o.z - p.z) < ex) this.ferir(o, Math.round(p.h.dmg * 0.6), p.dono);
+      if (ex) for (const o of this.inimigosDe(p.dono)) if (!p.acertou.has(o) && Math.hypot(o.x - p.x, o.z - p.z) < ex) this.ferir(o, p.h.dmg * (p.h.q ? 1 : 0.6), p.dono, p.h);
       this.evento({ t: 'projFim', id: p.id, x: r2(p.x), y: r2(p.y), z: r2(p.z), explosao: ex || 0, cor: p.h.proj.cor, estilo: p.h.proj.estilo });
       this.projeteis.splice(i, 1);
     }
@@ -679,13 +1434,19 @@ export class Simulacao {
 
   // ---------- o que vai para a tela ----------
   foto() {
+    const roupa = (eq) => ['cabeca', 'corpo', 'pernas', 'pes', 'capa'].map((l) => (eq?.[l] ? eq[l].k + eq[l].r : '')).filter(Boolean).join(',');
     const corpo = (c) => ({ id: c.id, x: r2(c.x), y: r2(c.y), z: r2(c.z), ry: r2(((c.ry % TAU) + TAU) % TAU), vida: c.vida, vidaMax: c.vidaMax,
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
     return {
       tempo: r2(this.tempo),
-      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), criando: !!j.criando, mana: Math.round(j.mana), build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
+      jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
+        roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
+        semCapacete: !!j.prog.semCapacete, // capacete escondido pelo dono: os outros também não veem
+        escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
-      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v })),
+      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
+      // veios das zonas de mineração já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
+      veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
     };
   }
 }

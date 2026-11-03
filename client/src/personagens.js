@@ -6,7 +6,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { VRMLoaderPlugin, VRMUtils, VRMSpringBoneCollider, VRMSpringBoneColliderShapeCapsule } from '@pixiv/three-vrm';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO } from '@rpg/shared';
+import { ANIMS_ESCALADA, CORTES, SEM_ALTURA, SEM_AVANCO, SEM_GIRO } from '@rpg/shared';
+import { montarMonstro } from './bestiario.js';
 import { carregarGLTF } from './cena.js';
 import { Montaria } from './montaria.js';
 
@@ -118,6 +119,15 @@ function ajustarEscalada(cru) {
     for (const [n, , v] of cru[nome]?.t || []) {
       if (/Hips\.position$/.test(n)) for (let i = 0; i < v.length; i += 3) { v[i] = 0; v[i + 2] = 0; }
       if (/ladder/.test(nome) && /Hips\.quaternion$/.test(n)) for (let i = 0; i < v.length; i += 4) {
+        q.fromArray(v, i); tw.set(0, q.y, 0, q.w).normalize();
+        q.premultiply(tw.invert()).toArray(v, i);
+      }
+    }
+  }
+  // meia-volta: tira o giro do quadril em volta do corpo (o jogo vira o herói)
+  for (const nome of SEM_GIRO) {
+    for (const [n, , v] of cru[nome]?.t || []) {
+      if (/Hips\.quaternion$/.test(n)) for (let i = 0; i < v.length; i += 4) {
         q.fromArray(v, i); tw.set(0, q.y, 0, q.w).normalize();
         q.premultiply(tw.invert()).toArray(v, i);
       }
@@ -485,7 +495,9 @@ export class Corpo {
     this.inclina = new THREE.Group(); this.root.add(this.inclina); // o corpo inclina para a frente no dash
     this.anim = null; this.maosOssos = [];
     scene.add(this.root);
-    if (visual !== 'soldado') {
+    if (visual.startsWith('bst:')) {
+      montarMonstro(visual.slice(4)).then((m) => this.montarBestiario(m)).catch((e) => { console.error('Bestiário', visual, e); this.montarSoldado(cor, 'nenhuma'); });
+    } else if (visual !== 'soldado') {
       carregarVRM(visual).then((vrm) => this.montarVRM(vrm, armas)).catch((e) => { console.error('VRM', visual, e); this.montarSoldado(cor, 'heroi'); });
     } else this.montarSoldado(cor, armas);
   }
@@ -541,6 +553,13 @@ export class Corpo {
     const mao = this.maoCajado, q = this.root.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.18, 0, -0.08)));
     this.cajado.position.set(0, 0, 0);
     this.cajado.quaternion.copy(mao.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));
+  }
+  // Monstro do Bestiário (teste com ?monstros=bestiario, client/src/bestiario.js): sem arma, golpes de garra e soco
+  montarBestiario({ cena, mixer, clipes, maos }) {
+    if (this.removido) return;
+    this.inclina.add(cena);
+    this.mixer = mixer; this.clipes = clipes; this.maosOssos = maos;
+    this.pronto();
   }
   montarVRM(vrm, armas) {
     if (this.removido) { VRMUtils.deepDispose(vrm.scene); return; }

@@ -1,0 +1,47 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Exportar Bestiário para o Godot</title></head>
+<body><p>Ferramenta (só no vite dev): gera Puglin.glb, Imp.glb e Lobo.glb com as animações já gravadas, nos nomes que o Godot usa.</p>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import { gunzipSync, strFromU8 } from 'fflate';
+import { A } from '@rpg/shared';
+const NOMES = { Idle: 'parada', Walk: 'andar', Run: 'corrida', [A.swordIdle]: 'espada_parada', [A.slash]: 'golpe1', [A.slash2]: 'golpe2', [A.hit]: 'apanhar', [A.death]: 'morrer' };
+const ALTURA = { Imp: 1.36, Puglin: null }; // Imp na altura do ombro da Ruiva (direção de arte)
+function desaturar(tex, q) {
+  const img = tex.image, c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0); const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) { const l = .299 * p[i] + .587 * p[i + 1] + .114 * p[i + 2]; for (let k = 0; k < 3; k++) p[i + k] += (l - p[i + k]) * q; }
+  x.putImageData(d, 0, 0); const t = tex.clone(); t.image = c; t.needsUpdate = true; return t;
+}
+const L = new GLTFLoader(), saida = {};
+for (const nome of ['Puglin', 'Imp']) {
+  const g = await L.loadAsync('assets/monstros/bestiario/' + nome + '.glb');
+  const gz = await fetch('assets/monstros/bestiario/anims_' + nome + '.json.gz').then((r) => r.arrayBuffer());
+  const clipes = JSON.parse(strFromU8(gunzipSync(new Uint8Array(gz)))).map((j) => { const c = THREE.AnimationClip.parse(j); c.name = NOMES[c.name] || c.name; return c; });
+  const feitos = new Map();
+  g.scene.traverse((o) => { if (o.isMesh && o.material.map) { if (!feitos.has(o.material)) { o.material.map = desaturar(o.material.map, 0.25); feitos.set(o.material, 1); } } });
+  if (ALTURA[nome]) {
+    g.scene.updateMatrixWorld(true);
+    const h = g.scene.getObjectByName('Head').getWorldPosition(new THREE.Vector3()).y;
+    const raiz = g.scene.children.find((o) => o.getObjectByName('Head')) || g.scene.children[0];
+    raiz.scale.multiplyScalar(ALTURA[nome] / (h * 1.1));
+  }
+  const bin = await new GLTFExporter().parseAsync(g.scene, { binary: true, animations: clipes });
+  saida[nome] = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
+}
+// Lobo (feito por IA, ferramentas/monstros-ia): era a montaria de teste e virou bicho de caça (pedido do André
+// 2026-11-03). Vem com as próprias animações; aqui ganham os nomes que o Godot usa nos monstros. Tamanho: o da
+// montaria (1,9) uns 18% menor, como a direção de arte pediu para o lobo inimigo.
+{
+  const g = await L.loadAsync('assets/monstros/lobo.glb');
+  const de = Object.fromEntries(g.animations.map((c) => [c.name, c]));
+  const como = (orig, nome) => { const c = de[orig].clone(); c.name = nome; return c; };
+  const clipes = [como('parado', 'parada'), como('parado', 'espada_parada'), como('andar', 'andar'), como('correr', 'corrida'),
+    como('atacar', 'golpe1'), como('atacar', 'golpe2'), como('dano', 'apanhar'), como('morrer', 'morrer')];
+  const raiz = new THREE.Group(); raiz.add(g.scene); g.scene.scale.multiplyScalar(1.9 * 0.82);
+  const bin = await new GLTFExporter().parseAsync(raiz, { binary: true, animations: clipes });
+  saida.Lobo = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
+}
+window.resultado = saida;
+</script></body></html>

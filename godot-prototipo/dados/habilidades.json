@@ -1,0 +1,1413 @@
+{
+ "habs": {
+  "espada_basico": {
+   "nome": "Ataque de espada",
+   "arvore": "espada",
+   "tipo": "basicoEspada",
+   "basico": true,
+   "max": 5,
+   "libera": 1,
+   "pct": 0.95,
+   "alcance": 3.2,
+   "arco": 2.2,
+   "persegue": 12,
+   "cd": 0.5,
+   "comboZera": 0.8,
+   "empurra": 0.55,
+   "vulneravel": {
+    "k": 0.06,
+    "dur": 4
+   },
+   "combo": [
+    {
+     "anim": "combo1",
+     "dur": 0.48,
+     "hit": 0.24
+    },
+    {
+     "anim": "combo2",
+     "dur": 0.48,
+     "hit": 0.26
+    },
+    {
+     "anim": "combo3",
+     "dur": 0.48,
+     "hit": 0.28
+    },
+    {
+     "anim": "combo4",
+     "dur": 0.75,
+     "hit": 0.31
+    }
+   ],
+   "desc": "Combo de 4 cortes. Longe do alvo (até 12 m), corre até ele. Quem leva fica Quebrado (+6% de dano recebido por 4 s)."
+  },
+  "corte_duplo": {
+   "tomo": "Manual da Lâmina Gêmea",
+   "nome": "Corte Duplo",
+   "arvore": "espada",
+   "tipo": "corte",
+   "libera": 1,
+   "anim": "cruzado",
+   "dur": 0.85,
+   "hits": [
+    0.24,
+    0.66
+   ],
+   "lunge": {
+    "r": 7,
+    "para": 1.6
+   },
+   "ponto": 1.7,
+   "area": 2.2,
+   "nv": {
+    "area": 0.15
+   },
+   "pct": 1.1,
+   "empurra": 0.55,
+   "mana": 10,
+   "cd": 1.1,
+   "icone": "corte",
+   "desc": "Avança até o inimigo mais perto e dá dois cortes na frente."
+  },
+  "giro": {
+   "tomo": "Livro do Redemoinho de Aço",
+   "nome": "Giro da Lâmina",
+   "arvore": "espada",
+   "tipo": "giro",
+   "libera": 1,
+   "anim": "giro",
+   "dur": 1.2,
+   "hits": [
+    0.52,
+    0.74
+   ],
+   "area": 4,
+   "nv": {
+    "area": 0.24
+   },
+   "pct": 0.85,
+   "empurra": 1.1,
+   "mana": 22,
+   "cd": 6,
+   "icone": "giro",
+   "desc": "Gira a espada e corta tudo em volta, duas vezes. Dá para andar girando."
+  },
+  "golpe_esmagador": {
+   "tomo": "Tomo do Martelo da Terra",
+   "nome": "Golpe Esmagador",
+   "arvore": "espada",
+   "tipo": "esmagar",
+   "libera": 5,
+   "anim": "salto",
+   "dur": 1.25,
+   "hits": [
+    0.71
+   ],
+   "lunge": {
+    "r": 7,
+    "para": 1.4
+   },
+   "ponto": 1.6,
+   "area": 2.8,
+   "nv": {
+    "area": 0.15
+   },
+   "pct": 3.2,
+   "empurra": 0.75,
+   "atordoa": 1.5,
+   "mana": 32,
+   "cd": 10,
+   "icone": "salto",
+   "desc": "Avança e crava a espada no chão na frente. Atordoa (chefes não)."
+  },
+  "pisao_sismico": {
+   "tomo": "Crônica do Tremor",
+   "nome": "Pisão Sísmico",
+   "arvore": "espada",
+   "tipo": "pisao",
+   "libera": 8,
+   "anim": "descendente",
+   "dur": 0.8,
+   "hits": [
+    0.42
+   ],
+   "area": 5.1,
+   "pct": 1.1,
+   "empurra": 0.35,
+   "atordoa": 3.8,
+   "nv": {
+    "area": 0.26,
+    "atordoa": 0.3
+   },
+   "mana": 28,
+   "cd": 12,
+   "icone": "pisao",
+   "desc": "A espada racha o chão em volta e atordoa todo mundo perto."
+  },
+  "investida": {
+   "tomo": "Diário do Cavaleiro Veloz",
+   "nome": "Investida",
+   "arvore": "espada",
+   "tipo": "investida",
+   "libera": 14,
+   "anim": "investida",
+   "dur": 1.1,
+   "hits": [
+    0.48
+   ],
+   "alcance": 9,
+   "dashT": 0.36,
+   "largura": 1.6,
+   "alvos": 3,
+   "nv": {
+    "alvos": 1
+   },
+   "pct": 1.3,
+   "cai": 0.85,
+   "empurra": 1.45,
+   "mana": 26,
+   "cd": 7,
+   "icone": "investida",
+   "desc": "Dash atravessando os inimigos em linha até o alvo (precisa de alvo a até 9 m)."
+  },
+  "cajado_basico": {
+   "nome": "Faísca",
+   "arvore": "cajado",
+   "tipo": "basicoMagia",
+   "basico": true,
+   "max": 5,
+   "libera": 1,
+   "pct": 0.9,
+   "alcance": 9,
+   "cd": 0.5,
+   "lento": {
+    "k": 0.15,
+    "dur": 2
+   },
+   "nv": {
+    "alcance": 0.5,
+    "lentoK": 0.025
+   },
+   "proj": {
+    "vel": 18,
+    "cor": "#ff8a3a",
+    "tam": 0.22,
+    "estilo": "fogo",
+    "largura": 0.8,
+    "vida": 0.9
+   },
+   "combo": [
+    {
+     "anim": "magia_d",
+     "dur": 0.52,
+     "hit": 0.39
+    },
+    {
+     "anim": "magia_e",
+     "dur": 0.52,
+     "hit": 0.39
+    }
+   ],
+   "desc": "Faísca de fogo que mira sozinha no inimigo mais perto (até 9 m) e deixa lento. Não gasta mana."
+  },
+  "bola_fogo": {
+   "tomo": "Grimório das Chamas",
+   "nome": "Bola de Fogo",
+   "arvore": "cajado",
+   "tipo": "bola",
+   "libera": 1,
+   "anim": "bola_forte",
+   "at": 0.54,
+   "canal": 0.75,
+   "alcance": 11,
+   "pct": 2.2,
+   "proj": {
+    "vel": 16,
+    "cor": "#ff7a2a",
+    "tam": 0.26,
+    "explosao": 2.2,
+    "estilo": "fogo"
+   },
+   "nv": {
+    "explosao": 0.15
+   },
+   "mana": 10,
+   "cd": 1.1,
+   "icone": "bola",
+   "desc": "Cometa de fogo no alvo (até 11 m) que explode na área."
+  },
+  "anel_chamas": {
+   "tomo": "Livro do Círculo de Fogo",
+   "nome": "Anel de Chamas",
+   "arvore": "cajado",
+   "tipo": "anel",
+   "libera": 1,
+   "anim": "explosao",
+   "at": 0.6,
+   "canal": 0.6,
+   "area": 5,
+   "nv": {
+    "area": 0.3
+   },
+   "pct": 1.7,
+   "empurra": 1.45,
+   "mana": 22,
+   "cd": 6,
+   "icone": "explosao",
+   "desc": "Um pulinho e o fogo explode no chão em volta de você."
+  },
+  "meteoro": {
+   "tomo": "Códice da Estrela Cadente",
+   "nome": "Meteoro",
+   "arvore": "cajado",
+   "tipo": "meteoro",
+   "libera": 5,
+   "anim": "meteoro_ceu",
+   "at": 0.76,
+   "canal": 1.4,
+   "alcance": 12,
+   "area": 6,
+   "nv": {
+    "area": 0.3
+   },
+   "queda": 1.1,
+   "pct": 3.2,
+   "empurra": 1.5,
+   "mana": 32,
+   "cd": 10,
+   "icone": "meteoros",
+   "desc": "Marca o chão do alvo e uma rocha gigante em chamas cai ali e explode, pegando todo mundo em volta."
+  },
+  "nova_gelo": {
+   "tomo": "Tomo do Inverno Eterno",
+   "nome": "Nova de Gelo",
+   "arvore": "cajado",
+   "tipo": "gelo",
+   "libera": 8,
+   "anim": "nova_gelo",
+   "at": 0.58,
+   "canal": 0.8,
+   "area": 6,
+   "congela": 3.8,
+   "nv": {
+    "area": 0.3,
+    "congela": 0.3
+   },
+   "pct": 1.1,
+   "empurra": 0.55,
+   "mana": 28,
+   "cd": 12,
+   "icone": "gelo",
+   "desc": "Onda de gelo em volta que congela os inimigos."
+  },
+  "raio_cadeia": {
+   "tomo": "Pergaminho da Tempestade",
+   "nome": "Raio em Cadeia",
+   "arvore": "cajado",
+   "tipo": "cadeia",
+   "libera": 14,
+   "anim": "raio",
+   "at": 0.3,
+   "canal": 0.35,
+   "alcance": 11,
+   "pula": 5.5,
+   "alvos": 3,
+   "nv": {
+    "alvos": 1
+   },
+   "pct": 1.3,
+   "cai": 0.85,
+   "mana": 26,
+   "cd": 7,
+   "icone": "raio",
+   "desc": "Raio da mão no alvo que pula de inimigo em inimigo."
+  },
+  "salto_arcano": {
+   "tomo": "Atlas dos Passos Arcanos",
+   "nome": "Salto Arcano",
+   "arvore": "geral",
+   "tipo": "teleporte",
+   "libera": 1,
+   "distancia": 5.5,
+   "nv": {
+    "distancia": 0.6
+   },
+   "mana": 14,
+   "cd": 4,
+   "icone": "salto_arcano",
+   "desc": "Some e reaparece mais à frente, para onde o joystick aponta (para na parede)."
+  },
+  "cura_floresta": {
+   "tomo": "Herbário da Floresta",
+   "nome": "Cura da Floresta",
+   "arvore": "geral",
+   "tipo": "cura",
+   "libera": 6,
+   "anim": "cura",
+   "at": 0.55,
+   "canal": 0.8,
+   "curaPct": 0.22,
+   "nv": {
+    "curaPct": 0.06
+   },
+   "grupo": 8,
+   "mana": 30,
+   "cd": 18,
+   "icone": "cura",
+   "desc": "Recupera vida sua; quem estiver perto (8 m) recebe metade."
+  },
+  "escudo_arcano": {
+   "tomo": "Tratado da Égide",
+   "nome": "Escudo Arcano",
+   "arvore": "geral",
+   "tipo": "escudo",
+   "libera": 10,
+   "anim": "bloqueio",
+   "dur": 0.6,
+   "absorve": 37,
+   "nv": {
+    "absorve": 12
+   },
+   "defK": 1.5,
+   "duracao": 10,
+   "mana": 25,
+   "cd": 20,
+   "icone": "escudo",
+   "desc": "Uma bolha de luz que segura o dano por 10 s (mais forte com a Defesa)."
+  },
+  "vortice": {
+   "tomo": "Livro do Vórtice",
+   "nome": "Abraço do Vórtice",
+   "arvore": "geral",
+   "tipo": "puxar",
+   "libera": 1,
+   "anim": "vortice",
+   "at": 0.3,
+   "canal": 0.4,
+   "area": 8,
+   "nv": {
+    "area": 0.4
+   },
+   "atordoa": 0.32,
+   "mana": 24,
+   "cd": 16,
+   "icone": "vortice",
+   "desc": "Puxa os inimigos em volta para perto de você (não puxa chefes). Não tira vida."
+  }
+ },
+ "passivas": {
+  "pele_pedra": {
+   "nome": "Pele de Pedra",
+   "libera": 3,
+   "desc": "Defesa +3"
+  },
+  "mente_arcana": {
+   "nome": "Mente Arcana",
+   "libera": 4,
+   "desc": "Mana máx. +10% · regeneração de mana +0,3/s"
+  },
+  "sorte_arcana": {
+   "nome": "Sorte Arcana",
+   "libera": 7,
+   "desc": "Crítico +2%"
+  }
+ },
+ "atributos": {
+  "for": {
+   "nome": "Força",
+   "desc": "+6% dano físico (espada) · +4 vida · +1 defesa"
+  },
+  "des": {
+   "nome": "Destreza",
+   "desc": "+5 estamina · +0,15% crítico · -1,3% recarga"
+  },
+  "int": {
+   "nome": "Inteligência",
+   "desc": "+6% dano mágico (cajado) · +6 mana"
+  },
+  "vit": {
+   "nome": "Vitalidade",
+   "desc": "+8 vida · regeneração"
+  }
+ },
+ "pontosPorNivel": 2,
+ "nivelMax": 30,
+ "skillMax": 10,
+ "botoesPadrao": {
+  "espada": [
+   "corte_duplo",
+   "giro",
+   "golpe_esmagador",
+   "pisao_sismico",
+   "investida",
+   "vortice"
+  ],
+  "cajado": [
+   "bola_fogo",
+   "anel_chamas",
+   "salto_arcano",
+   "meteoro",
+   "nova_gelo",
+   "raio_cadeia"
+  ]
+ },
+ "nBotoes": 6,
+ "xpInimigo": {
+  "puglin": 6,
+  "imp": 8,
+  "chefe": 25,
+  "sombrio": 6,
+  "lider": 20,
+  "lobo": 7
+ },
+ "andarAtirando": 0.6,
+ "nivelSemTomo": 5,
+ "itens": {
+  "peitoral": {
+   "nome": "Peitoral",
+   "lugar": "corpo",
+   "st": {
+    "defesa": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ],
+    "vida": [
+     10,
+     15,
+     22,
+     32,
+     46
+    ],
+    "mana": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ]
+   }
+  },
+  "chapeu": {
+   "nome": "Capacete",
+   "lugar": "cabeca",
+   "st": {
+    "defesa": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "vida": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ]
+   }
+  },
+  "short": {
+   "nome": "Short",
+   "lugar": "pernas",
+   "st": {
+    "defesa": [
+     1,
+     2,
+     3,
+     4,
+     6
+    ],
+    "vida": [
+     4,
+     7,
+     10,
+     14,
+     20
+    ],
+    "mana": [
+     4,
+     6,
+     9,
+     13,
+     18
+    ]
+   }
+  },
+  "calca": {
+   "nome": "Calça",
+   "lugar": "pernas",
+   "st": {
+    "defesa": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "vida": [
+     6,
+     9,
+     13,
+     19,
+     27
+    ],
+    "mana": [
+     3,
+     5,
+     7,
+     10,
+     14
+    ]
+   }
+  },
+  "capa": {
+   "nome": "Capa",
+   "lugar": "capa",
+   "st": {
+    "defesa": [
+     1,
+     2,
+     2,
+     3,
+     5
+    ],
+    "mana": [
+     7,
+     10,
+     14,
+     21,
+     30
+    ]
+   }
+  },
+  "botas": {
+   "nome": "Botas",
+   "lugar": "pes",
+   "st": {
+    "defesa": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "vida": [
+     6,
+     9,
+     13,
+     19,
+     27
+    ]
+   }
+  },
+  "oculos": {
+   "nome": "Óculos",
+   "lugar": "acessorio",
+   "st": {
+    "mana": [
+     4,
+     8,
+     12,
+     18,
+     25
+    ],
+    "critico": [
+     0.008,
+     0.011,
+     0.015,
+     0.021,
+     0.026
+    ],
+    "vida": [
+     0,
+     0,
+     6,
+     11,
+     17
+    ]
+   }
+  },
+  "colar": {
+   "nome": "Colar de Estrela",
+   "lugar": "acessorio",
+   "st": {
+    "vida": [
+     15,
+     22,
+     30,
+     42,
+     60
+    ],
+    "defesa": [
+     1,
+     2,
+     3,
+     4,
+     6
+    ]
+   }
+  },
+  "espada": {
+   "nome": "Espada",
+   "lugar": "espada",
+   "st": {
+    "danoFisico": [
+     3,
+     5,
+     7,
+     10,
+     14
+    ]
+   }
+  },
+  "cajado": {
+   "nome": "Cajado",
+   "lugar": "cajado",
+   "st": {
+    "danoMagico": [
+     3,
+     5,
+     7,
+     10,
+     14
+    ]
+   }
+  },
+  "pocao": {
+   "nome": "Poção de vida",
+   "pilha": 20,
+   "usar": {
+    "vida": 0.35
+   },
+   "preco": 15,
+   "venda": 5,
+   "desc": "Recupera 35% da vida."
+  },
+  "pocao_mana": {
+   "nome": "Poção de mana",
+   "pilha": 20,
+   "usar": {
+    "mana": 0.4
+   },
+   "preco": 18,
+   "venda": 6,
+   "desc": "Recupera 40% da mana."
+  },
+  "tomo": {
+   "nome": "Tomo",
+   "pilha": 20,
+   "desc": "Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia."
+  },
+  "minerio_ferro": {
+   "nome": "Minério de ferro",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Sai dos veios de ferro. Na forja, 3 viram uma barra."
+  },
+  "minerio_cobre": {
+   "nome": "Minério de cobre",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Sai dos veios de cobre. Na forja, 3 viram uma barra."
+  },
+  "cristal": {
+   "nome": "Cristal arcano",
+   "mat": true,
+   "pilha": 50,
+   "venda": 8,
+   "desc": "Cristal que guarda magia. Sai dos veios de cristal (e, às vezes, dos de ferro e cobre)."
+  },
+  "lenha": {
+   "nome": "Lenha",
+   "mat": true,
+   "pilha": 50,
+   "venda": 1,
+   "desc": "Madeira cortada das árvores. Alimenta a forja e vira cabo e cajado."
+  },
+  "barra_ferro": {
+   "nome": "Barra de ferro",
+   "mat": true,
+   "pilha": 50,
+   "venda": 8,
+   "desc": "Ferro fundido na forja. Vira lâmina de espada."
+  },
+  "barra_cobre": {
+   "nome": "Barra de cobre",
+   "mat": true,
+   "pilha": 50,
+   "venda": 8,
+   "desc": "Cobre fundido na forja. Vira joia e ponteira de cajado."
+  },
+  "pedra": {
+   "nome": "Pedra",
+   "mat": true,
+   "pilha": 50,
+   "venda": 1,
+   "desc": "Pedra comum que sai junto quando você minera. Serve para construir e para afiar ferramentas."
+  },
+  "carvao": {
+   "nome": "Carvão",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Lenha queimada na forja. Misturado ao ferro, vira aço."
+  },
+  "barra_aco": {
+   "nome": "Barra de aço",
+   "mat": true,
+   "pilha": 50,
+   "venda": 20,
+   "desc": "Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores."
+  },
+  "couro": {
+   "nome": "Couro",
+   "mat": true,
+   "pilha": 50,
+   "venda": 3,
+   "desc": "Couro grosso dos Puglins. O alfaiate faz botas e reforços."
+  },
+  "tecido": {
+   "nome": "Tecido",
+   "mat": true,
+   "pilha": 50,
+   "venda": 3,
+   "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas."
+  }
+ },
+ "raridades": [
+  {
+   "nome": "Comum",
+   "cor": "#cfc8b8"
+  },
+  {
+   "nome": "Raro",
+   "cor": "#5aa8ff"
+  },
+  {
+   "nome": "Épico",
+   "cor": "#b974ff"
+  },
+  {
+   "nome": "Lendário",
+   "cor": "#ffb03a"
+  },
+  {
+   "nome": "Mítico",
+   "cor": "#ff5a72"
+  }
+ ],
+ "lugares": [
+  "cabeca",
+  "corpo",
+  "pernas",
+  "capa",
+  "pes",
+  "acessorio",
+  "espada",
+  "cajado"
+ ],
+ "mochila": 40,
+ "mochilaPaginas": 4,
+ "paginaPreco": [
+  0,
+  500,
+  2000,
+  6000
+ ],
+ "conjunto": [
+  null,
+  {
+   "2": {
+    "mana": 10
+   },
+   "3": {
+    "danoK": 0.05
+   },
+   "6": {
+    "critico": 0.02,
+    "regenManaK": 0.25
+   }
+  },
+  {
+   "2": {
+    "vida": 20,
+    "mana": 20
+   },
+   "3": {
+    "danoK": 0.12
+   },
+   "6": {
+    "critico": 0.04,
+    "areaK": 0.15,
+    "regenManaK": 0.4
+   }
+  },
+  {
+   "2": {
+    "vida": 40,
+    "mana": 35
+   },
+   "3": {
+    "danoK": 0.2,
+    "defesa": 15
+   },
+   "6": {
+    "critico": 0.06,
+    "areaK": 0.25,
+    "regenManaK": 0.55
+   }
+  },
+  {
+   "2": {
+    "vida": 70,
+    "mana": 60
+   },
+   "3": {
+    "danoK": 0.3,
+    "defesa": 30
+   },
+   "6": {
+    "critico": 0.08,
+    "areaK": 0.35,
+    "regenManaK": 0.7
+   }
+  }
+ ],
+ "vendaEquip": [
+  20,
+  80,
+  250,
+  700,
+  2000
+ ],
+ "vendaTomo": 30,
+ "romano": [
+  "",
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X"
+ ],
+ "loja": [
+  {
+   "k": "pocao",
+   "preco": 15
+  },
+  {
+   "k": "pocao_mana",
+   "preco": 18
+  },
+  {
+   "k": "chapeu",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "chapeu",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "peitoral",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "peitoral",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "calca",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "calca",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "short",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "short",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "botas",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "botas",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "capa",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "capa",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "oculos",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "oculos",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "colar",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "colar",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "espada",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "espada",
+   "r": 1,
+   "preco": 240
+  },
+  {
+   "k": "cajado",
+   "r": 0,
+   "preco": 60
+  },
+  {
+   "k": "cajado",
+   "r": 1,
+   "preco": 240
+  }
+ ],
+ "lojaDistancia": 4,
+ "criador": {
+  "cabelo": [
+   null,
+   1841695,
+   3876377,
+   7029801,
+   11026460,
+   14267244,
+   15328472,
+   10131604,
+   3100572,
+   14252442,
+   4160074,
+   5978762,
+   10230820
+  ],
+  "olhos": [
+   null,
+   7028514,
+   11565610,
+   4033098,
+   3829712,
+   9082528,
+   8014528,
+   12593706,
+   14725168
+  ],
+  "pele": [
+   null,
+   16770774,
+   15977904,
+   14855560,
+   13011554,
+   10052420,
+   7226672
+  ],
+  "roupa": [
+   null,
+   15789800,
+   2236966,
+   2372700,
+   7216682,
+   4872754,
+   7031342,
+   8027264,
+   11022892,
+   8038096,
+   5913210
+  ],
+  "calca": [
+   null,
+   2236966,
+   3947090,
+   5916210,
+   2767450,
+   7216682,
+   8027264,
+   4872754,
+   15262420
+  ],
+  "altura": [
+   0.92,
+   1.08
+  ],
+  "rosto": {
+   "olhosT": [
+    0.75,
+    1.25
+   ],
+   "narizT": [
+    0.7,
+    1.3
+   ],
+   "bocaT": [
+    0.7,
+    1.3
+   ]
+  },
+  "corpos": [
+   "ruiva",
+   "cabelo_m",
+   "shibu",
+   "shibu_sombrio",
+   "fumiriya",
+   "shino",
+   "vivi",
+   "vita",
+   "victoria"
+  ]
+ },
+ "nome": {
+  "min": 3,
+  "max": 16
+ },
+ "estamina": {
+  "base": 50,
+  "porNivel": 2,
+  "porDes": 5,
+  "correr": 10,
+  "trote": 0.7,
+  "combateK": 1.5,
+  "volta": 0.17,
+  "voltaCombate": 0.55,
+  "espera": 0.9,
+  "esperaCombate": 8,
+  "dash": 8,
+  "rolar": 8,
+  "mortal": 6,
+  "seguidaK": 0.5,
+  "seguidaMax": 2.4,
+  "seguidaJanela": 1.3,
+  "folego": 0.2,
+  "combate": 5
+ },
+ "vigor": {
+  "max": 100,
+  "enche": 21600
+ },
+ "profissoes": {
+  "min": {
+   "nome": "Minerador",
+   "grupo": "Coleta",
+   "desc": "Minerar veios de ferro, cobre e cristal"
+  },
+  "len": {
+   "nome": "Lenhador",
+   "grupo": "Coleta",
+   "desc": "Cortar lenha das árvores"
+  },
+  "fer": {
+   "nome": "Ferreiro",
+   "grupo": "Criação",
+   "desc": "Barras, espadas, cajados e colares na forja do Tomás"
+  },
+  "alf": {
+   "nome": "Alfaiate",
+   "grupo": "Criação",
+   "desc": "Calças, shorts, capas, botas e óculos na banca da Rosa"
+  },
+  "mer": {
+   "nome": "Mercador",
+   "grupo": "Comércio",
+   "desc": "Negociar com a Rosa: vende mais caro e compra mais barato"
+  }
+ },
+ "ranks": [
+  "Novato",
+  "Veterano",
+  "Especialista",
+  "Mestre",
+  "Autoridade",
+  "Campeão",
+  "Adepto",
+  "Arauto",
+  "Virtuoso",
+  "Celebridade",
+  "Famoso"
+ ],
+ "profMax": 20,
+ "mercador": {
+  "venda": 0.25,
+  "compra": 0.15,
+  "pontoOuro": 10
+ },
+ "coleta": {
+  "ferro": {
+   "nome": "Veio de ferro",
+   "prof": "min",
+   "nivel": 5,
+   "vigor": 2,
+   "tempo": 2.4,
+   "cargas": 3,
+   "volta": 90,
+   "da": {
+    "minerio_ferro": 1
+   },
+   "raro": {
+    "cristal": 0.05,
+    "pedra": 0.5
+   }
+  },
+  "cobre": {
+   "nome": "Veio de cobre",
+   "prof": "min",
+   "vigor": 1.5,
+   "tempo": 2.2,
+   "cargas": 3,
+   "volta": 90,
+   "da": {
+    "minerio_cobre": 1
+   },
+   "raro": {
+    "cristal": 0.04,
+    "pedra": 0.5
+   }
+  },
+  "cristal": {
+   "nome": "Veio de cristal",
+   "prof": "min",
+   "nivel": 8,
+   "vigor": 3,
+   "tempo": 2.8,
+   "cargas": 2,
+   "volta": 150,
+   "da": {
+    "cristal": 1
+   },
+   "raro": {
+    "cristal": 0.1,
+    "pedra": 0.4
+   }
+  },
+  "arvore": {
+   "nome": "Árvore",
+   "esgotado": "esgotada",
+   "prof": "len",
+   "vigor": 1,
+   "tempo": 2,
+   "cargas": 3,
+   "volta": 60,
+   "da": {
+    "lenha": 1
+   },
+   "raro": {
+    "lenha": 0.25
+   }
+  }
+ },
+ "coletaDistancia": 2.4,
+ "receitas": {
+  "barra_ferro": {
+   "prof": "fer",
+   "faz": "barra_ferro",
+   "usa": {
+    "minerio_ferro": 3,
+    "lenha": 1
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "carvao": {
+   "prof": "fer",
+   "faz": "carvao",
+   "usa": {
+    "lenha": 2
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "barra_aco": {
+   "prof": "fer",
+   "faz": "barra_aco",
+   "usa": {
+    "barra_ferro": 1,
+    "carvao": 2
+   },
+   "vigor": 2,
+   "nivel": 5
+  },
+  "barra_cobre": {
+   "prof": "fer",
+   "faz": "barra_cobre",
+   "usa": {
+    "minerio_cobre": 3,
+    "lenha": 1
+   },
+   "vigor": 1,
+   "nivel": 1
+  },
+  "espada": {
+   "prof": "fer",
+   "faz": "espada",
+   "usa": {
+    "barra_ferro": 3,
+    "lenha": 2
+   },
+   "vigor": 4,
+   "nivel": 1
+  },
+  "cajado": {
+   "prof": "fer",
+   "faz": "cajado",
+   "usa": {
+    "lenha": 4,
+    "barra_cobre": 1,
+    "cristal": 1
+   },
+   "vigor": 4,
+   "nivel": 2
+  },
+  "colar": {
+   "prof": "fer",
+   "faz": "colar",
+   "usa": {
+    "barra_cobre": 2,
+    "cristal": 2
+   },
+   "vigor": 4,
+   "nivel": 4
+  },
+  "botas": {
+   "prof": "alf",
+   "faz": "botas",
+   "usa": {
+    "couro": 4
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "chapeu": {
+   "prof": "fer",
+   "faz": "chapeu",
+   "usa": {
+    "barra_ferro": 2,
+    "couro": 1,
+    "tecido": 1
+   },
+   "vigor": 6,
+   "nivel": 2
+  },
+  "short": {
+   "prof": "alf",
+   "faz": "short",
+   "usa": {
+    "couro": 2,
+    "tecido": 1
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "capa": {
+   "prof": "alf",
+   "faz": "capa",
+   "usa": {
+    "tecido": 4,
+    "couro": 1
+   },
+   "vigor": 8,
+   "nivel": 2
+  },
+  "oculos": {
+   "prof": "alf",
+   "faz": "oculos",
+   "usa": {
+    "barra_cobre": 1,
+    "cristal": 1,
+    "couro": 1
+   },
+   "vigor": 8,
+   "nivel": 5
+  },
+  "calca": {
+   "prof": "alf",
+   "faz": "calca",
+   "usa": {
+    "couro": 3,
+    "tecido": 1
+   },
+   "vigor": 8,
+   "nivel": 1
+  },
+  "peitoral": {
+   "prof": "fer",
+   "faz": "peitoral",
+   "usa": {
+    "barra_ferro": 4,
+    "couro": 2
+   },
+   "vigor": 6,
+   "nivel": 3
+  }
+ },
+ "oficina": {
+  "fer": {
+   "npc": "ferreiro",
+   "onde": "na forja do Tomás"
+  },
+  "alf": {
+   "npc": "comerciante",
+   "onde": "na banca da Rosa"
+  }
+ },
+ "oficinaDistancia": 4.5,
+ "raridadeCriar": {
+  "base": 0.06,
+  "max": 0.3,
+  "ate": 2
+ },
+ "heroiCorrer": 5.4,
+ "nivelInimigo": {
+  "vida": 0.16,
+  "dano": 0.18,
+  "xp": 0.5,
+  "ouro": 0.15,
+  "folga": 5,
+  "perde": 0.15,
+  "min": 0.1
+ }
+}

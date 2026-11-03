@@ -1,6 +1,8 @@
 // Dados do jogo. Cliente e servidor leem este mesmo arquivo:
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
+import { raioNaDirecao, dentroDoMapa } from './mapa.js';
+
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
   slash: 'mx_inward_slashing_with_a_sword_standing_st',
@@ -24,6 +26,8 @@ export const A = {
   lanca: 'mx_two_handed_casting_spell_fowards',
   ceu: 'mx_one_handed_casting_spell_upwards',
   vortice: 'mx_two_handed_casting_spell_pull_in_blast_o',
+  // magias novas do cajado (André 2026-11-03): Mixamo Magic Pack e Kevin Iglesias Spellcasting (livres, em fontes)
+  bolaForte: 'bolaForte', novaGelo: 'novaGelo', meteoroCeu: 'meteoroCeu',
 };
 
 // Duração de cada animação em segundos. O servidor usa para saber quando o golpe acerta.
@@ -41,6 +45,13 @@ export const DURACAO = {
   esc_diagonal_wall_run: 1.133, esc_sprint_to_wall_climb: 1.8, esc_start_climbing_ladder: 2.033, esc_wall_run: 2.1,
   mx_hanging_by_hands_against_wall: 2.333, mx_hanging_by_hands_gently_swaying: 2.333, mx_hanging_from_a_ledge_idle: 4.7,
   mx_left_braced_hang_shimmy: 1.167, mx_right_braced_hang_shimmy: 1.167,
+  // Mixamo Run To Stop e Running Turn 180 (app Godot: o jogo leva o corpo pelo caminho do quadril, ver RAIZ)
+  freada: 1.8, meia_volta: 0.667,
+  // Mixamo Rifle Start Run: no app Godot só as pernas e o quadril tocam (os braços seguram fuzil)
+  arrancada: 1.733,
+  // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
+  // 2H Magic Area Attack 01 e 2H Cast Spell 01
+  mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
 };
 
 // Pedaços de animação: [arquivo, início, fim] em fração da duração. O combo de espada do Mixamo
@@ -51,13 +62,20 @@ export const CORTES = {
   magia1: ['mx_one_handed_casting_spell_sweep_right_to', 0.05, 0.55], magia2: ['mx_one_handed_casting_spell_fowards', 0.12, 0.55],
   magia3: ['mx_casting_a_spell_with_one_hand', 0.32, 0.6], investida: ['mx_thrust_and_slash_with_blade', 0.15, 0.6],
   arremesso: ['mx_conjuring_magic_and_throwing', 0.45, 0.92],
+  // Faísca nova (alterna as mãos), Bola de Fogo (junta as duas mãos e empurra), Nova de Gelo (bate no chão), Meteoro (braços ao céu)
+  magiaD: ['mg_basico_d', 0.1, 0.7], magiaE: ['mg_basico_e', 0.1, 0.7], bolaForte: ['mg_bola', 0.1, 0.75],
+  novaGelo: ['mg_gelo', 0.05, 0.7], meteoroCeu: ['mg_meteoro', 0, 0.85],
   pulo: ['pulo_impulso', 0.42, 1], puloCorrendo: ['pulo_correndo', 0.72, 1], mortal: ['mortal_frente', 0.33, 0.92], pouso: ['aterrissa_queda', 0.28, 0.85],
 };
 for (const [nome, [arq, ini, fim]] of Object.entries(CORTES)) DURACAO[nome] = DURACAO[arq] * (fim - ini);
 // Nestas o quadril não sobe nem desce na animação: quem dá a altura do pulo é o jogo
 export const SEM_ALTURA = ['pulo', 'puloCorrendo', 'mortal', 'queda'];
 // Nestas o quadril não anda para a frente na animação: quem leva o corpo é o jogo (a investida já sai no impulso)
-export const SEM_AVANCO = ['investida'];
+export const SEM_AVANCO = ['investida', 'freada', 'meia_volta', 'arrancada'];
+// Nestas o quadril não gira em volta do corpo: quem vira o herói é o jogo, pelo giro gravado (meia-volta correndo)
+export const SEM_GIRO = ['meia_volta'];
+// Animações em que o jogo (app Godot) anda e vira o corpo pelo caminho do quadril da própria animação
+export const RAIZ = ['freada', 'meia_volta'];
 
 // Escalada (animações do Mixamo, pasta mixamo/movimento e mixamo/combate do New-Game-Anime-fontes).
 // "traj" = caminho do quadril na animação em 13 pontos: [lado (+ = esquerda), sobe, frente] em metros, já na escala do herói.
@@ -138,16 +156,40 @@ export const MONTARIAS = {
 
 // Inimigos: cada horda usa um personagem anime que o jogador não pode escolher (nunca fica igual ao herói).
 // Mudam tamanho, números e o brilho da espada. Hordas novas entram aqui.
+// Monstros do Bestiário (Quaternius): visual 'bst:<Nome>' = client/src/bestiario.js (site) e godot-prototipo/modelos/<nome>.glb.
+// Atacam com garra e soco, sem espada. Nascem só no acampamento do leste, nunca dentro da vila.
 export const TIPOS_INIMIGO = {
-  sombrio: { nome: 'Sombrio', horda: 'Bando Sombrio', visual: 'cabelo_m', vida: 90, dano: 9, intervalo: 2.4, escala: 1, brilho: 0x8a3dff },
-  lider: { nome: 'Lâmina Sombria', horda: 'Bando Sombrio', visual: 'fumiriya', vida: 200, dano: 16, intervalo: 1.8, escala: 1.12, brilho: 0xff2a3a },
+  puglin: { nome: 'Puglin', horda: 'Monstros do Leste', visual: 'bst:Puglin', vida: 80, dano: 8, intervalo: 2.2, escala: 1, brilho: 0x8a3dff },
+  imp: { nome: 'Imp', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 110, dano: 11, intervalo: 2.4, escala: 1, brilho: 0xff6a2a },
+  chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.9, escala: 1.15, brilho: 0xff2a3a },
+  // o lobo (feito por IA, ferramentas/monstros-ia) era montaria de teste; virou bicho de caça (pedido do André 2026-11-03)
+  lobo: { nome: 'Lobo', horda: 'Monstros do Leste', visual: 'lobo', vida: 95, dano: 10, intervalo: 2.0, escala: 1, brilho: 0xd8e6ff },
+  // espantalho de treino (TREINO, abaixo): não anda, não bate, não morre, não dá XP nem item
+  espantalho: { nome: 'Espantalho de treino', horda: 'Treino', visual: 'espantalho', vida: 1000, dano: 0, intervalo: 99, escala: 1, brilho: 0, treino: true },
+};
+// Espantalho de treino (pedido do André 2026-11-03: "coloca um espantalho pra eu treinar golpes e testar na vila ali perto
+// do ferreiro"). Apanha de tudo (golpe, skill, magia, crítico, congelar, atordoar), mostra o dano, mas nunca morre:
+// quando a vida acaba ela volta cheia na hora, e depois de `volta` s sem apanhar também enche de novo.
+// Não anda, não revida, não dá XP nem item e não conta para missão. raio = o quanto ele ocupa (ninguém atravessa).
+// Modelo: Dummy do Fantasy Props MegaKit (Quaternius, CC0) em godot-prototipo/treino3d/.
+export const TREINO = { volta: 4, raio: 0.38, alto: 1.6 }; // alto: a câmera passa por cima dele
+
+// Combate dos monstros (André 2026-11-02, "combate amador"): o monstro avisa antes de bater (preparo, em s, com a
+// animação bem devagar e um brilho vermelho), no máximo `aoMesmoTempo` batem no mesmo herói (os outros rodeiam a
+// `roda` m), aguenta `firmeGolpes` golpes seguidos e fica firme (não para de apanhar, revida) por `firmeDur` s.
+// Rolar ou dar dash na hora do golpe = esquiva: o próximo golpe do herói em `contraDur` s vale `contraK`x e é crítico.
+export const COMBATE_INIMIGO = {
+  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7, lobo: 0.45 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  aoMesmoTempo: 2, roda: 3.4, rodaVel: 1.1,
+  firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6 }, firmeJanela: 1.6, firmeDur: 2.0,
+  contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
 };
 
 // Missões que os NPCs dão. horda = qual bando conta (TIPOS_INIMIGO[..].horda). {faltam} vira o número.
 export const MISSOES = {
   bando: {
-    nome: 'Expulsar o Bando Sombrio', horda: 'Bando Sombrio', total: 4,
-    pedido: 'O Bando Sombrio acampou no leste, no fim do caminho. Derrube quatro deles e volte aqui.',
+    nome: 'Expulsar os monstros do leste', horda: 'Monstros do Leste', total: 4,
+    pedido: 'Monstros apareceram no leste, no fim do caminho. Derrube quatro deles e volte aqui.',
     andamento: 'Ainda faltam {faltam}. O acampamento fica no leste, é só seguir o caminho de terra.',
     pronto: 'Você conseguiu! A vila está em dívida com você, andarilho.',
     depois: 'Graças a você a estrada do leste anda mais calma.',
@@ -167,10 +209,62 @@ const CASAS = [
   { id: 'ferraria', x: 4.4, z: -5, w: 4.4, d: 3.6, h: 2.6, ry: -1.25, aberta: true, chamine: true }, // virada para o caminho
 ].map((c) => ({ ...c, ry: c.ry ?? Math.atan2(PRACA.x - c.x, PRACA.z - c.z) }));
 const portaDe = (c, dist = 1.2) => ({ x: c.x + Math.sin(c.ry) * (c.d / 2 + dist), z: c.z + Math.cos(c.ry) * (c.d / 2 + dist) });
+// ---------- a mata: estrada principal tortuosa e 10 clareiras de caça (pedido do André 2026-11-03) ----------
+// A estradinha de terra do leste vira a estrada principal: atravessa o campo de fora, sai dele pelo sul e segue em
+// curvas pela mata (nunca reta). Nenhum monstro fica perto dela: cada campo de caça é uma clareira plana e limpa
+// (sem árvore nem pedra dentro, só em volta) no meio da mata, a 26 m ou mais da estrada; chega-se por uma trilha
+// estreita que sai da estrada e entra entre as árvores. A mata é andável (árvores espaçadas) e fecha nas bordas.
+const ESTRADA = [[45, -3.2], [48.5, 1.5], [53, 7.5], [58, 13], [62.5, 19], [64, 27], [62, 37], [67, 47], [80, 56], [98, 62],
+  [118, 56], [134, 44], [152, 50], [160, 66], [146, 82], [118, 88], [94, 98], [80, 114], [86, 136], [108, 148], [136, 142],
+  [164, 148], [186, 166]];
+// distância de (x, z) até a linha de pontos L (e o ponto mais perto)
+function pertoDaLinha(L, x, z) {
+  let md = Infinity, mp = L[0];
+  for (let i = 1; i < L.length; i++) {
+    const [ax, az] = L[i - 1], [bx, bz] = L[i], vx = bx - ax, vz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz || 1))), px = ax + vx * t, pz = az + vz * t;
+    const d = Math.hypot(x - px, z - pz); if (d < md) { md = d; mp = [px, pz]; }
+  }
+  return { d: md, p: mp };
+}
+// Os 10 campos de caça, da vila para o fim da estrada (nível 1 ao 25; o herói vai até o 30). Cada um tem UM bicho só
+// (Puglin, Imp ou Lobo, alternando) e o mesmo nível aparece de novo com outro bicho, para o jogador escolher onde
+// subir. A exceção é o Imp Chefe: todo campo tem 1 (pedido do André). caca1 é o campo antigo, agora só de Puglins.
+const CLAREIRAS = [
+  { id: 'caca1', tipo: 'puglin', nivel: 1, x: 77, z: -8 },
+  { id: 'caca2', tipo: 'imp', nivel: 3, x: 34, z: 58 },
+  { id: 'caca3', tipo: 'lobo', nivel: 5, x: 104, z: 30 },
+  { id: 'caca4', tipo: 'puglin', nivel: 5, x: 160, z: 24 },
+  { id: 'caca5', tipo: 'imp', nivel: 10, x: 190, z: 64 },
+  { id: 'caca6', tipo: 'lobo', nivel: 10, x: 50, z: 96 },
+  { id: 'caca7', tipo: 'puglin', nivel: 15, x: 116, z: 118 },
+  { id: 'caca8', tipo: 'imp', nivel: 15, x: 52, z: 150 },
+  { id: 'caca9', tipo: 'lobo', nivel: 20, x: 152, z: 112 },
+  { id: 'caca10', tipo: 'imp', nivel: 25, x: 206, z: 134 },
+];
+const CLAREIRA_R = 12; // raio do campo (área de combate lisa); as árvores começam 1,5 m depois
+// trilha de cada clareira: sai do ponto da estrada mais perto, faz uma curva entre as árvores e entra na clareira
+const TRILHAS = CLAREIRAS.map((c, i) => {
+  const { p } = pertoDaLinha(ESTRADA, c.x, c.z), dx = c.x - p[0], dz = c.z - p[1], L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
+  const lado = i % 2 ? 1 : -1, curva = (L - CLAREIRA_R) * 0.28 * lado;
+  const em = (t, k) => [+(p[0] + dx * t - uz * k).toFixed(2), +(p[1] + dz * t + ux * k).toFixed(2)];
+  const fim = (L - CLAREIRA_R + 2.5) / L;
+  return [[+p[0].toFixed(2), +p[1].toFixed(2)], em(fim * 0.3, curva * 0.8), em(fim * 0.62, curva), em(fim, curva * 0.15)];
+});
+
 // caminhos de terra (linhas de pontos, largura em metros)
 const CAMINHOS = [
   { largura: 2.4, pontos: [[0, 1], [-1.5, -4], [-4, -8.5], [PRACA.x, PRACA.z]] },
-  { largura: 2, pontos: [[PRACA.x, PRACA.z], [9, -8], [17, -2]] }, // para o leste, onde o Bando Sombrio acampou
+  // saída da vila para o leste: sai da estrada larga onde o herói nasce, por fora das casas (o André pediu, 2026-11-02:
+  // a estradinha antiga passava espremida entre a casa3 e a ferraria)
+  { largura: 2.4, pontos: [[0, 1], [5, 1.2], [10, 0.4], [14, -0.6], [17.5, -1.6], [21, -2.2]] },
+  // a estradinha do leste continua: sai da vila pela passagem nas pedras e vira a estrada principal (ESTRADA, abaixo)
+  { largura: 2.2, pontos: [[17, -2], [21, -2.2], [24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], [45, -3.2]] },
+  // trilha estreita até o veio de cobre
+  { largura: 1.5, pontos: [[44, -3.4], [45, -7.5], [46, -11.5]] },
+  // estrada principal tortuosa pela mata (com o mesmo lastro de terra) e as trilhas que entram na mata até cada clareira
+  { largura: 2.2, pontos: ESTRADA },
+  ...TRILHAS.map((t) => ({ largura: 1.4, forca: 0.6, pontos: t })),
   ...CASAS.map((c) => ({ largura: 1.5, pontos: [[PRACA.x, PRACA.z], [portaDe(c, 0.6).x, portaDe(c, 0.6).z]] })),
 ];
 // Pedras de verdade (Poly Haven): o herói não atravessa, sobe nas baixas (mini escalada) e escala as grandes.
@@ -206,43 +300,171 @@ function sortearArvores() {
   }
   // algumas na vila, para sombra
   lista.push({ x: -12, z: -12.5, s: 1.1, ry: 1, v: 0 }, { x: -11.5, z: -26.5, s: 0.95, ry: 2, v: 1 }, { x: -1, z: -26, s: 1.2, ry: 4, v: 2 }, { x: -20, z: -13, s: 1, ry: 3, v: 1 });
+  // lá fora (depois das da vila, para os ids a0... das árvores de antes não mudarem): bosque em volta do campo de caça,
+  // que fica aberto e plano no meio (como as zonas de caça do Quimera), e do veio de cobre
+  const longeDe = (x, z, cx, cz, r) => Math.hypot(x - cx, z - cz) > r;
+  // a estrada agora vira para o sul dentro do campo de fora (ESTRADA) e uma trilha leva ao campo dos Puglins
+  const estrada = [[24.7, -3.1], [28, -3.9], [31.5, -3.5], [38, -3.4], ...ESTRADA.slice(0, 7)];
+  const naEstrada = (x, z) => pertoDaLinha(estrada, x, z).d < 4.5 || pertoDaLinha(TRILHAS[0], x, z).d < 2.4; // a câmera passa sem entrar em tronco
+  for (let t = 0, n = 0; n < 34 && t < 4000; t++) {
+    const a = rnd(0, 6.283), r = rnd(4, raioNaDirecao(FORA, a) - 2.5), x = FORA.x + Math.cos(a) * r, z = FORA.z + Math.sin(a) * r;
+    if (!longeDe(x, z, CACA[0].x, CACA[0].z, CACA[0].r + 1.5) || !longeDe(x, z, MINA[0].x, MINA[0].z, MINA[0].r + 2.2) || naEstrada(x, z)) continue;
+    if (Math.abs(x - 45.5) < 2.2 && z < -3 && z > -12) continue; // trilha do cobre
+    if (lista.some((o) => Math.hypot(o.x - x, o.z - z) < 3.6)) continue;
+    lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.85, 1.3).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: lista.length % 3 }); n++;
+  }
+  // três árvores grandes em cima da borda de pedras, para quebrar a linha (direção de arte)
+  for (const a of [0.55, 2.35, 4.6]) {
+    const r = raioNaDirecao(FORA, a) + 0.4;
+    lista.push({ x: +(FORA.x + Math.cos(a) * r).toFixed(2), z: +(FORA.z + Math.sin(a) * r).toFixed(2), s: 1.55, ry: +(a * 2).toFixed(2), v: lista.length % 3 });
+  }
   return lista;
 }
+
+// ---------- mapa de fora da vila ----------
+// A vila é o círculo de raio 34; a estradinha do leste sai por uma passagem nas pedras (corredor) e chega numa clareira
+// grande (FORA, borda irregular) com o primeiro campo de caça e um veio de cobre pequeno.
+// borda orgânica (direção de arte): elipse 30 × 23 m alongada para o leste, com ondas na borda (raio varia uns ±20%)
+const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos: [[3, 0.13, 2.1], [2, 0.07, -0.6], [5, 0.05, 2.2]] };
+// Campo de caça (regra das zonas de caça do Quimera, znSp): sempre "n" monstros. A cada "passo" s, se falta algum,
+// nasce um num ponto ao acaso do campo (até 85% do raio, a pelo menos "longe" m de qualquer jogador). O próximo vem
+// em "rapido" s enquanto houver menos da metade, senão em "normal" s. Quem morre some depois de "corpo" s e abre a vaga.
+// tipos: um por vaga, para o Godot ter um modelo fixo por vaga. Cada campo é uma clareira (CLAREIRAS, acima) com um
+// bicho só e 1 Imp Chefe; nivel = nível dos monstros (vida, dano e XP sobem com ele: NIVEL_INIMIGO).
+const NOME_CLAREIRA = { puglin: 'Clareira dos Puglins', imp: 'Clareira dos Imps', lobo: 'Clareira dos Lobos' };
+export const CACA = [
+  ...CLAREIRAS.map((c) => ({ id: c.id, nome: NOME_CLAREIRA[c.tipo], nivel: c.nivel, bicho: c.tipo, x: c.x, z: c.z, r: CLAREIRA_R,
+    n: 11, tipos: [...Array(10).fill(c.tipo), 'chefe'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 })),
+];
+// Nível dos monstros: cada nível acima do 1 soma uma fração da vida, do dano, do XP e do ouro de base (TIPOS_INIMIGO,
+// XP_INIMIGO e DROPS). A curva acompanha o herói (dano +8%/nível mais os pontos e o equipamento); XP cai quando o herói
+// passa muito do nível do bicho (acima de "folga" níveis, perde "perde" por nível, até "min").
+export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1 };
+export const statusInimigo = (tipo, nivel = 1) => {
+  const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
+  return { vida: Math.round(t.vida * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (1 + NIVEL_INIMIGO.dano * k)) };
+};
+// A mata andável: círculos de borda ondulada ao longo da estrada e em volta de cada clareira, ligados por corredores
+// (a saída do campo de fora pelo sul e as trilhas). Sem anel de pedra (direção de arte: borda de mata fechada).
+function montarMata() {
+  const areas = [], corredores = [{ a: [63, 12], b: [63.5, 34], larg: 12, mata: true }];
+  const folga = (x, z) => { // quanto falta até a borda do campo de fora e da vila (para a mata não abrir o anel de pedras)
+    const df = Math.hypot(x - FORA.x, z - FORA.z) - raioNaDirecao(FORA, Math.atan2(z - FORA.z, x - FORA.x));
+    return Math.min(df, Math.hypot(x, z) - 34);
+  };
+  const circulo = (x, z, r) => {
+    const n = areas.length, rr = Math.min(r, folga(x, z) - 4);
+    if (rr >= 9) areas.push({ x: +x.toFixed(2), z: +z.toFixed(2), rx: +rr.toFixed(2), rz: +rr.toFixed(2), mata: true, lobos: [[3, 0.07, n * 1.7], [5, 0.05, n * 0.9]] });
+  };
+  for (let i = 5; i < ESTRADA.length - 1; i++) { // a cada ~16 m da estrada
+    const [ax, az] = ESTRADA[i], [bx, bz] = ESTRADA[i + 1], L = Math.hypot(bx - ax, bz - az);
+    for (let d = 0; d < L; d += 16) circulo(ax + (bx - ax) * d / L, az + (bz - az) * d / L, 24);
+  }
+  circulo(...ESTRADA[ESTRADA.length - 1], 20);
+  CLAREIRAS.forEach((c, i) => {
+    if (i === 0) return; // o campo dos Puglins fica dentro do campo de fora
+    circulo(c.x, c.z, CLAREIRA_R + 9);
+    const t = TRILHAS[i];
+    for (let k = 1; k < t.length; k++) corredores.push({ a: t[k - 1], b: t[k], larg: 10, mata: true });
+  });
+  return { areas, corredores };
+}
+const MATA = montarMata();
+// Árvores da mata (enfeite sólido, não dão lenha): espaçadas dentro da área andável (dá para andar entre elas), fechadas
+// num anel em volta de cada clareira e numa faixa densa logo depois da borda. Nada na estrada, nas trilhas nem dentro
+// das clareiras. Sorteio fixo: servidor, site e Godot veem as mesmas (o Godot desenha em MultiMesh, por pedaços).
+function sortearMata() {
+  let sem = 4321; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const M = { areas: MATA.areas, corredores: MATA.corredores };
+  const x0 = Math.min(...MATA.areas.map((a) => a.x - a.rx)) - 12, x1 = Math.max(...MATA.areas.map((a) => a.x + a.rx)) + 12;
+  const z0 = Math.min(...MATA.areas.map((a) => a.z - a.rz)) - 12, z1 = Math.max(...MATA.areas.map((a) => a.z + a.rz)) + 12;
+  const grade = new Map(), cel = 6, chave = (i, j) => i * 10007 + j, lista = [];
+  const livre = (x, z, esp) => {
+    const i = Math.floor(x / cel), j = Math.floor(z / cel);
+    for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) for (const o of grade.get(chave(a, b)) || []) if (Math.hypot(o.x - x, o.z - z) < esp) return false;
+    return true;
+  };
+  const tentativas = Math.round((x1 - x0) * (z1 - z0) / 2.2);
+  for (let t = 0; t < tentativas; t++) {
+    const x = rnd(x0, x1), z = rnd(z0, z1), dentro = dentroDoMapa(M, x, z, 0);
+    if (!dentro && !dentroDoMapa(M, x, z, -9)) continue; // longe demais da borda: ninguém vê
+    const df = Math.hypot(x - FORA.x, z - FORA.z) - raioNaDirecao(FORA, Math.atan2(z - FORA.z, x - FORA.x));
+    if (df < 2 || Math.hypot(x, z) < 37) continue; // o campo de fora e a vila têm as árvores deles
+    if (pertoDaLinha(ESTRADA, x, z).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, x, z).d < 2.2)) continue;
+    const dc = Math.min(...CLAREIRAS.map((c) => Math.hypot(x - c.x, z - c.z)));
+    if (dc < CLAREIRA_R + 1.5) continue; // a área de combate fica limpa
+    const anel = dc < CLAREIRA_R + 5, esp = anel ? 2.7 : dentro ? 5.4 : 3.3;
+    if (!livre(x, z, esp)) continue;
+    // direção de arte: nada de pomar. Tamanho de 0,7 a 1,4, modelo ao acaso e a posição ainda sai até 40% do espaço
+    // para o lado (a grade de espaço usa a posição sorteada; o tremido só vale se não cair na estrada nem na clareira)
+    let jx = x + rnd(-0.4, 0.4) * esp, jz = z + rnd(-0.4, 0.4) * esp;
+    if (pertoDaLinha(ESTRADA, jx, jz).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, jx, jz).d < 2.2)
+      || Math.min(...CLAREIRAS.map((c) => Math.hypot(jx - c.x, jz - c.z))) < CLAREIRA_R + 1.5) { jx = x; jz = z; }
+    const a = { x: +jx.toFixed(2), z: +jz.toFixed(2), s: +(dentro && !anel ? rnd(0.7, 1.4) : rnd(0.9, 1.4)).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)) };
+    lista.push(a);
+    const k = chave(Math.floor(x / cel), Math.floor(z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a);
+  }
+  return lista;
+}
+// Veio de cobre (zona de mineração do Quimera, só que pequena e com pouco minério, pedido do André 2026-11-02):
+// "veios" pedras no círculo de raio r. O minério é de todos: quando alguém esgota uma pedra, ela some para todo mundo
+// e volta em "volta" s (no Quimera a pedra minerada volta em 6 min).
+export const MINA = [
+  { id: 'cobre1', nome: 'Veio de cobre', tipo: 'cobre', x: 46, z: -15, r: 4.5, veios: 6, volta: 360 },
+];
+// NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
+// Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
+export const RESET_BUILD = { minimo: 50, porNivel: 10 };
 
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
   raio: 34,
   nascimento: { x: 0, z: 1 },
-  // cada inimigo do bando tem cabelo, roupa e tamanho próprios (visual/tinta/escala mudam o padrão do tipo)
-  inimigos: [
-    { tipo: 'sombrio', x: 16, z: 6, visual: 'cabelo_m', tinta: { cabelo: 0x6e1414, roupa: 0x22222a, calca: 0x2e2a26 } },
-    { tipo: 'sombrio', x: 20, z: -2, visual: 'fumiriya', escala: 1.05, tinta: { cabelo: 0x5c5f66, roupa: 0x35263f, calca: 0x1f1c22 } },
-    { tipo: 'sombrio', x: 14, z: 0, visual: 'cabelo_m', escala: 0.94, tinta: { cabelo: 0xd6d3cc, roupa: 0x2b3624, calca: 0x3a3226 } },
-    { tipo: 'lider', x: 22, z: 3, visual: 'fumiriya', tinta: { cabelo: 0x9c1424, roupa: 0x141414, calca: 0x2a0d10 } },
-  ],
+  // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
+  // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas),
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }].concat(MATA.corredores),
+  // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
+  mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
+  // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
+  minimapa: { x0: -44, z0: -44, tam: 288, px: 1024 },
+  // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
+  // 2026-11-02): os monstros ficam no campo de caça lá fora (CACA)
+  inimigos: [],
+  caca: CACA,
+  mina: MINA,
+  // espantalho de treino ao lado da ferraria, na grama entre a parede dela, os caixotes e a estrada larga (fora dos
+  // caminhos), a 4,6 m do Tomás para os nomes não se encostarem (direção de arte);
+  // virado para a estrada, de onde o herói chega. O v dele vem depois das vagas dos campos de caça.
+  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: 5, z: -1.2, ry: -0.8 }],
   // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
+  // acoes: o que aparece no menu do NPC no app (botão de interação, como no Quimera); 'Conversar' sempre aparece.
+  // 'vender' = ele compra itens da mochila (o servidor confere: Simulacao.pertoDeQuemCompra)
   npcs: [
-    { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, visual: 'fumiriya', escala: 1.03, tinta: { cabelo: 0xc9c7c2, roupa: 0x5b3a24, calca: 0x3b3229 }, funcao: 'missao', missao: 'bando', falas: [
-      'Andarilho, o Bando Sombrio acampou no leste. Expulse os quatro e a vila te deve uma.',
+    { id: 'lider', nome: 'Aldo, o líder da vila', x: -6, z: -18.6, ry: 0, visual: 'fumiriya', escala: 1.03, tinta: { cabelo: 0xc9c7c2, roupa: 0x5b3a24, calca: 0x3b3229 }, funcao: 'missao', missao: 'bando', acoes: ['missao'], falas: [
+      'Andarilho, monstros apareceram no leste. Derrube quatro deles e a vila te deve uma.',
       'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
     ] },
-    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', falas: [
+    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'forja', 'habilidades'], falas: [
       'Essa espada corta e conjura. Fale comigo para escolher os seus golpes e magias.',
       'Bigorna boa é bigorna quente. Volte quando quiser trocar a build.',
     ] },
-    { id: 'curandeira', nome: 'Irmã Lúcia, a curandeira', x: 1.4, z: -17.6, ry: -1, visual: 'shino', tinta: { cabelo: 0xe4e0d8, roupa: 0xe8e1cf, calca: 0x6d7f8c }, funcao: 'cura', falas: [
+    { id: 'curandeira', nome: 'Irmã Lúcia, a curandeira', x: 1.4, z: -17.6, ry: -1, visual: 'shino', tinta: { cabelo: 0xe4e0d8, roupa: 0xe8e1cf, calca: 0x6d7f8c }, funcao: 'cura', acoes: ['cura'], falas: [
       'Ferido? Fale comigo e eu cuido de você.',
       'As ervas da clareira curam quase tudo. Quase.',
     ] },
-    { id: 'andarilho', nome: 'Bento, o andarilho', x: -3.5, z: 5.2, ry: 2.4, visual: 'fumiriya', escala: 0.9, tinta: { cabelo: 0x8a4a22, roupa: 0x4f5e36, calca: 0x4a3c2c }, funcao: 'dica', falas: [
+    { id: 'andarilho', nome: 'Bento, o andarilho', x: -3.5, z: 5.2, ry: 2.4, visual: 'fumiriya', escala: 0.9, tinta: { cabelo: 0x8a4a22, roupa: 0x4f5e36, calca: 0x4a3c2c }, funcao: 'dica', acoes: [], falas: [
       'Já subiu na rocha mais alta, perto daqui? Lá de cima se vê a vila inteira.',
       'A escada na rocha menor é o jeito fácil. Na grande, só escalando.',
       'Pedra baixa você sobe andando. Na alta, agarre e vá subindo. Correndo contra ela, dá até para correr pela parede.',
     ] },
-    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', falas: [
+    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas: [
       'Minha carroça chega em breve com mercadoria da cidade.',
       'Tenho de tudo um pouco... quer dizer, vou ter.',
+    ] },
+    { id: 'reset', nome: 'Mestre Ivo, o instrutor', x: 2.6, z: 4.6, ry: -2.4, visual: 'cabelo_m', escala: 1.0, tinta: { cabelo: 0x2a2622, roupa: 0x3c4a5e, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
+      'Quer recomeçar a build? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.',
     ] },
   ],
   rochas: ROCHAS,
@@ -257,6 +479,9 @@ export const MAPA_CLAREIRA = {
     { tipo: 'balde', x: PRACA.x + 1.25, z: PRACA.z + 0.5, ry: 2 }, { tipo: 'toco', x: -18.5, z: -14, ry: 1 }, { tipo: 'toco', x: 8.6, z: -19, s: 0.8, ry: 3 },
   ],
   vila: { praca: PRACA, casas: CASAS, caminhos: CAMINHOS, arvores: sortearArvores() },
+  // árvores da mata (enfeite sólido, sem lenha) e a estrada principal (minimapa)
+  mata: sortearMata(),
+  estrada: ESTRADA,
 };
 
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
@@ -282,7 +507,14 @@ export const CRIADOR = {
   altura: [0.92, 1.08],
   // formato do rosto: tamanho dos olhos, do nariz e da boca (1 = original)
   rosto: { olhosT: [0.75, 1.25], narizT: [0.7, 1.3], bocaT: [0.7, 1.3] },
+  // corpos que o criador do app Godot mostra (sem nome, pedido do André 2026-11-03): a Ruiva primeiro, depois os
+  // masculinos e os outros corpos VRoid do jogo (os mesmos dos NPCs, todos CC0 ou com uso comercial)
+  corpos: ['ruiva', 'cabelo_m', 'shibu', 'shibu_sombrio', 'fumiriya', 'shino', 'vivi', 'vita', 'victoria'],
 };
+// Corpo do personagem (visual) que o servidor aceita: os do jogo HTML (PERSONAGENS) e os do criador do app Godot
+export function visualValido(v) {
+  return typeof v === 'string' && (PERSONAGENS.some((p) => p.id === v) || CRIADOR.corpos.includes(v));
+}
 // Aparência mandada pelo jogador: só cores da lista e altura dentro do limite (o resto vira a cor original)
 export function aparenciaValida(a) {
   if (!a || typeof a !== 'object') return null;
@@ -301,3 +533,156 @@ export function nomeValido(n) {
   const s = n.normalize('NFC').replace(/\s+/g, ' ').trim();
   return s.length >= NOME.min && s.length <= NOME.max && /^[\p{L}\p{N} ]+$/u.test(s) ? s : null;
 }
+
+// ---------- Itens (Parte 2 do Quimera: mochila, equipamento, drops, Tomos e loja) ----------
+// Raridades e números do Set de Bruxa do Quimera (wiki.html). Cada número vai de Comum até Mítico.
+export const RARIDADES = [
+  { nome: 'Comum', cor: 0xcfc8b8 }, { nome: 'Raro', cor: 0x5aa8ff }, { nome: 'Épico', cor: 0xb974ff },
+  { nome: 'Lendário', cor: 0xffb03a }, { nome: 'Mítico', cor: 0xff5a72 },
+];
+// Lugares do corpo (pedido do André): Capacete (cabeca), Camisa (corpo), Calça ou Short (pernas), Botas (pes), Capa,
+// Acessório e Arma (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar). Capacete, camisa, calça,
+// short, botas e capa aparecem no corpo do herói (godot-prototipo/armadura.gd).
+export const LUGARES = ['cabeca', 'corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
+export const MOCHILA = 40; // lugares de UMA página da mochila: 10 x 4 (André 2026-11-03; antes 8 x 4 = 32)
+// Páginas da mochila (André 2026-11-03): começa com 1 e compra as outras com ouro, uma de cada vez, até 4.
+// PAGINA_PRECO[n] = ouro para liberar a página n+1 (a primeira é de graça). Compra em qualquer lugar, pelo menu.
+export const MOCHILA_PAGINAS = 4;
+export const PAGINA_PRECO = [0, 500, 2000, 6000];
+// st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
+export const ITENS = {
+  // Uma linha só de armadura (serve para espada e magia). Comum é de couro; do Raro em diante, placas de aço.
+  peitoral: { nome: 'Peitoral', lugar: 'corpo', st: { defesa: [4, 7, 10, 14, 20], vida: [10, 15, 22, 32, 46], mana: [4, 7, 10, 14, 20] } },
+  chapeu: { nome: 'Capacete', lugar: 'cabeca', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20] } }, // a chave antiga 'chapeu' continua: contas antigas não perdem a peça
+  short: { nome: 'Short', lugar: 'pernas', st: { defesa: [1, 2, 3, 4, 6], vida: [4, 7, 10, 14, 20], mana: [4, 6, 9, 13, 18] } }, // mais leve que a calça: menos defesa, mais mana
+  calca: { nome: 'Calça', lugar: 'pernas', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27], mana: [3, 5, 7, 10, 14] } },
+  capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30] } },
+  botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27] } },
+  oculos: { nome: 'Óculos', lugar: 'acessorio', st: { mana: [4, 8, 12, 18, 25], critico: [0.008, 0.011, 0.015, 0.021, 0.026], vida: [0, 0, 6, 11, 17] } },
+  colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6] } },
+  espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14] } },
+  cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14] } },
+  pocao: { nome: 'Poção de vida', pilha: 20, usar: { vida: 0.35 }, preco: 15, venda: 5, desc: 'Recupera 35% da vida.' },
+  pocao_mana: { nome: 'Poção de mana', pilha: 20, usar: { mana: 0.4 }, preco: 18, venda: 6, desc: 'Recupera 40% da mana.' },
+  tomo: { nome: 'Tomo', pilha: 20, desc: 'Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia.' },
+  // materiais (Parte 3: profissões). mat = não se usa, serve para criar coisas (RECEITAS) ou vender
+  minerio_ferro: { nome: 'Minério de ferro', mat: true, pilha: 50, venda: 2, desc: 'Sai dos veios de ferro. Na forja, 3 viram uma barra.' },
+  minerio_cobre: { nome: 'Minério de cobre', mat: true, pilha: 50, venda: 2, desc: 'Sai dos veios de cobre. Na forja, 3 viram uma barra.' },
+  cristal: { nome: 'Cristal arcano', mat: true, pilha: 50, venda: 8, desc: 'Cristal que guarda magia. Sai dos veios de cristal (e, às vezes, dos de ferro e cobre).' },
+  lenha: { nome: 'Lenha', mat: true, pilha: 50, venda: 1, desc: 'Madeira cortada das árvores. Alimenta a forja e vira cabo e cajado.' },
+  barra_ferro: { nome: 'Barra de ferro', mat: true, pilha: 50, venda: 8, desc: 'Ferro fundido na forja. Vira lâmina de espada.' },
+  barra_cobre: { nome: 'Barra de cobre', mat: true, pilha: 50, venda: 8, desc: 'Cobre fundido na forja. Vira joia e ponteira de cajado.' },
+  pedra: { nome: 'Pedra', mat: true, pilha: 50, venda: 1, desc: 'Pedra comum que sai junto quando você minera. Serve para construir e para afiar ferramentas.' },
+  carvao: { nome: 'Carvão', mat: true, pilha: 50, venda: 2, desc: 'Lenha queimada na forja. Misturado ao ferro, vira aço.' },
+  barra_aco: { nome: 'Barra de aço', mat: true, pilha: 50, venda: 20, desc: 'Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores.' },
+  couro: { nome: 'Couro', mat: true, pilha: 50, venda: 3, desc: 'Couro grosso dos Puglins. O alfaiate faz botas e reforços.' },
+  tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
+};
+export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
+export const VENDA_TOMO = 30; // x nível do Tomo
+export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+// Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
+// 2 peças: vida e mana; 3: dano (e defesa); 6: crítico, área das skills e regeneração de mana. Vale o melhor de cada.
+export const CONJUNTO = [
+  null,
+  { 2: { mana: 10 }, 3: { danoK: 0.05 }, 6: { critico: 0.02, regenManaK: 0.25 } },
+  { 2: { vida: 20, mana: 20 }, 3: { danoK: 0.12 }, 6: { critico: 0.04, areaK: 0.15, regenManaK: 0.4 } },
+  { 2: { vida: 40, mana: 35 }, 3: { danoK: 0.2, defesa: 15 }, 6: { critico: 0.06, areaK: 0.25, regenManaK: 0.55 } },
+  { 2: { vida: 70, mana: 60 }, 3: { danoK: 0.3, defesa: 30 }, 6: { critico: 0.08, areaK: 0.35, regenManaK: 0.7 } },
+];
+// Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
+export const LOJA = [
+  { k: 'pocao', preco: 15 }, { k: 'pocao_mana', preco: 18 },
+  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
+];
+export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
+// Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
+// ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
+// mat: materiais para o alfaiate { item: [chance, quantos] }
+const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.78, 0.2, 0.02, 0, 0] };
+export const DROPS = {
+  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1] } }, sombrio: DROP_COMUM,
+  lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.5, 0.38, 0.12, 0, 0] },
+  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1] } },
+};
+
+// ---------- Parte 3 do Quimera: estamina, vigor e profissões ----------
+// Estamina (a barra amarela, números do Quimera): máx. = base + porNivel x nível + porDes x Destreza.
+// Correr no fim do joystick (acima de "trote" da corrida) gasta por segundo (x combateK em combate); sem fôlego o herói
+// só trota (trote x a corrida). No Quimera a corrida é um botão à parte; aqui é o joystick, então gasta menos. Dash, rolamento e o mortal (2º pulo) gastam de uma vez, e o gasto
+// seguido (dentro de seguidaJanela s) sobe seguidaK até seguidaMax. Volta "volta" do máximo por segundo depois de
+// "espera" s parado de gastar (em combate volta mais devagar e, depois de correr, espera esperaCombate s).
+// Zerou: sem fôlego, só volta a correr com "folego" do máximo. combate = s depois de bater ou apanhar.
+export const ESTAMINA = { base: 50, porNivel: 2, porDes: 5, correr: 10, trote: 0.7, combateK: 1.5, volta: 0.17, voltaCombate: 0.55, espera: 0.9,
+  esperaCombate: 8, dash: 8, rolar: 8, mortal: 6, seguidaK: 0.5, seguidaMax: 2.4, seguidaJanela: 1.3, folego: 0.2, combate: 5 };
+// Vigor: energia para trabalhar (coletar e criar). Vai de 0 a max e enche sozinho em "enche" segundos (6 h), mesmo com o jogo fechado.
+export const VIGOR = { max: 100, enche: 6 * 3600 };
+// Profissões (as do Quimera que cabem no mapa de agora; Pescador e Fazendeiro chegam com água e horta).
+// Trabalhar gasta vigor e dá pontos na profissão: Nv = raiz(pontos / 8) + 1, até 20. Rank sobe a cada 2 níveis
+// (19 e 20 têm rank próprio): rank maior gasta menos vigor (-4% por rank), trabalha mais rápido (+3,5%), dá chance
+// de +1 na coleta (+2%) e, na criação, chance de a peça sair numa raridade melhor.
+export const PROFISSOES = {
+  min: { nome: 'Minerador', grupo: 'Coleta', desc: 'Minerar veios de ferro, cobre e cristal' },
+  len: { nome: 'Lenhador', grupo: 'Coleta', desc: 'Cortar lenha das árvores' },
+  fer: { nome: 'Ferreiro', grupo: 'Criação', desc: 'Barras, espadas, cajados e colares na forja do Tomás' },
+  alf: { nome: 'Alfaiate', grupo: 'Criação', desc: 'Calças, shorts, capas, botas e óculos na banca da Rosa' },
+  mer: { nome: 'Mercador', grupo: 'Comércio', desc: 'Negociar com a Rosa: vende mais caro e compra mais barato' },
+};
+export const RANKS = ['Novato', 'Veterano', 'Especialista', 'Mestre', 'Autoridade', 'Campeão', 'Adepto', 'Arauto', 'Virtuoso', 'Celebridade', 'Famoso'];
+export const PROF_MAX = 20;
+// Mercador: no Nv 20 a Rosa paga +25% e cobra -15% (sobe aos poucos desde o Nv 1). Ganha 1 ponto a cada "pontoOuro" de ouro negociado.
+export const MERCADOR = { venda: 0.25, compra: 0.15, pontoOuro: 10 };
+// Veios (Minerador) e árvores (Lenhador): cada batida leva "tempo" s, gasta "vigor" e dá os itens de "da"
+// (raro = chance de um item a mais). Cada veio aguenta "cargas" batidas por jogador e volta em "volta" s.
+// A coleta continua sozinha enquanto houver carga e vigor; mexer o joystick, pular, bater ou apanhar para.
+// Do chão saem 3 minérios brutos (cobre, ferro e, mais tarde, mitril) e o cristal; o resto é mistura na forja
+// (aço = ferro + carvão). nivel = nível de Minerador para conseguir minerar.
+export const COLETA = {
+  ferro: { nome: 'Veio de ferro', prof: 'min', nivel: 5, vigor: 2, tempo: 2.4, cargas: 3, volta: 90, da: { minerio_ferro: 1 }, raro: { cristal: 0.05, pedra: 0.5 } },
+  cobre: { nome: 'Veio de cobre', prof: 'min', vigor: 1.5, tempo: 2.2, cargas: 3, volta: 90, da: { minerio_cobre: 1 }, raro: { cristal: 0.04, pedra: 0.5 } },
+  cristal: { nome: 'Veio de cristal', prof: 'min', nivel: 8, vigor: 3, tempo: 2.8, cargas: 2, volta: 150, da: { cristal: 1 }, raro: { cristal: 0.1, pedra: 0.4 } },
+  arvore: { nome: 'Árvore', esgotado: 'esgotada', prof: 'len', vigor: 1, tempo: 2.0, cargas: 3, volta: 60, da: { lenha: 1 }, raro: { lenha: 0.25 } },
+};
+export const COLETA_DISTANCIA = 2.4; // metros da borda do veio ou do tronco
+// Onde ficam os veios (fora da vila e longe do acampamento dos monstros). As árvores do mapa todas dão lenha.
+// Dentro da vila não tem mais veio (pedido do André 2026-11-02): o cobre fica na zona de mineração lá fora (MINA).
+// Ferro e cristal ficam para depois (COLETA continua sabendo minerá-los).
+// mina = id da zona (o minério é de todos e volta no tempo da zona); sorteio fixo, igual no servidor e no Godot.
+export const VEIOS = MINA.flatMap((z) => {
+  let sem = 777; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const lista = [];
+  for (let t = 0; lista.length < z.veios && t < 500; t++) {
+    const a = rnd(0, 6.283), r = Math.sqrt(rnd(0, 1)) * (z.r - 0.9), x = z.x + Math.cos(a) * r, zz = z.z + Math.sin(a) * r;
+    if (lista.some((o) => Math.hypot(o.x - x, o.z - zz) < 2.3)) continue;
+    lista.push({ tipo: z.tipo, x: +x.toFixed(2), z: +zz.toFixed(2), ry: +rnd(0, 6.28).toFixed(2), mina: z.id });
+  }
+  return lista;
+});
+export const VEIO_RAIO = 0.8; // sólido: ninguém atravessa
+// Receitas (Ferreiro na forja do Tomás, Alfaiate na banca da Rosa): usa os materiais, gasta vigor e dá pontos.
+// Peça de equipamento sai Comum, com chance de subir de raridade (melhor com o nível da profissão: 6% no Nv 1, 30% no Nv 20).
+export const RECEITAS = {
+  barra_ferro: { prof: 'fer', faz: 'barra_ferro', usa: { minerio_ferro: 3, lenha: 1 }, vigor: 1, nivel: 1 },
+  carvao: { prof: 'fer', faz: 'carvao', usa: { lenha: 2 }, vigor: 1, nivel: 1 },
+  barra_aco: { prof: 'fer', faz: 'barra_aco', usa: { barra_ferro: 1, carvao: 2 }, vigor: 2, nivel: 5 },
+  barra_cobre: { prof: 'fer', faz: 'barra_cobre', usa: { minerio_cobre: 3, lenha: 1 }, vigor: 1, nivel: 1 },
+  espada: { prof: 'fer', faz: 'espada', usa: { barra_ferro: 3, lenha: 2 }, vigor: 4, nivel: 1 },
+  cajado: { prof: 'fer', faz: 'cajado', usa: { lenha: 4, barra_cobre: 1, cristal: 1 }, vigor: 4, nivel: 2 },
+  colar: { prof: 'fer', faz: 'colar', usa: { barra_cobre: 2, cristal: 2 }, vigor: 4, nivel: 4 },
+  botas: { prof: 'alf', faz: 'botas', usa: { couro: 4 }, vigor: 8, nivel: 1 },
+  chapeu: { prof: 'fer', faz: 'chapeu', usa: { barra_ferro: 2, couro: 1, tecido: 1 }, vigor: 6, nivel: 2 }, // Capacete
+  short: { prof: 'alf', faz: 'short', usa: { couro: 2, tecido: 1 }, vigor: 8, nivel: 1 },
+  capa: { prof: 'alf', faz: 'capa', usa: { tecido: 4, couro: 1 }, vigor: 8, nivel: 2 },
+  manto: { prof: 'alf', faz: 'manto', usa: { tecido: 5, couro: 2 }, vigor: 8, nivel: 3 },
+  oculos: { prof: 'alf', faz: 'oculos', usa: { barra_cobre: 1, cristal: 1, couro: 1 }, vigor: 8, nivel: 5 },
+  // peças das armaduras visíveis (camisa, calça, botas, capa, acessório): entram quando o item existir em ITENS
+  calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
+  peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },
+};
+// receita de item que não existe (ex.: o manto, que virou peitoral) some sozinha
+for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
+// Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
+export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' } };
+export const OFICINA_DISTANCIA = 4.5;
+export const RARIDADE_CRIAR = { base: 0.06, max: 0.3, ate: 2 }; // chance de subir cada raridade e até qual (2 = Épico)
+MAPA_CLAREIRA.veios = VEIOS;

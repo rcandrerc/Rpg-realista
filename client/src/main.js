@@ -6,7 +6,7 @@ import { carregarPersonagens, Corpo, aquecerVRM } from './personagens.js';
 import { Efeitos } from './efeitos.js';
 import { conectar, enderecoServidor } from './rede.js';
 import { Previsao, EFEITOS_LOCAIS } from './previsao.js';
-import { entrarNaConta, sairDaConta, apagarConta } from './conta.js';
+import { entrarNaConta, sairDaConta, apagarConta, ligarApp, VOLTAR_APP } from './conta.js';
 import { Hud } from './hud.js';
 import { Criador } from './criador.js';
 import { Controles } from './controles.js';
@@ -16,6 +16,7 @@ import { PainelHeroi } from './layout.js';
 import { prepararMontarias } from './montaria.js';
 import { Palco } from './palco.js';
 import { montarMenu } from './menu.js';
+import { Diagnostico } from './diagnostico.js';
 
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
@@ -86,13 +87,14 @@ function receber(foto, eventos) {
     c.corpo.root.visible = !j.criando; // quem está criando o personagem ainda não entrou no mundo
     if (j.id === rede.meuId) eu = j;
   }
-  for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e, tf); }
+  // o espantalho de treino só tem modelo no app Godot (godot-prototipo/treino3d): o site (reserva) não desenha
+  for (const e of foto.inimigos) { if (TIPOS_INIMIGO[e.tipo]?.treino) continue; vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e, tf); }
   for (const [id, c] of corpos) if (c.tipo !== 'npc' && !vivos.has(id)) { c.corpo.remover(); c.tag?.remove(); efeitos.esquecer(id); corpos.delete(id); }
 
   // efeitos das minhas próprias ações já apareceram na hora pelo celular: os do servidor são ignorados
   mostrarEventos(previsao?.ativo ? eventos.filter((ev) => !(ev.de === rede.meuId && EFEITOS_LOCAIS.has(ev.t))) : eventos);
   if (eu) {
-    hud.barras(eu.vida, eu.vidaMax, eu.mana, HEROI.mana);
+    hud.barras(eu.vida, eu.vidaMax, eu.mana, eu.manaMax ?? HEROI.mana);
     hud.recargas(eu);
     hud.missoes(eu);
   }
@@ -265,11 +267,26 @@ function ajustarResolucao() {
 }
 setInterval(() => { resol.teto = RESOLUCAO_MAX; }, 120000); // de tempos em tempos tenta a imagem mais nítida de novo
 
+// ---------- teste de desempenho (?diag=1): client/src/diagnostico.js ----------
+const diagEstado = { semPasse: false };
+const diag = new URLSearchParams(location.search).has('diag') ? new Diagnostico({
+  renderer, estado: diagEstado,
+  resolucao: (v) => mudarResolucao(v),
+  grama: (v) => { if (mundo?.grama) mundo.grama.visible = v; },
+  personagens: (v) => { for (const c of corpos.values()) c.corpo.root.visible = v; },
+  restaurar() {
+    mudarResolucao(RESOLUCAO_MAX); renderer.shadowMap.autoUpdate = true; diagEstado.semPasse = false;
+    if (mundo?.grama) mundo.grama.visible = true;
+    for (const c of corpos.values()) c.corpo.root.visible = true;
+  },
+}) : null;
+
 // ---------- laço principal ----------
 const relogio = new THREE.Clock(), alvoCam = new THREE.Vector3(), tmp = new THREE.Vector3();
 let t = 0;
 function quadro() {
-  const dt = Math.min(relogio.getDelta(), 0.05); t += dt;
+  const t0 = performance.now(), dtReal = relogio.getDelta();
+  const dt = Math.min(dtReal, 0.05); t += dt;
   hud.conexao(rede, dt);
   if (rede) {
     enviarEntrada(dt);
@@ -305,9 +322,9 @@ function quadro() {
       if (pos) pos.render(palco.scene, palco.camera); else renderer.render(palco.scene, palco.camera);
     } else {
       cortarForaDaTela();
-      if (pos) pos.render(); else renderer.render(mundo.scene, camera);
+      if (pos && !diagEstado.semPasse) pos.render(); else renderer.render(mundo.scene, camera);
     }
-    ajustarResolucao();
+    if (diag?.ativo || diag?.res.length) diag.quadro(dtReal, performance.now() - t0); else ajustarResolucao();
   }
   requestAnimationFrame(quadro);
 }
@@ -316,6 +333,21 @@ function quadro() {
   try {
     // o login do Google aparece logo, enquanto o mundo carrega por trás
     const servidor = enderecoServidor();
+    // aberto pelo app do celular só para fazer o login: entra, liga o app e para por aqui
+    const codigoApp = new URLSearchParams(location.search).get('vincular');
+    if (codigoApp) {
+      msg('Entrando para ligar o app…');
+      const r = await ligarApp(servidor, codigoApp);
+      msg(r.texto);
+      if (r.ok) {
+        location.href = VOLTAR_APP; // abre o app de novo (o Chrome pode pedir um toque: fica o botão)
+        const b = document.createElement('a');
+        b.href = VOLTAR_APP; b.textContent = 'Voltar para o jogo';
+        b.style.cssText = 'display:inline-block;margin-top:18px;padding:14px 28px;border-radius:30px;background:#ee9e40;color:#1a1208;font-weight:700;text-decoration:none;font-size:18px';
+        $('loadmsg').after(b);
+      }
+      return;
+    }
     const primeiraEntrada = entrarNaConta(servidor);
     msg('Carregando o mundo…');
     mundo = await montarCena(renderer, mapa);

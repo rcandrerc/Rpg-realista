@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Terreno } from '@rpg/shared';
+import { dentroDoMapa, formasDoMapa, raioNaDirecao } from '../../shared/mapa.js';
 import { mascaraVila, misturarChao, montarVila } from './vila.js';
 import { anime, PALETA } from './estilo.js';
 
@@ -58,22 +59,23 @@ export async function montarCena(renderer, mapa) {
     normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.95, color: anime ? 0xe8f0d8 : 0xa89f8c,
   });
   // caminhos de terra e a praça de pedra entram no próprio chão (vila.js)
-  const masc = mascaraVila(mapa.vila);
+  const masc = mascaraVila(mapa.vila, mapa.mascara);
   misturarChao(matChao, masc);
   const chao = new THREE.Mesh(new THREE.CircleGeometry(160, 64), matChao);
   chao.rotation.x = -Math.PI / 2; chao.receiveShadow = true; scene.add(chao);
 
-  const grama = criarGrama(mapa.raio, masc);
+  const grama = criarGrama(mapa, masc);
   scene.add(grama.mesh);
   const vila = montarVila(scene, mapa);
   await colocarObjetos(scene, mapa, masc);
-  return { scene, sol, atualizar: (t) => { grama.uniforms.uTime.value = t; vila.atualizar(t); } };
+  return { scene, sol, grama: grama.mesh, atualizar: (t) => { grama.uniforms.uTime.value = t; vila.atualizar(t); } };
 }
 
 function rnd(a, b) { return a + Math.random() * (b - a); }
 
 // Grama instanciada que balança com o vento (não nasce nos caminhos, na praça nem nas casas)
-function criarGrama(raio, masc) {
+function criarGrama(mapa, masc) {
+  const raio = mapa.raio, fora = formasDoMapa(mapa).areas.slice(1).map((o) => ({ ...o, r: o.r ?? Math.max(o.rx, o.rz) * 1.15 })); // a vila primeiro; as áreas de fora levam grama na mesma densidade
   const uniforms = { uTime: { value: 0 } };
   const g = new THREE.PlaneGeometry(0.06, 0.3, 1, 2); g.translate(0, 0.15, 0);
   const p = g.attributes.position;
@@ -87,13 +89,18 @@ function criarGrama(raio, masc) {
       transformed.x += sin(uTime * 1.7 + wp.x * .35 + wp.z * .2) * .09 * k;
       transformed.z += cos(uTime * 1.3 + wp.z * .4) * .05 * k;`);
   };
-  const N = matchMedia('(pointer:coarse)').matches ? 22000 : 40000;
+  const N0 = matchMedia('(pointer:coarse)').matches ? 22000 : 40000;
+  // a mata (muitos círculos que se cruzam) leva menos grama: chão de floresta
+  const areaVila = Math.PI * (raio * 1.15) ** 2, extras = fora.map((a) => Math.round(N0 * Math.PI * (a.rx != null ? a.rx * a.rz : a.r * a.r) / areaVila * (a.mata ? 0.15 : 0.8)));
+  const N = N0 + extras.reduce((s, n) => s + n, 0);
   const mesh = new THREE.InstancedMesh(g, m, N);
   const d = new THREE.Object3D(), cor = new THREE.Color();
   for (let i = 0; i < N; i++) {
     let a, r, k = 0;
-    do { a = Math.random() * 6.283; r = Math.sqrt(Math.random()) * raio * 1.15; } while (masc.peso(Math.cos(a) * r, Math.sin(a) * r) > 0.2 && ++k < 20);
-    d.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); d.rotation.set(0, Math.random() * 6.283, 0);
+    let cx = 0, cz = 0, rr = raio * 1.15;
+    for (let q = 0, n = N0; q < fora.length; q++) { if (i >= n) { cx = fora[q].x; cz = fora[q].z; rr = fora[q].r * 1.1; } n += extras[q]; }
+    do { a = Math.random() * 6.283; r = Math.sqrt(Math.random()) * rr; } while ((masc.peso(cx + Math.cos(a) * r, cz + Math.sin(a) * r) > 0.2 || (cx !== 0 && !dentroDoMapa(mapa, cx + Math.cos(a) * r, cz + Math.sin(a) * r, -3))) && ++k < 20);
+    d.position.set(cx + Math.cos(a) * r, 0, cz + Math.sin(a) * r); d.rotation.set(0, Math.random() * 6.283, 0);
     const s = rnd(0.7, 1.3); d.scale.set(s, s * rnd(0.6, 1.4), s); d.updateMatrix(); mesh.setMatrixAt(i, d.matrix);
     if (anime) { const [h, sa, l] = PALETA.grama; cor.setHSL(rnd(...h), rnd(...sa), rnd(...l)); } // grama de desenho: verde vivo
     else cor.setHSL(rnd(0.16, 0.24), rnd(0.25, 0.45), rnd(0.16, 0.3));
@@ -139,9 +146,33 @@ async function colocarObjetos(scene, mapa, masc) {
   let semente = 7; const srnd = (a, b) => { semente = (semente * 16807) % 2147483647; return a + (semente / 2147483647) * (b - a); };
   // anel de pedras que fecha a área (uma InstancedMesh por tipo de pedra)
   const anel = longe.map(() => []);
+  // onde a estradinha sai (passagem para a área de fora) o anel abre: pedra encostada em outra área ou na passagem não entra
+  const F = formasDoMapa(mapa), fora = (x, z, k) => !F.areas.some((o, j) => j !== k && Math.hypot(x - o.x, z - o.z) <= raioNaDirecao(o, Math.atan2(z - o.z, x - o.x)) + 2.2) && !F.corredores.some((c) => dentroDoMapa({ areas: [{ x: 0, z: 0, r: -1 }], corredores: [{ ...c, larg: c.larg + 4.4 }] }, x, z));
   for (let i = 0; i < 46; i++) {
-    const a = i / 46 * 6.283 + srnd(-0.05, 0.05), r = mapa.raio + srnd(-1, 2.5);
-    anel[i % longe.length].push({ x: Math.cos(a) * r, y: -0.1, z: Math.sin(a) * r, ry: srnd(0, 6.28), s: srnd(2.6, 5.2) });
+    const a = i / 46 * 6.283 + srnd(-0.05, 0.05), r = mapa.raio + srnd(-1, 2.5), ry = srnd(0, 6.28), s = srnd(2.6, 5.2); // mesmo sorteio de antes
+    if (!fora(Math.cos(a) * (mapa.raio + 1.5), Math.sin(a) * (mapa.raio + 1.5), 0)) continue;
+    anel[i % longe.length].push({ x: Math.cos(a) * r, y: -0.1, z: Math.sin(a) * r, ry, s });
+  }
+  // a área de fora e as paredes da passagem: o mesmo tipo de pedra grande, uma a cada ~4,6 m (sorteio próprio: o da vila fica igual)
+  let sem2 = 101; const frnd = (a, b) => { sem2 = (sem2 * 16807) % 2147483647; return a + (sem2 / 2147483647) * (b - a); };
+  let q = 0;
+  F.areas.forEach((o, k) => {
+    if (k === 0 || o.mata) return; // a mata fecha com árvores, não com anel de pedras (direção de arte)
+    // espaçamento irregular (passo de 3 a 6 m) e tamanhos bem variados (0,7 a 1,4 da pedra média): não lê como compasso
+    for (let a = 0; a < 6.283;) {
+      const R = raioNaDirecao(o, a), r = R + frnd(0.4, 2.6), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r, ry = frnd(0, 6.28), sc = 3.7 * frnd(0.7, 1.4);
+      if (fora(o.x + Math.cos(a) * (R + 1.5), o.z + Math.sin(a) * (R + 1.5), k)) anel[q++ % longe.length].push({ x, y: -0.1, z, ry, s: sc });
+      a += frnd(3, 6) / R;
+    }
+  });
+  for (const c of F.corredores) {
+    if (c.mata) continue; // passagens da mata: as árvores fazem a parede
+    const [ax, az] = c.a, [bx, bz] = c.b, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
+    for (let d = 0; d <= L; d += 4.2) for (const lado of [-1, 1]) {
+      const off = c.larg / 2 + frnd(1.6, 2.6), x = ax + ux * d - uz * off * lado, z = az + uz * d + ux * off * lado;
+      if (F.areas.some((o) => Math.hypot(x - o.x, z - o.z) <= o.r + 0.5)) continue;
+      anel[q++ % longe.length].push({ x, y: -0.1, z, ry: frnd(0, 6.28), s: frnd(2.4, 4.4) });
+    }
   }
   longe.forEach((o, i) => instanciar(scene, o, anel[i]));
   // pedras do caminho: mesma posição, giro e tamanho que o servidor usa para saber a altura (shared/terreno.js)
@@ -167,6 +198,12 @@ async function colocarObjetos(scene, mapa, masc) {
     if (masc.peso(x, z) < 0.1) fetos.push({ x, z, s: srnd(0.7, 1.4), ry: srnd(0, 6.28) });
   }
   for (const a of mapa.vila.arvores) if (srnd(0, 1) < 0.4 && masc.peso(a.x, a.z) < 0.1) fetos.push({ x: a.x + srnd(-1, 1), z: a.z + srnd(-1, 1), s: srnd(0.6, 1.1), ry: srnd(0, 6.28) });
+  // samambaias lá fora: na beira da clareira, fora do campo de caça (aberto) e do veio de cobre
+  for (const o of formasDoMapa(mapa).areas.slice(1).filter((o) => !o.mata)) for (let i = 0; i < 26; i++) {
+    const a = frnd(0, 6.28), r = frnd(0.55, 0.95) * (raioNaDirecao(o, a) - 1.5), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r;
+    if (masc.peso(x, z) >= 0.1 || (mapa.caca || []).some((c) => Math.hypot(x - c.x, z - c.z) < c.r) || (mapa.mina || []).some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 1)) continue;
+    fetos.push({ x, z, s: frnd(0.7, 1.4), ry: frnd(0, 6.28) });
+  }
   instanciar(scene, samambaia.scene, fetos, false);
   // caixotes ao lado da ferraria, banca da comerciante, baldes e tocos
   for (const p of mapa.props || []) por({ caixote, mesa, balde, toco }[p.tipo].scene, p.x, p.z, p.s || 1, p.ry || 0, p.y || 0);

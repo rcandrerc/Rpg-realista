@@ -1,0 +1,472 @@
+extends CanvasLayer
+# Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Conta, Multijogador e Configurações
+# e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
+# a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
+# Regra do André: no topo só entram conta, multijogador e configurações.
+
+const Menu = preload("res://menu.gd")
+const ARQUIVO := "user://config.cfg" # escolhas do jogador (menu recolhido, som, vibração, FPS)
+const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
+const ESPACO := 6.0
+const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o menu fica à esquerda do minimapa, na altura do centro dele
+# (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
+const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"]]
+const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
+
+var m # main.gd
+var raiz: Control
+var lugar: Control # onde os ícones ficam (não se mexe)
+var itens: Control # os 3 ícones (o que desliza, encolhe e some)
+var seta: Button
+var seta_ico: TextureRect
+var recolhido := false
+var _anim: Tween
+# janela de cada ícone
+var janela: Control
+var caixa: PanelContainer
+var conteudo: VBoxContainer
+var aberta := "" # "conta", "multi" ou "config" ("" = fechada)
+var _atualizar_t := 0.0
+var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo confirmação
+var _apagando := false
+# configurações
+var volume := 100.0 # 0..100 (volume geral do jogo)
+var vibracao := true
+var mostrar_fps := true
+
+func _init(principal) -> void:
+	m = principal
+	layer = 4 # acima da HUD e do Teste; abaixo da tela de login (5) e do menu do personagem (20)
+
+func _ready() -> void:
+	raiz = Control.new()
+	raiz.set_anchors_preset(Control.PRESET_FULL_RECT)
+	raiz.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(raiz)
+	var n := ITENS.size()
+	lugar = Control.new()
+	lugar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lugar.anchor_left = 1.0
+	lugar.anchor_right = 1.0
+	lugar.offset_right = -(MARGEM.x + TAM + ESPACO)
+	lugar.offset_left = lugar.offset_right - (TAM * n + ESPACO * (n - 1))
+	lugar.offset_top = MARGEM.y
+	lugar.offset_bottom = MARGEM.y + TAM
+	raiz.add_child(lugar)
+	itens = Control.new()
+	itens.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	itens.size = Vector2(TAM * n + ESPACO * (n - 1), TAM)
+	itens.pivot_offset = Vector2(itens.size.x, TAM * 0.5) # encolhe para o lado da seta
+	lugar.add_child(itens)
+	for i in n:
+		var b := _icone(ITENS[i][2], ITENS[i][1])
+		b.position = Vector2(i * (TAM + ESPACO), 0)
+		var k: String = ITENS[i][0]
+		b.pressed.connect(func(): abrir(k))
+		itens.add_child(b)
+	seta = _icone("topo_seta", "Recolher menu")
+	seta.anchor_left = 1.0
+	seta.anchor_right = 1.0
+	seta.offset_left = -(MARGEM.x + TAM)
+	seta.offset_right = -MARGEM.x
+	seta.offset_top = MARGEM.y
+	seta.offset_bottom = MARGEM.y + TAM
+	seta_ico = seta.get_child(0)
+	seta.pressed.connect(func(): recolher(not recolhido))
+	raiz.add_child(seta)
+	montar_janela()
+	carregar()
+	recolher(recolhido, false)
+	aplicar_config()
+
+# ícone quadrado de cantos redondos (couro escuro com borda dourada, como os botões da HUD)
+func _icone(ico: String, dica: String) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = dica
+	b.size = Vector2(TAM, TAM)
+	b.custom_minimum_size = Vector2(TAM, TAM)
+	var normal := Menu.caixa(Color(0.086, 0.07, 0.055, 0.78), Color(0.925, 0.81, 0.55, 0.4), 1, 15, 6)
+	var apertado := Menu.caixa(Color(0.16, 0.13, 0.1, 0.9), Color(0.95, 0.82, 0.55, 0.85), 1, 15, 6)
+	b.add_theme_stylebox_override("normal", normal)
+	b.add_theme_stylebox_override("hover", normal)
+	b.add_theme_stylebox_override("pressed", apertado)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.button_down.connect(func(): b.scale = Vector2(0.94, 0.94))
+	b.button_up.connect(func(): b.scale = Vector2.ONE)
+	b.pivot_offset = Vector2(TAM, TAM) * 0.5
+	var t := TextureRect.new()
+	t.texture = Menu.icone_tex(ico)
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.size = Vector2(30, 30)
+	t.position = Vector2(TAM - 30, TAM - 30) * 0.5
+	t.pivot_offset = Vector2(15, 15)
+	b.add_child(t)
+	return b
+
+# ---------- abrir e recolher (seta) ----------
+func recolher(sim: bool, animar := true) -> void:
+	recolhido = sim
+	seta.tooltip_text = "Abrir menu" if sim else "Recolher menu"
+	if _anim:
+		_anim.kill()
+	var x_fim := 40.0 if sim else 0.0
+	var esc_fim := Vector2(0.7, 0.7) if sim else Vector2.ONE
+	var a_fim := 0.0 if sim else 1.0
+	var giro_fim := PI if sim else 0.0
+	if sim:
+		_mexer_itens(false) # recolhendo: os ícones já não aceitam toque
+	else:
+		itens.visible = true
+	if not animar:
+		itens.position.x = x_fim
+		itens.scale = esc_fim
+		itens.modulate.a = a_fim
+		seta_ico.rotation = giro_fim
+		itens.visible = not sim
+		_mexer_itens(not sim)
+		salvar()
+		return
+	_anim = create_tween().set_parallel(true)
+	var curva := Tween.EASE_IN if sim else Tween.EASE_OUT
+	_anim.tween_property(itens, "position:x", x_fim, TEMPO).set_trans(Tween.TRANS_CUBIC).set_ease(curva)
+	_anim.tween_property(itens, "scale", esc_fim, TEMPO).set_trans(Tween.TRANS_CUBIC).set_ease(curva)
+	_anim.tween_property(itens, "modulate:a", a_fim, 0.2)
+	_anim.tween_property(seta_ico, "rotation", giro_fim, TEMPO).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_anim.chain().tween_callback(func():
+		itens.visible = not recolhido
+		_mexer_itens(not recolhido))
+	salvar()
+
+func _mexer_itens(v: bool) -> void:
+	for b in itens.get_children():
+		b.mouse_filter = Control.MOUSE_FILTER_STOP if v else Control.MOUSE_FILTER_IGNORE
+
+# a HUD pergunta: este toque é do menu do topo? (aí não vira joystick nem câmera)
+func cobre(p: Vector2) -> bool:
+	if janela.visible:
+		return true
+	if seta.get_global_rect().grow(6).has_point(p):
+		return true
+	if recolhido:
+		return false
+	for b in itens.get_children():
+		if b.get_global_rect().grow(4).has_point(p):
+			return true
+	return false
+
+# ---------- janelas ----------
+func montar_janela() -> void:
+	janela = Control.new()
+	janela.set_anchors_preset(Control.PRESET_FULL_RECT)
+	janela.visible = false
+	raiz.add_child(janela)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0.04, 0.035, 0.03, 0.6)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	escuro.gui_input.connect(func(ev): # toque fora da caixa fecha
+		if (ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT):
+			fechar())
+	janela.add_child(escuro)
+	var centro := CenterContainer.new()
+	centro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	centro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	janela.add_child(centro)
+	caixa = PanelContainer.new()
+	var estilo := Menu.caixa(Color(0.086, 0.07, 0.055, 0.95), Color(0.925, 0.81, 0.55, 0.45), 1, 16, 16)
+	estilo.content_margin_left = 22
+	estilo.content_margin_right = 22
+	estilo.content_margin_top = 16
+	estilo.content_margin_bottom = 18
+	caixa.add_theme_stylebox_override("panel", estilo)
+	caixa.custom_minimum_size = Vector2(460, 0)
+	centro.add_child(caixa)
+	conteudo = VBoxContainer.new()
+	conteudo.add_theme_constant_override("separation", 10)
+	caixa.add_child(conteudo)
+
+func abrir(qual: String) -> void:
+	if janela.visible and aberta == qual:
+		fechar()
+		return
+	aberta = qual
+	_confirmar_apagar = false
+	janela.visible = true
+	m.hud.bloqueado = true
+	montar()
+
+func fechar() -> void:
+	janela.visible = false
+	aberta = ""
+	_confirmar_apagar = false # "Voltar ao jogo" na confirmação vale como "Não, manter"
+	if not (m.menu and m.menu.aberto()):
+		m.hud.bloqueado = false
+
+func aberto() -> bool:
+	return janela != null and janela.visible
+
+func _process(dt: float) -> void:
+	if aberta == "multi" or aberta == "conta": # online, jogadores e ping mudam sozinhos
+		_atualizar_t -= dt
+		if _atualizar_t <= 0.0:
+			_atualizar_t = 1.0
+			montar()
+
+func _limpar() -> void:
+	for c in conteudo.get_children():
+		conteudo.remove_child(c)
+		c.queue_free()
+
+func _cabeca(ico: String, t: String) -> void:
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 10)
+	var i := TextureRect.new()
+	i.texture = Menu.icone_tex(ico)
+	i.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	i.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	i.custom_minimum_size = Vector2(30, 30)
+	linha.add_child(i)
+	var l := Menu.rotulo(t, 22, Menu.OURO_CLARO)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linha.add_child(l)
+	var x := _botao("Voltar ao jogo", fechar, false)
+	x.custom_minimum_size = Vector2(150, 40)
+	linha.add_child(x)
+	conteudo.add_child(linha)
+	var ouro := ColorRect.new()
+	ouro.color = Color(Menu.OURO, 0.45)
+	ouro.custom_minimum_size = Vector2(0, 1)
+	conteudo.add_child(ouro)
+
+func _texto(t: String, cor := Menu.TEXTO, tam := 16) -> Label:
+	var l := Menu.rotulo(t, tam, cor)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(416, 0)
+	conteudo.add_child(l)
+	return l
+
+func _botao(t: String, fn: Callable, principal := true, perigo := false) -> Button:
+	var b := Button.new()
+	b.text = t
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 46)
+	b.add_theme_font_size_override("font_size", 17)
+	if principal:
+		for e in ["normal", "hover", "pressed"]:
+			var s := Menu.caixa(Color(0.88, 0.71, 0.35) if e != "pressed" else Color(0.73, 0.54, 0.21), Color(0, 0, 0, 0), 0, 12)
+			b.add_theme_stylebox_override(e, s)
+		for c in ["font_color", "font_hover_color", "font_pressed_color"]:
+			b.add_theme_color_override(c, Color(0.165, 0.114, 0.016))
+	else:
+		Menu.estilo_botao(b, false)
+		if perigo:
+			for c in ["font_color", "font_hover_color", "font_pressed_color"]:
+				b.add_theme_color_override(c, Color(0.9, 0.63, 0.54))
+	b.pressed.connect(fn)
+	return b
+
+func _add(b: Button) -> void:
+	conteudo.add_child(b)
+
+func montar() -> void:
+	_limpar()
+	match aberta:
+		"conta":
+			montar_conta()
+		"multi":
+			montar_multi()
+		"config":
+			montar_config()
+
+func _online():
+	return m.online if m.online and m.online.rede else null
+
+func montar_conta() -> void:
+	_cabeca("topo_conta", "Conta")
+	var o = _online()
+	if _confirmar_apagar and o != null and o.rede.sessao != "":
+		montar_apagar(o)
+		return
+	var tem_conta: bool = o != null and o.rede.sessao != ""
+	if tem_conta:
+		_texto("Conta Google: %s" % str(o.rede.conta.get("nome", "sem nome")))
+		_texto("Seu progresso (nível, itens, ouro) fica salvo no servidor.", Menu.APAGADO, 14)
+		_add(_botao("Trocar de conta", func():
+			fechar()
+			o.desligar()
+			o.rede.trocar_conta(), false))
+		# André (2026-11-03): sair da conta sai do jogo online de verdade e volta para a tela de login
+		# (lá continua o "Jogar sozinho"). O jogo é recarregado para não sobrar nada da conta que saiu.
+		_add(_botao("Sair da conta", func(): _sair(o), false)) # sair não destrói nada: cor neutra (direção de arte)
+		var vao := Control.new() # espaço a mais: o Apagar fica longe dos outros para não ser tocado por engano
+		vao.custom_minimum_size = Vector2(0, 16)
+		conteudo.add_child(vao)
+		_add(_botao("Apagar personagem", func():
+			_confirmar_apagar = true
+			montar(), false, true))
+	else:
+		_texto("Sem conta: jogando sozinho.")
+		_texto("Entre com a sua conta Google para salvar o progresso e jogar online.", Menu.APAGADO, 14)
+		if o:
+			_add(_botao("Entrar com Google", func():
+				fechar()
+				o.mostrar_login()))
+
+# Confirmação de apagar o personagem (para ninguém apagar sem querer): explica o que some e pede um toque a mais
+func montar_apagar(o) -> void:
+	var nome := str(m.hud.nome) if m.hud.nome != "" else str(o.rede.conta.get("nome", "seu personagem"))
+	_texto("Apagar %s?" % nome, Menu.OURO_CLARO, 19)
+	_texto("O personagem é apagado de vez no servidor: nome, aparência, nível, habilidades, itens e ouro. Não dá para desfazer.", Menu.TEXTO, 15)
+	_texto("Depois é só entrar de novo com a conta Google para criar um personagem novo.", Menu.APAGADO, 14)
+	if _apagando:
+		_texto("Apagando…", Menu.APAGADO, 15)
+		return
+	_add(_botao("Sim, apagar %s" % nome, func(): _apagar(o), false, true))
+	_add(_botao("Não, manter", func():
+		_confirmar_apagar = false
+		montar()))
+
+func _apagar(o) -> void:
+	if _apagando:
+		return
+	_apagando = true
+	montar()
+	o.desligar()
+	var ok: bool = await o.rede.apagar_personagem()
+	_apagando = false
+	if not ok:
+		_confirmar_apagar = false
+		montar()
+		m.hud.aviso("Não deu para apagar agora. Confira a internet e tente de novo.")
+		o.rede.continuar() # volta para o mundo com o mesmo personagem
+		return
+	fechar()
+	_recarregar(o, "Personagem apagado")
+
+func _sair(o) -> void:
+	fechar()
+	o.desligar()
+	o.cobrir("Saindo da conta…")
+	await o.rede.sair_de_vez()
+	_recarregar(o, "Saindo da conta…")
+
+# começa o jogo do zero: sem sessão guardada, abre direto na tela de login (Entrar com Google ou Jogar sozinho)
+func _recarregar(o, texto: String) -> void:
+	o.cobrir(texto)
+	await get_tree().process_frame
+	get_tree().reload_current_scene()
+
+func montar_multi() -> void:
+	_cabeca("topo_multi", "Multijogador")
+	var o = _online()
+	if o and o.ligado:
+		var ping := "" if o.rede.ping_ms < 0 else " · %d ms" % o.rede.ping_ms
+		_texto("Online · %d %s%s" % [o.jogadores, "jogador" if o.jogadores == 1 else "jogadores", ping], Menu.VERDE, 18)
+		_texto("Você está no mundo com os outros jogadores. Quem decide golpes, dano e itens é o servidor.", Menu.APAGADO, 14)
+		_add(_botao("Jogar sozinho", func():
+			fechar()
+			o.desligar()
+			o.rede.fechar()
+			m.hud.aviso("Jogando sozinho"), false))
+	else:
+		_texto("Sozinho (sem internet o progresso não vai para a conta).", Menu.TEXTO, 17)
+		if o and o.rede.sessao != "":
+			_add(_botao("Jogar online", func():
+				fechar()
+				o.rede.continuar()))
+		elif o:
+			_add(_botao("Entrar com Google para jogar online", func():
+				fechar()
+				o.mostrar_login()))
+
+func montar_config() -> void:
+	_cabeca("topo_config", "Configurações")
+	# volume
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 12)
+	var l := Menu.rotulo("Som", 17)
+	l.custom_minimum_size = Vector2(120, 0)
+	linha.add_child(l)
+	var s := HSlider.new()
+	s.min_value = 0
+	s.max_value = 100
+	s.step = 5
+	s.value = volume
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	s.custom_minimum_size = Vector2(0, 32)
+	s.focus_mode = Control.FOCUS_NONE
+	var trilho := StyleBoxFlat.new()
+	trilho.bg_color = Color(0, 0, 0, 0.5)
+	trilho.set_corner_radius_all(4)
+	trilho.content_margin_top = 4
+	trilho.content_margin_bottom = 4
+	s.add_theme_stylebox_override("slider", trilho)
+	var cheio := StyleBoxFlat.new()
+	cheio.bg_color = Menu.OURO
+	cheio.set_corner_radius_all(4)
+	s.add_theme_stylebox_override("grabber_area", cheio)
+	s.add_theme_stylebox_override("grabber_area_highlight", cheio)
+	var num := Menu.rotulo("%d%%" % int(volume), 16, Menu.APAGADO)
+	num.custom_minimum_size = Vector2(52, 0)
+	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	s.value_changed.connect(func(v):
+		volume = v
+		num.text = "%d%%" % int(v)
+		aplicar_config()
+		salvar())
+	linha.add_child(s)
+	linha.add_child(num)
+	conteudo.add_child(linha)
+	_chave("Vibração", vibracao, func(v):
+		vibracao = v
+		aplicar_config()
+		salvar()
+		if v:
+			m.vibrar(40))
+	_chave("Mostrar FPS", mostrar_fps, func(v):
+		mostrar_fps = v
+		aplicar_config()
+		salvar())
+	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
+
+func _chave(t: String, ligado: bool, fn: Callable) -> void:
+	var c := CheckButton.new()
+	c.text = t
+	c.button_pressed = ligado
+	c.focus_mode = Control.FOCUS_NONE
+	c.custom_minimum_size = Vector2(0, 42)
+	c.add_theme_font_size_override("font_size", 17)
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		c.add_theme_color_override(k, Menu.TEXTO)
+	c.toggled.connect(fn)
+	conteudo.add_child(c)
+
+# ---------- guardar no aparelho ----------
+func aplicar_config() -> void:
+	var bus := AudioServer.get_bus_index("Master")
+	AudioServer.set_bus_mute(bus, volume <= 0.0)
+	AudioServer.set_bus_volume_db(bus, linear_to_db(max(volume, 1.0) / 100.0))
+	m.vibracao = vibracao
+	if m.rotulo:
+		m.rotulo.visible = mostrar_fps
+
+func carregar() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(ARQUIVO) != OK:
+		return
+	recolhido = bool(cfg.get_value("menu", "recolhido", false))
+	volume = float(cfg.get_value("config", "volume", 100.0))
+	vibracao = bool(cfg.get_value("config", "vibracao", true))
+	mostrar_fps = bool(cfg.get_value("config", "fps", true))
+
+func salvar() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(ARQUIVO)
+	cfg.set_value("menu", "recolhido", recolhido)
+	cfg.set_value("config", "volume", volume)
+	cfg.set_value("config", "vibracao", vibracao)
+	cfg.set_value("config", "fps", mostrar_fps)
+	cfg.save(ARQUIVO)

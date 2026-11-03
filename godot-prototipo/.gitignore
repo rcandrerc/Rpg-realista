@@ -1,0 +1,5 @@
+modelos/
+.godot/
+*.import
+# modelo de compilação Android (Gradle): vem do export template do Godot 4.5 (android_source.zip), não precisa ir para o git
+android/

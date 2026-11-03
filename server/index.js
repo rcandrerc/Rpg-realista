@@ -16,7 +16,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, pronto: 20 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -34,13 +34,26 @@ class SalaClareira extends Room {
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
+    // skills do Quimera (shared/progresso.js): usar, as duas barras de 6 botões e os pontos de atributo
+    this.ouvir('habQ', (c, k) => {
+      if (typeof k === 'string' && k.length < 32) this.sim.usarHabQ(c.sessionId, k);
+      else if (k && typeof k.id === 'string' && k.id.length < 32) this.sim.usarHabQ(c.sessionId, { id: k.id, dx: Number(k.dx) || 0, dz: Number(k.dz) || 0, ...(Number.isInteger(k.v) ? { v: k.v } : {}) }); // v: alvo travado do mago
+    });
+    this.ouvir('cancelar', (c) => this.sim.cancelarCanal(c.sessionId)); // andou no meio da magia concentrada
+    this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
+    this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
+    // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
+    this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
+    this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, { r: m.r }); });
+    this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
+    this.ouvir('resetar', (c) => this.sim.resetarBuild(c.sessionId)); // Mestre Ivo: atributos de volta (paga em ouro)
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));
     this.ouvir('dash', (c) => this.sim.dash(c.sessionId));
     this.ouvir('aparencia', (c, a) => this.sim.definirAparencia(c.sessionId, a));
     this.ouvir('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
-    this.ouvir('falar', (c) => this.sim.falar(c.sessionId));
+    this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m)); // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
     // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
     this.ouvir('pos', (c, p) => this.sim.posicaoCliente(c.sessionId, p));
@@ -52,7 +65,28 @@ class SalaClareira extends Room {
       const r = this.sim.concluirCriacao(c.sessionId, p);
       if (r && contas && c.auth) contas.salvarPersonagem(c.auth.id, r);
     });
+    // Mudar a aparência depois de criado (botão Aparência no menu do personagem do app): cores, altura e rosto; nome e corpo ficam
+    this.ouvir('mudarAparencia', (c, a) => {
+      const r = this.sim.mudarAparencia(c.sessionId, a);
+      if (r && contas && c.auth) contas.salvarAparencia(c.auth.id, r);
+    });
+    // Trocar o corpo depois de criado (criador do app Godot: a Ruiva, os masculinos e os outros corpos, sem nome)
+    this.ouvir('mudarVisual', (c, v) => {
+      const r = this.sim.mudarVisual(c.sessionId, String(v));
+      if (r && contas && c.auth) contas.salvarVisual(c.auth.id, r);
+    });
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
+    this.clock.setInterval(() => this.salvarProgressos(), 15000); // nível, XP e skills vão para a conta
+  }
+
+  // Grava na conta o progresso de quem mudou desde a última vez
+  salvarProgressos() {
+    if (!contas) return;
+    const porSessao = new Map(this.clients.map((c) => [c.sessionId, c.auth]));
+    for (const { id, prog } of this.sim.progressosParaSalvar()) {
+      const conta = porSessao.get(id) || this.contaDe?.get(id);
+      if (conta) contas.salvarProgresso(conta.id, prog);
+    }
   }
 
   // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
@@ -70,10 +104,13 @@ class SalaClareira extends Room {
   tick() {
     const eventos = this.sim.passo(TICK);
     const foto = this.sim.foto();
+    let fotoJson = null;
     for (const c of this.clients) {
       // avisos pessoais vão só para quem precisa
       const meus = eventos.filter((e) => !e.para || e.para === c.sessionId);
-      c.send('mundo', { foto, eventos: meus });
+      // o app Godot pede em JSON (lá ler JSON é bem mais rápido que MessagePack); o site continua igual
+      if (c.userData?.json) c.send('mundoJ', `{"foto":${fotoJson ??= JSON.stringify(foto)},"eventos":${JSON.stringify(meus)}}`);
+      else c.send('mundo', { foto, eventos: meus });
     }
   }
 
@@ -86,27 +123,34 @@ class SalaClareira extends Room {
   }
 
   onJoin(client, opcoes) {
+    if (opcoes?.json === true) (client.userData ||= {}).json = true;
     const conta = contas ? client.auth : null;
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
-      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) { (outro.userData ||= {}).substituido = true; outro.leave(4001); }
+      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
+        const velho = this.sim.jogadores.get(outro.sessionId)?.prog; if (velho) conta.progresso = velho; // o mais novo vale
+        (outro.userData ||= {}).substituido = true; outro.leave(4001);
+      }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
-    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia });
+    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador });
+    if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
   }
 
-  onDispose() { salas.delete(this); }
+  onDispose() { this.salvarProgressos(); salas.delete(this); }
 
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
     if (!consentiu && !client.userData?.substituido) {
       try { await this.allowReconnection(client, 20); return; } catch { /* não voltou a tempo */ }
     }
+    this.salvarProgressos(); // grava antes de tirar o herói do mundo
     this.sim.removerJogador(client.sessionId);
+    this.contaDe?.delete(client.sessionId);
   }
 }
 
@@ -140,6 +184,28 @@ app.get('/conta/eu', (req, res) => {
   conta ? res.json({ conta }) : res.status(401).json({ erro: 'login' });
 });
 app.post('/conta/sair', (req, res) => { contas.sair(sessaoDe(req)); res.json({ ok: true }); });
+// Ligar o app (APK) à conta: o app abre o site com ?vincular=CODIGO; quem fez login no site manda o código aqui
+// e o app busca a sessão nova pelo mesmo código (vale 5 minutos e só uma vez). A senha do Google nunca passa pelo app.
+const vinculos = new Map(); // codigo -> { sessao, ate }
+const CODIGO = /^[A-Za-z0-9]{16,64}$/;
+const limparVinculos = () => { const agora = Date.now(); for (const [k, v] of vinculos) if (v.ate < agora) vinculos.delete(k); };
+app.post('/conta/vincular', (req, res) => {
+  const conta = contas.porSessao(sessaoDe(req));
+  if (!conta) return res.status(401).json({ erro: 'login' });
+  const codigo = String(req.body?.codigo || '');
+  if (!CODIGO.test(codigo)) return res.status(400).json({ erro: 'código inválido' });
+  limparVinculos();
+  if (vinculos.size > 500) return res.status(503).json({ erro: 'tente de novo' });
+  vinculos.set(codigo, { sessao: contas.novaSessaoPara(conta.id), ate: Date.now() + 5 * 60 * 1000 });
+  res.json({ ok: true });
+});
+app.get('/conta/vinculo/:codigo', (req, res) => {
+  limparVinculos();
+  const v = vinculos.get(String(req.params.codigo));
+  if (!v) return res.status(404).json({ erro: 'ainda não' });
+  vinculos.delete(String(req.params.codigo));
+  res.json({ sessao: v.sessao });
+});
 // Apaga a conta de vez (personagem, build e sessões). Quem estiver jogando com ela sai da sala.
 app.post('/conta/apagar', (req, res) => {
   const conta = contas.porSessao(sessaoDe(req));

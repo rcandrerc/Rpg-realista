@@ -10,3 +10,12 @@
 - O soldado (heroi_provisorio.glb) tem esqueleto Z-para-cima; as animações do Mixamo são Y-para-cima. Nos VRM, as animações são convertidas usando a pose de descanso gravada em `anims.json.gz` (`_rest`). Tudo isso fica em `client/src/personagens.js`.
 - Visual caprichado desde o começo: texturas reais, luz e sombra. Nada com cara de protótipo.
 - Teste no celular: mire em 30 quadros por segundo.
+
+## Nada some (regra do André, 2026-11-02)
+
+- Atualização nunca sobrepõe nem apaga recurso anterior. Remoção ou troca só quando o André pede, ou quando uma thread sugere a remoção para a próxima atualização e o André diz sim. Nunca remova por conta própria.
+- Antes de abrir ou mesclar PR: junte a main mais nova no ramo (ou rebase) e, nos conflitos, mantenha os dois lados. Nunca resolva conflito pegando um lado inteiro.
+- O CI "Nada some" vale para TUDO, sem lista: falha se o ramo está atrás da main ou se apaga ou troca qualquer coisa que já existe (arquivo, imagem, som, modelo, função, nó de cena, chave de dados, mensagem do servidor). Só passa com a etiqueta `remoção aprovada` no PR, e ela só entra quando o André pediu a remoção ou a troca (cite o pedido dele na descrição).
+- Comportamentos importantes também vão em `ferramentas/protecao/recursos.json` no mesmo PR (conferência extra de trechos).
+- APK para o André só sai de um ramo com a main mais nova: rode `ferramentas/protecao/antes-do-apk.sh` antes. APK feito de ramo velho apaga o que entrou depois.
+- Recurso que o André aprovou num APK de teste precisa virar PR mesclado na main; senão o próximo APK vem sem ele.
