@@ -178,7 +178,7 @@ func preco_compra(o: Dictionary) -> int:
 static func item_int(it):
 	if not (it is Dictionary) or not it.has("k"):
 		return null
-	var r := {"k": str(it.k)}
+	var r := {"k": "peitoral" if str(it.k) == "manto" else str(it.k)} # conta antiga: o Manto virou Peitoral
 	for c in ["r", "n", "nv"]:
 		if it.has(c):
 			r[c] = int(it[c])
@@ -192,7 +192,7 @@ func eh_equip(it) -> bool:
 # quantas peças de cada raridade (ou melhor) estão no corpo; a Arma conta pela melhor entre espada e cajado
 func pecas_conjunto() -> Array:
 	var r := func(l): return int(prog.equip[l].r) if prog.equip.get(l) != null else -1
-	var lugares := [r.call("cabeca"), r.call("corpo"), r.call("capa"), r.call("pes"), r.call("acessorio"), max(r.call("espada"), r.call("cajado"))]
+	var lugares := [r.call("cabeca"), r.call("corpo"), r.call("pernas"), r.call("capa"), r.call("pes"), r.call("acessorio"), max(r.call("espada"), r.call("cajado"))]
 	var n := []
 	for i in dados.raridades.size():
 		n.append(lugares.filter(func(x): return x >= i).size())
@@ -257,6 +257,11 @@ static func icone_item(it) -> String:
 		return "it_barra"
 	if str(it.k).begins_with("minerio_") or it.k == "carvao" or it.k == "pedra":
 		return "it_minerio"
+	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
+	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
+		return "it_%s_aco" % it.k
+	if ResourceLoader.exists("res://icones/itens/%s.png" % it.k):
+		return "it_" + str(it.k)
 	return "it_" + ("pocao" if it.k == "pocao_mana" else str(it.k))
 
 func eh_mat(it) -> bool:
