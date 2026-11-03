@@ -73,6 +73,7 @@ var janela: Control # véu escuro + painel da peça (por cima do menu)
 var janela_lugar := "" # lugar aberto ("" = fechada)
 var janela_nome := ""
 var janela_rolagem: ScrollContainer
+var quadradinhos: Array = [] # "Mostrar capacete" (André 2026-11-03: quadradinho marcado = capacete aparece; desmarcado = rosto à mostra, a peça continua vestida)
 var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
 var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
 var _arrasto_dentro := false
@@ -288,6 +289,17 @@ func montar_esquerda() -> Control:
 		s.offset_top = -MEDALHAO * 0.5 - 6
 		s.offset_bottom = MEDALHAO * 0.5 - 6
 		meio.add_child(s)
+		if d[0] == "cabeca":
+			var q := linha_mostrar_capacete(12)
+			q.anchor_left = d[2]
+			q.anchor_right = d[2]
+			q.anchor_top = d[3]
+			q.anchor_bottom = d[3]
+			q.offset_left = -50
+			q.offset_right = 70
+			q.offset_top = MEDALHAO * 0.5 + 16
+			q.offset_bottom = MEDALHAO * 0.5 + 40
+			meio.add_child(q)
 	var pe := HBoxContainer.new()
 	pe.add_theme_constant_override("separation", 10)
 	var dica := rotulo("Arraste o personagem para girar", 12, APAGADO)
@@ -350,6 +362,10 @@ func lugar_de(id: String) -> String:
 
 # peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
 func atualizar_slots() -> void:
+	quadradinhos = quadradinhos.filter(func(q): return is_instance_valid(q))
+	for q in quadradinhos:
+		q.marcado = not m.P.prog.get("semCapacete", false)
+		q.queue_redraw()
 	if boneco:
 		Armadura.vestir(boneco, m.P.equip_visivel()) # o boneco veste o mesmo que o herói (capacete escondido também)
 	for id in slots_ui:
@@ -1401,6 +1417,26 @@ const PIOR := Color(0.92, 0.42, 0.36)
 const PESO_ST := {"vida": 1.0 / 20.0, "mana": 1.0 / 20.0, "defesa": 1.0 / 5.0, "danoFisico": 1.0 / 5.0, "danoMagico": 1.0 / 5.0,
 	"critico": 1.0 / 0.01, "danoK": 1.0 / 0.05, "areaK": 1.0 / 0.05, "regenManaK": 1.0 / 0.05}
 
+# quadradinho "Mostrar capacete": toca em qualquer parte da linha para marcar ou desmarcar (o bônus da peça continua)
+func linha_mostrar_capacete(tam := 13) -> Control:
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 6)
+	l.mouse_filter = Control.MOUSE_FILTER_STOP
+	var q := Quadradinho.new()
+	q.lado = tam + 6
+	q.marcado = not m.P.prog.get("semCapacete", false)
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(q)
+	quadradinhos.append(q)
+	var t := rotulo("Mostrar capacete", tam, TEXTO)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_child(t)
+	l.gui_input.connect(func(ev):
+		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
+			acao_item({"acao": "capacete", "mostrar": m.P.prog.get("semCapacete", false)}))
+	return l
+
 func janela_aberta() -> bool:
 	return janela_lugar != "" and janela != null and is_instance_valid(janela) and janela.visible
 
@@ -1575,6 +1611,8 @@ func montar_janela() -> void:
 	var a := rotulo(aviso, 13, cor_aviso)
 	a.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(a)
+	if l == "cabeca":
+		v.add_child(linha_mostrar_capacete(14))
 	# linhas 3+: as peças da mochila (até 3 à vista; mais que isso rola)
 	if not opcoes.is_empty():
 		var fio := ColorRect.new()
@@ -1791,6 +1829,20 @@ func mandar_barra(barra: String) -> void:
 	m.rede("barra", {"barra": barra, "lista": m.P.prog.barras[barra]})
 
 # X de fechar desenhado (sem depender de símbolo na fonte)
+class Quadradinho extends Control:
+	var marcado := true
+	var lado := 18.0
+	func _ready() -> void:
+		custom_minimum_size = Vector2(lado, lado)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _draw() -> void:
+		var r := Rect2(Vector2(1, 1), Vector2(lado - 2, lado - 2))
+		draw_rect(r, Color(0.05, 0.045, 0.04) if not marcado else Color(0.17, 0.148, 0.12))
+		draw_rect(r, Color(0.95, 0.82, 0.55) if marcado else Color(0.42, 0.33, 0.20), false, 1.5)
+		if marcado:
+			var k := lado / 18.0
+			draw_polyline(PackedVector2Array([Vector2(4.5, 9.5) * k, Vector2(7.8, 13) * k, Vector2(13.8, 5) * k]), Color(0.95, 0.82, 0.55), 2.4 * k, true)
+
 class Fechar extends Control:
 	func _ready() -> void:
 		custom_minimum_size = Vector2(40, 40)
