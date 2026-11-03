@@ -32,6 +32,10 @@ Para montar à mão:
 - `aparencia.gd`: pinta cada personagem pela cópia dele (shader toon com troca de cor) e mexe nos blend shapes
   `olhosT`, `narizT`, `bocaT`, que o `client/exportar-godot/exportar.js` grava no GLB da Ruiva.
 - Online: conta nova manda `aparencia` (ao vivo) e `pronto`; depois, o botão Aparência manda `mudarAparencia`.
+- Corpo (pedido do André, 2026-11-03): no alto do painel, rostos redondos sem nome dos corpos de `CRIADOR.corpos`
+  (a Ruiva, os masculinos e os outros VRoid do jogo). O `exportar.js` grava todas as animações do herói e o formato do
+  rosto em cada um deles. Online: `visual` (ao vivo na conta nova), `pronto` com o corpo, e `mudarVisual` depois;
+  o servidor grava na coluna `visual` da conta e os outros jogadores veem o corpo certo (`online.gd`, `outro`).
 
 ## Interação com os NPCs
 

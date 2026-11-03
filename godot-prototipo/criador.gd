@@ -6,6 +6,8 @@ extends CanvasLayer
 # Mexendo no rosto a câmera chega perto da cabeça.
 # Dois jeitos de abrir: conta nova (com nome; "Pronto" grava de vez) e o botão Aparência do menu do personagem
 # (sem nome; "Salvar" muda só a aparência).
+# Corpo (pedido do André, 2026-11-03): no alto do painel, os rostos dos outros corpos do jogo para escolher, sem nome,
+# incluindo os masculinos (lista CRIADOR.corpos em shared/dados.js; a Ruiva continua o padrão). O servidor grava o corpo.
 
 const Aparencia = preload("res://aparencia.gd")
 const Menu = preload("res://menu.gd")
@@ -89,6 +91,10 @@ var alt := 0.4
 var _arrastou := false
 var _arrasto_dentro := false
 var _arrasto_soma := 0.0
+var corpo := "ruiva" # corpo escolhido (CRIADOR.corpos)
+var corpos_ui := {} # corpo -> botão com o rosto
+var _boneco_de := "" # corpo que está no palco agora
+static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
 func _init(principal) -> void:
 	m = principal
@@ -252,22 +258,41 @@ func montar_palco() -> void:
 	luzes.mesh = q
 	luzes.position.y = 0.1
 	vp.add_child(luzes)
-	# a Ruiva no meio do tablado
-	boneco = m.modelo("ruiva")
+	# a Ruiva (ou o corpo escolhido) no meio do tablado
+	esp = m.nova_arma("espada")
+	caj = m.nova_arma("cajado")
+	montar_boneco("ruiva")
+
+# põe no tablado o corpo escolhido (troca o que estava lá), com a espada e o cajado presos na mão dele
+func montar_boneco(id: String) -> void:
+	if id == _boneco_de and boneco != null:
+		return
+	var ry := 0.0
+	if boneco != null:
+		ry = boneco.rotation.y
+		for a in [esp, caj]:
+			if a.get_parent():
+				a.get_parent().remove_child(a)
+		boneco.queue_free()
+	_boneco_de = id
+	boneco = m.modelo(id)
 	boneco.get_parent().remove_child(boneco)
 	vp.add_child(boneco)
+	boneco.rotation.y = ry
 	anim = boneco.find_child("AnimationPlayer", true, false)
 	esq = m.esqueleto(boneco)
+	cabeca = -1
 	for i in esq.get_bone_count():
 		var n := esq.get_bone_name(i)
 		if n.ends_with("_Head") or n == "Head" or n == "head":
 			cabeca = i
-	esp = m.nova_arma("espada")
-	caj = m.nova_arma("cajado")
-	var L: Dictionary = m.armas_lugar.ruiva
+	var L: Dictionary = m.lugar_armas(id)
 	m.prender(esq, esp, L.espadaMao)
 	m.prender(esq, caj, L.get("cajadoMao", L.cajadoCostas))
 	mostrar_armas("")
+	pose = null
+	proxima = 1.5
+	anim.play("parada")
 
 func mostrar_armas(modo: String) -> void:
 	esp.visible = modo == "Espada"
@@ -321,6 +346,16 @@ func montar_painel() -> Control:
 	ln.add_child(nome_edit)
 	linha_nome = ln
 	lista.add_child(ln)
+	# corpo: rostos redondos, sem nome (a Ruiva primeiro, depois os masculinos e os outros)
+	lista.add_child(Menu.rotulo("Corpo", 15, OURO_CLARO))
+	var fc := HFlowContainer.new()
+	fc.add_theme_constant_override("h_separation", 8)
+	fc.add_theme_constant_override("v_separation", 8)
+	for id in criador.get("corpos", ["ruiva"]):
+		if not ResourceLoader.exists("res://modelos/%s.glb" % id):
+			continue
+		fc.add_child(botao_corpo(str(id)))
+	lista.add_child(fc)
 	for k in Aparencia.CORES:
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
@@ -394,6 +429,99 @@ func montar_painel() -> Control:
 	col.add_child(baixo)
 	return p
 
+# botão redondo com o rosto do corpo (sem nome); aceso com aro dourado quando é o escolhido
+func botao_corpo(id: String) -> Control:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(66, 66)
+	b.flat = true
+	var vazio := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(st, vazio)
+	var foto := TextureRect.new()
+	foto.set_anchors_preset(Control.PRESET_FULL_RECT)
+	foto.offset_left = 3
+	foto.offset_top = 3
+	foto.offset_right = -3
+	foto.offset_bottom = -3
+	foto.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	foto.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	foto.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = "shader_type canvas_item;\nvoid fragment(){ vec4 c = texture(TEXTURE, UV); float r = length(UV - vec2(0.5)); COLOR = vec4(c.rgb, c.a * (1.0 - smoothstep(0.47, 0.49, r))); }"
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	foto.material = mat
+	b.add_child(foto)
+	var aro := Panel.new()
+	aro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	aro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(aro)
+	b.pressed.connect(func():
+		if _arrastou:
+			return
+		corpo = id
+		rosto = false
+		montar_boneco(id)
+		mudou())
+	corpos_ui[id] = {"botao": b, "foto": foto, "aro": aro}
+	return b
+
+# rostos dos corpos para os botões: cada um num palco pequeno, desenhado uma vez e guardado como imagem
+func fazer_rostos() -> void:
+	for id in corpos_ui:
+		if _rostos.has(id):
+			corpos_ui[id].foto.texture = _rostos[id]
+	for id in corpos_ui:
+		if _rostos.has(id):
+			continue
+		var vp2 := SubViewport.new()
+		vp2.size = Vector2i(128, 128)
+		vp2.own_world_3d = true
+		vp2.msaa_3d = Viewport.MSAA_4X
+		vp2.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(vp2)
+		var amb := WorldEnvironment.new()
+		var env := Environment.new()
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0.16, 0.13, 0.1)
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color(0.85, 0.8, 0.72)
+		env.ambient_light_energy = 0.7
+		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+		amb.environment = env
+		vp2.add_child(amb)
+		var luz := DirectionalLight3D.new()
+		luz.light_energy = 1.1
+		luz.rotation = Vector3(-0.5, 0.5, 0)
+		vp2.add_child(luz)
+		var c: Node3D = m.modelo(id)
+		c.get_parent().remove_child(c)
+		vp2.add_child(c)
+		var cab := Vector3(0, 1.45, 0)
+		var sk: Skeleton3D = m.esqueleto(c)
+		if sk:
+			for i in sk.get_bone_count():
+				var nb := sk.get_bone_name(i).to_lower()
+				if nb.ends_with("head"):
+					cab = sk.get_bone_global_rest(i).origin
+					break
+		var cm := Camera3D.new()
+		cm.fov = 30.0
+		vp2.add_child(cm)
+		cm.look_at_from_position(cab + Vector3(0.12, 0.03, 0.75), cab + Vector3(0, -0.01, 0))
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		if not is_instance_valid(vp2):
+			return
+		var img := vp2.get_texture().get_image()
+		vp2.queue_free()
+		if img == null:
+			continue
+		_rostos[id] = ImageTexture.create_from_image(img)
+		if corpos_ui.has(id):
+			corpos_ui[id].foto.texture = _rostos[id]
+
 func botao(t: String, ativo: bool, fn: Callable) -> Button:
 	var b := Button.new()
 	b.text = t
@@ -449,14 +577,17 @@ func faixa(k: String, lo: float, hi: float, _a: String, _b: String) -> Control:
 
 # ---------- abrir e fechar ----------
 # conta nova: nome + aparência; ao_concluir(nome, aparencia). ao_mudar(aparencia) a cada toque (os outros veem na hora)
-func abrir_criacao(nome: String, inicial, ao_concluir: Callable, ao_mudar := Callable()) -> void:
+# (ao_concluir(nome, aparencia, corpo) e ao_mudar(aparencia, corpo): o corpo vai junto)
+func abrir_criacao(nome: String, inicial, ao_concluir: Callable, ao_mudar := Callable(), corpo_inicial := "ruiva") -> void:
 	_criacao = true
 	nome_edit.text = nome
+	corpo = corpo_inicial
 	_abrir(inicial, ao_concluir, ao_mudar)
 
-# botão Aparência do menu do personagem: só a aparência; ao_concluir(aparencia)
-func abrir_edicao(inicial, ao_concluir: Callable) -> void:
+# botão Aparência do menu do personagem: aparência e corpo; ao_concluir(aparencia, corpo)
+func abrir_edicao(inicial, ao_concluir: Callable, corpo_inicial := "ruiva") -> void:
 	_criacao = false
+	corpo = corpo_inicial
 	_abrir(inicial, ao_concluir, Callable())
 
 func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
@@ -467,8 +598,8 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	b_cancelar.visible = not _criacao
 	b_pronto.text = "Pronto" if _criacao else "Salvar"
 	titulo.text = "CRIAR PERSONAGEM" if _criacao else "APARÊNCIA"
-	sub.text = "A Ruiva é a base: escolha as cores, a altura e o rosto. Dá para mudar depois no menu do personagem." if _criacao \
-		else "Mude as cores, a altura e o rosto. O nome continua o mesmo."
+	sub.text = "Escolha o corpo, as cores, a altura e o rosto. Dá para mudar depois no menu do personagem." if _criacao \
+		else "Mude o corpo, as cores, a altura e o rosto. O nome continua o mesmo."
 	erro.text = ""
 	giro = 0.0
 	rosto = false
@@ -482,9 +613,14 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	m.hud.bloqueado = true
 	m.get_viewport().disable_3d = true # a vila fica escondida atrás do palco: não desenha (mais leve no celular)
 	rolagem.scroll_vertical = 0
+	if not corpos_ui.has(corpo):
+		corpo = "ruiva"
+	montar_boneco(corpo)
+	anim.play("parada")
 	marcar()
 	Aparencia.aplicar(boneco, ap)
 	_colocar_camera(1.0)
+	fazer_rostos()
 
 func fechar() -> void:
 	raiz.visible = false
@@ -507,10 +643,10 @@ func pronto() -> void:
 			nome_edit.grab_focus()
 			return
 		fechar()
-		_ao_concluir.call(nome, ap.duplicate())
+		_ao_concluir.call(nome, ap.duplicate(), corpo)
 	else:
 		fechar()
-		_ao_concluir.call(ap.duplicate())
+		_ao_concluir.call(ap.duplicate(), corpo)
 
 # igual a nomeValido (shared/dados.js): 3 a 16 letras, números ou espaços
 func valido(n: String) -> String:
@@ -538,7 +674,7 @@ func mudou() -> void:
 	marcar()
 	Aparencia.aplicar(boneco, ap)
 	if _ao_mudar.is_valid():
-		_ao_mudar.call(ap.duplicate())
+		_ao_mudar.call(ap.duplicate(), corpo)
 
 func marcar() -> void:
 	_marcando = true
@@ -558,6 +694,16 @@ func marcar() -> void:
 		originais[k].add_theme_color_override("icon_normal_color", OURO_CLARO if ap.get(k) == null else APAGADO)
 	for k in faixas:
 		faixas[k].value = float(ap.get(k, 1.0))
+	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
+		var on: bool = id == corpo
+		var sa := StyleBoxFlat.new()
+		sa.bg_color = Color(0, 0, 0, 0)
+		sa.border_color = OURO_CLARO if on else Color(0.42, 0.33, 0.2)
+		sa.set_border_width_all(3 if on else 1)
+		sa.set_corner_radius_all(33)
+		sa.anti_aliasing = true
+		corpos_ui[id].aro.add_theme_stylebox_override("panel", sa)
+		corpos_ui[id].foto.modulate = Color.WHITE if on else Color(0.82, 0.8, 0.76)
 	_marcando = false
 
 # ---------- quadro a quadro ----------

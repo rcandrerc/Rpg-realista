@@ -1,7 +1,7 @@
 // Ferramenta: exporta a vila e os personagens anime (com animações já convertidas) em GLB para o protótipo Godot.
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
-import { MAPA_CLAREIRA, A, ESCALADA, PARADO_PAREDE } from '@rpg/shared';
+import { MAPA_CLAREIRA, A, ESCALADA, PARADO_PAREDE, CRIADOR } from '@rpg/shared';
 import { criarRenderizador, montarCena } from '../src/cena.js';
 import { carregarPersonagens, Corpo } from '../src/personagens.js';
 
@@ -74,6 +74,8 @@ async function principal() {
   const armas = {};
   for (const id of ids) {
     const heroi = id === 'ruiva';
+    // corpo que o jogador pode escolher no criador do app (CRIADOR.corpos): leva todas as animações do herói e o formato do rosto
+    const jogavel = heroi || CRIADOR.corpos.includes(id);
     const c = new Corpo(mundo.scene, { visual: id, armas: 'heroi' }); // todos: o lugar das armas muda de corpo para corpo
     for (let i = 0; i < 600 && !c.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     const vrm = c.vrm; if (!vrm) { console.log('sem vrm', id); continue; }
@@ -96,7 +98,7 @@ async function principal() {
       }
       if (!heroi) { [esp, caj].forEach((o) => o?.parent?.remove(o)); }
     }
-    for (const [nome, fonte] of Object.entries(heroi ? ANIMS_HEROI : ANIMS_OUTROS)) {
+    for (const [nome, fonte] of Object.entries(jogavel ? ANIMS_HEROI : ANIMS_OUTROS)) {
       const clip = c.clipes[fonte]; if (!clip) { console.log('falta anim', id, nome, fonte); continue; }
       c.mixer.stopAllAction(); const a = c.mixer.clipAction(clip); a.reset().play();
       const fps = 30, n = Math.max(2, Math.round(clip.duration * fps) + 1), tempos = [];
@@ -117,7 +119,7 @@ async function principal() {
     c.mixer.stopAllAction(); c.mixer.setTime(0); vrm.humanoid.update();
     // herói: o formato do rosto do criador (olhosT, narizT, bocaT) vai pronto como blend shape no GLB.
     // Mexer um pouco monta os morphs (formarRosto em personagens.js); depois volta a zero.
-    if (heroi) { c.repintar({ olhosT: 1.1, narizT: 1.1, bocaT: 1.1 }); c.repintar({}); }
+    if (jogavel) { c.repintar({ olhosT: 1.1, narizT: 1.1, bocaT: 1.1 }); c.repintar({}); }
     const cena = vrm.scene;
     const rig = cena.children.filter((o) => /VRMHumanoidRig/.test(o.name));
     rig.forEach((r) => cena.remove(r));
