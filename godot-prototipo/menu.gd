@@ -192,7 +192,7 @@ static func fundo_raridade(cor: Color) -> GradientTexture2D:
 	return _fundos[k]
 
 # põe (ou troca) a moldura num quadrado de item; cor = raridade; destaque = escolhido
-func moldurar(q: Control, cor: Color, destaque: bool, com_item: bool, raio := 8) -> void:
+func moldurar(q: Control, cor: Color, destaque: bool, com_item: bool, raio := 8, forte := false) -> void:
 	q.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
 	for n in ["_fundo", "_brilho", "_faixa", "_aro"]:
 		var v := q.get_node_or_null(n)
@@ -234,7 +234,7 @@ func moldurar(q: Control, cor: Color, destaque: bool, com_item: bool, raio := 8)
 	st.set_corner_radius_all(raio)
 	if destaque:
 		st.border_color = OURO_CLARO
-		st.set_border_width_all(3)
+		st.set_border_width_all(5 if forte else 3) # forte: medalhão com a janela da peça aberta
 	elif com_item:
 		st.border_color = cor.lightened(0.1)
 		st.set_border_width_all(2)
@@ -361,12 +361,12 @@ func atualizar_slots() -> void:
 			u.icone.texture = icone_tex(m.P.icone_item(it))
 			u.icone.modulate = c if u.icone.texture and u.icone.texture.resource_path.ends_with(".svg") else Color.WHITE
 			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
-			moldurar(u.painel, c, escolhido, true, int(MEDALHAO * 0.5))
+			moldurar(u.painel, c, escolhido, true, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
 		else:
 			u.icone.texture = icone_tex("basico" if id == "arma" and boneco_modo == "Espada" else "magia" if id == "arma" else "eq_" + id)
 			u.icone.modulate = Color(0.85, 0.75, 0.55, 0.45 if id == "arma" else 0.25)
 			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
-			moldurar(u.painel, BORDA, escolhido, false, int(MEDALHAO * 0.5))
+			moldurar(u.painel, BORDA, escolhido, false, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
 
 func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
@@ -1242,9 +1242,9 @@ func montar_mochila() -> void:
 			conteudo.add_child(g2)
 	if sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
 		conteudo.add_child(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
-	elif sel_equip != "" and P.prog.equip.get(sel_equip) != null:
+	elif sel_equip != "" and janela_lugar == "" and P.prog.equip.get(sel_equip) != null: # com a janela aberta, o cartão não repete o Tirar (direção de arte)
 		conteudo.add_child(detalhe(P.prog.equip[sel_equip], -1, sel_equip))
-	else:
+	elif janela_lugar == "":
 		var d := rotulo("Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar.", 12, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
@@ -1553,7 +1553,7 @@ func montar_janela() -> void:
 	var cheia: bool = P.prog.mochila.find(null) < 0
 	if atual != null:
 		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
-		b.custom_minimum_size = Vector2(96, 40)
+		b.custom_minimum_size = Vector2(96, 44)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = cheia
 		linha.add_child(b)
@@ -1583,7 +1583,7 @@ func montar_janela() -> void:
 		v.add_child(fio)
 		janela_rolagem = ScrollContainer.new()
 		janela_rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		janela_rolagem.custom_minimum_size = Vector2(0, min(opcoes.size(), 3) * 54 - 6)
+		janela_rolagem.custom_minimum_size = Vector2(0, min(opcoes.size(), 3) * 56 - 6)
 		v.add_child(janela_rolagem)
 		var lista := VBoxContainer.new()
 		lista.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1634,7 +1634,7 @@ func linha_opcao(o: Dictionary, tem_atual: bool) -> Control:
 		txt.add_child(rotulo(P.texto_item(o.it), 12, MELHOR))
 	l.add_child(txt)
 	var b := botao("Trocar" if tem_atual else "Vestir", func(): acao_item({"acao": "equipar", "i": int(o.i)}), 14, true)
-	b.custom_minimum_size = Vector2(88, 38)
+	b.custom_minimum_size = Vector2(88, 44)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(b)
 	return l
