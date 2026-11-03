@@ -510,7 +510,7 @@ func guardar_grama(nome: String, buf: PackedFloat32Array) -> void:
 # pedacinho aparecia na tela. Agora vai em pedaços de 24 m, e cada pedaço só é desenhado perto (como a grama da mata)
 # e quando está na frente da câmera.
 const GRAMA_PEDACO := 24.0
-const GRAMA_ALCANCE := 75.0
+const GRAMA_ALCANCE := 92.0 # o pedaço some a 92 m do centro; cada folha some antes, encolhendo de 65 a 75 m (grama.gdshader)
 var grama_pedacos: Array = []
 func picar_grama(mm: MultiMesh, buf: PackedFloat32Array, inteira: MultiMeshInstance3D) -> void:
 	var grupos := {}
