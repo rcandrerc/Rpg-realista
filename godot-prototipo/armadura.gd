@@ -65,11 +65,38 @@ static var _soldas := {} # id da malha de origem -> malha soldada (sem costuras 
 static var _materiais := {}
 static var junta_peito := 1.1 # y da junta peito/barriga (medido no corpo em _ref)
 
+# ---------- frente do corpo ----------
+# André 2026-11-03: nos outros corpos do criador a capa ia para a frente e o capacete saía da cabeça. A Ruiva olha
+# para +z; os outros VRoid olham para -z (o pé aponta para trás no espaço do modelo). Tudo aqui é calculado num
+# espaço "canônico" (+z = frente, +x = esquerda do personagem): _F leva do modelo para ele e de volta (giro de 180
+# graus em volta de y), e _G() põe na frente certa as peças feitas nele e presas a ossos.
+static var _vira := false
+
+static func _orientar(esq: Skeleton3D) -> void:
+	var pe := esq.find_bone("J_Bip_L_Foot")
+	var dedo := esq.find_bone("J_Bip_L_ToeBase")
+	_vira = pe >= 0 and dedo >= 0 and esq.get_bone_global_rest(dedo).origin.z < esq.get_bone_global_rest(pe).origin.z
+
+static func _F(p: Vector3) -> Vector3:
+	return Vector3(-p.x, p.y, -p.z) if _vira else p
+
+static func _FA(V: PackedVector3Array) -> PackedVector3Array:
+	if not _vira:
+		return V
+	var o := PackedVector3Array(V)
+	for i in o.size():
+		o[i] = Vector3(-o[i].x, o[i].y, -o[i].z)
+	return o
+
+static func _G() -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO) if _vira else Transform3D.IDENTITY
+
 # ---------- vestir ----------
 static func vestir(raiz: Node3D, equip) -> void:
 	var esq: Skeleton3D = _esqueleto(raiz)
 	if esq == null:
 		return
+	_orientar(esq)
 	_cintura(raiz, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
 	var tem_capa := false
 	if equip is Dictionary and equip.get("capa") is Dictionary:
@@ -114,33 +141,108 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 	if esq == null:
 		return
 	var R := _ref(esq)
-	for trecho in ["Tops", "Bottoms"]:
+	# André 2026-11-03 (tarde): "o corpo tá muito reto, não tem cintura". Antes de tudo, o próprio corpo (pele,
+	# blusa e saia, igual nas três) ganha cintura fina e quadril: vale sempre, com ou sem armadura.
+	# só nos corpos femininos (os masculinos do criador, cabelo_m e fumiriya, não têm osso de busto)
+	var feminino := esq.find_bone("J_Sec_L_Bust1") >= 0
+	var formas := {}
+	for trecho in ["Body_00", "Tops", "Bottoms"]:
 		var mi := _fonte(raiz, trecho)
 		if mi == null or not (mi.mesh is ArrayMesh):
 			continue
 		if not mi.has_meta("malha_larga"):
 			mi.set_meta("malha_larga", mi.mesh)
 		var orig: ArrayMesh = mi.get_meta("malha_larga")
-		if not ativo:
-			if mi.mesh != orig:
-				var mo := []
-				for i in mi.get_surface_override_material_count():
-					mo.append(mi.get_surface_override_material(i))
-				mi.mesh = orig
-				for i in mini(mo.size(), mi.get_surface_override_material_count()):
-					mi.set_surface_override_material(i, mo[i])
+		if not feminino:
+			formas[trecho] = orig
 			continue
-		var chave := "cintura:%d" % orig.get_instance_id()
-		if not _malhas.has(chave):
-			var corpo := _fonte(raiz, "Body_00")
-			_malhas[chave] = _apertar_cintura(orig, R, 1.35 if trecho == "Bottoms" else 1.0, corpo.mesh if corpo else null)
-		if mi.mesh != _malhas[chave]:
-			var mats := []
-			for i in mi.get_surface_override_material_count():
-				mats.append(mi.get_surface_override_material(i))
-			mi.mesh = _malhas[chave]
-			for i in mini(mats.size(), mi.get_surface_override_material_count()):
-				mi.set_surface_override_material(i, mats[i])
+		var chave_f := "forma:%d" % orig.get_instance_id()
+		if not _malhas.has(chave_f):
+			_malhas[chave_f] = _forma_corpo(orig, R)
+		formas[trecho] = _malhas[chave_f]
+	for trecho in formas:
+		var mi := _fonte(raiz, trecho)
+		var alvo: ArrayMesh = formas[trecho]
+		if ativo and trecho != "Body_00":
+			var chave := "cintura:%d" % alvo.get_instance_id()
+			if not _malhas.has(chave):
+				_malhas[chave] = _apertar_cintura(alvo, R, 1.35 if trecho == "Bottoms" else 1.0, formas.get("Body_00"))
+			alvo = _malhas[chave]
+			if feminino:
+				var chave_c := "saia_curta:%d" % alvo.get_instance_id()
+				if not _malhas.has(chave_c):
+					_malhas[chave_c] = _saia_curta(alvo, R)
+				alvo = _malhas[chave_c]
+		_trocar_malha(mi, alvo)
+
+# direção de arte v9: nos outros corpos do criador a saia ou o vestido original é mais comprido que o saiote e
+# aparecia por baixo dele (duas roupas, uma sobre a outra). Com peitoral, o tecido abaixo do quadril fecha 10% para
+# dentro e não passa da altura da barra da saia da Ruiva (proporcional ao corpo); na Ruiva nada muda.
+static func _saia_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var barra := R.y_cintura - 0.25 * R.y_cintura / 0.998
+	var topo := R.y_cintura - 0.075
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		for i in V.size():
+			var p := V[i]
+			if p.y >= topo or absf(p.x) > 0.3 or p.y < R.y_pe + 0.05:
+				continue
+			var k := smoothstep(topo, topo - 0.06, p.y) * 0.1
+			var d := Vector2(p.x, p.z - 0.01) * (1.0 - k)
+			V[i] = Vector3(d.x, maxf(p.y, barra), d.y + 0.01)
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
+static func _trocar_malha(mi: MeshInstance3D, malha: Mesh) -> void:
+	if mi.mesh == malha:
+		return
+	var mats := []
+	for i in mi.get_surface_override_material_count():
+		mats.append(mi.get_surface_override_material(i))
+	mi.mesh = malha
+	for i in mini(mats.size(), mi.get_surface_override_material_count()):
+		mi.set_surface_override_material(i, mats[i])
+
+# fator de largura do corpo por altura: cintura fina (~5 cm acima do umbigo) e quadril um pouco mais largo.
+# Só depende da altura, então pele, blusa e saia apertam igual e uma camada nunca fura a outra.
+static func _fator_forma(y: float, R: Ref) -> Vector2: # (x, z)
+	var cint := _sino(absf(y - (R.y_cintura + 0.05)), 0.13)
+	var quad := _sino(absf(y - (R.y_cintura - 0.085)), 0.07)
+	return Vector2(1.0 - 0.38 * cint + 0.1 * quad, 1.0 - 0.18 * cint)
+
+static func _forma_corpo(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	am.blend_shape_mode = orig.blend_shape_mode
+	for i in orig.get_blend_shape_count():
+		am.add_blend_shape(orig.get_blend_shape_name(i))
+	var mexe := func(V: PackedVector3Array) -> PackedVector3Array:
+		V = _FA(V)
+		for i in V.size():
+			var p := V[i]
+			if absf(p.x) > 0.24 or p.y > R.y_cintura + 0.25 or p.y < R.y_cintura - 0.2: # braços (em T), peito e pernas ficam
+				continue
+			var k := _fator_forma(p.y, R)
+			V[i] = Vector3(p.x * k.x, p.y, 0.005 + (p.z - 0.005) * k.y)
+		return _FA(V)
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		arr[Mesh.ARRAY_VERTEX] = mexe.call(arr[Mesh.ARRAY_VERTEX])
+		var bs := orig.surface_get_blend_shape_arrays(sfc)
+		for j in bs.size():
+			var b: Array = bs[j]
+			if b.size() > Mesh.ARRAY_VERTEX and b[Mesh.ARRAY_VERTEX] is PackedVector3Array and am.blend_shape_mode == Mesh.BLEND_SHAPE_MODE_NORMALIZED:
+				b[Mesh.ARRAY_VERTEX] = mexe.call(b[Mesh.ARRAY_VERTEX])
+			bs[j] = b
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, bs, {}, orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
 
 # mais = aperta mais (o cós da saia aperta mais que a blusa, para ficar sempre por dentro dela)
 # fecha o saiote (e a saia de baixo) em volta do quadril: raio máximo = raio do alto + tan(17°) x descida
@@ -167,7 +269,7 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 	# contorno do corpo (pele) em fatias de 1 cm: a roupa apertada nunca entra na pele (furava em pontos pretos)
 	var fat := {} # fatia -> [x máx, z de trás, z da frente]
 	if corpo:
-		for p in corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		for p in _FA(corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]):
 			if absf(p.x) > 0.2:
 				continue
 			var q := int(round(p.y * 100.0))
@@ -179,7 +281,7 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
 		var arr := orig.surface_get_arrays(sfc)
-		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		for i in V.size():
 			var p := V[i]
 			if absf(p.x) > 0.2: # mangas (braço em T) ficam
@@ -211,7 +313,7 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 			V[i] = n
 		if mais > 1.0: # saia de baixo: fecha junto com o saiote (fica por dentro das lâminas)
 			V = _fechar_saia(V, R, -0.012)
-		arr[Mesh.ARRAY_VERTEX] = V
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
 		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
 		am.surface_set_material(sfc, orig.surface_get_material(sfc))
@@ -223,7 +325,8 @@ static func costas(esq: Skeleton3D, arma: Node3D, capa: bool) -> void:
 	var b := esq.find_bone("J_Bip_C_UpperChest")
 	if b < 0:
 		return
-	var v := esq.get_bone_global_rest(b).basis.inverse() * Vector3(0, 0.02, -0.09)
+	_orientar(esq)
+	var v := esq.get_bone_global_rest(b).basis.inverse() * _F(Vector3(0, 0.02, -0.09))
 	var agora: float = arma.get_meta("afastada", 0.0)
 	var quer := 1.0 if capa else 0.0
 	arma.position += v * (quer - agora)
@@ -237,11 +340,15 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 		if mi == null:
 			continue
 		var it = troca[trecho]
-		if it is Dictionary and PECAS.has(str(it.get("k", ""))):
-			var r := clampi(int(it.get("r", 0)), 0, 4)
-			mi.set_surface_override_material(0, _material_tecido(r))
-		else:
-			mi.set_surface_override_material(0, null)
+		# todas as partes da roupa (vestidos dos outros corpos têm várias): senão a estampa original aparecia
+		for sfc in mi.get_surface_override_material_count():
+			if "Outline" in mi.mesh.surface_get_name(sfc):
+				continue # contorno de desenho dos outros corpos fica escuro
+			if it is Dictionary and PECAS.has(str(it.get("k", ""))):
+				var r := clampi(int(it.get("r", 0)), 0, 4)
+				mi.set_surface_override_material(sfc, _material_tecido(r))
+			elif sfc == 0 or mi.get_surface_override_material(sfc) in _materiais.values():
+				mi.set_surface_override_material(sfc, null) # só tira o que a armadura pôs (a cor da aparência fica)
 	# gravata some com peitoral de aço (a gola metálica fica no lugar dela)
 	var gravata := _fonte(raiz, "Tie")
 	if gravata:
@@ -252,6 +359,7 @@ static func _material_tecido(r: int) -> Material:
 	var chave := "tecido:%d" % r
 	if not _materiais.has(chave):
 		var m := StandardMaterial3D.new()
+		m.set_meta("armadura", true) # a aparência (cor da roupa) não troca o tecido da armadura
 		m.albedo_color = ROUPA[r]
 		m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
@@ -343,6 +451,8 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			_montar_cinto(raiz, esq, no, r)
 			continue
 		var src := _fonte(raiz, REGIOES[parte].fonte)
+		if src == null and REGIOES[parte].fonte == "Bottoms":
+			src = _fonte(raiz, "Tops") # corpos de vestido (sem saia separada): o saiote nasce da barra do vestido
 		if src == null:
 			continue
 		var chave := "%d:%s" % [src.mesh.get_instance_id(), parte]
@@ -384,7 +494,7 @@ static func _ref(esq: Skeleton3D) -> Ref:
 	var r := Ref.new()
 	var p := func(n: String) -> Vector3:
 		var b := esq.find_bone(n)
-		return esq.get_bone_global_rest(b).origin if b >= 0 else Vector3.ZERO
+		return _F(esq.get_bone_global_rest(b).origin) if b >= 0 else Vector3.ZERO
 	r.y_cintura = p.call("J_Bip_C_Spine").y
 	r.y_pescoco = p.call("J_Bip_C_Neck").y
 	r.x_braco = p.call("J_Bip_L_UpperArm").x
@@ -502,13 +612,13 @@ static func _soldar(src: MeshInstance3D) -> Solda:
 		if mapa.has(q):
 			var j: int = mapa[q]
 			novo[i] = j
-			s.nor[j] += N[i]
+			s.nor[j] += _F(N[i])
 		else:
 			var j := s.pos.size()
 			mapa[q] = j
 			novo[i] = j
-			s.pos.append(V[i])
-			s.nor.append(N[i])
+			s.pos.append(_F(V[i]))
+			s.nor.append(_F(N[i]))
 			var d := {}
 			for k in nb:
 				var w := W[i * nb + k]
@@ -689,6 +799,15 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 	# borda dobrada para fora (aba enrolada)
 	for i in n:
 		pos[i] += nor[i] * 0.004 * _sino(dist[i], 0.012)
+	if parte == "peito":
+		# quina do esterno (capa do Aethra, direção de arte): a placa sobe ~7 mm numa linha vertical no meio da
+		# frente, do colarinho até a ponta do V, com um filete de friso dourado em cima dela
+		for i in n:
+			if pos[i].z <= 0.0 or pos[i].y > R.y_pescoco - 0.03:
+				continue
+			var ax := absf(pos[i].x)
+			pos[i] += nor[i] * 0.007 * _sino(ax, 0.03)
+			dist[i] = minf(dist[i], ax + 0.0065)
 	# 7) normais do resultado
 	var vn := PackedVector3Array()
 	vn.resize(n)
@@ -765,8 +884,8 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 				We.append(0.0)
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = V
-	arr[Mesh.ARRAY_NORMAL] = Nn
+	arr[Mesh.ARRAY_VERTEX] = _FA(V) # de volta ao espaço do modelo
+	arr[Mesh.ARRAY_NORMAL] = _FA(Nn)
 	arr[Mesh.ARRAY_TEX_UV2] = U2
 	arr[Mesh.ARRAY_BONES] = Bo
 	arr[Mesh.ARRAY_WEIGHTS] = We
@@ -816,18 +935,18 @@ static func _montar_cinto(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> 
 	mi.mesh = _malhas[chave][0]
 	mi.material_override = _material("cinto", r)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	mi.transform = rest.affine_inverse()
+	mi.transform = rest.affine_inverse() * _G()
 	ba.add_child(mi)
 	var fv := MeshInstance3D.new()
 	fv.mesh = _malhas[chave][1]
 	fv.material_override = _material("fecho", r)
-	fv.transform = rest.affine_inverse()
+	fv.transform = rest.affine_inverse() * _G()
 	ba.add_child(fv)
 
 static func _malha_cinto(tops: Mesh, R: Ref) -> Array:
 	var y1 := R.y_cintura + 0.07 # na parte mais fina da cintura, encostando na ponta do V (o osso fica no quadril)
 	var y0 := y1 - 0.03
-	var V: PackedVector3Array = tops.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var V: PackedVector3Array = _FA(tops.surface_get_arrays(0)[Mesh.ARRAY_VERTEX])
 	var zmin := 9.0
 	var zmax := -9.0
 	for p in V:
@@ -917,10 +1036,10 @@ static func _montar_ombreira(esq: Skeleton3D, no: Node3D, lado: float, mat: Stri
 	var R := _ref(esq)
 	var rest := esq.get_bone_global_rest(b)
 	# centro da cúpula: um pouco para fora e acima da junta do ombro (espaço do personagem em T)
-	var c := Vector3(lado * (R.x_braco + 0.035), R.y_braco + 0.008, rest.origin.z - 0.004)
+	var c := Vector3(lado * (R.x_braco + 0.035), R.y_braco + 0.008, _F(rest.origin).z - 0.004)
 	# direção de arte v7: 25% menores e inclinadas 10 graus para baixo, acompanhando o ombro (alargavam o tronco)
 	var giro := Basis(Vector3(0, 0, 1), -lado * deg_to_rad(10.0)).scaled(Vector3.ONE * 0.75)
-	mi.transform = rest.affine_inverse() * Transform3D(giro, c)
+	mi.transform = rest.affine_inverse() * _G() * Transform3D(giro, c)
 	ba.add_child(mi)
 
 # malha em volta do eixo x (o braço em T): lâmina de cima maior e uma menor embaixo, sobrepostas
@@ -989,7 +1108,7 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 	mi.material_override = _material("capa", r)
 	mi.extra_cull_margin = 0.6
 	# a malha foi feita no espaço do personagem em T; o osso em descanso leva para lá
-	mi.transform = esq.get_bone_global_rest(osso).affine_inverse()
+	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G()
 	ba.add_child(mi)
 	no.set_meta("capa_mi", mi)
 	# fechos dourados nos ombros
@@ -1004,7 +1123,7 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 		f.mesh = cil
 		f.material_override = _material("fecho", r)
 		var R := _ref(esq)
-		f.transform = esq.get_bone_global_rest(osso).affine_inverse() * Transform3D(Basis(Vector3.RIGHT, PI * 0.5).rotated(Vector3.UP, s * 0.5), Vector3(s * 0.085, R.y_pescoco - 0.035, 0.035))
+		f.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G() * Transform3D(Basis(Vector3.RIGHT, PI * 0.5).rotated(Vector3.UP, s * 0.5), Vector3(s * 0.085, R.y_pescoco - 0.035, 0.035))
 		ba.add_child(f)
 
 # costas do corpo na altura y: o z mais de trás da blusa (para a capa não atravessar)
@@ -1024,7 +1143,7 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 	var costas_q := -0.15
 	var quadril := esq.find_bone("J_Bip_C_Hips")
 	if quadril >= 0:
-		costas_q = esq.get_bone_global_rest(quadril).origin.z - 0.14 # nádegas ficam ~14 cm atrás do quadril
+		costas_q = _F(esq.get_bone_global_rest(quadril).origin).z - 0.14 # nádegas ficam ~14 cm atrás do quadril
 	var comp := topo_y - (R.y_joelho - 0.08) # até um pouco abaixo do joelho, como na capa do Aethra
 	var V := PackedVector3Array()
 	var Nn := PackedVector3Array()
@@ -1220,6 +1339,13 @@ static func _cabeca(raiz: Node3D) -> Cabeca:
 	var h := Cabeca.new()
 	if rosto:
 		var F: AABB = rosto.mesh.get_aabb()
+		# os outros corpos do criador têm a pele da cabeça em duas malhas (rosto e lados/nuca): o casco tem de
+		# cobrir as duas, senão a pele dos lados fura o capacete e a cabeça lê como careca
+		for mi in raiz.find_children("Face*", "MeshInstance3D", true, false):
+			if mi != rosto and mi.mesh is ArrayMesh and mi.mesh.get_surface_count() > 0 and "Face_00_SKIN" in mi.mesh.surface_get_name(0):
+				F = F.merge(mi.mesh.get_aabb())
+		if _vira: # caixa do rosto no espaço canônico
+			F = AABB(Vector3(-F.end.x, F.position.y, -F.end.z), F.size)
 		var H := F.size.y
 		var base := F.position.y
 		var frente := F.end.z
@@ -1267,7 +1393,7 @@ static func _montar_elmo(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String,
 	mi.mesh = _malhas[chave]
 	mi.material_override = _material(mat, r)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() # malha feita no espaço do personagem em T
+	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G() # malha feita no espaço do personagem em T
 	ba.add_child(mi)
 	# anel na nuca por onde o cabelo de trás sai (couro no Comum, friso nos outros)
 	_achar_rabo(h, _malha_cabelo(raiz))
@@ -1281,7 +1407,7 @@ static func _montar_elmo(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String,
 		anel.mesh = tor
 		anel.material_override = _material("fecho" if mat == "elmo" else "couro", r)
 		anel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		anel.transform = esq.get_bone_global_rest(osso).affine_inverse() * Transform3D(Basis(), h.rabo)
+		anel.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G() * Transform3D(Basis(), h.rabo)
 		ba.add_child(anel)
 
 static func _malha_elmo(h: Cabeca) -> ArrayMesh:
@@ -1375,7 +1501,7 @@ static func _achar_rabo(h: Cabeca, malha: Mesh) -> void:
 	var soma := Vector3.ZERO
 	var n := 0
 	for sfc in malha.get_surface_count():
-		var V: PackedVector3Array = malha.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]
+		var V: PackedVector3Array = _FA(malha.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX])
 		for p in V:
 			var d := p - h.c
 			if absf(p.y - (h.nuca - 0.03)) < 0.015 and d.z < -h.raio.z * 0.25 and absf(d.x) < 0.08:
@@ -1405,7 +1531,7 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca, cabeca := -1) -> ArrayMesh:
 	var dentro := h.raio * 0.93 # bem para dentro do casco: nenhum fio aparece por cima
 	for sfc in orig.get_surface_count():
 		var arr := orig.surface_get_arrays(sfc)
-		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var B = arr[Mesh.ARRAY_BONES]
 		var W = arr[Mesh.ARRAY_WEIGHTS]
 		var nb: int = (B.size() / V.size()) if B != null and V.size() > 0 else 0
@@ -1452,7 +1578,7 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca, cabeca := -1) -> ArrayMesh:
 			var w := cobre # tudo o que está na altura do casco entra; o rabo de cavalo sai por baixo da borda da nuca
 			var alvo := h.c + Vector3(d.x, maxf(0.0, d.y), d.z) / f + Vector3(0, minf(0.0, d.y), 0)
 			V[i] = p.lerp(alvo, w)
-		arr[Mesh.ARRAY_VERTEX] = V
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
 		if cabeca >= 0 and nb > 0:
 			arr[Mesh.ARRAY_BONES] = B
 			arr[Mesh.ARRAY_WEIGHTS] = W

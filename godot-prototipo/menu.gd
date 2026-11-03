@@ -1179,6 +1179,7 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
 
 func montar_mochila() -> void:
 	var P = m.P
+	montar_capacete() # André não achava lá embaixo, depois da mochila: agora fica no alto da aba
 	var topo := HBoxContainer.new()
 	topo.add_child(linha_ouro())
 	var esp_ := Control.new()
@@ -1233,7 +1234,6 @@ func montar_mochila() -> void:
 		var d := rotulo("Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar.", 12, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
-	montar_capacete()
 	montar_conjunto()
 
 # André 2026-11-03: mostrar ou esconder o capacete (só a aparência; a peça continua equipada e dando o bônus)
