@@ -1509,6 +1509,8 @@ func _process(dt: float) -> void:
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
+	cam.zoom(hud.zoom_cam) # dois dedos (pinça) ou roda do mouse
+	hud.zoom_cam = 1.0
 	cam.atualizar(min(dt_real, 0.1), g)
 	folhagem_na_frente(dt_real)
 	# HUD

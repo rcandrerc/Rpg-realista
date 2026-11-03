@@ -1,6 +1,8 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "Zoom da câmera com dois dedos (pinça) e roda do mouse (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["var zoom_cam := 1.0", "func _dist_pinca("] },
+    { "nome": "Câmera aplica o zoom entre DIST_MIN e DIST_MAX", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["func zoom(fator: float)", "const DIST_MAX"] },
     { "nome": "Atualização dentro do app: abertura baixa o pacote novo e carrega (André 2026-11-03)", "arquivo": "godot-prototipo/inicio.gd", "contem": ["ProjectSettings.load_resource_pack(", "const MANIFESTO", "func _pacote_valido("] },
     { "nome": "App abre pela tela de atualização", "arquivo": "godot-prototipo/project.godot", "contem": ["run/main_scene=\"res://inicio.tscn\""] },
     { "nome": "CI gera o pacote de atualização do app", "arquivo": ".github/workflows/apk.yml", "contem": ["atualizacao/base=", "ferramentas/atualizacao/publicar.sh", "--export-pack Android"] },
