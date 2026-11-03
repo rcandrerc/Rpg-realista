@@ -1501,9 +1501,9 @@ func _voltas_passo(dt: float) -> void:
 		circulo_definir(v.b, v.cb, f * 0.8)
 		# coluna de luz: só no último terço, crescendo até o fim
 		var k_col: float = smoothstep(0.62, 1.0, u)
-		v.col.scale = Vector3(0.55 + 0.25 * k_col, 1.0 + 7.0 * k_col, 0.55 + 0.25 * k_col)
+		v.col.scale = Vector3(0.45 + 0.2 * k_col, 1.0 + 7.0 * k_col, 0.45 + 0.2 * k_col)
 		v.col.position.y = v.col.scale.y * 0.5
-		v.col.material_override.set_shader_parameter("op", f * k_col * 0.55)
+		v.col.material_override.set_shader_parameter("op", f * k_col * 0.4)
 		if v.vivo:
 			v.luz.int = 0.4 + 2.2 * u + sin(v.t * 6.0) * 0.15
 			v.luz.l.global_position = Vector3(p.x, p.y + 1.0, p.z)
