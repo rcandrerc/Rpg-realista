@@ -122,6 +122,8 @@
     { "nome": "Animações novas das magias do cajado", "arquivo": "shared/dados.js", "contem": ["mg_basico_d: 1.2", "magiaD: ['mg_basico_d'", "bolaForte: ['mg_bola'", "novaGelo: ['mg_gelo'", "meteoroCeu: ['mg_meteoro'"] },
     { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] },
     { "nome": "Minimapa no canto de cima à direita; tocar abre o mapa completo (André 2026-11-03)", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func abrir() -> void:", "func _desenhar_mini() -> void:", "func _desenhar_grande() -> void:", "func cobre(p: Vector2) -> bool:"] },
+    { "nome": "Minimapa no canto de cima à direita e o menu do topo à esquerda dele: o minimapa não encosta nas skills (André 2026-11-03)", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["const MARGEM := Vector2(16, 21)"] },
+    { "nome": "Menu do topo à esquerda do minimapa (André 2026-11-03)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["const MARGEM := Vector2(176, 70)"] },
     { "nome": "Minimapa entra no jogo e o toque nele não vira câmera", "arquivo": "godot-prototipo/main.gd", "contem": ["minimapa = Minimapa.new(self)", "hud.minimapa = minimapa"] },
     { "nome": "Desenho do minimapa (gerado no build)", "arquivo": "client/exportar-godot/gerar-modelos.mjs", "contem": ["gravar('minimapa.png', mini);"] },
     { "nome": "Mata com estrada tortuosa e 10 clareiras de caça, um bicho por clareira + 1 Imp Chefe (André 2026-11-03)", "arquivo": "shared/dados.js", "contem": ["const ESTRADA = [", "const CLAREIRAS = [", "tipos: [...Array(10).fill(c.tipo), 'chefe']", "function sortearMata()", "export const NIVEL_INIMIGO"] },

@@ -2615,7 +2615,7 @@ func montar_teste() -> void:
 	rotulo.anchor_right = 1.0
 	rotulo.offset_left = -500
 	rotulo.offset_right = -176 # à esquerda do minimapa (minimapa.gd)
-	rotulo.offset_top = 124 # abaixo do botão Teste (o menu do topo fica no canto)
+	rotulo.offset_top = 182 # abaixo do botão Teste (o menu do topo fica no canto)
 	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tela.add_child(rotulo)
 	botao_teste = Button.new()
@@ -2625,8 +2625,8 @@ func montar_teste() -> void:
 	botao_teste.anchor_right = 1.0
 	botao_teste.offset_left = -272
 	botao_teste.offset_right = -176 # à esquerda do minimapa
-	botao_teste.offset_top = 72 # abaixo do menu do topo
-	botao_teste.offset_bottom = 114
+	botao_teste.offset_top = 130 # abaixo do menu do topo (que fica na altura do centro do minimapa)
+	botao_teste.offset_bottom = 172
 	botao_teste.pressed.connect(comecar_teste)
 	tela.add_child(botao_teste)
 	etapas = [
