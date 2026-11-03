@@ -441,10 +441,13 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 
 # Árvores da mata (mundo.mata, as mesmas do servidor): o vila.glb traz um modelo de cada (mata_tronco_v e mata_copa_v,
 # na origem) e aqui elas viram MultiMesh por pedaços de 32 m, desenhados até 80 m (a neblina esconde o resto).
-# Cada árvore num verde um pouco diferente, como no site. Colisão: andar.gd (perto_na_mata).
+# Direção de arte (nada de pomar): cada árvore gira, inclina até 5°, fica um pouco mais alta ou mais larga e a copa
+# varia de tom (±8% de valor). O sorteio sai da posição, então é sempre o mesmo. Colisão: andar.gd (perto_na_mata).
 const MATA_PEDACO := 32.0
-var copas_mata := {} # posição da árvore -> [MultiMesh, índice, cor, tamanho]: a copa que tapa o herói fica vazada
-var _copas_vazadas: Array = []
+const MATA_FADE := 0.15 # s para a árvore inteira sumir (ou voltar) quando tapa a câmera
+var arvores_mata := {} # posição -> {t: Transform3D, tronco: [MultiMesh, i], copa: [MultiMesh, i, cor], s}
+var _sumindo := {} # posição -> {no: Node3D (cópia com alfa), k: 0..1 (1 = some), quer: 0 ou 1, mats: []}
+var _malhas_mata := {} # "tronco_v" / "copa_v" -> Mesh
 func montar_mata(vila: Node3D) -> void:
 	var modelos := {}
 	for mi in vila.find_children("mata_*", "MeshInstance3D", true, false):
@@ -461,46 +464,56 @@ func montar_mata(vila: Node3D) -> void:
 			pedacos[k] = []
 		pedacos[k].append(a)
 	var mats := {}
+	var rng := RandomNumberGenerator.new()
 	for k in pedacos:
+		var lista: Array = pedacos[k]
+		var mms := {}
 		for parte in ["tronco", "copa"]:
 			var mesh: Mesh = modelos.get("mata_%s_%d" % [parte, k.z])
 			if mesh == null:
 				continue
-			var lista: Array = pedacos[k]
+			_malhas_mata["%s_%d" % [parte, k.z]] = mesh
 			var mm := MultiMesh.new()
 			mm.transform_format = MultiMesh.TRANSFORM_3D
 			mm.use_colors = parte == "copa"
 			mm.mesh = mesh
 			mm.instance_count = lista.size()
-			for i in lista.size():
-				var a: Dictionary = lista[i]
-				var b := Basis(Vector3.UP, float(a.ry)).scaled(Vector3.ONE * float(a.s))
-				mm.set_instance_transform(i, Transform3D(b, Vector3(float(a.x), 0, float(a.z))))
-				if parte == "copa":
-					var j := i + int(a.x * 7.0)
-					var cor := hsl(0.22 + (j % 5) * 0.012, 0.35, 0.62 + (j % 3) * 0.06)
-					mm.set_instance_color(i, cor)
-					copas_mata[Vector2(float(a.x), float(a.z))] = [mm, i, cor, float(a.s)]
+			mms[parte] = mm
 			var g := MultiMeshInstance3D.new()
 			g.multimesh = mm
 			g.visibility_range_end = 80.0
 			g.visibility_range_end_margin = 6.0
 			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-			# copa: o verde de cada árvore multiplica a cor da folha. Tronco: some em pontilhado quando a câmera encosta
-			# nele (na beira da clareira a câmera fica entre as árvores e um tronco tapava metade da tela)
 			var base = mesh.surface_get_material(0)
-			if base is BaseMaterial3D:
+			if base is BaseMaterial3D and parte == "copa": # o verde de cada árvore multiplica a cor da folha
 				if not mats.has(base):
 					var mt: BaseMaterial3D = base.duplicate()
-					if parte == "copa":
-						mt.vertex_color_use_as_albedo = true
-					else:
-						mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
-						mt.distance_fade_min_distance = 1.2
-						mt.distance_fade_max_distance = 3.2
+					mt.vertex_color_use_as_albedo = true
+					mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED # sem pontilhado: quem some é a árvore inteira
 					mats[base] = mt
 				g.material_override = mats[base]
 			add_child(g)
+		for i in lista.size():
+			var a: Dictionary = lista[i]
+			var pos := Vector2(float(a.x), float(a.z))
+			rng.seed = hash(pos)
+			var sc := float(a.s)
+			var eixo := Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized()
+			var b := Basis(eixo, deg_to_rad(rng.randf_range(-5.0, 5.0))) * Basis(Vector3.UP, float(a.ry))
+			b = b.scaled(Vector3(sc * rng.randf_range(0.9, 1.1), sc * rng.randf_range(0.88, 1.15), sc * rng.randf_range(0.9, 1.1)))
+			var t := Transform3D(b, Vector3(pos.x, 0, pos.y))
+			var info := {"t": t, "s": sc, "v": int(a.v)}
+			if mms.has("tronco"):
+				mms.tronco.set_instance_transform(i, t)
+				info.tronco = [mms.tronco, i]
+			if mms.has("copa"):
+				var j := i + int(a.x * 7.0)
+				var cor := hsl(0.22 + (j % 5) * 0.012, 0.35, 0.62 + (j % 3) * 0.06)
+				cor = Color.from_hsv(cor.h, cor.s, clamp(cor.v * rng.randf_range(0.92, 1.08), 0.0, 1.0))
+				mms.copa.set_instance_transform(i, t)
+				mms.copa.set_instance_color(i, cor)
+				info.copa = [mms.copa, i, cor]
+			arvores_mata[pos] = info
 
 # ---------- personagens ----------
 func modelo(id: String) -> Node3D:
@@ -1081,7 +1094,7 @@ func achar_troncos(raiz: Node) -> void:
 func folhagem_na_frente(dt: float) -> void:
 	if camera == null or heroi == null:
 		return
-	copas_da_mata_na_frente()
+	copas_da_mata_na_frente(dt)
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
 	for f in folhas:
@@ -1116,10 +1129,11 @@ func folhagem_na_frente(dt: float) -> void:
 		else:
 			mi.material_override = null
 
-# Mata: a copa entre a câmera e o herói fica vazada (a cor da cópia leva alfa baixo e o recorte da folha some com
-# quase tudo), como as copas da vila. Confere só as árvores da grade perto da câmera, do herói e do meio do caminho.
-func copas_da_mata_na_frente() -> void:
-	if copas_mata.is_empty():
+# Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
+# (tronco, galhos e copa) num fade de 0,15 s, sem pontilhado: a cópia dela no MultiMesh encolhe para zero e no lugar
+# entra uma cópia solta com alfa de verdade, que apaga; quando sai da frente, a cópia volta e a do MultiMesh também.
+func copas_da_mata_na_frente(dt := 0.016) -> void:
+	if arvores_mata.is_empty():
 		return
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
@@ -1127,23 +1141,65 @@ func copas_da_mata_na_frente() -> void:
 	for p in [a, (a + b) * 0.5, b]:
 		for k in mov.perto_na_mata(p.x, p.z):
 			vistas[Vector2(k.x, k.z)] = true
-	var agora: Array = []
+	var tapam := {}
 	for pos in vistas:
-		var c = copas_mata.get(pos)
+		var c = arvores_mata.get(pos)
 		if c == null:
 			continue
-		var s: float = c[3]
+		var s: float = c.s
+		var perto_cam: bool = Vector2(a.x, a.z).distance_to(pos) < 2.5 + 0.32 * s
 		var centro := Vector3(pos.x, 3.6 * s, pos.y)
-		var mais := Geometry3D.get_closest_point_to_segment(centro, a, b)
-		if mais.distance_to(centro) < 2.7 * s:
-			agora.append(c)
-	for c in _copas_vazadas:
-		if not c in agora:
-			c[0].set_instance_color(c[1], c[2])
-	for c in agora:
-		if not c in _copas_vazadas:
-			c[0].set_instance_color(c[1], Color(c[2], 0.18))
-	_copas_vazadas = agora
+		var na_frente: bool = Geometry3D.get_closest_point_to_segment(centro, a, b).distance_to(centro) < 2.7 * s
+		var tronco: bool = Geometry3D.get_closest_point_to_segment(Vector3(pos.x, min(a.y, 2.0), pos.y), a, b).distance_to(Vector3(pos.x, min(a.y, 2.0), pos.y)) < 0.5 * s + 0.3
+		if perto_cam or na_frente or tronco:
+			tapam[pos] = true
+	for pos in tapam:
+		if not _sumindo.has(pos):
+			_sumir_arvore(pos)
+		_sumindo[pos].quer = 1.0
+	for pos in _sumindo.keys():
+		var f: Dictionary = _sumindo[pos]
+		if not tapam.has(pos):
+			f.quer = 0.0
+		f.k = move_toward(f.k, f.quer, dt / MATA_FADE)
+		for m in f.mats:
+			m.albedo_color.a = (1.0 - f.k) * float(m.get_meta("alfa", 1.0))
+		if f.k <= 0.0 and f.quer == 0.0:
+			_voltar_arvore(pos)
+
+func _sumir_arvore(pos: Vector2) -> void:
+	var c: Dictionary = arvores_mata[pos]
+	var no := Node3D.new()
+	no.transform = c.t
+	add_child(no)
+	var mats: Array = []
+	for parte in ["tronco", "copa"]:
+		if not c.has(parte):
+			continue
+		var mesh: Mesh = _malhas_mata.get("%s_%d" % [parte, c.v])
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var mt: BaseMaterial3D = (mesh.surface_get_material(0) as BaseMaterial3D).duplicate()
+		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+		if parte == "copa":
+			mt.albedo_color = mt.albedo_color * c.copa[2]
+		mt.set_meta("alfa", mt.albedo_color.a)
+		mi.material_override = mt
+		mats.append(mt)
+		no.add_child(mi)
+		var mm: MultiMesh = c[parte][0]
+		mm.set_instance_transform(c[parte][1], Transform3D(Basis().scaled(Vector3.ZERO), c.t.origin))
+	_sumindo[pos] = {"no": no, "k": 0.0, "quer": 1.0, "mats": mats}
+
+func _voltar_arvore(pos: Vector2) -> void:
+	var c: Dictionary = arvores_mata[pos]
+	for parte in ["tronco", "copa"]:
+		if c.has(parte):
+			c[parte][0].set_instance_transform(c[parte][1], c.t)
+	_sumindo[pos].no.queue_free()
+	_sumindo.erase(pos)
 
 # câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
 func lenta(seg: float, k: float) -> void:

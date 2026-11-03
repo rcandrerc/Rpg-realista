@@ -395,7 +395,12 @@ function sortearMata() {
     if (dc < CLAREIRA_R + 1.5) continue; // a área de combate fica limpa
     const anel = dc < CLAREIRA_R + 5, esp = anel ? 2.7 : dentro ? 5.4 : 3.3;
     if (!livre(x, z, esp)) continue;
-    const a = { x: +x.toFixed(2), z: +z.toFixed(2), s: +(dentro && !anel ? rnd(0.85, 1.3) : rnd(1, 1.45)).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: lista.length % 3 };
+    // direção de arte: nada de pomar. Tamanho de 0,7 a 1,4, modelo ao acaso e a posição ainda sai até 40% do espaço
+    // para o lado (a grade de espaço usa a posição sorteada; o tremido só vale se não cair na estrada nem na clareira)
+    let jx = x + rnd(-0.4, 0.4) * esp, jz = z + rnd(-0.4, 0.4) * esp;
+    if (pertoDaLinha(ESTRADA, jx, jz).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, jx, jz).d < 2.2)
+      || Math.min(...CLAREIRAS.map((c) => Math.hypot(jx - c.x, jz - c.z))) < CLAREIRA_R + 1.5) { jx = x; jz = z; }
+    const a = { x: +jx.toFixed(2), z: +jz.toFixed(2), s: +(dentro && !anel ? rnd(0.7, 1.4) : rnd(0.9, 1.4)).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)) };
     lista.push(a);
     const k = chave(Math.floor(x / cel), Math.floor(z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a);
   }
