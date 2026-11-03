@@ -904,6 +904,8 @@ class Cabeca:
 	var testa := 1.517 # borda da frente (logo acima das sobrancelhas)
 	var bochecha := 1.45
 	var nuca := 1.44
+	var rabo := Vector3.ZERO # onde o cabelo de trás sai do casco (anel na nuca)
+	var tem_rabo := false
 
 static var _cab_cache := {}
 static func _cabeca(raiz: Node3D) -> Cabeca:
@@ -964,6 +966,20 @@ static func _montar_elmo(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String,
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() # malha feita no espaço do personagem em T
 	ba.add_child(mi)
+	# anel na nuca por onde o cabelo de trás sai (couro no Comum, friso nos outros)
+	_achar_rabo(h, _malha_cabelo(raiz))
+	if h.tem_rabo:
+		var anel := MeshInstance3D.new()
+		var tor := TorusMesh.new()
+		tor.inner_radius = 0.021
+		tor.outer_radius = 0.032
+		tor.rings = 24
+		tor.ring_segments = 10
+		anel.mesh = tor
+		anel.material_override = _material("fecho" if mat == "elmo" else "couro", r)
+		anel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		anel.transform = esq.get_bone_global_rest(osso).affine_inverse() * Transform3D(Basis(), h.rabo)
+		ba.add_child(anel)
 
 static func _malha_elmo(h: Cabeca) -> ArrayMesh:
 	var NA := 48
@@ -1032,9 +1048,36 @@ static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
 			_malhas[chave] = _cabelo_apertado(orig, _cabeca(raiz))
 		mi.mesh = _malhas[chave]
 
+static func _malha_cabelo(raiz: Node3D) -> Mesh:
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or str(mi.name).begins_with("Armadura"):
+			continue
+		var nome: String = str(mi.name) + mi.mesh.surface_get_name(0)
+		if "Hair" in nome or "HAIR" in nome:
+			return mi.get_meta("malha_original") if mi.has_meta("malha_original") else mi.mesh
+	return null
+
+# centro do cabelo que cai atrás da nuca, logo abaixo da borda do casco: ali fica o anel por onde ele sai
+static func _achar_rabo(h: Cabeca, malha: Mesh) -> void:
+	if h.tem_rabo or malha == null:
+		return
+	var soma := Vector3.ZERO
+	var n := 0
+	for sfc in malha.get_surface_count():
+		var V: PackedVector3Array = malha.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]
+		for p in V:
+			var d := p - h.c
+			if absf(p.y - (h.nuca - 0.03)) < 0.015 and d.z < -h.raio.z * 0.25 and absf(d.x) < 0.08:
+				soma += p
+				n += 1
+	if n >= 6:
+		h.rabo = soma / n
+		h.tem_rabo = true
+
 static func _cabelo_apertado(orig: Mesh, h: Cabeca) -> ArrayMesh:
+	_achar_rabo(h, orig)
 	var am := ArrayMesh.new()
-	var dentro := h.raio * 0.95
+	var dentro := h.raio * 0.93 # bem para dentro do casco: nenhum fio aparece por cima
 	for sfc in orig.get_surface_count():
 		var arr := orig.surface_get_arrays(sfc)
 		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
@@ -1044,6 +1087,14 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca) -> ArrayMesh:
 			var a := atan2(d.x, d.z)
 			var e := _borda_elmo(h, a)
 			var cobre := smoothstep(e - 0.03, e + 0.005, p.y) # só o que fica dentro do casco
+			if h.tem_rabo and d.z < 0.0 and p.y < e + 0.01:
+				# o cabelo de trás junta num rabo redondo que passa pelo anel (raio 2,5 cm), logo abaixo da borda
+				var aperta := 1.0 - smoothstep(0.0, 0.07, absf(p.y - h.rabo.y))
+				var lado := Vector2(p.x - h.rabo.x, p.z - h.rabo.z)
+				if aperta > 0.0 and lado.length() > 0.022:
+					var novo := lado.normalized() * lerpf(lado.length(), 0.022, aperta)
+					p = Vector3(h.rabo.x + novo.x, p.y, h.rabo.z + novo.y)
+					V[i] = p
 			if cobre <= 0.0:
 				continue
 			# raio "do casco" naquele ponto (parede reta embaixo do centro, cúpula em cima)
@@ -1051,7 +1102,7 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca) -> ArrayMesh:
 			var f := q.length()
 			if f <= 1.0:
 				continue
-			var w := cobre * (1.0 - smoothstep(1.45, 1.9, f)) # rabo de cavalo (longe) fica onde está
+			var w := cobre # tudo o que está na altura do casco entra; o rabo de cavalo sai por baixo da borda da nuca
 			var alvo := h.c + Vector3(d.x, maxf(0.0, d.y), d.z) / f + Vector3(0, minf(0.0, d.y), 0)
 			V[i] = p.lerp(alvo, w)
 		arr[Mesh.ARRAY_VERTEX] = V
