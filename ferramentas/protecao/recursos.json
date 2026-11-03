@@ -149,6 +149,10 @@
     { "nome": "Mochila com páginas de 10 x 4, compradas com ouro (servidor)", "arquivo": "shared/simulacao.js", "contem": ["m.acao === 'pagina'", "liberarPaginas(j.prog, MOCHILA_PAGINAS)", "i < p.mochila.length"] },
     { "nome": "Mochila: páginas e nenhum item perdido na conta", "arquivo": "shared/progresso.js", "contem": ["export function liberarPaginas(p, n)", "n.paginas = int(p.paginas, 1, MOCHILA_PAGINAS, 1)", "nunca joga item fora"] },
     { "nome": "Mochila: abas de página e compra no menu do app", "arquivo": "godot-prototipo/menu.gd", "contem": ["g.columns = 10", "func pagina_trancada(n: int, tem: int) -> Control:", "func trocar_pagina(n: int) -> void:"] },
-    { "nome": "Conta de teste do André com as 4 páginas", "arquivo": "server/contas.js", "contem": ["const TESTADORES", "testador: testador(c.email)"] }
+    { "nome": "Conta de teste do André com as 4 páginas", "arquivo": "server/contas.js", "contem": ["const TESTADORES", "testador: testador(c.email)"] },
+    { "nome": "Ir para do mapa: o herói anda sozinho sempre pela estrada, o joystick cancela (André 2026-11-03)", "arquivo": "godot-prototipo/rota.gd", "contem": ["func planejar(alvo: Vector2) -> PackedVector2Array:", "func direcao_auto() -> Vector3:", "m.hud.mover.length() > 0.15"] },
+    { "nome": "Ir para do mapa: marcar lugar e botão no mapa completo", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func _toque_no_mapa(pos: Vector2) -> void:", "\"Ir para\"", "m.rota.ir(r)"] },
+    { "nome": "Ir para do mapa: rota vira o joystick", "arquivo": "godot-prototipo/main.gd", "contem": ["return rota.direcao_auto()"] },
+    { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] }
   ]
 }

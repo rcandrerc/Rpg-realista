@@ -25,6 +25,7 @@ const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Minimapa = preload("res://minimapa.gd")
+const Rota = preload("res://rota.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -84,6 +85,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
+var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
@@ -206,6 +208,8 @@ func _ready() -> void:
 	add_child(menu)
 	conversa = Conversa.new(self)
 	add_child(conversa)
+	rota = Rota.new(self)
+	add_child(rota)
 	hud.tocou.connect(conversa.tocou_tela)
 	hud.tocou.connect(tocou_inimigo) # tocar num monstro: vira o alvo travado do mago
 	criador = Criador.new(self)
@@ -1906,6 +1910,8 @@ func direcao_joystick() -> Vector3:
 	if m.length() < 0.15:
 		if conversa and conversa.indo != null: # tocou num NPC longe: vai até ele
 			return conversa.direcao_auto()
+		if rota and rota.ativo: # "Ir para" do mapa: vai pela estrada
+			return rota.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
