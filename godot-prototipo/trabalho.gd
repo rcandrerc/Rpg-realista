@@ -589,7 +589,7 @@ func _segurar_ferramenta(prof: String) -> void:
 	var f: Node3D = ferramentas.get(prof)
 	if f == null:
 		return
-	var L: Dictionary = m.armas_lugar.ruiva
+	var L: Dictionary = m.lugar_armas()
 	m.armar("Escalada") # as duas armas nas costas
 	m.prender(m.heroi_esq, f, L.espadaMao)
 	f.visible = true

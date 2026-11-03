@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -86,7 +86,7 @@ export class Simulacao {
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
       fila: null, modo: 'Espada', missoes: {}, falas: {}, sta: 0, staT: 0, semFolego: false, seguida: { k: 1, t: -9 }, combateAte: 0, ciente: false, coleta: null, coletas: {}, pulos: 0, puloT: 9, mortal: 0, pouso: 0, empurra: 0, bloqueado: false, arrancada: null, arrancadaNoAr: false, combos: {},
-      visual: PERSONAGENS.some((p) => p.id === visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
+      visual: visualValido(visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.prog = progressoValido(progresso);
     this.aplicarStatus(j, true);
@@ -132,7 +132,7 @@ export class Simulacao {
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
   trocarVisual(id, visual) {
     const j = this.jogadores.get(id);
-    if (j?.criando && PERSONAGENS.some((p) => p.id === visual)) j.visual = visual;
+    if (j?.criando && visualValido(visual)) j.visual = visual;
   }
   // Criando o personagem (no palco, fora do mapa): ninguém vê, nenhum inimigo persegue, não leva dano e não age.
   // Só entra quem ainda não criou o personagem; sair é sempre permitido.
@@ -146,18 +146,25 @@ export class Simulacao {
   definirAparencia(id, a) {
     const j = this.jogadores.get(id); if (j?.criando) j.aparencia = aparenciaValida(a);
   }
-  // Aparência mudada depois de criado (fora do criador): cores, altura e rosto. Nome e corpo não mudam.
+  // Aparência mudada depois de criado (fora do criador): cores, altura e rosto. O nome não muda.
   mudarAparencia(id, a) {
     const j = this.jogadores.get(id); if (!j || j.criando) return null;
     const ap = aparenciaValida(a); if (!ap) return null;
     j.aparencia = ap;
     return ap;
   }
+  // Corpo trocado depois de criado (criador do app Godot, pedido do André 2026-11-03): só os corpos da lista.
+  // Devolve o corpo novo (para gravar na conta) ou null.
+  mudarVisual(id, v) {
+    const j = this.jogadores.get(id); if (!j || j.criando || !visualValido(v)) return null;
+    j.visual = v;
+    return v;
+  }
   // "Pronto" no criador: grava nome, corpo e aparência de vez. Devolve o que valeu (para salvar na conta) ou null.
   concluirCriacao(id, p) {
     const j = this.jogadores.get(id); if (!j?.criando || !j.podeCriar) return null;
     const nome = nomeValido(p?.nome); if (!nome) return null;
-    if (PERSONAGENS.some((q) => q.id === p.visual)) j.visual = p.visual;
+    if (visualValido(p.visual)) j.visual = p.visual;
     j.aparencia = aparenciaValida(p.aparencia);
     j.nome = nome; j.podeCriar = false; j.criando = false;
     return { nome, visual: j.visual, aparencia: j.aparencia };

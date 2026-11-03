@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { PERSONAGENS, buildValida, aparenciaValida, progressoValido } from '@rpg/shared';
+import { PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido } from '@rpg/shared';
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
@@ -64,6 +64,7 @@ export class Contas {
       limpar: this.db.prepare('DELETE FROM sessoes WHERE expira < ?'),
       personagem: this.db.prepare('UPDATE contas SET nome = ?, visual = ?, aparencia = ? WHERE id = ? AND visual IS NULL'),
       aparencia: this.db.prepare('UPDATE contas SET aparencia = ? WHERE id = ? AND visual IS NOT NULL'),
+      visual: this.db.prepare('UPDATE contas SET visual = ? WHERE id = ? AND visual IS NOT NULL'),
       apagarSessoes: this.db.prepare('DELETE FROM sessoes WHERE conta = ?'),
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
@@ -114,10 +115,12 @@ export class Contas {
 
   // Personagem criado (uma vez só: depois que a conta tem visual, não muda mais)
   salvarPersonagem(id, { nome, visual, aparencia }) {
-    if (PERSONAGENS.some((p) => p.id === visual)) this.q.personagem.run(nome, visual, JSON.stringify(aparencia), id);
+    if (visualValido(visual)) this.q.personagem.run(nome, visual, JSON.stringify(aparencia), id);
   }
   // Aparência mudada depois de criado (só cores, altura e rosto)
   salvarAparencia(id, aparencia) { this.q.aparencia.run(JSON.stringify(aparencia), id); }
+  // Corpo trocado depois de criado (só os da lista: visualValido)
+  salvarVisual(id, visual) { if (visualValido(visual)) this.q.visual.run(visual, id); }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); }
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
