@@ -29,6 +29,9 @@
     { "nome": "Combate no servidor: preparo, vez de bater, firme e contra-ataque (pacote A)", "arquivo": "shared/simulacao.js", "contem": ["t: 'preparo'", "t: 'esquiva'", "t: 'firme'", "contraAte"] },
     { "nome": "Câmera nunca vira primeira pessoa (André 2026-11-02)", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["const DIST_MIN"] },
     { "nome": "Borda vermelha ao apanhar e com vida baixa (pacote A)", "arquivo": "godot-prototipo/hud.gd", "contem": ["func levou_dano()", "func _borda_dano()"] },
+    { "nome": "3 velocidades: joystick anda e trota; botão Disparada liga a corrida que gasta estamina e desliga sem fôlego (André 2026-11-03)", "arquivo": "godot-prototipo/andar.gd", "contem": ["var disparada := false", "const TROTE := CORRIDA * 0.7", "return lerp(ANDAR, TROTE, smoothstep(0.5, 0.9, forca))"] },
+    { "nome": "Botão Disparada no HUD (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["_botao(\"disparada\"", "func ligar_botao("] },
+    { "nome": "Disparada liga/desliga no main (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func ligar_disparada(", "func passo_disparada(", "\"disparada\":"] },
     { "nome": "Movimento com inércia (PR #53)", "arquivo": "godot-prototipo/andar.gd", "contem": ["# inércia: velocidade de verdade no chão", "const CORRIDA := 5.4"] },
     { "nome": "Corpo inclina nas curvas (PR #53)", "arquivo": "godot-prototipo/inclinar.gd", "contem": ["func _process_modification()"] },
     { "nome": "Arrancada em rampa e curva em arco (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func _inercia(", "const ACELERA_FIM", "const CURVA_CORRENDO"] },
@@ -116,6 +119,8 @@
     { "nome": "Animações novas das magias do cajado", "arquivo": "shared/dados.js", "contem": ["mg_basico_d: 1.2", "magiaD: ['mg_basico_d'", "bolaForte: ['mg_bola'", "novaGelo: ['mg_gelo'", "meteoroCeu: ['mg_meteoro'"] },
     { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] },
     { "nome": "Minimapa no canto de cima à direita; tocar abre o mapa completo (André 2026-11-03)", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func abrir() -> void:", "func _desenhar_mini() -> void:", "func _desenhar_grande() -> void:", "func cobre(p: Vector2) -> bool:"] },
+    { "nome": "Minimapa no canto de cima à direita e o menu do topo à esquerda dele: o minimapa não encosta nas skills (André 2026-11-03)", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["const MARGEM := Vector2(16, 21)"] },
+    { "nome": "Menu do topo à esquerda do minimapa (André 2026-11-03)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["const MARGEM := Vector2(176, 70)"] },
     { "nome": "Minimapa entra no jogo e o toque nele não vira câmera", "arquivo": "godot-prototipo/main.gd", "contem": ["minimapa = Minimapa.new(self)", "hud.minimapa = minimapa"] },
     { "nome": "Desenho do minimapa (gerado no build)", "arquivo": "client/exportar-godot/gerar-modelos.mjs", "contem": ["gravar('minimapa.png', mini);"] },
     { "nome": "Mata com estrada tortuosa e 10 clareiras de caça, um bicho por clareira + 1 Imp Chefe (André 2026-11-03)", "arquivo": "shared/dados.js", "contem": ["const ESTRADA = [", "const CLAREIRAS = [", "tipos: [...Array(10).fill(c.tipo), 'chefe']", "function sortearMata()", "export const NIVEL_INIMIGO"] },
@@ -123,6 +128,10 @@
     { "nome": "Modelo do lobo inimigo para o Godot", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["saida.Lobo ="] },
     { "nome": "Nível dos monstros: vida, dano, XP e ouro", "arquivo": "shared/simulacao.js", "contem": ["statusInimigo(sp.tipo, nivel)", "xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)", "pertoNaMata("] },
     { "nome": "Árvores da mata em MultiMesh e monstros longe param", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_mata(vila: Node3D) -> void:", "func grama_da_mata(", "func lod_inimigos() -> void:", "func xp_do_inimigo(e: Dictionary) -> int:"] },
-    { "nome": "Herói colide com as árvores da mata", "arquivo": "godot-prototipo/andar.gd", "contem": ["func perto_na_mata(px: float, pz: float) -> Array:"] }
+    { "nome": "Herói colide com as árvores da mata", "arquivo": "godot-prototipo/andar.gd", "contem": ["func perto_na_mata(px: float, pz: float) -> Array:"] },
+    { "nome": "Mochila com páginas de 10 x 4, compradas com ouro (servidor)", "arquivo": "shared/simulacao.js", "contem": ["m.acao === 'pagina'", "liberarPaginas(j.prog, MOCHILA_PAGINAS)", "i < p.mochila.length"] },
+    { "nome": "Mochila: páginas e nenhum item perdido na conta", "arquivo": "shared/progresso.js", "contem": ["export function liberarPaginas(p, n)", "n.paginas = int(p.paginas, 1, MOCHILA_PAGINAS, 1)", "nunca joga item fora"] },
+    { "nome": "Mochila: abas de página e compra no menu do app", "arquivo": "godot-prototipo/menu.gd", "contem": ["g.columns = 10", "func pagina_trancada(n: int, tem: int) -> Control:", "func trocar_pagina(n: int) -> void:"] },
+    { "nome": "Conta de teste do André com as 4 páginas", "arquivo": "server/contas.js", "contem": ["const TESTADORES", "testador: testador(c.email)"] }
   ]
 }

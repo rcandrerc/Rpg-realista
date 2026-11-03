@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas } from './progresso.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -98,7 +98,7 @@ export class Simulacao {
   }
   // opcoes.podeCriar: personagem ainda não foi criado (o criador abre uma vez só); opcoes.aparencia: a que já foi criada
   // opcoes.progresso: nível, atributos e skills guardados na conta (shared/progresso.js)
-  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null } = {}) {
+  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null, testador = false } = {}) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
@@ -106,6 +106,7 @@ export class Simulacao {
       visual: visualValido(visual) ? visual : PERSONAGEM_PADRAO, podeCriar: !!podeCriar });
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.prog = progressoValido(progresso);
+    if (testador) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
     this.jogadores.set(id, j);
@@ -576,10 +577,11 @@ export class Simulacao {
 
   // ---------- mochila, equipamento e loja (dados em shared/dados.js: ITENS, LOJA, DROPS) ----------
   // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
+  //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
   item(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object' || j.criando) return;
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < MOCHILA ? p.mochila[i] : null;
+    const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
     if (m.acao === 'equipar' && it && ehEquip(it.k)) {
       const l = ITENS[it.k].lugar;
       p.mochila[i] = p.equip[l]; p.equip[l] = it;
@@ -617,6 +619,14 @@ export class Simulacao {
       p.ouro -= preco;
       this.pontosMercador(j, preco);
       aviso(`Comprou ${nomeItem(novo)}`);
+    } else if (m.acao === 'pagina') {
+      const tem = p.paginas || 1;
+      if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
+      const preco = PAGINA_PRECO[tem];
+      if (p.ouro < preco) return aviso(`Faltam ${preco - p.ouro} de ouro para a página ${tem + 1}`);
+      p.ouro -= preco;
+      liberarPaginas(p, tem + 1);
+      aviso(`Página ${tem + 1} da mochila liberada (+${MOCHILA} lugares)`);
     } else if (m.acao === 'capacete') {
       // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
       p.semCapacete = m.mostrar === false;

@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -131,7 +131,15 @@ export function tirar(mochila, k, n) {
     if ((o.n || 1) - t <= 0) mochila[i] = null; else o.n -= t;
   }
 }
-export const mochilaNova = () => Array(MOCHILA).fill(null);
+export const mochilaNova = (paginas = 1) => Array(MOCHILA * paginas).fill(null);
+// Libera páginas da mochila até n (compra com ouro ou conta de teste): cada página são MOCHILA lugares vazios no fim
+export function liberarPaginas(p, n) {
+  n = Math.min(MOCHILA_PAGINAS, Math.max(1, n));
+  if ((p.paginas || 1) >= n && p.mochila.length >= MOCHILA * n) return false;
+  p.paginas = Math.max(p.paginas || 1, n);
+  while (p.mochila.length < MOCHILA * p.paginas) p.mochila.push(null);
+  return true;
+}
 export const equipNovo = () => Object.fromEntries(LUGARES.map((l) => [l, null]));
 export { ehEquip };
 
@@ -233,7 +241,7 @@ export function habNoNivel(id, nv) {
 export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
-  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, equip: equipNovo(),
+  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, paginas: 1, equip: equipNovo(),
     vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false };
 }
 export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
@@ -253,8 +261,18 @@ export function progressoValido(p) {
   // mochila e equipamento (conta de antes da mochila: fica com o começo de progressoNovo)
   if (Array.isArray(p.mochila)) {
     n.ouro = int(p.ouro, 0, 1e9, 0);
-    n.mochila = mochilaNova();
-    p.mochila.slice(0, MOCHILA).forEach((it, i) => { n.mochila[i] = itemValido(it); });
+    // páginas compradas (conta de antes das páginas: 1). Nada some: item que estava num lugar que não existe mais
+    // (mochila antiga maior que a de agora) vai para o primeiro lugar vazio; se não couber, a conta ganha a página.
+    n.paginas = int(p.paginas, 1, MOCHILA_PAGINAS, 1);
+    n.mochila = mochilaNova(n.paginas);
+    const sobra = [];
+    p.mochila.forEach((it, i) => { const v = itemValido(it); if (!v) return; if (i < n.mochila.length) n.mochila[i] = v; else sobra.push(v); });
+    for (const v of sobra) {
+      let i = n.mochila.indexOf(null);
+      if (i < 0 && n.paginas < MOCHILA_PAGINAS) { liberarPaginas(n, n.paginas + 1); i = n.mochila.indexOf(null); }
+      if (i < 0) { n.mochila.push(v); continue; } // última garantia: nunca joga item fora
+      n.mochila[i] = v;
+    }
     for (const l of LUGARES) { const it = itemValido(p.equip?.[l]); n.equip[l] = it && ITENS[it.k].lugar === l ? it : null; }
   }
   // vigor e profissões (conta de antes: vigor cheio e tudo no Nv 1)

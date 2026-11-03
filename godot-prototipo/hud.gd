@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "resetar", "falar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "loja", "coletar", "forja", "resetar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
@@ -90,6 +90,9 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 	_botao("falar", Vector2(509, 160), 30, "falar", COR_TROCA) # perto de qualquer NPC: abre a janela dele (conversa.gd)
 	botoes[-1].oculto = true
+	# disparada (André 2026-11-03): liga e desliga a corrida que gasta estamina; o joystick sozinho só anda e trota.
+	# Fica no fim da lista (os índices de cima são usados em mostrar_build) e na ponta da fileira de baixo.
+	_botao("disparada", Vector2(585, 61), 31, "disparada", COR_FUNDO)
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
@@ -112,6 +115,12 @@ func borda(acao: String, cor) -> void:
 	for b in botoes:
 		if b.acao == acao:
 			b.borda = cor
+
+# botão que liga e desliga (disparada): aceso enquanto ligado
+func ligar_botao(acao: String, v: bool) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.ligado = v
 
 func mostrar_botao(acao: String, v: bool) -> void:
 	for b in botoes:
@@ -329,10 +338,19 @@ func _desenhar_combate() -> void:
 		if b.borda != null:
 			cor_borda = b.borda
 		_combate.draw_circle(c, r, cor_borda, false, 2.5)
+		var ligado: bool = b.get("ligado", false)
+		if ligado: # disparada ligada (direção de arte): âmbar da estamina, pulso discreto de ~1,2 s (escala 1,00-1,04, anel 0,5-0,9)
+			var pulso: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU / 1.2)
+			r *= 1.0 + 0.04 * pulso
+			_combate.draw_circle(c, r - 2.0, Color(0.93, 0.82, 0.32, 0.92))
+			_combate.draw_circle(c, r - 1.0, Color("8a6a2a"), false, 2.5) # borda escura: o círculo não some no âmbar
+			_combate.draw_circle(c, r + 3.0, Color(0.93, 0.82, 0.32, 0.5 + 0.4 * pulso), false, 2.0)
 		var t := icone(b.icone)
 		if t:
 			var s := r * 1.15
-			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			# ligado: ícone no marrom escuro do fundo, para não perder contraste no âmbar
+			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, cor_ico)
 		if b.travado: # ainda não liberada no nível do herói
 			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
 		elif b.sem_mana and b.cd <= 0.0: # sem mana: apagado com véu azul

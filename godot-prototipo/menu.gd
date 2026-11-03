@@ -5,7 +5,7 @@ extends CanvasLayer
 # com nível de cada skill, o que melhora no próximo e em qual botão de cada barra ela fica). Passivas no fim.
 # Duas barras como no Quimera: a da espada e a do cajado (Trocar mostra a outra); toque em dois botões da barra para
 # trocar de lugar. Quem decide é o servidor (online manda "atributo" e "barra"); sem internet muda só neste celular.
-# Mochila (8 x 4) e Loja da Rosa (Parte 2 do Quimera): toque num item para ver, equipar, usar ou vender; toque num lugar
+# Mochila (páginas de 10 x 4, até 4 páginas) e Loja da Rosa (Parte 2 do Quimera): toque num item para ver, equipar, usar ou vender; toque num lugar
 # de equipamento para ver a peça e tirar. Online quem decide é o servidor (manda "item"); sem internet muda só aqui.
 # Profissões (Parte 3 do Quimera): vigor, ouro e o nível de cada profissão; Ferreiro e Alfaiate com as receitas
 # (Criar só perto da forja do Tomás ou da banca da Rosa; online quem confere e dá a peça é o servidor, mensagem "criar").
@@ -65,6 +65,7 @@ var slots_ui := {} # lugar -> {icone, painel, no}
 var fios: Control # fios dourados dos medalhões até o corpo
 var cam_palco: Camera3D
 var sel_mochila := -1 # item escolhido na mochila
+var pag_mochila := 0 # página da mochila aberta (0..3; André 2026-11-03: 4 páginas de 10 x 4, compradas com ouro)
 var sel_equip := "" # peça escolhida no corpo (lugar)
 var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
 var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
@@ -1186,13 +1187,44 @@ func montar_mochila() -> void:
 	var cheios: int = P.prog.mochila.filter(func(x): return x != null).size()
 	topo.add_child(rotulo("%d / %d" % [cheios, P.prog.mochila.size()], 13, APAGADO))
 	conteudo.add_child(topo)
-	var g := GridContainer.new()
-	g.columns = 8
-	g.add_theme_constant_override("h_separation", 6)
-	g.add_theme_constant_override("v_separation", 6)
-	for i in P.prog.mochila.size():
-		g.add_child(celula(P.prog.mochila[i], i == sel_mochila, func(): tocar_mochila(i)))
-	conteudo.add_child(g)
+	# páginas: abas 1 a 4; a que ainda não foi comprada mostra o preço e abre o cadeado
+	var por_pag: int = int(P.dados.mochila)
+	var total_pag: int = int(P.dados.get("mochilaPaginas", 1))
+	var tem: int = int(P.prog.get("paginas", 1))
+	pag_mochila = clampi(pag_mochila, 0, total_pag - 1)
+	var abas_pag := HBoxContainer.new()
+	abas_pag.add_theme_constant_override("separation", 6)
+	for n in total_pag:
+		var t := "Página %d" % (n + 1) if n < tem else "Página %d · %d" % [n + 1, int(P.dados.paginaPreco[n])]
+		var b := botao(t, func(): trocar_pagina(n), 14, n == pag_mochila)
+		b.custom_minimum_size = Vector2(0, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if n >= tem:
+			b.add_theme_color_override("font_color", APAGADO)
+			b.icon = icone_tex("it_ouro")
+			b.expand_icon = false
+			b.add_theme_constant_override("icon_max_width", 18)
+		abas_pag.add_child(b)
+	conteudo.add_child(abas_pag)
+	if pag_mochila >= tem:
+		conteudo.add_child(pagina_trancada(pag_mochila, tem))
+	else:
+		var g := GridContainer.new()
+		g.columns = 10
+		g.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		g.add_theme_constant_override("h_separation", 5)
+		g.add_theme_constant_override("v_separation", 5)
+		for i in range(pag_mochila * por_pag, min(P.prog.mochila.size(), (pag_mochila + 1) * por_pag)):
+			g.add_child(celula(P.prog.mochila[i], i == sel_mochila, func(): tocar_mochila(i), 60))
+		conteudo.add_child(g)
+		# lugar a mais (só se uma mochila antiga trouxe mais itens do que cabem): aparece no fim da última página
+		if pag_mochila == tem - 1 and P.prog.mochila.size() > tem * por_pag:
+			var g2 := GridContainer.new()
+			g2.columns = 10
+			g2.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			for i in range(tem * por_pag, P.prog.mochila.size()):
+				g2.add_child(celula(P.prog.mochila[i], i == sel_mochila, func(): tocar_mochila(i), 60))
+			conteudo.add_child(g2)
 	if sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
 		conteudo.add_child(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
 	elif sel_equip != "" and P.prog.equip.get(sel_equip) != null:
@@ -1246,6 +1278,46 @@ func montar_conjunto() -> void:
 		var d := rotulo(prox, 12, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
+
+func trocar_pagina(n: int) -> void:
+	pag_mochila = n
+	sel_mochila = -1
+	atualizar()
+
+# página ainda não comprada: cadeado, preço e o botão de comprar (só a próxima da fila)
+func pagina_trancada(n: int, tem: int) -> Control:
+	var P = m.P
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.08, 0.07, 0.058, 1), Color(0.3, 0.25, 0.17), 1, 8))
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 10)
+	v.custom_minimum_size = Vector2(0, 4 * 60 + 3 * 5 - 18)
+	cx.add_child(v)
+	var preco: int = int(P.dados.paginaPreco[n])
+	var t := rotulo("Página %d trancada" % (n + 1), 18, OURO_CLARO)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	var proxima: bool = n == tem
+	var txt := "Mais %d lugares na mochila por %d de ouro." % [int(P.dados.mochila), preco] if proxima else "Compre a página %d primeiro (as páginas abrem uma de cada vez)." % (tem + 1)
+	var d := rotulo(txt, 13, APAGADO)
+	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(d)
+	if proxima:
+		var pode: bool = int(P.prog.ouro) >= preco
+		var b := botao("Comprar · %d" % preco, func(): acao_item({"acao": "pagina"}), 15, pode)
+		b.icon = icone_tex("it_ouro")
+		b.add_theme_constant_override("icon_max_width", 20)
+		b.custom_minimum_size = Vector2(200, 42)
+		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		b.disabled = not pode
+		v.add_child(b)
+		if not pode:
+			var f := rotulo("Faltam %d de ouro" % (preco - int(P.prog.ouro)), 12, APAGADO)
+			f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			v.add_child(f)
+	return cx
 
 func tocar_mochila(i: int) -> void:
 	sel_equip = ""
@@ -1370,6 +1442,8 @@ func acao_item(msg: Dictionary) -> void:
 				sel_mochila = -1
 		"vender", "comprar":
 			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
+		"pagina":
+			m.hud.aviso("Páginas da mochila só se compram online (o ouro fica na sua conta)")
 	m.h.vida = min(m.h.vida, P.st.vidaMax)
 	m.h.mana = min(m.h.mana, P.st.manaMax)
 	atualizar()
