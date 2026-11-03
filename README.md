@@ -94,6 +94,7 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 | Vila: texturas das casas (palha, reboco, enxaimel, pedra, portas, venezianas), casca e folhas das árvores, caminho de terra e calçamento da praça. As casas, a ferraria, o poço e as árvores são montados em código (client/src/vila.js) | Poly Haven, repositório New-Game-Anime-fontes | CC0 |
 | Espada (o brilho mágico é feito no código) | Fantasy Props MegaKit (Quaternius) | CC0 |
 | Picareta e machado das profissões (godot-prototipo/ferramentas3d/, texturas reduzidas para 512 px) | Fantasy Props MegaKit (Quaternius), repositório New-Game-Anime-fontes (pacotes_cc0/) | CC0 |
+| Espantalho de treino ao lado da ferraria (godot-prototipo/treino3d/, modelo Dummy; cor em 1024 px, relevo e ORM em 512 px; saco, poste e corda repintados em estopa, madeira escura e corda clara) | Fantasy Props MegaKit (Quaternius), repositório New-Game-Anime-fontes (pacotes_cc0/Fantasy_Props_MegaKit) | CC0 |
 | Ícones de materiais e profissões (godot-prototipo/icones/it_*.svg, pf_*.svg, vigor.svg) | Desenhados para o jogo | Próprios |
 | Cajado mágico (madeira, anéis de bronze e cristal) | feito no código, com a textura medieval_wood da Poly Haven | CC0 / próprio |
 | Lobo (montaria de teste): modelo, esqueleto (rabo de 5 ossos), mechas de pelo do rabo e 6 animações | gerado por IA (desenho FLUX.1-schnell, Apache 2.0; 3D TRELLIS, MIT) e montado no Blender por ferramentas/monstros-ia | próprio (saída das IAs sem restrição de uso comercial) |

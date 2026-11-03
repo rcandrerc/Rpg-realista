@@ -87,7 +87,8 @@ function receber(foto, eventos) {
     c.corpo.root.visible = !j.criando; // quem está criando o personagem ainda não entrou no mundo
     if (j.id === rede.meuId) eu = j;
   }
-  for (const e of foto.inimigos) { vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e, tf); }
+  // o espantalho de treino só tem modelo no app Godot (godot-prototipo/treino3d): o site (reserva) não desenha
+  for (const e of foto.inimigos) { if (TIPOS_INIMIGO[e.tipo]?.treino) continue; vivos.add(e.id); const c = corpoDe(e, 'inimigo'); c.info = e; c.corpo.aplicar(e, tf); }
   for (const [id, c] of corpos) if (c.tipo !== 'npc' && !vivos.has(id)) { c.corpo.remover(); c.tag?.remove(); efeitos.esquecer(id); corpos.delete(id); }
 
   // efeitos das minhas próprias ações já apareceram na hora pelo celular: os do servidor são ignorados
