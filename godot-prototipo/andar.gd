@@ -40,6 +40,7 @@ var disparada := false
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
+var obst := {} # mundo.obstaculos na mesma grade de 6 m (cada um em toda casa que ele toca, com 1 m de folga)
 
 func _init(terreno, mundo: Dictionary) -> void:
 	T = terreno
@@ -49,6 +50,14 @@ func _init(terreno, mundo: Dictionary) -> void:
 		if not mata.has(k):
 			mata[k] = []
 		mata[k].append({"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)})
+	for o in m.get("obstaculos", []):
+		var r: float = float(o.r) + 1.0
+		for i in range(floori((float(o.x) - r) / 6.0), floori((float(o.x) + r) / 6.0) + 1):
+			for j in range(floori((float(o.z) - r) / 6.0), floori((float(o.z) + r) / 6.0) + 1):
+				var k := Vector2i(i, j)
+				if not obst.has(k):
+					obst[k] = []
+				obst[k].append(o)
 
 # árvores da mata nas 9 casas da grade em volta de (px, pz)
 func perto_na_mata(px: float, pz: float) -> Array:
@@ -63,6 +72,12 @@ func perto_na_mata(px: float, pz: float) -> Array:
 			if c != null:
 				l.append_array(c)
 	return l
+
+# obstáculos (casas, pedras, poço...) que podem estar a até r + 1 m de (px, pz): só os da casa da grade do ponto.
+# Desempenho (2026-11-03): os monstros das clareiras conferiam os 110 obstáculos do mapa todo, um por um, a cada quadro
+const _NADA := []
+func perto_obstaculos(px: float, pz: float) -> Array:
+	return obst.get(Vector2i(floori(px / 6.0), floori(pz / 6.0)), _NADA)
 
 func posicao() -> Vector3:
 	return Vector3(x, y, z)
@@ -144,9 +159,28 @@ func _raio_ate(a: Dictionary, px: float, pz: float) -> float:
 func _areas() -> Array:
 	return m.areas if m.get("areas", []).size() > 0 else [{"x": 0.0, "z": 0.0, "r": float(m.raio)}]
 
+# maior raio possível de cada área (com as ondas): ponto mais longe que isso nem precisa da conta do ângulo.
+# Desempenho (2026-11-03): com a mata são 42 áreas, conferidas por cada monstro e pelo herói a cada quadro
+var _tetos := PackedFloat32Array()
+func _teto(a: Dictionary) -> float:
+	var t: float = float(a.get("r", 0.0)) if not a.has("rx") else maxf(float(a.rx), float(a.rz))
+	if a.has("rx"):
+		for l in a.get("lobos", []):
+			t *= 1.0 + absf(float(l[1]))
+	return t
+
 func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
-	for a in _areas():
-		if Vector2(px - float(a.x), pz - float(a.z)).length() <= _raio_ate(a, px, pz) - margem:
+	var areas := _areas()
+	if _tetos.size() != areas.size():
+		_tetos.resize(areas.size())
+		for i in areas.size():
+			_tetos[i] = _teto(areas[i])
+	for i in areas.size():
+		var a: Dictionary = areas[i]
+		var d := Vector2(px - float(a.x), pz - float(a.z)).length()
+		if d > _tetos[i] - margem + 0.001:
+			continue
+		if d <= _raio_ate(a, px, pz) - margem:
 			return true
 	for c in m.get("corredores", []):
 		if Vector2(px, pz).distance_to(_no_segmento(c, px, pz)) <= float(c.larg) / 2.0 - margem:

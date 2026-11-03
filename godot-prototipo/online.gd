@@ -787,15 +787,19 @@ func _passo(dt: float) -> void:
 		_ap_t = 0.25
 	# outros jogadores e inimigos: o servidor manda a posição 20 vezes por segundo; aqui eles andam entre as duas
 	# últimas fotos com 0,1 s de atraso (velocidade constante, sem os tranquinhos de antes)
+	# 2026-11-03: a posição anda no tempo de verdade (a câmera lenta da morte e a congelada do golpe só deixam a
+	# animação mais lenta). Antes eles ficavam para trás durante a câmera lenta e davam um salto quando ela acabava,
+	# porque o servidor não para.
+	var dt_pos: float = dt / max(Engine.time_scale, 0.001)
 	for id in outros:
 		var o: Dictionary = outros[id]
-		_interpolar(o, o.no, dt)
+		_interpolar(o, o.no, dt_pos)
 		o.uma_vez = max(0.0, o.uma_vez - dt)
 	for e in m.inimigos:
 		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
 			continue
 		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
-			_interpolar(e, e.no, dt)
+			_interpolar(e, e.no, dt_pos)
 			e.uma_vez = max(0.0, e.get("uma_vez", 0.0) - dt)
 			if e.get("prep_fim", -1.0) > 0.0 and m.tempo >= e.prep_fim: # fim do preparo: o golpe sai rápido
 				e.prep_fim = -1.0
