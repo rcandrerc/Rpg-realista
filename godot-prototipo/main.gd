@@ -2101,7 +2101,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var alvo_incl := 0.0
 	if livre_corpo:
 		alvo_frente = clamp(_acel * (0.016 if _acel > 0.0 else 0.02), -0.3, 0.2)
-		alvo_incl = clamp(-mov.giro * vel * 0.022, -0.26, 0.26)
+		# no trote o corpo deita na curva quase como na corrida (sem isso o trote ficava liso)
+		alvo_incl = clamp(-mov.giro * vel * 0.022 * (1.0 + 0.25 * smoothstep(mov.ANDAR, mov.TROTE, vel) * (1.0 - clamp((vel - mov.TROTE) / (mov.CORRIDA - mov.TROTE), 0.0, 1.0))), -0.26, 0.26)
 	_frente_v += ((alvo_frente - _frente) * MOLA_K - _frente_v * MOLA_AMORT) * dt
 	_frente += _frente_v * dt
 	_incl_v += ((alvo_incl - _incl) * MOLA_K * 0.8 - _incl_v * MOLA_AMORT) * dt

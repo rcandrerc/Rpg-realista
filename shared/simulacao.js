@@ -222,7 +222,15 @@ export class Simulacao {
     if (tele && d > 1) { j.tele = null; j.orc = Math.max(0, j.orc - Math.max(0, d - tele)); } else j.orc -= d;
     // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
     const dtc = j.cliente ? Math.min(0.5, this.tempo - j.cliente.t) : 0;
-    if (j.ciente && dtc > 0 && !mont && !j.arrancada && !j.esc && !(j.dash?.t > 0) && !(tele && d > 1) && d / dtc > HEROI.correr * ESTAMINA.trote * 1.12) this.correndo(j, dtc);
+    // A velocidade sai da média de ~0,3 s: pacotes que chegam juntos (rede oscilando) pareciam corrida e o trote gastava estamina.
+    if (j.ciente && dtc > 0 && !mont && !j.arrancada && !j.esc && !(j.dash?.t > 0) && !(tele && d > 1)) {
+      const jan = j.janCorrida || (j.janCorrida = { d: 0, t: 0 });
+      jan.d += d; jan.t += dtc;
+      if (jan.t >= 0.3) {
+        if (jan.d / jan.t > HEROI.correr * ESTAMINA.trote * 1.12) this.correndo(j, jan.t);
+        jan.d = 0; jan.t = 0;
+      }
+    } else if (j.janCorrida) { j.janCorrida.d = 0; j.janCorrida.t = 0; }
     if (j.coleta && Math.hypot(p.x - j.coleta.x, p.z - j.coleta.z) > 0.5) this.pararColeta(j); // saiu do lugar: para de coletar
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
