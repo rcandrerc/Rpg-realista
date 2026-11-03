@@ -1,5 +1,5 @@
 extends CanvasLayer
-# Minimapa (pedido do André 2026-11-03): redondo no canto de cima à direita, logo abaixo do menu do topo, com o norte
+# Minimapa (pedido do André 2026-11-03): redondo no canto de cima à direita, com o menu do topo à esquerda dele, com o norte
 # para cima. Mostra a mata, a estrada, as clareiras de caça (bolinha na cor do bicho com o nível), o veio de cobre,
 # os outros jogadores e o herói (seta) com o lado para onde a câmera olha. Tocar nele abre o mapa completo, com o nome
 # e o nível de cada clareira; tocar de novo (ou no X) fecha.
@@ -7,7 +7,8 @@ extends CanvasLayer
 # os nomes, o herói e os jogadores são desenhados aqui por cima, nítidos.
 
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
-const MARGEM := Vector2(14, 70) # do canto de cima à direita (o menu do topo fica em cima, de 10 a 60)
+const MARGEM := Vector2(14, 10) # do canto de cima à direita; o menu do topo fica à esquerda dele (André 2026-11-03:
+# o minimapa subiu para não encostar nas skills)
 const ALCANCE := 46.0 # metros do centro até a borda do minimapa
 const COR_BICHO := {"puglin": Color("b98cff"), "imp": Color("ff8f45"), "lobo": Color("a9d6ff"), "chefe": Color("ff4a4a")}
 const NOME_BICHO := {"puglin": "Puglins", "imp": "Imps", "lobo": "Lobos"}

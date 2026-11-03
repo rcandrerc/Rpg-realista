@@ -1,5 +1,5 @@
 extends CanvasLayer
-# Menu do topo (no jeito do Quimera): no canto de cima à direita ficam os ícones Conta, Multijogador e Configurações
+# Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Conta, Multijogador e Configurações
 # e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
 # Regra do André: no topo só entram conta, multijogador e configurações.
@@ -8,7 +8,8 @@ const Menu = preload("res://menu.gd")
 const ARQUIVO := "user://config.cfg" # escolhas do jogador (menu recolhido, som, vibração, FPS)
 const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
-const MARGEM := Vector2(14, 10) # distância do canto de cima à direita
+const MARGEM := Vector2(176, 10) # distância do canto de cima à direita: o menu fica à esquerda do minimapa
+# (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
 const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
