@@ -920,6 +920,17 @@ static func _material(tipo: String, r: int) -> Material:
 		if tipo.begins_with("elmo"):
 			s.set_shader_parameter("faixa", 100.0) # sem lâminas; a crista do meio é a junta
 			s.set_shader_parameter("junta_y", 0.0)
+			# direção de arte v6: o topo do casco lia como "careca" (reflexo bege-claro grande). Aço: topo frio
+			# (azulado, valor até 0,80) e brilho só numa faixa estreita; couro: no máximo marrom médio
+			s.set_shader_parameter("zenite", 0.9)
+			s.set_shader_parameter("crista_esc", 0.85)
+			# (os tons passam pelo ganho de 2,1 e pela curva do jogo: aqui ficam mais escuros que o alvo na tela)
+			if tipo == "elmo":
+				s.set_shader_parameter("claro", Color("9aaecb"))
+				s.set_shader_parameter("medio", Color("6b7a93"))
+			else:
+				s.set_shader_parameter("claro", Color("6e4a2b"))
+				s.set_shader_parameter("medio", Color("553820"))
 		if tipo == "peito":
 			s.set_shader_parameter("faixa", 100.0) # sem lâminas: só a junta
 			s.set_shader_parameter("junta_y", junta_peito) # junta de 1 cm entre peito e barriga, 3 cm abaixo do busto
@@ -970,8 +981,9 @@ static func _cabeca(raiz: Node3D) -> Cabeca:
 		# André 2026-11-03 ("capacete por cima do cabelo"): casco mais justo na cabeça e cúpula 15% mais baixa
 		# (direção de arte); o cabelo de cima é apertado mais para dentro (_cabelo_apertado)
 		# v6 (direção de arte, André aprovou): mais estreito (~1,15x a cabeça, era ~1,3x) e a borda da frente
-		# ~1 cm acima das sobrancelhas: olhos livres de frente e em 3/4
-		h.raio = Vector3(F.size.x * 0.5 * 0.97, (F.end.y - h.c.y + 0.02) * 0.85, (frente - tras) * 0.5 - 0.01)
+		# ~1 cm acima das sobrancelhas: olhos livres de frente e em 3/4. A altura volta à de antes: mais baixa, a pele
+		# do alto da cabeça do VRoid furava o casco e o topo lia como "careca"
+		h.raio = Vector3(F.size.x * 0.5 * 0.97, (F.end.y - h.c.y + 0.02) * 1.0 + 0.004, (frente - tras) * 0.5 - 0.01)
 		h.testa = base + 0.74 * H
 		h.bochecha = base + 0.14 * H # protege a bochecha até perto do queixo
 		h.nuca = base + 0.2 * H
@@ -1052,7 +1064,8 @@ static func _malha_elmo(h: Cabeca) -> ArrayMesh:
 			V.append(p)
 			# UV2: distância até a borda (friso) e ângulo (a crista no meio é a "junta" em 0)
 			var meio := absf(wrapf(a, -PI, PI))
-			U2.append(Vector2((y - e) * 1.15, minf(meio, TAU - meio) * 0.12 if y > h.c.y + 0.02 else 5.0))
+			# a crista ganha a marca 7 (o shader escurece 15%: lê como peça separada do casco)
+			U2.append(Vector2((y - e) * 1.15, 7.0 if crista > 0.0045 else (minf(meio, TAU - meio) * 0.12 if y > h.c.y + 0.02 else 5.0)))
 	for j in NJ:
 		for i in NA:
 			var a0 := j * (NA + 1) + i

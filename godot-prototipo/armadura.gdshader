@@ -26,6 +26,8 @@ varying float v_friso;
 varying float v_esc;
 varying vec3 v_env;
 varying vec3 v_pos;
+uniform float zenite = 0.45; // quanto o reflexo escurece olhando para o alto (capacete: 0,9)
+uniform float crista_esc = 1.0; // capacete: a crista (UV2.y = 7) 15% mais escura
 uniform float costura = 0.0; // 1: couro com costura tracejada clara logo dentro do friso (direção de arte v6)
 
 void vertex() {
@@ -53,6 +55,7 @@ void fragment() {
 	v_friso = f;
 	ALBEDO = vec3(1.0);
 	v_esc = v_esc_calc(lam, sulco, f); // lâminas e sulco escurecem
+	if (v_seg > 6.5) v_esc *= crista_esc;
 	float ponto = 0.0;
 	if (costura > 0.5) {
 		// pontos de ~6 mm a cada 1,2 cm na faixa do sulco (coordenada do modelo: não depende da UV)
@@ -70,7 +73,7 @@ void fragment() {
 	vec3 c1 = mix(claro.rgb, friso_claro.rgb, f);
 	vec3 c2 = mix(medio.rgb, friso.rgb, f);
 	vec3 c3 = mix(sombra.rgb, friso.rgb * 0.45, f);
-	if (ry > 0.42) env = mix(c1, c2, smoothstep(0.5, 0.95, ry) * 0.45); // céu: claro perto do horizonte, mais fundo no alto (o topo do capacete não fica cor de pele)
+	if (ry > 0.42) env = mix(c1, c2, smoothstep(0.5, 0.62, ry) * zenite); // céu: claro perto do horizonte, mais fundo no alto (o topo do capacete não fica cor de pele)
 	else if (ry > 0.08) env = mix(c2, c1, smoothstep(0.30, 0.42, ry));
 	else if (ry > -0.12) env = c3; // horizonte escuro: a faixa que faz o aço parecer aço
 	else env = mix(c3, c2, smoothstep(-0.12, -0.45, ry) * 0.85); // chão rebatido
