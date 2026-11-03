@@ -54,7 +54,7 @@ const COURO := [Color("8a5e3c"), Color("62412b"), Color("392517")]
 const COURO_ESCURO := [Color("6b4a36"), Color("4a3226"), Color("2a1c16")]
 # tecido (blusa, mangas e saia do VRoid por baixo da armadura, e a capa) na cor da raridade:
 # Comum linho marrom, Raro azul, Épico roxo, Lendário laranja, Mítico pink
-const TECIDO := [Color("7a5a3e"), Color("2e5596"), Color("5d2f8e"), Color("b5683a"), Color("ad4c7d")] # Lendário e Mítico 20% menos saturados (direção de arte)
+const TECIDO := [Color("b9a47e"), Color("2e5596"), Color("5d2f8e"), Color("b5683a"), Color("ad4c7d")] # Lendário e Mítico 20% menos saturados; Comum em linho cru (direção de arte v8, separa da couraça marrom)
 const ROUPA := TECIDO # nome antigo (a blusa e a saia lisas usam a cor do tecido)
 const BRILHO := [0.0, 0.0, 0.15, 0.25, 0.6] # o friso das raridades altas brilha um pouco
 const CAPA := [[Color(0.45, 0.33, 0.24), Color(0.3, 0.22, 0.16)], [Color(0.18, 0.33, 0.6), Color(0.1, 0.17, 0.33)],
@@ -174,6 +174,7 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 			var f: Array = fat.get(q, [0.0, 9.0, -9.0])
 			fat[q] = [maxf(f[0], absf(p.x)), minf(f[1], p.z), maxf(f[2], p.z)]
 	var meio := lerpf(R.y_cintura, junta_peito, 0.6) # ponto mais fino (acima do umbigo)
+	var y_cinto := R.y_cintura + 0.055 # meio do cinto (ver _malha_cinto)
 	var raio_y := maxf(0.06, (junta_peito - R.y_cintura) * 0.5 + 0.03) # a barra da blusa (quadril) quase não mexe
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
@@ -189,6 +190,12 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 			var cz := 0.03
 			var kz := 1.0 - (0.2 if p.z < cz else 0.1) * k
 			var n := Vector3(p.x * (1.0 - 0.24 * k), p.y, cz + (p.z - cz) * kz)
+			# direção de arte v8: o tecido entra no cinto. Na altura do cinto a blusa fica com a meia-largura dele
+			# (de frente), afinando aos poucos 6 cm acima e 4 cm abaixo, sem degrau (a pele ainda manda: ver abaixo)
+			var wc := 1.0 - smoothstep(0.015, 0.075, p.y - y_cinto) if p.y > y_cinto else 1.0 - smoothstep(0.015, 0.055, y_cinto - p.y)
+			var xcap := X_CINTO - (0.004 if mais > 1.0 else 0.0)
+			if wc > 0.0 and absf(n.x) > xcap:
+				n.x = signf(n.x) * lerpf(absf(n.x), xcap, wc)
 			var q := int(round(p.y * 100.0))
 			for dq in [-1, 0, 1]: # a fatia de cima e a de baixo também (pele inclinada)
 				var f = fat.get(q + dq)
@@ -789,6 +796,7 @@ static func _preso(esq: Skeleton3D, no: Node3D, osso: String) -> BoneAttachment3
 # cinto (direção de arte v7): faixa de 3 cm logo abaixo da ponta do peitoral, colada na blusa já apertada, com
 # fivela na frente. A malha da blusa é grossa demais para recortar uma faixa tão fina, então o anel é feito aqui:
 # para cada ângulo, o raio é o da blusa naquela altura (+3 mm), e o anel vai preso no osso da cintura.
+const X_CINTO := 0.104 # meia-largura da blusa dentro do cinto (m), de frente
 const CINTO := [Color("3b281c"), Color("2a1b12"), Color("140c08")]
 
 static func _montar_cinto(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
