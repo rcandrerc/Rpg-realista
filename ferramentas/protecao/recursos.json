@@ -7,6 +7,7 @@
     { "nome": "App entra na sala pedindo a área de interesse", "arquivo": "godot-prototipo/rede.gd", "contem": ["\"aoi\": true"] },
     { "nome": "Minimapa mostra também quem está longe (lista leve do mapa)", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["m.online.get(\"no_mapa\")"] },
     { "nome": "Abertura rápida: modelos em paralelo, monstros aos poucos, grama guardada e em pedaços (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func pre_carregar(", "func criar_aos_poucos(", "func grama_guardada(", "func picar_grama("] },
+    { "nome": "Ping do servidor sempre no aviso do topo, escrito Ping e com cor (André 2026-11-03)", "arquivo": "godot-prototipo/online.gd", "contem": ["\" · Ping %d ms\" % rede.ping_ms", "func _medir_chegada("] },
     { "nome": "Mago: alvo travado na Faísca (1º ataque pega o mais perto; só troca tocando em outro monstro ou quando ele morre) (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func alvo_travado(", "hud.tocou.connect(tocou_inimigo)", "var alvo = alvo_travado(hab.alcance + 0.5)"] },
     { "nome": "Servidor: mira no alvo travado do mago que o celular manda (v) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["alvoTravado(j, h, m) {", "this.alvoTravado(j, h, m) || this.alvoHab(j, h)"] },
     { "nome": "Quadradinho Mostrar capacete embaixo do medalhão do Capacete e na janela dele (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func linha_mostrar_capacete(", "class Quadradinho extends Control:", "\"Mostrar capacete\""] },
