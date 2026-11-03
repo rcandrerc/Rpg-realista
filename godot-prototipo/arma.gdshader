@@ -17,6 +17,10 @@ uniform vec4 miolo : source_color = vec4(1.0, 0.95, 0.7, 1.0); // brilho: cor do
 uniform float riscos = 0.0; // quanto a textura (riscos de forja) mexe no reflexo
 uniform float forca = 0.4; // brilho próprio (modo 2): ~40% (direção de arte), sem halo
 uniform float pulsa = 0.0; // fogo do cajado: o brilho respira devagar
+uniform float espelho = 1.0; // modo 0: 1 = reflexo cheio (ouro); menos = metal acetinado, rugoso ~0,35 (aço da lâmina, v2)
+uniform float brilho = 0.42; // modo 2: quanto a cor própria acende (menos = laranja não estoura para amarelo)
+uniform float miolo_mix = 1.0; // modo 2: quanto o miolo clareia (fogo: pouco, para ficar laranja)
+uniform float miolo_k = 0.55; // modo 2: até onde vai o miolo claro (menor = miolo pequeno no centro)
 uniform float ganho = 2.1; // compensa a curva de tom do jogo (igual à armadura)
 uniform float luz_ref = 2.83;
 
@@ -38,6 +42,9 @@ void fragment() {
 		// + degradê pela largura da peça (do meio para o fio) e um pouco pelo comprimento: a face plana não fica de um tom só
 		float ry = 0.5 + dot(rf, normalize(vec3(0.55, 0.85, 0.0))) * 0.35 + clamp(v_loc.x / 0.04, -1.0, 1.0) * 0.22
 			+ sin(v_loc.y * 7.0) * 0.06 + (t.r - 0.78) * riscos;
+		// acetinado: o tom vem mais da direção da face (luz fixa) que do reflexo, e as faixas ficam suaves
+		float dif = 0.52 + dot(NORMAL, normalize(vec3(0.35, 0.75, 0.55))) * 0.22 + clamp(v_loc.x / 0.05, -1.0, 1.0) * 0.1 + (t.r - 0.78) * riscos;
+		ry = mix(dif, ry, espelho);
 		vec3 env;
 		if (ry > 0.62) env = mix(claro.rgb, medio.rgb, smoothstep(0.85, 1.1, ry) * 0.3);
 		else if (ry > 0.3) env = mix(medio.rgb, claro.rgb, smoothstep(0.38, 0.62, ry));
@@ -54,7 +61,7 @@ void fragment() {
 		float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 1.5);
 		// facetas: cada face da pedra num tom (luz fixa de cima), miolo claro e borda na cor mais funda
 		float fac = dot(NORMAL, normalize(vec3(0.3, 0.8, 0.5)));
-		vec3 c = mix(miolo.rgb, claro.rgb, smoothstep(0.15, 0.55, fres));
+		vec3 c = mix(claro.rgb, miolo.rgb, (1.0 - smoothstep(miolo_k * 0.27, miolo_k, fres)) * miolo_mix);
 		c = mix(c, sombra.rgb, smoothstep(0.55, 0.95, fres));
 		c *= fac > 0.35 ? 1.0 : (fac > -0.2 ? 0.82 : 0.66);
 		float k = 1.0;
@@ -66,7 +73,7 @@ void fragment() {
 		float p = 1.0 + pulsa * 0.2 * sin(TIME * 3.1);
 		ALBEDO = vec3(0.0);
 		v_cor = c;
-		EMISSION = c * ganho * 0.42 * (1.0 + forca * k * p);
+		EMISSION = c * ganho * brilho * (1.0 + forca * k * p);
 	}
 }
 

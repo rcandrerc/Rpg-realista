@@ -212,19 +212,22 @@ def exportar(nome):
 def espada():
     limpar()
     M = Malha('espada')
-    Z0, ZP = 0.14, 0.924  # base da lâmina (logo acima da guarda) e ponta
-    est = [0.14, 0.18, 0.24, 0.32, 0.40, 0.48, 0.56, 0.64, 0.70, 0.76, 0.81, 0.85, 0.88]
-    def larg(z):  # meia largura: base com ombro, afina devagar e fecha na ponta
-        if z < 0.18:
-            return 0.030 + (z - 0.14) / 0.04 * 0.006
-        if z <= 0.76:
-            return 0.036 - (z - 0.18) / 0.58 * 0.006
-        return 0.030 * max(0.0, (ZP - z) / (ZP - 0.76)) ** 0.8
+    # v2 (direção de arte): lâmina larga como na referência (~17% do comprimento), 15% mais curta, e só afina
+    # nos ~20% finais até a ponta
+    Z0, ZP = 0.14, 0.78  # base da lâmina (logo acima da guarda) e ponta
+    ZA = 0.655  # onde começa a afinar para a ponta
+    est = [0.14, 0.17, 0.22, 0.29, 0.36, 0.43, 0.50, 0.57, 0.625, 0.655, 0.69, 0.72, 0.745, 0.765]
+    def larg(z):  # meia largura: base com ombro, quase reta e fecha na ponta
+        if z < 0.17:
+            return 0.046 + (z - 0.14) / 0.03 * 0.008
+        if z <= ZA:
+            return 0.054 - (z - 0.17) / (ZA - 0.17) * 0.004
+        return 0.050 * max(0.0, (ZP - z) / (ZP - ZA)) ** 0.75
     def sulco(z):  # meia largura do sulco da runa (acaba antes da ponta)
-        if z < 0.17 or z > 0.66:
+        if z < 0.165 or z > 0.6:
             return 0.0
-        return 0.0075 * min(1.0, (z - 0.17) / 0.03, (0.66 - z) / 0.05)
-    T, TS, E, TE = 0.0062, 0.0040, 0.0075, 0.0010  # espessura (meia) da lâmina, no sulco, largura do fio, espessura no fio
+        return 0.009 * min(1.0, (z - 0.165) / 0.03, (0.6 - z) / 0.05)
+    T, TS, E, TE = 0.0068, 0.0044, 0.0040, 0.0010  # espessura (meia) da lâmina, no sulco, bisel claro de ~3-4 mm, espessura no fio
     aneis = []
     for z in est:
         w, g = larg(z), sulco(z)
@@ -251,7 +254,7 @@ def espada():
             return 'fio'
         return 'aco'
     def uv(p):
-        return ((p.x + 0.0075) / 0.015, (p.z - 0.17) / 0.49)
+        return ((p.x + 0.009) / 0.018, (p.z - 0.165) / 0.435)
     # a runa tem UV própria (faixa do sulco); o aço usa o plano da lâmina
     M.anel_loft(aneis, nome, lambda p: (p.x * 6 + 0.5, p.z * 1.5))
     # refaz a UV das faces da runa
@@ -263,16 +266,20 @@ def espada():
     M.tampa(aneis[0], 'aco', plano_xz(), para_cima=False)
 
     # guarda em asa (dourada): contorno no plano XZ, espelhado
-    meia = [(0.0, 0.112), (0.03, 0.108), (0.065, 0.112), (0.098, 0.122), (0.122, 0.138), (0.138, 0.162), (0.146, 0.19),
-            (0.132, 0.178), (0.112, 0.158), (0.088, 0.146), (0.06, 0.142), (0.04, 0.146), (0.026, 0.158), (0.0, 0.162)]
+    # v2: asa de verdade, pontas viradas para cima e 2 recortes (penas) de cada lado no alto
+    meia = [(0.0, 0.11), (0.035, 0.106), (0.07, 0.11), (0.1, 0.12), (0.125, 0.136), (0.144, 0.158), (0.156, 0.186),
+            (0.168, 0.245),  # ponta da asa, para cima
+            (0.144, 0.2), (0.128, 0.19), (0.13, 0.172),  # 1º recorte
+            (0.11, 0.176), (0.094, 0.168), (0.096, 0.153),  # 2º recorte
+            (0.074, 0.157), (0.052, 0.152), (0.036, 0.158), (0.0, 0.166)]
     cont = meia[:-1] + [(-x, z) for x, z in reversed(meia[1:])]
     cont = cont[:-1]
     # ordem anti-horária vista de -Y
     prisma(M, cont, -0.013, 0.013, 'ouro', chanfro=0.04)
     # miolo da guarda que segura a gema: disco mais grosso, deitado no eixo Y
-    torno_y(M, [(0.0, -0.022), (0.025, -0.02), (0.029, -0.015), (0.029, 0.015), (0.025, 0.02), (0.0, 0.022)], 10, 0.137, 'ouro')
-    # gema da guarda (azul, nos dois lados)
-    gema_y(M, 'gema', (0, 0, 0.137), 0.021, 0.036)
+    torno_y(M, [(0.0, -0.011), (0.029, -0.011), (0.033, -0.007), (0.033, 0.007), (0.029, 0.011), (0.0, 0.011)], 12, 0.137, 'ouro')
+    # gema da guarda (azul, nos dois lados): ~2,5 cm visíveis, saltada para fora do engaste
+    gema_y(M, 'gema', (0, 0, 0.137), 0.019, 0.032, n=10)
     # cabo: couro azul com tiras (cilindro de 8 lados) e anéis dourados nas pontas
     torno(M, [(0.0145, -0.168), (0.0158, -0.12), (0.0162, -0.03), (0.0155, 0.06), (0.0148, 0.105)], 8,
           lambda i, j: 'cabo', cilindro_uv(3.4))
@@ -281,7 +288,7 @@ def espada():
     # pomo dourado em losango com gema pequena
     torno(M, [(0.0, -0.212), (0.012, -0.205), (0.024, -0.19), (0.016, -0.178), (0.0, -0.172)], 4, lambda i, j: 'ouro', plano_xz(),
           fase=math.pi / 4, sx=1.0, sy=0.55)
-    gema_y(M, 'gema', (0, 0, -0.19), 0.008, 0.016, n=6)
+    gema_y(M, 'gema', (0, 0, -0.19), 0.0085, 0.019, n=6)
     M.objeto()
     exportar('espada')
 
@@ -325,10 +332,11 @@ def cajado():
     for k in range(4):
         a = k * math.pi / 2
         c, sn = math.cos(a), math.sin(a)
-        cam = [(0.04, zt + 0.05), (0.064, zt + 0.08), (0.07, zt + 0.12), (0.058, zt + 0.16), (0.036, zt + 0.188), (0.018, zt + 0.2)]
+        # v2: as garras abrem ~25° para fora, como chifres (curvam para fora e a ponta sobe)
+        cam = [(0.04, zt + 0.05), (0.058, zt + 0.08), (0.07, zt + 0.115), (0.084, zt + 0.15), (0.101, zt + 0.185), (0.122, zt + 0.215)]
         tubo(M, [(dxt + r * c, r * sn, z) for r, z in cam], [0.0085, 0.008, 0.007, 0.0055, 0.0035, 0.0012], 'ouro', n=5)
         # espinho para fora no meio da garra (como no exemplo)
-        tubo(M, [(dxt + 0.07 * c, 0.07 * sn, zt + 0.11), (dxt + 0.092 * c, 0.092 * sn, zt + 0.125)], [0.0045, 0.0008], 'ouro', n=4)
+        tubo(M, [(dxt + 0.07 * c, 0.07 * sn, zt + 0.11), (dxt + 0.094 * c, 0.094 * sn, zt + 0.118)], [0.0045, 0.0008], 'ouro', n=4)
     # chama/cristal: gota laranja-amarela (torno), base redonda e ponta para cima
     gota = [(0.0, zt + 0.06), (0.026, zt + 0.075), (0.042, zt + 0.105), (0.044, zt + 0.135), (0.036, zt + 0.165),
             (0.022, zt + 0.195), (0.009, zt + 0.225), (0.0, zt + 0.245)]
