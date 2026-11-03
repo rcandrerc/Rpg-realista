@@ -20,6 +20,7 @@ const SEGUE_APOS := 1.1 # s sem mexer na câmera para ela começar a ir para as 
 const SEGUE_VEL := 1.6 # rad/s máximos girando para as costas (na corrida)
 const FOV_BASE := 52.0
 const DIST_MIN := 2.6 # m: mais perto que isso parecia primeira pessoa
+const DIST_MAX := 12.0 # m: zoom mais longe (pinça com dois dedos)
 const FOV_CORRIDA := 5.0 # graus a mais correndo
 const FOV_DASH := 9.0 # graus a mais no dash
 
@@ -55,6 +56,12 @@ func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
 	_conversando = true
 	var d := Vector3(heroi_pos.x - npc_pos.x, 0, heroi_pos.z - npc_pos.z).normalized()
 	_conv = {"foco": heroi_pos.lerp(npc_pos, 0.55) + Vector3(0, 0.95, 0), "yaw": atan2(d.x, d.z) + CONVERSA_LADO, "pitch": CONVERSA_PITCH, "dist": CONVERSA_DIST}
+
+# zoom (André 2026-11-03, volta do jogo HTML): fator > 1 afasta, < 1 aproxima; nunca mais perto que DIST_MIN
+func zoom(fator: float) -> void:
+	if is_equal_approx(fator, 1.0) or _conversando or _conv_k > 0.0:
+		return
+	dist = clamp(dist * fator, DIST_MIN, DIST_MAX)
 
 func soltar_conversa() -> void:
 	_conversando = false
