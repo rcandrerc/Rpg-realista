@@ -929,7 +929,7 @@ func meteoro_impacto(p: Vector3, r: float) -> void:
 	var cores := cor_de("meteoros")
 	_som("q_meteoro_impacto", p, 3.0, 0.04)
 	mg.meteoro_impacto(p, r)
-	area(p.x, p.z, r, cores, 1.4, p.y, true)
+	area(p.x, p.z, r, cores, 0.8, p.y, true) # era 1,4: as labaredas antigas somadas faziam a névoa bege na tela
 	luz("ff8a3a", 4.0, r * 4.0, 0.6).l.global_position = p + Vector3(0, 2.0, 0)
 	# cúpula de fogo que cresce e some
 	var d := MeshInstance3D.new()
@@ -970,7 +970,7 @@ func meteoro_impacto(p: Vector3, r: float) -> void:
 	for i in 26:
 		var a := randf() * TAU
 		var dd := randf() * r * 0.35
-		part(FUMA, p.x + cos(a) * dd, p.y + 0.5, p.z + sin(a) * dd, cos(a) * 0.6, randf_range(3.0, 6.5), sin(a) * 0.6, randf_range(1.4, 2.4), 0.9 * H, randf_range(1.6, 2.6) * H, "5a4a46", "26201f", 0.75, -0.6, 0.9)
+		part(FUMA, p.x + cos(a) * dd, p.y + 0.5, p.z + sin(a) * dd, cos(a) * 0.6, randf_range(3.0, 6.5), sin(a) * 0.6, randf_range(1.4, 2.4), 0.9 * H, randf_range(1.6, 2.6) * H, "5a4a46", "26201f", 0.4, -0.6, 0.9)
 	# brasas e faíscas para todo lado
 	for i in 40:
 		var a := randf() * TAU
@@ -1817,7 +1817,8 @@ func _passo(dt: float) -> void:
 			continue
 		var cresce: float = 1.0 - pow(1.0 - min(1.0, u * 1.6), 3.0)
 		dm.m.scale = Vector3(dm.r, dm.r * 0.85, dm.r) * (0.25 + 0.75 * cresce)
-		dm.m.material_override.set_shader_parameter("op", 0.6 * (1.0 - u * u)) # direção de arte: cúpula + clarão até 0,6
+		# direção de arte (2026-11-03): o clarão cobria a tela; agora 0,5 por no máximo 0,15 s e some rápido
+		dm.m.material_override.set_shader_parameter("op", 0.5 * clamp(1.0 - (dm.t - 0.15) / 0.2, 0.0, 1.0))
 		i -= 1
 	i = ondas.size() - 1
 	while i >= 0:

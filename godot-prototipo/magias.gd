@@ -160,7 +160,7 @@ func _ready() -> void:
 	q.top_radius = 0.0
 	q.bottom_radius = 1.0
 	q.height = 1.0
-	q.radial_segments = 5
+	q.radial_segments = 6
 	q.rings = 1
 	q.cap_top = false
 	_espinho = q
@@ -436,6 +436,8 @@ func voo(o: Vector3, dir: Vector3, vel: float, tam: float, grande: bool, t: floa
 	# cabeça: 2 flocos grandes girando no lugar (a bola tem volume, não é um ponto)
 	fogo(LUZ, o + dir * tam * 0.3, tr * 0.02, 0.07, tam * 3.2, tam * 2.8, "ff9a20", F_QUENTE, C_FUMACA, 0.0, 0.0, 9.0)
 	p(LUZ, o + dir * tam * 0.4, Vector3.ZERO, 0.05, tam * 1.3, tam * 1.3, "fffaf0", "ffe2a0", 0.9, C_FLARE, 0, 0, 0, 0, false, 0.0, t * 9.0)
+	# risco de luz atrás (~1,2 m na Faísca; direção de arte 2026-11-03: a bolinha sumia no verde)
+	p(LUZ, o - dir * tam * 0.5, tr * 0.3, 0.06, tam * 1.2, tam * 0.9, "ffe9a0", "ff7a1a", 0.85, C_TRACO, 0, 0, 0, 0.17)
 	# cauda: flocos nascem ao longo do caminho deste quadro e ficam para trás encolhendo
 	var n := 4 if grande else 3
 	for i in n:
@@ -489,53 +491,56 @@ var agenda_fumaca: Array = []
 # ---------------------------------------------------------------- Nova de Gelo
 # anel de pontas de gelo saindo do chão em onda, de dentro para fora, geada correndo e névoa fria; depois as pontas
 # quebram em cacos e afundam. O congelado dos monstros continua o de efeitos.gd (_congelar).
-var gelos: Array = [] # {mm, pontas: [{x,z,alt,larg,ry,inc,ini}], t, dur}
+var gelos: Array = [] # {no, mm, pontas, lascas, t, dur}
+const GELO_ANEL := 4.5 # m: raio do anel de cristais (direção de arte, 2026-11-03)
+const GELO_QUEBRA := 0.6 # s de pé antes de quebrar
+const LASCAS := 5 # lascas por cristal
 func nova_gelo(x: float, z: float, r: float, y: float, alt: Callable) -> void:
 	var c0 := Vector3(x, y, z)
 	fx._som("q_gelo", c0, 1.0, 0.04)
+	# 8 grupos de 2 ou 3 cristais num anel em volta dela: o maior no meio do grupo, inclinados 15-30° para fora
 	var pontas := []
-	var aneis := 3
-	for a_i in aneis:
-		var rr: float = r * (0.35 + 0.3 * a_i)
-		var n := int(round(TAU * rr / 0.9))
-		for i in n:
-			var a := (i + randf_range(-0.3, 0.3) + a_i * 0.5) / n * TAU
-			var d := rr + randf_range(-0.35, 0.35)
-			var px := x + cos(a) * d
-			var pz := z + sin(a) * d
-			var h: float = randf_range(0.6, 1.25) * (1.2 - 0.25 * a_i)
-			pontas.append({"x": px, "z": pz, "y": float(alt.call(px, pz)), "alt": h, "larg": h * randf_range(0.16, 0.22), "ry": randf() * TAU,
-				"incx": cos(a) * randf_range(0.15, 0.45), "incz": sin(a) * randf_range(0.15, 0.45), "ini": d / r * 0.32})
+	var anel: float = min(GELO_ANEL, r * 0.8)
+	var grupos := 8
+	for g_i in grupos:
+		var a0 := (g_i + randf_range(-0.2, 0.2)) / grupos * TAU
+		var n := 2 if g_i % 3 == 1 else 3
+		for k in n:
+			var meio := k == 0
+			var a := a0 + (0.0 if meio else randf_range(-0.11, 0.11))
+			var d := anel + (0.0 if meio else randf_range(-0.45, 0.45))
+			var px := x + cos(a) * d + (0.0 if meio else randf_range(-0.2, 0.2))
+			var pz := z + sin(a) * d + (0.0 if meio else randf_range(-0.2, 0.2))
+			var h: float = randf_range(1.15, 1.4) if meio else randf_range(0.5, 0.85)
+			var inc := deg_to_rad(randf_range(15.0, 30.0))
+			pontas.append({"x": px, "z": pz, "y": float(alt.call(px, pz)), "alt": h, "larg": h * randf_range(0.3, 0.38), "ry": randf() * TAU,
+				"incx": cos(a) * inc, "incz": sin(a) * inc, "ini": 0.04 + randf() * 0.08 + (0.0 if meio else 0.04)})
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = _espinho
-	mm.instance_count = pontas.size()
+	mm.instance_count = pontas.size() * (1 + LASCAS)
 	var no := MultiMeshInstance3D.new()
 	no.multimesh = mm
 	no.material_override = fx.material("espinho_gelo", SH_ESPINHO, {"op": 1.0})
 	no.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	no.extra_cull_margin = 16384.0
 	add_child(no)
-	for i in pontas.size():
-		mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(0.001, 0.001, 0.001)), Vector3(pontas[i].x, pontas[i].y, pontas[i].z)))
-	gelos.append({"no": no, "mm": mm, "pontas": pontas, "t": 0.0, "dur": 1.9, "quebrou": false})
-	# geada: disco frio correndo para fora no chão e runa de gelo
-	selo(c0 + Vector3(0, 0.07, 0), C_DISCO, "8fd8ff", r * 0.2, 0.55, true, 0.7, 0.0, 0.0, 0.35, r * 1.15)
-	selo(c0 + Vector3(0, 0.08, 0), C_RUNA, "bfe8ff", r * 0.5, 0.9, true, 0.6, -2.0, 0.0, 0.5, r * 0.95)
-	p(LUZ, c0 + Vector3(0, 1.0, 0), Vector3.ZERO, 0.16, 0.8, 3.0, "ffffff", "8fd8ff", 0.8, C_FLARE, 0, 0, 0, 0, false, 0.0)
-	# névoa fria pintada correndo para fora, rente ao chão
-	for i in 18:
-		var a := i / 18.0 * TAU + randf_range(-0.2, 0.2)
-		var v := randf_range(6.0, 9.0) * r / 6.0
-		fogo(NUV, c0 + Vector3(cos(a) * 0.8, 0.3, sin(a) * 0.8), Vector3(cos(a) * v, 0.3, sin(a) * v), randf_range(0.8, 1.1), 0.5, 1.3,
-			"e8f6ff", "a8d4f0", C_FUMACA if i % 2 else C_FUMACA2, 0.0, 2.6)
-	# cristais brilhando
-	for i in 30:
-		var a := randf() * TAU
-		var d := randf() * r
-		p(LUZ, c0 + Vector3(cos(a) * d, randf_range(0.2, 1.6), sin(a) * d), Vector3(0, randf_range(0.2, 0.8), 0), randf_range(0.5, 1.1), 0.25, 0.05,
-			"ffffff", "8fd8ff", 1.0, C_ESTRELA if i % 2 else C_ESTRELA2, 0.0, 0.5, randf_range(-3, 3), 0.0, false, 0.3)
-	fx.luz("8fd8ff", 3.5, r * 3.0, 0.6).l.global_position = c0 + Vector3(0, 1.2, 0)
+	var zero := Transform3D(Basis.from_scale(Vector3(0.001, 0.001, 0.001)), c0)
+	for i in mm.instance_count:
+		mm.set_instance_transform(i, zero)
+	gelos.append({"no": no, "mm": mm, "pontas": pontas, "lascas": [], "t": 0.0, "dur": GELO_QUEBRA + 0.9})
+	# chão: geada fraca (alpha 0,35) com borda em flocos e a runa de gelo; onda clara curta correndo até o anel
+	selo(c0 + Vector3(0, 0.06, 0), C_FUMACA2, "cfeeff", anel * 0.5, 1.6, true, 0.35, 0.3, 0.05, 0.6, anel * 1.15)
+	selo(c0 + Vector3(0, 0.07, 0), C_RUNA, "bfe8ff", anel * 0.4, 1.0, true, 0.4, -2.0, 0.0, 0.5, anel * 0.85)
+	selo(c0 + Vector3(0, 0.08, 0), C_GIRO, "e8f8ff", anel * 0.2, 0.4, true, 0.35, 4.0, 0.0, 0.25, anel * 1.2)
+	p(LUZ, c0 + Vector3(0, 1.0, 0), Vector3.ZERO, 0.14, 0.8, 2.6, "ffffff", "8fd8ff", 0.6, C_FLARE, 0, 0, 0, 0, false, 0.0)
+	# névoa fria pintada correndo para fora, rente ao chão, até o anel
+	for i in 14:
+		var a := i / 14.0 * TAU + randf_range(-0.2, 0.2)
+		var v := randf_range(5.0, 7.0) * anel / 4.5
+		fogo(NUV, c0 + Vector3(cos(a) * 0.6, 0.25, sin(a) * 0.6), Vector3(cos(a) * v, 0.25, sin(a) * v), randf_range(0.7, 0.9), 0.4, 1.0,
+			"e8f6ff", "a8d4f0", C_FUMACA if i % 2 else C_FUMACA2, 0.0, 3.2)
+	fx.luz("8fd8ff", 3.0, r * 2.5, 0.5).l.global_position = c0 + Vector3(0, 1.2, 0)
 	_tremer(c0, 0.3, 14.0)
 
 func _passo_gelos(dt: float) -> void:
@@ -549,34 +554,44 @@ func _passo_gelos(dt: float) -> void:
 			gelos.remove_at(i)
 			i -= 1
 			continue
-		var some: float = clamp((t - (g.dur - 0.45)) / 0.45, 0.0, 1.0) # afunda no fim
-		if some > 0.0 and not g.quebrou:
-			g.quebrou = true
-			fx._som("q_gelo", Vector3(g.pontas[0].x, g.pontas[0].y, g.pontas[0].z), -6.0, 0.1)
-			for pt in g.pontas: # cacos voando
-				if randf() < 0.45:
-					var o := Vector3(pt.x, pt.y + pt.alt * 0.6, pt.z)
-					for k in 2:
-						var a := randf() * TAU
-						p(LUZ, o, Vector3(cos(a) * randf_range(1, 3), randf_range(1.5, 4.0), sin(a) * randf_range(1, 3)), randf_range(0.4, 0.7), 0.16, 0.06,
-							"ffffff", "6fc8ff", 0.9, C_ESTRELA, -10.0, 0.3, randf_range(-8, 8))
-		for j in g.pontas.size():
+		var np: int = g.pontas.size()
+		for j in np:
 			var pt: Dictionary = g.pontas[j]
-			var u: float = clamp((t - pt.ini) / 0.12, 0.0, 1.0)
+			var u: float = clamp((t - pt.ini) / 0.1, 0.0, 1.0)
 			if u <= 0.0:
 				continue
-			var cresce: float = 1.0 + 0.25 * sin(u * PI) # passa um pouco e volta (salta do chão)
-			if u >= 1.0:
-				cresce = 1.0
 			if not pt.has("saiu"):
 				pt.saiu = true
 				var o := Vector3(pt.x, pt.y + 0.1, pt.z)
-				p(NUV, o, Vector3(pt.incx * 3.0, 1.2, pt.incz * 3.0), 0.6, 0.3, 0.9, "f2fbff", "cfe8f5", 0.55, C_FUMACA2, 0.0, 2.0, randf_range(-1, 1))
-				p(LUZ, o + Vector3(0, pt.alt * 0.5, 0), Vector3.ZERO, 0.15, 0.3, 0.9, "ffffff", "8fd8ff", 0.7, C_FLARE, 0, 0, 0, 0, false, 0.0)
-			var h: float = pt.alt * min(u, 1.0) * cresce * (1.0 - some)
-			var w: float = pt.larg * (0.6 + 0.4 * min(u, 1.0))
-			var b := Basis.from_euler(Vector3(pt.incz, 0, -pt.incx)) * Basis(Vector3.UP, pt.ry).scaled(Vector3(w, max(0.001, h), w))
-			g.mm.set_instance_transform(j, Transform3D(b, Vector3(pt.x, pt.y - 0.12, pt.z) + b.y * 0.5)) # base enterrada um pouco
+				p(NUV, o, Vector3(pt.incx * 2.0, 0.8, pt.incz * 2.0), 0.5, 0.25, 0.6, "f2fbff", "cfe8f5", 0.5, C_FUMACA2, 0.0, 2.0, randf_range(-1, 1))
+			var b := Basis.from_euler(Vector3(pt.incz, 0, -pt.incx)) * Basis(Vector3.UP, pt.ry)
+			if t < GELO_QUEBRA + pt.ini:
+				var cresce: float = 1.0 + 0.2 * sin(u * PI) if u < 1.0 else 1.0 # passa um pouco e volta (salta do chão)
+				var h: float = pt.alt * u * cresce
+				var w: float = pt.larg * (0.6 + 0.4 * u)
+				var bs := b.scaled(Vector3(w, max(0.001, h), w))
+				g.mm.set_instance_transform(j, Transform3D(bs, Vector3(pt.x, pt.y - 0.1, pt.z) + bs.y * 0.5))
+			elif not pt.has("quebrou"): # quebra em lascas que caem e somem
+				pt.quebrou = true
+				g.mm.set_instance_transform(j, Transform3D(Basis.from_scale(Vector3(0.001, 0.001, 0.001)), Vector3(pt.x, pt.y, pt.z)))
+				var cima: Vector3 = b.y
+				for k in LASCAS:
+					var o: Vector3 = Vector3(pt.x, pt.y, pt.z) + cima * pt.alt * randf_range(0.15, 0.85)
+					var v: Vector3 = Vector3(randf_range(-1, 1), randf_range(0.5, 1.5), randf_range(-1, 1)) * randf_range(1.2, 2.6) + cima * 0.8
+					g.lascas.append({"i": np + j * LASCAS + k, "o": o, "v": v, "t": 0.0, "tam": pt.larg * randf_range(0.35, 0.6), "alt": pt.alt * randf_range(0.18, 0.3),
+						"giro": Vector3(randf_range(-9, 9), randf_range(-9, 9), randf_range(-9, 9)), "rot": Basis.from_euler(Vector3(randf() * TAU, randf() * TAU, randf() * TAU))})
+				p(LUZ, Vector3(pt.x, pt.y + pt.alt * 0.5, pt.z), Vector3.ZERO, 0.12, 0.3, 0.8, "ffffff", "8fd8ff", 0.6, C_FLARE, 0, 0, 0, 0, false, 0.0)
+				if j == 0:
+					fx._som("q_gelo", Vector3(pt.x, pt.y, pt.z), -6.0, 0.12)
+		for l in g.lascas:
+			if l.t >= 0.3:
+				continue
+			l.t += dt
+			l.v.y -= 14.0 * dt
+			l.o += l.v * dt
+			l.rot = l.rot * Basis.from_euler(l.giro * dt)
+			var k: float = max(0.001, 1.0 - l.t / 0.3)
+			g.mm.set_instance_transform(l.i, Transform3D(l.rot * Basis.from_scale(Vector3(l.tam, l.alt, l.tam) * k), l.o))
 		i -= 1
 
 # ---------------------------------------------------------------- Meteoro: portal no céu e fogo com textura
