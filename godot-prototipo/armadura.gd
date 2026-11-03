@@ -53,11 +53,11 @@ const COURO := [Color("8a5e3c"), Color("62412b"), Color("392517")]
 const COURO_ESCURO := [Color("6b4a36"), Color("4a3226"), Color("2a1c16")]
 # tecido (blusa, mangas e saia do VRoid por baixo da armadura, e a capa) na cor da raridade:
 # Comum linho marrom, Raro azul, Épico roxo, Lendário laranja, Mítico pink
-const TECIDO := [Color("7a5a3e"), Color("2e5596"), Color("5d2f8e"), Color("c8641e"), Color("c23a7c")]
+const TECIDO := [Color("7a5a3e"), Color("2e5596"), Color("5d2f8e"), Color("b5683a"), Color("ad4c7d")] # Lendário e Mítico 20% menos saturados (direção de arte)
 const ROUPA := TECIDO # nome antigo (a blusa e a saia lisas usam a cor do tecido)
 const BRILHO := [0.0, 0.0, 0.15, 0.25, 0.6] # o friso das raridades altas brilha um pouco
 const CAPA := [[Color(0.45, 0.33, 0.24), Color(0.3, 0.22, 0.16)], [Color(0.18, 0.33, 0.6), Color(0.1, 0.17, 0.33)],
-	[Color(0.37, 0.18, 0.56), Color(0.2, 0.09, 0.31)], [Color(0.8, 0.38, 0.11), Color(0.45, 0.18, 0.06)], [Color(0.78, 0.22, 0.48), Color(0.36, 0.07, 0.2)]]
+	[Color(0.37, 0.18, 0.56), Color(0.2, 0.09, 0.31)], [Color(0.71, 0.41, 0.23), Color(0.34, 0.16, 0.07)], [Color(0.68, 0.3, 0.49), Color(0.27, 0.07, 0.17)]] # dentro 25% mais escuro
 
 static var _malhas := {} # "id da malha:parte" -> ArrayMesh pronta
 static var _soldas := {} # id da malha de origem -> malha soldada (sem costuras de UV)

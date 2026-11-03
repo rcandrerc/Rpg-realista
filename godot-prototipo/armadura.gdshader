@@ -60,7 +60,7 @@ void fragment() {
 	vec3 c1 = mix(claro.rgb, friso_claro.rgb, f);
 	vec3 c2 = mix(medio.rgb, friso.rgb, f);
 	vec3 c3 = mix(sombra.rgb, friso.rgb * 0.45, f);
-	if (ry > 0.42) env = mix(c1, vec3(1.0), smoothstep(0.75, 0.8, ry) * 0.55); // céu (e o sol estourado bem em cima)
+	if (ry > 0.42) env = mix(c1, vec3(1.0), smoothstep(0.75, 0.8, ry) * 0.3); // céu (e o sol estourado bem em cima)
 	else if (ry > 0.08) env = mix(c2, c1, smoothstep(0.30, 0.42, ry));
 	else if (ry > -0.12) env = c3; // horizonte escuro: a faixa que faz o aço parecer aço
 	else env = mix(c3, c2, smoothstep(-0.12, -0.45, ry) * 0.85); // chão rebatido
