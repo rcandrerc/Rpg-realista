@@ -81,6 +81,9 @@ static func aplicar(no: Node3D, ap) -> void:
 				cor = a.get(parte)
 				if cor == null and parte == "calca":
 					cor = a.get("roupa")
+			var atual: Material = mi.get_surface_override_material(i)
+			if atual != null and atual.has_meta("armadura"):
+				continue # com peitoral/calça a roupa vira o tecido da armadura (Armadura._uniforme); ele fica
 			var dono := _contorno_de(base, malha, i) # contorno escuro do cabelo ou da pele: vai junto com a cor
 			if dono != "" and a.get(dono) != null:
 				mi.set_surface_override_material(i, _contorno(base, int(a[dono])))

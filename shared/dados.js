@@ -544,7 +544,11 @@ export const RARIDADES = [
 // Acessório e Arma (a Arma mostra a da mão: a espada ou o cajado, cada um no seu lugar). Capacete, camisa, calça,
 // short, botas e capa aparecem no corpo do herói (godot-prototipo/armadura.gd).
 export const LUGARES = ['cabeca', 'corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];
-export const MOCHILA = 32; // 8 x 4, como uma página da mochila do Quimera
+export const MOCHILA = 40; // lugares de UMA página da mochila: 10 x 4 (André 2026-11-03; antes 8 x 4 = 32)
+// Páginas da mochila (André 2026-11-03): começa com 1 e compra as outras com ouro, uma de cada vez, até 4.
+// PAGINA_PRECO[n] = ouro para liberar a página n+1 (a primeira é de graça). Compra em qualquer lugar, pelo menu.
+export const MOCHILA_PAGINAS = 4;
+export const PAGINA_PRECO = [0, 500, 2000, 6000];
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 export const ITENS = {
   // Uma linha só de armadura (serve para espada e magia). Comum é de couro; do Raro em diante, placas de aço.

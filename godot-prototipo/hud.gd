@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "resetar", "falar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "loja", "coletar", "forja", "resetar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
@@ -23,7 +23,7 @@ var zoom_cam := 1.0
 var _cam_dedos := {} # índice do dedo da câmera -> posição (para medir a pinça)
 var _pinca := 0.0 # distância entre os dois dedos da câmera no quadro anterior (0 = sem pinça)
 var botoes: Array = [] # {acao, centro (a partir do canto de baixo à direita), raio, icone, cor, cd, cd_max}
-var _toques := {} # índice do dedo -> "joy" | "cam" | acao
+var _toques := {} # índice do dedo -> "joy" | "cam" | "morto" (zona morta) | acao
 var _inicio := {} # índice do dedo -> [posição, hora] (joystick e câmera): toque rápido sem arrastar vira "tocou"
 var _joy_centro := Vector2.ZERO
 var _joy_dedo := Vector2.ZERO
@@ -90,6 +90,9 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 	_botao("falar", Vector2(509, 160), 30, "falar", COR_TROCA) # perto de qualquer NPC: abre a janela dele (conversa.gd)
 	botoes[-1].oculto = true
+	# disparada (André 2026-11-03): liga e desliga a corrida que gasta estamina; o joystick sozinho só anda e trota.
+	# Fica no fim da lista (os índices de cima são usados em mostrar_build) e na ponta da fileira de baixo.
+	_botao("disparada", Vector2(585, 61), 31, "disparada", COR_FUNDO)
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
@@ -112,6 +115,12 @@ func borda(acao: String, cor) -> void:
 	for b in botoes:
 		if b.acao == acao:
 			b.borda = cor
+
+# botão que liga e desliga (disparada): aceso enquanto ligado
+func ligar_botao(acao: String, v: bool) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.ligado = v
 
 func mostrar_botao(acao: String, v: bool) -> void:
 	for b in botoes:
@@ -176,10 +185,14 @@ func _input(ev: InputEvent) -> void:
 					b.apertado = true
 					apertou.emit(b.acao)
 					return
+			# zona morta (André 2026-11-03): dedo perto das skills sem acertar o botão não vira câmera nem pinça
+			if zona_morta(ev.position):
+				_toques[ev.index] = "morto"
+				return
 			_inicio[ev.index] = [ev.position, Time.get_ticks_msec()]
-			# já tem um dedo na câmera e o joystick está livre: o segundo dedo é a pinça do zoom, mesmo à esquerda
-			var pinca_esq: bool = not _cam_dedos.is_empty() and not ("joy" in _toques.values())
-			if ev.position.x < _tela.size.x * 0.42 and not pinca_esq:
+			# lado esquerdo é sempre do joystick: a pinça do zoom só começa com os dois dedos no meio livre da tela
+			# (antes um dedo na câmera fazia o toque no joystick virar pinça e o herói não andava)
+			if ev.position.x < _tela.size.x * 0.42:
 				_toques[ev.index] = "joy"
 				_joy_centro = ev.position
 				_joy_dedo = ev.position
@@ -199,7 +212,7 @@ func _input(ev: InputEvent) -> void:
 				tocou.emit(ev.position)
 			if o == "joy":
 				mover = Vector2.ZERO
-			elif o != null and o != "cam" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
+			elif o != null and o != "cam" and o != "morto" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
 				for b in botoes:
 					if b.acao == o:
 						b.apertado = false
@@ -214,13 +227,15 @@ func _input(ev: InputEvent) -> void:
 				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * 1.4
 		elif o == "cam":
 			_cam_dedos[ev.index] = ev.position
-			if _cam_dedos.size() >= 2: # pinça: zoom, sem girar
+			# pinça: zoom, sem girar. Com o joystick em uso nunca tem pinça: andar + dedo na câmera é sempre girar
+			if _cam_dedos.size() >= 2 and not ("joy" in _toques.values()):
 				var d := _dist_pinca()
 				if _pinca > 0.0 and d > 0.0:
 					zoom_cam *= _pinca / d
 				_pinca = d
 			else:
 				giro_cam += ev.relative
+				_pinca = _dist_pinca() # sem salto de zoom quando o joystick solta com dois dedos na câmera
 	elif ev is InputEventMouseButton and ev.pressed:
 		if ev.button_index == MOUSE_BUTTON_WHEEL_UP:
 			zoom_cam *= 0.9
@@ -229,6 +244,25 @@ func _input(ev: InputEvent) -> void:
 	elif ev is InputEventMagnifyGesture: # touchpad do PC
 		if ev.factor > 0.0:
 			zoom_cam /= ev.factor
+
+# zona morta em volta da HUD de combate: o arco das skills em volta do golpe e uma folga em volta de cada botão.
+# Toque ali sem acertar o botão é ignorado (não gira a câmera, não entra na pinça, não rouba o joystick)
+const FOLGA_BOTAO := 40.0 # px além do alvo do botão
+const FOLGA_ARCO := 45.0 # px além da borda de fora do arco das skills
+func zona_morta(p: Vector2) -> bool:
+	if esconder_combate:
+		return false
+	for b in botoes:
+		if b.oculto:
+			continue
+		var c := _centro(b)
+		if p.distance_to(c) <= b.raio * 1.15 + FOLGA_BOTAO:
+			return true
+		if b.acao == "basico": # o arco inteiro das skills (inclui os vãos entre elas)
+			var v := p - c
+			if v.length() <= 172.0 + 33.0 * 1.15 + FOLGA_ARCO and v.x <= 0.0 + b.raio and v.y <= b.raio:
+				return true
+	return false
 
 # distância entre os dois primeiros dedos da câmera (0 se não tem dois)
 func _dist_pinca() -> float:
@@ -255,7 +289,7 @@ func soltar_tudo() -> void:
 	for b in botoes:
 		b.apertado = false
 	for o in tinha:
-		if o != "joy" and o != "cam":
+		if o != "joy" and o != "cam" and o != "morto":
 			soltou.emit(o)
 
 # o Android às vezes não manda o "soltou" (notificação puxada, app minimizado, tela bloqueada): solta tudo
@@ -304,10 +338,19 @@ func _desenhar_combate() -> void:
 		if b.borda != null:
 			cor_borda = b.borda
 		_combate.draw_circle(c, r, cor_borda, false, 2.5)
+		var ligado: bool = b.get("ligado", false)
+		if ligado: # disparada ligada (direção de arte): âmbar da estamina, pulso discreto de ~1,2 s (escala 1,00-1,04, anel 0,5-0,9)
+			var pulso: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU / 1.2)
+			r *= 1.0 + 0.04 * pulso
+			_combate.draw_circle(c, r - 2.0, Color(0.93, 0.82, 0.32, 0.92))
+			_combate.draw_circle(c, r - 1.0, Color("8a6a2a"), false, 2.5) # borda escura: o círculo não some no âmbar
+			_combate.draw_circle(c, r + 3.0, Color(0.93, 0.82, 0.32, 0.5 + 0.4 * pulso), false, 2.0)
 		var t := icone(b.icone)
 		if t:
 			var s := r * 1.15
-			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			# ligado: ícone no marrom escuro do fundo, para não perder contraste no âmbar
+			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, cor_ico)
 		if b.travado: # ainda não liberada no nível do herói
 			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
 		elif b.sem_mana and b.cd <= 0.0: # sem mana: apagado com véu azul
