@@ -83,6 +83,7 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 
 | O que | Origem | Licença |
 | --- | --- | --- |
+| Fonte da HUD, menus e números de dano do app Godot (Alegreya Sans Medium e Bold, `godot-prototipo/fontes/`) | google/fonts (ofl/alegreyasans), guardada em New-Game-Anime-fontes `fontes_texto/alegreya-sans/` | SIL Open Font License 1.1 (uso comercial livre; `OFL.txt` junto) |
 | Heróis anime (Ruiva e 7 amostras VRoid), os NPCs da vila (Fumiriya, Amostra M, Shino e Vivi, com cabelo e roupa repintados no código) | VRoid Hub (Ruiva, de 水銀メイド, ©2026MercuryMaid, licença VRM 1.0 com uso comercial; crédito não obrigatório) e amostras VRoid CC0, repositório New-Game-Anime-fontes | VRM 1.0 / CC0 |
 | Monstros inimigos Puglin e Imp (versão grátis do Bestiary - Dungeon Monsters Kit), com contorno e cores 25% menos saturadas no código | Quaternius (quaternius.itch.io), repositório New-Game-Anime-fontes (pacotes_livres/) | Quaternius Asset License: uso comercial no jogo liberado, sem crédito; não pode repassar os arquivos soltos |
 | Animações dos monstros (parado, andar, correr, garra, soco, dano, morte) | Universal Animation Library 1 e 2 da Quaternius, convertidas para o esqueleto deles (client/converter-bestiario.html) | CC0 |

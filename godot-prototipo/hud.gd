@@ -4,8 +4,9 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "loja", "coletar", "forja", "resetar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
+signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
 const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao menu do personagem
@@ -18,6 +19,7 @@ const JOY_RAIO := 90.0 # px do centro até a borda: andar até a metade, correr 
 var giro_cam := Vector2.ZERO # quanto o dedo da câmera andou neste quadro
 var botoes: Array = [] # {acao, centro (a partir do canto de baixo à direita), raio, icone, cor, cd, cd_max}
 var _toques := {} # índice do dedo -> "joy" | "cam" | acao
+var _inicio := {} # índice do dedo -> [posição, hora] (joystick e câmera): toque rápido sem arrastar vira "tocou"
 var _joy_centro := Vector2.ZERO
 var _joy_dedo := Vector2.ZERO
 var _tela: Control
@@ -42,6 +44,13 @@ var aviso_txt := ""
 var _aviso_t := 0.0
 var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros avisos
 var _destaque_t := 0.0
+var _dano_t := 0.0 # levou golpe: borda vermelha rápida (e fraca, contínua, com a vida baixa)
+
+var esconder_combate := false # janela de um NPC aberta: skills, golpe, joystick e cura somem (fica o painel de vida)
+var _combate: Control # joystick e botões, desenhados por cima de _tela (some com fade)
+
+func levou_dano() -> void:
+	_dano_t = 0.35
 
 func _ready() -> void:
 	_tela = Control.new()
@@ -49,6 +58,11 @@ func _ready() -> void:
 	_tela.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tela.draw.connect(_desenhar)
 	add_child(_tela)
+	_combate = Control.new()
+	_combate.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_combate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_combate.draw.connect(_desenhar_combate)
+	_tela.add_child(_combate)
 	# posições pensadas numa tela de 1280x576 (deitada); contadas a partir do canto de baixo à direita
 	_botao("troca", Vector2(46, 250), 28, "troca", COR_TROCA)
 	# as 6 skills escolhidas no menu do personagem, num arco em volta do golpe
@@ -66,9 +80,32 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 	_botao("forja", Vector2(333, 160), 30, "pf_fer", COR_TROCA) # perto do Tomás: criar na forja
 	botoes[-1].oculto = true
+	_botao("resetar", Vector2(333, 160), 30, "desfazer", COR_TROCA) # perto do Mestre Ivo: resetar a build
+	botoes[-1].oculto = true
+	_botao("falar", Vector2(509, 160), 30, "falar", COR_TROCA) # perto de qualquer NPC: abre a janela dele (conversa.gd)
+	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
-	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false})
+	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
+		"pronto_t": 0.0, "nega_t": 0.0, "sem_mana": false, "borda": null})
+
+# apertou e não pôde (sem mana, recarga): o botão treme um instante
+func negar(acao: String) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.nega_t = 0.25
+
+# sem mana para a skill: o botão fica apagado com um véu azul
+func sem_mana(acao: String, v: bool) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.sem_mana = v
+
+# borda do botão na cor do elemento da skill (fogo, gelo, arcano, lâmina); null = a dourada de sempre
+func borda(acao: String, cor) -> void:
+	for b in botoes:
+		if b.acao == acao:
+			b.borda = cor
 
 func mostrar_botao(acao: String, v: bool) -> void:
 	for b in botoes:
@@ -97,6 +134,8 @@ func mostrar_build(icones_modo: Array, modo_atual: String, travados: Array = [])
 func recarga(acao: String, falta: float, total: float) -> void:
 	for b in botoes:
 		if b.acao == acao:
+			if b.cd > 0.0 and falta <= 0.0 and total > 1.5: # voltou a ficar pronta: brilho que abre
+				b.pronto_t = 0.45
 			b.cd = falta
 			b.cd_max = max(total, 0.01)
 
@@ -129,6 +168,7 @@ func _input(ev: InputEvent) -> void:
 					b.apertado = true
 					apertou.emit(b.acao)
 					return
+			_inicio[ev.index] = [ev.position, Time.get_ticks_msec()]
 			if ev.position.x < _tela.size.x * 0.42:
 				_toques[ev.index] = "joy"
 				_joy_centro = ev.position
@@ -138,6 +178,10 @@ func _input(ev: InputEvent) -> void:
 		else:
 			var o = _toques.get(ev.index)
 			_toques.erase(ev.index)
+			var ini = _inicio.get(ev.index)
+			_inicio.erase(ev.index)
+			if ini != null and (o == "joy" or o == "cam") and Time.get_ticks_msec() - int(ini[1]) < 350 and ev.position.distance_to(ini[0]) < 22.0:
+				tocou.emit(ev.position)
 			if o == "joy":
 				mover = Vector2.ZERO
 			elif o != null and o != "cam" and not segurando(o): # outro dedo ainda no mesmo botão: continua apertado
@@ -167,6 +211,7 @@ func segurando(acao: String) -> bool:
 func soltar_tudo() -> void:
 	var tinha: Array = _toques.values()
 	_toques.clear()
+	_inicio.clear()
 	mover = Vector2.ZERO
 	for b in botoes:
 		b.apertado = false
@@ -185,7 +230,58 @@ func _process(dt: float) -> void:
 		_aviso_t -= dt
 	if _destaque_t > 0:
 		_destaque_t -= dt
+	if _dano_t > 0:
+		_dano_t -= dt
+	for b in botoes:
+		if b.pronto_t > 0.0:
+			b.pronto_t -= dt
+		if b.nega_t > 0.0:
+			b.nega_t -= dt
+	# fade de 0,15 s da HUD de combate (janela do NPC)
+	_combate.modulate.a = move_toward(_combate.modulate.a, 0.0 if esconder_combate else 1.0, dt / 0.15)
+	_combate.visible = _combate.modulate.a > 0.0
 	_tela.queue_redraw()
+	_combate.queue_redraw()
+
+# joystick e botões (num Control próprio, para sumir com fade quando a janela de um NPC abre)
+func _desenhar_combate() -> void:
+	var f := ThemeDB.fallback_font
+	# joystick
+	if _toques.values().has("joy"):
+		_combate.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.12))
+		_combate.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.25), false, 2.0)
+		_combate.draw_circle(_joy_centro + mover * JOY_RAIO, 40, Color(1, 1, 1, 0.55))
+	# botões
+	for b in botoes:
+		if b.oculto:
+			continue
+		var c := _centro(b)
+		if b.nega_t > 0.0: # tremidinha de "não deu"
+			c.x += sin(b.nega_t * 90.0) * 5.0 * (b.nega_t / 0.25)
+		var r: float = b.raio * (0.94 if b.apertado else 1.0)
+		_combate.draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.35))
+		_combate.draw_circle(c, r, b.cor)
+		var cor_borda: Color = COR_BORDA if b.cor == COR_FUNDO else b.cor.lightened(0.35)
+		if b.borda != null:
+			cor_borda = b.borda
+		_combate.draw_circle(c, r, cor_borda, false, 2.5)
+		var t := icone(b.icone)
+		if t:
+			var s := r * 1.15
+			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+		if b.travado: # ainda não liberada no nível do herói
+			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
+		elif b.sem_mana and b.cd <= 0.0: # sem mana: apagado com véu azul
+			_combate.draw_circle(c, r, Color(0.05, 0.1, 0.3, 0.55))
+		if b.pronto_t > 0.0: # voltou a ficar pronta: anel que abre e some
+			var k: float = 1.0 - b.pronto_t / 0.45
+			_combate.draw_circle(c, r * (1.0 + 0.35 * k), Color(cor_borda.lightened(0.4), 0.85 * (1.0 - k)), false, 3.0)
+		if b.cd > 0.0:
+			var frac: float = b.cd / b.cd_max
+			_combate.draw_arc(c, r * 0.5, -PI / 2, -PI / 2 + TAU * frac, 24, Color(0, 0, 0, 0.55), r, true)
+			var txt := str(int(ceil(b.cd)))
+			var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+			_combate.draw_string(f, c + Vector2(-w * 0.5, 7), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
 	_tela.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.45))
@@ -195,7 +291,28 @@ func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) 
 	_tela.draw_string_outline(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.7))
 	_tela.draw_string(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 
+# borda vermelha da tela: golpe recebido (forte e rápida) ou vida abaixo de 30% (fraca, pulsando)
+func _borda_dano() -> void:
+	var a: float = clamp(_dano_t / 0.35, 0.0, 1.0) * 0.45
+	if vida < 0.3 and vida > 0.0:
+		a = max(a, (0.3 - vida) / 0.3 * (0.16 + 0.08 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)))
+	if a <= 0.01:
+		return
+	var t := _tela.size
+	var faixas := 10
+	var larg: float = min(t.x, t.y) * 0.11
+	for i in faixas:
+		var k: float = 1.0 - float(i) / faixas
+		var w: float = larg / faixas
+		var c := Color(0.75, 0.02, 0.02, a * k * k)
+		var o: float = w * i
+		_tela.draw_rect(Rect2(o, o, t.x - o * 2.0, w), c)
+		_tela.draw_rect(Rect2(o, t.y - o - w, t.x - o * 2.0, w), c)
+		_tela.draw_rect(Rect2(o, o + w, w, t.y - (o + w) * 2.0), c)
+		_tela.draw_rect(Rect2(t.x - o - w, o + w, w, t.y - (o + w) * 2.0), c)
+
 func _desenhar() -> void:
+	_borda_dano()
 	var f := ThemeDB.fallback_font
 	# painel do herói
 	var p0 := Vector2(18, 14)
@@ -218,32 +335,6 @@ func _desenhar() -> void:
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225 * clamp(estamina, 0.0, 1.0), 7)), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225, 4)), Color(0, 0, 0, 0.5))
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
-	# joystick
-	if _toques.values().has("joy"):
-		_tela.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.12))
-		_tela.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.25), false, 2.0)
-		_tela.draw_circle(_joy_centro + mover * JOY_RAIO, 40, Color(1, 1, 1, 0.55))
-	# botões
-	for b in botoes:
-		if b.oculto:
-			continue
-		var c := _centro(b)
-		var r: float = b.raio * (0.94 if b.apertado else 1.0)
-		_tela.draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.35))
-		_tela.draw_circle(c, r, b.cor)
-		_tela.draw_circle(c, r, COR_BORDA if b.cor == COR_FUNDO else b.cor.lightened(0.35), false, 2.5)
-		var t := icone(b.icone)
-		if t:
-			var s := r * 1.15
-			_tela.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
-		if b.travado: # ainda não liberada no nível do herói
-			_tela.draw_circle(c, r, Color(0, 0, 0, 0.35))
-		if b.cd > 0.0:
-			var frac: float = b.cd / b.cd_max
-			_tela.draw_arc(c, r * 0.5, -PI / 2, -PI / 2 + TAU * frac, 24, Color(0, 0, 0, 0.55), r, true)
-			var txt := str(int(ceil(b.cd)))
-			var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
-			_tela.draw_string(f, c + Vector2(-w * 0.5, 7), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 	if canal >= 0.0: # concentrando a magia
 		var tam := Vector2(240, 10)
 		var pc := Vector2((_tela.size.x - tam.x) * 0.5, _tela.size.y - 150)

@@ -91,11 +91,63 @@ func colidir() -> void:
 		if d < 0.7 and d > 0:
 			x = o.x + dx / d * 0.7
 			z = o.z + dz / d * 0.7
-	var r := sqrt(x * x + z * z)
-	var lim: float = m.raio - 2.2
-	if r > lim:
-		x *= lim / r
-		z *= lim / r
+	var lim := limitar_ao_mapa(x, z, 2.2) # vila, passagem e clareira de fora (shared/mapa.js limitarAoMapa)
+	x = lim.x
+	z = lim.y
+
+# mesma conta de shared/mapa.js: círculos (m.areas) ligados por corredores (cápsulas); sem areas, o círculo de raio m.raio
+func _no_segmento(c: Dictionary, px: float, pz: float) -> Vector2:
+	var a := Vector2(float(c.a[0]), float(c.a[1]))
+	var b := Vector2(float(c.b[0]), float(c.b[1]))
+	var v := b - a
+	var t: float = clamp((Vector2(px, pz) - a).dot(v) / max(0.0001, v.length_squared()), 0.0, 1.0)
+	return a + v * t
+
+# raio da área na direção ang (shared/mapa.js raioNaDirecao): círculo r, ou elipse rx × rz com ondas (lobos)
+static func raio_na_direcao(a: Dictionary, ang: float) -> float:
+	if not a.has("rx"):
+		return float(a.r)
+	var c: float = cos(ang) / float(a.rx)
+	var s: float = sin(ang) / float(a.rz)
+	var r: float = 1.0 / sqrt(c * c + s * s)
+	for l in a.get("lobos", []):
+		r *= 1.0 + float(l[1]) * sin(float(l[0]) * ang + float(l[2]))
+	return r
+
+func _raio_ate(a: Dictionary, px: float, pz: float) -> float:
+	return raio_na_direcao(a, atan2(pz - float(a.z), px - float(a.x)))
+
+func _areas() -> Array:
+	return m.areas if m.get("areas", []).size() > 0 else [{"x": 0.0, "z": 0.0, "r": float(m.raio)}]
+
+func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
+	for a in _areas():
+		if Vector2(px - float(a.x), pz - float(a.z)).length() <= _raio_ate(a, px, pz) - margem:
+			return true
+	for c in m.get("corredores", []):
+		if Vector2(px, pz).distance_to(_no_segmento(c, px, pz)) <= float(c.larg) / 2.0 - margem:
+			return true
+	return false
+
+func limitar_ao_mapa(px: float, pz: float, margem := 0.0) -> Vector2:
+	if dentro_do_mapa(px, pz, margem):
+		return Vector2(px, pz)
+	var melhor := Vector2(px, pz)
+	var md := INF
+	var centros: Array = []
+	for a in _areas():
+		centros.append([Vector2(float(a.x), float(a.z)), _raio_ate(a, px, pz) - margem])
+	for c in m.get("corredores", []):
+		centros.append([_no_segmento(c, px, pz), float(c.larg) / 2.0 - margem])
+	for k in centros:
+		var cc: Vector2 = k[0]
+		var d := Vector2(px, pz) - cc
+		var q: Vector2 = cc + (d.normalized() * max(0.0, k[1]) if d.length() > 0.0 else Vector2.ZERO)
+		var dd := Vector2(px, pz).distance_to(q)
+		if dd < md:
+			md = dd
+			melhor = q
+	return melhor
 
 func _vai(nx: float, nz: float) -> bool:
 	var h: float = T.altura(nx, nz, y)
@@ -111,11 +163,23 @@ func _vai(nx: float, nz: float) -> bool:
 	return true
 
 func mover(dx: float, dz: float) -> void:
+	var x0 := x
+	var y0 := y
+	var z0 := z
+	var chao0 := chao
 	if not _vai(x + dx, z + dz):
 		bloqueado = true
 		if not _vai(x + dx, z):
 			_vai(x, z + dz)
 	colidir()
+	# o empurrão de um obstáculo (tina, bigorna, esteio, NPC) não pode jogar o herói para dentro de uma parede:
+	# senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
+	if T.altura(x, z, y) > y + m.subida.degrau:
+		x = x0
+		y = y0
+		z = z0
+		chao = chao0
+		bloqueado = true
 
 # ---------- pulo, queda e dash ----------
 func pular(pode_mortal := true) -> String:
@@ -406,6 +470,8 @@ func parede_a_frente(dir: float, ate: float):
 	var fz := cos(dir)
 	var d := 0.1
 	while d <= ate + 0.0001:
+		if T.teto(x + fx * d, z + fz * d, y) < INF:
+			return null # o caminho entra debaixo de um telhado (ferraria aberta): parede lá dentro não se escala correndo
 		var h: float = T.altura(x + fx * d, z + fz * d, y)
 		if h > y + m.subida.degrau:
 			if h > y + m.subida.mini:

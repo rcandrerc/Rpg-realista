@@ -203,6 +203,53 @@ void fragment() {
 	ALPHA = op * (0.06 + f * 0.85 + faixa * f * 0.25);
 }
 """
+# corpo congelado: gelo branco azulado por cima do corpo, com cristais (ruído pela posição no mundo), brilho frio
+# na borda e reflexo forte; deixa ver só um pouco da forma por baixo
+const SH_GELO_CORPO := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back, shadows_disabled, specular_schlick_ggx;
+uniform float op = 1.0;
+varying vec3 pm;
+float h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float cel(vec3 p) {
+	vec3 i = floor(p), f = fract(p);
+	float d = 1.0;
+	for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
+		vec3 o = vec3(float(x), float(y), float(z));
+		vec3 r = o + vec3(h(i + o), h(i + o + 3.1), h(i + o + 7.7)) - f;
+		d = min(d, dot(r, r));
+	}
+	return sqrt(d);
+}
+void vertex() { pm = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
+	float cr = cel(pm * 7.0);
+	float aresta = smoothstep(0.05, 0.0, abs(cr - 0.42));
+	vec3 gelo = mix(vec3(0.239, 0.498, 0.710), vec3(0.549, 0.784, 0.918), smoothstep(0.1, 0.7, cr)); // sombra #3d7fb5 -> base #8cc8ea
+	gelo = mix(gelo, vec3(0.910, 0.973, 1.0), f); // só a borda clareia (#e8f8ff)
+	ALBEDO = gelo;
+	EMISSION = vec3(0.91, 0.97, 1.0) * aresta * step(0.55, h(floor(pm * 7.0))) * 0.6; // brilho duro e pequeno só em algumas arestas
+	ROUGHNESS = 0.75;
+	METALLIC = 0.0;
+	SPECULAR = 0.15;
+	ALPHA = op * 0.7; // no máximo 70%: olhos e silhueta do monstro continuam lendo por baixo
+}
+"""
+# ponta de cristal do congelado: azul-gelo translúcido, borda clara
+const SH_CRISTAL_GELO := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, shadows_disabled, specular_schlick_ggx;
+uniform float op = 1.0;
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+	ALBEDO = mix(vec3(0.549, 0.784, 0.918), vec3(0.910, 0.973, 1.0), f);
+	EMISSION = vec3(0.24, 0.5, 0.71) * 0.35;
+	ROUGHNESS = 0.2;
+	SPECULAR = 0.6;
+	ALPHA = op * (0.75 + f * 0.2);
+}
+"""
 # rastro: cada vértice traz a força (COLOR.a)
 const SH_FAIXA := """
 shader_type spatial;
@@ -1043,11 +1090,16 @@ var _prox_numero := 0.0 # quando o próximo número de dano pode aparecer
 var _lado_numero := 1.0
 var _ultimo_numero := {} # coluna (-1 ou 1) -> último número dela
 # Número de dano (ou cura) que sobe e some
+const NUMERO_ALTURA := 2.5 # m acima dos pés: uns 0,3 m acima do nome (direção de arte; era 1,9 e encostava no nome)
 func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) -> void:
 	var l := Label3D.new()
 	l.text = str(int(round(valor))) + ("!" if critico else "")
-	if critico:
-		l.scale = Vector3.ONE * 1.45
+	var escala_final: float = 1.45 if critico else 1.0
+	var pop: float = 1.9 if critico else 1.5 # nasce grande e encolhe rápido ("pulo" do número)
+	if critico: # crítico: laranja-avermelhado e contorno mais grosso
+		cor = cor.lerp(Color(1.0, 0.42, 0.12), 0.5)
+		l.outline_size = 16
+	l.scale = Vector3.ONE * escala_final * pop
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
 	l.font_size = 64
@@ -1059,7 +1111,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	# espalha para o lado da tela (±0,3 m) e sai 0,1 s depois do anterior, para os números não se encavalarem
 	# uns 25 px para o lado da tela, alternando esquerda e direita (convertido para metros pela distância da câmera)
 	var cam := get_viewport().get_camera_3d()
-	var base := pos + Vector3(0, 1.9, 0)
+	var base := pos + Vector3(0, NUMERO_ALTURA, 0)
 	_lado_numero = -_lado_numero
 	if cam:
 		var px_m: float = 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(base) / max(1.0, get_viewport().get_visible_rect().size.y)
@@ -1068,6 +1120,11 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 		var ult = _ultimo_numero.get(_lado_numero)
 		if is_instance_valid(ult):
 			base.y = max(base.y, ult.global_position.y + 18.0 * px_m + l.font_size * l.pixel_size)
+		# nunca em cima do painel de vida (canto de cima à esquerda): empurra para a direita
+		var sp := cam.unproject_position(base)
+		var painel := Rect2(8, 4, 350, 124)
+		if painel.has_point(sp):
+			base += cam.global_basis.x * (painel.end.x - sp.x + 24.0) * px_m
 	l.global_position = base
 	_ultimo_numero[_lado_numero] = l
 	var agora := Time.get_ticks_msec() / 1000.0
@@ -1080,7 +1137,8 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	if atraso > 0.0:
 		tw.tween_interval(atraso)
 	tw.tween_method(func(t: float):
-		l.global_position.y = y0 + t * 0.9
+		l.global_position.y = y0 + (1.0 - (1.0 - t) * (1.0 - t)) * 0.9 # sobe rápido e desacelera
+		l.scale = Vector3.ONE * escala_final * (1.0 + (pop - 1.0) * max(0.0, 1.0 - t / 0.15))
 		l.modulate.a = 1.0 - smoothstep(0.5, 1.0, t)
 		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 0.8)
 	tw.tween_callback(l.queue_free)
@@ -1185,11 +1243,9 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			b.dur = max(b.dur, b.t + dur)
 			return
 	var p := corpo.global_position
-	if k == "congela":
-		var m := _bolha(corpo, "8fdcff", dur, 0.75, 0.85, 1.0, 1.35)
-		bolhas[-1].k = k
+	if k == "congela": # o próprio corpo vira gelo (branco azulado, brilho frio na borda), sem bolha em volta
+		_congelar(corpo, dur)
 		surto(p.x, p.y + 0.9, p.z, 26, "eafcff", "3fb4ff", 3.5, 0.09)
-		m.scale = Vector3(1.0, 1.0, 1.0)
 	else:
 		var g := Node3D.new()
 		add_child(g)
@@ -1208,6 +1264,84 @@ func status(corpo: Node3D, k: String, dur: float) -> void:
 			g.add_child(e)
 		g.global_position = p + Vector3(0, 2.0, 0)
 		bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 2.0 * corpo.scale.y, "gira": 5.0, "k": k})
+
+# congelado: uma camada de gelo por cima de cada malha do corpo (material_overlay). O flash do golpe e o aviso de
+# preparo voltam para ela no lugar de limpar (meta "overlay_base"); some em 0,3 s no fim
+func _congelar(corpo: Node3D, dur: float) -> void:
+	var mat := material("gelo_corpo", SH_GELO_CORPO, {"op": 0.0})
+	var malhas := []
+	for mi in corpo.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh is QuadMesh: # a barra de vida fica como está
+			continue
+		mi.set_meta("overlay_base", mat)
+		if mi.material_overlay == null:
+			mi.material_overlay = mat
+		malhas.append(mi)
+	var g := Node3D.new()
+	add_child(g)
+	var pontas := _pontas_gelo(corpo, malhas, mat)
+	bolhas.append({"m": g, "corpo": corpo, "t": 0.0, "dur": dur, "op": -1.0, "alt": 0.0, "gira": 0.0, "k": "congela", "gelo": mat, "malhas": malhas, "pontas": pontas})
+
+# 4 pontas de cristal saindo dos ombros e das costas (o monstro olha para +z, as costas ficam em -z); seguem o corpo e
+# crescem junto do efeito
+func _pontas_gelo(corpo: Node3D, malhas: Array, mat: ShaderMaterial) -> Node3D:
+	# caixa do corpo pelos ossos (a caixa de uma malha com esqueleto vem da pose de ligação e não bate com o corpo)
+	var inv := corpo.global_transform.affine_inverse()
+	var caixa := AABB()
+	var primeira := true
+	for sk in corpo.find_children("*", "Skeleton3D", true, false):
+		for i in sk.get_bone_count():
+			var q: Vector3 = inv * (sk.global_transform * sk.get_bone_global_pose(i).origin)
+			if primeira:
+				caixa = AABB(q, Vector3.ZERO)
+				primeira = false
+			else:
+				caixa = caixa.expand(q)
+	var g := Node3D.new()
+	g.name = "pontas_gelo" # fora do corpo (o flash e o aviso de preparo guardam as malhas do corpo): segue ele a cada quadro
+	add_child(g)
+	g.global_transform = corpo.global_transform
+	if primeira:
+		return g
+	var sz := caixa.size
+	var cristal := material("cristal_gelo", SH_CRISTAL_GELO, {"op": 1.0})
+	var esc: float = 1.0 / max(0.01, corpo.global_transform.basis.get_scale().y)
+	# os ossos ficam por dentro da pele: ombros um pouco para fora da caixa, costas atrás dela
+	var c := caixa.get_center()
+	var fora: float = sz.y * 0.07
+	var costas: float = caixa.position.z - fora
+	# [posição no corpo, inclinação para fora]
+	for p in [[Vector3(c.x - sz.x * 0.5 - fora * 0.3, caixa.position.y + sz.y * 0.84, c.z), Vector3(0.0, 0.0, 0.7)],
+			[Vector3(c.x + sz.x * 0.5 + fora * 0.3, caixa.position.y + sz.y * 0.84, c.z), Vector3(0.0, 0.0, -0.7)],
+			[Vector3(c.x - sz.x * 0.12, caixa.position.y + sz.y * 0.74, costas), Vector3(-0.8, 0.0, 0.25)],
+			[Vector3(c.x + sz.x * 0.14, caixa.position.y + sz.y * 0.6, costas), Vector3(-0.95, 0.0, -0.2)]]:
+		var mi := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 0.045 * esc
+		cone.height = randf_range(0.12, 0.2) * esc
+		cone.radial_segments = 5
+		cone.rings = 1
+		mi.mesh = cone
+		mi.material_override = cristal
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = p[0]
+		mi.rotation = p[1]
+		mi.position += mi.basis.y * cone.height * 0.35
+		mi.scale = Vector3.ONE * 0.01
+		g.add_child(mi)
+	return g
+
+func _descongelar(b: Dictionary) -> void:
+	if is_instance_valid(b.get("pontas")):
+		b.pontas.queue_free()
+	for mi in b.malhas:
+		if not is_instance_valid(mi):
+			continue
+		if mi.has_meta("overlay_base") and mi.get_meta("overlay_base") == b.gelo:
+			mi.remove_meta("overlay_base")
+		if mi.material_overlay == b.gelo:
+			mi.material_overlay = null
 
 # magia concentrada cancelada: o círculo some e a carga para
 func cancelar_conjura(corpo: Node3D) -> void:
@@ -1285,11 +1419,14 @@ func _faixa_passo(f: Faixa, dt: float, linha, perfil: Array, forca: float) -> vo
 
 func trilhos(corpo: Node3D) -> Dictionary:
 	if not rastros.has(corpo):
-		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0}
+		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "lamina": _faixa(14, 2, "bfeaff", 0.14), "dash_t": 0.0, "forte": 0.0,
+			"lamina2": _faixa(36, 4, "6fbfff", 0.22), "l2_ult": null} # lamina2: brilho largo da espada mágica, curvo, some fazendo a curva do golpe
 	return rastros[corpo]
 
 const PERFIL_DASH := [0.0, 0.55, 1.0, 0.7, 0.0]
 const PERFIL_LAMINA := [0.25, 1.0]
+const PERFIL_LAMINA2 := [0.0, 0.3, 1.0, 0.25] # transparente no lado do cabo, forte na ponta (borda de fora)
+const LAMINA2_SUB := 3 # amostras extras por quadro, girando em volta do herói: o rastro sai curvo mesmo a 30 FPS
 
 # chamado todo quadro para o herói: lamina = [base, ponta] da espada no mundo durante o golpe (ou null)
 func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
@@ -1311,6 +1448,77 @@ func corpo_passo(corpo: Node3D, dt: float, correndo_dash: bool, lamina) -> void:
 			if k < 2:
 				part(FUMA, p.x, p.y + 0.1, p.z, randf_range(-1, 1), randf_range(0.2, 0.8), randf_range(-1, 1), 0.6, 0.2 * H, 0.5 * H, "b0a898", "6a6458", 0.35, 0.3, 1.5)
 	_faixa_passo(r.lamina, dt, lamina, PERFIL_LAMINA, 0.7)
+	var l2 = null
+	if lamina != null: # do meio da lâmina até um pouco além da ponta
+		var b: Vector3 = lamina[0]
+		var p2: Vector3 = lamina[1]
+		l2 = [b.lerp(p2, 0.3), b.lerp(p2, 0.75), p2, p2 + (p2 - b) * 0.1]
+		# entre o quadro anterior e este: amostras girando em volta do corpo (arco, não reta)
+		if r.l2_ult != null:
+			for s in range(1, LAMINA2_SUB + 1):
+				var u: float = float(s) / (LAMINA2_SUB + 1)
+				var meio := []
+				for k in l2.size():
+					meio.append(_arco_em_volta(r.l2_ult[k], l2[k], p, u))
+				r.lamina2.pts.push_front({"l": meio, "t": -dt * u})
+		r.l2_ult = l2
+	else:
+		r.l2_ult = null
+	_faixa_passo(r.lamina2, dt, l2, PERFIL_LAMINA2, 0.55)
+
+# ponto entre a e b girando em volta do eixo vertical que passa por centro (ângulo, raio e altura interpolados)
+func _arco_em_volta(a: Vector3, b: Vector3, centro: Vector3, u: float) -> Vector3:
+	var va := Vector2(a.x - centro.x, a.z - centro.z)
+	var vb := Vector2(b.x - centro.x, b.z - centro.z)
+	var ang: float = lerp_angle(va.angle(), vb.angle(), u)
+	var raio: float = lerp(va.length(), vb.length(), u)
+	return Vector3(centro.x + cos(ang) * raio, lerp(a.y, b.y, u), centro.z + sin(ang) * raio)
+
+# onda de choque de gelo no chão: anel fino (12% do raio) que abre de 0,4 a 1,6 m em 0,28 s, alfa 0,5 -> 0
+const SH_ONDA_CORTE := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec4 cor : source_color = vec4(0.62, 0.89, 1.0, 1.0);
+uniform float op = 0.5;
+void fragment() {
+	float d = length(UV - 0.5) * 2.0;
+	float anel = smoothstep(0.86, 0.9, d) * (1.0 - smoothstep(0.97, 1.0, d));
+	ALBEDO = cor.rgb;
+	ALPHA = anel * op;
+}
+"""
+func onda_corte(x: float, z: float, y: float) -> void:
+	var mi := MeshInstance3D.new()
+	var q := PlaneMesh.new()
+	q.size = Vector2(2, 2)
+	mi.mesh = q
+	var mat := material("onda_corte", SH_ONDA_CORTE).duplicate()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	mi.global_position = Vector3(x, y + 0.04, z)
+	mi.scale = Vector3.ONE * 0.4
+	var tw := create_tween()
+	tw.tween_method(func(t: float):
+		var r: float = lerp(0.4, 1.6, 1.0 - (1.0 - t) * (1.0 - t))
+		mi.scale = Vector3(r, 1, r)
+		mat.set_shader_parameter("op", 0.5 * (1.0 - t)), 0.0, 1.0, 0.28)
+	tw.tween_callback(mi.queue_free)
+
+# marca do corte da espada no ponto que acertou: meia-lua branca-azulada rápida, na direção do golpe
+func marca_corte(p: Vector3, ry: float, forte: bool) -> void:
+	var g := Node3D.new()
+	add_child(g)
+	var l := lua("bfe6ff")
+	l.rotation = Vector3(PI / 2, 0, randf_range(-0.9, 0.9)) # de pé, inclinada como o golpe
+	l.scale = Vector3.ONE * (0.75 if forte else 0.55)
+	g.add_child(l)
+	g.position = p
+	g.rotation.y = ry
+	giros.append({"g": g, "mats": [l.material_override], "t": 0.0, "dur": 0.16, "gira": 0.0, "cresce": 0.7})
+	if forte: # 4º golpe e crítico: onda de choque de gelo no chão (#9fe3ff)
+		onda_corte(p.x, p.z, p.y - 1.05)
+		poeira(p.x, p.z, 0.8, 8, "c9bda6", "8a7f6c")
 
 # ---------------------------------------------------------------- quadro a quadro
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
@@ -1334,6 +1542,8 @@ func _passo(dt: float) -> void:
 		var b: Dictionary = bolhas[i]
 		b.t += dt
 		if not is_instance_valid(b.corpo) or b.t >= b.dur:
+			if b.has("gelo"):
+				_descongelar(b)
 			b.m.queue_free()
 			bolhas.remove_at(i)
 			i -= 1
@@ -1341,6 +1551,13 @@ func _passo(dt: float) -> void:
 		b.m.global_position = b.corpo.global_position + Vector3(0, b.alt, 0)
 		if b.gira != 0.0:
 			b.m.rotation.y += b.gira * dt
+		if b.has("gelo"):
+			var kg: float = min(1.0, b.t / 0.15) * min(1.0, (b.dur - b.t) / 0.3)
+			b.gelo.set_shader_parameter("op", kg)
+			if is_instance_valid(b.get("pontas")):
+				b.pontas.global_transform = b.corpo.global_transform
+				for pt in b.pontas.get_children():
+					pt.scale = Vector3.ONE * max(0.01, kg)
 		if b.op >= 0.0:
 			var k: float = min(1.0, b.t / 0.2) * min(1.0, (b.dur - b.t) / 0.3)
 			b.m.material_override.set_shader_parameter("op", b.op * k)

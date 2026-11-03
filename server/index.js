@@ -46,13 +46,14 @@ class SalaClareira extends Room {
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
     this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, { r: m.r }); });
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
+    this.ouvir('resetar', (c) => this.sim.resetarBuild(c.sessionId)); // Mestre Ivo: atributos de volta (paga em ouro)
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));
     this.ouvir('dash', (c) => this.sim.dash(c.sessionId));
     this.ouvir('aparencia', (c, a) => this.sim.definirAparencia(c.sessionId, a));
     this.ouvir('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
-    this.ouvir('falar', (c) => this.sim.falar(c.sessionId));
+    this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m)); // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
     // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
     this.ouvir('pos', (c, p) => this.sim.posicaoCliente(c.sessionId, p));

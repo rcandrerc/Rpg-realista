@@ -53,7 +53,7 @@ const gravar = (nome, b64) => { fs.writeFileSync(path.join(SAIDA, nome), Buffer.
     const { MAPA_CLAREIRA } = await import('/@id/@rpg/shared');
     const criar = document.createElement.bind(document); let cv;
     document.createElement = (t) => { const e = criar(t); if (t === 'canvas' && !cv) cv = e; return e; };
-    mascaraVila(MAPA_CLAREIRA.vila); document.createElement = criar;
+    mascaraVila(MAPA_CLAREIRA.vila, MAPA_CLAREIRA.mascara); document.createElement = criar;
     return cv.toDataURL('image/png').split(',')[1];
   });
   gravar('mascara_vila.png', png);

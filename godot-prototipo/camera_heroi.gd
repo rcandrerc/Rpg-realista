@@ -6,6 +6,9 @@ extends RefCounted
 # - abre o campo de visão correndo e no dash (sensação de velocidade);
 # - treme no golpe que acerta e afunda um pouco no pouso;
 # - não atravessa parede (main.distancia_livre) e sobe por cima do ombro quando fica muito perto.
+# - André (2026-11-02): nunca vira primeira pessoa. A câmera
+#   nunca chega mais perto que DIST_MIN (o "por cima do ombro" ficou guardado, mas não liga mais).
+#   Minério não puxa a câmera; parede, árvore e poço ainda puxam, só até DIST_MIN.
 
 # ajuste aqui testando no celular
 const SENS_GIRO := 0.006 # rad por pixel arrastado (lado)
@@ -16,6 +19,7 @@ const ANTECIPA := 0.22 # segundos de antecipação para onde ele corre
 const SEGUE_APOS := 1.1 # s sem mexer na câmera para ela começar a ir para as costas
 const SEGUE_VEL := 1.6 # rad/s máximos girando para as costas (na corrida)
 const FOV_BASE := 52.0
+const DIST_MIN := 2.6 # m: mais perto que isso parecia primeira pessoa
 const FOV_CORRIDA := 5.0 # graus a mais correndo
 const FOV_DASH := 9.0 # graus a mais no dash
 
@@ -34,6 +38,26 @@ var _afunda := 0.0
 var _afunda_v := 0.0
 var _t := 0.0
 var _fov := FOV_BASE
+# janela de um NPC aberta (conversa.gd): a câmera gira em 0,35 s para um 3/4 por cima do ombro
+# (o NPC de frente no terço de cima à esquerda, a Ruiva de costas na borda) e volta ao fechar
+const CONVERSA_T := 0.35
+const CONVERSA_LADO := -0.62 # rad em volta do meio dos dois (lado do ombro)
+const CONVERSA_PITCH := 0.32
+const CONVERSA_DIST := 3.0
+var _conversando := false
+var _conv_k := 0.0
+var _conv := {} # foco, yaw, pitch, dist do enquadramento
+var _antes := {} # yaw, pitch e dist de antes de abrir
+
+func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
+	if not _conversando and _conv_k <= 0.0:
+		_antes = {"yaw": yaw, "pitch": pitch, "dist": dist}
+	_conversando = true
+	var d := Vector3(heroi_pos.x - npc_pos.x, 0, heroi_pos.z - npc_pos.z).normalized()
+	_conv = {"foco": heroi_pos.lerp(npc_pos, 0.55) + Vector3(0, 0.95, 0), "yaw": atan2(d.x, d.z) + CONVERSA_LADO, "pitch": CONVERSA_PITCH, "dist": CONVERSA_DIST}
+
+func soltar_conversa() -> void:
+	_conversando = false
 
 func _init(principal, camera: Camera3D) -> void:
 	m = principal
@@ -92,9 +116,18 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		resta -= h
 		_afunda_v += (-_afunda * 120.0 - _afunda_v * 16.0) * h
 		_afunda += _afunda_v * h
+	# enquadramento da conversa com NPC (vai e volta em CONVERSA_T)
+	_conv_k = move_toward(_conv_k, 1.0 if _conversando else 0.0, dt / CONVERSA_T)
+	if _conv_k > 0.0 and not _conv.is_empty():
+		var s: float = smoothstep(0.0, 1.0, _conv_k)
+		yaw = lerp_angle(float(_antes.yaw), float(_conv.yaw), s)
+		pitch = lerp(float(_antes.pitch), float(_conv.pitch), s)
+		dist = lerp(float(_antes.dist), float(_conv.dist), s)
+		alvo = alvo.lerp(_conv.foco, s)
+		_vel_alvo = Vector3.ZERO
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
-	var livre: float = m.distancia_livre(foco_base, dir_cam, dist)
+	var livre: float = max(DIST_MIN, m.distancia_livre(foco_base, dir_cam, dist, true))
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
 	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
 	# muito perto (parede atrás): sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado
@@ -102,6 +135,14 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	var lado := Vector3(cos(yaw), 0, -sin(yaw))
 	var foco := foco_base + Vector3(0, 0.62 * ombro, 0) - lado * 0.42 * ombro
 	cam.position = foco + dir_cam * max(dist_cam, 0.6)
+	# conversa: a câmera vai 0,4 m para a direita e 0,2 m para cima, olhando para o mesmo ponto
+	# (a Ruiva e o cajado das costas saem pela borda; o NPC fica onde estava)
+	if _conv_k > 0.0:
+		cam.position += (lado * 0.4 + Vector3(0, 0.2, 0)) * smoothstep(0.0, 1.0, _conv_k)
+	# encostada na parede/chão: não entra no chão (sobe um pouco por cima)
+	var chao_cam: float = m.terreno.altura(cam.position.x, cam.position.z, cam.position.y + 1.5) + 0.3
+	if cam.position.y < chao_cam and chao_cam - cam.position.y < 2.5:
+		cam.position.y = chao_cam
 	cam.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
 	# tremida: trauma² (golpe fraco quase não treme, forte treme bem), cai rápido
 	if trauma > 0.0:

@@ -20,18 +20,20 @@ const Aparencia = preload("res://aparencia.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 const MenuTopo = preload("res://menu_topo.gd")
+const Combate = preload("res://combate.gd")
+const Conversa = preload("res://conversa.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
 const LACOS := ["parada", "andar", "corrida", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
-# inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), só no acampamento do leste, nunca dentro da vila
-const BANDO := [
-	{"id": "puglin", "x": 18.0, "z": 6.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 22.0, "z": -2.0, "nome": "Imp", "tipo": "imp"},
-	{"id": "puglin", "x": 17.0, "z": 1.0, "nome": "Puglin", "tipo": "puglin"}, {"id": "imp", "x": 24.0, "z": 3.0, "nome": "Imp Chefe", "escala": 1.15, "tipo": "chefe"},
-]
+# inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
+# saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
+const BANDO := []
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
-const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria"}
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "victoria", "reset": "cabelo_m"}
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
@@ -40,6 +42,9 @@ var camera: Camera3D
 var grama: MultiMeshInstance3D
 var hud
 var fx
+var combate # combate.gd: aviso antes do golpe do monstro, tranco, firme, esquiva, morte em fumaça
+var _lenta_ate := 0.0 # câmera lenta (só o tempo): esquiva e último inimigo
+var _lenta_k := 1.0
 var cache := {}
 var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (cada corpo tem a mão num jeito)
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
@@ -65,6 +70,7 @@ var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolament
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
+var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
@@ -86,7 +92,7 @@ const FILA_TEMPO := 0.3 # s que um botão apertado na hora errada fica guardado 
 const FILA_PULO := 0.15 # o pulo apertado pouco antes de pousar sai no pouso
 const HITSTOP := 0.05 # s de congelada no golpe que acerta
 const HITSTOP_FORTE := 0.085 # 4º golpe do combo, skill e crítico
-const TREME := 0.22
+const TREME := 0.15 # André 2026-11-02: pouca mudança de câmera no combate (era 0,22)
 const TREME_FORTE := 0.38
 var fila = null # botão guardado: {q, ate}
 var _hitstop_ate := 0.0
@@ -145,17 +151,22 @@ func _ready() -> void:
 		if mi.get_aabb().size.x > 200.0: # o chão do site: troco pelo meu, com as trilhas
 			mi.visible = false
 	pintar(vila, false)
+	achar_troncos(vila)
 	montar_chao()
 	montar_grama()
+	# fonte do jogo (Alegreya Sans, OFL) no lugar da letra padrão do Godot: HUD, menus e números de dano
+	ThemeDB.fallback_font = load("res://fontes/AlegreyaSans-Bold.ttf")
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
+	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
 		var e := criar_inimigo(b.id, Vector3(b.x, 0, b.z), b.get("nome", "Inimigo"), b.get("escala", 1.0))
 		e.tipo = b.tipo
 		e.vida_max = VIDA_INIMIGO.get(b.tipo, D.INIMIGO.vida)
 		e.vida = e.vida_max
+	montar_cacas()
 	for n in mundo.get("npcs", []):
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
@@ -176,6 +187,9 @@ func _ready() -> void:
 	add_child(trabalho)
 	menu = Menu.new(self)
 	add_child(menu)
+	conversa = Conversa.new(self)
+	add_child(conversa)
+	hud.tocou.connect(conversa.tocou_tela)
 	criador = Criador.new(self)
 	add_child(criador)
 	var cfg := ConfigFile.new()
@@ -226,6 +240,8 @@ func montar_chao() -> void:
 	m.set_shader_parameter("terra_tex", load("res://modelos/stony_dirt_path.jpg"))
 	m.set_shader_parameter("pedra_tex", load("res://modelos/cobblestone_floor_01.jpg"))
 	m.set_shader_parameter("mascara", load("res://modelos/mascara_vila.png"))
+	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
+	m.set_shader_parameter("area", Vector3(float(mk.x0), float(mk.z0), float(mk.tam)))
 	m.set_shader_parameter("grama_cru", load("res://modelos/forrest_ground_01.jpg"))
 	m.set_shader_parameter("pedra_cru", load("res://modelos/cobblestone_floor_01.jpg"))
 	var p := PlaneMesh.new()
@@ -237,8 +253,9 @@ func montar_chao() -> void:
 	add_child(chao)
 
 func peso_vila(x: float, z: float) -> float:
-	var i := int((x + 30.0) / 56.0 * mascara.get_width())
-	var j := int((z + 34.0) / 56.0 * mascara.get_height())
+	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
+	var i := int((x - float(mk.x0)) / float(mk.tam) * mascara.get_width())
+	var j := int((z - float(mk.z0)) / float(mk.tam) * mascara.get_height())
 	if i < 0 or j < 0 or i >= mascara.get_width() or j >= mascara.get_height():
 		return 0.0
 	var c := mascara.get_pixel(i, j)
@@ -246,9 +263,14 @@ func peso_vila(x: float, z: float) -> float:
 
 # Estilo pintado do site: sombra em degraus (toon), sem brilho de foto, contorno escuro nos personagens
 var pintados := {}
+var folhas: Array = [] # [MeshInstance3D, AABB no mundo] de copas e samambaias (somem quando tapam o herói)
 func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if not personagem and mi.mesh.get_surface_count() > 0:
+			var m0 = mi.mesh.surface_get_material(0)
+			if m0 is BaseMaterial3D and m0.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				folhas.append([mi, null])
 		for i in mi.mesh.get_surface_count():
 			var m = mi.mesh.surface_get_material(i)
 			if not (m is StandardMaterial3D):
@@ -309,19 +331,36 @@ func montar_grama() -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	mm.mesh = m
-	mm.instance_count = 22000 # mesma quantidade do celular no site
+	# a vila com a mesma quantidade do celular no site; as áreas de fora (mundo.areas depois da primeira) na mesma densidade
+	var n0 := 22000
+	var fora: Array = mundo.get("areas", []).slice(1)
+	var extras: Array = []
+	for o in fora:
+		var area: float = float(o.rx) * float(o.rz) if o.has("rx") else float(o.r) * float(o.r)
+		extras.append(int(n0 * area / pow(RAIO * 1.15, 2) * 0.8))
+	mm.instance_count = n0 + extras.reduce(func(s, n): return s + n, 0)
 	var rng := RandomNumberGenerator.new()
 	for i in mm.instance_count:
+		var cx := 0.0
+		var cz := 0.0
+		var rr := RAIO * 1.15
+		var ini := n0
+		for q in fora.size():
+			if i >= ini:
+				cx = float(fora[q].x)
+				cz = float(fora[q].z)
+				rr = (max(float(fora[q].rx), float(fora[q].rz)) * 1.27) if fora[q].has("rx") else float(fora[q].r) * 1.1
+			ini += extras[q]
 		var a := 0.0
 		var r := 0.0
 		for k in 20: # não nasce nas trilhas, na praça nem colada nas casas
 			a = rng.randf() * TAU
-			r = sqrt(rng.randf()) * RAIO * 1.15
-			if peso_vila(cos(a) * r, sin(a) * r) <= 0.2:
+			r = sqrt(rng.randf()) * rr
+			if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2 and (i < n0 or mov.dentro_do_mapa(cx + cos(a) * r, cz + sin(a) * r, -3.0)):
 				break
 		var s := rng.randf_range(0.7, 1.3)
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.6, 1.4), s))
-		mm.set_instance_transform(i, Transform3D(b, Vector3(cos(a) * r, 0, sin(a) * r)))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(cx + cos(a) * r, 0, cz + sin(a) * r)))
 		mm.set_instance_color(i, hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46))) # PALETA.grama do site
 	grama = MultiMeshInstance3D.new()
 	grama.multimesh = mm
@@ -484,7 +523,14 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
 	no.rotation.y = float(info.get("ry", randf() * TAU))
 	barra_vida(no, nome, Color(0, 0, 0, 0))
-	npcs.append({"no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id))})
+	# nome do NPC com 14 px na Alegreya (direção de arte: estava pequeno e borrado)
+	for l in no.get_children():
+		if l is Label3D:
+			l.font = load("res://fontes/AlegreyaSans-Bold.ttf")
+			l.pixel_size = 0.00034 * 1.5
+			l.offset = Vector2(0, 52.0 / 1.5)
+	npcs.append({"modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
+		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
 func perto_da_loja() -> bool:
@@ -492,6 +538,26 @@ func perto_da_loja() -> bool:
 		if n.funcao == "loja" and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
 			return true
 	return false
+
+# perto de quem compra itens (a Rosa ou o Tomás, o ferreiro)? O servidor confere o mesmo (pertoDeQuemCompra)
+func perto_de_quem_compra() -> bool:
+	if perto_da_loja():
+		return true
+	for n in npcs:
+		if "vender" in n.get("acoes", []) and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
+			return true
+	return false
+
+func perto_do_npc(funcao: String, metros: float) -> bool:
+	for n in npcs:
+		if n.funcao == funcao and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < metros:
+			return true
+	return false
+
+# preço do Mestre Ivo (RESET_BUILD de shared/dados.js, o mesmo de Simulacao.custoReset)
+func custo_reset() -> int:
+	var R: Dictionary = mundo.get("resetBuild", {"minimo": 50, "porNivel": 10})
+	return max(int(R.minimo), int(R.porNivel) * int(P.prog.nivel))
 
 # poção da mochila: confere se vale a pena; sem internet já recupera aqui (online quem aplica é o servidor)
 func usar_pocao(it: Dictionary) -> bool:
@@ -621,7 +687,13 @@ func mais_perto(pos: Vector3, max_d: float):
 
 # hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir
 func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
-	if e.estado == "morto" or on(): # online: quem acerta e quanto tira é o servidor
+	if e.estado == "morto":
+		return
+	if on(): # online: quem acerta e quanto tira é o servidor; o tranco, o flash e a congelada saem na hora aqui
+		var forte_on: bool = h.golpe_forte or not (hab is Dictionary and hab.has("combo"))
+		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada")
+		piscar(e.no)
+		combate.reacao(e.no, de, forte_on)
 		return
 	trabalho.combate()
 	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
@@ -630,6 +702,10 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		dmg *= 2.0
 	if e.vuln > tempo:
 		dmg *= 1.0 + e.vuln_k
+	if h.get("contra_ate", 0.0) > tempo: # contra-ataque depois da esquiva (como Simulacao.ferir)
+		dmg *= float(D.COMBATE.contraK)
+		crit = true
+		h.contra_ate = 0.0
 	dmg = max(1.0, round(dmg))
 	e.vida -= dmg
 	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
@@ -637,19 +713,37 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	var basico_hab: bool = hab is Dictionary and hab.has("combo")
 	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada")
 	piscar(e.no)
+	# resistência: muitos golpes seguidos e o monstro fica firme (aguenta e revida), como no servidor
+	if tempo - e.get("golpe_t", -9.0) > D.COMBATE.firmeJanela:
+		e.golpes = 0
+	e.golpe_t = tempo
+	e.golpes = e.get("golpes", 0) + 1
+	if e.vida > 0.0 and e.golpes >= int(D.COMBATE.firmeGolpes.get(e.tipo, 6)) and e.get("firme", 0.0) <= tempo and e.parado <= tempo:
+		e.firme = tempo + D.COMBATE.firmeDur
+		e.golpes = 0
+		e.cd = min(e.cd, 0.25)
+		combate.firme(e.no, D.COMBATE.firmeDur)
+	var firme: bool = e.get("firme", 0.0) > tempo
+	combate.reacao(e.no, de, h.golpe_forte or not basico_hab)
 	e.barra.scale.x = max(0.001, e.vida / e.vida_max)
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
 	var metros: float = float(hab.get("empurra", 0.25)) if hab is Dictionary else 0.25
-	if empurra.length() > 0.01 and e.tipo != "chefe": # o inimigo voa para longe (em 0,22 s)
+	if empurra.length() > 0.01 and e.tipo != "chefe" and not firme: # o inimigo voa para longe (em 0,22 s)
 		e.puxao = empurra.normalized() * metros / 0.22
 		e.puxao_t = 0.22
 	if e.vida <= 0:
 		e.estado = "morto"
 		e.t = D.INIMIGO.renascer
+		e.morreu = tempo
 		e.parado = 0.0
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
+		e.golpe = -1.0
+		if e.tipo != "chefe" and empurra.length() > 0.01: # o golpe final joga o corpo para trás
+			e.puxao = empurra.normalized() * D.COMBATE.voaMorte / 0.35
+			e.puxao_t = 0.35
+		combate.morreu(e.no)
 		sons.tocar("morte", -2.0, 0.1, e.no.position)
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = false
 		e.barra.visible = false
@@ -675,8 +769,9 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 				fx.status(e.no, k, hab[k] * chefe)
 				if k == "congela":
 					e.anim.speed_scale = 0.0
-	if e.parado > tempo:
+	if e.parado > tempo or firme: # atordoado, congelado ou firme: não para o que está fazendo
 		return
+	e.golpe = -1.0 # apanhou no meio do preparo: o golpe dele foi cortado
 	e.estado = "apanhar"
 	e.t = 0.45
 	e.anim.play("apanhar", 0.05, 1.6)
@@ -698,6 +793,7 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool) -> void:
 		# faíscas do corte no ponto do golpe
 		var p := pos + Vector3(0, 1.05, 0) - frente() * 0.25
 		fx.surto(p.x, p.y, p.z, 14 if pesado else 9, "ffffff", "ffd27a", 6.0 if pesado else 4.5, 0.08)
+		fx.marca_corte(p, heroi.rotation.y, pesado)
 	vibrar(40 if pesado else 22)
 
 # tudo para por um instante (Engine.time_scale), como nos jogos de ação; volta pelo relógio de verdade
@@ -705,11 +801,86 @@ func parar_golpe(seg: float) -> void:
 	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	Engine.time_scale = 0.05
 
+# folhagem entre a câmera e o peito do herói (cápsula de 0,8 m) fica transparente: alfa 0,25 em 0,15 s,
+# volta em 0,4 s. Os troncos são outra malha e continuam sólidos. (direção de arte, pacote A)
+const FOLHA_RAIO := 0.8
+const FOLHA_ALFA := 0.25
+const TRONCO_PERTO := 1.1 # m: tronco a menos disso da câmera (do lado, tapando meia tela) também apaga
+# troncos das árvores (opacos, finos e altos, em cima de uma árvore do mapa): entram no mesmo apagar das copas,
+# assim a câmera não fica atrás de um tronco sem precisar chegar perto (o André não quer a câmera colando no herói)
+var _n_troncos := 0
+func achar_troncos(raiz: Node) -> void:
+	var arv: Array = []
+	for a in mundo.get("coletaveis", []):
+		if str(a.tipo) == "arvore":
+			arv.append(Vector2(float(a.x), float(a.z)))
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
+			continue
+		var m0 = mi.mesh.surface_get_material(0)
+		if not (m0 is BaseMaterial3D) or m0.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+			continue
+		var bb: AABB = mi.global_transform * mi.mesh.get_aabb()
+		if bb.size.y < 2.0 or bb.size.y > 9.0 or bb.size.x > 6.0 or bb.size.z > 6.0: # tronco com os galhos
+			continue
+		var c := Vector2(bb.get_center().x, bb.get_center().z)
+		for a in arv:
+			if c.distance_to(a) < 1.6:
+				folhas.append([mi, null, 0.0, true])
+				_n_troncos += 1
+				break
+
+func folhagem_na_frente(dt: float) -> void:
+	if camera == null or heroi == null:
+		return
+	var a: Vector3 = camera.global_position
+	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
+	for f in folhas:
+		var mi: MeshInstance3D = f[0]
+		if not is_instance_valid(mi):
+			continue
+		if f[1] == null:
+			f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
+		var tapa: bool = f[1].intersects_segment(a, b) != null
+		if not tapa and f.size() > 3: # tronco colado na câmera, de lado
+			var bb: AABB = f[1]
+			var cxz := Vector2(bb.get_center().x, bb.get_center().z)
+			tapa = cxz.distance_to(Vector2(a.x, a.z)) < TRONCO_PERTO + FOLHA_RAIO and (Vector3(cxz.x, a.y, cxz.y) - a).dot(b - a) > 0.0
+		var quer: float = (1.0 - FOLHA_ALFA) if tapa else 0.0
+		var atual: float = f[2] if f.size() > 2 else 0.0
+		if atual == quer:
+			continue
+		atual = move_toward(atual, quer, dt * (1.0 - FOLHA_ALFA) / (0.15 if tapa else 0.4))
+		if f.size() < 3:
+			f.append(atual)
+		f[2] = atual
+		# alfa de verdade (sem o pontilhado do dither): cópia do material só enquanto a copa está apagando
+		if atual > 0.0:
+			if mi.material_override == null:
+				var base: BaseMaterial3D = mi.mesh.surface_get_material(0)
+				var mt: BaseMaterial3D = base.duplicate()
+				mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+				mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+				mi.material_override = mt
+			var cor: Color = mi.mesh.surface_get_material(0).albedo_color
+			mi.material_override.albedo_color = Color(cor, cor.a * (1.0 - atual))
+		else:
+			mi.material_override = null
+
+# câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
+func lenta(seg: float, k: float) -> void:
+	_lenta_ate = max(_lenta_ate, Time.get_ticks_usec() / 1000000.0 + seg)
+	_lenta_k = k
+	if Engine.time_scale > k:
+		Engine.time_scale = k
+
 func vibrar(ms: int) -> void:
 	if OS.has_feature("mobile") and vibracao:
 		Input.vibrate_handheld(ms)
 
-# inimigo pisca branco por um instante quando apanha
+# inimigo pisca branco por um instante quando apanha (direção de arte: no máximo 55% para branco, 0,06 s; era 85% e 0,11 s)
+const FLASH_DUR := 0.06
+const FLASH_MAX := 0.55
 func piscar(no: Node3D) -> void:
 	if not is_instance_valid(no):
 		return
@@ -726,7 +897,7 @@ func piscar(no: Node3D) -> void:
 				malhas.append(mi)
 		f = {"mat": mat, "t": 0.0, "malhas": malhas}
 		_flash[no] = f
-	f.t = 0.11
+	f.t = FLASH_DUR
 	for mi in f.malhas:
 		mi.material_overlay = f.mat
 
@@ -736,11 +907,11 @@ func _flash_passo(dt: float) -> void:
 		if f.t <= 0.0:
 			continue
 		f.t -= dt
-		f.mat.albedo_color.a = clamp(f.t / 0.11, 0.0, 1.0) * 0.85
+		f.mat.albedo_color.a = clamp(f.t / FLASH_DUR, 0.0, 1.0) * FLASH_MAX
 		if f.t <= 0.0:
 			for mi in f.malhas:
-				if is_instance_valid(mi):
-					mi.material_overlay = null
+				if is_instance_valid(mi): # congelado: volta para o gelo, não limpa
+					mi.material_overlay = mi.get_meta("overlay_base") if mi.has_meta("overlay_base") else null
 
 func dano_area(pos: Vector3, raio: float, dmg: float, hab = null) -> void:
 	for e in inimigos.duplicate():
@@ -797,7 +968,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
@@ -806,7 +977,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "loja", "coletar", "forja"]:
+	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
@@ -892,10 +1063,17 @@ func _tentar(qual: String) -> bool:
 		"loja":
 			rede("falar") # a Rosa responde e o menu abre na Loja
 			menu.abrir("loja")
+		"falar": # perto de um NPC: abre a janela dele (conversa.gd)
+			conversa.tocar_botao()
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
 		"forja": # perto do Tomás: menu na aba Profissões, receitas do Ferreiro
 			menu.abrir("profissoes", "fer")
+		"resetar": # perto do Mestre Ivo: online ele responde com o preço e a janela abre (online.gd "fala")
+			if on():
+				rede("falar")
+			else:
+				menu.perguntar_reset(custo_reset())
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -955,6 +1133,7 @@ func basico_espada() -> void:
 	h.pend = null
 	virar_para(alvo)
 	var i: int = 0 if tempo - h.combo_fim > hab.comboZera else (h.combo + 1) % hab.combo.size()
+	passo_golpe(alvo, i == hab.combo.size() - 1)
 	h.combo = i
 	var g: Dictionary = hab.combo[i]
 	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
@@ -1042,6 +1221,7 @@ func habilidade(i: int) -> bool:
 	var hab: Dictionary = P.hab_pronta(k)
 	if h.mana < hab.get("mana", 0):
 		hud.aviso("Mana insuficiente")
+		hud.negar("hab%d" % i)
 		return true
 	var alvo = alvo_hab(hab)
 	if alvo is bool:
@@ -1055,6 +1235,8 @@ func habilidade(i: int) -> bool:
 	if hab.has("canal"): # magia concentrada: andar (joystick forte), pular ou dar dash cancela e devolve 70% da mana
 		var dur: float = hab.canal / hab.at
 		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos)
+		if hab.has("area"): # aviso no chão de onde a magia vai pegar enquanto concentra (Meteoro: em cima do alvo)
+			combate.aviso_area(alvo.no if hab.tipo == "meteoro" and vivo(alvo) else heroi, float(hab.area), dur, Color(fx.cor_de(P.FX.get(k, "magia"))[1]))
 		comecar_q(hab.anim, dur, [hab.canal], func(_n):
 			acao.canal = false
 			acao.cancela = true
@@ -1080,9 +1262,22 @@ func cancelar_canal(motivo := "Cancelado") -> void:
 	acao = {}
 	fx.status_fim(heroi)
 	fx.cancelar_conjura(heroi)
+	combate.aviso_area_fim()
 	rede("cancelar")
 	hud.aviso(motivo)
 	heroi_anim.play("parada" if h.modo == "Magia" else "espada_parada", 0.15)
+
+# cada corte do básico dá meio passo para o alvo (o 4º, um passo inteiro), sem encostar nele
+func passo_golpe(alvo, forte: bool) -> void:
+	if not vivo(alvo) or h.lunge != null:
+		return
+	var d: Vector3 = alvo.no.position - heroi.position
+	d.y = 0
+	var falta: float = d.length() - 1.25
+	if falta <= 0.05:
+		return
+	var t := 0.12
+	h.lunge = {"v": d.normalized() * min(falta, 0.8 if forte else 0.4) / t, "t": t, "fantasma": false}
 
 # passo rápido até o inimigo (lunge do Quimera, antes do Corte Duplo e do Golpe Esmagador)
 func lunge(alvo, para: float) -> void:
@@ -1227,6 +1422,11 @@ func mostrar_build() -> void:
 		icones.append(P.ICONE.get(k, "") if k != null else "")
 		travados.append(k != null and not P.liberada(k))
 	hud.mostrar_build(icones, h.modo, travados)
+	# borda de cada botão na cor do elemento da skill
+	var barra: Array = barra_atual()
+	for i in barra.size():
+		var k = barra[i]
+		hud.borda("hab%d" % i, Color(fx.cor_de(P.FX.get(k, "magia"))[1]).lightened(0.15) if k != null and P.habs.has(k) else null)
 
 # velocidade da animação de andar/correr para o passo bater com o chão (andar.gd: PASSO_*)
 func ritmo(a: String) -> float:
@@ -1239,6 +1439,8 @@ func ritmo(a: String) -> float:
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
 	if m.length() < 0.15:
+		if conversa and conversa.indo != null: # tocou num NPC longe: vai até ele
+			return conversa.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
@@ -1246,8 +1448,9 @@ func direcao_joystick() -> Vector3:
 func _process(dt: float) -> void:
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
-	if Engine.time_scale < 1.0 and Time.get_ticks_usec() / 1000000.0 >= _hitstop_ate:
-		Engine.time_scale = 1.0
+	var agora_s: float = Time.get_ticks_usec() / 1000000.0
+	if Engine.time_scale < 1.0 and agora_s >= _hitstop_ate:
+		Engine.time_scale = _lenta_k if agora_s < _lenta_ate else 1.0
 	tempo += dt
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
@@ -1255,6 +1458,7 @@ func _process(dt: float) -> void:
 	if not on():
 		atualizar_inimigos(dt)
 	barras_perto()
+	avisar_zona()
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
@@ -1262,10 +1466,15 @@ func _process(dt: float) -> void:
 	vestir_heroi()
 	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
 	_flash_passo(dt_real)
+	combate.passo(dt_real)
+	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m)
+	var marcado = mais_perto(heroi.position, 12.0) if h.morto <= 0.0 else null
+	combate.marcar(marcado.no if marcado else null, dt_real)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
 	cam.atualizar(min(dt_real, 0.1), g)
+	folhagem_na_frente(dt_real)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
@@ -1280,8 +1489,11 @@ func _process(dt: float) -> void:
 	for i in barra.size():
 		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
+		hud.sem_mana("hab%d" % i, k != null and P.habs.has(k) and h.mana < float(P.habs[k].get("mana", 0)))
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
 	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
+	hud.mostrar_botao("resetar", perto_do_npc("resetar", 3.0) and h.morto <= 0.0)
+	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
@@ -1569,10 +1781,46 @@ func barras_perto() -> void:
 		if e.barra.visible != v:
 			e.barra.visible = v
 			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v
+	empilhar_nomes()
+
+# dois ou mais monstros a menos de 1,5 m: os nomes empilham (18 px entre eles) em vez de se encavalar;
+# o "Firme!" fica no lugar do nome enquanto dura (direção de arte)
+const NOME_OFFSET := 52.0
+const NOME_PASSO := (14.0 + 18.0) * 72.0 / 14.0 # letra de 14 px + 18 px de espaço, em unidades da fonte (72)
+const NOME_PASSO_M := 0.42 # m que cada nome empilhado sobe (com a barra junto)
+func empilhar_nomes() -> void:
+	var lista := []
+	for e in inimigos:
+		if e.barra != null and e.estado != "morto":
+			lista.append(e)
+	if camera:
+		lista.sort_custom(func(a, b): return a.no.global_position.distance_to(camera.global_position) < b.no.global_position.distance_to(camera.global_position))
+	var feitos := []
+	for e in lista:
+		var nome: Label3D = e.barra.get_parent().get_child(e.barra.get_index() - 2)
+		var k := 0
+		for o in feitos:
+			if Vector2(o.no.position.x - e.no.position.x, o.no.position.z - e.no.position.z).length() < 1.5:
+				k += 1
+		if nome.visible:
+			feitos.append(e)
+		# nome, fundo e barra sobem juntos (4 px entre nome e barra continuam iguais)
+		var y_pilha: float = 1.95 + k * NOME_PASSO_M
+		nome.position.y = y_pilha
+		e.barra.position.y = y_pilha
+		e.barra.get_parent().get_child(e.barra.get_index() - 1).position.y = y_pilha
+		var c = combate._corpos.get(e.no)
+		var firme_on: bool = c != null and c.firme_txt != null and is_instance_valid(c.firme_txt) and c.firme_txt.visible
+		nome.modulate.a = 0.0 if firme_on else 1.0
+		nome.outline_modulate.a = nome.modulate.a
+		if firme_on:
+			c.firme_txt.offset.y = nome.offset.y * 14.0 / 22.0
+			c.firme_txt.position.y = nome.position.y
 
 # Câmera não atravessa casa, telhado, pedra nem tronco: anda do herói até a câmera e para 0,2 m antes do que bater
 # (copa de árvore deixa passar). Mesmas formas que o movimento usa (terreno.gd e obstáculos do mundo.json).
-func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
+# sem_minerio: os veios de minério não puxam a câmera (André 2026-11-02: chegava perto e virava primeira pessoa)
+func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false) -> float:
 	var t := 0.35
 	while t <= ate:
 		var p := de + dir * t
@@ -1581,7 +1829,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float) -> float:
 		for k in mundo.obstaculos:
 			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
 				return max(0.6, t - 0.2)
-		if trabalho and trabalho.dentro_de_pedra(p):
+		if trabalho and not sem_minerio and trabalho.dentro_de_pedra(p):
 			return max(0.6, t - 0.2)
 		t += 0.2
 	return ate
@@ -1615,9 +1863,97 @@ func colidir_inimigo(no: Node3D) -> void:
 			nz = (1.0 if lz >= 0 else -1.0) * k.hd
 		p.x = k.x + nx * k.cos + nz * k.sin
 		p.z = k.z - nx * k.sin + nz * k.cos
+	var lim: Vector2 = mov.limitar_ao_mapa(p.x, p.z, 2.2) # não passa das pedras que fecham o mapa (como Simulacao.colidir)
+	p.x = lim.x
+	p.z = lim.y
 	no.position = p
 
+# ---------- campo de caça (regra do Quimera, igual a Simulacao.passoCacas do servidor) ----------
+# sempre caca.n monstros: a cada caca.passo s, se falta algum (o corpo já sumiu), nasce um ao acaso no campo, longe
+# do herói; o próximo vem em caca.rapido s com menos da metade vivos, senão em caca.normal s
+var cacas: Array = []
+func montar_cacas() -> void:
+	for ci in mundo.get("caca", []).size():
+		var c: Dictionary = mundo.caca[ci]
+		var k := {"def": c, "vagas": [], "nx": 0.0, "t": 0.0}
+		for i in c.tipos.size():
+			var tipo := str(c.tipos[i])
+			var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), NOME_TIPO.get(tipo, "Inimigo"), 1.15 if tipo == "chefe" else 1.0)
+			e.tipo = tipo
+			e.vida_max = VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)
+			e.vida = e.vida_max
+			e.caca = ci
+			e.centro = e.no.position
+			k.vagas.append(e)
+		cacas.append(k)
+
+# ponto ao acaso no campo (até caca.ate do raio), longe do herói e fora de árvore, pedra e veio
+func ponto_caca(c: Dictionary, inicio := false):
+	for t in 8:
+		var a := randf() * TAU
+		var r: float = sqrt(randf()) * float(c.r) * float(c.ate)
+		var p := Vector3(float(c.x) + cos(a) * r, 0, float(c.z) + sin(a) * r)
+		if not inicio and heroi and Vector2(p.x - heroi.position.x, p.z - heroi.position.z).length() < float(c.longe):
+			continue
+		var livre := true
+		for k in mundo.obstaculos:
+			if Vector2(p.x - float(k.x), p.z - float(k.z)).length() < float(k.r) + 0.8:
+				livre = false
+				break
+		if livre:
+			return p
+	return null if not inicio else Vector3(float(c.x), 0, float(c.z))
+
+func passo_cacas(dt: float) -> void:
+	for k in cacas:
+		var c: Dictionary = k.def
+		k.t -= dt
+		if k.t > 0.0:
+			continue
+		k.t = float(c.passo)
+		var vivos := 0
+		var vaga = null
+		for e in k.vagas:
+			if e.estado != "morto":
+				vivos += 1
+			elif vaga == null and tempo - e.get("morreu", 0.0) >= float(c.corpo):
+				vaga = e
+		if vaga == null or tempo < k.nx:
+			continue
+		var p = ponto_caca(c)
+		if p == null:
+			k.nx = tempo + float(c.rapido)
+			continue
+		k.nx = tempo + (float(c.rapido) if vivos < int(c.n) / 2.0 else float(c.normal))
+		var e: Dictionary = vaga
+		e.vida = e.vida_max
+		e.estado = "vagar"
+		e.no.position = p
+		e.centro = p
+		e.alvo = p
+		e.barra.visible = true
+		e.barra.scale.x = 1.0
+		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
+		e.anim.play("espada_parada", 0.2)
+		combate.voltou(e.no)
+
+# entrou no campo de caça ou na zona de mineração: aviso com o nome (como o Quimera: "Zona de caça: ...")
+var _zona_atual := ""
+func avisar_zona() -> void:
+	var z := ""
+	for c in mundo.get("caca", []):
+		if Vector2(heroi.position.x - float(c.x), heroi.position.z - float(c.z)).length() < float(c.r):
+			z = "Zona de caça: " + str(c.nome)
+	for c in mundo.get("mina", []):
+		if Vector2(heroi.position.x - float(c.x), heroi.position.z - float(c.z)).length() < float(c.r) + 1.0:
+			z = "Mineração: " + str(c.nome)
+	if z != _zona_atual:
+		_zona_atual = z
+		if z != "":
+			hud.aviso(z)
+
 func atualizar_inimigos(dt: float) -> void:
+	passo_cacas(dt)
 	for e in inimigos:
 		colidir_inimigo(e.no)
 	separar_inimigos()
@@ -1635,6 +1971,8 @@ func atualizar_inimigos(dt: float) -> void:
 			e.anim.speed_scale = 1.0
 		match e.estado:
 			"morto":
+				if e.has("caca"): # campo de caça: quem volta é passo_cacas (outra vaga, outro lugar)
+					continue
 				if e.t <= 0.0:
 					e.vida = e.vida_max
 					e.estado = "vagar"
@@ -1643,6 +1981,7 @@ func atualizar_inimigos(dt: float) -> void:
 					e.barra.scale.x = 1.0
 					e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = true
 					e.anim.play("espada_parada", 0.2)
+					combate.voltou(no)
 				continue
 			"apanhar":
 				if e.t <= 0.0:
@@ -1652,17 +1991,39 @@ func atualizar_inimigos(dt: float) -> void:
 		ate.y = 0
 		var d := ate.length()
 		var dy: float = abs(heroi.position.y - no.position.y)
-		if e.golpe >= 0.0: # corte em andamento: acerta perto da metade (como no servidor: 45% da animação)
+		if e.golpe >= 0.0: # corte em andamento: preparo devagar, depois acerta perto da metade (como no servidor)
 			e.golpe += dt
+			if e.get("preparo", 0.0) > 0.0 and e.golpe >= e.preparo: # fim do preparo: o golpe sai rápido
+				e.preparo = 0.0
+				var pos_a: float = e.anim.current_animation_position
+				e.anim.play(e.anim.current_animation, 0.0, D.COMBATE.golpeTs)
+				e.anim.seek(pos_a, true)
 			if e.golpe > e.golpe_at and not e.get("acertou", false):
 				e.acertou = true
-				if d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.arrancada == null and mov.esc == null and acao.get("nome", "") != "rolar":
+				if h.morto <= 0.0 and mov.esc == null and d < 6.0 and (mov.arrancada != null or acao.get("nome", "") == "rolar"):
+					h.contra_ate = tempo + D.COMBATE.contraDur # rolou ou deu dash na hora: esquiva e contra-ataque
+					combate.esquiva(heroi)
+				elif d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.esc == null:
 					ferir_heroi(D.INIMIGO.dmg)
 					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
 			continue
-		if h.morto <= 0.0 and d < D.INIMIGO.visao:
+		if e.get("vez", false) and (h.morto > 0.0 or d > 5.0):
+			e.vez = false
+		# no máximo COMBATE.aoMesmoTempo batem juntos; os outros rodeiam a COMBATE.roda m esperando a vez
+		var na_vez := 0
+		for o in inimigos:
+			if o != e and o.estado != "morto" and o.get("vez", false):
+				na_vez += 1
+		if h.morto <= 0.0 and not e.get("vez", false) and na_vez >= int(D.COMBATE.aoMesmoTempo) and d < D.COMBATE.roda + 1.2:
+			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
+			var lado_r: float = 1.0 if inimigos.find(e) % 2 == 1 else -1.0
+			var lado_v := Vector3(ate.z, 0, -ate.x).normalized() * lado_r * D.COMBATE.rodaVel
+			no.position += (lado_v + ate.normalized() * (d - D.COMBATE.roda) * 1.5) * dt
+			if e.anim.current_animation != "andar":
+				e.anim.play("andar", 0.15)
+		elif h.morto <= 0.0 and d < D.INIMIGO.visao:
 			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
 			if d > D.INIMIGO.alcance or dy >= 1.3:
 				if d > 1.2:
@@ -1677,10 +2038,19 @@ func atualizar_inimigos(dt: float) -> void:
 				e.cd = D.INIMIGO.ataque_cd
 				e.golpe = 0.0
 				e.acertou = false
+				e.vez = true
+				# preparo: o braço vai para trás bem devagar e o corpo acende vermelho; depois o golpe sai rápido
 				var g := "golpe1" if randf() < 0.5 else "golpe2"
-				e.golpe_dur = e.anim.get_animation(g).length / 1.1
-				e.golpe_at = e.golpe_dur * 0.45
-				e.anim.play(g, 0.08, 1.1)
+				var C: Dictionary = D.COMBATE
+				var pr: float = float(C.preparo.get(e.tipo, 0.5))
+				var L: float = e.anim.get_animation(g).length
+				e.preparo = pr
+				e.golpe_at = pr + max(0.05, L * C.acerto - pr * C.preparoTs) / C.golpeTs
+				e.golpe_dur = pr + max(0.1, L - pr * C.preparoTs) / C.golpeTs
+				e.anim.play(g, 0.08, C.preparoTs)
+				combate.preparo(no, pr)
+				if randf() < 0.5:
+					e.vez = false # passa a vez para quem está rodeando
 			elif e.anim.current_animation != "espada_parada":
 				e.anim.play("espada_parada", 0.2)
 		else:
@@ -1715,6 +2085,8 @@ func ferir_heroi(dmg: float) -> void:
 	h.vida -= dmg
 	fx.numero(heroi.position, dmg, Color(1, 0.45, 0.4))
 	apanhou()
+	if acao.is_empty() and mov.esc == null and h.vida > 0.0: # a heroína sente o golpe (online vem do servidor igual)
+		heroi_anim.play("apanhar", 0.05, 1.4)
 	if h.vida <= 0.0:
 		h.vida = 0.0
 		h.morto = D.HEROI.renascer
@@ -1725,6 +2097,7 @@ func ferir_heroi(dmg: float) -> void:
 # o herói levou dano: tranco na câmera, som e vibração (offline e online)
 func apanhou() -> void:
 	cam.tremer(0.45)
+	hud.levou_dano()
 	sons.tocar("apanhar", -2.0, 0.1)
 	vibrar(60)
 
