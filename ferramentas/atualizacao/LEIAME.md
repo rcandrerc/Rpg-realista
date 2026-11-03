@@ -19,7 +19,7 @@ Onde fica: release **conteudo** (privado, fonte da verdade) e cópia no site pel
 `Aethra-jofo`, Oracle Object Storage grátis: 20 GB e 10 TB de download por mês), os arquivos sobem também para a
 Oracle e o `conteudo.json` (campo `url_base`) manda o app baixar de lá. O `conteudo.json` continua no site.
 O endereço público já vem como padrão no script (`https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/`),
-então basta o secret `ORACLE_PAR`. O link de escrita (só grava, vence em 2030-11-03) está em New-Game-Anime-fontes
+então basta o link de escrita: vem do secret `ORACLE_PAR` ou, sem ele, de `ferramentas/atualizacao/oracle-par-envio.txt` (André autorizou guardar no repositório privado em 2026-11-03; se o repositório um dia for aberto, troque o link na Oracle antes). O link de escrita (só grava, vence em 2030-11-03) está em New-Game-Anime-fontes
 `chaves/oracle-par-envio.txt`.
 
 Sem internet na primeira abertura: tela "Sem internet" com **Tentar de novo**. Depois disso, abre com o que já baixou.
