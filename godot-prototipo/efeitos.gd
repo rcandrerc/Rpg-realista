@@ -361,6 +361,9 @@ class Lote:
 
 var FOGO: Lote
 var FUMA: Lote
+# magias novas do cajado com partículas de textura (magias.gd; pedido do André 2026-11-03). As outras skills seguem aqui.
+var mg
+const NOVAS := ["bola", "gelo", "meteoros"]
 
 func _lote(n: int, aditivo: bool) -> Lote:
 	var L := Lote.new()
@@ -660,6 +663,9 @@ var rastros := {} # nó -> {dash, lamina, dash_t, forte}
 func _ready() -> void:
 	FOGO = _lote(1100, true)
 	FUMA = _lote(800, false)
+	mg = load("res://magias.gd").new()
+	mg.fx = self
+	add_child(mg)
 	for i in 4:
 		var l := OmniLight3D.new()
 		l.light_energy = 0.0
@@ -670,6 +676,9 @@ func _ready() -> void:
 # ---------------------------------------------------------------- efeitos
 # Começo da habilidade: círculo no chão, coluna de luz, labaredas, fumaça e brasas. corpo = nó do personagem
 func conjura(corpo: Node3D, hab: String, dur: float, maos: Callable = Callable()) -> void:
+	if hab in NOVAS: # Bola de Fogo, Nova de Gelo e Meteoro: runa no chão e a carga nas mãos (magias.gd)
+		mg.conjura(corpo, hab, dur, maos)
+		return
 	var voz = null
 	if CARGA.has(hab):
 		voz = _som_voz(CARGA[hab][0], corpo.global_position, -3.0, 0.02, CARGA[hab][1])
@@ -738,6 +747,10 @@ func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0) -> void:
 	else:
 		_som("explosao", Vector3(x, y, z), -2.0 + min(4.0, r), 0.1)
 	var cores := cor_de(fx)
+	if fx == "gelo": # Nova de Gelo: pontas de gelo saindo do chão em onda (magias.gd)
+		var w = mundo
+		mg.nova_gelo(x, z, r, y, func(px, pz): return w.terreno.altura(px, pz) if w else y)
+		return
 	if fx == "giro": # três cortes de luz rodando em volta, disco no chão, faíscas e clarão
 		var g := Node3D.new()
 		add_child(g)
@@ -868,15 +881,8 @@ func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Call
 	campos.append({"m": m, "x": x, "z": z, "r": r, "t": 0.0, "dur": queda + 0.3, "cb": cores[0], "cc": "c2401a", "fraco": false, "max": 0.5, "entra": 0.15, "sai": 0.3})
 	anel(x, z, r, "c2401a", queda + 0.3, y) # borda da área, para saber quem vai ser pego
 	var alvo := Vector3(x, y, z)
-	# cai 15° inclinada para a câmera, de 22 m: a pedra atravessa a tela em vez de vir de cima, fora da vista
-	var para_cam := Vector3(1.0, 0.0, 0.5).normalized()
-	var cam3 := get_viewport().get_camera_3d() if is_inside_tree() else null
-	if cam3:
-		var v := cam3.global_position - alvo
-		v.y = 0.0
-		if v.length() > 0.5:
-			para_cam = v.normalized()
-	var de := alvo + Vector3.UP * METEORO_ALTO + para_cam * METEORO_ALTO * tan(deg_to_rad(15.0))
+	var de := _meteoro_de(alvo)
+	mg.portal(alvo, de, queda + 0.1) # portal de fogo no céu de onde a rocha sai (magias.gd)
 	var o := cometa("fogo", METEORO_RAIO * 1.05, 16.0)
 	var cm: Dictionary = o.get_meta("cm")
 	cm.cab.visible = false # no lugar da cabeça de fogo vai a rocha com aura
@@ -901,12 +907,29 @@ func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Call
 		"forte": 1.6, "gigante": true, "rocha": rocha, "gira": Vector3(randf_range(2, 4), randf_range(-2, 2), randf_range(1, 3))})
 	luz(cores[1], 2.0, r * 2.0, queda).l.global_position = alvo + Vector3(0, 1.0, 0)
 
+# cai 15° inclinada para a câmera, de 22 m: a pedra atravessa a tela em vez de vir de cima, fora da vista
+func _meteoro_de(alvo: Vector3) -> Vector3:
+	var para_cam := Vector3(1.0, 0.0, 0.5).normalized()
+	var cam3 := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam3:
+		var v := cam3.global_position - alvo
+		v.y = 0.0
+		if v.length() > 0.5:
+			para_cam = v.normalized()
+	return alvo + Vector3.UP * METEORO_ALTO + para_cam * METEORO_ALTO * tan(deg_to_rad(15.0))
+
+# portal do Meteoro aberto já no começo da concentração, em cima do alvo
+func meteoro_portal(x: float, z: float, y: float, dur: float) -> void:
+	var alvo := Vector3(x, y, z)
+	mg.portal(alvo, _meteoro_de(alvo), dur)
+
 # a rocha bateu: clarão, cúpula de fogo, onda de choque, anel de chamas correndo para fora, pedras voando,
 # coluna de fumaça e a cratera em brasa que esfria devagar. Tremida e vibração para quem está perto.
 func meteoro_impacto(p: Vector3, r: float) -> void:
 	var cores := cor_de("meteoros")
 	_som("q_meteoro_impacto", p, 3.0, 0.04)
-	area(p.x, p.z, r, cores, 1.4, p.y, true)
+	mg.meteoro_impacto(p, r)
+	area(p.x, p.z, r, cores, 0.8, p.y, true) # era 1,4: as labaredas antigas somadas faziam a névoa bege na tela
 	luz("ff8a3a", 4.0, r * 4.0, 0.6).l.global_position = p + Vector3(0, 2.0, 0)
 	# cúpula de fogo que cresce e some
 	var d := MeshInstance3D.new()
@@ -947,7 +970,7 @@ func meteoro_impacto(p: Vector3, r: float) -> void:
 	for i in 26:
 		var a := randf() * TAU
 		var dd := randf() * r * 0.35
-		part(FUMA, p.x + cos(a) * dd, p.y + 0.5, p.z + sin(a) * dd, cos(a) * 0.6, randf_range(3.0, 6.5), sin(a) * 0.6, randf_range(1.4, 2.4), 0.9 * H, randf_range(1.6, 2.6) * H, "5a4a46", "26201f", 0.75, -0.6, 0.9)
+		part(FUMA, p.x + cos(a) * dd, p.y + 0.5, p.z + sin(a) * dd, cos(a) * 0.6, randf_range(3.0, 6.5), sin(a) * 0.6, randf_range(1.4, 2.4), 0.9 * H, randf_range(1.6, 2.6) * H, "5a4a46", "26201f", 0.4, -0.6, 0.9)
 	# brasas e faíscas para todo lado
 	for i in 40:
 		var a := randf() * TAU
@@ -1052,6 +1075,16 @@ func projetil(de: Vector3, dir: Vector3, info: Dictionary, dmg: float, alcance :
 	var cor: Color = info.cor
 	var cb = "fff2b0" if estilo == "fogo" else "ffffff"
 	var tam: float = info.tam
+	if estilo == "fogo": # Faísca e Bola de Fogo: chama com textura (magias.gd)
+		var grande: bool = info.has("explosao")
+		var no := Node3D.new()
+		add_child(no)
+		no.global_position = de
+		mg.lanca(de, dir, grande)
+		var lz = luz(cor, 2.4 if grande else 1.6, 6.0 if grande else 4.0, 2.5, no)
+		projeteis.append({"m": no, "dir": dir, "vel": float(info.vel), "andou": 0.0, "alcance": alcance, "info": info, "estilo": estilo, "luz": lz, "t": 0.0, "dmg": dmg,
+			"novo": true, "tam": tam * (2.3 if grande else 1.45), "grande": grande})
+		return
 	var m := cometa(estilo, tam, 2.2 if estilo == "arcano" else 2.6 + tam * 4.0)
 	m.look_at_from_position(de, de + dir, Vector3.UP if abs(dir.y) < 0.99 else Vector3.RIGHT)
 	surto(de.x, de.y, de.z, 10 if estilo == "arcano" else 26, cb, cor, 3.0 if estilo == "arcano" else 6.0, 0.07 if estilo == "arcano" else 0.12)
@@ -1062,7 +1095,12 @@ func _fim_projetil(p: Dictionary) -> void:
 	var o: Vector3 = p.m.global_position
 	var cor: Color = p.info.cor
 	var clara := cor.lerp(Color.WHITE, 0.6)
-	if p.info.has("explosao"):
+	if p.get("novo", false):
+		if p.info.has("explosao"):
+			mg.explosao(o, p.info.explosao, mundo.terreno.altura(o.x, o.z, o.y) if mundo else o.y - 1.0)
+		else:
+			mg.impacto(o, p.dir)
+	elif p.info.has("explosao"):
 		area(o.x, o.z, p.info.explosao, [clara, cor], 0.8, max(0.0, o.y - 1.2))
 		surto(o.x, o.y, o.z, 30, "fff2b0", cor, 8.0, 0.14)
 	else:
@@ -1345,6 +1383,7 @@ func _descongelar(b: Dictionary) -> void:
 
 # magia concentrada cancelada: o círculo some e a carga para
 func cancelar_conjura(corpo: Node3D) -> void:
+	mg.cancelar(corpo)
 	for k in circulos:
 		if k.corpo == corpo and k.vivo:
 			k.dur = k.t
@@ -1693,8 +1732,13 @@ func _passo(dt: float) -> void:
 		var vx: float = -p.dir.x * p.vel
 		var vy: float = -p.dir.y * p.vel
 		var vz: float = -p.dir.z * p.vel
-		_cometa_escala(m, 1.0 + sin(p.t * 31.0) * 0.08, min(1.0, p.t * 6.0) * (1.0 + sin(p.t * 23.0) * 0.06))
-		if p.estilo == "fogo":
+		if p.get("novo", false):
+			mg.voo(o, p.dir, p.vel, p.tam, p.grande, p.t, dt)
+		else:
+			_cometa_escala(m, 1.0 + sin(p.t * 31.0) * 0.08, min(1.0, p.t * 6.0) * (1.0 + sin(p.t * 23.0) * 0.06))
+		if p.get("novo", false):
+			pass
+		elif p.estilo == "fogo":
 			part(FOGO, o.x, o.y, o.z, 0, 0, 0, 0.08, 1.6 * tm * 2.0, tm * 2.0, "fff2b0", cor, 0.7)
 			for k in 2:
 				part(FUMA, o.x + randf_range(-0.1, 0.1), o.y + randf_range(-0.1, 0.1), o.z + randf_range(-0.1, 0.1), vx * 0.1 + randf_range(-0.4, 0.4), vy * 0.1 + randf_range(0.2, 1), vz * 0.1 + randf_range(-0.4, 0.4), randf_range(0.35, 0.6), tm * 1.2, tm * 4.0, "ff7a1a", "2a0a04", 0.3, 1.2, 0.8)
@@ -1734,6 +1778,7 @@ func _passo(dt: float) -> void:
 		var o: Vector3 = q.o.global_position
 		if q.get("gigante", false):
 			q.rocha.rotation += q.gira * dt
+			mg.meteoro_voo(o, (q.para - q.de).normalized(), METEORO_RAIO)
 			for k in 5:
 				var a := randf() * TAU
 				var rr := randf_range(0.6, 1.2) * METEORO_RAIO
@@ -1772,7 +1817,8 @@ func _passo(dt: float) -> void:
 			continue
 		var cresce: float = 1.0 - pow(1.0 - min(1.0, u * 1.6), 3.0)
 		dm.m.scale = Vector3(dm.r, dm.r * 0.85, dm.r) * (0.25 + 0.75 * cresce)
-		dm.m.material_override.set_shader_parameter("op", 0.6 * (1.0 - u * u)) # direção de arte: cúpula + clarão até 0,6
+		# direção de arte (2026-11-03): o clarão cobria a tela; agora 0,5 por no máximo 0,15 s e some rápido
+		dm.m.material_override.set_shader_parameter("op", 0.5 * clamp(1.0 - (dm.t - 0.15) / 0.2, 0.0, 1.0))
 		i -= 1
 	i = ondas.size() - 1
 	while i >= 0:

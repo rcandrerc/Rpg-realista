@@ -199,14 +199,14 @@
    },
    "combo": [
     {
-     "anim": "magia1",
-     "dur": 0.58,
-     "hit": 0.17
+     "anim": "magia_d",
+     "dur": 0.52,
+     "hit": 0.39
     },
     {
-     "anim": "magia2",
-     "dur": 0.58,
-     "hit": 0.17
+     "anim": "magia_e",
+     "dur": 0.52,
+     "hit": 0.39
     }
    ],
    "desc": "Faísca de fogo que mira sozinha no inimigo mais perto (até 9 m) e deixa lento. Não gasta mana."
@@ -217,9 +217,9 @@
    "arvore": "cajado",
    "tipo": "bola",
    "libera": 1,
-   "anim": "bola",
-   "at": 0.43,
-   "canal": 0.55,
+   "anim": "bola_forte",
+   "at": 0.54,
+   "canal": 0.75,
    "alcance": 11,
    "pct": 2.2,
    "proj": {
@@ -263,8 +263,8 @@
    "arvore": "cajado",
    "tipo": "meteoro",
    "libera": 5,
-   "anim": "meteoros",
-   "at": 0.6,
+   "anim": "meteoro_ceu",
+   "at": 0.76,
    "canal": 1.4,
    "alcance": 12,
    "area": 6,
@@ -285,9 +285,9 @@
    "arvore": "cajado",
    "tipo": "gelo",
    "libera": 8,
-   "anim": "onda",
-   "at": 0.45,
-   "canal": 0.75,
+   "anim": "nova_gelo",
+   "at": 0.58,
+   "canal": 0.8,
    "area": 6,
    "congela": 3.8,
    "nv": {

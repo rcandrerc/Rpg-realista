@@ -77,7 +77,7 @@
     { "nome": "Menu do topo ligado no jogo e na HUD", "arquivo": "godot-prototipo/main.gd", "contem": ["menu_topo = MenuTopo.new(self)", "and vibracao:"] },
     { "nome": "Sons das skills do Quimera (q_*.ogg)", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const CARGA := {", "const SOM_AREA := {", "\"q_bola_lanca\"", "\"q_meteoro_impacto\"", "func cancelar_conjura("] },
     { "nome": "Meteoro gigante do Quimera: rocha, explosão e cratera", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const METEORO_RAIO", "func meteoro_impacto(", "func _rocha_malha()", "const SH_CRATERA"] },
-    { "nome": "Meteoro pega todo mundo na área de 6 m (servidor)", "arquivo": "shared/progresso.js", "contem": ["tipo: 'meteoro', libera: 5, anim: A.rain, at: 0.6, canal: 1.4, alcance: 12, area: 6"] },
+    { "nome": "Meteoro pega todo mundo na área de 6 m (servidor)", "arquivo": "shared/progresso.js", "contem": ["tipo: 'meteoro', libera: 5, anim: A.meteoroCeu, at: 0.76, canal: 1.4, alcance: 12, area: 6"] },
     { "nome": "Voz que dá para parar (carga das magias)", "arquivo": "godot-prototipo/sons.gd", "contem": ["func tocar_voz(", "func parar("] },
     { "nome": "Mapa maior: vila + passagem da estradinha + clareira de fora (André 2026-11-02)", "arquivo": "shared/dados.js", "contem": ["areas: [{ x: 0, z: 0, r: 34 }, FORA]", "corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }]", "const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos:"] },
     { "nome": "Limite do mapa por áreas e corredores (servidor)", "arquivo": "shared/mapa.js", "contem": ["export function dentroDoMapa(", "export function limitarAoMapa("] },
@@ -104,6 +104,10 @@
     { "nome": "Tomás ferreiro: avental de couro, ombros largos e martelo", "arquivo": "godot-prototipo/visual_npc.gd", "contem": ["static func vestir(", "func _avental(", "func _martelo("] },
     { "nome": "Espantalho de treino ao lado da ferraria (André 2026-11-03): dados", "arquivo": "shared/dados.js", "contem": ["export const TREINO", "espantalho: { nome: 'Espantalho de treino'", "treino: [{ id: 'espantalho1'"] },
     { "nome": "Espantalho de treino: nunca morre, sem XP nem item (servidor)", "arquivo": "shared/simulacao.js", "contem": ["ferirTreino(alvo, n, crit, de, h)", "if (alvo.treino) return this.ferirTreino(", "if (b.treino) {"] },
-    { "nome": "Espantalho de treino no app (modelo, sem internet)", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_treino()", "func criar_espantalho(", "func ferir_treino(", "res://treino3d/Dummy.gltf"] }
+    { "nome": "Espantalho de treino no app (modelo, sem internet)", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_treino()", "func criar_espantalho(", "func ferir_treino(", "res://treino3d/Dummy.gltf"] },
+    { "nome": "Magias novas do cajado com fogo pintado e textura (André 2026-11-03)", "arquivo": "godot-prototipo/magias.gd", "contem": ["const ATLAS := \"res://efeitos/magia_atlas.png\"", "const TOON := 2.0", "func explosao(", "func nova_gelo(", "func portal(", "const GELO_QUEBRA"] },
+    { "nome": "Bola de Fogo, Nova de Gelo, Meteoro e Faísca passam pelos efeitos novos", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const NOVAS := [\"bola\", \"gelo\", \"meteoros\"]", "mg.nova_gelo(", "mg.portal(", "\"novo\": true"] },
+    { "nome": "Animações novas das magias do cajado", "arquivo": "shared/dados.js", "contem": ["mg_basico_d: 1.2", "magiaD: ['mg_basico_d'", "bolaForte: ['mg_bola'", "novaGelo: ['mg_gelo'", "meteoroCeu: ['mg_meteoro'"] },
+    { "nome": "Faísca alterna a mão e a Bola de Fogo sai das duas mãos", "arquivo": "godot-prototipo/main.gd", "contem": ["func ponto_mao_esq()", "func maos2()", "fx.meteoro_portal("] }
   ]
 }
