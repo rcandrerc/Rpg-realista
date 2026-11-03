@@ -605,33 +605,6 @@
     ]
    }
   },
-  "oculos": {
-   "nome": "Óculos",
-   "lugar": "acessorio",
-   "st": {
-    "mana": [
-     4,
-     8,
-     12,
-     18,
-     25
-    ],
-    "critico": [
-     0.008,
-     0.011,
-     0.015,
-     0.021,
-     0.026
-    ],
-    "vida": [
-     0,
-     0,
-     6,
-     11,
-     17
-    ]
-   }
-  },
   "colar": {
    "nome": "Colar de Estrela",
    "lugar": "acessorio",
@@ -1085,16 +1058,6 @@
    "preco": 240
   },
   {
-   "k": "oculos",
-   "r": 0,
-   "preco": 60
-  },
-  {
-   "k": "oculos",
-   "r": 1,
-   "preco": 240
-  },
-  {
    "k": "colar",
    "r": 0,
    "preco": 60
@@ -1494,17 +1457,6 @@
    },
    "vigor": 8,
    "nivel": 2
-  },
-  "oculos": {
-   "prof": "alf",
-   "faz": "oculos",
-   "usa": {
-    "barra_cobre": 1,
-    "cristal": 1,
-    "couro": 1
-   },
-   "vigor": 8,
-   "nivel": 5
   },
   "calca": {
    "prof": "alf",

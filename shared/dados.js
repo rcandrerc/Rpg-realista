@@ -628,7 +628,6 @@ export const ITENS = {
   calca: { nome: 'Calça', lugar: 'pernas', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27], mana: [3, 5, 7, 10, 14] } },
   capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30] } },
   botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27] } },
-  oculos: { nome: 'Óculos', lugar: 'acessorio', st: { mana: [4, 8, 12, 18, 25], critico: [0.008, 0.011, 0.015, 0.021, 0.026], vida: [0, 0, 6, 11, 17] } },
   colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6] } },
   espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14] } },
   cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14] } },
@@ -663,7 +662,7 @@ export const CONJUNTO = [
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
 export const LOJA = [
   { k: 'pocao', preco: 15 }, { k: 'pocao_mana', preco: 18 },
-  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'oculos', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
+  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
 ];
 export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
@@ -744,7 +743,6 @@ export const RECEITAS = {
   short: { prof: 'alf', faz: 'short', usa: { couro: 2, tecido: 1 }, vigor: 8, nivel: 1 },
   capa: { prof: 'alf', faz: 'capa', usa: { tecido: 4, couro: 1 }, vigor: 8, nivel: 2 },
   manto: { prof: 'alf', faz: 'manto', usa: { tecido: 5, couro: 2 }, vigor: 8, nivel: 3 },
-  oculos: { prof: 'alf', faz: 'oculos', usa: { barra_cobre: 1, cristal: 1, couro: 1 }, vigor: 8, nivel: 5 },
   // peças das armaduras visíveis (camisa, calça, botas, capa, acessório): entram quando o item existir em ITENS
   calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
   peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },

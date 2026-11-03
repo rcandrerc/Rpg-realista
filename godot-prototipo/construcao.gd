@@ -542,7 +542,11 @@ func _process(dt: float) -> void:
 		var l: Dictionary = lotes[meu].def
 		no_meu = hp.x > float(l.x0) - 3.0 and hp.x < float(l.x1) + 3.0 and hp.z > float(l.z0) - 3.0 and hp.z < float(l.z1) + 3.0
 	m.hud.mostrar_botao("construir", no_meu and vivo and not ativo)
-	m.hud.mostrar_botao("bancada", estacao_perto(["bancada"]) and vivo and not ativo)
+	# estação do lote perto: um botão só (o André tirou o botão da forja da HUD; a forja do Tomás fica no Falar)
+	var prof := prof_da_estacao()
+	m.hud.mostrar_botao("bancada", prof != "" and vivo and not ativo)
+	if prof != "":
+		m.hud.icone_botao("bancada", "pf_" + prof)
 	if ativo:
 		if not no_meu and not _perto_do_meu(hp, 8.0):
 			sair()
@@ -625,6 +629,14 @@ func _mostrar_borda(v: bool) -> void:
 		for q in [v1, v2, v3, v1, v3, v4]:
 			im.surface_add_vertex(q)
 	im.surface_end()
+
+# profissão da estação construída mais perto: bancada = Alfaiate, bigorna ou fornalha = Ferreiro ("" = nenhuma)
+func prof_da_estacao() -> String:
+	if estacao_perto(["bigorna", "fornalha"]):
+		return "fer"
+	if estacao_perto(["bancada"]):
+		return "alf"
+	return ""
 
 func tocar_botao_construir() -> void:
 	if ativo:

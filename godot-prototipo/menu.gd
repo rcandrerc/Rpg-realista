@@ -353,9 +353,22 @@ func slot(id: String, nome: String, lado := 1) -> Control:
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.gui_input.connect(func(ev):
-		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
+		if toque(ev):
 			tocar_slot(id))
 	return c
+
+# um toque no celular chega duas vezes (o toque e o clique de mouse que o Godot imita a partir dele, e no PC o contrário).
+# Sem filtrar, o segundo caía no véu da janela recém-aberta e fechava (só a Camisa e vizinhos escapavam, porque a janela
+# nascia por cima deles antes de ir para o lugar) e o quadradinho do capacete marcava e desmarcava no mesmo toque.
+var _toque_ms := -1000
+func toque(ev: InputEvent) -> bool:
+	if not ((ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT) or (ev is InputEventScreenTouch and ev.pressed)):
+		return false
+	var agora := Time.get_ticks_msec()
+	if agora - _toque_ms < 250:
+		return false
+	_toque_ms = agora
+	return true
 
 func lugar_de(id: String) -> String:
 	return ("espada" if boneco_modo == "Espada" else "cajado") if id == "arma" else id
@@ -1436,7 +1449,7 @@ func linha_mostrar_capacete(tam := 13) -> Control:
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_child(t)
 	l.gui_input.connect(func(ev):
-		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
+		if toque(ev):
 			acao_item({"acao": "capacete", "mostrar": m.P.prog.get("semCapacete", false)}))
 	return l
 
@@ -1531,7 +1544,7 @@ func montar_janela() -> void:
 	veu.set_anchors_preset(Control.PRESET_FULL_RECT)
 	veu.mouse_filter = Control.MOUSE_FILTER_STOP
 	veu.gui_input.connect(func(ev):
-		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
+		if toque(ev):
 			fechar_janela())
 	janela.add_child(veu)
 	var cx := PanelContainer.new()
@@ -1543,6 +1556,7 @@ func montar_janela() -> void:
 	est.content_margin_bottom = 10
 	cx.add_theme_stylebox_override("panel", est)
 	janela.add_child(cx)
+	cx.modulate.a = 0.0 # aparece só depois de ir para o lado do medalhão (_posicionar_janela)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	cx.add_child(v)
@@ -1647,6 +1661,7 @@ func _posicionar_janela(cx: Control) -> void:
 	cx.reset_size()
 	var s := cx.get_combined_minimum_size()
 	cx.position = Vector2(clampf(alvo.x, 12, tela.x - s.x - 12), clampf(alvo.y, 12, tela.y - s.y - 12))
+	cx.modulate.a = 1.0
 
 # uma peça da mochila numa linha: ícone, nome + Melhor/Pior, o que ganha e perde, e Trocar (ou Vestir)
 func linha_opcao(o: Dictionary, tem_atual: bool) -> Control:

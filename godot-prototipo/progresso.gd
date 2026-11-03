@@ -215,7 +215,7 @@ func preco_compra(o: Dictionary) -> int:
 static func item_int(it):
 	if not (it is Dictionary) or not it.has("k"):
 		return null
-	var r := {"k": "peitoral" if str(it.k) == "manto" else str(it.k)} # conta antiga: o Manto virou Peitoral
+	var r := {"k": "peitoral" if str(it.k) == "manto" else "colar" if str(it.k) == "oculos" else str(it.k)} # conta antiga: o Manto virou Peitoral; Óculos virou Colar (André 2026-11-03)
 	for c in ["r", "n", "nv"]:
 		if it.has(c):
 			r[c] = int(it[c])

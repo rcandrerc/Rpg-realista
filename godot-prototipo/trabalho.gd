@@ -354,7 +354,6 @@ func _process(dt: float) -> void:
 		ic = "pf_" + coletando.prof
 	m.hud.mostrar_botao("coletar", perto != null or coletando != null)
 	m.hud.icone_botao("coletar", ic)
-	m.hud.mostrar_botao("forja", (perto_oficina("fer") or (m.construcao != null and m.construcao.estacao_perto(["bigorna", "fornalha"]))) and m.h.morto <= 0.0)
 
 # perto da oficina (forja do Tomás ou banca da Rosa)? O servidor confere a mesma distância.
 func perto_oficina(prof: String) -> bool:
