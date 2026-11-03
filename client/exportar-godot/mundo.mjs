@@ -60,6 +60,9 @@ const mundo = {
     status: Object.fromEntries([...new Set(c.tipos)].map((t) => [t, statusInimigo(t, c.nivel)])) })),
   // árvores da mata (enfeite sólido: o Godot desenha em MultiMesh e colide por uma grade) e a estrada principal (minimapa)
   mata: MAPA_CLAREIRA.mata || [], estrada: MAPA_CLAREIRA.estrada || [], minimapa: MAPA_CLAREIRA.minimapa,
+  // todos os caminhos de terra (vila, saída do leste, estrada principal e as trilhas das clareiras): o "Ir para" do mapa
+  // anda só por eles (godot-prototipo/rota.gd)
+  caminhos: (MAPA_CLAREIRA.vila?.caminhos || []).map((c) => ({ largura: c.largura, pontos: c.pontos.map(([x, z]) => [r4(x), r4(z)]) })),
   mina: MAPA_CLAREIRA.mina || [], resetBuild: RESET_BUILD,
   // espantalhos de treino: o v vem depois das vagas dos campos de caça (igual ao servidor)
   treino: (MAPA_CLAREIRA.treino || []).map((t, k) => ({ ...t, nome: TIPOS_INIMIGO[t.tipo].nome, vida: TIPOS_INIMIGO[t.tipo].vida, volta: TREINO.volta,
