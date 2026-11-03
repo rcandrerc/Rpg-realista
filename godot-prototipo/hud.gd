@@ -313,14 +313,18 @@ func _desenhar_combate() -> void:
 		if b.borda != null:
 			cor_borda = b.borda
 		_combate.draw_circle(c, r, cor_borda, false, 2.5)
-		if b.get("ligado", false): # disparada ligada: dentro aceso na cor da estamina, pulsando de leve
-			var pulso: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)
-			_combate.draw_circle(c, r - 2.0, Color(0.93, 0.82, 0.32, 0.22 + 0.1 * pulso))
-			_combate.draw_circle(c, r + 3.0 + 2.0 * pulso, Color(0.93, 0.82, 0.32, 0.5 - 0.25 * pulso), false, 2.0)
+		var ligado: bool = b.get("ligado", false)
+		if ligado: # disparada ligada (direção de arte): âmbar da estamina, pulso discreto de ~1,2 s (escala 1,00-1,04, anel 0,5-0,9)
+			var pulso: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU / 1.2)
+			r *= 1.0 + 0.04 * pulso
+			_combate.draw_circle(c, r - 2.0, Color(0.93, 0.82, 0.32, 0.92))
+			_combate.draw_circle(c, r + 3.0, Color(0.93, 0.82, 0.32, 0.5 + 0.4 * pulso), false, 2.0)
 		var t := icone(b.icone)
 		if t:
 			var s := r * 1.15
-			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			# ligado: ícone no marrom escuro do fundo, para não perder contraste no âmbar
+			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, cor_ico)
 		if b.travado: # ainda não liberada no nível do herói
 			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
 		elif b.sem_mana and b.cd <= 0.0: # sem mana: apagado com véu azul
