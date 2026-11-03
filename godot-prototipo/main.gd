@@ -522,7 +522,7 @@ func criar_heroi(nascer := true) -> void:
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
 func vestir_heroi() -> void:
-	var eq: Dictionary = P.prog.get("equip", {})
+	var eq: Dictionary = P.equip_visivel() # sem o capacete se o jogador escondeu (menu, tela de equipamento)
 	var k := ""
 	for l in Armadura.LUGARES:
 		var it = eq.get(l)
