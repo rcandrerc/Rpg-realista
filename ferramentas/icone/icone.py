@@ -517,6 +517,63 @@ def opcao_fusao4():
     k.add(gb, GEMA)
     return bg, glow, k.rgba()
 
+def opcao_letra_armas():
+    """v6 (André): mantém o A artístico da sigla (Cinzel Decorative); a perna fina vira o cajado e a barra vira a espada."""
+    bg = fundo_noite(); glow = Image.new("RGB", (S, S)); k = Camada()
+    cx, cy = S * .5, S * .49
+    R = S * .31
+    an = L(); d = ImageDraw.Draw(an)
+    d.ellipse([cx - R, cy - R, cx + R, cy + R], outline=255, width=int(R * .05))
+    for i in range(4):
+        a_ = i * math.pi / 2; x, y = cx + math.cos(a_) * R, cy + math.sin(a_) * R; w = R * .09
+        d.polygon([(x - w, y), (x, y - w * 1.4), (x + w, y), (x, y + w * 1.4)], fill=255)
+    Fn = ImageFont.truetype(os.path.join(AQUI, "CinzelDecorative-Bold.ttf"), int(S * .41))
+    le = L(); dl = ImageDraw.Draw(le)
+    bb = dl.textbbox((0, 0), "A", font=Fn)
+    DX = 17  # centraliza letra + espada no anel (medido no glifo em 1024)
+    dl.text((cx - (bb[0] + bb[2]) / 2 - S * .012 + DX / 1024 * S, cy - (bb[1] + bb[3]) / 2 - S * .005), "A", font=Fn, fill=255)
+    q = lambda x, y: ((x + DX) / 1024 * S, y / 1024 * S)   # coordenadas medidas no glifo em 1024
+    # apaga a perna fina e a barra (o cajado e a espada entram no lugar)
+    apaga = L(); da = ImageDraw.Draw(apaga)
+    top, bot = q(418, 395), q(343, 604)
+    vx, vy = bot[0] - top[0], bot[1] - top[1]; n = math.hypot(vx, vy); px, py = -vy / n, vx / n; w = S * .028
+    da.polygon([(top[0] + px * w, top[1] + py * w), (top[0] - px * w, top[1] - py * w), (bot[0] - px * w, bot[1] - py * w), (bot[0] + px * w, bot[1] + py * w)], fill=255)
+    da.rectangle([*q(282, 590), *q(388, 622)], fill=255)
+    da.rectangle([*q(380, 503), *q(478, 540)], fill=255)
+    le = ImageChops.subtract(le, apaga)
+    glow = somar(glow, gema((cx, cy), R * .55), (80, 55, 12), R * .3, 1.0)
+    glow = somar(glow, ImageChops.lighter(an, le), (130, 80, 15), 30, 1.3)
+    k.add(an, bisel(an, OURO, 9), (64, 30, 6), 7)
+    k.add(le.filter(ImageFilter.MaxFilter(61)).filter(ImageFilter.GaussianBlur(8)), Image.new("RGB", (S, S), (10, 14, 40)))
+    k.add(le, bisel(le, OURO, 14), (64, 30, 6), 9)
+    # cajado na perna fina: chama no alto, logo abaixo da bandeira do A
+    ang = math.degrees(math.atan2(-vx, vy))  # inclinação da perna
+    wc = S * .03; r = S * .03
+    cab = q(416, 402)   # chama mais baixa: céu entre ela e a bandeira
+    pont = S * .025
+    pe = q(312, 690)    # mesma linha de base do pé da perna grossa
+    comp = math.dist(cab, pe) - pont
+    refc = (S / 2, S * .2)
+    cj = cajado(refc[0], refc[1], comp, wc, r, .5, None, None, pont)
+    cj = {nm: transforma(m, refc, -ang, cab) for nm, m in cj.items()}
+    cont = lambda *ms: _uniao(*ms).filter(ImageFilter.MaxFilter(2 * int(F(.012)) + 1))
+    k.add(cont(cj["haste"], cj["ouro"], cj["chama"]), Image.new("RGB", (S, S), (10, 14, 40)))
+    k.add(cj["haste"], gradiente_v((128, 86, 52), (106, 68, 40), (80, 50, 28)))
+    k.add(cj["ouro"], bisel(cj["ouro"], OURO, 6))
+    glow = somar(glow, cj["chama"], (150, 70, 10), 40, 1.6)
+    k.brilho(cj["chama"], (255, 140, 40), 14, 1.3)
+    k.add(cj["chama"], FOGO); k.add(cj["nucleo"], Image.new("RGB", (S, S), (255, 248, 210)))
+    # espada na barra: deitada, ponta para a direita passando a perna grossa, cabo para fora à esquerda
+    Lg = S * .036
+    ref = (S / 2, S * .8)
+    guarda_x, yb = q(350, 521)
+    ponta_x = q(582, 0)[0]
+    lamina = ponta_x - guarda_x
+    e = espada3(ref[0], ref[1] - lamina, ref[1], Lg, 2.2, .6, 1.1, .7)
+    e = {nm: transforma(m, ref, -90, (guarda_x, yb)) for nm, m in e.items()}
+    desenha_espada(k, glow, e)
+    return bg, glow, k.rgba()
+
 def _uniao(*ms):
     u = ms[0]
     for m in ms[1:]: u = ImageChops.lighter(u, m)
@@ -532,7 +589,7 @@ def encolhe(im, vazio):
 silhueta_notificacao().resize((96, 96), Image.LANCZOS).save(f"{OUT}/notificacao_96.png")
 import os as _o
 QUAIS = _o.environ.get("QUAIS", "a-sigilo-espada,a-simples-pequeno,b-sigla-A").split(",")
-for nome, fn in [x for x in [("a-sigilo-espada", opcao_sigilo_v2), ("a-simples-pequeno", lambda: opcao_sigilo_v2(True)), ("b-sigla-A", opcao_sigla), ("d-fusao", opcao_fusao), ("e-fusao4", opcao_fusao4)] if x[0] in QUAIS]:
+for nome, fn in [x for x in [("a-sigilo-espada", opcao_sigilo_v2), ("a-simples-pequeno", lambda: opcao_sigilo_v2(True)), ("b-sigla-A", opcao_sigla), ("d-fusao", opcao_fusao), ("e-fusao4", opcao_fusao4), ("f-letra-armas", opcao_letra_armas)] if x[0] in QUAIS]:
     bg, glow, fr = fn()
     if True:
         bg = ImageChops.add(bg, encolhe(glow, (0, 0, 0))); fr = encolhe(fr, (0, 0, 0, 0))
