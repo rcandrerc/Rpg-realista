@@ -9,6 +9,7 @@ import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
+import { ligarAtualizacaoTrancada } from './atualizar.js';
 
 const { Server, Room, ServerError } = colyseus;
 const { WebSocketTransport } = wsTransport;
@@ -178,6 +179,8 @@ app.use((req, res, next) => {
   next();
 });
 app.get('/saude', (_req, res) => res.json({ ok: true, contas: !!contas }));
+// Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
+ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)));
 
 // ---------- conta (login com Google) ----------
 app.use('/conta', (_req, res, next) => (contas ? next() : res.status(404).json({ erro: 'contas desligadas' })), express.json({ limit: '8kb' }));
