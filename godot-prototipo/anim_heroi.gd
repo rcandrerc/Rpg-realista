@@ -8,11 +8,15 @@ extends RefCounted
 # Tem a mesma cara do AnimationPlayer (play, current_animation, seek, has_animation, get_animation) para o resto
 # do código não mudar.
 
-const LOCO := ["parada", "espada_parada", "andar", "corrida"]
+const LOCO := ["parada", "espada_parada", "andar", "trote", "corrida"]
 const ANDAR := 1.8
 const CORRIDA := 5.4
 const PASSO_ANDAR := 1.15
 const PASSO_CORRIDA := 4.0
+# trote (Mixamo Jogging, 3 passadas por volta): passada curta e ritmo mais rápido que a corrida em câmera lenta
+const TROTE := CORRIDA * 0.7
+const PASSO_TROTE := 2.6 # metros por passada inteira (dois pés): no trote dá ~0,69 s por passada
+const TROTE_CICLOS := 3.0
 
 var player: AnimationPlayer
 var tree: AnimationTree
@@ -31,6 +35,9 @@ var _idle := 1.0 # 0 = parada (cajado), 1 = guarda de espada
 var _idle_alvo := 1.0
 var _mexe := 0.0 # 0 = parado, 1 = andando/correndo
 var _corre := 0.0 # 0 = andar, 1 = corrida
+var _rapido := 0.0 # com o trote: 0 = trote, 1 = corrida (o _corre vai de andar ao trote)
+var tem_trote := false
+var _len_trote := 1.0
 var so_tronco := false # a ação de agora pode tocar só no tronco quando o herói anda
 var _len_andar := 1.0
 var _len_corrida := 1.0
@@ -48,6 +55,9 @@ func _init(p: AnimationPlayer) -> void:
 	player.active = false
 	_len_andar = player.get_animation("andar").length
 	_len_corrida = player.get_animation("corrida").length
+	tem_trote = player.has_animation("trote") # corpo sem a animação (exportado antes) continua com andar -> corrida
+	if tem_trote:
+		_len_trote = player.get_animation("trote").length
 	tree = AnimationTree.new()
 	tree.name = "ArvoreAnim"
 	player.get_parent().add_child(tree)
@@ -75,7 +85,19 @@ func _init(p: AnimationPlayer) -> void:
 	passo.sync = true # as duas andam juntas (mesmo ritmo), mesmo com peso zero
 	bt.add_node("passo", passo, Vector2(320, 320))
 	bt.connect_node("passo", 0, "ts_andar")
-	bt.connect_node("passo", 1, "ts_corrida")
+	if tem_trote:
+		# andar -> (trote -> corrida): o trote fica no meio e a corrida do botão continua a mesma
+		anim.call("trote", "trote", Vector2(0, 440))
+		bt.add_node("ts_trote", AnimationNodeTimeScale.new(), Vector2(150, 440))
+		bt.connect_node("ts_trote", 0, "trote")
+		var rapido := AnimationNodeBlend2.new()
+		rapido.sync = true
+		bt.add_node("rapido", rapido, Vector2(260, 420))
+		bt.connect_node("rapido", 0, "ts_trote")
+		bt.connect_node("rapido", 1, "ts_corrida")
+		bt.connect_node("passo", 1, "rapido")
+	else:
+		bt.connect_node("passo", 1, "ts_corrida")
 	bt.add_node("mexe", AnimationNodeBlend2.new(), Vector2(480, 180))
 	bt.connect_node("mexe", 0, "idle")
 	bt.connect_node("mexe", 1, "passo")
@@ -219,12 +241,20 @@ func seek(t: float, _atualizar := true) -> void:
 func atualizar(dt: float, vel: float) -> void:
 	_mexe = move_toward(_mexe, clamp(vel / 0.7, 0.0, 1.0), dt * 6.0)
 	var corre: float = smoothstep(ANDAR * 1.05, CORRIDA * 0.85, vel)
+	if tem_trote:
+		corre = smoothstep(ANDAR * 1.05, TROTE * 0.85, vel) # andar -> trote
+		_rapido = move_toward(_rapido, smoothstep(TROTE * 1.03, CORRIDA * 0.92, vel), dt * 5.0) # trote -> corrida
 	_corre = move_toward(_corre, corre, dt * 5.0)
 	# ritmo: andar e corrida com o mesmo período de passo enquanto misturam (os pés batem juntos)
 	var v: float = max(vel, 0.6)
 	var t_andar: float = _len_andar / (v / PASSO_ANDAR)
 	var t_corrida: float = _len_corrida / (v / PASSO_CORRIDA)
 	var periodo: float = lerp(t_andar, t_corrida, _corre)
+	if tem_trote:
+		# período de uma passada inteira: andar -> trote -> corrida (o trote tem 3 passadas por volta)
+		var t_trote: float = PASSO_TROTE / v
+		periodo = lerp(t_andar, lerp(t_trote, t_corrida, _rapido), _corre)
+		tree.set("parameters/ts_trote/scale", clamp(_len_trote / TROTE_CICLOS / periodo, 0.3, 2.6))
 	tree.set("parameters/ts_andar/scale", clamp(_len_andar / periodo, 0.3, 2.6))
 	tree.set("parameters/ts_corrida/scale", clamp(_len_corrida / periodo, 0.3, 2.6))
 	# ação que só toca no tronco quando o herói anda (tiro do cajado andando)
@@ -246,6 +276,8 @@ func atualizar(dt: float, vel: float) -> void:
 func _aplicar(_dt: float) -> void:
 	tree.set("parameters/idle/blend_amount", _idle)
 	tree.set("parameters/passo/blend_amount", _corre)
+	if tem_trote:
+		tree.set("parameters/rapido/blend_amount", _rapido)
 	tree.set("parameters/mexe/blend_amount", _mexe)
 	tree.set("parameters/ab/blend_amount", _ab)
 	tree.set("parameters/abu/blend_amount", _ab)
