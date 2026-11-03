@@ -330,7 +330,7 @@ function modeloArvore(v) {
   return { tronco: limpo(troncos), copa: limpo(cartas) };
 }
 
-function arvores(scene, lista) {
+function arvores(scene, lista, nome = '') {
   const casca = pbr('bark_brown_02', { color: 0xb0a090 });
   const mapaF = textura('folhagem.png', true);
   const folha = new THREE.MeshStandardMaterial({ map: mapaF, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.75, color: 0xa6b884 });
@@ -357,6 +357,8 @@ function arvores(scene, lista) {
       tr.setMatrixAt(i, d.matrix); co.setMatrixAt(i, d.matrix);
       co.setColorAt(i, cor.setHSL(0.22 + (i % 5) * 0.012, 0.35, 0.62 + (i % 3) * 0.06)); // cada árvore num verde um pouco diferente
     });
+    // nome (a mata): o exportador do Godot leva só um modelo de cada e o Godot desenha as cópias em MultiMesh
+    if (nome) { tr.name = `${nome}_tronco_${v}`; co.name = `${nome}_copa_${v}`; }
     for (const o of [tr, co]) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; scene.add(o); }
   }
   return uTime;
@@ -382,6 +384,7 @@ export function montarVila(scene, mapa) {
   poco(J, vila.praca);
   for (const m of J.malhas()) scene.add(m);
   const tempo = arvores(scene, vila.arvores);
+  if (mapa.mata?.length) { const t2 = arvores(scene, mapa.mata, 'mata'); const t1 = tempo; return { atualizar: (t) => { t1.value = t; t2.value = t; mats.brasa.emissiveIntensity = 1.6 + Math.sin(t * 3.1) * 0.25 + Math.sin(t * 7.3) * 0.12; } }; }
   return { atualizar: (t) => { tempo.value = t; mats.brasa.emissiveIntensity = 1.6 + Math.sin(t * 3.1) * 0.25 + Math.sin(t * 7.3) * 0.12; } };
 }
 

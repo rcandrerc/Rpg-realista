@@ -23,6 +23,7 @@ const Trabalho = preload("res://trabalho.gd")
 const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
+const Minimapa = preload("res://minimapa.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -31,14 +32,18 @@ const LACOS := ["parada", "andar", "corrida", "espada_parada", "queda", "parede_
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
 const BANDO := []
-const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe"}
-const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp"}
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo"}
+# o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
 # NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 const TINGIR_NPC := ["ferreiro"]
-const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0} # TIPOS_INIMIGO de shared/dados.js
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0} # TIPOS_INIMIGO de shared/dados.js
+# monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
+const LONGE_INIMIGO := 70.0
+const NOME_LONGE := 30.0
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
 var sol: DirectionalLight3D
@@ -77,6 +82,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
+var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
@@ -157,6 +163,7 @@ func _ready() -> void:
 		if mi.get_aabb().size.x > 200.0: # o chão do site: troco pelo meu, com as trilhas
 			mi.visible = false
 	pintar(vila, false)
+	montar_mata(vila)
 	achar_troncos(vila)
 	montar_chao()
 	montar_grama()
@@ -210,6 +217,9 @@ func _ready() -> void:
 	menu_topo = MenuTopo.new(self)
 	add_child(menu_topo)
 	hud.menu_topo = menu_topo
+	minimapa = Minimapa.new(self)
+	add_child(minimapa)
+	hud.minimapa = minimapa
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -255,9 +265,10 @@ func montar_chao() -> void:
 	m.set_shader_parameter("grama_cru", load("res://modelos/forrest_ground_01.jpg"))
 	m.set_shader_parameter("pedra_cru", load("res://modelos/cobblestone_floor_01.jpg"))
 	var p := PlaneMesh.new()
-	p.size = Vector2(320, 320)
+	p.size = Vector2(620, 620) # a vila, o campo de fora e a mata (2026-11-03)
 	var chao := MeshInstance3D.new()
 	chao.mesh = p
+	chao.position = Vector3(95, 0, 70)
 	chao.material_override = m
 	chao.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(chao)
@@ -343,7 +354,7 @@ func montar_grama() -> void:
 	mm.mesh = m
 	# a vila com a mesma quantidade do celular no site; as áreas de fora (mundo.areas depois da primeira) na mesma densidade
 	var n0 := 22000
-	var fora: Array = mundo.get("areas", []).slice(1)
+	var fora: Array = mundo.get("areas", []).slice(1).filter(func(o): return not o.get("mata", false)) # a mata tem a dela (grama_da_mata)
 	var extras: Array = []
 	for o in fora:
 		var area: float = float(o.rx) * float(o.rz) if o.has("rx") else float(o.r) * float(o.r)
@@ -376,6 +387,133 @@ func montar_grama() -> void:
 	grama.multimesh = mm
 	grama.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(grama)
+	grama_da_mata(m, rng)
+
+# Mata (2026-11-03): chão de floresta com pouca grama, mais cheia nas clareiras. Um pedaço por círculo da mata, que
+# só é desenhado até 70 m (são muitos)
+func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
+	var areas: Array = mundo.get("areas", [])
+	for q in areas.size():
+		var o: Dictionary = areas[q]
+		if not o.get("mata", false):
+			continue
+		var r0: float = float(o.rx)
+		var pts: Array = []
+		for t in int(r0 * r0 * 3.2):
+			var a := rng.randf() * TAU
+			var r := sqrt(rng.randf()) * r0 * 1.1
+			var x := float(o.x) + cos(a) * r
+			var z := float(o.z) + sin(a) * r
+			if not mov.dentro_do_mapa(x, z, -2.0) or peso_vila(x, z) > 0.2:
+				continue
+			var antes := false # o pedaço de outro círculo já cobre aqui
+			for k in q:
+				var o2: Dictionary = areas[k]
+				if o2.get("mata", false) and Vector2(x - float(o2.x), z - float(o2.z)).length() < float(o2.rx) * 1.1:
+					antes = true
+					break
+			if antes:
+				continue
+			var na_clareira := false
+			for c in mundo.get("caca", []):
+				if Vector2(x - float(c.x), z - float(c.z)).length() < float(c.r) + 1.0:
+					na_clareira = true
+					break
+			if na_clareira or rng.randf() < 0.3:
+				pts.append(Vector2(x, z))
+		if pts.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = m
+		mm.instance_count = pts.size()
+		for i in pts.size():
+			var sc := rng.randf_range(0.7, 1.3)
+			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.6, 1.4), sc))
+			mm.set_instance_transform(i, Transform3D(b, Vector3(pts[i].x, 0, pts[i].y)))
+			mm.set_instance_color(i, hsl(rng.randf_range(0.22, 0.27), rng.randf_range(0.45, 0.62), rng.randf_range(0.3, 0.46)))
+		var g := MultiMeshInstance3D.new()
+		g.multimesh = mm
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.visibility_range_end = 70.0
+		add_child(g)
+
+# Árvores da mata (mundo.mata, as mesmas do servidor): o vila.glb traz um modelo de cada (mata_tronco_v e mata_copa_v,
+# na origem) e aqui elas viram MultiMesh por pedaços de 32 m, desenhados até 80 m (a neblina esconde o resto).
+# Direção de arte (nada de pomar): cada árvore gira, inclina até 5°, fica um pouco mais alta ou mais larga e a copa
+# varia de tom (±8% de valor). O sorteio sai da posição, então é sempre o mesmo. Colisão: andar.gd (perto_na_mata).
+const MATA_PEDACO := 32.0
+const MATA_FADE := 0.15 # s para a árvore inteira sumir (ou voltar) quando tapa a câmera
+var arvores_mata := {} # posição -> {t: Transform3D, tronco: [MultiMesh, i], copa: [MultiMesh, i, cor], s}
+var _sumindo := {} # posição -> {no: Node3D (cópia com alfa), k: 0..1 (1 = some), quer: 0 ou 1, mats: []}
+var _malhas_mata := {} # "tronco_v" / "copa_v" -> Mesh
+func montar_mata(vila: Node3D) -> void:
+	var modelos := {}
+	for mi in vila.find_children("mata_*", "MeshInstance3D", true, false):
+		var nome := str(mi.name)
+		modelos[nome] = mi.mesh
+		for i in range(folhas.size() - 1, -1, -1): # o modelo na origem não entra na conta das copas que tapam o herói
+			if folhas[i][0] == mi:
+				folhas.remove_at(i)
+		mi.queue_free()
+	var pedacos := {}
+	for a in mundo.get("mata", []):
+		var k := Vector3i(floori(float(a.x) / MATA_PEDACO), floori(float(a.z) / MATA_PEDACO), int(a.v))
+		if not pedacos.has(k):
+			pedacos[k] = []
+		pedacos[k].append(a)
+	var mats := {}
+	var rng := RandomNumberGenerator.new()
+	for k in pedacos:
+		var lista: Array = pedacos[k]
+		var mms := {}
+		for parte in ["tronco", "copa"]:
+			var mesh: Mesh = modelos.get("mata_%s_%d" % [parte, k.z])
+			if mesh == null:
+				continue
+			_malhas_mata["%s_%d" % [parte, k.z]] = mesh
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_colors = parte == "copa"
+			mm.mesh = mesh
+			mm.instance_count = lista.size()
+			mms[parte] = mm
+			var g := MultiMeshInstance3D.new()
+			g.multimesh = mm
+			g.visibility_range_end = 80.0
+			g.visibility_range_end_margin = 6.0
+			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			var base = mesh.surface_get_material(0)
+			if base is BaseMaterial3D and parte == "copa": # o verde de cada árvore multiplica a cor da folha
+				if not mats.has(base):
+					var mt: BaseMaterial3D = base.duplicate()
+					mt.vertex_color_use_as_albedo = true
+					mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED # sem pontilhado: quem some é a árvore inteira
+					mats[base] = mt
+				g.material_override = mats[base]
+			add_child(g)
+		for i in lista.size():
+			var a: Dictionary = lista[i]
+			var pos := Vector2(float(a.x), float(a.z))
+			rng.seed = hash(pos)
+			var sc := float(a.s)
+			var eixo := Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized()
+			var b := Basis(eixo, deg_to_rad(rng.randf_range(-5.0, 5.0))) * Basis(Vector3.UP, float(a.ry))
+			b = b.scaled(Vector3(sc * rng.randf_range(0.9, 1.1), sc * rng.randf_range(0.88, 1.15), sc * rng.randf_range(0.9, 1.1)))
+			var t := Transform3D(b, Vector3(pos.x, 0, pos.y))
+			var info := {"t": t, "s": sc, "v": int(a.v)}
+			if mms.has("tronco"):
+				mms.tronco.set_instance_transform(i, t)
+				info.tronco = [mms.tronco, i]
+			if mms.has("copa"):
+				var j := i + int(a.x * 7.0)
+				var cor := hsl(0.22 + (j % 5) * 0.012, 0.35, 0.62 + (j % 3) * 0.06)
+				cor = Color.from_hsv(cor.h, cor.s, clamp(cor.v * rng.randf_range(0.92, 1.08), 0.0, 1.0))
+				mms.copa.set_instance_transform(i, t)
+				mms.copa.set_instance_color(i, cor)
+				info.copa = [mms.copa, i, cor]
+			arvores_mata[pos] = info
 
 # ---------- personagens ----------
 func modelo(id: String) -> Node3D:
@@ -564,6 +702,9 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 		"parado": 0.0, "lento": 0.0, "lento_k": 0.0, "vuln": 0.0, "vuln_k": 0.0, "puxao": Vector3.ZERO, "puxao_t": 0.0}
 	e.barra = barra_vida(no, nome, Color(0.85, 0.25, 0.2))
 	nome_legivel(no)
+	# com 10 clareiras no mapa: o corpo some a LONGE_INIMIGO m e o nome e a barra a NOME_LONGE m (atravessavam o mapa)
+	for g in no.find_children("*", "GeometryInstance3D", true, false):
+		g.visibility_range_end = NOME_LONGE if (g is Label3D or g.get_parent() == no) else LONGE_INIMIGO
 	inimigos.append(e)
 	return e
 
@@ -582,10 +723,20 @@ func contorno(no: Node3D, metros: float) -> void:
 			mat_contorno[k] = c
 		for i in mi.mesh.get_surface_count():
 			var m = mi.mesh.surface_get_material(i)
-			if m is BaseMaterial3D and m.next_pass == null:
+			if m is BaseMaterial3D and m.next_pass == null and m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED: # mecha de pelo (lobo): sem contorno
 				var n: BaseMaterial3D = m.duplicate()
 				n.next_pass = mat_contorno[k]
 				mi.set_surface_override_material(i, n)
+
+# XP do monstro: sobe com o nível do campo e cai quando o herói passou muito dele (xpDoInimigo de shared/progresso.js)
+func xp_do_inimigo(e: Dictionary) -> int:
+	var N: Dictionary = P.dados.get("nivelInimigo", {})
+	var nv := int(e.get("nivel", 1))
+	var base: float = float(P.dados.xpInimigo.get(e.tipo, 5)) * (1.0 + float(N.get("xp", 0.0)) * max(0, nv - 1))
+	var sobra: float = int(P.prog.nivel) - nv - float(N.get("folga", 99))
+	if sobra > 0.0:
+		base *= max(float(N.get("min", 0.1)), 1.0 - float(N.get("perde", 0.15)) * sobra)
+	return max(1, roundi(base))
 
 func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	var no := modelo(id)
@@ -847,7 +998,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		sons.tocar("morte", -2.0, 0.1, e.no.position)
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = false
 		e.barra.visible = false
-		var subiu: String = P.ganhar_xp(int(P.dados.xpInimigo.get(e.tipo, 5)))
+		var subiu: String = P.ganhar_xp(xp_do_inimigo(e))
 		if subiu != "":
 			h.vida = P.st.vidaMax
 			h.mana = P.st.manaMax
@@ -943,6 +1094,7 @@ func achar_troncos(raiz: Node) -> void:
 func folhagem_na_frente(dt: float) -> void:
 	if camera == null or heroi == null:
 		return
+	copas_da_mata_na_frente(dt)
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
 	for f in folhas:
@@ -976,6 +1128,78 @@ func folhagem_na_frente(dt: float) -> void:
 			mi.material_override.albedo_color = Color(cor, cor.a * (1.0 - atual))
 		else:
 			mi.material_override = null
+
+# Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
+# (tronco, galhos e copa) num fade de 0,15 s, sem pontilhado: a cópia dela no MultiMesh encolhe para zero e no lugar
+# entra uma cópia solta com alfa de verdade, que apaga; quando sai da frente, a cópia volta e a do MultiMesh também.
+func copas_da_mata_na_frente(dt := 0.016) -> void:
+	if arvores_mata.is_empty():
+		return
+	var a: Vector3 = camera.global_position
+	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
+	var vistas := {}
+	for p in [a, (a + b) * 0.5, b]:
+		for k in mov.perto_na_mata(p.x, p.z):
+			vistas[Vector2(k.x, k.z)] = true
+	var tapam := {}
+	for pos in vistas:
+		var c = arvores_mata.get(pos)
+		if c == null:
+			continue
+		var s: float = c.s
+		var perto_cam: bool = Vector2(a.x, a.z).distance_to(pos) < 2.5 + 0.32 * s
+		var centro := Vector3(pos.x, 3.6 * s, pos.y)
+		var na_frente: bool = Geometry3D.get_closest_point_to_segment(centro, a, b).distance_to(centro) < 2.7 * s
+		var tronco: bool = Geometry3D.get_closest_point_to_segment(Vector3(pos.x, min(a.y, 2.0), pos.y), a, b).distance_to(Vector3(pos.x, min(a.y, 2.0), pos.y)) < 0.5 * s + 0.3
+		if perto_cam or na_frente or tronco:
+			tapam[pos] = true
+	for pos in tapam:
+		if not _sumindo.has(pos):
+			_sumir_arvore(pos)
+		_sumindo[pos].quer = 1.0
+	for pos in _sumindo.keys():
+		var f: Dictionary = _sumindo[pos]
+		if not tapam.has(pos):
+			f.quer = 0.0
+		f.k = move_toward(f.k, f.quer, dt / MATA_FADE)
+		for m in f.mats:
+			m.albedo_color.a = (1.0 - f.k) * float(m.get_meta("alfa", 1.0))
+		if f.k <= 0.0 and f.quer == 0.0:
+			_voltar_arvore(pos)
+
+func _sumir_arvore(pos: Vector2) -> void:
+	var c: Dictionary = arvores_mata[pos]
+	var no := Node3D.new()
+	no.transform = c.t
+	add_child(no)
+	var mats: Array = []
+	for parte in ["tronco", "copa"]:
+		if not c.has(parte):
+			continue
+		var mesh: Mesh = _malhas_mata.get("%s_%d" % [parte, c.v])
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var mt: BaseMaterial3D = (mesh.surface_get_material(0) as BaseMaterial3D).duplicate()
+		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+		if parte == "copa":
+			mt.albedo_color = mt.albedo_color * c.copa[2]
+		mt.set_meta("alfa", mt.albedo_color.a)
+		mi.material_override = mt
+		mats.append(mt)
+		no.add_child(mi)
+		var mm: MultiMesh = c[parte][0]
+		mm.set_instance_transform(c[parte][1], Transform3D(Basis().scaled(Vector3.ZERO), c.t.origin))
+	_sumindo[pos] = {"no": no, "k": 0.0, "quer": 1.0, "mats": mats}
+
+func _voltar_arvore(pos: Vector2) -> void:
+	var c: Dictionary = arvores_mata[pos]
+	for parte in ["tronco", "copa"]:
+		if c.has(parte):
+			c[parte][0].set_instance_transform(c[parte][1], c.t)
+	_sumindo[pos].no.queue_free()
+	_sumindo.erase(pos)
 
 # câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
 func lenta(seg: float, k: float) -> void:
@@ -1580,6 +1804,7 @@ func _process(dt: float) -> void:
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
 	atualizar_heroi(dt)
+	lod_inimigos()
 	if not on():
 		atualizar_inimigos(dt)
 	barras_perto()
@@ -1871,12 +2096,13 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 # monstros não entram uns nos outros: 1,2 m entre os centros (raio de uns 0,6 m cada), como Simulacao.colidir
 const SEPARACAO := 1.2
 func separar_inimigos() -> void:
-	for i in inimigos.size():
-		var a: Dictionary = inimigos[i]
+	var lista: Array = _ativos
+	for i in lista.size():
+		var a: Dictionary = lista[i]
 		if a.estado == "morto" or a.get("treino", false): # o espantalho é obstáculo (mundo.obstaculos), não empurra nem é empurrado
 			continue
-		for j in range(i + 1, inimigos.size()):
-			var b: Dictionary = inimigos[j]
+		for j in range(i + 1, lista.size()):
+			var b: Dictionary = lista[j]
 			if b.estado == "morto" or b.get("treino", false):
 				continue
 			var d := Vector2(b.no.position.x - a.no.position.x, b.no.position.z - a.no.position.z)
@@ -1886,6 +2112,19 @@ func separar_inimigos() -> void:
 				var empurra := (SEPARACAO - l) * 0.5
 				a.no.position -= Vector3(n.x, 0, n.y) * empurra
 				b.no.position += Vector3(n.x, 0, n.y) * empurra
+
+# monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
+# Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
+func lod_inimigos() -> void:
+	if heroi == null:
+		return
+	var hp: Vector3 = heroi.position
+	for e in inimigos:
+		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
+		if longe != e.get("longe", false):
+			e.longe = longe
+			if e.anim:
+				e.anim.active = not longe
 
 # barra de vida do monstro: some quando ele está com a vida cheia e longe. Nome só do alvo atual (o mais perto, que o
 # golpe pega sozinho) e de quem está em combate (levou ou deu dano nos últimos 5 s): três monstros juntos não encavalam
@@ -1918,7 +2157,7 @@ const NOME_PASSO_M := 0.42 # m que cada nome empilhado sobe (com a barra junto)
 func empilhar_nomes() -> void:
 	var lista := []
 	for e in inimigos:
-		if e.barra != null and e.estado != "morto":
+		if e.barra != null and e.estado != "morto" and not e.get("longe", false): # os de outras clareiras nem aparecem
 			lista.append(e)
 	if camera:
 		lista.sort_custom(func(a, b): return a.no.global_position.distance_to(camera.global_position) < b.no.global_position.distance_to(camera.global_position))
@@ -1932,7 +2171,7 @@ func empilhar_nomes() -> void:
 		if nome.visible:
 			feitos.append(e)
 		# nome, fundo e barra sobem juntos (4 px entre nome e barra continuam iguais)
-		var y_pilha: float = 1.95 + k * NOME_PASSO_M
+		var y_pilha: float = float(e.get("alto", 1.95)) + k * NOME_PASSO_M # alto: o lobo é mais baixo
 		nome.position.y = y_pilha
 		e.barra.position.y = y_pilha
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).position.y = y_pilha
@@ -1953,7 +2192,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 		var p := de + dir * t
 		if terreno.altura(p.x, p.z, p.y) > p.y - 0.25:
 			return max(0.6, t - 0.2)
-		for k in mundo.obstaculos:
+		for k in mundo.obstaculos + mov.perto_na_mata(p.x, p.z):
 			if p.y < float(k.get("alto", 4.0)) and Vector2(p.x - k.x, p.z - k.z).length() < float(k.r) + 0.2:
 				return max(0.6, t - 0.2)
 		if trabalho and not sem_minerio and trabalho.dentro_de_pedra(p):
@@ -1964,7 +2203,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 # inimigos não atravessam casas, pedras, árvores e o poço (como Simulacao.colidir no servidor)
 func colidir_inimigo(no: Node3D) -> void:
 	var p := no.position
-	for lista in [mundo.obstaculos, mundo.rochasInimigo]:
+	for lista in [mundo.obstaculos, mundo.rochasInimigo, mov.perto_na_mata(p.x, p.z)]:
 		for k in lista:
 			var dx: float = p.x - k.x
 			var dz: float = p.z - k.z
@@ -2005,9 +2244,16 @@ func montar_cacas() -> void:
 		var k := {"def": c, "vagas": [], "nx": 0.0, "t": 0.0}
 		for i in c.tipos.size():
 			var tipo := str(c.tipos[i])
-			var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), NOME_TIPO.get(tipo, "Inimigo"), 1.15 if tipo == "chefe" else 1.0)
+			var nv := int(c.get("nivel", 1))
+			var nome: String = NOME_TIPO.get(tipo, "Inimigo") + ("  Nv %d" % nv if c.has("nivel") else "")
+			var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, 1.15 if tipo == "chefe" else 1.0)
 			e.tipo = tipo
-			e.vida_max = VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)
+			e.nivel = nv
+			if tipo == "lobo": # bicho de quatro patas: nome e barra mais perto do lombo
+				e.alto = 1.45
+			var st: Dictionary = c.get("status", {}).get(tipo, {}) # vida e dano no nível do campo (statusInimigo do servidor)
+			e.vida_max = float(st.get("vida", VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)))
+			e.dano = float(st.get("dano", D.INIMIGO.dmg))
 			e.vida = e.vida_max
 			e.caca = ci
 			e.centro = e.no.position
@@ -2175,13 +2421,18 @@ func avisar_zona() -> void:
 		if z != "":
 			hud.aviso(z)
 
+var _ativos: Array = [] # monstros perto do herói (os de outras clareiras ficam parados, sem pensar)
 func atualizar_inimigos(dt: float) -> void:
 	passo_cacas(dt)
+	_ativos = []
 	for e in inimigos:
+		if e.get("longe", false) and e.estado != "apanhar":
+			continue
+		_ativos.append(e)
 		if not e.get("treino", false): # o espantalho não sai do lugar
 			colidir_inimigo(e.no)
 	separar_inimigos()
-	for e in inimigos:
+	for e in _ativos:
 		if e.get("treino", false):
 			passo_treino(e)
 			continue
@@ -2231,7 +2482,7 @@ func atualizar_inimigos(dt: float) -> void:
 					h.contra_ate = tempo + D.COMBATE.contraDur # rolou ou deu dash na hora: esquiva e contra-ataque
 					combate.esquiva(heroi)
 				elif d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.esc == null:
-					ferir_heroi(D.INIMIGO.dmg)
+					ferir_heroi(float(e.get("dano", D.INIMIGO.dmg)))
 					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
@@ -2339,8 +2590,8 @@ func montar_teste() -> void:
 	rotulo.add_theme_constant_override("outline_size", 4)
 	rotulo.anchor_left = 1.0
 	rotulo.anchor_right = 1.0
-	rotulo.offset_left = -330
-	rotulo.offset_right = -14
+	rotulo.offset_left = -500
+	rotulo.offset_right = -176 # à esquerda do minimapa (minimapa.gd)
 	rotulo.offset_top = 124 # abaixo do botão Teste (o menu do topo fica no canto)
 	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tela.add_child(rotulo)
@@ -2349,8 +2600,8 @@ func montar_teste() -> void:
 	botao_teste.add_theme_font_size_override("font_size", 18)
 	botao_teste.anchor_left = 1.0
 	botao_teste.anchor_right = 1.0
-	botao_teste.offset_left = -110
-	botao_teste.offset_right = -14
+	botao_teste.offset_left = -272
+	botao_teste.offset_right = -176 # à esquerda do minimapa
 	botao_teste.offset_top = 72 # abaixo do menu do topo
 	botao_teste.offset_bottom = 114
 	botao_teste.pressed.connect(comecar_teste)

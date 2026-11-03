@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo } from './progresso.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -36,6 +36,13 @@ export class Simulacao {
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
+    // árvores da mata (são muitas): numa grade de 6 m, cada um só confere as de perto (pertoNaMata)
+    this.mata = new Map();
+    for (const a of mapa.mata || []) {
+      const k = Math.floor(a.x / 6) * 10007 + Math.floor(a.z / 6);
+      if (!this.mata.has(k)) this.mata.set(k, []);
+      this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s });
+    }
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
     // campos de caça (CACA, regra do Quimera): cada vaga tem um índice v fixo (depois dos inimigos parados) e já começa cheia
@@ -52,6 +59,13 @@ export class Simulacao {
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
   }
+  // árvores da mata nas 9 casas da grade em volta de (x, z)
+  pertoNaMata(x, z) {
+    if (!this.mata.size) return [];
+    const i = Math.floor(x / 6), j = Math.floor(z / 6), l = [];
+    for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) { const c = this.mata.get(a * 10007 + b); if (c) l.push(...c); }
+    return l;
+  }
   // nasce um monstro na vaga do campo de caça, num ponto ao acaso (longe dos jogadores, fora de pedra, árvore e casa)
   nascerNaCaca(c, ci, vg, inicio = false) {
     const d = c.def;
@@ -59,7 +73,7 @@ export class Simulacao {
       const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * d.r * d.ate, x = d.x + Math.cos(a) * r, z = d.z + Math.sin(a) * r;
       if (!inicio && [...this.jogadores.values()].some((j) => !j.morto && Math.hypot(j.x - x, j.z - z) < d.longe)) continue;
       if (this.obstaculos.some((k) => Math.hypot(k.x - x, k.z - z) < k.r + 0.8) || !dentroDoMapa(this.mapa, x, z, 2.2)) continue;
-      vg.e = this.criarInimigo({ tipo: vg.tipo, x, z, caca: ci, vaga: vg.k, v: vg.v });
+      vg.e = this.criarInimigo({ tipo: vg.tipo, x, z, caca: ci, vaga: vg.k, v: vg.v, nivel: d.nivel || 1 });
       return true;
     }
     return false;
@@ -100,9 +114,9 @@ export class Simulacao {
   }
   removerJogador(id) { this.jogadores.delete(id); }
   criarInimigo(sp) {
-    const t = TIPOS_INIMIGO[sp.tipo];
-    const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: t.vida, vidaMax: t.vida,
-      ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
+    const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = statusInimigo(sp.tipo, nivel); // nível do campo de caça
+    const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
+      nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
     if (t.treino) { e.treino = true; e.ry = sp.ry || 0; e.anim = 'Idle'; } // espantalho: fica plantado onde está
     this.inimigos.push(e);
@@ -540,7 +554,7 @@ export class Simulacao {
   livreParaHeroi(j, x, z) {
     if (!dentroDoMapa(this.mapa, x, z, 2.2)) return false;
     if (this.terreno.altura(x, z, j.y) > j.y + SUBIDA.degrau) return false;
-    for (const k of this.obstaculos) {
+    for (const k of [...this.obstaculos, ...this.pertoNaMata(x, z)]) {
       if (k.alto != null && (j.y || 0) > k.alto) continue;
       if (Math.hypot(x - k.x, z - k.z) < k.r + 0.35) return false;
     }
@@ -748,7 +762,7 @@ export class Simulacao {
     const d = DROPS[c.tipo]; if (!d) return;
     const p = j.prog, ganhou = [];
     const por = (it) => { if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
-    const ouro = d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1));
+    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)));
     p.ouro += ouro;
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
@@ -1012,8 +1026,9 @@ export class Simulacao {
     } else {
       this.contarMissao(c);
       // XP para quem bateu nele ou estava perto (grupo)
-      const xp = XP_INIMIGO[c.tipo] || 5;
-      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) { this.ganharXP(j, xp); this.soltarDrops(c, j); }
+      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) {
+        this.ganharXP(j, xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)); this.soltarDrops(c, j);
+      }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
         const vg = this.cacas[c.sp.caca].vagas[c.sp.vaga];
@@ -1044,7 +1059,7 @@ export class Simulacao {
     return d;
   }
   colidir(c) {
-    for (const k of c.tipo === 'jogador' ? this.obstaculos : [...this.obstaculos, ...this.obstaculosRocha]) {
+    for (const k of c.tipo === 'jogador' ? [...this.obstaculos, ...this.pertoNaMata(c.x, c.z)] : [...this.obstaculos, ...this.obstaculosRocha, ...this.pertoNaMata(c.x, c.z)]) {
       if (k.alto != null && (c.y || 0) > k.alto) continue; // por cima (esteio da ferraria visto do telhado)
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
@@ -1341,7 +1356,7 @@ export class Simulacao {
             return;
           }
           if (dist(alvo, b) >= 2.4 || Math.abs(alvo.y - b.y) >= 1.3) return;
-          this.ferir(alvo, t.dano, b);
+          this.ferir(alvo, b.dano ?? t.dano, b);
         });
         if (Math.random() < 0.5) b.vez = null; // passa a vez para quem está rodeando
       }
@@ -1400,7 +1415,7 @@ export class Simulacao {
         semCapacete: !!j.prog.semCapacete, // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
-      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
+      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
     };

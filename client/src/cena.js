@@ -90,7 +90,8 @@ function criarGrama(mapa, masc) {
       transformed.z += cos(uTime * 1.3 + wp.z * .4) * .05 * k;`);
   };
   const N0 = matchMedia('(pointer:coarse)').matches ? 22000 : 40000;
-  const areaVila = Math.PI * (raio * 1.15) ** 2, extras = fora.map((a) => Math.round(N0 * Math.PI * (a.rx != null ? a.rx * a.rz : a.r * a.r) / areaVila * 0.8));
+  // a mata (muitos círculos que se cruzam) leva menos grama: chão de floresta
+  const areaVila = Math.PI * (raio * 1.15) ** 2, extras = fora.map((a) => Math.round(N0 * Math.PI * (a.rx != null ? a.rx * a.rz : a.r * a.r) / areaVila * (a.mata ? 0.15 : 0.8)));
   const N = N0 + extras.reduce((s, n) => s + n, 0);
   const mesh = new THREE.InstancedMesh(g, m, N);
   const d = new THREE.Object3D(), cor = new THREE.Color();
@@ -156,7 +157,7 @@ async function colocarObjetos(scene, mapa, masc) {
   let sem2 = 101; const frnd = (a, b) => { sem2 = (sem2 * 16807) % 2147483647; return a + (sem2 / 2147483647) * (b - a); };
   let q = 0;
   F.areas.forEach((o, k) => {
-    if (k === 0) return;
+    if (k === 0 || o.mata) return; // a mata fecha com árvores, não com anel de pedras (direção de arte)
     // espaçamento irregular (passo de 3 a 6 m) e tamanhos bem variados (0,7 a 1,4 da pedra média): não lê como compasso
     for (let a = 0; a < 6.283;) {
       const R = raioNaDirecao(o, a), r = R + frnd(0.4, 2.6), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r, ry = frnd(0, 6.28), sc = 3.7 * frnd(0.7, 1.4);
@@ -165,6 +166,7 @@ async function colocarObjetos(scene, mapa, masc) {
     }
   });
   for (const c of F.corredores) {
+    if (c.mata) continue; // passagens da mata: as árvores fazem a parede
     const [ax, az] = c.a, [bx, bz] = c.b, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
     for (let d = 0; d <= L; d += 4.2) for (const lado of [-1, 1]) {
       const off = c.larg / 2 + frnd(1.6, 2.6), x = ax + ux * d - uz * off * lado, z = az + uz * d + ux * off * lado;
@@ -197,7 +199,7 @@ async function colocarObjetos(scene, mapa, masc) {
   }
   for (const a of mapa.vila.arvores) if (srnd(0, 1) < 0.4 && masc.peso(a.x, a.z) < 0.1) fetos.push({ x: a.x + srnd(-1, 1), z: a.z + srnd(-1, 1), s: srnd(0.6, 1.1), ry: srnd(0, 6.28) });
   // samambaias lá fora: na beira da clareira, fora do campo de caça (aberto) e do veio de cobre
-  for (const o of formasDoMapa(mapa).areas.slice(1)) for (let i = 0; i < 26; i++) {
+  for (const o of formasDoMapa(mapa).areas.slice(1).filter((o) => !o.mata)) for (let i = 0; i < 26; i++) {
     const a = frnd(0, 6.28), r = frnd(0.55, 0.95) * (raioNaDirecao(o, a) - 1.5), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r;
     if (masc.peso(x, z) >= 0.1 || (mapa.caca || []).some((c) => Math.hypot(x - c.x, z - c.z) < c.r) || (mapa.mina || []).some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 1)) continue;
     fetos.push({ x, z, s: frnd(0.7, 1.4), ry: frnd(0, 6.28) });

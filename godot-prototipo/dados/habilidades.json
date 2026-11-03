@@ -458,7 +458,8 @@
   "imp": 8,
   "chefe": 25,
   "sombrio": 6,
-  "lider": 20
+  "lider": 20,
+  "lobo": 7
  },
  "andarAtirando": 0.6,
  "nivelSemTomo": 5,
@@ -1392,5 +1393,14 @@
   "max": 0.3,
   "ate": 2
  },
- "heroiCorrer": 5.4
+ "heroiCorrer": 5.4,
+ "nivelInimigo": {
+  "vida": 0.16,
+  "dano": 0.18,
+  "xp": 0.5,
+  "ouro": 0.15,
+  "folga": 5,
+  "perde": 0.15,
+  "min": 0.1
+ }
 }
