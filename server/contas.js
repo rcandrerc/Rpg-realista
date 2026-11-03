@@ -15,6 +15,10 @@ const COPIAS_GUARDADAS = 14;
 const chavesGoogle = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const resumo = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const hoje = () => new Date().toISOString().slice(0, 10);
+// Contas de teste (o e-mail vai só como resumo sha256, para não ficar exposto no código): ganham as 4 páginas da
+// mochila sem pagar. André 2026-11-03: "pra mim já deixa liberado, porque eu quero testar".
+const TESTADORES = new Set(['33e46272579a8148b16df7e1c429d644cb3e590d43337f83a88670f88e2cac48']);
+const testador = (email) => !!email && TESTADORES.has(crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex'));
 
 // Confere o ID token do Google: assinatura, emissor, validade e se foi feito para o nosso Client ID
 export function verificadorGoogle(clientId) {
@@ -148,5 +152,5 @@ function publica(c) {
   try { aparencia = c.aparencia ? aparenciaValida(JSON.parse(c.aparencia)) : null; } catch { /* inválida: usa a padrão */ }
   let progresso = null;
   try { progresso = c.progresso ? progressoValido(JSON.parse(c.progresso)) : null; } catch { /* inválido: começa do nível 1 */ }
-  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso };
+  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email) };
 }
