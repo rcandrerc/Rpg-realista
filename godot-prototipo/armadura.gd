@@ -123,6 +123,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 		esq.add_child(no)
 		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)), tem_capa)
 	_uniforme(raiz, equip if equip is Dictionary else {})
+	_roupa_base(raiz, esq)
 	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null)
 	# armas nas costas passam por fora da capa
 	var capa := esq.get_node_or_null("Armadura_capa") != null
@@ -173,6 +174,12 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 				if not _malhas.has(chave_c):
 					_malhas[chave_c] = _saia_curta(alvo, R)
 				alvo = _malhas[chave_c]
+		if trecho == "Tops":
+			mi.set_meta("malha_saia", alvo)
+			var chave_b := "blusa_curta:%d" % alvo.get_instance_id()
+			if not _malhas.has(chave_b):
+				_malhas[chave_b] = _blusa_curta(alvo, R)
+			alvo = _malhas[chave_b]
 		_trocar_malha(mi, alvo)
 
 # direção de arte v9: nos outros corpos do criador a saia ou o vestido original é mais comprido que o saiote e
@@ -198,6 +205,77 @@ static func _saia_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 		am.surface_set_material(sfc, orig.surface_get_material(sfc))
 		am.surface_set_name(sfc, orig.surface_get_name(sfc))
 	return am
+
+# André 2026-11-03: "tirar essa roupa padrão... uma camisa bem colada e um shortinho bem colado, branco, como se
+# fosse um underwear, pra usar a armadura por cima e ficar clean". A saia/calça do VRoid, a gravata e os colares somem;
+# a blusa vira camiseta branca lisa (já afinada e cortada no quadril em _cintura) e o corpo ganha um short branco
+# colado, 3,5 mm acima da pele, feito da própria malha do corpo. Debaixo da blusa o VRoid não tem pele, por isso a
+# camiseta sai da blusa. Com peitoral a blusa continua na cor do tecido da raridade (_uniforme). Os sapatos ficam.
+# Vale para todos os corpos do criador (herói, boneco do menu e outros jogadores); os NPCs não passam por aqui.
+const ROUPA_BASE := Color("eeece6")
+
+static func _roupa_base(raiz: Node3D, esq: Skeleton3D) -> void:
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or str(mi.name).begins_with("Armadura"):
+			continue
+		var nome: String = mi.mesh.surface_get_name(0)
+		if "Bottoms" in nome or "Accessory" in nome:
+			mi.visible = false
+	if esq.get_node_or_null("Roupa_base") != null:
+		return
+	var corpo := _fonte(raiz, "Body_00")
+	if corpo == null:
+		return
+	var no := Node3D.new()
+	no.name = "Roupa_base"
+	esq.add_child(no)
+	var chave := "%d:base_short" % corpo.mesh.get_instance_id()
+	if not _malhas.has(chave):
+		_malhas[chave] = _casca(corpo, "base_short", esq)
+	if _malhas[chave] == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.mesh = _malhas[chave]
+	mi.skin = corpo.skin
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	no.add_child(mi)
+	mi.skeleton = mi.get_path_to(esq)
+	mi.material_override = _material_base()
+
+# a blusa vira camiseta: o que passa do quadril (vestidos dos outros corpos) entra no corpo, sem aparecer
+static func _blusa_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		var yt := R.y_cintura - 0.075
+		for i in V.size():
+			var p := V[i]
+			if p.y >= yt or absf(p.x) > 0.3:
+				continue
+			# vai para dentro do corpo (um anel no quadril aparecia: o contorno de desenho dos outros corpos engorda a
+			# malha 6 mm e o anel virava uma faixa preta)
+			V[i] = Vector3(0.0, yt + 0.03, 0.0)
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
+static func _material_base() -> Material:
+	if not _materiais.has("base"):
+		var m := StandardMaterial3D.new()
+		m.set_meta("armadura", true) # a cor da roupa da aparência não pinta a roupa de baixo
+		m.albedo_color = ROUPA_BASE
+		m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		m.roughness = 1.0
+		m.rim_enabled = true # o mesmo contorno de luz da pele (main.pintar)
+		m.rim = 0.25
+		m.rim_tint = 0.6
+		_materiais["base"] = m
+	return _materiais["base"]
 
 static func _trocar_malha(mi: MeshInstance3D, malha: Mesh) -> void:
 	if mi.mesh == malha:
@@ -347,13 +425,15 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 			if it is Dictionary and PECAS.has(str(it.get("k", ""))):
 				var r := clampi(int(it.get("r", 0)), 0, 4)
 				mi.set_surface_override_material(sfc, _material_tecido(r))
+			elif trecho == "Tops":
+				mi.set_surface_override_material(sfc, _material_base()) # roupa de baixo branca (André 2026-11-03)
 			elif sfc == 0 or mi.get_surface_override_material(sfc) in _materiais.values():
 				mi.set_surface_override_material(sfc, null) # só tira o que a armadura pôs (a cor da aparência fica)
 	# gravata some com peitoral de aço (a gola metálica fica no lugar dela)
 	var gravata := _fonte(raiz, "Tie")
 	if gravata:
 		var p = equip.get("corpo")
-		gravata.visible = not (p is Dictionary and str(p.get("k", "")) == "peitoral" and int(p.get("r", 0)) >= 1)
+		gravata.visible = false # André 2026-11-03: sem roupa padrão (antes sumia só com peitoral de aço)
 
 static func _material_tecido(r: int) -> Material:
 	var chave := "tecido:%d" % r
@@ -451,8 +531,15 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			_montar_cinto(raiz, esq, no, r)
 			continue
 		var src := _fonte(raiz, REGIOES[parte].fonte)
+		var temp: MeshInstance3D = null
 		if src == null and REGIOES[parte].fonte == "Bottoms":
-			src = _fonte(raiz, "Tops") # corpos de vestido (sem saia separada): o saiote nasce da barra do vestido
+			# corpos de vestido (sem saia separada): o saiote nasce da barra do vestido, antes de a blusa virar camiseta
+			var tops := _fonte(raiz, "Tops")
+			if tops and tops.has_meta("malha_saia"):
+				temp = MeshInstance3D.new()
+				temp.mesh = tops.get_meta("malha_saia")
+				temp.skin = tops.skin
+				src = temp
 		if src == null:
 			continue
 		var chave := "%d:%s" % [src.mesh.get_instance_id(), parte]
@@ -460,6 +547,8 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			_malhas[chave] = _casca(src, parte, esq)
 		var am: ArrayMesh = _malhas[chave]
 		if am == null:
+			if temp:
+				temp.free()
 			continue
 		var mi := MeshInstance3D.new()
 		mi.mesh = am
@@ -468,11 +557,13 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		no.add_child(mi)
 		mi.skeleton = mi.get_path_to(esq)
 		mi.material_override = _material(mat, r)
+		if temp:
+			temp.free()
 
 # ---------- regiões (posição de descanso em T, metros; +x = esquerda do personagem, +z = frente) ----------
 # off(p, b): quanto a casca sai do corpo naquele ponto (<= 0 = fora da peça). seg: coordenada das faixas (lâminas).
 const REGIOES := {
-	"peito": {"fonte": "Tops"}, "ombro_e": {"fonte": "Tops"}, "ombro_d": {"fonte": "Tops"},
+	"peito": {"fonte": "Tops"}, "base_short": {"fonte": "Body_00"}, "ombro_e": {"fonte": "Tops"}, "ombro_d": {"fonte": "Tops"},
 	"braco_e": {"fonte": "Tops"}, "braco_d": {"fonte": "Tops"}, 
 	"canela_e": {"fonte": "Body_00"}, "canela_d": {"fonte": "Body_00"}, "cano_e": {"fonte": "Body_00"}, "cano_d": {"fonte": "Body_00"},
 	"sapato": {"fonte": "Shoes"}, "sapato_couro": {"fonte": "Shoes"},
@@ -572,6 +663,11 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			if p.y < R.y_joelho + 0.17 or p.y > R.y_cintura - 0.12 or ax > 0.17:
 				return Vector2(-1, 0)
 			return Vector2(0.007, p.y)
+		"base_short":
+			# short colado: do quadril até o meio da coxa (cobre a barra da camiseta)
+			if p.y > R.y_cintura - 0.05 or p.y < lerpf(R.y_joelho, R.y_cintura, 0.45) or ax > 0.2:
+				return Vector2(-1, 0)
+			return Vector2(0.0025, -1.0)
 		"saia", "saia_frente":
 			# placas verticais (lâminas) em volta do quadril; começa abaixo da barra da blusa (que cobre o alto da saia)
 			# saia_frente (com capa): só a frente e os lados; atrás fica o pano da capa
@@ -760,7 +856,8 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 	for i in n:
 		pos[i] = base[i] + nor[i] * off[i]
 	# o peitoral alisava 20 vezes e virava um barril (André: "tá gordão"); agora segue o busto e a cintura
-	for it in (7 if parte == "peito" else 8):
+	# a roupa de baixo (3 mm da pele) não alisa: alisar escorrega os vértices pela curva do busto e a casca entra na pele
+	for it in (7 if parte == "peito" else (0 if parte.begins_with("base") else 8)):
 		var np := pos.duplicate()
 		for i in n:
 			if borda[i]:
@@ -798,7 +895,7 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 			break
 	# borda dobrada para fora (aba enrolada)
 	for i in n:
-		pos[i] += nor[i] * 0.004 * _sino(dist[i], 0.012)
+		pos[i] += nor[i] * (0.0 if parte.begins_with("base") else 0.004) * _sino(dist[i], 0.012)
 	if parte == "peito":
 		# quina do esterno (capa do Aethra, direção de arte): a placa sobe ~7 mm numa linha vertical no meio da
 		# frente, do colarinho até a ponta do V, com um filete de friso dourado em cima dela

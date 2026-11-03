@@ -76,7 +76,8 @@ var mao_direita := -1
 var mao_esquerda := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
-	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false}
+	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false,
+	"alvo_fixo": null} # alvo_fixo: monstro travado do mago (alvo_travado)
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -209,6 +210,7 @@ func _ready() -> void:
 	conversa = Conversa.new(self)
 	add_child(conversa)
 	hud.tocou.connect(conversa.tocou_tela)
+	hud.tocou.connect(tocou_inimigo) # tocar num monstro: vira o alvo travado do mago
 	criador = Criador.new(self)
 	add_child(criador)
 	var cfg := ConfigFile.new()
@@ -1641,10 +1643,67 @@ func basico_espada() -> void:
 	fx.agenda.append({"t": vento_t, "fn": func(): sons.tocar("golpe", -3.0 if ultimo else -5.0, 0.08, null, 0.85 if ultimo else 1.0)})
 	segurar_pose(0.35)
 
-# Cajado: faísca de fogo que mira sozinha no inimigo mais perto (9 m), alternando as mãos
+# Alvo travado do mago (André 2026-11-03): o 1º ataque pega o monstro mais perto e daí em diante o alvo
+# só troca quando ele toca em outro monstro ou quando o alvo morre (aí volta a pegar o mais perto).
+# Antes cada faísca escolhia de novo o mais perto e o alvo pulava sozinho. Devolve o monstro, ou false se o
+# travado está vivo mas fora do alcance (continua travado), ou null se não tem ninguém.
+const ALVO_SOLTA := 25.0 # travado mais longe que isso (fugiu, voltou para a clareira dele) solta
+func alvo_travado(alcance: float):
+	if not vivo(h.alvo_fixo):
+		h.alvo_fixo = null
+	if h.alvo_fixo != null:
+		var d: float = h.alvo_fixo.no.position.distance_to(heroi.position)
+		if d <= alcance:
+			return h.alvo_fixo
+		if d <= ALVO_SOLTA:
+			return false
+		h.alvo_fixo = null
+	var e = mais_perto(heroi.position, alcance)
+	if e != null:
+		h.alvo_fixo = e
+	return e
+
+# toque rápido na tela em cima de um monstro: ele vira o alvo travado (o mais perto do dedo na tela)
+func tocou_inimigo(pos: Vector2) -> void:
+	if camera == null or h.morto > 0.0 or menu.aberto():
+		return
+	var achou = null
+	var md := 1e9
+	for e in inimigos:
+		if not vivo(e) or e.get("longe", false) or not e.no.visible:
+			continue
+		var pe: Vector3 = e.no.position
+		if pe.distance_to(heroi.position) > ALVO_SOLTA:
+			continue
+		var cabeca: Vector3 = pe + Vector3.UP * 1.6 * max(0.5, e.no.scale.y)
+		if camera.is_position_behind(pe) or camera.is_position_behind(cabeca):
+			continue
+		var a: Vector2 = camera.unproject_position(pe)
+		var b: Vector2 = camera.unproject_position(cabeca)
+		var largura: float = max(40.0, (a.y - b.y) * 0.45) # dedo é grosso: folga para os lados
+		if pos.y < b.y - 24.0 or pos.y > a.y + 24.0 or abs(pos.x - lerp(a.x, b.x, 0.5)) > largura:
+			continue
+		var dt: float = pos.distance_to(a.lerp(b, 0.5))
+		if dt < md:
+			md = dt
+			achou = e
+	if achou != null:
+		h.alvo_fixo = achou
+
+# índice do monstro (o "v" do servidor) para o servidor mirar no mesmo alvo travado
+func indice_inimigo(e) -> int:
+	return inimigos.find(e) if vivo(e) else -1
+
+# Cajado: faísca de fogo que mira sozinha no alvo travado (alvo_travado; 9 m), alternando as mãos
 func basico_magia() -> void:
 	var hab: Dictionary = P.hab_pronta("cajado_basico")
-	var alvo = mais_perto(heroi.position, hab.alcance + 0.5)
+	var alvo = alvo_travado(hab.alcance + 0.5)
+	if alvo is bool:
+		if tempo - h.sem_alvo > 1.2:
+			h.sem_alvo = tempo
+			hud.aviso("Alvo longe demais")
+		recargas["basico"] = 0.25
+		return
 	if alvo == null:
 		sem_alvo()
 		recargas["basico"] = 0.25
@@ -1653,7 +1712,7 @@ func basico_magia() -> void:
 	h.mao = 1 - h.mao
 	var g: Dictionary = hab.combo[h.mao]
 	recargas["basico"] = hab.cd
-	rede("habQ", "cajado_basico")
+	rede("habQ", {"id": "cajado_basico", "v": indice_inimigo(alvo)})
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
 	heroi_anim.so_tronco = true # andando, as pernas continuam no passo e só os braços atiram
 	segurar_pose(0.35)
@@ -1685,6 +1744,8 @@ func alvo_hab(hab: Dictionary):
 	var t: String = hab.tipo
 	if t == "corte" or t == "esmagar":
 		return mais_perto(heroi.position, hab.lunge.r)
+	if t in ["bola", "cadeia", "meteoro"] and vivo(h.alvo_fixo) and h.alvo_fixo.no.position.distance_to(heroi.position) <= hab.alcance + 0.5:
+		return h.alvo_fixo # magia de alvo único vai no alvo travado do mago quando ele está no alcance
 	if t in ["bola", "cadeia", "meteoro", "investida"]:
 		var e = mais_perto(heroi.position, hab.alcance + 0.5)
 		return e if e else false
@@ -1719,7 +1780,12 @@ func habilidade(i: int) -> bool:
 	h.mana -= hab.get("mana", 0)
 	virar_para(alvo)
 	var dir := direcao_joystick()
-	rede("habQ", {"id": k, "dx": snappedf(dir.x, 0.01), "dz": snappedf(dir.z, 0.01)} if hab.tipo == "teleporte" else k)
+	if hab.tipo == "teleporte":
+		rede("habQ", {"id": k, "dx": snappedf(dir.x, 0.01), "dz": snappedf(dir.z, 0.01)})
+	elif hab.tipo in ["bola", "cadeia", "meteoro"] and vivo(alvo):
+		rede("habQ", {"id": k, "v": indice_inimigo(alvo)}) # o servidor mira no mesmo alvo
+	else:
+		rede("habQ", k)
 	if hab.has("canal"): # magia concentrada: andar (joystick forte), pular ou dar dash cancela e devolve 70% da mana
 		var dur: float = hab.canal / hab.at
 		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos2 if hab.tipo in ["bola", "gelo", "meteoro"] else maos)
@@ -1969,8 +2035,12 @@ func _process(dt: float) -> void:
 	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
 	_flash_passo(dt_real)
 	combate.passo(dt_real)
-	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m)
+	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m; de cajado, o alvo travado)
+	if h.alvo_fixo != null and (not vivo(h.alvo_fixo) or h.alvo_fixo.no.position.distance_to(heroi.position) > ALVO_SOLTA):
+		h.alvo_fixo = null # morreu (ou fugiu longe): o próximo ataque pega o mais perto
 	var marcado = mais_perto(heroi.position, 12.0) if h.morto <= 0.0 else null
+	if h.modo == "Magia" and h.alvo_fixo != null and h.morto <= 0.0:
+		marcado = h.alvo_fixo
 	combate.marcar(marcado.no if marcado else null, dt_real)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
@@ -2298,7 +2368,7 @@ func barras_perto() -> void:
 		var d: float = e.no.position.distance_to(heroi.position)
 		var v: bool = e.barra.scale.x < 0.999 or d < 9.0
 		var nome: Node3D = e.barra.get_parent().get_child(e.barra.get_index() - 2)
-		nome.visible = e == alvo or float(e.get("combate", 0.0)) > tempo
+		nome.visible = e == alvo or e == h.alvo_fixo or float(e.get("combate", 0.0)) > tempo
 		if e.barra.visible != v:
 			e.barra.visible = v
 			e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = v
