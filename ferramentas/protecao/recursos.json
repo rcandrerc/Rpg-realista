@@ -4,13 +4,14 @@
     { "nome": "APK casca: baixa o jogo inteiro em partes e depois só as mudanças (André 2026-11-03)", "arquivo": "godot-prototipo/inicio.gd", "contem": ["func _casca_iniciar(", "func _casca_baixar_completo(", "func _casca_entrar(", "const CONTEUDO_JSON"] },
     { "nome": "Preset do APK casca", "arquivo": "godot-prototipo/export_presets.cfg", "contem": ["name=\"Android casca\""] },
     { "nome": "CI gera o APK casca e publica o conteúdo", "arquivo": ".github/workflows/apk.yml", "contem": ["--export-release \"Android casca\"", "publicar-conteudo.sh"] },
+    { "nome": "Minerar e cortar lenha com o corpo inteiro: base aberta, joelhos, quadril e giro do tronco (André 2026-11-03)", "arquivo": "godot-prototipo/duas_maos.gd", "contem": ["func _perna(", "func _girar(", "var agacha := 0.0", "var torcao := 0.0", "const BASE_ABRE"] },
     { "nome": "Cajado na mão preso na palma (não no punho) e 15% menor, em todos os corpos (André 2026-11-03)", "arquivo": "godot-prototipo/armas.gd", "contem": ["const ESCALA_CAJADO := 0.85", "static func palma(esq: Skeleton3D, mao: int) -> Vector3:", "static func pose_na_mao(", "class Segurar extends Node:"] },
     { "nome": "Ping do servidor sempre no aviso do topo, escrito Ping e com cor (André 2026-11-03)", "arquivo": "godot-prototipo/online.gd", "contem": ["\" · Ping %d ms\" % rede.ping_ms", "func _medir_chegada("] },
     { "nome": "Mago: alvo travado na Faísca (1º ataque pega o mais perto; só troca tocando em outro monstro ou quando ele morre) (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func alvo_travado(", "hud.tocou.connect(tocou_inimigo)", "var alvo = alvo_travado(hab.alcance + 0.5)"] },
     { "nome": "Servidor: mira no alvo travado do mago que o celular manda (v) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["alvoTravado(j, h, m) {", "this.alvoTravado(j, h, m) || this.alvoHab(j, h)"] },
     { "nome": "Quadradinho Mostrar capacete embaixo do medalhão do Capacete e na janela dele (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func linha_mostrar_capacete(", "class Quadradinho extends Control:", "\"Mostrar capacete\""] },
     { "nome": "Tocar numa peça do corpo abre a janela: Tirar (qualquer lugar pode ficar vazio), aviso de peça melhor na mochila e lista para Trocar (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func montar_janela(", "func linha_opcao(", "\"acao\": \"tirar\", \"lugar\": l", "Tem peça melhor na mochila", "É a sua melhor peça para este lugar", "func diferenca("] },
-    { "nome": "App se chama Aethra e usa o ícone do A de cajado + espada (André 2026-11-03)", "arquivo": "godot-prototipo/export_presets.cfg", "contem": ["package/name=\"Aethra\"", "package/unique_name=\"com.rcandrerc.rpgprototipo\"", "launcher_icons/adaptive_foreground_432x432=\"res://icone_app/frente_432.png\""] },
+    { "nome": "App se chama Aethra e usa o ícone do A artístico com cajado e espada (André 2026-11-03)", "arquivo": "godot-prototipo/export_presets.cfg", "contem": ["package/name=\"Aethra\"", "package/unique_name=\"com.rcandrerc.rpgprototipo\"", "launcher_icons/adaptive_foreground_432x432=\"res://icone_app/frente_432.png\""] },
     { "nome": "Desempenho: vila só é desenhada até uma distância (na mata ela some atrás das árvores) (2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["func alcance_da_vila(", "alcance_da_vila(vila)"] },
     { "nome": "Ping do servidor sempre ao lado do FPS (André 2026-11-03)", "arquivo": "godot-prototipo/main.gd", "contem": ["txt += \" · ping %d ms\" % online.rede.ping_ms"] },
     { "nome": "Progresso do servidor gravado no celular fora do quadro (sem tranco na morte do bicho) (2026-11-03)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func guardar_agora(", "WorkerThreadPool.add_task("] },
@@ -48,6 +49,8 @@
     { "nome": "Movimento com inércia (PR #53)", "arquivo": "godot-prototipo/andar.gd", "contem": ["# inércia: velocidade de verdade no chão", "const CORRIDA := 5.4"] },
     { "nome": "Corpo inclina nas curvas (PR #53)", "arquivo": "godot-prototipo/inclinar.gd", "contem": ["func _process_modification()"] },
     { "nome": "Arrancada em rampa e curva em arco (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func _inercia(", "const ACELERA_FIM", "const CURVA_CORRENDO"] },
+    { "nome": "Freada, meia-volta e curva com derrapada também no trote, não só na corrida (André 2026-11-03)", "arquivo": "godot-prototipo/andar.gd", "contem": ["const FREADA_MIN := 3.3", "const MEIA_VOLTA_MIN := 3.3", "const FREADA_TROTE", "const CURVA_TROTE", "* CURVA_TROTE +"] },
+    { "nome": "Trote não gasta estamina por oscilação da rede (média de 0,3 s no servidor) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["j.janCorrida", "if (jan.t >= 0.3)"] },
     { "nome": "Freada com derrapada e meia-volta do Mixamo (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func iniciar_manobra(", "iniciar_manobra(\"freada\"", "iniciar_manobra(\"meia_volta\"", "func _passo_manobra("] },
     { "nome": "Freada e meia-volta no caminho do quadril (PR #55)", "arquivo": "godot-prototipo/dados/mundo.json", "contem": ["\"raiz\"", "\"freada\"", "\"meia_volta\""] },
     { "nome": "Animações freada e meia-volta no herói (PR #55)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["freada: 'freada', meia_volta: 'meia_volta'"] },
@@ -152,6 +155,10 @@
     { "nome": "Mochila com páginas de 10 x 4, compradas com ouro (servidor)", "arquivo": "shared/simulacao.js", "contem": ["m.acao === 'pagina'", "liberarPaginas(j.prog, MOCHILA_PAGINAS)", "i < p.mochila.length"] },
     { "nome": "Mochila: páginas e nenhum item perdido na conta", "arquivo": "shared/progresso.js", "contem": ["export function liberarPaginas(p, n)", "n.paginas = int(p.paginas, 1, MOCHILA_PAGINAS, 1)", "nunca joga item fora"] },
     { "nome": "Mochila: abas de página e compra no menu do app", "arquivo": "godot-prototipo/menu.gd", "contem": ["g.columns = 10", "func pagina_trancada(n: int, tem: int) -> Control:", "func trocar_pagina(n: int) -> void:"] },
-    { "nome": "Conta de teste do André com as 4 páginas", "arquivo": "server/contas.js", "contem": ["const TESTADORES", "testador: testador(c.email)"] }
+    { "nome": "Conta de teste do André com as 4 páginas", "arquivo": "server/contas.js", "contem": ["const TESTADORES", "testador: testador(c.email)"] },
+    { "nome": "Ir para do mapa: o herói anda sozinho sempre pela estrada, o joystick cancela (André 2026-11-03)", "arquivo": "godot-prototipo/rota.gd", "contem": ["func planejar(alvo: Vector2) -> PackedVector2Array:", "func direcao_auto() -> Vector3:", "m.hud.mover.length() > 0.15"] },
+    { "nome": "Ir para do mapa: marcar lugar e botão no mapa completo", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func _toque_no_mapa(pos: Vector2) -> void:", "\"Ir para\"", "m.rota.ir(r)"] },
+    { "nome": "Ir para do mapa: rota vira o joystick", "arquivo": "godot-prototipo/main.gd", "contem": ["return rota.direcao_auto()"] },
+    { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] }
   ]
 }

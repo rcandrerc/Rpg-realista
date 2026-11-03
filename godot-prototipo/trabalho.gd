@@ -615,9 +615,12 @@ func _preparar_duas() -> bool:
 # ---------- golpe com as duas mãos ----------
 # poses do cabo no espaço do herói (x direita, y cima, z frente): ângulo do cabo (graus, 0 = para a frente,
 # 90 = para cima) e onde fica o pé do cabo (a mão de baixo)
-const DUAS_PRONTO := {"ang": 55.0, "pe": Vector3(0.0, 1.0, 0.28)}
-const DUAS_ALTO := {"ang": 155.0, "pe": Vector3(0.0, 1.42, 0.02)}
-const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3)} # picareta: de cima para baixo na face da pedra
+# O corpo vai junto (duas_maos.gd): "ag" = m que o quadril desce, "av" = m que o peso vai para a frente (+) ou para
+# trás (-), "tor" = graus que o peito gira para a direita, "cur" = curva do tronco (1 = curvado no golpe, negativo
+# = arqueado para trás)
+const DUAS_PRONTO := {"ang": 55.0, "pe": Vector3(0.0, 1.0, 0.28), "ag": 0.05, "av": 0.0, "tor": 5.0, "cur": 0.25}
+const DUAS_ALTO := {"ang": 155.0, "pe": Vector3(0.0, 1.42, 0.02), "ag": 0.035, "av": -0.05, "tor": 10.0, "cur": -0.4}
+const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3), "ag": 0.12, "av": 0.06, "tor": -4.0, "cur": 1.0} # picareta: de cima para baixo na face da pedra
 const DUAS_TRONCO := {"ang": -6.0, "pe": Vector3(0.0, 1.12, 0.3)} # machado: quase reto no tronco, na altura do peito
 const DUAS_MAO_BAIXO := 0.04 # m do pé do cabo até a mão esquerda
 const DUAS_MAO_CIMA := 0.2 # até a mão direita
@@ -626,9 +629,9 @@ const DUAS_GIRO := PI / 2.0 # giro da ferramenta em volta do cabo (rad): a ponta
 # machado (pedido do André): golpe de lado, na horizontal, vindo de trás do ombro direito até o tronco, com o fio
 # virado para onde o machado vai. "giro" = para que lado o cabo aponta em volta do herói (graus, 0 = frente,
 # 90 = direita); "ang" = quanto o cabo sobe (graus)
-const LADO_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25)}
-const LADO_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02)}
-const LADO_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32)}
+const LADO_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25), "ag": 0.05, "av": 0.0, "tor": 12.0, "cur": 0.12}
+const LADO_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02), "ag": 0.045, "av": -0.05, "tor": 42.0, "cur": -0.1}
+const LADO_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32), "ag": 0.09, "av": 0.05, "tor": -16.0, "cur": 0.45}
 
 func _pose_golpe(o: Dictionary) -> Dictionary:
 	return LADO_TRONCO if o.tipo == "arvore" else DUAS_PEDRA
@@ -691,7 +694,10 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
 	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
 	duas.cabo = cabo
-	duas.curva = curva * (0.45 if lado else 1.0)
+	duas.curva = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
+	duas.agacha = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
+	duas.avanco = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
+	duas.torcao = deg_to_rad(lerp(float(A.get("tor", 0.0)), float(B.get("tor", 0.0)), k))
 	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som
