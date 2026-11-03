@@ -30,3 +30,10 @@ Para montar à mão:
 - `aparencia.gd`: pinta cada personagem pela cópia dele (shader toon com troca de cor) e mexe nos blend shapes
   `olhosT`, `narizT`, `bocaT`, que o `client/exportar-godot/exportar.js` grava no GLB da Ruiva.
 - Online: conta nova manda `aparencia` (ao vivo) e `pronto`; depois, o botão Aparência manda `mudarAparencia`.
+
+## Interação com os NPCs
+
+- `conversa.gd`: perto de um NPC aparece o botão **Falar** (balão); tocar rápido num NPC na tela faz o herói ir até ele.
+  Os dois abrem a janela do NPC com o nome, a fala e o que dá para fazer (vender itens, comprar, forja, alfaiate,
+  habilidades, missão, cura, resetar a build e Conversar). O que cada NPC oferece está em `acoes` de cada NPC em
+  `shared/dados.js`. Vender com o Tomás ou com a Rosa: o servidor confere (`Simulacao.pertoDeQuemCompra`).

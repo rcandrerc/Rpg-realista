@@ -531,7 +531,8 @@ func evento(ev: Dictionary) -> void:
 			m.sons.tocar("nivel", -6.0)
 			return
 		"fala":
-			m.hud.aviso(str(ev.texto))
+			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), str(ev.texto))): # janela do NPC aberta: a fala aparece nela
+				m.hud.aviso(str(ev.texto))
 			if str(ev.get("abrir", "")) == "resetar":
 				m.menu.perguntar_reset(int(ev.get("custo", 0)))
 			return

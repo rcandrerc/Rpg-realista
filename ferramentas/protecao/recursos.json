@@ -75,6 +75,9 @@
     { "nome": "Mestre Ivo (Godot: reset sem internet)", "arquivo": "godot-prototipo/progresso.gd", "contem": ["func resetar(custo: int)", "func pontos_gastos("] },
     { "nome": "Anel de pedras abre na passagem e fecha a área de fora", "arquivo": "client/src/cena.js", "contem": ["formasDoMapa(mapa)", "// a área de fora e as paredes da passagem"] },
     { "nome": "Saída da vila pela estrada larga (por fora das casas)", "arquivo": "shared/dados.js", "contem": ["{ largura: 2.4, pontos: [[0, 1], [5, 1.2], [10, 0.4], [14, -0.6], [17.5, -1.6], [21, -2.2]] }"] },
+    { "nome": "Interação com NPCs: botão Falar, tocar no NPC vai até ele, janela do NPC", "arquivo": "godot-prototipo/conversa.gd", "contem": ["func tocou_tela(", "func abrir(", "func direcao_auto(", "\"vender\": [\"Vender itens\""] },
+    { "nome": "Interação com NPCs (HUD e main)", "arquivo": "godot-prototipo/main.gd", "contem": ["conversa.tocar_botao()", "hud.tocou.connect(conversa.tocou_tela)", "func perto_de_quem_compra("] },
+    { "nome": "Tomás, o ferreiro, compra itens; conversa pelo menu do NPC (servidor)", "arquivo": "shared/simulacao.js", "contem": ["pertoDeQuemCompra(j)", "if (m?.conversa) return diga(proxima());"] },
     { "nome": "Congelado: o monstro vira gelo (sem bolha) e o flash volta para o gelo", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["func _congelar(corpo: Node3D, dur: float)", "const SH_GELO_CORPO", "func _descongelar(b: Dictionary)", "func _pontas_gelo("] }
   ]
 }

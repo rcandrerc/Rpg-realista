@@ -577,7 +577,7 @@ export class Simulacao {
       }
       if (--it.n <= 0) p.mochila[i] = null;
     } else if (m.acao === 'vender' && it) {
-      if (!this.pertoDaLoja(j)) return aviso('Venda com a Rosa, a comerciante');
+      if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       const preco = precoVenda(it, mercador(p.prof.mer).venda);
       if (it.n > 1) it.n--; else p.mochila[i] = null;
       p.ouro += preco;
@@ -726,6 +726,8 @@ export class Simulacao {
     this.aplicarStatus(j);
     this.avisarProg(j);
   }
+  // quem compra itens: a Rosa e os NPCs com 'vender' nas acoes (o Tomás, o ferreiro)
+  pertoDeQuemCompra(j) { return this.pertoDaLoja(j) || (this.mapa.npcs || []).some((n) => (n.acoes || []).includes('vender') && dist(n, j) < LOJA_DISTANCIA); }
   pertoDaLoja(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'loja' && dist(n, j) < LOJA_DISTANCIA); }
   // Monstro caiu: cada herói que ganhou XP tira a sua sorte (ouro, poções, peça, Tomo de uma skill que ele já tem)
   soltarDrops(c, j) {
@@ -753,13 +755,17 @@ export class Simulacao {
 
   // No chão pula; no ar, o segundo pulo é um mortal para a frente
   // Botão Falar: o NPC mais perto responde conforme a função dele (cura, missão, habilidades, dica, loja)
-  falar(id) {
+  // m (opcional, menu do NPC no app): { npc: id de quem tocou, conversa: true = só a próxima fala, sem a função }
+  falar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     let npc = null, md = 3.2;
     for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md) { md = d; npc = n; } }
+    const quem = m && typeof m === 'object' && typeof m.npc === 'string' ? (this.mapa.npcs || []).find((n) => n.id === m.npc) : null;
+    if (quem && dist(quem, j) < 3.2) npc = quem;
     if (!npc) return;
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
+    if (m?.conversa) return diga(proxima());
     if (npc.funcao === 'cura') {
       if (j.vida >= j.vidaMax && j.mana >= j.manaMax) return diga('Você está inteiro. Volte quando precisar.');
       const n = j.vidaMax - j.vida; j.vida = j.vidaMax; j.mana = j.manaMax;
