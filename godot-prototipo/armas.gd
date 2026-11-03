@@ -53,6 +53,10 @@ static func palma(esq: Skeleton3D, mao: int) -> Vector3:
 		var j2 := _osso_dedo(esq, mao, "Middle2")
 		if j2 >= 0:
 			p += (esq.get_bone_global_pose(j2).origin - a) * PALMA_DEDO
+	# mão fechada em volta do cajado (mao_fechada.gd): o meio dele vai no furo do punho
+	var furo = esq.get_meta("furo_mao_%d" % mao, null)
+	if furo is Array and float(furo[1]) > 0.0:
+		p = p.lerp(furo[0], float(furo[1]))
 	return esq.global_transform * p
 
 # onde o cajado fica com ele na mão: meio na palma, em pé seguindo o corpo (raiz), 15% menor
@@ -70,15 +74,27 @@ class Segurar extends Node:
 	var esq: Skeleton3D
 	var mao := -1
 	var pose: Callable # Armas.pose_na_mao (a classe de dentro não enxerga as funções de fora)
+	var fechada = null # mao_fechada.gd: dedos fechados em volta do cajado (só enquanto está na mão)
 	func _process(_dt: float) -> void:
 		var caj := get_parent() as Node3D
 		var ba := caj.get_parent() as BoneAttachment3D if caj else null
 		if ba == null or esq == null or not is_instance_valid(esq) or ba.bone_name.contains("UpperChest"):
+			if is_instance_valid(fechada):
+				fechada.peso = 0.0 # cajado nas costas: mão solta
 			return
 		if mao < 0 or esq.get_bone_name(mao) != ba.bone_name:
 			mao = esq.find_bone(ba.bone_name)
+			if is_instance_valid(fechada):
+				fechada.queue_free()
+			fechada = null
 		if mao >= 0:
 			caj.global_transform = pose.call(esq, mao, esq.owner if esq.owner is Node3D else esq)
+			if not is_instance_valid(fechada): # dedos em volta do cajado (mao_fechada.gd)
+				fechada = preload("res://mao_fechada.gd").new()
+				fechada.name = "MaoFechada"
+				esq.add_child(fechada)
+				fechada.preparar(esq, mao)
+			fechada.peso = 1.0
 
 static func segurar(esq: Skeleton3D, cajado: Node3D) -> void:
 	var s: Segurar = cajado.get_node_or_null("Segurar")
