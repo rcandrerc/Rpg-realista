@@ -308,9 +308,10 @@ export const MAPA_CLAREIRA = {
   inimigos: [],
   caca: CACA,
   mina: MINA,
-  // espantalho de treino ao lado da ferraria, na grama entre a parede dela e a estrada larga (fora dos caminhos);
+  // espantalho de treino ao lado da ferraria, na grama entre a parede dela, os caixotes e a estrada larga (fora dos
+  // caminhos), a 4,6 m do Tomás para os nomes não se encostarem (direção de arte);
   // virado para a estrada, de onde o herói chega. O v dele vem depois das vagas dos campos de caça.
-  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: 2.2, z: -1.4, ry: -0.74 }],
+  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: 5, z: -1.2, ry: -0.8 }],
   // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios. funcao: o que o botão Falar faz (veja Simulacao.falar e client/src/main.js)
   // acoes: o que aparece no menu do NPC no app (botão de interação, como no Quimera); 'Conversar' sempre aparece.
   // 'vender' = ele compra itens da mochila (o servidor confere: Simulacao.pertoDeQuemCompra)
