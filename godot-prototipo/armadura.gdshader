@@ -108,6 +108,7 @@ void light() {
 	}
 	// brilho duro do metal
 	vec3 h = normalize(LIGHT + VIEW);
-	float e = step(0.985, dot(NORMAL, h)) * step(0.1, ndl) * step(0.5, att) * duro;
+	// ponto de brilho pequeno (~4% do casco): grande lia como plástico (direção de arte)
+	float e = step(0.9935, dot(NORMAL, h)) * step(0.1, ndl) * step(0.5, att) * duro;
 	DIFFUSE_LIGHT += vec3(e) * 0.9 * ganho * k;
 }
