@@ -290,6 +290,13 @@ func _outros() -> Array:
 			var o = m.online.outros[id]
 			if o is Dictionary and o.has("no") and is_instance_valid(o.no):
 				l.append(Vector2(o.no.position.x, o.no.position.z))
+		# área de interesse: quem está longe não vem na foto, mas vem na lista leve do mapa (a cada 0,5 s)
+		var meu: String = str(m.online.get("meu_id"))
+		var lista = m.online.get("no_mapa")
+		if lista is Array:
+			for p in lista:
+				if p is Array and p.size() >= 3 and str(p[0]) != meu and not m.online.outros.has(str(p[0])):
+					l.append(Vector2(float(p[1]), float(p[2])))
 	var r: Array = []
 	for v in l:
 		r.append({"x": v.x, "z": v.y})
