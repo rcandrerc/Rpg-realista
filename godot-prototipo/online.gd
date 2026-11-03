@@ -229,13 +229,21 @@ func esconder_login() -> void:
 
 func atualizar_status(_t := "") -> void:
 	if ligado:
-		var p := "" if rede.ping_ms < 0 else " · %d ms" % rede.ping_ms
+		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
+		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
+		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
 		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
 		if status.text != txt: # trocar o texto refaz o layout: só quando muda
 			status.text = txt
+			var cor := Color(1, 0.95, 0.85)
+			if rede.ping_ms >= 0:
+				cor = Color(0.6, 1.0, 0.6) if rede.ping_ms < 100 else (Color(1.0, 0.9, 0.4) if rede.ping_ms < 200 else Color(1.0, 0.5, 0.45))
+			status.add_theme_color_override("font_color", cor)
 	elif _t != "" and _t != "Online":
+		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
 		status.text = _t
 	else:
+		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
 		status.text = "Sozinho · tocar para jogar online"
 
 # ---------- sala ----------
@@ -300,6 +308,7 @@ func ao_receber(tipo, dados) -> void:
 		evento(ev)
 
 func aplicar_foto(f: Dictionary) -> void:
+	_medir_chegada()
 	corpos.clear()
 	corpos[meu_id] = m.heroi
 	var vistos := {}
@@ -699,6 +708,21 @@ const ATRASO := 0.1 # s atrás do servidor: sempre tem duas fotos para andar ent
 func _agora() -> float:
 	return Time.get_ticks_usec() / 1000000.0
 
+# Atraso que se ajusta à internet (2026-11-03): no 4G as fotos às vezes chegam com 100-300 ms de folga e depois várias
+# juntas; com atraso fixo de 0,1 s faltava foto, o monstro parava e depois dava um salto. Mede a folga entre as fotos
+# (sobe na hora, desce devagar) e anda até 0,25 s atrás do servidor só quando a internet está assim. No Wi-Fi bom fica 0,1 s.
+const ATRASO_MAX := 0.25
+var _atraso := ATRASO
+var _folga := 0.0
+var _ult_chegada := -1.0
+func _medir_chegada() -> void:
+	var agora := _agora()
+	if _ult_chegada > 0.0:
+		var desvio: float = absf((agora - _ult_chegada) - 0.05)
+		_folga = maxf(desvio, _folga * 0.985)
+		_atraso = clampf(ATRASO + _folga * 1.2, ATRASO, ATRASO_MAX)
+	_ult_chegada = agora
+
 func _amostra(o: Dictionary, p: Vector3, ry: float) -> void:
 	if not o.has("buf"):
 		o.buf = []
@@ -708,7 +732,7 @@ func _amostra(o: Dictionary, p: Vector3, ry: float) -> void:
 
 func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
 	var buf: Array = o.get("buf", [])
-	var t := _agora() - ATRASO
+	var t := _agora() - _atraso
 	if buf.size() < 2 or t >= buf[buf.size() - 1][0] or t < buf[0][0]:
 		# sem duas fotos em volta (começo, ou o servidor atrasou): desliza até a última
 		var k: float = min(1.0, dt * 10.0)
