@@ -5,6 +5,8 @@ extends CanvasLayer
 # e o nível de cada clareira; tocar de novo (ou no X) fecha.
 # O desenho de cima vem pronto (modelos/minimapa.png, feito por client/src/minimapa.js com os dados do servidor);
 # os nomes, o herói e os jogadores são desenhados aqui por cima, nítidos.
+# "Ir para" (André 2026-11-03): no mapa completo, tocar num lugar marca o lugar e mostra a rota pela estrada com o botão
+# "Ir para"; tocar no botão fecha o mapa e o herói vai sozinho (rota.gd). Tocar fora do mapa (ou no X) fecha.
 
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
@@ -26,6 +28,12 @@ var mapa_grande: TextureRect
 var marcas_grande: Control
 var aberto := false
 var fonte: Font
+var marcado = null # Vector2 (metros) do lugar tocado no mapa completo, ou null
+var previa := PackedVector2Array() # rota pela estrada até o lugar marcado (rota.planejar)
+var botao_ir := Rect2() # onde está o botão "Ir para" na tela (para o toque)
+var botao_x := Rect2() # X de fechar o mapa
+const COR_ROTA := Color("ffd27a")
+const COR_PINO := Color("ff6a4a")
 
 func _init(principal) -> void:
 	m = principal
@@ -121,14 +129,40 @@ func _input(ev: InputEvent) -> void:
 	if not (ev is InputEventScreenTouch) or not ev.pressed:
 		return
 	if aberto:
-		fechar()
+		_toque_no_mapa(ev.position)
 		get_viewport().set_input_as_handled()
 	elif mini.visible and cobre(ev.position) and not m.hud.bloqueado:
 		abrir()
 		get_viewport().set_input_as_handled()
 
+# mapa completo aberto: botão "Ir para", lugar no mapa (marca), X ou fora do mapa (fecha)
+func _toque_no_mapa(pos: Vector2) -> void:
+	var lp: Vector2 = pos - grande.get_global_rect().position
+	if marcado != null and botao_ir.has_point(lp):
+		var r: PackedVector2Array = previa
+		fechar()
+		if m.rota:
+			m.rota.ir(r)
+		if m.sons:
+			m.sons.tocar("pano", -10.0)
+		return
+	if botao_x.has_point(lp):
+		fechar()
+		return
+	var mapa := Rect2(mapa_grande.position, mapa_grande.size)
+	if mapa.has_point(lp) and m.rota:
+		var k: float = float(info.tam) / mapa_grande.size.x # metros por px
+		var w: Vector2 = (lp - mapa.position) * k + Vector2(float(info.x0), float(info.z0))
+		previa = m.rota.planejar(w)
+		marcado = previa[previa.size() - 1] if previa.size() > 0 else w
+		marcas_grande.queue_redraw()
+		return
+	fechar()
+
 func abrir() -> void:
 	aberto = true
+	marcado = null
+	previa = PackedVector2Array()
 	layer = 14 # o mapa aberto cobre a HUD e o menu do topo (abaixo da conversa com NPC e do menu do personagem)
 	grande.visible = true
 	m.hud.bloqueado = true
@@ -219,6 +253,21 @@ func _desenhar_mini() -> void:
 		if q.distance_to(meio) < RAIO - 4.0:
 			c.draw_circle(q, 4.0, Color(0.05, 0.05, 0.1, 0.8))
 			c.draw_circle(q, 3.0, Color("6fb6ff"))
+	# "Ir para" em andamento: o resto da rota e o lugar marcado (na beirada, se estiver longe)
+	if m.rota and m.rota.ativo:
+		var cam: PackedVector2Array = m.rota.caminho
+		var ant: Vector2 = meio
+		for j in range(m.rota.i, cam.size()):
+			var q: Vector2 = meio + Vector2(cam[j].x - p.x, cam[j].y - p.z) * k
+			if q.distance_to(meio) > RAIO - 4.0 or ant.distance_to(meio) > RAIO - 4.0:
+				break
+			c.draw_line(ant, q, Color(0.05, 0.04, 0.03, 0.75), 5.0, true)
+			c.draw_line(ant, q, COR_ROTA, 3.0, true)
+			ant = q
+		var dq: Vector2 = Vector2(cam[cam.size() - 1].x - p.x, cam[cam.size() - 1].y - p.z) * k
+		if dq.length() > RAIO - 10.0:
+			dq = dq.normalized() * (RAIO - 10.0)
+		_pino(c, meio + dq, 0.8)
 	# lado para onde a câmera olha (leque claro) e o herói (seta dourada)
 	var fc := _frente_camera()
 	var leque := PackedVector2Array([meio])
@@ -267,6 +316,11 @@ func _desenhar_grande() -> void:
 		var q: Vector2 = em.call(p.x, p.z)
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
 		c.draw_circle(q, 4.0, Color("6fb6ff"))
+	# rota pela estrada: a que está sendo andada e a do lugar marcado agora
+	if m.rota and m.rota.ativo and marcado == null:
+		_rota_grande(c, m.rota.caminho, m.rota.i, em)
+	if marcado != null:
+		_rota_grande(c, previa, 0, em)
 	var hp: Vector3 = m.heroi.position
 	var qh: Vector2 = em.call(hp.x, hp.z)
 	c.draw_circle(qh, 13.0, Color(1, 0.85, 0.4, 0.18))
@@ -288,4 +342,121 @@ func _desenhar_grande() -> void:
 	y += 24.0
 	_seta(c, Vector2(x0 + 9.0, y), Vector2(0, -1), 8.0, COR_OURO)
 	_texto(c, Vector2(x0 + 24.0, y), "Você", 14, Color(1, 0.96, 0.88), false)
-	_texto(c, Vector2(x0, o.y + lado - 6.0), "Toque para fechar", 14, Color(1, 1, 1, 0.6), false)
+	_texto(c, Vector2(x0, o.y + lado - 26.0), "Toque num lugar para marcar", 14, Color(1, 1, 1, 0.6), false)
+	_texto(c, Vector2(x0, o.y + lado - 6.0), "Toque fora do mapa para fechar", 14, Color(1, 1, 1, 0.6), false)
+	# X de fechar no canto do mapa
+	var cx := Vector2(o.x + lado - 18.0, o.y + 18.0)
+	botao_x = Rect2(cx - Vector2(22, 22), Vector2(44, 44))
+	c.draw_circle(cx, 15.0, Color(0.05, 0.04, 0.03, 0.85))
+	c.draw_arc(cx, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
+	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)
+	c.draw_line(cx + Vector2(6, -6), cx + Vector2(-6, 6), Color(1, 0.95, 0.85), 2.5, true)
+	# lugar marcado: pino e o botão "Ir para" a ~70 px dele, do lado com mais espaço livre (direção de arte: o botão
+	# nunca cobre o pino, a rota nem o nome de uma clareira), ligado ao pino por uma linha fina dourada
+	botao_ir = Rect2()
+	if marcado != null:
+		var qm: Vector2 = em.call(marcado.x, marcado.y)
+		_pino(c, qm, 1.15)
+		var metros: float = m.rota.comprimento(previa) if m.rota else 0.0
+		var lugar := _clareira_em(marcado)
+		var t1 := "Ir para %s" % lugar if lugar != "" else "Ir para"
+		var t2 := "%d m pela estrada" % int(round(metros))
+		var w: float = max(fonte.get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 36.0
+		var bt := _lugar_do_botao(qm, Vector2(w, 54.0), em, Rect2(o, Vector2(lado, lado)))
+		botao_ir = bt.grow(8.0) # dedo: área de toque um pouco maior que o desenho
+		var borda: Vector2 = Vector2(clamp(qm.x, bt.position.x, bt.end.x), clamp(qm.y, bt.position.y, bt.end.y))
+		c.draw_line(qm + (borda - qm).normalized() * 6.0, borda, Color(0.05, 0.04, 0.03, 0.6), 3.0, true)
+		c.draw_line(qm + (borda - qm).normalized() * 6.0, borda, COR_OURO, 1.2, true)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.12, 0.09, 0.05, 0.94)
+		sb.border_color = COR_OURO
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(12)
+		sb.shadow_color = Color(0, 0, 0, 0.45)
+		sb.shadow_size = 6
+		sb.draw(c.get_canvas_item(), bt)
+		_texto(c, bt.position + Vector2(w * 0.5, 19.0), t1, 20, COR_OURO, true, 4)
+		_texto(c, bt.position + Vector2(w * 0.5, 39.0), t2, 13, Color(1, 0.96, 0.88, 0.85), true, 3)
+
+# nome da clareira onde caiu o toque ("Puglins Nv 15"), ou ""
+func _clareira_em(p: Vector2) -> String:
+	for cc in m.mundo.get("caca", []):
+		if p.distance_to(Vector2(float(cc.x), float(cc.z))) <= float(cc.get("r", 12.0)) + 2.0:
+			return "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))]
+	return ""
+
+# onde o botão "Ir para" fica: abaixo, à direita, à esquerda ou acima do pino (~70 px), o lugar que cobre menos coisa
+# (pino, rota, marcas e nomes das clareiras) e cabe no mapa
+func _lugar_do_botao(qm: Vector2, tam: Vector2, em: Callable, mapa: Rect2) -> Rect2:
+	var ocupado: Array = [Rect2(qm - Vector2(14, 34), Vector2(28, 40))] # o pino
+	for cc in m.mundo.get("caca", []):
+		var q: Vector2 = em.call(float(cc.x), float(cc.z))
+		var nome := "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))]
+		var nw: float = fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		ocupado.append(Rect2(q - Vector2(13, 13), Vector2(26, 26)))
+		ocupado.append(Rect2(q + Vector2(-nw * 0.5 - 3.0, 12.0), Vector2(nw + 6.0, 20.0)))
+	var rota_px: Array = []
+	for pt in previa:
+		rota_px.append(em.call(pt.x, pt.y))
+	var hp: Vector3 = m.heroi.position
+	rota_px.push_front(em.call(hp.x, hp.z))
+	var melhor := Rect2()
+	var menor := INF
+	var dirs := [Vector2(0, 1), Vector2(1, 0), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]
+	for dist in [70.0, 100.0, 135.0]:
+		for d in dirs:
+			var u: Vector2 = d.normalized()
+			var centro: Vector2 = qm + Vector2(0, -12) + u * (dist + (tam.x * 0.5 * abs(u.x) + tam.y * 0.5 * abs(u.y)) * 0.6)
+			var r := Rect2(centro - tam * 0.5, tam)
+			r.position.x = clamp(r.position.x, mapa.position.x + 4.0, mapa.end.x - tam.x - 4.0)
+			r.position.y = clamp(r.position.y, mapa.position.y + 4.0, mapa.end.y - tam.y - 4.0)
+			var custo: float = dist # mais perto é melhor, se não cobrir nada
+			var rg := r.grow(4.0)
+			for o in ocupado:
+				if rg.intersects(o):
+					custo += 5000.0 + rg.intersection(o).get_area()
+			for k in range(1, rota_px.size()):
+				if _corta(rg, rota_px[k - 1], rota_px[k]):
+					custo += 3000.0
+			if custo < menor - 0.5:
+				menor = custo
+				melhor = r
+	return melhor
+
+# o segmento a-b passa pelo retângulo?
+func _corta(r: Rect2, a: Vector2, b: Vector2) -> bool:
+	var n: int = max(1, int(a.distance_to(b) / 4.0))
+	for k in n + 1:
+		if r.has_point(a.lerp(b, float(k) / n)):
+			return true
+	return false
+
+# rota no mapa completo: linha tracejada dourada do herói até o lugar; durante a viagem o trecho já andado fica
+# apagado (35%), para mostrar o progresso
+func _rota_grande(c: Control, r: PackedVector2Array, de: int, em: Callable) -> void:
+	if r.is_empty():
+		return
+	if de > 0:
+		var ja: Vector2 = em.call(r[0].x, r[0].y)
+		for j in range(1, min(de, r.size() - 1) + 1):
+			var q0: Vector2 = em.call(r[j].x, r[j].y)
+			c.draw_dashed_line(ja, q0, Color(COR_ROTA, 0.35), 2.5, 5.0, true)
+			ja = q0
+	var hp: Vector3 = m.heroi.position
+	var ant: Vector2 = em.call(hp.x, hp.z)
+	for j in range(de, r.size()):
+		var q: Vector2 = em.call(r[j].x, r[j].y)
+		c.draw_line(ant, q, Color(0.05, 0.04, 0.03, 0.75), 5.0, true)
+		c.draw_dashed_line(ant, q, COR_ROTA, 2.5, 5.0, true)
+		ant = q
+	_pino(c, em.call(r[r.size() - 1].x, r[r.size() - 1].y), 1.0)
+
+# pino do lugar marcado (gota vermelha com a ponta no lugar)
+func _pino(c: Control, pos: Vector2, s: float) -> void:
+	var topo: Vector2 = pos + Vector2(0, -14.0 * s)
+	var r: float = 7.0 * s
+	c.draw_colored_polygon(PackedVector2Array([pos, topo + Vector2(-r * 0.85, r * 0.5), topo + Vector2(r * 0.85, r * 0.5)]), Color(0.05, 0.04, 0.03, 0.85))
+	c.draw_circle(topo, r + 1.5, Color(0.05, 0.04, 0.03, 0.85))
+	c.draw_colored_polygon(PackedVector2Array([pos + Vector2(0, -1.5), topo + Vector2(-r * 0.75, r * 0.45), topo + Vector2(r * 0.75, r * 0.45)]), COR_PINO)
+	c.draw_circle(topo, r, COR_PINO)
+	c.draw_circle(topo, r * 0.38, Color(1, 0.95, 0.85))

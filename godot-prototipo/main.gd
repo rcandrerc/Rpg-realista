@@ -25,6 +25,7 @@ const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Minimapa = preload("res://minimapa.gd")
+const Rota = preload("res://rota.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -84,6 +85,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
+var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
@@ -206,6 +208,8 @@ func _ready() -> void:
 	add_child(menu)
 	conversa = Conversa.new(self)
 	add_child(conversa)
+	rota = Rota.new(self)
+	add_child(rota)
 	hud.tocou.connect(conversa.tocou_tela)
 	hud.tocou.connect(tocou_inimigo) # tocar num monstro: vira o alvo travado do mago
 	criador = Criador.new(self)
@@ -1906,6 +1910,8 @@ func direcao_joystick() -> Vector3:
 	if m.length() < 0.15:
 		if conversa and conversa.indo != null: # tocou num NPC longe: vai até ele
 			return conversa.direcao_auto()
+		if rota and rota.ativo: # "Ir para" do mapa: vai pela estrada
+			return rota.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
@@ -2176,7 +2182,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var alvo_incl := 0.0
 	if livre_corpo:
 		alvo_frente = clamp(_acel * (0.016 if _acel > 0.0 else 0.02), -0.3, 0.2)
-		alvo_incl = clamp(-mov.giro * vel * 0.022, -0.26, 0.26)
+		# no trote o corpo deita na curva quase como na corrida (sem isso o trote ficava liso)
+		alvo_incl = clamp(-mov.giro * vel * 0.022 * (1.0 + 0.25 * smoothstep(mov.ANDAR, mov.TROTE, vel) * (1.0 - clamp((vel - mov.TROTE) / (mov.CORRIDA - mov.TROTE), 0.0, 1.0))), -0.26, 0.26)
 	_frente_v += ((alvo_frente - _frente) * MOLA_K - _frente_v * MOLA_AMORT) * dt
 	_frente += _frente_v * dt
 	_incl_v += ((alvo_incl - _incl) * MOLA_K * 0.8 - _incl_v * MOLA_AMORT) * dt
