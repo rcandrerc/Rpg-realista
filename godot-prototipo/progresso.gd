@@ -37,7 +37,7 @@ func novo() -> Dictionary:
 	mochila[0] = {"k": "pocao", "n": 3}
 	mochila[1] = {"k": "pocao_mana", "n": 2}
 	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true),
-		"ouro": 20, "mochila": mochila, "equip": {}, "vigor": {"v": float(dados.vigor.max), "t": agora_ms()}, "prof": {}}
+		"ouro": 20, "mochila": mochila, "paginas": 1, "equip": {}, "vigor": {"v": float(dados.vigor.max), "t": agora_ms()}, "prof": {}}
 
 func definir(p: Dictionary) -> void:
 	prog = p
@@ -62,7 +62,10 @@ func definir(p: Dictionary) -> void:
 		var n := novo()
 		prog.mochila = n.mochila
 		prog.ouro = n.ouro
-	prog.mochila.resize(int(dados.mochila))
+	# páginas da mochila (André 2026-11-03): cada uma tem dados.mochila lugares (10 x 4); começa com 1 e compra até 4.
+	# Nada some: a mochila só cresce até as páginas que a conta tem, nunca corta lugar com item.
+	prog.paginas = clampi(int(prog.get("paginas", 1)), 1, int(dados.get("mochilaPaginas", 1)))
+	prog.mochila.resize(max(prog.mochila.size(), int(dados.mochila) * int(prog.paginas)))
 	for i in prog.mochila.size():
 		prog.mochila[i] = item_int(prog.mochila[i])
 	prog.ouro = int(prog.get("ouro", 0))

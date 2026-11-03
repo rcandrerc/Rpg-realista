@@ -135,7 +135,7 @@ class SalaClareira extends Room {
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
-    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso });
+    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador });
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador

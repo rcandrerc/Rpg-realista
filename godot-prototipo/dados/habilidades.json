@@ -813,7 +813,14 @@
   "espada",
   "cajado"
  ],
- "mochila": 32,
+ "mochila": 40,
+ "mochilaPaginas": 4,
+ "paginaPreco": [
+  0,
+  500,
+  2000,
+  6000
+ ],
  "conjunto": [
   null,
   {
