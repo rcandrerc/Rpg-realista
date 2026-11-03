@@ -10,6 +10,8 @@
     { "nome": "Lista de corpos do criador", "arquivo": "shared/dados.js", "contem": ["corpos: ['ruiva', 'cabelo_m'", "export function visualValido("] },
     { "nome": "Corpos do criador levam todas as animações do herói", "arquivo": "client/exportar-godot/exportar.js", "contem": ["const jogavel = heroi || CRIADOR.corpos.includes(id);"] },
     { "nome": "Zoom da câmera com dois dedos (pinça) e roda do mouse (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["var zoom_cam := 1.0", "func _dist_pinca("] },
+    { "nome": "Pinça não rouba o joystick: zona morta perto das skills e lado esquerdo sempre do joystick (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["func zona_morta(", "_toques[ev.index] = \"morto\"", "and not (\"joy\" in _toques.values()):"] },
+    { "nome": "Faixa do zoom de pinça menor: 3,6 a 8 m (André 2026-11-03)", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["const ZOOM_PERTO :=", "const ZOOM_LONGE :=", "max(DIST_MIN, ZOOM_PERTO), min(DIST_MAX, ZOOM_LONGE)"] },
     { "nome": "Câmera aplica o zoom entre DIST_MIN e DIST_MAX", "arquivo": "godot-prototipo/camera_heroi.gd", "contem": ["func zoom(fator: float)", "const DIST_MAX"] },
     { "nome": "Atualização dentro do app: abertura baixa o pacote novo e carrega (André 2026-11-03)", "arquivo": "godot-prototipo/inicio.gd", "contem": ["ProjectSettings.load_resource_pack(", "const MANIFESTO", "func _pacote_valido("] },
     { "nome": "App abre pela tela de atualização", "arquivo": "godot-prototipo/project.godot", "contem": ["run/main_scene=\"res://inicio.tscn\""] },
