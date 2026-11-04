@@ -22,7 +22,7 @@ const PH = 'polyhaven/modelos/';
 // nome no jogo: [arquivo na fonte, proporção de triângulos que fica (1 = tudo), lado da textura, rampa de pintura]
 const LISTA = {
   rocha1: [NAT + 'Rock_Medium_1.gltf', 1, 512], rocha2: [NAT + 'Rock_Medium_2.gltf', 1, 512], rocha3: [NAT + 'Rock_Medium_3.gltf', 1, 512],
-  arvore_morta1: [NAT + 'DeadTree_1.gltf', 0.5, 512], arvore_morta3: [NAT + 'DeadTree_3.gltf', 0.5, 512],
+  arvore_morta1: [NAT + 'DeadTree_1.gltf', 0.5, 512], arvore_morta3: [NAT + 'DeadTree_3.gltf', 0.5, 512, '6e6a64,a7a198,ddd6ca,0.85'], // casca cinza-claro (direção de arte 2026-11-04)
   cogumelo: [NAT + 'Mushroom_Common.gltf', 0.5, 256], orelha_de_pau: [NAT + 'Mushroom_Laetiporus.gltf', 0.3, 256],
   arbusto: [NAT + 'Bush_Common.gltf', 1, 256, 'folhagem'], arbusto_flor: [NAT + 'Bush_Common_Flowers.gltf', 1, 256],
   samambaia: [NAT + 'Fern_1.gltf', 1, 512, 'fern_02'], planta: [NAT + 'Plant_7_Big.gltf', 1, 512, 'folhagem'],
