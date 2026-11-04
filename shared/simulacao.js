@@ -493,7 +493,14 @@ export class Simulacao {
     } else if (t === 'basicoMagia') {
       const mao = j.maoQ = (j.maoQ || 0) ^ 1, g = h.combo[mao];
       this.tocarQ(j, g.anim, g.dur);
-      this.depois(g.hit, () => { if (!j.morto) this.lancar(j, h, alvo && !alvo.morto ? alvo : null); });
+      // alvo morreu antes do tiro sair (André 2026-11-04): vai no mais perto do alcance; sem ninguém, não atira no ar
+      this.depois(g.hit, () => {
+        if (j.morto) return;
+        const a = alvo && !alvo.morto ? alvo : this.maisPerto(j, h.alcance + 0.5);
+        if (!a) return;
+        if (a !== alvo) this.virarPara(j, a);
+        this.lancar(j, h, a);
+      });
     } else if (t === 'corte' || t === 'esmagar') {
       this.lunge(j, alvo, h.lunge.para, 0.2);
       this.tocarQ(j, h.anim, h.dur); j.acao.lamina = true;
