@@ -852,7 +852,10 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 
 # Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
 # (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
-const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}}
+const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02},
+	"mremireh": {"alto": 2.25, "contorno": 0.02}, "pumpkinhulk": {"alto": 2.65, "contorno": 0.02},
+	"parasite": {"alto": 1.95, "contorno": 0.016}, "mutant": {"alto": 2.45, "contorno": 0.02},
+	"skeletonzombie": {"alto": 2.0, "contorno": 0.016}}
 var _shader_monstro: Shader
 func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 	if _shader_monstro == null:
@@ -880,6 +883,26 @@ func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 				s.set_shader_parameter("brilho", m.emission_texture)
 			s.next_pass = mat_contorno[k]
 			mi.set_surface_override_material(i, s)
+	# olhos (direção de arte, Warrok v3): o olho do modelo é minúsculo; um ponto de brilho de 5 cm em cada (nós olho_e e
+	# olho_d presos no osso da cabeça, feitos pelo converter-mixamo.html), amarelo #ffcc40, emissão 2, sem sombra
+	for o in no.find_children("olho_*", "", true, false):
+		var p := MeshInstance3D.new()
+		var esf := SphereMesh.new()
+		var k: float = 1.0 / max(0.0001, o.global_transform.basis.get_scale().x)
+		esf.radius = 0.025 * k
+		esf.height = 0.05 * k
+		esf.radial_segments = 8
+		esf.rings = 4
+		var mb := StandardMaterial3D.new()
+		mb.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mb.albedo_color = Color("ffcc40")
+		mb.emission_enabled = true
+		mb.emission = Color("ffcc40")
+		mb.emission_energy_multiplier = 2.0
+		esf.material = mb
+		p.mesh = esf
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		o.add_child(p)
 
 # contorno escuro de desenho nos monstros (como o MToon da Ruiva): casca um pouco maior, só o lado de trás
 var mat_contorno := {}

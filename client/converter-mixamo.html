@@ -18,16 +18,52 @@ function reduzir(tex) {
 // (some a ruga fina), posterizar (valor em 4 degraus; por canal sujava o matiz), misturar 50% com a cor chapada da região (a cor da paleta mais
 // parecida), saturação +25% e valor mínimo ~0,45. olhos = retângulo da textura (u0, v0, u1, v1 de 0 a 1, v de cima)
 // que vira textura de brilho (emissão) para os olhos acenderem.
+// v3 (direção de arte 2026-11-04): chapado = cada região vira só 2 valores, a cor e a variação ([cor, variação]: negativa
+// escurece onde o original é mais escuro que a média da região, as dobras; positiva clareia onde é mais claro, o filete
+// do metal pintado). chifres = triângulos acima do osso Head + `acima` (cm, unidade do FBX) e a menos de `raio` dele,
+// pintados de `cor` com a ponta `ponta` mais escura. Os olhos ganham nós olho_e/olho_d presos no osso Head (o Godot
+// põe um ponto de brilho em cada).
 const ESTILO = {
-  // pele verde-oliva (o resto), couro e madeira (laranja forte), braçadeira e ombreira (vermelho forte), chifre e dente (claro sem cor)
-  Warrok: { paleta: ['#6f8a4a', '#7a5232', '#a8402e', '#d9c9a3'], regras: [[3, 0, 360, 0, 0.7], [2, 335, 10, 0.4, 0.15], [1, 10, 50, 0.3, 0.08]], olhos: [0.9, 0.92, 0.985, 1.0] },
+  // pele cinza-violeta lisa (o resto), couro e madeira (laranja forte), braçadeira e ombreira (vermelho forte), chifre e dente
+  Warrok: { chapado: true, paleta: [['#77708c', -0.1], ['#7a5232', -0.15], ['#a8402e', 0.2], ['#d9c9a3', -0.1]],
+    regras: [[3, 0, 360, 0, 0.7], [2, 335, 10, 0.4, 0.15], [1, 10, 40, 0.45, 0.08]], olhos: [0.9, 0.92, 0.985, 1.0], olhosAjuste: [0, 20, 2], // o globo do olho fica fundo e baixo; o ponto vai para a fenda do rosto (cm)
+    chifres: { cor: '#d9c9a3', ponta: -0.2, acima: 15, raio: 35 } },
 };
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+const hex = (h) => (Array.isArray(h) ? h[0] : h) && [1, 3, 5].map((i) => parseInt((Array.isArray(h) ? h[0] : h).slice(i, i + 2), 16) / 255);
+// posição (mundo, pose de descanso com a pele) e UV de cada vértice da malha
+function vertices(mesh) {
+  const g = mesh.geometry, n = g.attributes.position.count, pos = [], uv = g.attributes.uv, v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { (mesh.isSkinnedMesh ? mesh.getVertexPosition(i, v) : v.fromBufferAttribute(g.attributes.position, i)).applyMatrix4(mesh.matrixWorld); pos.push(v.clone()); }
+  const idx = g.index ? Array.from(g.index.array) : [...Array(n).keys()];
+  return { pos, uv: (i) => [uv.getX(i), uv.getY(i)], idx };
+}
+function mascaraChifres(mesh, cabeca, cfg, W, H) {
+  const { pos, uv, idx } = vertices(mesh), hp = cabeca.getWorldPosition(new THREE.Vector3()), base = hp.y + cfg.acima;
+  const eh = (p) => p.y > base && Math.hypot(p.x - hp.x, p.z - hp.z) < cfg.raio;
+  let topo = base + 1; pos.forEach((p) => { if (eh(p)) topo = Math.max(topo, p.y); });
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  for (let k = 0; k < idx.length; k += 3) {
+    const t = [idx[k], idx[k + 1], idx[k + 2]]; if (!t.every((i) => eh(pos[i]))) continue;
+    const y = (pos[t[0]].y + pos[t[1]].y + pos[t[2]].y) / 3, f = Math.round(255 * (y - base) / (topo - base));
+    x.fillStyle = `rgb(255,${f},0)`; x.strokeStyle = x.fillStyle; x.lineWidth = 2; x.beginPath();
+    t.forEach((i, j) => { const [u, v] = uv(i); j ? x.lineTo(u * W, (1 - v) * H) : x.moveTo(u * W, (1 - v) * H); }); x.closePath(); x.fill(); x.stroke();
+  }
+  return x.getImageData(0, 0, W, H).data;
+}
+function nosOlhos(mesh, cabeca, r, ajuste = [0, 0, 0]) {
+  const { pos, uv } = vertices(mesh), hp = cabeca.getWorldPosition(new THREE.Vector3()), lados = { olho_e: [], olho_d: [] };
+  pos.forEach((p, i) => { const [u, v] = uv(i); if (u >= r[0] && u <= r[2] && 1 - v >= r[1] && 1 - v <= r[3]) lados[p.x > hp.x ? 'olho_e' : 'olho_d'].push(p); });
+  for (const [nome, l] of Object.entries(lados)) {
+    if (!l.length) continue;
+    const c = l.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(l.length).add(new THREE.Vector3(...ajuste)), o = new THREE.Object3D();
+    o.name = nome; cabeca.add(o); o.position.copy(cabeca.worldToLocal(c.clone())); window.olhosInfo = (window.olhosInfo || []).concat([[nome, l.length, c.toArray().map(Math.round), o.position.toArray()]]);
+  }
+}
 function hsv(r, g, b) { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0;
   if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [h / 6, mx ? d / mx : 0, mx]; }
 function rgb(h, s, v) { h = ((h % 1) + 1) % 1 * 6; const i = Math.floor(h), f = h - i, p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
   return [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6]; }
-function estilizar(tex, cfg) {
+function estilizar(tex, cfg, chifres) {
   const img = tex.image, W = Math.min(LADO, img.width), H = Math.round(img.height * W / img.width);
   const pq = document.createElement('canvas'); pq.width = 256; pq.height = Math.round(256 * H / W);
   pq.getContext('2d').drawImage(img, 0, 0, pq.width, pq.height);
@@ -48,7 +84,15 @@ function estilizar(tex, cfg) {
       const g = h0 * 360; for (const [k, a, b, sm, vm] of cfg.regras) if ((a <= b ? g >= a && g <= b : g >= a || g <= b) && s0 >= sm && v0 >= vm) { best = k; break; }
     } else if (s0 < 0.18) best = v0 > 0.62 ? clara : 0;
     else { let bd = 9; palH.forEach((p, k) => { if (k === clara) return; const dh = Math.min(Math.abs(h0 - p[0]), 1 - Math.abs(h0 - p[0])); if (dh < bd) { bd = dh; best = k; } }); }
-    const r = (px[i] / 255 + pal[best][0]) / 2, g = (px[i + 1] / 255 + pal[best][1]) / 2, b = (px[i + 2] / 255 + pal[best][2]) / 2;
+    if (cfg.chapado) {
+      const l = (px[i] + px[i + 1] + px[i + 2]) / 765, lm = (bp[i] + bp[i + 1] + bp[i + 2]) / 765, va = cfg.paleta[best][1] || 0;
+      let [h, s, v] = palH[best];
+      if ((va < 0 && l < lm * 0.9) || (va > 0 && l > lm * 1.15)) v = Math.min(1, v * (1 + va));
+      if (chifres && chifres[i] > 128) { [h, s, v] = hsv(...hex(cfg.chifres.cor)); v *= 1 + cfg.chifres.ponta * chifres[i + 1] / 255; }
+      const o = rgb(h, s, v); px[i] = o[0] * 255; px[i + 1] = o[1] * 255; px[i + 2] = o[2] * 255; continue;
+    }
+    const c0 = pal[best] || [px[i] / 255, px[i + 1] / 255, px[i + 2] / 255]; // sem paleta: só achata, satura e clareia
+    const r = (px[i] / 255 + c0[0]) / 2, g = (px[i + 1] / 255 + c0[1]) / 2, b = (px[i + 2] / 255 + c0[2]) / 2;
     const [h, s, v] = hsv(r, g, b), vq = Math.min(1, Math.round(v * 4) / 4 + 0.1);
     const o = rgb(h, Math.min(1, s * 1.25), Math.max(0.45, vq));
     px[i] = o[0] * 255; px[i + 1] = o[1] * 255; px[i + 2] = o[2] * 255;
@@ -56,7 +100,7 @@ function estilizar(tex, cfg) {
   x.putImageData(d, 0, 0);
   const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT;
   let brilho = null;
-  if (cfg.olhos) {
+  if (cfg.olhos && !cfg.chapado) {
     const e = document.createElement('canvas'); e.width = 256; e.height = 256; const ex = e.getContext('2d');
     ex.fillStyle = '#000'; ex.fillRect(0, 0, 256, 256);
     const [u0, v0, u1, v1] = cfg.olhos;
@@ -76,12 +120,16 @@ for (const nome of nomes) {
     // espere carregar as imagens embutidas
     await new Promise((ok) => setTimeout(ok, 1500));
     const feitos = new Map();
+    f.updateMatrixWorld(true);
     f.traverse((o) => {
       if (!o.isMesh) return;
       const lista = Array.isArray(o.material) ? o.material : [o.material];
       const novos = lista.map((m) => {
         if (feitos.has(m)) return feitos.get(m);
-        const est = ESTILO[nome] && m.map ? estilizar(m.map, ESTILO[nome]) : null;
+        const cfg = ESTILO[nome] || { paleta: [] }, cab = f.getObjectByName('mixamorigHead');
+        const W = Math.min(LADO, m.map ? m.map.image.width : 1), H = m.map ? Math.round(m.map.image.height * W / m.map.image.width) : 1;
+        const est = m.map ? estilizar(m.map, cfg, cfg.chifres && cab ? mascaraChifres(o, cab, cfg.chifres, W, H) : null) : null; // sem paleta própria: receita básica
+        if (cfg.olhos && cfg.chapado && cab) nosOlhos(o, cab, cfg.olhos, cfg.olhosAjuste);
         const n = new THREE.MeshStandardMaterial({ name: m.name, map: est ? est.t : reduzir(m.map), normalMap: !est && m.normalMap ? reduzir(m.normalMap) : null,
           color: m.map ? 0xffffff : m.color, transparent: !!m.transparent, alphaTest: m.alphaTest || 0, side: THREE.FrontSide, roughness: 1, metalness: 0 });
         if (est && est.brilho) { n.emissiveMap = est.brilho; n.emissive = new THREE.Color(0xffffff); }
@@ -90,7 +138,6 @@ for (const nome of nomes) {
       o.material = Array.isArray(o.material) ? novos : novos[0];
     });
     f.animations = [];
-    f.updateMatrixWorld(true);
     const caixa = new THREE.Box3().setFromObject(f);
     const quadril = f.getObjectByName('mixamorigHips');
     info[nome] = { altura: caixa.max.y - caixa.min.y, quadril: quadril ? quadril.getWorldPosition(new THREE.Vector3()).y : null, escala: f.scale.x };
