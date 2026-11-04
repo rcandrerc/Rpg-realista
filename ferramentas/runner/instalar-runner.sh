@@ -17,7 +17,7 @@ set -euo pipefail
 REPO="${REPO:-rcandrerc/Rpg-realista}"      # dono/repositório
 TOKEN="${TOKEN:-COLE_O_CODIGO_AQUI}"         # código de registro do passo 1 (vale 1 hora)
 LABELS="${LABELS:-aethra-build}"             # etiqueta que os workflows procuram
-RUNNER_VERSION="${RUNNER_VERSION:-2.321.0}"  # versão do runner do GitHub
+RUNNER_VERSION="${RUNNER_VERSION:-}"  # versão do runner do GitHub
 USUARIO="${USUARIO:-runner}"                 # usuário próprio do build (NÃO é root nem o 'rpg' do servidor)
 HOME_RUNNER="/opt/actions-runner"
 GODOT_VER="${GODOT_VER:-4.5-stable}"
@@ -27,6 +27,10 @@ if [ "$TOKEN" = "COLE_O_CODIGO_AQUI" ]; then
   exit 1
 fi
 [ "$(id -u)" = 0 ] && SUDO="" || SUDO="sudo"
+if [ -n "$SUDO" ] && ! sudo -n true 2>/dev/null; then
+  echo "ERRO: o usuário $(id -un) não tem sudo sem senha nesta máquina (o Run command da Oracle roda como ocarun). Nada foi instalado." >&2
+  exit 1
+fi
 
 echo "== 1/6 Dependências do build =="
 export DEBIAN_FRONTEND=noninteractive
@@ -35,7 +39,14 @@ $SUDO apt-get update -y
 # nesta máquina ARM, por emulação. É a única peça do Android que não tem versão ARM.
 $SUDO apt-get install -y curl ca-certificates unzip git jq \
   openjdk-17-jdk-headless \
-  qemu-user-static binfmt-support
+  qemu-user-static binfmt-support libicu-dev
+# gh: os scripts de publicação usam (nas máquinas do GitHub ele já vem instalado)
+if ! command -v gh >/dev/null; then
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | $SUDO tee /usr/share/keyrings/githubcli-archive-keyring.gpg >/dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+  $SUDO apt-get update -y
+  $SUDO apt-get install -y gh
+fi
 # Node 22 (o servidor já usa; garante que existe para o runner)
 command -v node >/dev/null || { curl -fsSL https://deb.nodesource.com/setup_22.x | $SUDO bash - && $SUDO apt-get install -y nodejs; }
 
@@ -47,7 +58,7 @@ $SUDO chown -R "$USUARIO:$USUARIO" "$HOME_RUNNER"
 ARCO=$(uname -m); case "$ARCO" in aarch64|arm64) RARCH=arm64; GARCH=linux.arm64;; *) RARCH=x64; GARCH=linux.x86_64;; esac
 
 echo "== 3/6 Godot $GODOT_VER ($GARCH) + modelos de exportação =="
-$SUDO -u "$USUARIO" bash <<SH
+sudo -H -u "$USUARIO" bash <<SH
 set -e
 cd "$HOME_RUNNER"
 if [ ! -x godot/godot ]; then
@@ -56,14 +67,14 @@ if [ ! -x godot/godot ]; then
   curl -fsSL -o tpl.tpz  "https://github.com/godotengine/godot/releases/download/$GODOT_VER/Godot_v${GODOT_VER}_export_templates.tpz"
   unzip -oq godot.zip && unzip -oq tpl.tpz
   mv Godot_v${GODOT_VER}_* godot
-  V=\${GODOT_VER%-*}; mkdir -p "\$HOME/.local/share/godot/export_templates/\${V}.stable"
+  V=${GODOT_VER%-*}; mkdir -p "\$HOME/.local/share/godot/export_templates/\${V}.stable"
   mv templates/* "\$HOME/.local/share/godot/export_templates/\${V}.stable/"
   rm -f godot.zip tpl.tpz
 fi
 SH
 
 echo "== 4/6 Android SDK ($HOME_RUNNER/android-sdk) =="
-$SUDO -u "$USUARIO" bash <<SH
+sudo -H -u "$USUARIO" bash <<SH
 set -e
 cd "$HOME_RUNNER"
 export ANDROID_HOME="$HOME_RUNNER/android-sdk"
@@ -79,7 +90,9 @@ yes | "\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
 SH
 
 echo "== 5/6 Baixar e registrar o runner =="
-$SUDO -u "$USUARIO" bash <<SH
+# versão mais nova: o GitHub recusa runner muito antigo
+[ -n "$RUNNER_VERSION" ] || RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed 's/^v//')
+sudo -H -u "$USUARIO" bash <<SH
 set -e
 cd "$HOME_RUNNER"
 if [ ! -f config.sh ]; then
@@ -102,6 +115,9 @@ export PLAYWRIGHT_BROWSERS_PATH=$HOME_RUNNER/pw-browsers
 npm i -g playwright@1.48.2 >/dev/null 2>&1 || true
 npx --yes playwright@1.48.2 install --with-deps chromium >/dev/null 2>&1 || npx --yes playwright@1.48.2 install chromium || true
 SH
+
+# bibliotecas do sistema para o Chromium (precisa de root; o usuário do build não tem sudo)
+$SUDO npx --yes playwright@1.48.2 install-deps chromium || true
 
 echo "== 6/6 Serviço com freios (o jogo sempre vem antes) =="
 $SUDO bash -c "cd '$HOME_RUNNER' && ./svc.sh install '$USUARIO'"
@@ -128,7 +144,8 @@ IOWeight=1000
 CONF
 fi
 $SUDO systemctl daemon-reload
-systemctl list-unit-files | grep -q '^rpg.service' && $SUDO systemctl restart rpg || true
+# aplica a prioridade na hora, SEM reiniciar o jogo (ninguém cai)
+systemctl list-unit-files | grep -q '^rpg.service' && $SUDO systemctl set-property rpg.service CPUWeight=1000 IOWeight=1000 || true
 $SUDO systemctl restart "$SVC"
 
 echo
