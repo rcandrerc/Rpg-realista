@@ -140,17 +140,25 @@ static func xp_proximo(n: int) -> int:
 func passiva(k: String) -> bool:
 	return prog.nivel >= int(dados.passivas[k].libera)
 
+# regeneração do Quimera (dados.regen vem de shared/dados.js REGEN); o padrão aqui é o mesmo, para pacote antigo sem a chave
+func regen() -> Dictionary:
+	if dados is Dictionary and dados.has("regen"):
+		return dados.regen
+	return {"vida": 1.0, "vidaNivel": 0.05, "vidaVit": 0.25, "vidaCombate": 0.0, "mana": 1.1, "manaNivel": 0.07, "manaInt": 0.05, "manaMente": 0.3, "manaCombate": 0.35}
+
 func calcular_status() -> Dictionary:
 	var a: Dictionary = prog.atr
 	var n: int = prog.nivel
 	var eq := bonus_equip()
 	var nivel_k := 1.0 + 0.08 * (n - 1)
+	var R: Dictionary = regen()
 	var defesa: float = a["for"] + (3 if passiva("pele_pedra") else 0) + eq.defesa
 	return {
 		"vidaMax": round(84 + 8 * a.vit + 4 * a["for"] + 6 * (n - 1) + eq.vida),
 		"manaMax": round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (1.1 if passiva("mente_arcana") else 1.0)),
-		"regenMana": (7.0 + (0.3 if passiva("mente_arcana") else 0.0)) * (1.0 + eq.regenManaK),
-		"regenVida": 0.1 * a.vit,
+		# fora de combate (REGEN de shared/dados.js, números do Quimera); em luta main.gd aplica vidaCombate/manaCombate
+		"regenMana": (float(R.mana) + float(R.manaNivel) * n + float(R.manaInt) * a.int + (float(R.manaMente) if passiva("mente_arcana") else 0.0)) * (1.0 + eq.regenManaK),
+		"regenVida": float(R.vida) + float(R.vidaNivel) * n + float(R.vidaVit) * a.vit,
 		"defesa": defesa, "reducao": defesa / (defesa + 24.0),
 		"danoFisico": (10.0 * nivel_k * (1 + 0.06 * (a["for"] - 3)) + eq.danoFisico) * (1.0 + eq.danoK),
 		"danoMagico": (10.0 * nivel_k * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1.0 + eq.danoK),

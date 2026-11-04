@@ -1230,6 +1230,17 @@
   "folego": 0.2,
   "combate": 5
  },
+ "regen": {
+  "vida": 1,
+  "vidaNivel": 0.05,
+  "vidaVit": 0.25,
+  "vidaCombate": 0,
+  "mana": 1.1,
+  "manaNivel": 0.07,
+  "manaInt": 0.05,
+  "manaMente": 0.3,
+  "manaCombate": 0.35
+ },
  "vigor": {
   "max": 100,
   "enche": 21600

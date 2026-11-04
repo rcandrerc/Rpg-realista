@@ -2377,9 +2377,11 @@ func atualizar_heroi(dt: float) -> void:
 			heroi.position = mov.posicao()
 			heroi_anim.play("parada", 0.2)
 		return
-	h.mana = min(P.st.manaMax, h.mana + P.st.regenMana * dt)
+	var luta: bool = trabalho.em_combate() # Quimera: em luta a mana volta a 35% e a vida não volta
+	var R: Dictionary = P.regen()
+	h.mana = min(P.st.manaMax, h.mana + P.st.regenMana * (float(R.manaCombate) if luta else 1.0) * dt)
 	if not on():
-		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * dt)
+		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * (float(R.vidaCombate) if luta else 1.0) * dt)
 	if h.escudo_ate <= tempo:
 		h.escudo = 0.0
 	# repete o ataque básico só enquanto o dedo está no botão; soltou, para na hora (sem deixar o herói farmando sozinho)
