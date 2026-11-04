@@ -78,3 +78,11 @@ A Play proíbe app que baixa código executável nativo (dex, .so, jar) por fora
 (GDScript dentro do Godot) e conteúdo (modelos, texturas, sons) são permitidos, mas a regra de "o app não pode se
 atualizar por fora da Play" precisa ser relida na época do lançamento (política "Abuso de dispositivo e rede").
 Se der problema, dá para usar os mesmos pacotes só para conteúdo e deixar o código para a atualização da loja.
+
+## Por que o delta às vezes vinha com o jogo inteiro (2026-11-04)
+
+Quando o cache dos modelos não batia (qualquer mudança em `client/` ou `shared/`), o CI gerava os modelos numa pasta
+vazia e reimportava todos. O pacote saía com ~165 MB diferentes, o delta estourava os 60 MB e o app baixava o
+completo (~210 MB) de novo. Agora o `apk.yml` volta a pasta de modelos do último build, compara byte a byte e só
+reimporta o modelo que mudou de verdade: o delta fica com o tamanho da mudança. O pacote e o `conteudo.json` também
+são publicados antes de gerar os APKs, então a atualização chega alguns minutos antes (mesmo gasto de Actions).

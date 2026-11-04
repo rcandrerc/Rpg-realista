@@ -52,6 +52,9 @@ jobs:
         with:
           path: godot-prototipo/modelos
           key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          # sem o cache exato, volta a pasta do último build: modelo que sair igual fica com a importação antiga
+          # (mesmos bytes no pacote) e o delta do app não traz o jogo inteiro de novo
+          restore-keys: modelos-v2-
       - name: Chromium para exportar os modelos
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
@@ -60,9 +63,21 @@ jobs:
       - name: Modelos (vila, personagens, monstros) para godot-prototipo/modelos
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
+          # a pasta do último build (cache) fica de lado; os modelos saem numa pasta limpa e só o que mudou de verdade
+          # (byte a byte) entra por cima dela. Lista do que mudou: /tmp/modelos-mudaram.txt
+          mkdir -p /tmp/modelos-velhos
+          [ -d godot-prototipo/modelos ] && cp -a godot-prototipo/modelos/. /tmp/modelos-velhos/
+          rm -rf godot-prototipo/modelos
           (cd client && npx vite --port 5173 > /tmp/vite.log 2>&1 &)
           for i in $(seq 1 30); do curl -s localhost:5173 > /dev/null && break; sleep 1; done
           node client/exportar-godot/gerar-modelos.mjs
+          : > /tmp/modelos-mudaram.txt
+          for f in godot-prototipo/modelos/*; do
+            n=$(basename "$f")
+            cmp -s "$f" "/tmp/modelos-velhos/$n" || { cp "$f" "/tmp/modelos-velhos/$n"; echo "$n" >> /tmp/modelos-mudaram.txt; }
+          done
+          rm -rf godot-prototipo/modelos && mv /tmp/modelos-velhos godot-prototipo/modelos
+          echo "Modelos que mudaram: $(wc -l < /tmp/modelos-mudaram.txt)"; cat /tmp/modelos-mudaram.txt
       # Importação do Godot (~5 min): guarda .godot e os .import; o Godot só reimporta o que mudou (confere o md5 de cada arquivo).
       - name: Importação do Godot (cache)
         uses: actions/cache@v4
@@ -73,10 +88,14 @@ jobs:
           key: godot-import-v2-${{ env.GODOT }}-${{ hashFiles('godot-prototipo/**', 'client/**', '!client/node_modules/**', 'shared/**') }}
           restore-keys: godot-import-v2-${{ env.GODOT }}-
       # Modelos gerados de novo: o .glb pode sair igual (mesmo md5) e o Godot não reimporta, então não extrai as
-      # texturas (modelos/*_0.png ...) e o jogo quebra ao abrir (aconteceu no pacote 1282). Força reimportar os modelos.
+      # texturas (modelos/*_0.png ...) e o jogo quebra ao abrir (aconteceu no pacote 1282). As texturas extraídas
+      # antes voltam com a pasta do cache; o que mudou (ou veio sem pasta antiga) reimporta à força.
       - name: Modelos novos reimportam
         if: steps.cache-modelos.outputs.cache-hit != 'true'
-        run: rm -f godot-prototipo/modelos/*.import
+        run: |
+          while read -r n; do rm -f "godot-prototipo/modelos/$n.import"; done < /tmp/modelos-mudaram.txt
+          # sem nenhuma textura extraída (primeiro build sem cache): reimporta todos, como antes
+          ls godot-prototipo/modelos/*_0.png > /dev/null 2>&1 || rm -f godot-prototipo/modelos/*.import
       - name: Godot e modelos de exportação
         run: |
           cd /tmp
@@ -116,7 +135,9 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=/tmp/rpg.keystore" >> $GITHUB_ENV
           echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$ALIAS" >> $GITHUB_ENV
           echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$SENHA" >> $GITHUB_ENV
-      - name: Exportar o APK
+      # Primeiro o pacote do jogo e a atualização dentro do app (é o que o André espera); os APKs vêm depois,
+      # assim a atualização chega ~3 min antes. Mesmos passos e mesma ordem de antes dentro de cada parte.
+      - name: Versão e importação do Godot
         working-directory: godot-prototipo
         run: |
           # a versão sobe a cada build: o Android aceita instalar por cima.
@@ -126,15 +147,32 @@ jobs:
           # versão base do APK: o app só aceita pacote de atualização feito para esta base (inicio.gd)
           printf '\n[aethra]\n\natualizacao/base="%s"\n' "$((1000 + ${{ github.run_number }}))" >> project.godot
           $GODOT_BIN --headless --import || true
-          $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
-          ls -la $GITHUB_WORKSPACE/rpg-realista.apk
-          # SHA-1 da assinatura (o login Google exige 08:B6:1B:...:0D:CC, a chave oficial)
-          $(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner verify --print-certs $GITHUB_WORKSPACE/rpg-realista.apk | grep -i "SHA-1"
       - name: Pacote do jogo desta versão (mesmo conteúdo do APK)
         working-directory: godot-prototipo
         run: |
           $GODOT_BIN --headless --export-pack Android $GITHUB_WORKSPACE/base-$((1000 + ${{ github.run_number }})).pck
           ls -la $GITHUB_WORKSPACE/base-*.pck
+      - name: Atualização dentro do app (pacote só com o que mudou desde o APK base)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODIGO: ${{ github.run_number }}
+        run: bash ferramentas/atualizacao/publicar.sh "$((1000 + CODIGO))"
+      - name: Conteúdo do APK casca (jogo completo em partes + mudanças)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODIGO: ${{ github.run_number }}
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: bash ferramentas/atualizacao/publicar-conteudo.sh "$((1000 + CODIGO))"
+      - name: Exportar o APK
+        working-directory: godot-prototipo
+        run: |
+          $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
+          ls -la $GITHUB_WORKSPACE/rpg-realista.apk
+          # SHA-1 da assinatura (o login Google exige 08:B6:1B:...:0D:CC, a chave oficial)
+          $(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner verify --print-certs $GITHUB_WORKSPACE/rpg-realista.apk | grep -i "SHA-1"
       - name: APK casca (sem o jogo dentro; baixa tudo ao abrir, ferramentas/atualizacao/LEIAME.md)
         working-directory: godot-prototipo
         run: |
@@ -159,17 +197,3 @@ jobs:
           gh release view apk > /dev/null 2>&1 || gh release create apk --target main --prerelease --title "APK mais recente" --notes "Gerado sozinho a cada push na main."
           gh release upload apk rpg-realista.apk --clobber
           gh release edit apk --notes "APK do app Godot, gerado sozinho a cada push na main. Último build: ${GITHUB_SHA::7} (execução ${{ github.run_number }})."
-      - name: Atualização dentro do app (pacote só com o que mudou desde o APK base)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CODIGO: ${{ github.run_number }}
-        run: bash ferramentas/atualizacao/publicar.sh "$((1000 + CODIGO))"
-      - name: Conteúdo do APK casca (jogo completo em partes + mudanças)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CODIGO: ${{ github.run_number }}
-          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
-          ORACLE_URL: ${{ vars.ORACLE_URL }}
-        run: bash ferramentas/atualizacao/publicar-conteudo.sh "$((1000 + CODIGO))"
