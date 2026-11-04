@@ -563,6 +563,10 @@ func _topo_parede(x: float, z: float) -> float:
 # borda de fora do conjunto de quadrados com telhado (como um telhado de quatro águas que se ajeita a qualquer
 # formato), com beiral de 45 cm para fora. Telha T_RoundTiles por cima, tábuas por baixo.
 # números do telhado em dados/habilidades.json casa (beiral, inclina, telhaMax): os mesmos do servidor
+# (os de baixo são os mesmos números, guardados aqui como referência; quem vale é o dados)
+const BEIRAL := 0.45
+const INCLINA := 0.6
+const TELHA_MAX := 1.8 # o telhado para de subir aqui (casa grande fica com o topo reto)
 
 func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 	var g := grade() / 2.0
