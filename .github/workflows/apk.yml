@@ -58,7 +58,8 @@ jobs:
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
           npm install --no-save playwright@1.48.2
-          npx playwright install --with-deps chromium
+          # no runner próprio o instalar-runner.sh já pôs as bibliotecas do sistema e o usuário do build não tem sudo
+          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then npx playwright install chromium; else npx playwright install --with-deps chromium; fi
       - name: Modelos (vila, personagens, monstros) para godot-prototipo/modelos
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
