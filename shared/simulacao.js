@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel } from './progresso.js';
 import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo } from './dados.js';
 
 const TAU = Math.PI * 2;
@@ -988,9 +988,14 @@ export class Simulacao {
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
     if (alvo.vuln && alvo.vuln.ate > this.tempo) n *= 1 + alvo.vuln.k;
+    // diferença de nível (Quimera): monstro x herói nos dois sentidos; o espantalho de treino fica de fora
+    const nvM = de && de.tipo !== 'jogador' && alvo.tipo === 'jogador' && de.nivel ? de.nivel : 0;
+    if (nvM) n *= danoMonstroNivel(nvM, alvo.prog?.nivel, NIVEL_INIMIGO);
+    if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && !alvo.treino && alvo.nivel) n *= golpeHeroiNivel(alvo.nivel, de.prog?.nivel, NIVEL_INIMIGO);
     if (alvo.st) n *= 1 - alvo.st.reducao; // defesa do herói
     if (alvo.defesa > 0) n *= 1 - alvo.defesa;
     n = Math.max(1, Math.round(n));
+    if (nvM) n = Math.max(1, Math.min(n, Math.round(alvo.vidaMax * tetoMonstroNivel(nvM, alvo.prog?.nivel, de.tipo === 'chefe' || !!TIPOS_INIMIGO[de.tipo]?.chefe, NIVEL_INIMIGO))));
     if (alvo.escudo && alvo.escudo.ate > this.tempo) { // Escudo Arcano segura primeiro
       const seg = Math.min(alvo.escudo.n, n); alvo.escudo.n -= seg; n -= seg;
       if (alvo.escudo.n <= 0) { alvo.escudo = null; this.evento({ t: 'escudo', id: alvo.id, n: 0, dur: 0 }); }
@@ -1005,8 +1010,8 @@ export class Simulacao {
     if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
+    const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe; // fora do if: o golpe final também usa
     if (h && alvo.tipo !== 'jogador' && alvo.vida > 0) {
-      const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe;
       const ate = (s) => this.tempo + s * (ehChefe ? 0.5 : 1); // chefe sofre metade
       if (h.atordoa) { alvo.parado = Math.max(alvo.parado || 0, ate(h.atordoa)); alvo.ef = 'atordoado'; }
       if (h.congela) { alvo.parado = Math.max(alvo.parado || 0, ate(h.congela)); alvo.ef = 'congelado'; }
@@ -1377,7 +1382,8 @@ export class Simulacao {
     const CI = COMBATE_INIMIGO;
     if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
     // no máximo CI.aoMesmoTempo monstros batem no mesmo herói; os outros rodeiam esperando a vez
-    const esperando = alvo && !b.vez && this.inimigos.filter((o) => o !== b && !o.morto && o.vez === alvo.id).length >= CI.aoMesmoTempo;
+    const folga = alvo && !b.vez && (b.folgaAte || 0) > this.tempo; // acabou de passar a vez: recua um pouco
+    const esperando = alvo && !b.vez && (folga || this.inimigos.filter((o) => o !== b && !o.morto && o.vez === alvo.id).length >= CI.aoMesmoTempo);
     if (alvo && esperando && dist(alvo, b) < CI.roda + 1.2) {
       this.virarPara(b, alvo);
       const d = dist(alvo, b), lado = (b.v % 2 ? 1 : -1), perto = (d - CI.roda) * 1.5;
@@ -1393,6 +1399,8 @@ export class Simulacao {
         const dur = DURACAO[nome] || 1, hit = P + Math.max(0.05, dur * CI.acerto - P * CI.preparoTs) / CI.golpeTs;
         b.acao = { nome, ts: CI.preparoTs, segurar: false, preparo: P, ts2: CI.golpeTs }; b.acaoSeq++;
         b.trava = P + Math.max(0.1, dur - P * CI.preparoTs) / CI.golpeTs;
+        // Quimera: o tempo até o próximo golpe conta a partir do acerto (o ataqueCd só corre depois da trava)
+        b.ataqueCd = Math.max(0, hit + CI.cdMin + Math.random() * (CI.cdMax - CI.cdMin) - b.trava);
         this.evento({ t: 'preparo', id: b.id, dur: P });
         const seq = b.acaoSeq; // apanhou no meio (ou foi atordoado): o golpe foi cortado
         this.depois(hit, () => {
@@ -1405,13 +1413,13 @@ export class Simulacao {
           if (dist(alvo, b) >= 2.4 || Math.abs(alvo.y - b.y) >= 1.3) return;
           this.ferir(alvo, b.dano ?? t.dano, b);
         });
-        if (Math.random() < 0.5) b.vez = null; // passa a vez para quem está rodeando
+        if (Math.random() < 0.5) { b.vez = null; b.folgaAte = this.tempo + b.trava + CI.folga; } // passa a vez para quem está rodeando
       }
     } else if (alvo) {
       const d = dist(alvo, b); this.virarPara(b, alvo);
-      const v = (d > 5 ? 3.6 : 1.7) * lento;
+      const v = (d > CI.chegarDist ? CI.perseguir : CI.chegar) * lento; // vai para cima correndo; só anda no último passo
       this.mover(b, Math.sin(b.ry) * v * dt, Math.cos(b.ry) * v * dt);
-      b.anim = d > 5 ? 'Run' : 'Walk';
+      b.anim = d > CI.chegarDist ? 'Run' : 'Walk';
     } else if (dist(b, b.casa) > 1) {
       this.virarPara(b, b.casa);
       this.mover(b, Math.sin(b.ry) * 1.7 * dt, Math.cos(b.ry) * 1.7 * dt);
