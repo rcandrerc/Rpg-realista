@@ -35,15 +35,15 @@ const LACOS := ["parada", "andar", "trote", "corrida", "espada_parada", "queda",
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
 const BANDO := []
-const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo"}
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok"}
 # o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
-const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
 # NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 const TINGIR_NPC := ["ferreiro"]
-const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0} # TIPOS_INIMIGO de shared/dados.js
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
 const NOME_LONGE := 30.0
@@ -852,10 +852,9 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 
 # Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
 # (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
-const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02},
-	"mremireh": {"alto": 2.25, "contorno": 0.02}, "pumpkinhulk": {"alto": 2.65, "contorno": 0.02},
-	"parasite": {"alto": 1.95, "contorno": 0.016}, "mutant": {"alto": 2.45, "contorno": 0.02},
-	"skeletonzombie": {"alto": 2.0, "contorno": 0.016}}
+const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02, "olho": "9cff5a"},
+	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2}}
+const CHEFES := ["chefe", "warrok"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
 var _shader_monstro: Shader
 func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 	if _shader_monstro == null:
@@ -879,8 +878,10 @@ func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 			var s := ShaderMaterial.new()
 			s.shader = _shader_monstro
 			s.set_shader_parameter("textura", m.albedo_texture)
+			s.set_shader_parameter("borda_forca", float(cfg.get("borda", 0.15))) # meio-termo (André achou a v3 colorida demais)
 			if m.emission_texture: # o pintar() desliga a emissão dos personagens, mas a textura dos olhos fica
 				s.set_shader_parameter("brilho", m.emission_texture)
+				s.set_shader_parameter("brilho_forca", float(cfg.get("brilho", 0.6)))
 			s.next_pass = mat_contorno[k]
 			mi.set_surface_override_material(i, s)
 	# olhos (direção de arte, Warrok v3): o olho do modelo é minúsculo; um ponto de brilho de 5 cm em cada (nós olho_e e
@@ -895,9 +896,9 @@ func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 		esf.rings = 4
 		var mb := StandardMaterial3D.new()
 		mb.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mb.albedo_color = Color("ffcc40")
+		mb.albedo_color = Color(str(cfg.get("olho", "ffcc40")))
 		mb.emission_enabled = true
-		mb.emission = Color("ffcc40")
+		mb.emission = mb.albedo_color
 		mb.emission_energy_multiplier = 2.0
 		esf.material = mb
 		p.mesh = esf
@@ -1176,7 +1177,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
 	var metros: float = float(hab.get("empurra", 0.25)) if hab is Dictionary else 0.25
-	if empurra.length() > 0.01 and e.tipo != "chefe" and not firme: # o inimigo voa para longe (em 0,22 s)
+	if empurra.length() > 0.01 and not (e.tipo in CHEFES) and not firme: # o inimigo voa para longe (em 0,22 s)
 		e.puxao = empurra.normalized() * metros / 0.22
 		e.puxao_t = 0.22
 	if e.vida <= 0:
@@ -1187,7 +1188,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
 		e.golpe = -1.0
-		if e.tipo != "chefe" and empurra.length() > 0.01: # o golpe final joga o corpo para trás
+		if not (e.tipo in CHEFES) and empurra.length() > 0.01: # o golpe final joga o corpo para trás
 			e.puxao = empurra.normalized() * D.COMBATE.voaMorte / 0.35
 			e.puxao_t = 0.35
 		combate.morreu(e.no)
@@ -1202,7 +1203,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			fx.subir_nivel(heroi)
 		return
 	if hab is Dictionary:
-		var chefe: float = 0.5 if e.tipo == "chefe" else 1.0
+		var chefe: float = 0.5 if e.tipo in CHEFES else 1.0
 		if hab.has("lento"): # no chefe lentidão e Quebrado valem metade
 			e.lento = tempo + hab.lento.dur
 			e.lento_k = hab.lento.k * chefe
@@ -1210,7 +1211,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			e.vuln = tempo + hab.vulneravel.dur
 			e.vuln_k = hab.vulneravel.k * chefe
 		for k in ["atordoa", "congela"]:
-			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo == "chefe"):
+			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo in CHEFES):
 				e.parado = max(e.parado, tempo + hab[k] * chefe)
 				e.golpe = -1.0
 				fx.status(e.no, k, hab[k] * chefe)
@@ -1995,7 +1996,7 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 		"puxar": # puxa para perto (não puxa chefe) e segura um instante; não tira vida
 			fx.vortice(p0.x, p0.z, hab.area, p0.y)
 			for e in inimigos:
-				if e.estado == "morto" or e.tipo == "chefe":
+				if e.estado == "morto" or e.tipo in CHEFES:
 					continue
 				var d: Vector3 = p0 - e.no.position
 				d.y = 0

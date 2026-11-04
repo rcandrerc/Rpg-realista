@@ -166,6 +166,12 @@ export const TIPOS_INIMIGO = {
   chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.9, escala: 1.15, brilho: 0xff2a3a },
   // o lobo (feito por IA, ferramentas/monstros-ia) era montaria de teste; virou bicho de caça (pedido do André 2026-11-03)
   lobo: { nome: 'Lobo', horda: 'Monstros do Leste', visual: 'lobo', vida: 95, dano: 10, intervalo: 2.0, escala: 1, brilho: 0xd8e6ff },
+  // Monstros do Mixamo (pedido do André 2026-11-03; visual aprovado pela direção de arte 2026-11-04). O Warrok é chefe
+  // (chefe: true vale como o Imp Chefe: não voa longe, não é puxado, sofre metade do controle). O golem de magma é o
+  // Pumpkinhulk do Mixamo repintado de pedra e lava.
+  golem: { nome: 'Golem de Magma', horda: 'Monstros do Leste', visual: 'golem', vida: 130, dano: 13, intervalo: 2.6, escala: 1, brilho: 0xff7a1a },
+  maw: { nome: 'Maw', horda: 'Monstros do Leste', visual: 'maw', vida: 140, dano: 14, intervalo: 2.4, escala: 1, brilho: 0x9cff5a },
+  warrok: { nome: 'Warrok', horda: 'Monstros do Leste', visual: 'warrok', vida: 260, dano: 18, intervalo: 2.0, escala: 1, brilho: 0xffcc40, chefe: true },
   // espantalho de treino (TREINO, abaixo): não anda, não bate, não morre, não dá XP nem item
   espantalho: { nome: 'Espantalho de treino', horda: 'Treino', visual: 'espantalho', vida: 1000, dano: 0, intervalo: 99, escala: 1, brilho: 0, treino: true },
 };
@@ -181,9 +187,9 @@ export const TREINO = { volta: 4, raio: 0.38, alto: 1.6 }; // alto: a câmera pa
 // `roda` m), aguenta `firmeGolpes` golpes seguidos e fica firme (não para de apanhar, revida) por `firmeDur` s.
 // Rolar ou dar dash na hora do golpe = esquiva: o próximo golpe do herói em `contraDur` s vale `contraK`x e é crítico.
 export const COMBATE_INIMIGO = {
-  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7, lobo: 0.45 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7, lobo: 0.45, golem: 0.65, maw: 0.6, warrok: 0.75 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
   aoMesmoTempo: 2, roda: 3.4, rodaVel: 1.1,
-  firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6 }, firmeJanela: 1.6, firmeDur: 2.0,
+  firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6, golem: 5, maw: 5, warrok: 4 }, firmeJanela: 1.6, firmeDur: 2.0,
   contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
 };
 
@@ -243,6 +249,9 @@ const CLAREIRAS = [
   { id: 'caca8', tipo: 'imp', nivel: 15, x: 52, z: 150 },
   { id: 'caca9', tipo: 'lobo', nivel: 20, x: 152, z: 112 },
   { id: 'caca10', tipo: 'imp', nivel: 25, x: 206, z: 134 },
+  // fim da estrada (2026-11-04): monstros do Mixamo para variar antes do 30; o chefe destes é o Warrok
+  { id: 'caca11', tipo: 'golem', nivel: 28, x: 162, z: 190, chefe: 'warrok' },
+  { id: 'caca12', tipo: 'maw', nivel: 30, x: 208, z: 186, chefe: 'warrok' },
 ];
 const CLAREIRA_R = 12; // raio do campo (área de combate lisa); as árvores começam 1,5 m depois
 // trilha de cada clareira: sai do ponto da estrada mais perto, faz uma curva entre as árvores e entra na clareira
@@ -333,10 +342,10 @@ const FORA = { x: 66, z: -3, rx: 30, rz: 23, lobos: [[3, 0.13, 2.1], [2, 0.07, -
 // em "rapido" s enquanto houver menos da metade, senão em "normal" s. Quem morre some depois de "corpo" s e abre a vaga.
 // tipos: um por vaga, para o Godot ter um modelo fixo por vaga. Cada campo é uma clareira (CLAREIRAS, acima) com um
 // bicho só e 1 Imp Chefe; nivel = nível dos monstros (vida, dano e XP sobem com ele: NIVEL_INIMIGO).
-const NOME_CLAREIRA = { puglin: 'Clareira dos Puglins', imp: 'Clareira dos Imps', lobo: 'Clareira dos Lobos' };
+const NOME_CLAREIRA = { puglin: 'Clareira dos Puglins', imp: 'Clareira dos Imps', lobo: 'Clareira dos Lobos', golem: 'Clareira dos Golens', maw: 'Clareira dos Maws' };
 export const CACA = [
   ...CLAREIRAS.map((c) => ({ id: c.id, nome: NOME_CLAREIRA[c.tipo], nivel: c.nivel, bicho: c.tipo, x: c.x, z: c.z, r: CLAREIRA_R,
-    n: 11, tipos: [...Array(10).fill(c.tipo), 'chefe'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 })),
+    n: 11, tipos: [...Array(10).fill(c.tipo), c.chefe || 'chefe'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 })),
 ];
 // Nível dos monstros: cada nível acima do 1 soma uma fração da vida, do dano, do XP e do ouro de base (TIPOS_INIMIGO,
 // XP_INIMIGO e DROPS). A curva acompanha o herói (dano +8%/nível mais os pontos e o equipamento); XP cai quando o herói
@@ -605,6 +614,8 @@ export const DROPS = {
   puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1] } }, sombrio: DROP_COMUM,
   lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.5, 0.38, 0.12, 0, 0] },
   chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1] } },
+  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1] } },
+  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 0.5, 0.4, 0.1, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2] } },
 };
 
 // ---------- Parte 3 do Quimera: estamina, vigor e profissões ----------

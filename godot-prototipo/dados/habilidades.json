@@ -459,7 +459,10 @@
   "chefe": 25,
   "sombrio": 6,
   "lider": 20,
-  "lobo": 7
+  "lobo": 7,
+  "golem": 9,
+  "maw": 10,
+  "warrok": 30
  },
  "andarAtirando": 0.6,
  "nivelSemTomo": 5,

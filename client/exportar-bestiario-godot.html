@@ -53,10 +53,9 @@ const MIXAMO = {
     golpe1: 'mx_sword_and_shield_downward_slash', golpe2: 'mx_inward_slashing_with_a_sword_standing_st',
     apanhar: 'mx_large_hit_reaction_from_the_right', morrer: 'mx_sword_and_shield_falling_back_death' } },
 };
-// os outros 6 que o André baixou (2026-11-04): mesma receita, por enquanto com as animações do Warrok; a direção de arte
-// pediu primeiro uma grade só de frente antes de escolher animação para cada um
-for (const [nome, altura] of [['Maw', 2.6], ['Mremireh', 2.0], ['Pumpkinhulk', 2.4], ['Parasite', 1.7], ['Mutant', 2.2], ['Skeletonzombie', 1.75]])
-  MIXAMO[nome] = { altura, anims: MIXAMO.Warrok.anims };
+// Maw e o golem de magma (Pumpkinhulk repintado), aprovados pela direção de arte 2026-11-04, com as animações do Warrok.
+// Mremireh, Parasite, Mutant e Skeletonzombie foram vetados (humanos zumbis); os FBX ficam no repositório de fontes.
+for (const [nome, altura] of [['Maw', 2.6], ['Pumpkinhulk', 2.4]]) MIXAMO[nome] = { altura, anims: MIXAMO.Warrok.anims };
 {
   const gz = await fetch('assets/personagens/anims.json.gz').then((r) => r.arrayBuffer());
   const cru = JSON.parse(strFromU8(gunzipSync(new Uint8Array(gz))));
