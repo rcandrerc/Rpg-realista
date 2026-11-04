@@ -1367,7 +1367,8 @@ export class Simulacao {
     const CI = COMBATE_INIMIGO;
     if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
     // no máximo CI.aoMesmoTempo monstros batem no mesmo herói; os outros rodeiam esperando a vez
-    const esperando = alvo && !b.vez && this.inimigos.filter((o) => o !== b && !o.morto && o.vez === alvo.id).length >= CI.aoMesmoTempo;
+    const folga = alvo && !b.vez && (b.folgaAte || 0) > this.tempo; // acabou de passar a vez: recua um pouco
+    const esperando = alvo && !b.vez && (folga || this.inimigos.filter((o) => o !== b && !o.morto && o.vez === alvo.id).length >= CI.aoMesmoTempo);
     if (alvo && esperando && dist(alvo, b) < CI.roda + 1.2) {
       this.virarPara(b, alvo);
       const d = dist(alvo, b), lado = (b.v % 2 ? 1 : -1), perto = (d - CI.roda) * 1.5;
@@ -1395,13 +1396,13 @@ export class Simulacao {
           if (dist(alvo, b) >= 2.4 || Math.abs(alvo.y - b.y) >= 1.3) return;
           this.ferir(alvo, b.dano ?? t.dano, b);
         });
-        if (Math.random() < 0.5) b.vez = null; // passa a vez para quem está rodeando
+        if (Math.random() < 0.5) { b.vez = null; b.folgaAte = this.tempo + b.trava + CI.folga; } // passa a vez para quem está rodeando
       }
     } else if (alvo) {
       const d = dist(alvo, b); this.virarPara(b, alvo);
-      const v = (d > 5 ? 3.6 : 1.7) * lento;
+      const v = (d > CI.chegarDist ? CI.perseguir : CI.chegar) * lento; // vai para cima correndo; só anda no último passo
       this.mover(b, Math.sin(b.ry) * v * dt, Math.cos(b.ry) * v * dt);
-      b.anim = d > 5 ? 'Run' : 'Walk';
+      b.anim = d > CI.chegarDist ? 'Run' : 'Walk';
     } else if (dist(b, b.casa) > 1) {
       this.virarPara(b, b.casa);
       this.mover(b, Math.sin(b.ry) * 1.7 * dt, Math.cos(b.ry) * 1.7 * dt);

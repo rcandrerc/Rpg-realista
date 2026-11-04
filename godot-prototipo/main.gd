@@ -2894,7 +2894,8 @@ func atualizar_inimigos(dt: float) -> void:
 		for o in inimigos:
 			if o != e and o.estado != "morto" and o.get("vez", false):
 				na_vez += 1
-		if h.morto <= 0.0 and not e.get("vez", false) and na_vez >= int(D.COMBATE.aoMesmoTempo) and d < D.COMBATE.roda + 1.2:
+		var folga: bool = e.get("folga_ate", 0.0) > tempo # acabou de passar a vez: recua um pouco para outro entrar
+		if h.morto <= 0.0 and not e.get("vez", false) and (folga or na_vez >= int(D.COMBATE.aoMesmoTempo)) and d < D.COMBATE.roda + 1.2:
 			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
 			var lado_r: float = 1.0 if inimigos.find(e) % 2 == 1 else -1.0
 			var lado_v := Vector3(ate.z, 0, -ate.x).normalized() * lado_r * D.COMBATE.rodaVel
@@ -2905,9 +2906,10 @@ func atualizar_inimigos(dt: float) -> void:
 			no.rotation.y = lerp_angle(no.rotation.y, atan2(ate.x, ate.z), min(1.0, dt * 8.0))
 			if d > D.INIMIGO.alcance or dy >= 1.3:
 				if d > 1.2:
-					var v: float = (D.INIMIGO.vel if d > 5.0 else 1.7) * ((1.0 - e.lento_k) if e.lento > tempo else 1.0)
+					var longe: bool = d > float(D.COMBATE.chegarDist) # vai para cima correndo; só anda no último passo
+					var v: float = (float(D.COMBATE.perseguir) if longe else float(D.COMBATE.chegar)) * ((1.0 - e.lento_k) if e.lento > tempo else 1.0)
 					no.position += ate.normalized() * v * dt
-					var a := "corrida" if d > 5.0 else "andar"
+					var a := "corrida" if longe else "andar"
 					if e.anim.current_animation != a:
 						e.anim.play(a, 0.15)
 				elif e.anim.current_animation != "espada_parada":
@@ -2929,6 +2931,7 @@ func atualizar_inimigos(dt: float) -> void:
 				combate.preparo(no, pr)
 				if randf() < 0.5:
 					e.vez = false # passa a vez para quem está rodeando
+					e.folga_ate = tempo + e.golpe_dur + float(D.COMBATE.folga)
 			elif e.anim.current_animation != "espada_parada":
 				e.anim.play("espada_parada", 0.2)
 		else:

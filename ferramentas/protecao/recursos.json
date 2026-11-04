@@ -181,6 +181,8 @@
     { "nome": "Ir para do mapa: o herói anda sozinho sempre pela estrada, o joystick cancela (André 2026-11-03)", "arquivo": "godot-prototipo/rota.gd", "contem": ["func planejar(alvo: Vector2) -> PackedVector2Array:", "func direcao_auto() -> Vector3:", "m.hud.mover.length() > 0.15"] },
     { "nome": "Ir para do mapa: marcar lugar e botão no mapa completo", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func _toque_no_mapa(pos: Vector2) -> void:", "\"Ir para\"", "m.rota.ir(r)"] },
     { "nome": "Ir para do mapa: rota vira o joystick", "arquivo": "godot-prototipo/main.gd", "contem": ["return rota.direcao_auto()"] },
-    { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] }
+    { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] },
+    { "nome": "Monstros agressivos: até 4 batem juntos, perseguem correndo e quem bateu dá folga (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["b.folgaAte = this.tempo + b.trava + CI.folga", "CI.chegarDist ? CI.perseguir : CI.chegar"] },
+    { "nome": "Monstros agressivos no modo sozinho (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["e.folga_ate = tempo + e.golpe_dur", "float(D.COMBATE.perseguir)"] }
   ]
 }
