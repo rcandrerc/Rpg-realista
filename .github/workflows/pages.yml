@@ -5,6 +5,8 @@ name: Publicar no GitHub Pages
 on:
   push:
     branches: [main]
+    # mudança só no app Godot: o apk.yml gera o pacote e chama este workflow sozinho no fim; texto não muda o site
+    paths-ignore: ['godot-prototipo/**', '**/*.md']
   workflow_dispatch:
     inputs:
       abrir_servidor:
