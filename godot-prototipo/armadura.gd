@@ -26,12 +26,13 @@ static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
 				+ ([["cinto_quadril", "cinto_quadril"]] if metal else [])
 		"calca":
 			# Épico ou melhor: saiote de 5 lâminas por cima da saia
-			return [["coxa_e", "couro_escuro"], ["coxa_d", "couro_escuro"]] + ([["saia", "saia"]] if r >= 2 else [])
+			# v10 (André 2026-11-04): saiote em todas as raridades (Comum de couro); antes só do Épico em diante
+			return [["coxa_e", "couro_escuro"], ["coxa_d", "couro_escuro"], ["saia", "saia" if metal else "saia_couro"]]
 		"botas":
 			return [["canela_e", "metal"], ["canela_d", "metal"], ["sapato", "metal"]] if metal else [["cano_e", "couro"], ["cano_d", "couro"], ["sapato_couro", "couro"]]
 		"short":
 			# short de couro (coxa de cima); Épico ou melhor ganha o mesmo saiote de lâminas da calça
-			return [["short_e", "couro_escuro"], ["short_d", "couro_escuro"]] + ([["saia", "saia"]] if r >= 2 else [])
+			return [["short_e", "couro_escuro"], ["short_d", "couro_escuro"], ["saia", "saia" if metal else "saia_couro"]]
 		"capa":
 			return [["capa", "capa"]]
 		"chapeu": # Capacete: Comum de couro, Raro em diante de aço
@@ -531,8 +532,8 @@ static func _fonte(raiz: Node3D, trecho: String) -> MeshInstance3D:
 static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int, tem_capa := false) -> void:
 	for pm in pecas(k, r):
 		var parte: String = pm[0]
-		if parte == "saia" and tem_capa:
-			parte = "saia_frente"
+		# v10 (André 2026-11-04): o saiote dá a volta inteira mesmo com capa (antes, com capa, ficava só a frente);
+		# a capa se afasta um pouco mais embaixo para não furar (_malha_capa)
 		var mat: String = pm[1]
 		if parte == "capa":
 			_montar_capa(raiz, esq, no, r)
@@ -685,23 +686,27 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 				return Vector2(-1, 0)
 			return Vector2(0.011, p.y)
 		"coxa_e", "coxa_d":
-			if p.y < R.y_joelho - 0.03 or p.y > R.y_cintura - 0.12 or ax > 0.17:
+			# masculino: o osso da coluna fica mais alto; a calça sobe até a cintura (antes o bumbum ficava de fora)
+			if p.y < R.y_joelho - 0.03 or p.y > R.y_cintura - (0.03 if R.masc else 0.12) or ax > 0.17:
 				return Vector2(-1, 0)
 			return Vector2(0.006, p.y)
 		"short_e", "short_d":
 			# só a coxa de cima: termina um palmo acima do joelho
-			if p.y < R.y_joelho + 0.17 or p.y > R.y_cintura - 0.12 or ax > 0.17:
+			if p.y < R.y_joelho + 0.17 or p.y > R.y_cintura - (0.03 if R.masc else 0.12) or ax > 0.17:
 				return Vector2(-1, 0)
 			return Vector2(0.007, p.y)
 		"base_short":
 			# short colado: do quadril até o meio da coxa (cobre a barra da camiseta)
-			if p.y > R.y_cintura - 0.05 or p.y < lerpf(R.y_joelho, R.y_cintura, 0.45) or ax > 0.2:
+			if p.y > R.y_cintura - (0.0 if R.masc else 0.05) or p.y < lerpf(R.y_joelho, R.y_cintura, 0.45) or ax > 0.2:
 				return Vector2(-1, 0)
 			return Vector2(0.0025, -1.0)
 		"saia", "saia_frente":
 			# placas verticais (lâminas) em volta do quadril; começa abaixo da barra da blusa (que cobre o alto da saia)
 			# saia_frente (com capa): só a frente e os lados; atrás fica o pano da capa
 			if p.y > R.y_cintura - 0.075 or (parte == "saia_frente" and p.z < -0.02):
+				return Vector2(-1, 0)
+			# masculino: a calça do VRoid vai até o pé; o saiote para no meio da coxa
+			if R.masc and p.y < lerpf(R.y_joelho, R.y_cintura, 0.5):
 				return Vector2(-1, 0)
 			return Vector2(0.016, atan2(p.x, p.z) * 0.16 + 0.1) # 5 lâminas (faixa 0,2 no material "saia")
 		"sapato":
@@ -1495,7 +1500,7 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 			var x := s * larg
 			var curva := (1.0 - s * s)
 			var z_topo := costas - 0.035 + 0.06 * (1.0 - curva)
-			var z_baixo := costas_q - 0.07 # 3 cm ou mais de folga do saiote e da saia
+			var z_baixo := costas_q - 0.09 # folga do saiote, que agora dá a volta inteira (v10)
 			var z := lerpf(z_topo, z_baixo, smoothstep(0.0, 0.45, t)) - 0.04 * curva * t
 			# dobras verticais do pano, mais fundas embaixo
 			z += 0.022 * t * sin(s * PI * 3.0)
@@ -1625,6 +1630,13 @@ static func _material(tipo: String, r: int) -> Material:
 			s.set_shader_parameter("sombra", CINTO_QUADRIL[2])
 			s.set_shader_parameter("duro", 0.0)
 			s.set_shader_parameter("largura", 0.0)
+		if tipo == "saia_couro":
+			s.set_shader_parameter("claro", COURO_ESCURO[0])
+			s.set_shader_parameter("medio", COURO_ESCURO[1])
+			s.set_shader_parameter("sombra", COURO_ESCURO[2])
+			s.set_shader_parameter("duro", 0.0)
+			s.set_shader_parameter("faixa", 0.2) # as mesmas 5 abas do saiote de metal, em couro
+			s.set_shader_parameter("largura", 0.0115)
 		if tipo == "saia":
 			# v10 (arte do Aethra): saiote de placas azul-marinho escuras com friso de ouro (antes aço claro)
 			s.set_shader_parameter("claro", Color("222a42"))
