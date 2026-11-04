@@ -82,7 +82,10 @@ const mundo = {
   // onde se coleta (Parte 3): veios (v0...) com o giro do desenho e as árvores (a0...), com os mesmos ids do servidor
   coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
   // Vila dos Lotes (construção e fazenda): os lotes com a placa e a área (godot-prototipo/construcao.gd)
-  lotes: MAPA_CLAREIRA.lotes || [], vilaLotes: { nome: VILA_LOTES.nome, x: VILA_LOTES.area.x, z: VILA_LOTES.area.z },
+  // Terras da Estrada (2026-11-04): a área (elipse de borda ondulada), a estrada central e a de chegada, para o app
+  // conferir o terreno marcado antes de mandar (a mesma conta de motivoTerreno no servidor)
+  lotes: MAPA_CLAREIRA.lotes || [], vilaLotes: { nome: VILA_LOTES.nome, x: VILA_LOTES.area.x, z: VILA_LOTES.area.z,
+    area: VILA_LOTES.area, estradas: [{ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas] },
 };
 fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo.json', import.meta.url), JSON.stringify(mundo));
 console.log('mundo.json:', solidos.length, 'sólidos,', mundo.obstaculos.length, 'obstáculos,', grades.length, 'grades');

@@ -157,7 +157,7 @@ async function colocarObjetos(scene, mapa, masc) {
   let sem2 = 101; const frnd = (a, b) => { sem2 = (sem2 * 16807) % 2147483647; return a + (sem2 / 2147483647) * (b - a); };
   let q = 0;
   F.areas.forEach((o, k) => {
-    if (k === 0 || o.mata) return; // a mata fecha com árvores, não com anel de pedras (direção de arte)
+    if (k === 0 || o.mata || o.semPedras) return; // a mata (e as Terras da Estrada) fecham com árvores, não com anel de pedras (direção de arte)
     // espaçamento irregular (passo de 3 a 6 m) e tamanhos bem variados (0,7 a 1,4 da pedra média): não lê como compasso
     for (let a = 0; a < 6.283;) {
       const R = raioNaDirecao(o, a), r = R + frnd(0.4, 2.6), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r, ry = frnd(0, 6.28), sc = 3.7 * frnd(0.7, 1.4);
@@ -166,7 +166,7 @@ async function colocarObjetos(scene, mapa, masc) {
     }
   });
   for (const c of F.corredores) {
-    if (c.mata) continue; // passagens da mata: as árvores fazem a parede
+    if (c.mata || c.semPedras) continue; // passagens da mata e das Terras: as árvores fazem a parede
     const [ax, az] = c.a, [bx, bz] = c.b, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
     for (let d = 0; d <= L; d += 4.2) for (const lado of [-1, 1]) {
       const off = c.larg / 2 + frnd(1.6, 2.6), x = ax + ux * d - uz * off * lado, z = az + uz * d + ux * off * lado;

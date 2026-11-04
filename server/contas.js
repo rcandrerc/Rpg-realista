@@ -141,13 +141,21 @@ export class Contas {
   lotes() { return this.q.lotes.all().map(linhaLote); }
   lote(id) { const l = this.q.lote.get(id); return l ? linhaLote(l) : null; }
   loteDoDono(dono) { const l = this.q.loteDoDono.get(dono); return l ? linhaLote(l) : null; }
-  // compra: só se o lote está livre e o jogador não tem outro (vale entre salas diferentes do servidor)
-  reservarLote(id, dono, nome) {
+  // compra: o jogador não tem outro terreno e o pedaço (ret) não encosta no de ninguém (vale entre salas diferentes
+  // do servidor). retDe(linha) diz o retângulo de um terreno guardado (Terras: dados.ret; lotes antigos: o chão de antes)
+  reservarLote(id, dono, nome, ret, retDe) {
     const outro = this.q.loteDoDono.get(dono);
     if (outro && outro.id !== id) return false;
     const l = this.q.lote.get(id);
     if (l?.dono && l.dono !== dono) return false;
-    this.q.gravarLote.run(id, dono, nome, JSON.stringify({ pecas: [], horta: {}, prox: 1 }), Date.now());
+    if (ret && retDe) {
+      for (const o of this.lotes()) {
+        if (!o.dono || o.id === id) continue;
+        const r = retDe(o);
+        if (r && ret.x0 < r.x1 && r.x0 < ret.x1 && ret.z0 < r.z1 && r.z0 < ret.z1) return false;
+      }
+    }
+    this.q.gravarLote.run(id, dono, nome, JSON.stringify({ ret: ret || undefined, pecas: [], horta: {}, prox: 1 }), Date.now());
     return true;
   }
   salvarLote({ id, dono, nome, dados }) { this.q.gravarLote.run(id, dono, nome || '', JSON.stringify(dados || {}), Date.now()); }
