@@ -4,3 +4,4 @@ client/dist/
 *.log
 server/dados/
 client/public/tmp-mixamo/
+__pycache__/

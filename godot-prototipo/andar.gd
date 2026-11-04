@@ -37,6 +37,7 @@ var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 # 3 velocidades (André 2026-11-03): o joystick só anda (1) e trota (2); a corrida de 5,4 m/s, a que gasta estamina,
 # só com o botão de disparada ligado (hud.gd "disparada", main.gd ligar_disparada). Sem fôlego ela desliga sozinha.
 var disparada := false
+var montado := {} # montado no lobo: montaria.gd DADOS (andar, trote, correr m/s); vazio = a pé
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
@@ -50,6 +51,12 @@ func _init(terreno, mundo: Dictionary) -> void:
 		if not mata.has(k):
 			mata[k] = []
 		mata[k].append({"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)})
+	# ruínas, rochedos, troncos caídos e pedras da mata (mundo.cenario.solidos), na mesma grade (Simulacao faz igual)
+	for o in m.get("cenario", {}).get("solidos", []):
+		var k := Vector2i(floori(float(o.x) / 6.0), floori(float(o.z) / 6.0))
+		if not mata.has(k):
+			mata[k] = []
+		mata[k].append({"x": float(o.x), "z": float(o.z), "r": float(o.r), "alto": float(o.get("alto", 4.0))})
 	for o in m.get("obstaculos", []):
 		var r: float = float(o.r) + 1.0
 		for i in range(floori((float(o.x) - r) / 6.0), floori((float(o.x) + r) / 6.0) + 1):
@@ -351,6 +358,16 @@ static func vel_joystick(forca: float, disparando := false) -> float:
 		return ANDAR * lerp(0.55, 1.0, (forca - 0.15) / 0.35)
 	return lerp(ANDAR, TROTE, smoothstep(0.5, 0.9, forca))
 
+# montado: joystick até a metade anda (até MONTARIAS.andar), no fim trota; a disparada galopa (MONTARIAS.correr)
+func vel_montado(forca: float) -> float:
+	if forca < 0.15:
+		return 0.0
+	if disparada and forca >= 0.3:
+		return float(montado.correr)
+	if forca < 0.5:
+		return float(montado.andar) * lerp(0.5, 1.0, (forca - 0.15) / 0.35)
+	return lerp(float(montado.andar), float(montado.trote), smoothstep(0.5, 0.9, forca))
+
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	var n: int = max(1, ceili(dt / SUBPASSO - 0.001))
 	for i in n:
@@ -377,6 +394,8 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 			arrancada = null
 			# sai do dash correndo na mesma direção (sem parar seco)
 			var sai: float = min(CORRIDA if disparada else TROTE, vel_max) if mag > 0.5 else 1.5
+			if not montado.is_empty():
+				sai = vel_montado(mag) if mag > 0.5 else 1.5
 			vx = a.dx * sai
 			vz = a.dz * sai
 	else:
@@ -384,9 +403,11 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
 			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max)
+			if not montado.is_empty(): # montado: o lobo anda, trota e galopa (sem estamina)
+				alvo = Vector2(mx, mz).normalized() * vel_montado(mag)
 		var s0 := Vector2(vx, vz).length()
 		_correu = _correu + dt if s0 > FREADA_MIN else 0.0
-		if manobra == null and chao and livre and m.has("raiz"):
+		if manobra == null and chao and livre and m.has("raiz") and montado.is_empty():
 			if alvo.length() < 0.01 and s0 > FREADA_MIN and _correu > 0.35:
 				iniciar_manobra("freada", s0)
 			elif alvo.length() > 0.01 and s0 > MEIA_VOLTA_MIN and abs(Vector2(vx, vz).angle_to(alvo)) > MEIA_VOLTA:
@@ -415,7 +436,7 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 			var d2: float = ad(atan2(mx, mz), ry)
 			ry += clamp(d2, -GIRO_MAX * dt, GIRO_MAX * dt)
 	giro = lerp(giro, ad(ry, ry0) / max(dt, 0.0001), min(1.0, dt * 10.0))
-	if livre and chao and arrancada == null and mag > 0.5:
+	if livre and chao and arrancada == null and mag > 0.5 and montado.is_empty():
 		tentar_escalar(mx, mz, correr, dt)
 	else:
 		empurra = 0.0

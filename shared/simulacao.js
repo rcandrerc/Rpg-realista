@@ -29,6 +29,8 @@ export class Simulacao {
     this.coletaveis = new Map([
       ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO, ...(v.mina ? { mina: v.mina } : {}) }]),
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
+      ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO })),
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
@@ -42,6 +44,13 @@ export class Simulacao {
       const k = Math.floor(a.x / 6) * 10007 + Math.floor(a.z / 6);
       if (!this.mata.has(k)) this.mata.set(k, []);
       this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s });
+    }
+    // ruínas, rochedos, troncos caídos e pedras da mata (MAPA_CLAREIRA.cenario): na mesma grade (são todos menores que 2 m
+    // de raio, e quem pergunta olha as 9 casas em volta)
+    for (const o of mapa.cenario?.solidos || []) {
+      const k = Math.floor(o.x / 6) * 10007 + Math.floor(o.z / 6);
+      if (!this.mata.has(k)) this.mata.set(k, []);
+      this.mata.get(k).push({ x: o.x, z: o.z, r: o.r, ...(o.alto != null ? { alto: o.alto } : {}) });
     }
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
