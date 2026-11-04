@@ -27,6 +27,7 @@ var cenario # cenario.gd
 const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
+const Troca = preload("res://troca.gd")
 const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Rota = preload("res://rota.gd")
@@ -35,7 +36,7 @@ const Montaria = preload("res://montaria.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
+const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -91,6 +92,7 @@ var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
+var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
@@ -227,6 +229,10 @@ func _ready() -> void:
 	rota = Rota.new(self)
 	add_child(rota)
 	hud.tocou.connect(conversa.tocou_tela)
+	troca = Troca.new(self)
+	add_child(troca)
+	hud.tocou.connect(troca.tocou_tela) # tocar noutro jogador perto: pedir troca
+	hud.troca = troca
 	hud.tocou.connect(tocou_inimigo) # tocar num monstro: vira o alvo travado do mago
 	criador = Criador.new(self)
 	add_child(criador)
@@ -2549,7 +2555,7 @@ func atualizar_heroi(dt: float) -> void:
 	mao_fechada.peso = move_toward(mao_fechada.peso, 1.0 if mao_no_cajado else 0.0, dt * 8.0)
 	if h.modo == "Magia" and mov.esc == null and montaria == null:
 		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
-		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi)
+		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 		if cajado.visible and heroi.visible:
 			Armas.chama(fx.mg, cajado, dt) # chama pintada no topo do Cajado A
 	# rastro da espada durante o golpe e do vento no dash
@@ -2568,6 +2574,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		vel_anim = mov.CORRIDA * 1.2
 	elif not mov.chao or mov.esc != null or montaria != null:
 		vel_anim = 0.0
+	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
+	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null
 	heroi_anim.atualizar(dt, vel_anim)
 	if montaria != null:
 		montaria.passo(dt, vel)

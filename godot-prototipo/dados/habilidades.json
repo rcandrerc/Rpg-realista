@@ -1116,6 +1116,13 @@
   }
  ],
  "lojaDistancia": 4,
+ "troca": {
+  "perto": 6,
+  "longe": 14,
+  "maxItens": 12,
+  "pedido": 30,
+  "entrePedidos": 3
+ },
  "criador": {
   "cabelo": [
    null,

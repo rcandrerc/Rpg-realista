@@ -276,6 +276,8 @@ func ao_cair(motivo: String) -> void:
 	if _cobrindo: # servidor fora do ar ao abrir: joga sozinho em vez de ficar parado na capa
 		esconder_login()
 	ligado = false
+	if m.troca:
+		m.troca.fechar() # caiu a conexão: o servidor desfaz a troca
 	for id in outros:
 		outros[id].no.queue_free()
 	outros.clear()
@@ -294,6 +296,8 @@ func desligar() -> void:
 	_tentar_de_novo = -1.0
 	if ligado:
 		ligado = false
+		if m.troca:
+			m.troca.fechar() # saiu da sala: o servidor desfaz a troca
 		for id in outros:
 			outros[id].no.queue_free()
 		outros.clear()
@@ -472,6 +476,8 @@ func outro(j: Dictionary) -> void:
 	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
 		o.ap = ap_txt
 		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador))
+	if str(j.get("nome", "")) != "":
+		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
@@ -546,6 +552,9 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 		return
 	o.uma_vez = 0.0
 	var nome := str(c.get("anim", "Idle"))
+	# outro jogador parado com o cajado na mão: a mesma guarda de mago do herói (o servidor manda só "parada")
+	if o.get("modo", "") == "Magia" and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
+		nome = "cajado_parada"
 	tocar(an, nome, m.ritmo(animacao(nome)) if o.has("esq") else 1.0) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:
@@ -609,6 +618,8 @@ func evento(ev: Dictionary) -> void:
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
+			if m.troca:
+				m.troca.progresso_mudou() # a mochila da janela de troca mostra o que sobrou
 			if m.construcao:
 				m.construcao.progresso_mudou() # custos e sementes da barra do modo construção
 			return
@@ -706,6 +717,10 @@ func evento(ev: Dictionary) -> void:
 			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
+			return
+		"troca": # troca entre jogadores (troca.gd): pedido que chegou, como está a mesa, fim
+			if m.troca:
+				m.troca.do_servidor(ev)
 			return
 		# profissões (Parte 3): batida de coleta, o que saiu, fim da coleta e peça criada
 		"coleta":

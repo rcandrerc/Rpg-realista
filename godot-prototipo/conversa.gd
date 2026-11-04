@@ -290,10 +290,11 @@ func escolher(a: String) -> void:
 		"comprar":
 			fechar()
 			m.menu.abrir("loja")
-		"vender": # a mochila abre com o botão Vender em cada item (o servidor confere a distância)
+		"vender": # a mochila abre já marcando itens para vender (André 2026-11-04); Pronto volta ao Vender de um em um
 			fechar()
 			m.menu.abrir("mochila")
-			m.hud.aviso("%s compra: toque no item e em Vender" % _curto(n))
+			m.menu.modo_vender(true)
+			m.hud.aviso("%s compra: marque os itens ou Selecionar tudo" % _curto(n))
 		"forja":
 			fechar()
 			m.menu.abrir("profissoes", "fer")

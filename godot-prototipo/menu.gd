@@ -67,6 +67,10 @@ var cam_palco: Camera3D
 var sel_mochila := -1 # item escolhido na mochila
 var pag_mochila := 0 # página da mochila aberta (0..3; André 2026-11-03: 4 páginas de 10 x 4, compradas com ouro)
 var sel_equip := "" # peça escolhida no corpo (lugar)
+# André 2026-11-04: perto de quem compra (Rosa, Tomás) dá para marcar vários itens, ou Selecionar tudo, e vender de uma vez
+var vendendo := false # modo de marcar itens para vender
+var marcados := {} # lugar da mochila -> true
+var _confirma: Control # janelinha "tem certeza?" (apagar item, vender vários)
 # André 2026-11-03: tocar num lugar do corpo abre a janela da peça: Tirar (vai para a mochila; dá para ficar só com a
 # roupa de baixo) e a lista das peças da mochila que servem ali, comparadas com a vestida (melhor ou pior), com Trocar
 var janela: Control # véu escuro + painel da peça (por cima do menu)
@@ -527,7 +531,7 @@ func armar_boneco() -> void:
 	var L: Dictionary = m.lugar_armas()
 	m.prender(esq, esp, L.espadaMao if boneco_modo == "Espada" else L.espadaCostas)
 	m.prender(esq, caj, L.cajadoCostas if boneco_modo == "Espada" else L.get("cajadoMao", L.cajadoCostas))
-	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else "parada", 0.2)
+	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else ("cajado_parada" if boneco_anim.has_animation("cajado_parada") else "parada"), 0.2)
 	atualizar_slots()
 
 func _girar(ev: InputEvent) -> void:
@@ -606,6 +610,8 @@ func abrir(qual := "", sub := "") -> void:
 	sel_mochila = -1
 	sel_equip = ""
 	janela_lugar = ""
+	vendendo = false
+	marcados = {}
 	raiz.visible = true
 	m.hud.bloqueado = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -613,6 +619,7 @@ func abrir(qual := "", sub := "") -> void:
 	atualizar()
 
 func fechar() -> void:
+	fechar_confirma()
 	fechar_janela(false)
 	raiz.visible = false
 	m.hud.bloqueado = false
@@ -1177,7 +1184,7 @@ func linha_ouro() -> Control:
 	return l
 
 # quadradinho de item: moldura e ícone na cor da raridade, quantidade no canto
-func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
+func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> Button:
 	var P = m.P
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
@@ -1218,6 +1225,20 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56) -> Button:
 			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(n)
 	moldurar(b, cor, escolhido, it != null)
+	if it != null and marcado:
+		var vel := ColorRect.new() # escurece um pouco e põe o sinal dourado no canto
+		vel.color = Color(0.95, 0.75, 0.3, 0.16)
+		vel.set_anchors_preset(Control.PRESET_FULL_RECT)
+		vel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(vel)
+		var ok := TextureRect.new()
+		ok.texture = icone_tex("marcado")
+		ok.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ok.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ok.position = Vector2(tam - tam * 0.42, 2)
+		ok.size = Vector2(tam * 0.38, tam * 0.38)
+		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(ok)
 	b.pressed.connect(func():
 		if not _arrastou:
 			fn.call())
@@ -1253,6 +1274,11 @@ func montar_mochila() -> void:
 			b.add_theme_constant_override("icon_max_width", 18)
 		abas_pag.add_child(b)
 	conteudo.add_child(abas_pag)
+	if m.perto_de_quem_compra():
+		conteudo.add_child(barra_venda())
+	else:
+		vendendo = false
+		marcados = {}
 	if pag_mochila >= tem:
 		conteudo.add_child(pagina_trancada(pag_mochila, tem))
 	else:
@@ -1262,7 +1288,7 @@ func montar_mochila() -> void:
 		g.add_theme_constant_override("h_separation", 5)
 		g.add_theme_constant_override("v_separation", 5)
 		for i in range(pag_mochila * por_pag, min(P.prog.mochila.size(), (pag_mochila + 1) * por_pag)):
-			g.add_child(celula(P.prog.mochila[i], i == sel_mochila, func(): tocar_mochila(i), 60))
+			g.add_child(celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i)))
 		conteudo.add_child(g)
 		# lugar a mais (só se uma mochila antiga trouxe mais itens do que cabem): aparece no fim da última página
 		if pag_mochila == tem - 1 and P.prog.mochila.size() > tem * por_pag:
@@ -1270,9 +1296,13 @@ func montar_mochila() -> void:
 			g2.columns = 10
 			g2.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			for i in range(tem * por_pag, P.prog.mochila.size()):
-				g2.add_child(celula(P.prog.mochila[i], i == sel_mochila, func(): tocar_mochila(i), 60))
+				g2.add_child(celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i)))
 			conteudo.add_child(g2)
-	if sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
+	if vendendo:
+		var d := rotulo("Toque nos itens para marcar ou desmarcar. Itens em pilha vendem a pilha inteira.", 12, APAGADO)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		conteudo.add_child(d)
+	elif sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
 		conteudo.add_child(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
 	elif sel_equip != "" and janela_lugar == "" and P.prog.equip.get(sel_equip) != null: # com a janela aberta, o cartão não repete o Tirar (direção de arte)
 		conteudo.add_child(detalhe(P.prog.equip[sel_equip], -1, sel_equip))
@@ -1366,6 +1396,13 @@ func pagina_trancada(n: int, tem: int) -> Control:
 	return cx
 
 func tocar_mochila(i: int) -> void:
+	if vendendo:
+		if marcados.has(i):
+			marcados.erase(i)
+		elif m.P.prog.mochila[i] != null:
+			marcados[i] = true
+		atualizar()
+		return
 	sel_equip = ""
 	sel_mochila = -1 if sel_mochila == i or m.P.prog.mochila[i] == null else i
 	atualizar()
@@ -1413,9 +1450,146 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if i >= 0 and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
+	if i >= 0: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
+		var ap := botao("Apagar", func(): perguntar_apagar(i), 14)
+		ap.custom_minimum_size = Vector2(110, 36)
+		ap.add_theme_color_override("font_color", PIOR)
+		ap.add_theme_color_override("font_hover_color", PIOR)
+		bs.add_child(ap)
 	txt.add_child(bs)
 	l.add_child(txt)
 	return cx
+
+# ---------- vender vários (André 2026-11-04) ----------
+# fora do modo: botão "Vender vários". No modo: Selecionar tudo / Desmarcar, Vender N · ouro e Pronto.
+# O preço é o mesmo do Vender de um em um (cada pilha vende inteira); online o servidor confere tudo (vender_varios).
+func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
+	var P = m.P
+	var n := 0
+	var ouro := 0
+	var raros := 0
+	for i in marcados.keys():
+		var it = P.prog.mochila[i] if i < P.prog.mochila.size() else null
+		if it == null:
+			marcados.erase(i)
+			continue
+		var q: int = 1 if P.eh_equip(it) else max(1, int(it.get("n", 1)))
+		n += q
+		ouro += P.preco_venda(it) * q
+		if P.eh_equip(it) and int(it.r) >= 2:
+			raros += 1
+	return [n, ouro, raros]
+
+func barra_venda() -> Control:
+	var P = m.P
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 8)
+	if not vendendo:
+		var t := rotulo("Quer vender várias coisas de uma vez?", 13, APAGADO)
+		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		l.add_child(t)
+		var b := botao("Vender vários", func(): modo_vender(true), 14, true)
+		b.custom_minimum_size = Vector2(150, 40)
+		l.add_child(b)
+		return l
+	var cheios: Array = []
+	for i in P.prog.mochila.size():
+		if P.prog.mochila[i] != null:
+			cheios.append(i)
+	var todos: bool = cheios.size() > 0 and marcados.size() >= cheios.size()
+	var sel := botao("Desmarcar tudo" if todos else "Selecionar tudo", func():
+		marcados = {}
+		if not todos:
+			for i in cheios:
+				marcados[i] = true
+		atualizar(), 14)
+	sel.custom_minimum_size = Vector2(150, 40)
+	l.add_child(sel)
+	var r: Array = preco_marcados()
+	var vb := botao("Vender %d · %d de ouro" % [r[0], r[1]] if r[0] > 0 else "Marque os itens", func(): perguntar_vender_varios(), 14, r[0] > 0)
+	vb.custom_minimum_size = Vector2(0, 40)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.disabled = r[0] == 0
+	l.add_child(vb)
+	var pr := botao("Pronto", func(): modo_vender(false), 14)
+	pr.custom_minimum_size = Vector2(100, 40)
+	l.add_child(pr)
+	return l
+
+func modo_vender(ligar: bool) -> void:
+	vendendo = ligar
+	marcados = {}
+	sel_mochila = -1
+	sel_equip = ""
+	if aba != "mochila":
+		aba = "mochila"
+	atualizar()
+
+func perguntar_vender_varios() -> void:
+	var r: Array = preco_marcados()
+	if r[0] == 0:
+		return
+	var txt := "Vender %d %s por %d de ouro?" % [r[0], "item" if r[0] == 1 else "itens", r[1]]
+	if r[2] > 0:
+		txt += "\nAtenção: %d %s Épica%s ou melhor." % [r[2], "peça é" if r[2] == 1 else "peças são", "" if r[2] == 1 else "s"]
+	var lista: Array = marcados.keys()
+	lista.sort()
+	confirmar("Vender de uma vez", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
+
+func perguntar_apagar(i: int) -> void:
+	var P = m.P
+	var it = P.prog.mochila[i]
+	if it == null:
+		return
+	var nome: String = P.nome_item(it)
+	if not P.eh_equip(it) and int(it.get("n", 1)) > 1:
+		nome += " (%d)" % int(it.n)
+	confirmar("Apagar item", "Jogar fora %s?\nO item some para sempre e não dá ouro." % nome, "Apagar", func(): acao_item({"acao": "apagar", "i": i}), true)
+
+# janelinha de confirmação no meio da tela (como a do Mestre Ivo)
+func fechar_confirma() -> void:
+	if _confirma:
+		_confirma.queue_free()
+		_confirma = null
+
+func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false) -> void:
+	fechar_confirma()
+	_confirma = Control.new()
+	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_confirma)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0, 0, 0, 0.5)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_confirma.add_child(escuro)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(FUNDO, (PIOR if perigo else OURO).darkened(0.25), 2, 10, 14))
+	cx.set_anchors_preset(Control.PRESET_CENTER)
+	cx.custom_minimum_size = Vector2(430, 0)
+	cx.position = Vector2(-215, -90)
+	_confirma.add_child(cx)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	cx.add_child(col)
+	col.add_child(rotulo(titulo, 20, OURO_CLARO))
+	var d := rotulo(texto, 15, TEXTO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(d)
+	var linha := HBoxContainer.new()
+	linha.alignment = BoxContainer.ALIGNMENT_END
+	linha.add_theme_constant_override("separation", 10)
+	col.add_child(linha)
+	var nao := botao("Cancelar", fechar_confirma, 15)
+	nao.custom_minimum_size = Vector2(120, 44)
+	linha.add_child(nao)
+	var ok := botao(sim, func():
+		fechar_confirma()
+		fn.call(), 15, true)
+	ok.custom_minimum_size = Vector2(140, 44)
+	if perigo:
+		ok.add_theme_color_override("font_color", PIOR)
+		ok.add_theme_color_override("font_hover_color", PIOR)
+	linha.add_child(ok)
 
 func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	var b := botao(t, func(): acao_item(msg), 14, ativo)
@@ -1736,9 +1910,12 @@ func acao_item(msg: Dictionary) -> void:
 	if msg.acao == "usar" and i >= 0 and P.prog.mochila[i] != null and P.prog.mochila[i].k != "tomo":
 		if not m.usar_pocao(P.prog.mochila[i]): # vida/mana cheia: nem gasta
 			return
-	if msg.acao in ["equipar", "tirar", "vender"]:
+	if msg.acao in ["equipar", "tirar", "vender", "apagar", "vender_varios"]:
 		sel_mochila = -1
 		sel_equip = ""
+	if msg.acao == "vender_varios":
+		vendendo = false
+		marcados = {}
 	if m.on():
 		m.rede("item", msg)
 		return
@@ -1759,7 +1936,13 @@ func acao_item(msg: Dictionary) -> void:
 				P.gastar(i)
 			if P.prog.mochila[i] == null:
 				sel_mochila = -1
-		"vender", "comprar":
+		"apagar":
+			var it = P.prog.mochila[i] if i >= 0 and i < P.prog.mochila.size() else null
+			if it != null:
+				P.prog.mochila[i] = null
+				P.mudou = true
+				m.hud.aviso("Jogou fora %s" % P.nome_item(it))
+		"vender", "comprar", "vender_varios":
 			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
 		"pagina":
 			m.hud.aviso("Páginas da mochila só se compram online (o ouro fica na sua conta)")

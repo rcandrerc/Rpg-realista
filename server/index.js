@@ -18,7 +18,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, troca: 3 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -50,6 +50,12 @@ class SalaClareira extends Room {
     this.ouvir('cancelar', (c) => this.sim.cancelarCanal(c.sessionId)); // andou no meio da magia concentrada
     this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
+    // troca entre jogadores com cadeado (shared/simulacao.js troca): pedir, aceitar, pôr item e ouro, trancar e confirmar
+    this.ouvir('troca', (c, m) => {
+      if (!m || typeof m.acao !== 'string' || m.acao.length > 12) return;
+      const int = (v) => (Number.isInteger(v) && v >= 0 && v < 1e9 ? v : undefined);
+      this.sim.troca(c.sessionId, { acao: m.acao, com: typeof m.com === 'string' ? m.com.slice(0, 32) : undefined, i: int(m.i), n: int(m.n), o: int(m.o), v: m.v === true });
+    });
     // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
     this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, { r: m.r }); });
@@ -90,6 +96,7 @@ class SalaClareira extends Room {
       const r = this.sim.mudarVisual(c.sessionId, String(v));
       if (r && contas && c.auth) contas.salvarVisual(c.auth.id, r);
     });
+    this.sim.aoTrocar = () => this.salvarProgressos(); // troca feita: as duas contas gravam na hora
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
     this.clock.setInterval(() => this.salvarProgressos(), 15000); // nível, XP e skills vão para a conta
   }
