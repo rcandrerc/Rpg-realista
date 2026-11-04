@@ -87,7 +87,7 @@ func passo_estamina(dt: float) -> void:
 	sta = min(sta, mx)
 	var trote: float = float(m.P.dados.heroiCorrer) * float(E.trote)
 	var mov = m.mov
-	var correndo: bool = mov.chao and mov.arrancada == null and mov.esc == null and m.h.lunge == null and mov.velocidade() > trote * 1.12
+	var correndo: bool = mov.chao and mov.arrancada == null and mov.esc == null and m.h.lunge == null and mov.montado.is_empty() and mov.velocidade() > trote * 1.12
 	if correndo:
 		var c := em_combate()
 		sta = max(0.0, sta - float(E.correr) * (float(E.combateK) if c else 1.0) * dt)
