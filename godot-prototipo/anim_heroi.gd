@@ -58,6 +58,10 @@ var _lado := 0.0 # quanto a parte de lado manda (0 = frente/costas, 1 = de lado)
 var _tras := 0.0 # 0 = frente (andar/trote/corrida), 1 = de costas
 var _lr := 0.0 # 0 = esquerda, 1 = direita
 var _len_lado := {}
+# corridinha leve (André 2026-11-04: o passo de lado estava "muito calmo"): atirando, as pernas usam o trote e as
+# corridas de lado/costas com passada curta e ritmo rápido, mesmo na velocidade de quem atira
+const PASSO_LEVE := 1.6 # metros por passada inteira: a 2,3 m/s dá ~0,7 s, o mesmo ritmo do trote
+var _leve := 0.0
 
 func _init(p: AnimationPlayer) -> void:
 	player = p
@@ -289,6 +293,8 @@ func atualizar(dt: float, vel: float) -> void:
 	if tem_trote:
 		corre = smoothstep(ANDAR * 1.05, TROTE * 0.85, vel) # andar -> trote
 		_rapido = move_toward(_rapido, smoothstep(TROTE * 1.03, CORRIDA * 0.92, vel), dt * 5.0) # trote -> corrida
+	_leve = move_toward(_leve, 1.0 if tem_lado and mirando and vel > 0.35 else 0.0, dt * 5.0)
+	corre = lerp(corre, 1.0, _leve)
 	_corre = move_toward(_corre, corre, dt * 5.0)
 	# ritmo: andar e corrida com o mesmo período de passo enquanto misturam (os pés batem juntos)
 	var v: float = max(vel, 0.6)
@@ -299,6 +305,7 @@ func atualizar(dt: float, vel: float) -> void:
 		# período de uma passada inteira: andar -> trote -> corrida (o trote tem 3 passadas por volta)
 		var t_trote: float = PASSO_TROTE / v
 		periodo = lerp(t_andar, lerp(t_trote, t_corrida, _rapido), _corre)
+		periodo = lerp(periodo, PASSO_LEVE / v, _leve)
 		tree.set("parameters/ts_trote/scale", clamp(_len_trote / TROTE_CICLOS / periodo, 0.3, 2.6))
 	tree.set("parameters/ts_andar/scale", clamp(_len_andar / periodo, 0.3, 2.6))
 	tree.set("parameters/ts_corrida/scale", clamp(_len_corrida / periodo, 0.3, 2.6))

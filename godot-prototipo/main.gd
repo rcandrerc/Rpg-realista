@@ -30,6 +30,7 @@ const Conversa = preload("res://conversa.gd")
 const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Rota = preload("res://rota.gd")
+const Construcao = preload("res://construcao.gd")
 const Montaria = preload("res://montaria.gd")
 
 const RAIO := 34.0
@@ -94,6 +95,7 @@ var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o luga
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
+var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
@@ -245,6 +247,10 @@ func _ready() -> void:
 	volta = VoltaVila.new(self)
 	add_child(volta)
 	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
+	construcao = Construcao.new(self)
+	add_child(construcao)
+	hud.construcao = construcao
+	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -1661,7 +1667,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
@@ -1677,7 +1683,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "disparada", "montar"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "disparada", "montar", "construir", "lote", "bancada"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -1795,6 +1801,12 @@ func _tentar(qual: String) -> bool:
 			conversa.tocar_botao()
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
+		"bancada": # perto de uma estação do lote (construcao.gd): bancada = Alfaiate; bigorna ou fornalha = Ferreiro
+			menu.abrir("profissoes", construcao.prof_da_estacao())
+		"construir": # no meu lote: abre ou fecha o modo construção (construcao.gd)
+			construcao.tocar_botao_construir()
+		"lote": # perto da placa de um lote à venda: pergunta se quer comprar
+			construcao.perguntar_compra()
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -1958,11 +1970,29 @@ func basico_magia() -> void:
 func mira_mago():
 	if h.modo != "Magia" or montaria != null or mov.esc != null:
 		return null
-	if not acao.is_empty() and acao.get("basico", false) and vivo(acao.get("alvo")):
-		return acao.alvo
-	if acao.is_empty() and tempo < float(h.mira_ate) and vivo(h.alvo_fixo):
-		return h.alvo_fixo
+	if not acao.is_empty() and acao.get("basico", false) and acao.has("alvo"):
+		if vivo(acao.alvo):
+			return acao.alvo
+		# o alvo morreu no meio do tiro (André 2026-11-04): vira para o mais perto; sem ninguém, cancela a Faísca
+		# (antes o último tiro saía no ar, para onde ele corria)
+		var novo = novo_alvo_mago()
+		if novo != null:
+			acao.alvo = novo
+			return novo
+		if h.modo == "Magia":
+			acao = {}
+		return null
+	if acao.is_empty() and tempo < float(h.mira_ate):
+		if vivo(h.alvo_fixo):
+			return h.alvo_fixo
+		return novo_alvo_mago() # entre um tiro e outro o bicho morreu: já gira para o próximo
 	return null
+
+# o próximo alvo do mago quando o travado morre: o mais perto no alcance da Faísca (vira o novo travado)
+func novo_alvo_mago():
+	var hab: Dictionary = P.hab_pronta("cajado_basico")
+	var e = alvo_travado(hab.alcance + 0.5)
+	return e if e is Dictionary else null
 
 # o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
 # sem voltar para a corrida no meio (era o "pulo" que aparecia no loop do combo)
@@ -1982,6 +2012,11 @@ func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 	elif hab.tipo == "bola": # Bola de Fogo: sai do meio das duas mãos
 		de = (ponto_mao() + ponto_mao_esq()) * 0.5
 	var dir := frente()
+	if hab.get("basico", false) and not vivo(alvo):
+		# Faísca com o alvo morto: vai no novo alvo (mira_mago já virou o corpo); sem ninguém, não sai no ar
+		alvo = acao.get("alvo") if vivo(acao.get("alvo")) else novo_alvo_mago()
+		if alvo == null:
+			return
 	if vivo(alvo):
 		dir = ((alvo.no.position + Vector3(0, 1.0, 0)) - de).normalized()
 	fx.projetil(de, dir, info, hab.dmg, alcance)

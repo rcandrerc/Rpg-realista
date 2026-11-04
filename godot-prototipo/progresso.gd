@@ -281,6 +281,8 @@ func cor_item(it) -> Color:
 		return Color(dados.raridades[int(it.r)].cor)
 	if COR_MAT.has(it.k):
 		return Color(COR_MAT[it.k])
+	if dados.itens.has(it.k) and dados.itens[it.k].has("cor"): # sementes e colheita da horta (cor da planta)
+		return Color(str(dados.itens[it.k].cor))
 	if it.k == "pocao":
 		return Color("ff6b5e")
 	if it.k == "pocao_mana":
@@ -289,11 +291,17 @@ func cor_item(it) -> Color:
 		return Color("d9b4ff")
 	return Color.WHITE
 
+# o que se colhe na horta da Vila dos Lotes (shared/dados.js PLANTAS): ícone de colheita na cor da planta
+const COLHEITA := ["rabanete", "cenoura", "batata", "tomate", "milho", "abobora"]
 static func icone_item(it) -> String:
 	if str(it.k).begins_with("barra_"):
 		return "it_barra"
 	if str(it.k).begins_with("minerio_") or it.k == "carvao" or it.k == "pedra":
 		return "it_minerio"
+	if str(it.k).begins_with("semente_"): # Vila dos Lotes: sementes e o que se colhe na horta (cor de cada planta)
+		return "it_semente"
+	if it.k in COLHEITA:
+		return "it_colheita"
 	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
 	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
 		return "it_%s_aco" % it.k

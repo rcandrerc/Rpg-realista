@@ -941,7 +941,7 @@ func linha_skill(id: String) -> Control:
 	return cx
 
 # ---------- profissões (Parte 3 do Quimera) ----------
-const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer"}
+const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz"}
 const COR_VIGOR := Color(0.55, 0.8, 0.42)
 
 func icone_redondo(nome: String, tam: float, cor := Color.WHITE, borda := OURO) -> Control:
@@ -1084,14 +1084,17 @@ func montar_receitas(prof: String) -> void:
 	conteudo.add_child(linha_vigor())
 	var of: Dictionary = P.dados.oficina[prof]
 	var aqui: bool = m.trabalho.perto_oficina(prof)
-	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Para criar, vá %s." % str(of.onde).replace("na ", "até a ")), 13, VERDE if aqui else APAGADO)
+	# Vila dos Lotes: perto de uma bigorna, fornalha ou bancada construída também dá (cada uma serve para umas receitas)
+	var estacoes := ["bigorna", "fornalha"] if prof == "fer" else ["bancada"]
+	var na_estacao: bool = not aqui and m.construcao != null and m.construcao.estacao_perto(estacoes)
+	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Você está perto da sua estação: dá para criar o que ela faz.") if na_estacao else ("Para criar, vá %s ou a uma %s construída na Vila dos Lotes." % [str(of.onde).replace("na ", "até a "), " ou ".join(estacoes)]), 13, VERDE if aqui or na_estacao else APAGADO)
 	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(st)
 	separador("Receitas · %s Nv %d" % [P.dados.profissoes[prof].nome, P.prof_nivel(prof)])
 	for r in P.dados.receitas:
 		var R: Dictionary = P.dados.receitas[r]
 		if R.prof == prof:
-			conteudo.add_child(linha_receita(r, R, aqui))
+			conteudo.add_child(linha_receita(r, R, aqui or (na_estacao and m.construcao.estacao_perto([m.construcao.estacao_da_receita(R)]))))
 
 func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 	var P = m.P
