@@ -56,9 +56,38 @@ const MIXAMO = {
 // Maw e o golem de magma (Pumpkinhulk repintado), aprovados pela direção de arte 2026-11-04, com as animações do Warrok.
 // Mremireh, Parasite, Mutant e Skeletonzombie foram vetados (humanos zumbis); os FBX ficam no repositório de fontes.
 for (const [nome, altura] of [['Maw', 2.6], ['Pumpkinhulk', 2.4]]) MIXAMO[nome] = { altura, anims: MIXAMO.Warrok.anims };
+// Golpes de monstro (pedido do André 2026-11-04, baixados com o favorito no Mixamo): assets/monstros/mixamo/golpes.json.gz,
+// feito por converter-golpes-mixamo.html. [clipe, início, fim] em segundos: o corte deixa o impacto em 45% da animação
+// (COMBATE.acerto), com uns 0,8 s de preparo antes e 1 s de volta depois. As animações de espada continuam no arquivo.
+// Parado, andar, correr, apanhar e morrer de monstro vieram no mesmo lote (favorito "faltaram"). Rugido fica no Warrok
+// para o futuro (o jogo ainda não usa).
+const BRUTO = { parada: 'mx_mutant_stretching_idle', espada_parada: 'mx_zombie_alert_idle', andar: 'mx_mutant_brutal_walk',
+  corrida: 'mx_mutant_running', apanhar: ['mx_zombie_reaction_hit_flinches', 0, 1.0], morrer: 'mx_mutant_dying_falling_onto_back' };
+const GOLPES = {
+  Warrok: { ...BRUTO, golpe1: ['mx_zombie_overhead_two_hand_attack', 0.8, 2.6], golpe2: ['mx_mutant_jump_attack_to_idle', 0.9, 2.7], rugir: 'mx_mutant_roaring' },
+  Maw: { parada: 'mx_zombie_alert_idle', espada_parada: 'mx_zombie_alert_idle', andar: 'mx_zombie_walking', corrida: 'mx_zombie_run',
+    apanhar: ['mx_zombie_reaction_hit_flinches', 0, 1.0], morrer: 'mx_zombie_getting_hit_and_falling_onto_back',
+    golpe1: ['mx_mutant_attacking_with_left_hand', 0.5, 2.3], golpe2: ['mx_zombie_attack_with_right_hand', 0.6, 2.4] },
+  Pumpkinhulk: { ...BRUTO, golpe1: ['mx_zombie_overhead_two_hand_attack', 0.8, 2.6], golpe2: ['mx_quick_left_handed_punch', 0, 0.8] },
+};
+for (const [nome, g] of Object.entries(GOLPES)) MIXAMO[nome] = { ...MIXAMO[nome], anims: { ...MIXAMO[nome].anims, ...g } };
 {
   const gz = await fetch('assets/personagens/anims.json.gz').then((r) => r.arrayBuffer());
   const cru = JSON.parse(strFromU8(gunzipSync(new Uint8Array(gz))));
+  const gzg = await fetch('assets/monstros/mixamo/golpes.json.gz').then((r) => r.arrayBuffer());
+  const golpes = JSON.parse(strFromU8(gunzipSync(new Uint8Array(gzg))));
+  Object.assign(cru, golpes);
+  const QUADRIL_GOLPES = 76.44; // cm: quadril do Warrok em pé nas animações baixadas nele (o 1º quadro de andar/correr não serve)
+  // recorta [ini, fim] de um clipe e recomeça o tempo do zero
+  const cortar = (a, ini, fim) => ({ d: fim - ini, t: a.t.map(([n, t, v]) => {
+    const w = n.endsWith('.position') ? 3 : 4, ts = [], vs = [];
+    t.forEach((x, i) => { if (x >= ini - 1e-4 && x <= fim + 1e-4) { ts.push(Math.round((x - ini) * 1000) / 1000); vs.push(...v.slice(i * w, i * w + w)); } });
+    if (!ts.length) { // trilha quase parada (2 quadros): fica com o valor de antes do corte
+      let i = 0; while (i + 1 < t.length && t[i + 1] <= ini) i++;
+      ts.push(0, Math.round((fim - ini) * 1000) / 1000); const q = v.slice(i * w, i * w + w); vs.push(...q, ...q);
+    }
+    return [n, ts, vs];
+  }) });
   for (const [nome, cfg] of Object.entries(MIXAMO)) {
     const g = await L.loadAsync('assets/monstros/mixamo/' + nome + '.glb');
     g.scene.updateMatrixWorld(true);
@@ -66,7 +95,8 @@ for (const [nome, altura] of [['Maw', 2.6], ['Pumpkinhulk', 2.4]]) MIXAMO[nome] 
     const quadril = g.scene.getObjectByName('mixamorigHips'), cabeca = g.scene.getObjectByName('mixamorigHead');
     const yq = quadril.position.y; // altura do quadril no espaço do pai (cm, como as animações)
     const clipes = Object.entries(cfg.anims).map(([godot, orig]) => {
-      const a = cru[orig], yAnim = (a.t.find(([n]) => n === 'mixamorigHips.position') || [, , [0, yq, 0]])[2][1];
+      const nomeOrig = Array.isArray(orig) ? orig[0] : orig, inteira = cru[nomeOrig];
+      const a = Array.isArray(orig) ? cortar(inteira, orig[1], orig[2]) : inteira, yAnim = golpes[nomeOrig] ? QUADRIL_GOLPES : (inteira.t.find(([n]) => n === 'mixamorigHips.position') || [, , [0, yq, 0]])[2][1];
       const k = yq / yAnim;
       const trilhas = a.t.filter(([n]) => ossos.has(n.split('.')[0])).map(([n, t, v]) => n.endsWith('.position')
         ? new THREE.VectorKeyframeTrack(n, t, v.map((x) => x * k)) : new THREE.QuaternionKeyframeTrack(n, t, v));

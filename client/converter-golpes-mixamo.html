@@ -1,0 +1,22 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Converter golpes do Mixamo</title></head>
+<body><p>Ferramenta (só no vite dev): lê as animações .fbx do Mixamo em public/tmp-mixamo/anims/ (sem pele, baixadas pelo
+André com o favorito) e devolve o mesmo formato de assets/personagens/anims.json.gz ({nome: {d, t: [[trilha, tempos, valores]]}}).
+O quadril fica parado no chão (x/z do primeiro quadro): quem anda é o jogo, não a animação.</p>
+<script type="module">
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+const nomes = new URLSearchParams(location.search).get('nomes').split(',');
+const r2 = (v, n) => Math.round(v * n) / n, saida = {};
+for (const arq of nomes) {
+  const f = await new FBXLoader().loadAsync('tmp-mixamo/anims/' + arq + '.fbx');
+  const c = f.animations[0];
+  const t = c.tracks.filter((k) => !k.name.endsWith('.scale')).map((k) => {
+    let v = Array.from(k.values);
+    if (k.name === 'mixamorigHips.position') { const x0 = v[0], z0 = v[2]; for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; } }
+    else if (k.name.endsWith('.position')) return null; // só o quadril se move; o resto é rotação
+    v = v.map((x) => r2(x, k.name.endsWith('.position') ? 100 : 10000));
+    return [k.name, Array.from(k.times).map((x) => r2(x, 1000)), v];
+  }).filter(Boolean);
+  saida['mx_' + arq.toLowerCase().replace(/[^a-z0-9]+/g, '_')] = { d: r2(c.duration, 1000), t };
+}
+window.resultado = saida;
+</script></body></html>
