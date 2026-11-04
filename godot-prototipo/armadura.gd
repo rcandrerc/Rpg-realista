@@ -12,6 +12,7 @@ extends RefCounted
 
 const SHADER_METAL := preload("res://armadura.gdshader")
 const SHADER_CAPA := preload("res://capa.gdshader")
+const PanoCapa := preload("res://pano_capa.gd") # física de pano da capa (André 2026-11-04)
 
 # uma linha só de armadura (André): Comum é de couro, do Raro em diante placas de aço com friso
 static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
@@ -117,7 +118,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 			velho.queue_free()
 		if chave == "":
 			continue
-		var no := Node3D.new()
+		# a capa é um modificador do esqueleto: simula o pano depois da pose final do quadro (pano_capa.gd)
+		var no: Node3D = PanoCapa.new() if l == "capa" else Node3D.new()
 		no.name = nome
 		no.set_meta("chave", chave)
 		esq.add_child(no)
@@ -1204,10 +1206,21 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	mi.material_override = _material("capa", r)
 	mi.extra_cull_margin = 0.6
+	if no is PanoCapa:
+		# cada capa tem a grade dela no material (o pano de cada jogador balança do seu jeito)
+		var mat: ShaderMaterial = (_material("capa", r) as ShaderMaterial).duplicate()
+		var g := _grade_capa(mi.mesh)
+		mat.set_shader_parameter("grade0", g)
+		mat.set_shader_parameter("grade", g)
+		mat.set_shader_parameter("pano", 1.0)
+		mi.material_override = mat
+		mi.extra_cull_margin = 1.5
 	# a malha foi feita no espaço do personagem em T; o osso em descanso leva para lá
 	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G()
 	ba.add_child(mi)
 	no.set_meta("capa_mi", mi)
+	if no is PanoCapa:
+		no.preparar(esq, mi, mi.material_override.get_shader_parameter("grade0"))
 	# fechos dourados nos ombros
 	for s in [-1.0, 1.0]:
 		var f := MeshInstance3D.new()
@@ -1222,6 +1235,17 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 		var R := _ref(esq)
 		f.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G() * Transform3D(Basis(Vector3.RIGHT, PI * 0.5).rotated(Vector3.UP, s * 0.5), Vector3(s * 0.085, R.y_pescoco - 0.035, 0.035))
 		ba.add_child(f)
+
+# pontos da grade do pano (pano_capa.gd): vértices de fora da malha nas colunas 0, 2, ... 14 e linhas 0, 3, ... 18
+static func _grade_capa(m: Mesh) -> PackedVector3Array:
+	var V: PackedVector3Array = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var g := PackedVector3Array()
+	var pc: int = PanoCapa.COLS
+	var pl: int = PanoCapa.LINHAS
+	for j in pl:
+		for i in pc:
+			g.append(V[(j * CAPA_LINHAS / (pl - 1)) * (CAPA_COLS + 1) + i * CAPA_COLS / (pc - 1)])
+	return g
 
 # costas do corpo na altura y: o z mais de trás da blusa (para a capa não atravessar)
 static func _costas(S: Solda, y: float, x: float) -> float:

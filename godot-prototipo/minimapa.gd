@@ -12,8 +12,8 @@ const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
 # o minimapa subiu para não encostar nas skills)
 const ALCANCE := 46.0 # metros do centro até a borda do minimapa
-const COR_BICHO := {"puglin": Color("b98cff"), "imp": Color("ff8f45"), "lobo": Color("a9d6ff"), "chefe": Color("ff4a4a")}
-const NOME_BICHO := {"puglin": "Puglins", "imp": "Imps", "lobo": "Lobos"}
+const COR_BICHO := {"puglin": Color("b98cff"), "imp": Color("ff8f45"), "lobo": Color("a9d6ff"), "chefe": Color("ff4a4a"), "golem": Color("ff7a1a"), "maw": Color("9cff5a"), "warrok": Color("ffcc40")}
+const NOME_BICHO := {"puglin": "Puglins", "imp": "Imps", "lobo": "Lobos", "golem": "Golens", "maw": "Maws"}
 const COR_OURO := Color("e9c46a")
 const COR_FUNDO := Color(0.06, 0.07, 0.05, 0.85)
 

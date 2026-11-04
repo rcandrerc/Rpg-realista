@@ -13,6 +13,10 @@ var seguida := {"k": 1.0, "t": -9.0}
 var combate_ate := -9.0
 var coletaveis: Array = [] # {id, tipo, pos, r, no (veio), minerio (pedaços que somem esgotado), cargas, volta_ate}
 var por_id := {}
+# Desde 2026-11-03 todas as ~900 árvores da mata dão lenha: o botão procura só nas 9 casas de 6 m em volta do herói
+# (grade), e o que precisa olhar todo quadro (veio que voltou, câmera dentro da pedra) anda só pelos veios.
+var veios: Array = []
+var grade := {} # Vector2i(casa de 6 m) -> [coletáveis]
 var coletando = null # {c, dur, t, n (golpes dados), prof}
 var ferramentas := {} # "min" -> picareta, "len" -> machado
 var perto = null # coletável mais perto (para o botão)
@@ -39,8 +43,13 @@ func _ready() -> void:
 		o.pos.y = m.terreno.altura(o.pos.x, o.pos.z)
 		if o.tipo != "arvore":
 			_montar_veio(o, float(c.get("ry", 0.0)))
+			veios.append(o)
 		coletaveis.append(o)
 		por_id[o.id] = o
+		var k := Vector2i(floori(o.pos.x / 6.0), floori(o.pos.z / 6.0))
+		if not grade.has(k):
+			grade[k] = []
+		grade[k].append(o)
 	ferramentas["min"] = _ferramenta("res://ferramentas3d/Pickaxe_Bronze.gltf")
 	ferramentas["len"] = _ferramenta("res://ferramentas3d/Axe_Bronze.gltf", 1.05) # o machado é mais fino: um pouco maior para ler na mão
 
@@ -314,8 +323,8 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 
 # a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
 func dentro_de_pedra(p: Vector3) -> bool:
-	for o in coletaveis:
-		if o.tipo != "arvore" and p.y < o.pos.y + 1.4 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0:
+	for o in veios:
+		if p.y < o.pos.y + 1.4 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0:
 			return true
 	return false
 
@@ -327,7 +336,7 @@ func _process(dt: float) -> void:
 	if m.heroi == null:
 		return
 	# veio que voltou: o minério aparece de novo
-	for o in coletaveis:
+	for o in veios:
 		if o.has("corpo") and not o.corpo.visible and not esgotado(o):
 			_mostrar_veio(o, true)
 			o.cargas = -1
@@ -335,7 +344,7 @@ func _process(dt: float) -> void:
 	perto = null
 	if m.h.morto <= 0.0 and m.mov.esc == null:
 		var md: float = float(m.P.dados.coletaDistancia) - 0.25
-		for o in coletaveis:
+		for o in _perto_do_heroi():
 			var d: float = Vector2(o.pos.x - m.heroi.position.x, o.pos.z - m.heroi.position.z).length() - o.r
 			if d < md and not esgotado(o) and abs(o.pos.y - m.heroi.position.y) < 1.5:
 				md = d
@@ -354,6 +363,18 @@ func _process(dt: float) -> void:
 		ic = "pf_" + coletando.prof
 	m.hud.mostrar_botao("coletar", perto != null or coletando != null)
 	m.hud.icone_botao("coletar", ic)
+
+# coletáveis nas 9 casas da grade em volta do herói (a distância de coleta é bem menor que 6 m)
+func _perto_do_heroi() -> Array:
+	var l: Array = []
+	var i := floori(m.heroi.position.x / 6.0)
+	var j := floori(m.heroi.position.z / 6.0)
+	for a in range(i - 1, i + 2):
+		for b in range(j - 1, j + 2):
+			var c = grade.get(Vector2i(a, b))
+			if c != null:
+				l.append_array(c)
+	return l
 
 # perto da oficina (forja do Tomás ou banca da Rosa)? O servidor confere a mesma distância.
 func perto_oficina(prof: String) -> bool:

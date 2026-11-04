@@ -1,6 +1,11 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "Monstros do Mixamo com golpes, andar, correr, apanhar e morrer de monstro (André 2026-11-04)", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["assets/monstros/mixamo/golpes.json.gz", "const GOLPES = {", "const cortar = (a, ini, fim)"] },
+    { "nome": "Todas as árvores da mata dão lenha (ids m0...) e o botão procura pela grade (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["(mapa.mata || []).map((a, i) => ['m' + i", "for (const o of mapa.cenario?.solidos || [])"] },
+    { "nome": "Cenário da mata: marcos (ruínas, portal, santuário, rochedos, troncos caídos, árvore morta, acampamento) e mato solto (André 2026-11-03)", "arquivo": "shared/dados.js", "contem": ["const CONJUNTOS = {", "function montarCenario(", "function sortearEnfeites(", "MAPA_CLAREIRA.cenario = {"] },
+    { "nome": "Godot desenha o cenário da mata em MultiMesh e colide com ele", "arquivo": "godot-prototipo/cenario.gd", "contem": ["func _malhas(", "func _lugar(", "res://cenario3d/%s.glb"] },
+    { "nome": "Godot: árvores da mata no botão Coletar e cenário na grade de colisão", "arquivo": "godot-prototipo/trabalho.gd", "contem": ["func _perto_do_heroi(", "var grade := {}"] },
     { "nome": "Lobo montável no app: botão do lobo, Ruiva agarrada na juba, balanço do galope (André 2026-11-03)", "arquivo": "godot-prototipo/montaria.gd", "contem": ["const DADOS := {\"lobo\"", "func passo(dt: float, vel: float)", "class Rabo extends SkeletonModifier3D"] },
     { "nome": "Pose de montado (tronco agachado, mãos na juba, pernas no flanco)", "arquivo": "godot-prototipo/cavalgar.gd", "contem": ["func _alcancar(", "func _agarrar(", "const DEITA :="] },
     { "nome": "Montar e descer do lobo no herói", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_lobo(", "func armas_montado(", "func colisor_espada(", "\"montar\": # botão do lobo"] },
@@ -70,6 +75,9 @@
     { "nome": "Arrancada em rampa e curva em arco (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func _inercia(", "const ACELERA_FIM", "const CURVA_CORRENDO"] },
     { "nome": "Trote com a animação própria (Mixamo Jogging) entre o andar e a corrida (André 2026-11-03)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["tem_trote = player.has_animation(\"trote\")", "bt.connect_node(\"rapido\", 0, \"ts_trote\")", "const PASSO_TROTE"] },
     { "nome": "Animação trote exportada no herói (André 2026-11-03)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["trote: 'trote'"] },
+    { "nome": "Mago atirando anda de lado e de costas virado para o alvo (André 2026-11-04)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["const LADO_ANIMS", "bt.connect_node(\"mexe\", 1, \"lado\")", "tree.set(\"parameters/lado/blend_amount\", _lado)"] },
+    { "nome": "Mira do mago entre os tiros da Faísca (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["func mira_mago()", "h.mira_ate = tempo + g.dur + 0.6", "heroi_anim.mirando = alvo_mira != null"] },
+    { "nome": "Animações de lado e de costas exportadas no herói (André 2026-11-04)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["lado_e_andar: 'lado_e_andar'", "tras_correr: 'tras_correr'"] },
     { "nome": "Freada, meia-volta e curva com derrapada também no trote, não só na corrida (André 2026-11-03)", "arquivo": "godot-prototipo/andar.gd", "contem": ["const FREADA_MIN := 3.3", "const MEIA_VOLTA_MIN := 3.3", "const FREADA_TROTE", "const CURVA_TROTE", "* CURVA_TROTE +"] },
     { "nome": "Trote não gasta estamina por oscilação da rede (média de 0,3 s no servidor) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["j.janCorrida", "if (jan.t >= 0.3)"] },
     { "nome": "Freada com derrapada e meia-volta do Mixamo (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func iniciar_manobra(", "iniciar_manobra(\"freada\"", "iniciar_manobra(\"meia_volta\"", "func _passo_manobra("] },
@@ -104,6 +112,8 @@
     { "nome": "Minérios e barras (PR #57/#60)", "arquivo": "shared/dados.js", "contem": ["minerio_ferro:", "minerio_cobre:", "cristal:", "barra_ferro:"] },
     { "nome": "Armadura aparece no corpo: capacete, peitoral, calça/short, botas e capa (PR #59)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func vestir(raiz: Node3D, equip) -> void:", "static func _montar_elmo(", "static func _cabelo(", "static func _malha_capa(", "static func vento("] },
     { "nome": "Lugares Capacete, Camisa, Calça ou Short, Botas, Capa, Acessório e Arma (PR #59)", "arquivo": "shared/dados.js", "contem": ["export const LUGARES = ['cabeca', 'corpo', 'pernas', 'capa', 'pes', 'acessorio', 'espada', 'cajado'];", "peitoral: { nome: 'Peitoral'", "short: { nome: 'Short'", "chapeu: { nome: 'Capacete'"] },
+    { "nome": "Capa com física de pano: gravidade do mundo, vento da corrida, bate no corpo e no lobo, não sobe montada (André 2026-11-04)", "arquivo": "godot-prototipo/pano_capa.gd", "contem": ["extends SkeletonModifier3D", "func _process_modification() -> void:", "var teto := _p[k % COLS].y + 0.04", "s.get_meta(\"pano_extra\", [])"] },
+    { "nome": "Lombo do lobo segura a capa montada (André 2026-11-04)", "arquivo": "godot-prototipo/montaria.gd", "contem": ["func _lombo_na_capa(", "cav_esq.set_meta(\"pano_extra\""] },
     { "nome": "Capa voa para trás correndo, sente curva e pulo (André 2026-11-03)", "arquivo": "godot-prototipo/capa.gdshader", "contem": ["d = vec3(d.x, d.y * c - d.z * sn, d.y * sn + d.z * c);", "instance uniform float lado", "instance uniform float sobe"] },
     { "nome": "Cabelo dentro do capacete segue a cabeça (não atravessa correndo) e tecido na cor da raridade (André 2026-11-03)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func _bind_cabeca(", "const TECIDO :=", "var rigido := smoothstep("] },
     { "nome": "Placas com reflexo de metal (não plástico) (André 2026-11-03)", "arquivo": "godot-prototipo/armadura.gdshader", "contem": ["vec3 rf = reflect(-VIEW, NORMAL);", "varying vec3 v_env;"] },
@@ -187,6 +197,9 @@
     {"nome": "Lotes guardados no banco do servidor", "arquivo": "server/contas.js", "contem": ["CREATE TABLE IF NOT EXISTS lotes", "reservarLote(id, dono, nome)"]},
     {"nome": "Mensagens da Vila dos Lotes no servidor", "arquivo": "server/index.js", "contem": ["this.ouvir('lote'", "this.ouvir('construir'", "this.ouvir('desmontar'", "this.ouvir('horta'", "this.sim.enviarLotes("]},
     {"nome": "Modo construção e fazenda do app (Quimera)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func abrir()", "func colocar()", "func perguntar_compra()", "func do_servidor_lote(", "func _modelo_fornalha()"]},
-    {"nome": "Terra arada natural (bordas irregulares, sem grama por cima)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _malha_terra(", "func _grama_sob_horta(", "func _mask_horta("]}
+    {"nome": "Terra arada natural (bordas irregulares, sem grama por cima)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _malha_terra(", "func _grama_sob_horta(", "func _mask_horta("]},
+    { "nome": "Monstros do Mixamo: Golem de Magma, Maw e Warrok chefe nas clareiras 11 e 12", "arquivo": "shared/dados.js", "contem": ["{ id: 'caca11', tipo: 'golem'", "{ id: 'caca12', tipo: 'maw'", "chefe: true"] },
+    { "nome": "Monstros do Mixamo: visual anime (shader, contorno, olhos acesos)", "arquivo": "godot-prototipo/main.gd", "contem": ["func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:", "res://monstro.gdshader"] },
+    { "nome": "Monstros do Mixamo: exportação com as animações do jogo", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["const MIXAMO = {"] }
   ]
 }

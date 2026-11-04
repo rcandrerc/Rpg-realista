@@ -67,6 +67,8 @@ export class Simulacao {
     this.coletaveis = new Map([
       ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO, ...(v.mina ? { mina: v.mina } : {}) }]),
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
+      ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO })),
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
@@ -80,6 +82,13 @@ export class Simulacao {
       const k = Math.floor(a.x / 6) * 10007 + Math.floor(a.z / 6);
       if (!this.mata.has(k)) this.mata.set(k, []);
       this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s });
+    }
+    // ruínas, rochedos, troncos caídos e pedras da mata (MAPA_CLAREIRA.cenario): na mesma grade (são todos menores que 2 m
+    // de raio, e quem pergunta olha as 9 casas em volta)
+    for (const o of mapa.cenario?.solidos || []) {
+      const k = Math.floor(o.x / 6) * 10007 + Math.floor(o.z / 6);
+      if (!this.mata.has(k)) this.mata.set(k, []);
+      this.mata.get(k).push({ x: o.x, z: o.z, r: o.r, ...(o.alto != null ? { alto: o.alto } : {}) });
     }
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
@@ -491,7 +500,7 @@ export class Simulacao {
   // golpe do Quimera: dano (com crítico) e o inimigo voa para longe do ponto p
   bater(j, o, n, h, p = j) {
     this.ferir(o, n, j, h);
-    if (o.morto || !h.empurra || o.tipo === 'chefe' || o.firmeAte > this.tempo) return;
+    if (o.morto || !h.empurra || o.tipo === 'chefe' || TIPOS_INIMIGO[o.tipo]?.chefe || o.firmeAte > this.tempo) return;
     const d = Math.hypot(o.x - p.x, o.z - p.z) || 1, t = 0.22;
     o.dash = { vx: (o.x - p.x) / d * h.empurra / t, vz: (o.z - p.z) / d * h.empurra / t, t };
   }
@@ -507,7 +516,7 @@ export class Simulacao {
     if (d > 0.3 && !this.guiado(j)) this.empurrar(j, d, dur);
   }
   soltarQ(j, h, alvo, m) {
-    const t = h.tipo, chefe = (o) => o.tipo === 'chefe';
+    const t = h.tipo, chefe = (o) => o.tipo === 'chefe' || !!TIPOS_INIMIGO[o.tipo]?.chefe;
     if (t === 'basicoEspada') {
       const cb = j.comboQ || { n: -1, fim: 0 };
       const n = this.tempo - cb.fim > h.comboZera ? 0 : (cb.n + 1) % h.combo.length, g = h.combo[n];
@@ -1211,10 +1220,11 @@ export class Simulacao {
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
     if (h && alvo.tipo !== 'jogador' && alvo.vida > 0) {
-      const ate = (s) => this.tempo + s * (alvo.tipo === 'chefe' ? 0.5 : 1); // chefe sofre metade
+      const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe;
+      const ate = (s) => this.tempo + s * (ehChefe ? 0.5 : 1); // chefe sofre metade
       if (h.atordoa) { alvo.parado = Math.max(alvo.parado || 0, ate(h.atordoa)); alvo.ef = 'atordoado'; }
       if (h.congela) { alvo.parado = Math.max(alvo.parado || 0, ate(h.congela)); alvo.ef = 'congelado'; }
-      const meio = alvo.tipo === 'chefe' ? 0.5 : 1; // no chefe lentidão e Quebrado valem metade
+      const meio = ehChefe ? 0.5 : 1; // no chefe lentidão e Quebrado valem metade
       if (h.lento) alvo.lento = { k: h.lento.k * meio, ate: this.tempo + h.lento.dur };
       if (h.vulneravel) alvo.vuln = { k: h.vulneravel.k * meio, ate: this.tempo + h.vulneravel.dur };
       if (h.atordoa || h.congela) { alvo.trava = 0; alvo.acao = null; }
@@ -1232,7 +1242,7 @@ export class Simulacao {
     }
     if (alvo.vida <= 0) {
       this.morrer(alvo);
-      if (alvo.tipo !== 'jogador' && de && alvo.tipo !== 'chefe') { // o golpe final joga o corpo para trás
+      if (alvo.tipo !== 'jogador' && de && !ehChefe) { // o golpe final joga o corpo para trás
         const d = Math.hypot(alvo.x - de.x, alvo.z - de.z) || 1, t = 0.35, m = COMBATE_INIMIGO.voaMorte;
         alvo.dash = { vx: (alvo.x - de.x) / d * m / t, vz: (alvo.z - de.z) / d * m / t, t };
       }
