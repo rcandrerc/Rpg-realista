@@ -344,7 +344,18 @@ export const CACA = [
 // Nível dos monstros: cada nível acima do 1 soma uma fração da vida, do dano, do XP e do ouro de base (TIPOS_INIMIGO,
 // XP_INIMIGO e DROPS). A curva acompanha o herói (dano +8%/nível mais os pontos e o equipamento); XP cai quando o herói
 // passa muito do nível do bicho (acima de "folga" níveis, perde "perde" por nível, até "min").
-export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1 };
+// Diferença de nível igual ao Quimera (André 2026-11-04, "o dano vai diminuindo de acordo com o nível"):
+//  - monstro acima do herói bate +danoAcima por nível; herói acima do monstro apanha -danoAbaixo por nível (até danoAbaixoMin)
+//  - um golpe de monstro nunca tira mais que teto (chefe: tetoChefe) da vida máxima, vezes o mesmo desconto
+//  - herói bate menos em monstro com mais de golpeFolga níveis acima (-golpeCai por nível, até golpeMin) e mais no de
+//    nível abaixo (+golpeSobe por nível, até golpeMax)
+//  - XP: monstro 2+ níveis acima dá +xpSobe por nível (até xpMax); herói 3+ níveis acima perde xpCai por nível (até xpMin)
+//  - nome do monstro: cinza (fácil) com corFacil níveis ou menos, vermelho (perigo) com corForte ou mais, verde no meio
+// folga, perde e min eram a regra de XP de antes (sem uso desde 2026-11-04, ficam por causa da regra "Nada some").
+export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1,
+  danoAcima: 0.06, danoAbaixo: 0.05, danoAbaixoMin: 0.55, teto: 0.3, tetoChefe: 0.45,
+  golpeFolga: 3, golpeCai: 0.06, golpeMin: 0.6, golpeSobe: 0.04, golpeMax: 1.4,
+  xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, corFacil: -3, corForte: 2 };
 export const statusInimigo = (tipo, nivel = 1) => {
   const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
   return { vida: Math.round(t.vida * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (1 + NIVEL_INIMIGO.dano * k)) };

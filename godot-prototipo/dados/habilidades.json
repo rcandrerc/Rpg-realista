@@ -1360,6 +1360,22 @@
   "ouro": 0.15,
   "folga": 5,
   "perde": 0.15,
-  "min": 0.1
+  "min": 0.1,
+  "danoAcima": 0.06,
+  "danoAbaixo": 0.05,
+  "danoAbaixoMin": 0.55,
+  "teto": 0.3,
+  "tetoChefe": 0.45,
+  "golpeFolga": 3,
+  "golpeCai": 0.06,
+  "golpeMin": 0.6,
+  "golpeSobe": 0.04,
+  "golpeMax": 1.4,
+  "xpSobe": 0.15,
+  "xpMax": 1.6,
+  "xpCai": 0.2,
+  "xpMin": 0.15,
+  "corFacil": -3,
+  "corForte": 2
  }
 }

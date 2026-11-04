@@ -956,10 +956,69 @@ func xp_do_inimigo(e: Dictionary) -> int:
 	var N: Dictionary = P.dados.get("nivelInimigo", {})
 	var nv := int(e.get("nivel", 1))
 	var base: float = float(P.dados.xpInimigo.get(e.tipo, 5)) * (1.0 + float(N.get("xp", 0.0)) * max(0, nv - 1))
-	var sobra: float = int(P.prog.nivel) - nv - float(N.get("folga", 99))
-	if sobra > 0.0:
-		base *= max(float(N.get("min", 0.1)), 1.0 - float(N.get("perde", 0.15)) * sobra)
+	if N.has("xpSobe"): # diferença de nível igual ao Quimera (xpNivel de shared/progresso.js)
+		var d: int = nv - int(P.prog.nivel)
+		if d >= 2:
+			base *= min(float(N.xpMax), 1.0 + float(N.xpSobe) * (d - 1))
+		else:
+			base *= clampf(1.0 - float(N.xpCai) * (-d - 2), float(N.xpMin), 1.0)
+	else: # dados antigos sem os números do Quimera
+		var sobra: float = int(P.prog.nivel) - nv - float(N.get("folga", 99))
+		if sobra > 0.0:
+			base *= max(float(N.get("min", 0.1)), 1.0 - float(N.get("perde", 0.15)) * sobra)
 	return max(1, roundi(base))
+
+# Diferença de nível como no Quimera (danoMonstroNivel, tetoMonstroNivel e golpeHeroiNivel de shared/progresso.js).
+# d = nível do monstro - nível do herói. Sem os números (dados antigos) tudo fica 1.
+func _desconto_abaixo(N: Dictionary, d: int) -> float:
+	return max(float(N.danoAbaixoMin), 1.0 - float(N.danoAbaixo) * -d) if d < 0 else 1.0
+
+func dano_monstro_nivel(nv: int) -> float:
+	var N: Dictionary = P.dados.get("nivelInimigo", {})
+	if not N.has("danoAcima"):
+		return 1.0
+	var d: int = nv - int(P.prog.nivel)
+	return (1.0 + float(N.danoAcima) * max(0, d)) * _desconto_abaixo(N, d)
+
+func teto_monstro_nivel(nv: int, chefe: bool) -> float:
+	var N: Dictionary = P.dados.get("nivelInimigo", {})
+	if not N.has("teto"):
+		return 99.0
+	return float(N.tetoChefe if chefe else N.teto) * _desconto_abaixo(N, nv - int(P.prog.nivel))
+
+func golpe_heroi_nivel(nv: int) -> float:
+	var N: Dictionary = P.dados.get("nivelInimigo", {})
+	if not N.has("golpeFolga"):
+		return 1.0
+	var d: int = nv - int(P.prog.nivel)
+	if d > int(N.golpeFolga):
+		return max(float(N.golpeMin), 1.0 - float(N.golpeCai) * (d - int(N.golpeFolga)))
+	if d < 0:
+		return min(float(N.golpeMax), 1.0 + float(N.golpeSobe) * -d)
+	return 1.0
+
+# cor do nome pelo nível (Quimera): cinza = fácil, verde = no seu nível, vermelho = mais forte que você
+func cor_nivel(nv: int) -> Color:
+	var N: Dictionary = P.dados.get("nivelInimigo", {})
+	var d: int = nv - int(P.prog.nivel)
+	if d <= int(N.get("corFacil", -3)):
+		return Color(0.66, 0.69, 0.66)
+	if d >= int(N.get("corForte", 2)):
+		return Color(1.0, 0.42, 0.35)
+	return Color(0.55, 1.0, 0.48)
+
+var _nivel_cores := -1
+func colorir_niveis() -> void: # quando o herói sobe de nível, os nomes dos monstros trocam de cor
+	if _nivel_cores == int(P.prog.nivel):
+		return
+	_nivel_cores = int(P.prog.nivel)
+	for e in inimigos:
+		if not e.has("nivel") or e.get("treino", false):
+			continue
+		for l in e.no.get_children():
+			if l is Label3D:
+				l.modulate = cor_nivel(int(e.nivel))
+				break
 
 func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	var no := modelo(id)
@@ -1176,6 +1235,8 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		dmg *= 2.0
 	if e.vuln > tempo:
 		dmg *= 1.0 + e.vuln_k
+	if e.has("nivel"): # diferença de nível (Quimera)
+		dmg *= golpe_heroi_nivel(int(e.nivel))
 	if h.get("contra_ate", 0.0) > tempo: # contra-ataque depois da esquiva (como Simulacao.ferir)
 		dmg *= float(D.COMBATE.contraK)
 		crit = true
@@ -2162,6 +2223,7 @@ func _process(dt: float) -> void:
 	hud.texto_vida = "%d/%d" % [ceil(h.vida), P.st.vidaMax]
 	hud.texto_mana = "%d/%d" % [floor(h.mana), P.st.manaMax]
 	hud.nivel = P.prog.nivel
+	colorir_niveis()
 	hud.xp = float(P.prog.xp) / max(1, P.xp_prox)
 	hud.escudo = h.escudo > 0.0 and h.escudo_ate > tempo
 	var barra: Array = barra_atual()
@@ -2616,6 +2678,10 @@ func criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 	var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, 1.15 if tipo == "chefe" else 1.0)
 	e.tipo = tipo
 	e.nivel = nv
+	for l in e.no.get_children(): # cor do nome pelo nível (Quimera); colorir_niveis troca quando o herói sobe
+		if l is Label3D:
+			l.modulate = cor_nivel(nv)
+			break
 	if tipo == "lobo": # bicho de quatro patas: nome e barra mais perto do lombo
 		e.alto = 1.45
 	var st: Dictionary = c.get("status", {}).get(tipo, {}) # vida e dano no nível do campo (statusInimigo do servidor)
@@ -2882,7 +2948,8 @@ func atualizar_inimigos(dt: float) -> void:
 					h.contra_ate = tempo + D.COMBATE.contraDur # rolou ou deu dash na hora: esquiva e contra-ataque
 					combate.esquiva(heroi)
 				elif d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.esc == null:
-					ferir_heroi(float(e.get("dano", D.INIMIGO.dmg)))
+					var nv_e: int = int(e.get("nivel", P.prog.nivel)) # diferença de nível (Quimera): dano e teto por golpe
+					ferir_heroi(float(e.get("dano", D.INIMIGO.dmg)) * dano_monstro_nivel(nv_e), teto_monstro_nivel(nv_e, e.get("tipo", "") == "chefe"))
 					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
@@ -2950,11 +3017,12 @@ func atualizar_inimigos(dt: float) -> void:
 			elif e.anim.current_animation != "espada_parada":
 				e.anim.play("espada_parada", 0.2)
 
-func ferir_heroi(dmg: float) -> void:
+func ferir_heroi(dmg: float, teto := 99.0) -> void:
 	trabalho.combate()
 	if trabalho.coletando != null:
 		trabalho.parar(false)
 	dmg = max(1.0, round(dmg * (1.0 - P.st.reducao)))
+	dmg = max(1.0, min(dmg, round(float(P.st.vidaMax) * teto))) # um golpe não tira mais que o teto da vida (Quimera)
 	if h.escudo > 0.0 and h.escudo_ate > tempo: # Escudo Arcano segura primeiro
 		var seg: float = min(h.escudo, dmg)
 		h.escudo -= seg
