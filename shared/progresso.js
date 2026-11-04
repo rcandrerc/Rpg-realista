@@ -17,8 +17,30 @@ export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20,
 // XP de um monstro de nível nv (campos de caça) para um herói de nível nh: sobe com o nível do bicho e cai quando o
 // herói passou muito dele (NIVEL_INIMIGO em shared/dados.js)
 export const xpDoInimigo = (tipo, nv, nh, N) => {
-  const base = (XP_INIMIGO[tipo] || 5) * (1 + N.xp * Math.max(0, (nv || 1) - 1)), sobra = (nh || 1) - (nv || 1) - N.folga;
-  return Math.max(1, Math.round(base * (sobra > 0 ? Math.max(N.min, 1 - N.perde * sobra) : 1)));
+  const base = (XP_INIMIGO[tipo] || 5) * (1 + N.xp * Math.max(0, (nv || 1) - 1));
+  return Math.max(1, Math.round(base * xpNivel(nv, nh, N)));
+};
+// Diferença de nível como no Quimera (números em NIVEL_INIMIGO de shared/dados.js). d = nível do monstro - nível do herói.
+export const xpNivel = (nv, nh, N) => {
+  const d = (nv || 1) - (nh || 1);
+  return d >= 2 ? Math.min(N.xpMax, 1 + N.xpSobe * (d - 1)) : Math.min(1, Math.max(N.xpMin, 1 - N.xpCai * (-d - 2)));
+};
+// monstro batendo no herói: mais forte acima, mais fraco abaixo
+export const danoMonstroNivel = (nv, nh, N) => {
+  const d = (nv || 1) - (nh || 1);
+  return (1 + N.danoAcima * Math.max(0, d)) * (d < 0 ? Math.max(N.danoAbaixoMin, 1 - N.danoAbaixo * -d) : 1);
+};
+// maior pedaço da vida máxima que um golpe de monstro pode tirar
+export const tetoMonstroNivel = (nv, nh, chefe, N) => {
+  const d = (nv || 1) - (nh || 1);
+  return (chefe ? N.tetoChefe : N.teto) * (d < 0 ? Math.max(N.danoAbaixoMin, 1 - N.danoAbaixo * -d) : 1);
+};
+// herói batendo no monstro: fraco em quem está muito acima, mais forte em quem está abaixo
+export const golpeHeroiNivel = (nv, nh, N) => {
+  const d = (nv || 1) - (nh || 1);
+  if (d > N.golpeFolga) return Math.max(N.golpeMin, 1 - N.golpeCai * (d - N.golpeFolga));
+  if (d < 0) return Math.min(N.golpeMax, 1 + N.golpeSobe * -d);
+  return 1;
 };
 
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)

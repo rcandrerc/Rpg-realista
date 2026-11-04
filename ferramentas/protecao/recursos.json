@@ -192,6 +192,11 @@
     { "nome": "Ir para do mapa: marcar lugar e botão no mapa completo", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func _toque_no_mapa(pos: Vector2) -> void:", "\"Ir para\"", "m.rota.ir(r)"] },
     { "nome": "Ir para do mapa: rota vira o joystick", "arquivo": "godot-prototipo/main.gd", "contem": ["return rota.direcao_auto()"] },
     { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] },
+    { "nome": "Monstros agressivos: até 4 batem juntos, perseguem correndo e quem bateu dá folga (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["b.folgaAte = this.tempo + b.trava + CI.folga", "CI.chegarDist ? CI.perseguir : CI.chegar"] },
+    { "nome": "Monstros agressivos no modo sozinho (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["e.folga_ate = tempo + e.golpe_dur", "float(D.COMBATE.perseguir)"] },
+    { "nome": "Diferença de nível igual ao Quimera: dano, teto por golpe e XP (André 2026-11-04)", "arquivo": "shared/progresso.js", "contem": ["export const danoMonstroNivel", "export const tetoMonstroNivel", "export const golpeHeroiNivel", "export const xpNivel"] },
+    { "nome": "Diferença de nível aplicada no servidor", "arquivo": "shared/simulacao.js", "contem": ["danoMonstroNivel(nvM, alvo.prog?.nivel, NIVEL_INIMIGO)", "golpeHeroiNivel(alvo.nivel, de.prog?.nivel, NIVEL_INIMIGO)"] },
+    { "nome": "Diferença de nível no app: cor do nome e modo sozinho", "arquivo": "godot-prototipo/main.gd", "contem": ["func cor_nivel(nv: int) -> Color:", "func colorir_niveis() -> void:", "dano_monstro_nivel(nv_e)", "golpe_heroi_nivel(int(e.nivel))"] },
     { "nome": "Monstros do Mixamo: Golem de Magma, Maw e Warrok chefe nas clareiras 11 e 12", "arquivo": "shared/dados.js", "contem": ["{ id: 'caca11', tipo: 'golem'", "{ id: 'caca12', tipo: 'maw'", "chefe: true"] },
     { "nome": "Monstros do Mixamo: visual anime (shader, contorno, olhos acesos)", "arquivo": "godot-prototipo/main.gd", "contem": ["func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:", "res://monstro.gdshader"] },
     { "nome": "Monstros do Mixamo: exportação com as animações do jogo", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["const MIXAMO = {"] }
