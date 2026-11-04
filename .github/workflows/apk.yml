@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: godot-prototipo/modelos
-          key: modelos-v1-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
       - name: Chromium para exportar os modelos
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
@@ -70,8 +70,13 @@ jobs:
           path: |
             godot-prototipo/.godot
             godot-prototipo/**/*.import
-          key: godot-import-v1-${{ env.GODOT }}-${{ hashFiles('godot-prototipo/**', 'client/**', '!client/node_modules/**', 'shared/**') }}
-          restore-keys: godot-import-v1-${{ env.GODOT }}-
+          key: godot-import-v2-${{ env.GODOT }}-${{ hashFiles('godot-prototipo/**', 'client/**', '!client/node_modules/**', 'shared/**') }}
+          restore-keys: godot-import-v2-${{ env.GODOT }}-
+      # Modelos gerados de novo: o .glb pode sair igual (mesmo md5) e o Godot não reimporta, então não extrai as
+      # texturas (modelos/*_0.png ...) e o jogo quebra ao abrir (aconteceu no pacote 1282). Força reimportar os modelos.
+      - name: Modelos novos reimportam
+        if: steps.cache-modelos.outputs.cache-hit != 'true'
+        run: rm -f godot-prototipo/modelos/*.import
       - name: Godot e modelos de exportação
         run: |
           cd /tmp
