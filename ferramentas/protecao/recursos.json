@@ -1,6 +1,12 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "Lobo montável no app: botão do lobo, Ruiva agarrada na juba, balanço do galope (André 2026-11-03)", "arquivo": "godot-prototipo/montaria.gd", "contem": ["const DADOS := {\"lobo\"", "func passo(dt: float, vel: float)", "class Rabo extends SkeletonModifier3D"] },
+    { "nome": "Pose de montado (tronco agachado, mãos na juba, pernas no flanco)", "arquivo": "godot-prototipo/cavalgar.gd", "contem": ["func _alcancar(", "func _agarrar(", "const DEITA :="] },
+    { "nome": "Montar e descer do lobo no herói", "arquivo": "godot-prototipo/main.gd", "contem": ["func montar_lobo(", "func armas_montado(", "func colisor_espada(", "\"montar\": # botão do lobo"] },
+    { "nome": "Botão do lobo na HUD", "arquivo": "godot-prototipo/hud.gd", "contem": ["_botao(\"montar\""] },
+    { "nome": "Outros jogadores aparecem montados no lobo", "arquivo": "godot-prototipo/online.gd", "contem": ["o.montaria = Montaria.new(", "m.montar_lobo(sm, false)"] },
+    { "nome": "Velocidades do lobo (anda, trota, galopa)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func vel_montado(", "var montado := {}"] },
     { "nome": "Toque no celular conta uma vez só (medalhões, véu da janela e quadradinho): Tirar abre em todos os lugares (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func toque(ev: InputEvent) -> bool:", "cx.modulate.a = 1.0"] },
     { "nome": "Óculos saiu do jogo; conta antiga ganha Colar da mesma raridade (André 2026-11-03)", "arquivo": "shared/progresso.js", "contem": ["oculos: 'colar'"] },
     { "nome": "Código do servidor não fica aberto no site: vai trancado com a chave da máquina da Oracle (André 2026-11-03)", "arquivo": "server/atualizar.js", "contem": ["export function ligarAtualizacaoTrancada(", "export function abrirPacote(", "/chave-do-servidor", "pacote-versao.txt"] },
