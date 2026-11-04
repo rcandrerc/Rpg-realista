@@ -558,6 +558,31 @@ function sortearMata() {
     lista.push(a);
     const k = chave(Math.floor(x / cel), Math.floor(z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a);
   }
+  // Terras da Estrada (2026-11-04, André tirou o anel de pedras): a borda vira mata fechada, três fileiras de árvores
+  // tortas por fora da área e da passagem. Vêm depois das outras, para os ids m0, m1... de antes não mudarem.
+  const T = VILA_LOTES.area, P = VILA_LOTES.passagem;
+  const andavel = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas, T], corredores: [...MATA.corredores, P] };
+  const borda = [];
+  for (const [fora, esp] of [[1.2, 2.6], [3.9, 3.0], [6.8, 3.6]]) {
+    for (let a = 0; a < 6.283;) {
+      const R = raioNaDirecao(T, a) + fora;
+      borda.push([T.x + Math.cos(a) * R, T.z + Math.sin(a) * R, esp]);
+      a += esp / R;
+    }
+  }
+  const [pax, paz] = P.a, [pbx, pbz] = P.b, pl = Math.hypot(pbx - pax, pbz - paz); // paredes da passagem
+  for (let d = 0; d <= pl; d += 2.8) for (const lado of [-1, 1]) for (const fora of [1.2, 3.9]) {
+    const off = P.larg / 2 + fora, ux = (pbx - pax) / pl, uz = (pbz - paz) / pl;
+    borda.push([pax + ux * d - uz * off * lado, paz + uz * d + ux * off * lado, 2.6]);
+  }
+  for (const [bx, bz, esp] of borda) {
+    const x = bx + rnd(-0.35, 0.35) * esp, z = bz + rnd(-0.35, 0.35) * esp;
+    if (dentroDoMapa(andavel, x, z, -0.9) || !livre(x, z, esp * 0.8)) continue; // não fecha a passagem nem a estrada
+    if (pertoDaLinha(VILA_LOTES.estrada, x, z).d < 3) continue;
+    const a = { x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.9, 1.4).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)) };
+    lista.push(a);
+    const k = chave(Math.floor(x / cel), Math.floor(z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a);
+  }
   return lista;
 }
 // Veio de cobre (zona de mineração do Quimera, só que pequena e com pouco minério, pedido do André 2026-11-02):
@@ -574,40 +599,43 @@ export const RESET_BUILD = { minimo: 50, porNivel: 10 };
 // sair e entrar de novo não zera. Dentro da vila (raio vila m do centro) não precisa.
 export const VOLTA_VILA = { canal: 8, cd: 600, vila: 30 };
 
-// ---------- Vila dos Lotes: construção e fazenda (pedido do André 2026-11-03, base no Quimera) ----------
-// Ao sul da vila do começo, uma vila com estradas de terra onde cada jogador compra UM lote (com ouro) para
-// construir e plantar. Fora do lote dele não se constrói (regra do André: "não vai poder construir em qualquer lugar").
-// A área entra no mapa andável (borda de pedras como o campo de fora) e é ligada à vila por uma passagem nas pedras.
-// Lotes: retângulos alinhados aos eixos (x0..x1, z0..z1, em metros inteiros, a horta usa quadrados de 1 m);
-// frente = lado virado para a rua principal, onde fica a placa (À venda / nome do dono).
+// ---------- Terras (construção e fazenda, pedido do André 2026-11-03, base no Quimera) ----------
+// Ao sul da vila do começo, uma área de terra livre com uma estrada central de terra. Não tem lote pronto: o jogador
+// escolhe o pedaço que quer comprar (toca num canto e arrasta até o outro, como no Quimera) e paga por bloco de 1 m².
+// Fora do terreno dele não se constrói (regra do André: "não vai poder construir em qualquer lugar").
+// 2026-11-04 (André, "remoção aprovada"): saíram os 6 lotes prontos com estaca, corda e placa, a rua de través e o
+// anel de pedras em volta da área (a borda agora é de árvores, como a mata). Quem já tinha comprado um lote antigo
+// fica com o mesmo pedaço de chão (LOTES_ANTIGOS), agora como terreno.
+// Terreno: retângulo alinhado aos eixos (x0..x1, z0..z1, em metros inteiros; a horta usa quadrados de 1 m).
 export const VILA_LOTES = {
-  nome: 'Vila dos Lotes',
-  area: { x: -16, z: 68.5, rx: 22, rz: 27, lobos: [[3, 0.025, 1.3], [5, 0.02, 0.4]], lotes: true },
-  passagem: { a: [-10, 28], b: [-15, 47], larg: 9 },
-  // estrada de terra que sai de onde o herói nasce, passa entre as pedras e vira a rua principal da vila dos lotes
+  nome: 'Terras da Estrada',
+  // semPedras: a área e a passagem não ganham anel de pedras (client/src/cena.js); a borda é de árvores (sortearArvores)
+  area: { x: -16, z: 68.5, rx: 22, rz: 27, lobos: [[3, 0.025, 1.3], [5, 0.02, 0.4]], lotes: true, semPedras: true },
+  passagem: { a: [-10, 28], b: [-15, 47], larg: 9, semPedras: true },
+  // estrada de terra que sai de onde o herói nasce, passa pela passagem e vira a estrada central das terras
   estrada: [[0, 1], [-1, 10], [-2, 15], [-6.5, 21], [-10, 28], [-12.5, 35], [-14.5, 42], [-16, 48]],
   ruas: [
-    { largura: 2.6, pontos: [[-16, 48], [-16, 58], [-16, 70], [-16, 89]] }, // rua principal (norte-sul)
-    { largura: 2.2, pontos: [[-33, 62.5], [-25, 62.7], [-16, 62.5], [-6, 62.3], [1, 62.5]] }, // rua de través
+    { largura: 2.8, pontos: [[-16, 48], [-16, 58], [-16, 70], [-16, 92]] }, // estrada central (norte-sul)
   ],
-  lotes: [
-    { id: 'lote1', nome: 'Lote 1', x0: -28, x1: -18, z0: 51, z1: 61, frente: 'leste' },
-    { id: 'lote2', nome: 'Lote 2', x0: -14, x1: -4, z0: 51, z1: 61, frente: 'oeste' },
-    { id: 'lote3', nome: 'Lote 3', x0: -28, x1: -18, z0: 64, z1: 74, frente: 'leste' },
-    { id: 'lote4', nome: 'Lote 4', x0: -14, x1: -4, z0: 64, z1: 74, frente: 'oeste' },
-    { id: 'lote5', nome: 'Lote 5', x0: -28, x1: -18, z0: 76, z1: 86, frente: 'leste' },
-    { id: 'lote6', nome: 'Lote 6', x0: -14, x1: -4, z0: 76, z1: 86, frente: 'oeste' },
-  ],
+  lotes: [], // não tem lote pronto: os terrenos nascem quando alguém compra (Simulacao.comprarLote)
 };
-// placa de cada lote: no meio da frente, 0,7 m para fora (na beira da rua)
-for (const l of VILA_LOTES.lotes) {
-  const zm = (l.z0 + l.z1) / 2;
-  l.placa = l.frente === 'leste' ? { x: l.x1 + 0.7, z: zm, ry: Math.PI / 2 } : { x: l.x0 - 0.7, z: zm, ry: -Math.PI / 2 };
-}
-// Regras do lote (servidor confere tudo em Simulacao.comprarLote / construir / horta)
-// preco: ouro do lote · placaDist: metros da placa para comprar · alcance: metros do herói até onde ele constrói
-// maxPecas: peças por lote (o Quimera tem 1800 no mundo; aqui o lote é pequeno) · estacaoDist: perto da estação para criar
-export const LOTE = { preco: 400, placaDist: 3, alcance: 6, maxPecas: 40, estacaoDist: 3 };
+// Lotes da primeira versão (2026-11-03): quem comprou um deles continua dono do mesmo chão
+export const LOTES_ANTIGOS = {
+  lote1: { x0: -28, x1: -18, z0: 51, z1: 61 }, lote2: { x0: -14, x1: -4, z0: 51, z1: 61 },
+  lote3: { x0: -28, x1: -18, z0: 64, z1: 74 }, lote4: { x0: -14, x1: -4, z0: 64, z1: 74 },
+  lote5: { x0: -28, x1: -18, z0: 76, z1: 86 }, lote6: { x0: -14, x1: -4, z0: 76, z1: 86 },
+};
+// Regras do terreno (o servidor confere tudo em Simulacao.comprarLote / construir / horta)
+// precoBloco: ouro por bloco de 1 x 1 m (maior = mais caro; estimativa, o André ajusta depois)
+// ladoMin / ladoMax: lados do terreno em metros · areaMax: blocos no máximo · uma pessoa tem um terreno só
+// folgaRua: metros livres entre o terreno e a beira da estrada · folgaBorda: metros até a borda das árvores
+// alcance: até quantos metros fora do terreno o herói pode estar para construir (a câmera flutua, como no Quimera)
+// pecasPorBloco: peças que cabem (mínimo pecasMin, máximo maxPecas) · estacaoDist: perto da estação para criar
+// preco e placaDist eram do lote pronto de 10 x 10 (sem uso desde 2026-11-04, ficam por causa da regra "Nada some")
+export const LOTE = { preco: 400, placaDist: 3, precoBloco: 4, ladoMin: 3, ladoMax: 20, areaMax: 300, folgaRua: 0.6, folgaBorda: 1.5,
+  alcance: 6, pecasPorBloco: 0.4, pecasMin: 12, maxPecas: 120, estacaoDist: 3 };
+export const precoTerreno = (w, d) => Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco;
+export const maxPecasTerreno = (w, d) => Math.max(LOTE.pecasMin, Math.min(LOTE.maxPecas, Math.round(w * d * LOTE.pecasPorBloco)));
 // Peças que se constroem no lote (aba Construir do modo construção, como no Quimera). w x d = tamanho no chão (m)
 // sem girar; circulos = sólidos [dx, dz, r] no espaço da peça (o herói não atravessa); custo sai da mochila e volta
 // inteiro ao desmontar. estacao: as receitas que dá para criar perto dela (mesma conta do servidor, RECEITA_ESTACAO).

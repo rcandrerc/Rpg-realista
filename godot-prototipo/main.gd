@@ -2279,6 +2279,8 @@ func ritmo(a: String) -> float:
 
 func direcao_joystick() -> Vector3:
 	var m: Vector2 = hud.mover
+	if construcao and construcao.camera_livre(): # modo construção / compra de terreno: o joystick move a mira, o herói fica
+		return Vector3.ZERO
 	if m.length() < 0.15:
 		if conversa and conversa.indo != null: # tocou num NPC longe: vai até ele
 			return conversa.direcao_auto()
@@ -2396,7 +2398,7 @@ func atualizar_heroi(dt: float) -> void:
 		elif _tentar(fila.q):
 			fila = null
 	var dir := direcao_joystick()
-	var forca: float = hud.mover.length()
+	var forca: float = 0.0 if construcao and construcao.camera_livre() else hud.mover.length()
 	# espada: tocou o golpe com o alvo longe, corre até ele e bate quando chega (o joystick cancela)
 	if h.pend != null:
 		var pe: Dictionary = h.pend

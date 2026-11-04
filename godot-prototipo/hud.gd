@@ -54,6 +54,10 @@ var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros 
 var _destaque_t := 0.0
 var _dano_t := 0.0 # levou golpe: borda vermelha rápida (e fraca, contínua, com a vida baixa)
 
+# modo construção / compra de terreno (construcao.gd, como no Quimera): os botões de combate somem, o joystick fica
+# (ele move a mira da câmera flutuante). arrastar = true: o dedo do lado direito marca o terreno em vez de girar a câmera
+var modo_construcao := false
+var arrastar_terreno := false
 var esconder_combate := false # janela de um NPC aberta: skills, golpe, joystick e cura somem (fica o painel de vida)
 var _combate: Control # joystick e botões, desenhados por cima de _tela (some com fade)
 
@@ -179,9 +183,13 @@ func _input(ev: InputEvent) -> void:
 		if ev.pressed and PAINEL.has_point(ev.position):
 			apertou.emit("menu")
 			return
+		if ev.pressed and modo_construcao and arrastar_terreno and construcao and ev.position.x >= _tela.size.x * 0.42 and not ("sel" in _toques.values()):
+			_toques[ev.index] = "sel" # compra de terreno: este dedo marca o canto e arrasta até o outro
+			construcao.arrasto(ev.position, 0)
+			return
 		if ev.pressed:
 			for b in botoes:
-				if not b.oculto and ev.position.distance_to(_centro(b)) <= b.raio * 1.15:
+				if not modo_construcao and not b.oculto and ev.position.distance_to(_centro(b)) <= b.raio * 1.15:
 					_toques[ev.index] = b.acao
 					b.apertado = true
 					apertou.emit(b.acao)
@@ -207,6 +215,10 @@ func _input(ev: InputEvent) -> void:
 				_pinca = _dist_pinca()
 			var o = _toques.get(ev.index)
 			_toques.erase(ev.index)
+			if o == "sel":
+				if construcao:
+					construcao.arrasto(ev.position, 2)
+				return
 			var ini = _inicio.get(ev.index)
 			_inicio.erase(ev.index)
 			if ini != null and (o == "joy" or o == "cam") and Time.get_ticks_msec() - int(ini[1]) < 350 and ev.position.distance_to(ini[0]) < 22.0:
@@ -220,7 +232,10 @@ func _input(ev: InputEvent) -> void:
 				soltou.emit(o)
 	elif ev is InputEventScreenDrag:
 		var o = _toques.get(ev.index)
-		if o == "joy":
+		if o == "sel":
+			if construcao:
+				construcao.arrasto(ev.position, 1)
+		elif o == "joy":
 			_joy_dedo = ev.position
 			var d: Vector2 = (_joy_dedo - _joy_centro) / JOY_RAIO
 			mover = d.limit_length(1.0)
@@ -251,7 +266,7 @@ func _input(ev: InputEvent) -> void:
 const FOLGA_BOTAO := 40.0 # px além do alvo do botão
 const FOLGA_ARCO := 45.0 # px além da borda de fora do arco das skills
 func zona_morta(p: Vector2) -> bool:
-	if esconder_combate:
+	if esconder_combate or modo_construcao:
 		return false
 	for b in botoes:
 		if b.oculto:
@@ -327,7 +342,7 @@ func _desenhar_combate() -> void:
 		_combate.draw_circle(_joy_centro + mover * JOY_RAIO, 40, Color(1, 1, 1, 0.55))
 	# botões
 	for b in botoes:
-		if b.oculto:
+		if b.oculto or modo_construcao:
 			continue
 		var c := _centro(b)
 		if b.nega_t > 0.0: # tremidinha de "não deu"

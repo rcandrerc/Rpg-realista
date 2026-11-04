@@ -1543,8 +1543,16 @@
  "lote": {
   "preco": 400,
   "placaDist": 3,
+  "precoBloco": 4,
+  "ladoMin": 3,
+  "ladoMax": 20,
+  "areaMax": 300,
+  "folgaRua": 0.6,
+  "folgaBorda": 1.5,
   "alcance": 6,
-  "maxPecas": 40,
+  "pecasPorBloco": 0.4,
+  "pecasMin": 12,
+  "maxPecas": 120,
   "estacaoDist": 3
  },
  "construcoes": {

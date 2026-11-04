@@ -44,19 +44,27 @@ Para montar à mão:
   habilidades, missão, cura, resetar a build e Conversar). O que cada NPC oferece está em `acoes` de cada NPC em
   `shared/dados.js`. Vender com o Tomás ou com a Rosa: o servidor confere (`Simulacao.pertoDeQuemCompra`).
 
-## Vila dos Lotes: construção e fazenda (pedido do André, 2026-11-03)
+## Terras da Estrada: construção e fazenda (pedido do André, 2026-11-03, refeito em 2026-11-04)
 
-- Ao sul da vila, pela estrada de terra que sai de onde o herói nasce, fica a Vila dos Lotes: 6 lotes de 10 x 10 m
-  com placa na beira da rua. Perto da placa de um lote livre aparece o botão de **comprar** (400 de ouro, um por jogador).
-- Só dá para construir e plantar dentro do lote que é seu. No lote aparece o botão do **martelo**: abre o modo
-  construção do Quimera, com as abas **Construir** (bancada, bigorna, fornalha, cerca e Desmontar, que devolve o material)
-  e **Fazenda** (arar, plantar, regar, colher e desfazer a terra). O fantasma fica verde quando pode e vermelho com o motivo.
-  Ande para mirar ou toque no chão; **Girar** muda a direção da peça.
+- Ao sul da vila, pela estrada de terra que sai de onde o herói nasce, ficam as Terras da Estrada: terra livre em
+  volta de uma estrada central, fechada por árvores (sem anel de pedras, sem lote pronto, sem placa e sem cerca).
+- Nas terras, sem terreno, aparece o botão **Comprar terreno**: a câmera fica flutuando por cima e o jogador toca num
+  canto e arrasta até o outro. O chão fica quadriculado (1 bloco = 1 x 1 m), verde quando dá e vermelho com o motivo,
+  e o preço aparece na hora: `LOTE.precoBloco` (4 de ouro) por bloco, lados de 3 a 20 m, até 300 blocos, um terreno
+  por jogador. Não pode pegar a estrada nem encostar no terreno de outra pessoa.
+- Perto do seu terreno aparece o botão do **martelo**: abre o modo construção do Quimera. A câmera flutua (segue a
+  mira, não o herói), o joystick move a mira e tocar no chão leva a mira para lá. Embaixo fica a barra de itens com
+  as abas **Construir** (bancada, bigorna, fornalha, cerca e Desmontar, que devolve o material) e **Fazenda** (arar,
+  cada semente que você tem, regar, colher e desfazer a terra); o número no quadrado é quantas dá para fazer (ou
+  quantas sementes tem). O fantasma fica verde quando pode e vermelho com o motivo; **Girar** muda a direção da peça.
+  Cabem 0,4 peça por bloco (de 12 a 120).
 - A bigorna (espadas, cajados, colares, armaduras), a fornalha (barras e carvão) e a bancada (receitas do Alfaiate)
   servem para criar como a forja do Tomás e a banca da Rosa.
 - Horta: sementes na loja da Rosa; a planta cresce só com a terra molhada (regar dura 24 h), nos tempos do Quimera.
   Colher dá pontos de Fazendeiro (profissão nova).
 - Terra arada como a do Quimera (André, 2026-11-04): canteiros vizinhos emendam numa terra só, a borda solta se
   mistura ao chão de forma irregular e a grama não fura a terra (`_malha_terra` e `_grama_sob_horta` em `construcao.gd`).
-- Código: `construcao.gd` (app) e `shared/simulacao.js` (comprarLote, construir, desmontar, horta). Números em
-  `shared/dados.js` (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, HORTA). O servidor guarda os lotes na tabela `lotes`.
+- Código: `construcao.gd` (app), `camera_heroi.gd` (`entrar_livre`/`sair_livre`) e `shared/simulacao.js`
+  (motivoTerreno, comprarLote, construir, desmontar, horta). Números em `shared/dados.js` (VILA_LOTES, LOTE,
+  CONSTRUCOES, PLANTAS, HORTA). O servidor guarda os terrenos na tabela `lotes` (o retângulo vai em `dados.ret`;
+  quem tinha comprado um lote antigo fica com o mesmo chão, `LOTES_ANTIGOS`).

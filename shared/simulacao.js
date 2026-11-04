@@ -1,9 +1,9 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
-import { dentroDoMapa, limitarAoMapa } from './mapa.js';
+import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -31,10 +31,45 @@ export function solidosPeca(p) {
 }
 const cruza = (a, b) => a[0] < b[2] - 0.01 && b[0] < a[2] - 0.01 && a[1] < b[3] - 0.01 && b[1] < a[3] - 0.01;
 const foraDoLote = (R, d) => R[0] < d.x0 - 0.01 || R[2] > d.x1 + 0.01 || R[1] < d.z0 - 0.01 || R[3] > d.z1 + 0.01;
+// ---------- Terras: o terreno que o jogador escolhe (toca num canto e arrasta até o outro) ----------
+// R = { x0, z0, x1, z1 } em metros inteiros. Mesma conta no godot-prototipo/construcao.gd (motivo_terreno).
+const ESTRADAS_TERRAS = [VILA_LOTES.estrada, ...VILA_LOTES.ruas.map((r) => r.pontos)];
+const LARG_TERRAS = [2.4, ...VILA_LOTES.ruas.map((r) => r.largura)];
+// distância de um ponto até o retângulo (0 dentro)
+const distRet = (R, x, z) => Math.hypot(Math.max(R.x0 - x, 0, x - R.x1), Math.max(R.z0 - z, 0, z - R.z1));
+export function retTerreno(m) {
+  if (!m) return null;
+  const v = [m.x0, m.z0, m.x1, m.z1].map((n) => Math.round(Number(n)));
+  if (v.some((n) => !Number.isFinite(n) || Math.abs(n) > 2000)) return null;
+  return { x0: Math.min(v[0], v[2]), z0: Math.min(v[1], v[3]), x1: Math.max(v[0], v[2]), z1: Math.max(v[1], v[3]) };
+}
+const cruzaTerreno = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
+export function motivoTerreno(R, outros = []) {
+  const w = R.x1 - R.x0, d = R.z1 - R.z0;
+  if (w < LOTE.ladoMin || d < LOTE.ladoMin) return `O terreno precisa de pelo menos ${LOTE.ladoMin} x ${LOTE.ladoMin} m`;
+  if (w > LOTE.ladoMax || d > LOTE.ladoMax) return `Cada lado vai até ${LOTE.ladoMax} m`;
+  if (w * d > LOTE.areaMax) return `No máximo ${LOTE.areaMax} blocos (este tem ${w * d})`;
+  const A = VILA_LOTES.area;
+  for (let t = 0; t <= 2 * (w + d); t += 1) { // a borda inteira dentro das terras, longe das árvores
+    const x = t <= w ? R.x0 + t : t <= w + d ? R.x1 : t <= 2 * w + d ? R.x1 - (t - w - d) : R.x0;
+    const z = t <= w ? R.z0 : t <= w + d ? R.z0 + (t - w) : t <= 2 * w + d ? R.z1 : R.z1 - (t - 2 * w - d);
+    if (Math.hypot(x - A.x, z - A.z) > raioNaDirecao(A, Math.atan2(z - A.z, x - A.x)) - LOTE.folgaBorda) return 'Passa da borda das terras';
+  }
+  for (let k = 0; k < ESTRADAS_TERRAS.length; k++) { // não pega a estrada
+    const L = ESTRADAS_TERRAS[k], meia = LARG_TERRAS[k] / 2 + LOTE.folgaRua;
+    for (let i = 1; i < L.length; i++) {
+      const [ax, az] = L[i - 1], [bx, bz] = L[i], n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5);
+      for (let q = 0; q <= n; q++) if (distRet(R, ax + (bx - ax) * q / n, az + (bz - az) * q / n) < meia) return 'Não pode pegar a estrada';
+    }
+  }
+  for (const o of outros) if (cruzaTerreno(R, o)) return 'Encosta no terreno de outra pessoa';
+  return '';
+}
+
 // por que a peça não pode ficar ali ('' = pode): dentro do lote, sem encostar em outra peça nem na horta, fora do herói
 export function motivoPeca(L, p, j) {
   const R = retPeca(p);
-  if (foraDoLote(R, L.def)) return 'Só dá para construir dentro do seu lote';
+  if (foraDoLote(R, L.def)) return 'Só dá para construir dentro do seu terreno';
   for (const o of L.pecas) if (o.id !== p.id && cruza(R, retPeca(o))) return 'Lugar ocupado';
   for (const c of Object.keys(L.horta)) { const [i, k] = c.split(',').map(Number); if (cruza(R, [i, k, i + 1, k + 1])) return 'Tem horta aí'; }
   if (j && j.x > R[0] - 0.35 && j.x < R[2] + 0.35 && j.z > R[1] - 0.35 && j.z < R[3] + 0.35) return 'Saia de cima do lugar';
@@ -43,7 +78,7 @@ export function motivoPeca(L, p, j) {
 // por que não dá para arar o quadrado (i, k) de 1 m ('' = dá)
 export function motivoHorta(L, i, k) {
   const R = [i, k, i + 1, k + 1];
-  if (foraDoLote(R, L.def)) return 'Só dá para plantar dentro do seu lote';
+  if (foraDoLote(R, L.def)) return 'Só dá para plantar dentro do seu terreno';
   for (const o of L.pecas) if (cruza(R, retPeca(o))) return 'Lugar ocupado';
   return '';
 }
@@ -918,7 +953,8 @@ export class Simulacao {
   dadosLote(L) {
     const agora = Date.now();
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
-    return { lote: L.def.id, dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
+    const { x0, z0, x1, z1 } = L.def;
+    return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
       horta: Object.entries(L.horta).map(([c, t]) => [c, t.c, r2(t.g), t.w, t.u]), agora };
   }
   avisarLote(L) {
@@ -935,9 +971,16 @@ export class Simulacao {
   // lotes guardados no servidor: [{ id, dono, nome, dados: { pecas, horta, prox } }]
   carregarLotes(lista) {
     for (const s of lista || []) {
-      const L = this.lotes.get(s.id); if (!L) continue;
-      L.dono = s.dono || null; L.nomeDono = String(s.nome || '');
       const d = s.dados || {};
+      // terreno escolhido pelo jogador: o retângulo vem junto (os lotes antigos usam o chão de antes)
+      let L = this.lotes.get(s.id);
+      if (!s.dono) { if (L && !L.def.fixo) this.lotes.delete(s.id); else if (L) L.dono = null; continue; }
+      if (!L) {
+        const R = retTerreno(d.ret) || (LOTES_ANTIGOS[s.id] && { ...LOTES_ANTIGOS[s.id] }); if (!R) continue;
+        L = { def: { id: s.id, nome: 'Terreno', ...R }, dono: null, nomeDono: '', pecas: [], horta: {}, prox: 1 };
+        this.lotes.set(s.id, L);
+      }
+      L.dono = s.dono || null; L.nomeDono = String(s.nome || '');
       L.pecas = (Array.isArray(d.pecas) ? d.pecas : []).filter((p) => p && CONSTRUCOES[p.k] && Number.isFinite(p.x) && Number.isFinite(p.z))
         .map((p) => ({ id: String(p.id), k: p.k, x: p.x, z: p.z, r: (p.r | 0) & 3, lote: L.def.id }));
       L.horta = {};
@@ -949,7 +992,8 @@ export class Simulacao {
   lotesParaSalvar() {
     const l = [...this.lotesMudados].map((id) => {
       const L = this.lotes.get(id);
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox } };
+      const { x0, z0, x1, z1 } = L.def;
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox } };
     });
     this.lotesMudados.clear();
     return l;
@@ -959,21 +1003,24 @@ export class Simulacao {
     this.obstaculos = this.obstaculos.filter((k) => !k.peca);
     for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p));
   }
-  // m = { id } (lote): perto da placa, lote livre, sem outro lote e com o ouro
+  // m = { x0, z0, x1, z1 }: o terreno que o jogador marcou (toque num canto e arraste). Paga por bloco (precoTerreno).
+  // Confere o tamanho, a borda das terras, a estrada, os terrenos dos outros e o ouro; o banco confere de novo (outras salas).
   comprarLote(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    const L = this.lotes.get(String(m.id)); if (!L) return;
-    if (dist(L.def.placa, j) > LOTE.placaDist + 0.6) return aviso('Chegue perto da placa do lote');
-    if (L.dono === j.conta) return aviso('Este lote já é seu');
-    if (L.dono) return aviso(`${L.def.nome} já tem dono: ${L.nomeDono}`);
-    if (this.loteDe(j)) return aviso('Você já tem um lote');
-    if (j.prog.ouro < LOTE.preco) return aviso(`Faltam ${LOTE.preco - j.prog.ouro} de ouro (o lote custa ${LOTE.preco})`);
-    if (this.aoComprarLote && !this.aoComprarLote(L.def.id, j.conta, j.nome)) return aviso('Esse lote acabou de ser vendido em outra sala');
-    j.prog.ouro -= LOTE.preco;
-    L.dono = j.conta; L.nomeDono = j.nome; L.pecas = []; L.horta = {};
-    aviso(`${L.def.nome} é seu! Toque no martelo para construir e plantar`);
-    this.evento({ t: 'meuLote', para: id, lote: L.def.id });
+    if (this.loteDe(j)) return aviso('Você já tem um terreno');
+    const R = retTerreno(m); if (!R) return;
+    const motivo = motivoTerreno(R, [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def)); if (motivo) return aviso(motivo);
+    if (distRet(R, j.x, j.z) > 40) return aviso('Chegue mais perto do terreno');
+    const w = R.x1 - R.x0, d = R.z1 - R.z0, preco = precoTerreno(w, d);
+    if (j.prog.ouro < preco) return aviso(`Faltam ${preco - j.prog.ouro} de ouro (o terreno custa ${preco})`);
+    const lid = 't' + String(j.conta).replace(/[^\w]/g, '').slice(0, 14);
+    if (this.aoComprarLote && !this.aoComprarLote(lid, j.conta, j.nome, R)) return aviso('Esse pedaço acabou de ser vendido em outra sala');
+    j.prog.ouro -= preco;
+    const L = { def: { id: lid, nome: 'Terreno', ...R }, dono: j.conta, nomeDono: j.nome, pecas: [], horta: {}, prox: 1 };
+    this.lotes.set(lid, L);
+    aviso(`Terreno de ${w} x ${d} m comprado por ${preco} de ouro! Toque no martelo para construir e plantar`);
+    this.evento({ t: 'meuLote', para: id, lote: lid });
     this.avisarLote(L);
     this.avisarProg(j);
   }
@@ -981,9 +1028,10 @@ export class Simulacao {
   loteParaMexer(j, x, z, aviso) {
     if (j.criando || j.morto || j.montado) return null;
     const L = this.loteDe(j);
-    if (!L) { aviso('Compre um lote na Vila dos Lotes para construir'); return null; }
+    if (!L) { aviso('Compre um terreno nas Terras da Estrada para construir'); return null; }
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
-    if (Math.hypot(x - j.x, z - j.z) > LOTE.alcance + 0.5) { aviso('Longe demais'); return null; }
+    // câmera flutuante (como no Quimera): o herói fica no terreno ou perto dele e a mira vai em qualquer canto dele
+    if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) { aviso('Chegue perto do seu terreno'); return null; }
     return L;
   }
   // m = { k, x, z, r }: peça nova no lote (paga com os materiais da mochila)
@@ -993,7 +1041,8 @@ export class Simulacao {
     const C = CONSTRUCOES[m.k]; if (!C) return;
     const x = Math.round(Number(m.x) * 20) / 20, z = Math.round(Number(m.z) * 20) / 20, r = (m.r | 0) & 3;
     const L = this.loteParaMexer(j, x, z, aviso); if (!L) return;
-    if (L.pecas.length >= LOTE.maxPecas) return aviso(`Limite de ${LOTE.maxPecas} peças no lote: desmonte uma para pôr outra`);
+    const maxP = maxPecasTerreno(L.def.x1 - L.def.x0, L.def.z1 - L.def.z0);
+    if (L.pecas.length >= maxP) return aviso(`Limite de ${maxP} peças no terreno: desmonte uma para pôr outra`);
     const p = { id: 'p' + L.prox, k: m.k, x, z, r, lote: L.def.id };
     const motivo = motivoPeca(L, p, j); if (motivo) return aviso(motivo);
     for (const [k, n] of Object.entries(C.custo)) if (contar(j.prog.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(j.prog.mochila, k)}/${n})`);

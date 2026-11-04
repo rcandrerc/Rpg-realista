@@ -56,6 +56,28 @@ var _conversando := false
 var _conv_k := 0.0
 var _conv := {} # foco, yaw, pitch, dist do enquadramento
 var _antes := {} # yaw, pitch e dist de antes de abrir
+# câmera flutuante do modo construção e da compra de terreno (construcao.gd, como no Quimera): segue a mira em vez do
+# herói, mais alta e mais longe; o joystick move a mira. Ao sair volta para o herói com o enquadramento de antes.
+const LIVRE_PITCH := 0.82
+const LIVRE_DIST := 10.5
+const LIVRE_LONGE := 18.0 # m: o mais longe que a pinça chega no modo livre
+var foco_livre = null # Vector3 ou null
+var _antes_livre := {}
+
+func entrar_livre(p: Vector3) -> void:
+	if foco_livre == null:
+		_antes_livre = {"pitch": pitch, "dist": dist}
+		pitch = LIVRE_PITCH
+		dist = LIVRE_DIST
+	foco_livre = p
+
+func sair_livre() -> void:
+	if foco_livre == null:
+		return
+	foco_livre = null
+	pitch = float(_antes_livre.get("pitch", pitch))
+	dist = float(_antes_livre.get("dist", dist))
+	_antes_livre["voltando"] = true # volta deslizando até o herói (sem pulo)
 
 func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
 	if not _conversando and _conv_k <= 0.0:
@@ -67,6 +89,9 @@ func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
 # zoom (André 2026-11-03, volta do jogo HTML): fator > 1 afasta, < 1 aproxima; nunca mais perto que DIST_MIN
 func zoom(fator: float) -> void:
 	if is_equal_approx(fator, 1.0) or _conversando or _conv_k > 0.0:
+		return
+	if foco_livre != null: # câmera flutuante do modo construção: afasta mais para ver o terreno inteiro
+		dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), LIVRE_LONGE)
 		return
 	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), min(DIST_MAX, ZOOM_LONGE))
 
@@ -112,6 +137,8 @@ func atualizar(dt: float, giro: Vector2) -> void:
 			yaw += clamp(d, -1.0, 1.0) * SEGUE_VEL * forca * dt
 	# mola amortecida até o herói, um pouco à frente de onde ele vai
 	var quer: Vector3 = m.heroi.position + Vector3(0, 1.35 + MONTADO_SOBE * _montado_k, 0) + Vector3(mov.vx, 0, mov.vz) * ANTECIPA
+	if foco_livre != null:
+		quer = foco_livre + Vector3(0, 0.4, 0)
 	# em passos de no máximo 1/60 s: num quadro lento (engasgo do celular) a mola dura não explode e joga a câmera
 	# para dentro do chão ou da pedra
 	var resta := dt
@@ -121,9 +148,11 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		var acel: Vector3 = (quer - alvo) * MOLA * MOLA - _vel_alvo * 2.0 * MOLA
 		_vel_alvo += acel * h
 		alvo += _vel_alvo * h
-	if alvo.distance_to(quer) > 4.0: # teleporte ou renascer: vai direto
+	if alvo.distance_to(quer) > 4.0 and foco_livre == null and not _antes_livre.get("voltando", false): # teleporte ou renascer: vai direto
 		alvo = quer
 		_vel_alvo = Vector3.ZERO
+	if _antes_livre.get("voltando", false) and alvo.distance_to(quer) < 0.6:
+		_antes_livre["voltando"] = false
 	# afundar no pouso (mola rápida que volta)
 	resta = dt
 	while resta > 0.0:
