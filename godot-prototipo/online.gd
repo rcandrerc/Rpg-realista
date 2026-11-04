@@ -546,6 +546,9 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 		return
 	o.uma_vez = 0.0
 	var nome := str(c.get("anim", "Idle"))
+	# outro jogador parado com o cajado na mão: a mesma guarda de mago do herói (o servidor manda só "parada")
+	if o.get("modo", "") == "Magia" and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
+		nome = "cajado_parada"
 	tocar(an, nome, m.ritmo(animacao(nome)) if o.has("esq") else 1.0) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:

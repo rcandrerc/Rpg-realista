@@ -33,6 +33,11 @@ var _tronco := 0.0 # quanto a ação manda no tronco por cima da locomoção
 var _tronco_alvo := 0.0
 var _idle := 1.0 # 0 = parada (cajado), 1 = guarda de espada
 var _idle_alvo := 1.0
+# guarda do cajado (André 2026-11-04: com o cajado ficava reto, sem base): parado no modo magia, a "parada" vira a
+# postura de mago do Mixamo Pro Magic Pack. Quem chama liga guarda_cajado; montado ou sem a animação fica a parada.
+var tem_guarda_cajado := false
+var guarda_cajado := false
+var _gcaj := 0.0
 var _mexe := 0.0 # 0 = parado, 1 = andando/correndo
 var _corre := 0.0 # 0 = andar, 1 = corrida
 var _rapido := 0.0 # com o trote: 0 = trote, 1 = corrida (o _corre vai de andar ao trote)
@@ -87,7 +92,15 @@ func _init(p: AnimationPlayer) -> void:
 	anim.call("espada_parada", "espada", Vector2(0, 120))
 	var idle := AnimationNodeBlend2.new()
 	bt.add_node("idle", idle, Vector2(200, 60))
-	bt.connect_node("idle", 0, "parada")
+	tem_guarda_cajado = player.has_animation("cajado_parada")
+	if tem_guarda_cajado:
+		anim.call("cajado_parada", "cajado", Vector2(0, -120))
+		bt.add_node("idle_caj", AnimationNodeBlend2.new(), Vector2(120, -60))
+		bt.connect_node("idle_caj", 0, "parada")
+		bt.connect_node("idle_caj", 1, "cajado")
+		bt.connect_node("idle", 0, "idle_caj")
+	else:
+		bt.connect_node("idle", 0, "parada")
 	bt.connect_node("idle", 1, "espada")
 	anim.call("andar", "andar", Vector2(0, 260))
 	anim.call("corrida", "corrida", Vector2(0, 380))
@@ -333,6 +346,7 @@ func atualizar(dt: float, vel: float) -> void:
 	_tronco = move_toward(_tronco, _tronco_alvo, dt * max(_corpo_vel, 6.0))
 	_ab = move_toward(_ab, _ab_alvo, dt * _ab_vel)
 	_idle = move_toward(_idle, _idle_alvo, dt * 5.0)
+	_gcaj = move_toward(_gcaj, 1.0 if guarda_cajado else 0.0, dt * 4.0)
 	if arrancando > 0.0:
 		arrancando += dt * _arr_ritmo
 	_pernas = move_toward(_pernas, _pernas_alvo, dt * (12.0 if _pernas_alvo > _pernas else 6.0))
@@ -342,6 +356,8 @@ func atualizar(dt: float, vel: float) -> void:
 
 func _aplicar(_dt: float) -> void:
 	tree.set("parameters/idle/blend_amount", _idle)
+	if tem_guarda_cajado:
+		tree.set("parameters/idle_caj/blend_amount", _gcaj)
 	tree.set("parameters/passo/blend_amount", _corre)
 	if tem_trote:
 		tree.set("parameters/rapido/blend_amount", _rapido)

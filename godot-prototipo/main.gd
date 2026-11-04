@@ -35,7 +35,7 @@ const Montaria = preload("res://montaria.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
+const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -2566,6 +2566,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		vel_anim = mov.CORRIDA * 1.2
 	elif not mov.chao or mov.esc != null or montaria != null:
 		vel_anim = 0.0
+	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
+	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null
 	heroi_anim.atualizar(dt, vel_anim)
 	if montaria != null:
 		montaria.passo(dt, vel)
