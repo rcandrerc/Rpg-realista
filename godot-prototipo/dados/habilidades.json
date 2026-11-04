@@ -2072,7 +2072,11 @@
   "grade": 2,
   "parede": 3.1,
   "fundacao": 0.2,
-  "espessura": 0.3
+  "espessura": 0.3,
+  "beiral": 0.45,
+  "inclina": 0.6,
+  "telhaMax": 1.8,
+  "porta": 2.2
  },
  "bau": {
   "slots": 40

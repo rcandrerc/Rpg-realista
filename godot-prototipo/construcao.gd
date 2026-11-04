@@ -462,36 +462,108 @@ func bordas_do_quadrado(x: float, z: float) -> Array:
 	var g := grade() / 2.0
 	return [[x, z - g, 0], [x, z + g, 0], [x - g, z, 1], [x + g, z, 1]]
 
-# altura onde a peça fica: a fundação no chão; o resto em cima do piso (se tiver fundação embaixo); telhado no alto
-func _y_peca(p: Dictionary) -> float:
-	if p.k == "fundacao":
-		return float(p.get("chao", m.terreno.altura(p.x, p.z)))
-	return m.terreno.altura(p.x, p.z)
+# chão sem as casas dos jogadores (pedras e casas da vila contam)
+func _chao(x: float, z: float) -> float:
+	var h := 0.0
+	for r in m.terreno.solidos:
+		if r.get("obra", false):
+			continue
+		var a: float = m.terreno.altura_na(r, x, z)
+		if a > h:
+			h = a
+	return h
 
-# fundações viram chão de verdade (terreno.gd, como o telhado das casas da vila): o herói sobe e anda em cima
-func _refazer_pisos() -> void:
-	for r in _pisos:
-		m.terreno.solidos.erase(r)
-	_pisos.clear()
-	var alto := float(D.get("casa", {}).get("fundacao", 0.2))
+# piso num ponto: o chão, ou o topo da fundação que estiver ali
+func _piso(x: float, z: float) -> float:
 	var g := grade() / 2.0
 	for id in lotes:
 		for p in lotes[id].pecas:
-			if p.k != "fundacao":
-				continue
-			if not p.has("chao"):
-				p.chao = m.terreno.altura(p.x, p.z)
-			_pisos.append({"casa": true, "obra": true, "x": p.x, "z": p.z, "R": g * 1.5, "cos": 1.0, "sen": 0.0, "hw": g, "hd": g,
-				"y1": p.chao + alto, "sobe": 0.0, "base": p.chao})
+			if p.k == "fundacao" and absf(p.x - x) < g and absf(p.z - z) < g:
+				return _chao(x, z) + float(D.casa.fundacao)
+	return _chao(x, z)
+
+# altura onde a peça fica: a fundação no chão; parede/porta/janela no piso mais alto dos dois lados; móvel no piso
+func _y_peca(p: Dictionary) -> float:
+	if p.k == "fundacao":
+		return _chao(p.x, p.z)
+	if tipo_peca(p.k) == "borda":
+		var y := -INF
+		for q in lados_da_borda(p.x, p.z, p.r):
+			y = maxf(y, _piso(q.x, q.y))
+		return y
+	return _piso(p.x, p.z)
+
+# A casa vira chão e parede de verdade no terreno.gd (2026-11-04, André: "a gente deve ser capaz de ficar em cima do
+# telhado"): fundação é piso, parede e janela se escalam até o topo, a porta tem batentes e a verga por cima, e o
+# telhado (quadrados juntos) é chão para quem está em cima e teto para quem está dentro. Mesma conta do servidor:
+# shared/simulacao.js pecasCasaSolidas.
+func _refazer_pisos() -> void:
+	for r in _pisos:
+		m.terreno.solidos.erase(r)
+		m.terreno.casas.erase(r)
+	_pisos.clear()
+	var C: Dictionary = D.casa
+	var g := grade() / 2.0
+	var peca := func(x: float, z: float, hw: float, hd: float, y1: float, base: float) -> Dictionary:
+		return {"casa": true, "obra": true, "x": x, "z": z, "cos": 1.0, "sen": 0.0, "hw": hw, "hd": hd, "sobe": 0.0, "y1": y1, "base": base, "R": Vector2(hw, hd).length()}
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		var cel: Array = []
+		var topo := -INF
+		for p in L.pecas:
+			var T := tipo_peca(p.k)
+			if T == "fundacao":
+				var c0 := _chao(p.x, p.z)
+				_pisos.append(peca.call(p.x, p.z, g, g, c0 + float(C.fundacao), c0))
+			elif T == "borda":
+				var eixo: int = p.r & 1
+				var y0 := _chao(p.x, p.z)
+				var y1 := _y_peca(p) + float(C.parede)
+				var e := float(C.espessura) / 2.0 + 0.02
+				var partes: Array = [[-0.85, 0.3, y0, y1], [0.85, 0.3, y0, y1], [0.0, g + 0.15, y1 - float(C.parede) + float(C.porta), y1]] if p.k == "porta" else [[0.0, g + 0.15, y0, y1]]
+				for q in partes:
+					if eixo:
+						_pisos.append(peca.call(p.x, p.z + q[0], e, q[1], q[3], q[2]))
+					else:
+						_pisos.append(peca.call(p.x + q[0], p.z, q[1], e, q[3], q[2]))
+			elif T == "telhado":
+				cel.append([p.x, p.z])
+				topo = maxf(topo, _piso(p.x, p.z) + float(C.parede))
+		if cel.is_empty():
+			continue
+		var tem := {}
+		for c in cel:
+			tem[Vector2(c[0], c[1])] = true
+		var seg: Array = []
+		var x0 := INF
+		var z0 := INF
+		var x1 := -INF
+		var z1 := -INF
+		var bei := float(C.beiral)
+		for c in cel:
+			var x: float = c[0]
+			var z: float = c[1]
+			if not tem.has(Vector2(x - 2 * g, z)): seg.append([x - g, z - g, x - g, z + g])
+			if not tem.has(Vector2(x + 2 * g, z)): seg.append([x + g, z - g, x + g, z + g])
+			if not tem.has(Vector2(x, z - 2 * g)): seg.append([x - g, z - g, x + g, z - g])
+			if not tem.has(Vector2(x, z + 2 * g)): seg.append([x - g, z + g, x + g, z + g])
+			x0 = minf(x0, x - g - bei); x1 = maxf(x1, x + g + bei)
+			z0 = minf(z0, z - g - bei); z1 = maxf(z1, z + g + bei)
+		_pisos.append({"casa": true, "obra": true, "cel": cel, "seg": seg, "g": g, "base": topo, "beiral": bei, "inclina": float(C.inclina),
+			"max": float(C.telhaMax), "x0": x0, "z0": z0, "x1": x1, "z1": z1, "x": (x0 + x1) / 2.0, "z": (z0 + z1) / 2.0, "cos": 1.0, "sen": 0.0,
+			"hw": (x1 - x0) / 2.0, "hd": (z1 - z0) / 2.0, "sobe": 0.0, "y1": topo, "R": Vector2(x1 - x0, z1 - z0).length() / 2.0})
 	m.terreno.solidos.append_array(_pisos)
+	m.terreno.casas.append_array(_pisos) # teto: dentro de casa a cabeça bate no telhado e na verga da porta
 
 # altura do topo das paredes de um quadrado (piso + parede)
 func _topo_parede(x: float, z: float) -> float:
-	return m.terreno.altura(x, z) + float(D.get("casa", {}).get("parede", 3.1))
+	return _piso(x, z) + float(D.get("casa", {}).get("parede", 3.1))
 
 # Telhado (Quimera: telhados vizinhos se juntam num só): uma malha por terreno. A altura sobe com a distância até a
 # borda de fora do conjunto de quadrados com telhado (como um telhado de quatro águas que se ajeita a qualquer
 # formato), com beiral de 45 cm para fora. Telha T_RoundTiles por cima, tábuas por baixo.
+# números do telhado em dados/habilidades.json casa (beiral, inclina, telhaMax): os mesmos do servidor
+# (os de baixo são os mesmos números, guardados aqui como referência; quem vale é o dados)
 const BEIRAL := 0.45
 const INCLINA := 0.6
 const TELHA_MAX := 1.8 # o telhado para de subir aqui (casa grande fica com o topo reto)
@@ -525,7 +597,7 @@ func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 				break
 		if not dentro:
 			d = -d
-		return base + 0.2 + INCLINA * minf(d, TELHA_MAX / INCLINA)
+		return base + 0.2 + float(D.casa.inclina) * minf(d, float(D.casa.telhaMax) / float(D.casa.inclina))
 	var cima := SurfaceTool.new()
 	var baixo := SurfaceTool.new()
 	var borda := SurfaceTool.new()
@@ -536,13 +608,13 @@ func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 		# eixos com 8 divisões de 25 cm no quadrado + 1 no beiral (os vizinhos encaixam ponto com ponto)
 		var xs: Array = []
 		var zs: Array = []
-		if R[1]: xs.append(c.x - g - BEIRAL)
-		if R[3]: zs.append(c.y - g - BEIRAL)
+		if R[1]: xs.append(c.x - g - float(D.casa.beiral))
+		if R[3]: zs.append(c.y - g - float(D.casa.beiral))
 		for i in 9:
 			xs.append(c.x - g + i * g / 4.0)
 			zs.append(c.y - g + i * g / 4.0)
-		if R[2]: xs.append(c.x + g + BEIRAL)
-		if R[4]: zs.append(c.y + g + BEIRAL)
+		if R[2]: xs.append(c.x + g + float(D.casa.beiral))
+		if R[4]: zs.append(c.y + g + float(D.casa.beiral))
 		var P: Array = []
 		for j in zs.size():
 			for i in xs.size():
@@ -616,6 +688,7 @@ func _refazer_telhado(L: Dictionary) -> void:
 		L.erase("telhado")
 	L.telhado_chave = chave
 	L.telhado_celulas = celulas
+	L.telhado_base = base
 	if celulas.is_empty():
 		return
 	var mi := MeshInstance3D.new()
@@ -625,10 +698,12 @@ func _refazer_telhado(L: Dictionary) -> void:
 	L.raiz.add_child(mi)
 	L.telhado = mi
 
-# o telhado some (fica só a sombra) com o herói embaixo dele, ou com a mira embaixo dele no modo construção
-# (para pôr móveis e paredes lá dentro); colocando telhado ou desmontando, ele aparece
+# Como no Quimera: dentro de casa (debaixo do telhado; em cima dele não conta) o telhado some e as paredes que ficam
+# entre a câmera e o herói também, conforme o ângulo (fica só a sombra, a luz de dentro não muda). No modo construção
+# o telhado some com a mira lá dentro (para pôr móveis e paredes); colocando telhado ou desmontando, ele aparece.
 func _telhados_visiveis(hp: Vector3) -> void:
 	var g := grade() / 2.0
+	var dentro := false
 	for id in lotes:
 		var L: Dictionary = lotes[id]
 		var mi = L.get("telhado")
@@ -636,11 +711,35 @@ func _telhados_visiveis(hp: Vector3) -> void:
 			continue
 		var some := false
 		for c in L.telhado_celulas:
-			if absf(hp.x - c.x) < g and absf(hp.z - c.y) < g:
+			if absf(hp.x - c.x) < g and absf(hp.z - c.y) < g and hp.y < float(L.telhado_base) - 0.3:
 				some = true
+				dentro = true
 			if ativo and id == meu and not sel in ["telhado", "desmontar"] and absf(mira.x - c.x) < g + 0.3 and absf(mira.z - c.y) < g + 0.3:
 				some = true
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if some else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	# paredes (Quimera HB): de dentro, a parede até 9 m cuja direção a partir do herói aponta para a câmera some
+	var cx := 0.0
+	var cz := 0.0
+	if dentro and m.camera:
+		var v: Vector3 = m.camera.global_position - hp
+		var n := Vector2(v.x, v.z).length()
+		if n > 0.01:
+			cx = v.x / n
+			cz = v.z / n
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if tipo_peca(p.k) != "borda" or not p.get("no") or not is_instance_valid(p.no):
+				continue
+			var corta := false
+			if dentro and absf(p.x - hp.x) < 11.0 and absf(p.z - hp.z) < 11.0:
+				var dx: float = p.x - hp.x
+				var dz: float = p.z - hp.z
+				var dd := sqrt(dx * dx + dz * dz)
+				corta = dd < 9.0 and dd > 0.05 and (dx * cx + dz * cz) / dd > 0.22
+			if corta != p.get("cortada", false):
+				p.cortada = corta
+				for q in p.no.find_children("*", "MeshInstance3D", true, false):
+					q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if corta else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 # portas: a folha abre quando o herói chega perto e fecha quando ele sai
 func _achar_portas() -> void:
@@ -1239,7 +1338,7 @@ func _mover_mira(dt: float) -> void:
 		var A: Dictionary = terras.area
 		mira.x = clampf(mira.x, float(A.x) - float(A.rx) - 2.0, float(A.x) + float(A.rx) + 2.0)
 		mira.z = clampf(mira.z, float(A.z) - float(A.rz) - 2.0, float(A.z) + float(A.rz) + 2.0)
-	mira.y = m.terreno.altura(mira.x, mira.z)
+	mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
 	m.cam.entrar_livre(mira)
 	if _mira_no == null:
 		_mira_no = MeshInstance3D.new()
@@ -1462,10 +1561,8 @@ func _atualizar_mira() -> void:
 				mot = "Toque em Criar primeiro (%s)" % custo_txt(D.construcoes[sel].custo)
 		alvo = {"ok": mot == "", "motivo": mot, "tipo": "construir", "dados": {"k": sel, "x": x, "z": z, "r": r}}
 		_mostrar_fantasma(sel)
-		var y: float = m.terreno.altura(x, z) + 0.01
-		if T == "fundacao":
-			y = m.terreno.altura(x, z, -1.0) # o chão, não o piso de outra fundação
-		elif T == "telhado":
+		var y: float = _y_peca({"k": sel, "x": x, "z": z, "r": r}) + (0.0 if T == "fundacao" else 0.01)
+		if T == "telhado":
 			y = _topo_parede(x, z)
 		fantasma.position = Vector3(x, y, z)
 		fantasma.rotation.y = r * PI / 2.0
@@ -1487,7 +1584,7 @@ func _atualizar_mira() -> void:
 			alvo = {"ok": dm == "", "motivo": dm if dm != "" else "Vai desmontar: %s (volta para a mochila)" % D.construcoes[achou.k].nome, "tipo": "desmontar", "dados": {"p": achou.id}}
 			var R2 := ret_peca(achou.k, achou.x, achou.z, achou.r)
 			var T2 := tipo_peca(achou.k)
-			var y0: float = m.terreno.altura(achou.x, achou.z, -1.0)
+			var y0: float = _chao(achou.x, achou.z)
 			var alto := 1.2
 			if T2 == "telhado":
 				y0 = _topo_parede(achou.x, achou.z) - 0.3

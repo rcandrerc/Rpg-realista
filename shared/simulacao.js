@@ -117,6 +117,40 @@ export function motivoPeca(L, p, j) {
   if (emCima()) return 'Saia de cima do lugar';
   return '';
 }
+// Peças sólidas da casa no terreno (shared/terreno.js, 2026-11-04): a fundação vira chão, parede e janela se escalam
+// até o topo, a porta tem os batentes e a verga por cima (passa-se por baixo), e os telhados juntos viram um telhado
+// só onde dá para ficar em pé. chao(x, z) = altura do chão sem as casas dos jogadores. Mesma conta no app (construcao.gd).
+export function pecasCasaSolidas(L, chao) {
+  const g = GC / 2, l = [], peca = (x, z, hw, hd, y1, base) => ({ casa: true, x, z, cos: 1, sen: 0, hw, hd, sobe: 0, y1, base, R: Math.hypot(hw, hd) });
+  const piso = (x, z) => chao(x, z) + (L.pecas.some((o) => tipoPeca(o.k) === 'fundacao' && Math.abs(o.x - x) < g && Math.abs(o.z - z) < g) ? CASA.fundacao : 0);
+  const cel = [];
+  let topo = -Infinity;
+  for (const p of L.pecas) {
+    const T = tipoPeca(p.k);
+    if (T === 'fundacao') l.push(peca(p.x, p.z, g, g, chao(p.x, p.z) + CASA.fundacao, chao(p.x, p.z)));
+    else if (T === 'borda') {
+      const eixo = p.r & 1, y0 = chao(p.x, p.z), y1 = Math.max(...ladosDaBorda(p).map(([x, z]) => piso(x, z))) + CASA.parede, e = CASA.espessura / 2 + 0.02;
+      const ret = (u, hu, base, alto) => (eixo ? peca(p.x, p.z + u, e, hu, alto, base) : peca(p.x + u, p.z, hu, e, alto, base));
+      if (p.k === 'porta') l.push(ret(-0.85, 0.3, y0, y1), ret(0.85, 0.3, y0, y1), ret(0, g + 0.15, y1 - CASA.parede + CASA.porta, y1));
+      else l.push(ret(0, g + 0.15, y0, y1));
+    } else if (T === 'telhado') { cel.push([p.x, p.z]); topo = Math.max(topo, piso(p.x, p.z) + CASA.parede); }
+  }
+  if (cel.length) {
+    const tem = new Set(cel.map(([x, z]) => x + ',' + z)), seg = [];
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [x, z] of cel) {
+      if (!tem.has((x - 2 * g) + ',' + z)) seg.push([x - g, z - g, x - g, z + g]);
+      if (!tem.has((x + 2 * g) + ',' + z)) seg.push([x + g, z - g, x + g, z + g]);
+      if (!tem.has(x + ',' + (z - 2 * g))) seg.push([x - g, z - g, x + g, z - g]);
+      if (!tem.has(x + ',' + (z + 2 * g))) seg.push([x - g, z + g, x + g, z + g]);
+      x0 = Math.min(x0, x - g - CASA.beiral); x1 = Math.max(x1, x + g + CASA.beiral);
+      z0 = Math.min(z0, z - g - CASA.beiral); z1 = Math.max(z1, z + g + CASA.beiral);
+    }
+    l.push({ casa: true, cel, seg, g, base: topo, beiral: CASA.beiral, inclina: CASA.inclina, max: CASA.telhaMax, x0, z0, x1, z1,
+      x: (x0 + x1) / 2, z: (z0 + z1) / 2, cos: 1, sen: 0, hw: (x1 - x0) / 2, hd: (z1 - z0) / 2, sobe: 0, y1: topo, R: Math.hypot(x1 - x0, z1 - z0) / 2 });
+  }
+  return l;
+}
 // o que impede desmontar a peça ('' = pode): fundação com parede ou telhado em cima
 export function motivoDesmontar(L, p) {
   if (tipoPeca(p.k) !== 'fundacao') return '';
@@ -1244,6 +1278,9 @@ export class Simulacao {
   refazerSolidosLotes() {
     this.obstaculos = this.obstaculos.filter((k) => !k.peca);
     for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p));
+    // casa: piso, paredes e telhado viram chão e parede de verdade (anda em cima, escala, fica em pé no telhado)
+    const T = this.terreno, chao = (x, z) => { let h = 0; for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
+    T.porCasasDosJogadores([...this.lotes.values()].flatMap((L) => (L.dono ? pecasCasaSolidas(L, chao) : [])));
   }
   // m = { x0, z0, x1, z1 }: o terreno que o jogador marcou (toque num canto e arraste). Paga por bloco (precoTerreno).
   // Confere o tamanho, a borda das terras, a estrada, os terrenos dos outros e o ouro; o banco confere de novo (outras salas).
@@ -1292,7 +1329,7 @@ export class Simulacao {
     tirar(j.prog.mochila, 'obra_' + m.k, 1);
     L.prox++;
     L.pecas.push(p);
-    this.obstaculos.push(...solidosPeca(p));
+    this.refazerSolidosLotes();
     this.evento({ t: 'construiu', para: id, k: p.k, px: x, pz: z });
     this.avisarLote(L);
     this.avisarProg(j);
