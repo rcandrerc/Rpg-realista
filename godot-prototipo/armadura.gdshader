@@ -30,6 +30,7 @@ uniform vec2 horizonte = vec2(-0.12, 0.08); // faixa escura do reflexo (peitoral
 uniform float chao = 0.33; // abaixo da faixa escura, quanto o reflexo leva para voltar ao meio-tom (peitoral: rápido, barriga clara)
 uniform float zenite = 0.45; // quanto o reflexo escurece olhando para o alto (capacete: 0,9)
 uniform float crista_esc = 1.0; // capacete: a crista (UV2.y = 7) 15% mais escura
+uniform float largura = 0.0165; // largura do friso de ouro (m); v10 (arte do Aethra): de 1,1 para 1,65 cm
 uniform float costura = 0.0; // 1: couro com costura tracejada clara logo dentro do friso (direção de arte v6)
 
 void vertex() {
@@ -43,16 +44,17 @@ float v_esc_calc(float lam, float sulco, float f) {
 }
 
 void fragment() {
-	float f = 1.0 - smoothstep(0.0095, 0.0115, v_dist);
+	float L = largura;
+	float f = 1.0 - smoothstep(L - 0.002, L, v_dist);
 	f = max(f, so_friso);
-	float sulco = smoothstep(0.016, 0.0175, v_dist) * (1.0 - smoothstep(0.0195, 0.021, v_dist));
+	float sulco = smoothstep(L + 0.0045, L + 0.006, v_dist) * (1.0 - smoothstep(L + 0.008, L + 0.0095, v_dist));
 	float lam = 0.0;
 	if (v_seg > -0.5) {
 		float q = fract(v_seg / faixa);
-		lam = (1.0 - smoothstep(0.0, 0.05, q)) * smoothstep(0.03, 0.04, v_dist);
+		lam = (1.0 - smoothstep(0.0, 0.05, q)) * smoothstep(L + 0.0185, L + 0.0285, v_dist);
 	}
 	if (junta_y > 0.0) {
-		lam = max(lam, (1.0 - smoothstep(0.004, 0.006, abs(v_seg - junta_y))) * smoothstep(0.03, 0.04, v_dist));
+		lam = max(lam, (1.0 - smoothstep(0.004, 0.006, abs(v_seg - junta_y))) * smoothstep(L + 0.0185, L + 0.0285, v_dist));
 	}
 	v_friso = f;
 	ALBEDO = vec3(1.0);
@@ -61,7 +63,7 @@ void fragment() {
 	float ponto = 0.0;
 	if (costura > 0.5) {
 		// pontos de ~6 mm a cada 1,2 cm na faixa do sulco (coordenada do modelo: não depende da UV)
-		float faixa_c = smoothstep(0.0165, 0.018, v_dist) * (1.0 - smoothstep(0.02, 0.0215, v_dist));
+		float faixa_c = smoothstep(L + 0.005, L + 0.0065, v_dist) * (1.0 - smoothstep(L + 0.0085, L + 0.01, v_dist));
 		ponto = faixa_c * step(0.5, fract((v_pos.x + v_pos.y + v_pos.z) * 83.0));
 		v_esc = mix(v_esc, 1.0, faixa_c);
 	}
