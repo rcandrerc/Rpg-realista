@@ -192,6 +192,12 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 				if not _malhas.has(chave_c):
 					_malhas[chave_c] = _saia_curta(alvo, R)
 				alvo = _malhas[chave_c]
+		if trecho == "Tops" and ativo:
+			# v10 (André 2026-11-04): manga colada no braço, como segunda pele por baixo da armadura
+			var chave_m := "manga:%d" % alvo.get_instance_id()
+			if not _malhas.has(chave_m):
+				_malhas[chave_m] = _manga_justa(alvo, R, formas.get("Body_00", alvo), 0.0035 if feminino else 0.005)
+			alvo = _malhas[chave_m]
 		if trecho == "Tops" and ativo and feminino:
 			var chave_d := "decote:%d" % alvo.get_instance_id()
 			if not _malhas.has(chave_d):
@@ -612,6 +618,9 @@ class Ref:
 	var y_joelho := 0.535
 	var z_joelho := 0.0
 	var y_pe := 0.106
+	var p_braco := Vector3.ZERO # ombro, cotovelo e mão esquerdos na pose de descanso (manga justa)
+	var p_cotovelo := Vector3.ZERO
+	var p_mao := Vector3.ZERO
 	var masc := false # corpo sem osso de busto: cintura de verdade fica abaixo do osso da coluna
 
 static func _ref(esq: Skeleton3D) -> Ref:
@@ -628,6 +637,9 @@ static func _ref(esq: Skeleton3D) -> Ref:
 	r.y_joelho = p.call("J_Bip_L_LowerLeg").y
 	r.z_joelho = p.call("J_Bip_L_LowerLeg").z
 	r.y_pe = p.call("J_Bip_L_Foot").y
+	r.p_braco = p.call("J_Bip_L_UpperArm")
+	r.p_cotovelo = p.call("J_Bip_L_LowerArm")
+	r.p_mao = p.call("J_Bip_L_Hand")
 	var busto: Vector3 = p.call("J_Sec_L_Bust1")
 	if busto != Vector3.ZERO:
 		junta_peito = busto.y - 0.11 # base do busto ~8 cm abaixo do osso, mais 3 cm
@@ -692,7 +704,8 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 		"braco_e", "braco_d":
 			if ax < R.x_cotovelo + 0.035 or ax > R.x_mao - 0.02:
 				return Vector2(-1, 0)
-			return Vector2(0.012 + 0.006 * _sino(ax - R.x_cotovelo - 0.1, 0.08), ax)
+			# v10 (André 2026-11-04): o braço por baixo é segunda pele; a braçadeira fica grossa e robusta
+			return Vector2(0.02 + 0.008 * _sino(ax - R.x_cotovelo - 0.1, 0.08), ax)
 		"canela_e", "canela_d":
 			# v10 (arte do Aethra): bota de cano alto até o meio da coxa, com a boca subindo em ponta na frente e
 			# joelheira pontuda saltada
@@ -725,7 +738,10 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 		"saia", "saia_frente":
 			# placas verticais (lâminas) em volta do quadril; começa abaixo da barra da blusa (que cobre o alto da saia)
 			# saia_frente (com capa): só a frente e os lados; atrás fica o pano da capa
-			if p.y > R.y_cintura - 0.075 or (parte == "saia_frente" and p.z < -0.02):
+			# v10 (André 2026-11-04): atrás o saiote sobe até a barra da blusa (antes ficava um vão com a roupa
+			# branca aparecendo e o saiote parecia solto); na frente continua onde estava
+			var topo_s := R.y_cintura - lerpf(0.075, 0.02, smoothstep(0.0, -0.06, p.z))
+			if p.y > topo_s or (parte == "saia_frente" and p.z < -0.02):
 				return Vector2(-1, 0)
 			# masculino: a calça do VRoid vai até o pé; o saiote para no meio da coxa
 			if R.masc and p.y < lerpf(R.y_joelho, R.y_cintura, 0.5):
@@ -1279,6 +1295,71 @@ static func _material_decote(r: int, y_pescoco: float, pele: Color) -> Material:
 		m.set_shader_parameter("largura", DECOTE_LARG)
 		_materiais[chave] = m
 	return _materiais[chave]
+
+# Manga justa: cada vértice da manga vai para no máximo "folga" acima da pele do braço. O braço é medido pelos ossos
+# (ombro, cotovelo, mão: serve para corpo em T e em A), em fatias ao longo dele. Perto do ombro a mudança some aos poucos.
+static func _eixo_braco(q: Vector3, R: Ref) -> Array: # [t de 0 (ombro) a 2 (mão), ponto do eixo]
+	var melhor := [0.0, R.p_braco, INF]
+	var segs := [[R.p_braco, R.p_cotovelo, 0.0], [R.p_cotovelo, R.p_mao, 1.0]]
+	for sg in segs:
+		var a: Vector3 = sg[0]
+		var b: Vector3 = sg[1]
+		var ab := b - a
+		var u := clampf((q - a).dot(ab) / maxf(ab.length_squared(), 1e-6), 0.0, 1.0)
+		var c := a + ab * u
+		var d := q.distance_to(c)
+		if d < melhor[2]:
+			melhor = [float(sg[2]) + u, c, d]
+	return melhor
+
+static func _manga_justa(orig: ArrayMesh, R: Ref, corpo: Mesh, folga: float) -> ArrayMesh:
+	if R.p_mao == Vector3.ZERO:
+		return orig
+	var NB := 32
+	var raio := PackedFloat32Array()
+	raio.resize(NB)
+	var CV: PackedVector3Array = _FA(corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX])
+	for p in CV:
+		var q := Vector3(absf(p.x), p.y, p.z)
+		var e := _eixo_braco(q, R)
+		var t: float = e[0]
+		if t < 0.12 or t > 1.97 or float(e[2]) > 0.08:
+			continue
+		var bi := clampi(int(t / 2.0 * NB), 0, NB - 1)
+		raio[bi] = maxf(raio[bi], float(e[2]))
+	for it in 2: # fatias vazias: copia a vizinha
+		for bi in NB:
+			if raio[bi] <= 0.0:
+				raio[bi] = maxf(raio[maxi(bi - 1, 0)], raio[mini(bi + 1, NB - 1)])
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		for i in V.size():
+			var p := V[i]
+			var sx := signf(p.x)
+			var q := Vector3(absf(p.x), p.y, p.z)
+			var e := _eixo_braco(q, R)
+			var t: float = e[0]
+			if t < 0.12 or t > 1.97:
+				continue
+			var bi := clampi(int(t / 2.0 * NB), 0, NB - 1)
+			if raio[bi] <= 0.0:
+				continue
+			var c: Vector3 = e[1]
+			var d := q - c
+			var alvo: float = raio[bi] + folga
+			if d.length() <= alvo:
+				continue
+			var peso := smoothstep(0.12, 0.35, t)
+			var n := c + d.normalized() * lerpf(d.length(), alvo, peso)
+			V[i] = Vector3(n.x * (sx if sx != 0.0 else 1.0), n.y, n.z)
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
 
 # v10: o capuz (o que fica atrás e acima do pescoço) vira uma gola baixa, colada na nuca
 static func _sem_capuz(orig: ArrayMesh, R: Ref) -> ArrayMesh:
