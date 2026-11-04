@@ -507,8 +507,13 @@ func _mat_terra(molhada: bool) -> StandardMaterial3D:
 		mt.albedo_texture = tex
 	mt.vertex_color_use_as_albedo = true
 	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mt.albedo_color = Color("6e5238") if molhada else Color("a8835e")
-	mt.roughness = 0.55 if molhada else 0.95
+	# a textura já é terra marrom (média ~0,40/0,27/0,16): a cor só clareia ou escurece um pouco. Antes ela multiplicava
+	# por um marrom de novo e a terra saía quase preta (direção de arte 2026-11-04: alvo #6b4a30, molhada mais escura)
+	mt.albedo_color = Color(0.68, 0.62, 0.6) if molhada else Color(1.12, 1.06, 1.0)
+	mt.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	mt.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	mt.metallic = 0.0
+	mt.roughness = 0.6 if molhada else 1.0
 	mt.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	_mats_terra[molhada] = mt
 	return mt
@@ -865,13 +870,21 @@ func _pintar_ret(im: ImmediateMesh, R: Dictionary, miolo: Color, borda: Color) -
 		for i in nx:
 			for k in nz:
 				var a := Vector2(x0 + i, z0 + k)
-				var xadrez := 0.82 if (i + k) % 2 == 0 else 1.0 # quadradinhos de 1 m: dá para contar os blocos
+				var xadrez := 0.86 if (i + k) % 2 == 0 else 1.0 # quadradinhos de 1 m: dá para contar os blocos
 				var c := Color(miolo.r * xadrez, miolo.g * xadrez, miolo.b * xadrez, miolo.a)
 				var q := [Vector3(a.x, y.call(a.x, a.y), a.y), Vector3(a.x + 1, y.call(a.x + 1, a.y), a.y),
 					Vector3(a.x + 1, y.call(a.x + 1, a.y + 1), a.y + 1), Vector3(a.x, y.call(a.x, a.y + 1), a.y + 1)]
 				for v in [q[0], q[1], q[2], q[0], q[2], q[3]]:
 					im.surface_set_color(c)
 					im.surface_add_vertex(v)
+		# linhas da grade a cada 1 m (alpha 0,5, direção de arte)
+		var linha := Color(miolo.r * 1.25, miolo.g * 1.25, miolo.b * 1.25, 0.5)
+		for i in range(1, nx):
+			for k in nz:
+				_faixa(im, Vector2(x0 + i - 0.03, z0 + k), Vector2(x0 + i + 0.03, z0 + k + 1), linha, y)
+		for k in range(1, nz):
+			for i in nx:
+				_faixa(im, Vector2(x0 + i, z0 + k - 0.03), Vector2(x0 + i + 1, z0 + k + 0.03), linha, y)
 	var cantos := [Vector2(x0, z0), Vector2(x1, z0), Vector2(x1, z1), Vector2(x0, z1)]
 	for i in 4:
 		var a: Vector2 = cantos[i]
@@ -889,6 +902,14 @@ func _pintar_ret(im: ImmediateMesh, R: Dictionary, miolo: Color, borda: Color) -
 				im.surface_set_color(borda)
 				im.surface_add_vertex(v)
 	im.surface_end()
+
+# retângulo fino alinhado aos eixos (linha da grade), 5 mm acima do miolo
+func _faixa(im: ImmediateMesh, a: Vector2, b: Vector2, cor: Color, y: Callable) -> void:
+	var q := [Vector3(a.x, y.call(a.x, a.y) + 0.005, a.y), Vector3(b.x, y.call(b.x, a.y) + 0.005, a.y),
+		Vector3(b.x, y.call(b.x, b.y) + 0.005, b.y), Vector3(a.x, y.call(a.x, b.y) + 0.005, b.y)]
+	for v in [q[0], q[1], q[2], q[0], q[2], q[3]]:
+		im.surface_set_color(cor)
+		im.surface_add_vertex(v)
 
 # profissão da estação construída mais perto: bancada = Alfaiate, bigorna ou fornalha = Ferreiro ("" = nenhuma)
 func prof_da_estacao() -> String:
@@ -1132,13 +1153,13 @@ func _atualizar_compra() -> void:
 		add_child(_ret_no)
 		_ret_txt = Label3D.new()
 		_ret_txt.font = m.fonte_nome()
-		_ret_txt.font_size = 56
-		_ret_txt.pixel_size = 0.006
-		_ret_txt.outline_size = 12
+		_ret_txt.font_size = 40
+		_ret_txt.pixel_size = 0.0011
+		_ret_txt.outline_size = 10
 		_ret_txt.outline_modulate = Color(0.08, 0.06, 0.04)
 		_ret_txt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		_ret_txt.no_depth_test = true
-		_ret_txt.fixed_size = false
+		_ret_txt.fixed_size = true # mesmo tamanho na tela de perto e de longe (~20 px)
 		add_child(_ret_txt)
 	var im: ImmediateMesh = _ret_no.mesh
 	im.clear_surfaces()
@@ -1234,7 +1255,7 @@ func _montar_tela() -> void:
 		b.custom_minimum_size = Vector2(92, 29)
 		_botoes_abas[k] = b
 		linha_abas.add_child(b)
-	var pc := Menu.rotulo("", 11, Menu.APAGADO)
+	var pc := Menu.rotulo("", 13, Menu.APAGADO)
 	pc.name = "pecas"
 	pc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	linha_abas.add_child(pc)
@@ -1309,7 +1330,7 @@ func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, c
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(t)
 	if numero != "":
-		var n := Menu.rotulo(numero, 11, Color.WHITE if tem else Color("e0a090"))
+		var n := Menu.rotulo(numero, 14, Color.WHITE if tem else Color("e0a090"))
 		n.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 		n.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 		n.grow_vertical = Control.GROW_DIRECTION_BEGIN
