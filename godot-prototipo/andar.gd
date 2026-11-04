@@ -50,6 +50,12 @@ func _init(terreno, mundo: Dictionary) -> void:
 		if not mata.has(k):
 			mata[k] = []
 		mata[k].append({"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)})
+	# ruínas, rochedos, troncos caídos e pedras da mata (mundo.cenario.solidos), na mesma grade (Simulacao faz igual)
+	for o in m.get("cenario", {}).get("solidos", []):
+		var k := Vector2i(floori(float(o.x) / 6.0), floori(float(o.z) / 6.0))
+		if not mata.has(k):
+			mata[k] = []
+		mata[k].append({"x": float(o.x), "z": float(o.z), "r": float(o.r), "alto": float(o.get("alto", 4.0))})
 	for o in m.get("obstaculos", []):
 		var r: float = float(o.r) + 1.0
 		for i in range(floori((float(o.x) - r) / 6.0), floori((float(o.x) + r) / 6.0) + 1):
