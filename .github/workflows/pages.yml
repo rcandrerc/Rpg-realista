@@ -19,9 +19,12 @@ permissions:
   pages: write
   id-token: write
 
+# Fila em vez de cancelar: o push e o apk.yml chamam este workflow para o mesmo commit quase juntos, e cancelar
+# um deles no meio do deploy cancelava também o deploy do outro (mesmo ID = commit) e o pacote novo não chegava
+# ao site (2026-11-04, execução 208). Com fila, um termina e o mais novo roda depois; o do meio é descartado.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publicar:
