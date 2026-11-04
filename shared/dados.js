@@ -164,11 +164,11 @@ export const MONTARIAS = {
 // Monstros do Bestiário (Quaternius): visual 'bst:<Nome>' = client/src/bestiario.js (site) e godot-prototipo/modelos/<nome>.glb.
 // Atacam com garra e soco, sem espada. Nascem só no acampamento do leste, nunca dentro da vila.
 export const TIPOS_INIMIGO = {
-  puglin: { nome: 'Puglin', horda: 'Monstros do Leste', visual: 'bst:Puglin', vida: 80, dano: 8, intervalo: 2.2, escala: 1, brilho: 0x8a3dff },
-  imp: { nome: 'Imp', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 110, dano: 11, intervalo: 2.4, escala: 1, brilho: 0xff6a2a },
-  chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.9, escala: 1.15, brilho: 0xff2a3a },
+  puglin: { nome: 'Puglin', horda: 'Monstros do Leste', visual: 'bst:Puglin', vida: 80, dano: 8, intervalo: 1.7, escala: 1, brilho: 0x8a3dff },
+  imp: { nome: 'Imp', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 110, dano: 11, intervalo: 1.8, escala: 1, brilho: 0xff6a2a },
+  chefe: { nome: 'Imp Chefe', horda: 'Monstros do Leste', visual: 'bst:Imp', vida: 220, dano: 16, intervalo: 1.5, escala: 1.15, brilho: 0xff2a3a },
   // o lobo (feito por IA, ferramentas/monstros-ia) era montaria de teste; virou bicho de caça (pedido do André 2026-11-03)
-  lobo: { nome: 'Lobo', horda: 'Monstros do Leste', visual: 'lobo', vida: 95, dano: 10, intervalo: 2.0, escala: 1, brilho: 0xd8e6ff },
+  lobo: { nome: 'Lobo', horda: 'Monstros do Leste', visual: 'lobo', vida: 95, dano: 10, intervalo: 1.5, escala: 1, brilho: 0xd8e6ff },
   // Monstros do Mixamo (pedido do André 2026-11-03; visual aprovado pela direção de arte 2026-11-04). O Warrok é chefe
   // (chefe: true vale como o Imp Chefe: não voa longe, não é puxado, sofre metade do controle). O golem de magma é o
   // Pumpkinhulk do Mixamo repintado de pedra e lava.
@@ -190,7 +190,12 @@ export const TREINO = { volta: 4, raio: 0.38, alto: 1.6 }; // alto: a câmera pa
 // `roda` m), aguenta `firmeGolpes` golpes seguidos e fica firme (não para de apanhar, revida) por `firmeDur` s.
 // Rolar ou dar dash na hora do golpe = esquiva: o próximo golpe do herói em `contraDur` s vale `contraK`x e é crítico.
 export const COMBATE_INIMIGO = {
-  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7, lobo: 0.45, golem: 0.65, maw: 0.6, warrok: 0.75 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  // André 2026-11-04: "pode fazer igual Quimera tudo": preparo de 0,4 s, sem limite de quantos batem juntos
+  // (aoMesmoTempo alto = todos vão para cima), perseguem correndo até encostar e, depois do golpe acertar,
+  // esperam de cdMin a cdMax s (sorteado) para bater de novo, como o cd na(1.05, 1.5) do Quimera
+  preparo: { puglin: 0.4, imp: 0.4, chefe: 0.4, lobo: 0.4 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  aoMesmoTempo: 99, roda: 2.9, rodaVel: 1.6, perseguir: 3.6, chegar: 2.2, chegarDist: 2.6, folga: 0, cdMin: 1.05, cdMax: 1.5,
+  firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6 }, firmeJanela: 1.6, firmeDur: 2.0,
   aoMesmoTempo: 2, roda: 3.4, rodaVel: 1.1,
   firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6, golem: 5, maw: 5, warrok: 4 }, firmeJanela: 1.6, firmeDur: 2.0,
   contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
@@ -353,7 +358,18 @@ export const CACA = [
 // Nível dos monstros: cada nível acima do 1 soma uma fração da vida, do dano, do XP e do ouro de base (TIPOS_INIMIGO,
 // XP_INIMIGO e DROPS). A curva acompanha o herói (dano +8%/nível mais os pontos e o equipamento); XP cai quando o herói
 // passa muito do nível do bicho (acima de "folga" níveis, perde "perde" por nível, até "min").
-export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1 };
+// Diferença de nível igual ao Quimera (André 2026-11-04, "o dano vai diminuindo de acordo com o nível"):
+//  - monstro acima do herói bate +danoAcima por nível; herói acima do monstro apanha -danoAbaixo por nível (até danoAbaixoMin)
+//  - um golpe de monstro nunca tira mais que teto (chefe: tetoChefe) da vida máxima, vezes o mesmo desconto
+//  - herói bate menos em monstro com mais de golpeFolga níveis acima (-golpeCai por nível, até golpeMin) e mais no de
+//    nível abaixo (+golpeSobe por nível, até golpeMax)
+//  - XP: monstro 2+ níveis acima dá +xpSobe por nível (até xpMax); herói 3+ níveis acima perde xpCai por nível (até xpMin)
+//  - nome do monstro: cinza (fácil) com corFacil níveis ou menos, vermelho (perigo) com corForte ou mais, verde no meio
+// folga, perde e min eram a regra de XP de antes (sem uso desde 2026-11-04, ficam por causa da regra "Nada some").
+export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1,
+  danoAcima: 0.06, danoAbaixo: 0.05, danoAbaixoMin: 0.55, teto: 0.3, tetoChefe: 0.45,
+  golpeFolga: 3, golpeCai: 0.06, golpeMin: 0.6, golpeSobe: 0.04, golpeMax: 1.4,
+  xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, corFacil: -3, corForte: 2 };
 export const statusInimigo = (tipo, nivel = 1) => {
   const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
   return { vida: Math.round(t.vida * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (1 + NIVEL_INIMIGO.dano * k)) };

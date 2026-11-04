@@ -15,7 +15,6 @@
 
 - Atualização nunca sobrepõe nem apaga recurso anterior. Remoção ou troca só quando o André pede, ou quando uma thread sugere a remoção para a próxima atualização e o André diz sim. Nunca remova por conta própria.
 - Antes de abrir ou mesclar PR: junte a main mais nova no ramo (ou rebase) e, nos conflitos, mantenha os dois lados. Nunca resolva conflito pegando um lado inteiro.
-- O CI "Nada some" vale para TUDO, sem lista: falha se o ramo está atrás da main ou se apaga ou troca qualquer coisa que já existe (arquivo, imagem, som, modelo, função, nó de cena, chave de dados, mensagem do servidor). Só passa com a etiqueta `remoção aprovada` no PR, e ela só entra quando o André pediu a remoção ou a troca (cite o pedido dele na descrição).
-- Comportamentos importantes também vão em `ferramentas/protecao/recursos.json` no mesmo PR (conferência extra de trechos).
+- Não há trava no CI (o André tirou a "Nada some" em 2026-11-04). A regra é simples: todo PR novo, antes do merge, busca a main mais nova, junta no ramo e se adequa a ela, mantendo o trabalho dos outros (o irmão do André também mexe). Nunca sobreponha o que já está na main. Os scripts antigos em `ferramentas/protecao/` podem ser rodados à mão.
 - APK para o André só sai de um ramo com a main mais nova: rode `ferramentas/protecao/antes-do-apk.sh` antes. APK feito de ramo velho apaga o que entrou depois.
 - Recurso que o André aprovou num APK de teste precisa virar PR mesclado na main; senão o próximo APK vem sem ele.

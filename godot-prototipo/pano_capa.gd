@@ -14,7 +14,7 @@ const GRAVIDADE := Vector3(0, -9.8, 0)
 const AR := 1.0 # freio do ar em todo o pano (1/s)
 const VENTO := 3.2 # quanto o ar empurra o pano pela frente da face (vento da corrida)
 const VENTO_MAX := 5.5 # m/s: acima disso (galope do lobo) o ar não levanta mais o pano (senão ele vira bandeira)
-const FORMA := [1.0, 0.35, 0.06, 0.012, 0.004, 0.0015, 0.0] # quanto cada linha volta para a forma de descanso (por passo)
+const FORMA := [1.0, 0.25, 0.03, 0.004, 0.0, 0.0, 0.0] # quanto cada linha volta para a forma de descanso (por passo)
 
 var mi: MeshInstance3D # a malha da capa (presa no osso pelo BoneAttachment3D)
 var osso := -1 # J_Bip_C_UpperChest
@@ -48,9 +48,9 @@ func preparar(esq: Skeleton3D, malha: MeshInstance3D, grade: PackedVector3Array)
 				_liga(id.call(i, j), id.call(i + 1, j + 1), 0.5)
 				_liga(id.call(i + 1, j), id.call(i, j + 1), 0.5)
 			if i + 2 < COLS:
-				_liga(id.call(i, j), id.call(i + 2, j), 0.25) # pano grosso: dobra devagar
+				_liga(id.call(i, j), id.call(i + 2, j), 0.12) # pano grosso, mas deita nas costas e no lobo
 			if j + 2 < LINHAS:
-				_liga(id.call(i, j), id.call(i, j + 2), 0.25)
+				_liga(id.call(i, j), id.call(i, j + 2), 0.08)
 	# corpo: tronco, quadril e pernas. O raio de cada cápsula é o do corpo, mas nunca encosta na capa em
 	# descanso (fica 1 cm longe), para o pano não nascer "dentro" de nada
 	var C := [["J_Bip_C_Hips", "J_Bip_C_UpperChest", 0.14], ["J_Bip_L_UpperLeg", "J_Bip_L_LowerLeg", 0.095],
@@ -104,6 +104,7 @@ func _process_modification() -> void:
 	var dcam := cam.global_position.distance_to(topo0) if cam else 0.0
 	var longe := dcam > 30.0
 	if _p.size() != n or _p[COLS / 2].distance_to(topo0) > 1.5:
+		_topo_ok = false
 		_p.resize(n)
 		_q.resize(n)
 		for k in n:
@@ -141,6 +142,10 @@ func _process_modification() -> void:
 	tempo_us = Time.get_ticks_usec() - t0
 
 var _M_ant := Transform3D()
+var _topo_ant := Vector3.ZERO
+var _topo_ok := false
+var _vc := Vector3.ZERO # velocidade do corpo suavizada (m/s, só no chão)
+var _trem := 0.0 # força do tremular (0 parado a 1 correndo)
 var _M_ant_ok := false
 
 func _ao_fim() -> void:
@@ -153,6 +158,14 @@ static func _mistura(a: Transform3D, b: Transform3D, f: float) -> Transform3D:
 
 func _passo(M: Transform3D, esc: float) -> void:
 	_t += PASSO
+	# velocidade do corpo (meio da borda de cima), suavizada em ~0,3 s: liga o tremular devagar
+	var topo := M * base[COLS / 2]
+	var vc := (topo - _topo_ant) / PASSO if _topo_ok else Vector3.ZERO
+	_topo_ant = topo
+	_topo_ok = true
+	vc.y = 0.0
+	_vc = _vc.lerp(vc, 1.0 - exp(-PASSO / 0.3))
+	_trem = smoothstep(1.0, 5.5, minf(_vc.length(), VENTO_MAX))
 	var n := base.size()
 	var h2 := PASSO * PASSO
 	var amort := 1.0 - AR * PASSO
@@ -180,11 +193,12 @@ func _passo(M: Transform3D, esc: float) -> void:
 			if nn.length_squared() > 1e-8:
 				nn = nn.normalized()
 				a -= nn * (clampf(v.dot(nn), -VENTO_MAX, VENTO_MAX) * VENTO)
-			# pano tremulando com a velocidade (mais na barra e nas pontas)
-			var vel := v.length()
-			if vel > 1.0:
+			# pano tremulando com a velocidade do CORPO (suavizada), crescendo e sumindo aos poucos. Antes dependia da
+			# velocidade de cada ponto passar de 1 m/s: ligava e desligava sozinho (André 2026-11-04: "treme
+			# rapidamente e depois para do nada", "vento do nada")
+			if _trem > 0.01:
 				var t := float(j) / (LINHAS - 1)
-				a += nn * sin(_t * (9.0 + 3.0 * t) + i * 1.3 - j * 1.7) * minf(vel, 7.0) * 1.1 * t
+				a += nn * (sin(_t * 7.0 + i * 0.9 - j * 1.4) + 0.5 * sin(_t * 4.3 - i * 0.6 + j * 0.8)) * _trem * 2.2 * t
 			var novo := _p[k] + (_p[k] - _q[k]) * amort + a * h2
 			_q[k] = _p[k]
 			_p[k] = novo
