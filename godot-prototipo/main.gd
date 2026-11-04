@@ -833,6 +833,8 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	no.scale *= escala
 	if armas_lugar.has(id): # humano (VRoid) luta de espada; monstro do Bestiário luta com garra e soco
 		prender(esqueleto(no), nova_arma("espada", false), armas_lugar[id].espadaMao)
+	elif MIXAMO.has(id):
+		estilo_mixamo(no, MIXAMO[id])
 	else:
 		contorno(no, 0.012)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
@@ -843,8 +845,41 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	# com 10 clareiras no mapa: o corpo some a LONGE_INIMIGO m e o nome e a barra a NOME_LONGE m (atravessavam o mapa)
 	for g in no.find_children("*", "GeometryInstance3D", true, false):
 		g.visibility_range_end = NOME_LONGE if (g is Label3D or g.get_parent() == no) else LONGE_INIMIGO
+	if MIXAMO.has(id): # nome e barra acima da cabeça (os do Mixamo são bem mais altos)
+		e.alto = float(MIXAMO[id].alto) * escala
 	inimigos.append(e)
 	return e
+
+# Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
+# (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
+const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}}
+var _shader_monstro: Shader
+func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
+	if _shader_monstro == null:
+		_shader_monstro = load("res://monstro.gdshader")
+	for mi in no.find_children("*", "MeshInstance3D", true, false):
+		var k: float = snappedf(float(cfg.contorno) / max(0.0001, mi.global_transform.basis.get_scale().x), 0.0001)
+		if not mat_contorno.has(k):
+			var c := StandardMaterial3D.new()
+			c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			c.cull_mode = BaseMaterial3D.CULL_FRONT
+			c.grow = true
+			c.grow_amount = k
+			c.albedo_color = Color(0.1, 0.07, 0.06)
+			mat_contorno[k] = c
+		for i in mi.mesh.get_surface_count():
+			var m = mi.get_surface_override_material(i)
+			if m == null:
+				m = mi.mesh.surface_get_material(i)
+			if not (m is BaseMaterial3D):
+				continue
+			var s := ShaderMaterial.new()
+			s.shader = _shader_monstro
+			s.set_shader_parameter("textura", m.albedo_texture)
+			if m.emission_texture: # o pintar() desliga a emissão dos personagens, mas a textura dos olhos fica
+				s.set_shader_parameter("brilho", m.emission_texture)
+			s.next_pass = mat_contorno[k]
+			mi.set_surface_override_material(i, s)
 
 # contorno escuro de desenho nos monstros (como o MToon da Ruiva): casca um pouco maior, só o lado de trás
 var mat_contorno := {}

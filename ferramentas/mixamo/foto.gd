@@ -33,6 +33,7 @@ func _initialize() -> void:
 	m.heroi.rotation.y = PI * 0.5
 	var e = m.criar_inimigo(tipo, base + Vector3(1.4, 0, 0), "Warrok")
 	e.no.global_position.y = m.terreno.altura(base.x + 1.4, base.z)
+	m.empilhar_nomes()
 	for x in m.inimigos:
 		if x != e and x.no.global_position.distance_to(base) < 25.0:
 			x.no.visible = false

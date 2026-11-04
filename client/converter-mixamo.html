@@ -14,6 +14,60 @@ function reduzir(tex) {
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.colorSpace = tex.colorSpace; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT; return t;
 }
+// Receita da direção de arte (2026-11-04, Warrok v2): achatar o detalhe fotográfico. Textura base a 256 px e de volta
+// (some a ruga fina), posterizar (valor em 4 degraus; por canal sujava o matiz), misturar 50% com a cor chapada da região (a cor da paleta mais
+// parecida), saturação +25% e valor mínimo ~0,45. olhos = retângulo da textura (u0, v0, u1, v1 de 0 a 1, v de cima)
+// que vira textura de brilho (emissão) para os olhos acenderem.
+const ESTILO = {
+  // pele verde-oliva (o resto), couro e madeira (laranja forte), braçadeira e ombreira (vermelho forte), chifre e dente (claro sem cor)
+  Warrok: { paleta: ['#6f8a4a', '#7a5232', '#a8402e', '#d9c9a3'], regras: [[3, 0, 360, 0, 0.7], [2, 335, 10, 0.4, 0.15], [1, 10, 50, 0.3, 0.08]], olhos: [0.9, 0.92, 0.985, 1.0] },
+};
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+function hsv(r, g, b) { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0;
+  if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [h / 6, mx ? d / mx : 0, mx]; }
+function rgb(h, s, v) { h = ((h % 1) + 1) % 1 * 6; const i = Math.floor(h), f = h - i, p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+  return [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6]; }
+function estilizar(tex, cfg) {
+  const img = tex.image, W = Math.min(LADO, img.width), H = Math.round(img.height * W / img.width);
+  const pq = document.createElement('canvas'); pq.width = 256; pq.height = Math.round(256 * H / W);
+  pq.getContext('2d').drawImage(img, 0, 0, pq.width, pq.height);
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high'; x.drawImage(pq, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H), px = d.data, pal = cfg.paleta.map(hex), palH = pal.map((p) => hsv(...p));
+  // região = cor da paleta com o matiz mais perto; pixel quase cinza vai para a 1ª cor (corpo), ou para a mais clara
+  // se for bem claro (osso, dente). Depois: 50% pixel + 50% cor chapada, valor em 4 degraus, saturação +25%, valor ≥0,45.
+  const clara = palH.reduce((m, h, k) => (h[2] > palH[m][2] ? k : m), 0);
+  // a região sai de uma cópia bem borrada (48 px): a ilha inteira da textura pega uma cor só, sem manchas
+  const bz = document.createElement('canvas'); bz.width = 48; bz.height = 48; bz.getContext('2d').drawImage(img, 0, 0, 48, 48);
+  const bc = document.createElement('canvas'); bc.width = W; bc.height = H; const bx = bc.getContext('2d');
+  bx.imageSmoothingQuality = 'high'; bx.drawImage(bz, 0, 0, W, H); const bp = bx.getImageData(0, 0, W, H).data;
+  for (let i = 0; i < px.length; i += 4) {
+    const [h0, s0, v0] = hsv(bp[i] / 255, bp[i + 1] / 255, bp[i + 2] / 255);
+    let best = 0;
+    if (cfg.regras) { // regras da paleta: [índice, matiz de, matiz até (graus), saturação mínima, valor mínimo]; senão a 1ª cor
+      const g = h0 * 360; for (const [k, a, b, sm, vm] of cfg.regras) if ((a <= b ? g >= a && g <= b : g >= a || g <= b) && s0 >= sm && v0 >= vm) { best = k; break; }
+    } else if (s0 < 0.18) best = v0 > 0.62 ? clara : 0;
+    else { let bd = 9; palH.forEach((p, k) => { if (k === clara) return; const dh = Math.min(Math.abs(h0 - p[0]), 1 - Math.abs(h0 - p[0])); if (dh < bd) { bd = dh; best = k; } }); }
+    const r = (px[i] / 255 + pal[best][0]) / 2, g = (px[i + 1] / 255 + pal[best][1]) / 2, b = (px[i + 2] / 255 + pal[best][2]) / 2;
+    const [h, s, v] = hsv(r, g, b), vq = Math.min(1, Math.round(v * 4) / 4 + 0.1);
+    const o = rgb(h, Math.min(1, s * 1.25), Math.max(0.45, vq));
+    px[i] = o[0] * 255; px[i + 1] = o[1] * 255; px[i + 2] = o[2] * 255;
+  }
+  x.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT;
+  let brilho = null;
+  if (cfg.olhos) {
+    const e = document.createElement('canvas'); e.width = 256; e.height = 256; const ex = e.getContext('2d');
+    ex.fillStyle = '#000'; ex.fillRect(0, 0, 256, 256);
+    const [u0, v0, u1, v1] = cfg.olhos;
+    ex.drawImage(img, u0 * img.width, v0 * img.height, (u1 - u0) * img.width, (v1 - v0) * img.height, u0 * 256, v0 * 256, (u1 - u0) * 256, (v1 - v0) * 256);
+    const ed = ex.getImageData(0, 0, 256, 256), ep = ed.data;
+    for (let i = 0; i < ep.length; i += 4) { const k = Math.max(ep[i], ep[i + 1], ep[i + 2]) > 20 ? 1 : 0; ep[i] = 255 * k; ep[i + 1] = 170 * k; ep[i + 2] = 40 * k; }
+    ex.putImageData(ed, 0, 0);
+    brilho = new THREE.CanvasTexture(e); brilho.flipY = tex.flipY; brilho.colorSpace = THREE.SRGBColorSpace;
+  }
+  return { t, brilho };
+}
 const nomes = (new URLSearchParams(location.search).get('nomes') || 'Warrok').split(',');
 const saida = {}, info = {};
 for (const nome of nomes) {
@@ -27,8 +81,10 @@ for (const nome of nomes) {
       const lista = Array.isArray(o.material) ? o.material : [o.material];
       const novos = lista.map((m) => {
         if (feitos.has(m)) return feitos.get(m);
-        const n = new THREE.MeshStandardMaterial({ name: m.name, map: reduzir(m.map), normalMap: m.normalMap ? reduzir(m.normalMap) : null,
+        const est = ESTILO[nome] && m.map ? estilizar(m.map, ESTILO[nome]) : null;
+        const n = new THREE.MeshStandardMaterial({ name: m.name, map: est ? est.t : reduzir(m.map), normalMap: !est && m.normalMap ? reduzir(m.normalMap) : null,
           color: m.map ? 0xffffff : m.color, transparent: !!m.transparent, alphaTest: m.alphaTest || 0, side: THREE.FrontSide, roughness: 1, metalness: 0 });
+        if (est && est.brilho) { n.emissiveMap = est.brilho; n.emissive = new THREE.Color(0xffffff); }
         feitos.set(m, n); return n;
       });
       o.material = Array.isArray(o.material) ? novos : novos[0];
