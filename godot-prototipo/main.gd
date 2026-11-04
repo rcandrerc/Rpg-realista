@@ -22,6 +22,8 @@ const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
+const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
+var cenario # cenario.gd
 const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
@@ -173,6 +175,8 @@ func _ready() -> void:
 			mi.visible = false
 	pintar(vila, false)
 	montar_mata(vila)
+	cenario = Cenario.new(self)
+	add_child(cenario)
 	alcance_da_vila(vila)
 	achar_troncos(vila)
 	montar_chao()
@@ -1357,7 +1361,7 @@ var _n_troncos := 0
 func achar_troncos(raiz: Node) -> void:
 	var arv: Array = []
 	for a in mundo.get("coletaveis", []):
-		if str(a.tipo) == "arvore":
+		if str(a.tipo) == "arvore" and str(a.id).begins_with("a"): # as da mata (m0...) são MultiMesh: têm o apagar delas
 			arv.append(Vector2(float(a.x), float(a.z)))
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
