@@ -48,6 +48,16 @@ var _pernas := 0.0 # quanto as pernas da arrancada mandam (0 = locomoção)
 var _pernas_alvo := 0.0
 var arrancando := 0.0 # segundos de animação da arrancada já tocados (0 = parada)
 var _arr_ritmo := 1.0
+# Mago atirando virado para o alvo (pedido do André 2026-11-04): as pernas andam para onde o joystick manda,
+# de lado (esquerda/direita) e de costas, com as animações do Mixamo Pro Magic Pack. Fora disso fica igual.
+const LADO_ANIMS := ["lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr"]
+var tem_lado := false
+var mirando := false # quem chama liga quando o corpo está virado para o alvo e as pernas andam para outro lado
+var dir_local := Vector2(0, 1) # para onde anda, visto pelo corpo: x = esquerda (+) / direita (-), y = frente (+) / trás (-)
+var _lado := 0.0 # quanto a parte de lado manda (0 = frente/costas, 1 = de lado)
+var _tras := 0.0 # 0 = frente (andar/trote/corrida), 1 = de costas
+var _lr := 0.0 # 0 = esquerda, 1 = direita
+var _len_lado := {}
 
 func _init(p: AnimationPlayer) -> void:
 	player = p
@@ -100,7 +110,42 @@ func _init(p: AnimationPlayer) -> void:
 		bt.connect_node("passo", 1, "ts_corrida")
 	bt.add_node("mexe", AnimationNodeBlend2.new(), Vector2(480, 180))
 	bt.connect_node("mexe", 0, "idle")
-	bt.connect_node("mexe", 1, "passo")
+	tem_lado = LADO_ANIMS.all(func(n): return player.has_animation(n))
+	if tem_lado:
+		# andar de lado e de costas: cada direção mistura o andar e a corrida dela no mesmo ritmo da frente;
+		# "costas" troca a frente pelas costas e "lado" põe a esquerda/direita por cima (na diagonal, metade de cada)
+		var y0 := 1500
+		for dirn in ["lado_e", "lado_d", "tras"]:
+			for vel in ["andar", "correr"]:
+				var nome: String = dirn + "_" + vel
+				anim.call(nome, "a_" + nome, Vector2(0, y0))
+				bt.add_node("ts_" + nome, AnimationNodeTimeScale.new(), Vector2(150, y0))
+				bt.connect_node("ts_" + nome, 0, "a_" + nome)
+				_len_lado[nome] = player.get_animation(nome).length
+				y0 += 110
+			var b := AnimationNodeBlend2.new()
+			b.sync = true
+			bt.add_node("v_" + dirn, b, Vector2(320, y0 - 160))
+			bt.connect_node("v_" + dirn, 0, "ts_" + dirn + "_andar")
+			bt.connect_node("v_" + dirn, 1, "ts_" + dirn + "_correr")
+		var lr := AnimationNodeBlend2.new()
+		lr.sync = true
+		bt.add_node("lado_lr", lr, Vector2(480, 1560))
+		bt.connect_node("lado_lr", 0, "v_lado_e")
+		bt.connect_node("lado_lr", 1, "v_lado_d")
+		var ft := AnimationNodeBlend2.new()
+		ft.sync = true
+		bt.add_node("frente_tras", ft, Vector2(480, 1400))
+		bt.connect_node("frente_tras", 0, "passo")
+		bt.connect_node("frente_tras", 1, "v_tras")
+		var ld := AnimationNodeBlend2.new()
+		ld.sync = true
+		bt.add_node("lado", ld, Vector2(640, 1450))
+		bt.connect_node("lado", 0, "frente_tras")
+		bt.connect_node("lado", 1, "lado_lr")
+		bt.connect_node("mexe", 1, "lado")
+	else:
+		bt.connect_node("mexe", 1, "passo")
 	# lugares A e B das ações; cada um em dobro (corpo todo e só tronco), porque no BlendTree a saída de um nó
 	# só pode ligar em um lugar. Os dois tocam a mesma animação, no mesmo tempo.
 	for parte in ["", "u"]:
@@ -257,6 +302,21 @@ func atualizar(dt: float, vel: float) -> void:
 		tree.set("parameters/ts_trote/scale", clamp(_len_trote / TROTE_CICLOS / periodo, 0.3, 2.6))
 	tree.set("parameters/ts_andar/scale", clamp(_len_andar / periodo, 0.3, 2.6))
 	tree.set("parameters/ts_corrida/scale", clamp(_len_corrida / periodo, 0.3, 2.6))
+	if tem_lado:
+		# as animações de lado e de costas dão uma passada inteira por volta: todas no mesmo período da frente
+		for nome in LADO_ANIMS:
+			tree.set("parameters/ts_%s/scale" % nome, clamp(_len_lado[nome] / periodo, 0.3, 2.6))
+		var lado_alvo := 0.0
+		var tras_alvo := 0.0
+		if mirando and vel > 0.35 and dir_local.length() > 0.01:
+			var d := dir_local.normalized()
+			lado_alvo = clamp(abs(d.x) / (abs(d.x) + abs(d.y) + 0.0001), 0.0, 1.0)
+			tras_alvo = 1.0 if d.y < -0.05 else 0.0
+			if abs(d.x) > 0.2:
+				_lr = move_toward(_lr, 0.0 if d.x > 0.0 else 1.0, dt * 6.0)
+		# frente <-> costas só troca rápido quando está de lado (passando pela lateral não aparece a troca)
+		_tras = move_toward(_tras, tras_alvo, dt * (4.0 + 10.0 * _lado))
+		_lado = move_toward(_lado, lado_alvo, dt * 5.0)
 	# ação que só toca no tronco quando o herói anda (tiro do cajado andando)
 	if so_tronco:
 		var andando: bool = vel > 0.35
@@ -279,6 +339,13 @@ func _aplicar(_dt: float) -> void:
 	if tem_trote:
 		tree.set("parameters/rapido/blend_amount", _rapido)
 	tree.set("parameters/mexe/blend_amount", _mexe)
+	if tem_lado:
+		tree.set("parameters/v_lado_e/blend_amount", _corre)
+		tree.set("parameters/v_lado_d/blend_amount", _corre)
+		tree.set("parameters/v_tras/blend_amount", _corre)
+		tree.set("parameters/lado_lr/blend_amount", _lr)
+		tree.set("parameters/frente_tras/blend_amount", _tras)
+		tree.set("parameters/lado/blend_amount", _lado)
 	tree.set("parameters/ab/blend_amount", _ab)
 	tree.set("parameters/abu/blend_amount", _ab)
 	tree.set("parameters/corpo/blend_amount", _corpo)

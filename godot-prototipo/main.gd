@@ -33,7 +33,7 @@ const Montaria = preload("res://montaria.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "trote", "corrida", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
+const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -82,7 +82,8 @@ var mao_esquerda := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
 	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false,
-	"alvo_fixo": null} # alvo_fixo: monstro travado do mago (alvo_travado)
+	"alvo_fixo": null, "mira_ate": -9.0} # alvo_fixo: monstro travado do mago (alvo_travado)
+# mira_ate: até quando o mago continua virado para o alvo depois do último tiro da Faísca (anda de lado e de costas)
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -1822,7 +1823,19 @@ func basico_magia() -> void:
 	rede("habQ", {"id": "cajado_basico", "v": indice_inimigo(alvo)})
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
 	heroi_anim.so_tronco = true # andando, as pernas continuam no passo e só os braços atiram
+	h.mira_ate = tempo + g.dur + 0.6 # entre um tiro e outro continua virado para o alvo (não fica virando para lá e para cá)
 	segurar_pose(0.35)
+
+# Mago atirando a Faísca: o alvo para onde o corpo fica virado (o tiro de agora ou logo depois do último).
+# null = anda normal, virando para onde o joystick aponta.
+func mira_mago():
+	if h.modo != "Magia" or montaria != null or mov.esc != null:
+		return null
+	if not acao.is_empty() and acao.get("basico", false) and vivo(acao.get("alvo")):
+		return acao.alvo
+	if acao.is_empty() and tempo < float(h.mira_ate) and vivo(h.alvo_fixo):
+		return h.alvo_fixo
+	return null
 
 # o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
 # sem voltar para a corrida no meio (era o "pulo" que aparecia no loop do combo)
@@ -2283,6 +2296,9 @@ func atualizar_heroi(dt: float) -> void:
 	var livre: bool = acao.is_empty() or acao.get("pulo", false) or acao.get("livre", false)
 	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
+	var alvo_mira = mira_mago()
+	if alvo_mira != null:
+		k_alvo = float(P.dados.andarAtirando) # andando de lado ou de costas: o mesmo passo de quem atira
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
@@ -2292,6 +2308,15 @@ func atualizar_heroi(dt: float) -> void:
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
 		mov.mirar(atan2(da.x, da.z))
+	elif alvo_mira != null:
+		var dm: Vector3 = alvo_mira.no.position - heroi.position
+		mov.mirar(atan2(dm.x, dm.z))
+	# pernas: virado para o alvo, anda de lado e de costas para onde o joystick manda (anim_heroi.gd)
+	heroi_anim.mirando = alvo_mira != null and mov.chao and mov.esc == null and montaria == null and mov.manobra == null
+	if heroi_anim.mirando:
+		var s_ry := sin(mov.ry)
+		var c_ry := cos(mov.ry)
+		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
 	# armas: escalando, as duas nas costas
