@@ -570,6 +570,72 @@ export const MINA = [
 // Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
 export const RESET_BUILD = { minimo: 50, porNivel: 10 };
 
+// ---------- Vila dos Lotes: construção e fazenda (pedido do André 2026-11-03, base no Quimera) ----------
+// Ao sul da vila do começo, uma vila com estradas de terra onde cada jogador compra UM lote (com ouro) para
+// construir e plantar. Fora do lote dele não se constrói (regra do André: "não vai poder construir em qualquer lugar").
+// A área entra no mapa andável (borda de pedras como o campo de fora) e é ligada à vila por uma passagem nas pedras.
+// Lotes: retângulos alinhados aos eixos (x0..x1, z0..z1, em metros inteiros, a horta usa quadrados de 1 m);
+// frente = lado virado para a rua principal, onde fica a placa (À venda / nome do dono).
+export const VILA_LOTES = {
+  nome: 'Vila dos Lotes',
+  area: { x: -16, z: 68.5, rx: 22, rz: 27, lobos: [[3, 0.025, 1.3], [5, 0.02, 0.4]], lotes: true },
+  passagem: { a: [-10, 28], b: [-15, 47], larg: 9 },
+  // estrada de terra que sai de onde o herói nasce, passa entre as pedras e vira a rua principal da vila dos lotes
+  estrada: [[0, 1], [-1, 10], [-2, 15], [-6.5, 21], [-10, 28], [-12.5, 35], [-14.5, 42], [-16, 48]],
+  ruas: [
+    { largura: 2.6, pontos: [[-16, 48], [-16, 58], [-16, 70], [-16, 89]] }, // rua principal (norte-sul)
+    { largura: 2.2, pontos: [[-33, 62.5], [-25, 62.7], [-16, 62.5], [-6, 62.3], [1, 62.5]] }, // rua de través
+  ],
+  lotes: [
+    { id: 'lote1', nome: 'Lote 1', x0: -28, x1: -18, z0: 51, z1: 61, frente: 'leste' },
+    { id: 'lote2', nome: 'Lote 2', x0: -14, x1: -4, z0: 51, z1: 61, frente: 'oeste' },
+    { id: 'lote3', nome: 'Lote 3', x0: -28, x1: -18, z0: 64, z1: 74, frente: 'leste' },
+    { id: 'lote4', nome: 'Lote 4', x0: -14, x1: -4, z0: 64, z1: 74, frente: 'oeste' },
+    { id: 'lote5', nome: 'Lote 5', x0: -28, x1: -18, z0: 76, z1: 86, frente: 'leste' },
+    { id: 'lote6', nome: 'Lote 6', x0: -14, x1: -4, z0: 76, z1: 86, frente: 'oeste' },
+  ],
+};
+// placa de cada lote: no meio da frente, 0,7 m para fora (na beira da rua)
+for (const l of VILA_LOTES.lotes) {
+  const zm = (l.z0 + l.z1) / 2;
+  l.placa = l.frente === 'leste' ? { x: l.x1 + 0.7, z: zm, ry: Math.PI / 2 } : { x: l.x0 - 0.7, z: zm, ry: -Math.PI / 2 };
+}
+// Regras do lote (servidor confere tudo em Simulacao.comprarLote / construir / horta)
+// preco: ouro do lote · placaDist: metros da placa para comprar · alcance: metros do herói até onde ele constrói
+// maxPecas: peças por lote (o Quimera tem 1800 no mundo; aqui o lote é pequeno) · estacaoDist: perto da estação para criar
+export const LOTE = { preco: 400, placaDist: 3, alcance: 6, maxPecas: 40, estacaoDist: 3 };
+// Peças que se constroem no lote (aba Construir do modo construção, como no Quimera). w x d = tamanho no chão (m)
+// sem girar; circulos = sólidos [dx, dz, r] no espaço da peça (o herói não atravessa); custo sai da mochila e volta
+// inteiro ao desmontar. estacao: as receitas que dá para criar perto dela (mesma conta do servidor, RECEITA_ESTACAO).
+// Modelos: Fantasy Props MegaKit e Medieval Village MegaKit (Quaternius, CC0, do repositório de fontes); a fornalha é
+// de pedra como a forja da ferraria da vila (godot-prototipo/construcao.gd).
+export const CONSTRUCOES = {
+  bancada: { nome: 'Bancada de trabalho', w: 2, d: 1, circulos: [[-0.5, 0, 0.5], [0.5, 0, 0.5]], custo: { lenha: 6, pedra: 3 }, estacao: 'alf',
+    desc: 'Perto dela você costura como na banca da Rosa (receitas do Alfaiate).' },
+  bigorna: { nome: 'Bigorna', w: 0.8, d: 0.8, circulos: [[0, 0, 0.4]], custo: { barra_ferro: 3, lenha: 2 }, estacao: 'fer',
+    desc: 'Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro).' },
+  fornalha: { nome: 'Fornalha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.7]], custo: { pedra: 12, lenha: 2 }, estacao: 'fundir',
+    desc: 'Derrete minério em barras e queima lenha em carvão.' },
+  cerca: { nome: 'Cerca', w: 2, d: 0.3, circulos: [[-0.75, 0, 0.2], [0, 0, 0.2], [0.75, 0, 0.2]], custo: { lenha: 2 },
+    desc: 'Cerca de madeira de 2 m. Gire para mudar a direção.' },
+};
+// Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
+// a terra regada fica molhada por "rega" horas; sem água a planta não cresce)
+export const HORTA = { rega: 24, vigor: 1 };
+export const PLANTAS = {
+  rabanete: { nome: 'Rabanete', G: 0.5, y: [2, 3], semente: 2, venda: 2, cura: 0.05, cor: '#e8486a', folha: '#5fae4a' },
+  cenoura: { nome: 'Cenoura', G: 2, y: [2, 4], semente: 4, venda: 3, cura: 0.08, cor: '#ff8a2a', folha: '#4f9a44' },
+  batata: { nome: 'Batata', G: 2, y: [3, 5], semente: 4, venda: 3, cura: 0.06, cor: '#c9a46a', folha: '#5f8f3a' },
+  tomate: { nome: 'Tomate', G: 2, y: [3, 6], semente: 8, venda: 5, cura: 0.08, cor: '#e8402e', folha: '#4f9a44' },
+  milho: { nome: 'Milho', G: 2, y: [2, 4], semente: 8, venda: 5, cura: 0.08, cor: '#ffd23f', folha: '#7fb04a' },
+  abobora: { nome: 'Abóbora', G: 4, y: [1, 2], semente: 20, venda: 14, cura: 0.2, cor: '#ff9a2a', folha: '#4f8a3c' },
+};
+// fase da planta (0 semente, 1 broto, 2 média, 3 quase, 4 madura) pela fração crescida (Quimera WJ)
+export const fasePlanta = (f) => (f >= 1 ? 4 : f < 0.03 ? 0 : f < 0.4 ? 1 : f < 0.75 ? 2 : 3);
+// qual estação serve para a receita: barras e carvão na fornalha; o resto do Ferreiro na bigorna; Alfaiate na bancada
+export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : 'bancada');
+CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
+
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -577,8 +643,8 @@ export const MAPA_CLAREIRA = {
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
-  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas),
-  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }].concat(MATA.corredores),
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area]), // + Vila dos Lotes (construção e fazenda)
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }].concat(MATA.corredores, [VILA_LOTES.passagem]),
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
   // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
@@ -633,6 +699,8 @@ export const MAPA_CLAREIRA = {
     { tipo: 'balde', x: PRACA.x + 1.25, z: PRACA.z + 0.5, ry: 2 }, { tipo: 'toco', x: -18.5, z: -14, ry: 1 }, { tipo: 'toco', x: 8.6, z: -19, s: 0.8, ry: 3 },
   ],
   vila: { praca: PRACA, casas: CASAS, caminhos: CAMINHOS, arvores: sortearArvores() },
+  // Vila dos Lotes: onde se compra lote para construir e plantar (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS)
+  lotes: VILA_LOTES.lotes,
   // árvores da mata (enfeite sólido, sem lenha) e a estrada principal (minimapa)
   mata: sortearMata(),
   estrada: ESTRADA,
@@ -840,6 +908,18 @@ export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, a
 export const OFICINA_DISTANCIA = 4.5;
 export const RARIDADE_CRIAR = { base: 0.06, max: 0.3, ate: 2 }; // chance de subir cada raridade e até qual (2 = Épico)
 MAPA_CLAREIRA.veios = VEIOS;
+
+// ---------- horta (Vila dos Lotes): sementes na loja da Rosa, o que se colhe vira item (cura um pouco ou vende) ----------
+for (const [k, p] of Object.entries(PLANTAS)) {
+  ITENS['semente_' + k] = { nome: 'Semente de ' + p.nome.toLowerCase(), mat: true, pilha: 50, venda: Math.max(1, Math.floor(p.semente / 2)), cor: p.cor,
+    desc: `Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com ${p.G < 1 ? Math.round(p.G * 60) + ' min' : p.G + ' h'} de rega.` };
+  ITENS[k] = { nome: p.nome, pilha: 50, usar: { vida: p.cura }, venda: p.venda, cor: p.cor, colheita: true,
+    desc: `Da horta. Recupera ${Math.round(p.cura * 100)}% da vida ou vende para a Rosa.` };
+  LOJA.push({ k: 'semente_' + k, preco: p.semente });
+}
+// Fazendeiro (o Quimera tem; chegou com a horta): arar, plantar, regar e colher dão pontos
+PROFISSOES.faz = { nome: 'Fazendeiro', grupo: 'Coleta', desc: 'Arar, plantar, regar e colher na horta do seu lote' };
+
 // Mato e pedras soltas da mata (pedido do André 2026-11-03, junto com os marcos do CENARIO): sorteio fixo em volta das
 // árvores (cogumelo no pé, orelha-de-pau no tronco, arbusto e samambaia entre elas) e pedras na beira da estrada.
 // O Godot desenha em MultiMesh por pedaços (godot-prototipo/cenario.gd); só as pedras maiores são sólidas.

@@ -43,6 +43,7 @@ var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhum
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
 var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joystick nem câmera
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
+var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem
 var modo := "Espada"
 var _icones := {}
@@ -171,6 +172,8 @@ func _input(ev: InputEvent) -> void:
 		if ev.pressed and menu_topo and menu_topo.cobre(ev.position):
 			return
 		if ev.pressed and minimapa and minimapa.cobre(ev.position): # tocar no minimapa abre o mapa (minimapa.gd)
+			return
+		if ev.pressed and construcao and construcao.cobre(ev.position): # barra do modo construção (construcao.gd)
 			return
 		if ev.pressed and PAINEL.has_point(ev.position):
 			apertou.emit("menu")

@@ -43,3 +43,20 @@ Para montar à mão:
   Os dois abrem a janela do NPC com o nome, a fala e o que dá para fazer (vender itens, comprar, forja, alfaiate,
   habilidades, missão, cura, resetar a build e Conversar). O que cada NPC oferece está em `acoes` de cada NPC em
   `shared/dados.js`. Vender com o Tomás ou com a Rosa: o servidor confere (`Simulacao.pertoDeQuemCompra`).
+
+## Vila dos Lotes: construção e fazenda (pedido do André, 2026-11-03)
+
+- Ao sul da vila, pela estrada de terra que sai de onde o herói nasce, fica a Vila dos Lotes: 6 lotes de 10 x 10 m
+  com placa na beira da rua. Perto da placa de um lote livre aparece o botão de **comprar** (400 de ouro, um por jogador).
+- Só dá para construir e plantar dentro do lote que é seu. No lote aparece o botão do **martelo**: abre o modo
+  construção do Quimera, com as abas **Construir** (bancada, bigorna, fornalha, cerca e Desmontar, que devolve o material)
+  e **Fazenda** (arar, plantar, regar, colher e desfazer a terra). O fantasma fica verde quando pode e vermelho com o motivo.
+  Ande para mirar ou toque no chão; **Girar** muda a direção da peça.
+- A bigorna (espadas, cajados, colares, armaduras), a fornalha (barras e carvão) e a bancada (receitas do Alfaiate)
+  servem para criar como a forja do Tomás e a banca da Rosa.
+- Horta: sementes na loja da Rosa; a planta cresce só com a terra molhada (regar dura 24 h), nos tempos do Quimera.
+  Colher dá pontos de Fazendeiro (profissão nova).
+- Terra arada como a do Quimera (André, 2026-11-04): canteiros vizinhos emendam numa terra só, a borda solta se
+  mistura ao chão de forma irregular e a grama não fura a terra (`_malha_terra` e `_grama_sob_horta` em `construcao.gd`).
+- Código: `construcao.gd` (app) e `shared/simulacao.js` (comprarLote, construir, desmontar, horta). Números em
+  `shared/dados.js` (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, HORTA). O servidor guarda os lotes na tabela `lotes`.

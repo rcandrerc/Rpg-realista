@@ -602,6 +602,29 @@ func evento(ev: Dictionary) -> void:
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
+			if m.construcao:
+				m.construcao.progresso_mudou() # custos e sementes da barra do modo construção
+			return
+		# Vila dos Lotes (construcao.gd): todos os lotes ao entrar, um lote que mudou, o lote que comprei
+		"lotes":
+			if m.construcao:
+				m.construcao.do_servidor_lotes(ev)
+			return
+		"lote":
+			if m.construcao:
+				m.construcao.do_servidor_lote(ev)
+			return
+		"meuLote":
+			if m.construcao:
+				m.construcao.meu_lote(str(ev.lote))
+			return
+		"construiu":
+			if m.construcao:
+				m.construcao.construiu(ev)
+			return
+		"colheu":
+			if m.construcao:
+				m.construcao.colheu(ev)
 			return
 		"nivel":
 			var no = corpos.get(str(ev.id))

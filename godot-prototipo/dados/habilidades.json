@@ -755,6 +755,120 @@
    "pilha": 50,
    "venda": 3,
    "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas."
+  },
+  "semente_rabanete": {
+   "nome": "Semente de rabanete",
+   "mat": true,
+   "pilha": 50,
+   "venda": 1,
+   "cor": "#e8486a",
+   "desc": "Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com 30 min de rega."
+  },
+  "rabanete": {
+   "nome": "Rabanete",
+   "pilha": 50,
+   "usar": {
+    "vida": 0.05
+   },
+   "venda": 2,
+   "cor": "#e8486a",
+   "colheita": true,
+   "desc": "Da horta. Recupera 5% da vida ou vende para a Rosa."
+  },
+  "semente_cenoura": {
+   "nome": "Semente de cenoura",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "cor": "#ff8a2a",
+   "desc": "Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com 2 h de rega."
+  },
+  "cenoura": {
+   "nome": "Cenoura",
+   "pilha": 50,
+   "usar": {
+    "vida": 0.08
+   },
+   "venda": 3,
+   "cor": "#ff8a2a",
+   "colheita": true,
+   "desc": "Da horta. Recupera 8% da vida ou vende para a Rosa."
+  },
+  "semente_batata": {
+   "nome": "Semente de batata",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "cor": "#c9a46a",
+   "desc": "Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com 2 h de rega."
+  },
+  "batata": {
+   "nome": "Batata",
+   "pilha": 50,
+   "usar": {
+    "vida": 0.06
+   },
+   "venda": 3,
+   "cor": "#c9a46a",
+   "colheita": true,
+   "desc": "Da horta. Recupera 6% da vida ou vende para a Rosa."
+  },
+  "semente_tomate": {
+   "nome": "Semente de tomate",
+   "mat": true,
+   "pilha": 50,
+   "venda": 4,
+   "cor": "#e8402e",
+   "desc": "Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com 2 h de rega."
+  },
+  "tomate": {
+   "nome": "Tomate",
+   "pilha": 50,
+   "usar": {
+    "vida": 0.08
+   },
+   "venda": 5,
+   "cor": "#e8402e",
+   "colheita": true,
+   "desc": "Da horta. Recupera 8% da vida ou vende para a Rosa."
+  },
+  "semente_milho": {
+   "nome": "Semente de milho",
+   "mat": true,
+   "pilha": 50,
+   "venda": 4,
+   "cor": "#ffd23f",
+   "desc": "Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com 2 h de rega."
+  },
+  "milho": {
+   "nome": "Milho",
+   "pilha": 50,
+   "usar": {
+    "vida": 0.08
+   },
+   "venda": 5,
+   "cor": "#ffd23f",
+   "colheita": true,
+   "desc": "Da horta. Recupera 8% da vida ou vende para a Rosa."
+  },
+  "semente_abobora": {
+   "nome": "Semente de abóbora",
+   "mat": true,
+   "pilha": 50,
+   "venda": 10,
+   "cor": "#ff9a2a",
+   "desc": "Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com 4 h de rega."
+  },
+  "abobora": {
+   "nome": "Abóbora",
+   "pilha": 50,
+   "usar": {
+    "vida": 0.2
+   },
+   "venda": 14,
+   "cor": "#ff9a2a",
+   "colheita": true,
+   "desc": "Da horta. Recupera 20% da vida ou vende para a Rosa."
   }
  },
  "raridades": [
@@ -975,6 +1089,30 @@
    "k": "cajado",
    "r": 1,
    "preco": 240
+  },
+  {
+   "k": "semente_rabanete",
+   "preco": 2
+  },
+  {
+   "k": "semente_cenoura",
+   "preco": 4
+  },
+  {
+   "k": "semente_batata",
+   "preco": 4
+  },
+  {
+   "k": "semente_tomate",
+   "preco": 8
+  },
+  {
+   "k": "semente_milho",
+   "preco": 8
+  },
+  {
+   "k": "semente_abobora",
+   "preco": 20
   }
  ],
  "lojaDistancia": 4,
@@ -1121,6 +1259,11 @@
    "nome": "Mercador",
    "grupo": "Comércio",
    "desc": "Negociar com a Rosa: vende mais caro e compra mais barato"
+  },
+  "faz": {
+   "nome": "Fazendeiro",
+   "grupo": "Coleta",
+   "desc": "Arar, plantar, regar e colher na horta do seu lote"
   }
  },
  "ranks": [
@@ -1380,5 +1523,183 @@
   "xpMin": 0.15,
   "corFacil": -3,
   "corForte": 2
+ },
+ "lote": {
+  "preco": 400,
+  "placaDist": 3,
+  "alcance": 6,
+  "maxPecas": 40,
+  "estacaoDist": 3
+ },
+ "construcoes": {
+  "bancada": {
+   "nome": "Bancada de trabalho",
+   "w": 2,
+   "d": 1,
+   "circulos": [
+    [
+     -0.5,
+     0,
+     0.5
+    ],
+    [
+     0.5,
+     0,
+     0.5
+    ]
+   ],
+   "custo": {
+    "lenha": 6,
+    "pedra": 3
+   },
+   "estacao": "alf",
+   "desc": "Perto dela você costura como na banca da Rosa (receitas do Alfaiate)."
+  },
+  "bigorna": {
+   "nome": "Bigorna",
+   "w": 0.8,
+   "d": 0.8,
+   "circulos": [
+    [
+     0,
+     0,
+     0.4
+    ]
+   ],
+   "custo": {
+    "barra_ferro": 3,
+    "lenha": 2
+   },
+   "estacao": "fer",
+   "desc": "Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro)."
+  },
+  "fornalha": {
+   "nome": "Fornalha",
+   "w": 1.4,
+   "d": 1.2,
+   "circulos": [
+    [
+     0,
+     0,
+     0.7
+    ]
+   ],
+   "custo": {
+    "pedra": 12,
+    "lenha": 2
+   },
+   "estacao": "fundir",
+   "desc": "Derrete minério em barras e queima lenha em carvão."
+  },
+  "cerca": {
+   "nome": "Cerca",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.75,
+     0,
+     0.2
+    ],
+    [
+     0,
+     0,
+     0.2
+    ],
+    [
+     0.75,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "lenha": 2
+   },
+   "desc": "Cerca de madeira de 2 m. Gire para mudar a direção."
+  }
+ },
+ "plantas": {
+  "rabanete": {
+   "nome": "Rabanete",
+   "G": 0.5,
+   "y": [
+    2,
+    3
+   ],
+   "semente": 2,
+   "venda": 2,
+   "cura": 0.05,
+   "cor": "#e8486a",
+   "folha": "#5fae4a"
+  },
+  "cenoura": {
+   "nome": "Cenoura",
+   "G": 2,
+   "y": [
+    2,
+    4
+   ],
+   "semente": 4,
+   "venda": 3,
+   "cura": 0.08,
+   "cor": "#ff8a2a",
+   "folha": "#4f9a44"
+  },
+  "batata": {
+   "nome": "Batata",
+   "G": 2,
+   "y": [
+    3,
+    5
+   ],
+   "semente": 4,
+   "venda": 3,
+   "cura": 0.06,
+   "cor": "#c9a46a",
+   "folha": "#5f8f3a"
+  },
+  "tomate": {
+   "nome": "Tomate",
+   "G": 2,
+   "y": [
+    3,
+    6
+   ],
+   "semente": 8,
+   "venda": 5,
+   "cura": 0.08,
+   "cor": "#e8402e",
+   "folha": "#4f9a44"
+  },
+  "milho": {
+   "nome": "Milho",
+   "G": 2,
+   "y": [
+    2,
+    4
+   ],
+   "semente": 8,
+   "venda": 5,
+   "cura": 0.08,
+   "cor": "#ffd23f",
+   "folha": "#7fb04a"
+  },
+  "abobora": {
+   "nome": "Abóbora",
+   "G": 4,
+   "y": [
+    1,
+    2
+   ],
+   "semente": 20,
+   "venda": 14,
+   "cura": 0.2,
+   "cor": "#ff9a2a",
+   "folha": "#4f8a3c"
+  }
+ },
+ "horta": {
+  "rega": 24,
+  "vigor": 1
  }
 }
