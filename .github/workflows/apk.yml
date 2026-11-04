@@ -1,5 +1,8 @@
 # Gera o APK do app Godot. Push na main: publica no release "apk" (link fixo para baixar no celular).
-# Pull request: gera para testar (Artifacts da execução). Detalhes e a chave de assinatura: ferramentas/apk/LEIAME.md
+# Pull request: só gera para testar (Artifacts da execução) quando o PR tem a etiqueta "gerar apk", ou à mão
+# (Actions > APK do app Godot > Run workflow, escolhendo o ramo). Cada build gasta ~15-25 min da cota do GitHub Actions;
+# antes ele rodava em todo push de todo PR e acabou com a cota de novembro em 3 dias.
+# Detalhes e a chave de assinatura: ferramentas/apk/LEIAME.md
 name: APK do app Godot
 
 on:
@@ -7,6 +10,7 @@ on:
     branches: [main]
     paths: ['godot-prototipo/**', 'client/**', 'shared/**', '.github/workflows/apk.yml']
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths: ['godot-prototipo/**', 'client/**', 'shared/**', '.github/workflows/apk.yml']
   workflow_dispatch:
 
@@ -23,6 +27,8 @@ env:
 
 jobs:
   apk:
+    # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
+    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -38,15 +44,34 @@ jobs:
           distribution: temurin
           java-version: 17
       - run: npm ci
+      # Os modelos (vila, personagens, monstros) só dependem de client/, shared/ e das dependências.
+      # Se nada disso mudou desde o último build, reaproveita e pula Chromium + exportação (~15 min).
+      - name: Modelos já exportados (cache)
+        id: cache-modelos
+        uses: actions/cache@v4
+        with:
+          path: godot-prototipo/modelos
+          key: modelos-v1-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
       - name: Chromium para exportar os modelos
+        if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
           npm install --no-save playwright@1.48.2
           npx playwright install --with-deps chromium
       - name: Modelos (vila, personagens, monstros) para godot-prototipo/modelos
+        if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
           (cd client && npx vite --port 5173 > /tmp/vite.log 2>&1 &)
           for i in $(seq 1 30); do curl -s localhost:5173 > /dev/null && break; sleep 1; done
           node client/exportar-godot/gerar-modelos.mjs
+      # Importação do Godot (~5 min): guarda .godot e os .import; o Godot só reimporta o que mudou (confere o md5 de cada arquivo).
+      - name: Importação do Godot (cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            godot-prototipo/.godot
+            godot-prototipo/**/*.import
+          key: godot-import-v1-${{ env.GODOT }}-${{ hashFiles('godot-prototipo/**', 'client/**', '!client/node_modules/**', 'shared/**') }}
+          restore-keys: godot-import-v1-${{ env.GODOT }}-
       - name: Godot e modelos de exportação
         run: |
           cd /tmp
