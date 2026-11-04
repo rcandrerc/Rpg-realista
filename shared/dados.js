@@ -691,6 +691,43 @@ export const CONSTRUCOES = {
   cerca: { nome: 'Cerca', w: 2, d: 0.3, circulos: [[-0.75, 0, 0.2], [0, 0, 0.2], [0.75, 0, 0.2]], custo: { lenha: 2 },
     desc: 'Cerca de madeira de 2 m. Gire para mudar a direção.' },
 };
+// ---------- Construção completa como no Quimera (pedido do André 2026-11-04: "tem que ter todas as funções") ----------
+// Cada peça agora é um item: cria-se primeiro (custo = receita; as do Quimera com needBench precisam de uma bancada
+// construída perto) e coloca-se depois; desmontar devolve o item. Quimera Zv: bench 6 madeira + 3 pedra, found 4 pedra,
+// wall 4 madeira, door 4 madeira, window 3 madeira + 1 pedra, roof 2 madeira + 1 pedra, chest 10 madeira,
+// bed 8 madeira + 3 couro, torch 2 madeira + 1 gel (aqui carvão), fence 3 madeira, hoe 3 madeira + 2 pedra,
+// can 1 barra de cobre + 2 madeira.
+// Casa numa grade de CASA.grade m (as paredes do Medieval Village MegaKit têm 2 m): a fundação ocupa um quadrado,
+// parede, porta e janela vão na borda de um quadrado com fundação e o telhado vai em cima do quadrado (vários juntos
+// formam um telhado inclinado de verdade, que some quando você entra).
+// tipo: 'movel' (padrão: fica no chão ou em cima da fundação), 'fundacao', 'borda' (parede/porta/janela), 'telhado'
+// aba: em que aba do modo construção a peça aparece ('casa' ou 'moveis') · bancada: precisa de bancada perto para criar
+export const CASA = { grade: 2, parede: 3.1, fundacao: 0.2, espessura: 0.3 };
+for (const [k, v] of Object.entries(CONSTRUCOES)) Object.assign(v, { tipo: 'movel', aba: 'moveis', bancada: k !== 'bancada' });
+Object.assign(CONSTRUCOES, {
+  fundacao: { nome: 'Fundação de pedra', tipo: 'fundacao', aba: 'casa', w: 2, d: 2, circulos: [], custo: { pedra: 4 }, bancada: false,
+    desc: 'Base da casa (2 x 2 m). Paredes, portas, janelas e telhados só vão em cima dela.' },
+  parede: { nome: 'Parede', tipo: 'borda', aba: 'casa', w: 2, d: 0.3, circulos: [[-0.85, 0, 0.2], [-0.42, 0, 0.2], [0, 0, 0.2], [0.42, 0, 0.2], [0.85, 0, 0.2]],
+    custo: { lenha: 4 }, bancada: true, desc: 'Vai na borda da fundação e os cantos se encaixam.' },
+  porta: { nome: 'Porta', tipo: 'borda', aba: 'casa', w: 2, d: 0.3, circulos: [[-0.85, 0, 0.2], [0.85, 0, 0.2]], custo: { lenha: 4 }, bancada: true,
+    desc: 'Vai na borda, como a parede. Dá para passar por ela.' },
+  janela: { nome: 'Janela', tipo: 'borda', aba: 'casa', w: 2, d: 0.3, circulos: [[-0.85, 0, 0.2], [-0.42, 0, 0.2], [0, 0, 0.2], [0.42, 0, 0.2], [0.85, 0, 0.2]],
+    custo: { lenha: 3, pedra: 1 }, bancada: true, desc: 'Parede com janela. Vai na borda da fundação.' },
+  telhado: { nome: 'Telhado', tipo: 'telhado', aba: 'casa', w: 2, d: 2, circulos: [], custo: { lenha: 2, pedra: 1 }, bancada: true,
+    desc: 'Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra.' },
+  bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true,
+    desc: 'Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir.' },
+  cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true,
+    desc: 'Você renasce nela quando cai.' },
+  tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
+    desc: 'Ilumina em volta. Coloque no chão.' },
+});
+// ferramentas da fazenda (Quimera: enxada para arar, regador para regar); ficam na mochila, não gastam
+export const FERRAMENTAS_FAZENDA = {
+  enxada: { custo: { lenha: 3, pedra: 2 }, bancada: false, para: 'arar' },
+  regador: { custo: { barra_cobre: 1, lenha: 2 }, bancada: true, para: 'regar' },
+};
+export const BAU = { slots: 40 }; // pilhas guardadas (todos os baús do jogador são o mesmo, como no Quimera)
 // Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
 // a terra regada fica molhada por "rega" horas; sem água a planta não cresce)
 export const HORTA = { rega: 24, vigor: 1 };
@@ -1012,6 +1049,15 @@ for (const [k, p] of Object.entries(PLANTAS)) {
 }
 // Fazendeiro (o Quimera tem; chegou com a horta): arar, plantar, regar e colher dão pontos
 PROFISSOES.faz = { nome: 'Fazendeiro', grupo: 'Coleta', desc: 'Arar, plantar, regar e colher na horta do seu lote' };
+// peças da construção viram itens (criar primeiro, colocar depois; desmontar devolve) e as ferramentas da fazenda
+for (const [k, C] of Object.entries(CONSTRUCOES)) {
+  ITENS['obra_' + k] = { nome: C.nome, pilha: 20, venda: 1, obra: k,
+    desc: `${C.desc} Coloque no seu terreno pelo modo construção (martelo).` };
+}
+ITENS.enxada = { nome: 'Enxada', pilha: 1, venda: 2, ferramenta: 'arar', desc: 'Prepara a terra para plantar (modo construção, aba Fazenda).' };
+ITENS.regador = { nome: 'Regador', pilha: 1, venda: 3, ferramenta: 'regar', desc: 'Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia.' };
+// pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
+LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
 
 // Mato e pedras soltas da mata (pedido do André 2026-11-03, junto com os marcos do CENARIO): sorteio fixo em volta das
 // árvores (cogumelo no pé, orelha-de-pau no tronco, arbusto e samambaia entre elas) e pedras na beira da estrada.

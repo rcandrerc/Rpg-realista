@@ -1673,7 +1673,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
@@ -1689,7 +1689,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "disparada", "montar", "construir", "lote", "bancada"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "disparada", "montar", "construir", "lote", "bancada", "bau"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -1813,6 +1813,8 @@ func _tentar(qual: String) -> bool:
 			construcao.tocar_botao_construir()
 		"lote": # perto da placa de um lote à venda: pergunta se quer comprar
 			construcao.perguntar_compra()
+		"bau": # perto do meu baú (construcao.gd): abre o baú
+			construcao.abrir_bau()
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))

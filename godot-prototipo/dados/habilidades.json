@@ -869,6 +869,104 @@
    "cor": "#ff9a2a",
    "colheita": true,
    "desc": "Da horta. Recupera 20% da vida ou vende para a Rosa."
+  },
+  "obra_bancada": {
+   "nome": "Bancada de trabalho",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "bancada",
+   "desc": "Perto dela você costura como na banca da Rosa (receitas do Alfaiate). Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_bigorna": {
+   "nome": "Bigorna",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "bigorna",
+   "desc": "Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro). Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_fornalha": {
+   "nome": "Fornalha",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "fornalha",
+   "desc": "Derrete minério em barras e queima lenha em carvão. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_cerca": {
+   "nome": "Cerca",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "cerca",
+   "desc": "Cerca de madeira de 2 m. Gire para mudar a direção. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_fundacao": {
+   "nome": "Fundação de pedra",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "fundacao",
+   "desc": "Base da casa (2 x 2 m). Paredes, portas, janelas e telhados só vão em cima dela. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_parede": {
+   "nome": "Parede",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "parede",
+   "desc": "Vai na borda da fundação e os cantos se encaixam. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_porta": {
+   "nome": "Porta",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "porta",
+   "desc": "Vai na borda, como a parede. Dá para passar por ela. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_janela": {
+   "nome": "Janela",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "janela",
+   "desc": "Parede com janela. Vai na borda da fundação. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_telhado": {
+   "nome": "Telhado",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "telhado",
+   "desc": "Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_bau": {
+   "nome": "Baú",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "bau",
+   "desc": "Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_cama": {
+   "nome": "Cama",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "cama",
+   "desc": "Você renasce nela quando cai. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_tocha": {
+   "nome": "Tocha",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "tocha",
+   "desc": "Ilumina em volta. Coloque no chão. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "enxada": {
+   "nome": "Enxada",
+   "pilha": 1,
+   "venda": 2,
+   "ferramenta": "arar",
+   "desc": "Prepara a terra para plantar (modo construção, aba Fazenda)."
+  },
+  "regador": {
+   "nome": "Regador",
+   "pilha": 1,
+   "venda": 3,
+   "ferramenta": "regar",
+   "desc": "Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia."
   }
  },
  "raridades": [
@@ -1113,6 +1211,14 @@
   {
    "k": "semente_abobora",
    "preco": 20
+  },
+  {
+   "k": "lenha",
+   "preco": 3
+  },
+  {
+   "k": "pedra",
+   "preco": 4
   }
  ],
  "lojaDistancia": 4,
@@ -1584,7 +1690,10 @@
     "pedra": 3
    },
    "estacao": "alf",
-   "desc": "Perto dela você costura como na banca da Rosa (receitas do Alfaiate)."
+   "desc": "Perto dela você costura como na banca da Rosa (receitas do Alfaiate).",
+   "tipo": "movel",
+   "aba": "moveis",
+   "bancada": false
   },
   "bigorna": {
    "nome": "Bigorna",
@@ -1602,7 +1711,10 @@
     "lenha": 2
    },
    "estacao": "fer",
-   "desc": "Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro)."
+   "desc": "Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro).",
+   "tipo": "movel",
+   "aba": "moveis",
+   "bancada": true
   },
   "fornalha": {
    "nome": "Fornalha",
@@ -1620,7 +1732,10 @@
     "lenha": 2
    },
    "estacao": "fundir",
-   "desc": "Derrete minério em barras e queima lenha em carvão."
+   "desc": "Derrete minério em barras e queima lenha em carvão.",
+   "tipo": "movel",
+   "aba": "moveis",
+   "bancada": true
   },
   "cerca": {
    "nome": "Cerca",
@@ -1646,7 +1761,209 @@
    "custo": {
     "lenha": 2
    },
-   "desc": "Cerca de madeira de 2 m. Gire para mudar a direção."
+   "desc": "Cerca de madeira de 2 m. Gire para mudar a direção.",
+   "tipo": "movel",
+   "aba": "moveis",
+   "bancada": true
+  },
+  "fundacao": {
+   "nome": "Fundação de pedra",
+   "tipo": "fundacao",
+   "aba": "casa",
+   "w": 2,
+   "d": 2,
+   "circulos": [],
+   "custo": {
+    "pedra": 4
+   },
+   "bancada": false,
+   "desc": "Base da casa (2 x 2 m). Paredes, portas, janelas e telhados só vão em cima dela."
+  },
+  "parede": {
+   "nome": "Parede",
+   "tipo": "borda",
+   "aba": "casa",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.85,
+     0,
+     0.2
+    ],
+    [
+     -0.42,
+     0,
+     0.2
+    ],
+    [
+     0,
+     0,
+     0.2
+    ],
+    [
+     0.42,
+     0,
+     0.2
+    ],
+    [
+     0.85,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "lenha": 4
+   },
+   "bancada": true,
+   "desc": "Vai na borda da fundação e os cantos se encaixam."
+  },
+  "porta": {
+   "nome": "Porta",
+   "tipo": "borda",
+   "aba": "casa",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.85,
+     0,
+     0.2
+    ],
+    [
+     0.85,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "lenha": 4
+   },
+   "bancada": true,
+   "desc": "Vai na borda, como a parede. Dá para passar por ela."
+  },
+  "janela": {
+   "nome": "Janela",
+   "tipo": "borda",
+   "aba": "casa",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.85,
+     0,
+     0.2
+    ],
+    [
+     -0.42,
+     0,
+     0.2
+    ],
+    [
+     0,
+     0,
+     0.2
+    ],
+    [
+     0.42,
+     0,
+     0.2
+    ],
+    [
+     0.85,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "lenha": 3,
+    "pedra": 1
+   },
+   "bancada": true,
+   "desc": "Parede com janela. Vai na borda da fundação."
+  },
+  "telhado": {
+   "nome": "Telhado",
+   "tipo": "telhado",
+   "aba": "casa",
+   "w": 2,
+   "d": 2,
+   "circulos": [],
+   "custo": {
+    "lenha": 2,
+    "pedra": 1
+   },
+   "bancada": true,
+   "desc": "Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra."
+  },
+  "bau": {
+   "nome": "Baú",
+   "tipo": "movel",
+   "aba": "moveis",
+   "w": 1.3,
+   "d": 0.8,
+   "circulos": [
+    [
+     -0.3,
+     0,
+     0.38
+    ],
+    [
+     0.3,
+     0,
+     0.38
+    ]
+   ],
+   "custo": {
+    "lenha": 10
+   },
+   "bancada": true,
+   "desc": "Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir."
+  },
+  "cama": {
+   "nome": "Cama",
+   "tipo": "movel",
+   "aba": "moveis",
+   "w": 1.9,
+   "d": 2.4,
+   "circulos": [
+    [
+     0,
+     -0.6,
+     0.6
+    ],
+    [
+     0,
+     0.6,
+     0.6
+    ]
+   ],
+   "custo": {
+    "lenha": 8,
+    "couro": 3
+   },
+   "bancada": true,
+   "desc": "Você renasce nela quando cai."
+  },
+  "tocha": {
+   "nome": "Tocha",
+   "tipo": "movel",
+   "aba": "moveis",
+   "w": 0.4,
+   "d": 0.4,
+   "circulos": [
+    [
+     0,
+     0,
+     0.15
+    ]
+   ],
+   "custo": {
+    "lenha": 2,
+    "carvao": 1
+   },
+   "bancada": false,
+   "desc": "Ilumina em volta. Coloque no chão."
   }
  },
  "plantas": {
@@ -1732,5 +2049,32 @@
  "horta": {
   "rega": 24,
   "vigor": 1
+ },
+ "ferramentas": {
+  "enxada": {
+   "custo": {
+    "lenha": 3,
+    "pedra": 2
+   },
+   "bancada": false,
+   "para": "arar"
+  },
+  "regador": {
+   "custo": {
+    "barra_cobre": 1,
+    "lenha": 2
+   },
+   "bancada": true,
+   "para": "regar"
+  }
+ },
+ "casa": {
+  "grade": 2,
+  "parede": 3.1,
+  "fundacao": 0.2,
+  "espessura": 0.3
+ },
+ "bau": {
+  "slots": 40
  }
 }
