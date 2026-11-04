@@ -59,14 +59,27 @@ static func palma(esq: Skeleton3D, mao: int) -> Vector3:
 		p = p.lerp(furo[0], float(furo[1]))
 	return esq.global_transform * p
 
+# guarda do cajado parada (direção de arte 2026-11-04): quase em pé, ~14° para a frente e um pouco para dentro,
+# com a chama à frente da cabeça, e a mão mais para cima no cabo (a ponteira desce até perto do chão)
+const INCLINA_GUARDA := Vector3(0.3, 0, 0)
+const INCLINA_GUARDA_DENTRO := 0.0
+const DESCE_GUARDA := 0.12 # m que o cajado escorrega na mão na guarda
+
 # onde o cajado fica com ele na mão: meio na palma, em pé seguindo o corpo (raiz), 15% menor
-static func pose_na_mao(esq: Skeleton3D, mao: int, raiz: Node3D) -> Transform3D:
+static func pose_na_mao(esq: Skeleton3D, mao: int, raiz: Node3D, guarda := 0.0) -> Transform3D:
 	var b: Basis = raiz.global_transform.basis
 	var s: float = b.get_scale().x * ESCALA_CAJADO
 	var p := palma(esq, mao)
 	var lado: float = (raiz.global_transform.affine_inverse() * p).x # de que lado do corpo está a mão
 	var inc := INCLINA_CAJADO + Vector3(0, 0, INCLINA_FORA if lado < 0.0 else -INCLINA_FORA)
-	return Transform3D(b.orthonormalized() * Basis.from_euler(inc) * Basis.from_scale(Vector3.ONE * s), p)
+	var g: float = clamp(guarda, 0.0, 1.0)
+	if g > 0.0:
+		var ig := INCLINA_GUARDA + Vector3(0, 0, -INCLINA_GUARDA_DENTRO if lado < 0.0 else INCLINA_GUARDA_DENTRO)
+		inc = inc.lerp(ig, g)
+	var base: Basis = b.orthonormalized() * Basis.from_euler(inc)
+	if g > 0.0:
+		p -= base.y * DESCE_GUARDA * b.get_scale().x * g
+	return Transform3D(base * Basis.from_scale(Vector3.ONE * s), p)
 
 # o cajado preso no osso da mão (jogadores online, menu do personagem, criador): a cada quadro vai para a palma e
 # fica em pé. Fica dentro do próprio cajado; quando o cajado volta para as costas, não faz nada.

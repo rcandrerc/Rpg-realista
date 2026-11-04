@@ -95,7 +95,19 @@ func _init(p: AnimationPlayer) -> void:
 	tem_guarda_cajado = player.has_animation("cajado_parada")
 	if tem_guarda_cajado:
 		anim.call("cajado_parada", "cajado", Vector2(0, -120))
-		bt.add_node("idle_caj", AnimationNodeBlend2.new(), Vector2(120, -60))
+		# o braço do cajado fica com o da parada (mão na altura do quadril, ponteira perto do chão); o resto do corpo
+		# vai para a guarda (direção de arte 2026-11-04). Na guarda do Mixamo o braço sobe até o ombro.
+		var gc := AnimationNodeBlend2.new()
+		gc.filter_enabled = true
+		var braco := ["J_Bip_R_Shoulder", "J_Bip_R_UpperArm", "J_Bip_R_LowerArm", "J_Bip_R_Hand"]
+		var ref_g: Animation = player.get_animation("cajado_parada")
+		for t in ref_g.get_track_count():
+			var cam := ref_g.track_get_path(t)
+			var osso := str(cam.get_subname(0)) if cam.get_subname_count() > 0 else ""
+			if not (osso in braco or osso.begins_with("J_Bip_R_Thumb") or osso.begins_with("J_Bip_R_Index")
+					or osso.begins_with("J_Bip_R_Middle") or osso.begins_with("J_Bip_R_Ring") or osso.begins_with("J_Bip_R_Little")):
+				gc.set_filter_path(cam, true)
+		bt.add_node("idle_caj", gc, Vector2(120, -60))
 		bt.connect_node("idle_caj", 0, "parada")
 		bt.connect_node("idle_caj", 1, "cajado")
 		bt.connect_node("idle", 0, "idle_caj")
@@ -231,6 +243,10 @@ func _init(p: AnimationPlayer) -> void:
 	tree.tree_root = bt
 	tree.active = true
 	_aplicar(0.0)
+
+# quanto a guarda do cajado manda agora (0 a 1): parado em guarda, sem ação e sem andar
+func peso_guarda() -> float:
+	return _gcaj * (1.0 - _mexe) * (1.0 - max(_corpo, _tronco)) * (1.0 - _idle)
 
 func _esqueleto(no: Node) -> Skeleton3D:
 	var l := no.find_children("*", "Skeleton3D", true, false)

@@ -2547,7 +2547,7 @@ func atualizar_heroi(dt: float) -> void:
 	mao_fechada.peso = move_toward(mao_fechada.peso, 1.0 if mao_no_cajado else 0.0, dt * 8.0)
 	if h.modo == "Magia" and mov.esc == null and montaria == null:
 		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
-		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi)
+		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 		if cajado.visible and heroi.visible:
 			Armas.chama(fx.mg, cajado, dt) # chama pintada no topo do Cajado A
 	# rastro da espada durante o golpe e do vento no dash
