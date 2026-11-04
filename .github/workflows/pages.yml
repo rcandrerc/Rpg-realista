@@ -25,7 +25,9 @@ concurrency:
 
 jobs:
   publicar:
-    runs-on: ubuntu-latest
+    # Com a variável RUNNER_BUILD definida, roda no runner próprio da Oracle (não gasta cota do GitHub).
+    # Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

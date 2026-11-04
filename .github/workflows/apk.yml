@@ -29,7 +29,9 @@ jobs:
   apk:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
-    runs-on: ubuntu-latest
+    # Com a variável RUNNER_BUILD definida (ex.: "aethra-build"), roda no runner próprio da Oracle e NÃO gasta
+    # cota do GitHub. Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +61,8 @@ jobs:
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
           npm install --no-save playwright@1.48.2
-          npx playwright install --with-deps chromium
+          # no runner próprio o instalar-runner.sh já pôs as bibliotecas do sistema e o usuário do build não tem sudo
+          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then npx playwright install chromium; else npx playwright install --with-deps chromium; fi
       - name: Modelos (vila, personagens, monstros) para godot-prototipo/modelos
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
@@ -98,13 +101,20 @@ jobs:
           ls godot-prototipo/modelos/*_0.png > /dev/null 2>&1 || rm -f godot-prototipo/modelos/*.import
       - name: Godot e modelos de exportação
         run: |
+          # No runner próprio da Oracle o Godot já vem instalado (GODOT_BIN no .env): pula o download.
+          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ]; then
+            echo "Godot já instalado em $GODOT_BIN; pulando download."
+            exit 0
+          fi
+          # Escolhe a versão do Godot conforme a máquina (PC comum x86_64 ou ARM da Oracle).
+          case "$(uname -m)" in aarch64|arm64) PLAT=linux.arm64;; *) PLAT=linux.x86_64;; esac
           cd /tmp
-          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_linux.x86_64.zip
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip
           curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
           unzip -q godot.zip && unzip -q tpl.tpz
           mkdir -p ~/.local/share/godot/export_templates/4.5.stable
           mv templates/* ~/.local/share/godot/export_templates/4.5.stable/
-          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_linux.x86_64" >> $GITHUB_ENV
+          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_${PLAT}" >> $GITHUB_ENV
       - name: Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
