@@ -6,6 +6,10 @@ config/name="RPG Prototipo Godot"
 run/main_scene="res://inicio.tscn"
 config/icon="res://icone_app/principal_192.png"
 config/features=PackedStringArray("4.5", "Mobile")
+boot_splash/bg_color=Color(0.05, 0.06, 0.09, 1)
+boot_splash/image="res://ui/abertura.png"
+boot_splash/fullsize=true
+boot_splash/use_filter=true
 
 [display]
 window/size/viewport_width=1280
