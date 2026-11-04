@@ -74,6 +74,10 @@ Para montar à mão:
   volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica
   só a sombra) quando o herói entra, e no modo construção quando a mira está lá dentro. A porta abre sozinha
   quando o herói chega perto. Desmontar tira primeiro o que está mais em cima (telhado, parede, móvel, fundação).
+- Dentro de casa, como no Quimera (André, 2026-11-04): o telhado some e as paredes entre a câmera e o herói também,
+  conforme o ângulo (fica só a sombra). Em cima do telhado ele não some: a casa é chão e parede de verdade no
+  terreno (servidor e app: `pecasCasaSolidas` / `_refazer_pisos`), então dá para escalar a parede e ficar em pé no
+  telhado; dentro, a cabeça bate no telhado e na verga da porta.
 - **Baú**: perto do seu baú aparece o botão do baú; 40 pilhas, e todos os seus baús guardam as mesmas coisas.
   **Cama**: quem tem cama volta do lado dela ao morrer. **Tocha**: luz quente à noite. Arar pede **enxada** e
   regar pede **regador** (os dois se criam na aba Fazenda). A Rosa agora vende lenha e pedra.

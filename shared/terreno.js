@@ -6,6 +6,22 @@ import { GRADES } from './rochas.js';
 export const TELHADO = { inclinacao: 0.82, esp: 0.3, beiral: 0.5, pontas: 0.38 };
 const ACIMA = 0.5; // peça suspensa vira chão quando a base dela está até isso acima dos pés
 
+// telhado das casas do jogador: quadrados de 2 m juntos; a altura sobe com a distância até a borda de fora (quatro águas
+// que se ajeitam a qualquer formato), com beiral. c = { cel: [[x, z]], seg: [[ax, az, bx, bz]], g (meio quadrado), base,
+// beiral, inclina, max, x0, z0, x1, z1 }. A mesma conta no godot-prototipo/construcao.gd (_malha_telhado) e terreno.gd.
+export function alturaTelhado(c, x, z) {
+  if (x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) return -1;
+  let d = Infinity;
+  for (const [ax, az, bx, bz] of c.seg) {
+    const vx = bx - ax, vz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
+    d = Math.min(d, Math.hypot(x - ax - vx * t, z - az - vz * t));
+  }
+  let dentro = false;
+  for (const [cx, cz] of c.cel) if (Math.abs(x - cx) <= c.g + 0.001 && Math.abs(z - cz) <= c.g + 0.001) { dentro = true; break; }
+  if (!dentro) { if (d > c.beiral) return -1; d = -d; }
+  return c.base + 0.2 + c.inclina * Math.min(d, c.max / c.inclina);
+}
+
 export class Terreno {
   constructor(mapa) {
     this.rochas = (mapa.rochas || []).map((r) => {
@@ -42,9 +58,16 @@ export class Terreno {
         this.postes.push({ x: c.x + lx * cos + lz * sen, z: c.z - lx * sen + lz * cos, r, alto });
     }
     this.solidos = [...this.rochas, ...this.casas];
+    this.doJogador = []; // casas que os jogadores constroem nos terrenos (pecasCasaSolidas): mudam com o jogo
+  }
+  // troca as peças sólidas das casas dos jogadores (fundação vira chão, parede se escala, telhado se anda em cima)
+  porCasasDosJogadores(l) {
+    this.doJogador = l;
+    this.solidos = [...this.rochas, ...this.casas, ...l];
   }
   // altura do telhado de uma casa num ponto (ou -1 se fora dela)
   alturaCasa(c, x, z) {
+    if (c.cel) return alturaTelhado(c, x, z);
     const dx = x - c.x, dz = z - c.z;
     if (dx * dx + dz * dz > c.R * c.R) return -1;
     const lx = dx * c.cos - dz * c.sen, lz = dx * c.sen + dz * c.cos;
@@ -81,6 +104,7 @@ export class Terreno {
   teto(x, z, y) {
     let t = Infinity;
     for (const r of this.casas) if (r.base > y + ACIMA && r.base < t && this.alturaCasa(r, x, z) >= 0) t = r.base;
+    for (const r of this.doJogador) if (r.base > y + ACIMA && r.base < t && this.alturaCasa(r, x, z) >= 0) t = r.base;
     return t;
   }
   // qual rocha está mais alta naquele ponto
