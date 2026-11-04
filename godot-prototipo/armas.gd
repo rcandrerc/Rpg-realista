@@ -62,7 +62,7 @@ static func palma(esq: Skeleton3D, mao: int) -> Vector3:
 # guarda do cajado parada (direção de arte 2026-11-04): quase em pé, ~14° para a frente e um pouco para dentro,
 # com a chama à frente da cabeça, e a mão mais para cima no cabo (a ponteira desce até perto do chão)
 const INCLINA_GUARDA := Vector3(0.3, 0, 0)
-const INCLINA_GUARDA_DENTRO := 0.0
+const INCLINA_GUARDA_DENTRO := -0.09 # negativo = topo para fora: a chama ao lado da cabeça, sem cobrir o rosto
 const DESCE_GUARDA := 0.12 # m que o cajado escorrega na mão na guarda
 
 # onde o cajado fica com ele na mão: meio na palma, em pé seguindo o corpo (raiz), 15% menor
