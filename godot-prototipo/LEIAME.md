@@ -64,7 +64,24 @@ Para montar à mão:
   Colher dá pontos de Fazendeiro (profissão nova).
 - Terra arada como a do Quimera (André, 2026-11-04): canteiros vizinhos emendam numa terra só, a borda solta se
   mistura ao chão de forma irregular e a grama não fura a terra (`_malha_terra` e `_grama_sob_horta` em `construcao.gd`).
+- Casa do Quimera (André, 2026-11-04: "não consigo criar nada"): a barra tem as abas **Casa** (fundação, parede,
+  porta, janela, telhado), **Móveis** (bancada, bigorna, fornalha, cerca, baú, cama, tocha) e **Fazenda**. Cada peça
+  é **criada** antes (botão **Criar**: gasta o material e vira o item "obra" na mochila; o número no quadrado é
+  quantas você tem prontas) e depois **colocada**. A bancada, a fundação, a tocha e a enxada se criam em qualquer
+  lugar; o resto pede uma bancada perto (então a primeira coisa é a bancada). Desmontar devolve a peça pronta.
+- Casa numa grade de 2 m: a fundação vai no quadrado (vira chão, dá para subir e andar em cima), parede, porta e
+  janela vão na borda de uma fundação (Girar vira a frente), o telhado vai em cima de uma fundação com parede em
+  volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica
+  só a sombra) quando o herói entra, e no modo construção quando a mira está lá dentro. A porta abre sozinha
+  quando o herói chega perto. Desmontar tira primeiro o que está mais em cima (telhado, parede, móvel, fundação).
+- Dentro de casa, como no Quimera (André, 2026-11-04): o telhado some e as paredes entre a câmera e o herói também,
+  conforme o ângulo (fica só a sombra). Em cima do telhado ele não some: a casa é chão e parede de verdade no
+  terreno (servidor e app: `pecasCasaSolidas` / `_refazer_pisos`), então dá para escalar a parede e ficar em pé no
+  telhado; dentro, a cabeça bate no telhado e na verga da porta.
+- **Baú**: perto do seu baú aparece o botão do baú; 40 pilhas, e todos os seus baús guardam as mesmas coisas.
+  **Cama**: quem tem cama volta do lado dela ao morrer. **Tocha**: luz quente à noite. Arar pede **enxada** e
+  regar pede **regador** (os dois se criam na aba Fazenda). A Rosa agora vende lenha e pedra.
 - Código: `construcao.gd` (app), `camera_heroi.gd` (`entrar_livre`/`sair_livre`) e `shared/simulacao.js`
-  (motivoTerreno, comprarLote, construir, desmontar, horta). Números em `shared/dados.js` (VILA_LOTES, LOTE,
+  (fabricar, bau, motivoDesmontar, motivoTerreno, comprarLote, construir, desmontar, horta). Números em `shared/dados.js` (VILA_LOTES, LOTE,
   CONSTRUCOES, PLANTAS, HORTA). O servidor guarda os terrenos na tabela `lotes` (o retângulo vai em `dados.ret`;
   quem tinha comprado um lote antigo fica com o mesmo chão, `LOTES_ANTIGOS`).

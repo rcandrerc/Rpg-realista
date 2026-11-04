@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -66,13 +66,99 @@ export function motivoTerreno(R, outros = []) {
   return '';
 }
 
+// ---------- casa (grade de CASA.grade m, como no Quimera): fundação no quadrado, parede/porta/janela na borda, telhado em cima ----------
+const GC = CASA.grade;
+const tipoPeca = (k) => CONSTRUCOES[k]?.tipo || 'movel';
+const inteiro = (v) => Math.abs(v - Math.round(v)) < 1e-6;
+export const noMeioDaGrade = (v) => inteiro((v - GC / 2) / GC); // centro de um quadrado da casa
+export const naLinhaDaGrade = (v) => inteiro(v / GC); // borda entre dois quadrados
+const mesmoLugar = (a, x, z) => Math.abs(a.x - x) < 0.01 && Math.abs(a.z - z) < 0.01;
+export const fundacaoEm = (L, x, z) => L.pecas.some((o) => tipoPeca(o.k) === 'fundacao' && mesmoLugar(o, x, z));
+// os dois quadrados dos lados de uma parede (r par = parede no eixo x, borda norte/sul; r ímpar = eixo z)
+export const ladosDaBorda = (p) => ((p.r & 1) ? [[p.x - GC / 2, p.z], [p.x + GC / 2, p.z]] : [[p.x, p.z - GC / 2], [p.x, p.z + GC / 2]]);
+// as quatro bordas de um quadrado da casa: [x, z, eixo (0 = x, 1 = z)]
+export const bordasDoQuadrado = (x, z) => [[x, z - GC / 2, 0], [x, z + GC / 2, 0], [x - GC / 2, z, 1], [x + GC / 2, z, 1]];
+const bordaEm = (L, x, z, eixo) => L.pecas.find((o) => tipoPeca(o.k) === 'borda' && (o.r & 1) === eixo && mesmoLugar(o, x, z));
+const telhadoEm = (L, x, z) => L.pecas.some((o) => tipoPeca(o.k) === 'telhado' && mesmoLugar(o, x, z));
 // por que a peça não pode ficar ali ('' = pode): dentro do lote, sem encostar em outra peça nem na horta, fora do herói
+// Casa (2026-11-04): a fundação aceita móveis em cima; parede e telhado precisam de fundação (regras do Quimera).
 export function motivoPeca(L, p, j) {
-  const R = retPeca(p);
+  const R = retPeca(p), T = tipoPeca(p.k);
   if (foraDoLote(R, L.def)) return 'Só dá para construir dentro do seu terreno';
-  for (const o of L.pecas) if (o.id !== p.id && cruza(R, retPeca(o))) return 'Lugar ocupado';
-  for (const c of Object.keys(L.horta)) { const [i, k] = c.split(',').map(Number); if (cruza(R, [i, k, i + 1, k + 1])) return 'Tem horta aí'; }
-  if (j && j.x > R[0] - 0.35 && j.x < R[2] + 0.35 && j.z > R[1] - 0.35 && j.z < R[3] + 0.35) return 'Saia de cima do lugar';
+  const naHorta = () => Object.keys(L.horta).some((c) => { const [i, k] = c.split(',').map(Number); return cruza(R, [i, k, i + 1, k + 1]); });
+  const emCima = () => j && j.x > R[0] - 0.35 && j.x < R[2] + 0.35 && j.z > R[1] - 0.35 && j.z < R[3] + 0.35;
+  if (T === 'fundacao') {
+    if (!noMeioDaGrade(p.x) || !noMeioDaGrade(p.z)) return 'Fora da grade da casa';
+    if (fundacaoEm(L, p.x, p.z)) return 'Já tem fundação aqui';
+    for (const o of L.pecas) if (tipoPeca(o.k) === 'movel' && cruza(R, retPeca(o))) return 'Lugar ocupado';
+    if (naHorta()) return 'Tem horta aí';
+    return '';
+  }
+  if (T === 'borda') {
+    const eixo = p.r & 1;
+    if (eixo ? !(naLinhaDaGrade(p.x) && noMeioDaGrade(p.z)) : !(noMeioDaGrade(p.x) && naLinhaDaGrade(p.z))) return 'Fora da grade da casa';
+    if (!ladosDaBorda(p).some(([x, z]) => fundacaoEm(L, x, z))) return `${CONSTRUCOES[p.k].nome} vai na borda de uma fundação`;
+    if (bordaEm(L, p.x, p.z, eixo)) return 'Já tem parede aqui';
+    for (const o of L.pecas) if (tipoPeca(o.k) === 'movel' && cruza(R, retPeca(o))) return 'Lugar ocupado';
+    if (emCima()) return 'Saia de cima do lugar';
+    return '';
+  }
+  if (T === 'telhado') {
+    if (!noMeioDaGrade(p.x) || !noMeioDaGrade(p.z)) return 'Fora da grade da casa';
+    if (!fundacaoEm(L, p.x, p.z)) return 'O telhado vai em cima de uma fundação';
+    if (telhadoEm(L, p.x, p.z)) return 'Já tem telhado aqui';
+    const apoio = bordasDoQuadrado(p.x, p.z).some(([x, z, e]) => bordaEm(L, x, z, e))
+      || [[GC, 0], [-GC, 0], [0, GC], [0, -GC]].some(([dx, dz]) => telhadoEm(L, p.x + dx, p.z + dz));
+    if (!apoio) return 'Precisa de parede em volta (ou outro telhado do lado)';
+    return '';
+  }
+  for (const o of L.pecas) if (o.id !== p.id && tipoPeca(o.k) !== 'fundacao' && tipoPeca(o.k) !== 'telhado' && cruza(R, retPeca(o))) return 'Lugar ocupado';
+  if (naHorta()) return 'Tem horta aí';
+  if (emCima()) return 'Saia de cima do lugar';
+  return '';
+}
+// Peças sólidas da casa no terreno (shared/terreno.js, 2026-11-04): a fundação vira chão, parede e janela se escalam
+// até o topo, a porta tem os batentes e a verga por cima (passa-se por baixo), e os telhados juntos viram um telhado
+// só onde dá para ficar em pé. chao(x, z) = altura do chão sem as casas dos jogadores. Mesma conta no app (construcao.gd).
+export function pecasCasaSolidas(L, chao) {
+  const g = GC / 2, l = [], peca = (x, z, hw, hd, y1, base) => ({ casa: true, x, z, cos: 1, sen: 0, hw, hd, sobe: 0, y1, base, R: Math.hypot(hw, hd) });
+  const piso = (x, z) => chao(x, z) + (L.pecas.some((o) => tipoPeca(o.k) === 'fundacao' && Math.abs(o.x - x) < g && Math.abs(o.z - z) < g) ? CASA.fundacao : 0);
+  const cel = [];
+  let topo = -Infinity;
+  for (const p of L.pecas) {
+    const T = tipoPeca(p.k);
+    if (T === 'fundacao') l.push(peca(p.x, p.z, g, g, chao(p.x, p.z) + CASA.fundacao, chao(p.x, p.z)));
+    else if (T === 'borda') {
+      const eixo = p.r & 1, y0 = chao(p.x, p.z), y1 = Math.max(...ladosDaBorda(p).map(([x, z]) => piso(x, z))) + CASA.parede, e = CASA.espessura / 2 + 0.02;
+      const ret = (u, hu, base, alto) => (eixo ? peca(p.x, p.z + u, e, hu, alto, base) : peca(p.x + u, p.z, hu, e, alto, base));
+      if (p.k === 'porta') l.push(ret(-0.85, 0.3, y0, y1), ret(0.85, 0.3, y0, y1), ret(0, g + 0.15, y1 - CASA.parede + CASA.porta, y1));
+      else l.push(ret(0, g + 0.15, y0, y1));
+    } else if (T === 'telhado') { cel.push([p.x, p.z]); topo = Math.max(topo, piso(p.x, p.z) + CASA.parede); }
+  }
+  if (cel.length) {
+    const tem = new Set(cel.map(([x, z]) => x + ',' + z)), seg = [];
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [x, z] of cel) {
+      if (!tem.has((x - 2 * g) + ',' + z)) seg.push([x - g, z - g, x - g, z + g]);
+      if (!tem.has((x + 2 * g) + ',' + z)) seg.push([x + g, z - g, x + g, z + g]);
+      if (!tem.has(x + ',' + (z - 2 * g))) seg.push([x - g, z - g, x + g, z - g]);
+      if (!tem.has(x + ',' + (z + 2 * g))) seg.push([x - g, z + g, x + g, z + g]);
+      x0 = Math.min(x0, x - g - CASA.beiral); x1 = Math.max(x1, x + g + CASA.beiral);
+      z0 = Math.min(z0, z - g - CASA.beiral); z1 = Math.max(z1, z + g + CASA.beiral);
+    }
+    l.push({ casa: true, cel, seg, g, base: topo, beiral: CASA.beiral, inclina: CASA.inclina, max: CASA.telhaMax, x0, z0, x1, z1,
+      x: (x0 + x1) / 2, z: (z0 + z1) / 2, cos: 1, sen: 0, hw: (x1 - x0) / 2, hd: (z1 - z0) / 2, sobe: 0, y1: topo, R: Math.hypot(x1 - x0, z1 - z0) / 2 });
+  }
+  return l;
+}
+// o que impede desmontar a peça ('' = pode): fundação com parede ou telhado em cima
+export function motivoDesmontar(L, p) {
+  if (tipoPeca(p.k) !== 'fundacao') return '';
+  if (telhadoEm(L, p.x, p.z)) return 'Tire o telhado de cima primeiro';
+  for (const [x, z, e] of bordasDoQuadrado(p.x, p.z)) {
+    const b = bordaEm(L, x, z, e); if (!b) continue;
+    if (!ladosDaBorda(b).some(([qx, qz]) => !mesmoLugar(p, qx, qz) && fundacaoEm(L, qx, qz))) return 'Tire as paredes de cima primeiro';
+  }
   return '';
 }
 // por que não dá para arar o quadrado (i, k) de 1 m ('' = dá)
@@ -1175,6 +1261,7 @@ export class Simulacao {
       L.horta = {};
       for (const [c, t] of Object.entries(d.horta || {})) if (/^-?\d+,-?\d+$/.test(c) && t) L.horta[c] = { c: PLANTAS[t.c] ? t.c : '', g: +t.g || 0, w: +t.w || 0, u: +t.u || 0 };
       L.prox = Math.max(1, d.prox | 0, ...L.pecas.map((p) => (+String(p.id).slice(1) || 0) + 1));
+      L.bau = Array.isArray(d.bau) ? Array.from({ length: BAU.slots }, (_, i) => (d.bau[i] ? itemValido(d.bau[i]) || null : null)) : null;
     }
     this.refazerSolidosLotes();
   }
@@ -1182,7 +1269,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null } };
     });
     this.lotesMudados.clear();
     return l;
@@ -1191,6 +1278,9 @@ export class Simulacao {
   refazerSolidosLotes() {
     this.obstaculos = this.obstaculos.filter((k) => !k.peca);
     for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p));
+    // casa: piso, paredes e telhado viram chão e parede de verdade (anda em cima, escala, fica em pé no telhado)
+    const T = this.terreno, chao = (x, z) => { let h = 0; for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
+    T.porCasasDosJogadores([...this.lotes.values()].flatMap((L) => (L.dono ? pecasCasaSolidas(L, chao) : [])));
   }
   // m = { x0, z0, x1, z1 }: o terreno que o jogador marcou (toque num canto e arraste). Paga por bloco (precoTerreno).
   // Confere o tamanho, a borda das terras, a estrada, os terrenos dos outros e o ouro; o banco confere de novo (outras salas).
@@ -1234,11 +1324,12 @@ export class Simulacao {
     if (L.pecas.length >= maxP) return aviso(`Limite de ${maxP} peças no terreno: desmonte uma para pôr outra`);
     const p = { id: 'p' + L.prox, k: m.k, x, z, r, lote: L.def.id };
     const motivo = motivoPeca(L, p, j); if (motivo) return aviso(motivo);
-    for (const [k, n] of Object.entries(C.custo)) if (contar(j.prog.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(j.prog.mochila, k)}/${n})`);
-    for (const [k, n] of Object.entries(C.custo)) tirar(j.prog.mochila, k, n);
+    // 2026-11-04: a peça é um item (cria-se antes, como no Quimera: fabricar); colocar gasta um
+    if (contar(j.prog.mochila, 'obra_' + m.k) < 1) return aviso(`Crie ${C.nome.toLowerCase()} primeiro (botão Criar no modo construção)`);
+    tirar(j.prog.mochila, 'obra_' + m.k, 1);
     L.prox++;
     L.pecas.push(p);
-    this.obstaculos.push(...solidosPeca(p));
+    this.refazerSolidosLotes();
     this.evento({ t: 'construiu', para: id, k: p.k, px: x, pz: z });
     this.avisarLote(L);
     this.avisarProg(j);
@@ -1251,14 +1342,63 @@ export class Simulacao {
     const i = L.pecas.findIndex((p) => p.id === String(m.p)); if (i < 0) return;
     const p = L.pecas[i];
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
+    const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
+    if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
-    for (const [k, n] of Object.entries(CONSTRUCOES[p.k].custo)) if (!guardar(prova, { k, n })) return aviso('Mochila cheia: o que volta da peça não cabe');
+    if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: a peça não cabe');
     j.prog.mochila = prova;
     L.pecas.splice(i, 1);
     this.refazerSolidosLotes();
-    aviso(`${CONSTRUCOES[p.k].nome} desmontada: o material voltou para a mochila`);
+    aviso(`${CONSTRUCOES[p.k].nome}: voltou para a mochila`);
     this.avisarLote(L);
     this.avisarProg(j);
+  }
+  // bancada construída perto (qualquer terreno): as peças do Quimera com needBench só se criam perto dela
+  bancadaPerto(j) {
+    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === 'bancada' && dist(p, j) <= LOTE.estacaoDist + 0.6) return p;
+    return null;
+  }
+  // m = { k }: cria a peça (vira o item obra_k na mochila) ou a ferramenta da fazenda (enxada, regador), como no Quimera
+  fabricar(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || j.criando || j.morto) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const C = CONSTRUCOES[m.k] || FERRAMENTAS_FAZENDA[m.k]; if (!C) return;
+    const item = CONSTRUCOES[m.k] ? 'obra_' + m.k : m.k, p = j.prog;
+    if (FERRAMENTAS_FAZENDA[m.k] && contar(p.mochila, item) > 0) return aviso(`Você já tem ${ITENS[item].nome.toLowerCase()}`);
+    if (C.bancada && !this.bancadaPerto(j)) return aviso(`${ITENS[item].nome}: crie perto de uma bancada de trabalho`);
+    for (const [k, n] of Object.entries(C.custo)) if (contar(p.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})`);
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    for (const [k, n] of Object.entries(C.custo)) tirar(prova, k, n);
+    if (!guardar(prova, { k: item, n: 1 })) return aviso('Mochila cheia');
+    p.mochila = prova;
+    this.evento({ t: 'fabricou', para: id, k: m.k, nome: ITENS[item].nome });
+    aviso(`Criou ${ITENS[item].nome}!`);
+    this.avisarProg(j);
+  }
+  // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar', i }
+  // guardar: a pilha do lugar i da mochila vai inteira para o baú; tirar: a pilha do lugar i do baú volta para a mochila
+  bau(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const L = this.loteDe(j); if (!L) return;
+    if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6)) return aviso('Chegue perto do seu baú');
+    if (!Array.isArray(L.bau)) L.bau = Array(BAU.slots).fill(null);
+    const p = j.prog, i = m.i | 0;
+    if (m.acao === 'guardar') {
+      const o = p.mochila[i]; if (!o) return;
+      if (o.h) return aviso('Tire o item do lugar rápido antes de guardar');
+      const bau = L.bau.map((q) => (q ? { ...q } : null));
+      if (!guardar(bau, { ...o })) return aviso('O baú está cheio');
+      L.bau = bau; p.mochila[i] = null;
+    } else if (m.acao === 'tirar') {
+      const o = L.bau[i]; if (!o) return;
+      const prova = p.mochila.map((q) => (q ? { ...q } : null));
+      if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
+      p.mochila = prova; L.bau[i] = null;
+    } else if (m.acao !== 'abrir') return;
+    this.lotesMudados.add(L.def.id);
+    this.evento({ t: 'bau', para: id, itens: L.bau, abrir: m.acao === 'abrir' });
+    if (m.acao !== 'abrir') this.avisarProg(j);
   }
   // m = { acao: 'arar' | 'plantar' | 'regar' | 'colher' | 'tirar', c: 'i,j' (quadrado de 1 m), s: planta (no plantar) }
   horta(id, m) {
@@ -1276,6 +1416,7 @@ export class Simulacao {
     if (t) crescerPlanta(t, agora);
     if (m.acao === 'arar') {
       if (t) return aviso('Essa terra já está arada');
+      if (contar(p.mochila, 'enxada') < 1) return aviso('Precisa de enxada (crie no modo construção, aba Fazenda)');
       const motivo = motivoHorta(L, ci, cj, j); if (motivo) return aviso(motivo);
       if (!vigor()) return;
       L.horta[m.c] = { c: '', g: 0, w: 0, u: agora };
@@ -1289,6 +1430,7 @@ export class Simulacao {
       Object.assign(t, { c: m.s, g: 0, u: agora });
     } else if (m.acao === 'regar') {
       if (!t) return aviso('Precisa arar a terra primeiro');
+      if (contar(p.mochila, 'regador') < 1) return aviso('Precisa de regador (crie perto de uma bancada, aba Fazenda)');
       if (t.w && agora < t.w + HORTA.rega * 3600000) return aviso('A terra ainda está molhada');
       if (!vigor()) return;
       t.w = agora; t.u = agora;
@@ -1584,7 +1726,9 @@ export class Simulacao {
       this.cancelarVila(c, null);
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
       this.depois(HEROI.renascer, () => {
-        const n = this.mapa.nascimento;
+        // cama no terreno (como no Quimera): renasce do lado dela
+        const L = this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
+        const n = cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : this.mapa.nascimento;
         Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: 0, vy: 0, chao: true, trava: 0, acao: null });
         this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' });
       });

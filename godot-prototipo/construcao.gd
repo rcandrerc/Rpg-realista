@@ -12,6 +12,13 @@ extends Node3D
 # Modelos: construcao3d/ (Quaternius CC0: Workbench, Anvil_Log, Prop_WoodenFence_Single); a fornalha é de pedra,
 # montada aqui com a mesma pedra e brasa da forja da ferraria da vila.
 # 2026-11-04 (André, remoção aprovada): saíram os 6 lotes prontos com estaca, corda e placa "À venda".
+# 2026-11-04 (André: "não consigo criar nada"): a casa inteira do Quimera. Cada peça é criada antes (botão Criar,
+# vira o item obra_* na mochila; parede, porta, janela, telhado e móveis pedem uma bancada perto) e depois colocada.
+# Abas Casa (fundação, parede, porta, janela, telhado), Móveis (bancada, bigorna, fornalha, cerca, baú, cama, tocha)
+# e Fazenda (enxada e regador também se criam aqui). Casa numa grade de 2 m: fundação no quadrado (dá para andar em
+# cima), parede/porta/janela na borda, telhado em cima; os telhados vizinhos viram um telhado só, inclinado, que some
+# quando o herói entra. Baú guarda 40 pilhas (todos os seus baús são o mesmo), cama é onde você volta ao morrer.
+# Modelos da casa: Quaternius Medieval Village MegaKit (CC0); o telhado é montado aqui com a telha T_RoundTiles.
 
 const Menu = preload("res://menu.gd")
 const Andar = preload("res://andar.gd")
@@ -24,12 +31,16 @@ var relogio := 0.0 # ms do servidor menos ms deste celular (a horta cresce igual
 var _modelos := {} # k -> Node3D modelo (escondido) para duplicar
 var _mats := {}
 var _t_horta := 0.0
+var _pisos: Array = [] # fundações que viraram chão no terreno.gd (o herói anda em cima)
+var _portas: Array = [] # folhas das portas (abrem quando o herói chega perto)
+var _mat_telha: StandardMaterial3D
+var _mat_forro: StandardMaterial3D
 var terras: Dictionary # mundo.vilaLotes: area (elipse), estradas [{largura, pontos}]
 
 # modo construção
 var ativo := false
-var aba := "construir" # "construir" ou "fazenda"
-var sel := "bancada" # peça (CONSTRUCOES), "desmontar" ou ação da fazenda ("arar", "plantar", "regar", "colher", "tirar")
+var aba := "casa" # "casa", "moveis" ou "fazenda" (as duas primeiras são de construir)
+var sel := "fundacao" # peça (CONSTRUCOES), "desmontar" ou ação da fazenda ("arar", "plantar", "regar", "colher", "tirar")
 var semente := "rabanete"
 var giro := 0 # 0..3 (x 90°)
 var mira := Vector3.ZERO # onde a câmera flutuante olha e onde o fantasma fica
@@ -58,6 +69,7 @@ var painel: PanelContainer # barra de itens embaixo (modo construção)
 var linha_abas: VBoxContainer
 var linha_itens: HBoxContainer
 var b_girar: Button
+var b_criar: Button
 var b_ok: Button
 var b_sair: Button
 var txt_motivo: Label
@@ -67,6 +79,12 @@ var painel_compra: PanelContainer
 var txt_compra: Label
 var txt_compra_info: Label
 var b_comprar: Button
+# baú
+var painel_bau: PanelContainer
+var grade_bau: GridContainer
+var grade_mochila: GridContainer
+var txt_bau: Label
+var bau_itens: Array = []
 
 const VEL_MIRA := 7.0 # m/s da mira com o joystick (Quimera: 7)
 const ESCALA_UI := 1.0
@@ -88,6 +106,8 @@ func _ready() -> void:
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("bancada", Vector2(333, 160), 30, "pf_alf", m.hud.COR_TROCA)
 	m.hud.botoes[-1].oculto = true
+	m.hud._botao("bau", Vector2(333, 250), 30, "cs_bau", m.hud.COR_TROCA) # perto do meu baú: abre o baú
+	m.hud.botoes[-1].oculto = true
 
 # ---------- modelos ----------
 func _carregar_modelos() -> void:
@@ -95,19 +115,89 @@ func _carregar_modelos() -> void:
 	_modelos["bigorna"] = _modelo_gltf("res://construcao3d/Anvil_Log.gltf", 1.1)
 	_modelos["cerca"] = _modelo_gltf("res://construcao3d/Prop_WoodenFence_Single.gltf", 0.97)
 	_modelos["fornalha"] = _modelo_fornalha()
+	# casa: o modelo da parede vai de z -0,31 a 0,09; +0,11 põe o meio da parede na linha da grade
+	var meio := Vector3(0, 0, 0.11)
+	_modelos["parede"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Straight.gltf", 1.0, meio)
+	_modelos["porta"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Door_Flat.gltf", 1.0, meio,
+		[["res://construcao3d/Door_1_Flat.gltf", Vector3(-0.53, 0, 0.0), "folha"]])
+	_modelos["janela"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Window_Wide_Flat.gltf", 1.0, meio,
+		[["res://construcao3d/Window_Wide_Flat1.gltf", meio, ""]])
+	_modelos["fundacao"] = _modelo_fundacao()
+	_modelos["telhado"] = _modelo_telhado_um()
+	_modelos["bau"] = _modelo_gltf("res://construcao3d/Chest_Wood.gltf", 1.0)
+	_modelos["cama"] = _modelo_gltf("res://construcao3d/Bed_Twin1.gltf", 1.0)
+	_modelos["tocha"] = _modelo_tocha()
 	for k in _modelos:
 		_modelos[k].visible = false
 		add_child(_modelos[k])
 
-func _modelo_gltf(caminho: String, escala: float) -> Node3D:
+# extra: outros modelos juntos [caminho, posição, nome] (a folha da porta, o caixilho da janela)
+func _modelo_gltf(caminho: String, escala: float, pos := Vector3.ZERO, extra := []) -> Node3D:
 	var raiz := Node3D.new()
-	var cena = load(caminho)
-	if cena:
-		var f: Node3D = cena.instantiate()
-		f.scale = Vector3.ONE * escala
-		raiz.add_child(f)
-		m.pintar(raiz, false) # mesmo jeito pintado da vila (toon, sem brilho de plástico)
+	for e in [[caminho, pos, ""]] + extra:
+		var cena = load(e[0])
+		if cena:
+			var f: Node3D = cena.instantiate()
+			f.scale = Vector3.ONE * escala
+			f.position = e[1]
+			if e[2] != "":
+				f.name = e[2]
+			raiz.add_child(f)
+	m.pintar(raiz, false) # mesmo jeito pintado da vila (toon, sem brilho de plástico)
 	return raiz
+
+# Fundação: bloco de pedra de 2 x 2 m (o topo fica 20 cm acima do chão; desce 60 cm para não flutuar em chão torto)
+# com o assoalho de tábuas escuras em cima
+func _modelo_fundacao() -> Node3D:
+	var r := Node3D.new()
+	_caixa(r, Vector3(2.0, 0.8, 2.0), Vector3(0, -0.2, 0), _mat_tex("stacked_stone_wall", Color("d6cec4"), 0.8))
+	var piso := _modelo_gltf("res://construcao3d/Floor_WoodDark.gltf", 1.0, Vector3(0, 0.205, 0))
+	r.add_child(piso)
+	return r
+
+# Tocha de pé: poste de madeira, suporte de ferro, chama acesa e uma luz quente sem sombra (some de longe)
+func _modelo_tocha() -> Node3D:
+	var r := Node3D.new()
+	var madeira := _mat_tex("medieval_wood", Color("8a6a4a"), 2.0)
+	var ferro := _mat_cor(Color(0.16, 0.15, 0.15))
+	_caixa(r, Vector3(0.1, 1.5, 0.1), Vector3(0, 0.75, 0), madeira)
+	_caixa(r, Vector3(0.24, 0.08, 0.24), Vector3(0, 0.04, 0), madeira)
+	_caixa(r, Vector3(0.18, 0.05, 0.18), Vector3(0, 1.5, 0), ferro)
+	for i in 4:
+		var a := i * PI / 2.0
+		_caixa(r, Vector3(0.025, 0.2, 0.025), Vector3(cos(a) * 0.08, 1.6, sin(a) * 0.08), ferro)
+	for c in [[Color(1.0, 0.45, 0.12), 2.8, 0.13, 0.26, 1.64], [Color(1.0, 0.82, 0.35), 3.2, 0.07, 0.16, 1.62]]:
+		var mi := MeshInstance3D.new()
+		var s := SphereMesh.new()
+		s.radius = c[2]
+		s.height = c[3]
+		s.radial_segments = 8
+		s.rings = 4
+		mi.mesh = s
+		mi.material_override = _mat_cor(c[0], c[1])
+		mi.position = Vector3(0, c[4], 0)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.name = "chama"
+		r.add_child(mi)
+	var luz := OmniLight3D.new()
+	luz.light_color = Color(1.0, 0.68, 0.36)
+	luz.light_energy = 1.6
+	luz.omni_range = 6.0
+	luz.shadow_enabled = false
+	luz.distance_fade_enabled = true
+	luz.distance_fade_begin = 22.0
+	luz.distance_fade_length = 6.0
+	luz.position = Vector3(0, 1.75, 0)
+	r.add_child(luz)
+	return r
+
+# telhado sozinho (um quadrado), para o fantasma; os de verdade são montados por terreno (_refazer_telhado)
+func _modelo_telhado_um() -> Node3D:
+	var r := Node3D.new()
+	var mi := MeshInstance3D.new()
+	mi.mesh = _malha_telhado([Vector2(0, 0)], 0.0)
+	r.add_child(mi)
+	return r
 
 # material com textura de verdade (mesmas da vila), em coordenadas do mundo para não esticar
 func _mat_tex(nome: String, cor: Color, escala := 1.0) -> StandardMaterial3D:
@@ -207,6 +297,8 @@ func _lote_fora(id: String) -> void:
 	L.raiz.queue_free()
 	lotes.erase(id)
 	_refazer_solidos()
+	_refazer_pisos()
+	_achar_portas()
 
 # ---------- o que vem do servidor ----------
 func do_servidor_lotes(ev: Dictionary) -> void:
@@ -246,14 +338,18 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		elif p.get("no"):
 			p.no.queue_free()
 	for k in novas:
+		ficam.append(novas[k])
+	L.pecas = ficam
+	_refazer_pisos() # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso
+	for k in novas:
 		var p: Dictionary = novas[k]
-		if _modelos.has(p.k):
+		if _modelos.has(p.k) and p.k != "telhado": # o telhado é um só por terreno (_refazer_telhado)
 			p.no = _copia(p.k)
-			p.no.position = Vector3(p.x, m.terreno.altura(p.x, p.z), p.z)
+			p.no.position = Vector3(p.x, _y_peca(p), p.z)
 			p.no.rotation.y = p.r * PI / 2.0
 			L.raiz.add_child(p.no)
-		ficam.append(p)
-	L.pecas = ficam
+	_refazer_telhado(L)
+	_achar_portas()
 	# horta
 	var vistas := {}
 	for t in ev.get("horta", []):
@@ -318,6 +414,350 @@ func _refazer_solidos() -> void:
 			for q in D.construcoes[p.k].circulos:
 				l.append({"x": p.x + float(q[0]) * c + float(q[1]) * s, "z": p.z - float(q[0]) * s + float(q[1]) * c, "r": float(q[2])})
 	m.mov.extras = l
+
+# ---------- casa: grade de 2 m (a mesma conta do servidor: shared/simulacao.js noMeioDaGrade, ladosDaBorda...) ----------
+func grade() -> float:
+	return float(D.get("casa", {}).get("grade", 2.0))
+
+func tipo_peca(k: String) -> String:
+	return str(D.construcoes[k].get("tipo", "movel")) if D.construcoes.has(k) else "movel"
+
+static func _inteiro(v: float) -> bool:
+	return absf(v - roundf(v)) < 1e-4
+
+func no_meio_da_grade(v: float) -> bool:
+	return _inteiro((v - grade() / 2.0) / grade())
+
+func na_linha_da_grade(v: float) -> bool:
+	return _inteiro(v / grade())
+
+static func _mesmo_lugar(o: Dictionary, x: float, z: float) -> bool:
+	return absf(o.x - x) < 0.01 and absf(o.z - z) < 0.01
+
+func fundacao_em(L: Dictionary, x: float, z: float):
+	for o in L.pecas:
+		if tipo_peca(o.k) == "fundacao" and _mesmo_lugar(o, x, z):
+			return o
+	return null
+
+func borda_em(L: Dictionary, x: float, z: float, eixo: int):
+	for o in L.pecas:
+		if tipo_peca(o.k) == "borda" and (o.r & 1) == eixo and _mesmo_lugar(o, x, z):
+			return o
+	return null
+
+func telhado_em(L: Dictionary, x: float, z: float) -> bool:
+	for o in L.pecas:
+		if tipo_peca(o.k) == "telhado" and _mesmo_lugar(o, x, z):
+			return true
+	return false
+
+# os dois quadrados dos lados de uma parede (r par: parede no eixo x; r ímpar: no eixo z)
+func lados_da_borda(x: float, z: float, r: int) -> Array:
+	var g := grade() / 2.0
+	return [Vector2(x - g, z), Vector2(x + g, z)] if r & 1 else [Vector2(x, z - g), Vector2(x, z + g)]
+
+# as quatro bordas de um quadrado: [x, z, eixo]
+func bordas_do_quadrado(x: float, z: float) -> Array:
+	var g := grade() / 2.0
+	return [[x, z - g, 0], [x, z + g, 0], [x - g, z, 1], [x + g, z, 1]]
+
+# chão sem as casas dos jogadores (pedras e casas da vila contam)
+func _chao(x: float, z: float) -> float:
+	var h := 0.0
+	for r in m.terreno.solidos:
+		if r.get("obra", false):
+			continue
+		var a: float = m.terreno.altura_na(r, x, z)
+		if a > h:
+			h = a
+	return h
+
+# piso num ponto: o chão, ou o topo da fundação que estiver ali
+func _piso(x: float, z: float) -> float:
+	var g := grade() / 2.0
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if p.k == "fundacao" and absf(p.x - x) < g and absf(p.z - z) < g:
+				return _chao(x, z) + float(D.casa.fundacao)
+	return _chao(x, z)
+
+# altura onde a peça fica: a fundação no chão; parede/porta/janela no piso mais alto dos dois lados; móvel no piso
+func _y_peca(p: Dictionary) -> float:
+	if p.k == "fundacao":
+		return _chao(p.x, p.z)
+	if tipo_peca(p.k) == "borda":
+		var y := -INF
+		for q in lados_da_borda(p.x, p.z, p.r):
+			y = maxf(y, _piso(q.x, q.y))
+		return y
+	return _piso(p.x, p.z)
+
+# A casa vira chão e parede de verdade no terreno.gd (2026-11-04, André: "a gente deve ser capaz de ficar em cima do
+# telhado"): fundação é piso, parede e janela se escalam até o topo, a porta tem batentes e a verga por cima, e o
+# telhado (quadrados juntos) é chão para quem está em cima e teto para quem está dentro. Mesma conta do servidor:
+# shared/simulacao.js pecasCasaSolidas.
+func _refazer_pisos() -> void:
+	for r in _pisos:
+		m.terreno.solidos.erase(r)
+		m.terreno.casas.erase(r)
+	_pisos.clear()
+	var C: Dictionary = D.casa
+	var g := grade() / 2.0
+	var peca := func(x: float, z: float, hw: float, hd: float, y1: float, base: float) -> Dictionary:
+		return {"casa": true, "obra": true, "x": x, "z": z, "cos": 1.0, "sen": 0.0, "hw": hw, "hd": hd, "sobe": 0.0, "y1": y1, "base": base, "R": Vector2(hw, hd).length()}
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		var cel: Array = []
+		var topo := -INF
+		for p in L.pecas:
+			var T := tipo_peca(p.k)
+			if T == "fundacao":
+				var c0 := _chao(p.x, p.z)
+				_pisos.append(peca.call(p.x, p.z, g, g, c0 + float(C.fundacao), c0))
+			elif T == "borda":
+				var eixo: int = p.r & 1
+				var y0 := _chao(p.x, p.z)
+				var y1 := _y_peca(p) + float(C.parede)
+				var e := float(C.espessura) / 2.0 + 0.02
+				var partes: Array = [[-0.85, 0.3, y0, y1], [0.85, 0.3, y0, y1], [0.0, g + 0.15, y1 - float(C.parede) + float(C.porta), y1]] if p.k == "porta" else [[0.0, g + 0.15, y0, y1]]
+				for q in partes:
+					if eixo:
+						_pisos.append(peca.call(p.x, p.z + q[0], e, q[1], q[3], q[2]))
+					else:
+						_pisos.append(peca.call(p.x + q[0], p.z, q[1], e, q[3], q[2]))
+			elif T == "telhado":
+				cel.append([p.x, p.z])
+				topo = maxf(topo, _piso(p.x, p.z) + float(C.parede))
+		if cel.is_empty():
+			continue
+		var tem := {}
+		for c in cel:
+			tem[Vector2(c[0], c[1])] = true
+		var seg: Array = []
+		var x0 := INF
+		var z0 := INF
+		var x1 := -INF
+		var z1 := -INF
+		var bei := float(C.beiral)
+		for c in cel:
+			var x: float = c[0]
+			var z: float = c[1]
+			if not tem.has(Vector2(x - 2 * g, z)): seg.append([x - g, z - g, x - g, z + g])
+			if not tem.has(Vector2(x + 2 * g, z)): seg.append([x + g, z - g, x + g, z + g])
+			if not tem.has(Vector2(x, z - 2 * g)): seg.append([x - g, z - g, x + g, z - g])
+			if not tem.has(Vector2(x, z + 2 * g)): seg.append([x - g, z + g, x + g, z + g])
+			x0 = minf(x0, x - g - bei); x1 = maxf(x1, x + g + bei)
+			z0 = minf(z0, z - g - bei); z1 = maxf(z1, z + g + bei)
+		_pisos.append({"casa": true, "obra": true, "cel": cel, "seg": seg, "g": g, "base": topo, "beiral": bei, "inclina": float(C.inclina),
+			"max": float(C.telhaMax), "x0": x0, "z0": z0, "x1": x1, "z1": z1, "x": (x0 + x1) / 2.0, "z": (z0 + z1) / 2.0, "cos": 1.0, "sen": 0.0,
+			"hw": (x1 - x0) / 2.0, "hd": (z1 - z0) / 2.0, "sobe": 0.0, "y1": topo, "R": Vector2(x1 - x0, z1 - z0).length() / 2.0})
+	m.terreno.solidos.append_array(_pisos)
+	m.terreno.casas.append_array(_pisos) # teto: dentro de casa a cabeça bate no telhado e na verga da porta
+
+# altura do topo das paredes de um quadrado (piso + parede)
+func _topo_parede(x: float, z: float) -> float:
+	return _piso(x, z) + float(D.get("casa", {}).get("parede", 3.1))
+
+# Telhado (Quimera: telhados vizinhos se juntam num só): uma malha por terreno. A altura sobe com a distância até a
+# borda de fora do conjunto de quadrados com telhado (como um telhado de quatro águas que se ajeita a qualquer
+# formato), com beiral de 45 cm para fora. Telha T_RoundTiles por cima, tábuas por baixo.
+# números do telhado em dados/habilidades.json casa (beiral, inclina, telhaMax): os mesmos do servidor
+# (os de baixo são os mesmos números, guardados aqui como referência; quem vale é o dados)
+const BEIRAL := 0.45
+const INCLINA := 0.6
+const TELHA_MAX := 1.8 # o telhado para de subir aqui (casa grande fica com o topo reto)
+
+func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
+	var g := grade() / 2.0
+	var tem := {}
+	for c in celulas:
+		tem[c] = true
+	# bordas de fora (segmentos) e o retângulo de cada quadrado com o beiral onde não tem vizinho
+	var bordas: Array = []
+	var rets: Array = []
+	for c in celulas:
+		var w := not tem.has(c + Vector2(-2 * g, 0))
+		var e := not tem.has(c + Vector2(2 * g, 0))
+		var n := not tem.has(c + Vector2(0, -2 * g))
+		var s := not tem.has(c + Vector2(0, 2 * g))
+		if w: bordas.append([c + Vector2(-g, -g), c + Vector2(-g, g)])
+		if e: bordas.append([c + Vector2(g, -g), c + Vector2(g, g)])
+		if n: bordas.append([c + Vector2(-g, -g), c + Vector2(g, -g)])
+		if s: bordas.append([c + Vector2(-g, g), c + Vector2(g, g)])
+		rets.append([c, w, e, n, s])
+	var altura := func(q: Vector2) -> float:
+		var d := INF
+		for b in bordas:
+			d = minf(d, q.distance_to(Geometry2D.get_closest_point_to_segment(q, b[0], b[1])))
+		var dentro := false
+		for c in celulas:
+			if absf(q.x - c.x) <= g + 0.001 and absf(q.y - c.y) <= g + 0.001:
+				dentro = true
+				break
+		if not dentro:
+			d = -d
+		return base + 0.2 + float(D.casa.inclina) * minf(d, float(D.casa.telhaMax) / float(D.casa.inclina))
+	var cima := SurfaceTool.new()
+	var baixo := SurfaceTool.new()
+	var borda := SurfaceTool.new()
+	for st in [cima, baixo, borda]:
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for R in rets:
+		var c: Vector2 = R[0]
+		# eixos com 8 divisões de 25 cm no quadrado + 1 no beiral (os vizinhos encaixam ponto com ponto)
+		var xs: Array = []
+		var zs: Array = []
+		if R[1]: xs.append(c.x - g - float(D.casa.beiral))
+		if R[3]: zs.append(c.y - g - float(D.casa.beiral))
+		for i in 9:
+			xs.append(c.x - g + i * g / 4.0)
+			zs.append(c.y - g + i * g / 4.0)
+		if R[2]: xs.append(c.x + g + float(D.casa.beiral))
+		if R[4]: zs.append(c.y + g + float(D.casa.beiral))
+		var P: Array = []
+		for j in zs.size():
+			for i in xs.size():
+				var q := Vector2(xs[i], zs[j])
+				P.append(Vector3(q.x, altura.call(q), q.y))
+		var nx := xs.size()
+		for j in zs.size() - 1:
+			for i in nx - 1:
+				var a: Vector3 = P[j * nx + i]
+				var b: Vector3 = P[j * nx + i + 1]
+				var cc: Vector3 = P[(j + 1) * nx + i + 1]
+				var d: Vector3 = P[(j + 1) * nx + i]
+				for v in [a, b, cc, a, cc, d]:
+					cima.set_uv(Vector2(v.x, v.z) * 0.5)
+					cima.add_vertex(v)
+				for v in [a, cc, b, a, d, cc]:
+					baixo.set_uv(Vector2(v.x, v.z) * 0.7)
+					baixo.add_vertex(v - Vector3(0, 0.1, 0))
+		# testeira: tábua de 10 cm na ponta do beiral
+		var lados := []
+		if R[1]: lados.append(range(zs.size()).map(func(j): return P[j * nx]))
+		if R[2]: lados.append(range(zs.size()).map(func(j): return P[j * nx + nx - 1]))
+		if R[3]: lados.append(range(nx).map(func(i): return P[i]))
+		if R[4]: lados.append(range(nx).map(func(i): return P[(zs.size() - 1) * nx + i]))
+		for L in lados:
+			for k in L.size() - 1:
+				var a: Vector3 = L[k]
+				var b: Vector3 = L[k + 1]
+				var a2 := a - Vector3(0, 0.12, 0)
+				var b2 := b - Vector3(0, 0.12, 0)
+				for v in [a, b, b2, a, b2, a2]:
+					borda.set_uv(Vector2(v.x + v.z, v.y) * 0.7)
+					borda.add_vertex(v)
+	var malha := ArrayMesh.new()
+	for st in [cima, baixo, borda]:
+		st.generate_normals()
+		st.generate_tangents()
+		st.commit(malha)
+	if _mat_telha == null:
+		_mat_telha = StandardMaterial3D.new()
+		_mat_telha.albedo_texture = load("res://construcao3d/T_RoundTiles_BaseColor.png")
+		_mat_telha.albedo_color = Color("d9b9a6")
+		_mat_telha.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_mat_telha.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		_mat_telha.roughness = 1.0
+		_mat_forro = StandardMaterial3D.new()
+		_mat_forro.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
+		_mat_forro.albedo_color = Color("9a7a5c")
+		_mat_forro.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_mat_forro.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		_mat_forro.roughness = 1.0
+		_mat_forro.cull_mode = BaseMaterial3D.CULL_DISABLED
+	malha.surface_set_material(0, _mat_telha)
+	malha.surface_set_material(1, _mat_forro)
+	malha.surface_set_material(2, _mat_forro)
+	return malha
+
+func _refazer_telhado(L: Dictionary) -> void:
+	var celulas: Array = []
+	var base := -INF
+	for p in L.pecas:
+		if p.k == "telhado":
+			celulas.append(Vector2(p.x, p.z))
+			base = maxf(base, _topo_parede(p.x, p.z))
+	var velho = L.get("telhado")
+	var chave := str(celulas)
+	if velho != null and L.get("telhado_chave", "") == chave:
+		return
+	if velho != null:
+		velho.queue_free()
+		L.erase("telhado")
+	L.telhado_chave = chave
+	L.telhado_celulas = celulas
+	L.telhado_base = base
+	if celulas.is_empty():
+		return
+	var mi := MeshInstance3D.new()
+	mi.name = "telhado"
+	mi.mesh = _malha_telhado(celulas, base)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	L.raiz.add_child(mi)
+	L.telhado = mi
+
+# Como no Quimera: dentro de casa (debaixo do telhado; em cima dele não conta) o telhado some e as paredes que ficam
+# entre a câmera e o herói também, conforme o ângulo (fica só a sombra, a luz de dentro não muda). No modo construção
+# o telhado some com a mira lá dentro (para pôr móveis e paredes); colocando telhado ou desmontando, ele aparece.
+func _telhados_visiveis(hp: Vector3) -> void:
+	var g := grade() / 2.0
+	var dentro := false
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		var mi = L.get("telhado")
+		if mi == null:
+			continue
+		var some := false
+		for c in L.telhado_celulas:
+			if absf(hp.x - c.x) < g and absf(hp.z - c.y) < g and hp.y < float(L.telhado_base) - 0.3:
+				some = true
+				dentro = true
+			if ativo and id == meu and not sel in ["telhado", "desmontar"] and absf(mira.x - c.x) < g + 0.3 and absf(mira.z - c.y) < g + 0.3:
+				some = true
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if some else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	# paredes (Quimera HB): de dentro, a parede até 9 m cuja direção a partir do herói aponta para a câmera some
+	var cx := 0.0
+	var cz := 0.0
+	if dentro and m.camera:
+		var v: Vector3 = m.camera.global_position - hp
+		var n := Vector2(v.x, v.z).length()
+		if n > 0.01:
+			cx = v.x / n
+			cz = v.z / n
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if tipo_peca(p.k) != "borda" or not p.get("no") or not is_instance_valid(p.no):
+				continue
+			var corta := false
+			if dentro and absf(p.x - hp.x) < 11.0 and absf(p.z - hp.z) < 11.0:
+				var dx: float = p.x - hp.x
+				var dz: float = p.z - hp.z
+				var dd := sqrt(dx * dx + dz * dz)
+				corta = dd < 9.0 and dd > 0.05 and (dx * cx + dz * cz) / dd > 0.22
+			if corta != p.get("cortada", false):
+				p.cortada = corta
+				for q in p.no.find_children("*", "MeshInstance3D", true, false):
+					q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if corta else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+# portas: a folha abre quando o herói chega perto e fecha quando ele sai
+func _achar_portas() -> void:
+	_portas.clear()
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if p.k == "porta" and p.get("no") and is_instance_valid(p.no):
+				var f = p.no.find_child("folha", true, false)
+				if f:
+					_portas.append(f)
+
+func _mexer_portas(hp: Vector3, dt: float) -> void:
+	for f in _portas:
+		if not is_instance_valid(f):
+			continue
+		var c: Vector3 = f.get_parent().global_position
+		var perto := Vector2(c.x - hp.x, c.z - hp.z).length() < 1.6
+		f.rotation.y = move_toward(f.rotation.y, -1.75 if perto else 0.0, dt * 4.0)
 
 # ---------- horta: terra arada, molhada e a planta em cada fase ----------
 func agora_ms() -> float:
@@ -600,18 +1040,142 @@ func _fora_do_lote(R: Rect2, l: Dictionary) -> bool:
 
 func motivo_peca(L: Dictionary, k: String, x: float, z: float, r: int) -> String:
 	var R := ret_peca(k, x, z, r)
+	var T := tipo_peca(k)
 	if _fora_do_lote(R, L.def):
 		return "Só dá para construir dentro do seu terreno"
-	for o in L.pecas:
-		if _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
-			return "Lugar ocupado"
-	for c in L.horta:
-		if _cruza(R, Rect2(L.horta[c].i, L.horta[c].j, 1, 1)):
-			return "Tem horta aí"
+	var na_horta := func() -> bool:
+		for c in L.horta:
+			if _cruza(R, Rect2(L.horta[c].i, L.horta[c].j, 1, 1)):
+				return true
+		return false
+	var movel_cruza := func() -> bool:
+		for o in L.pecas:
+			if tipo_peca(o.k) == "movel" and _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
+				return true
+		return false
 	var hp: Vector3 = m.heroi.position
-	if hp.x > R.position.x - 0.35 and hp.x < R.end.x + 0.35 and hp.z > R.position.y - 0.35 and hp.z < R.end.y + 0.35:
+	var em_cima := hp.x > R.position.x - 0.35 and hp.x < R.end.x + 0.35 and hp.z > R.position.y - 0.35 and hp.z < R.end.y + 0.35
+	if T == "fundacao":
+		if not no_meio_da_grade(x) or not no_meio_da_grade(z):
+			return "Fora da grade da casa"
+		if fundacao_em(L, x, z) != null:
+			return "Já tem fundação aqui"
+		if movel_cruza.call():
+			return "Lugar ocupado"
+		if na_horta.call():
+			return "Tem horta aí"
+		return ""
+	if T == "borda":
+		var eixo := r & 1
+		if (not (na_linha_da_grade(x) and no_meio_da_grade(z))) if eixo else (not (no_meio_da_grade(x) and na_linha_da_grade(z))):
+			return "Fora da grade da casa"
+		var apoio := false
+		for q in lados_da_borda(x, z, r):
+			if fundacao_em(L, q.x, q.y) != null:
+				apoio = true
+		if not apoio:
+			return "%s vai na borda de uma fundação" % D.construcoes[k].nome
+		if borda_em(L, x, z, eixo) != null:
+			return "Já tem parede aqui"
+		if movel_cruza.call():
+			return "Lugar ocupado"
+		if em_cima:
+			return "Saia de cima do lugar"
+		return ""
+	if T == "telhado":
+		if not no_meio_da_grade(x) or not no_meio_da_grade(z):
+			return "Fora da grade da casa"
+		if fundacao_em(L, x, z) == null:
+			return "O telhado vai em cima de uma fundação"
+		if telhado_em(L, x, z):
+			return "Já tem telhado aqui"
+		var tem_apoio := false
+		for b in bordas_do_quadrado(x, z):
+			if borda_em(L, b[0], b[1], b[2]) != null:
+				tem_apoio = true
+		var G := grade()
+		for dd in [Vector2(G, 0), Vector2(-G, 0), Vector2(0, G), Vector2(0, -G)]:
+			if telhado_em(L, x + dd.x, z + dd.y):
+				tem_apoio = true
+		if not tem_apoio:
+			return "Precisa de parede em volta (ou outro telhado do lado)"
+		return ""
+	for o in L.pecas:
+		if not tipo_peca(o.k) in ["fundacao", "telhado"] and _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
+			return "Lugar ocupado"
+	if na_horta.call():
+		return "Tem horta aí"
+	if em_cima:
 		return "Saia de cima do lugar"
 	return ""
+
+# o que impede desmontar ("" = pode): fundação com telhado ou com parede que só se apoia nela (mesma do servidor)
+func motivo_desmontar(L: Dictionary, p: Dictionary) -> String:
+	if tipo_peca(p.k) != "fundacao":
+		return ""
+	if telhado_em(L, p.x, p.z):
+		return "Tire o telhado de cima primeiro"
+	for b in bordas_do_quadrado(p.x, p.z):
+		var o = borda_em(L, b[0], b[1], b[2])
+		if o == null:
+			continue
+		var outra := false
+		for q in lados_da_borda(o.x, o.z, o.r):
+			if not _mesmo_lugar(p, q.x, q.y) and fundacao_em(L, q.x, q.y) != null:
+				outra = true
+		if not outra:
+			return "Tire as paredes de cima primeiro"
+	return ""
+
+# ---------- criar (Quimera: a peça vira item na mochila antes de ir para o chão) ----------
+# k: peça (CONSTRUCOES) ou ferramenta da fazenda (enxada, regador). "" = dá para criar
+func dados_criar(k: String) -> Dictionary:
+	if D.construcoes.has(k):
+		return D.construcoes[k]
+	return D.get("ferramentas", {}).get(k, {})
+
+func item_criado(k: String) -> String:
+	return "obra_" + k if D.construcoes.has(k) else k
+
+func motivo_criar(k: String) -> String:
+	var C := dados_criar(k)
+	if C.is_empty():
+		return "Isso não se cria"
+	if not D.construcoes.has(k) and m.P.contar(k) > 0:
+		return "Você já tem %s" % str(D.itens[k].nome).to_lower()
+	if C.get("bancada", false) and not estacao_perto(["bancada"]):
+		return "Crie perto de uma bancada de trabalho (faça a bancada primeiro)"
+	for c in C.custo:
+		if m.P.contar(c) < int(C.custo[c]):
+			return "Falta %s (%d/%d)" % [str(D.itens[c].nome).to_lower(), m.P.contar(c), int(C.custo[c])]
+	return ""
+
+# o que o botão Criar faz agora ("" = nada): a peça escolhida, ou a ferramenta que falta na fazenda
+func _criar_qual() -> String:
+	if aba == "fazenda":
+		if sel == "arar" and m.P.contar("enxada") < 1:
+			return "enxada"
+		if sel == "regar" and m.P.contar("regador") < 1:
+			return "regador"
+		return ""
+	return sel if D.construcoes.has(sel) else ""
+
+func criar() -> void:
+	var k := _criar_qual()
+	if k == "":
+		return
+	var mot := motivo_criar(k)
+	if mot != "":
+		m.hud.aviso(mot)
+		m.sons.tocar("dash", -12.0)
+		return
+	m.rede("fabricar", {"k": k})
+
+# o servidor criou: brilho e som de bancada; a barra se atualiza quando a mochila chegar
+func fabricou(ev: Dictionary) -> void:
+	if m.heroi:
+		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), "+1 " + str(ev.get("nome", "")), Color("ffe2a0"), 0.0)
+	m.sons.tocar("forja", -8.0)
 
 func motivo_horta(L: Dictionary, i: int, j: int) -> String:
 	var R := Rect2(i, j, 1, 1)
@@ -735,6 +1299,11 @@ func _process(dt: float) -> void:
 	m.hud.mostrar_botao("bancada", prof != "" and vivo and not livre)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
+	m.hud.mostrar_botao("bau", _meu_bau_perto() and vivo and not livre)
+	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
+		fechar_bau()
+	_mexer_portas(hp, dt)
+	_telhados_visiveis(hp)
 	if livre:
 		if not vivo or m.menu.aberto():
 			sair()
@@ -769,7 +1338,7 @@ func _mover_mira(dt: float) -> void:
 		var A: Dictionary = terras.area
 		mira.x = clampf(mira.x, float(A.x) - float(A.rx) - 2.0, float(A.x) + float(A.rx) + 2.0)
 		mira.z = clampf(mira.z, float(A.z) - float(A.rz) - 2.0, float(A.z) + float(A.rz) + 2.0)
-	mira.y = m.terreno.altura(mira.x, mira.z)
+	mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
 	m.cam.entrar_livre(mira)
 	if _mira_no == null:
 		_mira_no = MeshInstance3D.new()
@@ -960,35 +1529,71 @@ func _atualizar_mira() -> void:
 	alvo = {"ok": false, "motivo": ""}
 	if aba == "fazenda" or sel == "desmontar":
 		_mostrar_fantasma("")
-	if aba == "construir" and sel != "desmontar":
-		# peça: centro numa grade de 0,5 m
-		var x: float = round(p.x * 2.0) / 2.0
-		var z: float = round(p.z * 2.0) / 2.0
-		var C: Dictionary = D.construcoes[sel]
-		var mot := motivo_peca(L, sel, x, z, giro)
-		if mot == "" and not tem_custo(C.custo):
-			mot = "Falta material: " + custo_txt(C.custo)
+	if aba != "fazenda" and sel != "desmontar":
+		var T := tipo_peca(sel)
+		var G := grade()
+		var x: float
+		var z: float
+		var r := giro
+		if T == "fundacao" or T == "telhado": # no meio do quadrado de 2 m
+			x = floorf(p.x / G) * G + G / 2.0
+			z = floorf(p.z / G) * G + G / 2.0
+		elif T == "borda": # na borda mais perto; Girar vira a frente da parede
+			var ax := floorf(p.x / G) * G + G / 2.0
+			var az := roundf(p.z / G) * G
+			var bx := roundf(p.x / G) * G
+			var bz := floorf(p.z / G) * G + G / 2.0
+			if absf(p.z - az) <= absf(p.x - bx):
+				x = ax; z = az; r = 2 * (giro % 2)
+			else:
+				x = bx; z = bz; r = 1 + 2 * (giro % 2)
+		else: # móvel: grade de 0,5 m
+			x = round(p.x * 2.0) / 2.0
+			z = round(p.z * 2.0) / 2.0
+		var mot := motivo_peca(L, sel, x, z, r)
 		if mot == "" and L.pecas.size() >= max_pecas(L, D.lote):
 			mot = "Limite de %d peças no terreno" % max_pecas(L, D.lote)
-		alvo = {"ok": mot == "", "motivo": mot, "tipo": "construir", "dados": {"k": sel, "x": x, "z": z, "r": giro}}
+		if m.P.contar("obra_" + sel) < 1: # não tem a peça pronta: diz o que falta para criar
+			var mc := motivo_criar(sel)
+			if mc != "":
+				mot = "Para criar: " + mc.substr(0, 1).to_lower() + mc.substr(1)
+			elif mot == "":
+				mot = "Toque em Criar primeiro (%s)" % custo_txt(D.construcoes[sel].custo)
+		alvo = {"ok": mot == "", "motivo": mot, "tipo": "construir", "dados": {"k": sel, "x": x, "z": z, "r": r}}
 		_mostrar_fantasma(sel)
-		fantasma.position = Vector3(x, m.terreno.altura(x, z) + 0.01, z)
-		fantasma.rotation.y = giro * PI / 2.0
+		var y: float = _y_peca({"k": sel, "x": x, "z": z, "r": r}) + (0.0 if T == "fundacao" else 0.01)
+		if T == "telhado":
+			y = _topo_parede(x, z)
+		fantasma.position = Vector3(x, y, z)
+		fantasma.rotation.y = r * PI / 2.0
 		_pintar_fantasma(alvo.ok)
 		_destaque_em(null)
 	elif sel == "desmontar":
+		# o que está mais em cima sai primeiro: telhado, parede/porta/janela, móvel e por último a fundação
 		var achou = null
 		var md := 1e9
+		var ordem := {"telhado": 0, "borda": 1, "movel": 2, "fundacao": 3}
 		for o in L.pecas:
 			var R := ret_peca(o.k, o.x, o.z, o.r).grow(0.3)
-			var dd := Vector2(o.x - p.x, o.z - p.z).length()
+			var dd: float = Vector2(o.x - p.x, o.z - p.z).length() + ordem.get(tipo_peca(o.k), 2) * 100.0
 			if R.has_point(Vector2(p.x, p.z)) and dd < md:
 				md = dd
 				achou = o
 		if achou:
-			alvo = {"ok": true, "motivo": "Vai desmontar: %s (o material volta)" % D.construcoes[achou.k].nome, "tipo": "desmontar", "dados": {"p": achou.id}}
+			var dm := motivo_desmontar(L, achou)
+			alvo = {"ok": dm == "", "motivo": dm if dm != "" else "Vai desmontar: %s (volta para a mochila)" % D.construcoes[achou.k].nome, "tipo": "desmontar", "dados": {"p": achou.id}}
 			var R2 := ret_peca(achou.k, achou.x, achou.z, achou.r)
-			_destaque_em(Vector3(R2.get_center().x, m.terreno.altura(achou.x, achou.z), R2.get_center().y), Vector3(R2.size.x + 0.1, 1.2, R2.size.y + 0.1), Color(1, 0.35, 0.29, 0.35))
+			var T2 := tipo_peca(achou.k)
+			var y0: float = _chao(achou.x, achou.z)
+			var alto := 1.2
+			if T2 == "telhado":
+				y0 = _topo_parede(achou.x, achou.z) - 0.3
+				alto = 2.4
+			elif T2 == "borda":
+				alto = 3.3
+			elif T2 == "fundacao":
+				alto = 0.35
+			_destaque_em(Vector3(R2.get_center().x, y0, R2.get_center().y), Vector3(R2.size.x + 0.1, alto, R2.size.y + 0.1), Color(1, 0.35, 0.29, 0.35))
 		else:
 			alvo = {"ok": false, "motivo": "Mire numa peça sua para desmontar"}
 			_destaque_em(null)
@@ -1026,6 +1631,10 @@ func _atualizar_mira() -> void:
 					mot = "Aqui não tem terra arada"
 				elif h.c != "":
 					mot = "Colha a planta antes de desfazer a terra"
+		if mot == "" and _criar_qual() != "":
+			var f := _criar_qual()
+			var mc := motivo_criar(f)
+			mot = "Precisa de %s: toque em Criar%s" % [str(D.itens[f].nome).to_lower(), "" if mc == "" else " (" + mc.to_lower() + ")"]
 		if mot == "" and m.P.vigor() < float(D.horta.vigor) and sel != "tirar":
 			mot = "Sem vigor (volta sozinho com o tempo)"
 		alvo = {"ok": mot == "", "motivo": mot, "tipo": "horta", "dados": dados}
@@ -1198,7 +1807,7 @@ func comprar() -> void:
 
 # ---------- tela: barra de itens embaixo, no meio (como a do Quimera); o joystick à esquerda continua livre ----------
 func cobre(p: Vector2) -> bool:
-	for pn in [painel, painel_compra]:
+	for pn in [painel, painel_compra, painel_bau]:
 		if pn != null and pn.visible and pn.get_global_rect().grow(6).has_point(p):
 			return true
 	return false
@@ -1250,9 +1859,9 @@ func _montar_tela() -> void:
 	linha_abas = VBoxContainer.new()
 	linha_abas.add_theme_constant_override("separation", 4)
 	baixo.add_child(linha_abas)
-	for k in ["construir", "fazenda"]:
-		var b := _botao("Construir" if k == "construir" else "Fazenda", func(): trocar_aba(k), k == aba, 13)
-		b.custom_minimum_size = Vector2(92, 29)
+	for k in ["casa", "moveis", "fazenda"]:
+		var b := _botao({"casa": "Casa", "moveis": "Móveis", "fazenda": "Fazenda"}[k], func(): trocar_aba(k), k == aba, 13)
+		b.custom_minimum_size = Vector2(88, 24)
 		_botoes_abas[k] = b
 		linha_abas.add_child(b)
 	var pc := Menu.rotulo("", 13, Menu.APAGADO)
@@ -1266,8 +1875,11 @@ func _montar_tela() -> void:
 	sep.add_theme_constant_override("separation", 8)
 	baixo.add_child(sep)
 	b_girar = _botao("Girar", girar)
-	b_girar.custom_minimum_size = Vector2(76, 62)
+	b_girar.custom_minimum_size = Vector2(70, 62)
 	baixo.add_child(b_girar)
+	b_criar = _botao("Criar", criar, false, 16)
+	b_criar.custom_minimum_size = Vector2(84, 62)
+	baixo.add_child(b_criar)
 	b_ok = _botao("Colocar", colocar, true, 16)
 	b_ok.custom_minimum_size = Vector2(104, 62)
 	baixo.add_child(b_ok)
@@ -1301,17 +1913,105 @@ func _montar_tela() -> void:
 	b_comprar = _botao("Comprar", comprar, true, 16)
 	b_comprar.custom_minimum_size = Vector2(120, 42)
 	t2.add_child(b_comprar)
+	_montar_tela_bau()
+
+# ---------- baú (Quimera: todos os seus baús guardam as mesmas 40 pilhas) ----------
+func _meu_bau_perto() -> bool:
+	if meu == "" or not lotes.has(meu) or m.heroi == null:
+		return false
+	var hp: Vector3 = m.heroi.position
+	for p in lotes[meu].pecas:
+		if p.k == "bau" and Vector2(p.x - hp.x, p.z - hp.z).length() <= float(D.lote.estacaoDist) + 0.4:
+			return true
+	return false
+
+func abrir_bau() -> void:
+	if not m.on():
+		return
+	m.rede("bau", {"acao": "abrir"})
+
+# o servidor mandou o baú (ao abrir, ou depois de guardar ou tirar)
+func do_bau(ev: Dictionary) -> void:
+	bau_itens = ev.get("itens", []) if ev.get("itens") is Array else []
+	if ev.get("abrir", false):
+		painel_bau.visible = true
+		m.sons.tocar("pano", -6.0)
+	if painel_bau.visible:
+		_montar_bau()
+
+func fechar_bau() -> void:
+	painel_bau.visible = false
+
+func _montar_tela_bau() -> void:
+	painel_bau = PanelContainer.new()
+	painel_bau.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.96), Menu.OURO.darkened(0.25), 2, 10, 10))
+	painel_bau.set_anchors_preset(Control.PRESET_CENTER)
+	painel_bau.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	painel_bau.grow_vertical = Control.GROW_DIRECTION_BOTH
+	painel_bau.visible = false
+	tela.add_child(painel_bau)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	painel_bau.add_child(col)
+	var topo := HBoxContainer.new()
+	col.add_child(topo)
+	txt_bau = Menu.rotulo("Baú", 17, Menu.OURO)
+	txt_bau.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(txt_bau)
+	var fe := _botao("Fechar", fechar_bau)
+	fe.custom_minimum_size = Vector2(90, 34)
+	topo.add_child(fe)
+	var lados := HBoxContainer.new()
+	lados.add_theme_constant_override("separation", 14)
+	col.add_child(lados)
+	for qual in ["bau", "mochila"]:
+		var c := VBoxContainer.new()
+		lados.add_child(c)
+		c.add_child(Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 13, Menu.APAGADO))
+		var sc := ScrollContainer.new()
+		sc.custom_minimum_size = Vector2(8 * 50, 4 * 50 + 6)
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		c.add_child(sc)
+		var g := GridContainer.new()
+		g.columns = 8
+		g.add_theme_constant_override("h_separation", 4)
+		g.add_theme_constant_override("v_separation", 4)
+		sc.add_child(g)
+		if qual == "bau":
+			grade_bau = g
+		else:
+			grade_mochila = g
+
+func _montar_bau() -> void:
+	for g in [grade_bau, grade_mochila]:
+		for n in g.get_children():
+			n.queue_free()
+	var cheios := 0
+	for i in int(D.get("bau", {}).get("slots", 40)):
+		var it = bau_itens[i] if i < bau_itens.size() else null
+		if it != null:
+			cheios += 1
+		var fn := func(): m.rede("bau", {"acao": "tirar", "i": i})
+		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 46))
+	txt_bau.text = "Baú · %d/%d" % [cheios, int(D.get("bau", {}).get("slots", 40))]
+	var moch: Array = m.P.prog.get("mochila", [])
+	for i in moch.size():
+		var it = moch[i]
+		if it == null:
+			continue
+		var fn := func(): m.rede("bau", {"acao": "guardar", "i": i})
+		grade_mochila.add_child(m.menu.celula(it, false, fn, 46))
 
 func trocar_aba(k: String) -> void:
 	aba = k
-	sel = "bancada" if k == "construir" else "arar"
+	sel = {"casa": "fundacao", "moveis": "bancada"}.get(k, "arar")
 	_montar_itens()
 
 # quadrado da barra (Quimera bhi): ícone, número embaixo à direita, aro dourado no escolhido, apagado sem material
 func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, cor_ico := Color.WHITE) -> Button:
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(60, 62)
+	b.custom_minimum_size = Vector2(58, 62)
 	Menu.estilo_botao(b, escolhido)
 	if escolhido:
 		var st: StyleBoxFlat = Menu.caixa(Menu.FUNDO3, Menu.OURO_CLARO, 3, 8)
@@ -1357,20 +2057,23 @@ func _montar_itens() -> void:
 		n.queue_free()
 	var L = lotes.get(meu)
 	var pc: Label = linha_abas.get_node("pecas")
-	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba == "construir" else "Vigor %d" % int(m.P.vigor())
+	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Vigor %d" % int(m.P.vigor())
 	var nome := ""
-	if aba == "construir":
+	if aba != "fazenda":
+		# o número é quantas dessa peça já estão criadas na mochila (prontas para colocar)
 		for k in D.construcoes:
 			var C: Dictionary = D.construcoes[k]
-			var q := _quantas(C.custo)
-			linha_itens.add_child(_slot(k, "cs_" + k, str(q), sel == k, q > 0))
+			if str(C.get("aba", "moveis")) != aba:
+				continue
+			var q: int = m.P.contar("obra_" + k)
+			linha_itens.add_child(_slot(k, "cs_" + k, str(q), sel == k, q > 0 or motivo_criar(k) == ""))
 			if sel == k:
-				nome = "%s · %s" % [C.nome, custo_txt(C.custo)]
+				nome = "%s · tem %d · criar: %s%s" % [C.nome, q, custo_txt(C.custo), " (bancada perto)" if C.get("bancada", false) else ""]
 		linha_itens.add_child(_slot("desmontar", "cs_desmontar", "", sel == "desmontar", true, Color("ffb3a3")))
 		if sel == "desmontar":
-			nome = "Desmontar (o material volta para a mochila)"
+			nome = "Desmontar (a peça volta para a mochila)"
 	else:
-		linha_itens.add_child(_slot("arar", "cs_arar", "", sel == "arar", true))
+		linha_itens.add_child(_slot("arar", "cs_enxada" if m.P.contar("enxada") > 0 else "cs_arar", "", sel == "arar", m.P.contar("enxada") > 0))
 		var alguma := false
 		for k in D.plantas:
 			var n_sem: int = m.P.contar("semente_" + k)
@@ -1380,14 +2083,21 @@ func _montar_itens() -> void:
 			linha_itens.add_child(_slot("plantar:" + k, "it_semente", str(n_sem), sel == "plantar" and semente == k, n_sem > 0, Color(str(D.plantas[k].cor)).lightened(0.25)))
 		if not alguma:
 			linha_itens.add_child(_slot("plantar:" + semente, "it_semente", "0", false, false))
-		linha_itens.add_child(_slot("regar", "cs_regar", "", sel == "regar", true))
+		linha_itens.add_child(_slot("regar", "cs_regar", "", sel == "regar", m.P.contar("regador") > 0))
 		linha_itens.add_child(_slot("colher", "it_colheita", "", sel == "colher", true))
 		linha_itens.add_child(_slot("tirar", "desfazer", "", sel == "tirar", true))
 		nome = {"arar": "Arar a terra", "regar": "Regar (a terra fica molhada %d h)" % int(D.horta.rega), "colher": "Colher", "tirar": "Desfazer a terra arada"}.get(sel, "")
 		if sel == "plantar":
 			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(D.plantas[semente].nome).to_lower(), m.P.contar("semente_" + semente)]
+		var f := _criar_qual()
+		if f != "":
+			nome = "Falta %s · criar: %s%s" % [str(D.itens[f].nome).to_lower(), custo_txt(dados_criar(f).custo), " (bancada perto)" if dados_criar(f).get("bancada", false) else ""]
 	txt_nome.text = nome
-	b_girar.visible = aba == "construir" and sel != "desmontar"
+	var cq := _criar_qual()
+	b_criar.visible = cq != ""
+	b_criar.disabled = cq != "" and motivo_criar(cq) != ""
+	Menu.estilo_botao(b_criar, cq != "" and m.P.contar(item_criado(cq)) < 1)
+	b_girar.visible = aba != "fazenda" and sel != "desmontar" and tipo_peca(sel) != "telhado" and tipo_peca(sel) != "fundacao"
 	b_ok.text = {"desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")
 	Menu.estilo_botao(b_ok, true)
 
@@ -1402,5 +2112,7 @@ func escolher(k: String) -> void:
 func progresso_mudou() -> void:
 	if ativo:
 		_montar_itens()
+	if painel_bau and painel_bau.visible:
+		_montar_bau()
 	if comprando:
 		_atualizar_compra()
