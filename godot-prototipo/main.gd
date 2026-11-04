@@ -1509,7 +1509,7 @@ func copas_da_mata_na_frente(dt := 0.016) -> void:
 	var tapam := {}
 	for pos in vistas:
 		var c = arvores_mata.get(pos)
-		if c == null:
+		if c == null or c.get("caida", false): # derrubada (queda_arvore.gd): ela mesma cuida da cópia e de crescer de novo
 			continue
 		var s: float = c.s
 		var perto_cam: bool = Vector2(a.x, a.z).distance_to(pos) < 2.5 + 0.32 * s

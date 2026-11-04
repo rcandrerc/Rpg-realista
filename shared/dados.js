@@ -988,7 +988,8 @@ export const PROF_MAX = 20;
 // Mercador: no Nv 20 a Rosa paga +25% e cobra -15% (sobe aos poucos desde o Nv 1). Ganha 1 ponto a cada "pontoOuro" de ouro negociado.
 export const MERCADOR = { venda: 0.25, compra: 0.15, pontoOuro: 10 };
 // Veios (Minerador) e árvores (Lenhador): cada batida leva "tempo" s, gasta "vigor" e dá os itens de "da"
-// (raro = chance de um item a mais). Cada veio aguenta "cargas" batidas por jogador e volta em "volta" s.
+// (raro = chance de um item a mais). Cada veio aguenta "cargas" batidas e volta em "volta" s. Árvores e veios das
+// zonas de mineração são de todos (André 2026-11-04): a árvore cai e some (fica o toco), a pedra vira cascalho, e voltam no tempo.
 // A coleta continua sozinha enquanto houver carga e vigor; mexer o joystick, pular, bater ou apanhar para.
 // Do chão saem 3 minérios brutos (cobre, ferro e, mais tarde, mitril) e o cristal; o resto é mistura na forja
 // (aço = ferro + carvão). nivel = nível de Minerador para conseguir minerar.

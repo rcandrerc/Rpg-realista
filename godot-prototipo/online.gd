@@ -754,8 +754,8 @@ func evento(ev: Dictionary) -> void:
 			if str(ev.get("abrir", "")) == "resetar":
 				m.menu.perguntar_reset(int(ev.get("custo", 0)))
 			return
-		"veio": # alguém bateu num veio de zona de mineração: a pedra some para todo mundo quando esgota
-			m.trabalho.veio_comum(str(ev.no), int(ev.cargas), float(ev.volta))
+		"veio": # alguém bateu num veio de zona de mineração ou numa árvore: a pedra some e a árvore cai para todo mundo quando esgota
+			m.trabalho.veio_comum(str(ev.no), int(ev.cargas), float(ev.volta), ev.get("dir"))
 			return
 		"drop": # ouro e itens do monstro que eu ajudei a derrubar (já estão na mochila)
 			var x := float(ev.x)

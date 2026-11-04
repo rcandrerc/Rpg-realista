@@ -1129,15 +1129,18 @@ export class Simulacao {
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
-    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((no.mina ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
   }
   custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
-  // batidas que ainda restam neste veio para este jogador (cada um tem o seu: ninguém rouba o veio do outro)
+  // é de todos? Os veios das zonas de mineração e, desde 2026-11-04 (pedido do André), as árvores: a árvore cortada
+  // cai, some para todo mundo (fica o toco) e volta depois de COLETA.arvore.volta s
+  comum(no) { return !!no.mina || no.tipo === 'arvore'; }
+  // batidas que ainda restam neste veio (veio comum ou árvore: de todos; outro veio: cada jogador tem o seu)
   cargas(j, no) {
-    if (no.mina) { // zona de mineração: o veio é de todos
+    if (this.comum(no)) { // zona de mineração ou árvore: é de todos
       const s = this.veiosComuns.get(no.id);
       return !s || s.volta <= this.tempo ? COLETA[no.tipo].cargas : s.n;
     }
@@ -1161,7 +1164,10 @@ export class Simulacao {
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch) por(k, 1);
     const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
     const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
-    if (no.mina) { this.veiosComuns.set(no.id, s); this.evento({ t: 'veio', no: no.id, cargas: s.n, volta }); } // todo mundo vê a pedra sumir
+    if (this.comum(no)) { // todo mundo vê a pedra sumir e a árvore cair (dir: para onde ela tomba, para longe de quem cortou)
+      this.veiosComuns.set(no.id, s);
+      this.evento({ t: 'veio', no: no.id, cargas: s.n, volta, ...(no.tipo === 'arvore' && s.n <= 0 ? { dir: r2(Math.atan2(no.x - j.x, no.z - j.z)) } : {}) });
+    }
     else j.coletas[no.id] = s;
     this.pontosProf(j, C.prof, C.vigor);
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
@@ -2138,7 +2144,7 @@ export class Simulacao {
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
-      // veios das zonas de mineração já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
+      // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
     };
   }
