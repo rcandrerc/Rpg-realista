@@ -9,6 +9,10 @@ extends CanvasLayer
 # de equipamento para ver a peça e tirar. Online quem decide é o servidor (manda "item"); sem internet muda só aqui.
 # Profissões (Parte 3 do Quimera): vigor, ouro e o nível de cada profissão; Ferreiro e Alfaiate com as receitas
 # (Criar só perto da forja do Tomás ou da banca da Rosa; online quem confere e dá a peça é o servidor, mensagem "criar").
+# André 2026-11-04: o menu ficou em dois. Tocar na barra de vida abre o do personagem (Status, Habilidades, Profissões
+# e Aparência); o botão da mochila no menu do topo abre o da bolsa (Mochila e Criar, e a Loja perto de quem vende).
+# Criar mostra tudo o que se cria no jogo, em submenus (Materiais, Armas, Armaduras, Estações, Casa, Móveis,
+# Ferramentas): o que precisa de bigorna, fornalha ou bancada diz onde, e dá para ver mas só criar lá.
 # A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
 const Armadura = preload("res://armadura.gd")
@@ -37,6 +41,13 @@ const SLOTS := [
 	["capa", "Capa", 0.83, 0.16, "J_Bip_L_Shoulder", 1], ["acessorio", "Acessório", 0.9, 0.4, "J_Bip_C_Neck", 1],
 	["arma", "Arma", 0.85, 0.64, "J_Bip_L_Hand", 1]]
 const MEDALHAO := 52.0
+# abas de cada menu (André 2026-11-04): barra de vida = personagem; botão da mochila no topo = bolsa
+const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "aparencia"]
+const ABAS_BOLSA := ["mochila", "criar", "loja"]
+# submenus da aba Criar
+const CATS_CRIAR := [["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["estacoes", "Estações"],
+	["casa", "Casa"], ["moveis", "Móveis"], ["ferramentas", "Ferramentas"]]
+const NOME_ESTACAO := {"fornalha": "Fornalha", "bigorna": "Bigorna", "bancada": "Bancada de trabalho"}
 
 var m # main.gd
 var raiz: Control
@@ -51,6 +62,9 @@ var linha_prof: HBoxContainer
 var botoes_prof := {}
 var sub_prof := "lista" # aba Profissões: "lista", "fer" (Ferreiro) ou "alf" (Alfaiate)
 const SUB_PROF := {"lista": "Profissões", "fer": "Ferreiro", "alf": "Alfaiate"}
+var cat_criar := "materiais" # submenu aberto na aba Criar
+var linha_criar: HBoxContainer
+var botoes_criar := {}
 var titulo_nivel: Label
 var vp: SubViewport
 var boneco: Node3D
@@ -311,12 +325,7 @@ func montar_esquerda() -> Control:
 	dica.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	dica.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pe.add_child(dica)
-	# criador de personagem sem o nome: cores, altura e rosto
-	var b_ap := botao("Aparência", func():
-		fechar()
-		m.abrir_aparencia(), 14)
-	b_ap.custom_minimum_size = Vector2(120, 34)
-	pe.add_child(b_ap)
+	# o botão Aparência (criador sem o nome: cores, altura e rosto) virou aba do menu do personagem (André 2026-11-04)
 	col.add_child(pe)
 	montar_palco()
 	return col
@@ -405,7 +414,7 @@ func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
 	sel_mochila = -1
 	sel_equip = l
-	if aba != "mochila":
+	if aba != "mochila" and aba in ABAS_BOLSA: # no menu do personagem a janela da peça abre por cima, sem trocar de menu
 		aba = "mochila"
 	janela_lugar = l
 	for d in SLOTS:
@@ -547,7 +556,8 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["mochila", "Mochila"], ["profissoes", "Profissões"], ["loja", "Loja"]]:
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["aparencia", "Aparência"],
+			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
 		botoes_aba[a[0]] = b
@@ -569,6 +579,15 @@ func montar_direita() -> Control:
 		botoes_prof[k] = b
 		linha_prof.add_child(b)
 	col.add_child(linha_prof)
+	linha_criar = HBoxContainer.new()
+	linha_criar.add_theme_constant_override("separation", 5)
+	for c in CATS_CRIAR:
+		var b := botao(c[1], func(): trocar_cat_criar(c[0]), 13)
+		b.custom_minimum_size = Vector2(0, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		botoes_criar[c[0]] = b
+		linha_criar.add_child(b)
+	col.add_child(linha_criar)
 	var fundo := PanelContainer.new()
 	fundo.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fundo.add_theme_stylebox_override("panel", caixa(Color(0.055, 0.048, 0.04, 1), Color(0.24, 0.2, 0.14), 1, 8))
@@ -584,12 +603,21 @@ func montar_direita() -> Control:
 	return col
 
 func trocar_aba(a: String) -> void:
+	if a == "aparencia": # abre o criador de personagem (sem o nome), como o botão de antes
+		fechar()
+		m.abrir_aparencia()
+		return
 	aba = a
 	atualizar()
 	rolagem.scroll_vertical = 0
 
 func trocar_sub_prof(k: String) -> void:
 	sub_prof = k
+	atualizar()
+	rolagem.scroll_vertical = 0
+
+func trocar_cat_criar(k: String) -> void:
+	cat_criar = k
 	atualizar()
 	rolagem.scroll_vertical = 0
 
@@ -605,7 +633,7 @@ func abrir(qual := "", sub := "") -> void:
 		sub_prof = sub
 	if qual != "":
 		aba = qual
-	elif aba == "loja":
+	elif aba in ABAS_BOLSA: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
 	sel_equip = ""
@@ -617,6 +645,10 @@ func abrir(qual := "", sub := "") -> void:
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	boneco_modo = ""
 	atualizar()
+
+# botão da mochila no menu do topo: volta na aba da bolsa que estava (Mochila ou Criar)
+func abrir_bolsa() -> void:
+	abrir(aba if aba in ["mochila", "criar"] else "mochila")
 
 func fechar() -> void:
 	fechar_confirma()
@@ -664,9 +696,14 @@ func atualizar() -> void:
 	titulo_nivel.text = "%s  ·  Nível %d" % [m.hud.nome, P.prog.nivel]
 	if aba == "loja" and not m.perto_da_loja():
 		aba = "mochila"
+	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else ABAS_PERSONAGEM
 	for k in botoes_aba:
 		estilo_botao(botoes_aba[k], k == aba)
-	botoes_aba.loja.visible = m.perto_da_loja()
+		botoes_aba[k].visible = k in grupo
+	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
+	linha_criar.visible = aba == "criar"
+	for k in botoes_criar:
+		estilo_botao(botoes_criar[k], k == cat_criar)
 	atualizar_slots()
 	linha_arvores.visible = aba == "habilidades"
 	for k in botoes_arvore:
@@ -684,6 +721,8 @@ func atualizar() -> void:
 		montar_mochila()
 	elif aba == "loja":
 		montar_loja()
+	elif aba == "criar":
+		montar_criar()
 	elif aba == "profissoes":
 		if sub_prof == "lista":
 			montar_profissoes()
@@ -1168,6 +1207,161 @@ func criar(r: String) -> void:
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
 	m.rede("criar", {"r": r})
+
+# ---------- aba Criar (André 2026-11-04): tudo o que se cria, em submenus ----------
+# receitas das profissões (Ferreiro, Alfaiate) e peças da construção / ferramentas da fazenda, cada uma com onde se cria
+func itens_criar(cat: String) -> Array:
+	var P = m.P
+	var D: Dictionary = P.dados
+	var lista := []
+	for r in D.receitas:
+		var R: Dictionary = D.receitas[r]
+		var lugar := str(D.itens[str(R.faz)].get("lugar", ""))
+		var c := "materiais" if lugar == "" else "armas" if lugar in ["espada", "cajado", "acessorio"] else "armaduras"
+		if c == cat:
+			lista.append({"tipo": "receita", "k": r, "nome": str(D.itens[str(R.faz)].nome), "nivel": int(R.nivel)})
+	for k in D.get("construcoes", {}):
+		var C: Dictionary = D.construcoes[k]
+		var c := "estacoes" if C.has("estacao") else "casa" if str(C.get("aba", "")) == "casa" else "moveis"
+		if c == cat:
+			lista.append({"tipo": "obra", "k": k, "nome": str(C.nome), "nivel": 0})
+	if cat == "ferramentas":
+		for k in D.get("ferramentas", {}):
+			lista.append({"tipo": "obra", "k": k, "nome": str(D.itens[k].nome), "nivel": 0})
+	lista.sort_custom(func(a, b): return a.nivel < b.nivel or (a.nivel == b.nivel and a.nome.naturalnocasecmp_to(b.nome) < 0))
+	return lista
+
+func montar_criar() -> void:
+	conteudo.add_child(linha_vigor())
+	var lista := itens_criar(cat_criar)
+	if lista.is_empty():
+		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
+	for e in lista:
+		conteudo.add_child(linha_criavel(e))
+
+# uma linha da aba Criar: ícone, nome, onde se cria (verde se você está lá), materiais e o botão Criar.
+# Longe da estação certa o botão vira uma plaquinha com o nome dela: dá para ver a receita, mas não criar.
+func linha_criavel(e: Dictionary) -> Control:
+	var P = m.P
+	var D: Dictionary = P.dados
+	var cons = m.construcao
+	var usa: Dictionary
+	var faz: Dictionary
+	var onde := ""
+	var est := ""
+	var aqui := true
+	var nv_ok := true
+	var custo := 0.0
+	var motivo := ""
+	if e.tipo == "receita":
+		var R: Dictionary = D.receitas[e.k]
+		usa = R.usa
+		faz = {"k": str(R.faz), "r": 0} if D.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
+		var faz_s := str(R.faz)
+		est = "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "bancada"
+		var of: Dictionary = D.oficina[str(R.prof)]
+		onde = "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
+		aqui = m.trabalho.perto_oficina(str(R.prof)) or (cons != null and cons.estacao_perto([est]))
+		nv_ok = P.prof_nivel(str(R.prof)) >= int(R.nivel)
+		custo = P.custo_vigor(str(R.prof), float(R.vigor))
+	else:
+		var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
+		usa = C.get("custo", {})
+		faz = {"k": ("obra_" + e.k) if D.get("construcoes", {}).has(e.k) else e.k, "n": 1}
+		if C.get("bancada", false):
+			est = "bancada"
+			onde = NOME_ESTACAO.bancada
+			aqui = cons != null and cons.estacao_perto(["bancada"])
+		else:
+			onde = "Em qualquer lugar"
+		if cons != null:
+			motivo = cons.motivo_criar(e.k)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1) if aqui and nv_ok else Color(0.07, 0.063, 0.055, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	var c := celula(faz, false, func(): pass, 52)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 10)
+	cab.add_child(rotulo(str(e.nome), 15, TEXTO if nv_ok else APAGADO))
+	if e.tipo == "receita":
+		var R: Dictionary = D.receitas[e.k]
+		cab.add_child(rotulo("%s Nv %d" % [D.profissoes[str(R.prof)].nome, int(R.nivel)], 12, OURO_CLARO if nv_ok else Color("e0806a")))
+	txt.add_child(cab)
+	var o := rotulo(("%s · você está aqui" % onde) if est != "" and aqui else onde, 12, VERDE if aqui else OURO)
+	o.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(o)
+	var tem := true
+	var mats := HFlowContainer.new()
+	mats.add_theme_constant_override("h_separation", 12)
+	for k in usa:
+		var n := int(usa[k])
+		var t2: int = P.contar(k)
+		if t2 < n:
+			tem = false
+		var ml := HBoxContainer.new()
+		ml.add_theme_constant_override("separation", 4)
+		var ic := TextureRect.new()
+		ic.texture = icone_tex(P.icone_item({"k": k}))
+		ic.custom_minimum_size = Vector2(18, 18)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.modulate = P.cor_item({"k": k})
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ml.add_child(ic)
+		ml.add_child(rotulo("%s %d/%d" % [D.itens[k].nome, t2, n], 12, VERDE if t2 >= n else Color("e0806a")))
+		mats.add_child(ml)
+	if custo > 0.0:
+		mats.add_child(rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR if P.vigor() >= custo else Color("e0806a")))
+	txt.add_child(mats)
+	l.add_child(txt)
+	if not aqui: # plaquinha da estação no lugar do botão
+		var pl := PanelContainer.new()
+		pl.add_theme_stylebox_override("panel", caixa(Color(0.06, 0.052, 0.045, 1), Color(0.36, 0.29, 0.19), 1, 8))
+		pl.custom_minimum_size = Vector2(96, 40)
+		pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var pv := VBoxContainer.new()
+		pv.add_theme_constant_override("separation", 0)
+		pv.alignment = BoxContainer.ALIGNMENT_CENTER
+		var ic2 := TextureRect.new()
+		ic2.texture = icone_tex("cs_" + est)
+		ic2.custom_minimum_size = Vector2(22, 22)
+		ic2.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic2.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic2.modulate = APAGADO
+		pv.add_child(ic2)
+		var nl := rotulo(str(NOME_ESTACAO[est]).split(" ")[0], 12, APAGADO) # "Bigorna", "Fornalha", "Bancada"
+		nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pv.add_child(nl)
+		pl.add_child(pv)
+		l.add_child(pl)
+		return cx
+	var pode: bool = nv_ok and tem and P.vigor() >= custo and motivo == ""
+	var b := botao("Criar", func(): criar_item(e), 14, pode)
+	b.custom_minimum_size = Vector2(96, 40)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.disabled = not pode
+	l.add_child(b)
+	if e.tipo == "obra" and motivo.begins_with("Você já tem"):
+		o.text = motivo
+	return cx
+
+func criar_item(e: Dictionary) -> void:
+	if _arrastou:
+		return
+	if e.tipo == "receita":
+		criar(e.k)
+		return
+	if not m.on():
+		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
+		return
+	m.rede("fabricar", {"k": e.k})
 
 # ---------- mochila e loja ----------
 func linha_ouro() -> Control:
