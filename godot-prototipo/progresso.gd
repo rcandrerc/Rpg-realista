@@ -310,6 +310,12 @@ static func icone_item(it) -> String:
 		return "it_semente"
 	if it.k in COLHEITA:
 		return "it_colheita"
+	if str(it.k).begins_with("obra_"): # peças da construção (criar e colocar, 2026-11-04): o mesmo ícone da barra
+		return "cs_" + str(it.k).substr(5)
+	if it.k == "enxada":
+		return "cs_enxada"
+	if it.k == "regador":
+		return "cs_regar"
 	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
 	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
 		return "it_%s_aco" % it.k

@@ -644,6 +644,14 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.colheu(ev)
 			return
+		"fabricou": # criou peça da casa ou ferramenta da fazenda (construcao.gd)
+			if m.construcao:
+				m.construcao.fabricou(ev)
+			return
+		"bau": # o baú do meu terreno (construcao.gd)
+			if m.construcao:
+				m.construcao.do_bau(ev)
+			return
 		"vila": # Voltar para a vila (casinha do menu do topo): começou, desistiu ou chegou na praça
 			var id := str(ev.id)
 			var fase := str(ev.get("fase", ""))
