@@ -42,6 +42,10 @@ var _afunda := 0.0
 var _afunda_v := 0.0
 var _t := 0.0
 var _fov := FOV_BASE
+# montado no lobo (direção de arte 2026-11-03): a câmera sobe 0,4 m e se afasta 1 m, para o lobo não tapar a estrada
+const MONTADO_SOBE := 0.4
+const MONTADO_AFASTA := 1.0
+var _montado_k := 0.0
 # janela de um NPC aberta (conversa.gd): a câmera gira em 0,35 s para um 3/4 por cima do ombro
 # (o NPC de frente no terço de cima à esquerda, a Ruiva de costas na borda) e volta ao fechar
 const CONVERSA_T := 0.35
@@ -97,6 +101,7 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	_sem_dedo = 0.0 if giro.length() > 0.5 else _sem_dedo + dt
 	var mov = m.mov
 	var vel: float = mov.velocidade()
+	_montado_k = move_toward(_montado_k, 1.0 if m.montaria != null else 0.0, dt * 2.0)
 	# correndo e sem mexer na câmera: vai para as costas do herói (mais forte quanto mais rápido)
 	var j: Vector2 = m.hud.mover # só com o joystick para a frente (de lado ele daria voltas em círculo)
 	if _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and j.y < -0.45 and abs(j.x) < 0.6:
@@ -106,7 +111,7 @@ func atualizar(dt: float, giro: Vector2) -> void:
 			var forca: float = clamp((vel - 2.0) / 3.4, 0.0, 1.0) * min(1.0, (_sem_dedo - SEGUE_APOS) / 0.8)
 			yaw += clamp(d, -1.0, 1.0) * SEGUE_VEL * forca * dt
 	# mola amortecida até o herói, um pouco à frente de onde ele vai
-	var quer: Vector3 = m.heroi.position + Vector3(0, 1.35, 0) + Vector3(mov.vx, 0, mov.vz) * ANTECIPA
+	var quer: Vector3 = m.heroi.position + Vector3(0, 1.35 + MONTADO_SOBE * _montado_k, 0) + Vector3(mov.vx, 0, mov.vz) * ANTECIPA
 	# em passos de no máximo 1/60 s: num quadro lento (engasgo do celular) a mola dura não explode e joga a câmera
 	# para dentro do chão ou da pedra
 	var resta := dt
@@ -137,7 +142,7 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		_vel_alvo = Vector3.ZERO
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
-	var livre: float = max(DIST_MIN, m.distancia_livre(foco_base, dir_cam, dist, true))
+	var livre: float = max(DIST_MIN, m.distancia_livre(foco_base, dir_cam, dist + MONTADO_AFASTA * _montado_k, true))
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
 	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
 	# muito perto (parede atrás): sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado

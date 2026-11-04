@@ -9,7 +9,7 @@ const Cavalgar = preload("res://cavalgar.gd")
 
 # andar/correr: m/s (o servidor confere com MONTARIAS); escala: tamanho do lobo no jogo; o lobo.glb do app já vem
 # 18% menor (o lobo de caça), por isso glb = 1,9 x 0,82. sela: entre o lombo (0) e a cernelha (1); flanco: pé no lado.
-const DADOS := {"lobo": {"modelo": "lobo", "andar": 3.0, "trote": 6.0, "correr": 9.0, "escala": 1.9, "glb": 1.9 * 0.82, "sela": 0.3, "flanco": 0.17}}
+const DADOS := {"lobo": {"modelo": "lobo", "andar": 3.0, "trote": 6.0, "correr": 9.0, "escala": 1.9, "glb": 1.9 * 0.82, "sela": 0.3, "flanco": 0.19}}
 # ritmo de cada animação do lobo (m/s em que o pé não desliza) e quantas passadas cabem num ciclo
 const PASSO := {"parada": {"ref": 1.0, "n": 1, "pulo": 0.0}, "andar": {"ref": 3.0, "n": 2, "pulo": 0.018}, "corrida": {"ref": 8.0, "n": 1, "pulo": 0.055}}
 const MOLA_K := 260.0 # quadril preso na sela por uma mola: acompanha o lombo com um pequeno atraso
@@ -32,6 +32,39 @@ var _tronco_v := 0.0
 var _pescoco := 0.0
 var _pulo_k := 0.0 # força do balanço da passada agora (muda aos poucos entre andar e galope)
 var _rabo # mola do rabo (Rabo, abaixo)
+var _colisores: Array = [] # cápsulas do tronco para o cabelo (só montado)
+
+# Montado o tronco deita e o rabo de cavalo e as mechas caíam por dentro da blusa (direção de arte 2026-11-03):
+# cápsulas no peito, nas costas e no pescoço, um pouco maiores que o corpo, empurram o cabelo para fora.
+# [osso, raio (m), deslocamento para o lado (m)]
+const TRONCO := [["J_Bip_C_Spine", 0.115, 0.0], ["J_Bip_C_Chest", 0.11, 0.055], ["J_Bip_C_Chest", 0.11, -0.055],
+	["J_Bip_C_UpperChest", 0.115, 0.06], ["J_Bip_C_UpperChest", 0.115, -0.06], ["J_Bip_C_Neck", 0.06, 0.0]]
+func _colisores_tronco(esq: Skeleton3D) -> void:
+	var sim: SpringBoneSimulator3D = null
+	for c in esq.get_children():
+		if c is SpringBoneSimulator3D:
+			sim = c
+			break
+	if sim == null:
+		return
+	var p := func(n: String) -> Vector3: return esq.get_bone_global_rest(esq.find_bone(n)).origin
+	var lado: Vector3 = (p.call("J_Bip_R_UpperArm") - p.call("J_Bip_L_UpperArm")).normalized()
+	for t in TRONCO:
+		var o := esq.find_bone(t[0])
+		if o < 0 or esq.get_bone_children(o).is_empty():
+			continue
+		var rb := esq.get_bone_global_rest(o).basis.orthonormalized()
+		var filho: Vector3 = esq.get_bone_rest(esq.get_bone_children(o)[0]).origin # ponta do osso, no espaço dele
+		var col := SpringBoneCollisionCapsule3D.new()
+		col.bone_name = t[0]
+		col.radius = t[1]
+		col.height = filho.length() + 2.0 * float(t[1])
+		col.position_offset = filho * 0.5 + rb.inverse() * lado * float(t[2])
+		col.rotation_offset = Quaternion(Vector3.UP, filho.normalized())
+		sim.add_child(col)
+		_colisores.append(col)
+	for i in sim.setting_count:
+		sim.set_enable_all_child_collisions(i, true)
 
 func _init(m, id: String, cavaleiro: Node3D, cav_esq: Skeleton3D) -> void:
 	d = DADOS.get(id, DADOS.lobo)
@@ -64,6 +97,7 @@ func _init(m, id: String, cavaleiro: Node3D, cav_esq: Skeleton3D) -> void:
 			break
 	cav_esq.move_child(pose, antes)
 	pose.preparar(cav_esq)
+	_colisores_tronco(cav_esq)
 	tocar("parada")
 
 # no chão embaixo do corpo, no giro dele; o lobo não cresce junto com a altura que o jogador escolheu
@@ -133,7 +167,7 @@ func passo(dt: float, vel: float) -> void:
 	for i in 2:
 		var l: float = 1.0 if i == 0 else -1.0
 		pose.pegada[i] = nuca + b * (Vector3(l * 0.06, 0.12, -0.02) * k)
-		pose.pe[i] = sela + b * (Vector3(l * float(d.flanco), -0.17, -0.2) * k)
+		pose.pe[i] = sela + b * (Vector3(l * float(d.flanco), -0.15, -0.11) * k)
 	_rabo.passo(dt, cav.global_rotation.y)
 
 func remover() -> void:
@@ -141,6 +175,10 @@ func remover() -> void:
 		no.queue_free()
 	if is_instance_valid(pose):
 		pose.queue_free()
+	for c in _colisores:
+		if is_instance_valid(c):
+			c.queue_free()
+	_colisores.clear()
 
 # Rabo com mola: quando o lobo vira, o rabo fica para trás e depois balança até assentar (mais solto na ponta)
 class Rabo extends SkeletonModifier3D:

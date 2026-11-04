@@ -834,13 +834,15 @@ func armar(modo: String) -> void:
 			cajado.get_parent().remove_child(cajado)
 		heroi.add_child(cajado) # na mão: segue a mão mas fica de pé (como no site), ver _process
 
-# Montado: as armas continuam nas costas, mas giram para trás (no eixo do lado do corpo) para compensar o tronco
-# deitado (como no site): ficam rentes às costas, sem cruzar o rosto nem a cabeça
-const MONTADO_ATRAS := deg_to_rad(62.0) # cajado: o tronco deita ~55° (cavalgar.gd)
+# Montado: as armas continuam nas costas e giram para acompanhar o tronco deitado (direção de arte 2026-11-03):
+# o cajado vai rente à coluna (chama na altura da nuca, ponteira saindo pelo quadril) e a espada cruza com ele
+# num X raso, colada nas costas e abaixo do rabo de cavalo.
+const MONTADO_ATRAS := deg_to_rad(25.0) # cajado: giro no eixo do lado do corpo
+const MONTADO_CAJADO := [0.0, -0.6] # [giro no plano das costas (rad), desliza pelo cabo (m; - = para o quadril)]
 # espada (presa pelo cabo, lâmina para baixo e para trás): com o peito deitado a lâmina já aponta para o rabo do lobo;
 # [giro no plano das costas, giro no eixo do lado do corpo (rad)] a deixa rente às costas, e ela desliza
 # MONTADO_ESPADA_RECUA m para trás pela lâmina, para o cabo sair do lado da cabeça
-const MONTADO_ESPADA := [0.0, 0.45]
+const MONTADO_ESPADA := [0.35, 0.45]
 const MONTADO_ESPADA_RECUA := 0.22
 func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	var b := esq.find_bone("J_Bip_C_UpperChest")
@@ -855,7 +857,8 @@ func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	var rb := esq.get_bone_global_rest(b).basis.orthonormalized().inverse()
 	var lado: Vector3 = (rb * fr.cross(cima)).normalized() # no espaço do osso do peito
 	var normal: Vector3 = (rb * fr).normalized() # para fora das costas
-	caj.basis = Basis(lado, MONTADO_ATRAS) * caj.basis
+	caj.basis = Basis(lado, MONTADO_ATRAS) * Basis(normal, MONTADO_CAJADO[0]) * caj.basis
+	caj.position += caj.basis.y.normalized() * MONTADO_CAJADO[1]
 	esp.basis = Basis(lado, MONTADO_ESPADA[1]) * Basis(normal, MONTADO_ESPADA[0]) * esp.basis
 	esp.position += esp.basis.y.normalized() * MONTADO_ESPADA_RECUA
 	colisor_espada(esq, esp)
