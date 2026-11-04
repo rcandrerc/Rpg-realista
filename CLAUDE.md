@@ -15,6 +15,6 @@
 
 - Atualização nunca sobrepõe nem apaga recurso anterior. Remoção ou troca só quando o André pede, ou quando uma thread sugere a remoção para a próxima atualização e o André diz sim. Nunca remova por conta própria.
 - Antes de abrir ou mesclar PR: junte a main mais nova no ramo (ou rebase) e, nos conflitos, mantenha os dois lados. Nunca resolva conflito pegando um lado inteiro.
-- O CI "Main em dia" (`.github/workflows/protecao.yml`) falha se o ramo do PR está atrás da main (falta algum commit dela). Quando a main anda, todo PR aberto que ficou atrás volta a ficar vermelho. Antes de dar merge: busque a main mais nova, veja os commits de outras pessoas (o irmão do André também mexe) e mantenha os dois lados. A trava antiga "Nada some" foi tirada a pedido do André (2026-11-04); `nada-some.mjs` e `conferir.mjs` continuam na pasta para rodar à mão se quiser.
+- Não há trava no CI (o André tirou a "Nada some" em 2026-11-04). A regra é simples: todo PR novo, antes do merge, busca a main mais nova, junta no ramo e se adequa a ela, mantendo o trabalho dos outros (o irmão do André também mexe). Nunca sobreponha o que já está na main. Os scripts antigos em `ferramentas/protecao/` podem ser rodados à mão.
 - APK para o André só sai de um ramo com a main mais nova: rode `ferramentas/protecao/antes-do-apk.sh` antes. APK feito de ramo velho apaga o que entrou depois.
 - Recurso que o André aprovou num APK de teste precisa virar PR mesclado na main; senão o próximo APK vem sem ele.
