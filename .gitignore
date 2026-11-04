@@ -3,4 +3,5 @@ client/dist/
 .DS_Store
 *.log
 server/dados/
+client/public/tmp-mixamo/
 __pycache__/

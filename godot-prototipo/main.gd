@@ -38,15 +38,15 @@ const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_a
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
 const BANDO := []
-const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo"}
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok"}
 # o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
-const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
 # NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 const TINGIR_NPC := ["ferreiro"]
-const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0} # TIPOS_INIMIGO de shared/dados.js
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
 const NOME_LONGE := 30.0
@@ -923,6 +923,8 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	no.scale *= escala
 	if armas_lugar.has(id): # humano (VRoid) luta de espada; monstro do Bestiário luta com garra e soco
 		prender(esqueleto(no), nova_arma("espada", false), armas_lugar[id].espadaMao)
+	elif MIXAMO.has(id):
+		estilo_mixamo(no, MIXAMO[id])
 	else:
 		contorno(no, 0.012)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
@@ -933,8 +935,65 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	# com 10 clareiras no mapa: o corpo some a LONGE_INIMIGO m e o nome e a barra a NOME_LONGE m (atravessavam o mapa)
 	for g in no.find_children("*", "GeometryInstance3D", true, false):
 		g.visibility_range_end = NOME_LONGE if (g is Label3D or g.get_parent() == no) else LONGE_INIMIGO
+	if MIXAMO.has(id): # nome e barra acima da cabeça (os do Mixamo são bem mais altos)
+		e.alto = float(MIXAMO[id].alto) * escala
 	inimigos.append(e)
 	return e
+
+# Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
+# (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
+const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02, "olho": "9cff5a"},
+	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2}}
+const CHEFES := ["chefe", "warrok"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
+var _shader_monstro: Shader
+func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
+	if _shader_monstro == null:
+		_shader_monstro = load("res://monstro.gdshader")
+	for mi in no.find_children("*", "MeshInstance3D", true, false):
+		var k: float = snappedf(float(cfg.contorno) / max(0.0001, mi.global_transform.basis.get_scale().x), 0.0001)
+		if not mat_contorno.has(k):
+			var c := StandardMaterial3D.new()
+			c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			c.cull_mode = BaseMaterial3D.CULL_FRONT
+			c.grow = true
+			c.grow_amount = k
+			c.albedo_color = Color(0.1, 0.07, 0.06)
+			mat_contorno[k] = c
+		for i in mi.mesh.get_surface_count():
+			var m = mi.get_surface_override_material(i)
+			if m == null:
+				m = mi.mesh.surface_get_material(i)
+			if not (m is BaseMaterial3D):
+				continue
+			var s := ShaderMaterial.new()
+			s.shader = _shader_monstro
+			s.set_shader_parameter("textura", m.albedo_texture)
+			s.set_shader_parameter("borda_forca", float(cfg.get("borda", 0.15))) # meio-termo (André achou a v3 colorida demais)
+			if m.emission_texture: # o pintar() desliga a emissão dos personagens, mas a textura dos olhos fica
+				s.set_shader_parameter("brilho", m.emission_texture)
+				s.set_shader_parameter("brilho_forca", float(cfg.get("brilho", 0.6)))
+			s.next_pass = mat_contorno[k]
+			mi.set_surface_override_material(i, s)
+	# olhos (direção de arte, Warrok v3): o olho do modelo é minúsculo; um ponto de brilho de 5 cm em cada (nós olho_e e
+	# olho_d presos no osso da cabeça, feitos pelo converter-mixamo.html), amarelo #ffcc40, emissão 2, sem sombra
+	for o in no.find_children("olho_*", "", true, false):
+		var p := MeshInstance3D.new()
+		var esf := SphereMesh.new()
+		var k: float = 1.0 / max(0.0001, o.global_transform.basis.get_scale().x)
+		esf.radius = 0.025 * k
+		esf.height = 0.05 * k
+		esf.radial_segments = 8
+		esf.rings = 4
+		var mb := StandardMaterial3D.new()
+		mb.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mb.albedo_color = Color(str(cfg.get("olho", "ffcc40")))
+		mb.emission_enabled = true
+		mb.emission = mb.albedo_color
+		mb.emission_energy_multiplier = 2.0
+		esf.material = mb
+		p.mesh = esf
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		o.add_child(p)
 
 # contorno escuro de desenho nos monstros (como o MToon da Ruiva): casca um pouco maior, só o lado de trás
 var mat_contorno := {}
@@ -1208,7 +1267,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
 	var metros: float = float(hab.get("empurra", 0.25)) if hab is Dictionary else 0.25
-	if empurra.length() > 0.01 and e.tipo != "chefe" and not firme: # o inimigo voa para longe (em 0,22 s)
+	if empurra.length() > 0.01 and not (e.tipo in CHEFES) and not firme: # o inimigo voa para longe (em 0,22 s)
 		e.puxao = empurra.normalized() * metros / 0.22
 		e.puxao_t = 0.22
 	if e.vida <= 0:
@@ -1219,7 +1278,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
 		e.golpe = -1.0
-		if e.tipo != "chefe" and empurra.length() > 0.01: # o golpe final joga o corpo para trás
+		if not (e.tipo in CHEFES) and empurra.length() > 0.01: # o golpe final joga o corpo para trás
 			e.puxao = empurra.normalized() * D.COMBATE.voaMorte / 0.35
 			e.puxao_t = 0.35
 		combate.morreu(e.no)
@@ -1234,7 +1293,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			fx.subir_nivel(heroi)
 		return
 	if hab is Dictionary:
-		var chefe: float = 0.5 if e.tipo == "chefe" else 1.0
+		var chefe: float = 0.5 if e.tipo in CHEFES else 1.0
 		if hab.has("lento"): # no chefe lentidão e Quebrado valem metade
 			e.lento = tempo + hab.lento.dur
 			e.lento_k = hab.lento.k * chefe
@@ -1242,7 +1301,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			e.vuln = tempo + hab.vulneravel.dur
 			e.vuln_k = hab.vulneravel.k * chefe
 		for k in ["atordoa", "congela"]:
-			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo == "chefe"):
+			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo in CHEFES):
 				e.parado = max(e.parado, tempo + hab[k] * chefe)
 				e.golpe = -1.0
 				fx.status(e.no, k, hab[k] * chefe)
@@ -2053,7 +2112,7 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 		"puxar": # puxa para perto (não puxa chefe) e segura um instante; não tira vida
 			fx.vortice(p0.x, p0.z, hab.area, p0.y)
 			for e in inimigos:
-				if e.estado == "morto" or e.tipo == "chefe":
+				if e.estado == "morto" or e.tipo in CHEFES:
 					continue
 				var d: Vector3 = p0 - e.no.position
 				d.y = 0

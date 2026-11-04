@@ -188,6 +188,9 @@
     { "nome": "Ir para do mapa: o herói anda sozinho sempre pela estrada, o joystick cancela (André 2026-11-03)", "arquivo": "godot-prototipo/rota.gd", "contem": ["func planejar(alvo: Vector2) -> PackedVector2Array:", "func direcao_auto() -> Vector3:", "m.hud.mover.length() > 0.15"] },
     { "nome": "Ir para do mapa: marcar lugar e botão no mapa completo", "arquivo": "godot-prototipo/minimapa.gd", "contem": ["func _toque_no_mapa(pos: Vector2) -> void:", "\"Ir para\"", "m.rota.ir(r)"] },
     { "nome": "Ir para do mapa: rota vira o joystick", "arquivo": "godot-prototipo/main.gd", "contem": ["return rota.direcao_auto()"] },
-    { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] }
+    { "nome": "Ir para do mapa: caminhos de terra no mundo.json", "arquivo": "client/exportar-godot/mundo.mjs", "contem": ["caminhos: (MAPA_CLAREIRA.vila?.caminhos"] },
+    { "nome": "Monstros do Mixamo: Golem de Magma, Maw e Warrok chefe nas clareiras 11 e 12", "arquivo": "shared/dados.js", "contem": ["{ id: 'caca11', tipo: 'golem'", "{ id: 'caca12', tipo: 'maw'", "chefe: true"] },
+    { "nome": "Monstros do Mixamo: visual anime (shader, contorno, olhos acesos)", "arquivo": "godot-prototipo/main.gd", "contem": ["func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:", "res://monstro.gdshader"] },
+    { "nome": "Monstros do Mixamo: exportação com as animações do jogo", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["const MIXAMO = {"] }
   ]
 }

@@ -43,5 +43,40 @@ for (const nome of ['Puglin', 'Imp']) {
   const bin = await new GLTFExporter().parseAsync(raiz, { binary: true, animations: clipes });
   saida.Lobo = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
 }
+// Monstros do Mixamo (pedido do André 2026-11-03: inimigos do Mixamo com o visual anime do jogo). O GLB vem de
+// converter-mixamo.html (FBX baixado pelo André na conta Adobe dele). O personagem não traz animação, mas tem o
+// esqueleto mixamorig, o mesmo das animações Mixamo do jogo (assets/personagens/anims.json.gz): os clipes entram
+// direto, só o quadril anda na proporção da altura. O shader toon e o contorno o Godot põe (pintar e contorno).
+const MIXAMO = {
+  // chefe da área 1–50: brutamontes, bem mais alto que a Ruiva
+  Warrok: { altura: 2.3, anims: { parada: 'parada', andar: 'andar', corrida: 'corrida', espada_parada: 'mx_sword_and_shield_idle',
+    golpe1: 'mx_sword_and_shield_downward_slash', golpe2: 'mx_inward_slashing_with_a_sword_standing_st',
+    apanhar: 'mx_large_hit_reaction_from_the_right', morrer: 'mx_sword_and_shield_falling_back_death' } },
+};
+// Maw e o golem de magma (Pumpkinhulk repintado), aprovados pela direção de arte 2026-11-04, com as animações do Warrok.
+// Mremireh, Parasite, Mutant e Skeletonzombie foram vetados (humanos zumbis); os FBX ficam no repositório de fontes.
+for (const [nome, altura] of [['Maw', 2.6], ['Pumpkinhulk', 2.4]]) MIXAMO[nome] = { altura, anims: MIXAMO.Warrok.anims };
+{
+  const gz = await fetch('assets/personagens/anims.json.gz').then((r) => r.arrayBuffer());
+  const cru = JSON.parse(strFromU8(gunzipSync(new Uint8Array(gz))));
+  for (const [nome, cfg] of Object.entries(MIXAMO)) {
+    const g = await L.loadAsync('assets/monstros/mixamo/' + nome + '.glb');
+    g.scene.updateMatrixWorld(true);
+    const ossos = new Set(); g.scene.traverse((o) => { if (o.isBone) ossos.add(o.name); });
+    const quadril = g.scene.getObjectByName('mixamorigHips'), cabeca = g.scene.getObjectByName('mixamorigHead');
+    const yq = quadril.position.y; // altura do quadril no espaço do pai (cm, como as animações)
+    const clipes = Object.entries(cfg.anims).map(([godot, orig]) => {
+      const a = cru[orig], yAnim = (a.t.find(([n]) => n === 'mixamorigHips.position') || [, , [0, yq, 0]])[2][1];
+      const k = yq / yAnim;
+      const trilhas = a.t.filter(([n]) => ossos.has(n.split('.')[0])).map(([n, t, v]) => n.endsWith('.position')
+        ? new THREE.VectorKeyframeTrack(n, t, v.map((x) => x * k)) : new THREE.QuaternionKeyframeTrack(n, t, v));
+      return new THREE.AnimationClip(godot, a.d, trilhas);
+    });
+    const h = cabeca.getWorldPosition(new THREE.Vector3()).y - new THREE.Box3().setFromObject(g.scene).min.y;
+    const raiz = new THREE.Group(); raiz.add(g.scene); g.scene.scale.multiplyScalar(cfg.altura / (h * 1.1));
+    const bin = await new GLTFExporter().parseAsync(raiz, { binary: true, animations: clipes });
+    saida[nome] = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
+  }
+}
 window.resultado = saida;
 </script></body></html>
