@@ -181,10 +181,11 @@ export const TREINO = { volta: 4, raio: 0.38, alto: 1.6 }; // alto: a câmera pa
 // `roda` m), aguenta `firmeGolpes` golpes seguidos e fica firme (não para de apanhar, revida) por `firmeDur` s.
 // Rolar ou dar dash na hora do golpe = esquiva: o próximo golpe do herói em `contraDur` s vale `contraK`x e é crítico.
 export const COMBATE_INIMIGO = {
-  preparo: { puglin: 0.5, imp: 0.55, chefe: 0.7, lobo: 0.45 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
-  // André 2026-11-04: "parecem que não vão pra cima" -> mais monstros batem juntos, a roda fica mais perto e anda mais,
-  // perseguem correndo até encostar e quem bateu e passou a vez dá um passo para trás (folga) para outro entrar
-  aoMesmoTempo: 4, roda: 2.9, rodaVel: 1.6, perseguir: 3.6, chegar: 2.2, chegarDist: 2.6, folga: 0.9,
+  // André 2026-11-04: "pode fazer igual Quimera tudo": preparo de 0,4 s, sem limite de quantos batem juntos
+  // (aoMesmoTempo alto = todos vão para cima), perseguem correndo até encostar e, depois do golpe acertar,
+  // esperam de cdMin a cdMax s (sorteado) para bater de novo, como o cd na(1.05, 1.5) do Quimera
+  preparo: { puglin: 0.4, imp: 0.4, chefe: 0.4, lobo: 0.4 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  aoMesmoTempo: 99, roda: 2.9, rodaVel: 1.6, perseguir: 3.6, chegar: 2.2, chegarDist: 2.6, folga: 0, cdMin: 1.05, cdMax: 1.5,
   firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6 }, firmeJanela: 1.6, firmeDur: 2.0,
   contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
 };

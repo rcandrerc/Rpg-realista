@@ -2927,6 +2927,7 @@ func atualizar_inimigos(dt: float) -> void:
 				e.preparo = pr
 				e.golpe_at = pr + max(0.05, L * C.acerto - pr * C.preparoTs) / C.golpeTs
 				e.golpe_dur = pr + max(0.1, L - pr * C.preparoTs) / C.golpeTs
+				e.cd = e.golpe_at + randf_range(float(C.cdMin), float(C.cdMax)) # Quimera: próximo golpe conta do acerto
 				e.anim.play(g, 0.08, C.preparoTs)
 				combate.preparo(no, pr)
 				if randf() < 0.5:

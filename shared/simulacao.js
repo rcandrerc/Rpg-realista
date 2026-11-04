@@ -1384,6 +1384,8 @@ export class Simulacao {
         const dur = DURACAO[nome] || 1, hit = P + Math.max(0.05, dur * CI.acerto - P * CI.preparoTs) / CI.golpeTs;
         b.acao = { nome, ts: CI.preparoTs, segurar: false, preparo: P, ts2: CI.golpeTs }; b.acaoSeq++;
         b.trava = P + Math.max(0.1, dur - P * CI.preparoTs) / CI.golpeTs;
+        // Quimera: o tempo até o próximo golpe conta a partir do acerto (o ataqueCd só corre depois da trava)
+        b.ataqueCd = Math.max(0, hit + CI.cdMin + Math.random() * (CI.cdMax - CI.cdMin) - b.trava);
         this.evento({ t: 'preparo', id: b.id, dur: P });
         const seq = b.acaoSeq; // apanhou no meio (ou foi atordoado): o golpe foi cortado
         this.depois(hit, () => {

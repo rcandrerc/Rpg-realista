@@ -27,7 +27,7 @@ const BUILD_PADRAO := ["investida", "giro", "salto", "relampago", "bola", "raio"
 
 # Bando Sombrio: personagens anime que o jogador não escolhe
 # combate dos monstros: mesmos números de COMBATE_INIMIGO em shared/dados.js (o servidor decide online)
-const COMBATE := {"preparo": {"puglin": 0.5, "imp": 0.55, "chefe": 0.7}, "preparoTs": 0.3, "golpeTs": 1.1, "acerto": 0.45,
-	"aoMesmoTempo": 4, "roda": 2.9, "rodaVel": 1.6, "perseguir": 3.6, "chegar": 2.2, "chegarDist": 2.6, "folga": 0.9, "firmeGolpes": {"puglin": 6, "imp": 6, "chefe": 4}, "firmeJanela": 1.6,
+const COMBATE := {"preparo": {"puglin": 0.4, "imp": 0.4, "chefe": 0.4, "lobo": 0.4}, "preparoTs": 0.3, "golpeTs": 1.1, "acerto": 0.45,
+	"aoMesmoTempo": 99, "roda": 2.9, "rodaVel": 1.6, "perseguir": 3.6, "chegar": 2.2, "chegarDist": 2.6, "folga": 0.0, "cdMin": 1.05, "cdMax": 1.5, "firmeGolpes": {"puglin": 6, "imp": 6, "chefe": 4}, "firmeJanela": 1.6,
 	"firmeDur": 2.0, "contraDur": 1.5, "contraK": 1.5, "voaMorte": 1.4}
 const INIMIGO := {"vida": 80.0, "dmg": 8, "vel": 3.6, "alcance": 1.9, "visao": 11.0, "ataque_cd": 1.6, "renascer": 6.0}
