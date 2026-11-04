@@ -1,41 +1,69 @@
-# Proteção contra recurso apagado sem querer (regra do André: atualização não sobrepõe a anterior, a não ser que ele peça).
-# 1) O ramo do PR precisa ter a main mais nova dentro (junta a main ou rebase antes do merge).
-# 2) Trava geral: nada que já existe na main pode sumir ou ser trocado (arquivo, asset, função, nó de cena, chave de dados...),
-#    a não ser com a etiqueta "remoção aprovada", que só se coloca quando o André pediu.
-# 3) Lista ferramentas/protecao/recursos.json: comportamentos importantes que precisam continuar no código.
-name: Nada some
+# Main em dia (regra do André, 2026-11-04): antes de dar merge, o ramo do PR precisa ter TODA a main mais nova dentro.
+# Assim ninguém sobrepõe o trabalho de outro (o André e o irmão mexem no repositório).
+# Se o ramo está atrás da main, o PR fica vermelho: junte a main no ramo (ou rebase), resolva os conflitos
+# mantendo os dois lados e rode de novo.
+# Quando a main recebe um commit novo, todo PR aberto que ficou atrás volta a ficar vermelho na hora.
+# (Substitui a trava antiga "Nada some", que o André pediu para tirar em 2026-11-04.)
+name: Main em dia
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+
 jobs:
   conferir:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           lfs: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - name: O ramo tem a main mais nova
-        if: github.event_name == 'pull_request'
         run: |
           git fetch -q origin "${{ github.base_ref }}"
-          if ! git merge-base --is-ancestor "origin/${{ github.base_ref }}" HEAD; then
-            echo "::error::Este ramo não tem a ${{ github.base_ref }} mais nova. Junte a main (ou faça rebase), resolva os conflitos mantendo os dois lados e rode de novo."
+          FALTAM=$(git rev-list --count HEAD..origin/${{ github.base_ref }})
+          if [ "$FALTAM" != "0" ]; then
+            echo "::error::Este ramo está atrás da ${{ github.base_ref }}: faltam $FALTAM commit(s) dela. Junte a main no ramo (ou faça rebase), resolva os conflitos mantendo os dois lados e rode de novo."
+            echo "Commits da ${{ github.base_ref }} que faltam neste ramo:"
+            git log --oneline --format='%h %an: %s' HEAD..origin/${{ github.base_ref }} | head -30
             exit 1
           fi
-          echo "Ramo em dia com a ${{ github.base_ref }}."
-      - name: Nada que já existia foi apagado ou trocado
-        if: github.event_name == 'pull_request'
-        env:
-          APROVADO: ${{ contains(github.event.pull_request.labels.*.name, 'remoção aprovada') && '1' || '0' }}
-        run: node ferramentas/protecao/nada-some.mjs "origin/${{ github.base_ref }}" HEAD
-      - name: Recursos da lista continuam no código
-        run: node ferramentas/protecao/conferir.mjs --main
+          echo "Ramo em dia com a ${{ github.base_ref }}. Pode dar merge sem sobrepor nada."
+
+  # A main andou: confere de novo todos os PRs abertos e marca vermelho quem ficou para trás.
+  prs-abertos:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', base: 'main', per_page: 100 });
+            for (const pr of prs) {
+              let atras = 0;
+              try {
+                const cmp = await github.rest.repos.compareCommitsWithBasehead({ owner, repo, basehead: `main...${pr.head.label}` });
+                atras = cmp.data.behind_by;
+              } catch (e) {
+                core.warning(`PR #${pr.number}: não deu para comparar (${e.message})`);
+                continue;
+              }
+              await github.rest.repos.createCommitStatus({
+                owner, repo, sha: pr.head.sha,
+                context: 'Main em dia / main nova',
+                state: atras ? 'failure' : 'success',
+                description: atras ? `Atrás da main: faltam ${atras} commit(s). Junte a main antes do merge.` : 'Ramo em dia com a main.',
+                target_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+              });
+              core.info(`PR #${pr.number}: ${atras ? 'atrás ' + atras : 'em dia'}`);
+            }

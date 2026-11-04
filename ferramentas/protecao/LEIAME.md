@@ -1,25 +1,15 @@
-# Nada some
+# Main em dia
 
-Proteção para uma atualização não apagar o que já estava no jogo (regra do André).
+Regra do André (2026-11-04): antes de dar merge, o ramo do PR precisa ter a main mais nova dentro, para ninguém sobrepor o trabalho de outro.
 
-## Trava geral (vale para tudo, sem lista)
+- O workflow `.github/workflows/protecao.yml` ("Main em dia") roda em todo PR e falha se o ramo está atrás da main, mostrando quais commits da main faltam (e de quem são).
+- Quando a main recebe um commit novo, ele confere de novo todos os PRs abertos e marca vermelho quem ficou para trás.
+- Para consertar: junte a main no ramo (ou rebase), resolva os conflitos mantendo os dois lados e mande de novo.
+- `antes-do-apk.sh`: rodar antes de gerar APK para o André; para se o ramo não tem a main mais nova.
 
-`nada-some.mjs` compara o ramo com a main e falha se algo que já existe some ou é trocado:
+## Trava antiga "Nada some" (tirada do CI)
 
-- arquivo apagado (código, cena, dado, imagem, som, modelo);
-- asset trocado (imagem, som, modelo 3D ou textura com conteúdo novo: o antigo some);
-- função, constante, sinal, classe, método, ação de botão (`.gd`, `.js`), mensagem do servidor;
-- nó de cena (`.tscn`), uniform de shader;
-- chave de dados (`.json`, `.json.gz`, tabelas do `shared/dados.js`).
+O André pediu para tirar a trava "Nada some" em 2026-11-04. Os scripts continuam aqui e podem ser rodados à mão:
 
-Se a definição só mudou de arquivo, não conta. Arquivos que mudam a cada versão (`.apk`, `.import`, `.uid`, `package-lock.json`) ficam de fora.
-
-Quando o André pede para tirar ou trocar algo, o PR leva a etiqueta **`remoção aprovada`** e cita o pedido dele na descrição. Sem a etiqueta, o CI barra.
-
-## Outras conferências
-
-- O ramo do PR precisa ter a main mais nova (o CI confere).
-- `recursos.json` + `conferir.mjs`: trechos de comportamentos importantes que precisam continuar no código.
-- `antes-do-apk.sh`: rodar antes de gerar APK para o André; roda tudo acima.
-
-O workflow `.github/workflows/protecao.yml` ("Nada some") roda em todo PR e em todo push na main.
+- `nada-some.mjs`: compara o ramo com a main e lista o que foi apagado ou trocado (arquivo, asset, função, nó de cena, chave de dados).
+- `conferir.mjs` + `recursos.json`: confere trechos de comportamentos importantes.
