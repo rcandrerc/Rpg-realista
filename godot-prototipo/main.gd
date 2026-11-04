@@ -11,6 +11,7 @@ const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
 const BracoEspada = preload("res://braco_espada.gd")
+const MaoFechada = preload("res://mao_fechada.gd")
 const Armas = preload("res://armas.gd")
 const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
@@ -103,6 +104,7 @@ var extras: Array = []
 
 var cam # camera_heroi.gd: segue com mola, vai para as costas correndo, treme no golpe
 var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada
+var mao_fechada # mao_fechada.gd: dedos fechados em volta do cajado na mão
 var inclinar # inclinar.gd: tronco inclina na curva e o quadril afunda no pouso
 var sons # sons.gd
 # sensação do combate (ajuste aqui testando no celular)
@@ -784,6 +786,9 @@ func criar_heroi(nascer := true) -> void:
 	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
 	var L: Dictionary = lugar_armas().espadaMao
 	braco.preparar(heroi_esq, Basis(Quaternion(L.quat[0], L.quat[1], L.quat[2], L.quat[3])))
+	mao_fechada = MaoFechada.new() # dedos em volta do cajado (pedido do André, 2026-11-03)
+	heroi_esq.add_child(mao_fechada)
+	mao_fechada.preparar(heroi_esq, mao_direita)
 	inclinar = Inclinar.new()
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
@@ -1445,7 +1450,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "loja", "forja", "resetar", "falar"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if qual in ["pular", "dash", "rolar"]: # pular, dash e rolar cancelam a magia concentrada e cortam o golpe
 		if acao.get("canal", false):
@@ -1454,7 +1459,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "loja", "coletar", "forja", "resetar", "falar", "disparada"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "disparada"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -1559,20 +1564,10 @@ func _tentar(qual: String) -> bool:
 			sons.tocar("dash", -10.0, 0.1, null, 0.8)
 		"menu":
 			menu.abrir()
-		"loja":
-			rede("falar") # a Rosa responde e o menu abre na Loja
-			menu.abrir("loja")
 		"falar": # perto de um NPC: abre a janela dele (conversa.gd)
 			conversa.tocar_botao()
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
-		"forja": # perto do Tomás: menu na aba Profissões, receitas do Ferreiro
-			menu.abrir("profissoes", "fer")
-		"resetar": # perto do Mestre Ivo: online ele responde com o preço e a janela abre (online.gd "fala")
-			if on():
-				rede("falar")
-			else:
-				menu.perguntar_reset(custo_reset())
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -2080,8 +2075,6 @@ func _process(dt: float) -> void:
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
 		hud.sem_mana("hab%d" % i, k != null and P.habs.has(k) and h.mana < float(P.habs[k].get("mana", 0)))
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else -1.0
-	hud.mostrar_botao("loja", perto_da_loja() and h.morto <= 0.0)
-	hud.mostrar_botao("resetar", perto_do_npc("resetar", 3.0) and h.morto <= 0.0)
 	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
@@ -2246,7 +2239,9 @@ func atualizar_heroi(dt: float) -> void:
 				heroi_anim.play(a, 0.35 if heroi_anim.current_animation == "freada" else 0.15, ritmo(a) if mov.arrancada == null else 1.0)
 		elif mov.manobra != null and a == mov.manobra.nome:
 			heroi_anim.ritmo_acao(mov.ritmo_manobra())
-	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado
+	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado, com a mão fechada em volta dele
+	var mao_no_cajado: bool = h.modo == "Magia" and mov.esc == null and cajado.visible
+	mao_fechada.peso = move_toward(mao_fechada.peso, 1.0 if mao_no_cajado else 0.0, dt * 8.0)
 	if h.modo == "Magia" and mov.esc == null:
 		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
 		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi)

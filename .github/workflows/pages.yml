@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      abrir_servidor:
+        description: 'Publicar o servidor aberto uma vez (só para máquina nova da Oracle, que ainda não tem chave)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,6 +36,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: bash ferramentas/servidor/empacotar.sh # o servidor sai junto; a máquina da Oracle se atualiza a partir daqui
+        env:
+          ABRIR_SERVIDOR: ${{ inputs.abrir_servidor && '1' || '0' }}
       - name: Atualização do app Godot em /atualizacao (gerada pelo apk.yml no release "atualizacao")
         env:
           GH_TOKEN: ${{ github.token }}

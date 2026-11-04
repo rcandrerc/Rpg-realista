@@ -363,7 +363,6 @@ func _process(dt: float) -> void:
 		ic = "pf_" + coletando.prof
 	m.hud.mostrar_botao("coletar", perto != null or coletando != null)
 	m.hud.icone_botao("coletar", ic)
-	m.hud.mostrar_botao("forja", perto_oficina("fer") and m.h.morto <= 0.0)
 
 # coletáveis nas 9 casas da grade em volta do herói (a distância de coleta é bem menor que 6 m)
 func _perto_do_heroi() -> Array:

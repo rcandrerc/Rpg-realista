@@ -90,7 +90,7 @@ export function bonusEquip(equip = {}) {
   return b;
 }
 // Item na mochila: { k, r } peça (r = raridade 0..4) · { k, n } poção · { k: 'tomo', h, nv, n } Tomo da skill h
-const ANTIGOS = { manto: 'peitoral' };
+const ANTIGOS = { manto: 'peitoral', oculos: 'colar' }; // André 2026-11-03: sem Óculos (era do Quimera); quem tinha ganha um Colar da mesma raridade
 export function itemValido(it) {
   // conta antiga: o Manto virou Peitoral (uma linha só de armadura)
   if (it && typeof it === 'object' && ANTIGOS[it.k]) it = { ...it, k: ANTIGOS[it.k] };
