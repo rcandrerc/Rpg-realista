@@ -711,6 +711,7 @@ export class Simulacao {
 
   // ---------- mochila, equipamento e loja (dados em shared/dados.js: ITENS, LOJA, DROPS) ----------
   // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
+  //   · { acao: 'vender_varios', lista: [i, ...] } (vende as pilhas inteiras de uma vez) · { acao: 'apagar', i } (joga fora)
   //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
   item(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object' || j.criando) return;
@@ -744,6 +745,25 @@ export class Simulacao {
       p.ouro += preco;
       this.pontosMercador(j, preco);
       aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
+    } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
+      // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
+      if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
+      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x]))];
+      if (!lugares.length) return;
+      const merc = mercador(p.prof.mer).venda;
+      let ouro = 0, n = 0;
+      for (const x of lugares) {
+        const v = p.mochila[x], q = ehEquip(v.k) ? 1 : Math.max(1, v.n || 1);
+        ouro += precoVenda(v, merc) * q; n += q;
+        p.mochila[x] = null;
+      }
+      p.ouro += ouro;
+      this.pontosMercador(j, ouro);
+      aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
+    } else if (m.acao === 'apagar' && it) {
+      // André 2026-11-04: jogar fora um item da mochila (o celular pergunta antes; não dá ouro e não volta)
+      p.mochila[i] = null;
+      aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
     } else if (m.acao === 'comprar' && LOJA[i]) {
       if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
       const o = LOJA[i], preco = this.precoCompra(j, o);
