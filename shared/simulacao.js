@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido } from './progresso.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, TROCA } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -47,6 +47,10 @@ export function motivoHorta(L, i, k) {
   for (const o of L.pecas) if (cruza(R, retPeca(o))) return 'Lugar ocupado';
   return '';
 }
+
+// troca: o item sem a quantidade, em texto (para conferir se ainda é o mesmo) e de volta com n unidades
+const chaveItem = (it) => JSON.stringify({ ...it, n: undefined });
+function itemDaChave(chave, n) { const it = JSON.parse(chave); return ehEquip(it.k) ? it : { ...it, n }; }
 
 export class Simulacao {
   constructor(mapa) {
@@ -166,7 +170,11 @@ export class Simulacao {
     this.avisarProg(j);
     return j;
   }
-  removerJogador(id) { this.jogadores.delete(id); }
+  removerJogador(id) {
+    const j = this.jogadores.get(id);
+    if (j?.troca) this.fecharTroca(j.troca, `${j.nome} saiu do jogo: a troca foi desfeita`);
+    this.jogadores.delete(id);
+  }
   // ---------- onde o herói estava (André 2026-11-03) ----------
   // Saiu do jogo longe da vila: entra de volta no mesmo lugar. Só a morte (ou o Voltar para a vila) leva para a praça.
   nascerOndeSaiu(j) {
@@ -787,6 +795,167 @@ export class Simulacao {
     } else return;
     this.aplicarStatus(j);
     this.avisarProg(j);
+  }
+  // ---------- troca entre jogadores (como no Quimera, André 2026-11-04) ----------
+  // Pedir: toca no outro jogador perto; ele aceita e a janela abre para os dois. Cada um põe itens da mochila e ouro.
+  // Cadeado: "Trancar oferta" diz "aceito o que está na mesa". Mudar qualquer coisa (de um ou do outro) destranca os dois.
+  // Com as duas trancadas, os dois confirmam. Nada muda de mão antes disso, e na hora o servidor confere tudo de novo
+  // (o item ainda está no mesmo lugar, o ouro existe, cabe na mochila do outro): sem duplicar nada.
+  // m = { acao: 'pedir' | 'aceitar' | 'recusar', com } · { acao: 'por', i, n } (lugar da mochila) · { acao: 'tirar', o }
+  //   · { acao: 'ouro', n } · { acao: 'trancar', v } · { acao: 'confirmar' } · { acao: 'cancelar' }
+  troca(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object') return;
+    const aviso = (texto, para = id) => this.evento({ t: 'aviso', para, texto });
+    const livre = (c) => c && !c.morto && !c.criando;
+    if (m.acao === 'pedir' || m.acao === 'aceitar') {
+      const o = this.jogadores.get(String(m.com));
+      if (!o || o === j) return;
+      if (!livre(j)) return;
+      if (!livre(o)) return aviso(`${o.nome} não pode trocar agora`);
+      if (j.troca) return aviso('Termine a troca que está aberta primeiro');
+      if (o.troca) return aviso(`${o.nome} já está trocando com outra pessoa`);
+      if (dist(j, o) > TROCA.perto) return aviso(`Chegue mais perto de ${o.nome} para trocar`);
+      const veio = j.pedidoTroca && j.pedidoTroca.de === o.id && j.pedidoTroca.ate >= this.tempo;
+      if (m.acao === 'aceitar' || veio) { // aceitou (ou os dois pediram um ao outro): abre para os dois
+        if (!veio) return aviso('O pedido de troca já expirou');
+        j.pedidoTroca = null; o.pedidoTroca = null;
+        return this.abrirTroca(o, j);
+      }
+      if ((j.trocaPedidoT || -99) > this.tempo - TROCA.entrePedidos) return aviso('Espere um pouquinho para pedir de novo');
+      j.trocaPedidoT = this.tempo;
+      o.pedidoTroca = { de: j.id, ate: this.tempo + TROCA.pedido };
+      this.evento({ t: 'troca', para: o.id, fase: 'pedido', de: j.id, nome: j.nome, dur: TROCA.pedido });
+      return aviso(`Pedido de troca enviado para ${o.nome}`);
+    }
+    if (m.acao === 'recusar') {
+      const p = j.pedidoTroca; if (!p || p.de !== String(m.com)) return;
+      j.pedidoTroca = null;
+      if (this.jogadores.has(p.de)) aviso(`${j.nome} recusou a troca`, p.de);
+      return;
+    }
+    const T = j.troca; if (!T) return;
+    const eu = T.of[id], o = this.jogadores.get(T.a === id ? T.b : T.a);
+    if (!o) return this.fecharTroca(T, 'A troca foi desfeita');
+    if (m.acao === 'cancelar') return this.fecharTroca(T, `${j.nome} fechou a troca`);
+    if (m.acao === 'trancar') {
+      if (m.v === true) {
+        if (!this.ofertaValida(j, eu)) { this.limparOferta(j, eu); this.mudouTroca(T); return aviso('Um item da sua oferta saiu da mochila: confira de novo'); }
+        eu.tranca = true;
+      } else {
+        if (!eu.tranca) return;
+        T.of[T.a].tranca = T.of[T.b].tranca = false; T.of[T.a].ok = T.of[T.b].ok = false;
+        aviso(`${j.nome} destrancou a oferta: as confirmações caíram`, o.id);
+      }
+      return this.enviarTroca(T);
+    }
+    if (m.acao === 'confirmar') {
+      if (!eu.tranca || !T.of[o.id].tranca) return aviso('Os dois precisam trancar a oferta antes de confirmar');
+      eu.ok = true;
+      if (T.of[o.id].ok) return this.concluirTroca(T);
+      aviso(`Confirmado! Esperando ${o.nome} confirmar`);
+      return this.enviarTroca(T);
+    }
+    // daqui em diante muda a oferta: só destrancada (o cadeado protege o que o outro já viu)
+    if (eu.tranca) return aviso('Sua oferta está trancada. Destranque para mudar');
+    if (m.acao === 'por') {
+      const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
+      if (!it) return;
+      const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
+      const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
+      if (n <= 0) return aviso('Você já pôs tudo desse item');
+      if (ja) ja.n += n;
+      else {
+        if (eu.itens.length >= TROCA.maxItens) return aviso(`No máximo ${TROCA.maxItens} itens por troca`);
+        eu.itens.push({ i, n, chave: chaveItem(it) });
+      }
+    } else if (m.acao === 'tirar') {
+      const k = Number.isInteger(m.o) ? m.o : -1; if (!eu.itens[k]) return;
+      eu.itens.splice(k, 1);
+    } else if (m.acao === 'ouro') {
+      const n = Number.isInteger(m.n) ? Math.max(0, m.n) : 0;
+      if (n > j.prog.ouro) return aviso('Você não tem esse ouro todo');
+      if (n === eu.ouro) return;
+      eu.ouro = n;
+    } else return;
+    this.mudouTroca(T);
+  }
+  abrirTroca(a, b) {
+    const oferta = () => ({ itens: [], ouro: 0, tranca: false, ok: false });
+    const T = { a: a.id, b: b.id, of: { [a.id]: oferta(), [b.id]: oferta() } };
+    a.troca = b.troca = T;
+    (this.trocas ||= new Set()).add(T);
+    for (const j of [a, b]) if (j.coleta) this.pararColeta(j);
+    this.enviarTroca(T);
+  }
+  // alguém mudou a oferta: os dois cadeados abrem e as confirmações caem
+  mudouTroca(T) {
+    for (const k of [T.a, T.b]) { T.of[k].tranca = false; T.of[k].ok = false; }
+    this.enviarTroca(T);
+  }
+  // o que cada um vê: a própria oferta (com o lugar da mochila) e a do outro (só os itens)
+  enviarTroca(T) {
+    for (const [k, outro] of [[T.a, T.b], [T.b, T.a]]) {
+      const o = this.jogadores.get(outro); if (!o) continue;
+      const ver = (of, meu) => ({ ouro: of.ouro, tranca: of.tranca, ok: of.ok,
+        itens: of.itens.map((e) => ({ ...(meu ? { i: e.i } : {}), n: e.n, it: itemDaChave(e.chave, e.n) })) });
+      this.evento({ t: 'troca', para: k, fase: 'estado', com: outro, nome: o.nome, eu: ver(T.of[k], true), ele: ver(T.of[outro], false) });
+    }
+  }
+  fecharTroca(T, motivo = '', feita = false) {
+    this.trocas?.delete(T);
+    for (const k of [T.a, T.b]) {
+      const j = this.jogadores.get(k); if (!j || j.troca !== T) continue;
+      j.troca = null;
+      this.evento({ t: 'troca', para: k, fase: 'fim', feita, motivo });
+    }
+  }
+  // cada item da oferta ainda está no mesmo lugar da mochila, igual e com a quantidade; e o ouro existe
+  ofertaValida(j, of) {
+    if (of.ouro > j.prog.ouro) return false;
+    return of.itens.every((e) => { const it = itemValido(j.prog.mochila[e.i]); return it && chaveItem(it) === e.chave && (it.n || 1) >= e.n; });
+  }
+  limparOferta(j, of) {
+    of.itens = of.itens.filter((e) => { const it = itemValido(j.prog.mochila[e.i]); return it && chaveItem(it) === e.chave && (it.n || 1) >= e.n; });
+    of.ouro = Math.min(of.ouro, j.prog.ouro);
+  }
+  // a cada passo: quem se afastou, morreu ou saiu fecha a troca; item da oferta que sumiu (usou, vendeu, criou) destranca
+  passoTrocas() {
+    if (!this.trocas?.size) return;
+    for (const T of [...this.trocas]) {
+      const a = this.jogadores.get(T.a), b = this.jogadores.get(T.b);
+      if (!a || !b || a.troca !== T || b.troca !== T) { this.fecharTroca(T, 'A troca foi desfeita'); continue; }
+      if (a.morto || b.morto || a.criando || b.criando) { this.fecharTroca(T, 'A troca foi desfeita'); continue; }
+      if (dist(a, b) > TROCA.longe) { this.fecharTroca(T, 'Vocês se afastaram: a troca foi desfeita'); continue; }
+      for (const j of [a, b]) if (!this.ofertaValida(j, T.of[j.id])) {
+        this.limparOferta(j, T.of[j.id]);
+        this.evento({ t: 'aviso', para: j.id, texto: 'Um item da sua oferta saiu da mochila: a troca foi destrancada' });
+        this.mudouTroca(T);
+      }
+    }
+  }
+  // os dois confirmaram: confere tudo de novo e troca de uma vez (numa cópia; só grava se tudo cabe)
+  concluirTroca(T) {
+    const a = this.jogadores.get(T.a), b = this.jogadores.get(T.b);
+    if (!a || !b) return this.fecharTroca(T, 'A troca foi desfeita');
+    const A = T.of[a.id], B = T.of[b.id];
+    if (!this.ofertaValida(a, A) || !this.ofertaValida(b, B)) { this.limparOferta(a, A); this.limparOferta(b, B); return this.mudouTroca(T); }
+    const sem = (j, of) => {
+      const mo = j.prog.mochila.map((o) => (o ? { ...o } : null));
+      for (const e of of.itens) { const o = mo[e.i]; if (o.n && o.n > e.n) o.n -= e.n; else mo[e.i] = null; }
+      return mo;
+    };
+    const ma = sem(a, A), mb = sem(b, B);
+    const cabe = (mo, of) => of.itens.every((e) => guardar(mo, itemDaChave(e.chave, e.n)));
+    for (const [mo, of, j, o] of [[ma, B, a, b], [mb, A, b, a]]) if (!cabe(mo, of)) {
+      this.evento({ t: 'aviso', para: j.id, texto: 'Sua mochila não tem espaço para tudo isso' });
+      this.evento({ t: 'aviso', para: o.id, texto: `A mochila de ${j.nome} não tem espaço para tudo isso` });
+      return this.mudouTroca(T);
+    }
+    a.prog.mochila = ma; b.prog.mochila = mb;
+    a.prog.ouro += B.ouro - A.ouro; b.prog.ouro += A.ouro - B.ouro;
+    for (const [j, o] of [[a, b], [b, a]]) { this.aplicarStatus(j); this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: `Troca com ${o.nome} feita!` }); }
+    this.fecharTroca(T, '', true);
+    this.aoTrocar?.(); // o servidor grava as duas contas na hora (nada fica só na memória)
   }
   precoCompra(j, o) { return Math.max(1, Math.round(o.preco * (1 - mercador(j.prog.prof.mer).compra))); }
   pontosMercador(j, ouro) { this.pontosProf(j, 'mer', ouro / MERCADOR.pontoOuro); }
@@ -1608,6 +1777,7 @@ export class Simulacao {
       }
     }
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
+    this.passoTrocas();
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
     this.passoProjeteis(dt);
