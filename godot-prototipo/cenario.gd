@@ -16,6 +16,10 @@ const GRANDES := ["rocha1", "rocha2", "rocha3", "parede", "parede_janela", "pila
 # só as peças altas fazem sombra (arbusto, toco e escada quase não fazem: cada sombra é mais um desenho no celular)
 const SEM_SOMBRA := ["arbusto", "arbusto_flor", "toco2", "escada"]
 const LONGE := {"arvore_morta1": 120.0, "arvore_morta3": 120.0} # a árvore morta gigante marca o lugar por cima das copas
+# pedra com a base suja e com musgo (ruina.gdshader) e a mancha de terra no pé de cada marco (mancha.gdshader):
+# direção de arte 2026-11-04, para os marcos não parecerem blocos postos em cima da grama
+const PEDRA_SUJA := ["parede", "parede_janela", "pilar", "escada", "estatua", "rocha1", "rocha2", "rocha3"]
+const MANCHA_FOLGA := 1.5 # m além do raio do marco
 var n_instancias := 0
 var n_grupos := 0
 
@@ -60,6 +64,27 @@ func _ready() -> void:
 			add_child(g)
 			n_grupos += 1
 		n_instancias += itens.size()
+	_manchas(C.get("marcos", []))
+
+# mancha de terra e musgo no pé de cada marco (um disco no chão, um pouco mais largo que o marco)
+func _manchas(marcos: Array) -> void:
+	var disco := PlaneMesh.new()
+	disco.size = Vector2(2, 2)
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://mancha.gdshader")
+	disco.material = mat
+	for o in marcos:
+		var r: float = float(o.r) + MANCHA_FOLGA
+		var mi := MeshInstance3D.new()
+		mi.mesh = disco
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var x := float(o.x)
+		var z := float(o.z)
+		mi.transform = Transform3D(Basis(Vector3.UP, float(o.ry)).scaled(Vector3(r, 1, r)), Vector3(x, m.terreno.altura(x, z) + 0.03, z))
+		mi.visibility_range_end = 85.0
+		mi.visibility_range_end_margin = 6.0
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		add_child(mi)
 
 # onde fica cada item: gira (ry), inclina (rx, rz: parede torta, carroça largada), escala e pousa no chão (y = enterrado)
 func _lugar(p: Dictionary) -> Transform3D:
@@ -89,6 +114,16 @@ func _malhas(nome: String) -> Array:
 				mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
 				mt.distance_fade_min_distance = 2.2
 				mt.distance_fade_max_distance = 4.2
+	if nome in PEDRA_SUJA:
+		for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+			for i in (mi.mesh.get_surface_count() if mi.mesh else 0):
+				var mt = mi.mesh.surface_get_material(i)
+				if mt is BaseMaterial3D and mt.albedo_texture:
+					var sm := ShaderMaterial.new()
+					sm.shader = load("res://ruina.gdshader")
+					sm.set_shader_parameter("tex", mt.albedo_texture)
+					sm.set_shader_parameter("cor", mt.albedo_color)
+					mi.mesh.surface_set_material(i, sm)
 	var l: Array = []
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null:

@@ -378,6 +378,16 @@ export const statusInimigo = (tipo, nivel = 1) => {
 };
 // A mata andável: círculos de borda ondulada ao longo da estrada e em volta de cada clareira, ligados por corredores
 // (a saída do campo de fora pelo sul e as trilhas). Sem anel de pedra (direção de arte: borda de mata fechada).
+// círculos de mata aberta que ligam vila, campo de fora, Terras da Estrada e a mata (x, z, raio)
+const LIGACOES = [
+  [-44, -12, 16], [-40, 18, 16], [-22, -42, 16], [8, -46, 16], [32, -34, 15], // volta da vila (oeste e norte)
+  [52, -36, 14], [78, -36, 15], [100, -20, 14], [104, 8, 14], // volta do campo de fora (norte e leste)
+  [28, 25, 14], [18, 45, 15], [16, 72, 15], [8, 98, 16], // entre a vila, o campo de fora, as Terras e a mata
+  [-18, 106, 15], [-40, 100, 15], [-46, 75, 16], [-44, 45, 15], // volta das Terras da Estrada
+  [-28, 36, 12], [-36, -30, 12], [38, -16, 10], // buracos que ainda deixavam pedaço de borda na vila
+  [48, 22, 12], [70, 26, 13], [90, 20, 12], // sul do campo de fora (encosta na mata da estrada)
+  [38, 7, 7], [0, 40, 7], [88, -25, 7], // fecham as últimas falhas do anel de pedras (vila leste e norte, FORA oeste e sudeste)
+];
 function montarMata() {
   const areas = [], corredores = [{ a: [63, 12], b: [63.5, 34], larg: 12, mata: true }];
   const folga = (x, z) => { // quanto falta até a borda do campo de fora e da vila (para a mata não abrir o anel de pedras)
@@ -399,6 +409,14 @@ function montarMata() {
     const t = TRILHAS[i];
     for (let k = 1; k < t.length; k++) corredores.push({ a: t[k - 1], b: t[k], larg: 10, mata: true });
   });
+  // Mapa aberto (André 2026-11-04: "não quero essas ilhas... o mapa tem que ser uma coisa só, fluida e aberta"): mata
+  // andável em volta da vila, do campo de fora e das Terras da Estrada, encostando nelas e na mata da estrada. Assim
+  // não sobra borda de ilha: sai-se da vila andando para dentro da mata aberta, e o limite do mapa fica lá no fundo,
+  // na mata fechada. Vêm depois das outras áreas (as de antes não mudam de índice).
+  for (const [x, z, r] of LIGACOES) {
+    const n = areas.length;
+    areas.push({ x, z, rx: r, rz: r, mata: true, ligacao: true, lobos: [[3, 0.07, n * 1.7], [5, 0.05, n * 0.9]] });
+  }
   return { areas, corredores };
 }
 const MATA = montarMata();
@@ -410,8 +428,12 @@ const MATA = montarMata();
 // faz parede e pilar inteiros virarem ruína quebrada). r = raio que o conjunto ocupa (árvore nenhuma nasce dentro).
 // Cada clareira de caça ganha um na borda (direção de arte: clareira com um marco) e a estrada ganha outros pelo caminho.
 const CONJUNTOS = {
-  // torre de vigia caída: quatro pilares de alturas diferentes, paredes afundadas e tortas, uma tombada no chão
-  ruina: { r: 4.6, pecas: [
+  // torre de vigia caída: quatro pilares de alturas diferentes, paredes afundadas e tortas, uma tombada no chão.
+  // 2026-11-04 (direção de arte, André aprovou): 1,45x maior e com um pedaço de pilar e de parede por cima, para o canto
+  // mais alto passar das copas (~6 m) e o marco aparecer de longe; mais hera.
+  ruina: { r: 4.6, esc: 1.45, pecas: [
+    ['pilar', -2, -2, 1.2, 0.3, 1, 0.04, 0], ['parede', -1.3, -2, 0.9, 0, 1, 0, -0.12],
+    ['hera1', -2.15, -1.8, 4.0, 0.3, 1], ['hera1', 1, -1.78, 1.35, 0, 0.8], ['hera4', -2.2, 1.0, 0.95, 1.57, 1], ['hera4', -1.6, -2.2, 3.7, 3.14, 1],
     ['piso', -1, -1, 0.02, 0, 1, 0.02, 0], ['piso', 1, -1, 0.03, 0, 1, 0, -0.03], ['piso', -1, 1, 0.01, 0, 1, -0.03, 0.02],
     ['pilar', -2, -2, -0.3, 0, 1], ['pilar', 2, -2, -1.5, 1.57, 1, 0, 0.05], ['pilar', 2, 2, -2.2, 3.14, 1], ['pilar', -2, 2, -0.9, 4.71, 1, 0.06, 0],
     ['parede', -1, -2, -0.8, 0, 1], ['parede', 1, -2, -1.7, 0, 1, 0, 0.22],
@@ -422,8 +444,10 @@ const CONJUNTOS = {
     ['tijolo1', 3.1, 2.7, 0.06, 1.1, 1], ['tijolo3', -2.9, -2.8, 0.06, 2.2, 1.1], ['tijolo1', 1.6, -2.8, 0.06, 0.8, 1.2],
     ['cogumelo', -2.4, 2.5, 0, 0.5, 0.9], ['samambaia', 2.9, -2.9, 0, 1.2, 0.8], ['arbusto', -3.2, 0.2, 0, 2, 0.9],
   ] },
-  // portal em ruínas: um arco de janela de pé entre dois pilares, a escada afundada na frente e a parede vizinha caída
-  arco: { r: 3.6, pecas: [
+  // portal em ruínas: um arco de janela de pé entre dois pilares, a escada afundada na frente e a parede vizinha caída.
+  // 2026-11-04: 1,7x maior (o arco fica com ~5 m e passa das copas de perto) e hera nos pilares.
+  arco: { r: 3.6, esc: 1.7, pecas: [
+    ['hera4', -1.15, 0.25, 2.55, 0, 1], ['hera1', 1.15, 0.25, 2.0, 0, 0.8], ['hera4', 2.25, 0.42, 1.0, 0, 0.9],
     ['parede_janela', 0, 0, -0.35, 0, 1], ['pilar', -1.15, 0, -0.3, 0, 1], ['pilar', 1.15, 0, -0.9, 3.14, 1, 0, -0.04],
     ['escada', 0, 1.35, -0.55, 3.14, 1, 0.05, 0], ['parede', 2.25, 0.2, -1.9, 0, 1, 0, 0.25], ['parede', -2.4, -0.6, -2.3, 0.2, 1, 0, -0.18],
     ['hera4', 0.55, 0.12, 2.25, 0, 1], ['hera1', -0.95, 0.15, 2.5, 0, 0.9],
@@ -451,9 +475,10 @@ const CONJUNTOS = {
     ['cogumelo', -0.6, 0.95, 0, 0.4, 0.9], ['cogumelo', -0.2, 1.1, 0, 2.2, 0.6], ['cogumelo', 2.4, 1.2, 0, 1.1, 0.8],
     ['toco2', 3.4, -0.9, 0, 0.5, 1], ['samambaia', -2.8, 1.2, 0, 1.2, 0.8], ['planta', 1.6, -1.3, 0, 0.6, 1.2],
   ] },
-  // árvore morta gigante: marca de longe (sem folha), pedras na raiz
+  // árvore morta gigante: marca de longe (sem folha), pedras na raiz. 2026-11-04: ~16 m (o dobro das árvores vivas)
+  // e o tronco cinza-claro (ferramentas/cenario/preparar.mjs pinta a casca)
   arvore_morta: { r: 3.4, pecas: [
-    ['arvore_morta3', 0, 0, 0, 0, 0.85], ['rocha2', 1.8, 1.1, 0, 0.7, 0.5], ['rocha1', -1.7, -1.4, 0, 2.3, 0.35],
+    ['arvore_morta3', 0, 0, 0, 0, 1.25], ['rocha2', 1.8, 1.1, 0, 0.7, 0.5], ['rocha1', -1.7, -1.4, 0, 2.3, 0.35],
     ['cogumelo', 0.9, -1.0, 0, 0.3, 0.8], ['orelha_de_pau', -0.55, 0.35, 0.7, 2.6, 0.5], ['samambaia', -1.8, 1.6, 0, 0.4, 0.7],
   ] },
   // acampamento abandonado: fogueira de pedra, tocos de banco, um tronco e a carroça largada torta
@@ -462,6 +487,13 @@ const CONJUNTOS = {
     ['carroca', 3.0, -1.6, 0.0, 0.6, 1, 0, 0.12], ['arbusto', -2.8, -1.5, 0, 0.4, 0.9], ['cogumelo', -2.0, 2.2, 0, 1.2, 0.8],
   ] },
 };
+// esc: o conjunto inteiro cresce (posições e peças de pedra); planta, cogumelo, arbusto e samambaia mudam só de lugar
+const NAO_CRESCE = new Set(['cogumelo', 'samambaia', 'arbusto', 'arbusto_flor', 'planta', 'orelha_de_pau']);
+for (const C of Object.values(CONJUNTOS)) {
+  if (!C.esc) continue;
+  C.r = +(C.r * C.esc).toFixed(2);
+  C.pecas = C.pecas.map(([m, dx, dz, dy, ry, s, rx = 0, rz = 0]) => [m, dx * C.esc, dz * C.esc, dy * C.esc, ry, NAO_CRESCE.has(m) ? s : s * C.esc, rx, rz]);
+}
 // raio de colisão de cada modelo (os pequenos não têm: o herói passa por cima de tijolo, cogumelo e planta).
 // tronco_caido e paredes viram uma fila de círculos ao longo do comprimento (x do modelo).
 const SOLIDO_CENARIO = { pilar: 0.4, estatua: 0.75, rocha1: 1.35, rocha2: 1.2, rocha3: 1.4, arvore_morta1: 0.55, arvore_morta3: 0.6, fogueira: 0.75, toco2: 0.65 };
@@ -544,6 +576,7 @@ function sortearMata() {
     if (!dentro && !dentroDoMapa(M, x, z, -9)) continue; // longe demais da borda: ninguém vê
     const df = Math.hypot(x - FORA.x, z - FORA.z) - raioNaDirecao(FORA, Math.atan2(z - FORA.z, x - FORA.x));
     if (df < 2 || Math.hypot(x, z) < 37) continue; // o campo de fora e a vila têm as árvores deles
+    if (naTerras(x, z, 1.5)) continue; // as Terras da Estrada são chão de construir (a mata aberta só encosta nelas)
     if (pertoDaLinha(ESTRADA, x, z).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, x, z).d < 2.2)) continue;
     const dc = Math.min(...CLAREIRAS.map((c) => Math.hypot(x - c.x, z - c.z)));
     if (dc < CLAREIRA_R + 1.5) continue; // a área de combate fica limpa
@@ -586,6 +619,11 @@ function sortearMata() {
     const k = chave(Math.floor(x / cel), Math.floor(z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a);
   }
   return lista;
+}
+// (x, z) cai nas Terras da Estrada, na passagem delas ou na estrada de terra até lá (com "folga" metros a mais)?
+function naTerras(x, z, folga = 0) {
+  const T = VILA_LOTES.area, P = VILA_LOTES.passagem;
+  return dentroDoMapa({ areas: [T], corredores: [P] }, x, z, -folga) || pertoDaLinha(VILA_LOTES.estrada, x, z).d < 2.5 + folga;
 }
 // Veio de cobre (zona de mineração do Quimera, só que pequena e com pouco minério, pedido do André 2026-11-02):
 // "veios" pedras no círculo de raio r. O minério é de todos: quando alguém esgota uma pedra, ela some para todo mundo
@@ -707,6 +745,19 @@ export const fasePlanta = (f) => (f >= 1 ? 4 : f < 0.03 ? 0 : f < 0.4 ? 1 : f < 
 export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : 'bancada');
 CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
 
+// Mapa aberto (André 2026-11-04): onde ainda sobra uma fresta entre a borda da vila, do campo de fora ou das Terras e a
+// mata andável (parede invisível logo depois da borda), um círculo pequeno de mata costura os dois. Vêm por último.
+(function costurarBordas() {
+  const andavel = () => ({ areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas, VILA_LOTES.area], corredores: [...MATA.corredores, VILA_LOTES.passagem] });
+  for (const o of [{ x: 0, z: 0, r: 34 }, FORA, VILA_LOTES.area]) {
+    for (let g = 0; g < 360; g += 2) {
+      const a = g * Math.PI / 180, R = raioNaDirecao(o, a);
+      if (dentroDoMapa(andavel(), o.x + Math.cos(a) * (R + 1.5), o.z + Math.sin(a) * (R + 1.5))) continue;
+      const n = MATA.areas.length;
+      MATA.areas.push({ x: +(o.x + Math.cos(a) * (R + 5)).toFixed(2), z: +(o.z + Math.sin(a) * (R + 5)).toFixed(2), rx: 7, rz: 7, mata: true, ligacao: true, lobos: [[3, 0.07, n * 1.7], [5, 0.05, n * 0.9]] });
+    }
+  }
+})();
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -715,11 +766,11 @@ export const MAPA_CLAREIRA = {
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
   areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area]), // + Vila dos Lotes (construção e fazenda)
-  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9 }].concat(MATA.corredores, [VILA_LOTES.passagem]),
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9, semPedras: true }].concat(MATA.corredores, [VILA_LOTES.passagem]), // semPedras: a mata aberta em volta faz a borda (mapa aberto, André 2026-11-04)
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
   // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
-  minimapa: { x0: -44, z0: -44, tam: 288, px: 1024 },
+  minimapa: { x0: -64, z0: -64, tam: 308, px: 1024 }, // 2026-11-04: cresceu para a mata aberta em volta da vila e das Terras
   // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
   // 2026-11-02): os monstros ficam no campo de caça lá fora (CACA)
   inimigos: [],
@@ -1014,14 +1065,14 @@ LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
 function sortearEnfeites(arvores) {
   let sem = 9157; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
   const lista = [], solidos = [], r2 = (n) => +n.toFixed(2);
-  const longeDoCaminho = (x, z, d) => pertoDaLinha(ESTRADA, x, z).d > d && TRILHAS.every((L) => pertoDaLinha(L, x, z).d > d - 1.5)
+  const longeDoCaminho = (x, z, d) => !naTerras(x, z, 1) && Math.hypot(x, z) > 35 && pertoDaLinha(ESTRADA, x, z).d > d && TRILHAS.every((L) => pertoDaLinha(L, x, z).d > d - 1.5)
     && CLAREIRAS.every((c) => Math.hypot(x - c.x, z - c.z) > CLAREIRA_R + 0.5) && cenario().marcos.every((o) => Math.hypot(x - o.x, z - o.z) > o.r + 0.5);
   for (const a of arvores) {
     const sorte = rnd(0, 1), ang = rnd(0, 6.283), sa = Math.cos(ang), ca = Math.sin(ang);
-    if (sorte < 0.09) { // cogumelos no pé da árvore (um ou dois)
-      for (let k = 0, n = rnd(0, 1) < 0.5 ? 1 : 2; k < n; k++) {
-        const d = 0.32 * a.s + rnd(0.25, 0.6), b = ang + k * 0.5;
-        lista.push({ m: 'cogumelo', x: r2(a.x + Math.cos(b) * d), z: r2(a.z + Math.sin(b) * d), ry: r2(rnd(0, 6.28)), s: r2(rnd(0.6, 1.1)) });
+    if (sorte < 0.09) { // tufo de 3 a 6 cogumelos no pé da árvore, juntinhos (direção de arte 2026-11-04: em tufos, não soltos)
+      for (let k = 0, n = 3 + Math.floor(rnd(0, 3.999)); k < n; k++) {
+        const d = 0.32 * a.s + rnd(0.2, 0.75), b = ang + rnd(-0.55, 0.55);
+        lista.push({ m: 'cogumelo', x: r2(a.x + Math.cos(b) * d), z: r2(a.z + Math.sin(b) * d), ry: r2(rnd(0, 6.28)), s: r2(k === 0 ? rnd(1.0, 1.3) : rnd(0.45, 0.95)) });
       }
     } else if (sorte < 0.13) { // orelha-de-pau grudada no tronco, virada para fora
       const d = 0.32 * a.s * 0.75;
@@ -1030,12 +1081,21 @@ function sortearEnfeites(arvores) {
     const outra = rnd(0, 1), d = rnd(1.6, 2.8), x = a.x + Math.cos(ang + 2) * d, z = a.z + Math.sin(ang + 2) * d;
     if (!longeDoCaminho(x, z, 3.2)) continue;
     if (outra < 0.13) lista.push({ m: outra < 0.035 ? 'arbusto_flor' : 'arbusto', x: r2(x), z: r2(z), ry: r2(rnd(0, 6.28)), s: r2(rnd(0.6, 1.0)) });
-    else if (outra < 0.21) lista.push({ m: 'samambaia', x: r2(x), z: r2(z), ry: r2(rnd(0, 6.28)), s: r2(rnd(0.5, 0.85)) });
+    else if (outra < 0.21) { // tufo de 3 a 5 samambaias encostado no tronco
+      for (let k = 0, n = 3 + Math.floor(rnd(0, 2.999)); k < n; k++) {
+        const b = ang + 2 + rnd(-0.7, 0.7), dd = 0.32 * a.s + rnd(0.5, 1.6);
+        lista.push({ m: 'samambaia', x: r2(a.x + Math.cos(b) * dd), z: r2(a.z + Math.sin(b) * dd), ry: r2(rnd(0, 6.28)), s: r2(rnd(0.45, 0.8)) });
+      }
+    }
     else if (outra < 0.26) lista.push({ m: 'planta', x: r2(x), z: r2(z), ry: r2(rnd(0, 6.28)), s: r2(rnd(0.9, 1.4)) });
     else if (outra < 0.29) {
       const s = r2(rnd(0.22, 0.5)), m = ['rocha1', 'rocha2', 'rocha3'][Math.floor(rnd(0, 2.999))];
       lista.push({ m, x: r2(x), z: r2(z), ry: r2(rnd(0, 6.28)), s });
       if (s >= 0.38) solidos.push({ x: r2(x), z: r2(z), r: r2(1.2 * s), alto: r2(1.9 * s) });
+      for (let k = 0, n = 3 + Math.floor(rnd(0, 2.999)); k < n; k++) { // cogumelos e samambaias encostados na pedra
+        const b = rnd(0, 6.28), dd = 1.5 * s + rnd(0.1, 0.5);
+        lista.push({ m: k % 2 ? 'samambaia' : 'cogumelo', x: r2(x + Math.cos(b) * dd), z: r2(z + Math.sin(b) * dd), ry: r2(rnd(0, 6.28)), s: r2(k % 2 ? rnd(0.4, 0.6) : rnd(0.5, 0.9)) });
+      }
     }
   }
   // pedras na beira da estrada: uma a cada ~14 m, alternando o lado, a 4 a 5,5 m do meio (fora da terra batida)
