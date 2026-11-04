@@ -12,5 +12,6 @@ Arquivos usados hoje (35): andar, aterrissa_queda, corrida, espada_combo, freada
 
 Depois entraram (assadas sozinhas e juntadas no arquivo): freada, meia_volta, arrancada, as magias novas e o trote (Mixamo Jogging, `mixamo/movimento/trote.fbx`, 2026-11-03).
 Em 2026-11-04 entraram lado_e_andar, lado_d_andar, tras_andar, lado_e_correr, lado_d_correr e tras_correr: Standing Walk/Run Left, Right e Back do `mixamo/pacotes_magia/Pro Magic Pack.zip` (as mesmas do Magic Locomotion Pack; os arquivos desse outro zip não abrem no FBXLoader). Assadas com o FBXLoader do three 0.170. O quadril anda nelas, mas o jogo usa no lugar (personagens.js).
+Também em 2026-11-04 entrou cajado_parada: Standing Idle 03 do mesmo `Pro Magic Pack.zip`, a guarda do herói parado com o cajado (joelhos dobrados, mão livre na frente). As outras paradas do pacote foram testadas no jogo: standing idle (mão na cintura), idle 02, Idle 04 (chuta e gira, não serve de guarda) e Block Idle.
 
 Animação nova sem precisar baixar todos os `.fbx` de novo: asse só ela (pasta `fbx/` só com os novos) e junte as chaves no `anims.json.gz` atual, mantendo o `_rest` que já está lá (o esqueleto do Mixamo é o mesmo).

@@ -531,7 +531,7 @@ func armar_boneco() -> void:
 	var L: Dictionary = m.lugar_armas()
 	m.prender(esq, esp, L.espadaMao if boneco_modo == "Espada" else L.espadaCostas)
 	m.prender(esq, caj, L.cajadoCostas if boneco_modo == "Espada" else L.get("cajadoMao", L.cajadoCostas))
-	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else "parada", 0.2)
+	boneco_anim.play("espada_parada" if boneco_modo == "Espada" else ("cajado_parada" if boneco_anim.has_animation("cajado_parada") else "parada"), 0.2)
 	atualizar_slots()
 
 func _girar(ev: InputEvent) -> void:
