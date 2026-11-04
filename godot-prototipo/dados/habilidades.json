@@ -1524,6 +1524,11 @@
   "corFacil": -3,
   "corForte": 2
  },
+ "voltaVila": {
+  "canal": 8,
+  "cd": 600,
+  "vila": 30
+ },
  "lote": {
   "preco": 400,
   "placaDist": 3,

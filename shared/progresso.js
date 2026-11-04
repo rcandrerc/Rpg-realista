@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -303,6 +303,12 @@ export function progressoValido(p) {
   for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
   // capacete escondido (André 2026-11-03: opção na tela de equipamento); continua equipado e dando o bônus
   n.semCapacete = p.semCapacete === true;
+  // onde o herói estava ao sair (André 2026-11-03: entra de volta no mesmo lugar; só a morte leva para a vila).
+  // A Simulacao confere se o lugar ainda está dentro do mapa. Sem pos = nasce na vila.
+  const q = p.pos;
+  if (q && [q.x, q.y, q.z, q.ry].every((v) => num(v) && Math.abs(v) < 1e4)) n.pos = { x: q.x, y: q.y, z: q.z, ry: q.ry };
+  // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
+  if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));

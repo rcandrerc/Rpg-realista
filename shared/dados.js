@@ -569,6 +569,10 @@ export const MINA = [
 // NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
 // Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
 export const RESET_BUILD = { minimo: 50, porNivel: 10 };
+// Voltar para a vila (André 2026-11-03): botão da casinha no menu do topo. Canalização lenta (canal s, parado; andar,
+// atacar ou levar dano cancela) e o herói aparece na praça. Recarga de cd s (10 min, como no Quimera), guardada na conta:
+// sair e entrar de novo não zera. Dentro da vila (raio vila m do centro) não precisa.
+export const VOLTA_VILA = { canal: 8, cd: 600, vila: 30 };
 
 // ---------- Vila dos Lotes: construção e fazenda (pedido do André 2026-11-03, base no Quimera) ----------
 // Ao sul da vila do começo, uma vila com estradas de terra onde cada jogador compra UM lote (com ouro) para

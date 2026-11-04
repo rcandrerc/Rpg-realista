@@ -2,7 +2,9 @@ extends CanvasLayer
 # Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Conta, Multijogador e Configurações
 # e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
-# Regra do André: no topo só entram conta, multijogador e configurações.
+# Regra do André: no topo só entram conta, multijogador e configurações. Pedido dele (2026-11-03): a casinha do Voltar
+# para a vila também fica aqui, na ponta perto da seta; ela não abre janela, começa a canalização (volta_vila.gd) e mostra
+# a recarga de 10 min (varredura escura e o tempo embaixo).
 
 const Menu = preload("res://menu.gd")
 const ARQUIVO := "user://config.cfg" # escolhas do jogador (menu recolhido, som, vibração, FPS)
@@ -10,13 +12,16 @@ const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
 const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o menu fica à esquerda do minimapa, na altura do centro dele
 # (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
-const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"]]
+const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
 var raiz: Control
 var lugar: Control # onde os ícones ficam (não se mexe)
-var itens: Control # os 3 ícones (o que desliza, encolhe e some)
+var itens: Control # os ícones (o que desliza, encolhe e some)
+var vila_sombra # Varredura: casinha em recarga, a parte escura é o que falta
+var vila_txt: Label # minutos e segundos que faltam (embaixo do botão)
+var _vila_t := 0.0
 var seta: Button
 var seta_ico: TextureRect
 var recolhido := false
@@ -62,7 +67,11 @@ func _ready() -> void:
 		var b := _icone(ITENS[i][2], ITENS[i][1])
 		b.position = Vector2(i * (TAM + ESPACO), 0)
 		var k: String = ITENS[i][0]
-		b.pressed.connect(func(): abrir(k))
+		if k == "vila":
+			b.pressed.connect(func(): m.volta.pedir())
+			_recarga_vila(b)
+		else:
+			b.pressed.connect(func(): abrir(k))
 		itens.add_child(b)
 	seta = _icone("topo_seta", "Recolher menu")
 	seta.anchor_left = 1.0
@@ -105,6 +114,60 @@ func _icone(ico: String, dica: String) -> Button:
 	t.pivot_offset = Vector2(15, 15)
 	b.add_child(t)
 	return b
+
+# recarga da casinha (direção de arte): a casinha fica a 40% de brilho, uma varredura escura em sentido horário mostra o
+# tempo que falta e o tempo aparece pequeno embaixo do botão
+class Varredura extends Control:
+	var k := 0.0 # 0..1 que falta
+	func _draw() -> void:
+		if k <= 0.0:
+			return
+		var c := size * 0.5
+		var r := size.x * 0.5 - 2.0
+		var pts := PackedVector2Array([c])
+		var n := maxi(3, int(48 * k))
+		for i in n + 1: # do meio-dia, girando no sentido horário pelo que ainda falta
+			var a := -PI * 0.5 + TAU * (1.0 - k) + TAU * k * float(i) / n
+			pts.append(c + Vector2(cos(a), sin(a)) * r)
+		draw_colored_polygon(pts, Color(0.02, 0.015, 0.01, 0.55))
+
+var vila_ico: TextureRect
+func _recarga_vila(b: Button) -> void:
+	vila_ico = b.get_child(0)
+	var v := Varredura.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.size = Vector2(TAM, TAM)
+	v.visible = false
+	b.add_child(v)
+	vila_sombra = v
+	vila_txt = Label.new()
+	vila_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vila_txt.position = Vector2(-6, TAM + 1)
+	vila_txt.size = Vector2(TAM + 12, 14)
+	vila_txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vila_txt.add_theme_font_size_override("font_size", 12)
+	vila_txt.add_theme_color_override("font_color", Color(1, 0.9, 0.68))
+	vila_txt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	vila_txt.add_theme_constant_override("outline_size", 4)
+	vila_txt.visible = false
+	b.add_child(vila_txt)
+
+func _atualizar_vila(dt: float) -> void:
+	_vila_t -= dt
+	if vila_sombra == null or m.volta == null or _vila_t > 0.0:
+		return
+	_vila_t = 0.25
+	var f: float = m.volta.falta()
+	var em_recarga := f > 0.0
+	vila_sombra.visible = em_recarga
+	vila_txt.visible = em_recarga
+	vila_ico.modulate = Color(1, 1, 1, 0.4) if em_recarga else Color.WHITE
+	if em_recarga:
+		vila_sombra.k = clamp(f / float(m.volta.V.cd), 0.0, 1.0)
+		vila_sombra.queue_redraw()
+		var txt: String = m.volta.tempo_txt(f)
+		if vila_txt.text != txt:
+			vila_txt.text = txt
 
 # ---------- abrir e recolher (seta) ----------
 func recolher(sim: bool, animar := true) -> void:
@@ -208,6 +271,7 @@ func aberto() -> bool:
 	return janela != null and janela.visible
 
 func _process(dt: float) -> void:
+	_atualizar_vila(dt)
 	if aberta == "multi" or aberta == "conta": # online, jogadores e ping mudam sozinhos
 		_atualizar_t -= dt
 		if _atualizar_t <= 0.0:
