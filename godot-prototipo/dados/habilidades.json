@@ -459,7 +459,10 @@
   "chefe": 25,
   "sombrio": 6,
   "lider": 20,
-  "lobo": 7
+  "lobo": 7,
+  "golem": 9,
+  "maw": 10,
+  "warrok": 30
  },
  "andarAtirando": 0.6,
  "nivelSemTomo": 5,
@@ -602,33 +605,6 @@
      13,
      19,
      27
-    ]
-   }
-  },
-  "oculos": {
-   "nome": "Óculos",
-   "lugar": "acessorio",
-   "st": {
-    "mana": [
-     4,
-     8,
-     12,
-     18,
-     25
-    ],
-    "critico": [
-     0.008,
-     0.011,
-     0.015,
-     0.021,
-     0.026
-    ],
-    "vida": [
-     0,
-     0,
-     6,
-     11,
-     17
     ]
    }
   },
@@ -967,16 +943,6 @@
   },
   {
    "k": "capa",
-   "r": 1,
-   "preco": 240
-  },
-  {
-   "k": "oculos",
-   "r": 0,
-   "preco": 60
-  },
-  {
-   "k": "oculos",
    "r": 1,
    "preco": 240
   },
@@ -1352,17 +1318,6 @@
    "vigor": 8,
    "nivel": 2
   },
-  "oculos": {
-   "prof": "alf",
-   "faz": "oculos",
-   "usa": {
-    "barra_cobre": 1,
-    "cristal": 1,
-    "couro": 1
-   },
-   "vigor": 8,
-   "nivel": 5
-  },
   "calca": {
    "prof": "alf",
    "faz": "calca",
@@ -1408,7 +1363,23 @@
   "ouro": 0.15,
   "folga": 5,
   "perde": 0.15,
-  "min": 0.1
+  "min": 0.1,
+  "danoAcima": 0.06,
+  "danoAbaixo": 0.05,
+  "danoAbaixoMin": 0.55,
+  "teto": 0.3,
+  "tetoChefe": 0.45,
+  "golpeFolga": 3,
+  "golpeCai": 0.06,
+  "golpeMin": 0.6,
+  "golpeSobe": 0.04,
+  "golpeMax": 1.4,
+  "xpSobe": 0.15,
+  "xpMax": 1.6,
+  "xpCai": 0.2,
+  "xpMin": 0.15,
+  "corFacil": -3,
+  "corForte": 2
  },
  "voltaVila": {
   "canal": 8,

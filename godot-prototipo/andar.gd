@@ -37,6 +37,7 @@ var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 # 3 velocidades (André 2026-11-03): o joystick só anda (1) e trota (2); a corrida de 5,4 m/s, a que gasta estamina,
 # só com o botão de disparada ligado (hud.gd "disparada", main.gd ligar_disparada). Sem fôlego ela desliga sozinha.
 var disparada := false
+var montado := {} # montado no lobo: montaria.gd DADOS (andar, trote, correr m/s); vazio = a pé
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
@@ -50,6 +51,12 @@ func _init(terreno, mundo: Dictionary) -> void:
 		if not mata.has(k):
 			mata[k] = []
 		mata[k].append({"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)})
+	# ruínas, rochedos, troncos caídos e pedras da mata (mundo.cenario.solidos), na mesma grade (Simulacao faz igual)
+	for o in m.get("cenario", {}).get("solidos", []):
+		var k := Vector2i(floori(float(o.x) / 6.0), floori(float(o.z) / 6.0))
+		if not mata.has(k):
+			mata[k] = []
+		mata[k].append({"x": float(o.x), "z": float(o.z), "r": float(o.r), "alto": float(o.get("alto", 4.0))})
 	for o in m.get("obstaculos", []):
 		var r: float = float(o.r) + 1.0
 		for i in range(floori((float(o.x) - r) / 6.0), floori((float(o.x) + r) / 6.0) + 1):
@@ -329,10 +336,12 @@ const CURVA_CORRENDO := 4.5 # rad/s correndo: a velocidade faz arco, o corpo "es
 const CURVA_PERDA := 0.35 # fração da velocidade perdida numa curva fechada (90° ou mais)
 const MEIA_VOLTA := 2.3 # rad (~130°): acima disso é meia-volta (freia e sai do outro lado), abaixo é curva
 # animações com o caminho do quadril (Mixamo Run To Stop e Running Turn 180, mundo.json raiz)
-const FREADA_MIN := 4.2 # m/s: soltar o joystick acima disso faz a freada com derrapada
+const FREADA_MIN := 3.3 # m/s: soltar o joystick acima disso faz a freada com derrapada (o trote, 3,78 m/s, também derrapa)
 const FREADA_ESC := 0.65 # a derrapada anda 65% do que a animação anda (para em ~0,5 s e ~1,5 m)
 const FREADA_FIM := 1.05 # s da animação: depois disso ela só fica de braço esticado; o jogo volta para a parada
-const MEIA_VOLTA_MIN := 3.8 # m/s: meia-volta acima disso gira com a animação
+const MEIA_VOLTA_MIN := 3.3 # m/s: meia-volta acima disso gira com a animação (no trote também)
+const FREADA_TROTE := 0.8 # no trote a derrapada anda 80% da da corrida (freia mais curto, mas não fica liso)
+const CURVA_TROTE := 0.85 # no trote a curva já faz 85% do arco da corrida (derrapa um pouco menos)
 const NO_AR := 0.35 # controle no ar (fração da aceleração)
 const GIRO_MAX := 13.0 # rad/s que o corpo gira (~750°/s: meia volta em 0,24 s)
 const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
@@ -349,6 +358,16 @@ static func vel_joystick(forca: float, disparando := false) -> float:
 	if forca < 0.5:
 		return ANDAR * lerp(0.55, 1.0, (forca - 0.15) / 0.35)
 	return lerp(ANDAR, TROTE, smoothstep(0.5, 0.9, forca))
+
+# montado: joystick até a metade anda (até MONTARIAS.andar), no fim trota; a disparada galopa (MONTARIAS.correr)
+func vel_montado(forca: float) -> float:
+	if forca < 0.15:
+		return 0.0
+	if disparada and forca >= 0.3:
+		return float(montado.correr)
+	if forca < 0.5:
+		return float(montado.andar) * lerp(0.5, 1.0, (forca - 0.15) / 0.35)
+	return lerp(float(montado.andar), float(montado.trote), smoothstep(0.5, 0.9, forca))
 
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	var n: int = max(1, ceili(dt / SUBPASSO - 0.001))
@@ -376,6 +395,8 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 			arrancada = null
 			# sai do dash correndo na mesma direção (sem parar seco)
 			var sai: float = min(CORRIDA if disparada else TROTE, vel_max) if mag > 0.5 else 1.5
+			if not montado.is_empty():
+				sai = vel_montado(mag) if mag > 0.5 else 1.5
 			vx = a.dx * sai
 			vz = a.dz * sai
 	else:
@@ -383,9 +404,11 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
 			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max)
+			if not montado.is_empty(): # montado: o lobo anda, trota e galopa (sem estamina)
+				alvo = Vector2(mx, mz).normalized() * vel_montado(mag)
 		var s0 := Vector2(vx, vz).length()
 		_correu = _correu + dt if s0 > FREADA_MIN else 0.0
-		if manobra == null and chao and livre and m.has("raiz"):
+		if manobra == null and chao and livre and m.has("raiz") and montado.is_empty():
 			if alvo.length() < 0.01 and s0 > FREADA_MIN and _correu > 0.35:
 				iniciar_manobra("freada", s0)
 			elif alvo.length() > 0.01 and s0 > MEIA_VOLTA_MIN and abs(Vector2(vx, vz).angle_to(alvo)) > MEIA_VOLTA:
@@ -414,7 +437,7 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 			var d2: float = ad(atan2(mx, mz), ry)
 			ry += clamp(d2, -GIRO_MAX * dt, GIRO_MAX * dt)
 	giro = lerp(giro, ad(ry, ry0) / max(dt, 0.0001), min(1.0, dt * 10.0))
-	if livre and chao and arrancada == null and mag > 0.5:
+	if livre and chao and arrancada == null and mag > 0.5 and montado.is_empty():
 		tentar_escalar(mx, mz, correr, dt)
 	else:
 		empurra = 0.0
@@ -436,7 +459,8 @@ func _inercia(v: Vector2, alvo: Vector2, dt: float, livre: bool) -> Vector2:
 	var ang := d.angle_to(da)
 	if abs(ang) > MEIA_VOLTA:
 		return d * move_toward(s, 0.0, VIRA_FREIA * ar * dt)
-	var q: float = clamp(s / CORRIDA, 0.0, 1.0)
+	# quanto a curva "escorrega": já forte no trote (CURVA_TROTE) e inteira na corrida (a corrida fica igual a antes)
+	var q: float = max(clamp(s / CORRIDA, 0.0, 1.0), clamp((s - ANDAR) / (TROTE - ANDAR), 0.0, 1.0) * CURVA_TROTE + clamp((s - TROTE) / (CORRIDA - TROTE), 0.0, 1.0) * (1.0 - CURVA_TROTE))
 	var vira: float = lerp(CURVA_ANDANDO, CURVA_CORRENDO, q) * ar * dt
 	d = d.rotated(clamp(ang, -vira, vira))
 	var quer: float = alvo.length() * (1.0 - CURVA_PERDA * clamp(abs(ang) / (PI * 0.5), 0.0, 1.0) * q)
@@ -451,6 +475,8 @@ func _inercia(v: Vector2, alvo: Vector2, dt: float, livre: bool) -> Vector2:
 func iniciar_manobra(nome: String, vel: float) -> void:
 	var r: Dictionary = m.raiz[nome]
 	var esc: float = FREADA_ESC if nome == "freada" else 1.0
+	if nome == "freada": # trote derrapa um pouco menos que a corrida; a corrida fica igual
+		esc *= lerp(FREADA_TROTE, 1.0, clamp((vel - TROTE) / (CORRIDA - TROTE), 0.0, 1.0))
 	var v_anim: float = max(float(r.z[3]) - float(r.z[0]), float(r.z[6]) - float(r.z[3])) * 10.0 * altura_quadril * esc # m/s no começo da animação
 	ry = atan2(vx, vz)
 	ry_mira = null
@@ -559,15 +585,22 @@ func beirada() -> float:
 			d += 0.05
 	return T.frente(x, z, ry, 1.0, null, y).topo
 
+# Agarrou de lado (andando quase paralelo à parede): procura a parede também para os lados e fica de frente para ela.
+# Senão ficava torta e colada demais, a escalada entrava na casa e o servidor recusava a posição (igual ao shared/simulacao.js).
 func ajustar_parede() -> void:
-	var r = T.rocha_em(x + sin(ry) * 0.8, z + cos(ry) * 0.8, y)
+	var r = null
+	for da in [0.0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.57, -1.57]:
+		r = T.rocha_em(x + sin(ry + da) * 0.8, z + cos(ry + da) * 0.8, y)
+		if r != null:
+			break
 	if r != null:
 		ry = T.de_frente_para(r, x, z) if r.casa else atan2(r.x - x, r.z - z)
 	var fx := sin(ry)
 	var fz := cos(ry)
+	var longe: float = float(m.subida.get("parede", 0.32)) if (r != null and r.casa) else 0.4 # pedra é torta: um pouco mais longe
 	var d := -0.5
 	while d <= 1.2001:
-		if T.altura(x + fx * (d + 0.4), z + fz * (d + 0.4), y) > y + 0.9:
+		if T.altura(x + fx * (d + longe), z + fz * (d + longe), y) > y + 0.9:
 			x += fx * d
 			z += fz * d
 			return

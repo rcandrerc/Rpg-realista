@@ -13,6 +13,10 @@ var seguida := {"k": 1.0, "t": -9.0}
 var combate_ate := -9.0
 var coletaveis: Array = [] # {id, tipo, pos, r, no (veio), minerio (pedaços que somem esgotado), cargas, volta_ate}
 var por_id := {}
+# Desde 2026-11-03 todas as ~900 árvores da mata dão lenha: o botão procura só nas 9 casas de 6 m em volta do herói
+# (grade), e o que precisa olhar todo quadro (veio que voltou, câmera dentro da pedra) anda só pelos veios.
+var veios: Array = []
+var grade := {} # Vector2i(casa de 6 m) -> [coletáveis]
 var coletando = null # {c, dur, t, n (golpes dados), prof}
 var ferramentas := {} # "min" -> picareta, "len" -> machado
 var perto = null # coletável mais perto (para o botão)
@@ -39,8 +43,13 @@ func _ready() -> void:
 		o.pos.y = m.terreno.altura(o.pos.x, o.pos.z)
 		if o.tipo != "arvore":
 			_montar_veio(o, float(c.get("ry", 0.0)))
+			veios.append(o)
 		coletaveis.append(o)
 		por_id[o.id] = o
+		var k := Vector2i(floori(o.pos.x / 6.0), floori(o.pos.z / 6.0))
+		if not grade.has(k):
+			grade[k] = []
+		grade[k].append(o)
 	ferramentas["min"] = _ferramenta("res://ferramentas3d/Pickaxe_Bronze.gltf")
 	ferramentas["len"] = _ferramenta("res://ferramentas3d/Axe_Bronze.gltf", 1.05) # o machado é mais fino: um pouco maior para ler na mão
 
@@ -78,7 +87,7 @@ func passo_estamina(dt: float) -> void:
 	sta = min(sta, mx)
 	var trote: float = float(m.P.dados.heroiCorrer) * float(E.trote)
 	var mov = m.mov
-	var correndo: bool = mov.chao and mov.arrancada == null and mov.esc == null and m.h.lunge == null and mov.velocidade() > trote * 1.12
+	var correndo: bool = mov.chao and mov.arrancada == null and mov.esc == null and m.h.lunge == null and mov.montado.is_empty() and mov.velocidade() > trote * 1.12
 	if correndo:
 		var c := em_combate()
 		sta = max(0.0, sta - float(E.correr) * (float(E.combateK) if c else 1.0) * dt)
@@ -314,8 +323,8 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 
 # a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
 func dentro_de_pedra(p: Vector3) -> bool:
-	for o in coletaveis:
-		if o.tipo != "arvore" and p.y < o.pos.y + 1.4 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0:
+	for o in veios:
+		if p.y < o.pos.y + 1.4 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0:
 			return true
 	return false
 
@@ -327,7 +336,7 @@ func _process(dt: float) -> void:
 	if m.heroi == null:
 		return
 	# veio que voltou: o minério aparece de novo
-	for o in coletaveis:
+	for o in veios:
 		if o.has("corpo") and not o.corpo.visible and not esgotado(o):
 			_mostrar_veio(o, true)
 			o.cargas = -1
@@ -335,7 +344,7 @@ func _process(dt: float) -> void:
 	perto = null
 	if m.h.morto <= 0.0 and m.mov.esc == null:
 		var md: float = float(m.P.dados.coletaDistancia) - 0.25
-		for o in coletaveis:
+		for o in _perto_do_heroi():
 			var d: float = Vector2(o.pos.x - m.heroi.position.x, o.pos.z - m.heroi.position.z).length() - o.r
 			if d < md and not esgotado(o) and abs(o.pos.y - m.heroi.position.y) < 1.5:
 				md = d
@@ -354,7 +363,18 @@ func _process(dt: float) -> void:
 		ic = "pf_" + coletando.prof
 	m.hud.mostrar_botao("coletar", perto != null or coletando != null)
 	m.hud.icone_botao("coletar", ic)
-	m.hud.mostrar_botao("forja", perto_oficina("fer") and m.h.morto <= 0.0)
+
+# coletáveis nas 9 casas da grade em volta do herói (a distância de coleta é bem menor que 6 m)
+func _perto_do_heroi() -> Array:
+	var l: Array = []
+	var i := floori(m.heroi.position.x / 6.0)
+	var j := floori(m.heroi.position.z / 6.0)
+	for a in range(i - 1, i + 2):
+		for b in range(j - 1, j + 2):
+			var c = grade.get(Vector2i(a, b))
+			if c != null:
+				l.append_array(c)
+	return l
 
 # perto da oficina (forja do Tomás ou banca da Rosa)? O servidor confere a mesma distância.
 func perto_oficina(prof: String) -> bool:
@@ -615,9 +635,12 @@ func _preparar_duas() -> bool:
 # ---------- golpe com as duas mãos ----------
 # poses do cabo no espaço do herói (x direita, y cima, z frente): ângulo do cabo (graus, 0 = para a frente,
 # 90 = para cima) e onde fica o pé do cabo (a mão de baixo)
-const DUAS_PRONTO := {"ang": 55.0, "pe": Vector3(0.0, 1.0, 0.28)}
-const DUAS_ALTO := {"ang": 155.0, "pe": Vector3(0.0, 1.42, 0.02)}
-const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3)} # picareta: de cima para baixo na face da pedra
+# O corpo vai junto (duas_maos.gd): "ag" = m que o quadril desce, "av" = m que o peso vai para a frente (+) ou para
+# trás (-), "tor" = graus que o peito gira para a direita, "cur" = curva do tronco (1 = curvado no golpe, negativo
+# = arqueado para trás)
+const DUAS_PRONTO := {"ang": 55.0, "pe": Vector3(0.0, 1.0, 0.28), "ag": 0.05, "av": 0.0, "tor": 5.0, "cur": 0.25}
+const DUAS_ALTO := {"ang": 155.0, "pe": Vector3(0.0, 1.42, 0.02), "ag": 0.035, "av": -0.05, "tor": 10.0, "cur": -0.4}
+const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3), "ag": 0.12, "av": 0.06, "tor": -4.0, "cur": 1.0} # picareta: de cima para baixo na face da pedra
 const DUAS_TRONCO := {"ang": -6.0, "pe": Vector3(0.0, 1.12, 0.3)} # machado: quase reto no tronco, na altura do peito
 const DUAS_MAO_BAIXO := 0.04 # m do pé do cabo até a mão esquerda
 const DUAS_MAO_CIMA := 0.2 # até a mão direita
@@ -626,9 +649,9 @@ const DUAS_GIRO := PI / 2.0 # giro da ferramenta em volta do cabo (rad): a ponta
 # machado (pedido do André): golpe de lado, na horizontal, vindo de trás do ombro direito até o tronco, com o fio
 # virado para onde o machado vai. "giro" = para que lado o cabo aponta em volta do herói (graus, 0 = frente,
 # 90 = direita); "ang" = quanto o cabo sobe (graus)
-const LADO_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25)}
-const LADO_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02)}
-const LADO_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32)}
+const LADO_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25), "ag": 0.05, "av": 0.0, "tor": 12.0, "cur": 0.12}
+const LADO_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02), "ag": 0.045, "av": -0.05, "tor": 42.0, "cur": -0.1}
+const LADO_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32), "ag": 0.09, "av": 0.05, "tor": -16.0, "cur": 0.45}
 
 func _pose_golpe(o: Dictionary) -> Dictionary:
 	return LADO_TRONCO if o.tipo == "arvore" else DUAS_PEDRA
@@ -691,7 +714,10 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
 	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
 	duas.cabo = cabo
-	duas.curva = curva * (0.45 if lado else 1.0)
+	duas.curva = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
+	duas.agacha = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
+	duas.avanco = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
+	duas.torcao = deg_to_rad(lerp(float(A.get("tor", 0.0)), float(B.get("tor", 0.0)), k))
 	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som

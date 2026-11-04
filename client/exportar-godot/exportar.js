@@ -67,7 +67,9 @@ async function principal() {
     magia_d: 'magiaD', magia_e: 'magiaE', bola_forte: A.bolaForte, nova_gelo: A.novaGelo, meteoro_ceu: A.meteoroCeu,
     cura: A.heal, cruzado: A.cruzado, descendente: A.descendente, onda: A.onda, vortice: A.vortice, bloqueio: A.block, golpe1: A.slash, // golpe1: cortar lenha
     rolar: 'rolamento', pulo: 'pulo', mortal: 'mortal', pouso: 'pouso', apanhar: A.hit, morrer: A.death, queda: 'queda',
-    freada: 'freada', meia_volta: 'meia_volta', arrancada: 'arrancada', // o jogo anda pelo caminho do quadril (mundo.json raiz)
+    freada: 'freada', meia_volta: 'meia_volta', arrancada: 'arrancada', trote: 'trote', // trote: Mixamo Jogging (joystick sem o botão) // o jogo anda pelo caminho do quadril (mundo.json raiz)
+    // Mixamo Pro Magic Pack: andar e correr de lado e de costas, para o mago atirar virado para o alvo (André 2026-11-04)
+    lado_e_andar: 'lado_e_andar', lado_d_andar: 'lado_d_andar', tras_andar: 'tras_andar', lado_e_correr: 'lado_e_correr', lado_d_correr: 'lado_d_correr', tras_correr: 'tras_correr',
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)
     ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
     ...Object.fromEntries(Object.entries(PARADO_PAREDE).map(([k, n]) => ['parede_' + k, n])),

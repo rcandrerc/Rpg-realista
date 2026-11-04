@@ -7,6 +7,7 @@ extends Node
 const Rede = preload("res://rede.gd")
 const D = preload("res://dados.gd")
 const Aparencia = preload("res://aparencia.gd")
+const Montaria = preload("res://montaria.gd")
 
 var m # main.gd
 var rede
@@ -30,6 +31,9 @@ var _visual_mandado := "" # corpo do criador que já foi para o servidor (conta 
 var _status_t := 0.0
 var _lugar_pendente := false # entrou agora: a primeira foto traz o herói para onde a conta guardou (onde ele saiu)
 var jogadores := 0
+# Área de interesse (server/visao.js): o servidor manda só o que está perto, e de cada corpo só o que mudou.
+var _srv := {} # id -> tudo o que já chegou daquele corpo (a foto nova completa o que faltou)
+var no_mapa: Array = [] # [[id, x, z], ...] de todos os jogadores da sala (a cada 0,5 s): mapa e minimapa
 # tela de login
 var tela: CanvasLayer
 var painel: Control
@@ -230,13 +234,21 @@ func esconder_login() -> void:
 
 func atualizar_status(_t := "") -> void:
 	if ligado:
-		var p := "" if rede.ping_ms < 0 else " · %d ms" % rede.ping_ms
+		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
+		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
+		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
 		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
 		if status.text != txt: # trocar o texto refaz o layout: só quando muda
 			status.text = txt
+			var cor := Color(1, 0.95, 0.85)
+			if rede.ping_ms >= 0:
+				cor = Color(0.6, 1.0, 0.6) if rede.ping_ms < 100 else (Color(1.0, 0.9, 0.4) if rede.ping_ms < 200 else Color(1.0, 0.5, 0.45))
+			status.add_theme_color_override("font_color", cor)
 	elif _t != "" and _t != "Online":
+		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
 		status.text = _t
 	else:
+		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
 		status.text = "Sozinho · tocar para jogar online"
 
 # ---------- sala ----------
@@ -302,12 +314,28 @@ func ao_receber(tipo, dados) -> void:
 	for ev in dados.get("eventos", []):
 		evento(ev)
 
+# corpo que veio pela metade (área de interesse): junta com o que já se sabia dele. "_mexeu" = trouxe posição nova
+func _juntar(c: Dictionary, agora: Dictionary) -> Dictionary:
+	var id := str(c.get("id", ""))
+	var tudo: Dictionary = _srv.get(id, {})
+	tudo.merge(c, true)
+	tudo["_mexeu"] = c.has("x")
+	_srv[id] = tudo
+	agora[id] = true
+	return tudo
+
 func aplicar_foto(f: Dictionary) -> void:
+	_medir_chegada()
 	corpos.clear()
 	corpos[meu_id] = m.heroi
 	var vistos := {}
 	jogadores = 0
-	for j in f.get("jogadores", []):
+	var aoi := f.has("aoi")
+	var agora := {} # ids que vieram nesta foto (área de interesse)
+	if f.has("mapa"):
+		no_mapa = f.mapa
+	for j0 in f.get("jogadores", []):
+		var j: Dictionary = _juntar(j0, agora) if aoi and str(j0.get("id", "")) != meu_id else j0
 		if j.get("criando", false):
 			if str(j.id) == meu_id and not _pronto: # conta nova: abre o criador (a base é a Ruiva)
 				_pronto = true
@@ -329,14 +357,21 @@ func aplicar_foto(f: Dictionary) -> void:
 		else:
 			vistos[str(j.id)] = true
 			outro(j)
+	if aoi: # quem está na sala inteira (a foto só traz os de perto)
+		jogadores = int(f.get("total", jogadores))
 	for id in outros.keys():
 		if not vistos.has(id):
 			outros[id].no.queue_free()
 			outros.erase(id)
 	var com_corpo := {}
-	for e in f.get("inimigos", []):
+	for e0 in f.get("inimigos", []):
+		var e: Dictionary = _juntar(e0, agora) if aoi else e0
 		inimigo(e)
 		com_corpo[int(e.get("v", -1))] = true
+	if aoi: # quem saiu de perto (ou sumiu do servidor): esquece; se voltar, o servidor manda inteiro de novo
+		for id in _srv.keys():
+			if not agora.has(id):
+				_srv.erase(id)
 	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo
 	for v in m.inimigos.size():
 		var e: Dictionary = m.inimigos[v]
@@ -349,6 +384,7 @@ func aplicar_foto(f: Dictionary) -> void:
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
 		esconder_login()
 
+var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	var ap_txt := JSON.stringify(j.get("aparencia"))
@@ -363,6 +399,14 @@ func meu(j: Dictionary) -> void:
 	if _lugar_pendente and not j.get("criando", false) and not j.morto:
 		_lugar_pendente = false
 		m.volta.colocar(Vector3(float(j.x), float(j.y), float(j.z)), float(j.ry))
+	# montaria: o servidor decide (se ele desceu o herói, ou não deixou subir, o app segue depois de um instante)
+	var sm: bool = j.get("montado") != null
+	if sm != (m.montaria != null) and h.morto <= 0.0:
+		_montado_dif += 0.05
+		if _montado_dif > 0.8:
+			m.montar_lobo(sm, false)
+	else:
+		_montado_dif = 0.0
 	h.mana = float(j.mana)
 	if j.has("sta"):
 		m.trabalho.do_servidor(float(j.sta))
@@ -372,6 +416,7 @@ func meu(j: Dictionary) -> void:
 			h.vida = 0.0
 			h.morto = 999.0 # espera o servidor levantar
 			m.acao = {}
+			m.montar_lobo(false, false) # o servidor também desce
 			m.heroi_anim.play("morrer", 0.1)
 			m.hud.aviso("Você caiu!")
 	elif h.morto > 0.0:
@@ -436,22 +481,43 @@ func outro(j: Dictionary) -> void:
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
-	if roupa.contains("capa"):
+	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
+	if roupa.contains("capa") and mexeu:
 		m.Armadura.vento(o.no, Vector2(o.alvo.x - antes.x, o.alvo.z - antes.z).length() * 20.0, 0.05)
-	_amostra(o, o.alvo, o.ry)
+	if mexeu:
+		_amostra(o, o.alvo, o.ry, j.has("_mexeu"))
 	corpos[id] = o.no
 	if o.barra:
 		o.barra.scale.x = max(0.001, float(j.vida) / max(1.0, float(j.vidaMax)))
+	# montado no lobo (Simulacao.montar): o lobo embaixo, o corpo agachado na sela e as armas nas costas
+	var montado: bool = j.get("montado") != null and not j.get("morto", false)
+	if montado != (o.get("montaria") != null):
+		if montado:
+			o.montaria = Montaria.new(m, str(j.montado) if Montaria.DADOS.has(str(j.montado)) else "lobo", o.no, o.esq)
+			o.vel_m = 0.0
+		else:
+			o.montaria.remover()
+			o.montaria = null
+		o.modo = "" # arruma as armas de novo
 	var modo := str(j.get("modo", "Espada"))
 	if modo != o.modo:
 		o.modo = modo
 		var L: Dictionary = m.lugar_armas(o.visual)
-		if modo == "Espada":
+		if o.get("montaria") != null:
+			m.prender(o.esq, o.espada, L.espadaCostas)
+			m.prender(o.esq, o.cajado, L.cajadoCostas)
+			m.armas_montado(o.esq, o.espada, o.cajado)
+		elif modo == "Espada":
+			m.colisor_espada(o.esq, null)
 			m.prender(o.esq, o.espada, L.espadaMao)
 			m.prender(o.esq, o.cajado, L.cajadoCostas)
 		else:
+			m.colisor_espada(o.esq, null)
 			m.prender(o.esq, o.espada, L.espadaCostas)
 			m.prender(o.esq, o.cajado, L.cajadoMao)
+	if o.get("montaria") != null and not (j.get("acao") is Dictionary):
+		tocar(o.anim, "Idle") # quem anda é o lobo
+		return
 	animar(o, j)
 
 # animação de quem vem do servidor: ação de uma vez (golpe, magia, apanhar) ou o laço do movimento
@@ -490,7 +556,8 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)
-	_amostra(e, e.alvo, e.ry)
+	if c.get("_mexeu", true): # área de interesse: monstro parado vem só com o id
+		_amostra(e, e.alvo, e.ry, c.has("_mexeu"))
 	if float(c.vida) < float(e.get("vida", c.vida)):
 		e.combate = m.tempo + 5.0 # levou dano: nome aparece por 5 s
 	e.vida = float(c.vida)
@@ -732,16 +799,37 @@ const ATRASO := 0.1 # s atrás do servidor: sempre tem duas fotos para andar ent
 func _agora() -> float:
 	return Time.get_ticks_usec() / 1000000.0
 
-func _amostra(o: Dictionary, p: Vector3, ry: float) -> void:
+# Atraso que se ajusta à internet (2026-11-03): no 4G as fotos às vezes chegam com 100-300 ms de folga e depois várias
+# juntas; com atraso fixo de 0,1 s faltava foto, o monstro parava e depois dava um salto. Mede a folga entre as fotos
+# (sobe na hora, desce devagar) e anda até 0,25 s atrás do servidor só quando a internet está assim. No Wi-Fi bom fica 0,1 s.
+const ATRASO_MAX := 0.25
+var _atraso := ATRASO
+var _folga := 0.0
+var _ult_chegada := -1.0
+func _medir_chegada() -> void:
+	var agora := _agora()
+	if _ult_chegada > 0.0:
+		var desvio: float = absf((agora - _ult_chegada) - 0.05)
+		_folga = maxf(desvio, _folga * 0.985)
+		_atraso = clampf(ATRASO + _folga * 1.2, ATRASO, ATRASO_MAX)
+	_ult_chegada = agora
+
+func _amostra(o: Dictionary, p: Vector3, ry: float, aoi := false) -> void:
 	if not o.has("buf"):
 		o.buf = []
-	o.buf.append([_agora(), p, ry])
+	var ag := _agora()
+	# área de interesse: parado não manda posição; quando volta a andar, segura onde estava até um instante antes
+	# (senão ele pularia direto para o meio do caminho)
+	if aoi and not o.buf.is_empty() and ag - o.buf[o.buf.size() - 1][0] > 0.15:
+		var u: Array = o.buf[o.buf.size() - 1]
+		o.buf.append([ag - 0.05, u[1], u[2]])
+	o.buf.append([ag, p, ry])
 	while o.buf.size() > 8:
 		o.buf.pop_front()
 
 func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
 	var buf: Array = o.get("buf", [])
-	var t := _agora() - ATRASO
+	var t := _agora() - _atraso
 	if buf.size() < 2 or t >= buf[buf.size() - 1][0] or t < buf[0][0]:
 		# sem duas fotos em volta (começo, ou o servidor atrasou): desliza até a última
 		var k: float = min(1.0, dt * 10.0)
@@ -792,9 +880,16 @@ func _passo(dt: float) -> void:
 	var dt_pos: float = dt / max(Engine.time_scale, 0.001)
 	for id in outros:
 		var o: Dictionary = outros[id]
+		var antes: Vector3 = o.no.position
 		_interpolar(o, o.no, dt_pos)
 		o.uma_vez = max(0.0, o.uma_vez - dt)
+		if o.get("montaria") != null: # o lobo anda no ritmo do que o corpo andou de verdade neste quadro
+			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
+			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
+			o.montaria.passo(dt, o.vel_m)
 	for e in m.inimigos:
+		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
+			continue
 		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
 			_interpolar(e, e.no, dt_pos)
 			e.uma_vez = max(0.0, e.get("uma_vez", 0.0) - dt)
@@ -809,6 +904,8 @@ func _passo(dt: float) -> void:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
+		if m.montaria != null: # montado: vai o passo do lobo (o site e os outros apps põem o lobo andando ou galopando)
+			a = "Run" if m.mov.velocidade() > 4.4 else ("Walk" if m.mov.velocidade() > 0.35 else "Idle")
 		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)
 		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a, "e": 1})
 	# para onde o joystick aponta (o servidor usa no rolamento e no dash)

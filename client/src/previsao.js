@@ -57,7 +57,9 @@ export class Previsao {
 
   encostar(s) {
     const j = this.j; if (!j) return;
-    Object.assign(j, { x: s.x, y: s.y || 0, z: s.z, ry: s.ry ?? j.ry, vy: 0, chao: true, arrancada: null, dash: null, esc: null, trava: 0, acao: null, fila: null, pulos: 0, mortal: 0 });
+    // no ar (voltou para o meio de uma parede, por exemplo): cai em vez de ficar em pé no vazio
+    const chao = (s.y || 0) - this.sim.terreno.altura(s.x, s.z, s.y || 0) < 0.15;
+    Object.assign(j, { x: s.x, y: s.y || 0, z: s.z, ry: s.ry ?? j.ry, vy: 0, chao, arrancada: null, dash: null, esc: null, trava: 0, acao: null, fila: null, pulos: 0, mortal: 0 });
   }
 
   // chegou foto do servidor: s = meu estado lá

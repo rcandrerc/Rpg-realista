@@ -8,6 +8,8 @@ import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
+import { Visao } from './visao.js';
+import { ligarAtualizacaoTrancada } from './atualizar.js';
 
 const { Server, Room, ServerError } = colyseus;
 const { WebSocketTransport } = wsTransport;
@@ -31,6 +33,7 @@ class SalaClareira extends Room {
   onCreate() {
     salas.add(this);
     this.sim = new Simulacao(MAPA_CLAREIRA);
+    this.visao = new Visao(); // cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
@@ -106,7 +109,13 @@ class SalaClareira extends Room {
     const eventos = this.sim.passo(TICK);
     const foto = this.sim.foto();
     let fotoJson = null;
+    let perto = null; // área de interesse: preparada uma vez por passo, só se alguém pediu
     for (const c of this.clients) {
+      if (c.userData?.aoi) {
+        perto ??= this.visao.preparar(foto, eventos);
+        c.send('mundoJ', this.visao.paraJogador(perto, c.sessionId));
+        continue;
+      }
       // avisos pessoais vão só para quem precisa
       const meus = eventos.filter((e) => !e.para || e.para === c.sessionId);
       // o app Godot pede em JSON (lá ler JSON é bem mais rápido que MessagePack); o site continua igual
@@ -125,6 +134,7 @@ class SalaClareira extends Room {
 
   onJoin(client, opcoes) {
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
+    if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
     const conta = contas ? client.auth : null;
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
@@ -152,6 +162,7 @@ class SalaClareira extends Room {
     }
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
     this.sim.removerJogador(client.sessionId);
+    this.visao.esquecer(client.sessionId);
     this.contaDe?.delete(client.sessionId);
   }
 }
@@ -170,6 +181,8 @@ app.use((req, res, next) => {
   next();
 });
 app.get('/saude', (_req, res) => res.json({ ok: true, contas: !!contas }));
+// Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
+ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)));
 
 // ---------- conta (login com Google) ----------
 app.use('/conta', (_req, res, next) => (contas ? next() : res.status(404).json({ erro: 'contas desligadas' })), express.json({ limit: '8kb' }));
