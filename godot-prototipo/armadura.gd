@@ -27,7 +27,8 @@ static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
 		"calca":
 			# Épico ou melhor: saiote de 5 lâminas por cima da saia
 			# v10 (André 2026-11-04): saiote em todas as raridades (Comum de couro); antes só do Épico em diante
-			return [["coxa_e", "couro_escuro"], ["coxa_d", "couro_escuro"], ["saia", "saia" if metal else "saia_couro"]]
+			# v10 (André 2026-11-04, "a calça parece desbotada"): couro liso de cor firme, sem o reflexo em faixas
+			return [["coxa_e", "calca"], ["coxa_d", "calca"], ["saia", "saia" if metal else "saia_couro"]]
 		"botas":
 			return [["canela_e", "metal"], ["canela_d", "metal"], ["sapato", "metal"]] if metal else [["cano_e", "couro"], ["cano_d", "couro"], ["sapato_couro", "couro"]]
 		"short":
@@ -191,6 +192,14 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 				if not _malhas.has(chave_c):
 					_malhas[chave_c] = _saia_curta(alvo, R)
 				alvo = _malhas[chave_c]
+		if trecho == "Tops" and ativo and feminino:
+			var chave_d := "decote:%d" % alvo.get_instance_id()
+			if not _malhas.has(chave_d):
+				_malhas[chave_d] = _decote(alvo, R)
+			alvo = _malhas[chave_d]
+			mi.set_meta("decote", R.y_pescoco)
+		elif trecho == "Tops":
+			mi.remove_meta("decote")
 		if trecho == "Tops":
 			mi.set_meta("malha_saia", alvo)
 			var chave_b := "blusa_curta:%d" % alvo.get_instance_id()
@@ -441,7 +450,10 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 				continue # contorno de desenho dos outros corpos fica escuro
 			if it is Dictionary and PECAS.has(str(it.get("k", ""))):
 				var r := clampi(int(it.get("r", 0)), 0, 4)
-				mi.set_surface_override_material(sfc, _material_tecido(r))
+				if trecho == "Tops" and mi.has_meta("decote"):
+					mi.set_surface_override_material(sfc, _material_decote(r, mi.get_meta("decote"), _cor_pele(raiz)))
+				else:
+					mi.set_surface_override_material(sfc, _material_tecido(r))
 			elif trecho == "Tops":
 				mi.set_surface_override_material(sfc, _material_base()) # roupa de baixo branca (André 2026-11-03)
 			elif sfc == 0 or mi.get_surface_override_material(sfc) in _materiais.values():
@@ -626,6 +638,12 @@ static func _ref(esq: Skeleton3D) -> Ref:
 		junta_peito = r.y_cintura - 0.03
 	return r
 
+# altura da borda do decote em V (feminino) a uma distância ax do meio do peito
+const DECOTE_FUNDO := 0.2 # quanto o V desce abaixo do pescoço (m)
+const DECOTE_LARG := 0.105 # meia-largura do V na altura do pescoço (m)
+static func _decote_y(ax: float, R: Ref) -> float:
+	return R.y_pescoco - DECOTE_FUNDO * (1.0 - clampf(ax / DECOTE_LARG, 0.0, 1.0))
+
 static func _sino(d: float, raio: float) -> float:
 	var t := clampf(1.0 - d / raio, 0.0, 1.0)
 	return t * t * (3.0 - 2.0 * t)
@@ -657,6 +675,10 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 				baixo = minf(R.y_cintura + 0.072 + 0.6 * ax, baixo) # ponta no umbigo
 			var lado_max := R.x_braco + (0.03 if p.y < R.y_braco - 0.07 else 0.005)
 			if p.y < baixo or p.y > R.y_pescoco + 0.02 or ax > lado_max:
+				return Vector2(-1, 0)
+			# v10 (André 2026-11-04, "mais sensual, cavado no peito"): decote em V fundo na frente do corpo feminino,
+			# descendo até o meio do busto; as bordas do V sobem retas até os ombros (nada arredondado)
+			if not R.masc and p.z > 0.0 and p.y > _decote_y(ax, R):
 				return Vector2(-1, 0)
 			# 1,1 cm no busto; abaixo dele a placa cola (0,4 cm) e afina junto com a cintura
 			var cola := clampf((junta_peito - p.y) / 0.04, 0.0, 1.0)
@@ -1217,6 +1239,47 @@ static func _malha_ombreira(lado: float) -> ArrayMesh:
 	st.generate_normals()
 	return st.commit()
 
+# v10 (André 2026-11-04): a blusa abre no mesmo V do peitoral, 1,5 cm mais estreito (fica uma faixa do tecido
+# escuro fazendo a borda do decote). A pele do VRoid por baixo da blusa é só um rascunho (quase sem vértices), então
+# o V é pintado na própria blusa, por pixel (decote.gdshader), com a cor da pele.
+static func _cor_pele(raiz: Node3D) -> Color:
+	var corpo := _fonte(raiz, "Body_00")
+	if corpo:
+		var m = corpo.mesh.surface_get_material(0)
+		if m is StandardMaterial3D and m.albedo_texture:
+			return preload("res://aparencia.gd").media(m.albedo_texture, true) * Color(1.0, 0.9, 0.84)
+	return Color(0.98, 0.84, 0.76)
+
+static func _decote(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		var u2 := PackedVector2Array()
+		u2.resize(V.size())
+		for i in V.size():
+			u2[i] = Vector2(absf(V[i].x) if V[i].z > 0.0 else 10.0, V[i].y)
+		arr[Mesh.ARRAY_TEX_UV2] = u2
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
+static func _material_decote(r: int, y_pescoco: float, pele: Color) -> Material:
+	var chave := "decote:%d:%.3f:%s" % [r, y_pescoco, pele.to_html()]
+	if not _materiais.has(chave):
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://decote.gdshader")
+		m.set_meta("armadura", true) # a aparência (cor da roupa) não troca o tecido da armadura
+		m.set_shader_parameter("tecido", ROUPA[r])
+		m.set_shader_parameter("pele", pele)
+		m.set_shader_parameter("y_pescoco", y_pescoco)
+		m.set_shader_parameter("fundo", DECOTE_FUNDO)
+		m.set_shader_parameter("largura", DECOTE_LARG)
+		_materiais[chave] = m
+	return _materiais[chave]
+
 # v10: o capuz (o que fica atrás e acima do pescoço) vira uma gola baixa, colada na nuca
 static func _sem_capuz(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var am := ArrayMesh.new()
@@ -1590,11 +1653,31 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 	return am
 
 # ---------- materiais ----------
+const CALCA := [Color("4a3324"), Color("2a2230"), Color("2a2238"), Color("2c2226"), Color("2a1a22")] # couro da calça por raridade
+
 static func _material(tipo: String, r: int) -> Material:
 	var chave := "%s:%d" % [tipo, r]
 	if _materiais.has(chave):
 		return _materiais[chave]
 	var m: Material
+	if tipo == "calca":
+		var c := StandardMaterial3D.new()
+		c.albedo_color = CALCA[r]
+		c.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		c.specular_mode = BaseMaterial3D.SPECULAR_TOON
+		c.roughness = 0.55 # um brilho pequeno de couro
+		c.rim_enabled = true
+		c.rim = 0.2
+		c.rim_tint = 0.6
+		var o := StandardMaterial3D.new() # contorno de desenho igual ao das outras peças
+		o.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		o.cull_mode = BaseMaterial3D.CULL_FRONT
+		o.grow = true
+		o.grow_amount = 0.005
+		o.albedo_color = Color(0.1, 0.08, 0.09)
+		c.next_pass = o
+		_materiais[chave] = c
+		return c
 	if tipo == "capa":
 		var s := ShaderMaterial.new()
 		s.shader = SHADER_CAPA
