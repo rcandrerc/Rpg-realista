@@ -98,7 +98,20 @@ func _init(m, id: String, cavaleiro: Node3D, cav_esq: Skeleton3D) -> void:
 	cav_esq.move_child(pose, antes)
 	pose.preparar(cav_esq)
 	_colisores_tronco(cav_esq)
+	_lombo_na_capa(cav_esq)
 	tocar("parada")
+
+# A capa (pano_capa.gd) cai por cima do lombo do lobo em vez de atravessar: uma cápsula do quadril à cernelha,
+# com o topo um pouco acima da linha dos ossos das costas. [esqueleto, osso a, osso b, raio (m), descida do centro (m)]
+var _cav_esq: Skeleton3D
+const LOMBO_RAIO := 0.2
+const LOMBO_DESCE := 0.15
+func _lombo_na_capa(cav_esq: Skeleton3D) -> void:
+	_cav_esq = cav_esq
+	var q := esq.find_bone("quadril")
+	var p := esq.find_bone("peito")
+	if q >= 0 and p >= 0:
+		cav_esq.set_meta("pano_extra", [[esq, q, p, LOMBO_RAIO, -LOMBO_DESCE]])
 
 # no chão embaixo do corpo, no giro dele; o lobo não cresce junto com a altura que o jogador escolheu
 func _assentar() -> void:
@@ -171,6 +184,8 @@ func passo(dt: float, vel: float) -> void:
 	_rabo.passo(dt, cav.global_rotation.y)
 
 func remover() -> void:
+	if is_instance_valid(_cav_esq) and _cav_esq.has_meta("pano_extra"):
+		_cav_esq.remove_meta("pano_extra")
 	if is_instance_valid(no):
 		no.queue_free()
 	if is_instance_valid(pose):
