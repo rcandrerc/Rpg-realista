@@ -1951,11 +1951,29 @@ func basico_magia() -> void:
 func mira_mago():
 	if h.modo != "Magia" or montaria != null or mov.esc != null:
 		return null
-	if not acao.is_empty() and acao.get("basico", false) and vivo(acao.get("alvo")):
-		return acao.alvo
-	if acao.is_empty() and tempo < float(h.mira_ate) and vivo(h.alvo_fixo):
-		return h.alvo_fixo
+	if not acao.is_empty() and acao.get("basico", false) and acao.has("alvo"):
+		if vivo(acao.alvo):
+			return acao.alvo
+		# o alvo morreu no meio do tiro (André 2026-11-04): vira para o mais perto; sem ninguém, cancela a Faísca
+		# (antes o último tiro saía no ar, para onde ele corria)
+		var novo = novo_alvo_mago()
+		if novo != null:
+			acao.alvo = novo
+			return novo
+		if h.modo == "Magia":
+			acao = {}
+		return null
+	if acao.is_empty() and tempo < float(h.mira_ate):
+		if vivo(h.alvo_fixo):
+			return h.alvo_fixo
+		return novo_alvo_mago() # entre um tiro e outro o bicho morreu: já gira para o próximo
 	return null
+
+# o próximo alvo do mago quando o travado morre: o mais perto no alcance da Faísca (vira o novo travado)
+func novo_alvo_mago():
+	var hab: Dictionary = P.hab_pronta("cajado_basico")
+	var e = alvo_travado(hab.alcance + 0.5)
+	return e if e is Dictionary else null
 
 # o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
 # sem voltar para a corrida no meio (era o "pulo" que aparecia no loop do combo)
@@ -1975,6 +1993,11 @@ func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 	elif hab.tipo == "bola": # Bola de Fogo: sai do meio das duas mãos
 		de = (ponto_mao() + ponto_mao_esq()) * 0.5
 	var dir := frente()
+	if hab.get("basico", false) and not vivo(alvo):
+		# Faísca com o alvo morto: vai no novo alvo (mira_mago já virou o corpo); sem ninguém, não sai no ar
+		alvo = acao.get("alvo") if vivo(acao.get("alvo")) else novo_alvo_mago()
+		if alvo == null:
+			return
 	if vivo(alvo):
 		dir = ((alvo.no.position + Vector3(0, 1.0, 0)) - de).normalized()
 	fx.projetil(de, dir, info, hab.dmg, alcance)
