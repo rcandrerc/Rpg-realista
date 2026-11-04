@@ -190,12 +190,13 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 			if not _malhas.has(chave_q):
 				_malhas[chave_q] = _sem_capuz(alvo, R)
 			alvo = _malhas[chave_q]
-			# v11b (André 2026-11-04, "o masculino parece um bujão de gás"): o moletom vira roupa colada no tronco,
-			# e a couraça (feita a partir dele) acompanha o corpo
-			var chave_a := "afinar:%d" % alvo.get_instance_id()
-			if not _malhas.has(chave_a):
-				_malhas[chave_a] = _afinar_tronco(alvo, R, formas.get("Body_00"))
-			alvo = _malhas[chave_a]
+		if ativo and trecho == "Body_00" and not feminino:
+			# v11d: a pele da axila (escondida pela roupa) aparecia em pontinhos entre o colete e a manga; com
+			# armadura ela entra 1,5 cm
+			var chave_x := "axila:%d" % alvo.get_instance_id()
+			if not _malhas.has(chave_x):
+				_malhas[chave_x] = _encolher_axila(alvo, R)
+			alvo = _malhas[chave_x]
 		if ativo and trecho != "Body_00" and feminino:
 			var chave := "cintura:%d" % alvo.get_instance_id()
 			if not _malhas.has(chave):
@@ -210,8 +211,16 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 			# v10 (André 2026-11-04): manga colada no braço, como segunda pele por baixo da armadura
 			var chave_m := "manga:%d" % alvo.get_instance_id()
 			if not _malhas.has(chave_m):
-				_malhas[chave_m] = _manga_justa(alvo, R, formas.get("Body_00", alvo), 0.0035 if feminino else 0.005)
+				_malhas[chave_m] = _manga_justa(alvo, R, formas.get("Body_00", alvo), 0.0035 if feminino else 0.009)
 			alvo = _malhas[chave_m]
+		if trecho == "Tops" and ativo and not feminino:
+			# v11b (André 2026-11-04, "o masculino parece um bujão de gás"): o moletom vira roupa colada no tronco,
+			# e a couraça (feita a partir dele) acompanha o corpo. Depois da manga justa: a última palavra é não
+			# entrar na pele (a manga puxava o pano da axila para dentro do corpo)
+			var chave_a := "afinar:%d" % alvo.get_instance_id()
+			if not _malhas.has(chave_a):
+				_malhas[chave_a] = _afinar_tronco(alvo, R, formas.get("Body_00"))
+			alvo = _malhas[chave_a]
 		if trecho == "Tops" and ativo:
 			# v11: a blusa marca por vértice o que é manga e o que é tronco (colete de couro), e o decote no feminino
 			var chave_d := "decote:%d" % alvo.get_instance_id()
@@ -394,51 +403,139 @@ static func _fechar_saia(pos: PackedVector3Array, R: Ref, folga := 0.0) -> Packe
 # v11b: tronco do moletom masculino colado no corpo. Por fatia de 1 cm, a largura e a profundidade da roupa encolhem
 # até a da pele + 8 mm (sem pele medida na fatia: encolhe 14%). As mangas (braço em T) e a gola ficam; o ombro faz
 # a transição.
+static func _encolher_axila(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		for i in V.size():
+			var p := V[i]
+			# tronco debaixo do colete (do quadril até a axila; no ombro só até o osso do braço): entra 1,5 cm na
+			# horizontal, em direção ao meio do corpo. O pano do moletom tem triângulos grandes e a pele furava
+			if p.y < R.y_cintura - 0.04 or p.y > R.y_braco + 0.02:
+				continue
+			var lim := 0.25 if p.y < R.y_braco - 0.07 else R.x_braco + 0.02
+			if absf(p.x) > lim:
+				continue
+			var k := smoothstep(R.y_cintura - 0.04, R.y_cintura + 0.02, p.y) * (1.0 - smoothstep(R.y_braco - 0.03, R.y_braco + 0.02, p.y))
+			var d := Vector2(p.x, p.z - 0.0)
+			if d.length() < 0.03 or k <= 0.0:
+				continue
+			d = d.normalized() * maxf(0.03, d.length() - 0.015 * k)
+			V[i] = Vector3(d.x, p.y, d.y)
+		arr[Mesh.ARRAY_VERTEX] = _FA(V)
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
 static func _afinar_tronco(orig: ArrayMesh, R: Ref, corpo: Mesh) -> ArrayMesh:
-	var lim_x := R.x_braco + 0.01
+	# v11d (André 2026-11-04, "ainda parece um barril reto"): o moletom tem os lados bem fora do ombro (x além do
+	# osso do braço). Abaixo da axila tudo até 25 cm do meio é tronco; só na altura do ombro a manga fica de fora.
+	var axila := R.y_braco - 0.07
+	var no_tronco := func(p: Vector3) -> bool:
+		return absf(p.x) < (0.25 if p.y < axila else R.x_braco + 0.01)
+	# a pele por baixo do moletom tem poucos vértices (triângulos grandes): amostra a superfície a cada ~8 mm
+	var amostras := PackedVector3Array()
+	if corpo:
+		var ca := corpo.surface_get_arrays(0)
+		var CV: PackedVector3Array = _FA(ca[Mesh.ARRAY_VERTEX])
+		var CI: PackedInt32Array = ca[Mesh.ARRAY_INDEX]
+		for t in range(0, CI.size(), 3):
+			var a := CV[CI[t]]
+			var b := CV[CI[t + 1]]
+			var c := CV[CI[t + 2]]
+			if absf(a.x) > 0.27 or a.y < R.y_cintura - 0.25 or a.y > R.y_pescoco + 0.05:
+				continue
+			var lado := maxf(a.distance_to(b), maxf(b.distance_to(c), c.distance_to(a)))
+			var n := clampi(int(ceil(lado / 0.008)), 1, 40)
+			for i in n + 1:
+				for j in n + 1 - i:
+					var u := float(i) / n
+					var v := float(j) / n
+					amostras.append(a + (b - a) * u + (c - a) * v)
 	var pele := {}
 	if corpo:
-		for p in _FA(corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]):
-			if absf(p.x) > lim_x:
+		for p in amostras:
+			if not no_tronco.call(p):
 				continue
 			var q := int(round(p.y * 100.0))
 			var f: Array = pele.get(q, [0.0, 9.0, -9.0, 0])
 			pele[q] = [maxf(f[0], absf(p.x)), minf(f[1], p.z), maxf(f[2], p.z), f[3] + 1]
+	# contorno da pele por fatia e por ângulo (36 setores em volta do centro da fatia): a roupa nunca entra nele
+	var NA := 36
+	var raio_pele := {}
+	if corpo:
+		# (aqui com o ombro e o alto do braço junto: a pele da axila furava o colete)
+		for p in amostras:
+			if absf(p.x) > 0.25:
+				continue
+			var q := int(round(p.y * 100.0))
+			if not pele.has(q):
+				continue
+			var fp: Array = pele[q]
+			var c := Vector2(0.0, (fp[1] + fp[2]) * 0.5)
+			var d := Vector2(p.x, p.z) - c
+			var k := posmod(int(round(atan2(d.x, d.y) / TAU * NA)), NA)
+			var chave_r := q * 100 + k
+			raio_pele[chave_r] = maxf(raio_pele.get(chave_r, 0.0), d.length())
+	# cintura: um pouco acima do osso da coluna (que fica no quadril); afina mais 8% ali
+	var y_fina := R.y_cintura + 0.06
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
 		var arr := orig.surface_get_arrays(sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var roupa := {}
 		for p in V:
-			if absf(p.x) > lim_x:
+			if not no_tronco.call(p):
 				continue
 			var q := int(round(p.y * 100.0))
 			var f: Array = roupa.get(q, [0.0, 9.0, -9.0])
 			roupa[q] = [maxf(f[0], absf(p.x)), minf(f[1], p.z), maxf(f[2], p.z)]
 		for i in V.size():
 			var p := V[i]
-			# peso: tronco inteiro, sumindo no ombro (para a manga) e na gola
-			var w := 1.0 - smoothstep(R.y_braco - 0.07, R.y_braco + 0.01, p.y)
-			w *= 1.0 - smoothstep(R.x_braco - 0.03, R.x_braco + 0.05, absf(p.x))
-			if w <= 0.0:
+			if absf(p.x) > 0.27 or p.y > R.y_braco + 0.04:
 				continue
+			# peso: tronco inteiro; na altura do ombro some para a manga e para a gola
+			var w := 1.0 - smoothstep(axila, R.y_braco + 0.01, p.y)
+			if p.y >= axila:
+				w *= 1.0 - smoothstep(R.x_braco - 0.03, R.x_braco + 0.05, absf(p.x))
+			if not no_tronco.call(p) and p.y < axila:
+				w = 0.0
 			var q := int(round(p.y * 100.0))
 			var fr = roupa.get(q)
 			if fr == null:
-				continue
-			var kx := 0.86
-			var kz := 0.86
+				fr = [1.0, -1.0, 1.0]
+				w = 0.0
+			var kx := 0.8
+			var kz := 0.82
 			var cz: float = (fr[1] + fr[2]) * 0.5
 			for dq in [0, -1, 1, -2, 2]:
 				var fp = pele.get(q + dq)
 				if fp == null or fp[3] < 6:
 					continue
-				kx = clampf((fp[0] + 0.008) / maxf(0.01, fr[0]), 0.72, 1.0)
+				kx = clampf((fp[0] + 0.007) / maxf(0.01, fr[0]), 0.5, 1.0)
 				cz = (fp[1] + fp[2]) * 0.5
-				kz = clampf(((fp[2] - fp[1]) * 0.5 + 0.008) / maxf(0.01, (fr[2] - fr[1]) * 0.5), 0.72, 1.0)
+				kz = clampf(((fp[2] - fp[1]) * 0.5 + 0.007) / maxf(0.01, (fr[2] - fr[1]) * 0.5), 0.55, 1.0)
 				break
-			var n := Vector3(p.x * kx, p.y, cz + (p.z - cz) * kz)
-			V[i] = p.lerp(n, w)
+			var fina := 1.0 - 0.08 * _sino(absf(p.y - y_fina), 0.14)
+			var n := Vector3(p.x * kx * fina, p.y, cz + (p.z - cz) * kz * (1.0 - 0.04 * _sino(absf(p.y - y_fina), 0.14)))
+			n = p.lerp(n, w)
+			# não entra na pele: no setor dela (e nos vizinhos, fatias de cima e de baixo) fica 7 mm por fora
+			var fp0 = pele.get(q) if p.y < axila + 0.02 else null # ombro e manga em T ficam com a manga justa
+			if fp0 != null:
+				var c := Vector2(0.0, (fp0[1] + fp0[2]) * 0.5)
+				var d := Vector2(n.x, n.z) - c
+				var k := posmod(int(round(atan2(d.x, d.y) / TAU * NA)), NA)
+				var rmin := 0.0
+				for dq in [-1, 0, 1]:
+					for dk in [-1, 0, 1]:
+						rmin = maxf(rmin, raio_pele.get((q + dq) * 100 + posmod(k + dk, NA), 0.0))
+				if rmin > 0.0 and d.length() < rmin + 0.007:
+					d = d.normalized() * (rmin + 0.007)
+					n = Vector3(d.x, n.y, c.y + d.y)
+			V[i] = n
 		arr[Mesh.ARRAY_VERTEX] = _FA(V)
 		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
