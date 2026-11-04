@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import zlib from 'node:zlib';
 import { RAIZ } from '@rpg/shared';
@@ -101,7 +101,7 @@ const habs = {
   // criador de personagem: cores (número 0xRRGGBB, null = original), altura e formato do rosto; nome de 3 a 16 letras
   criador: CRIADOR, nome: NOME,
   // estamina, vigor e profissões (Parte 3)
-  estamina: ESTAMINA, vigor: VIGOR, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA,
+  estamina: ESTAMINA, regen: REGEN, vigor: VIGOR, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA,
   coletaDistancia: COLETA_DISTANCIA, receitas: RECEITAS, oficina: OFICINA, oficinaDistancia: OFICINA_DISTANCIA, raridadeCriar: RARIDADE_CRIAR,
   heroiCorrer: HEROI.correr,
   // nível dos monstros dos campos de caça (XP sobe com o nível do bicho e cai se o herói passou muito dele)

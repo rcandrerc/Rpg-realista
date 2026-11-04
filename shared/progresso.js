@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -51,8 +51,9 @@ export function calcularStatus(p, passivas = {}) {
   return {
     vidaMax: Math.round(84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida),
     manaMax: Math.round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (passivas.mente_arcana ? 1.1 : 1)),
-    regenMana: (7 + (passivas.mente_arcana ? 0.3 : 0)) * (1 + eq.regenManaK),
-    regenVida: 0.1 * a.vit,
+    // fora de combate (REGEN em shared/dados.js, números do Quimera); em luta a Simulacao aplica vidaCombate/manaCombate
+    regenMana: (REGEN.mana + REGEN.manaNivel * n + REGEN.manaInt * a.int + (passivas.mente_arcana ? REGEN.manaMente : 0)) * (1 + eq.regenManaK),
+    regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
     danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK),

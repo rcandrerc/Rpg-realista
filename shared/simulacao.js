@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -1597,10 +1597,11 @@ export class Simulacao {
   }
   passoJogador(j, dt) {
     if (j.vila && Math.hypot(j.x - j.vila.x, j.z - j.vila.z) > 0.6) this.cancelarVila(j, 'Você se mexeu: volta para a vila cancelada');
-    j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * dt);
+    const luta = this.emCombate(j); // Quimera: em luta a mana volta a 35% e a vida não volta
+    j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * (luta ? REGEN.manaCombate : 1) * dt);
     this.passoEstamina(j, dt);
     if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);
-    if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * dt);
+    if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * (luta ? REGEN.vidaCombate : 1) * dt);
     if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
       if (j.arrancada) { j.arrancada.t -= dt; if (j.arrancada.t <= 0) j.arrancada = null; }
