@@ -291,9 +291,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		vistas[c] = true
 		var h: Dictionary = L.horta.get(c, {})
 		h.c = str(t[1])
-		h.g = float(t[2])
-		h.w = float(t[3])
-		h.u = float(t[4])
+		h.g = float(t[2]) if t[2] != null else 0.0
+		h.w = float(t[3]) if t[3] != null else 0.0 # terra recém-arada ainda não foi regada (null)
+		h.u = float(t[4]) if t[4] != null else 0.0
 		if not h.has("no"):
 			h.no = Node3D.new()
 			var ij := c.split(",")
@@ -304,11 +304,21 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			h.fase = -9
 			h.molhada = null
 		L.horta[c] = h
-		_desenhar_canteiro(h, true)
+		h.mudou = true
 	for c in L.horta.keys():
 		if not vistas.has(c):
 			L.horta[c].no.queue_free()
 			L.horta.erase(c)
+	# terra emenda com os vizinhos: refaz quem mudou e quem ganhou ou perdeu vizinho
+	for c in L.horta:
+		var h: Dictionary = L.horta[c]
+		h.mask = _mask_horta(L, h)
+		if h.get("mudou", false):
+			h.erase("mudou")
+			_desenhar_canteiro(h, true)
+		elif h.mask != h.get("mask_feita", -1):
+			_desenhar_canteiro(h)
+	_grama_sob_horta(L)
 	_refazer_solidos()
 	_texto_placa(L)
 
@@ -364,22 +374,172 @@ func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	var mo := _molhada(h)
 	if not forcar and f == h.fase and mo == h.molhada:
 		return
-	var mudou_terra: bool = forcar or mo != h.molhada
+	var mudou_terra: bool = forcar or mo != h.molhada or h.get("mask", 0) != h.get("mask_feita", -1)
 	h.fase = f
 	h.molhada = mo
 	for n in h.no.get_children():
 		if mudou_terra or n.name != "terra":
 			n.queue_free()
 	if mudou_terra or h.no.get_node_or_null("terra") == null:
-		var terra := Node3D.new()
+		var terra := MeshInstance3D.new()
 		terra.name = "terra"
+		terra.mesh = _malha_terra(h)
+		terra.material_override = _mat_terra(mo)
+		terra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		h.no.add_child(terra)
-		var cor := Color(0.27, 0.18, 0.11) if mo else Color(0.42, 0.3, 0.19)
-		_caixa(terra, Vector3(0.96, 0.06, 0.96), Vector3(0, 0.03, 0), _mat_cor(cor))
-		for i in 3: # sulcos
-			_caixa(terra, Vector3(0.9, 0.05, 0.12), Vector3(0, 0.075, -0.3 + i * 0.3), _mat_cor(cor.darkened(0.18)))
+		h.mask_feita = h.get("mask", 0)
 	if f >= 0:
 		_desenhar_planta(h.no, h.c, f)
+
+# Terra arada como a do Quimera (mgSoGeo, melhoria pedida pelo André em 2026-11-04): uma malha por canteiro que
+# emenda com os vizinhos arados e, onde não tem vizinho, se desfaz no chão com borda irregular (ruído), sem caixa
+# quadrada. Sulcos em ondas (3 por metro), cor e altura variando com ruído; molhada fica mais escura e brilhante.
+# mask: 1 = arado a oeste (x-1), 2 = leste (x+1), 4 = norte (z-1), 8 = sul (z+1)
+static func _ruido(x: float, z: float) -> float:
+	var i := floorf(x)
+	var j := floorf(z)
+	var fx := x - i
+	var fz := z - j
+	var u := fx * fx * (3.0 - 2.0 * fx)
+	var v := fz * fz * (3.0 - 2.0 * fz)
+	return (_h2(i, j) * (1.0 - u) + _h2(i + 1.0, j) * u) * (1.0 - v) + (_h2(i, j + 1.0) * (1.0 - u) + _h2(i + 1.0, j + 1.0) * u) * v
+
+static func _h2(i: float, j: float) -> float:
+	var n := sin(i * 127.1 + j * 311.7) * 43758.5453
+	return n - floorf(n)
+
+func _mask_horta(L: Dictionary, h: Dictionary) -> int:
+	var i: int = h.i
+	var j: int = h.j
+	var mk := 0
+	if L.horta.has("%d,%d" % [i - 1, j]): mk |= 1
+	if L.horta.has("%d,%d" % [i + 1, j]): mk |= 2
+	if L.horta.has("%d,%d" % [i, j - 1]): mk |= 4
+	if L.horta.has("%d,%d" % [i, j + 1]): mk |= 8
+	return mk
+
+func _malha_terra(h: Dictionary) -> ArrayMesh:
+	var mk: int = h.get("mask", 0)
+	var W := mk & 1 != 0
+	var E := mk & 2 != 0
+	var N := mk & 4 != 0
+	var S := mk & 8 != 0
+	var R := 0.25 # quanto a terra solta passa da borda do canteiro (sem vizinho)
+	var x0 := -0.5 if W else -0.5 - R
+	var x1 := 0.5 if E else 0.5 + R
+	var z0 := -0.5 if N else -0.5 - R
+	var z1 := 0.5 if S else 0.5 + R
+	var nx := int(round((x1 - x0) * 8.0))
+	var nz := int(round((z1 - z0) * 12.0))
+	var cx: float = h.no.position.x
+	var cz: float = h.no.position.z
+	var gy: float = h.no.position.y
+	var P := PackedVector3Array()
+	var C := PackedColorArray()
+	var U := PackedVector2Array()
+	var A := PackedFloat32Array()
+	var I := PackedInt32Array()
+	for j in nz + 1:
+		for i in nx + 1:
+			var lx := x0 + (x1 - x0) * i / nx
+			var lz := z0 + (z1 - z0) * j / nz
+			var wx := cx + lx
+			var wz := cz + lz
+			var qx := maxf(0.0, absf(lx) - 0.34) if ((not W and lx < 0.0) or (not E and lx > 0.0)) else 0.0
+			var qz := maxf(0.0, absf(lz) - 0.34) if ((not N and lz < 0.0) or (not S and lz > 0.0)) else 0.0
+			var q := Vector2(qx, qz).length()
+			if q > 0.0:
+				q += (_ruido(wx * 2.3, wz * 2.3) - 0.5) * 0.26 + (_ruido(wx * 7.1 + 9.0, wz * 7.1 + 3.0) - 0.5) * 0.1
+			var t := clampf(q / 0.3, 0.0, 1.0)
+			var f := 1.0 - t * t * (3.0 - 2.0 * t)
+			var rg := -cos(wz * PI * 6.0) # sulcos
+			var n2 := _ruido(wx * 3.1 + 17.0, wz * 3.1 + 5.0)
+			var y: float = m.terreno.altura(wx, wz) - gy
+			P.append(Vector3(lx, y + 0.018 + (0.04 + rg * 0.034 + (n2 - 0.5) * 0.014) * f, lz))
+			var b := 0.93 + (n2 - 0.5) * 0.24 + rg * 0.13 + (1.0 - f) * 0.07
+			var a := minf(1.0, f * 1.6)
+			C.append(Color(b, b * 0.985, b * 0.965, a))
+			A.append(a)
+			U.append(Vector2(wx, wz) * 0.5)
+	for j in nz:
+		for i in nx:
+			var p := j * (nx + 1) + i
+			var q := p + nx + 1
+			if A[p] + A[p + 1] + A[q] + A[q + 1] < 0.01:
+				continue
+			I.append_array([p, p + 1, q, p + 1, q + 1, q])
+	var st := SurfaceTool.new()
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = P
+	arr[Mesh.ARRAY_COLOR] = C
+	arr[Mesh.ARRAY_TEX_UV] = U
+	arr[Mesh.ARRAY_INDEX] = I
+	var bruto := ArrayMesh.new()
+	bruto.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	st.create_from(bruto, 0)
+	st.generate_normals()
+	return st.commit()
+
+# A grama do chão (main.gd grama_pedacos) não fura a terra arada: as folhas em cima de um canteiro (com a borda solta)
+# ficam com tamanho zero; desarou, voltam. Só mexe nos pedaços que encostam no lote.
+var _grama_original := {} # MultiMeshInstance3D -> buffer de antes
+func _grama_sob_horta(L: Dictionary) -> void:
+	if m.get("grama_pedacos") == null:
+		return
+	var l: Dictionary = L.def
+	var caixa := Rect2(float(l.x0) - 1.0, float(l.z0) - 1.0, float(l.x1) - float(l.x0) + 2.0, float(l.z1) - float(l.z0) + 2.0)
+	var celulas := {}
+	for c in L.horta:
+		celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
+	for g in m.grama_pedacos:
+		if not is_instance_valid(g) or g.multimesh == null:
+			continue
+		var mm: MultiMesh = g.multimesh
+		var orig: PackedFloat32Array = _grama_original.get(g, mm.buffer)
+		var n := mm.instance_count
+		if n == 0:
+			continue
+		var bb: AABB = g.global_transform * mm.get_aabb()
+		if not caixa.intersects(Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)):
+			continue
+		_grama_original[g] = orig
+		var buf := orig.duplicate()
+		var mexeu := false
+		for i in n:
+			var x: float = buf[i * 16 + 3]
+			var z: float = buf[i * 16 + 11]
+			if not caixa.has_point(Vector2(x, z)):
+				continue
+			var tapa := false
+			for di in [-1, 0, 1]: # a terra solta passa uns 25 cm da borda
+				for dj in [-1, 0, 1]:
+					var k := Vector2i(floori(x) + di, floori(z) + dj)
+					if celulas.has(k) and absf(x - (k.x + 0.5)) < 0.72 and absf(z - (k.y + 0.5)) < 0.72:
+						tapa = true
+			if tapa:
+				for c in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
+					buf[i * 16 + c] = 0.0
+				mexeu = true
+		mm.buffer = buf
+		if not mexeu:
+			_grama_original.erase(g)
+
+var _mats_terra := {}
+func _mat_terra(molhada: bool) -> StandardMaterial3D:
+	if _mats_terra.has(molhada):
+		return _mats_terra[molhada]
+	var mt := StandardMaterial3D.new()
+	var tex = load("res://modelos/stony_dirt_path.jpg") if ResourceLoader.exists("res://modelos/stony_dirt_path.jpg") else null
+	if tex:
+		mt.albedo_texture = tex
+	mt.vertex_color_use_as_albedo = true
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.albedo_color = Color("6e5238") if molhada else Color("a8835e")
+	mt.roughness = 0.55 if molhada else 0.95
+	mt.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_mats_terra[molhada] = mt
+	return mt
 
 # planta feita de folhas e fruto nas cores do Quimera (PLANTAS.cor e .folha), maior a cada fase
 func _desenhar_planta(pai: Node3D, c: String, f: int) -> void:

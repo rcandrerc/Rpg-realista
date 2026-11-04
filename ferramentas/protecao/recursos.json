@@ -186,6 +186,7 @@
     {"nome": "Servidor decide comprar lote, construir, desmontar e a horta", "arquivo": "shared/simulacao.js", "contem": ["comprarLote(id, m)", "construir(id, m)", "desmontar(id, m)", "horta(id, m)", "export function motivoPeca(", "this.estacaoPerto(j, R)"]},
     {"nome": "Lotes guardados no banco do servidor", "arquivo": "server/contas.js", "contem": ["CREATE TABLE IF NOT EXISTS lotes", "reservarLote(id, dono, nome)"]},
     {"nome": "Mensagens da Vila dos Lotes no servidor", "arquivo": "server/index.js", "contem": ["this.ouvir('lote'", "this.ouvir('construir'", "this.ouvir('desmontar'", "this.ouvir('horta'", "this.sim.enviarLotes("]},
-    {"nome": "Modo construção e fazenda do app (Quimera)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func abrir()", "func colocar()", "func perguntar_compra()", "func do_servidor_lote(", "func _modelo_fornalha()"]}
+    {"nome": "Modo construção e fazenda do app (Quimera)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func abrir()", "func colocar()", "func perguntar_compra()", "func do_servidor_lote(", "func _modelo_fornalha()"]},
+    {"nome": "Terra arada natural (bordas irregulares, sem grama por cima)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _malha_terra(", "func _grama_sob_horta(", "func _mask_horta("]}
   ]
 }

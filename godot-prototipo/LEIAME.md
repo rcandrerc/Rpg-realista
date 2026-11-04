@@ -56,5 +56,7 @@ Para montar à mão:
   servem para criar como a forja do Tomás e a banca da Rosa.
 - Horta: sementes na loja da Rosa; a planta cresce só com a terra molhada (regar dura 24 h), nos tempos do Quimera.
   Colher dá pontos de Fazendeiro (profissão nova).
+- Terra arada como a do Quimera (André, 2026-11-04): canteiros vizinhos emendam numa terra só, a borda solta se
+  mistura ao chão de forma irregular e a grama não fura a terra (`_malha_terra` e `_grama_sob_horta` em `construcao.gd`).
 - Código: `construcao.gd` (app) e `shared/simulacao.js` (comprarLote, construir, desmontar, horta). Números em
   `shared/dados.js` (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, HORTA). O servidor guarda os lotes na tabela `lotes`.
