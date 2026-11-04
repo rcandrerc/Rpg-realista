@@ -13,7 +13,7 @@ export const PONTOS_POR_NIVEL = 2;
 export const NIVEL_MAX = 30;
 export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45);
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
-export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7 };
+export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7, golem: 9, maw: 10, warrok: 30 };
 // XP de um monstro de nível nv (campos de caça) para um herói de nível nh: sobe com o nível do bicho e cai quando o
 // herói passou muito dele (NIVEL_INIMIGO em shared/dados.js)
 export const xpDoInimigo = (tipo, nv, nh, N) => {

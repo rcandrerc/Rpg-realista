@@ -33,20 +33,20 @@ const Montaria = preload("res://montaria.gd")
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "trote", "corrida", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
+const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
 const BANDO := []
-const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo"}
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok"}
 # o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
-const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
 # NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 const TINGIR_NPC := ["ferreiro"]
-const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0} # TIPOS_INIMIGO de shared/dados.js
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
 const NOME_LONGE := 30.0
@@ -82,7 +82,8 @@ var mao_esquerda := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
 	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false,
-	"alvo_fixo": null} # alvo_fixo: monstro travado do mago (alvo_travado)
+	"alvo_fixo": null, "mira_ate": -9.0} # alvo_fixo: monstro travado do mago (alvo_travado)
+# mira_ate: até quando o mago continua virado para o alvo depois do último tiro da Faísca (anda de lado e de costas)
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
@@ -922,6 +923,8 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	no.scale *= escala
 	if armas_lugar.has(id): # humano (VRoid) luta de espada; monstro do Bestiário luta com garra e soco
 		prender(esqueleto(no), nova_arma("espada", false), armas_lugar[id].espadaMao)
+	elif MIXAMO.has(id):
+		estilo_mixamo(no, MIXAMO[id])
 	else:
 		contorno(no, 0.012)
 	var e := {"no": no, "anim": no.find_child("AnimationPlayer", true, false), "vida": D.INIMIGO.vida, "centro": pos,
@@ -932,8 +935,65 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 	# com 10 clareiras no mapa: o corpo some a LONGE_INIMIGO m e o nome e a barra a NOME_LONGE m (atravessavam o mapa)
 	for g in no.find_children("*", "GeometryInstance3D", true, false):
 		g.visibility_range_end = NOME_LONGE if (g is Label3D or g.get_parent() == no) else LONGE_INIMIGO
+	if MIXAMO.has(id): # nome e barra acima da cabeça (os do Mixamo são bem mais altos)
+		e.alto = float(MIXAMO[id].alto) * escala
 	inimigos.append(e)
 	return e
+
+# Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
+# (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
+const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02, "olho": "9cff5a"},
+	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2}}
+const CHEFES := ["chefe", "warrok"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
+var _shader_monstro: Shader
+func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
+	if _shader_monstro == null:
+		_shader_monstro = load("res://monstro.gdshader")
+	for mi in no.find_children("*", "MeshInstance3D", true, false):
+		var k: float = snappedf(float(cfg.contorno) / max(0.0001, mi.global_transform.basis.get_scale().x), 0.0001)
+		if not mat_contorno.has(k):
+			var c := StandardMaterial3D.new()
+			c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			c.cull_mode = BaseMaterial3D.CULL_FRONT
+			c.grow = true
+			c.grow_amount = k
+			c.albedo_color = Color(0.1, 0.07, 0.06)
+			mat_contorno[k] = c
+		for i in mi.mesh.get_surface_count():
+			var m = mi.get_surface_override_material(i)
+			if m == null:
+				m = mi.mesh.surface_get_material(i)
+			if not (m is BaseMaterial3D):
+				continue
+			var s := ShaderMaterial.new()
+			s.shader = _shader_monstro
+			s.set_shader_parameter("textura", m.albedo_texture)
+			s.set_shader_parameter("borda_forca", float(cfg.get("borda", 0.15))) # meio-termo (André achou a v3 colorida demais)
+			if m.emission_texture: # o pintar() desliga a emissão dos personagens, mas a textura dos olhos fica
+				s.set_shader_parameter("brilho", m.emission_texture)
+				s.set_shader_parameter("brilho_forca", float(cfg.get("brilho", 0.6)))
+			s.next_pass = mat_contorno[k]
+			mi.set_surface_override_material(i, s)
+	# olhos (direção de arte, Warrok v3): o olho do modelo é minúsculo; um ponto de brilho de 5 cm em cada (nós olho_e e
+	# olho_d presos no osso da cabeça, feitos pelo converter-mixamo.html), amarelo #ffcc40, emissão 2, sem sombra
+	for o in no.find_children("olho_*", "", true, false):
+		var p := MeshInstance3D.new()
+		var esf := SphereMesh.new()
+		var k: float = 1.0 / max(0.0001, o.global_transform.basis.get_scale().x)
+		esf.radius = 0.025 * k
+		esf.height = 0.05 * k
+		esf.radial_segments = 8
+		esf.rings = 4
+		var mb := StandardMaterial3D.new()
+		mb.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mb.albedo_color = Color(str(cfg.get("olho", "ffcc40")))
+		mb.emission_enabled = true
+		mb.emission = mb.albedo_color
+		mb.emission_energy_multiplier = 2.0
+		esf.material = mb
+		p.mesh = esf
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		o.add_child(p)
 
 # contorno escuro de desenho nos monstros (como o MToon da Ruiva): casca um pouco maior, só o lado de trás
 var mat_contorno := {}
@@ -1268,7 +1328,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	var empurra: Vector3 = (e.no.position - de)
 	empurra.y = 0
 	var metros: float = float(hab.get("empurra", 0.25)) if hab is Dictionary else 0.25
-	if empurra.length() > 0.01 and e.tipo != "chefe" and not firme: # o inimigo voa para longe (em 0,22 s)
+	if empurra.length() > 0.01 and not (e.tipo in CHEFES) and not firme: # o inimigo voa para longe (em 0,22 s)
 		e.puxao = empurra.normalized() * metros / 0.22
 		e.puxao_t = 0.22
 	if e.vida <= 0:
@@ -1279,7 +1339,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		e.anim.speed_scale = 1.0
 		e.anim.play("morrer", 0.1)
 		e.golpe = -1.0
-		if e.tipo != "chefe" and empurra.length() > 0.01: # o golpe final joga o corpo para trás
+		if not (e.tipo in CHEFES) and empurra.length() > 0.01: # o golpe final joga o corpo para trás
 			e.puxao = empurra.normalized() * D.COMBATE.voaMorte / 0.35
 			e.puxao_t = 0.35
 		combate.morreu(e.no)
@@ -1294,7 +1354,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			fx.subir_nivel(heroi)
 		return
 	if hab is Dictionary:
-		var chefe: float = 0.5 if e.tipo == "chefe" else 1.0
+		var chefe: float = 0.5 if e.tipo in CHEFES else 1.0
 		if hab.has("lento"): # no chefe lentidão e Quebrado valem metade
 			e.lento = tempo + hab.lento.dur
 			e.lento_k = hab.lento.k * chefe
@@ -1302,7 +1362,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			e.vuln = tempo + hab.vulneravel.dur
 			e.vuln_k = hab.vulneravel.k * chefe
 		for k in ["atordoa", "congela"]:
-			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo == "chefe"):
+			if hab.has(k) and not (k == "atordoa" and hab.get("tipo") == "esmagar" and e.tipo in CHEFES):
 				e.parado = max(e.parado, tempo + hab[k] * chefe)
 				e.golpe = -1.0
 				fx.status(e.no, k, hab[k] * chefe)
@@ -1883,7 +1943,19 @@ func basico_magia() -> void:
 	rede("habQ", {"id": "cajado_basico", "v": indice_inimigo(alvo)})
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
 	heroi_anim.so_tronco = true # andando, as pernas continuam no passo e só os braços atiram
+	h.mira_ate = tempo + g.dur + 0.6 # entre um tiro e outro continua virado para o alvo (não fica virando para lá e para cá)
 	segurar_pose(0.35)
+
+# Mago atirando a Faísca: o alvo para onde o corpo fica virado (o tiro de agora ou logo depois do último).
+# null = anda normal, virando para onde o joystick aponta.
+func mira_mago():
+	if h.modo != "Magia" or montaria != null or mov.esc != null:
+		return null
+	if not acao.is_empty() and acao.get("basico", false) and vivo(acao.get("alvo")):
+		return acao.alvo
+	if acao.is_empty() and tempo < float(h.mira_ate) and vivo(h.alvo_fixo):
+		return h.alvo_fixo
+	return null
 
 # o golpe básico fica parado no último quadro mais um pouco: o próximo golpe do combo emenda direto,
 # sem voltar para a corrida no meio (era o "pulo" que aparecia no loop do combo)
@@ -2101,7 +2173,7 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 		"puxar": # puxa para perto (não puxa chefe) e segura um instante; não tira vida
 			fx.vortice(p0.x, p0.z, hab.area, p0.y)
 			for e in inimigos:
-				if e.estado == "morto" or e.tipo == "chefe":
+				if e.estado == "morto" or e.tipo in CHEFES:
 					continue
 				var d: Vector3 = p0 - e.no.position
 				d.y = 0
@@ -2345,6 +2417,9 @@ func atualizar_heroi(dt: float) -> void:
 	var livre: bool = acao.is_empty() or acao.get("pulo", false) or acao.get("livre", false)
 	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
+	var alvo_mira = mira_mago()
+	if alvo_mira != null:
+		k_alvo = float(P.dados.andarAtirando) # andando de lado ou de costas: o mesmo passo de quem atira
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
@@ -2354,6 +2429,15 @@ func atualizar_heroi(dt: float) -> void:
 	if not acao.is_empty() and acao.get("livre", false) and vivo(acao.get("alvo")):
 		var da: Vector3 = acao.alvo.no.position - heroi.position
 		mov.mirar(atan2(da.x, da.z))
+	elif alvo_mira != null:
+		var dm: Vector3 = alvo_mira.no.position - heroi.position
+		mov.mirar(atan2(dm.x, dm.z))
+	# pernas: virado para o alvo, anda de lado e de costas para onde o joystick manda (anim_heroi.gd)
+	heroi_anim.mirando = alvo_mira != null and mov.chao and mov.esc == null and montaria == null and mov.manobra == null
+	if heroi_anim.mirando:
+		var s_ry := sin(mov.ry)
+		var c_ry := cos(mov.ry)
+		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
 	# armas: escalando, as duas nas costas
@@ -2953,7 +3037,7 @@ func atualizar_inimigos(dt: float) -> void:
 					combate.esquiva(heroi)
 				elif d < 2.4 and dy < 1.3 and h.morto <= 0.0 and mov.esc == null:
 					var nv_e: int = int(e.get("nivel", P.prog.nivel)) # diferença de nível (Quimera): dano e teto por golpe
-					ferir_heroi(float(e.get("dano", D.INIMIGO.dmg)) * dano_monstro_nivel(nv_e), teto_monstro_nivel(nv_e, e.get("tipo", "") == "chefe"))
+					ferir_heroi(float(e.get("dano", D.INIMIGO.dmg)) * dano_monstro_nivel(nv_e), teto_monstro_nivel(nv_e, e.get("tipo", "") in CHEFES))
 					e.combate = tempo + 5.0
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0

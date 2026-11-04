@@ -1,0 +1,178 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Converter personagem do Mixamo</title></head>
+<body><p>Ferramenta (só no vite dev): lê os FBX do Mixamo em <code>public/tmp-mixamo/</code> (fora do Git) e gera um GLB leve por
+monstro (texturas em 1024, sem mapa especular), com o esqueleto mixamorig, para <code>public/assets/monstros/mixamo/</code>.
+Uso: <code>converter-mixamo.html?nomes=Warrok,Maw</code>. Resultado em <code>window.resultado</code> (base64 por nome).</p>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+const LADO = 1024;
+function reduzir(tex) {
+  if (!tex || !tex.image) return tex;
+  const img = tex.image, k = Math.min(1, LADO / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.colorSpace = tex.colorSpace; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT; return t;
+}
+// Receita da direção de arte (2026-11-04, Warrok v2): achatar o detalhe fotográfico. Textura base a 256 px e de volta
+// (some a ruga fina), posterizar (valor em 4 degraus; por canal sujava o matiz), misturar 50% com a cor chapada da região (a cor da paleta mais
+// parecida), saturação +25% e valor mínimo ~0,45. olhos = retângulo da textura (u0, v0, u1, v1 de 0 a 1, v de cima)
+// que vira textura de brilho (emissão) para os olhos acenderem.
+// v3 (direção de arte 2026-11-04): chapado = cada região vira só 2 valores, a cor e a variação ([cor, variação]: negativa
+// escurece onde o original é mais escuro que a média da região, as dobras; positiva clareia onde é mais claro, o filete
+// do metal pintado). chifres = triângulos acima do osso Head + `acima` (cm, unidade do FBX) e a menos de `raio` dele,
+// pintados de `cor` com a ponta `ponta` mais escura. Os olhos ganham nós olho_e/olho_d presos no osso Head (o Godot
+// põe um ponto de brilho em cada).
+const ESTILO = {
+  // pele cinza-violeta lisa (o resto), couro e madeira (laranja forte), braçadeira e ombreira (vermelho forte), chifre e dente
+  Warrok: { chapado: true, paleta: [['#77708c', -0.1], ['#7a5232', -0.15], ['#a8402e', 0.2], ['#d9c9a3', -0.1]],
+    regras: [[3, 0, 360, 0, 0.7], [2, 335, 10, 0.4, 0.15], [1, 10, 40, 0.45, 0.08]], olhos: [0.9, 0.92, 0.985, 1.0], olhosAjuste: [0, 20, 2], // o globo do olho fica fundo e baixo; o ponto vai para a fenda do rosto (cm)
+    chifres: { cor: '#d9c9a3', ponta: -0.2, acima: 15, raio: 35 }, detalhe: 0.45, sat: 0.75, valor: 0.92 },
+  // Maw (direção de arte 2026-11-04, chefe de mata): pele marrom-terra, galhada e dente em osso, boca vermelho-escura,
+  // trapos e pelos (verde-azulado no original) em musgo. olhosFixos: ponto de brilho em cm do osso da cabeça (espelhado)
+  Maw: { chapado: true, paleta: [['#8c5a3c', -0.1], ['#d9c9a3', -0.1], ['#7a2e2a', -0.1], ['#4f6b3a', -0.12]],
+    regras: [[1, 25, 55, 0.45, 0.45], [2, 335, 15, 0.45, 0.15], [3, 120, 200, 0.2, 0.1]], olhosFixos: [4, 9, 15],
+    chifres: { cor: '#d9c9a3', ponta: -0.2, acima: 12, raio: 80 }, detalhe: 0.45, sat: 0.75, valor: 0.92 },
+  // Pumpkinhulk vira golem de magma: tudo pedra escura (pernas também, sem calça); onde o original é mais claro que a
+  // média da região (a carne, as rachaduras) vira laranja aceso. [cor, variação, cor da variação, emissão da variação,
+  // quanto mais claro que a média precisa ser]
+  Pumpkinhulk: { chapado: true, paleta: [['#4a4048', 0.12, '#ff7a1a', 1, 1.45]], regras: [], olhosFixos: [4, 8, 14], detalhe: 0.45, sat: 0.75, valor: 0.92 },
+};
+const hex = (h) => (Array.isArray(h) ? h[0] : h) && [1, 3, 5].map((i) => parseInt((Array.isArray(h) ? h[0] : h).slice(i, i + 2), 16) / 255);
+// posição (mundo, pose de descanso com a pele) e UV de cada vértice da malha
+function vertices(mesh) {
+  const g = mesh.geometry, n = g.attributes.position.count, pos = [], uv = g.attributes.uv, v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { (mesh.isSkinnedMesh ? mesh.getVertexPosition(i, v) : v.fromBufferAttribute(g.attributes.position, i)).applyMatrix4(mesh.matrixWorld); pos.push(v.clone()); }
+  const idx = g.index ? Array.from(g.index.array) : [...Array(n).keys()];
+  return { pos, uv: (i) => [uv.getX(i), uv.getY(i)], idx };
+}
+function mascaraChifres(mesh, cabeca, cfg, W, H) {
+  const { pos, uv, idx } = vertices(mesh), hp = cabeca.getWorldPosition(new THREE.Vector3()), base = hp.y + cfg.acima;
+  const eh = (p) => p.y > base && Math.hypot(p.x - hp.x, p.z - hp.z) < cfg.raio;
+  let topo = base + 1; pos.forEach((p) => { if (eh(p)) topo = Math.max(topo, p.y); });
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  for (let k = 0; k < idx.length; k += 3) {
+    const t = [idx[k], idx[k + 1], idx[k + 2]]; if (!t.every((i) => eh(pos[i]))) continue;
+    const y = (pos[t[0]].y + pos[t[1]].y + pos[t[2]].y) / 3, f = Math.round(255 * (y - base) / (topo - base));
+    x.fillStyle = `rgb(255,${f},0)`; x.strokeStyle = x.fillStyle; x.lineWidth = 2; x.beginPath();
+    t.forEach((i, j) => { const [u, v] = uv(i); j ? x.lineTo(u * W, (1 - v) * H) : x.moveTo(u * W, (1 - v) * H); }); x.closePath(); x.fill(); x.stroke();
+  }
+  return x.getImageData(0, 0, W, H).data;
+}
+function nosOlhos(mesh, cabeca, r, ajuste = [0, 0, 0]) {
+  const { pos, uv } = vertices(mesh), hp = cabeca.getWorldPosition(new THREE.Vector3()), lados = { olho_e: [], olho_d: [] };
+  pos.forEach((p, i) => { const [u, v] = uv(i); if (u >= r[0] && u <= r[2] && 1 - v >= r[1] && 1 - v <= r[3]) lados[p.x > hp.x ? 'olho_e' : 'olho_d'].push(p); });
+  for (const [nome, l] of Object.entries(lados)) {
+    if (!l.length) continue;
+    const c = l.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(l.length).add(new THREE.Vector3(...ajuste)), o = new THREE.Object3D();
+    o.name = nome; cabeca.add(o); o.position.copy(cabeca.worldToLocal(c.clone())); window.olhosInfo = (window.olhosInfo || []).concat([[nome, l.length, c.toArray().map(Math.round), o.position.toArray()]]);
+  }
+}
+function hsv(r, g, b) { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0;
+  if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [h / 6, mx ? d / mx : 0, mx]; }
+function rgb(h, s, v) { h = ((h % 1) + 1) % 1 * 6; const i = Math.floor(h), f = h - i, p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+  return [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6]; }
+function estilizar(tex, cfg, chifres) {
+  const img = tex.image, W = Math.min(LADO, img.width), H = Math.round(img.height * W / img.width);
+  const pq = document.createElement('canvas'); pq.width = 256; pq.height = Math.round(256 * H / W);
+  pq.getContext('2d').drawImage(img, 0, 0, pq.width, pq.height);
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high'; x.drawImage(pq, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H), px = d.data, pal = cfg.paleta.map(hex), palH = pal.map((p) => hsv(...p));
+  // região = cor da paleta com o matiz mais perto; pixel quase cinza vai para a 1ª cor (corpo), ou para a mais clara
+  // se for bem claro (osso, dente). Depois: 50% pixel + 50% cor chapada, valor em 4 degraus, saturação +25%, valor ≥0,45.
+  const clara = palH.reduce((m, h, k) => (h[2] > palH[m][2] ? k : m), 0);
+  // a região sai de uma cópia bem borrada (48 px): a ilha inteira da textura pega uma cor só, sem manchas
+  const bz = document.createElement('canvas'); bz.width = 48; bz.height = 48; bz.getContext('2d').drawImage(img, 0, 0, 48, 48);
+  const bc = document.createElement('canvas'); bc.width = W; bc.height = H; const bx = bc.getContext('2d');
+  bx.imageSmoothingQuality = 'high'; bx.drawImage(bz, 0, 0, W, H); const bp = bx.getImageData(0, 0, W, H).data;
+  // detalhe (0 a 1): quanto da luz e sombra da textura original volta por cima da cor chapada (músculo, desgaste);
+  // sat e valor: multiplicam a saturação e o valor da paleta (meio-termo da direção de arte: detalhe 0,45, sat 0,75, valor 0,92). Meio-termo pedido pelo André (2026-11-04: "ficou colorido demais").
+  const oc = document.createElement('canvas'); oc.width = W; oc.height = H; const ox = oc.getContext('2d');
+  ox.imageSmoothingQuality = 'high'; ox.drawImage(img, 0, 0, W, H); const op = ox.getImageData(0, 0, W, H).data;
+  const q = new URLSearchParams(location.search), detalhe = q.has('detalhe') ? +q.get('detalhe') : cfg.detalhe || 0, satK = q.has('sat') ? +q.get('sat') : cfg.sat || 1,
+    valK = q.has('valor') ? +q.get('valor') : cfg.valor || 1;
+  let ec = null, ep = null;
+  if (cfg.chapado && cfg.paleta.some((p) => p[3])) { ec = document.createElement('canvas'); ec.width = W; ec.height = H; ep = ec.getContext('2d').getImageData(0, 0, W, H); }
+  for (let i = 0; i < px.length; i += 4) {
+    const [h0, s0, v0] = hsv(bp[i] / 255, bp[i + 1] / 255, bp[i + 2] / 255);
+    let best = 0;
+    if (cfg.regras) { // regras da paleta: [índice, matiz de, matiz até (graus), saturação mínima, valor mínimo]; senão a 1ª cor
+      const g = h0 * 360; for (const [k, a, b, sm, vm] of cfg.regras) if ((a <= b ? g >= a && g <= b : g >= a || g <= b) && s0 >= sm && v0 >= vm) { best = k; break; }
+    } else if (s0 < 0.18) best = v0 > 0.62 ? clara : 0;
+    else { let bd = 9; palH.forEach((p, k) => { if (k === clara) return; const dh = Math.min(Math.abs(h0 - p[0]), 1 - Math.abs(h0 - p[0])); if (dh < bd) { bd = dh; best = k; } }); }
+    if (cfg.chapado) {
+      const l = (px[i] + px[i + 1] + px[i + 2]) / 765, lm = (bp[i] + bp[i + 1] + bp[i + 2]) / 765, va = cfg.paleta[best][1] || 0;
+      let [h, s, v] = palH[best];
+      const pe = cfg.paleta[best];
+      if (ep) ep.data[i + 3] = 255;
+      if ((va < 0 && l < lm * 0.9) || (va > 0 && l > lm * (pe[4] || 1.15))) {
+        if (pe[2]) { [h, s, v] = hsv(...hex(pe[2])); if (ep && pe[3]) { const e = hex(pe[2]); ep.data[i] = e[0] * 255 * pe[3]; ep.data[i + 1] = e[1] * 255 * pe[3]; ep.data[i + 2] = e[2] * 255 * pe[3]; } }
+        else v = Math.min(1, v * (1 + va));
+      }
+      if (chifres && chifres[i] > 128) { [h, s, v] = hsv(...hex(cfg.chifres.cor)); v *= 1 + cfg.chifres.ponta * chifres[i + 1] / 255; }
+      if (detalhe) { const lo = (op[i] + op[i + 1] + op[i + 2]) / 765, k = Math.min(1.4, Math.max(0.5, lo / Math.max(0.02, lm))); v = Math.min(1, v * (1 + (k - 1) * detalhe)); }
+      s *= satK; v *= valK;
+      const o = rgb(h, s, v); px[i] = o[0] * 255; px[i + 1] = o[1] * 255; px[i + 2] = o[2] * 255; continue;
+    }
+    const c0 = pal[best] || [px[i] / 255, px[i + 1] / 255, px[i + 2] / 255]; // sem paleta: só achata, satura e clareia
+    const r = (px[i] / 255 + c0[0]) / 2, g = (px[i + 1] / 255 + c0[1]) / 2, b = (px[i + 2] / 255 + c0[2]) / 2;
+    const [h, s, v] = hsv(r, g, b), vq = Math.min(1, Math.round(v * 4) / 4 + 0.1);
+    const o = rgb(h, Math.min(1, s * 1.25), Math.max(0.45, vq));
+    px[i] = o[0] * 255; px[i + 1] = o[1] * 255; px[i + 2] = o[2] * 255;
+  }
+  x.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT;
+  let brilho = null;
+  if (ec) { ec.getContext('2d').putImageData(ep, 0, 0); brilho = new THREE.CanvasTexture(ec); brilho.flipY = tex.flipY; brilho.colorSpace = THREE.SRGBColorSpace; }
+  if (cfg.olhos && !cfg.chapado) {
+    const e = document.createElement('canvas'); e.width = 256; e.height = 256; const ex = e.getContext('2d');
+    ex.fillStyle = '#000'; ex.fillRect(0, 0, 256, 256);
+    const [u0, v0, u1, v1] = cfg.olhos;
+    ex.drawImage(img, u0 * img.width, v0 * img.height, (u1 - u0) * img.width, (v1 - v0) * img.height, u0 * 256, v0 * 256, (u1 - u0) * 256, (v1 - v0) * 256);
+    const ed = ex.getImageData(0, 0, 256, 256), ep = ed.data;
+    for (let i = 0; i < ep.length; i += 4) { const k = Math.max(ep[i], ep[i + 1], ep[i + 2]) > 20 ? 1 : 0; ep[i] = 255 * k; ep[i + 1] = 170 * k; ep[i + 2] = 40 * k; }
+    ex.putImageData(ed, 0, 0);
+    brilho = new THREE.CanvasTexture(e); brilho.flipY = tex.flipY; brilho.colorSpace = THREE.SRGBColorSpace;
+  }
+  return { t, brilho };
+}
+const nomes = (new URLSearchParams(location.search).get('nomes') || 'Warrok').split(','), CRU = new URLSearchParams(location.search).has('cru'); // cru: textura original (comparação)
+const saida = {}, info = {};
+for (const nome of nomes) {
+  try {
+    const f = await new FBXLoader().loadAsync('tmp-mixamo/' + nome + '.fbx');
+    // espere carregar as imagens embutidas
+    await new Promise((ok) => setTimeout(ok, 1500));
+    const feitos = new Map();
+    f.updateMatrixWorld(true);
+    f.traverse((o) => {
+      if (!o.isMesh) return;
+      const lista = Array.isArray(o.material) ? o.material : [o.material];
+      const novos = lista.map((m) => {
+        if (feitos.has(m)) return feitos.get(m);
+        const cfg = ESTILO[nome] || { paleta: [] }, cab = f.getObjectByName('mixamorigHead');
+        const W = Math.min(LADO, m.map ? m.map.image.width : 1), H = m.map ? Math.round(m.map.image.height * W / m.map.image.width) : 1;
+        const est = m.map && !CRU ? estilizar(m.map, cfg, cfg.chifres && cab ? mascaraChifres(o, cab, cfg.chifres, W, H) : null) : null; // sem paleta própria: receita básica
+        if (cfg.olhos && cfg.chapado && cab) nosOlhos(o, cab, cfg.olhos, cfg.olhosAjuste);
+        if (cfg.olhosFixos && cab && !cab.getObjectByName('olho_e')) for (const [nome, sx] of [['olho_e', 1], ['olho_d', -1]]) {
+          const ob = new THREE.Object3D(); ob.name = nome; const [a, b, c] = cfg.olhosFixos; ob.position.set(a * sx, b, c); cab.add(ob);
+        }
+        const n = new THREE.MeshStandardMaterial({ name: m.name, map: est ? est.t : reduzir(m.map), normalMap: !est && m.normalMap ? reduzir(m.normalMap) : null,
+          color: m.map ? 0xffffff : m.color, transparent: !!m.transparent, alphaTest: m.alphaTest || 0, side: THREE.FrontSide, roughness: 1, metalness: 0 });
+        if (est && est.brilho) { n.emissiveMap = est.brilho; n.emissive = new THREE.Color(0xffffff); }
+        feitos.set(m, n); return n;
+      });
+      o.material = Array.isArray(o.material) ? novos : novos[0];
+    });
+    f.animations = [];
+    const caixa = new THREE.Box3().setFromObject(f);
+    const quadril = f.getObjectByName('mixamorigHips');
+    info[nome] = { altura: caixa.max.y - caixa.min.y, quadril: quadril ? quadril.getWorldPosition(new THREE.Vector3()).y : null, escala: f.scale.x };
+    const bin = await new GLTFExporter().parseAsync(f, { binary: true });
+    saida[nome] = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(',')[1]); fr.readAsDataURL(new Blob([bin])); });
+  } catch (e) { info[nome] = { erro: String(e) }; }
+}
+window.info = info;
+window.resultado = saida;
+</script></body></html>

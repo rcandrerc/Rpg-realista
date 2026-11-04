@@ -1,6 +1,7 @@
 {
   "_leia": "Recursos que já estão no jogo. Cada um diz um arquivo e trechos que precisam continuar lá. Se um PR apaga um trecho, a conferência falha. Só tire ou mude uma linha daqui quando o André pedir para tirar ou trocar aquele recurso. Recurso novo entra aqui no mesmo PR que o cria.",
   "recursos": [
+    { "nome": "Monstros do Mixamo com golpes, andar, correr, apanhar e morrer de monstro (André 2026-11-04)", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["assets/monstros/mixamo/golpes.json.gz", "const GOLPES = {", "const cortar = (a, ini, fim)"] },
     { "nome": "Todas as árvores da mata dão lenha (ids m0...) e o botão procura pela grade (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["(mapa.mata || []).map((a, i) => ['m' + i", "for (const o of mapa.cenario?.solidos || [])"] },
     { "nome": "Cenário da mata: marcos (ruínas, portal, santuário, rochedos, troncos caídos, árvore morta, acampamento) e mato solto (André 2026-11-03)", "arquivo": "shared/dados.js", "contem": ["const CONJUNTOS = {", "function montarCenario(", "function sortearEnfeites(", "MAPA_CLAREIRA.cenario = {"] },
     { "nome": "Godot desenha o cenário da mata em MultiMesh e colide com ele", "arquivo": "godot-prototipo/cenario.gd", "contem": ["func _malhas(", "func _lugar(", "res://cenario3d/%s.glb"] },
@@ -74,6 +75,9 @@
     { "nome": "Arrancada em rampa e curva em arco (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func _inercia(", "const ACELERA_FIM", "const CURVA_CORRENDO"] },
     { "nome": "Trote com a animação própria (Mixamo Jogging) entre o andar e a corrida (André 2026-11-03)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["tem_trote = player.has_animation(\"trote\")", "bt.connect_node(\"rapido\", 0, \"ts_trote\")", "const PASSO_TROTE"] },
     { "nome": "Animação trote exportada no herói (André 2026-11-03)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["trote: 'trote'"] },
+    { "nome": "Mago atirando anda de lado e de costas virado para o alvo (André 2026-11-04)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["const LADO_ANIMS", "bt.connect_node(\"mexe\", 1, \"lado\")", "tree.set(\"parameters/lado/blend_amount\", _lado)"] },
+    { "nome": "Mira do mago entre os tiros da Faísca (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["func mira_mago()", "h.mira_ate = tempo + g.dur + 0.6", "heroi_anim.mirando = alvo_mira != null"] },
+    { "nome": "Animações de lado e de costas exportadas no herói (André 2026-11-04)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["lado_e_andar: 'lado_e_andar'", "tras_correr: 'tras_correr'"] },
     { "nome": "Freada, meia-volta e curva com derrapada também no trote, não só na corrida (André 2026-11-03)", "arquivo": "godot-prototipo/andar.gd", "contem": ["const FREADA_MIN := 3.3", "const MEIA_VOLTA_MIN := 3.3", "const FREADA_TROTE", "const CURVA_TROTE", "* CURVA_TROTE +"] },
     { "nome": "Trote não gasta estamina por oscilação da rede (média de 0,3 s no servidor) (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["j.janCorrida", "if (jan.t >= 0.3)"] },
     { "nome": "Freada com derrapada e meia-volta do Mixamo (PR #55)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func iniciar_manobra(", "iniciar_manobra(\"freada\"", "iniciar_manobra(\"meia_volta\"", "func _passo_manobra("] },
@@ -190,6 +194,9 @@
     { "nome": "Monstros agressivos no modo sozinho (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["e.folga_ate = tempo + e.golpe_dur", "float(D.COMBATE.perseguir)"] },
     { "nome": "Diferença de nível igual ao Quimera: dano, teto por golpe e XP (André 2026-11-04)", "arquivo": "shared/progresso.js", "contem": ["export const danoMonstroNivel", "export const tetoMonstroNivel", "export const golpeHeroiNivel", "export const xpNivel"] },
     { "nome": "Diferença de nível aplicada no servidor", "arquivo": "shared/simulacao.js", "contem": ["danoMonstroNivel(nvM, alvo.prog?.nivel, NIVEL_INIMIGO)", "golpeHeroiNivel(alvo.nivel, de.prog?.nivel, NIVEL_INIMIGO)"] },
-    { "nome": "Diferença de nível no app: cor do nome e modo sozinho", "arquivo": "godot-prototipo/main.gd", "contem": ["func cor_nivel(nv: int) -> Color:", "func colorir_niveis() -> void:", "dano_monstro_nivel(nv_e)", "golpe_heroi_nivel(int(e.nivel))"] }
+    { "nome": "Diferença de nível no app: cor do nome e modo sozinho", "arquivo": "godot-prototipo/main.gd", "contem": ["func cor_nivel(nv: int) -> Color:", "func colorir_niveis() -> void:", "dano_monstro_nivel(nv_e)", "golpe_heroi_nivel(int(e.nivel))"] },
+    { "nome": "Monstros do Mixamo: Golem de Magma, Maw e Warrok chefe nas clareiras 11 e 12", "arquivo": "shared/dados.js", "contem": ["{ id: 'caca11', tipo: 'golem'", "{ id: 'caca12', tipo: 'maw'", "chefe: true"] },
+    { "nome": "Monstros do Mixamo: visual anime (shader, contorno, olhos acesos)", "arquivo": "godot-prototipo/main.gd", "contem": ["func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:", "res://monstro.gdshader"] },
+    { "nome": "Monstros do Mixamo: exportação com as animações do jogo", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["const MIXAMO = {"] }
   ]
 }
