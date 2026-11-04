@@ -2,7 +2,7 @@ extends CanvasLayer
 # Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Conta, Multijogador e Configurações
 # e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
-# Regra do André: no topo só entram conta, multijogador e configurações. Pedido dele (2026-11-03): a casinha do Voltar
+# Regra do André: no topo só entram conta, multijogador e configurações (e, pedido dele em 2026-11-04, a mochila, primeiro da fila). Pedido dele (2026-11-03): a casinha do Voltar
 # para a vila também fica aqui, na ponta perto da seta; ela não abre janela, começa a canalização (volta_vila.gd) e mostra
 # a recarga de 10 min (varredura escura e o tempo embaixo).
 
@@ -12,7 +12,7 @@ const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
 const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o menu fica à esquerda do minimapa, na altura do centro dele
 # (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
-const ITENS := [["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
@@ -70,6 +70,8 @@ func _ready() -> void:
 		if k == "vila":
 			b.pressed.connect(func(): m.volta.pedir())
 			_recarga_vila(b)
+		elif k == "mochila": # André 2026-11-04: a bolsa (Mochila e Criar) sai do menu da barra de vida e ganha botão aqui
+			b.pressed.connect(func(): m.menu.abrir_bolsa())
 		else:
 			b.pressed.connect(func(): abrir(k))
 		itens.add_child(b)
