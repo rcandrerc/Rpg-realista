@@ -150,6 +150,8 @@ func _carregar_modelos() -> void:
 		[["res://construcao3d/Door_1_Flat.gltf", Vector3(-0.53, 0, 0.0), "folha"]])
 	_modelos["janela"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Window_Wide_Flat.gltf", 1.0, meio,
 		[["res://construcao3d/Window_Wide_Flat1.gltf", meio, ""]])
+	for k in ["parede", "porta", "janela"]: # juntas (André 2026-11-05): pilar de madeira nas duas pontas fecha o canto
+		_pilares(_modelos[k])
 	_modelos["fundacao"] = _modelo_fundacao()
 	_modelos["telhado"] = _modelo_telhado_um()
 	_modelos["bau"] = _modelo_gltf("res://construcao3d/Chest_Wood.gltf", 1.0)
@@ -173,6 +175,47 @@ func _modelo_gltf(caminho: String, escala: float, pos := Vector3.ZERO, extra := 
 			raiz.add_child(f)
 	m.pintar(raiz, false) # mesmo jeito pintado da vila (toon, sem brilho de plástico)
 	return raiz
+
+# Juntas das paredes (André 2026-11-05: "e a junta das paredes"): a parede de 2 m acaba na linha da grade, então no
+# canto (e entre duas paredes) ficava uma fresta. Cada parede ganha um pilar de madeira de 36 x 36 cm em cada ponta,
+# do pé ao alto, como os esteios das casas de enxaimel. Dois pilares no mesmo canto ficam um dentro do outro (na
+# mesma posição; cada giro fica um tiquinho maior, para não piscar), e o pilar some junto com a parede cortada.
+const PILAR := 0.36
+var _mat_pilar: StandardMaterial3D
+func _pilares(raiz: Node3D) -> void:
+	var alto := float(D.get("casa", {}).get("parede", 3.1)) + 0.04
+	var h := PILAR / 2.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# madeira clara da faixa de cima da textura (v 0,02 a 0,28), com o veio correndo de pé
+	for lado in [-1.0, 1.0]:
+		var c := Vector3(lado * grade() / 2.0, 0, 0)
+		var y0 := -0.25
+		var cantos := [Vector3(-h, 0, -h), Vector3(h, 0, -h), Vector3(h, 0, h), Vector3(-h, 0, h)]
+		for k in 4:
+			var a: Vector3 = c + cantos[k]
+			var b: Vector3 = c + cantos[(k + 1) % 4]
+			var q := [[a + Vector3(0, y0, 0), Vector2(0.0, 0.02)], [b + Vector3(0, y0, 0), Vector2(0.0, 0.28)],
+				[b + Vector3(0, alto, 0), Vector2(alto / 3.0, 0.28)], [a + Vector3(0, alto, 0), Vector2(alto / 3.0, 0.02)]]
+			for t in [0, 2, 1, 0, 3, 2]:
+				st.set_uv(q[t][1] + Vector2(k * 0.21 + lado * 0.37, 0)) # cada face pega outro pedaço do veio
+				st.add_vertex(q[t][0])
+		var topo := [c + Vector3(-h, alto, -h), c + Vector3(h, alto, -h), c + Vector3(h, alto, h), c + Vector3(-h, alto, h)]
+		for t in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(Vector2(0.5 + topo[t].x * 0.3, 0.05 + (topo[t].z + h) * 0.6))
+			st.add_vertex(topo[t])
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.name = "pilares"
+	mi.mesh = st.commit()
+	if _mat_pilar == null: # a mesma madeira dos caibros da parede (T_WoodTrim do kit)
+		_mat_pilar = StandardMaterial3D.new()
+		_mat_pilar.albedo_texture = load("res://construcao3d/T_WoodTrim_BaseColor.png")
+		_mat_pilar.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_mat_pilar.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		_mat_pilar.roughness = 1.0
+	mi.material_override = _mat_pilar
+	raiz.add_child(mi)
 
 # Fundação: bloco de pedra de 2 x 2 m (o topo fica 20 cm acima do chão; desce 60 cm para não flutuar em chão torto)
 # com o assoalho de tábuas escuras em cima
@@ -382,6 +425,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			p.no = _copia(p.k)
 			p.no.position = Vector3(p.x, _y_peca(p), p.z)
 			p.no.rotation.y = p.r * PI / 2.0
+			var pil = p.no.get_node_or_null("pilares")
+			if pil: # dois pilares no mesmo canto: cada giro um tiquinho maior, para um cobrir o outro sem piscar
+				pil.scale = Vector3(1.0 + 0.012 * p.r, 1.0 + 0.003 * p.r, 1.0 + 0.012 * p.r)
 			L.raiz.add_child(p.no)
 	_refazer_telhado(L)
 	_achar_portas()
