@@ -122,15 +122,16 @@ jobs:
           mkdir -p ~/.config/godot
           printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > ~/.config/godot/editor_settings-4.5.tres
       # O aapt2 (empacotador do Android) só existe em x86_64. No runner ARM ele roda emulado (qemu, já registrado
-      # no instalar-runner.sh), mas faltava o loader/glibc x86_64 -> "Could not open /lib64/ld-linux-x86-64.so.2".
-      # Monta um sysroot x86_64 (uma vez; fica no $HOME do runner) e aponta QEMU_LD_PREFIX pra ele. Só no ARM; no
-      # GitHub (x86_64) este passo não faz nada.
+      # no instalar-runner.sh). O gradle lança o aapt2 num subprocesso que NÃO herda QEMU_LD_PREFIX, então o qemu
+      # procura /lib64/ld-linux-x86-64.so.2 no caminho absoluto. Instala as libs x86_64 no caminho de sistema
+      # (só arquivos x86_64 — não encosta no arm64). Precisa de sudo. Só no ARM; no GitHub (x86_64) não faz nada.
       - name: Compatibilidade x86_64 para o aapt2 (só no runner ARM)
         run: |
           case "$(uname -m)" in aarch64|arm64) ;; *) echo "runner x86_64 nativo: nada a fazer"; exit 0;; esac
+          if [ -e /lib64/ld-linux-x86-64.so.2 ]; then echo "loader x86_64 já instalado"; exit 0; fi
           SYS="$HOME/x86_64-root"
-          if [ ! -e "$SYS/lib/x86_64-linux-gnu/libc.so.6" ]; then
-            echo "Montando sysroot x86_64 para o aapt2 emulado (qemu)..."
+          if [ ! -e "$SYS/lib64/ld-linux-x86-64.so.2" ]; then
+            echo "Montando sysroot x86_64 (libc6, libstdc++6, libgcc-s1, zlib1g amd64)..."
             rm -rf "$SYS" && mkdir -p "$SYS" /tmp/x86debs && cd /tmp/x86debs
             B=https://archive.ubuntu.com/ubuntu/pool/main
             for spec in \
@@ -144,8 +145,14 @@ jobs:
               echo "  baixando $f"; curl -fsSL -o "$f" "$dir/$f"; dpkg-deb -x "$f" "$SYS"
             done
           fi
-          echo "QEMU_LD_PREFIX=$SYS" >> "$GITHUB_ENV"
-          echo "aapt2 vai usar QEMU_LD_PREFIX=$SYS"
+          # qemu procura o loader x86_64 no caminho absoluto; instala no sistema (só paths x86_64).
+          if sudo -n cp -a "$SYS"/. / 2>/dev/null; then
+            sudo -n ldconfig 2>/dev/null || true
+            echo "libs x86_64 instaladas no sistema: $(ls -l /lib64/ld-linux-x86-64.so.2 2>&1)"
+          else
+            echo "::warning::sem sudo para instalar libs x86_64 no sistema; caindo pro QEMU_LD_PREFIX (pode nao bastar pro aapt2)"
+            echo "QEMU_LD_PREFIX=$SYS" >> "$GITHUB_ENV"
+          fi
       - name: Chave de assinatura
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
