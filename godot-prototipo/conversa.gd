@@ -37,6 +37,14 @@ var npc = null # o NPC com a janela aberta (dicionário de main.npcs)
 var ry_antes := 0.0 # o NPC vira para o herói e depois volta
 var indo = null # {npc, ate, d, t}: tocou no NPC longe e o herói está indo até ele
 var _falas := {} # sem internet: qual fala de cada NPC vem agora
+# O mesmo toque que aperta o Falar (hud.gd _input) segue para a interface depois que a janela já abriu: caía no
+# fundo escuro (fechava na hora) ou numa opção embaixo do dedo ("Até logo", "Vender"). Por isso a janela às vezes
+# "não abria" (André 2026-11-05). Toques que chegam logo depois de abrir são ignorados.
+const ESPERA_TOQUE := 400 # ms
+var _aberto_ms := 0
+
+func _toque_valido() -> bool:
+	return Time.get_ticks_msec() - _aberto_ms >= ESPERA_TOQUE
 
 func _init(principal) -> void:
 	m = principal
@@ -52,7 +60,7 @@ func _ready() -> void:
 	var sombra := ColorRect.new()
 	sombra.color = Color(0, 0, 0, 0.35)
 	sombra.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sombra.gui_input.connect(func(ev): if (ev is InputEventScreenTouch and ev.pressed) or (ev is InputEventMouseButton and ev.pressed): fechar())
+	sombra.gui_input.connect(func(ev): if ((ev is InputEventScreenTouch and ev.pressed) or (ev is InputEventMouseButton and ev.pressed)) and _toque_valido(): fechar())
 	raiz.add_child(sombra)
 	caixa_ui = PanelContainer.new()
 	caixa_ui.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO, Menu.OURO.darkened(0.25), 2, 10, 14))
@@ -252,6 +260,7 @@ func abrir(n: Dictionary) -> void:
 	opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
 	opcoes.add_child(_opcao("Até logo", "sair", fechar))
 	retrato_ui.texture = _retrato(n)
+	_aberto_ms = Time.get_ticks_msec()
 	raiz.visible = true
 	m.hud.bloqueado = true
 	m.hud.esconder_combate = true
@@ -282,7 +291,7 @@ func _opcao(t: String, ic: String, fn: Callable) -> Button:
 	if ic != "":
 		b.icon = Menu.icone_tex(ic)
 	Menu.estilo_botao(b, false)
-	b.pressed.connect(fn)
+	b.pressed.connect(func(): if _toque_valido(): fn.call())
 	return b
 
 # uma opção da janela
