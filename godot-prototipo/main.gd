@@ -2800,7 +2800,12 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 			if Geometry2D.get_closest_point_to_segment(c, a2, b2).distance_to(c) < float(k.r) + 0.2:
 				perto.append(k)
 	var chao: Array = []
+	# dentro de casa no modo jogo (André 2026-11-05, como no Quimera) a câmera não bate nas paredes nem no telhado da
+	# casa: fica longe como lá fora e a parede que tapa a vista apaga (construcao.gd _telhados_visiveis)
+	var sem_casa: bool = construcao != null and construcao.dentro_de_casa
 	for r in terreno.solidos:
+		if sem_casa and r.get("obra", false):
+			continue
 		var c := Vector2(r.x, r.z)
 		if Geometry2D.get_closest_point_to_segment(c, a2, b2).distance_to(c) <= r.R:
 			chao.append(r)

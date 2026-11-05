@@ -838,9 +838,19 @@ func _refazer_telhado(L: Dictionary) -> void:
 # Como no Quimera: dentro de casa (debaixo do telhado; em cima dele não conta) o telhado some e as paredes que ficam
 # entre a câmera e o herói também, conforme o ângulo (fica só a sombra, a luz de dentro não muda). No modo construção
 # o telhado some com a mira lá dentro (para pôr móveis e paredes); colocando telhado ou desmontando, ele aparece.
-func _telhados_visiveis(hp: Vector3) -> void:
+# André (2026-11-05): "igualzinho o Quimera, dependendo do ângulo e posição a parede some; não é pra sumir a parede
+# toda assim que entra". Só no modo jogo: no modo construção nenhuma parede some. Dentro de casa (em cima da fundação
+# ou debaixo do telhado) a câmera não bate mais nas paredes da casa (main.distancia_livre), fica longe como lá fora, e
+# só as paredes que tapam a linha herói → câmera (um cone que abre para o lado da câmera) apagam devagar.
+const CORTE_PERTO := 0.75 # m: meia largura do corte junto do herói
+const CORTE_ABRE := 0.3 # m a mais por metro andado para o lado da câmera (cone)
+const CORTE_VEL := 5.0 # quanto o apagar/voltar anda por segundo (1 = some em 0,2 s)
+var dentro_de_casa := false # o herói está dentro de uma casa, no modo jogo (a câmera ignora as paredes da casa)
+
+func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 	var g := grade() / 2.0
 	var dentro := false
+	var livre := ativo or comprando
 	for id in lotes:
 		var L: Dictionary = lotes[id]
 		var mi = L.get("telhado")
@@ -855,30 +865,77 @@ func _telhados_visiveis(hp: Vector3) -> void:
 				some = true
 			if ativo and id == meu and andar == "terreo": # andar térreo: o telhado inteiro some (fica a sombra)
 				some = true
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if some else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	# paredes (Quimera HB): de dentro, a parede até 9 m cuja direção a partir do herói aponta para a câmera some
-	var cx := 0.0
-	var cz := 0.0
-	if dentro and m.camera:
+		_apagar(mi, some, dt)
+	# em cima de uma fundação (casa ainda sem telhado também conta), abaixo do alto das paredes
+	if not dentro:
+		var topo := float(D.get("casa", {}).get("parede", 3.1)) - 0.3
+		for id in lotes:
+			for p in lotes[id].pecas:
+				if p.k == "fundacao" and absf(hp.x - p.x) < g and absf(hp.z - p.z) < g and hp.y < _piso(p.x, p.z) + topo:
+					dentro = true
+					break
+			if dentro:
+				break
+	dentro_de_casa = dentro and not livre
+	# paredes (Quimera): a linha do herói até a câmera, vista de cima; a parede que encosta nela (com folga que abre
+	# para o lado da câmera) apaga. As de trás do herói e as de lado ficam.
+	var a2 := Vector2(hp.x, hp.z)
+	var b2 := a2
+	var dir := Vector2.ZERO
+	var comp := 0.0
+	if dentro_de_casa and m.camera:
 		var v: Vector3 = m.camera.global_position - hp
-		var n := Vector2(v.x, v.z).length()
-		if n > 0.01:
-			cx = v.x / n
-			cz = v.z / n
+		comp = Vector2(v.x, v.z).length()
+		if comp > 0.3:
+			dir = Vector2(v.x, v.z) / comp
+			comp += 0.6
+			b2 = a2 + dir * comp
 	for id in lotes:
 		for p in lotes[id].pecas:
 			if tipo_peca(p.k) != "borda" or not p.get("no") or not is_instance_valid(p.no):
 				continue
 			var corta := false
-			if dentro and absf(p.x - hp.x) < 11.0 and absf(p.z - hp.z) < 11.0:
-				var dx: float = p.x - hp.x
-				var dz: float = p.z - hp.z
-				var dd := sqrt(dx * dx + dz * dz)
-				corta = dd < 9.0 and dd > 0.05 and (dx * cx + dz * cz) / dd > 0.22
-			if corta != p.get("cortada", false):
-				p.cortada = corta
-				for q in p.no.find_children("*", "MeshInstance3D", true, false):
-					q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if corta else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			if dir != Vector2.ZERO and absf(p.x - hp.x) < comp + g + 1.0 and absf(p.z - hp.z) < comp + g + 1.0:
+				corta = _parede_tapa(p, a2, b2, dir, g)
+			p.cortada = corta # a parede está cortada agora (o apagar anda devagar até lá)
+			_apagar(p.no, corta, dt)
+
+# a parede p (de 2 m, na linha da grade) tapa a vista do herói (a2) até a câmera (b2)?
+func _parede_tapa(p: Dictionary, a2: Vector2, b2: Vector2, dir: Vector2, g: float) -> bool:
+	var e := Vector2(0.0, g) if p.r & 1 else Vector2(g, 0.0)
+	var c := Vector2(p.x, p.z)
+	var w0 := c - e
+	var w1 := c + e
+	# o ponto da parede mais perto da linha
+	var pts: Array = [w0, w1, Geometry2D.get_closest_point_to_segment(a2, w0, w1), Geometry2D.get_closest_point_to_segment(b2, w0, w1)]
+	var cruz = Geometry2D.segment_intersects_segment(a2, b2, w0, w1)
+	if cruz != null:
+		pts.append(cruz)
+	for q in pts:
+		var t: float = (q - a2).dot(dir)
+		if t < 0.25:
+			continue # atrás do herói ou colada nele: fica
+		var lado: float = absf((q - a2).cross(dir))
+		if lado < CORTE_PERTO + CORTE_ABRE * t and t < (b2 - a2).length():
+			return true
+	return false
+
+# apaga devagar (transparência) e, apagado de vez, fica só a sombra; volta do mesmo jeito
+func _apagar(no: Node3D, some: bool, dt: float) -> void:
+	var k: float = no.get_meta("apagado", 0.0)
+	var alvo := 1.0 if some else 0.0
+	if k == alvo:
+		return
+	k = move_toward(k, alvo, dt * CORTE_VEL)
+	no.set_meta("apagado", k)
+	var malhas: Array = [no] if no is MeshInstance3D else no.find_children("*", "MeshInstance3D", true, false)
+	for q in malhas:
+		if k >= 1.0:
+			q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY # some, mas a sombra fica
+			q.transparency = 0.0
+		else:
+			q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			q.transparency = k
 
 # portas: a folha abre quando o herói chega perto e fecha quando ele sai
 func _achar_portas() -> void:
@@ -1641,7 +1698,7 @@ func _process(dt: float) -> void:
 		fechar_bau()
 	_passo_fab()
 	_mexer_portas(hp, dt)
-	_telhados_visiveis(hp)
+	_telhados_visiveis(hp, dt)
 	if livre:
 		if not vivo or m.menu.aberto():
 			sair()
