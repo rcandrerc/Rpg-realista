@@ -28,6 +28,9 @@ RAMPA = {
     'bark_brown_02': ('3b2a20', '6c4d35', 'a07a58', 0.7),
     'fern_02': ('2c6a2c', '5ea443', 'b8de6c', 0.8),
     'folhagem': ('2c6a2c', '5ea443', 'b8de6c', 0.8),
+    # relevo (lagos e montanha, 2026-11-05): pedra da montanha e lama do fundo do lago
+    'rocky_terrain_02': ('57534c', '8c8676', 'c6bda6', 0.8),
+    'brown_mud_leaves_01': ('3a3122', '62553a', '8e7f58', 0.8),
 }
 # palha e madeira guardam o veio (filtro mais leve)
 LEVES = {'thatch_roof_angled', 'bark_brown_02'}

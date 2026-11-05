@@ -178,7 +178,24 @@ func _teto(a: Dictionary) -> float:
 			t *= 1.0 + absf(float(l[1]))
 	return t
 
+# volta de 12 pontos (shared/mapa.js VOLTA_FOLGA): a folga da borda vale para o mapa inteiro, não para cada área
+const VOLTA_FOLGA := [Vector2(1, 0), Vector2(0.866025, 0.5), Vector2(0.5, 0.866025), Vector2(0, 1), Vector2(-0.5, 0.866025), Vector2(-0.866025, 0.5),
+	Vector2(-1, 0), Vector2(-0.866025, -0.5), Vector2(-0.5, -0.866025), Vector2(0, -1), Vector2(0.5, -0.866025), Vector2(0.866025, -0.5)]
+
+# 2026-11-05 (André: "onde der pra ir, tem que poder ir"): mesma conta de shared/mapa.js dentroDoMapa. O ponto vale se
+# está fundo numa área (como antes) ou se ele e a volta dele a "margem" metros estão todos dentro do mapa: onde duas
+# áreas se encostam por pouco não sobra mais parede invisível
 func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
+	if _dentro_de_alguma(px, pz, margem):
+		return true
+	if margem <= 0.0 or not _dentro_de_alguma(px, pz, 0.0):
+		return false
+	for v in VOLTA_FOLGA:
+		if not _dentro_de_alguma(px + v.x * margem, pz + v.y * margem, 0.0):
+			return false
+	return true
+
+func _dentro_de_alguma(px: float, pz: float, margem: float) -> bool:
 	var areas := _areas()
 	if _tetos.size() != areas.size():
 		_tetos.resize(areas.size())
@@ -216,10 +233,18 @@ func limitar_ao_mapa(px: float, pz: float, margem := 0.0) -> Vector2:
 			melhor = q
 	return melhor
 
+var no_relevo := false # bateu numa encosta íngreme da montanha (não é pedra: não escala)
 func _vai(nx: float, nz: float) -> bool:
 	var h: float = T.altura(nx, nz, y)
 	if h > y + m.subida.degrau:
 		return false
+	# encosta da montanha (shared/relevo.js INGREME): subida forte demais não dá para subir andando
+	if h > y + 0.02 and not T.monte.is_empty():
+		var hr: float = T.chao_relevo(nx, nz)
+		var passo_xz := Vector2(nx - x, nz - z).length()
+		if h <= hr + 0.01 and passo_xz > 0.0001 and (hr - T.chao_relevo(x, z)) > float(m.get("ingreme", 1.0)) * passo_xz:
+			no_relevo = true
+			return false
 	x = nx
 	z = nz
 	if chao and vy <= 0:
@@ -228,6 +253,13 @@ func _vai(nx: float, nz: float) -> bool:
 		else:
 			chao = false # caiu da beirada
 	return true
+
+# lagos (2026-11-05): a água segura o passo. Pelo joelho anda quase normal; funda (no peito, boiando) bem mais devagar
+func na_agua() -> float:
+	var a: float = T.agua_no_corpo(x, z, y)
+	if a <= 0.2:
+		return 1.0
+	return lerpf(float(T.agua.raso), float(T.agua.lento), clampf((a - 0.2) / 0.8, 0.0, 1.0))
 
 func mover(dx: float, dz: float) -> void:
 	var x0 := x
@@ -384,6 +416,7 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 	anim = ""
 	passo_vertical(dt)
 	bloqueado = false
+	no_relevo = false
 	var mag: float = min(1.0, Vector2(mx, mz).length())
 	var ry0 := ry
 	if arrancada != null:
@@ -404,7 +437,7 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		# velocidade que o joystick pede
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
-			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max)
+			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max) * na_agua()
 			if not montado.is_empty(): # montado: o lobo anda, trota e galopa (sem estamina)
 				alvo = Vector2(mx, mz).normalized() * vel_montado(mag)
 		var s0 := Vector2(vx, vz).length()
@@ -679,7 +712,7 @@ func tentar_escalar(mx: float, mz: float, correr: bool, dt: float) -> void:
 			esc = {"parado": 0.0, "clip": null}
 			iniciar_clip("corridaParede", 1.0, (f.dist - 0.4) / 2.79, 1.0, "agarrar")
 			return
-	if not bloqueado:
+	if not bloqueado or no_relevo: # encosta da montanha não se escala (só pedra e casa)
 		empurra = 0.0
 		return
 	empurra += dt

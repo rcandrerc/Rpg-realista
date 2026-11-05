@@ -2,6 +2,8 @@
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
+import { alturaMontanha, pertoDaAgua, LAGOS, AGUA, MONTANHA, INGREME } from './relevo.js';
+export { LAGOS, AGUA, MONTANHA, INGREME };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
@@ -643,7 +645,7 @@ export const TAMANHO_VEIO = { pedra: 1.4, cobre: 1, ferro: 0.8, cristal: 1 };
 // mata ao norte se encostam por pouco, e com a folga de 2,2 m da borda (andar.gd limitar_ao_mapa) virava uma parede
 // invisível em z ~ -32. Este círculo fica todo dentro do que já era andável e só emenda as duas áreas.
 // Vêm por último na lista de áreas (as de antes não mudam de índice nem de sorteio).
-const EMENDAS = [{ x: 6, z: -36, r: 12, mata: true, ligacao: true }];
+const EMENDAS = [{ x: 6, z: -36, r: 12, rx: 12, rz: 12, mata: true, ligacao: true }]; // rx e rz: o main.gd (grama_da_mata) lê o raio assim
 // Trilhas de terra até os veios novos (André 2026-11-05: "tem que liberar o caminho"): a de pedra sai da estradinha do
 // leste, sobe pelo norte da vila entre as árvores e entra na mata; a de ferro sai da estrada principal e cruza o campo de
 // fora para o leste. Entram nos caminhos (chão de terra, minimapa e o "Ir para" do mapa, rota.gd).
@@ -787,6 +789,44 @@ CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-1
 })();
 // sorteadas todas (a ordem do sorteio não muda) e só depois tiradas das zonas de mineração
 const ARVORES_MATA = sortearMata();
+
+// ---------- mapa todo andável, lagos e montanha (pedido do André 2026-11-05) ----------
+// "Eu quero que o mapa inteiro que está disponível seja possível caminhar... onde der pra ir, tem que poder ir." A folga
+// da borda agora vale para a borda de verdade do mapa (shared/mapa.js dentroDoMapa). Sobravam buracos fechados no meio
+// da mata (pedaços sem área nenhuma, cercados de mata andável): estes círculos cobrem cada um. Vêm por último na lista
+// de áreas (as de antes não mudam de índice nem de sorteio de árvores).
+const BURACOS = [[20, -28, 3], [44, -25, 3], [85.5, -18, 3.5], [-21, 27, 3], [42.8, 36.1, 8.5], [-37, 61, 3], [60.9, 75.6, 22.2], [-4, 106, 3], [167, 126, 3], [169, 5, 3], [-7, -46.8, 3]]
+  .map(([x, z, r]) => ({ x, z, rx: r, rz: r, mata: true, ligacao: true, buraco: true }));
+// Pé da montanha: mata aberta que sai do leste do campo de fora (depois do veio de ferro) e sobe a encosta oeste da
+// montanha (shared/relevo.js). O paredão norte e leste é o fim do mapa (íngreme demais para subir andando).
+const MONTE_AREAS = [
+  { x: 120, z: -22, rx: 17, rz: 17, lobos: [[3, 0.07, 0.3], [5, 0.05, 1.1]] },
+  { x: 128, z: -42, rx: 16, rz: 16, lobos: [[3, 0.07, 1.9], [5, 0.05, 0.4]] },
+  { x: 144, z: -12, rx: 14, rz: 12, lobos: [[3, 0.07, 2.6], [5, 0.05, 2.2]] },
+  { x: 131, z: 6.6, rx: 25, rz: 25, lobos: [[3, 0.05, 0.2], [5, 0.04, 0.9]] }, // fecha o buraco entre o pé da montanha, o campo de fora e a mata da estrada
+  { x: 176, z: -54, rx: 62, rz: 62, lobos: [[3, 0.05, 0.8], [5, 0.04, 1.6]] }, // a montanha inteira: o limite é a mata depois do pé do outro lado
+].map((a) => ({ ...a, mata: true, monte: true }));
+// chão diferente do plano (lago ou montanha): ali não nasce árvore da mata baixa, mato, grama nem pedra solta
+const noRelevo = (x, z, folga = 1.5) => pertoDaAgua(x, z, folga) || alturaMontanha(x, z) > 0.15;
+// árvores do pé da montanha (sorteio próprio, vêm depois das da mata: os ids m0, m1... de antes não mudam): soltas por
+// dentro da mata aberta e uma faixa fechada logo depois da borda, no plano e no pé da encosta (y = altura do chão ali)
+function sortearMataMonte() {
+  let sem = 5051; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const M = { areas: MONTE_AREAS, corredores: [] }, velhas = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas], corredores: MATA.corredores };
+  const lista = [], perto = (x, z, esp) => lista.some((o) => Math.abs(o.x - x) < esp && Math.abs(o.z - z) < esp && Math.hypot(o.x - x, o.z - z) < esp);
+  for (let t = 0; t < 16000; t++) {
+    const x = rnd(96, 246), z = rnd(-124, 14), dentro = dentroDoMapa(M, x, z, 0);
+    if (!dentro && !dentroDoMapa(M, x, z, -9)) continue;
+    const hm = alturaMontanha(x, z), inc = Math.hypot(alturaMontanha(x + 1, z) - alturaMontanha(x - 1, z), alturaMontanha(x, z + 1) - alturaMontanha(x, z - 1)) / 2;
+    if (dentroDoMapa(velhas, x, z, -1) || pertoDaAgua(x, z, 2) || naMina(x, z, 3) || hm > 5 || inc > 0.45) continue; // no pé da montanha, só onde a encosta é suave
+    if (CLAREIRAS.some((c) => Math.hypot(x - c.x, z - c.z) < CLAREIRA_R + 3) || pertoDaLinha(ESTRADA, x, z).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, x, z).d < 2.2)) continue;
+    const esp = dentro ? 6.4 : 3.2;
+    if (perto(x, z, esp)) continue;
+    lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.8, 1.4).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)), ...(hm > 0 ? { y: +(hm - 0.08).toFixed(2) } : {}) });
+  }
+  return lista;
+}
+const ARVORES_MONTE = sortearMataMonte();
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -794,12 +834,14 @@ export const MAPA_CLAREIRA = {
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
-  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS), // + Vila dos Lotes (construção e fazenda)
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS, BURACOS, MONTE_AREAS), // + Vila dos Lotes (construção e fazenda)
   corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9, semPedras: true }].concat(MATA.corredores, [VILA_LOTES.passagem]), // semPedras: a mata aberta em volta faz a borda (mapa aberto, André 2026-11-04)
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
   // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
-  minimapa: { x0: -64, z0: -64, tam: 308, px: 1024 }, // 2026-11-04: cresceu para a mata aberta em volta da vila e das Terras
+  minimapa: { x0: -64, z0: -124, tam: 368, px: 1024 }, // 2026-11-05: cresceu para o norte (montanha); antes x0 -64, z0 -64, tam 308
+  lagos: LAGOS, // lagos rasos e fundos (shared/relevo.js)
+  montanha: MONTANHA, // 2026-11-04: cresceu para a mata aberta em volta da vila e das Terras
   // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
   // 2026-11-02): os monstros ficam no campo de caça lá fora (CACA)
   inimigos: [],
@@ -853,7 +895,7 @@ export const MAPA_CLAREIRA = {
   // Vila dos Lotes: onde se compra lote para construir e plantar (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS)
   lotes: VILA_LOTES.lotes,
   // árvores da mata (enfeite sólido, sem lenha) e a estrada principal (minimapa)
-  mata: ARVORES_MATA.filter((a) => !naMina(a.x, a.z)), // as zonas de mineração da mata ficam limpas
+  mata: ARVORES_MATA.filter((a) => !naMina(a.x, a.z) && !noRelevo(a.x, a.z)).concat(ARVORES_MONTE), // as zonas de mineração e os lagos ficam limpos
   estrada: ESTRADA,
 };
 
@@ -1150,6 +1192,6 @@ function sortearEnfeites(arvores) {
 // e o Godot colidem com eles na mesma grade das árvores da mata)
 {
   const c = cenario(), e = sortearEnfeites(ARVORES_MATA); // a lista toda: o mato do resto da mata fica igual
-  const fora = (o) => !naMina(o.x, o.z);
+  const fora = (o) => !naMina(o.x, o.z) && !noRelevo(o.x, o.z, 0.8);
   MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
 }

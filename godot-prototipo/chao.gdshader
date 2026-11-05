@@ -10,11 +10,27 @@ uniform sampler2D grama_cru : filter_linear_mipmap, repeat_enable;
 uniform sampler2D pedra_cru : filter_linear_mipmap, repeat_enable;
 uniform vec3 area = vec3(-30.0, -34.0, 56.0);
 uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
+// lagos (relevo.gd): o chão plano abre um buraco onde tem água (a mesma margem de shared/relevo.js)
+// a = (x, z, rx, rz); b = (giro, k1, amplitude1, fase1); c = (k2, amplitude2, fase2, 1 = lago existe)
+uniform vec4 lago_a[6];
+uniform vec4 lago_b[6];
+uniform vec4 lago_c[6];
 varying vec3 mundo;
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 void fragment() {
+	for (int i = 0; i < 6; i++) {
+		if (lago_c[i].w < 0.5) continue;
+		vec2 d = mundo.xz - lago_a[i].xy;
+		float R = max(lago_a[i].z, lago_a[i].w) * 1.25;
+		if (abs(d.x) > R || abs(d.y) > R) continue;
+		float cg = cos(lago_b[i].x), sg = sin(lago_b[i].x);
+		float u = d.x * cg + d.y * sg, v = -d.x * sg + d.y * cg;
+		float ang = atan(v / lago_a[i].w, u / lago_a[i].z);
+		float k = (1.0 + lago_b[i].z * sin(lago_b[i].y * ang + lago_b[i].w)) * (1.0 + lago_c[i].y * sin(lago_c[i].x * ang + lago_c[i].z));
+		if (length(vec2(u / lago_a[i].z, v / lago_a[i].w)) / k < 1.0) discard;
+	}
 	vec2 w = vec2(mundo.x, -mundo.z);
 	vec3 g0 = texture(grama_tex, w * (70.0 / 320.0)).rgb;
 	vec3 grama = g0 * tom_grama;

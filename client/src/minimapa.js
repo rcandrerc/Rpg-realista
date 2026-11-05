@@ -3,6 +3,7 @@
 // pedras e as clareiras de caça. Os nomes e o herói ficam por cima no app (godot-prototipo/minimapa.gd), nítidos.
 // O gerar-modelos.mjs grava o resultado em godot-prototipo/modelos/minimapa.png.
 import { formasDoMapa, dentroDoMapa, raioNaDirecao } from '../../shared/mapa.js';
+import { alturaMontanha, noLago, GRADE_MONTANHA, MONTANHA } from '../../shared/relevo.js';
 
 export function desenharMinimapa(mapa) {
   const M = mapa.minimapa, T = M.px, k = T / M.tam;
@@ -42,6 +43,36 @@ export function desenharMinimapa(mapa) {
     const [x, y] = P(c.x, c.z), gr = g.createRadialGradient(x, y, c.r * k * 0.6, x, y, c.r * k * 1.15);
     gr.addColorStop(0, '#8dbb5a'); gr.addColorStop(1, 'rgba(141,187,90,0)');
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, c.r * k * 1.15, 0, 6.283); g.fill();
+  }
+  // relevo (2026-11-05): a montanha com sombra de encosta (luz do noroeste) e os lagos, raso claro e fundo escuro
+  {
+    const G = GRADE_MONTANHA, x0 = G.x0, z0 = G.z0, lado = (G.n - 1) * G.passo;
+    const [ia, ja] = P(x0, z0).map(Math.floor), [ib, jb] = P(x0 + lado, z0 + lado).map(Math.ceil);
+    const i0 = Math.max(0, ia), j0 = Math.max(0, ja), i1 = Math.min(T, ib), j1 = Math.min(T, jb);
+    if (i1 > i0 && j1 > j0) {
+      const img = g.getImageData(i0, j0, i1 - i0, j1 - j0), d = img.data, e = 1 / k;
+      for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+        const x = M.x0 + (i + 0.5) / k, z = M.z0 + (j + 0.5) / k, h = alturaMontanha(x, z);
+        if (h <= 0.05) continue;
+        const gx = (alturaMontanha(x + e, z) - alturaMontanha(x - e, z)) / (2 * e), gz = (alturaMontanha(x, z + e) - alturaMontanha(x, z - e)) / (2 * e);
+        const luz = Math.max(0.55, Math.min(1.2, 0.9 + (gx + gz) * -0.3)), incl = Math.min(1, Math.hypot(gx, gz)), hk = h / MONTANHA.alto;
+        const base = incl > 0.45 ? [128, 120, 106] : [104 + hk * 60, 128 + hk * 30, 80 + hk * 40];
+        const a = Math.min(1, h / 1.2), o = ((j - j0) * (i1 - i0) + (i - i0)) * 4;
+        for (let c = 0; c < 3; c++) d[o + c] = d[o + c] * (1 - a) + Math.min(255, base[c] * luz) * a;
+      }
+      g.putImageData(img, i0, j0);
+    }
+    for (const L of mapa.lagos || []) {
+      const R = Math.max(L.rx, L.rz) * 1.3, [ia2, ja2] = P(L.x - R, L.z - R).map(Math.floor), [ib2, jb2] = P(L.x + R, L.z + R).map(Math.ceil);
+      const img = g.getImageData(ia2, ja2, ib2 - ia2, jb2 - ja2), d = img.data;
+      for (let j = ja2; j < jb2; j++) for (let i = ia2; i < ib2; i++) {
+        const q = noLago(M.x0 + (i + 0.5) / k, M.z0 + (j + 0.5) / k); if (!q) continue;
+        const t = Math.min(1, q.fundo / 2.5), o = ((j - ja2) * (ib2 - ia2) + (i - ia2)) * 4;
+        const c = q.d > 0.9 ? [214, 236, 240] : [96 - t * 60, 178 - t * 80, 196 - t * 30];
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2];
+      }
+      g.putImageData(img, ia2, ja2);
+    }
   }
   // pedras do anel (vila e campo de fora): pontinhos cinza na borda
   F.areas.forEach((a, i) => {

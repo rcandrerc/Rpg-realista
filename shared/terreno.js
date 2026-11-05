@@ -1,6 +1,7 @@
 // Chão com pedras: a altura em cada ponto vem da forma real dos modelos (grade em shared/rochas.js).
 // O herói não atravessa pedra: degrau baixo ele sobe andando, mais alto ele escala.
 import { GRADES } from './rochas.js';
+import { chaoDoRelevo } from './relevo.js';
 
 // Telhado das casas da vila (o cliente desenha com os mesmos números em client/src/vila.js)
 export const TELHADO = { inclinacao: 0.82, esp: 0.3, beiral: 0.5, pontas: 0.38 };
@@ -94,10 +95,10 @@ export class Terreno {
     const v = (h[iz * n + ix] * (1 - ax) + h[iz * n + ix + 1] * ax) * (1 - az) + (h[(iz + 1) * n + ix] * (1 - ax) + h[(iz + 1) * n + ix + 1] * ax) * az;
     return v / 100 * r.s + r.y0;
   }
-  // altura do chão (0) ou da pedra (ou telhado) mais alto naquele ponto
+  // altura do chão (0, ou o relevo: montanha e lagos, shared/relevo.js) ou da pedra (ou telhado) mais alto naquele ponto
   altura(x, z, y) {
-    let h = 0;
-    for (const r of this.solidos) { const a = this.alturaNa(r, x, z, y); if (a > h) h = a; }
+    let h = chaoDoRelevo(x, z);
+    for (const r of this.solidos) { const a = this.alturaNa(r, x, z, y); if (a > h && a >= 0) h = a; } // -1 = fora da peça (no lago o chão fica abaixo de -1)
     return h;
   }
   // teto: a parte de baixo da peça suspensa mais baixa acima de quem está em (x, y, z) (Infinity se céu aberto)
