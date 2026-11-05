@@ -7,6 +7,9 @@ extends CanvasLayer
 # os nomes, o herói e os jogadores são desenhados aqui por cima, nítidos.
 # "Ir para" (André 2026-11-03): no mapa completo, tocar num lugar marca o lugar e mostra a rota pela estrada com o botão
 # "Ir para"; tocar no botão fecha o mapa e o herói vai sozinho (rota.gd). Tocar fora do mapa (ou no X) fecha.
+# Janela do mapa (André 2026-11-05): o mapa ocupa a tela toda à esquerda da lista e já abre com zoom, centrado no herói.
+# Zoom com a pinça ou com os botões − e + embaixo; arrastar com um dedo anda pelo mapa. A lista da direita (Lugares)
+# funciona: tocar num nome marca o lugar, leva o mapa até ele e mostra o "Ir para"; tocar de novo no mesmo nome já vai.
 
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
@@ -26,7 +29,27 @@ var mapa_mini: TextureRect
 var marcas: Control
 var grande: Control
 var mapa_grande: TextureRect
-var marcas_grande: Control
+var marcas_grande: Control # lista da direita (Lugares) e a legenda
+var janela: Control # recorte do mapa completo (o que passa da borda não aparece)
+var marcas_mapa: Control # nomes, rota, pino e botões desenhados por cima do mapa completo
+var zoom := Z_ABRIR # 1 = o mapa inteiro na altura da janela
+var zoom_alvo := Z_ABRIR
+var foco := Vector2.ZERO # metros do mundo no meio da janela
+var foco_alvo := Vector2.ZERO
+var toques := {} # dedos na tela com o mapa aberto: índice -> {"p": posição, "ini": onde começou, "onde": "mapa"/"lista"/"fora"}
+var ignorar := {} # o toque que abriu o mapa (soltar ele não marca nada)
+var arrastou := false # o gesto andou o mapa ou fez pinça: soltar não conta como toque
+var pinca := {} # começo da pinça: d (distância dos dedos), z (zoom) e w (ponto do mundo entre os dedos)
+var rolar := 0.0 # rolagem da lista quando ela não cabe na tela
+var lista_alt := 0.0 # altura da lista desenhada
+var linhas := [] # [Rect2, lugar] de cada nome da lista (para o toque)
+var selecionado := "" # id do lugar escolhido na lista
+var botao_mais := Rect2()
+var botao_menos := Rect2()
+const Z_ABRIR := 1.8 # o mapa já abre maior (André 2026-11-05)
+const Z_MIN := 1.0
+const Z_MAX := 7.0
+const LARGURA_LISTA := 300.0
 var aberto := false
 var fonte: Font
 var marcado = null # Vector2 (metros) do lugar tocado no mapa completo, ou null
@@ -90,6 +113,15 @@ void fragment() {
 	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
 	escuro.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	grande.add_child(escuro)
+	janela = Control.new()
+	janela.clip_contents = true
+	janela.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grande.add_child(janela)
+	var fundo := ColorRect.new() # fora do mundo (zoom pequeno): verde bem escuro, como a mata vista de longe
+	fundo.color = Color(0.05, 0.07, 0.045, 1.0)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	janela.add_child(fundo)
 	mapa_grande = TextureRect.new()
 	mapa_grande.texture = textura
 	mapa_grande.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -106,7 +138,12 @@ void fragment() {
 	COLOR = c;
 }"""
 	mapa_grande.material = sg
-	grande.add_child(mapa_grande)
+	janela.add_child(mapa_grande)
+	marcas_mapa = Control.new()
+	marcas_mapa.set_anchors_preset(Control.PRESET_FULL_RECT)
+	marcas_mapa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marcas_mapa.draw.connect(_desenhar_mapa)
+	janela.add_child(marcas_mapa)
 	marcas_grande = Control.new()
 	marcas_grande.set_anchors_preset(Control.PRESET_FULL_RECT)
 	marcas_grande.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -127,48 +164,207 @@ func cobre(p: Vector2) -> bool:
 	return p.distance_to(c) <= RAIO + 6.0
 
 func _input(ev: InputEvent) -> void:
+	if aberto:
+		if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+			_gesto(ev)
+			get_viewport().set_input_as_handled()
+		elif ev is InputEventMouseButton and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+			_zoom_em(ev.position - janela.get_global_rect().position, 1.15 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.15)
+			get_viewport().set_input_as_handled()
+		return
 	if not (ev is InputEventScreenTouch) or not ev.pressed:
 		return
-	if aberto:
-		_toque_no_mapa(ev.position)
-		get_viewport().set_input_as_handled()
-	elif mini.visible and cobre(ev.position) and not m.hud.bloqueado:
+	if mini.visible and cobre(ev.position) and not m.hud.bloqueado:
 		abrir()
+		ignorar[ev.index] = true
 		get_viewport().set_input_as_handled()
 
-# mapa completo aberto: botão "Ir para", lugar no mapa (marca), X ou fora do mapa (fecha)
+# metros por px e o ponto da janela (local) onde fica um lugar do mundo
+func _k() -> float:
+	return janela.size.y / float(info.tam) * zoom
+
+func _na_janela(x: float, z: float) -> Vector2:
+	return janela.size * 0.5 + (Vector2(x, z) - foco) * _k()
+
+func _no_mundo(lp: Vector2) -> Vector2:
+	return foco + (lp - janela.size * 0.5) / _k()
+
+# mapa aberto: um dedo arrasta o mapa (ou rola a lista), dois dedos fazem a pinça; tocar e soltar sem arrastar é toque
+func _gesto(ev: InputEvent) -> void:
+	var jr: Rect2 = janela.get_global_rect()
+	if ev is InputEventScreenTouch:
+		if ev.pressed:
+			var onde := "fora"
+			if jr.has_point(ev.position):
+				onde = "mapa"
+			elif _painel().has_point(ev.position):
+				onde = "lista"
+			if toques.is_empty():
+				arrastou = false
+			toques[ev.index] = {"p": ev.position, "ini": ev.position, "onde": onde}
+			if toques.size() == 2:
+				_comecar_pinca()
+			return
+		var t = toques.get(ev.index)
+		toques.erase(ev.index)
+		if ignorar.has(ev.index):
+			ignorar.erase(ev.index)
+			return
+		if toques.size() == 1:
+			pinca = {}
+		if t != null and not arrastou and toques.is_empty():
+			_toque_no_mapa(ev.position)
+		return
+	# arrastar
+	if not toques.has(ev.index):
+		return
+	var td: Dictionary = toques[ev.index]
+	td.p = ev.position
+	if toques.size() >= 2 and not pinca.is_empty():
+		var ks: Array = toques.keys()
+		var a: Vector2 = toques[ks[0]].p
+		var b: Vector2 = toques[ks[1]].p
+		zoom = clamp(float(pinca.z) * a.distance_to(b) / max(float(pinca.d), 1.0), Z_MIN, Z_MAX)
+		zoom_alvo = zoom
+		var meio: Vector2 = (a + b) * 0.5 - jr.position
+		foco = pinca.w - (meio - janela.size * 0.5) / _k()
+		foco = _prender(foco, zoom)
+		foco_alvo = foco
+		arrastou = true
+		return
+	if ignorar.has(ev.index):
+		return
+	if not arrastou and ev.position.distance_to(td.ini) > 12.0:
+		arrastou = true
+	if arrastou:
+		if td.onde == "mapa":
+			foco = _prender(foco - ev.relative / _k(), zoom)
+			foco_alvo = foco
+		elif td.onde == "lista":
+			rolar = clamp(rolar - ev.relative.y, 0.0, max(0.0, lista_alt - _painel().size.y))
+
+func _comecar_pinca() -> void:
+	var ks: Array = toques.keys()
+	var a: Vector2 = toques[ks[0]].p
+	var b: Vector2 = toques[ks[1]].p
+	var meio: Vector2 = (a + b) * 0.5 - janela.get_global_rect().position
+	zoom = zoom_alvo # a pinça parte de onde o zoom está agora (sem a animação dos botões)
+	pinca = {"d": a.distance_to(b), "z": zoom, "w": _no_mundo(meio)}
+	arrastou = true
+
+# zoom em volta de um ponto da janela (roda do mouse); os botões − e + usam o meio
+func _zoom_em(lp: Vector2, fator: float) -> void:
+	var w: Vector2 = _no_mundo(lp)
+	zoom_alvo = clamp(zoom_alvo * fator, Z_MIN, Z_MAX)
+	zoom = zoom_alvo
+	foco = _prender(w - (lp - janela.size * 0.5) / _k(), zoom)
+	foco_alvo = foco
+
+# o meio da janela não deixa o mapa sair da tela (com zoom pequeno, o mapa fica no meio)
+func _prender(f: Vector2, z: float) -> Vector2:
+	var k: float = janela.size.y / float(info.tam) * z
+	var meia: Vector2 = janela.size * 0.5 / k
+	var t: float = float(info.tam)
+	var x0: float = float(info.x0)
+	var z0: float = float(info.z0)
+	f.x = x0 + t * 0.5 if meia.x * 2.0 >= t else clamp(f.x, x0 + meia.x, x0 + t - meia.x)
+	f.y = z0 + t * 0.5 if meia.y * 2.0 >= t else clamp(f.y, z0 + meia.y, z0 + t - meia.y)
+	return f
+
+# onde fica a lista da direita (tela)
+func _painel() -> Rect2:
+	var g: Rect2 = grande.get_global_rect()
+	return Rect2(g.position + Vector2(g.size.x - LARGURA_LISTA, 0), Vector2(LARGURA_LISTA, g.size.y))
+
+# mapa completo aberto: botão "Ir para", − e +, X, nome da lista, lugar no mapa (marca) ou fora do mapa (fecha)
 func _toque_no_mapa(pos: Vector2) -> void:
-	var lp: Vector2 = pos - grande.get_global_rect().position
-	if marcado != null and botao_ir.has_point(lp):
-		var r: PackedVector2Array = previa
+	var lp: Vector2 = pos - janela.get_global_rect().position
+	var dentro: bool = Rect2(Vector2.ZERO, janela.size).has_point(lp)
+	if dentro and marcado != null and botao_ir.has_point(lp):
+		_ir()
+		return
+	if dentro and botao_x.has_point(lp):
 		fechar()
-		if m.rota:
-			m.rota.ir(r)
+		return
+	if dentro and (botao_mais.has_point(lp) or botao_menos.has_point(lp)):
+		zoom_alvo = clamp(zoom_alvo * (1.45 if botao_mais.has_point(lp) else 1.0 / 1.45), Z_MIN, Z_MAX)
 		if m.sons:
-			m.sons.tocar("pano", -10.0)
+			m.sons.tocar("pano", -16.0)
 		return
-	if botao_x.has_point(lp):
-		fechar()
-		return
-	var mapa := Rect2(mapa_grande.position, mapa_grande.size)
-	if mapa.has_point(lp) and m.rota:
-		var k: float = float(info.tam) / mapa_grande.size.x # metros por px
-		var w: Vector2 = (lp - mapa.position) * k + Vector2(float(info.x0), float(info.z0))
-		previa = m.rota.planejar(w)
-		marcado = previa[previa.size() - 1] if previa.size() > 0 else w
-		marcas_grande.queue_redraw()
+	var pp: Rect2 = _painel()
+	if pp.has_point(pos):
+		var lq: Vector2 = pos - pp.position
+		for ln in linhas:
+			if (ln[0] as Rect2).has_point(lq):
+				_escolher(ln[1])
+				return
+		return # espaço vazio da lista: não fecha
+	if dentro and m.rota:
+		_marcar(_no_mundo(lp))
+		selecionado = ""
 		return
 	fechar()
+
+func _marcar(w: Vector2) -> void:
+	previa = m.rota.planejar(w) if m.rota else PackedVector2Array([w])
+	marcado = previa[previa.size() - 1] if previa.size() > 0 else w
+	marcas_mapa.queue_redraw()
+
+func _ir() -> void:
+	var r: PackedVector2Array = previa
+	fechar()
+	if m.rota:
+		m.rota.ir(r)
+	if m.sons:
+		m.sons.tocar("pano", -10.0)
+
+# nome tocado na lista: marca o lugar, leva o mapa até ele e mostra o "Ir para"; o mesmo nome de novo já vai
+func _escolher(l: Dictionary) -> void:
+	if selecionado == str(l.id) and marcado != null:
+		_ir()
+		return
+	selecionado = str(l.id)
+	_marcar(Vector2(float(l.x), float(l.z)))
+	zoom_alvo = max(zoom_alvo, Z_ABRIR)
+	foco_alvo = Vector2(float(l.x), float(l.z))
+	if m.sons:
+		m.sons.tocar("pano", -14.0)
+
+# os lugares da lista: as vilas, as clareiras de caça (por nível) e os veios
+func _lugares() -> Array:
+	var l: Array = []
+	var nasc: Dictionary = m.mundo.get("nascimento", {"x": 0.0, "z": 1.0})
+	l.append({"id": "vila", "tipo": "vila", "nome": "Vila da Clareira", "curto": "Vila da Clareira", "x": float(nasc.get("x", 0.0)), "z": float(nasc.get("z", 1.0)), "r": 30.0})
+	var vl: Dictionary = m.mundo.get("vilaLotes", {})
+	if not vl.is_empty():
+		l.append({"id": "terras", "tipo": "vila", "nome": str(vl.nome), "curto": str(vl.nome), "x": float(vl.x), "z": float(vl.z), "r": 20.0})
+	var cs: Array = m.mundo.get("caca", []).duplicate()
+	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
+	for cc in cs:
+		l.append({"id": str(cc.get("id", cc.nome)), "tipo": "caca", "cc": cc, "nome": "Nv %d  %s" % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))],
+			"curto": "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], "x": float(cc.x), "z": float(cc.z), "r": float(cc.get("r", 12.0)) + 2.0})
+	for mn in m.mundo.get("mina", []):
+		l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
+	return l
 
 func abrir() -> void:
 	aberto = true
 	marcado = null
+	selecionado = ""
 	previa = PackedVector2Array()
+	toques = {}
+	ignorar = {}
+	pinca = {}
 	layer = 14 # o mapa aberto cobre a HUD e o menu do topo (abaixo da conversa com NPC e do menu do personagem)
 	grande.visible = true
 	m.hud.bloqueado = true
 	m.hud.soltar_tudo()
 	_arrumar_grande()
+	# já abre maior, com o herói no meio
+	zoom = Z_ABRIR
+	zoom_alvo = Z_ABRIR
+	foco = _prender(Vector2(m.heroi.position.x, m.heroi.position.z), zoom)
+	foco_alvo = foco
 	if m.sons:
 		m.sons.tocar("pano", -8.0) # papel do mapa abrindo
 
@@ -177,12 +373,16 @@ func fechar() -> void:
 	layer = 3
 	grande.visible = false
 	m.hud.bloqueado = false
+	toques = {}
 
 func _arrumar_grande() -> void:
 	var tela: Vector2 = grande.size
-	var lado: float = min(tela.y - 40.0, tela.x - 340.0)
-	mapa_grande.size = Vector2(lado, lado)
-	mapa_grande.position = Vector2((tela.x - 300.0 - lado) * 0.5, (tela.y - lado) * 0.5)
+	janela.position = Vector2(16, 16)
+	janela.size = Vector2(max(200.0, tela.x - LARGURA_LISTA - 24.0), max(200.0, tela.y - 32.0))
+	var k: float = _k()
+	var o: Vector2 = _na_janela(float(info.x0), float(info.z0))
+	mapa_grande.position = o
+	mapa_grande.size = Vector2.ONE * float(info.tam) * k
 
 func _process(_dt: float) -> void:
 	if m.heroi == null:
@@ -195,7 +395,14 @@ func _process(_dt: float) -> void:
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", ALCANCE * 2.0 / float(info.tam))
 		marcas.queue_redraw()
 	if aberto:
+		var dt: float = get_process_delta_time()
+		var a: float = 1.0 - exp(-12.0 * dt) # zoom dos botões e ida até o lugar da lista, suave
+		if abs(zoom - zoom_alvo) > 0.001:
+			zoom = lerp(zoom, zoom_alvo, a)
+		foco_alvo = _prender(foco_alvo, zoom_alvo)
+		foco = _prender(foco.lerp(foco_alvo, a), zoom)
 		_arrumar_grande()
+		marcas_mapa.queue_redraw()
 		marcas_grande.queue_redraw()
 
 # para onde o herói e a câmera olham (no plano: x para a direita, z para baixo)
@@ -313,13 +520,11 @@ func _outros() -> Array:
 		r.append({"x": v.x, "z": v.y})
 	return r
 
-func _desenhar_grande() -> void:
-	var c := marcas_grande
-	var o: Vector2 = mapa_grande.position
-	var lado: float = mapa_grande.size.x
-	var k: float = lado / float(info.tam)
-	var em := func(x: float, z: float) -> Vector2: return o + Vector2(x - float(info.x0), z - float(info.z0)) * k
-	c.draw_rect(Rect2(o - Vector2(3, 3), Vector2(lado, lado) + Vector2(6, 6)), Color("c9a35a"), false, 2.0)
+# mapa completo (dentro da janela recortada): nomes, jogadores, rota, herói, pino, X e os botões − e +
+func _desenhar_mapa() -> void:
+	var c := marcas_mapa
+	var tam: Vector2 = janela.size
+	var em := func(x: float, z: float) -> Vector2: return _na_janela(x, z)
 	# lugares
 	_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})
@@ -352,32 +557,37 @@ func _desenhar_grande() -> void:
 	var qh: Vector2 = em.call(hp.x, hp.z)
 	c.draw_circle(qh, 13.0, Color(1, 0.85, 0.4, 0.18))
 	_seta(c, qh, _frente_heroi(), 11.0, COR_OURO)
-	# legenda: as clareiras por nível
-	var x0: float = o.x + lado + 26.0
-	var y: float = o.y + 14.0
-	_texto(c, Vector2(x0, y + 4.0), "Mapa", 24, COR_OURO, false)
-	y += 34.0
-	var lista: Array = m.mundo.get("caca", []).duplicate()
-	lista.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
-	for cc in lista:
-		_marca_clareira(c, Vector2(x0 + 9.0, y), cc, 8.0, false)
-		_texto(c, Vector2(x0 + 24.0, y), "Nv %d  %s" % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))], 15, Color(1, 0.96, 0.88), false)
-		y += 25.0
-	y += 8.0
-	c.draw_circle(Vector2(x0 + 9.0, y), 6.0, COR_BICHO.chefe)
-	_texto(c, Vector2(x0 + 24.0, y), "1 Imp Chefe em cada clareira", 14, Color(1, 0.8, 0.75), false)
-	y += 24.0
-	_seta(c, Vector2(x0 + 9.0, y), Vector2(0, -1), 8.0, COR_OURO)
-	_texto(c, Vector2(x0 + 24.0, y), "Você", 14, Color(1, 0.96, 0.88), false)
-	_texto(c, Vector2(x0, o.y + lado - 26.0), "Toque num lugar para marcar", 14, Color(1, 1, 1, 0.6), false)
-	_texto(c, Vector2(x0, o.y + lado - 6.0), "Toque fora do mapa para fechar", 14, Color(1, 1, 1, 0.6), false)
+	# moldura dourada da janela
+	c.draw_rect(Rect2(Vector2(1, 1), tam - Vector2(2, 2)), Color(0.05, 0.04, 0.03, 0.9), false, 3.0)
+	c.draw_rect(Rect2(Vector2(3, 3), tam - Vector2(6, 6)), Color("c9a35a"), false, 1.5)
 	# X de fechar no canto do mapa
-	var cx := Vector2(o.x + lado - 18.0, o.y + 18.0)
+	var cx := Vector2(tam.x - 26.0, 26.0)
 	botao_x = Rect2(cx - Vector2(22, 22), Vector2(44, 44))
 	c.draw_circle(cx, 15.0, Color(0.05, 0.04, 0.03, 0.85))
 	c.draw_arc(cx, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
 	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)
 	c.draw_line(cx + Vector2(6, -6), cx + Vector2(-6, 6), Color(1, 0.95, 0.85), 2.5, true)
+	# zoom: − e + embaixo, no meio da janela (André 2026-11-05); a pinça continua valendo
+	var cz := Vector2(tam.x * 0.5, tam.y - 34.0)
+	var barra := Rect2(cz - Vector2(62, 22), Vector2(124, 44))
+	var sbz := StyleBoxFlat.new()
+	sbz.bg_color = Color(0.08, 0.06, 0.04, 0.88)
+	sbz.border_color = Color("c9a35a")
+	sbz.set_border_width_all(2)
+	sbz.set_corner_radius_all(22)
+	sbz.shadow_color = Color(0, 0, 0, 0.4)
+	sbz.shadow_size = 5
+	sbz.draw(c.get_canvas_item(), barra)
+	c.draw_line(cz + Vector2(0, -13), cz + Vector2(0, 13), Color("c9a35a", 0.55), 1.5, true)
+	var cm := cz + Vector2(-31, 0)
+	var cp := cz + Vector2(31, 0)
+	botao_menos = Rect2(cm - Vector2(30, 26), Vector2(60, 52))
+	botao_mais = Rect2(cp - Vector2(30, 26), Vector2(60, 52))
+	var cor_m: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo <= Z_MIN + 0.01 else 1.0)
+	var cor_p: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo >= Z_MAX - 0.01 else 1.0)
+	c.draw_line(cm + Vector2(-9, 0), cm + Vector2(9, 0), cor_m, 3.0, true)
+	c.draw_line(cp + Vector2(-9, 0), cp + Vector2(9, 0), cor_p, 3.0, true)
+	c.draw_line(cp + Vector2(0, -9), cp + Vector2(0, 9), cor_p, 3.0, true)
 	# lugar marcado: pino e o botão "Ir para" a ~70 px dele, do lado com mais espaço livre (direção de arte: o botão
 	# nunca cobre o pino, a rota nem o nome de uma clareira), ligado ao pino por uma linha fina dourada
 	botao_ir = Rect2()
@@ -389,7 +599,7 @@ func _desenhar_grande() -> void:
 		var t1 := "Ir para %s" % lugar if lugar != "" else "Ir para"
 		var t2 := "%d m pela estrada" % int(round(metros))
 		var w: float = max(fonte.get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 36.0
-		var bt := _lugar_do_botao(qm, Vector2(w, 54.0), em, Rect2(o, Vector2(lado, lado)))
+		var bt := _lugar_do_botao(qm, Vector2(w, 54.0), em, Rect2(Vector2.ZERO, tam))
 		botao_ir = bt.grow(8.0) # dedo: área de toque um pouco maior que o desenho
 		var borda: Vector2 = Vector2(clamp(qm.x, bt.position.x, bt.end.x), clamp(qm.y, bt.position.y, bt.end.y))
 		c.draw_line(qm + (borda - qm).normalized() * 6.0, borda, Color(0.05, 0.04, 0.03, 0.6), 3.0, true)
@@ -405,8 +615,73 @@ func _desenhar_grande() -> void:
 		_texto(c, bt.position + Vector2(w * 0.5, 19.0), t1, 20, COR_OURO, true, 4)
 		_texto(c, bt.position + Vector2(w * 0.5, 39.0), t2, 13, Color(1, 0.96, 0.88, 0.85), true, 3)
 
+# lista da direita (Lugares): cada nome é um botão; o escolhido fica dourado com "Ir para ›"
+func _desenhar_grande() -> void:
+	var c := marcas_grande
+	var pp: Rect2 = _painel()
+	var base: Vector2 = pp.position - grande.get_global_rect().position
+	var x0: float = base.x + 14.0
+	var larg: float = LARGURA_LISTA - 26.0
+	var sbp := StyleBoxFlat.new() # fundo da lista
+	sbp.bg_color = Color(0.07, 0.055, 0.035, 0.9)
+	sbp.border_color = Color("c9a35a", 0.7)
+	sbp.set_border_width_all(1)
+	sbp.set_corner_radius_all(10)
+	sbp.draw(c.get_canvas_item(), Rect2(base + Vector2(4, 16), Vector2(LARGURA_LISTA - 16.0, pp.size.y - 32.0)))
+	var y: float = base.y + 40.0 - rolar
+	_texto(c, Vector2(x0, y), "Lugares", 24, COR_OURO, false)
+	y += 30.0
+	linhas = []
+	var fim: float = base.y + pp.size.y - 18.0
+	for l in _lugares():
+		var lin := Rect2(Vector2(x0 - 6.0, y - 11.0), Vector2(larg, 23.0))
+		if lin.position.y > base.y + 16.0 and lin.end.y < fim: # o que passa da caixa (lista rolada) não aparece
+			var esc: bool = str(l.id) == selecionado
+			if esc:
+				var sl := StyleBoxFlat.new()
+				sl.bg_color = Color(0.32, 0.23, 0.09, 0.95)
+				sl.border_color = COR_OURO
+				sl.set_border_width_all(1)
+				sl.set_corner_radius_all(7)
+				sl.draw(c.get_canvas_item(), lin)
+			var qi := Vector2(x0 + 9.0, y)
+			match str(l.tipo):
+				"caca":
+					_marca_clareira(c, qi, l.cc, 8.0, false)
+				"mina":
+					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
+				_: # vila: casinha dourada
+					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-7, -1), qi + Vector2(0, -8), qi + Vector2(7, -1)]), COR_OURO)
+					c.draw_rect(Rect2(qi + Vector2(-5, -1), Vector2(10, 7)), COR_OURO)
+			var nome: String = str(l.nome)
+			if esc:
+				_texto(c, Vector2(lin.end.x - 8.0 - fonte.get_string_size("Ir para ›", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x, y), "Ir para ›", 14, COR_OURO, false, 3)
+			var max_w: float = larg - 34.0 - (74.0 if esc else 0.0)
+			while nome.length() > 4 and fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x > max_w:
+				nome = nome.substr(0, nome.length() - 2) + "…"
+			_texto(c, Vector2(x0 + 24.0, y), nome, 15, COR_OURO if esc else Color(1, 0.96, 0.88), false)
+			linhas.append([Rect2(lin.position - (pp.position - grande.get_global_rect().position) + Vector2(0, -0.5), lin.size + Vector2(0, 1)), l])
+		y += 23.0
+	y += 6.0
+	if y > base.y + 16.0 and y < fim:
+		c.draw_circle(Vector2(x0 + 9.0, y), 6.0, COR_BICHO.chefe)
+		_texto(c, Vector2(x0 + 24.0, y), "1 Imp Chefe em cada clareira", 14, Color(1, 0.8, 0.75), false)
+	y += 22.0
+	if y > base.y + 16.0 and y < fim:
+		_seta(c, Vector2(x0 + 9.0, y), Vector2(0, -1), 8.0, COR_OURO)
+		_texto(c, Vector2(x0 + 24.0, y), "Você", 14, Color(1, 0.96, 0.88), false)
+	y += 26.0
+	for dica in ["Toque num nome ou no mapa para marcar", "Pinça ou − e + para o zoom"]:
+		if y > base.y + 16.0 and y < fim:
+			_texto(c, Vector2(x0, y), dica, 13, Color(1, 1, 1, 0.6), false)
+		y += 19.0
+	lista_alt = y + rolar - base.y
+
 # nome da clareira onde caiu o toque ("Puglins Nv 15"), ou ""
 func _clareira_em(p: Vector2) -> String:
+	for l in _lugares(): # o nome tocado na lista (vila, clareira ou veio)
+		if str(l.id) == selecionado:
+			return str(l.curto)
 	for cc in m.mundo.get("caca", []):
 		if p.distance_to(Vector2(float(cc.x), float(cc.z))) <= float(cc.get("r", 12.0)) + 2.0:
 			return "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))]
@@ -415,7 +690,7 @@ func _clareira_em(p: Vector2) -> String:
 # onde o botão "Ir para" fica: abaixo, à direita, à esquerda ou acima do pino (~70 px), o lugar que cobre menos coisa
 # (pino, rota, marcas e nomes das clareiras) e cabe no mapa
 func _lugar_do_botao(qm: Vector2, tam: Vector2, em: Callable, mapa: Rect2) -> Rect2:
-	var ocupado: Array = [Rect2(qm - Vector2(14, 34), Vector2(28, 40))] # o pino
+	var ocupado: Array = [Rect2(qm - Vector2(14, 34), Vector2(28, 40)), botao_mais.merge(botao_menos), botao_x] # o pino, o zoom e o X
 	for cc in m.mundo.get("caca", []):
 		var q: Vector2 = em.call(float(cc.x), float(cc.z))
 		var nome := "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))]
