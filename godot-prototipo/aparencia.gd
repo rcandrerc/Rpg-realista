@@ -158,14 +158,23 @@ static func _shader(base: StandardMaterial3D, pele := false, rosto := false) -> 
 	# recebe a sombra do cabelo cheia, senão a pele escura virava preto e a boca e o nariz sumiam
 	var luz := ""
 	if pele:
-		# luz toon própria: o lado da sombra fica com 78% do claro, e a sombra que cai (cabelo no rosto) pesa no máximo 35%
+		# luz toon própria (a mesma ideia de main.pele_viva): degrau macio, sombra quente e rosada que nunca passa de
+		# ~70% do claro (a pele escura não vira preto), uma faixa mais quente na divisa luz/sombra (sangue por baixo da
+		# pele) e um brilho toon fraquinho. A sombra que cai (cabelo no rosto) pesa no máximo 35% no rosto.
+		# O rosto é mais macio que o corpo (o desenho do VRoid já traz blush e traço).
 		luz = """
 void light() {
-	float lado = smoothstep(-0.02, 0.02, dot(NORMAL, LIGHT));
+	float lado = smoothstep(%s, %s, dot(NORMAL, LIGHT));
 	float caida = mix(1.0, ATTENUATION, %s);
-	DIFFUSE_LIGHT += LIGHT_COLOR * mix(0.78, 1.0, lado * caida) / PI;
+	// no lado claro a luz ainda cai devagar até a divisa (volume: bochecha, braço e perna não ficam um branco só)
+	float l = lado * caida * mix(%s, 1.0, smoothstep(0.05, 0.85, dot(NORMAL, LIGHT)));
+	vec3 tom = mix(vec3(0.76, 0.6, 0.56), vec3(1.0), l);
+	tom += vec3(0.16, 0.05, 0.02) * l * (1.0 - l) * 4.0;
+	DIFFUSE_LIGHT += LIGHT_COLOR * tom / PI;
+	float meio = dot(NORMAL, normalize(VIEW + LIGHT));
+	DIFFUSE_LIGHT += LIGHT_COLOR * smoothstep(0.9, 0.97, meio) * l * %s;
 }
-""" % ("0.35" if rosto else "1.0")
+""" % (["-0.25", "0.35", "0.35", "0.82", "0.04"] if rosto else ["-0.12", "0.2", "1.0", "0.72", "0.07"])
 	var codigo := """shader_type spatial;
 render_mode %s;
 uniform vec4 albedo : source_color = vec4(1.0);
