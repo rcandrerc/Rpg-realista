@@ -34,10 +34,7 @@ jobs:
   modelos-chave:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
-    # Runner da Oracle FORA DO AR desde 2026-11-05 ~04:40 UTC (jobs ficavam na fila sem ninguém pegar).
-    # Enquanto isso, roda no GitHub. Para voltar ao runner depois de religar a VM builds-runner, troque esta
-    # linha de volta para: runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       tem: ${{ steps.olha.outputs.cache-hit }}
@@ -105,10 +102,7 @@ jobs:
     if: always() && needs.modelos-chave.result == 'success' && (needs.modelos.result == 'success' || needs.modelos.result == 'skipped')
     # Com a variável RUNNER_BUILD definida (ex.: "aethra-build"), roda no runner próprio da Oracle e NÃO gasta
     # cota do GitHub. Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
-    # Runner da Oracle FORA DO AR desde 2026-11-05 ~04:40 UTC (jobs ficavam na fila sem ninguém pegar).
-    # Enquanto isso, roda no GitHub. Para voltar ao runner depois de religar a VM builds-runner, troque esta
-    # linha de volta para: runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

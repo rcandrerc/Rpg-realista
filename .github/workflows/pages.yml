@@ -30,10 +30,7 @@ jobs:
   publicar:
     # Com a variável RUNNER_BUILD definida, roda no runner próprio da Oracle (não gasta cota do GitHub).
     # Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
-    # Runner da Oracle FORA DO AR desde 2026-11-05 ~04:40 UTC (jobs ficavam na fila sem ninguém pegar).
-    # Enquanto isso, roda no GitHub. Para voltar ao runner depois de religar a VM builds-runner, troque esta
-    # linha de volta para: runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
