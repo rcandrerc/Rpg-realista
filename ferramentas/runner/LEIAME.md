@@ -42,3 +42,17 @@ sem versão ARM é o `aapt2` (ferramenta da Google que monta o APK). O script in
 
 Builds que ficaram parados na fila (cota zerada): reenvie em Actions → a execução → **Re-run**.
 O runner roda uma de cada vez; os freios garantem que o jogo não trava enquanto isso.
+
+## Modelos prontos (quando a máquina do GitHub não roda)
+
+Exportar os modelos (Chromium com WebGL por software) no runner ARM não dá: passou de 50 min e derrubou o
+runner por falta de memória (2026-11-05). O `apk.yml` exporta numa máquina do GitHub (job `modelos`). Se ela
+não roda (cota ou limite de gasto do Actions), o job `modelos-prontos` pega os modelos do ramo
+**`modelos-prontos`**, feito numa máquina comum (x86):
+
+1. Exporte os modelos do commit da main e do commit do último build que deu certo (o que o cache tem), com
+   `npx vite --port 5173` em `client/` e `node client/exportar-godot/gerar-modelos.mjs`.
+2. No ramo `modelos-prontos` (sem histórico da main): `commit.txt` com o SHA da main, `modelos/` só com os
+   arquivos que mudaram entre os dois e `modelos/mudaram.txt` com os nomes, um por linha.
+
+Só vale enquanto `client/`, `shared/` e `package-lock.json` não mudarem depois do `commit.txt`.

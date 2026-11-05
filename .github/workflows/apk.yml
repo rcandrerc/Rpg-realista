@@ -96,48 +96,34 @@ jobs:
           path: modelos-novos
           retention-days: 1
 
-  # Plano B: se a máquina do GitHub não roda (cota ou limite de gasto do Actions, como em 2026-11-05),
-  # exporta no runner da Oracle mesmo. É lento no ARM (passou de 50 min), por isso o limite é maior.
-  modelos-runner:
+  # Plano B: se a máquina do GitHub não roda (cota ou limite de gasto do Actions, como em 2026-11-05), usa os
+  # modelos exportados fora (ramo "modelos-prontos": commit.txt + modelos/ só com o que mudou + mudaram.txt).
+  # Exportar no runner ARM não dá: o Chromium passou de 50 min e derrubou o runner por falta de memória
+  # (execuções 333 e 350). Os modelos prontos só valem se client/, shared/ e package-lock.json não mudaram
+  # desde o commit.txt; senão este job falha e avisa (é preciso exportar de novo, ferramentas/runner/LEIAME.md).
+  modelos-prontos:
     needs: [modelos-chave, modelos]
     if: always() && needs.modelos.result == 'failure'
     runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
-    timeout-minutes: 150
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      # a pasta do último build: modelo que sair igual (byte a byte) não vai para o APK como "mudou"
-      - name: Modelos do último build (cache)
-        uses: actions/cache/restore@v4
-        with:
-          path: godot-prototipo/modelos
-          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
-          restore-keys: modelos-v2-
-      - name: Chromium para exportar os modelos
+          fetch-depth: 0
+      - name: Modelos prontos do ramo modelos-prontos
         run: |
-          npm install --no-save playwright@1.48.2
-          # no runner próprio o instalar-runner.sh já pôs as bibliotecas do sistema e o usuário do build não tem sudo
-          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then npx playwright install chromium; else npx playwright install --with-deps chromium; fi
-      - name: Modelos (vila, personagens, monstros)
-        run: |
-          # os modelos saem numa pasta limpa; o que mudou de verdade vai para modelos-novos/ (com a lista mudaram.txt)
-          mkdir -p /tmp/modelos-velhos modelos-novos
-          [ -d godot-prototipo/modelos ] && cp -a godot-prototipo/modelos/. /tmp/modelos-velhos/
-          rm -rf godot-prototipo/modelos
-          (cd client && npx vite --port 5173 > /tmp/vite.log 2>&1 &)
-          for i in $(seq 1 30); do curl -s localhost:5173 > /dev/null && break; sleep 1; done
-          node client/exportar-godot/gerar-modelos.mjs
-          : > modelos-novos/mudaram.txt
-          for f in godot-prototipo/modelos/*; do
-            n=$(basename "$f")
-            cmp -s "$f" "/tmp/modelos-velhos/$n" || { cp "$f" modelos-novos/; echo "$n" >> modelos-novos/mudaram.txt; }
-          done
+          git fetch --depth 1 origin modelos-prontos || { echo "::error::Sem o ramo modelos-prontos e sem máquina do GitHub para exportar os modelos"; exit 1; }
+          C="$(git show FETCH_HEAD:commit.txt | tr -d '[:space:]')"
+          echo "modelos prontos feitos no commit $C"
+          git cat-file -e "$C^{commit}" || git fetch --depth 50 origin "$C"
+          if ! git diff --quiet "$C" HEAD -- client shared package-lock.json; then
+            echo "::error::client/, shared/ ou package-lock.json mudaram desde $C: os modelos prontos estão velhos"
+            git diff --stat "$C" HEAD -- client shared package-lock.json | tail -20
+            exit 1
+          fi
+          mkdir -p modelos-novos
+          git archive FETCH_HEAD modelos | tar -x -C /tmp && cp -a /tmp/modelos/. modelos-novos/
           echo "Modelos que mudaram: $(wc -l < modelos-novos/mudaram.txt)"; cat modelos-novos/mudaram.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -146,9 +132,9 @@ jobs:
           retention-days: 1
 
   apk:
-    needs: [modelos-chave, modelos, modelos-runner]
-    # roda se o runner achou os modelos no cache (job "modelos" pulado) ou se "modelos" / "modelos-runner" exportou
-    if: always() && needs.modelos-chave.result == 'success' && (needs.modelos.result == 'success' || needs.modelos.result == 'skipped' || needs.modelos-runner.result == 'success')
+    needs: [modelos-chave, modelos, modelos-prontos]
+    # roda se o runner achou os modelos no cache (job "modelos" pulado), se "modelos" exportou ou se vieram prontos
+    if: always() && needs.modelos-chave.result == 'success' && (needs.modelos.result == 'success' || needs.modelos.result == 'skipped' || needs.modelos-prontos.result == 'success')
     # Com a variável RUNNER_BUILD definida (ex.: "aethra-build"), roda no runner próprio da Oracle e NÃO gasta
     # cota do GitHub. Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
     runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
