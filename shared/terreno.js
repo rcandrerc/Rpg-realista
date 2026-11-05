@@ -12,6 +12,7 @@ const ACIMA = 0.5; // peça suspensa vira chão quando a base dela está até is
 // beiral, inclina, max, x0, z0, x1, z1 }. A mesma conta no godot-prototipo/construcao.gd (_malha_telhado) e terreno.gd.
 export function alturaTelhado(c, x, z) {
   if (x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) return -1;
+  if (c.rampa) return alturaRampa(c, x, z);
   let d = Infinity;
   for (const [ax, az, bx, bz] of c.seg) {
     const vx = bx - ax, vz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
@@ -21,6 +22,45 @@ export function alturaTelhado(c, x, z) {
   for (const [cx, cz] of c.cel) if (Math.abs(x - cx) <= c.g + 0.001 && Math.abs(z - cz) <= c.g + 0.001) { dentro = true; break; }
   if (!dentro) { if (d > c.beiral) return -1; d = -d; }
   return c.base + 0.2 + c.inclina * Math.min(d, c.max / c.inclina);
+}
+
+// Telhado em rampa (André 2026-11-05, o esquema do Quimera): cada quadrado de telhado tem uma direção (r, botão Girar)
+// e sobe `sobe` m por quadrado seguido na mesma direção: o primeiro mais baixo, o seguinte mais alto. Quando a rampa
+// encontra outra virada para ela na mesma altura, o quadrado do meio fica reto (cumeeira).
+// cel = [[x, z, r]], passo = tamanho do quadrado. Devolve [{ x, z, r, dx, dz, h0, h1, plano, atras, frente, esq, dir }]
+// (h0 = altura na beira de baixo, h1 = na de cima, a partir da base; atras/frente/esq/dir = tem telhado vizinho ali).
+// A mesma conta no app: godot-prototipo/terreno.gd rampas_telhado.
+export const DIR_TELHADO = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+export function rampasTelhado(cel, passo, sobe) {
+  const k = (x, z) => Math.round(x * 100) + ',' + Math.round(z * 100);
+  const mapa = new Map(cel.map(([x, z, r]) => [k(x, z), r & 3]));
+  const seguidos = (x, z, r) => {
+    const [dx, dz] = DIR_TELHADO[r];
+    let n = 0;
+    for (let i = 1; i < 40; i++) { if (mapa.get(k(x - dx * passo * i, z - dz * passo * i)) === r) n++; else break; }
+    return n;
+  };
+  return cel.map(([x, z, r0]) => {
+    const r = r0 & 3, [dx, dz] = DIR_TELHADO[r], n = seguidos(x, z, r);
+    let h0 = n * sobe, h1 = h0 + sobe, plano = false;
+    const rf = mapa.get(k(x + dx * passo, z + dz * passo));
+    if (rf === ((r + 2) & 3) && Math.abs((seguidos(x + dx * passo, z + dz * passo, rf) + 1) * sobe - h0) < 0.01) { plano = true; h1 = h0; }
+    return { x, z, r, dx, dz, h0, h1, plano, atras: mapa.has(k(x - dx * passo, z - dz * passo)), frente: rf !== undefined,
+      esq: mapa.has(k(x - dz * passo, z + dx * passo)), dir: mapa.has(k(x + dz * passo, z - dx * passo)) };
+  });
+}
+// altura do telhado em rampa num ponto (-1 = fora). Beiral para fora onde não tem vizinho (na beira de cima, menor).
+function alturaRampa(c, x, z) {
+  let h = -1;
+  const g = c.g, b = c.beiral;
+  for (const q of c.rampa) {
+    const ox = x - q.x, oz = z - q.z, u = ox * q.dx + oz * q.dz, v = ox * q.dz - oz * q.dx; // u: subindo, v: de lado (+ = dir)
+    if (u < -g - (q.atras ? 0 : b) - 1e-3 || u > g + (q.frente ? 0 : b * 0.6) + 1e-3) continue;
+    if (v > g + (q.dir ? 0 : b) + 1e-3 || v < -g - (q.esq ? 0 : b) - 1e-3) continue;
+    const a = c.base + 0.2 + q.h0 + (q.h1 - q.h0) * (Math.min(u, g) + g) / (2 * g);
+    if (a > h) h = a;
+  }
+  return h;
 }
 
 export class Terreno {

@@ -236,6 +236,9 @@
     { "nome": "Construção: janela de quantas criar e barrinha no app", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _montar_tela_criar() -> void:", "func fabricando(ev: Dictionary) -> void:", "func parar_criar() -> void:"] },
     { "nome": "Criar (mochila e mesa): quantidade e barrinha também nas receitas", "arquivo": "shared/simulacao.js", "contem": ["motivoReceita(j, R) {", "criarUm(id, m) {"] },
     { "nome": "Criar: janela e barrinha por cima do menu", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func pedir_criar(tipo: String, k: String) -> void:", "tela_criar.layer = 25"] },
-    { "nome": "Sem grama da mata furando o piso das peças", "arquivo": "godot-prototipo/main.gd", "contem": ["var grama_mata: Array = []"] }
+    { "nome": "Sem grama da mata furando o piso das peças", "arquivo": "godot-prototipo/main.gd", "contem": ["var grama_mata: Array = []"] },
+    { "nome": "Telhado em rampa contínua (esquema do Quimera)", "arquivo": "shared/terreno.js", "contem": ["export function rampasTelhado(cel, passo, sobe) {", "function alturaRampa(c, x, z) {"] },
+    { "nome": "Telhado em rampa no app (malha, fantasma e Girar)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:", "func _y_rampa_nova(L: Dictionary, x: float, z: float, r: int) -> float:"] },
+    { "nome": "Zoom + e − no modo construção", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func(): m.cam.zoom(z[1])"] }
   ]
 }

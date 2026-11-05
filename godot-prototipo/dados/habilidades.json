@@ -2111,7 +2111,8 @@
   "beiral": 0.45,
   "inclina": 0.6,
   "telhaMax": 1.8,
-  "porta": 2.2
+  "porta": 2.2,
+  "telhaSobe": 1.2
  },
  "bau": {
   "slots": 40

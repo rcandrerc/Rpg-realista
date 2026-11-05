@@ -216,7 +216,7 @@ func _modelo_tocha() -> Node3D:
 func _modelo_telhado_um() -> Node3D:
 	var r := Node3D.new()
 	var mi := MeshInstance3D.new()
-	mi.mesh = _malha_telhado([Vector2(0, 0)], 0.0)
+	mi.mesh = _malha_rampas(m.terreno.rampas_telhado([[0.0, 0.0, 0]], grade(), _telha_sobe()), 0.0) # rampa subindo para +z (o Girar vira o nó)
 	r.add_child(mi)
 	return r
 
@@ -561,7 +561,7 @@ func _refazer_pisos() -> void:
 					else:
 						_pisos.append(peca.call(p.x + q[0], p.z, q[1], e, q[3], q[2]))
 			elif T == "telhado":
-				cel.append([p.x, p.z])
+				cel.append([p.x, p.z, int(p.r)])
 				topo = maxf(topo, _piso(p.x, p.z) + float(C.parede))
 		if cel.is_empty():
 			continue
@@ -585,7 +585,8 @@ func _refazer_pisos() -> void:
 			z0 = minf(z0, z - g - bei); z1 = maxf(z1, z + g + bei)
 		_pisos.append({"casa": true, "obra": true, "cel": cel, "seg": seg, "g": g, "base": topo, "beiral": bei, "inclina": float(C.inclina),
 			"max": float(C.telhaMax), "x0": x0, "z0": z0, "x1": x1, "z1": z1, "x": (x0 + x1) / 2.0, "z": (z0 + z1) / 2.0, "cos": 1.0, "sen": 0.0,
-			"hw": (x1 - x0) / 2.0, "hd": (z1 - z0) / 2.0, "sobe": 0.0, "y1": topo, "R": Vector2(x1 - x0, z1 - z0).length() / 2.0})
+			"hw": (x1 - x0) / 2.0, "hd": (z1 - z0) / 2.0, "sobe": 0.0, "y1": topo, "R": Vector2(x1 - x0, z1 - z0).length() / 2.0,
+			"rampa": m.terreno.rampas_telhado(cel, 2.0 * g, _telha_sobe())}) # telhado em rampa (2026-11-05)
 	m.terreno.solidos.append_array(_pisos)
 	m.terreno.casas.append_array(_pisos) # teto: dentro de casa a cabeça bate no telhado e na verga da porta
 
@@ -601,6 +602,24 @@ func _topo_parede(x: float, z: float) -> float:
 const BEIRAL := 0.45
 const INCLINA := 0.6
 const TELHA_MAX := 1.8 # o telhado para de subir aqui (casa grande fica com o topo reto)
+
+# telha (T_RoundTiles) e forro de madeira, uma vez só
+func _criar_mats_telha() -> void:
+	if _mat_telha != null:
+		return
+	_mat_telha = StandardMaterial3D.new()
+	_mat_telha.albedo_texture = load("res://construcao3d/T_RoundTiles_BaseColor.png")
+	_mat_telha.albedo_color = Color("d9b9a6")
+	_mat_telha.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	_mat_telha.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	_mat_telha.roughness = 1.0
+	_mat_forro = StandardMaterial3D.new()
+	_mat_forro.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
+	_mat_forro.albedo_color = Color("9a7a5c")
+	_mat_forro.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	_mat_forro.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	_mat_forro.roughness = 1.0
+	_mat_forro.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 	var g := grade() / 2.0
@@ -687,20 +706,95 @@ func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 		st.generate_normals()
 		st.generate_tangents()
 		st.commit(malha)
-	if _mat_telha == null:
-		_mat_telha = StandardMaterial3D.new()
-		_mat_telha.albedo_texture = load("res://construcao3d/T_RoundTiles_BaseColor.png")
-		_mat_telha.albedo_color = Color("d9b9a6")
-		_mat_telha.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		_mat_telha.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-		_mat_telha.roughness = 1.0
-		_mat_forro = StandardMaterial3D.new()
-		_mat_forro.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
-		_mat_forro.albedo_color = Color("9a7a5c")
-		_mat_forro.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		_mat_forro.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-		_mat_forro.roughness = 1.0
-		_mat_forro.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_criar_mats_telha()
+	malha.surface_set_material(0, _mat_telha)
+	malha.surface_set_material(1, _mat_forro)
+	malha.surface_set_material(2, _mat_forro)
+	return malha
+
+# quanto cada quadrado de telhado sobe (dados casa.telhaSobe, o mesmo do servidor)
+# altura do pé da rampa de um telhado novo em (x, z) virado para r, contando os que já estão no terreno
+func _y_rampa_nova(L: Dictionary, x: float, z: float, r: int) -> float:
+	var cel: Array = [[x, z, r]]
+	var base := _topo_parede(x, z)
+	for p in L.pecas:
+		if p.k == "telhado" and not _mesmo_lugar(p, x, z):
+			cel.append([p.x, p.z, int(p.r)])
+			base = maxf(base, _topo_parede(p.x, p.z))
+	return base + float(m.terreno.rampas_telhado(cel, grade(), _telha_sobe())[0].h0)
+
+func _telha_sobe() -> float:
+	return float(D.get("casa", {}).get("telhaSobe", 1.2))
+
+# Telhado em rampa (André 2026-11-05: "o telhado é pra ser uma rampa contínua... o mesmo esquema do Quimera"):
+# cada quadrado é uma rampa na direção do Girar; o seguinte na mesma direção começa onde o anterior parou (mais alto);
+# duas rampas de frente fecham a cumeeira. Telha por cima, forro por baixo, testeira na beirada e oitão (o triângulo
+# de madeira) nos lados abertos e atrás da parte alta. rampas = terreno.gd rampas_telhado.
+func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
+	var g := grade() / 2.0
+	var bei := float(D.casa.beiral)
+	var cima := SurfaceTool.new()
+	var baixo := SurfaceTool.new()
+	var borda := SurfaceTool.new()
+	for st in [cima, baixo, borda]:
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for q in rampas:
+		var dx: float = q.dx
+		var dz: float = q.dz
+		var P := func(u: float, v: float, h: float) -> Vector3:
+			return Vector3(q.x + u * dx + v * dz, h, q.z + u * dz - v * dx)
+		var H := func(u: float) -> float:
+			return base + 0.2 + q.h0 + (q.h1 - q.h0) * (minf(u, g) + g) / (2.0 * g)
+		var u0 := -g - (0.0 if q.atras else bei)
+		var u1 := g + (0.0 if q.frente else bei * 0.6)
+		var v0 := -g - (0.0 if q.esq else bei)
+		var v1 := g + (0.0 if q.dir else bei)
+		var us: Array = [u0, g] if u1 <= g + 0.001 else [u0, g, u1]
+		for i in us.size() - 1:
+			var a: Vector3 = P.call(us[i], v0, H.call(us[i]))
+			var b: Vector3 = P.call(us[i], v1, H.call(us[i]))
+			var cc: Vector3 = P.call(us[i + 1], v1, H.call(us[i + 1]))
+			var d: Vector3 = P.call(us[i + 1], v0, H.call(us[i + 1]))
+			for v in [a, b, cc, a, cc, d]:
+				cima.set_uv(Vector2(v.x, v.z) * 0.5)
+				cima.add_vertex(v)
+			for v in [a, cc, b, a, d, cc]:
+				baixo.set_uv(Vector2(v.x, v.z) * 0.7)
+				baixo.add_vertex(v - Vector3(0, 0.1, 0))
+		# testeira (tábua de 12 cm) nas beiradas sem vizinho
+		var lados: Array = []
+		if not q.atras: lados.append([[u0, v0], [u0, v1]])
+		if not q.frente: lados.append([[u1, v1], [u1, v0]])
+		if not q.esq: lados.append([[u0, v0], [g, v0]] if us.size() == 2 else [[u0, v0], [g, v0], [u1, v0]])
+		if not q.dir: lados.append([[g, v1], [u0, v1]] if us.size() == 2 else [[u1, v1], [g, v1], [u0, v1]])
+		for L in lados:
+			for k in L.size() - 1:
+				var a: Vector3 = P.call(L[k][0], L[k][1], H.call(L[k][0]))
+				var b: Vector3 = P.call(L[k + 1][0], L[k + 1][1], H.call(L[k + 1][0]))
+				var a2 := a - Vector3(0, 0.12, 0)
+				var b2 := b - Vector3(0, 0.12, 0)
+				for v in [a, b, b2, a, b2, a2]:
+					borda.set_uv(Vector2(v.x + v.z, v.y) * 0.7)
+					borda.add_vertex(v)
+		# oitão: fecha o vão entre o alto da parede e o telhado nos lados abertos (e atrás da parte alta da rampa)
+		var oitoes: Array = []
+		if not q.esq: oitoes.append([[-g, -g], [g, -g]])
+		if not q.dir: oitoes.append([[g, g], [-g, g]])
+		if not q.frente and not q.plano: oitoes.append([[g, -g], [g, g]])
+		for o in oitoes:
+			var a := P.call(o[0][0], o[0][1], base) as Vector3
+			var b := P.call(o[1][0], o[1][1], base) as Vector3
+			var b2 := P.call(o[1][0], o[1][1], H.call(o[1][0]) - 0.1) as Vector3
+			var a2 := P.call(o[0][0], o[0][1], H.call(o[0][0]) - 0.1) as Vector3
+			for v in [a, b, b2, a, b2, a2]:
+				borda.set_uv(Vector2(v.x + v.z, v.y) * 0.7)
+				borda.add_vertex(v)
+	var malha := ArrayMesh.new()
+	for st in [cima, baixo, borda]:
+		st.generate_normals()
+		st.generate_tangents()
+		st.commit(malha)
+	_criar_mats_telha() # mesmos materiais do telhado antigo
 	malha.surface_set_material(0, _mat_telha)
 	malha.surface_set_material(1, _mat_forro)
 	malha.surface_set_material(2, _mat_forro)
@@ -709,12 +803,14 @@ func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 func _refazer_telhado(L: Dictionary) -> void:
 	var celulas: Array = []
 	var base := -INF
+	var cel_r: Array = [] # [x, z, r]: a direção de cada rampa (Girar)
 	for p in L.pecas:
 		if p.k == "telhado":
 			celulas.append(Vector2(p.x, p.z))
+			cel_r.append([p.x, p.z, int(p.r)])
 			base = maxf(base, _topo_parede(p.x, p.z))
 	var velho = L.get("telhado")
-	var chave := str(celulas)
+	var chave := str(cel_r) + str(base)
 	if velho != null and L.get("telhado_chave", "") == chave:
 		return
 	if velho != null:
@@ -727,7 +823,7 @@ func _refazer_telhado(L: Dictionary) -> void:
 		return
 	var mi := MeshInstance3D.new()
 	mi.name = "telhado"
-	mi.mesh = _malha_telhado(celulas, base)
+	mi.mesh = _malha_rampas(m.terreno.rampas_telhado(cel_r, grade(), _telha_sobe()), base) # rampa (o _malha_telhado antigo fica guardado)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	L.raiz.add_child(mi)
 	L.telhado = mi
@@ -1574,6 +1670,8 @@ func _mover_mira(dt: float) -> void:
 		mira.x = clampf(mira.x, float(A.x) - float(A.rx) - 2.0, float(A.x) + float(A.rx) + 2.0)
 		mira.z = clampf(mira.z, float(A.z) - float(A.rz) - 2.0, float(A.z) + float(A.rz) + 2.0)
 	mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
+	if sel == "telhado" and lotes.has(meu): # mexendo no telhado (André 2026-11-05): a câmera sobe até o alto das paredes
+		mira.y = maxf(mira.y, _topo_parede(mira.x, mira.z) - 0.6)
 	m.cam.entrar_livre(mira)
 	if _mira_no == null:
 		_mira_no = MeshInstance3D.new()
@@ -1810,7 +1908,7 @@ func _atualizar_mira() -> void:
 		_mostrar_fantasma(sel)
 		var y: float = _y_peca({"k": sel, "x": x, "z": z, "r": r}) + (0.0 if T == "fundacao" else 0.01)
 		if T == "telhado":
-			y = _topo_parede(x, z)
+			y = _y_rampa_nova(L, x, z, r) # já na altura em que a rampa vai ficar (a seguinte sobe)
 		fantasma.position = Vector3(x, y, z)
 		fantasma.rotation.y = r * PI / 2.0
 		_pintar_fantasma(alvo.ok)
@@ -2323,6 +2421,15 @@ func _montar_tela() -> void:
 	b_girar = _botao("Girar", girar, false, 20)
 	b_girar.custom_minimum_size = Vector2(170, 54)
 	acoes.add_child(b_girar)
+	# zoom do modo construção (André 2026-11-05: a pinça ia de muito perto a muito longe): passinhos de 20%
+	var zm := HBoxContainer.new()
+	zm.add_theme_constant_override("separation", 8)
+	acoes.add_child(zm)
+	for z in [["−", 1.2], ["+", 1.0 / 1.2]]:
+		var bz := _botao(z[0], func(): m.cam.zoom(z[1]), false, 28)
+		bz.custom_minimum_size = Vector2(81, 54)
+		bz.tooltip_text = "Afastar" if z[1] > 1.0 else "Aproximar"
+		zm.add_child(bz)
 	b_sair = _botao("Sair", sair, false, 20)
 	b_sair.custom_minimum_size = Vector2(170, 50)
 	acoes.add_child(b_sair)
@@ -2647,7 +2754,7 @@ func _montar_itens() -> void:
 	b_criar.visible = cq != ""
 	b_criar.disabled = cq != "" and motivo_criar(cq) != ""
 	Menu.estilo_botao(b_criar, cq != "" and m.P.contar(item_criado(cq)) < 1)
-	b_girar.visible = aba != "fazenda" and aba != "terreno" and sel != "desmontar" and tipo_peca(sel) != "telhado" and tipo_peca(sel) != "fundacao"
+	b_girar.visible = aba != "fazenda" and aba != "terreno" and sel != "desmontar" and tipo_peca(sel) != "fundacao" # telhado gira: vira a rampa (2026-11-05)
 	b_ok.text = {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")
 	Menu.estilo_botao(b_ok, true)
 
