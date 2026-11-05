@@ -11,9 +11,9 @@ export const LAGOS = [
   { id: 'lago_oeste', nome: 'Lago do Oeste', x: -45, z: -12, rx: 8.5, rz: 6, giro: 0.5, fundo: 0.75, lobos: [[3, 0.08, 0.4], [5, 0.05, 2.1]] },
   { id: 'lago_raso', nome: 'Lago Raso', x: 12, z: 45, rx: 7.5, rz: 6, giro: -0.4, fundo: 0.65, lobos: [[3, 0.07, 1.3], [4, 0.05, 0.2]] },
   { id: 'lago_fundo', nome: 'Lago Fundo', x: 100, z: 78, rx: 12.5, rz: 9, giro: 0.3, fundo: 4.2, lobos: [[3, 0.09, 2.7], [5, 0.05, 0.6]] },
-  { id: 'lago_montanha', nome: 'Lago da Montanha', x: 121, z: -33, rx: 10, rz: 7.5, giro: -0.6, fundo: 4.6, lobos: [[3, 0.08, 4.1], [5, 0.06, 1.7]] },
+  { id: 'lago_montanha', nome: 'Lago da Montanha', x: 121, z: -13, rx: 10, rz: 7.5, giro: -0.6, fundo: 4.6, lobos: [[3, 0.08, 4.1], [5, 0.06, 1.7]] },
 ]
-export const AGUA = { nivel: -0.12, peito: 1.2, lento: 0.62, raso: 0.82 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
+export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
 
 // raio da margem do lago na direção do ponto (elipse girada com ondas): 1 = na margem
 function margemLago(L, x, z) {
@@ -31,7 +31,7 @@ export function noLago(x, z) {
     if (Math.abs(x - L.x) > R || Math.abs(z - L.z) > R) continue;
     const d = margemLago(L, x, z);
     if (d >= 1) continue;
-    const p = L.fundo > 1.5 ? L.fundo * (0.12 * suave(1, 0.85, d) + 0.88 * suave(0.85, 0.35, d)) : L.fundo * suave(1, 0.3, d);
+    const p = L.fundo > 1.5 ? L.fundo * (0.12 * suave(1, 0.85, d) + 0.88 * suave(0.85, 0.35, d)) : L.fundo * suave(1, 0.55, d) * (0.55 + 0.45 * suave(0.55, 0.1, d));
     return { lago: L, fundo: p, d };
   }
   return null;
@@ -42,7 +42,7 @@ export function noLago(x, z) {
 // (erosão de gotas), que é o que faz parecer montanha de verdade: vales, encostas lisas e cristas, sem pedaço torto.
 // Sorteio fixo: sai igual no servidor e no app. O lado oeste (de quem chega do campo de fora) desce devagar: dá para
 // subir andando até o alto; o norte e o leste são paredões (fim do mapa).
-export const MONTANHA = { x: 176, z: -54, tam: 150, passo: 1.5, alto: 44 };
+export const MONTANHA = { x: 188, z: -62, tam: 198, passo: 1.5, alto: 40 };
 
 function montarMontanha() {
   const { tam, passo, alto } = MONTANHA, n = Math.round(tam / passo) + 1, h = new Float32Array(n * n);
@@ -57,21 +57,26 @@ function montarMontanha() {
   const fbm = (x, z, o) => { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i++) { s += a * val(x * f, z * f); a *= 0.5; f *= 2.03; } return s; };
   const crista = (x, z, o) => { let s = 0, a = 0.5, f = 1, w = 1; for (let i = 0; i < o; i++) { let v = 1 - Math.abs(val(x * f, z * f) * 2 - 1); v *= v * w; w = Math.min(1, v * 2); s += v * a; a *= 0.5; f *= 2.1; } return s; };
   const meio = (n - 1) / 2;
-  // perfil de montanha: encosta côncava (íngreme lá em cima, suave no pé), sem ponta de agulha
-  const perfil = (r) => { const u = Math.max(0, 1 - r); return u * u * (1.4 - 0.4 * u); };
+  // perfil de montanha: encosta côncava (íngreme lá em cima, suave no pé), topo arredondado (sem ponta de agulha)
+  const perfil = (r) => { const u = Math.max(0, 1 - r); return u * u * (1.5 - 0.5 * u) * (1 - 0.12 * Math.exp(-r * r * 60)); };
+  // junta os picos com crista (máximo suave: entre dois picos fica uma sela, não um vale até o chão)
+  const junta = (l, k = 9) => Math.log(l.reduce((t, v) => t + Math.exp(k * v), 0) - (l.length - 1)) / k;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const lx = (i - meio) * passo, lz = (j - meio) * passo; // metros a partir do centro (+x leste, +z sul)
     // ondula a forma (domínio torcido): a base não fica um círculo
-    const wx = lx + (fbm(lx * 0.016 + 3.1, lz * 0.016, 3) - 0.5) * 26, wz = lz + (fbm(lx * 0.016, lz * 0.016 + 7.7, 3) - 0.5) * 26;
-    // maciço: pico um pouco a leste, ombro ao norte e uma crista que desce para sudoeste (o caminho de subida)
-    const ex = wx < 0 ? wx / 1.3 : wx, pico = perfil(Math.hypot(ex - 6, wz + 2) / 50);
-    const ombro = 0.62 * perfil(Math.hypot(wx - 12, wz + 30) / 30);
-    const cu = (wx + 6) * 0.707 - (wz - 6) * 0.707, cv = (wx + 6) * 0.707 + (wz - 6) * 0.707; // eixo da crista sudoeste
-    const crista2 = 0.38 * perfil(Math.hypot(cu / 2.2, cv) / 22);
-    const base = pico + ombro * (1 - pico * 0.6) + crista2 * (1 - pico * 0.5);
+    const wx = lx + (fbm(lx * 0.014 + 3.1, lz * 0.014, 3) - 0.5) * 30, wz = lz + (fbm(lx * 0.014, lz * 0.014 + 7.7, 3) - 0.5) * 30;
+    // maciço largo (base ~3x a altura): cume principal, ombro sudoeste (70%, de quem chega do campo de fora) e ombro
+    // nordeste (55%), ligados por crista; o pé do maciço (base) espalha bem mais que os picos
+    const cume = perfil(Math.hypot(wx - 4, wz + 2) / 46);
+    const ombroSO = 0.7 * perfil(Math.hypot(wx + 30, wz - 18) / 30);
+    const ombroNE = 0.55 * perfil(Math.hypot(wx - 26, wz + 30) / 27);
+    const crista1 = 0.5 * perfil(Math.hypot(((wx + 13) * 0.83 - (wz - 8) * 0.55) / 2.6, (wx + 13) * 0.55 + (wz - 8) * 0.83) / 20);
+    const crista2 = 0.42 * perfil(Math.hypot(((wx - 15) * 0.6 + (wz + 16) * 0.8) / 2.4, -(wx - 15) * 0.8 + (wz + 16) * 0.6) / 18);
+    const pe = 0.28 * perfil(Math.hypot(wx * 0.9, wz) / 82);
+    const base = Math.max(junta([cume, ombroSO, ombroNE, crista1, crista2]), 0) + pe * (1 - cume);
     // detalhe de cristas e ravinas, mais forte no alto e nada no pé
-    const det = crista(wx * 0.026 + 11, wz * 0.026 + 5, 4) - 0.35;
-    h[j * n + i] = base * (1 + det * 0.24 * Math.min(1, base * 1.5));
+    const det = crista(wx * 0.024 + 11, wz * 0.024 + 5, 4) - 0.35;
+    h[j * n + i] = base * (1 + det * 0.26 * Math.min(1, base * 1.4));
   }
   // erosão de gotas (chuva): cada gota desce pela encosta levando terra e soltando onde perde velocidade
   const altura = (x, z) => { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, k = iz * n + ix;
@@ -160,4 +165,30 @@ export function pertoDaAgua(x, z, folga = 0) {
     if (margemLago(L, x, z) < 1 + folga / Math.min(L.rx, L.rz)) return true;
   }
   return false;
+}
+
+// ponto da margem do lago na direção ang (espaço do lago) a "d" vezes a margem (1 = na margem): a conta inversa de margemLago
+export function pontoDoLago(L, ang, d) {
+  let k = 1; for (const [n, a, f] of L.lobos) k *= 1 + a * Math.sin(n * ang + f);
+  const u = L.rx * Math.cos(ang) * d * k, v = L.rz * Math.sin(ang) * d * k, c = Math.cos(L.giro), s = Math.sin(L.giro);
+  return [L.x + u * c - v * s, L.z + u * s + v * c];
+}
+// Beira dos lagos (direção de arte 2026-11-05): tufos de junco e taboa e algumas pedras em trechos que cobrem ~30% da
+// margem (não um anel contínuo). Sorteio fixo. tipo: 'junco' (só folhas), 'taboa' (folhas com a espiga marrom), 'pedra'.
+export function beiraDosLagos() {
+  let sem = 31337; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const out = [];
+  for (const L of LAGOS) {
+    const trechos = 4 + Math.floor(rnd(0, 2.999)), ini = rnd(0, 6.283);
+    for (let t = 0; t < trechos; t++) {
+      const meio = ini + (t / trechos) * 6.283 + rnd(-0.3, 0.3), larg = 6.283 * 0.3 / trechos * rnd(0.8, 1.25);
+      const R = (L.rx + L.rz) / 2, passos = Math.max(3, Math.round(larg * R / 0.7));
+      for (let k = 0; k < passos; k++) {
+        const ang = meio - larg / 2 + (k / (passos - 1)) * larg + rnd(-0.05, 0.05);
+        const pedra = rnd(0, 1) < 0.16, d = pedra ? rnd(0.99, 1.1) : rnd(0.86, 1.03), [x, z] = pontoDoLago(L, ang, d);
+        out.push({ tipo: pedra ? 'pedra' : rnd(0, 1) < 0.35 ? 'taboa' : 'junco', lago: L.id, x: +x.toFixed(2), z: +z.toFixed(2), s: +(pedra ? rnd(0.18, 0.34) : rnd(0.75, 1.25)).toFixed(2), ry: +rnd(0, 6.28).toFixed(2) });
+      }
+    }
+  }
+  return out;
 }

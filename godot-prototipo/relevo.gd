@@ -6,6 +6,8 @@ extends Node3D
 # O chão plano (main.gd montar_chao) abre um buraco onde tem lago (chao.gdshader, uniforms lago_*).
 
 var T # terreno.gd
+var env: Environment # névoa: fica mais fina quando a câmera sobe (vista do alto da montanha)
+const NEVOA := 0.0075
 
 func _init(terreno, chao_mat: ShaderMaterial, grama_tex: Texture2D) -> void:
 	T = terreno
@@ -14,7 +16,33 @@ func _init(terreno, chao_mat: ShaderMaterial, grama_tex: Texture2D) -> void:
 		_montanha(grama_tex)
 	for L in T.lagos:
 		_lago(L)
+	_juncos(terreno.m.get("juncos", []))
 	_buracos_no_chao(chao_mat)
+	_copas_ao_longe(chao_mat)
+
+func _ready() -> void:
+	for we in get_parent().find_children("*", "WorldEnvironment", false, false):
+		env = we.environment
+
+# Vista do alto (direção de arte): quem sobe a montanha ganha a vista. Acima de ~15 m a névoa cai ~70%.
+func _process(_dt: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if env == null or cam == null:
+		return
+	var k := clampf((cam.global_position.y - 8.0) / 22.0, 0.0, 1.0)
+	env.fog_density = NEVOA * (1.0 - 0.7 * k * k * (3.0 - 2.0 * k))
+
+# Copas ao longe: as árvores somem a 80 m (desempenho). Daí em diante o chão pinta as copas vistas de cima (o mesmo
+# desenho do minimapa, modelos/minimapa.png), então do alto o horizonte mostra a mata, as trilhas, a vila e os lagos.
+func _copas_ao_longe(mat: ShaderMaterial) -> void:
+	if mat == null or not ResourceLoader.exists("res://modelos/minimapa.png"):
+		return
+	var mm: Dictionary = T.m.get("minimapa", {})
+	if mm.is_empty():
+		return
+	mat.set_shader_parameter("copas_tex", load("res://modelos/minimapa.png"))
+	mat.set_shader_parameter("copas_area", Vector3(float(mm.x0), float(mm.z0), float(mm.tam)))
+	mat.set_shader_parameter("copas_ligado", 1.0)
 
 # ---------- montanha ----------
 func _montanha(grama_tex: Texture2D) -> void:
@@ -172,3 +200,83 @@ func _buracos_no_chao(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("lago_a", a)
 	mat.set_shader_parameter("lago_b", b)
 	mat.set_shader_parameter("lago_c", c)
+
+# ---------- juncos e taboas da beira (shared/relevo.js beiraDosLagos) ----------
+# Um tufo: 7 folhas finas e compridas que abrem para fora (e, na taboa, 2 hastes com a espiga marrom). Cor no vértice
+# (verde da folha, marrom da espiga); junco.gdshader balança com o vento como a grama.
+func _malha_tufo(taboa: bool) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77 if taboa else 41
+	for f in 7:
+		var ang := TAU * f / 7.0 + rng.randf_range(-0.3, 0.3)
+		var alto := rng.randf_range(0.75, 1.25)
+		var abre := rng.randf_range(0.15, 0.4)
+		var dir := Vector3(cos(ang), 0, sin(ang))
+		var lado := Vector3(-dir.z, 0, dir.x) * 0.022
+		var cor := Color.from_hsv(rng.randf_range(0.2, 0.26), 0.55, rng.randf_range(0.42, 0.6))
+		var pts: Array = []
+		for k in 5: # folha curvando para fora
+			var t := k / 4.0
+			pts.append(dir * (abre * t * t) + Vector3(0, alto * t, 0))
+		for k in 4:
+			var w0 := 1.0 - k / 4.0
+			var w1 := 1.0 - (k + 1) / 4.0
+			var a: Vector3 = pts[k] - lado * w0
+			var b: Vector3 = pts[k] + lado * w0
+			var c: Vector3 = pts[k + 1] - lado * w1
+			var d: Vector3 = pts[k + 1] + lado * w1
+			var c0 := cor.darkened(0.25 * (1.0 - k / 4.0))
+			var c1 := cor.darkened(0.25 * (1.0 - (k + 1) / 4.0))
+			for v in [[a, c0], [b, c0], [d, c1], [a, c0], [d, c1], [c, c1]]:
+				st.set_color(v[1])
+				st.set_normal(Vector3.UP)
+				st.add_vertex(v[0])
+	if taboa:
+		for hh in 2:
+			var px := Vector3(rng.randf_range(-0.06, 0.06), 0, rng.randf_range(-0.06, 0.06))
+			var alto2 := rng.randf_range(1.15, 1.45)
+			var haste := Color(0.42, 0.5, 0.25)
+			var espiga := Color(0.36, 0.22, 0.12)
+			for i in 6: # haste fina e espiga (prisma de 6 lados)
+				var a1 := TAU * i / 6.0
+				var a2 := TAU * (i + 1) / 6.0
+				for seg in [[0.0, alto2 - 0.22, 0.008, haste], [alto2 - 0.22, alto2, 0.028, espiga], [alto2, alto2 + 0.08, 0.006, haste]]:
+					var r: float = seg[2]
+					var p1 := px + Vector3(cos(a1) * r, seg[0], sin(a1) * r)
+					var p2 := px + Vector3(cos(a2) * r, seg[0], sin(a2) * r)
+					var p3 := px + Vector3(cos(a1) * r, seg[1], sin(a1) * r)
+					var p4 := px + Vector3(cos(a2) * r, seg[1], sin(a2) * r)
+					for v in [p1, p2, p4, p1, p4, p3]:
+						st.set_color(seg[3])
+						st.set_normal(Vector3(cos(a1), 0.3, sin(a1)).normalized())
+						st.add_vertex(v)
+	return st.commit()
+
+func _juncos(lista: Array) -> void:
+	if lista.is_empty():
+		return
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://junco.gdshader")
+	for taboa in [false, true]:
+		var itens := lista.filter(func(b): return (str(b.tipo) == "taboa") == taboa)
+		if itens.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = _malha_tufo(taboa)
+		mm.instance_count = itens.size()
+		for i in itens.size():
+			var b: Dictionary = itens[i]
+			var x := float(b.x)
+			var z := float(b.z)
+			var sc := float(b.s)
+			mm.set_instance_transform(i, Transform3D(Basis(Vector3.UP, float(b.ry)).scaled(Vector3(sc, sc, sc)), Vector3(x, minf(0.0, T.relevo(x, z)) - 0.02, z)))
+		var g := MultiMeshInstance3D.new()
+		g.name = "Taboas" if taboa else "Juncos"
+		g.multimesh = mm
+		g.material_override = mat
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.visibility_range_end = 70.0
+		add_child(g)

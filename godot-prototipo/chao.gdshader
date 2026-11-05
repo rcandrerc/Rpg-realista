@@ -15,6 +15,11 @@ uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 uniform vec4 lago_a[6];
 uniform vec4 lago_b[6];
 uniform vec4 lago_c[6];
+// copas ao longe (relevo.gd): passando de ~75 m da câmera o chão vira o desenho de cima do mapa (minimapa.png), onde
+// as árvores 3D já sumiram. Da altura do herói isso fica na névoa; do alto da montanha vira a mata vista de longe.
+uniform sampler2D copas_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform vec3 copas_area = vec3(-64.0, -146.0, 412.0);
+uniform float copas_ligado = 0.0;
 varying vec3 mundo;
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -43,6 +48,14 @@ void fragment() {
 	float pp = smoothstep(0.35, 0.6, mk.g + (dot(pow(texture(pedra_cru, w / 2.6).rgb, vec3(2.2)), vec3(0.5)) - 0.15) * 0.8);
 	vec3 c = mix(grama, terra, pt);
 	c = mix(c, pedra * 1.6, pp);
+	if (copas_ligado > 0.5) {
+		float longe = smoothstep(72.0, 92.0, distance(mundo.xz, CAMERA_POSITION_WORLD.xz));
+		if (longe > 0.0) {
+			vec2 uv = (mundo.xz - copas_area.xy) / copas_area.z;
+			vec3 copa = texture(copas_tex, clamp(uv, vec2(0.002), vec2(0.998))).rgb * 1.25;
+			c = mix(c, copa, longe);
+		}
+	}
 	ALBEDO = c;
 	ROUGHNESS = 1.0;
 }

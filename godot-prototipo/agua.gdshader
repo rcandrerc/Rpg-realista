@@ -1,12 +1,12 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, cull_disabled, specular_disabled, unshaded;
-// Água dos lagos no estilo pintado: cor de raso (verde-água) a fundo (azul), pela fundura que se vê embaixo
-// (a fundura de cada ponto vem na cor do vértice, relevo.gd: funciona igual em qualquer celular), espuma branca na beira, faixas de brilho que andam devagar e o céu refletido
-// de lado. Funda o bastante, o leito some no azul (dá para mergulhar quando vier a natação).
-uniform vec3 cor_raso : source_color = vec3(0.42, 0.78, 0.76);
-uniform vec3 cor_fundo : source_color = vec3(0.09, 0.31, 0.5);
-uniform vec3 cor_espuma : source_color = vec3(0.95, 0.98, 1.0);
-uniform vec3 cor_ceu : source_color = vec3(0.78, 0.9, 1.0);
+// Água dos lagos no estilo pintado: verde-água translúcido no raso (o leito aparece) a azul fechado no fundo, pela
+// fundura de cada ponto (vem na cor do vértice, relevo.gd: funciona igual em qualquer celular). Espuma só num fio
+// quebrado rente à margem, riscos finos de brilho que vêm e vão e um pouco do céu de lado.
+uniform vec3 cor_raso : source_color = vec3(0.36, 0.7, 0.64);
+uniform vec3 cor_fundo : source_color = vec3(0.08, 0.27, 0.42);
+uniform vec3 cor_espuma : source_color = vec3(0.93, 0.97, 0.98);
+uniform vec3 cor_ceu : source_color = vec3(0.72, 0.86, 0.96);
 uniform float fundo_lago = 1.0;
 varying vec3 mundo;
 varying float fundura;
@@ -14,23 +14,33 @@ void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	fundura = COLOR.r * 5.0;
 }
+float ruido(vec2 p) {
+	vec2 i = floor(p), f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5);
+	float b = fract(sin(dot(i + vec2(1, 0), vec2(127.1, 311.7))) * 43758.5);
+	float c = fract(sin(dot(i + vec2(0, 1), vec2(127.1, 311.7))) * 43758.5);
+	float d = fract(sin(dot(i + vec2(1, 1), vec2(127.1, 311.7))) * 43758.5);
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
 void fragment() {
-	float prof = max(0.0, fundura); // fundura embaixo deste ponto da água
+	float prof = max(0.0, fundura);
 	float t = smoothstep(0.0, 2.6, prof);
 	vec3 c = mix(cor_raso, cor_fundo, t);
-	// ondinhas: duas ondas cruzadas que andam; onde as duas sobem junto, um risco de brilho (desenho, não foto)
 	float o1 = sin(mundo.x * 0.8 + TIME * 0.9 + sin(mundo.z * 0.55 + TIME * 0.5) * 1.6);
 	float o2 = sin(mundo.z * 1.1 - TIME * 0.7 + sin(mundo.x * 0.45 - TIME * 0.3) * 2.0);
+	c *= 1.0 + (o1 + o2) * 0.025;
 	// riscos finos de brilho que vêm e vão (desenho de anime, não reflexo de foto)
 	float risco = sin(mundo.x * 0.42 + mundo.z * 0.9 + o1 * 0.5 + TIME * 0.35);
-	float brilho = smoothstep(0.975, 0.995, risco) * smoothstep(0.55, 0.95, o2 * 0.5 + 0.5);
-	c = mix(c, c * 1.08, (o1 + o2) * 0.25 + 0.5);
-	// céu refletido quando se olha de lado
-	float fr = pow(1.0 - clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0), 3.0);
-	c = mix(c, cor_ceu, fr * 0.55);
-	// espuma na beira (onde a água fica rasinha), tremendo de leve
-	float beira = 1.0 - smoothstep(0.0, 0.06 + 0.025 * sin(TIME * 1.6 + mundo.x * 1.7 + mundo.z), prof);
-	c = mix(c, cor_espuma, max(beira * 0.7, brilho * 0.45));
+	float brilho = smoothstep(0.978, 0.995, risco) * smoothstep(0.6, 0.95, o2 * 0.5 + 0.5);
+	float fr = pow(1.0 - clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0), 4.0);
+	c = mix(c, cor_ceu, fr * 0.35);
+	// espuma: fio de até ~10 cm rente à margem, quebrado em pedaços (não um contorno contínuo)
+	float fio = 1.0 - smoothstep(0.0, 0.025, prof);
+	float pedacos = smoothstep(0.45, 0.65, ruido(mundo.xz * 1.6 + vec2(TIME * 0.15, 0.0)));
+	float espuma = fio * pedacos * 0.5;
+	c = mix(c, cor_espuma, max(espuma, brilho * 0.4));
 	ALBEDO = c;
-	ALPHA = clamp(0.5 + t * 0.45 + beira * 0.4 + fr * 0.2, 0.0, 0.96);
+	// raso translúcido (o leito aparece), fundo fechado
+	ALPHA = clamp(mix(0.5, 0.9, t) + fr * 0.15 + espuma * 0.3, 0.0, 0.95);
 }

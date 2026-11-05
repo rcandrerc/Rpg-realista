@@ -2,7 +2,7 @@
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
-import { alturaMontanha, pertoDaAgua, LAGOS, AGUA, MONTANHA, INGREME } from './relevo.js';
+import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME } from './relevo.js';
 export { LAGOS, AGUA, MONTANHA, INGREME };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -804,7 +804,7 @@ const MONTE_AREAS = [
   { x: 128, z: -42, rx: 16, rz: 16, lobos: [[3, 0.07, 1.9], [5, 0.05, 0.4]] },
   { x: 144, z: -12, rx: 14, rz: 12, lobos: [[3, 0.07, 2.6], [5, 0.05, 2.2]] },
   { x: 131, z: 6.6, rx: 25, rz: 25, lobos: [[3, 0.05, 0.2], [5, 0.04, 0.9]] }, // fecha o buraco entre o pé da montanha, o campo de fora e a mata da estrada
-  { x: 176, z: -54, rx: 62, rz: 62, lobos: [[3, 0.05, 0.8], [5, 0.04, 1.6]] }, // a montanha inteira: o limite é a mata depois do pé do outro lado
+  { x: 188, z: -62, rx: 76, rz: 76, lobos: [[3, 0.05, 0.8], [5, 0.04, 1.6]] }, // a montanha inteira: o limite é a mata depois do pé do outro lado
 ].map((a) => ({ ...a, mata: true, monte: true }));
 // chão diferente do plano (lago ou montanha): ali não nasce árvore da mata baixa, mato, grama nem pedra solta
 const noRelevo = (x, z, folga = 1.5) => pertoDaAgua(x, z, folga) || alturaMontanha(x, z) > 0.15;
@@ -814,13 +814,15 @@ function sortearMataMonte() {
   let sem = 5051; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
   const M = { areas: MONTE_AREAS, corredores: [] }, velhas = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas], corredores: MATA.corredores };
   const lista = [], perto = (x, z, esp) => lista.some((o) => Math.abs(o.x - x) < esp && Math.abs(o.z - z) < esp && Math.hypot(o.x - x, o.z - z) < esp);
-  for (let t = 0; t < 16000; t++) {
-    const x = rnd(96, 246), z = rnd(-124, 14), dentro = dentroDoMapa(M, x, z, 0);
+  for (let t = 0; t < 26000; t++) {
+    const x = rnd(96, 276), z = rnd(-150, 16), dentro = dentroDoMapa(M, x, z, 0);
     if (!dentro && !dentroDoMapa(M, x, z, -9)) continue;
     const hm = alturaMontanha(x, z), inc = Math.hypot(alturaMontanha(x + 1, z) - alturaMontanha(x - 1, z), alturaMontanha(x, z + 1) - alturaMontanha(x, z - 1)) / 2;
-    if (dentroDoMapa(velhas, x, z, -1) || pertoDaAgua(x, z, 2) || naMina(x, z, 3) || hm > 5 || inc > 0.45) continue; // no pé da montanha, só onde a encosta é suave
+    // linha das árvores (direção de arte): sobem esparsas até ~40% da altura da montanha e vão rareando, sem corte reto
+    const linha = MONTANHA.alto * 0.4, sobe = hm / linha;
+    if (dentroDoMapa(velhas, x, z, -1) || pertoDaAgua(x, z, 2) || naMina(x, z, 3) || inc > 0.6 || sobe > 1 || rnd(0, 1) < sobe * sobe * 0.9) continue;
     if (CLAREIRAS.some((c) => Math.hypot(x - c.x, z - c.z) < CLAREIRA_R + 3) || pertoDaLinha(ESTRADA, x, z).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, x, z).d < 2.2)) continue;
-    const esp = dentro ? 6.4 : 3.2;
+    const esp = (dentro ? 6.4 : 3.2) * (1 + sobe * 1.2); // mais alto, mais espaçadas
     if (perto(x, z, esp)) continue;
     lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.8, 1.4).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)), ...(hm > 0 ? { y: +(hm - 0.08).toFixed(2) } : {}) });
   }
@@ -839,7 +841,7 @@ export const MAPA_CLAREIRA = {
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
   // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
-  minimapa: { x0: -64, z0: -124, tam: 368, px: 1024 }, // 2026-11-05: cresceu para o norte (montanha); antes x0 -64, z0 -64, tam 308
+  minimapa: { x0: -64, z0: -146, tam: 412, px: 1024 }, // 2026-11-05: cresceu para o norte (montanha); antes x0 -64, z0 -64, tam 308
   lagos: LAGOS, // lagos rasos e fundos (shared/relevo.js)
   montanha: MONTANHA, // 2026-11-04: cresceu para a mata aberta em volta da vila e das Terras
   // inimigos parados num lugar (renascem no mesmo lugar). Dentro da vila não tem mais nenhum (pedido do André
@@ -1197,5 +1199,7 @@ function sortearEnfeites(arvores) {
 {
   const c = cenario(), e = sortearEnfeites(ARVORES_MATA); // a lista toda: o mato do resto da mata fica igual
   const fora = (o) => !naMina(o.x, o.z) && !noRelevo(o.x, o.z, 0.8);
-  MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
+  // pedras da beira dos lagos (pequenas, sem colisão; os juncos e as taboas o Godot desenha, relevo.gd) vêm no fim
+  const pedrasLago = beiraDosLagos().filter((b) => b.tipo === 'pedra').map((b, i) => ({ m: ['rocha1', 'rocha2', 'rocha3'][i % 3], x: b.x, z: b.z, ry: b.ry, s: b.s, y: -0.06 }));
+  MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora).concat(pedrasLago), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
 }

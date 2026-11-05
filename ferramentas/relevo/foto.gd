@@ -41,15 +41,14 @@ func _initialize() -> void:
 	ha.play("parada")
 	var so := OS.get_environment("FOTO_SO")
 	var vistas := [
-		["1-montanha-do-campo", Vector2(112, -18), Vector3(104, 12.0, -6), Vector3(176, 20, -54)],
-		["2-montanha-pe-lago", Vector2(116, -27), Vector3(108, 7, -20), Vector3(170, 18, -54)],
-		["3-lago-fundo", Vector2(90, 75), Vector3(85, 3.2, 72), Vector3(104, -1, 80)],
-		["4-lago-raso-andando", Vector2(12, 45), Vector3(5, 2.6, 38), Vector3(12, 0.6, 45)],
-		["5-lago-fundo-boiando", Vector2(100, 78), Vector3(94, 2.2, 72), Vector3(100, 0.2, 78)],
-		["6-lago-oeste", Vector2(-38, -6), Vector3(-34, 3.5, -2), Vector3(-46, -0.5, -12)],
-		["7-subindo-a-montanha", Vector2(140, -46), Vector3(133, 14, -40), Vector3(176, 30, -56)],
-		["8-vista-do-alto", Vector2(160, -52), Vector3(166, 0, -56), Vector3(60, 0, 20)],
-		["9-montanha-de-longe", Vector2(66, -3), Vector3(58, 14, 4), Vector3(176, 22, -54)],
+		["1-montanha-longe-campo", Vector2(100, -12), Vector3(90, 9, -2), Vector3(188, 18, -62)],
+		["2-montanha-longe-sul", Vector2(140, 30), Vector3(128, 11, 44), Vector3(188, 16, -62)],
+		["3-lago-fundo-perto", Vector2(91, 74), Vector3(85, 2.6, 69), Vector3(101, -1, 80)],
+		["4-lago-raso-perto", Vector2(11, 44), Vector3(4, 2.4, 38), Vector3(13, 0, 46)],
+		["5-lago-oeste-beira", Vector2(-39, -8), Vector3(-34, 2.2, -2), Vector3(-46, -0.3, -12)],
+		["6-lago-montanha", Vector2(112, -10), Vector3(106, 3.5, -4), Vector3(124, 0, -15)],
+		["7-subindo-a-montanha", Vector2(150, -44), Vector3(141, 12, -36), Vector3(188, 26, -64)],
+		["8-vista-do-alto", Vector2(188, -62), Vector3(0, 0, 0), Vector3(40, 0, 30)],
 	]
 	for v in vistas:
 		if so != "" and not v[0].begins_with(so):
@@ -57,10 +56,10 @@ func _initialize() -> void:
 		var p := heroi_em(v[1].x, v[1].y, atan2(v[3].x - v[1].x, v[3].z - v[1].y))
 		var de: Vector3 = v[2]
 		if v[0].begins_with("8"):
-			var melhor := Vector2(176, -54)
+			var melhor := Vector2(188, -62)
 			for i in 80:
 				for j in 80:
-					var q := Vector2(150 + i * 0.7, -80 + j * 0.7)
+					var q := Vector2(165 + i * 0.6, -86 + j * 0.6)
 					if m.terreno.altura(q.x, q.y) > m.terreno.altura(melhor.x, melhor.y):
 						melhor = q
 			p = heroi_em(melhor.x - 1.5, melhor.y + 1.5, -2.3)

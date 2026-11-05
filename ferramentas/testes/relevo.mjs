@@ -31,7 +31,7 @@ ok(LAGOS.filter((l) => l.fundo < 1).length >= 2 && LAGOS.filter((l) => l.fundo >
 for (const L of LAGOS) {
   ok(dentroDoMapa(M, L.x, L.z, 4), `${L.nome} fica dentro do mapa andável`);
   ok(!M.mata.some((a) => noLago(a.x, a.z)), `nenhuma árvore dentro do ${L.nome}`);
-  ok(!M.cenario.enfeites.some((e) => noLago(e.x, e.z)) && !M.cenario.solidos.some((e) => noLago(e.x, e.z)), `nenhum mato ou pedra dentro do ${L.nome}`);
+  ok(!M.cenario.enfeites.some((e) => noLago(e.x, e.z) && !/^rocha/.test(e.m)) && !M.cenario.solidos.some((e) => noLago(e.x, e.z)), `nenhum mato ou pedra dentro do ${L.nome}`);
   ok(!M.caca.some((c) => Math.hypot(c.x - L.x, c.z - L.z) < c.r + Math.max(L.rx, L.rz) + 3), `${L.nome} longe dos campos de caça`);
   const meio = T.altura(L.x, L.z, 5);
   if (L.fundo < 1) ok(Math.abs(meio + L.fundo) < 0.01, `${L.nome}: anda no fundo (${meio.toFixed(2)} m, água pelo joelho)`);

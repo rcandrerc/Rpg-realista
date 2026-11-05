@@ -10,7 +10,7 @@ var casas: Array = [] # só as peças de casa (para o teto)
 var grades: Array = []
 # relevo (lagos e montanha, 2026-11-05): a mesma conta de shared/relevo.js, com os dados do mundo.json
 var lagos: Array = []
-var agua := {"nivel": -0.12, "peito": 1.2, "lento": 0.62, "raso": 0.82}
+var agua := {"nivel": -0.05, "peito": 1.2, "lento": 0.62, "raso": 0.82}
 var monte := {} # grade da montanha: x0, z0, passo, n, h (PackedFloat32Array)
 
 func _init(mundo: Dictionary) -> void:
@@ -137,7 +137,7 @@ func no_lago(x: float, z: float) -> Dictionary:
 		if d >= 1.0:
 			continue
 		var f: float = L.fundo
-		var p: float = f * (0.12 * _suave(1.0, 0.85, d) + 0.88 * _suave(0.85, 0.35, d)) if f > 1.5 else f * _suave(1.0, 0.3, d)
+		var p: float = f * (0.12 * _suave(1.0, 0.85, d) + 0.88 * _suave(0.85, 0.35, d)) if f > 1.5 else f * _suave(1.0, 0.55, d) * (0.55 + 0.45 * _suave(0.55, 0.1, d))
 		return {"lago": L, "fundo": p, "d": d}
 	return {}
 
