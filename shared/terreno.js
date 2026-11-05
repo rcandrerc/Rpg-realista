@@ -26,9 +26,9 @@ export function alturaTelhado(c, x, z) {
 
 // Telhado em rampa (André 2026-11-05, o esquema do Quimera): cada quadrado de telhado tem uma direção (r, botão Girar)
 // e sobe `sobe` m por quadrado seguido na mesma direção: o primeiro mais baixo, o seguinte mais alto. Quando a rampa
-// encontra outra virada para ela na mesma altura, o quadrado do meio fica reto (cumeeira).
-// cel = [[x, z, r]], passo = tamanho do quadrado. Devolve [{ x, z, r, dx, dz, h0, h1, plano, atras, frente, esq, dir }]
-// (h0 = altura na beira de baixo, h1 = na de cima, a partir da base; atras/frente/esq/dir = tem telhado vizinho ali).
+// encontra outra virada para ela, as duas fecham numa ponta no meio do vão (sempre triângulo, nunca reto em cima).
+// cel = [[x, z, r]], passo = tamanho do quadrado. Devolve [{ x, z, r, dx, dz, h0, h1, hm, plano, atras, frente, esq, dir }]
+// (h0 = altura na beira de baixo, hm = no meio, h1 = na de cima, a partir da base; atras/frente/esq/dir = tem telhado vizinho ali).
 // A mesma conta no app: godot-prototipo/terreno.gd rampas_telhado.
 export const DIR_TELHADO = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 export function rampasTelhado(cel, passo, sobe) {
@@ -42,13 +42,26 @@ export function rampasTelhado(cel, passo, sobe) {
   };
   return cel.map(([x, z, r0]) => {
     const r = r0 & 3, [dx, dz] = DIR_TELHADO[r], n = seguidos(x, z, r);
-    let h0 = n * sobe, h1 = h0 + sobe, plano = false;
+    let h0 = n * sobe, h1 = h0 + sobe, hm = h0 + sobe / 2;
     const rf = mapa.get(k(x + dx * passo, z + dz * passo));
-    if (rf === ((r + 2) & 3) && Math.abs((seguidos(x + dx * passo, z + dz * passo, rf) + 1) * sobe - h0) < 0.01) { plano = true; h1 = h0; }
-    return { x, z, r, dx, dz, h0, h1, plano, atras: mapa.has(k(x - dx * passo, z - dz * passo)), frente: rf !== undefined,
+    // Sempre pontudo (André 2026-11-05: "queria q ficasse sempre em triângulo"): quando a rampa encontra outra virada
+    // para ela, as duas viram um telhado de duas águas só, com a ponta no meio do vão inteiro (mesma inclinação).
+    // Vão com número ímpar de quadrados: a ponta fica no meio do quadrado do meio (hm), nunca mais reto em cima.
+    let f = 0;
+    while (f < 40 && mapa.get(k(x + dx * passo * (f + 1), z + dz * passo * (f + 1))) === r) f++;
+    const xo = x + dx * passo * (f + 1), zo = z + dz * passo * (f + 1), ro = mapa.get(k(xo, zo));
+    if (ro === ((r + 2) & 3)) {
+      const S = (n + 1 + f + 1 + seguidos(xo, zo, ro)) * passo, i = sobe / passo; // vão todo (m) e quanto sobe por metro
+      const alt = (t) => i * Math.min(t, S - t), t0 = n * passo;
+      h0 = alt(t0); h1 = alt(t0 + passo); hm = Math.abs(t0 + passo / 2 - S / 2) < passo / 2 - 1e-6 ? i * S / 2 : (h0 + h1) / 2;
+    }
+    const plano = Math.abs(h1 - h0) < 0.01 && Math.abs(hm - h0) < 0.01;
+    return { x, z, r, dx, dz, h0, h1, hm, plano, atras: mapa.has(k(x - dx * passo, z - dz * passo)), frente: rf !== undefined,
       esq: mapa.has(k(x - dz * passo, z + dx * passo)), dir: mapa.has(k(x + dz * passo, z - dx * passo)) };
   });
 }
+// altura da rampa a u metros do meio do quadrado (h0 na beira de baixo, hm no meio, h1 na de cima; beiral segue a reta)
+export const alturaNaRampa = (q, u, g) => (u < 0 ? q.h0 + (q.hm - q.h0) * (u + g) / g : q.hm + (q.h1 - q.hm) * Math.min(u, g) / g);
 // altura do telhado em rampa num ponto (-1 = fora). Beiral para fora onde não tem vizinho (na beira de cima, menor).
 function alturaRampa(c, x, z) {
   let h = -1;
@@ -57,7 +70,7 @@ function alturaRampa(c, x, z) {
     const ox = x - q.x, oz = z - q.z, u = ox * q.dx + oz * q.dz, v = ox * q.dz - oz * q.dx; // u: subindo, v: de lado (+ = dir)
     if (u < -g - (q.atras ? 0 : b) - 1e-3 || u > g + (q.frente ? 0 : b * 0.6) + 1e-3) continue;
     if (v > g + (q.dir ? 0 : b) + 1e-3 || v < -g - (q.esq ? 0 : b) - 1e-3) continue;
-    const a = c.base + 0.2 + q.h0 + (q.h1 - q.h0) * (Math.min(u, g) + g) / (2 * g);
+    const a = c.base + 0.2 + alturaNaRampa(q, u, g);
     if (a > h) h = a;
   }
   return h;

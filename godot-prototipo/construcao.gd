@@ -798,12 +798,12 @@ func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
 		var P := func(u: float, v: float, h: float) -> Vector3:
 			return Vector3(q.x + u * dx + v * dz, h, q.z + u * dz - v * dx)
 		var H := func(u: float) -> float:
-			return base + 0.2 + q.h0 + (q.h1 - q.h0) * (minf(u, g) + g) / (2.0 * g)
+			return base + 0.2 + m.terreno.altura_na_rampa(q, u, g) # com a ponta no meio quando o vão é ímpar
 		var u0 := -g - (0.0 if q.atras else bei)
 		var u1 := g + (0.0 if q.frente else bei * 0.6)
 		var v0 := -g - (0.0 if q.esq else bei)
 		var v1 := g + (0.0 if q.dir else bei)
-		var us: Array = [u0, g] if u1 <= g + 0.001 else [u0, g, u1]
+		var us: Array = [u0, 0.0, g] if u1 <= g + 0.001 else [u0, 0.0, g, u1] # 0: o meio (ponta do telhado ímpar)
 		for i in us.size() - 1:
 			var a: Vector3 = P.call(us[i], v0, H.call(us[i]))
 			var b: Vector3 = P.call(us[i], v1, H.call(us[i]))
@@ -819,8 +819,11 @@ func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
 		var lados: Array = []
 		if not q.atras: lados.append([[u0, v0], [u0, v1]])
 		if not q.frente: lados.append([[u1, v1], [u1, v0]])
-		if not q.esq: lados.append([[u0, v0], [g, v0]] if us.size() == 2 else [[u0, v0], [g, v0], [u1, v0]])
-		if not q.dir: lados.append([[g, v1], [u0, v1]] if us.size() == 2 else [[u1, v1], [g, v1], [u0, v1]])
+		if not q.esq: lados.append(us.map(func(u): return [u, v0]))
+		if not q.dir:
+			var ld: Array = us.map(func(u): return [u, v1])
+			ld.reverse()
+			lados.append(ld)
 		for L in lados:
 			for k in L.size() - 1:
 				var a: Vector3 = P.call(L[k][0], L[k][1], H.call(L[k][0]))
@@ -832,8 +835,12 @@ func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
 					borda.add_vertex(v)
 		# oitão: fecha o vão entre o alto da parede e o telhado nos lados abertos (e atrás da parte alta da rampa)
 		var oitoes: Array = []
-		if not q.esq: oitoes.append([[-g, -g], [g, -g]])
-		if not q.dir: oitoes.append([[g, g], [-g, g]])
+		if not q.esq: # em duas partes: a ponta pode ficar no meio
+			oitoes.append([[-g, -g], [0.0, -g]])
+			oitoes.append([[0.0, -g], [g, -g]])
+		if not q.dir:
+			oitoes.append([[g, g], [0.0, g]])
+			oitoes.append([[0.0, g], [-g, g]])
 		if not q.frente and not q.plano: oitoes.append([[g, -g], [g, g]])
 		for o in oitoes:
 			var a := P.call(o[0][0], o[0][1], base) as Vector3
