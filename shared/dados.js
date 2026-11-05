@@ -1019,6 +1019,12 @@ export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 // Troca entre jogadores (como no Quimera, André 2026-11-04): pedir perto, cada um põe itens e ouro, tranca a oferta
 // (cadeado) e, com as duas trancadas, os dois confirmam. Qualquer mudança destranca as duas. Quem decide é o servidor.
 export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedidos: 3 }; // metros, metros, itens, s, s
+// Amigos e time (André 2026-11-05): até 20 amigos na conta; o time junta até 5 amigos da mesma sala.
+// XP e drop dos monstros valem para quem do time está a até 'perto' metros do monstro que caiu e lutou há pouco.
+export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
+// combate: só ganha quem lutou (bateu ou apanhou) nos últimos 10 s. bonus: +10% de XP para cada outro do time que ganhou junto
+// (2 = +10%, 5 = +40%).
+export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }

@@ -254,6 +254,12 @@ func _desenhar_mini() -> void:
 		if q.distance_to(meio) < RAIO - 4.0:
 			c.draw_circle(q, 4.0, Color(0.05, 0.05, 0.1, 0.8))
 			c.draw_circle(q, 3.0, Color("6fb6ff"))
+	for o in _time(): # amigos do time (amigos.gd): verde, na beirada quando estão longe
+		var dq: Vector2 = Vector2(o.x - p.x, o.z - p.z) * k
+		if dq.length() > RAIO - 6.0:
+			dq = dq.normalized() * (RAIO - 6.0)
+		c.draw_circle(meio + dq, 5.0, Color(0.03, 0.08, 0.03, 0.9))
+		c.draw_circle(meio + dq, 4.0, m.amigos.COR_TIME)
 	# "Ir para" em andamento: o resto da rota e o lugar marcado (na beirada, se estiver longe)
 	if m.rota and m.rota.ativo:
 		var cam: PackedVector2Array = m.rota.caminho
@@ -282,6 +288,10 @@ func _desenhar_mini() -> void:
 	var n := meio + Vector2(0, -RAIO)
 	c.draw_circle(n, 9.0, Color(0.05, 0.04, 0.03, 0.9))
 	_texto(c, n + Vector2(0, -1), "N", 13, COR_OURO)
+
+# amigos do time (amigos.gd)
+func _time() -> Array:
+	return m.amigos.pontos_time() if m.amigos and m.amigos.em_time() else []
 
 # jogadores online perto (posições do online.gd)
 func _outros() -> Array:
@@ -328,6 +338,11 @@ func _desenhar_grande() -> void:
 		var q: Vector2 = em.call(p.x, p.z)
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
 		c.draw_circle(q, 4.0, Color("6fb6ff"))
+	for p in _time():
+		var q: Vector2 = em.call(p.x, p.z)
+		c.draw_circle(q, 6.0, Color(0.03, 0.08, 0.03, 0.9))
+		c.draw_circle(q, 5.0, m.amigos.COR_TIME)
+		_texto(c, q + Vector2(0, -12), p.nome, 13, m.amigos.COR_TIME.lightened(0.3))
 	# rota pela estrada: a que está sendo andada e a do lugar marcado agora
 	if m.rota and m.rota.ativo and marcado == null:
 		_rota_grande(c, m.rota.caminho, m.rota.i, em)
