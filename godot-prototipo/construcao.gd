@@ -384,6 +384,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			p.no.rotation.y = p.r * PI / 2.0
 			L.raiz.add_child(p.no)
 	_refazer_telhado(L)
+	_refazer_pilares(L)
 	_achar_portas()
 	# horta
 	var vistas := {}
@@ -835,6 +836,55 @@ func _refazer_telhado(L: Dictionary) -> void:
 	L.raiz.add_child(mi)
 	L.telhado = mi
 
+# Emenda das paredes (André 2026-11-05: "a emenda das paredes precisa de atenção"): cada parede do kit acaba seca no
+# vértice da grade, então no canto ficava um vão de fora e as vigas de uma passavam por dentro da outra. Um pilar de
+# madeira em cada canto (ou ponta solta) cobre a emenda; onde duas paredes seguem retas, sem pilar.
+const PILAR_LADO := 0.44 # m: cobre a viga das duas paredes (0,4 de largura)
+const PILAR_ALTO := 3.14 # m: até o alto da viga de cima da parede
+# a mesma madeira das vigas da parede (a faixa de tábua lisa da textura T_WoodTrim do kit, recortada e em pé)
+func _mat_pilar() -> StandardMaterial3D:
+	if _mats.has("pilar"):
+		return _mats.pilar
+	var mt := StandardMaterial3D.new()
+	mt.albedo_texture = load("res://construcao3d/T_WoodTrim_Pilar_BaseColor.png")
+	mt.normal_enabled = true
+	mt.normal_texture = load("res://construcao3d/T_WoodTrim_Pilar_Normal.png")
+	mt.uv1_triplanar = true
+	mt.uv1_world_triplanar = true
+	mt.uv1_scale = Vector3(2.0, 0.5, 2.0) # faixa de tábua lisa do kit, em pé
+	mt.roughness = 0.9
+	_mats.pilar = mt
+	return mt
+
+func _refazer_pilares(L: Dictionary) -> void:
+	for q in L.get("pilares", []):
+		if is_instance_valid(q.no):
+			q.no.queue_free()
+	L.pilares = []
+	var g := grade() / 2.0
+	var cantos := {}
+	for p in L.pecas:
+		if tipo_peca(p.k) != "borda":
+			continue
+		var e := Vector2(0.0, g) if p.r & 1 else Vector2(g, 0.0)
+		for v in [Vector2(p.x, p.z) - e, Vector2(p.x, p.z) + e]:
+			var k := Vector2(snappedf(v.x, 0.01), snappedf(v.y, 0.01))
+			if not cantos.has(k):
+				cantos[k] = []
+			cantos[k].append(p)
+	var mat := _mat_pilar()
+	for k in cantos:
+		var ps: Array = cantos[k]
+		if ps.size() == 2 and (int(ps[0].r) & 1) == (int(ps[1].r) & 1):
+			continue # parede seguindo reta: a emenda já fecha
+		var y := -INF
+		for p in ps:
+			y = maxf(y, _y_peca(p))
+		var no := _caixa(L.raiz, Vector3(PILAR_LADO, PILAR_ALTO, PILAR_LADO), Vector3(k.x, y + PILAR_ALTO / 2.0 - 0.01, k.y), mat)
+		no.name = "pilar"
+		no.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		L.pilares.append({"no": no, "paredes": ps})
+
 # Como no Quimera: dentro de casa (debaixo do telhado; em cima dele não conta) o telhado some e as paredes que ficam
 # entre a câmera e o herói também, conforme o ângulo (fica só a sombra, a luz de dentro não muda). No modo construção
 # o telhado some com a mira lá dentro (para pôr móveis e paredes); colocando telhado ou desmontando, ele aparece.
@@ -899,6 +949,16 @@ func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 				corta = _parede_tapa(p, a2, b2, dir, g)
 			p.cortada = corta # a parede está cortada agora (o apagar anda devagar até lá)
 			_apagar(p.no, corta, dt)
+	# pilar do canto: some junto com uma parede dele que sumiu
+	for id in lotes:
+		for q in lotes[id].get("pilares", []):
+			if not is_instance_valid(q.no):
+				continue
+			var corta := false
+			for p in q.paredes:
+				if p.get("cortada", false):
+					corta = true
+			_apagar(q.no, corta, dt)
 
 # a parede p (de 2 m, na linha da grade) tapa a vista do herói (a2) até a câmera (b2)?
 func _parede_tapa(p: Dictionary, a2: Vector2, b2: Vector2, dir: Vector2, g: float) -> bool:
