@@ -32,12 +32,14 @@ for (const nome of ['Puglin', 'Imp']) {
 }
 // Lobo (feito por IA, ferramentas/monstros-ia): era a montaria de teste e virou bicho de caça (pedido do André
 // 2026-11-03). Vem com as próprias animações; aqui ganham os nomes que o Godot usa nos monstros. Tamanho: o da
-// montaria (1,9) uns 18% menor, como a direção de arte pediu para o lobo inimigo.
+// montaria (1,9) uns 18% menor, como a direção de arte pediu para o lobo inimigo. Corrida: o galope do cavalo do
+// Quimera (Quaternius, CC0) passado para o esqueleto do lobo (pedido do André 2026-11-05, ferramentas/monstros-ia/galope);
+// a corrida antiga continua no arquivo como corrida_antiga.
 {
   const g = await L.loadAsync('assets/monstros/lobo.glb');
   const de = Object.fromEntries(g.animations.map((c) => [c.name, c]));
   const como = (orig, nome) => { const c = de[orig].clone(); c.name = nome; return c; };
-  const clipes = [como('parado', 'parada'), como('parado', 'espada_parada'), como('andar', 'andar'), como('correr', 'corrida'),
+  const clipes = [como('parado', 'parada'), como('parado', 'espada_parada'), como('andar', 'andar'), como('correr_cavalo', 'corrida'), como('correr', 'corrida_antiga'),
     como('atacar', 'golpe1'), como('atacar', 'golpe2'), como('dano', 'apanhar'), como('morrer', 'morrer')];
   const raiz = new THREE.Group(); raiz.add(g.scene); g.scene.scale.multiplyScalar(1.9 * 0.82);
   const bin = await new GLTFExporter().parseAsync(raiz, { binary: true, animations: clipes });
