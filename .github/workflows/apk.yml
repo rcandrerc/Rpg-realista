@@ -34,7 +34,7 @@ jobs:
   modelos-chave:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
-    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       tem: ${{ steps.olha.outputs.cache-hit }}
@@ -104,7 +104,7 @@ jobs:
   modelos-prontos:
     needs: [modelos-chave, modelos]
     if: always() && needs.modelos.result == 'failure'
-    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -135,9 +135,10 @@ jobs:
     needs: [modelos-chave, modelos, modelos-prontos]
     # roda se o runner achou os modelos no cache (job "modelos" pulado), se "modelos" exportou ou se vieram prontos
     if: always() && needs.modelos-chave.result == 'success' && (needs.modelos.result == 'success' || needs.modelos.result == 'skipped' || needs.modelos-prontos.result == 'success')
-    # Com a variável RUNNER_BUILD definida (ex.: "aethra-build"), roda no runner próprio da Oracle e NÃO gasta
-    # cota do GitHub. Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # Com a variável RUNNER_BUILD definida (ex.: "aethra-build") e o repositório PRIVADO, roda no runner próprio da
+    # Oracle e NÃO gasta cota do GitHub. Repositório público (máquinas do GitHub de graça) ou sem a variável: roda no
+    # GitHub (ubuntu-latest), mais rápido. Ver ferramentas/runner/LEIAME.md.
+    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
