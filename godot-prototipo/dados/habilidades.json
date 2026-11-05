@@ -2095,5 +2095,11 @@
  },
  "bau": {
   "slots": 40
+ },
+ "morte": {
+  "ouro": 0.1,
+  "desgaste": 10,
+  "durMax": 100,
+  "conserto": 0.3
  }
 }
