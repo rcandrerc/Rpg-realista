@@ -379,6 +379,7 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 				elif personagem:
 					if "SKIN" in nome_mat:
 						n.albedo_color = Color(1.0, 0.9, 0.84) # pele com um pouco de cor (o MToon do site sombreia em rosado)
+						pele_viva(n, "Face" in nome_mat)
 					n.rim_enabled = true # contorno de luz de desenho
 					n.rim = 0.25
 					n.rim_tint = 0.6
@@ -386,6 +387,19 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 					n.albedo_color = Color(0.9, 0.5, 0.36)
 				pintados[chave] = n
 			mi.mesh.surface_set_material(i, pintados[chave])
+
+# pele com volume (André 2026-11-05: "um branco liso sem sombra sem brilho"), só com o que o material do Godot já faz,
+# sem shader novo nem passe a mais (custa o mesmo no celular):
+# - sombra quente: a luz de trás (backlight) entra só no lado escuro, rosada, como o sangue por baixo da pele (sem ela
+#   a sombra fica cinza e o claro fica um branco só)
+# - contorno de luz um pouco mais forte (o brilho da pele na borda)
+# A rugosidade fica 1.0: no toon ela é a largura da passagem luz/sombra, e abaixo disso o rosto do VRoid escurece
+# inteiro (cinza). O rosto leva menos rosado que o corpo (o desenho do VRoid já traz blush).
+# A pele com cor do criador (aparencia.gd, _shader com pele) faz a mesma ideia na luz própria dela.
+static func pele_viva(n: BaseMaterial3D, rosto: bool) -> void:
+	n.backlight_enabled = true
+	n.backlight = Color(0.24, 0.1, 0.06) if rosto else Color(0.32, 0.12, 0.07)
+	n.rim = 0.32
 
 func hsl(hh: float, s: float, l: float) -> Color:
 	var v: float = l + s * min(l, 1.0 - l)
