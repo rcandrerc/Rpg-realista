@@ -409,7 +409,7 @@ func _retrato(n: Dictionary) -> Texture2D:
 	corpo.rotation = Vector3.ZERO
 	if not (n.get("aparencia", {}) as Dictionary).is_empty(): # mesma pintura do NPC no mundo
 		Aparencia.aplicar(corpo, n.aparencia)
-	VisualNpc.vestir(corpo, str(n.id))
+	VisualNpc.vestir(corpo, str(n.id), n.get("info", {}))
 	var cab := Vector3(0, 1.45, 0)
 	var esq: Skeleton3D = m.esqueleto(corpo)
 	if esq:

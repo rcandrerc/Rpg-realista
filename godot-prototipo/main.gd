@@ -51,7 +51,8 @@ const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": 
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
 # NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
-const TINGIR_NPC := ["ferreiro"]
+# O Aldo virou o ancião da vila (pedido do André, 2026-11-05): cabelo grisalho da tinta dele
+const TINGIR_NPC := ["ferreiro", "lider"]
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
@@ -1141,8 +1142,16 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		var t: Dictionary = info.tinta
 		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
 		Aparencia.aplicar(no, ap)
-	VisualNpc.vestir(no, str(info.get("id", ""))) # roupa de ofício (avental e martelo do ferreiro)
-	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)),
+	VisualNpc.vestir(no, str(info.get("id", "")), info) # roupa de ofício (avental e martelo do ferreiro) e de fantasia
+	# arma do NPC (André 2026-11-05: guerreiros e magos, nada moderno): espada ou cajado nas costas, ou cajado na mão
+	var arma := str(info.get("arma", ""))
+	var esq_npc := esqueleto(no)
+	if arma != "" and esq_npc and armas_lugar.has(id):
+		var tipo := "espada" if arma == "espada" else "cajado"
+		var lugar = lugar_armas(id).get({"espada": "espadaCostas", "cajado": "cajadoCostas", "cajado_mao": "cajadoMao"}.get(arma, ""))
+		if lugar is Dictionary:
+			prender(esq_npc, nova_arma(tipo), lugar)
+	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)), "info": info,
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
