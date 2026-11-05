@@ -422,7 +422,6 @@ func meu(j: Dictionary) -> void:
 			m.acao = {}
 			m.montar_lobo(false, false) # o servidor também desce
 			m.heroi_anim.play("morrer", 0.1)
-			m.hud.aviso("Você caiu!")
 	elif h.morto > 0.0:
 		h.morto = 0.0
 		m.mov.por_em(Vector3(float(j.x), float(j.y), float(j.z)))
