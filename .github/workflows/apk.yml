@@ -26,9 +26,80 @@ env:
   GODOT: 4.5-stable
 
 jobs:
-  apk:
+  # Os modelos (vila, personagens, monstros) saem do Chromium com WebGL por software. No runner ARM da Oracle
+  # (1 núcleo) isso passou de 50 min e travou a fila inteira (2026-11-05, execução 333): APK, atualização do
+  # app e site ficaram parados. Agora o runner só confere se os modelos desta versão já estão no cache (segundos,
+  # de graça). Se não estão, o job "modelos" exporta numa máquina do GitHub (~5 min, só quando client/ ou shared/
+  # mudam) e passa para o job do APK só os modelos que mudaram. O APK continua no runner, como antes.
+  modelos-chave:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    outputs:
+      tem: ${{ steps.olha.outputs.cache-hit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Modelos desta versão já estão no cache?
+        id: olha
+        uses: actions/cache/restore@v4
+        with:
+          path: godot-prototipo/modelos
+          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          lookup-only: true
+
+  modelos:
+    needs: modelos-chave
+    if: needs.modelos-chave.outputs.tem != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # a pasta do último build: modelo que sair igual (byte a byte) não vai para o APK como "mudou"
+      - name: Modelos do último build (cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: godot-prototipo/modelos
+          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          restore-keys: modelos-v2-
+      - name: Chromium para exportar os modelos
+        run: |
+          npm install --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Modelos (vila, personagens, monstros)
+        run: |
+          # os modelos saem numa pasta limpa; o que mudou de verdade vai para modelos-novos/ (com a lista mudaram.txt)
+          mkdir -p /tmp/modelos-velhos modelos-novos
+          [ -d godot-prototipo/modelos ] && cp -a godot-prototipo/modelos/. /tmp/modelos-velhos/
+          rm -rf godot-prototipo/modelos
+          (cd client && npx vite --port 5173 > /tmp/vite.log 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:5173 > /dev/null && break; sleep 1; done
+          node client/exportar-godot/gerar-modelos.mjs
+          : > modelos-novos/mudaram.txt
+          for f in godot-prototipo/modelos/*; do
+            n=$(basename "$f")
+            cmp -s "$f" "/tmp/modelos-velhos/$n" || { cp "$f" modelos-novos/; echo "$n" >> modelos-novos/mudaram.txt; }
+          done
+          echo "Modelos que mudaram: $(wc -l < modelos-novos/mudaram.txt)"; cat modelos-novos/mudaram.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modelos-novos
+          path: modelos-novos
+          retention-days: 1
+
+  apk:
+    needs: [modelos-chave, modelos]
+    # roda se o runner achou os modelos no cache (job "modelos" pulado) ou se o job "modelos" acabou de exportar
+    if: always() && needs.modelos-chave.result == 'success' && (needs.modelos.result == 'success' || needs.modelos.result == 'skipped')
     # Com a variável RUNNER_BUILD definida (ex.: "aethra-build"), roda no runner próprio da Oracle e NÃO gasta
     # cota do GitHub. Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
     runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
@@ -57,29 +128,19 @@ jobs:
           # sem o cache exato, volta a pasta do último build: modelo que sair igual fica com a importação antiga
           # (mesmos bytes no pacote) e o delta do app não traz o jogo inteiro de novo
           restore-keys: modelos-v2-
-      - name: Chromium para exportar os modelos
+      - name: Modelos que mudaram (exportados no job "modelos")
+        if: steps.cache-modelos.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: modelos-novos
+          path: /tmp/modelos-novos
+      - name: Modelos novos por cima da pasta do último build
         if: steps.cache-modelos.outputs.cache-hit != 'true'
         run: |
-          npm install --no-save playwright@1.48.2
-          # no runner próprio o instalar-runner.sh já pôs as bibliotecas do sistema e o usuário do build não tem sudo
-          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then npx playwright install chromium; else npx playwright install --with-deps chromium; fi
-      - name: Modelos (vila, personagens, monstros) para godot-prototipo/modelos
-        if: steps.cache-modelos.outputs.cache-hit != 'true'
-        run: |
-          # a pasta do último build (cache) fica de lado; os modelos saem numa pasta limpa e só o que mudou de verdade
-          # (byte a byte) entra por cima dela. Lista do que mudou: /tmp/modelos-mudaram.txt
-          mkdir -p /tmp/modelos-velhos
-          [ -d godot-prototipo/modelos ] && cp -a godot-prototipo/modelos/. /tmp/modelos-velhos/
-          rm -rf godot-prototipo/modelos
-          (cd client && npx vite --port 5173 > /tmp/vite.log 2>&1 &)
-          for i in $(seq 1 30); do curl -s localhost:5173 > /dev/null && break; sleep 1; done
-          node client/exportar-godot/gerar-modelos.mjs
-          : > /tmp/modelos-mudaram.txt
-          for f in godot-prototipo/modelos/*; do
-            n=$(basename "$f")
-            cmp -s "$f" "/tmp/modelos-velhos/$n" || { cp "$f" "/tmp/modelos-velhos/$n"; echo "$n" >> /tmp/modelos-mudaram.txt; }
-          done
-          rm -rf godot-prototipo/modelos && mv /tmp/modelos-velhos godot-prototipo/modelos
+          # o .glb novo entra por cima; a lista vai para o passo "Modelos novos reimportam"
+          mkdir -p godot-prototipo/modelos
+          cp /tmp/modelos-novos/mudaram.txt /tmp/modelos-mudaram.txt
+          while read -r n; do cp "/tmp/modelos-novos/$n" "godot-prototipo/modelos/$n"; done < /tmp/modelos-mudaram.txt
           echo "Modelos que mudaram: $(wc -l < /tmp/modelos-mudaram.txt)"; cat /tmp/modelos-mudaram.txt
       # Importação do Godot (~5 min): guarda .godot e os .import; o Godot só reimporta o que mudou (confere o md5 de cada arquivo).
       - name: Importação do Godot (cache)
