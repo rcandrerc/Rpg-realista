@@ -1,6 +1,6 @@
 // Regras do jogo, sem gráficos. O servidor roda esta simulação e manda o resultado aos jogadores.
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
-import { Terreno } from './terreno.js';
+import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
 import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME } from './dados.js';
@@ -140,7 +140,7 @@ export function pecasCasaSolidas(L, chao) {
       const ret = (u, hu, base, alto) => (eixo ? peca(p.x, p.z + u, e, hu, alto, base) : peca(p.x + u, p.z, hu, e, alto, base));
       if (p.k === 'porta') l.push(ret(-0.85, 0.3, y0, y1), ret(0.85, 0.3, y0, y1), ret(0, g + 0.15, y1 - CASA.parede + CASA.porta, y1));
       else l.push(ret(0, g + 0.15, y0, y1));
-    } else if (T === 'telhado') { cel.push([p.x, p.z]); topo = Math.max(topo, piso(p.x, p.z) + CASA.parede); }
+    } else if (T === 'telhado') { cel.push([p.x, p.z, p.r | 0]); topo = Math.max(topo, piso(p.x, p.z) + CASA.parede); }
   }
   if (cel.length) {
     const tem = new Set(cel.map(([x, z]) => x + ',' + z)), seg = [];
@@ -154,7 +154,8 @@ export function pecasCasaSolidas(L, chao) {
       z0 = Math.min(z0, z - g - CASA.beiral); z1 = Math.max(z1, z + g + CASA.beiral);
     }
     l.push({ casa: true, cel, seg, g, base: topo, beiral: CASA.beiral, inclina: CASA.inclina, max: CASA.telhaMax, x0, z0, x1, z1,
-      x: (x0 + x1) / 2, z: (z0 + z1) / 2, cos: 1, sen: 0, hw: (x1 - x0) / 2, hd: (z1 - z0) / 2, sobe: 0, y1: topo, R: Math.hypot(x1 - x0, z1 - z0) / 2 });
+      x: (x0 + x1) / 2, z: (z0 + z1) / 2, cos: 1, sen: 0, hw: (x1 - x0) / 2, hd: (z1 - z0) / 2, sobe: 0, y1: topo, R: Math.hypot(x1 - x0, z1 - z0) / 2,
+      rampa: rampasTelhado(cel, 2 * g, CASA.telhaSobe) }); // telhado em rampa (2026-11-05): alturaTelhado usa as rampas
   }
   return l;
 }

@@ -81,6 +81,11 @@ Para montar à mão:
   (`CRIAR_OBRA` e `tempoCriar` em `shared/dados.js`). Parar interrompe a fila; o servidor cobra cada uma ao terminar.
   A aba Criar da mochila e a mesa (Ferreiro/Alfaiate) usam a mesma janelinha e barrinha (receitas também gastam
   vigor por peça). A janela e a barrinha ficam numa camada acima do menu (`tela_criar`, layer 25).
+- Telhado em rampa (esquema do Quimera, 2026-11-05): cada peça de telhado é uma rampa virada para o lado do Girar. A
+  seguinte na mesma direção começa onde a anterior parou e sobe mais `casa.telhaSobe` (1,2 m); duas rampas de frente
+  fecham a cumeeira (com número ímpar, a do meio fica reta). Conta em `shared/terreno.js` (rampasTelhado) e
+  `terreno.gd` (rampas_telhado); malha em `construcao.gd` (_malha_rampas). Os lados abertos ganham oitão de madeira.
+- Modo construção: botões − e + de zoom (passos de 20%) e, com o telhado escolhido, a câmera sobe até o alto das paredes.
 - Casa numa grade de 2 m: a fundação vai no quadrado (vira chão, dá para subir e andar em cima), parede, porta e
   janela vão na borda de uma fundação (Girar vira a frente), o telhado vai em cima de uma fundação com parede em
   volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica

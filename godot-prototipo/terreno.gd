@@ -54,6 +54,8 @@ func altura_casa(c: Dictionary, x: float, z: float) -> float:
 static func altura_telhado(c: Dictionary, x: float, z: float) -> float:
 	if x < c.x0 or x > c.x1 or z < c.z0 or z > c.z1:
 		return -1.0
+	if c.has("rampa"):
+		return altura_rampa(c, x, z)
 	var d := INF
 	for s in c.seg:
 		var vx: float = s[2] - s[0]
@@ -70,6 +72,62 @@ static func altura_telhado(c: Dictionary, x: float, z: float) -> float:
 			return -1.0
 		d = -d
 	return c.base + 0.2 + c.inclina * minf(d, c.max / c.inclina)
+
+# Telhado em rampa (André 2026-11-05, o esquema do Quimera): mesma conta de shared/terreno.js rampasTelhado.
+# cel = [[x, z, r]]; cada quadrado sobe `sobe` m por quadrado seguido na mesma direção (Girar); duas rampas de frente
+# uma para a outra fecham a cumeeira (o quadrado do meio fica reto).
+const DIR_TELHADO := [Vector2(0, 1), Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0)]
+static func rampas_telhado(cel: Array, passo: float, sobe: float) -> Array:
+	var mapa := {}
+	for q in cel:
+		mapa[Vector2i(roundi(float(q[0]) * 100.0), roundi(float(q[1]) * 100.0))] = int(q[2]) & 3
+	var k := func(x: float, z: float) -> Vector2i:
+		return Vector2i(roundi(x * 100.0), roundi(z * 100.0))
+	var seguidos := func(x: float, z: float, r: int) -> int:
+		var d: Vector2 = DIR_TELHADO[r]
+		var n := 0
+		for i in range(1, 40):
+			if mapa.get(k.call(x - d.x * passo * i, z - d.y * passo * i), -1) == r:
+				n += 1
+			else:
+				break
+		return n
+	var l: Array = []
+	for q in cel:
+		var x := float(q[0])
+		var z := float(q[1])
+		var r := int(q[2]) & 3
+		var d: Vector2 = DIR_TELHADO[r]
+		var h0: float = seguidos.call(x, z, r) * sobe
+		var h1 := h0 + sobe
+		var plano := false
+		var rf: int = mapa.get(k.call(x + d.x * passo, z + d.y * passo), -1)
+		if rf == ((r + 2) & 3) and absf((seguidos.call(x + d.x * passo, z + d.y * passo, rf) + 1) * sobe - h0) < 0.01:
+			plano = true
+			h1 = h0
+		l.append({"x": x, "z": z, "r": r, "dx": d.x, "dz": d.y, "h0": h0, "h1": h1, "plano": plano,
+			"atras": mapa.has(k.call(x - d.x * passo, z - d.y * passo)), "frente": rf >= 0,
+			"esq": mapa.has(k.call(x - d.y * passo, z + d.x * passo)), "dir": mapa.has(k.call(x + d.y * passo, z - d.x * passo))})
+	return l
+
+# altura do telhado em rampa num ponto (-1 = fora); beiral para fora onde não tem vizinho
+static func altura_rampa(c: Dictionary, x: float, z: float) -> float:
+	var h := -1.0
+	var g: float = c.g
+	var b: float = c.beiral
+	for q in c.rampa:
+		var ox: float = x - q.x
+		var oz: float = z - q.z
+		var u: float = ox * q.dx + oz * q.dz
+		var v: float = ox * q.dz - oz * q.dx
+		if u < -g - (0.0 if q.atras else b) - 0.001 or u > g + (0.0 if q.frente else b * 0.6) + 0.001:
+			continue
+		if v > g + (0.0 if q.dir else b) + 0.001 or v < -g - (0.0 if q.esq else b) - 0.001:
+			continue
+		var a: float = c.base + 0.2 + q.h0 + (q.h1 - q.h0) * (minf(u, g) + g) / (2.0 * g)
+		if a > h:
+			h = a
+	return h
 
 # para onde olhar ao agarrar a parede de uma casa (de frente para a parede mais perto)
 func de_frente_para(c: Dictionary, x: float, z: float) -> float:

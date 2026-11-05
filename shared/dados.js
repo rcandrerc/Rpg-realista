@@ -748,7 +748,10 @@ export const CONSTRUCOES = {
 // aba: em que aba do modo construção a peça aparece ('casa' ou 'moveis') · bancada: precisa de bancada perto para criar
 export const CASA = { grade: 2, parede: 3.1, fundacao: 0.2, espessura: 0.3,
   // telhado das casas do jogador (2026-11-04: dá para ficar em pé em cima): sobe 0,6 m por metro até o meio, no máximo 1,8 m
-  beiral: 0.45, inclina: 0.6, telhaMax: 1.8, porta: 2.2 };
+  beiral: 0.45, inclina: 0.6, telhaMax: 1.8, porta: 2.2,
+  // telhado em rampa (André 2026-11-05, igual ao Quimera): cada peça seguida na mesma direção (Girar) sobe telhaSobe m;
+  // duas rampas de frente uma para a outra fecham a cumeeira
+  telhaSobe: 1.2 };
 for (const [k, v] of Object.entries(CONSTRUCOES)) Object.assign(v, { tipo: 'movel', aba: 'moveis', bancada: k !== 'bancada' });
 Object.assign(CONSTRUCOES, {
   fundacao: { nome: 'Fundação de pedra', tipo: 'fundacao', aba: 'casa', w: 2, d: 2, circulos: [], custo: { pedra: 4 }, bancada: false,
