@@ -910,12 +910,13 @@ const MONTADO_ESPADA_RECUA := 0.22
 # Montado em X (pedido do André 2026-11-05: "nas costas cruzando", sem flutuar; montado não ataca): as duas armas
 # deitadas no plano das costas, cruzando no meio delas. Cajado com a chama sobre o ombro direito e a ponteira saindo
 # pelo quadril esquerdo; espada com o cabo sobre o ombro esquerdo e a ponta no quadril direito, por cima do cajado.
-const X_ANGULO := deg_to_rad(24.0) # cada arma, longe da coluna
+const X_ANGULO := deg_to_rad(35.0) # espada, longe da coluna
+const X_ANGULO_CAJADO := deg_to_rad(20.0) # o cajado é mais comprido: mais rente à coluna para a ponteira não sair de lado
 const X_FUNDO := 0.115 # m do osso do peito até as costas (cajado); a espada vai X_ESPADA_FORA mais para fora
 const X_ESPADA_FORA := 0.03
-const X_CENTRO := 0.0 # m pela coluna (- = para o quadril): onde as duas cruzam
+const X_CENTRO := -0.12 # m pela coluna (- = para o quadril): onde as duas cruzam
 const X_CABO := 0.32 # m do cruzamento até o cabo da espada
-const X_CAJADO_FIO := 0.42 # o cajado cruza nesse ponto do comprimento dele (0 = ponteira, 1 = chama)
+const X_CAJADO_FIO := 0.55 # o cajado cruza nesse ponto do comprimento dele (0 = ponteira, 1 = chama)
 func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	var b := esq.find_bone("J_Bip_C_UpperChest")
 	if b < 0:
@@ -935,7 +936,7 @@ func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	var meio: Vector3 = c * X_CENTRO
 	# cajado: +Y do modelo vai da ponteira (origem) até a chama
 	var ec: float = caj.basis.get_scale().y
-	var uc: Vector3 = (c * cos(X_ANGULO) + dr * sin(X_ANGULO)).normalized()
+	var uc: Vector3 = (c * cos(X_ANGULO_CAJADO) + dr * sin(X_ANGULO_CAJADO)).normalized()
 	var comp: float = 1.105 * ec
 	caj.transform = Transform3D(_base_arma(uc, fora).scaled(Vector3.ONE * ec), meio + fora * X_FUNDO - uc * comp * X_CAJADO_FIO)
 	# espada: origem no cabo, +Y para a ponta (lâmina para baixo)
