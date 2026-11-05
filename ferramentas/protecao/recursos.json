@@ -239,6 +239,7 @@
     { "nome": "Sem grama da mata furando o piso das peças", "arquivo": "godot-prototipo/main.gd", "contem": ["var grama_mata: Array = []"] },
     { "nome": "Telhado em rampa contínua (esquema do Quimera)", "arquivo": "shared/terreno.js", "contem": ["export function rampasTelhado(cel, passo, sobe) {", "function alturaRampa(c, x, z) {"] },
     { "nome": "Telhado em rampa no app (malha, fantasma e Girar)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:", "func _y_rampa_nova(L: Dictionary, x: float, z: float, r: int) -> float:"] },
-    { "nome": "Zoom + e − no modo construção", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func(): m.cam.zoom(z[1])"] }
+    { "nome": "Zoom + e − no modo construção", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func(): m.cam.zoom(z[1])"] },
+    { "nome": "Construção por andar (Térreo / Telhado)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func trocar_andar(a: String) -> void:", "func no_andar(k: String) -> bool:", "const ANDARES := ["] }
   ]
 }
