@@ -33,6 +33,7 @@ const VoltaVila = preload("res://volta_vila.gd")
 const Rota = preload("res://rota.gd")
 const Construcao = preload("res://construcao.gd")
 const Montaria = preload("res://montaria.gd")
+const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (vermelho, coração) e a tela de queda
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
@@ -60,6 +61,7 @@ var camera: Camera3D
 var grama: MultiMeshInstance3D
 var hud
 var fx
+var morte # morte.gd: bordas vermelhas, coração e cor sumindo com a vida baixa; "VOCÊ CAIU" e o escuro ao morrer
 var combate # combate.gd: aviso antes do golpe do monstro, tranco, firme, esquiva, morte em fumaça
 var _lenta_ate := 0.0 # câmera lenta (só o tempo): esquiva e último inimigo
 var _lenta_k := 1.0
@@ -217,6 +219,8 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.apertou.connect(usar)
+	morte = Morte.new(self)
+	add_child(morte)
 	hud.soltou.connect(func(a): if a == "basico": h.segurando = false)
 	hud.nome = "Ruiva"
 	mostrar_build()

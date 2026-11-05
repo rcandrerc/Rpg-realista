@@ -60,6 +60,7 @@ var _dano_t := 0.0 # levou golpe: borda vermelha rápida (e fraca, contínua, co
 var modo_construcao := false
 var arrastar_terreno := false
 var esconder_combate := false # janela de um NPC aberta: skills, golpe, joystick e cura somem (fica o painel de vida)
+var caido := false # herói caído (morte.gd): os botões de luta somem até ele levantar
 var _combate: Control # joystick e botões, desenhados por cima de _tela (some com fade)
 
 func levou_dano() -> void:
@@ -330,7 +331,7 @@ func _process(dt: float) -> void:
 		if b.nega_t > 0.0:
 			b.nega_t -= dt
 	# fade de 0,15 s da HUD de combate (janela do NPC)
-	_combate.modulate.a = move_toward(_combate.modulate.a, 0.0 if esconder_combate else 1.0, dt / 0.15)
+	_combate.modulate.a = move_toward(_combate.modulate.a, 0.0 if esconder_combate or caido else 1.0, dt / (0.6 if caido else 0.15))
 	_combate.visible = _combate.modulate.a > 0.0
 	_tela.queue_redraw()
 	_combate.queue_redraw()
