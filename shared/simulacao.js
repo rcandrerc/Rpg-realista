@@ -317,7 +317,7 @@ export class Simulacao {
   // Saiu do jogo longe da vila: entra de volta no mesmo lugar. Só a morte (ou o Voltar para a vila) leva para a praça.
   nascerOndeSaiu(j) {
     const q = j.prog.pos; if (!q) return;
-    const chao = this.terreno.altura(q.x, q.z);
+    const chao = this.terreno.altura(q.x, q.z, q.y + 0.3); // dentro de casa: o piso, não o telhado de cima (André 2026-11-05)
     if (!dentroDoMapa(this.mapa, q.x, q.z) || q.y < chao - 0.6 || q.y > chao + ORCAMENTO.altura) { delete j.prog.pos; return; } // o mapa mudou: vila
     Object.assign(j, { x: q.x, y: Math.max(q.y, chao), z: q.z, ry: q.ry, chao: q.y - chao < 0.15 });
   }
