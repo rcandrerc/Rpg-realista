@@ -11,6 +11,8 @@
 #   '{"coxaD":1.2,"canelaD":0.85,"jarreteD":0.8,"coxaE":1.2,"canelaE":0.85,"jarreteE":0.8,"ombroD":1.2,"bracoD":1.1,"ombroE":1.2,"bracoE":1.1}' \
 #   '{"chao":-0.03,"off":{"coxaD":72,"coxaE":72,"ombroD":17,"ombroE":17}}'
 # (cavalo_n.glb e o lobo.glb antigo, sem correr_cavalo, na pasta)
+# Juntas (André 2026-11-05: patas duras): com a pata no ar, o pulso da frente e o pé de trás dobram para trás
+# ('pulso', 'pe', graus) e o jarrete fecha ('jarrete', nunca menos que 'jarrete_min' = 10°); a base do rabo desfaz parte do giro do quadril ('rabo').
 import bpy,sys,mathutils
 from mathutils import Matrix,Vector,Quaternion
 argv=sys.argv[sys.argv.index('--')+1:]
@@ -91,6 +93,27 @@ def posar(f,c):
             'cabp':math.atan2((P['cabeca'].tail-P['cabeca'].head).z,-(P['cabeca'].tail-P['cabeca'].head).y),
             'corp':math.atan2((P['peito'].head-P['quadril'].head).z,-(P['peito'].head-P['quadril'].head).y)}
 fr=list(range(f0,f1+1))
+FOLD_F=math.radians(K.get('pulso',70)); FOLD_T=math.radians(K.get('pe',55)); HOCK=math.radians(K.get('jarrete',20)); RABO=K.get('rabo',0.8); HOCK_MIN=math.radians(K.get('jarrete_min',10))
+def girar(pb,ang):
+    M=pb.matrix.copy(); h=M.translation.copy()
+    pb.matrix=Matrix.Translation(h)@Matrix.Rotation(ang,4,'X')@Matrix.Translation(-h)@M
+    bpy.context.view_layer.update()
+def sobe(x,a,b): t=max(0,min(1,(x-a)/(b-a))); return t*t*(3-2*t)
+q_rest_quad=rest(W,'quadril')
+def juntas(f):
+    P=W.pose.bones
+    # rabo: desfaz parte do giro do quadril para a base do rabo não dobrar a malha (a ponta afinava num espinho)
+    d=(P['quadril'].matrix.to_quaternion() @ q_rest_quad.inverted()).to_euler('XYZ').x
+    girar(P['cauda1'],-RABO*d)
+    # patas no ar: o pulso (frente) e o pé (trás) dobram para trás e o jarrete fecha um pouco
+    for s in 'DE':
+        h=P['pataF'+s].head.z
+        girar(P['pataF'+s],SINAL*FOLD_F*sobe(h,0.06,0.2))
+        h=P['pataT'+s].head.z
+        k=sobe(h,0.05,0.18)
+        girar(P['jarrete'+s],SINAL*(HOCK_MIN+(HOCK-HOCK_MIN)*k))
+        girar(P['pataT'+s],SINAL*FOLD_T*k)
+SINAL=K.get('sinal',1)
 m1={f:posar(f,None) for f in fr}
 # 1) coluna: arqueia com as patas juntas (patas da frente e de trás perto), estica com elas abertas
 js=[m1[f]['junta'] for f in fr]; jmin,jmax=min(js),max(js)
@@ -114,6 +137,8 @@ for f in fr:
     print('Q %2d min %.3f z %.3f flex %.1f cab %.1f'%(f,r['min'],z[f],math.degrees(flex[f]),math.degrees(cab[f])))
     for i in range(1,6):
         pb=W.pose.bones['cauda%d'%i]; pb.rotation_quaternion=oldq(pb.name,(f-f0)/(f1-f0))
+    bpy.context.view_layer.update()
+    juntas(f)
     for pb in W.pose.bones:
         pb.keyframe_insert('rotation_quaternion',frame=f-f0)
         if pb.name=='quadril': pb.keyframe_insert('location',frame=f-f0)
