@@ -222,6 +222,7 @@
     {"nome": "Casa do jogador é chão, parede e telhado no servidor (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["export function pecasCasaSolidas(", "T.porCasasDosJogadores("]},
     {"nome": "Telhado da casa do jogador no terreno (servidor)", "arquivo": "shared/terreno.js", "contem": ["export function alturaTelhado(", "porCasasDosJogadores(l)"]},
     {"nome": "Telhado da casa do jogador no terreno (app)", "arquivo": "godot-prototipo/terreno.gd", "contem": ["static func altura_telhado("]},
+    {"nome": "Barra de construção grande para celular: abas grandes, nomes nos quadrados, botões à direita; sem grama embaixo das peças (André 2026-11-05)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["var painel_acoes: PanelContainer", "func _nome_slot(", "var tampas: Array = []"]},
     {"nome": "App recebe o baú e o criar", "arquivo": "godot-prototipo/online.gd", "contem": ["\"fabricou\":", "\"bau\": # o baú do meu terreno"]},
     { "nome": "Monstros agressivos: até 4 batem juntos, perseguem correndo e quem bateu dá folga (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["b.folgaAte = this.tempo + b.trava + CI.folga", "CI.chegarDist ? CI.perseguir : CI.chegar"] },
     { "nome": "Monstros agressivos no modo sozinho (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["e.folga_ate = tempo + e.golpe_dur", "float(D.COMBATE.perseguir)"] },
