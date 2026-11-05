@@ -897,6 +897,7 @@ func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 			var corta := false
 			if dir != Vector2.ZERO and absf(p.x - hp.x) < comp + g + 1.0 and absf(p.z - hp.z) < comp + g + 1.0:
 				corta = _parede_tapa(p, a2, b2, dir, g)
+			p.cortada = corta # a parede está cortada agora (o apagar anda devagar até lá)
 			_apagar(p.no, corta, dt)
 
 # a parede p (de 2 m, na linha da grade) tapa a vista do herói (a2) até a câmera (b2)?
