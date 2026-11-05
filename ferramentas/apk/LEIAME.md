@@ -5,6 +5,9 @@ O APK é gerado sozinho pelo GitHub Actions (`.github/workflows/apk.yml`):
 - **Em todo push na main** que mexe no app: gera o APK e publica no release **apk**.
   Link para baixar no celular (precisa estar logado no GitHub, o repositório é privado):
   https://github.com/rcandrerc/Rpg-realista/releases/download/apk/rpg-realista.apk
+  Sem a chave oficial nos Secrets, o push na main **só gera a atualização da casca** (pacote do jogo); os APKs
+  saíam com chave descartável, não iam para o link e gastavam ~3 min de Actions por merge (2026-11-05). Para ter os
+  APKs mesmo assim: Actions → APK do app Godot → Run workflow (opção `gerar_apk` ligada, o padrão).
 - **Em pull request**: só gera o APK de teste se o PR tiver a etiqueta `gerar apk` (ou rodando à mão em Actions → APK do app Godot → Run workflow, no ramo do PR). Fica em Actions → a execução → Artifacts. Antes gerava em todo push de todo PR e a cota do Actions de novembro acabou em 3 dias.
 
 O que o build faz: sobe o site em modo dev (vite), exporta a vila, os personagens e os monstros com o Chromium

@@ -13,6 +13,11 @@ on:
     types: [opened, synchronize, reopened, labeled]
     paths: ['godot-prototipo/**', 'client/**', 'shared/**', '.github/workflows/apk.yml']
   workflow_dispatch:
+    inputs:
+      gerar_apk:
+        description: 'Montar também os APKs (completo e casca) para baixar em Artifacts'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -328,6 +333,10 @@ jobs:
           ORACLE_URL: ${{ vars.ORACLE_URL }}
         run: bash ferramentas/atualizacao/publicar-conteudo.sh "$((1000 + CODIGO))"
       - name: Exportar o APK
+        # Push na main sem a chave oficial: só a atualização da casca. Os APKs dessa rodada saíam com chave descartável,
+        # não iam para o link e gastavam ~3 min de Actions por merge (pedido do André, 2026-11-05). Para ter o APK:
+        # Actions > APK do app Godot > Run workflow (gerar_apk ligado) ou a etiqueta "gerar apk" no PR.
+        if: env.TEM_CHAVE == '1' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.gerar_apk)
         working-directory: godot-prototipo
         run: |
           $GODOT_BIN --headless --install-android-build-template --export-release Android $GITHUB_WORKSPACE/rpg-realista.apk
@@ -335,17 +344,20 @@ jobs:
           # SHA-1 da assinatura (o login Google exige 08:B6:1B:...:0D:CC, a chave oficial)
           $(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner verify --print-certs $GITHUB_WORKSPACE/rpg-realista.apk | grep -i "SHA-1"
       - name: APK casca (sem o jogo dentro; baixa tudo ao abrir, ferramentas/atualizacao/LEIAME.md)
+        if: env.TEM_CHAVE == '1' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.gerar_apk)
         working-directory: godot-prototipo
         run: |
           printf 'atualizacao/casca=true\n' >> project.godot # fica na seção [aethra] gravada acima
           $GODOT_BIN --headless --export-release "Android casca" $GITHUB_WORKSPACE/rpg-realista-casca.apk
           ls -la $GITHUB_WORKSPACE/rpg-realista-casca.apk
       - uses: actions/upload-artifact@v4
+        if: env.TEM_CHAVE == '1' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.gerar_apk)
         with:
           name: rpg-realista-apk
           path: rpg-realista.apk
           retention-days: 14
       - uses: actions/upload-artifact@v4
+        if: env.TEM_CHAVE == '1' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.gerar_apk)
         with:
           name: rpg-realista-casca-apk
           path: rpg-realista-casca.apk
