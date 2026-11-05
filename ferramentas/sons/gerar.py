@@ -2,7 +2,8 @@
 
 Duas fontes, as duas livres para uso comercial:
 1. Kenney (CC0), do repositório New-Game-Anime-fontes: passos na grama, impactos, pano, moedas, espada.
-2. Sons gerados aqui mesmo (próprios, CC0): vento do golpe, dash, magia, explosão, cura e subir de nível.
+2. Sons gerados aqui mesmo (próprios, CC0): vento do golpe, dash, magia, explosão, cura, subir de nível,
+   batida do coração (vida baixa) e a queda do herói.
 
 Uso (precisa de numpy e ffmpeg):
     python3 ferramentas/sons/gerar.py /caminho/do/New-Game-Anime-fontes
@@ -176,6 +177,31 @@ def morte():
     return normal(baque + grave, 0.85)
 
 
+def coracao():
+    """Batida do coração (vida baixa): "tum-tum" grave e abafado, sentido mais que ouvido."""
+    n = int(0.62 * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for ini, forca, f0 in ((0.0, 1.0, 58.0), (0.2, 0.7, 52.0)):
+        tt = np.clip(t - ini, 0, None)
+        e = np.where(t >= ini, np.minimum(1.0, tt / 0.006) * np.exp(-tt * 16), 0.0)
+        f = f0 * (1 + 0.6 * np.exp(-tt * 40))
+        x += np.sin(2 * np.pi * np.cumsum(f) / SR) * e * forca
+        x += passa_baixa(ruido(n, 31 + int(ini * 10)), 160) * e * forca * 2.5
+    return normal(passa_baixa(x, 300), 0.9)
+
+
+def queda_heroi():
+    """O herói caiu: pancada grave que se arrasta num ronco baixo (a vida apagando)."""
+    n = int(2.4 * SR)
+    t = np.arange(n) / SR
+    baque = passa_baixa(ruido(n, 41), 180) * np.exp(-t * 6) * 5
+    f = 55 * np.exp(-t * 0.8) + 28
+    ronco = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 1.4) * 0.8
+    ar = passa_banda(ruido(n, 43), 400 * np.exp(-t * 1.2) + 120, 1.4) * envelope(n, 0.05, 1.6) * 0.35
+    return normal(baque + ronco + ar, 0.85)
+
+
 def gravar(nome, x):
     os.makedirs(SAIDA, exist_ok=True)
     pcm = (np.clip(x, -1, 1) * 32767).astype(np.int16)
@@ -206,6 +232,8 @@ def principal():
     gravar("cura", cura())
     gravar("nivel", nivel())
     gravar("morte", morte())
+    gravar("coracao", coracao())
+    gravar("queda_heroi", queda_heroi())
     print("sons em", os.path.normpath(SAIDA))
 
 
