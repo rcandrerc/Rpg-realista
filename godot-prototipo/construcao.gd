@@ -71,6 +71,13 @@ var tela: CanvasLayer
 var painel: PanelContainer # barra de itens embaixo (modo construção)
 var linha_abas: HBoxContainer
 var painel_acoes: PanelContainer # botões grandes à direita (Colocar, Criar, Girar, Sair)
+# andares do modo construção (André 2026-11-05: "quando eu estiver no térreo, só consiga mexer no térreo"):
+# "terreo" (fundação, paredes, móveis) ou "telhado" (o último andar). Desmontar e colocar só pegam o andar escolhido;
+# no térreo o telhado do meu terreno some para ver dentro. Quando houver andar de cima, ele entra entre os dois.
+var andar := "terreo"
+var linha_andares: HBoxContainer
+var _botoes_andar := {}
+const ANDARES := [["terreo", "Térreo"], ["telhado", "Telhado"]]
 # criar com quantidade e barrinha (André 2026-11-05)
 var painel_qtd: PanelContainer # janela: quantas criar
 var txt_qtd_tit: Label
@@ -855,6 +862,8 @@ func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 				some = true
 				dentro = true
 			if ativo and id == meu and not sel in ["telhado", "desmontar"] and absf(mira.x - c.x) < g + 0.3 and absf(mira.z - c.y) < g + 0.3:
+				some = true
+			if ativo and id == meu and andar == "terreo": # andar térreo: o telhado inteiro some (fica a sombra)
 				some = true
 		_apagar(mi, some, dt)
 	# em cima de uma fundação (casa ainda sem telhado também conta), abaixo do alto das paredes
@@ -1726,7 +1735,7 @@ func _mover_mira(dt: float) -> void:
 		mira.x = clampf(mira.x, float(A.x) - float(A.rx) - 2.0, float(A.x) + float(A.rx) + 2.0)
 		mira.z = clampf(mira.z, float(A.z) - float(A.rz) - 2.0, float(A.z) + float(A.rz) + 2.0)
 	mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
-	if sel == "telhado" and lotes.has(meu): # mexendo no telhado (André 2026-11-05): a câmera sobe até o alto das paredes
+	if andar == "telhado" and lotes.has(meu): # mexendo no telhado (André 2026-11-05): a câmera sobe até o alto das paredes
 		mira.y = maxf(mira.y, _topo_parede(mira.x, mira.z) - 0.6)
 	m.cam.entrar_livre(mira)
 	if _mira_no == null:
@@ -1766,6 +1775,7 @@ func abrir() -> void:
 		m.trabalho.parar(true)
 	ativo = true
 	giro = 0
+	andar = "terreo"
 	var hp: Vector3 = m.heroi.position
 	var ry: float = m.mov.ry
 	mira = hp + Vector3(sin(ry), 0, cos(ry)) * 2.0
@@ -1975,6 +1985,8 @@ func _atualizar_mira() -> void:
 		var md := 1e9
 		var ordem := {"telhado": 0, "borda": 1, "movel": 2, "fundacao": 3}
 		for o in L.pecas:
+			if not no_andar(o.k): # só o andar escolhido (no térreo o telhado não atrapalha a janela)
+				continue
 			var R := ret_peca(o.k, o.x, o.z, o.r).grow(0.3)
 			var dd: float = Vector2(o.x - p.x, o.z - p.z).length() + ordem.get(tipo_peca(o.k), 2) * 100.0
 			if R.has_point(Vector2(p.x, p.z)) and dd < md:
@@ -2471,6 +2483,16 @@ func _montar_tela() -> void:
 	b_ok = _botao("Colocar", colocar, true, 24)
 	b_ok.custom_minimum_size = Vector2(170, 76)
 	acoes.add_child(b_ok)
+	acoes.move_child(b_ok, 0)
+	linha_andares = HBoxContainer.new()
+	linha_andares.add_theme_constant_override("separation", 8)
+	acoes.add_child(linha_andares)
+	acoes.move_child(linha_andares, 0) # andares em cima de tudo
+	for a in ANDARES:
+		var ba := _botao(a[1], func(): trocar_andar(a[0]), a[0] == andar, 18)
+		ba.custom_minimum_size = Vector2(81, 50)
+		linha_andares.add_child(ba)
+		_botoes_andar[a[0]] = ba
 	b_criar = _botao("Criar", criar, false, 22)
 	b_criar.custom_minimum_size = Vector2(170, 62)
 	acoes.add_child(b_criar)
@@ -2687,6 +2709,24 @@ func _montar_bau() -> void:
 func trocar_aba(k: String) -> void:
 	aba = k
 	sel = {"casa": "fundacao", "moveis": "bancada", "terreno": "mudar"}.get(k, "arar")
+	if k != "casa":
+		andar = "terreo" # móveis, fazenda e terreno são do chão
+	elif andar == "telhado":
+		sel = "telhado"
+	_montar_itens()
+
+# a peça é do andar escolhido? (telhado no andar Telhado; o resto no Térreo)
+func no_andar(k: String) -> bool:
+	return (tipo_peca(k) == "telhado") == (andar == "telhado")
+
+func trocar_andar(a: String) -> void:
+	andar = a
+	if a == "telhado":
+		aba = "casa"
+		if sel != "desmontar":
+			sel = "telhado"
+	elif sel == "telhado":
+		sel = "fundacao"
 	_montar_itens()
 
 # quadrado da barra (Quimera bhi): ícone, número embaixo à direita, aro dourado no escolhido, apagado sem material
@@ -2776,7 +2816,7 @@ func _montar_itens() -> void:
 		# o número é quantas dessa peça já estão criadas na mochila (prontas para colocar)
 		for k in D.construcoes:
 			var C: Dictionary = D.construcoes[k]
-			if str(C.get("aba", "moveis")) != aba:
+			if str(C.get("aba", "moveis")) != aba or not no_andar(k):
 				continue
 			var q: int = m.P.contar("obra_" + k)
 			linha_itens.add_child(_slot(k, "cs_" + k, str(q), sel == k, q > 0 or motivo_criar(k) == ""))
@@ -2784,7 +2824,7 @@ func _montar_itens() -> void:
 				nome = "%s · tem %d · criar: %s%s" % [C.nome, q, custo_txt(C.custo), " (bancada perto)" if C.get("bancada", false) else ""]
 		linha_itens.add_child(_slot("desmontar", "cs_desmontar", "", sel == "desmontar", true, Color("ffb3a3")))
 		if sel == "desmontar":
-			nome = "Desmontar (a peça volta para a mochila)"
+			nome = "Desmontar no %s (a peça volta para a mochila)" % ("telhado" if andar == "telhado" else "térreo")
 	else:
 		linha_itens.add_child(_slot("arar", "cs_enxada" if m.P.contar("enxada") > 0 else "cs_arar", "", sel == "arar", m.P.contar("enxada") > 0))
 		var alguma := false
@@ -2811,6 +2851,10 @@ func _montar_itens() -> void:
 	b_criar.disabled = cq != "" and motivo_criar(cq) != ""
 	Menu.estilo_botao(b_criar, cq != "" and m.P.contar(item_criado(cq)) < 1)
 	b_girar.visible = aba != "fazenda" and aba != "terreno" and sel != "desmontar" and tipo_peca(sel) != "fundacao" # telhado gira: vira a rampa (2026-11-05)
+	for a in _botoes_andar:
+		Menu.estilo_botao(_botoes_andar[a], a == andar)
+	if linha_andares:
+		linha_andares.visible = aba == "casa" or aba == "moveis"
 	b_ok.text = {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")
 	Menu.estilo_botao(b_ok, true)
 
@@ -2819,6 +2863,8 @@ func escolher(k: String) -> void:
 		semente = k.substr(8)
 		k = "plantar"
 	sel = k
+	if D.construcoes.has(k):
+		andar = "telhado" if tipo_peca(k) == "telhado" else "terreo"
 	_montar_itens()
 
 # mochila mudou (o servidor mandou o progresso): os custos e as sementes da barra se atualizam

@@ -86,6 +86,9 @@ Para montar à mão:
   fecham a cumeeira (com número ímpar, a do meio fica reta). Conta em `shared/terreno.js` (rampasTelhado) e
   `terreno.gd` (rampas_telhado); malha em `construcao.gd` (_malha_rampas). Os lados abertos ganham oitão de madeira.
 - Modo construção: botões − e + de zoom (passos de 20%) e, com o telhado escolhido, a câmera sobe até o alto das paredes.
+- Andares no modo construção (2026-11-05): botões Térreo e Telhado em cima do Colocar. No Térreo só aparecem e só se
+  desmontam fundação, paredes, portas, janelas e móveis, e o telhado do seu terreno some para ver dentro; no Telhado só o
+  telhado. Escolher a peça já troca o andar. Andar de cima, quando existir, entra em `ANDARES` entre os dois.
 - Casa numa grade de 2 m: a fundação vai no quadrado (vira chão, dá para subir e andar em cima), parede, porta e
   janela vão na borda de uma fundação (Girar vira a frente), o telhado vai em cima de uma fundação com parede em
   volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica
