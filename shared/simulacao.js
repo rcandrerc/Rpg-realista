@@ -2177,9 +2177,20 @@ export class Simulacao {
     for (let d = 0.1; d <= ate; d += 0.1) {
       if (T.teto(j.x + fx * d, j.z + fz * d, j.y) < Infinity) return null; // o caminho entra debaixo de um telhado (ferraria aberta): parede lá dentro não se escala correndo
       const h = T.altura(j.x + fx * d, j.z + fz * d, j.y);
-      if (h > j.y + SUBIDA.degrau) return h > j.y + SUBIDA.mini ? { dist: d, r: T.rochaEm(j.x + fx * d, j.z + fz * d, j.y) } : null;
+      if (h > j.y + SUBIDA.degrau) {
+        if (h <= j.y + SUBIDA.mini) return null;
+        const r = T.rochaEm(j.x + fx * d, j.z + fz * d, j.y);
+        return r?.casa ? null : { dist: d, r }; // parede de casa não se escala (André, 2026-11-05): só pedra
+      }
     }
     return null;
+  }
+  // parede de casa logo à frente ou de lado (empurrando de raspão) — casa da vila ou que o jogador construiu? Casa não se escala (André, 2026-11-05):
+  // ele ficava agarrando na parede toda hora. Pedra continua escalável; escada continua subindo.
+  casaAFrente(j, ry) {
+    const T = this.terreno;
+    for (const da of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2]) for (let d = 0.2; d <= 1.6; d += 0.2) if (T.rochaEm(j.x + Math.sin(ry + da) * d, j.z + Math.cos(ry + da) * d, j.y)?.casa) return true;
+    return false;
   }
   // a beirada: o ponto mais alto da pedra logo à frente
   beirada(j) {
@@ -2251,6 +2262,7 @@ export class Simulacao {
     }
     if (!j.bloqueado) { j.empurra = 0; return; }
     j.empurra += dt; if (j.empurra < SUBIDA.empurrar) return;
+    if (this.casaAFrente(j, ry)) { j.empurra = 0; return; } // parede de casa: não agarra nem sobe (nem a mini escalada)
     const topo = this.terreno.frente(j.x, j.z, ry, 1.6, null, j.y).topo;
     if (topo - j.y <= SUBIDA.mini) return this.miniSubida(j, ry);
     if (this.terreno.teto(j.x, j.z, j.y) < Infinity) { j.empurra = 0; return; } // debaixo de telhado: não escala a parede de dentro
