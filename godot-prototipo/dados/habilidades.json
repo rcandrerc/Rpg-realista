@@ -726,7 +726,7 @@
    "mat": true,
    "pilha": 50,
    "venda": 1,
-   "desc": "Pedra comum que sai junto quando você minera. Serve para construir e para afiar ferramentas."
+   "desc": "Pedra comum. Sai dos veios de pedra (e, às vezes, junto quando você minera outro veio). Serve para construir e para afiar ferramentas."
   },
   "carvao": {
    "nome": "Carvão",
@@ -1424,6 +1424,21 @@
    "raro": {
     "cristal": 0.05,
     "pedra": 0.5
+   }
+  },
+  "pedra": {
+   "nome": "Veio de pedra",
+   "prof": "min",
+   "vigor": 1,
+   "tempo": 2,
+   "cargas": 4,
+   "volta": 90,
+   "da": {
+    "pedra": 2
+   },
+   "raro": {
+    "pedra": 0.5,
+    "minerio_cobre": 0.03
    }
   },
   "cobre": {

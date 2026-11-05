@@ -142,8 +142,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 		no.set_meta("chave", chave)
 		esq.add_child(no)
 		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)), tem_capa)
+	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
 	_uniforme(raiz, equip if equip is Dictionary else {})
-	_roupa_base(raiz, esq)
 	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null)
 	# armas nas costas passam por fora da capa
 	var capa := esq.get_node_or_null("Armadura_capa") != null
@@ -632,6 +632,15 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 				mi.set_surface_override_material(sfc, _material_base()) # roupa de baixo branca (André 2026-11-03)
 			elif sfc == 0 or mi.get_surface_override_material(sfc) in _materiais.values():
 				mi.set_surface_override_material(sfc, null) # só tira o que a armadura pôs (a cor da aparência fica)
+	# André 2026-11-04 (print no jogo): com calça ou short de armadura, o short branco de baixo aparecia entre as
+	# peças no meio das pernas (pose de espada, pernas abertas). Com peça nas pernas ele fica na cor da calça.
+	var esq := _esqueleto(raiz)
+	var base: Node = esq.get_node_or_null("Roupa_base") if esq else null
+	if base:
+		var pe = equip.get("pernas")
+		var r_p := clampi(int(pe.get("r", 0)), 0, 4) if pe is Dictionary and PECAS.has(str(pe.get("k", ""))) else -1
+		for mi in base.find_children("*", "MeshInstance3D", true, false):
+			mi.material_override = _material("calca", r_p) if r_p >= 0 else _material_base()
 	# gravata some com peitoral de aço (a gola metálica fica no lugar dela)
 	var gravata := _fonte(raiz, "Tie")
 	if gravata:
