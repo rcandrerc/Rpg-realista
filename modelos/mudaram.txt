@@ -1,0 +1,4 @@
+vila.glb
+lobo.glb
+mascara_vila.png
+minimapa.png

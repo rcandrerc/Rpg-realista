@@ -1,0 +1,2 @@
+Modelos exportados fora do GitHub Actions (ver ferramentas/runner/LEIAME.md no repositório principal).
+Base: cache do build da main em ace1021. Só o que mudou de verdade (personagens e monstros: só a recodificação das texturas mudou, ficam os do cache).
