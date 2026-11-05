@@ -1832,8 +1832,8 @@ export class Simulacao {
     }
     if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
     alvo.vida = Math.max(0, alvo.vida - n);
-    if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
-    if (de?.tipo === 'jogador') de.combateAte = this.tempo + ESTAMINA.combate;
+    if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; alvo.lutouT = this.tempo; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
+    if (de?.tipo === 'jogador') { de.combateAte = this.tempo + ESTAMINA.combate; de.lutouT = this.tempo; } // lutouT: time só ganha XP de quem lutou nos últimos TIME.combate s
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
     const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe; // fora do if: o golpe final também usa
@@ -1903,15 +1903,21 @@ export class Simulacao {
       });
     } else {
       this.contarMissao(c);
-      // XP para quem bateu nele ou estava perto (grupo) e para o time de quem ganhou, se está a até TIME.perto metros
+      // XP para quem bateu nele ou estava perto (grupo). Time (André 2026-11-05): quem é do time de quem ganhou também ganha
+      // XP e drop se está a até TIME.perto metros e lutou nos últimos TIME.combate segundos (parado longe da luta não ganha),
+      // e cada um do time que ganhou soma TIME.bonus de XP para todos eles.
       const ganham = new Set();
       for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) ganham.add(j);
       for (const j of [...ganham]) for (const k of j.time?.membros || []) {
         const o = this.jogadores.get(k);
-        if (o && !o.morto && !o.criando && dist(o, c) < TIME.perto) ganham.add(o);
+        if (o && !o.morto && !o.criando && dist(o, c) < TIME.perto && this.tempo - (o.lutouT ?? -1e9) <= TIME.combate) ganham.add(o);
       }
+      const doTime = new Map(); // time -> quantos dele ganharam
+      for (const j of ganham) if (j.time) doTime.set(j.time, (doTime.get(j.time) || 0) + 1);
       for (const j of ganham) {
-        this.ganharXP(j, xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)); this.soltarDrops(c, j);
+        const n = j.time ? doTime.get(j.time) : 1;
+        const xp = xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO);
+        this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
