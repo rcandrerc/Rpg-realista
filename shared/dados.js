@@ -645,7 +645,9 @@ export const TAMANHO_VEIO = { pedra: 1.4, cobre: 1, ferro: 0.8, cristal: 1 };
 // mata ao norte se encostam por pouco, e com a folga de 2,2 m da borda (andar.gd limitar_ao_mapa) virava uma parede
 // invisível em z ~ -32. Este círculo fica todo dentro do que já era andável e só emenda as duas áreas.
 // Vêm por último na lista de áreas (as de antes não mudam de índice nem de sorteio).
-const EMENDAS = [{ x: 6, z: -36, r: 12, rx: 12, rz: 12, mata: true, ligacao: true }]; // rx/rz: a grama da mata (main.gd grama_da_mata) lê rx
+const EMENDAS = [{ x: 6, z: -36, r: 12, rx: 12, rz: 12, mata: true, ligacao: true },
+  // 2026-11-05: as Terras maiores deixavam dois furinhos fora do mapa entre elas e a mata (teste relevo.mjs)
+  { x: -32.5, z: 53.5, r: 2.5, rx: 2.5, rz: 2.5, mata: true, ligacao: true }, { x: -35.5, z: 113.5, r: 2.5, rx: 2.5, rz: 2.5, mata: true, ligacao: true }]; // rx/rz: a grama da mata (main.gd grama_da_mata) lê rx
 // Trilhas de terra até os veios novos (André 2026-11-05: "tem que liberar o caminho"): a de pedra sai da estradinha do
 // leste, sobe pelo norte da vila entre as árvores e entra na mata; a de ferro sai da estrada principal e cruza o campo de
 // fora para o leste. Entram nos caminhos (chão de terra, minimapa e o "Ir para" do mapa, rota.gd).
@@ -676,12 +678,15 @@ export const VOLTA_VILA = { canal: 8, cd: 600, vila: 30 };
 export const VILA_LOTES = {
   nome: 'Terras da Estrada',
   // semPedras: a área e a passagem não ganham anel de pedras (client/src/cena.js); a borda é de árvores (sortearArvores)
-  area: { x: -16, z: 68.5, rx: 22, rz: 27, lobos: [[3, 0.025, 1.3], [5, 0.02, 0.4]], lotes: true, semPedras: true },
+  // 2026-11-05 (André: "abrir mais essa área, com 6 jogadores já encheu"): quase o dobro, esticada para o sul (onde só
+  // tinha mata). Antes: x -16, z 68,5, rx 22, rz 27. A oeste fica a beira da máscara do chão (x -38); a leste, o lago e
+  // a clareira dos Imps. Os lotes antigos (LOTES_ANTIGOS) continuam dentro.
+  area: { x: -13.5, z: 88, rx: 24.5, rz: 48, lobos: [[3, 0.025, 1.3], [5, 0.02, 0.4]], lotes: true, semPedras: true },
   passagem: { a: [-10, 28], b: [-15, 47], larg: 9, semPedras: true },
   // estrada de terra que sai de onde o herói nasce, passa pela passagem e vira a estrada central das terras
   estrada: [[0, 1], [-1, 10], [-2, 15], [-6.5, 21], [-10, 28], [-12.5, 35], [-14.5, 42], [-16, 48]],
   ruas: [
-    { largura: 2.8, pontos: [[-16, 48], [-16, 58], [-16, 70], [-16, 92]] }, // estrada central (norte-sul)
+    { largura: 2.8, pontos: [[-16, 48], [-16, 58], [-16, 70], [-16, 92], [-16, 112], [-16, 132]] }, // estrada central (norte-sul; 2026-11-05 vai até o sul das Terras maiores)
   ],
   lotes: [], // não tem lote pronto: os terrenos nascem quando alguém compra (Simulacao.comprarLote)
 };
@@ -693,13 +698,26 @@ export const LOTES_ANTIGOS = {
 };
 // Regras do terreno (o servidor confere tudo em Simulacao.comprarLote / construir / horta)
 // precoBloco: ouro por bloco de 1 x 1 m (maior = mais caro; estimativa, o André ajusta depois)
-// ladoMin / ladoMax: lados do terreno em metros · areaMax: blocos no máximo · uma pessoa tem um terreno só
+// ladoMin / ladoMax: lados do terreno em metros (mínimo 6 x 6 desde 2026-11-05, André: "tem que ter um mínimo"; era 3) · areaMax: blocos no máximo · uma pessoa tem um terreno só
 // folgaRua: metros livres entre o terreno e a beira da estrada · folgaBorda: metros até a borda das árvores
 // alcance: até quantos metros fora do terreno o herói pode estar para construir (a câmera flutua, como no Quimera)
 // pecasPorBloco: peças que cabem (mínimo pecasMin, máximo maxPecas) · estacaoDist: perto da estação para criar
 // preco e placaDist eram do lote pronto de 10 x 10 (sem uso desde 2026-11-04, ficam por causa da regra "Nada some")
-export const LOTE = { preco: 400, placaDist: 3, precoBloco: 4, ladoMin: 3, ladoMax: 20, areaMax: 300, folgaRua: 0.6, folgaBorda: 1.5,
-  alcance: 6, pecasPorBloco: 0.4, pecasMin: 12, maxPecas: 120, estacaoDist: 3 };
+// 2026-11-05 (André): vender de volta para o jogo por menos (venda = fração do preço por bloco: "comprar um pouco mais
+// caro, vender um pouco mais barato, para a pessoa perder dinheiro"), mudar o tamanho (aumentar paga os blocos novos;
+// diminuir devolve a mesma fração), taxa semanal que chega no correio (taxaBloco de ouro por bloco a cada taxaDias dias;
+// com taxaTrava contas sem pagar, não constrói nem planta) e a regra para não ficar bagunçado: entre dois terrenos ou
+// encosta ou deixa pelo menos 'fresta' m (um caminho); ao marcar, a borda gruda (ímã) na estrada e no vizinho a até 'ima' m.
+export const LOTE = { preco: 400, placaDist: 3, precoBloco: 4, ladoMin: 6, ladoMax: 20, areaMax: 300, folgaRua: 0.6, folgaBorda: 1.5,
+  alcance: 6, pecasPorBloco: 0.4, pecasMin: 12, maxPecas: 120, estacaoDist: 3,
+  venda: 0.5, taxaBloco: 1, taxaDias: 7, taxaTrava: 2, fresta: 3, ima: 1.5 };
+export const vendaTerreno = (w, d) => Math.floor(Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco * LOTE.venda);
+// conta do correio: semanas fechadas desde 'taxa' (ms do começo da conta em aberto), valor e quando chega a próxima
+export function contaTerreno(def, taxa, agora) {
+  const sem = LOTE.taxaDias * 86400000, ini = Number(taxa) || agora, n = Math.max(0, Math.floor((agora - ini) / sem));
+  const blocos = Math.round(def.x1 - def.x0) * Math.round(def.z1 - def.z0);
+  return { semanas: n, valor: n * blocos * LOTE.taxaBloco, porSemana: blocos * LOTE.taxaBloco, proxima: ini + (n + 1) * sem };
+}
 export const precoTerreno = (w, d) => Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco;
 export const maxPecasTerreno = (w, d) => Math.max(LOTE.pecasMin, Math.min(LOTE.maxPecas, Math.round(w * d * LOTE.pecasPorBloco)));
 // Peças que se constroem no lote (aba Construir do modo construção, como no Quimera). w x d = tamanho no chão (m)

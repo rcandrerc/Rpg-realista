@@ -1229,6 +1229,20 @@
   "pedido": 30,
   "entrePedidos": 3
  },
+ "amigos": {
+  "max": 20,
+  "pedido": 30,
+  "entrePedidos": 3
+ },
+ "time": {
+  "max": 5,
+  "convite": 30,
+  "entreConvites": 3,
+  "perto": 40,
+  "combate": 10,
+  "bonus": 0.1,
+  "envio": 0.5
+ },
  "criador": {
   "cabelo": [
    null,
@@ -1672,7 +1686,7 @@
   "preco": 400,
   "placaDist": 3,
   "precoBloco": 4,
-  "ladoMin": 3,
+  "ladoMin": 6,
   "ladoMax": 20,
   "areaMax": 300,
   "folgaRua": 0.6,
@@ -1681,7 +1695,13 @@
   "pecasPorBloco": 0.4,
   "pecasMin": 12,
   "maxPecas": 120,
-  "estacaoDist": 3
+  "estacaoDist": 3,
+  "venda": 0.5,
+  "taxaBloco": 1,
+  "taxaDias": 7,
+  "taxaTrava": 2,
+  "fresta": 3,
+  "ima": 1.5
  },
  "construcoes": {
   "bancada": {
