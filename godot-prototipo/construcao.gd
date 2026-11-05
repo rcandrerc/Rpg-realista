@@ -371,6 +371,7 @@ func _lote_fora(id: String) -> void:
 	_refazer_solidos()
 	_refazer_pisos()
 	_achar_portas()
+	_grama_sob_horta() # a grama volta onde o terreno saiu
 
 # ---------- o que vem do servidor ----------
 func do_servidor_lotes(ev: Dictionary) -> void:
@@ -1138,39 +1139,55 @@ func _malha_terra(h: Dictionary) -> ArrayMesh:
 # A grama do chão (main.gd grama_pedacos) não fura a terra arada: as folhas em cima de um canteiro (com a borda solta)
 # ficam com tamanho zero; desarou, voltam. Só mexe nos pedaços que encostam no lote.
 var _grama_original := {} # MultiMeshInstance3D -> buffer de antes
-func _grama_sob_horta(L: Dictionary) -> void:
+# 2026-11-05 (André: "o chão continua com grama"): cada pedaço de grama (24 m) pega vários terrenos. A conta refazia o
+# pedaço a partir da grama original olhando só o terreno que chegou, e devolvia a grama embaixo das casas dos vizinhos
+# (o último terreno a chegar ganhava). Agora a conta olha todos os terrenos de uma vez, sempre que um deles muda.
+func _grama_sob_horta(_L = null) -> void:
 	if m.get("grama_pedacos") == null:
 		return
-	var l: Dictionary = L.def
-	var caixa := Rect2(float(l.x0) - 1.0, float(l.z0) - 1.0, float(l.x1) - float(l.x0) + 2.0, float(l.z1) - float(l.z0) + 2.0)
+	var caixas: Array = []
 	var celulas := {}
-	for c in L.horta:
-		celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
-	# 2026-11-05 (André): nada de grama furando a fundação, o piso ou os móveis; o retângulo de cada peça (menos o
-	# telhado, que fica no alto) tapa a grama embaixo, com uma folga de 15 cm
+	# nada de grama furando a fundação, o piso ou os móveis; o retângulo de cada peça (menos o telhado, que fica no
+	# alto) tapa a grama embaixo, com uma folga de 15 cm
 	var tampas: Array = []
-	for p in L.pecas:
-		if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
-			tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		var l: Dictionary = L.def
+		caixas.append(Rect2(float(l.x0) - 1.0, float(l.z0) - 1.0, float(l.x1) - float(l.x0) + 2.0, float(l.z1) - float(l.z0) + 2.0))
+		for c in L.horta:
+			celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
+		for p in L.pecas:
+			if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
+				tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
 	# a grama da vila e a das clareiras da mata (os lotes ficam perto da mata: era a que ainda furava o piso)
 	for g in m.grama_pedacos + m.get("grama_mata") if m.get("grama_mata") != null else m.grama_pedacos:
 		if not is_instance_valid(g) or g.multimesh == null:
 			continue
 		var mm: MultiMesh = g.multimesh
-		var orig: PackedFloat32Array = _grama_original.get(g, mm.buffer)
 		var n := mm.instance_count
 		if n == 0:
 			continue
 		var bb: AABB = g.global_transform * mm.get_aabb()
-		if not caixa.intersects(Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)):
+		var rb := Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)
+		var perto: Array = []
+		for c in caixas:
+			if c.intersects(rb):
+				perto.append(c)
+		if perto.is_empty() and not _grama_original.has(g):
 			continue
+		var orig: PackedFloat32Array = _grama_original.get(g, mm.buffer)
 		_grama_original[g] = orig
 		var buf := orig.duplicate()
 		var mexeu := false
 		for i in n:
 			var x: float = buf[i * 16 + 3]
 			var z: float = buf[i * 16 + 11]
-			if not caixa.has_point(Vector2(x, z)):
+			var dentro := false
+			for c in perto:
+				if c.has_point(Vector2(x, z)):
+					dentro = true
+					break
+			if not dentro:
 				continue
 			var tapa := false
 			for di in [-1, 0, 1]: # a terra solta passa uns 25 cm da borda
