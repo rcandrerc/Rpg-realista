@@ -29,9 +29,9 @@ jobs:
   apk:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
-    # Com a variável RUNNER_BUILD definida (ex.: "aethra-build"), roda no runner próprio da Oracle e NÃO gasta
-    # cota do GitHub. Sem ela, roda no GitHub (ubuntu-latest), como sempre. Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # TESTE do runner próprio: este ramo aponta direto para o runner da Oracle (etiqueta aethra-build).
+    # Na main continua ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}. Ver ferramentas/runner/LEIAME.md.
+    runs-on: [self-hosted, aethra-build]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
