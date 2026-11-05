@@ -75,7 +75,7 @@ static func altura_telhado(c: Dictionary, x: float, z: float) -> float:
 
 # Telhado em rampa (André 2026-11-05, o esquema do Quimera): mesma conta de shared/terreno.js rampasTelhado.
 # cel = [[x, z, r]]; cada quadrado sobe `sobe` m por quadrado seguido na mesma direção (Girar); duas rampas de frente
-# uma para a outra fecham a cumeeira (o quadrado do meio fica reto).
+# uma para a outra fecham numa ponta no meio do vão (sempre triângulo).
 const DIR_TELHADO := [Vector2(0, 1), Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0)]
 static func rampas_telhado(cel: Array, passo: float, sobe: float) -> Array:
 	var mapa := {}
@@ -98,17 +98,38 @@ static func rampas_telhado(cel: Array, passo: float, sobe: float) -> Array:
 		var z := float(q[1])
 		var r := int(q[2]) & 3
 		var d: Vector2 = DIR_TELHADO[r]
-		var h0: float = seguidos.call(x, z, r) * sobe
+		var n: int = seguidos.call(x, z, r)
+		var h0: float = n * sobe
 		var h1 := h0 + sobe
-		var plano := false
+		var hm := h0 + sobe / 2.0
 		var rf: int = mapa.get(k.call(x + d.x * passo, z + d.y * passo), -1)
-		if rf == ((r + 2) & 3) and absf((seguidos.call(x + d.x * passo, z + d.y * passo, rf) + 1) * sobe - h0) < 0.01:
-			plano = true
-			h1 = h0
-		l.append({"x": x, "z": z, "r": r, "dx": d.x, "dz": d.y, "h0": h0, "h1": h1, "plano": plano,
+		# Sempre pontudo (André 2026-11-05: "queria q ficasse sempre em triângulo"): rampa que encontra outra virada
+		# para ela vira um telhado de duas águas só, com a ponta no meio do vão inteiro (mesma inclinação). Vão ímpar:
+		# a ponta fica no meio do quadrado do meio (hm), nunca mais reto em cima. Mesma conta do servidor (terreno.js).
+		var f := 0
+		while f < 40 and mapa.get(k.call(x + d.x * passo * (f + 1), z + d.y * passo * (f + 1)), -1) == r:
+			f += 1
+		var xo := x + d.x * passo * (f + 1)
+		var zo := z + d.y * passo * (f + 1)
+		var ro: int = mapa.get(k.call(xo, zo), -1)
+		if ro == ((r + 2) & 3):
+			var S: float = (n + 1 + f + 1 + int(seguidos.call(xo, zo, ro))) * passo # o vão todo (m)
+			var i := sobe / passo # quanto sobe por metro
+			var t0 := n * passo
+			h0 = i * minf(t0, S - t0)
+			h1 = i * minf(t0 + passo, S - t0 - passo)
+			hm = i * S / 2.0 if absf(t0 + passo / 2.0 - S / 2.0) < passo / 2.0 - 0.000001 else (h0 + h1) / 2.0
+		var plano := absf(h1 - h0) < 0.01 and absf(hm - h0) < 0.01
+		l.append({"x": x, "z": z, "r": r, "dx": d.x, "dz": d.y, "h0": h0, "h1": h1, "hm": hm, "plano": plano,
 			"atras": mapa.has(k.call(x - d.x * passo, z - d.y * passo)), "frente": rf >= 0,
 			"esq": mapa.has(k.call(x - d.y * passo, z + d.x * passo)), "dir": mapa.has(k.call(x + d.y * passo, z - d.x * passo))})
 	return l
+
+# altura da rampa a u metros do meio do quadrado (h0 na beira de baixo, hm no meio, h1 na de cima; o beiral segue a reta)
+static func altura_na_rampa(q: Dictionary, u: float, g: float) -> float:
+	if u < 0.0:
+		return q.h0 + (q.hm - q.h0) * (u + g) / g
+	return q.hm + (q.h1 - q.hm) * minf(u, g) / g
 
 # altura do telhado em rampa num ponto (-1 = fora); beiral para fora onde não tem vizinho
 static func altura_rampa(c: Dictionary, x: float, z: float) -> float:
@@ -124,7 +145,7 @@ static func altura_rampa(c: Dictionary, x: float, z: float) -> float:
 			continue
 		if v > g + (0.0 if q.dir else b) + 0.001 or v < -g - (0.0 if q.esq else b) - 0.001:
 			continue
-		var a: float = c.base + 0.2 + q.h0 + (q.h1 - q.h0) * (minf(u, g) + g) / (2.0 * g)
+		var a: float = c.base + 0.2 + altura_na_rampa(q, u, g)
 		if a > h:
 			h = a
 	return h
