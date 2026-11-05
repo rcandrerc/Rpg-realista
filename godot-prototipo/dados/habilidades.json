@@ -2116,6 +2116,12 @@
  "bau": {
   "slots": 40
  },
+ "criarObra": {
+  "min": 3,
+  "max": 5,
+  "porMaterial": 0.125,
+  "maxFila": 20
+ },
  "morte": {
   "ouro": 0.1,
   "desgaste": 10,
