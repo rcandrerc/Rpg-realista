@@ -24,25 +24,135 @@ func _ready() -> void:
 	for we in get_parent().find_children("*", "WorldEnvironment", false, false):
 		env = we.environment
 
-# Vista do alto (direção de arte): quem sobe a montanha ganha a vista. Acima de ~15 m a névoa cai ~70%.
+# Vista do alto (direção de arte): quem sobe a montanha ganha a vista. Acima de ~15 m a névoa cai ~63%, a câmera
+# enxerga até 1200 m (o chão vai até 1500 m do centro, com a mata continuando) e a névoa apaga o longe aos poucos:
+# a 1200 m sobra uns 3% do chão, então não tem corte para o vazio. As copas simples (copas_simples) só ligam no alto.
+const LONGE_CAMERA := 1200.0
 func _process(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if env == null or cam == null:
 		return
 	var k := clampf((cam.global_position.y - 8.0) / 22.0, 0.0, 1.0)
-	env.fog_density = NEVOA * (1.0 - 0.7 * k * k * (3.0 - 2.0 * k))
+	k = k * k * (3.0 - 2.0 * k)
+	env.fog_density = NEVOA * (1.0 - 0.63 * k)
+	cam.far = lerpf(400.0, LONGE_CAMERA, k)
+	for c in _copas:
+		c.visible = cam.global_position.y > 7.0
 
-# Copas ao longe: as árvores somem a 80 m (desempenho). Daí em diante o chão pinta as copas vistas de cima (o mesmo
-# desenho do minimapa, modelos/minimapa.png), então do alto o horizonte mostra a mata, as trilhas, a vila e os lagos.
+# Chão visto de longe (direção de arte 2026-11-05: nada de desenho do minimapa colado no chão). Passando de ~75 m da
+# câmera, o chão continua sendo a mesma grama de perto; a máscara relevo/longe.png (client/exportar-godot/longe.mjs)
+# diz onde tem mata (a copa vista de cima, pintada com a textura da folha das árvores) e onde tem trilha (terra a
+# 50%). Fora do quadrado da máscara é tudo mata, até o horizonte.
+var _chao_mat: ShaderMaterial
 func _copas_ao_longe(mat: ShaderMaterial) -> void:
-	if mat == null or not ResourceLoader.exists("res://modelos/minimapa.png"):
+	_chao_mat = mat
+	var lg: Dictionary = T.m.get("longe", {})
+	if mat == null or lg.is_empty() or not ResourceLoader.exists("res://relevo/longe.png"):
 		return
-	var mm: Dictionary = T.m.get("minimapa", {})
-	if mm.is_empty():
+	mat.set_shader_parameter("longe_tex", load("res://relevo/longe.png"))
+	mat.set_shader_parameter("longe_area", Vector3(float(lg.x0), float(lg.z0), float(lg.tam)))
+	mat.set_shader_parameter("longe_ligado", 1.0)
+
+# Copas simples ao longe: as árvores de verdade somem a 80 m (desempenho). Do alto, cada árvore da mata ganha uma copa
+# de ~70 triângulos no mesmo lugar, tamanho e tom (copa_longe.gdshader encolhe as que estão a menos de 76 m, onde a
+# árvore de verdade ainda aparece). Só ligam com a câmera no alto (_process).
+var _copas: Array = []
+func copas_simples(arvores: Dictionary, malhas: Dictionary) -> void:
+	var por_tipo := {}
+	for pos in arvores:
+		var a: Dictionary = arvores[pos]
+		if not a.has("copa"):
+			continue
+		var v: int = a.v
+		if not por_tipo.has(v):
+			por_tipo[v] = []
+		por_tipo[v].append(a)
+	var sh := load("res://copa_longe.gdshader")
+	# a mata de fora do mapa andável (mundo.copas_fora): copas sem árvore de verdade, então não encolhem perto
+	var cores := []
+	for pos in arvores:
+		if arvores[pos].has("copa") and cores.size() < 64:
+			cores.append(arvores[pos].copa[2])
+	var fora := {}
+	var rng := RandomNumberGenerator.new()
+	for c in T.m.get("copas_fora", []):
+		var v := int(c[3])
+		rng.seed = hash(Vector2(c[0], c[1]))
+		var sc := float(c[2])
+		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * rng.randf_range(0.9, 1.1), sc * rng.randf_range(0.88, 1.15), sc * rng.randf_range(0.9, 1.1)))
+		var x := float(c[0])
+		var z := float(c[1])
+		if not fora.has(v):
+			fora[v] = []
+		fora[v].append({"t": Transform3D(b, Vector3(x, T.altura_montanha(x, z), z)), "copa": [null, 0, cores[rng.randi() % cores.size()] if cores.size() > 0 else Color(0.6, 0.7, 0.45)]})
+	for grupo in [por_tipo, fora]:
+		for v in grupo:
+			_grupo_de_copas(grupo[v], malhas.get("copa_%d" % v), sh, grupo == fora, v)
+	if _folha and _chao_mat:
+		_chao_mat.set_shader_parameter("folha_tex", _folha)
+
+var _folha: Texture2D
+func _grupo_de_copas(lista: Array, malha: Mesh, sh: Shader, sem_arvore: bool, v: int) -> void:
+	if malha == null or lista.is_empty():
 		return
-	mat.set_shader_parameter("copas_tex", load("res://modelos/minimapa.png"))
-	mat.set_shader_parameter("copas_area", Vector3(float(mm.x0), float(mm.z0), float(mm.tam)))
-	mat.set_shader_parameter("copas_ligado", 1.0)
+	var m0 = malha.surface_get_material(0)
+	if _folha == null and m0 is BaseMaterial3D:
+		_folha = m0.albedo_texture
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	if _folha:
+		mat.set_shader_parameter("folha_tex", _folha)
+	if sem_arvore:
+		mat.set_shader_parameter("perto", -10.0)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = _malha_copa(malha.get_aabb(), v)
+	mm.instance_count = lista.size()
+	for i in lista.size():
+		mm.set_instance_transform(i, lista[i].t)
+		mm.set_instance_color(i, lista[i].copa[2])
+	var g := MultiMeshInstance3D.new()
+	g.multimesh = mm
+	g.material_override = mat
+	g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.visible = false
+	add_child(g)
+	_copas.append(g)
+
+# copa de longe: uma bola amassada de 9 fatias x 5 andares dentro da caixa da copa de verdade, com o raio variando
+# (nada de bola perfeita) e o fundo achatado; UV.y = 0 embaixo e 1 em cima (a sombra de dentro da copa)
+func _malha_copa(bb: AABB, v: int) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77 + v
+	var c := bb.get_center()
+	var r := bb.size * 0.5 * 0.92
+	var fatias := 9
+	var andares := 5
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts := []
+	for j in andares + 1:
+		var fi := PI * float(j) / andares
+		var linha := []
+		for i in fatias:
+			var th := TAU * float(i) / fatias
+			var q := 1.0 if j == 0 or j == andares else rng.randf_range(0.82, 1.12)
+			var y := cos(fi)
+			if y < -0.35:
+				y = -0.35 - (y + 0.35) * 0.25 # fundo achatado
+			linha.append([Vector3(sin(fi) * cos(th) * q, y, sin(fi) * sin(th) * q), 1.0 - float(j) / andares])
+		pts.append(linha)
+	for j in andares:
+		for i in fatias:
+			var quad := [pts[j][i], pts[j + 1][i], pts[j + 1][(i + 1) % fatias], pts[j][(i + 1) % fatias]]
+			for t in [[0, 1, 2], [0, 2, 3]]:
+				for k in t:
+					var p: Vector3 = quad[k][0]
+					st.set_normal(p.normalized())
+					st.set_uv(Vector2(0.0, quad[k][1]))
+					st.add_vertex(c + p * r)
+	return st.commit()
 
 # ---------- montanha ----------
 func _montanha(grama_tex: Texture2D) -> void:

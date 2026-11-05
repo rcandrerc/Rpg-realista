@@ -308,7 +308,7 @@ func montar_chao() -> void:
 	m.set_shader_parameter("grama_cru", load("res://modelos/forrest_ground_01.jpg"))
 	m.set_shader_parameter("pedra_cru", load("res://modelos/cobblestone_floor_01.jpg"))
 	var p := PlaneMesh.new()
-	p.size = Vector2(620, 620) # a vila, o campo de fora e a mata (2026-11-03)
+	p.size = Vector2(3000, 3000) # a vila, o campo de fora, a mata e, do alto da montanha, a mata até o horizonte (2026-11-05)
 	var chao := MeshInstance3D.new()
 	chao.mesh = p
 	chao.position = Vector3(95, 0, 70)
@@ -318,6 +318,7 @@ func montar_chao() -> void:
 	# lagos e montanha (relevo.gd, pedido do André 2026-11-05): o chão plano abre buraco nos lagos
 	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"))
 	add_child(relevo)
+	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
 
 func peso_vila(x: float, z: float) -> float:
 	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
@@ -1235,6 +1236,7 @@ func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	l.offset = Vector2(0, 52) # em cima da barra
 	l.modulate = Color(1, 0.93, 0.8)
 	l.position = Vector3(0, 1.95, 0)
+	l.visibility_range_end = 60.0 # de longe (vista do alto) os nomes não se empilham lá na vila; monstros: NOME_LONGE
 	no.add_child(l)
 	if cor.a == 0:
 		return null
