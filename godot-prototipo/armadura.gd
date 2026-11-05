@@ -16,7 +16,13 @@ const SHADER_CAPA := preload("res://capa.gdshader")
 const PanoCapa := preload("res://pano_capa.gd") # física de pano da capa (André 2026-11-04)
 
 # uma linha só de armadura (André): Comum é de couro, do Raro em diante placas de aço com friso
+# André 2026-11-05: "adorei o equipamento de couro". Todas as raridades ficam de couro natural (sem placa de ferro);
+# o que muda de um set para o outro é só um detalhe na cor da raridade, discreto: ombreiras e cinto tingidos, mais a
+# capa. A linha de aço (v11c, ficha técnica) continua aqui: COURO_EM_TUDO = false volta para ela.
+const COURO_EM_TUDO := true
 static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
+	if COURO_EM_TUDO and r >= 1:
+		return _pecas_couro(k, r)
 	var metal := r >= 1
 	match k:
 		"peitoral":
@@ -43,6 +49,24 @@ static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
 			return [["capa", "capa"]]
 		"chapeu": # Capacete: Comum de couro, Raro em diante de aço
 			return [["elmo", "elmo" if metal else "elmo_couro"]]
+	return []
+# sets de couro (Raro em diante): a mesma armadura do Comum, mais luvas sem dedos, joelheiras de couro, cinto de
+# quadril e (no masculino) a túnica; ombreiras e cinto na cor do set ("couro_set")
+static func _pecas_couro(k: String, r: int) -> Array:
+	match k:
+		"peitoral":
+			return [["peito", "couro"], ["ombro_e", "couro_set"], ["ombro_d", "couro_set"], ["braco_e", "couro"], ["braco_d", "couro"],
+				["cinto", "cinto_set"], ["cinto_quadril", "cinto_quadril"], ["luva_e", "couro_marrom"], ["luva_d", "couro_marrom"]]
+		"calca":
+			return [["coxa_e", "calca"], ["coxa_d", "calca"], ["saia", "saia_couro"], ["tabardo", "couro_tunica"]]
+		"short":
+			return [["short_e", "couro_escuro"], ["short_d", "couro_escuro"], ["saia", "saia_couro"], ["tabardo", "couro_tunica"]]
+		"botas":
+			return [["cano_e", "couro"], ["cano_d", "couro"], ["joelho_e", "couro_set"], ["joelho_d", "couro_set"], ["sapato_couro", "couro"]]
+		"capa":
+			return [["capa", "capa"]]
+		"chapeu":
+			return [["elmo", "elmo_couro"]]
 	return []
 const PECAS := {"chapeu": "cabeca", "peitoral": "corpo", "calca": "pernas", "short": "pernas", "botas": "pes", "capa": "capa"}
 const LUGARES := ["cabeca", "corpo", "pernas", "pes", "capa"]
@@ -77,6 +101,13 @@ const COLETE := [Color("8a6a48"), Color("4e3422"), Color("4a3222"), Color("4e342
 const BRILHO := [0.0, 0.0, 0.05, 0.1, 0.3]
 const CAPA := [[Color(0.45, 0.33, 0.24), Color(0.3, 0.22, 0.16)], [Color(0.14, 0.2, 0.36), Color(0.07, 0.1, 0.18)],
 	[Color(0.27, 0.13, 0.38), Color(0.13, 0.06, 0.19)], [Color(0.44, 0.07, 0.1), Color(0.22, 0.035, 0.05)], [Color(0.2, 0.05, 0.07), Color(0.08, 0.02, 0.03)]] # Lendário vinho escuro (referência)
+# couro tingido de cada set (ombreiras, joelheiras e cinto): tons escuros e foscos, nada chamativo
+const COURO_SET := [
+	[Color("9a7a58"), Color("6e4e32"), Color("2e1e12")], # Comum: o próprio couro
+	[Color("6a7682"), Color("3a4656"), Color("141a20")], # Raro: azul-petróleo
+	[Color("766a82"), Color("4a3c58"), Color("18121e")], # Épico: roxo
+	[Color("8a5a4e"), Color("5a2a26"), Color("200e0c")], # Lendário: vinho
+	[Color("5a4e4e"), Color("2e2424"), Color("0e0a0a")]] # Mítico: couro negro
 const CINTO_QUADRIL := [Color("5a3e28"), Color("3e2a1a"), Color("150c07")] # couro marrom (v11)
 
 static var _malhas := {} # "id da malha:parte" -> ArrayMesh pronta
@@ -930,7 +961,9 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 				return Vector2(-1, 0)
 			return Vector2(0.012, p.z)
 		"cano_e", "cano_d":
-			if p.y > R.y_joelho - 0.12 or p.y < R.y_pe - 0.01 or ax > 0.16:
+			# André 2026-11-05 (sets de couro): o cano sobe até 5 cm do joelho (antes 12 cm: aparecia a perna entre a
+			# joelheira e a bota)
+			if p.y > R.y_joelho - (0.05 if COURO_EM_TUDO else 0.12) or p.y < R.y_pe - 0.01 or ax > 0.16:
 				return Vector2(-1, 0)
 			return Vector2(0.011, p.y)
 		"coxa_e", "coxa_d":
@@ -1327,7 +1360,7 @@ static func _cinto_em(tops: MeshInstance3D, R: Ref, r: int, ba: Node3D, rest: Tr
 		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = _malhas[chave][0]
-	mi.material_override = _material("cinto", r)
+	mi.material_override = _material("cinto_set" if COURO_EM_TUDO and r >= 1 else "cinto", r)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	mi.transform = rest.affine_inverse() * _G()
 	ba.add_child(mi)
@@ -2252,7 +2285,9 @@ static func _material(tipo: String, r: int) -> Material:
 		s.shader = SHADER_METAL
 		var c3: Array = METAL[r]
 		if tipo == "couro" or tipo == "elmo_couro":
-			c3 = COURO if r == 0 else COURO_ESCURO
+			c3 = COURO if r == 0 or COURO_EM_TUDO else COURO_ESCURO
+		elif tipo == "couro_set" or tipo == "cinto_set":
+			c3 = COURO_SET[r] # couro tingido na cor do set
 		elif tipo == "couro_escuro":
 			c3 = COURO_ESCURO
 		elif tipo == "couro_marrom":
@@ -2267,7 +2302,7 @@ static func _material(tipo: String, r: int) -> Material:
 		s.set_shader_parameter("friso", FRISO[r][0])
 		s.set_shader_parameter("friso_claro", FRISO[r][1])
 		s.set_shader_parameter("brilho", BRILHO[r])
-		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") or tipo == "elmo_couro" or tipo == "cinto" else 1.0)
+		s.set_shader_parameter("duro", 0.0 if tipo.begins_with("couro") or tipo == "elmo_couro" or tipo == "cinto" or tipo == "cinto_set" else 1.0)
 		s.set_shader_parameter("so_friso", 1.0 if tipo == "fecho" else 0.0)
 		s.set_shader_parameter("costura", 1.0 if tipo.begins_with("couro") or tipo == "elmo_couro" else 0.0)
 		if tipo.begins_with("couro") or tipo == "elmo_couro":
