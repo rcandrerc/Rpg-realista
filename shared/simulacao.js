@@ -1353,18 +1353,39 @@ export class Simulacao {
 
   // ---------- criação: Ferreiro e Alfaiate (shared/dados.js RECEITAS) ----------
   // m = { r: 'espada' } (receita). Perto da oficina: usa os materiais, gasta vigor e dá a peça (raridade sorteada).
+  // m = { r, n } (André 2026-11-05): fila de n com barrinha, igual à construção (fabricar); cada uma leva tempoCriar(R) s.
   criar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
-    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const R = RECEITAS[m.r], aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!R) return;
+    if (m.n === undefined) return this.criarUm(id, m);
+    if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
+    const motivo = this.motivoReceita(j, R).motivo; if (motivo) return aviso(motivo);
+    const n = Math.max(1, Math.min(CRIAR_OBRA.maxFila, m.n | 0 || 1)), dur = tempoCriar(R);
+    const nome = ITENS[R.faz].nome;
+    j.fabrica = { r: m.r, k: R.faz, nome, n, feito: 0, dur, fim: this.tempo + dur };
+    this.evento({ t: 'fabricando', para: id, k: R.faz, r: m.r, nome, n, feito: 0, dur });
+  }
+  // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
+  motivoReceita(j, R) {
+    const p = j.prog;
     const of = OFICINA[R.prof], npc0 = (this.mapa.npcs || []).find((n) => n.id === of.npc);
     // na oficina do NPC ou perto da estação certa construída num lote (bigorna, fornalha ou bancada)
     const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
-    if (!npc) return aviso(`Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}`);
-    if (profNivel(p.prof[R.prof]) < R.nivel) return aviso(`Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}`);
-    for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})`);
+    if (!npc) return { motivo: `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
+    for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return { motivo: `Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})` };
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
-    if (vigorAgora(p.vigor) < custo) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    if (vigorAgora(p.vigor) < custo) return { motivo: 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)' };
+    return { motivo: '', npc };
+  }
+  // cria uma da receita na hora (a fila chama uma vez por barrinha)
+  criarUm(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
+    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!R) return;
+    const { motivo, npc } = this.motivoReceita(j, R); if (motivo) return aviso(motivo);
+    const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
     let novo;
     if (ehEquip(R.faz)) {
       let r = 0; const ch = chanceRaridade(p.prof[R.prof]);
@@ -1638,18 +1659,18 @@ export class Simulacao {
   pararFabrica(j, texto) {
     const f = j.fabrica; j.fabrica = null;
     if (texto) this.evento({ t: 'aviso', para: j.id, texto });
-    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0 });
+    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', nome: f ? f.nome : undefined, fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0 });
   }
   // a barrinha encheu: cria uma e começa a próxima (ou termina a fila)
   passoFabrica(j) {
     const f = j.fabrica;
     if (j.morto) return this.pararFabrica(j, '');
-    const motivo = this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
-    this.fabricarUm(j.id, f.k);
+    const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
+    if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
     f.feito++;
     if (f.feito >= f.n) return this.pararFabrica(j, f.n > 1 ? `Pronto: ${f.n} criados` : '');
     f.fim = this.tempo + f.dur;
-    this.evento({ t: 'fabricando', para: j.id, k: f.k, n: f.n, feito: f.feito, dur: f.dur });
+    this.evento({ t: 'fabricando', para: j.id, k: f.k, r: f.r, nome: f.nome, n: f.n, feito: f.feito, dur: f.dur });
   }
   // por que não dá para criar agora ('' = dá)
   motivoFabricar(j, k) {

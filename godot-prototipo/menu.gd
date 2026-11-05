@@ -1206,6 +1206,9 @@ func criar(r: String) -> void:
 	if not m.on():
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
+	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
+		m.construcao.pedir_criar("receita", r)
+		return
 	m.rede("criar", {"r": r})
 
 # ---------- aba Criar (André 2026-11-04): tudo o que se cria, em submenus ----------
@@ -1360,6 +1363,9 @@ func criar_item(e: Dictionary) -> void:
 		return
 	if not m.on():
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
+		return
+	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
+		m.construcao.pedir_criar("obra", e.k)
 		return
 	m.rede("fabricar", {"k": e.k})
 

@@ -775,8 +775,9 @@ export const FERRAMENTAS_FAZENDA = {
 };
 // Criar peça da casa ou ferramenta (André 2026-11-05): cada uma leva de 3 a 5 s (mais material, mais tempo), com a
 // barrinha carregando; dá para pedir várias de uma vez (até maxFila) e elas saem uma atrás da outra
+// tempoCriar serve para peça (custo) e receita do Ferreiro/Alfaiate (usa)
 export const CRIAR_OBRA = { min: 3, max: 5, porMaterial: 0.125, maxFila: 20 };
-export const tempoCriar = (C) => Math.min(CRIAR_OBRA.max, Math.max(CRIAR_OBRA.min, CRIAR_OBRA.min + Object.values(C.custo).reduce((a, n) => a + n, 0) * CRIAR_OBRA.porMaterial));
+export const tempoCriar = (C) => Math.min(CRIAR_OBRA.max, Math.max(CRIAR_OBRA.min, CRIAR_OBRA.min + Object.values(C.custo || C.usa || {}).reduce((a, n) => a + n, 0) * CRIAR_OBRA.porMaterial));
 export const BAU = { slots: 40 }; // pilhas guardadas (todos os baús do jogador são o mesmo, como no Quimera)
 // Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
 // a terra regada fica molhada por "rega" horas; sem água a planta não cresce)
