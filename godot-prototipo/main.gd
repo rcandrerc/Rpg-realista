@@ -3203,7 +3203,6 @@ func ferir_heroi(dmg: float, teto := 99.0) -> void:
 		volta.cancelar("")
 		montar_lobo(false, false) # caiu: desce do lobo (o servidor também)
 		heroi_anim.play("morrer", 0.1)
-		hud.aviso("Você caiu! Voltando...")
 
 # o herói levou dano: tranco na câmera, som e vibração (offline e online)
 func apanhou() -> void:
