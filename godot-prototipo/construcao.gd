@@ -69,7 +69,22 @@ var _avisou_conta := false
 # tela
 var tela: CanvasLayer
 var painel: PanelContainer # barra de itens embaixo (modo construção)
-var linha_abas: VBoxContainer
+var linha_abas: HBoxContainer
+var painel_acoes: PanelContainer # botões grandes à direita (Colocar, Criar, Girar, Sair)
+# criar com quantidade e barrinha (André 2026-11-05)
+var painel_qtd: PanelContainer # janela: quantas criar
+var txt_qtd_tit: Label
+var txt_qtd_custo: Label
+var txt_qtd_n: Label
+var b_qtd_ok: Button
+var qtd := 1
+var _qtd_k := ""
+var _qtd_tipo := "obra" # "obra" (peça/ferramenta: fabricar) ou "receita" (Ferreiro/Alfaiate: criar)
+var tela_criar: CanvasLayer # janela e barrinha por cima do menu (a aba Criar da mochila e a mesa também usam)
+var painel_fab: PanelContainer # "Criando Fundação 2/6" com a barrinha carregando
+var txt_fab: Label
+var barra_fab: ProgressBar
+var _fab := {} # {k, n, feito, dur, ini (s deste celular), fim (s em que some)}
 var linha_itens: HBoxContainer
 var b_girar: Button
 var b_criar: Button
@@ -923,7 +938,14 @@ func _grama_sob_horta(L: Dictionary) -> void:
 	var celulas := {}
 	for c in L.horta:
 		celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
-	for g in m.grama_pedacos:
+	# 2026-11-05 (André): nada de grama furando a fundação, o piso ou os móveis; o retângulo de cada peça (menos o
+	# telhado, que fica no alto) tapa a grama embaixo, com uma folga de 15 cm
+	var tampas: Array = []
+	for p in L.pecas:
+		if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
+			tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
+	# a grama da vila e a das clareiras da mata (os lotes ficam perto da mata: era a que ainda furava o piso)
+	for g in m.grama_pedacos + m.get("grama_mata") if m.get("grama_mata") != null else m.grama_pedacos:
 		if not is_instance_valid(g) or g.multimesh == null:
 			continue
 		var mm: MultiMesh = g.multimesh
@@ -948,6 +970,11 @@ func _grama_sob_horta(L: Dictionary) -> void:
 					var k := Vector2i(floori(x) + di, floori(z) + dj)
 					if celulas.has(k) and absf(x - (k.x + 0.5)) < 0.72 and absf(z - (k.y + 0.5)) < 0.72:
 						tapa = true
+			if not tapa:
+				for R in tampas:
+					if R.has_point(Vector2(x, z)):
+						tapa = true
+						break
 			if tapa:
 				for c in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
 					buf[i * 16 + c] = 0.0
@@ -1188,7 +1215,131 @@ func criar() -> void:
 		m.hud.aviso(mot)
 		m.sons.tocar("dash", -12.0)
 		return
-	m.rede("fabricar", {"k": k})
+	if not _fab.is_empty() and not _fab.get("acabou", false):
+		m.hud.aviso("Já está criando: espere a barrinha ou toque em Parar")
+		return
+	pedir_criar("obra", k)
+
+# abre a janelinha de quantas (construção, aba Criar da mochila e mesa de criar).
+# tipo "obra": peça da casa ou ferramenta (ferramenta sai uma só, direto na barrinha); "receita": Ferreiro/Alfaiate.
+func pedir_criar(tipo: String, k: String) -> void:
+	if not m.on():
+		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
+		return
+	if not _fab.is_empty() and not _fab.get("acabou", false):
+		m.hud.aviso("Já está criando: espere a barrinha ou toque em Parar")
+		return
+	if tipo == "obra":
+		var mot := motivo_criar(k)
+		if mot != "":
+			m.hud.aviso(mot)
+			return
+		if not D.construcoes.has(k):
+			m.rede("fabricar", {"k": k, "n": 1})
+			return
+	_qtd_tipo = tipo
+	_qtd_k = k
+	qtd = 1
+	_mostrar_qtd()
+	painel_qtd.visible = true
+
+# custo em materiais de uma unidade (peça: custo; receita: usa)
+func _custo_qtd() -> Dictionary:
+	return D.receitas[_qtd_k].usa if _qtd_tipo == "receita" else dados_criar(_qtd_k).custo
+
+func _nome_qtd() -> String:
+	return str(D.itens[str(D.receitas[_qtd_k].faz)].nome) if _qtd_tipo == "receita" else str(dados_criar(_qtd_k).nome)
+
+# vigor de uma receita (0 nas peças)
+func _vigor_qtd() -> float:
+	if _qtd_tipo != "receita":
+		return 0.0
+	var R: Dictionary = D.receitas[_qtd_k]
+	return float(m.P.custo_vigor(str(R.prof), float(R.vigor)))
+
+# quantas dá para criar com o que tenho (no máximo a fila do servidor)
+func _qtd_max(k: String) -> int:
+	var n := _quantas(_custo_qtd()) if k == _qtd_k else _quantas(dados_criar(k).custo)
+	var vg := _vigor_qtd() if k == _qtd_k else 0.0
+	if vg > 0.0:
+		n = mini(n, int(floor(float(m.P.vigor()) / vg + 0.001)))
+	return clampi(n, 1, int(D.get("criarObra", {}).get("maxFila", 20)))
+
+# segundos de uma (mesma conta de tempoCriar em shared/dados.js)
+func tempo_custo(custo: Dictionary) -> float:
+	var R: Dictionary = D.get("criarObra", {"min": 3.0, "max": 5.0, "porMaterial": 0.125})
+	var soma := 0
+	for c in custo:
+		soma += int(custo[c])
+	return clampf(float(R.min) + soma * float(R.porMaterial), float(R.min), float(R.max))
+
+func tempo_criar(k: String) -> float:
+	return tempo_custo(dados_criar(k).get("custo", {}))
+
+func _mostrar_qtd() -> void:
+	var custo := _custo_qtd()
+	var mx := _qtd_max(_qtd_k)
+	var t := tempo_custo(custo)
+	var vg := _vigor_qtd()
+	qtd = clampi(qtd, 1, mx)
+	txt_qtd_tit.text = "Criar %s" % _nome_qtd()
+	var total := {}
+	for c in custo:
+		total[c] = int(custo[c]) * qtd
+	var cada := custo_txt(custo) + ((" · vigor %s" % str(snappedf(vg, 0.1)).replace(".", ",")) if vg > 0.0 else "")
+	var tudo := custo_txt(total) + ((" · vigor %s" % str(snappedf(vg * qtd, 0.1)).replace(".", ",")) if vg > 0.0 else "")
+	txt_qtd_custo.text = "Cada uma: %s · %s s\nTotal: %s · %s s (dá para %d)" % [cada, str(snappedf(t, 0.1)).replace(".", ","),
+		tudo, str(snappedf(t * qtd, 0.1)).replace(".", ","), mx]
+	txt_qtd_n.text = str(qtd)
+	b_qtd_ok.text = "Criar %d" % qtd
+
+func _mudar_qtd(d: int) -> void:
+	qtd = clampi(qtd + d, 1, _qtd_max(_qtd_k)) if d != 999 else _qtd_max(_qtd_k)
+	_mostrar_qtd()
+
+func _confirmar_qtd() -> void:
+	painel_qtd.visible = false
+	if _qtd_tipo == "receita":
+		m.rede("criar", {"r": _qtd_k, "n": qtd})
+		return
+	var mot := motivo_criar(_qtd_k)
+	if mot != "":
+		m.hud.aviso(mot)
+		return
+	m.rede("fabricar", {"k": _qtd_k, "n": qtd})
+
+# o servidor começou uma (barrinha do zero) ou acabou a fila
+func fabricando(ev: Dictionary) -> void:
+	var k := str(ev.get("k", ""))
+	var nome := str(ev.get("nome", "")) # receitas mandam o nome
+	if nome == "" and k != "":
+		nome = str(dados_criar(k).get("nome", ""))
+	if ev.get("fim", false):
+		if _fab.is_empty():
+			return
+		_fab.acabou = true
+		_fab.feito = int(ev.get("feito", 0))
+		_fab.fim = Time.get_ticks_msec() / 1000.0 + 1.2
+		barra_fab.value = 1.0 if _fab.feito >= int(_fab.n) else barra_fab.value
+		txt_fab.text = ("Pronto: %d %s" % [_fab.feito, nome]) if _fab.feito > 0 else "Parou de criar"
+		return
+	_fab = {"k": k, "nome": nome, "n": int(ev.get("n", 1)), "feito": int(ev.get("feito", 0)), "dur": maxf(0.1, float(ev.get("dur", 3.0))), "ini": Time.get_ticks_msec() / 1000.0}
+	painel_fab.visible = true
+
+func _passo_fab() -> void:
+	if _fab.is_empty():
+		return
+	var agora := Time.get_ticks_msec() / 1000.0
+	if _fab.get("acabou", false):
+		if agora >= float(_fab.fim):
+			_fab = {}
+			painel_fab.visible = false
+		return
+	barra_fab.value = clampf((agora - float(_fab.ini)) / float(_fab.dur), 0.0, 1.0)
+	txt_fab.text = "Criando %s · %d de %d" % [_fab.nome, int(_fab.feito) + 1, int(_fab.n)]
+
+func parar_criar() -> void:
+	m.rede("fabricar", {"parar": true})
 
 # o servidor criou: brilho e som de bancada; a barra se atualiza quando a mochila chegar
 func fabricou(ev: Dictionary) -> void:
@@ -1383,6 +1534,7 @@ func _process(dt: float) -> void:
 	m.hud.mostrar_botao("correio", _meu_correio_perto() and vivo and not livre and prof == "")
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
+	_passo_fab()
 	_mexer_portas(hp, dt)
 	_telhados_visiveis(hp)
 	if livre:
@@ -1464,6 +1616,7 @@ func abrir() -> void:
 	var ry: float = m.mov.ry
 	mira = hp + Vector3(sin(ry), 0, cos(ry)) * 2.0
 	painel.visible = true
+	painel_acoes.visible = true
 	_montar_itens()
 	_mostrar_borda(true)
 	m.hud.aviso("Modo construção: o joystick move a câmera e a mira. Toque no chão para mirar.")
@@ -1473,6 +1626,7 @@ func sair() -> void:
 		return
 	ativo = false
 	painel.visible = false
+	painel_acoes.visible = false
 	if fantasma:
 		fantasma.queue_free()
 		fantasma = null
@@ -2081,7 +2235,7 @@ func comprar() -> void:
 
 # ---------- tela: barra de itens embaixo, no meio (como a do Quimera); o joystick à esquerda continua livre ----------
 func cobre(p: Vector2) -> bool:
-	for pn in [painel, painel_compra, painel_bau]:
+	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_qtd, painel_fab]:
 		if pn != null and pn.visible and pn.get_global_rect().grow(6).has_point(p):
 			return true
 	return false
@@ -2111,55 +2265,67 @@ func _montar_tela() -> void:
 	tela = CanvasLayer.new()
 	tela.layer = 6
 	add_child(tela)
-	# modo construção
+	# modo construção (2026-11-05, André: letras maiores e mais fácil no celular): embaixo, as abas grandes, o nome
+	# e o custo do que está escolhido, o aviso (verde pode / vermelho não pode) e os quadrados com nome embaixo;
+	# à direita, os botões grandes: Colocar, Criar, Girar e Sair
 	painel = _barra_embaixo()
+	painel.offset_left = -8
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	painel.add_child(col)
-	var topo := HBoxContainer.new()
-	topo.add_theme_constant_override("separation", 10)
-	col.add_child(topo)
-	txt_nome = Menu.rotulo("", 14, Menu.OURO_CLARO)
-	topo.add_child(txt_nome)
-	txt_motivo = Menu.rotulo("", 13, Color("ffb3a3"))
-	txt_motivo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	txt_motivo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	txt_motivo.clip_text = true
-	txt_motivo.custom_minimum_size = Vector2(240, 0)
-	topo.add_child(txt_motivo)
-	var baixo := HBoxContainer.new()
-	baixo.add_theme_constant_override("separation", 6)
-	col.add_child(baixo)
-	linha_abas = VBoxContainer.new()
-	linha_abas.add_theme_constant_override("separation", 4)
-	baixo.add_child(linha_abas)
+	linha_abas = HBoxContainer.new()
+	linha_abas.add_theme_constant_override("separation", 6)
+	col.add_child(linha_abas)
 	for k in ["casa", "moveis", "fazenda", "terreno"]:
-		var b := _botao({"casa": "Casa", "moveis": "Móveis", "fazenda": "Fazenda", "terreno": "Terreno"}[k], func(): trocar_aba(k), k == aba, 13)
-		b.custom_minimum_size = Vector2(88, 24)
+		var b := _botao({"casa": "Casa", "moveis": "Móveis", "fazenda": "Fazenda", "terreno": "Terreno"}[k], func(): trocar_aba(k), k == aba, 19)
+		b.custom_minimum_size = Vector2(118, 42)
 		_botoes_abas[k] = b
 		linha_abas.add_child(b)
-	var pc := Menu.rotulo("", 13, Menu.APAGADO)
+	var pc := Menu.rotulo("", 17, Menu.APAGADO)
 	pc.name = "pecas"
-	pc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pc.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	pc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	linha_abas.add_child(pc)
+	txt_nome = Menu.rotulo("", 19, Menu.OURO_CLARO)
+	txt_nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt_nome.custom_minimum_size = Vector2(700, 0)
+	col.add_child(txt_nome)
+	txt_motivo = Menu.rotulo("", 18, Color("ffb3a3"))
+	txt_motivo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt_motivo.custom_minimum_size = Vector2(700, 0)
+	col.add_child(txt_motivo)
+	var rolar := ScrollContainer.new()
+	rolar.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	rolar.custom_minimum_size = Vector2(760, 96)
+	col.add_child(rolar)
 	linha_itens = HBoxContainer.new()
-	linha_itens.add_theme_constant_override("separation", 5)
-	baixo.add_child(linha_itens)
-	var sep := VSeparator.new()
-	sep.add_theme_constant_override("separation", 8)
-	baixo.add_child(sep)
-	b_girar = _botao("Girar", girar)
-	b_girar.custom_minimum_size = Vector2(70, 62)
-	baixo.add_child(b_girar)
-	b_criar = _botao("Criar", criar, false, 16)
-	b_criar.custom_minimum_size = Vector2(84, 62)
-	baixo.add_child(b_criar)
-	b_ok = _botao("Colocar", colocar, true, 16)
-	b_ok.custom_minimum_size = Vector2(104, 62)
-	baixo.add_child(b_ok)
-	b_sair = _botao("Sair", sair)
-	b_sair.custom_minimum_size = Vector2(66, 62)
-	baixo.add_child(b_sair)
+	linha_itens.add_theme_constant_override("separation", 6)
+	rolar.add_child(linha_itens)
+	painel_acoes = PanelContainer.new()
+	painel_acoes.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.93), Menu.OURO.darkened(0.25), 2, 10, 10))
+	painel_acoes.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	painel_acoes.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	painel_acoes.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	painel_acoes.offset_right = -12
+	painel_acoes.offset_bottom = -12
+	painel_acoes.visible = false
+	tela.add_child(painel_acoes)
+	var acoes := VBoxContainer.new()
+	acoes.add_theme_constant_override("separation", 8)
+	painel_acoes.add_child(acoes)
+	b_ok = _botao("Colocar", colocar, true, 24)
+	b_ok.custom_minimum_size = Vector2(170, 76)
+	acoes.add_child(b_ok)
+	b_criar = _botao("Criar", criar, false, 22)
+	b_criar.custom_minimum_size = Vector2(170, 62)
+	acoes.add_child(b_criar)
+	b_girar = _botao("Girar", girar, false, 20)
+	b_girar.custom_minimum_size = Vector2(170, 54)
+	acoes.add_child(b_girar)
+	b_sair = _botao("Sair", sair, false, 20)
+	b_sair.custom_minimum_size = Vector2(170, 50)
+	acoes.add_child(b_sair)
 	# compra do terreno
 	painel_compra = _barra_embaixo()
 	var cc := VBoxContainer.new()
@@ -2168,26 +2334,105 @@ func _montar_tela() -> void:
 	var t1 := HBoxContainer.new()
 	t1.add_theme_constant_override("separation", 10)
 	cc.add_child(t1)
-	txt_compra_tit = Menu.rotulo("Comprar terreno", 16, Menu.OURO)
+	txt_compra_tit = Menu.rotulo("Comprar terreno", 19, Menu.OURO)
 	t1.add_child(txt_compra_tit)
-	txt_compra = Menu.rotulo("", 16)
+	txt_compra = Menu.rotulo("", 19)
 	txt_compra.custom_minimum_size = Vector2(380, 0)
 	t1.add_child(txt_compra)
 	var t2 := HBoxContainer.new()
 	t2.add_theme_constant_override("separation", 10)
 	cc.add_child(t2)
-	txt_compra_info = Menu.rotulo("", 13, Menu.APAGADO)
+	txt_compra_info = Menu.rotulo("", 16, Menu.APAGADO)
 	txt_compra_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	txt_compra_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	txt_compra_info.custom_minimum_size = Vector2(360, 0)
 	t2.add_child(txt_compra_info)
-	var canc := _botao("Cancelar", sair_compra)
-	canc.custom_minimum_size = Vector2(100, 42)
+	var canc := _botao("Cancelar", sair_compra, false, 18)
+	canc.custom_minimum_size = Vector2(120, 54)
 	t2.add_child(canc)
-	b_comprar = _botao("Comprar", comprar, true, 16)
-	b_comprar.custom_minimum_size = Vector2(120, 42)
+	b_comprar = _botao("Comprar", comprar, true, 20)
+	b_comprar.custom_minimum_size = Vector2(150, 54)
 	t2.add_child(b_comprar)
 	_montar_tela_bau()
+	_montar_tela_criar()
+
+func _montar_tela_criar() -> void:
+	painel_qtd = PanelContainer.new()
+	painel_qtd.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.97), Menu.OURO.darkened(0.15), 2, 12, 12))
+	painel_qtd.set_anchors_preset(Control.PRESET_CENTER)
+	painel_qtd.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	painel_qtd.grow_vertical = Control.GROW_DIRECTION_BOTH
+	painel_qtd.visible = false
+	tela_criar = CanvasLayer.new()
+	tela_criar.layer = 25 # acima do menu (20): a aba Criar e a mesa abrem a mesma janela
+	add_child(tela_criar)
+	tela_criar.add_child(painel_qtd)
+	var c := VBoxContainer.new()
+	c.add_theme_constant_override("separation", 10)
+	painel_qtd.add_child(c)
+	txt_qtd_tit = Menu.rotulo("", 24, Menu.OURO)
+	txt_qtd_tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	c.add_child(txt_qtd_tit)
+	txt_qtd_custo = Menu.rotulo("", 18, Menu.TEXTO)
+	txt_qtd_custo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	txt_qtd_custo.custom_minimum_size = Vector2(440, 0)
+	c.add_child(txt_qtd_custo)
+	var linha := HBoxContainer.new()
+	linha.alignment = BoxContainer.ALIGNMENT_CENTER
+	linha.add_theme_constant_override("separation", 10)
+	c.add_child(linha)
+	for d in [-5, -1]:
+		var b := _botao(str(d), func(): _mudar_qtd(d), false, 24)
+		b.custom_minimum_size = Vector2(70, 62)
+		linha.add_child(b)
+	txt_qtd_n = Menu.rotulo("1", 36, Color.WHITE)
+	txt_qtd_n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	txt_qtd_n.custom_minimum_size = Vector2(80, 0)
+	linha.add_child(txt_qtd_n)
+	for d in [1, 5]:
+		var b := _botao("+%d" % d, func(): _mudar_qtd(d), false, 24)
+		b.custom_minimum_size = Vector2(70, 62)
+		linha.add_child(b)
+	var bm := _botao("Máx", func(): _mudar_qtd(999), false, 20)
+	bm.custom_minimum_size = Vector2(80, 62)
+	linha.add_child(bm)
+	var fim := HBoxContainer.new()
+	fim.alignment = BoxContainer.ALIGNMENT_CENTER
+	fim.add_theme_constant_override("separation", 14)
+	c.add_child(fim)
+	var canc := _botao("Cancelar", func(): painel_qtd.visible = false, false, 20)
+	canc.custom_minimum_size = Vector2(160, 62)
+	fim.add_child(canc)
+	b_qtd_ok = _botao("Criar 1", _confirmar_qtd, true, 24)
+	b_qtd_ok.custom_minimum_size = Vector2(200, 62)
+	fim.add_child(b_qtd_ok)
+	# barrinha (em cima, no meio; continua aparecendo fora do modo construção)
+	painel_fab = PanelContainer.new()
+	painel_fab.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.93), Menu.OURO.darkened(0.25), 2, 10, 10))
+	painel_fab.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	painel_fab.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	painel_fab.offset_top = 132
+	painel_fab.visible = false
+	tela_criar.add_child(painel_fab)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	painel_fab.add_child(h)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	h.add_child(v)
+	txt_fab = Menu.rotulo("", 20, Menu.OURO_CLARO)
+	v.add_child(txt_fab)
+	barra_fab = ProgressBar.new()
+	barra_fab.min_value = 0.0
+	barra_fab.max_value = 1.0
+	barra_fab.show_percentage = false
+	barra_fab.custom_minimum_size = Vector2(360, 22)
+	barra_fab.add_theme_stylebox_override("background", Menu.caixa(Color(0.05, 0.04, 0.03), Menu.OURO.darkened(0.5), 1, 6))
+	barra_fab.add_theme_stylebox_override("fill", Menu.caixa(Color("e0a94a"), Color("ffe2a0"), 1, 6))
+	v.add_child(barra_fab)
+	var bp := _botao("Parar", parar_criar, false, 18)
+	bp.custom_minimum_size = Vector2(100, 56)
+	h.add_child(bp)
 
 # ---------- baú (Quimera: todos os seus baús guardam as mesmas 40 pilhas) ----------
 func _meu_bau_perto() -> bool:
@@ -2229,11 +2474,11 @@ func _montar_tela_bau() -> void:
 	painel_bau.add_child(col)
 	var topo := HBoxContainer.new()
 	col.add_child(topo)
-	txt_bau = Menu.rotulo("Baú", 17, Menu.OURO)
+	txt_bau = Menu.rotulo("Baú", 20, Menu.OURO)
 	txt_bau.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	topo.add_child(txt_bau)
-	var fe := _botao("Fechar", fechar_bau)
-	fe.custom_minimum_size = Vector2(90, 34)
+	var fe := _botao("Fechar", fechar_bau, false, 18)
+	fe.custom_minimum_size = Vector2(120, 46)
 	topo.add_child(fe)
 	var lados := HBoxContainer.new()
 	lados.add_theme_constant_override("separation", 14)
@@ -2241,13 +2486,13 @@ func _montar_tela_bau() -> void:
 	for qual in ["bau", "mochila"]:
 		var c := VBoxContainer.new()
 		lados.add_child(c)
-		c.add_child(Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 13, Menu.APAGADO))
+		c.add_child(Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 16, Menu.APAGADO))
 		var sc := ScrollContainer.new()
-		sc.custom_minimum_size = Vector2(8 * 50, 4 * 50 + 6)
+		sc.custom_minimum_size = Vector2(7 * 60, 4 * 60 + 6)
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		c.add_child(sc)
 		var g := GridContainer.new()
-		g.columns = 8
+		g.columns = 7
 		g.add_theme_constant_override("h_separation", 4)
 		g.add_theme_constant_override("v_separation", 4)
 		sc.add_child(g)
@@ -2266,7 +2511,7 @@ func _montar_bau() -> void:
 		if it != null:
 			cheios += 1
 		var fn := func(): m.rede("bau", {"acao": "tirar", "i": i})
-		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 46))
+		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
 	txt_bau.text = "Baú · %d/%d" % [cheios, int(D.get("bau", {}).get("slots", 40))]
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
@@ -2274,7 +2519,7 @@ func _montar_bau() -> void:
 		if it == null:
 			continue
 		var fn := func(): m.rede("bau", {"acao": "guardar", "i": i})
-		grade_mochila.add_child(m.menu.celula(it, false, fn, 46))
+		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
 
 func trocar_aba(k: String) -> void:
 	aba = k
@@ -2282,10 +2527,12 @@ func trocar_aba(k: String) -> void:
 	_montar_itens()
 
 # quadrado da barra (Quimera bhi): ícone, número embaixo à direita, aro dourado no escolhido, apagado sem material
-func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, cor_ico := Color.WHITE) -> Button:
+func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, cor_ico := Color.WHITE, rotulo := "") -> Button:
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(58, 62)
+	b.custom_minimum_size = Vector2(84, 92)
+	if rotulo == "":
+		rotulo = _nome_slot(k)
 	Menu.estilo_botao(b, escolhido)
 	if escolhido:
 		var st: StyleBoxFlat = Menu.caixa(Menu.FUNDO3, Menu.OURO_CLARO, 3, 8)
@@ -2296,26 +2543,43 @@ func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, c
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.set_anchors_preset(Control.PRESET_FULL_RECT)
-	t.offset_left = 9
-	t.offset_right = -9
-	t.offset_top = 6
-	t.offset_bottom = -14
+	t.offset_left = 18
+	t.offset_right = -18
+	t.offset_top = 8
+	t.offset_bottom = -34
 	t.modulate = cor_ico if tem else Color(cor_ico, 0.38)
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(t)
-	if numero != "":
-		var n := Menu.rotulo(numero, 14, Color.WHITE if tem else Color("e0a090"))
-		n.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	var nm := Menu.rotulo(rotulo, 14, Color("f3e6c8") if tem else Color(0.85, 0.8, 0.72, 0.6))
+	nm.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	nm.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	nm.offset_bottom = -4
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.clip_text = true
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(nm)
+	if numero != "": # quantas tem prontas: no canto de cima, à direita
+		var n := Menu.rotulo(numero, 18, Color.WHITE if tem else Color("e0a090"))
+		n.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		n.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-		n.grow_vertical = Control.GROW_DIRECTION_BEGIN
-		n.offset_right = -4
-		n.offset_bottom = -1
+		n.offset_right = -6
+		n.offset_top = 2
 		n.add_theme_constant_override("outline_size", 4)
 		n.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(n)
 	b.pressed.connect(func(): escolher(k))
 	return b
+
+# nome curto embaixo do quadrado
+func _nome_slot(k: String) -> String:
+	if k.begins_with("plantar:"):
+		var pl = D.plantas.get(k.substr(8))
+		return str(pl.nome) if pl else "Plantar"
+	if D.construcoes.has(k): # nome comprido ("Fundação de pedra"): só a primeira palavra cabe no quadrado
+		var nome := str(D.construcoes[k].nome)
+		return nome.split(" ")[0] if nome.length() > 11 else nome
+	return {"desmontar": "Desmontar", "arar": "Arar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer", "mudar": "Tamanho", "vender": "Vender"}.get(k, "")
 
 # quantas peças dá para fazer com o que tenho na mochila
 func _quantas(custo: Dictionary) -> int:
@@ -2331,7 +2595,7 @@ func _montar_itens() -> void:
 		n.queue_free()
 	var L = lotes.get(meu)
 	var pc: Label = linha_abas.get_node("pecas")
-	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Vigor %d" % int(m.P.vigor())
+	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d" % int(m.P.vigor())
 	var nome := ""
 	if aba == "terreno":
 		if L:

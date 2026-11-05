@@ -647,6 +647,10 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.colheu(ev)
 			return
+		"fabricando": # barrinha de criar: começou uma ou acabou a fila (construcao.gd)
+			if m.construcao:
+				m.construcao.fabricando(ev)
+			return
 		"fabricou": # criou peça da casa ou ferramenta da fazenda (construcao.gd)
 			if m.construcao:
 				m.construcao.fabricou(ev)

@@ -479,6 +479,7 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 			gg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			gg.visibility_range_end = 70.0
 			add_child(gg)
+			grama_mata.append(gg)
 			continue
 		var pts: Array = []
 		for t in int(r0 * r0 * 3.2):
@@ -522,6 +523,7 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		g.visibility_range_end = 70.0
 		add_child(g)
+		grama_mata.append(g)
 		guardar_grama("mata%d" % q, buf)
 
 # uma folha de grama no formato do MultiMesh (TRANSFORM_3D + cor): 12 números da posição/giro e 4 da cor
@@ -568,6 +570,7 @@ func guardar_grama(nome: String, buf: PackedFloat32Array) -> void:
 const GRAMA_PEDACO := 24.0
 const GRAMA_ALCANCE := 92.0 # o pedaço some a 92 m do centro; cada folha some antes, encolhendo de 65 a 75 m (grama.gdshader)
 var grama_pedacos: Array = []
+var grama_mata: Array = [] # grama das clareiras da mata (a construção também tira a que fica embaixo das peças)
 func picar_grama(mm: MultiMesh, buf: PackedFloat32Array, inteira: MultiMeshInstance3D) -> void:
 	var grupos := {}
 	for i in mm.instance_count:

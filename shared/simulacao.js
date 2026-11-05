@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, AMIGOS, TIME } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -1353,18 +1353,39 @@ export class Simulacao {
 
   // ---------- criação: Ferreiro e Alfaiate (shared/dados.js RECEITAS) ----------
   // m = { r: 'espada' } (receita). Perto da oficina: usa os materiais, gasta vigor e dá a peça (raridade sorteada).
+  // m = { r, n } (André 2026-11-05): fila de n com barrinha, igual à construção (fabricar); cada uma leva tempoCriar(R) s.
   criar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
-    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const R = RECEITAS[m.r], aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!R) return;
+    if (m.n === undefined) return this.criarUm(id, m);
+    if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
+    const motivo = this.motivoReceita(j, R).motivo; if (motivo) return aviso(motivo);
+    const n = Math.max(1, Math.min(CRIAR_OBRA.maxFila, m.n | 0 || 1)), dur = tempoCriar(R);
+    const nome = ITENS[R.faz].nome;
+    j.fabrica = { r: m.r, k: R.faz, nome, n, feito: 0, dur, fim: this.tempo + dur };
+    this.evento({ t: 'fabricando', para: id, k: R.faz, r: m.r, nome, n, feito: 0, dur });
+  }
+  // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
+  motivoReceita(j, R) {
+    const p = j.prog;
     const of = OFICINA[R.prof], npc0 = (this.mapa.npcs || []).find((n) => n.id === of.npc);
     // na oficina do NPC ou perto da estação certa construída num lote (bigorna, fornalha ou bancada)
     const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
-    if (!npc) return aviso(`Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}`);
-    if (profNivel(p.prof[R.prof]) < R.nivel) return aviso(`Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}`);
-    for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})`);
+    if (!npc) return { motivo: `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
+    for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return { motivo: `Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})` };
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
-    if (vigorAgora(p.vigor) < custo) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    if (vigorAgora(p.vigor) < custo) return { motivo: 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)' };
+    return { motivo: '', npc };
+  }
+  // cria uma da receita na hora (a fila chama uma vez por barrinha)
+  criarUm(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
+    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!R) return;
+    const { motivo, npc } = this.motivoReceita(j, R); if (motivo) return aviso(motivo);
+    const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
     let novo;
     if (ehEquip(R.faz)) {
       let r = 0; const ch = chanceRaridade(p.prof[R.prof]);
@@ -1621,8 +1642,52 @@ export class Simulacao {
     return null;
   }
   // m = { k }: cria a peça (vira o item obra_k na mochila) ou a ferramenta da fazenda (enxada, regador), como no Quimera
+  // m = { k, n }: começa a criar n (1 a CRIAR_OBRA.maxFila) da peça; cada uma leva tempoCriar s (barrinha no app).
+  // m = { parar: true }: para a fila (a que estava carregando não sai). Confere tudo de novo a cada peça.
   fabricar(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || j.criando || j.morto) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (m.parar) { if (j.fabrica) this.pararFabrica(j, 'Parou de criar'); return; }
+    if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
+    const C = CONSTRUCOES[m.k] || FERRAMENTAS_FAZENDA[m.k]; if (!C) return;
+    const n = FERRAMENTAS_FAZENDA[m.k] ? 1 : Math.max(1, Math.min(CRIAR_OBRA.maxFila, m.n | 0 || 1));
+    const motivo = this.motivoFabricar(j, m.k); if (motivo) return aviso(motivo);
+    const dur = tempoCriar(C);
+    j.fabrica = { k: m.k, n, feito: 0, dur, fim: this.tempo + dur };
+    this.evento({ t: 'fabricando', para: id, k: m.k, n, feito: 0, dur });
+  }
+  pararFabrica(j, texto) {
+    const f = j.fabrica; j.fabrica = null;
+    if (texto) this.evento({ t: 'aviso', para: j.id, texto });
+    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', nome: f ? f.nome : undefined, fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0 });
+  }
+  // a barrinha encheu: cria uma e começa a próxima (ou termina a fila)
+  passoFabrica(j) {
+    const f = j.fabrica;
+    if (j.morto) return this.pararFabrica(j, '');
+    const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
+    if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
+    f.feito++;
+    if (f.feito >= f.n) return this.pararFabrica(j, f.n > 1 ? `Pronto: ${f.n} criados` : '');
+    f.fim = this.tempo + f.dur;
+    this.evento({ t: 'fabricando', para: j.id, k: f.k, r: f.r, nome: f.nome, n: f.n, feito: f.feito, dur: f.dur });
+  }
+  // por que não dá para criar agora ('' = dá)
+  motivoFabricar(j, k) {
+    const C = CONSTRUCOES[k] || FERRAMENTAS_FAZENDA[k]; if (!C) return 'Isso não se cria';
+    const item = CONSTRUCOES[k] ? 'obra_' + k : k, p = j.prog;
+    if (FERRAMENTAS_FAZENDA[k] && contar(p.mochila, item) > 0) return `Você já tem ${ITENS[item].nome.toLowerCase()}`;
+    if (C.bancada && !this.bancadaPerto(j)) return `${ITENS[item].nome}: crie perto de uma bancada de trabalho`;
+    for (const [c, n] of Object.entries(C.custo)) if (contar(p.mochila, c) < n) return `Falta ${ITENS[c].nome} (${contar(p.mochila, c)}/${n})`;
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    for (const [c, n] of Object.entries(C.custo)) tirar(prova, c, n);
+    if (!guardar(prova, { k: item, n: 1 })) return 'Mochila cheia';
+    return '';
+  }
+  // cria uma (gasta o material e põe na mochila), sem esperar
+  fabricarUm(id, k) {
+    const j = this.jogadores.get(id); if (!j || j.criando || j.morto) return;
+    const m = { k };
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const C = CONSTRUCOES[m.k] || FERRAMENTAS_FAZENDA[m.k]; if (!C) return;
     const item = CONSTRUCOES[m.k] ? 'obra_' + m.k : m.k, p = j.prog;
@@ -2263,6 +2328,7 @@ export class Simulacao {
     j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * (luta ? REGEN.manaCombate : 1) * dt);
     this.passoEstamina(j, dt);
     if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);
+    if (j.fabrica && this.tempo >= j.fabrica.fim) this.passoFabrica(j);
     if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * (luta ? REGEN.vidaCombate : 1) * dt);
     if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash

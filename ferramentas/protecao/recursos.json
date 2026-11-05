@@ -222,6 +222,7 @@
     {"nome": "Casa do jogador é chão, parede e telhado no servidor (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["export function pecasCasaSolidas(", "T.porCasasDosJogadores("]},
     {"nome": "Telhado da casa do jogador no terreno (servidor)", "arquivo": "shared/terreno.js", "contem": ["export function alturaTelhado(", "porCasasDosJogadores(l)"]},
     {"nome": "Telhado da casa do jogador no terreno (app)", "arquivo": "godot-prototipo/terreno.gd", "contem": ["static func altura_telhado("]},
+    {"nome": "Barra de construção grande para celular: abas grandes, nomes nos quadrados, botões à direita; sem grama embaixo das peças (André 2026-11-05)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["var painel_acoes: PanelContainer", "func _nome_slot(", "var tampas: Array = []"]},
     {"nome": "App recebe o baú e o criar", "arquivo": "godot-prototipo/online.gd", "contem": ["\"fabricou\":", "\"bau\": # o baú do meu terreno"]},
     { "nome": "Monstros agressivos: até 4 batem juntos, perseguem correndo e quem bateu dá folga (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["b.folgaAte = this.tempo + b.trava + CI.folga", "CI.chegarDist ? CI.perseguir : CI.chegar"] },
     { "nome": "Monstros agressivos no modo sozinho (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["e.folga_ate = tempo + e.golpe_dur", "float(D.COMBATE.perseguir)"] },
@@ -230,6 +231,11 @@
     { "nome": "Diferença de nível no app: cor do nome e modo sozinho", "arquivo": "godot-prototipo/main.gd", "contem": ["func cor_nivel(nv: int) -> Color:", "func colorir_niveis() -> void:", "dano_monstro_nivel(nv_e)", "golpe_heroi_nivel(int(e.nivel))"] },
     { "nome": "Monstros do Mixamo: Golem de Magma, Maw e Warrok chefe nas clareiras 11 e 12", "arquivo": "shared/dados.js", "contem": ["{ id: 'caca11', tipo: 'golem'", "{ id: 'caca12', tipo: 'maw'", "chefe: true"] },
     { "nome": "Monstros do Mixamo: visual anime (shader, contorno, olhos acesos)", "arquivo": "godot-prototipo/main.gd", "contem": ["func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:", "res://monstro.gdshader"] },
-    { "nome": "Monstros do Mixamo: exportação com as animações do jogo", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["const MIXAMO = {"] }
+    { "nome": "Monstros do Mixamo: exportação com as animações do jogo", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["const MIXAMO = {"] },
+    { "nome": "Construção: criar com quantidade e barrinha (fila no servidor)", "arquivo": "shared/simulacao.js", "contem": ["passoFabrica(j)", "pararFabrica(j, texto) {", "t: 'fabricando'"] },
+    { "nome": "Construção: janela de quantas criar e barrinha no app", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _montar_tela_criar() -> void:", "func fabricando(ev: Dictionary) -> void:", "func parar_criar() -> void:"] },
+    { "nome": "Criar (mochila e mesa): quantidade e barrinha também nas receitas", "arquivo": "shared/simulacao.js", "contem": ["motivoReceita(j, R) {", "criarUm(id, m) {"] },
+    { "nome": "Criar: janela e barrinha por cima do menu", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func pedir_criar(tipo: String, k: String) -> void:", "tela_criar.layer = 25"] },
+    { "nome": "Sem grama da mata furando o piso das peças", "arquivo": "godot-prototipo/main.gd", "contem": ["var grama_mata: Array = []"] }
   ]
 }
