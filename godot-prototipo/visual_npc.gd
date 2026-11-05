@@ -33,6 +33,8 @@ static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
 				for trecho in info.esconder:
 					if str(trecho) in mi.mesh.surface_get_name(sfc):
 						mi.visible = false
+	if info is Dictionary and info.get("friso", false):
+		_friso_dourado(no, esq)
 	if info is Dictionary and info.get("limpar_rosto", false):
 		_limpar_rosto(no)
 	if info is Dictionary and info.get("anciao", false):
@@ -247,12 +249,13 @@ shader_type spatial;
 render_mode cull_disabled, specular_disabled;
 uniform vec3 base : source_color = vec3(0.85);
 uniform vec3 sombra : source_color = vec3(0.65);
+uniform vec2 degrau = vec2(0.02, 0.1); // onde a sombra toon vira luz (mais largo = mais macio)
 void fragment() {
 	ALBEDO = base * COLOR.rgb;
 	ROUGHNESS = 1.0;
 }
 void light() {
-	float t = smoothstep(0.02, 0.1, dot(NORMAL, LIGHT)) * ATTENUATION;
+	float t = smoothstep(degrau.x, degrau.y, dot(NORMAL, LIGHT)) * ATTENUATION;
 	vec3 fator = mix(sombra / max(base, vec3(0.02)), vec3(1.0), t);
 	DIFFUSE_LIGHT += LIGHT_COLOR * fator / PI;
 }
@@ -268,8 +271,8 @@ void fragment() { ALBEDO = cor; }
 static var _sh_toon: Shader
 static var _sh_contorno: Shader
 
-static func _toon(base: Color, sombra: Color, contorno := Color(0, 0, 0, 0), grossura := 0.0035) -> ShaderMaterial:
-	var chave := "toon:%s:%s:%s:%f" % [base.to_html(), sombra.to_html(), contorno.to_html(), grossura]
+static func _toon(base: Color, sombra: Color, contorno := Color(0, 0, 0, 0), grossura := 0.0035, degrau := Vector2(0.02, 0.1)) -> ShaderMaterial:
+	var chave := "toon:%s:%s:%s:%f:%s" % [base.to_html(), sombra.to_html(), contorno.to_html(), grossura, degrau]
 	if _mats.has(chave):
 		return _mats[chave]
 	if _sh_toon == null:
@@ -281,6 +284,7 @@ static func _toon(base: Color, sombra: Color, contorno := Color(0, 0, 0, 0), gro
 	m.shader = _sh_toon
 	m.set_shader_parameter("base", base)
 	m.set_shader_parameter("sombra", sombra)
+	m.set_shader_parameter("degrau", degrau)
 	if contorno.a > 0.0:
 		var c := ShaderMaterial.new()
 		c.shader = _sh_contorno
@@ -301,11 +305,22 @@ static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
 		return
 	var corpo := PackedVector3Array()
 	var normais := PackedVector3Array()
+	var ossos_c := [] # por vértice do corpo: [[nome do osso, peso], ...] (a pele do VRoid liga os ossos pelo nome)
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh is ArrayMesh and "Body_00_SKIN" in mi.mesh.surface_get_name(0):
 			var arr: Array = mi.mesh.surface_get_arrays(0)
-			corpo.append_array(arr[Mesh.ARRAY_VERTEX])
+			var VV: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			corpo.append_array(VV)
 			normais.append_array(arr[Mesh.ARRAY_NORMAL])
+			var B = arr[Mesh.ARRAY_BONES]
+			var W = arr[Mesh.ARRAY_WEIGHTS]
+			var nb: int = B.size() / VV.size() if B != null and VV.size() > 0 and mi.skin else 0
+			for i in VV.size():
+				var l := []
+				for j in nb:
+					if W[i * nb + j] > 0.0:
+						l.append([_nome_bind(mi.skin, B[i * nb + j], raiz), W[i * nb + j]])
+				ossos_c.append(l)
 	if corpo.is_empty():
 		return
 	const CEL := 0.04
@@ -320,6 +335,14 @@ static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
 		var arr: Array = orig.surface_get_arrays(sfc)
 		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 		var dentro := 0.0
+		# a blusa dobra com os pesos da pele de baixo: as abas da manga do VRoid ficavam soltas no ombro (Rosa)
+		var B = arr[Mesh.ARRAY_BONES]
+		var W = arr[Mesh.ARRAY_WEIGHTS]
+		var nbt: int = B.size() / V.size() if B != null and V.size() > 0 and tops.skin else 0
+		var bind_de := {}
+		if nbt > 0:
+			for bi in tops.skin.get_bind_count():
+				bind_de[_nome_bind(tops.skin, bi, raiz)] = bi
 		for vi in V.size():
 			var p := V[vi]
 			var k0 := Vector3i(floor(p.x / CEL), floor(p.y / CEL), floor(p.z / CEL))
@@ -344,7 +367,15 @@ static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
 			var fora := (p - b).dot(n)
 			var lado := (p - b) - n * fora
 			V[vi] = b + lado * 0.5 + n * clamp(fora, 0.006, 0.025) + n * dentro
+			var l: Array = ossos_c[melhor] if melhor < ossos_c.size() else []
+			if nbt > 0 and not l.is_empty() and l.all(func(e): return bind_de.has(e[0])):
+				for j in nbt:
+					B[vi * nbt + j] = bind_de[l[j][0]] if j < l.size() else 0
+					W[vi * nbt + j] = l[j][1] if j < l.size() else 0.0
 		arr[Mesh.ARRAY_VERTEX] = V
+		if nbt > 0:
+			arr[Mesh.ARRAY_BONES] = B
+			arr[Mesh.ARRAY_WEIGHTS] = W
 		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, orig.surface_get_format(sfc) & ~Mesh.ARRAY_FORMAT_VERTEX & 0)
 		am.surface_set_name(sfc, orig.surface_get_name(sfc))
 	_coladas[chave] = am
@@ -383,6 +414,14 @@ static func _limpar_rosto(raiz: Node3D) -> void:
 				n.albedo_texture = ImageTexture.create_from_image(img)
 				_rostos[chave] = n
 			mi.set_surface_override_material(sfc, _rostos[chave])
+
+static func _nome_bind(sk: Skin, bi: int, raiz: Node) -> String:
+	var nome := str(sk.get_bind_name(bi))
+	if nome == "":
+		var esq: Skeleton3D = _esqueleto(raiz)
+		var osso := sk.get_bind_bone(bi)
+		nome = esq.get_bone_name(osso) if esq and osso >= 0 else ""
+	return nome
 
 static func _invisivel() -> Material:
 	if not _mats.has("invisivel"):
@@ -496,7 +535,7 @@ static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 			var x: float = sin(ang) * linhas[li][1]
 			var y: float = linhas[li][0]
 			if li < 3: # fração entre o lábio de baixo (meio) e a costeleta (lado)
-				var topo_y: float = lerp(y_boca - 0.016, y0 + alt * 0.22, pow(abs(u), 1.2))
+				var topo_y: float = lerp(y_boca - 0.026, y0 + alt * 0.22, pow(abs(u), 1.2)) # 1,2 cm do lábio de baixo à mostra
 				y = lerp(y0 + 0.004, topo_y, float(linhas[li][0]))
 			var z: float = frente_em.call(x, y, linhas[li][2]) if li < 3 else queixo.z + linhas[li][2] - (1.0 - cos(ang)) * linhas[li][1] * 1.1
 			linha.append(P.call(x, y, z))
@@ -504,12 +543,14 @@ static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 	for li in pts.size() - 1:
 		for c in cols:
 			for v in [pts[li][c], pts[li][c + 1], pts[li + 1][c], pts[li][c + 1], pts[li + 1][c + 1], pts[li + 1][c]]:
-				st.set_color(Color(0.88, 0.88, 0.88))
+				st.set_color(Color(0.75, 0.75, 0.75))
 				st.add_vertex(v)
 	var lado: Vector3 = (inv.basis * Vector3.RIGHT).normalized()
 	# mechas: [x da raiz, y da raiz (fração da altura do rosto), comprimento, meia-largura, x da ponta, à frente]
-	var mechas := [[0.0, 0.02, 0.18, 0.026, 0.004, 0.026], [-0.42, 0.06, 0.145, 0.024, -0.03, 0.02], [0.42, 0.06, 0.13, 0.024, 0.035, 0.02],
-		[-0.85, 0.18, 0.11, 0.016, -0.045, 0.012], [0.85, 0.18, 0.12, 0.016, 0.05, 0.012]]
+	# 6 tufos grandes (direção de arte: menos tubos, mais volume), o do meio em dois que se cruzam um pouco
+	var mechas := [[-0.12, 0.0, 0.18, 0.036, 0.006, 0.03], [0.14, 0.0, 0.165, 0.034, -0.004, 0.026],
+		[-0.5, 0.06, 0.14, 0.032, -0.03, 0.02], [0.5, 0.06, 0.13, 0.032, 0.035, 0.02],
+		[-0.88, 0.17, 0.1, 0.024, -0.05, 0.012], [0.88, 0.17, 0.11, 0.024, 0.055, 0.012]]
 	for mc in mechas:
 		var rx: float = mc[0] * meia
 		var ry: float = y0 + alt * float(mc[1])
@@ -527,7 +568,7 @@ static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 			var z: float = lerp(zr, queixo.z, clamp(t * 2.0, 0.0, 1.0)) + float(mc[5]) * sin(t * PI) + 0.012 * t
 			linha_m.append(P.call(x, y, z))
 			la.append(float(mc[3]) * (1.0 - pow(t, 1.7)) + 0.002)
-			fu.append(0.011 * (1.0 - t * 0.85) + 0.002)
+			fu.append(0.014 * (1.0 - t * 0.8) + 0.002)
 		_tubo(st, linha_m, la, fu, lado, 0.86, 1.0)
 	# bigode: sai de baixo do nariz, passa pelos cantos da boca e desce até encontrar as mechas do lado
 	var w := meia * 0.6
@@ -535,19 +576,22 @@ static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 		var linha_b := []
 		var la_b := []
 		var fu_b := []
-		var trilha := [[0.004, y_boca + 0.014], [w * 0.45, y_boca + 0.011], [w * 0.85, y_boca + 0.0], [w * 1.0, y_boca - 0.025], [w * 0.95, y0 + alt * 0.04]]
+		# por cima do lábio de cima e por fora dos cantos da boca: a boca fica livre
+		var trilha := [[0.004, y_boca + 0.02], [w * 0.45, y_boca + 0.017], [w * 0.9, y_boca + 0.006], [w * 1.12, y_boca - 0.018], [w * 1.12, y0 + alt * 0.06]]
+		var grosso := [0.011, 0.01, 0.008, 0.006, 0.004] # afina até a ponta
 		for k in trilha.size():
 			var x: float = trilha[k][0] * s
 			var y: float = trilha[k][1]
-			linha_b.append(P.call(x, y, frente_em.call(x, y, 0.009)))
-			la_b.append(0.012 if k < 3 else 0.009)
-			fu_b.append(0.007)
+			linha_b.append(P.call(x, y, frente_em.call(x, y, 0.008)))
+			la_b.append(grosso[k])
+			fu_b.append(grosso[k] * 0.6)
 		_tubo(st, linha_b, la_b, fu_b, Vector3.UP, 1.0, 0.92)
+	st.index() # junta os vértices iguais: normais suaves, sem facetas duras
 	st.generate_normals()
 	var barba := MeshInstance3D.new()
 	barba.name = "Barba"
 	barba.mesh = st.commit()
-	barba.material_override = _toon(Color("d8d4cc"), Color("a8a49c"), Color("4a4640"), 0.0022)
+	barba.material_override = _toon(Color("d8d4cc"), Color("a8a49c"), Color("4a4640"), 0.0022, Vector2(-0.15, 0.4))
 	var ba := BoneAttachment3D.new()
 	ba.bone_idx = cab
 	esq.add_child(ba)
@@ -792,3 +836,107 @@ static func _visivel(n: Node, raiz: Node) -> bool:
 			return false
 		n = n.get_parent()
 	return true
+
+# ---------- friso dourado do Mestre Ivo (direção de arte: o Lendário precisa ler laranja/dourado) ----------
+# barras de 3,5 cm na gola, nos punhos e na barra da túnica, por cima do set de couro. Só no NPC: o set do herói fica.
+const OURO := Color("e0a030")
+const OURO_SOMBRA := Color("a8701c")
+
+static func _vertices_corpo(raiz: Node3D, f: float) -> PackedVector3Array:
+	var V := PackedVector3Array()
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or not _visivel(mi, raiz) or str(mi.name) == "Barba":
+			continue
+		for sfc in mi.mesh.get_surface_count():
+			var nome: String = mi.mesh.surface_get_name(sfc)
+			if "Outline" in nome or "HAIR" in nome or "Hair" in nome or "FACE" in nome or "EYE" in nome:
+				continue
+			for p in mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]:
+				V.append(Vector3(p.x, p.y, p.z * f))
+	return V
+
+static func _friso_dourado(raiz: Node3D, esq: Skeleton3D) -> void:
+	var f := _frente(esq)
+	var V := _vertices_corpo(raiz, f)
+	if V.is_empty():
+		return
+	var mat := _toon(OURO, OURO_SOMBRA, Color("4a2e10"), 0.002)
+	var bp := func(n: String) -> Vector3:
+		var i := esq.find_bone(n)
+		var o := esq.get_bone_global_rest(i).origin if i >= 0 else Vector3.ZERO
+		return Vector3(o.x, o.y, o.z * f)
+	var prender := func(osso: String) -> Array: # [nó preso no osso, inversa da pose de descanso]
+		var i := esq.find_bone(osso)
+		var ba := BoneAttachment3D.new()
+		ba.bone_idx = i
+		esq.add_child(ba)
+		var n := Node3D.new()
+		n.name = "Friso"
+		ba.add_child(n)
+		return [n, esq.get_bone_global_rest(i).affine_inverse()]
+	# gola: em volta da base do pescoço
+	var pesc: Vector3 = bp.call("J_Bip_C_Neck")
+	var perto := PackedVector3Array() # só o tronco perto do pescoço (os braços abertos em T ficam na mesma altura)
+	for p in V:
+		if Vector2(p.x - pesc.x, p.z - pesc.z).length() < 0.12:
+			perto.append(p)
+	var g = prender.call("J_Bip_C_UpperChest")
+	_faixa(g[0], {"V": perto, "c": pesc, "f": f, "inv": g[1]}, pesc.y - 0.035, pesc.y - 0.002, 0.005, mat, false)
+	# barra do gibão: faixa na cintura, por cima do cinto (um anel na barra da túnica abraçava as duas pernas)
+	var quadril: Vector3 = bp.call("J_Bip_C_Hips")
+	var y_c: float = bp.call("J_Bip_C_Spine").y + 0.02
+	var tronco := PackedVector3Array()
+	for p in V:
+		if Vector2(p.x - quadril.x, p.z - quadril.z).length() < 0.2:
+			tronco.append(p)
+	var h = prender.call("J_Bip_C_Hips")
+	_faixa(h[0], {"V": tronco, "c": quadril, "f": f, "inv": h[1]}, y_c - 0.015, y_c + 0.015, 0.006, mat, false)
+	# punhos: anel em volta do antebraço, logo antes da mão (os braços ficam abertos em T na pose de descanso)
+	for lado in ["L", "R"]:
+		var mao: Vector3 = bp.call("J_Bip_%s_Hand" % lado)
+		var cot: Vector3 = bp.call("J_Bip_%s_LowerArm" % lado)
+		var eixo := (mao - cot).normalized()
+		var a = prender.call("J_Bip_%s_LowerArm" % lado)
+		_anel_braco(a[0], V, mao - eixo * 0.05, eixo, 0.035, f, a[1], mat)
+
+# anel em volta de um eixo (braço): raio de cada direção = o vértice mais longe naquela fatia, mais 6 mm
+static func _anel_braco(no: Node3D, V: PackedVector3Array, centro: Vector3, eixo: Vector3, alt: float, f: float, inv: Transform3D, mat: Material) -> void:
+	var n := 24
+	var u := eixo.cross(Vector3.FORWARD).normalized()
+	var w := eixo.cross(u).normalized()
+	var r := []
+	r.resize(n)
+	r.fill(0.03)
+	for p in V:
+		var d := p - centro
+		var h := d.dot(eixo)
+		if abs(h) > alt * 0.6:
+			continue
+		var q := d - eixo * h
+		if q.length() > 0.09:
+			continue
+		for i in n:
+			var a := TAU * i / n
+			var pr := q.dot(u * cos(a) + w * sin(a))
+			if pr > r[i]:
+				r[i] = pr
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var aneis := []
+	for k in 2:
+		var linha := []
+		for i in n + 1:
+			var a := TAU * (i % n) / n
+			var rr: float = (r[(i - 1 + n) % n] + r[i % n] * 2.0 + r[(i + 1) % n]) / 4.0 + 0.006
+			var p := centro + eixo * (alt * (k - 0.5)) + (u * cos(a) + w * sin(a)) * rr
+			linha.append(inv * Vector3(p.x, p.y, p.z * f))
+		aneis.append(linha)
+	for i in n:
+		for q in [aneis[0][i], aneis[0][i + 1], aneis[1][i], aneis[0][i + 1], aneis[1][i + 1], aneis[1][i]]:
+			st.set_color(Color(1, 1, 1))
+			st.add_vertex(q)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	no.add_child(mi)
