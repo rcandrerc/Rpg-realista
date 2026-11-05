@@ -1725,6 +1725,7 @@
     "pedra": 3
    },
    "estacao": "alf",
+   "alto": 0.89,
    "desc": "Perto dela você costura como na banca da Rosa (receitas do Alfaiate).",
    "tipo": "movel",
    "aba": "moveis",
@@ -1746,6 +1747,7 @@
     "lenha": 2
    },
    "estacao": "fer",
+   "alto": 1.18,
    "desc": "Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro).",
    "tipo": "movel",
    "aba": "moveis",
@@ -1767,6 +1769,7 @@
     "lenha": 2
    },
    "estacao": "fundir",
+   "alto": 1.16,
    "desc": "Derrete minério em barras e queima lenha em carvão.",
    "tipo": "movel",
    "aba": "moveis",
@@ -1796,6 +1799,7 @@
    "custo": {
     "lenha": 2
    },
+   "alto": 0.8,
    "desc": "Cerca de madeira de 2 m. Gire para mudar a direção.",
    "tipo": "movel",
    "aba": "moveis",
@@ -1953,6 +1957,7 @@
     "lenha": 10
    },
    "bancada": true,
+   "alto": 0.69,
    "desc": "Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir."
   },
   "cama": {
@@ -1978,6 +1983,7 @@
     "couro": 3
    },
    "bancada": true,
+   "alto": 0.6,
    "desc": "Você renasce nela quando cai."
   },
   "tocha": {

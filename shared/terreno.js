@@ -113,6 +113,31 @@ export class Terreno {
     }
     this.solidos = [...this.rochas, ...this.casas];
     this.doJogador = []; // casas que os jogadores constroem nos terrenos (pecasCasaSolidas): mudam com o jogo
+    this.tampos = new Map(); // topo dos obstáculos baixos (porTampos): grade de 6 m
+  }
+  // Obstáculos baixos com tampo (André 2026-11-05: "pular sobre as mesas de craft"): bancada, bigorna, baú, mesa da Rosa,
+  // tronco caído, pedra pequena... Um círculo { x, z, r, alto } vira chão na altura alto: o herói pula e fica em cima.
+  // Só conta quem tem alto entre SUBIDA.tampoMin e tampoMax (fogueira e esteio não). Mesma conta no app (terreno.gd).
+  porTampos(l, min, max) {
+    this.tampos = new Map();
+    for (const k of l) {
+      if (k.alto == null || k.semTopo || k.alto < min || k.alto > max) continue;
+      for (let i = Math.floor((k.x - k.r) / 6); i <= Math.floor((k.x + k.r) / 6); i++) {
+        for (let j = Math.floor((k.z - k.r) / 6); j <= Math.floor((k.z + k.r) / 6); j++) {
+          const c = i * 10007 + j;
+          if (!this.tampos.has(c)) this.tampos.set(c, []);
+          this.tampos.get(c).push(k);
+        }
+      }
+    }
+  }
+  tampoEm(x, z) {
+    let h = -Infinity;
+    for (const k of this.tampos.get(Math.floor(x / 6) * 10007 + Math.floor(z / 6)) || []) {
+      const dx = x - k.x, dz = z - k.z;
+      if (k.alto > h && dx * dx + dz * dz <= k.r * k.r) h = k.alto;
+    }
+    return h;
   }
   // troca as peças sólidas das casas dos jogadores (fundação vira chão, parede se escala, telhado se anda em cima)
   porCasasDosJogadores(l) {
@@ -152,6 +177,7 @@ export class Terreno {
   altura(x, z, y) {
     let h = chaoDoRelevo(x, z);
     for (const r of this.solidos) { const a = this.alturaNa(r, x, z, y); if (a > h && a >= 0) h = a; } // -1 = fora da peça (no lago o chão fica abaixo de -1)
+    if (this.tampos.size) h = Math.max(h, this.tampoEm(x, z));
     return h;
   }
   // teto: a parte de baixo da peça suspensa mais baixa acima de quem está em (x, y, z) (Infinity se céu aberto)

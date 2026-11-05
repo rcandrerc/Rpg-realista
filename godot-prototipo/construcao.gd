@@ -494,6 +494,7 @@ func colheu(ev: Dictionary) -> void:
 	m.sons.tocar("moedas", -8.0, 0.05, p)
 
 # os círculos sólidos de cada peça vão para o andar do herói (mesma conta do servidor: solidosPeca)
+# Com CONSTRUCOES.alto o círculo ganha o topo (2026-11-05): dá para pular e ficar em cima da bancada, baú, bigorna...
 func _refazer_solidos() -> void:
 	var l: Array = []
 	for id in lotes:
@@ -501,9 +502,16 @@ func _refazer_solidos() -> void:
 			var a: float = p.r * PI / 2.0
 			var c := roundi(cos(a))
 			var s := roundi(sin(a))
-			for q in D.construcoes[p.k].circulos:
-				l.append({"x": p.x + float(q[0]) * c + float(q[1]) * s, "z": p.z - float(q[0]) * s + float(q[1]) * c, "r": float(q[2])})
+			var C: Dictionary = D.construcoes[p.k]
+			var tem_topo := C.has("alto")
+			var topo := _piso(p.x, p.z) + float(C.alto) if tem_topo else 0.0
+			for q in C.circulos:
+				var o := {"x": p.x + float(q[0]) * c + float(q[1]) * s, "z": p.z - float(q[0]) * s + float(q[1]) * c, "r": float(q[2])}
+				if tem_topo:
+					o.alto = topo
+				l.append(o)
 	m.mov.extras = l
+	m.mov.refazer_tampos()
 
 # ---------- casa: grade de 2 m (a mesma conta do servidor: shared/simulacao.js noMeioDaGrade, ladosDaBorda...) ----------
 func grade() -> float:
