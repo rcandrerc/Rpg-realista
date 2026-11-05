@@ -35,6 +35,8 @@ var _pisos: Array = [] # fundações que viraram chão no terreno.gd (o herói a
 var _portas: Array = [] # folhas das portas (abrem quando o herói chega perto)
 var _mat_telha: StandardMaterial3D
 var _mat_forro: StandardMaterial3D
+var _mat_reboco: StandardMaterial3D
+var _mat_viga: StandardMaterial3D
 var terras: Dictionary # mundo.vilaLotes: area (elipse), estradas [{largura, pontos}]
 
 # modo construção
@@ -674,6 +676,18 @@ func _criar_mats_telha() -> void:
 	_mat_forro.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	_mat_forro.roughness = 1.0
 	_mat_forro.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# oitão como continuação da parede (André 2026-11-05): o reboco e a madeira do kit da parede (Wall_Plaster_Straight)
+	_mat_reboco = StandardMaterial3D.new()
+	_mat_reboco.albedo_texture = load("res://construcao3d/T_Plaster_BaseColor.png")
+	_mat_reboco.normal_enabled = true
+	_mat_reboco.normal_texture = load("res://construcao3d/T_Plaster_Normal.png")
+	_mat_reboco.roughness = 1.0
+	_mat_reboco.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_mat_viga = StandardMaterial3D.new()
+	_mat_viga.albedo_texture = load("res://construcao3d/T_WoodTrim_BaseColor.png")
+	_mat_viga.normal_enabled = true
+	_mat_viga.normal_texture = load("res://construcao3d/T_WoodTrim_Normal.png")
+	_mat_viga.roughness = 1.0
 
 func _malha_telhado(celulas: Array, base: float) -> ArrayMesh:
 	var g := grade() / 2.0
@@ -790,7 +804,9 @@ func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
 	var cima := SurfaceTool.new()
 	var baixo := SurfaceTool.new()
 	var borda := SurfaceTool.new()
-	for st in [cima, baixo, borda]:
+	var reboco := SurfaceTool.new() # oitão: reboco da parede (André 2026-11-05)
+	var vigas := SurfaceTool.new() # e o enxaimel de madeira por cima
+	for st in [cima, baixo, borda, reboco, vigas]:
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for q in rampas:
 		var dx: float = q.dx
@@ -833,7 +849,10 @@ func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
 				for v in [a, b, b2, a, b2, a2]:
 					borda.set_uv(Vector2(v.x + v.z, v.y) * 0.7)
 					borda.add_vertex(v)
-		# oitão: fecha o vão entre o alto da parede e o telhado nos lados abertos (e atrás da parte alta da rampa)
+		# oitão: fecha o vão entre o alto da parede e o telhado nos lados abertos (e atrás da parte alta da rampa).
+		# André 2026-11-05: "uma parede tipo continuação do estilo da parede, como são as casas da vila": reboco claro
+		# do kit (o mesmo da parede) com o enxaimel de madeira por cima, sozinho: frechal no pé, caibro rente ao telhado,
+		# esteio nas emendas dos quadrados e na ponta, e mão-francesa onde o triângulo já é alto.
 		var oitoes: Array = []
 		if not q.esq: # em duas partes: a ponta pode ficar no meio
 			oitoes.append([[-g, -g], [0.0, -g]])
@@ -845,21 +864,70 @@ func _malha_rampas(rampas: Array, base: float) -> ArrayMesh:
 		for o in oitoes:
 			var a := P.call(o[0][0], o[0][1], base) as Vector3
 			var b := P.call(o[1][0], o[1][1], base) as Vector3
-			var b2 := P.call(o[1][0], o[1][1], H.call(o[1][0]) - 0.1) as Vector3
-			var a2 := P.call(o[0][0], o[0][1], H.call(o[0][0]) - 0.1) as Vector3
+			var ha: float = H.call(o[0][0]) - 0.1
+			var hb: float = H.call(o[1][0]) - 0.1
+			var b2 := Vector3(b.x, hb, b.z)
+			var a2 := Vector3(a.x, ha, a.z)
 			for v in [a, b, b2, a, b2, a2]:
-				borda.set_uv(Vector2(v.x + v.z, v.y) * 0.7)
-				borda.add_vertex(v)
+				reboco.set_uv(Vector2((v.x + v.z) * 0.5, -v.y * 0.29)) # mesma escala do reboco da parede de 2 m
+				reboco.add_vertex(v)
+			var n := (b - a).cross(Vector3.UP).normalized() # para fora da parede (os dois lados levam madeira)
+			if ha - base < 0.15 and hb - base < 0.15:
+				continue
+			_viga(vigas, a + Vector3(0, 0.09, 0), b + Vector3(0, 0.09, 0), n, 0.18) # frechal (em cima da parede)
+			_viga(vigas, a2 - Vector3(0, 0.09, 0), b2 - Vector3(0, 0.09, 0), n, 0.18) # caibro, rente ao telhado
+			var lado: bool = absf(float(o[0][1])) > g - 0.01 and absf(float(o[1][1])) > g - 0.01 # oitão do lado (v = ±g)
+			var u_a: float = o[0][0]
+			# esteio: na emenda dos quadrados (u = ±g) e na ponta do meio; o da beira de fora fica no pilar da parede
+			var esteio_a: bool = ha - base > 0.35 and (not lado or absf(u_a) > g - 0.01 or (q.hm > q.h0 + 0.01 and q.hm > q.h1 + 0.01))
+			if esteio_a and (q.atras or absf(u_a + g) > 0.01 or not lado):
+				_viga(vigas, a + Vector3(0, 0.18, 0), a2 - Vector3(0, 0.18, 0), n, 0.2)
+			if not lado and hb - base > 0.35:
+				_viga(vigas, b + Vector3(0, 0.18, 0), b2 - Vector3(0, 0.18, 0), n, 0.2)
+			if minf(ha, hb) - base > 0.9: # mão-francesa: do pé do lado baixo até o alto do outro
+				var baixo_a: bool = ha < hb
+				var p0 := (a if baixo_a else b) + Vector3(0, 0.18, 0)
+				var alto := b2 if baixo_a else a2
+				_viga(vigas, p0, alto - Vector3(0, 0.3, 0), n, 0.16)
 	var malha := ArrayMesh.new()
-	for st in [cima, baixo, borda]:
+	_criar_mats_telha() # mesmos materiais do telhado antigo
+	var mats := [_mat_telha, _mat_forro, _mat_forro, _mat_reboco, _mat_viga]
+	var sts := [cima, baixo, borda, reboco, vigas]
+	for i in sts.size():
+		var st: SurfaceTool = sts[i]
 		st.generate_normals()
 		st.generate_tangents()
+		var antes := malha.get_surface_count()
 		st.commit(malha)
-	_criar_mats_telha() # mesmos materiais do telhado antigo
-	malha.surface_set_material(0, _mat_telha)
-	malha.surface_set_material(1, _mat_forro)
-	malha.surface_set_material(2, _mat_forro)
+		if malha.get_surface_count() > antes: # superfície vazia (sem oitão) não entra
+			malha.surface_set_material(antes, mats[i])
 	return malha
+
+# uma viga de madeira (T_WoodTrim, a madeira da parede) de p0 a p1, de largura larg, saindo 5 cm dos dois lados da
+# parede (n = para fora); o veio corre ao longo dela
+func _viga(st: SurfaceTool, p0: Vector3, p1: Vector3, n: Vector3, larg: float) -> void:
+	var t := p1 - p0
+	var L := t.length()
+	if L < 0.05:
+		return
+	var s := n.cross(t / L).normalized() * (larg / 2.0) # no plano da parede, de través da viga
+	var f := n * 0.2 # meia grossura: a parede tem uns 30 cm; a madeira sai um pouco do reboco
+	var c := [p0 - s - f, p0 + s - f, p0 + s + f, p0 - s + f]
+	for k in 4:
+		var e: Vector3 = c[k]
+		var d: Vector3 = c[(k + 1) % 4]
+		var vu := 0.02 + 0.26 * float(k % 2)
+		var q := [[e, Vector2(0.0, 0.02)], [d, Vector2(0.0, 0.28)], [d + t, Vector2(L / 3.0, 0.28)], [e + t, Vector2(L / 3.0, 0.02)]]
+		for i in [0, 2, 1, 0, 3, 2]:
+			st.set_uv(q[i][1] + Vector2(k * 0.21 + vu, 0))
+			st.add_vertex(q[i][0])
+	for ponta in [[p0, false], [p1, true]]: # tampas
+		var o: Vector3 = ponta[0] - p0
+		var tp := [c[0] + o, c[1] + o, c[2] + o, c[3] + o]
+		var ordem: Array = [0, 1, 2, 0, 2, 3] if not ponta[1] else [0, 2, 1, 0, 3, 2]
+		for i in ordem:
+			st.set_uv(Vector2(0.5, 0.1))
+			st.add_vertex(tp[i])
 
 func _refazer_telhado(L: Dictionary) -> void:
 	var celulas: Array = []
