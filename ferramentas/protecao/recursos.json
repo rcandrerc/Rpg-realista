@@ -19,6 +19,7 @@
     { "nome": "Outros jogadores aparecem montados no lobo", "arquivo": "godot-prototipo/online.gd", "contem": ["o.montaria = Montaria.new(", "m.montar_lobo(sm, false)"] },
     { "nome": "Velocidades do lobo (anda, trota, galopa)", "arquivo": "godot-prototipo/andar.gd", "contem": ["func vel_montado(", "var montado := {}"] },
     { "nome": "Lobo corre com o galope do cavalo do Quimera; a corrida antiga fica como corrida_antiga (André 2026-11-05)", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["como('correr_cavalo', 'corrida')", "como('correr', 'corrida_antiga')"] },
+    { "nome": "Montada, espada e cajado cruzam em X colados nas costas (André 2026-11-05)", "arquivo": "godot-prototipo/main.gd", "contem": ["const X_ANGULO", "func _base_arma("] },
     { "nome": "Toque no celular conta uma vez só (medalhões, véu da janela e quadradinho): Tirar abre em todos os lugares (André 2026-11-03)", "arquivo": "godot-prototipo/menu.gd", "contem": ["func toque(ev: InputEvent) -> bool:", "cx.modulate.a = 1.0"] },
     { "nome": "Óculos saiu do jogo; conta antiga ganha Colar da mesma raridade (André 2026-11-03)", "arquivo": "shared/progresso.js", "contem": ["oculos: 'colar'"] },
     { "nome": "Código do servidor não fica aberto no site: vai trancado com a chave da máquina da Oracle (André 2026-11-03)", "arquivo": "server/atualizar.js", "contem": ["export function ligarAtualizacaoTrancada(", "export function abrirPacote(", "/chave-do-servidor", "pacote-versao.txt"] },

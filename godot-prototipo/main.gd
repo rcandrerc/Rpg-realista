@@ -907,6 +907,16 @@ const MONTADO_CAJADO := [0.0, -0.6] # [giro no plano das costas (rad), desliza p
 # MONTADO_ESPADA_RECUA m para trás pela lâmina, para o cabo sair do lado da cabeça
 const MONTADO_ESPADA := [0.35, 0.45]
 const MONTADO_ESPADA_RECUA := 0.22
+# Montado em X (pedido do André 2026-11-05: "nas costas cruzando", sem flutuar; montado não ataca): as duas armas
+# deitadas no plano das costas, cruzando no meio delas. Cajado com a chama sobre o ombro direito e a ponteira saindo
+# pelo quadril esquerdo; espada com o cabo sobre o ombro esquerdo e a ponta no quadril direito, por cima do cajado.
+const X_ANGULO := deg_to_rad(35.0) # espada, longe da coluna
+const X_ANGULO_CAJADO := deg_to_rad(20.0) # o cajado é mais comprido: mais rente à coluna para a ponteira não sair de lado
+const X_FUNDO := 0.115 # m do osso do peito até as costas (cajado); a espada vai X_ESPADA_FORA mais para fora
+const X_ESPADA_FORA := 0.03
+const X_CENTRO := -0.12 # m pela coluna (- = para o quadril): onde as duas cruzam
+const X_CABO := 0.32 # m do cruzamento até o cabo da espada
+const X_CAJADO_FIO := 0.55 # o cajado cruza nesse ponto do comprimento dele (0 = ponteira, 1 = chama)
 func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	var b := esq.find_bone("J_Bip_C_UpperChest")
 	if b < 0:
@@ -918,13 +928,27 @@ func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	if (p.call("J_Bip_R_ToeBase") - p.call("J_Bip_R_Foot")).dot(fr) < 0.0:
 		fr = -fr
 	var rb := esq.get_bone_global_rest(b).basis.orthonormalized().inverse()
-	var lado: Vector3 = (rb * fr.cross(cima)).normalized() # no espaço do osso do peito
-	var normal: Vector3 = (rb * fr).normalized() # para fora das costas
-	caj.basis = Basis(lado, MONTADO_ATRAS) * Basis(normal, MONTADO_CAJADO[0]) * caj.basis
-	caj.position += caj.basis.y.normalized() * MONTADO_CAJADO[1]
-	esp.basis = Basis(lado, MONTADO_ESPADA[1]) * Basis(normal, MONTADO_ESPADA[0]) * esp.basis
-	esp.position += esp.basis.y.normalized() * MONTADO_ESPADA_RECUA
+	var c: Vector3 = (rb * cima).normalized() # no espaço do osso do peito
+	var dr: Vector3 = (rb * dir).normalized() # para o lado direito do corpo
+	var fora: Vector3 = (rb * -fr).normalized() # para fora das costas
+	dr = (dr - fora * dr.dot(fora)).normalized()
+	c = fora.cross(dr).normalized() if fora.cross(dr).dot(c) > 0.0 else -fora.cross(dr).normalized()
+	var meio: Vector3 = c * X_CENTRO
+	# cajado: +Y do modelo vai da ponteira (origem) até a chama
+	var ec: float = caj.basis.get_scale().y
+	var uc: Vector3 = (c * cos(X_ANGULO_CAJADO) + dr * sin(X_ANGULO_CAJADO)).normalized()
+	var comp: float = 1.105 * ec
+	caj.transform = Transform3D(_base_arma(uc, fora).scaled(Vector3.ONE * ec), meio + fora * X_FUNDO - uc * comp * X_CAJADO_FIO)
+	# espada: origem no cabo, +Y para a ponta (lâmina para baixo)
+	var es: float = esp.basis.get_scale().y
+	var us: Vector3 = (c * cos(X_ANGULO) - dr * sin(X_ANGULO)).normalized()
+	esp.transform = Transform3D(_base_arma(-us, fora).scaled(Vector3.ONE * es), meio + fora * (X_FUNDO + X_ESPADA_FORA) + us * X_CABO)
 	colisor_espada(esq, esp)
+
+# base com +Y ao longo da arma e o lado chato (+Z) virado para fora das costas
+func _base_arma(y: Vector3, fora: Vector3) -> Basis:
+	var z: Vector3 = (fora - y * fora.dot(y)).normalized()
+	return Basis(y.cross(z).normalized(), y, z)
 
 # Montado: a lâmina vira um colisor (cápsula de 4 cm) para o cabelo (molas) cair por fora dela, como no site.
 # esp = null tira o colisor (a pé a espada volta para a mão ou para o lugar de sempre nas costas)
