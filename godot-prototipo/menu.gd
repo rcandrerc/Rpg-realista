@@ -1418,6 +1418,8 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 			n.offset_bottom = -1
 			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(n)
+	if it != null and P.eh_equip(it) and P.durab(it) < int(P.morte_dados().durMax):
+		_marca_durabilidade(b, it, tam)
 	moldurar(b, cor, escolhido, it != null)
 	if it != null and marcado:
 		var vel := ColorRect.new() # escurece um pouco e põe o sinal dourado no canto
@@ -1602,6 +1604,39 @@ func tocar_mochila(i: int) -> void:
 	atualizar()
 
 # cartão do item escolhido: nome na cor da raridade, o que faz, comparação com a peça do corpo e os botões
+# peça gasta: filete de durabilidade no pé da célula (âmbar; vermelho quando está no fim). Quebrada: véu vermelho
+func _marca_durabilidade(b: Control, it, tam: int) -> void:
+	var P = m.P
+	var k: float = clamp(float(P.durab(it)) / float(P.morte_dados().durMax), 0.0, 1.0)
+	if k <= 0.0:
+		var veu := ColorRect.new()
+		veu.color = Color(0.55, 0.05, 0.03, 0.38)
+		veu.set_anchors_preset(Control.PRESET_FULL_RECT)
+		veu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(veu)
+		var x := rotulo("QUEBRADA", 9 if tam < 70 else 12, Color("ffd2c8"))
+		x.add_theme_constant_override("outline_size", 4)
+		x.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		x.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		x.set_anchors_preset(Control.PRESET_CENTER)
+		x.position = Vector2(0, tam * 0.5 - 8)
+		x.size = Vector2(tam, 16)
+		x.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(x)
+		return
+	var fundo := ColorRect.new()
+	fundo.color = Color(0, 0, 0, 0.6)
+	fundo.position = Vector2(tam * 0.14, tam - 7)
+	fundo.size = Vector2(tam * 0.72, 3)
+	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(fundo)
+	var barra := ColorRect.new()
+	barra.color = Color("e0452e") if k <= 0.3 else Color("e8b14a")
+	barra.position = fundo.position
+	barra.size = Vector2(tam * 0.72 * k, 3)
+	barra.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(barra)
+
 func detalhe(it, i: int, lugar: String) -> Control:
 	var P = m.P
 	var cx := PanelContainer.new()
@@ -1628,6 +1663,13 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	else:
 		tipo = "Consumível · %d" % int(it.n)
 	txt.add_child(rotulo(tipo, 12, APAGADO))
+	if P.eh_equip(it): # durabilidade (André 2026-11-05): cada morte desgasta; quebrada não dá bônus até o Tomás consertar
+		var dmax: int = int(P.morte_dados().durMax)
+		var du: int = P.durab(it)
+		if du <= 0:
+			txt.add_child(rotulo("QUEBRADA · sem bônus até o Tomás consertar (%d ouro)" % P.custo_conserto(it), 12, PIOR))
+		else:
+			txt.add_child(rotulo("Durabilidade %d/%d" % [du, dmax] + (" · conserto %d ouro" % P.custo_conserto(it) if du < dmax else ""), 12, PIOR if du <= dmax * 0.3 else APAGADO))
 	var d := rotulo(P.texto_item(it), 14, TEXTO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(d)
@@ -2136,6 +2178,8 @@ func acao_item(msg: Dictionary) -> void:
 				P.prog.mochila[i] = null
 				P.mudou = true
 				m.hud.aviso("Jogou fora %s" % P.nome_item(it))
+		"consertar":
+			m.hud.aviso(P.consertar_tudo())
 		"vender", "comprar", "vender_varios":
 			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
 		"pagina":
