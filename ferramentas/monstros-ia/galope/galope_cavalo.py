@@ -12,7 +12,7 @@
 #   '{"chao":-0.03,"off":{"coxaD":72,"coxaE":72,"ombroD":17,"ombroE":17}}'
 # (cavalo_n.glb e o lobo.glb antigo, sem correr_cavalo, na pasta)
 # Juntas (André 2026-11-05: patas duras): com a pata no ar, o pulso da frente e o pé de trás dobram para trás
-# ('pulso', 'pe', graus) e o jarrete fecha ('jarrete'); a base do rabo desfaz parte do giro do quadril ('rabo').
+# ('pulso', 'pe', graus) e o jarrete fecha ('jarrete', nunca menos que 'jarrete_min' = 10°); a base do rabo desfaz parte do giro do quadril ('rabo').
 import bpy,sys,mathutils
 from mathutils import Matrix,Vector,Quaternion
 argv=sys.argv[sys.argv.index('--')+1:]
@@ -93,7 +93,7 @@ def posar(f,c):
             'cabp':math.atan2((P['cabeca'].tail-P['cabeca'].head).z,-(P['cabeca'].tail-P['cabeca'].head).y),
             'corp':math.atan2((P['peito'].head-P['quadril'].head).z,-(P['peito'].head-P['quadril'].head).y)}
 fr=list(range(f0,f1+1))
-FOLD_F=math.radians(K.get('pulso',70)); FOLD_T=math.radians(K.get('pe',55)); HOCK=math.radians(K.get('jarrete',20)); RABO=K.get('rabo',0.8)
+FOLD_F=math.radians(K.get('pulso',70)); FOLD_T=math.radians(K.get('pe',55)); HOCK=math.radians(K.get('jarrete',20)); RABO=K.get('rabo',0.8); HOCK_MIN=math.radians(K.get('jarrete_min',10))
 def girar(pb,ang):
     M=pb.matrix.copy(); h=M.translation.copy()
     pb.matrix=Matrix.Translation(h)@Matrix.Rotation(ang,4,'X')@Matrix.Translation(-h)@M
@@ -111,7 +111,7 @@ def juntas(f):
         girar(P['pataF'+s],SINAL*FOLD_F*sobe(h,0.06,0.2))
         h=P['pataT'+s].head.z
         k=sobe(h,0.05,0.18)
-        girar(P['jarrete'+s],SINAL*HOCK*k)
+        girar(P['jarrete'+s],SINAL*(HOCK_MIN+(HOCK-HOCK_MIN)*k))
         girar(P['pataT'+s],SINAL*FOLD_T*k)
 SINAL=K.get('sinal',1)
 m1={f:posar(f,None) for f in fr}
