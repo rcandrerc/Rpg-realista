@@ -18,9 +18,12 @@ permissions:
   contents: write
   actions: write # para chamar o pages.yml depois de gerar o pacote de atualização
 
+# Na main o build que está rodando NÃO é cancelado quando entra outro merge: ele termina (o André já testa aquela
+# versão) e o novo espera na fila. Cancelar jogava fora até 10 min de build (2026-11-05, execução 379). Se entrarem
+# vários merges durante um build, o GitHub guarda só o mais novo na fila, que já traz todos. Em PR continua cancelando.
 concurrency:
   group: apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   GODOT: 4.5-stable
@@ -38,16 +41,28 @@ jobs:
     timeout-minutes: 10
     outputs:
       tem: ${{ steps.olha.outputs.cache-hit }}
+      chave: ${{ steps.chave.outputs.chave }}
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A chave só muda quando muda algo que os modelos usam (não muda com regra do servidor, como shared/simulacao.js,
+      # nem com tela/menu do client). Antes 9 de 16 merges exportavam tudo de novo; com esta chave seriam 4.
+      # Detalhes em ferramentas/apk/chave-modelos.mjs.
+      - name: Chave dos modelos (só o que eles usam)
+        id: chave
+        run: |
+          C="$(node ferramentas/apk/chave-modelos.mjs --lista)"
+          echo "chave=modelos-v2-$C" >> "$GITHUB_OUTPUT"
       - name: Modelos desta versão já estão no cache?
         id: olha
         uses: actions/cache/restore@v4
         with:
           path: godot-prototipo/modelos
-          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          key: ${{ steps.chave.outputs.chave }}
           lookup-only: true
 
   modelos:
@@ -69,7 +84,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: godot-prototipo/modelos
-          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          key: ${{ needs.modelos-chave.outputs.chave }}
           restore-keys: modelos-v2-
       - name: Chromium para exportar os modelos
         run: |
@@ -160,7 +175,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: godot-prototipo/modelos
-          key: modelos-v2-${{ hashFiles('client/**', '!client/node_modules/**', 'shared/**', 'package-lock.json') }}
+          key: ${{ needs.modelos-chave.outputs.chave }}
           # sem o cache exato, volta a pasta do último build: modelo que sair igual fica com a importação antiga
           # (mesmos bytes no pacote) e o delta do app não traz o jogo inteiro de novo
           restore-keys: modelos-v2-

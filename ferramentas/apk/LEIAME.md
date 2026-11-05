@@ -26,3 +26,14 @@ cadastre em Settings → Secrets and variables → Actions → New repository se
 
 Sem esses secrets o build ainda roda (para conferir que nada quebrou), mas assina com uma chave descartável e **não
 publica** no release. O log do passo "Exportar o APK" mostra o SHA-1: o certo é `08:B6:1B:...:0D:CC`.
+
+## Por que o build às vezes demora mais (modelos)
+
+Os modelos (vila, personagens, monstros, minimapa) saem do Chromium e levam ~6 min. Eles ficam no cache e só são
+exportados de novo quando muda algo que eles usam. Quem decide é `chave-modelos.mjs`: entra o que a exportação
+carrega do `client/`, os arquivos de `shared/` de mapa, relevo, rochas e terreno, e de `shared/dados.js` só os
+valores que a exportação importa (MAPA_CLAREIRA, A, CRIADOR...). Mudança só em regra do servidor
+(`shared/simulacao.js`), em `progresso.js` ou em tela/menu do client não refaz os modelos. Para ver o que entra:
+`node ferramentas/apk/chave-modelos.mjs --lista`.
+
+Na main, um merge novo não cancela mais o build que está rodando: ele espera na fila e roda logo depois.
