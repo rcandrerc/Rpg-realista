@@ -106,7 +106,7 @@ export const ESCALADA = {
 export const PARADO_PAREDE = { agarrado: 'mx_hanging_by_hands_against_wall', beirada: 'mx_hanging_from_a_ledge_idle', balanca: 'mx_hanging_by_hands_gently_swaying' };
 // Todas as animações de escalada: o cliente tira delas o sobe-desce e o anda do quadril (quem move é o jogo)
 export const ANIMS_ESCALADA = [...Object.values(ESCALADA).map((e) => e.anim), ...Object.values(PARADO_PAREDE)];
-export const SUBIDA = { degrau: 0.45, mini: 1.95, empurrar: 0.18, maoAcima: 1.53, topo: 1.6, parede: 0.32 }; // m: sobe andando; mini escalada até; tempo empurrando; altura das mãos acima do corpo; topo: beirada no máximo isso acima do corpo para subir no topo (a animação sobe 1,29 m); parede: distância do quadril até a parede agarrado (mãos e pés encostam)
+export const SUBIDA = { degrau: 0.45, mini: 1.95, empurrar: 0.18, maoAcima: 1.53, topo: 1.6, parede: 0.32, tampoMin: 0.4, tampoMax: 1.95 }; // m: sobe andando; mini escalada até; tampoMin/tampoMax: obstáculo baixo (mesa, bancada, baú, tronco caído) com o alto entre esses dois tem tampo: pulando, o herói pousa em cima (André 2026-11-05); mini escalada até; tempo empurrando; altura das mãos acima do corpo; topo: beirada no máximo isso acima do corpo para subir no topo (a animação sobe 1,29 m); parede: distância do quadril até a parede agarrado (mãos e pés encostam)
 
 // Uma arma só: a espada mágica. Corta e solta magia; o jogador monta a build escolhendo as habilidades.
 // "at" = fração da animação em que acerta; ts = velocidade da animação; "hits" = vários acertos na mesma animação;
@@ -721,18 +721,19 @@ export function contaTerreno(def, taxa, agora) {
 export const precoTerreno = (w, d) => Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco;
 export const maxPecasTerreno = (w, d) => Math.max(LOTE.pecasMin, Math.min(LOTE.maxPecas, Math.round(w * d * LOTE.pecasPorBloco)));
 // Peças que se constroem no lote (aba Construir do modo construção, como no Quimera). w x d = tamanho no chão (m)
-// sem girar; circulos = sólidos [dx, dz, r] no espaço da peça (o herói não atravessa); custo sai da mochila e volta
+// sem girar; circulos = sólidos [dx, dz, r] no espaço da peça (o herói não atravessa); alto = altura do topo (m): pulando
+// dá para subir e ficar em cima (André 2026-11-05: "pular sobre as mesas de craft"); custo sai da mochila e volta
 // inteiro ao desmontar. estacao: as receitas que dá para criar perto dela (mesma conta do servidor, RECEITA_ESTACAO).
 // Modelos: Fantasy Props MegaKit e Medieval Village MegaKit (Quaternius, CC0, do repositório de fontes); a fornalha é
 // de pedra como a forja da ferraria da vila (godot-prototipo/construcao.gd).
 export const CONSTRUCOES = {
-  bancada: { nome: 'Bancada de trabalho', w: 2, d: 1, circulos: [[-0.5, 0, 0.5], [0.5, 0, 0.5]], custo: { lenha: 6, pedra: 3 }, estacao: 'alf',
+  bancada: { nome: 'Bancada de trabalho', w: 2, d: 1, circulos: [[-0.5, 0, 0.5], [0.5, 0, 0.5]], custo: { lenha: 6, pedra: 3 }, estacao: 'alf', alto: 0.89,
     desc: 'Perto dela você costura como na banca da Rosa (receitas do Alfaiate).' },
-  bigorna: { nome: 'Bigorna', w: 0.8, d: 0.8, circulos: [[0, 0, 0.4]], custo: { barra_ferro: 3, lenha: 2 }, estacao: 'fer',
+  bigorna: { nome: 'Bigorna', w: 0.8, d: 0.8, circulos: [[0, 0, 0.4]], custo: { barra_ferro: 3, lenha: 2 }, estacao: 'fer', alto: 1.18,
     desc: 'Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro).' },
-  fornalha: { nome: 'Fornalha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.7]], custo: { pedra: 12, lenha: 2 }, estacao: 'fundir',
+  fornalha: { nome: 'Fornalha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.7]], custo: { pedra: 12, lenha: 2 }, estacao: 'fundir', alto: 1.16,
     desc: 'Derrete minério em barras e queima lenha em carvão.' },
-  cerca: { nome: 'Cerca', w: 2, d: 0.3, circulos: [[-0.75, 0, 0.2], [0, 0, 0.2], [0.75, 0, 0.2]], custo: { lenha: 2 },
+  cerca: { nome: 'Cerca', w: 2, d: 0.3, circulos: [[-0.75, 0, 0.2], [0, 0, 0.2], [0.75, 0, 0.2]], custo: { lenha: 2 }, alto: 0.8,
     desc: 'Cerca de madeira de 2 m. Gire para mudar a direção.' },
 };
 // ---------- Construção completa como no Quimera (pedido do André 2026-11-04: "tem que ter todas as funções") ----------
@@ -764,9 +765,9 @@ Object.assign(CONSTRUCOES, {
     custo: { lenha: 3, pedra: 1 }, bancada: true, desc: 'Parede com janela. Vai na borda da fundação.' },
   telhado: { nome: 'Telhado', tipo: 'telhado', aba: 'casa', w: 2, d: 2, circulos: [], custo: { lenha: 2, pedra: 1 }, bancada: true,
     desc: 'Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra.' },
-  bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true,
+  bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true, alto: 0.69,
     desc: 'Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir.' },
-  cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true,
+  cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true, alto: 0.6,
     desc: 'Você renasce nela quando cai.' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
     desc: 'Ilumina em volta. Coloque no chão.' },
@@ -918,7 +919,7 @@ export const MAPA_CLAREIRA = {
   // escada de madeira encostada na rocha grande: pé no chão e topo na beirada
   escadas: [{ x: -7, z: 4, ry: 0, topo: { x: -7, z: 5.3 } }],
   // sólidos pequenos: poço da praça, caixotes da ferraria, banca da comerciante
-  obstaculos: [{ x: PRACA.x, z: PRACA.z, r: 1.15 }, { x: 6.6, z: -2.4, r: 0.8 }, { x: -10.7, z: -12.3, r: 0.75 }],
+  obstaculos: [{ x: PRACA.x, z: PRACA.z, r: 1.15 }, { x: 6.6, z: -2.4, r: 0.8, alto: 0.86 }, { x: -10.7, z: -12.3, r: 0.75, alto: 0.8 }], // alto: o topo (dá para pular e ficar em cima)
   // objetos de enfeite (Poly Haven) desenhados pelo cliente; os que atrapalham a passagem estão em obstaculos
   props: [
     { tipo: 'caixote', x: 6.4, z: -2.2, ry: 0.4 }, { tipo: 'caixote', x: 7.2, z: -2.9, s: 0.8, ry: 1.1 }, { tipo: 'caixote', x: 6.6, z: -2.3, s: 0.7, ry: 0.9, y: 0.62 },

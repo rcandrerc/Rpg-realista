@@ -12,6 +12,7 @@ var grades: Array = []
 var lagos: Array = []
 var agua := {"nivel": -0.05, "peito": 1.2, "lento": 0.62, "raso": 0.82}
 var monte := {} # grade da montanha: x0, z0, passo, n, h (PackedFloat32Array)
+var tampos := {} # topo dos obstáculos baixos (por_tampos), numa grade de 6 m
 
 func _init(mundo: Dictionary) -> void:
 	m = mundo
@@ -261,6 +262,36 @@ func altura(x: float, z: float, y := INF) -> float:
 		var a := altura_na(r, x, z, y)
 		if a > h and a >= 0.0: # -1 = fora da peça (no lago o chão fica abaixo de -1)
 			h = a
+	if not tampos.is_empty():
+		h = maxf(h, tampo_em(x, z))
+	return h
+
+# Obstáculos baixos com tampo (André 2026-11-05: "pular sobre as mesas de craft"): bancada, bigorna, baú, mesa da Rosa,
+# tronco caído, pedra pequena... Um círculo {x, z, r, alto} vira chão na altura alto: o herói pula e fica em cima.
+# Só conta quem tem alto entre SUBIDA.tampoMin e tampoMax (fogueira e esteio não). Mesma conta de shared/terreno.js porTampos.
+func por_tampos(l: Array, minimo: float, maximo: float) -> void:
+	tampos = {}
+	for k in l:
+		if not k.has("alto") or k.has("semTopo"):
+			continue
+		var a := float(k.alto)
+		if a < minimo or a > maximo:
+			continue
+		var t := {"x": float(k.x), "z": float(k.z), "r": float(k.r), "alto": a}
+		for i in range(floori((t.x - t.r) / 6.0), floori((t.x + t.r) / 6.0) + 1):
+			for j in range(floori((t.z - t.r) / 6.0), floori((t.z + t.r) / 6.0) + 1):
+				var c := Vector2i(i, j)
+				if not tampos.has(c):
+					tampos[c] = []
+				tampos[c].append(t)
+
+func tampo_em(x: float, z: float) -> float:
+	var h := -INF
+	for t in tampos.get(Vector2i(floori(x / 6.0), floori(z / 6.0)), []):
+		var dx: float = x - t.x
+		var dz: float = z - t.z
+		if t.alto > h and dx * dx + dz * dz <= t.r * t.r:
+			h = t.alto
 	return h
 
 # a parte de baixo da peça suspensa mais baixa acima de quem está ali (INF se céu aberto)

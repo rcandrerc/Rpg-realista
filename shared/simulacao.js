@@ -25,9 +25,11 @@ export function retPeca(p) {
   return [p.x - hw, p.z - hd, p.x + hw, p.z + hd];
 }
 // círculos sólidos da peça no mundo (giro do Godot no eixo y: x' = x cos + z sen, z' = -x sen + z cos)
-export function solidosPeca(p) {
-  const a = (p.r & 3) * Math.PI / 2, c = Math.round(Math.cos(a)), s = Math.round(Math.sin(a));
-  return CONSTRUCOES[p.k].circulos.map(([dx, dz, r]) => ({ x: p.x + dx * c + dz * s, z: p.z - dx * s + dz * c, r, peca: p.id }));
+// base = altura do chão embaixo dela: com CONSTRUCOES.alto, o círculo ganha o topo (alto) e o herói pula e fica em cima
+export function solidosPeca(p, base = null) {
+  const a = (p.r & 3) * Math.PI / 2, c = Math.round(Math.cos(a)), s = Math.round(Math.sin(a)), C = CONSTRUCOES[p.k];
+  const topo = base != null && C.alto ? { alto: base + C.alto } : {};
+  return C.circulos.map(([dx, dz, r]) => ({ x: p.x + dx * c + dz * s, z: p.z - dx * s + dz * c, r, peca: p.id, ...topo }));
 }
 const cruza = (a, b) => a[0] < b[2] - 0.01 && b[0] < a[2] - 0.01 && a[1] < b[3] - 0.01 && b[1] < a[3] - 0.01;
 const foraDoLote = (R, d) => R[0] < d.x0 - 0.01 || R[2] > d.x1 + 0.01 || R[1] < d.z0 - 0.01 || R[3] > d.z1 + 0.01;
@@ -209,7 +211,7 @@ export class Simulacao {
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1) })),
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
-      ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto }))];
+      ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto, semTopo: 1 }))]; // ninguém fica em pé no espantalho
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
@@ -227,6 +229,7 @@ export class Simulacao {
       if (!this.mata.has(k)) this.mata.set(k, []);
       this.mata.get(k).push({ x: o.x, z: o.z, r: o.r, ...(o.alto != null ? { alto: o.alto } : {}) });
     }
+    this.refazerTampos();
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
     // campos de caça (CACA, regra do Quimera): cada vaga tem um índice v fixo (depois dos inimigos parados) e já começa cheia
@@ -831,12 +834,16 @@ export class Simulacao {
       }
     }
   }
+  // topo dos obstáculos baixos vira chão (shared/terreno.js porTampos): mesa, bancada, baú, tronco caído, pedra pequena
+  refazerTampos() {
+    this.terreno.porTampos([...this.obstaculos, ...(this.mapa.cenario?.solidos || [])], SUBIDA.tampoMin, SUBIDA.tampoMax);
+  }
   // o herói pode ficar ali? (sem pedra alta, casa, árvore ou poço; dentro do mapa) — o Salto Arcano para antes
   livreParaHeroi(j, x, z) {
     if (!dentroDoMapa(this.mapa, x, z, 2.2)) return false;
     if (this.terreno.altura(x, z, j.y) > j.y + SUBIDA.degrau) return false;
     for (const k of [...this.obstaculos, ...this.pertoNaMata(x, z)]) {
-      if (k.alto != null && (j.y || 0) > k.alto) continue;
+      if (k.alto != null && (j.y || 0) > k.alto - 0.05) continue; // por cima (em pé no tampo da mesa)
       if (Math.hypot(x - k.x, z - k.z) < k.r + 0.35) return false;
     }
     return true;
@@ -1478,9 +1485,12 @@ export class Simulacao {
   // as peças são sólidas: os círculos de cada uma entram nos obstáculos (o herói não atravessa a bigorna)
   refazerSolidosLotes() {
     this.obstaculos = this.obstaculos.filter((k) => !k.peca);
-    for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p));
-    // casa: piso, paredes e telhado viram chão e parede de verdade (anda em cima, escala, fica em pé no telhado)
     const T = this.terreno, chao = (x, z) => { let h = 0; for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
+    // o móvel fica no chão ou em cima da fundação: o topo dele (CONSTRUCOES.alto) parte daí
+    const piso = (L, p) => chao(p.x, p.z) + (L.pecas.some((o) => tipoPeca(o.k) === 'fundacao' && Math.abs(o.x - p.x) < CASA.grade / 2 && Math.abs(o.z - p.z) < CASA.grade / 2) ? CASA.fundacao : 0);
+    for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p, CONSTRUCOES[p.k].alto ? piso(L, p) : null));
+    this.refazerTampos();
+    // casa: piso, paredes e telhado viram chão e parede de verdade (anda em cima, escala, fica em pé no telhado)
     T.porCasasDosJogadores([...this.lotes.values()].flatMap((L) => (L.dono ? pecasCasaSolidas(L, chao) : [])));
   }
   // m = { x0, z0, x1, z1 }: o terreno que o jogador marcou (toque num canto e arraste). Paga por bloco (precoTerreno).
@@ -2113,7 +2123,7 @@ export class Simulacao {
   }
   colidir(c) {
     for (const k of c.tipo === 'jogador' ? [...this.obstaculos, ...this.pertoNaMata(c.x, c.z)] : [...this.obstaculos, ...this.obstaculosRocha, ...this.pertoNaMata(c.x, c.z)]) {
-      if (k.alto != null && (c.y || 0) > k.alto) continue; // por cima (esteio da ferraria visto do telhado)
+      if (k.alto != null && (c.y || 0) > k.alto - 0.05) continue; // por cima (esteio da ferraria visto do telhado, em pé na bancada)
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }
