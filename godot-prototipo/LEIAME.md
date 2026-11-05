@@ -79,6 +79,8 @@ Para montar à mão:
 - Criar abre uma janelinha para escolher quantas (-5, -1, +1, +5, Máx; até 20 e só o que o material paga) e
   aparece a barrinha em cima, uma vez por peça: 3 a 5 s cada, mais longa nas peças que gastam mais material
   (`CRIAR_OBRA` e `tempoCriar` em `shared/dados.js`). Parar interrompe a fila; o servidor cobra cada uma ao terminar.
+  A aba Criar da mochila e a mesa (Ferreiro/Alfaiate) usam a mesma janelinha e barrinha (receitas também gastam
+  vigor por peça). A janela e a barrinha ficam numa camada acima do menu (`tela_criar`, layer 25).
 - Casa numa grade de 2 m: a fundação vai no quadrado (vira chão, dá para subir e andar em cima), parede, porta e
   janela vão na borda de uma fundação (Girar vira a frente), o telhado vai em cima de uma fundação com parede em
   volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica

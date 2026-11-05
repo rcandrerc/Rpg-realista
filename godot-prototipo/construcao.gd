@@ -79,6 +79,8 @@ var txt_qtd_n: Label
 var b_qtd_ok: Button
 var qtd := 1
 var _qtd_k := ""
+var _qtd_tipo := "obra" # "obra" (peça/ferramenta: fabricar) ou "receita" (Ferreiro/Alfaiate: criar)
+var tela_criar: CanvasLayer # janela e barrinha por cima do menu (a aba Criar da mochila e a mesa também usam)
 var painel_fab: PanelContainer # "Criando Fundação 2/6" com a barrinha carregando
 var txt_fab: Label
 var barra_fab: ProgressBar
@@ -942,7 +944,8 @@ func _grama_sob_horta(L: Dictionary) -> void:
 	for p in L.pecas:
 		if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
 			tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
-	for g in m.grama_pedacos:
+	# a grama da vila e a das clareiras da mata (os lotes ficam perto da mata: era a que ainda furava o piso)
+	for g in m.grama_pedacos + m.get("grama_mata") if m.get("grama_mata") != null else m.grama_pedacos:
 		if not is_instance_valid(g) or g.multimesh == null:
 			continue
 		var mm: MultiMesh = g.multimesh
@@ -1215,36 +1218,78 @@ func criar() -> void:
 	if not _fab.is_empty() and not _fab.get("acabou", false):
 		m.hud.aviso("Já está criando: espere a barrinha ou toque em Parar")
 		return
-	if not D.construcoes.has(k): # ferramenta: uma só, direto na barrinha
-		m.rede("fabricar", {"k": k, "n": 1})
+	pedir_criar("obra", k)
+
+# abre a janelinha de quantas (construção, aba Criar da mochila e mesa de criar).
+# tipo "obra": peça da casa ou ferramenta (ferramenta sai uma só, direto na barrinha); "receita": Ferreiro/Alfaiate.
+func pedir_criar(tipo: String, k: String) -> void:
+	if not m.on():
+		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
+	if not _fab.is_empty() and not _fab.get("acabou", false):
+		m.hud.aviso("Já está criando: espere a barrinha ou toque em Parar")
+		return
+	if tipo == "obra":
+		var mot := motivo_criar(k)
+		if mot != "":
+			m.hud.aviso(mot)
+			return
+		if not D.construcoes.has(k):
+			m.rede("fabricar", {"k": k, "n": 1})
+			return
+	_qtd_tipo = tipo
 	_qtd_k = k
 	qtd = 1
 	_mostrar_qtd()
 	painel_qtd.visible = true
 
+# custo em materiais de uma unidade (peça: custo; receita: usa)
+func _custo_qtd() -> Dictionary:
+	return D.receitas[_qtd_k].usa if _qtd_tipo == "receita" else dados_criar(_qtd_k).custo
+
+func _nome_qtd() -> String:
+	return str(D.itens[str(D.receitas[_qtd_k].faz)].nome) if _qtd_tipo == "receita" else str(dados_criar(_qtd_k).nome)
+
+# vigor de uma receita (0 nas peças)
+func _vigor_qtd() -> float:
+	if _qtd_tipo != "receita":
+		return 0.0
+	var R: Dictionary = D.receitas[_qtd_k]
+	return float(m.P.custo_vigor(str(R.prof), float(R.vigor)))
+
 # quantas dá para criar com o que tenho (no máximo a fila do servidor)
 func _qtd_max(k: String) -> int:
-	return clampi(_quantas(dados_criar(k).custo), 1, int(D.get("criarObra", {}).get("maxFila", 20)))
+	var n := _quantas(_custo_qtd()) if k == _qtd_k else _quantas(dados_criar(k).custo)
+	var vg := _vigor_qtd() if k == _qtd_k else 0.0
+	if vg > 0.0:
+		n = mini(n, int(floor(float(m.P.vigor()) / vg + 0.001)))
+	return clampi(n, 1, int(D.get("criarObra", {}).get("maxFila", 20)))
 
-func tempo_criar(k: String) -> float:
-	var C := dados_criar(k)
+# segundos de uma (mesma conta de tempoCriar em shared/dados.js)
+func tempo_custo(custo: Dictionary) -> float:
 	var R: Dictionary = D.get("criarObra", {"min": 3.0, "max": 5.0, "porMaterial": 0.125})
 	var soma := 0
-	for c in C.get("custo", {}):
-		soma += int(C.custo[c])
+	for c in custo:
+		soma += int(custo[c])
 	return clampf(float(R.min) + soma * float(R.porMaterial), float(R.min), float(R.max))
 
+func tempo_criar(k: String) -> float:
+	return tempo_custo(dados_criar(k).get("custo", {}))
+
 func _mostrar_qtd() -> void:
-	var C := dados_criar(_qtd_k)
+	var custo := _custo_qtd()
 	var mx := _qtd_max(_qtd_k)
+	var t := tempo_custo(custo)
+	var vg := _vigor_qtd()
 	qtd = clampi(qtd, 1, mx)
-	txt_qtd_tit.text = "Criar %s" % str(C.nome)
+	txt_qtd_tit.text = "Criar %s" % _nome_qtd()
 	var total := {}
-	for c in C.custo:
-		total[c] = int(C.custo[c]) * qtd
-	txt_qtd_custo.text = "Cada uma: %s · %s s\nTotal: %s · %s s (dá para %d)" % [custo_txt(C.custo), str(snappedf(tempo_criar(_qtd_k), 0.1)).replace(".", ","),
-		custo_txt(total), str(snappedf(tempo_criar(_qtd_k) * qtd, 0.1)).replace(".", ","), mx]
+	for c in custo:
+		total[c] = int(custo[c]) * qtd
+	var cada := custo_txt(custo) + ((" · vigor %s" % str(snappedf(vg, 0.1)).replace(".", ",")) if vg > 0.0 else "")
+	var tudo := custo_txt(total) + ((" · vigor %s" % str(snappedf(vg * qtd, 0.1)).replace(".", ",")) if vg > 0.0 else "")
+	txt_qtd_custo.text = "Cada uma: %s · %s s\nTotal: %s · %s s (dá para %d)" % [cada, str(snappedf(t, 0.1)).replace(".", ","),
+		tudo, str(snappedf(t * qtd, 0.1)).replace(".", ","), mx]
 	txt_qtd_n.text = str(qtd)
 	b_qtd_ok.text = "Criar %d" % qtd
 
@@ -1254,6 +1299,9 @@ func _mudar_qtd(d: int) -> void:
 
 func _confirmar_qtd() -> void:
 	painel_qtd.visible = false
+	if _qtd_tipo == "receita":
+		m.rede("criar", {"r": _qtd_k, "n": qtd})
+		return
 	var mot := motivo_criar(_qtd_k)
 	if mot != "":
 		m.hud.aviso(mot)
@@ -1263,7 +1311,9 @@ func _confirmar_qtd() -> void:
 # o servidor começou uma (barrinha do zero) ou acabou a fila
 func fabricando(ev: Dictionary) -> void:
 	var k := str(ev.get("k", ""))
-	var nome := str(dados_criar(k).get("nome", "")) if k != "" else ""
+	var nome := str(ev.get("nome", "")) # receitas mandam o nome
+	if nome == "" and k != "":
+		nome = str(dados_criar(k).get("nome", ""))
 	if ev.get("fim", false):
 		if _fab.is_empty():
 			return
@@ -2313,7 +2363,10 @@ func _montar_tela_criar() -> void:
 	painel_qtd.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	painel_qtd.grow_vertical = Control.GROW_DIRECTION_BOTH
 	painel_qtd.visible = false
-	tela.add_child(painel_qtd)
+	tela_criar = CanvasLayer.new()
+	tela_criar.layer = 25 # acima do menu (20): a aba Criar e a mesa abrem a mesma janela
+	add_child(tela_criar)
+	tela_criar.add_child(painel_qtd)
 	var c := VBoxContainer.new()
 	c.add_theme_constant_override("separation", 10)
 	painel_qtd.add_child(c)
@@ -2360,7 +2413,7 @@ func _montar_tela_criar() -> void:
 	painel_fab.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	painel_fab.offset_top = 132
 	painel_fab.visible = false
-	tela.add_child(painel_fab)
+	tela_criar.add_child(painel_fab)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 12)
 	painel_fab.add_child(h)
