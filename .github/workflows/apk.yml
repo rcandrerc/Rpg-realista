@@ -122,16 +122,16 @@ jobs:
           mkdir -p ~/.config/godot
           printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > ~/.config/godot/editor_settings-4.5.tres
       # O aapt2 (empacotador do Android) só existe em x86_64. No runner ARM ele roda emulado. O binfmt-support
-      # (x86_64-binfmt-P) ignora o QEMU_LD_PREFIX e usa prefix fixo, então não acha o loader x86_64. Solução sem
-      # root: monta um sysroot x86_64 e cria um "aapt2" de mentira (wrapper) que chama o qemu-x86_64 DIRETO com
-      # -L apontando pro sysroot; o AGP usa esse wrapper via android.aapt2FromMavenOverride. Só no ARM.
+      # ignora o QEMU_LD_PREFIX, então o wrapper chama o qemu-x86_64 DIRETO com -L apontando pro sysroot x86_64.
+      # Atenção ao usrmerge: os .deb trazem o loader em usr/lib64; o loader precisa ficar em lib64/ e as libs em
+      # lib/x86_64-linux-gnu/ pra o -L resolver. Só no ARM; no GitHub (x86_64) este passo não faz nada.
       - name: Compatibilidade x86_64 para o aapt2 (só no runner ARM)
         run: |
           case "$(uname -m)" in aarch64|arm64) ;; *) echo "runner x86_64 nativo: nada a fazer"; exit 0;; esac
           SYS="$HOME/x86_64-root"
           if [ ! -e "$SYS/lib64/ld-linux-x86-64.so.2" ]; then
             echo "Montando sysroot x86_64 (libc6, libstdc++6, libgcc-s1, zlib1g amd64)..."
-            rm -rf "$SYS" && mkdir -p "$SYS" /tmp/x86debs && cd /tmp/x86debs
+            rm -rf "$SYS" /tmp/x86debs && mkdir -p "$SYS/extract" "$SYS/lib64" "$SYS/lib/x86_64-linux-gnu" /tmp/x86debs && cd /tmp/x86debs
             B=https://archive.ubuntu.com/ubuntu/pool/main
             for spec in \
               "$B/g/glibc|libc6_[0-9][^\"]*_amd64\.deb" \
@@ -141,8 +141,18 @@ jobs:
               dir="${spec%%|*}"; re="${spec##*|}"
               f="$(curl -s "$dir/" | grep -oE "$re" | sort -V | tail -1)"
               [ -n "$f" ] || { echo "pacote x86_64 nao encontrado em $dir ($re)"; exit 1; }
-              echo "  baixando $f"; curl -fsSL -o "$f" "$dir/$f"; dpkg-deb -x "$f" "$SYS"
+              echo "  baixando $f"; curl -fsSL -o "$f" "$dir/$f"; dpkg-deb -x "$f" "$SYS/extract"
             done
+            # usrmerge: tudo vem em usr/lib...; poe o loader e as libs nos caminhos padrao do sysroot pro -L achar
+            LD="$(find "$SYS/extract" -name 'ld-linux-x86-64.so.2' | head -1)"
+            [ -n "$LD" ] || { echo "loader x86_64 nao achado"; find "$SYS/extract" -name 'ld-*'; exit 1; }
+            cp -fL "$LD" "$SYS/lib64/ld-linux-x86-64.so.2"
+            find "$SYS/extract" -path '*x86_64-linux-gnu*' -name '*.so*' -exec cp -a {} "$SYS/lib/x86_64-linux-gnu/" \;
+            mkdir -p "$SYS/usr/lib"
+            ln -sfn ../../lib/x86_64-linux-gnu "$SYS/usr/lib/x86_64-linux-gnu"
+            ln -sfn ../lib64 "$SYS/usr/lib64"
+            rm -rf "$SYS/extract"
+            echo "sysroot: $(ls -l "$SYS/lib64/ld-linux-x86-64.so.2")"; echo "libs: $(ls "$SYS/lib/x86_64-linux-gnu" | tr '\n' ' ')"
           fi
           # aapt2 real (x86_64) do build-tools mais novo:
           REAL="$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
@@ -162,7 +172,7 @@ jobs:
           mkdir -p "$HOME/.gradle"
           grep -q '^android.aapt2FromMavenOverride=' "$HOME/.gradle/gradle.properties" 2>/dev/null \
             || echo "android.aapt2FromMavenOverride=$HOME/aapt2bin/aapt2" >> "$HOME/.gradle/gradle.properties"
-          echo "wrapper aapt2 -> $QEMU -L $SYS $REAL"; cat "$HOME/aapt2bin/aapt2"
+          echo "wrapper aapt2 -> $QEMU -L $SYS $REAL"
           echo "--- teste do wrapper (aapt2 version) ---"; "$HOME/aapt2bin/aapt2" version || { echo "wrapper nao rodou o aapt2"; exit 1; }
       - name: Chave de assinatura
         env:
