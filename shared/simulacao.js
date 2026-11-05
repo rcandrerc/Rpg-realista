@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
 import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU } from './dados.js';
 
 const TAU = Math.PI * 2;
@@ -172,6 +172,10 @@ export function motivoHorta(L, i, k) {
 // troca: o item sem a quantidade, em texto (para conferir se ainda é o mesmo) e de volta com n unidades
 const chaveItem = (it) => JSON.stringify({ ...it, n: undefined });
 function itemDaChave(chave, n) { const it = JSON.parse(chave); return ehEquip(it.k) ? it : { ...it, n }; }
+
+// o que a morte custou, para o aviso de quando levanta (MORTE)
+export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + '. O equipamento desgastou'
+  + (pen.quebrou.length ? `; quebrou: ${pen.quebrou.join(', ')} (o Tomás conserta)` : '');
 
 export class Simulacao {
   constructor(mapa) {
@@ -910,6 +914,13 @@ export class Simulacao {
       p.ouro -= preco;
       liberarPaginas(p, tem + 1);
       aviso(`Página ${tem + 1} da mochila liberada (+${MOCHILA} lugares)`);
+    } else if (m.acao === 'consertar') {
+      // Tomás conserta tudo o que desgastou (corpo e mochila) de uma vez (MORTE em shared/dados.js)
+      if (!this.pertoDeQuemConserta(j)) return aviso('Conserte com o Tomás, o ferreiro');
+      const r = consertarTudo(p);
+      if (!r) return aviso('Nada para consertar: está tudo inteiro');
+      if (r.falta) return aviso(`O conserto custa ${r.custo} de ouro (faltam ${r.falta})`);
+      aviso(`Tomás consertou ${r.n} ${r.n === 1 ? 'peça' : 'peças'} por ${r.custo} de ouro`);
     } else if (m.acao === 'capacete') {
       // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
       p.semCapacete = m.mostrar === false;
@@ -1219,6 +1230,7 @@ export class Simulacao {
   }
   // quem compra itens: a Rosa e os NPCs com 'vender' nas acoes (o Tomás, o ferreiro)
   pertoDeQuemCompra(j) { return this.pertoDaLoja(j) || (this.mapa.npcs || []).some((n) => (n.acoes || []).includes('vender') && dist(n, j) < LOJA_DISTANCIA); }
+  pertoDeQuemConserta(j) { return (this.mapa.npcs || []).some((n) => (n.acoes || []).includes('consertar') && dist(n, j) < LOJA_DISTANCIA); }
   pertoDaLoja(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'loja' && dist(n, j) < LOJA_DISTANCIA); }
 
   // ---------- Vila dos Lotes: comprar lote, construir e horta (shared/dados.js VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS) ----------
@@ -1731,12 +1743,15 @@ export class Simulacao {
     if (c.tipo === 'jogador') {
       this.cancelarVila(c, null);
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
+      // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde parte do ouro e o equipamento desgasta
+      const pen = penalidadeMorte(c.prog); c.progSujo = true;
+      this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
         const L = this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
         const n = cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : this.mapa.nascimento;
         Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: 0, vy: 0, chao: true, trava: 0, acao: null });
-        this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' });
+        this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' + textoPenalidade(pen) });
       });
     } else {
       this.contarMissao(c);

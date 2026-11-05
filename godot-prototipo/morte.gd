@@ -10,14 +10,16 @@ extends CanvasLayer
 # Morreu:
 # - câmera lenta curtinha, tranco na câmera, vibração forte e um baque grave;
 # - a cor some de vez, o vermelho fecha as bordas e o coração dá as duas últimas batidas, devagar;
-# - "VOCÊ CAIU" aparece no meio da tela e tudo escurece aos poucos até o preto;
+# - o corpo cai no chão (main.gd corpo_caido) e tudo escurece aos poucos até o preto;
+#   o texto "VOCÊ CAIU" ficou desligado (MOSTRAR_TEXTO): o André não gostou (2026-11-05), quer só cair e escurecer;
 # - os botões de luta somem enquanto está caído;
 # - ao levantar na vila, a tela clareia devagar, a cor e o som voltam e sai um brilho de cura em volta do herói.
 
 const LIMIAR := 0.35 # fração da vida em que começa
+const MOSTRAR_TEXTO := false # "VOCÊ CAIU" / "Voltando para a vila..." no meio da tela
 const TITULO_EM := 0.9 # s depois de cair: o "VOCÊ CAIU" começa a aparecer
-const PRETO_DE := 1.7 # s: começa a escurecer...
-const PRETO_ATE := 3.1 # ...e está tudo preto (o herói levanta em 3,5 s de jogo)
+const PRETO_DE := 2.2 # s: começa a escurecer (dá tempo de ver o corpo chegar no chão)...
+const PRETO_ATE := 3.4 # ...e está tudo preto (o herói levanta em 3,5 s de jogo)
 const VOLTA_DUR := 1.2 # s para clarear depois de levantar
 const SAT_MORTO := 0.0 # sem cor nenhuma
 const CORTE_ABERTO := 20500.0 # Hz: filtro desligado
@@ -198,6 +200,9 @@ func _process(dt: float) -> void:
 	_veu.visible = vermelho > 0.005 or escuro > 0.005 or _flash > 0.005
 	_preto.color.a = preto
 	_preto.visible = preto > 0.003
+	if not MOSTRAR_TEXTO:
+		tit = 0.0
+		sub = 0.0
 	_titulo.modulate.a = tit
 	_titulo.visible = tit > 0.003
 	_sub.modulate.a = sub * 0.9

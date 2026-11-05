@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, MORTE } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import zlib from 'node:zlib';
 import { RAIZ } from '@rpg/shared';
@@ -115,6 +115,8 @@ const habs = {
   lote: LOTE, construcoes: CONSTRUCOES, plantas: PLANTAS, horta: HORTA,
   // casa do Quimera (2026-11-04): grade da casa, ferramentas da fazenda (enxada, regador) e o baú
   ferramentas: FERRAMENTAS_FAZENDA, casa: CASA, bau: BAU,
+  // penalidade de morte e durabilidade do equipamento (André 2026-11-05)
+  morte: MORTE,
 };
 const faltam = Object.entries(habs.habs).flatMap(([k, h]) => [h.anim, ...(h.combo || []).map((c) => c.anim)].filter((a) => a && !anims[a]).map((a) => k + ':' + a));
 if (faltam.length) console.log('ATENÇÃO, animação sem nome no Godot:', faltam.join(', '));
