@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
@@ -18,7 +18,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, amigo: 3, time: 3 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -56,6 +56,23 @@ class SalaClareira extends Room {
       const int = (v) => (Number.isInteger(v) && v >= 0 && v < 1e9 ? v : undefined);
       this.sim.troca(c.sessionId, { acao: m.acao, com: typeof m.com === 'string' ? m.com.slice(0, 32) : undefined, i: int(m.i), n: int(m.n), o: int(m.o), v: m.v === true });
     });
+    // amigos (até 20, ficam na conta) e time (shared/simulacao.js amigo/time): pedir, aceitar, recusar, remover, convidar, sair
+    const texto = (v) => (typeof v === 'string' ? v.slice(0, 32) : undefined);
+    this.ouvir('amigo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.amigo(c.sessionId, { acao: m.acao, com: texto(m.com), c: texto(m.c) }); });
+    this.ouvir('time', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.time(c.sessionId, { acao: m.acao, com: texto(m.com) }); });
+    // amizade feita ou desfeita: grava na conta (as duas pontas); desfeita, avisa também as outras salas
+    const idConta = (k) => (/^c\d+$/.test(k) ? Number(k.slice(1)) : null);
+    this.sim.aoAmizade = (a, b, junta) => {
+      const ia = idConta(a), ib = idConta(b);
+      if (contas && ia != null && ib != null) {
+        if (junta) return contas.fazerAmizade(ia, ib, AMIGOS.max);
+        contas.desfazerAmizade(ia, ib);
+      }
+      if (!junta) for (const s of salas) if (s !== this) s.sim.esquecerAmigo(b, a);
+      return true;
+    };
+    // o amigo está jogando em outra sala (a lista mostra "online")
+    this.sim.onlineFora = (k) => { for (const s of salas) if (s !== this && s.sim.porConta(k)) return true; return false; };
     // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
     this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, { r: m.r }); });
@@ -174,6 +191,7 @@ class SalaClareira extends Room {
     this.sim.enviarLotes(client.sessionId); // Vila dos Lotes: todos os lotes e qual é o dele
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
+    if (conta) this.sim.definirAmigos(client.sessionId, contas.amigos(conta.id).map((a) => ({ c: 'c' + a.id, nome: a.nome })));
     if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
   }
 

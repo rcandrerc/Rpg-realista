@@ -59,6 +59,8 @@ export class Contas {
     if (!colunas.includes('progresso')) this.db.exec('ALTER TABLE contas ADD COLUMN progresso TEXT');
     // Vila dos Lotes: dono (chave da conta: 'c' + id), nome do dono e o que tem no lote (peças e horta, em JSON)
     this.db.exec('CREATE TABLE IF NOT EXISTS lotes (id TEXT PRIMARY KEY, dono TEXT, nome TEXT, dados TEXT, atualizado INTEGER)');
+    // amigos (André 2026-11-05): cada amizade fica gravada nas duas pontas (a -> b e b -> a), até 20 por conta
+    this.db.exec('CREATE TABLE IF NOT EXISTS amizades (a INTEGER NOT NULL, b INTEGER NOT NULL, desde INTEGER, PRIMARY KEY (a, b))');
     this.q = {
       porGoogle: this.db.prepare('SELECT * FROM contas WHERE google = ?'),
       criar: this.db.prepare('INSERT INTO contas (google, email, nome, criada, ultimo_acesso) VALUES (?, ?, ?, ?, ?)'),
@@ -80,6 +82,11 @@ export class Contas {
       loteDoDono: this.db.prepare('SELECT * FROM lotes WHERE dono = ?'),
       gravarLote: this.db.prepare('INSERT INTO lotes (id, dono, nome, dados, atualizado) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dono = excluded.dono, nome = excluded.nome, dados = excluded.dados, atualizado = excluded.atualizado'),
       soltarLotes: this.db.prepare("UPDATE lotes SET dono = NULL, nome = '', dados = '{}' WHERE dono = ?"),
+      amigos: this.db.prepare('SELECT c.id, c.nome FROM amizades z JOIN contas c ON c.id = z.b WHERE z.a = ? ORDER BY c.nome'),
+      nAmigos: this.db.prepare('SELECT COUNT(*) AS n FROM amizades WHERE a = ?'),
+      amizade: this.db.prepare('INSERT OR IGNORE INTO amizades (a, b, desde) VALUES (?, ?, ?)'),
+      desamizade: this.db.prepare('DELETE FROM amizades WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)'),
+      apagarAmizades: this.db.prepare('DELETE FROM amizades WHERE a = ? OR b = ?'),
     };
     this.copiar();
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
@@ -132,9 +139,20 @@ export class Contas {
   salvarAparencia(id, aparencia) { this.q.aparencia.run(JSON.stringify(aparencia), id); }
   // Corpo trocado depois de criado (só os da lista: visualValido)
   salvarVisual(id, visual) { if (visualValido(visual)) this.q.visual.run(visual, id); }
-  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); } // conta apagada: o lote volta à venda
+  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
+
+  // ---------- amigos ----------
+  amigos(id) { return this.q.amigos.all(id).map((r) => ({ id: Number(r.id), nome: r.nome })); }
+  // grava a amizade nas duas pontas; false se uma das listas já está cheia
+  fazerAmizade(a, b, max) {
+    if (a === b || this.q.nAmigos.get(a).n >= max || this.q.nAmigos.get(b).n >= max) return false;
+    const agora = Date.now();
+    this.q.amizade.run(a, b, agora); this.q.amizade.run(b, a, agora);
+    return true;
+  }
+  desfazerAmizade(a, b) { this.q.desamizade.run(a, b, b, a); }
 
   // ---------- Vila dos Lotes ----------
   // todos os lotes guardados (formato de Simulacao.carregarLotes)

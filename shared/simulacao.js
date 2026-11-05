@@ -3,7 +3,7 @@
 import { Terreno } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, AMIGOS, TIME } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -291,6 +291,8 @@ export class Simulacao {
     this.nascerOndeSaiu(j);
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
+    j.amigos = new Map(); // conta do amigo -> nome (o servidor carrega da conta: definirAmigos)
+    j.time = null;
     this.jogadores.set(id, j);
     this.avisarProg(j);
     return j;
@@ -298,7 +300,9 @@ export class Simulacao {
   removerJogador(id) {
     const j = this.jogadores.get(id);
     if (j?.troca) this.fecharTroca(j.troca, `${j.nome} saiu do jogo: a troca foi desfeita`);
+    if (j?.time) this.sairDoTime(j, `${j.nome} saiu do jogo`);
     this.jogadores.delete(id);
+    if (j) for (const o of this.jogadores.values()) if (o.amigos?.has(j.conta)) this.enviarAmigos(o); // amigo ficou offline
   }
   // ---------- onde o herói estava (André 2026-11-03) ----------
   // Saiu do jogo longe da vila: entra de volta no mesmo lugar. Só a morte (ou o Voltar para a vila) leva para a praça.
@@ -1065,6 +1069,150 @@ export class Simulacao {
       }
     }
   }
+  // ---------- amigos (até 20) e time (André 2026-11-05) ----------
+  // A lista de amigos fica na conta (server/contas.js, tabela amizades); aqui fica j.amigos (conta -> nome), que o servidor
+  // carrega ao entrar (definirAmigos) e grava pelo aoAmizade. O pedido de amizade é feito tocando no outro jogador da sala.
+  // Time: só com amigo e na mesma sala, até TIME.max pessoas. Quem está no time vê a vida e a mana dos outros (evento 'time')
+  // e ganha XP e drop dos monstros que caem perto dele (morrer).
+  porConta(c) { for (const j of this.jogadores.values()) if (j.conta === c) return j; return null; }
+  definirAmigos(id, lista) {
+    const j = this.jogadores.get(id); if (!j) return;
+    j.amigos = new Map((Array.isArray(lista) ? lista : []).slice(0, AMIGOS.max).map((a) => [String(a.c), String(a.nome || '')]));
+    this.enviarAmigos(j);
+    for (const o of this.jogadores.values()) if (o !== j && o.amigos?.has(j.conta)) {
+      this.evento({ t: 'aviso', para: o.id, texto: `Seu amigo ${j.nome} entrou no jogo` });
+      this.enviarAmigos(o);
+    }
+  }
+  // outro servidor (sala) desfez a amizade: tira daqui também
+  esquecerAmigo(conta, amigo) {
+    const j = this.porConta(conta); if (!j || !j.amigos.delete(amigo)) return;
+    this.enviarAmigos(j);
+  }
+  enviarAmigos(j) {
+    const lista = [...j.amigos].map(([c, nome]) => {
+      const o = this.porConta(c);
+      return { c, nome: o?.nome || nome, id: o ? o.id : null, nivel: o ? o.prog.nivel : null, on: o ? 1 : this.onlineFora?.(c) ? 2 : 0, time: !!(o && j.time && o.time === j.time) };
+    }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
+    this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max });
+  }
+  amigo(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m) return;
+    const aviso = (texto, para = id) => this.evento({ t: 'aviso', para, texto });
+    if (m.acao === 'lista') return this.enviarAmigos(j);
+    if (m.acao === 'remover') {
+      const c = String(m.c || ''); if (!j.amigos.has(c)) return;
+      const nome = j.amigos.get(c);
+      j.amigos.delete(c);
+      const o = this.porConta(c);
+      if (o) { o.amigos.delete(j.conta); this.enviarAmigos(o); }
+      this.aoAmizade?.(j.conta, c, false);
+      this.enviarAmigos(j);
+      return aviso(`${nome} saiu da sua lista de amigos`);
+    }
+    const o = this.jogadores.get(String(m.com || ''));
+    if (m.acao === 'recusar') {
+      const p = j.pedidoAmigo; if (!p || p.de !== String(m.com)) return;
+      j.pedidoAmigo = null;
+      if (o) aviso(`${j.nome} recusou o pedido de amizade`, o.id);
+      return;
+    }
+    if (!o || o === j || o.criando || j.criando) return;
+    if (j.amigos.has(o.conta)) return aviso(`${o.nome} já é seu amigo`);
+    if (j.amigos.size >= AMIGOS.max) return aviso(`Sua lista já tem ${AMIGOS.max} amigos`);
+    if (o.amigos.size >= AMIGOS.max) return aviso(`A lista de ${o.nome} já está cheia`);
+    const veio = j.pedidoAmigo && j.pedidoAmigo.de === o.id && j.pedidoAmigo.ate >= this.tempo;
+    if (m.acao === 'aceitar' || (m.acao === 'pedir' && veio)) {
+      if (!veio) return aviso('O pedido de amizade já expirou');
+      j.pedidoAmigo = null; o.pedidoAmigo = null;
+      if (this.aoAmizade && !this.aoAmizade(j.conta, o.conta, true)) return aviso('Não deu para salvar a amizade agora');
+      j.amigos.set(o.conta, o.nome); o.amigos.set(j.conta, j.nome);
+      aviso(`${o.nome} agora é seu amigo!`); aviso(`${j.nome} agora é seu amigo!`, o.id);
+      this.enviarAmigos(j); this.enviarAmigos(o);
+      return;
+    }
+    if (m.acao !== 'pedir') return;
+    if ((j.amigoPedidoT || -99) > this.tempo - AMIGOS.entrePedidos) return aviso('Espere um pouquinho para pedir de novo');
+    j.amigoPedidoT = this.tempo;
+    o.pedidoAmigo = { de: j.id, ate: this.tempo + AMIGOS.pedido };
+    this.evento({ t: 'amigo', para: o.id, fase: 'pedido', de: j.id, nome: j.nome, dur: AMIGOS.pedido });
+    aviso(`Pedido de amizade enviado para ${o.nome}`);
+  }
+  time(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m) return;
+    const aviso = (texto, para = id) => this.evento({ t: 'aviso', para, texto });
+    if (m.acao === 'sair') return j.time && this.sairDoTime(j, `${j.nome} saiu do time`);
+    // com: id do jogador na sala ou a conta do amigo (lista de amigos)
+    const o = this.jogadores.get(String(m.com || '')) || this.porConta(String(m.com || ''));
+    if (m.acao === 'expulsar') {
+      const T = j.time; if (!T || T.lider !== j.id || !o || o.time !== T || o === j) return;
+      aviso('Você saiu do time', o.id);
+      return this.sairDoTime(o, `${o.nome} saiu do time`);
+    }
+    if (m.acao === 'recusar') {
+      const p = j.conviteTime; if (!p || !o || p.de !== o.id) return;
+      j.conviteTime = null;
+      return aviso(`${j.nome} recusou o convite para o time`, o.id);
+    }
+    if (!o || o === j || o.criando || j.criando) return aviso('Seu amigo precisa estar no mesmo mundo para entrar no time');
+    if (m.acao === 'aceitar') {
+      const p = j.conviteTime; if (!p || p.de !== o.id || p.ate < this.tempo) return aviso('O convite para o time já expirou');
+      j.conviteTime = null;
+      if (j.time) return aviso('Saia do seu time antes de entrar em outro');
+      let T = o.time;
+      if (!T) { T = { lider: o.id, membros: [o.id] }; o.time = T; (this.times ||= new Set()).add(T); }
+      if (T.membros.length >= TIME.max) return aviso(`O time já tem ${TIME.max} pessoas`);
+      T.membros.push(j.id); j.time = T;
+      for (const k of T.membros) aviso(k === j.id ? `Você entrou no time de ${this.jogadores.get(T.lider)?.nome || o.nome}` : `${j.nome} entrou no time`, k);
+      return this.mudouTime(T);
+    }
+    if (m.acao !== 'convidar') return;
+    if (!j.amigos.has(o.conta)) return aviso(`Só dá para chamar amigo para o time. Adicione ${o.nome} como amigo primeiro`);
+    if (o.time && o.time === j.time) return aviso(`${o.nome} já está no seu time`);
+    if (o.time) return aviso(`${o.nome} já está em outro time`);
+    if (j.time && j.time.membros.length >= TIME.max) return aviso(`O time já tem ${TIME.max} pessoas`);
+    if ((j.timeConviteT || -99) > this.tempo - TIME.entreConvites) return aviso('Espere um pouquinho para chamar de novo');
+    j.timeConviteT = this.tempo;
+    o.conviteTime = { de: j.id, ate: this.tempo + TIME.convite };
+    this.evento({ t: 'time', para: o.id, fase: 'convite', de: j.id, nome: j.nome, dur: TIME.convite });
+    aviso(`Convite para o time enviado para ${o.nome}`);
+  }
+  sairDoTime(j, texto) {
+    const T = j.time; if (!T) return;
+    j.time = null;
+    T.membros = T.membros.filter((k) => k !== j.id);
+    this.evento({ t: 'time', para: j.id, fase: 'fim' });
+    if (T.membros.length <= 1) { // sobrou um: o time acaba
+      this.times?.delete(T);
+      for (const k of T.membros) { const o = this.jogadores.get(k); if (o) { o.time = null; this.evento({ t: 'time', para: k, fase: 'fim' }); this.evento({ t: 'aviso', para: k, texto: texto + ': o time acabou' }); } }
+      this.enviarAmigosDe([j, ...T.membros.map((k) => this.jogadores.get(k))]);
+      return;
+    }
+    if (T.lider === j.id) T.lider = T.membros[0];
+    for (const k of T.membros) this.evento({ t: 'aviso', para: k, texto });
+    this.mudouTime(T);
+    this.enviarAmigosDe([j]);
+  }
+  enviarAmigosDe(js) { for (const j of js) if (j && this.jogadores.has(j.id)) this.enviarAmigos(j); }
+  mudouTime(T) {
+    this.enviarTime(T);
+    this.enviarAmigosDe(T.membros.map((k) => this.jogadores.get(k)));
+  }
+  // vida, mana e onde está cada um do time (a HUD mostra as barras dos amigos e o minimapa os pontos)
+  enviarTime(T) {
+    const membros = T.membros.map((k) => this.jogadores.get(k)).filter(Boolean).map((o) => ({
+      id: o.id, nome: o.nome, nivel: o.prog.nivel, vida: Math.max(0, Math.round(o.vida)), vidaMax: o.vidaMax, mana: Math.round(o.mana), manaMax: o.manaMax,
+      x: r2(o.x), z: r2(o.z), morto: !!o.morto }));
+    for (const k of T.membros) this.evento({ t: 'time', para: k, fase: 'estado', lider: T.lider, membros });
+  }
+  passoTimes(dt) {
+    if (!this.times?.size) return;
+    this.timeT = (this.timeT || 0) + dt;
+    if (this.timeT < TIME.envio) return;
+    this.timeT = 0;
+    for (const T of this.times) this.enviarTime(T);
+  }
+
   // os dois confirmaram: confere tudo de novo e troca de uma vez (numa cópia; só grava se tudo cabe)
   concluirTroca(T) {
     const a = this.jogadores.get(T.a), b = this.jogadores.get(T.b);
@@ -1755,8 +1903,14 @@ export class Simulacao {
       });
     } else {
       this.contarMissao(c);
-      // XP para quem bateu nele ou estava perto (grupo)
-      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) {
+      // XP para quem bateu nele ou estava perto (grupo) e para o time de quem ganhou, se está a até TIME.perto metros
+      const ganham = new Set();
+      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) ganham.add(j);
+      for (const j of [...ganham]) for (const k of j.time?.membros || []) {
+        const o = this.jogadores.get(k);
+        if (o && !o.morto && !o.criando && dist(o, c) < TIME.perto) ganham.add(o);
+      }
+      for (const j of ganham) {
         this.ganharXP(j, xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO)); this.soltarDrops(c, j);
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
@@ -1992,6 +2146,7 @@ export class Simulacao {
     }
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
+    this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
     this.passoProjeteis(dt);

@@ -278,6 +278,8 @@ func ao_cair(motivo: String) -> void:
 	ligado = false
 	if m.troca:
 		m.troca.fechar() # caiu a conexão: o servidor desfaz a troca
+	if m.amigos:
+		m.amigos.desligou() # o servidor desfaz o time
 	for id in outros:
 		outros[id].no.queue_free()
 	outros.clear()
@@ -298,6 +300,8 @@ func desligar() -> void:
 		ligado = false
 		if m.troca:
 			m.troca.fechar() # saiu da sala: o servidor desfaz a troca
+		if m.amigos:
+			m.amigos.desligou()
 		for id in outros:
 			outros[id].no.queue_free()
 		outros.clear()
@@ -728,6 +732,10 @@ func evento(ev: Dictionary) -> void:
 		"troca": # troca entre jogadores (troca.gd): pedido que chegou, como está a mesa, fim
 			if m.troca:
 				m.troca.do_servidor(ev)
+			return
+		"amigos", "amigo", "time": # lista de amigos, pedido de amizade e time (amigos.gd)
+			if m.amigos:
+				m.amigos.do_servidor(ev)
 			return
 		# profissões (Parte 3): batida de coleta, o que saiu, fim da coleta e peça criada
 		"coleta":

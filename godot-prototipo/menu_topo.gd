@@ -431,6 +431,8 @@ func montar_multi() -> void:
 		var ping := "" if o.rede.ping_ms < 0 else " · %d ms" % o.rede.ping_ms
 		_texto("Online · %d %s%s" % [o.jogadores, "jogador" if o.jogadores == 1 else "jogadores", ping], Menu.VERDE, 18)
 		_texto("Você está no mundo com os outros jogadores. Quem decide golpes, dano e itens é o servidor.", Menu.APAGADO, 14)
+		if m.amigos: # amigos (até 20) e time (amigos.gd)
+			m.amigos.montar_janela(self)
 		_add(_botao("Jogar sozinho", func():
 			fechar()
 			o.desligar()

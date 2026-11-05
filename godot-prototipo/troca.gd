@@ -142,10 +142,14 @@ func tocou_tela(pos: Vector2) -> void:
 		return
 	var nome := nome_de(achou)
 	var dist: float = Vector2(outros[achou].no.position.x - m.heroi.position.x, outros[achou].no.position.z - m.heroi.position.z).length()
+	var extras: Array = m.amigos.botoes_para(achou) if m.amigos else [] # amigos.gd: adicionar amigo ou chamar pro time
 	if dist > perto():
-		m.hud.aviso("Chegue mais perto de %s para trocar" % nome)
+		if extras.is_empty():
+			m.hud.aviso("Chegue mais perto de %s para trocar" % nome)
+			return
+		mostrar_cartao(nome, extras + [["Agora não", esconder_cartao]], 8.0)
 		return
-	mostrar_cartao("Trocar itens com %s?" % nome, [["Pedir troca", _responder.bind("pedir", achou)], ["Agora não", esconder_cartao]], 8.0)
+	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + [["Agora não", esconder_cartao]], 8.0)
 
 # botão do cartão: pedir, aceitar ou recusar a troca
 func _responder(acao: String, com: String) -> void:
@@ -168,6 +172,10 @@ func mostrar_cartao(texto: String, botoes: Array, dur: float) -> void:
 		var bt: Button = m.menu.botao(b[0], b[1], 15, cartao_botoes.get_child_count() == 0)
 		bt.custom_minimum_size = Vector2(116, 38)
 		cartao_botoes.add_child(bt)
+	# com mais botões (amigo, time) o cartão fica mais largo
+	var meia: float = 260.0 + 70.0 * maxi(0, botoes.size() - 2)
+	cartao.offset_left = -meia
+	cartao.offset_right = meia
 	cartao.visible = true
 	cartao_ate = m.tempo + dur
 
