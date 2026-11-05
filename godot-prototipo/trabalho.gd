@@ -29,11 +29,12 @@ var duas # duas_maos.gd: as duas mãos no cabo da picareta e do machado
 
 # cores de cada veio (minerio.gdshader): o bloco inteiro é o minério bruto, facetado, como a referência do André
 const BLOCO_VEIO := {
+	"pedra": {"escura": Color("4a463f"), "clara": Color("b3ab9c"), "metal": 0.05}, # pedra comum, cinza-areia, fosca
 	"cobre": {"escura": Color("8a3416"), "clara": Color("ffbf86"), "metal": 0.75},
 	"ferro": {"escura": Color("23262c"), "clara": Color("b4bfcc"), "metal": 0.7},
 	"cristal": {"escura": Color("17122a"), "clara": Color("3f3266"), "metal": 0.15},
 }
-const COR_MINERIO := {"ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.55, 0.45, 1.0)}
+const COR_MINERIO := {"pedra": Color(0.55, 0.52, 0.47), "ferro": Color(0.34, 0.38, 0.45), "cobre": Color(0.72, 0.36, 0.16), "cristal": Color(0.55, 0.45, 1.0)}
 
 func _init(principal) -> void:
 	m = principal
@@ -126,6 +127,9 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	rnd.seed = hash(o.id)
 	var cor: Color = COR_MINERIO.get(o.tipo, Color.GRAY)
 	var cristal: bool = o.tipo == "cristal"
+	# tamanho da pedra (shared/dados.js TAMANHO_VEIO): o raio sólido do veio já vem multiplicado (0,8 m = cobre)
+	var k: float = float(o.r) / 0.8
+	o.k = k
 	# um material por veio: "cheio" a 0 deixa só este veio cinza quando esgota
 	var B: Dictionary = BLOCO_VEIO.get(o.tipo, BLOCO_VEIO.cristal)
 	var pm := ShaderMaterial.new()
@@ -148,14 +152,14 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	raiz.add_child(corpo)
 	o.corpo = corpo
 	# bloco principal grande e uns pedaços menores em volta, tudo dentro do raio de colisão (0,8 m)
-	var principal := _bloco(rnd, 0.62 if not cristal else 0.6, 0.72 if not cristal else 0.42)
+	var principal := _bloco(rnd, (0.62 if not cristal else 0.6) * k, (0.72 if not cristal else 0.42) * k)
 	var blocos := [[principal, Vector3.ZERO, 0.0]]
 	var n := rnd.randi_range(3, 4)
 	var a0 := rnd.randf() * TAU
 	for i in n:
 		var a: float = a0 + TAU * i / n + rnd.randf_range(-0.4, 0.4)
 		var r: float = rnd.randf_range(0.2, 0.34)
-		blocos.append([_bloco(rnd, r, r * rnd.randf_range(0.8, 1.2)), Vector3(cos(a), 0, sin(a)) * rnd.randf_range(0.5, 0.72), rnd.randf() * TAU])
+		blocos.append([_bloco(rnd, r * k, r * k * rnd.randf_range(0.8, 1.2)), Vector3(cos(a), 0, sin(a)) * rnd.randf_range(0.5, 0.72) * k, rnd.randf() * TAU])
 	for bl in blocos:
 		var mi := MeshInstance3D.new()
 		mi.mesh = bl[0]
@@ -169,7 +173,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	# sombra de contato: mancha escura e suave no chão em volta da base
 	var sombra := MeshInstance3D.new()
 	var pl := PlaneMesh.new()
-	pl.size = Vector2(2.4, 2.4)
+	pl.size = Vector2(2.4, 2.4) * k
 	sombra.mesh = pl
 	sombra.material_override = _mat_sombra()
 	sombra.position.y = 0.03
@@ -187,10 +191,10 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	for i in 7:
 		var r: float = rnd.randf_range(0.07, 0.15)
 		var cas := MeshInstance3D.new()
-		cas.mesh = _bloco(rnd, r, r * 0.5)
+		cas.mesh = _bloco(rnd, r * k, r * k * 0.5)
 		cas.material_override = _mat_cascalho()
 		var a: float = rnd.randf() * TAU
-		cas.position = Vector3(cos(a), 0, sin(a)) * rnd.randf_range(0.05, 0.55)
+		cas.position = Vector3(cos(a), 0, sin(a)) * rnd.randf_range(0.05, 0.55) * k
 		cas.rotation.y = rnd.randf() * TAU
 		entulho.add_child(cas)
 	if cristal:
@@ -329,7 +333,8 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 # a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
 func dentro_de_pedra(p: Vector3) -> bool:
 	for o in veios:
-		if p.y < o.pos.y + 1.4 and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0:
+		var k: float = o.get("k", 1.0)
+		if p.y < o.pos.y + 1.4 * k and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0 * k:
 			return true
 	return false
 

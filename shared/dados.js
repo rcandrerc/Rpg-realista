@@ -628,9 +628,19 @@ function naTerras(x, z, folga = 0) {
 // Veio de cobre (zona de mineração do Quimera, só que pequena e com pouco minério, pedido do André 2026-11-02):
 // "veios" pedras no círculo de raio r. O minério é de todos: quando alguém esgota uma pedra, ela some para todo mundo
 // e volta em "volta" s (no Quimera a pedra minerada volta em 6 min).
+// 2026-11-05 (André: "faz um de pedra maior que o de cobre e um de ferro menor, espaçados no mapa"): veio de pedra ao
+// norte da vila (Minerador Nv 1, pedras grandes) e veio de ferro a leste, perto dos lobos Nv 5 (Minerador Nv 5, pedras
+// menores e mais raras). Cada zona abre uma clareirinha na mata (sem árvore, mato nem pedra solta em r + 2,5 m).
 export const MINA = [
   { id: 'cobre1', nome: 'Veio de cobre', tipo: 'cobre', x: 46, z: -15, r: 4.5, veios: 6, volta: 360 },
+  { id: 'pedra1', nome: 'Veio de pedra', tipo: 'pedra', x: 8, z: -48, r: 6.5, veios: 7, volta: 240 },
+  { id: 'ferro1', nome: 'Veio de ferro', tipo: 'ferro', x: 104, z: 8, r: 4, veios: 5, volta: 420 },
 ];
+// tamanho de cada pedra de veio (1 = a de cobre): a de pedra é maior, a de ferro menor. Vale para o desenho no Godot e
+// para o raio sólido (VEIO_RAIO x tamanho).
+export const TAMANHO_VEIO = { pedra: 1.4, cobre: 1, ferro: 0.8, cristal: 1 };
+// (x, z) dentro de uma zona de mineração da mata (com folga): ali não nasce árvore, mato nem pedra solta
+const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && Math.hypot(x - m.x, z - m.z) < m.r + folga);
 // NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
 // Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
 export const RESET_BUILD = { minimo: 50, porNivel: 10 };
@@ -760,6 +770,8 @@ CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
     }
   }
 })();
+// sorteadas todas (a ordem do sorteio não muda) e só depois tiradas das zonas de mineração
+const ARVORES_MATA = sortearMata();
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -826,7 +838,7 @@ export const MAPA_CLAREIRA = {
   // Vila dos Lotes: onde se compra lote para construir e plantar (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS)
   lotes: VILA_LOTES.lotes,
   // árvores da mata (enfeite sólido, sem lenha) e a estrada principal (minimapa)
-  mata: sortearMata(),
+  mata: ARVORES_MATA.filter((a) => !naMina(a.x, a.z)), // as zonas de mineração da mata ficam limpas
   estrada: ESTRADA,
 };
 
@@ -917,7 +929,7 @@ export const ITENS = {
   lenha: { nome: 'Lenha', mat: true, pilha: 50, venda: 1, desc: 'Madeira cortada das árvores. Alimenta a forja e vira cabo e cajado.' },
   barra_ferro: { nome: 'Barra de ferro', mat: true, pilha: 50, venda: 8, desc: 'Ferro fundido na forja. Vira lâmina de espada.' },
   barra_cobre: { nome: 'Barra de cobre', mat: true, pilha: 50, venda: 8, desc: 'Cobre fundido na forja. Vira joia e ponteira de cajado.' },
-  pedra: { nome: 'Pedra', mat: true, pilha: 50, venda: 1, desc: 'Pedra comum que sai junto quando você minera. Serve para construir e para afiar ferramentas.' },
+  pedra: { nome: 'Pedra', mat: true, pilha: 50, venda: 1, desc: 'Pedra comum. Sai dos veios de pedra (e, às vezes, junto quando você minera outro veio). Serve para construir e para afiar ferramentas.' },
   carvao: { nome: 'Carvão', mat: true, pilha: 50, venda: 2, desc: 'Lenha queimada na forja. Misturado ao ferro, vira aço.' },
   barra_aco: { nome: 'Barra de aço', mat: true, pilha: 50, venda: 20, desc: 'Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores.' },
   couro: { nome: 'Couro', mat: true, pilha: 50, venda: 3, desc: 'Couro grosso dos Puglins. O alfaiate faz botas e reforços.' },
@@ -995,6 +1007,7 @@ export const MERCADOR = { venda: 0.25, compra: 0.15, pontoOuro: 10 };
 // (aço = ferro + carvão). nivel = nível de Minerador para conseguir minerar.
 export const COLETA = {
   ferro: { nome: 'Veio de ferro', prof: 'min', nivel: 5, vigor: 2, tempo: 2.4, cargas: 3, volta: 90, da: { minerio_ferro: 1 }, raro: { cristal: 0.05, pedra: 0.5 } },
+  pedra: { nome: 'Veio de pedra', prof: 'min', vigor: 1, tempo: 2.0, cargas: 4, volta: 90, da: { pedra: 2 }, raro: { pedra: 0.5, minerio_cobre: 0.03 } },
   cobre: { nome: 'Veio de cobre', prof: 'min', vigor: 1.5, tempo: 2.2, cargas: 3, volta: 90, da: { minerio_cobre: 1 }, raro: { cristal: 0.04, pedra: 0.5 } },
   cristal: { nome: 'Veio de cristal', prof: 'min', nivel: 8, vigor: 3, tempo: 2.8, cargas: 2, volta: 150, da: { cristal: 1 }, raro: { cristal: 0.1, pedra: 0.4 } },
   arvore: { nome: 'Árvore', esgotado: 'esgotada', prof: 'len', vigor: 1, tempo: 2.0, cargas: 3, volta: 60, da: { lenha: 1 }, raro: { lenha: 0.25 } },
@@ -1002,14 +1015,15 @@ export const COLETA = {
 export const COLETA_DISTANCIA = 2.4; // metros da borda do veio ou do tronco
 // Onde ficam os veios (fora da vila e longe do acampamento dos monstros). As árvores do mapa todas dão lenha.
 // Dentro da vila não tem mais veio (pedido do André 2026-11-02): o cobre fica na zona de mineração lá fora (MINA).
-// Ferro e cristal ficam para depois (COLETA continua sabendo minerá-los).
+// 2026-11-05: pedra e ferro ganharam zona também; o cristal fica para depois (COLETA continua sabendo minerá-lo).
 // mina = id da zona (o minério é de todos e volta no tempo da zona); sorteio fixo, igual no servidor e no Godot.
 export const VEIOS = MINA.flatMap((z) => {
   let sem = 777; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
   const lista = [];
   for (let t = 0; lista.length < z.veios && t < 500; t++) {
-    const a = rnd(0, 6.283), r = Math.sqrt(rnd(0, 1)) * (z.r - 0.9), x = z.x + Math.cos(a) * r, zz = z.z + Math.sin(a) * r;
-    if (lista.some((o) => Math.hypot(o.x - x, o.z - zz) < 2.3)) continue;
+    const k = TAMANHO_VEIO[z.tipo] ?? 1; // pedra maior pede mais espaço entre uma e outra
+    const a = rnd(0, 6.283), r = Math.sqrt(rnd(0, 1)) * (z.r - 0.9 * k), x = z.x + Math.cos(a) * r, zz = z.z + Math.sin(a) * r;
+    if (lista.some((o) => Math.hypot(o.x - x, o.z - zz) < 2.3 * k)) continue;
     lista.push({ tipo: z.tipo, x: +x.toFixed(2), z: +zz.toFixed(2), ry: +rnd(0, 6.28).toFixed(2), mina: z.id });
   }
   return lista;
@@ -1120,6 +1134,7 @@ function sortearEnfeites(arvores) {
 // cenário da mata: peças dos marcos (ruínas, rochedos, troncos caídos...), mato solto e os sólidos de tudo (o servidor
 // e o Godot colidem com eles na mesma grade das árvores da mata)
 {
-  const c = cenario(), e = sortearEnfeites(MAPA_CLAREIRA.mata);
-  MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista, solidos: [...c.solidos, ...e.solidos] };
+  const c = cenario(), e = sortearEnfeites(ARVORES_MATA); // a lista toda: o mato do resto da mata fica igual
+  const fora = (o) => !naMina(o.x, o.z);
+  MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
 }
