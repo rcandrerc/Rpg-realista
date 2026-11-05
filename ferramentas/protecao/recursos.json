@@ -243,6 +243,8 @@
     { "nome": "Construção por andar (Térreo / Telhado)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func trocar_andar(a: String) -> void:", "func no_andar(k: String) -> bool:", "const ANDARES := ["] },
     { "nome": "Dentro de casa (modo jogo) só as paredes entre a câmera e o herói apagam, como no Quimera; a câmera não bate nas paredes da casa (André 2026-11-05)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _parede_tapa(", "func _apagar(", "dentro_de_casa = dentro and not livre"] },
     { "nome": "Câmera ignora as paredes da casa com o herói dentro", "arquivo": "godot-prototipo/main.gd", "contem": ["if sem_casa and r.get(\"obra\", false):"] },
-    { "nome": "Quem sai do jogo dentro de casa volta dentro de casa, não na vila (André 2026-11-05)", "arquivo": "shared/simulacao.js", "contem": ["const chao = this.terreno.altura(q.x, q.z, q.y + 0.3);"] }
+    { "nome": "Quem sai do jogo dentro de casa volta dentro de casa, não na vila (André 2026-11-05)", "arquivo": "shared/simulacao.js", "contem": ["const chao = this.terreno.altura(q.x, q.z, q.y + 0.3);"] },
+    { "nome": "Juntas das paredes: pilar de madeira nas pontas", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _pilares(raiz: Node3D) -> void:", "const PILAR := 0.36"] },
+    { "nome": "Grama some embaixo das casas de todos os terrenos de uma vez (o vizinho não devolve a grama da sua casa) (André 2026-11-05)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _grama_sob_horta(_L = null)", "_grama_sob_horta() # a grama volta onde o terreno saiu"] }
   ]
 }

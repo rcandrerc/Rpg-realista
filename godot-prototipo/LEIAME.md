@@ -89,6 +89,8 @@ Para montar à mão:
 - Andares no modo construção (2026-11-05): botões Térreo e Telhado em cima do Colocar. No Térreo só aparecem e só se
   desmontam fundação, paredes, portas, janelas e móveis, e o telhado do seu terreno some para ver dentro; no Telhado só o
   telhado. Escolher a peça já troca o andar. Andar de cima, quando existir, entra em `ANDARES` entre os dois.
+- Juntas das paredes (2026-11-05): parede, porta e janela têm um pilar de madeira (36 x 36 cm, madeira dos caibros)
+  em cada ponta (`_pilares`), que fecha a fresta do canto e da emenda; some junto com a parede cortada.
 - Casa numa grade de 2 m: a fundação vai no quadrado (vira chão, dá para subir e andar em cima), parede, porta e
   janela vão na borda de uma fundação (Girar vira a frente), o telhado vai em cima de uma fundação com parede em
   volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica

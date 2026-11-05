@@ -150,6 +150,8 @@ func _carregar_modelos() -> void:
 		[["res://construcao3d/Door_1_Flat.gltf", Vector3(-0.53, 0, 0.0), "folha"]])
 	_modelos["janela"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Window_Wide_Flat.gltf", 1.0, meio,
 		[["res://construcao3d/Window_Wide_Flat1.gltf", meio, ""]])
+	for k in ["parede", "porta", "janela"]: # juntas (André 2026-11-05): pilar de madeira nas duas pontas fecha o canto
+		_pilares(_modelos[k])
 	_modelos["fundacao"] = _modelo_fundacao()
 	_modelos["telhado"] = _modelo_telhado_um()
 	_modelos["bau"] = _modelo_gltf("res://construcao3d/Chest_Wood.gltf", 1.0)
@@ -173,6 +175,47 @@ func _modelo_gltf(caminho: String, escala: float, pos := Vector3.ZERO, extra := 
 			raiz.add_child(f)
 	m.pintar(raiz, false) # mesmo jeito pintado da vila (toon, sem brilho de plástico)
 	return raiz
+
+# Juntas das paredes (André 2026-11-05: "e a junta das paredes"): a parede de 2 m acaba na linha da grade, então no
+# canto (e entre duas paredes) ficava uma fresta. Cada parede ganha um pilar de madeira de 36 x 36 cm em cada ponta,
+# do pé ao alto, como os esteios das casas de enxaimel. Dois pilares no mesmo canto ficam um dentro do outro (na
+# mesma posição; cada giro fica um tiquinho maior, para não piscar), e o pilar some junto com a parede cortada.
+const PILAR := 0.36
+var _mat_pilar: StandardMaterial3D
+func _pilares(raiz: Node3D) -> void:
+	var alto := float(D.get("casa", {}).get("parede", 3.1)) + 0.04
+	var h := PILAR / 2.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# madeira clara da faixa de cima da textura (v 0,02 a 0,28), com o veio correndo de pé
+	for lado in [-1.0, 1.0]:
+		var c := Vector3(lado * grade() / 2.0, 0, 0)
+		var y0 := -0.25
+		var cantos := [Vector3(-h, 0, -h), Vector3(h, 0, -h), Vector3(h, 0, h), Vector3(-h, 0, h)]
+		for k in 4:
+			var a: Vector3 = c + cantos[k]
+			var b: Vector3 = c + cantos[(k + 1) % 4]
+			var q := [[a + Vector3(0, y0, 0), Vector2(0.0, 0.02)], [b + Vector3(0, y0, 0), Vector2(0.0, 0.28)],
+				[b + Vector3(0, alto, 0), Vector2(alto / 3.0, 0.28)], [a + Vector3(0, alto, 0), Vector2(alto / 3.0, 0.02)]]
+			for t in [0, 2, 1, 0, 3, 2]:
+				st.set_uv(q[t][1] + Vector2(k * 0.21 + lado * 0.37, 0)) # cada face pega outro pedaço do veio
+				st.add_vertex(q[t][0])
+		var topo := [c + Vector3(-h, alto, -h), c + Vector3(h, alto, -h), c + Vector3(h, alto, h), c + Vector3(-h, alto, h)]
+		for t in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(Vector2(0.5 + topo[t].x * 0.3, 0.05 + (topo[t].z + h) * 0.6))
+			st.add_vertex(topo[t])
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.name = "pilares"
+	mi.mesh = st.commit()
+	if _mat_pilar == null: # a mesma madeira dos caibros da parede (T_WoodTrim do kit)
+		_mat_pilar = StandardMaterial3D.new()
+		_mat_pilar.albedo_texture = load("res://construcao3d/T_WoodTrim_BaseColor.png")
+		_mat_pilar.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_mat_pilar.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		_mat_pilar.roughness = 1.0
+	mi.material_override = _mat_pilar
+	raiz.add_child(mi)
 
 # Fundação: bloco de pedra de 2 x 2 m (o topo fica 20 cm acima do chão; desce 60 cm para não flutuar em chão torto)
 # com o assoalho de tábuas escuras em cima
@@ -328,6 +371,7 @@ func _lote_fora(id: String) -> void:
 	_refazer_solidos()
 	_refazer_pisos()
 	_achar_portas()
+	_grama_sob_horta() # a grama volta onde o terreno saiu
 
 # ---------- o que vem do servidor ----------
 func do_servidor_lotes(ev: Dictionary) -> void:
@@ -382,6 +426,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			p.no = _copia(p.k)
 			p.no.position = Vector3(p.x, _y_peca(p), p.z)
 			p.no.rotation.y = p.r * PI / 2.0
+			var pil = p.no.get_node_or_null("pilares")
+			if pil: # dois pilares no mesmo canto: cada giro um tiquinho maior, para um cobrir o outro sem piscar
+				pil.scale = Vector3(1.0 + 0.012 * p.r, 1.0 + 0.003 * p.r, 1.0 + 0.012 * p.r)
 			L.raiz.add_child(p.no)
 	_refazer_telhado(L)
 	_achar_portas()
@@ -1092,39 +1139,55 @@ func _malha_terra(h: Dictionary) -> ArrayMesh:
 # A grama do chão (main.gd grama_pedacos) não fura a terra arada: as folhas em cima de um canteiro (com a borda solta)
 # ficam com tamanho zero; desarou, voltam. Só mexe nos pedaços que encostam no lote.
 var _grama_original := {} # MultiMeshInstance3D -> buffer de antes
-func _grama_sob_horta(L: Dictionary) -> void:
+# 2026-11-05 (André: "o chão continua com grama"): cada pedaço de grama (24 m) pega vários terrenos. A conta refazia o
+# pedaço a partir da grama original olhando só o terreno que chegou, e devolvia a grama embaixo das casas dos vizinhos
+# (o último terreno a chegar ganhava). Agora a conta olha todos os terrenos de uma vez, sempre que um deles muda.
+func _grama_sob_horta(_L = null) -> void:
 	if m.get("grama_pedacos") == null:
 		return
-	var l: Dictionary = L.def
-	var caixa := Rect2(float(l.x0) - 1.0, float(l.z0) - 1.0, float(l.x1) - float(l.x0) + 2.0, float(l.z1) - float(l.z0) + 2.0)
+	var caixas: Array = []
 	var celulas := {}
-	for c in L.horta:
-		celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
-	# 2026-11-05 (André): nada de grama furando a fundação, o piso ou os móveis; o retângulo de cada peça (menos o
-	# telhado, que fica no alto) tapa a grama embaixo, com uma folga de 15 cm
+	# nada de grama furando a fundação, o piso ou os móveis; o retângulo de cada peça (menos o telhado, que fica no
+	# alto) tapa a grama embaixo, com uma folga de 15 cm
 	var tampas: Array = []
-	for p in L.pecas:
-		if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
-			tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		var l: Dictionary = L.def
+		caixas.append(Rect2(float(l.x0) - 1.0, float(l.z0) - 1.0, float(l.x1) - float(l.x0) + 2.0, float(l.z1) - float(l.z0) + 2.0))
+		for c in L.horta:
+			celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
+		for p in L.pecas:
+			if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
+				tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
 	# a grama da vila e a das clareiras da mata (os lotes ficam perto da mata: era a que ainda furava o piso)
 	for g in m.grama_pedacos + m.get("grama_mata") if m.get("grama_mata") != null else m.grama_pedacos:
 		if not is_instance_valid(g) or g.multimesh == null:
 			continue
 		var mm: MultiMesh = g.multimesh
-		var orig: PackedFloat32Array = _grama_original.get(g, mm.buffer)
 		var n := mm.instance_count
 		if n == 0:
 			continue
 		var bb: AABB = g.global_transform * mm.get_aabb()
-		if not caixa.intersects(Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)):
+		var rb := Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)
+		var perto: Array = []
+		for c in caixas:
+			if c.intersects(rb):
+				perto.append(c)
+		if perto.is_empty() and not _grama_original.has(g):
 			continue
+		var orig: PackedFloat32Array = _grama_original.get(g, mm.buffer)
 		_grama_original[g] = orig
 		var buf := orig.duplicate()
 		var mexeu := false
 		for i in n:
 			var x: float = buf[i * 16 + 3]
 			var z: float = buf[i * 16 + 11]
-			if not caixa.has_point(Vector2(x, z)):
+			var dentro := false
+			for c in perto:
+				if c.has_point(Vector2(x, z)):
+					dentro = true
+					break
+			if not dentro:
 				continue
 			var tapa := false
 			for di in [-1, 0, 1]: # a terra solta passa uns 25 cm da borda
