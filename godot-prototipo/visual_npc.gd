@@ -22,6 +22,19 @@ static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
 		return
 	if info is Dictionary and str(info.get("roupa", "")) != "":
 		Armadura.vestir(no, Armadura.de_texto(str(info.roupa)))
+	# roupa de ofício (direção de arte 2026-11-05: só quem luta usa couraça e ombreira): túnica, saia, faixa, corpete
+	if info is Dictionary and info.get("veste") is Dictionary:
+		_roupa_de_oficio(no, esq, info.veste)
+	if info is Dictionary and info.get("esconder") is Array: # peças do modelo que quebram o medieval (fone sci-fi)
+		for mi in no.find_children("*", "MeshInstance3D", true, false):
+			if not (mi.mesh is ArrayMesh):
+				continue
+			for sfc in mi.mesh.get_surface_count():
+				for trecho in info.esconder:
+					if str(trecho) in mi.mesh.surface_get_name(sfc):
+						mi.visible = false
+	if info is Dictionary and info.get("limpar_rosto", false):
+		_limpar_rosto(no)
 	if info is Dictionary and info.get("anciao", false):
 		_corpo_de_anciao(esq)
 		_barba(no, esq, info)
@@ -212,7 +225,7 @@ static func _frente(esq: Skeleton3D) -> float:
 static func _corpo_de_anciao(esq: Skeleton3D) -> void:
 	var mod := Curvar.new()
 	var f := _frente(esq)
-	for par in [["J_Bip_C_Spine", 0.17], ["J_Bip_C_Chest", 0.14], ["J_Bip_C_UpperChest", 0.1], ["J_Bip_C_Neck", -0.14], ["J_Bip_C_Head", -0.16]]:
+	for par in [["J_Bip_C_Spine", 0.2], ["J_Bip_C_Chest", 0.2], ["J_Bip_C_UpperChest", 0.16], ["J_Bip_C_Neck", 0.04], ["J_Bip_C_Head", -0.4]]:
 		var i := esq.find_bone(par[0])
 		if i >= 0: # eixo do lado do corpo (x do modelo) escrito no espaço do próprio osso
 			var eixo: Vector3 = (esq.get_bone_global_rest(i).basis.inverse() * Vector3.RIGHT).normalized()
@@ -228,122 +241,554 @@ class Curvar extends SkeletonModifier3D:
 		for i in giros:
 			s.set_bone_pose_rotation(i, s.get_bone_pose_rotation(i) * giros[i])
 
-# barba branca em ponta, presa no osso da cabeça: nasce nas costeletas, contorna o queixo e desce uns 13 cm
+# ---------- material toon de dois tons (direção de arte: cor e sombra toon definidas, contorno como o do cabelo) ----------
+const SHADER_TOON := """
+shader_type spatial;
+render_mode cull_disabled, specular_disabled;
+uniform vec3 base : source_color = vec3(0.85);
+uniform vec3 sombra : source_color = vec3(0.65);
+void fragment() {
+	ALBEDO = base * COLOR.rgb;
+	ROUGHNESS = 1.0;
+}
+void light() {
+	float t = smoothstep(0.02, 0.1, dot(NORMAL, LIGHT)) * ATTENUATION;
+	vec3 fator = mix(sombra / max(base, vec3(0.02)), vec3(1.0), t);
+	DIFFUSE_LIGHT += LIGHT_COLOR * fator / PI;
+}
+"""
+const SHADER_CONTORNO := """
+shader_type spatial;
+render_mode unshaded, cull_front;
+uniform vec3 cor : source_color = vec3(0.2);
+uniform float grossura = 0.0035;
+void vertex() { VERTEX += NORMAL * grossura; }
+void fragment() { ALBEDO = cor; }
+"""
+static var _sh_toon: Shader
+static var _sh_contorno: Shader
+
+static func _toon(base: Color, sombra: Color, contorno := Color(0, 0, 0, 0), grossura := 0.0035) -> ShaderMaterial:
+	var chave := "toon:%s:%s:%s:%f" % [base.to_html(), sombra.to_html(), contorno.to_html(), grossura]
+	if _mats.has(chave):
+		return _mats[chave]
+	if _sh_toon == null:
+		_sh_toon = Shader.new()
+		_sh_toon.code = SHADER_TOON
+		_sh_contorno = Shader.new()
+		_sh_contorno.code = SHADER_CONTORNO
+	var m := ShaderMaterial.new()
+	m.shader = _sh_toon
+	m.set_shader_parameter("base", base)
+	m.set_shader_parameter("sombra", sombra)
+	if contorno.a > 0.0:
+		var c := ShaderMaterial.new()
+		c.shader = _sh_contorno
+		c.set_shader_parameter("cor", contorno)
+		c.set_shader_parameter("grossura", grossura)
+		m.next_pass = c
+	_mats[chave] = m
+	return m
+
+# a blusa do VRoid tem gola de marinheiro, abas e capuz que a couraça escondia: sem ela, cada ponto da blusa fica
+# entre 0,6 cm e 2,5 cm da pele mais perto (vira túnica justa; a pele também não fura mais o pano)
+static var _coladas := {}
+static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
+	var orig: Mesh = tops.mesh
+	var chave := orig.get_instance_id()
+	if _coladas.has(chave):
+		tops.mesh = _coladas[chave]
+		return
+	var corpo := PackedVector3Array()
+	var normais := PackedVector3Array()
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh is ArrayMesh and "Body_00_SKIN" in mi.mesh.surface_get_name(0):
+			var arr: Array = mi.mesh.surface_get_arrays(0)
+			corpo.append_array(arr[Mesh.ARRAY_VERTEX])
+			normais.append_array(arr[Mesh.ARRAY_NORMAL])
+	if corpo.is_empty():
+		return
+	const CEL := 0.04
+	var grade := {}
+	for i in corpo.size():
+		var k := Vector3i(floor(corpo[i].x / CEL), floor(corpo[i].y / CEL), floor(corpo[i].z / CEL))
+		if not grade.has(k):
+			grade[k] = []
+		grade[k].append(i)
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr: Array = orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var dentro := 0.0
+		for vi in V.size():
+			var p := V[vi]
+			var k0 := Vector3i(floor(p.x / CEL), floor(p.y / CEL), floor(p.z / CEL))
+			var melhor := -1
+			var md := 1e9
+			for dx in [-1, 0, 1]:
+				for dy in [-1, 0, 1]:
+					for dz in [-1, 0, 1]:
+						for i in grade.get(k0 + Vector3i(dx, dy, dz), []):
+							var d := p.distance_squared_to(corpo[i])
+							if d < md:
+								md = d
+								melhor = i
+			if melhor < 0: # aba solta muito para fora: procura no corpo todo
+				for i in corpo.size():
+					var d := p.distance_squared_to(corpo[i])
+					if d < md:
+						md = d
+						melhor = i
+			var b := corpo[melhor]
+			var n := normais[melhor].normalized()
+			var fora := (p - b).dot(n)
+			var lado := (p - b) - n * fora
+			V[vi] = b + lado * 0.5 + n * clamp(fora, 0.006, 0.025) + n * dentro
+		arr[Mesh.ARRAY_VERTEX] = V
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, orig.surface_get_format(sfc) & ~Mesh.ARRAY_FORMAT_VERTEX & 0)
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	_coladas[chave] = am
+	tops.mesh = am
+
+# desenho de circuito turquesa pintado na textura do rosto (corpo vita): pinta da cor da pele, só neste NPC
+static var _rostos := {}
+static func _limpar_rosto(raiz: Node3D) -> void:
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh):
+			continue
+		for sfc in mi.mesh.get_surface_count():
+			var nome: String = mi.mesh.surface_get_name(sfc)
+			if not ("Face_00_SKIN" in nome) or "Outline" in nome:
+				continue
+			var m = mi.get_active_material(sfc)
+			if not (m is StandardMaterial3D) or m.albedo_texture == null:
+				continue
+			var chave: int = m.get_instance_id()
+			if not _rostos.has(chave):
+				var img: Image = m.albedo_texture.get_image()
+				if img == null:
+					continue
+				img = img.duplicate()
+				if img.is_compressed():
+					img.decompress()
+				img.convert(Image.FORMAT_RGBA8)
+				var pele := img.get_pixel(img.get_width() / 2, int(img.get_height() * 0.62))
+				for y in img.get_height():
+					for x in img.get_width():
+						var c := img.get_pixel(x, y)
+						if c.a > 0.1 and (c.b > c.r + 0.06 or c.g > c.r + 0.04):
+							img.set_pixel(x, y, Color(pele.r, pele.g, pele.b, c.a))
+				img.generate_mipmaps()
+				var n: StandardMaterial3D = m.duplicate()
+				n.albedo_texture = ImageTexture.create_from_image(img)
+				_rostos[chave] = n
+			mi.set_surface_override_material(sfc, _rostos[chave])
+
+static func _invisivel() -> Material:
+	if not _mats.has("invisivel"):
+		var m := StandardMaterial3D.new()
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(0, 0, 0, 0)
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_mats["invisivel"] = m
+	return _mats["invisivel"]
+
+# sombra do pano: a mesma cor mais escura e um pouco mais quente
+static func _sombra(c: Color) -> Color:
+	return Color(c.r * 0.74, c.g * 0.7, c.b * 0.72)
+
+static func _cor(v) -> Color:
+	return Color.hex(int(v) << 8 | 0xff)
+
+# ---------- tubo de mecha: seções elípticas ao longo de uma linha, fecha na ponta ----------
+# pts: pontos no espaço do esqueleto; larg/fundo: meia-largura e meia-espessura em cada ponto; lado: eixo da largura
+static func _tubo(st: SurfaceTool, pts: Array, larg: Array, fundo: Array, lado: Vector3, cor_raiz: float, cor_ponta: float) -> void:
+	var n := 10
+	var aneis := []
+	for k in pts.size():
+		var t: Vector3 = (pts[min(k + 1, pts.size() - 1)] - pts[max(k - 1, 0)]).normalized()
+		var x: Vector3 = (lado - t * lado.dot(t)).normalized()
+		var z: Vector3 = t.cross(x).normalized()
+		var anel := []
+		for i in n:
+			var a := TAU * i / n
+			anel.append(pts[k] + x * cos(a) * float(larg[k]) + z * sin(a) * float(fundo[k]))
+		aneis.append(anel)
+	for k in aneis.size() - 1:
+		var c0: float = lerp(cor_raiz, cor_ponta, float(k) / (aneis.size() - 1))
+		var c1: float = lerp(cor_raiz, cor_ponta, float(k + 1) / (aneis.size() - 1))
+		for i in n:
+			var j := (i + 1) % n
+			for v in [[aneis[k][i], c0], [aneis[k][j], c0], [aneis[k + 1][i], c1], [aneis[k][j], c0], [aneis[k + 1][j], c1], [aneis[k + 1][i], c1]]:
+				st.set_color(Color(v[1], v[1], v[1]))
+				st.add_vertex(v[0])
+
+# barba branca de mago: base por cima do queixo e 5 mechas em camadas (a do meio desce ~18 cm, pontas desiguais),
+# com o bigode ligado nela. Tudo preso no osso da cabeça e medido pelo rosto do VRoid.
 static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 	var cab := esq.find_bone("J_Bip_C_Head")
 	if cab < 0:
 		return
 	var f := _frente(esq)
-	# queixo: o ponto mais baixo do rosto no meio; a largura da mandíbula vem da largura do rosto nessa altura
-	# (o rosto do VRoid vem em mais de uma malha: junta todas)
-	var V: PackedVector3Array = PackedVector3Array()
+	# o rosto do VRoid vem em mais de uma malha: junta todas (espaço canônico: +z = frente)
+	var V := PackedVector3Array()
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh is ArrayMesh and not str(mi.name).begins_with("Armadura"):
 			for sfc in mi.mesh.get_surface_count():
 				var nome: String = mi.mesh.surface_get_name(sfc)
 				if "Face_00_SKIN" in nome and not "Outline" in nome:
-					V.append_array(mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX])
+					for p in mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]:
+						V.append(Vector3(p.x, p.y, p.z * f))
 	if V.is_empty():
 		return
+	var boca := PackedVector3Array() # a malha da boca do VRoid diz onde ela fica de verdade
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh is ArrayMesh:
+			for sfc in mi.mesh.get_surface_count():
+				if "FaceMouth" in mi.mesh.surface_get_name(sfc):
+					boca.append_array(mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX])
 	var queixo := Vector3(0, 99, 0)
 	var topo := -99.0
 	for p in V:
 		topo = max(topo, p.y)
-		if abs(p.x) < 0.012 and p.z * f > 0.0 and p.y < queixo.y:
+		if abs(p.x) < 0.012 and p.z > 0.0 and p.y < queixo.y:
 			queixo = p
 	if queixo.y > 90.0:
 		return
-	var alt_rosto := topo - queixo.y
+	var alt := topo - queixo.y
 	var meia := 0.0
-	var fundo := 0.0
 	for p in V:
-		if abs(p.y - (queixo.y + alt_rosto * 0.22)) < 0.01:
+		if abs(p.y - (queixo.y + alt * 0.22)) < 0.01:
 			meia = max(meia, abs(p.x))
-			fundo = min(fundo, p.z * f) if fundo != 0.0 else p.z * f
 	meia = max(meia, 0.045)
-	# linhas da barba (de cima para baixo): altura, meia-largura, quanto vai para a frente do queixo
-	var y0 := queixo.y
-	var linhas := [[y0 + alt_rosto * 0.3, meia * 1.02, -0.035], [y0 + alt_rosto * 0.14, meia * 0.98, -0.012],
-		[y0 + 0.005, meia * 0.78, 0.006], [y0 - 0.04, meia * 0.6, 0.014], [y0 - 0.085, meia * 0.36, 0.012], [y0 - 0.13, 0.006, 0.0]]
-	var cols := 10
+	# frente do rosto perto de (x, y): o vértice mais à frente
+	var frente_em := func(x: float, y: float, fora: float) -> float:
+		var z := -99.0
+		for p in V:
+			if abs(p.x - x) < 0.01 and abs(p.y - y) < 0.012:
+				z = max(z, p.z)
+		return (z if z > -90.0 else queixo.z - abs(x) * 0.5) + fora
+	var rest := esq.get_bone_global_rest(cab)
+	var inv := rest.affine_inverse()
+	var P := func(x: float, y: float, z: float) -> Vector3: return inv * Vector3(x, y, z * f)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rest := esq.get_bone_global_rest(cab)
+	var y0 := queixo.y
+	var y_boca := queixo.y + alt * 0.17
+	if not boca.is_empty(): # meio da boca: a boca fechada fica no meio da malha (ela inclui o lábio aberto)
+		var lo := 99.0
+		var hi := -99.0
+		for p in boca:
+			lo = min(lo, p.y)
+			hi = max(hi, p.y)
+		y_boca = (lo + hi) * 0.5
+	# base: concha grossa que cobre a mandíbula de uma costeleta à outra (camada de baixo, mais escura)
+	var cols := 12
+	# a borda de cima faz um arco: no meio fica abaixo do lábio (a boca aparece), nos lados sobe até a costeleta
+	var linhas := [[1.0, meia * 1.0, 0.004], [0.62, meia * 0.97, 0.008], [0.3, meia * 0.86, 0.012],
+		[y0 - 0.005, meia * 0.72, 0.016], [y0 - 0.035, meia * 0.5, 0.018]]
 	var pts := []
 	for li in linhas.size():
-		var y: float = linhas[li][0]
-		var larg: float = linhas[li][1]
-		var adiante: float = linhas[li][2]
 		var linha := []
 		for c in cols + 1:
-			var u := float(c) / cols * 2.0 - 1.0 # -1 (lado) .. 1 (outro lado), 0 = meio
-			var ang := u * 1.45 # contorna a mandíbula: os lados vão para trás até a orelha
-			var x := sin(ang) * larg
-			var z := queixo.z * f + adiante - (1.0 - cos(ang)) * larg * 1.15
-			var mecha := 0.9 + 0.1 * sin(u * 17.0 + y * 60.0) # mechas
-			linha.append(Vector3(x, y, (z + 0.008) * f))
-			linha[-1] = [linha[-1], Color(mecha, mecha, mecha), Vector2(u * 0.5 + 0.5, float(li) / (linhas.size() - 1))]
+			var u := float(c) / cols * 2.0 - 1.0
+			var ang := u * 1.5
+			var x: float = sin(ang) * linhas[li][1]
+			var y: float = linhas[li][0]
+			if li < 3: # fração entre o lábio de baixo (meio) e a costeleta (lado)
+				var topo_y: float = lerp(y_boca - 0.016, y0 + alt * 0.22, pow(abs(u), 1.2))
+				y = lerp(y0 + 0.004, topo_y, float(linhas[li][0]))
+			var z: float = frente_em.call(x, y, linhas[li][2]) if li < 3 else queixo.z + linhas[li][2] - (1.0 - cos(ang)) * linhas[li][1] * 1.1
+			linha.append(P.call(x, y, z))
 		pts.append(linha)
 	for li in pts.size() - 1:
 		for c in cols:
-			var a = pts[li][c]
-			var b = pts[li][c + 1]
-			var d = pts[li + 1][c]
-			var e = pts[li + 1][c + 1]
-			for v in [a, b, d, b, e, d]:
-				st.set_color(v[1])
-				st.set_uv(v[2])
-				st.add_vertex(rest.affine_inverse() * v[0])
+			for v in [pts[li][c], pts[li][c + 1], pts[li + 1][c], pts[li][c + 1], pts[li + 1][c + 1], pts[li + 1][c]]:
+				st.set_color(Color(0.88, 0.88, 0.88))
+				st.add_vertex(v)
+	var lado: Vector3 = (inv.basis * Vector3.RIGHT).normalized()
+	# mechas: [x da raiz, y da raiz (fração da altura do rosto), comprimento, meia-largura, x da ponta, à frente]
+	var mechas := [[0.0, 0.02, 0.18, 0.026, 0.004, 0.026], [-0.42, 0.06, 0.145, 0.024, -0.03, 0.02], [0.42, 0.06, 0.13, 0.024, 0.035, 0.02],
+		[-0.85, 0.18, 0.11, 0.016, -0.045, 0.012], [0.85, 0.18, 0.12, 0.016, 0.05, 0.012]]
+	for mc in mechas:
+		var rx: float = mc[0] * meia
+		var ry: float = y0 + alt * float(mc[1])
+		var comp: float = mc[2]
+		var linha_m := []
+		var la := []
+		var fu := []
+		var nseg := 7
+		for k in nseg + 1:
+			var t := float(k) / nseg
+			var x: float = lerp(rx, float(mc[4]), t * t)
+			var y: float = ry - comp * t
+			# afasta do rosto: em cima encosta, embaixo vai para a frente e volta na ponta (barba pesada)
+			var zr: float = frente_em.call(rx, ry, 0.006) if ry > y0 else queixo.z + 0.006
+			var z: float = lerp(zr, queixo.z, clamp(t * 2.0, 0.0, 1.0)) + float(mc[5]) * sin(t * PI) + 0.012 * t
+			linha_m.append(P.call(x, y, z))
+			la.append(float(mc[3]) * (1.0 - pow(t, 1.7)) + 0.002)
+			fu.append(0.011 * (1.0 - t * 0.85) + 0.002)
+		_tubo(st, linha_m, la, fu, lado, 0.86, 1.0)
+	# bigode: sai de baixo do nariz, passa pelos cantos da boca e desce até encontrar as mechas do lado
+	var w := meia * 0.6
+	for s in [-1.0, 1.0]:
+		var linha_b := []
+		var la_b := []
+		var fu_b := []
+		var trilha := [[0.004, y_boca + 0.014], [w * 0.45, y_boca + 0.011], [w * 0.85, y_boca + 0.0], [w * 1.0, y_boca - 0.025], [w * 0.95, y0 + alt * 0.04]]
+		for k in trilha.size():
+			var x: float = trilha[k][0] * s
+			var y: float = trilha[k][1]
+			linha_b.append(P.call(x, y, frente_em.call(x, y, 0.009)))
+			la_b.append(0.012 if k < 3 else 0.009)
+			fu_b.append(0.007)
+		_tubo(st, linha_b, la_b, fu_b, Vector3.UP, 1.0, 0.92)
 	st.generate_normals()
 	var barba := MeshInstance3D.new()
 	barba.name = "Barba"
 	barba.mesh = st.commit()
-	var cor := BARBA
-	if info.get("tinta") is Dictionary and info.tinta.get("cabelo") != null:
-		cor = Color.hex(int(info.tinta.cabelo) << 8 | 0xff).lightened(0.08)
-	var m := StandardMaterial3D.new()
-	m.albedo_color = cor
-	m.vertex_color_use_as_albedo = true
-	m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	m.roughness = 1.0
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	m.rim_enabled = true
-	m.rim = 0.25
-	barba.material_override = m
+	barba.material_override = _toon(Color("d8d4cc"), Color("a8a49c"), Color("4a4640"), 0.0022)
 	var ba := BoneAttachment3D.new()
 	ba.bone_idx = cab
 	esq.add_child(ba)
 	ba.add_child(barba)
-	# bigode: duas mechas que saem de baixo do nariz e caem pelos cantos da boca até encontrar a barba
-	var y_boca := queixo.y + alt_rosto * 0.17
-	var w := meia * 0.62
-	var sb := SurfaceTool.new()
-	sb.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n_b := 12
-	var cima := []
-	var baixo := []
-	for c in n_b + 1:
-		var u := float(c) / n_b * 2.0 - 1.0
-		var x := u * w
-		var y: float = y_boca + 0.012 - pow(abs(u), 1.6) * 0.03
-		var grossura: float = 0.011 * (1.0 - 0.55 * abs(u))
-		# na frente do rosto: o vértice do rosto mais à frente perto desse ponto
-		var z := -99.0
-		for p in V:
-			if abs(p.x - x) < 0.008 and abs(p.y - y) < 0.012:
-				z = max(z, p.z * f)
-		if z < -90.0:
-			z = queixo.z * f - abs(u) * 0.02
-		cima.append(rest.affine_inverse() * Vector3(x, y + grossura * 0.5, (z + 0.005) * f))
-		baixo.append(rest.affine_inverse() * Vector3(x, y - grossura * 0.5, (z + 0.007) * f))
-	for c in n_b:
-		for v in [cima[c], cima[c + 1], baixo[c], cima[c + 1], baixo[c + 1], baixo[c]]:
-			sb.set_color(Color(0.95, 0.95, 0.95))
-			sb.add_vertex(v)
-	sb.generate_normals()
-	var bigode := MeshInstance3D.new()
-	bigode.name = "Bigode"
-	bigode.mesh = sb.commit()
-	bigode.material_override = m
-	ba.add_child(bigode)
+
+# ---------- roupa de ofício ----------
+# Quem não luta não usa couraça (direção de arte 2026-11-05). A peça "peitoral0" da roupa só serve para deixar a blusa
+# do VRoid lisa e justa (sem capuz nem gola de uniforme); as placas dela somem e a blusa ganha a cor do ofício.
+# v: tunica (cor da blusa), saia (cor), ate ("joelho" ou "canela"), faixa (cor), corpete (cor), avental (cor)
+static func _roupa_de_oficio(raiz: Node3D, esq: Skeleton3D, v: Dictionary) -> void:
+	var placas := esq.get_node_or_null("Armadura_corpo")
+	if placas:
+		placas.visible = false
+	if v.has("tunica"):
+		var c := _cor(v.tunica)
+		var m := _toon(c, _sombra(c), c.darkened(0.65), 0.0025)
+		for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+			if not (mi.mesh is ArrayMesh) or str(mi.name).begins_with("Armadura"):
+				continue
+			for sfc in mi.mesh.get_surface_count():
+				var nome: String = mi.mesh.surface_get_name(sfc)
+				if "Tops" in nome and not "Outline" in nome:
+					if not mi.has_meta("colada"):
+						mi.set_meta("colada", true)
+						_colar_no_corpo(raiz, mi)
+					mi.set_surface_override_material(sfc, m)
+				elif "Tops" in nome:
+					# o contorno original da blusa não foi apertado junto (_cintura) e saía em abas pretas nos ombros:
+					# some, e o contorno vem do material novo (next_pass)
+					mi.set_surface_override_material(sfc, _invisivel())
+	var f := _frente(esq)
+	var quadril := esq.find_bone("J_Bip_C_Hips")
+	if quadril < 0:
+		return
+	# corpo na pose de descanso (espaço canônico, +z = frente): pele, blusa e as peças da armadura que estão à mostra
+	var V := PackedVector3Array()
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or not _visivel(mi, raiz) or str(mi.name) == "Barba":
+			continue
+		for sfc in mi.mesh.get_surface_count():
+			var nome: String = mi.mesh.surface_get_name(sfc)
+			if "Outline" in nome or "HAIR" in nome or "Hair" in nome or "FACE" in nome or "EYE" in nome:
+				continue
+			for p in mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]:
+				V.append(Vector3(p.x, p.y, p.z * f))
+	var bp := func(n: String) -> Vector3:
+		var i := esq.find_bone(n)
+		var o := esq.get_bone_global_rest(i).origin if i >= 0 else Vector3.ZERO
+		return Vector3(o.x, o.y, o.z * f)
+	var centro: Vector3 = bp.call("J_Bip_C_Hips")
+	var y_cint: float = bp.call("J_Bip_C_Spine").y + 0.06
+	var joelho: Vector3 = bp.call("J_Bip_L_LowerLeg")
+	var pe: Vector3 = bp.call("J_Bip_L_Foot")
+	var y_fim: float = joelho.y - 0.035 if str(v.get("ate", "joelho")) == "joelho" else lerp(joelho.y, pe.y, 0.62)
+	var no := Node3D.new()
+	no.name = "Oficio"
+	var ba := BoneAttachment3D.new()
+	ba.bone_idx = quadril
+	esq.add_child(ba)
+	ba.add_child(no)
+	var inv := esq.get_bone_global_rest(quadril).affine_inverse()
+	var ctx := {"V": V, "c": centro, "f": f, "inv": inv, "esq": esq, "xl": 0.0, "xr": 0.0}
+	# pele do corpo do VRoid: a saia usa os mesmos ossos (quadril e coxas)
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.skin and mi.mesh is ArrayMesh and "Body_00_SKIN" in mi.mesh.surface_get_name(0):
+			ctx.skin = mi.skin
+			break
+	if ctx.has("skin"):
+		var sk: Skin = ctx.skin
+		for bi in sk.get_bind_count():
+			var osso := sk.get_bind_bone(bi)
+			var nome := esq.get_bone_name(osso) if osso >= 0 else str(sk.get_bind_name(bi))
+			for par in [["J_Bip_C_Hips", "b_quadril"], ["J_Bip_L_UpperLeg", "b_coxa_l"], ["J_Bip_R_UpperLeg", "b_coxa_r"]]:
+				if nome == par[0]:
+					ctx[par[1]] = bi
+		ctx.xl = esq.get_bone_global_rest(esq.find_bone("J_Bip_L_UpperLeg")).origin.x
+		ctx.xr = esq.get_bone_global_rest(esq.find_bone("J_Bip_R_UpperLeg")).origin.x
+	if v.has("saia"):
+		var c := _cor(v.saia)
+		_saia(no, ctx, y_cint, y_fim, 0.03, -PI, PI, _toon(c, _sombra(c), c.darkened(0.6), 0.003), true)
+		if v.has("avental"):
+			var ca := _cor(v.avental)
+			_saia(no, ctx, y_cint - 0.01, y_fim + 0.07, 0.03, -0.85, 0.85, _toon(ca, _sombra(ca), ca.darkened(0.6), 0.002), false)
+	if v.has("corpete"):
+		var cc := _cor(v.corpete)
+		_faixa(no, ctx, y_cint - 0.02, Armadura.junta_peito + 0.01, 0.008, _toon(cc, _sombra(cc), cc.darkened(0.6), 0.002), false)
+	if v.has("faixa"):
+		var cf := _cor(v.faixa)
+		_faixa(no, ctx, y_cint - 0.025, y_cint + 0.025, 0.03 if v.has("saia") else 0.012, _toon(cf, _sombra(cf), cf.darkened(0.6), 0.002), true)
+
+# raio do corpo em cada direção numa altura (o mais longe que algum vértice chega), suavizado
+static func _contorno_em(ctx: Dictionary, y: float, n: int, faixa := 0.015) -> Array:
+	var r := []
+	r.resize(n)
+	r.fill(0.0)
+	var c: Vector3 = ctx.c
+	for p in ctx.V:
+		if abs(p.y - y) > faixa:
+			continue
+		var d := Vector2(p.x - c.x, p.z - c.z)
+		for i in n:
+			var a := TAU * i / n - PI
+			var proj := d.dot(Vector2(sin(a), cos(a)))
+			if proj > r[i]:
+				r[i] = proj
+	var s := []
+	for i in n:
+		s.append(max(0.06, (r[(i - 1 + n) % n] + r[i] * 2.0 + r[(i + 1) % n]) / 4.0))
+	return s
+
+# saia (ou avental, quando a0..a1 não dá a volta): anéis da cintura até a barra, nunca entra depois do quadril,
+# abre um pouco para baixo e tem dobras que crescem perto da barra
+static func _saia(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: float, a0: float, a1: float, mat: Material, volta: bool) -> void:
+	var n := 40
+	var niveis := 16
+	var aneis := []
+	var ant := []
+	for k in niveis + 1:
+		var t := float(k) / niveis
+		var y: float = lerp(y0, y1, t)
+		var r := _contorno_em(ctx, y, n)
+		# ponta solta (algum vértice longe do corpo) não pode puxar o pano: no máximo 35% acima da mediana do anel
+		var ord := r.duplicate()
+		ord.sort()
+		var med: float = ord[n / 2]
+		var anel := []
+		for i in n + 1:
+			var ii := i % n
+			var a := TAU * ii / n - PI
+			# na pose parada as coxas vêm um pouco para a frente: mais folga na frente, crescendo para baixo
+			var rr: float = min(r[ii], med * 1.35) + folga + t * 0.07 + max(0.0, cos(a)) * 0.07 * t
+			if k > 0:
+				rr = clamp(rr, ant[ii] * 0.995, ant[ii] + 0.03) # depois do quadril o pano cai, não volta para dentro
+			r[ii] = rr
+			anel.append(rr)
+		ant = r.duplicate()
+		aneis.append(anel)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var c: Vector3 = ctx.c
+	var f: float = ctx.f
+	var inv: Transform3D = ctx.inv
+	var pts := []
+	for k in aneis.size():
+		var t := float(k) / niveis
+		var linha := []
+		for i in n + 1:
+			var a := TAU * i / n - PI
+			if not volta:
+				a = lerp(a0, a1, float(i) / n)
+			var ii := int(round((a + PI) / TAU * n)) % n
+			var dobra := 1.0 + (0.012 + 0.035 * t) * sin(a * 9.0 + 0.6)
+			var rr: float = aneis[k][ii] * dobra + (0.006 if not volta else 0.0)
+			var y: float = lerp(y0, y1, t) + (0.012 * sin(a * 5.0 + 1.3) * t if k == niveis else 0.0)
+			var p := Vector3(c.x + sin(a) * rr, y, c.z + cos(a) * rr)
+			var sombra := 0.82 + 0.18 * (0.5 + 0.5 * sin(a * 9.0 + 0.6 + 1.2)) # fundo das dobras mais escuro
+			# pele da saia: embaixo ela segue as coxas (senão o joelho fura o pano na pose parada); em cima, o quadril
+			var pm := Vector3(p.x, p.y, p.z * f) # espaço do modelo
+			var g: float = smoothstep(0.05, 1.0, t) * 0.9
+			var sl: float = clamp(0.5 + (pm.x - (ctx.xl + ctx.xr) * 0.5) / (ctx.xl - ctx.xr) * 1.4, 0.0, 1.0) if ctx.xl != ctx.xr else 0.5
+			linha.append([pm, sombra, [1.0 - g, g * sl, g * (1.0 - sl)]])
+		pts.append(linha)
+	var skin: Skin = ctx.get("skin")
+	var b_q: int = ctx.get("b_quadril", -1)
+	var b_l: int = ctx.get("b_coxa_l", -1)
+	var b_r: int = ctx.get("b_coxa_r", -1)
+	var com_pele := skin != null and b_q >= 0 and b_l >= 0 and b_r >= 0
+	for k in pts.size() - 1:
+		for i in n:
+			for q in [pts[k][i], pts[k][i + 1], pts[k + 1][i], pts[k][i + 1], pts[k + 1][i + 1], pts[k + 1][i]]:
+				st.set_color(Color(q[1], q[1], q[1]))
+				if com_pele:
+					st.set_bones(PackedInt32Array([b_q, b_l, b_r, b_q]))
+					st.set_weights(PackedFloat32Array([q[2][0], q[2][1], q[2][2], 0.0]))
+					st.add_vertex(q[0])
+				else:
+					st.add_vertex(inv * q[0])
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	if com_pele: # malha com pele, presa no esqueleto como a roupa do VRoid
+		var esq: Skeleton3D = ctx.esq
+		mi.name = "Oficio_saia"
+		esq.add_child(mi)
+		mi.skin = skin
+		mi.skeleton = mi.get_path_to(esq)
+	else:
+		no.add_child(mi)
+
+# faixa de pano em volta do corpo entre duas alturas (cinta da túnica ou corpete); com ponta caída do lado esquerdo
+static func _faixa(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: float, mat: Material, ponta: bool) -> void:
+	var n := 40
+	var niveis := 4
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var c: Vector3 = ctx.c
+	var f: float = ctx.f
+	var inv: Transform3D = ctx.inv
+	var pts := []
+	for k in niveis + 1:
+		var y: float = lerp(y0, y1, float(k) / niveis)
+		var r := _contorno_em(ctx, y, n, 0.012)
+		var linha := []
+		for i in n + 1:
+			var a := TAU * i / n - PI
+			var rr: float = r[i % n] + folga
+			linha.append(inv * Vector3(c.x + sin(a) * rr, y, (c.z + cos(a) * rr) * f))
+		pts.append(linha)
+	for k in niveis:
+		for i in n:
+			for q in [pts[k][i], pts[k][i + 1], pts[k + 1][i], pts[k][i + 1], pts[k + 1][i + 1], pts[k + 1][i]]:
+				st.set_color(Color(1, 1, 1))
+				st.add_vertex(q)
+	if ponta: # duas pontas do nó caindo na frente, um pouco para a esquerda
+		var r0 := _contorno_em(ctx, (y0 + y1) * 0.5, n, 0.012)
+		for lado in [[0.42, 0.2], [0.52, 0.16]]:
+			var a: float = lado[0]
+			var comp: float = lado[1]
+			var rr: float = r0[int(round((a + PI) / TAU * n)) % n] + folga + 0.006
+			var topo := Vector3(c.x + sin(a) * rr, (y0 + y1) * 0.5, c.z + cos(a) * rr)
+			var larg := 0.022
+			var tg := Vector3(cos(a), 0, -sin(a)) * larg
+			var q := [topo - tg, topo + tg, topo + tg + Vector3(0.005, -comp, 0.012), topo - tg + Vector3(-0.004, -comp * 0.94, 0.012)]
+			for i in [0, 1, 2, 0, 2, 3]:
+				st.set_color(Color(0.92, 0.92, 0.92))
+				var p: Vector3 = q[i]
+				st.add_vertex(inv * Vector3(p.x, p.y, p.z * f))
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	no.add_child(mi)
+
+# visível até a raiz do modelo (funciona fora da árvore também); a capa não conta como corpo
+static func _visivel(n: Node, raiz: Node) -> bool:
+	while n and n != raiz:
+		if n is Node3D and not n.visible:
+			return false
+		if str(n.name) in ["Armadura_capa", "Oficio"]:
+			return false
+		n = n.get_parent()
+	return true
