@@ -8,9 +8,21 @@ var m: Dictionary # mundo.json inteiro
 var solidos: Array = []
 var casas: Array = [] # só as peças de casa (para o teto)
 var grades: Array = []
+# relevo (lagos e montanha, 2026-11-05): a mesma conta de shared/relevo.js, com os dados do mundo.json
+var lagos: Array = []
+var agua := {"nivel": -0.05, "peito": 1.2, "lento": 0.62, "raso": 0.82}
+var monte := {} # grade da montanha: x0, z0, passo, n, h (PackedFloat32Array)
 
 func _init(mundo: Dictionary) -> void:
 	m = mundo
+	for l in m.get("lagos", []):
+		lagos.append({"x": float(l.x), "z": float(l.z), "rx": float(l.rx), "rz": float(l.rz), "giro": float(l.giro), "fundo": float(l.fundo),
+			"lobos": l.lobos, "R": maxf(float(l.rx), float(l.rz)) * 1.25, "c": cos(float(l.giro)), "s": sin(float(l.giro)), "nome": str(l.get("nome", ""))})
+	if m.has("agua"):
+		agua = m.agua
+	var gm = m.get("montanha_grade")
+	if gm != null:
+		monte = {"x0": float(gm.x0), "z0": float(gm.z0), "passo": float(gm.passo), "n": int(gm.n), "h": PackedFloat32Array(gm.h)}
 	for g in m.grades:
 		grades.append({"x0": float(g.x0), "z0": float(g.z0), "passo": float(g.passo), "nx": int(g.nx), "nz": int(g.nz), "h": PackedFloat32Array(g.h)})
 	for s in m.solidos:
@@ -99,11 +111,76 @@ func altura_na(r: Dictionary, x: float, z: float, y := INF) -> float:
 	var v: float = (hh[iz * n + ix] * (1 - ax) + hh[iz * n + ix + 1] * ax) * (1 - az) + (hh[(iz + 1) * n + ix] * (1 - ax) + hh[(iz + 1) * n + ix + 1] * ax) * az
 	return v / 100.0 * r.s + r.y0
 
+# ---------- relevo: lagos e montanha (shared/relevo.js) ----------
+# 1 = na margem do lago; menos que 1 = dentro
+static func margem_lago(L: Dictionary, x: float, z: float) -> float:
+	var dx: float = x - L.x
+	var dz: float = z - L.z
+	var u: float = dx * L.c + dz * L.s
+	var v: float = -dx * L.s + dz * L.c
+	var ang := atan2(v / L.rz, u / L.rx)
+	var k := 1.0
+	for l in L.lobos:
+		k *= 1.0 + float(l[1]) * sin(float(l[0]) * ang + float(l[2]))
+	return Vector2(u / L.rx, v / L.rz).length() / k
+
+static func _suave(a: float, b: float, t: float) -> float:
+	var u := clampf((t - a) / (b - a), 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
+# {lago, fundo, d} ou vazio fora da água
+func no_lago(x: float, z: float) -> Dictionary:
+	for L in lagos:
+		if absf(x - L.x) > L.R or absf(z - L.z) > L.R:
+			continue
+		var d := margem_lago(L, x, z)
+		if d >= 1.0:
+			continue
+		var f: float = L.fundo
+		var p: float = f * (0.12 * _suave(1.0, 0.85, d) + 0.88 * _suave(0.85, 0.35, d)) if f > 1.5 else f * _suave(1.0, 0.55, d) * (0.55 + 0.45 * _suave(0.55, 0.1, d))
+		return {"lago": L, "fundo": p, "d": d}
+	return {}
+
+func altura_montanha(x: float, z: float) -> float:
+	if monte.is_empty():
+		return 0.0
+	var fx: float = (x - monte.x0) / monte.passo
+	var fz: float = (z - monte.z0) / monte.passo
+	var n: int = monte.n
+	if fx < 0.0 or fz < 0.0 or fx >= n - 1 or fz >= n - 1:
+		return 0.0
+	var ix := int(fx)
+	var iz := int(fz)
+	var ax := fx - ix
+	var az := fz - iz
+	var k := iz * n + ix
+	var h: PackedFloat32Array = monte.h
+	return (h[k] * (1.0 - ax) + h[k + 1] * ax) * (1.0 - az) + (h[k + n] * (1.0 - ax) + h[k + n + 1] * ax) * az
+
+# altura de verdade do chão (desenho): montanha em cima, leito do lago embaixo
+func relevo(x: float, z: float) -> float:
+	var L := no_lago(x, z)
+	return altura_montanha(x, z) - (float(L.fundo) if not L.is_empty() else 0.0)
+
+# onde os pés ficam: igual ao relevo, menos na água funda (boia com a água no peito)
+func chao_relevo(x: float, z: float) -> float:
+	var mt := altura_montanha(x, z)
+	var L := no_lago(x, z)
+	if L.is_empty():
+		return mt
+	return maxf(mt - float(L.fundo), minf(mt, float(agua.nivel)) - float(agua.peito))
+
+# quanto da água cobre quem está em (x, y, z) (0 = seco)
+func agua_no_corpo(x: float, z: float, y: float) -> float:
+	if lagos.is_empty() or no_lago(x, z).is_empty():
+		return 0.0
+	return maxf(0.0, float(agua.nivel) - y)
+
 func altura(x: float, z: float, y := INF) -> float:
-	var h := 0.0
+	var h := chao_relevo(x, z) if (not lagos.is_empty() or not monte.is_empty()) else 0.0
 	for r in solidos:
 		var a := altura_na(r, x, z, y)
-		if a > h:
+		if a > h and a >= 0.0: # -1 = fora da peça (no lago o chão fica abaixo de -1)
 			h = a
 	return h
 

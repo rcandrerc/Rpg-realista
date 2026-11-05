@@ -25,12 +25,25 @@ function noSegmento(c, x, z) {
   return [ax + vx * t, az + vz * t];
 }
 
-// (x, z) fica dentro do mapa com "margem" metros de folga da borda?
-export function dentroDoMapa(mapa, x, z, margem = 0) {
-  const F = formasDoMapa(mapa);
+// (x, z) cai dentro de alguma área ou corredor com "margem" metros de folga da borda DELA?
+function dentroDeAlguma(F, x, z, margem) {
   for (const a of F.areas) if (Math.hypot(x - a.x, z - a.z) <= raioAte(a, x, z) - margem) return true;
   for (const c of F.corredores) { const [px, pz] = noSegmento(c, x, z); if (Math.hypot(x - px, z - pz) <= c.larg / 2 - margem) return true; }
   return false;
+}
+// volta de pontos (12 direções) que conferem a folga em relação ao mapa INTEIRO (a união das áreas), não a cada área
+export const VOLTA_FOLGA = Array.from({ length: 12 }, (_, i) => [Math.cos(i * Math.PI / 6), Math.sin(i * Math.PI / 6)]);
+// (x, z) fica dentro do mapa com "margem" metros de folga da borda?
+// 2026-11-05 (André: "o mapa inteiro tem que dar para caminhar, onde der pra ir tem que poder ir"): a folga vale para a
+// borda de verdade do mapa (a união de todas as áreas e corredores). Antes cada área tinha a folga dela, então onde duas
+// áreas se encostavam por pouco sobrava uma parede invisível no meio da mata. Agora o ponto vale se está fundo numa
+// área (como antes) ou se ele e a volta dele a "margem" metros estão todos dentro do mapa.
+export function dentroDoMapa(mapa, x, z, margem = 0) {
+  const F = formasDoMapa(mapa);
+  if (dentroDeAlguma(F, x, z, margem)) return true;
+  if (margem <= 0 || !dentroDeAlguma(F, x, z, 0)) return false;
+  for (const [cx, cz] of VOLTA_FOLGA) if (!dentroDeAlguma(F, x + cx * margem, z + cz * margem, 0)) return false;
+  return true;
 }
 
 // traz (x, z) para o ponto mais perto dentro do mapa (com margem); devolve [x, z]

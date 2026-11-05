@@ -6,6 +6,7 @@ const D = preload("res://dados.gd")
 const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
+const Relevo = preload("res://relevo.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
@@ -69,6 +70,7 @@ var cache := {}
 var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (cada corpo tem a mão num jeito)
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
+var relevo # relevo.gd: montanha e lagos (desenho)
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
@@ -306,13 +308,17 @@ func montar_chao() -> void:
 	m.set_shader_parameter("grama_cru", load("res://modelos/forrest_ground_01.jpg"))
 	m.set_shader_parameter("pedra_cru", load("res://modelos/cobblestone_floor_01.jpg"))
 	var p := PlaneMesh.new()
-	p.size = Vector2(620, 620) # a vila, o campo de fora e a mata (2026-11-03)
+	p.size = Vector2(3000, 3000) # a vila, o campo de fora, a mata e, do alto da montanha, a mata até o horizonte (2026-11-05)
 	var chao := MeshInstance3D.new()
 	chao.mesh = p
 	chao.position = Vector3(95, 0, 70)
 	chao.material_override = m
 	chao.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(chao)
+	# lagos e montanha (relevo.gd, pedido do André 2026-11-05): o chão plano abre buraco nos lagos
+	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"))
+	add_child(relevo)
+	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
 
 func peso_vila(x: float, z: float) -> float:
 	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
@@ -422,7 +428,7 @@ func montar_grama() -> void:
 			for k in 20: # não nasce nas trilhas, na praça nem colada nas casas
 				a = rng.randf() * TAU
 				r = sqrt(rng.randf()) * rr
-				if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2 and (i < n0 or mov.dentro_do_mapa(cx + cos(a) * r, cz + sin(a) * r, -3.0)):
+				if peso_vila(cx + cos(a) * r, cz + sin(a) * r) <= 0.2 and (i < n0 or mov.dentro_do_mapa(cx + cos(a) * r, cz + sin(a) * r, -3.0)) and not fora_do_plano(cx + cos(a) * r, cz + sin(a) * r):
 					break
 			var s := rng.randf_range(0.7, 1.3)
 			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.6, 1.4), s))
@@ -438,6 +444,15 @@ func montar_grama() -> void:
 
 # Mata (2026-11-03): chão de floresta com pouca grama, mais cheia nas clareiras. Um pedaço por círculo da mata, que
 # só é desenhado até 70 m (são muitos)
+# lago (com a beirada) ou encosta da montanha: grama solta não nasce (shared/dados.js noRelevo)
+func fora_do_plano(x: float, z: float) -> bool:
+	if terreno.altura_montanha(x, z) > 0.15:
+		return true
+	for L in terreno.lagos:
+		if absf(x - L.x) < L.R + 2.0 and absf(z - L.z) < L.R + 2.0 and Terreno.margem_lago(L, x, z) < 1.0 + 0.8 / minf(L.rx, L.rz):
+			return true
+	return false
+
 func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 	var areas: Array = mundo.get("areas", [])
 	for q in areas.size():
@@ -466,7 +481,7 @@ func grama_da_mata(m: Mesh, rng: RandomNumberGenerator) -> void:
 			var r := sqrt(rng.randf()) * r0 * 1.1
 			var x := float(o.x) + cos(a) * r
 			var z := float(o.z) + sin(a) * r
-			if not mov.dentro_do_mapa(x, z, -2.0) or peso_vila(x, z) > 0.2:
+			if not mov.dentro_do_mapa(x, z, -2.0) or peso_vila(x, z) > 0.2 or fora_do_plano(x, z):
 				continue
 			var antes := false # o pedaço de outro círculo já cobre aqui
 			for k in q:
@@ -654,7 +669,7 @@ func montar_mata(vila: Node3D) -> void:
 			var eixo := Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized()
 			var b := Basis(eixo, deg_to_rad(rng.randf_range(-5.0, 5.0))) * Basis(Vector3.UP, float(a.ry))
 			b = b.scaled(Vector3(sc * rng.randf_range(0.9, 1.1), sc * rng.randf_range(0.88, 1.15), sc * rng.randf_range(0.9, 1.1)))
-			var t := Transform3D(b, Vector3(pos.x, 0, pos.y))
+			var t := Transform3D(b, Vector3(pos.x, float(a.get("y", 0.0)), pos.y))
 			var info := {"t": t, "s": sc, "v": int(a.v)}
 			if mms.has("tronco"):
 				mms.tronco.set_instance_transform(i, t)
@@ -1221,6 +1236,7 @@ func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	l.offset = Vector2(0, 52) # em cima da barra
 	l.modulate = Color(1, 0.93, 0.8)
 	l.position = Vector3(0, 1.95, 0)
+	l.visibility_range_end = 60.0 # de longe (vista do alto) os nomes não se empilham lá na vila; monstros: NOME_LONGE
 	no.add_child(l)
 	if cor.a == 0:
 		return null
@@ -2773,7 +2789,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	var t := 0.35
 	while t <= ate:
 		var p := de + dir * t
-		var h := 0.0
+		var h: float = terreno.altura_montanha(p.x, p.z) # a encosta da montanha também segura a câmera (lago: fica acima da água)
 		for r in chao:
 			h = maxf(h, terreno.altura_na(r, p.x, p.z, p.y))
 		if h > p.y - 0.25:
