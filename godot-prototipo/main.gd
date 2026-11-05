@@ -2381,6 +2381,7 @@ func _process(dt: float) -> void:
 
 func atualizar_heroi(dt: float) -> void:
 	if h.morto > 0.0:
+		corpo_caido(dt)
 		if on():
 			return # online: o servidor levanta o herói
 		h.morto -= dt
@@ -2390,6 +2391,8 @@ func atualizar_heroi(dt: float) -> void:
 			mov.por_em(D.NASCIMENTO)
 			heroi.position = mov.posicao()
 			heroi_anim.play("parada", 0.2)
+			hud.aviso("Você se levanta de novo" + _penalidade_txt)
+			_penalidade_txt = ""
 		return
 	var luta: bool = trabalho.em_combate() # Quimera: em luta a mana volta a 35% e a vida não volta
 	var R: Dictionary = P.regen()
@@ -3203,6 +3206,30 @@ func ferir_heroi(dmg: float, teto := 99.0) -> void:
 		volta.cancelar("")
 		montar_lobo(false, false) # caiu: desce do lobo (o servidor também)
 		heroi_anim.play("morrer", 0.1)
+		if not on(): # penalidade (André 2026-11-05): online quem tira o ouro e desgasta é o servidor
+			_penalidade_txt = P.penalidade_morte()
+
+# caído (André 2026-11-05: "fiquei paralisado no céu"): antes, morto, nada do corpo andava, então a mistura da
+# animação não ia para a de morte e o herói ficava duro em pé, ou parado no ar se caiu pulando. Agora a gravidade
+# continua (desce até o chão) e a animação de morte (Mixamo, cai de costas) toca até o fim e fica deitada.
+var _penalidade_txt := "" # sem internet: o que a morte custou, avisado quando levanta
+func corpo_caido(dt: float) -> void:
+	if mov.esc != null:
+		mov.soltar()
+	mov.arrancada = null
+	mov.manobra = null
+	mov.vx = 0.0
+	mov.vz = 0.0
+	mov.passo_vertical(dt)
+	heroi.position = mov.posicao()
+	if heroi_anim.current_animation != "morrer" and heroi_anim.has_animation("morrer"):
+		heroi_anim.play("morrer", 0.1)
+	heroi_anim.mirando = false
+	heroi_anim.guarda_cajado = false
+	heroi_anim.atualizar(dt, 0.0)
+	mao_fechada.peso = move_toward(mao_fechada.peso, 0.0, dt * 8.0)
+	if h.modo == "Magia" and montaria == null and cajado.visible: # o cajado cai junto com a mão (não fica no ar)
+		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 
 # o herói levou dano: tranco na câmera, som e vibração (offline e online)
 func apanhou() -> void:

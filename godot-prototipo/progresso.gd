@@ -224,7 +224,7 @@ static func item_int(it):
 	if not (it is Dictionary) or not it.has("k"):
 		return null
 	var r := {"k": "peitoral" if str(it.k) == "manto" else "colar" if str(it.k) == "oculos" else str(it.k)} # conta antiga: o Manto virou Peitoral; Óculos virou Colar (André 2026-11-03)
-	for c in ["r", "n", "nv"]:
+	for c in ["r", "n", "nv", "d"]: # d: durabilidade gasta (sem d = inteira; MORTE em shared/dados.js)
 		if it.has(c):
 			r[c] = int(it[c])
 	if it.has("h"):
@@ -236,7 +236,7 @@ func eh_equip(it) -> bool:
 
 # quantas peças de cada raridade (ou melhor) estão no corpo; a Arma conta pela melhor entre espada e cajado
 func pecas_conjunto() -> Array:
-	var r := func(l): return int(prog.equip[l].r) if prog.equip.get(l) != null else -1
+	var r := func(l): return int(prog.equip[l].r) if prog.equip.get(l) != null and not quebrado(prog.equip[l]) else -1 # quebrada não conta
 	var lugares := [r.call("cabeca"), r.call("corpo"), r.call("pernas"), r.call("capa"), r.call("pes"), r.call("acessorio"), max(r.call("espada"), r.call("cajado"))]
 	var n := []
 	for i in dados.raridades.size():
@@ -260,7 +260,7 @@ func bonus_equip() -> Dictionary:
 		return b
 	for l in dados.lugares:
 		var it = prog.equip.get(l)
-		if it == null or not dados.itens.has(it.k):
+		if it == null or not dados.itens.has(it.k) or quebrado(it): # quebrada: sem bônus até o Tomás consertar
 			continue
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
@@ -272,6 +272,76 @@ func bonus_equip() -> Dictionary:
 			for c in bon:
 				b[c] += float(bon[c])
 	return b
+
+# ---------- durabilidade e penalidade de morte (igual a shared/progresso.js; MORTE em shared/dados.js) ----------
+func morte_dados() -> Dictionary:
+	return dados.get("morte", {"ouro": 0.1, "desgaste": 10, "durMax": 100, "conserto": 0.3})
+
+func durab(it) -> int:
+	return int(it.d) if it is Dictionary and it.has("d") else int(morte_dados().durMax)
+
+func quebrado(it) -> bool:
+	return eh_equip(it) and durab(it) <= 0
+
+func custo_conserto(it) -> int:
+	var M := morte_dados()
+	if not eh_equip(it) or durab(it) >= int(M.durMax):
+		return 0
+	return max(1, int(ceil(float(int(M.durMax) - durab(it)) / float(M.durMax) * float(dados.vendaEquip[int(it.r)]) * float(M.conserto))))
+
+# ouro para consertar tudo (corpo e mochila)
+func custo_conserto_tudo() -> int:
+	var t := 0
+	for l in dados.lugares:
+		t += custo_conserto(prog.equip.get(l))
+	for it in prog.mochila:
+		t += custo_conserto(it)
+	return t
+
+# sem internet: o Tomás conserta aqui mesmo. Devolve o aviso
+func consertar_tudo() -> String:
+	var custo := custo_conserto_tudo()
+	if custo <= 0:
+		return "Nada para consertar: está tudo inteiro"
+	if int(prog.ouro) < custo:
+		return "O conserto custa %d de ouro (faltam %d)" % [custo, custo - int(prog.ouro)]
+	var n := 0
+	for l in dados.lugares:
+		if custo_conserto(prog.equip.get(l)) > 0:
+			prog.equip[l].erase("d")
+			n += 1
+	for it in prog.mochila:
+		if custo_conserto(it) > 0:
+			it.erase("d")
+			n += 1
+	prog.ouro = int(prog.ouro) - custo
+	st = calcular_status()
+	mudou = true
+	return "Tomás consertou %d %s por %d de ouro" % [n, "peça" if n == 1 else "peças", custo]
+
+# sem internet, caiu: perde parte do ouro e o equipamento do corpo desgasta. Devolve o texto para quando levantar
+func penalidade_morte() -> String:
+	var M := morte_dados()
+	var ouro := int(floor(int(prog.ouro) * float(M.ouro)))
+	prog.ouro = int(prog.ouro) - ouro
+	var quebrou := []
+	for l in dados.lugares:
+		var it = prog.equip.get(l)
+		if not eh_equip(it):
+			continue
+		var antes := durab(it)
+		if antes <= 0:
+			continue
+		it["d"] = max(0, antes - int(M.desgaste))
+		if int(it.d) == 0:
+			quebrou.append(nome_item(it))
+	st = calcular_status()
+	mudou = true
+	var t := (". Perdeu %d de ouro" % ouro) if ouro > 0 else ""
+	t += ". O equipamento desgastou"
+	if quebrou.size() > 0:
+		t += "; quebrou: %s (o Tomás conserta)" % ", ".join(quebrou)
+	return t
 
 func nome_item(it) -> String:
 	if not (it is Dictionary) or not dados.itens.has(it.k):

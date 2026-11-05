@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -93,7 +93,7 @@ export function gastarVigor(p, n, agora = Date.now()) {
 const ehEquip = (k) => !!ITENS[k]?.lugar;
 // Quantas peças de cada raridade (ou melhor) estão no corpo: 6 lugares, a Arma conta pela melhor entre espada e cajado
 export function pecasDoConjunto(equip = {}) {
-  const r = (l) => (equip[l] ? equip[l].r : -1);
+  const r = (l) => (equip[l] && !quebrado(equip[l]) ? equip[l].r : -1); // peça quebrada não conta (MORTE)
   const lugares = [r('cabeca'), r('corpo'), r('pernas'), r('capa'), r('pes'), r('acessorio'), Math.max(r('espada'), r('cajado'))];
   return RARIDADES.map((_, i) => lugares.filter((x) => x >= i).length);
 }
@@ -101,7 +101,7 @@ export function pecasDoConjunto(equip = {}) {
 export function bonusEquip(equip = {}) {
   const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
   for (const l of LUGARES) {
-    const it = equip?.[l]; if (!it || !ITENS[it.k]) continue;
+    const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
     for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r];
   }
   const n = pecasDoConjunto(equip || {});
@@ -119,7 +119,10 @@ export function itemValido(it) {
   if (it && typeof it === 'object' && ANTIGOS[it.k]) it = { ...it, k: ANTIGOS[it.k] };
   if (!it || typeof it !== 'object' || !ITENS[it.k]) return null;
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
-  if (ehEquip(it.k)) return int(it.r, 0, RARIDADES.length - 1) ? { k: it.k, r: it.r } : null;
+  if (ehEquip(it.k)) {
+    if (!int(it.r, 0, RARIDADES.length - 1)) return null;
+    return int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
+  }
   const n = int(it.n, 1, ITENS[it.k].pilha) ? it.n : 1;
   if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n } : null;
   return { k: it.k, n };
@@ -142,6 +145,42 @@ export function nomeItem(it) {
   if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}`;
   if (it.k === 'tomo') return `${HABS[it.h].tomo} ${ROMANO[it.nv]}`;
   return ITENS[it.k].nome;
+}
+// ---------- durabilidade e penalidade de morte (MORTE em shared/dados.js, André 2026-11-05) ----------
+export const durab = (it) => (it && Number.isInteger(it.d) ? it.d : MORTE.durMax);
+export const quebrado = (it) => !!it && ehEquip(it.k) && durab(it) <= 0;
+// ouro para deixar a peça inteira de novo
+export const custoConserto = (it) => (it && ehEquip(it.k) && durab(it) < MORTE.durMax
+  ? Math.max(1, Math.ceil((MORTE.durMax - durab(it)) / MORTE.durMax * VENDA_EQUIP[it.r] * MORTE.conserto)) : 0);
+// peças que o Tomás conserta: as do corpo e as da mochila. Devolve [{ onde: 'equip' | 'mochila', l | i, custo }]
+export function pecasGastas(p) {
+  const r = [];
+  for (const l of LUGARES) { const c = custoConserto(p.equip?.[l]); if (c) r.push({ onde: 'equip', l, custo: c }); }
+  (p.mochila || []).forEach((it, i) => { const c = custoConserto(it); if (c) r.push({ onde: 'mochila', i, custo: c }); });
+  return r;
+}
+// consertar tudo: paga e volta a durabilidade cheia. Devolve { custo, n } ou { falta } (ouro que falta) ou null (nada gasto)
+export function consertarTudo(p) {
+  const lista = pecasGastas(p); if (!lista.length) return null;
+  const custo = lista.reduce((s, x) => s + x.custo, 0);
+  if ((p.ouro || 0) < custo) return { falta: custo - (p.ouro || 0), custo };
+  p.ouro -= custo;
+  for (const x of lista) delete (x.onde === 'equip' ? p.equip[x.l] : p.mochila[x.i]).d;
+  return { custo, n: lista.length };
+}
+// caiu: perde parte do ouro e cada peça do corpo desgasta. Devolve { ouro, quebrou: [nomes das que chegaram a 0] }
+export function penalidadeMorte(p) {
+  const ouro = Math.floor((p.ouro || 0) * MORTE.ouro);
+  p.ouro = (p.ouro || 0) - ouro;
+  const quebrou = [];
+  for (const l of LUGARES) {
+    const it = p.equip?.[l]; if (!it || !ehEquip(it.k)) continue;
+    const antes = durab(it);
+    if (antes <= 0) continue;
+    it.d = Math.max(0, antes - MORTE.desgaste);
+    if (it.d === 0) quebrou.push(nomeItem(it));
+  }
+  return { ouro, quebrou };
 }
 // Quanto a loja paga por uma unidade
 export const precoVenda = (it, merc = 0) => Math.round((ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1) * (1 + merc));

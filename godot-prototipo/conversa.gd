@@ -16,6 +16,7 @@ const ACOES := {
 	"comprar": ["Comprar", "loja"],
 	"vender": ["Vender itens", "it_ouro"],
 	"forja": ["Forja (criar)", "pf_fer"],
+	"consertar": ["Consertar", "cs_bigorna"], # durabilidade (penalidade de morte, André 2026-11-05)
 	"alfaiate": ["Alfaiate (criar)", "pf_alf"],
 	"habilidades": ["Habilidades", "basico"],
 	"missao": ["Missão", "it_tomo"],
@@ -244,6 +245,9 @@ func abrir(n: Dictionary) -> void:
 		var t: String = ACOES[a][0]
 		if a == "missao" and str(n.get("missao", "")) != "":
 			t = "Missão: %s" % n.missao
+		elif a == "consertar":
+			var custo: int = m.P.custo_conserto_tudo()
+			t = ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)"
 		opcoes.add_child(_opcao(t, ACOES[a][1], func(): escolher(a)))
 	opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
 	opcoes.add_child(_opcao("Até logo", "sair", fechar))
@@ -304,6 +308,22 @@ func escolher(a: String) -> void:
 		"habilidades":
 			fechar()
 			m.menu.abrir("habilidades")
+		"consertar": # tudo o que desgastou, no corpo e na mochila, de uma vez (online o servidor confere e cobra)
+			var custo: int = m.P.custo_conserto_tudo()
+			if custo <= 0:
+				fala_ui.text = "Seu equipamento está inteiro. Volte quando ele apanhar lá fora."
+			elif int(m.P.prog.ouro) < custo:
+				fala_ui.text = "Esse conserto sai por %d de ouro. Você tem %d." % [custo, int(m.P.prog.ouro)]
+			elif m.on():
+				m.rede("item", {"acao": "consertar"})
+				fala_ui.text = "Pronto, ficou como novo. São %d de ouro." % custo
+				m.sons.tocar("forja", -4.0)
+			else:
+				var r: String = m.P.consertar_tudo()
+				fala_ui.text = "Pronto, ficou como novo. São %d de ouro." % custo
+				m.hud.aviso(r)
+				m.sons.tocar("forja", -4.0)
+			_atualizar_consertar()
 		"resetar":
 			fechar()
 			if m.on():
@@ -329,6 +349,16 @@ func escolher(a: String) -> void:
 					var i: int = (int(_falas.get(n.id, 0)) + 1) % falas.size()
 					_falas[n.id] = i
 					fala_ui.text = str(falas[i])
+
+# depois de consertar o botão mostra o preço novo (online o progresso chega um instante depois)
+func _atualizar_consertar() -> void:
+	await get_tree().create_timer(0.6).timeout
+	if npc == null:
+		return
+	for b in opcoes.get_children():
+		if b is Button and str(b.text).begins_with("Consertar"):
+			var custo: int = m.P.custo_conserto_tudo()
+			b.text = ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)"
 
 # o servidor respondeu ("fala"): se a janela desse NPC está aberta, a fala aparece nela. true = mostrou aqui
 func fala(npc_id: String, texto: String) -> bool:

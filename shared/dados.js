@@ -643,7 +643,7 @@ export const TAMANHO_VEIO = { pedra: 1.4, cobre: 1, ferro: 0.8, cristal: 1 };
 // mata ao norte se encostam por pouco, e com a folga de 2,2 m da borda (andar.gd limitar_ao_mapa) virava uma parede
 // invisível em z ~ -32. Este círculo fica todo dentro do que já era andável e só emenda as duas áreas.
 // Vêm por último na lista de áreas (as de antes não mudam de índice nem de sorteio).
-const EMENDAS = [{ x: 6, z: -36, r: 12, mata: true, ligacao: true }];
+const EMENDAS = [{ x: 6, z: -36, r: 12, rx: 12, rz: 12, mata: true, ligacao: true }]; // rx/rz: a grama da mata (main.gd grama_da_mata) lê rx
 // Trilhas de terra até os veios novos (André 2026-11-05: "tem que liberar o caminho"): a de pedra sai da estradinha do
 // leste, sobe pelo norte da vila entre as árvores e entra na mata; a de ferro sai da estrada principal e cruza o campo de
 // fora para o leste. Entram nos caminhos (chão de terra, minimapa e o "Ir para" do mapa, rota.gd).
@@ -817,7 +817,7 @@ export const MAPA_CLAREIRA = {
       'Andarilho, monstros apareceram no leste. Derrube quatro deles e a vila te deve uma.',
       'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
     ] },
-    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'forja', 'habilidades'], falas: [
+    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'forja', 'consertar', 'habilidades'], falas: [
       'Essa espada corta e conjura. Fale comigo para escolher os seus golpes e magias.',
       'Bigorna boa é bigorna quente. Volte quando quiser trocar a build.',
     ] },
@@ -951,6 +951,10 @@ export const ITENS = {
   tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
 };
 export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
+// Penalidade de morte (André 2026-11-05): quem cai perde `ouro` do ouro que carrega e cada peça equipada perde `desgaste`
+// de durabilidade (de durMax). Peça com 0 fica Quebrada: continua no corpo, mas não dá bônus (nem conta para o conjunto)
+// até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
+export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3 };
 export const VENDA_TOMO = 30; // x nível do Tomo
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 // Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
