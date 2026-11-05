@@ -176,6 +176,21 @@ export class Contas {
     this.q.gravarLote.run(id, dono, nome, JSON.stringify({ ret: ret || undefined, pecas: [], horta: {}, prox: 1 }), Date.now());
     return true;
   }
+  // mudar o tamanho: o mesmo dono, sem cruzar ninguém; só troca o retângulo (peças e horta ficam como estão no banco)
+  mudarLote(id, dono, ret, retDe) {
+    const l = this.q.lote.get(id);
+    if (!l || l.dono !== dono) return false;
+    for (const o of this.lotes()) {
+      if (!o.dono || o.id === id) continue;
+      const r = retDe(o);
+      if (r && ret.x0 < r.x1 && r.x0 < ret.x1 && ret.z0 < r.z1 && r.z0 < ret.z1) return false;
+    }
+    const d = linhaLote(l).dados; d.ret = ret;
+    this.q.gravarLote.run(id, l.dono, l.nome, JSON.stringify(d), Date.now());
+    return true;
+  }
+  // vendido de volta para o jogo: a linha fica sem dono na hora (as outras salas já podem vender o chão)
+  soltarLote(id) { this.q.gravarLote.run(id, null, '', '{}', Date.now()); }
   salvarLote({ id, dono, nome, dados }) { this.q.gravarLote.run(id, dono, nome || '', JSON.stringify(dados || {}), Date.now()); }
 
   // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 14)
