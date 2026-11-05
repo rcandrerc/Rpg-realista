@@ -121,6 +121,31 @@ jobs:
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35" > /dev/null
           mkdir -p ~/.config/godot
           printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > ~/.config/godot/editor_settings-4.5.tres
+      # O aapt2 (empacotador do Android) só existe em x86_64. No runner ARM ele roda emulado (qemu, já registrado
+      # no instalar-runner.sh), mas faltava o loader/glibc x86_64 -> "Could not open /lib64/ld-linux-x86-64.so.2".
+      # Monta um sysroot x86_64 (uma vez; fica no $HOME do runner) e aponta QEMU_LD_PREFIX pra ele. Só no ARM; no
+      # GitHub (x86_64) este passo não faz nada.
+      - name: Compatibilidade x86_64 para o aapt2 (só no runner ARM)
+        run: |
+          case "$(uname -m)" in aarch64|arm64) ;; *) echo "runner x86_64 nativo: nada a fazer"; exit 0;; esac
+          SYS="$HOME/x86_64-root"
+          if [ ! -e "$SYS/lib/x86_64-linux-gnu/libc.so.6" ]; then
+            echo "Montando sysroot x86_64 para o aapt2 emulado (qemu)..."
+            rm -rf "$SYS" && mkdir -p "$SYS" /tmp/x86debs && cd /tmp/x86debs
+            B=https://archive.ubuntu.com/ubuntu/pool/main
+            for spec in \
+              "$B/g/glibc|libc6_[0-9][^\"]*_amd64\.deb" \
+              "$B/g/gcc-14|libstdc\+\+6_[0-9][^\"]*_amd64\.deb" \
+              "$B/g/gcc-14|libgcc-s1_[0-9][^\"]*_amd64\.deb" \
+              "$B/z/zlib|zlib1g_[0-9][^\"]*_amd64\.deb" ; do
+              dir="${spec%%|*}"; re="${spec##*|}"
+              f="$(curl -s "$dir/" | grep -oE "$re" | sort -V | tail -1)"
+              [ -n "$f" ] || { echo "pacote x86_64 nao encontrado em $dir ($re)"; exit 1; }
+              echo "  baixando $f"; curl -fsSL -o "$f" "$dir/$f"; dpkg-deb -x "$f" "$SYS"
+            done
+          fi
+          echo "QEMU_LD_PREFIX=$SYS" >> "$GITHUB_ENV"
+          echo "aapt2 vai usar QEMU_LD_PREFIX=$SYS"
       - name: Chave de assinatura
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
