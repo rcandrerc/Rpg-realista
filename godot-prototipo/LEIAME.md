@@ -76,6 +76,9 @@ Para montar à mão:
   é **criada** antes (botão **Criar**: gasta o material e vira o item "obra" na mochila; o número no quadrado é
   quantas você tem prontas) e depois **colocada**. A bancada, a fundação, a tocha e a enxada se criam em qualquer
   lugar; o resto pede uma bancada perto (então a primeira coisa é a bancada). Desmontar devolve a peça pronta.
+- Criar abre uma janelinha para escolher quantas (-5, -1, +1, +5, Máx; até 20 e só o que o material paga) e
+  aparece a barrinha em cima, uma vez por peça: 3 a 5 s cada, mais longa nas peças que gastam mais material
+  (`CRIAR_OBRA` e `tempoCriar` em `shared/dados.js`). Parar interrompe a fila; o servidor cobra cada uma ao terminar.
 - Casa numa grade de 2 m: a fundação vai no quadrado (vira chão, dá para subir e andar em cima), parede, porta e
   janela vão na borda de uma fundação (Girar vira a frente), o telhado vai em cima de uma fundação com parede em
   volta ou do lado de outro telhado. Telhados vizinhos viram um telhado só, inclinado, com beiral; ele some (fica

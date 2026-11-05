@@ -88,7 +88,10 @@ class SalaClareira extends Room {
     this.ouvir('construir', (c, m) => { if (m && typeof m.k === 'string' && m.k.length < 16) this.sim.construir(c.sessionId, { k: m.k, x: Number(m.x), z: Number(m.z), r: Number(m.r) | 0 }); });
     this.ouvir('desmontar', (c, m) => { if (m && typeof m.p === 'string' && m.p.length < 12) this.sim.desmontar(c.sessionId, { p: m.p }); });
     // construção completa (2026-11-04): criar a peça ou a ferramenta e mexer no baú
-    this.ouvir('fabricar', (c, m) => { if (m && typeof m.k === 'string' && m.k.length < 20) this.sim.fabricar(c.sessionId, { k: m.k }); });
+    this.ouvir('fabricar', (c, m) => {
+      if (m && m.parar === true) this.sim.fabricar(c.sessionId, { parar: true });
+      else if (m && typeof m.k === 'string' && m.k.length < 20) this.sim.fabricar(c.sessionId, { k: m.k, n: Number.isInteger(m.n) ? m.n : 1 });
+    });
     this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1 }); });
     this.ouvir('horta', (c, m) => { if (m && typeof m.acao === 'string' && typeof m.c === 'string' && m.c.length < 12) this.sim.horta(c.sessionId, { acao: m.acao, c: m.c, s: typeof m.s === 'string' ? m.s.slice(0, 16) : '' }); });
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });

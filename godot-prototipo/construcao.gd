@@ -71,6 +71,18 @@ var tela: CanvasLayer
 var painel: PanelContainer # barra de itens embaixo (modo construção)
 var linha_abas: HBoxContainer
 var painel_acoes: PanelContainer # botões grandes à direita (Colocar, Criar, Girar, Sair)
+# criar com quantidade e barrinha (André 2026-11-05)
+var painel_qtd: PanelContainer # janela: quantas criar
+var txt_qtd_tit: Label
+var txt_qtd_custo: Label
+var txt_qtd_n: Label
+var b_qtd_ok: Button
+var qtd := 1
+var _qtd_k := ""
+var painel_fab: PanelContainer # "Criando Fundação 2/6" com a barrinha carregando
+var txt_fab: Label
+var barra_fab: ProgressBar
+var _fab := {} # {k, n, feito, dur, ini (s deste celular), fim (s em que some)}
 var linha_itens: HBoxContainer
 var b_girar: Button
 var b_criar: Button
@@ -1200,7 +1212,84 @@ func criar() -> void:
 		m.hud.aviso(mot)
 		m.sons.tocar("dash", -12.0)
 		return
-	m.rede("fabricar", {"k": k})
+	if not _fab.is_empty() and not _fab.get("acabou", false):
+		m.hud.aviso("Já está criando: espere a barrinha ou toque em Parar")
+		return
+	if not D.construcoes.has(k): # ferramenta: uma só, direto na barrinha
+		m.rede("fabricar", {"k": k, "n": 1})
+		return
+	_qtd_k = k
+	qtd = 1
+	_mostrar_qtd()
+	painel_qtd.visible = true
+
+# quantas dá para criar com o que tenho (no máximo a fila do servidor)
+func _qtd_max(k: String) -> int:
+	return clampi(_quantas(dados_criar(k).custo), 1, int(D.get("criarObra", {}).get("maxFila", 20)))
+
+func tempo_criar(k: String) -> float:
+	var C := dados_criar(k)
+	var R: Dictionary = D.get("criarObra", {"min": 3.0, "max": 5.0, "porMaterial": 0.125})
+	var soma := 0
+	for c in C.get("custo", {}):
+		soma += int(C.custo[c])
+	return clampf(float(R.min) + soma * float(R.porMaterial), float(R.min), float(R.max))
+
+func _mostrar_qtd() -> void:
+	var C := dados_criar(_qtd_k)
+	var mx := _qtd_max(_qtd_k)
+	qtd = clampi(qtd, 1, mx)
+	txt_qtd_tit.text = "Criar %s" % str(C.nome)
+	var total := {}
+	for c in C.custo:
+		total[c] = int(C.custo[c]) * qtd
+	txt_qtd_custo.text = "Cada uma: %s · %s s\nTotal: %s · %s s (dá para %d)" % [custo_txt(C.custo), str(snappedf(tempo_criar(_qtd_k), 0.1)).replace(".", ","),
+		custo_txt(total), str(snappedf(tempo_criar(_qtd_k) * qtd, 0.1)).replace(".", ","), mx]
+	txt_qtd_n.text = str(qtd)
+	b_qtd_ok.text = "Criar %d" % qtd
+
+func _mudar_qtd(d: int) -> void:
+	qtd = clampi(qtd + d, 1, _qtd_max(_qtd_k)) if d != 999 else _qtd_max(_qtd_k)
+	_mostrar_qtd()
+
+func _confirmar_qtd() -> void:
+	painel_qtd.visible = false
+	var mot := motivo_criar(_qtd_k)
+	if mot != "":
+		m.hud.aviso(mot)
+		return
+	m.rede("fabricar", {"k": _qtd_k, "n": qtd})
+
+# o servidor começou uma (barrinha do zero) ou acabou a fila
+func fabricando(ev: Dictionary) -> void:
+	var k := str(ev.get("k", ""))
+	var nome := str(dados_criar(k).get("nome", "")) if k != "" else ""
+	if ev.get("fim", false):
+		if _fab.is_empty():
+			return
+		_fab.acabou = true
+		_fab.feito = int(ev.get("feito", 0))
+		_fab.fim = Time.get_ticks_msec() / 1000.0 + 1.2
+		barra_fab.value = 1.0 if _fab.feito >= int(_fab.n) else barra_fab.value
+		txt_fab.text = ("Pronto: %d %s" % [_fab.feito, nome]) if _fab.feito > 0 else "Parou de criar"
+		return
+	_fab = {"k": k, "nome": nome, "n": int(ev.get("n", 1)), "feito": int(ev.get("feito", 0)), "dur": maxf(0.1, float(ev.get("dur", 3.0))), "ini": Time.get_ticks_msec() / 1000.0}
+	painel_fab.visible = true
+
+func _passo_fab() -> void:
+	if _fab.is_empty():
+		return
+	var agora := Time.get_ticks_msec() / 1000.0
+	if _fab.get("acabou", false):
+		if agora >= float(_fab.fim):
+			_fab = {}
+			painel_fab.visible = false
+		return
+	barra_fab.value = clampf((agora - float(_fab.ini)) / float(_fab.dur), 0.0, 1.0)
+	txt_fab.text = "Criando %s · %d de %d" % [_fab.nome, int(_fab.feito) + 1, int(_fab.n)]
+
+func parar_criar() -> void:
+	m.rede("fabricar", {"parar": true})
 
 # o servidor criou: brilho e som de bancada; a barra se atualiza quando a mochila chegar
 func fabricou(ev: Dictionary) -> void:
@@ -1395,6 +1484,7 @@ func _process(dt: float) -> void:
 	m.hud.mostrar_botao("correio", _meu_correio_perto() and vivo and not livre and prof == "")
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
+	_passo_fab()
 	_mexer_portas(hp, dt)
 	_telhados_visiveis(hp)
 	if livre:
@@ -2095,7 +2185,7 @@ func comprar() -> void:
 
 # ---------- tela: barra de itens embaixo, no meio (como a do Quimera); o joystick à esquerda continua livre ----------
 func cobre(p: Vector2) -> bool:
-	for pn in [painel, painel_acoes, painel_compra, painel_bau]:
+	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_qtd, painel_fab]:
 		if pn != null and pn.visible and pn.get_global_rect().grow(6).has_point(p):
 			return true
 	return false
@@ -2214,6 +2304,82 @@ func _montar_tela() -> void:
 	b_comprar.custom_minimum_size = Vector2(150, 54)
 	t2.add_child(b_comprar)
 	_montar_tela_bau()
+	_montar_tela_criar()
+
+func _montar_tela_criar() -> void:
+	painel_qtd = PanelContainer.new()
+	painel_qtd.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.97), Menu.OURO.darkened(0.15), 2, 12, 12))
+	painel_qtd.set_anchors_preset(Control.PRESET_CENTER)
+	painel_qtd.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	painel_qtd.grow_vertical = Control.GROW_DIRECTION_BOTH
+	painel_qtd.visible = false
+	tela.add_child(painel_qtd)
+	var c := VBoxContainer.new()
+	c.add_theme_constant_override("separation", 10)
+	painel_qtd.add_child(c)
+	txt_qtd_tit = Menu.rotulo("", 24, Menu.OURO)
+	txt_qtd_tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	c.add_child(txt_qtd_tit)
+	txt_qtd_custo = Menu.rotulo("", 18, Menu.TEXTO)
+	txt_qtd_custo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	txt_qtd_custo.custom_minimum_size = Vector2(440, 0)
+	c.add_child(txt_qtd_custo)
+	var linha := HBoxContainer.new()
+	linha.alignment = BoxContainer.ALIGNMENT_CENTER
+	linha.add_theme_constant_override("separation", 10)
+	c.add_child(linha)
+	for d in [-5, -1]:
+		var b := _botao(str(d), func(): _mudar_qtd(d), false, 24)
+		b.custom_minimum_size = Vector2(70, 62)
+		linha.add_child(b)
+	txt_qtd_n = Menu.rotulo("1", 36, Color.WHITE)
+	txt_qtd_n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	txt_qtd_n.custom_minimum_size = Vector2(80, 0)
+	linha.add_child(txt_qtd_n)
+	for d in [1, 5]:
+		var b := _botao("+%d" % d, func(): _mudar_qtd(d), false, 24)
+		b.custom_minimum_size = Vector2(70, 62)
+		linha.add_child(b)
+	var bm := _botao("Máx", func(): _mudar_qtd(999), false, 20)
+	bm.custom_minimum_size = Vector2(80, 62)
+	linha.add_child(bm)
+	var fim := HBoxContainer.new()
+	fim.alignment = BoxContainer.ALIGNMENT_CENTER
+	fim.add_theme_constant_override("separation", 14)
+	c.add_child(fim)
+	var canc := _botao("Cancelar", func(): painel_qtd.visible = false, false, 20)
+	canc.custom_minimum_size = Vector2(160, 62)
+	fim.add_child(canc)
+	b_qtd_ok = _botao("Criar 1", _confirmar_qtd, true, 24)
+	b_qtd_ok.custom_minimum_size = Vector2(200, 62)
+	fim.add_child(b_qtd_ok)
+	# barrinha (em cima, no meio; continua aparecendo fora do modo construção)
+	painel_fab = PanelContainer.new()
+	painel_fab.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.93), Menu.OURO.darkened(0.25), 2, 10, 10))
+	painel_fab.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	painel_fab.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	painel_fab.offset_top = 132
+	painel_fab.visible = false
+	tela.add_child(painel_fab)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	painel_fab.add_child(h)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	h.add_child(v)
+	txt_fab = Menu.rotulo("", 20, Menu.OURO_CLARO)
+	v.add_child(txt_fab)
+	barra_fab = ProgressBar.new()
+	barra_fab.min_value = 0.0
+	barra_fab.max_value = 1.0
+	barra_fab.show_percentage = false
+	barra_fab.custom_minimum_size = Vector2(360, 22)
+	barra_fab.add_theme_stylebox_override("background", Menu.caixa(Color(0.05, 0.04, 0.03), Menu.OURO.darkened(0.5), 1, 6))
+	barra_fab.add_theme_stylebox_override("fill", Menu.caixa(Color("e0a94a"), Color("ffe2a0"), 1, 6))
+	v.add_child(barra_fab)
+	var bp := _botao("Parar", parar_criar, false, 18)
+	bp.custom_minimum_size = Vector2(100, 56)
+	h.add_child(bp)
 
 # ---------- baú (Quimera: todos os seus baús guardam as mesmas 40 pilhas) ----------
 func _meu_bau_perto() -> bool:
