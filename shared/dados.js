@@ -639,8 +639,22 @@ export const MINA = [
 // tamanho de cada pedra de veio (1 = a de cobre): a de pedra é maior, a de ferro menor. Vale para o desenho no Godot e
 // para o raio sólido (VEIO_RAIO x tamanho).
 export const TAMANHO_VEIO = { pedra: 1.4, cobre: 1, ferro: 0.8, cristal: 1 };
-// (x, z) dentro de uma zona de mineração da mata (com folga): ali não nasce árvore, mato nem pedra solta
-const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && Math.hypot(x - m.x, z - m.z) < m.r + folga);
+// Emendas do mapa andável (André 2026-11-05: "o jogador não consegue chegar no veio de pedra"): a vila (raio 34) e a
+// mata ao norte se encostam por pouco, e com a folga de 2,2 m da borda (andar.gd limitar_ao_mapa) virava uma parede
+// invisível em z ~ -32. Este círculo fica todo dentro do que já era andável e só emenda as duas áreas.
+// Vêm por último na lista de áreas (as de antes não mudam de índice nem de sorteio).
+const EMENDAS = [{ x: 6, z: -36, r: 12, rx: 12, rz: 12, mata: true, ligacao: true }]; // rx/rz: a grama da mata (main.gd grama_da_mata) lê rx
+// Trilhas de terra até os veios novos (André 2026-11-05: "tem que liberar o caminho"): a de pedra sai da estradinha do
+// leste, sobe pelo norte da vila entre as árvores e entra na mata; a de ferro sai da estrada principal e cruza o campo de
+// fora para o leste. Entram nos caminhos (chão de terra, minimapa e o "Ir para" do mapa, rota.gd).
+const TRILHAS_MINA = [
+  { largura: 1.5, pontos: [[18, -1.9], [18.6, -9], [17.2, -15.5], [16.25, -19.3], [15.8, -22.5], [11, -28], [9, -40]] }, // pedra1
+  { largura: 1.5, pontos: [[61.6, 17.8], [68, 14], [79, 10], [88.5, 3], [94, 0.3], [99.5, 5]] }, // ferro1
+];
+// (x, z) dentro de uma zona de mineração da mata ou em cima da trilha dela (com folga): ali não nasce árvore, mato nem
+// pedra solta
+const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && Math.hypot(x - m.x, z - m.z) < m.r + folga)
+  || TRILHAS_MINA.some((t) => pertoDaLinha(t.pontos, x, z).d < 2);
 // NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
 // Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
 export const RESET_BUILD = { minimo: 50, porNivel: 10 };
@@ -756,6 +770,7 @@ export const fasePlanta = (f) => (f >= 1 ? 4 : f < 0.03 ? 0 : f < 0.4 ? 1 : f < 
 // qual estação serve para a receita: barras e carvão na fornalha; o resto do Ferreiro na bigorna; Alfaiate na bancada
 export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : 'bancada');
 CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
+CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-11-05)
 
 // Mapa aberto (André 2026-11-04): onde ainda sobra uma fresta entre a borda da vila, do campo de fora ou das Terras e a
 // mata andável (parede invisível logo depois da borda), um círculo pequeno de mata costura os dois. Vêm por último.
@@ -779,7 +794,7 @@ export const MAPA_CLAREIRA = {
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
-  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area]), // + Vila dos Lotes (construção e fazenda)
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS), // + Vila dos Lotes (construção e fazenda)
   corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9, semPedras: true }].concat(MATA.corredores, [VILA_LOTES.passagem]), // semPedras: a mata aberta em volta faz a borda (mapa aberto, André 2026-11-04)
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
@@ -802,7 +817,7 @@ export const MAPA_CLAREIRA = {
       'Andarilho, monstros apareceram no leste. Derrube quatro deles e a vila te deve uma.',
       'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
     ] },
-    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'forja', 'habilidades'], falas: [
+    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'forja', 'consertar', 'habilidades'], falas: [
       'Essa espada corta e conjura. Fale comigo para escolher os seus golpes e magias.',
       'Bigorna boa é bigorna quente. Volte quando quiser trocar a build.',
     ] },
@@ -936,6 +951,10 @@ export const ITENS = {
   tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
 };
 export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
+// Penalidade de morte (André 2026-11-05): quem cai perde `ouro` do ouro que carrega e cada peça equipada perde `desgaste`
+// de durabilidade (de durMax). Peça com 0 fica Quebrada: continua no corpo, mas não dá bônus (nem conta para o conjunto)
+// até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
+export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3 };
 export const VENDA_TOMO = 30; // x nível do Tomo
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 // Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)

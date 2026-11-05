@@ -26,3 +26,47 @@ ok(pedra >= 8, 'veio de pedra deu ' + pedra + ' pedras');
 ok(ev.some((e) => e.t === 'veio' && e.cargas === 0), 'a pedra esgota para todo mundo');
 const av = minerar(veios('ferro')[0]).filter((e) => e.t === 'aviso').map((e) => e.texto);
 ok(av.some((t) => /Minerador Nv 5/.test(t)), 'ferro pede Minerador Nv 5: ' + av.join(' | '));
+
+// Caminho até os veios (André 2026-11-05: "o jogador não consegue chegar"): o herói do Godot fica a 2,2 m da borda do
+// mapa (andar.gd limitar_ao_mapa). Trilha de terra até cada zona nova, sem nada sólido nem árvore em cima, e o
+// mapa andável (com a folga) liga a vila a cada zona por um caminho curto.
+import { dentroDoMapa } from '../../shared/mapa.js';
+const solidos = [...s.obstaculos.filter((o) => ![...s.coletaveis.values()].some((c) => c.x === o.x && c.z === o.z)), ...M.cenario.solidos];
+const casas = M.vila.casas.map((c) => ({ x: c.x, z: c.z, r: Math.hypot(c.w, c.d) / 2 }));
+for (const z of ['pedra1', 'ferro1'].map(zona)) {
+  const t = M.vila.caminhos.find((c) => { const [x, zz] = c.pontos.at(-1); return Math.hypot(x - z.x, zz - z.z) < z.r + 3; });
+  ok(t, 'tem trilha até ' + z.id);
+  if (!t) continue;
+  let livre = true;
+  for (let i = 1; i < t.pontos.length; i++) {
+    const [ax, az] = t.pontos[i - 1], [bx, bz] = t.pontos[i], L = Math.hypot(bx - ax, bz - az);
+    for (let d = 0; d <= L; d += 0.5) {
+      const x = ax + (bx - ax) * d / L, zz = az + (bz - az) * d / L;
+      if (!dentroDoMapa(M, x, zz, 2.2) || [...solidos, ...casas].some((o) => Math.hypot(o.x - x, o.z - zz) < o.r + 0.4)
+        || M.mata.some((a) => Math.hypot(a.x - x, a.z - zz) < 1.5)) { livre = false; console.log('  trava em', x.toFixed(1), zz.toFixed(1)); break; }
+    }
+  }
+  ok(livre, 'trilha de ' + z.id + ' livre');
+}
+// busca na grade (0,5 m), do lugar onde o herói nasce até a borda de cada zona, com a folga da borda e os sólidos
+const andavel = (x, z) => dentroDoMapa(M, x, z, 2.2) && ![...s.obstaculos, ...s.pertoNaMata(x, z)].some((o) => Math.hypot(o.x - x, o.z - z) < o.r + 0.35);
+const chegar = (alvo) => {
+  const K = (i, j) => i * 100003 + j, vistos = new Set([K(0, 2)]), fila = [[0, 2, 0]];
+  for (let h = 0; h < fila.length; h++) {
+    const [i, j, n] = fila[h];
+    if (Math.hypot(i * 0.5 - alvo.x, j * 0.5 - alvo.z) < alvo.r + 1.5) return n * 0.5;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const k = K(i + a, j + b); if (vistos.has(k)) continue; vistos.add(k);
+      if (andavel((i + a) * 0.5, (j + b) * 0.5)) fila.push([i + a, j + b, n + 1]);
+    }
+  }
+  return Infinity;
+};
+const dp = chegar(zona('pedra1'));
+ok(dp < 70, `da vila até o veio de pedra andando: ${dp} m (antes a parede invisível obrigava a dar a volta)`);
+ok(chegar(zona('ferro1')) < Infinity, 'dá para chegar no veio de ferro');
+// a emenda não abre chão novo: tudo nela já era andável
+const semEmenda = { ...M, areas: M.areas.slice(0, -1) };
+let dentro = true;
+for (let a = 0; a < 6.283; a += 0.1) for (let r = 0; r <= 12; r += 1) dentro &&= dentroDoMapa(semEmenda, 6 + Math.cos(a) * r, -36 + Math.sin(a) * r, 0);
+ok(dentro, 'a emenda fica dentro do mapa de antes');

@@ -17,3 +17,13 @@ Todas as gravações são CC0 1.0 (domínio público): uso comercial liberado, s
 | q_golpe_* | hit | Sword hits the body (411122) | freesound.org/s/411122 |
 | q_dano_* | hurt | Punch body fall short (675930) | freesound.org/s/675930 |
 | q_cura, q_carga_*, q_meteoro_cai_* | heal, chF/chI/chH/chA, meteorFall | sintetizados no Quimera (tools/sons/sons.py) | sem gravação de terceiros |
+
+# Sons da árvore caindo (arvore_*.ogg, 2026-11-05)
+
+Montados com ffmpeg a partir dos pacotes Kenney (CC0 1.0, uso comercial liberado) do repositório New-Game-Anime-fontes:
+
+| Arquivo | O que é | Gravações |
+|---|---|---|
+| arvore_range | rangido grave do tronco começando a tombar | kenney_rpg-audio creak1, creak2, creak3 (mais devagar e graves, emendados) |
+| arvore_estalo | tronco e galhos quebrando (lascas em sequência) | kenney_impact-sounds impactWood_light_000-002 + kenney_rpg-audio chop |
+| arvore_queda | baque pesado da árvore no chão, com o quique | kenney_impact-sounds impactWood_heavy_000, 002, 003 (mais graves) |

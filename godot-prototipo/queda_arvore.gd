@@ -13,7 +13,8 @@ var _mat_toco: StandardMaterial3D
 var _mat_corte: StandardMaterial3D
 
 const LONGE := 70.0 # m: mais longe que isso da câmera ela some sem a animação (ninguém vê)
-const TOMBA := 0.85 # s caindo (acelera, como uma árvore de verdade)
+const CEDE := 0.7 # s rangendo e começando a inclinar, antes de desabar (André 2026-11-05: caía rápido, "parecia um galinho")
+const TOMBA := 2.0 # s desabando: começa devagar e vai acelerando até bater no chão (como uma árvore de verdade)
 const DEITADA := 1.4 # s no chão antes de sumir
 const SOME := 0.7 # s apagando
 
@@ -94,16 +95,24 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 			mi.material_override = p.mat
 		piv.add_child(mi)
 	var alto: float = 7.0 * float(o.r) / 0.32 # ~7 m de árvore por escala 1 (raio do tronco 0,32)
-	m.sons.tocar("lenha", -1.0, 0.05, pos, 0.6) # o estalo grave do tronco quebrando
+	# sons (Kenney CC0): o tronco estala e range enquanto cede; no meio da queda os galhos ainda quebram
+	m.sons.tocar("arvore_estalo", 0.0, 0.06, pos)
+	m.sons.tocar("arvore_range", -1.0, 0.05, pos)
+	var ts := create_tween()
+	ts.tween_interval(CEDE)
+	ts.tween_callback(m.sons.tocar.bind("arvore_estalo", -3.0, 0.08, pos, 0.85))
+	ts.tween_interval(TOMBA * 0.5)
+	ts.tween_callback(m.sons.tocar.bind("arvore_estalo", -7.0, 0.1, pos, 1.1))
 	var tw := create_tween()
 	var gira := _girar.bind(piv, eixo)
-	# estala e balança um pouco para trás, depois tomba acelerando
-	tw.tween_method(gira, 0.0, deg_to_rad(-3.0), 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_method(gira, deg_to_rad(-3.0), deg_to_rad(88.0), TOMBA).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	# cede: inclina devagar uns 5 graus, tremendo um pouco (o tronco ainda segura)
+	tw.tween_method(_ceder.bind(piv, eixo), 0.0, 1.0, CEDE)
+	# desaba: o ângulo cresce com o cubo do tempo (quase parada no começo, rápida no fim)
+	tw.tween_method(_desabar.bind(piv, eixo), 0.0, 1.0, TOMBA)
 	tw.tween_callback(_bateu.bind(pos, d, alto))
-	# quica de leve e assenta
-	tw.tween_method(gira, deg_to_rad(88.0), deg_to_rad(81.0), 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_method(gira, deg_to_rad(81.0), deg_to_rad(89.0), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	# quica com o peso e assenta
+	tw.tween_method(gira, deg_to_rad(88.0), deg_to_rad(83.0), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_method(gira, deg_to_rad(83.0), deg_to_rad(89.0), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_interval(DEITADA)
 	tw.tween_callback(_transparente.bind(mats))
 	tw.tween_method(_apagar.bind(piv, mats), 0.0, 1.0, SOME)
@@ -111,6 +120,14 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 
 func _girar(a: float, piv: Node3D, eixo: Vector3) -> void:
 	piv.basis = Basis(eixo, a)
+
+const CEDE_ANG := 5.0 # graus inclinados antes de desabar
+func _ceder(k: float, piv: Node3D, eixo: Vector3) -> void:
+	var a := CEDE_ANG * (1.0 - cos(k * PI)) * 0.5 + sin(k * 40.0) * 0.35 * (1.0 - k) # treme e vai inclinando
+	piv.basis = Basis(eixo, deg_to_rad(a))
+
+func _desabar(k: float, piv: Node3D, eixo: Vector3) -> void:
+	piv.basis = Basis(eixo, deg_to_rad(CEDE_ANG + (88.0 - CEDE_ANG) * k * k * k))
 
 func _transparente(mats: Array) -> void:
 	for mt in mats:
@@ -129,8 +146,8 @@ func _sumiu(info: Dictionary, piv: Node3D) -> void:
 # a copa bateu no chão: poeira ao longo do tronco, folhas voando, baque e tranco (mais forte perto)
 func _bateu(pos: Vector3, d: Vector3, alto: float) -> void:
 	var fim := pos + d * alto * 0.75
-	m.sons.tocar("pouso_forte", -2.0, 0.05, fim, 0.55)
-	m.sons.tocar("lenha", -5.0, 0.1, fim, 0.75)
+	m.sons.tocar("arvore_queda", 2.0, 0.05, fim)
+	m.sons.tocar("pouso_forte", -4.0, 0.05, fim, 0.5)
 	for i in 4:
 		var p := pos + d * alto * (0.2 + 0.22 * i)
 		m.fx.poeira(p.x, p.z, 0.9, 7, "8a7a60", "c8b48e")
