@@ -152,6 +152,7 @@ jobs:
           KS_SENHA: ${{ secrets.ANDROID_KEYSTORE_SENHA }}
           KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
         run: |
+          rm -f /tmp/rpg.keystore  # runner próprio reusa o /tmp entre builds; limpa a chave descartável antiga
           if [ -n "$KS_B64" ]; then
             echo "$KS_B64" | base64 -d > /tmp/rpg.keystore
             SENHA="$KS_SENHA"
