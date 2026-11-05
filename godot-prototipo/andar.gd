@@ -598,10 +598,24 @@ func parede_a_frente(dir: float, ate: float):
 		var h: float = T.altura(x + fx * d, z + fz * d, y)
 		if h > y + m.subida.degrau:
 			if h > y + m.subida.mini:
-				return {"dist": d, "r": T.rocha_em(x + fx * d, z + fz * d, y)}
+				var r = T.rocha_em(x + fx * d, z + fz * d, y)
+				if r != null and r.get("casa", false):
+					return null # parede de casa não se escala (André, 2026-11-05): só pedra
+				return {"dist": d, "r": r}
 			return null
 		d += 0.1
 	return null
+
+# parede de casa logo à frente (da vila ou construída pelo jogador)? Casa não se escala: igual ao shared/simulacao.js casaAFrente
+func casa_a_frente(dir: float) -> bool:
+	for da in [0.0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2]:
+		var d := 0.2
+		while d <= 1.6001:
+			var r = T.rocha_em(x + sin(dir + da) * d, z + cos(dir + da) * d, y)
+			if r != null and r.get("casa", false):
+				return true
+			d += 0.2
+	return false
 
 func beirada() -> float:
 	if esc != null and esc.get("escada") != null:
@@ -717,6 +731,9 @@ func tentar_escalar(mx: float, mz: float, correr: bool, dt: float) -> void:
 		return
 	empurra += dt
 	if empurra < m.subida.empurrar:
+		return
+	if casa_a_frente(dir): # parede de casa: não agarra nem sobe (nem a mini escalada)
+		empurra = 0.0
 		return
 	var topo: float = T.frente(x, z, dir, 1.6, null, y).topo
 	if topo - y <= m.subida.mini:
