@@ -50,8 +50,15 @@ Para montar à mão:
   volta de uma estrada central, fechada por árvores (sem anel de pedras, sem lote pronto, sem placa e sem cerca).
 - Nas terras, sem terreno, aparece o botão **Comprar terreno**: a câmera fica flutuando por cima e o jogador toca num
   canto e arrasta até o outro. O chão fica quadriculado (1 bloco = 1 x 1 m), verde quando dá e vermelho com o motivo,
-  e o preço aparece na hora: `LOTE.precoBloco` (4 de ouro) por bloco, lados de 3 a 20 m, até 300 blocos, um terreno
-  por jogador. Não pode pegar a estrada nem encostar no terreno de outra pessoa.
+  e o preço aparece na hora: `LOTE.precoBloco` (4 de ouro) por bloco, lados de 6 a 20 m (o mínimo era 3 até 2026-11-05),
+  até 300 blocos, um terreno por jogador. Não pode pegar a estrada nem cruzar o terreno de outra pessoa; lado a lado
+  com um vizinho, ou encosta ou deixa pelo menos `LOTE.fresta` (3 m) de caminho. Ao marcar, a borda gruda (ímã) na
+  beira da estrada e na borda do vizinho quando passa a até 1,5 m.
+- 2026-11-05 (André): as Terras ficaram quase o dobro (esticadas para o sul, cabem uns 19 terrenos de 10 x 10). No
+  modo construção, a aba **Terreno** tem **Mudar** (arrasta um canto: aumentar paga os blocos novos, diminuir devolve
+  a metade) e **Vender** (o jogo paga a metade do preço; as peças voltam para a mochila). Cada terreno tem uma
+  **caixa de correio** no canto perto da estrada: toda semana chega uma conta de 1 de ouro por bloco (bandeirinha
+  vermelha em pé). Com duas contas sem pagar, não dá para construir nem plantar (colher e regar dá).
 - Perto do seu terreno aparece o botão do **martelo**: abre o modo construção do Quimera. A câmera flutua (segue a
   mira, não o herói), o joystick move a mira e tocar no chão leva a mira para lá. Embaixo fica a barra de itens com
   as abas **Construir** (bancada, bigorna, fornalha, cerca e Desmontar, que devolve o material) e **Fazenda** (arar,

@@ -1839,6 +1839,8 @@ func _tentar(qual: String) -> bool:
 			construcao.perguntar_compra()
 		"bau": # perto do meu baú (construcao.gd): abre o baú
 			construcao.abrir_bau()
+		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
+			construcao.abrir_correio()
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))

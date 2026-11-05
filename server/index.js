@@ -18,7 +18,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, amigo: 3, time: 3 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, amigo: 3, time: 3 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
@@ -38,6 +38,8 @@ class SalaClareira extends Room {
     if (contas) {
       this.sim.carregarLotes(contas.lotes());
       this.sim.aoComprarLote = (id, dono, nome, ret) => contas.reservarLote(id, dono, nome, ret, (o) => retTerreno(o.dados?.ret) || LOTES_ANTIGOS[o.id] || null);
+      this.sim.aoVenderLote = (id) => contas.soltarLote(id);
+      this.sim.aoMudarLote = (id, dono, ret) => contas.mudarLote(id, dono, ret, (o) => retTerreno(o.dados?.ret) || LOTES_ANTIGOS[o.id] || null);
     }
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
@@ -79,6 +81,10 @@ class SalaClareira extends Room {
     // Vila dos Lotes (construção e fazenda do Quimera): comprar o lote, construir, desmontar e a horta
     // Terras: m = { x0, z0, x1, z1 } (o terreno que ele marcou arrastando o dedo)
     this.ouvir('lote', (c, m) => { if (m && typeof m === 'object') this.sim.comprarLote(c.sessionId, { x0: Number(m.x0), z0: Number(m.z0), x1: Number(m.x1), z1: Number(m.z1) }); });
+    // 2026-11-05 (André): vender o terreno de volta para o jogo, mudar o tamanho e pagar a conta do correio
+    this.ouvir('venderLote', (c) => this.sim.venderLote(c.sessionId));
+    this.ouvir('mudarLote', (c, m) => { if (m && typeof m === 'object') this.sim.mudarLote(c.sessionId, { x0: Number(m.x0), z0: Number(m.z0), x1: Number(m.x1), z1: Number(m.z1) }); });
+    this.ouvir('pagarTaxa', (c) => this.sim.pagarTaxa(c.sessionId));
     this.ouvir('construir', (c, m) => { if (m && typeof m.k === 'string' && m.k.length < 16) this.sim.construir(c.sessionId, { k: m.k, x: Number(m.x), z: Number(m.z), r: Number(m.r) | 0 }); });
     this.ouvir('desmontar', (c, m) => { if (m && typeof m.p === 'string' && m.p.length < 12) this.sim.desmontar(c.sessionId, { p: m.p }); });
     // construção completa (2026-11-04): criar a peça ou a ferramenta e mexer no baú
@@ -187,7 +193,7 @@ class SalaClareira extends Room {
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
     this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador, conta: conta?.id ?? null });
-    if (conta) { const l = contas.loteDoDono('c' + conta.id); if (l) this.sim.carregarLotes([l]); } // o lote dele como está no banco
+    if (conta) { const l = contas.loteDoDono('c' + conta.id); this.sim.esquecerLotesDe('c' + conta.id, l?.id); if (l) this.sim.carregarLotes([l]); } // o lote dele como está no banco
     this.sim.enviarLotes(client.sessionId); // Vila dos Lotes: todos os lotes e qual é o dele
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
