@@ -423,6 +423,14 @@ func desligou() -> void:
 	if aberto():
 		montar()
 
+# modo de editar a interface (editar_hud.gd): as mensagens do canto mudam de lugar e de tamanho
+func posicionar(d: Vector2, s: float) -> void:
+	canto.offset_left = 18 + d.x
+	canto.offset_right = 18 + 420 + d.x
+	canto.offset_top = 10 + d.y
+	canto.offset_bottom = 110 + d.y
+	canto.scale = Vector2(s, s)
+
 # ---------- guardar no aparelho ----------
 func carregar() -> void:
 	var cfg := ConfigFile.new()
