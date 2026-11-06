@@ -45,7 +45,9 @@ const MEDALHAO := 52.0
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "aparencia"]
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
-const CATS_CRIAR := [["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["estacoes", "Estações"],
+# "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
+# a estação perto faz (Alfaiate e móveis na bancada, Ferreiro na bigorna, barras na fornalha); só aparece perto de uma.
+const CATS_CRIAR := [["aqui", "Aqui"], ["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["estacoes", "Estações"],
 	["casa", "Casa"], ["moveis", "Móveis"], ["ferramentas", "Ferramentas"]]
 const NOME_ESTACAO := {"fornalha": "Fornalha", "bigorna": "Bigorna", "bancada": "Bancada de trabalho"}
 
@@ -646,6 +648,22 @@ func abrir(qual := "", sub := "") -> void:
 	boneco_modo = ""
 	atualizar()
 
+# botão de ação perto da bancada, bigorna ou fornalha: a aba Criar inteira, aberta no que esta estação faz
+func abrir_estacao() -> void:
+	cat_criar = "aqui"
+	abrir("criar")
+	rolagem.scroll_vertical = 0
+
+# estações perto do herói (construídas no terreno, ou a oficina do Tomás / banca da Rosa), na ordem de NOME_ESTACAO
+func estacoes_perto() -> Array:
+	var l := []
+	var cons = m.construcao
+	for est in NOME_ESTACAO:
+		var prof := "alf" if est == "bancada" else "fer"
+		if (cons != null and cons.estacao_perto([est])) or (m.trabalho != null and m.trabalho.perto_oficina(prof)):
+			l.append(est)
+	return l
+
 # botão da mochila no menu do topo: volta na aba da bolsa que estava (Mochila ou Criar)
 func abrir_bolsa() -> void:
 	abrir(aba if aba in ["mochila", "criar"] else "mochila")
@@ -702,6 +720,11 @@ func atualizar() -> void:
 		botoes_aba[k].visible = k in grupo
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
 	linha_criar.visible = aba == "criar"
+	var est_aqui := estacoes_perto()
+	if cat_criar == "aqui" and est_aqui.is_empty():
+		cat_criar = "materiais"
+	botoes_criar.aqui.visible = not est_aqui.is_empty()
+	botoes_criar.aqui.text = str(NOME_ESTACAO[est_aqui[0]]).split(" ")[0] if est_aqui.size() == 1 else "Aqui"
 	for k in botoes_criar:
 		estilo_botao(botoes_criar[k], k == cat_criar)
 	atualizar_slots()
@@ -1236,11 +1259,53 @@ func itens_criar(cat: String) -> Array:
 
 func montar_criar() -> void:
 	conteudo.add_child(linha_vigor())
+	if cat_criar == "aqui":
+		montar_criar_aqui()
+		return
 	var lista := itens_criar(cat_criar)
 	if lista.is_empty():
 		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
 	for e in lista:
 		conteudo.add_child(linha_criavel(e))
+
+# submenu "Aqui": tudo o que pede a estação perto, separado pelos outros submenus (Materiais, Armas, Armaduras...)
+func montar_criar_aqui() -> void:
+	var ests := estacoes_perto()
+	var nomes := []
+	for est in ests:
+		nomes.append("da " + NOME_ESTACAO[est])
+	var st := rotulo("Você está perto %s: aqui fica tudo o que %s. Os outros submenus mostram o resto." % [" e ".join(nomes), "ela faz" if nomes.size() == 1 else "elas fazem"], 13, VERDE)
+	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(st)
+	var algum := false
+	for c in CATS_CRIAR:
+		if c[0] == "aqui":
+			continue
+		var lista := []
+		for e in itens_criar(c[0]):
+			var est := estacao_do_item(e)
+			# móveis e peças da casa pedem a bancada construída (a banca da Rosa só faz as receitas do Alfaiate)
+			if est in ests and (e.tipo == "receita" or (m.construcao != null and m.construcao.estacao_perto([est]))):
+				lista.append(e)
+		if lista.is_empty():
+			continue
+		algum = true
+		separador(c[1])
+		for e in lista:
+			conteudo.add_child(linha_criavel(e))
+	if not algum:
+		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
+
+# estação que o item pede ("" = cria em qualquer lugar). A mesma conta de linha_criavel.
+func estacao_do_item(e: Dictionary) -> String:
+	var D: Dictionary = m.P.dados
+	if e.tipo == "receita":
+		var R: Dictionary = D.receitas[e.k]
+		var faz_s := str(R.faz)
+		return "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "bancada"
+	var cons = m.construcao
+	var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
+	return "bancada" if C.get("bancada", false) else ""
 
 # uma linha da aba Criar: ícone, nome, onde se cria (verde se você está lá), materiais e o botão Criar.
 # Longe da estação certa o botão vira uma plaquinha com o nome dela: dá para ver a receita, mas não criar.
