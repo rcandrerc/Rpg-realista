@@ -16,7 +16,7 @@ const PEDACO := 8 # amostras (metros de túnel) por pedaço de malha
 const PERTO_MONTA := 120.0 # metros do herói até o túnel para começar a montar
 const LONGE_SOME := 220.0 # longe assim, a caverna inteira some (volta a montar ao chegar perto)
 const LUZ_LONGE := 34.0
-const ANEL := 18 # pontos do arco (parede e teto) por anel
+const ANEL := 24 # pontos do arco (parede e teto) por anel
 const CHAO_N := 7 # pontos do chão por anel
 
 var m # main.gd
@@ -30,6 +30,8 @@ var _pedacos: Array = [] # MeshInstance3D
 var _luzes: Array = [] # {no: OmniLight3D, p: Vector3}
 var _ruido := FastNoiseLite.new()
 var mat: ShaderMaterial
+var mat_pedra: ShaderMaterial # rochas soltas, pilares e lintel: a mesma pedra, sem chão, com contorno
+const CONTORNO := 0.02 # contorno escuro de desenho (m), o mesmo dos monstros do Mixamo
 var selo: MeshInstance3D
 var selo_mat: ShaderMaterial
 var _monstros_feitos := false
@@ -37,6 +39,8 @@ var _env: Environment
 var _amb0 := -1.0
 var _sol0 := -1.0
 var _nevoa0 := Color()
+var _amb_cor0 := Color()
+var _amb_ceu0 := 1.0
 var escuro := 0.0 # 0 fora, 1 no fundo da caverna
 
 func _init(main, terreno) -> void:
@@ -65,6 +69,9 @@ func _ready() -> void:
 	mat.shader = load("res://caverna.gdshader")
 	mat.set_shader_parameter("pedra_tex", load("res://relevo/rocky_terrain_02.jpg"))
 	mat.set_shader_parameter("chao_tex", load("res://relevo/brown_mud_leaves_01.jpg"))
+	mat_pedra = mat.duplicate()
+	mat_pedra.set_shader_parameter("so_rocha", true)
+	mat_pedra.next_pass = _contorno_mat(CONTORNO)
 
 var _t := 0.0
 func _process(dt: float) -> void:
@@ -85,7 +92,7 @@ func _process(dt: float) -> void:
 			desmontar()
 		if montada:
 			for l in _luzes:
-				l.no.visible = l.p.distance_to(hp) < LUZ_LONGE
+				l.no.visible = l.p.distance_to(hp) < float(l.get("longe", LUZ_LONGE))
 		_criar_monstros()
 	_luz_de_dentro(hp, dt)
 	_botao_do_selo(hp)
@@ -107,6 +114,7 @@ func montar() -> void:
 		_fila.append(_pedaco.bind(k0, k1))
 		k0 = k1
 	_fila.append(_moldura)
+	_fila.append(_portal_da_boca)
 	_fila.append(_fundo)
 	_fila.append(_selo)
 	_fila.append(_enfeites)
@@ -154,11 +162,14 @@ func _ponto(a: Dictionary, q: Array, casca := 0.0) -> Vector3:
 	rad.y *= 0.6
 	rad = rad.normalized()
 	var r := _ruido.get_noise_3d(base.x, base.y * 1.3, base.z)
+	# v2 (direção de arte): a parede não pode parecer um tubo liso. Lajes e bojos de 30 a 60 cm (ruído grande) mais o
+	# miúdo; embaixo (até 1,8 m) só para fora, para não invadir o chão de andar
+	var g := _ruido.get_noise_3d(base.x * 0.45 + 50.0, base.y * 0.55, base.z * 0.45)
+	var laje := absf(_ruido.get_noise_3d(base.x * 0.9 - 20.0, base.y * 2.6, base.z * 0.9)) # faixas de rocha em camadas
 	var baixo := clampf(v / 1.8, 0.0, 1.0)
-	var empurra := absf(r) * 0.55 * (1.0 - baixo) + r * 0.5 * baixo # embaixo só para fora (não invade o chão de andar)
+	var empurra := (absf(r) * 0.4 + absf(g) * 0.55 + laje * 0.2) * (1.0 - baixo) + (r * 0.35 + g * 0.6 + laje * 0.25) * baixo
 	if v > float(a.teto) * 0.7:
 		empurra = maxf(empurra, -0.35)
-	empurra += _ruido.get_noise_3d(base.x * 0.35 + 50.0, base.y * 0.35, base.z * 0.35) * 0.6 * baixo # bojos grandes
 	if casca > 0.0:
 		return base + rad * (absf(empurra) * 0.5 + casca)
 	return base + rad * empurra
@@ -236,8 +247,9 @@ func _moldura() -> void:
 	# 3 voltas: o arco de dentro, uma do meio (o lábio, um pouco para fora) e a de fora (encostada no paredão)
 	for volta in 3:
 		aneis.append(vs.size())
-		var k: float = [0.0, 1.1, 2.6][volta]
-		var recua: float = [0.0, -0.35, 0.9][volta]
+		# v2 (direção de arte): a boca afunda no paredão (as voltas de fora vão para dentro da rocha, não para fora)
+		var k: float = [0.0, 0.9, 2.2][volta]
+		var recua: float = [0.0, 0.7, 1.8][volta]
 		var lista := []
 		lista.append([arco[0][0], -1.2 * minf(1.0, float(volta)), 0.0])
 		lista.append_array(arco)
@@ -307,10 +319,8 @@ func _selo() -> void:
 	selo.position = q.p + Vector3(0, H / 2.0 - 0.05, 0)
 	selo.rotation.y = atan2(float(q.dx), float(q.dz))
 	# dois pilares de pedra lavrada segurando o selo e uma luz dourada fraca
-	for lado in [-1.0, 1.0]:
-		var pq := _ponto_s(T.porta, lado * (float(q.l) + folga - 0.15))
-		_modelo("pilar", pq.p, atan2(float(q.dx), float(q.dz)), Vector3(0.75, H / 3.6, 0.75))
-	_luz(q.p + Vector3(0, 2.2, 0) - Vector3(float(q.dx), 0, float(q.dz)) * 1.0, Color(1.0, 0.78, 0.45), 7.0, 1.1)
+	_pilares(T.porta, H - 0.4, 0.15, false)
+	_luz(q.p + Vector3(0, 2.2, 0) - Vector3(float(q.dx), 0, float(q.dz)) * 1.0, Color(1.0, 0.62, 0.25), 7.0, 1.0)
 
 func _enfeites() -> void:
 	var dados: Dictionary = T.m.get("caverna", {})
@@ -319,13 +329,8 @@ func _enfeites() -> void:
 	var lado := 1.0
 	while s < A[A.size() - 1].s - 2.0:
 		var q := _ponto_s(s)
-		var dentro_sala := false
-		for S in dados.get("salas", []):
-			if absf(s - float(S.s)) < float(S.r) + 2.0:
-				dentro_sala = true
-		if not dentro_sala:
-			_tocha(s, lado)
-			lado = -lado
+		_tocha(s, lado) # v2: a cada 9 m, nas salas também (no celular as laterais viravam preto puro)
+		lado = -lado
 		s += 9.0
 	# salas: dois braseiros, cristais e pedras soltas encostadas nas paredes
 	var i := 0
@@ -334,17 +339,18 @@ func _enfeites() -> void:
 		for ld in [-1.0, 1.0]:
 			var b := _ponto_s(float(S.s) + ld * 3.0, ld * (float(c.l) - 1.4))
 			_braseiro(b.p)
-		for k in 5:
-			var sk: float = float(S.s) + (k - 2) * float(S.r) * 0.42
+		for k in 4:
+			var sk: float = float(S.s) + (k - 1.5) * float(S.r) * 0.5
 			var ld2 := 1.0 if (k + i) % 2 == 0 else -1.0
-			var cq := _ponto_s(sk, ld2 * (float(_ponto_s(sk).l) + folga - 0.1))
+			var cq := _ponto_s(sk, ld2 * (float(_ponto_s(sk).l) + folga - 0.2))
 			_cristais(cq.p, 3 + (k % 3), i * 10 + k)
 		for k in 4:
 			var sk: float = float(S.s) + (k - 1.5) * float(S.r) * 0.55
 			var ld3 := -1.0 if (k + i) % 2 == 0 else 1.0
 			var rq := _ponto_s(sk, ld3 * (float(_ponto_s(sk).l) - 0.2))
-			_modelo("rocha%d" % (1 + (k + i) % 3), rq.p + Vector3(0, -0.15, 0), float(k) * 1.7, Vector3.ONE * (0.9 + 0.25 * (k % 2)))
+			_rocha(1 + (k + i) % 3, rq.p + Vector3(0, -0.15, 0), float(k) * 1.7, 0.9 + 0.25 * (k % 2))
 		i += 1
+	_cascalho()
 	# cogumelos que brilham perto das paredes do corredor
 	var sc: float = T.porta + 6.0
 	var n := 0
@@ -424,33 +430,113 @@ func _tocha(s: float, lado: float) -> void:
 	mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
 	var topo: Vector3 = p + para_dentro * 0.34 + Vector3(0, 0.3, 0)
 	_chama(topo + Vector3(0, 0.12, 0), 0.42, s)
-	_luz(topo + para_dentro * 0.25, Color(1.0, 0.6, 0.28), 9.0, 1.6)
+	# v2: a luz fica 1 m para dentro da parede e mais fraca (estourava o laranja na rocha do lado)
+	_luz(topo + para_dentro * 1.0, Color(1.0, 0.6, 0.28), 9.0, 1.1)
 
+var _mat_ferro: StandardMaterial3D
+var _mat_brasa: StandardMaterial3D
+# braseiro (v2, direção de arte): bacia de ferro em cima de um tripé, com a boca a 1 m do chão e brasas dentro
 func _braseiro(p: Vector3) -> void:
-	var no := _modelo("fogueira", p, randf() * TAU, Vector3.ONE * 0.9)
-	_chama(p + Vector3(0, 0.55, 0), 0.9, p.x)
-	_chama(p + Vector3(0.12, 0.45, 0.08), 0.6, p.z)
-	_luz(p + Vector3(0, 1.3, 0), Color(1.0, 0.55, 0.25), 12.0, 2.0)
-	if no == null:
-		return
+	if _mat_ferro == null:
+		_mat_ferro = StandardMaterial3D.new()
+		_mat_ferro.albedo_color = Color(0.2, 0.18, 0.17)
+		_mat_ferro.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_mat_ferro.metallic = 0.6
+		_mat_ferro.roughness = 0.55
+		_mat_ferro.next_pass = _contorno_mat(CONTORNO)
+		_mat_brasa = StandardMaterial3D.new()
+		_mat_brasa.albedo_color = Color(0.25, 0.06, 0.02)
+		_mat_brasa.emission_enabled = true
+		_mat_brasa.emission = Color(1.0, 0.35, 0.08)
+		_mat_brasa.emission_energy_multiplier = 2.2
+	var no := Node3D.new()
+	no.name = "Braseiro"
+	add_child(no)
+	no.position = p
+	for k in 3: # pernas abertas, do chão até embaixo da bacia
+		var an := TAU * float(k) / 3.0 + p.x
+		var pe := Vector3(cos(an), 0, sin(an)) * 0.38
+		var cima := Vector3(cos(an), 0, sin(an)) * 0.14 + Vector3(0, 0.84, 0)
+		var perna := CylinderMesh.new()
+		perna.top_radius = 0.03
+		perna.bottom_radius = 0.04
+		perna.height = pe.distance_to(cima)
+		perna.radial_segments = 6
+		perna.rings = 1
+		var pm := MeshInstance3D.new()
+		pm.mesh = perna
+		pm.material_override = _mat_ferro
+		no.add_child(pm)
+		var eixo := (cima - pe).normalized()
+		var lado := eixo.cross(Vector3.FORWARD if absf(eixo.z) < 0.9 else Vector3.RIGHT).normalized()
+		pm.transform = Transform3D(Basis(lado, eixo, lado.cross(eixo)), (pe + cima) / 2.0)
+	var anel := TorusMesh.new() # aro que amarra as pernas
+	anel.inner_radius = 0.24
+	anel.outer_radius = 0.28
+	anel.rings = 12
+	anel.ring_segments = 4
+	var am := MeshInstance3D.new()
+	am.mesh = anel
+	am.material_override = _mat_ferro
+	am.position = Vector3(0, 0.42, 0)
+	no.add_child(am)
+	var bacia := SphereMesh.new() # meia esfera de boca para cima
+	bacia.radius = 0.42
+	bacia.height = 0.42
+	bacia.is_hemisphere = true
+	bacia.radial_segments = 12
+	bacia.rings = 4
+	var bm := MeshInstance3D.new()
+	bm.mesh = bacia
+	bm.material_override = _mat_ferro
+	bm.rotation.x = PI
+	bm.position = Vector3(0, 1.0, 0)
+	no.add_child(bm)
+	var borda := TorusMesh.new()
+	borda.inner_radius = 0.39
+	borda.outer_radius = 0.46
+	borda.rings = 16
+	borda.ring_segments = 4
+	var rm := MeshInstance3D.new()
+	rm.mesh = borda
+	rm.material_override = _mat_ferro
+	rm.position = Vector3(0, 1.0, 0)
+	no.add_child(rm)
+	var brasa := CylinderMesh.new()
+	brasa.top_radius = 0.37
+	brasa.bottom_radius = 0.3
+	brasa.height = 0.08
+	brasa.radial_segments = 10
+	var br := MeshInstance3D.new()
+	br.mesh = brasa
+	br.material_override = _mat_brasa
+	br.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	br.position = Vector3(0, 0.95, 0)
+	no.add_child(br)
+	_chama(p + Vector3(0, 1.38, 0), 0.85, p.x)
+	_chama(p + Vector3(0.12, 1.3, 0.08), 0.55, p.z)
+	_luz(p + Vector3(0, 1.9, 0), Color(1.0, 0.55, 0.25), 12.0, 1.8)
 
 var _mat_cristal: StandardMaterial3D
+# cachos de cristal (v2): 3 a 5 pontas de 30 a 80 cm, ciano 5ee6ff aceso (energia 2,5), contorno e uma luz fraca de
+# 3 m por cacho (só acende de perto)
 func _cristais(p: Vector3, n: int, semente: int) -> void:
 	if _mat_cristal == null:
 		_mat_cristal = StandardMaterial3D.new()
-		_mat_cristal.albedo_color = Color(0.35, 0.75, 0.9)
+		_mat_cristal.albedo_color = Color(0.1, 0.45, 0.6)
+		_mat_cristal.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 		_mat_cristal.emission_enabled = true
-		_mat_cristal.emission = Color(0.25, 0.75, 1.0)
-		_mat_cristal.emission_energy_multiplier = 1.6
-		_mat_cristal.roughness = 0.2
-		_mat_cristal.metallic_specular = 0.8
+		_mat_cristal.emission = Color("5ee6ff")
+		_mat_cristal.emission_energy_multiplier = 2.0
+		_mat_cristal.roughness = 0.25
+		_mat_cristal.next_pass = _contorno_mat(CONTORNO)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 900 + semente
 	for i in n:
 		var c := CylinderMesh.new()
 		c.top_radius = 0.0
-		c.bottom_radius = rng.randf_range(0.07, 0.14)
-		c.height = rng.randf_range(0.35, 0.95)
+		c.height = rng.randf_range(0.3, 0.8)
+		c.bottom_radius = c.height * rng.randf_range(0.16, 0.22)
 		c.radial_segments = 6
 		c.rings = 1
 		var mi := MeshInstance3D.new()
@@ -458,10 +544,151 @@ func _cristais(p: Vector3, n: int, semente: int) -> void:
 		mi.material_override = _mat_cristal
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
-		mi.position = p + Vector3(rng.randf_range(-0.35, 0.35), c.height * 0.4, rng.randf_range(-0.35, 0.35))
-		mi.rotation = Vector3(rng.randf_range(-0.5, 0.5), rng.randf() * TAU, rng.randf_range(-0.5, 0.5))
-	if semente % 2 == 0: # meia dúzia de luzes azuis por sala (celular: poucas)
-		_luz(p + Vector3(0, 0.8, 0), Color(0.4, 0.8, 1.0), 4.5, 0.9)
+		var an := TAU * float(i) / float(n) + rng.randf() * 0.6
+		var ab := 0.0 if i == 0 else rng.randf_range(0.35, 0.6) # a do meio em pé, as outras abertas em leque
+		mi.position = p + Vector3(cos(an), 0, sin(an)) * (0.0 if i == 0 else 0.12) + Vector3(0, c.height * 0.42, 0)
+		mi.rotation = Vector3(0, -an, 0)
+		mi.rotate_object_local(Vector3.FORWARD, -ab)
+	_luz(p + Vector3(0, 0.7, 0), Color("5ee6ff"), 3.0, 0.6)
+	_luzes[_luzes.size() - 1].longe = 18.0
+
+# ---------- v2 da direção de arte: contorno, pilares, rochas e cascalho ----------
+var _contornos := {}
+func _contorno_mat(metros: float) -> StandardMaterial3D:
+	var k := snappedf(metros, 0.0001)
+	if not _contornos.has(k):
+		var c := StandardMaterial3D.new()
+		c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		c.cull_mode = BaseMaterial3D.CULL_FRONT
+		c.grow = true
+		c.grow_amount = k
+		c.albedo_color = Color(0.1, 0.07, 0.06)
+		_contornos[k] = c
+	return _contornos[k]
+
+func _bloco(pai: Node3D, mesh: Mesh, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat_pedra
+	mi.position = pos
+	mi.rotation = rot
+	pai.add_child(mi)
+	return mi
+
+# dois pilares grossos de pedra lavrada (base, fuste de 45 cm de raio, capitel) em s, encostados nas paredes, e um
+# lintel por cima quando com_lintel. alto = altura do fuste.
+func _pilares(s: float, alto: float, recuo: float, com_lintel: bool) -> void:
+	var q := _ponto_s(maxf(s, 0.0))
+	var W: float = float(q.l) + folga + recuo
+	var no := Node3D.new()
+	no.name = "Pilares%d" % int(s)
+	add_child(no)
+	no.position = q.p + Vector3(float(q.dx), 0, float(q.dz)) * minf(s, 0.0) # s < 0: na frente da boca
+	no.rotation.y = atan2(float(q.dx), float(q.dz))
+	var fuste := CylinderMesh.new()
+	fuste.top_radius = 0.42
+	fuste.bottom_radius = 0.48
+	fuste.height = alto
+	fuste.radial_segments = 8
+	fuste.rings = 2
+	var base := BoxMesh.new()
+	base.size = Vector3(1.15, 0.45, 1.15)
+	var capitel := BoxMesh.new()
+	capitel.size = Vector3(1.1, 0.35, 1.1)
+	for lado in [-1.0, 1.0]:
+		var x: float = lado * W
+		var pe: Vector3 = no.position + Basis(Vector3.UP, no.rotation.y) * Vector3(x, 0, 0)
+		var chao: float = (T.altura(pe.x, pe.z, q.p.y + 0.5) if s < 0.0 else float(_ponto_s(s, -x).p.y)) - float(q.p.y)
+		_bloco(no, base, Vector3(x, chao + 0.1, 0), Vector3(0, 0.1 * lado, 0))
+		_bloco(no, fuste, Vector3(x, chao + 0.3 + alto / 2.0, 0), Vector3(0, PI / 8.0, 0))
+		_bloco(no, capitel, Vector3(x, chao + 0.3 + alto + 0.12, 0), Vector3(0, -0.08 * lado, 0))
+	if com_lintel:
+		var lin := BoxMesh.new()
+		lin.size = Vector3(W * 2.0 + 1.6, 0.7, 1.0)
+		_bloco(no, lin, Vector3(0, 0.3 + alto + 0.62, 0), Vector3(0, 0, 0.03))
+
+# a boca (v2): 2 pilares com lintel logo na entrada (leitura de dungeon de longe) e 6 rochas grandes e irregulares
+# em volta do arco tapando a emenda com o paredão
+func _portal_da_boca() -> void:
+	var a: Dictionary = A[0]
+	_pilares(-0.5, float(a.teto) - 0.7, 0.15, true)
+	var q := _ponto_s(0.4)
+	var W: float = float(q.l) + folga
+	var H: float = float(a.teto)
+	# [lado, altura (fração do teto), tamanho, giro]
+	var lugares := [[-1.0, 0.1, 1.15, 0.0], [1.0, 0.0, 1.05, 1.3], [-1.0, 0.7, 0.9, 2.1], [1.0, 0.75, 0.95, 3.4], [0.0, 1.15, 1.1, 4.2], [-1.0, 0.05, 0.6, 5.0]]
+	for i in lugares.size():
+		var L: Array = lugares[i]
+		var lado: float = L[0]
+		var u: float = lado * (W + 1.6)
+		var pq := _ponto_s(0.9 + float(i % 2) * 0.6, u)
+		var y: float = float(pq.p.y) + float(L[1]) * H - 0.3
+		if i == 5: # a do pé, solta na frente da boca
+			pq = _ponto_s(0.0, lado * (W + 0.9))
+			pq.p -= Vector3(float(pq.dx), 0, float(pq.dz)) * 1.6
+			y = T.altura(pq.p.x, pq.p.z) - 0.2
+		_rocha(1 + i % 3, Vector3(pq.p.x, y, pq.p.z), float(L[3]), float(L[2]))
+
+var _rochas := {}
+func _malha_rocha(n: int) -> Mesh:
+	if not _rochas.has(n):
+		var cena = load("res://cenario3d/rocha%d.glb" % n)
+		var mesh: Mesh = null
+		if cena:
+			var no: Node = cena.instantiate()
+			var mis := no.find_children("*", "MeshInstance3D", true, false)
+			if not mis.is_empty():
+				mesh = (mis[0] as MeshInstance3D).mesh
+			no.free()
+		_rochas[n] = mesh
+	return _rochas[n]
+
+# rocha solta com a pedra da caverna (toon, textura nos 3 eixos e contorno), em vez do bloco liso do modelo
+func _rocha(n: int, p: Vector3, ry: float, esc: float) -> void:
+	var mesh := _malha_rocha(n)
+	if mesh == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat_pedra
+	add_child(mi)
+	mi.position = p
+	mi.rotation = Vector3(0.15 * sin(ry * 3.0), ry, 0.12 * cos(ry * 2.0))
+	mi.scale = Vector3(1.0, 0.8 + 0.25 * absf(sin(ry * 5.0)), 1.0) * esc
+
+# cascalho e pedras nas paredes (v2): seixos soltos pelo chão perto das paredes e pedras maiores encostadas, tudo em
+# 2 MultiMesh (2 chamadas de desenho para o túnel todo)
+func _cascalho() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2611
+	var fim: float = float(A[A.size() - 1].s) - 1.0
+	for tipo in 2:
+		var mesh := _malha_rocha(1 + tipo)
+		if mesh == null:
+			continue
+		var tr := []
+		var s: float = 1.0 if tipo == 0 else T.porta + 2.0
+		while s < fim:
+			var lado := 1.0 if rng.randf() < 0.5 else -1.0
+			var q := _ponto_s(s)
+			var u: float = lado * (float(q.l) + folga - (rng.randf_range(0.1, 0.6) if tipo == 0 else 0.05))
+			var pq := _ponto_s(s, u)
+			var e: float = rng.randf_range(0.12, 0.28) if tipo == 0 else rng.randf_range(0.5, 0.85)
+			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(e, e * rng.randf_range(0.6, 1.0), e))
+			tr.append(Transform3D(b, pq.p + Vector3(0, -0.04 if tipo == 0 else -0.2, 0)))
+			s += rng.randf_range(0.6, 1.4) if tipo == 0 else rng.randf_range(3.0, 5.5)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = tr.size()
+		for i in tr.size():
+			mm.set_instance_transform(i, tr[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Cascalho%d" % tipo
+		mmi.multimesh = mm
+		mmi.material_override = mat_pedra
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if tipo == 0 else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		add_child(mmi)
 
 # ---------- monstros das salas (corpo no app) ----------
 # O v de cada monstro vem depois do espantalho (a mesma conta do servidor). Só cria depois que os monstros dos campos
@@ -525,10 +752,16 @@ func _luz_de_dentro(hp: Vector3, dt: float) -> void:
 		return
 	if _amb0 < 0.0:
 		_amb0 = _env.ambient_light_energy
+		_amb_cor0 = _env.ambient_light_color
+		_amb_ceu0 = _env.ambient_light_sky_contribution
 		_sol0 = m.sol.light_energy
 		_nevoa0 = _env.fog_light_color
 	escuro = move_toward(escuro, alvo, dt * 0.6) # os olhos se acostumam
-	_env.ambient_light_energy = lerpf(_amb0, 0.1, escuro)
+	# v2 (direção de arte): lá dentro a luz de fundo é azul-escura 1a2030 (brilho mínimo ~0,08), para as laterais não
+	# virarem preto puro no celular
+	_env.ambient_light_color = _amb_cor0.lerp(Color("1a2030"), escuro)
+	_env.ambient_light_sky_contribution = lerpf(_amb_ceu0, 0.0, escuro)
+	_env.ambient_light_energy = lerpf(_amb0, 1.6, escuro)
 	m.sol.light_energy = lerpf(_sol0, 0.12, escuro)
 	_env.fog_light_color = _nevoa0.lerp(Color(0.05, 0.05, 0.07), escuro)
 	if escuro == 0.0:
