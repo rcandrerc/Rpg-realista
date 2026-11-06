@@ -209,7 +209,7 @@ export class Simulacao {
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
       ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
     ]);
-    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1) })),
+    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i })), // veio: some quando esgota (veioVazio)
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
       ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto, semTopo: 1 }))]; // ninguém fica em pé no espantalho
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
@@ -844,6 +844,7 @@ export class Simulacao {
     if (this.terreno.altura(x, z, j.y) > j.y + SUBIDA.degrau) return false;
     for (const k of [...this.obstaculos, ...this.pertoNaMata(x, z)]) {
       if (k.alto != null && (j.y || 0) > k.alto - 0.05) continue; // por cima (em pé no tampo da mesa)
+      if (k.veio && this.veioVazio(k.veio, j)) continue; // veio esgotado: a pedra sumiu, dá para passar
       if (Math.hypot(x - k.x, z - k.z) < k.r + 0.35) return false;
     }
     return true;
@@ -1350,6 +1351,13 @@ export class Simulacao {
   // é de todos? Os veios das zonas de mineração e, desde 2026-11-04 (pedido do André), as árvores: a árvore cortada
   // cai, some para todo mundo (fica o toco) e volta depois de COLETA.arvore.volta s
   comum(no) { return !!no.mina || no.tipo === 'arvore'; }
+  // veio esgotado (André 2026-11-06: "continuam sendo barreiras invisíveis"): a pedra sumiu, então não bloqueia mais
+  // ninguém até voltar. Veio comum: para todos; veio de cada um: só para quem esgotou (c.coletas)
+  veioVazio(id, c) {
+    const no = this.coletaveis.get(id); if (!no) return false;
+    const s = this.comum(no) ? this.veiosComuns.get(id) : c?.coletas?.[id];
+    return !!s && s.n <= 0 && s.volta > this.tempo;
+  }
   // batidas que ainda restam neste veio (veio comum ou árvore: de todos; outro veio: cada jogador tem o seu)
   cargas(j, no) {
     if (this.comum(no)) { // zona de mineração ou árvore: é de todos
@@ -2161,6 +2169,7 @@ export class Simulacao {
   colidir(c) {
     for (const k of c.tipo === 'jogador' ? [...this.obstaculos, ...this.pertoNaMata(c.x, c.z)] : [...this.obstaculos, ...this.obstaculosRocha, ...this.pertoNaMata(c.x, c.z)]) {
       if (k.alto != null && (c.y || 0) > k.alto - 0.05) continue; // por cima (esteio da ferraria visto do telhado, em pé na bancada)
+      if (k.veio && this.veioVazio(k.veio, c)) continue; // veio esgotado: a pedra sumiu, dá para passar
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }

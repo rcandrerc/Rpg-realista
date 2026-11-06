@@ -42,6 +42,7 @@ var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd l
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
 var obst := {} # mundo.obstaculos na mesma grade de 6 m (cada um em toda casa que ele toca, com 1 m de folga)
+var vazios := {} # veios esgotados ("v3": true): a pedra sumiu e não bloqueia até voltar (trabalho.gd _mostrar_veio)
 var extras: Array = [] # sólidos que mudam com o jogo: peças construídas nos lotes (construcao.gd), [{x, z, r, alto?}]
 
 func _init(terreno, mundo: Dictionary) -> void:
@@ -130,6 +131,8 @@ func colidir() -> void:
 	for k in m.obstaculos + perto_na_mata(x, z) + extras:
 		if k.has("alto") and y > float(k.alto) - 0.05:
 			continue # por cima (esteio da ferraria visto do telhado, em pé na bancada)
+		if k.has("veio") and vazios.has(k.veio):
+			continue # veio esgotado: a pedra sumiu, dá para passar (André 2026-11-06)
 		var dx: float = x - k.x
 		var dz: float = z - k.z
 		var d := sqrt(dx * dx + dz * dz)

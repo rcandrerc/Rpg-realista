@@ -77,7 +77,7 @@ const mundo = {
   lagos: LAGOS, agua: AGUA, ingreme: INGREME, juncos: beiraDosLagos().filter((b) => b.tipo !== 'pedra'),
   montanha_grade: { x0: GRADE_MONTANHA.x0, z0: GRADE_MONTANHA.z0, passo: GRADE_MONTANHA.passo, n: GRADE_MONTANHA.n, h: Array.from(GRADE_MONTANHA.h, (v) => Math.round(v * 1000) / 1000) },
   casas: T.casas.map((_, i) => i), // índices em solidos que são casa (teto)
-  obstaculos: sim.obstaculos.map((k) => ({ x: r4(k.x), z: r4(k.z), r: r4(k.r), ...(k.alto != null ? { alto: r4(k.alto) } : {}), ...(k.semTopo ? { semTopo: 1 } : {}) })),
+  obstaculos: sim.obstaculos.map((k) => ({ x: r4(k.x), z: r4(k.z), r: r4(k.r), ...(k.alto != null ? { alto: r4(k.alto) } : {}), ...(k.semTopo ? { semTopo: 1 } : {}), ...(k.veio ? { veio: k.veio } : {}) })),
   casasInimigo: sim.casas.map((k) => ({ x: r4(k.x), z: r4(k.z), cos: r4(k.cos), sin: r4(k.sin), hw: r4(k.hw), hd: r4(k.hd) })),
   rochasInimigo: sim.obstaculosRocha.map((k) => ({ x: r4(k.x), z: r4(k.z), r: r4(k.r) })),
   escadas: sim.escadas.map((e) => ({ x: e.x, z: e.z, ry: e.ry, topo: e.topo, alt: r4(e.alt) })),
