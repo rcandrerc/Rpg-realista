@@ -29,6 +29,10 @@ var msgs := {"geral": [], "amigos": []}
 var todas: Array = [] # os dois canais em ordem de chegada (a caixa de leitura)
 var nao_lidas := {"geral": 0, "amigos": 0}
 var aba := "geral"
+# aba Amigos (André 2026-11-06: "tipo um pm, private msg pra cada amigo"): "" = lista de amigos; "amigos" = todos os amigos
+# juntos (o canal que já existia); "pm:<conta>" = conversa privada com um amigo
+var conversa := ""
+const COR_PM := Color("e6a8ff") # lilás das mensagens privadas
 var geral_mudo := false
 var raiz: Control
 # leitura (embaixo, sem toque)
@@ -92,10 +96,46 @@ func ligar_icone(b: Button) -> void:
 	_selo.visible = false
 	b.add_child(_selo)
 
+# o número da aba Amigos: todos os amigos juntos + as conversas privadas
+func _nao_lidas_amigos() -> int:
+	var n := 0
+	for k in nao_lidas:
+		if k != "geral":
+			n += int(nao_lidas[k])
+	return n
+
+func _nao_lidas_pm() -> int:
+	var n := 0
+	for k in nao_lidas:
+		if str(k).begins_with("pm:"):
+			n += int(nao_lidas[k])
+	return n
+
+# de que conversa é a mensagem: o geral, todos os amigos ou "pm:<conta do outro>"
+static func chave_de(x: Dictionary) -> String:
+	var k := str(x.get("canal", ""))
+	if k == "pm":
+		return "pm:" + str(x.get("alvo", "") if x.get("meu", false) == true else x.get("c", ""))
+	return k
+
+# o nome de quem está do outro lado da conversa privada
+static func outro_nome(x: Dictionary) -> String:
+	return str(x.get("alvoNome", "") if x.get("meu", false) == true else x.get("nome", ""))
+
+func _chave_atual() -> String:
+	return "geral" if aba == "geral" else conversa
+
+# abrir direto a conversa privada com um amigo (botão "Msg" na lista de amigos do Multijogador)
+func abrir_pm(conta: String) -> void:
+	if aberto():
+		fechar()
+	conversa = "pm:" + conta
+	abrir("amigos")
+
 func _atualizar_selo() -> void:
 	if _selo == null:
 		return
-	var n: int = nao_lidas.amigos + (0 if geral_mudo else nao_lidas.geral)
+	var n: int = _nao_lidas_amigos() + (0 if geral_mudo else int(nao_lidas.get("geral", 0)))
 	_selo.visible = n > 0
 	_selo.text = "99+" if n > 99 else str(n)
 	_selo.size = Vector2(28 if n > 9 else 20, 18)
@@ -360,8 +400,10 @@ func abrir(qual := "", historico := false) -> void:
 		m.menu_topo.fechar()
 	if qual != "":
 		aba = qual
-	elif nao_lidas.amigos > 0 and (geral_mudo or nao_lidas.geral == 0):
+	elif _nao_lidas_amigos() > 0 and (geral_mudo or int(nao_lidas.get("geral", 0)) == 0):
 		aba = "amigos"
+		if _nao_lidas_pm() > 0 and conversa != "" and int(nao_lidas.get(conversa, 0)) == 0:
+			conversa = "" # chegou privada de outro amigo: abre na lista, com os números de cada um
 	escrever.visible = true
 	_historico = historico
 	_teclado_visto = false
@@ -397,6 +439,8 @@ func aberto() -> bool:
 	return escrever != null and escrever.visible
 
 func trocar_aba(k: String) -> void:
+	if k == "amigos" and aba == "amigos":
+		conversa = "" # tocar de novo em Amigos volta para a lista
 	aba = k
 	montar()
 	_editar()
@@ -405,7 +449,7 @@ func silenciar_geral(v: bool) -> void:
 	if geral_mudo == v:
 		return
 	geral_mudo = v
-	nao_lidas.geral = 0
+	nao_lidas["geral"] = 0
 	salvar()
 	_atualizar_selo()
 	_refazer_caixa()
@@ -415,7 +459,7 @@ func silenciar_geral(v: bool) -> void:
 func montar() -> void:
 	for k in abas_b:
 		var b: Button = abas_b[k]
-		var n: int = nao_lidas[k]
+		var n: int = _nao_lidas_amigos() if k == "amigos" else int(nao_lidas.get(k, 0))
 		var nome := "Geral" if k == "geral" else "Amigos"
 		if k == "geral" and geral_mudo:
 			nome = "Geral (mudo)"
@@ -424,10 +468,13 @@ func montar() -> void:
 		if k == "amigos":
 			b.add_theme_color_override("font_color", COR_AMIGO if k == aba else Color(COR_AMIGO, 0.75))
 	mudo_b.set_pressed_no_signal(geral_mudo)
-	nao_lidas[aba] = 0
+	var chave := _chave_atual()
+	if chave != "":
+		nao_lidas[chave] = 0
 	_atualizar_selo()
 	var on: bool = m.on()
-	var sem_amigos: bool = aba == "amigos" and m.amigos != null and m.amigos.lista.is_empty()
+	var sem_amigos: bool = aba == "amigos" and m.amigos != null and m.amigos.lista.is_empty() and not chave.begins_with("pm:")
+	var na_lista: bool = aba == "amigos" and chave == ""
 	var mudo: bool = aba == "geral" and geral_mudo
 	var dica := ""
 	if not on:
@@ -438,21 +485,92 @@ func montar() -> void:
 		dica = "Você ainda não tem amigos. Toque num jogador aqui no mundo e escolha \"Adicionar amigo\"."
 	aviso_l.text = dica
 	aviso_l.visible = dica != ""
-	var pode: bool = on and not mudo and not sem_amigos
+	var pode: bool = on and not mudo and not sem_amigos and not na_lista
 	campo.editable = pode
 	enviar_b.disabled = not pode
-	campo.placeholder_text = "Escreva para todo mundo…" if aba == "geral" else "Escreva para os seus amigos…"
+	if aba == "geral":
+		campo.placeholder_text = "Escreva para todo mundo…"
+	elif na_lista:
+		campo.placeholder_text = "Escolha um amigo para conversar"
+	elif chave == "amigos":
+		campo.placeholder_text = "Escreva para todos os seus amigos…"
+	else:
+		campo.placeholder_text = "Mensagem privada para %s…" % _nome_pm(chave)
 	for c in lista.get_children():
 		lista.remove_child(c)
 		c.queue_free()
 	if mudo:
 		return
-	var l: Array = msgs[aba]
-	if l.is_empty() and on and not sem_amigos:
+	if na_lista:
+		if not sem_amigos:
+			_montar_lista_amigos()
+		return
+	if aba == "amigos": # dentro de uma conversa: voltar para a lista e de quem é
+		var cab := HBoxContainer.new()
+		cab.add_theme_constant_override("separation", 8)
+		var v := Button.new()
+		v.text = "‹ Amigos"
+		v.focus_mode = Control.FOCUS_NONE
+		v.custom_minimum_size = Vector2(96, 30)
+		v.add_theme_font_size_override("font_size", 14)
+		Menu.estilo_botao(v, false)
+		v.pressed.connect(func():
+			conversa = ""
+			montar())
+		cab.add_child(v)
+		var t := Menu.rotulo("Todos os amigos" if chave == "amigos" else "Privado com %s" % _nome_pm(chave), 15, COR_AMIGO if chave == "amigos" else COR_PM)
+		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		cab.add_child(t)
+		lista.add_child(cab)
+	var l: Array = msgs.get(chave, [])
+	if l.is_empty() and on and not sem_amigos and not na_lista:
 		lista.add_child(Menu.rotulo("Nenhuma mensagem ainda. Diga oi!", 14, Menu.APAGADO))
 	for x in l:
 		lista.add_child(_linha(x, 15, true))
 	_descer()
+
+func _nome_pm(chave: String) -> String:
+	var c := chave.substr(3)
+	if m.amigos:
+		for a in m.amigos.lista:
+			if str(a.get("c", "")) == c:
+				return str(a.get("nome", ""))
+	for x in msgs.get(chave, []):
+		return outro_nome(x)
+	return "amigo"
+
+# aba Amigos sem conversa aberta: "Todos os amigos" e cada amigo (online em verde), com as mensagens não lidas
+func _montar_lista_amigos() -> void:
+	var linhas: Array = [["amigos", "Todos os amigos", -1]]
+	var vistos := {}
+	for a in (m.amigos.lista if m.amigos else []):
+		var c := str(a.get("c", ""))
+		vistos[c] = true
+		linhas.append(["pm:" + c, str(a.get("nome", "")), int(a.get("on", 0))])
+	for k in msgs: # conversa com quem já não está na lista (dá para ler, não para responder)
+		if str(k).begins_with("pm:") and not vistos.has(str(k).substr(3)) and not msgs[k].is_empty():
+			linhas.append([k, outro_nome(msgs[k][-1]), 0])
+	for ln in linhas:
+		var k: String = ln[0]
+		var n := int(nao_lidas.get(k, 0))
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 15)
+		var est := ""
+		if int(ln[2]) >= 0:
+			est = "  · online" if int(ln[2]) == 1 else "  · em outro mundo" if int(ln[2]) == 2 else "  · offline"
+		b.text = "%s%s%s" % [ln[1], est, "   (%d)" % n if n > 0 else ""]
+		Menu.estilo_botao(b, n > 0)
+		var cor: Color = COR_AMIGO if k == "amigos" or int(ln[2]) > 0 else Menu.APAGADO
+		b.add_theme_color_override("font_color", cor)
+		b.add_theme_color_override("font_hover_color", cor)
+		b.pressed.connect(func():
+			conversa = k
+			montar()
+			_editar())
+		lista.add_child(b)
 
 func _descer() -> void:
 	await get_tree().process_frame
@@ -461,9 +579,13 @@ func _descer() -> void:
 
 func enviar() -> void:
 	var t := campo.text.strip_edges()
-	if t == "" or not m.on() or (aba == "geral" and geral_mudo):
+	var chave := _chave_atual()
+	if t == "" or not m.on() or (aba == "geral" and geral_mudo) or chave == "":
 		return
-	m.rede("chat", {"canal": aba, "texto": t.left(MAX)})
+	if chave.begins_with("pm:"):
+		m.rede("chat", {"canal": "pm", "para": chave.substr(3), "texto": t.left(MAX)})
+	else:
+		m.rede("chat", {"canal": chave, "texto": t.left(MAX)})
 	campo.text = ""
 	_editar.call_deferred() # o teclado continua aberto para a próxima
 
@@ -483,12 +605,15 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 	r.add_theme_font_size_override("bold_font_size", tam)
 	r.add_theme_color_override("default_color", Menu.TEXTO)
 	var amigo: bool = str(x.get("canal", "")) == "amigos"
-	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else Color(0.86, 0.72, 0.5))
+	var pm: bool = str(x.get("canal", "")) == "pm"
+	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else COR_PM if pm else Color(0.86, 0.72, 0.5))
 	var s := ""
 	if com_hora:
 		s += "[color=#%s]%s[/color]  " % [Menu.APAGADO.to_html(false), _hora(float(x.get("hora", 0)))]
 	elif amigo:
 		s += "[color=#%s][lb]Amigos][/color] " % COR_AMIGO.to_html(false)
+	elif pm: # na caixa de baixo: de quem veio ou para quem foi
+		s += "[color=#%s][lb]%s %s][/color] " % [COR_PM.to_html(false), "Para" if x.get("meu", false) == true else "De", _seguro(outro_nome(x))]
 	s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(str(x.get("texto", "")))]
 	r.text = s
 	return r
@@ -507,16 +632,21 @@ func do_servidor(ev: Dictionary) -> void:
 			msgs = {"geral": [], "amigos": []}
 			todas = []
 			for x in ev.get("lista", []):
-				if x is Dictionary and msgs.has(str(x.get("canal", ""))):
-					msgs[str(x.canal)].append(x)
+				if x is Dictionary and str(x.get("canal", "")) in ["geral", "amigos", "pm"]:
+					var kk := chave_de(x)
+					if not msgs.has(kk):
+						msgs[kk] = []
+					msgs[kk].append(x)
 					todas.append(x)
 			_refazer_caixa()
 			if aberto():
 				montar()
 		"chat":
-			var k := str(ev.get("canal", ""))
-			if not msgs.has(k):
+			if not (str(ev.get("canal", "")) in ["geral", "amigos", "pm"]):
 				return
+			var k := chave_de(ev)
+			if not msgs.has(k):
+				msgs[k] = []
 			msgs[k].append(ev)
 			if msgs[k].size() > GUARDA:
 				msgs[k].pop_front()
@@ -527,7 +657,7 @@ func do_servidor(ev: Dictionary) -> void:
 				return
 			_refazer_caixa()
 			var meu: bool = ev.get("meu", false) == true
-			if aberto() and aba == k:
+			if aberto() and _chave_atual() == k:
 				for c in lista.get_children(): # "Nenhuma mensagem ainda" sai
 					if c is Label:
 						c.queue_free()
@@ -539,11 +669,11 @@ func do_servidor(ev: Dictionary) -> void:
 				_descer()
 			else:
 				if not meu:
-					nao_lidas[k] += 1
+					nao_lidas[k] = int(nao_lidas.get(k, 0)) + 1
 				_atualizar_selo()
 				if aberto():
 					montar()
-			if not meu and k == "amigos" and m.sons:
+			if not meu and k != "geral" and m.sons:
 				m.sons.tocar("pano", -16.0)
 
 func _process(dt: float) -> void:

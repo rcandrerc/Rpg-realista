@@ -225,6 +225,10 @@ func montar_janela(mt) -> void:
 		linha.add_child(l)
 		if on == 1 and not a.get("time", false):
 			linha.add_child(_pequeno(mt._botao("Time", func(): m.rede("time", {"acao": "convidar", "com": c})), 70))
+		if m.chat: # mensagem privada (chat.gd, aba Amigos)
+			linha.add_child(_pequeno(mt._botao("Msg", func():
+				mt.fechar()
+				m.chat.abrir_pm(c), false), 64))
 		var confirmar := _remover == c
 		linha.add_child(_pequeno(mt._botao("Certeza?" if confirmar else "Remover", func():
 			if _remover == c:
