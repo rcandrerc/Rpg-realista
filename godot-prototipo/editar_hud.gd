@@ -110,7 +110,7 @@ func _so_tamanho(id: String) -> bool:
 	return id == "joy" # o joystick nasce onde o dedo toca: só o tamanho muda
 
 func _centro_joy() -> Vector2:
-	return Vector2(170, tela.size.y - 150)
+	return Vector2(250, tela.size.y - 265) # acima da caixa do chat (embaixo à esquerda)
 
 func rect(id: String) -> Rect2:
 	var h = m.hud
@@ -121,7 +121,7 @@ func rect(id: String) -> Rect2:
 			var r: float = 96.0 * h.joy_s
 			return Rect2(_centro_joy() - Vector2(r, r), Vector2(r, r) * 2.0)
 		"chat":
-			return m.chat.canto.get_global_rect() if m.chat else Rect2()
+			return m.chat.area() if m.chat else Rect2()
 		"mapa":
 			return m.minimapa.mini.get_global_rect() if m.minimapa else Rect2()
 		"topo":
@@ -200,7 +200,8 @@ func _caixa_sel() -> Rect2:
 	return r
 
 func _alca() -> Vector2:
-	return _caixa_sel().end + Vector2(6, 6)
+	var p := _caixa_sel().end + Vector2(6, 6)
+	return Vector2(min(p.x, tela.size.x - ALCA - 4.0), min(p.y, tela.size.y - ALCA - 4.0)) # sempre dentro da tela
 
 # ---------- abrir e fechar ----------
 func abrir() -> void:
@@ -378,9 +379,10 @@ func _desenhar() -> void:
 	tela.draw_rect(Rect2(Vector2.ZERO, tela.size), Color(0.02, 0.015, 0.01, 0.28)) # véu: o jogo está parado para editar
 	# fantasmas do que não aparece agora (joystick, chat sem mensagem, time vazio)
 	m.hud.desenhar_joystick(tela, _centro_joy(), Vector2(0.35, -0.35))
-	if m.chat and m.chat.canto.get_child_count() == 0:
+	if m.chat and not m.chat.caixa.visible:
 		var rc := rect("chat")
-		var sc: float = m.chat.canto.scale.x
+		var sc: float = m.chat.caixa_s
+		tela.draw_rect(rc, Color(0.04, 0.035, 0.03, 0.22))
 		for i in 3:
 			var tx: String = ["Ruiva: oi, pessoal!", "Tomás: alguém vai caçar lobos?", "(as mensagens do chat aparecem aqui)"][i]
 			tela.draw_string_outline(f, rc.position + Vector2(4, rc.size.y - (54 - i * 18) * sc), tx, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * sc), 4, Color(0, 0, 0, 0.8))
