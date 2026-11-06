@@ -1386,6 +1386,44 @@ func ret_peca(k: String, x: float, z: float, r: int) -> Rect2:
 	var d: float = float(C.w) if r % 2 == 1 else float(C.d)
 	return Rect2(x - w / 2.0, z - d / 2.0, w, d)
 
+# Móvel encostado na parede (pedido do André, 2026-11-06): a grade de 0,5 m deixava o baú, o fogão e a bancada
+# quase meio metro longe da parede (ou em cima dela, vermelho). Com a mira a até ENCOSTA m da face de uma
+# parede/porta/janela, o móvel vai colado nela (folga de 4 cm, que passa pelas juntas). Longe da parede, fica na
+# grade de 0,5 m de antes (dá para centralizar). O servidor aceita a posição (arredonda em 5 cm e confere o espaço).
+const ENCOSTA := 0.6
+const FOLGA_PAREDE := 0.04
+func encostar_movel(L: Dictionary, k: String, x: float, z: float, r: int, px: float, pz: float) -> Vector2:
+	var R := ret_peca(k, x, z, r)
+	var hw := R.size.x / 2.0
+	var hd := R.size.y / 2.0
+	var nx := x
+	var nz := z
+	var melhor_x := INF
+	var melhor_z := INF
+	for o in L.pecas:
+		if tipo_peca(o.k) != "borda":
+			continue
+		var W := ret_peca(o.k, float(o.x), float(o.z), int(o.r))
+		if int(o.r) % 2 == 0: # parede ao longo do x: encosta em z
+			if R.position.x >= W.end.x - 0.05 or R.end.x <= W.position.x + 0.05:
+				continue
+			var lado := 1.0 if pz >= float(o.z) else -1.0
+			var face: float = W.end.y if lado > 0 else W.position.y
+			var dist := absf(pz - face) - hd # quanto a mira (centro) está longe de colar
+			if absf(pz - face) <= hd + ENCOSTA and dist < melhor_z:
+				melhor_z = dist
+				nz = face + lado * (hd + FOLGA_PAREDE)
+		else: # parede ao longo do z: encosta em x
+			if R.position.y >= W.end.y - 0.05 or R.end.y <= W.position.y + 0.05:
+				continue
+			var lado := 1.0 if px >= float(o.x) else -1.0
+			var face: float = W.end.x if lado > 0 else W.position.x
+			var dist := absf(px - face) - hw
+			if absf(px - face) <= hw + ENCOSTA and dist < melhor_x:
+				melhor_x = dist
+				nx = face + lado * (hw + FOLGA_PAREDE)
+	return Vector2(snappedf(nx, 0.05), snappedf(nz, 0.05))
+
 static func _cruza(a: Rect2, b: Rect2) -> bool:
 	return a.position.x < b.end.x - 0.01 and b.position.x < a.end.x - 0.01 and a.position.y < b.end.y - 0.01 and b.position.y < a.end.y - 0.01
 
@@ -2114,6 +2152,9 @@ func _atualizar_mira() -> void:
 		else: # móvel: grade de 0,5 m
 			x = round(p.x * 2.0) / 2.0
 			z = round(p.z * 2.0) / 2.0
+			var enc := encostar_movel(L, sel, x, z, r, p.x, p.z)
+			x = enc.x
+			z = enc.y
 		var mot := motivo_peca(L, sel, x, z, r)
 		if mot == "" and L.pecas.size() >= max_pecas(L, D.lote):
 			mot = "Limite de %d peças no terreno" % max_pecas(L, D.lote)
