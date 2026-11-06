@@ -59,6 +59,7 @@ var _painel_t := 0.0
 var _painel_ini := Vector2.ZERO
 var retrato: Texture2D # rosto do herói (main.gd monta o palco); sem ele fica a letra
 var fonte: Font
+var relogio_teste := -1.0 # só para gravar o clipe do medalhão (>= 0 troca o relógio do brilho)
 var modo := "Espada"
 var _icones := {}
 var aviso_txt := ""
@@ -552,8 +553,8 @@ func _retrato_heroi(c: Vector2, r: float) -> void:
 
 # selo do nível: medalhão dourado com brilho que respira, número grande (antes era uma bolinha quase escondida)
 func _selo_nivel(c: Vector2) -> void:
-	var t := Time.get_ticks_msec() / 1000.0
-	var pulso: float = 0.5 + 0.5 * sin(t * TAU / 2.4)
+	var t: float = relogio_teste if relogio_teste >= 0.0 else Time.get_ticks_msec() / 1000.0
+	var pulso: float = 0.5 + 0.5 * sin(t * TAU / 2.7) # um ciclo de 2,7 s, suave, sem piscar (direção de arte)
 	for i in 5: # halo dourado macio
 		var k := float(i) / 5.0
 		_tela.draw_circle(c, 17.0 + 9.0 * (1.0 - k), Color(1.0, 0.78, 0.3, (0.05 + 0.05 * pulso) * (k + 0.2)))
