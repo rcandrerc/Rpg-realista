@@ -91,7 +91,8 @@ var mao_esquerda := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
 	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false,
-	"alvo_fixo": null, "mira_ate": -9.0} # alvo_fixo: monstro travado do mago (alvo_travado)
+	"alvo_fixo": null, "mira_ate": -9.0, "mira_espada": null} # alvo_fixo: monstro travado do mago (alvo_travado)
+# mira_espada: o bicho do último corte da espada (o corpo continua virado para ele até mira_ate, andando de lado)
 # mira_ate: até quando o mago continua virado para o alvo depois do último tiro da Faísca (anda de lado e de costas)
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
 var recargas := {} # nome -> segundos que faltam
@@ -1969,6 +1970,10 @@ func basico_espada() -> void:
 		if not acertou.is_empty() and on(): # online o dano vem do servidor, mas a sensação do corte é na hora
 			impacto_golpe(acertou[0], ultimo, false, true)
 		acertou.clear(), {"cancela": true, "lamina": true, "alvo": alvo, "basico": true, "fade": fade})
+	# André 2026-11-06: andando de lado e batendo, o corpo ficava indo e voltando entre o joystick e o alvo (tremia).
+	# Entre um corte e outro ele continua virado para o alvo e anda de lado, como o mago.
+	h.mira_espada = alvo
+	h.mira_ate = tempo + g.dur + 0.6
 	# vento da lâmina um pouco antes do corte
 	var vento_t: float = max(0.0, g.hit - 0.12)
 	fx.agenda.append({"t": vento_t, "fn": func(): sons.tocar("golpe", -3.0 if ultimo else -5.0, 0.08, null, 0.85 if ultimo else 1.0)})
@@ -2052,7 +2057,11 @@ func basico_magia() -> void:
 # Mago atirando a Faísca: o alvo para onde o corpo fica virado (o tiro de agora ou logo depois do último).
 # null = anda normal, virando para onde o joystick aponta.
 func mira_mago():
-	if h.modo != "Magia" or montaria != null or mov.esc != null:
+	if montaria != null or mov.esc != null:
+		return null
+	if h.modo == "Espada":
+		return mira_espada()
+	if h.modo != "Magia":
 		return null
 	if not acao.is_empty() and acao.get("basico", false) and acao.has("alvo"):
 		if vivo(acao.alvo):
@@ -2071,6 +2080,16 @@ func mira_mago():
 			return h.alvo_fixo
 		return novo_alvo_mago() # entre um tiro e outro o bicho morreu: já gira para o próximo
 	return null
+
+# Espada: virado para o bicho do último corte enquanto ainda está batendo (botão segurado ou golpe logo depois).
+# Golpe plantando o pé (não cancelado) já vira sozinho; aqui é o pedaço em que o joystick cortou o resto do golpe.
+func mira_espada():
+	if not acao.is_empty() or tempo >= float(h.mira_ate) or not vivo(h.mira_espada):
+		return null
+	var hab: Dictionary = P.hab_pronta("espada_basico")
+	if h.mira_espada.no.position.distance_to(heroi.position) > float(hab.alcance) + 3.0:
+		return null # foi embora: volta a andar virado para o joystick
+	return h.mira_espada
 
 # o próximo alvo do mago quando o travado morre: o mais perto no alcance da Faísca (vira o novo travado)
 func novo_alvo_mago():

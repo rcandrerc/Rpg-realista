@@ -385,6 +385,7 @@ const CURVA_TROTE := 0.85 # no trote a curva já faz 85% do arco da corrida (der
 const NO_AR := 0.35 # controle no ar (fração da aceleração)
 const GIRO_MAX := 13.0 # rad/s que o corpo gira (~750°/s: meia volta em 0,24 s)
 const GIRO_MIRA := 26.0 # rad/s virando para o alvo do golpe
+const MIRA_SUAVE := 16.0 # 1/s: o giro para o alvo vai diminuindo perto dele (90% em ~0,15 s)
 const COYOTE := 0.12 # s depois de sair da beirada em que o pulo ainda vale
 const SUBPASSO := 1.0 / 60.0 # o movimento roda em passos de 1/60 s: pulo e corrida iguais a 30 ou 60 FPS
 
@@ -471,7 +472,8 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		# corpo vira para onde o joystick aponta, com giro limitado (sem estalar)
 		if ry_mira != null:
 			var d: float = ad(ry_mira, ry)
-			ry += clamp(d, -GIRO_MIRA * dt, GIRO_MIRA * dt)
+			# chega suave no fim (sem estalar nem tremer quando o alvo anda ou o herói anda de lado), rápido no começo
+			ry += clamp(d * min(1.0, dt * MIRA_SUAVE), -GIRO_MIRA * dt, GIRO_MIRA * dt)
 			if abs(d) < 0.02:
 				ry_mira = null
 		elif livre and mag > 0.15:
