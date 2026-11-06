@@ -372,6 +372,10 @@ func cor_item(it) -> Color:
 # o que se colhe na horta da Vila dos Lotes (shared/dados.js PLANTAS): ícone de colheita na cor da planta
 const COLHEITA := ["rabanete", "cenoura", "batata", "tomate", "milho", "abobora"]
 static func icone_item(it) -> String:
+	# pintado em icones/itens/<k>.png vem primeiro (minérios, barras, colheita, sementes... ganharam pintura própria em 2026-11-06)
+	if not (it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k)) \
+			and ResourceLoader.exists("res://icones/itens/%s.png" % it.k):
+		return "it_" + str(it.k)
 	if str(it.k).begins_with("barra_"):
 		return "it_barra"
 	if str(it.k).begins_with("minerio_") or it.k == "carvao" or it.k == "pedra":

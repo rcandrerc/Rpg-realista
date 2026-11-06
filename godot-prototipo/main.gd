@@ -20,6 +20,7 @@ const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
+const AguaFx = preload("res://agua_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
@@ -44,7 +45,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca"]
+const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -146,6 +147,19 @@ var _hitstop_ate := 0.0
 var _impacto_quadro := -1
 var _passo_dist := 0.0 # metros andados desde o último som de passo
 var _quadril := 0.0 # afundada do quadril no pouso (m)
+# Nado nos lagos fundos (André 2026-11-06): boiando o herói nada (anim_heroi.gd), as armas vão para as costas e não
+# dá para lutar. O corpo sobe um pouco para a cabeça e as costas ficarem fora da água (o Mixamo nada mais baixo).
+var _nadando := false
+var agua_fx # agua_fx.gd: espuma em volta, rastro em V e respingo das braçadas
+# cajado nas costas nadando (direção de arte 2026-11-06): deitado, a chama passava da cabeça como uma lança; desliza
+# CAJADO_NADO m para os pés (a chama fica na nuca). Boiando de pé fica no lugar.
+const CAJADO_NADO := 0.35
+var _caj_base = null # posição do cajado nas costas (no osso), guardada ao prender
+var _saindo_agua := 0.0 # segundos que faltam da saída do lago (do nado até ficar de pé)
+var _sobe_agua := 0.0 # metros que o corpo sobe agora
+const SOBE_BOIANDO := 0.12 # boiando parado (Treading Water): o ombro fica na linha da água
+const SOBE_NADANDO := 0.5 # nadando (Swimming): as costas e a nuca rente à água
+const SAIR_AGUA_RITMO := 1.15
 # molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
 const MOLA_K := 110.0 # força da mola (maior = volta mais rápido)
 const MOLA_AMORT := 10.0 # amortecimento (menor = balança mais vezes; 10 dá um tranco e meio)
@@ -211,6 +225,8 @@ func _ready() -> void:
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
+	agua_fx = AguaFx.new()
+	add_child(agua_fx)
 	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
@@ -495,11 +511,15 @@ func montar_grama() -> void:
 # Mata (2026-11-03): chão de floresta com pouca grama, mais cheia nas clareiras. Um pedaço por círculo da mata, que
 # só é desenhado até 70 m (são muitos)
 # lago (com a beirada) ou encosta da montanha: grama solta não nasce (shared/dados.js noRelevo)
+# 2026-11-06: a beirada é a faixa de terra em volta da água (mundo.beira) mais um tiquinho
+var _folga_beira := 0.8
 func fora_do_plano(x: float, z: float) -> bool:
+	if mundo.has("beira"):
+		_folga_beira = float(mundo.beira.get("terra_max", 1.6)) * 0.5 + 0.3
 	if terreno.altura_montanha(x, z) > 0.15:
 		return true
 	for L in terreno.lagos:
-		if absf(x - L.x) < L.R + 2.0 and absf(z - L.z) < L.R + 2.0 and Terreno.margem_lago(L, x, z) < 1.0 + 0.8 / minf(L.rx, L.rz):
+		if absf(x - L.x) < L.R + 2.0 and absf(z - L.z) < L.R + 2.0 and Terreno.margem_lago(L, x, z) < 1.0 + _folga_beira / minf(L.rx, L.rz):
 			return true
 	return false
 
@@ -912,11 +932,12 @@ func armar(modo: String) -> void:
 	if modo != "Escalada":
 		h.modo = modo
 	var L: Dictionary = lugar_armas()
-	if modo == "Escalada" or montaria != null: # escalando ou montado: as duas nas costas, mãos livres
+	if modo == "Escalada" or montaria != null or _nadando: # escalando, montado ou nadando: as duas nas costas, mãos livres
 		prender(heroi_esq, espada, L.espadaCostas)
 		prender(heroi_esq, cajado, L.cajadoCostas)
 		if montaria != null:
 			armas_montado(heroi_esq, espada, cajado)
+		_caj_base = cajado.position if _nadando and montaria == null else null
 	elif modo == "Espada":
 		colisor_espada(heroi_esq, null)
 		prender(heroi_esq, espada, L.espadaMao)
@@ -1782,6 +1803,10 @@ func usar(qual: String) -> void:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
+	# nadando não dá para lutar nem coletar (as armas estão nas costas)
+	if _nadando and (qual in ["basico", "dash", "rolar", "coletar"] or qual.begins_with("hab")):
+		hud.aviso("Nadando não dá")
+		return
 	# montado: golpe, skill, cura, dash, rolar, pulo e coleta descem do lobo antes (como no servidor: luta a pé)
 	if montaria != null and (qual in ["basico", "cura", "dash", "rolar", "pular", "coletar"] or qual.begins_with("hab")):
 		montar_lobo(false)
@@ -2453,7 +2478,7 @@ func _process(dt: float) -> void:
 	avisar_zona()
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
-	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
+	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 and not _nadando else 0.0 # nadando os braços são da braçada
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	vestir_heroi()
 	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
@@ -2635,6 +2660,22 @@ func atualizar_heroi(dt: float) -> void:
 		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
+	# nado: entrou ou saiu da água funda
+	var nada_agora: bool = mov.nadando() and h.morto <= 0.0
+	if nada_agora != _nadando:
+		_nadando = nada_agora
+		if _nadando:
+			if acao.get("canal", false):
+				cancelar_canal()
+			acao = {}
+			_saindo_agua = 0.0
+		elif mov.velocidade() > 0.4 and mov.chao and acao.is_empty() and heroi_anim.has_animation("sair_agua"):
+			# chegou no raso nadando: as pernas descem e ele fica de pé (pedaço do Mixamo Swimming To Edge)
+			_saindo_agua = heroi_anim.get_animation("sair_agua").length / SAIR_AGUA_RITMO
+			heroi_anim.play("sair_agua", 0.3, SAIR_AGUA_RITMO)
+		if mov.esc == null:
+			armar(h.modo)
+	_saindo_agua = maxf(0.0, _saindo_agua - dt)
 	# armas: escalando, as duas nas costas
 	if mov.esc != null and not estava_escalando:
 		acao = {}
@@ -2655,7 +2696,11 @@ func atualizar_heroi(dt: float) -> void:
 				heroi_anim.seek(0.0, true)
 	elif acao.is_empty():
 		var a := ""
-		if montaria != null:
+		if _saindo_agua > 0.0 and not _nadando and mov.chao:
+			a = "sair_agua" # termina de ficar de pé antes de andar
+		elif _nadando:
+			a = "andar" if mov.velocidade() > 0.3 else "parada" # quem troca para nadar/boiar é o anim_heroi.gd (nome para o servidor)
+		elif montaria != null:
 			a = "parada" # montado: quem anda é o lobo (cavalgar.gd põe o corpo na sela por cima)
 		elif mov.manobra != null and heroi_anim.has_animation(mov.manobra.nome):
 			a = mov.manobra.nome # freada e meia-volta: o corpo anda pelo caminho do quadril da animação (andar.gd)
@@ -2672,6 +2717,8 @@ func atualizar_heroi(dt: float) -> void:
 			a = "corrida" if mov.velocidade() > 3.2 else "andar"
 		else:
 			a = "parada" if h.modo == "Magia" else "espada_parada"
+		if a != "sair_agua" and _saindo_agua > 0.0:
+			_saindo_agua = 0.0 # pulou, caiu ou voltou para o fundo: corta a saída
 		if heroi_anim.current_animation != a and heroi_anim.has_animation(a):
 			# andar e correr no ritmo da velocidade: o pé acompanha o chão (sem parecer que desliza)
 			if mov.manobra != null and a == mov.manobra.nome:
@@ -2683,9 +2730,9 @@ func atualizar_heroi(dt: float) -> void:
 			heroi_anim.ritmo_acao(mov.ritmo_manobra())
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado, com a mão fechada em volta dele
 	# (montado as duas armas vão nas costas e a mão segura a juba)
-	var mao_no_cajado: bool = h.modo == "Magia" and mov.esc == null and cajado.visible and montaria == null
+	var mao_no_cajado: bool = h.modo == "Magia" and mov.esc == null and cajado.visible and montaria == null and not _nadando
 	mao_fechada.peso = move_toward(mao_fechada.peso, 1.0 if mao_no_cajado else 0.0, dt * 8.0)
-	if h.modo == "Magia" and mov.esc == null and montaria == null:
+	if h.modo == "Magia" and mov.esc == null and montaria == null and not _nadando:
 		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
 		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 		if cajado.visible and heroi.visible:
@@ -2707,7 +2754,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif not mov.chao or mov.esc != null or montaria != null:
 		vel_anim = 0.0
 	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
-	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null
+	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando
+	heroi_anim.nadando = _nadando
 	heroi_anim.atualizar(dt, vel_anim)
 	if montaria != null:
 		montaria.passo(dt, vel)
@@ -2718,7 +2766,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
 	_vel_ant = vel
 	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
-	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty() and montaria == null
+	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty() and montaria == null and not _nadando and _saindo_agua <= 0.0
 	# arrancada: saindo do parado com o joystick todo, as pernas tocam a animação de sair correndo
 	if heroi_anim.arrancando <= 0.0:
 		if livre_corpo and vel_antes < 0.4 and _forca_joy > 0.85 and mov.vel_max > 4.0 and mov.disparada: # arranca só na disparada (o joystick sozinho trota)
@@ -2765,9 +2813,22 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif mov.chao and not estava_no_chao:
 		sons.tocar("pouso", -10.0, 0.08)
 	_quadril = move_toward(_quadril, 0.0, dt * 0.5)
-	inclinar.afunda = _quadril + freada * 0.035
-	# passos: um som a cada passada (mais longa correndo), só no chão
-	if mov.chao and mov.esc == null and vel > 0.5:
+	# nadando o corpo sobe (cabeça e costas fora da água); saindo do lago desce aos poucos até os pés acharem o fundo
+	var sobe_alvo := 0.0
+	if _nadando:
+		sobe_alvo = lerpf(SOBE_BOIANDO, SOBE_NADANDO, smoothstep(0.15, 0.9, vel))
+	_sobe_agua = move_toward(_sobe_agua, sobe_alvo, dt * (0.9 if _saindo_agua > 0.0 else 0.6))
+	inclinar.afunda = _quadril + freada * 0.035 - _sobe_agua
+	# cajado nas costas nadando: desce para os pés conforme o corpo deita
+	if _caj_base != null and _nadando and cajado.get_parent() is BoneAttachment3D:
+		var b := heroi_esq.find_bone("J_Bip_C_UpperChest")
+		if b >= 0:
+			var desce: Vector3 = heroi_esq.get_bone_global_rest(b).basis.inverse() * Vector3(0, -CAJADO_NADO, 0)
+			cajado.position = _caj_base + desce * heroi_anim._nada
+	if agua_fx:
+		agua_fx.passo(dt, heroi, heroi_esq, _nadando, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
+	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
+	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando:
 		_passo_dist += vel * dt
 		var passada: float = lerp(0.75, 1.45, clamp((vel - 1.8) / 3.6, 0.0, 1.0))
 		if montaria != null: # patas do lobo: passada mais longa no galope
