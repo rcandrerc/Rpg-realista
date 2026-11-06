@@ -258,7 +258,8 @@ func _paredao() -> void:
 	var idx := PackedInt32Array()
 	# anéis: k = 0 é o próprio arco do túnel (s = 0); depois a cara do paredão até a borda; depois a volta que entra
 	# na montanha. [k na cara (0 a 1), recuo para trás (m), afunda (m)]
-	var voltas := [[0.0, 0.0, 0.0], [0.18, -0.15, 0.0], [0.4, -0.3, 0.0], [0.65, -0.35, 0.0], [0.86, -0.1, 0.0], [1.0, 0.5, 0.2], [1.1, 2.6, 0.9], [1.18, 6.0, 2.2]]
+	# (mais voltas perto da borda de cima: sem facetas grandes vistas de cima)
+	var voltas := [[0.0, 0.0, 0.0], [0.12, -0.1, 0.0], [0.26, -0.22, 0.0], [0.42, -0.3, 0.0], [0.58, -0.34, 0.0], [0.72, -0.3, 0.0], [0.84, -0.18, 0.0], [0.93, 0.05, 0.05], [1.0, 0.45, 0.2], [1.05, 1.3, 0.5], [1.1, 2.6, 0.9], [1.18, 6.0, 2.2]]
 	for vi in voltas.size():
 		var V: Array = voltas[vi]
 		var k: float = V[0]
@@ -310,6 +311,7 @@ func _paredao() -> void:
 		_mat_paredao.set_shader_parameter("pedra_tex", load("res://relevo/rocky_terrain_02.jpg"))
 		_mat_paredao.set_shader_parameter("grama_tex", load("res://relevo/brown_mud_leaves_01.jpg"))
 		_mat_paredao.set_shader_parameter("alto", 4.0) # só rocha (sem a faixa de grama da montanha)
+		_mat_paredao.set_shader_parameter("nitidez", 8.0)
 	mi.material_override = _mat_paredao
 
 var _mat_paredao: ShaderMaterial
@@ -327,6 +329,7 @@ func _corte_na_montanha(ligado: bool) -> void:
 	mm.set_shader_parameter("boca_w", Vector2(float(a.l) + folga, float(A[4].l) + folga))
 	mm.set_shader_parameter("boca_h", Vector2(float(a.teto), float(A[4].teto)))
 	mm.set_shader_parameter("boca_incl", float(a.get("incl", 0.0)))
+	mm.set_shader_parameter("boca_fora", float(a.l) + folga + 3.8) # meia largura do paredão: faixa de cascalho no pé
 
 
 # o fundo do túnel: parede fechando o último anel
@@ -693,6 +696,19 @@ func _portal_da_boca() -> void:
 	var pq := _ponto_s(0.0, -(W + 0.9))
 	pq.p -= dd * 1.6
 	_rocha(2, Vector3(pq.p.x, T.altura(pq.p.x, pq.p.z) - 0.2, pq.p.z), 5.0, 0.6)
+	# pé do paredão: pedras pequenas (20 a 50 cm) fazendo a passagem para a encosta (a faixa de cascalho é do
+	# montanha.gdshader, boca_fora)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5150
+	for i in 9:
+		var lado := -1.0 if i % 2 == 0 else 1.0
+		var u := lado * rng.randf_range(W + 0.9, W + 4.2)
+		var w := rng.randf_range(-1.4, 0.2)
+		var pp := O + dr * u + dd * w
+		var e := rng.randf_range(0.2, 0.5)
+		var ro := _rocha(1 + i % 3, Vector3(pp.x, T.altura(pp.x, pp.z) - e * 0.25, pp.z), rng.randf() * TAU, e)
+		if ro and _mat_paredao:
+			ro.material_override = _mat_paredao
 
 var _rochas := {}
 func _malha_rocha(n: int) -> Mesh:
