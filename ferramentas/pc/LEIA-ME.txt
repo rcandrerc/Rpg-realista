@@ -4,6 +4,9 @@ Abra o Aethra.exe (o Aethra.pck precisa ficar na mesma pasta).
 Na primeira vez o Windows pode avisar "O Windows protegeu o computador": clique em "Mais informações" e
 "Executar assim mesmo". O aviso aparece porque o .exe não tem assinatura paga, não é vírus.
 
+Se aparecer "Unable to initialize video driver" (placa de vídeo sem Vulkan/Direct3D 12),
+abra pelo Aethra-OpenGL.bat, que fica na mesma pasta.
+
 CONTROLES
   W A S D ou setas ....... andar (segure Alt para andar devagar)
   Clique esquerdo ou J ... golpe (segure para continuar batendo)
