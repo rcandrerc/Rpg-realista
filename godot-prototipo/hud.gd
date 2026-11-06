@@ -40,6 +40,8 @@ var nome := "Ruiva"
 var nivel := 1
 var xp := 0.0 # 0..1 até o próximo nível
 var escudo := false
+var em_combate := false # main.gd: bateu ou apanhou nos últimos segundos (trabalho.em_combate)
+var _combate_a := 0.0 # 0..1: o selo de combate entra e sai suave
 var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhuma
 var canal_vila := false # a barra é a do Voltar para a vila (dourada, com o nome em cima, mais alta na tela)
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
@@ -395,6 +397,7 @@ func _process(dt: float) -> void:
 		_destaque_t -= dt
 	if _dano_t > 0:
 		_dano_t -= dt
+	_combate_a = move_toward(_combate_a, 1.0 if em_combate else 0.0, dt / (0.25 if em_combate else 0.8))
 	for b in botoes:
 		if b.pronto_t > 0.0:
 			b.pronto_t -= dt
@@ -496,6 +499,8 @@ func _desenhar() -> void:
 	_tela.draw_rect(Rect2(p0, PAINEL.size), Color(0.62, 0.48, 0.26, 0.55), false, 1.5)
 	_retrato_heroi(p0 + Vector2(42, 42), 32.0)
 	_selo_nivel(p0 + Vector2(68, 70))
+	if _combate_a > 0.0:
+		_selo_combate(p0 + Vector2(16, 70), _combate_a)
 	_tela.draw_string(f, p0 + Vector2(92, 24), nome.to_upper() + "   " + ("ESPADA MÁGICA" if modo == "Espada" else "MODO MAGIA"), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.75, 0.4))
 	_barra(p0 + Vector2(92, 34), Vector2(225, 18), vida, Color(0.8, 0.22, 0.2), texto_vida)
 	if escudo: # Escudo Arcano ligado: moldura dourada na vida
@@ -556,6 +561,39 @@ func _retrato_heroi(c: Vector2, r: float) -> void:
 		_tela.draw_string(f, c + Vector2(-14, 10), nome.substr(0, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color.WHITE)
 	_tela.draw_circle(c, r, Color(0.9, 0.75, 0.4), false, 3.0)
 	_tela.draw_circle(c, r + 2.5, Color(0.35, 0.24, 0.1, 0.8), false, 1.5)
+
+# selo de combate (André 2026-11-06: "algum símbolozinho identificando que a gente tá em combate"):
+# medalhão de ferro com duas espadas cruzadas, do lado oposto ao do nível, com brilho vermelho que pulsa devagar
+func _selo_combate(c: Vector2, a: float) -> void:
+	var t: float = relogio_teste if relogio_teste >= 0.0 else Time.get_ticks_msec() / 1000.0
+	var pulso: float = 0.5 + 0.5 * sin(t * TAU / 1.4)
+	var esc: float = lerp(0.6, 1.0, ease(a, 0.4)) # entra crescendo um pouco
+	var r: float = 15.0 * esc
+	for i in 5: # halo vermelho macio
+		var k := float(i) / 5.0
+		_tela.draw_circle(c, r + 2.0 + 9.0 * (1.0 - k), Color(0.95, 0.22, 0.12, (0.05 + 0.07 * pulso) * (k + 0.2) * a))
+	_tela.draw_circle(c + Vector2(0, 2), r, Color(0, 0, 0, 0.45 * a))
+	_tela.draw_circle(c, r, Color(0.2, 0.05, 0.04, a)) # fundo vinho escuro
+	_tela.draw_circle(c, r - 3.0 * esc, Color(0.42, 0.09, 0.06, a))
+	_tela.draw_circle(c + Vector2(-3, -4) * esc, 6.0 * esc, Color(1.0, 0.55, 0.4, 0.16 * a)) # reflexo em cima
+	for lado in [-1.0, 1.0]: # duas espadas em X, ponta para cima
+		_espadinha(c, lado * 0.7, 12.5 * esc, a)
+	_tela.draw_circle(c, r, Color(0.78, 0.74, 0.7, a), false, 2.5) # aro de ferro
+	_tela.draw_circle(c, r - 3.5 * esc, Color(1.0, 0.45, 0.3, (0.3 + 0.35 * pulso) * a), false, 1.0)
+
+# espada pequena (lâmina, guarda dourada, cabo e pomo), girada em `ang` a partir da vertical, centro em c
+func _espadinha(c: Vector2, ang: float, tam: float, a: float) -> void:
+	var u := Vector2(sin(ang), -cos(ang)) # para a ponta
+	var v := Vector2(-u.y, u.x)
+	var pt := func(x: float, y: float) -> Vector2: return c + u * ((y - 0.36) * tam) + v * (x * tam) # cruza no meio
+	var lamina := PackedVector2Array([pt.call(-0.13, -0.25), pt.call(0.13, -0.25), pt.call(0.13, 0.78), pt.call(0.0, 1.0), pt.call(-0.13, 0.78)])
+	_tela.draw_colored_polygon(lamina, Color(0.86, 0.88, 0.9, a))
+	_tela.draw_line(pt.call(0.0, -0.22), pt.call(0.0, 0.9), Color(0.55, 0.58, 0.64, a), 1.0) # fio do meio
+	_tela.draw_polyline(lamina + PackedVector2Array([lamina[0]]), Color(0.12, 0.05, 0.03, 0.8 * a), 1.0)
+	_tela.draw_line(pt.call(-0.36, -0.28), pt.call(0.36, -0.28), Color(0.25, 0.12, 0.03, a), 4.0) # guarda (contorno)
+	_tela.draw_line(pt.call(-0.33, -0.28), pt.call(0.33, -0.28), Color(1.0, 0.8, 0.38, a), 2.2)
+	_tela.draw_line(pt.call(0.0, -0.3), pt.call(0.0, -0.62), Color(0.32, 0.17, 0.07, a), 2.6) # cabo de couro
+	_tela.draw_circle(pt.call(0.0, -0.7), 0.1 * tam, Color(1.0, 0.8, 0.38, a)) # pomo
 
 # selo do nível: medalhão dourado com brilho que respira, número grande (antes era uma bolinha quase escondida)
 func _selo_nivel(c: Vector2) -> void:

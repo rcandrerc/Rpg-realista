@@ -1425,6 +1425,17 @@ func molas(no: Node) -> void:
 		sim.set_gravity(k, 0.0)
 
 # ---------- combate ----------
+# dentro da Caverna da Montanha (primeira masmorra)
+func na_masmorra() -> bool:
+	return caverna != null and not terreno.dentro_caverna(heroi.position.x, heroi.position.z, heroi.position.y + 0.3).is_empty()
+
+# algum chefe (Imp Chefe, Warrok) bateu ou apanhou nos últimos segundos: a música de combate vira a de chefe
+func luta_com_chefe() -> bool:
+	for e in inimigos:
+		if e.tipo in CHEFES and e.vida > 0.0 and float(e.get("combate", 0.0)) > tempo and e.no.position.distance_to(heroi.position) < 30.0:
+			return true
+	return false
+
 func inimigo_em(pos: Vector3, raio: float):
 	for e in inimigos:
 		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio + 0.35 and pos.y < e.no.position.y + 2.2:
@@ -1846,6 +1857,8 @@ func usar(qual: String) -> void:
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
 # Desliga tocando de novo, quando a estamina acaba (trabalho.gd) ou quando o herói para de andar.
 var _parado_disparada := 0.0
+const GUARDA_DEPOIS := 3.0 # s em guarda depois de golpear o ar (sem acertar ninguém não entra em combate)
+var _guarda_ate := 0.0
 func ligar_disparada(v: bool) -> void:
 	if v and trabalho.sem_folego and montaria == null: # montado quem corre é o lobo
 		hud.aviso("Sem fôlego!")
@@ -2530,6 +2543,10 @@ func _process(dt: float) -> void:
 	colorir_niveis()
 	hud.xp = float(P.prog.xp) / max(1, P.xp_prox)
 	hud.escudo = h.escudo > 0.0 and h.escudo_ate > tempo
+	# em combate (bateu ou apanhou nos últimos segundos): símbolo no painel e música de combate
+	hud.em_combate = trabalho.em_combate()
+	# André 2026-11-06: "Eye of the Storm" para chefe e masmorra; "Battle for the Kingdom" para os monstros em geral
+	musica.combate(hud.em_combate, dt_real, hud.em_combate and (luta_com_chefe() or na_masmorra()))
 	var barra: Array = barra_atual()
 	for i in barra.size():
 		var k = barra[i]
@@ -2774,6 +2791,10 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		vel_anim = mov.CORRIDA * 1.2
 	elif not mov.chao or mov.esc != null or montaria != null:
 		vel_anim = 0.0
+	# postura de luta só em combate ou logo depois de um golpe/magia (fora disso, parada relaxada)
+	if not acao.is_empty():
+		_guarda_ate = tempo + GUARDA_DEPOIS
+	heroi_anim.em_guarda = trabalho.em_combate() or tempo < _guarda_ate
 	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
 	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando
 	heroi_anim.nadando = _nadando
