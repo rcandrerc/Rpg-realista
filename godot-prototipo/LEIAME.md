@@ -89,6 +89,8 @@ Para montar à mão:
 - Andares no modo construção (2026-11-05): botões Térreo e Telhado em cima do Colocar. No Térreo só aparecem e só se
   desmontam fundação, paredes, portas, janelas e móveis, e o telhado do seu terreno some para ver dentro; no Telhado só o
   telhado. Escolher a peça já troca o andar. Andar de cima, quando existir, entra em `ANDARES` entre os dois.
+- Móvel encostado na parede (2026-11-06): com a mira a até 60 cm da face de uma parede, porta ou janela, o móvel
+  cola nela (folga de 4 cm, `encostar_movel`); longe da parede segue a grade de 0,5 m (dá para centralizar).
 - Juntas das paredes (2026-11-05): parede, porta e janela têm um pilar de madeira (36 x 36 cm, madeira dos caibros)
   em cada ponta (`_pilares`), que fecha a fresta do canto e da emenda; some junto com a parede cortada.
 - O martelo da construção fica no menu do topo, ao lado da mochila (2026-11-06): aceso no seu terreno, escuro fora
