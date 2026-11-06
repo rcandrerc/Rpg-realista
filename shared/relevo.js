@@ -137,6 +137,25 @@ function montarMontanha() {
 }
 export const GRADE_MONTANHA = montarMontanha();
 
+// Boca da Caverna da Montanha (2026-11-06, shared/caverna.js): a encosta sudoeste sobe devagar demais ali, e o arco da
+// caverna ficaria um cano para fora da pedra. Aqui a rocha cresce por cima do túnel a partir da boca (um paredão de
+// ~6 m logo atrás da entrada, com ombros dos lados), igual uma boca de caverna de verdade. Só sobe, nunca desce, e só
+// num retângulo pequeno: x, z = meio da boca; dx, dz = direção para dentro; alto = topo da rocha por cima do túnel;
+// larg = meia largura onde a rocha está inteira; ombro = metros até ela sumir dos lados; fundo = até onde vai.
+export const BOCA_CAVERNA = { x: 150.58, z: -28.53, dx: 0.829, dz: -0.559, alto: 11.2, larg: 3.9, ombro: 5, fundo: 16 };
+(function abrirBoca(G, B) {
+  const sv = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+  for (let j = 0; j < G.n; j++) for (let i = 0; i < G.n; i++) {
+    const x = G.x0 + i * G.passo, z = G.z0 + j * G.passo, ux = x - B.x, uz = z - B.z;
+    const dentro = ux * B.dx + uz * B.dz, lado = Math.abs(-ux * B.dz + uz * B.dx);
+    if (dentro < 0 || dentro > B.fundo + 4 || lado > B.larg + B.ombro) continue;
+    // um pouco de ruído no topo e nos ombros (sem parede reta)
+    const onda = 0.6 * Math.sin(x * 0.9 + z * 0.4) + 0.4 * Math.sin(z * 1.3 - x * 0.2);
+    const alvo = (B.alto + onda) * (1 - sv(B.larg, B.larg + B.ombro + onda * 0.8, lado)) * (1 - sv(B.fundo, B.fundo + 4, dentro));
+    const k = j * G.n + i; if (alvo > G.h[k]) G.h[k] = alvo;
+  }
+})(GRADE_MONTANHA, BOCA_CAVERNA);
+
 export function alturaMontanha(x, z) {
   const G = GRADE_MONTANHA, fx = (x - G.x0) / G.passo, fz = (z - G.z0) / G.passo;
   if (fx < 0 || fz < 0 || fx >= G.n - 1 || fz >= G.n - 1) return 0;

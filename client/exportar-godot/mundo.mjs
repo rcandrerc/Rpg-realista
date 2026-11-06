@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, CRIAR_OBRA, MORTE, AMIGOS, TIME } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import { LAGOS, AGUA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
+import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
 import { RAIZ } from '@rpg/shared';
@@ -76,6 +77,12 @@ const mundo = {
   longe: LONGE, copas_fora: copasDeFora(), // máscara do chão visto de longe (longe.mjs grava relevo/longe.png)
   lagos: LAGOS, agua: AGUA, ingreme: INGREME, juncos: beiraDosLagos().filter((b) => b.tipo !== 'pedra'),
   montanha_grade: { x0: GRADE_MONTANHA.x0, z0: GRADE_MONTANHA.z0, passo: GRADE_MONTANHA.passo, n: GRADE_MONTANHA.n, h: Array.from(GRADE_MONTANHA.h, (v) => Math.round(v * 1000) / 1000) },
+  // Caverna da Montanha (2026-11-06, shared/caverna.js): o túnel amostrado a cada metro (terreno.gd faz a mesma conta
+  // do chão; caverna.gd desenha aos poucos quando o herói chega perto) e a dungeon (passe, salas e o v de cada monstro)
+  caverna: { nome: CAVERNA.nome, porta: CAVERNA.porta, folga: CAVERNA.folga, salas: CAVERNA.salas,
+    amostras: TUNEL.amostras.map((a) => ({ s: a.s, x: r4(a.x), z: r4(a.z), y: r4(a.y), l: r4(a.l), teto: r4(a.teto), dx: r4(a.dx), dz: r4(a.dz), incl: a.incl })) },
+  dungeon: MAPA_CLAREIRA.dungeon ? { ...MAPA_CLAREIRA.dungeon, salas: sim.dungeon.salas.map((S) => ({ id: S.def.id, nome: S.def.nome, nivel: S.def.nivel,
+    monstros: S.vagas.map((vg) => ({ ...vg.pt, v: vg.v, status: statusInimigo(vg.pt.tipo, S.def.nivel) })) })) } : null,
   casas: T.casas.map((_, i) => i), // índices em solidos que são casa (teto)
   obstaculos: sim.obstaculos.map((k) => ({ x: r4(k.x), z: r4(k.z), r: r4(k.r), ...(k.alto != null ? { alto: r4(k.alto) } : {}), ...(k.semTopo ? { semTopo: 1 } : {}) })),
   casasInimigo: sim.casas.map((k) => ({ x: r4(k.x), z: r4(k.z), cos: r4(k.cos), sin: r4(k.sin), hw: r4(k.hw), hd: r4(k.hd) })),

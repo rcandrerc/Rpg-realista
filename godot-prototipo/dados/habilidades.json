@@ -756,6 +756,20 @@
    "venda": 3,
    "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas."
   },
+  "fragmento": {
+   "nome": "Fragmento rúnico",
+   "mat": true,
+   "pilha": 50,
+   "venda": 4,
+   "desc": "Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela."
+  },
+  "passe_caverna": {
+   "nome": "Passe da Caverna",
+   "mat": true,
+   "pilha": 20,
+   "venda": 10,
+   "desc": "Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto)."
+  },
   "semente_rabanete": {
    "nome": "Semente de rabanete",
    "mat": true,

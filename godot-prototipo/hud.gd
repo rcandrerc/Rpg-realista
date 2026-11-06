@@ -93,11 +93,15 @@ func _ready() -> void:
 	# loja, forja e Mestre Ivo não têm mais botão próprio (André aprovou tirar, 2026-11-03): tudo pelo "Falar"
 	_botao("falar", Vector2(509, 160), 30, "falar", COR_TROCA) # perto de qualquer NPC: abre a janela dele (conversa.gd)
 	botoes[-1].oculto = true
+	# porta da Caverna da Montanha (2026-11-06): usar o passe e o selo abre (caverna.gd). Fica no fim da lista, como os
+	# outros botões novos (os índices de cima são usados em mostrar_build)
 	# disparada (André 2026-11-03): liga e desliga a corrida que gasta estamina; o joystick sozinho só anda e trota.
 	# Fica no fim da lista (os índices de cima são usados em mostrar_build) e na ponta da fileira de baixo.
 	_botao("disparada", Vector2(585, 61), 31, "disparada", COR_FUNDO)
 	# lobo (montaria): sobe e desce; aceso enquanto montado. Também no fim da lista, ao lado da disparada
 	_botao("montar", Vector2(667, 61), 31, "lobo", COR_FUNDO)
+	_botao("selo", Vector2(509, 160), 30, "selo", COR_TROCA)
+	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,

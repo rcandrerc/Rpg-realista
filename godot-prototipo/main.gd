@@ -7,6 +7,7 @@ const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
+const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
 const Progresso = preload("res://progresso.gd")
@@ -74,6 +75,7 @@ var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (c
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
+var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
@@ -326,9 +328,19 @@ func montar_chao() -> void:
 	chao.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(chao)
 	# lagos e montanha (relevo.gd, pedido do André 2026-11-05): o chão plano abre buraco nos lagos
-	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"))
+	# Caverna da Montanha (2026-11-06): nasce antes da montanha, que abre o buraco da boca para o arco da caverna
+	caverna = Caverna.new(self, terreno)
+	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"), caverna.buraco_na_montanha)
 	add_child(relevo)
+	add_child(caverna)
 	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
+
+# chão onde um efeito ou um drop cai: com o herói lá dentro da caverna da montanha, o chão da caverna (não o alto da
+# montanha, que fica por cima do túnel)
+func chao_em(x: float, z: float) -> float:
+	if heroi != null and terreno != null and not terreno.dentro_caverna(heroi.position.x, heroi.position.z, heroi.position.y + 0.3).is_empty():
+		return terreno.altura(x, z, heroi.position.y + 0.5)
+	return terreno.altura(x, z) if terreno else 0.0
 
 func peso_vila(x: float, z: float) -> float:
 	var mk: Dictionary = mundo.get("mascara", {"x0": -30.0, "z0": -34.0, "tam": 56.0})
@@ -1768,7 +1780,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "disparada", "montar", "construir", "lote", "bancada", "bau"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -1884,6 +1896,8 @@ func _tentar(qual: String) -> bool:
 			menu.abrir()
 		"falar": # perto de um NPC: abre a janela dele (conversa.gd)
 			conversa.tocar_botao()
+		"selo": # na porta da Caverna da Montanha: gasta um passe e o selo abre (caverna.gd; o servidor confere)
+			caverna.usar_passe()
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
 		"bancada": # perto de uma estação do lote (construcao.gd): bancada = Alfaiate; bigorna ou fornalha = Ferreiro
@@ -2179,7 +2193,7 @@ func habilidade(i: int) -> bool:
 		var dur: float = hab.canal / hab.at
 		fx.conjura(heroi, P.FX.get(k, "magia"), dur, maos2 if hab.tipo in ["bola", "gelo", "meteoro"] else maos)
 		if hab.tipo == "meteoro" and vivo(alvo): # portal no céu em cima do alvo enquanto concentra
-			fx.meteoro_portal(alvo.no.position.x, alvo.no.position.z, terreno.altura(alvo.no.position.x, alvo.no.position.z), dur + float(hab.queda))
+			fx.meteoro_portal(alvo.no.position.x, alvo.no.position.z, chao_em(alvo.no.position.x, alvo.no.position.z), dur + float(hab.queda))
 		if hab.has("area"): # aviso no chão de onde a magia vai pegar enquanto concentra (Meteoro: em cima do alvo)
 			combate.aviso_area(alvo.no if hab.tipo == "meteoro" and vivo(alvo) else heroi, float(hab.area), dur, Color(fx.cor_de(P.FX.get(k, "magia"))[1]))
 		comecar_q(hab.anim, dur, [hab.canal], func(_n):
@@ -2281,7 +2295,7 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 			fx.explosao_hab(fxk, p0.x, p0.z, hab.area, p0.y)
 		"meteoro":
 			var c: Vector3 = alvo.no.position if vivo(alvo) else p0 + frente() * 5.0
-			fx.meteoro(c.x, c.z, hab.area, hab.queda, terreno.altura(c.x, c.z), func(_p): dano_area(c, hab.area, hab.dmg, hab))
+			fx.meteoro(c.x, c.z, hab.area, hab.queda, chao_em(c.x, c.z), func(_p): dano_area(c, hab.area, hab.dmg, hab))
 		"cadeia": # da mão no alvo, depois pula para o mais perto dele (5,5 m)
 			var feitos := []
 			var de := ponto_mao()
@@ -2874,6 +2888,9 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	while t <= ate:
 		var p := de + dir * t
 		var h: float = terreno.altura_montanha(p.x, p.z) # a encosta da montanha também segura a câmera (lago: fica acima da água)
+		var cv: float = terreno.chao_caverna(p.x, p.z, p.y + 0.45) # dentro da caverna: o chão dela (o teto e as paredes seguram)
+		if not is_nan(cv) and cv < h:
+			h = cv
 		for r in chao:
 			h = maxf(h, terreno.altura_na(r, p.x, p.z, p.y))
 		if h > p.y - 0.25:

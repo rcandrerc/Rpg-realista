@@ -37,6 +37,7 @@ var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 # 3 velocidades (André 2026-11-03): o joystick só anda (1) e trota (2); a corrida de 5,4 m/s, a que gasta estamina,
 # só com o botão de disparada ligado (hud.gd "disparada", main.gd ligar_disparada). Sem fôlego ela desliga sozinha.
 var disparada := false
+var selo_aberto := false # Caverna da Montanha: o servidor deixou passar do selo (usou o passe; online.gd)
 var montado := {} # montado no lobo: montaria.gd DADOS (andar, trote, correr m/s); vazio = a pé
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
@@ -243,13 +244,20 @@ func limitar_ao_mapa(px: float, pz: float, margem := 0.0) -> Vector2:
 var no_relevo := false # bateu numa encosta íngreme da montanha (não é pedra: não escala)
 func _vai(nx: float, nz: float) -> bool:
 	var h: float = T.altura(nx, nz, y)
+	# Caverna da Montanha: do selo para dentro só quem usou o passe (o servidor confere: Simulacao.posicaoCliente)
+	if not selo_aberto and not T.tunel.is_empty() and T.alem_do_selo(nx, nz, y) and not T.alem_do_selo(x, z, y):
+		no_relevo = true
+		return false
 	if h > y + m.subida.degrau:
+		# parede da caverna (rocha da montanha por cima do túnel): não é pedra, não escala
+		if not T.tunel.is_empty() and h <= T.chao_relevo(nx, nz) + 0.01 and not T.dentro_caverna(x, z, y + 0.3).is_empty():
+			no_relevo = true
 		return false
 	# encosta da montanha (shared/relevo.js INGREME): subida forte demais não dá para subir andando
 	if h > y + 0.02 and not T.monte.is_empty():
-		var hr: float = T.chao_relevo(nx, nz)
+		var hr: float = T.chao_relevo_em(nx, nz, y)
 		var passo_xz := Vector2(nx - x, nz - z).length()
-		if h <= hr + 0.01 and passo_xz > 0.0001 and (hr - T.chao_relevo(x, z)) > float(m.get("ingreme", 1.0)) * passo_xz:
+		if h <= hr + 0.01 and passo_xz > 0.0001 and (hr - T.chao_relevo_em(x, z, y)) > float(m.get("ingreme", 1.0)) * passo_xz:
 			no_relevo = true
 			return false
 	x = nx

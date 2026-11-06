@@ -397,6 +397,8 @@ func aplicar_foto(f: Dictionary) -> void:
 var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
+	if j.has("caverna"): # Caverna da Montanha: o selo deixa passar quem usou o passe (o servidor é quem sabe)
+		m.mov.selo_aberto = j.caverna == true
 	var ap_txt := JSON.stringify(j.get("aparencia"))
 	var vis := str(j.get("visual", ""))
 	if vis != "" and vis != _visual_txt: # corpo gravado na conta (vale o do servidor)
@@ -685,7 +687,7 @@ func evento(ev: Dictionary) -> void:
 					outros[id].alvo = para
 					outros[id].buf = []
 					no.position = para
-				fx.volta_vila_fim(no, true, Vector3(x0, m.terreno.altura(x0, z0), z0))
+				fx.volta_vila_fim(no, true, Vector3(x0, m.chao_em(x0, z0), z0))
 			return
 		"nivel":
 			var no = corpos.get(str(ev.id))
@@ -765,6 +767,12 @@ func evento(ev: Dictionary) -> void:
 		"profNivel":
 			m.sons.tocar("nivel", -6.0)
 			return
+		"caverna": # o selo da Caverna da Montanha abriu (usei o passe) ou fechou (saí, morri)
+			if str(ev.get("id", "")) == meu_id:
+				m.mov.selo_aberto = ev.get("aberta", false) == true
+				if m.mov.selo_aberto:
+					m.sons.tocar("magia", -6.0)
+			return
 		"fala":
 			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), str(ev.texto))): # janela do NPC aberta: a fala aparece nela
 				m.hud.aviso(str(ev.texto))
@@ -777,7 +785,7 @@ func evento(ev: Dictionary) -> void:
 		"drop": # ouro e itens do monstro que eu ajudei a derrubar (já estão na mochila)
 			var x := float(ev.x)
 			var z := float(ev.z)
-			m.mostrar_drop(Vector3(x, m.terreno.altura(x, z), z), int(ev.get("ouro", 0)), ev.get("itens", []))
+			m.mostrar_drop(Vector3(x, m.chao_em(x, z), z), int(ev.get("ouro", 0)), ev.get("itens", []))
 			return
 		"corrigir": # o servidor não aceitou a posição: volta para onde ele sabe
 			m.mov.por_em(Vector3(float(ev.x), float(ev.y), float(ev.z)))
@@ -793,31 +801,31 @@ func evento(ev: Dictionary) -> void:
 				info.explosao = float(ev.explosao)
 			fx.projetil(Vector3(float(ev.x), float(ev.y), float(ev.z)), Vector3(float(ev.dx), float(ev.dy), float(ev.dz)).normalized(), info, 0, 22.0)
 		"raio":
-			fx.raio(float(ev.x), float(ev.z), m.terreno.altura(float(ev.x), float(ev.z)))
+			fx.raio(float(ev.x), float(ev.z), m.chao_em(float(ev.x), float(ev.z)))
 		"explosao":
 			var x := float(ev.x)
 			var z := float(ev.z)
 			var k := str(ev.get("fx", "explosao"))
-			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.terreno.altura(x, z))
+			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z))
 		"chuva":
 			fx.chuva(float(ev.x), float(ev.z), float(ev.r), int(ev.ondas), func(_p): pass)
 		"meteoro":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.terreno.altura(x, z), func(_p): pass)
+			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.chao_em(x, z), func(_p): pass)
 		"cadeia":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.cadeia(Vector3(float(ev.x0), float(ev.y0), float(ev.z0)), Vector3(x, m.terreno.altura(x, z) + 1.0, z))
+			fx.cadeia(Vector3(float(ev.x0), float(ev.y0), float(ev.z0)), Vector3(x, m.chao_em(x, z) + 1.0, z))
 		"teleporte":
 			var x0 := float(ev.x0)
 			var z0 := float(ev.z0)
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.teleporte(Vector3(x0, m.terreno.altura(x0, z0), z0), Vector3(x, m.terreno.altura(x, z), z))
+			fx.teleporte(Vector3(x0, m.chao_em(x0, z0), z0), Vector3(x, m.chao_em(x, z), z))
 			var no = corpos.get(str(ev.id))
 			if no and no != m.heroi and outros.has(str(ev.id)): # aparece direto lá (sem deslizar)
-				outros[str(ev.id)].alvo = Vector3(x, m.terreno.altura(x, z), z)
+				outros[str(ev.id)].alvo = Vector3(x, m.chao_em(x, z), z)
 				outros[str(ev.id)].buf = []
 				no.position = outros[str(ev.id)].alvo
 		"preparo": # o monstro vai bater: brilho vermelho crescendo
@@ -838,15 +846,15 @@ func evento(ev: Dictionary) -> void:
 			var x := float(ev.x)
 			var z := float(ev.z)
 			var k := str(ev.get("fx", "investida"))
-			fx.impacto(x, z, float(ev.ry), m.P.FX.get(k, k), m.terreno.altura(x, z))
+			fx.impacto(x, z, float(ev.ry), m.P.FX.get(k, k), m.chao_em(x, z))
 		"vortice":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.vortice(x, z, float(ev.r), m.terreno.altura(x, z))
+			fx.vortice(x, z, float(ev.r), m.chao_em(x, z))
 		"anel":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.anel(x, z, float(ev.r), cor(ev.get("cor")), float(ev.get("dur", 0.8)), m.terreno.altura(x, z))
+			fx.anel(x, z, float(ev.r), cor(ev.get("cor")), float(ev.get("dur", 0.8)), m.chao_em(x, z))
 		"conjura":
 			var no = corpos.get(str(ev.id))
 			if no and no != m.heroi:

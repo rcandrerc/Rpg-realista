@@ -22,6 +22,7 @@ const ACOES := {
 	"missao": ["Missão", "it_tomo"],
 	"cura": ["Curar", "cura"],
 	"resetar": ["Resetar build", "desfazer"],
+	"passe": ["Fazer passe da caverna", "it_passe_caverna"], # Gaspar, na boca da Caverna da Montanha (2026-11-06)
 }
 
 var m # main.gd
@@ -242,6 +243,8 @@ func abrir(n: Dictionary) -> void:
 	fala_ui.text = str(falas[0]) if falas.size() > 0 else "..."
 	if n.funcao == "loja":
 		fala_ui.text = "Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro."
+	elif n.funcao == "passe": # o Gaspar diz do que precisa e quanto você já tem
+		fala_ui.text = _fala_passe()
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
 	for c in opcoes.get_children():
@@ -333,6 +336,14 @@ func escolher(a: String) -> void:
 				m.hud.aviso(r)
 				m.sons.tocar("forja", -4.0)
 			_atualizar_consertar()
+		"passe": # faz um passe com o material dos monstros (o servidor confere e gasta; a resposta chega em fala())
+			if not m.on():
+				fala_ui.text = "Sem conexão com o servidor eu não posso fazer o passe. Volte depois."
+			elif _falta_passe() != "":
+				fala_ui.text = "Ainda falta: %s. Os monstros carregam isso, é só caçar." % _falta_passe()
+			else:
+				m.rede("item", {"acao": "fazer_passe"})
+				m.sons.tocar("forja", -6.0)
 		"resetar":
 			fechar()
 			if m.on():
@@ -426,3 +437,34 @@ func _retrato(n: Dictionary) -> Texture2D:
 	c.look_at_from_position(c.position, cab + Vector3(0, -0.01, 0))
 	_retratos[n.id] = vp
 	return vp.get_texture()
+
+# ---------- Gaspar, o guardião da Caverna da Montanha (receita em shared/dados.js CAVERNA_DUNGEON.passe) ----------
+func _receita_passe() -> Dictionary:
+	var dg = m.mundo.get("dungeon")
+	return dg.passe if dg != null else {}
+
+func _tenho(k: String) -> int:
+	var n := 0
+	for it in m.P.prog.mochila:
+		if it is Dictionary and str(it.get("k", "")) == k and not it.has("h"):
+			n += int(it.get("n", 1))
+	return n
+
+func _nome_item(k: String) -> String:
+	return str(m.P.dados.itens.get(k, {}).get("nome", k))
+
+func _falta_passe() -> String:
+	var l := []
+	var r := _receita_passe()
+	for k in r:
+		var falta := int(r[k]) - _tenho(k)
+		if falta > 0:
+			l.append("%d %s" % [falta, _nome_item(k)])
+	return ", ".join(l)
+
+func _fala_passe() -> String:
+	var r := _receita_passe()
+	var l := []
+	for k in r:
+		l.append("%d %s (tem %d)" % [int(r[k]), _nome_item(k), _tenho(k)])
+	return "Ninguém passa do selo sem passe. Um passe sai por %s. Cada passe abre o selo uma vez." % ", ".join(l)
