@@ -1,7 +1,7 @@
 extends Node
 # Música de fundo (André 2026-11-06: "bem repetitiva, com aquele instrumento medieval, suave, meio épica").
 # As faixas ficam em godot-prototipo/musica/ (fora de sons/, para o sons.gd não carregar como efeito).
-# Todas CC0 (domínio público): lista e origem em musica/LICENCAS.md.
+# Licença e origem de cada faixa em musica/LICENCAS.md (só faixas livres para uso comercial).
 # Toca em loop, entra devagar, e o volume vem do menu Configurações > Música (0..100).
 
 const PASTA := "res://musica/"
