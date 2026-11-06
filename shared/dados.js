@@ -1060,7 +1060,9 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 // Chat (André 2026-11-06: "cria um chat geral e um de amigos"; o geral pode ser silenciado no app).
 // geral: todo mundo que está online, em qualquer mundo (sala). amigos: só você e seus amigos online.
 // max: letras por mensagem; entre: segundos entre duas mensagens; historico: quantas o servidor guarda para quem acabou de entrar.
-export const CHAT = { max: 120, entre: 1.2, historico: 40, canais: ['geral', 'amigos'] };
+// pm (André 2026-11-06: "tipo um pm, private msg pra cada amigo"): conversa só entre você e um amigo; historicoPm = quantas
+// mensagens privadas o servidor guarda (de todo mundo junto) para quem acabou de entrar.
+export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm'] };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)

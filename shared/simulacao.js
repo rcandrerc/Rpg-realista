@@ -1098,22 +1098,28 @@ export class Simulacao {
     if (!texto) return null;
     if (j.criando) return aviso('Termine de criar o personagem para conversar');
     if (canal === 'amigos' && !j.amigos.size) return aviso('Você ainda não tem amigos. Toque num jogador e escolha "Adicionar amigo"');
+    // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
+    const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
+    if (canal === 'pm' && !j.amigos.has(para)) return aviso('Só dá para mandar mensagem privada para amigo');
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
     j.chatT = this.tempo;
-    return { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
+    const msg = { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
+    if (canal === 'pm') { msg.alvo = para; msg.alvoNome = this.porConta(para)?.nome || j.amigos.get(para) || ''; } // alvo: 'para' é de quem recebe o evento
+    return msg;
   }
   // entrega a mensagem a quem deve ver nesta sala (o geral para todos; amigos para quem falou e os amigos dele)
   receberChat(msg) {
     for (const o of this.jogadores.values()) {
       if (msg.canal === 'amigos' && o.conta !== msg.c && !o.amigos?.has(msg.c)) continue;
+      if (msg.canal === 'pm' && o.conta !== msg.c && o.conta !== msg.alvo) continue; // pm: só as duas pontas
       this.evento({ t: 'chat', para: o.id, ...msg, meu: o.conta === msg.c });
     }
   }
   // quem acabou de entrar vê as últimas mensagens (o geral inteiro; do amigos, só as dele e as dos amigos dele)
-  historicoChat(id, geral, amigos) {
+  historicoChat(id, geral, amigos, pm) {
     const j = this.jogadores.get(id); if (!j) return;
-    const ver = (x) => x.canal === 'geral' || x.c === j.conta || j.amigos.has(x.c);
-    const lista = [...(geral || []), ...(amigos || [])].filter(ver).sort((a, b) => a.hora - b.hora).map((x) => ({ ...x, meu: x.c === j.conta }));
+    const ver = (x) => (x.canal === 'pm' ? x.c === j.conta || x.alvo === j.conta : x.canal === 'geral' || x.c === j.conta || j.amigos.has(x.c));
+    const lista = [...(geral || []), ...(amigos || []), ...(pm || [])].filter(ver).sort((a, b) => a.hora - b.hora).map((x) => ({ ...x, meu: x.c === j.conta }));
     this.evento({ t: 'chatHist', para: id, lista });
   }
   // ---------- amigos (até 20) e time (André 2026-11-05) ----------

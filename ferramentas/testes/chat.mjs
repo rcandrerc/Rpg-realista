@@ -8,7 +8,7 @@ s1.definirAmigos('A', [{ c: 'c3', nome: 'Caio' }]); s2.definirAmigos('C', [{ c: 
 const ev = (s) => { const e = s.eventos; s.eventos = []; return e; };
 ev(s1); ev(s2);
 const salas = [s1, s2];
-const mandar = (s, id, canal, texto) => { const m = s.chat(id, { canal, texto }); if (m) for (const x of salas) x.receberChat(m); return m; };
+const mandar = (s, id, canal, texto, para) => { const m = s.chat(id, { canal, texto, para }); if (m) for (const x of salas) x.receberChat(m); return m; };
 let m = mandar(s1, 'A', 'geral', '  Olá\n\u0007 mundo  ');
 ok(m && m.texto === 'Olá mundo', 'texto limpo: ' + m?.texto);
 const e1 = ev(s1).filter((e) => e.t === 'chat'), e2 = ev(s2).filter((e) => e.t === 'chat');
@@ -28,3 +28,15 @@ const histA = [{ canal: 'amigos', c: 'c3', nome: 'Caio', texto: 'amigo', hora: 2
 s1.historicoChat('A', hist, histA); s1.historicoChat('B', hist, histA);
 const h = ev(s1).filter((e) => e.t === 'chatHist');
 ok(h.find((e) => e.para === 'A').lista.length === 2 && h.find((e) => e.para === 'B').lista.length === 1, 'histórico: amigos só de quem é amigo');
+// pm (mensagem privada para um amigo): só as duas pontas, em qualquer sala
+s1.tempo += 5;
+s1.definirAmigos('A', [{ c: 'c3', nome: 'Caio' }, { c: 'c2', nome: 'Beto' }]); ev(s1);
+const pm = mandar(s1, 'A', 'pm', 'oi Caio', 'c3');
+const p1 = ev(s1).filter((e) => e.t === 'chat'), p2 = ev(s2).filter((e) => e.t === 'chat');
+ok(pm && pm.alvo === 'c3' && pm.alvoNome === 'Caio', 'pm leva para quem e o nome');
+ok(p1.length === 1 && p1[0].para === 'A' && p2.length === 1 && p2[0].para === 'C', 'pm: só Ana e Caio, Beto não vê');
+s1.tempo += 5;
+ok(!s1.chat('B', { canal: 'pm', para: 'c3', texto: 'oi' }), 'pm só para amigo');
+s1.historicoChat('B', [], [], [pm]); s1.historicoChat('A', [], [], [pm]);
+const hp = ev(s1).filter((e) => e.t === 'chatHist');
+ok(hp.find((e) => e.para === 'A').lista.length === 1 && hp.find((e) => e.para === 'B').lista.length === 0, 'histórico de pm só para as duas pontas');
