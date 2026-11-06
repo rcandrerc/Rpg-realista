@@ -57,10 +57,9 @@ func _init(main, terreno) -> void:
 # por cima da boca é BOCA_CAVERNA em shared/relevo.js): ali quem aparece é o arco da caverna e a moldura de pedra.
 # h = o ponto mais baixo do quadrado.
 func buraco_na_montanha(x: float, z: float, h: float) -> bool:
-	if A.is_empty():
-		return false
-	var c: Dictionary = T.no_tunel(x, z, folga + 0.8)
-	return not c.is_empty() and float(c.s) >= 0.5 and float(c.s) <= BURACO_ATE and h < float(c.y) + float(c.teto) + 0.6
+	# 2026-11-06 (André: "cheio de buraco por cima"): a montanha não perde mais nenhum quadrado. O vão do arco é
+	# cortado ponto a ponto no montanha.gdshader (boca_*) e o paredão (_paredao) cobre a frente. Fica a assinatura.
+	return false
 
 func _ready() -> void:
 	for we in get_parent().find_children("*", "WorldEnvironment", false, false):
@@ -113,7 +112,8 @@ func montar() -> void:
 		var k1 := mini(k0 + PEDACO, A.size() - 1)
 		_fila.append(_pedaco.bind(k0, k1))
 		k0 = k1
-	_fila.append(_moldura)
+	_fila.append(_paredao)
+	_fila.append(_corte_na_montanha.bind(true))
 	_fila.append(_portal_da_boca)
 	_fila.append(_fundo)
 	_fila.append(_selo)
@@ -121,6 +121,7 @@ func montar() -> void:
 
 func desmontar() -> void:
 	montada = false
+	_corte_na_montanha(false)
 	_fila.clear()
 	for c in get_children():
 		c.queue_free()
@@ -156,6 +157,7 @@ func _ponto(a: Dictionary, q: Array, casca := 0.0) -> Vector3:
 	if q[2] > 0.5: # chão: só uma ondulação de 3 cm (os pés não somem nem flutuam)
 		var e := 1.0 - pow(absf(u) / (float(a.l) + folga), 6.0)
 		base.y += _ruido.get_noise_3d(base.x * 2.0, 0.0, base.z * 2.0) * 0.03 * e
+		base.y -= 0.04 * (1.0 - smoothstep(0.0, 1.5, float(a.s))) # na soleira o chão de fora cobre a emenda
 		return base
 	var meio := Vector3(float(a.x), float(a.y) + float(a.teto) * 0.35, float(a.z))
 	var rad := (base - meio)
@@ -170,6 +172,7 @@ func _ponto(a: Dictionary, q: Array, casca := 0.0) -> Vector3:
 	var empurra := (absf(r) * 0.4 + absf(g) * 0.55 + laje * 0.2) * (1.0 - baixo) + (r * 0.35 + g * 0.6 + laje * 0.25) * baixo
 	if v > float(a.teto) * 0.7:
 		empurra = maxf(empurra, -0.35)
+	empurra *= smoothstep(0.5, 4.5, float(a.s)) # na boca a parede é o arco exato: encosta no paredão sem fresta
 	if casca > 0.0:
 		return base + rad * (absf(empurra) * 0.5 + casca)
 	return base + rad * empurra
@@ -232,42 +235,99 @@ func _malha(vs: PackedVector3Array, cs: PackedColorArray, idx: PackedInt32Array,
 	_pedacos.append(mi)
 	return mi
 
-# A moldura da boca: um anel de pedra em pé na entrada, do arco de dentro até ~2,4 m para fora, encostado no paredão
-# (BOCA_CAVERNA). Tapa a emenda entre o arco e o buraco que a montanha abre (buraco_na_montanha) e o pé afunda no chão.
-func _moldura() -> void:
+# O paredão da boca (pedido do André 2026-11-06: "parecer uma rocha só, bem feita"): uma peça de rocha inteira em pé
+# na entrada, com o furo do arco exatamente igual ao primeiro anel do túnel (sem fresta). A borda de fora vai para
+# trás e para baixo, enterrada na montanha (BOCA_CAVERNA), e usa o mesmo material da montanha (a mesma pedra). A
+# montanha não perde nenhum quadrado: só não desenha o que fica dentro do vão do arco (montanha.gdshader, boca_*).
+func _paredao() -> void:
 	var a: Dictionary = A[0]
+	var O := Vector3(float(a.x), float(a.y), float(a.z))
+	var d := Vector3(float(a.dx), 0, float(a.dz))
+	var dir := Vector3(float(a.dz), 0, -float(a.dx)) # direita (u > 0), como em _ponto
+	var W: float = float(a.l) + folga
+	var H: float = float(a.teto)
+	var cy := H * 0.35
+	var Wf := W + 3.8
+	var topo := maxf(T.altura(O.x + d.x * 3.0, O.z + d.z * 3.0), O.y + H + 2.2) + 0.6 # um pouco acima da rocha de trás
+	var Hf := topo - O.y - cy
 	var pf := _perfil(a)
-	var arco: Array = pf.slice(CHAO_N - 1) + [pf[0]] # parede direita, teto, parede esquerda
+	var arco: Array = [[W, -1.2, 0.0]] + pf.slice(CHAO_N - 1) + [pf[0], [-W, -1.2, 0.0]]
+	var n := arco.size()
 	var vs := PackedVector3Array()
 	var cs := PackedColorArray()
 	var idx := PackedInt32Array()
-	var fora_d := Vector3(float(a.x), float(a.y) + 1.5, float(a.z)) - Vector3(float(a.dx), 0, float(a.dz)) * 6.0
-	var tras := Vector3(float(a.dx), 0, float(a.dz))
-	var aneis := []
-	# 3 voltas: o arco de dentro, uma do meio (o lábio, um pouco para fora) e a de fora (encostada no paredão)
-	for volta in 3:
-		aneis.append(vs.size())
-		# v2 (direção de arte): a boca afunda no paredão (as voltas de fora vão para dentro da rocha, não para fora)
-		var k: float = [0.0, 0.9, 2.2][volta]
-		var recua: float = [0.0, 0.7, 1.8][volta]
-		var lista := []
-		lista.append([arco[0][0], -1.2 * minf(1.0, float(volta)), 0.0])
-		lista.append_array(arco)
-		lista.append([arco[arco.size() - 1][0], -1.2 * minf(1.0, float(volta)), 0.0])
-		for q in lista:
-			var p := _ponto(a, q, k) if volta > 0 else _ponto(a, q)
-			if volta > 0:
-				p += tras * (recua + _ruido.get_noise_3d(p.x * 0.7, p.y * 0.7, p.z * 0.7) * 0.5)
+	# anéis: k = 0 é o próprio arco do túnel (s = 0); depois a cara do paredão até a borda; depois a volta que entra
+	# na montanha. [k na cara (0 a 1), recuo para trás (m), afunda (m)]
+	var voltas := [[0.0, 0.0, 0.0], [0.18, -0.15, 0.0], [0.4, -0.3, 0.0], [0.65, -0.35, 0.0], [0.86, -0.1, 0.0], [1.0, 0.5, 0.2], [1.1, 2.6, 0.9], [1.18, 6.0, 2.2]]
+	for vi in voltas.size():
+		var V: Array = voltas[vi]
+		var k: float = V[0]
+		for i in n:
+			var q: Array = arco[i]
+			var p: Vector3
+			if vi == 0:
+				p = _ponto(a, q) if q[1] > -0.5 else O + dir * float(q[0]) + Vector3(0, float(q[1]) + float(a.get("incl", 0.0)) * -float(q[0]), 0)
+			else:
+				var u: float = q[0]
+				var v: float = q[1]
+				var rd := Vector2(u, v - cy)
+				var fora: Vector2
+				if v < -0.5: # os pés: descem e abrem para o lado, enterrados
+					fora = Vector2(signf(u) * Wf, -2.2 - 6.0 * maxf(0.0, k - 1.0)) # bem enterrados na encosta
+				else:
+					rd = rd.normalized()
+					var e := 1.0 / sqrt(pow(rd.x / Wf, 2.0) + pow(rd.y / Hf, 2.0)) # até a elipse de fora
+					# borda irregular (sem cara de domo): lóbulos grandes e dentes de rocha
+					var ang := atan2(rd.y, rd.x)
+					e *= 1.0 + 0.22 * _ruido.get_noise_2d(ang * 2.2, 3.0) + 0.1 * _ruido.get_noise_2d(ang * 7.0, 11.0)
+					fora = Vector2(rd.x, rd.y) * e + Vector2(0, cy)
+				var dentro := Vector2(u, v)
+				var kk := minf(k, 1.0)
+				var pt := dentro.lerp(fora, kk) * (1.0 + 0.1 * maxf(0.0, k - 1.0))
+				p = O + dir * pt.x + Vector3(0, pt.y - float(V[2]), 0) + d * float(V[1])
+				p.y += float(a.get("incl", 0.0)) * -u * (1.0 - kk)
+				# rocha irregular: bojos e lajes, mais fortes no meio da cara, nada no arco (o anel do túnel encosta)
+				var r := _ruido.get_noise_3d(p.x * 0.5, p.y * 0.5, p.z * 0.5)
+				var r2 := _ruido.get_noise_3d(p.x * 1.4 + 9.0, p.y * 1.4, p.z * 1.4)
+				var forca := sin(PI * minf(kk, 1.0)) * 1.3 + (0.8 if k > 1.0 else 0.0)
+				var laje := absf(_ruido.get_noise_3d(p.x * 0.8 - 20.0, p.y * 2.2, p.z * 0.8)) # camadas de rocha
+				p -= d * (r * 0.7 + r2 * 0.3 + laje * 0.35) * forca
+				p.y += r2 * 0.35 * forca
+				p += dir * _ruido.get_noise_3d(p.x * 0.7 + 3.0, p.y * 0.7, p.z * 0.7) * 0.4 * forca
 			vs.append(p)
 			cs.append(Color(0, 0, 0))
-	var n: int = arco.size() + 2
-	for r in 2:
+	var frente := O - d * 25.0 + Vector3(0, 4, 0)
+	for vi in voltas.size() - 1:
 		for i in n - 1:
-			var a0: int = aneis[r] + i
-			var b0: int = aneis[r + 1] + i
-			_tri(vs, idx, a0, a0 + 1, b0 + 1, fora_d, false)
-			_tri(vs, idx, a0, b0 + 1, b0, fora_d, false)
-	_malha(vs, cs, idx, "Boca")
+			var a0 := vi * n + i
+			var b0 := (vi + 1) * n + i
+			_tri(vs, idx, a0, a0 + 1, b0 + 1, frente)
+			_tri(vs, idx, a0, b0 + 1, b0, frente)
+	var mi := _malha(vs, cs, idx, "Paredao")
+	if _mat_paredao == null:
+		_mat_paredao = ShaderMaterial.new()
+		_mat_paredao.shader = load("res://montanha.gdshader")
+		_mat_paredao.set_shader_parameter("pedra_tex", load("res://relevo/rocky_terrain_02.jpg"))
+		_mat_paredao.set_shader_parameter("grama_tex", load("res://relevo/brown_mud_leaves_01.jpg"))
+		_mat_paredao.set_shader_parameter("alto", 4.0) # só rocha (sem a faixa de grama da montanha)
+	mi.material_override = _mat_paredao
+
+var _mat_paredao: ShaderMaterial
+# a montanha (relevo.gd, nó "Montanha") deixa de desenhar o que fica dentro do vão do arco, só enquanto a caverna está
+# montada (de longe a boca fica tapada pela rocha e nada aparece furado)
+func _corte_na_montanha(ligado: bool) -> void:
+	var mt := get_tree().root.find_child("Montanha", true, false) if is_inside_tree() else null
+	if mt == null or not (mt is MeshInstance3D) or not (mt.material_override is ShaderMaterial):
+		return
+	var mm: ShaderMaterial = mt.material_override
+	var a: Dictionary = A[0]
+	mm.set_shader_parameter("boca_on", 1.0 if ligado else 0.0)
+	mm.set_shader_parameter("boca_o", Vector3(float(a.x), float(a.y), float(a.z)))
+	mm.set_shader_parameter("boca_d", Vector2(float(a.dx), float(a.dz)))
+	mm.set_shader_parameter("boca_w", Vector2(float(a.l) + folga, float(A[4].l) + folga))
+	mm.set_shader_parameter("boca_h", Vector2(float(a.teto), float(A[4].teto)))
+	mm.set_shader_parameter("boca_incl", float(a.get("incl", 0.0)))
+
 
 # o fundo do túnel: parede fechando o último anel
 func _fundo() -> void:
@@ -619,19 +679,20 @@ func _portal_da_boca() -> void:
 	var q := _ponto_s(0.4)
 	var W: float = float(q.l) + folga
 	var H: float = float(a.teto)
-	# [lado, altura (fração do teto), tamanho, giro]
-	var lugares := [[-1.0, 0.1, 1.15, 0.0], [1.0, 0.0, 1.05, 1.3], [-1.0, 0.7, 0.9, 2.1], [1.0, 0.75, 0.95, 3.4], [0.0, 1.15, 1.1, 4.2], [-1.0, 0.05, 0.6, 5.0]]
-	for i in lugares.size():
-		var L: Array = lugares[i]
-		var lado: float = L[0]
-		var u: float = lado * (W + 1.6)
-		var pq := _ponto_s(0.9 + float(i % 2) * 0.6, u)
-		var y: float = float(pq.p.y) + float(L[1]) * H - 0.3
-		if i == 5: # a do pé, solta na frente da boca
-			pq = _ponto_s(0.0, lado * (W + 0.9))
-			pq.p -= Vector3(float(pq.dx), 0, float(pq.dz)) * 1.6
-			y = T.altura(pq.p.x, pq.p.z) - 0.2
-		_rocha(1 + i % 3, Vector3(pq.p.x, y, pq.p.z), float(L[3]), float(L[2]))
+	# rochas grandes em cima da borda do paredão (quebram o contorno e casam com a montanha)
+	var O := Vector3(float(A[0].x), float(A[0].y), float(A[0].z))
+	var dd := Vector3(float(A[0].dx), 0, float(A[0].dz))
+	var dr := Vector3(float(A[0].dz), 0, -float(A[0].dx))
+	var lugares := [[0.15, 1.5, 0.0], [0.55, 1.25, 1.3], [1.0, 1.45, 2.1], [1.6, 1.3, 3.4], [2.05, 1.55, 4.2], [2.6, 1.2, 5.0], [2.95, 1.4, 0.7]]
+	for L in lugares:
+		var an: float = L[0]
+		var p := O + dr * cos(an) * (W + 3.6) + Vector3(0, (H * 0.35 + 5.6) * sin(an) - 0.4, 0) + dd * 0.6
+		var ro := _rocha(1 + int(an * 3.0) % 3, p, float(L[2]), float(L[1]) * 0.8)
+		if ro and _mat_paredao: # a mesma pedra do paredão e da montanha: uma rocha só
+			ro.material_override = _mat_paredao
+	var pq := _ponto_s(0.0, -(W + 0.9))
+	pq.p -= dd * 1.6
+	_rocha(2, Vector3(pq.p.x, T.altura(pq.p.x, pq.p.z) - 0.2, pq.p.z), 5.0, 0.6)
 
 var _rochas := {}
 func _malha_rocha(n: int) -> Mesh:
@@ -648,10 +709,10 @@ func _malha_rocha(n: int) -> Mesh:
 	return _rochas[n]
 
 # rocha solta com a pedra da caverna (toon, textura nos 3 eixos e contorno), em vez do bloco liso do modelo
-func _rocha(n: int, p: Vector3, ry: float, esc: float) -> void:
+func _rocha(n: int, p: Vector3, ry: float, esc: float) -> MeshInstance3D:
 	var mesh := _malha_rocha(n)
 	if mesh == null:
-		return
+		return null
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.material_override = mat_pedra
@@ -659,6 +720,7 @@ func _rocha(n: int, p: Vector3, ry: float, esc: float) -> void:
 	mi.position = p
 	mi.rotation = Vector3(0.15 * sin(ry * 3.0), ry, 0.12 * cos(ry * 2.0))
 	mi.scale = Vector3(1.0, 0.8 + 0.25 * absf(sin(ry * 5.0)), 1.0) * esc
+	return mi
 
 # cascalho e pedras nas paredes (v2): seixos soltos pelo chão perto das paredes e pedras maiores encostadas, tudo em
 # 2 MultiMesh (2 chamadas de desenho para o túnel todo)
