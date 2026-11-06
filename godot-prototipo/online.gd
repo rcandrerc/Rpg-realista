@@ -788,7 +788,8 @@ func evento(ev: Dictionary) -> void:
 			m.mostrar_drop(Vector3(x, m.chao_em(x, z), z), int(ev.get("ouro", 0)), ev.get("itens", []))
 			return
 		"corrigir": # o servidor não aceitou a posição: volta para onde ele sabe
-			m.mov.por_em(Vector3(float(ev.x), float(ev.y), float(ev.z)))
+			# com a altura que ele mandou: sem ela, dentro da caverna o chão virava o topo da montanha por cima do túnel
+			m.mov.por_em(Vector3(float(ev.x), float(ev.y), float(ev.z)), true)
 			m.mov.ry = float(ev.ry)
 			m.heroi.position = m.mov.posicao()
 			return

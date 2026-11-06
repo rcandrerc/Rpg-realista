@@ -432,10 +432,10 @@ func dentro_caverna(x: float, z: float, y: float) -> Dictionary:
 		return {}
 	return c
 
-# passou do selo (do selo para dentro da caverna)?
-func alem_do_selo(x: float, z: float, y: float) -> bool:
+# passou do selo (do selo para dentro da caverna)? folga > 0 conta o selo um pouco antes (andar.gd para o herói antes da linha)
+func alem_do_selo(x: float, z: float, y: float, folga := 0.0) -> bool:
 	var c := dentro_caverna(x, z, y + 0.3)
-	return not c.is_empty() and float(c.s) > porta
+	return not c.is_empty() and float(c.s) > porta - folga
 
 # chão "natural" para a conta da encosta íngreme: o da caverna lá dentro, a montanha fora
 func chao_relevo_em(x: float, z: float, y: float) -> float:
