@@ -23,13 +23,6 @@ CONTROLES
   Botão direito .......... arrastar gira a câmera; clique rápido seleciona (NPC, alvo, outro jogador)
   Roda do mouse .......... zoom
   F11 ou Alt+Enter ....... tela cheia
-  F9 ..................... modo leve (PC fraco): liga/desliga
-  F3 ..................... mostra o FPS
-
-MODO LEVE
-  Em PC com placa de vídeo fraca o jogo pode ficar lento e o personagem tremer.
-  O modo leve diminui a resolução, tira a sombra e a grama. Ele liga sozinho quando o jogo abre
-  em OpenGL (Aethra-OpenGL.bat). Aperte F9 para ligar ou desligar; a escolha fica salva.
 
 LOGIN
   "Entrar com Google" abre o navegador. Faça o login lá e volte para o jogo: ele entra sozinho.

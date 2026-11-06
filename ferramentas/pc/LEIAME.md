@@ -7,8 +7,7 @@ Regra do André (2026-11-06): **nada da versão PC pode mudar o celular**. Por i
   autoload dos controles e acrescenta o preset "Windows" ao `export_presets.cfg`. Não é commitado.
 - `controles_pc.gd`: teclado e mouse. Só preenche o que o joystick e os botões da tela já preenchem
   (`hud.mover`, `hud.giro_cam`, sinais `apertou`/`soltou`/`tocou`), então não mexe no `hud.gd` nem na câmera.
-  Mostra a tecla de cada botão num selinho no canto. Tem também o modo leve (F9; liga sozinho em OpenGL: resolução
-  3D 0.4, sem sombra, sem MSAA, sem grama solta; salvo em `user://pc.cfg`) e o FPS (F3).
+  Mostra a tecla de cada botão num selinho no canto.
 - `preset-windows.cfg`: preset de exportação (x86_64, `.exe` + `.pck` lado a lado, feature `aethra_pc`).
 - `LEIA-ME.txt`: vai dentro do zip, com os controles.
 - `Aethra-OpenGL.bat`: vai dentro do zip; abre com `--rendering-driver opengl3` para placas sem Vulkan/D3D12.
