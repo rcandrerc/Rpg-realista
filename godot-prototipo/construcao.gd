@@ -2940,11 +2940,13 @@ func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, c
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.set_anchors_preset(Control.PRESET_FULL_RECT)
-	t.offset_left = 18
-	t.offset_right = -18
-	t.offset_top = 8
-	t.offset_bottom = -34
-	t.modulate = cor_ico if tem else Color(cor_ico, 0.38)
+	# pintado ocupa ~78% do quadrado (direção de arte, 2026-11-06); o traço antigo segue no tamanho de antes
+	var pintado: bool = t.texture != null and not t.texture.resource_path.ends_with(".svg")
+	t.offset_left = 8 if pintado else 18
+	t.offset_right = -8 if pintado else -18
+	t.offset_top = 3 if pintado else 8
+	t.offset_bottom = -23 if pintado else -34
+	t.modulate = Menu.tinta(t.texture, cor_ico if tem else Color(cor_ico, 0.38))
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(t)
 	var nm := Menu.rotulo(rotulo, 14, Color("f3e6c8") if tem else Color(0.85, 0.8, 0.72, 0.6))
@@ -3027,9 +3029,9 @@ func _montar_itens() -> void:
 			if n_sem <= 0 and not (sel == "plantar" and semente == k):
 				continue
 			alguma = true
-			linha_itens.add_child(_slot("plantar:" + k, "it_semente", str(n_sem), sel == "plantar" and semente == k, n_sem > 0, Color(str(D.plantas[k].cor)).lightened(0.25)))
+			linha_itens.add_child(_slot("plantar:" + k, "it_semente_" + k, str(n_sem), sel == "plantar" and semente == k, n_sem > 0, Color(str(D.plantas[k].cor)).lightened(0.25)))
 		if not alguma:
-			linha_itens.add_child(_slot("plantar:" + semente, "it_semente", "0", false, false))
+			linha_itens.add_child(_slot("plantar:" + semente, "it_semente_" + semente, "0", false, false))
 		linha_itens.add_child(_slot("regar", "cs_regar", "", sel == "regar", m.P.contar("regador") > 0))
 		linha_itens.add_child(_slot("colher", "it_colheita", "", sel == "colher", true))
 		linha_itens.add_child(_slot("tirar", "desfazer", "", sel == "tirar", true))
