@@ -494,7 +494,7 @@ func montar_grama() -> void:
 var _folga_beira := 0.8
 func fora_do_plano(x: float, z: float) -> bool:
 	if mundo.has("beira"):
-		_folga_beira = float(mundo.beira.terra[1]) + 0.3
+		_folga_beira = float(mundo.beira.get("terra_max", 1.6)) * 0.5 + 0.3
 	if terreno.altura_montanha(x, z) > 0.15:
 		return true
 	for L in terreno.lagos:

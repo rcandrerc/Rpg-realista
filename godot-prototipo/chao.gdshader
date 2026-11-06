@@ -13,12 +13,24 @@ uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 // lagos (relevo.gd): o chão plano abre um buraco onde tem água (a mesma margem de shared/relevo.js) e, em volta, pinta a
 // beira (2026-11-06, André: "a grama vindo, ficando mais clara, e no final aquela cor de terra em volta do lago"):
 // grama que clareia e uma faixa de terra rente à água, com a largura variando ao longo da margem.
-// lago_a = (x, z, rx, rz); lago_g = (giro, 1 = lago existe, -, -); lago_l[4 i + j] = lobo j do lago i (k, amplitude, fase)
+// lago_a = (x, z, rx, rz); lago_g = (giro, 1 = lago existe, faixa de terra mín, máx em m); lago_l[4 i + j] = lobo j do lago i (k, amplitude, fase)
 uniform vec4 lago_a[8];
 uniform vec4 lago_g[8];
 uniform vec4 lago_l[32];
-// beira: (terra mín, terra máx, clara mín, clara máx) em metros (shared/relevo.js BEIRA)
-uniform vec4 beira = vec4(0.4, 1.6, 2.5, 5.0);
+// beira: (-, -, grama clara mín, máx) em metros (shared/relevo.js BEIRA); a terra de cada lago vem em lago_g.zw
+uniform vec4 beira = vec4(0.0, 3.0, 0.3, 0.6);
+// prainhas (direção de arte 2026-11-06): trechos de terra larga numa parte da margem: (x, z, raio da mancha, largura)
+uniform vec4 prainha[2];
+// ruído de valor (de 0 a 1) para a faixa variar ao longo da margem e os tufos de grama entrarem na terra
+float ruido_v(vec2 p) {
+	vec2 i = floor(p), f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5);
+	float b = fract(sin(dot(i + vec2(1, 0), vec2(127.1, 311.7))) * 43758.5);
+	float c = fract(sin(dot(i + vec2(0, 1), vec2(127.1, 311.7))) * 43758.5);
+	float d = fract(sin(dot(i + vec2(1, 1), vec2(127.1, 311.7))) * 43758.5);
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
 // chão de longe (relevo.gd, direção de arte): passando de ~75 m da câmera, a máscara longe_tex (R = mata, G = trilha)
 // pinta a copa vista de cima com a textura da folha das árvores e as trilhas em terra a 50%; fora da máscara é mata.
 // Da altura do herói isso fica na névoa; do alto da montanha vira a mata vista de longe, até o horizonte.
@@ -33,6 +45,7 @@ void vertex() {
 void fragment() {
 	// distância (m) até a margem do lago mais perto, por fora da água (99 = longe de todos)
 	float dist_agua = 99.0;
+	vec2 faixa = vec2(0.3, 1.2); // terra mín e máx do lago mais perto
 	for (int i = 0; i < 8; i++) {
 		if (lago_g[i].y < 0.5) continue;
 		vec2 d = mundo.xz - lago_a[i].xy;
@@ -48,7 +61,11 @@ void fragment() {
 		}
 		float q = length(vec2(u / lago_a[i].z, v / lago_a[i].w)) / k;
 		if (q < 1.0) discard;
-		dist_agua = min(dist_agua, length(vec2(u, v)) * (1.0 - 1.0 / q));
+		float dq = length(vec2(u, v)) * (1.0 - 1.0 / q);
+		if (dq < dist_agua) {
+			dist_agua = dq;
+			faixa = lago_g[i].zw;
+		}
 	}
 	vec2 w = vec2(mundo.x, -mundo.z);
 	vec3 g0 = texture(grama_tex, w * (70.0 / 320.0)).rgb;
@@ -63,19 +80,29 @@ void fragment() {
 	vec3 c = mix(grama, terra, pt);
 	c = mix(c, pedra * 1.6, pp);
 	if (dist_agua < beira.y + beira.w) {
-		// largura da faixa muda devagar ao longo da margem (manchas grandes da grama crua) e a borda sai quebrada
-		float var1 = smoothstep(0.25, 0.65, texture(grama_cru, w / 23.0 + 0.37).g);
-		float var2 = smoothstep(0.25, 0.65, texture(grama_cru, w / 17.0 + 0.71).r);
-		float quebra = (lum - 0.3) * 0.9 + (texture(grama_cru, w / 4.3 + 0.13).g - 0.45) * 1.1;
-		float lt = mix(beira.x, beira.y, var1 * var1);
-		float lc = lt + mix(beira.z, beira.w, var2);
-		vec3 clara = mix(grama, vec3(0.76, 0.74, 0.46) * (0.85 + lum * 0.5), 0.45); // grama mais rala e seca: clareia e amarela
-		vec3 seca = terra * vec3(1.04, 1.0, 0.94);
-		vec3 molhada = terra * vec3(0.62, 0.58, 0.54);
-		float fc = 1.0 - smoothstep(lt, lc, dist_agua + quebra * 0.8);
-		float ft = 1.0 - smoothstep(lt - 0.25, lt + 0.15, dist_agua + quebra * 0.6);
-		float fm = 1.0 - smoothstep(0.08, 0.45, dist_agua + quebra * 0.2);
-		vec3 b = mix(c, clara, fc * (0.65 + 0.35 * var2));
+		// direção de arte 2026-11-06: largura da terra proporcional ao lago, variando devagar (1 ciclo a cada ~7 m), e em
+		// ~30% da margem a faixa some (a grama chega na terra molhada); mistura grama -> terra quebrada em tufos de ~0,4 m
+		vec2 pm = mundo.xz;
+		float n1 = ruido_v(pm / 7.0 + 3.1);
+		float n2 = ruido_v(pm / 6.3 + 17.7);
+		float lt = mix(faixa.x, faixa.y, n1) * smoothstep(0.28, 0.42, n2);
+		for (int j = 0; j < 2; j++) {
+			if (prainha[j].z <= 0.0) continue;
+			float pr = 1.0 - smoothstep(prainha[j].z * 0.5, prainha[j].z, distance(pm, prainha[j].xy) + (n1 - 0.5) * 3.0);
+			lt = max(lt, prainha[j].w * pr);
+		}
+		float tufo = (ruido_v(pm / 0.42) - 0.5) * 0.45 + (ruido_v(pm / 0.17 + 5.3) - 0.5) * 0.15;
+		float lc = lt + mix(beira.z, beira.w, ruido_v(pm / 5.0 + 9.4));
+		// terra e cascalho fino (textura 2x menor), sem o vermelho: seca 6b5a40 e molhada 3f3426, com o desenho da textura
+		float tl = dot(texture(terra_tex, w / 1.6).rgb, vec3(0.3, 0.5, 0.2));
+		float det = clamp(0.55 + tl * 3.2, 0.6, 1.45);
+		vec3 seca = vec3(0.147, 0.102, 0.051) * det;
+		vec3 molhada = vec3(0.05, 0.034, 0.02) * det;
+		vec3 clara = grama * vec3(1.15, 1.13, 0.96); // ~15% mais clara e amarelada
+		float fc = 1.0 - smoothstep(lt, lc, dist_agua + tufo * 0.5);
+		float ft = 1.0 - smoothstep(lt - 0.2, lt + 0.2, dist_agua + tufo);
+		float fm = 1.0 - smoothstep(0.12, 0.3, dist_agua + tufo * 0.25);
+		vec3 b = mix(c, clara, fc * 0.8);
 		b = mix(b, seca, ft);
 		b = mix(b, molhada, fm);
 		c = b;

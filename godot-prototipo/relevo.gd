@@ -318,7 +318,8 @@ func _buracos_no_chao(mat: ShaderMaterial) -> void:
 			g.append(Vector4.ZERO) # y = 0: lago vazio
 		else:
 			a.append(Vector4(L.x, L.z, L.rx, L.rz))
-			g.append(Vector4(L.giro, 1.0, 0.0, 0.0))
+			var fx: Array = L.get("beira", [0.3, 1.2])
+			g.append(Vector4(L.giro, 1.0, float(fx[0]), float(fx[1])))
 		for j in 4:
 			var lb: Array = L.lobos[j] if not L.is_empty() and j < L.lobos.size() else [0, 0, 0]
 			l.append(Vector4(float(lb[0]), float(lb[1]), float(lb[2]), 0.0))
@@ -327,7 +328,15 @@ func _buracos_no_chao(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("lago_l", l)
 	var b: Dictionary = T.m.get("beira", {})
 	if not b.is_empty():
-		mat.set_shader_parameter("beira", Vector4(float(b.terra[0]), float(b.terra[1]), float(b.clara[0]), float(b.clara[1])))
+		mat.set_shader_parameter("beira", Vector4(0.0, float(b.terra_max), float(b.clara[0]), float(b.clara[1])))
+	var pr := [Vector4.ZERO, Vector4.ZERO]
+	var n := 0
+	for L in T.lagos:
+		for p in L.get("prainhas", []):
+			if n < 2:
+				pr[n] = Vector4(float(p[0]), float(p[1]), float(p[2]), float(p[3]))
+				n += 1
+	mat.set_shader_parameter("prainha", pr)
 
 # ---------- juncos e taboas da beira (shared/relevo.js beiraDosLagos) ----------
 # Um tufo: 7 folhas finas e compridas que abrem para fora (e, na taboa, 2 hastes com a espiga marrom). Cor no vértice
