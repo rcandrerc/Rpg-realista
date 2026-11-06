@@ -18,6 +18,7 @@ const Armas = preload("res://armas.gd")
 const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
+const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
@@ -131,6 +132,7 @@ var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo
 var mao_fechada # mao_fechada.gd: dedos fechados em volta do cajado na mão
 var inclinar # inclinar.gd: tronco inclina na curva e o quadril afunda no pouso
 var sons # sons.gd
+var musica # musica.gd: música de fundo em loop (volume em Configurações > Música)
 var montaria = null # montaria.gd: montado no lobo (botão do lobo); null = a pé
 # sensação do combate (ajuste aqui testando no celular)
 const FILA_TEMPO := 0.3 # s que um botão apertado na hora errada fica guardado esperando poder sair
@@ -230,6 +232,8 @@ func _ready() -> void:
 	sons = Sons.new()
 	add_child(sons)
 	sons.ouvinte = heroi
+	musica = Musica.new()
+	add_child(musica)
 	hud = Hud.new()
 	add_child(hud)
 	hud.apertou.connect(usar)
@@ -269,6 +273,7 @@ func _ready() -> void:
 	menu_topo = MenuTopo.new(self)
 	add_child(menu_topo)
 	hud.menu_topo = menu_topo
+	musica.tocar() # depois do menu do topo, que já aplicou o volume salvo da música
 	minimapa = Minimapa.new(self)
 	add_child(minimapa)
 	hud.minimapa = minimapa

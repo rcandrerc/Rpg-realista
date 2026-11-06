@@ -38,6 +38,7 @@ var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo
 var _apagando := false
 # configurações
 var volume := 100.0 # 0..100 (volume geral do jogo)
+var volume_musica := 70.0 # 0..100 (só a música de fundo, musica.gd)
 var vibracao := true
 var mostrar_fps := true
 
@@ -509,17 +510,36 @@ func montar_multi() -> void:
 
 func montar_config() -> void:
 	_cabeca("topo_config", "Configurações")
-	# volume
+	_barra("Som", volume, func(v):
+		volume = v
+		aplicar_config())
+	_barra("Música", volume_musica, func(v):
+		volume_musica = v
+		aplicar_config())
+	_chave("Vibração", vibracao, func(v):
+		vibracao = v
+		aplicar_config()
+		salvar()
+		if v:
+			m.vibrar(40))
+	_chave("Mostrar FPS", mostrar_fps, func(v):
+		mostrar_fps = v
+		aplicar_config()
+		salvar())
+	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
+
+# barra de 0 a 100% (Som, Música)
+func _barra(t: String, valor: float, fn: Callable) -> void:
 	var linha := HBoxContainer.new()
 	linha.add_theme_constant_override("separation", 12)
-	var l := Menu.rotulo("Som", 17)
+	var l := Menu.rotulo(t, 17)
 	l.custom_minimum_size = Vector2(120, 0)
 	linha.add_child(l)
 	var s := HSlider.new()
 	s.min_value = 0
 	s.max_value = 100
 	s.step = 5
-	s.value = volume
+	s.value = valor
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	s.custom_minimum_size = Vector2(0, 32)
@@ -535,28 +555,16 @@ func montar_config() -> void:
 	cheio.set_corner_radius_all(4)
 	s.add_theme_stylebox_override("grabber_area", cheio)
 	s.add_theme_stylebox_override("grabber_area_highlight", cheio)
-	var num := Menu.rotulo("%d%%" % int(volume), 16, Menu.APAGADO)
+	var num := Menu.rotulo("%d%%" % int(valor), 16, Menu.APAGADO)
 	num.custom_minimum_size = Vector2(52, 0)
 	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	s.value_changed.connect(func(v):
-		volume = v
 		num.text = "%d%%" % int(v)
-		aplicar_config()
+		fn.call(v)
 		salvar())
 	linha.add_child(s)
 	linha.add_child(num)
 	conteudo.add_child(linha)
-	_chave("Vibração", vibracao, func(v):
-		vibracao = v
-		aplicar_config()
-		salvar()
-		if v:
-			m.vibrar(40))
-	_chave("Mostrar FPS", mostrar_fps, func(v):
-		mostrar_fps = v
-		aplicar_config()
-		salvar())
-	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
 
 func _chave(t: String, ligado: bool, fn: Callable) -> void:
 	var c := CheckButton.new()
@@ -576,6 +584,8 @@ func aplicar_config() -> void:
 	AudioServer.set_bus_mute(bus, volume <= 0.0)
 	AudioServer.set_bus_volume_db(bus, linear_to_db(max(volume, 1.0) / 100.0))
 	m.vibracao = vibracao
+	if m.musica:
+		m.musica.definir_volume(volume_musica)
 	if m.rotulo:
 		m.rotulo.visible = mostrar_fps
 
@@ -585,6 +595,7 @@ func carregar() -> void:
 		return
 	recolhido = bool(cfg.get_value("menu", "recolhido", false))
 	volume = float(cfg.get_value("config", "volume", 100.0))
+	volume_musica = float(cfg.get_value("config", "musica", 70.0))
 	vibracao = bool(cfg.get_value("config", "vibracao", true))
 	mostrar_fps = bool(cfg.get_value("config", "fps", true))
 
@@ -593,6 +604,7 @@ func salvar() -> void:
 	cfg.load(ARQUIVO)
 	cfg.set_value("menu", "recolhido", recolhido)
 	cfg.set_value("config", "volume", volume)
+	cfg.set_value("config", "musica", volume_musica)
 	cfg.set_value("config", "vibracao", vibracao)
 	cfg.set_value("config", "fps", mostrar_fps)
 	cfg.save(ARQUIVO)
