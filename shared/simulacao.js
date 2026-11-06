@@ -376,7 +376,9 @@ export class Simulacao {
     this.evento({ t: 'vila', id: j.id, fase: 'chegou', x0: r2(x0), z0: r2(z0), x: r2(x), y: r2(y), z: r2(z) });
   }
   criarInimigo(sp) {
-    const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = statusInimigo(sp.tipo, nivel); // nível do campo de caça
+    const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = { ...statusInimigo(sp.tipo, nivel) }; // nível do campo de caça
+    const F = sp.caverna && this.dungeon?.def?.forte; // sala da caverna: monstro de grupo (CAVERNA_DUNGEON.forte)
+    if (F) { st.vida = Math.round(st.vida * F.vida); st.dano = Math.round(st.dano * F.dano); }
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
       nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
@@ -930,11 +932,13 @@ export class Simulacao {
       if (j.caverna) { aviso('O selo já está aberto para você'); return false; }
       const c = noTunel(TUNEL, j.x, j.z);
       if (!c || c.s > CAVERNA.porta + 0.5 || c.s < CAVERNA.porta - D.portaPerto - 1) { aviso('Chegue perto do selo da caverna'); return false; }
-      if (contar(p.mochila, 'passe_caverna') < 1) { aviso('Precisa de um Passe da Caverna. O Gaspar faz um com o material dos monstros'); return false; }
-      tirar(p.mochila, 'passe_caverna', 1);
+      // time (D.passeDoTime): alguém do time já abriu o selo e está lá dentro = entra de graça
+      const doTime = D.passeDoTime && j.time && j.time.membros.some((id) => id !== j.id && this.jogadores.get(id)?.caverna);
+      if (!doTime && contar(p.mochila, 'passe_caverna') < 1) { aviso('Precisa de um Passe da Caverna. O Gaspar faz um com o material dos monstros. Quem está no time de alguém que já entrou não paga'); return false; }
+      if (!doTime) tirar(p.mochila, 'passe_caverna', 1);
       j.caverna = { desde: this.tempo };
       this.evento({ t: 'caverna', id: j.id, aberta: true });
-      aviso('O selo se abre. Boa sorte lá dentro!');
+      aviso(doTime ? 'O selo reconhece seu time e se abre. Boa sorte lá dentro!' : 'O selo se abre. Boa sorte lá dentro!');
       return true;
     }
     return false;
@@ -2270,7 +2274,7 @@ export class Simulacao {
       for (const j of ganham) if (j.time) doTime.set(j.time, (doTime.get(j.time) || 0) + 1);
       for (const j of ganham) {
         const n = j.time ? doTime.get(j.time) : 1;
-        const xp = xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO);
+        const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1));
         this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;

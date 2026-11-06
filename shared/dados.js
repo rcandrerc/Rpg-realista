@@ -202,7 +202,7 @@ export const COMBATE_INIMIGO = {
   // André 2026-11-04: "pode fazer igual Quimera tudo": preparo de 0,4 s, sem limite de quantos batem juntos
   // (aoMesmoTempo alto = todos vão para cima), perseguem correndo até encostar e, depois do golpe acertar,
   // esperam de cdMin a cdMax s (sorteado) para bater de novo, como o cd na(1.05, 1.5) do Quimera
-  preparo: { puglin: 0.4, imp: 0.4, chefe: 0.4, lobo: 0.4 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  preparo: { puglin: 0.4, imp: 0.4, chefe: 0.4, lobo: 0.4, golem: 0.4, maw: 0.4, warrok: 0.4 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
   aoMesmoTempo: 99, roda: 2.9, rodaVel: 1.6, perseguir: 3.6, chegar: 2.2, chegarDist: 2.6, folga: 0, cdMin: 1.05, cdMax: 1.5,
   // (2026-11-06: aqui tinha sobrado um 'aoMesmoTempo: 2' de um merge antigo que valia por cima do 99 e deixava só 2 baterem
   // juntos; André achou fácil demais tancar 7 ou 8. Saiu para voltar a regra do Quimera que ele pediu.)
@@ -1148,6 +1148,11 @@ export const CAVERNA_DUNGEON = {
   perto: 4.5, // metros do Gaspar para fazer o passe
   portaPerto: 4, // metros (pelo túnel) antes do selo em que o botão de usar o passe aparece
   esvazia: 60, volta: 240, corpo: 6, avistar: 16,
+  // André 2026-11-06: "se for para nível 20, tem que ser muito difícil para um nível 20 fazer sozinho; é para grupo".
+  // Os monstros das salas têm vida, dano e XP vezes estes números (pensado para um time de 3 ou 4 do nível da sala).
+  forte: { vida: 3, dano: 1.6, xp: 2 },
+  // Só quem abre o selo paga o passe: quem é do mesmo time entra de graça enquanto alguém do time estiver lá dentro.
+  passeDoTime: true,
   salas: [
     { id: 'sala1', nome: 'Galeria dos Golens', nivel: 18, monstros: [['golem', 23.5, -2.5], ['golem', 26.5, 2.5], ['golem', 30, -1], ['golem', 32.5, 3]] },
     { id: 'sala2', nome: 'Poço dos Maws', nivel: 20, monstros: [['maw', 42.5, 2.5], ['maw', 45.5, -3], ['golem', 48.5, 1.5], ['maw', 51.5, -1.5]] },
