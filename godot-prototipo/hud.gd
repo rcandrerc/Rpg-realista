@@ -119,6 +119,11 @@ func _ready() -> void:
 	_botao("montar", Vector2(667, 61), 31, "lobo", COR_FUNDO)
 	_botao("selo", Vector2(509, 160), 30, "selo", COR_TROCA)
 	botoes[-1].oculto = true
+	# nado (André 2026-11-06): segurar para afundar ou subir; só aparecem no lago fundo. No fim da lista, acima do pulo
+	_botao("subir", Vector2(333, 245), 30, "subir", COR_FUNDO)
+	botoes[-1].oculto = true
+	_botao("afundar", Vector2(333, 158), 30, "afundar", COR_FUNDO)
+	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,

@@ -18,7 +18,7 @@ const MARGEM_TELA := 12.0
 const COR_SEL := Color(1.0, 0.84, 0.4)
 const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens do chat", "mapa": "Minimapa",
 	"topo": "Menu do topo", "time": "Barras do time", "bt:troca": "Trocar arma", "bt:basico": "Ataque", "bt:cura": "Cura",
-	"bt:pular": "Pular", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
+	"bt:pular": "Pular", "bt:afundar": "Afundar", "bt:subir": "Subir", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
 	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
 	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio"}
 

@@ -23,6 +23,8 @@ export const LAGOS = [
 // ao lago, varia ao longo da margem e some em ~30% dela) e uma tira de grama clara; L.prainhas = [x, z, raio, largura]
 // trechos de terra larga (no Lago Grande, perto da trilha). mundo.json leva para o Godot
 export const BEIRA = { terra_max: 3.0, clara: [0.3, 0.6] }; // terra de cada lago em L.beira [mín, máx]; grama clara 0,3 a 0,6 m
+// mergulho (André 2026-11-06): no lago fundo dá para afundar até esse tanto abaixo da linha em que boia (sem passar do leito)
+export const MERGULHO_MAX = 2;
 export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82, nado: 1.7 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
 // nado: boiando (pés fora do fundo) o herói nada, no máximo a esse tanto de m/s (André 2026-11-06: animação de nadar)
 
