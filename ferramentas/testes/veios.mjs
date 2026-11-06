@@ -70,3 +70,16 @@ const semEmenda = { ...M, areas: M.areas.slice(0, -1) };
 let dentro = true;
 for (let a = 0; a < 6.283; a += 0.1) for (let r = 0; r <= 12; r += 1) dentro &&= dentroDoMapa(semEmenda, 6 + Math.cos(a) * r, -36 + Math.sin(a) * r, 0);
 ok(dentro, 'a emenda fica dentro do mapa de antes');
+
+// Veio esgotado não é barreira invisível (André 2026-11-06): sem a pedra, passa-se por cima; quando volta, bloqueia de novo
+{
+  const s2 = new Simulacao(M), b = s2.adicionarJogador('B', 'Bia');
+  const no = [...s2.coletaveis.values()].find((c) => c.tipo === 'cobre');
+  const empurra = () => { b.x = no.x + 0.1; b.z = no.z; b.y = s2.terreno.altura(b.x, b.z); s2.colidir(b); return Math.hypot(b.x - no.x, b.z - no.z); };
+  ok(empurra() > no.r, 'veio cheio bloqueia');
+  s2.veiosComuns.set(no.id, { n: 0, volta: s2.tempo + 100 });
+  ok(empurra() < 0.2, 'veio esgotado deixa passar');
+  ok(s2.livreParaHeroi(b, no.x, no.z), 'dá para parar em cima do veio esgotado');
+  s2.veiosComuns.set(no.id, { n: 0, volta: s2.tempo - 1 });
+  ok(empurra() > no.r, 'veio que voltou bloqueia de novo');
+}
