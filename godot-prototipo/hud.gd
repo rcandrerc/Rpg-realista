@@ -8,6 +8,7 @@ signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular
 signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
+const Menu = preload("res://menu.gd")
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
 const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao menu do personagem
 const COR_GOLPE := Color(0.33, 0.16, 0.12, 0.95)
@@ -154,7 +155,7 @@ func icone(nome_ico: String) -> Texture2D:
 	if nome_ico == "":
 		return null
 	if not _icones.has(nome_ico):
-		_icones[nome_ico] = load("res://icones/%s.svg" % nome_ico)
+		_icones[nome_ico] = Menu.icone_tex(nome_ico) # pintado quando houver, senão o .svg
 	return _icones[nome_ico]
 
 func icone_botao(acao: String, ic: String) -> void:
@@ -436,7 +437,7 @@ func _desenhar_combate() -> void:
 			var s := r * 1.15
 			# ligado: ícone no marrom escuro do fundo, para não perder contraste no âmbar
 			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
-			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, cor_ico)
+			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Menu.tinta(t, cor_ico))
 		if b.travado: # ainda não liberada no nível do herói
 			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
 		elif b.sem_mana and b.cd <= 0.0: # sem mana: apagado com véu azul
