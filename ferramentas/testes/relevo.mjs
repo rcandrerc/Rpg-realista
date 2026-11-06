@@ -2,7 +2,7 @@
 // lagos rasos e outros fundos"; "uma montanha realista"). Uso: node ferramentas/testes/relevo.mjs
 import { Simulacao, MAPA_CLAREIRA, LAGOS, AGUA } from '../../shared/index.js';
 import { dentroDoMapa, VOLTA_FOLGA } from '../../shared/mapa.js';
-import { noLago, chaoDoRelevo, alturaMontanha, GRADE_MONTANHA, INGREME } from '../../shared/relevo.js';
+import { noLago, chaoDoRelevo, alturaMontanha, GRADE_MONTANHA, INGREME, BOCA_CAVERNA } from '../../shared/relevo.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const M = MAPA_CLAREIRA, s = new Simulacao(M), T = s.terreno, F = 2.2;
 
@@ -52,8 +52,10 @@ for (const L of LAGOS) {
   let alto = 0; for (const v of h) alto = Math.max(alto, v);
   ok(alto > 35, `montanha com ${alto.toFixed(0)} m`);
   let agulha = 0;
-  for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) { const k = j * n + i; if (Math.hypot(h[k + 1] - h[k - 1], h[k + n] - h[k - n]) / (2 * G.passo) > 3) agulha++; }
-  ok(agulha === 0, 'sem agulha nem pedaço torto (nenhuma encosta acima de 72 graus)');
+  // a boca da Caverna da Montanha (BOCA_CAVERNA, 2026-11-06) é um paredão de propósito: fica de fora da conta
+  const B = BOCA_CAVERNA, naBoca = (x, z) => { const ux = x - B.x, uz = z - B.z, d = ux * B.dx + uz * B.dz; return d > -3 && d < B.fundo + 5 && Math.abs(-ux * B.dz + uz * B.dx) < B.larg + B.ombro + 2; };
+  for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) { const k = j * n + i; if (naBoca(G.x0 + i * G.passo, G.z0 + j * G.passo)) continue; if (Math.hypot(h[k + 1] - h[k - 1], h[k + n] - h[k - n]) / (2 * G.passo) > 3) agulha++; }
+  ok(agulha === 0, 'sem agulha nem pedaço torto (nenhuma encosta acima de 72 graus, fora a boca da caverna)');
   const visto = new Uint8Array(n * n), fila = [];
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const x = G.x0 + i * G.passo, z = G.z0 + j * G.passo; if (h[j * n + i] === 0 && dentroDoMapa(M, x, z, F)) { visto[j * n + i] = 1; fila.push(j * n + i); } }
   while (fila.length) {

@@ -3,7 +3,8 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA } from './dados.js';
+import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -242,6 +243,11 @@ export class Simulacao {
     });
     // espantalhos de treino (TREINO): o v deles vem depois das vagas dos campos de caça
     (mapa.treino || []).forEach((sp, k) => this.criarInimigo({ ...sp, v: v + k }));
+    v += (mapa.treino || []).length;
+    // dungeon da montanha (2026-11-06): cada monstro das salas tem um v fixo depois do espantalho, mas o corpo só existe
+    // enquanto tem alguém lá dentro (passoCaverna)
+    this.dungeon = mapa.dungeon ? { def: mapa.dungeon, vazia: 0, salas: mapa.dungeon.salas.map((S) => ({ def: S, ativa: false, limpa: 0,
+      vagas: S.pontos.map((pt) => ({ pt, v: v++, e: null })) })) } : null;
     // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
@@ -323,6 +329,8 @@ export class Simulacao {
     const chao = this.terreno.altura(q.x, q.z, q.y + 0.3); // dentro de casa: o piso, não o telhado de cima (André 2026-11-05)
     if (!dentroDoMapa(this.mapa, q.x, q.z) || q.y < chao - 0.6 || q.y > chao + ORCAMENTO.altura) { delete j.prog.pos; return; } // o mapa mudou: vila
     Object.assign(j, { x: q.x, y: Math.max(q.y, chao), z: q.z, ry: q.ry, chao: q.y - chao < 0.15 });
+    // saiu do jogo lá dentro da caverna (já tinha usado o passe): volta lá dentro com a entrada valendo
+    const cv = dentroDaCaverna(TUNEL, j.x, j.z, j.y + 0.3); if (cv && cv.s > CAVERNA.porta) j.caverna = { desde: this.tempo };
   }
   // guarda no progresso onde o herói está (vai para a conta junto com o resto, a cada 15 s e quando ele sai)
   guardarPosicao(j) {
@@ -377,7 +385,9 @@ export class Simulacao {
   }
   todos() { return [...this.jogadores.values(), ...this.inimigos]; }
   inimigosDe(c) {
-    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando);
+    // caverna da montanha: quem está lá dentro só enxerga quem também está (nada atravessa a rocha do teto)
+    const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
+    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
   }
   maisPerto(c, max = 22) {
     let melhor = null, md = max;
@@ -468,7 +478,8 @@ export class Simulacao {
     // embaixo: vale o chão mais baixo num palmo em volta (agarrado na parede, o corpo fica rente a ela)
     let baixo = chao; for (const [ox, oz] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) baixo = Math.min(baixo, T.altura(p.x + ox, p.z + oz, p.y));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
-    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z);
+    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z)
+      && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
     if (!ok) {
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
       j.cliente = null;
@@ -867,8 +878,99 @@ export class Simulacao {
   // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
   //   · { acao: 'vender_varios', lista: [i, ...] } (vende as pilhas inteiras de uma vez) · { acao: 'apagar', i } (joga fora)
   //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
+  // ---------- dungeon: Caverna da Montanha (André 2026-11-06; shared/caverna.js e CAVERNA_DUNGEON em shared/dados.js) ----------
+  // (x, y, z) passou do selo da caverna (do selo para dentro, abaixo do teto do túnel)?
+  alemDoSelo(x, z, y) { const c = dentroDaCaverna(TUNEL, x, z, y + 0.3); return !!c && c.s > CAVERNA.porta; }
+  naCaverna(c) { return !!dentroDaCaverna(TUNEL, c.x, c.z, (c.y || 0) + 0.3); }
+  // Gaspar faz um passe com os materiais (CAVERNA_DUNGEON.passe); na porta, o passe é gasto e o selo deixa passar
+  passeCaverna(j, acao, aviso) {
+    const D = this.dungeon?.def, p = j.prog; if (!D) return false;
+    if (acao === 'fazer_passe') {
+      const npc = (this.mapa.npcs || []).find((n) => n.id === D.npc);
+      if (!npc || dist(npc, j) > D.perto) { aviso('O passe é feito pelo Gaspar, na boca da caverna da montanha'); return false; }
+      const falta = Object.entries(D.passe).filter(([k, n]) => contar(p.mochila, k) < n).map(([k, n]) => `${n - contar(p.mochila, k)} ${ITENS[k].nome}`);
+      if (falta.length) { aviso('Falta ' + falta.join(', ')); return false; }
+      const novo = { k: 'passe_caverna', n: 1 };
+      for (const [k, n] of Object.entries(D.passe)) tirar(p.mochila, k, n);
+      if (!guardar(p.mochila, novo)) { for (const [k, n] of Object.entries(D.passe)) guardar(p.mochila, { k, n }); aviso('Mochila cheia'); return false; }
+      this.evento({ t: 'fala', para: j.id, npc: npc.id, texto: 'Pronto. Mostre isso no selo e ele abre. Uma vez só, hein.' });
+      aviso('Recebeu Passe da Caverna');
+      return true;
+    }
+    if (acao === 'usar_passe') {
+      if (j.caverna) { aviso('O selo já está aberto para você'); return false; }
+      const c = noTunel(TUNEL, j.x, j.z);
+      if (!c || c.s > CAVERNA.porta + 0.5 || c.s < CAVERNA.porta - D.portaPerto - 1) { aviso('Chegue perto do selo da caverna'); return false; }
+      if (contar(p.mochila, 'passe_caverna') < 1) { aviso('Precisa de um Passe da Caverna. O Gaspar faz um com o material dos monstros'); return false; }
+      tirar(p.mochila, 'passe_caverna', 1);
+      j.caverna = { desde: this.tempo };
+      this.evento({ t: 'caverna', id: j.id, aberta: true });
+      aviso('O selo se abre. Boa sorte lá dentro!');
+      return true;
+    }
+    return false;
+  }
+  // Uma vez por passo: quem saiu da caverna perde a entrada; as salas nascem quando alguém com passe chega perto e somem
+  // quando a caverna fica vazia (os monstros lá de dentro não pesam no servidor enquanto ninguém está lá)
+  passoCaverna(dt) {
+    const Dg = this.dungeon; if (!Dg) return;
+    const dentro = [];
+    for (const j of this.jogadores.values()) {
+      if (!j.caverna) continue;
+      const c = j.morto ? null : noTunel(TUNEL, j.x, j.z, 1);
+      if (!c || !this.naCaverna(j)) { // saiu pela boca (ou por cima): a entrada acabou
+        j.caverna = null;
+        this.evento({ t: 'caverna', id: j.id, aberta: false });
+        if (!j.morto) this.evento({ t: 'aviso', para: j.id, texto: 'Você saiu da caverna. Para entrar de novo, use outro passe' });
+        continue;
+      }
+      dentro.push({ j, s: c.s });
+    }
+    if (!dentro.length) {
+      Dg.vazia += dt;
+      if (Dg.vazia >= Dg.def.esvazia) for (const S of Dg.salas) this.esvaziarSala(S);
+      return;
+    }
+    Dg.vazia = 0;
+    for (const S of Dg.salas) {
+      const s0 = Math.min(...S.def.pontos.map((p) => p.s)), s1 = Math.max(...S.def.pontos.map((p) => p.s));
+      const perto = dentro.some((d) => d.s > s0 - Dg.def.avistar && d.s < s1 + 8);
+      if (!S.ativa) { if (perto) this.encherSala(S); continue; }
+      const vivos = S.vagas.some((vg) => vg.e);
+      if (!vivos) { S.limpa += dt; if (S.limpa >= Dg.def.volta && !dentro.some((d) => d.s > s0 - 10 && d.s < s1 + 10)) this.encherSala(S); }
+    }
+  }
+  encherSala(S) {
+    S.ativa = true; S.limpa = 0;
+    for (const vg of S.vagas) {
+      if (vg.e) continue;
+      const { tipo, x, z, y } = vg.pt;
+      vg.e = this.criarInimigo({ tipo, x, z, v: vg.v, nivel: S.def.nivel, caverna: S.def.id });
+      vg.e.y = y; vg.e.sub = true; vg.e.ry = Math.random() * TAU;
+    }
+  }
+  esvaziarSala(S) {
+    for (const vg of S.vagas) if (vg.e) { const i = this.inimigos.indexOf(vg.e); if (i >= 0) this.inimigos.splice(i, 1); vg.e = null; }
+    S.ativa = false; S.limpa = 0;
+  }
+  // monstro da caverna não sai do túnel nem passa do selo; o chão dele é o da caverna
+  prenderNaCaverna(c) {
+    const lim = noTunel(TUNEL, c.x, c.z, 50);
+    if (lim) {
+      const A = TUNEL.amostras, k = Math.max(0, Math.min(A.length - 1, Math.round(lim.s / CAVERNA.passo))), a = A[k];
+      const sMin = CAVERNA.porta + 3;
+      if (lim.s < sMin) { const b = A[Math.round(sMin / CAVERNA.passo)]; c.x = b.x; c.z = b.z; }
+      else if (lim.d > lim.l - 0.6) { const k2 = (lim.l - 0.6) / lim.d; c.x = a.x + (c.x - a.x) * k2; c.z = a.z + (c.z - a.z) * k2; }
+    }
+    const cv = noTunel(TUNEL, c.x, c.z); if (cv) c.y = cv.y;
+  }
   item(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object' || j.criando) return;
+    if (m.acao === 'fazer_passe' || m.acao === 'usar_passe') { // Caverna da Montanha (Gaspar e o selo)
+      if (j.morto) return;
+      if (this.passeCaverna(j, m.acao, (texto) => this.evento({ t: 'aviso', para: id, texto }))) this.avisarProg(j);
+      return;
+    }
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
     if (m.acao === 'equipar' && it && ehEquip(it.k)) {
@@ -1888,6 +1990,10 @@ export class Simulacao {
       return diga(M.andamento.replace('{faltam}', M.total - m.n));
     }
     if (npc.funcao === 'habilidades') return diga(npc.falas[0], { abrir: 'habilidades' });
+    if (npc.funcao === 'passe') { // Gaspar: o app abre a janela dele com o botão de fazer o passe
+      const D = this.dungeon?.def, rec = D ? Object.entries(D.passe).map(([k, n]) => `${n} ${ITENS[k].nome}`).join(', ') : '';
+      return diga(`Um passe sai por ${rec}. Tem o material? Eu faço na hora.`, { abrir: 'passe' });
+    }
     if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
     if (npc.funcao === 'resetar') return diga(npc.falas[0] + ` Custa ${this.custoReset(j)} de ouro.`, { abrir: 'resetar', custo: this.custoReset(j) });
     diga(proxima());
@@ -2108,6 +2214,7 @@ export class Simulacao {
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
       this.cancelarVila(c, null);
+      if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde parte do ouro e o equipamento desgasta
       const pen = penalidadeMorte(c.prog); c.progSujo = true;
@@ -2138,7 +2245,10 @@ export class Simulacao {
         this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
-      if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
+      if (c.sp.caverna) { // sala da caverna: o corpo some; a sala volta cheia depois (passoCaverna)
+        const S = this.dungeon.salas.find((S) => S.def.id === c.sp.caverna), vg = S?.vagas.find((vg) => vg.e === c);
+        this.depois(this.dungeon.def.corpo, () => { const i = this.inimigos.indexOf(c); if (i >= 0) this.inimigos.splice(i, 1); if (vg && vg.e === c) vg.e = null; });
+      } else if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
         const vg = this.cacas[c.sp.caca].vagas[c.sp.vaga];
         this.depois(this.cacas[c.sp.caca].def.corpo, () => { this.inimigos.splice(this.inimigos.indexOf(c), 1); if (vg.e === c) vg.e = null; });
       } else this.depois(8, () => {
@@ -2189,6 +2299,7 @@ export class Simulacao {
       if (d < m && d > 0) { c.x = o.x + dx / d * m; c.z = o.z + dz / d * m; }
     }
     [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
+    if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
   }
   mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c); }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
@@ -2386,6 +2497,7 @@ export class Simulacao {
     this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
+    this.passoCaverna(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
     const ev = this.eventos; this.eventos = [];
@@ -2549,7 +2661,7 @@ export class Simulacao {
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
         roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
         semCapacete: !!j.prog.semCapacete, // capacete escondido pelo dono: os outros também não veem
-        escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null,
+        escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)

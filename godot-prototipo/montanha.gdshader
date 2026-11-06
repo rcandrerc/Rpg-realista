@@ -10,6 +10,11 @@ uniform sampler2D grama_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pedra_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 uniform float alto = 40.0;
+// trilhas de terra subindo a encosta (a mesma máscara do chão plano: chao.gdshader), como a da Caverna da Montanha
+uniform sampler2D mascara : filter_linear, repeat_disable;
+uniform sampler2D terra_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec3 area = vec3(-38.0, -62.0, 292.0);
+uniform float com_trilha = 0.0;
 varying vec3 mundo;
 varying vec3 nm;
 void vertex() {
@@ -45,6 +50,13 @@ void fragment() {
 	rocha *= mix(1.0, 0.76, smoothstep(0.45, 0.78, incl)); // paredão mais escuro
 	rocha = mix(rocha, rocha * vec3(1.06, 1.06, 1.08), smoothstep(0.75, 1.0, hk)); // cume de rocha nua, mais clara ao sol
 	vec3 c = mix(g, rocha, pr);
+	if (com_trilha > 0.5) {
+		vec2 uvm = (mundo.xz - area.xy) / area.z;
+		if (uvm.x > 0.0 && uvm.y > 0.0 && uvm.x < 1.0 && uvm.y < 1.0) {
+			float pt = smoothstep(0.3, 0.62, texture(mascara, uvm).r + (ruido2 - 0.5) * 0.3) * (1.0 - smoothstep(0.35, 0.6, incl));
+			c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, pt);
+		}
+	}
 	ALBEDO = c;
 	ROUGHNESS = 1.0;
 }

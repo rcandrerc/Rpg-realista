@@ -9,9 +9,13 @@ var T # terreno.gd
 var env: Environment # névoa: fica mais fina quando a câmera sobe (vista do alto da montanha)
 const NEVOA := 0.0075
 
-func _init(terreno, chao_mat: ShaderMaterial, grama_tex: Texture2D) -> void:
+var _buraco: Callable # caverna.gd buraco_na_montanha: quadrados da montanha que a boca da caverna substitui
+var _chao_mat0: ShaderMaterial
+func _init(terreno, chao_mat: ShaderMaterial, grama_tex: Texture2D, buraco := Callable()) -> void:
 	T = terreno
 	name = "Relevo"
+	_buraco = buraco
+	_chao_mat0 = chao_mat
 	if not T.monte.is_empty():
 		_montanha(grama_tex)
 	for L in T.lagos:
@@ -200,6 +204,10 @@ func _montanha(grama_tex: Texture2D) -> void:
 			var d := c + 1
 			if h[(j + j0) * n + i + i0] <= 0.0 and h[(j + j0) * n + i + i0 + 1] <= 0.0 and h[(j + j0 + 1) * n + i + i0] <= 0.0 and h[(j + j0 + 1) * n + i + i0 + 1] <= 0.0:
 				continue # quadrado todo no chão: o chão plano já desenha
+			if _buraco.is_valid(): # boca da Caverna da Montanha (caverna.gd): ali quem aparece é o arco de pedra da caverna
+				var cq: Vector3 = (vs[a] + vs[d]) * 0.5
+				if _buraco.call(cq.x, cq.z, minf(minf(vs[a].y, vs[b].y), minf(vs[c].y, vs[d].y))):
+					continue
 			# diagonal pelo lado mais curto (crista e vale ficam retos, sem dente)
 			if absf(vs[a].y - vs[d].y) < absf(vs[b].y - vs[c].y):
 				idx.append_array([a, b, d, a, d, c])
@@ -217,6 +225,12 @@ func _montanha(grama_tex: Texture2D) -> void:
 	mat.set_shader_parameter("grama_tex", grama_tex)
 	mat.set_shader_parameter("pedra_tex", load("res://relevo/rocky_terrain_02.jpg"))
 	mat.set_shader_parameter("alto", alto)
+	# trilhas de terra (a máscara do chão plano) também sobem a encosta: a trilha da caverna chega até a boca
+	if _chao_mat0 != null and _chao_mat0.get_shader_parameter("mascara") != null:
+		mat.set_shader_parameter("mascara", _chao_mat0.get_shader_parameter("mascara"))
+		mat.set_shader_parameter("terra_tex", _chao_mat0.get_shader_parameter("terra_tex"))
+		mat.set_shader_parameter("area", _chao_mat0.get_shader_parameter("area"))
+		mat.set_shader_parameter("com_trilha", 1.0)
 	var mi := MeshInstance3D.new()
 	mi.name = "Montanha"
 	mi.mesh = mesh

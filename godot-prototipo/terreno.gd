@@ -13,6 +13,13 @@ var lagos: Array = []
 var agua := {"nivel": -0.05, "peito": 1.2, "lento": 0.62, "raso": 0.82}
 var monte := {} # grade da montanha: x0, z0, passo, n, h (PackedFloat32Array)
 var tampos := {} # topo dos obstáculos baixos (por_tampos), numa grade de 6 m
+# Caverna da Montanha (2026-11-06): o túnel por baixo da montanha (shared/caverna.js), amostras a cada metro
+# {s, x, z, y (chão), l (meia largura andável), teto, dx, dz} e uma grade de 4 m com os trechos de cada casa
+var tunel: Array = []
+var tunel_grade := {}
+var tunel_caixa := Rect2()
+var porta := 12.0 # s do selo
+const TUNEL_G := 4.0
 
 func _init(mundo: Dictionary) -> void:
 	m = mundo
@@ -24,6 +31,12 @@ func _init(mundo: Dictionary) -> void:
 	var gm = m.get("montanha_grade")
 	if gm != null:
 		monte = {"x0": float(gm.x0), "z0": float(gm.z0), "passo": float(gm.passo), "n": int(gm.n), "h": PackedFloat32Array(gm.h)}
+	var cv = m.get("caverna")
+	if cv != null:
+		porta = float(cv.porta)
+		for a in cv.amostras:
+			tunel.append({"s": float(a.s), "x": float(a.x), "z": float(a.z), "y": float(a.y), "l": float(a.l), "teto": float(a.teto), "dx": float(a.dx), "dz": float(a.dz), "incl": float(a.get("incl", 0.0))})
+		_grade_tunel(float(cv.folga))
 	for g in m.grades:
 		grades.append({"x0": float(g.x0), "z0": float(g.z0), "passo": float(g.passo), "nx": int(g.nx), "nz": int(g.nz), "h": PackedFloat32Array(g.h)})
 	for s in m.solidos:
@@ -258,6 +271,10 @@ func agua_no_corpo(x: float, z: float, y: float) -> float:
 
 func altura(x: float, z: float, y := INF) -> float:
 	var h := chao_relevo(x, z) if (not lagos.is_empty() or not monte.is_empty()) else 0.0
+	# caverna da montanha: dentro do túnel e abaixo do teto dele, o chão é o da caverna
+	var cv := chao_caverna(x, z, y)
+	if not is_nan(cv) and cv < h:
+		h = cv
 	for r in solidos:
 		var a := altura_na(r, x, z, y)
 		if a > h and a >= 0.0: # -1 = fora da peça (no lago o chão fica abaixo de -1)
@@ -297,6 +314,9 @@ func tampo_em(x: float, z: float) -> float:
 # a parte de baixo da peça suspensa mais baixa acima de quem está ali (INF se céu aberto)
 func teto(x: float, z: float, y: float) -> float:
 	var t := INF
+	var cv := dentro_caverna(x, z, y)
+	if not cv.is_empty():
+		t = float(cv.y) + float(cv.teto) # o teto da caverna
 	for r in casas:
 		if r.base > y + ACIMA and r.base < t and altura_casa(r, x, z) >= 0.0:
 			t = r.base
@@ -327,3 +347,98 @@ func frente(x: float, z: float, ry: float, ate: float, acima, y: float) -> Dicti
 			dist = d
 		d += 0.1
 	return {"topo": topo, "dist": dist}
+
+# ---------- Caverna da Montanha (shared/caverna.js: a mesma conta) ----------
+func _grade_tunel(folga: float) -> void:
+	var x0 := INF
+	var z0 := INF
+	var x1 := -INF
+	var z1 := -INF
+	for k in tunel.size() - 1:
+		var a: Dictionary = tunel[k]
+		var b: Dictionary = tunel[k + 1]
+		var mm: float = maxf(a.l, b.l) + folga + 1.0
+		var ax: float = minf(a.x, b.x) - mm
+		var bx: float = maxf(a.x, b.x) + mm
+		var az: float = minf(a.z, b.z) - mm
+		var bz: float = maxf(a.z, b.z) + mm
+		x0 = minf(x0, ax)
+		z0 = minf(z0, az)
+		x1 = maxf(x1, bx)
+		z1 = maxf(z1, bz)
+		for i in range(floori(ax / TUNEL_G), floori(bx / TUNEL_G) + 1):
+			for j in range(floori(az / TUNEL_G), floori(bz / TUNEL_G) + 1):
+				var key := i * 10007 + j
+				if not tunel_grade.has(key):
+					tunel_grade[key] = []
+				tunel_grade[key].append(k)
+	tunel_caixa = Rect2(x0, z0, x1 - x0, z1 - z0)
+
+# onde (x, z) cai no túnel: {s, y, l, teto, d} ou vazio fora (extra = metros além da beira andável)
+func no_tunel(x: float, z: float, extra := 0.0) -> Dictionary:
+	if tunel.is_empty() or not tunel_caixa.has_point(Vector2(x, z)):
+		return {}
+	var l = tunel_grade.get(floori(x / TUNEL_G) * 10007 + floori(z / TUNEL_G))
+	if l == null:
+		return {}
+	var mk := -1
+	var mt := 0.0
+	var md := INF
+	var mp := Vector2.ZERO # ponto do meio do túnel mais perto
+	for k in l:
+		var a: Dictionary = tunel[k]
+		var b: Dictionary = tunel[k + 1]
+		var vx: float = b.x - a.x
+		var vz: float = b.z - a.z
+		var l2: float = vx * vx + vz * vz
+		if l2 <= 0.0:
+			l2 = 1.0
+		var t := clampf(((x - a.x) * vx + (z - a.z) * vz) / l2, 0.0, 1.0)
+		var px: float = a.x + vx * t
+		var pz: float = a.z + vz * t
+		var d := Vector2(x - px, z - pz).length()
+		if d < md:
+			md = d
+			mk = k
+			mt = t
+			mp = Vector2(px, pz)
+	if mk < 0:
+		return {}
+	var a: Dictionary = tunel[mk]
+	var b: Dictionary = tunel[mk + 1]
+	var lm: float = lerpf(a.l, b.l, mt)
+	if md > lm + extra:
+		return {}
+	if (mk == 0 and mt <= 0.0) or (mk == tunel.size() - 2 and mt >= 1.0):
+		var fim: Dictionary = a if mk == 0 else b
+		var pr: float = (x - fim.x) * fim.dx + (z - fim.z) * fim.dz
+		if (mk == 0 and pr < 0.0) or (mk != 0 and pr > 0.0):
+			return {}
+	# lado: + à esquerda de quem entra; na boca o chão pende de lado como a encosta (incl)
+	var lado: float = signf((x - mp.x) * -(b.z - a.z) + (z - mp.y) * (b.x - a.x)) * md
+	return {"s": lerpf(a.s, b.s, mt), "y": lerpf(a.y, b.y, mt) + lerpf(a.incl, b.incl, mt) * lado, "l": lm, "teto": lerpf(a.teto, b.teto, mt), "d": md, "lado": lado}
+
+# chão da caverna para quem está na altura y (NAN fora do túnel ou bem acima do teto dele)
+func chao_caverna(x: float, z: float, y := INF) -> float:
+	var c := no_tunel(x, z)
+	if c.is_empty() or not (y < float(c.y) + float(c.teto) - 0.2):
+		return NAN
+	return float(c.y)
+
+# dentro da caverna (no túnel e abaixo do teto): o trecho, ou vazio
+func dentro_caverna(x: float, z: float, y: float) -> Dictionary:
+	var c := no_tunel(x, z)
+	if c.is_empty() or not (y < float(c.y) + float(c.teto) - 0.2):
+		return {}
+	return c
+
+# passou do selo (do selo para dentro da caverna)?
+func alem_do_selo(x: float, z: float, y: float) -> bool:
+	var c := dentro_caverna(x, z, y + 0.3)
+	return not c.is_empty() and float(c.s) > porta
+
+# chão "natural" para a conta da encosta íngreme: o da caverna lá dentro, a montanha fora
+func chao_relevo_em(x: float, z: float, y: float) -> float:
+	var cv := chao_caverna(x, z, y)
+	var h := chao_relevo(x, z)
+	return cv if not is_nan(cv) and cv < h else h

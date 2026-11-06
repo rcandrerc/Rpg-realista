@@ -3,7 +3,8 @@
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME } from './relevo.js';
-export { LAGOS, AGUA, MONTANHA, INGREME };
+import { CAVERNA, TUNEL, noTunel, pontoDoTunel } from './caverna.js';
+export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
@@ -655,6 +656,11 @@ const TRILHAS_MINA = [
   { largura: 1.5, pontos: [[18, -1.9], [18.6, -9], [17.2, -15.5], [16.25, -19.3], [15.8, -22.5], [11, -28], [9, -40]] }, // pedra1
   { largura: 1.5, pontos: [[61.6, 17.8], [68, 14], [79, 10], [88.5, 3], [94, 0.3], [99.5, 5]] }, // ferro1
 ];
+// Trilha da caverna (André 2026-11-06: "coloca um caminhozinho"): continua a trilha do veio de ferro para o leste, passa
+// ao sul do Lago da Montanha e sobe a encosta até a boca da caverna (shared/caverna.js), onde fica o guardião.
+const TRILHA_CAVERNA = { largura: 1.6, pontos: [[99.5, 5], [108, 2.8], [117, 1.6], [126.5, 1.2], [134.5, -3.5], [139.2, -11.5], [141.6, -18.5], [143.6, -23.2], [146, -25]] };
+// Guardião da caverna: do lado esquerdo da boca, olhando para quem chega pela trilha
+const GUARDA_CAVERNA = { x: 147.4, z: -23.6, ry: -1.6 };
 // (x, z) dentro de uma zona de mineração da mata ou em cima da trilha dela (com folga): ali não nasce árvore, mato nem
 // pedra solta
 const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && Math.hypot(x - m.x, z - m.z) < m.r + folga)
@@ -800,6 +806,7 @@ export const fasePlanta = (f) => (f >= 1 ? 4 : f < 0.03 ? 0 : f < 0.4 ? 1 : f < 
 export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : 'bancada');
 CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
 CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-11-05)
+CAMINHOS.push(TRILHA_CAVERNA); // trilha da caverna da montanha (2026-11-06)
 
 // Mapa aberto (André 2026-11-04): onde ainda sobra uma fresta entre a borda da vila, do campo de fora ou das Terras e a
 // mata andável (parede invisível logo depois da borda), um círculo pequeno de mata costura os dois. Vêm por último.
@@ -855,7 +862,9 @@ function sortearMataMonte() {
   }
   return lista;
 }
-const ARVORES_MONTE = sortearMataMonte();
+// sem árvore em cima da trilha da caverna, na boca nem no túnel (2026-11-06; tirar depois do sorteio não muda as outras)
+const ARVORES_MONTE = sortearMataMonte().filter((a) => pertoDaLinha(TRILHA_CAVERNA.pontos, a.x, a.z).d > 2.4 && !noTunel(TUNEL, a.x, a.z, 3.5)
+  && Math.hypot(a.x - GUARDA_CAVERNA.x, a.z - GUARDA_CAVERNA.z) > 3);
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -910,6 +919,12 @@ export const MAPA_CLAREIRA = {
     { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', roupa: 'peitoral0,botas0', veste: { tunica: 0xc47a3a, corpete: 0xa9622c, saia: 0x6b4a2e, ate: 'joelho', avental: 0xe8dfc8 }, tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas: [
       'Minha carroça chega em breve com mercadoria da cidade.',
       'Tenho de tudo um pouco... quer dizer, vou ter.',
+    ] },
+    // Guardião da caverna da montanha (André 2026-11-06): pega o material dos monstros e faz o passe da dungeon.
+    { id: 'guardiao', nome: 'Gaspar, o guardião da caverna', x: GUARDA_CAVERNA.x, z: GUARDA_CAVERNA.z, ry: GUARDA_CAVERNA.ry, visual: 'cabelo_m', escala: 1.06, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada', tinta: { cabelo: 0x3a3632, roupa: 0x4a4038, calca: 0x2e2a26 }, funcao: 'passe', acoes: ['passe'], falas: [
+      'Ninguém passa do selo sem passe. Traga o material dos monstros e eu faço um para você.',
+      'Lá embaixo a pedra respira. Golens, Maws... e o Warrok no fundo. Vá preparado.',
+      'O passe abre o selo uma vez. Saiu da caverna, precisa de outro.',
     ] },
     { id: 'reset', nome: 'Mestre Ivo, o instrutor', x: 2.6, z: 4.6, ry: -2.4, visual: 'cabelo_m', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true, tinta: { cabelo: 0x2a2622, roupa: 0x3c4a5e, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
       'Quer recomeçar a build? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.',
@@ -1026,6 +1041,9 @@ export const ITENS = {
   barra_aco: { nome: 'Barra de aço', mat: true, pilha: 50, venda: 20, desc: 'Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores.' },
   couro: { nome: 'Couro', mat: true, pilha: 50, venda: 3, desc: 'Couro grosso dos Puglins. O alfaiate faz botas e reforços.' },
   tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
+  // dungeon da montanha (2026-11-06): o fragmento cai dos monstros; o Gaspar junta e faz o passe que abre o selo
+  fragmento: { nome: 'Fragmento rúnico', mat: true, pilha: 50, venda: 4, desc: 'Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela.' },
+  passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
 };
 export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
 // Penalidade de morte (André 2026-11-05): quem cai perde `ouro` do ouro que carrega e cada peça equipada perde `desgaste`
@@ -1069,12 +1087,37 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 // mat: materiais para o alfaiate { item: [chance, quantos] }
 const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.78, 0.2, 0.02, 0, 0] };
 export const DROPS = {
-  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1] } }, sombrio: DROP_COMUM,
+  // fragmento: material do passe da caverna (2026-11-06), cai de todos os monstros de caça
+  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
   lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.5, 0.38, 0.12, 0, 0] },
-  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1] } },
-  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1] } },
-  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 0.5, 0.4, 0.1, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2] } },
+  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
+  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1] } },
+  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 0.5, 0.4, 0.1, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
 };
+
+// ---------- Dungeon: Caverna da Montanha (pedido do André 2026-11-06) ----------
+// O túnel (forma, chão, teto, porta) fica em shared/caverna.js. Aqui o conteúdo:
+// - passe: o Gaspar (NPC 'guardiao', na boca) faz um passe com estes materiais; cada entrada pelo selo gasta um passe.
+//   Quem sai da caverna (volta para fora da boca), morre ou sai do jogo perde a entrada; para voltar, outro passe.
+// - salas: os monstros de cada sala só NASCEM quando tem alguém lá dentro com passe chegando perto da sala (perto, em
+//   metros pelo túnel). Ninguém dentro por "esvazia" s: somem todos (o servidor não gasta nada com caverna vazia).
+//   Sala limpa com gente dentro: volta cheia depois de "volta" s. lado = metros para o lado do meio do túnel.
+export const CAVERNA_DUNGEON = {
+  npc: 'guardiao',
+  passe: { fragmento: 5, couro: 2, tecido: 2 },
+  perto: 4.5, // metros do Gaspar para fazer o passe
+  portaPerto: 4, // metros (pelo túnel) antes do selo em que o botão de usar o passe aparece
+  esvazia: 60, volta: 240, corpo: 6, avistar: 16,
+  salas: [
+    { id: 'sala1', nome: 'Galeria dos Golens', nivel: 18, monstros: [['golem', 23.5, -2.5], ['golem', 26.5, 2.5], ['golem', 30, -1], ['golem', 32.5, 3]] },
+    { id: 'sala2', nome: 'Poço dos Maws', nivel: 20, monstros: [['maw', 42.5, 2.5], ['maw', 45.5, -3], ['golem', 48.5, 1.5], ['maw', 51.5, -1.5]] },
+    { id: 'sala3', nome: 'Trono do Warrok', nivel: 22, monstros: [['warrok', 69.5, 0], ['golem', 65.5, -4], ['golem', 66, 4.2]] },
+  ],
+};
+// onde cada monstro da sala fica (x, z, chão) no túnel de verdade
+// os monstros das salas ganham v depois do espantalho (Simulacao.passoCaverna)
+MAPA_CLAREIRA.dungeon = CAVERNA_DUNGEON;
+for (const S of CAVERNA_DUNGEON.salas) S.pontos = S.monstros.map(([tipo, s, lado]) => { const p = pontoDoTunel(s, lado); return { tipo, x: +p.x.toFixed(2), z: +p.z.toFixed(2), y: +p.y.toFixed(3), s }; });
 
 // ---------- Parte 3 do Quimera: estamina, vigor e profissões ----------
 // Estamina (a barra amarela, números do Quimera): máx. = base + porNivel x nível + porDes x Destreza.

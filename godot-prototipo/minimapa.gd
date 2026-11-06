@@ -339,6 +339,26 @@ func _escolher(l: Dictionary) -> void:
 	if m.sons:
 		m.sons.tocar("pano", -14.0)
 
+# a boca da dungeon (mundo.json caverna: a primeira amostra do túnel é a boca), ou {} sem caverna
+func _caverna() -> Dictionary:
+	var cv: Dictionary = m.mundo.get("caverna", {})
+	var am: Array = cv.get("amostras", [])
+	if am.is_empty():
+		return {}
+	return {"nome": str(cv.get("nome", "Caverna")), "x": float(am[0].x), "z": float(am[0].z)}
+
+# marca da dungeon: arco de pedra escuro com a luz do selo dentro
+func _marca_caverna(c: Control, q: Vector2, t: float) -> void:
+	var arco := PackedVector2Array()
+	for i in 9:
+		var a := PI + PI * float(i) / 8.0
+		arco.append(q + Vector2(cos(a) * t, sin(a) * t * 1.1 + t * 0.45))
+	arco.append(q + Vector2(t, t * 0.6))
+	arco.append(q + Vector2(-t, t * 0.6))
+	c.draw_colored_polygon(arco, Color(0.12, 0.1, 0.1))
+	c.draw_polyline(arco + PackedVector2Array([arco[0]]), COR_OURO, 1.5)
+	c.draw_circle(q + Vector2(0, t * 0.15), t * 0.42, Color("ff9a2e"))
+
 # os lugares da lista: as vilas, as clareiras de caça (por nível) e os veios
 func _lugares() -> Array:
 	var l: Array = []
@@ -347,6 +367,9 @@ func _lugares() -> Array:
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})
 	if not vl.is_empty():
 		l.append({"id": "terras", "tipo": "vila", "nome": str(vl.nome), "curto": str(vl.nome), "x": float(vl.x), "z": float(vl.z), "r": 20.0})
+	var cv := _caverna()
+	if not cv.is_empty(): # a dungeon (Caverna da Montanha): a boca, na trilha da montanha
+		l.append({"id": "caverna", "tipo": "caverna", "nome": "%s (dungeon)" % cv.nome, "curto": str(cv.nome), "x": cv.x, "z": cv.z, "r": 6.0})
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:
@@ -544,6 +567,11 @@ func _desenhar_mapa() -> void:
 		var cm: Color = COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b"))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -7), q + Vector2(6, 0), q + Vector2(0, 7), q + Vector2(-6, 0)]), cm)
 		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
+	var cv := _caverna()
+	if not cv.is_empty():
+		var qc: Vector2 = em.call(cv.x, cv.z)
+		_marca_caverna(c, qc, 10.0)
+		_texto(c, qc + Vector2(0, 22), str(cv.nome), 14, Color("ffc27a"))
 	for cc in m.mundo.get("caca", []):
 		var q: Vector2 = em.call(float(cc.x), float(cc.z))
 		_marca_clareira(c, q, cc, 10.0, true)
@@ -657,6 +685,8 @@ func _desenhar_grande() -> void:
 			match str(l.tipo):
 				"caca":
 					_marca_clareira(c, qi, l.cc, 8.0, false)
+				"caverna":
+					_marca_caverna(c, qi, 7.0)
 				"mina":
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
 				_: # vila: casinha dourada
