@@ -1,0 +1,28 @@
+AETHRA - VERSÃO PC
+
+Abra o Aethra.exe (o Aethra.pck precisa ficar na mesma pasta).
+Na primeira vez o Windows pode avisar "O Windows protegeu o computador": clique em "Mais informações" e
+"Executar assim mesmo". O aviso aparece porque o .exe não tem assinatura paga, não é vírus.
+
+CONTROLES
+  W A S D ou setas ....... andar (segure Alt para andar devagar)
+  Clique esquerdo ou J ... golpe (segure para continuar batendo)
+  1 a 6 .................. habilidades
+  Espaço ................. pular
+  Q ...................... dash
+  C ou Ctrl .............. rolar
+  Shift .................. disparada (liga/desliga)
+  F ...................... cura
+  R ...................... trocar arma
+  T ...................... lobo (montar/descer)
+  E ...................... falar com NPC / minerar / cortar lenha
+  Tab ou I ............... menu do personagem
+  Botão direito .......... arrastar gira a câmera; clique rápido seleciona (NPC, alvo, outro jogador)
+  Roda do mouse .......... zoom
+  F11 ou Alt+Enter ....... tela cheia
+
+LOGIN
+  "Entrar com Google" abre o navegador. Faça o login lá e volte para o jogo: ele entra sozinho.
+
+ATUALIZAÇÃO
+  A versão PC não se atualiza sozinha. Para a mais nova, baixe de novo o Aethra-PC.zip.
