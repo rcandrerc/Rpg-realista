@@ -562,7 +562,16 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 	# outro jogador parado com o cajado na mão: a mesma guarda de mago do herói (o servidor manda só "parada")
 	if o.get("modo", "") == "Magia" and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
 		nome = "cajado_parada"
-	tocar(an, nome, m.ritmo(animacao(nome)) if o.has("esq") else 1.0) # outros jogadores: passo no ritmo da corrida
+	# outro jogador no lago fundo: nada andando e boia parado, como o herói (o servidor manda andar/parada)
+	if o.has("esq") and an.has_animation("nadar") and m.terreno != null:
+		var p: Vector3 = o.no.position
+		if m.terreno.agua_no_corpo(p.x, p.z, p.y) >= float(m.terreno.agua.peito) - 0.12:
+			var anda: bool = animacao(nome) in ["andar", "trote", "corrida"]
+			nome = "nadar" if anda else "boiar"
+			o.sobe_alvo = m.SOBE_NADANDO if anda else m.SOBE_BOIANDO
+		else:
+			o.sobe_alvo = 0.0
+	tocar(an, nome, 1.2 if nome == "nadar" else (m.ritmo(animacao(nome)) if o.has("esq") else 1.0)) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:
 	var v := int(c.get("v", -1))
@@ -954,6 +963,11 @@ func _passo(dt: float) -> void:
 		var o: Dictionary = outros[id]
 		var antes: Vector3 = o.no.position
 		_interpolar(o, o.no, dt_pos)
+		if o.has("sobe_alvo") and o.esq: # nadando: o corpo sobe como o do herói (main.gd SOBE_*)
+			o.sobe = move_toward(float(o.get("sobe", 0.0)), float(o.sobe_alvo), dt_pos * 0.6)
+			if not o.has("esq_y0"):
+				o.esq_y0 = o.esq.position.y
+			o.esq.position.y = float(o.esq_y0) + o.sobe
 		o.uma_vez = max(0.0, o.uma_vez - dt)
 		if o.get("montaria") != null: # o lobo anda no ritmo do que o corpo andou de verdade neste quadro
 			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
