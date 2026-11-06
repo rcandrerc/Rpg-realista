@@ -667,7 +667,10 @@ func _preparar_duas() -> bool:
 # trás (-), "tor" = graus que o peito gira para a direita, "cur" = curva do tronco (1 = curvado no golpe, negativo
 # = arqueado para trás)
 const DUAS_PRONTO := {"ang": 55.0, "pe": Vector3(0.0, 1.0, 0.28), "ag": 0.05, "av": 0.0, "tor": 5.0, "cur": 0.25}
-const DUAS_ALTO := {"ang": 155.0, "pe": Vector3(0.0, 1.42, 0.02), "ag": 0.035, "av": -0.05, "tor": 10.0, "cur": -0.4}
+# erguida (André, 2026-11-06: "os braços passam por trás da cabeça, parece que quebram"): as mãos ficam acima e um
+# pouco à frente da testa, com o cabo inclinado para trás; só a cabeça da picareta passa por trás. Antes o cabo
+# deitava a 155° com o pé atrás do rosto e as mãos iam para a nuca.
+const DUAS_ALTO := {"ang": 118.0, "pe": Vector3(0.0, 1.5, 0.24), "ag": 0.035, "av": -0.04, "tor": 8.0, "cur": -0.22}
 const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3), "ag": 0.12, "av": 0.06, "tor": -4.0, "cur": 1.0} # picareta: de cima para baixo na face da pedra
 const DUAS_TRONCO := {"ang": -6.0, "pe": Vector3(0.0, 1.12, 0.3)} # machado: quase reto no tronco, na altura do peito
 const DUAS_MAO_BAIXO := 0.04 # m do pé do cabo até a mão esquerda
