@@ -1,9 +1,9 @@
 extends Node3D
-# Contato com a água de quem nada (André 2026-11-06, direção de arte): anel de espuma que abre e some a cada ~1 s na
-# linha d'água, rastro em V atrás nadando (2,5 m) e respingo nas mãos e nos pés a cada braçada.
-const ANEL_CADA := 1.0
-const ANEL_VIDA := 1.0
-const ANEL_RAIO := 0.95 # metade do quadrado: o anel vai de ~0,6 m a ~0,9 m
+# Contato com a água de quem nada (André 2026-11-06, direção de arte): espuma fixa colada no corpo na linha d'água,
+# um anel de espuma que abre e some a cada ~1 s, rastro em V atrás nadando (2,5 m) e respingo nas mãos e nos pés a cada braçada.
+const ANEL_CADA := 1.1
+const ANEL_VIDA := 1.0 # menor que ANEL_CADA: um anel de cada vez
+const ANEL_RAIO := 0.8 # metade do quadrado: o anel vai de 0,4 m a 0,7 m
 const RASTRO := 2.5
 const BRACADAS_POR_VOLTA := 3.0 # o Swimming do Mixamo dá 3 braçadas por volta
 
@@ -11,6 +11,10 @@ var _mat_anel: ShaderMaterial
 var _aneis := [] # [MeshInstance3D, material, idade]
 var _anel_t := 0.0
 var _rastro: MeshInstance3D
+var _colada: MeshInstance3D # espuma fixa em volta do corpo
+var _mat_colada: ShaderMaterial
+var _colada_w := 0.3 # metade da largura e do comprimento da elipse agora (m)
+var _colada_l := 0.3
 var _mat_rastro: ShaderMaterial
 var _respingos := []
 var _resp_i := 0
@@ -19,7 +23,7 @@ var _mao := 0
 
 func _ready() -> void:
 	var sh: Shader = load("res://agua_fx.gdshader")
-	for i in 3:
+	for i in 2:
 		var mi := MeshInstance3D.new()
 		var q := PlaneMesh.new()
 		q.size = Vector2(ANEL_RAIO * 2.0, ANEL_RAIO * 2.0)
@@ -27,7 +31,8 @@ func _ready() -> void:
 		var mat := ShaderMaterial.new()
 		mat.shader = sh
 		mat.set_shader_parameter("modo", 0)
-		mat.set_shader_parameter("alfa", 0.4)
+		mat.set_shader_parameter("alfa", 0.35)
+		mat.set_shader_parameter("meio", ANEL_RAIO)
 		mi.material_override = mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.visible = false
@@ -41,19 +46,42 @@ func _ready() -> void:
 	_mat_rastro.shader = sh
 	_mat_rastro.set_shader_parameter("modo", 1)
 	_mat_rastro.set_shader_parameter("alfa", 0.3)
+	_mat_rastro.set_shader_parameter("meio", RASTRO * 0.55)
 	_rastro.material_override = _mat_rastro
 	_rastro.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_rastro.visible = false
 	add_child(_rastro)
-	var gota := SphereMesh.new()
-	gota.radius = 0.025
-	gota.height = 0.05
-	gota.radial_segments = 6
-	gota.rings = 3
+	_colada = MeshInstance3D.new()
+	var qc := PlaneMesh.new()
+	qc.size = Vector2(2, 2)
+	_colada.mesh = qc
+	_mat_colada = ShaderMaterial.new()
+	_mat_colada.shader = sh
+	_mat_colada.set_shader_parameter("modo", 2)
+	_mat_colada.set_shader_parameter("alfa", 0.4)
+	_mat_colada.set_shader_parameter("faixa", 0.18)
+	_colada.material_override = _mat_colada
+	_colada.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_colada.visible = false
+	add_child(_colada)
+	var gota := QuadMesh.new()
+	gota.size = Vector2(0.06, 0.06) # 6 cm, redonda e suave (direção de arte)
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1, 1, 1, 0.9))
+	grad.set_color(1, Color(1, 1, 1, 0.0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 32
+	tex.height = 32
 	var mg := StandardMaterial3D.new()
 	mg.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mg.albedo_color = Color(0.95, 0.98, 1.0, 0.85)
+	mg.albedo_color = Color(0.95, 0.98, 1.0)
+	mg.albedo_texture = tex
 	mg.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mg.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	gota.material = mg
 	var curva := Curve.new()
 	curva.add_point(Vector2(0, 1))
@@ -99,6 +127,17 @@ func passo(dt: float, corpo: Node3D, esq: Skeleton3D, na_agua: bool, nivel: floa
 		a[0].visible = vivo
 		if vivo:
 			a[1].set_shader_parameter("fase", a[2] / ANEL_VIDA)
+	# espuma colada no corpo: boiando um círculo em volta do peito, nadando uma elipse ao longo do corpo deitado
+	_colada.visible = na_agua
+	if na_agua:
+		var w := lerpf(0.32, 0.36, nada)
+		var l := lerpf(0.32, 0.95, nada)
+		_colada_w = lerpf(_colada_w, w, minf(1.0, dt * 6.0))
+		_colada_l = lerpf(_colada_l, l, minf(1.0, dt * 6.0))
+		var fr := Vector3(sin(ry), 0, cos(ry))
+		_colada.global_transform = Transform3D(Basis(Vector3.UP, ry).scaled(Vector3(_colada_w, 1, _colada_l)), Vector3(p.x, nivel + 0.012, p.z) + fr * 0.25 * nada)
+		_mat_colada.set_shader_parameter("meio", (_colada_w + _colada_l) * 0.5)
+		_mat_colada.set_shader_parameter("forca", 1.0)
 	# rastro em V: nadando, atrás do corpo, na superfície
 	var forca: float = clampf(nada * vel / 1.2, 0.0, 1.0) if na_agua else 0.0
 	_rastro.visible = forca > 0.02
