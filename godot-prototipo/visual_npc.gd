@@ -46,6 +46,62 @@ static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
 	_avental(esq)
 	_martelo(esq)
 
+# André 2026-11-06: "tem um cara lá de casaco" (o corpo masculino do criador, cabelo_m, vem do VRoid de moletom com
+# capuz, e o capuz só saía com peitoral). Agora a blusa perde o capuz e os cordões e cola no corpo como a túnica dos
+# NPCs: vira camisa de linho justa, com decote redondo, como a roupa de baixo dos outros corpos. Vale para o herói,
+# o boneco do menu, os outros jogadores e os NPCs (main.modelo, antes da armadura).
+static func tirar_casaco(raiz: Node3D) -> void:
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or str(mi.name).begins_with("Armadura") or mi.has_meta("colada"):
+			continue
+		for sfc in mi.mesh.get_surface_count():
+			if "Tops" in mi.mesh.surface_get_name(sfc):
+				mi.set_meta("colada", true)
+				_sem_capuz(raiz, mi)
+				_colar_no_corpo(raiz, mi)
+				break
+
+# tira os triângulos do capuz: no tronco (as mangas ficam), o que passa da base do pescoço. O resto do capuz, caído
+# nas costas, cola no corpo depois (_colar_no_corpo)
+static var _sem_capuz_cache := {}
+static func _sem_capuz(raiz: Node3D, tops: MeshInstance3D) -> void:
+	var orig: Mesh = tops.mesh
+	var chave := orig.get_instance_id()
+	if _sem_capuz_cache.has(chave):
+		tops.mesh = _sem_capuz_cache[chave]
+		return
+	var esq := _esqueleto(raiz)
+	if esq == null:
+		return
+	var pescoco := esq.find_bone("J_Bip_C_Neck")
+	var braco := esq.find_bone("J_Bip_L_UpperArm")
+	if pescoco < 0 or braco < 0:
+		return
+	var y_pesc := esq.get_bone_global_rest(pescoco).origin.y
+	var x_ombro := absf(esq.get_bone_global_rest(braco).origin.x)
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr: Array = orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var I: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var fora := {}
+		for vi in V.size():
+			var p := V[vi]
+			if absf(p.x) > x_ombro:
+				continue
+			if p.y > y_pesc - 0.012:
+				fora[vi] = true
+		var J := PackedInt32Array()
+		for t in range(0, I.size(), 3):
+			if not (fora.has(I[t]) or fora.has(I[t + 1]) or fora.has(I[t + 2])):
+				J.append_array([I[t], I[t + 1], I[t + 2]])
+		arr[Mesh.ARRAY_INDEX] = J
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+	_sem_capuz_cache[chave] = am
+	tops.mesh = am
+
 static func _esqueleto(no: Node) -> Skeleton3D:
 	var l := no.find_children("*", "Skeleton3D", true, false)
 	return l[0] if l.size() > 0 else null
@@ -378,6 +434,7 @@ static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
 			arr[Mesh.ARRAY_WEIGHTS] = W
 		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, orig.surface_get_format(sfc) & ~Mesh.ARRAY_FORMAT_VERTEX & 0)
 		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+		am.surface_set_material(sfc, orig.surface_get_material(sfc)) # o herói usa o material da malha (não há override)
 	_coladas[chave] = am
 	tops.mesh = am
 

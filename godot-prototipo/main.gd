@@ -63,6 +63,8 @@ const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
 const NOME_LONGE := 30.0
+# corpos que vêm do VRoid de casaco/moletom com capuz: a blusa vira camisa de linho justa (visual_npc.tirar_casaco)
+const SEM_CASACO := ["cabelo_m"]
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
 var sol: DirectionalLight3D
@@ -767,6 +769,8 @@ func modelo(id: String) -> Node3D:
 		anim.get_animation(nome).loop_mode = Animation.LOOP_LINEAR if nome in LACOS else Animation.LOOP_NONE
 	anim.play("parada")
 	pintar(no, true, id == "ruiva")
+	if id in SEM_CASACO:
+		VisualNpc.tirar_casaco(no)
 	molas(no)
 	return no
 
