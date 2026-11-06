@@ -1,8 +1,9 @@
 extends Node
 # "Ir para" do mapa (pedido do André 2026-11-03): no mapa completo o jogador toca num lugar, aparece o botão "Ir para"
 # e o herói vai sozinho até lá SEMPRE pela estrada, mesmo que exista caminho mais curto pelo meio do mato. Ele só sai
-# da estrada no fim, do ponto da estrada mais perto do lugar marcado até o lugar. Mexer no joystick, usar uma skill,
-# abrir um menu ou falar com alguém cancela. Vale online e sem internet: o herói anda como se fosse o joystick, então
+# da estrada no fim, do ponto da estrada mais perto do lugar marcado até o lugar. Só mexer no joystick cancela
+# (André 2026-11-06): abrir mochila, mapa, chat ou qualquer menu não para; golpe, skill, conversa com NPC e modo
+# construção só pausam e a viagem segue depois. Vale online e sem internet: o herói anda como se fosse o joystick, então
 # o servidor recebe as posições de sempre (online.gd "pos") e confere igual.
 #
 # A rede de estradas são os caminhos de terra do mapa (mundo.caminhos = shared/dados.js CAMINHOS: ruas da vila, saída
@@ -135,9 +136,13 @@ func parar(aviso := "") -> void:
 func destino():
 	return caminho[caminho.size() - 1] if ativo and caminho.size() > 0 else null
 
+# conversando com um NPC ou no modo construção: o herói fica parado e a viagem continua quando fechar
+func pausado() -> bool:
+	return (m.conversa != null and m.conversa.npc != null) or (m.construcao != null and m.construcao.camera_livre())
+
 # para onde o herói anda sozinho (main.direcao_joystick), ou zero
 func direcao_auto() -> Vector3:
-	if not ativo or caminho.is_empty():
+	if not ativo or caminho.is_empty() or pausado():
 		return Vector3.ZERO
 	var p := _heroi()
 	var ultimo := caminho.size() - 1
@@ -153,9 +158,14 @@ func direcao_auto() -> Vector3:
 func _process(dt: float) -> void:
 	if not ativo or m.heroi == null:
 		return
-	if m.hud.mover.length() > 0.15 or not m.acao.is_empty() or m.h.morto > 0.0 or m.menu.aberto() \
-			or (m.conversa and (m.conversa.indo != null or m.conversa.npc != null)):
-		parar() # mexeu no joystick ou foi fazer outra coisa
+	# só o joystick tira do "Ir para" (André 2026-11-06): mochila, mapa, chat, menus e janelas ficam abertos
+	# com o herói indo. Morrer também para, e tocar num NPC longe troca o destino (o herói vai até ele).
+	if m.hud.mover.length() > 0.15 or m.h.morto > 0.0 or (m.conversa and m.conversa.indo != null):
+		parar()
+		return
+	if pausado() or not m.acao.is_empty(): # golpe, rolamento ou conversa: espera e depois continua
+		_t = 0.0
+		_p0 = _heroi()
 		return
 	var p := _heroi()
 	if i >= caminho.size() - 1 and p.distance_to(caminho[caminho.size() - 1]) <= CHEGOU:
