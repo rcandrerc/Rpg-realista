@@ -2940,10 +2940,12 @@ func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, c
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.set_anchors_preset(Control.PRESET_FULL_RECT)
-	t.offset_left = 18
-	t.offset_right = -18
-	t.offset_top = 8
-	t.offset_bottom = -34
+	# pintado ocupa ~78% do quadrado (direção de arte, 2026-11-06); o traço antigo segue no tamanho de antes
+	var pintado: bool = t.texture != null and not t.texture.resource_path.ends_with(".svg")
+	t.offset_left = 8 if pintado else 18
+	t.offset_right = -8 if pintado else -18
+	t.offset_top = 3 if pintado else 8
+	t.offset_bottom = -23 if pintado else -34
 	t.modulate = Menu.tinta(t.texture, cor_ico if tem else Color(cor_ico, 0.38))
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(t)
