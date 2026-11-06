@@ -38,7 +38,7 @@ var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo
 var _apagando := false
 # configurações
 var volume := 100.0 # 0..100 (volume geral do jogo)
-var volume_musica := 70.0 # 0..100 (só a música de fundo, musica.gd)
+var volume_musica := 45.0 # 0..100 (só a música de fundo, musica.gd)
 var vibracao := true
 var mostrar_fps := true
 
@@ -595,7 +595,7 @@ func carregar() -> void:
 		return
 	recolhido = bool(cfg.get_value("menu", "recolhido", false))
 	volume = float(cfg.get_value("config", "volume", 100.0))
-	volume_musica = float(cfg.get_value("config", "musica", 70.0))
+	volume_musica = float(cfg.get_value("config", "musica", 45.0))
 	vibracao = bool(cfg.get_value("config", "vibracao", true))
 	mostrar_fps = bool(cfg.get_value("config", "fps", true))
 

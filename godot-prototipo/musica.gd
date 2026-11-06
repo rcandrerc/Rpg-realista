@@ -6,10 +6,10 @@ extends Node
 
 const PASTA := "res://musica/"
 const BASE_DB := -8.0 # fundo: abaixo dos efeitos mesmo com o volume da música em 100%
-const ENTRADA := 4.0 # segundos de fade ao começar ou trocar de faixa
+const ENTRADA := 2.5 # segundos de fade ao começar ou trocar de faixa (direção de arte: 2 a 3 s)
 
 var faixa := "" # nome do arquivo sem .ogg
-var volume := 70.0 # 0..100, ajustado pelo menu_topo.gd
+var volume := 45.0 # 0..100, ajustado pelo menu_topo.gd (padrão 45%: abaixo do golpe e da magia)
 var _p: AudioStreamPlayer
 var _tw: Tween
 
