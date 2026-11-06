@@ -490,11 +490,15 @@ func montar_grama() -> void:
 # Mata (2026-11-03): chão de floresta com pouca grama, mais cheia nas clareiras. Um pedaço por círculo da mata, que
 # só é desenhado até 70 m (são muitos)
 # lago (com a beirada) ou encosta da montanha: grama solta não nasce (shared/dados.js noRelevo)
+# 2026-11-06: a beirada é a faixa de terra em volta da água (mundo.beira) mais um tiquinho
+var _folga_beira := 0.8
 func fora_do_plano(x: float, z: float) -> bool:
+	if mundo.has("beira"):
+		_folga_beira = float(mundo.beira.get("terra_max", 1.6)) * 0.5 + 0.3
 	if terreno.altura_montanha(x, z) > 0.15:
 		return true
 	for L in terreno.lagos:
-		if absf(x - L.x) < L.R + 2.0 and absf(z - L.z) < L.R + 2.0 and Terreno.margem_lago(L, x, z) < 1.0 + 0.8 / minf(L.rx, L.rz):
+		if absf(x - L.x) < L.R + 2.0 and absf(z - L.z) < L.R + 2.0 and Terreno.margem_lago(L, x, z) < 1.0 + _folga_beira / minf(L.rx, L.rz):
 			return true
 	return false
 

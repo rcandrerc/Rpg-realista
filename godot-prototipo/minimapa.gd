@@ -370,6 +370,10 @@ func _lugares() -> Array:
 	var cv := _caverna()
 	if not cv.is_empty(): # a dungeon (Caverna da Montanha): a boca, na trilha da montanha
 		l.append({"id": "caverna", "tipo": "caverna", "nome": "%s (dungeon)" % cv.nome, "curto": str(cv.nome), "x": cv.x, "z": cv.z, "r": 6.0})
+	for lg in m.mundo.get("lagos", []): # lago de pescaria (Lago Grande, 2026-11-06): "Ir para" leva à margem da trilha
+		if lg.get("pesca", false):
+			var mg: Array = lg.get("chegada", [lg.x, lg.z])
+			l.append({"id": str(lg.id), "tipo": "lago", "nome": str(lg.nome), "curto": str(lg.nome), "x": float(mg[0]), "z": float(mg[1]), "r": 4.0})
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:
@@ -689,6 +693,9 @@ func _desenhar_grande() -> void:
 					_marca_caverna(c, qi, 7.0)
 				"mina":
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
+				"lago": # gota d'água azul
+					c.draw_circle(qi + Vector2(0, 2), 5.0, Color("4fa3e0"))
+					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-4.4, 0), qi + Vector2(0, -8), qi + Vector2(4.4, 0)]), Color("4fa3e0"))
 				_: # vila: casinha dourada
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-7, -1), qi + Vector2(0, -8), qi + Vector2(7, -1)]), COR_OURO)
 					c.draw_rect(Rect2(qi + Vector2(-5, -1), Vector2(10, 7)), COR_OURO)

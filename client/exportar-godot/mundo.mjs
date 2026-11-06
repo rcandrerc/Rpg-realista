@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, CRIAR_OBRA, MORTE, AMIGOS, TIME } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
-import { LAGOS, AGUA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
+import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
@@ -75,7 +75,7 @@ const mundo = {
   solidos, grades,
   // relevo (2026-11-05): lagos rasos e fundos e a grade de alturas da montanha (shared/relevo.js; terreno.gd repete a conta)
   longe: LONGE, copas_fora: copasDeFora(), // máscara do chão visto de longe (longe.mjs grava relevo/longe.png)
-  lagos: LAGOS, agua: AGUA, ingreme: INGREME, juncos: beiraDosLagos().filter((b) => b.tipo !== 'pedra'),
+  lagos: LAGOS, agua: AGUA, beira: BEIRA, ingreme: INGREME, juncos: beiraDosLagos().filter((b) => b.tipo !== 'pedra'),
   montanha_grade: { x0: GRADE_MONTANHA.x0, z0: GRADE_MONTANHA.z0, passo: GRADE_MONTANHA.passo, n: GRADE_MONTANHA.n, h: Array.from(GRADE_MONTANHA.h, (v) => Math.round(v * 1000) / 1000) },
   // Caverna da Montanha (2026-11-06, shared/caverna.js): o túnel amostrado a cada metro (terreno.gd faz a mesma conta
   // do chão; caverna.gd desenha aos poucos quando o herói chega perto) e a dungeon (passe, salas e o v de cada monstro)
