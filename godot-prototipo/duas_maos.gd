@@ -70,8 +70,11 @@ func _braco(s: Skeleton3D, u: int, l: int, h: int, alvo: Vector3, eixo_cabo: Vec
 	var st: Vector3 = alvo - S
 	var d: float = clamp(st.length(), 0.05, (a + b) * 0.995)
 	var n: Vector3 = st.normalized()
-	# cotovelo: para baixo, para fora do corpo e um pouco para trás
-	var polo: Vector3 = -_cima * 0.7 + _dir * lado * 0.6 - _frente * 0.2
+	# cotovelo: para baixo, para fora do corpo e um pouco para trás. Com a mão acima do ombro (picareta erguida),
+	# o cotovelo vai para fora e para a frente, como num braço de verdade, e nunca para trás da cabeça
+	var polo_baixo: Vector3 = -_cima * 0.7 + _dir * lado * 0.6 - _frente * 0.2
+	var polo_alto: Vector3 = _dir * lado * 0.75 + _frente * 0.45 - _cima * 0.1
+	var polo: Vector3 = polo_baixo.lerp(polo_alto, smoothstep(-0.1, 0.6, n.dot(_cima)))
 	polo = (polo - n * polo.dot(n)).normalized()
 	var ao_longo: float = (a * a + d * d - b * b) / (2.0 * d)
 	var alto: float = sqrt(max(0.0, a * a - ao_longo * ao_longo))
