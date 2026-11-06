@@ -77,20 +77,32 @@ static func _sem_capuz(raiz: Node3D, tops: MeshInstance3D) -> void:
 	var braco := esq.find_bone("J_Bip_L_UpperArm")
 	if pescoco < 0 or braco < 0:
 		return
-	var y_pesc := esq.get_bone_global_rest(pescoco).origin.y
+	var base_pesc := esq.get_bone_global_rest(pescoco).origin
+	var y_corte := base_pesc.y - 0.012
 	var x_ombro := absf(esq.get_bone_global_rest(braco).origin.x)
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
 		var arr: Array = orig.surface_get_arrays(sfc)
 		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 		var I: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		# direção de arte (2026-11-06): o decote ficava canoa largo, quase caindo do ombro. A faixa de 9 cm abaixo do
+		# corte fecha para o pescoço (até 55% no alto, ~60% da largura de antes); depois _colar_no_corpo assenta na pele
+		var contorno: bool = "Outline" in orig.surface_get_name(sfc)
 		var fora := {}
 		for vi in V.size():
 			var p := V[vi]
 			if absf(p.x) > x_ombro:
 				continue
-			if p.y > y_pesc - 0.012:
+			if p.y > y_corte:
 				fora[vi] = true
+			elif contorno and p.y > y_corte - 0.05:
+				# o contorno de desenho na borda do decote e na nuca saía em riscos pretos (sobra do capuz)
+				fora[vi] = true
+			elif p.y > y_corte - 0.09:
+				var k := clampf((p.y - (y_corte - 0.09)) / 0.09, 0.0, 1.0) * 0.55
+				var d := Vector2(p.x - base_pesc.x, p.z - base_pesc.z) * (1.0 - k)
+				V[vi] = Vector3(base_pesc.x + d.x, p.y + k * 0.03, base_pesc.z + d.y)
+		arr[Mesh.ARRAY_VERTEX] = V
 		var J := PackedInt32Array()
 		for t in range(0, I.size(), 3):
 			if not (fora.has(I[t]) or fora.has(I[t + 1]) or fora.has(I[t + 2])):
