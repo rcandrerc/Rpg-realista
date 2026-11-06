@@ -75,6 +75,7 @@ client/    Three.js: desenha o que a simulação manda
   src/conta.js        tela "Entrar com Google" e sessão guardada no aparelho
   public/assets/      modelos, texturas, céu e animações
 ferramentas/assar-animacoes/  converte os .fbx do Mixamo em um arquivo pequeno para o jogo
+ferramentas/testes/            testes das regras (node ferramentas/testes/<nome>.mjs), ex.: pontos-atributo.mjs
 ```
 
 O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda o que o jogador apertou.
