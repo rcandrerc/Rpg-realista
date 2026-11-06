@@ -64,6 +64,16 @@ var _ret_motivo := ""
 var _ret_no: MeshInstance3D # o terreno marcado pintado no chão
 var _outros_no: MeshInstance3D # terrenos que já têm dono (vermelho, só na compra)
 var _ret_txt: Label3D # "8 x 6 m · 192 de ouro" em cima do terreno marcado
+# expansão mais leve e clara (André 2026-11-06: "quase trava" ao abrir e "não entendi como expandir"):
+# - a altura do chão de cada ponto da grade fica guardada (_alt): antes cada quadro repintava o terreno marcado
+#   chamando terreno.altura ~7 mil vezes (cada uma passa por todas as peças construídas), o celular ia a poucos FPS;
+# - a tela só se refaz quando o retângulo, o ouro ou os terrenos mudam (_chave_compra);
+# - alças no chão: + e - no meio de cada lado (um toque cresce ou encolhe 1 m) e os cantos dourados (arrastar);
+# - toque fora das alças é da câmera de novo (girar e pinça), o joystick continua andando com a câmera.
+var _alt := {} # Vector2i -> altura do chão + 5 cm (pintura no chão; zera ao abrir a tela)
+var _chave_compra := ""
+var _alcas: Array = [] # [{no, tipo: "canto"/"mais"/"menos", lado}]
+var _mudar_ini := {} # o tamanho de quando abriu a tela de mudar (botão Marcar de novo / Desfazer)
 var mudando := false # a mesma tela da compra, para mudar o tamanho do meu terreno (arrasta um canto)
 var _correios := {} # id do terreno -> Node3D da caixa de correio (com a bandeirinha)
 var _avisou_conta := false
@@ -103,6 +113,7 @@ var txt_motivo: Label
 var txt_nome: Label
 var _botoes_abas := {}
 var painel_compra: PanelContainer
+var b_recomecar: Button
 var txt_compra: Label
 var txt_compra_info: Label
 var b_comprar: Button
@@ -1968,6 +1979,7 @@ func abrir() -> void:
 	painel.visible = true
 	painel_acoes.visible = true
 	_montar_itens()
+	_alt.clear()
 	_mostrar_borda(true)
 	m.hud.aviso("Modo construção: o joystick move a câmera e a mira. Toque no chão para mirar.")
 
@@ -2018,7 +2030,7 @@ func _pintar_ret(im: ImmediateMesh, R: Dictionary, miolo: Color, borda: Color) -
 	var z0: float = float(R.z0)
 	var x1: float = float(R.x1)
 	var z1: float = float(R.z1)
-	var y := func(x: float, z: float) -> float: return m.terreno.altura(x, z) + 0.05
+	var y := func(x: float, z: float) -> float: return _alt_em(x, z)
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	if miolo.a > 0.0:
 		var nx := mini(int(x1 - x0), 60)
@@ -2058,6 +2070,28 @@ func _pintar_ret(im: ImmediateMesh, R: Dictionary, miolo: Color, borda: Color) -
 				im.surface_set_color(borda)
 				im.surface_add_vertex(v)
 	im.surface_end()
+
+# altura do chão guardada nos pontos inteiros da grade (1 m); entre eles, interpolada
+func _alt_grade(i: int, k: int) -> float:
+	var c := Vector2i(i, k)
+	var v = _alt.get(c)
+	if v == null:
+		v = m.terreno.altura(float(i), float(k)) + 0.05
+		_alt[c] = v
+	return v
+
+func _alt_em(x: float, z: float) -> float:
+	var i := floori(x)
+	var k := floori(z)
+	var fx := x - i
+	var fz := z - k
+	var a := _alt_grade(i, k)
+	if fx < 0.001 and fz < 0.001:
+		return a
+	var b := _alt_grade(i + 1, k)
+	var c := _alt_grade(i, k + 1)
+	var d := _alt_grade(i + 1, k + 1)
+	return lerpf(lerpf(a, b, fx), lerpf(c, d, fx), fz)
 
 # retângulo fino alinhado aos eixos (linha da grade), 5 mm acima do miolo
 func _faixa(im: ImmediateMesh, a: Vector2, b: Vector2, cor: Color, y: Callable) -> void:
@@ -2106,6 +2140,11 @@ func _chao_na_tela(pos: Vector2):
 
 # toque rápido no chão com o modo aberto: a mira vai para lá
 func tocou_tela(pos: Vector2) -> void:
+	if comprando and not cobre(pos):
+		var a = _alca_na_tela(pos, ["mais", "menos"])
+		if a != null:
+			_crescer(int(a.lado), 1 if a.tipo == "mais" else -1)
+		return
 	if not ativo or cobre(pos):
 		return
 	var p = _chao_na_tela(pos)
@@ -2316,10 +2355,9 @@ func perguntar_compra() -> void:
 	_canto_a = null
 	_canto_b = null
 	_ret = {}
+	_mudar_ini = {}
 	mira = m.heroi.position
-	painel_compra.visible = true
-	_desenhar_outros()
-	_atualizar_compra()
+	_abrir_tela_compra()
 
 func sair_compra() -> void:
 	if not comprando:
@@ -2331,6 +2369,7 @@ func sair_compra() -> void:
 	for n in [_ret_no, _outros_no, _ret_txt, _mira_no]:
 		if n:
 			n.visible = false
+	_mostrar_alcas(false)
 	m.cam.sair_livre()
 	if voltar and lotes.has(meu) and m.h.morto <= 0.0 and not m.menu.aberto():
 		abrir() # volta para o modo construção, na aba Terreno
@@ -2343,13 +2382,13 @@ func arrasto(pos: Vector2, fase_: int) -> void:
 	if p == null:
 		return
 	var c := Vector2i(floori(p.x), floori(p.z))
-	if fase_ == 0 and mudando and not _ret.is_empty():
+	if fase_ == 0 and not _ret.is_empty():
 		# mudar o tamanho: encostou perto de um canto, o canto oposto fica parado e este acompanha o dedo
 		var perto := 1e9
 		for cx in [float(_ret.x0), float(_ret.x1)]:
 			for cz in [float(_ret.z0), float(_ret.z1)]:
 				var dd := Vector2(p.x - cx, p.z - cz).length()
-				if dd < perto and dd <= 2.0:
+				if dd < perto and dd <= 4.0: # a alça do canto se pega pela tela (pega_arrasto); de longe o dedo fica a uns metros
 					perto = dd
 					var ox: int = int(_ret.x1) - 1 if cx == float(_ret.x0) else int(_ret.x0)
 					var oz: int = int(_ret.z1) - 1 if cz == float(_ret.z0) else int(_ret.z0)
@@ -2374,11 +2413,27 @@ func perguntar_mudar() -> void:
 	mudando = true
 	var d: Dictionary = lotes[meu].def
 	_ret = {"x0": int(d.x0), "z0": int(d.z0), "x1": int(d.x1), "z1": int(d.z1)}
+	_mudar_ini = _ret.duplicate()
 	_canto_a = null
 	_canto_b = null
 	mira = Vector3((float(d.x0) + float(d.x1)) / 2.0, 0, (float(d.z0) + float(d.z1)) / 2.0)
+	_abrir_tela_compra()
+	m.cam.zoom(1.35) # um pouco mais longe: o terreno inteiro cabe na tela
+
+func _abrir_tela_compra() -> void:
+	_alt.clear()
+	_chave_compra = ""
 	painel_compra.visible = true
 	_desenhar_outros()
+	_atualizar_compra()
+	m.hud.aviso("Joystick: anda com a câmera · arraste a tela: gira · dois dedos: zoom")
+
+# botão da barra: na compra apaga o marcado (marca de novo); no mudar volta ao tamanho de antes
+# (mexeu e quer voltar: Desfazer; já está no tamanho de antes: Marcar de novo, para marcar outro pedaço perto)
+func recomecar() -> void:
+	_canto_a = null
+	_canto_b = null
+	_ret = _mudar_ini.duplicate() if (mudando and not _igual_ret(_ret, _mudar_ini)) else {}
 	_atualizar_compra()
 
 # o que muda de ouro: aumentar paga os blocos novos (preço cheio); diminuir devolve lote.venda do preço
@@ -2489,13 +2544,20 @@ func abrir_correio() -> void:
 
 func _atualizar_compra() -> void:
 	var ouro := int(m.P.prog.get("ouro", 0))
+	var chave := "%s|%d|%s|%d" % [str(_ret), ouro, str(mudando), lotes.size()]
+	if chave == _chave_compra:
+		return # nada mudou: não repinta (antes era todo quadro)
+	_chave_compra = chave
+	b_recomecar.text = "Desfazer" if (mudando and not _ret.is_empty() and not _igual_ret(_ret, _mudar_ini)) else "Marcar de novo"
+	b_recomecar.disabled = _ret.is_empty()
 	txt_compra_tit.text = "Mudar o terreno" if mudando else "Comprar terreno"
 	b_comprar.text = "Confirmar" if mudando else "Comprar"
 	if mudando and not _ret.is_empty() and lotes.has(meu):
 		_atualizar_mudar(ouro)
 		return
 	if _ret.is_empty():
-		txt_compra.text = "Toque num canto do terreno e arraste até o outro canto"
+		_mostrar_alcas(false)
+		txt_compra.text = "1. Encoste o dedo no chão e arraste para marcar o terreno"
 		txt_compra.add_theme_color_override("font_color", Menu.TEXTO)
 		txt_compra_info.text = "%d de ouro por bloco de 1 x 1 m · lados de %d a %d m · você tem %d de ouro" % [int(D.lote.precoBloco), int(D.lote.ladoMin), int(D.lote.ladoMax), ouro]
 		b_comprar.disabled = true
@@ -2512,7 +2574,7 @@ func _atualizar_compra() -> void:
 	var ok := _ret_motivo == ""
 	txt_compra.text = "%d x %d m = %d blocos · %d de ouro" % [w, d, w * d, preco]
 	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if ok else Color("ffb3a3"))
-	txt_compra_info.text = ("Você tem %d de ouro · cabem %d peças" % [ouro, max_pecas({"def": _ret}, D.lote)]) if ok else _ret_motivo
+	txt_compra_info.text = ("2. Ajuste: toque no + ou - de um lado (1 m) ou arraste um canto dourado · 3. Comprar · você tem %d de ouro" % ouro) if ok else _ret_motivo
 	b_comprar.disabled = not ok
 	_pintar_marcado(ok, "%d x %d m\n%d de ouro" % [w, d, preco])
 
@@ -2545,6 +2607,7 @@ func _pintar_marcado(ok: bool, texto: String) -> void:
 	_ret_txt.text = texto
 	_ret_txt.modulate = Color("fff1c8") if ok else Color("ffb3a3")
 	_ret_txt.visible = true
+	_por_alcas()
 
 # mudar o tamanho: o mesmo desenho da compra, com o preço da diferença
 func _atualizar_mudar(ouro: int) -> void:
@@ -2561,11 +2624,135 @@ func _atualizar_mudar(ouro: int) -> void:
 	txt_compra.text = "%d x %d m = %d blocos · %s" % [w, d, w * d, preco_txt]
 	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if (ok or igual) else Color("ffb3a3"))
 	if igual:
-		txt_compra_info.text = "Arraste um canto para aumentar ou diminuir (ou marque outro pedaço perto). Aumentar: %d por bloco · diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))]
+		txt_compra_info.text = "1. Toque no + de um lado para crescer 1 m (- encolhe) ou arraste um canto dourado · 2. Confirmar · aumentar: %d por bloco, diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))]
 	else:
 		txt_compra_info.text = ("Você tem %d de ouro · cabem %d peças" % [ouro, max_pecas({"def": _ret}, D.lote)]) if ok else _ret_motivo
 	b_comprar.disabled = not ok
 	_pintar_marcado(ok or igual, "%d x %d m\n%s" % [w, d, preco_txt])
+
+# ---------- alças da expansão: + e - no meio de cada lado, cantos dourados para arrastar ----------
+# lado: 0 = x0 (oeste), 1 = x1 (leste), 2 = z0, 3 = z1
+func _crescer(lado: int, n: int) -> void:
+	if _ret.is_empty():
+		return
+	var r := _ret.duplicate()
+	match lado:
+		0: r.x0 = float(r.x0) - n
+		1: r.x1 = float(r.x1) + n
+		2: r.z0 = float(r.z0) - n
+		3: r.z1 = float(r.z1) + n
+	if float(r.x1) - float(r.x0) < 1.0 or float(r.z1) - float(r.z0) < 1.0:
+		return
+	_ret = r
+	m.sons.tocar("dash", -14.0)
+	_atualizar_compra()
+
+func _nova_alca(tipo: String, lado: int) -> Dictionary:
+	var raiz := Node3D.new()
+	var disco := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.45 if tipo != "canto" else 0.3
+	cil.bottom_radius = cil.top_radius
+	cil.height = 0.06
+	cil.radial_segments = 20
+	disco.mesh = cil
+	var mt := StandardMaterial3D.new()
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mt.albedo_color = {"canto": Color(1.0, 0.82, 0.35), "mais": Color(0.36, 0.78, 0.4), "menos": Color(0.85, 0.42, 0.32)}[tipo]
+	mt.no_depth_test = true
+	mt.render_priority = 3
+	disco.material_override = mt
+	disco.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	raiz.add_child(disco)
+	if tipo != "canto":
+		var t := Label3D.new()
+		t.font = m.fonte_nome()
+		t.text = "+" if tipo == "mais" else "-"
+		t.font_size = 110
+		t.pixel_size = 0.0011
+		t.outline_size = 18
+		t.outline_modulate = Color(0.08, 0.06, 0.04)
+		t.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		t.no_depth_test = true
+		t.fixed_size = true
+		t.render_priority = 6 # por cima do disco
+		t.outline_render_priority = 5
+		t.position = Vector3(0, 0.08, 0)
+		raiz.add_child(t)
+	else: # poste baixo no canto: dá para ver que se pega ali
+		var poste := MeshInstance3D.new()
+		var pm := CylinderMesh.new()
+		pm.top_radius = 0.06
+		pm.bottom_radius = 0.08
+		pm.height = 0.7
+		poste.mesh = pm
+		poste.material_override = mt
+		poste.position = Vector3(0, 0.35, 0)
+		poste.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		raiz.add_child(poste)
+	add_child(raiz)
+	return {"no": raiz, "tipo": tipo, "lado": lado}
+
+func _mostrar_alcas(v: bool) -> void:
+	for a in _alcas:
+		a.no.visible = v
+
+func _por_alcas() -> void:
+	if _alcas.is_empty():
+		for i in 4:
+			_alcas.append(_nova_alca("canto", i))
+		for i in 4:
+			_alcas.append(_nova_alca("mais", i))
+			_alcas.append(_nova_alca("menos", i))
+	var x0 := float(_ret.x0)
+	var x1 := float(_ret.x1)
+	var z0 := float(_ret.z0)
+	var z1 := float(_ret.z1)
+	var cx := (x0 + x1) / 2.0
+	var cz := (z0 + z1) / 2.0
+	var meio := [Vector2(x0, cz), Vector2(x1, cz), Vector2(cx, z0), Vector2(cx, z1)]
+	var fora := [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]
+	var cantos := [Vector2(x0, z0), Vector2(x1, z0), Vector2(x1, z1), Vector2(x0, z1)]
+	for a in _alcas:
+		var p: Vector2
+		if a.tipo == "canto":
+			p = cantos[a.lado]
+		else:
+			p = meio[a.lado] + fora[a.lado] * (0.9 if a.tipo == "mais" else -0.9)
+		a.no.position = Vector3(p.x, _alt_em(p.x, p.y), p.y)
+		a.no.visible = true
+
+# a alça mais perto do dedo na tela (até 64 px), ou null
+func _alca_na_tela(pos: Vector2, tipos: Array):
+	if m.camera == null:
+		return null
+	var melhor = null
+	var perto := 64.0
+	for a in _alcas:
+		if not a.no.visible or not (a.tipo in tipos):
+			continue
+		var w: Vector3 = a.no.global_position + Vector3(0, 0.2 if a.tipo == "canto" else 0.08, 0)
+		if m.camera.is_position_behind(w):
+			continue
+		var dd: float = m.camera.unproject_position(w).distance_to(pos)
+		if dd < perto:
+			perto = dd
+			melhor = a
+	return melhor
+
+static func _igual_ret(a: Dictionary, b: Dictionary) -> bool:
+	if a.is_empty() or b.is_empty():
+		return a.is_empty() and b.is_empty()
+	return is_equal_approx(float(a.x0), float(b.x0)) and is_equal_approx(float(a.z0), float(b.z0)) and is_equal_approx(float(a.x1), float(b.x1)) and is_equal_approx(float(a.z1), float(b.z1))
+
+# o hud pergunta: este dedo marca/arrasta o terreno (true) ou é da câmera (false)?
+# Sem nada marcado: marca. Com o terreno marcado: só o canto dourado arrasta; o resto gira a câmera (o + e o - são toque).
+func pega_arrasto(pos: Vector2) -> bool:
+	if not comprando:
+		return false
+	if _ret.is_empty():
+		return true
+	return _alca_na_tela(pos, ["canto"]) != null
 
 # terrenos que já têm dono, em vermelho fraco (só enquanto se escolhe)
 func _desenhar_outros() -> void:
@@ -2726,6 +2913,9 @@ func _montar_tela() -> void:
 	txt_compra_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	txt_compra_info.custom_minimum_size = Vector2(360, 0)
 	t2.add_child(txt_compra_info)
+	b_recomecar = _botao("Marcar de novo", recomecar, false, 16)
+	b_recomecar.custom_minimum_size = Vector2(130, 54)
+	t2.add_child(b_recomecar)
 	var canc := _botao("Cancelar", sair_compra, false, 18)
 	canc.custom_minimum_size = Vector2(120, 54)
 	t2.add_child(canc)
@@ -3062,6 +3252,9 @@ func escolher(k: String) -> void:
 	if D.construcoes.has(k):
 		andar = "telhado" if tipo_peca(k) == "telhado" else "terreo"
 	_montar_itens()
+	if aba == "terreno" and k == "mudar" and ativo: # um toque no Mudar já abre a tela de expandir (André 2026-11-06)
+		_atualizar_mira()
+		colocar()
 
 # mochila mudou (o servidor mandou o progresso): os custos e as sementes da barra se atualizam
 func progresso_mudou() -> void:

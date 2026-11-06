@@ -248,7 +248,8 @@ func _input(ev: InputEvent) -> void:
 			_painel_t = 0.0
 			_painel_ini = ev.position
 			return
-		if ev.pressed and modo_construcao and arrastar_terreno and construcao and ev.position.x >= _tela.size.x * 0.42 and not ("sel" in _toques.values()):
+		# só marca/arrasta quando o terreno ainda não foi marcado ou o dedo pega um canto dourado; senão é câmera (gira e pinça)
+		if ev.pressed and modo_construcao and arrastar_terreno and construcao and ev.position.x >= _tela.size.x * 0.42 and not ("sel" in _toques.values()) and construcao.pega_arrasto(ev.position):
 			_toques[ev.index] = "sel" # compra de terreno: este dedo marca o canto e arrasta até o outro
 			construcao.arrasto(ev.position, 0)
 			return
