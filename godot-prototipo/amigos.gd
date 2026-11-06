@@ -228,7 +228,7 @@ func montar_janela(mt) -> void:
 		if m.chat: # mensagem privada (chat.gd, aba Amigos)
 			linha.add_child(_pequeno(mt._botao("Msg", func():
 				mt.fechar()
-				m.chat.abrir_pm(c), false), 64))
+				m.chat.abrir_pm(c, str(a.nome)), false), 64))
 		var confirmar := _remover == c
 		linha.add_child(_pequeno(mt._botao("Certeza?" if confirmar else "Remover", func():
 			if _remover == c:
