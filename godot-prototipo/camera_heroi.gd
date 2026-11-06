@@ -129,7 +129,8 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	_montado_k = move_toward(_montado_k, 1.0 if m.montaria != null else 0.0, dt * 2.0)
 	# correndo e sem mexer na câmera: vai para as costas do herói (mais forte quanto mais rápido)
 	var j: Vector2 = m.hud.mover # só com o joystick para a frente (de lado ele daria voltas em círculo)
-	if _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and j.y < -0.45 and abs(j.x) < 0.6:
+	# virado para o alvo (mirando, andando de lado): a câmera não persegue o giro do corpo (tremia entre alvo e caminho)
+	if _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and not m.heroi_anim.mirando and j.y < -0.45 and abs(j.x) < 0.6:
 		var atras: float = mov.ry + PI
 		var d: float = atan2(sin(atras - yaw), cos(atras - yaw))
 		if abs(d) < 2.6: # andando para a câmera (de frente): não gira em volta dele
