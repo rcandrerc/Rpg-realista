@@ -1,5 +1,6 @@
 shader_type spatial;
-render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
+// fog_disabled + borda: a névoa somava cor no quadrado inteiro e o retângulo aparecia (direção de arte v2)
 // Chama de tocha e de braseiro (caverna.gd): um quadrado sempre virado para a câmera, em forma de gota que tremula.
 uniform vec3 cor : source_color = vec3(1.0, 0.55, 0.18);
 instance uniform float fase = 0.0;
@@ -17,5 +18,6 @@ void fragment() {
 	float forma = smoothstep(1.0, 0.2, d) * smoothstep(-1.0, -0.55, p.y) * smoothstep(1.0, 0.6, p.y + 0.12 * sin(t * 1.3));
 	float miolo = smoothstep(0.6, 0.0, d) * smoothstep(0.3, -0.5, p.y);
 	vec3 c = cor * forma * 1.6 + vec3(1.0, 0.9, 0.6) * miolo * 1.3;
-	ALBEDO = c;
+	vec2 b = smoothstep(vec2(1.0), vec2(0.8), abs(p));
+	ALBEDO = c * b.x * b.y;
 }

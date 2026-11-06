@@ -32,12 +32,13 @@ void fragment() {
 	vec3 veu = mix(cor_baixo, cor_cima, smoothstep(0.0, 0.9, uv.y));
 	float onda = ruido(vec2(uv.x * 6.0, uv.y * 4.0 - TIME * 0.5)) * 0.08;
 	float borda = smoothstep(0.1, 0.0, topo - uv.y) + smoothstep(0.85, 1.0, abs(x));
-	float alfa = 0.3 + 0.1 * (1.0 - uv.y) + onda + borda * 0.12;
+	float alfa = 0.28 + 0.08 * (1.0 - uv.y) + onda + borda * 0.1;
 	// dissolve: manchas de ruído somem uma a uma, com a beira acesa
 	float n = ruido(uv * vec2(9.0 * aspecto, 9.0)) * 0.7 + ruido(uv * 23.0) * 0.3;
 	float corte = aberto * 1.15;
 	if (n < corte - 0.02) discard;
 	float beira = smoothstep(0.08, 0.0, n - corte) * step(0.001, aberto);
 	ALBEDO = veu * 0.85 + cor_cima * desenho * pulso * 1.4 + cor_cima * beira * 2.0;
-	ALPHA = clamp(alfa + desenho * pulso * 0.55 + beira, 0.0, 1.0) * (1.0 - smoothstep(0.95, 1.0, aberto));
+	// véu no máximo 0,45 (dá para ver um pouco do outro lado); as runas e a beira do dissolve passam disso
+	ALPHA = clamp(min(alfa, 0.45) + desenho * pulso * 0.5 + beira, 0.0, 1.0) * (1.0 - smoothstep(0.95, 1.0, aberto));
 }

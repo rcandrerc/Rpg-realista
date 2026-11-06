@@ -344,6 +344,10 @@ func _enfeites() -> void:
 			var ld2 := 1.0 if (k + i) % 2 == 0 else -1.0
 			var cq := _ponto_s(sk, ld2 * (float(_ponto_s(sk).l) + folga - 0.2))
 			_cristais(cq.p, 3 + (k % 3), i * 10 + k)
+		if i == dados.get("salas", []).size() - 1: # sala do chefe: 2 cachos grandes (1,2 a 1,5 m), a peça de destaque
+			for ld5 in [-1.0, 1.0]:
+				var gq := _ponto_s(float(S.s) + 2.5 * ld5, ld5 * (float(_ponto_s(float(S.s)).l) + folga - 0.4))
+				_cristais(gq.p, 5, 77 + int(ld5), 1.9)
 		for k in 4:
 			var sk: float = float(S.s) + (k - 1.5) * float(S.r) * 0.55
 			var ld3 := -1.0 if (k + i) % 2 == 0 else 1.0
@@ -520,7 +524,7 @@ func _braseiro(p: Vector3) -> void:
 var _mat_cristal: StandardMaterial3D
 # cachos de cristal (v2): 3 a 5 pontas de 30 a 80 cm, ciano 5ee6ff aceso (energia 2,5), contorno e uma luz fraca de
 # 3 m por cacho (só acende de perto)
-func _cristais(p: Vector3, n: int, semente: int) -> void:
+func _cristais(p: Vector3, n: int, semente: int, tam := 1.0) -> void:
 	if _mat_cristal == null:
 		_mat_cristal = StandardMaterial3D.new()
 		_mat_cristal.albedo_color = Color(0.1, 0.45, 0.6)
@@ -535,7 +539,7 @@ func _cristais(p: Vector3, n: int, semente: int) -> void:
 	for i in n:
 		var c := CylinderMesh.new()
 		c.top_radius = 0.0
-		c.height = rng.randf_range(0.3, 0.8)
+		c.height = rng.randf_range(1.2, 1.5) if (tam > 1.0 and i < 2) else rng.randf_range(0.3, 0.8)
 		c.bottom_radius = c.height * rng.randf_range(0.16, 0.22)
 		c.radial_segments = 6
 		c.rings = 1
@@ -546,10 +550,10 @@ func _cristais(p: Vector3, n: int, semente: int) -> void:
 		add_child(mi)
 		var an := TAU * float(i) / float(n) + rng.randf() * 0.6
 		var ab := 0.0 if i == 0 else rng.randf_range(0.35, 0.6) # a do meio em pé, as outras abertas em leque
-		mi.position = p + Vector3(cos(an), 0, sin(an)) * (0.0 if i == 0 else 0.12) + Vector3(0, c.height * 0.42, 0)
+		mi.position = p + Vector3(cos(an), 0, sin(an)) * (0.0 if i == 0 else 0.12 * tam) + Vector3(0, c.height * 0.42, 0)
 		mi.rotation = Vector3(0, -an, 0)
 		mi.rotate_object_local(Vector3.FORWARD, -ab)
-	_luz(p + Vector3(0, 0.7, 0), Color("5ee6ff"), 3.0, 0.6)
+	_luz(p + Vector3(0, 0.7 * tam, 0), Color("5ee6ff"), 3.0 * sqrt(tam), 0.6 * tam)
 	_luzes[_luzes.size() - 1].longe = 18.0
 
 # ---------- v2 da direção de arte: contorno, pilares, rochas e cascalho ----------
