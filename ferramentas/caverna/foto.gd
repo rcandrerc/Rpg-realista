@@ -118,6 +118,21 @@ func _initialize() -> void:
 	# 2) de longe, do campo: a boca na encosta da montanha
 	if so == "" or so == "2":
 		await foto("2-de-longe", Vector3(120, 9, -5), em.call(8.0, 0.0, 3.0))
+	# 2b) de cima da boca, como a câmera do jogo (André 2026-11-06 viu buracos e frestas assim)
+	if so == "" or so == "2b":
+		heroi_em.call(-1.5)
+		var a1: Dictionary = A[0]
+		var d1 := Vector3(float(a1.dx), 0, float(a1.dz))
+		var c1: Vector3 = em.call(0.0, 0.0, 0.0)
+		await foto("2b-de-cima", c1 - d1 * 7.0 + Vector3(-float(a1.dz), 0, float(a1.dx)) * 3.0 + Vector3(0, 9.0, 0), c1 + d1 * 1.0)
+		await foto("2c-de-cima-lado", c1 - d1 * 3.0 + Vector3(-float(a1.dz), 0, float(a1.dx)) * -7.0 + Vector3(0, 8.0, 0), c1 + d1 * 1.5 + Vector3(0, 2.0, 0))
+	# 2d) a soleira: onde o chão de fora vira o chão da caverna
+	if so == "" or so == "2d":
+		var a2: Dictionary = A[0]
+		var d2 := Vector3(float(a2.dx), 0, float(a2.dz))
+		var c2: Vector3 = em.call(0.0, 0.0, 0.0)
+		m.heroi.position = c2 + d2 * 3.0 + Vector3(0, 0.85, 0)
+		await foto("2d-soleira", c2 - d2 * 4.0 + Vector3(0, 1.7, 0), c2 + d2 * 2.0)
 	# 3) o selo fechado, de quem chega
 	if so == "" or so == "3":
 		heroi_em.call(3.6)
