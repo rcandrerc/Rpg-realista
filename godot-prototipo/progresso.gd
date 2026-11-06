@@ -11,6 +11,7 @@ var habs: Dictionary
 var prog := {}
 var st := {} # números do herói: vidaMax, manaMax, defesa, danoFisico...
 var xp_prox := 16
+var teste := false # conta de teste do André: o menu mostra os botões de mudar o nível (o servidor confere)
 var mudou := false # o menu redesenha quando muda
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
@@ -94,6 +95,7 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("agora"):
 		relogio = float(ev.agora) - Time.get_unix_time_from_system() * 1000.0
 	definir(ev.prog)
+	teste = bool(ev.get("teste", false))
 	if ev.has("st"):
 		for k in ev.st:
 			st[k] = float(ev.st[k])
@@ -135,7 +137,7 @@ func guardar_agora() -> void:
 	cfg.save(ARQUIVO)
 
 static func xp_proximo(n: int) -> int:
-	return int(round(16.0 * pow(n, 1.45)))
+	return int(round(16.0 * pow(n, 1.45) * (1.0 + max(0, n - 30) / 50.0))) # igual a shared/progresso.js (Nv 200)
 
 func passiva(k: String) -> bool:
 	return prog.nivel >= int(dados.passivas[k].libera)

@@ -432,7 +432,7 @@
   }
  },
  "pontosPorNivel": 2,
- "nivelMax": 30,
+ "nivelMax": 200,
  "skillMax": 10,
  "botoesPadrao": {
   "espada": [
@@ -1663,10 +1663,14 @@
  "raridadeCriar": {
   "base": 0.06,
   "max": 0.3,
-  "ate": 2
+  "ate": 4
  },
  "heroiCorrer": 5.4,
  "nivelInimigo": {
+  "forca": 1,
+  "defesaBase": 24,
+  "defesaNivel": 0,
+  "defesaMax": 1,
   "vida": 0.16,
   "dano": 0.18,
   "xp": 0.5,

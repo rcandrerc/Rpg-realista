@@ -107,6 +107,7 @@ class SalaClareira extends Room {
     this.ouvir('horta', (c, m) => { if (m && typeof m.acao === 'string' && typeof m.c === 'string' && m.c.length < 12) this.sim.horta(c.sessionId, { acao: m.acao, c: m.c, s: typeof m.s === 'string' ? m.s.slice(0, 16) : '' }); });
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
     this.ouvir('atributos', (c, m) => this.sim.distribuirAtributos(c.sessionId, m)); // + e − no menu, aplica no Confirmar
+    this.ouvir('nivelTeste', (c, m) => this.sim.nivelTeste(c.sessionId, m?.nv, m?.zerar === true)); // só a conta de teste do André (o sim confere)
     this.ouvir('resetar', (c) => this.sim.resetarBuild(c.sessionId)); // Mestre Ivo: atributos de volta (paga em ouro)
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));

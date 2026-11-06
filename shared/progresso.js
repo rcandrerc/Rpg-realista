@@ -10,8 +10,10 @@ export const ATRIBUTOS = {
   vit: { nome: 'Vitalidade', desc: '+8 vida · regeneração' },
 };
 export const PONTOS_POR_NIVEL = 2;
-export const NIVEL_MAX = 30;
-export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45);
+// André 2026-11-06: nível máximo 200 (era 30). Até o Nv 30 a curva é a mesma de antes; depois aperta aos poucos
+// (x2,4 no Nv 100, x4,4 no Nv 200: uns 100 monstros por nível perto do 100 e 250 perto do 200).
+export const NIVEL_MAX = 200;
+export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50));
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
 export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7, golem: 9, maw: 10, warrok: 30 };
 // XP de um monstro de nível nv (campos de caça) para um herói de nível nh: sobe com o nível do bicho e cai quando o
@@ -35,6 +37,8 @@ export const tetoMonstroNivel = (nv, nh, chefe, N) => {
   const d = (nv || 1) - (nh || 1);
   return (chefe ? N.tetoChefe : N.teto) * (d < 0 ? Math.max(N.danoAbaixoMin, 1 - N.danoAbaixo * -d) : 1);
 };
+// fração do golpe de um monstro de nível nv que a defesa do herói segura (bicho de nível alto atravessa a armadura)
+export const reducaoContra = (def, nv, N) => Math.min(N.defesaMax ?? 0.8, Math.max(0, def) / (Math.max(0, def) + (N.defesaBase ?? 24) + (N.defesaNivel ?? 0) * (nv || 1)));
 // herói batendo no monstro: fraco em quem está muito acima, mais forte em quem está abaixo
 export const golpeHeroiNivel = (nv, nh, N) => {
   const d = (nv || 1) - (nh || 1);

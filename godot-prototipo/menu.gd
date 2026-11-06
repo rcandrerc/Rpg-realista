@@ -800,6 +800,14 @@ func montar_status() -> void:
 	lv.add_child(xp_txt)
 	conteudo.add_child(lv)
 	conteudo.add_child(barra_prog(float(p.xp) / max(1, P.xp_prox), Color(0.85, 0.66, 0.3)))
+	if P.teste: # só na conta de teste do André: mudar o nível na hora para testar os campos de caça
+		var tl := HBoxContainer.new()
+		tl.add_theme_constant_override("separation", 8)
+		tl.add_child(rotulo("Teste de nível:", 14, APAGADO))
+		for d in [-10, -1, 1, 10]:
+			tl.add_child(botao(("%+d" % d), func(): m.rede("nivelTeste", {"nv": int(p.nivel) + d}), 14))
+		tl.add_child(botao("Zerar pontos", func(): m.rede("nivelTeste", {"nv": int(p.nivel), "zerar": true}), 14))
+		conteudo.add_child(tl)
 	separador("Atributos")
 	# André 2026-11-06: + e − só mexem nos pontos pendentes; nada muda até apertar Confirmar (Desfazer zera).
 	# O − nunca tira ponto já confirmado.
