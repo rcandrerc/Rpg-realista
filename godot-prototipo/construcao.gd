@@ -1832,7 +1832,8 @@ func _process(dt: float) -> void:
 	# nas terras e sem terreno: botão Comprar terreno
 	m.hud.mostrar_botao("lote", meu == "" and dentro_das_terras(hp.x, hp.z, -2.0) and vivo and not livre)
 	var no_meu := meu != "" and lotes.has(meu) and dist_ret(lotes[meu].def, hp.x, hp.z) <= float(D.lote.alcance)
-	m.hud.mostrar_botao("construir", no_meu and vivo and not livre)
+	m.hud.mostrar_botao("construir", false) # André 2026-11-06: o martelo foi para o menu do topo (menu_topo.gd), aceso aqui
+	_pode_aqui = no_meu and vivo and not comprando
 	# estação do terreno perto: um botão só (o André tirou o botão da forja da HUD; a forja do Tomás fica no Falar)
 	var prof := prof_da_estacao()
 	m.hud.mostrar_botao("bancada", prof != "" and vivo and not livre)
@@ -2035,6 +2036,11 @@ func prof_da_estacao() -> String:
 	if estacao_perto(["bancada"]):
 		return "alf"
 	return ""
+
+# no meu terreno e vivo: o martelo do topo fica aceso
+var _pode_aqui := false
+func pode_construir_aqui() -> bool:
+	return _pode_aqui
 
 func tocar_botao_construir() -> void:
 	if ativo:

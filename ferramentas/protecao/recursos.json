@@ -249,6 +249,7 @@
     { "nome": "Grama some embaixo das casas de todos os terrenos de uma vez (o vizinho não devolve a grama da sua casa) (André 2026-11-05)", "arquivo": "godot-prototipo/construcao.gd", "contem": ["func _grama_sob_horta(_L = null)", "_grama_sob_horta() # a grama volta onde o terreno saiu"] },
     { "nome": "Chat geral e de amigos, com Silenciar geral (André 2026-11-06)", "arquivo": "godot-prototipo/chat.gd", "contem": ["func silenciar_geral(", "\"Silenciar geral\"", "func do_servidor("] },
     { "nome": "Chat no servidor: geral para todas as salas, amigos só para amigos (André 2026-11-06)", "arquivo": "shared/simulacao.js", "contem": ["chat(id, m) {", "receberChat(msg) {", "historicoChat(id, geral, amigos, pm) {"] },
-    { "nome": "Chat: mensagem privada (pm) com cada amigo (André 2026-11-06)", "arquivo": "godot-prototipo/chat.gd", "contem": ["func abrir_pm(", "func _montar_lista_amigos(", "\"Todos os amigos\""] }
+    { "nome": "Chat: mensagem privada (pm) com cada amigo (André 2026-11-06)", "arquivo": "godot-prototipo/chat.gd", "contem": ["func abrir_pm(", "func _montar_lista_amigos(", "\"Todos os amigos\""] },
+    { "nome": "Martelo da construção no menu do topo (aceso no terreno)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["[\"construir\", \"Construir\", \"construir\"]", "func _atualizar_construir() -> void:"] }
   ]
 }
