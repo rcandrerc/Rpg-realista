@@ -75,6 +75,7 @@ var nadando := false
 var _nado := 0.0 # 0 = locomoção de terra, 1 = na água
 var _nada := 0.0 # 0 = boiando, 1 = nadando
 var _len_nadar := 1.0
+var voltas_nado := 0.0 # voltas por segundo do Swimming agora (agua_fx.gd: respingo a cada braçada)
 
 func _init(p: AnimationPlayer) -> void:
 	player = p
@@ -390,7 +391,9 @@ func atualizar(dt: float, vel: float) -> void:
 		_nado = move_toward(_nado, 1.0 if nadando else 0.0, dt * 2.5)
 		_nada = move_toward(_nada, smoothstep(0.15, 0.9, vel) if nadando else 0.0, dt * 2.0)
 		# braçada no ritmo da velocidade, entre 0,7x e 1,5x (mais rápido que isso parece afobado)
-		tree.set("parameters/ts_nadar/scale", clamp(vel * _len_nadar / NADO_VOLTA, 0.7, 1.5))
+		var ts_nado: float = clamp(vel * _len_nadar / NADO_VOLTA, 0.7, 1.5)
+		tree.set("parameters/ts_nadar/scale", ts_nado)
+		voltas_nado = ts_nado / _len_nadar
 	if arrancando > 0.0:
 		arrancando += dt * _arr_ritmo
 	_pernas = move_toward(_pernas, _pernas_alvo, dt * (12.0 if _pernas_alvo > _pernas else 6.0))

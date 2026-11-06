@@ -19,6 +19,7 @@ const AnimHeroi = preload("res://anim_heroi.gd")
 const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Inclinar = preload("res://inclinar.gd")
+const AguaFx = preload("res://agua_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
@@ -147,6 +148,11 @@ var _quadril := 0.0 # afundada do quadril no pouso (m)
 # Nado nos lagos fundos (André 2026-11-06): boiando o herói nada (anim_heroi.gd), as armas vão para as costas e não
 # dá para lutar. O corpo sobe um pouco para a cabeça e as costas ficarem fora da água (o Mixamo nada mais baixo).
 var _nadando := false
+var agua_fx # agua_fx.gd: espuma em volta, rastro em V e respingo das braçadas
+# cajado nas costas nadando (direção de arte 2026-11-06): deitado, a chama passava da cabeça como uma lança; desliza
+# CAJADO_NADO m para os pés (a chama fica na nuca). Boiando de pé fica no lugar.
+const CAJADO_NADO := 0.35
+var _caj_base = null # posição do cajado nas costas (no osso), guardada ao prender
 var _saindo_agua := 0.0 # segundos que faltam da saída do lago (do nado até ficar de pé)
 var _sobe_agua := 0.0 # metros que o corpo sobe agora
 const SOBE_BOIANDO := 0.12 # boiando parado (Treading Water): o ombro fica na linha da água
@@ -217,6 +223,8 @@ func _ready() -> void:
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
+	agua_fx = AguaFx.new()
+	add_child(agua_fx)
 	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
@@ -920,6 +928,7 @@ func armar(modo: String) -> void:
 		prender(heroi_esq, cajado, L.cajadoCostas)
 		if montaria != null:
 			armas_montado(heroi_esq, espada, cajado)
+		_caj_base = cajado.position if _nadando and montaria == null else null
 	elif modo == "Espada":
 		colisor_espada(heroi_esq, null)
 		prender(heroi_esq, espada, L.espadaMao)
@@ -2460,7 +2469,7 @@ func _process(dt: float) -> void:
 	avisar_zona()
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
-	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 else 0.0
+	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 and not _nadando else 0.0 # nadando os braços são da braçada
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	vestir_heroi()
 	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
@@ -2801,6 +2810,14 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		sobe_alvo = lerpf(SOBE_BOIANDO, SOBE_NADANDO, smoothstep(0.15, 0.9, vel))
 	_sobe_agua = move_toward(_sobe_agua, sobe_alvo, dt * (0.9 if _saindo_agua > 0.0 else 0.6))
 	inclinar.afunda = _quadril + freada * 0.035 - _sobe_agua
+	# cajado nas costas nadando: desce para os pés conforme o corpo deita
+	if _caj_base != null and _nadando and cajado.get_parent() is BoneAttachment3D:
+		var b := heroi_esq.find_bone("J_Bip_C_UpperChest")
+		if b >= 0:
+			var desce: Vector3 = heroi_esq.get_bone_global_rest(b).basis.inverse() * Vector3(0, -CAJADO_NADO, 0)
+			cajado.position = _caj_base + desce * heroi_anim._nada
+	if agua_fx:
+		agua_fx.passo(dt, heroi, heroi_esq, _nadando, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
 	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando:
 		_passo_dist += vel * dt
