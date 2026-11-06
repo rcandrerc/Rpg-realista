@@ -21,7 +21,7 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, amigo: 3, time: 3, chat: 10 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
-const historicoChat = { geral: [], amigos: [] };
+const historicoChat = { geral: [], amigos: [], pm: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID;
@@ -77,13 +77,13 @@ class SalaClareira extends Room {
     };
     // o amigo está jogando em outra sala (a lista mostra "online")
     this.sim.onlineFora = (k) => { for (const s of salas) if (s !== this && s.sim.porConta(k)) return true; return false; };
-    // chat geral (todo mundo online, em qualquer sala) e de amigos (shared/simulacao.js chat): m = { canal, texto }
+    // chat geral (todo mundo online, em qualquer sala), de amigos e pm com um amigo (shared/simulacao.js chat): m = { canal, texto, para? }
     this.ouvir('chat', (c, m) => {
       if (!m || typeof m.canal !== 'string' || typeof m.texto !== 'string' || m.texto.length > 400) return;
-      const msg = this.sim.chat(c.sessionId, { canal: m.canal, texto: m.texto });
+      const msg = this.sim.chat(c.sessionId, { canal: m.canal, texto: m.texto, para: typeof m.para === 'string' ? m.para : undefined });
       if (!msg) return;
       const h = historicoChat[msg.canal];
-      h.push(msg); if (h.length > CHAT.historico) h.shift();
+      h.push(msg); if (h.length > (msg.canal === 'pm' ? CHAT.historicoPm : CHAT.historico)) h.shift();
       for (const s of salas) s.sim.receberChat(msg);
     });
     // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
@@ -212,7 +212,7 @@ class SalaClareira extends Room {
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (conta) this.sim.definirAmigos(client.sessionId, contas.amigos(conta.id).map((a) => ({ c: 'c' + a.id, nome: a.nome })));
-    this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos); // as últimas mensagens do chat
+    this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos, historicoChat.pm); // as últimas mensagens do chat
     if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
   }
 

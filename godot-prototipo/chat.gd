@@ -8,6 +8,8 @@ extends CanvasLayer
 #   (o joystick e a câmera continuam funcionando por cima dela). Os dois canais juntos, o de amigos em verde.
 # - Escrevendo (balão do menu do topo, ou Enter no PC): a barra de escrever fica embaixo e sobe junto com o teclado do
 #   celular, com as mensagens da aba logo acima, para ver o que está escrevendo. Fechou o teclado, volta a ser só a caixa.
+# - Botãozinho do balão na ponta de cima da caixa (André 2026-11-06): SEGURAR meio segundo abre o chat completo para ler
+#   as conversas anteriores (o teclado só sobe tocando na barra). Toque rápido não abre, para não abrir no meio da luta.
 # Silenciar o geral é escolha de cada um e fica salvo no celular: o geral some da caixa, da janela e do contador.
 
 const Menu = preload("res://menu.gd")
@@ -27,6 +29,10 @@ var msgs := {"geral": [], "amigos": []}
 var todas: Array = [] # os dois canais em ordem de chegada (a caixa de leitura)
 var nao_lidas := {"geral": 0, "amigos": 0}
 var aba := "geral"
+# aba Amigos (André 2026-11-06: "tipo um pm, private msg pra cada amigo"): "" = lista de amigos; "amigos" = todos os amigos
+# juntos (o canal que já existia); "pm:<conta>" = conversa privada com um amigo
+var conversa := ""
+const COR_PM := Color("e6a8ff") # lilás das mensagens privadas
 var geral_mudo := false
 var raiz: Control
 # leitura (embaixo, sem toque)
@@ -47,6 +53,15 @@ var _selo: Label # número de não lidas em cima do ícone do topo
 var _teclado := 0.0 # altura do teclado do celular, em pixels da tela do jogo
 var _teclado_visto := false # o teclado já abriu nesta escrita (no PC nunca abre)
 var _teclado_zero_t := 0.0
+var _historico := false # aberto pelo botãozinho (ler as conversas): fechar o teclado não fecha o chat
+# botãozinho de abrir o chat completo (André 2026-11-06): fica na ponta de cima da caixa e só abre segurando,
+# para não abrir sem querer no meio da luta
+const BOTAO := 30.0
+const SEGURAR := 0.5 # segundos segurando para abrir
+var botao: Control
+var _segura_dedo := -1
+var _segura_t := 0.0
+var _dica_t := 0.0
 
 func _init(principal) -> void:
 	m = principal
@@ -60,6 +75,7 @@ func _ready() -> void:
 	add_child(raiz)
 	_montar_caixa()
 	_montar_escrever()
+	_montar_botao()
 
 # ---------- ícone do topo (menu_topo.gd chama ao criar o botão) ----------
 func ligar_icone(b: Button) -> void:
@@ -80,10 +96,46 @@ func ligar_icone(b: Button) -> void:
 	_selo.visible = false
 	b.add_child(_selo)
 
+# o número da aba Amigos: todos os amigos juntos + as conversas privadas
+func _nao_lidas_amigos() -> int:
+	var n := 0
+	for k in nao_lidas:
+		if k != "geral":
+			n += int(nao_lidas[k])
+	return n
+
+func _nao_lidas_pm() -> int:
+	var n := 0
+	for k in nao_lidas:
+		if str(k).begins_with("pm:"):
+			n += int(nao_lidas[k])
+	return n
+
+# de que conversa é a mensagem: o geral, todos os amigos ou "pm:<conta do outro>"
+static func chave_de(x: Dictionary) -> String:
+	var k := str(x.get("canal", ""))
+	if k == "pm":
+		return "pm:" + str(x.get("alvo", "") if x.get("meu", false) == true else x.get("c", ""))
+	return k
+
+# o nome de quem está do outro lado da conversa privada
+static func outro_nome(x: Dictionary) -> String:
+	return str(x.get("alvoNome", "") if x.get("meu", false) == true else x.get("nome", ""))
+
+func _chave_atual() -> String:
+	return "geral" if aba == "geral" else conversa
+
+# abrir direto a conversa privada com um amigo (botão "Msg" na lista de amigos do Multijogador)
+func abrir_pm(conta: String) -> void:
+	if aberto():
+		fechar()
+	conversa = "pm:" + conta
+	abrir("amigos")
+
 func _atualizar_selo() -> void:
 	if _selo == null:
 		return
-	var n: int = nao_lidas.amigos + (0 if geral_mudo else nao_lidas.geral)
+	var n: int = _nao_lidas_amigos() + (0 if geral_mudo else int(nao_lidas.get("geral", 0)))
 	_selo.visible = n > 0
 	_selo.text = "99+" if n > 99 else str(n)
 	_selo.size = Vector2(28 if n > 9 else 20, 18)
@@ -129,6 +181,82 @@ func _refazer_caixa() -> void:
 		r.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		r.add_theme_constant_override("outline_size", 4)
 		caixa_lista.add_child(r)
+
+# ---------- botãozinho: segurar meio segundo abre o chat completo com as conversas anteriores ----------
+class BotaoChat extends Control:
+	var k := 0.0 # 0..1 do quanto já segurou
+	var dica := 0.0 # "Segure para abrir" depois de um toque rápido
+	var ico: Texture2D
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := size.x * 0.5
+		draw_circle(c, r, Color(0.04, 0.035, 0.03, 0.42))
+		draw_arc(c, r - 0.5, 0, TAU, 32, Color(0.925, 0.81, 0.55, 0.35), 1.0, true)
+		if ico:
+			draw_texture_rect(ico, Rect2(c - Vector2(9, 9), Vector2(18, 18)), false, Color(1, 1, 1, 0.75 + 0.25 * k))
+		if k > 0.0:
+			draw_arc(c, r - 2.0, -PI * 0.5, -PI * 0.5 + TAU * k, 32, Color(0.95, 0.82, 0.55), 3.0, true)
+		if dica > 0.0:
+			var f := ThemeDB.fallback_font
+			var t := "Segure para abrir o chat"
+			var p := Vector2(size.x + 6, c.y + 5)
+			draw_string_outline(f, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.8 * min(1.0, dica)))
+			draw_string(f, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.92, 0.75, min(1.0, dica)))
+
+func _montar_botao() -> void:
+	botao = BotaoChat.new()
+	botao.ico = Menu.icone_tex("topo_chat")
+	botao.mouse_filter = Control.MOUSE_FILTER_IGNORE # o toque é tratado em _input (a HUD pergunta antes por cobre)
+	botao.size = Vector2(BOTAO, BOTAO)
+	botao.visible = false
+	raiz.add_child(botao)
+
+# onde o botão fica: na ponta de cima à direita da caixa de leitura (ou do lugar dela, quando ainda não tem mensagem)
+func _lugar_botao() -> void:
+	var r := caixa.get_global_rect()
+	if not caixa.visible:
+		r = Rect2(Vector2(caixa.offset_left, raiz.size.y + caixa.offset_bottom - 10.0), Vector2(LARGURA_CAIXA * caixa.scale.x, 10.0))
+	botao.position = Vector2(r.end.x - BOTAO, r.position.y - BOTAO - 4.0)
+
+# a HUD (pelo menu_topo.cobre) pergunta: este toque é do botãozinho? (aí não vira joystick nem câmera)
+func cobre_botao(p: Vector2) -> bool:
+	return botao != null and botao.visible and botao.get_global_rect().grow(6).has_point(p)
+
+func _input(ev: InputEvent) -> void:
+	if ev is InputEventScreenDrag and ev.index == _segura_dedo and not cobre_botao(ev.position):
+		_segura_dedo = -1 # o dedo saiu do botão: não abre
+		_segura_t = 0.0
+		return
+	if not (ev is InputEventScreenTouch) or botao == null or not botao.visible:
+		return
+	if ev.pressed and _segura_dedo < 0 and cobre_botao(ev.position):
+		_segura_dedo = ev.index
+		_segura_t = 0.0
+	elif not ev.pressed and ev.index == _segura_dedo:
+		_segura_dedo = -1
+		if _segura_t < SEGURAR: # toque rápido: não abre, só lembra que é para segurar
+			_dica_t = 1.6
+		_segura_t = 0.0
+
+func _atualizar_botao(dt: float) -> void:
+	botao.visible = m.on() and not aberto() and not ((m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())) and m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao
+	if not botao.visible:
+		_segura_dedo = -1
+		_segura_t = 0.0
+		return
+	_lugar_botao()
+	if _segura_dedo >= 0:
+		_segura_t += dt
+		if _segura_t >= SEGURAR:
+			_segura_dedo = -1
+			_segura_t = 0.0
+			m.vibrar(25)
+			abrir("", true)
+			return
+	_dica_t = max(0.0, _dica_t - dt)
+	botao.k = clamp(_segura_t / SEGURAR, 0.0, 1.0)
+	botao.dica = _dica_t
+	botao.queue_redraw()
 
 # ---------- escrevendo: barra embaixo (sobe com o teclado) e as mensagens da aba logo acima ----------
 func _montar_escrever() -> void:
@@ -264,7 +392,7 @@ func _altura_teclado() -> float:
 	var tela := raiz.get_viewport_rect().size
 	return h * (tela.y / max(1.0, janela.y))
 
-func abrir(qual := "") -> void:
+func abrir(qual := "", historico := false) -> void:
 	if escrever.visible:
 		fechar()
 		return
@@ -272,14 +400,18 @@ func abrir(qual := "") -> void:
 		m.menu_topo.fechar()
 	if qual != "":
 		aba = qual
-	elif nao_lidas.amigos > 0 and (geral_mudo or nao_lidas.geral == 0):
+	elif _nao_lidas_amigos() > 0 and (geral_mudo or int(nao_lidas.get("geral", 0)) == 0):
 		aba = "amigos"
+		if _nao_lidas_pm() > 0 and conversa != "" and int(nao_lidas.get(conversa, 0)) == 0:
+			conversa = "" # chegou privada de outro amigo: abre na lista, com os números de cada um
 	escrever.visible = true
+	_historico = historico
 	_teclado_visto = false
 	_teclado_zero_t = 0.0
 	m.hud.bloqueado = true
 	montar()
-	_editar.call_deferred()
+	if not historico: # pelo botãozinho abre para ler: o teclado só sobe tocando na barra de escrever
+		_editar.call_deferred()
 
 func _editar() -> void:
 	if not escrever.visible or not campo.editable:
@@ -307,6 +439,8 @@ func aberto() -> bool:
 	return escrever != null and escrever.visible
 
 func trocar_aba(k: String) -> void:
+	if k == "amigos" and aba == "amigos":
+		conversa = "" # tocar de novo em Amigos volta para a lista
 	aba = k
 	montar()
 	_editar()
@@ -315,7 +449,7 @@ func silenciar_geral(v: bool) -> void:
 	if geral_mudo == v:
 		return
 	geral_mudo = v
-	nao_lidas.geral = 0
+	nao_lidas["geral"] = 0
 	salvar()
 	_atualizar_selo()
 	_refazer_caixa()
@@ -325,7 +459,7 @@ func silenciar_geral(v: bool) -> void:
 func montar() -> void:
 	for k in abas_b:
 		var b: Button = abas_b[k]
-		var n: int = nao_lidas[k]
+		var n: int = _nao_lidas_amigos() if k == "amigos" else int(nao_lidas.get(k, 0))
 		var nome := "Geral" if k == "geral" else "Amigos"
 		if k == "geral" and geral_mudo:
 			nome = "Geral (mudo)"
@@ -334,10 +468,13 @@ func montar() -> void:
 		if k == "amigos":
 			b.add_theme_color_override("font_color", COR_AMIGO if k == aba else Color(COR_AMIGO, 0.75))
 	mudo_b.set_pressed_no_signal(geral_mudo)
-	nao_lidas[aba] = 0
+	var chave := _chave_atual()
+	if chave != "":
+		nao_lidas[chave] = 0
 	_atualizar_selo()
 	var on: bool = m.on()
-	var sem_amigos: bool = aba == "amigos" and m.amigos != null and m.amigos.lista.is_empty()
+	var sem_amigos: bool = aba == "amigos" and m.amigos != null and m.amigos.lista.is_empty() and not chave.begins_with("pm:")
+	var na_lista: bool = aba == "amigos" and chave == ""
 	var mudo: bool = aba == "geral" and geral_mudo
 	var dica := ""
 	if not on:
@@ -348,21 +485,92 @@ func montar() -> void:
 		dica = "Você ainda não tem amigos. Toque num jogador aqui no mundo e escolha \"Adicionar amigo\"."
 	aviso_l.text = dica
 	aviso_l.visible = dica != ""
-	var pode: bool = on and not mudo and not sem_amigos
+	var pode: bool = on and not mudo and not sem_amigos and not na_lista
 	campo.editable = pode
 	enviar_b.disabled = not pode
-	campo.placeholder_text = "Escreva para todo mundo…" if aba == "geral" else "Escreva para os seus amigos…"
+	if aba == "geral":
+		campo.placeholder_text = "Escreva para todo mundo…"
+	elif na_lista:
+		campo.placeholder_text = "Escolha um amigo para conversar"
+	elif chave == "amigos":
+		campo.placeholder_text = "Escreva para todos os seus amigos…"
+	else:
+		campo.placeholder_text = "Mensagem privada para %s…" % _nome_pm(chave)
 	for c in lista.get_children():
 		lista.remove_child(c)
 		c.queue_free()
 	if mudo:
 		return
-	var l: Array = msgs[aba]
-	if l.is_empty() and on and not sem_amigos:
+	if na_lista:
+		if not sem_amigos:
+			_montar_lista_amigos()
+		return
+	if aba == "amigos": # dentro de uma conversa: voltar para a lista e de quem é
+		var cab := HBoxContainer.new()
+		cab.add_theme_constant_override("separation", 8)
+		var v := Button.new()
+		v.text = "‹ Amigos"
+		v.focus_mode = Control.FOCUS_NONE
+		v.custom_minimum_size = Vector2(96, 30)
+		v.add_theme_font_size_override("font_size", 14)
+		Menu.estilo_botao(v, false)
+		v.pressed.connect(func():
+			conversa = ""
+			montar())
+		cab.add_child(v)
+		var t := Menu.rotulo("Todos os amigos" if chave == "amigos" else "Privado com %s" % _nome_pm(chave), 15, COR_AMIGO if chave == "amigos" else COR_PM)
+		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		cab.add_child(t)
+		lista.add_child(cab)
+	var l: Array = msgs.get(chave, [])
+	if l.is_empty() and on and not sem_amigos and not na_lista:
 		lista.add_child(Menu.rotulo("Nenhuma mensagem ainda. Diga oi!", 14, Menu.APAGADO))
 	for x in l:
 		lista.add_child(_linha(x, 15, true))
 	_descer()
+
+func _nome_pm(chave: String) -> String:
+	var c := chave.substr(3)
+	if m.amigos:
+		for a in m.amigos.lista:
+			if str(a.get("c", "")) == c:
+				return str(a.get("nome", ""))
+	for x in msgs.get(chave, []):
+		return outro_nome(x)
+	return "amigo"
+
+# aba Amigos sem conversa aberta: "Todos os amigos" e cada amigo (online em verde), com as mensagens não lidas
+func _montar_lista_amigos() -> void:
+	var linhas: Array = [["amigos", "Todos os amigos", -1]]
+	var vistos := {}
+	for a in (m.amigos.lista if m.amigos else []):
+		var c := str(a.get("c", ""))
+		vistos[c] = true
+		linhas.append(["pm:" + c, str(a.get("nome", "")), int(a.get("on", 0))])
+	for k in msgs: # conversa com quem já não está na lista (dá para ler, não para responder)
+		if str(k).begins_with("pm:") and not vistos.has(str(k).substr(3)) and not msgs[k].is_empty():
+			linhas.append([k, outro_nome(msgs[k][-1]), 0])
+	for ln in linhas:
+		var k: String = ln[0]
+		var n := int(nao_lidas.get(k, 0))
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 15)
+		var est := ""
+		if int(ln[2]) >= 0:
+			est = "  · online" if int(ln[2]) == 1 else "  · em outro mundo" if int(ln[2]) == 2 else "  · offline"
+		b.text = "%s%s%s" % [ln[1], est, "   (%d)" % n if n > 0 else ""]
+		Menu.estilo_botao(b, n > 0)
+		var cor: Color = COR_AMIGO if k == "amigos" or int(ln[2]) > 0 else Menu.APAGADO
+		b.add_theme_color_override("font_color", cor)
+		b.add_theme_color_override("font_hover_color", cor)
+		b.pressed.connect(func():
+			conversa = k
+			montar()
+			_editar())
+		lista.add_child(b)
 
 func _descer() -> void:
 	await get_tree().process_frame
@@ -371,9 +579,13 @@ func _descer() -> void:
 
 func enviar() -> void:
 	var t := campo.text.strip_edges()
-	if t == "" or not m.on() or (aba == "geral" and geral_mudo):
+	var chave := _chave_atual()
+	if t == "" or not m.on() or (aba == "geral" and geral_mudo) or chave == "":
 		return
-	m.rede("chat", {"canal": aba, "texto": t.left(MAX)})
+	if chave.begins_with("pm:"):
+		m.rede("chat", {"canal": "pm", "para": chave.substr(3), "texto": t.left(MAX)})
+	else:
+		m.rede("chat", {"canal": chave, "texto": t.left(MAX)})
 	campo.text = ""
 	_editar.call_deferred() # o teclado continua aberto para a próxima
 
@@ -393,12 +605,15 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 	r.add_theme_font_size_override("bold_font_size", tam)
 	r.add_theme_color_override("default_color", Menu.TEXTO)
 	var amigo: bool = str(x.get("canal", "")) == "amigos"
-	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else Color(0.86, 0.72, 0.5))
+	var pm: bool = str(x.get("canal", "")) == "pm"
+	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else COR_PM if pm else Color(0.86, 0.72, 0.5))
 	var s := ""
 	if com_hora:
 		s += "[color=#%s]%s[/color]  " % [Menu.APAGADO.to_html(false), _hora(float(x.get("hora", 0)))]
 	elif amigo:
 		s += "[color=#%s][lb]Amigos][/color] " % COR_AMIGO.to_html(false)
+	elif pm: # na caixa de baixo: de quem veio ou para quem foi
+		s += "[color=#%s][lb]%s %s][/color] " % [COR_PM.to_html(false), "Para" if x.get("meu", false) == true else "De", _seguro(outro_nome(x))]
 	s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(str(x.get("texto", "")))]
 	r.text = s
 	return r
@@ -417,16 +632,21 @@ func do_servidor(ev: Dictionary) -> void:
 			msgs = {"geral": [], "amigos": []}
 			todas = []
 			for x in ev.get("lista", []):
-				if x is Dictionary and msgs.has(str(x.get("canal", ""))):
-					msgs[str(x.canal)].append(x)
+				if x is Dictionary and str(x.get("canal", "")) in ["geral", "amigos", "pm"]:
+					var kk := chave_de(x)
+					if not msgs.has(kk):
+						msgs[kk] = []
+					msgs[kk].append(x)
 					todas.append(x)
 			_refazer_caixa()
 			if aberto():
 				montar()
 		"chat":
-			var k := str(ev.get("canal", ""))
-			if not msgs.has(k):
+			if not (str(ev.get("canal", "")) in ["geral", "amigos", "pm"]):
 				return
+			var k := chave_de(ev)
+			if not msgs.has(k):
+				msgs[k] = []
 			msgs[k].append(ev)
 			if msgs[k].size() > GUARDA:
 				msgs[k].pop_front()
@@ -437,7 +657,7 @@ func do_servidor(ev: Dictionary) -> void:
 				return
 			_refazer_caixa()
 			var meu: bool = ev.get("meu", false) == true
-			if aberto() and aba == k:
+			if aberto() and _chave_atual() == k:
 				for c in lista.get_children(): # "Nenhuma mensagem ainda" sai
 					if c is Label:
 						c.queue_free()
@@ -449,11 +669,11 @@ func do_servidor(ev: Dictionary) -> void:
 				_descer()
 			else:
 				if not meu:
-					nao_lidas[k] += 1
+					nao_lidas[k] = int(nao_lidas.get(k, 0)) + 1
 				_atualizar_selo()
 				if aberto():
 					montar()
-			if not meu and k == "amigos" and m.sons:
+			if not meu and k != "geral" and m.sons:
 				m.sons.tocar("pano", -16.0)
 
 func _process(dt: float) -> void:
@@ -461,6 +681,7 @@ func _process(dt: float) -> void:
 	var menu_aberto: bool = (m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())
 	var hud_livre: bool = m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao
 	caixa.visible = caixa_lista.get_child_count() > 0 and not aberto() and not menu_aberto and hud_livre
+	_atualizar_botao(dt)
 	if not aberto():
 		return
 	# o teclado do celular sobe: a barra sobe junto. Fechou o teclado (botão voltar do Android): o chat volta a ser só a caixa
@@ -470,7 +691,7 @@ func _process(dt: float) -> void:
 		_teclado_zero_t = 0.0
 	elif _teclado_visto:
 		_teclado_zero_t += dt
-		if _teclado_zero_t > 0.25:
+		if _teclado_zero_t > 0.25 and not _historico:
 			fechar()
 			return
 	if absf(t - _teclado) > 0.5:
@@ -497,6 +718,31 @@ func desligou() -> void:
 	_atualizar_selo()
 	if aberto():
 		montar()
+
+# modo de editar a interface (editar_hud.gd): a caixa de leitura muda de lugar e de tamanho
+# (cresce em volta do canto de baixo à esquerda, que é de onde ela sobe com as linhas)
+const ALTURA_EDITAR := 110.0 # área que o modo de edição mostra para a caixa (cabe as 5 linhas)
+var caixa_d := Vector2.ZERO
+var caixa_s := 1.0
+func posicionar(d: Vector2, s: float) -> void:
+	caixa_d = d
+	caixa_s = s
+	caixa.offset_left = MARGEM + d.x
+	caixa.offset_right = MARGEM + LARGURA_CAIXA + d.x
+	caixa.offset_bottom = -MARGEM + d.y
+	caixa.offset_top = -MARGEM - 10 + d.y
+	caixa.scale = Vector2(s, s)
+	caixa.pivot_offset = Vector2(0, caixa.size.y)
+	if not caixa.resized.is_connected(_caixa_pivo):
+		caixa.resized.connect(_caixa_pivo)
+
+func _caixa_pivo() -> void:
+	caixa.pivot_offset = Vector2(0, caixa.size.y)
+
+func area() -> Rect2:
+	var t := raiz.size
+	var h := ALTURA_EDITAR * caixa_s
+	return Rect2(Vector2(MARGEM + caixa_d.x, t.y - MARGEM + caixa_d.y - h), Vector2(LARGURA_CAIXA * caixa_s, h))
 
 # ---------- guardar no aparelho ----------
 func carregar() -> void:

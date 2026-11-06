@@ -214,8 +214,31 @@ func _mexer_itens(v: bool) -> void:
 		b.mouse_filter = Control.MOUSE_FILTER_STOP if v else Control.MOUSE_FILTER_IGNORE
 
 # a HUD pergunta: este toque é do menu do topo? (aí não vira joystick nem câmera)
+# modo de editar a interface (editar_hud.gd): a barra de ícones muda de lugar e de tamanho junto com a seta
+func posicionar(d: Vector2, s: float) -> void:
+	var n := ITENS.size()
+	lugar.offset_right = -(MARGEM.x + TAM + ESPACO) + d.x
+	lugar.offset_left = lugar.offset_right - (TAM * n + ESPACO * (n - 1))
+	lugar.offset_top = MARGEM.y + d.y
+	lugar.offset_bottom = MARGEM.y + TAM + d.y
+	seta.offset_left = -(MARGEM.x + TAM) + d.x
+	seta.offset_right = -MARGEM.x + d.x
+	seta.offset_top = MARGEM.y + d.y
+	seta.offset_bottom = MARGEM.y + TAM + d.y
+	# as duas crescem em volta da ponta direita da seta (o canto que fica junto do minimapa)
+	lugar.pivot_offset = Vector2(TAM * n + ESPACO * (n - 1) + ESPACO + TAM, TAM * 0.5)
+	seta.pivot_offset = Vector2(TAM, TAM * 0.5)
+	lugar.scale = Vector2(s, s)
+	seta.scale = Vector2(s, s)
+
+func area() -> Rect2:
+	var r := seta.get_global_rect()
+	if not recolhido:
+		r = r.merge(lugar.get_global_rect())
+	return r
+
 func cobre(p: Vector2) -> bool:
-	if janela.visible or (m.chat and m.chat.aberto()):
+	if janela.visible or (m.chat and (m.chat.aberto() or m.chat.cobre_botao(p))):
 		return true
 	if seta.get_global_rect().grow(6).has_point(p):
 		return true

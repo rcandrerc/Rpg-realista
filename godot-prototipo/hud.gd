@@ -46,7 +46,20 @@ var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joyst
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
 var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 var troca # troca.gd: o cartão do pedido de troca não vira joystick nem câmera
-const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem
+const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
+# modo de editar a interface (André 2026-11-06, editar_hud.gd): cada elemento ganha um deslocamento (d, px) e uma escala (s)
+var painel_d := Vector2.ZERO
+var painel_s := 1.0
+var joy_s := 1.0 # tamanho do joystick (ele continua nascendo onde o dedo toca)
+var editando := false # modo de edição aberto: a HUD não anda, não ataca e não abre menu
+var editor # editar_hud.gd
+const SEGURAR := 0.55 # segundos segurando o painel para abrir o modo de edição
+var _painel_dedo := -1
+var _painel_t := 0.0
+var _painel_ini := Vector2.ZERO
+var retrato: Texture2D # rosto do herói (main.gd monta o palco); sem ele fica a letra
+var fonte: Font
+var relogio_teste := -1.0 # só para gravar o clipe do medalhão (>= 0 troca o relógio do brilho)
 var modo := "Espada"
 var _icones := {}
 var aviso_txt := ""
@@ -67,6 +80,7 @@ func levou_dano() -> void:
 	_dano_t = 0.35
 
 func _ready() -> void:
+	fonte = load("res://fontes/AlegreyaSans-Bold.ttf")
 	_tela = Control.new()
 	_tela.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_tela.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -104,7 +118,7 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
-	botoes.append({"acao": acao, "canto": canto, "raio": raio, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
+	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
 		"pronto_t": 0.0, "nega_t": 0.0, "sem_mana": false, "borda": null})
 
 # apertou e não pôde (sem mana, recarga): o botão treme um instante
@@ -172,9 +186,48 @@ func aviso(t: String) -> void:
 	_aviso_t = 2.2
 
 func _centro(b: Dictionary) -> Vector2:
-	return _tela.size - b.canto
+	return _tela.size - b.canto + b.d
+
+# onde o painel do herói está agora (o modo de edição pode ter mudado lugar e tamanho)
+func painel_rect() -> Rect2:
+	return Rect2(PAINEL.position + painel_d, PAINEL.size * painel_s)
+
+func botao(acao: String) -> Dictionary:
+	for b in botoes:
+		if b.acao == acao:
+			return b
+	return {}
+
+# muda lugar e tamanho de um botão (modo de edição)
+func ajustar_botao(acao: String, d: Vector2, s: float) -> void:
+	var b := botao(acao)
+	if b.is_empty():
+		return
+	b.d = d
+	b.s = s
+	b.raio = float(b.raio0) * s
+
+# o arco das skills ainda está no lugar de sempre? (a zona morta do arco só vale assim)
+func _arco_padrao() -> bool:
+	for i in 6:
+		var b: Dictionary = botoes[1 + i]
+		if b.d != Vector2.ZERO or b.s != 1.0:
+			return false
+	var g: Dictionary = botoes[7]
+	return g.d == Vector2.ZERO and g.s == 1.0
 
 func _input(ev: InputEvent) -> void:
+	if editando: # o editor (editar_hud.gd) cuida do toque
+		return
+	if ev is InputEventScreenTouch and ev.index == _painel_dedo and not ev.pressed:
+		_painel_dedo = -1 # soltou antes de abrir o modo de edição: toque curto abre o menu do personagem
+		if not bloqueado:
+			apertou.emit("menu")
+		return
+	if ev is InputEventScreenDrag and ev.index == _painel_dedo:
+		if ev.position.distance_to(_painel_ini) > 30.0:
+			_painel_dedo = -1 # arrastou para fora: não é toque nem segurar
+		return
 	if bloqueado:
 		if not _toques.is_empty():
 			soltar_tudo()
@@ -188,8 +241,11 @@ func _input(ev: InputEvent) -> void:
 			return
 		if ev.pressed and troca and troca.cobre(ev.position): # cartão do pedido de troca (troca.gd)
 			return
-		if ev.pressed and PAINEL.has_point(ev.position):
-			apertou.emit("menu")
+		if ev.pressed and painel_rect().has_point(ev.position):
+			# toque curto abre o menu do personagem (ao soltar); segurar abre o modo de editar a interface
+			_painel_dedo = ev.index
+			_painel_t = 0.0
+			_painel_ini = ev.position
 			return
 		if ev.pressed and modo_construcao and arrastar_terreno and construcao and ev.position.x >= _tela.size.x * 0.42 and not ("sel" in _toques.values()):
 			_toques[ev.index] = "sel" # compra de terreno: este dedo marca o canto e arrasta até o outro
@@ -245,10 +301,10 @@ func _input(ev: InputEvent) -> void:
 				construcao.arrasto(ev.position, 1)
 		elif o == "joy":
 			_joy_dedo = ev.position
-			var d: Vector2 = (_joy_dedo - _joy_centro) / JOY_RAIO
+			var d: Vector2 = (_joy_dedo - _joy_centro) / (JOY_RAIO * joy_s)
 			mover = d.limit_length(1.0)
 			if d.length() > 1.4: # o joystick vem atrás do dedo
-				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * 1.4
+				_joy_centro = _joy_dedo - d.normalized() * JOY_RAIO * joy_s * 1.4
 		elif o == "cam":
 			_cam_dedos[ev.index] = ev.position
 			# pinça: zoom, sem girar. Com o joystick em uso nunca tem pinça: andar + dedo na câmera é sempre girar
@@ -282,7 +338,7 @@ func zona_morta(p: Vector2) -> bool:
 		var c := _centro(b)
 		if p.distance_to(c) <= b.raio * 1.15 + FOLGA_BOTAO:
 			return true
-		if b.acao == "basico": # o arco inteiro das skills (inclui os vãos entre elas)
+		if b.acao == "basico" and _arco_padrao(): # o arco inteiro das skills (inclui os vãos entre elas)
 			var v := p - c
 			if v.length() <= 172.0 + 33.0 * 1.15 + FOLGA_ARCO and v.x <= 0.0 + b.raio and v.y <= b.raio:
 				return true
@@ -305,6 +361,7 @@ func segurando(acao: String) -> bool:
 # solta todos os dedos de uma vez, avisando cada botão (menu abriu, app saiu da tela, toque perdido)
 func soltar_tudo() -> void:
 	var tinha: Array = _toques.values()
+	_painel_dedo = -1
 	_toques.clear()
 	_inicio.clear()
 	_cam_dedos.clear()
@@ -323,6 +380,13 @@ func _notification(what: int) -> void:
 			soltar_tudo()
 
 func _process(dt: float) -> void:
+	if _painel_dedo >= 0:
+		_painel_t += dt
+		if _painel_t >= SEGURAR:
+			_painel_dedo = -1
+			if editor and not bloqueado:
+				soltar_tudo()
+				editor.abrir()
 	if _aviso_t > 0:
 		_aviso_t -= dt
 	if _destaque_t > 0:
@@ -335,7 +399,7 @@ func _process(dt: float) -> void:
 		if b.nega_t > 0.0:
 			b.nega_t -= dt
 	# fade de 0,15 s da HUD de combate (janela do NPC)
-	_combate.modulate.a = move_toward(_combate.modulate.a, 0.0 if esconder_combate or caido else 1.0, dt / (0.6 if caido else 0.15))
+	_combate.modulate.a = move_toward(_combate.modulate.a, 0.0 if (esconder_combate or caido) and not editando else 1.0, dt / (0.6 if caido else 0.15))
 	_combate.visible = _combate.modulate.a > 0.0
 	_tela.queue_redraw()
 	_combate.queue_redraw()
@@ -345,12 +409,10 @@ func _desenhar_combate() -> void:
 	var f := ThemeDB.fallback_font
 	# joystick
 	if _toques.values().has("joy"):
-		_combate.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.12))
-		_combate.draw_circle(_joy_centro, 96, Color(1, 1, 1, 0.25), false, 2.0)
-		_combate.draw_circle(_joy_centro + mover * JOY_RAIO, 40, Color(1, 1, 1, 0.55))
+		desenhar_joystick(_combate, _joy_centro, mover)
 	# botões
 	for b in botoes:
-		if b.oculto or modo_construcao:
+		if (b.oculto or modo_construcao) and not editando: # no modo de edição aparecem todos (Coletar e Falar também)
 			continue
 		var c := _centro(b)
 		if b.nega_t > 0.0: # tremidinha de "não deu"
@@ -389,6 +451,11 @@ func _desenhar_combate() -> void:
 			var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
 			_combate.draw_string(f, c + Vector2(-w * 0.5, 7), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 
+func desenhar_joystick(c: CanvasItem, centro: Vector2, dir: Vector2) -> void:
+	c.draw_circle(centro, 96 * joy_s, Color(1, 1, 1, 0.12))
+	c.draw_circle(centro, 96 * joy_s, Color(1, 1, 1, 0.25), false, 2.0)
+	c.draw_circle(centro + dir * JOY_RAIO * joy_s, 40 * joy_s, Color(1, 1, 1, 0.55))
+
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
 	_tela.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.45))
 	_tela.draw_rect(Rect2(pos, Vector2(tam.x * clamp(frac, 0.0, 1.0), tam.y)), cor)
@@ -420,17 +487,13 @@ func _borda_dano() -> void:
 func _desenhar() -> void:
 	_borda_dano()
 	var f := ThemeDB.fallback_font
-	# painel do herói
-	var p0 := Vector2(18, 14)
+	# painel do herói (lugar e tamanho do modo de edição: desenha em coordenadas próprias com escala)
+	_tela.draw_set_transform(PAINEL.position + painel_d, 0.0, Vector2(painel_s, painel_s))
+	var p0 := Vector2.ZERO
 	_tela.draw_rect(Rect2(p0, PAINEL.size), Color(0.08, 0.07, 0.06, 0.74))
 	_tela.draw_rect(Rect2(p0, PAINEL.size), Color(0.62, 0.48, 0.26, 0.55), false, 1.5)
-	_tela.draw_circle(p0 + Vector2(42, 42), 32, Color(0.85, 0.42, 0.3))
-	_tela.draw_circle(p0 + Vector2(42, 42), 32, Color(0.9, 0.75, 0.4), false, 3.0)
-	_tela.draw_string(f, p0 + Vector2(28, 52), nome.substr(0, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color.WHITE)
-	_tela.draw_circle(p0 + Vector2(66, 66), 12, Color(0.85, 0.6, 0.2))
-	var tn := str(nivel)
-	var wn := f.get_string_size(tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-	_tela.draw_string(f, p0 + Vector2(66 - wn * 0.5, 71), tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.15, 0.1, 0.05))
+	_retrato_heroi(p0 + Vector2(42, 42), 32.0)
+	_selo_nivel(p0 + Vector2(68, 70))
 	_tela.draw_string(f, p0 + Vector2(92, 24), nome.to_upper() + "   " + ("ESPADA MÁGICA" if modo == "Espada" else "MODO MAGIA"), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.75, 0.4))
 	_barra(p0 + Vector2(92, 34), Vector2(225, 18), vida, Color(0.8, 0.22, 0.2), texto_vida)
 	if escudo: # Escudo Arcano ligado: moldura dourada na vida
@@ -441,6 +504,7 @@ func _desenhar() -> void:
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225 * clamp(estamina, 0.0, 1.0), 7)), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225, 4)), Color(0, 0, 0, 0.5))
 	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
+	_tela.draw_set_transform(Vector2.ZERO)
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
 		var pc := Vector2((_tela.size.x - tam.x) * 0.5, _tela.size.y * 0.3) # acima da cabeça (nos pés ela some no brilho do círculo)
@@ -470,3 +534,44 @@ func _desenhar() -> void:
 		var pd := Vector2((_tela.size.x - wd) * 0.5, _tela.size.y * 0.36)
 		_tela.draw_string_outline(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, 10, Color(0.16, 0.08, 0.0, 0.85 * ad))
 		_tela.draw_string(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(1.0, 0.8, 0.3, ad))
+
+# rosto do herói no círculo do painel (André 2026-11-06: "a foto do meu avatar, e não essa letra"); sem palco, a letra
+func _retrato_heroi(c: Vector2, r: float) -> void:
+	_tela.draw_circle(c, r + 1.0, Color(0.16, 0.13, 0.1))
+	if retrato:
+		var pts := PackedVector2Array()
+		var uvs := PackedVector2Array()
+		for i in 40:
+			var a := TAU * i / 40.0
+			var v := Vector2(cos(a), sin(a))
+			pts.append(c + v * r)
+			uvs.append(Vector2(0.5, 0.5) + v * 0.5)
+		_tela.draw_colored_polygon(pts, Color.WHITE, uvs, retrato)
+		_tela.draw_circle(c, r - 1.0, Color(0, 0, 0, 0.35), false, 3.0) # sombra por dentro da moldura
+	else:
+		_tela.draw_circle(c, r, Color(0.85, 0.42, 0.3))
+		var f := ThemeDB.fallback_font
+		_tela.draw_string(f, c + Vector2(-14, 10), nome.substr(0, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color.WHITE)
+	_tela.draw_circle(c, r, Color(0.9, 0.75, 0.4), false, 3.0)
+	_tela.draw_circle(c, r + 2.5, Color(0.35, 0.24, 0.1, 0.8), false, 1.5)
+
+# selo do nível: medalhão dourado com brilho que respira, número grande (antes era uma bolinha quase escondida)
+func _selo_nivel(c: Vector2) -> void:
+	var t: float = relogio_teste if relogio_teste >= 0.0 else Time.get_ticks_msec() / 1000.0
+	var pulso: float = 0.5 + 0.5 * sin(t * TAU / 2.7) # um ciclo de 2,7 s, suave, sem piscar (direção de arte)
+	for i in 5: # halo dourado macio
+		var k := float(i) / 5.0
+		_tela.draw_circle(c, 17.0 + 9.0 * (1.0 - k), Color(1.0, 0.78, 0.3, (0.05 + 0.05 * pulso) * (k + 0.2)))
+	_tela.draw_circle(c + Vector2(0, 2), 16.0, Color(0, 0, 0, 0.45))
+	_tela.draw_circle(c, 16.0, Color(0.42, 0.2, 0.08)) # fundo cobre escuro
+	_tela.draw_circle(c, 13.0, Color(0.62, 0.32, 0.1))
+	_tela.draw_circle(c + Vector2(-3, -4), 7.0, Color(1.0, 0.75, 0.4, 0.22)) # reflexo em cima
+	_tela.draw_circle(c, 16.0, Color(1.0, 0.84, 0.45), false, 2.5)
+	_tela.draw_circle(c, 12.5, Color(0.98, 0.78, 0.38, 0.55), false, 1.0)
+	var tn := str(nivel)
+	var tam := 19 if tn.length() < 3 else 15
+	var fn: Font = fonte if fonte else ThemeDB.fallback_font
+	var sz := fn.get_string_size(tn, HORIZONTAL_ALIGNMENT_LEFT, -1, tam)
+	var pos := c + Vector2(-sz.x * 0.5, sz.y * 0.32)
+	_tela.draw_string_outline(fn, pos, tn, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, 4, Color(0.2, 0.08, 0.0, 0.9))
+	_tela.draw_string(fn, pos, tn, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(1.0, 0.95, 0.75).lerp(Color(1.0, 1.0, 0.9), pulso * 0.5))
