@@ -238,7 +238,7 @@ func area() -> Rect2:
 	return r
 
 func cobre(p: Vector2) -> bool:
-	if janela.visible or (m.chat and m.chat.aberto()):
+	if janela.visible or (m.chat and (m.chat.aberto() or m.chat.cobre_botao(p))):
 		return true
 	if seta.get_global_rect().grow(6).has_point(p):
 		return true

@@ -8,6 +8,8 @@ extends CanvasLayer
 #   (o joystick e a câmera continuam funcionando por cima dela). Os dois canais juntos, o de amigos em verde.
 # - Escrevendo (balão do menu do topo, ou Enter no PC): a barra de escrever fica embaixo e sobe junto com o teclado do
 #   celular, com as mensagens da aba logo acima, para ver o que está escrevendo. Fechou o teclado, volta a ser só a caixa.
+# - Botãozinho do balão na ponta de cima da caixa (André 2026-11-06): SEGURAR meio segundo abre o chat completo para ler
+#   as conversas anteriores (o teclado só sobe tocando na barra). Toque rápido não abre, para não abrir no meio da luta.
 # Silenciar o geral é escolha de cada um e fica salvo no celular: o geral some da caixa, da janela e do contador.
 
 const Menu = preload("res://menu.gd")
@@ -47,6 +49,15 @@ var _selo: Label # número de não lidas em cima do ícone do topo
 var _teclado := 0.0 # altura do teclado do celular, em pixels da tela do jogo
 var _teclado_visto := false # o teclado já abriu nesta escrita (no PC nunca abre)
 var _teclado_zero_t := 0.0
+var _historico := false # aberto pelo botãozinho (ler as conversas): fechar o teclado não fecha o chat
+# botãozinho de abrir o chat completo (André 2026-11-06): fica na ponta de cima da caixa e só abre segurando,
+# para não abrir sem querer no meio da luta
+const BOTAO := 30.0
+const SEGURAR := 0.5 # segundos segurando para abrir
+var botao: Control
+var _segura_dedo := -1
+var _segura_t := 0.0
+var _dica_t := 0.0
 
 func _init(principal) -> void:
 	m = principal
@@ -60,6 +71,7 @@ func _ready() -> void:
 	add_child(raiz)
 	_montar_caixa()
 	_montar_escrever()
+	_montar_botao()
 
 # ---------- ícone do topo (menu_topo.gd chama ao criar o botão) ----------
 func ligar_icone(b: Button) -> void:
@@ -129,6 +141,82 @@ func _refazer_caixa() -> void:
 		r.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		r.add_theme_constant_override("outline_size", 4)
 		caixa_lista.add_child(r)
+
+# ---------- botãozinho: segurar meio segundo abre o chat completo com as conversas anteriores ----------
+class BotaoChat extends Control:
+	var k := 0.0 # 0..1 do quanto já segurou
+	var dica := 0.0 # "Segure para abrir" depois de um toque rápido
+	var ico: Texture2D
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := size.x * 0.5
+		draw_circle(c, r, Color(0.04, 0.035, 0.03, 0.42))
+		draw_arc(c, r - 0.5, 0, TAU, 32, Color(0.925, 0.81, 0.55, 0.35), 1.0, true)
+		if ico:
+			draw_texture_rect(ico, Rect2(c - Vector2(9, 9), Vector2(18, 18)), false, Color(1, 1, 1, 0.75 + 0.25 * k))
+		if k > 0.0:
+			draw_arc(c, r - 2.0, -PI * 0.5, -PI * 0.5 + TAU * k, 32, Color(0.95, 0.82, 0.55), 3.0, true)
+		if dica > 0.0:
+			var f := ThemeDB.fallback_font
+			var t := "Segure para abrir o chat"
+			var p := Vector2(size.x + 6, c.y + 5)
+			draw_string_outline(f, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.8 * min(1.0, dica)))
+			draw_string(f, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.92, 0.75, min(1.0, dica)))
+
+func _montar_botao() -> void:
+	botao = BotaoChat.new()
+	botao.ico = Menu.icone_tex("topo_chat")
+	botao.mouse_filter = Control.MOUSE_FILTER_IGNORE # o toque é tratado em _input (a HUD pergunta antes por cobre)
+	botao.size = Vector2(BOTAO, BOTAO)
+	botao.visible = false
+	raiz.add_child(botao)
+
+# onde o botão fica: na ponta de cima à direita da caixa de leitura (ou do lugar dela, quando ainda não tem mensagem)
+func _lugar_botao() -> void:
+	var r := caixa.get_global_rect()
+	if not caixa.visible:
+		r = Rect2(Vector2(caixa.offset_left, raiz.size.y + caixa.offset_bottom - 10.0), Vector2(LARGURA_CAIXA * caixa.scale.x, 10.0))
+	botao.position = Vector2(r.end.x - BOTAO, r.position.y - BOTAO - 4.0)
+
+# a HUD (pelo menu_topo.cobre) pergunta: este toque é do botãozinho? (aí não vira joystick nem câmera)
+func cobre_botao(p: Vector2) -> bool:
+	return botao != null and botao.visible and botao.get_global_rect().grow(6).has_point(p)
+
+func _input(ev: InputEvent) -> void:
+	if ev is InputEventScreenDrag and ev.index == _segura_dedo and not cobre_botao(ev.position):
+		_segura_dedo = -1 # o dedo saiu do botão: não abre
+		_segura_t = 0.0
+		return
+	if not (ev is InputEventScreenTouch) or botao == null or not botao.visible:
+		return
+	if ev.pressed and _segura_dedo < 0 and cobre_botao(ev.position):
+		_segura_dedo = ev.index
+		_segura_t = 0.0
+	elif not ev.pressed and ev.index == _segura_dedo:
+		_segura_dedo = -1
+		if _segura_t < SEGURAR: # toque rápido: não abre, só lembra que é para segurar
+			_dica_t = 1.6
+		_segura_t = 0.0
+
+func _atualizar_botao(dt: float) -> void:
+	botao.visible = m.on() and not aberto() and not ((m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())) and m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao
+	if not botao.visible:
+		_segura_dedo = -1
+		_segura_t = 0.0
+		return
+	_lugar_botao()
+	if _segura_dedo >= 0:
+		_segura_t += dt
+		if _segura_t >= SEGURAR:
+			_segura_dedo = -1
+			_segura_t = 0.0
+			m.vibrar(25)
+			abrir("", true)
+			return
+	_dica_t = max(0.0, _dica_t - dt)
+	botao.k = clamp(_segura_t / SEGURAR, 0.0, 1.0)
+	botao.dica = _dica_t
+	botao.queue_redraw()
 
 # ---------- escrevendo: barra embaixo (sobe com o teclado) e as mensagens da aba logo acima ----------
 func _montar_escrever() -> void:
@@ -264,7 +352,7 @@ func _altura_teclado() -> float:
 	var tela := raiz.get_viewport_rect().size
 	return h * (tela.y / max(1.0, janela.y))
 
-func abrir(qual := "") -> void:
+func abrir(qual := "", historico := false) -> void:
 	if escrever.visible:
 		fechar()
 		return
@@ -275,11 +363,13 @@ func abrir(qual := "") -> void:
 	elif nao_lidas.amigos > 0 and (geral_mudo or nao_lidas.geral == 0):
 		aba = "amigos"
 	escrever.visible = true
+	_historico = historico
 	_teclado_visto = false
 	_teclado_zero_t = 0.0
 	m.hud.bloqueado = true
 	montar()
-	_editar.call_deferred()
+	if not historico: # pelo botãozinho abre para ler: o teclado só sobe tocando na barra de escrever
+		_editar.call_deferred()
 
 func _editar() -> void:
 	if not escrever.visible or not campo.editable:
@@ -461,6 +551,7 @@ func _process(dt: float) -> void:
 	var menu_aberto: bool = (m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())
 	var hud_livre: bool = m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao
 	caixa.visible = caixa_lista.get_child_count() > 0 and not aberto() and not menu_aberto and hud_livre
+	_atualizar_botao(dt)
 	if not aberto():
 		return
 	# o teclado do celular sobe: a barra sobe junto. Fechou o teclado (botão voltar do Android): o chat volta a ser só a caixa
@@ -470,7 +561,7 @@ func _process(dt: float) -> void:
 		_teclado_zero_t = 0.0
 	elif _teclado_visto:
 		_teclado_zero_t += dt
-		if _teclado_zero_t > 0.25:
+		if _teclado_zero_t > 0.25 and not _historico:
 			fechar()
 			return
 	if absf(t - _teclado) > 0.5:
