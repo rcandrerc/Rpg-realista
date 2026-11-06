@@ -159,8 +159,9 @@ const CAJADO_NADO := 0.35
 var _caj_base = null # posição do cajado nas costas (no osso), guardada ao prender
 var _saindo_agua := 0.0 # segundos que faltam da saída do lago (do nado até ficar de pé)
 var _sobe_agua := 0.0 # metros que o corpo sobe agora
-const SOBE_BOIANDO := 0.12 # boiando parado (Treading Water): o ombro fica na linha da água
-const SOBE_NADANDO := 0.5 # nadando (Swimming): as costas e a nuca rente à água
+# André 2026-11-06 (2ª): estava alto demais (peito todo fora). Agora só cabeça e ombros saem da água
+const SOBE_BOIANDO := -0.18 # boiando parado (Treading Water): a água no ombro
+const SOBE_NADANDO := 0.32 # nadando (Swimming): cabeça e nuca fora, as costas rente à água
 const SAIR_AGUA_RITMO := 1.15
 # molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
 const MOLA_K := 110.0 # força da mola (maior = volta mais rápido)
@@ -1835,6 +1836,8 @@ func usar(qual: String) -> void:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
+	if qual in ["afundar", "subir"]: # mergulho: quem age é o botão seguro (_process)
+		return
 	# nadando não dá para lutar nem coletar (as armas estão nas costas)
 	if _nadando and (qual in ["basico", "dash", "rolar", "coletar"] or qual.begins_with("hab")):
 		hud.aviso("Nadando não dá")
@@ -2714,6 +2717,15 @@ func atualizar_heroi(dt: float) -> void:
 		if mov.esc == null:
 			armar(h.modo)
 	_saindo_agua = maxf(0.0, _saindo_agua - dt)
+	# mergulho (André 2026-11-06): segurar Afundar desce, segurar Subir volta para a superfície (andar.gd)
+	mov.mergulho_dir = 0.0
+	if _nadando:
+		if hud.botao("afundar").get("apertado", false):
+			mov.mergulho_dir = 1.0
+		elif hud.botao("subir").get("apertado", false):
+			mov.mergulho_dir = -1.0
+	hud.mostrar_botao("afundar", _nadando)
+	hud.mostrar_botao("subir", _nadando)
 	# armas: escalando, as duas nas costas
 	if mov.esc != null and not estava_escalando:
 		acao = {}
@@ -2868,7 +2880,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			var desce: Vector3 = heroi_esq.get_bone_global_rest(b).basis.inverse() * Vector3(0, -CAJADO_NADO, 0)
 			cajado.position = _caj_base + desce * heroi_anim._nada
 	if agua_fx:
-		agua_fx.passo(dt, heroi, heroi_esq, _nadando, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
+		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
 	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando:
 		_passo_dist += vel * dt

@@ -103,6 +103,7 @@ func posicao() -> Vector3:
 func por_em(p: Vector3, usar_y := false) -> void:
 	x = p.x
 	y = T.altura(p.x, p.z, p.y + 0.3) if usar_y else T.altura(p.x, p.z)
+	mergulho = 0.0
 	z = p.z
 	vy = 0.0
 	chao = true
@@ -247,7 +248,7 @@ func limitar_ao_mapa(px: float, pz: float, margem := 0.0) -> Vector2:
 const SELO_FOLGA := 0.35 # m antes da linha do selo onde o herói sem passe para
 var no_relevo := false # bateu numa encosta íngreme da montanha (não é pedra: não escala)
 func _vai(nx: float, nz: float) -> bool:
-	var h: float = T.altura(nx, nz, y)
+	var h: float = _chao(nx, nz, y)
 	# Caverna da Montanha: do selo para dentro só quem usou o passe (o servidor confere: Simulacao.posicaoCliente)
 	# Sem passe o herói para um palmo antes do selo (SELO_FOLGA): assim o servidor nunca vê a posição do outro lado e
 	# não manda "corrigir" (que antes jogava o herói em cima da montanha; André 2026-11-06: "só fique parado")
@@ -282,6 +283,20 @@ func na_agua() -> float:
 		return 1.0
 	return lerpf(float(T.agua.raso), float(T.agua.lento), clampf((a - 0.2) / 0.8, 0.0, 1.0))
 
+# mergulho (André 2026-11-06): no lago fundo os botões Afundar e Subir levam o herói para baixo da linha em que boia,
+# até o leito (no máximo MERGULHO_MAX, igual a shared/relevo.js: o servidor confere). 0 = na superfície
+var mergulho := 0.0
+var mergulho_dir := 0.0 # 1 afunda, -1 sobe, 0 fica (main.gd: botão seguro)
+const MERGULHO_MAX := 2.0
+const MERGULHO_VEL := 1.1 # m/s descendo ou subindo
+
+# chão de quem está em (px, py, pz), descontando o mergulho (no lago fundo o "chão" é a linha em que ele boia)
+func _chao(px: float, pz: float, py: float) -> float:
+	var h: float = T.altura(px, pz, py)
+	if mergulho > 0.0 and T.agua_no_corpo(px, pz, py) > 0.0:
+		h = maxf(h - mergulho, T.relevo(px, pz))
+	return h
+
 # nadando (André 2026-11-06): os pés saíram do fundo e o herói boia com a água no peito
 func nadando() -> bool:
 	return montado.is_empty() and esc == null and chao and T.agua_no_corpo(x, z, y) >= float(T.agua.peito) - 0.12
@@ -298,7 +313,7 @@ func mover(dx: float, dz: float) -> void:
 	colidir()
 	# o empurrão de um obstáculo (tina, bigorna, esteio, NPC) não pode jogar o herói para dentro de uma parede:
 	# senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
-	if T.altura(x, z, y) > y + m.subida.degrau:
+	if _chao(x, z, y) > y + m.subida.degrau:
 		x = x0
 		y = y0
 		z = z0
@@ -311,7 +326,7 @@ func pular(pode_mortal := true) -> String:
 		if esc.clip == null:
 			soltar()
 		return ""
-	if arrancada != null:
+	if arrancada != null or mergulho > 0.05: # submerso: quem sobe é o botão Subir
 		return ""
 	if chao or (pulos == 0 and fora_do_chao < COYOTE and vy <= 0.0): # saiu da beirada agora há pouco: ainda vale
 		vy = m.movimento.pulo
@@ -347,6 +362,14 @@ func dash(mx: float, mz: float) -> bool:
 
 func passo_vertical(dt: float) -> void:
 	var c: float = T.altura(x, z, y)
+	# mergulho: desce ou sobe sem passar do leito; fora da água funda (pulou, saiu do lago) volta para a superfície
+	if mergulho > 0.0 or (mergulho_dir > 0.0 and nadando()):
+		var cabe: float = clampf(c - T.relevo(x, z), 0.0, MERGULHO_MAX) if T.agua_no_corpo(x, z, y) > 0.0 else 0.0
+		var d: float = mergulho_dir if nadando() else -1.0
+		mergulho = clampf(mergulho + d * MERGULHO_VEL * dt, 0.0, cabe)
+		c = _chao(x, z, y)
+		if chao and vy <= 0.0 and absf(y - c) < 0.5:
+			y = c # o corpo acompanha o mergulho (sem cair com a gravidade)
 	if arrancada != null:
 		vy = 0.0
 	elif not chao or vy > 0:

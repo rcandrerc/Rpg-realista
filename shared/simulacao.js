@@ -5,6 +5,7 @@ import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
 import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
+import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -480,6 +481,8 @@ export class Simulacao {
     const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
     // embaixo: vale o chão mais baixo num palmo em volta (agarrado na parede, o corpo fica rente a ela)
     let baixo = chao; for (const [ox, oz] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) baixo = Math.min(baixo, T.altura(p.x + ox, p.z + oz, p.y));
+    // mergulho (André 2026-11-06): no lago fundo o herói desce abaixo da linha em que boia, até o leito (MERGULHO_MAX)
+    if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
     const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado

@@ -188,6 +188,9 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	var chao_cam: float = m.terreno.altura(cam.position.x, cam.position.z, cam.position.y + 1.5) + 0.3
 	if cam.position.y < chao_cam and chao_cam - cam.position.y < 2.5:
 		cam.position.y = chao_cam
+	# herói mergulhado (André 2026-11-06): a câmera fica acima da água, olhando para ele lá embaixo
+	if m.terreno.agua_no_corpo(cam.position.x, cam.position.z, cam.position.y - 0.35) > 0.0:
+		cam.position.y = float(m.terreno.agua.nivel) + 0.35
 	cam.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
 	# tremida: trauma² (golpe fraco quase não treme, forte treme bem), cai rápido
 	if trauma > 0.0:
