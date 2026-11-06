@@ -37,6 +37,9 @@ var _idle_alvo := 1.0
 # postura de mago do Mixamo Pro Magic Pack. Quem chama liga guarda_cajado; montado ou sem a animação fica a parada.
 var tem_guarda_cajado := false
 var guarda_cajado := false
+# postura de luta só em combate (André 2026-11-06: "até o posicionamento de livre em combate deveria ser diferente"):
+# fora de combate a guarda da espada vira a parada relaxada; quem chama (main.gd) desliga. true = como era antes.
+var em_guarda := true
 var _gcaj := 0.0
 var _mexe := 0.0 # 0 = parado, 1 = andando/correndo
 var _corre := 0.0 # 0 = andar, 1 = corrida
@@ -385,8 +388,8 @@ func atualizar(dt: float, vel: float) -> void:
 	_corpo = move_toward(_corpo, _corpo_alvo, dt * _corpo_vel)
 	_tronco = move_toward(_tronco, _tronco_alvo, dt * max(_corpo_vel, 6.0))
 	_ab = move_toward(_ab, _ab_alvo, dt * _ab_vel)
-	_idle = move_toward(_idle, _idle_alvo, dt * 5.0)
-	_gcaj = move_toward(_gcaj, 1.0 if guarda_cajado else 0.0, dt * 4.0)
+	_idle = move_toward(_idle, _idle_alvo if em_guarda else 0.0, dt * (5.0 if em_guarda else 2.5)) # baixa a guarda devagar
+	_gcaj = move_toward(_gcaj, 1.0 if guarda_cajado and em_guarda else 0.0, dt * (4.0 if em_guarda else 2.0))
 	if tem_nado:
 		_nado = move_toward(_nado, 1.0 if nadando else 0.0, dt * 2.5)
 		_nada = move_toward(_nada, smoothstep(0.15, 0.9, vel) if nadando else 0.0, dt * 2.0)
