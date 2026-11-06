@@ -25,7 +25,7 @@ func _init(mundo: Dictionary) -> void:
 	m = mundo
 	for l in m.get("lagos", []):
 		lagos.append({"x": float(l.x), "z": float(l.z), "rx": float(l.rx), "rz": float(l.rz), "giro": float(l.giro), "fundo": float(l.fundo),
-			"lobos": l.lobos, "R": maxf(float(l.rx), float(l.rz)) * 1.25, "c": cos(float(l.giro)), "s": sin(float(l.giro)), "nome": str(l.get("nome", ""))})
+			"lobos": l.lobos, "R": maxf(float(l.rx), float(l.rz)) * 1.4, "c": cos(float(l.giro)), "s": sin(float(l.giro)), "nome": str(l.get("nome", ""))})
 	if m.has("agua"):
 		agua = m.agua
 	var gm = m.get("montanha_grade")

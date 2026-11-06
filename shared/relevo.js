@@ -7,16 +7,24 @@
 // x, z: centro; rx, rz: raios da elipse; giro: rad; lobos: ondas na margem [[k, amplitude, fase]] (margem orgânica);
 // fundo: profundidade de verdade no meio (m). Raso: dá para atravessar andando com água pelo joelho. Fundo: o leito
 // fica lá embaixo (dá para mergulhar quando vier a animação de nadar); por enquanto o herói boia com a água no peito.
+// 2026-11-06 (André: "parece piscina artificial, bordas finas e retinhas"): margem com mais ondas (até 4 lobos, de
+// enseadas largas a recortes pequenos; produto dos (1 + amplitude) <= 1,4 para caber no quadrado R = 1,4 x raio) e, em volta,
+// a beira pintada no chão (chao.gdshader): grama que vai clareando e uma faixa de terra rente à água (BEIRA).
+// Lago Grande (mesmo pedido): ao sul das Terras da Estrada, fundo e largo, para pescaria e barquinho no futuro.
 export const LAGOS = [
-  { id: 'lago_oeste', nome: 'Lago do Oeste', x: -45, z: -12, rx: 8.5, rz: 6, giro: 0.5, fundo: 0.75, lobos: [[3, 0.08, 0.4], [5, 0.05, 2.1]] },
-  { id: 'lago_raso', nome: 'Lago Raso', x: 12, z: 45, rx: 7.5, rz: 6, giro: -0.4, fundo: 0.65, lobos: [[3, 0.07, 1.3], [4, 0.05, 0.2]] },
-  { id: 'lago_fundo', nome: 'Lago Fundo', x: 100, z: 78, rx: 12.5, rz: 9, giro: 0.3, fundo: 4.2, lobos: [[3, 0.09, 2.7], [5, 0.05, 0.6]] },
-  { id: 'lago_montanha', nome: 'Lago da Montanha', x: 121, z: -13, rx: 10, rz: 7.5, giro: -0.6, fundo: 4.6, lobos: [[3, 0.08, 4.1], [5, 0.06, 1.7]] },
-]
+  { id: 'lago_oeste', nome: 'Lago do Oeste', x: -45, z: -12, rx: 8.5, rz: 6, giro: 0.5, fundo: 0.75, lobos: [[2, 0.1, 1.1], [3, 0.09, 0.4], [5, 0.05, 2.1], [8, 0.03, 0.7]] },
+  { id: 'lago_raso', nome: 'Lago Raso', x: 12, z: 45, rx: 7.5, rz: 6, giro: -0.4, fundo: 0.65, lobos: [[2, 0.11, 2.4], [3, 0.08, 1.3], [4, 0.05, 0.2], [7, 0.03, 1.9]] },
+  { id: 'lago_fundo', nome: 'Lago Fundo', x: 100, z: 78, rx: 12.5, rz: 9, giro: 0.3, fundo: 4.2, lobos: [[2, 0.1, 0.9], [3, 0.1, 2.7], [5, 0.05, 0.6], [9, 0.025, 2.2]] },
+  { id: 'lago_montanha', nome: 'Lago da Montanha', x: 121, z: -13, rx: 10, rz: 7.5, giro: -0.6, fundo: 4.6, lobos: [[2, 0.09, 3.0], [3, 0.1, 4.1], [5, 0.06, 1.7], [8, 0.03, 0.3]] },
+  { id: 'lago_grande', nome: 'Lago Grande', x: -3, z: 198, rx: 31, rz: 20, giro: 0.22, fundo: 5.5, pesca: true, chegada: [-6.2, 174.5], lobos: [[2, 0.12, 0.5], [3, 0.1, 2.2], [4, 0.06, 4.0], [7, 0.035, 2.9]] },
+];
+// beira pintada em volta da água (chao.gdshader): faixa de terra de "terra" m (varia ao longo da margem) e depois grama
+// que vai clareando até "clara" m a mais; mundo.json leva para o Godot
+export const BEIRA = { terra: [0.4, 1.6], clara: [2.5, 5] };
 export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
 
 // raio da margem do lago na direção do ponto (elipse girada com ondas): 1 = na margem
-function margemLago(L, x, z) {
+export function margemLago(L, x, z) {
   const dx = x - L.x, dz = z - L.z, c = Math.cos(L.giro), s = Math.sin(L.giro);
   const u = dx * c + dz * s, v = -dx * s + dz * c, ang = Math.atan2(v / L.rz, u / L.rx);
   let k = 1; for (const [n, a, f] of L.lobos) k *= 1 + a * Math.sin(n * ang + f);
@@ -27,7 +35,7 @@ const suave = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a)
 // fundo e quase plano (lago de verdade, não uma bacia em V)
 export function noLago(x, z) {
   for (const L of LAGOS) {
-    const R = Math.max(L.rx, L.rz) * 1.25;
+    const R = Math.max(L.rx, L.rz) * 1.4;
     if (Math.abs(x - L.x) > R || Math.abs(z - L.z) > R) continue;
     const d = margemLago(L, x, z);
     if (d >= 1) continue;
@@ -179,7 +187,7 @@ export const INGREME = 1.0;
 // (x, z) na água ou a menos de "folga" metros da margem de algum lago (árvore, mato e pedra não nascem ali)
 export function pertoDaAgua(x, z, folga = 0) {
   for (const L of LAGOS) {
-    const R = Math.max(L.rx, L.rz) + folga + 2;
+    const R = Math.max(L.rx, L.rz) * 1.4 + folga + 2;
     if (Math.abs(x - L.x) > R || Math.abs(z - L.z) > R) continue;
     if (margemLago(L, x, z) < 1 + folga / Math.min(L.rx, L.rz)) return true;
   }

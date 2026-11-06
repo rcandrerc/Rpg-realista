@@ -49,6 +49,11 @@ func _initialize() -> void:
 		["6-lago-montanha", Vector2(112, -10), Vector3(106, 3.5, -4), Vector3(124, 0, -15)],
 		["7-subindo-a-montanha", Vector2(150, -44), Vector3(141, 12, -36), Vector3(188, 26, -64)],
 		["8-vista-do-alto", Vector2(188, -62), Vector3(0, 0, 0), Vector3(40, 0, 30)],
+		# 2026-11-06: beira natural (grama clara + terra) e o Lago Grande ao sul das Terras da Estrada
+		["9-lago-grande-chegada", Vector2(-6.4, 173), Vector3(-9.5, 2.6, 166.5), Vector3(-1, -0.6, 190)],
+		["10-lago-grande-de-cima", Vector2(-6.4, 173), Vector3(-40, 24, 158), Vector3(-2, -1, 198)],
+		["11-lago-grande-beira", Vector2(9, 181), Vector3(5, 2.2, 174.5), Vector3(22, -0.3, 192)],
+		["12-lago-grande-outro-lado", Vector2(-30, 207.5), Vector3(-36, 2.4, 214), Vector3(-10, -0.5, 192)],
 	]
 	for v in vistas:
 		if so != "" and not v[0].begins_with(so):

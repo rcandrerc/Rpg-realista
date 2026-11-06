@@ -287,6 +287,8 @@ func _lago(L: Dictionary) -> void:
 	ml.shader = load("res://leito.gdshader")
 	ml.set_shader_parameter("lama_tex", load("res://relevo/brown_mud_leaves_01.jpg"))
 	ml.set_shader_parameter("grama_tex", load("res://modelos/forrest_ground_01.jpg"))
+	if _chao_mat0 != null: # a terra da beira do chão plano continua no leito até a água (sem emenda na margem)
+		ml.set_shader_parameter("terra_tex", _chao_mat0.get_shader_parameter("terra_tex"))
 	ml.set_shader_parameter("nivel", float(T.agua.nivel))
 	leito.material_override = ml
 	leito.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -302,28 +304,30 @@ func _lago(L: Dictionary) -> void:
 	agua.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(agua)
 
-# o chão plano some dentro de cada lago (o leito aparece no lugar)
+# o chão plano some dentro de cada lago (o leito aparece no lugar) e pinta a beira em volta (chao.gdshader)
 func _buracos_no_chao(mat: ShaderMaterial) -> void:
 	if mat == null:
 		return
 	var a := []
-	var b := []
-	var c := []
-	for i in 6:
-		if i < T.lagos.size():
-			var L: Dictionary = T.lagos[i]
-			var l1: Array = L.lobos[0] if L.lobos.size() > 0 else [0, 0, 0]
-			var l2: Array = L.lobos[1] if L.lobos.size() > 1 else [0, 0, 0]
-			a.append(Vector4(L.x, L.z, L.rx, L.rz))
-			b.append(Vector4(L.giro, float(l1[0]), float(l1[1]), float(l1[2])))
-			c.append(Vector4(float(l2[0]), float(l2[1]), float(l2[2]), 1.0))
-		else:
+	var g := []
+	var l := []
+	for i in 8:
+		var L: Dictionary = T.lagos[i] if i < T.lagos.size() else {}
+		if L.is_empty():
 			a.append(Vector4(0, 0, 1, 1))
-			b.append(Vector4.ZERO)
-			c.append(Vector4.ZERO) # w = 0: lago vazio
+			g.append(Vector4.ZERO) # y = 0: lago vazio
+		else:
+			a.append(Vector4(L.x, L.z, L.rx, L.rz))
+			g.append(Vector4(L.giro, 1.0, 0.0, 0.0))
+		for j in 4:
+			var lb: Array = L.lobos[j] if not L.is_empty() and j < L.lobos.size() else [0, 0, 0]
+			l.append(Vector4(float(lb[0]), float(lb[1]), float(lb[2]), 0.0))
 	mat.set_shader_parameter("lago_a", a)
-	mat.set_shader_parameter("lago_b", b)
-	mat.set_shader_parameter("lago_c", c)
+	mat.set_shader_parameter("lago_g", g)
+	mat.set_shader_parameter("lago_l", l)
+	var b: Dictionary = T.m.get("beira", {})
+	if not b.is_empty():
+		mat.set_shader_parameter("beira", Vector4(float(b.terra[0]), float(b.terra[1]), float(b.clara[0]), float(b.clara[1])))
 
 # ---------- juncos e taboas da beira (shared/relevo.js beiraDosLagos) ----------
 # Um tufo: 7 folhas finas e compridas que abrem para fora (e, na taboa, 2 hastes com a espiga marrom). Cor no vértice

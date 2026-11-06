@@ -42,5 +42,7 @@ void fragment() {
 	c = mix(c, cor_espuma, max(espuma, brilho * 0.4));
 	ALBEDO = c;
 	// raso translúcido (o leito aparece), fundo fechado
-	ALPHA = clamp(mix(0.5, 0.9, t) + fr * 0.15 + espuma * 0.3, 0.0, 0.95);
+	// 2026-11-06 (beira natural): rente à margem a água afina até quase sumir (sem a linha dura de piscina)
+	float rente = mix(0.18, 1.0, smoothstep(0.0, 0.3, prof));
+	ALPHA = clamp((mix(0.5, 0.9, t) + fr * 0.15) * rente + espuma * 0.3, 0.0, 0.95);
 }
