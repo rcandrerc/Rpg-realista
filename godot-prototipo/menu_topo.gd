@@ -12,7 +12,9 @@ const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
 const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o menu fica à esquerda do minimapa, na altura do centro dele
 # (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+# André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
+# aceso no meu terreno, escuro fora dele
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
@@ -74,6 +76,10 @@ func _ready() -> void:
 			b.pressed.connect(func(): m.chat.abrir())
 			if m.chat:
 				m.chat.ligar_icone(b)
+		elif k == "construir":
+			b.pressed.connect(_construir)
+			construir_ico = b.get_child(0)
+			construir_btn = b
 		elif k == "mochila": # André 2026-11-04: a bolsa (Mochila e Criar) sai do menu da barra de vida e ganha botão aqui
 			b.pressed.connect(func(): m.menu.abrir_bolsa())
 		else:
@@ -138,6 +144,28 @@ class Varredura extends Control:
 		draw_colored_polygon(pts, Color(0.02, 0.015, 0.01, 0.55))
 
 var vila_ico: TextureRect
+var construir_ico: TextureRect
+var construir_btn: Button
+
+# martelo do topo: no meu terreno abre (ou fecha) o modo construção; fora dele só avisa
+func _construir() -> void:
+	var c = m.construcao
+	if c == null:
+		return
+	if c.ativo or c.pode_construir_aqui():
+		c.tocar_botao_construir()
+	elif c.meu == "":
+		m.hud.aviso("Compre um terreno nas Terras da Estrada para construir")
+	else:
+		m.hud.aviso("Chegue no seu terreno para construir")
+
+func _atualizar_construir() -> void:
+	if construir_ico == null or m.construcao == null:
+		return
+	var aceso: bool = m.construcao.ativo or m.construcao.pode_construir_aqui()
+	construir_ico.modulate = Color.WHITE if aceso else Color(1, 1, 1, 0.3)
+	construir_btn.tooltip_text = "Construir" if aceso else "Construir (só no seu terreno)"
+
 func _recarga_vila(b: Button) -> void:
 	vila_ico = b.get_child(0)
 	var v := Varredura.new()
@@ -303,6 +331,7 @@ func aberto() -> bool:
 
 func _process(dt: float) -> void:
 	_atualizar_vila(dt)
+	_atualizar_construir()
 	if aberta == "multi" or aberta == "conta": # online, jogadores e ping mudam sozinhos
 		_atualizar_t -= dt
 		if _atualizar_t <= 0.0:
