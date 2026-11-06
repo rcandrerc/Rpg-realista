@@ -333,6 +333,8 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 # a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
 func dentro_de_pedra(p: Vector3) -> bool:
 	for o in veios:
+		if m.mov.vazios.has(o.id):
+			continue # esgotado: a pedra não está lá
 		var k: float = o.get("k", 1.0)
 		if p.y < o.pos.y + 1.4 * k and Vector2(p.x - o.pos.x, p.z - o.pos.z).length() < 1.0 * k:
 			return true
@@ -542,6 +544,11 @@ func _impacto(o: Dictionary) -> void:
 # veio esgotado: a pedra se desfaz (estouro de lascas e poeira) e fica só o cascalho; quando volta, cresce do chão
 func _mostrar_veio(o: Dictionary, mostrar: bool) -> void:
 	o.entulho.visible = not mostrar
+	# sem a pedra, o lugar fica livre para passar (andar.gd colidir); volta a bloquear quando o veio volta
+	if mostrar:
+		m.mov.vazios.erase(o.id)
+	else:
+		m.mov.vazios[o.id] = true
 	if o.has("anima"):
 		o.anima.kill()
 	if mostrar:

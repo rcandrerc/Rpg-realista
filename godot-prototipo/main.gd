@@ -2863,7 +2863,7 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	var vistos := {}
 	for q in [de, (de + fim) * 0.5, fim]:
 		for k in mov.perto_obstaculos(q.x, q.z) + mov.perto_na_mata(q.x, q.z):
-			if vistos.has(k):
+			if vistos.has(k) or (k.has("veio") and mov.vazios.has(k.veio)): # veio esgotado não segura a câmera
 				continue
 			vistos[k] = true
 			var c := Vector2(float(k.x), float(k.z))
@@ -2900,6 +2900,8 @@ func colidir_inimigo(no: Node3D) -> void:
 	var p := no.position
 	for lista in [mov.perto_obstaculos(p.x, p.z), mundo.rochasInimigo, mov.perto_na_mata(p.x, p.z)]: # só os de perto (desempenho)
 		for k in lista:
+			if k.has("veio") and mov.vazios.has(k.veio):
+				continue # veio esgotado: não está mais lá
 			var dx: float = p.x - k.x
 			var dz: float = p.z - k.z
 			var d := sqrt(dx * dx + dz * dz)
