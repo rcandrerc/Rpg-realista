@@ -31,6 +31,7 @@ var caixa_ui: PanelContainer
 var nome_ui: Label
 var papel_ui: Label
 var fala_ui: Label
+var itens_ui: HBoxContainer # material do passe do Gaspar, em ícones (André 2026-11-06: mostrar os itens, não escrever)
 var opcoes: GridContainer
 var retrato_ui: TextureRect
 var _retratos := {} # id do NPC -> SubViewport com o rosto dele
@@ -118,6 +119,10 @@ func _ready() -> void:
 	fala_ui.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fala_ui.custom_minimum_size = Vector2(250, 0)
 	txt.add_child(fala_ui)
+	itens_ui = HBoxContainer.new()
+	itens_ui.add_theme_constant_override("separation", 8)
+	itens_ui.visible = false
+	txt.add_child(itens_ui)
 	# direita: o que dá para fazer, em duas colunas (a janela fica baixa, uns 170 px)
 	opcoes = GridContainer.new()
 	opcoes.columns = 2
@@ -243,10 +248,11 @@ func abrir(n: Dictionary) -> void:
 	fala_ui.text = str(falas[0]) if falas.size() > 0 else "..."
 	if n.funcao == "loja":
 		fala_ui.text = "Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro."
-	elif n.funcao == "passe": # o Gaspar diz do que precisa e quanto você já tem
+	elif n.funcao == "passe": # o Gaspar mostra o material do passe em ícones, com quanto você já tem
 		fala_ui.text = _fala_passe()
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
+	_itens_passe(n.funcao == "passe")
 	for c in opcoes.get_children():
 		opcoes.remove_child(c)
 		c.queue_free()
@@ -340,10 +346,11 @@ func escolher(a: String) -> void:
 			if not m.on():
 				fala_ui.text = "Sem conexão com o servidor eu não posso fazer o passe. Volte depois."
 			elif _falta_passe() != "":
-				fala_ui.text = "Ainda falta: %s. Os monstros carregam isso, é só caçar." % _falta_passe()
+				fala_ui.text = "Ainda falta o que está em vermelho. Os monstros carregam isso, é só caçar."
 			else:
 				m.rede("item", {"acao": "fazer_passe"})
 				m.sons.tocar("forja", -6.0)
+				_itens_passe.call_deferred(true) # a mochila muda quando o servidor responde; refaz já e de novo na fala
 		"resetar":
 			fechar()
 			if m.on():
@@ -385,6 +392,8 @@ func fala(npc_id: String, texto: String) -> bool:
 	if npc == null or str(npc.id) != npc_id:
 		return false
 	fala_ui.text = texto
+	if itens_ui.visible:
+		_itens_passe(true)
 	return true
 
 # rosto do NPC: o modelo dele num palco pequeno (192 px), câmera na altura da cabeça. Fica pronto na
@@ -463,8 +472,42 @@ func _falta_passe() -> String:
 	return ", ".join(l)
 
 func _fala_passe() -> String:
+	return "Ninguém passa do selo sem passe. Traga isto e eu faço um. Cada passe abre o selo uma vez."
+
+# os itens do passe em ícones: cada um com "tem/precisa" (verde quando já tem tudo, vermelho quando falta), uma seta
+# e o passe que sai
+func _itens_passe(mostrar: bool) -> void:
+	for c in itens_ui.get_children():
+		itens_ui.remove_child(c)
+		c.queue_free()
+	itens_ui.visible = mostrar
+	if not mostrar:
+		return
 	var r := _receita_passe()
-	var l := []
 	for k in r:
-		l.append("%d %s (tem %d)" % [int(r[k]), _nome_item(k), _tenho(k)])
-	return "Ninguém passa do selo sem passe. Um passe sai por %s. Cada passe abre o selo uma vez." % ", ".join(l)
+		var tem := _tenho(k)
+		var precisa := int(r[k])
+		itens_ui.add_child(_slot_item(k, "%d/%d" % [mini(tem, 99), precisa], Menu.VERDE if tem >= precisa else Color(0.92, 0.38, 0.32)))
+	var seta := Menu.rotulo("›", 26, Menu.OURO_CLARO)
+	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	itens_ui.add_child(seta)
+	itens_ui.add_child(_slot_item("passe_caverna", "x%d" % _tenho("passe_caverna"), Menu.OURO_CLARO))
+
+func _slot_item(k: String, conta: String, cor: Color) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	col.tooltip_text = _nome_item(k)
+	var caixa := PanelContainer.new()
+	caixa.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO3, cor.darkened(0.2), 2, 7))
+	caixa.custom_minimum_size = Vector2(54, 50)
+	var ic := TextureRect.new()
+	ic.texture = Menu.icone_tex("it_" + k)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.custom_minimum_size = Vector2(40, 40)
+	caixa.add_child(ic)
+	col.add_child(caixa)
+	var n := Menu.rotulo(conta, 16, cor) # "tem/precisa", ex.: 2/4
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(n)
+	return col
