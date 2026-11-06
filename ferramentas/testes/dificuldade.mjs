@@ -8,7 +8,7 @@ ok(COMBATE_INIMIGO.aoMesmoTempo >= 99, 'todos os monstros batem juntos');
 ok(Object.values(DROPS).every((d) => d.raridade.slice(2).every((x) => x === 0)), 'monstro só solta Comum ou Rara');
 ok(RARIDADE_CRIAR.ate === 4, 'criação chega até Mítico');
 ok(NIVEL_MAX === 200 && xpProximo(30) === Math.round(16 * 30 ** 1.45), 'nível 200 e curva igual até o 30');
-ok(NIVEL_INIMIGO.forca === 1 && reducaoContra(23, 8, NIVEL_INIMIGO) === 23 / 47, 'dano e defesa iguais ao Quimera (ajuste só depois do teste)');
+ok(reducaoContra(23, 8, NIVEL_INIMIGO) < reducaoContra(23, 1, NIVEL_INIMIGO), 'a defesa segura menos contra bicho de nível alto');
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('A', 'André', null, { testador: true });
 s.adicionarJogador('B', 'Beto', null, {});
@@ -31,3 +31,11 @@ const p = pontoDoTunel(CAVERNA.porta - 2);
 for (const j of [B, C]) { j.x = p.x; j.y = p.y; j.z = p.z; }
 c.item('B', { acao: 'usar_passe' }); ok(!!B.caverna, 'do time de quem abriu: entra sem passe');
 c.item('C', { acao: 'usar_passe' }); ok(!C.caverna, 'fora do time: precisa do passe');
+
+// Recarga da poção (POCAO_RECARGA)
+import { POCAO_RECARGA } from '../../shared/dados.js';
+const q = new Simulacao(MAPA_CLAREIRA), P = q.adicionarJogador('P', 'Pia');
+P.prog.mochila[0] = { k: 'pocao', n: 5 }; P.vida = 10; q.item('P', { acao: 'usar', i: 0 }); const v1 = P.vida;
+q.item('P', { acao: 'usar', i: 0 }); ok(P.vida === v1 && P.prog.mochila[0].n === 4, 'poção seguida espera a recarga');
+for (let t = 0; t < POCAO_RECARGA + 0.2; t += 0.1) q.passo(0.1);
+P.vida = 10; q.item('P', { acao: 'usar', i: 0 }); ok(P.vida > 10 && P.prog.mochila[0].n === 3, 'depois da recarga toma de novo');
