@@ -20,6 +20,15 @@ const LONGE := {"arvore_morta1": 120.0, "arvore_morta3": 120.0} # a árvore mort
 # direção de arte 2026-11-04, para os marcos não parecerem blocos postos em cima da grama
 const PEDRA_SUJA := ["parede", "parede_janela", "pilar", "escada", "estatua", "rocha1", "rocha2", "rocha3"]
 const MANCHA_FOLGA := 1.5 # m além do raio do marco
+# Assentar no chão (André 2026-11-06: "várias pedras flutuantes"). O chão aqui é só o relevo (terreno.relevo), nunca
+# terreno.altura: essa soma o tampo de pulo das pedras e troncos (por_tampos), e a pedra ia parar em cima do próprio topo.
+# Cada peça desce até o ponto mais baixo do chão debaixo da base dela (encosta da montanha, beira de lago) e afunda
+# ENTERRA da altura do modelo; no máximo AFUNDA_MAX da altura abaixo do chão do meio. A base sai do próprio modelo
+# (_base). ferramentas/testes/pedras-no-chao.mjs faz a mesma conta com os vértices de cada modelo e confere peça por peça.
+const ENTERRA := 0.03
+const AFUNDA_MAX := 0.3
+const BASE_FAIXA := 0.12 # m (sem escala) acima do ponto mais baixo do modelo: o que encosta no chão
+var bases := {} # nome -> {"r": raio da base, "alto": altura do modelo, "y0": ponto mais baixo} (sem escala)
 var n_instancias := 0
 var n_grupos := 0
 
@@ -44,6 +53,7 @@ func _ready() -> void:
 	var malhas := {} # nome -> [[Mesh, Transform3D do nó dentro do modelo], ...]
 	for nome in nomes:
 		malhas[nome] = _malhas(nome)
+		bases[nome] = _base(malhas[nome])
 	for k in grupos:
 		var nome: String = nomes[k.z]
 		var itens: Array = grupos[k]
@@ -53,7 +63,7 @@ func _ready() -> void:
 			mm.mesh = par[0]
 			mm.instance_count = itens.size()
 			for j in itens.size():
-				mm.set_instance_transform(j, _lugar(itens[j]) * par[1])
+				mm.set_instance_transform(j, _lugar(itens[j], bases[nome]) * par[1])
 			var g := MultiMeshInstance3D.new()
 			g.multimesh = mm
 			var grande: bool = nome in GRANDES
@@ -80,21 +90,57 @@ func _manchas(marcos: Array) -> void:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var x := float(o.x)
 		var z := float(o.z)
-		mi.transform = Transform3D(Basis(Vector3.UP, float(o.ry)).scaled(Vector3(r, 1, r)), Vector3(x, m.terreno.altura(x, z) + 0.03, z))
+		mi.transform = Transform3D(Basis(Vector3.UP, float(o.ry)).scaled(Vector3(r, 1, r)), Vector3(x, m.terreno.relevo(x, z) + 0.03, z))
 		mi.visibility_range_end = 85.0
 		mi.visibility_range_end_margin = 6.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		add_child(mi)
 
 # onde fica cada item: gira (ry), inclina (rx, rz: parede torta, carroça largada), escala e pousa no chão (y = enterrado)
-func _lugar(p: Dictionary) -> Transform3D:
+func _lugar(p: Dictionary, base: Dictionary) -> Transform3D:
 	var b := Basis(Vector3.UP, float(p.ry))
 	if p.has("rx") or p.has("rz"):
 		b = b * Basis.from_euler(Vector3(float(p.get("rx", 0.0)), 0.0, float(p.get("rz", 0.0))))
 	b = b.scaled(Vector3.ONE * float(p.get("s", 1.0)))
 	var x := float(p.x)
 	var z := float(p.z)
-	return Transform3D(b, Vector3(x, m.terreno.altura(x, z) + float(p.get("y", 0.0)), z))
+	return Transform3D(b, Vector3(x, chao_da_peca(x, z, float(p.get("s", 1.0)), base) + float(p.get("y", 0.0)), z))
+
+# o chão de uma peça: o mais baixo do relevo no meio e em 8 pontos da borda da base, menos o tanto enterrado
+func chao_da_peca(x: float, z: float, s: float, base: Dictionary) -> float:
+	var meio: float = m.terreno.relevo(x, z)
+	var h := meio
+	var r: float = float(base.get("r", 0.0)) * s
+	if r > 0.05:
+		for i in 8:
+			var a := TAU * i / 8.0
+			h = minf(h, m.terreno.relevo(x + cos(a) * r, z + sin(a) * r))
+	var alto: float = float(base.get("alto", 0.0)) * s
+	# modelo com o ponto mais baixo acima da origem (a planta fica 4 cm no ar): desce até encostar
+	return maxf(h, meio - AFUNDA_MAX * alto) - ENTERRA * alto - maxf(0.0, float(base.get("y0", 0.0))) * s
+
+# raio da base (o que encosta no chão) e altura do modelo, das próprias malhas
+func _base(lista: Array) -> Dictionary:
+	var pts: Array = []
+	var y0 := INF
+	var y1 := -INF
+	for par in lista:
+		var mesh: Mesh = par[0]
+		var t: Transform3D = par[1]
+		for i in mesh.get_surface_count():
+			var arr := mesh.surface_get_arrays(i)
+			for v in arr[Mesh.ARRAY_VERTEX]:
+				var w: Vector3 = t * v
+				pts.append(w)
+				y0 = minf(y0, w.y)
+				y1 = maxf(y1, w.y)
+	if pts.is_empty():
+		return {}
+	var r := 0.0
+	for w in pts:
+		if w.y <= y0 + BASE_FAIXA:
+			r = maxf(r, Vector2(w.x, w.z).length())
+	return {"r": r, "alto": y1 - y0, "y0": y0}
 
 # as malhas de um modelo (com a posição de cada uma dentro dele), já com o material toon do jogo
 func _malhas(nome: String) -> Array:
