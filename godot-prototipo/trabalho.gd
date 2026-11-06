@@ -646,7 +646,7 @@ func _segurar_ferramenta(prof: String) -> void:
 	if f == null:
 		return
 	var L: Dictionary = m.lugar_armas()
-	m.armar("Escalada") # as duas armas nas costas
+	m.armar("Coleta") # as duas armas nas costas, cruzadas em X
 	m.prender(m.heroi_esq, f, L.espadaMao)
 	f.visible = true
 	# com as duas mãos: a ferramenta sai da mão e o código leva o cabo pelo golpe; as mãos seguem o cabo

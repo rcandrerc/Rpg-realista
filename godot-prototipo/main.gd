@@ -933,14 +933,17 @@ func vestir_heroi() -> void:
 
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
-	if modo != "Escalada":
+	# "Coleta" (minerando ou cortando lenha): as duas nas costas, cruzadas em X (pedido do André, 2026-11-06)
+	if modo != "Escalada" and modo != "Coleta":
 		h.modo = modo
 	var L: Dictionary = lugar_armas()
-	if modo == "Escalada" or montaria != null or _nadando: # escalando, montado ou nadando: as duas nas costas, mãos livres
+	if modo == "Escalada" or modo == "Coleta" or montaria != null or _nadando: # escalando, coletando, montado ou nadando: as duas nas costas, mãos livres
 		prender(heroi_esq, espada, L.espadaCostas)
 		prender(heroi_esq, cajado, L.cajadoCostas)
 		if montaria != null:
 			armas_montado(heroi_esq, espada, cajado)
+		elif modo == "Coleta":
+			armas_cruzadas(heroi_esq, espada, cajado)
 		_caj_base = cajado.position if _nadando and montaria == null else null
 	elif modo == "Espada":
 		colisor_espada(heroi_esq, null)
@@ -1000,6 +1003,20 @@ func armas_montado(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 	var us: Vector3 = (c * cos(X_ANGULO) - dr * sin(X_ANGULO)).normalized()
 	esp.transform = Transform3D(_base_arma(-us, fora).scaled(Vector3.ONE * es), meio + fora * (X_FUNDO + X_ESPADA_FORA) + us * X_CABO)
 	colisor_espada(esq, esp)
+
+# Coletando (minerando ou cortando lenha; André 2026-11-06: "a arma fica flutuando do meu lado, tem que ir para as
+# costas e ficar cruzada"): o mesmo X das costas do montado, com a picareta ou o machado nas mãos. Com capa as duas
+# vão 9 cm para fora, por cima do pano (Armadura.costas).
+func armas_cruzadas(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
+	armas_montado(esq, esp, caj)
+	var capa := esq.get_node_or_null("Armadura_capa") != null
+	for a in [esp, caj]:
+		a.set_meta("afastada", 0.0)
+		Armadura.costas(esq, a, capa)
+
+# cajado na mão (modo magia): não quando escala, monta, nada ou coleta (aí ele vai para as costas)
+func cajado_na_mao() -> bool:
+	return h.modo == "Magia" and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null)
 
 # base com +Y ao longo da arma e o lado chato (+Z) virado para fora das costas
 func _base_arma(y: Vector3, fora: Vector3) -> Basis:
@@ -2734,9 +2751,9 @@ func atualizar_heroi(dt: float) -> void:
 			heroi_anim.ritmo_acao(mov.ritmo_manobra())
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado, com a mão fechada em volta dele
 	# (montado as duas armas vão nas costas e a mão segura a juba)
-	var mao_no_cajado: bool = h.modo == "Magia" and mov.esc == null and cajado.visible and montaria == null and not _nadando
+	var mao_no_cajado: bool = cajado_na_mao() and cajado.visible
 	mao_fechada.peso = move_toward(mao_fechada.peso, 1.0 if mao_no_cajado else 0.0, dt * 8.0)
-	if h.modo == "Magia" and mov.esc == null and montaria == null and not _nadando:
+	if cajado_na_mao():
 		# meio do cajado na palma, não no punho (Armas.pose_na_mao; pedido do André, 2026-11-03)
 		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 		if cajado.visible and heroi.visible:
@@ -3426,7 +3443,7 @@ func corpo_caido(dt: float) -> void:
 	heroi_anim.guarda_cajado = false
 	heroi_anim.atualizar(dt, 0.0)
 	mao_fechada.peso = move_toward(mao_fechada.peso, 0.0, dt * 8.0)
-	if h.modo == "Magia" and montaria == null and cajado.visible: # o cajado cai junto com a mão (não fica no ar)
+	if h.modo == "Magia" and montaria == null and cajado.visible and cajado.get_parent() == heroi: # o cajado cai junto com a mão (não fica no ar)
 		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 
 # o herói levou dano: tranco na câmera, som e vibração (offline e online)
