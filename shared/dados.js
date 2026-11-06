@@ -603,7 +603,7 @@ function sortearMata() {
   // Terras da Estrada (2026-11-04, André tirou o anel de pedras): a borda vira mata fechada, três fileiras de árvores
   // tortas por fora da área e da passagem. Vêm depois das outras, para os ids m0, m1... de antes não mudarem.
   const T = VILA_LOTES.area, P = VILA_LOTES.passagem;
-  const andavel = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas, T], corredores: [...MATA.corredores, P] };
+  const andavel = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas, T], corredores: [...MATA.corredores, P, LAGO_GRANDE_PASSAGEM] }; // 2026-11-06: + a passagem do Lago Grande
   const borda = [];
   for (const [fora, esp] of [[1.2, 2.6], [3.9, 3.0], [6.8, 3.6]]) {
     for (let a = 0; a < 6.283;) {
@@ -663,12 +663,18 @@ const TRILHAS_MINA = [
 // Trilha da caverna (André 2026-11-06: "coloca um caminhozinho"): continua a trilha do veio de ferro para o leste, passa
 // ao sul do Lago da Montanha e sobe a encosta até a boca da caverna (shared/caverna.js), onde fica o guardião.
 const TRILHA_CAVERNA = { largura: 1.6, pontos: [[99.5, 5], [108, 2.8], [117, 1.6], [126.5, 1.2], [134.5, -3.5], [139.2, -11.5], [141.6, -18.5], [143.6, -23.2], [146, -25]] };
+// Lago Grande: o campo em volta, a passagem desde o sul das Terras e a trilha (o resto fica junto de sortearMataLago)
+const LAGO_GRANDE_AREA = { x: -3, z: 196, rx: 43, rz: 34, lobos: [[3, 0.06, 0.7], [5, 0.04, 2.3]], mata: true, lagoGrande: true };
+const LAGO_GRANDE_PASSAGEM = { a: [-16, 128], b: [-8, 170], larg: 9, semPedras: true };
+const TRILHA_LAGO = { largura: 1.8, pontos: [[-16, 132], [-15.2, 141], [-13, 150], [-10.4, 159], [-8.2, 166], [-6.6, 172], [-6.1, 175.2]] };
 // Guardião da caverna: do lado esquerdo da boca, olhando para quem chega pela trilha
 const GUARDA_CAVERNA = { x: 147.4, z: -23.6, ry: -1.6 };
 // (x, z) dentro de uma zona de mineração da mata ou em cima da trilha dela (com folga): ali não nasce árvore, mato nem
 // pedra solta
 const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && Math.hypot(x - m.x, z - m.z) < m.r + folga)
   || TRILHAS_MINA.some((t) => pertoDaLinha(t.pontos, x, z).d < 2);
+// em cima da trilha do Lago Grande (árvore da mata de antes que caía ali sai)
+const naTrilhaLago = (x, z) => pertoDaLinha(TRILHA_LAGO.pontos, x, z).d < 2.4;
 // NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
 // Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
 export const RESET_BUILD = { minimo: 50, porNivel: 10 };
@@ -811,6 +817,7 @@ export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalh
 CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
 CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-11-05)
 CAMINHOS.push(TRILHA_CAVERNA); // trilha da caverna da montanha (2026-11-06)
+CAMINHOS.push(TRILHA_LAGO); // trilha das Terras até o Lago Grande (2026-11-06)
 
 // Mapa aberto (André 2026-11-04): onde ainda sobra uma fresta entre a borda da vila, do campo de fora ou das Terras e a
 // mata andável (parede invisível logo depois da borda), um círculo pequeno de mata costura os dois. Vêm por último.
@@ -869,6 +876,29 @@ function sortearMataMonte() {
 // sem árvore em cima da trilha da caverna, na boca nem no túnel (2026-11-06; tirar depois do sorteio não muda as outras)
 const ARVORES_MONTE = sortearMataMonte().filter((a) => pertoDaLinha(TRILHA_CAVERNA.pontos, a.x, a.z).d > 2.4 && !noTunel(TUNEL, a.x, a.z, 3.5)
   && Math.hypot(a.x - GUARDA_CAVERNA.x, a.z - GUARDA_CAVERNA.z) > 3);
+// Lago Grande (André 2026-11-06: "acrescentar um lago maior... vou acrescentar pescaria, barquinho"): campo aberto ao
+// sul das Terras da Estrada, com o lago no meio (shared/relevo.js LAGOS lago_grande) e a mata fechando em volta. A
+// estrada central das Terras continua numa trilha de terra até a margem norte. Vêm no fim das listas (áreas, corredores
+// e árvores): o que já existia não muda de índice nem de sorteio.
+// árvores do Lago Grande (sorteio próprio, depois das da montanha): soltas pelo campo (nada perto da água nem na
+// trilha) e uma faixa fechada logo depois da borda
+function sortearMataLago() {
+  let sem = 7177; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const A = LAGO_GRANDE_AREA, M = { areas: [A], corredores: [LAGO_GRANDE_PASSAGEM] };
+  const velhas = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas, VILA_LOTES.area], corredores: [...MATA.corredores, VILA_LOTES.passagem] };
+  const lista = [], perto = (x, z, esp) => lista.some((o) => Math.abs(o.x - x) < esp && Math.abs(o.z - z) < esp && Math.hypot(o.x - x, o.z - z) < esp);
+  for (let t = 0; t < 14000; t++) {
+    const x = rnd(A.x - A.rx - 12, A.x + A.rx + 12), z = rnd(A.z - A.rz - 12, A.z + A.rz + 12), dentro = dentroDoMapa(M, x, z, 0);
+    if (!dentro && !dentroDoMapa(M, x, z, -9)) continue;
+    if (dentroDoMapa(velhas, x, z, -1) || pertoDaAgua(x, z, dentro ? 7 : 3) || pertoDaLinha(TRILHA_LAGO.pontos, x, z).d < 2.4) continue;
+    if (CLAREIRAS.some((c) => Math.hypot(x - c.x, z - c.z) < CLAREIRA_R + 3)) continue;
+    const esp = dentro ? 8.5 : 3.2;
+    if (perto(x, z, esp)) continue;
+    lista.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(0.8, 1.4).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)) });
+  }
+  return lista;
+}
+const ARVORES_LAGO = sortearMataLago();
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -876,8 +906,8 @@ export const MAPA_CLAREIRA = {
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
-  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS, BURACOS, MONTE_AREAS), // + Vila dos Lotes (construção e fazenda)
-  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9, semPedras: true }].concat(MATA.corredores, [VILA_LOTES.passagem]), // semPedras: a mata aberta em volta faz a borda (mapa aberto, André 2026-11-04)
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS, BURACOS, MONTE_AREAS, [LAGO_GRANDE_AREA]), // + Vila dos Lotes (construção e fazenda)
+  corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9, semPedras: true }].concat(MATA.corredores, [VILA_LOTES.passagem], [LAGO_GRANDE_PASSAGEM]), // semPedras: a mata aberta em volta faz a borda (mapa aberto, André 2026-11-04)
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
   // minimapa (desenho de cima: client/src/minimapa.js -> modelos/minimapa.png): quadrado que pega o mapa todo
@@ -949,7 +979,7 @@ export const MAPA_CLAREIRA = {
   // Vila dos Lotes: onde se compra lote para construir e plantar (VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS)
   lotes: VILA_LOTES.lotes,
   // árvores da mata (enfeite sólido, sem lenha) e a estrada principal (minimapa)
-  mata: ARVORES_MATA.filter((a) => !naMina(a.x, a.z) && !noRelevo(a.x, a.z)).concat(ARVORES_MONTE), // as zonas de mineração e os lagos ficam limpos
+  mata: ARVORES_MATA.filter((a) => !naMina(a.x, a.z) && !noRelevo(a.x, a.z) && !naTrilhaLago(a.x, a.z)).concat(ARVORES_MONTE, ARVORES_LAGO), // as zonas de mineração e os lagos ficam limpos
   estrada: ESTRADA,
 };
 
@@ -1292,6 +1322,6 @@ function sortearEnfeites(arvores) {
   const c = cenario(), e = sortearEnfeites(ARVORES_MATA); // a lista toda: o mato do resto da mata fica igual
   const fora = (o) => !naMina(o.x, o.z) && !noRelevo(o.x, o.z, 0.8);
   // pedras da beira dos lagos (pequenas, sem colisão; os juncos e as taboas o Godot desenha, relevo.gd) vêm no fim
-  const pedrasLago = beiraDosLagos().filter((b) => b.tipo === 'pedra').map((b, i) => ({ m: ['rocha1', 'rocha2', 'rocha3'][i % 3], x: b.x, z: b.z, ry: b.ry, s: b.s, y: -0.06 }));
+  const pedrasLago = beiraDosLagos().filter((b) => b.tipo === 'pedra').map((b, i) => ({ m: ['rocha1', 'rocha2', 'rocha3'][i % 3], x: b.x, z: b.z, ry: b.ry, s: b.s, y: b.y ?? -0.06 }));
   MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora).concat(pedrasLago), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
 }

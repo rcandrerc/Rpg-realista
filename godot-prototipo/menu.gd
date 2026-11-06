@@ -192,7 +192,19 @@ static func estilo_botao(b: Button, ativo: bool) -> void:
 static func icone_tex(nome: String) -> Texture2D:
 	if nome.begins_with("it_") and ResourceLoader.exists("res://icones/itens/%s.png" % nome.substr(3)):
 		return load("res://icones/itens/%s.png" % nome.substr(3)) # item pintado (godot-prototipo/icones/itens)
+	if nome != "" and ResourceLoader.exists("res://icones/pintados/%s.png" % nome):
+		return load("res://icones/pintados/%s.png" % nome) # construção, profissões e ferramentas pintados (2026-11-06); o .svg de traço fica de reserva
+	if nome.begins_with("it_semente_") and not ResourceLoader.exists("res://icones/%s.svg" % nome):
+		return icone_tex("it_semente")
 	return load("res://icones/%s.svg" % nome) if nome != "" else null
+
+# cor para o modulate de um ícone: o desenho de traço (.svg, branco) toma a cor pedida; o pintado guarda as cores
+# dele e só escurece (apagado) ou fica transparente junto
+static func tinta(tex: Texture2D, cor: Color) -> Color:
+	if tex == null or tex.resource_path.ends_with(".svg"):
+		return cor
+	var v: float = clamp(cor.v * 1.15, 0.0, 1.0) if cor.s < 0.25 else 1.0
+	return Color(v, v, v, cor.a)
 
 # ---------- moldura dos itens: fundo com o brilho da cor da raridade, aro na cor e faixa embaixo (como no Quimera) ----------
 static var _fundos := {}
@@ -1028,7 +1040,7 @@ func icone_redondo(nome: String, tam: float, cor := Color.WHITE, borda := OURO) 
 	ic.offset_bottom = -f
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.modulate = cor
+	ic.modulate = tinta(ic.texture, cor)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	moldura.add_child(ic)
 	return moldura
@@ -1208,7 +1220,7 @@ func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 		ic.custom_minimum_size = Vector2(18, 18)
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.modulate = P.cor_item({"k": k})
+		ic.modulate = tinta(ic.texture, P.cor_item({"k": k}))
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		ml.add_child(ic)
 		ml.add_child(rotulo("%s %d/%d" % [P.dados.itens[k].nome, t2, n], 12, VERDE if t2 >= n else Color("e0806a")))
@@ -1380,7 +1392,7 @@ func linha_criavel(e: Dictionary) -> Control:
 		ic.custom_minimum_size = Vector2(18, 18)
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.modulate = P.cor_item({"k": k})
+		ic.modulate = tinta(ic.texture, P.cor_item({"k": k}))
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		ml.add_child(ic)
 		ml.add_child(rotulo("%s %d/%d" % [D.itens[k].nome, t2, n], 12, VERDE if t2 >= n else Color("e0806a")))
@@ -1402,7 +1414,7 @@ func linha_criavel(e: Dictionary) -> Control:
 		ic2.custom_minimum_size = Vector2(22, 22)
 		ic2.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic2.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic2.modulate = APAGADO
+		ic2.modulate = tinta(ic2.texture, APAGADO)
 		pv.add_child(ic2)
 		var nl := rotulo(str(NOME_ESTACAO[est]).split(" ")[0], 12, APAGADO) # "Bigorna", "Fornalha", "Bancada"
 		nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
