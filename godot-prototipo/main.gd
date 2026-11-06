@@ -30,6 +30,7 @@ const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Troca = preload("res://troca.gd")
 const Amigos = preload("res://amigos.gd")
+const Chat = preload("res://chat.gd")
 const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Rota = preload("res://rota.gd")
@@ -100,6 +101,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
+var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenciado)
 var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e mana (só online)
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
@@ -256,6 +258,8 @@ func _ready() -> void:
 	montar_teste()
 	online = Online.new(self)
 	add_child(online)
+	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
+	add_child(chat)
 	menu_topo = MenuTopo.new(self)
 	add_child(menu_topo)
 	hud.menu_topo = menu_topo

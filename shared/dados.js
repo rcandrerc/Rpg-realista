@@ -1057,6 +1057,10 @@ export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedid
 export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 // combate: só ganha quem lutou (bateu ou apanhou) nos últimos 10 s. bonus: +10% de XP para cada outro do time que ganhou junto
 // (2 = +10%, 5 = +40%).
+// Chat (André 2026-11-06: "cria um chat geral e um de amigos"; o geral pode ser silenciado no app).
+// geral: todo mundo que está online, em qualquer mundo (sala). amigos: só você e seus amigos online.
+// max: letras por mensagem; entre: segundos entre duas mensagens; historico: quantas o servidor guarda para quem acabou de entrar.
+export const CHAT = { max: 120, entre: 1.2, historico: 40, canais: ['geral', 'amigos'] };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
