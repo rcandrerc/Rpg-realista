@@ -18,7 +18,8 @@ const COR_SEL := Color(1.0, 0.84, 0.4)
 const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens do chat", "mapa": "Minimapa",
 	"topo": "Menu do topo", "time": "Barras do time", "bt:troca": "Trocar arma", "bt:basico": "Ataque", "bt:cura": "Cura",
 	"bt:pular": "Pular", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
-	"bt:disparada": "Disparada", "bt:montar": "Lobo"}
+	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
+	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio"}
 
 var m # main.gd
 var layout := {} # id -> [dx, dy, escala]; sem a chave = lugar e tamanho de sempre
@@ -54,7 +55,7 @@ func _ready() -> void:
 	barra.add_theme_stylebox_override("panel", Menu.caixa(Color(0.075, 0.065, 0.055, 0.94), Menu.OURO, 1, 10, 10))
 	barra.anchor_left = 0.5
 	barra.anchor_right = 0.5
-	barra.offset_top = 10
+	barra.offset_top = 150 # no meio de cima da tela: não cobre o menu do topo, o painel nem a fileira de baixo
 	tela.add_child(barra)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
