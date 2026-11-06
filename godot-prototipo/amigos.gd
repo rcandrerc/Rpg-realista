@@ -14,6 +14,9 @@ var maximo := 20
 var time: Array = [] # do servidor: [{id, nome, nivel, vida, vidaMax, mana, manaMax, x, z, morto}]
 var lider := ""
 var _barras: Control
+var barras_d := Vector2.ZERO # modo de editar a interface (editar_hud.gd): lugar e tamanho das barras do time
+var barras_s := 1.0
+const BARRAS := Vector2(18, 122)
 var _remover := "" # conta do amigo esperando o segundo toque em "Remover"
 var _lista_t := 0.0
 var _rolar_y := 0 # a janela Multijogador refaz a cada 1 s: a lista não volta para o topo
@@ -115,11 +118,12 @@ func _desenhar_barras() -> void:
 		return
 	var f := ThemeDB.fallback_font
 	var eu := str(m.online.meu_id) if m.online else ""
-	var y := 122.0
+	_barras.draw_set_transform(BARRAS + barras_d, 0.0, Vector2(barras_s, barras_s))
+	var y := 0.0
 	for t in time:
 		if str(t.id) == eu:
 			continue
-		var p := Vector2(18, y)
+		var p := Vector2(0, y)
 		var tam := Vector2(196, 36)
 		var morto: bool = t.get("morto", false) == true
 		_barras.draw_rect(Rect2(p, tam), Color(0.08, 0.07, 0.06, 0.72))
@@ -133,6 +137,7 @@ func _desenhar_barras() -> void:
 		_barra(p + Vector2(8, 17), Vector2(tam.x - 16, 10), fv, Color(0.8, 0.22, 0.2), "CAÍDO" if morto else "%d/%d" % [int(t.get("vida", 0)), int(t.get("vidaMax", 0))])
 		_barra(p + Vector2(8, 29), Vector2(tam.x - 16, 4), fm, Color(0.22, 0.45, 0.85), "")
 		y += tam.y + 4.0
+	_barras.draw_set_transform(Vector2.ZERO)
 
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
 	_barras.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.5))
