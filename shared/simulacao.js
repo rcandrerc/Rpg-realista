@@ -603,6 +603,19 @@ export class Simulacao {
     this.aplicarStatus(j);
     this.avisarProg(j);
   }
+  // Vários pontos de uma vez (o menu junta com + e − e manda só no Confirmar): { for: 2, vit: 1 }.
+  // Ou entra tudo ou nada: chave errada, número quebrado/negativo ou mais pontos do que tem = recusa.
+  distribuirAtributos(id, mapa) {
+    const j = this.jogadores.get(id); if (!j || !mapa || typeof mapa !== 'object' || Array.isArray(mapa)) return;
+    const p = j.prog, ks = Object.keys(mapa);
+    if (!ks.length || ks.some((k) => !ATRIBUTOS[k] || !Number.isInteger(mapa[k]) || mapa[k] < 0)) return;
+    const total = ks.reduce((s, k) => s + mapa[k], 0);
+    if (total <= 0 || total > p.pontos) return;
+    for (const k of ks) p.atr[k] += mapa[k];
+    p.pontos -= total;
+    this.aplicarStatus(j);
+    this.avisarProg(j);
+  }
   // Mestre Ivo (NPC funcao 'resetar', perto de onde o herói nasce): atributos voltam para 3 e os pontos voltam; skills ficam
   custoReset(j) { return Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
   resetarBuild(id) {

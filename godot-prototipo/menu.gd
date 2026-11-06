@@ -681,6 +681,7 @@ func abrir_bolsa() -> void:
 	abrir(aba if aba in ["mochila", "criar"] else "mochila")
 
 func fechar() -> void:
+	_pend.clear() # fechou sem confirmar: nada foi gasto
 	fechar_confirma()
 	fechar_janela(false)
 	raiz.visible = false
@@ -800,11 +801,21 @@ func montar_status() -> void:
 	conteudo.add_child(lv)
 	conteudo.add_child(barra_prog(float(p.xp) / max(1, P.xp_prox), Color(0.85, 0.66, 0.3)))
 	separador("Atributos")
-	conteudo.add_child(rotulo("Pontos livres: %d" % p.pontos, 15, VERDE if p.pontos > 0 else APAGADO))
+	# André 2026-11-06: + e − só mexem nos pontos pendentes; nada muda até apertar Confirmar (Desfazer zera).
+	# O − nunca tira ponto já confirmado.
+	var pend := _pend_validos()
+	var n_pend := _soma_pend()
+	var sobram: int = int(p.pontos) - n_pend
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 14)
+	topo.add_child(rotulo("Pontos sobrando: %d" % sobram, 16, VERDE if sobram > 0 else APAGADO))
+	if n_pend > 0:
+		topo.add_child(rotulo("(%d para confirmar)" % n_pend, 14, OURO_CLARO))
+	conteudo.add_child(topo)
 	for k in ["for", "des", "int", "vit"]:
 		var a: Dictionary = P.dados.atributos[k]
 		var linha := HBoxContainer.new()
-		linha.add_theme_constant_override("separation", 10)
+		linha.add_theme_constant_override("separation", 8)
 		var txt := VBoxContainer.new()
 		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		txt.add_theme_constant_override("separation", 0)
@@ -813,15 +824,36 @@ func montar_status() -> void:
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		txt.add_child(d)
 		linha.add_child(txt)
-		var v := rotulo(str(p.atr[k]), 20, OURO_CLARO)
-		v.custom_minimum_size = Vector2(36, 0)
-		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var extra: int = int(pend.get(k, 0))
+		var menos := botao("−", func(): mudar_pend(k, -1), 20, extra > 0)
+		menos.custom_minimum_size = Vector2(44, 40)
+		menos.disabled = extra <= 0
+		linha.add_child(menos)
+		var v := rotulo(str(int(p.atr[k]) + extra), 20, VERDE if extra > 0 else OURO_CLARO)
+		v.custom_minimum_size = Vector2(44, 0)
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		if extra > 0:
+			v.tooltip_text = "%d + %d" % [p.atr[k], extra]
 		linha.add_child(v)
-		var mais := botao("+", func(): distribuir(k), 20, p.pontos > 0)
+		var mais := botao("+", func(): mudar_pend(k, 1), 20, sobram > 0)
 		mais.custom_minimum_size = Vector2(44, 40)
-		mais.disabled = p.pontos <= 0
+		mais.disabled = sobram <= 0
 		linha.add_child(mais)
+		var mostra := rotulo("+%d" % extra if extra > 0 else "", 14, VERDE)
+		mostra.custom_minimum_size = Vector2(34, 0)
+		linha.add_child(mostra)
 		conteudo.add_child(linha)
+	if n_pend > 0:
+		var acoes := HBoxContainer.new()
+		acoes.alignment = BoxContainer.ALIGNMENT_END
+		acoes.add_theme_constant_override("separation", 10)
+		var desfazer := botao("Desfazer", func(): _pend.clear(); atualizar(), 15)
+		desfazer.custom_minimum_size = Vector2(120, 42)
+		acoes.add_child(desfazer)
+		var ok := botao("Confirmar (%d)" % n_pend, confirmar_pontos, 15, true)
+		ok.custom_minimum_size = Vector2(160, 42)
+		acoes.add_child(ok)
+		conteudo.add_child(acoes)
 	separador("Herói")
 	var st: Dictionary = P.st
 	var g := GridContainer.new()
@@ -836,6 +868,27 @@ func montar_status() -> void:
 		["Estamina", "%d / %d" % [floor(m.trabalho.sta), m.trabalho.sta_max()]], ["Vigor", "%d / %d" % [floor(P.vigor()), int(P.dados.vigor.max)]],
 		["Ouro", str(int(p.ouro))],
 	]
+	# com pontos pendentes, mostra como os números ficam depois de confirmar (em verde)
+	var depois := {}
+	if n_pend > 0:
+		var antes: Dictionary = p.atr.duplicate()
+		for k in pend:
+			p.atr[k] = int(p.atr[k]) + int(pend[k])
+		var st2: Dictionary = P.calcular_status()
+		p.atr = antes
+		depois = {
+			"Vida": "%d" % st2.vidaMax, "Mana": "%d" % st2.manaMax, "Defesa": "%d" % st2.defesa,
+			"Crítico": "%s%%" % P.num(st2.critico * 100, 1), "Dano físico": P.num(st2.danoFisico, 1),
+			"Dano mágico": P.num(st2.danoMagico, 1), "Recarga": "-%s%%" % P.num(st2.recarga * 100, 0),
+		}
+		var ref := {
+			"Vida": "%d" % st.vidaMax, "Mana": "%d" % st.manaMax, "Defesa": "%d" % st.defesa,
+			"Crítico": "%s%%" % P.num(st.critico * 100, 1), "Dano físico": P.num(st.danoFisico, 1),
+			"Dano mágico": P.num(st.danoMagico, 1), "Recarga": "-%s%%" % P.num(st.recarga * 100, 0),
+		}
+		for nome in ref:
+			if ref[nome] == depois[nome]:
+				depois.erase(nome)
 	for it in itens:
 		var c := HBoxContainer.new()
 		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -843,6 +896,8 @@ func montar_status() -> void:
 		n.custom_minimum_size = Vector2(110, 0)
 		c.add_child(n)
 		c.add_child(rotulo(it[1], 14, TEXTO))
+		if depois.has(it[0]):
+			c.add_child(rotulo("  → %s" % depois[it[0]], 14, VERDE))
 		g.add_child(c)
 	conteudo.add_child(g)
 
@@ -896,6 +951,49 @@ func perguntar_reset(custo: int) -> void:
 			else:
 				m.hud.aviso(m.P.resetar(custo))
 				atualizar(), 15, true))
+
+# Pontos ainda não confirmados, por atributo ({"for": 2}). Some ao confirmar, desfazer ou fechar o menu.
+var _pend := {}
+
+# Se os pontos livres mudaram por fora (reset no Mestre Ivo, outro aparelho) e não cabem mais, zera o pendente.
+func _pend_validos() -> Dictionary:
+	if _soma_pend() > int(m.P.prog.pontos):
+		_pend.clear()
+	return _pend
+
+func _soma_pend() -> int:
+	var t := 0
+	for k in _pend:
+		t += int(_pend[k])
+	return t
+
+func mudar_pend(k: String, d: int) -> void:
+	var atual: int = int(_pend.get(k, 0))
+	if d > 0 and _soma_pend() >= int(m.P.prog.pontos):
+		return
+	if d < 0 and atual <= 0:
+		return # o − só tira o que ainda não foi confirmado
+	atual += d
+	if atual <= 0:
+		_pend.erase(k)
+	else:
+		_pend[k] = atual
+	atualizar()
+
+func confirmar_pontos() -> void:
+	var envio := _pend_validos().duplicate()
+	_pend.clear()
+	if envio.is_empty():
+		atualizar()
+		return
+	if m.on():
+		m.rede("atributos", envio) # o servidor confere tudo de uma vez e devolve o progresso novo
+		atualizar()
+	else:
+		for k in envio:
+			for i in int(envio[k]):
+				m.P.distribuir(k)
+		atualizar()
 
 func distribuir(k: String) -> void:
 	if m.on():
