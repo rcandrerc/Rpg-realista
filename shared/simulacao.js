@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME } from './dados.js';
+import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -1084,6 +1084,37 @@ export class Simulacao {
         this.mudouTroca(T);
       }
     }
+  }
+  // ---------- chat geral e de amigos (André 2026-11-06) ----------
+  // chat(): confere quem fala, o canal, o texto (até CHAT.max letras, sem caracteres de controle) e o tempo entre mensagens.
+  // Devolve a mensagem pronta; o servidor (server/index.js) entrega em todas as salas com receberChat(). O "silenciar"
+  // do geral é escolha do app (cada um decide o que vê); o servidor manda para todos.
+  chat(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m) return null;
+    const aviso = (texto) => { this.evento({ t: 'aviso', para: id, texto }); return null; };
+    const canal = String(m.canal || '');
+    if (!CHAT.canais.includes(canal)) return null;
+    const texto = String(m.texto ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT.max);
+    if (!texto) return null;
+    if (j.criando) return aviso('Termine de criar o personagem para conversar');
+    if (canal === 'amigos' && !j.amigos.size) return aviso('Você ainda não tem amigos. Toque num jogador e escolha "Adicionar amigo"');
+    if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
+    j.chatT = this.tempo;
+    return { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
+  }
+  // entrega a mensagem a quem deve ver nesta sala (o geral para todos; amigos para quem falou e os amigos dele)
+  receberChat(msg) {
+    for (const o of this.jogadores.values()) {
+      if (msg.canal === 'amigos' && o.conta !== msg.c && !o.amigos?.has(msg.c)) continue;
+      this.evento({ t: 'chat', para: o.id, ...msg, meu: o.conta === msg.c });
+    }
+  }
+  // quem acabou de entrar vê as últimas mensagens (o geral inteiro; do amigos, só as dele e as dos amigos dele)
+  historicoChat(id, geral, amigos) {
+    const j = this.jogadores.get(id); if (!j) return;
+    const ver = (x) => x.canal === 'geral' || x.c === j.conta || j.amigos.has(x.c);
+    const lista = [...(geral || []), ...(amigos || [])].filter(ver).sort((a, b) => a.hora - b.hora).map((x) => ({ ...x, meu: x.c === j.conta }));
+    this.evento({ t: 'chatHist', para: id, lista });
   }
   // ---------- amigos (até 20) e time (André 2026-11-05) ----------
   // A lista de amigos fica na conta (server/contas.js, tabela amizades); aqui fica j.amigos (conta -> nome), que o servidor

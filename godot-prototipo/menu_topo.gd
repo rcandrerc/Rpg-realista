@@ -12,7 +12,7 @@ const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
 const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o menu fica à esquerda do minimapa, na altura do centro dele
 # (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
@@ -70,6 +70,10 @@ func _ready() -> void:
 		if k == "vila":
 			b.pressed.connect(func(): m.volta.pedir())
 			_recarga_vila(b)
+		elif k == "chat": # André 2026-11-06: chat geral e de amigos (chat.gd); o número mostra as mensagens não lidas
+			b.pressed.connect(func(): m.chat.abrir())
+			if m.chat:
+				m.chat.ligar_icone(b)
 		elif k == "mochila": # André 2026-11-04: a bolsa (Mochila e Criar) sai do menu da barra de vida e ganha botão aqui
 			b.pressed.connect(func(): m.menu.abrir_bolsa())
 		else:
@@ -211,7 +215,7 @@ func _mexer_itens(v: bool) -> void:
 
 # a HUD pergunta: este toque é do menu do topo? (aí não vira joystick nem câmera)
 func cobre(p: Vector2) -> bool:
-	if janela.visible:
+	if janela.visible or (m.chat and m.chat.aberto()):
 		return true
 	if seta.get_global_rect().grow(6).has_point(p):
 		return true
@@ -258,6 +262,8 @@ func abrir(qual: String) -> void:
 		return
 	aberta = qual
 	_confirmar_apagar = false
+	if m.chat:
+		m.chat.fechar()
 	janela.visible = true
 	m.hud.bloqueado = true
 	montar()
@@ -266,7 +272,7 @@ func fechar() -> void:
 	janela.visible = false
 	aberta = ""
 	_confirmar_apagar = false # "Voltar ao jogo" na confirmação vale como "Não, manter"
-	if not (m.menu and m.menu.aberto()):
+	if not (m.menu and m.menu.aberto()) and not (m.chat and m.chat.aberto()):
 		m.hud.bloqueado = false
 
 func aberto() -> bool:

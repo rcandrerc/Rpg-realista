@@ -1,0 +1,30 @@
+// Teste do chat geral e de amigos (shared/simulacao.js chat/receberChat/historicoChat). Uso: node ferramentas/testes/chat.mjs
+import { Simulacao, MAPA_CLAREIRA, CHAT } from '../../shared/index.js';
+const ok = (v, m) => { if (!v) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
+const s1 = new Simulacao(MAPA_CLAREIRA), s2 = new Simulacao(MAPA_CLAREIRA); // duas salas (mundos)
+const a = s1.adicionarJogador('A', 'Ana', null, { conta: 1 }), b = s1.adicionarJogador('B', 'Beto', null, { conta: 2 });
+const c = s2.adicionarJogador('C', 'Caio', null, { conta: 3 });
+s1.definirAmigos('A', [{ c: 'c3', nome: 'Caio' }]); s2.definirAmigos('C', [{ c: 'c1', nome: 'Ana' }]);
+const ev = (s) => { const e = s.eventos; s.eventos = []; return e; };
+ev(s1); ev(s2);
+const salas = [s1, s2];
+const mandar = (s, id, canal, texto) => { const m = s.chat(id, { canal, texto }); if (m) for (const x of salas) x.receberChat(m); return m; };
+let m = mandar(s1, 'A', 'geral', '  Olá\n\u0007 mundo  ');
+ok(m && m.texto === 'Olá mundo', 'texto limpo: ' + m?.texto);
+const e1 = ev(s1).filter((e) => e.t === 'chat'), e2 = ev(s2).filter((e) => e.t === 'chat');
+ok(e1.length === 2 && e2.length === 1, 'geral chega para todos, nas duas salas');
+ok(e1.find((e) => e.para === 'A').meu && !e1.find((e) => e.para === 'B').meu, 'marca a própria mensagem');
+ok(!mandar(s1, 'A', 'geral', 'de novo') && ev(s1).some((e) => e.t === 'aviso'), 'espera entre mensagens');
+s1.tempo += CHAT.entre + 0.1;
+mandar(s1, 'A', 'amigos', 'só pros amigos');
+const f1 = ev(s1).filter((e) => e.t === 'chat'), f2 = ev(s2).filter((e) => e.t === 'chat');
+ok(f1.length === 1 && f1[0].para === 'A' && f2.length === 1 && f2[0].para === 'C', 'amigos: só Ana e Caio (outra sala), Beto não');
+ok(!mandar(s1, 'B', 'amigos', 'oi') && ev(s1).some((e) => e.t === 'aviso' && e.para === 'B'), 'sem amigos não manda no canal amigos');
+ok(!s1.chat('A', { canal: 'x', texto: 'oi' }) && !s1.chat('A', { canal: 'geral', texto: '   ' }), 'canal errado ou vazio não vale');
+s1.tempo += 5;
+ok(s1.chat('A', { canal: 'geral', texto: 'a'.repeat(500) }).texto.length === CHAT.max, 'corta no tamanho máximo');
+const hist = [{ canal: 'geral', c: 'c9', nome: 'X', texto: 'g', hora: 1 }];
+const histA = [{ canal: 'amigos', c: 'c3', nome: 'Caio', texto: 'amigo', hora: 2 }, { canal: 'amigos', c: 'c8', nome: 'Z', texto: 'outro', hora: 3 }];
+s1.historicoChat('A', hist, histA); s1.historicoChat('B', hist, histA);
+const h = ev(s1).filter((e) => e.t === 'chatHist');
+ok(h.find((e) => e.para === 'A').lista.length === 2 && h.find((e) => e.para === 'B').lista.length === 1, 'histórico: amigos só de quem é amigo');
