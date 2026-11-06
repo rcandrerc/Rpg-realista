@@ -215,7 +215,7 @@ func _mexer_itens(v: bool) -> void:
 
 # a HUD pergunta: este toque é do menu do topo? (aí não vira joystick nem câmera)
 func cobre(p: Vector2) -> bool:
-	if janela.visible or (m.chat and m.chat.aberto()):
+	if janela.visible or (m.chat and (m.chat.aberto() or m.chat.cobre_botao(p))):
 		return true
 	if seta.get_global_rect().grow(6).has_point(p):
 		return true
