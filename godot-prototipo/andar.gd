@@ -244,11 +244,14 @@ func limitar_ao_mapa(px: float, pz: float, margem := 0.0) -> Vector2:
 			melhor = q
 	return melhor
 
+const SELO_FOLGA := 0.35 # m antes da linha do selo onde o herói sem passe para
 var no_relevo := false # bateu numa encosta íngreme da montanha (não é pedra: não escala)
 func _vai(nx: float, nz: float) -> bool:
 	var h: float = T.altura(nx, nz, y)
 	# Caverna da Montanha: do selo para dentro só quem usou o passe (o servidor confere: Simulacao.posicaoCliente)
-	if not selo_aberto and not T.tunel.is_empty() and T.alem_do_selo(nx, nz, y) and not T.alem_do_selo(x, z, y):
+	# Sem passe o herói para um palmo antes do selo (SELO_FOLGA): assim o servidor nunca vê a posição do outro lado e
+	# não manda "corrigir" (que antes jogava o herói em cima da montanha; André 2026-11-06: "só fique parado")
+	if not selo_aberto and not T.tunel.is_empty() and T.alem_do_selo(nx, nz, y, SELO_FOLGA) and not T.alem_do_selo(x, z, y, SELO_FOLGA):
 		no_relevo = true
 		return false
 	if h > y + m.subida.degrau:
