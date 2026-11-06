@@ -161,7 +161,16 @@ func cobre(p: Vector2) -> bool:
 	if not mini.visible:
 		return false
 	var c: Vector2 = mini.get_global_rect().get_center()
-	return p.distance_to(c) <= RAIO + 6.0
+	return p.distance_to(c) <= RAIO * mini.scale.x + 6.0
+
+# modo de editar a interface (editar_hud.gd): o minimapa muda de lugar e de tamanho (escala em volta do centro)
+func posicionar(d: Vector2, s: float) -> void:
+	mini.offset_right = -MARGEM.x + d.x
+	mini.offset_left = -MARGEM.x - RAIO * 2.0 + d.x
+	mini.offset_top = MARGEM.y + d.y
+	mini.offset_bottom = MARGEM.y + RAIO * 2.0 + d.y
+	mini.pivot_offset = Vector2(RAIO, RAIO)
+	mini.scale = Vector2(s, s)
 
 func _input(ev: InputEvent) -> void:
 	if aberto:
@@ -172,7 +181,7 @@ func _input(ev: InputEvent) -> void:
 			_zoom_em(ev.position - janela.get_global_rect().position, 1.15 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.15)
 			get_viewport().set_input_as_handled()
 		return
-	if not (ev is InputEventScreenTouch) or not ev.pressed:
+	if not (ev is InputEventScreenTouch) or not ev.pressed or m.hud.editando:
 		return
 	if mini.visible and cobre(ev.position) and not m.hud.bloqueado:
 		abrir()

@@ -35,6 +35,8 @@ const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Rota = preload("res://rota.gd")
 const Construcao = preload("res://construcao.gd")
+const EditarHud = preload("res://editar_hud.gd")
+const RetratoHeroi = preload("res://retrato_heroi.gd")
 const Montaria = preload("res://montaria.gd")
 const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (vermelho, coração) e a tela de queda
 
@@ -108,6 +110,8 @@ var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de 
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
+var editar_hud # editar_hud.gd: segurar o painel de vida e mana abre o modo de editar a interface
+var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
@@ -273,6 +277,11 @@ func _ready() -> void:
 	add_child(construcao)
 	hud.construcao = construcao
 	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
+	editar_hud = EditarHud.new(self) # por último: lê o layout guardado e passa para todos os elementos
+	add_child(editar_hud)
+	hud.editor = editar_hud
+	retrato_heroi = RetratoHeroi.new(self)
+	add_child(retrato_heroi)
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:

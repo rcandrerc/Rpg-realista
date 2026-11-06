@@ -498,6 +498,31 @@ func desligou() -> void:
 	if aberto():
 		montar()
 
+# modo de editar a interface (editar_hud.gd): a caixa de leitura muda de lugar e de tamanho
+# (cresce em volta do canto de baixo à esquerda, que é de onde ela sobe com as linhas)
+const ALTURA_EDITAR := 110.0 # área que o modo de edição mostra para a caixa (cabe as 5 linhas)
+var caixa_d := Vector2.ZERO
+var caixa_s := 1.0
+func posicionar(d: Vector2, s: float) -> void:
+	caixa_d = d
+	caixa_s = s
+	caixa.offset_left = MARGEM + d.x
+	caixa.offset_right = MARGEM + LARGURA_CAIXA + d.x
+	caixa.offset_bottom = -MARGEM + d.y
+	caixa.offset_top = -MARGEM - 10 + d.y
+	caixa.scale = Vector2(s, s)
+	caixa.pivot_offset = Vector2(0, caixa.size.y)
+	if not caixa.resized.is_connected(_caixa_pivo):
+		caixa.resized.connect(_caixa_pivo)
+
+func _caixa_pivo() -> void:
+	caixa.pivot_offset = Vector2(0, caixa.size.y)
+
+func area() -> Rect2:
+	var t := raiz.size
+	var h := ALTURA_EDITAR * caixa_s
+	return Rect2(Vector2(MARGEM + caixa_d.x, t.y - MARGEM + caixa_d.y - h), Vector2(LARGURA_CAIXA * caixa_s, h))
+
 # ---------- guardar no aparelho ----------
 func carregar() -> void:
 	var cfg := ConfigFile.new()
