@@ -13,7 +13,8 @@ export const LAGOS = [
   { id: 'lago_fundo', nome: 'Lago Fundo', x: 100, z: 78, rx: 12.5, rz: 9, giro: 0.3, fundo: 4.2, lobos: [[3, 0.09, 2.7], [5, 0.05, 0.6]] },
   { id: 'lago_montanha', nome: 'Lago da Montanha', x: 121, z: -13, rx: 10, rz: 7.5, giro: -0.6, fundo: 4.6, lobos: [[3, 0.08, 4.1], [5, 0.06, 1.7]] },
 ]
-export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
+export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82, nado: 1.7 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
+// nado: boiando (pés fora do fundo) o herói nada, no máximo a esse tanto de m/s (André 2026-11-06: animação de nadar)
 
 // raio da margem do lago na direção do ponto (elipse girada com ondas): 1 = na margem
 function margemLago(L, x, z) {

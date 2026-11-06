@@ -67,6 +67,14 @@ var _len_lado := {}
 # corridas de lado/costas com passada curta e ritmo rápido, mesmo na velocidade de quem atira
 const PASSO_LEVE := 1.6 # metros por passada inteira: a 2,3 m/s dá ~0,7 s, o mesmo ritmo do trote
 var _leve := 0.0
+# Nado (André 2026-11-06): no lago fundo a locomoção vira boiar (Mixamo Treading Water) parado e nadar (Swimming)
+# andando. As ações (golpe, magia, saída da água) continuam por cima. Quem chama liga "nadando".
+const NADO_VOLTA := 5.5 # metros por volta inteira do Swimming (4,5 s): a 1,7 m/s (AGUA.nado) toca a 1,4x
+var tem_nado := false
+var nadando := false
+var _nado := 0.0 # 0 = locomoção de terra, 1 = na água
+var _nada := 0.0 # 0 = boiando, 1 = nadando
+var _len_nadar := 1.0
 
 func _init(p: AnimationPlayer) -> void:
 	player = p
@@ -190,7 +198,22 @@ func _init(p: AnimationPlayer) -> void:
 		bt.connect_node("ab" + parte, 0, "seek%s0" % parte)
 		bt.connect_node("ab" + parte, 1, "seek%s1" % parte)
 	bt.add_node("corpo", AnimationNodeBlend2.new(), Vector2(660, 300))
-	bt.connect_node("corpo", 0, "mexe")
+	tem_nado = player.has_animation("nadar") and player.has_animation("boiar")
+	if tem_nado:
+		anim.call("boiar", "boiar", Vector2(0, 2300))
+		anim.call("nadar", "nadar", Vector2(0, 2420))
+		_len_nadar = player.get_animation("nadar").length
+		bt.add_node("ts_nadar", AnimationNodeTimeScale.new(), Vector2(150, 2420))
+		bt.connect_node("ts_nadar", 0, "nadar")
+		bt.add_node("nada", AnimationNodeBlend2.new(), Vector2(320, 2360))
+		bt.connect_node("nada", 0, "boiar")
+		bt.connect_node("nada", 1, "ts_nadar")
+		bt.add_node("agua", AnimationNodeBlend2.new(), Vector2(560, 240))
+		bt.connect_node("agua", 0, "mexe")
+		bt.connect_node("agua", 1, "nada")
+		bt.connect_node("corpo", 0, "agua")
+	else:
+		bt.connect_node("corpo", 0, "mexe")
 	bt.connect_node("corpo", 1, "ab")
 	# tronco: da coluna para cima (braços, cabeça); as pernas e o quadril ficam com a locomoção
 	var tronco := AnimationNodeBlend2.new()
@@ -363,6 +386,11 @@ func atualizar(dt: float, vel: float) -> void:
 	_ab = move_toward(_ab, _ab_alvo, dt * _ab_vel)
 	_idle = move_toward(_idle, _idle_alvo, dt * 5.0)
 	_gcaj = move_toward(_gcaj, 1.0 if guarda_cajado else 0.0, dt * 4.0)
+	if tem_nado:
+		_nado = move_toward(_nado, 1.0 if nadando else 0.0, dt * 2.5)
+		_nada = move_toward(_nada, smoothstep(0.15, 0.9, vel) if nadando else 0.0, dt * 2.0)
+		# braçada no ritmo da velocidade, entre 0,7x e 1,5x (mais rápido que isso parece afobado)
+		tree.set("parameters/ts_nadar/scale", clamp(vel * _len_nadar / NADO_VOLTA, 0.7, 1.5))
 	if arrancando > 0.0:
 		arrancando += dt * _arr_ritmo
 	_pernas = move_toward(_pernas, _pernas_alvo, dt * (12.0 if _pernas_alvo > _pernas else 6.0))
@@ -378,6 +406,9 @@ func _aplicar(_dt: float) -> void:
 	if tem_trote:
 		tree.set("parameters/rapido/blend_amount", _rapido)
 	tree.set("parameters/mexe/blend_amount", _mexe)
+	if tem_nado:
+		tree.set("parameters/agua/blend_amount", _nado)
+		tree.set("parameters/nada/blend_amount", _nada)
 	if tem_lado:
 		tree.set("parameters/v_lado_e/blend_amount", _corre)
 		tree.set("parameters/v_lado_d/blend_amount", _corre)

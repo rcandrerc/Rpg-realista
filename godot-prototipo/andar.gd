@@ -282,6 +282,10 @@ func na_agua() -> float:
 		return 1.0
 	return lerpf(float(T.agua.raso), float(T.agua.lento), clampf((a - 0.2) / 0.8, 0.0, 1.0))
 
+# nadando (André 2026-11-06): os pés saíram do fundo e o herói boia com a água no peito
+func nadando() -> bool:
+	return montado.is_empty() and esc == null and chao and T.agua_no_corpo(x, z, y) >= float(T.agua.peito) - 0.12
+
 func mover(dx: float, dz: float) -> void:
 	var x0 := x
 	var y0 := y
@@ -460,6 +464,8 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
 			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max) * na_agua()
+			if nadando(): # braçada: mais devagar que andar no fundo, mesmo na disparada
+				alvo = alvo.limit_length(float(T.agua.get("nado", 1.7)) * mag)
 			if not montado.is_empty(): # montado: o lobo anda, trota e galopa (sem estamina)
 				alvo = Vector2(mx, mz).normalized() * vel_montado(mag)
 		var s0 := Vector2(vx, vz).length()

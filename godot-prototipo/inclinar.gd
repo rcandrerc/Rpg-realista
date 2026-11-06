@@ -3,7 +3,7 @@ extends SkeletonModifier3D
 # - inclinacao: tronco deita para dentro da curva (radianos, + = para a direita);
 # - frente: tronco vai para a frente na arrancada e para trás na freada (radianos, + = para a frente),
 #   dividido pela coluna e pelo peito; o pescoço compensa um pouco para a cabeça ficar firme;
-# - afunda: quadril desce (metros), no pouso e na freada;
+# - afunda: quadril desce (metros), no pouso e na freada; negativo sobe (nadando no lago fundo);
 # - olhar: cabeça vira antes do corpo para onde o jogador vai.
 
 var inclinacao := 0.0
@@ -58,7 +58,7 @@ func _process_modification() -> void:
 	_girar(s, _cabeca, _cima, olhar * 0.6)
 	# curva: deita em volta da frente do corpo
 	_girar(s, _coluna, _frente, inclinacao)
-	if afunda > 0.001:
+	if absf(afunda) > 0.001: # negativo sobe (nadando)
 		var pq := s.get_bone_parent(_quadril)
 		var b := s.get_bone_global_pose(pq).basis if pq >= 0 else Basis()
 		s.set_bone_pose_position(_quadril, s.get_bone_pose_position(_quadril) - (b.inverse() * _cima) * afunda)

@@ -15,3 +15,9 @@ Em 2026-11-04 entraram lado_e_andar, lado_d_andar, tras_andar, lado_e_correr, la
 Também em 2026-11-04 entrou cajado_parada: Standing Idle 03 do mesmo `Pro Magic Pack.zip`, a guarda do herói parado com o cajado (joelhos dobrados, mão livre na frente). As outras paradas do pacote foram testadas no jogo: standing idle (mão na cintura), idle 02, Idle 04 (chuta e gira, não serve de guarda) e Block Idle.
 
 Animação nova sem precisar baixar todos os `.fbx` de novo: asse só ela (pasta `fbx/` só com os novos) e junte as chaves no `anims.json.gz` atual, mantendo o `_rest` que já está lá (o esqueleto do Mixamo é o mesmo).
+
+Em 2026-11-06 entraram nadar, boiar e sair_agua (Mixamo Swimming, Treading Water e Swimming To Edge, `mixamo/movimento/` nos fontes).
+Elas vieram noutro boneco do Mixamo (pose de descanso diferente e só polegar e indicador nas mãos): depois de assar, rode
+`node ferramentas/assar-animacoes/outra-pose.mjs <anims.json.gz atual> anims.json <saída.json.gz>`. Ele mantém a rotação de
+mundo de cada osso no `_rest` que já está no arquivo, copia o indicador para os outros dedos e desce o quadril do
+Swimming To Edge até a altura do Swimming (ele nada 78 cm mais alto, porque termina pendurado na borda de uma piscina).

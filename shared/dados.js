@@ -62,6 +62,8 @@ export const DURACAO = {
   // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
   // 2H Magic Area Attack 01 e 2H Cast Spell 01
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
+  // nado nos lagos fundos (André 2026-11-06): Mixamo Swimming, Treading Water e Swimming To Edge
+  nadar: 4.533, boiar: 3, sair_agua: 5,
 };
 
 // Pedaços de animação: [arquivo, início, fim] em fração da duração. O combo de espada do Mixamo
@@ -75,6 +77,8 @@ export const CORTES = {
   // Faísca nova (alterna as mãos), Bola de Fogo (junta as duas mãos e empurra), Nova de Gelo (bate no chão), Meteoro (braços ao céu)
   magiaD: ['mg_basico_d', 0.1, 0.7], magiaE: ['mg_basico_e', 0.1, 0.7], bolaForte: ['mg_bola', 0.1, 0.75],
   novaGelo: ['mg_gelo', 0.05, 0.7], meteoroCeu: ['mg_meteoro', 0, 0.85],
+  // saindo do lago fundo: do nado até ficar de pé (o resto do Swimming To Edge segura numa borda de piscina)
+  saiAgua: ['sair_agua', 0.34, 0.58],
   pulo: ['pulo_impulso', 0.42, 1], puloCorrendo: ['pulo_correndo', 0.72, 1], mortal: ['mortal_frente', 0.33, 0.92], pouso: ['aterrissa_queda', 0.28, 0.85],
 };
 for (const [nome, [arq, ini, fim]] of Object.entries(CORTES)) DURACAO[nome] = DURACAO[arq] * (fim - ini);
