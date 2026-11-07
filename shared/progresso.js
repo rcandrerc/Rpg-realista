@@ -216,7 +216,7 @@ export function reforcar(p, it, sorte = Math.random()) {
   if (!max) return { erro: 'Peça Comum não dá pra reforçar' };
   if (de >= max) return { erro: 'Reforço no máximo!' };
   const pr = reforcoPrecisa(it, de + 1), tem = atributoDoReforco(p.atr, pr.k);
-  if (tem < pr.n) return { erro: `Precisa ${pr.n} de ${nomeAtributoReforco(pr.k)} (você tem ${tem}). Suba o atributo pra reforçar mais` };
+  if (tem < pr.n) return { erro: `Você não pode reforçar mais: não tem atributo suficiente (precisa ${pr.n} de ${nomeAtributoReforco(pr.k)}, você tem ${tem})` };
   const custo = custoReforco(it);
   if ((p.ouro || 0) < custo) return { erro: `Ouro insuficiente (${p.ouro || 0}/${custo})` };
   p.ouro -= custo;

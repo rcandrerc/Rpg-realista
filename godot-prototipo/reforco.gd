@@ -181,7 +181,7 @@ func _tentar() -> void:
 	var erro: String = P.reforco_erro(it)
 	if erro != "":
 		# o automático para sozinho no limite da peça, no limite do atributo ou quando o ouro acaba
-		m.hud.aviso(_resumo("parou: " + erro) if auto and tentativas > 0 else erro)
+		m.hud.aviso(_resumo(erro) if auto and tentativas > 0 else erro)
 		if m.sons:
 			m.sons.tocar("pano", -8.0)
 		_fechar()
@@ -304,14 +304,14 @@ func _continuar() -> void:
 		espera = 1.5 if m.on() else 0.0
 		return
 	if auto and tentativas > 0:
-		m.hud.aviso(_resumo("cancelado" if parar else "chegou no máximo da peça"))
+		m.hud.aviso(_resumo("cancelado" if parar else "a peça chegou no máximo"))
 	_fechar()
 
 # "Reforço automático (chegou no máximo da peça): +0 → +5 · 9 tentativas · 230 de ouro"
 func _resumo(por: String) -> String:
 	var it = peca()
 	var e := int(it.get("e", 0)) if it != null else e0
-	return "Reforço automático %s: +%d → +%d · %d %s · %d de ouro" % [por, e0, e, tentativas, "tentativa" if tentativas == 1 else "tentativas", ouro0 - int(m.P.prog.ouro)]
+	return "Reforço automático parou (%s): +%d → +%d · %d %s · %d de ouro" % [por, e0, e, tentativas, "tentativa" if tentativas == 1 else "tentativas", ouro0 - int(m.P.prog.ouro)]
 
 func _fechar() -> void:
 	fase = ""
