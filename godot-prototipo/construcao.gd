@@ -139,6 +139,10 @@ var forno: Dictionary = {}
 var forno_t := 0.0 # segundos desde que o servidor mandou (as barrinhas andam sozinhas até a próxima conta)
 var forno_pediu := 0.0
 var forno_alvo := "ent" # onde vai a lenha quando toca nela na mochila: combustível ou material (vira carvão)
+var forno_tipo := "fornalha" # fornalha ou fogão (André 2026-11-07: o fogão cozinha sozinho como a fornalha)
+var forno_prato := "" # fogão: o prato escolhido para pôr na panela
+var titulo_forno: Label
+var txt_moch_forno: Label
 var caixa_forno: VBoxContainer
 var barra_fogo: ProgressBar
 var barra_forno: ProgressBar
@@ -2152,6 +2156,8 @@ func estacao_perto(tipos: Array) -> bool:
 	var hp: Vector3 = m.heroi.position
 	for id in lotes:
 		for p in lotes[id].pecas:
+			if p.k == "fogao" and id != meu: # fogão (2026-11-07): só o do meu terreno, como no servidor
+				continue
 			if p.k in tipos and Vector2(p.x - hp.x, p.z - hp.z).length() < float(D.lote.estacaoDist) + 0.3 and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
 				return true
 	return false
@@ -2404,7 +2410,7 @@ func _mostrar_estacao(acao: String, v: bool) -> void:
 func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void:
 	_alguma_estacao = false
 	var prof := prof_da_estacao()
-	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna", "fogao"]))
+	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"])) # o fogão tem o botão da fornalha (2026-11-07)
 	var correio := _meu_correio_perto() and prof == ""
 	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
 	_mostrar_estacao("bancada", com_mesa and vivo and not livre)
@@ -2413,7 +2419,11 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	elif not mesa_minha.is_empty():
 		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_coz" if mesa_minha.k == "fogao" else "pf_fer")
 	_mostrar_estacao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
-	_mostrar_estacao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
+	# fornalha e fogão (2026-11-07) dividem o botão: o ícone é o da minha mais perto
+	var fornos_meus := _pecas_minhas(["fornalha", "fogao"])
+	_mostrar_estacao("forno", ((no_meu and not fornos_meus.is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
+	if not fornos_meus.is_empty():
+		m.hud.icone_botao("forno", "cs_fogao" if _mais_perta(fornos_meus).k == "fogao" else "cs_fornalha")
 	_mostrar_estacao("correio", correio and vivo and not livre)
 	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
 	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
@@ -2621,8 +2631,7 @@ func prof_da_estacao() -> String:
 		return "fer"
 	if estacao_perto(["bancada"]):
 		return "alf"
-	if estacao_perto(["fogao"]): # fogão (2026-11-07): Cozinheiro
-		return "coz"
+	# fogão (2026-11-07): só o meu vale, e ele tem o botão da fornalha (dentro dele, "Cozinhar na hora" abre a aba Criar)
 	return ""
 
 # no meu terreno e vivo: o martelo do topo fica aceso
@@ -3744,7 +3753,7 @@ func _montar_bau() -> void:
 const COLADO := 1.25 # m da borda da peça
 const GRADE_IR := 0.4 # m por quadrado da grade
 const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
-const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha"], "bancada": ["bancada", "bigorna", "fogao"], "cama": ["cama"]}
+const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
@@ -3929,7 +3938,7 @@ func minha_fornalha_perto() -> String:
 	var melhor := ""
 	var dm := float(D.lote.estacaoDist) + 0.4
 	for p in lotes[meu].pecas:
-		if p.k == "fornalha":
+		if p.k == "fornalha" or p.k == "fogao":
 			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
 			if d <= dm and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
 				dm = d
@@ -3953,6 +3962,10 @@ func do_forno(ev: Dictionary) -> void:
 		return
 	forno = ev
 	forno_t = 0.0
+	var tipo := str(ev.get("tipo", "fornalha"))
+	if tipo != forno_tipo:
+		forno_tipo = tipo
+		forno_prato = ""
 	if ev.get("abrir", false) and not painel_forno.visible:
 		painel_forno.visible = true
 		m.sons.tocar("pano", -6.0)
@@ -3995,6 +4008,7 @@ func _montar_tela_forno() -> void:
 	var ti := Menu.rotulo("Fornalha", 20, Menu.OURO)
 	ti.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	topo.add_child(ti)
+	titulo_forno = ti
 	var fe := _botao("Fechar", fechar_forno, false, 18)
 	fe.custom_minimum_size = Vector2(120, 46)
 	topo.add_child(fe)
@@ -4006,7 +4020,8 @@ func _montar_tela_forno() -> void:
 	txt_forno.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt_forno.custom_minimum_size = Vector2(7 * 60, 0)
 	col.add_child(txt_forno)
-	col.add_child(Menu.rotulo("Mochila (toque para pôr na fornalha)", 16, Menu.APAGADO))
+	txt_moch_forno = Menu.rotulo("Mochila (toque para pôr na fornalha)", 16, Menu.APAGADO)
+	col.add_child(txt_moch_forno)
 	var sc := ScrollContainer.new()
 	sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 2 * 60 + 6) # itens + respiro + barra larga (como no baú)
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -4060,6 +4075,11 @@ func _montar_forno() -> void:
 		n.queue_free()
 	for n in grade_forno.get_children():
 		n.queue_free()
+	if forno_tipo == "fogao":
+		_montar_fogao()
+		return
+	titulo_forno.text = "Fornalha"
+	txt_moch_forno.text = "Mochila (toque para pôr na fornalha)"
 	var cfg: Dictionary = D.get("fornalha", {})
 	var comb: Dictionary = cfg.get("combustivel", {})
 	var rec: Dictionary = cfg.get("receitas", {})
@@ -4109,6 +4129,107 @@ func _montar_forno() -> void:
 			if not _bau_arrastou:
 				m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
 		grade_forno.add_child(m.menu.celula(it, false, fn, 56))
+
+# ---------- fogão a lenha (André 2026-11-07: "que nem a fornalha: coloco o combustível e os itens lá e posso sair") ----------
+# Combustível como a fornalha; na panela vai o prato escolhido (os ingredientes saem da mochila na hora). A conta é do
+# servidor (shared/simulacao.js forno com FOGAO) e segue com você longe.
+func _montar_fogao() -> void:
+	titulo_forno.text = "Fogão a lenha"
+	txt_moch_forno.text = "Mochila (toque na lenha ou no carvão para pôr no fogo)"
+	var cfg: Dictionary = D.get("fogao", {})
+	var comb: Dictionary = cfg.get("combustivel", {})
+	var rec: Dictionary = cfg.get("receitas", {})
+	var na_panela = forno.get("ent")
+	if na_panela != null:
+		forno_prato = str(na_panela.k)
+	elif forno_prato == "" or not rec.has(forno_prato):
+		forno_prato = str(rec.keys()[0]) if not rec.is_empty() else ""
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	caixa_forno.add_child(h)
+	h.add_child(_lugar_forno("Combustível", "comb", barra_fogo, false))
+	h.add_child(_lugar_forno("Panela", "ent", barra_forno, false))
+	var seta := Menu.rotulo("→", 30, Menu.OURO)
+	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(seta)
+	h.add_child(_lugar_forno("Pronto", "sai", null, false))
+	# os pratos: toque para escolher; embaixo os ingredientes e quantos pôr
+	var pr := HBoxContainer.new()
+	pr.add_theme_constant_override("separation", 6)
+	pr.alignment = BoxContainer.ALIGNMENT_CENTER
+	caixa_forno.add_child(pr)
+	for k in rec:
+		var kk := str(k)
+		var fn := func():
+			forno_prato = kk
+			_montar_forno()
+		pr.add_child(m.menu.celula({"k": kk, "n": 1}, kk == forno_prato, fn, 52))
+	var t := ""
+	if forno_prato != "":
+		var R: Dictionary = rec[forno_prato]
+		var ing: Dictionary = R.get("ing", {})
+		var falta := false
+		var partes := []
+		var cabe := 999
+		for k in ing:
+			var tem: int = m.P.contar(str(k))
+			partes.append("%s %d/%d" % [_nome(str(k)), tem, int(ing[k])])
+			cabe = mini(cabe, tem / maxi(1, int(ing[k])))
+			if tem < int(ing[k]):
+				falta = true
+		var nv := int(R.get("nivel", 1))
+		var baixo: bool = m.P.prof_nivel("coz") < nv
+		var linha := HBoxContainer.new()
+		linha.add_theme_constant_override("separation", 8)
+		caixa_forno.add_child(linha)
+		var desc := Menu.rotulo("%s (%d s, Nv %d): %s" % [_nome(forno_prato), int(R.get("dur", 0)), nv, ", ".join(partes)], 14, Menu.APAGADO if falta or baixo else Menu.TEXTO)
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		desc.custom_minimum_size = Vector2(250, 0)
+		linha.add_child(desc)
+		var por := func(n: int):
+			m.rede("forno", {"acao": "por", "p": forno_id, "lugar": "ent", "r": forno_prato, "n": n})
+		for q in [1, 5]:
+			var b := _botao("+%d" % q, por.bind(q), not falta and not baixo, 16)
+			b.custom_minimum_size = Vector2(56, 42)
+			linha.add_child(b)
+		var bm := _botao("Máx", por.bind(99), not falta and not baixo, 16)
+		bm.custom_minimum_size = Vector2(64, 42)
+		linha.add_child(bm)
+		if baixo:
+			t = "Precisa de Cozinheiro Nv %d. " % nv
+		elif falta:
+			t = "Faltam ingredientes (dá para fazer %d). " % maxi(0, cabe)
+	if forno.get("anda", false):
+		t += "Cozinhando: sai %s a cada %d s. Pode ir embora, o fogão continua." % [_nome(str(forno.get("faz", ""))), int(forno.get("dur", 0))]
+	elif na_panela == null:
+		t += "Escolha o prato e toque em +1, +5 ou Máx: os ingredientes vão da mochila para a panela."
+	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
+		t += "Sem fogo: ponha lenha ou carvão no combustível."
+	elif forno.get("sai") != null and str(forno.sai.k) != str(forno.get("faz", "")):
+		t += "Tire o que está pronto para começar outro prato."
+	else:
+		t += "Parado: o lugar de pronto encheu."
+	t += " Tocar na panela devolve os ingredientes do que não cozinhou."
+	txt_forno.text = t
+	# mochila: só o que vai no fogo
+	var moch: Array = m.P.prog.get("mochila", [])
+	for i in moch.size():
+		var it = moch[i]
+		if it == null or not comb.has(str(it.k)):
+			continue
+		var fn := func():
+			if not _bau_arrastou:
+				m.rede("forno", {"acao": "por", "p": forno_id, "lugar": "comb", "i": i})
+		grade_forno.add_child(m.menu.celula(it, false, fn, 56))
+	# os pratos na hora (aba Criar, como antes) continuam aqui
+	var na_hora := _botao("Cozinhar na hora (aba Criar)", func():
+		fechar_forno()
+		m.menu.abrir_estacao(), false, 15)
+	na_hora.custom_minimum_size = Vector2(0, 40)
+	na_hora.size_flags_horizontal = Control.SIZE_SHRINK_END
+	caixa_forno.add_child(na_hora)
 
 func trocar_aba(k: String) -> void:
 	aba = k

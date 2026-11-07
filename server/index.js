@@ -106,7 +106,7 @@ class SalaClareira extends Room {
     this.ouvir('regador', (c) => this.sim.encherRegador(c.sessionId)); // encher no poço da vila ou na beira do lago
     this.ouvir('dormir', (c) => this.sim.dormir(c.sessionId)); // dormir na cama do meu terreno (dia e noite do Quimera)
     this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1 }); });
-    this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1 }); });
+    this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1, r: String(m.r || '').slice(0, 20), n: Number.isInteger(m.n) ? Math.max(1, Math.min(m.n, 99)) : 1 }); });
     this.ouvir('horta', (c, m) => { if (m && typeof m.acao === 'string' && typeof m.c === 'string' && m.c.length < 12) this.sim.horta(c.sessionId, { acao: m.acao, c: m.c, s: typeof m.s === 'string' ? m.s.slice(0, 16) : '' }); });
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
     this.ouvir('atributos', (c, m) => this.sim.distribuirAtributos(c.sessionId, m)); // + e − no menu, aplica no Confirmar

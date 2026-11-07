@@ -1368,6 +1368,17 @@ export const RECEITAS = {
 };
 // receita de item que não existe (ex.: o manto, que virou peitoral) some sozinha
 for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
+// Fogão a lenha que cozinha sozinho (André 2026-11-07: "que nem a fornalha: coloco o combustível e os itens lá e posso
+// sair"): mesmo fogo da fornalha (lenha 12 s, carvão 30 s); você escolhe o prato e quantos, os ingredientes saem da
+// mochila para a panela e cada prato leva dur segundos de fogo. O pronto espera na saída; pontos de Cozinheiro e XP
+// quando você pega (como a fornalha). Os pratos na hora pela aba Criar continuam iguais.
+// receitas[prato] = { faz, usa: 1 (cada um na panela vira um prato), dur, nivel, vigor, ing: ingredientes de um prato }
+export const FOGAO = {
+  combustivel: { lenha: 12, carvao: 30 },
+  tempo: { carne_assada: 10, sopa_legumes: 15, pao_milho: 15, ensopado: 20, torta_abobora: 25 },
+  receitas: {},
+};
+for (const [k, R] of Object.entries(RECEITAS)) if (R.prof === 'coz') FOGAO.receitas[R.faz] = { faz: R.faz, receita: k, usa: 1, dur: FOGAO.tempo[R.faz] || 15, nivel: R.nivel, vigor: R.vigor, ing: R.usa };
 // Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
 export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' }, coz: { npc: '', onde: 'no seu fogão' } };
 export const OFICINA_DISTANCIA = 4.5;
