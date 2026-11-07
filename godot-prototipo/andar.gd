@@ -458,15 +458,12 @@ static func vel_joystick(forca: float, disparando := false) -> float:
 		return ANDAR * lerp(0.55, 1.0, (forca - 0.15) / 0.35)
 	return lerp(ANDAR, TROTE, smoothstep(0.5, 0.9, forca))
 
-# montado: joystick até a metade anda (até MONTARIAS.andar), no fim trota; a disparada galopa (MONTARIAS.correr)
+# montado: o lobo vai sempre no galope (MONTARIAS.correr), sem botão de correr nem passo lento
+# (André 2026-11-07: "montei nele, ele já fica na maior"). andar/trote de montaria.gd DADOS ficam só para a animação.
 func vel_montado(forca: float) -> float:
 	if forca < 0.15:
 		return 0.0
-	if disparada and forca >= 0.3:
-		return float(montado.correr)
-	if forca < 0.5:
-		return float(montado.andar) * lerp(0.5, 1.0, (forca - 0.15) / 0.35)
-	return lerp(float(montado.andar), float(montado.trote), smoothstep(0.5, 0.9, forca))
+	return float(montado.correr)
 
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	var n: int = max(1, ceili(dt / SUBPASSO - 0.001))

@@ -2972,7 +2972,7 @@ export class Simulacao {
       this.mover(j, a.dx * v * dt, a.dz * v * dt);
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
-      const v = mont ? (correr ? mont.correr : mont.andar) : correr ? HEROI.correr : HEROI.andar;
+      const v = mont ? mont.correr : correr ? HEROI.correr : HEROI.andar; // montado: o lobo vai sempre no galope (André 2026-11-07)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);
