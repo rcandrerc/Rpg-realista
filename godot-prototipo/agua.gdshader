@@ -45,4 +45,10 @@ void fragment() {
 	// 2026-11-06 (beira natural): rente à margem a água afina até quase sumir (sem a linha dura de piscina)
 	float rente = mix(0.18, 1.0, smoothstep(0.0, 0.3, prof));
 	ALPHA = clamp((mix(0.5, 0.9, t) + fr * 0.15) * rente + espuma * 0.3, 0.0, 0.95);
+	// vista de baixo (mergulhando, André 2026-11-07): a superfície é um teto claro que ondula, com o céu passando
+	if (!FRONT_FACING) {
+		vec3 baixo = mix(vec3(0.32, 0.62, 0.66), cor_ceu, 0.35 + (o1 + o2) * 0.12);
+		ALBEDO = baixo + brilho * 0.25;
+		ALPHA = 0.7;
+	}
 }

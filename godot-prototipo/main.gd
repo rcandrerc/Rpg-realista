@@ -7,6 +7,7 @@ const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
+const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
@@ -370,6 +371,7 @@ func montar_chao() -> void:
 	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"), caverna.buraco_na_montanha)
 	add_child(relevo)
 	add_child(caverna)
+	add_child(Submerso.new(self)) # câmera dentro do lago: tom azul, neblina e luz da superfície (André 2026-11-07)
 	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
 
 # chão onde um efeito ou um drop cai: com o herói lá dentro da caverna da montanha, o chão da caverna (não o alto da
