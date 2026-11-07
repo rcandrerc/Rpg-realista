@@ -21,6 +21,7 @@ const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Encostar = preload("res://encostar.gd") # escalando, corpo, mãos e pés encostam na pedra (André 2026-11-07)
 const AguaFx = preload("res://agua_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
@@ -138,6 +139,9 @@ var cam # camera_heroi.gd: segue com mola, vai para as costas correndo, treme no
 var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada
 var mao_fechada # mao_fechada.gd: dedos fechados em volta do cajado na mão
 var inclinar # inclinar.gd: tronco inclina na curva e o quadril afunda no pouso
+var encostar # encostar.gd: escalando, mãos e pés na pedra; _encosta = m que o desenho do herói vai para a frente
+var _encosta := 0.0
+var _encosta_giro := 0.0 # rad: o corpo fica de frente para a face da pedra
 var sons # sons.gd
 var musica # musica.gd: música de fundo em loop (volume em Configurações > Música)
 var montaria = null # montaria.gd: montado no lobo (botão do lobo); null = a pé
@@ -922,6 +926,12 @@ func criar_heroi(nascer := true) -> void:
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
 	inclinar.preparar(heroi_esq)
+	encostar = Encostar.new()
+	heroi_esq.add_child(encostar)
+	heroi_esq.move_child(encostar, 1) # depois do inclinar, antes do braço da espada e das molas do cabelo
+	encostar.preparar(heroi_esq)
+	if vila_no != null:
+		encostar.achar_rochas(vila_no, terreno.solidos)
 	# altura do quadril do herói (m): a freada e a meia-volta andam pelo caminho do quadril da animação, medido nela
 	var iq := heroi_esq.find_bone("J_Bip_C_Hips")
 	if iq >= 0 and heroi_esq.is_inside_tree():
@@ -929,6 +939,32 @@ func criar_heroi(nascer := true) -> void:
 		if hq > 0.4 and hq < 1.6:
 			mov.altura_quadril = hq
 	print("altura do quadril: ", mov.altura_quadril)
+
+# Escalando pedra (André 2026-11-07: "estou muito distante das pedras"): a conta da escalada (andar.gd, igual ao
+# servidor) deixa o herói longe da pedra redonda; só o desenho chega para a frente até encostar (encostar.gd mede no
+# modelo da pedra) e vira de frente para a face dela. Na escada e passando por cima da beirada fica como era.
+const CLIPS_ENCOSTAR := ["parede_agarrado", "parede_beirada", "parede_balanca", "esc_subirParede", "esc_descerParede", "esc_esquerda", "esc_direita"]
+func passo_encostar(dt: float) -> void:
+	if encostar == null:
+		return
+	var quer: bool = mov.esc != null and mov.esc.get("escada") == null and mov.anim in CLIPS_ENCOSTAR and h.morto <= 0.0
+	encostar.peso = move_toward(encostar.peso, 1.0 if quer else 0.0, dt * 5.0)
+	if quer:
+		encostar.escolher_perto(heroi.position)
+		_encosta = clamp(_encosta + float(encostar.falta) * minf(1.0, dt * 10.0), -0.25, 1.3)
+		var n: Vector3 = encostar.normal
+		var giro := 0.0
+		if n != Vector3.ZERO:
+			giro = clamp(mov.ad(atan2(-n.x, -n.z), mov.ry), -0.5, 0.5)
+		_encosta_giro = lerpf(_encosta_giro, giro, minf(1.0, dt * 6.0))
+	else:
+		_encosta = move_toward(_encosta, 0.0, dt * 1.6)
+		_encosta_giro = move_toward(_encosta_giro, 0.0, dt * 2.0)
+		if encostar.peso <= 0.0 and _encosta == 0.0:
+			encostar.escolher_perto(Vector3(1e6, 0, 1e6)) # longe de tudo: não mede nada
+	if _encosta != 0.0 or _encosta_giro != 0.0:
+		heroi.position += Vector3(sin(mov.ry), 0.0, cos(mov.ry)) * _encosta
+		heroi.rotation.y = mov.ry + _encosta_giro
 
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
@@ -2733,6 +2769,7 @@ func atualizar_heroi(dt: float) -> void:
 		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
+	passo_encostar(dt)
 	# nado: entrou ou saiu da água funda
 	var nada_agora: bool = mov.nadando() and h.morto <= 0.0
 	if nada_agora != _nadando:
