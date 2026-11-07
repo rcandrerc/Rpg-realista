@@ -480,6 +480,10 @@ static func icone_item(it) -> String:
 		return "cs_enxada"
 	if it.k == "regador":
 		return "cs_regar"
+	if it.k == "picareta": # picareta e machado de pedra (André 2026-11-07): o mesmo desenho das profissões
+		return "pf_min"
+	if it.k == "machado":
+		return "pf_len"
 	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
 	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
 		return "it_%s_aco" % it.k

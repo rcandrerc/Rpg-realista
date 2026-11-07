@@ -799,6 +799,9 @@ Object.assign(CONSTRUCOES, {
 // ferramentas da fazenda (Quimera: enxada para arar, regador para regar); ficam na mochila, não gastam
 export const FERRAMENTAS_FAZENDA = {
   enxada: { custo: { lenha: 3, pedra: 2 }, bancada: false, para: 'arar' },
+  // André 2026-11-07: picareta e machado de pedra obrigatórios desde o começo (sem bancada, como a enxada)
+  picareta: { custo: { lenha: 2, pedra: 3 }, bancada: false, para: 'minerar' },
+  machado: { custo: { lenha: 3, pedra: 2 }, bancada: false, para: 'cortar' },
   regador: { custo: { barra_cobre: 1, lenha: 2 }, bancada: true, para: 'regar' },
 };
 // Criar peça da casa ou ferramenta (André 2026-11-05): cada uma leva de 3 a 5 s (mais material, mais tempo), com a
@@ -1307,6 +1310,10 @@ for (const [k, C] of Object.entries(CONSTRUCOES)) {
     desc: `${C.desc} Coloque no seu terreno pelo modo construção (martelo).` };
 }
 ITENS.enxada = { nome: 'Enxada', pilha: 1, venda: 2, ferramenta: 'arar', desc: 'Prepara a terra para plantar (modo construção, aba Fazenda).' };
+ITENS.picareta = { nome: 'Picareta de pedra', pilha: 1, venda: 2, ferramenta: 'minerar', desc: 'Precisa dela para minerar os veios. Crie na mochila (Criar > Ferramentas), sem bancada.' };
+ITENS.machado = { nome: 'Machado de pedra', pilha: 1, venda: 2, ferramenta: 'cortar', desc: 'Precisa dele para cortar árvores. Crie na mochila (Criar > Ferramentas), sem bancada.' };
+// minerar pede a picareta e cortar pede o machado (o galho e a pedra soltos no chão saem com a mão)
+for (const C of Object.values(COLETA)) C.ferramenta = C.prof === 'min' ? 'picareta' : 'machado';
 ITENS.regador = { nome: 'Regador', pilha: 1, venda: 3, ferramenta: 'regar', desc: 'Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia.' };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
 LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
@@ -1375,3 +1382,44 @@ function sortearEnfeites(arvores) {
   const pedrasLago = beiraDosLagos().filter((b) => b.tipo === 'pedra').map((b, i) => ({ m: ['rocha1', 'rocha2', 'rocha3'][i % 3], x: b.x, z: b.z, ry: b.ry, s: b.s, y: b.y ?? -0.06 }));
   MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora).concat(pedrasLago), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
 }
+
+// ---------- pedras e galhos soltos no chão (André 2026-11-07) ----------
+// Picareta e machado de pedra viraram obrigatórios para minerar e cortar (FERRAMENTAS_FAZENDA). Para o começo não
+// travar (sem picareta não sai pedra), ficam pedras e galhos soltos no chão: muitos na vila de início e alguns na
+// beira da estrada e das trilhas. Pega com a mão (botão Coletar, na hora, sem vigor nem ferramenta), cada um dá 1 e
+// volta em COLETA.galho.volta s só para quem pegou. Dá menos que minerar ou cortar, para não valer a pena no fim do jogo.
+// Sorteio fixo (servidor e Godot veem os mesmos): s0, s1... ferramentas/testes/soltos.mjs confere se cada um está no chão livre.
+export const SOLTOS = (() => {
+  let sem = 4243; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const M = MAPA_CLAREIRA, lista = [], r2 = (n) => +n.toFixed(2);
+  const longe = (l, x, z, d) => l.every((o) => Math.hypot(x - o.x, z - o.z) > d(o));
+  const livre = (x, z) => dentroDoMapa(M, x, z, 2) && !noRelevo(x, z, 1.5) && !naMina(x, z, 1) && !naTerras(x, z, 2)
+    && Math.hypot(x - PRACA.x, z - PRACA.z) > PRACA.r + 1.5
+    && CLAREIRAS.every((c) => Math.hypot(x - c.x, z - c.z) > CLAREIRA_R + 4)
+    && ((x - FORA.x) / (FORA.rx + 3)) ** 2 + ((z - FORA.z) / (FORA.rz + 3)) ** 2 > 1 // o campo dos lobos fica limpo
+    && longe(M.vila.casas, x, z, (c) => Math.hypot(c.w, c.d) / 2 + 1.2) && longe(M.npcs, x, z, () => 2.5)
+    && longe([...M.obstaculos, ...M.props, ...M.escadas, ...M.treino], x, z, (o) => (o.r || 0.6) + 1.2)
+    && longe(M.rochas, x, z, (r) => 1.9 * r.s + 1) && longe(M.vila.arvores, x, z, (a) => 0.32 * a.s + 1)
+    && longe(M.mata, x, z, (a) => 0.32 * a.s + 0.9) && longe(M.cenario.solidos, x, z, (o) => o.r + 0.8)
+    && longe(M.cenario.marcos, x, z, (o) => o.r + 0.5) && longe(M.veios, x, z, () => 3) && longe(lista, x, z, () => 4);
+  const por = (tipo, x, z) => { if (!livre(x, z)) return false; lista.push({ tipo, x: r2(x), z: r2(z), ry: r2(rnd(0, 6.28)) }); return true; };
+  // vila: 8 galhos e 8 pedras entre as casas (dá para a picareta, o machado e a enxada)
+  for (const tipo of ['galho', 'pedrinha']) for (let n = 0, t = 0; n < 8 && t < 400; t++) {
+    const a = rnd(0, 6.283), d = rnd(7, 31);
+    if (por(tipo, Math.cos(a) * d, Math.sin(a) * d)) n++;
+  }
+  // mapa: na beira da estrada e das trilhas das clareiras, de 2,5 a 4,5 m do caminho (quem anda acha)
+  const beira = (L, n) => {
+    for (let k = 0, t = 0; k < n && t < 200; t++) {
+      const i = Math.floor(rnd(0, L.length - 1.001)), f = rnd(0, 1), [ax, az] = L[i], [bx, bz] = L[i + 1];
+      const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz) || 1, lado = rnd(0, 1) < 0.5 ? -1 : 1, off = rnd(2.5, 4.5) * lado;
+      if (por(rnd(0, 1) < 0.5 ? 'galho' : 'pedrinha', ax + dx * f - (dz / len) * off, az + dz * f + (dx / len) * off)) k++;
+    }
+  };
+  beira(ESTRADA, 16);
+  for (const L of TRILHAS) beira(L, 1);
+  return lista;
+})();
+MAPA_CLAREIRA.soltos = SOLTOS;
+COLETA.galho = { nome: 'Galho no chão', mao: true, prof: 'len', vigor: 0, tempo: 0, cargas: 1, volta: 300, da: { lenha: 1 } };
+COLETA.pedrinha = { nome: 'Pedra solta', mao: true, prof: 'min', vigor: 0, tempo: 0, cargas: 1, volta: 300, da: { pedra: 1 } };

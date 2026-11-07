@@ -124,6 +124,10 @@ var grade_bau: GridContainer
 var grade_mochila: GridContainer
 var txt_bau: Label
 var bau_itens: Array = []
+var rolar_bau: Array = [] # as duas listas (baú e mochila): rolam arrastando o dedo em cima dos itens
+var _bau_dentro: ScrollContainer = null
+var _bau_soma := 0.0
+var _bau_arrastou := false # arrastou a lista: o item embaixo do dedo não vale
 # fornalha do meu terreno (2026-11-07): combustível + material, queima sozinha no servidor
 var painel_forno: PanelContainer
 var forno_id := ""
@@ -158,6 +162,8 @@ func _ready() -> void:
 	m.hud._botao("bancada", Vector2(333, 160), 30, "pf_alf", m.hud.COR_TROCA)
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("bau", Vector2(333, 250), 30, "cs_bau", m.hud.COR_TROCA) # perto do meu baú: abre o baú
+	m.hud.botoes[-1].oculto = true
+	m.hud._botao("forno", Vector2(333, 340), 30, "cs_fornalha", m.hud.COR_TROCA) # 2026-11-07: a minha fornalha
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("correio", Vector2(333, 160), 30, "correio", m.hud.COR_TROCA) # perto da minha caixa de correio: a conta do terreno
 	m.hud.botoes[-1].oculto = true
@@ -1752,7 +1758,19 @@ func estacao_perto(tipos: Array) -> bool:
 	var hp: Vector3 = m.heroi.position
 	for id in lotes:
 		for p in lotes[id].pecas:
-			if p.k in tipos and Vector2(p.x - hp.x, p.z - hp.z).length() < float(D.lote.estacaoDist) + 0.3:
+			if p.k in tipos and Vector2(p.x - hp.x, p.z - hp.z).length() < float(D.lote.estacaoDist) + 0.3 and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
+				return true
+	return false
+
+func _fornalha_de_outro_perto() -> bool:
+	if m.heroi == null:
+		return false
+	var hp: Vector3 = m.heroi.position
+	for id in lotes:
+		if id == meu:
+			continue
+		for p in lotes[id].pecas:
+			if p.k == "fornalha" and Vector2(p.x - hp.x, p.z - hp.z).length() < float(D.lote.estacaoDist) + 0.3 and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
 				return true
 	return false
 
@@ -1896,13 +1914,21 @@ func _process(dt: float) -> void:
 	m.hud.mostrar_botao("construir", false) # André 2026-11-06: o martelo foi para o menu do topo (menu_topo.gd), aceso aqui
 	_pode_aqui = no_meu and vivo and not comprando
 	# estação do terreno perto: um botão só (o André tirou o botão da forja da HUD; a forja do Tomás fica no Falar)
+	# 2026-11-07 (André): no meu terreno os botões da mesa, do baú e da fornalha aparecem já ao chegar perto da casa;
+	# tocar faz o herói ir andando até o lado da estação (entra pela porta) e só aí ela abre (tocar_estacao)
 	var prof := prof_da_estacao()
-	m.hud.mostrar_botao("bancada", prof != "" and vivo and not livre)
+	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"]))
+	var correio := _meu_correio_perto() and prof == ""
+	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
+	m.hud.mostrar_botao("bancada", com_mesa and vivo and not livre)
 	if prof != "":
-		# perto da minha fornalha o botão abre a fornalha (combustível + material), não a mesa de criar
-		m.hud.icone_botao("bancada", "cs_fornalha" if minha_fornalha_perto() != "" else "pf_" + prof)
-	m.hud.mostrar_botao("bau", _meu_bau_perto() and vivo and not livre)
-	m.hud.mostrar_botao("correio", _meu_correio_perto() and vivo and not livre and prof == "")
+		m.hud.icone_botao("bancada", "pf_" + prof)
+	elif not mesa_minha.is_empty():
+		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_fer")
+	m.hud.mostrar_botao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
+	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
+	m.hud.mostrar_botao("correio", correio and vivo and not livre)
+	_passo_ir_estacao()
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
 	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
@@ -2119,7 +2145,7 @@ func _faixa(im: ImmediateMesh, a: Vector2, b: Vector2, cor: Color, y: Callable) 
 
 # profissão da estação construída mais perto: bancada = Alfaiate, bigorna ou fornalha = Ferreiro ("" = nenhuma)
 func prof_da_estacao() -> String:
-	if estacao_perto(["bigorna", "fornalha"]):
+	if estacao_perto(["bigorna"]) or _fornalha_de_outro_perto(): # a minha fornalha tem botão próprio (2026-11-07)
 		return "fer"
 	if estacao_perto(["bancada"]):
 		return "alf"
@@ -3026,7 +3052,7 @@ func _meu_bau_perto() -> bool:
 		return false
 	var hp: Vector3 = m.heroi.position
 	for p in lotes[meu].pecas:
-		if p.k == "bau" and Vector2(p.x - hp.x, p.z - hp.z).length() <= float(D.lote.estacaoDist) + 0.4:
+		if p.k == "bau" and Vector2(p.x - hp.x, p.z - hp.z).length() <= float(D.lote.estacaoDist) + 0.4 and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
 			return true
 	return false
 
@@ -3046,6 +3072,30 @@ func do_bau(ev: Dictionary) -> void:
 
 func fechar_bau() -> void:
 	painel_bau.visible = false
+
+# baú ou fornalha aberta: arrastar o dedo para cima/baixo em cima dos itens rola a lista; um toque parado ainda guarda/tira
+func _input(ev: InputEvent) -> void:
+	if not ((painel_bau != null and painel_bau.visible) or (painel_forno != null and painel_forno.visible)):
+		return
+	if ev is InputEventScreenTouch:
+		if ev.pressed:
+			_bau_dentro = null
+			for sc in rolar_bau:
+				var vb: VScrollBar = sc.get_v_scroll_bar()
+				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.get_global_rect().has_point(ev.position)):
+					_bau_dentro = sc # na barra não: a própria barra rola
+			_bau_soma = 0.0
+			_bau_arrastou = false
+		else:
+			_bau_dentro = null
+			if _bau_arrastou: # o soltar passa, mas o item não dispara
+				(func(): _bau_arrastou = false).call_deferred()
+	elif ev is InputEventScreenDrag and _bau_dentro != null:
+		_bau_soma += abs(ev.relative.y)
+		if _bau_soma > 12.0:
+			_bau_arrastou = true
+		_bau_dentro.scroll_vertical -= int(round(ev.relative.y))
+		get_viewport().set_input_as_handled()
 
 func _montar_tela_bau() -> void:
 	painel_bau = PanelContainer.new()
@@ -3074,14 +3124,19 @@ func _montar_tela_bau() -> void:
 		lados.add_child(c)
 		c.add_child(Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 16, Menu.APAGADO))
 		var sc := ScrollContainer.new()
-		sc.custom_minimum_size = Vector2(7 * 60, 4 * 60 + 6)
+		sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 4 * 60 + 6) # itens + respiro + barra larga
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		Menu.barra_larga(sc)
 		c.add_child(sc)
+		rolar_bau.append(sc)
+		var margem := MarginContainer.new() # respiro entre os itens e a barra: o dedo não pega item ao mirar na barra
+		margem.add_theme_constant_override("margin_right", 12)
+		sc.add_child(margem)
 		var g := GridContainer.new()
 		g.columns = 7
 		g.add_theme_constant_override("h_separation", 4)
 		g.add_theme_constant_override("v_separation", 4)
-		sc.add_child(g)
+		margem.add_child(g)
 		if qual == "bau":
 			grade_bau = g
 		else:
@@ -3096,7 +3151,9 @@ func _montar_bau() -> void:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
 			cheios += 1
-		var fn := func(): m.rede("bau", {"acao": "tirar", "i": i})
+		var fn := func():
+			if not _bau_arrastou:
+				m.rede("bau", {"acao": "tirar", "i": i})
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
 	txt_bau.text = "Baú · %d/%d" % [cheios, int(D.get("bau", {}).get("slots", 40))]
 	var moch: Array = m.P.prog.get("mochila", [])
@@ -3104,8 +3161,188 @@ func _montar_bau() -> void:
 		var it = moch[i]
 		if it == null:
 			continue
-		var fn := func(): m.rede("bau", {"acao": "guardar", "i": i})
+		var fn := func():
+			if not _bau_arrastou:
+				m.rede("bau", {"acao": "guardar", "i": i})
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
+
+# ---------- tocar numa estação (André 2026-11-07): o herói vai andando até o lado dela e só aí abre ----------
+# "Não abrir o baú a 5 metros de distância, fica feio." Ao lado (COLADO da borda da peça, sem parede no meio) abre na
+# hora; senão uma rota pela grade do terreno (AStarGrid2D de GRADE_IR m, desviando dos sólidos das peças, então entra pela
+# porta e dá a volta na casa) leva o herói até o lugar livre mais perto ao lado da estação (rota.gd anda como o joystick).
+const COLADO := 1.25 # m da borda da peça
+const GRADE_IR := 0.4 # m por quadrado da grade
+const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
+const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha"], "bancada": ["bancada", "bigorna"]}
+var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
+
+func _circulos_peca(p) -> Array:
+	var a: float = p.r * PI / 2.0
+	var c := roundi(cos(a))
+	var s := roundi(sin(a))
+	var l := []
+	for q in D.construcoes[p.k].circulos:
+		l.append(Vector3(p.x + float(q[0]) * c + float(q[1]) * s, p.z - float(q[0]) * s + float(q[1]) * c, float(q[2])))
+	return l
+
+# parede, janela ou batente de porta entre os dois pontos? (mesma conta do servidor: shared/simulacao.js semParede)
+func sem_parede(a: Vector2, b: Vector2) -> bool:
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if tipo_peca(p.k) != "borda":
+				continue
+			for o: Vector3 in _circulos_peca(p):
+				var c := Vector2(o.x, o.y)
+				if Geometry2D.get_closest_point_to_segment(c, a, b).distance_to(c) < o.z * 0.9:
+					return false
+	return true
+
+# distância do ponto até a borda da peça (o círculo sólido mais perto)
+func _dist_peca(p, q: Vector2) -> float:
+	var d := Vector2(p.x, p.z).distance_to(q)
+	for o: Vector3 in _circulos_peca(p):
+		d = minf(d, Vector2(o.x, o.y).distance_to(q) - o.z)
+	return d
+
+func _pecas_minhas(tipos: Array) -> Array:
+	var l := []
+	if meu != "" and lotes.has(meu):
+		for p in lotes[meu].pecas:
+			if p.k in tipos:
+				l.append(p)
+	return l
+
+func _mais_perta(l: Array) -> Dictionary:
+	if m.heroi == null or l.is_empty():
+		return {}
+	var h := Vector2(m.heroi.position.x, m.heroi.position.z)
+	var melhor = l[0]
+	for p in l:
+		if Vector2(p.x, p.z).distance_to(h) < Vector2(melhor.x, melhor.z).distance_to(h):
+			melhor = p
+	return melhor
+
+func _colado(p) -> bool:
+	if m.heroi == null:
+		return false
+	var h := Vector2(m.heroi.position.x, m.heroi.position.z)
+	return _dist_peca(p, h) <= COLADO and sem_parede(h, Vector2(p.x, p.z))
+
+# as peças que o botão serve: baú e fornalha só as minhas; a mesa também a de outro terreno (como antes)
+func _alvos_estacao(qual: String) -> Array:
+	var tipos: Array = TIPOS_ESTACAO.get(qual, [])
+	if qual != "bancada":
+		return _pecas_minhas(tipos)
+	var l := []
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if p.k in tipos:
+				l.append(p)
+	return l
+
+func tocar_estacao(qual: String) -> void:
+	if m.heroi == null:
+		return
+	var alvos := _alvos_estacao(qual)
+	for p in alvos:
+		if _colado(p):
+			_indo_estacao = {}
+			_abrir_estacao(qual, p)
+			return
+	var ida := _rota_ate(alvos)
+	if ida.is_empty():
+		if qual == "bancada" and prof_da_estacao() != "": # mesa de outro jeito perto (ex.: sem caminho livre): abre como antes
+			m.menu.abrir_estacao()
+		else:
+			m.hud.aviso("Não achei caminho até lá")
+		return
+	_indo_estacao = {"qual": qual, "id": str(ida.p.id)}
+	m.rota.ir(ida.r, "", 0.7)
+
+func _abrir_estacao(qual: String, p) -> void:
+	match qual:
+		"bau":
+			abrir_bau()
+		"forno":
+			abrir_forno(str(p.id))
+		_:
+			m.menu.abrir_estacao()
+
+# chegou ao lado: abre; a rota parou longe (joystick, algo no meio): desiste
+func _passo_ir_estacao() -> void:
+	if _indo_estacao.is_empty():
+		return
+	var p = null
+	for q in _alvos_estacao(_indo_estacao.qual):
+		if str(q.id) == _indo_estacao.id:
+			p = q
+	if p == null or m.h.morto > 0.0:
+		_indo_estacao = {}
+		return
+	if _colado(p) and (not m.rota.ativo or _dist_peca(p, Vector2(m.heroi.position.x, m.heroi.position.z)) <= COLADO - 0.35):
+		m.rota.parar()
+		var qual: String = _indo_estacao.qual
+		_indo_estacao = {}
+		_abrir_estacao(qual, p)
+	elif not m.rota.ativo:
+		_indo_estacao = {}
+
+# rota até o lugar livre mais perto ao lado de uma das peças: {"r": PackedVector2Array, "p": peça} ou {}
+func _rota_ate(alvos: Array) -> Dictionary:
+	if alvos.is_empty():
+		return {}
+	var h := Vector2(m.heroi.position.x, m.heroi.position.z)
+	var lo := h
+	var hi := h
+	for p in alvos:
+		lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.z))
+		hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.z))
+	lo -= Vector2(4, 4)
+	hi += Vector2(4, 4)
+	var n := Vector2i(ceili((hi.x - lo.x) / GRADE_IR) + 1, ceili((hi.y - lo.y) / GRADE_IR) + 1)
+	if n.x * n.y > 40000:
+		return {}
+	var g := AStarGrid2D.new()
+	g.region = Rect2i(0, 0, n.x, n.y)
+	g.cell_size = Vector2(GRADE_IR, GRADE_IR)
+	g.offset = lo
+	g.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	g.update()
+	for o in m.mov.extras:
+		var r: float = float(o.r) + FOLGA_IR
+		var c0 := Vector2i(floori((o.x - r - lo.x) / GRADE_IR), floori((o.z - r - lo.y) / GRADE_IR))
+		var c1 := Vector2i(ceili((o.x + r - lo.x) / GRADE_IR), ceili((o.z + r - lo.y) / GRADE_IR))
+		for cx in range(maxi(c0.x, 0), mini(c1.x, n.x - 1) + 1):
+			for cz in range(maxi(c0.y, 0), mini(c1.y, n.y - 1) + 1):
+				if (lo + Vector2(cx, cz) * GRADE_IR).distance_to(Vector2(o.x, o.z)) < r:
+					g.set_point_solid(Vector2i(cx, cz), true)
+	var ch := Vector2i(roundi((h.x - lo.x) / GRADE_IR), roundi((h.y - lo.y) / GRADE_IR))
+	g.set_point_solid(ch, false)
+	var melhor := {}
+	var melhor_d := INF
+	for p in alvos:
+		var centro := Vector2(p.x, p.z)
+		for o: Vector3 in _circulos_peca(p):
+			for k in 16:
+				var q := Vector2(o.x, o.y) + Vector2.from_angle(TAU * k / 16.0) * (o.z + FOLGA_IR + 0.25)
+				var cq := Vector2i(roundi((q.x - lo.x) / GRADE_IR), roundi((q.y - lo.y) / GRADE_IR))
+				if not g.is_in_boundsv(cq) or g.is_point_solid(cq):
+					continue
+				var fim := lo + Vector2(cq) * GRADE_IR
+				if _dist_peca(p, fim) > COLADO - 0.3 or not sem_parede(fim, centro):
+					continue
+				var r: PackedVector2Array = g.get_point_path(ch, cq)
+				if r.is_empty():
+					continue
+				var d := 0.0
+				for i in range(1, r.size()):
+					d += r[i - 1].distance_to(r[i])
+				if d < melhor_d:
+					melhor_d = d
+					if r.size() > 1:
+						r.remove_at(0)
+					melhor = {"r": r, "p": p}
+	return melhor
 
 # ---------- fornalha (2026-11-07: "o forno tá igual uma mesa de craft"): combustível, material e o que ficou pronto ----------
 # A conta é do servidor (shared/simulacao.js avancarForno) e segue mesmo com você longe; aqui só mostra e anda as barrinhas.
@@ -3118,13 +3355,14 @@ func minha_fornalha_perto() -> String:
 	for p in lotes[meu].pecas:
 		if p.k == "fornalha":
 			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
-			if d <= dm:
+			if d <= dm and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
 				dm = d
 				melhor = str(p.id)
 	return melhor
 
-func abrir_forno() -> void:
-	var id := minha_fornalha_perto()
+func abrir_forno(id := "") -> void:
+	if id == "":
+		id = minha_fornalha_perto()
 	if id == "" or not m.on():
 		return
 	forno_id = id
@@ -3194,14 +3432,19 @@ func _montar_tela_forno() -> void:
 	col.add_child(txt_forno)
 	col.add_child(Menu.rotulo("Mochila (toque para pôr na fornalha)", 16, Menu.APAGADO))
 	var sc := ScrollContainer.new()
-	sc.custom_minimum_size = Vector2(7 * 60, 2 * 60 + 6)
+	sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 2 * 60 + 6) # itens + respiro + barra larga (como no baú)
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	Menu.barra_larga(sc)
 	col.add_child(sc)
+	rolar_bau.append(sc) # arrastar em cima dos itens também rola
+	var margem := MarginContainer.new()
+	margem.add_theme_constant_override("margin_right", 12)
+	sc.add_child(margem)
 	grade_forno = GridContainer.new()
 	grade_forno.columns = 7
 	grade_forno.add_theme_constant_override("h_separation", 4)
 	grade_forno.add_theme_constant_override("v_separation", 4)
-	sc.add_child(grade_forno)
+	margem.add_child(grade_forno)
 
 func _barra_forno(cor: Color, borda: Color) -> ProgressBar:
 	var b := ProgressBar.new()
@@ -3286,7 +3529,9 @@ func _montar_forno() -> void:
 		if not e_comb and not e_mat:
 			continue
 		var lugar := forno_alvo if e_comb and e_mat else ("comb" if e_comb else "ent")
-		var fn := func(): m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
+		var fn := func():
+			if not _bau_arrastou:
+				m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
 		grade_forno.add_child(m.menu.celula(it, false, fn, 56))
 
 func trocar_aba(k: String) -> void:

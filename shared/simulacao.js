@@ -83,6 +83,19 @@ export function solidosPeca(p, base = null) {
   const topo = base != null && C.alto ? { alto: base + C.alto } : {};
   return C.circulos.map(([dx, dz, r]) => ({ x: p.x + dx * c + dz * s, z: p.z - dx * s + dz * c, r, peca: p.id, ...topo }));
 }
+// parede, janela ou batente de porta entre os dois pontos? (André 2026-11-07: do lado de fora da casa não abre o baú)
+// Mesma conta no godot-prototipo/construcao.gd sem_parede.
+export function semParede(lotes, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+  for (const L of lotes) for (const p of L.pecas) {
+    if (tipoPeca(p.k) !== 'borda') continue;
+    for (const o of solidosPeca(p)) {
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((o.x - a.x) * dx + (o.z - a.z) * dz) / l2)) : 0;
+      if (Math.hypot(a.x + dx * t - o.x, a.z + dz * t - o.z) < o.r * 0.9) return false;
+    }
+  }
+  return true;
+}
 const cruza = (a, b) => a[0] < b[2] - 0.01 && b[0] < a[2] - 0.01 && a[1] < b[3] - 0.01 && b[1] < a[3] - 0.01;
 const foraDoLote = (R, d) => R[0] < d.x0 - 0.01 || R[2] > d.x1 + 0.01 || R[1] < d.z0 - 0.01 || R[3] > d.z1 + 0.01;
 // ---------- Terras: o terreno que o jogador escolhe (toca num canto e arrasta até o outro) ----------
@@ -260,6 +273,8 @@ export class Simulacao {
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
       ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      // pedras e galhos soltos no chão (André 2026-11-07): pega com a mão; não são sólidos (s0, s1...)
+      ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i })), // veio: some quando esgota (veioVazio)
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
@@ -1542,11 +1557,26 @@ export class Simulacao {
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
+    if (C.mao) return this.pegarSolto(j, no, C);
+    // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
+    if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
+  }
+  // pedra ou galho solto (André 2026-11-07): pega na hora, sem ferramenta nem vigor; volta em C.volta s só para quem pegou
+  pegarSolto(j, no, C) {
+    if (this.cargas(j, no) <= 0) return this.evento({ t: 'aviso', para: j.id, texto: `${C.nome}: já pegou, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s` });
+    const ganhou = [];
+    for (const [k, n] of Object.entries(C.da)) {
+      if (!guardar(j.prog.mochila, { k, n })) return this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' });
+      ganhou.push({ k, nome: ITENS[k].nome, n });
+    }
+    j.coletas[no.id] = { n: 0, volta: this.tempo + C.volta };
+    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: 0, volta: C.volta });
+    this.avisarProg(j);
   }
   custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
   // é de todos? Os veios das zonas de mineração e, desde 2026-11-04 (pedido do André), as árvores: a árvore cortada
@@ -1576,6 +1606,7 @@ export class Simulacao {
   }
   batidaColeta(j) {
     const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
+    if (C.ferramenta && contar(p.mochila, C.ferramenta) < 1) return this.pararColeta(j, `Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()}`); // vendeu ou guardou no meio
     if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
@@ -1670,7 +1701,7 @@ export class Simulacao {
   // estação construída (bigorna, fornalha, bancada) perto do jogador que serve para a receita: {x, z} ou null
   estacaoPerto(j, R) {
     const k = RECEITA_ESTACAO(R);
-    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && dist(p, j) <= LOTE.estacaoDist + 0.6) return p;
+    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
   }
   // o que o celular precisa saber de um lote (agora = relógio do servidor, para a horta crescer igual nos dois)
@@ -1974,7 +2005,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return;
-    if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6)) return aviso('Chegue perto do seu baú');
+    if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto do seu baú');
     if (!Array.isArray(L.bau)) L.bau = Array(BAU.slots).fill(null);
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
@@ -2000,7 +2031,7 @@ export class Simulacao {
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return aviso('Só dá para usar a fornalha do seu terreno');
     const peca = L.pecas.find((o) => o.k === 'fornalha' && o.id === String(m.p));
-    if (!peca || dist(peca, j) > LOTE.estacaoDist + 0.6) return aviso('Chegue perto da sua fornalha');
+    if (!peca || dist(peca, j) > LOTE.estacaoDist + 0.6 || !semParede(this.lotes.values(), j, peca)) return aviso('Chegue perto da sua fornalha');
     if (!L.fornos) L.fornos = {};
     const F = L.fornos[peca.id] || (L.fornos[peca.id] = fornoVazio());
     if (avancarForno(F)) this.lotesMudados.add(L.def.id);

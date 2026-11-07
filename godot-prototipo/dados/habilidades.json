@@ -975,6 +975,20 @@
    "ferramenta": "arar",
    "desc": "Prepara a terra para plantar (modo construção, aba Fazenda)."
   },
+  "picareta": {
+   "nome": "Picareta de pedra",
+   "pilha": 1,
+   "venda": 2,
+   "ferramenta": "minerar",
+   "desc": "Precisa dela para minerar os veios. Crie na mochila (Criar > Ferramentas), sem bancada."
+  },
+  "machado": {
+   "nome": "Machado de pedra",
+   "pilha": 1,
+   "venda": 2,
+   "ferramenta": "cortar",
+   "desc": "Precisa dele para cortar árvores. Crie na mochila (Criar > Ferramentas), sem bancada."
+  },
   "regador": {
    "nome": "Regador",
    "pilha": 1,
@@ -1452,7 +1466,8 @@
    "raro": {
     "cristal": 0.05,
     "pedra": 0.5
-   }
+   },
+   "ferramenta": "picareta"
   },
   "pedra": {
    "nome": "Veio de pedra",
@@ -1467,7 +1482,8 @@
    "raro": {
     "pedra": 0.5,
     "minerio_cobre": 0.03
-   }
+   },
+   "ferramenta": "picareta"
   },
   "cobre": {
    "nome": "Veio de cobre",
@@ -1482,7 +1498,8 @@
    "raro": {
     "cristal": 0.04,
     "pedra": 0.5
-   }
+   },
+   "ferramenta": "picareta"
   },
   "cristal": {
    "nome": "Veio de cristal",
@@ -1498,7 +1515,8 @@
    "raro": {
     "cristal": 0.1,
     "pedra": 0.4
-   }
+   },
+   "ferramenta": "picareta"
   },
   "arvore": {
    "nome": "Árvore",
@@ -1513,6 +1531,31 @@
    },
    "raro": {
     "lenha": 0.25
+   },
+   "ferramenta": "machado"
+  },
+  "galho": {
+   "nome": "Galho no chão",
+   "mao": true,
+   "prof": "len",
+   "vigor": 0,
+   "tempo": 0,
+   "cargas": 1,
+   "volta": 300,
+   "da": {
+    "lenha": 1
+   }
+  },
+  "pedrinha": {
+   "nome": "Pedra solta",
+   "mao": true,
+   "prof": "min",
+   "vigor": 0,
+   "tempo": 0,
+   "cargas": 1,
+   "volta": 300,
+   "da": {
+    "pedra": 1
    }
   }
  },
@@ -2118,6 +2161,22 @@
    },
    "bancada": false,
    "para": "arar"
+  },
+  "picareta": {
+   "custo": {
+    "lenha": 2,
+    "pedra": 3
+   },
+   "bancada": false,
+   "para": "minerar"
+  },
+  "machado": {
+   "custo": {
+    "lenha": 3,
+    "pedra": 2
+   },
+   "bancada": false,
+   "para": "cortar"
   },
   "regador": {
    "custo": {
