@@ -175,6 +175,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 		no.set_meta("chave", chave)
 		esq.add_child(no)
 		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)), tem_capa)
+	_pele_cheia(raiz)
+	_tronco(raiz, esq)
 	_sem_contorno_tronco(raiz, esq)
 	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
 	_uniforme(raiz, equip if equip is Dictionary else {})
@@ -210,6 +212,12 @@ static func _cintura(raiz: Node3D, ativo := true, peitoral := true) -> void:
 		var orig: ArrayMesh = mi.get_meta("malha_larga")
 		if not feminino:
 			formas[trecho] = orig
+			if trecho == "Body_00" and not (ativo and peitoral):
+				# André 2026-11-07: sem camisa, o menino um pouco mais atlético (peitoral e ombro), "nada demais"
+				var chave_a := "atletico:%d" % orig.get_instance_id()
+				if not _malhas.has(chave_a):
+					_malhas[chave_a] = _atletico(orig, R)
+				formas[trecho] = _malhas[chave_a]
 			continue
 		var chave_f := "forma:%d" % orig.get_instance_id()
 		if not _malhas.has(chave_f):
@@ -323,20 +331,67 @@ static func _roupa_base(raiz: Node3D, esq: Skeleton3D) -> void:
 	# o short colado continua debaixo da calça e do short de armadura (tapa o vão entre as peças, na cor da calça);
 	# sem peça nas pernas aparece a roupa de baixo nova (André 2026-11-07): calcinha de biquíni ou samba-canção
 	var masc := esq.find_bone("J_Sec_L_Bust1") < 0
-	for parte in ["base_short", "base_samba"] if masc else ["base_short", "base_pele", "base_calcinha"]:
-		var chave := "%d:%s" % [corpo.mesh.get_instance_id(), parte]
+	var partes := ["base_short", "base_samba"] if masc else ["base_short", "base_pele", "base_calcinha"]
+	var tronco: MeshInstance3D = esq.get_node_or_null("Tronco")
+	if not masc and _peito_de_pele(raiz):
+		partes = ["base_short", "base_calcinha_alta", "base_top"] # pele de verdade: o top de biquíni vai por cima dela
+	elif not masc and tronco:
+		partes = ["base_short", "base_calcinha_alta", "base_top"] # top por cima do tronco encaixado
+	for parte in partes:
+		var src := tronco if (parte == "base_top" and tronco) else corpo
+		var chave := "%d:%s" % [src.mesh.get_instance_id(), parte]
 		if not _malhas.has(chave):
-			_malhas[chave] = _casca(corpo, parte, esq)
+			_malhas[chave] = _casca(src, parte, esq)
 		if _malhas[chave] == null:
 			continue
 		var mi := MeshInstance3D.new()
-		mi.name = {"base_short": "Short", "base_pele": "Pele"}.get(parte, "Baixo")
-		mi.mesh = _malhas[chave]
-		mi.skin = corpo.skin
+		mi.name = {"base_short": "Short", "base_pele": "Pele", "base_top": "Top"}.get(parte, "Baixo")
+		if parte == "base_top":
+			var chave_t := chave + ":uv"
+			if not _malhas.has(chave_t):
+				_malhas[chave_t] = _uv_tronco(_malhas[chave])
+			mi.mesh = _malhas[chave_t]
+		else:
+			mi.mesh = _malhas[chave]
+		mi.skin = src.skin
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		no.add_child(mi)
 		mi.skeleton = mi.get_path_to(esq)
-		mi.material_override = _material_base() if parte == "base_short" else (_material_pele(raiz) if parte == "base_pele" else _material_baixo(masc))
+		mi.material_override = _material_base() if parte == "base_short" else (_material_pele(raiz) if parte == "base_pele" else (_material_top(raiz) if parte == "base_top" else _material_baixo(masc)))
+
+# casca do top de biquíni: UV2 = (distância até o meio do peito, altura), +10 nas costas, como a blusa (_decote), para
+# o biquini.gdshader desenhar o top e descartar o resto
+static func _uv_tronco(orig: ArrayMesh) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+		var u2 := PackedVector2Array()
+		u2.resize(V.size())
+		for i in V.size():
+			u2[i] = Vector2(absf(V[i].x) + (0.0 if V[i].z > 0.0 else 10.0), V[i].y)
+		arr[Mesh.ARRAY_TEX_UV2] = u2
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
+static func _material_top(raiz: Node3D) -> Material:
+	var esq := _esqueleto(raiz)
+	var R := _ref(esq) if esq else Ref.new()
+	var chave := "top:%.3f:%.3f:%.3f" % [R.busto.x, R.busto.y, R.y_pescoco]
+	if not _materiais.has(chave):
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://biquini.gdshader")
+		m.set_meta("armadura", true)
+		m.set_shader_parameter("tecido", BIQUINI)
+		m.set_shader_parameter("fem", 1.0)
+		m.set_shader_parameter("so_pano", 1.0)
+		m.set_shader_parameter("x_busto", absf(R.busto.x))
+		m.set_shader_parameter("y_busto", R.busto.y)
+		m.set_shader_parameter("y_pescoco", R.y_pescoco)
+		_materiais[chave] = m
+	return _materiais[chave]
 
 # a blusa vira camiseta: o que passa do quadril (vestidos dos outros corpos) entra no corpo, sem aparecer
 static func _blusa_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
@@ -414,6 +469,135 @@ static func _material_biquini(raiz: Node3D, fem: bool) -> Material:
 		_materiais[chave] = m
 	return _materiais[chave]
 
+# André 2026-11-07 ("parece uma camisa rosa"): a pele pintada na blusa juntava braço e peito. O corpo do VRoid tem a
+# pele do tronco por baixo da roupa, mas a textura fica transparente onde a roupa cobria (a Ruiva some do pescoço ao
+# quadril). Aqui a textura do corpo ganha um fundo da cor da pele: o transparente vira pele (uma vez por textura).
+static func _pele_cheia(raiz: Node3D) -> void:
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or not "Body_00" in mi.mesh.surface_get_name(0):
+			continue
+		var m = mi.mesh.surface_get_material(0)
+		if not (m is BaseMaterial3D) or m.albedo_texture == null or m.has_meta("pele_cheia"):
+			continue
+		m.set_meta("pele_cheia", true)
+		var chave := "pele_cheia:%d" % m.albedo_texture.get_instance_id()
+		if not _malhas.has(chave):
+			var img: Image = m.albedo_texture.get_image()
+			if img == null:
+				continue
+			img = img.duplicate()
+			if img.is_compressed():
+				img.decompress()
+			img.clear_mipmaps()
+			img.convert(Image.FORMAT_RGBA8)
+			var fundo := Image.create(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8)
+			var c: Color = preload("res://aparencia.gd").media(m.albedo_texture, true)
+			fundo.fill(Color(c.r, c.g, c.b, 1.0))
+			fundo.blend_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO)
+			fundo.generate_mipmaps()
+			_malhas[chave] = ImageTexture.create_from_image(fundo)
+		m.albedo_texture = _malhas[chave]
+		# André 2026-11-07 ("o rosto com uma cor e o corpo com outra"): sem camisa aparece muito mais corpo; ele
+		# ganha o mesmo tom médio do rosto
+		for rosto in raiz.find_children("*", "MeshInstance3D", true, false):
+			var feito := false
+			for sfc in rosto.mesh.get_surface_count() if rosto.mesh else 0:
+				var mr = rosto.mesh.surface_get_material(sfc)
+				var nome_r: String = (mr.resource_name if mr else "") + " " + rosto.mesh.surface_get_name(sfc)
+				if mr is BaseMaterial3D and mr.albedo_texture and "Face_00_SKIN" in nome_r and not "Outline" in nome_r:
+					var Ap = preload("res://aparencia.gd")
+					var a: Color = Ap.media(mr.albedo_texture, true)
+					var b: Color = Ap.media(m.albedo_texture, true)
+					var k := Color(clampf(a.r / maxf(b.r, 0.01), 0.75, 1.3), clampf(a.g / maxf(b.g, 0.01), 0.75, 1.3), clampf(a.b / maxf(b.b, 0.01), 0.75, 1.3))
+					# mais um pouco de claro no verde e no azul: o rosto (textura com menos sombra desenhada) saía mais claro
+					# e amarelado que o peito com a mesma média (medido nas fotos de teste do Cabelo M)
+					m.albedo_color = m.albedo_color * k * Color(1.0, 1.1, 1.12)
+					if mr.backlight_enabled:
+						m.backlight = mr.backlight # a mesma sombra quente do rosto (no corpo era mais forte e alaranjava)
+					feito = true
+					break
+			if feito:
+				break
+
+# André 2026-11-07: a Ruiva não tem peito nem o alto dos braços debaixo da roupa. O tronco de pele da Victoria, já
+# encaixado nos ossos dela (ferramentas/tronco/assar_tronco.gd), entra no lugar quando ela está sem peitoral.
+const TRONCOS := {"N00_000_00_Body_00_SKIN": "res://corpo/tronco_ruiva"}
+static func _tronco(raiz: Node3D, esq: Skeleton3D) -> MeshInstance3D:
+	var ja: MeshInstance3D = esq.get_node_or_null("Tronco")
+	if ja:
+		return ja
+	var corpo := _fonte(raiz, "Body_00")
+	if corpo == null:
+		return null
+	var arq := ""
+	for k in TRONCOS:
+		if k in corpo.mesh.surface_get_name(0):
+			arq = TRONCOS[k]
+	if arq == "" or not ResourceLoader.exists(arq + ".res"):
+		return null
+	var malha: ArrayMesh = load(arq + ".res")
+	# a pele do quadril sem o short desenhado (ferramentas/tronco/limpar_pele.gd)
+	var limpa := arq.replace("tronco_", "pele_") + ".png"
+	if ResourceLoader.exists(limpa):
+		for mc in raiz.find_children("*", "MeshInstance3D", true, false):
+			if mc.mesh is ArrayMesh and mc.mesh.get_surface_count() > 0 and "Body_00" in mc.mesh.surface_get_name(0):
+				var mb = mc.mesh.surface_get_material(0)
+				if mb is BaseMaterial3D and not mb.has_meta("pele_limpa"):
+					mb.set_meta("pele_limpa", true)
+					mb.albedo_texture = load(limpa)
+	var poses := {}
+	for i in corpo.skin.get_bind_count():
+		var n := corpo.skin.get_bind_name(i)
+		if n == "":
+			n = esq.get_bone_name(corpo.skin.get_bind_bone(i))
+		poses[n] = corpo.skin.get_bind_pose(i)
+	var skin := Skin.new()
+	for n in malha.get_meta("ossos"):
+		skin.add_named_bind(n, poses.get(n, Transform3D.IDENTITY))
+	# material: o mesmo da pele do corpo (toon, sombra quente), com a textura da Victoria no tom da pele da Ruiva
+	var base = corpo.mesh.surface_get_material(0)
+	var chave := "tronco_mat:%s:%d" % [arq, base.get_instance_id() if base else 0]
+	if not _materiais.has(chave):
+		var tex: Texture2D = load(arq + ".png")
+		var m: StandardMaterial3D = base.duplicate() if base is StandardMaterial3D else StandardMaterial3D.new()
+		var Ap = preload("res://aparencia.gd")
+		if base is StandardMaterial3D and base.albedo_texture:
+			var a: Color = Ap.media(base.albedo_texture, true)
+			var b: Color = Ap.media(tex, true)
+			m.albedo_color = m.albedo_color * Color(clampf(a.r / maxf(b.r, 0.01), 0.7, 1.4), clampf(a.g / maxf(b.g, 0.01), 0.7, 1.4), clampf(a.b / maxf(b.b, 0.01), 0.7, 1.4))
+		# na emenda a cor de vértice acerta a pele da Victoria com a da Ruiva (guardada dividida por escala_cor)
+		var ec: float = malha.get_meta("escala_cor", 0.0)
+		if ec > 0.0:
+			m.vertex_color_use_as_albedo = true
+			m.albedo_color = m.albedo_color * Color(ec, ec, ec)
+		m.albedo_texture = tex
+		m.resource_name = "Tronco_Body_SKIN"
+		var c := StandardMaterial3D.new() # contorno escuro de desenho, como o resto do corpo (main.pintar)
+		c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		c.cull_mode = BaseMaterial3D.CULL_FRONT
+		c.grow = true
+		c.grow_amount = 0.006
+		c.albedo_color = Color(0.12, 0.08, 0.08)
+		m.next_pass = c
+		_materiais[chave] = m
+	var mi: MeshInstance3D = null
+	# o tronco e os braços aparecem só sem peitoral
+	for par in [["Tronco", arq + ".res"]]:
+		if not ResourceLoader.exists(par[1]):
+			continue
+		var copia: ArrayMesh = (load(par[1]) as ArrayMesh).duplicate()
+		copia.surface_set_material(0, _materiais[chave])
+		var no := MeshInstance3D.new()
+		no.name = par[0]
+		no.mesh = copia
+		no.skin = skin
+		no.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		esq.add_child(no)
+		no.skeleton = no.get_path_to(esq)
+		if par[0] == "Tronco":
+			mi = no
+	return mi
+
 # o corpo do VRoid tem pele de verdade no peito e na barriga (e não uma camiseta pintada na textura nem um buraco)?
 # Amostra a textura do corpo nos vértices da frente do tronco e compara com a cor da pele.
 static func _peito_de_pele(raiz: Node3D) -> bool:
@@ -489,21 +673,60 @@ static func atualizar_pele(raiz: Node3D) -> void:
 # furava a blusa justa em pontos pretos na cintura quando ela vira pele pintada. No tronco a blusa (ou a armadura)
 # sempre cobre o corpo, então ali o contorno sai e a pele entra 1,2 cm.
 static func _sem_contorno_tronco(raiz: Node3D, esq: Skeleton3D) -> void:
-	if esq.find_bone("J_Sec_L_Bust1") < 0:
-		return
+	if esq.find_bone("J_Sec_L_Bust1") < 0 or _peito_de_pele(raiz):
+		return # corpo com peito de pele de verdade: sem blusa por cima, o tronco fica como é
 	var R := _ref(esq)
+	var tronco: MeshInstance3D = esq.get_node_or_null("Tronco")
+	var cobre: Array = tronco.mesh.get_meta("cobre", []) if tronco else []
+	# abaixo do corte a pele é da Ruiva mesmo (a emenda com o tronco fica nessa altura)
+	var corte: float = tronco.mesh.get_meta("corte", -10.0) if tronco else -10.0
+	var pescoco_ate: float = tronco.mesh.get_meta("pescoco_ate", -10.0) if tronco else -10.0
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() < 2 or not "Body_00" in mi.mesh.surface_get_name(0):
 			continue
 		var orig: ArrayMesh = mi.mesh
 		if orig.has_meta("sem_contorno"):
 			continue
+		# com o tronco encaixado, a pele da própria Ruiva debaixo dele sai (o que sobrava furava o tronco)
+		var nomes_osso := []
+		for i in mi.skin.get_bind_count() if mi.skin else 0:
+			var n: String = mi.skin.get_bind_name(i)
+			nomes_osso.append(n if n != "" else esq.get_bone_name(mi.skin.get_bind_bone(i)))
 		var chave := "sem_contorno:%d" % orig.get_instance_id()
 		if not _malhas.has(chave):
 			var am := ArrayMesh.new()
 			for sfc in orig.get_surface_count():
 				var arr := orig.surface_get_arrays(sfc)
-				if "Outline" in orig.surface_get_name(sfc) and arr[Mesh.ARRAY_INDEX] != null:
+				if not cobre.is_empty() and arr[Mesh.ARRAY_INDEX] != null and arr[Mesh.ARRAY_BONES] != null:
+					var Bs: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+					var Ws: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+					var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+					var kb := Bs.size() / maxi(nv, 1)
+					var Vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+					var sob := PackedByteArray()
+					sob.resize(nv)
+					for i in nv:
+						var melhor := -1.0
+						var nm := ""
+						for j in kb:
+							if Ws[i * kb + j] > melhor:
+								melhor = Ws[i * kb + j]
+								nm = nomes_osso[Bs[i * kb + j]] if Bs[i * kb + j] < nomes_osso.size() else ""
+						var y := _F(Vs[i]).y
+						sob[i] = 1 if ((nm in cobre and y > corte) or (nm == "J_Bip_C_Neck" and y < pescoco_ate)) else 0
+					var I0: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+					var J0 := PackedInt32Array()
+					# sai o triângulo todo debaixo do tronco: a borda do tronco foi colada nesse buraco
+					# (ferramentas/tronco/assar_tronco.gd, _costurar)
+					# no pescoço o contorno sai já com um vértice debaixo (senão o lado de dentro dele aparece preto)
+					var contorno := "Outline" in orig.surface_get_name(sfc)
+					for t in range(0, I0.size(), 3):
+						if contorno and (sob[I0[t]] or sob[I0[t + 1]] or sob[I0[t + 2]]) and _F(Vs[I0[t]]).y > R.y_pescoco - 0.12:
+							continue
+						if not (sob[I0[t]] and sob[I0[t + 1]] and sob[I0[t + 2]]):
+							J0.append_array([I0[t], I0[t + 1], I0[t + 2]])
+					arr[Mesh.ARRAY_INDEX] = J0
+				if "Outline" in orig.surface_get_name(sfc) and arr[Mesh.ARRAY_INDEX] != null and tronco == null:
 					var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 					var I: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 					var fora := PackedByteArray()
@@ -516,7 +739,8 @@ static func _sem_contorno_tronco(raiz: Node3D, esq: Skeleton3D) -> void:
 						if not (fora[I[t]] and fora[I[t + 1]] and fora[I[t + 2]]):
 							J.append_array([I[t], I[t + 1], I[t + 2]])
 					arr[Mesh.ARRAY_INDEX] = J
-				elif arr[Mesh.ARRAY_NORMAL] != null:
+				elif arr[Mesh.ARRAY_NORMAL] != null and esq.get_node_or_null("Tronco") == null:
+					# (com o tronco encaixado por cima, a pele fica onde está: entrar abria um degrau na cintura)
 					# a pele de rascunho debaixo da blusa (textura escura) furava a cintura justa: entra 1,2 cm
 					var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 					var N: PackedVector3Array = _FA(arr[Mesh.ARRAY_NORMAL])
@@ -564,6 +788,44 @@ static func _forma_corpo(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 			var k := _fator_forma(p.y, R)
 			V[i] = Vector3(p.x * k.x, p.y, 0.005 + (p.z - 0.005) * k.y)
 		return _FA(V)
+	for sfc in orig.get_surface_count():
+		var arr := orig.surface_get_arrays(sfc)
+		arr[Mesh.ARRAY_VERTEX] = mexe.call(arr[Mesh.ARRAY_VERTEX])
+		var bs := orig.surface_get_blend_shape_arrays(sfc)
+		for j in bs.size():
+			var b: Array = bs[j]
+			if b.size() > Mesh.ARRAY_VERTEX and b[Mesh.ARRAY_VERTEX] is PackedVector3Array and am.blend_shape_mode == Mesh.BLEND_SHAPE_MODE_NORMALIZED:
+				b[Mesh.ARRAY_VERTEX] = mexe.call(b[Mesh.ARRAY_VERTEX])
+			bs[j] = b
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, bs, {}, orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
+# peitoral 7 mm mais alto e ombro (deltoide) 4 mm mais cheio, com borda macia; só no corpo, na pose de descanso
+static func _atletico(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var y_peito := R.y_pescoco - 0.13
+	var mexe := func(V: PackedVector3Array) -> PackedVector3Array:
+		V = _FA(V)
+		for i in V.size():
+			var p := V[i]
+			var ax := absf(p.x)
+			if p.z > 0.0 and ax < R.x_braco + 0.03 and absf(p.y - y_peito) < 0.09:
+				var d := Vector2((ax - 0.062) / 0.075, (p.y - y_peito) / (0.05 if p.y < y_peito else 0.07)).length()
+				var w := _sino(d, 1.0) * clampf(p.z / 0.04, 0.0, 1.0)
+				p += Vector3(signf(p.x) * 0.0015 * w, 0.0015 * w, 0.007 * w)
+			var ombro := Vector3(signf(p.x) * (R.p_braco.x + 0.025), R.p_braco.y, R.p_braco.z)
+			var dd := p.distance_to(ombro)
+			if dd < 0.08:
+				var r := Vector3(0.0, p.y - ombro.y, p.z - ombro.z)
+				if r.length() > 0.001:
+					p += r.normalized() * 0.004 * _sino(dd, 0.08)
+			V[i] = p
+		return _FA(V)
+	var am := ArrayMesh.new()
+	am.blend_shape_mode = orig.blend_shape_mode
+	for i in orig.get_blend_shape_count():
+		am.add_blend_shape(orig.get_blend_shape_name(i))
 	for sfc in orig.get_surface_count():
 		var arr := orig.surface_get_arrays(sfc)
 		arr[Mesh.ARRAY_VERTEX] = mexe.call(arr[Mesh.ARRAY_VERTEX])
@@ -839,7 +1101,11 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 	if blusa:
 		var c = equip.get("corpo")
 		var sem_peitoral := not (c is Dictionary and PECAS.has(str(c.get("k", ""))))
-		blusa.visible = not (sem_peitoral and not blusa.get_meta("decote_fem", true) and _peito_de_pele(raiz))
+		var esq_b := _esqueleto(raiz)
+		var tronco: Node = esq_b.get_node_or_null("Tronco") if esq_b else null
+		blusa.visible = not (sem_peitoral and (_peito_de_pele(raiz) or tronco != null))
+		if tronco:
+			tronco.visible = sem_peitoral
 	# André 2026-11-04 (print no jogo): com calça ou short de armadura, o short branco de baixo aparecia entre as
 	# peças no meio das pernas (pose de espada, pernas abertas). Com peça nas pernas ele fica na cor da calça.
 	var esq := _esqueleto(raiz)
@@ -850,6 +1116,9 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 		for mi in base.find_children("*", "MeshInstance3D", true, false):
 			if mi.name == "Baixo" or mi.name == "Pele": # calcinha ou samba-canção: só sem peça nas pernas
 				mi.visible = r_p < 0
+			elif mi.name == "Top": # top de biquíni sobre a pele de verdade: só sem peitoral
+				var c2 = equip.get("corpo")
+				mi.visible = not (c2 is Dictionary and PECAS.has(str(c2.get("k", ""))))
 			else: # short colado: debaixo da calça, na cor dela (sem calça fica escondido debaixo da roupa de baixo)
 				mi.visible = r_p >= 0 or base.get_node_or_null("Baixo") == null
 				mi.material_override = _material("calca", r_p) if r_p >= 0 else _material_base()
@@ -999,7 +1268,7 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 # ---------- regiões (posição de descanso em T, metros; +x = esquerda do personagem, +z = frente) ----------
 # off(p, b): quanto a casca sai do corpo naquele ponto (<= 0 = fora da peça). seg: coordenada das faixas (lâminas).
 const REGIOES := {
-	"peito": {"fonte": "Tops"}, "base_short": {"fonte": "Body_00"}, "base_pele": {"fonte": "Body_00"}, "base_calcinha": {"fonte": "Body_00"}, "base_samba": {"fonte": "Body_00"}, "ombro_e": {"fonte": "Tops"}, "ombro_d": {"fonte": "Tops"},
+	"peito": {"fonte": "Tops"}, "base_short": {"fonte": "Body_00"}, "base_pele": {"fonte": "Body_00"}, "base_calcinha": {"fonte": "Body_00"}, "base_calcinha_alta": {"fonte": "Body_00"}, "base_top": {"fonte": "Body_00"}, "base_samba": {"fonte": "Body_00"}, "ombro_e": {"fonte": "Tops"}, "ombro_d": {"fonte": "Tops"},
 	"braco_e": {"fonte": "Tops"}, "braco_d": {"fonte": "Tops"}, 
 	"canela_e": {"fonte": "Body_00"}, "canela_d": {"fonte": "Body_00"}, "cano_e": {"fonte": "Body_00"}, "cano_d": {"fonte": "Body_00"},
 	"sapato": {"fonte": "Shoes"}, "sapato_couro": {"fonte": "Shoes"},
@@ -1166,18 +1435,26 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			if p.y > R.y_cintura - (0.0 if R.masc else 0.05) or p.y < lerpf(R.y_joelho, R.y_cintura, 0.45) or ax > 0.2:
 				return Vector2(-1, 0)
 			return Vector2(0.0025, -1.0)
+		"base_top":
+			# top de biquíni sobre o peito de pele de verdade: a casca cobre o tronco de cima e o biquini.gdshader
+			# desenha só o pano (triângulos, faixa e alças)
+			if p.y < R.busto.y - 0.09 or p.y > R.y_pescoco + 0.05 or ax > R.x_braco - 0.005:
+				return Vector2(-1, 0)
+			return Vector2(0.003, -1.0)
 		"base_pele":
 			# a Ruiva não tem pele do quadril até a coxa (era a saia, e nas costas a blusa acaba mais alto): pele pintada da cintura ao alto da coxa,
 			# por baixo da calcinha
 			if p.y > R.y_cintura + 0.02 or p.y < R.y_coxa - 0.11 or ax > 0.2:
 				return Vector2(-1, 0)
 			return Vector2(0.0015, -1.0)
-		"base_calcinha":
+		"base_calcinha", "base_calcinha_alta":
 			# André 2026-11-07: sem calça, a menina fica de calcinha de biquíni. Cós baixo no quadril, cavada dos
 			# lados (sobe até o osso do quadril) e atrás cobre o bumbum
 			var virilha := R.y_coxa - 0.07
 			var tras := smoothstep(0.02, -0.04, p.z)
 			var topo_c := R.y_cintura - 0.07 # logo abaixo da barra da blusa (ela por cima piscava com a calcinha)
+			if parte == "base_calcinha_alta":
+				topo_c = R.y_cintura - 0.025 # sem blusa: sobe e cobre a calcinha branca desenhada na textura do corpo
 			var lado := smoothstep(0.025, 0.13, ax)
 			var fundo_c := virilha + lerpf(lerpf(0.0, 0.085, lado), lerpf(-0.015, 0.035, lado), tras)
 			if p.y > topo_c or p.y < fundo_c or ax > 0.17:

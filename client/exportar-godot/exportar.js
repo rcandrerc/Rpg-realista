@@ -82,7 +82,8 @@ async function principal() {
   for (const id of ids) {
     const heroi = id === 'ruiva';
     // corpo que o jogador pode escolher no criador do app (CRIADOR.corpos): leva todas as animações do herói e o formato do rosto
-    const jogavel = heroi || CRIADOR.corpos.includes(id);
+    // (os que saíram do criador em 2026-11-07, CRIADOR.corposAntigos, continuam com tudo: os NPCs usam esses corpos)
+    const jogavel = heroi || CRIADOR.corpos.includes(id) || Object.hasOwn(CRIADOR.corposAntigos, id);
     const c = new Corpo(mundo.scene, { visual: id, armas: 'heroi' }); // todos: o lugar das armas muda de corpo para corpo
     for (let i = 0; i < 600 && !c.mixer; i++) await new Promise((r) => setTimeout(r, 100));
     const vrm = c.vrm; if (!vrm) { console.log('sem vrm', id); continue; }

@@ -1351,15 +1351,17 @@
   },
   "corpos": [
    "ruiva",
-   "cabelo_m",
-   "shibu",
-   "shibu_sombrio",
-   "fumiriya",
-   "shino",
-   "vivi",
-   "vita",
-   "victoria"
-  ]
+   "cabelo_m"
+  ],
+  "corposAntigos": {
+   "shibu": "ruiva",
+   "shibu_sombrio": "ruiva",
+   "fumiriya": "cabelo_m",
+   "shino": "ruiva",
+   "vivi": "ruiva",
+   "vita": "ruiva",
+   "victoria": "ruiva"
+  }
  },
  "nome": {
   "min": 3,
