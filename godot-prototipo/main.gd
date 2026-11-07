@@ -124,7 +124,7 @@ var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
-var visual := "ruiva" # corpo do herói (criador: a Ruiva, os masculinos e os outros corpos VRoid, CRIADOR.corpos)
+var visual := "ruiva" # corpo do herói (criador: a Ruiva e o cabelo_m, CRIADOR.corpos)
 const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
 var tempo := 0.0
 
@@ -812,7 +812,9 @@ func corpo_valido(v) -> String:
 	var s := str(v)
 	if s in l and ResourceLoader.exists("res://modelos/%s.glb" % s):
 		return s
-	return "ruiva"
+	# corpo que saiu do criador (André 2026-11-07: só um homem e uma mulher): o do criador do mesmo sexo
+	var antigo = P.dados.criador.get("corposAntigos", {}).get(s, "ruiva")
+	return antigo if str(antigo) in l else "ruiva"
 
 # onde a espada e o cajado ficam presos no corpo do herói (cada corpo tem a mão num jeito)
 func lugar_armas(id := "") -> Dictionary:

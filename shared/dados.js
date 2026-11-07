@@ -1031,13 +1031,16 @@ export const CRIADOR = {
   altura: [0.92, 1.08],
   // formato do rosto: tamanho dos olhos, do nariz e da boca (1 = original)
   rosto: { olhosT: [0.75, 1.25], narizT: [0.7, 1.3], bocaT: [0.7, 1.3] },
-  // corpos que o criador do app Godot mostra (sem nome, pedido do André 2026-11-03): a Ruiva primeiro, depois os
-  // masculinos e os outros corpos VRoid do jogo (os mesmos dos NPCs, todos CC0 ou com uso comercial)
-  corpos: ['ruiva', 'cabelo_m', 'shibu', 'shibu_sombrio', 'fumiriya', 'shino', 'vivi', 'vita', 'victoria'],
+  // corpos que o criador do app Godot mostra (sem nome, pedido do André 2026-11-03). André 2026-11-07: "vai ficar só
+  // um homem e só uma mulher" como opção de personagem principal: a Ruiva e o cabelo_m. Os outros seguem nos NPCs.
+  corpos: ['ruiva', 'cabelo_m'],
+  // corpos que já estiveram no criador (2026-11-03 a 2026-11-07): contas antigas com eles continuam válidas no
+  // servidor, e o app mostra o herói com o corpo do criador do mesmo sexo (main.gd, corpo_valido)
+  corposAntigos: { shibu: 'ruiva', shibu_sombrio: 'ruiva', fumiriya: 'cabelo_m', shino: 'ruiva', vivi: 'ruiva', vita: 'ruiva', victoria: 'ruiva' },
 };
 // Corpo do personagem (visual) que o servidor aceita: os do jogo HTML (PERSONAGENS) e os do criador do app Godot
 export function visualValido(v) {
-  return typeof v === 'string' && (PERSONAGENS.some((p) => p.id === v) || CRIADOR.corpos.includes(v));
+  return typeof v === 'string' && (PERSONAGENS.some((p) => p.id === v) || CRIADOR.corpos.includes(v) || Object.hasOwn(CRIADOR.corposAntigos, v));
 }
 // Aparência mandada pelo jogador: só cores da lista e altura dentro do limite (o resto vira a cor original)
 export function aparenciaValida(a) {
