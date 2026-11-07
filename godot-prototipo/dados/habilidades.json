@@ -2237,6 +2237,16 @@
  "bau": {
   "slots": 40
  },
+ "organizar": [
+  "equip",
+  "consumivel",
+  "tomo",
+  "ferramenta",
+  "obra",
+  "semente",
+  "material",
+  "outro"
+ ],
  "fornalha": {
   "combustivel": {
    "lenha": 12,
