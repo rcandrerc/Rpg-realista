@@ -49,7 +49,7 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
-  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip);
+  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a);
   const nivelK = 1 + 0.08 * (n - 1);
   const def = a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa;
   return {
@@ -102,10 +102,11 @@ export function pecasDoConjunto(equip = {}) {
   return RARIDADES.map((_, i) => lugares.filter((x) => x >= i).length);
 }
 // Soma das peças e do bônus de conjunto (o melhor de 2, 3 e 6 peças)
-export function bonusEquip(equip = {}) {
+export function bonusEquip(equip = {}, atr = null) {
   const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
   for (const l of LUGARES) {
     const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
+    if (atr && !reforcoOk(it, atr)) continue; // como no Quimera: reforçada além do seu atributo não dá bônus
     const rk = reforcoK(it);
     for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' ? rk.critico : rk.st);
   }
@@ -203,6 +204,9 @@ export function reforcoPrecisa(it, e) {
   const l = ITENS[it.k]?.lugar;
   return { k: l === 'espada' ? 'for' : l === 'cajado' ? 'int' : 'maior', n };
 }
+// pode usar a peça com o reforço que ela tem? (Quimera: sem o atributo não equipa e, se já está no corpo, não dá bônus)
+export const reforcoOk = (it, atr) => !(it?.e > 0) || atributoDoReforco(atr, reforcoPrecisa(it, it.e).k) >= reforcoPrecisa(it, it.e).n;
+export const textoReforcoPrecisa = (it, atr, e = it.e | 0) => { const pr = reforcoPrecisa(it, e); return `Precisa ${pr.n} de ${nomeAtributoReforco(pr.k)} (você tem ${atributoDoReforco(atr, pr.k)})`; };
 export const atributoDoReforco = (atr, k) => (k === 'maior' ? Math.max(atr?.for | 0, atr?.int | 0) : atr?.[k] | 0);
 export const nomeAtributoReforco = (k) => (k === 'for' ? 'Força' : k === 'int' ? 'Inteligência' : 'Força ou Inteligência');
 // Uma tentativa (o servidor sorteia). Devolve { ok, de, e, custo } ou { erro: texto }

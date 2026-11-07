@@ -1,5 +1,6 @@
 extends CanvasLayer
 # Janelinha do reforço de equipamento (igual ao Quimera, André 2026-11-07; regras em REFORCO de shared/dados.js).
+# Sem o atributo a peça reforçada não equipa e, vestida, não dá bônus (progresso reforco_ok, igual ao Quimera).
 # Na mochila: toque na peça e em "Reforçar 1×" ou "Reforçar até cancelar". A janela mostra a peça, "+e → +e+1 · chance X%",
 # uma barrinha dourada que enche em 1,6 s ("Reforçando…") e depois SUCESSO! (verde) ou FALHOU… (vermelho, com "Voltou pra +N"
 # ou "Continua +N"). Toque para continuar (ou fecha sozinha em 1,8 s). No automático tenta de novo até chegar no máximo,
@@ -179,7 +180,8 @@ func _tentar() -> void:
 		return
 	var erro: String = P.reforco_erro(it)
 	if erro != "":
-		m.hud.aviso(erro)
+		# o automático para sozinho no limite da peça, no limite do atributo ou quando o ouro acaba
+		m.hud.aviso(_resumo("parou: " + erro) if auto and tentativas > 0 else erro)
 		if m.sons:
 			m.sons.tocar("pano", -8.0)
 		_fechar()
@@ -302,9 +304,14 @@ func _continuar() -> void:
 		espera = 1.5 if m.on() else 0.0
 		return
 	if auto and tentativas > 0:
-		var e := int(it.get("e", 0)) if it != null else e0
-		m.hud.aviso("Reforço automático: +%d → +%d · %d %s · %d de ouro" % [e0, e, tentativas, "tentativa" if tentativas == 1 else "tentativas", ouro0 - int(m.P.prog.ouro)])
+		m.hud.aviso(_resumo("cancelado" if parar else "chegou no máximo da peça"))
 	_fechar()
+
+# "Reforço automático (chegou no máximo da peça): +0 → +5 · 9 tentativas · 230 de ouro"
+func _resumo(por: String) -> String:
+	var it = peca()
+	var e := int(it.get("e", 0)) if it != null else e0
+	return "Reforço automático %s: +%d → +%d · %d %s · %d de ouro" % [por, e0, e, tentativas, "tentativa" if tentativas == 1 else "tentativas", ouro0 - int(m.P.prog.ouro)]
 
 func _fechar() -> void:
 	fase = ""

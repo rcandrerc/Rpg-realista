@@ -2048,6 +2048,9 @@ func linha_reforco(it) -> Control:
 		if P.chance_reforco(e) < 100:
 			var f: int = P.reforco_falhou(e)
 			t += (" · se falhar volta pra +%d" % f) if f < e else (" · se falhar continua +%d" % e)
+	if not P.reforco_ok(it): # como no Quimera: sem o atributo não equipa e, no corpo, não dá bônus
+		t += "\n⛔ %s: %s" % [P.texto_reforco_precisa(it), "sem bônus até subir o atributo" if it in P.prog.equip.values() else "não dá pra equipar"]
+		cor = PIOR
 	var l := rotulo(t, 12, cor)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return l
@@ -2241,10 +2244,16 @@ func montar_janela() -> void:
 	linha.add_child(txt)
 	var cheia: bool = P.prog.mochila.find(null) < 0
 	if atual != null and int(atual.get("e", 0)) < P.reforco_max(atual): # reforçar a peça vestida (igual ao Quimera)
-		var rf := botao("Reforçar", func(): m.reforco.comecar({"lugar": l}, false), 15, true)
-		rf.custom_minimum_size = Vector2(110, 44)
-		rf.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		linha.add_child(rf)
+		var rv := VBoxContainer.new() # uma vez ou até cancelar (para sozinho no limite da peça, do atributo ou do ouro)
+		rv.add_theme_constant_override("separation", 4)
+		rv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var rf := botao("Reforçar 1× · %d" % P.custo_reforco(atual), func(): m.reforco.comecar({"lugar": l}, false), 14, true)
+		rf.custom_minimum_size = Vector2(150, 38)
+		rv.add_child(rf)
+		var ra := botao("Reforçar até cancelar", func(): m.reforco.comecar({"lugar": l}, true), 14)
+		ra.custom_minimum_size = Vector2(150, 38)
+		rv.add_child(ra)
+		linha.add_child(rv)
 	if atual != null:
 		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
 		b.custom_minimum_size = Vector2(96, 44)
@@ -2390,6 +2399,8 @@ func acao_item(msg: Dictionary) -> void:
 		"capacete":
 			P.prog.semCapacete = msg.mostrar == false
 		"equipar":
+			if i >= 0 and P.eh_equip(P.prog.mochila[i]) and not P.reforco_ok(P.prog.mochila[i]):
+				m.hud.aviso(P.texto_reforco_precisa(P.prog.mochila[i]))
 			P.equipar(i)
 		"tirar":
 			var r: String = P.tirar(msg.lugar)

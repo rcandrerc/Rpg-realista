@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa } from './progresso.js';
 import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
@@ -1010,6 +1010,7 @@ export class Simulacao {
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
     if (m.acao === 'equipar' && it && ehEquip(it.k)) {
+      if (!reforcoOk(it, p.atr)) return aviso(textoReforcoPrecisa(it, p.atr)); // reforço acima do atributo (igual ao Quimera)
       const l = ITENS[it.k].lugar;
       p.mochila[i] = p.equip[l]; p.equip[l] = it;
     } else if (m.acao === 'tirar' && p.equip[m.lugar]) {
