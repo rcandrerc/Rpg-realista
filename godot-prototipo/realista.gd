@@ -3,7 +3,7 @@
 # desenho bem mais fino. O rosto continua o do VRoid (anime).
 extends RefCounted
 
-const CONTORNO := 0.0022 # era 0.006 (main.pintar)
+const CONTORNO := 0.0012 # era 0.006 (main.pintar)
 static var _feitos := {}
 
 static func aplicar(no: Node3D) -> void:
@@ -27,7 +27,7 @@ static func _trocar(m: StandardMaterial3D, nome: String) -> Material:
 	if "Outline" in nome:
 		var o: StandardMaterial3D = m.duplicate()
 		o.grow_amount = CONTORNO
-		o.albedo_color = Color(0.2, 0.13, 0.12)
+		o.albedo_color = Color(0.26, 0.17, 0.15)
 		return o
 	if "SKIN" in nome or "SKIN" in m.resource_name:
 		var s := ShaderMaterial.new()
