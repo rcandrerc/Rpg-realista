@@ -3134,7 +3134,16 @@ func _montar_tela_bau() -> void:
 	for qual in ["bau", "mochila"]:
 		var c := VBoxContainer.new()
 		lados.add_child(c)
-		c.add_child(Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 16, Menu.APAGADO))
+		var cab := HBoxContainer.new() # André 2026-11-07: cada lado tem o seu botão Organizar
+		cab.add_theme_constant_override("separation", 8)
+		c.add_child(cab)
+		var tt := Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 16, Menu.APAGADO)
+		tt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		cab.add_child(tt)
+		var org := _botao("Organizar", organizar_bau if qual == "bau" else organizar_mochila_bau, false, 15)
+		org.custom_minimum_size = Vector2(118, 38)
+		cab.add_child(org)
 		var sc := ScrollContainer.new()
 		sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 4 * 60 + 6) # itens + respiro + barra larga
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3153,6 +3162,15 @@ func _montar_tela_bau() -> void:
 			grade_bau = g
 		else:
 			grade_mochila = g
+
+# botões Organizar da janela do baú: o servidor junta as pilhas e põe em ordem (organizar() em shared/progresso.js)
+func organizar_bau() -> void:
+	if m.on():
+		m.rede("bau", {"acao": "organizar"})
+
+func organizar_mochila_bau() -> void:
+	if m.on():
+		m.rede("item", {"acao": "organizar"})
 
 func _montar_bau() -> void:
 	for g in [grade_bau, grade_mochila]:

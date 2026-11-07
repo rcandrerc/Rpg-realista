@@ -754,6 +754,10 @@ func evento(ev: Dictionary) -> void:
 		"aviso":
 			m.hud.aviso(str(ev.texto))
 			return
+		"compra": # comprou na loja (André 2026-11-07): som de moedas e o "+n Item" subindo (menu.gd comprou)
+			if m.menu: # o servidor só manda para quem comprou
+				m.menu.comprou(ev)
+			return
 		"reforco": # reforço de equipamento: o servidor sorteou (reforco.gd mostra na janelinha)
 			if m.reforco:
 				m.reforco.do_servidor(ev)

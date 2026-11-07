@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar } from './progresso.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
@@ -977,6 +977,7 @@ export class Simulacao {
   // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
   //   · { acao: 'vender_varios', lista: [i, ...] } (vende as pilhas inteiras de uma vez) · { acao: 'apagar', i } (joga fora)
   //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
+  //   · { acao: 'organizar' } (junta as pilhas e põe a mochila em ordem: tipo, raridade, nome; ORGANIZAR em shared/dados.js)
   // ---------- dungeon: Caverna da Montanha (André 2026-11-06; shared/caverna.js e CAVERNA_DUNGEON em shared/dados.js) ----------
   // (x, y, z) passou do selo da caverna (do selo para dentro, abaixo do teto do túnel)?
   alemDoSelo(x, z, y) { const c = dentroDaCaverna(TUNEL, x, z, y + 0.3); return !!c && c.s > CAVERNA.porta; }
@@ -1127,13 +1128,32 @@ export class Simulacao {
       aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
     } else if (m.acao === 'comprar' && LOJA[i]) {
       if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
-      const o = LOJA[i], preco = this.precoCompra(j, o);
+      // André 2026-11-07: escolhe a quantidade (m.n, sem n = 1) e compra tudo de uma vez; o que não couber
+      // no ouro ou na mochila fica de fora. O celular toca o som e mostra o "+n" com o evento 'compra'.
+      const o = LOJA[i], preco = this.precoCompra(j, o), equip = ehEquip(o.k);
+      const pedido = Math.min(LOJA_MAX, Math.max(1, Math.floor(Number(m.n) || 1)));
       if (p.ouro < preco) return aviso('Ouro insuficiente');
-      const novo = ehEquip(o.k) ? { k: o.k, r: o.r } : { k: o.k, n: 1 };
-      if (!guardar(p.mochila, novo)) return aviso('Mochila cheia');
-      p.ouro -= preco;
-      this.pontosMercador(j, preco);
-      aviso(`Comprou ${nomeItem(novo)}`);
+      const pilha = equip ? 1 : ITENS[o.k].pilha || 1;
+      let cabe = 0;
+      for (const x of p.mochila) {
+        if (x === null) cabe += pilha;
+        else if (!equip && x.k === o.k && x.h === undefined && x.nv === undefined && x.n < pilha) cabe += pilha - x.n;
+      }
+      if (cabe <= 0) return aviso('Mochila cheia');
+      const n = Math.min(pedido, Math.floor(p.ouro / preco), cabe);
+      for (let falta = n; falta > 0;) {
+        const lote = Math.min(falta, pilha);
+        if (!guardar(p.mochila, equip ? { k: o.k, r: o.r } : { k: o.k, n: lote })) break;
+        falta -= lote;
+      }
+      const total = preco * n;
+      p.ouro -= total;
+      this.pontosMercador(j, total);
+      const novo = equip ? { k: o.k, r: o.r } : { k: o.k, n };
+      const nome = nomeItem(novo);
+      aviso(n > 1 ? `Comprou ${n}x ${nome} por ${total} de ouro` : `Comprou ${nome}`);
+      if (n < pedido) aviso(n >= cabe ? `Só coube ${n} na mochila` : `O ouro deu para ${n}`);
+      this.evento({ t: 'compra', para: j.id, i, k: o.k, r: equip ? o.r : -1, n, ouro: total });
     } else if (m.acao === 'pagina') {
       const tem = p.paginas || 1;
       if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
@@ -1157,6 +1177,9 @@ export class Simulacao {
       const r = reforcar(p, alvo);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
       this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, nome: nomeItem(alvo) });
+    } else if (m.acao === 'organizar') {
+      // botão Organizar da mochila (André 2026-11-07): junta pilhas e põe em ordem de tipo, raridade e nome
+      p.mochila = organizar(p.mochila);
     } else if (m.acao === 'capacete') {
       // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua).
       // 2026-11-07: o merge do reforço tinha engolido este ramo (o capacete escondido voltava a aparecer)
@@ -1999,7 +2022,7 @@ export class Simulacao {
     aviso(`Criou ${ITENS[item].nome}!`);
     this.avisarProg(j);
   }
-  // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar', i }
+  // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar', i }
   // guardar: a pilha do lugar i da mochila vai inteira para o baú; tirar: a pilha do lugar i do baú volta para a mochila
   bau(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
@@ -2019,6 +2042,8 @@ export class Simulacao {
       const prova = p.mochila.map((q) => (q ? { ...q } : null));
       if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
       p.mochila = prova; L.bau[i] = null;
+    } else if (m.acao === 'organizar') { // botão Organizar do baú (André 2026-11-07), igual ao da mochila
+      L.bau = organizar(L.bau);
     } else if (m.acao !== 'abrir') return;
     this.lotesMudados.add(L.def.id);
     this.evento({ t: 'bau', para: id, itens: L.bau, abrir: m.acao === 'abrir' });
