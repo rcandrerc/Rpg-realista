@@ -248,6 +248,8 @@ static func item_int(it):
 			r[c] = int(it[c])
 	if it.has("h"):
 		r.h = str(it.h)
+	if it.get("cad", false): # cadeado (André 2026-11-07): não vende, não joga fora, não vai para troca
+		r.cad = 1
 	return r
 
 func eh_equip(it) -> bool:
@@ -479,7 +481,7 @@ func organizar(lista: Array) -> Array:
 		if eh_equip(o) or not o.has("n") or not dados.itens.has(o.k):
 			itens.append(o.duplicate())
 			continue
-		var chave := "%s|%s|%s" % [o.k, o.get("h", ""), o.get("nv", "")]
+		var chave := "%s|%s|%s|%s" % [o.k, o.get("h", ""), o.get("nv", ""), 1 if o.get("cad", false) else ""] # pilha com cadeado fica à parte
 		if pilhas.has(chave):
 			pilhas[chave].n = int(pilhas[chave].n) + int(o.n)
 		else:

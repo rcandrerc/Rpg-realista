@@ -143,13 +143,16 @@ export function itemValido(it) {
     if (!int(it.r, 0, RARIDADES.length - 1)) return null;
     const v = int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
     if (int(it.e, 1, REFORCO.max[it.r] || 0)) v.e = it.e; // e: reforço (+1, +2...; sem e = +0)
+    if (it.cad) v.cad = 1; // cad: cadeado (André 2026-11-07): não vende, não joga fora, não vai para troca
     return v;
   }
   const n = int(it.n, 1, ITENS[it.k].pilha) ? it.n : 1;
-  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n } : null;
-  return { k: it.k, n };
+  const cad = it.cad ? { cad: 1 } : {};
+  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n, ...cad } : null;
+  return { k: it.k, n, ...cad };
 }
-const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv;
+// pilha com cadeado só junta com pilha com cadeado (o que chega solto não entra no cadeado e o trancado não perde o cadeado)
+const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv && !a.cad === !b.cad;
 // Põe na mochila (junta na pilha igual ou no primeiro lugar vazio). Devolve false se não coube.
 export function guardar(mochila, item) {
   const it = itemValido(item); if (!it) return false;
@@ -181,7 +184,7 @@ export function organizar(lista) {
   for (const o of lista) {
     if (!o || !ITENS[o.k]) { if (o) soltos.push(o); continue; }
     if (ehEquip(o.k) || !o.n) { soltos.push({ ...o }); continue; }
-    const chave = `${o.k}|${o.h || ''}|${o.nv || ''}`;
+    const chave = `${o.k}|${o.h || ''}|${o.nv || ''}|${o.cad ? 1 : ''}`; // pilha com cadeado fica à parte
     const p = pilhas.get(chave);
     if (p) p.n += o.n; else pilhas.set(chave, { ...o });
   }
