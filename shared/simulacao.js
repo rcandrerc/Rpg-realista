@@ -1109,6 +1109,7 @@ export class Simulacao {
         if (s.uso < usosParaSubir(s.nv)) return aviso(`Encha a barra de usos de ${HABS[it.h].nome} primeiro`);
         p.habs[it.h] = { nv: it.nv, uso: 0 };
         aviso(`${HABS[it.h].nome} subiu para Nv ${it.nv}!`);
+        this.evento({ t: 'tomo', para: j.id, h: it.h, nv: it.nv }); // André 2026-11-07: faixa de "Parabéns!" na janela (menu.gd aprendeu)
       } else {
         const u = ITENS[it.k].usar;
         const rc = ((j.pocaoAte ||= {})[it.k] || 0) - this.tempo; // recarga (POCAO_RECARGA)

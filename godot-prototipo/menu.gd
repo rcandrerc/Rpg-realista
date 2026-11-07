@@ -2926,6 +2926,47 @@ func comprou(ev: Dictionary) -> void:
 	tw.parallel().tween_property(caixa_f, "modulate:a", 0.0, 0.5).set_delay(1.1)
 	tw.tween_callback(caixa_f.queue_free)
 
+# aprendeu com o Tomo (André 2026-11-07): faixa pequena e dourada, "Parabéns! Você liberou X Nv N", some sozinha
+func aprendeu(id: String, nv: int) -> void:
+	var P = m.P
+	if not P.habs.has(id):
+		return
+	if m.sons:
+		m.sons.tocar("nivel", -4.0, 0.0)
+	var caixa_f := PanelContainer.new()
+	caixa_f.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.06, 0.045, 0.95), OURO_CLARO, 2, 12, 14))
+	caixa_f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caixa_f.add_child(l)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.ICONE.get(id, ""))
+	ic.custom_minimum_size = Vector2(52, 52)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_child(ic)
+	var txt := VBoxContainer.new()
+	txt.add_theme_constant_override("separation", 0)
+	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	txt.add_child(rotulo("Parabéns!", 24, Color("ffd36a")))
+	txt.add_child(rotulo("Você liberou %s Nv %d" % [P.habs[id].nome, nv], 17, TEXTO))
+	l.add_child(txt)
+	add_child(caixa_f)
+	await get_tree().process_frame
+	if not is_instance_valid(caixa_f):
+		return
+	var tela := get_viewport().get_visible_rect().size
+	caixa_f.position = Vector2((tela.x - caixa_f.size.x) * 0.5, tela.y * 0.16)
+	caixa_f.pivot_offset = caixa_f.size * 0.5
+	caixa_f.scale = Vector2(0.6, 0.6)
+	var tw := caixa_f.create_tween()
+	tw.tween_property(caixa_f, "scale", Vector2(1.08, 1.08), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(caixa_f, "scale", Vector2.ONE, 0.15)
+	tw.tween_property(caixa_f, "modulate:a", 0.0, 0.5).set_delay(2.0)
+	tw.tween_callback(caixa_f.queue_free)
+
 # online o servidor confere e devolve a mochila nova; sem internet muda só neste celular (a loja só funciona online)
 func acao_item(msg: Dictionary) -> void:
 	var P = m.P
@@ -2967,7 +3008,11 @@ func acao_item(msg: Dictionary) -> void:
 		"usar":
 			var it = P.prog.mochila[i]
 			if it.k == "tomo":
-				m.hud.aviso(P.usar_tomo(i))
+				var h := str(it.h)
+				var r: String = P.usar_tomo(i)
+				m.hud.aviso(r)
+				if r.ends_with("!"): # subiu
+					aprendeu(h, P.nivel_de(h))
 			else:
 				P.gastar(i)
 			if P.prog.mochila[i] == null:
