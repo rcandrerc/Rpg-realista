@@ -207,13 +207,30 @@ func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
 			return false
 	return true
 
+# Desempenho (2026-11-07, mapa todo circulável: 184 áreas): cada quadrado de BALDE m guarda só as áreas que encostam
+# nele, então cada conta olha umas poucas áreas em vez de todas (o celular não sente as áreas novas)
+const BALDE := 16.0
+var _baldes := {}
+func _montar_baldes(areas: Array) -> void:
+	_tetos.resize(areas.size())
+	_baldes.clear()
+	for i in areas.size():
+		_tetos[i] = _teto(areas[i])
+		var a: Dictionary = areas[i]
+		var t: float = _tetos[i] + 0.5
+		for bi in range(int(floor((float(a.x) - t) / BALDE)), int(floor((float(a.x) + t) / BALDE)) + 1):
+			for bj in range(int(floor((float(a.z) - t) / BALDE)), int(floor((float(a.z) + t) / BALDE)) + 1):
+				var k := Vector2i(bi, bj)
+				if not _baldes.has(k):
+					_baldes[k] = []
+				_baldes[k].append(i)
+
 func _dentro_de_alguma(px: float, pz: float, margem: float) -> bool:
 	var areas := _areas()
 	if _tetos.size() != areas.size():
-		_tetos.resize(areas.size())
-		for i in areas.size():
-			_tetos[i] = _teto(areas[i])
-	for i in areas.size():
+		_montar_baldes(areas)
+	var idx: Array = _baldes.get(Vector2i(int(floor(px / BALDE)), int(floor(pz / BALDE))), []) if margem >= 0.0 else range(areas.size())
+	for i in idx:
 		var a: Dictionary = areas[i]
 		var d := Vector2(px - float(a.x), pz - float(a.z)).length()
 		if d > _tetos[i] - margem + 0.001:
