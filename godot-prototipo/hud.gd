@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "coletar", "falar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "pocao", "pocao_mana", "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "coletar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
@@ -14,6 +14,8 @@ const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao men
 const COR_GOLPE := Color(0.33, 0.16, 0.12, 0.95)
 const COR_TROCA := Color(0.33, 0.24, 0.12, 0.95)
 const COR_CURA := Color(0.12, 0.3, 0.2, 0.95)
+const COR_POCAO := Color(0.3, 0.1, 0.09, 0.92) # fundo vinho da poção de vida
+const COR_POCAO_MANA := Color(0.09, 0.14, 0.3, 0.92) # fundo azul-noite da poção de mana
 
 var mover := Vector2.ZERO # joystick (-1..1)
 const JOY_RAIO := 90.0 # px do centro até a borda: andar até a metade, correr no fim (era 60, curto demais)
@@ -125,6 +127,15 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 	_botao("afundar", Vector2(333, 158), 30, "afundar", COR_FUNDO)
 	botoes[-1].oculto = true
+	# poções (André 2026-11-07: "um slot pra poção de HP e outro pra poção de mana"): ao lado do painel de vida e mana,
+	# cada uma na altura da barra dela, longe das skills (o lado direito já é cheio). Contados do canto de CIMA à
+	# esquerda (tl), como o painel. Mostram quantas tem na bolsa e a recarga; dá para mover no modo de editar a interface
+	_botao("pocao", Vector2(PAINEL.end.x + 32, PAINEL.position.y + 25), 25, "it_pocao", COR_POCAO)
+	botoes[-1].tl = true
+	botoes[-1].n = 0
+	_botao("pocao_mana", Vector2(PAINEL.end.x + 32, PAINEL.position.y + 83), 25, "it_pocao_mana", COR_POCAO_MANA)
+	botoes[-1].tl = true
+	botoes[-1].n = 0
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
@@ -195,7 +206,15 @@ func aviso(t: String) -> void:
 	_aviso_t = 2.2
 
 func _centro(b: Dictionary) -> Vector2:
+	if b.get("tl", false): # contado do canto de cima à esquerda (poções, ao lado do painel)
+		return b.canto + b.d
 	return _tela.size - b.canto + b.d
+
+# quantas poções a bolsa tem (o número no canto do botão; sem nenhuma o botão fica apagado)
+func contagem(acao: String, n: int) -> void:
+	var b := botao(acao)
+	if not b.is_empty():
+		b.n = n
 
 # onde o painel do herói está agora (o modo de edição pode ter mudado lugar e tamanho)
 func painel_rect() -> Rect2:
@@ -346,7 +365,8 @@ func zona_morta(p: Vector2) -> bool:
 		if b.oculto:
 			continue
 		var c := _centro(b)
-		if p.distance_to(c) <= b.raio * 1.15 + FOLGA_BOTAO:
+		# poções (canto de cima): folga curta, para não roubar o joystick de quem começa a andar ali perto
+		if p.distance_to(c) <= b.raio * 1.15 + (8.0 if b.get("tl", false) else FOLGA_BOTAO):
 			return true
 		if b.acao == "basico" and _arco_padrao(): # o arco inteiro das skills (inclui os vãos entre elas)
 			var v := p - c
@@ -446,7 +466,9 @@ func _desenhar_combate() -> void:
 		if t:
 			var s := r * 1.15
 			# ligado: ícone no marrom escuro do fundo, para não perder contraste no âmbar
-			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado or b.get("n", -1) == 0 else Color.WHITE)
+			if b.has("n"): # poção pintada: um pouco maior, ocupa o círculo
+				s = r * 1.45
 			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Menu.tinta(t, cor_ico))
 		if b.travado: # ainda não liberada no nível do herói
 			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
@@ -455,6 +477,11 @@ func _desenhar_combate() -> void:
 		if b.pronto_t > 0.0: # voltou a ficar pronta: anel que abre e some
 			var k: float = 1.0 - b.pronto_t / 0.45
 			_combate.draw_circle(c, r * (1.0 + 0.35 * k), Color(cor_borda.lightened(0.4), 0.85 * (1.0 - k)), false, 3.0)
+		if b.has("n"): # quantas tem na bolsa, embaixo à direita (contorno escuro: lê em cima do frasco)
+			var tn := str(b.n)
+			var pn := c + Vector2(r * 0.42, r * 0.98)
+			_combate.draw_string_outline(fonte, pn, tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.85))
+			_combate.draw_string(fonte, pn, tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 0.92, 0.7) if b.n > 0 else Color(0.75, 0.7, 0.65))
 		if b.cd > 0.0:
 			var frac: float = b.cd / b.cd_max
 			_combate.draw_arc(c, r * 0.5, -PI / 2, -PI / 2 + TAU * frac, 24, Color(0, 0, 0, 0.55), r, true)
