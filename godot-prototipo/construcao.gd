@@ -1931,8 +1931,10 @@ func _process(dt: float) -> void:
 	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
 	m.hud.mostrar_botao("correio", correio and vivo and not livre)
 	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
+	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
+	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
 	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
-	m.hud.mostrar_botao("cama", noite and ((no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
+	m.hud.mostrar_botao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
 	_passo_ir_estacao()
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
@@ -2168,6 +2170,20 @@ func tocar_botao_construir() -> void:
 		abrir()
 
 # ponto do chão debaixo do dedo (plano na altura da mira, refinado duas vezes pelo relevo)
+# o toque caiu em cima de uma cama minha? (distância do raio da câmera até o meio da cama, ~0,5 m acima do chão)
+func _tocou_cama(pos: Vector2) -> bool:
+	if m.camera == null or m.heroi == null or m.h.morto > 0.0:
+		return false
+	var o: Vector3 = m.camera.project_ray_origin(pos)
+	var d: Vector3 = m.camera.project_ray_normal(pos)
+	for p in _pecas_minhas(["cama"]):
+		var c := Vector3(p.x, _piso(p.x, p.z) + 0.45, p.z)
+		var t: float = maxf(0.0, (c - o).dot(d))
+		if (o + d * t).distance_to(c) < 1.1 and t < 40.0:
+			tocar_estacao("cama")
+			return true
+	return false
+
 func _chao_na_tela(pos: Vector2):
 	if m.camera == null:
 		return null
@@ -2187,6 +2203,8 @@ func _chao_na_tela(pos: Vector2):
 
 # toque rápido no chão com o modo aberto: a mira vai para lá
 func tocou_tela(pos: Vector2) -> void:
+	if not ativo and not comprando and _tocou_cama(pos): # tocar na minha cama: vai até ela e dorme (ou diz por que não)
+		return
 	if comprando and not cobre(pos):
 		var a = _alca_na_tela(pos, ["mais", "menos"])
 		if a != null:
