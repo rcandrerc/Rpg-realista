@@ -478,35 +478,30 @@ func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) 
 # barra fina com um brilho em cima (estamina e vigor)
 func _barra_fina(pos: Vector2, tam: Vector2, frac: float, cor: Color, claro: Color) -> void:
 	_tela.draw_rect(Rect2(pos - Vector2(1, 1), tam + Vector2(2, 2)), Color(0, 0, 0, 0.55))
-	var w := tam.x * clamp(frac, 0.0, 1.0)
+	var w: float = tam.x * clampf(frac, 0.0, 1.0)
 	if w > 0.5:
 		_tela.draw_rect(Rect2(pos, Vector2(w, tam.y)), cor)
 		_tela.draw_rect(Rect2(pos, Vector2(w, max(1.0, tam.y * 0.35))), Color(claro, 0.55))
 
-# simbolozinho na frente da barra: estamina = raio (fôlego), vigor = picareta (trabalho, o ⛏️ do Quimera)
+# simbolozinho na frente da barra: estamina = o boneco correndo do botão de disparada (é ela que gasta a estamina);
+# vigor = picareta (o ⛏️ do Quimera: vigor é a energia de trabalhar); traço branco tingido com a cor da barra
 func _icone_barra(qual: String, c: Vector2, cor: Color) -> void:
-	var esc := Color(0.05, 0.04, 0.03, 0.9)
-	if qual == "estamina":
-		var r := PackedVector2Array([c + Vector2(1.2, -5.2), c + Vector2(-3.4, 0.6), c + Vector2(-0.2, 0.6), c + Vector2(-1.4, 5.2), c + Vector2(3.4, -1.0), c + Vector2(0.3, -1.0), c + Vector2(1.6, -5.2)])
-		var contorno := PackedVector2Array(r)
-		contorno.append(r[0])
-		_tela.draw_polyline(contorno, esc, 2.4, true)
-		_tela.draw_colored_polygon(r, cor)
-	else:
-		# cabo de madeira na diagonal e a cabeça curva de ferro
-		_tela.draw_line(c + Vector2(-3.6, 4.2), c + Vector2(2.6, -2.2), esc, 3.4, true)
-		_tela.draw_line(c + Vector2(-3.6, 4.2), c + Vector2(2.6, -2.2), Color(0.72, 0.5, 0.28), 1.8, true)
-		var cab := PackedVector2Array()
-		for i in 9:
-			var a := lerpf(-2.55, 0.55, i / 8.0)
-			cab.append(c + Vector2(1.9, -1.6) + Vector2(cos(a), sin(a)) * 4.6)
-		_tela.draw_polyline(cab, esc, 3.6, true)
-		_tela.draw_polyline(cab, cor, 2.0, true)
+	var nome := "disparada" if qual == "estamina" else "picareta"
+	if not _icones.has("barra_" + nome):
+		_icones["barra_" + nome] = Menu.icone_tex(nome)
+	var tx: Texture2D = _icones["barra_" + nome]
+	if tx == null:
+		return
+	var t := 13.0
+	var r := Rect2(c - Vector2(t, t) * 0.5, Vector2(t, t))
+	for o in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]: # contorno escuro
+		_tela.draw_texture_rect(tx, Rect2(r.position + o, r.size), false, Color(0, 0, 0, 0.8))
+	_tela.draw_texture_rect(tx, r, false, cor.lerp(Color.WHITE, 0.15))
 
 # XP (Quimera): barra um pouco mais alta com "XP" à esquerda e o percentual com 2 casas à direita, letra pequena
 func _barra_xp(pos: Vector2, tam: Vector2) -> void:
 	_tela.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.5))
-	var w := tam.x * clamp(xp, 0.0, 1.0)
+	var w: float = tam.x * clampf(xp, 0.0, 1.0)
 	if w > 0.5:
 		_tela.draw_rect(Rect2(pos, Vector2(w, tam.y)), Color(0.66, 0.42, 0.82))
 		_tela.draw_rect(Rect2(pos, Vector2(w, 3)), Color(0.9, 0.74, 1.0, 0.6))
@@ -557,11 +552,13 @@ func _desenhar() -> void:
 	_barra(p0 + Vector2(92, 51), Vector2(225, 17), mana, Color(0.22, 0.45, 0.85), texto_mana)
 	# André 2026-11-07 (igual ao Quimera): embaixo da mana, estamina (amarela; sem fôlego fica ocre até voltar) e vigor
 	# (dourado; acabando fica vermelho), cada uma com o seu simbolozinho; e o XP com "XP" e o percentual dentro da barra
-	_icone_barra("estamina", p0 + Vector2(98, 74.5), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
-	_barra_fina(p0 + Vector2(107, 71), Vector2(210, 7), estamina, Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32), Color(1.0, 0.95, 0.65))
-	_icone_barra("vigor", p0 + Vector2(98, 84), Color(0.88, 0.36, 0.28) if vigor < 0.15 else Color(0.96, 0.74, 0.3))
-	_barra_fina(p0 + Vector2(107, 81.5), Vector2(210, 5), vigor, Color(0.88, 0.29, 0.24) if vigor < 0.15 else Color(0.95, 0.72, 0.26), Color(1.0, 0.93, 0.62))
-	_barra_xp(p0 + Vector2(92, 89), Vector2(225, 11))
+	var cor_sta := Color(0.86, 0.6, 0.22) if sem_folego else Color(0.71, 0.88, 0.29) # verde-limão do Quimera (b6e04a)
+	var cor_vig := Color(0.88, 0.29, 0.24) if vigor < 0.15 else Color(0.95, 0.77, 0.3) # dourado do Quimera (f2c94c)
+	_icone_barra("estamina", p0 + Vector2(103, 74.5), cor_sta)
+	_barra_fina(p0 + Vector2(113, 71), Vector2(204, 7), estamina, cor_sta, Color(0.96, 1.0, 0.7))
+	_icone_barra("vigor", p0 + Vector2(103, 84.5), cor_vig)
+	_barra_fina(p0 + Vector2(113, 82), Vector2(204, 5), vigor, cor_vig, Color(1.0, 0.96, 0.7))
+	_barra_xp(p0 + Vector2(92, 91), Vector2(225, 11))
 	_tela.draw_set_transform(Vector2.ZERO)
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
