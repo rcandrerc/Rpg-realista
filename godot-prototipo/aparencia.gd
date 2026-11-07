@@ -113,6 +113,7 @@ static func aplicar(no: Node3D, ap) -> void:
 	elif no.has_meta("pele_cor"):
 		no.remove_meta("pele_cor")
 	load("res://armadura.gd").atualizar_pele(no)
+	preload("res://realista.gd").aplicar(no)
 
 static func _parte(base, malha: Mesh, i: int) -> String:
 	if not (base is StandardMaterial3D) or base.albedo_texture == null:
@@ -149,6 +150,7 @@ static func _contorno(base: StandardMaterial3D, cor: int) -> Material:
 	if not _tingidos.has(chave):
 		var n: StandardMaterial3D = base.duplicate()
 		n.albedo_color = _cor(cor).darkened(0.55).lerp(Color(0.12, 0.08, 0.08), 0.3)
+		n.set_meta("tingido", true) # Realista: fica com esta cor
 		_tingidos[chave] = n
 	return _tingidos[chave]
 
@@ -242,6 +244,8 @@ static func _tingido(base: StandardMaterial3D, cor: int, parte: String) -> Mater
 	# cabelo claro não estoura em branco chapado (a luz do Godot clareia bastante): no máximo uns #b8b5ae no material, para o degrau de sombra aparecer
 	sm.set_shader_parameter("tinta_teto", _esp(Color.WHITE * (0.62 if parte == "cabelo" else 0.95)).x)
 	sm.render_priority = base.render_priority
+	sm.set_meta("parte", parte) # Realista troca a pele tingida pela pele realista com a mesma tinta
+	sm.set_meta("base", base)
 	_tingidos[chave] = sm
 	return sm
 
