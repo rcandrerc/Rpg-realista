@@ -21,3 +21,13 @@ const b = new Simulacao(MAPA_CLAREIRA), jb = b.adicionarJogador('B', 'Bia');
 jb.criando = false; jb.morto = false;
 for (let i = 0; i < 2000 && (jb.prog.habs.espada_basico?.nv || 1) < 5; i++) { jb.trava = 0; jb.cds = {}; b.usarHabQ('B', 'espada_basico'); b.passo?.(0.05); }
 ok((jb.prog.habs.espada_basico?.nv || 1) === 5, 'ataque de espada chega ao Nv 5 usando');
+// faixa de "Parabéns!" (André 2026-11-07): ao aprender com o Tomo o servidor manda o evento 'tomo'
+{
+  const t = new Simulacao(MAPA_CLAREIRA), jt = t.adicionarJogador('P', 'Pia');
+  jt.criando = false; jt.morto = false;
+  jt.prog.habs.corte_duplo = { nv: 6, uso: 999 };
+  jt.prog.mochila[0] = { k: 'tomo', h: 'corte_duplo', nv: 7, n: 1 };
+  const evs = []; const ev0 = t.evento.bind(t); t.evento = (e) => { evs.push(e); return ev0(e); };
+  t.item('P', { acao: 'usar', i: 0 });
+  ok(jt.prog.habs.corte_duplo.nv === 7 && evs.some((e) => e.t === 'tomo' && e.para === jt.id && e.h === 'corte_duplo' && e.nv === 7), 'aprender manda o evento da faixa de Parabéns');
+}
