@@ -58,6 +58,11 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 		var lim: Array = criador.rosto[k]
 		var v = d.get(k)
 		r[k] = snappedf(clampf(float(v) if v != null else 1.0, float(lim[0]), float(lim[1])), 0.01)
+	# penteado: cabelo de outro modelo (penteado.gd); só os da lista do criador
+	r.penteado = null
+	for l in criador.get("penteados", {}).values():
+		if d.get("penteado") != null and str(d.penteado) in l:
+			r.penteado = str(d.penteado)
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)
@@ -65,6 +70,8 @@ static func aplicar(no: Node3D, ap) -> void:
 	var a: Dictionary = ap if ap is Dictionary else {}
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)
+	# antes das cores: o cabelo trocado também pega a cor de cabelo escolhida
+	preload("res://penteado.gd").aplicar(no, a.get("penteado"))
 	for mi in no.find_children("*", "MeshInstance3D", true, false):
 		var malha: Mesh = mi.mesh
 		if malha == null:
