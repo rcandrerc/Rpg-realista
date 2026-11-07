@@ -124,6 +124,10 @@ var grade_bau: GridContainer
 var grade_mochila: GridContainer
 var txt_bau: Label
 var bau_itens: Array = []
+var rolar_bau: Array = [] # as duas listas (baú e mochila): rolam arrastando o dedo em cima dos itens
+var _bau_dentro: ScrollContainer = null
+var _bau_soma := 0.0
+var _bau_arrastou := false # arrastou a lista: o item embaixo do dedo não vale
 
 const VEL_MIRA := 7.0 # m/s da mira com o joystick (Quimera: 7)
 const ESCALA_UI := 1.0
@@ -3030,6 +3034,30 @@ func do_bau(ev: Dictionary) -> void:
 func fechar_bau() -> void:
 	painel_bau.visible = false
 
+# baú aberto: arrastar o dedo para cima/baixo em cima dos itens rola a lista; um toque parado ainda guarda/tira
+func _input(ev: InputEvent) -> void:
+	if painel_bau == null or not painel_bau.visible:
+		return
+	if ev is InputEventScreenTouch:
+		if ev.pressed:
+			_bau_dentro = null
+			for sc in rolar_bau:
+				var vb: VScrollBar = sc.get_v_scroll_bar()
+				if sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.get_global_rect().has_point(ev.position)):
+					_bau_dentro = sc # na barra não: a própria barra rola
+			_bau_soma = 0.0
+			_bau_arrastou = false
+		else:
+			_bau_dentro = null
+			if _bau_arrastou: # o soltar passa, mas o item não dispara
+				(func(): _bau_arrastou = false).call_deferred()
+	elif ev is InputEventScreenDrag and _bau_dentro != null:
+		_bau_soma += abs(ev.relative.y)
+		if _bau_soma > 12.0:
+			_bau_arrastou = true
+		_bau_dentro.scroll_vertical -= int(round(ev.relative.y))
+		get_viewport().set_input_as_handled()
+
 func _montar_tela_bau() -> void:
 	painel_bau = PanelContainer.new()
 	painel_bau.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.96), Menu.OURO.darkened(0.25), 2, 10, 10))
@@ -3057,14 +3085,19 @@ func _montar_tela_bau() -> void:
 		lados.add_child(c)
 		c.add_child(Menu.rotulo("No baú (toque para tirar)" if qual == "bau" else "Mochila (toque para guardar)", 16, Menu.APAGADO))
 		var sc := ScrollContainer.new()
-		sc.custom_minimum_size = Vector2(7 * 60, 4 * 60 + 6)
+		sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 4 * 60 + 6) # itens + respiro + barra larga
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		Menu.barra_larga(sc)
 		c.add_child(sc)
+		rolar_bau.append(sc)
+		var margem := MarginContainer.new() # respiro entre os itens e a barra: o dedo não pega item ao mirar na barra
+		margem.add_theme_constant_override("margin_right", 12)
+		sc.add_child(margem)
 		var g := GridContainer.new()
 		g.columns = 7
 		g.add_theme_constant_override("h_separation", 4)
 		g.add_theme_constant_override("v_separation", 4)
-		sc.add_child(g)
+		margem.add_child(g)
 		if qual == "bau":
 			grade_bau = g
 		else:
@@ -3079,7 +3112,9 @@ func _montar_bau() -> void:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
 			cheios += 1
-		var fn := func(): m.rede("bau", {"acao": "tirar", "i": i})
+		var fn := func():
+			if not _bau_arrastou:
+				m.rede("bau", {"acao": "tirar", "i": i})
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
 	txt_bau.text = "Baú · %d/%d" % [cheios, int(D.get("bau", {}).get("slots", 40))]
 	var moch: Array = m.P.prog.get("mochila", [])
@@ -3087,7 +3122,9 @@ func _montar_bau() -> void:
 		var it = moch[i]
 		if it == null:
 			continue
-		var fn := func(): m.rede("bau", {"acao": "guardar", "i": i})
+		var fn := func():
+			if not _bau_arrastou:
+				m.rede("bau", {"acao": "guardar", "i": i})
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
 
 func trocar_aba(k: String) -> void:

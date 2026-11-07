@@ -143,6 +143,25 @@ func _ready() -> void:
 	moldura.add_child(x)
 
 # ---------- peças de estilo ----------
+# barra de rolar larga, fácil de pegar com o dedo (André 2026-11-07: na mochila cheia o toque caía nos itens)
+static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
+	var vb := sc.get_v_scroll_bar()
+	vb.custom_minimum_size.x = largura
+	var trilho := StyleBoxFlat.new()
+	trilho.bg_color = Color(0.03, 0.026, 0.022, 0.9)
+	trilho.set_corner_radius_all(int(largura / 2.0))
+	trilho.content_margin_left = largura / 2.0
+	trilho.content_margin_right = largura / 2.0
+	vb.add_theme_stylebox_override("scroll", trilho)
+	vb.add_theme_stylebox_override("scroll_focus", trilho)
+	for e in [["grabber", 0.55], ["grabber_highlight", 0.75], ["grabber_pressed", 0.95]]:
+		var g := StyleBoxFlat.new()
+		g.bg_color = Color(OURO, e[1])
+		g.set_corner_radius_all(int(largura / 2.0))
+		g.border_color = Color(0.03, 0.026, 0.022, 0.9)
+		g.set_border_width_all(3) # um respiro dentro do trilho
+		vb.add_theme_stylebox_override(e[0], g)
+
 static func caixa(cor: Color, borda: Color, b := 1, raio := 6, sombra := 0) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = cor
@@ -609,6 +628,7 @@ func montar_direita() -> Control:
 	rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rolagem.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fundo.add_child(rolagem)
+	barra_larga(rolagem)
 	conteudo = VBoxContainer.new()
 	conteudo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	conteudo.add_theme_constant_override("separation", 8)
@@ -699,6 +719,9 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_arrasto_dentro = rol.get_global_rect().has_point(ev.position)
+			var vb := rol.get_v_scroll_bar()
+			if vb.visible and vb.get_global_rect().has_point(ev.position):
+				_arrasto_dentro = false # dedo na barra: a própria barra rola, no sentido dela
 			_arrasto_soma = 0.0
 			_arrastou = false
 		else:
