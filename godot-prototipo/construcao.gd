@@ -128,6 +128,11 @@ var grade_bau: GridContainer
 var grade_mochila: GridContainer
 var txt_bau: Label
 var bau_itens: Array = []
+var bau_slots := 40 # lugares do baú (André 2026-11-07: Melhorar 40 → 60 → 80)
+var bau_prox = null # custo do próximo tamanho ({lenha, barra_ferro, ouro...}) ou null se já é o maior
+var bau_prox_slots := 0
+var bt_melhorar: Button
+var txt_melhorar: Label
 var rolar_bau: Array = [] # as duas listas (baú e mochila): rolam arrastando o dedo em cima dos itens
 var _bau_dentro: ScrollContainer = null
 var _bau_soma := 0.0
@@ -3626,6 +3631,9 @@ func abrir_bau() -> void:
 # o servidor mandou o baú (ao abrir, ou depois de guardar ou tirar)
 func do_bau(ev: Dictionary) -> void:
 	bau_itens = ev.get("itens", []) if ev.get("itens") is Array else []
+	bau_slots = int(ev.get("slots", bau_itens.size() if bau_itens.size() > 0 else 40))
+	bau_prox = ev.get("prox") if ev.get("prox") is Dictionary else null
+	bau_prox_slots = int(ev.get("proxSlots", 0))
 	if ev.get("abrir", false):
 		painel_bau.visible = true
 		m.sons.tocar("pano", -6.0)
@@ -3675,6 +3683,12 @@ func _montar_tela_bau() -> void:
 	txt_bau = Menu.rotulo("Baú", 20, Menu.OURO)
 	txt_bau.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	topo.add_child(txt_bau)
+	txt_melhorar = Menu.rotulo("", 14, Menu.APAGADO) # custo do próximo tamanho
+	txt_melhorar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	topo.add_child(txt_melhorar)
+	bt_melhorar = _botao("Melhorar", melhorar_bau, false, 16)
+	bt_melhorar.custom_minimum_size = Vector2(130, 46)
+	topo.add_child(bt_melhorar)
 	var fe := _botao("Fechar", fechar_bau, false, 18)
 	fe.custom_minimum_size = Vector2(120, 46)
 	topo.add_child(fe)
@@ -3713,6 +3727,11 @@ func _montar_tela_bau() -> void:
 		else:
 			grade_mochila = g
 
+# Melhorar o baú (André 2026-11-07): o servidor confere o custo, tira da mochila e aumenta os lugares (shared/simulacao.js bau)
+func melhorar_bau() -> void:
+	if m.on():
+		m.rede("bau", {"acao": "melhorar"})
+
 # botões Organizar da janela do baú: o servidor junta as pilhas e põe em ordem (organizar() em shared/progresso.js)
 func organizar_bau() -> void:
 	if m.on():
@@ -3727,7 +3746,15 @@ func _montar_bau() -> void:
 		for n in g.get_children():
 			n.queue_free()
 	var cheios := 0
-	for i in int(D.get("bau", {}).get("slots", 40)):
+	if bau_prox != null:
+		var partes: Array = []
+		for k in bau_prox:
+			partes.append(("%d de ouro" % int(bau_prox[k])) if k == "ouro" else ("%d %s" % [int(bau_prox[k]), m.P.nome_item({"k": k})]))
+		txt_melhorar.text = "Para %d lugares:\n%s" % [bau_prox_slots, ", ".join(partes)]
+	else:
+		txt_melhorar.text = "Tamanho máximo"
+	bt_melhorar.visible = bau_prox != null
+	for i in bau_slots:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
 			cheios += 1
@@ -3735,7 +3762,7 @@ func _montar_bau() -> void:
 			if not _bau_arrastou:
 				m.rede("bau", {"acao": "tirar", "i": i})
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
-	txt_bau.text = "Baú · %d/%d" % [cheios, int(D.get("bau", {}).get("slots", 40))]
+	txt_bau.text = "Baú · %d/%d" % [cheios, bau_slots]
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]

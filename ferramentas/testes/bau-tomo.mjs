@@ -20,3 +20,22 @@ ok(s.loteDe(a).bau.some((o) => o && o.k === 'lenha'), 'lenha continua entrando')
 const iT = s.loteDe(a).bau.findIndex((o) => o && o.k === 'tomo');
 s.bau('A', { acao: 'tirar', i: iT }); e = ev();
 ok(a.prog.mochila.some((o) => o && o.k === 'tomo' && o.nv === 7), 'Tomo voltou para a mochila ' + avisos(e));
+// Melhorar o baú (André 2026-11-07): 40 → 60 → 80, os itens ficam dentro, custo sai da mochila e do ouro
+const L = s.loteDe(a);
+ok(L.bau.length === 40, 'baú começa com 40 lugares');
+a.prog.mochila.fill(null); a.prog.ouro = 100;
+s.bau('A', { acao: 'melhorar' }); e = ev();
+ok(L.bau.length === 40 && avisos(e).includes('falta'), 'sem material não melhora: ' + avisos(e));
+a.prog.ouro = 5000; a.prog.mochila[0] = { k: 'lenha', n: 50 }; a.prog.mochila[1] = { k: 'barra_ferro', n: 10 };
+s.bau('A', { acao: 'melhorar' }); e = ev();
+const evb = e.find((x) => x.t === 'bau');
+ok(L.bau.length === 60 && L.bauNv === 1 && evb.slots === 60 && evb.proxSlots === 80, 'melhorou para 60 ' + avisos(e));
+ok(a.prog.ouro === 4500 && a.prog.mochila[0].n === 20 && !a.prog.mochila[1], 'gastou 30 lenha, 10 barras de ferro e 500 de ouro');
+ok(L.bau.some((o) => o && o.k === 'lenha'), 'o que estava no baú continua lá');
+a.prog.mochila[0] = { k: 'lenha', n: 50 }; a.prog.mochila[2] = { k: 'lenha', n: 50 }; a.prog.mochila[1] = { k: 'barra_aco', n: 15 };
+s.bau('A', { acao: 'melhorar' }); e = ev();
+ok(L.bau.length === 80 && e.find((x) => x.t === 'bau').prox === null, 'melhorou para 80, o maior ' + avisos(e));
+s.bau('A', { acao: 'melhorar' }); ok(avisos(ev()).includes('máximo'), 'não passa de 80');
+// salva e carrega com 80 lugares
+const salvo = s.lotesParaSalvar().find((x) => x.id === L.def.id);
+ok(salvo && salvo.dados.bauNv === 2 && salvo.dados.bau.length === 80, 'salva o tamanho do baú');
