@@ -24,6 +24,6 @@ Montados com ffmpeg a partir dos pacotes Kenney (CC0 1.0, uso comercial liberado
 
 | Arquivo | O que é | Gravações |
 |---|---|---|
-| arvore_range | rangido grave do tronco começando a tombar | kenney_rpg-audio creak1, creak2, creak3 (mais devagar e graves, emendados) |
+| arvore_range | galhos estalando em sequência enquanto o tronco tomba, com folhas raspando nos galhos (troca pedida pelo André em 2026-11-07: o rangido antigo parecia cadeira arrastando em ferro) | kenney_impact-sounds impactWood_light_000-004, impactPlank_medium_000-004 (mais agudos, emendados) e footstep_grass_000-004 (folhas) |
 | arvore_estalo | tronco e galhos quebrando (lascas em sequência) | kenney_impact-sounds impactWood_light_000-002 + kenney_rpg-audio chop |
-| arvore_queda | baque pesado da árvore no chão, com o quique | kenney_impact-sounds impactWood_heavy_000, 002, 003 (mais graves) |
+| arvore_queda | baque pesado da árvore no chão, com o quique e a copa batendo (folhas) | kenney_impact-sounds impactWood_heavy_000, 002, 003 (mais graves), footstep_grass_001, 003 e impactSoft_heavy_002 |

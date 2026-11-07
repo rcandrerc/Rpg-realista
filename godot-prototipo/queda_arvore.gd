@@ -95,7 +95,7 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 			mi.material_override = p.mat
 		piv.add_child(mi)
 	var alto: float = 7.0 * float(o.r) / 0.32 # ~7 m de árvore por escala 1 (raio do tronco 0,32)
-	# sons (Kenney CC0): o tronco estala e range enquanto cede; no meio da queda os galhos ainda quebram
+	# sons (Kenney CC0): o tronco estala e os galhos vão quebrando com folhas enquanto cede; no meio da queda os galhos ainda quebram
 	m.sons.tocar("arvore_estalo", 0.0, 0.06, pos)
 	m.sons.tocar("arvore_range", -1.0, 0.05, pos)
 	var ts := create_tween()
