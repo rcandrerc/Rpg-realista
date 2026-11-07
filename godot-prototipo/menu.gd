@@ -2378,12 +2378,211 @@ func montar_loja() -> void:
 		l.add_child(txt)
 		var preco: int = P.preco_compra(o)
 		var pode: bool = int(P.prog.ouro) >= preco
-		var b := botao("Comprar · %d" % preco, func(): acao_item({"acao": "comprar", "i": i}), 14, pode)
+		var b := botao("Comprar · %d" % preco, func(): escolher_quantidade(i), 14, pode) # André 2026-11-07: escolhe quantos
 		b.custom_minimum_size = Vector2(140, 40)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
 		l.add_child(b)
 		conteudo.add_child(l)
+
+# ---------- comprar várias de uma vez (André 2026-11-07) ----------
+# Tocar em Comprar abre a janelinha da quantidade: − e + (segurar repete e acelera), Máx (o que o ouro e a mochila deixam),
+# o total em ouro e Comprar, que manda tudo de uma vez ({ acao: 'comprar', i, n }; o servidor confere ouro e espaço).
+# Quando o servidor confirma (evento 'compra'), toca o som de moedas e sobe o "+20 Semente de cenoura" (comprou()).
+var _qtd := 1
+var _qtd_max := 1
+var _qtd_repete: Timer
+var _qtd_passo := 1 # quanto o − / + segurado anda (acelera)
+var _qtd_vezes := 0
+
+# quantos desse item ainda cabem na mochila (igual ao servidor: pilhas iguais com espaço + lugares vazios)
+func cabe_na_mochila(o: Dictionary) -> int:
+	var P = m.P
+	var equip: bool = P.dados.itens[str(o.k)].has("lugar")
+	var pilha: int = 1 if equip else int(P.dados.itens[str(o.k)].get("pilha", 1))
+	var n := 0
+	for x in P.prog.mochila:
+		if x == null:
+			n += pilha
+		elif not equip and str(x.k) == str(o.k) and not x.has("h") and not x.has("nv") and int(x.n) < pilha:
+			n += pilha - int(x.n)
+	return n
+
+func escolher_quantidade(i: int) -> void:
+	var P = m.P
+	var o: Dictionary = P.dados.loja[i]
+	var equip: bool = P.dados.itens[str(o.k)].has("lugar")
+	var it := {"k": str(o.k), "r": int(o.r)} if equip else {"k": str(o.k), "n": 1}
+	var preco: int = P.preco_compra(o)
+	var cabe := cabe_na_mochila(o)
+	_qtd_max = mini(int(P.dados.get("lojaMax", 999)), mini(int(P.prog.ouro) / maxi(1, preco), cabe))
+	if _qtd_max <= 0:
+		m.hud.aviso("Mochila cheia" if cabe <= 0 else "Ouro insuficiente")
+		return
+	_qtd = 1
+	fechar_confirma()
+	_confirma = Control.new()
+	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_confirma)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0, 0, 0, 0.5)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_confirma.add_child(escuro)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 10, 16))
+	cx.set_anchors_preset(Control.PRESET_CENTER)
+	cx.custom_minimum_size = Vector2(460, 0)
+	cx.position = Vector2(-230, -150)
+	_confirma.add_child(cx)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	cx.add_child(col)
+	# o item: ícone, nome e preço de cada um
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 12)
+	topo.add_child(celula(it, false, func(): pass, 56))
+	var nomes := VBoxContainer.new()
+	nomes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nomes.alignment = BoxContainer.ALIGNMENT_CENTER
+	nomes.add_child(rotulo(P.nome_item(it), 18, P.cor_item(it)))
+	nomes.add_child(rotulo("%d de ouro cada · você tem %d" % [preco, int(P.prog.ouro)], 13, APAGADO))
+	topo.add_child(nomes)
+	col.add_child(topo)
+	# − quantidade + e Máx
+	var linha_q := HBoxContainer.new()
+	linha_q.alignment = BoxContainer.ALIGNMENT_CENTER
+	linha_q.add_theme_constant_override("separation", 10)
+	col.add_child(linha_q)
+	var menos := botao_repete("−", -1)
+	linha_q.add_child(menos)
+	var caixa_n := PanelContainer.new()
+	caixa_n.add_theme_stylebox_override("panel", caixa(Color(0.04, 0.035, 0.03, 1), OURO, 1, 8, 6))
+	caixa_n.custom_minimum_size = Vector2(110, 56)
+	var num := rotulo("1", 28, OURO_CLARO)
+	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	num.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caixa_n.add_child(num)
+	linha_q.add_child(caixa_n)
+	var mais := botao_repete("+", 1)
+	linha_q.add_child(mais)
+	var maximo := botao("Máx", func(): mudar_qtd(_qtd_max - _qtd), 16)
+	maximo.custom_minimum_size = Vector2(72, 56)
+	linha_q.add_child(maximo)
+	var limite := rotulo("", 12, APAGADO)
+	limite.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	limite.text = "Até %d (%s)" % [_qtd_max, "o que cabe na mochila" if _qtd_max >= cabe else "o que o ouro paga" if _qtd_max < int(P.dados.get("lojaMax", 999)) else "por vez"]
+	col.add_child(limite)
+	# total e botões
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 10)
+	col.add_child(linha)
+	var total := HBoxContainer.new()
+	total.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	total.add_theme_constant_override("separation", 6)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex("it_ouro")
+	ic.custom_minimum_size = Vector2(24, 24)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	total.add_child(ic)
+	var t_total := rotulo("", 18, Color("ffd36a"))
+	t_total.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	total.add_child(t_total)
+	linha.add_child(total)
+	var nao := botao("Cancelar", fechar_confirma, 15)
+	nao.custom_minimum_size = Vector2(110, 48)
+	linha.add_child(nao)
+	var ok := botao("Comprar", func():
+		var n := _qtd
+		fechar_confirma()
+		acao_item({"acao": "comprar", "i": i, "n": n}), 16, true)
+	ok.custom_minimum_size = Vector2(130, 48)
+	linha.add_child(ok)
+	var mostrar := func():
+		num.text = str(_qtd)
+		t_total.text = "Total: %d de ouro" % (_qtd * preco)
+		ok.text = "Comprar %d" % _qtd
+		menos.disabled = _qtd <= 1
+		mais.disabled = _qtd >= _qtd_max
+		maximo.disabled = _qtd >= _qtd_max
+	_confirma.set_meta("mostrar", mostrar)
+	mostrar.call()
+
+func mudar_qtd(d: int) -> void:
+	_qtd = clampi(_qtd + d, 1, maxi(1, _qtd_max))
+	if _confirma and _confirma.has_meta("mostrar"):
+		(_confirma.get_meta("mostrar") as Callable).call()
+
+# − / + que repetem enquanto o dedo segura (começa de 1 em 1, depois de 5 em 5 e de 10 em 10)
+func botao_repete(t: String, sinal: int) -> Button:
+	var b := Button.new()
+	b.text = t
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 28)
+	b.custom_minimum_size = Vector2(64, 56)
+	estilo_botao(b, true)
+	b.button_down.connect(func():
+		mudar_qtd(sinal)
+		_qtd_vezes = 0
+		_qtd_passo = sinal
+		if _qtd_repete == null:
+			_qtd_repete = Timer.new()
+			add_child(_qtd_repete)
+			_qtd_repete.timeout.connect(func():
+				if _confirma == null or not _confirma.has_meta("mostrar"):
+					_qtd_repete.stop()
+					return
+				_qtd_vezes += 1
+				_qtd_repete.wait_time = 0.09
+				var passo := 1 if _qtd_vezes < 12 else 5 if _qtd_vezes < 30 else 10
+				mudar_qtd(passo * signi(_qtd_passo)))
+		_qtd_repete.wait_time = 0.4
+		_qtd_repete.start())
+	b.button_up.connect(func():
+		if _qtd_repete:
+			_qtd_repete.stop())
+	return b
+
+# o servidor confirmou a compra (evento 'compra' em online.gd): som de moedas e o "+n Item" subindo, com o ouro gasto
+func comprou(ev: Dictionary) -> void:
+	var P = m.P
+	if m.sons:
+		m.sons.tocar("moedas", -2.0, 0.05)
+	var it := {"k": str(ev.k), "r": int(ev.r)} if int(ev.get("r", -1)) >= 0 else {"k": str(ev.k), "n": int(ev.n)}
+	var caixa_f := PanelContainer.new()
+	caixa_f.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.06, 0.045, 0.94), OURO_CLARO, 2, 12, 12))
+	caixa_f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 10)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caixa_f.add_child(l)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.icone_item(it))
+	ic.custom_minimum_size = Vector2(52, 52)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_child(ic)
+	var txt := VBoxContainer.new()
+	txt.add_theme_constant_override("separation", 0)
+	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	txt.add_child(rotulo("+%d %s" % [int(ev.n), P.nome_item(it)], 24, MELHOR))
+	txt.add_child(rotulo("−%d de ouro" % int(ev.ouro), 17, Color("ffd36a")))
+	l.add_child(txt)
+	add_child(caixa_f)
+	await get_tree().process_frame
+	if not is_instance_valid(caixa_f):
+		return
+	var tela := get_viewport().get_visible_rect().size
+	caixa_f.position = Vector2((tela.x - caixa_f.size.x) * 0.5, tela.y * 0.42)
+	caixa_f.pivot_offset = caixa_f.size * 0.5
+	caixa_f.scale = Vector2(0.6, 0.6)
+	var tw := caixa_f.create_tween()
+	tw.tween_property(caixa_f, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(caixa_f, "position:y", tela.y * 0.42 - 70.0, 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(caixa_f, "modulate:a", 0.0, 0.5).set_delay(1.1)
+	tw.tween_callback(caixa_f.queue_free)
 
 # online o servidor confere e devolve a mochila nova; sem internet muda só neste celular (a loja só funciona online)
 func acao_item(msg: Dictionary) -> void:

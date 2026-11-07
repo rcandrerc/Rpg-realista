@@ -1,0 +1,37 @@
+// Comprar várias de uma vez na loja da Rosa (André 2026-11-07): { acao: 'comprar', i, n } compra tudo de uma vez,
+// limitado pelo ouro e pela mochila; sem n continua comprando 1. Uso: node ferramentas/testes/comprar-varios.mjs
+import { Simulacao, MAPA_CLAREIRA, LOJA, ITENS } from '../../shared/index.js';
+const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
+const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('C', 'Cris');
+j.criando = false; j.morto = false;
+const rosa = MAPA_CLAREIRA.npcs.find((n) => n.funcao === 'loja');
+j.x = rosa.x + 1; j.z = rosa.z;
+const p = j.prog, conta = (k) => p.mochila.reduce((t, o) => t + (o && o.k === k ? o.n : 0), 0);
+const iSem = LOJA.findIndex((o) => o.k === 'semente_cenoura'), preco = s.precoCompra(j, LOJA[iSem]);
+const iEsp = LOJA.findIndex((o) => o.k === 'espada' && o.r === 0);
+p.mochila = p.mochila.map(() => null);
+p.ouro = 1000;
+s.eventos.length = 0;
+s.item('C', { acao: 'comprar', i: iSem, n: 20 });
+ok(conta('semente_cenoura') === 20, '20 sementes de uma vez');
+ok(p.ouro === 1000 - 20 * preco, 'cobra o preço de 20');
+ok(s.eventos.some((e) => e.t === 'compra' && e.n === 20 && e.para === 'C'), 'evento compra com n = 20 (som e +20 no celular)');
+s.item('C', { acao: 'comprar', i: iSem });
+ok(conta('semente_cenoura') === 21, 'sem n compra 1, como antes');
+p.ouro = preco * 3 + 1;
+s.item('C', { acao: 'comprar', i: iSem, n: 50 });
+ok(conta('semente_cenoura') === 24 && p.ouro === 1, 'o ouro só dá para 3: compra 3');
+p.ouro = 100000;
+p.mochila = p.mochila.map(() => ({ k: 'pedra', n: 1 }));
+p.mochila[0] = { k: 'semente_cenoura', n: ITENS.semente_cenoura.pilha - 5 };
+s.item('C', { acao: 'comprar', i: iSem, n: 30 });
+ok(conta('semente_cenoura') === ITENS.semente_cenoura.pilha, 'mochila quase cheia: completa a pilha e para');
+const antes = p.ouro;
+s.item('C', { acao: 'comprar', i: iSem, n: 30 });
+ok(p.ouro === antes, 'mochila cheia: não cobra nada');
+p.mochila = p.mochila.map(() => null);
+s.item('C', { acao: 'comprar', i: iEsp, n: 3 });
+ok(p.mochila.filter((o) => o && o.k === 'espada').length === 3, 'equipamento: 3 espadas em 3 lugares');
+s.item('C', { acao: 'comprar', i: iSem, n: -5 });
+s.item('C', { acao: 'comprar', i: iSem, n: 'x' });
+ok(conta('semente_cenoura') === 2, 'n inválido vira 1');
