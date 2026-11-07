@@ -1406,12 +1406,29 @@ func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 		h.mask_feita = h.get("mask", 0)
 	if f >= 0:
 		_desenhar_planta(h.no, h.c, f)
-	_info_planta(h, h.no.position.distance_to(m.heroi.position) < INFO_PERTO) # plantou/regou: a placa já muda
+	_info_planta(h, _placa_perto(h.no.position.distance_squared_to(m.heroi.position))) # plantou/regou: a placa já muda
 
 # ---------- placa da planta (André 2026-11-07: "quando eu plantei não mostra nada") ----------
 # Em cima de cada planta, perto do herói: nome + fase, barra de crescimento e o que fazer: "Precisa regar!" (terra
 # seca, não cresce), "Regada · falta 1h 20min" ou "Pronta para colher!". Conta igual à do servidor (_crescida).
+# André 2026-11-07 (2): placa curta ("Rabanete 42%" e embaixo "Regada") e só no modo construção; fora dele aparecem só
+# as plantas e o terreno. No modo construção a câmera anda solta, então a placa vale para o terreno todo (60 m).
 const INFO_PERTO := 14.0 # metros
+const INFO_PERTO_CONSTRUINDO := 60.0
+
+func _placa_perto(d2: float) -> bool:
+	return ativo and d2 < INFO_PERTO_CONSTRUINDO * INFO_PERTO_CONSTRUINDO
+
+# entrou ou saiu do modo construção: mostra ou esconde as placas na hora (sem esperar os 2 s)
+func _refrescar_placas() -> void:
+	if m.heroi == null:
+		return
+	var hp: Vector3 = m.heroi.position
+	for id in lotes:
+		for c in lotes[id].horta:
+			var h: Dictionary = lotes[id].horta[c]
+			if h.has("no") and is_instance_valid(h.no):
+				_info_planta(h, _placa_perto(h.no.position.distance_squared_to(hp)))
 const FASES_PLANTA := ["Semente", "Brotando", "Crescendo", "Quase pronta", "Pronta"]
 const BARRA_W := 0.62
 var _mat_barra := {}
@@ -1481,21 +1498,17 @@ func _info_planta(h: Dictionary, perto: bool) -> void:
 	var linha2: String
 	if f >= 4:
 		cor_barra = Color(0.45, 0.9, 0.35)
-		linha2 = "Pronta para colher!"
+		linha2 = "Pronta!"
 		txt.modulate = Color(0.6, 1.0, 0.5)
 	elif not mo:
 		cor_barra = Color(0.85, 0.7, 0.3)
-		linha2 = "Precisa regar! (não cresce seca)"
+		linha2 = "Precisa regar"
 		txt.modulate = Color(1.0, 0.72, 0.35)
 	else:
 		cor_barra = Color(0.35, 0.7, 1.0)
-		var falta := (1.0 - cr) * float(P.G)
-		var agua: float = (h.w + float(D.horta.rega) * 3600000.0 - agora_ms()) / 3600000.0
-		linha2 = "Regada · falta %s" % _tempo_txt(falta)
-		if agua < falta: # a água acaba antes: vai precisar regar de novo
-			linha2 += " · seca em %s" % _tempo_txt(agua)
+		linha2 = "Regada"
 		txt.modulate = Color(0.85, 0.93, 1.0)
-	txt.text = "%s · %s %d%%\n%s" % [P.nome, FASES_PLANTA[f], int(cr * 100.0), linha2]
+	txt.text = "%s %d%%\n%s" % [P.nome, int(cr * 100.0), linha2]
 	# barra: o pedaço cheio cresce da esquerda (center_offset no espaço da malha acompanha o billboard)
 	var cheio: MeshInstance3D = info.get_node("cheio")
 	var q: QuadMesh = cheio.mesh
@@ -2365,7 +2378,7 @@ func _process(dt: float) -> void:
 				var d2: float = h.no.position.distance_squared_to(hp)
 				if d2 < 3600.0:
 					_desenhar_canteiro(h)
-				_info_planta(h, d2 < INFO_PERTO * INFO_PERTO)
+				_info_planta(h, _placa_perto(d2))
 
 func _carregar_recolhidas() -> void:
 	var cfg := ConfigFile.new()
@@ -2480,6 +2493,7 @@ func abrir() -> void:
 	_montar_itens()
 	_alt.clear()
 	_mostrar_borda(true)
+	_refrescar_placas()
 	m.hud.aviso("Modo construção: o joystick move a câmera e a mira. Toque no chão para mirar.")
 
 func sair() -> void:
@@ -2497,6 +2511,7 @@ func sair() -> void:
 	if _mira_no:
 		_mira_no.visible = false
 	_mostrar_borda(false)
+	_refrescar_placas()
 	m.cam.sair_livre()
 
 func _mostrar_borda(v: bool) -> void:
