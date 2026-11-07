@@ -279,7 +279,7 @@ func bonus_equip() -> Dictionary:
 
 # ---------- reforço de equipamento (igual a shared/progresso.js; REFORCO em shared/dados.js, como no Quimera) ----------
 func reforco_dados() -> Dictionary:
-	return dados.get("reforco", {"max": [0, 5, 10, 15, 20], "chance": [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30],
+	return dados.get("reforco", {"max": [0, 10, 20, 30, 40], "chance": [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 29, 28, 27, 26, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25],
 		"custo": {"base": 10, "porRaridade": 12, "sobe": 1.07}, "seguro": 5, "bonus": 0.4, "bonusCritico": 0.2, "atributo": {"livre": 2, "porNivel": 10}, "tempo": 1.6})
 
 # multiplicador de um número da peça pelo reforço (+0 = 1; o crítico sobe a metade)
