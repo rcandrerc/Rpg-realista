@@ -359,9 +359,36 @@ func _marca_caverna(c: Control, q: Vector2, t: float) -> void:
 	c.draw_polyline(arco + PackedVector2Array([arco[0]]), COR_OURO, 1.5)
 	c.draw_circle(q + Vector2(0, t * 0.15), t * 0.42, Color("ff9a2e"))
 
+# 2026-11-07 (André: "quando abrir o mapa, aparece um símbolozinho lá onde é a nossa casa"): o meu terreno
+# (construcao.meu) vira uma casinha no mapa, no minimapa e o primeiro nome da lista. {} quando não tenho terreno.
+const COR_CASA := Color("d8553a") # telhado vermelho-tijolo: não se confunde com a vila (dourada) nem com o pino
+func _minha_casa() -> Dictionary:
+	var cs = m.get("construcao")
+	if cs == null or str(cs.meu) == "" or not cs.lotes.has(cs.meu):
+		return {}
+	var d: Dictionary = cs.lotes[cs.meu].def
+	return {"x": (float(d.x0) + float(d.x1)) * 0.5, "z": (float(d.z0) + float(d.z1)) * 0.5,
+		"x0": float(d.x0), "z0": float(d.z0), "x1": float(d.x1), "z1": float(d.z1)}
+
+# casinha: contorno escuro, parede creme, telhado vermelho, porta e chaminé (t = meia largura em px)
+func _marca_casa(c: Control, q: Vector2, t: float) -> void:
+	var esc := Color(0.05, 0.04, 0.03, 0.9)
+	var teto := PackedVector2Array([q + Vector2(-t * 1.15, -t * 0.05), q + Vector2(0, -t * 1.15), q + Vector2(t * 1.15, -t * 0.05)])
+	c.draw_circle(q + Vector2(0, -t * 0.1), t * 1.55, Color(0.05, 0.04, 0.03, 0.55))
+	c.draw_rect(Rect2(q + Vector2(t * 0.42, -t * 1.0), Vector2(t * 0.3, t * 0.6)), esc) # chaminé
+	c.draw_rect(Rect2(q + Vector2(t * 0.48, -t * 0.94), Vector2(t * 0.18, t * 0.5)), Color("8a5a3c"))
+	c.draw_rect(Rect2(q + Vector2(-t * 0.85, -t * 0.15), Vector2(t * 1.7, t * 1.05)), esc)
+	c.draw_rect(Rect2(q + Vector2(-t * 0.72, -t * 0.1), Vector2(t * 1.44, t * 0.88)), Color("f3e3c2"))
+	c.draw_rect(Rect2(q + Vector2(-t * 0.2, t * 0.25), Vector2(t * 0.4, t * 0.53)), Color("7a4a2a")) # porta
+	c.draw_colored_polygon(teto, COR_CASA)
+	c.draw_polyline(teto, esc, 1.5, true)
+
 # os lugares da lista: as vilas, as clareiras de caça (por nível) e os veios
 func _lugares() -> Array:
 	var l: Array = []
+	var casa := _minha_casa()
+	if not casa.is_empty(): # o meu terreno em primeiro: "Ir para" leva para casa
+		l.append({"id": "casa", "tipo": "casa", "nome": "Sua casa", "curto": "Sua casa", "x": casa.x, "z": casa.z, "r": 4.0})
 	var nasc: Dictionary = m.mundo.get("nascimento", {"x": 0.0, "z": 1.0})
 	l.append({"id": "vila", "tipo": "vila", "nome": "Vila da Clareira", "curto": "Vila da Clareira", "x": float(nasc.get("x", 0.0)), "z": float(nasc.get("z", 1.0)), "r": 30.0})
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})
@@ -497,6 +524,12 @@ func _desenhar_mini() -> void:
 		if q.distance_to(meio) < RAIO - 4.0:
 			c.draw_circle(q, 4.0, Color(0.05, 0.05, 0.1, 0.8))
 			c.draw_circle(q, 3.0, Color("6fb6ff"))
+	var casa := _minha_casa()
+	if not casa.is_empty(): # o meu terreno: a casinha, na beirada quando está longe (aponta o caminho de casa)
+		var dc: Vector2 = Vector2(casa.x - p.x, casa.z - p.z) * k
+		if dc.length() > RAIO - 11.0:
+			dc = dc.normalized() * (RAIO - 11.0)
+		_marca_casa(c, meio + dc, 6.0)
 	for o in _time(): # amigos do time (amigos.gd): verde, na beirada quando estão longe
 		var dq: Vector2 = Vector2(o.x - p.x, o.z - p.z) * k
 		if dq.length() > RAIO - 6.0:
@@ -576,6 +609,15 @@ func _desenhar_mapa() -> void:
 		var qc: Vector2 = em.call(cv.x, cv.z)
 		_marca_caverna(c, qc, 10.0)
 		_texto(c, qc + Vector2(0, 22), str(cv.nome), 14, Color("ffc27a"))
+	var casa := _minha_casa()
+	if not casa.is_empty(): # o meu terreno: contorno tracejado dourado e a casinha no meio, com o nome
+		var cantos := [em.call(casa.x0, casa.z0), em.call(casa.x1, casa.z0), em.call(casa.x1, casa.z1), em.call(casa.x0, casa.z1)]
+		for i in 4:
+			c.draw_dashed_line(cantos[i], cantos[(i + 1) % 4], Color(COR_OURO, 0.8), 1.5, 4.0, true)
+		var qa: Vector2 = em.call(casa.x, casa.z)
+		_marca_casa(c, qa, 11.0)
+		var baixo: float = maxf(cantos[2].y, cantos[0].y) # o nome fica embaixo do contorno
+		_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
 	for cc in m.mundo.get("caca", []):
 		var q: Vector2 = em.call(float(cc.x), float(cc.z))
 		_marca_clareira(c, q, cc, 10.0, true)
@@ -693,6 +735,8 @@ func _desenhar_grande() -> void:
 					_marca_caverna(c, qi, 7.0)
 				"mina":
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
+				"casa": # o meu terreno: casinha de telhado vermelho
+					_marca_casa(c, qi + Vector2(0, 1), 6.5)
 				"lago": # gota d'água azul
 					c.draw_circle(qi + Vector2(0, 2), 5.0, Color("4fa3e0"))
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-4.4, 0), qi + Vector2(0, -8), qi + Vector2(4.4, 0)]), Color("4fa3e0"))
