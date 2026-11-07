@@ -32,6 +32,7 @@ const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Troca = preload("res://troca.gd")
+const Reforco = preload("res://reforco.gd")
 const Amigos = preload("res://amigos.gd")
 const Chat = preload("res://chat.gd")
 const Minimapa = preload("res://minimapa.gd")
@@ -109,6 +110,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
+var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenciado)
 var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e mana (só online)
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
@@ -272,6 +274,8 @@ func _ready() -> void:
 	hud.tocou.connect(conversa.tocou_tela)
 	troca = Troca.new(self)
 	add_child(troca)
+	reforco = Reforco.new(self)
+	add_child(reforco)
 	hud.tocou.connect(troca.tocou_tela) # tocar noutro jogador perto: pedir troca
 	hud.troca = troca
 	amigos = Amigos.new(self)

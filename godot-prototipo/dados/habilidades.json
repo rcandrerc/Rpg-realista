@@ -2153,5 +2153,49 @@
   "desgaste": 10,
   "durMax": 100,
   "conserto": 0.3
+ },
+ "reforco": {
+  "max": [
+   0,
+   5,
+   10,
+   15,
+   20
+  ],
+  "chance": [
+   100,
+   80,
+   75,
+   70,
+   66,
+   62,
+   59,
+   56,
+   53,
+   50,
+   48,
+   46,
+   44,
+   42,
+   40,
+   38,
+   36,
+   34,
+   32,
+   30
+  ],
+  "custo": {
+   "base": 10,
+   "porRaridade": 12,
+   "sobe": 1.07
+  },
+  "seguro": 5,
+  "bonus": 0.4,
+  "bonusCritico": 0.2,
+  "atributo": {
+   "livre": 2,
+   "porNivel": 10
+  },
+  "tempo": 1.6
  }
 }

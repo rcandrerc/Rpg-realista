@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, REFORCO } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -106,7 +106,8 @@ export function bonusEquip(equip = {}) {
   const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
   for (const l of LUGARES) {
     const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
-    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r];
+    const rk = reforcoK(it);
+    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' ? rk.critico : rk.st);
   }
   const n = pecasDoConjunto(equip || {});
   for (const t of [2, 3, 6]) {
@@ -125,7 +126,9 @@ export function itemValido(it) {
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   if (ehEquip(it.k)) {
     if (!int(it.r, 0, RARIDADES.length - 1)) return null;
-    return int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
+    const v = int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
+    if (int(it.e, 1, REFORCO.max[it.r] || 0)) v.e = it.e; // e: reforço (+1, +2...; sem e = +0)
+    return v;
   }
   const n = int(it.n, 1, ITENS[it.k].pilha) ? it.n : 1;
   if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n } : null;
@@ -146,7 +149,7 @@ export function guardar(mochila, item) {
 }
 export function nomeItem(it) {
   if (!it || !ITENS[it.k]) return '';
-  if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}`;
+  if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}${it.e ? ` +${it.e}` : ''}`;
   if (it.k === 'tomo') return `${HABS[it.h].tomo} ${ROMANO[it.nv]}`;
   return ITENS[it.k].nome;
 }
@@ -185,6 +188,38 @@ export function penalidadeMorte(p) {
     if (it.d === 0) quebrou.push(nomeItem(it));
   }
   return { ouro, quebrou };
+}
+// ---------- reforço de equipamento (igual ao Quimera; REFORCO em shared/dados.js, André 2026-11-07) ----------
+// multiplicador dos números da peça pelo reforço (+0 = 1)
+export const reforcoK = (it) => { const e = it?.e | 0; return { st: 1 + REFORCO.bonus * e, critico: 1 + REFORCO.bonusCritico * e }; };
+export const reforcoMax = (it) => (it && ehEquip(it.k) ? REFORCO.max[it.r] || 0 : 0);
+export const chanceReforco = (e) => REFORCO.chance[Math.min(e | 0, REFORCO.chance.length - 1)];
+export const custoReforco = (it) => Math.round((REFORCO.custo.base + REFORCO.custo.porRaridade * it.r) * REFORCO.custo.sobe ** (it.e | 0));
+// para onde volta quando falha (nunca abaixo do último +5, +10...)
+export const reforcoFalhou = (e) => Math.max(Math.floor(e / REFORCO.seguro) * REFORCO.seguro, e - 1);
+// atributo que a peça pede para chegar no reforço e: { k: 'for' | 'int' | 'maior', n } (n = 0: não pede)
+export function reforcoPrecisa(it, e) {
+  const n = e <= REFORCO.atributo.livre ? 0 : REFORCO.atributo.porNivel * e;
+  const l = ITENS[it.k]?.lugar;
+  return { k: l === 'espada' ? 'for' : l === 'cajado' ? 'int' : 'maior', n };
+}
+export const atributoDoReforco = (atr, k) => (k === 'maior' ? Math.max(atr?.for | 0, atr?.int | 0) : atr?.[k] | 0);
+export const nomeAtributoReforco = (k) => (k === 'for' ? 'Força' : k === 'int' ? 'Inteligência' : 'Força ou Inteligência');
+// Uma tentativa (o servidor sorteia). Devolve { ok, de, e, custo } ou { erro: texto }
+export function reforcar(p, it, sorte = Math.random()) {
+  if (!it || !ehEquip(it.k)) return { erro: 'Só equipamento se reforça' };
+  const max = reforcoMax(it), de = it.e | 0;
+  if (!max) return { erro: 'Peça Comum não dá pra reforçar' };
+  if (de >= max) return { erro: 'Reforço no máximo!' };
+  const pr = reforcoPrecisa(it, de + 1), tem = atributoDoReforco(p.atr, pr.k);
+  if (tem < pr.n) return { erro: `Precisa ${pr.n} de ${nomeAtributoReforco(pr.k)} (você tem ${tem}). Suba o atributo pra reforçar mais` };
+  const custo = custoReforco(it);
+  if ((p.ouro || 0) < custo) return { erro: `Ouro insuficiente (${p.ouro || 0}/${custo})` };
+  p.ouro -= custo;
+  const ok = sorte * 100 < chanceReforco(de);
+  const e = ok ? de + 1 : reforcoFalhou(de);
+  if (e > 0) it.e = e; else delete it.e;
+  return { ok, de, e, custo };
 }
 // Quanto a loja paga por uma unidade
 export const precoVenda = (it, merc = 0) => Math.round((ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1) * (1 + merc));

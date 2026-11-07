@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar } from './progresso.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
@@ -1083,7 +1083,14 @@ export class Simulacao {
       if (!r) return aviso('Nada para consertar: está tudo inteiro');
       if (r.falta) return aviso(`O conserto custa ${r.custo} de ouro (faltam ${r.falta})`);
       aviso(`Tomás consertou ${r.n} ${r.n === 1 ? 'peça' : 'peças'} por ${r.custo} de ouro`);
-    } else if (m.acao === 'capacete') {
+    } else if (m.acao === 'reforcar') {
+      // reforço de equipamento (igual ao Quimera, REFORCO em shared/dados.js): peça da mochila (i) ou do corpo (lugar).
+      // Em qualquer lugar; o servidor cobra e sorteia, o celular mostra a janelinha com o resultado (evento 'reforco').
+      const alvo = it || (typeof m.lugar === 'string' && LUGARES.includes(m.lugar) ? p.equip[m.lugar] : null);
+      if (!alvo || !ehEquip(alvo.k)) return;
+      const r = reforcar(p, alvo);
+      if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
+      this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, nome: nomeItem(alvo) });
       // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
       p.semCapacete = m.mostrar === false;
     } else return;

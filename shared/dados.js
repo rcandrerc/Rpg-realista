@@ -1091,6 +1091,23 @@ export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por r
 // de durabilidade (de durMax). Peça com 0 fica Quebrada: continua no corpo, mas não dá bônus (nem conta para o conjunto)
 // até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
 export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3 };
+// Reforço de equipamento (igual ao Quimera, André 2026-11-07): toque na peça e em "Reforçar". Cada tentativa custa ouro e
+// pode falhar. Números do Quimera (index.html: Sh = chance, Th = custo, Rh = bônus, mgGNeed = atributo):
+// - max: até onde cada raridade vai (Comum não reforça; André: Rara até +5, Épica até +10; Lendária e Mítica seguem a
+//   mesma conta do Quimera pela metade: +15 e +20).
+// - chance[e]: % de sair de +e para +e+1. custo: round((base + porRaridade x raridade) x sobe^e) de ouro.
+// - falhou: volta 1 (+e-1), mas nunca abaixo do último múltiplo de `seguro` (+5, +10...: de +5 falhando continua +5).
+// - bônus: cada + soma `bonus` (40%) dos números da peça; o crítico soma `bonusCritico` (20%).
+// - atributo: de +3 em diante precisa de porNivel x (nível do reforço) de Força (espada), Inteligência (cajado) ou da
+//   maior das duas (armadura e acessório). `tempo`: segundos da barrinha da janela.
+export const REFORCO = {
+  max: [0, 5, 10, 15, 20],
+  chance: [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30],
+  custo: { base: 10, porRaridade: 12, sobe: 1.07 },
+  seguro: 5, bonus: 0.4, bonusCritico: 0.2,
+  atributo: { livre: 2, porNivel: 10 },
+  tempo: 1.6,
+};
 export const VENDA_TOMO = 30; // x nível do Tomo
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 // Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
