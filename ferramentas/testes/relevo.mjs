@@ -77,3 +77,10 @@ for (const L of LAGOS) {
   ok(topo > alto - 1, `dá para subir andando até ${topo.toFixed(1)} m (topo ${alto.toFixed(1)} m)`);
   ok(!M.caca.some((c) => alturaMontanha(c.x, c.z) > 0 || alturaMontanha(c.x + c.r, c.z) > 0), 'campo de caça nenhum em cima da montanha');
 }
+
+// 2026-11-07 (André: "não quero nenhuma barreira invisível nesse mapa"): do terreno nas Terras da Estrada dá para
+// cortar pela mata até a trilha dos Lobos Nv10, sem estrada (antes parava numa parede invisível em x ≈ 20)
+for (const z of [85, 100, 115]) {
+  let livre = true; for (let x = 5; x <= 60; x += 0.25) livre &&= dentroDoMapa(M, x, z, F);
+  ok(livre, `das Terras da Estrada até a trilha dos Lobos Nv10 pela mata (z ${z})`);
+}
