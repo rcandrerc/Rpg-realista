@@ -347,7 +347,7 @@ func montar_ambiente() -> void:
 	sol.light_energy = 0.9
 	sol.shadow_enabled = true
 	sol.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	sol.directional_shadow_max_distance = 30.0
+	sol.directional_shadow_max_distance = 20.0 # era 30 m; André 2026-11-07 aprovou 20 m (FPS na vila: a sombra era ~45% das chamadas de desenho)
 	sol.rotation = Vector3(deg_to_rad(-52), deg_to_rad(60), 0)
 	add_child(sol)
 
@@ -788,6 +788,41 @@ func modelo(id: String) -> Node3D:
 		VisualNpc.tirar_casaco(no)
 	molas(no)
 	return no
+
+# NPC de longe (André 2026-11-07, FPS na vila, escolheu sombra e contorno só de perto): a mais de 15 m o NPC não
+# desenha sombra e o contorno de desenho (a casca escura um pouco maior que o corpo) troca por um material que não
+# desenha nada; de perto volta tudo igual (a sombra que cada pedaço tinha e o contorno de antes).
+const NPC_DETALHE := 15.0
+const NPC_DETALHE_SAI := 17.0 # volta a ter detalhe só abaixo de 15 m, sai acima de 17 m (não pisca no limite)
+static var _mat_nada: ShaderMaterial
+static func npc_simples(no: Node, simples: bool) -> void:
+	if _mat_nada == null:
+		var sh := Shader.new()
+		sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, shadows_disabled;\nvoid vertex() { POSITION = vec4(2.0, 2.0, 2.0, 1.0); }\nvoid fragment() { ALBEDO = vec3(0.0); }\n"
+		_mat_nada = ShaderMaterial.new()
+		_mat_nada.shader = sh
+	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		if simples:
+			if not mi.has_meta("sombra_perto"):
+				mi.set_meta("sombra_perto", mi.cast_shadow)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if mi.material_override != null:
+				continue
+			for i in mi.mesh.get_surface_count():
+				var mt := mi.get_active_material(i)
+				if mt is BaseMaterial3D and (mt as BaseMaterial3D).grow and (mt as BaseMaterial3D).cull_mode == BaseMaterial3D.CULL_FRONT:
+					mi.set_meta("contorno_%d" % i, [mi.get_surface_override_material(i)]) # [null] = o da malha
+					mi.set_surface_override_material(i, _mat_nada)
+		else:
+			if mi.has_meta("sombra_perto"):
+				mi.cast_shadow = mi.get_meta("sombra_perto")
+				mi.remove_meta("sombra_perto")
+			for i in mi.mesh.get_surface_count():
+				if mi.has_meta("contorno_%d" % i):
+					mi.set_surface_override_material(i, mi.get_meta("contorno_%d" % i)[0])
+					mi.remove_meta("contorno_%d" % i)
 
 # FPS (André 2026-11-07, vila): cada personagem (herói, NPC, outro jogador) tem 8 pecinhas do rosto (olhos, brilho do
 # olho, boca, cílios, delineado, sobrancelha) e cada uma também era desenhada de novo na sombra. Elas ficam coladas no
@@ -3022,6 +3057,11 @@ func lod_inimigos() -> void:
 			n.longe = longe_n
 			n.no.visible = not longe_n
 			n.no.process_mode = Node.PROCESS_MODE_DISABLED if longe_n else Node.PROCESS_MODE_INHERIT
+		# André 2026-11-07 (escolheu "as duas" no FPS da vila): NPC a mais de 15 m fica sem sombra e sem contorno
+		var meio_n: bool = dn > NPC_DETALHE_SAI * NPC_DETALHE_SAI if n.get("simples", false) else dn > NPC_DETALHE * NPC_DETALHE
+		if meio_n != n.get("simples", false):
+			n.simples = meio_n
+			npc_simples(n.no, meio_n)
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
 		if longe != e.get("longe", false):
