@@ -229,6 +229,7 @@ func _ready() -> void:
 	add_child(cenario)
 	alcance_da_vila(vila)
 	achar_troncos(vila)
+	juntar_vila(vila)
 	montar_chao()
 	montar_grama()
 	# fonte do jogo (Alegreya Sans, OFL) no lugar da letra padrão do Godot: HUD, menus e números de dano
@@ -697,6 +698,122 @@ func alcance_da_vila(vila: Node3D) -> void:
 		mi.visibility_range_end = 45.0 if tam < 2.0 else (70.0 if tam < 6.0 else 100.0)
 		mi.visibility_range_end_margin = 8.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+# Vila em blocos (André 2026-11-07, FPS na vila: "vai só o lance excluindo pedra e árvore"): as 619 peças soltas do
+# vila.glb viram poucos blocos, um por pedaço de chão, por distância de sumir (alcance_da_vila), por material e por
+# sombra. Cada bloco é uma chamada de desenho só (antes era uma por peça). Ficam soltas, como eram:
+# - árvores da vila e do campo (queda_arvore.gd derruba e esconde cada uma; achar_troncos apaga o tronco na câmera)
+# - copas transparentes (somem quando tapam o herói: lista folhas); as samambaias entram nos blocos (veja abaixo)
+# - pedras (encostar.gd lê a forma de cada pedra de escalar) e tudo perto de um sólido que não é casa
+# - o chão e o que é grande (sempre desenhado) e material com shader próprio
+const VILA_BLOCO := {45.0: 12.0, 70.0: 20.0, 100.0: 28.0} # distância de sumir -> lado do pedaço de chão (m)
+func juntar_vila(vila: Node3D) -> void:
+	# samambaias (400 e poucas, todas com o mesmo material): entram nos blocos. Saem do apagar da câmera e somem em
+	# degradê já a 4 m dela, como as samambaias do cenario.gd (o bloco inteiro não pode ficar transparente)
+	# (cada samambaia veio do glb com uma cópia do mesmo material: a textura diz quem é igual, e o bloco usa um só)
+	var uso := {} # textura -> quantas
+	var mat_unico := {} # textura -> material que o bloco usa
+	for f in folhas:
+		var m0 = (f[0] as MeshInstance3D).mesh.surface_get_material(0)
+		if f.size() <= 3 and m0 is BaseMaterial3D and m0.albedo_texture != null:
+			uso[m0.albedo_texture] = uso.get(m0.albedo_texture, 0) + 1
+	var manter := {}
+	var rasteira := {} # MeshInstance3D -> material do bloco
+	for f in folhas:
+		var mi: MeshInstance3D = f[0]
+		var m0 = mi.mesh.surface_get_material(0)
+		if f.size() <= 3 and m0 is BaseMaterial3D and uso.get(m0.albedo_texture, 0) >= 20 and mi.material_override == null \
+				and mi.mesh.get_surface_count() == 1 and (mi.global_transform * mi.get_aabb()).size.y < 2.0:
+			if not mat_unico.has(m0.albedo_texture):
+				var mu: BaseMaterial3D = m0.duplicate()
+				mu.distance_fade_min_distance = 2.2
+				mu.distance_fade_max_distance = 4.2
+				mat_unico[m0.albedo_texture] = mu
+			rasteira[mi] = mat_unico[m0.albedo_texture]
+		else:
+			manter[mi] = true
+	var arv: Array = []
+	for a in mundo.get("coletaveis", []):
+		if str(a.tipo) == "arvore":
+			arv.append(Vector2(float(a.x), float(a.z)))
+	var pedras: Array = []
+	for r in terreno.solidos:
+		if not r.get("casa", false):
+			pedras.append(r)
+	var base_inv: Transform3D = vila.global_transform.affine_inverse()
+	var grupos := {} # [lado_x, lado_z, alcance, sombra] -> {material id -> [material, SurfaceTool]}
+	var feitos: Array = []
+	for mi: MeshInstance3D in vila.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.skin != null or not mi.is_visible_in_tree() or manter.has(mi) or mi.get_child_count() > 0:
+			continue
+		var alc: float = mi.visibility_range_end
+		if not VILA_BLOCO.has(alc):
+			continue # grande, sempre desenhado
+		var bb: AABB = mi.global_transform * mi.get_aabb()
+		var c := Vector2(bb.get_center().x, bb.get_center().z)
+		var o := Vector2(mi.global_position.x, mi.global_position.z)
+		var solta := false
+		for a in arv:
+			if o.distance_to(a) < 0.2 or (not rasteira.has(mi) and (c.distance_to(a) < 2.5 or o.distance_to(a) < 2.5)):
+				solta = true
+				break
+		if not solta and not rasteira.has(mi):
+			for r in pedras:
+				if c.distance_to(Vector2(r.x, r.z)) < float(r.R) * 1.6 + 0.8:
+					solta = true
+					break
+		if solta:
+			continue
+		var tem_shader := false
+		for i in mi.mesh.get_surface_count():
+			var mt = mi.get_active_material(i)
+			if mt != null and not (mt is BaseMaterial3D):
+				tem_shader = true
+			elif mt is BaseMaterial3D and mt.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and not rasteira.has(mi):
+				tem_shader = true
+			if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+				tem_shader = true
+		if tem_shader:
+			continue
+		var lado: float = VILA_BLOCO[alc]
+		var k := [floori(c.x / lado), floori(c.y / lado), alc, int(mi.cast_shadow)]
+		if not grupos.has(k):
+			grupos[k] = {}
+		var t: Transform3D = base_inv * mi.global_transform
+		for i in mi.mesh.get_surface_count():
+			var mat: Material = rasteira.get(mi, mi.get_active_material(i))
+			var chave := mat.get_instance_id() if mat else 0
+			if not grupos[k].has(chave):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				grupos[k][chave] = [mat, st]
+			(grupos[k][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+		feitos.append(mi)
+	var n := 0
+	for k in grupos:
+		var am := ArrayMesh.new()
+		for chave in grupos[k]:
+			var g: Array = grupos[k][chave]
+			(g[1] as SurfaceTool).commit(am)
+			am.surface_set_material(am.get_surface_count() - 1, g[0])
+		if am.get_surface_count() == 0:
+			continue
+		var bloco := MeshInstance3D.new()
+		bloco.name = "bloco_%d" % n
+		bloco.mesh = am
+		bloco.cast_shadow = k[3]
+		bloco.visibility_range_end = k[2]
+		bloco.visibility_range_end_margin = 8.0
+		bloco.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		vila.add_child(bloco)
+		n += 1
+	for i in range(folhas.size() - 1, -1, -1):
+		if rasteira.has(folhas[i][0]) and feitos.has(folhas[i][0]):
+			folhas.remove_at(i)
+	for mi: MeshInstance3D in feitos:
+		mi.get_parent().remove_child(mi)
+		mi.free()
+	print("vila em blocos: ", feitos.size(), " peças -> ", n, " blocos")
 
 # Árvores da mata (mundo.mata, as mesmas do servidor): o vila.glb traz um modelo de cada (mata_tronco_v e mata_copa_v,
 # na origem) e aqui elas viram MultiMesh por pedaços de 32 m, desenhados até 80 m (a neblina esconde o resto).
