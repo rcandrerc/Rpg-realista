@@ -763,6 +763,69 @@
    "venda": 4,
    "desc": "Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela."
   },
+  "carne": {
+   "nome": "Carne crua",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Carne de caça. No fogão vira carne assada ou ensopado."
+  },
+  "carne_assada": {
+   "nome": "Carne assada",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.25,
+    "vigor": 6
+   },
+   "venda": 6,
+   "desc": "Recupera 25% da vida e 6 de vigor."
+  },
+  "sopa_legumes": {
+   "nome": "Sopa de legumes",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.3,
+    "vigor": 10
+   },
+   "venda": 8,
+   "desc": "Recupera 30% da vida e 10 de vigor."
+  },
+  "pao_milho": {
+   "nome": "Pão de milho",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "mana": 0.3,
+    "vigor": 8
+   },
+   "venda": 8,
+   "desc": "Recupera 30% da mana e 8 de vigor."
+  },
+  "ensopado": {
+   "nome": "Ensopado de carne",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.5,
+    "vigor": 15
+   },
+   "venda": 14,
+   "desc": "Recupera 50% da vida e 15 de vigor."
+  },
+  "torta_abobora": {
+   "nome": "Torta de abóbora",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.4,
+    "mana": 0.4,
+    "vigor": 20
+   },
+   "venda": 22,
+   "desc": "Recupera 40% da vida, 40% da mana e 20 de vigor."
+  },
   "passe_caverna": {
    "nome": "Passe da Caverna",
    "mat": true,
@@ -904,6 +967,13 @@
    "venda": 1,
    "obra": "fornalha",
    "desc": "Derrete minério em barras e queima lenha em carvão. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_fogao": {
+   "nome": "Fogão a lenha",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "fogao",
+   "desc": "Fogo de pedra com caldeirão. Perto dele você cozinha os pratos (receitas do Cozinheiro). Coloque no seu terreno pelo modo construção (martelo)."
   },
   "obra_cerca": {
    "nome": "Cerca",
@@ -1457,6 +1527,11 @@
    "grupo": "Criação",
    "desc": "Calças, shorts, capas, botas e óculos na banca da Rosa"
   },
+  "coz": {
+   "nome": "Cozinheiro",
+   "grupo": "Criação",
+   "desc": "Pratos de comida no fogão do seu terreno"
+  },
   "mer": {
    "nome": "Mercador",
    "grupo": "Comércio",
@@ -1726,6 +1801,58 @@
    },
    "vigor": 6,
    "nivel": 3
+  },
+  "carne_assada": {
+   "prof": "coz",
+   "faz": "carne_assada",
+   "usa": {
+    "carne": 1,
+    "lenha": 1
+   },
+   "vigor": 2,
+   "nivel": 1
+  },
+  "sopa_legumes": {
+   "prof": "coz",
+   "faz": "sopa_legumes",
+   "usa": {
+    "cenoura": 1,
+    "batata": 1,
+    "rabanete": 1
+   },
+   "vigor": 3,
+   "nivel": 1
+  },
+  "pao_milho": {
+   "prof": "coz",
+   "faz": "pao_milho",
+   "usa": {
+    "milho": 2,
+    "lenha": 1
+   },
+   "vigor": 3,
+   "nivel": 2
+  },
+  "ensopado": {
+   "prof": "coz",
+   "faz": "ensopado",
+   "usa": {
+    "carne": 2,
+    "batata": 1,
+    "tomate": 1
+   },
+   "vigor": 4,
+   "nivel": 3
+  },
+  "torta_abobora": {
+   "prof": "coz",
+   "faz": "torta_abobora",
+   "usa": {
+    "abobora": 1,
+    "milho": 1
+   },
+   "vigor": 5,
+   "nivel": 5
   }
  },
  "oficina": {
@@ -1736,6 +1863,10 @@
   "alf": {
    "npc": "comerciante",
    "onde": "na banca da Rosa"
+  },
+  "coz": {
+   "npc": "",
+   "onde": "no seu fogão"
   }
  },
  "oficinaDistancia": 4.5,
@@ -1869,6 +2000,29 @@
    "estacao": "fundir",
    "alto": 1.16,
    "desc": "Derrete minério em barras e queima lenha em carvão.",
+   "tipo": "movel",
+   "aba": "moveis",
+   "bancada": true
+  },
+  "fogao": {
+   "nome": "Fogão a lenha",
+   "w": 1.4,
+   "d": 1.2,
+   "circulos": [
+    [
+     0,
+     0,
+     0.65
+    ]
+   ],
+   "custo": {
+    "pedra": 8,
+    "lenha": 4,
+    "barra_ferro": 1
+   },
+   "estacao": "coz",
+   "alto": 0.9,
+   "desc": "Fogo de pedra com caldeirão. Perto dele você cozinha os pratos (receitas do Cozinheiro).",
    "tipo": "movel",
    "aba": "moveis",
    "bancada": true

@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
@@ -1094,10 +1094,19 @@ export class Simulacao {
       } else {
         const u = ITENS[it.k].usar;
         const rc = ((j.pocaoAte ||= {})[it.k] || 0) - this.tempo; // recarga (POCAO_RECARGA)
-        if (rc > 0) return aviso(`Espere ${Math.ceil(rc)} s para outra ${ITENS[it.k].nome.toLowerCase()}`);
+        if (rc > 0 && !ITENS[it.k].comida) return aviso(`Espere ${Math.ceil(rc)} s para outra ${ITENS[it.k].nome.toLowerCase()}`);
+        if (ITENS[it.k].comida) {
+          // prato do fogão (2026-11-07): vale comer se ao menos uma coisa não está cheia (vida, mana ou vigor)
+          const agora = Date.now(), vale = (u.vida && j.vida < j.vidaMax) || (u.mana && j.mana < j.manaMax) || (u.vigor && vigorAgora(p.vigor, agora) < VIGOR.max);
+          if (!vale) return aviso('Você já está satisfeito: vida, mana e vigor cheios');
+          if (u.vida && j.vida < j.vidaMax) { const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
+          if (u.mana) j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana);
+          if (u.vigor) { const g = ganharVigor(p, u.vigor, agora); if (g > 0) aviso(`+${Math.round(g)} de vigor`); }
+        } else {
         if (u.vida) { if (j.vida >= j.vidaMax) return aviso('A vida já está cheia'); const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
         if (u.mana) { if (j.mana >= j.manaMax) return aviso('A mana já está cheia'); j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana); }
-        j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA;
+        }
+        if (!ITENS[it.k].comida) j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA; // comida sem recarga (André 2026-11-07: "por enquanto, sem limite")
       }
       if (--it.n <= 0) p.mochila[i] = null;
     } else if (m.acao === 'vender' && it) {
@@ -1536,7 +1545,7 @@ export class Simulacao {
   pontosProf(j, k, n) {
     if (!PROFISSOES[k] || !(n > 0)) return;
     const antes = profNivel(j.prog.prof[k]);
-    j.prog.prof[k] = Math.round((j.prog.prof[k] + n) * 1000) / 1000;
+    j.prog.prof[k] = Math.round(((j.prog.prof[k] || 0) + n) * 1000) / 1000;
     const nv = profNivel(j.prog.prof[k]);
     if (nv > antes) {
       const b = profBonus(j.prog.prof[k]);

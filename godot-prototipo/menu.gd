@@ -47,9 +47,9 @@ const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
 # a estação perto faz (Alfaiate e móveis na bancada, Ferreiro na bigorna, barras na fornalha); só aparece perto de uma.
-const CATS_CRIAR := [["aqui", "Aqui"], ["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["estacoes", "Estações"],
+const CATS_CRIAR := [["aqui", "Aqui"], ["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["comida", "Comida"], ["estacoes", "Estações"],
 	["casa", "Casa"], ["moveis", "Móveis"], ["ferramentas", "Ferramentas"]]
-const NOME_ESTACAO := {"fornalha": "Fornalha", "bigorna": "Bigorna", "bancada": "Bancada de trabalho"}
+const NOME_ESTACAO := {"fornalha": "Fornalha", "bigorna": "Bigorna", "bancada": "Bancada de trabalho", "fogao": "Fogão a lenha"}
 
 var m # main.gd
 var raiz: Control
@@ -691,7 +691,7 @@ func estacoes_perto() -> Array:
 	var l := []
 	var cons = m.construcao
 	for est in NOME_ESTACAO:
-		var prof := "alf" if est == "bancada" else "fer"
+		var prof := "alf" if est == "bancada" else "coz" if est == "fogao" else "fer"
 		if (cons != null and cons.estacao_perto([est])) or (m.trabalho != null and m.trabalho.perto_oficina(prof)):
 			l.append(est)
 	return l
@@ -1151,7 +1151,7 @@ func linha_skill(id: String) -> Control:
 	return cx
 
 # ---------- profissões (Parte 3 do Quimera) ----------
-const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz"}
+const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz", "coz": "pf_coz"}
 const COR_VIGOR := Color(0.55, 0.8, 0.42)
 
 func icone_redondo(nome: String, tam: float, cor := Color.WHITE, borda := OURO) -> Control:
@@ -1295,7 +1295,7 @@ func montar_receitas(prof: String) -> void:
 	var of: Dictionary = P.dados.oficina[prof]
 	var aqui: bool = m.trabalho.perto_oficina(prof)
 	# Vila dos Lotes: perto de uma bigorna, fornalha ou bancada construída também dá (cada uma serve para umas receitas)
-	var estacoes := ["bigorna", "fornalha"] if prof == "fer" else ["bancada"]
+	var estacoes := ["bigorna", "fornalha"] if prof == "fer" else ["fogao"] if prof == "coz" else ["bancada"]
 	var na_estacao: bool = not aqui and m.construcao != null and m.construcao.estacao_perto(estacoes)
 	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Você está perto da sua estação: dá para criar o que ela faz.") if na_estacao else ("Para criar, vá %s ou a uma %s construída na Vila dos Lotes." % [str(of.onde).replace("na ", "até a "), " ou ".join(estacoes)]), 13, VERDE if aqui or na_estacao else APAGADO)
 	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1384,7 +1384,7 @@ func itens_criar(cat: String) -> Array:
 	for r in D.receitas:
 		var R: Dictionary = D.receitas[r]
 		var lugar := str(D.itens[str(R.faz)].get("lugar", ""))
-		var c := "materiais" if lugar == "" else "armas" if lugar in ["espada", "cajado", "acessorio"] else "armaduras"
+		var c := "comida" if str(R.prof) == "coz" else "materiais" if lugar == "" else "armas" if lugar in ["espada", "cajado", "acessorio"] else "armaduras"
 		if c == cat:
 			lista.append({"tipo": "receita", "k": r, "nome": str(D.itens[str(R.faz)].nome), "nivel": int(R.nivel)})
 	for k in D.get("construcoes", {}):
@@ -1443,7 +1443,7 @@ func estacao_do_item(e: Dictionary) -> String:
 	if e.tipo == "receita":
 		var R: Dictionary = D.receitas[e.k]
 		var faz_s := str(R.faz)
-		return "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "bancada"
+		return "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "fogao" if str(R.prof) == "coz" else "bancada"
 	var cons = m.construcao
 	var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
 	return "bancada" if C.get("bancada", false) else ""
@@ -1467,9 +1467,9 @@ func linha_criavel(e: Dictionary) -> Control:
 		usa = R.usa
 		faz = {"k": str(R.faz), "r": 0} if D.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
 		var faz_s := str(R.faz)
-		est = "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "bancada"
+		est = "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "fogao" if str(R.prof) == "coz" else "bancada"
 		var of: Dictionary = D.oficina[str(R.prof)]
-		onde = "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
+		onde = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 		aqui = m.trabalho.perto_oficina(str(R.prof)) or (cons != null and cons.estacao_perto([est]))
 		nv_ok = P.prof_nivel(str(R.prof)) >= int(R.nivel)
 		custo = P.custo_vigor(str(R.prof), float(R.vigor))

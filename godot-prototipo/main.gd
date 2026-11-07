@@ -1312,6 +1312,16 @@ func usar_pocao(it: Dictionary) -> bool:
 	if h.morto > 0.0:
 		return false
 	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
+	if P.dados.itens[it.k].get("comida", false): # prato do fogão (2026-11-07): o servidor confere vida, mana e vigor
+		if u.has("vida") and h.vida < P.st.vidaMax:
+			var nc: float = min(P.st.vidaMax - h.vida, round(P.st.vidaMax * float(u.vida)))
+			fx.cura(heroi)
+			fx.numero(heroi.position, nc, Color("7dffa0"))
+			if not on():
+				h.vida += nc
+		if u.has("mana") and not on():
+			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+		return true
 	if u.has("vida"):
 		if h.vida >= P.st.vidaMax:
 			hud.aviso("A vida já está cheia")
