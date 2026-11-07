@@ -232,7 +232,16 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		luz.light_energy = 1.3
 		luz.omni_range = 4.0
 		luz.position = Vector3(0, alto_pedra + 0.5, 0)
+		luz.distance_fade_enabled = true # FPS (André 2026-11-07): a luz do cristal só acende de perto
+		luz.distance_fade_begin = 25.0
+		luz.distance_fade_length = 6.0
 		minerio.add_child(luz)
+	# FPS (André 2026-11-07, "prefiro perder um pouquinho de qualidade do que ter jogo travando"): o veio (blocos,
+	# contorno, cristais e o cascalho) só é desenhado até 80 m, com fade curtinho, como as pedras grandes do cenário
+	for gi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
+		gi.visibility_range_end = 80.0
+		gi.visibility_range_end_margin = 6.0
+		gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 # bloco facetado: esfera de poucas faces com os vértices puxados para dentro e para fora (pedra lascada), base chata
 # enterrada uns 12 cm, normais chapadas e um tom por face (canal r da cor) para as facetas brilharem diferente

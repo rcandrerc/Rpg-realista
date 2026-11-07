@@ -268,11 +268,12 @@ static func _dentro_de_manter(n: Node, raiz: Node) -> bool:
 	return false
 
 # de longe a peça não é desenhada (como a vila em main.gd alcance_da_vila): paredes, portas, janelas e fundação até
-# 120 m como as casas da vila; móveis 60 m (pequenos) ou 90 m. Perto (no terreno e na vila) nada muda.
+# 100 m como as casas da vila; móveis 45 m (pequenos) ou 70 m. Perto (no terreno e na vila) nada muda.
 static func _alcance_peca(raiz: Node3D, k: String) -> void:
-	var longe := 120.0 if k in ["parede", "porta", "janela", "fundacao", "telhado"] else 90.0
+	# André 2026-11-07: apertado como a vila (era 120/90/60 m)
+	var longe := 100.0 if k in ["parede", "porta", "janela", "fundacao", "telhado"] else 70.0
 	if k in ["bau", "tocha", "bigorna"]:
-		longe = 60.0
+		longe = 45.0
 	for mi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
 		mi.visibility_range_end = longe
 		mi.visibility_range_end_margin = 8.0
@@ -1079,7 +1080,7 @@ func _refazer_telhado(L: Dictionary) -> void:
 	mi.name = "telhado"
 	mi.mesh = _malha_rampas(m.terreno.rampas_telhado(cel_r, grade(), _telha_sobe()), base) # rampa (o _malha_telhado antigo fica guardado)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	mi.visibility_range_end = 140.0 # FPS (2026-11-07): de muito longe não desenha (o telhado inteiro é grande)
+	mi.visibility_range_end = 110.0 # FPS (2026-11-07): de muito longe não desenha (o telhado inteiro é grande; era 140 m)
 	mi.visibility_range_end_margin = 8.0
 	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	L.raiz.add_child(mi)
