@@ -1092,7 +1092,9 @@ export class Simulacao {
       const r = reforcar(p, alvo);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
       this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, nome: nomeItem(alvo) });
-      // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
+    } else if (m.acao === 'capacete') {
+      // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua).
+      // 2026-11-07: o merge do reforço tinha engolido este ramo (o capacete escondido voltava a aparecer)
       p.semCapacete = m.mostrar === false;
     } else return;
     this.aplicarStatus(j);
