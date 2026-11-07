@@ -2123,6 +2123,8 @@ func _tentar(qual: String) -> bool:
 			construcao.tocar_estacao("forno")
 		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
 			construcao.abrir_correio()
+		"estacoes": # no terreno/casa (André 2026-11-07): recolhe ou expande os botões das estações (construcao.gd)
+			construcao.alternar_estacoes()
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))

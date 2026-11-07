@@ -176,6 +176,11 @@ func _ready() -> void:
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("correio", Vector2(333, 160), 30, "correio", m.hud.COR_TROCA) # perto da minha caixa de correio: a conta do terreno
 	m.hud.botoes[-1].oculto = true
+	# recolher/expandir as estações (André 2026-11-07: entrando rápido na casa ele esbarrava nos botões): um botão só,
+	# no alto da coluna, que esconde ou mostra bancada, baú, fornalha, cama e correio. Começa recolhido e lembra a escolha
+	m.hud._botao("estacoes", Vector2(423, 340), 26, "lote", m.hud.COR_FUNDO)
+	m.hud.botoes[-1].oculto = true
+	_carregar_recolhidas()
 
 # ---------- modelos ----------
 func _carregar_modelos() -> void:
@@ -2310,24 +2315,48 @@ func _process(dt: float) -> void:
 					_desenhar_canteiro(h)
 				_info_planta(h, d2 < INFO_PERTO * INFO_PERTO)
 
+func _carregar_recolhidas() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(ARQ_CFG) == OK:
+		estacoes_recolhidas = bool(cfg.get_value("hud", "estacoes_recolhidas", true))
+
+# botão "estacoes": recolhe ou expande todos os botões das estações e guarda a escolha
+func alternar_estacoes() -> void:
+	estacoes_recolhidas = not estacoes_recolhidas
+	var cfg := ConfigFile.new()
+	cfg.load(ARQ_CFG) # sem arquivo ainda: começa vazio (as outras seções continuam como estão)
+	cfg.set_value("hud", "estacoes_recolhidas", estacoes_recolhidas)
+	cfg.save(ARQ_CFG)
+	_t_botoes = 0.0 # confere os botões já no próximo quadro
+	m.hud.aviso("Estações recolhidas" if estacoes_recolhidas else "Estações à mostra")
+
+# um botão de estação: só aparece se não estiver recolhido; anota que existe para o botão de recolher aparecer
+var _alguma_estacao := false
+func _mostrar_estacao(acao: String, v: bool) -> void:
+	_alguma_estacao = _alguma_estacao or v
+	m.hud.mostrar_botao(acao, v and not estacoes_recolhidas)
+
 func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void:
+	_alguma_estacao = false
 	var prof := prof_da_estacao()
 	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna", "fogao"]))
 	var correio := _meu_correio_perto() and prof == ""
 	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
-	m.hud.mostrar_botao("bancada", com_mesa and vivo and not livre)
+	_mostrar_estacao("bancada", com_mesa and vivo and not livre)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
 	elif not mesa_minha.is_empty():
 		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_coz" if mesa_minha.k == "fogao" else "pf_fer")
-	m.hud.mostrar_botao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
-	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
-	m.hud.mostrar_botao("correio", correio and vivo and not livre)
+	_mostrar_estacao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
+	_mostrar_estacao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
+	_mostrar_estacao("correio", correio and vivo and not livre)
 	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
 	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
 	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
 	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
-	m.hud.mostrar_botao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
+	_mostrar_estacao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
+	m.hud.mostrar_botao("estacoes", _alguma_estacao)
+	m.hud.ligar_botao("estacoes", not estacoes_recolhidas)
 	m.hud.mostrar_botao("encher", m.P.contar("regador") > 0 and agua_regador() < int(D.horta.get("agua", 20)) and perto_de_agua(hp) and vivo and not livre)
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
@@ -2531,6 +2560,8 @@ func prof_da_estacao() -> String:
 
 # no meu terreno e vivo: o martelo do topo fica aceso
 var _pode_aqui := false
+var estacoes_recolhidas := true # botões das estações escondidos atrás do botão "estacoes" (guardado no aparelho)
+const ARQ_CFG := "user://config.cfg" # o mesmo da HUD e do chat (seção "hud")
 var _t_botoes := 0.0 # FPS: os botões das estações se conferem a cada 0,15 s (_process)
 var _chave_botoes := []
 func pode_construir_aqui() -> bool:
