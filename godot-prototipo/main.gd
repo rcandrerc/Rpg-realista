@@ -692,7 +692,9 @@ func alcance_da_vila(vila: Node3D) -> void:
 		var tam: float = max(bb.size.x, max(bb.size.y, bb.size.z))
 		if tam >= 20.0:
 			continue # chão, morros e o que marca o horizonte ficam sempre
-		mi.visibility_range_end = 60.0 if tam < 2.0 else (90.0 if tam < 6.0 else 120.0)
+		# André 2026-11-07 ("prefiro perder um pouquinho de qualidade do que ter jogo travando"): 60/90/120 m viraram
+		# 45/70/100 m; a neblina já apaga bastante nessa distância e o fade curtinho evita o susto de aparecer de repente
+		mi.visibility_range_end = 45.0 if tam < 2.0 else (70.0 if tam < 6.0 else 100.0)
 		mi.visibility_range_end_margin = 8.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
@@ -1408,6 +1410,16 @@ func usar_pocao(it: Dictionary) -> bool:
 	if h.morto > 0.0:
 		return false
 	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
+	if P.dados.itens[it.k].get("comida", false): # prato do fogão (2026-11-07): o servidor confere vida, mana e vigor
+		if u.has("vida") and h.vida < P.st.vidaMax:
+			var nc: float = min(P.st.vidaMax - h.vida, round(P.st.vidaMax * float(u.vida)))
+			fx.cura(heroi)
+			fx.numero(heroi.position, nc, Color("7dffa0"))
+			if not on():
+				h.vida += nc
+		if u.has("mana") and not on():
+			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+		return true
 	if u.has("vida"):
 		if h.vida >= P.st.vidaMax:
 			hud.aviso("A vida já está cheia")
