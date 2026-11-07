@@ -1877,11 +1877,11 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
 		var onde := {"i": i} if lugar == "" else {"lugar": lugar}
-		var r1 := botao("Reforçar 1× · %d" % P.custo_reforco(it), func(): m.reforco.comecar(onde, false), 14, true)
-		r1.custom_minimum_size = Vector2(150, 36)
+		var r1 := botao("Reforçar", func(): m.reforco.comecar(onde, false), 14, true)
+		r1.custom_minimum_size = Vector2(120, 36)
 		bs.add_child(r1)
-		var r2 := botao("Reforçar até cancelar", func(): m.reforco.comecar(onde, true), 14)
-		r2.custom_minimum_size = Vector2(170, 36)
+		var r2 := botao("Até cancelar", func(): m.reforco.comecar(onde, true), 14)
+		r2.custom_minimum_size = Vector2(130, 36)
 		bs.add_child(r2)
 	if i >= 0 and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
@@ -2026,33 +2026,16 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 		ok.add_theme_color_override("font_hover_color", PIOR)
 	linha.add_child(ok)
 
-# "Raro · Reforço +2 de +5 · Próximo: +3 · chance 75% · 24 de ouro · se falhar volta pra +2" (números do Quimera)
+# André 2026-11-07: no card da peça só os números (o +N já vem no nome). Chance, custo e falta de atributo aparecem
+# na janelinha de reforçar e nos avisos. Aqui só um aviso curto quando a peça reforçada não pode ser usada (Quimera).
 func linha_reforco(it) -> Control:
 	var P = m.P
-	var mx: int = P.reforco_max(it)
-	var e := int(it.get("e", 0))
-	var t := ""
-	var cor := APAGADO
-	if mx <= 0:
-		t = "Comum · não dá pra reforçar"
-	elif e >= mx:
-		t = "Reforço +%d de +%d · Reforço no máximo!" % [e, mx]
-		cor = Color("ffd76a")
-	else:
-		t = "Reforço +%d de +%d · Próximo: +%d · chance %d%% · %d de ouro" % [e, mx, e + 1, P.chance_reforco(e), P.custo_reforco(it)]
-		var pr: Array = P.reforco_precisa(it, e + 1)
-		if int(pr[1]) > 0:
-			t += " · precisa %d %s" % [pr[1], P.nome_atributo_reforco(pr[0])]
-			if P.atributo_reforco(pr[0]) < int(pr[1]):
-				cor = PIOR
-		if P.chance_reforco(e) < 100:
-			var f: int = P.reforco_falhou(e)
-			t += (" · se falhar volta pra +%d" % f) if f < e else (" · se falhar continua +%d" % e)
-	if not P.reforco_ok(it): # como no Quimera: sem o atributo não equipa e, no corpo, não dá bônus
-		t += "\n⛔ %s: %s" % [P.texto_reforco_precisa(it), "sem bônus até subir o atributo" if it in P.prog.equip.values() else "não dá pra equipar"]
-		cor = PIOR
-	var l := rotulo(t, 12, cor)
+	var l := rotulo("", 12, PIOR)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.visible = false
+	if not P.reforco_ok(it):
+		l.text = "⛔ " + ("Sem bônus: falta atributo" if it in P.prog.equip.values() else "Falta atributo para usar")
+		l.visible = true
 	return l
 
 func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
@@ -2247,11 +2230,11 @@ func montar_janela() -> void:
 		var rv := VBoxContainer.new() # uma vez ou até cancelar (para sozinho no limite da peça, do atributo ou do ouro)
 		rv.add_theme_constant_override("separation", 4)
 		rv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var rf := botao("Reforçar 1× · %d" % P.custo_reforco(atual), func(): m.reforco.comecar({"lugar": l}, false), 14, true)
-		rf.custom_minimum_size = Vector2(150, 38)
+		var rf := botao("Reforçar", func(): m.reforco.comecar({"lugar": l}, false), 14, true)
+		rf.custom_minimum_size = Vector2(120, 38)
 		rv.add_child(rf)
-		var ra := botao("Reforçar até cancelar", func(): m.reforco.comecar({"lugar": l}, true), 14)
-		ra.custom_minimum_size = Vector2(150, 38)
+		var ra := botao("Até cancelar", func(): m.reforco.comecar({"lugar": l}, true), 14)
+		ra.custom_minimum_size = Vector2(120, 38)
 		rv.add_child(ra)
 		linha.add_child(rv)
 	if atual != null:
