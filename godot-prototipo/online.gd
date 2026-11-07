@@ -846,6 +846,9 @@ func evento(ev: Dictionary) -> void:
 			var no = corpos.get(str(ev.id))
 			if no:
 				m.combate.preparo(no, float(ev.dur))
+				for e in m.inimigos: # vai bater: ainda está na luta (a música de combate não corta, main.luta_perto)
+					if e.no == no:
+						e.luta = m.tempo + 5.0
 			return
 		"firme": # o monstro aguentou muitos golpes: fica firme e revida
 			var no = corpos.get(str(ev.id))
