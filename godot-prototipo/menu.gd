@@ -1123,7 +1123,7 @@ func linha_skill(id: String) -> Control:
 	var nums := rotulo(P.linha(h), 13, Color(0.85, 0.8, 0.7) if livre else APAGADO)
 	nums.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(nums)
-	if livre and not base.get("basico", false):
+	if livre: # ataque básico também mostra a barra de usos (sobe até o 5 sem livro)
 		if nv < P.maximo(id):
 			var uso := HBoxContainer.new()
 			uso.add_theme_constant_override("separation", 8)

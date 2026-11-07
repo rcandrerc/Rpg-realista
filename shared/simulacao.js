@@ -799,13 +799,13 @@ export class Simulacao {
           j.canal = null;
           j.cds[hid] = this.tempo + h.cd;
           this.soltarQ(j, h, alvo && !alvo.morto ? alvo : this.alvoHab(j, h) || null, m);
-          if (!base.basico) this.contarUso(j, hid);
+          this.contarUso(j, hid); // ataque básico também (André 2026-11-07: estava travado no Nv 1)
         });
         return;
       }
       j.cds[hid] = this.tempo + h.cd;
       this.soltarQ(j, h, alvo, m);
-      if (!base.basico) this.contarUso(j, hid);
+      this.contarUso(j, hid); // ataque básico também (André 2026-11-07: estava travado no Nv 1)
     } finally { this.ator = antes; }
   }
   cancelarCanal(id, motivo = 'Cancelado') {
@@ -2255,9 +2255,15 @@ export class Simulacao {
       const pecas = Object.keys(ITENS).filter(ehEquip);
       por({ k: pecas[Math.floor(Math.random() * pecas.length)], r });
     }
-    if (Math.random() < d.tomo) { // Tomo do próximo nível que a skill vai precisar (do VI ao X)
+    if (Math.random() < d.tomo) { // Tomo de um nível que a skill ainda vai precisar (do VI ao X)
+      // André 2026-11-07: antes caía só o próximo nível, então quem estava no Nv 5 só via Tomo VI.
+      // Agora metade das vezes cai o próximo que a skill precisa e na outra metade um dos seguintes (até o X)
       const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
-      if (sk.length) { const h = sk[Math.floor(Math.random() * sk.length)]; por({ k: 'tomo', h, nv: Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1), n: 1 }); }
+      if (sk.length) {
+        const h = sk[Math.floor(Math.random() * sk.length)], de = Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1);
+        const nv = de < SKILL_MAX && Math.random() >= 0.5 ? de + 1 + Math.floor(Math.random() * (SKILL_MAX - de)) : de;
+        por({ k: 'tomo', h, nv, n: 1 });
+      }
     }
     this.evento({ t: 'drop', para: j.id, x: r2(c.x), z: r2(c.z), ouro, itens: ganhou });
     this.avisarProg(j);

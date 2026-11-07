@@ -540,9 +540,20 @@ func cor_item(it) -> Color:
 		return Color("ff6b5e")
 	if it.k == "pocao_mana":
 		return Color("5aa8ff")
-	if it.k == "tomo":
-		return Color("d9b4ff")
+	if it.k == "tomo": # borda do livro (André 2026-11-07): cinza = não precisa mais, verde = usa agora, laranja = vai precisar
+		return [Color("8a8a8a"), Color("5fd35a"), Color("ff9a3c")][estado_tomo(it)]
 	return Color.WHITE
+
+# 0 = não precisa mais (a skill já passou desse nível), 1 = dá para usar agora, 2 = vai precisar, mas ainda não dá
+func estado_tomo(it) -> int:
+	if not it.has("h") or not it.has("nv") or not habs.has(it.h):
+		return 0
+	var nv := nivel_de(it.h)
+	if nv >= int(it.nv) or nv >= maximo(it.h):
+		return 0
+	if liberada(it.h) and nv == int(it.nv) - 1 and uso_de(it.h) >= usos_para_subir(nv):
+		return 1
+	return 2
 
 # o que se colhe na horta da Vila dos Lotes (shared/dados.js PLANTAS): ícone de colheita na cor da planta
 const COLHEITA := ["rabanete", "cenoura", "batata", "tomate", "milho", "abobora"]
@@ -809,8 +820,6 @@ func ganhar_xp(n: int) -> String:
 	return ("Nível %d! +%d pontos de atributo" % [prog.nivel, int(dados.pontosPorNivel)]) if subiu else ""
 
 func contar_uso(id: String) -> String:
-	if habs[id].get("basico", false):
-		return ""
 	var s: Dictionary = prog.habs.get(id, {"nv": 1, "uso": 0})
 	prog.habs[id] = s
 	if int(s.nv) >= maximo(id):
