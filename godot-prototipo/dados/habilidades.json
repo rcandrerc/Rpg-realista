@@ -2142,6 +2142,43 @@
  "bau": {
   "slots": 40
  },
+ "fornalha": {
+  "combustivel": {
+   "lenha": 12,
+   "carvao": 30
+  },
+  "receitas": {
+   "minerio_ferro": {
+    "faz": "barra_ferro",
+    "usa": 3,
+    "dur": 12,
+    "nivel": 1,
+    "vigor": 1
+   },
+   "minerio_cobre": {
+    "faz": "barra_cobre",
+    "usa": 3,
+    "dur": 12,
+    "nivel": 1,
+    "vigor": 1
+   },
+   "lenha": {
+    "faz": "carvao",
+    "usa": 2,
+    "dur": 8,
+    "nivel": 1,
+    "vigor": 1
+   },
+   "barra_ferro": {
+    "faz": "barra_aco",
+    "usa": 1,
+    "dur": 30,
+    "nivel": 5,
+    "vigor": 2,
+    "fogo": "carvao"
+   }
+  }
+ },
  "criarObra": {
   "min": 3,
   "max": 5,

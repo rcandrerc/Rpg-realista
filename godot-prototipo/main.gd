@@ -1990,7 +1990,10 @@ func _tentar(qual: String) -> bool:
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
 		"bancada": # perto de uma estação do lote (construcao.gd): bancada = Alfaiate; bigorna ou fornalha = Ferreiro
-			menu.abrir_estacao() # André 2026-11-05: um menu só, a aba Criar inteira (antes: Profissões > Ferreiro/Alfaiate)
+			if construcao.minha_fornalha_perto() != "": # 2026-11-07: a minha fornalha abre a janela dela (combustível + material)
+				construcao.abrir_forno()
+			else:
+				menu.abrir_estacao() # André 2026-11-05: um menu só, a aba Criar inteira (antes: Profissões > Ferreiro/Alfaiate)
 		"construir": # no meu lote: abre ou fecha o modo construção (construcao.gd)
 			construcao.tocar_botao_construir()
 		"lote": # perto da placa de um lote à venda: pergunta se quer comprar

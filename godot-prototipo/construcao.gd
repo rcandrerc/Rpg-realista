@@ -124,6 +124,18 @@ var grade_bau: GridContainer
 var grade_mochila: GridContainer
 var txt_bau: Label
 var bau_itens: Array = []
+# fornalha do meu terreno (2026-11-07): combustível + material, queima sozinha no servidor
+var painel_forno: PanelContainer
+var forno_id := ""
+var forno: Dictionary = {}
+var forno_t := 0.0 # segundos desde que o servidor mandou (as barrinhas andam sozinhas até a próxima conta)
+var forno_pediu := 0.0
+var forno_alvo := "ent" # onde vai a lenha quando toca nela na mochila: combustível ou material (vira carvão)
+var caixa_forno: VBoxContainer
+var barra_fogo: ProgressBar
+var barra_forno: ProgressBar
+var txt_forno: Label
+var grade_forno: GridContainer
 
 const VEL_MIRA := 7.0 # m/s da mira com o joystick (Quimera: 7)
 const ESCALA_UI := 1.0
@@ -1887,11 +1899,15 @@ func _process(dt: float) -> void:
 	var prof := prof_da_estacao()
 	m.hud.mostrar_botao("bancada", prof != "" and vivo and not livre)
 	if prof != "":
-		m.hud.icone_botao("bancada", "pf_" + prof)
+		# perto da minha fornalha o botão abre a fornalha (combustível + material), não a mesa de criar
+		m.hud.icone_botao("bancada", "cs_fornalha" if minha_fornalha_perto() != "" else "pf_" + prof)
 	m.hud.mostrar_botao("bau", _meu_bau_perto() and vivo and not livre)
 	m.hud.mostrar_botao("correio", _meu_correio_perto() and vivo and not livre and prof == "")
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
+	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
+		fechar_forno()
+	_passo_forno(dt)
 	_passo_fab()
 	_mexer_portas(hp, dt)
 	_telhados_visiveis(hp, dt)
@@ -2782,7 +2798,7 @@ func comprar() -> void:
 
 # ---------- tela: barra de itens embaixo, no meio (como a do Quimera); o joystick à esquerda continua livre ----------
 func cobre(p: Vector2) -> bool:
-	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_qtd, painel_fab]:
+	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_forno, painel_qtd, painel_fab]:
 		if pn != null and pn.visible and pn.get_global_rect().grow(6).has_point(p):
 			return true
 	return false
@@ -2923,6 +2939,7 @@ func _montar_tela() -> void:
 	b_comprar.custom_minimum_size = Vector2(150, 54)
 	t2.add_child(b_comprar)
 	_montar_tela_bau()
+	_montar_tela_forno()
 	_montar_tela_criar()
 
 func _montar_tela_criar() -> void:
@@ -3089,6 +3106,188 @@ func _montar_bau() -> void:
 			continue
 		var fn := func(): m.rede("bau", {"acao": "guardar", "i": i})
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
+
+# ---------- fornalha (2026-11-07: "o forno tá igual uma mesa de craft"): combustível, material e o que ficou pronto ----------
+# A conta é do servidor (shared/simulacao.js avancarForno) e segue mesmo com você longe; aqui só mostra e anda as barrinhas.
+func minha_fornalha_perto() -> String:
+	if meu == "" or not lotes.has(meu) or m.heroi == null:
+		return ""
+	var hp: Vector3 = m.heroi.position
+	var melhor := ""
+	var dm := float(D.lote.estacaoDist) + 0.4
+	for p in lotes[meu].pecas:
+		if p.k == "fornalha":
+			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
+			if d <= dm:
+				dm = d
+				melhor = str(p.id)
+	return melhor
+
+func abrir_forno() -> void:
+	var id := minha_fornalha_perto()
+	if id == "" or not m.on():
+		return
+	forno_id = id
+	m.rede("forno", {"acao": "abrir", "p": id})
+
+func fechar_forno() -> void:
+	painel_forno.visible = false
+
+# o servidor mandou a fornalha (ao abrir, ou depois de pôr ou tirar)
+func do_forno(ev: Dictionary) -> void:
+	if str(ev.get("p", "")) != forno_id:
+		return
+	forno = ev
+	forno_t = 0.0
+	if ev.get("abrir", false) and not painel_forno.visible:
+		painel_forno.visible = true
+		m.sons.tocar("pano", -6.0)
+	if painel_forno.visible:
+		_montar_forno()
+
+func _passo_forno(dt: float) -> void:
+	if painel_forno == null or not painel_forno.visible or forno.is_empty():
+		return
+	forno_t += dt
+	forno_pediu = maxf(0.0, forno_pediu - dt)
+	var anda: bool = forno.get("anda", false)
+	var dur := float(forno.get("dur", 0))
+	var prog := float(forno.get("prog", 0)) + (forno_t if anda else 0.0)
+	var fogo := float(forno.get("fogo", 0)) - (forno_t if anda else 0.0)
+	var fmax := maxf(1.0, float(forno.get("fogoMax", 0)))
+	barra_forno.value = clampf(prog / dur, 0.0, 1.0) if dur > 0 else 0.0
+	barra_fogo.value = clampf(fogo / fmax, 0.0, 1.0)
+	# acabou uma peça ou a lenha: pede a conta nova ao servidor (no máximo uma vez por segundo)
+	if anda and forno_pediu <= 0.0 and (prog >= dur or fogo <= 0.0):
+		forno_pediu = 1.0
+		m.rede("forno", {"acao": "abrir", "p": forno_id})
+
+func _nome(k: String) -> String:
+	return str(D.itens.get(k, {}).get("nome", k)) if D.has("itens") else k
+
+func _montar_tela_forno() -> void:
+	painel_forno = PanelContainer.new()
+	painel_forno.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.96), Menu.OURO.darkened(0.25), 2, 10, 10))
+	painel_forno.set_anchors_preset(Control.PRESET_CENTER)
+	painel_forno.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	painel_forno.grow_vertical = Control.GROW_DIRECTION_BOTH
+	painel_forno.visible = false
+	tela.add_child(painel_forno)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	painel_forno.add_child(col)
+	var topo := HBoxContainer.new()
+	col.add_child(topo)
+	var ti := Menu.rotulo("Fornalha", 20, Menu.OURO)
+	ti.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(ti)
+	var fe := _botao("Fechar", fechar_forno, false, 18)
+	fe.custom_minimum_size = Vector2(120, 46)
+	topo.add_child(fe)
+	caixa_forno = VBoxContainer.new()
+	col.add_child(caixa_forno)
+	barra_fogo = _barra_forno(Color("ff7a2a"), Color("ffc070"))
+	barra_forno = _barra_forno(Color("e0a94a"), Color("ffe2a0"))
+	txt_forno = Menu.rotulo("", 14, Menu.APAGADO)
+	txt_forno.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt_forno.custom_minimum_size = Vector2(7 * 60, 0)
+	col.add_child(txt_forno)
+	col.add_child(Menu.rotulo("Mochila (toque para pôr na fornalha)", 16, Menu.APAGADO))
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(7 * 60, 2 * 60 + 6)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(sc)
+	grade_forno = GridContainer.new()
+	grade_forno.columns = 7
+	grade_forno.add_theme_constant_override("h_separation", 4)
+	grade_forno.add_theme_constant_override("v_separation", 4)
+	sc.add_child(grade_forno)
+
+func _barra_forno(cor: Color, borda: Color) -> ProgressBar:
+	var b := ProgressBar.new()
+	b.min_value = 0.0
+	b.max_value = 1.0
+	b.show_percentage = false
+	b.custom_minimum_size = Vector2(64, 10)
+	b.add_theme_stylebox_override("background", Menu.caixa(Color(0.05, 0.04, 0.03), Menu.OURO.darkened(0.5), 1, 4))
+	b.add_theme_stylebox_override("fill", Menu.caixa(cor, borda, 1, 4))
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return b
+
+# um lugar da fornalha: título, a célula (toque para tirar) e, embaixo, a barrinha (fogo ou preparo)
+func _lugar_forno(titulo: String, lugar: String, barra, marcado: bool) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	v.add_child(Menu.rotulo(titulo, 14, Menu.OURO if marcado else Menu.APAGADO))
+	var it = forno.get(lugar)
+	var fn := func():
+		if forno.get(lugar) != null:
+			m.rede("forno", {"acao": "tirar", "p": forno_id, "lugar": lugar})
+		elif lugar != "sai":
+			forno_alvo = lugar # lugar vazio: a lenha da mochila passa a ir para cá
+			_montar_forno()
+	v.add_child(m.menu.celula(it, marcado, fn, 64))
+	if barra != null:
+		if barra.get_parent():
+			barra.get_parent().remove_child(barra)
+		v.add_child(barra)
+	return v
+
+func _montar_forno() -> void:
+	for b in [barra_fogo, barra_forno]: # as barrinhas são sempre as mesmas: saem antes de apagar a linha velha
+		if b.get_parent():
+			b.get_parent().remove_child(b)
+	for n in caixa_forno.get_children():
+		n.queue_free()
+	for n in grade_forno.get_children():
+		n.queue_free()
+	var cfg: Dictionary = D.get("fornalha", {})
+	var comb: Dictionary = cfg.get("combustivel", {})
+	var rec: Dictionary = cfg.get("receitas", {})
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	caixa_forno.add_child(h)
+	h.add_child(_lugar_forno("Combustível", "comb", barra_fogo, forno_alvo == "comb"))
+	h.add_child(_lugar_forno("Material", "ent", barra_forno, forno_alvo == "ent"))
+	var seta := Menu.rotulo("→", 30, Menu.OURO)
+	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(seta)
+	h.add_child(_lugar_forno("Pronto", "sai", null, false))
+	# o que está acontecendo, em palavras
+	var t := ""
+	var faz := str(forno.get("faz", ""))
+	if str(forno.get("precisa", "")) != "":
+		t = "%s só sai com %s no combustível." % [_nome(faz), _nome(str(forno.precisa)).to_lower()]
+	elif forno.get("anda", false):
+		t = "Queimando: sai %s a cada %d s. Pode ir embora, ela continua." % [_nome(faz), int(forno.get("dur", 0))]
+	elif forno.get("ent") == null:
+		t = "Ponha minério de ferro ou de cobre (3 viram uma barra), lenha (2 viram carvão) ou barra de ferro (vira aço com carvão)."
+	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
+		t = "Sem fogo: ponha lenha ou carvão no combustível."
+	elif forno.get("sai") != null and str(forno.sai.k) != faz:
+		t = "Tire o que está pronto para começar outra coisa."
+	else:
+		t = "Parada: o lugar de pronto encheu ou falta material."
+	if forno_alvo == "comb":
+		t += " A lenha que você tocar vai para o combustível."
+	else:
+		t += " A lenha que você tocar vira carvão (toque no combustível vazio para mudar)."
+	txt_forno.text = t
+	# mochila: só o que entra na fornalha
+	var moch: Array = m.P.prog.get("mochila", [])
+	for i in moch.size():
+		var it = moch[i]
+		if it == null:
+			continue
+		var k := str(it.k)
+		var e_comb := comb.has(k)
+		var e_mat := rec.has(k)
+		if not e_comb and not e_mat:
+			continue
+		var lugar := forno_alvo if e_comb and e_mat else ("comb" if e_comb else "ent")
+		var fn := func(): m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
+		grade_forno.add_child(m.menu.celula(it, false, fn, 56))
 
 func trocar_aba(k: String) -> void:
 	aba = k
