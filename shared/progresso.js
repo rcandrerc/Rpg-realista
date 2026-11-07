@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -143,13 +143,16 @@ export function itemValido(it) {
     if (!int(it.r, 0, RARIDADES.length - 1)) return null;
     const v = int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
     if (int(it.e, 1, REFORCO.max[it.r] || 0)) v.e = it.e; // e: reforço (+1, +2...; sem e = +0)
+    if (it.cad) v.cad = 1; // cad: cadeado (André 2026-11-07): não vende, não joga fora, não vai para troca
     return v;
   }
   const n = int(it.n, 1, ITENS[it.k].pilha) ? it.n : 1;
-  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n } : null;
-  return { k: it.k, n };
+  const cad = it.cad ? { cad: 1 } : {};
+  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n, ...cad } : null;
+  return { k: it.k, n, ...cad };
 }
-const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv;
+// pilha com cadeado só junta com pilha com cadeado (o que chega solto não entra no cadeado e o trancado não perde o cadeado)
+const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv && !a.cad === !b.cad;
 // Põe na mochila (junta na pilha igual ou no primeiro lugar vazio). Devolve false se não coube.
 export function guardar(mochila, item) {
   const it = itemValido(item); if (!it) return false;
@@ -181,7 +184,7 @@ export function organizar(lista) {
   for (const o of lista) {
     if (!o || !ITENS[o.k]) { if (o) soltos.push(o); continue; }
     if (ehEquip(o.k) || !o.n) { soltos.push({ ...o }); continue; }
-    const chave = `${o.k}|${o.h || ''}|${o.nv || ''}`;
+    const chave = `${o.k}|${o.h || ''}|${o.nv || ''}|${o.cad ? 1 : ''}`; // pilha com cadeado fica à parte
     const p = pilhas.get(chave);
     if (p) p.n += o.n; else pilhas.set(chave, { ...o });
   }
@@ -445,6 +448,7 @@ export function progressoValido(p) {
   // relógio do dia da conta (depois de dormir) e quando a cama deu vigor pela última vez (ms, relógio do servidor)
   if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
+  if (num(p.agua) && p.agua >= 0) n.agua = Math.min(Math.floor(p.agua), HORTA.agua); // água do regador (sem o campo = cheio)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
   return n;

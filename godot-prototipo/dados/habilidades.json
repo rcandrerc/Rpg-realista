@@ -1064,7 +1064,7 @@
    "pilha": 1,
    "venda": 3,
    "ferramenta": "regar",
-   "desc": "Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia."
+   "desc": "Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia. Cheio dá 20 regas: encha no poço da vila ou na beira de um lago."
   }
  },
  "raridades": [
@@ -2341,7 +2341,14 @@
  },
  "horta": {
   "rega": 24,
-  "vigor": 1
+  "vigor": 1,
+  "agua": 20,
+  "poco": {
+   "x": -6,
+   "z": -14,
+   "r": 3.2
+  },
+  "beira": 2.5
  },
  "ferramentas": {
   "enxada": {

@@ -63,6 +63,13 @@ export function avancarForno(F, agora = Date.now()) {
 }
 
 // ---------- Vila dos Lotes: contas da construção e da horta (godot-prototipo/construcao.gd repete as mesmas) ----------
+// água do regador (conta sem o campo = cheio) e se (x, z) está perto do poço da praça ou na beira/dentro de um lago
+const aguaRegador = (p) => (typeof p.agua === 'number' ? p.agua : HORTA.agua);
+function pertoDeAgua(x, z) {
+  if (Math.hypot(x - HORTA.poco.x, z - HORTA.poco.z) <= HORTA.poco.r) return true;
+  const b = HORTA.beira;
+  return [[0, 0], [b, 0], [-b, 0], [0, b], [0, -b], [b * 0.7, b * 0.7], [-b * 0.7, b * 0.7], [b * 0.7, -b * 0.7], [-b * 0.7, -b * 0.7]].some(([ox, oz]) => noLago(x + ox, z + oz));
+}
 // Planta cresce só enquanto a terra está molhada (HORTA.rega horas depois de regar), em horas de relógio de verdade
 // (Quimera UJ): g = horas de rega acumuladas; madura quando g >= PLANTAS[c].G. u = última conta (ms).
 export function crescerPlanta(t, agora) {
@@ -572,6 +579,8 @@ export class Simulacao {
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     j.chao = p.y - chao < 0.15; j.vy = 0;
+    // nadando no lago com o regador vazio pela metade: enche sozinho e avisa (André 2026-11-07)
+    if (aguaRegador(j.prog) < HORTA.agua && (noLago(p.x, p.z)?.fundo || 0) > 1.2 && contar(j.prog.mochila, 'regador') > 0) this.encher(j, 'Você mergulhou: regador cheio');
     if (typeof p.anim === 'string' && p.anim.length < 64) j.anim = p.anim; // só aparência, para os outros jogadores
     j.cliente = { t: this.tempo };
     return true;
@@ -978,6 +987,8 @@ export class Simulacao {
   //   · { acao: 'vender_varios', lista: [i, ...] } (vende as pilhas inteiras de uma vez) · { acao: 'apagar', i } (joga fora)
   //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
   //   · { acao: 'organizar' } (junta as pilhas e põe a mochila em ordem: tipo, raridade, nome; ORGANIZAR em shared/dados.js)
+  //   · { acao: 'cadeado', i } ou { acao: 'cadeado', lugar } (André 2026-11-07: tranca/destranca o item; trancado não vende,
+  //     não entra no "Vender vários"/"Selecionar tudo", não vai para o lixo nem para a troca)
   // ---------- dungeon: Caverna da Montanha (André 2026-11-06; shared/caverna.js e CAVERNA_DUNGEON em shared/dados.js) ----------
   // (x, y, z) passou do selo da caverna (do selo para dentro, abaixo do teto do túnel)?
   alemDoSelo(x, z, y) { const c = dentroDaCaverna(TUNEL, x, z, y + 0.3); return !!c && c.s > CAVERNA.porta; }
@@ -1109,7 +1120,12 @@ export class Simulacao {
         if (!ITENS[it.k].comida) j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA; // comida sem recarga (André 2026-11-07: "por enquanto, sem limite")
       }
       if (--it.n <= 0) p.mochila[i] = null;
+    } else if (m.acao === 'cadeado' && (it || (typeof m.lugar === 'string' && Object.hasOwn(p.equip, m.lugar) && p.equip[m.lugar]))) {
+      const o = it || p.equip[m.lugar];
+      if (o.cad) delete o.cad; else o.cad = 1;
+      aviso(o.cad ? `${nomeItem(o)} trancado: não dá para vender nem jogar fora` : `${nomeItem(o)} destrancado`);
     } else if (m.acao === 'vender' && it) {
+      if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       const preco = precoVenda(it, mercador(p.prof.mer).venda);
       if (it.n > 1) it.n--; else p.mochila[i] = null;
@@ -1119,8 +1135,9 @@ export class Simulacao {
     } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x]))];
-      if (!lugares.length) return;
+      // item com cadeado (André 2026-11-07) fica de fora, mesmo que venha na lista
+      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad))];
+      if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
       const merc = mercador(p.prof.mer).venda;
       let ouro = 0, n = 0;
       for (const x of lugares) {
@@ -1132,6 +1149,7 @@ export class Simulacao {
       this.pontosMercador(j, ouro);
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
     } else if (m.acao === 'apagar' && it) {
+      if (it.cad) return aviso('Item trancado. Abra o cadeado para jogar fora');
       // André 2026-11-04: jogar fora um item da mochila (o celular pergunta antes; não dá ouro e não volta)
       p.mochila[i] = null;
       aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
@@ -1261,6 +1279,7 @@ export class Simulacao {
     if (m.acao === 'por') {
       const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
       if (!it) return;
+      if (it.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
       const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
       const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
       if (n <= 0) return aviso('Você já pôs tudo desse item');
@@ -1595,6 +1614,7 @@ export class Simulacao {
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    if (!this.cabeColeta(j.prog, C)) return aviso('Mochila cheia: venda ou guarde algo no baú para coletar');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
   }
@@ -1640,6 +1660,7 @@ export class Simulacao {
     const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
     if (C.ferramenta && contar(p.mochila, C.ferramenta) < 1) return this.pararColeta(j, `Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()}`); // vendeu ou guardou no meio
     if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
+    if (!this.cabeColeta(p, C)) return this.pararColeta(j, 'Mochila cheia: venda ou guarde algo no baú para coletar'); // não gasta vigor à toa
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     const b = profBonus(p.prof[C.prof]), ganhou = [];
@@ -1660,6 +1681,11 @@ export class Simulacao {
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
+  }
+  // André 2026-11-07: com a mochila cheia a coleta para e diz o motivo (antes gastava vigor e a carga do veio)
+  cabeColeta(p, C) {
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    return Object.entries(C.da).every(([k, n]) => guardar(prova, { k, n }));
   }
   pararColeta(j, motivo = undefined) {
     if (!j.coleta) return;
@@ -2061,6 +2087,20 @@ export class Simulacao {
   // Dormir na cama do meu terreno (igual ao Quimera, André 2026-11-07): só à noite no relógio da conta (19h às 5h) e sem
   // monstro a menos de CAMA.perigo m. Pula para as 6h30 (só para quem dormiu: o relógio é da conta) com vida, mana e
   // estamina cheias; o vigor ganha CAMA.vigor uma vez a cada CAMA.cada s. A cama já é onde você renasce.
+  // encher o regador (André 2026-11-07): perto do poço da praça ou na beira de um lago (o botão "Encher" do Godot)
+  encherRegador(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (contar(j.prog.mochila, 'regador') < 1) return aviso('Você não tem regador');
+    if (aguaRegador(j.prog) >= HORTA.agua) return aviso('O regador já está cheio');
+    if (!pertoDeAgua(j.x, j.z)) return aviso('Chegue no poço da vila ou na beira de um lago');
+    this.encher(j, 'Regador cheio');
+  }
+  encher(j, texto) {
+    j.prog.agua = HORTA.agua;
+    this.evento({ t: 'regador', para: j.id, agua: HORTA.agua, texto: `${texto}: dá ${HORTA.agua} regas` });
+    this.avisarProg(j);
+  }
   dormir(id) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -2166,8 +2206,11 @@ export class Simulacao {
       if (!t) return aviso('Precisa arar a terra primeiro');
       if (contar(p.mochila, 'regador') < 1) return aviso('Precisa de regador (crie perto de uma bancada, aba Fazenda)');
       if (t.w && agora < t.w + HORTA.rega * 3600000) return aviso('A terra ainda está molhada');
+      if (aguaRegador(p) <= 0) return aviso('Regador sem água: encha no poço da vila ou na beira de um lago');
       if (!vigor()) return;
       t.w = agora; t.u = agora;
+      p.agua = aguaRegador(p) - 1;
+      if (p.agua === 0) aviso('O regador secou: encha no poço da vila ou na beira de um lago');
     } else if (m.acao === 'colher') {
       if (!t || !t.c) return aviso('Não tem nada plantado aqui');
       const P = PLANTAS[t.c];

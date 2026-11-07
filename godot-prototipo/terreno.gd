@@ -270,13 +270,60 @@ func agua_no_corpo(x: float, z: float, y: float) -> float:
 		return 0.0
 	return maxf(0.0, float(agua.nivel) - y)
 
+# FPS (André 2026-11-07: "perdas muito grandes de FPS na vila e na hora da construção"): altura(), teto() e rocha_em()
+# passavam por TODOS os sólidos a cada chamada (pedras e casas da vila e, desde as Terras da Estrada, cada fundação,
+# parede e telhado construído). Elas são chamadas centenas de vezes por quadro (herói, câmera, monstros, efeitos), então
+# cada casa nova deixava o jogo inteiro mais lento. Agora cada sólido fica numa grade de 4 m (nas casas que o círculo
+# dele toca) e a conta só olha os da casa do ponto. O resultado é o mesmo: fora do círculo (R) o sólido não conta.
+# Quem mexe em solidos/casas chama solidos_mudaram() (construcao.gd); mudar o tamanho da lista também refaz a grade.
+const SOL_G := 4.0
+const _NADA: Array = []
+var _sol_grade := {}
+var _casas_grade := {}
+var _sol_n := -1
+var _casas_n := -1
+var _sol_sujo := true
+
+func solidos_mudaram() -> void:
+	_sol_sujo = true
+
+func _refazer_grade_sol() -> void:
+	_sol_sujo = false
+	_sol_n = solidos.size()
+	_casas_n = casas.size()
+	_sol_grade = {}
+	_casas_grade = {}
+	for i in solidos.size():
+		solidos[i]._i = i # número do sólido, para quem junta de várias casas não repetir (main.gd distancia_livre)
+	for par in [[solidos, _sol_grade], [casas, _casas_grade]]:
+		var g: Dictionary = par[1]
+		for r in par[0]:
+			var R: float = float(r.get("R", 0.0)) + 0.01
+			for i in range(floori((float(r.x) - R) / SOL_G), floori((float(r.x) + R) / SOL_G) + 1):
+				for j in range(floori((float(r.z) - R) / SOL_G), floori((float(r.z) + R) / SOL_G) + 1):
+					var c := Vector2i(i, j)
+					if not g.has(c):
+						g[c] = []
+					g[c].append(r)
+
+# os sólidos que podem ter chão no ponto (na mesma ordem da lista solidos)
+func solidos_em(x: float, z: float) -> Array:
+	if _sol_sujo or solidos.size() != _sol_n or casas.size() != _casas_n:
+		_refazer_grade_sol()
+	return _sol_grade.get(Vector2i(floori(x / SOL_G), floori(z / SOL_G)), _NADA)
+
+func casas_em(x: float, z: float) -> Array:
+	if _sol_sujo or solidos.size() != _sol_n or casas.size() != _casas_n:
+		_refazer_grade_sol()
+	return _casas_grade.get(Vector2i(floori(x / SOL_G), floori(z / SOL_G)), _NADA)
+
 func altura(x: float, z: float, y := INF) -> float:
 	var h := chao_relevo(x, z) if (not lagos.is_empty() or not monte.is_empty()) else 0.0
 	# caverna da montanha: dentro do túnel e abaixo do teto dele, o chão é o da caverna
 	var cv := chao_caverna(x, z, y)
 	if not is_nan(cv) and cv < h:
 		h = cv
-	for r in solidos:
+	for r in solidos_em(x, z):
 		var a := altura_na(r, x, z, y)
 		if a > h and a >= 0.0: # -1 = fora da peça (no lago o chão fica abaixo de -1)
 			h = a
@@ -318,7 +365,7 @@ func teto(x: float, z: float, y: float) -> float:
 	var cv := dentro_caverna(x, z, y)
 	if not cv.is_empty():
 		t = float(cv.y) + float(cv.teto) # o teto da caverna
-	for r in casas:
+	for r in casas_em(x, z):
 		if r.base > y + ACIMA and r.base < t and altura_casa(r, x, z) >= 0.0:
 			t = r.base
 	return t
@@ -326,7 +373,7 @@ func teto(x: float, z: float, y: float) -> float:
 func rocha_em(x: float, z: float, y: float):
 	var melhor = null
 	var h := 0.05
-	for r in solidos:
+	for r in solidos_em(x, z):
 		var a := altura_na(r, x, z, y)
 		if a > h:
 			h = a

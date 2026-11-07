@@ -195,6 +195,16 @@ func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 			fn.call())
 	return b
 
+# André 2026-11-07: botão travado (apagado/vermelho) não fica mudo. Tocar nele chama fn, que mostra o motivo
+# (sem vigor, mochila cheia, falta material, nível, ouro...). O Godot não solta "pressed" com o botão travado,
+# mas o toque ainda chega no gui_input.
+static func ao_tocar_travado(b: BaseButton, fn: Callable) -> void:
+	b.gui_input.connect(func(e: InputEvent): _toque_travado(b, e, fn))
+
+static func _toque_travado(b: BaseButton, e: InputEvent, fn: Callable) -> void:
+	if b.disabled and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+		fn.call()
+
 static func estilo_botao(b: Button, ativo: bool) -> void:
 	var n := caixa(FUNDO3 if ativo else FUNDO2, OURO if ativo else BORDA, 1, 6)
 	var p := caixa(FUNDO3.lightened(0.08), OURO_CLARO, 1, 6)
@@ -1363,8 +1373,32 @@ func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	avisar_travado(b, func(): return motivo_receita(aqui, "a oficina ou a estação certa", nv_ok, "%s Nv %d" % [P.dados.profissoes[R.prof].nome, int(R.nivel)], R.usa, custo))
 	l.add_child(b)
 	return cx
+
+# mostra o motivo de um botão travado no meio da tela, com o som de "não dá"
+func avisar_travado(b: BaseButton, motivo: Callable) -> void:
+	ao_tocar_travado(b, func(): _avisar_motivo(str(motivo.call())))
+
+func _avisar_motivo(t: String) -> void:
+	if t != "":
+		m.hud.aviso(t)
+		m.sons.tocar("dash", -12.0)
+
+# primeiro motivo que impede criar ("" = dá)
+func motivo_receita(aqui: bool, onde: String, nv_ok: bool, nv_txt: String, usa: Dictionary, custo: float) -> String:
+	var P = m.P
+	if not nv_ok:
+		return "Nível baixo: precisa de %s" % nv_txt
+	if not aqui:
+		return "Vá até %s para criar" % onde
+	for k in usa:
+		if P.contar(k) < int(usa[k]):
+			return "Falta %s (%d/%d)" % [str(P.dados.itens[k].nome).to_lower(), P.contar(k), int(usa[k])]
+	if P.vigor() < custo:
+		return "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)"
+	return ""
 
 func criar(r: String) -> void:
 	if not m.on():
@@ -1556,6 +1590,10 @@ func linha_criavel(e: Dictionary) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	avisar_travado(b, func():
+		var nv_txt := "%s Nv %d" % [D.profissoes[str(D.receitas[e.k].prof)].nome, int(e.nivel)] if e.tipo == "receita" else ""
+		var mt := motivo_receita(aqui, onde, nv_ok, nv_txt, usa, custo)
+		return mt if mt != "" else motivo)
 	l.add_child(b)
 	if e.tipo == "obra" and motivo.begins_with("Você já tem"):
 		o.text = motivo
@@ -1633,6 +1671,15 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 	if it != null and P.eh_equip(it) and P.durab(it) < int(P.morte_dados().durMax):
 		_marca_durabilidade(b, it, tam)
 	moldurar(b, cor, escolhido, it != null)
+	if it != null and it.get("cad", false): # cadeado (André 2026-11-07): cadeadinho dourado no canto de baixo
+		var cd := TextureRect.new()
+		cd.texture = icone_tex("cadeado")
+		cd.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cd.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		cd.position = Vector2(3, tam - tam * 0.36 - 3)
+		cd.size = Vector2(tam * 0.34, tam * 0.36)
+		cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(cd)
 	if it != null and marcado:
 		var vel := ColorRect.new() # escurece um pouco e põe o sinal dourado no canto
 		vel.color = Color(0.95, 0.75, 0.3, 0.16)
@@ -1801,6 +1848,7 @@ func pagina_trancada(n: int, tem: int) -> Control:
 		b.custom_minimum_size = Vector2(200, 42)
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
+		avisar_travado(b, func(): return "Faltam %d de ouro" % (preco - int(P.prog.ouro)))
 		v.add_child(b)
 		if not pode:
 			var f := rotulo("Faltam %d de ouro" % (preco - int(P.prog.ouro)), 12, APAGADO)
@@ -1812,6 +1860,8 @@ func tocar_mochila(i: int) -> void:
 	if vendendo:
 		if marcados.has(i):
 			marcados.erase(i)
+		elif m.P.prog.mochila[i] != null and m.P.prog.mochila[i].get("cad", false):
+			m.hud.aviso("Item com cadeado: não vende. Abra o cadeado para vender")
 		elif m.P.prog.mochila[i] != null:
 			marcados[i] = true
 		atualizar()
@@ -1911,15 +1961,25 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		var r2 := botao("Até cancelar", func(): m.reforco.comecar(onde, true), 14)
 		r2.custom_minimum_size = Vector2(130, 36)
 		bs.add_child(r2)
-	if i >= 0 and m.perto_de_quem_compra():
+	var trancado: bool = bool(it.get("cad", false))
+	# cadeado (André 2026-11-07): trancado não vende (nem no Vender vários), não vai para o lixo nem para a troca
+	var cad := botao("Destrancar" if trancado else "Trancar", func(): acao_item({"acao": "cadeado", "i": i} if lugar == "" else {"acao": "cadeado", "lugar": lugar}), 14, false)
+	cad.icon = icone_tex("cadeado")
+	cad.expand_icon = false
+	cad.add_theme_constant_override("icon_max_width", 18)
+	cad.custom_minimum_size = Vector2(130, 36)
+	bs.add_child(cad)
+	if i >= 0 and not trancado and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
-	if i >= 0: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
+	if i >= 0 and not trancado: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
 		var ap := botao("Apagar", func(): perguntar_apagar(i), 14)
 		ap.custom_minimum_size = Vector2(110, 36)
 		ap.add_theme_color_override("font_color", PIOR)
 		ap.add_theme_color_override("font_hover_color", PIOR)
 		bs.add_child(ap)
 	txt.add_child(bs)
+	if trancado:
+		txt.add_child(rotulo("Com cadeado: não vende, não vai para o lixo nem para a troca", 12, OURO))
 	l.add_child(txt)
 	return cx
 
@@ -1933,7 +1993,7 @@ func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
 	var raros := 0
 	for i in marcados.keys():
 		var it = P.prog.mochila[i] if i < P.prog.mochila.size() else null
-		if it == null:
+		if it == null or it.get("cad", false):
 			marcados.erase(i)
 			continue
 		var q: int = 1 if P.eh_equip(it) else max(1, int(it.get("n", 1)))
@@ -1958,7 +2018,7 @@ func barra_venda() -> Control:
 		return l
 	var cheios: Array = []
 	for i in P.prog.mochila.size():
-		if P.prog.mochila[i] != null:
+		if P.prog.mochila[i] != null and not P.prog.mochila[i].get("cad", false): # com cadeado fica de fora do Selecionar tudo
 			cheios.append(i)
 	var todos: bool = cheios.size() > 0 and marcados.size() >= cheios.size()
 	var sel := botao("Desmarcar tudo" if todos else "Selecionar tudo", func():
@@ -1974,6 +2034,7 @@ func barra_venda() -> Control:
 	vb.custom_minimum_size = Vector2(0, 40)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.disabled = r[0] == 0
+	avisar_travado(vb, func(): return "Marque primeiro os itens que quer vender")
 	l.add_child(vb)
 	var pr := botao("Pronto", func(): modo_vender(false), 14)
 	pr.custom_minimum_size = Vector2(100, 40)
@@ -2270,6 +2331,7 @@ func montar_janela() -> void:
 		b.custom_minimum_size = Vector2(96, 44)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = cheia
+		avisar_travado(b, func(): return "Mochila cheia: libere um espaço para tirar a peça")
 		linha.add_child(b)
 	v.add_child(linha)
 	# linha 2: o aviso curto
@@ -2387,6 +2449,7 @@ func montar_loja() -> void:
 		b.custom_minimum_size = Vector2(140, 40)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
+		avisar_travado(b, func(): return "Faltam %d de ouro" % (preco - int(P.prog.ouro)))
 		l.add_child(b)
 		conteudo.add_child(l)
 
@@ -2624,9 +2687,20 @@ func acao_item(msg: Dictionary) -> void:
 				P.gastar(i)
 			if P.prog.mochila[i] == null:
 				sel_mochila = -1
+		"cadeado":
+			var it = P.prog.mochila[i] if i >= 0 and i < P.prog.mochila.size() else P.prog.equip.get(msg.get("lugar", ""))
+			if it != null:
+				if it.get("cad", false):
+					it.erase("cad")
+				else:
+					it.cad = 1
+				P.mudou = true
+				m.hud.aviso(("%s trancado: não dá para vender nem jogar fora" if it.has("cad") else "%s destrancado") % P.nome_item(it))
 		"apagar":
 			var it = P.prog.mochila[i] if i >= 0 and i < P.prog.mochila.size() else null
-			if it != null:
+			if it != null and it.get("cad", false):
+				m.hud.aviso("Item trancado. Abra o cadeado para jogar fora")
+			elif it != null:
 				P.prog.mochila[i] = null
 				P.mudou = true
 				m.hud.aviso("Jogou fora %s" % P.nome_item(it))

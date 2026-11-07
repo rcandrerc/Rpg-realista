@@ -20,6 +20,8 @@ var _ajuste := -1.0 # >= 0: força a hora (fotos de teste)
 var _cortina: ColorRect
 var _cortina_txt: Label
 var _sono := {} # {"t", "ev"} enquanto a tela escurece e clareia
+var _ceu_noite := -1.0 # o que o céu já recebeu (atualizar só manda quando muda)
+var _ceu_por := -1.0
 # luz do dia (a de main.gd montar_ambiente) e a da noite (cores do Quimera: céu 0b1128, luz 8fa6ff, ambiente 5a6aa8)
 var _dia := {}
 const NOITE := {"amb": Color("4a5a98"), "amb_e": 0.62, "sol": Color("8fa6ff"), "sol_e": 0.34, "nevoa": Color("141c38"), "exp": 0.74}
@@ -152,8 +154,13 @@ func atualizar(_forcar: bool) -> void:
 	else:
 		m.sol.light_color = b.sol
 	env.tonemap_exposure = b.exp
-	ceu.set_shader_parameter("noite", noite)
-	ceu.set_shader_parameter("por", b.por)
+	# FPS (2026-11-07): mexer no material do céu faz o Godot refazer o céu (radiância) no quadro seguinte. De dia e de
+	# noite fechada nada muda: só manda quando o valor mudou de verdade (no pôr e no nascer do sol muda sempre).
+	if _forcar or absf(noite - _ceu_noite) > 0.0005 or absf(float(b.por) - _ceu_por) > 0.0005:
+		_ceu_noite = noite
+		_ceu_por = float(b.por)
+		ceu.set_shader_parameter("noite", noite)
+		ceu.set_shader_parameter("por", b.por)
 	lanterna.light_energy = 0.9 * noite
 	lanterna.visible = noite > 0.02
 

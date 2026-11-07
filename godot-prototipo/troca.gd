@@ -311,8 +311,8 @@ func coluna_mochila() -> Control:
 				if it.has("n"):
 					resta.n = n
 		var c: Button = m.menu.celula(resta, i == sel, func(): tocar_item(i), CEL)
-		if it != null and resta == null:
-			c.modulate = Color(1, 1, 1, 0.35) # tudo dele já está na oferta
+		if it != null and (resta == null or it.get("cad", false)):
+			c.modulate = Color(1, 1, 1, 0.35) # tudo dele já está na oferta, ou tem cadeado (não vai para troca)
 		g.add_child(c)
 	v.add_child(g)
 	# escolher quantos de uma pilha
@@ -351,6 +351,9 @@ func _mini(t: String, msg: Dictionary) -> Button:
 func tocar_item(i: int) -> void:
 	var it = m.P.prog.mochila[i]
 	if it == null:
+		return
+	if it.get("cad", false): # cadeado da mochila (André 2026-11-07)
+		m.hud.aviso("Item com cadeado. Abra o cadeado na mochila para trocar")
 		return
 	if eu_tranquei():
 		m.hud.aviso("Sua oferta está trancada. Destranque para mudar")
