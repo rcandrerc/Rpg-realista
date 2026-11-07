@@ -273,6 +273,8 @@ export class Simulacao {
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
       ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      // pedras e galhos soltos no chão (André 2026-11-07): pega com a mão; não são sólidos (s0, s1...)
+      ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i })), // veio: some quando esgota (veioVazio)
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
@@ -1555,11 +1557,26 @@ export class Simulacao {
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
+    if (C.mao) return this.pegarSolto(j, no, C);
+    // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
+    if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
+  }
+  // pedra ou galho solto (André 2026-11-07): pega na hora, sem ferramenta nem vigor; volta em C.volta s só para quem pegou
+  pegarSolto(j, no, C) {
+    if (this.cargas(j, no) <= 0) return this.evento({ t: 'aviso', para: j.id, texto: `${C.nome}: já pegou, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s` });
+    const ganhou = [];
+    for (const [k, n] of Object.entries(C.da)) {
+      if (!guardar(j.prog.mochila, { k, n })) return this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' });
+      ganhou.push({ k, nome: ITENS[k].nome, n });
+    }
+    j.coletas[no.id] = { n: 0, volta: this.tempo + C.volta };
+    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: 0, volta: C.volta });
+    this.avisarProg(j);
   }
   custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
   // é de todos? Os veios das zonas de mineração e, desde 2026-11-04 (pedido do André), as árvores: a árvore cortada
@@ -1589,6 +1606,7 @@ export class Simulacao {
   }
   batidaColeta(j) {
     const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
+    if (C.ferramenta && contar(p.mochila, C.ferramenta) < 1) return this.pararColeta(j, `Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()}`); // vendeu ou guardou no meio
     if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');

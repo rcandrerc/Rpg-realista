@@ -93,7 +93,7 @@ const mundo = {
   // NPCs da vila no mesmo lugar do servidor (a loja só vende perto da Rosa)
   npcs: (MAPA_CLAREIRA.npcs || []).map((n) => ({ id: n.id, nome: n.nome, x: n.x, z: n.z, ry: n.ry, funcao: n.funcao, tinta: n.tinta, escala: n.escala, roupa: n.roupa, arma: n.arma, anciao: n.anciao, veste: n.veste, esconder: n.esconder, limpar_rosto: n.limpar_rosto, friso: n.friso, acoes: n.acoes || [], missao: n.missao ? MISSOES[n.missao]?.nome : undefined, falas: n.falas })),
   // onde se coleta (Parte 3): veios (v0...) com o giro do desenho e as árvores (a0...), com os mesmos ids do servidor
-  coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
+  coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: c.ry ?? MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
   // Vila dos Lotes (construção e fazenda): os lotes com a placa e a área (godot-prototipo/construcao.gd)
   // Terras da Estrada (2026-11-04): a área (elipse de borda ondulada), a estrada central e a de chegada, para o app
   // conferir o terreno marcado antes de mandar (a mesma conta de motivoTerreno no servidor)
