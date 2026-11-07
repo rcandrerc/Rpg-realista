@@ -24,6 +24,6 @@ Montados com ffmpeg a partir dos pacotes Kenney (CC0 1.0, uso comercial liberado
 
 | Arquivo | O que é | Gravações |
 |---|---|---|
-| arvore_range | galhos estalando em sequência enquanto o tronco tomba, com folhas raspando nos galhos (troca pedida pelo André em 2026-11-07: o rangido antigo parecia cadeira arrastando em ferro) | kenney_impact-sounds impactWood_light_000-004, impactPlank_medium_000-004 (mais agudos, emendados) e footstep_grass_000-004 (folhas) |
+| arvore_range | a árvore caindo inteira: rangido, estalo grande, galhos quebrando e baque (troca pedida pelo André em 2026-11-07: o rangido Kenney antigo parecia cadeira arrastando em ferro) | Pixabay, "Falling Tree" de mollyroselee (som 431321, Pixabay Content License: uso comercial, sem crédito obrigatório), cortado de 0,4 s a 5,2 s, mono; original no New-Game-Anime-fontes (sons/pixabay/) |
 | arvore_estalo | tronco e galhos quebrando (lascas em sequência) | kenney_impact-sounds impactWood_light_000-002 + kenney_rpg-audio chop |
-| arvore_queda | baque pesado da árvore no chão, com o quique e a copa batendo (folhas) | kenney_impact-sounds impactWood_heavy_000, 002, 003 (mais graves), footstep_grass_001, 003 e impactSoft_heavy_002 |
+| arvore_queda | baque pesado da árvore no chão, com o quique | kenney_impact-sounds impactWood_heavy_000, 002, 003 (mais graves) |
