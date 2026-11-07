@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
@@ -1128,13 +1128,32 @@ export class Simulacao {
       aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
     } else if (m.acao === 'comprar' && LOJA[i]) {
       if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
-      const o = LOJA[i], preco = this.precoCompra(j, o);
+      // André 2026-11-07: escolhe a quantidade (m.n, sem n = 1) e compra tudo de uma vez; o que não couber
+      // no ouro ou na mochila fica de fora. O celular toca o som e mostra o "+n" com o evento 'compra'.
+      const o = LOJA[i], preco = this.precoCompra(j, o), equip = ehEquip(o.k);
+      const pedido = Math.min(LOJA_MAX, Math.max(1, Math.floor(Number(m.n) || 1)));
       if (p.ouro < preco) return aviso('Ouro insuficiente');
-      const novo = ehEquip(o.k) ? { k: o.k, r: o.r } : { k: o.k, n: 1 };
-      if (!guardar(p.mochila, novo)) return aviso('Mochila cheia');
-      p.ouro -= preco;
-      this.pontosMercador(j, preco);
-      aviso(`Comprou ${nomeItem(novo)}`);
+      const pilha = equip ? 1 : ITENS[o.k].pilha || 1;
+      let cabe = 0;
+      for (const x of p.mochila) {
+        if (x === null) cabe += pilha;
+        else if (!equip && x.k === o.k && x.h === undefined && x.nv === undefined && x.n < pilha) cabe += pilha - x.n;
+      }
+      if (cabe <= 0) return aviso('Mochila cheia');
+      const n = Math.min(pedido, Math.floor(p.ouro / preco), cabe);
+      for (let falta = n; falta > 0;) {
+        const lote = Math.min(falta, pilha);
+        if (!guardar(p.mochila, equip ? { k: o.k, r: o.r } : { k: o.k, n: lote })) break;
+        falta -= lote;
+      }
+      const total = preco * n;
+      p.ouro -= total;
+      this.pontosMercador(j, total);
+      const novo = equip ? { k: o.k, r: o.r } : { k: o.k, n };
+      const nome = nomeItem(novo);
+      aviso(n > 1 ? `Comprou ${n}x ${nome} por ${total} de ouro` : `Comprou ${nome}`);
+      if (n < pedido) aviso(n >= cabe ? `Só coube ${n} na mochila` : `O ouro deu para ${n}`);
+      this.evento({ t: 'compra', para: j.id, i, k: o.k, r: equip ? o.r : -1, n, ouro: total });
     } else if (m.acao === 'pagina') {
       const tem = p.paginas || 1;
       if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
