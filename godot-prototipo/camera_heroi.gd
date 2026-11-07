@@ -37,6 +37,7 @@ var alvo := Vector3.ZERO
 var _vel_alvo := Vector3.ZERO
 var _giro_pend := Vector2.ZERO
 var _sem_dedo := 9.0
+const SUBMERSO := 0.45 # m de mergulho a partir do qual a cabeça do herói está debaixo d'água
 var trauma := 0.0 # tremida (0 a 1); cai sozinha
 var _afunda := 0.0
 var _afunda_v := 0.0
@@ -186,8 +187,22 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		cam.position += (lado * 0.4 + Vector3(0, 0.2, 0)) * smoothstep(0.0, 1.0, _conv_k)
 	# encostada na parede/chão: não entra no chão (sobe um pouco por cima)
 	var chao_cam: float = m.terreno.altura(cam.position.x, cam.position.z, cam.position.y + 1.5) + 0.3
+	# mergulhado (André 2026-11-07): o "chão" do lago fundo é a linha de boiar; a câmera desce até o leito de verdade
+	var submerso: bool = m.mov.mergulho > SUBMERSO and m.terreno.agua_no_corpo(cam.position.x, cam.position.z, -9.0) > 0.0 # câmera em cima do lago
+	if submerso:
+		chao_cam = minf(chao_cam, m.terreno.relevo(cam.position.x, cam.position.z) + 0.3)
 	if cam.position.y < chao_cam and chao_cam - cam.position.y < 2.5:
 		cam.position.y = chao_cam
+	# na água a câmera nunca fica cortada pela superfície: com a cabeça do herói debaixo d'água ela desce junto e fica
+	# atrás dele, dentro da água (submerso.gd pinta o lado de dentro); boiando ou nadando em cima, fica acima da água
+	var nivel := float(m.terreno.agua.nivel)
+	var leito: float = m.terreno.relevo(cam.position.x, cam.position.z) + 0.3
+	if submerso and leito < nivel - 0.2:
+		cam.position.y = clampf(cam.position.y, leito, nivel - 0.2)
+	elif submerso: # raso demais para caber a câmera: fica acima da água
+		cam.position.y = maxf(cam.position.y, nivel + 0.35)
+	elif m.terreno.agua_no_corpo(cam.position.x, cam.position.z, cam.position.y - 0.35) > 0.0:
+		cam.position.y = nivel + 0.35
 	cam.look_at(foco - Vector3(0, 0.25 * ombro, 0) + Vector3(-dir_cam.x, 0, -dir_cam.z) * 2.0 * ombro)
 	# tremida: trauma² (golpe fraco quase não treme, forte treme bem), cai rápido
 	if trauma > 0.0:

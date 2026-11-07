@@ -11,6 +11,7 @@ var habs: Dictionary
 var prog := {}
 var st := {} # números do herói: vidaMax, manaMax, defesa, danoFisico...
 var xp_prox := 16
+var teste := false # conta de teste do André: o menu mostra os botões de mudar o nível (o servidor confere)
 var mudou := false # o menu redesenha quando muda
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
@@ -94,6 +95,7 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("agora"):
 		relogio = float(ev.agora) - Time.get_unix_time_from_system() * 1000.0
 	definir(ev.prog)
+	teste = bool(ev.get("teste", false))
 	if ev.has("st"):
 		for k in ev.st:
 			st[k] = float(ev.st[k])
@@ -135,7 +137,7 @@ func guardar_agora() -> void:
 	cfg.save(ARQUIVO)
 
 static func xp_proximo(n: int) -> int:
-	return int(round(16.0 * pow(n, 1.45)))
+	return int(round(16.0 * pow(n, 1.45) * (1.0 + max(0, n - 30) / 50.0))) # igual a shared/progresso.js (Nv 200)
 
 func passiva(k: String) -> bool:
 	return prog.nivel >= int(dados.passivas[k].libera)
@@ -175,6 +177,23 @@ func agora_ms() -> float:
 func vigor() -> float:
 	var s: float = max(0.0, agora_ms() - float(prog.vigor.t)) / 1000.0
 	return min(float(dados.vigor.max), float(prog.vigor.v) + s / float(dados.vigor.enche) * float(dados.vigor.max))
+
+# ---------- dia e noite (igual a shared/progresso.js horaDoJogo; dados em shared/dados.js DIA e CAMA) ----------
+# hora do jogo (0 a 24) no relógio da conta: prog.dia = {h, t}; conta que nunca dormiu segue o relógio do mundo
+func hora_do_jogo() -> float:
+	var D: Dictionary = dados.get("dia", {"horaSeg": 30, "comeco": 8})
+	var dia = prog.get("dia")
+	var h0: float = float(dia.h) if dia is Dictionary else float(D.comeco)
+	var t0: float = float(dia.t) if dia is Dictionary else 0.0
+	return fposmod(h0 + (agora_ms() - t0) / 1000.0 / float(D.horaSeg), 24.0)
+
+static func eh_noite_h(h: float, D: Dictionary) -> bool:
+	return h >= float(D.get("noite", 19)) or h < float(D.get("manha", 5))
+
+# segundos até a cama dar vigor de novo (0 = pronta)
+func cama_vigor_em() -> float:
+	var C: Dictionary = dados.get("cama", {"cada": 21600})
+	return max(0.0, (float(prog.get("camaT", 0)) + float(C.cada) * 1000.0 - agora_ms()) / 1000.0)
 
 # segundos até o vigor encher
 func vigor_cheio_em() -> float:
@@ -224,11 +243,13 @@ static func item_int(it):
 	if not (it is Dictionary) or not it.has("k"):
 		return null
 	var r := {"k": "peitoral" if str(it.k) == "manto" else "colar" if str(it.k) == "oculos" else str(it.k)} # conta antiga: o Manto virou Peitoral; Óculos virou Colar (André 2026-11-03)
-	for c in ["r", "n", "nv", "d"]: # d: durabilidade gasta (sem d = inteira; MORTE em shared/dados.js)
+	for c in ["r", "n", "nv", "d", "e"]: # d: durabilidade gasta (sem d = inteira; MORTE em shared/dados.js) · e: reforço (+1, +2...)
 		if it.has(c):
 			r[c] = int(it[c])
 	if it.has("h"):
 		r.h = str(it.h)
+	if it.get("cad", false): # cadeado (André 2026-11-07): não vende, não joga fora, não vai para troca
+		r.cad = 1
 	return r
 
 func eh_equip(it) -> bool:
@@ -262,9 +283,11 @@ func bonus_equip() -> Dictionary:
 		var it = prog.equip.get(l)
 		if it == null or not dados.itens.has(it.k) or quebrado(it): # quebrada: sem bônus até o Tomás consertar
 			continue
+		if not reforco_ok(it): # como no Quimera: reforçada além do seu atributo não dá bônus
+			continue
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
-			b[c] += float(st[c][int(it.r)])
+			b[c] += float(st[c][int(it.r)]) * reforco_k(it, c)
 	var ativo := conjunto_ativo()
 	for t in ativo:
 		if ativo[t] > 0:
@@ -272,6 +295,92 @@ func bonus_equip() -> Dictionary:
 			for c in bon:
 				b[c] += float(bon[c])
 	return b
+
+# ---------- reforço de equipamento (igual a shared/progresso.js; REFORCO em shared/dados.js, como no Quimera) ----------
+func reforco_dados() -> Dictionary:
+	return dados.get("reforco", {"max": [0, 10, 20, 30, 40], "chance": [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 29, 28, 27, 26, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25],
+		"custo": {"base": 10, "porRaridade": 12, "sobe": 1.07}, "seguro": 5, "bonus": 0.4, "bonusCritico": 0.2, "atributo": {"livre": 2, "porNivel": 10}, "tempo": 1.6})
+
+# multiplicador de um número da peça pelo reforço (+0 = 1; o crítico sobe a metade)
+func reforco_k(it, c: String) -> float:
+	var e := int(it.get("e", 0)) if it is Dictionary else 0
+	var R := reforco_dados()
+	return 1.0 + float(R.bonusCritico if c == "critico" else R.bonus) * e
+
+func reforco_max(it) -> int:
+	return int(reforco_dados().max[int(it.r)]) if eh_equip(it) else 0
+
+func chance_reforco(e: int) -> int:
+	var ch: Array = reforco_dados().chance
+	return int(ch[min(e, ch.size() - 1)])
+
+func custo_reforco(it) -> int:
+	var C: Dictionary = reforco_dados().custo
+	return int(round((float(C.base) + float(C.porRaridade) * int(it.r)) * pow(float(C.sobe), int(it.get("e", 0)))))
+
+func reforco_falhou(e: int) -> int:
+	var s := int(reforco_dados().seguro)
+	return max(int(floor(float(e) / s)) * s, e - 1)
+
+# atributo que a peça pede para chegar no reforço e: [chave ("for", "int" ou "maior"), quanto] (0 = não pede)
+func reforco_precisa(it, e: int) -> Array:
+	var A: Dictionary = reforco_dados().atributo
+	var n := 0 if e <= int(A.livre) else int(A.porNivel) * e
+	var l: String = dados.itens[it.k].lugar
+	return ["for" if l == "espada" else "int" if l == "cajado" else "maior", n]
+
+func atributo_reforco(k: String) -> int:
+	var a: Dictionary = prog.get("atr", {})
+	return max(int(a.get("for", 0)), int(a.get("int", 0))) if k == "maior" else int(a.get(k, 0))
+
+static func nome_atributo_reforco(k: String) -> String:
+	return "Força" if k == "for" else "Inteligência" if k == "int" else "Força ou Inteligência"
+
+# pode usar a peça com o reforço que ela tem? (Quimera: sem o atributo não equipa e, no corpo, não dá bônus)
+func reforco_ok(it) -> bool:
+	var e := int(it.get("e", 0)) if it is Dictionary else 0
+	if e <= 0:
+		return true
+	var pr := reforco_precisa(it, e)
+	return atributo_reforco(pr[0]) >= int(pr[1])
+
+func texto_reforco_precisa(it) -> String:
+	var pr := reforco_precisa(it, int(it.get("e", 0)))
+	return "Precisa %d de %s (você tem %d)" % [pr[1], nome_atributo_reforco(pr[0]), atributo_reforco(pr[0])]
+
+# por que não dá para tentar agora ("" = dá)
+func reforco_erro(it) -> String:
+	if not eh_equip(it):
+		return "Só equipamento se reforça"
+	var e := int(it.get("e", 0))
+	if reforco_max(it) <= 0:
+		return "Peça Comum não dá pra reforçar"
+	if e >= reforco_max(it):
+		return "Reforço no máximo!"
+	var pr := reforco_precisa(it, e + 1)
+	if atributo_reforco(pr[0]) < int(pr[1]):
+		return "Você não pode reforçar mais: não tem atributo suficiente (precisa %d de %s, você tem %d)" % [pr[1], nome_atributo_reforco(pr[0]), atributo_reforco(pr[0])]
+	if int(prog.ouro) < custo_reforco(it):
+		return "Ouro insuficiente (%d/%d)" % [int(prog.ouro), custo_reforco(it)]
+	return ""
+
+# sem internet: tenta aqui mesmo (online quem sorteia é o servidor). Devolve como o evento 'reforco' do servidor
+func reforcar(it) -> Dictionary:
+	var erro := reforco_erro(it)
+	if erro != "":
+		return {"erro": erro}
+	var de := int(it.get("e", 0))
+	var custo := custo_reforco(it)
+	prog.ouro = int(prog.ouro) - custo
+	var ok: bool = randf() * 100.0 < chance_reforco(de)
+	var e := de + 1 if ok else reforco_falhou(de)
+	if e > 0:
+		it.e = e
+	else:
+		it.erase("e")
+	st = calcular_status()
+	mudou = true
+	return {"ok": ok, "de": de, "e": e, "custo": custo, "nome": nome_item(it)}
 
 # ---------- durabilidade e penalidade de morte (igual a shared/progresso.js; MORTE em shared/dados.js) ----------
 func morte_dados() -> Dictionary:
@@ -343,11 +452,77 @@ func penalidade_morte() -> String:
 		t += "; quebrou: %s (o Tomás conserta)" % ", ".join(quebrou)
 	return t
 
+# ---------- organizar a mochila (André 2026-11-07; igual a organizar() de shared/progresso.js, que é quem vale online) ----------
+func grupo_item(it: Dictionary) -> String:
+	var d: Dictionary = dados.itens.get(it.k, {})
+	if d.has("lugar"):
+		return "equip"
+	if it.k == "tomo":
+		return "tomo"
+	if d.has("usar"):
+		return "consumivel"
+	if d.has("ferramenta"):
+		return "ferramenta"
+	if d.has("obra"):
+		return "obra"
+	if str(it.k).begins_with("semente_"):
+		return "semente"
+	if d.get("mat", false):
+		return "material"
+	return "outro"
+
+func organizar(lista: Array) -> Array:
+	var ordem: Array = dados.get("organizar", ["equip", "consumivel", "tomo", "ferramenta", "obra", "semente", "material", "outro"])
+	var pilhas := {}
+	var itens: Array = []
+	for o in lista:
+		if o == null:
+			continue
+		if eh_equip(o) or not o.has("n") or not dados.itens.has(o.k):
+			itens.append(o.duplicate())
+			continue
+		var chave := "%s|%s|%s|%s" % [o.k, o.get("h", ""), o.get("nv", ""), 1 if o.get("cad", false) else ""] # pilha com cadeado fica à parte
+		if pilhas.has(chave):
+			pilhas[chave].n = int(pilhas[chave].n) + int(o.n)
+		else:
+			pilhas[chave] = o.duplicate()
+	for o in pilhas.values():
+		var mx: int = max(1, int(dados.itens[o.k].get("pilha", 1)))
+		var n: int = int(o.n)
+		while n > 0:
+			var q: Dictionary = o.duplicate()
+			q.n = min(n, mx)
+			itens.append(q)
+			n -= mx
+	var g := func(it) -> int:
+		var x: int = ordem.find(grupo_item(it))
+		return x if x >= 0 else ordem.size()
+	var l := func(it) -> int:
+		var x: int = dados.lugares.find(dados.itens.get(it.k, {}).get("lugar", ""))
+		return x if x >= 0 else dados.lugares.size()
+	itens.sort_custom(func(a, b):
+		if g.call(a) != g.call(b): return g.call(a) < g.call(b)
+		if l.call(a) != l.call(b): return l.call(a) < l.call(b)
+		if int(a.get("r", 0)) != int(b.get("r", 0)): return int(a.get("r", 0)) > int(b.get("r", 0))
+		if int(a.get("e", 0)) != int(b.get("e", 0)): return int(a.get("e", 0)) > int(b.get("e", 0))
+		var na := nome_item(a)
+		var nb := nome_item(b)
+		if na != nb: return na.naturalnocasecmp_to(nb) < 0
+		if int(a.get("nv", 0)) != int(b.get("nv", 0)): return int(a.get("nv", 0)) > int(b.get("nv", 0))
+		return int(a.get("n", 0)) > int(b.get("n", 0)))
+	if itens.size() > lista.size():
+		return lista
+	var r: Array = []
+	r.resize(lista.size())
+	for i in itens.size():
+		r[i] = itens[i]
+	return r
+
 func nome_item(it) -> String:
 	if not (it is Dictionary) or not dados.itens.has(it.k):
 		return ""
 	if eh_equip(it):
-		return "%s %s" % [dados.itens[it.k].nome, dados.raridades[int(it.r)].nome]
+		return "%s %s" % [dados.itens[it.k].nome, dados.raridades[int(it.r)].nome] + (" +%d" % int(it.e) if int(it.get("e", 0)) > 0 else "")
 	if it.k == "tomo":
 		return "%s %s" % [habs[it.h].tomo, dados.romano[int(it.nv)]]
 	return dados.itens[it.k].nome
@@ -357,6 +532,8 @@ const COR_MAT := {"minerio_ferro": "b9b2a6", "minerio_cobre": "d99060", "cristal
 func cor_item(it) -> Color:
 	if eh_equip(it):
 		return Color(dados.raridades[int(it.r)].cor)
+	if dados.itens.has(it.k) and dados.itens[it.k].has("cr"): # catalisador (Runa/Selo): cor da raridade que ele dá
+		return Color(dados.raridades[int(dados.itens[it.k].cr)].cor)
 	if COR_MAT.has(it.k):
 		return Color(COR_MAT[it.k])
 	if dados.itens.has(it.k) and dados.itens[it.k].has("cor"): # sementes e colheita da horta (cor da planta)
@@ -365,9 +542,20 @@ func cor_item(it) -> Color:
 		return Color("ff6b5e")
 	if it.k == "pocao_mana":
 		return Color("5aa8ff")
-	if it.k == "tomo":
-		return Color("d9b4ff")
+	if it.k == "tomo": # borda do livro (André 2026-11-07): cinza = não precisa mais, verde = usa agora, laranja = vai precisar
+		return [Color("8a8a8a"), Color("5fd35a"), Color("ff9a3c")][estado_tomo(it)]
 	return Color.WHITE
+
+# 0 = não precisa mais (a skill já passou desse nível), 1 = dá para usar agora, 2 = vai precisar, mas ainda não dá
+func estado_tomo(it) -> int:
+	if not it.has("h") or not it.has("nv") or not habs.has(it.h):
+		return 0
+	var nv := nivel_de(it.h)
+	if nv >= int(it.nv) or nv >= maximo(it.h):
+		return 0
+	if liberada(it.h) and nv == int(it.nv) - 1 and uso_de(it.h) >= usos_para_subir(nv):
+		return 1
+	return 2
 
 # o que se colhe na horta da Vila dos Lotes (shared/dados.js PLANTAS): ícone de colheita na cor da planta
 const COLHEITA := ["rabanete", "cenoura", "batata", "tomate", "milho", "abobora"]
@@ -390,6 +578,10 @@ static func icone_item(it) -> String:
 		return "cs_enxada"
 	if it.k == "regador":
 		return "cs_regar"
+	if it.k == "picareta": # picareta e machado de pedra (André 2026-11-07): o mesmo desenho das profissões
+		return "pf_min"
+	if it.k == "machado":
+		return "pf_len"
 	# pintado em icones/itens/<k>.png; armadura do Raro em diante é de aço (<k>_aco.png)
 	if it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k):
 		return "it_%s_aco" % it.k
@@ -423,7 +615,7 @@ func texto_item(it) -> String:
 		var p := []
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
-			var v: float = float(st[c][int(it.r)])
+			var v: float = float(st[c][int(it.r)]) * reforco_k(it, c)
 			if v > 0:
 				p.append(texto_st(c, v))
 		return " · ".join(p)
@@ -448,7 +640,7 @@ func equip_visivel() -> Dictionary:
 
 func equipar(i: int) -> void:
 	var it = prog.mochila[i]
-	if not eh_equip(it):
+	if not eh_equip(it) or not reforco_ok(it): # reforço acima do atributo não equipa (igual ao Quimera)
 		return
 	var l: String = dados.itens[it.k].lugar
 	prog.mochila[i] = prog.equip.get(l)
@@ -630,8 +822,6 @@ func ganhar_xp(n: int) -> String:
 	return ("Nível %d! +%d pontos de atributo" % [prog.nivel, int(dados.pontosPorNivel)]) if subiu else ""
 
 func contar_uso(id: String) -> String:
-	if habs[id].get("basico", false):
-		return ""
 	var s: Dictionary = prog.habs.get(id, {"nv": 1, "uso": 0})
 	prog.habs[id] = s
 	if int(s.nv) >= maximo(id):

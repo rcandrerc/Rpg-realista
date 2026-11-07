@@ -16,6 +16,8 @@ var por_id := {}
 # Desde 2026-11-03 todas as ~900 árvores da mata dão lenha: o botão procura só nas 9 casas de 6 m em volta do herói
 # (grade), e o que precisa olhar todo quadro (veio que voltou, câmera dentro da pedra) anda só pelos veios.
 var veios: Array = []
+var soltos: Array = [] # pedras e galhos soltos no chão (André 2026-11-07): pega com a mão, com um brilho que se vê de perto
+const SOLTO_VE := 11.0 # m: o brilho em cima aparece só de perto
 var caidas: Array = [] # árvores derrubadas (de todos, André 2026-11-04): o _process só olha estas para saber quando voltam
 const QuedaArvore = preload("res://queda_arvore.gd")
 var queda # queda_arvore.gd: a árvore tomba, some e cresce de novo
@@ -45,7 +47,11 @@ func _ready() -> void:
 	for c in m.mundo.get("coletaveis", []):
 		var o := {"id": str(c.id), "tipo": str(c.tipo), "pos": Vector3(float(c.x), 0, float(c.z)), "r": float(c.r), "cargas": -1, "volta_ate": -1.0}
 		o.pos.y = m.terreno.altura(o.pos.x, o.pos.z)
-		if o.tipo != "arvore":
+		if c.get("solto", false):
+			o.solto = true
+			_montar_solto(o, float(c.get("ry", 0.0)))
+			soltos.append(o)
+		elif o.tipo != "arvore":
 			_montar_veio(o, float(c.get("ry", 0.0)))
 			veios.append(o)
 		coletaveis.append(o)
@@ -226,7 +232,16 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		luz.light_energy = 1.3
 		luz.omni_range = 4.0
 		luz.position = Vector3(0, alto_pedra + 0.5, 0)
+		luz.distance_fade_enabled = true # FPS (André 2026-11-07): a luz do cristal só acende de perto
+		luz.distance_fade_begin = 25.0
+		luz.distance_fade_length = 6.0
 		minerio.add_child(luz)
+	# FPS (André 2026-11-07, "prefiro perder um pouquinho de qualidade do que ter jogo travando"): o veio (blocos,
+	# contorno, cristais e o cascalho) só é desenhado até 80 m, com fade curtinho, como as pedras grandes do cenário
+	for gi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
+		gi.visibility_range_end = 80.0
+		gi.visibility_range_end_margin = 6.0
+		gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 # bloco facetado: esfera de poucas faces com os vértices puxados para dentro e para fora (pedra lascada), base chata
 # enterrada uns 12 cm, normais chapadas e um tom por face (canal r da cor) para as facetas brilharem diferente
@@ -330,6 +345,103 @@ func _ferramenta(caminho: String, escala := 0.8) -> Node3D:
 	m.add_child(raiz)
 	return raiz
 
+# pedra ou galho solto: um montinho pequeno (2 ou 3 pedrinhas / pedaços de lenha, dos modelos do cenário em escala
+# pequena) e, em cima, o ícone do que ele dá num brilho dourado que sobe e desce, só de perto (SOLTO_VE)
+func _montar_solto(o: Dictionary, ry: float) -> void:
+	o.pos.y = m.terreno.relevo(o.pos.x, o.pos.z) # no chão de verdade (sem o tampo das pedras grandes)
+	var raiz := Node3D.new()
+	raiz.position = o.pos
+	raiz.rotation.y = ry
+	add_child(raiz)
+	o.no = raiz
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = hash(o.id)
+	var galho: bool = o.tipo == "galho"
+	var n := rnd.randi_range(2, 3)
+	for i in n:
+		var nome: String = "tronco_caido" if galho else ["rocha1", "rocha2", "rocha3"][rnd.randi() % 3]
+		var cena: PackedScene = load("res://cenario3d/%s.glb" % nome)
+		if cena == null:
+			continue
+		var p: Node3D = cena.instantiate()
+		raiz.add_child(p)
+		m.pintar(p, false)
+		if galho: # tronco de 4 m vira lenha de 0,7 a 0,9 m, uma cruzada por cima da outra
+			p.scale = Vector3.ONE * rnd.randf_range(0.17, 0.22)
+			p.rotation = Vector3(0, i * 1.1 + rnd.randf_range(-0.3, 0.3), 0)
+			p.position = Vector3(rnd.randf_range(-0.1, 0.1), 0.03 + 0.08 * i, rnd.randf_range(-0.1, 0.1))
+		else: # pedra de 3 m vira pedrinha de 0,3 a 0,45 m, meio enterrada
+			p.scale = Vector3.ONE * (rnd.randf_range(0.11, 0.14) if i == 0 else rnd.randf_range(0.06, 0.09))
+			p.rotation.y = rnd.randf() * TAU
+			var a := TAU * i / n + rnd.randf_range(-0.5, 0.5)
+			p.position = Vector3(cos(a), 0, sin(a)) * (0.0 if i == 0 else rnd.randf_range(0.25, 0.32)) + Vector3(0, -0.02, 0)
+		for mi in p.find_children("*", "MeshInstance3D", true, false):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF # miúdo: sem sombra (barato no celular)
+			mi.visibility_range_end = 40.0 # longe não se desenha (como o mato miúdo do cenario.gd)
+	# o símbolo: brilho dourado e o ícone do item (lenha ou pedra) por cima, sempre virado para a câmera
+	var marca := Node3D.new()
+	marca.position = Vector3(0, 0.85, 0)
+	raiz.add_child(marca)
+	var brilho := Sprite3D.new()
+	brilho.texture = _textura_brilho()
+	brilho.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	brilho.shaded = false
+	brilho.no_depth_test = false
+	brilho.pixel_size = 0.55 / 128.0
+	brilho.modulate = Color(1.0, 0.85, 0.45, 0.85)
+	marca.add_child(brilho)
+	var ic := Sprite3D.new()
+	ic.texture = load("res://icones/itens/%s.png" % ("lenha" if galho else "pedra"))
+	ic.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	ic.shaded = false
+	ic.render_priority = 1
+	if ic.texture:
+		ic.pixel_size = 0.3 / float(ic.texture.get_width())
+	marca.add_child(ic)
+	marca.visible = false
+	o.marca = marca
+	o.fase = rnd.randf() * TAU
+
+static var _brilho: Texture2D
+static func _textura_brilho() -> Texture2D:
+	if _brilho == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.35, Color(1, 1, 1, 0.45))
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		t.width = 128
+		t.height = 128
+		_brilho = t
+	return _brilho
+
+# todo quadro, só nos ~40 soltos: o que voltou aparece de novo e o brilho só se vê de perto
+func _passo_soltos() -> void:
+	var h: Vector3 = m.heroi.position
+	for o in soltos:
+		var raiz: Node3D = o.no
+		if not raiz.visible:
+			if esgotado(o):
+				continue
+			o.cargas = -1
+			raiz.visible = true
+			raiz.scale = Vector3.ONE * 0.05
+			create_tween().tween_property(raiz, "scale", Vector3.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		var d: float = Vector2(o.pos.x - h.x, o.pos.z - h.z).length()
+		var mk: Node3D = o.marca
+		mk.visible = d < SOLTO_VE
+		if mk.visible:
+			var a: float = clamp((SOLTO_VE - d) / 3.0, 0.0, 1.0) # some aos poucos na borda
+			var t: float = m.tempo * 2.2 + float(o.fase)
+			mk.position.y = 0.85 + sin(t) * 0.07
+			var b: Sprite3D = mk.get_child(0)
+			b.modulate.a = a * (0.55 + 0.3 * sin(t * 1.3))
+			(mk.get_child(1) as Sprite3D).modulate.a = a
+
 # a câmera para antes da pedra do veio inteira (o raio de colisão do jogador é 0,7 m)
 func dentro_de_pedra(p: Vector3) -> bool:
 	for o in veios:
@@ -347,6 +459,7 @@ func esgotado(o: Dictionary) -> bool:
 func _process(dt: float) -> void:
 	if m.heroi == null:
 		return
+	_passo_soltos()
 	# veio que voltou: o minério aparece de novo
 	for o in veios:
 		if o.has("corpo") and not o.corpo.visible and not esgotado(o):
@@ -377,7 +490,7 @@ func _process(dt: float) -> void:
 			m.rede("coletar", {"no": o.id})
 	if coletando != null:
 		_passo_coleta(dt)
-	var ic := "pf_min" if perto != null and perto.tipo != "arvore" else "pf_len"
+	var ic := "pf_" + str(m.P.dados.coleta[perto.tipo].prof) if perto != null else "pf_len"
 	if coletando != null:
 		ic = "pf_" + coletando.prof
 	m.hud.mostrar_botao("coletar", perto != null or coletando != null)
@@ -414,6 +527,14 @@ func tocar_botao() -> void:
 		m.hud.aviso("A coleta só funciona online (o que você coleta fica na sua conta)")
 		return
 	var C: Dictionary = m.P.dados.coleta[perto.tipo]
+	if C.get("mao", false): # pedra ou galho solto: pega com a mão, na hora
+		m.rede("coletar", {"no": perto.id})
+		return
+	# picareta para minerar e machado para cortar (André 2026-11-07); o servidor confere de novo
+	var fer := str(C.get("ferramenta", ""))
+	if fer != "" and m.P.contar(fer) < 1:
+		m.hud.aviso("Precisa de %s (crie na mochila: Criar > Ferramentas, sem bancada)" % str(m.P.dados.itens[fer].nome).to_lower())
+		return
 	if m.P.prof_nivel(str(C.prof)) < int(C.get("nivel", 1)):
 		m.hud.aviso("%s: precisa de %s Nv %d" % [C.nome, m.P.dados.profissoes[C.prof].nome, int(C.nivel)])
 		return
@@ -584,6 +705,9 @@ func coletou(ev: Dictionary) -> void:
 	o.volta_ate = m.tempo + float(ev.get("volta", 60))
 	if o.cargas == 0 and o.has("corpo"):
 		_mostrar_veio(o, false)
+	if o.get("solto", false): # pegou a pedra ou o galho: some (volta em COLETA.galho.volta s, só para mim)
+		o.no.visible = false
+		m.sons.tocar("pano", -8.0)
 	var itens: Array = ev.get("itens", [])
 	for i in itens.size():
 		var it: Dictionary = itens[i]

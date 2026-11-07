@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "coletar", "falar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "pocao", "pocao_mana", "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "coletar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
@@ -14,6 +14,8 @@ const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao men
 const COR_GOLPE := Color(0.33, 0.16, 0.12, 0.95)
 const COR_TROCA := Color(0.33, 0.24, 0.12, 0.95)
 const COR_CURA := Color(0.12, 0.3, 0.2, 0.95)
+const COR_POCAO := Color(0.3, 0.1, 0.09, 0.92) # fundo vinho da poção de vida
+const COR_POCAO_MANA := Color(0.09, 0.14, 0.3, 0.92) # fundo azul-noite da poção de mana
 
 var mover := Vector2.ZERO # joystick (-1..1)
 const JOY_RAIO := 90.0 # px do centro até a borda: andar até a metade, correr no fim (era 60, curto demais)
@@ -34,12 +36,15 @@ var vida := 1.0
 var mana := 1.0
 var estamina := 1.0 # barra amarela (Parte 3 do Quimera): correr, dash, rolar e mortal gastam
 var sem_folego := false
+var vigor := 1.0 # 0..1: energia para trabalhar (coletar e criar); barra própria embaixo da estamina, como no Quimera
 var texto_vida := ""
 var texto_mana := ""
 var nome := "Ruiva"
 var nivel := 1
 var xp := 0.0 # 0..1 até o próximo nível
 var escudo := false
+var em_combate := false # main.gd: bateu ou apanhou nos últimos segundos (trabalho.em_combate)
+var _combate_a := 0.0 # 0..1: o selo de combate entra e sai suave
 var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhuma
 var canal_vila := false # a barra é a do Voltar para a vila (dourada, com o nome em cima, mais alta na tela)
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
@@ -47,7 +52,7 @@ var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joyst
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
 var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 var troca # troca.gd: o cartão do pedido de troca não vira joystick nem câmera
-const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
+const PAINEL := Rect2(18, 14, 330, 104) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
 # modo de editar a interface (André 2026-11-06, editar_hud.gd): cada elemento ganha um deslocamento (d, px) e uma escala (s)
 var painel_d := Vector2.ZERO
 var painel_s := 1.0
@@ -117,6 +122,21 @@ func _ready() -> void:
 	_botao("montar", Vector2(667, 61), 31, "lobo", COR_FUNDO)
 	_botao("selo", Vector2(509, 160), 30, "selo", COR_TROCA)
 	botoes[-1].oculto = true
+	# nado (André 2026-11-06): segurar para afundar ou subir; só aparecem no lago fundo. No fim da lista, acima do pulo
+	_botao("subir", Vector2(333, 245), 30, "subir", COR_FUNDO)
+	botoes[-1].oculto = true
+	_botao("afundar", Vector2(333, 158), 30, "afundar", COR_FUNDO)
+	botoes[-1].oculto = true
+	# poções (André 2026-11-07: "um slot pra poção de HP e outro pra poção de mana"). Primeiro ficaram ao lado do painel de
+	# vida (em cima à esquerda), mas ali o polegar está no joystick; André 2026-11-07 (noite): "passar pro lado direito,
+	# que dê pra apertar enquanto fujo". Agora ficam na beira direita, embaixo do minimapa e em cima do Trocar arma:
+	# vida em cima, mana embaixo. Contadas do canto de baixo à direita como os outros botões; mostram quantas tem na
+	# bolsa e a recarga; dá para mover no modo de editar a interface. (O jeito "tl", contado de cima à esquerda, continua
+	# valendo em _centro e na zona morta para quem precisar.)
+	_botao("pocao", Vector2(40, 371), 25, "it_pocao", COR_POCAO)
+	botoes[-1].n = 0
+	_botao("pocao_mana", Vector2(40, 311), 25, "it_pocao_mana", COR_POCAO_MANA)
+	botoes[-1].n = 0
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
@@ -187,7 +207,15 @@ func aviso(t: String) -> void:
 	_aviso_t = 2.2
 
 func _centro(b: Dictionary) -> Vector2:
+	if b.get("tl", false): # contado do canto de cima à esquerda (poções, ao lado do painel)
+		return b.canto + b.d
 	return _tela.size - b.canto + b.d
+
+# quantas poções a bolsa tem (o número no canto do botão; sem nenhuma o botão fica apagado)
+func contagem(acao: String, n: int) -> void:
+	var b := botao(acao)
+	if not b.is_empty():
+		b.n = n
 
 # onde o painel do herói está agora (o modo de edição pode ter mudado lugar e tamanho)
 func painel_rect() -> Rect2:
@@ -338,7 +366,8 @@ func zona_morta(p: Vector2) -> bool:
 		if b.oculto:
 			continue
 		var c := _centro(b)
-		if p.distance_to(c) <= b.raio * 1.15 + FOLGA_BOTAO:
+		# poções (canto de cima): folga curta, para não roubar o joystick de quem começa a andar ali perto
+		if p.distance_to(c) <= b.raio * 1.15 + (8.0 if b.get("tl", false) else FOLGA_BOTAO):
 			return true
 		if b.acao == "basico" and _arco_padrao(): # o arco inteiro das skills (inclui os vãos entre elas)
 			var v := p - c
@@ -395,6 +424,7 @@ func _process(dt: float) -> void:
 		_destaque_t -= dt
 	if _dano_t > 0:
 		_dano_t -= dt
+	_combate_a = move_toward(_combate_a, 1.0 if em_combate else 0.0, dt / (0.25 if em_combate else 0.8))
 	for b in botoes:
 		if b.pronto_t > 0.0:
 			b.pronto_t -= dt
@@ -437,7 +467,9 @@ func _desenhar_combate() -> void:
 		if t:
 			var s := r * 1.15
 			# ligado: ícone no marrom escuro do fundo, para não perder contraste no âmbar
-			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado else Color.WHITE)
+			var cor_ico: Color = Color(0.1, 0.088, 0.072) if ligado else (Color(1, 1, 1, 0.3) if b.travado or b.get("n", -1) == 0 else Color.WHITE)
+			if b.has("n"): # poção pintada: um pouco maior, ocupa o círculo
+				s = r * 1.45
 			_combate.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s)), false, Menu.tinta(t, cor_ico))
 		if b.travado: # ainda não liberada no nível do herói
 			_combate.draw_circle(c, r, Color(0, 0, 0, 0.35))
@@ -446,6 +478,11 @@ func _desenhar_combate() -> void:
 		if b.pronto_t > 0.0: # voltou a ficar pronta: anel que abre e some
 			var k: float = 1.0 - b.pronto_t / 0.45
 			_combate.draw_circle(c, r * (1.0 + 0.35 * k), Color(cor_borda.lightened(0.4), 0.85 * (1.0 - k)), false, 3.0)
+		if b.has("n"): # quantas tem na bolsa, embaixo à direita (contorno escuro: lê em cima do frasco)
+			var tn := str(b.n)
+			var pn := c + Vector2(r * 0.42, r * 0.98)
+			_combate.draw_string_outline(fonte, pn, tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.85))
+			_combate.draw_string(fonte, pn, tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 0.92, 0.7) if b.n > 0 else Color(0.75, 0.7, 0.65))
 		if b.cd > 0.0:
 			var frac: float = b.cd / b.cd_max
 			_combate.draw_arc(c, r * 0.5, -PI / 2, -PI / 2 + TAU * frac, 24, Color(0, 0, 0, 0.55), r, true)
@@ -465,6 +502,44 @@ func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) 
 	var w := f.get_string_size(texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 	_tela.draw_string_outline(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.7))
 	_tela.draw_string(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
+
+# barra fina com um brilho em cima (estamina e vigor)
+func _barra_fina(pos: Vector2, tam: Vector2, frac: float, cor: Color, claro: Color) -> void:
+	_tela.draw_rect(Rect2(pos - Vector2(1, 1), tam + Vector2(2, 2)), Color(0, 0, 0, 0.55))
+	var w: float = tam.x * clampf(frac, 0.0, 1.0)
+	if w > 0.5:
+		_tela.draw_rect(Rect2(pos, Vector2(w, tam.y)), cor)
+		_tela.draw_rect(Rect2(pos, Vector2(w, max(1.0, tam.y * 0.35))), Color(claro, 0.55))
+
+# simbolozinho na frente da barra: estamina = o boneco correndo do botão de disparada (é ela que gasta a estamina);
+# vigor = picareta (o ⛏️ do Quimera: vigor é a energia de trabalhar); traço branco tingido com a cor da barra
+func _icone_barra(qual: String, c: Vector2, cor: Color) -> void:
+	var nome := "disparada" if qual == "estamina" else "picareta"
+	if not _icones.has("barra_" + nome):
+		_icones["barra_" + nome] = Menu.icone_tex(nome)
+	var tx: Texture2D = _icones["barra_" + nome]
+	if tx == null:
+		return
+	var t := 13.0
+	var r := Rect2(c - Vector2(t, t) * 0.5, Vector2(t, t))
+	for o in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]: # contorno escuro
+		_tela.draw_texture_rect(tx, Rect2(r.position + o, r.size), false, Color(0, 0, 0, 0.8))
+	_tela.draw_texture_rect(tx, r, false, cor.lerp(Color.WHITE, 0.15))
+
+# XP (Quimera): barra um pouco mais alta com "XP" à esquerda e o percentual com 2 casas à direita, letra pequena
+func _barra_xp(pos: Vector2, tam: Vector2) -> void:
+	_tela.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.5))
+	var w: float = tam.x * clampf(xp, 0.0, 1.0)
+	if w > 0.5:
+		_tela.draw_rect(Rect2(pos, Vector2(w, tam.y)), Color(0.66, 0.42, 0.82))
+		_tela.draw_rect(Rect2(pos, Vector2(w, 3)), Color(0.9, 0.74, 1.0, 0.6))
+	_tela.draw_rect(Rect2(pos, tam), Color(0.62, 0.48, 0.26, 0.45), false, 1.0)
+	var f := ThemeDB.fallback_font
+	var pct := ("%.2f%%" % (clamp(xp, 0.0, 1.0) * 100.0)).replace(".", ",")
+	var y := pos.y + tam.y - 2.0
+	for t in [["XP", pos.x + 5.0], [pct, pos.x + tam.x - 5.0 - f.get_string_size(pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x]]:
+		_tela.draw_string_outline(f, Vector2(t[1], y), t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.75))
+		_tela.draw_string(f, Vector2(t[1], y), t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.95) if t[0] != "XP" else Color(0.92, 0.85, 1.0, 0.9))
 
 # borda vermelha da tela: golpe recebido (forte e rápida) ou vida abaixo de 30% (fraca, pulsando)
 func _borda_dano() -> void:
@@ -496,16 +571,22 @@ func _desenhar() -> void:
 	_tela.draw_rect(Rect2(p0, PAINEL.size), Color(0.62, 0.48, 0.26, 0.55), false, 1.5)
 	_retrato_heroi(p0 + Vector2(42, 42), 32.0)
 	_selo_nivel(p0 + Vector2(68, 70))
+	if _combate_a > 0.0:
+		_selo_combate(p0 + Vector2(24, 70), _combate_a) # 4 px dentro da borda do painel, com o halo
 	_tela.draw_string(f, p0 + Vector2(92, 24), nome.to_upper() + "   " + ("ESPADA MÁGICA" if modo == "Espada" else "MODO MAGIA"), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.75, 0.4))
-	_barra(p0 + Vector2(92, 34), Vector2(225, 18), vida, Color(0.8, 0.22, 0.2), texto_vida)
+	_barra(p0 + Vector2(92, 31), Vector2(225, 17), vida, Color(0.8, 0.22, 0.2), texto_vida)
 	if escudo: # Escudo Arcano ligado: moldura dourada na vida
-		_tela.draw_rect(Rect2(p0 + Vector2(90, 32), Vector2(229, 22)), Color(1, 0.8, 0.35, 0.9), false, 2.0)
-	_barra(p0 + Vector2(92, 58), Vector2(225, 18), mana, Color(0.22, 0.45, 0.85), texto_mana)
-	# estamina (amarela; sem fôlego fica ocre até voltar) e XP até o próximo nível (fina, embaixo)
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225, 7)), Color(0, 0, 0, 0.5))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225 * clamp(estamina, 0.0, 1.0), 7)), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225, 4)), Color(0, 0, 0, 0.5))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
+		_tela.draw_rect(Rect2(p0 + Vector2(90, 29), Vector2(229, 21)), Color(1, 0.8, 0.35, 0.9), false, 2.0)
+	_barra(p0 + Vector2(92, 51), Vector2(225, 17), mana, Color(0.22, 0.45, 0.85), texto_mana)
+	# André 2026-11-07 (igual ao Quimera): embaixo da mana, estamina (amarela; sem fôlego fica ocre até voltar) e vigor
+	# (dourado; acabando fica vermelho), cada uma com o seu simbolozinho; e o XP com "XP" e o percentual dentro da barra
+	var cor_sta := Color(0.86, 0.6, 0.22) if sem_folego else Color(0.71, 0.88, 0.29) # verde-limão do Quimera (b6e04a)
+	var cor_vig := Color(0.88, 0.29, 0.24) if vigor < 0.15 else Color(0.95, 0.77, 0.3) # dourado do Quimera (f2c94c)
+	_icone_barra("estamina", p0 + Vector2(103, 74.5), cor_sta)
+	_barra_fina(p0 + Vector2(113, 71), Vector2(204, 7), estamina, cor_sta, Color(0.96, 1.0, 0.7))
+	_icone_barra("vigor", p0 + Vector2(103, 84.5), cor_vig)
+	_barra_fina(p0 + Vector2(113, 82), Vector2(204, 5), vigor, cor_vig, Color(1.0, 0.96, 0.7))
+	_barra_xp(p0 + Vector2(92, 91), Vector2(225, 11))
 	_tela.draw_set_transform(Vector2.ZERO)
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
@@ -556,6 +637,43 @@ func _retrato_heroi(c: Vector2, r: float) -> void:
 		_tela.draw_string(f, c + Vector2(-14, 10), nome.substr(0, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color.WHITE)
 	_tela.draw_circle(c, r, Color(0.9, 0.75, 0.4), false, 3.0)
 	_tela.draw_circle(c, r + 2.5, Color(0.35, 0.24, 0.1, 0.8), false, 1.5)
+
+# selo de combate (André 2026-11-06: "algum símbolozinho identificando que a gente tá em combate"):
+# medalhão de ferro com duas espadas cruzadas, do lado oposto ao do nível, com brilho vermelho que pulsa devagar
+func _selo_combate(c: Vector2, a: float) -> void:
+	var t: float = relogio_teste if relogio_teste >= 0.0 else Time.get_ticks_msec() / 1000.0
+	var pulso: float = 0.5 + 0.5 * sin(t * TAU / 1.4)
+	var esc: float = lerp(0.6, 1.0, ease(a, 0.4)) # entra crescendo um pouco
+	var r: float = 16.0 * esc # mesmo diâmetro do selo de nível
+	for i in 4: # halo vermelho macio, curto: fica dentro do painel (direção de arte)
+		var k := float(i) / 4.0
+		_tela.draw_circle(c, r + 1.0 + 3.0 * (1.0 - k), Color(0.95, 0.22, 0.12, (0.06 + 0.08 * pulso) * (k + 0.25) * a))
+	_tela.draw_circle(c + Vector2(0, 2), r, Color(0, 0, 0, 0.45 * a))
+	_tela.draw_circle(c, r, Color(0.2, 0.05, 0.04, a)) # fundo vinho escuro
+	_tela.draw_circle(c, r - 3.0 * esc, Color(0.42, 0.09, 0.06, a))
+	_tela.draw_circle(c + Vector2(-3, -4) * esc, 7.0 * esc, Color(1.0, 0.55, 0.4, 0.16 * a)) # reflexo em cima
+	for lado in [-1.0, 1.0]: # duas espadas em X, ponta para cima (65 a 70% do miolo)
+		_espadinha(c, lado * 0.68, 13.0 * esc, a)
+	# aro dourado igual ao do selo de nível; o brilho vermelho de dentro não passa de alfa 0,6
+	_tela.draw_circle(c, r, Color(1.0, 0.84, 0.45, a), false, 2.5)
+	_tela.draw_circle(c, r - 3.5 * esc, Color(1.0, 0.45, 0.3, (0.25 + 0.35 * pulso) * a), false, 1.0)
+
+# espada pequena (lâmina, guarda dourada, cabo e pomo), girada em `ang` a partir da vertical, centro em c
+func _espadinha(c: Vector2, ang: float, tam: float, a: float) -> void:
+	var u := Vector2(sin(ang), -cos(ang)) # para a ponta
+	var v := Vector2(-u.y, u.x)
+	var pt := func(x: float, y: float) -> Vector2: return c + u * ((y - 0.12) * tam) + v * (x * tam) # espada inteira centrada
+	var contorno := Color(0.1, 0.04, 0.02, a)
+	var lamina := PackedVector2Array([pt.call(-0.15, -0.25), pt.call(0.15, -0.25), pt.call(0.15, 0.76), pt.call(0.0, 1.0), pt.call(-0.15, 0.76)])
+	_tela.draw_colored_polygon(lamina, Color(0.847, 0.867, 0.898, a)) # d8dde5
+	_tela.draw_line(pt.call(0.0, -0.22), pt.call(0.0, 0.88), Color(0.6, 0.64, 0.7, a), 1.0) # fio do meio
+	_tela.draw_polyline(lamina + PackedVector2Array([lamina[0]]), contorno, 1.0)
+	_tela.draw_line(pt.call(-0.38, -0.28), pt.call(0.38, -0.28), contorno, 4.2) # guarda (contorno)
+	_tela.draw_line(pt.call(-0.35, -0.28), pt.call(0.35, -0.28), Color(1.0, 0.8, 0.38, a), 2.2)
+	_tela.draw_line(pt.call(0.0, -0.3), pt.call(0.0, -0.64), contorno, 4.0) # cabo de couro com contorno
+	_tela.draw_line(pt.call(0.0, -0.31), pt.call(0.0, -0.62), Color(0.45, 0.24, 0.1, a), 2.2)
+	_tela.draw_circle(pt.call(0.0, -0.73), 0.13 * tam, contorno) # pomo
+	_tela.draw_circle(pt.call(0.0, -0.73), 0.09 * tam, Color(1.0, 0.8, 0.38, a))
 
 # selo do nível: medalhão dourado com brilho que respira, número grande (antes era uma bolinha quase escondida)
 func _selo_nivel(c: Vector2) -> void:

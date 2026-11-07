@@ -1094,8 +1094,8 @@ func teleporte(de: Vector3, para: Vector3) -> void:
 func projetil(de: Vector3, dir: Vector3, info: Dictionary, dmg: float, alcance := 20.0) -> void:
 	if info.get("estilo", "fogo") == "arcano":
 		_som("tiro", de, -3.0)
-	else: # Bola de Fogo e Faísca: os sons de lançar do Quimera
-		_som("q_bola_lanca" if info.has("explosao") else "q_faisca_lanca", de, 0.0 if info.has("explosao") else -2.0, 0.05)
+	else: # Bola de Fogo: som de lançar do Quimera. Faísca: whoosh da Pixabay (pedido do André 2026-11-07; q_faisca_* antigos ficam guardados)
+		_som("q_bola_lanca" if info.has("explosao") else "faisca_lanca", de, 0.0, 0.05)
 	var estilo: String = info.get("estilo", "fogo")
 	var cor: Color = info.cor
 	var cb = "fff2b0" if estilo == "fogo" else "ffffff"
@@ -1133,7 +1133,7 @@ func _fim_projetil(p: Dictionary) -> void:
 	if p.info.has("explosao"):
 		_som("q_bola_explode", o, 0.0, 0.06)
 	elif p.estilo == "fogo":
-		_som("q_faisca_acerto", o, -5.0, 0.06)
+		_som("faisca_acerto", o, -1.0, 0.06) # impacto da Pixabay (pedido do André 2026-11-07)
 	if p.luz != null and p.luz.dono == p.m:
 		p.luz.vida = 0.0
 		p.luz.dono = null

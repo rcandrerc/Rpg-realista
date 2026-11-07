@@ -94,6 +94,8 @@ var _arrasto_dentro := false
 var _arrasto_soma := 0.0
 var corpo := "ruiva" # corpo escolhido (CRIADOR.corpos)
 var corpos_ui := {} # corpo -> botão com o rosto
+var penteados_fl: HFlowContainer # botões de penteado do corpo escolhido (CRIADOR.penteados, penteado.gd)
+var penteados_ui := [] # [botão, id do penteado ou null]
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
@@ -359,6 +361,12 @@ func montar_painel() -> Control:
 			continue
 		fc.add_child(botao_corpo(str(id)))
 	lista.add_child(fc)
+	# André 2026-11-07: o cabelo de outros modelos do jogo como opção (o próprio + os da lista do corpo)
+	lista.add_child(Menu.rotulo("Penteado", 15, OURO_CLARO))
+	penteados_fl = HFlowContainer.new()
+	penteados_fl.add_theme_constant_override("h_separation", 6)
+	penteados_fl.add_theme_constant_override("v_separation", 6)
+	lista.add_child(penteados_fl)
 	for k in Aparencia.CORES:
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
@@ -465,10 +473,44 @@ func botao_corpo(id: String) -> Control:
 			return
 		corpo = id
 		rosto = false
+		if not ap.get("penteado") in _lista_penteados():
+			ap.penteado = null # penteado de moça não vai no rapaz (e vice-versa)
 		montar_boneco(id)
+		montar_penteados()
 		mudou())
 	corpos_ui[id] = {"botao": b, "foto": foto, "aro": aro}
 	return b
+
+func _lista_penteados() -> Array:
+	return [null] + Array(criador.get("penteados", {}).get(corpo, []))
+
+# botões do penteado: "Original" (o cabelo do próprio corpo) e um número para cada cabelo de outro modelo
+func montar_penteados() -> void:
+	for b in penteados_fl.get_children():
+		penteados_fl.remove_child(b)
+		b.queue_free()
+	penteados_ui.clear()
+	var n := 0
+	for id in _lista_penteados():
+		if id != null and not ResourceLoader.exists("res://modelos/%s.glb" % id):
+			continue
+		n += 1
+		var b := Button.new()
+		b.text = "Original" if id == null else "Cabelo %d" % n
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 13)
+		b.custom_minimum_size = Vector2(96, 32)
+		var pid = id
+		b.pressed.connect(func():
+			if _arrastou:
+				return
+			ap.penteado = pid
+			rosto = true # chega perto da cabeça para ver o cabelo
+			mudou())
+		penteados_ui.append([b, id])
+		penteados_fl.add_child(b)
+	penteados_fl.get_parent().get_child(penteados_fl.get_index() - 1).visible = n > 1
+	penteados_fl.visible = n > 1
 
 # rostos dos corpos para os botões: cada um num palco pequeno, desenhado uma vez e guardado como imagem
 func fazer_rostos() -> void:
@@ -618,6 +660,9 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	rolagem.scroll_vertical = 0
 	if not corpos_ui.has(corpo):
 		corpo = "ruiva"
+	if not ap.get("penteado") in _lista_penteados():
+		ap.penteado = null
+	montar_penteados()
 	montar_boneco(corpo)
 	anim.play("parada")
 	marcar()
@@ -697,6 +742,8 @@ func marcar() -> void:
 		originais[k].add_theme_color_override("icon_normal_color", OURO_CLARO if ap.get(k) == null else APAGADO)
 	for k in faixas:
 		faixas[k].value = float(ap.get(k, 1.0))
+	for par in penteados_ui:
+		Menu.estilo_botao(par[0], par[1] == ap.get("penteado"))
 	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
 		var on: bool = id == corpo
 		var sa := StyleBoxFlat.new()

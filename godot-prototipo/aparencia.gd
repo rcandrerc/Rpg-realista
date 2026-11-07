@@ -58,6 +58,11 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 		var lim: Array = criador.rosto[k]
 		var v = d.get(k)
 		r[k] = snappedf(clampf(float(v) if v != null else 1.0, float(lim[0]), float(lim[1])), 0.01)
+	# penteado: cabelo de outro modelo (penteado.gd); só os da lista do criador
+	r.penteado = null
+	for l in criador.get("penteados", {}).values():
+		if d.get("penteado") != null and str(d.penteado) in l:
+			r.penteado = str(d.penteado)
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)
@@ -65,6 +70,8 @@ static func aplicar(no: Node3D, ap) -> void:
 	var a: Dictionary = ap if ap is Dictionary else {}
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)
+	# antes das cores: o cabelo trocado também pega a cor de cabelo escolhida
+	preload("res://penteado.gd").aplicar(no, a.get("penteado"))
 	for mi in no.find_children("*", "MeshInstance3D", true, false):
 		var malha: Mesh = mi.mesh
 		if malha == null:
@@ -98,6 +105,15 @@ static func aplicar(no: Node3D, ap) -> void:
 			if idx >= 0:
 				var v = a.get(k)
 				mi.set_blend_shape_value(idx, (float(v) if v != null else 1.0) - 1.0)
+	# André 2026-11-07: sem peitoral a blusa vira pele pintada (Armadura._material_biquini); ela segue a pele escolhida
+	if a.get("pele") != null:
+		var c := _cor(int(a.pele))
+		var l := c.get_luminance()
+		no.set_meta("pele_cor", Color(l, l, l).lerp(c, 0.85) * Color(1.0, 0.9, 0.84))
+	elif no.has_meta("pele_cor"):
+		no.remove_meta("pele_cor")
+	load("res://armadura.gd").atualizar_pele(no)
+	preload("res://realista.gd").aplicar(no)
 
 static func _parte(base, malha: Mesh, i: int) -> String:
 	if not (base is StandardMaterial3D) or base.albedo_texture == null:
@@ -134,6 +150,7 @@ static func _contorno(base: StandardMaterial3D, cor: int) -> Material:
 	if not _tingidos.has(chave):
 		var n: StandardMaterial3D = base.duplicate()
 		n.albedo_color = _cor(cor).darkened(0.55).lerp(Color(0.12, 0.08, 0.08), 0.3)
+		n.set_meta("tingido", true) # Realista: fica com esta cor
 		_tingidos[chave] = n
 	return _tingidos[chave]
 
@@ -227,6 +244,8 @@ static func _tingido(base: StandardMaterial3D, cor: int, parte: String) -> Mater
 	# cabelo claro não estoura em branco chapado (a luz do Godot clareia bastante): no máximo uns #b8b5ae no material, para o degrau de sombra aparecer
 	sm.set_shader_parameter("tinta_teto", _esp(Color.WHITE * (0.62 if parte == "cabelo" else 0.95)).x)
 	sm.render_priority = base.render_priority
+	sm.set_meta("parte", parte) # Realista troca a pele tingida pela pele realista com a mesma tinta
+	sm.set_meta("base", base)
 	_tingidos[chave] = sm
 	return sm
 

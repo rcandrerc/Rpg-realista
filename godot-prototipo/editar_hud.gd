@@ -18,9 +18,10 @@ const MARGEM_TELA := 12.0
 const COR_SEL := Color(1.0, 0.84, 0.4)
 const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens do chat", "mapa": "Minimapa",
 	"topo": "Menu do topo", "time": "Barras do time", "bt:troca": "Trocar arma", "bt:basico": "Ataque", "bt:cura": "Cura",
-	"bt:pular": "Pular", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
+	"bt:pular": "Pular", "bt:afundar": "Afundar", "bt:subir": "Subir", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
 	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
-	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio"}
+	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio", "bt:estacoes": "Recolher estações",
+	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana"}
 
 var m # main.gd
 var layout := {} # id -> [dx, dy, escala]; sem a chave = lugar e tamanho de sempre
@@ -492,6 +493,14 @@ func carregar() -> void:
 				var v = l[k]
 				if v is Array and v.size() == 3:
 					layout[str(k)] = [float(v[0]), float(v[1]), clamp(float(v[2]), S_MIN, S_MAX)]
+		# as poções mudaram para o lado direito (André 2026-11-07): o lugar salvo era contado do canto de cima à esquerda
+		# e cairia fora da tela, então volta ao padrão novo uma vez só (o resto do layout fica como o jogador deixou)
+		if not cfg.get_value("hud", "pocoes_direita", false):
+			layout.erase("bt:pocao")
+			layout.erase("bt:pocao_mana")
+			cfg.set_value("hud", "pocoes_direita", true)
+			cfg.set_value("hud", "layout", layout)
+			cfg.save(ARQUIVO)
 	aplicar_tudo.call_deferred() # depois que chat, minimapa e menu do topo montaram as peças
 
 func salvar() -> void:

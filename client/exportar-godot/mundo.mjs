@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, CRIAR_OBRA, MORTE, AMIGOS, TIME } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
@@ -93,7 +93,7 @@ const mundo = {
   // NPCs da vila no mesmo lugar do servidor (a loja só vende perto da Rosa)
   npcs: (MAPA_CLAREIRA.npcs || []).map((n) => ({ id: n.id, nome: n.nome, x: n.x, z: n.z, ry: n.ry, funcao: n.funcao, tinta: n.tinta, escala: n.escala, roupa: n.roupa, arma: n.arma, anciao: n.anciao, veste: n.veste, esconder: n.esconder, limpar_rosto: n.limpar_rosto, friso: n.friso, acoes: n.acoes || [], missao: n.missao ? MISSOES[n.missao]?.nome : undefined, falas: n.falas })),
   // onde se coleta (Parte 3): veios (v0...) com o giro do desenho e as árvores (a0...), com os mesmos ids do servidor
-  coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
+  coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: c.ry ?? MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
   // Vila dos Lotes (construção e fazenda): os lotes com a placa e a área (godot-prototipo/construcao.gd)
   // Terras da Estrada (2026-11-04): a área (elipse de borda ondulada), a estrada central e a de chegada, para o app
   // conferir o terreno marcado antes de mandar (a mesma conta de motivoTerreno no servidor)
@@ -114,23 +114,28 @@ const habs = {
   skillMax: SKILL_MAX, botoesPadrao: BOTOES_PADRAO, nBotoes: N_BOTOES, xpInimigo: XP_INIMIGO, andarAtirando: ANDAR_ATIRANDO,
   // mochila, equipamento e loja (shared/dados.js)
   nivelSemTomo: NIVEL_SEM_TOMO, itens: ITENS, raridades: RARIDADES.map((r) => ({ nome: r.nome, cor: cor(r.cor) })), lugares: LUGARES, mochila: MOCHILA, mochilaPaginas: MOCHILA_PAGINAS, paginaPreco: PAGINA_PRECO,
-  conjunto: CONJUNTO, vendaEquip: VENDA_EQUIP, vendaTomo: VENDA_TOMO, romano: ROMANO, loja: LOJA, lojaDistancia: LOJA_DISTANCIA, troca: TROCA, amigos: AMIGOS, time: TIME,
+  conjunto: CONJUNTO, vendaEquip: VENDA_EQUIP, vendaTomo: VENDA_TOMO, romano: ROMANO, loja: LOJA, lojaDistancia: LOJA_DISTANCIA, lojaMax: LOJA_MAX, troca: TROCA, amigos: AMIGOS, time: TIME,
   // criador de personagem: cores (número 0xRRGGBB, null = original), altura e formato do rosto; nome de 3 a 16 letras
   criador: CRIADOR, nome: NOME,
   // estamina, vigor e profissões (Parte 3)
-  estamina: ESTAMINA, regen: REGEN, vigor: VIGOR, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA,
+  estamina: ESTAMINA, regen: REGEN, vigor: VIGOR, dia: DIA, cama: CAMA, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA,
   coletaDistancia: COLETA_DISTANCIA, receitas: RECEITAS, oficina: OFICINA, oficinaDistancia: OFICINA_DISTANCIA, raridadeCriar: RARIDADE_CRIAR,
   heroiCorrer: HEROI.correr,
   // nível dos monstros dos campos de caça (XP sobe com o nível do bicho e cai se o herói passou muito dele)
   nivelInimigo: NIVEL_INIMIGO,
+  // recarga da poção de vida e da de mana (os dois botões de poção da HUD mostram a contagem)
+  pocaoRecarga: POCAO_RECARGA,
   // voltar para a vila (botão da casinha no menu do topo): canalização, recarga e raio da vila
   voltaVila: VOLTA_VILA,
   // Vila dos Lotes: preço e regras do lote, peças que se constroem, plantas da horta (construcao.gd)
   lote: LOTE, construcoes: CONSTRUCOES, plantas: PLANTAS, horta: HORTA,
   // casa do Quimera (2026-11-04): grade da casa, ferramentas da fazenda (enxada, regador) e o baú
-  ferramentas: FERRAMENTAS_FAZENDA, casa: CASA, bau: BAU, criarObra: CRIAR_OBRA,
+  ferramentas: FERRAMENTAS_FAZENDA, casa: CASA, bau: BAU, organizar: ORGANIZAR, fornalha: FORNALHA, fogao: FOGAO, criarObra: CRIAR_OBRA,
   // penalidade de morte e durabilidade do equipamento (André 2026-11-05)
   morte: MORTE,
+  // reforço de equipamento (igual ao Quimera, André 2026-11-07)
+  reforco: REFORCO,
+  catalisador: CATALISADOR, // destruir peça e evoluir raridade (André 2026-11-07)
 };
 const faltam = Object.entries(habs.habs).flatMap(([k, h]) => [h.anim, ...(h.combo || []).map((c) => c.anim)].filter((a) => a && !anims[a]).map((a) => k + ':' + a));
 if (faltam.length) console.log('ATENÇÃO, animação sem nome no Godot:', faltam.join(', '));

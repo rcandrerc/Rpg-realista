@@ -21,6 +21,12 @@ var _pos_t := 0.0
 var _ent_t := 0.0
 var _ultima_entrada := {}
 var _tentar_de_novo := -1.0
+# André (2026-11-07): caiu a conexão no meio do jogo, o jogo segue por até QUEDA_MAX s tentando voltar (e volta para o
+# que o servidor guardou). Passou disso: "Você foi desconectado" e o jogo volta para a tela inicial (entrar de novo).
+const QUEDA_MAX := 5.0
+var _queda_t := -1.0
+static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela inicial mostra o aviso
+static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
 var _pronto := false
 var _ap_mandar = null # aparência do criador esperando para ir ao servidor (no máximo 4 por segundo)
@@ -75,6 +81,8 @@ func _ready() -> void:
 	rede.caiu.connect(ao_cair)
 	montar_tela()
 	cobrir("Conectando…")
+	if _foi_desconectado and not _conta_antes.is_empty():
+		rede.conta = _conta_antes.duplicate()
 	rede.iniciar(true)
 
 # ---------- tela de login ----------
@@ -203,6 +211,9 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	carregando.visible = false
 	titulo.text = "Bem-vindo de volta"
 	sub.text = "Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % str(conta.get("nome", "sem nome"))
+	if _foi_desconectado:
+		titulo.text = "Você foi desconectado"
+		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
 	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
 	b_continuar.visible = true
 	b_trocar.visible = true
@@ -255,6 +266,9 @@ func atualizar_status(_t := "") -> void:
 func ao_entrar(id: String, conta: Dictionary) -> void:
 	ligado = true
 	meu_id = id
+	_queda_t = -1.0
+	_foi_desconectado = false
+	_conta_antes = conta.duplicate()
 	_build_ok = false
 	_lugar_pendente = true
 	m.volta.cancelar("") # a volta para a vila começada sem internet não vale aqui
@@ -273,8 +287,12 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 
 func ao_cair(motivo: String) -> void:
 	var estava := ligado
-	if _cobrindo: # servidor fora do ar ao abrir: joga sozinho em vez de ficar parado na capa
-		esconder_login()
+	if _cobrindo:
+		if rede.sessao != "": # tem conta (André 2026-11-07): sem servidor não entra no jogo, fica na tela inicial
+			_tentar_de_novo = -1.0
+			_voltar_a_tela_inicial()
+			return
+		esconder_login() # sem conta: joga sozinho em vez de ficar parado na capa
 	ligado = false
 	if m.troca:
 		m.troca.fechar() # caiu a conexão: o servidor desfaz a troca
@@ -289,8 +307,11 @@ func ao_cair(motivo: String) -> void:
 		if e.estado != "morto":
 			e.estado = "vagar"
 	if estava:
-		m.hud.aviso("Caiu a conexão. Tentando de novo…")
-		_tentar_de_novo = 4.0
+		m.hud.aviso("Caiu a conexão. Tentando voltar…")
+		_tentar_de_novo = 1.0
+		_queda_t = QUEDA_MAX
+	elif _queda_t > 0.0: # ainda dentro dos 5 s: tenta de novo logo
+		_tentar_de_novo = 1.0
 	elif motivo == "fora" or motivo == "sala" or motivo.begins_with("fechou"):
 		_tentar_de_novo = 15.0 if rede.sessao != "" else -1.0
 	atualizar_status("Sem conexão" if rede.sessao != "" else "")
@@ -298,6 +319,7 @@ func ao_cair(motivo: String) -> void:
 # o jogador escolheu sair da sala (menu do topo: Jogar sozinho, Trocar ou Sair da conta): limpa sem tentar voltar
 func desligar() -> void:
 	_tentar_de_novo = -1.0
+	_queda_t = -1.0
 	if ligado:
 		ligado = false
 		if m.troca:
@@ -311,6 +333,22 @@ func desligar() -> void:
 			if e.estado != "morto":
 				e.estado = "vagar"
 	atualizar_status("")
+
+# passou dos 5 s sem conexão: avisa e mostra a tela inicial (nada do que foi feito sem servidor fica: ao entrar de novo
+# o servidor manda o progresso e o lugar dele). Sem recarregar a cena: o recarregar sem internet fechava o app (André 2026-11-07).
+func _desconectado() -> void:
+	_foi_desconectado = true
+	desligar()
+	rede.fechar()
+	_voltar_a_tela_inicial()
+	aviso_login.text = "Sem conexão com o servidor."
+
+# tela inicial com a conta salva (Entrar como… / Trocar de conta / Jogar sozinho) e o motivo embaixo
+func _voltar_a_tela_inicial() -> void:
+	var conta: Dictionary = rede.conta if rede.conta is Dictionary and not rede.conta.is_empty() else _conta_antes
+	mostrar_escolha(conta)
+	if aviso_login.text == "" or aviso_login.text.ends_with("…"):
+		aviso_login.text = "O servidor não respondeu. Tente de novo."
 
 func enviar(tipo: String, dados = null) -> void:
 	if ligado:
@@ -656,6 +694,10 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.construiu(ev)
 			return
+		"regador": # encheu o regador (botão Encher ou mergulho)
+			if m.construcao:
+				m.construcao.encheu(ev)
+			return
 		"colheu":
 			if m.construcao:
 				m.construcao.colheu(ev)
@@ -668,9 +710,21 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.fabricou(ev)
 			return
+		"destruiu", "evoluiu": # catalisador (André 2026-11-07): destruiu uma peça (o que ganhou) ou evoluiu (construcao.gd)
+			if m.construcao:
+				m.construcao.call(ev.t, ev)
+			return
 		"bau": # o baú do meu terreno (construcao.gd)
 			if m.construcao:
 				m.construcao.do_bau(ev)
+			return
+		"dormiu": # dormiu na cama (shared/simulacao.js dormir): a tela escurece, a hora pula para 6h30 e clareia
+			if m.dia:
+				m.dia.dormiu(ev)
+			return
+		"forno": # a fornalha do meu terreno (construcao.gd)
+			if m.construcao:
+				m.construcao.do_forno(ev)
 			return
 		"vila": # Voltar para a vila (casinha do menu do topo): começou, desistiu ou chegou na praça
 			var id := str(ev.id)
@@ -735,7 +789,7 @@ func evento(ev: Dictionary) -> void:
 				if meu and not eu and float(ev.n) > 0.0:
 					m.piscar(no)
 					# o golpe de espada já deu o tranco na hora; skills e tiros dão aqui, quando o servidor confirma
-					if m.tempo - m._impacto_t > 0.2:
+					if m.tempo - m._impacto_t > 0.2 and m.tempo - m._faisca_t > 0.8: # Faísca: o acerto já soou na hora
 						m.impacto_golpe(no.position, true, crit, false)
 			return
 		"cura":
@@ -745,6 +799,18 @@ func evento(ev: Dictionary) -> void:
 			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
+			return
+		"tomo": # aprendeu com o Tomo (André 2026-11-07): faixa de "Parabéns!" por cima da janela
+			if m.menu:
+				m.menu.aprendeu(str(ev.h), int(ev.nv))
+			return
+		"compra": # comprou na loja (André 2026-11-07): som de moedas e o "+n Item" subindo (menu.gd comprou)
+			if m.menu: # o servidor só manda para quem comprou
+				m.menu.comprou(ev)
+			return
+		"reforco": # reforço de equipamento: o servidor sorteou (reforco.gd mostra na janelinha)
+			if m.reforco:
+				m.reforco.do_servidor(ev)
 			return
 		"troca": # troca entre jogadores (troca.gd): pedido que chegou, como está a mesa, fim
 			if m.troca:
@@ -842,6 +908,9 @@ func evento(ev: Dictionary) -> void:
 			var no = corpos.get(str(ev.id))
 			if no:
 				m.combate.preparo(no, float(ev.dur))
+				for e in m.inimigos: # vai bater: ainda está na luta (a música de combate não corta, main.luta_perto)
+					if e.no == no:
+						e.luta = m.tempo + 5.0
 			return
 		"firme": # o monstro aguentou muitos golpes: fica firme e revida
 			var no = corpos.get(str(ev.id))
@@ -940,8 +1009,16 @@ func _process(dt: float) -> void:
 func _passo(dt: float) -> void:
 	if _cobrindo:
 		_cobrir_t -= dt
-		if _cobrir_t <= 0.0: # o servidor não respondeu: libera o jogo sozinho (a conexão continua tentando)
-			esconder_login()
+		if _cobrir_t <= 0.0: # o servidor não respondeu
+			if rede.sessao != "": # com conta: volta para a tela inicial (André 2026-11-07)
+				_voltar_a_tela_inicial()
+			else: # sem conta: libera o jogo sozinho
+				esconder_login()
+	if _queda_t > 0.0:
+		_queda_t -= dt
+		if _queda_t <= 0.0 and not ligado:
+			_desconectado()
+			return
 	if _tentar_de_novo > 0.0:
 		_tentar_de_novo -= dt
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":

@@ -839,6 +839,12 @@ func _luz_de_dentro(hp: Vector3, dt: float) -> void:
 		_sol0 = m.sol.light_energy
 		_nevoa0 = _env.fog_light_color
 	escuro = move_toward(escuro, alvo, dt * 0.6) # os olhos se acostumam
+	var fora: Dictionary = m.dia.base() if m.get("dia") != null else {}
+	if not fora.is_empty(): # dia e noite (dia_noite.gd): a luz de fora muda com a hora, então lê ela agora
+		_amb0 = fora.amb_e
+		_amb_cor0 = fora.amb
+		_sol0 = fora.sol_e
+		_nevoa0 = fora.nevoa
 	# v2 (direção de arte): lá dentro a luz de fundo é azul-escura 1a2030 (brilho mínimo ~0,08), para as laterais não
 	# virarem preto puro no celular
 	_env.ambient_light_color = _amb_cor0.lerp(Color("1a2030"), escuro)

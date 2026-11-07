@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -10,8 +10,10 @@ export const ATRIBUTOS = {
   vit: { nome: 'Vitalidade', desc: '+8 vida · regeneração' },
 };
 export const PONTOS_POR_NIVEL = 2;
-export const NIVEL_MAX = 30;
-export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45);
+// André 2026-11-06: nível máximo 200 (era 30). Até o Nv 30 a curva é a mesma de antes; depois aperta aos poucos
+// (x2,4 no Nv 100, x4,4 no Nv 200: uns 100 monstros por nível perto do 100 e 250 perto do 200).
+export const NIVEL_MAX = 200;
+export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50));
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
 export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7, golem: 9, maw: 10, warrok: 30 };
 // XP de um monstro de nível nv (campos de caça) para um herói de nível nh: sobe com o nível do bicho e cai quando o
@@ -35,6 +37,8 @@ export const tetoMonstroNivel = (nv, nh, chefe, N) => {
   const d = (nv || 1) - (nh || 1);
   return (chefe ? N.tetoChefe : N.teto) * (d < 0 ? Math.max(N.danoAbaixoMin, 1 - N.danoAbaixo * -d) : 1);
 };
+// fração do golpe de um monstro de nível nv que a defesa do herói segura (bicho de nível alto atravessa a armadura)
+export const reducaoContra = (def, nv, N) => Math.min(N.defesaMax ?? 0.8, Math.max(0, def) / (Math.max(0, def) + (N.defesaBase ?? 24) + (N.defesaNivel ?? 0) * (nv || 1)));
 // herói batendo no monstro: fraco em quem está muito acima, mais forte em quem está abaixo
 export const golpeHeroiNivel = (nv, nh, N) => {
   const d = (nv || 1) - (nh || 1);
@@ -45,7 +49,7 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
-  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip);
+  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a);
   const nivelK = 1 + 0.08 * (n - 1);
   const def = a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa;
   return {
@@ -81,6 +85,20 @@ export function vigorAgora(vg, agora = Date.now()) {
   const s = Math.max(0, agora - vg.t) / 1000;
   return Math.min(VIGOR.max, vg.v + (s / VIGOR.enche) * VIGOR.max);
 }
+// Ganha vigor (a cama): nunca passa do máximo nem baixa o que já tinha (igual ao mgVgAdd do Quimera)
+export function ganharVigor(p, n, agora = Date.now()) {
+  const v = vigorAgora(p.vigor, agora), novo = Math.max(v, Math.min(VIGOR.max, v + n));
+  p.vigor = { v: Math.round(novo * 1000) / 1000, t: agora };
+  return novo - v;
+}
+// Hora do jogo (0 a 24) no relógio da conta: dia = { h, t } (hora h no instante t, ms); sem ele, o relógio do mundo
+export function horaDoJogo(dia, agora = Date.now()) {
+  const h0 = dia ? dia.h : DIA.comeco, t0 = dia ? dia.t : 0;
+  return (((h0 + (agora - t0) / 1000 / DIA.horaSeg) % 24) + 24) % 24;
+}
+export const ehNoite = (h) => h >= DIA.noite || h < DIA.manha;
+// segundos até a cama dar vigor de novo (0 = pronta)
+export const camaVigorEm = (p, agora = Date.now()) => Math.max(0, ((p.camaT || 0) + CAMA.cada * 1000 - agora) / 1000);
 // Gasta vigor (devolve false se não tem) e grava o valor de agora
 export function gastarVigor(p, n, agora = Date.now()) {
   const v = vigorAgora(p.vigor, agora);
@@ -98,11 +116,13 @@ export function pecasDoConjunto(equip = {}) {
   return RARIDADES.map((_, i) => lugares.filter((x) => x >= i).length);
 }
 // Soma das peças e do bônus de conjunto (o melhor de 2, 3 e 6 peças)
-export function bonusEquip(equip = {}) {
+export function bonusEquip(equip = {}, atr = null) {
   const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
   for (const l of LUGARES) {
     const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
-    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r];
+    if (atr && !reforcoOk(it, atr)) continue; // como no Quimera: reforçada além do seu atributo não dá bônus
+    const rk = reforcoK(it);
+    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' ? rk.critico : rk.st);
   }
   const n = pecasDoConjunto(equip || {});
   for (const t of [2, 3, 6]) {
@@ -121,13 +141,18 @@ export function itemValido(it) {
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   if (ehEquip(it.k)) {
     if (!int(it.r, 0, RARIDADES.length - 1)) return null;
-    return int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
+    const v = int(it.d, 0, MORTE.durMax - 1) ? { k: it.k, r: it.r, d: it.d } : { k: it.k, r: it.r }; // d: durabilidade gasta (sem d = inteira)
+    if (int(it.e, 1, REFORCO.max[it.r] || 0)) v.e = it.e; // e: reforço (+1, +2...; sem e = +0)
+    if (it.cad) v.cad = 1; // cad: cadeado (André 2026-11-07): não vende, não joga fora, não vai para troca
+    return v;
   }
   const n = int(it.n, 1, ITENS[it.k].pilha) ? it.n : 1;
-  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n } : null;
-  return { k: it.k, n };
+  const cad = it.cad ? { cad: 1 } : {};
+  if (it.k === 'tomo') return HABS[it.h]?.tomo && int(it.nv, 6, SKILL_MAX) ? { k: 'tomo', h: it.h, nv: it.nv, n, ...cad } : null;
+  return { k: it.k, n, ...cad };
 }
-const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv;
+// pilha com cadeado só junta com pilha com cadeado (o que chega solto não entra no cadeado e o trancado não perde o cadeado)
+const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv && !a.cad === !b.cad;
 // Põe na mochila (junta na pilha igual ou no primeiro lugar vazio). Devolve false se não coube.
 export function guardar(mochila, item) {
   const it = itemValido(item); if (!it) return false;
@@ -140,9 +165,62 @@ export function guardar(mochila, item) {
   const i = mochila.indexOf(null); if (i < 0) return false;
   mochila[i] = it; return true;
 }
+// ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
+// prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }. O que está desmarcado não entra na mochila:
+// peça de equipamento dessa raridade ou recurso (item com mat) que cai do monstro ou sai de bônus na coleta fica no chão.
+// Poção, Tomo, ouro e o recurso principal do veio ou da árvore que você está coletando sempre entram.
+export function filtroValido(f) {
+  if (!f || typeof f !== 'object') return null;
+  const r = Array.isArray(f.r) ? [...new Set(f.r.filter((v) => Number.isInteger(v) && v >= 0 && v < RARIDADES.length))].sort() : [];
+  const k = Array.isArray(f.k) ? [...new Set(f.k.filter((v) => typeof v === 'string' && ITENS[v]?.mat))].sort() : [];
+  return r.length || k.length ? { r, k } : null;
+}
+export function filtrado(p, it) {
+  const f = p?.filtro; if (!f || !it || !ITENS[it.k]) return false;
+  if (ehEquip(it.k)) return f.r.includes(it.r ?? 0);
+  return !!ITENS[it.k].mat && f.k.includes(it.k);
+}
+// ---------- organizar a mochila ou o baú (André 2026-11-07, ORGANIZAR em shared/dados.js) ----------
+export function grupoItem(it) {
+  const d = ITENS[it.k] || {};
+  if (d.lugar) return 'equip';
+  if (it.k === 'tomo') return 'tomo';
+  if (d.usar) return 'consumivel';
+  if (d.ferramenta) return 'ferramenta';
+  if (d.obra) return 'obra';
+  if (it.k.startsWith('semente_')) return 'semente';
+  if (d.mat) return 'material';
+  return 'outro';
+}
+// Devolve a lista organizada, do mesmo tamanho (vazios no fim): pilhas iguais pela metade se juntam (nenhum item some
+// nem duplica), depois tipo, raridade (a melhor primeiro), reforço, nome. Não mexe na lista recebida.
+export function organizar(lista) {
+  const pilhas = new Map(), soltos = [];
+  for (const o of lista) {
+    if (!o || !ITENS[o.k]) { if (o) soltos.push(o); continue; }
+    if (ehEquip(o.k) || !o.n) { soltos.push({ ...o }); continue; }
+    const chave = `${o.k}|${o.h || ''}|${o.nv || ''}|${o.cad ? 1 : ''}`; // pilha com cadeado fica à parte
+    const p = pilhas.get(chave);
+    if (p) p.n += o.n; else pilhas.set(chave, { ...o });
+  }
+  const itens = [...soltos];
+  for (const o of pilhas.values()) {
+    const max = Math.max(1, ITENS[o.k].pilha || 1);
+    for (let n = o.n; n > 0; n -= max) itens.push({ ...o, n: Math.min(n, max) });
+  }
+  const ordem = (it) => { const g = ORGANIZAR.indexOf(grupoItem(it)); return g < 0 ? ORGANIZAR.length : g; };
+  const nome = (it) => { try { return nomeItem(it); } catch { return it.k; } };
+  const lugar = (it) => { const l = LUGARES.indexOf(ITENS[it.k]?.lugar); return l < 0 ? LUGARES.length : l; };
+  itens.sort((a, b) => ordem(a) - ordem(b) || lugar(a) - lugar(b) || (b.r | 0) - (a.r | 0) || (b.e | 0) - (a.e | 0)
+    || nome(a).localeCompare(nome(b), 'pt-BR') || (b.nv | 0) - (a.nv | 0) || (b.n | 0) - (a.n | 0));
+  const r = Array(lista.length).fill(null);
+  if (itens.length > r.length) return lista.map((o) => (o ? { ...o } : null)); // não cabe (nunca deve acontecer): não mexe
+  itens.forEach((o, i) => { r[i] = o; });
+  return r;
+}
 export function nomeItem(it) {
   if (!it || !ITENS[it.k]) return '';
-  if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}`;
+  if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}${it.e ? ` +${it.e}` : ''}`;
   if (it.k === 'tomo') return `${HABS[it.h].tomo} ${ROMANO[it.nv]}`;
   return ITENS[it.k].nome;
 }
@@ -181,6 +259,41 @@ export function penalidadeMorte(p) {
     if (it.d === 0) quebrou.push(nomeItem(it));
   }
   return { ouro, quebrou };
+}
+// ---------- reforço de equipamento (igual ao Quimera; REFORCO em shared/dados.js, André 2026-11-07) ----------
+// multiplicador dos números da peça pelo reforço (+0 = 1)
+export const reforcoK = (it) => { const e = it?.e | 0; return { st: 1 + REFORCO.bonus * e, critico: 1 + REFORCO.bonusCritico * e }; };
+export const reforcoMax = (it) => (it && ehEquip(it.k) ? REFORCO.max[it.r] || 0 : 0);
+export const chanceReforco = (e) => REFORCO.chance[Math.min(e | 0, REFORCO.chance.length - 1)];
+export const custoReforco = (it) => Math.round((REFORCO.custo.base + REFORCO.custo.porRaridade * it.r) * REFORCO.custo.sobe ** (it.e | 0));
+// para onde volta quando falha (nunca abaixo do último +5, +10...)
+export const reforcoFalhou = (e) => Math.max(Math.floor(e / REFORCO.seguro) * REFORCO.seguro, e - 1);
+// atributo que a peça pede para chegar no reforço e: { k: 'for' | 'int' | 'maior', n } (n = 0: não pede)
+export function reforcoPrecisa(it, e) {
+  const n = e <= REFORCO.atributo.livre ? 0 : REFORCO.atributo.porNivel * e;
+  const l = ITENS[it.k]?.lugar;
+  return { k: l === 'espada' ? 'for' : l === 'cajado' ? 'int' : 'maior', n };
+}
+// pode usar a peça com o reforço que ela tem? (Quimera: sem o atributo não equipa e, se já está no corpo, não dá bônus)
+export const reforcoOk = (it, atr) => !(it?.e > 0) || atributoDoReforco(atr, reforcoPrecisa(it, it.e).k) >= reforcoPrecisa(it, it.e).n;
+export const textoReforcoPrecisa = (it, atr, e = it.e | 0) => { const pr = reforcoPrecisa(it, e); return `Precisa ${pr.n} de ${nomeAtributoReforco(pr.k)} (você tem ${atributoDoReforco(atr, pr.k)})`; };
+export const atributoDoReforco = (atr, k) => (k === 'maior' ? Math.max(atr?.for | 0, atr?.int | 0) : atr?.[k] | 0);
+export const nomeAtributoReforco = (k) => (k === 'for' ? 'Força' : k === 'int' ? 'Inteligência' : 'Força ou Inteligência');
+// Uma tentativa (o servidor sorteia). Devolve { ok, de, e, custo } ou { erro: texto }
+export function reforcar(p, it, sorte = Math.random()) {
+  if (!it || !ehEquip(it.k)) return { erro: 'Só equipamento se reforça' };
+  const max = reforcoMax(it), de = it.e | 0;
+  if (!max) return { erro: 'Peça Comum não dá pra reforçar' };
+  if (de >= max) return { erro: 'Reforço no máximo!' };
+  const pr = reforcoPrecisa(it, de + 1), tem = atributoDoReforco(p.atr, pr.k);
+  if (tem < pr.n) return { erro: `Você não pode reforçar mais: não tem atributo suficiente (precisa ${pr.n} de ${nomeAtributoReforco(pr.k)}, você tem ${tem})` };
+  const custo = custoReforco(it);
+  if ((p.ouro || 0) < custo) return { erro: `Ouro insuficiente (${p.ouro || 0}/${custo})` };
+  p.ouro -= custo;
+  const ok = sorte * 100 < chanceReforco(de);
+  const e = ok ? de + 1 : reforcoFalhou(de);
+  if (e > 0) it.e = e; else delete it.e;
+  return { ok, de, e, custo };
 }
 // Quanto a loja paga por uma unidade
 export const precoVenda = (it, merc = 0) => Math.round((ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1) * (1 + merc));
@@ -347,6 +460,11 @@ export function progressoValido(p) {
   // A Simulacao confere se o lugar ainda está dentro do mapa. Sem pos = nasce na vila.
   const q = p.pos;
   if (q && [q.x, q.y, q.z, q.ry].every((v) => num(v) && Math.abs(v) < 1e4)) n.pos = { x: q.x, y: q.y, z: q.z, ry: q.ry };
+  // relógio do dia da conta (depois de dormir) e quando a cama deu vigor pela última vez (ms, relógio do servidor)
+  if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
+  if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
+  const filtro = filtroValido(p.filtro); if (filtro) n.filtro = filtro; // filtro de coleta da mochila
+  if (num(p.agua) && p.agua >= 0) n.agua = Math.min(Math.floor(p.agua), HORTA.agua); // água do regador (sem o campo = cheio)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
   return n;

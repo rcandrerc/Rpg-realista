@@ -7,6 +7,7 @@ const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
+const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
@@ -20,6 +21,7 @@ const CameraHeroi = preload("res://camera_heroi.gd")
 const Sons = preload("res://sons.gd")
 const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
+const Encostar = preload("res://encostar.gd") # escalando, corpo, mãos e pés encostam na pedra (André 2026-11-07)
 const AguaFx = preload("res://agua_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
@@ -32,6 +34,7 @@ const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Troca = preload("res://troca.gd")
+const Reforco = preload("res://reforco.gd")
 const Amigos = preload("res://amigos.gd")
 const Chat = preload("res://chat.gd")
 const Minimapa = preload("res://minimapa.gd")
@@ -81,6 +84,7 @@ var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (c
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
+var dia # dia_noite.gd: dia e noite do Quimera (relógio da conta, céu, luz e o sono na cama)
 var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
@@ -109,6 +113,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
+var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenciado)
 var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e mana (só online)
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
@@ -121,7 +126,7 @@ var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
-var visual := "ruiva" # corpo do herói (criador: a Ruiva, os masculinos e os outros corpos VRoid, CRIADOR.corpos)
+var visual := "ruiva" # corpo do herói (criador: a Ruiva e o cabelo_m, CRIADOR.corpos)
 const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
 var tempo := 0.0
 
@@ -134,6 +139,9 @@ var cam # camera_heroi.gd: segue com mola, vai para as costas correndo, treme no
 var braco # braco_espada.gd: espada baixa e para trás ao andar e correr no modo espada
 var mao_fechada # mao_fechada.gd: dedos fechados em volta do cajado na mão
 var inclinar # inclinar.gd: tronco inclina na curva e o quadril afunda no pouso
+var encostar # encostar.gd: escalando, mãos e pés na pedra; _encosta = m que o desenho do herói vai para a frente
+var _encosta := 0.0
+var _encosta_giro := 0.0 # rad: o corpo fica de frente para a face da pedra
 var sons # sons.gd
 var musica # musica.gd: música de fundo em loop (volume em Configurações > Música)
 var montaria = null # montaria.gd: montado no lobo (botão do lobo); null = a pé
@@ -159,8 +167,9 @@ const CAJADO_NADO := 0.35
 var _caj_base = null # posição do cajado nas costas (no osso), guardada ao prender
 var _saindo_agua := 0.0 # segundos que faltam da saída do lago (do nado até ficar de pé)
 var _sobe_agua := 0.0 # metros que o corpo sobe agora
-const SOBE_BOIANDO := 0.12 # boiando parado (Treading Water): o ombro fica na linha da água
-const SOBE_NADANDO := 0.5 # nadando (Swimming): as costas e a nuca rente à água
+# André 2026-11-06 (2ª): estava alto demais (peito todo fora). Agora só cabeça e ombros saem da água
+const SOBE_BOIANDO := -0.18 # boiando parado (Treading Water): a água no ombro
+const SOBE_NADANDO := 0.32 # nadando (Swimming): cabeça e nuca fora, as costas rente à água
 const SAIR_AGUA_RITMO := 1.15
 # molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
 const MOLA_K := 110.0 # força da mola (maior = volta mais rápido)
@@ -220,6 +229,7 @@ func _ready() -> void:
 	add_child(cenario)
 	alcance_da_vila(vila)
 	achar_troncos(vila)
+	juntar_vila(vila)
 	montar_chao()
 	montar_grama()
 	# fonte do jogo (Alegreya Sans, OFL) no lugar da letra padrão do Godot: HUD, menus e números de dano
@@ -271,6 +281,8 @@ func _ready() -> void:
 	hud.tocou.connect(conversa.tocou_tela)
 	troca = Troca.new(self)
 	add_child(troca)
+	reforco = Reforco.new(self)
+	add_child(reforco)
 	hud.tocou.connect(troca.tocou_tela) # tocar noutro jogador perto: pedir troca
 	hud.troca = troca
 	amigos = Amigos.new(self)
@@ -336,7 +348,7 @@ func montar_ambiente() -> void:
 	sol.light_energy = 0.9
 	sol.shadow_enabled = true
 	sol.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	sol.directional_shadow_max_distance = 30.0
+	sol.directional_shadow_max_distance = 20.0 # era 30 m; André 2026-11-07 aprovou 20 m (FPS na vila: a sombra era ~45% das chamadas de desenho)
 	sol.rotation = Vector3(deg_to_rad(-52), deg_to_rad(60), 0)
 	add_child(sol)
 
@@ -365,6 +377,9 @@ func montar_chao() -> void:
 	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"), caverna.buraco_na_montanha)
 	add_child(relevo)
 	add_child(caverna)
+	dia = preload("res://dia_noite.gd").new(self) # dia e noite (André 2026-11-07): depois do ambiente e da caverna
+	add_child(dia)
+	add_child(Submerso.new(self)) # câmera dentro do lago: tom azul, neblina e luz da superfície (André 2026-11-07)
 	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
 
 # chão onde um efeito ou um drop cai: com o herói lá dentro da caverna da montanha, o chão da caverna (não o alto da
@@ -678,9 +693,127 @@ func alcance_da_vila(vila: Node3D) -> void:
 		var tam: float = max(bb.size.x, max(bb.size.y, bb.size.z))
 		if tam >= 20.0:
 			continue # chão, morros e o que marca o horizonte ficam sempre
-		mi.visibility_range_end = 60.0 if tam < 2.0 else (90.0 if tam < 6.0 else 120.0)
+		# André 2026-11-07 ("prefiro perder um pouquinho de qualidade do que ter jogo travando"): 60/90/120 m viraram
+		# 45/70/100 m; a neblina já apaga bastante nessa distância e o fade curtinho evita o susto de aparecer de repente
+		mi.visibility_range_end = 45.0 if tam < 2.0 else (70.0 if tam < 6.0 else 100.0)
 		mi.visibility_range_end_margin = 8.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+# Vila em blocos (André 2026-11-07, FPS na vila: "vai só o lance excluindo pedra e árvore"): as 619 peças soltas do
+# vila.glb viram poucos blocos, um por pedaço de chão, por distância de sumir (alcance_da_vila), por material e por
+# sombra. Cada bloco é uma chamada de desenho só (antes era uma por peça). Ficam soltas, como eram:
+# - árvores da vila e do campo (queda_arvore.gd derruba e esconde cada uma; achar_troncos apaga o tronco na câmera)
+# - copas transparentes (somem quando tapam o herói: lista folhas); as samambaias entram nos blocos (veja abaixo)
+# - pedras (encostar.gd lê a forma de cada pedra de escalar) e tudo perto de um sólido que não é casa
+# - o chão e o que é grande (sempre desenhado) e material com shader próprio
+const VILA_BLOCO := {45.0: 12.0, 70.0: 20.0, 100.0: 28.0} # distância de sumir -> lado do pedaço de chão (m)
+func juntar_vila(vila: Node3D) -> void:
+	# samambaias (400 e poucas, todas com o mesmo material): entram nos blocos. Saem do apagar da câmera e somem em
+	# degradê já a 4 m dela, como as samambaias do cenario.gd (o bloco inteiro não pode ficar transparente)
+	# (cada samambaia veio do glb com uma cópia do mesmo material: a textura diz quem é igual, e o bloco usa um só)
+	var uso := {} # textura -> quantas
+	var mat_unico := {} # textura -> material que o bloco usa
+	for f in folhas:
+		var m0 = (f[0] as MeshInstance3D).mesh.surface_get_material(0)
+		if f.size() <= 3 and m0 is BaseMaterial3D and m0.albedo_texture != null:
+			uso[m0.albedo_texture] = uso.get(m0.albedo_texture, 0) + 1
+	var manter := {}
+	var rasteira := {} # MeshInstance3D -> material do bloco
+	for f in folhas:
+		var mi: MeshInstance3D = f[0]
+		var m0 = mi.mesh.surface_get_material(0)
+		if f.size() <= 3 and m0 is BaseMaterial3D and uso.get(m0.albedo_texture, 0) >= 20 and mi.material_override == null \
+				and mi.mesh.get_surface_count() == 1 and (mi.global_transform * mi.get_aabb()).size.y < 2.0:
+			if not mat_unico.has(m0.albedo_texture):
+				var mu: BaseMaterial3D = m0.duplicate()
+				mu.distance_fade_min_distance = 2.2
+				mu.distance_fade_max_distance = 4.2
+				mat_unico[m0.albedo_texture] = mu
+			rasteira[mi] = mat_unico[m0.albedo_texture]
+		else:
+			manter[mi] = true
+	var arv: Array = []
+	for a in mundo.get("coletaveis", []):
+		if str(a.tipo) == "arvore":
+			arv.append(Vector2(float(a.x), float(a.z)))
+	var pedras: Array = []
+	for r in terreno.solidos:
+		if not r.get("casa", false):
+			pedras.append(r)
+	var base_inv: Transform3D = vila.global_transform.affine_inverse()
+	var grupos := {} # [lado_x, lado_z, alcance, sombra] -> {material id -> [material, SurfaceTool]}
+	var feitos: Array = []
+	for mi: MeshInstance3D in vila.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.skin != null or not mi.is_visible_in_tree() or manter.has(mi) or mi.get_child_count() > 0:
+			continue
+		var alc: float = mi.visibility_range_end
+		if not VILA_BLOCO.has(alc):
+			continue # grande, sempre desenhado
+		var bb: AABB = mi.global_transform * mi.get_aabb()
+		var c := Vector2(bb.get_center().x, bb.get_center().z)
+		var o := Vector2(mi.global_position.x, mi.global_position.z)
+		var solta := false
+		for a in arv:
+			if o.distance_to(a) < 0.2 or (not rasteira.has(mi) and (c.distance_to(a) < 2.5 or o.distance_to(a) < 2.5)):
+				solta = true
+				break
+		if not solta and not rasteira.has(mi):
+			for r in pedras:
+				if c.distance_to(Vector2(r.x, r.z)) < float(r.R) * 1.6 + 0.8:
+					solta = true
+					break
+		if solta:
+			continue
+		var tem_shader := false
+		for i in mi.mesh.get_surface_count():
+			var mt = mi.get_active_material(i)
+			if mt != null and not (mt is BaseMaterial3D):
+				tem_shader = true
+			elif mt is BaseMaterial3D and mt.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and not rasteira.has(mi):
+				tem_shader = true
+			if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+				tem_shader = true
+		if tem_shader:
+			continue
+		var lado: float = VILA_BLOCO[alc]
+		var k := [floori(c.x / lado), floori(c.y / lado), alc, int(mi.cast_shadow)]
+		if not grupos.has(k):
+			grupos[k] = {}
+		var t: Transform3D = base_inv * mi.global_transform
+		for i in mi.mesh.get_surface_count():
+			var mat: Material = rasteira.get(mi, mi.get_active_material(i))
+			var chave := mat.get_instance_id() if mat else 0
+			if not grupos[k].has(chave):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				grupos[k][chave] = [mat, st]
+			(grupos[k][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+		feitos.append(mi)
+	var n := 0
+	for k in grupos:
+		var am := ArrayMesh.new()
+		for chave in grupos[k]:
+			var g: Array = grupos[k][chave]
+			(g[1] as SurfaceTool).commit(am)
+			am.surface_set_material(am.get_surface_count() - 1, g[0])
+		if am.get_surface_count() == 0:
+			continue
+		var bloco := MeshInstance3D.new()
+		bloco.name = "bloco_%d" % n
+		bloco.mesh = am
+		bloco.cast_shadow = k[3]
+		bloco.visibility_range_end = k[2]
+		bloco.visibility_range_end_margin = 8.0
+		bloco.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		vila.add_child(bloco)
+		n += 1
+	for i in range(folhas.size() - 1, -1, -1):
+		if rasteira.has(folhas[i][0]) and feitos.has(folhas[i][0]):
+			folhas.remove_at(i)
+	for mi: MeshInstance3D in feitos:
+		mi.get_parent().remove_child(mi)
+		mi.free()
+	print("vila em blocos: ", feitos.size(), " peças -> ", n, " blocos")
 
 # Árvores da mata (mundo.mata, as mesmas do servidor): o vila.glb traz um modelo de cada (mata_tronco_v e mata_copa_v,
 # na origem) e aqui elas viram MultiMesh por pedaços de 32 m, desenhados até 80 m (a neblina esconde o resto).
@@ -769,10 +902,70 @@ func modelo(id: String) -> Node3D:
 		anim.get_animation(nome).loop_mode = Animation.LOOP_LINEAR if nome in LACOS else Animation.LOOP_NONE
 	anim.play("parada")
 	pintar(no, true, id == "ruiva")
+	sem_sombra_no_rosto(no)
 	if id in SEM_CASACO:
 		VisualNpc.tirar_casaco(no)
 	molas(no)
 	return no
+
+# NPC de longe (André 2026-11-07, FPS na vila, escolheu sombra e contorno só de perto): a mais de 15 m o NPC não
+# desenha sombra e o contorno de desenho (a casca escura um pouco maior que o corpo) troca por um material que não
+# desenha nada; de perto volta tudo igual (a sombra que cada pedaço tinha e o contorno de antes).
+const NPC_DETALHE := 15.0
+const NPC_DETALHE_SAI := 17.0 # volta a ter detalhe só abaixo de 15 m, sai acima de 17 m (não pisca no limite)
+static var _mat_nada: ShaderMaterial
+static func npc_simples(no: Node, simples: bool) -> void:
+	if _mat_nada == null:
+		var sh := Shader.new()
+		sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, shadows_disabled;\nvoid vertex() { POSITION = vec4(2.0, 2.0, 2.0, 1.0); }\nvoid fragment() { ALBEDO = vec3(0.0); }\n"
+		_mat_nada = ShaderMaterial.new()
+		_mat_nada.shader = sh
+	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		if simples:
+			if not mi.has_meta("sombra_perto"):
+				mi.set_meta("sombra_perto", mi.cast_shadow)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if mi.material_override != null:
+				continue
+			for i in mi.mesh.get_surface_count():
+				var mt := mi.get_active_material(i)
+				if mt is BaseMaterial3D and (mt as BaseMaterial3D).grow and (mt as BaseMaterial3D).cull_mode == BaseMaterial3D.CULL_FRONT:
+					mi.set_meta("contorno_%d" % i, [mi.get_surface_override_material(i)]) # [null] = o da malha
+					mi.set_surface_override_material(i, _mat_nada)
+		else:
+			if mi.has_meta("sombra_perto"):
+				mi.cast_shadow = mi.get_meta("sombra_perto")
+				mi.remove_meta("sombra_perto")
+			for i in mi.mesh.get_surface_count():
+				if mi.has_meta("contorno_%d" % i):
+					mi.set_surface_override_material(i, mi.get_meta("contorno_%d" % i)[0])
+					mi.remove_meta("contorno_%d" % i)
+
+# FPS (André 2026-11-07, vila): cada personagem (herói, NPC, outro jogador) tem 8 pecinhas do rosto (olhos, brilho do
+# olho, boca, cílios, delineado, sobrancelha) e cada uma também era desenhada de novo na sombra. Elas ficam coladas no
+# rosto, dentro da sombra da cabeça, então a sombra delas não aparece: só gastava 8 chamadas de desenho por personagem.
+# A sombra da cabeça, do cabelo e do corpo continua igual.
+const ROSTO_SEM_SOMBRA := ["FaceMouth", "EyeIris", "EyeHighlight", "EyeWhite", "EyeExtra", "FaceEyelash", "FaceEyeline", "FaceBrow"]
+static func sem_sombra_no_rosto(no: Node) -> void:
+	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
+			continue
+		var so_rosto := true
+		for i in mi.mesh.get_surface_count():
+			var mt := mi.mesh.surface_get_material(i)
+			var nome: String = mt.resource_name if mt else ""
+			var achou := false
+			for k in ROSTO_SEM_SOMBRA:
+				if k in nome:
+					achou = true
+					break
+			if not achou:
+				so_rosto = false
+				break
+		if so_rosto:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 # aparência do herói (criador de personagem): pinta o herói e o boneco do menu e guarda no celular
 func definir_aparencia(a, salvar := true) -> void:
@@ -805,7 +998,9 @@ func corpo_valido(v) -> String:
 	var s := str(v)
 	if s in l and ResourceLoader.exists("res://modelos/%s.glb" % s):
 		return s
-	return "ruiva"
+	# corpo que saiu do criador (André 2026-11-07: só um homem e uma mulher): o do criador do mesmo sexo
+	var antigo = P.dados.criador.get("corposAntigos", {}).get(s, "ruiva")
+	return antigo if str(antigo) in l else "ruiva"
 
 # onde a espada e o cajado ficam presos no corpo do herói (cada corpo tem a mão num jeito)
 func lugar_armas(id := "") -> Dictionary:
@@ -910,6 +1105,12 @@ func criar_heroi(nascer := true) -> void:
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
 	inclinar.preparar(heroi_esq)
+	encostar = Encostar.new()
+	heroi_esq.add_child(encostar)
+	heroi_esq.move_child(encostar, 1) # depois do inclinar, antes do braço da espada e das molas do cabelo
+	encostar.preparar(heroi_esq)
+	if vila_no != null:
+		encostar.achar_rochas(vila_no, terreno.solidos)
 	# altura do quadril do herói (m): a freada e a meia-volta andam pelo caminho do quadril da animação, medido nela
 	var iq := heroi_esq.find_bone("J_Bip_C_Hips")
 	if iq >= 0 and heroi_esq.is_inside_tree():
@@ -917,6 +1118,32 @@ func criar_heroi(nascer := true) -> void:
 		if hq > 0.4 and hq < 1.6:
 			mov.altura_quadril = hq
 	print("altura do quadril: ", mov.altura_quadril)
+
+# Escalando pedra (André 2026-11-07: "estou muito distante das pedras"): a conta da escalada (andar.gd, igual ao
+# servidor) deixa o herói longe da pedra redonda; só o desenho chega para a frente até encostar (encostar.gd mede no
+# modelo da pedra) e vira de frente para a face dela. Na escada e passando por cima da beirada fica como era.
+const CLIPS_ENCOSTAR := ["parede_agarrado", "parede_beirada", "parede_balanca", "esc_subirParede", "esc_descerParede", "esc_esquerda", "esc_direita"]
+func passo_encostar(dt: float) -> void:
+	if encostar == null:
+		return
+	var quer: bool = mov.esc != null and mov.esc.get("escada") == null and mov.anim in CLIPS_ENCOSTAR and h.morto <= 0.0
+	encostar.peso = move_toward(encostar.peso, 1.0 if quer else 0.0, dt * 5.0)
+	if quer:
+		encostar.escolher_perto(heroi.position)
+		_encosta = clamp(_encosta + float(encostar.falta) * minf(1.0, dt * 10.0), -0.25, 1.3)
+		var n: Vector3 = encostar.normal
+		var giro := 0.0
+		if n != Vector3.ZERO:
+			giro = clamp(mov.ad(atan2(-n.x, -n.z), mov.ry), -0.5, 0.5)
+		_encosta_giro = lerpf(_encosta_giro, giro, minf(1.0, dt * 6.0))
+	else:
+		_encosta = move_toward(_encosta, 0.0, dt * 1.6)
+		_encosta_giro = move_toward(_encosta_giro, 0.0, dt * 2.0)
+		if encostar.peso <= 0.0 and _encosta == 0.0:
+			encostar.escolher_perto(Vector3(1e6, 0, 1e6)) # longe de tudo: não mede nada
+	if _encosta != 0.0 or _encosta_giro != 0.0:
+		heroi.position += Vector3(sin(mov.ry), 0.0, cos(mov.ry)) * _encosta
+		heroi.rotation.y = mov.ry + _encosta_giro
 
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
@@ -1295,11 +1522,44 @@ func custo_reset() -> int:
 	var R: Dictionary = mundo.get("resetBuild", {"minimo": 50, "porNivel": 10})
 	return max(int(R.minimo), int(R.porNivel) * int(P.prog.nivel))
 
+# botão de poção da HUD: a primeira pilha daquela poção na bolsa, pelo mesmo caminho do "Usar" da bolsa (menu.acao_item)
+func beber_pocao(k: String) -> void:
+	var i := -1
+	for j in P.prog.mochila.size():
+		var it = P.prog.mochila[j]
+		if it != null and it.k == k:
+			i = j
+			break
+	if i < 0:
+		hud.aviso("Sem %s na bolsa" % ("poção de vida" if k == "pocao" else "poção de mana"))
+		hud.negar(k)
+		return
+	menu.acao_item({"acao": "usar", "i": i})
+
+# recarga da poção (POCAO_RECARGA de shared/dados.js; o servidor confere a mesma)
+func recarga_pocao() -> float:
+	return float(P.dados.get("pocaoRecarga", 10))
+
 # poção da mochila: confere se vale a pena; sem internet já recupera aqui (online quem aplica é o servidor)
 func usar_pocao(it: Dictionary) -> bool:
 	if h.morto > 0.0:
 		return false
 	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
+	var rc: float = recargas.get("it:" + str(it.k), 0.0)
+	if rc > 0.0 and not P.dados.itens[it.k].get("comida", false):
+		hud.aviso("Espere %d s para outra %s" % [int(ceil(rc)), str(P.dados.itens[it.k].nome).to_lower()])
+		hud.negar(it.k)
+		return false
+	if P.dados.itens[it.k].get("comida", false): # prato do fogão (2026-11-07): o servidor confere vida, mana e vigor
+		if u.has("vida") and h.vida < P.st.vidaMax:
+			var nc: float = min(P.st.vidaMax - h.vida, round(P.st.vidaMax * float(u.vida)))
+			fx.cura(heroi)
+			fx.numero(heroi.position, nc, Color("7dffa0"))
+			if not on():
+				h.vida += nc
+		if u.has("mana") and not on():
+			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+		return true
 	if u.has("vida"):
 		if h.vida >= P.st.vidaMax:
 			hud.aviso("A vida já está cheia")
@@ -1315,6 +1575,7 @@ func usar_pocao(it: Dictionary) -> bool:
 			return false
 		if not on():
 			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+	recargas["it:" + str(it.k)] = recarga_pocao() # o mesmo tempo do servidor: o botão da HUD mostra a contagem
 	return true
 
 # ouro e itens que caíram do monstro: sobem do corpo dele (cor da raridade)
@@ -1425,6 +1686,24 @@ func molas(no: Node) -> void:
 		sim.set_gravity(k, 0.0)
 
 # ---------- combate ----------
+# dentro da Caverna da Montanha (primeira masmorra)
+func na_masmorra() -> bool:
+	return caverna != null and not terreno.dentro_caverna(heroi.position.x, heroi.position.z, heroi.position.y + 0.3).is_empty()
+
+# algum monstro vivo a até 15 m bateu ou apanhou nos últimos segundos (a luta continua mesmo se o herói ficou sem bater)
+func luta_perto() -> bool:
+	for e in inimigos:
+		if e.estado != "morto" and e.vida > 0.0 and maxf(float(e.get("combate", 0.0)), float(e.get("luta", 0.0))) > tempo and e.no.position.distance_to(heroi.position) < 15.0:
+			return true
+	return false
+
+# algum chefe (Imp Chefe, Warrok) bateu ou apanhou nos últimos segundos: a música de combate vira a de chefe
+func luta_com_chefe() -> bool:
+	for e in inimigos:
+		if e.tipo in CHEFES and e.vida > 0.0 and float(e.get("combate", 0.0)) > tempo and e.no.position.distance_to(heroi.position) < 30.0:
+			return true
+	return false
+
 func inimigo_em(pos: Vector3, raio: float):
 	for e in inimigos:
 		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio + 0.35 and pos.y < e.no.position.y + 2.2:
@@ -1544,6 +1823,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 var _impacto_t := -9.0
 # tiro_basico: a Faísca do cajado acertou. O herói continua andando enquanto atira, então aqui NÃO congela o jogo
 # nem treme a câmera (André 2026-11-03: "correndo e trava, parece lag"); fica o som, o flash, o número e um toque leve.
+var _faisca_t := -9.0 # último acerto da Faísca: a confirmação do servidor não toca outro golpe por cima
 func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_basico := false) -> void:
 	if _impacto_quadro == Engine.get_process_frames():
 		return
@@ -1551,7 +1831,8 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_bas
 	_impacto_t = tempo
 	var pesado := forte or crit
 	if tiro_basico:
-		sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
+		# o som do acerto da Faísca é o impacto de fogo (faisca_acerto, efeitos.gd); o "acerto" genérico tapava ele (André 2026-11-07)
+		_faisca_t = tempo
 		vibrar(18 if pesado else 12)
 		return
 	parar_golpe(HITSTOP_FORTE if pesado else HITSTOP)
@@ -1820,10 +2101,15 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau"]:
+	if qual in ["pocao", "pocao_mana"]: # botões de poção da HUD (2026-11-07): não param coleta, volta nem golpe
+		beber_pocao(qual)
+		return
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau", "forno", "encher"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
+	if qual in ["afundar", "subir"]: # mergulho: quem age é o botão seguro (_process)
+		return
 	# nadando não dá para lutar nem coletar (as armas estão nas costas)
 	if _nadando and (qual in ["basico", "dash", "rolar", "coletar"] or qual.begins_with("hab")):
 		hud.aviso("Nadando não dá")
@@ -1840,12 +2126,14 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno", "cama", "encher"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
 # Desliga tocando de novo, quando a estamina acaba (trabalho.gd) ou quando o herói para de andar.
 var _parado_disparada := 0.0
+const GUARDA_DEPOIS := 3.0 # s em guarda depois de golpear o ar (sem acertar ninguém não entra em combate)
+var _guarda_ate := 0.0
 func ligar_disparada(v: bool) -> void:
 	if v and trabalho.sem_folego and montaria == null: # montado quem corre é o lobo
 		hud.aviso("Sem fôlego!")
@@ -1888,7 +2176,10 @@ func _tentar(qual: String) -> bool:
 			hud.aviso("Modo espada" if h.modo == "Espada" else "Modo magia")
 			sons.tocar("sacar", -4.0)
 		"cura":
-			if recargas.get("cura", 0.0) > FILA_TEMPO or h.mana < D.CURA.mana:
+			if h.mana < D.CURA.mana:
+				hud.aviso("Mana insuficiente") # André 2026-11-07: antes não dizia nada
+				return true
+			if recargas.get("cura", 0.0) > FILA_TEMPO:
 				return true
 			if not pode_agir() or recargas.get("cura", 0.0) > 0.0:
 				return false
@@ -1961,15 +2252,25 @@ func _tentar(qual: String) -> bool:
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
 		"bancada": # perto de uma estação do lote (construcao.gd): bancada = Alfaiate; bigorna ou fornalha = Ferreiro
-			menu.abrir_estacao() # André 2026-11-05: um menu só, a aba Criar inteira (antes: Profissões > Ferreiro/Alfaiate)
+			# André 2026-11-05: um menu só, a aba Criar inteira. 2026-11-07: longe (ou do outro lado da parede) o herói
+			# vai andando até a estação, entrando pela porta, e abre quando chega (construcao.gd tocar_estacao)
+			construcao.tocar_estacao("bancada")
 		"construir": # no meu lote: abre ou fecha o modo construção (construcao.gd)
 			construcao.tocar_botao_construir()
 		"lote": # perto da placa de um lote à venda: pergunta se quer comprar
 			construcao.perguntar_compra()
 		"bau": # perto do meu baú (construcao.gd): abre o baú
-			construcao.abrir_bau()
+			construcao.tocar_estacao("bau") # 2026-11-07: longe ou do lado de fora da parede, anda até ele e abre
+		"encher": # perto do poço da vila ou na beira do lago (André 2026-11-07): enche o regador
+			construcao.encher_regador()
+		"cama": # à noite, perto da minha cama (construcao.gd, dia e noite do Quimera 2026-11-07): anda até ela e dorme
+			construcao.tocar_estacao("cama")
+		"forno": # a minha fornalha (construcao.gd, 2026-11-07): anda até o lado dela e abre a janela de combustível + material
+			construcao.tocar_estacao("forno")
 		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
 			construcao.abrir_correio()
+		"estacoes": # no terreno/casa (André 2026-11-07): recolhe ou expande os botões das estações (construcao.gd)
+			construcao.alternar_estacoes()
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -2467,6 +2768,8 @@ func direcao_joystick() -> Vector3:
 			return conversa.direcao_auto()
 		if rota and rota.ativo: # "Ir para" do mapa: vai pela estrada
 			return rota.direcao_auto()
+		if construcao and construcao.plano and construcao.plano.andando(): # plano da fazenda: vai até o próximo canteiro
+			return construcao.plano.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
@@ -2524,12 +2827,19 @@ func _process(dt: float) -> void:
 	hud.mana = h.mana / P.st.manaMax
 	hud.estamina = trabalho.sta / max(1.0, trabalho.sta_max())
 	hud.sem_folego = trabalho.sem_folego
+	hud.vigor = P.vigor() / max(1.0, float(P.dados.vigor.max))
 	hud.texto_vida = "%d/%d" % [ceil(h.vida), P.st.vidaMax]
 	hud.texto_mana = "%d/%d" % [floor(h.mana), P.st.manaMax]
 	hud.nivel = P.prog.nivel
 	colorir_niveis()
 	hud.xp = float(P.prog.xp) / max(1, P.xp_prox)
 	hud.escudo = h.escudo > 0.0 and h.escudo_ate > tempo
+	# em combate (bateu ou apanhou nos últimos segundos): símbolo no painel e música de combate
+	hud.em_combate = trabalho.em_combate()
+	# André 2026-11-06: "Eye of the Storm" para chefe e masmorra; "Battle for the Kingdom" para os monstros em geral
+	# André 2026-11-07: a música não corta enquanto um monstro perto ainda está na luta (preparando golpe, perseguindo)
+	var luta_musica: bool = hud.em_combate or (musica.lutando and luta_perto()) # só segura a luta que já começou
+	musica.combate(luta_musica, dt_real, luta_musica and (luta_com_chefe() or na_masmorra()))
 	var barra: Array = barra_atual()
 	for i in barra.size():
 		var k = barra[i]
@@ -2544,6 +2854,9 @@ func _process(dt: float) -> void:
 		if menu:
 			menu.atualizar()
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
+	for k in ["pocao", "pocao_mana"]:
+		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
+		hud.contagem(k, P.contar(k))
 	hud.recarga("dash", recargas.get("dash", 0.0), D.MOVIMENTO.dash_cd)
 	hud.recarga("rolar", recargas.get("rolar", 0.0), D.HEROI.rolar_cd)
 	atualizar_teste(dt)
@@ -2681,6 +2994,7 @@ func atualizar_heroi(dt: float) -> void:
 		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
 	heroi.position = mov.posicao()
 	heroi.rotation.y = mov.ry
+	passo_encostar(dt)
 	# nado: entrou ou saiu da água funda
 	var nada_agora: bool = mov.nadando() and h.morto <= 0.0
 	if nada_agora != _nadando:
@@ -2697,6 +3011,15 @@ func atualizar_heroi(dt: float) -> void:
 		if mov.esc == null:
 			armar(h.modo)
 	_saindo_agua = maxf(0.0, _saindo_agua - dt)
+	# mergulho (André 2026-11-06): segurar Afundar desce, segurar Subir volta para a superfície (andar.gd)
+	mov.mergulho_dir = 0.0
+	if _nadando:
+		if hud.botao("afundar").get("apertado", false):
+			mov.mergulho_dir = 1.0
+		elif hud.botao("subir").get("apertado", false):
+			mov.mergulho_dir = -1.0
+	hud.mostrar_botao("afundar", _nadando)
+	hud.mostrar_botao("subir", _nadando)
 	# armas: escalando, as duas nas costas
 	if mov.esc != null and not estava_escalando:
 		acao = {}
@@ -2774,6 +3097,10 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		vel_anim = mov.CORRIDA * 1.2
 	elif not mov.chao or mov.esc != null or montaria != null:
 		vel_anim = 0.0
+	# postura de luta só em combate ou logo depois de um golpe/magia (fora disso, parada relaxada)
+	if not acao.is_empty():
+		_guarda_ate = tempo + GUARDA_DEPOIS
+	heroi_anim.em_guarda = trabalho.em_combate() or tempo < _guarda_ate
 	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
 	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando
 	heroi_anim.nadando = _nadando
@@ -2847,7 +3174,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			var desce: Vector3 = heroi_esq.get_bone_global_rest(b).basis.inverse() * Vector3(0, -CAJADO_NADO, 0)
 			cajado.position = _caj_base + desce * heroi_anim._nada
 	if agua_fx:
-		agua_fx.passo(dt, heroi, heroi_esq, _nadando, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
+		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
 	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando:
 		_passo_dist += vel * dt
@@ -2856,7 +3183,10 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			passada = lerp(0.9, 2.6, clamp((vel - 3.0) / 6.0, 0.0, 1.0))
 		if _passo_dist >= passada:
 			_passo_dist = 0.0
-			sons.tocar("passo", -14.0 + vel * 1.4, 0.12)
+			if montaria != null: # o lobo tem som de patas próprio, não o passo do herói (André 2026-11-07)
+				sons.tocar("pata", -6.0, 0.1)
+			else:
+				sons.tocar("passo", -14.0 + vel * 1.4, 0.12)
 	else:
 		_passo_dist = 0.6
 
@@ -2886,6 +3216,20 @@ func lod_inimigos() -> void:
 	if heroi == null:
 		return
 	var hp: Vector3 = heroi.position
+	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
+	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
+	for n in npcs:
+		var dn: float = n.no.position.distance_squared_to(hp)
+		var longe_n: bool = dn > (LONGE_INIMIGO + 5.0) * (LONGE_INIMIGO + 5.0) if n.get("longe", false) else dn > LONGE_INIMIGO * LONGE_INIMIGO
+		if longe_n != n.get("longe", false):
+			n.longe = longe_n
+			n.no.visible = not longe_n
+			n.no.process_mode = Node.PROCESS_MODE_DISABLED if longe_n else Node.PROCESS_MODE_INHERIT
+		# André 2026-11-07 (escolheu "as duas" no FPS da vila): NPC a mais de 15 m fica sem sombra e sem contorno
+		var meio_n: bool = dn > NPC_DETALHE_SAI * NPC_DETALHE_SAI if n.get("simples", false) else dn > NPC_DETALHE * NPC_DETALHE
+		if meio_n != n.get("simples", false):
+			n.simples = meio_n
+			npc_simples(n.no, meio_n)
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
 		if longe != e.get("longe", false):
@@ -2974,7 +3318,18 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	# dentro de casa no modo jogo (André 2026-11-05, como no Quimera) a câmera não bate nas paredes nem no telhado da
 	# casa: fica longe como lá fora e a parede que tapa a vista apaga (construcao.gd _telhados_visiveis)
 	var sem_casa: bool = construcao != null and construcao.dentro_de_casa
-	for r in terreno.solidos:
+	# FPS (2026-11-07): só os sólidos das casas de 4 m que a linha cruza (terreno.gd solidos_em), não todos os do mapa
+	# (cada parede e fundação construída é um sólido). Mesmo resultado: quem não toca a linha já ficava de fora.
+	var cand := []
+	var vistos_s := {}
+	var G: float = terreno.SOL_G
+	for i in range(floori(minf(a2.x, b2.x) / G), floori(maxf(a2.x, b2.x) / G) + 1):
+		for j in range(floori(minf(a2.y, b2.y) / G), floori(maxf(a2.y, b2.y) / G) + 1):
+			for r in terreno.solidos_em(i * G + 0.5, j * G + 0.5):
+				if not vistos_s.has(r._i): # _i: número do sólido (a grade põe)
+					vistos_s[r._i] = true
+					cand.append(r)
+	for r in cand:
 		if sem_casa and r.get("obra", false):
 			continue
 		var c := Vector2(r.x, r.z)
@@ -3545,4 +3900,5 @@ func atualizar_teste(dt: float) -> void:
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
-	rotulo.text = txt
+	if rotulo.text != txt: # trocar o texto refaz a letra toda (caro no celular): só quando mudou (FPS, 2026-11-07)
+		rotulo.text = txt

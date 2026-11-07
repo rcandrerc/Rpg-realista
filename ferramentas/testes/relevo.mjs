@@ -2,7 +2,7 @@
 // lagos rasos e outros fundos"; "uma montanha realista"). Uso: node ferramentas/testes/relevo.mjs
 import { Simulacao, MAPA_CLAREIRA, LAGOS, AGUA } from '../../shared/index.js';
 import { dentroDoMapa, VOLTA_FOLGA } from '../../shared/mapa.js';
-import { noLago, chaoDoRelevo, alturaMontanha, GRADE_MONTANHA, INGREME, BOCA_CAVERNA } from '../../shared/relevo.js';
+import { noLago, chaoDoRelevo, MERGULHO_MAX, alturaMontanha, GRADE_MONTANHA, INGREME, BOCA_CAVERNA } from '../../shared/relevo.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const M = MAPA_CLAREIRA, s = new Simulacao(M), T = s.terreno, F = 2.2;
 
@@ -44,6 +44,12 @@ for (const L of LAGOS) {
     j.x = L.x - 0.3; j.z = L.z; j.y = chaoDoRelevo(j.x, j.z); j.morto = false; j.criando = false; j.orc = 10; j.orcT = s.tempo;
     ok(s.posicaoCliente('L', { x: L.x, y: chaoDoRelevo(L.x, L.z), z: L.z, ry: 0 }) !== false, `servidor aceita o herói no ${L.nome}`);
   }
+  // mergulho (André 2026-11-06): no fundo dá para afundar até MERGULHO_MAX abaixo da linha em que boia, não mais
+  const b = chaoDoRelevo(fundo.x, fundo.z);
+  j.x = fundo.x; j.z = fundo.z; j.y = b; j.orc = 10; j.orcT = s.tempo;
+  ok(s.posicaoCliente('L', { x: fundo.x, y: b - MERGULHO_MAX + 0.1, z: fundo.z, ry: 0 }) !== false, `servidor aceita o herói mergulhado no ${fundo.nome}`);
+  j.x = fundo.x; j.z = fundo.z; j.y = b; j.orc = 10; j.orcT = s.tempo;
+  ok(s.posicaoCliente('L', { x: fundo.x, y: b - MERGULHO_MAX - 0.8, z: fundo.z, ry: 0 }) === false, `servidor recusa mergulho fundo demais no ${fundo.nome}`);
 }
 
 // 4) montanha: alta, sem agulha, e dá para chegar ao alto andando (encosta até 45 graus) saindo do mapa de antes
@@ -70,4 +76,11 @@ for (const L of LAGOS) {
   let topo = 0; for (let k = 0; k < n * n; k++) if (visto[k]) topo = Math.max(topo, h[k]);
   ok(topo > alto - 1, `dá para subir andando até ${topo.toFixed(1)} m (topo ${alto.toFixed(1)} m)`);
   ok(!M.caca.some((c) => alturaMontanha(c.x, c.z) > 0 || alturaMontanha(c.x + c.r, c.z) > 0), 'campo de caça nenhum em cima da montanha');
+}
+
+// 2026-11-07 (André: "não quero nenhuma barreira invisível nesse mapa"): do terreno nas Terras da Estrada dá para
+// cortar pela mata até a trilha dos Lobos Nv10, sem estrada (antes parava numa parede invisível em x ≈ 20)
+for (const z of [85, 100, 115]) {
+  let livre = true; for (let x = 5; x <= 60; x += 0.25) livre &&= dentroDoMapa(M, x, z, F);
+  ok(livre, `das Terras da Estrada até a trilha dos Lobos Nv10 pela mata (z ${z})`);
 }

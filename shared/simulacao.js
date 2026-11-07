@@ -2,16 +2,77 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, itemValido, penalidadeMorte, consertarTudo } from './progresso.js';
-import { ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
+import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
+const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
+// ---------- Fornalha (shared/dados.js FORNALHA): queima sozinha pelo relógio, mesmo com o dono fora do jogo ----------
+// F = { comb, ent, sai: {k, n} | null, fogo: s de fogo que sobra da unidade acesa, fogoK: o que está queimando,
+// prog: s do que está saindo agora, t: última conta (ms) }. Só faz a conta quando alguém olha (abre, põe, tira, salva).
+export function fornoVazio() { return { comb: null, ent: null, sai: null, fogo: 0, fogoK: '', prog: 0, t: Date.now() }; }
+export function fornoValido(d) {
+  const F = fornoVazio();
+  if (!d || typeof d !== 'object') return F;
+  for (const c of ['comb', 'ent', 'sai']) {
+    const o = d[c];
+    if (o && ITENS[o.k] && (o.n | 0) > 0) F[c] = { k: o.k, n: Math.min(o.n | 0, ITENS[o.k].pilha || 50) };
+  }
+  F.fogo = Math.max(0, +d.fogo || 0); F.fogoK = FORNALHA.combustivel[d.fogoK] ? d.fogoK : '';
+  F.prog = Math.max(0, +d.prog || 0); F.t = Number(d.t) > 0 ? Number(d.t) : Date.now();
+  return F;
+}
+// a receita do material posto, ou null. C = FORNALHA ou FOGAO (o fogão usa a mesma conta, André 2026-11-07)
+export const receitaForno = (F, C = FORNALHA) => (F.ent ? C.receitas[F.ent.k] || null : null);
+// a regra da peça: fogão ou fornalha
+export const regraForno = (k) => (k === 'fogao' ? FOGAO : FORNALHA);
+// dá para seguir agora? (material bastante e cabe na saída)
+function fornoPodeSeguir(F, R) {
+  if (!R || !F.ent || F.ent.n < R.usa) return false;
+  return !F.sai || (F.sai.k === R.faz && F.sai.n < (ITENS[R.faz].pilha || 50));
+}
+// anda o relógio da fornalha até agora; devolve true se mudou alguma coisa
+const fornoTemCoisa = (F) => !!(F && (F.comb || F.ent || F.sai));
+export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
+  let dt = Math.max(0, (agora - F.t) / 1000), mudou = false;
+  F.t = agora;
+  for (let volta = 0; dt > 1e-6 && volta < 400; volta++) {
+    const R = receitaForno(F, C);
+    if (!fornoPodeSeguir(F, R)) break; // parada: o fogo que sobra fica guardado (não gasta à toa)
+    if (R.fogo && F.fogo > 0 && F.fogoK !== R.fogo) { F.fogo = 0; mudou = true; } // aço só com carvão: apaga a lenha
+    if (F.fogo <= 1e-6) {
+      const c = F.comb;
+      if (!c || (R.fogo && c.k !== R.fogo) || !C.combustivel[c.k]) { F.fogo = 0; break; }
+      F.fogo = C.combustivel[c.k]; F.fogoK = c.k;
+      if (--c.n <= 0) F.comb = null;
+      mudou = true;
+    }
+    const passo = Math.min(dt, F.fogo, R.dur - F.prog);
+    F.prog += passo; F.fogo -= passo; dt -= passo;
+    if (F.prog >= R.dur - 1e-6) {
+      F.prog = 0; F.ent.n -= R.usa; if (F.ent.n <= 0) F.ent = null;
+      if (F.sai) F.sai.n++; else F.sai = { k: R.faz, n: 1 };
+      mudou = true;
+    }
+  }
+  if (!fornoPodeSeguir(F, receitaForno(F, C))) F.prog = 0; // trocou o material: começa do zero
+  if (F.fogo <= 1e-6) { F.fogo = 0; if (!F.comb) F.fogoK = ''; }
+  return mudou;
+}
 
 // ---------- Vila dos Lotes: contas da construção e da horta (godot-prototipo/construcao.gd repete as mesmas) ----------
+// água do regador (conta sem o campo = cheio) e se (x, z) está perto do poço da praça ou na beira/dentro de um lago
+const aguaRegador = (p) => (typeof p.agua === 'number' ? p.agua : HORTA.agua);
+function pertoDeAgua(x, z) {
+  if (Math.hypot(x - HORTA.poco.x, z - HORTA.poco.z) <= HORTA.poco.r) return true;
+  const b = HORTA.beira;
+  return [[0, 0], [b, 0], [-b, 0], [0, b], [0, -b], [b * 0.7, b * 0.7], [-b * 0.7, b * 0.7], [b * 0.7, -b * 0.7], [-b * 0.7, -b * 0.7]].some(([ox, oz]) => noLago(x + ox, z + oz));
+}
 // Planta cresce só enquanto a terra está molhada (HORTA.rega horas depois de regar), em horas de relógio de verdade
 // (Quimera UJ): g = horas de rega acumuladas; madura quando g >= PLANTAS[c].G. u = última conta (ms).
 export function crescerPlanta(t, agora) {
@@ -31,6 +92,19 @@ export function solidosPeca(p, base = null) {
   const a = (p.r & 3) * Math.PI / 2, c = Math.round(Math.cos(a)), s = Math.round(Math.sin(a)), C = CONSTRUCOES[p.k];
   const topo = base != null && C.alto ? { alto: base + C.alto } : {};
   return C.circulos.map(([dx, dz, r]) => ({ x: p.x + dx * c + dz * s, z: p.z - dx * s + dz * c, r, peca: p.id, ...topo }));
+}
+// parede, janela ou batente de porta entre os dois pontos? (André 2026-11-07: do lado de fora da casa não abre o baú)
+// Mesma conta no godot-prototipo/construcao.gd sem_parede.
+export function semParede(lotes, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+  for (const L of lotes) for (const p of L.pecas) {
+    if (tipoPeca(p.k) !== 'borda') continue;
+    for (const o of solidosPeca(p)) {
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((o.x - a.x) * dx + (o.z - a.z) * dz) / l2)) : 0;
+      if (Math.hypot(a.x + dx * t - o.x, a.z + dz * t - o.z) < o.r * 0.9) return false;
+    }
+  }
+  return true;
 }
 const cruza = (a, b) => a[0] < b[2] - 0.01 && b[0] < a[2] - 0.01 && a[1] < b[3] - 0.01 && b[1] < a[3] - 0.01;
 const foraDoLote = (R, d) => R[0] < d.x0 - 0.01 || R[2] > d.x1 + 0.01 || R[1] < d.z0 - 0.01 || R[3] > d.z1 + 0.01;
@@ -209,6 +283,8 @@ export class Simulacao {
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
       ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      // pedras e galhos soltos no chão (André 2026-11-07): pega com a mão; não são sólidos (s0, s1...)
+      ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i })), // veio: some quando esgota (veioVazio)
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
@@ -306,6 +382,7 @@ export class Simulacao {
     j.conta = conta != null ? 'c' + conta : 'n:' + j.nome; // dono do lote (sem contas: o nome)
     j.prog = progressoValido(progresso);
     if (testador) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
+    j.testador = !!testador;
     this.nascerOndeSaiu(j);
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
@@ -375,7 +452,9 @@ export class Simulacao {
     this.evento({ t: 'vila', id: j.id, fase: 'chegou', x0: r2(x0), z0: r2(z0), x: r2(x), y: r2(y), z: r2(z) });
   }
   criarInimigo(sp) {
-    const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = statusInimigo(sp.tipo, nivel); // nível do campo de caça
+    const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = { ...statusInimigo(sp.tipo, nivel) }; // nível do campo de caça
+    const F = sp.caverna && this.dungeon?.def?.forte; // sala da caverna: monstro de grupo (CAVERNA_DUNGEON.forte)
+    if (F) { st.vida = Math.round(st.vida * F.vida); st.dano = Math.round(st.dano * F.dano); }
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
       nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
@@ -477,6 +556,8 @@ export class Simulacao {
     const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
     // embaixo: vale o chão mais baixo num palmo em volta (agarrado na parede, o corpo fica rente a ela)
     let baixo = chao; for (const [ox, oz] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) baixo = Math.min(baixo, T.altura(p.x + ox, p.z + oz, p.y));
+    // mergulho (André 2026-11-06): no lago fundo o herói desce abaixo da linha em que boia, até o leito (MERGULHO_MAX)
+    if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
     const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
@@ -501,6 +582,8 @@ export class Simulacao {
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     j.chao = p.y - chao < 0.15; j.vy = 0;
+    // nadando no lago com o regador vazio pela metade: enche sozinho e avisa (André 2026-11-07)
+    if (aguaRegador(j.prog) < HORTA.agua && (noLago(p.x, p.z)?.fundo || 0) > 1.2 && contar(j.prog.mochila, 'regador') > 0) this.encher(j, 'Você mergulhou: regador cheio');
     if (typeof p.anim === 'string' && p.anim.length < 64) j.anim = p.anim; // só aparência, para os outros jogadores
     j.cliente = { t: this.tempo };
     return true;
@@ -573,7 +656,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now() });
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), ...(j.testador ? { teste: true } : {}) });
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -594,6 +677,21 @@ export class Simulacao {
       this.evento({ t: 'nivel', id: j.id, nivel: p.nivel });
       this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
     }
+    this.avisarProg(j);
+  }
+  // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
+  // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
+  // voltam para 3 (os pontos voltam todos para distribuir). Ninguém mais consegue usar: o servidor confere a conta.
+  // zerar = true: atributos de volta para 3 de graça, sem ir ao Mestre Ivo (André: "tem um resetar os pontos também").
+  nivelTeste(id, nv, zerar = false) {
+    const j = this.jogadores.get(id); if (!j || !j.testador || !Number.isInteger(nv)) return;
+    const p = j.prog; nv = Math.max(1, Math.min(NIVEL_MAX, nv));
+    let gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0);
+    if (zerar || gastos > PONTOS_POR_NIVEL * (nv - 1)) { for (const k of Object.keys(p.atr)) p.atr[k] = 3; gastos = 0; }
+    p.nivel = nv; p.xp = 0; p.pontos = PONTOS_POR_NIVEL * (nv - 1) - gastos;
+    this.aplicarStatus(j, true);
+    this.evento({ t: 'nivel', id: j.id, nivel: nv });
+    this.evento({ t: 'aviso', para: id, texto: zerar ? `Teste: pontos zerados (nível ${nv})` : `Teste: nível ${nv}` });
     this.avisarProg(j);
   }
   // Ponto livre num atributo (for, des, int, vit)
@@ -704,13 +802,13 @@ export class Simulacao {
           j.canal = null;
           j.cds[hid] = this.tempo + h.cd;
           this.soltarQ(j, h, alvo && !alvo.morto ? alvo : this.alvoHab(j, h) || null, m);
-          if (!base.basico) this.contarUso(j, hid);
+          this.contarUso(j, hid); // ataque básico também (André 2026-11-07: estava travado no Nv 1)
         });
         return;
       }
       j.cds[hid] = this.tempo + h.cd;
       this.soltarQ(j, h, alvo, m);
-      if (!base.basico) this.contarUso(j, hid);
+      this.contarUso(j, hid); // ataque básico também (André 2026-11-07: estava travado no Nv 1)
     } finally { this.ator = antes; }
   }
   cancelarCanal(id, motivo = 'Cancelado') {
@@ -891,6 +989,10 @@ export class Simulacao {
   // m = { acao: 'equipar' | 'usar' | 'vender', i } (lugar da mochila) · { acao: 'tirar', lugar } · { acao: 'comprar', i } (item da loja)
   //   · { acao: 'vender_varios', lista: [i, ...] } (vende as pilhas inteiras de uma vez) · { acao: 'apagar', i } (joga fora)
   //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
+  //   · { acao: 'organizar' } (junta as pilhas e põe a mochila em ordem: tipo, raridade, nome; ORGANIZAR em shared/dados.js)
+  //   · { acao: 'cadeado', i } ou { acao: 'cadeado', lugar } (André 2026-11-07: tranca/destranca o item; trancado não vende,
+  //     não entra no "Vender vários"/"Selecionar tudo", não vai para o lixo nem para a troca)
+  //   · { acao: 'filtro', r: [raridades], k: [recursos] } (André 2026-11-07: filtro de coleta; o desmarcado não entra na mochila)
   // ---------- dungeon: Caverna da Montanha (André 2026-11-06; shared/caverna.js e CAVERNA_DUNGEON em shared/dados.js) ----------
   // (x, y, z) passou do selo da caverna (do selo para dentro, abaixo do teto do túnel)?
   alemDoSelo(x, z, y) { const c = dentroDaCaverna(TUNEL, x, z, y + 0.3); return !!c && c.s > CAVERNA.porta; }
@@ -914,11 +1016,13 @@ export class Simulacao {
       if (j.caverna) { aviso('O selo já está aberto para você'); return false; }
       const c = noTunel(TUNEL, j.x, j.z);
       if (!c || c.s > CAVERNA.porta + 0.5 || c.s < CAVERNA.porta - D.portaPerto - 1) { aviso('Chegue perto do selo da caverna'); return false; }
-      if (contar(p.mochila, 'passe_caverna') < 1) { aviso('Precisa de um Passe da Caverna. O Gaspar faz um com o material dos monstros'); return false; }
-      tirar(p.mochila, 'passe_caverna', 1);
+      // time (D.passeDoTime): alguém do time já abriu o selo e está lá dentro = entra de graça
+      const doTime = D.passeDoTime && j.time && j.time.membros.some((id) => id !== j.id && this.jogadores.get(id)?.caverna);
+      if (!doTime && contar(p.mochila, 'passe_caverna') < 1) { aviso('Precisa de um Passe da Caverna. O Gaspar faz um com o material dos monstros. Quem está no time de alguém que já entrou não paga'); return false; }
+      if (!doTime) tirar(p.mochila, 'passe_caverna', 1);
       j.caverna = { desde: this.tempo };
       this.evento({ t: 'caverna', id: j.id, aberta: true });
-      aviso('O selo se abre. Boa sorte lá dentro!');
+      aviso(doTime ? 'O selo reconhece seu time e se abre. Boa sorte lá dentro!' : 'O selo se abre. Boa sorte lá dentro!');
       return true;
     }
     return false;
@@ -986,7 +1090,11 @@ export class Simulacao {
     }
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
+    // catalisador (André 2026-11-07): { acao: 'destruir', i } (uma peça) ou { acao: 'destruir', raridade } (todas da
+    // raridade, sem as com cadeado; uma barrinha por peça, uma depois da outra) · { acao: 'evoluir', i } (sobe a raridade)
+    if (m.acao === 'destruir' || m.acao === 'evoluir') return this.comecarCatalisador(j, m, i, it, aviso);
     if (m.acao === 'equipar' && it && ehEquip(it.k)) {
+      if (!reforcoOk(it, p.atr)) return aviso(textoReforcoPrecisa(it, p.atr)); // reforço acima do atributo (igual ao Quimera)
       const l = ITENS[it.k].lugar;
       p.mochila[i] = p.equip[l]; p.equip[l] = it;
     } else if (m.acao === 'tirar' && p.equip[m.lugar]) {
@@ -994,6 +1102,8 @@ export class Simulacao {
       p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
     } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
       if (j.morto || ITENS[it.k].mat) return;
+      // peça de construção, estação ou ferramenta não se "usa" (André 2026-11-07: tocar em Usar na bancada desconectava)
+      if (it.k !== 'tomo' && !ITENS[it.k].usar) return aviso(ITENS[it.k].obra ? 'Coloque pelo modo construção (martelo) ou pelo botão Colocar' : 'Este item não se usa assim');
       if (it.k === 'tomo') {
         const s = p.habs[it.h] || { nv: 1, uso: 0 };
         if (s.nv >= it.nv) return aviso(`${HABS[it.h].nome} já está no Nv ${s.nv}`);
@@ -1001,13 +1111,31 @@ export class Simulacao {
         if (s.uso < usosParaSubir(s.nv)) return aviso(`Encha a barra de usos de ${HABS[it.h].nome} primeiro`);
         p.habs[it.h] = { nv: it.nv, uso: 0 };
         aviso(`${HABS[it.h].nome} subiu para Nv ${it.nv}!`);
+        this.evento({ t: 'tomo', para: j.id, h: it.h, nv: it.nv }); // André 2026-11-07: faixa de "Parabéns!" na janela (menu.gd aprendeu)
       } else {
         const u = ITENS[it.k].usar;
+        const rc = ((j.pocaoAte ||= {})[it.k] || 0) - this.tempo; // recarga (POCAO_RECARGA)
+        if (rc > 0 && !ITENS[it.k].comida) return aviso(`Espere ${Math.ceil(rc)} s para outra ${ITENS[it.k].nome.toLowerCase()}`);
+        if (ITENS[it.k].comida) {
+          // prato do fogão (2026-11-07): vale comer se ao menos uma coisa não está cheia (vida, mana ou vigor)
+          const agora = Date.now(), vale = (u.vida && j.vida < j.vidaMax) || (u.mana && j.mana < j.manaMax) || (u.vigor && vigorAgora(p.vigor, agora) < VIGOR.max);
+          if (!vale) return aviso('Você já está satisfeito: vida, mana e vigor cheios');
+          if (u.vida && j.vida < j.vidaMax) { const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
+          if (u.mana) j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana);
+          if (u.vigor) { const g = ganharVigor(p, u.vigor, agora); if (g > 0) aviso(`+${Math.round(g)} de vigor`); }
+        } else {
         if (u.vida) { if (j.vida >= j.vidaMax) return aviso('A vida já está cheia'); const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
         if (u.mana) { if (j.mana >= j.manaMax) return aviso('A mana já está cheia'); j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana); }
+        }
+        if (!ITENS[it.k].comida) j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA; // comida sem recarga (André 2026-11-07: "por enquanto, sem limite")
       }
       if (--it.n <= 0) p.mochila[i] = null;
+    } else if (m.acao === 'cadeado' && (it || (typeof m.lugar === 'string' && Object.hasOwn(p.equip, m.lugar) && p.equip[m.lugar]))) {
+      const o = it || p.equip[m.lugar];
+      if (o.cad) delete o.cad; else o.cad = 1;
+      aviso(o.cad ? `${nomeItem(o)} trancado: não dá para vender nem jogar fora` : `${nomeItem(o)} destrancado`);
     } else if (m.acao === 'vender' && it) {
+      if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       const preco = precoVenda(it, mercador(p.prof.mer).venda);
       if (it.n > 1) it.n--; else p.mochila[i] = null;
@@ -1017,8 +1145,9 @@ export class Simulacao {
     } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x]))];
-      if (!lugares.length) return;
+      // item com cadeado (André 2026-11-07) fica de fora, mesmo que venha na lista
+      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad))];
+      if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
       const merc = mercador(p.prof.mer).venda;
       let ouro = 0, n = 0;
       for (const x of lugares) {
@@ -1030,18 +1159,38 @@ export class Simulacao {
       this.pontosMercador(j, ouro);
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
     } else if (m.acao === 'apagar' && it) {
+      if (it.cad) return aviso('Item trancado. Abra o cadeado para jogar fora');
       // André 2026-11-04: jogar fora um item da mochila (o celular pergunta antes; não dá ouro e não volta)
       p.mochila[i] = null;
       aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
     } else if (m.acao === 'comprar' && LOJA[i]) {
       if (!this.pertoDaLoja(j)) return aviso('Compre com a Rosa, a comerciante');
-      const o = LOJA[i], preco = this.precoCompra(j, o);
+      // André 2026-11-07: escolhe a quantidade (m.n, sem n = 1) e compra tudo de uma vez; o que não couber
+      // no ouro ou na mochila fica de fora. O celular toca o som e mostra o "+n" com o evento 'compra'.
+      const o = LOJA[i], preco = this.precoCompra(j, o), equip = ehEquip(o.k);
+      const pedido = Math.min(LOJA_MAX, Math.max(1, Math.floor(Number(m.n) || 1)));
       if (p.ouro < preco) return aviso('Ouro insuficiente');
-      const novo = ehEquip(o.k) ? { k: o.k, r: o.r } : { k: o.k, n: 1 };
-      if (!guardar(p.mochila, novo)) return aviso('Mochila cheia');
-      p.ouro -= preco;
-      this.pontosMercador(j, preco);
-      aviso(`Comprou ${nomeItem(novo)}`);
+      const pilha = equip ? 1 : ITENS[o.k].pilha || 1;
+      let cabe = 0;
+      for (const x of p.mochila) {
+        if (x === null) cabe += pilha;
+        else if (!equip && x.k === o.k && x.h === undefined && x.nv === undefined && x.n < pilha) cabe += pilha - x.n;
+      }
+      if (cabe <= 0) return aviso('Mochila cheia');
+      const n = Math.min(pedido, Math.floor(p.ouro / preco), cabe);
+      for (let falta = n; falta > 0;) {
+        const lote = Math.min(falta, pilha);
+        if (!guardar(p.mochila, equip ? { k: o.k, r: o.r } : { k: o.k, n: lote })) break;
+        falta -= lote;
+      }
+      const total = preco * n;
+      p.ouro -= total;
+      this.pontosMercador(j, total);
+      const novo = equip ? { k: o.k, r: o.r } : { k: o.k, n };
+      const nome = nomeItem(novo);
+      aviso(n > 1 ? `Comprou ${n}x ${nome} por ${total} de ouro` : `Comprou ${nome}`);
+      if (n < pedido) aviso(n >= cabe ? `Só coube ${n} na mochila` : `O ouro deu para ${n}`);
+      this.evento({ t: 'compra', para: j.id, i, k: o.k, r: equip ? o.r : -1, n, ouro: total });
     } else if (m.acao === 'pagina') {
       const tem = p.paginas || 1;
       if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
@@ -1057,8 +1206,24 @@ export class Simulacao {
       if (!r) return aviso('Nada para consertar: está tudo inteiro');
       if (r.falta) return aviso(`O conserto custa ${r.custo} de ouro (faltam ${r.falta})`);
       aviso(`Tomás consertou ${r.n} ${r.n === 1 ? 'peça' : 'peças'} por ${r.custo} de ouro`);
+    } else if (m.acao === 'reforcar') {
+      // reforço de equipamento (igual ao Quimera, REFORCO em shared/dados.js): peça da mochila (i) ou do corpo (lugar).
+      // Em qualquer lugar; o servidor cobra e sorteia, o celular mostra a janelinha com o resultado (evento 'reforco').
+      const alvo = it || (typeof m.lugar === 'string' && LUGARES.includes(m.lugar) ? p.equip[m.lugar] : null);
+      if (!alvo || !ehEquip(alvo.k)) return;
+      const r = reforcar(p, alvo);
+      if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
+      this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, nome: nomeItem(alvo) });
+    } else if (m.acao === 'filtro') {
+      // filtro de coleta (André 2026-11-07): { r: [raridades desmarcadas], k: [recursos desmarcados] }; tudo marcado = sem filtro
+      const f = filtroValido(m);
+      if (f) p.filtro = f; else delete p.filtro;
+    } else if (m.acao === 'organizar') {
+      // botão Organizar da mochila (André 2026-11-07): junta pilhas e põe em ordem de tipo, raridade e nome
+      p.mochila = organizar(p.mochila);
     } else if (m.acao === 'capacete') {
-      // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua)
+      // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua).
+      // 2026-11-07: o merge do reforço tinha engolido este ramo (o capacete escondido voltava a aparecer)
       p.semCapacete = m.mostrar === false;
     } else return;
     this.aplicarStatus(j);
@@ -1128,6 +1293,7 @@ export class Simulacao {
     if (m.acao === 'por') {
       const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
       if (!it) return;
+      if (it.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
       const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
       const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
       if (n <= 0) return aviso('Você já pôs tudo desse item');
@@ -1412,7 +1578,7 @@ export class Simulacao {
   pontosProf(j, k, n) {
     if (!PROFISSOES[k] || !(n > 0)) return;
     const antes = profNivel(j.prog.prof[k]);
-    j.prog.prof[k] = Math.round((j.prog.prof[k] + n) * 1000) / 1000;
+    j.prog.prof[k] = Math.round(((j.prog.prof[k] || 0) + n) * 1000) / 1000;
     const nv = profNivel(j.prog.prof[k]);
     if (nv > antes) {
       const b = profBonus(j.prog.prof[k]);
@@ -1456,11 +1622,27 @@ export class Simulacao {
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
     if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
     const C = COLETA[no.tipo];
+    if (C.mao) return this.pegarSolto(j, no, C);
+    // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
+    if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    if (!this.cabeColeta(j.prog, C)) return aviso('Mochila cheia: venda ou guarde algo no baú para coletar');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
+  }
+  // pedra ou galho solto (André 2026-11-07): pega na hora, sem ferramenta nem vigor; volta em C.volta s só para quem pegou
+  pegarSolto(j, no, C) {
+    if (this.cargas(j, no) <= 0) return this.evento({ t: 'aviso', para: j.id, texto: `${C.nome}: já pegou, volta em ${Math.ceil(j.coletas[no.id].volta - this.tempo)} s` });
+    const ganhou = [];
+    for (const [k, n] of Object.entries(C.da)) {
+      if (!guardar(j.prog.mochila, { k, n })) return this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' });
+      ganhou.push({ k, nome: ITENS[k].nome, n });
+    }
+    j.coletas[no.id] = { n: 0, volta: this.tempo + C.volta };
+    this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: 0, volta: C.volta });
+    this.avisarProg(j);
   }
   custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
   // é de todos? Os veios das zonas de mineração e, desde 2026-11-04 (pedido do André), as árvores: a árvore cortada
@@ -1490,13 +1672,15 @@ export class Simulacao {
   }
   batidaColeta(j) {
     const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
+    if (C.ferramenta && contar(p.mochila, C.ferramenta) < 1) return this.pararColeta(j, `Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()}`); // vendeu ou guardou no meio
     if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
+    if (!this.cabeColeta(p, C)) return this.pararColeta(j, 'Mochila cheia: venda ou guarde algo no baú para coletar'); // não gasta vigor à toa
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     const b = profBonus(p.prof[C.prof]), ganhou = [];
     const por = (k, n) => { if (guardar(p.mochila, { k, n })) { const g = ganhou.find((x) => x.k === k); if (g) g.n += n; else ganhou.push({ k, nome: ITENS[k].nome, n }); } else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
     for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < b.extra ? 1 : 0));
-    for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch) por(k, 1);
+    for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch && !filtrado(p, { k })) por(k, 1); // bônus desmarcado no filtro fica no chão
     const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
     const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
     if (this.comum(no)) { // todo mundo vê a pedra sumir e a árvore cair (dir: para onde ela tomba, para longe de quem cortou)
@@ -1511,6 +1695,11 @@ export class Simulacao {
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
+  }
+  // André 2026-11-07: com a mochila cheia a coleta para e diz o motivo (antes gastava vigor e a carga do veio)
+  cabeColeta(p, C) {
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    return Object.entries(C.da).every(([k, n]) => guardar(prova, { k, n }));
   }
   pararColeta(j, motivo = undefined) {
     if (!j.coleta) return;
@@ -1540,7 +1729,7 @@ export class Simulacao {
     const of = OFICINA[R.prof], npc0 = (this.mapa.npcs || []).find((n) => n.id === of.npc);
     // na oficina do NPC ou perto da estação certa construída num lote (bigorna, fornalha ou bancada)
     const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
-    if (!npc) return { motivo: `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? `Crie ${of.onde} ou perto da fornalha do seu terreno` : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
     if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return { motivo: `Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})` };
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
@@ -1584,7 +1773,8 @@ export class Simulacao {
   // estação construída (bigorna, fornalha, bancada) perto do jogador que serve para a receita: {x, z} ou null
   estacaoPerto(j, R) {
     const k = RECEITA_ESTACAO(R);
-    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && dist(p, j) <= LOTE.estacaoDist + 0.6) return p;
+    // fornalha e fogão (André 2026-11-07): só os do próprio terreno, porque o dono deixa coisa dentro; bancada e bigorna valem em qualquer terreno
+    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && ((k !== 'fornalha' && k !== 'fogao') || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
   }
   // o que o celular precisa saber de um lote (agora = relógio do servidor, para a horta crescer igual nos dois)
@@ -1624,7 +1814,11 @@ export class Simulacao {
       L.horta = {};
       for (const [c, t] of Object.entries(d.horta || {})) if (/^-?\d+,-?\d+$/.test(c) && t) L.horta[c] = { c: PLANTAS[t.c] ? t.c : '', g: +t.g || 0, w: +t.w || 0, u: +t.u || 0 };
       L.prox = Math.max(1, d.prox | 0, ...L.pecas.map((p) => (+String(p.id).slice(1) || 0) + 1));
-      L.bau = Array.isArray(d.bau) ? Array.from({ length: BAU.slots }, (_, i) => (d.bau[i] ? itemValido(d.bau[i]) || null : null)) : null;
+      L.bauNv = Math.max(0, Math.min(BAU.niveis.length - 1, d.bauNv | 0)); // baú melhorado (André 2026-11-07): 0 = 40, 1 = 60, 2 = 80
+      L.bau = Array.isArray(d.bau) ? Array.from({ length: bauLugares(L.bauNv) }, (_, i) => (d.bau[i] ? itemValido(d.bau[i]) || null : null)) : null;
+      // fornalhas (2026-11-07): o que está dentro de cada uma, pelo id da peça
+      L.fornos = {};
+      for (const [pid, f] of Object.entries(d.fornos && typeof d.fornos === 'object' ? d.fornos : {})) L.fornos[String(pid)] = fornoValido(f);
       // taxa semanal (2026-11-05): terreno de antes começa a contar agora (ninguém recebe conta atrasada)
       if (Number(d.taxa) > 0) L.taxa = Number(d.taxa); else if (!L.taxa) { L.taxa = Date.now(); this.lotesMudados.add(L.def.id); }
     }
@@ -1634,7 +1828,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, taxa: L.taxa || null } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, fornos: L.fornos || {}, taxa: L.taxa || null } };
     });
     // terrenos vendidos de volta para o jogo: a linha fica sem dono (o chão volta a ser livre)
     for (const id of this.lotesSoltos) l.push({ id, dono: null, nome: '', dados: {} });
@@ -1692,6 +1886,7 @@ export class Simulacao {
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
     if (Object.values(L.horta).some((t) => t.c)) return aviso('Colha ou desfaça as plantas antes de vender');
     if ((L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de vender');
+    if (Object.values(L.fornos || {}).some(fornoTemCoisa)) return aviso('Esvazie a fornalha e o fogão antes de vender');
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
     for (const p of L.pecas) if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: as peças do terreno não cabem');
     const w = L.def.x1 - L.def.x0, d = L.def.z1 - L.def.z0, c = contaTerreno(L.def, L.taxa, Date.now());
@@ -1798,6 +1993,11 @@ export class Simulacao {
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
     const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
     if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
+    if ((p.k === 'fornalha' || p.k === 'fogao') && L.fornos && L.fornos[p.id]) {
+      avancarForno(L.fornos[p.id], Date.now(), regraForno(p.k));
+      if (fornoTemCoisa(L.fornos[p.id])) return aviso(p.k === 'fogao' ? 'Esvazie o fogão antes de desmontar' : 'Esvazie a fornalha antes de desmontar');
+      delete L.fornos[p.id];
+    }
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
     if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: a peça não cabe');
     j.prog.mochila = prova;
@@ -1830,18 +2030,118 @@ export class Simulacao {
   pararFabrica(j, texto) {
     const f = j.fabrica; j.fabrica = null;
     if (texto) this.evento({ t: 'aviso', para: j.id, texto });
-    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', nome: f ? f.nome : undefined, fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0 });
+    // destruir/evoluir (catalisador): a barrinha termina com o resultado (msg) em vez de "Pronto: n criados"
+    const msg = f && (f.des || f.ev) ? texto || (f.des ? 'Parou de destruir' : 'Parou de evoluir') : undefined;
+    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', nome: f ? f.nome : undefined, fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0, msg });
   }
   // a barrinha encheu: cria uma e começa a próxima (ou termina a fila)
   passoFabrica(j) {
     const f = j.fabrica;
     if (j.morto) return this.pararFabrica(j, '');
+    if (f.des) return this.passoDestruir(j, f);
+    if (f.ev) return this.passoEvoluir(j, f);
     const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
     if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
     f.feito++;
     if (f.feito >= f.n) return this.pararFabrica(j, f.n > 1 ? `Pronto: ${f.n} criados` : '');
     f.fim = this.tempo + f.dur;
     this.evento({ t: 'fabricando', para: j.id, k: f.k, r: f.r, nome: f.nome, n: f.n, feito: f.feito, dur: f.dur });
+  }
+  // ---------- catalisador: destruir peça e evoluir raridade (CATALISADOR em shared/dados.js, André 2026-11-07) ----------
+  // usa a mesma fila/barrinha da criação (j.fabrica), então "Parar" vale e uma coisa de cada vez
+  comecarCatalisador(j, m, i, it, aviso) {
+    if (j.morto) return;
+    if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
+    if (m.acao === 'evoluir') {
+      if (!it || !ehEquip(it.k)) return aviso('Escolha uma peça da mochila para evoluir');
+      const R = this.receitaEvoluir(it); if (!R) return aviso('Peça Mítica já está no máximo');
+      const motivo = this.motivoReceita(j, R).motivo; if (motivo) return aviso(motivo);
+      const nome = nomeItem(it);
+      j.fabrica = { ev: true, i, alvo: { k: it.k, r: it.r, e: it.e || 0 }, k: it.k, nome, n: 1, feito: 0, dur: CATALISADOR.tempoEvoluir, fim: this.tempo + CATALISADOR.tempoEvoluir };
+      this.evento({ t: 'fabricando', para: j.id, k: it.k, nome, v: 'Evoluindo', n: 1, feito: 0, dur: CATALISADOR.tempoEvoluir });
+      return;
+    }
+    let lista;
+    if (Number.isInteger(m.raridade)) {
+      const r = m.raridade; if (r < 0 || r >= RARIDADES.length) return;
+      lista = [];
+      j.prog.mochila.forEach((o, n) => { if (o && ehEquip(o.k) && o.r === r && !o.cad) lista.push({ i: n, k: o.k, r: o.r, e: o.e || 0 }); });
+      if (!lista.length) return aviso(`Nenhuma peça ${RARIDADES[r].nome.toLowerCase()} sem cadeado na mochila`);
+    } else {
+      if (!it || !ehEquip(it.k)) return aviso('Escolha uma peça da mochila para destruir');
+      if (it.cad) return aviso('Peça trancada. Abra o cadeado para destruir');
+      lista = [{ i, k: it.k, r: it.r, e: it.e || 0 }];
+    }
+    const dur = CATALISADOR.tempoDestruir, nome = lista.length > 1 ? 'peças' : nomeItem(lista[0]);
+    j.fabrica = { des: true, lista, k: lista[0].k, nome, n: lista.length, feito: 0, ganho: {}, dur, fim: this.tempo + dur };
+    this.evento({ t: 'fabricando', para: j.id, k: lista[0].k, nome: nomeItem(lista[0]), v: 'Destruindo', n: lista.length, feito: 0, dur });
+  }
+  // receita de evoluir a peça (formato de RECEITAS, para usar motivoReceita: lugar, nível, material e vigor) ou null
+  receitaEvoluir(it) {
+    const r = it.r + 1; if (r >= RARIDADES.length) return null;
+    const tipo = ehArma(it.k) ? 'arma' : 'armadura';
+    const prof = RECEITAS[it.k]?.prof || (tipo === 'arma' ? 'fer' : 'alf');
+    return { prof, faz: it.k, nivel: 1, vigor: CATALISADOR.vigor, usa: { [CATALISADOR[tipo][r - 1]]: 1, ...CATALISADOR.usa[tipo][r - 1] }, r };
+  }
+  // o que a peça destruída dá: [[item, quantidade]] (sorteado aqui; pode vir vazio)
+  sortearDestruir(it) {
+    const C = CATALISADOR, q = Math.random(), n = q < C.quantos[0] ? 0 : q < C.quantos[1] ? 1 : q < C.quantos[2] ? 2 : 3;
+    if (it.r < 1) return n ? [[C.comum, n]] : [];
+    const tipo = C[ehArma(it.k) ? 'arma' : 'armadura'], out = [];
+    if (n) out.push([tipo[Math.max(1, it.r - 1) - 1], n]);
+    if (it.r > 1 && Math.random() < (C.extra[it.r] || 0)) out.push([tipo[it.r - 1], 1]);
+    return out;
+  }
+  // um passo da fila de destruir: acha a peça (ainda igual e sem cadeado), tira e dá o catalisador
+  passoDestruir(j, f) {
+    const p = j.prog, alvo = f.lista[f.feito];
+    const it = p.mochila[alvo.i];
+    const igual = it && it.k === alvo.k && it.r === alvo.r && (it.e || 0) === alvo.e && !it.cad;
+    if (igual) {
+      const ganho = this.sortearDestruir(it), prova = p.mochila.map((o) => (o ? { ...o } : null));
+      prova[alvo.i] = null;
+      if (!ganho.every(([k, n]) => guardar(prova, { k, n }))) return this.pararFabrica(j, 'Mochila cheia');
+      p.mochila.splice(0, p.mochila.length, ...prova); // mesmo array (quem guarda a mochila não perde a referência)
+      for (const [k, n] of ganho) f.ganho[k] = (f.ganho[k] || 0) + n;
+      f.feitas = (f.feitas || 0) + 1;
+      this.evento({ t: 'destruiu', para: j.id, nome: nomeItem(it), ganho: ganho.map(([k, n]) => ({ k, n, nome: ITENS[k].nome })) });
+      this.avisarProg(j);
+    }
+    f.feito++;
+    if (f.feito >= f.n) {
+      const g = Object.entries(f.ganho).map(([k, n]) => `+${n} ${ITENS[k].nome}`).join(', ');
+      const quantas = f.feitas || 0;
+      return this.pararFabrica(j, quantas ? `Destruiu ${quantas} ${quantas === 1 ? 'peça' : 'peças'}: ${g || 'não sobrou nada'}` : 'Nada destruído: as peças mudaram de lugar');
+    }
+    f.fim = this.tempo + f.dur;
+    const prox = f.lista[f.feito];
+    this.evento({ t: 'fabricando', para: j.id, k: prox.k, nome: nomeItem(prox), v: 'Destruindo', n: f.n, feito: f.feito, dur: f.dur });
+  }
+  // a barrinha de evoluir encheu: confere de novo, gasta e sorteia (falha, sobe 1 ou, com sorte, sobe 2)
+  passoEvoluir(j, f) {
+    const p = j.prog, it = p.mochila[f.i];
+    f.feito = 1;
+    if (!it || it.k !== f.alvo.k || it.r !== f.alvo.r || (it.e || 0) !== f.alvo.e) return this.pararFabrica(j, 'A peça saiu do lugar na mochila');
+    const R = this.receitaEvoluir(it); if (!R) return this.pararFabrica(j, '');
+    const motivo = this.motivoReceita(j, R).motivo; if (motivo) return this.pararFabrica(j, motivo);
+    const C = CATALISADOR, t = (profNivel(p.prof[R.prof]) - 1) / (PROF_MAX - 1);
+    const falha = (C.falha[R.r] || 0) * (1 - 0.5 * t), sorte = R.r < RARIDADES.length - 1 ? C.sorte[0] + (C.sorte[1] - C.sorte[0]) * t : 0;
+    const s = Math.random(), falhou = s < falha, pulou = !falhou && s < falha + sorte;
+    const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
+    gastarVigor(p, custo);
+    for (const [k, n] of Object.entries(R.usa)) tirar(p.mochila, k, n);
+    this.pontosProf(j, R.prof, R.vigor);
+    let texto;
+    if (falhou) texto = `Falhou! O catalisador e o material quebraram. ${nomeItem(it)} continua igual`;
+    else {
+      const novo = { k: it.k, r: pulou ? R.r + 1 : R.r };
+      if (it.cad) novo.cad = 1;
+      p.mochila[f.i] = novo;
+      texto = pulou ? `Sorte! Pulou uma raridade: ${nomeItem(novo)}!` : `Evoluiu: ${nomeItem(novo)}!`;
+    }
+    this.evento({ t: 'evoluiu', para: j.id, ok: !falhou, sorte: pulou, nome: nomeItem(p.mochila[f.i] || it), r: (p.mochila[f.i] || it).r });
+    this.avisarProg(j);
+    this.pararFabrica(j, texto);
   }
   // por que não dá para criar agora ('' = dá)
   motivoFabricar(j, k) {
@@ -1873,18 +2173,19 @@ export class Simulacao {
     aviso(`Criou ${ITENS[item].nome}!`);
     this.avisarProg(j);
   }
-  // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar', i }
+  // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar', i }
   // guardar: a pilha do lugar i da mochila vai inteira para o baú; tirar: a pilha do lugar i do baú volta para a mochila
   bau(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return;
-    if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6)) return aviso('Chegue perto do seu baú');
-    if (!Array.isArray(L.bau)) L.bau = Array(BAU.slots).fill(null);
+    if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto do seu baú');
+    if (!Array.isArray(L.bau)) L.bau = Array(bauLugares(L.bauNv)).fill(null);
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
       const o = p.mochila[i]; if (!o) return;
-      if (o.h) return aviso('Tire o item do lugar rápido antes de guardar');
+      // o.h do Tomo é a habilidade dele, não lugar rápido (André 2026-11-07: Tomo não entrava no baú)
+      if (o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
       const bau = L.bau.map((q) => (q ? { ...q } : null));
       if (!guardar(bau, { ...o })) return aviso('O baú está cheio');
       L.bau = bau; p.mochila[i] = null;
@@ -1893,10 +2194,131 @@ export class Simulacao {
       const prova = p.mochila.map((q) => (q ? { ...q } : null));
       if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
       p.mochila = prova; L.bau[i] = null;
+    } else if (m.acao === 'organizar') { // botão Organizar do baú (André 2026-11-07), igual ao da mochila
+      L.bau = organizar(L.bau);
+    } else if (m.acao === 'melhorar') { // André 2026-11-07: 40 → 60 → 80 lugares, os itens ficam dentro
+      const nv = (L.bauNv | 0) + 1, custo = BAU.melhorar[nv];
+      if (!custo) return aviso('O baú já está no tamanho máximo');
+      const falta = Object.entries(custo).filter(([k, n]) => (k === 'ouro' ? p.ouro : contar(p.mochila, k)) < n).map(([k, n]) => `${n} ${k === 'ouro' ? 'de ouro' : nomeItem({ k })}`);
+      if (falta.length) return aviso(`Para melhorar o baú falta: ${falta.join(', ')}`);
+      for (const [k, n] of Object.entries(custo)) if (k === 'ouro') p.ouro -= n; else tirar(p.mochila, k, n);
+      L.bauNv = nv;
+      L.bau = [...L.bau, ...Array(Math.max(0, bauLugares(nv) - L.bau.length)).fill(null)];
+      aviso(`Baú melhorado: agora tem ${L.bau.length} lugares`);
     } else if (m.acao !== 'abrir') return;
     this.lotesMudados.add(L.def.id);
-    this.evento({ t: 'bau', para: id, itens: L.bau, abrir: m.acao === 'abrir' });
+    const prox = BAU.melhorar[(L.bauNv | 0) + 1] || null; // o que custa o próximo tamanho (null = já é o maior)
+    this.evento({ t: 'bau', para: id, itens: L.bau, abrir: m.acao === 'abrir', slots: L.bau.length, prox, proxSlots: prox ? bauLugares((L.bauNv | 0) + 1) : 0 });
     if (m.acao !== 'abrir') this.avisarProg(j);
+  }
+  // Dormir na cama do meu terreno (igual ao Quimera, André 2026-11-07): só à noite no relógio da conta (19h às 5h) e sem
+  // monstro a menos de CAMA.perigo m. Pula para as 6h30 (só para quem dormiu: o relógio é da conta) com vida, mana e
+  // estamina cheias; o vigor ganha CAMA.vigor uma vez a cada CAMA.cada s. A cama já é onde você renasce.
+  // encher o regador (André 2026-11-07): perto do poço da praça ou na beira de um lago (o botão "Encher" do Godot)
+  encherRegador(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (contar(j.prog.mochila, 'regador') < 1) return aviso('Você não tem regador');
+    if (aguaRegador(j.prog) >= HORTA.agua) return aviso('O regador já está cheio');
+    if (!pertoDeAgua(j.x, j.z)) return aviso('Chegue no poço da vila ou na beira de um lago');
+    this.encher(j, 'Regador cheio');
+  }
+  encher(j, texto) {
+    j.prog.agua = HORTA.agua;
+    this.evento({ t: 'regador', para: j.id, agua: HORTA.agua, texto: `${texto}: dá ${HORTA.agua} regas` });
+    this.avisarProg(j);
+  }
+  dormir(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const L = this.loteDe(j); if (!L) return aviso('Você ainda não tem cama');
+    if (!L.pecas.some((o) => o.k === 'cama' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto da sua cama');
+    const agora = Date.now(), p = j.prog;
+    const h = horaDoJogo(p.dia, agora), hh = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 6) * 10).padStart(2, '0')}`;
+    if (!ehNoite(h)) return aviso(`Só dá para dormir à noite (das ${DIA.noite}h às ${DIA.manha}h). Agora são ${hh}`);
+    if (this.emCombate(j) || this.inimigos.some((e) => !e.morto && !e.treino && dist(e, j) < CAMA.perigo)) return aviso('Tem monstros por perto!');
+    if (j.coleta) this.pararColeta(j);
+    if (j.canal) this.cancelarCanal(j);
+    this.cancelarVila(j, null);
+    j.montado = null;
+    p.dia = { h: DIA.acorda, t: agora };
+    j.vida = j.vidaMax; j.mana = j.manaMax; j.sta = j.staMax; j.semFolego = false;
+    let vigor = 0;
+    const espera = camaVigorEm(p, agora);
+    if (espera <= 0) { vigor = ganharVigor(p, CAMA.vigor, agora); p.camaT = agora; }
+    this.evento({ t: 'dormiu', para: id, vigor: Math.round(vigor), espera: Math.ceil(espera) });
+    this.avisarProg(j);
+  }
+  // Fornalha ou fogão do meu terreno (2026-11-07). m = { acao: 'abrir' | 'por' | 'tirar', p: id da peça, lugar: 'comb' | 'ent' | 'sai', i }
+  // por: a pilha do lugar i da mochila vai para o lugar (junta se for o mesmo item); tirar: o lugar volta para a mochila
+  // fogão (André 2026-11-07, "que nem a fornalha"): no 'ent' vai o prato: m.r = prato, m.n = quantos; os ingredientes
+  // saem da mochila para a panela e voltam se você tirar o que não cozinhou
+  forno(id, m) {
+    const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const L = this.loteDe(j); if (!L) return aviso('Só dá para usar a fornalha e o fogão do seu terreno');
+    const peca = L.pecas.find((o) => (o.k === 'fornalha' || o.k === 'fogao') && o.id === String(m.p));
+    const fogao = !!peca && peca.k === 'fogao', C = fogao ? FOGAO : FORNALHA;
+    if (!peca || dist(peca, j) > LOTE.estacaoDist + 0.6 || !semParede(this.lotes.values(), j, peca)) return aviso(peca && fogao ? 'Chegue perto do seu fogão' : 'Chegue perto da sua fornalha');
+    if (!L.fornos) L.fornos = {};
+    const F = L.fornos[peca.id] || (L.fornos[peca.id] = fornoVazio());
+    if (avancarForno(F, Date.now(), C)) this.lotesMudados.add(L.def.id);
+    const p = j.prog, lugar = m.lugar;
+    if (m.acao === 'por' && fogao && lugar === 'ent') {
+      const R = C.receitas[m.r]; if (!R) return aviso('Esse prato não se faz no fogão');
+      if (profNivel(p.prof.coz) < R.nivel) return aviso(`Precisa de Cozinheiro Nv ${R.nivel}`);
+      const atual = F.ent;
+      if (atual && atual.k !== R.faz) return aviso('Tire o prato que já está na panela antes');
+      const cabe = (ITENS[R.faz].pilha || 20) - (atual ? atual.n : 0);
+      if (cabe <= 0) return aviso('A panela já está cheia');
+      let n = Math.min(cabe, Math.max(1, m.n | 0));
+      for (const [k, q] of Object.entries(R.ing)) n = Math.min(n, Math.floor(contar(p.mochila, k) / q));
+      if (n <= 0) { const [k, q] = Object.entries(R.ing).find(([k, q]) => contar(p.mochila, k) < q); return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${q})`); }
+      for (const [k, q] of Object.entries(R.ing)) tirar(p.mochila, k, q * n);
+      F.ent = { k: R.faz, n: (atual ? atual.n : 0) + n };
+      if (!atual) F.prog = 0;
+      aviso(`${n}x ${ITENS[R.faz].nome} na panela`);
+    } else if (m.acao === 'por') {
+      if (lugar !== 'comb' && lugar !== 'ent') return;
+      const o = p.mochila[m.i | 0]; if (!o) return;
+      if (o.h) return aviso('Tire o item do lugar rápido antes');
+      if (lugar === 'comb' && !C.combustivel[o.k]) return aviso('Combustível é lenha ou carvão');
+      const R = lugar === 'ent' ? C.receitas[o.k] : null;
+      if (lugar === 'ent' && !R) return aviso('A fornalha derrete minério de ferro ou de cobre, queima lenha em carvão e faz aço da barra de ferro');
+      if (R && profNivel(p.prof.fer) < R.nivel) return aviso(`Precisa de Ferreiro Nv ${R.nivel}`);
+      const atual = F[lugar];
+      if (atual && atual.k !== o.k) return aviso('Tire o que já está lá antes');
+      const max = ITENS[o.k].pilha || 50, cabe = max - (atual ? atual.n : 0), n = Math.min(cabe, o.n | 0 || 1);
+      if (n <= 0) return aviso('Esse lugar já está cheio');
+      F[lugar] = { k: o.k, n: (atual ? atual.n : 0) + n };
+      if ((o.n | 0) > n) o.n -= n; else p.mochila[m.i | 0] = null; // o que não coube fica na mochila
+      if (lugar === 'ent' && !atual) F.prog = 0;
+    } else if (m.acao === 'tirar') {
+      if (!['comb', 'ent', 'sai'].includes(lugar)) return;
+      const o = F[lugar]; if (!o) return;
+      const prova = p.mochila.map((q) => (q ? { ...q } : null));
+      if (fogao && lugar === 'ent') { // o que não cozinhou volta como ingredientes
+        const R = C.receitas[o.k];
+        if (R) { for (const [k, q] of Object.entries(R.ing)) if (!guardar(prova, { k, n: q * o.n })) return aviso('Mochila cheia'); }
+      } else if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
+      p.mochila = prova; F[lugar] = null;
+      if (lugar === 'ent') F.prog = 0;
+      if (lugar === 'sai') { // pontos da profissão e XP pelo que saiu (como criar na forja ou no fogão)
+        const R = Object.values(C.receitas).find((r) => r.faz === o.k);
+        if (R) { this.pontosProf(j, fogao ? 'coz' : 'fer', R.vigor * o.n); this.ganharXP(j, Math.max(1, Math.round(R.vigor * o.n))); }
+        aviso(`Pegou ${ITENS[o.k].nome} x${o.n}`);
+      }
+    } else if (m.acao !== 'abrir') return;
+    if (m.acao !== 'abrir') { avancarForno(F, Date.now(), C); this.lotesMudados.add(L.def.id); }
+    this.evento({ t: 'forno', para: id, p: peca.id, tipo: peca.k, abrir: m.acao === 'abrir', ...this.dadosForno(F, C) });
+    if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
+  }
+  // o que o celular mostra (dur e fogoMax para as barrinhas andarem sozinhas até a próxima conta)
+  dadosForno(F, C = FORNALHA) {
+    const R = receitaForno(F, C), anda = fornoPodeSeguir(F, R) && (F.fogo > 0 || (F.comb && (!R.fogo || F.comb.k === R.fogo)));
+    const c = (o) => (o ? { k: o.k, n: o.n } : null);
+    return { comb: c(F.comb), ent: c(F.ent), sai: c(F.sai), fogo: r2(F.fogo), fogoK: F.fogoK, fogoMax: C.combustivel[F.fogoK] || 0,
+      prog: r2(F.prog), dur: R ? R.dur : 0, faz: R ? R.faz : '', anda: !!anda, precisa: R && R.fogo && (!F.comb || F.comb.k !== R.fogo) && !(F.fogo > 0 && F.fogoK === R.fogo) ? R.fogo : '' };
   }
   // m = { acao: 'arar' | 'plantar' | 'regar' | 'colher' | 'tirar', c: 'i,j' (quadrado de 1 m), s: planta (no plantar) }
   horta(id, m) {
@@ -1931,8 +2353,11 @@ export class Simulacao {
       if (!t) return aviso('Precisa arar a terra primeiro');
       if (contar(p.mochila, 'regador') < 1) return aviso('Precisa de regador (crie perto de uma bancada, aba Fazenda)');
       if (t.w && agora < t.w + HORTA.rega * 3600000) return aviso('A terra ainda está molhada');
+      if (aguaRegador(p) <= 0) return aviso('Regador sem água: encha no poço da vila ou na beira de um lago');
       if (!vigor()) return;
       t.w = agora; t.u = agora;
+      p.agua = aguaRegador(p) - 1;
+      if (p.agua === 0) aviso('O regador secou: encha no poço da vila ou na beira de um lago');
     } else if (m.acao === 'colher') {
       if (!t || !t.c) return aviso('Não tem nada plantado aqui');
       const P = PLANTAS[t.c];
@@ -1956,7 +2381,8 @@ export class Simulacao {
   soltarDrops(c, j) {
     const d = DROPS[c.tipo]; if (!d) return;
     const p = j.prog, ganhou = [];
-    const por = (it) => { if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
+    const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
     const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)));
     p.ouro += ouro;
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
@@ -1968,9 +2394,15 @@ export class Simulacao {
       const pecas = Object.keys(ITENS).filter(ehEquip);
       por({ k: pecas[Math.floor(Math.random() * pecas.length)], r });
     }
-    if (Math.random() < d.tomo) { // Tomo do próximo nível que a skill vai precisar (do VI ao X)
+    if (Math.random() < d.tomo) { // Tomo de um nível que a skill ainda vai precisar (do VI ao X)
+      // André 2026-11-07: antes caía só o próximo nível, então quem estava no Nv 5 só via Tomo VI.
+      // Agora metade das vezes cai o próximo que a skill precisa e na outra metade um dos seguintes (até o X)
       const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
-      if (sk.length) { const h = sk[Math.floor(Math.random() * sk.length)]; por({ k: 'tomo', h, nv: Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1), n: 1 }); }
+      if (sk.length) {
+        const h = sk[Math.floor(Math.random() * sk.length)], de = Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1);
+        const nv = de < SKILL_MAX && Math.random() >= 0.5 ? de + 1 + Math.floor(Math.random() * (SKILL_MAX - de)) : de;
+        por({ k: 'tomo', h, nv, n: 1 });
+      }
     }
     this.evento({ t: 'drop', para: j.id, x: r2(c.x), z: r2(c.z), ouro, itens: ganhou });
     this.avisarProg(j);
@@ -2155,7 +2587,7 @@ export class Simulacao {
     const nvM = de && de.tipo !== 'jogador' && alvo.tipo === 'jogador' && de.nivel ? de.nivel : 0;
     if (nvM) n *= danoMonstroNivel(nvM, alvo.prog?.nivel, NIVEL_INIMIGO);
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && !alvo.treino && alvo.nivel) n *= golpeHeroiNivel(alvo.nivel, de.prog?.nivel, NIVEL_INIMIGO);
-    if (alvo.st) n *= 1 - alvo.st.reducao; // defesa do herói
+    if (alvo.st) n *= 1 - (nvM ? reducaoContra(alvo.st.defesa, nvM, NIVEL_INIMIGO) : alvo.st.reducao); // defesa do herói (contra monstro: cai com o nível dele)
     if (alvo.defesa > 0) n *= 1 - alvo.defesa;
     n = Math.max(1, Math.round(n));
     if (nvM) n = Math.max(1, Math.min(n, Math.round(alvo.vidaMax * tetoMonstroNivel(nvM, alvo.prog?.nivel, de.tipo === 'chefe' || !!TIPOS_INIMIGO[de.tipo]?.chefe, NIVEL_INIMIGO))));
@@ -2254,7 +2686,7 @@ export class Simulacao {
       for (const j of ganham) if (j.time) doTime.set(j.time, (doTime.get(j.time) || 0) + 1);
       for (const j of ganham) {
         const n = j.time ? doTime.get(j.time) : 1;
-        const xp = xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO);
+        const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1));
         this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
@@ -2540,7 +2972,7 @@ export class Simulacao {
       this.mover(j, a.dx * v * dt, a.dz * v * dt);
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
-      const v = mont ? (correr ? mont.correr : mont.andar) : correr ? HEROI.correr : HEROI.andar;
+      const v = mont ? mont.correr : correr ? HEROI.correr : HEROI.andar; // montado: o lobo vai sempre no galope (André 2026-11-07)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);

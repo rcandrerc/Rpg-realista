@@ -202,10 +202,10 @@ export const COMBATE_INIMIGO = {
   // André 2026-11-04: "pode fazer igual Quimera tudo": preparo de 0,4 s, sem limite de quantos batem juntos
   // (aoMesmoTempo alto = todos vão para cima), perseguem correndo até encostar e, depois do golpe acertar,
   // esperam de cdMin a cdMax s (sorteado) para bater de novo, como o cd na(1.05, 1.5) do Quimera
-  preparo: { puglin: 0.4, imp: 0.4, chefe: 0.4, lobo: 0.4 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
+  preparo: { puglin: 0.4, imp: 0.4, chefe: 0.4, lobo: 0.4, golem: 0.4, maw: 0.4, warrok: 0.4 }, preparoTs: 0.3, golpeTs: 1.1, acerto: 0.45,
   aoMesmoTempo: 99, roda: 2.9, rodaVel: 1.6, perseguir: 3.6, chegar: 2.2, chegarDist: 2.6, folga: 0, cdMin: 1.05, cdMax: 1.5,
-  firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6 }, firmeJanela: 1.6, firmeDur: 2.0,
-  aoMesmoTempo: 2, roda: 3.4, rodaVel: 1.1,
+  // (2026-11-06: aqui tinha sobrado um 'aoMesmoTempo: 2' de um merge antigo que valia por cima do 99 e deixava só 2 baterem
+  // juntos; André achou fácil demais tancar 7 ou 8. Saiu para voltar a regra do Quimera que ele pediu.)
   firmeGolpes: { puglin: 6, imp: 6, chefe: 4, lobo: 6, golem: 5, maw: 5, warrok: 4 }, firmeJanela: 1.6, firmeDur: 2.0,
   contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
 };
@@ -375,13 +375,21 @@ export const CACA = [
 //  - XP: monstro 2+ níveis acima dá +xpSobe por nível (até xpMax); herói 3+ níveis acima perde xpCai por nível (até xpMin)
 //  - nome do monstro: cinza (fácil) com corFacil níveis ou menos, vermelho (perigo) com corForte ou mais, verde no meio
 // folga, perde e min eram a regra de XP de antes (sem uso desde 2026-11-04, ficam por causa da regra "Nada some").
-export const NIVEL_INIMIGO = { vida: 0.16, dano: 0.18, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1,
+// Ajuste fino depois do teste (André 2026-11-06: "volta a regra do Quimera, testo, se achar fácil ainda modificamos"):
+// forca = o dano de base dos monstros vezes isto; resistencia = a vida de base vezes isto; defesaBase + defesaNivel x nível do monstro = o quanto de defesa o herói
+// precisa para segurar metade do golpe (reducaoContra em shared/progresso.js). Com forca 1 e defesaNivel 0 fica igual a
+// antes (regra do Quimera). André testou a 1515 e achou fácil: ligado forca 1.5, resistencia 1.6 e defesaNivel 6
+// (simulador: Nv5 com Rara aguenta 3 a 5 Puglins Nv5, com 10 morre; 10 níveis acima, mata 10 fácil).
+// André 2026-11-07 ("mexe no dano dos bichos, pode aumentar mais; a defesa do equipamento igual ao Quimera"): a defesa
+// segue a conta do Quimera (Gl: def / (def + 10 + 3 x nível do monstro), sem teto), o dano cresce 0.32 por nível como
+// no Quimera (era 0.18) e forca 1.8 (era 1.5). Simulador: Nv5 com Rara aguenta 3 Puglins Nv5, com 5 morre.
+export const NIVEL_INIMIGO = { forca: 1.8, resistencia: 1.6, defesaBase: 10, defesaNivel: 3, defesaMax: 1, vida: 0.16, dano: 0.32, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1,
   danoAcima: 0.06, danoAbaixo: 0.05, danoAbaixoMin: 0.55, teto: 0.3, tetoChefe: 0.45,
   golpeFolga: 3, golpeCai: 0.06, golpeMin: 0.6, golpeSobe: 0.04, golpeMax: 1.4,
   xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, corFacil: -3, corForte: 2 };
 export const statusInimigo = (tipo, nivel = 1) => {
   const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
-  return { vida: Math.round(t.vida * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (1 + NIVEL_INIMIGO.dano * k)) };
+  return { vida: Math.round(t.vida * (NIVEL_INIMIGO.resistencia ?? 1) * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (NIVEL_INIMIGO.forca ?? 1) * (1 + NIVEL_INIMIGO.dano * k)) };
 };
 // A mata andável: círculos de borda ondulada ao longo da estrada e em volta de cada clareira, ligados por corredores
 // (a saída do campo de fora pelo sul e as trilhas). Sem anel de pedra (direção de arte: borda de mata fechada).
@@ -749,6 +757,10 @@ export const CONSTRUCOES = {
     desc: 'Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro).' },
   fornalha: { nome: 'Fornalha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.7]], custo: { pedra: 12, lenha: 2 }, estacao: 'fundir', alto: 1.16,
     desc: 'Derrete minério em barras e queima lenha em carvão.' },
+  // Fogão (André 2026-11-07: "uma bancada de comida, tipo uma fogueirinha, um forno, pra fazer os pratos"): fogo de
+  // pedra com o caldeirão em cima; perto dele o Cozinheiro faz os pratos de RECEITAS (prof 'coz')
+  fogao: { nome: 'Fogão a lenha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.65]], custo: { pedra: 8, lenha: 4, barra_ferro: 1 }, estacao: 'coz', alto: 0.9,
+    desc: 'Fogo de pedra com caldeirão. Perto dele você cozinha os pratos (receitas do Cozinheiro).' },
   cerca: { nome: 'Cerca', w: 2, d: 0.3, circulos: [[-0.75, 0, 0.2], [0, 0, 0.2], [0.75, 0, 0.2]], custo: { lenha: 2 }, alto: 0.8,
     desc: 'Cerca de madeira de 2 m. Gire para mudar a direção.' },
 };
@@ -784,13 +796,16 @@ Object.assign(CONSTRUCOES, {
   bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true, alto: 0.69,
     desc: 'Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir.' },
   cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true, alto: 0.6,
-    desc: 'Você renasce nela quando cai.' },
+    desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h).' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
     desc: 'Ilumina em volta. Coloque no chão.' },
 });
 // ferramentas da fazenda (Quimera: enxada para arar, regador para regar); ficam na mochila, não gastam
 export const FERRAMENTAS_FAZENDA = {
   enxada: { custo: { lenha: 3, pedra: 2 }, bancada: false, para: 'arar' },
+  // André 2026-11-07: picareta e machado de pedra obrigatórios desde o começo (sem bancada, como a enxada)
+  picareta: { custo: { lenha: 2, pedra: 3 }, bancada: false, para: 'minerar' },
+  machado: { custo: { lenha: 3, pedra: 2 }, bancada: false, para: 'cortar' },
   regador: { custo: { barra_cobre: 1, lenha: 2 }, bancada: true, para: 'regar' },
 };
 // Criar peça da casa ou ferramenta (André 2026-11-05): cada uma leva de 3 a 5 s (mais material, mais tempo), com a
@@ -798,10 +813,30 @@ export const FERRAMENTAS_FAZENDA = {
 // tempoCriar serve para peça (custo) e receita do Ferreiro/Alfaiate (usa)
 export const CRIAR_OBRA = { min: 3, max: 5, porMaterial: 0.125, maxFila: 20 };
 export const tempoCriar = (C) => Math.min(CRIAR_OBRA.max, Math.max(CRIAR_OBRA.min, CRIAR_OBRA.min + Object.values(C.custo || C.usa || {}).reduce((a, n) => a + n, 0) * CRIAR_OBRA.porMaterial));
-export const BAU = { slots: 40 }; // pilhas guardadas (todos os baús do jogador são o mesmo, como no Quimera)
+export const BAU = { slots: 40, // pilhas guardadas (todos os baús do jogador são o mesmo, como no Quimera)
+  // Melhorar o baú (André 2026-11-07): toque em Melhorar e ele cresce 40 → 60 → 80 lugares, sem tirar nada de dentro.
+  // niveis[n] = lugares no nível n; melhorar[n] = o que custa para ir do nível n-1 para o n (ouro sai do bolso)
+  niveis: [40, 60, 80],
+  melhorar: [null, { lenha: 30, barra_ferro: 10, ouro: 500 }, { lenha: 60, barra_aco: 15, ouro: 2000 }] };
+export const bauLugares = (nv) => BAU.niveis[Math.max(0, Math.min(BAU.niveis.length - 1, nv | 0))];
+// Fornalha de verdade (André 2026-11-07: "o forno tá igual uma mesa de craft"): um lugar de combustível (lenha ou carvão)
+// e um de material; ela fica queimando sozinha, mesmo com você longe ou fora do jogo, e o que fica pronto espera no
+// lugar de saída até você pegar. combustivel = segundos de fogo de cada unidade; receitas pelo material posto:
+// usa = quantos viram um, dur = segundos de cada um, fogo = só com esse combustível (aço: ferro com carvão),
+// nivel = Ferreiro mínimo, vigor = pontos de Ferreiro (e XP) por unidade, dados quando você pega.
+export const FORNALHA = {
+  combustivel: { lenha: 12, carvao: 30 },
+  receitas: {
+    minerio_ferro: { faz: 'barra_ferro', usa: 3, dur: 12, nivel: 1, vigor: 1 },
+    minerio_cobre: { faz: 'barra_cobre', usa: 3, dur: 12, nivel: 1, vigor: 1 },
+    lenha: { faz: 'carvao', usa: 2, dur: 8, nivel: 1, vigor: 1 },
+    barra_ferro: { faz: 'barra_aco', usa: 1, dur: 30, nivel: 5, vigor: 2, fogo: 'carvao' },
+  },
+};
 // Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
 // a terra regada fica molhada por "rega" horas; sem água a planta não cresce)
-export const HORTA = { rega: 24, vigor: 1 };
+// agua (André 2026-11-07): o regador cheio dá 20 regas; enche no poço da praça (poco) ou na beira de um lago, ou nadando
+export const HORTA = { rega: 24, vigor: 1, agua: 20, poco: { x: PRACA.x, z: PRACA.z, r: 3.2 }, beira: 2.5 };
 export const PLANTAS = {
   rabanete: { nome: 'Rabanete', G: 0.5, y: [2, 3], semente: 2, venda: 2, cura: 0.05, cor: '#e8486a', folha: '#5fae4a' },
   cenoura: { nome: 'Cenoura', G: 2, y: [2, 4], semente: 4, venda: 3, cura: 0.08, cor: '#ff8a2a', folha: '#4f9a44' },
@@ -813,7 +848,7 @@ export const PLANTAS = {
 // fase da planta (0 semente, 1 broto, 2 média, 3 quase, 4 madura) pela fração crescida (Quimera WJ)
 export const fasePlanta = (f) => (f >= 1 ? 4 : f < 0.03 ? 0 : f < 0.4 ? 1 : f < 0.75 ? 2 : 3);
 // qual estação serve para a receita: barras e carvão na fornalha; o resto do Ferreiro na bigorna; Alfaiate na bancada
-export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : 'bancada');
+export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : R.prof === 'coz' ? 'fogao' : 'bancada');
 CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
 CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-11-05)
 CAMINHOS.push(TRILHA_CAVERNA); // trilha da caverna da montanha (2026-11-06)
@@ -899,6 +934,51 @@ function sortearMataLago() {
   return lista;
 }
 const ARVORES_LAGO = sortearMataLago();
+// ---------- mapa todo circulável (André 2026-11-07) ----------
+// "Eu não quero nenhuma barreira invisível nesse mapa, nenhuma em lugar nenhum. A única barreira que vai ter é quando o
+// mapa acabar." Entre as áreas andáveis sobravam baías de mata (do terreno nas Terras da Estrada até a trilha dos Lobos
+// Nv10, por exemplo): dava para ver a estrada do outro lado e o herói parava numa parede invisível. Estes círculos cobrem
+// cada baía (ferramentas/mapa/frestas.mjs gera a lista: fechamento de 30 m do mapa andável). Vêm no fim das áreas: as de
+// antes não mudam de índice. Rodar a ferramenta de novo quando entrar área nova.
+const FRESTAS = [[33.5, 79.5, 14], [29.5, 93.5, 14], [30.5, 107.5, 14], [24.5, 120.5, 14], [41.5, 116.5, 14], [20.5, 134.5, 14], [56.5, 117.5, 14], [35.5, 129.5, 14], [16.5, 148.5, 14], [169.5, 123.5, 14], [11.5, 163.5, 14], [165.5, 97.5, 14], [31.5, 143.5, 14], [6.5, 135.5, 14], [183.5, 127.5, 14], [175.5, 110.5, 14], [173.5, 85.5, 14], [2.5, 149.5, 14], [25.5, 159.5, 14], [176.5, 10.5, 14], [175.5, 43.5, 14], [181.5, 97.5, 14], [24.5, 173.5, 14], [152.5, 170.5, 14], [179.5, 24.5, 14], [106.5, -32.5, 14], [189.5, 114.5, 14], [181.5, 184.5, 14], [190.5, 11.5, 14], [203.5, 156.5, 14], [37.5, 167.5, 14], [189.5, 85.5, 14], [138.5, 167.5, 14], [-14.5, 160.5, 14], [92.5, -36.5, 13.9], [188.5, 37.5, 12.6], [113.5, -45.5, 12.3], [-46.5, 59.5, 12.3], [195.5, 101.5, 10.7], [36.5, 181.5, 9.7], [-8.5, -49.5, 9.3], [73.5, 155.5, 9.3], [143.5, 181.5, 9.1], [193.5, 25.5, 8.5], [-47.5, 30.5, 8.3], [-20.5, 147.5, 8.3], [203.5, 113.5, 8.2], [123.5, 167.5, 7.8], [65.5, -41.5, 7.5], [187.5, 197.5, 6.9], [214.5, 165.5, 6.3], [-49.5, 4.5, 6], [116.5, -57.5, 5.7], [51.5, 169.5, 5], [198.5, 45.5, 4.4], [202.5, 79.5, 4.4], [101.5, -48.5, 4.3], [205.5, 11.5, 4.3], [181.5, 201.5, 3.8], [-47.5, -27.5, 3.5], [117.5, -63.5, 3.4], [-42.5, 115.5, 3.4], [217.5, 153.5, 3.3], [-27.5, 167.5, 3.3], [-52.5, 90.5, 2.9]]
+  .map(([x, z, r]) => ({ x, z, rx: r, rz: r, mata: true, ligacao: true, fresta: true }));
+// árvores das baías abertas (sorteio próprio, vêm depois de todas as outras: os ids m0, m1... de antes não mudam).
+// A faixa fechada que já existia logo depois da borda antiga fica (agora dá para andar entre as árvores dela); onde a
+// baía era mais larga que essa faixa entra mata solta como a de dentro, e a borda nova ganha a faixa fechada dela.
+function sortearMataFrestas(existentes) {
+  let sem = 9091; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const velhas = { areas: [{ x: 0, z: 0, r: 34 }, FORA, ...MATA.areas, VILA_LOTES.area, ...EMENDAS, ...BURACOS, ...MONTE_AREAS, LAGO_GRANDE_AREA],
+    corredores: [...MATA.corredores, VILA_LOTES.passagem, LAGO_GRANDE_PASSAGEM] };
+  const novas = { areas: FRESTAS, corredores: [] }, todas = { areas: [...velhas.areas, ...FRESTAS], corredores: velhas.corredores };
+  const grade = new Map(), cel = 6, chave = (i, j) => i * 10007 + j, lista = [];
+  const guarda = (a) => { const k = chave(Math.floor(a.x / cel), Math.floor(a.z / cel)); if (!grade.has(k)) grade.set(k, []); grade.get(k).push(a); };
+  existentes.forEach(guarda);
+  const livre = (x, z, esp) => {
+    const i = Math.floor(x / cel), j = Math.floor(z / cel);
+    for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) for (const o of grade.get(chave(a, b)) || []) if (Math.hypot(o.x - x, o.z - z) < esp) return false;
+    return true;
+  };
+  const x0 = Math.min(...FRESTAS.map((a) => a.x - a.rx)) - 10, x1 = Math.max(...FRESTAS.map((a) => a.x + a.rx)) + 10;
+  const z0 = Math.min(...FRESTAS.map((a) => a.z - a.rz)) - 10, z1 = Math.max(...FRESTAS.map((a) => a.z + a.rz)) + 10;
+  const tentativas = Math.round((x1 - x0) * (z1 - z0) / 2.2);
+  for (let t = 0; t < tentativas; t++) {
+    const x = rnd(x0, x1), z = rnd(z0, z1);
+    if (!dentroDoMapa(novas, x, z, -9)) continue; // longe das baías: nada muda
+    const dentro = dentroDoMapa(todas, x, z, 0);
+    if (dentroDoMapa(velhas, x, z, -9)) continue; // perto da borda antiga: a faixa de árvores dela já está lá
+    if (!dentro && !dentroDoMapa(todas, x, z, -9)) continue;
+    const df = Math.hypot(x - FORA.x, z - FORA.z) - raioNaDirecao(FORA, Math.atan2(z - FORA.z, x - FORA.x));
+    if (df < 2 || Math.hypot(x, z) < 37 || naTerras(x, z, 1.5) || naMina(x, z, 3) || noRelevo(x, z) || naTrilhaLago(x, z)) continue;
+    if (pertoDaLinha(ESTRADA, x, z).d < 5.5 || TRILHAS.some((L) => pertoDaLinha(L, x, z).d < 2.2) || pertoDaLinha(TRILHA_CAVERNA.pontos, x, z).d < 2.4 || noTunel(TUNEL, x, z, 3.5)) continue;
+    if (CLAREIRAS.some((c) => Math.hypot(x - c.x, z - c.z) < CLAREIRA_R + 1.5)) continue;
+    if (cenario().marcos.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + 1.2)) continue;
+    const esp = dentro ? 6.6 : 3.3;
+    if (!livre(x, z, esp)) continue;
+    const a = { x: +x.toFixed(2), z: +z.toFixed(2), s: +rnd(dentro ? 0.7 : 0.9, 1.4).toFixed(2), ry: +rnd(0, 6.28).toFixed(2), v: Math.floor(rnd(0, 2.999)) };
+    lista.push(a); guarda(a);
+  }
+  return lista;
+}
 export const MAPA_CLAREIRA = {
   id: 'clareira',
   nome: 'Vila da Clareira',
@@ -906,7 +986,7 @@ export const MAPA_CLAREIRA = {
   nascimento: { x: 0, z: 1 },
   // onde dá para andar: a vila (raio 34), a passagem da estradinha do leste e a clareira de fora (shared/mapa.js)
   // e a mata (MATA, pedido do André 2026-11-03): círculos ao longo da estrada e das clareiras, sem anel de pedra
-  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS, BURACOS, MONTE_AREAS, [LAGO_GRANDE_AREA]), // + Vila dos Lotes (construção e fazenda)
+  areas: [{ x: 0, z: 0, r: 34 }, FORA].concat(MATA.areas, [VILA_LOTES.area], EMENDAS, BURACOS, MONTE_AREAS, [LAGO_GRANDE_AREA], FRESTAS), // + baías abertas (2026-11-07) // + Vila dos Lotes (construção e fazenda)
   corredores: [{ a: [27, -2.7], b: [44, -3.4], larg: 9, semPedras: true }].concat(MATA.corredores, [VILA_LOTES.passagem], [LAGO_GRANDE_PASSAGEM]), // semPedras: a mata aberta em volta faz a borda (mapa aberto, André 2026-11-04)
   // máscara do chão (trilhas e praça) cobre a vila e a área de fora: x0, z0 e o tamanho do quadrado em metros
   mascara: { x0: -38, z0: -62, tam: 292, px: 2048 }, // 2026-11-03: cresceu para cobrir a mata (mesma nitidez)
@@ -982,6 +1062,8 @@ export const MAPA_CLAREIRA = {
   mata: ARVORES_MATA.filter((a) => !naMina(a.x, a.z) && !noRelevo(a.x, a.z) && !naTrilhaLago(a.x, a.z)).concat(ARVORES_MONTE, ARVORES_LAGO), // as zonas de mineração e os lagos ficam limpos
   estrada: ESTRADA,
 };
+// árvores das baías abertas: no fim da lista (os ids das de antes não mudam)
+MAPA_CLAREIRA.mata.push(...sortearMataFrestas(MAPA_CLAREIRA.mata));
 
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
 // As duas bases (VRoid CC0) vêm primeiro: o criador de personagem pinta cabelo, olhos, pele e roupa em cima delas.
@@ -1006,13 +1088,19 @@ export const CRIADOR = {
   altura: [0.92, 1.08],
   // formato do rosto: tamanho dos olhos, do nariz e da boca (1 = original)
   rosto: { olhosT: [0.75, 1.25], narizT: [0.7, 1.3], bocaT: [0.7, 1.3] },
-  // corpos que o criador do app Godot mostra (sem nome, pedido do André 2026-11-03): a Ruiva primeiro, depois os
-  // masculinos e os outros corpos VRoid do jogo (os mesmos dos NPCs, todos CC0 ou com uso comercial)
-  corpos: ['ruiva', 'cabelo_m', 'shibu', 'shibu_sombrio', 'fumiriya', 'shino', 'vivi', 'vita', 'victoria'],
+  // corpos que o criador do app Godot mostra (sem nome, pedido do André 2026-11-03). André 2026-11-07: "vai ficar só
+  // um homem e só uma mulher" como opção de personagem principal: a Ruiva e o cabelo_m. Os outros seguem nos NPCs.
+  corpos: ['ruiva', 'cabelo_m'],
+  // corpos que já estiveram no criador (2026-11-03 a 2026-11-07): contas antigas com eles continuam válidas no
+  // servidor, e o app mostra o herói com o corpo do criador do mesmo sexo (main.gd, corpo_valido)
+  // penteados (André 2026-11-07): o cabelo de outro modelo VRoid do jogo na cabeça do herói (godot penteado.gd).
+  // Por corpo do criador; null = o cabelo do próprio corpo. Só cabelo de moça na moça e de rapaz no rapaz.
+  penteados: { ruiva: ['vivi', 'vita', 'victoria', 'shino', 'shibu', 'shibu_sombrio'], cabelo_m: ['fumiriya'] },
+  corposAntigos: { shibu: 'ruiva', shibu_sombrio: 'ruiva', fumiriya: 'cabelo_m', shino: 'ruiva', vivi: 'ruiva', vita: 'ruiva', victoria: 'ruiva' },
 };
 // Corpo do personagem (visual) que o servidor aceita: os do jogo HTML (PERSONAGENS) e os do criador do app Godot
 export function visualValido(v) {
-  return typeof v === 'string' && (PERSONAGENS.some((p) => p.id === v) || CRIADOR.corpos.includes(v));
+  return typeof v === 'string' && (PERSONAGENS.some((p) => p.id === v) || CRIADOR.corpos.includes(v) || Object.hasOwn(CRIADOR.corposAntigos, v));
 }
 // Aparência mandada pelo jogador: só cores da lista e altura dentro do limite (o resto vira a cor original)
 export function aparenciaValida(a) {
@@ -1022,6 +1110,7 @@ export function aparenciaValida(a) {
   const [min, max] = CRIADOR.altura;
   r.altura = Number.isFinite(a.altura) ? Math.round(Math.min(max, Math.max(min, a.altura)) * 100) / 100 : 1;
   for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) r[k] = Number.isFinite(a[k]) ? Math.round(Math.min(hi, Math.max(lo, a[k])) * 100) / 100 : 1;
+  r.penteado = Object.values(CRIADOR.penteados).some((l) => l.includes(a.penteado)) ? a.penteado : null;
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
@@ -1077,13 +1166,40 @@ export const ITENS = {
   tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
   // dungeon da montanha (2026-11-06): o fragmento cai dos monstros; o Gaspar junta e faz o passe que abre o selo
   fragmento: { nome: 'Fragmento rúnico', mat: true, pilha: 50, venda: 4, desc: 'Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela.' },
+  // carne (2026-11-07): cai dos bichos (Puglin, Lobo, Maw) e vai para o fogão
+  carne: { nome: 'Carne crua', mat: true, pilha: 50, venda: 2, desc: 'Carne de caça. No fogão vira carne assada ou ensopado.' },
+  // pratos do fogão (Cozinheiro): comer recupera vida/mana e dá vigor (usar.vigor = pontos); sem recarga nem limite por enquanto (André 2026-11-07)
+  carne_assada: { nome: 'Carne assada', pilha: 20, comida: true, usar: { vida: 0.25, vigor: 6 }, venda: 6, desc: 'Recupera 25% da vida e 6 de vigor.' },
+  sopa_legumes: { nome: 'Sopa de legumes', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 10 }, venda: 8, desc: 'Recupera 30% da vida e 10 de vigor.' },
+  pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3, vigor: 8 }, venda: 8, desc: 'Recupera 30% da mana e 8 de vigor.' },
+  ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5, vigor: 15 }, venda: 14, desc: 'Recupera 50% da vida e 15 de vigor.' },
+  torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4, vigor: 20 }, venda: 22, desc: 'Recupera 40% da vida, 40% da mana e 20 de vigor.' },
   passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
 };
+// Recarga das poções (André 2026-11-06): segundos entre uma poção e outra do mesmo tipo (vida e mana contam separado).
+export const POCAO_RECARGA = 10;
 export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
 // Penalidade de morte (André 2026-11-05): quem cai perde `ouro` do ouro que carrega e cada peça equipada perde `desgaste`
 // de durabilidade (de durMax). Peça com 0 fica Quebrada: continua no corpo, mas não dá bônus (nem conta para o conjunto)
 // até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
 export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3 };
+// Reforço de equipamento (igual ao Quimera, André 2026-11-07): toque na peça e em "Reforçar". Cada tentativa custa ouro e
+// pode falhar. Números do Quimera (index.html: Sh = chance, Th = custo, Rh = bônus, mgGNeed = atributo):
+// - max: até onde cada raridade vai, igual ao Quimera (André 2026-11-07: "faz igual Quimera"): Comum não reforça,
+//   Rara +10, Épica +20, Lendária +30, Mítica +40. Antes era +5/+10/+15/+20; só subiu, nenhuma peça perde reforço.
+// - chance[e]: % de sair de +e para +e+1. custo: round((base + porRaridade x raridade) x sobe^e) de ouro.
+// - falhou: volta 1 (+e-1), mas nunca abaixo do último múltiplo de `seguro` (+5, +10...: de +5 falhando continua +5).
+// - bônus: cada + soma `bonus` (40%) dos números da peça; o crítico soma `bonusCritico` (20%).
+// - atributo: de +3 em diante precisa de porNivel x (nível do reforço) de Força (espada), Inteligência (cajado) ou da
+//   maior das duas (armadura e acessório). `tempo`: segundos da barrinha da janela.
+export const REFORCO = {
+  max: [0, 10, 20, 30, 40],
+  chance: [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 29, 28, 27, 26, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25],
+  custo: { base: 10, porRaridade: 12, sobe: 1.07 },
+  seguro: 5, bonus: 0.4, bonusCritico: 0.2,
+  atributo: { livre: 2, porNivel: 10 },
+  tempo: 1.6,
+};
 export const VENDA_TOMO = 30; // x nível do Tomo
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 // Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
@@ -1101,6 +1217,7 @@ export const LOJA = [
   ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
 ];
 export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
+export const LOJA_MAX = 999; // compra várias de uma vez (André 2026-11-07): até quantas por toque em Comprar
 // Troca entre jogadores (como no Quimera, André 2026-11-04): pedir perto, cada um põe itens e ouro, tranca a oferta
 // (cadeado) e, com as duas trancadas, os dois confirmam. Qualquer mudança destranca as duas. Quem decide é o servidor.
 export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedidos: 3 }; // metros, metros, itens, s, s
@@ -1119,14 +1236,16 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }
-const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.78, 0.2, 0.02, 0, 0] };
+// André 2026-11-06 (remoção aprovada: "só devia dropar armadura comum e rara; épico, lendário e mítico só craftando"):
+// monstro só solta peça Comum ou Rara. Épico, Lendário e Mítico saem só da criação (RARIDADE_CRIAR).
+const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.85, 0.15, 0, 0, 0] };
 export const DROPS = {
   // fragmento: material do passe da caverna (2026-11-06), cai de todos os monstros de caça
-  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
-  lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.5, 0.38, 0.12, 0, 0] },
-  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 0.6, 0.35, 0.05, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
-  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1] } },
-  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 0.5, 0.4, 0.1, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
+  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1], carne: [0.3, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1], carne: [0.5, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
+  lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.6, 0.4, 0, 0, 0] },
+  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
+  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1], carne: [0.4, 1] } },
+  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
 };
 
 // ---------- Dungeon: Caverna da Montanha (pedido do André 2026-11-06) ----------
@@ -1142,6 +1261,11 @@ export const CAVERNA_DUNGEON = {
   perto: 4.5, // metros do Gaspar para fazer o passe
   portaPerto: 4, // metros (pelo túnel) antes do selo em que o botão de usar o passe aparece
   esvazia: 60, volta: 240, corpo: 6, avistar: 16,
+  // André 2026-11-06: "se for para nível 20, tem que ser muito difícil para um nível 20 fazer sozinho; é para grupo".
+  // Os monstros das salas têm vida, dano e XP vezes estes números (pensado para um time de 3 ou 4 do nível da sala).
+  forte: { vida: 3, dano: 1.6, xp: 2 },
+  // Só quem abre o selo paga o passe: quem é do mesmo time entra de graça enquanto alguém do time estiver lá dentro.
+  passeDoTime: true,
   salas: [
     { id: 'sala1', nome: 'Galeria dos Golens', nivel: 18, monstros: [['golem', 23.5, -2.5], ['golem', 26.5, 2.5], ['golem', 30, -1], ['golem', 32.5, 3]] },
     { id: 'sala2', nome: 'Poço dos Maws', nivel: 20, monstros: [['maw', 42.5, 2.5], ['maw', 45.5, -3], ['golem', 48.5, 1.5], ['maw', 51.5, -1.5]] },
@@ -1169,6 +1293,13 @@ export const ESTAMINA = { base: 50, porNivel: 2, porDes: 5, correr: 10, trote: 0
   esperaCombate: 8, dash: 8, rolar: 8, mortal: 6, seguidaK: 0.5, seguidaMax: 2.4, seguidaJanela: 1.3, folego: 0.2, combate: 5 };
 // Vigor: energia para trabalhar (coletar e criar). Vai de 0 a max e enche sozinho em "enche" segundos (6 h), mesmo com o jogo fechado.
 export const VIGOR = { max: 100, enche: 6 * 3600 };
+// Dia e noite (igual ao Quimera, André 2026-11-07): 1 hora do jogo = horaSeg s (o dia inteiro em 12 min). Escurece das
+// 18h30 às 20h30 e clareia das 4h30 às 6h30; é "noite" (dá para dormir) das 19h às 5h. Cada conta tem o seu relógio
+// (prog.dia = { h, t }: hora h no instante t, em ms); conta que nunca dormiu segue o relógio do mundo (comeco às 0 ms).
+export const DIA = { horaSeg: 30, comeco: 8, noite: 19, manha: 5, escurece: [18.5, 20.5], clareia: [4.5, 6.5], acorda: 6.5 };
+// Dormir na cama do seu terreno (Quimera): só à noite e sem monstro a menos de "perigo" m. Pula até as 6h30 com vida,
+// mana e estamina cheias; o vigor ganha "vigor" uma vez a cada "cada" s (se ainda não deu, avisa quando volta).
+export const CAMA = { vigor: 40, cada: 6 * 3600, perigo: 14 };
 // Profissões (as do Quimera que cabem no mapa de agora; Pescador e Fazendeiro chegam com água e horta).
 // Trabalhar gasta vigor e dá pontos na profissão: Nv = raiz(pontos / 8) + 1, até 20. Rank sobe a cada 2 níveis
 // (19 e 20 têm rank próprio): rank maior gasta menos vigor (-4% por rank), trabalha mais rápido (+3,5%), dá chance
@@ -1178,6 +1309,7 @@ export const PROFISSOES = {
   len: { nome: 'Lenhador', grupo: 'Coleta', desc: 'Cortar lenha das árvores' },
   fer: { nome: 'Ferreiro', grupo: 'Criação', desc: 'Barras, espadas, cajados e colares na forja do Tomás' },
   alf: { nome: 'Alfaiate', grupo: 'Criação', desc: 'Calças, shorts, capas, botas e óculos na banca da Rosa' },
+  coz: { nome: 'Cozinheiro', grupo: 'Criação', desc: 'Pratos de comida no fogão do seu terreno' },
   mer: { nome: 'Mercador', grupo: 'Comércio', desc: 'Negociar com a Rosa: vende mais caro e compra mais barato' },
 };
 export const RANKS = ['Novato', 'Veterano', 'Especialista', 'Mestre', 'Autoridade', 'Campeão', 'Adepto', 'Arauto', 'Virtuoso', 'Celebridade', 'Famoso'];
@@ -1232,13 +1364,67 @@ export const RECEITAS = {
   // peças das armaduras visíveis (camisa, calça, botas, capa, acessório): entram quando o item existir em ITENS
   calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
   peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },
+  // Cozinheiro no fogão (2026-11-07): carne dos bichos e o que sai da horta
+  carne_assada: { prof: 'coz', faz: 'carne_assada', usa: { carne: 1, lenha: 1 }, vigor: 2, nivel: 1 },
+  sopa_legumes: { prof: 'coz', faz: 'sopa_legumes', usa: { cenoura: 1, batata: 1, rabanete: 1 }, vigor: 3, nivel: 1 },
+  pao_milho: { prof: 'coz', faz: 'pao_milho', usa: { milho: 2, lenha: 1 }, vigor: 3, nivel: 2 },
+  ensopado: { prof: 'coz', faz: 'ensopado', usa: { carne: 2, batata: 1, tomate: 1 }, vigor: 4, nivel: 3 },
+  torta_abobora: { prof: 'coz', faz: 'torta_abobora', usa: { abobora: 1, milho: 1 }, vigor: 5, nivel: 5 },
 };
 // receita de item que não existe (ex.: o manto, que virou peitoral) some sozinha
 for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
+// Fogão a lenha que cozinha sozinho (André 2026-11-07: "que nem a fornalha: coloco o combustível e os itens lá e posso
+// sair"): mesmo fogo da fornalha (lenha 12 s, carvão 30 s); você escolhe o prato e quantos, os ingredientes saem da
+// mochila para a panela e cada prato leva dur segundos de fogo. O pronto espera na saída; pontos de Cozinheiro e XP
+// quando você pega (como a fornalha). Os pratos na hora pela aba Criar continuam iguais.
+// receitas[prato] = { faz, usa: 1 (cada um na panela vira um prato), dur, nivel, vigor, ing: ingredientes de um prato }
+export const FOGAO = {
+  combustivel: { lenha: 12, carvao: 30 },
+  tempo: { carne_assada: 10, sopa_legumes: 15, pao_milho: 15, ensopado: 20, torta_abobora: 25 },
+  receitas: {},
+};
+for (const [k, R] of Object.entries(RECEITAS)) if (R.prof === 'coz') FOGAO.receitas[R.faz] = { faz: R.faz, receita: k, usa: 1, dur: FOGAO.tempo[R.faz] || 15, nivel: R.nivel, vigor: R.vigor, ing: R.usa };
 // Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
-export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' } };
+export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' }, coz: { npc: '', onde: 'no seu fogão' } };
 export const OFICINA_DISTANCIA = 4.5;
-export const RARIDADE_CRIAR = { base: 0.06, max: 0.3, ate: 2 }; // chance de subir cada raridade e até qual (2 = Épico)
+// chance de subir cada raridade e até qual (André 2026-11-06: era até 2 = Épico; agora até 4 = Mítico, que só sai criando).
+// Cada degrau é um sorteio: no Nv 20 da profissão, Épico 9%, Lendário 2,7%, Mítico 0,8%.
+export const RARIDADE_CRIAR = { base: 0.06, max: 0.3, ate: 4 };
+// Catalisador (André 2026-11-07, como no Quimera): destruir uma peça da mochila dá catalisador; com ele a peça sobe
+// um degrau de raridade (Comum > Raro > Épico > Lendário > Mítico). Um tipo para arma (espada, cajado: Runa) e outro
+// para armadura (o resto, colar junto: Selo). arma[r - 1] / armadura[r - 1] = o catalisador que leva a peça para a raridade r.
+// Só sai destruindo equipamento (André: não cai de monstro).
+// destruir: Comum dá `comum`; da Rara em diante dá o catalisador da raridade de baixo (Rara e Épica dão o Raro),
+//   em quantidade sorteada (`quantos`: até 8% nada, até 90% 1, até 98% 2, senão 3), e ainda `extra[r]` de chance de
+//   vir 1 da própria raridade. Cada peça leva `tempoDestruir` s de barrinha; "Destruir todas" só faz os cliques.
+// evoluir: peça da mochila + 1 catalisador + `usa` (por raridade de destino, arma ou armadura), perto de onde se cria
+//   a peça (Ferreiro: forja do Tomás ou bigorna; Alfaiate: banca da Rosa ou bancada). Gasta `vigor`. Pode falhar
+//   (`falha[r]`, cai pela metade no Nv máximo da profissão: perde o catalisador e o material, a peça fica) ou, com
+//   `sorte` (de 2% a 6% com a profissão), pular uma raridade. A peça nova sai +0, inteira e com o cadeado se tinha.
+export const CATALISADOR = {
+  arma: ['runa_rara', 'runa_epica', 'runa_lendaria', 'runa_mitica'],
+  armadura: ['selo_raro', 'selo_epico', 'selo_lendario', 'selo_mitico'],
+  comum: 'barra_cobre',
+  quantos: [0.08, 0.9, 0.98],
+  extra: [0, 0, 0.25, 0.2, 0.15],
+  tempoDestruir: 1.5,
+  usa: {
+    arma: [{ lenha: 4, barra_cobre: 3 }, { lenha: 6, barra_ferro: 4 }, { lenha: 8, cristal: 5 }, { lenha: 10, cristal: 6, barra_aco: 2 }],
+    armadura: [{ couro: 4, barra_cobre: 3 }, { couro: 6, barra_ferro: 4 }, { couro: 8, cristal: 5 }, { couro: 10, cristal: 6, barra_aco: 2 }],
+  },
+  falha: [0, 0.1, 0.15, 0.2, 0.25],
+  sorte: [0.02, 0.06],
+  vigor: 8,
+  tempoEvoluir: 3,
+};
+{
+  const NOME_R = ['', 'Raro', 'Épico', 'Lendário', 'Mítico'], NOME_A = ['', 'Rara', 'Épica', 'Lendária', 'Mítica'];
+  const VENDA = [0, 15, 40, 120, 350];
+  CATALISADOR.armadura.forEach((k, j) => { ITENS[k] = { nome: `Selo ${NOME_R[j + 1]}`, mat: true, pilha: 99, venda: VENDA[j + 1], catalisador: 'armadura', cr: j + 1,
+    desc: `Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar ${j ? NOME_R[j] : 'Comum'} para ${NOME_R[j + 1]}. Sai destruindo equipamento.` }; });
+  CATALISADOR.arma.forEach((k, j) => { ITENS[k] = { nome: `Runa ${NOME_A[j + 1]}`, mat: true, pilha: 99, venda: VENDA[j + 1], catalisador: 'arma', cr: j + 1,
+    desc: `Catalisador de arma: evolui espada ou cajado ${j ? NOME_R[j] : 'Comum'} para ${NOME_R[j + 1]}. Sai destruindo equipamento.` }; });
+}
 MAPA_CLAREIRA.veios = VEIOS;
 
 // ---------- horta (Vila dos Lotes): sementes na loja da Rosa, o que se colhe vira item (cura um pouco ou vende) ----------
@@ -1257,9 +1443,16 @@ for (const [k, C] of Object.entries(CONSTRUCOES)) {
     desc: `${C.desc} Coloque no seu terreno pelo modo construção (martelo).` };
 }
 ITENS.enxada = { nome: 'Enxada', pilha: 1, venda: 2, ferramenta: 'arar', desc: 'Prepara a terra para plantar (modo construção, aba Fazenda).' };
-ITENS.regador = { nome: 'Regador', pilha: 1, venda: 3, ferramenta: 'regar', desc: 'Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia.' };
+ITENS.picareta = { nome: 'Picareta de pedra', pilha: 1, venda: 2, ferramenta: 'minerar', desc: 'Precisa dela para minerar os veios. Crie na mochila (Criar > Ferramentas), sem bancada.' };
+ITENS.machado = { nome: 'Machado de pedra', pilha: 1, venda: 2, ferramenta: 'cortar', desc: 'Precisa dele para cortar árvores. Crie na mochila (Criar > Ferramentas), sem bancada.' };
+// minerar pede a picareta e cortar pede o machado (o galho e a pedra soltos no chão saem com a mão)
+for (const C of Object.values(COLETA)) C.ferramenta = C.prof === 'min' ? 'picareta' : 'machado';
+ITENS.regador = { nome: 'Regador', pilha: 1, venda: 3, ferramenta: 'regar', desc: 'Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia. Cheio dá 20 regas: encha no poço da vila ou na beira de um lago.' };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
 LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
+// Botão "Organizar" da mochila e do baú (André 2026-11-07): junta as pilhas pela metade e põe em ordem de tipo (esta
+// lista), depois raridade (a melhor primeiro), reforço e nome. Equipamento segue a ordem dos lugares do corpo (LUGARES).
+export const ORGANIZAR = ['equip', 'consumivel', 'tomo', 'ferramenta', 'obra', 'semente', 'material', 'outro'];
 
 // Mato e pedras soltas da mata (pedido do André 2026-11-03, junto com os marcos do CENARIO): sorteio fixo em volta das
 // árvores (cogumelo no pé, orelha-de-pau no tronco, arbusto e samambaia entre elas) e pedras na beira da estrada.
@@ -1325,3 +1518,44 @@ function sortearEnfeites(arvores) {
   const pedrasLago = beiraDosLagos().filter((b) => b.tipo === 'pedra').map((b, i) => ({ m: ['rocha1', 'rocha2', 'rocha3'][i % 3], x: b.x, z: b.z, ry: b.ry, s: b.s, y: b.y ?? -0.06 }));
   MAPA_CLAREIRA.cenario = { marcos: c.marcos, pecas: c.pecas, enfeites: e.lista.filter(fora).concat(pedrasLago), solidos: [...c.solidos, ...e.solidos.filter(fora)] };
 }
+
+// ---------- pedras e galhos soltos no chão (André 2026-11-07) ----------
+// Picareta e machado de pedra viraram obrigatórios para minerar e cortar (FERRAMENTAS_FAZENDA). Para o começo não
+// travar (sem picareta não sai pedra), ficam pedras e galhos soltos no chão: muitos na vila de início e alguns na
+// beira da estrada e das trilhas. Pega com a mão (botão Coletar, na hora, sem vigor nem ferramenta), cada um dá 1 e
+// volta em COLETA.galho.volta s só para quem pegou. Dá menos que minerar ou cortar, para não valer a pena no fim do jogo.
+// Sorteio fixo (servidor e Godot veem os mesmos): s0, s1... ferramentas/testes/soltos.mjs confere se cada um está no chão livre.
+export const SOLTOS = (() => {
+  let sem = 4243; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
+  const M = MAPA_CLAREIRA, lista = [], r2 = (n) => +n.toFixed(2);
+  const longe = (l, x, z, d) => l.every((o) => Math.hypot(x - o.x, z - o.z) > d(o));
+  const livre = (x, z) => dentroDoMapa(M, x, z, 2) && !noRelevo(x, z, 1.5) && !naMina(x, z, 1) && !naTerras(x, z, 2)
+    && Math.hypot(x - PRACA.x, z - PRACA.z) > PRACA.r + 1.5
+    && CLAREIRAS.every((c) => Math.hypot(x - c.x, z - c.z) > CLAREIRA_R + 4)
+    && ((x - FORA.x) / (FORA.rx + 3)) ** 2 + ((z - FORA.z) / (FORA.rz + 3)) ** 2 > 1 // o campo dos lobos fica limpo
+    && longe(M.vila.casas, x, z, (c) => Math.hypot(c.w, c.d) / 2 + 1.2) && longe(M.npcs, x, z, () => 2.5)
+    && longe([...M.obstaculos, ...M.props, ...M.escadas, ...M.treino], x, z, (o) => (o.r || 0.6) + 1.2)
+    && longe(M.rochas, x, z, (r) => 1.9 * r.s + 1) && longe(M.vila.arvores, x, z, (a) => 0.32 * a.s + 1)
+    && longe(M.mata, x, z, (a) => 0.32 * a.s + 0.9) && longe(M.cenario.solidos, x, z, (o) => o.r + 0.8)
+    && longe(M.cenario.marcos, x, z, (o) => o.r + 0.5) && longe(M.veios, x, z, () => 3) && longe(lista, x, z, () => 4);
+  const por = (tipo, x, z) => { if (!livre(x, z)) return false; lista.push({ tipo, x: r2(x), z: r2(z), ry: r2(rnd(0, 6.28)) }); return true; };
+  // vila: 8 galhos e 8 pedras entre as casas (dá para a picareta, o machado e a enxada)
+  for (const tipo of ['galho', 'pedrinha']) for (let n = 0, t = 0; n < 8 && t < 400; t++) {
+    const a = rnd(0, 6.283), d = rnd(7, 31);
+    if (por(tipo, Math.cos(a) * d, Math.sin(a) * d)) n++;
+  }
+  // mapa: na beira da estrada e das trilhas das clareiras, de 2,5 a 4,5 m do caminho (quem anda acha)
+  const beira = (L, n) => {
+    for (let k = 0, t = 0; k < n && t < 200; t++) {
+      const i = Math.floor(rnd(0, L.length - 1.001)), f = rnd(0, 1), [ax, az] = L[i], [bx, bz] = L[i + 1];
+      const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz) || 1, lado = rnd(0, 1) < 0.5 ? -1 : 1, off = rnd(2.5, 4.5) * lado;
+      if (por(rnd(0, 1) < 0.5 ? 'galho' : 'pedrinha', ax + dx * f - (dz / len) * off, az + dz * f + (dx / len) * off)) k++;
+    }
+  };
+  beira(ESTRADA, 16);
+  for (const L of TRILHAS) beira(L, 1);
+  return lista;
+})();
+MAPA_CLAREIRA.soltos = SOLTOS;
+COLETA.galho = { nome: 'Galho no chão', mao: true, prof: 'len', vigor: 0, tempo: 0, cargas: 1, volta: 300, da: { lenha: 1 } };
+COLETA.pedrinha = { nome: 'Pedra solta', mao: true, prof: 'min', vigor: 0, tempo: 0, cargas: 1, volta: 300, da: { pedra: 1 } };

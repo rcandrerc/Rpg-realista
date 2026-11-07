@@ -432,7 +432,7 @@
   }
  },
  "pontosPorNivel": 2,
- "nivelMax": 30,
+ "nivelMax": 200,
  "skillMax": 10,
  "botoesPadrao": {
   "espada": [
@@ -763,12 +763,147 @@
    "venda": 4,
    "desc": "Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela."
   },
+  "carne": {
+   "nome": "Carne crua",
+   "mat": true,
+   "pilha": 50,
+   "venda": 2,
+   "desc": "Carne de caça. No fogão vira carne assada ou ensopado."
+  },
+  "carne_assada": {
+   "nome": "Carne assada",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.25,
+    "vigor": 6
+   },
+   "venda": 6,
+   "desc": "Recupera 25% da vida e 6 de vigor."
+  },
+  "sopa_legumes": {
+   "nome": "Sopa de legumes",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.3,
+    "vigor": 10
+   },
+   "venda": 8,
+   "desc": "Recupera 30% da vida e 10 de vigor."
+  },
+  "pao_milho": {
+   "nome": "Pão de milho",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "mana": 0.3,
+    "vigor": 8
+   },
+   "venda": 8,
+   "desc": "Recupera 30% da mana e 8 de vigor."
+  },
+  "ensopado": {
+   "nome": "Ensopado de carne",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.5,
+    "vigor": 15
+   },
+   "venda": 14,
+   "desc": "Recupera 50% da vida e 15 de vigor."
+  },
+  "torta_abobora": {
+   "nome": "Torta de abóbora",
+   "pilha": 20,
+   "comida": true,
+   "usar": {
+    "vida": 0.4,
+    "mana": 0.4,
+    "vigor": 20
+   },
+   "venda": 22,
+   "desc": "Recupera 40% da vida, 40% da mana e 20 de vigor."
+  },
   "passe_caverna": {
    "nome": "Passe da Caverna",
    "mat": true,
    "pilha": 20,
    "venda": 10,
    "desc": "Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto)."
+  },
+  "selo_raro": {
+   "nome": "Selo Raro",
+   "mat": true,
+   "pilha": 99,
+   "venda": 15,
+   "catalisador": "armadura",
+   "cr": 1,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Comum para Raro. Sai destruindo equipamento."
+  },
+  "selo_epico": {
+   "nome": "Selo Épico",
+   "mat": true,
+   "pilha": 99,
+   "venda": 40,
+   "catalisador": "armadura",
+   "cr": 2,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Raro para Épico. Sai destruindo equipamento."
+  },
+  "selo_lendario": {
+   "nome": "Selo Lendário",
+   "mat": true,
+   "pilha": 99,
+   "venda": 120,
+   "catalisador": "armadura",
+   "cr": 3,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Épico para Lendário. Sai destruindo equipamento."
+  },
+  "selo_mitico": {
+   "nome": "Selo Mítico",
+   "mat": true,
+   "pilha": 99,
+   "venda": 350,
+   "catalisador": "armadura",
+   "cr": 4,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Lendário para Mítico. Sai destruindo equipamento."
+  },
+  "runa_rara": {
+   "nome": "Runa Rara",
+   "mat": true,
+   "pilha": 99,
+   "venda": 15,
+   "catalisador": "arma",
+   "cr": 1,
+   "desc": "Catalisador de arma: evolui espada ou cajado Comum para Raro. Sai destruindo equipamento."
+  },
+  "runa_epica": {
+   "nome": "Runa Épica",
+   "mat": true,
+   "pilha": 99,
+   "venda": 40,
+   "catalisador": "arma",
+   "cr": 2,
+   "desc": "Catalisador de arma: evolui espada ou cajado Raro para Épico. Sai destruindo equipamento."
+  },
+  "runa_lendaria": {
+   "nome": "Runa Lendária",
+   "mat": true,
+   "pilha": 99,
+   "venda": 120,
+   "catalisador": "arma",
+   "cr": 3,
+   "desc": "Catalisador de arma: evolui espada ou cajado Épico para Lendário. Sai destruindo equipamento."
+  },
+  "runa_mitica": {
+   "nome": "Runa Mítica",
+   "mat": true,
+   "pilha": 99,
+   "venda": 350,
+   "catalisador": "arma",
+   "cr": 4,
+   "desc": "Catalisador de arma: evolui espada ou cajado Lendário para Mítico. Sai destruindo equipamento."
   },
   "semente_rabanete": {
    "nome": "Semente de rabanete",
@@ -905,6 +1040,13 @@
    "obra": "fornalha",
    "desc": "Derrete minério em barras e queima lenha em carvão. Coloque no seu terreno pelo modo construção (martelo)."
   },
+  "obra_fogao": {
+   "nome": "Fogão a lenha",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "fogao",
+   "desc": "Fogo de pedra com caldeirão. Perto dele você cozinha os pratos (receitas do Cozinheiro). Coloque no seu terreno pelo modo construção (martelo)."
+  },
   "obra_cerca": {
    "nome": "Cerca",
    "pilha": 20,
@@ -959,7 +1101,7 @@
    "pilha": 20,
    "venda": 1,
    "obra": "cama",
-   "desc": "Você renasce nela quando cai. Coloque no seu terreno pelo modo construção (martelo)."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h). Coloque no seu terreno pelo modo construção (martelo)."
   },
   "obra_tocha": {
    "nome": "Tocha",
@@ -975,12 +1117,26 @@
    "ferramenta": "arar",
    "desc": "Prepara a terra para plantar (modo construção, aba Fazenda)."
   },
+  "picareta": {
+   "nome": "Picareta de pedra",
+   "pilha": 1,
+   "venda": 2,
+   "ferramenta": "minerar",
+   "desc": "Precisa dela para minerar os veios. Crie na mochila (Criar > Ferramentas), sem bancada."
+  },
+  "machado": {
+   "nome": "Machado de pedra",
+   "pilha": 1,
+   "venda": 2,
+   "ferramenta": "cortar",
+   "desc": "Precisa dele para cortar árvores. Crie na mochila (Criar > Ferramentas), sem bancada."
+  },
   "regador": {
    "nome": "Regador",
    "pilha": 1,
    "venda": 3,
    "ferramenta": "regar",
-   "desc": "Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia."
+   "desc": "Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia. Cheio dá 20 regas: encha no poço da vila ou na beira de um lago."
   }
  },
  "raridades": [
@@ -1236,6 +1392,7 @@
   }
  ],
  "lojaDistancia": 4,
+ "lojaMax": 999,
  "troca": {
   "perto": 6,
   "longe": 14,
@@ -1337,15 +1494,30 @@
   },
   "corpos": [
    "ruiva",
-   "cabelo_m",
-   "shibu",
-   "shibu_sombrio",
-   "fumiriya",
-   "shino",
-   "vivi",
-   "vita",
-   "victoria"
-  ]
+   "cabelo_m"
+  ],
+  "penteados": {
+   "ruiva": [
+    "vivi",
+    "vita",
+    "victoria",
+    "shino",
+    "shibu",
+    "shibu_sombrio"
+   ],
+   "cabelo_m": [
+    "fumiriya"
+   ]
+  },
+  "corposAntigos": {
+   "shibu": "ruiva",
+   "shibu_sombrio": "ruiva",
+   "fumiriya": "cabelo_m",
+   "shino": "ruiva",
+   "vivi": "ruiva",
+   "vita": "ruiva",
+   "victoria": "ruiva"
+  }
  },
  "nome": {
   "min": 3,
@@ -1386,6 +1558,26 @@
   "max": 100,
   "enche": 21600
  },
+ "dia": {
+  "horaSeg": 30,
+  "comeco": 8,
+  "noite": 19,
+  "manha": 5,
+  "escurece": [
+   18.5,
+   20.5
+  ],
+  "clareia": [
+   4.5,
+   6.5
+  ],
+  "acorda": 6.5
+ },
+ "cama": {
+  "vigor": 40,
+  "cada": 21600,
+  "perigo": 14
+ },
  "profissoes": {
   "min": {
    "nome": "Minerador",
@@ -1406,6 +1598,11 @@
    "nome": "Alfaiate",
    "grupo": "Criação",
    "desc": "Calças, shorts, capas, botas e óculos na banca da Rosa"
+  },
+  "coz": {
+   "nome": "Cozinheiro",
+   "grupo": "Criação",
+   "desc": "Pratos de comida no fogão do seu terreno"
   },
   "mer": {
    "nome": "Mercador",
@@ -1452,7 +1649,8 @@
    "raro": {
     "cristal": 0.05,
     "pedra": 0.5
-   }
+   },
+   "ferramenta": "picareta"
   },
   "pedra": {
    "nome": "Veio de pedra",
@@ -1467,7 +1665,8 @@
    "raro": {
     "pedra": 0.5,
     "minerio_cobre": 0.03
-   }
+   },
+   "ferramenta": "picareta"
   },
   "cobre": {
    "nome": "Veio de cobre",
@@ -1482,7 +1681,8 @@
    "raro": {
     "cristal": 0.04,
     "pedra": 0.5
-   }
+   },
+   "ferramenta": "picareta"
   },
   "cristal": {
    "nome": "Veio de cristal",
@@ -1498,7 +1698,8 @@
    "raro": {
     "cristal": 0.1,
     "pedra": 0.4
-   }
+   },
+   "ferramenta": "picareta"
   },
   "arvore": {
    "nome": "Árvore",
@@ -1513,6 +1714,31 @@
    },
    "raro": {
     "lenha": 0.25
+   },
+   "ferramenta": "machado"
+  },
+  "galho": {
+   "nome": "Galho no chão",
+   "mao": true,
+   "prof": "len",
+   "vigor": 0,
+   "tempo": 0,
+   "cargas": 1,
+   "volta": 300,
+   "da": {
+    "lenha": 1
+   }
+  },
+  "pedrinha": {
+   "nome": "Pedra solta",
+   "mao": true,
+   "prof": "min",
+   "vigor": 0,
+   "tempo": 0,
+   "cargas": 1,
+   "volta": 300,
+   "da": {
+    "pedra": 1
    }
   }
  },
@@ -1647,6 +1873,58 @@
    },
    "vigor": 6,
    "nivel": 3
+  },
+  "carne_assada": {
+   "prof": "coz",
+   "faz": "carne_assada",
+   "usa": {
+    "carne": 1,
+    "lenha": 1
+   },
+   "vigor": 2,
+   "nivel": 1
+  },
+  "sopa_legumes": {
+   "prof": "coz",
+   "faz": "sopa_legumes",
+   "usa": {
+    "cenoura": 1,
+    "batata": 1,
+    "rabanete": 1
+   },
+   "vigor": 3,
+   "nivel": 1
+  },
+  "pao_milho": {
+   "prof": "coz",
+   "faz": "pao_milho",
+   "usa": {
+    "milho": 2,
+    "lenha": 1
+   },
+   "vigor": 3,
+   "nivel": 2
+  },
+  "ensopado": {
+   "prof": "coz",
+   "faz": "ensopado",
+   "usa": {
+    "carne": 2,
+    "batata": 1,
+    "tomate": 1
+   },
+   "vigor": 4,
+   "nivel": 3
+  },
+  "torta_abobora": {
+   "prof": "coz",
+   "faz": "torta_abobora",
+   "usa": {
+    "abobora": 1,
+    "milho": 1
+   },
+   "vigor": 5,
+   "nivel": 5
   }
  },
  "oficina": {
@@ -1657,18 +1935,27 @@
   "alf": {
    "npc": "comerciante",
    "onde": "na banca da Rosa"
+  },
+  "coz": {
+   "npc": "",
+   "onde": "no seu fogão"
   }
  },
  "oficinaDistancia": 4.5,
  "raridadeCriar": {
   "base": 0.06,
   "max": 0.3,
-  "ate": 2
+  "ate": 4
  },
  "heroiCorrer": 5.4,
  "nivelInimigo": {
+  "forca": 1.8,
+  "resistencia": 1.6,
+  "defesaBase": 10,
+  "defesaNivel": 3,
+  "defesaMax": 1,
   "vida": 0.16,
-  "dano": 0.18,
+  "dano": 0.32,
   "xp": 0.5,
   "ouro": 0.15,
   "folga": 5,
@@ -1691,6 +1978,7 @@
   "corFacil": -3,
   "corForte": 2
  },
+ "pocaoRecarga": 10,
  "voltaVila": {
   "canal": 8,
   "cd": 600,
@@ -1785,6 +2073,29 @@
    "estacao": "fundir",
    "alto": 1.16,
    "desc": "Derrete minério em barras e queima lenha em carvão.",
+   "tipo": "movel",
+   "aba": "moveis",
+   "bancada": true
+  },
+  "fogao": {
+   "nome": "Fogão a lenha",
+   "w": 1.4,
+   "d": 1.2,
+   "circulos": [
+    [
+     0,
+     0,
+     0.65
+    ]
+   ],
+   "custo": {
+    "pedra": 8,
+    "lenha": 4,
+    "barra_ferro": 1
+   },
+   "estacao": "coz",
+   "alto": 0.9,
+   "desc": "Fogo de pedra com caldeirão. Perto dele você cozinha os pratos (receitas do Cozinheiro).",
    "tipo": "movel",
    "aba": "moveis",
    "bancada": true
@@ -1998,7 +2309,7 @@
    },
    "bancada": true,
    "alto": 0.6,
-   "desc": "Você renasce nela quando cai."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h)."
   },
   "tocha": {
    "nome": "Tocha",
@@ -2103,7 +2414,14 @@
  },
  "horta": {
   "rega": 24,
-  "vigor": 1
+  "vigor": 1,
+  "agua": 20,
+  "poco": {
+   "x": -6,
+   "z": -14,
+   "r": 3.2
+  },
+  "beira": 2.5
  },
  "ferramentas": {
   "enxada": {
@@ -2113,6 +2431,22 @@
    },
    "bancada": false,
    "para": "arar"
+  },
+  "picareta": {
+   "custo": {
+    "lenha": 2,
+    "pedra": 3
+   },
+   "bancada": false,
+   "para": "minerar"
+  },
+  "machado": {
+   "custo": {
+    "lenha": 3,
+    "pedra": 2
+   },
+   "bancada": false,
+   "para": "cortar"
   },
   "regador": {
    "custo": {
@@ -2137,6 +2471,130 @@
  "bau": {
   "slots": 40
  },
+ "organizar": [
+  "equip",
+  "consumivel",
+  "tomo",
+  "ferramenta",
+  "obra",
+  "semente",
+  "material",
+  "outro"
+ ],
+ "fornalha": {
+  "combustivel": {
+   "lenha": 12,
+   "carvao": 30
+  },
+  "receitas": {
+   "minerio_ferro": {
+    "faz": "barra_ferro",
+    "usa": 3,
+    "dur": 12,
+    "nivel": 1,
+    "vigor": 1
+   },
+   "minerio_cobre": {
+    "faz": "barra_cobre",
+    "usa": 3,
+    "dur": 12,
+    "nivel": 1,
+    "vigor": 1
+   },
+   "lenha": {
+    "faz": "carvao",
+    "usa": 2,
+    "dur": 8,
+    "nivel": 1,
+    "vigor": 1
+   },
+   "barra_ferro": {
+    "faz": "barra_aco",
+    "usa": 1,
+    "dur": 30,
+    "nivel": 5,
+    "vigor": 2,
+    "fogo": "carvao"
+   }
+  }
+ },
+ "fogao": {
+  "combustivel": {
+   "lenha": 12,
+   "carvao": 30
+  },
+  "tempo": {
+   "carne_assada": 10,
+   "sopa_legumes": 15,
+   "pao_milho": 15,
+   "ensopado": 20,
+   "torta_abobora": 25
+  },
+  "receitas": {
+   "carne_assada": {
+    "faz": "carne_assada",
+    "receita": "carne_assada",
+    "usa": 1,
+    "dur": 10,
+    "nivel": 1,
+    "vigor": 2,
+    "ing": {
+     "carne": 1,
+     "lenha": 1
+    }
+   },
+   "sopa_legumes": {
+    "faz": "sopa_legumes",
+    "receita": "sopa_legumes",
+    "usa": 1,
+    "dur": 15,
+    "nivel": 1,
+    "vigor": 3,
+    "ing": {
+     "cenoura": 1,
+     "batata": 1,
+     "rabanete": 1
+    }
+   },
+   "pao_milho": {
+    "faz": "pao_milho",
+    "receita": "pao_milho",
+    "usa": 1,
+    "dur": 15,
+    "nivel": 2,
+    "vigor": 3,
+    "ing": {
+     "milho": 2,
+     "lenha": 1
+    }
+   },
+   "ensopado": {
+    "faz": "ensopado",
+    "receita": "ensopado",
+    "usa": 1,
+    "dur": 20,
+    "nivel": 3,
+    "vigor": 4,
+    "ing": {
+     "carne": 2,
+     "batata": 1,
+     "tomate": 1
+    }
+   },
+   "torta_abobora": {
+    "faz": "torta_abobora",
+    "receita": "torta_abobora",
+    "usa": 1,
+    "dur": 25,
+    "nivel": 5,
+    "vigor": 5,
+    "ing": {
+     "abobora": 1,
+     "milho": 1
+    }
+   }
+  }
+ },
  "criarObra": {
   "min": 3,
   "max": 5,
@@ -2148,5 +2606,150 @@
   "desgaste": 10,
   "durMax": 100,
   "conserto": 0.3
+ },
+ "reforco": {
+  "max": [
+   0,
+   10,
+   20,
+   30,
+   40
+  ],
+  "chance": [
+   100,
+   80,
+   75,
+   70,
+   66,
+   62,
+   59,
+   56,
+   53,
+   50,
+   48,
+   46,
+   44,
+   42,
+   40,
+   38,
+   36,
+   34,
+   32,
+   30,
+   29,
+   28,
+   27,
+   26,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25,
+   25
+  ],
+  "custo": {
+   "base": 10,
+   "porRaridade": 12,
+   "sobe": 1.07
+  },
+  "seguro": 5,
+  "bonus": 0.4,
+  "bonusCritico": 0.2,
+  "atributo": {
+   "livre": 2,
+   "porNivel": 10
+  },
+  "tempo": 1.6
+ },
+ "catalisador": {
+  "arma": [
+   "runa_rara",
+   "runa_epica",
+   "runa_lendaria",
+   "runa_mitica"
+  ],
+  "armadura": [
+   "selo_raro",
+   "selo_epico",
+   "selo_lendario",
+   "selo_mitico"
+  ],
+  "comum": "barra_cobre",
+  "quantos": [
+   0.08,
+   0.9,
+   0.98
+  ],
+  "extra": [
+   0,
+   0,
+   0.25,
+   0.2,
+   0.15
+  ],
+  "tempoDestruir": 1.5,
+  "usa": {
+   "arma": [
+    {
+     "lenha": 4,
+     "barra_cobre": 3
+    },
+    {
+     "lenha": 6,
+     "barra_ferro": 4
+    },
+    {
+     "lenha": 8,
+     "cristal": 5
+    },
+    {
+     "lenha": 10,
+     "cristal": 6,
+     "barra_aco": 2
+    }
+   ],
+   "armadura": [
+    {
+     "couro": 4,
+     "barra_cobre": 3
+    },
+    {
+     "couro": 6,
+     "barra_ferro": 4
+    },
+    {
+     "couro": 8,
+     "cristal": 5
+    },
+    {
+     "couro": 10,
+     "cristal": 6,
+     "barra_aco": 2
+    }
+   ]
+  },
+  "falha": [
+   0,
+   0.1,
+   0.15,
+   0.2,
+   0.25
+  ],
+  "sorte": [
+   0.02,
+   0.06
+  ],
+  "vigor": 8,
+  "tempoEvoluir": 3
  }
 }

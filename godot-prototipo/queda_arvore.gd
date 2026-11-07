@@ -95,14 +95,9 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 			mi.material_override = p.mat
 		piv.add_child(mi)
 	var alto: float = 7.0 * float(o.r) / 0.32 # ~7 m de árvore por escala 1 (raio do tronco 0,32)
-	# sons (Kenney CC0): o tronco estala e range enquanto cede; no meio da queda os galhos ainda quebram
-	m.sons.tocar("arvore_estalo", 0.0, 0.06, pos)
-	m.sons.tocar("arvore_range", -1.0, 0.05, pos)
-	var ts := create_tween()
-	ts.tween_interval(CEDE)
-	ts.tween_callback(m.sons.tocar.bind("arvore_estalo", -3.0, 0.08, pos, 0.85))
-	ts.tween_interval(TOMBA * 0.5)
-	ts.tween_callback(m.sons.tocar.bind("arvore_estalo", -7.0, 0.1, pos, 1.1))
+	# som (Pixabay, André 2026-11-07): um só, já com o rangido, o estalo grande (~0,5 s), os galhos quebrando na queda
+	# e o baque (~2,7 s, quando a copa bate no chão). Os estalos Kenney de antes ficam guardados (arvore_estalo).
+	m.sons.tocar("arvore_range", 0.0, 0.02, pos)
 	var tw := create_tween()
 	var gira := _girar.bind(piv, eixo)
 	# cede: inclina devagar uns 5 graus, tremendo um pouco (o tronco ainda segura)
@@ -146,7 +141,7 @@ func _sumiu(info: Dictionary, piv: Node3D) -> void:
 # a copa bateu no chão: poeira ao longo do tronco, folhas voando, baque e tranco (mais forte perto)
 func _bateu(pos: Vector3, d: Vector3, alto: float) -> void:
 	var fim := pos + d * alto * 0.75
-	m.sons.tocar("arvore_queda", 2.0, 0.05, fim)
+	m.sons.tocar("arvore_queda", -5.0, 0.05, fim) # mais baixo: o som da queda já traz o baque, este só dá peso
 	m.sons.tocar("pouso_forte", -4.0, 0.05, fim, 0.5)
 	for i in 4:
 		var p := pos + d * alto * (0.2 + 0.22 * i)

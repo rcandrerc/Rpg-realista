@@ -47,9 +47,9 @@ const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
 # a estação perto faz (Alfaiate e móveis na bancada, Ferreiro na bigorna, barras na fornalha); só aparece perto de uma.
-const CATS_CRIAR := [["aqui", "Aqui"], ["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["estacoes", "Estações"],
+const CATS_CRIAR := [["aqui", "Aqui"], ["materiais", "Materiais"], ["armas", "Armas"], ["armaduras", "Armaduras"], ["comida", "Comida"], ["estacoes", "Estações"],
 	["casa", "Casa"], ["moveis", "Móveis"], ["ferramentas", "Ferramentas"]]
-const NOME_ESTACAO := {"fornalha": "Fornalha", "bigorna": "Bigorna", "bancada": "Bancada de trabalho"}
+const NOME_ESTACAO := {"fornalha": "Fornalha", "bigorna": "Bigorna", "bancada": "Bancada de trabalho", "fogao": "Fogão a lenha"}
 
 var m # main.gd
 var raiz: Control
@@ -86,6 +86,9 @@ var sel_equip := "" # peça escolhida no corpo (lugar)
 # André 2026-11-04: perto de quem compra (Rosa, Tomás) dá para marcar vários itens, ou Selecionar tudo, e vender de uma vez
 var vendendo := false # modo de marcar itens para vender
 var marcados := {} # lugar da mochila -> true
+# André 2026-11-07: filtro de coleta (botão Filtro da mochila). O que está desmarcado não entra na mochila (o servidor decide)
+var filtro_aberto := false
+var filtro_lista := false # lista de todos os recursos aberta
 var _confirma: Control # janelinha "tem certeza?" (apagar item, vender vários)
 # André 2026-11-03: tocar num lugar do corpo abre a janela da peça: Tirar (vai para a mochila; dá para ficar só com a
 # roupa de baixo) e a lista das peças da mochila que servem ali, comparadas com a vestida (melhor ou pior), com Trocar
@@ -143,6 +146,25 @@ func _ready() -> void:
 	moldura.add_child(x)
 
 # ---------- peças de estilo ----------
+# barra de rolar larga, fácil de pegar com o dedo (André 2026-11-07: na mochila cheia o toque caía nos itens)
+static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
+	var vb := sc.get_v_scroll_bar()
+	vb.custom_minimum_size.x = largura
+	var trilho := StyleBoxFlat.new()
+	trilho.bg_color = Color(0.03, 0.026, 0.022, 0.9)
+	trilho.set_corner_radius_all(int(largura / 2.0))
+	trilho.content_margin_left = largura / 2.0
+	trilho.content_margin_right = largura / 2.0
+	vb.add_theme_stylebox_override("scroll", trilho)
+	vb.add_theme_stylebox_override("scroll_focus", trilho)
+	for e in [["grabber", 0.55], ["grabber_highlight", 0.75], ["grabber_pressed", 0.95]]:
+		var g := StyleBoxFlat.new()
+		g.bg_color = Color(OURO, e[1])
+		g.set_corner_radius_all(int(largura / 2.0))
+		g.border_color = Color(0.03, 0.026, 0.022, 0.9)
+		g.set_border_width_all(3) # um respiro dentro do trilho
+		vb.add_theme_stylebox_override(e[0], g)
+
 static func caixa(cor: Color, borda: Color, b := 1, raio := 6, sombra := 0) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = cor
@@ -175,6 +197,16 @@ func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 		if not _arrastou:
 			fn.call())
 	return b
+
+# André 2026-11-07: botão travado (apagado/vermelho) não fica mudo. Tocar nele chama fn, que mostra o motivo
+# (sem vigor, mochila cheia, falta material, nível, ouro...). O Godot não solta "pressed" com o botão travado,
+# mas o toque ainda chega no gui_input.
+static func ao_tocar_travado(b: BaseButton, fn: Callable) -> void:
+	b.gui_input.connect(func(e: InputEvent): _toque_travado(b, e, fn))
+
+static func _toque_travado(b: BaseButton, e: InputEvent, fn: Callable) -> void:
+	if b.disabled and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+		fn.call()
 
 static func estilo_botao(b: Button, ativo: bool) -> void:
 	var n := caixa(FUNDO3 if ativo else FUNDO2, OURO if ativo else BORDA, 1, 6)
@@ -609,6 +641,7 @@ func montar_direita() -> Control:
 	rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rolagem.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fundo.add_child(rolagem)
+	barra_larga(rolagem)
 	conteudo = VBoxContainer.new()
 	conteudo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	conteudo.add_theme_constant_override("separation", 8)
@@ -654,6 +687,7 @@ func abrir(qual := "", sub := "") -> void:
 	janela_lugar = ""
 	vendendo = false
 	marcados = {}
+	filtro_aberto = false
 	raiz.visible = true
 	m.hud.bloqueado = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -671,7 +705,7 @@ func estacoes_perto() -> Array:
 	var l := []
 	var cons = m.construcao
 	for est in NOME_ESTACAO:
-		var prof := "alf" if est == "bancada" else "fer"
+		var prof := "alf" if est == "bancada" else "coz" if est == "fogao" else "fer"
 		if (cons != null and cons.estacao_perto([est])) or (m.trabalho != null and m.trabalho.perto_oficina(prof)):
 			l.append(est)
 	return l
@@ -699,6 +733,9 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_arrasto_dentro = rol.get_global_rect().has_point(ev.position)
+			var vb := rol.get_v_scroll_bar()
+			if vb.visible and vb.get_global_rect().has_point(ev.position):
+				_arrasto_dentro = false # dedo na barra: a própria barra rola, no sentido dela
 			_arrasto_soma = 0.0
 			_arrastou = false
 		else:
@@ -800,6 +837,14 @@ func montar_status() -> void:
 	lv.add_child(xp_txt)
 	conteudo.add_child(lv)
 	conteudo.add_child(barra_prog(float(p.xp) / max(1, P.xp_prox), Color(0.85, 0.66, 0.3)))
+	if P.teste: # só na conta de teste do André: mudar o nível na hora para testar os campos de caça
+		var tl := HBoxContainer.new()
+		tl.add_theme_constant_override("separation", 8)
+		tl.add_child(rotulo("Teste de nível:", 14, APAGADO))
+		for d in [-10, -1, 1, 10]:
+			tl.add_child(botao(("%+d" % d), func(): m.rede("nivelTeste", {"nv": int(p.nivel) + d}), 14))
+		tl.add_child(botao("Zerar pontos", func(): m.rede("nivelTeste", {"nv": int(p.nivel), "zerar": true}), 14))
+		conteudo.add_child(tl)
 	separador("Atributos")
 	# André 2026-11-06: + e − só mexem nos pontos pendentes; nada muda até apertar Confirmar (Desfazer zera).
 	# O − nunca tira ponto já confirmado.
@@ -1078,7 +1123,7 @@ func linha_skill(id: String) -> Control:
 	var nums := rotulo(P.linha(h), 13, Color(0.85, 0.8, 0.7) if livre else APAGADO)
 	nums.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(nums)
-	if livre and not base.get("basico", false):
+	if livre: # ataque básico também mostra a barra de usos (sobe até o 5 sem livro)
 		if nv < P.maximo(id):
 			var uso := HBoxContainer.new()
 			uso.add_theme_constant_override("separation", 8)
@@ -1120,7 +1165,7 @@ func linha_skill(id: String) -> Control:
 	return cx
 
 # ---------- profissões (Parte 3 do Quimera) ----------
-const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz"}
+const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz", "coz": "pf_coz"}
 const COR_VIGOR := Color(0.55, 0.8, 0.42)
 
 func icone_redondo(nome: String, tam: float, cor := Color.WHITE, borda := OURO) -> Control:
@@ -1264,7 +1309,7 @@ func montar_receitas(prof: String) -> void:
 	var of: Dictionary = P.dados.oficina[prof]
 	var aqui: bool = m.trabalho.perto_oficina(prof)
 	# Vila dos Lotes: perto de uma bigorna, fornalha ou bancada construída também dá (cada uma serve para umas receitas)
-	var estacoes := ["bigorna", "fornalha"] if prof == "fer" else ["bancada"]
+	var estacoes := ["bigorna", "fornalha"] if prof == "fer" else ["fogao"] if prof == "coz" else ["bancada"]
 	var na_estacao: bool = not aqui and m.construcao != null and m.construcao.estacao_perto(estacoes)
 	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Você está perto da sua estação: dá para criar o que ela faz.") if na_estacao else ("Para criar, vá %s ou a uma %s construída na Vila dos Lotes." % [str(of.onde).replace("na ", "até a "), " ou ".join(estacoes)]), 13, VERDE if aqui or na_estacao else APAGADO)
 	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1332,8 +1377,32 @@ func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	avisar_travado(b, func(): return motivo_receita(aqui, "a oficina ou a estação certa", nv_ok, "%s Nv %d" % [P.dados.profissoes[R.prof].nome, int(R.nivel)], R.usa, custo))
 	l.add_child(b)
 	return cx
+
+# mostra o motivo de um botão travado no meio da tela, com o som de "não dá"
+func avisar_travado(b: BaseButton, motivo: Callable) -> void:
+	ao_tocar_travado(b, func(): _avisar_motivo(str(motivo.call())))
+
+func _avisar_motivo(t: String) -> void:
+	if t != "":
+		m.hud.aviso(t)
+		m.sons.tocar("dash", -12.0)
+
+# primeiro motivo que impede criar ("" = dá)
+func motivo_receita(aqui: bool, onde: String, nv_ok: bool, nv_txt: String, usa: Dictionary, custo: float) -> String:
+	var P = m.P
+	if not nv_ok:
+		return "Nível baixo: precisa de %s" % nv_txt
+	if not aqui:
+		return "Vá até %s para criar" % onde
+	for k in usa:
+		if P.contar(k) < int(usa[k]):
+			return "Falta %s (%d/%d)" % [str(P.dados.itens[k].nome).to_lower(), P.contar(k), int(usa[k])]
+	if P.vigor() < custo:
+		return "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)"
+	return ""
 
 func criar(r: String) -> void:
 	if not m.on():
@@ -1353,7 +1422,7 @@ func itens_criar(cat: String) -> Array:
 	for r in D.receitas:
 		var R: Dictionary = D.receitas[r]
 		var lugar := str(D.itens[str(R.faz)].get("lugar", ""))
-		var c := "materiais" if lugar == "" else "armas" if lugar in ["espada", "cajado", "acessorio"] else "armaduras"
+		var c := "comida" if str(R.prof) == "coz" else "materiais" if lugar == "" else "armas" if lugar in ["espada", "cajado", "acessorio"] else "armaduras"
 		if c == cat:
 			lista.append({"tipo": "receita", "k": r, "nome": str(D.itens[str(R.faz)].nome), "nivel": int(R.nivel)})
 	for k in D.get("construcoes", {}):
@@ -1412,7 +1481,7 @@ func estacao_do_item(e: Dictionary) -> String:
 	if e.tipo == "receita":
 		var R: Dictionary = D.receitas[e.k]
 		var faz_s := str(R.faz)
-		return "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "bancada"
+		return "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "fogao" if str(R.prof) == "coz" else "bancada"
 	var cons = m.construcao
 	var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
 	return "bancada" if C.get("bancada", false) else ""
@@ -1436,9 +1505,9 @@ func linha_criavel(e: Dictionary) -> Control:
 		usa = R.usa
 		faz = {"k": str(R.faz), "r": 0} if D.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
 		var faz_s := str(R.faz)
-		est = "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "bancada"
+		est = "fornalha" if faz_s.begins_with("barra_") or faz_s == "carvao" else "bigorna" if str(R.prof) == "fer" else "fogao" if str(R.prof) == "coz" else "bancada"
 		var of: Dictionary = D.oficina[str(R.prof)]
-		onde = "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
+		onde = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 		aqui = m.trabalho.perto_oficina(str(R.prof)) or (cons != null and cons.estacao_perto([est]))
 		nv_ok = P.prof_nivel(str(R.prof)) >= int(R.nivel)
 		custo = P.custo_vigor(str(R.prof), float(R.vigor))
@@ -1525,6 +1594,10 @@ func linha_criavel(e: Dictionary) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	avisar_travado(b, func():
+		var nv_txt := "%s Nv %d" % [D.profissoes[str(D.receitas[e.k].prof)].nome, int(e.nivel)] if e.tipo == "receita" else ""
+		var mt := motivo_receita(aqui, onde, nv_ok, nv_txt, usa, custo)
+		return mt if mt != "" else motivo)
 	l.add_child(b)
 	if e.tipo == "obra" and motivo.begins_with("Você já tem"):
 		o.text = motivo
@@ -1602,6 +1675,15 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 	if it != null and P.eh_equip(it) and P.durab(it) < int(P.morte_dados().durMax):
 		_marca_durabilidade(b, it, tam)
 	moldurar(b, cor, escolhido, it != null)
+	if it != null and it.get("cad", false): # cadeado (André 2026-11-07): cadeadinho dourado no canto de baixo
+		var cd := TextureRect.new()
+		cd.texture = icone_tex("cadeado")
+		cd.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cd.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		cd.position = Vector2(3, tam - tam * 0.36 - 3)
+		cd.size = Vector2(tam * 0.34, tam * 0.36)
+		cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(cd)
 	if it != null and marcado:
 		var vel := ColorRect.new() # escurece um pouco e põe o sinal dourado no canto
 		vel.color = Color(0.95, 0.75, 0.3, 0.16)
@@ -1623,7 +1705,6 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 
 func montar_mochila() -> void:
 	var P = m.P
-	montar_capacete() # André não achava lá embaixo, depois da mochila: agora fica no alto da aba
 	var topo := HBoxContainer.new()
 	topo.add_child(linha_ouro())
 	var esp_ := Control.new()
@@ -1631,7 +1712,26 @@ func montar_mochila() -> void:
 	topo.add_child(esp_)
 	var cheios: int = P.prog.mochila.filter(func(x): return x != null).size()
 	topo.add_child(rotulo("%d / %d" % [cheios, P.prog.mochila.size()], 13, APAGADO))
+	# André 2026-11-07: botão Organizar (junta as pilhas e põe em ordem de tipo, raridade e nome; quem decide é o servidor)
+	var org := botao("Organizar", func(): acao_item({"acao": "organizar"}), 14, true)
+	org.custom_minimum_size = Vector2(130, 36)
+	org.disabled = cheios == 0 or vendendo
+	topo.add_child(org)
+	# André 2026-11-07: filtro de coleta (fica dourado quando tem algo desmarcado)
+	var f_atual := filtro_atual()
+	var fil := botao("Voltar" if filtro_aberto else "Filtro", func():
+		filtro_aberto = not filtro_aberto
+		vendendo = false
+		marcados = {}
+		atualizar(), 14, filtro_aberto or f_atual.r.size() > 0 or f_atual.k.size() > 0)
+	fil.custom_minimum_size = Vector2(110, 36)
+	if not filtro_aberto and (f_atual.r.size() > 0 or f_atual.k.size() > 0):
+		fil.add_theme_color_override("font_color", OURO_CLARO)
+	topo.add_child(fil)
 	conteudo.add_child(topo)
+	if filtro_aberto:
+		montar_filtro()
+		return
 	# páginas: abas 1 a 4; a que ainda não foi comprada mostra o preço e abre o cadeado
 	var por_pag: int = int(P.dados.mochila)
 	var total_pag: int = int(P.dados.get("mochilaPaginas", 1))
@@ -1689,20 +1789,141 @@ func montar_mochila() -> void:
 		conteudo.add_child(d)
 	montar_conjunto()
 
-# André 2026-11-03: mostrar ou esconder o capacete (só a aparência; a peça continua equipada e dando o bônus)
-func montar_capacete() -> void:
-	var P = m.P
+# ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
+# prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }; sem o campo = pega tudo.
+# Online quem decide é o servidor (filtrado() em shared/progresso.js): o desmarcado que cai do monstro fica no chão.
+func filtro_atual() -> Dictionary:
+	var f = m.P.prog.get("filtro")
+	var r: Array = []
+	var k: Array = []
+	if f is Dictionary:
+		for v in f.get("r", []):
+			r.append(int(v))
+		for v in f.get("k", []):
+			k.append(str(v))
+	return {"r": r, "k": k}
+
+func mandar_filtro(r: Array, k: Array) -> void:
+	acao_item({"acao": "filtro", "r": r, "k": k})
+
+func recursos_do_jogo() -> Array:
+	var itens: Dictionary = m.P.dados.itens
+	var l: Array = itens.keys().filter(func(k): return itens[k].get("mat", false))
+	l.sort_custom(func(a, b):
+		var sa: bool = str(a).begins_with("semente_")
+		var sb: bool = str(b).begins_with("semente_")
+		if sa != sb:
+			return sb # sementes no fim
+		return str(itens[a].nome).naturalnocasecmp_to(str(itens[b].nome)) < 0)
+	return l
+
+# um quadradinho de marcar: toca em qualquer parte (é um botão: arrastar a lista não marca sem querer)
+func marca_filtro(texto: String, cor: Color, marcado: bool, fn: Callable, icone := "", ao_nome := Callable()) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 44)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	estilo_botao(b, marcado)
 	var l := HBoxContainer.new()
-	l.add_theme_constant_override("separation", 10)
-	var mostra: bool = not P.prog.get("semCapacete", false)
-	var t := rotulo("Capacete aparece no corpo", 14, TEXTO)
-	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.add_theme_constant_override("separation", 8)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.offset_left = 8
+	l.offset_right = -6
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var q := Quadradinho.new()
+	q.lado = 20
+	q.marcado = marcado
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(q)
+	if icone != "":
+		var ic := TextureRect.new()
+		ic.texture = icone_tex(icone)
+		ic.custom_minimum_size = Vector2(30, 30)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if ic.texture and ic.texture.resource_path.ends_with(".svg"):
+			ic.modulate = cor
+		if not marcado:
+			ic.modulate.a = 0.45
+		l.add_child(ic)
+	var t := rotulo(texto, 14, cor if marcado else APAGADO)
 	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	l.add_child(t)
-	var b := botao("Mostrar" if not mostra else "Esconder", func(): acao_item({"acao": "capacete", "mostrar": not mostra}), 14, true)
-	b.custom_minimum_size = Vector2(130, 40)
-	l.add_child(b)
-	conteudo.add_child(l)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.clip_text = true
+	t.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if ao_nome.is_valid():
+		# André 2026-11-07: o quadradinho marca/desmarca tudo; tocar no nome abre a lista um por um
+		var nb := Button.new()
+		nb.flat = true
+		nb.focus_mode = Control.FOCUS_NONE
+		nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nb.mouse_filter = Control.MOUSE_FILTER_STOP
+		nb.add_child(t)
+		t.set_anchors_preset(Control.PRESET_FULL_RECT)
+		nb.pressed.connect(func():
+			if not _arrastou:
+				ao_nome.call())
+		l.add_child(nb)
+	else:
+		l.add_child(t)
+	b.add_child(l)
+	b.pressed.connect(func():
+		if not _arrastou:
+			fn.call())
+	return b
+
+func montar_filtro() -> void:
+	var P = m.P
+	var f := filtro_atual()
+	separador("Filtro de coleta")
+	var d := rotulo("O que estiver desmarcado não entra na mochila: fica no chão. Ouro, poções e Tomos sempre entram, e o recurso do veio ou da árvore que você está coletando também.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	separador("Equipamentos por raridade")
+	var g := GridContainer.new()
+	g.columns = 5
+	g.add_theme_constant_override("h_separation", 6)
+	for r in P.dados.raridades.size():
+		var marcado: bool = not f.r.has(r)
+		g.add_child(marca_filtro(str(P.dados.raridades[r].nome), Color(P.dados.raridades[r].cor), marcado, func():
+			var nr: Array = f.r.duplicate()
+			if nr.has(r):
+				nr.erase(r)
+			else:
+				nr.append(r)
+			mandar_filtro(nr, f.k)))
+	conteudo.add_child(g)
+	separador("Recursos")
+	var todos: Array = recursos_do_jogo()
+	var fora: int = todos.filter(func(k): return f.k.has(k)).size()
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var txt := "Todos os recursos" if fora == 0 else ("Nenhum recurso" if fora == todos.size() else "Recursos: %d de %d" % [todos.size() - fora, todos.size()])
+	txt += "  ▴" if filtro_lista else "  ▾"
+	# André 2026-11-07: sem botão "Escolher um por um": o quadradinho marca tudo, o nome abre a lista
+	linha.add_child(marca_filtro(txt, TEXTO, fora < todos.size(), func():
+		mandar_filtro(f.r, [] if fora > 0 else todos), P.icone_item({"k": "couro", "n": 1}) if P.dados.itens.has("couro") else "", func():
+		filtro_lista = not filtro_lista
+		atualizar()))
+	conteudo.add_child(linha)
+	if filtro_lista:
+		var g2 := GridContainer.new()
+		g2.columns = 3
+		g2.add_theme_constant_override("h_separation", 6)
+		g2.add_theme_constant_override("v_separation", 6)
+		for k in todos:
+			var it := {"k": k, "n": 1}
+			g2.add_child(marca_filtro(str(P.dados.itens[k].nome), P.cor_item(it), not f.k.has(k), func():
+				var nk: Array = f.k.duplicate()
+				if nk.has(k):
+					nk.erase(k)
+				else:
+					nk.append(k)
+				mandar_filtro(f.r, nk), P.icone_item(it)))
+		conteudo.add_child(g2)
 
 # bônus de conjunto: peças da mesma raridade (ou melhor), como o Set de Bruxa do Quimera
 func montar_conjunto() -> void:
@@ -1765,6 +1986,7 @@ func pagina_trancada(n: int, tem: int) -> Control:
 		b.custom_minimum_size = Vector2(200, 42)
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
+		avisar_travado(b, func(): return "Faltam %d de ouro" % (preco - int(P.prog.ouro)))
 		v.add_child(b)
 		if not pode:
 			var f := rotulo("Faltam %d de ouro" % (preco - int(P.prog.ouro)), 12, APAGADO)
@@ -1776,6 +1998,8 @@ func tocar_mochila(i: int) -> void:
 	if vendendo:
 		if marcados.has(i):
 			marcados.erase(i)
+		elif m.P.prog.mochila[i] != null and m.P.prog.mochila[i].get("cad", false):
+			m.hud.aviso("Item com cadeado: não vende. Abra o cadeado para vender")
 		elif m.P.prog.mochila[i] != null:
 			marcados[i] = true
 		atualizar()
@@ -1854,6 +2078,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	var d := rotulo(P.texto_item(it), 14, TEXTO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(d)
+	if P.eh_equip(it): # reforço (igual ao Quimera, André 2026-11-07): +N de +máx, próxima chance, custo e se falhar
+		txt.add_child(linha_reforco(it))
 	if P.eh_equip(it) and lugar == "":
 		var atual = P.prog.equip.get(P.dados.itens[it.k].lugar)
 		txt.add_child(rotulo(("No corpo: %s (%s)" % [P.nome_item(atual), P.texto_item(atual)]) if atual != null else "Lugar vazio no corpo", 12, APAGADO))
@@ -1863,17 +2089,59 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Tirar", {"acao": "tirar", "lugar": lugar}))
 	elif P.eh_equip(it):
 		bs.add_child(botao_acao("Equipar", {"acao": "equipar", "i": i}))
-	elif not P.eh_mat(it):
+	elif P.dados.itens.has(it.k) and P.dados.itens[it.k].has("obra"):
+		# peça de construção ou estação (André 2026-11-07): "Colocar" abre o modo construção já com ela escolhida
+		var ob: String = str(P.dados.itens[it.k].obra)
+		var por := func():
+			fechar()
+			m.construcao.abrir_com(ob)
+		var bc := botao("Colocar", por, 14, true)
+		bc.custom_minimum_size = Vector2(120, 36)
+		bs.add_child(bc)
+	elif not P.eh_mat(it) and (it.k == "tomo" or (P.dados.itens.has(it.k) and P.dados.itens[it.k].has("usar"))):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
-	if i >= 0 and m.perto_de_quem_compra():
+	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
+		var onde := {"i": i} if lugar == "" else {"lugar": lugar}
+		var r1 := botao("Reforçar", func(): m.reforco.comecar(onde, false), 14, true)
+		r1.custom_minimum_size = Vector2(120, 36)
+		bs.add_child(r1)
+		var r2 := botao("Até cancelar", func(): m.reforco.comecar(onde, true), 14)
+		r2.custom_minimum_size = Vector2(130, 36)
+		bs.add_child(r2)
+	var trancado: bool = bool(it.get("cad", false))
+	# cadeado (André 2026-11-07): trancado não vende (nem no Vender vários), não vai para o lixo nem para a troca
+	var cad := botao("Destrancar" if trancado else "Trancar", func(): acao_item({"acao": "cadeado", "i": i} if lugar == "" else {"acao": "cadeado", "lugar": lugar}), 14, false)
+	cad.icon = icone_tex("cadeado")
+	cad.expand_icon = false
+	cad.add_theme_constant_override("icon_max_width", 18)
+	cad.custom_minimum_size = Vector2(130, 36)
+	bs.add_child(cad)
+	if i >= 0 and not trancado and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
-	if i >= 0: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
+	if i >= 0 and not trancado: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
 		var ap := botao("Apagar", func(): perguntar_apagar(i), 14)
 		ap.custom_minimum_size = Vector2(110, 36)
 		ap.add_theme_color_override("font_color", PIOR)
 		ap.add_theme_color_override("font_hover_color", PIOR)
 		bs.add_child(ap)
 	txt.add_child(bs)
+	# catalisador (André 2026-11-07): Evoluir sobe a raridade com catalisador; Destruir dá catalisador (só da mochila)
+	if i >= 0 and P.eh_equip(it) and P.dados.has("catalisador"):
+		var bs2 := HBoxContainer.new()
+		bs2.add_theme_constant_override("separation", 8)
+		if int(it.r) < P.dados.raridades.size() - 1:
+			var be := botao("Evoluir", func(): perguntar_evoluir(i), 14, true)
+			be.custom_minimum_size = Vector2(120, 36)
+			bs2.add_child(be)
+		if not trancado:
+			var bd := botao("Destruir", func(): perguntar_destruir(i), 14)
+			bd.custom_minimum_size = Vector2(120, 36)
+			bd.add_theme_color_override("font_color", PIOR)
+			bd.add_theme_color_override("font_hover_color", PIOR)
+			bs2.add_child(bd)
+		txt.add_child(bs2)
+	if trancado:
+		txt.add_child(rotulo("Com cadeado: não vende, não vai para o lixo nem para a troca", 12, OURO))
 	l.add_child(txt)
 	return cx
 
@@ -1887,7 +2155,7 @@ func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
 	var raros := 0
 	for i in marcados.keys():
 		var it = P.prog.mochila[i] if i < P.prog.mochila.size() else null
-		if it == null:
+		if it == null or it.get("cad", false):
 			marcados.erase(i)
 			continue
 		var q: int = 1 if P.eh_equip(it) else max(1, int(it.get("n", 1)))
@@ -1912,7 +2180,7 @@ func barra_venda() -> Control:
 		return l
 	var cheios: Array = []
 	for i in P.prog.mochila.size():
-		if P.prog.mochila[i] != null:
+		if P.prog.mochila[i] != null and not P.prog.mochila[i].get("cad", false): # com cadeado fica de fora do Selecionar tudo
 			cheios.append(i)
 	var todos: bool = cheios.size() > 0 and marcados.size() >= cheios.size()
 	var sel := botao("Desmarcar tudo" if todos else "Selecionar tudo", func():
@@ -1928,6 +2196,7 @@ func barra_venda() -> Control:
 	vb.custom_minimum_size = Vector2(0, 40)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.disabled = r[0] == 0
+	avisar_travado(vb, func(): return "Marque primeiro os itens que quer vender")
 	l.add_child(vb)
 	var pr := botao("Pronto", func(): modo_vender(false), 14)
 	pr.custom_minimum_size = Vector2(100, 40)
@@ -1954,6 +2223,101 @@ func perguntar_vender_varios() -> void:
 	lista.sort()
 	confirmar("Vender de uma vez", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
 
+# ---------- catalisador (André 2026-11-07, como no Quimera; números em CATALISADOR, shared/dados.js) ----------
+# Runa = catalisador de arma (espada, cajado); Selo = de armadura (o resto). O servidor sorteia e confere tudo.
+const RAR_F := ["Comum", "Rara", "Épica", "Lendária", "Mítica"] # "peça Rara"
+const RAR_FP := ["Comuns", "Raras", "Épicas", "Lendárias", "Míticas"]
+func tipo_catalisador(k: String) -> String:
+	return "arma" if str(m.P.dados.itens[k].lugar) in ["espada", "cajado"] else "armadura"
+
+# o que destruir a peça pode dar, em texto ("1 Selo Raro (às vezes 0, 2 ou 3) · 25% de 1 Selo Épico")
+func texto_destruir(it) -> String:
+	var C: Dictionary = m.P.dados.catalisador
+	var r := int(it.r)
+	if r < 1:
+		return "1 %s (às vezes nada, 2 ou 3)" % m.P.dados.itens[C.comum].nome
+	var lista: Array = C[tipo_catalisador(it.k)]
+	var t := "1 %s (às vezes nada, 2 ou 3)" % m.P.dados.itens[lista[maxi(1, r - 1) - 1]].nome
+	if r > 1 and float(C.extra[r]) > 0:
+		t += "\n%d%% de chance de mais 1 %s" % [roundi(float(C.extra[r]) * 100), m.P.dados.itens[lista[r - 1]].nome]
+	return t
+
+func perguntar_destruir(i: int) -> void:
+	var P = m.P
+	var it = P.prog.mochila[i]
+	if it == null or not P.eh_equip(it):
+		return
+	var txt := "Destruir %s?\nA peça some e vira catalisador:\n%s" % [P.nome_item(it), texto_destruir(it)]
+	if int(it.get("e", 0)) > 0:
+		txt += "\nAtenção: perde o reforço +%d." % int(it.e)
+	# André 2026-11-07: sem linha "Destruir todas" na mochila; a escolha aparece aqui (só esta ou todas da raridade)
+	var r := int(it.r)
+	var n := 0
+	if not it.get("cad", false):
+		for o in P.prog.mochila:
+			if o != null and P.eh_equip(o) and int(o.r) == r and not o.get("cad", false):
+				n += 1
+	var todas := Callable()
+	var todas_txt := ""
+	if n > 1:
+		todas_txt = "Todas %s · %d" % [RAR_FP[r].to_lower(), n]
+		todas = func(): perguntar_destruir_todas(r)
+		txt += "\nOu destrua de uma vez todas as %d %s da mochila (sem cadeado)." % [n, RAR_FP[r].to_lower()]
+	confirmar("Destruir peça", txt, "Só esta", func(): acao_item({"acao": "destruir", "i": i}), true, todas_txt, todas)
+
+func perguntar_destruir_todas(r: int) -> void:
+	var P = m.P
+	var n := 0
+	var reforcadas := 0
+	for o in P.prog.mochila:
+		if o != null and P.eh_equip(o) and int(o.r) == r and not o.get("cad", false):
+			n += 1
+			if int(o.get("e", 0)) > 0:
+				reforcadas += 1
+	if n == 0:
+		return
+	var seg: float = float(P.dados.catalisador.tempoDestruir) * n
+	var da: String = texto_destruir({"k": "peitoral", "r": r})
+	if r >= 1:
+		var C: Dictionary = P.dados.catalisador
+		da = "1 catalisador %s (às vezes nada, 2 ou 3): Runa nas armas, Selo nas armaduras" % P.dados.raridades[maxi(1, r - 1)].nome
+		if r > 1 and float(C.extra[r]) > 0:
+			da += "\n%d%% de chance de mais 1 catalisador %s" % [roundi(float(C.extra[r]) * 100), P.dados.raridades[r].nome]
+	var txt := "Destruir %d %s %s da mochila?\nCada uma faz a própria barrinha, uma depois da outra (uns %d s no total).\nCada peça dá: %s\nPeças com cadeado e as do corpo ficam." % [n, "peça" if n == 1 else "peças", RAR_F[r] if n == 1 else RAR_FP[r], ceili(seg), da]
+	if reforcadas > 0:
+		txt += "\nAtenção: %d %s reforço e %s." % [reforcadas, "tem" if reforcadas == 1 else "têm", "perde" if reforcadas == 1 else "perdem"]
+	confirmar("Destruir todas", txt, "Destruir %d" % n, func(): acao_item({"acao": "destruir", "raridade": r}), true)
+
+func perguntar_evoluir(i: int) -> void:
+	var P = m.P
+	var it = P.prog.mochila[i]
+	if it == null or not P.eh_equip(it):
+		return
+	var C: Dictionary = P.dados.catalisador
+	var r := int(it.r) + 1
+	if r >= P.dados.raridades.size():
+		return
+	var tipo := tipo_catalisador(it.k)
+	var usa := {C[tipo][r - 1]: 1}
+	usa.merge(C.usa[tipo][r - 1])
+	var falta := false
+	var linhas: Array = []
+	for k in usa:
+		var tem: int = P.contar(k)
+		falta = falta or tem < int(usa[k])
+		linhas.append("%d %s (tem %d)" % [int(usa[k]), P.dados.itens[k].nome, tem])
+	var prof: String = str(P.dados.receitas[it.k].prof) if P.dados.receitas.has(it.k) else ("fer" if tipo == "arma" else "alf")
+	var t: float = float(P.prof_nivel(prof) - 1) / float(int(P.dados.profMax) - 1)
+	var falha: float = float(C.falha[r]) * (1.0 - 0.5 * t)
+	var sorte: float = (float(C.sorte[0]) + (float(C.sorte[1]) - float(C.sorte[0])) * t) if r < P.dados.raridades.size() - 1 else 0.0
+	var onde: String = "%s ou perto de uma %s" % [P.dados.oficina[prof].onde, "bigorna" if prof == "fer" else "bancada de trabalho"]
+	var txt := "Evoluir %s para %s?\nUsa: %s.\nFalha %s%% (perde o catalisador e o material, a peça fica)%s.\nA peça nova sai +0. Faça %s." % [P.nome_item(it), P.dados.raridades[r].nome, ", ".join(linhas), P.num(falha * 100, 1), (" · sorte %s%% (pula uma raridade)" % P.num(sorte * 100, 1)) if sorte > 0 else "", onde]
+	if int(it.get("e", 0)) > 0:
+		txt += "\nAtenção: perde o reforço +%d." % int(it.e)
+	if falta:
+		txt += "\nFalta material: destrua peças para juntar catalisador."
+	confirmar("Evoluir peça", txt, "Evoluir", func(): acao_item({"acao": "evoluir", "i": i}))
+
 func perguntar_apagar(i: int) -> void:
 	var P = m.P
 	var it = P.prog.mochila[i]
@@ -1970,7 +2334,7 @@ func fechar_confirma() -> void:
 		_confirma.queue_free()
 		_confirma = null
 
-func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false) -> void:
+func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false, extra := "", fn_extra := Callable()) -> void:
 	fechar_confirma()
 	_confirma = Control.new()
 	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2007,6 +2371,29 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 		ok.add_theme_color_override("font_color", PIOR)
 		ok.add_theme_color_override("font_hover_color", PIOR)
 	linha.add_child(ok)
+	if extra != "" and fn_extra.is_valid(): # segunda escolha (ex.: destruir todas da raridade)
+		cx.custom_minimum_size.x = 560
+		cx.position.x = -280
+		var b2 := botao(extra, func():
+			fechar_confirma()
+			fn_extra.call(), 15, true)
+		b2.custom_minimum_size = Vector2(170, 44)
+		if perigo:
+			b2.add_theme_color_override("font_color", PIOR)
+			b2.add_theme_color_override("font_hover_color", PIOR)
+		linha.add_child(b2)
+
+# André 2026-11-07: no card da peça só os números (o +N já vem no nome). Chance, custo e falta de atributo aparecem
+# na janelinha de reforçar e nos avisos. Aqui só um aviso curto quando a peça reforçada não pode ser usada (Quimera).
+func linha_reforco(it) -> Control:
+	var P = m.P
+	var l := rotulo("", 12, PIOR)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.visible = false
+	if not P.reforco_ok(it):
+		l.text = "⛔ " + ("Sem bônus: falta atributo" if it in P.prog.equip.values() else "Falta atributo para usar")
+		l.visible = true
+	return l
 
 func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	var b := botao(t, func(): acao_item(msg), 14, ativo)
@@ -2014,7 +2401,7 @@ func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	return b
 
 # ---------- janela da peça do corpo (André 2026-11-03) ----------
-# Tirar manda a peça para a mochila (qualquer lugar pode ficar vazio: sem nada, aparece a roupa de baixo branca).
+# Tirar manda a peça para a mochila (qualquer lugar pode ficar vazio: sem nada, aparece a roupa de baixo: biquíni ou samba-canção).
 # Embaixo, as peças da mochila que servem nesse lugar, com o que cada uma ganha ou perde em relação à vestida
 # (verde = melhor, vermelho = pior), as melhores primeiro; Trocar veste e a vestida vai para o lugar dela na mochila
 # (por isso trocar funciona mesmo com a mochila cheia). Online quem decide é o servidor (mensagem "item").
@@ -2063,7 +2450,7 @@ func st_item(it) -> Dictionary:
 	if m.P.eh_equip(it):
 		var st: Dictionary = m.P.dados.itens[it.k].st
 		for c in st:
-			r[c] = float(st[c][int(it.r)])
+			r[c] = float(st[c][int(it.r)]) * m.P.reforco_k(it, c) # com o reforço (+N)
 	return r
 
 # diferença da peça nova para a vestida: {"defesa": +2, "mana": -3}
@@ -2189,17 +2576,30 @@ func montar_janela() -> void:
 		var d := rotulo(P.texto_item(atual), 12, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		txt.add_child(d)
+		txt.add_child(linha_reforco(atual))
 	else:
 		txt.add_child(rotulo("Nada vestido", 16, APAGADO))
 		if l in ["corpo", "pernas"]:
 			txt.add_child(rotulo("Aparece a roupa de baixo", 12, APAGADO))
 	linha.add_child(txt)
 	var cheia: bool = P.prog.mochila.find(null) < 0
+	if atual != null and int(atual.get("e", 0)) < P.reforco_max(atual): # reforçar a peça vestida (igual ao Quimera)
+		var rv := VBoxContainer.new() # uma vez ou até cancelar (para sozinho no limite da peça, do atributo ou do ouro)
+		rv.add_theme_constant_override("separation", 4)
+		rv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var rf := botao("Reforçar", func(): m.reforco.comecar({"lugar": l}, false), 14, true)
+		rf.custom_minimum_size = Vector2(120, 38)
+		rv.add_child(rf)
+		var ra := botao("Até cancelar", func(): m.reforco.comecar({"lugar": l}, true), 14)
+		ra.custom_minimum_size = Vector2(120, 38)
+		rv.add_child(ra)
+		linha.add_child(rv)
 	if atual != null:
 		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
 		b.custom_minimum_size = Vector2(96, 44)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = cheia
+		avisar_travado(b, func(): return "Mochila cheia: libere um espaço para tirar a peça")
 		linha.add_child(b)
 	v.add_child(linha)
 	# linha 2: o aviso curto
@@ -2313,12 +2713,253 @@ func montar_loja() -> void:
 		l.add_child(txt)
 		var preco: int = P.preco_compra(o)
 		var pode: bool = int(P.prog.ouro) >= preco
-		var b := botao("Comprar · %d" % preco, func(): acao_item({"acao": "comprar", "i": i}), 14, pode)
+		var b := botao("Comprar · %d" % preco, func(): escolher_quantidade(i), 14, pode) # André 2026-11-07: escolhe quantos
 		b.custom_minimum_size = Vector2(140, 40)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
+		avisar_travado(b, func(): return "Faltam %d de ouro" % (preco - int(P.prog.ouro)))
 		l.add_child(b)
 		conteudo.add_child(l)
+
+# ---------- comprar várias de uma vez (André 2026-11-07) ----------
+# Tocar em Comprar abre a janelinha da quantidade: − e + (segurar repete e acelera), Máx (o que o ouro e a mochila deixam),
+# o total em ouro e Comprar, que manda tudo de uma vez ({ acao: 'comprar', i, n }; o servidor confere ouro e espaço).
+# Quando o servidor confirma (evento 'compra'), toca o som de moedas e sobe o "+20 Semente de cenoura" (comprou()).
+var _qtd := 1
+var _qtd_max := 1
+var _qtd_repete: Timer
+var _qtd_passo := 1 # quanto o − / + segurado anda (acelera)
+var _qtd_vezes := 0
+
+# quantos desse item ainda cabem na mochila (igual ao servidor: pilhas iguais com espaço + lugares vazios)
+func cabe_na_mochila(o: Dictionary) -> int:
+	var P = m.P
+	var equip: bool = P.dados.itens[str(o.k)].has("lugar")
+	var pilha: int = 1 if equip else int(P.dados.itens[str(o.k)].get("pilha", 1))
+	var n := 0
+	for x in P.prog.mochila:
+		if x == null:
+			n += pilha
+		elif not equip and str(x.k) == str(o.k) and not x.has("h") and not x.has("nv") and int(x.n) < pilha:
+			n += pilha - int(x.n)
+	return n
+
+func escolher_quantidade(i: int) -> void:
+	var P = m.P
+	var o: Dictionary = P.dados.loja[i]
+	var equip: bool = P.dados.itens[str(o.k)].has("lugar")
+	var it := {"k": str(o.k), "r": int(o.r)} if equip else {"k": str(o.k), "n": 1}
+	var preco: int = P.preco_compra(o)
+	var cabe := cabe_na_mochila(o)
+	_qtd_max = mini(int(P.dados.get("lojaMax", 999)), mini(int(P.prog.ouro) / maxi(1, preco), cabe))
+	if _qtd_max <= 0:
+		m.hud.aviso("Mochila cheia" if cabe <= 0 else "Ouro insuficiente")
+		return
+	_qtd = 1
+	fechar_confirma()
+	_confirma = Control.new()
+	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_confirma)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0, 0, 0, 0.5)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_confirma.add_child(escuro)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 10, 16))
+	cx.set_anchors_preset(Control.PRESET_CENTER)
+	cx.custom_minimum_size = Vector2(460, 0)
+	cx.position = Vector2(-230, -150)
+	_confirma.add_child(cx)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	cx.add_child(col)
+	# o item: ícone, nome e preço de cada um
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 12)
+	topo.add_child(celula(it, false, func(): pass, 56))
+	var nomes := VBoxContainer.new()
+	nomes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nomes.alignment = BoxContainer.ALIGNMENT_CENTER
+	nomes.add_child(rotulo(P.nome_item(it), 18, P.cor_item(it)))
+	nomes.add_child(rotulo("%d de ouro cada · você tem %d" % [preco, int(P.prog.ouro)], 13, APAGADO))
+	topo.add_child(nomes)
+	col.add_child(topo)
+	# − quantidade + e Máx
+	var linha_q := HBoxContainer.new()
+	linha_q.alignment = BoxContainer.ALIGNMENT_CENTER
+	linha_q.add_theme_constant_override("separation", 10)
+	col.add_child(linha_q)
+	var menos := botao_repete("−", -1)
+	linha_q.add_child(menos)
+	var caixa_n := PanelContainer.new()
+	caixa_n.add_theme_stylebox_override("panel", caixa(Color(0.04, 0.035, 0.03, 1), OURO, 1, 8, 6))
+	caixa_n.custom_minimum_size = Vector2(110, 56)
+	var num := rotulo("1", 28, OURO_CLARO)
+	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	num.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caixa_n.add_child(num)
+	linha_q.add_child(caixa_n)
+	var mais := botao_repete("+", 1)
+	linha_q.add_child(mais)
+	var maximo := botao("Máx", func(): mudar_qtd(_qtd_max - _qtd), 16)
+	maximo.custom_minimum_size = Vector2(72, 56)
+	linha_q.add_child(maximo)
+	var limite := rotulo("", 12, APAGADO)
+	limite.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	limite.text = "Até %d (%s)" % [_qtd_max, "o que cabe na mochila" if _qtd_max >= cabe else "o que o ouro paga" if _qtd_max < int(P.dados.get("lojaMax", 999)) else "por vez"]
+	col.add_child(limite)
+	# total e botões
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 10)
+	col.add_child(linha)
+	var total := HBoxContainer.new()
+	total.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	total.add_theme_constant_override("separation", 6)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex("it_ouro")
+	ic.custom_minimum_size = Vector2(24, 24)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	total.add_child(ic)
+	var t_total := rotulo("", 18, Color("ffd36a"))
+	t_total.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	total.add_child(t_total)
+	linha.add_child(total)
+	var nao := botao("Cancelar", fechar_confirma, 15)
+	nao.custom_minimum_size = Vector2(110, 48)
+	linha.add_child(nao)
+	var ok := botao("Comprar", func():
+		var n := _qtd
+		fechar_confirma()
+		acao_item({"acao": "comprar", "i": i, "n": n}), 16, true)
+	ok.custom_minimum_size = Vector2(130, 48)
+	linha.add_child(ok)
+	var mostrar := func():
+		num.text = str(_qtd)
+		t_total.text = "Total: %d de ouro" % (_qtd * preco)
+		ok.text = "Comprar %d" % _qtd
+		menos.disabled = _qtd <= 1
+		mais.disabled = _qtd >= _qtd_max
+		maximo.disabled = _qtd >= _qtd_max
+	_confirma.set_meta("mostrar", mostrar)
+	mostrar.call()
+
+func mudar_qtd(d: int) -> void:
+	_qtd = clampi(_qtd + d, 1, maxi(1, _qtd_max))
+	if _confirma and _confirma.has_meta("mostrar"):
+		(_confirma.get_meta("mostrar") as Callable).call()
+
+# − / + que repetem enquanto o dedo segura (começa de 1 em 1, depois de 5 em 5 e de 10 em 10)
+func botao_repete(t: String, sinal: int) -> Button:
+	var b := Button.new()
+	b.text = t
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 28)
+	b.custom_minimum_size = Vector2(64, 56)
+	estilo_botao(b, true)
+	b.button_down.connect(func():
+		mudar_qtd(sinal)
+		_qtd_vezes = 0
+		_qtd_passo = sinal
+		if _qtd_repete == null:
+			_qtd_repete = Timer.new()
+			add_child(_qtd_repete)
+			_qtd_repete.timeout.connect(func():
+				if _confirma == null or not _confirma.has_meta("mostrar"):
+					_qtd_repete.stop()
+					return
+				_qtd_vezes += 1
+				_qtd_repete.wait_time = 0.09
+				var passo := 1 if _qtd_vezes < 12 else 5 if _qtd_vezes < 30 else 10
+				mudar_qtd(passo * signi(_qtd_passo)))
+		_qtd_repete.wait_time = 0.4
+		_qtd_repete.start())
+	b.button_up.connect(func():
+		if _qtd_repete:
+			_qtd_repete.stop())
+	return b
+
+# o servidor confirmou a compra (evento 'compra' em online.gd): som de moedas e o "+n Item" subindo, com o ouro gasto
+func comprou(ev: Dictionary) -> void:
+	var P = m.P
+	if m.sons:
+		m.sons.tocar("moedas", -2.0, 0.05)
+	var it := {"k": str(ev.k), "r": int(ev.r)} if int(ev.get("r", -1)) >= 0 else {"k": str(ev.k), "n": int(ev.n)}
+	var caixa_f := PanelContainer.new()
+	caixa_f.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.06, 0.045, 0.94), OURO_CLARO, 2, 12, 12))
+	caixa_f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 10)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caixa_f.add_child(l)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.icone_item(it))
+	ic.custom_minimum_size = Vector2(52, 52)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_child(ic)
+	var txt := VBoxContainer.new()
+	txt.add_theme_constant_override("separation", 0)
+	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	txt.add_child(rotulo("+%d %s" % [int(ev.n), P.nome_item(it)], 24, MELHOR))
+	txt.add_child(rotulo("−%d de ouro" % int(ev.ouro), 17, Color("ffd36a")))
+	l.add_child(txt)
+	add_child(caixa_f)
+	await get_tree().process_frame
+	if not is_instance_valid(caixa_f):
+		return
+	var tela := get_viewport().get_visible_rect().size
+	caixa_f.position = Vector2((tela.x - caixa_f.size.x) * 0.5, tela.y * 0.42)
+	caixa_f.pivot_offset = caixa_f.size * 0.5
+	caixa_f.scale = Vector2(0.6, 0.6)
+	var tw := caixa_f.create_tween()
+	tw.tween_property(caixa_f, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(caixa_f, "position:y", tela.y * 0.42 - 70.0, 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(caixa_f, "modulate:a", 0.0, 0.5).set_delay(1.1)
+	tw.tween_callback(caixa_f.queue_free)
+
+# aprendeu com o Tomo (André 2026-11-07): faixa pequena e dourada, "Parabéns! Você liberou X Nv N", some sozinha
+func aprendeu(id: String, nv: int) -> void:
+	var P = m.P
+	if not P.habs.has(id):
+		return
+	if m.sons:
+		m.sons.tocar("nivel", -4.0, 0.0)
+	var caixa_f := PanelContainer.new()
+	caixa_f.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.06, 0.045, 0.95), OURO_CLARO, 2, 12, 14))
+	caixa_f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caixa_f.add_child(l)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.ICONE.get(id, ""))
+	ic.custom_minimum_size = Vector2(52, 52)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_child(ic)
+	var txt := VBoxContainer.new()
+	txt.add_theme_constant_override("separation", 0)
+	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	txt.add_child(rotulo("Parabéns!", 24, Color("ffd36a")))
+	txt.add_child(rotulo("Você liberou %s Nv %d" % [P.habs[id].nome, nv], 17, TEXTO))
+	l.add_child(txt)
+	add_child(caixa_f)
+	await get_tree().process_frame
+	if not is_instance_valid(caixa_f):
+		return
+	var tela := get_viewport().get_visible_rect().size
+	caixa_f.position = Vector2((tela.x - caixa_f.size.x) * 0.5, tela.y * 0.16)
+	caixa_f.pivot_offset = caixa_f.size * 0.5
+	caixa_f.scale = Vector2(0.6, 0.6)
+	var tw := caixa_f.create_tween()
+	tw.tween_property(caixa_f, "scale", Vector2(1.08, 1.08), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(caixa_f, "scale", Vector2.ONE, 0.15)
+	tw.tween_property(caixa_f, "modulate:a", 0.0, 0.5).set_delay(2.0)
+	tw.tween_callback(caixa_f.queue_free)
 
 # online o servidor confere e devolve a mochila nova; sem internet muda só neste celular (a loja só funciona online)
 func acao_item(msg: Dictionary) -> void:
@@ -2327,19 +2968,32 @@ func acao_item(msg: Dictionary) -> void:
 	if msg.acao == "usar" and i >= 0 and P.prog.mochila[i] != null and P.prog.mochila[i].k != "tomo":
 		if not m.usar_pocao(P.prog.mochila[i]): # vida/mana cheia: nem gasta
 			return
-	if msg.acao in ["equipar", "tirar", "vender", "apagar", "vender_varios"]:
+	if msg.acao in ["equipar", "tirar", "vender", "apagar", "vender_varios", "organizar"]:
 		sel_mochila = -1
 		sel_equip = ""
 	if msg.acao == "vender_varios":
 		vendendo = false
 		marcados = {}
+	if msg.acao in ["destruir", "evoluir"] and not m.on():
+		m.hud.aviso("Destruir e evoluir peça só funcionam online")
+		return
+	if msg.acao == "filtro": # o quadradinho responde na hora; online o servidor devolve o mesmo
+		if msg.r.is_empty() and msg.k.is_empty():
+			P.prog.erase("filtro")
+		else:
+			P.prog.filtro = {"r": msg.r.duplicate(), "k": msg.k.duplicate()}
+		P.mudou = true
 	if m.on():
 		m.rede("item", msg)
+		if msg.acao == "filtro":
+			atualizar()
 		return
 	match msg.acao:
 		"capacete":
 			P.prog.semCapacete = msg.mostrar == false
 		"equipar":
+			if i >= 0 and P.eh_equip(P.prog.mochila[i]) and not P.reforco_ok(P.prog.mochila[i]):
+				m.hud.aviso(P.texto_reforco_precisa(P.prog.mochila[i]))
 			P.equipar(i)
 		"tirar":
 			var r: String = P.tirar(msg.lugar)
@@ -2348,14 +3002,29 @@ func acao_item(msg: Dictionary) -> void:
 		"usar":
 			var it = P.prog.mochila[i]
 			if it.k == "tomo":
-				m.hud.aviso(P.usar_tomo(i))
+				var h := str(it.h)
+				var r: String = P.usar_tomo(i)
+				m.hud.aviso(r)
+				if r.ends_with("!"): # subiu
+					aprendeu(h, P.nivel_de(h))
 			else:
 				P.gastar(i)
 			if P.prog.mochila[i] == null:
 				sel_mochila = -1
+		"cadeado":
+			var it = P.prog.mochila[i] if i >= 0 and i < P.prog.mochila.size() else P.prog.equip.get(msg.get("lugar", ""))
+			if it != null:
+				if it.get("cad", false):
+					it.erase("cad")
+				else:
+					it.cad = 1
+				P.mudou = true
+				m.hud.aviso(("%s trancado: não dá para vender nem jogar fora" if it.has("cad") else "%s destrancado") % P.nome_item(it))
 		"apagar":
 			var it = P.prog.mochila[i] if i >= 0 and i < P.prog.mochila.size() else null
-			if it != null:
+			if it != null and it.get("cad", false):
+				m.hud.aviso("Item trancado. Abra o cadeado para jogar fora")
+			elif it != null:
 				P.prog.mochila[i] = null
 				P.mudou = true
 				m.hud.aviso("Jogou fora %s" % P.nome_item(it))
@@ -2365,6 +3034,9 @@ func acao_item(msg: Dictionary) -> void:
 			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
 		"pagina":
 			m.hud.aviso("Páginas da mochila só se compram online (o ouro fica na sua conta)")
+		"organizar":
+			P.prog.mochila = P.organizar(P.prog.mochila)
+			P.mudou = true
 	m.h.vida = min(m.h.vida, P.st.vidaMax)
 	m.h.mana = min(m.h.mana, P.st.manaMax)
 	atualizar()
