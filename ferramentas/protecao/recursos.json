@@ -54,6 +54,8 @@
     { "nome": "Lista de corpos do criador", "arquivo": "shared/dados.js", "contem": ["corpos: ['ruiva', 'cabelo_m'", "export function visualValido("] },
     { "nome": "Ruiva sem roupa com tronco de pele de verdade, emenda colada e roupa de baixo de tecido (André 2026-11-07)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func _tronco(", "get_meta(\"pescoco_ate\"", "static func _atletico(", "vertex_color_use_as_albedo = true"] },
     { "nome": "Contas com corpo que saiu do criador viram o corpo do mesmo sexo (André 2026-11-07)", "arquivo": "godot-prototipo/main.gd", "contem": ["get(\"corposAntigos\", {})"] },
+    { "nome": "Penteado: cabelo de outros modelos no herói, ajustado à cabeça (André 2026-11-07)", "arquivo": "godot-prototipo/penteado.gd", "contem": ["static func aplicar(no: Node3D, id) -> void:", "static func _mapa("] },
+    { "nome": "Criador: botões de penteado", "arquivo": "godot-prototipo/criador.gd", "contem": ["func montar_penteados() -> void:"] },
     { "nome": "Corpos do criador levam todas as animações do herói", "arquivo": "client/exportar-godot/exportar.js", "contem": ["const jogavel = heroi || CRIADOR.corpos.includes(id) || Object.hasOwn(CRIADOR.corposAntigos, id);"] },
     { "nome": "Zoom da câmera com dois dedos (pinça) e roda do mouse (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["var zoom_cam := 1.0", "func _dist_pinca("] },
     { "nome": "Pinça não rouba o joystick: zona morta perto das skills e lado esquerdo sempre do joystick (André 2026-11-03)", "arquivo": "godot-prototipo/hud.gd", "contem": ["func zona_morta(", "_toques[ev.index] = \"morto\"", "and not (\"joy\" in _toques.values()):"] },

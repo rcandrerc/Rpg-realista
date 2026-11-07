@@ -1353,6 +1353,19 @@
    "ruiva",
    "cabelo_m"
   ],
+  "penteados": {
+   "ruiva": [
+    "vivi",
+    "vita",
+    "victoria",
+    "shino",
+    "shibu",
+    "shibu_sombrio"
+   ],
+   "cabelo_m": [
+    "fumiriya"
+   ]
+  },
   "corposAntigos": {
    "shibu": "ruiva",
    "shibu_sombrio": "ruiva",
