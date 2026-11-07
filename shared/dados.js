@@ -1116,16 +1116,16 @@ export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por r
 export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3 };
 // Reforço de equipamento (igual ao Quimera, André 2026-11-07): toque na peça e em "Reforçar". Cada tentativa custa ouro e
 // pode falhar. Números do Quimera (index.html: Sh = chance, Th = custo, Rh = bônus, mgGNeed = atributo):
-// - max: até onde cada raridade vai (Comum não reforça; André: Rara até +5, Épica até +10; Lendária e Mítica seguem a
-//   mesma conta do Quimera pela metade: +15 e +20).
+// - max: até onde cada raridade vai, igual ao Quimera (André 2026-11-07: "faz igual Quimera"): Comum não reforça,
+//   Rara +10, Épica +20, Lendária +30, Mítica +40. Antes era +5/+10/+15/+20; só subiu, nenhuma peça perde reforço.
 // - chance[e]: % de sair de +e para +e+1. custo: round((base + porRaridade x raridade) x sobe^e) de ouro.
 // - falhou: volta 1 (+e-1), mas nunca abaixo do último múltiplo de `seguro` (+5, +10...: de +5 falhando continua +5).
 // - bônus: cada + soma `bonus` (40%) dos números da peça; o crítico soma `bonusCritico` (20%).
 // - atributo: de +3 em diante precisa de porNivel x (nível do reforço) de Força (espada), Inteligência (cajado) ou da
 //   maior das duas (armadura e acessório). `tempo`: segundos da barrinha da janela.
 export const REFORCO = {
-  max: [0, 5, 10, 15, 20],
-  chance: [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30],
+  max: [0, 10, 20, 30, 40],
+  chance: [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 29, 28, 27, 26, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25],
   custo: { base: 10, porRaridade: 12, sobe: 1.07 },
   seguro: 5, bonus: 0.4, bonusCritico: 0.2,
   atributo: { livre: 2, porNivel: 10 },
