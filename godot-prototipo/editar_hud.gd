@@ -493,6 +493,14 @@ func carregar() -> void:
 				var v = l[k]
 				if v is Array and v.size() == 3:
 					layout[str(k)] = [float(v[0]), float(v[1]), clamp(float(v[2]), S_MIN, S_MAX)]
+		# as poções mudaram para o lado direito (André 2026-11-07): o lugar salvo era contado do canto de cima à esquerda
+		# e cairia fora da tela, então volta ao padrão novo uma vez só (o resto do layout fica como o jogador deixou)
+		if not cfg.get_value("hud", "pocoes_direita", false):
+			layout.erase("bt:pocao")
+			layout.erase("bt:pocao_mana")
+			cfg.set_value("hud", "pocoes_direita", true)
+			cfg.set_value("hud", "layout", layout)
+			cfg.save(ARQUIVO)
 	aplicar_tudo.call_deferred() # depois que chat, minimapa e menu do topo montaram as peças
 
 func salvar() -> void:
