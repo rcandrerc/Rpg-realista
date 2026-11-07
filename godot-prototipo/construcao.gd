@@ -2346,8 +2346,8 @@ func _atualizar_mira() -> void:
 			var f := _criar_qual()
 			var mc := motivo_criar(f)
 			mot = "Precisa de %s: toque em Criar%s" % [str(D.itens[f].nome).to_lower(), "" if mc == "" else " (" + mc.to_lower() + ")"]
-		if mot == "" and m.P.vigor() < float(D.horta.vigor) and sel != "tirar":
-			mot = "Sem vigor (volta sozinho com o tempo)"
+		if mot == "" and m.P.vigor() < float(m.P.custo_vigor("faz", float(D.horta.vigor))) and sel != "tirar":
+			mot = "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h) ou durma na cama"
 		alvo = {"ok": mot == "", "motivo": mot, "tipo": "horta", "dados": dados}
 		_destaque_em(Vector3(i + 0.5, m.terreno.altura(i + 0.5, j + 0.5), j + 0.5), Vector3(1.0, 0.16, 1.0), Color(0.43, 1.0, 0.54, 0.35) if alvo.ok else Color(1, 0.35, 0.29, 0.35))
 	txt_motivo.text = alvo.motivo if alvo.motivo != "" else "Pode colocar aqui"
@@ -2930,6 +2930,8 @@ func _montar_tela() -> void:
 	b_ok.custom_minimum_size = Vector2(170, 76)
 	acoes.add_child(b_ok)
 	acoes.move_child(b_ok, 0)
+	# André 2026-11-07: regando sem vigor o botão só ficava vermelho. Travado, o toque agora mostra o motivo (colocar() avisa)
+	Menu.ao_tocar_travado(b_ok, colocar)
 	linha_andares = HBoxContainer.new()
 	linha_andares.add_theme_constant_override("separation", 8)
 	acoes.add_child(linha_andares)
@@ -2941,6 +2943,7 @@ func _montar_tela() -> void:
 		_botoes_andar[a[0]] = ba
 	b_criar = _botao("Criar", criar, false, 22)
 	b_criar.custom_minimum_size = Vector2(170, 62)
+	Menu.ao_tocar_travado(b_criar, criar) # travado: criar() diz o que falta (André 2026-11-07)
 	acoes.add_child(b_criar)
 	b_girar = _botao("Girar", girar, false, 20)
 	b_girar.custom_minimum_size = Vector2(170, 54)
@@ -2986,6 +2989,9 @@ func _montar_tela() -> void:
 	t2.add_child(canc)
 	b_comprar = _botao("Comprar", comprar, true, 20)
 	b_comprar.custom_minimum_size = Vector2(150, 54)
+	Menu.ao_tocar_travado(b_comprar, func():
+		m.hud.aviso(_ret_motivo if not _ret.is_empty() and _ret_motivo != "" else "Marque o terreno arrastando o dedo no chão" if _ret.is_empty() else "Nada mudou no terreno")
+		m.sons.tocar("dash", -12.0))
 	t2.add_child(b_comprar)
 	_montar_tela_bau()
 	_montar_tela_forno()

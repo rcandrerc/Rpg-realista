@@ -195,6 +195,16 @@ func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 			fn.call())
 	return b
 
+# André 2026-11-07: botão travado (apagado/vermelho) não fica mudo. Tocar nele chama fn, que mostra o motivo
+# (sem vigor, mochila cheia, falta material, nível, ouro...). O Godot não solta "pressed" com o botão travado,
+# mas o toque ainda chega no gui_input.
+static func ao_tocar_travado(b: BaseButton, fn: Callable) -> void:
+	b.gui_input.connect(func(e: InputEvent): _toque_travado(b, e, fn))
+
+static func _toque_travado(b: BaseButton, e: InputEvent, fn: Callable) -> void:
+	if b.disabled and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+		fn.call()
+
 static func estilo_botao(b: Button, ativo: bool) -> void:
 	var n := caixa(FUNDO3 if ativo else FUNDO2, OURO if ativo else BORDA, 1, 6)
 	var p := caixa(FUNDO3.lightened(0.08), OURO_CLARO, 1, 6)
@@ -1363,8 +1373,32 @@ func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	avisar_travado(b, func(): return motivo_receita(aqui, "a oficina ou a estação certa", nv_ok, "%s Nv %d" % [P.dados.profissoes[R.prof].nome, int(R.nivel)], R.usa, custo))
 	l.add_child(b)
 	return cx
+
+# mostra o motivo de um botão travado no meio da tela, com o som de "não dá"
+func avisar_travado(b: BaseButton, motivo: Callable) -> void:
+	ao_tocar_travado(b, func(): _avisar_motivo(str(motivo.call())))
+
+func _avisar_motivo(t: String) -> void:
+	if t != "":
+		m.hud.aviso(t)
+		m.sons.tocar("dash", -12.0)
+
+# primeiro motivo que impede criar ("" = dá)
+func motivo_receita(aqui: bool, onde: String, nv_ok: bool, nv_txt: String, usa: Dictionary, custo: float) -> String:
+	var P = m.P
+	if not nv_ok:
+		return "Nível baixo: precisa de %s" % nv_txt
+	if not aqui:
+		return "Vá até %s para criar" % onde
+	for k in usa:
+		if P.contar(k) < int(usa[k]):
+			return "Falta %s (%d/%d)" % [str(P.dados.itens[k].nome).to_lower(), P.contar(k), int(usa[k])]
+	if P.vigor() < custo:
+		return "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)"
+	return ""
 
 func criar(r: String) -> void:
 	if not m.on():
@@ -1556,6 +1590,10 @@ func linha_criavel(e: Dictionary) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	avisar_travado(b, func():
+		var nv_txt := "%s Nv %d" % [D.profissoes[str(D.receitas[e.k].prof)].nome, int(e.nivel)] if e.tipo == "receita" else ""
+		var mt := motivo_receita(aqui, onde, nv_ok, nv_txt, usa, custo)
+		return mt if mt != "" else motivo)
 	l.add_child(b)
 	if e.tipo == "obra" and motivo.begins_with("Você já tem"):
 		o.text = motivo
@@ -1801,6 +1839,7 @@ func pagina_trancada(n: int, tem: int) -> Control:
 		b.custom_minimum_size = Vector2(200, 42)
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
+		avisar_travado(b, func(): return "Faltam %d de ouro" % (preco - int(P.prog.ouro)))
 		v.add_child(b)
 		if not pode:
 			var f := rotulo("Faltam %d de ouro" % (preco - int(P.prog.ouro)), 12, APAGADO)
@@ -1974,6 +2013,7 @@ func barra_venda() -> Control:
 	vb.custom_minimum_size = Vector2(0, 40)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.disabled = r[0] == 0
+	avisar_travado(vb, func(): return "Marque primeiro os itens que quer vender")
 	l.add_child(vb)
 	var pr := botao("Pronto", func(): modo_vender(false), 14)
 	pr.custom_minimum_size = Vector2(100, 40)
@@ -2270,6 +2310,7 @@ func montar_janela() -> void:
 		b.custom_minimum_size = Vector2(96, 44)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = cheia
+		avisar_travado(b, func(): return "Mochila cheia: libere um espaço para tirar a peça")
 		linha.add_child(b)
 	v.add_child(linha)
 	# linha 2: o aviso curto
@@ -2387,6 +2428,7 @@ func montar_loja() -> void:
 		b.custom_minimum_size = Vector2(140, 40)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
+		avisar_travado(b, func(): return "Faltam %d de ouro" % (preco - int(P.prog.ouro)))
 		l.add_child(b)
 		conteudo.add_child(l)
 

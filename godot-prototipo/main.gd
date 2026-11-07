@@ -1922,7 +1922,10 @@ func _tentar(qual: String) -> bool:
 			hud.aviso("Modo espada" if h.modo == "Espada" else "Modo magia")
 			sons.tocar("sacar", -4.0)
 		"cura":
-			if recargas.get("cura", 0.0) > FILA_TEMPO or h.mana < D.CURA.mana:
+			if h.mana < D.CURA.mana:
+				hud.aviso("Mana insuficiente") # André 2026-11-07: antes não dizia nada
+				return true
+			if recargas.get("cura", 0.0) > FILA_TEMPO:
 				return true
 			if not pode_agir() or recargas.get("cura", 0.0) > 0.0:
 				return false
