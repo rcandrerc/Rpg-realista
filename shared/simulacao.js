@@ -1715,7 +1715,7 @@ export class Simulacao {
     const of = OFICINA[R.prof], npc0 = (this.mapa.npcs || []).find((n) => n.id === of.npc);
     // na oficina do NPC ou perto da estação certa construída num lote (bigorna, fornalha ou bancada)
     const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
-    if (!npc) return { motivo: `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? `Crie ${of.onde} ou perto da fornalha do seu terreno` : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
     if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return { motivo: `Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})` };
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
@@ -1759,7 +1759,8 @@ export class Simulacao {
   // estação construída (bigorna, fornalha, bancada) perto do jogador que serve para a receita: {x, z} ou null
   estacaoPerto(j, R) {
     const k = RECEITA_ESTACAO(R);
-    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
+    // fornalha (André 2026-11-07): só a do próprio terreno, porque o dono deixa material dentro; bancada e bigorna valem em qualquer terreno
+    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && (k !== 'fornalha' || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
   }
   // o que o celular precisa saber de um lote (agora = relógio do servidor, para a horta crescer igual nos dois)
