@@ -10,6 +10,8 @@ Regra do André (2026-11-06): **nada da versão PC pode mudar o celular**. Por i
   Mostra a tecla de cada botão num selinho no canto.
 - `preset-windows.cfg`: preset de exportação (x86_64, `.exe` + `.pck` lado a lado, feature `aethra_pc`).
 - `LEIA-ME.txt`: vai dentro do zip, com os controles.
+- `Aethra-OpenGL.bat`: vai dentro do zip; abre com `--rendering-driver opengl3` para placas sem Vulkan/D3D12.
+  O `preparar.sh` também liga o fallback automático para OpenGL 3 (e ANGLE) no projeto do PC.
 
 ## Gerar
 

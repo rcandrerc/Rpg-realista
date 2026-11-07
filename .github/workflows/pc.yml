@@ -78,7 +78,7 @@ jobs:
           $GODOT_BIN --headless --export-release Windows $GITHUB_WORKSPACE/Aethra/Aethra.exe
           ls -la $GITHUB_WORKSPACE/Aethra
           [ -s $GITHUB_WORKSPACE/Aethra/Aethra.pck ] || { echo "::error::Exportação sem o pacote do jogo"; exit 1; }
-          cp $GITHUB_WORKSPACE/ferramentas/pc/LEIA-ME.txt $GITHUB_WORKSPACE/Aethra/
+          cp $GITHUB_WORKSPACE/ferramentas/pc/LEIA-ME.txt $GITHUB_WORKSPACE/ferramentas/pc/Aethra-OpenGL.bat $GITHUB_WORKSPACE/Aethra/
           cd $GITHUB_WORKSPACE && zip -qr Aethra-PC.zip Aethra && ls -la Aethra-PC.zip
       - name: Publicar no release "pc"
         if: github.ref == 'refs/heads/main'
