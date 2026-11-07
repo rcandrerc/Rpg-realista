@@ -770,9 +770,11 @@ static func _trocar_malha(mi: MeshInstance3D, malha: Mesh) -> void:
 # fator de largura do corpo por altura: cintura fina (~5 cm acima do umbigo) e quadril um pouco mais largo.
 # Só depende da altura, então pele, blusa e saia apertam igual e uma camada nunca fura a outra.
 static func _fator_forma(y: float, R: Ref) -> Vector2: # (x, z)
-	var cint := _sino(absf(y - (R.y_cintura + 0.05)), 0.13)
-	var quad := _sino(absf(y - (R.y_cintura - 0.085)), 0.07)
-	return Vector2(1.0 - 0.38 * cint + 0.1 * quad, 1.0 - 0.18 * cint)
+	# André 2026-11-07: com o tronco de pele de verdade (_tronco) a cintura de 38% ficou "artificial demais": agora
+	# aperta 24%, numa curva mais longa e suave, e o quadril abre menos
+	var cint := _sino(absf(y - (R.y_cintura + 0.05)), 0.17)
+	var quad := _sino(absf(y - (R.y_cintura - 0.085)), 0.09)
+	return Vector2(1.0 - 0.24 * cint + 0.06 * quad, 1.0 - 0.12 * cint)
 
 static func _forma_corpo(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var am := ArrayMesh.new()
