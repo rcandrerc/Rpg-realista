@@ -1823,6 +1823,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 var _impacto_t := -9.0
 # tiro_basico: a Faísca do cajado acertou. O herói continua andando enquanto atira, então aqui NÃO congela o jogo
 # nem treme a câmera (André 2026-11-03: "correndo e trava, parece lag"); fica o som, o flash, o número e um toque leve.
+var _faisca_t := -9.0 # último acerto da Faísca: a confirmação do servidor não toca outro golpe por cima
 func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_basico := false) -> void:
 	if _impacto_quadro == Engine.get_process_frames():
 		return
@@ -1830,7 +1831,8 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_bas
 	_impacto_t = tempo
 	var pesado := forte or crit
 	if tiro_basico:
-		sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
+		# o som do acerto da Faísca é o impacto de fogo (faisca_acerto, efeitos.gd); o "acerto" genérico tapava ele (André 2026-11-07)
+		_faisca_t = tempo
 		vibrar(18 if pesado else 12)
 		return
 	parar_golpe(HITSTOP_FORTE if pesado else HITSTOP)
