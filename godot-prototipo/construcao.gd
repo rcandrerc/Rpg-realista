@@ -1256,6 +1256,8 @@ func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	h.fase = f
 	h.molhada = mo
 	for n in h.no.get_children():
+		if n.name == "info": # placa da planta (barra e tempo) fica; _info_planta cuida dela
+			continue
 		if mudou_terra or n.name != "terra":
 			n.queue_free()
 	if mudou_terra or h.no.get_node_or_null("terra") == null:
@@ -1268,6 +1270,104 @@ func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 		h.mask_feita = h.get("mask", 0)
 	if f >= 0:
 		_desenhar_planta(h.no, h.c, f)
+	_info_planta(h, h.no.position.distance_to(m.heroi.position) < INFO_PERTO) # plantou/regou: a placa já muda
+
+# ---------- placa da planta (André 2026-11-07: "quando eu plantei não mostra nada") ----------
+# Em cima de cada planta, perto do herói: nome + fase, barra de crescimento e o que fazer: "Precisa regar!" (terra
+# seca, não cresce), "Regada · falta 1h 20min" ou "Pronta para colher!". Conta igual à do servidor (_crescida).
+const INFO_PERTO := 14.0 # metros
+const FASES_PLANTA := ["Semente", "Brotando", "Crescendo", "Quase pronta", "Pronta"]
+const BARRA_W := 0.62
+var _mat_barra := {}
+
+func _mat_info(cor: Color, prio: int) -> StandardMaterial3D:
+	var k := "%s/%d" % [cor.to_html(), prio]
+	if not _mat_barra.has(k):
+		var mt := StandardMaterial3D.new()
+		mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mt.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mt.no_depth_test = true
+		mt.albedo_color = cor
+		mt.render_priority = prio
+		_mat_barra[k] = mt
+	return _mat_barra[k]
+
+static func _tempo_txt(horas: float) -> String:
+	var mn := int(ceil(horas * 60.0))
+	if mn < 60:
+		return "%d min" % maxi(1, mn)
+	return "%dh %02dmin" % [mn / 60, mn % 60] if mn % 60 else "%dh" % (mn / 60)
+
+func _info_planta(h: Dictionary, perto: bool) -> void:
+	var info: Node3D = h.no.get_node_or_null("info")
+	if not perto or h.c == "" or not D.plantas.has(h.c):
+		if info:
+			info.visible = false
+		return
+	if info == null:
+		info = Node3D.new()
+		info.name = "info"
+		var fundo := MeshInstance3D.new()
+		fundo.name = "fundo"
+		var qf := QuadMesh.new()
+		qf.size = Vector2(BARRA_W + 0.04, 0.095)
+		fundo.mesh = qf
+		fundo.material_override = _mat_info(Color(0.08, 0.06, 0.04, 0.8), 10)
+		fundo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		info.add_child(fundo)
+		var cheio := MeshInstance3D.new()
+		cheio.name = "cheio"
+		cheio.mesh = QuadMesh.new()
+		cheio.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		info.add_child(cheio)
+		var t := Label3D.new()
+		t.name = "txt"
+		t.font = m.fonte_nome()
+		t.font_size = 34
+		t.pixel_size = 0.0045
+		t.outline_size = 10
+		t.outline_modulate = Color(0.08, 0.06, 0.04)
+		t.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		t.no_depth_test = true
+		t.render_priority = 12
+		t.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM # o texto fica todo acima da barra
+		t.position.y = 0.07
+		info.add_child(t)
+		h.no.add_child(info)
+	info.visible = true
+	var P: Dictionary = D.plantas[h.c]
+	var cr := minf(1.0, _crescida(h))
+	var f := fase(cr)
+	var mo := _molhada(h)
+	var txt: Label3D = info.get_node("txt")
+	var cor_barra: Color
+	var linha2: String
+	if f >= 4:
+		cor_barra = Color(0.45, 0.9, 0.35)
+		linha2 = "Pronta para colher!"
+		txt.modulate = Color(0.6, 1.0, 0.5)
+	elif not mo:
+		cor_barra = Color(0.85, 0.7, 0.3)
+		linha2 = "Precisa regar! (não cresce seca)"
+		txt.modulate = Color(1.0, 0.72, 0.35)
+	else:
+		cor_barra = Color(0.35, 0.7, 1.0)
+		var falta := (1.0 - cr) * float(P.G)
+		var agua: float = (h.w + float(D.horta.rega) * 3600000.0 - agora_ms()) / 3600000.0
+		linha2 = "Regada · falta %s" % _tempo_txt(falta)
+		if agua < falta: # a água acaba antes: vai precisar regar de novo
+			linha2 += " · seca em %s" % _tempo_txt(agua)
+		txt.modulate = Color(0.85, 0.93, 1.0)
+	txt.text = "%s · %s %d%%\n%s" % [P.nome, FASES_PLANTA[f], int(cr * 100.0), linha2]
+	# barra: o pedaço cheio cresce da esquerda (center_offset no espaço da malha acompanha o billboard)
+	var cheio: MeshInstance3D = info.get_node("cheio")
+	var q: QuadMesh = cheio.mesh
+	var w := maxf(0.005, BARRA_W * cr)
+	q.size = Vector2(w, 0.06)
+	q.center_offset = Vector3((w - BARRA_W) / 2.0, 0, 0)
+	cheio.material_override = _mat_info(cor_barra, 11)
+	info.position.y = 0.95 # acima da planta (abóbora e milho são os mais altos)
 
 # Terra arada como a do Quimera (mgSoGeo, melhoria pedida pelo André em 2026-11-04): uma malha por canteiro que
 # emenda com os vizinhos arados e, onde não tem vizinho, se desfaz no chão com borda irregular (ruído), sem caixa
@@ -2060,8 +2160,10 @@ func _process(dt: float) -> void:
 		for id in lotes:
 			for c in lotes[id].horta:
 				var h: Dictionary = lotes[id].horta[c]
-				if h.no.position.distance_squared_to(hp) < 3600.0:
+				var d2: float = h.no.position.distance_squared_to(hp)
+				if d2 < 3600.0:
 					_desenhar_canteiro(h)
+				_info_planta(h, d2 < INFO_PERTO * INFO_PERTO)
 
 func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool) -> void:
 	var prof := prof_da_estacao()
@@ -2077,8 +2179,10 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool) -> void:
 	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
 	m.hud.mostrar_botao("correio", correio and vivo and not livre)
 	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
+	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
+	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
 	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
-	m.hud.mostrar_botao("cama", noite and ((no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
+	m.hud.mostrar_botao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
 	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
@@ -2290,6 +2394,20 @@ func tocar_botao_construir() -> void:
 		abrir()
 
 # ponto do chão debaixo do dedo (plano na altura da mira, refinado duas vezes pelo relevo)
+# o toque caiu em cima de uma cama minha? (distância do raio da câmera até o meio da cama, ~0,5 m acima do chão)
+func _tocou_cama(pos: Vector2) -> bool:
+	if m.camera == null or m.heroi == null or m.h.morto > 0.0:
+		return false
+	var o: Vector3 = m.camera.project_ray_origin(pos)
+	var d: Vector3 = m.camera.project_ray_normal(pos)
+	for p in _pecas_minhas(["cama"]):
+		var c := Vector3(p.x, _piso(p.x, p.z) + 0.45, p.z)
+		var t: float = maxf(0.0, (c - o).dot(d))
+		if (o + d * t).distance_to(c) < 1.1 and t < 40.0:
+			tocar_estacao("cama")
+			return true
+	return false
+
 func _chao_na_tela(pos: Vector2):
 	if m.camera == null:
 		return null
@@ -2309,6 +2427,8 @@ func _chao_na_tela(pos: Vector2):
 
 # toque rápido no chão com o modo aberto: a mira vai para lá
 func tocou_tela(pos: Vector2) -> void:
+	if not ativo and not comprando and _tocou_cama(pos): # tocar na minha cama: vai até ela e dorme (ou diz por que não)
+		return
 	if comprando and not cobre(pos):
 		var a = _alca_na_tela(pos, ["mais", "menos"])
 		if a != null:
