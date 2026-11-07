@@ -2067,7 +2067,7 @@ func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	return b
 
 # ---------- janela da peça do corpo (André 2026-11-03) ----------
-# Tirar manda a peça para a mochila (qualquer lugar pode ficar vazio: sem nada, aparece a roupa de baixo branca).
+# Tirar manda a peça para a mochila (qualquer lugar pode ficar vazio: sem nada, aparece a roupa de baixo: biquíni ou samba-canção).
 # Embaixo, as peças da mochila que servem nesse lugar, com o que cada uma ganha ou perde em relação à vestida
 # (verde = melhor, vermelho = pior), as melhores primeiro; Trocar veste e a vestida vai para o lugar dela na mochila
 # (por isso trocar funciona mesmo com a mochila cheia). Online quem decide é o servidor (mensagem "item").
