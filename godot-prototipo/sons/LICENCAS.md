@@ -27,3 +27,13 @@ Montados com ffmpeg a partir dos pacotes Kenney (CC0 1.0, uso comercial liberado
 | arvore_range | a árvore caindo inteira: rangido, estalo grande, galhos quebrando e baque (troca pedida pelo André em 2026-11-07: o rangido Kenney antigo parecia cadeira arrastando em ferro) | Pixabay, "Falling Tree" de mollyroselee (som 431321, Pixabay Content License: uso comercial, sem crédito obrigatório), cortado de 0,4 s a 5,2 s, mono; original no New-Game-Anime-fontes (sons/pixabay/) |
 | arvore_estalo | tronco e galhos quebrando (lascas em sequência) | kenney_impact-sounds impactWood_light_000-002 + kenney_rpg-audio chop |
 | arvore_queda | baque pesado da árvore no chão, com o quique | kenney_impact-sounds impactWood_heavy_000, 002, 003 (mais graves) |
+
+# Faísca (magia básica do mago), sons da Pixabay
+
+Troca pedida pelo André em 2026-11-07 (não gostava do impacto antigo). Os q_faisca_* antigos ficam guardados na pasta, sem uso.
+Pixabay Content License: uso comercial liberado, sem crédito obrigatório. Originais no New-Game-Anime-fontes (sons/pixabay/).
+
+| Arquivo | O que é | Gravação |
+|---|---|---|
+| faisca_lanca | whoosh da bola de fogo saindo da mão | Pixabay, "Fireball Whoosh 1" de floraphonic (som 179125), cortado de 0,03 s a 0,78 s com fade final, mono, -9,5 dB |
+| faisca_acerto | impacto da bola de fogo no alvo | Pixabay, "Fireball Impact" de koiroylers (som 351961), cortado de 0,09 s a 0,99 s com fade final, mono, -11 dB |
