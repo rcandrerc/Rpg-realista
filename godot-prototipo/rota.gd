@@ -24,6 +24,7 @@ var caminho := PackedVector2Array() # rota de agora: pontos da estrada e, por ú
 var i := 0 # ponto da rota para onde o herói está indo
 var _t := 0.0
 var _p0 := Vector2.ZERO
+var olha := OLHA # dentro de casa (ir até uma estação) mira mais perto, para não cortar o canto da porta
 
 func _init(principal) -> void:
 	m = principal
@@ -111,7 +112,7 @@ func comprimento(r: PackedVector2Array, de := 0) -> float:
 		t += r[k - 1].distance_to(r[k])
 	return t
 
-func ir(r: PackedVector2Array) -> void:
+func ir(r: PackedVector2Array, aviso := "Indo pela estrada", olha_ := OLHA) -> void:
 	if r.is_empty() or m.heroi == null:
 		return
 	caminho = r
@@ -119,11 +120,13 @@ func ir(r: PackedVector2Array) -> void:
 	ativo = true
 	_t = 0.0
 	_p0 = _heroi()
+	olha = olha_
 	if m.conversa:
 		m.conversa.indo = null
 	if m.trabalho and m.trabalho.coletando != null:
 		m.trabalho.parar(true)
-	m.hud.aviso("Indo pela estrada")
+	if aviso != "":
+		m.hud.aviso(aviso)
 
 func parar(aviso := "") -> void:
 	if not ativo:
@@ -146,7 +149,7 @@ func direcao_auto() -> Vector3:
 		return Vector3.ZERO
 	var p := _heroi()
 	var ultimo := caminho.size() - 1
-	while i < ultimo and p.distance_to(caminho[i]) < OLHA:
+	while i < ultimo and p.distance_to(caminho[i]) < olha:
 		i += 1
 	var d: Vector2 = caminho[i] - p
 	if d.length() < 0.05:
