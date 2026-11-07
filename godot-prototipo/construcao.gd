@@ -192,8 +192,91 @@ func _carregar_modelos() -> void:
 	_modelos["cama"] = _modelo_gltf("res://construcao3d/Bed_Twin1.gltf", 1.0)
 	_modelos["tocha"] = _modelo_tocha()
 	for k in _modelos:
+		juntar_malhas(_modelos[k]) # FPS (2026-11-07): a peça vira 1 ou 2 malhas, com o mesmo visual
+		_alcance_peca(_modelos[k], k)
 		_modelos[k].visible = false
 		add_child(_modelos[k])
+
+# FPS na construção (André 2026-11-07: "perdas muito grandes de FPS na vila e na hora da construção"): cada peça era um
+# monte de malhas soltas (a fornalha tinha 17 caixas, a tocha 11, cada parede do kit várias), e cada malha é uma chamada
+# de desenho a mais, e outra na sombra. Aqui as malhas paradas da peça viram uma malha só, com uma parte por material:
+# o desenho é o mesmo (mesmos vértices, mesmos materiais), só que em bem menos chamadas. O que mexe sozinho fica solto:
+# a folha da porta (abre), os pilares (escala por giro), a chama da tocha (sem sombra) e o que tiver nome em MANTER.
+const MANTER := ["folha", "pilares", "chama", "bandeira"]
+static func juntar_malhas(raiz: Node3D) -> void:
+	var grupos := {} # sombra -> {material id -> [material, SurfaceTool]}
+	var feitos := []
+	for mi: MeshInstance3D in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.skin != null or not mi.visible or _dentro_de_manter(mi, raiz):
+			continue
+		# posição da malha em relação à raiz da peça (a raiz ainda está fora da árvore: soma os pais na mão)
+		var t := mi.transform
+		var p := mi.get_parent()
+		var escondido := false
+		while p != null and p != raiz:
+			if p is Node3D:
+				escondido = escondido or not (p as Node3D).visible
+				t = (p as Node3D).transform * t
+			p = p.get_parent()
+		if escondido or p == null:
+			continue # algum pai escondido: fica como está
+		var sombra: int = mi.cast_shadow
+		if not grupos.has(sombra):
+			grupos[sombra] = {}
+		for i in mi.mesh.get_surface_count():
+			if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+				continue
+			var mat: Material = mi.material_override
+			if mat == null:
+				mat = mi.get_surface_override_material(i)
+			if mat == null:
+				mat = mi.mesh.surface_get_material(i)
+			var chave := mat.get_instance_id() if mat else 0
+			if not grupos[sombra].has(chave):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				grupos[sombra][chave] = [mat, st]
+			(grupos[sombra][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+		feitos.append(mi)
+	if feitos.size() < 2:
+		return # nada a ganhar
+	for sombra in grupos:
+		var am := ArrayMesh.new()
+		for chave in grupos[sombra]:
+			var g: Array = grupos[sombra][chave]
+			(g[1] as SurfaceTool).commit(am)
+			am.surface_set_material(am.get_surface_count() - 1, g[0])
+		if am.get_surface_count() == 0:
+			continue
+		var junto := MeshInstance3D.new()
+		junto.name = "junto_%d" % sombra
+		junto.mesh = am
+		junto.cast_shadow = sombra
+		raiz.add_child(junto)
+	for mi: MeshInstance3D in feitos:
+		if mi.get_child_count() == 0:
+			mi.get_parent().remove_child(mi)
+			mi.free()
+		else:
+			mi.mesh = null # tem filho (luz, outra malha solta): o nó fica, só não desenha mais
+
+static func _dentro_de_manter(n: Node, raiz: Node) -> bool:
+	while n != null and n != raiz:
+		if str(n.name) in MANTER:
+			return true
+		n = n.get_parent()
+	return false
+
+# de longe a peça não é desenhada (como a vila em main.gd alcance_da_vila): paredes, portas, janelas e fundação até
+# 120 m como as casas da vila; móveis 60 m (pequenos) ou 90 m. Perto (no terreno e na vila) nada muda.
+static func _alcance_peca(raiz: Node3D, k: String) -> void:
+	var longe := 120.0 if k in ["parede", "porta", "janela", "fundacao", "telhado"] else 90.0
+	if k in ["bau", "tocha", "bigorna"]:
+		longe = 60.0
+	for mi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
+		mi.visibility_range_end = longe
+		mi.visibility_range_end_margin = 8.0
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 # extra: outros modelos juntos [caminho, posição, nome] (a folha da porta, o caixilho da janela)
 func _modelo_gltf(caminho: String, escala: float, pos := Vector3.ZERO, extra := []) -> Node3D:
@@ -595,7 +678,7 @@ func bordas_do_quadrado(x: float, z: float) -> Array:
 # chão sem as casas dos jogadores (pedras e casas da vila contam)
 func _chao(x: float, z: float) -> float:
 	var h := 0.0
-	for r in m.terreno.solidos:
+	for r in m.terreno.solidos_em(x, z): # só os da casa de 4 m do ponto (FPS 2026-11-07)
 		if r.get("obra", false):
 			continue
 		var a: float = m.terreno.altura_na(r, x, z)
@@ -685,6 +768,7 @@ func _refazer_pisos() -> void:
 			"rampa": m.terreno.rampas_telhado(cel, 2.0 * g, _telha_sobe())}) # telhado em rampa (2026-11-05)
 	m.terreno.solidos.append_array(_pisos)
 	m.terreno.casas.append_array(_pisos) # teto: dentro de casa a cabeça bate no telhado e na verga da porta
+	m.terreno.solidos_mudaram() # a grade de 4 m dos sólidos (terreno.gd) se refaz
 
 # altura do topo das paredes de um quadrado (piso + parede)
 func _topo_parede(x: float, z: float) -> float:
@@ -994,6 +1078,9 @@ func _refazer_telhado(L: Dictionary) -> void:
 	mi.name = "telhado"
 	mi.mesh = _malha_rampas(m.terreno.rampas_telhado(cel_r, grade(), _telha_sobe()), base) # rampa (o _malha_telhado antigo fica guardado)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	mi.visibility_range_end = 140.0 # FPS (2026-11-07): de muito longe não desenha (o telhado inteiro é grande)
+	mi.visibility_range_end_margin = 8.0
+	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	L.raiz.add_child(mi)
 	L.telhado = mi
 
@@ -1007,31 +1094,42 @@ func _refazer_telhado(L: Dictionary) -> void:
 const CORTE_PERTO := 0.75 # m: meia largura do corte junto do herói
 const CORTE_ABRE := 0.3 # m a mais por metro andado para o lado da câmera (cone)
 const CORTE_VEL := 5.0 # quanto o apagar/voltar anda por segundo (1 = some em 0,2 s)
+const TERRENO_PERTO := 25.0 # m: terreno mais longe que isso do herói não tem telhado nem parede sumindo
 var dentro_de_casa := false # o herói está dentro de uma casa, no modo jogo (a câmera ignora as paredes da casa)
 
 func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 	var g := grade() / 2.0
 	var dentro := false
 	var livre := ativo or comprando
+	# FPS (2026-11-07): só os terrenos perto do herói (ou o meu, construindo) podem ter telhado ou parede sumindo; os de
+	# longe que já voltaram ao normal ("quieto") nem são olhados. Antes o laço passava por todas as peças de todos os
+	# terrenos a cada quadro.
+	var perto := {}
+	for id in lotes:
+		if dist_ret(lotes[id].def, hp.x, hp.z) < TERRENO_PERTO or (ativo and id == meu):
+			perto[id] = true
 	for id in lotes:
 		var L: Dictionary = lotes[id]
+		if not perto.has(id) and L.get("quieto", false):
+			continue
 		var mi = L.get("telhado")
 		if mi == null:
 			continue
 		var some := false
-		for c in L.telhado_celulas:
-			if absf(hp.x - c.x) < g and absf(hp.z - c.y) < g and hp.y < float(L.telhado_base) - 0.3:
-				some = true
-				dentro = true
-			if ativo and id == meu and not sel in ["telhado", "desmontar"] and absf(mira.x - c.x) < g + 0.3 and absf(mira.z - c.y) < g + 0.3:
-				some = true
-			if ativo and id == meu and andar == "terreo": # andar térreo: o telhado inteiro some (fica a sombra)
-				some = true
+		if perto.has(id):
+			for c in L.telhado_celulas:
+				if absf(hp.x - c.x) < g and absf(hp.z - c.y) < g and hp.y < float(L.telhado_base) - 0.3:
+					some = true
+					dentro = true
+				if ativo and id == meu and not sel in ["telhado", "desmontar"] and absf(mira.x - c.x) < g + 0.3 and absf(mira.z - c.y) < g + 0.3:
+					some = true
+				if ativo and id == meu and andar == "terreo": # andar térreo: o telhado inteiro some (fica a sombra)
+					some = true
 		_apagar(mi, some, dt)
 	# em cima de uma fundação (casa ainda sem telhado também conta), abaixo do alto das paredes
 	if not dentro:
 		var topo := float(D.get("casa", {}).get("parede", 3.1)) - 0.3
-		for id in lotes:
+		for id in perto:
 			for p in lotes[id].pecas:
 				if p.k == "fundacao" and absf(hp.x - p.x) < g and absf(hp.z - p.z) < g and hp.y < _piso(p.x, p.z) + topo:
 					dentro = true
@@ -1053,14 +1151,25 @@ func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 			comp += 0.6
 			b2 = a2 + dir * comp
 	for id in lotes:
-		for p in lotes[id].pecas:
+		var L: Dictionary = lotes[id]
+		var eh_perto := perto.has(id)
+		if not eh_perto and L.get("quieto", false):
+			continue
+		var quieto := not eh_perto
+		for p in L.pecas:
 			if tipo_peca(p.k) != "borda" or not p.get("no") or not is_instance_valid(p.no):
 				continue
 			var corta := false
-			if dir != Vector2.ZERO and absf(p.x - hp.x) < comp + g + 1.0 and absf(p.z - hp.z) < comp + g + 1.0:
+			if eh_perto and dir != Vector2.ZERO and absf(p.x - hp.x) < comp + g + 1.0 and absf(p.z - hp.z) < comp + g + 1.0:
 				corta = _parede_tapa(p, a2, b2, dir, g)
 			p.cortada = corta # a parede está cortada agora (o apagar anda devagar até lá)
 			_apagar(p.no, corta, dt)
+			if quieto and p.no.get_meta("apagado", 0.0) != 0.0:
+				quieto = false
+		var tl = L.get("telhado")
+		if quieto and tl != null and is_instance_valid(tl) and tl.get_meta("apagado", 0.0) != 0.0:
+			quieto = false
+		L.quieto = quieto
 
 # a parede p (de 2 m, na linha da grade) tapa a vista do herói (a2) até a câmera (b2)?
 func _parede_tapa(p: Dictionary, a2: Vector2, b2: Vector2, dir: Vector2, g: float) -> bool:
@@ -2050,29 +2159,16 @@ func _process(dt: float) -> void:
 	# estação do terreno perto: um botão só (o André tirou o botão da forja da HUD; a forja do Tomás fica no Falar)
 	# 2026-11-07 (André): no meu terreno os botões da mesa, do baú e da fornalha aparecem já ao chegar perto da casa;
 	# tocar faz o herói ir andando até o lado da estação (entra pela porta) e só aí ela abre (tocar_estacao)
-	var prof := prof_da_estacao()
-	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"]))
-	var correio := _meu_correio_perto() and prof == ""
-	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
-	m.hud.mostrar_botao("bancada", com_mesa and vivo and not livre)
-	if prof != "":
-		m.hud.icone_botao("bancada", "pf_" + prof)
-	elif not mesa_minha.is_empty():
-		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_fer")
-	m.hud.mostrar_botao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
-	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
-	m.hud.mostrar_botao("correio", correio and vivo and not livre)
-	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
-	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
-	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
-	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
-	m.hud.mostrar_botao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
-	m.hud.mostrar_botao("encher", m.P.contar("regador") > 0 and agua_regador() < int(D.horta.get("agua", 20)) and perto_de_agua(hp) and vivo and not livre)
+	# FPS (2026-11-07): os botões das estações passam por todas as peças de todos os terrenos (e pela conta de parede no
+	# meio); 7 vezes por segundo basta (o botão aparece no máximo 0,15 s depois). Muda o modo, morre ou abre/fecha a
+	# construção: confere na hora.
+	_t_botoes -= dt
+	var chave_b := [vivo, livre, no_meu]
+	if _t_botoes <= 0.0 or chave_b != _chave_botoes:
+		_t_botoes = 0.15
+		_chave_botoes = chave_b
+		_botoes_estacao(no_meu, vivo, livre, hp)
 	_passo_ir_estacao()
-	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
-		fechar_bau()
-	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
-		fechar_forno()
 	_passo_forno(dt)
 	_passo_fab()
 	_mexer_portas(hp, dt)
@@ -2100,6 +2196,30 @@ func _process(dt: float) -> void:
 				if d2 < 3600.0:
 					_desenhar_canteiro(h)
 				_info_planta(h, d2 < INFO_PERTO * INFO_PERTO)
+
+func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void:
+	var prof := prof_da_estacao()
+	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"]))
+	var correio := _meu_correio_perto() and prof == ""
+	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
+	m.hud.mostrar_botao("bancada", com_mesa and vivo and not livre)
+	if prof != "":
+		m.hud.icone_botao("bancada", "pf_" + prof)
+	elif not mesa_minha.is_empty():
+		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_fer")
+	m.hud.mostrar_botao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
+	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
+	m.hud.mostrar_botao("correio", correio and vivo and not livre)
+	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
+	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
+	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
+	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
+	m.hud.mostrar_botao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
+	m.hud.mostrar_botao("encher", m.P.contar("regador") > 0 and agua_regador() < int(D.horta.get("agua", 20)) and perto_de_agua(hp) and vivo and not livre)
+	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
+		fechar_bau()
+	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
+		fechar_forno()
 
 # câmera flutuante (Quimera iD): o joystick move a mira a 7 m/s na direção da câmera; a mira não sai do terreno
 # (construindo) nem das terras (comprando)
@@ -2295,6 +2415,8 @@ func prof_da_estacao() -> String:
 
 # no meu terreno e vivo: o martelo do topo fica aceso
 var _pode_aqui := false
+var _t_botoes := 0.0 # FPS: os botões das estações se conferem a cada 0,15 s (_process)
+var _chave_botoes := []
 func pode_construir_aqui() -> bool:
 	return _pode_aqui
 
@@ -2501,11 +2623,16 @@ func _mostrar_fantasma(k: String) -> void:
 	if k == "":
 		return
 	fantasma = _copia(k)
+	_fantasma_cor = -1
 	add_child(fantasma)
 	for mi in fantasma.find_children("*", "MeshInstance3D", true, false):
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
+var _fantasma_cor := -1 # FPS: a cor do fantasma (1 pode, 0 não) só se repinta quando muda
 func _pintar_fantasma(ok: bool) -> void:
+	if int(ok) == _fantasma_cor:
+		return
+	_fantasma_cor = int(ok)
 	var mt := _mat_ok if ok else _mat_nao
 	for mi in fantasma.find_children("*", "MeshInstance3D", true, false):
 		mi.material_override = mt

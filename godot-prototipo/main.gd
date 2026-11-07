@@ -783,10 +783,35 @@ func modelo(id: String) -> Node3D:
 		anim.get_animation(nome).loop_mode = Animation.LOOP_LINEAR if nome in LACOS else Animation.LOOP_NONE
 	anim.play("parada")
 	pintar(no, true, id == "ruiva")
+	sem_sombra_no_rosto(no)
 	if id in SEM_CASACO:
 		VisualNpc.tirar_casaco(no)
 	molas(no)
 	return no
+
+# FPS (André 2026-11-07, vila): cada personagem (herói, NPC, outro jogador) tem 8 pecinhas do rosto (olhos, brilho do
+# olho, boca, cílios, delineado, sobrancelha) e cada uma também era desenhada de novo na sombra. Elas ficam coladas no
+# rosto, dentro da sombra da cabeça, então a sombra delas não aparece: só gastava 8 chamadas de desenho por personagem.
+# A sombra da cabeça, do cabelo e do corpo continua igual.
+const ROSTO_SEM_SOMBRA := ["FaceMouth", "EyeIris", "EyeHighlight", "EyeWhite", "EyeExtra", "FaceEyelash", "FaceEyeline", "FaceBrow"]
+static func sem_sombra_no_rosto(no: Node) -> void:
+	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
+			continue
+		var so_rosto := true
+		for i in mi.mesh.get_surface_count():
+			var mt := mi.mesh.surface_get_material(i)
+			var nome: String = mt.resource_name if mt else ""
+			var achou := false
+			for k in ROSTO_SEM_SOMBRA:
+				if k in nome:
+					achou = true
+					break
+			if not achou:
+				so_rosto = false
+				break
+		if so_rosto:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 # aparência do herói (criador de personagem): pinta o herói e o boneco do menu e guarda no celular
 func definir_aparencia(a, salvar := true) -> void:
@@ -2988,6 +3013,15 @@ func lod_inimigos() -> void:
 	if heroi == null:
 		return
 	var hp: Vector3 = heroi.position
+	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
+	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
+	for n in npcs:
+		var dn: float = n.no.position.distance_squared_to(hp)
+		var longe_n: bool = dn > (LONGE_INIMIGO + 5.0) * (LONGE_INIMIGO + 5.0) if n.get("longe", false) else dn > LONGE_INIMIGO * LONGE_INIMIGO
+		if longe_n != n.get("longe", false):
+			n.longe = longe_n
+			n.no.visible = not longe_n
+			n.no.process_mode = Node.PROCESS_MODE_DISABLED if longe_n else Node.PROCESS_MODE_INHERIT
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
 		if longe != e.get("longe", false):
@@ -3076,7 +3110,18 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	# dentro de casa no modo jogo (André 2026-11-05, como no Quimera) a câmera não bate nas paredes nem no telhado da
 	# casa: fica longe como lá fora e a parede que tapa a vista apaga (construcao.gd _telhados_visiveis)
 	var sem_casa: bool = construcao != null and construcao.dentro_de_casa
-	for r in terreno.solidos:
+	# FPS (2026-11-07): só os sólidos das casas de 4 m que a linha cruza (terreno.gd solidos_em), não todos os do mapa
+	# (cada parede e fundação construída é um sólido). Mesmo resultado: quem não toca a linha já ficava de fora.
+	var cand := []
+	var vistos_s := {}
+	var G: float = terreno.SOL_G
+	for i in range(floori(minf(a2.x, b2.x) / G), floori(maxf(a2.x, b2.x) / G) + 1):
+		for j in range(floori(minf(a2.y, b2.y) / G), floori(maxf(a2.y, b2.y) / G) + 1):
+			for r in terreno.solidos_em(i * G + 0.5, j * G + 0.5):
+				if not vistos_s.has(r._i): # _i: número do sólido (a grade põe)
+					vistos_s[r._i] = true
+					cand.append(r)
+	for r in cand:
 		if sem_casa and r.get("obra", false):
 			continue
 		var c := Vector2(r.x, r.z)
@@ -3647,4 +3692,5 @@ func atualizar_teste(dt: float) -> void:
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
-	rotulo.text = txt
+	if rotulo.text != txt: # trocar o texto refaz a letra toda (caro no celular): só quando mudou (FPS, 2026-11-07)
+		rotulo.text = txt
