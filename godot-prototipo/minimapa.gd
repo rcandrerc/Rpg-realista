@@ -564,6 +564,32 @@ func _desenhar_mini() -> void:
 	var n := meio + Vector2(0, -RAIO)
 	c.draw_circle(n, 9.0, Color(0.05, 0.04, 0.03, 0.9))
 	_texto(c, n + Vector2(0, -1), "N", 13, COR_OURO)
+	_relogio(c, meio + Vector2(0, RAIO + 2.0))
+
+# hora do jogo (dia e noite do Quimera, André 2026-11-07): plaquinha na borda de baixo do minimapa com o sol ou a lua
+func _relogio(c: Control, pos: Vector2) -> void:
+	if m.get("dia") == null or m.dia.env == null:
+		return
+	var t: String = m.dia.texto_hora()
+	var noite: bool = m.dia.eh_noite()
+	var w: float = fonte.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 30.0
+	var r := Rect2(pos - Vector2(w * 0.5, 10), Vector2(w, 20))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.05, 0.04, 0.9)
+	sb.border_color = Color("c9a35a")
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(10)
+	c.draw_style_box(sb, r)
+	var ic := r.position + Vector2(12, 10)
+	if noite: # lua crescente: um círculo claro com outro escuro por cima
+		c.draw_circle(ic, 5.5, Color("dfe6ff"))
+		c.draw_circle(ic + Vector2(2.6, -1.6), 4.6, Color(0.06, 0.05, 0.04))
+	else: # sol: miolo e 8 raios
+		for i in 8:
+			var a := TAU * i / 8.0
+			c.draw_line(ic + Vector2(cos(a), sin(a)) * 4.6, ic + Vector2(cos(a), sin(a)) * 6.6, Color("ffc94a"), 1.6, true)
+		c.draw_circle(ic, 3.4, Color("ffd76a"))
+	_texto(c, Vector2(r.position.x + 22.0, pos.y - 1.0), t, 13, Color(1, 0.94, 0.8) if not noite else Color(0.85, 0.89, 1.0), false, 0)
 
 # amigos do time (amigos.gd)
 func _time() -> Array:

@@ -178,6 +178,23 @@ func vigor() -> float:
 	var s: float = max(0.0, agora_ms() - float(prog.vigor.t)) / 1000.0
 	return min(float(dados.vigor.max), float(prog.vigor.v) + s / float(dados.vigor.enche) * float(dados.vigor.max))
 
+# ---------- dia e noite (igual a shared/progresso.js horaDoJogo; dados em shared/dados.js DIA e CAMA) ----------
+# hora do jogo (0 a 24) no relógio da conta: prog.dia = {h, t}; conta que nunca dormiu segue o relógio do mundo
+func hora_do_jogo() -> float:
+	var D: Dictionary = dados.get("dia", {"horaSeg": 30, "comeco": 8})
+	var dia = prog.get("dia")
+	var h0: float = float(dia.h) if dia is Dictionary else float(D.comeco)
+	var t0: float = float(dia.t) if dia is Dictionary else 0.0
+	return fposmod(h0 + (agora_ms() - t0) / 1000.0 / float(D.horaSeg), 24.0)
+
+static func eh_noite_h(h: float, D: Dictionary) -> bool:
+	return h >= float(D.get("noite", 19)) or h < float(D.get("manha", 5))
+
+# segundos até a cama dar vigor de novo (0 = pronta)
+func cama_vigor_em() -> float:
+	var C: Dictionary = dados.get("cama", {"cada": 21600})
+	return max(0.0, (float(prog.get("camaT", 0)) + float(C.cada) * 1000.0 - agora_ms()) / 1000.0)
+
 # segundos até o vigor encher
 func vigor_cheio_em() -> float:
 	return (float(dados.vigor.max) - vigor()) / float(dados.vigor.max) * float(dados.vigor.enche)

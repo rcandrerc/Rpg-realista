@@ -83,6 +83,7 @@ var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (c
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
+var dia # dia_noite.gd: dia e noite do Quimera (relógio da conta, céu, luz e o sono na cama)
 var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
@@ -371,6 +372,8 @@ func montar_chao() -> void:
 	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"), caverna.buraco_na_montanha)
 	add_child(relevo)
 	add_child(caverna)
+	dia = preload("res://dia_noite.gd").new(self) # dia e noite (André 2026-11-07): depois do ambiente e da caverna
+	add_child(dia)
 	add_child(Submerso.new(self)) # câmera dentro do lago: tom azul, neblina e luz da superfície (André 2026-11-07)
 	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
 
@@ -1869,7 +1872,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno", "cama"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -2001,6 +2004,8 @@ func _tentar(qual: String) -> bool:
 			construcao.perguntar_compra()
 		"bau": # perto do meu baú (construcao.gd): abre o baú
 			construcao.tocar_estacao("bau") # 2026-11-07: longe ou do lado de fora da parede, anda até ele e abre
+		"cama": # à noite, perto da minha cama (construcao.gd, dia e noite do Quimera 2026-11-07): anda até ela e dorme
+			construcao.tocar_estacao("cama")
 		"forno": # a minha fornalha (construcao.gd, 2026-11-07): anda até o lado dela e abre a janela de combustível + material
 			construcao.tocar_estacao("forno")
 		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
@@ -2559,6 +2564,7 @@ func _process(dt: float) -> void:
 	hud.mana = h.mana / P.st.manaMax
 	hud.estamina = trabalho.sta / max(1.0, trabalho.sta_max())
 	hud.sem_folego = trabalho.sem_folego
+	hud.vigor = P.vigor() / max(1.0, float(P.dados.vigor.max))
 	hud.texto_vida = "%d/%d" % [ceil(h.vida), P.st.vidaMax]
 	hud.texto_mana = "%d/%d" % [floor(h.mana), P.st.manaMax]
 	hud.nivel = P.prog.nivel
