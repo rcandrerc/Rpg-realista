@@ -127,14 +127,15 @@ func _ready() -> void:
 	botoes[-1].oculto = true
 	_botao("afundar", Vector2(333, 158), 30, "afundar", COR_FUNDO)
 	botoes[-1].oculto = true
-	# poções (André 2026-11-07: "um slot pra poção de HP e outro pra poção de mana"): ao lado do painel de vida e mana,
-	# cada uma na altura da barra dela, longe das skills (o lado direito já é cheio). Contados do canto de CIMA à
-	# esquerda (tl), como o painel. Mostram quantas tem na bolsa e a recarga; dá para mover no modo de editar a interface
-	_botao("pocao", Vector2(PAINEL.end.x + 32, PAINEL.position.y + 25), 25, "it_pocao", COR_POCAO)
-	botoes[-1].tl = true
+	# poções (André 2026-11-07: "um slot pra poção de HP e outro pra poção de mana"). Primeiro ficaram ao lado do painel de
+	# vida (em cima à esquerda), mas ali o polegar está no joystick; André 2026-11-07 (noite): "passar pro lado direito,
+	# que dê pra apertar enquanto fujo". Agora ficam na beira direita, embaixo do minimapa e em cima do Trocar arma:
+	# vida em cima, mana embaixo. Contadas do canto de baixo à direita como os outros botões; mostram quantas tem na
+	# bolsa e a recarga; dá para mover no modo de editar a interface. (O jeito "tl", contado de cima à esquerda, continua
+	# valendo em _centro e na zona morta para quem precisar.)
+	_botao("pocao", Vector2(40, 371), 25, "it_pocao", COR_POCAO)
 	botoes[-1].n = 0
-	_botao("pocao_mana", Vector2(PAINEL.end.x + 32, PAINEL.position.y + 83), 25, "it_pocao_mana", COR_POCAO_MANA)
-	botoes[-1].tl = true
+	_botao("pocao_mana", Vector2(40, 311), 25, "it_pocao_mana", COR_POCAO_MANA)
 	botoes[-1].n = 0
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
