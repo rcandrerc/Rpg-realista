@@ -757,6 +757,10 @@ export const CONSTRUCOES = {
     desc: 'Perto dela você forja espadas, cajados, colares e armaduras (receitas do Ferreiro).' },
   fornalha: { nome: 'Fornalha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.7]], custo: { pedra: 12, lenha: 2 }, estacao: 'fundir', alto: 1.16,
     desc: 'Derrete minério em barras e queima lenha em carvão.' },
+  // Fogão (André 2026-11-07: "uma bancada de comida, tipo uma fogueirinha, um forno, pra fazer os pratos"): fogo de
+  // pedra com o caldeirão em cima; perto dele o Cozinheiro faz os pratos de RECEITAS (prof 'coz')
+  fogao: { nome: 'Fogão a lenha', w: 1.4, d: 1.2, circulos: [[0, 0, 0.65]], custo: { pedra: 8, lenha: 4, barra_ferro: 1 }, estacao: 'coz', alto: 0.9,
+    desc: 'Fogo de pedra com caldeirão. Perto dele você cozinha os pratos (receitas do Cozinheiro).' },
   cerca: { nome: 'Cerca', w: 2, d: 0.3, circulos: [[-0.75, 0, 0.2], [0, 0, 0.2], [0.75, 0, 0.2]], custo: { lenha: 2 }, alto: 0.8,
     desc: 'Cerca de madeira de 2 m. Gire para mudar a direção.' },
 };
@@ -839,7 +843,7 @@ export const PLANTAS = {
 // fase da planta (0 semente, 1 broto, 2 média, 3 quase, 4 madura) pela fração crescida (Quimera WJ)
 export const fasePlanta = (f) => (f >= 1 ? 4 : f < 0.03 ? 0 : f < 0.4 ? 1 : f < 0.75 ? 2 : 3);
 // qual estação serve para a receita: barras e carvão na fornalha; o resto do Ferreiro na bigorna; Alfaiate na bancada
-export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : 'bancada');
+export const RECEITA_ESTACAO = (R) => (/^barra_|^carvao$/.test(R.faz) ? 'fornalha' : R.prof === 'fer' ? 'bigorna' : R.prof === 'coz' ? 'fogao' : 'bancada');
 CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
 CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-11-05)
 CAMINHOS.push(TRILHA_CAVERNA); // trilha da caverna da montanha (2026-11-06)
@@ -1110,6 +1114,14 @@ export const ITENS = {
   tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
   // dungeon da montanha (2026-11-06): o fragmento cai dos monstros; o Gaspar junta e faz o passe que abre o selo
   fragmento: { nome: 'Fragmento rúnico', mat: true, pilha: 50, venda: 4, desc: 'Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela.' },
+  // carne (2026-11-07): cai dos bichos (Puglin, Lobo, Maw) e vai para o fogão
+  carne: { nome: 'Carne crua', mat: true, pilha: 50, venda: 2, desc: 'Carne de caça. No fogão vira carne assada ou ensopado.' },
+  // pratos do fogão (Cozinheiro): comer recupera vida/mana e dá vigor (usar.vigor = pontos); sem recarga nem limite por enquanto (André 2026-11-07)
+  carne_assada: { nome: 'Carne assada', pilha: 20, comida: true, usar: { vida: 0.25, vigor: 6 }, venda: 6, desc: 'Recupera 25% da vida e 6 de vigor.' },
+  sopa_legumes: { nome: 'Sopa de legumes', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 10 }, venda: 8, desc: 'Recupera 30% da vida e 10 de vigor.' },
+  pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3, vigor: 8 }, venda: 8, desc: 'Recupera 30% da mana e 8 de vigor.' },
+  ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5, vigor: 15 }, venda: 14, desc: 'Recupera 50% da vida e 15 de vigor.' },
+  torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4, vigor: 20 }, venda: 22, desc: 'Recupera 40% da vida, 40% da mana e 20 de vigor.' },
   passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
 };
 // Recarga das poções (André 2026-11-06): segundos entre uma poção e outra do mesmo tipo (vida e mana contam separado).
@@ -1177,10 +1189,10 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.85, 0.15, 0, 0, 0] };
 export const DROPS = {
   // fragmento: material do passe da caverna (2026-11-06), cai de todos os monstros de caça
-  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
+  puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1], carne: [0.3, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1], carne: [0.5, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
   lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.6, 0.4, 0, 0, 0] },
   chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
-  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1] } },
+  golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1], carne: [0.4, 1] } },
   warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
 };
 
@@ -1245,6 +1257,7 @@ export const PROFISSOES = {
   len: { nome: 'Lenhador', grupo: 'Coleta', desc: 'Cortar lenha das árvores' },
   fer: { nome: 'Ferreiro', grupo: 'Criação', desc: 'Barras, espadas, cajados e colares na forja do Tomás' },
   alf: { nome: 'Alfaiate', grupo: 'Criação', desc: 'Calças, shorts, capas, botas e óculos na banca da Rosa' },
+  coz: { nome: 'Cozinheiro', grupo: 'Criação', desc: 'Pratos de comida no fogão do seu terreno' },
   mer: { nome: 'Mercador', grupo: 'Comércio', desc: 'Negociar com a Rosa: vende mais caro e compra mais barato' },
 };
 export const RANKS = ['Novato', 'Veterano', 'Especialista', 'Mestre', 'Autoridade', 'Campeão', 'Adepto', 'Arauto', 'Virtuoso', 'Celebridade', 'Famoso'];
@@ -1299,11 +1312,17 @@ export const RECEITAS = {
   // peças das armaduras visíveis (camisa, calça, botas, capa, acessório): entram quando o item existir em ITENS
   calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
   peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },
+  // Cozinheiro no fogão (2026-11-07): carne dos bichos e o que sai da horta
+  carne_assada: { prof: 'coz', faz: 'carne_assada', usa: { carne: 1, lenha: 1 }, vigor: 2, nivel: 1 },
+  sopa_legumes: { prof: 'coz', faz: 'sopa_legumes', usa: { cenoura: 1, batata: 1, rabanete: 1 }, vigor: 3, nivel: 1 },
+  pao_milho: { prof: 'coz', faz: 'pao_milho', usa: { milho: 2, lenha: 1 }, vigor: 3, nivel: 2 },
+  ensopado: { prof: 'coz', faz: 'ensopado', usa: { carne: 2, batata: 1, tomate: 1 }, vigor: 4, nivel: 3 },
+  torta_abobora: { prof: 'coz', faz: 'torta_abobora', usa: { abobora: 1, milho: 1 }, vigor: 5, nivel: 5 },
 };
 // receita de item que não existe (ex.: o manto, que virou peitoral) some sozinha
 for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
 // Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
-export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' } };
+export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' }, coz: { npc: '', onde: 'no seu fogão' } };
 export const OFICINA_DISTANCIA = 4.5;
 // chance de subir cada raridade e até qual (André 2026-11-06: era até 2 = Épico; agora até 4 = Mítico, que só sai criando).
 // Cada degrau é um sorteio: no Nv 20 da profissão, Épico 9%, Lendário 2,7%, Mítico 0,8%.

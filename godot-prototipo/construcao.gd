@@ -177,6 +177,7 @@ func _carregar_modelos() -> void:
 	_modelos["bigorna"] = _modelo_gltf("res://construcao3d/Anvil_Log.gltf", 1.1)
 	_modelos["cerca"] = _modelo_gltf("res://construcao3d/Prop_WoodenFence_Single.gltf", 0.97)
 	_modelos["fornalha"] = _modelo_fornalha()
+	_modelos["fogao"] = _modelo_fogao()
 	# casa: o modelo da parede vai de z -0,31 a 0,09; +0,11 põe o meio da parede na linha da grade
 	var meio := Vector3(0, 0, 0.11)
 	_modelos["parede"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Straight.gltf", 1.0, meio)
@@ -454,6 +455,84 @@ func _modelo_fornalha() -> Node3D:
 	_caixa(r, Vector3(0.44, 1.25, 0.42), Vector3(0, 1.62, -0.3), pedra)
 	_caixa(r, Vector3(0.52, 0.08, 0.5), Vector3(0, 2.27, -0.3), pedra)
 	_caixa(r, Vector3(0.22, 0.02, 0.2), Vector3(0, 2.32, -0.3), escuro)
+	return r
+
+# Fogão (2026-11-07): a fogueira de pedra da mata (Poly Haven stone_fire_pit, CC0), lenha acesa no meio, tripé de
+# ferro e o caldeirão com o ensopado em cima; luz quente sem sombra que some de longe (como a tocha)
+func _modelo_fogao() -> Node3D:
+	var r := _modelo_gltf("res://cenario3d/fogueira.glb", 0.95, Vector3(0, 0.18, 0))
+	var madeira := _mat_tex("medieval_wood", Color("6a4a32"), 2.0)
+	var ferro := _mat_cor(Color(0.13, 0.12, 0.12))
+	var brasa := _mat_cor(Color(1.0, 0.42, 0.12), 2.6)
+	for i in 4: # lenha cruzada dentro da roda de pedra
+		var a := i * PI / 4.0
+		_caixa(r, Vector3(0.62, 0.09, 0.09), Vector3(0, 0.12 + i * 0.03, 0), madeira, Vector3(0, a, 0.12 if i % 2 == 0 else -0.12))
+	_caixa(r, Vector3(0.42, 0.04, 0.42), Vector3(0, 0.1, 0), brasa)
+	# chamas em ponta (cones) saindo da lenha: uma laranja grande e três amarelas menores em volta
+	for c in [[Color(1.0, 0.45, 0.12), 2.6, 0.16, 0.42, Vector2.ZERO], [Color(1.0, 0.8, 0.3), 3.0, 0.08, 0.26, Vector2(0.09, 0.05)],
+			[Color(1.0, 0.8, 0.3), 3.0, 0.07, 0.22, Vector2(-0.08, 0.06)], [Color(1.0, 0.62, 0.2), 2.8, 0.08, 0.28, Vector2(0.0, -0.1)]]:
+		var mi := MeshInstance3D.new()
+		var cn := CylinderMesh.new()
+		cn.top_radius = 0.0
+		cn.bottom_radius = c[2]
+		cn.height = c[3]
+		cn.radial_segments = 8
+		cn.rings = 1
+		mi.mesh = cn
+		mi.material_override = _mat_cor(c[0], c[1])
+		mi.position = Vector3(c[4].x, 0.16 + c[3] / 2.0, c[4].y)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.name = "chama"
+		r.add_child(mi)
+	# tripé: três pernas de ferro inclinadas que se encontram em cima, a corrente e o caldeirão
+	for i in 3:
+		var a := i * TAU / 3.0
+		var pe := Vector3(cos(a) * 0.62, 0.0, sin(a) * 0.62)
+		var topo := Vector3(0, 1.32, 0)
+		var meio := (pe + topo) / 2.0
+		var mi := _caixa(r, Vector3(0.04, pe.distance_to(topo), 0.04), meio, ferro)
+		mi.look_at_from_position(meio, topo, Vector3(1, 0, 0) if absf(pe.x) < 0.01 else Vector3(0, 0, 1))
+		mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+	_caixa(r, Vector3(0.02, 0.36, 0.02), Vector3(0, 1.14, 0), ferro)
+	var cal := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.27
+	cm.bottom_radius = 0.2
+	cm.height = 0.32
+	cm.radial_segments = 16
+	cal.mesh = cm
+	cal.material_override = ferro
+	cal.position = Vector3(0, 0.8, 0)
+	r.add_child(cal)
+	var borda := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.25
+	tm.outer_radius = 0.3
+	tm.rings = 16
+	tm.ring_segments = 6
+	borda.mesh = tm
+	borda.material_override = ferro
+	borda.position = Vector3(0, 0.96, 0)
+	r.add_child(borda)
+	var sopa := MeshInstance3D.new()
+	var dm := CylinderMesh.new()
+	dm.top_radius = 0.25
+	dm.bottom_radius = 0.25
+	dm.height = 0.02
+	sopa.mesh = dm
+	sopa.material_override = _mat_cor(Color("a0582a"), 0.25)
+	sopa.position = Vector3(0, 0.93, 0)
+	r.add_child(sopa)
+	var luz := OmniLight3D.new()
+	luz.light_color = Color(1.0, 0.66, 0.34)
+	luz.light_energy = 0.9
+	luz.omni_range = 4.5
+	luz.shadow_enabled = false
+	luz.distance_fade_enabled = true
+	luz.distance_fade_begin = 22.0
+	luz.distance_fade_length = 6.0
+	luz.position = Vector3(0, 0.6, 0)
+	r.add_child(luz)
 	return r
 
 func _mat_fantasma(cor: Color) -> StandardMaterial3D:
@@ -2016,7 +2095,7 @@ func estacao_da_receita(R: Dictionary) -> String:
 	var faz := str(R.faz)
 	if faz.begins_with("barra_") or faz == "carvao":
 		return "fornalha"
-	return "bigorna" if str(R.prof) == "fer" else "bancada"
+	return "bigorna" if str(R.prof) == "fer" else "fogao" if str(R.prof) == "coz" else "bancada"
 
 # ---------- terreno marcado: a mesma conta do servidor (shared/simulacao.js motivoTerreno) ----------
 static func dist_ret(R: Dictionary, x: float, z: float) -> float:
@@ -2225,14 +2304,14 @@ func _process(dt: float) -> void:
 
 func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void:
 	var prof := prof_da_estacao()
-	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"]))
+	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna", "fogao"]))
 	var correio := _meu_correio_perto() and prof == ""
 	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
 	m.hud.mostrar_botao("bancada", com_mesa and vivo and not livre)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
 	elif not mesa_minha.is_empty():
-		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_fer")
+		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_coz" if mesa_minha.k == "fogao" else "pf_fer")
 	m.hud.mostrar_botao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
 	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
 	m.hud.mostrar_botao("correio", correio and vivo and not livre)
@@ -2437,6 +2516,8 @@ func prof_da_estacao() -> String:
 		return "fer"
 	if estacao_perto(["bancada"]):
 		return "alf"
+	if estacao_perto(["fogao"]): # fogão (2026-11-07): Cozinheiro
+		return "coz"
 	return ""
 
 # no meu terreno e vivo: o martelo do topo fica aceso
@@ -3517,7 +3598,7 @@ func _montar_bau() -> void:
 const COLADO := 1.25 # m da borda da peça
 const GRADE_IR := 0.4 # m por quadrado da grade
 const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
-const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
+const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha"], "bancada": ["bancada", "bigorna", "fogao"], "cama": ["cama"]}
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
