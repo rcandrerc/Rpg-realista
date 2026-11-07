@@ -1250,6 +1250,7 @@
   }
  ],
  "lojaDistancia": 4,
+ "lojaMax": 999,
  "troca": {
   "perto": 6,
   "longe": 14,
