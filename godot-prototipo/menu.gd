@@ -1951,7 +1951,16 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Tirar", {"acao": "tirar", "lugar": lugar}))
 	elif P.eh_equip(it):
 		bs.add_child(botao_acao("Equipar", {"acao": "equipar", "i": i}))
-	elif not P.eh_mat(it):
+	elif P.dados.itens.has(it.k) and P.dados.itens[it.k].has("obra"):
+		# peça de construção ou estação (André 2026-11-07): "Colocar" abre o modo construção já com ela escolhida
+		var ob: String = str(P.dados.itens[it.k].obra)
+		var por := func():
+			fechar()
+			m.construcao.abrir_com(ob)
+		var bc := botao("Colocar", por, 14, true)
+		bc.custom_minimum_size = Vector2(120, 36)
+		bs.add_child(bc)
+	elif not P.eh_mat(it) and (it.k == "tomo" or (P.dados.itens.has(it.k) and P.dados.itens[it.k].has("usar"))):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
 		var onde := {"i": i} if lugar == "" else {"lugar": lugar}

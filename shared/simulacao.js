@@ -1095,6 +1095,8 @@ export class Simulacao {
       p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
     } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
       if (j.morto || ITENS[it.k].mat) return;
+      // peça de construção, estação ou ferramenta não se "usa" (André 2026-11-07: tocar em Usar na bancada desconectava)
+      if (it.k !== 'tomo' && !ITENS[it.k].usar) return aviso(ITENS[it.k].obra ? 'Coloque pelo modo construção (martelo) ou pelo botão Colocar' : 'Este item não se usa assim');
       if (it.k === 'tomo') {
         const s = p.habs[it.h] || { nv: 1, uso: 0 };
         if (s.nv >= it.nv) return aviso(`${HABS[it.h].nome} já está no Nv ${s.nv}`);
