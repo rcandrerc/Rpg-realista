@@ -833,6 +833,78 @@
    "venda": 10,
    "desc": "Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto)."
   },
+  "selo_raro": {
+   "nome": "Selo Raro",
+   "mat": true,
+   "pilha": 99,
+   "venda": 15,
+   "catalisador": "armadura",
+   "cr": 1,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Comum para Raro. Sai destruindo equipamento."
+  },
+  "selo_epico": {
+   "nome": "Selo Épico",
+   "mat": true,
+   "pilha": 99,
+   "venda": 40,
+   "catalisador": "armadura",
+   "cr": 2,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Raro para Épico. Sai destruindo equipamento."
+  },
+  "selo_lendario": {
+   "nome": "Selo Lendário",
+   "mat": true,
+   "pilha": 99,
+   "venda": 120,
+   "catalisador": "armadura",
+   "cr": 3,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Épico para Lendário. Sai destruindo equipamento."
+  },
+  "selo_mitico": {
+   "nome": "Selo Mítico",
+   "mat": true,
+   "pilha": 99,
+   "venda": 350,
+   "catalisador": "armadura",
+   "cr": 4,
+   "desc": "Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar Lendário para Mítico. Sai destruindo equipamento."
+  },
+  "runa_rara": {
+   "nome": "Runa Rara",
+   "mat": true,
+   "pilha": 99,
+   "venda": 15,
+   "catalisador": "arma",
+   "cr": 1,
+   "desc": "Catalisador de arma: evolui espada ou cajado Comum para Raro. Sai destruindo equipamento."
+  },
+  "runa_epica": {
+   "nome": "Runa Épica",
+   "mat": true,
+   "pilha": 99,
+   "venda": 40,
+   "catalisador": "arma",
+   "cr": 2,
+   "desc": "Catalisador de arma: evolui espada ou cajado Raro para Épico. Sai destruindo equipamento."
+  },
+  "runa_lendaria": {
+   "nome": "Runa Lendária",
+   "mat": true,
+   "pilha": 99,
+   "venda": 120,
+   "catalisador": "arma",
+   "cr": 3,
+   "desc": "Catalisador de arma: evolui espada ou cajado Épico para Lendário. Sai destruindo equipamento."
+  },
+  "runa_mitica": {
+   "nome": "Runa Mítica",
+   "mat": true,
+   "pilha": 99,
+   "venda": 350,
+   "catalisador": "arma",
+   "cr": 4,
+   "desc": "Catalisador de arma: evolui espada ou cajado Lendário para Mítico. Sai destruindo equipamento."
+  },
   "semente_rabanete": {
    "nome": "Semente de rabanete",
    "mat": true,
@@ -2520,5 +2592,86 @@
    "porNivel": 10
   },
   "tempo": 1.6
+ },
+ "catalisador": {
+  "arma": [
+   "runa_rara",
+   "runa_epica",
+   "runa_lendaria",
+   "runa_mitica"
+  ],
+  "armadura": [
+   "selo_raro",
+   "selo_epico",
+   "selo_lendario",
+   "selo_mitico"
+  ],
+  "comum": "barra_cobre",
+  "quantos": [
+   0.08,
+   0.9,
+   0.98
+  ],
+  "extra": [
+   0,
+   0,
+   0.25,
+   0.2,
+   0.15
+  ],
+  "tempoDestruir": 1.5,
+  "usa": {
+   "arma": [
+    {
+     "lenha": 4,
+     "barra_cobre": 3
+    },
+    {
+     "lenha": 6,
+     "barra_ferro": 4
+    },
+    {
+     "lenha": 8,
+     "cristal": 5
+    },
+    {
+     "lenha": 10,
+     "cristal": 6,
+     "barra_aco": 2
+    }
+   ],
+   "armadura": [
+    {
+     "couro": 4,
+     "barra_cobre": 3
+    },
+    {
+     "couro": 6,
+     "barra_ferro": 4
+    },
+    {
+     "couro": 8,
+     "cristal": 5
+    },
+    {
+     "couro": 10,
+     "cristal": 6,
+     "barra_aco": 2
+    }
+   ]
+  },
+  "falha": [
+   0,
+   0.1,
+   0.15,
+   0.2,
+   0.25
+  ],
+  "sorte": [
+   0.02,
+   0.06
+  ],
+  "vigor": 8,
+  "tempoEvoluir": 3
  }
 }

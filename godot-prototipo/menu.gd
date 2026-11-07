@@ -1739,6 +1739,8 @@ func montar_mochila() -> void:
 	else:
 		vendendo = false
 		marcados = {}
+	if not vendendo and P.dados.has("catalisador"): # catalisador (André 2026-11-07): destruir todas de uma raridade
+		conteudo.add_child(barra_destruir())
 	if pag_mochila >= tem:
 		conteudo.add_child(pagina_trancada(pag_mochila, tem))
 	else:
@@ -1987,6 +1989,21 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		ap.add_theme_color_override("font_hover_color", PIOR)
 		bs.add_child(ap)
 	txt.add_child(bs)
+	# catalisador (André 2026-11-07): Evoluir sobe a raridade com catalisador; Destruir dá catalisador (só da mochila)
+	if i >= 0 and P.eh_equip(it) and P.dados.has("catalisador"):
+		var bs2 := HBoxContainer.new()
+		bs2.add_theme_constant_override("separation", 8)
+		if int(it.r) < P.dados.raridades.size() - 1:
+			var be := botao("Evoluir", func(): perguntar_evoluir(i), 14, true)
+			be.custom_minimum_size = Vector2(120, 36)
+			bs2.add_child(be)
+		if not trancado:
+			var bd := botao("Destruir", func(): perguntar_destruir(i), 14)
+			bd.custom_minimum_size = Vector2(120, 36)
+			bd.add_theme_color_override("font_color", PIOR)
+			bd.add_theme_color_override("font_hover_color", PIOR)
+			bs2.add_child(bd)
+		txt.add_child(bs2)
 	if trancado:
 		txt.add_child(rotulo("Com cadeado: não vende, não vai para o lixo nem para a troca", 12, OURO))
 	l.add_child(txt)
@@ -2069,6 +2086,113 @@ func perguntar_vender_varios() -> void:
 	var lista: Array = marcados.keys()
 	lista.sort()
 	confirmar("Vender de uma vez", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
+
+# ---------- catalisador (André 2026-11-07, como no Quimera; números em CATALISADOR, shared/dados.js) ----------
+# Runa = catalisador de arma (espada, cajado); Selo = de armadura (o resto). O servidor sorteia e confere tudo.
+const RAR_F := ["Comum", "Rara", "Épica", "Lendária", "Mítica"] # "peça Rara"
+const RAR_FP := ["Comuns", "Raras", "Épicas", "Lendárias", "Míticas"]
+func tipo_catalisador(k: String) -> String:
+	return "arma" if str(m.P.dados.itens[k].lugar) in ["espada", "cajado"] else "armadura"
+
+# o que destruir a peça pode dar, em texto ("1 Selo Raro (às vezes 0, 2 ou 3) · 25% de 1 Selo Épico")
+func texto_destruir(it) -> String:
+	var C: Dictionary = m.P.dados.catalisador
+	var r := int(it.r)
+	if r < 1:
+		return "1 %s (às vezes nada, 2 ou 3)" % m.P.dados.itens[C.comum].nome
+	var lista: Array = C[tipo_catalisador(it.k)]
+	var t := "1 %s (às vezes nada, 2 ou 3)" % m.P.dados.itens[lista[maxi(1, r - 1) - 1]].nome
+	if r > 1 and float(C.extra[r]) > 0:
+		t += "\n%d%% de chance de mais 1 %s" % [roundi(float(C.extra[r]) * 100), m.P.dados.itens[lista[r - 1]].nome]
+	return t
+
+func perguntar_destruir(i: int) -> void:
+	var P = m.P
+	var it = P.prog.mochila[i]
+	if it == null or not P.eh_equip(it):
+		return
+	var txt := "Destruir %s?\nA peça some e vira catalisador:\n%s" % [P.nome_item(it), texto_destruir(it)]
+	if int(it.get("e", 0)) > 0:
+		txt += "\nAtenção: perde o reforço +%d." % int(it.e)
+	confirmar("Destruir peça", txt, "Destruir", func(): acao_item({"acao": "destruir", "i": i}), true)
+
+func perguntar_destruir_todas(r: int) -> void:
+	var P = m.P
+	var n := 0
+	var reforcadas := 0
+	for o in P.prog.mochila:
+		if o != null and P.eh_equip(o) and int(o.r) == r and not o.get("cad", false):
+			n += 1
+			if int(o.get("e", 0)) > 0:
+				reforcadas += 1
+	if n == 0:
+		return
+	var seg: float = float(P.dados.catalisador.tempoDestruir) * n
+	var da: String = texto_destruir({"k": "peitoral", "r": r})
+	if r >= 1:
+		var C: Dictionary = P.dados.catalisador
+		da = "1 catalisador %s (às vezes nada, 2 ou 3): Runa nas armas, Selo nas armaduras" % P.dados.raridades[maxi(1, r - 1)].nome
+		if r > 1 and float(C.extra[r]) > 0:
+			da += "\n%d%% de chance de mais 1 catalisador %s" % [roundi(float(C.extra[r]) * 100), P.dados.raridades[r].nome]
+	var txt := "Destruir %d %s %s da mochila?\nCada uma faz a própria barrinha, uma depois da outra (uns %d s no total).\nCada peça dá: %s\nPeças com cadeado e as do corpo ficam." % [n, "peça" if n == 1 else "peças", RAR_F[r] if n == 1 else RAR_FP[r], ceili(seg), da]
+	if reforcadas > 0:
+		txt += "\nAtenção: %d %s reforço e %s." % [reforcadas, "tem" if reforcadas == 1 else "têm", "perde" if reforcadas == 1 else "perdem"]
+	confirmar("Destruir todas", txt, "Destruir %d" % n, func(): acao_item({"acao": "destruir", "raridade": r}), true)
+
+# linha da mochila: "Destruir todas" com um botão por raridade (quantas tem, sem as com cadeado)
+func barra_destruir() -> Control:
+	var P = m.P
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 6)
+	var t := rotulo("Destruir todas:", 13, APAGADO)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(t)
+	var conta := []
+	conta.resize(P.dados.raridades.size())
+	conta.fill(0)
+	for o in P.prog.mochila:
+		if o != null and P.eh_equip(o) and not o.get("cad", false):
+			conta[int(o.r)] += 1
+	for r in conta.size():
+		var nome_r: String = RAR_FP[r]
+		var b := botao("%s · %d" % [nome_r, conta[r]], func(): perguntar_destruir_todas(r), 13)
+		b.custom_minimum_size = Vector2(0, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_color_override("font_color", Color(P.dados.raridades[r].cor))
+		b.disabled = conta[r] == 0
+		avisar_travado(b, func(): return "Nenhuma peça %s sem cadeado na mochila" % RAR_F[r].to_lower())
+		l.add_child(b)
+	return l
+
+func perguntar_evoluir(i: int) -> void:
+	var P = m.P
+	var it = P.prog.mochila[i]
+	if it == null or not P.eh_equip(it):
+		return
+	var C: Dictionary = P.dados.catalisador
+	var r := int(it.r) + 1
+	if r >= P.dados.raridades.size():
+		return
+	var tipo := tipo_catalisador(it.k)
+	var usa := {C[tipo][r - 1]: 1}
+	usa.merge(C.usa[tipo][r - 1])
+	var falta := false
+	var linhas: Array = []
+	for k in usa:
+		var tem: int = P.contar(k)
+		falta = falta or tem < int(usa[k])
+		linhas.append("%d %s (tem %d)" % [int(usa[k]), P.dados.itens[k].nome, tem])
+	var prof: String = str(P.dados.receitas[it.k].prof) if P.dados.receitas.has(it.k) else ("fer" if tipo == "arma" else "alf")
+	var t: float = float(P.prof_nivel(prof) - 1) / float(int(P.dados.profMax) - 1)
+	var falha: float = float(C.falha[r]) * (1.0 - 0.5 * t)
+	var sorte: float = (float(C.sorte[0]) + (float(C.sorte[1]) - float(C.sorte[0])) * t) if r < P.dados.raridades.size() - 1 else 0.0
+	var onde: String = "%s ou perto de uma %s" % [P.dados.oficina[prof].onde, "bigorna" if prof == "fer" else "bancada de trabalho"]
+	var txt := "Evoluir %s para %s?\nUsa: %s.\nFalha %s%% (perde o catalisador e o material, a peça fica)%s.\nA peça nova sai +0. Faça %s." % [P.nome_item(it), P.dados.raridades[r].nome, ", ".join(linhas), P.num(falha * 100, 1), (" · sorte %s%% (pula uma raridade)" % P.num(sorte * 100, 1)) if sorte > 0 else "", onde]
+	if int(it.get("e", 0)) > 0:
+		txt += "\nAtenção: perde o reforço +%d." % int(it.e)
+	if falta:
+		txt += "\nFalta material: destrua peças para juntar catalisador."
+	confirmar("Evoluir peça", txt, "Evoluir", func(): acao_item({"acao": "evoluir", "i": i}))
 
 func perguntar_apagar(i: int) -> void:
 	var P = m.P
@@ -2674,6 +2798,9 @@ func acao_item(msg: Dictionary) -> void:
 	if msg.acao == "vender_varios":
 		vendendo = false
 		marcados = {}
+	if msg.acao in ["destruir", "evoluir"] and not m.on():
+		m.hud.aviso("Destruir e evoluir peça só funcionam online")
+		return
 	if m.on():
 		m.rede("item", msg)
 		return

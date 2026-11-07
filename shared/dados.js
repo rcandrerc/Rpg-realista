@@ -1327,6 +1327,41 @@ export const OFICINA_DISTANCIA = 4.5;
 // chance de subir cada raridade e até qual (André 2026-11-06: era até 2 = Épico; agora até 4 = Mítico, que só sai criando).
 // Cada degrau é um sorteio: no Nv 20 da profissão, Épico 9%, Lendário 2,7%, Mítico 0,8%.
 export const RARIDADE_CRIAR = { base: 0.06, max: 0.3, ate: 4 };
+// Catalisador (André 2026-11-07, como no Quimera): destruir uma peça da mochila dá catalisador; com ele a peça sobe
+// um degrau de raridade (Comum > Raro > Épico > Lendário > Mítico). Um tipo para arma (espada, cajado: Runa) e outro
+// para armadura (o resto, colar junto: Selo). arma[r - 1] / armadura[r - 1] = o catalisador que leva a peça para a raridade r.
+// Só sai destruindo equipamento (André: não cai de monstro).
+// destruir: Comum dá `comum`; da Rara em diante dá o catalisador da raridade de baixo (Rara e Épica dão o Raro),
+//   em quantidade sorteada (`quantos`: até 8% nada, até 90% 1, até 98% 2, senão 3), e ainda `extra[r]` de chance de
+//   vir 1 da própria raridade. Cada peça leva `tempoDestruir` s de barrinha; "Destruir todas" só faz os cliques.
+// evoluir: peça da mochila + 1 catalisador + `usa` (por raridade de destino, arma ou armadura), perto de onde se cria
+//   a peça (Ferreiro: forja do Tomás ou bigorna; Alfaiate: banca da Rosa ou bancada). Gasta `vigor`. Pode falhar
+//   (`falha[r]`, cai pela metade no Nv máximo da profissão: perde o catalisador e o material, a peça fica) ou, com
+//   `sorte` (de 2% a 6% com a profissão), pular uma raridade. A peça nova sai +0, inteira e com o cadeado se tinha.
+export const CATALISADOR = {
+  arma: ['runa_rara', 'runa_epica', 'runa_lendaria', 'runa_mitica'],
+  armadura: ['selo_raro', 'selo_epico', 'selo_lendario', 'selo_mitico'],
+  comum: 'barra_cobre',
+  quantos: [0.08, 0.9, 0.98],
+  extra: [0, 0, 0.25, 0.2, 0.15],
+  tempoDestruir: 1.5,
+  usa: {
+    arma: [{ lenha: 4, barra_cobre: 3 }, { lenha: 6, barra_ferro: 4 }, { lenha: 8, cristal: 5 }, { lenha: 10, cristal: 6, barra_aco: 2 }],
+    armadura: [{ couro: 4, barra_cobre: 3 }, { couro: 6, barra_ferro: 4 }, { couro: 8, cristal: 5 }, { couro: 10, cristal: 6, barra_aco: 2 }],
+  },
+  falha: [0, 0.1, 0.15, 0.2, 0.25],
+  sorte: [0.02, 0.06],
+  vigor: 8,
+  tempoEvoluir: 3,
+};
+{
+  const NOME_R = ['', 'Raro', 'Épico', 'Lendário', 'Mítico'], NOME_A = ['', 'Rara', 'Épica', 'Lendária', 'Mítica'];
+  const VENDA = [0, 15, 40, 120, 350];
+  CATALISADOR.armadura.forEach((k, j) => { ITENS[k] = { nome: `Selo ${NOME_R[j + 1]}`, mat: true, pilha: 99, venda: VENDA[j + 1], catalisador: 'armadura', cr: j + 1,
+    desc: `Catalisador de armadura: evolui capacete, camisa, calça, short, botas, capa ou colar ${j ? NOME_R[j] : 'Comum'} para ${NOME_R[j + 1]}. Sai destruindo equipamento.` }; });
+  CATALISADOR.arma.forEach((k, j) => { ITENS[k] = { nome: `Runa ${NOME_A[j + 1]}`, mat: true, pilha: 99, venda: VENDA[j + 1], catalisador: 'arma', cr: j + 1,
+    desc: `Catalisador de arma: evolui espada ou cajado ${j ? NOME_R[j] : 'Comum'} para ${NOME_R[j + 1]}. Sai destruindo equipamento.` }; });
+}
 MAPA_CLAREIRA.veios = VEIOS;
 
 // ---------- horta (Vila dos Lotes): sementes na loja da Rosa, o que se colhe vira item (cura um pouco ou vende) ----------
