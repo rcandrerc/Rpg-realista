@@ -2183,7 +2183,8 @@ export class Simulacao {
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
       const o = p.mochila[i]; if (!o) return;
-      if (o.h) return aviso('Tire o item do lugar rápido antes de guardar');
+      // o.h do Tomo é a habilidade dele, não lugar rápido (André 2026-11-07: Tomo não entrava no baú)
+      if (o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
       const bau = L.bau.map((q) => (q ? { ...q } : null));
       if (!guardar(bau, { ...o })) return aviso('O baú está cheio');
       L.bau = bau; p.mochila[i] = null;

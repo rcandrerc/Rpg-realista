@@ -1,0 +1,22 @@
+// Tomo entra no baú (André 2026-11-07: "os outros itens vão, menos os tomos"). Uso: node ferramentas/testes/bau-tomo.mjs
+import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
+const s = new Simulacao(MAPA_CLAREIRA);
+const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
+a.criando = false; a.x = -19; a.z = 60; a.prog.ouro = 5000;
+const ev = () => { const e = s.eventos; s.eventos = []; return e; };
+const avisos = (e) => e.filter((x) => x.t === 'aviso').map((x) => x.texto).join(' | ');
+const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
+s.comprarLote('A', { x0: -28, z0: 55, x1: -20, z1: 63 }); ev();
+a.prog.mochila[10] = { k: 'obra_bau', n: 1 };
+s.construir('A', { k: 'bau', x: -25, z: 58.5, r: 0 }); ev();
+ok(s.loteDe(a).pecas.some((o) => o.k === 'bau'), 'construiu o baú');
+a.x = -23.6; a.z = 58.5;
+a.prog.mochila[0] = { k: 'tomo', h: 'corte_duplo', nv: 7, n: 1 };
+a.prog.mochila[1] = { k: 'lenha', n: 5 };
+s.bau('A', { acao: 'guardar', i: 0 }); let e = ev();
+ok(!a.prog.mochila[0] && s.loteDe(a).bau.some((o) => o && o.k === 'tomo' && o.h === 'corte_duplo' && o.nv === 7), 'Tomo entrou no baú ' + avisos(e));
+s.bau('A', { acao: 'guardar', i: 1 }); ev();
+ok(s.loteDe(a).bau.some((o) => o && o.k === 'lenha'), 'lenha continua entrando');
+const iT = s.loteDe(a).bau.findIndex((o) => o && o.k === 'tomo');
+s.bau('A', { acao: 'tirar', i: iT }); e = ev();
+ok(a.prog.mochila.some((o) => o && o.k === 'tomo' && o.nv === 7), 'Tomo voltou para a mochila ' + avisos(e));
