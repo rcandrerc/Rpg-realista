@@ -1705,7 +1705,6 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 
 func montar_mochila() -> void:
 	var P = m.P
-	montar_capacete() # André não achava lá embaixo, depois da mochila: agora fica no alto da aba
 	var topo := HBoxContainer.new()
 	topo.add_child(linha_ouro())
 	var esp_ := Control.new()
@@ -1757,8 +1756,6 @@ func montar_mochila() -> void:
 	else:
 		vendendo = false
 		marcados = {}
-	if not vendendo and P.dados.has("catalisador"): # catalisador (André 2026-11-07): destruir todas de uma raridade
-		conteudo.add_child(barra_destruir())
 	if pag_mochila >= tem:
 		conteudo.add_child(pagina_trancada(pag_mochila, tem))
 	else:
@@ -1821,7 +1818,7 @@ func recursos_do_jogo() -> Array:
 	return l
 
 # um quadradinho de marcar: toca em qualquer parte (é um botão: arrastar a lista não marca sem querer)
-func marca_filtro(texto: String, cor: Color, marcado: bool, fn: Callable, icone := "") -> Button:
+func marca_filtro(texto: String, cor: Color, marcado: bool, fn: Callable, icone := "", ao_nome := Callable()) -> Button:
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(0, 44)
@@ -1857,7 +1854,21 @@ func marca_filtro(texto: String, cor: Color, marcado: bool, fn: Callable, icone 
 	t.clip_text = true
 	t.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_child(t)
+	if ao_nome.is_valid():
+		# André 2026-11-07: o quadradinho marca/desmarca tudo; tocar no nome abre a lista um por um
+		var nb := Button.new()
+		nb.flat = true
+		nb.focus_mode = Control.FOCUS_NONE
+		nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nb.mouse_filter = Control.MOUSE_FILTER_STOP
+		nb.add_child(t)
+		t.set_anchors_preset(Control.PRESET_FULL_RECT)
+		nb.pressed.connect(func():
+			if not _arrastou:
+				ao_nome.call())
+		l.add_child(nb)
+	else:
+		l.add_child(t)
 	b.add_child(l)
 	b.pressed.connect(func():
 		if not _arrastou:
@@ -1891,13 +1902,12 @@ func montar_filtro() -> void:
 	var linha := HBoxContainer.new()
 	linha.add_theme_constant_override("separation", 8)
 	var txt := "Todos os recursos" if fora == 0 else ("Nenhum recurso" if fora == todos.size() else "Recursos: %d de %d" % [todos.size() - fora, todos.size()])
+	txt += "  ▴" if filtro_lista else "  ▾"
+	# André 2026-11-07: sem botão "Escolher um por um": o quadradinho marca tudo, o nome abre a lista
 	linha.add_child(marca_filtro(txt, TEXTO, fora < todos.size(), func():
-		mandar_filtro(f.r, [] if fora > 0 else todos), P.icone_item({"k": "couro", "n": 1}) if P.dados.itens.has("couro") else ""))
-	var esc := botao("Fechar lista" if filtro_lista else "Escolher um por um", func():
+		mandar_filtro(f.r, [] if fora > 0 else todos), P.icone_item({"k": "couro", "n": 1}) if P.dados.itens.has("couro") else "", func():
 		filtro_lista = not filtro_lista
-		atualizar(), 14, filtro_lista)
-	esc.custom_minimum_size = Vector2(210, 44)
-	linha.add_child(esc)
+		atualizar()))
 	conteudo.add_child(linha)
 	if filtro_lista:
 		var g2 := GridContainer.new()
@@ -1914,21 +1924,6 @@ func montar_filtro() -> void:
 					nk.append(k)
 				mandar_filtro(f.r, nk), P.icone_item(it)))
 		conteudo.add_child(g2)
-
-# André 2026-11-03: mostrar ou esconder o capacete (só a aparência; a peça continua equipada e dando o bônus)
-func montar_capacete() -> void:
-	var P = m.P
-	var l := HBoxContainer.new()
-	l.add_theme_constant_override("separation", 10)
-	var mostra: bool = not P.prog.get("semCapacete", false)
-	var t := rotulo("Capacete aparece no corpo", 14, TEXTO)
-	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	l.add_child(t)
-	var b := botao("Mostrar" if not mostra else "Esconder", func(): acao_item({"acao": "capacete", "mostrar": not mostra}), 14, true)
-	b.custom_minimum_size = Vector2(130, 40)
-	l.add_child(b)
-	conteudo.add_child(l)
 
 # bônus de conjunto: peças da mesma raridade (ou melhor), como o Set de Bruxa do Quimera
 func montar_conjunto() -> void:
@@ -2255,7 +2250,20 @@ func perguntar_destruir(i: int) -> void:
 	var txt := "Destruir %s?\nA peça some e vira catalisador:\n%s" % [P.nome_item(it), texto_destruir(it)]
 	if int(it.get("e", 0)) > 0:
 		txt += "\nAtenção: perde o reforço +%d." % int(it.e)
-	confirmar("Destruir peça", txt, "Destruir", func(): acao_item({"acao": "destruir", "i": i}), true)
+	# André 2026-11-07: sem linha "Destruir todas" na mochila; a escolha aparece aqui (só esta ou todas da raridade)
+	var r := int(it.r)
+	var n := 0
+	if not it.get("cad", false):
+		for o in P.prog.mochila:
+			if o != null and P.eh_equip(o) and int(o.r) == r and not o.get("cad", false):
+				n += 1
+	var todas := Callable()
+	var todas_txt := ""
+	if n > 1:
+		todas_txt = "Todas %s · %d" % [RAR_FP[r].to_lower(), n]
+		todas = func(): perguntar_destruir_todas(r)
+		txt += "\nOu destrua de uma vez todas as %d %s da mochila (sem cadeado)." % [n, RAR_FP[r].to_lower()]
+	confirmar("Destruir peça", txt, "Só esta", func(): acao_item({"acao": "destruir", "i": i}), true, todas_txt, todas)
 
 func perguntar_destruir_todas(r: int) -> void:
 	var P = m.P
@@ -2279,31 +2287,6 @@ func perguntar_destruir_todas(r: int) -> void:
 	if reforcadas > 0:
 		txt += "\nAtenção: %d %s reforço e %s." % [reforcadas, "tem" if reforcadas == 1 else "têm", "perde" if reforcadas == 1 else "perdem"]
 	confirmar("Destruir todas", txt, "Destruir %d" % n, func(): acao_item({"acao": "destruir", "raridade": r}), true)
-
-# linha da mochila: "Destruir todas" com um botão por raridade (quantas tem, sem as com cadeado)
-func barra_destruir() -> Control:
-	var P = m.P
-	var l := HBoxContainer.new()
-	l.add_theme_constant_override("separation", 6)
-	var t := rotulo("Destruir todas:", 13, APAGADO)
-	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	l.add_child(t)
-	var conta := []
-	conta.resize(P.dados.raridades.size())
-	conta.fill(0)
-	for o in P.prog.mochila:
-		if o != null and P.eh_equip(o) and not o.get("cad", false):
-			conta[int(o.r)] += 1
-	for r in conta.size():
-		var nome_r: String = RAR_FP[r]
-		var b := botao("%s · %d" % [nome_r, conta[r]], func(): perguntar_destruir_todas(r), 13)
-		b.custom_minimum_size = Vector2(0, 34)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.add_theme_color_override("font_color", Color(P.dados.raridades[r].cor))
-		b.disabled = conta[r] == 0
-		avisar_travado(b, func(): return "Nenhuma peça %s sem cadeado na mochila" % RAR_F[r].to_lower())
-		l.add_child(b)
-	return l
 
 func perguntar_evoluir(i: int) -> void:
 	var P = m.P
@@ -2351,7 +2334,7 @@ func fechar_confirma() -> void:
 		_confirma.queue_free()
 		_confirma = null
 
-func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false) -> void:
+func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false, extra := "", fn_extra := Callable()) -> void:
 	fechar_confirma()
 	_confirma = Control.new()
 	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2388,6 +2371,17 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 		ok.add_theme_color_override("font_color", PIOR)
 		ok.add_theme_color_override("font_hover_color", PIOR)
 	linha.add_child(ok)
+	if extra != "" and fn_extra.is_valid(): # segunda escolha (ex.: destruir todas da raridade)
+		cx.custom_minimum_size.x = 560
+		cx.position.x = -280
+		var b2 := botao(extra, func():
+			fechar_confirma()
+			fn_extra.call(), 15, true)
+		b2.custom_minimum_size = Vector2(170, 44)
+		if perigo:
+			b2.add_theme_color_override("font_color", PIOR)
+			b2.add_theme_color_override("font_hover_color", PIOR)
+		linha.add_child(b2)
 
 # André 2026-11-07: no card da peça só os números (o +N já vem no nome). Chance, custo e falta de atributo aparecem
 # na janelinha de reforçar e nos avisos. Aqui só um aviso curto quando a peça reforçada não pode ser usada (Quimera).
