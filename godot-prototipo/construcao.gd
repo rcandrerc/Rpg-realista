@@ -440,6 +440,33 @@ func _caixa(pai: Node3D, tam: Vector3, pos: Vector3, mat: Material, rot := Vecto
 	pai.add_child(mi)
 	return mi
 
+# Chama que mexe (fogão e fornalha, 2026-11-07): um cone com o shader chama_fogo. Fica solta (nome "chama" em MANTER),
+# sem sombra; cada cone tem sua fase para não mexerem juntos.
+var _shader_chama: Shader
+func _chama(pai: Node3D, base: Color, ponta: Color, raio: float, altura: float, pos: Vector3) -> MeshInstance3D:
+	if _shader_chama == null:
+		_shader_chama = load("res://chama_fogo.gdshader")
+	var mi := MeshInstance3D.new()
+	var cn := CylinderMesh.new()
+	cn.top_radius = 0.0
+	cn.bottom_radius = raio
+	cn.height = altura
+	cn.radial_segments = 8
+	cn.rings = 3 # anéis no meio para a chama poder dobrar
+	mi.mesh = cn
+	var mt := ShaderMaterial.new()
+	mt.shader = _shader_chama
+	mt.set_shader_parameter("cor_base", base)
+	mt.set_shader_parameter("cor_ponta", ponta)
+	mt.set_shader_parameter("altura", altura)
+	mt.set_shader_parameter("fase", pai.get_child_count() * 1.9)
+	mi.material_override = mt
+	mi.position = pos
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.name = "chama"
+	pai.add_child(mi)
+	return mi
+
 # Fornalha: bloco de pedra com a boca acesa (brasa), grelha de ferro e chaminé atrás (como a forja do Tomás)
 func _modelo_fornalha() -> Node3D:
 	var r := Node3D.new()
@@ -456,6 +483,10 @@ func _modelo_fornalha() -> Node3D:
 	_caixa(r, Vector3(0.36, 0.12, 0.04), Vector3(0, 0.38, 0.552), _mat_cor(Color(1.0, 0.62, 0.2), 1.8))
 	for i in 4:
 		_caixa(r, Vector3(0.025, 0.4, 0.025), Vector3(-0.2 + i * 0.133, 0.46, 0.575), ferro)
+	# (2026-11-07) chamas achatadas atrás da grelha, mexendo como as do fogão
+	for c in [[0.0, 0.07, 0.22], [-0.13, 0.05, 0.15], [0.13, 0.05, 0.17]]:
+		var ch := _chama(r, Color(1.0, 0.42, 0.12), Color(1.0, 0.85, 0.4), c[1], c[2], Vector3(c[0], 0.33 + c[2] / 2.0, 0.578))
+		ch.scale = Vector3(1.0, 1.0, 0.12)
 	_caixa(r, Vector3(0.64, 0.06, 0.08), Vector3(0, 0.69, 0.56), pedra)
 	# chaminé
 	_caixa(r, Vector3(0.44, 1.25, 0.42), Vector3(0, 1.62, -0.3), pedra)
@@ -475,21 +506,10 @@ func _modelo_fogao() -> Node3D:
 		_caixa(r, Vector3(0.62, 0.09, 0.09), Vector3(0, 0.12 + i * 0.03, 0), madeira, Vector3(0, a, 0.12 if i % 2 == 0 else -0.12))
 	_caixa(r, Vector3(0.42, 0.04, 0.42), Vector3(0, 0.1, 0), brasa)
 	# chamas em ponta (cones) saindo da lenha: uma laranja grande e três amarelas menores em volta
-	for c in [[Color(1.0, 0.45, 0.12), 2.6, 0.16, 0.42, Vector2.ZERO], [Color(1.0, 0.8, 0.3), 3.0, 0.08, 0.26, Vector2(0.09, 0.05)],
-			[Color(1.0, 0.8, 0.3), 3.0, 0.07, 0.22, Vector2(-0.08, 0.06)], [Color(1.0, 0.62, 0.2), 2.8, 0.08, 0.28, Vector2(0.0, -0.1)]]:
-		var mi := MeshInstance3D.new()
-		var cn := CylinderMesh.new()
-		cn.top_radius = 0.0
-		cn.bottom_radius = c[2]
-		cn.height = c[3]
-		cn.radial_segments = 8
-		cn.rings = 1
-		mi.mesh = cn
-		mi.material_override = _mat_cor(c[0], c[1])
-		mi.position = Vector3(c[4].x, 0.16 + c[3] / 2.0, c[4].y)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.name = "chama"
-		r.add_child(mi)
+	# (2026-11-07) as chamas mexem: shader chama_fogo estica, encolhe e balança a ponta (só na placa de vídeo)
+	for c in [[Color(1.0, 0.45, 0.12), Color(1.0, 0.8, 0.3), 0.16, 0.42, Vector2.ZERO], [Color(1.0, 0.7, 0.25), Color(1.0, 0.9, 0.5), 0.08, 0.26, Vector2(0.09, 0.05)],
+			[Color(1.0, 0.7, 0.25), Color(1.0, 0.9, 0.5), 0.07, 0.22, Vector2(-0.08, 0.06)], [Color(1.0, 0.55, 0.18), Color(1.0, 0.85, 0.4), 0.08, 0.28, Vector2(0.0, -0.1)]]:
+		_chama(r, c[0], c[1], c[2], c[3], Vector3(c[4].x, 0.16 + c[3] / 2.0, c[4].y))
 	# tripé: três pernas de ferro inclinadas que se encontram em cima, a corrente e o caldeirão
 	for i in 3:
 		var a := i * TAU / 3.0
