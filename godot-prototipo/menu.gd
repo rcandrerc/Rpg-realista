@@ -86,6 +86,9 @@ var sel_equip := "" # peça escolhida no corpo (lugar)
 # André 2026-11-04: perto de quem compra (Rosa, Tomás) dá para marcar vários itens, ou Selecionar tudo, e vender de uma vez
 var vendendo := false # modo de marcar itens para vender
 var marcados := {} # lugar da mochila -> true
+# André 2026-11-07: filtro de coleta (botão Filtro da mochila). O que está desmarcado não entra na mochila (o servidor decide)
+var filtro_aberto := false
+var filtro_lista := false # lista de todos os recursos aberta
 var _confirma: Control # janelinha "tem certeza?" (apagar item, vender vários)
 # André 2026-11-03: tocar num lugar do corpo abre a janela da peça: Tirar (vai para a mochila; dá para ficar só com a
 # roupa de baixo) e a lista das peças da mochila que servem ali, comparadas com a vestida (melhor ou pior), com Trocar
@@ -684,6 +687,7 @@ func abrir(qual := "", sub := "") -> void:
 	janela_lugar = ""
 	vendendo = false
 	marcados = {}
+	filtro_aberto = false
 	raiz.visible = true
 	m.hud.bloqueado = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -1714,7 +1718,21 @@ func montar_mochila() -> void:
 	org.custom_minimum_size = Vector2(130, 36)
 	org.disabled = cheios == 0 or vendendo
 	topo.add_child(org)
+	# André 2026-11-07: filtro de coleta (fica dourado quando tem algo desmarcado)
+	var f_atual := filtro_atual()
+	var fil := botao("Voltar" if filtro_aberto else "Filtro", func():
+		filtro_aberto = not filtro_aberto
+		vendendo = false
+		marcados = {}
+		atualizar(), 14, filtro_aberto or f_atual.r.size() > 0 or f_atual.k.size() > 0)
+	fil.custom_minimum_size = Vector2(110, 36)
+	if not filtro_aberto and (f_atual.r.size() > 0 or f_atual.k.size() > 0):
+		fil.add_theme_color_override("font_color", OURO_CLARO)
+	topo.add_child(fil)
 	conteudo.add_child(topo)
+	if filtro_aberto:
+		montar_filtro()
+		return
 	# páginas: abas 1 a 4; a que ainda não foi comprada mostra o preço e abre o cadeado
 	var por_pag: int = int(P.dados.mochila)
 	var total_pag: int = int(P.dados.get("mochilaPaginas", 1))
@@ -1773,6 +1791,129 @@ func montar_mochila() -> void:
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
 	montar_conjunto()
+
+# ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
+# prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }; sem o campo = pega tudo.
+# Online quem decide é o servidor (filtrado() em shared/progresso.js): o desmarcado que cai do monstro fica no chão.
+func filtro_atual() -> Dictionary:
+	var f = m.P.prog.get("filtro")
+	var r: Array = []
+	var k: Array = []
+	if f is Dictionary:
+		for v in f.get("r", []):
+			r.append(int(v))
+		for v in f.get("k", []):
+			k.append(str(v))
+	return {"r": r, "k": k}
+
+func mandar_filtro(r: Array, k: Array) -> void:
+	acao_item({"acao": "filtro", "r": r, "k": k})
+
+func recursos_do_jogo() -> Array:
+	var itens: Dictionary = m.P.dados.itens
+	var l: Array = itens.keys().filter(func(k): return itens[k].get("mat", false))
+	l.sort_custom(func(a, b):
+		var sa: bool = str(a).begins_with("semente_")
+		var sb: bool = str(b).begins_with("semente_")
+		if sa != sb:
+			return sb # sementes no fim
+		return str(itens[a].nome).naturalnocasecmp_to(str(itens[b].nome)) < 0)
+	return l
+
+# um quadradinho de marcar: toca em qualquer parte (é um botão: arrastar a lista não marca sem querer)
+func marca_filtro(texto: String, cor: Color, marcado: bool, fn: Callable, icone := "") -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 44)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	estilo_botao(b, marcado)
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 8)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.offset_left = 8
+	l.offset_right = -6
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var q := Quadradinho.new()
+	q.lado = 20
+	q.marcado = marcado
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(q)
+	if icone != "":
+		var ic := TextureRect.new()
+		ic.texture = icone_tex(icone)
+		ic.custom_minimum_size = Vector2(30, 30)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if ic.texture and ic.texture.resource_path.ends_with(".svg"):
+			ic.modulate = cor
+		if not marcado:
+			ic.modulate.a = 0.45
+		l.add_child(ic)
+	var t := rotulo(texto, 14, cor if marcado else APAGADO)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.clip_text = true
+	t.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_child(t)
+	b.add_child(l)
+	b.pressed.connect(func():
+		if not _arrastou:
+			fn.call())
+	return b
+
+func montar_filtro() -> void:
+	var P = m.P
+	var f := filtro_atual()
+	separador("Filtro de coleta")
+	var d := rotulo("O que estiver desmarcado não entra na mochila: fica no chão. Ouro, poções e Tomos sempre entram, e o recurso do veio ou da árvore que você está coletando também.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	separador("Equipamentos por raridade")
+	var g := GridContainer.new()
+	g.columns = 5
+	g.add_theme_constant_override("h_separation", 6)
+	for r in P.dados.raridades.size():
+		var marcado: bool = not f.r.has(r)
+		g.add_child(marca_filtro(str(P.dados.raridades[r].nome), Color(P.dados.raridades[r].cor), marcado, func():
+			var nr: Array = f.r.duplicate()
+			if nr.has(r):
+				nr.erase(r)
+			else:
+				nr.append(r)
+			mandar_filtro(nr, f.k)))
+	conteudo.add_child(g)
+	separador("Recursos")
+	var todos: Array = recursos_do_jogo()
+	var fora: int = todos.filter(func(k): return f.k.has(k)).size()
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var txt := "Todos os recursos" if fora == 0 else ("Nenhum recurso" if fora == todos.size() else "Recursos: %d de %d" % [todos.size() - fora, todos.size()])
+	linha.add_child(marca_filtro(txt, TEXTO, fora < todos.size(), func():
+		mandar_filtro(f.r, [] if fora > 0 else todos), P.icone_item({"k": "couro", "n": 1}) if P.dados.itens.has("couro") else ""))
+	var esc := botao("Fechar lista" if filtro_lista else "Escolher um por um", func():
+		filtro_lista = not filtro_lista
+		atualizar(), 14, filtro_lista)
+	esc.custom_minimum_size = Vector2(210, 44)
+	linha.add_child(esc)
+	conteudo.add_child(linha)
+	if filtro_lista:
+		var g2 := GridContainer.new()
+		g2.columns = 3
+		g2.add_theme_constant_override("h_separation", 6)
+		g2.add_theme_constant_override("v_separation", 6)
+		for k in todos:
+			var it := {"k": k, "n": 1}
+			g2.add_child(marca_filtro(str(P.dados.itens[k].nome), P.cor_item(it), not f.k.has(k), func():
+				var nk: Array = f.k.duplicate()
+				if nk.has(k):
+					nk.erase(k)
+				else:
+					nk.append(k)
+				mandar_filtro(f.r, nk), P.icone_item(it)))
+		conteudo.add_child(g2)
 
 # André 2026-11-03: mostrar ou esconder o capacete (só a aparência; a peça continua equipada e dando o bônus)
 func montar_capacete() -> void:
@@ -2801,8 +2942,16 @@ func acao_item(msg: Dictionary) -> void:
 	if msg.acao in ["destruir", "evoluir"] and not m.on():
 		m.hud.aviso("Destruir e evoluir peça só funcionam online")
 		return
+	if msg.acao == "filtro": # o quadradinho responde na hora; online o servidor devolve o mesmo
+		if msg.r.is_empty() and msg.k.is_empty():
+			P.prog.erase("filtro")
+		else:
+			P.prog.filtro = {"r": msg.r.duplicate(), "k": msg.k.duplicate()}
+		P.mudou = true
 	if m.on():
 		m.rede("item", msg)
+		if msg.acao == "filtro":
+			atualizar()
 		return
 	match msg.acao:
 		"capacete":

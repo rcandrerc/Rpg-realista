@@ -165,6 +165,21 @@ export function guardar(mochila, item) {
   const i = mochila.indexOf(null); if (i < 0) return false;
   mochila[i] = it; return true;
 }
+// ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
+// prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }. O que está desmarcado não entra na mochila:
+// peça de equipamento dessa raridade ou recurso (item com mat) que cai do monstro ou sai de bônus na coleta fica no chão.
+// Poção, Tomo, ouro e o recurso principal do veio ou da árvore que você está coletando sempre entram.
+export function filtroValido(f) {
+  if (!f || typeof f !== 'object') return null;
+  const r = Array.isArray(f.r) ? [...new Set(f.r.filter((v) => Number.isInteger(v) && v >= 0 && v < RARIDADES.length))].sort() : [];
+  const k = Array.isArray(f.k) ? [...new Set(f.k.filter((v) => typeof v === 'string' && ITENS[v]?.mat))].sort() : [];
+  return r.length || k.length ? { r, k } : null;
+}
+export function filtrado(p, it) {
+  const f = p?.filtro; if (!f || !it || !ITENS[it.k]) return false;
+  if (ehEquip(it.k)) return f.r.includes(it.r ?? 0);
+  return !!ITENS[it.k].mat && f.k.includes(it.k);
+}
 // ---------- organizar a mochila ou o baú (André 2026-11-07, ORGANIZAR em shared/dados.js) ----------
 export function grupoItem(it) {
   const d = ITENS[it.k] || {};
@@ -448,6 +463,7 @@ export function progressoValido(p) {
   // relógio do dia da conta (depois de dormir) e quando a cama deu vigor pela última vez (ms, relógio do servidor)
   if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
+  const filtro = filtroValido(p.filtro); if (filtro) n.filtro = filtro; // filtro de coleta da mochila
   if (num(p.agua) && p.agua >= 0) n.agua = Math.min(Math.floor(p.agua), HORTA.agua); // água do regador (sem o campo = cheio)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
