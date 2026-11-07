@@ -340,7 +340,7 @@ func reforco_erro(it) -> String:
 		return "Reforço no máximo!"
 	var pr := reforco_precisa(it, e + 1)
 	if atributo_reforco(pr[0]) < int(pr[1]):
-		return "Precisa %d de %s (você tem %d). Suba o atributo pra reforçar mais" % [pr[1], nome_atributo_reforco(pr[0]), atributo_reforco(pr[0])]
+		return "Você não pode reforçar mais: não tem atributo suficiente (precisa %d de %s, você tem %d)" % [pr[1], nome_atributo_reforco(pr[0]), atributo_reforco(pr[0])]
 	if int(prog.ouro) < custo_reforco(it):
 		return "Ouro insuficiente (%d/%d)" % [int(prog.ouro), custo_reforco(it)]
 	return ""
