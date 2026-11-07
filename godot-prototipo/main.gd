@@ -1845,7 +1845,7 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
-	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau"]:
+	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau", "forno"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
@@ -1867,7 +1867,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -1990,16 +1990,17 @@ func _tentar(qual: String) -> bool:
 		"coletar": # veio ou árvore perto: minera ou corta lenha (trabalho.gd)
 			trabalho.tocar_botao()
 		"bancada": # perto de uma estação do lote (construcao.gd): bancada = Alfaiate; bigorna ou fornalha = Ferreiro
-			if construcao.minha_fornalha_perto() != "": # 2026-11-07: a minha fornalha abre a janela dela (combustível + material)
-				construcao.abrir_forno()
-			else:
-				menu.abrir_estacao() # André 2026-11-05: um menu só, a aba Criar inteira (antes: Profissões > Ferreiro/Alfaiate)
+			# André 2026-11-05: um menu só, a aba Criar inteira. 2026-11-07: longe (ou do outro lado da parede) o herói
+			# vai andando até a estação, entrando pela porta, e abre quando chega (construcao.gd tocar_estacao)
+			construcao.tocar_estacao("bancada")
 		"construir": # no meu lote: abre ou fecha o modo construção (construcao.gd)
 			construcao.tocar_botao_construir()
 		"lote": # perto da placa de um lote à venda: pergunta se quer comprar
 			construcao.perguntar_compra()
 		"bau": # perto do meu baú (construcao.gd): abre o baú
-			construcao.abrir_bau()
+			construcao.tocar_estacao("bau") # 2026-11-07: longe ou do lado de fora da parede, anda até ele e abre
+		"forno": # a minha fornalha (construcao.gd, 2026-11-07): anda até o lado dela e abre a janela de combustível + material
+			construcao.tocar_estacao("forno")
 		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
 			construcao.abrir_correio()
 		_:
