@@ -978,6 +978,8 @@ export class Simulacao {
   //   · { acao: 'vender_varios', lista: [i, ...] } (vende as pilhas inteiras de uma vez) · { acao: 'apagar', i } (joga fora)
   //   · { acao: 'pagina' } (compra a próxima página da mochila com ouro, em qualquer lugar)
   //   · { acao: 'organizar' } (junta as pilhas e põe a mochila em ordem: tipo, raridade, nome; ORGANIZAR em shared/dados.js)
+  //   · { acao: 'cadeado', i } ou { acao: 'cadeado', lugar } (André 2026-11-07: tranca/destranca o item; trancado não vende,
+  //     não entra no "Vender vários"/"Selecionar tudo", não vai para o lixo nem para a troca)
   // ---------- dungeon: Caverna da Montanha (André 2026-11-06; shared/caverna.js e CAVERNA_DUNGEON em shared/dados.js) ----------
   // (x, y, z) passou do selo da caverna (do selo para dentro, abaixo do teto do túnel)?
   alemDoSelo(x, z, y) { const c = dentroDaCaverna(TUNEL, x, z, y + 0.3); return !!c && c.s > CAVERNA.porta; }
@@ -1100,7 +1102,12 @@ export class Simulacao {
         j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA;
       }
       if (--it.n <= 0) p.mochila[i] = null;
+    } else if (m.acao === 'cadeado' && (it || (typeof m.lugar === 'string' && Object.hasOwn(p.equip, m.lugar) && p.equip[m.lugar]))) {
+      const o = it || p.equip[m.lugar];
+      if (o.cad) delete o.cad; else o.cad = 1;
+      aviso(o.cad ? `${nomeItem(o)} trancado: não dá para vender nem jogar fora` : `${nomeItem(o)} destrancado`);
     } else if (m.acao === 'vender' && it) {
+      if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       const preco = precoVenda(it, mercador(p.prof.mer).venda);
       if (it.n > 1) it.n--; else p.mochila[i] = null;
@@ -1110,8 +1117,9 @@ export class Simulacao {
     } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x]))];
-      if (!lugares.length) return;
+      // item com cadeado (André 2026-11-07) fica de fora, mesmo que venha na lista
+      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad))];
+      if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
       const merc = mercador(p.prof.mer).venda;
       let ouro = 0, n = 0;
       for (const x of lugares) {
@@ -1123,6 +1131,7 @@ export class Simulacao {
       this.pontosMercador(j, ouro);
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
     } else if (m.acao === 'apagar' && it) {
+      if (it.cad) return aviso('Item trancado. Abra o cadeado para jogar fora');
       // André 2026-11-04: jogar fora um item da mochila (o celular pergunta antes; não dá ouro e não volta)
       p.mochila[i] = null;
       aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
@@ -1252,6 +1261,7 @@ export class Simulacao {
     if (m.acao === 'por') {
       const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
       if (!it) return;
+      if (it.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
       const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
       const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
       if (n <= 0) return aviso('Você já pôs tudo desse item');
