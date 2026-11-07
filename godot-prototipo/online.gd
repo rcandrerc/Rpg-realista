@@ -789,7 +789,7 @@ func evento(ev: Dictionary) -> void:
 				if meu and not eu and float(ev.n) > 0.0:
 					m.piscar(no)
 					# o golpe de espada já deu o tranco na hora; skills e tiros dão aqui, quando o servidor confirma
-					if m.tempo - m._impacto_t > 0.2:
+					if m.tempo - m._impacto_t > 0.2 and m.tempo - m._faisca_t > 0.8: # Faísca: o acerto já soou na hora
 						m.impacto_golpe(no.position, true, crit, false)
 			return
 		"cura":
