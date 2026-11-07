@@ -14,6 +14,9 @@ const ACOES := ["arar", "plantar", "regar", "colher"]
 const DUR := {"arar": 1.6, "plantar": 1.2, "regar": 1.4, "colher": 1.2} # s de cada tarefa
 const LONGE := {"arar": 1.0, "plantar": 0.6, "regar": 0.75, "colher": 0.6} # m do herói até o meio do quadrado
 const COR := {"arar": Color(0.86, 0.66, 0.38), "plantar": Color(0.45, 0.9, 0.42), "regar": Color(0.4, 0.72, 1.0), "colher": Color(1.0, 0.84, 0.35)}
+# cores da moldura de luz (marca_fazenda.gdshader): tons quentes e suaves, nada de verde-marca-texto
+const COR_MOLDURA := {"arar": Color(1.0, 0.78, 0.5), "plantar": Color(1.0, 0.9, 0.58), "regar": Color(0.62, 0.86, 1.0), "colher": Color(1.0, 0.8, 0.42)}
+const SHADER_MARCA := preload("res://marca_fazenda.gdshader")
 const TEMPO_IR := 6.0 # s para chegar a um quadrado; não chegou: pula (avisa)
 
 var c # construcao.gd
@@ -103,6 +106,15 @@ func _mat(cor: Color) -> StandardMaterial3D:
 		_mats[k] = mt
 	return _mats[k]
 
+func _mat_moldura(acao: String) -> ShaderMaterial:
+	var k := "moldura/" + acao
+	if not _mats.has(k):
+		var sm := ShaderMaterial.new()
+		sm.shader = SHADER_MARCA
+		sm.set_shader_parameter("cor", COR_MOLDURA.get(acao, Color(1.0, 0.9, 0.6)))
+		_mats[k] = sm
+	return _mats[k]
+
 func _icone(acao: String, s: String) -> String:
 	return {"arar": "cs_arar", "plantar": "it_semente_" + s, "regar": "cs_regar", "colher": "it_colheita"}[acao]
 
@@ -121,9 +133,10 @@ func _refazer_marca(k: String) -> void:
 	add_child(raiz)
 	var q := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(0.86, 0.86)
+	pm.size = Vector2(0.92, 0.92)
 	q.mesh = pm
-	q.material_override = _mat(COR[d.acao])
+	q.material_override = _mat_moldura(str(d.acao)) # antes: _mat(COR[...]), quadrado chapado
+	q.position.y = -0.07
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	raiz.add_child(q)
 	var ic := Sprite3D.new()
@@ -133,9 +146,15 @@ func _refazer_marca(k: String) -> void:
 	ic.render_priority = 1
 	ic.position = Vector3(0, 0.38, 0)
 	if ic.texture:
-		ic.pixel_size = 0.32 / float(ic.texture.get_width())
+		ic.pixel_size = 0.26 / float(ic.texture.get_width())
 	ic.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	raiz.add_child(ic)
+	# o ícone flutua devagar, subindo e descendo (cada canteiro num tempo diferente)
+	var tw := ic.create_tween().set_loops()
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var atraso := fmod(x * 0.37 + z * 0.61, 1.0) * 0.6
+	tw.tween_property(ic, "position:y", 0.46, 0.9 + atraso)
+	tw.tween_property(ic, "position:y", 0.34, 0.9 + atraso)
 	_marcas[k] = raiz
 
 # ---------- trabalhar ----------
