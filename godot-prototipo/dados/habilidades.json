@@ -959,7 +959,7 @@
    "pilha": 20,
    "venda": 1,
    "obra": "cama",
-   "desc": "Você renasce nela quando cai. Coloque no seu terreno pelo modo construção (martelo)."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h). Coloque no seu terreno pelo modo construção (martelo)."
   },
   "obra_tocha": {
    "nome": "Tocha",
@@ -1414,6 +1414,26 @@
  "vigor": {
   "max": 100,
   "enche": 21600
+ },
+ "dia": {
+  "horaSeg": 30,
+  "comeco": 8,
+  "noite": 19,
+  "manha": 5,
+  "escurece": [
+   18.5,
+   20.5
+  ],
+  "clareia": [
+   4.5,
+   6.5
+  ],
+  "acorda": 6.5
+ },
+ "cama": {
+  "vigor": 40,
+  "cada": 21600,
+  "perigo": 14
  },
  "profissoes": {
   "min": {
@@ -2061,7 +2081,7 @@
    },
    "bancada": true,
    "alto": 0.6,
-   "desc": "Você renasce nela quando cai."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h)."
   },
   "tocha": {
    "nome": "Tocha",

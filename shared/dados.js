@@ -792,7 +792,7 @@ Object.assign(CONSTRUCOES, {
   bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true, alto: 0.69,
     desc: 'Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir.' },
   cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true, alto: 0.6,
-    desc: 'Você renasce nela quando cai.' },
+    desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h).' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
     desc: 'Ilumina em volta. Coloque no chão.' },
 });
@@ -1227,6 +1227,13 @@ export const ESTAMINA = { base: 50, porNivel: 2, porDes: 5, correr: 10, trote: 0
   esperaCombate: 8, dash: 8, rolar: 8, mortal: 6, seguidaK: 0.5, seguidaMax: 2.4, seguidaJanela: 1.3, folego: 0.2, combate: 5 };
 // Vigor: energia para trabalhar (coletar e criar). Vai de 0 a max e enche sozinho em "enche" segundos (6 h), mesmo com o jogo fechado.
 export const VIGOR = { max: 100, enche: 6 * 3600 };
+// Dia e noite (igual ao Quimera, André 2026-11-07): 1 hora do jogo = horaSeg s (o dia inteiro em 12 min). Escurece das
+// 18h30 às 20h30 e clareia das 4h30 às 6h30; é "noite" (dá para dormir) das 19h às 5h. Cada conta tem o seu relógio
+// (prog.dia = { h, t }: hora h no instante t, em ms); conta que nunca dormiu segue o relógio do mundo (comeco às 0 ms).
+export const DIA = { horaSeg: 30, comeco: 8, noite: 19, manha: 5, escurece: [18.5, 20.5], clareia: [4.5, 6.5], acorda: 6.5 };
+// Dormir na cama do seu terreno (Quimera): só à noite e sem monstro a menos de "perigo" m. Pula até as 6h30 com vida,
+// mana e estamina cheias; o vigor ganha "vigor" uma vez a cada "cada" s (se ainda não deu, avisa quando volta).
+export const CAMA = { vigor: 40, cada: 6 * 3600, perigo: 14 };
 // Profissões (as do Quimera que cabem no mapa de agora; Pescador e Fazendeiro chegam com água e horta).
 // Trabalhar gasta vigor e dá pontos na profissão: Nv = raiz(pontos / 8) + 1, até 20. Rank sobe a cada 2 níveis
 // (19 e 20 têm rank próprio): rank maior gasta menos vigor (-4% por rank), trabalha mais rápido (+3,5%), dá chance

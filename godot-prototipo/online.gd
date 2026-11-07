@@ -672,6 +672,10 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.do_bau(ev)
 			return
+		"dormiu": # dormiu na cama (shared/simulacao.js dormir): a tela escurece, a hora pula para 6h30 e clareia
+			if m.dia:
+				m.dia.dormiu(ev)
+			return
 		"forno": # a fornalha do meu terreno (construcao.gd)
 			if m.construcao:
 				m.construcao.do_forno(ev)

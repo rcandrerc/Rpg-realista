@@ -165,6 +165,8 @@ func _ready() -> void:
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("forno", Vector2(333, 340), 30, "cs_fornalha", m.hud.COR_TROCA) # 2026-11-07: a minha fornalha
 	m.hud.botoes[-1].oculto = true
+	m.hud._botao("cama", Vector2(423, 250), 30, "cs_cama", m.hud.COR_TROCA) # à noite, perto da minha cama: dormir (Quimera)
+	m.hud.botoes[-1].oculto = true
 	m.hud._botao("correio", Vector2(333, 160), 30, "correio", m.hud.COR_TROCA) # perto da minha caixa de correio: a conta do terreno
 	m.hud.botoes[-1].oculto = true
 
@@ -1928,6 +1930,9 @@ func _process(dt: float) -> void:
 	m.hud.mostrar_botao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
 	m.hud.mostrar_botao("forno", ((no_meu and not _pecas_minhas(["fornalha"]).is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
 	m.hud.mostrar_botao("correio", correio and vivo and not livre)
+	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
+	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
+	m.hud.mostrar_botao("cama", noite and ((no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
 	_passo_ir_estacao()
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
@@ -3056,6 +3061,13 @@ func _meu_bau_perto() -> bool:
 			return true
 	return false
 
+# a minha cama a até 6 m (fora do terreno não acontece, mas a casa pode passar da borda)
+func _cama_perto() -> Dictionary:
+	var c := _mais_perta(_pecas_minhas(["cama"]))
+	if c.is_empty() or Vector2(c.x - m.heroi.position.x, c.z - m.heroi.position.z).length() > 6.0:
+		return {}
+	return c
+
 func abrir_bau() -> void:
 	if not m.on():
 		return
@@ -3173,7 +3185,7 @@ func _montar_bau() -> void:
 const COLADO := 1.25 # m da borda da peça
 const GRADE_IR := 0.4 # m por quadrado da grade
 const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
-const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha"], "bancada": ["bancada", "bigorna"]}
+const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
@@ -3265,6 +3277,11 @@ func _abrir_estacao(qual: String, p) -> void:
 			abrir_bau()
 		"forno":
 			abrir_forno(str(p.id))
+		"cama": # do lado da cama: o servidor confere a noite e os monstros e responde "dormiu" (dia_noite.gd)
+			if m.on():
+				m.rede("dormir", {})
+			else:
+				m.hud.aviso("Dormir precisa estar online")
 		_:
 			m.menu.abrir_estacao()
 

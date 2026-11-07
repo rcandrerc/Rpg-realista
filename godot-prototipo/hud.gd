@@ -34,6 +34,7 @@ var vida := 1.0
 var mana := 1.0
 var estamina := 1.0 # barra amarela (Parte 3 do Quimera): correr, dash, rolar e mortal gastam
 var sem_folego := false
+var vigor := 1.0 # 0..1: energia para trabalhar (coletar e criar); barra própria embaixo da estamina, como no Quimera
 var texto_vida := ""
 var texto_mana := ""
 var nome := "Ruiva"
@@ -49,7 +50,7 @@ var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joyst
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
 var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 var troca # troca.gd: o cartão do pedido de troca não vira joystick nem câmera
-const PAINEL := Rect2(18, 14, 330, 100) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
+const PAINEL := Rect2(18, 14, 330, 104) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
 # modo de editar a interface (André 2026-11-06, editar_hud.gd): cada elemento ganha um deslocamento (d, px) e uma escala (s)
 var painel_d := Vector2.ZERO
 var painel_s := 1.0
@@ -474,6 +475,44 @@ func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) 
 	_tela.draw_string_outline(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.7))
 	_tela.draw_string(f, pos + Vector2((tam.x - w) * 0.5, tam.y - 4), texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 
+# barra fina com um brilho em cima (estamina e vigor)
+func _barra_fina(pos: Vector2, tam: Vector2, frac: float, cor: Color, claro: Color) -> void:
+	_tela.draw_rect(Rect2(pos - Vector2(1, 1), tam + Vector2(2, 2)), Color(0, 0, 0, 0.55))
+	var w: float = tam.x * clampf(frac, 0.0, 1.0)
+	if w > 0.5:
+		_tela.draw_rect(Rect2(pos, Vector2(w, tam.y)), cor)
+		_tela.draw_rect(Rect2(pos, Vector2(w, max(1.0, tam.y * 0.35))), Color(claro, 0.55))
+
+# simbolozinho na frente da barra: estamina = o boneco correndo do botão de disparada (é ela que gasta a estamina);
+# vigor = picareta (o ⛏️ do Quimera: vigor é a energia de trabalhar); traço branco tingido com a cor da barra
+func _icone_barra(qual: String, c: Vector2, cor: Color) -> void:
+	var nome := "disparada" if qual == "estamina" else "picareta"
+	if not _icones.has("barra_" + nome):
+		_icones["barra_" + nome] = Menu.icone_tex(nome)
+	var tx: Texture2D = _icones["barra_" + nome]
+	if tx == null:
+		return
+	var t := 13.0
+	var r := Rect2(c - Vector2(t, t) * 0.5, Vector2(t, t))
+	for o in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]: # contorno escuro
+		_tela.draw_texture_rect(tx, Rect2(r.position + o, r.size), false, Color(0, 0, 0, 0.8))
+	_tela.draw_texture_rect(tx, r, false, cor.lerp(Color.WHITE, 0.15))
+
+# XP (Quimera): barra um pouco mais alta com "XP" à esquerda e o percentual com 2 casas à direita, letra pequena
+func _barra_xp(pos: Vector2, tam: Vector2) -> void:
+	_tela.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.5))
+	var w: float = tam.x * clampf(xp, 0.0, 1.0)
+	if w > 0.5:
+		_tela.draw_rect(Rect2(pos, Vector2(w, tam.y)), Color(0.66, 0.42, 0.82))
+		_tela.draw_rect(Rect2(pos, Vector2(w, 3)), Color(0.9, 0.74, 1.0, 0.6))
+	_tela.draw_rect(Rect2(pos, tam), Color(0.62, 0.48, 0.26, 0.45), false, 1.0)
+	var f := ThemeDB.fallback_font
+	var pct := ("%.2f%%" % (clamp(xp, 0.0, 1.0) * 100.0)).replace(".", ",")
+	var y := pos.y + tam.y - 2.0
+	for t in [["XP", pos.x + 5.0], [pct, pos.x + tam.x - 5.0 - f.get_string_size(pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x]]:
+		_tela.draw_string_outline(f, Vector2(t[1], y), t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.75))
+		_tela.draw_string(f, Vector2(t[1], y), t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.95) if t[0] != "XP" else Color(0.92, 0.85, 1.0, 0.9))
+
 # borda vermelha da tela: golpe recebido (forte e rápida) ou vida abaixo de 30% (fraca, pulsando)
 func _borda_dano() -> void:
 	var a: float = clamp(_dano_t / 0.35, 0.0, 1.0) * 0.45
@@ -507,15 +546,19 @@ func _desenhar() -> void:
 	if _combate_a > 0.0:
 		_selo_combate(p0 + Vector2(24, 70), _combate_a) # 4 px dentro da borda do painel, com o halo
 	_tela.draw_string(f, p0 + Vector2(92, 24), nome.to_upper() + "   " + ("ESPADA MÁGICA" if modo == "Espada" else "MODO MAGIA"), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.75, 0.4))
-	_barra(p0 + Vector2(92, 34), Vector2(225, 18), vida, Color(0.8, 0.22, 0.2), texto_vida)
+	_barra(p0 + Vector2(92, 31), Vector2(225, 17), vida, Color(0.8, 0.22, 0.2), texto_vida)
 	if escudo: # Escudo Arcano ligado: moldura dourada na vida
-		_tela.draw_rect(Rect2(p0 + Vector2(90, 32), Vector2(229, 22)), Color(1, 0.8, 0.35, 0.9), false, 2.0)
-	_barra(p0 + Vector2(92, 58), Vector2(225, 18), mana, Color(0.22, 0.45, 0.85), texto_mana)
-	# estamina (amarela; sem fôlego fica ocre até voltar) e XP até o próximo nível (fina, embaixo)
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225, 7)), Color(0, 0, 0, 0.5))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 80), Vector2(225 * clamp(estamina, 0.0, 1.0), 7)), Color(0.62, 0.48, 0.18) if sem_folego else Color(0.93, 0.82, 0.32))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225, 4)), Color(0, 0, 0, 0.5))
-	_tela.draw_rect(Rect2(p0 + Vector2(92, 90), Vector2(225 * clamp(xp, 0.0, 1.0), 4)), Color(0.85, 0.62, 0.95))
+		_tela.draw_rect(Rect2(p0 + Vector2(90, 29), Vector2(229, 21)), Color(1, 0.8, 0.35, 0.9), false, 2.0)
+	_barra(p0 + Vector2(92, 51), Vector2(225, 17), mana, Color(0.22, 0.45, 0.85), texto_mana)
+	# André 2026-11-07 (igual ao Quimera): embaixo da mana, estamina (amarela; sem fôlego fica ocre até voltar) e vigor
+	# (dourado; acabando fica vermelho), cada uma com o seu simbolozinho; e o XP com "XP" e o percentual dentro da barra
+	var cor_sta := Color(0.86, 0.6, 0.22) if sem_folego else Color(0.71, 0.88, 0.29) # verde-limão do Quimera (b6e04a)
+	var cor_vig := Color(0.88, 0.29, 0.24) if vigor < 0.15 else Color(0.95, 0.77, 0.3) # dourado do Quimera (f2c94c)
+	_icone_barra("estamina", p0 + Vector2(103, 74.5), cor_sta)
+	_barra_fina(p0 + Vector2(113, 71), Vector2(204, 7), estamina, cor_sta, Color(0.96, 1.0, 0.7))
+	_icone_barra("vigor", p0 + Vector2(103, 84.5), cor_vig)
+	_barra_fina(p0 + Vector2(113, 82), Vector2(204, 5), vigor, cor_vig, Color(1.0, 0.96, 0.7))
+	_barra_xp(p0 + Vector2(92, 91), Vector2(225, 11))
 	_tela.draw_set_transform(Vector2.ZERO)
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
