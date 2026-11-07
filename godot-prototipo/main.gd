@@ -1434,6 +1434,13 @@ func molas(no: Node) -> void:
 func na_masmorra() -> bool:
 	return caverna != null and not terreno.dentro_caverna(heroi.position.x, heroi.position.z, heroi.position.y + 0.3).is_empty()
 
+# algum monstro vivo a até 15 m bateu ou apanhou nos últimos segundos (a luta continua mesmo se o herói ficou sem bater)
+func luta_perto() -> bool:
+	for e in inimigos:
+		if e.estado != "morto" and e.vida > 0.0 and maxf(float(e.get("combate", 0.0)), float(e.get("luta", 0.0))) > tempo and e.no.position.distance_to(heroi.position) < 15.0:
+			return true
+	return false
+
 # algum chefe (Imp Chefe, Warrok) bateu ou apanhou nos últimos segundos: a música de combate vira a de chefe
 func luta_com_chefe() -> bool:
 	for e in inimigos:
@@ -2553,7 +2560,9 @@ func _process(dt: float) -> void:
 	# em combate (bateu ou apanhou nos últimos segundos): símbolo no painel e música de combate
 	hud.em_combate = trabalho.em_combate()
 	# André 2026-11-06: "Eye of the Storm" para chefe e masmorra; "Battle for the Kingdom" para os monstros em geral
-	musica.combate(hud.em_combate, dt_real, hud.em_combate and (luta_com_chefe() or na_masmorra()))
+	# André 2026-11-07: a música não corta enquanto um monstro perto ainda está na luta (preparando golpe, perseguindo)
+	var luta_musica: bool = hud.em_combate or (musica.lutando and luta_perto()) # só segura a luta que já começou
+	musica.combate(luta_musica, dt_real, luta_musica and (luta_com_chefe() or na_masmorra()))
 	var barra: Array = barra_atual()
 	for i in barra.size():
 		var k = barra[i]
