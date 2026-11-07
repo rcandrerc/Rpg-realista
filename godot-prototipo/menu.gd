@@ -2048,6 +2048,9 @@ func linha_reforco(it) -> Control:
 		if P.chance_reforco(e) < 100:
 			var f: int = P.reforco_falhou(e)
 			t += (" · se falhar volta pra +%d" % f) if f < e else (" · se falhar continua +%d" % e)
+	if not P.reforco_ok(it): # como no Quimera: sem o atributo não equipa e, no corpo, não dá bônus
+		t += "\n⛔ %s: %s" % [P.texto_reforco_precisa(it), "sem bônus até subir o atributo" if it in P.prog.equip.values() else "não dá pra equipar"]
+		cor = PIOR
 	var l := rotulo(t, 12, cor)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return l
@@ -2390,6 +2393,8 @@ func acao_item(msg: Dictionary) -> void:
 		"capacete":
 			P.prog.semCapacete = msg.mostrar == false
 		"equipar":
+			if i >= 0 and P.eh_equip(P.prog.mochila[i]) and not P.reforco_ok(P.prog.mochila[i]):
+				m.hud.aviso(P.texto_reforco_precisa(P.prog.mochila[i]))
 			P.equipar(i)
 		"tirar":
 			var r: String = P.tirar(msg.lugar)

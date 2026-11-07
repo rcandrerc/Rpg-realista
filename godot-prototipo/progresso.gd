@@ -264,6 +264,8 @@ func bonus_equip() -> Dictionary:
 		var it = prog.equip.get(l)
 		if it == null or not dados.itens.has(it.k) or quebrado(it): # quebrada: sem bônus até o Tomás consertar
 			continue
+		if not reforco_ok(it): # como no Quimera: reforçada além do seu atributo não dá bônus
+			continue
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
 			b[c] += float(st[c][int(it.r)]) * reforco_k(it, c)
@@ -314,6 +316,18 @@ func atributo_reforco(k: String) -> int:
 
 static func nome_atributo_reforco(k: String) -> String:
 	return "Força" if k == "for" else "Inteligência" if k == "int" else "Força ou Inteligência"
+
+# pode usar a peça com o reforço que ela tem? (Quimera: sem o atributo não equipa e, no corpo, não dá bônus)
+func reforco_ok(it) -> bool:
+	var e := int(it.get("e", 0)) if it is Dictionary else 0
+	if e <= 0:
+		return true
+	var pr := reforco_precisa(it, e)
+	return atributo_reforco(pr[0]) >= int(pr[1])
+
+func texto_reforco_precisa(it) -> String:
+	var pr := reforco_precisa(it, int(it.get("e", 0)))
+	return "Precisa %d de %s (você tem %d)" % [pr[1], nome_atributo_reforco(pr[0]), atributo_reforco(pr[0])]
 
 # por que não dá para tentar agora ("" = dá)
 func reforco_erro(it) -> String:
@@ -524,7 +538,7 @@ func equip_visivel() -> Dictionary:
 
 func equipar(i: int) -> void:
 	var it = prog.mochila[i]
-	if not eh_equip(it):
+	if not eh_equip(it) or not reforco_ok(it): # reforço acima do atributo não equipa (igual ao Quimera)
 		return
 	var l: String = dados.itens[it.k].lugar
 	prog.mochila[i] = prog.equip.get(l)
