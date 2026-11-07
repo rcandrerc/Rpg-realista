@@ -3181,7 +3181,10 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			passada = lerp(0.9, 2.6, clamp((vel - 3.0) / 6.0, 0.0, 1.0))
 		if _passo_dist >= passada:
 			_passo_dist = 0.0
-			sons.tocar("passo", -14.0 + vel * 1.4, 0.12)
+			if montaria != null: # o lobo tem som de patas próprio, não o passo do herói (André 2026-11-07)
+				sons.tocar("pata", -6.0, 0.1)
+			else:
+				sons.tocar("passo", -14.0 + vel * 1.4, 0.12)
 	else:
 		_passo_dist = 0.6
 

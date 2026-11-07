@@ -37,3 +37,11 @@ Pixabay Content License: uso comercial liberado, sem crédito obrigatório. Orig
 |---|---|---|
 | faisca_lanca | whoosh da bola de fogo saindo da mão | Pixabay, "Fireball Whoosh 1" de floraphonic (som 179125), cortado de 0,03 s a 0,78 s com fade final, mono, -9,5 dB |
 | faisca_acerto | impacto da bola de fogo no alvo | Pixabay, "Fireball Impact" de koiroylers (som 351961), cortado de 0,09 s a 0,99 s com fade final, mono, -11 dB |
+
+# Patas do lobo montado (pata_*.ogg, 2026-11-07)
+
+Pedido do André: o lobo correndo tinha o mesmo som de passo do herói. Agora, montado, toca uma passada de patas a cada galope.
+
+| Arquivo | O que é | Gravação |
+|---|---|---|
+| pata_1 a pata_8 | passada de um cão correndo em chão macio (patas) | OpenGameArt, "Dog running" de congusbongus (opengameart.org/content/dog-running-0), CC-BY 3.0: uso comercial liberado, **crédito obrigatório** ("Dog running" por congusbongus, CC-BY 3.0). Arquivos 0 a 7 do pacote, mono, pico em -1,5 dB; originais no New-Game-Anime-fontes (sons/opengameart/cao-correndo/) |
