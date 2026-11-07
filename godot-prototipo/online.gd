@@ -334,15 +334,14 @@ func desligar() -> void:
 				e.estado = "vagar"
 	atualizar_status("")
 
-# passou dos 5 s sem conexão: avisa e recomeça o jogo na tela inicial (nada do que foi feito sem servidor fica)
+# passou dos 5 s sem conexão: avisa e mostra a tela inicial (nada do que foi feito sem servidor fica: ao entrar de novo
+# o servidor manda o progresso e o lugar dele). Sem recarregar a cena: o recarregar sem internet fechava o app (André 2026-11-07).
 func _desconectado() -> void:
 	_foi_desconectado = true
 	desligar()
 	rede.fechar()
-	cobrir("Você foi desconectado")
-	_cobrir_t = 999.0
-	await get_tree().create_timer(1.2).timeout
-	get_tree().reload_current_scene()
+	_voltar_a_tela_inicial()
+	aviso_login.text = "Sem conexão com o servidor."
 
 # tela inicial com a conta salva (Entrar como… / Trocar de conta / Jogar sozinho) e o motivo embaixo
 func _voltar_a_tela_inicial() -> void:
