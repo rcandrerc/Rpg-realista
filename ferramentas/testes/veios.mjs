@@ -13,6 +13,7 @@ for (let i = 0; i < zs.length; i++) for (let k = i + 1; k < zs.length; k++) ok(M
 for (const z of zs) ok(!M.mata.some((a) => Math.hypot(a.x - z.x, a.z - z.z) < z.r + 1.5), `sem árvore dentro de ${z.id}`);
 // minerar: Minerador Nv 1 minera pedra mas não ferro (Nv 5)
 const j = s.adicionarJogador('A', 'Ana');
+j.prog.mochila[j.prog.mochila.indexOf(null)] = { k: 'picareta', n: 1 }; // minerar pede a picareta de pedra (André 2026-11-07)
 const minerar = (no) => {
   j.x = no.x + no.r + 1; j.z = no.z; j.chao = true; j.trava = 0; s.eventos = [];
   s.coletar('A', { no: no.id });
