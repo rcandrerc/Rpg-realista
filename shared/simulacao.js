@@ -2058,7 +2058,8 @@ export class Simulacao {
     const L = this.loteDe(j); if (!L) return aviso('Você ainda não tem cama');
     if (!L.pecas.some((o) => o.k === 'cama' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto da sua cama');
     const agora = Date.now(), p = j.prog;
-    if (!ehNoite(horaDoJogo(p.dia, agora))) return aviso(`Só dá para dormir à noite (das ${DIA.noite}h às ${DIA.manha}h)`);
+    const h = horaDoJogo(p.dia, agora), hh = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 6) * 10).padStart(2, '0')}`;
+    if (!ehNoite(h)) return aviso(`Só dá para dormir à noite (das ${DIA.noite}h às ${DIA.manha}h). Agora são ${hh}`);
     if (this.emCombate(j) || this.inimigos.some((e) => !e.morto && !e.treino && dist(e, j) < CAMA.perigo)) return aviso('Tem monstros por perto!');
     if (j.coleta) this.pararColeta(j);
     if (j.canal) this.cancelarCanal(j);
