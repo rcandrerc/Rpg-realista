@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
@@ -11,6 +11,7 @@ const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
+const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
 // ---------- Fornalha (shared/dados.js FORNALHA): queima sozinha pelo relógio, mesmo com o dono fora do jogo ----------
 // F = { comb, ent, sai: {k, n} | null, fogo: s de fogo que sobra da unidade acesa, fogoK: o que está queimando,
 // prog: s do que está saindo agora, t: última conta (ms) }. Só faz a conta quando alguém olha (abre, põe, tira, salva).
@@ -1087,6 +1088,9 @@ export class Simulacao {
     }
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
+    // catalisador (André 2026-11-07): { acao: 'destruir', i } (uma peça) ou { acao: 'destruir', raridade } (todas da
+    // raridade, sem as com cadeado; uma barrinha por peça, uma depois da outra) · { acao: 'evoluir', i } (sobe a raridade)
+    if (m.acao === 'destruir' || m.acao === 'evoluir') return this.comecarCatalisador(j, m, i, it, aviso);
     if (m.acao === 'equipar' && it && ehEquip(it.k)) {
       if (!reforcoOk(it, p.atr)) return aviso(textoReforcoPrecisa(it, p.atr)); // reforço acima do atributo (igual ao Quimera)
       const l = ITENS[it.k].lugar;
@@ -2022,18 +2026,118 @@ export class Simulacao {
   pararFabrica(j, texto) {
     const f = j.fabrica; j.fabrica = null;
     if (texto) this.evento({ t: 'aviso', para: j.id, texto });
-    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', nome: f ? f.nome : undefined, fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0 });
+    // destruir/evoluir (catalisador): a barrinha termina com o resultado (msg) em vez de "Pronto: n criados"
+    const msg = f && (f.des || f.ev) ? texto || (f.des ? 'Parou de destruir' : 'Parou de evoluir') : undefined;
+    this.evento({ t: 'fabricando', para: j.id, k: f ? f.k : '', nome: f ? f.nome : undefined, fim: true, feito: f ? f.feito : 0, n: f ? f.n : 0, msg });
   }
   // a barrinha encheu: cria uma e começa a próxima (ou termina a fila)
   passoFabrica(j) {
     const f = j.fabrica;
     if (j.morto) return this.pararFabrica(j, '');
+    if (f.des) return this.passoDestruir(j, f);
+    if (f.ev) return this.passoEvoluir(j, f);
     const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
     if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
     f.feito++;
     if (f.feito >= f.n) return this.pararFabrica(j, f.n > 1 ? `Pronto: ${f.n} criados` : '');
     f.fim = this.tempo + f.dur;
     this.evento({ t: 'fabricando', para: j.id, k: f.k, r: f.r, nome: f.nome, n: f.n, feito: f.feito, dur: f.dur });
+  }
+  // ---------- catalisador: destruir peça e evoluir raridade (CATALISADOR em shared/dados.js, André 2026-11-07) ----------
+  // usa a mesma fila/barrinha da criação (j.fabrica), então "Parar" vale e uma coisa de cada vez
+  comecarCatalisador(j, m, i, it, aviso) {
+    if (j.morto) return;
+    if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
+    if (m.acao === 'evoluir') {
+      if (!it || !ehEquip(it.k)) return aviso('Escolha uma peça da mochila para evoluir');
+      const R = this.receitaEvoluir(it); if (!R) return aviso('Peça Mítica já está no máximo');
+      const motivo = this.motivoReceita(j, R).motivo; if (motivo) return aviso(motivo);
+      const nome = nomeItem(it);
+      j.fabrica = { ev: true, i, alvo: { k: it.k, r: it.r, e: it.e || 0 }, k: it.k, nome, n: 1, feito: 0, dur: CATALISADOR.tempoEvoluir, fim: this.tempo + CATALISADOR.tempoEvoluir };
+      this.evento({ t: 'fabricando', para: j.id, k: it.k, nome, v: 'Evoluindo', n: 1, feito: 0, dur: CATALISADOR.tempoEvoluir });
+      return;
+    }
+    let lista;
+    if (Number.isInteger(m.raridade)) {
+      const r = m.raridade; if (r < 0 || r >= RARIDADES.length) return;
+      lista = [];
+      j.prog.mochila.forEach((o, n) => { if (o && ehEquip(o.k) && o.r === r && !o.cad) lista.push({ i: n, k: o.k, r: o.r, e: o.e || 0 }); });
+      if (!lista.length) return aviso(`Nenhuma peça ${RARIDADES[r].nome.toLowerCase()} sem cadeado na mochila`);
+    } else {
+      if (!it || !ehEquip(it.k)) return aviso('Escolha uma peça da mochila para destruir');
+      if (it.cad) return aviso('Peça trancada. Abra o cadeado para destruir');
+      lista = [{ i, k: it.k, r: it.r, e: it.e || 0 }];
+    }
+    const dur = CATALISADOR.tempoDestruir, nome = lista.length > 1 ? 'peças' : nomeItem(lista[0]);
+    j.fabrica = { des: true, lista, k: lista[0].k, nome, n: lista.length, feito: 0, ganho: {}, dur, fim: this.tempo + dur };
+    this.evento({ t: 'fabricando', para: j.id, k: lista[0].k, nome: nomeItem(lista[0]), v: 'Destruindo', n: lista.length, feito: 0, dur });
+  }
+  // receita de evoluir a peça (formato de RECEITAS, para usar motivoReceita: lugar, nível, material e vigor) ou null
+  receitaEvoluir(it) {
+    const r = it.r + 1; if (r >= RARIDADES.length) return null;
+    const tipo = ehArma(it.k) ? 'arma' : 'armadura';
+    const prof = RECEITAS[it.k]?.prof || (tipo === 'arma' ? 'fer' : 'alf');
+    return { prof, faz: it.k, nivel: 1, vigor: CATALISADOR.vigor, usa: { [CATALISADOR[tipo][r - 1]]: 1, ...CATALISADOR.usa[tipo][r - 1] }, r };
+  }
+  // o que a peça destruída dá: [[item, quantidade]] (sorteado aqui; pode vir vazio)
+  sortearDestruir(it) {
+    const C = CATALISADOR, q = Math.random(), n = q < C.quantos[0] ? 0 : q < C.quantos[1] ? 1 : q < C.quantos[2] ? 2 : 3;
+    if (it.r < 1) return n ? [[C.comum, n]] : [];
+    const tipo = C[ehArma(it.k) ? 'arma' : 'armadura'], out = [];
+    if (n) out.push([tipo[Math.max(1, it.r - 1) - 1], n]);
+    if (it.r > 1 && Math.random() < (C.extra[it.r] || 0)) out.push([tipo[it.r - 1], 1]);
+    return out;
+  }
+  // um passo da fila de destruir: acha a peça (ainda igual e sem cadeado), tira e dá o catalisador
+  passoDestruir(j, f) {
+    const p = j.prog, alvo = f.lista[f.feito];
+    const it = p.mochila[alvo.i];
+    const igual = it && it.k === alvo.k && it.r === alvo.r && (it.e || 0) === alvo.e && !it.cad;
+    if (igual) {
+      const ganho = this.sortearDestruir(it), prova = p.mochila.map((o) => (o ? { ...o } : null));
+      prova[alvo.i] = null;
+      if (!ganho.every(([k, n]) => guardar(prova, { k, n }))) return this.pararFabrica(j, 'Mochila cheia');
+      p.mochila.splice(0, p.mochila.length, ...prova); // mesmo array (quem guarda a mochila não perde a referência)
+      for (const [k, n] of ganho) f.ganho[k] = (f.ganho[k] || 0) + n;
+      f.feitas = (f.feitas || 0) + 1;
+      this.evento({ t: 'destruiu', para: j.id, nome: nomeItem(it), ganho: ganho.map(([k, n]) => ({ k, n, nome: ITENS[k].nome })) });
+      this.avisarProg(j);
+    }
+    f.feito++;
+    if (f.feito >= f.n) {
+      const g = Object.entries(f.ganho).map(([k, n]) => `+${n} ${ITENS[k].nome}`).join(', ');
+      const quantas = f.feitas || 0;
+      return this.pararFabrica(j, quantas ? `Destruiu ${quantas} ${quantas === 1 ? 'peça' : 'peças'}: ${g || 'não sobrou nada'}` : 'Nada destruído: as peças mudaram de lugar');
+    }
+    f.fim = this.tempo + f.dur;
+    const prox = f.lista[f.feito];
+    this.evento({ t: 'fabricando', para: j.id, k: prox.k, nome: nomeItem(prox), v: 'Destruindo', n: f.n, feito: f.feito, dur: f.dur });
+  }
+  // a barrinha de evoluir encheu: confere de novo, gasta e sorteia (falha, sobe 1 ou, com sorte, sobe 2)
+  passoEvoluir(j, f) {
+    const p = j.prog, it = p.mochila[f.i];
+    f.feito = 1;
+    if (!it || it.k !== f.alvo.k || it.r !== f.alvo.r || (it.e || 0) !== f.alvo.e) return this.pararFabrica(j, 'A peça saiu do lugar na mochila');
+    const R = this.receitaEvoluir(it); if (!R) return this.pararFabrica(j, '');
+    const motivo = this.motivoReceita(j, R).motivo; if (motivo) return this.pararFabrica(j, motivo);
+    const C = CATALISADOR, t = (profNivel(p.prof[R.prof]) - 1) / (PROF_MAX - 1);
+    const falha = (C.falha[R.r] || 0) * (1 - 0.5 * t), sorte = R.r < RARIDADES.length - 1 ? C.sorte[0] + (C.sorte[1] - C.sorte[0]) * t : 0;
+    const s = Math.random(), falhou = s < falha, pulou = !falhou && s < falha + sorte;
+    const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
+    gastarVigor(p, custo);
+    for (const [k, n] of Object.entries(R.usa)) tirar(p.mochila, k, n);
+    this.pontosProf(j, R.prof, R.vigor);
+    let texto;
+    if (falhou) texto = `Falhou! O catalisador e o material quebraram. ${nomeItem(it)} continua igual`;
+    else {
+      const novo = { k: it.k, r: pulou ? R.r + 1 : R.r };
+      if (it.cad) novo.cad = 1;
+      p.mochila[f.i] = novo;
+      texto = pulou ? `Sorte! Pulou uma raridade: ${nomeItem(novo)}!` : `Evoluiu: ${nomeItem(novo)}!`;
+    }
+    this.evento({ t: 'evoluiu', para: j.id, ok: !falhou, sorte: pulou, nome: nomeItem(p.mochila[f.i] || it), r: (p.mochila[f.i] || it).r });
+    this.avisarProg(j);
+    this.pararFabrica(j, texto);
   }
   // por que não dá para criar agora ('' = dá)
   motivoFabricar(j, k) {

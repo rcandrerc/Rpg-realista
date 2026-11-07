@@ -710,6 +710,10 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.fabricou(ev)
 			return
+		"destruiu", "evoluiu": # catalisador (André 2026-11-07): destruiu uma peça (o que ganhou) ou evoluiu (construcao.gd)
+			if m.construcao:
+				m.construcao.call(ev.t, ev)
+			return
 		"bau": # o baú do meu terreno (construcao.gd)
 			if m.construcao:
 				m.construcao.do_bau(ev)

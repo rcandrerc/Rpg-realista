@@ -2046,8 +2046,11 @@ func fabricando(ev: Dictionary) -> void:
 		_fab.fim = Time.get_ticks_msec() / 1000.0 + 1.2
 		barra_fab.value = 1.0 if _fab.feito >= int(_fab.n) else barra_fab.value
 		txt_fab.text = ("Pronto: %d %s" % [_fab.feito, nome]) if _fab.feito > 0 else "Parou de criar"
+		if str(ev.get("msg", "")) != "": # destruir/evoluir (catalisador): o resultado fica um pouco mais na barrinha
+			txt_fab.text = str(ev.msg)
+			_fab.fim = Time.get_ticks_msec() / 1000.0 + 3.0
 		return
-	_fab = {"k": k, "nome": nome, "n": int(ev.get("n", 1)), "feito": int(ev.get("feito", 0)), "dur": maxf(0.1, float(ev.get("dur", 3.0))), "ini": Time.get_ticks_msec() / 1000.0}
+	_fab = {"k": k, "nome": nome, "v": str(ev.get("v", "Criando")), "n": int(ev.get("n", 1)), "feito": int(ev.get("feito", 0)), "dur": maxf(0.1, float(ev.get("dur", 3.0))), "ini": Time.get_ticks_msec() / 1000.0}
 	painel_fab.visible = true
 
 func _passo_fab() -> void:
@@ -2060,7 +2063,36 @@ func _passo_fab() -> void:
 			painel_fab.visible = false
 		return
 	barra_fab.value = clampf((agora - float(_fab.ini)) / float(_fab.dur), 0.0, 1.0)
-	txt_fab.text = "Criando %s · %d de %d" % [_fab.nome, int(_fab.feito) + 1, int(_fab.n)]
+	txt_fab.text = "%s %s · %d de %d" % [_fab.get("v", "Criando"), _fab.nome, int(_fab.feito) + 1, int(_fab.n)]
+
+# catalisador (André 2026-11-07): cada peça destruída mostra o que deu ("+1 Selo Raro"), na cor da raridade
+func destruiu(ev: Dictionary) -> void:
+	if m.heroi == null:
+		return
+	m.sons.tocar("minerar", -10.0, 0.12)
+	var ganho: Array = ev.get("ganho", [])
+	if ganho.is_empty():
+		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), "Não sobrou nada", Color("b9ae9a"), 0.0)
+		return
+	for n in ganho.size():
+		var g: Dictionary = ganho[n]
+		var it: Dictionary = D.itens.get(str(g.k), {})
+		var cor: Color = Color(D.raridades[int(it.cr)].cor) if it.has("cr") else Color("ffe2a0")
+		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), "+%d %s" % [int(g.n), str(g.nome)], cor, n * 0.25)
+
+func evoluiu(ev: Dictionary) -> void:
+	if m.heroi == null:
+		return
+	var p: Vector3 = m.heroi.position + Vector3(0, 1.2, 0)
+	if ev.get("ok", false):
+		var r := clampi(int(ev.get("r", 0)), 0, D.raridades.size() - 1)
+		var cor := Color(D.raridades[r].cor)
+		m.sons.tocar("nivel", -4.0)
+		m.fx.surto(p.x, p.y, p.z, 18 if ev.get("sorte", false) else 12, "ffffff", cor.to_html(false), 4.0, 0.07)
+		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), ("Sorte! " if ev.get("sorte", false) else "") + str(ev.get("nome", "")), cor, 0.0)
+	else:
+		m.sons.tocar("acerto_forte", -8.0)
+		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), "Falhou!", Color("ff7a5a"), 0.0)
 
 func parar_criar() -> void:
 	m.rede("fabricar", {"parar": true})

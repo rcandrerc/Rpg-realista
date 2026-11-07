@@ -532,6 +532,8 @@ const COR_MAT := {"minerio_ferro": "b9b2a6", "minerio_cobre": "d99060", "cristal
 func cor_item(it) -> Color:
 	if eh_equip(it):
 		return Color(dados.raridades[int(it.r)].cor)
+	if dados.itens.has(it.k) and dados.itens[it.k].has("cr"): # catalisador (Runa/Selo): cor da raridade que ele dá
+		return Color(dados.raridades[int(dados.itens[it.k].cr)].cor)
 	if COR_MAT.has(it.k):
 		return Color(COR_MAT[it.k])
 	if dados.itens.has(it.k) and dados.itens[it.k].has("cor"): # sementes e colheita da horta (cor da planta)
