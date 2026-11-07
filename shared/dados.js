@@ -807,6 +807,20 @@ export const FERRAMENTAS_FAZENDA = {
 export const CRIAR_OBRA = { min: 3, max: 5, porMaterial: 0.125, maxFila: 20 };
 export const tempoCriar = (C) => Math.min(CRIAR_OBRA.max, Math.max(CRIAR_OBRA.min, CRIAR_OBRA.min + Object.values(C.custo || C.usa || {}).reduce((a, n) => a + n, 0) * CRIAR_OBRA.porMaterial));
 export const BAU = { slots: 40 }; // pilhas guardadas (todos os baús do jogador são o mesmo, como no Quimera)
+// Fornalha de verdade (André 2026-11-07: "o forno tá igual uma mesa de craft"): um lugar de combustível (lenha ou carvão)
+// e um de material; ela fica queimando sozinha, mesmo com você longe ou fora do jogo, e o que fica pronto espera no
+// lugar de saída até você pegar. combustivel = segundos de fogo de cada unidade; receitas pelo material posto:
+// usa = quantos viram um, dur = segundos de cada um, fogo = só com esse combustível (aço: ferro com carvão),
+// nivel = Ferreiro mínimo, vigor = pontos de Ferreiro (e XP) por unidade, dados quando você pega.
+export const FORNALHA = {
+  combustivel: { lenha: 12, carvao: 30 },
+  receitas: {
+    minerio_ferro: { faz: 'barra_ferro', usa: 3, dur: 12, nivel: 1, vigor: 1 },
+    minerio_cobre: { faz: 'barra_cobre', usa: 3, dur: 12, nivel: 1, vigor: 1 },
+    lenha: { faz: 'carvao', usa: 2, dur: 8, nivel: 1, vigor: 1 },
+    barra_ferro: { faz: 'barra_aco', usa: 1, dur: 30, nivel: 5, vigor: 2, fogo: 'carvao' },
+  },
+};
 // Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
 // a terra regada fica molhada por "rega" horas; sem água a planta não cresce)
 export const HORTA = { rega: 24, vigor: 1 };
