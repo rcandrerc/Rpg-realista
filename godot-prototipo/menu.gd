@@ -1662,6 +1662,11 @@ func montar_mochila() -> void:
 	topo.add_child(esp_)
 	var cheios: int = P.prog.mochila.filter(func(x): return x != null).size()
 	topo.add_child(rotulo("%d / %d" % [cheios, P.prog.mochila.size()], 13, APAGADO))
+	# André 2026-11-07: botão Organizar (junta as pilhas e põe em ordem de tipo, raridade e nome; quem decide é o servidor)
+	var org := botao("Organizar", func(): acao_item({"acao": "organizar"}), 14, true)
+	org.custom_minimum_size = Vector2(130, 36)
+	org.disabled = cheios == 0 or vendendo
+	topo.add_child(org)
 	conteudo.add_child(topo)
 	# páginas: abas 1 a 4; a que ainda não foi comprada mostra o preço e abre o cadeado
 	var por_pag: int = int(P.dados.mochila)
@@ -2392,7 +2397,7 @@ func acao_item(msg: Dictionary) -> void:
 	if msg.acao == "usar" and i >= 0 and P.prog.mochila[i] != null and P.prog.mochila[i].k != "tomo":
 		if not m.usar_pocao(P.prog.mochila[i]): # vida/mana cheia: nem gasta
 			return
-	if msg.acao in ["equipar", "tirar", "vender", "apagar", "vender_varios"]:
+	if msg.acao in ["equipar", "tirar", "vender", "apagar", "vender_varios", "organizar"]:
 		sel_mochila = -1
 		sel_equip = ""
 	if msg.acao == "vender_varios":
@@ -2432,6 +2437,9 @@ func acao_item(msg: Dictionary) -> void:
 			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
 		"pagina":
 			m.hud.aviso("Páginas da mochila só se compram online (o ouro fica na sua conta)")
+		"organizar":
+			P.prog.mochila = P.organizar(P.prog.mochila)
+			P.mudou = true
 	m.h.vida = min(m.h.vida, P.st.vidaMax)
 	m.h.mana = min(m.h.mana, P.st.manaMax)
 	atualizar()

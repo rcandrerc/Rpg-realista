@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO } from './dados.js';
+import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -161,6 +161,44 @@ export function guardar(mochila, item) {
   }
   const i = mochila.indexOf(null); if (i < 0) return false;
   mochila[i] = it; return true;
+}
+// ---------- organizar a mochila ou o baú (André 2026-11-07, ORGANIZAR em shared/dados.js) ----------
+export function grupoItem(it) {
+  const d = ITENS[it.k] || {};
+  if (d.lugar) return 'equip';
+  if (it.k === 'tomo') return 'tomo';
+  if (d.usar) return 'consumivel';
+  if (d.ferramenta) return 'ferramenta';
+  if (d.obra) return 'obra';
+  if (it.k.startsWith('semente_')) return 'semente';
+  if (d.mat) return 'material';
+  return 'outro';
+}
+// Devolve a lista organizada, do mesmo tamanho (vazios no fim): pilhas iguais pela metade se juntam (nenhum item some
+// nem duplica), depois tipo, raridade (a melhor primeiro), reforço, nome. Não mexe na lista recebida.
+export function organizar(lista) {
+  const pilhas = new Map(), soltos = [];
+  for (const o of lista) {
+    if (!o || !ITENS[o.k]) { if (o) soltos.push(o); continue; }
+    if (ehEquip(o.k) || !o.n) { soltos.push({ ...o }); continue; }
+    const chave = `${o.k}|${o.h || ''}|${o.nv || ''}`;
+    const p = pilhas.get(chave);
+    if (p) p.n += o.n; else pilhas.set(chave, { ...o });
+  }
+  const itens = [...soltos];
+  for (const o of pilhas.values()) {
+    const max = Math.max(1, ITENS[o.k].pilha || 1);
+    for (let n = o.n; n > 0; n -= max) itens.push({ ...o, n: Math.min(n, max) });
+  }
+  const ordem = (it) => { const g = ORGANIZAR.indexOf(grupoItem(it)); return g < 0 ? ORGANIZAR.length : g; };
+  const nome = (it) => { try { return nomeItem(it); } catch { return it.k; } };
+  const lugar = (it) => { const l = LUGARES.indexOf(ITENS[it.k]?.lugar); return l < 0 ? LUGARES.length : l; };
+  itens.sort((a, b) => ordem(a) - ordem(b) || lugar(a) - lugar(b) || (b.r | 0) - (a.r | 0) || (b.e | 0) - (a.e | 0)
+    || nome(a).localeCompare(nome(b), 'pt-BR') || (b.nv | 0) - (a.nv | 0) || (b.n | 0) - (a.n | 0));
+  const r = Array(lista.length).fill(null);
+  if (itens.length > r.length) return lista.map((o) => (o ? { ...o } : null)); // não cabe (nunca deve acontecer): não mexe
+  itens.forEach((o, i) => { r[i] = o; });
+  return r;
 }
 export function nomeItem(it) {
   if (!it || !ITENS[it.k]) return '';

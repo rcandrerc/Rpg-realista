@@ -450,6 +450,72 @@ func penalidade_morte() -> String:
 		t += "; quebrou: %s (o Tomás conserta)" % ", ".join(quebrou)
 	return t
 
+# ---------- organizar a mochila (André 2026-11-07; igual a organizar() de shared/progresso.js, que é quem vale online) ----------
+func grupo_item(it: Dictionary) -> String:
+	var d: Dictionary = dados.itens.get(it.k, {})
+	if d.has("lugar"):
+		return "equip"
+	if it.k == "tomo":
+		return "tomo"
+	if d.has("usar"):
+		return "consumivel"
+	if d.has("ferramenta"):
+		return "ferramenta"
+	if d.has("obra"):
+		return "obra"
+	if str(it.k).begins_with("semente_"):
+		return "semente"
+	if d.get("mat", false):
+		return "material"
+	return "outro"
+
+func organizar(lista: Array) -> Array:
+	var ordem: Array = dados.get("organizar", ["equip", "consumivel", "tomo", "ferramenta", "obra", "semente", "material", "outro"])
+	var pilhas := {}
+	var itens: Array = []
+	for o in lista:
+		if o == null:
+			continue
+		if eh_equip(o) or not o.has("n") or not dados.itens.has(o.k):
+			itens.append(o.duplicate())
+			continue
+		var chave := "%s|%s|%s" % [o.k, o.get("h", ""), o.get("nv", "")]
+		if pilhas.has(chave):
+			pilhas[chave].n = int(pilhas[chave].n) + int(o.n)
+		else:
+			pilhas[chave] = o.duplicate()
+	for o in pilhas.values():
+		var mx: int = max(1, int(dados.itens[o.k].get("pilha", 1)))
+		var n: int = int(o.n)
+		while n > 0:
+			var q: Dictionary = o.duplicate()
+			q.n = min(n, mx)
+			itens.append(q)
+			n -= mx
+	var g := func(it) -> int:
+		var x: int = ordem.find(grupo_item(it))
+		return x if x >= 0 else ordem.size()
+	var l := func(it) -> int:
+		var x: int = dados.lugares.find(dados.itens.get(it.k, {}).get("lugar", ""))
+		return x if x >= 0 else dados.lugares.size()
+	itens.sort_custom(func(a, b):
+		if g.call(a) != g.call(b): return g.call(a) < g.call(b)
+		if l.call(a) != l.call(b): return l.call(a) < l.call(b)
+		if int(a.get("r", 0)) != int(b.get("r", 0)): return int(a.get("r", 0)) > int(b.get("r", 0))
+		if int(a.get("e", 0)) != int(b.get("e", 0)): return int(a.get("e", 0)) > int(b.get("e", 0))
+		var na := nome_item(a)
+		var nb := nome_item(b)
+		if na != nb: return na.naturalnocasecmp_to(nb) < 0
+		if int(a.get("nv", 0)) != int(b.get("nv", 0)): return int(a.get("nv", 0)) > int(b.get("nv", 0))
+		return int(a.get("n", 0)) > int(b.get("n", 0)))
+	if itens.size() > lista.size():
+		return lista
+	var r: Array = []
+	r.resize(lista.size())
+	for i in itens.size():
+		r[i] = itens[i]
+	return r
+
 func nome_item(it) -> String:
 	if not (it is Dictionary) or not dados.itens.has(it.k):
 		return ""
