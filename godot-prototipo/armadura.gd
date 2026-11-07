@@ -147,7 +147,9 @@ static func vestir(raiz: Node3D, equip) -> void:
 	if esq == null:
 		return
 	_orientar(esq)
-	_cintura(raiz, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
+	# André 2026-11-07: sem peitoral a blusa vira pele (top de biquíni na menina, peito nu no menino), então ela fica
+	# sempre justa como debaixo da armadura (antes, sem peitoral, era a camiseta branca larga)
+	_cintura(raiz, true, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
 	var tem_capa := false
 	if equip is Dictionary and equip.get("capa") is Dictionary:
 		tem_capa = PECAS.get(str(equip.capa.get("k", ""))) == "capa"
@@ -173,6 +175,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 		no.set_meta("chave", chave)
 		esq.add_child(no)
 		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)), tem_capa)
+	_sem_contorno_tronco(raiz, esq)
 	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
 	_uniforme(raiz, equip if equip is Dictionary else {})
 	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null)
@@ -188,7 +191,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 # busto (até 24% na largura, 20% atrás), como roupa colada. A armadura do peito nasce dessa blusa já apertada.
 # Só com peça no corpo: aí a blusa vira tecido liso (sem o contorno do VRoid). Sem armadura, o contorno da camisa de
 # baixo furava o colete apertado em pontos pretos, então a roupa original fica como era.
-static func _cintura(raiz: Node3D, ativo := true) -> void:
+static func _cintura(raiz: Node3D, ativo := true, peitoral := true) -> void:
 	var esq := _esqueleto(raiz)
 	if esq == null:
 		return
@@ -221,7 +224,7 @@ static func _cintura(raiz: Node3D, ativo := true) -> void:
 			if not _malhas.has(chave_q):
 				_malhas[chave_q] = _sem_capuz(alvo, R)
 			alvo = _malhas[chave_q]
-		if ativo and trecho == "Body_00" and not feminino:
+		if ativo and peitoral and trecho == "Body_00" and not feminino:
 			# v11d: a pele da axila (escondida pela roupa) aparecia em pontinhos entre o colete e a manga; com
 			# armadura ela entra 1,5 cm
 			var chave_x := "axila:%d" % alvo.get_instance_id()
@@ -317,18 +320,23 @@ static func _roupa_base(raiz: Node3D, esq: Skeleton3D) -> void:
 	var no := Node3D.new()
 	no.name = "Roupa_base"
 	esq.add_child(no)
-	var chave := "%d:base_short" % corpo.mesh.get_instance_id()
-	if not _malhas.has(chave):
-		_malhas[chave] = _casca(corpo, "base_short", esq)
-	if _malhas[chave] == null:
-		return
-	var mi := MeshInstance3D.new()
-	mi.mesh = _malhas[chave]
-	mi.skin = corpo.skin
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	no.add_child(mi)
-	mi.skeleton = mi.get_path_to(esq)
-	mi.material_override = _material_base()
+	# o short colado continua debaixo da calça e do short de armadura (tapa o vão entre as peças, na cor da calça);
+	# sem peça nas pernas aparece a roupa de baixo nova (André 2026-11-07): calcinha de biquíni ou samba-canção
+	var masc := esq.find_bone("J_Sec_L_Bust1") < 0
+	for parte in ["base_short", "base_samba"] if masc else ["base_short", "base_pele", "base_calcinha"]:
+		var chave := "%d:%s" % [corpo.mesh.get_instance_id(), parte]
+		if not _malhas.has(chave):
+			_malhas[chave] = _casca(corpo, parte, esq)
+		if _malhas[chave] == null:
+			continue
+		var mi := MeshInstance3D.new()
+		mi.name = {"base_short": "Short", "base_pele": "Pele"}.get(parte, "Baixo")
+		mi.mesh = _malhas[chave]
+		mi.skin = corpo.skin
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		no.add_child(mi)
+		mi.skeleton = mi.get_path_to(esq)
+		mi.material_override = _material_base() if parte == "base_short" else (_material_pele(raiz) if parte == "base_pele" else _material_baixo(masc))
 
 # a blusa vira camiseta: o que passa do quadril (vestidos dos outros corpos) entra no corpo, sem aparecer
 static func _blusa_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
@@ -364,6 +372,166 @@ static func _material_base() -> Material:
 		m.rim_tint = 0.6
 		_materiais["base"] = m
 	return _materiais["base"]
+
+# roupa de baixo nova (André 2026-11-07): top e calcinha de biquíni (feminino) e samba-canção listrado (masculino)
+const BIQUINI := Color("7a2436") # vinho
+const SAMBA := Color("b9c6d6") # azul bem claro, com listras finas mais escuras
+const SAMBA_LISTRA := Color("5d7594")
+# a pele lisa pintada saía mais clara e amarelada que a pele de verdade (a textura do VRoid tem sombra desenhada):
+# medido nas fotos de teste, coxa (pele do VRoid) x barriga (pintada)
+const PELE_PINTADA := Color(0.98, 0.82, 0.82)
+
+static func _material_baixo(masc: bool) -> Material:
+	var chave := "baixo:%s" % masc
+	if not _materiais.has(chave):
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://roupa_baixo.gdshader")
+		m.set_meta("armadura", true) # a cor da roupa da aparência não pinta a roupa de baixo
+		m.set_shader_parameter("cor", SAMBA if masc else BIQUINI)
+		m.set_shader_parameter("listra", SAMBA_LISTRA if masc else BIQUINI)
+		m.set_shader_parameter("listras", 1.0 if masc else 0.0)
+		_materiais[chave] = m
+	return _materiais[chave]
+
+# a blusa sem peitoral: pele pintada nela (o VRoid quase não tem pele debaixo da blusa, ver _decote) e, na menina,
+# o top de biquíni. A cor da pele segue a aparência (_cor_pele).
+static func _material_biquini(raiz: Node3D, fem: bool) -> Material:
+	var esq := _esqueleto(raiz)
+	var R := _ref(esq) if esq else Ref.new()
+	var pele := _cor_pele(raiz)
+	var chave := "biquini:%s:%s:%.3f:%.3f:%.3f" % [fem, pele.to_html(), R.busto.x, R.busto.y, R.y_pescoco]
+	if not _materiais.has(chave):
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://biquini.gdshader")
+		m.set_meta("armadura", true) # a aparência não troca (a pele já vem dela)
+		m.set_meta("biquini", true)
+		m.set_shader_parameter("pele", pele * PELE_PINTADA)
+		m.set_shader_parameter("tecido", BIQUINI)
+		m.set_shader_parameter("fem", 1.0 if fem and R.busto != Vector3.ZERO else 0.0)
+		m.set_shader_parameter("x_busto", absf(R.busto.x))
+		m.set_shader_parameter("y_busto", R.busto.y)
+		m.set_shader_parameter("y_pescoco", R.y_pescoco)
+		_materiais[chave] = m
+	return _materiais[chave]
+
+# o corpo do VRoid tem pele de verdade no peito e na barriga (e não uma camiseta pintada na textura nem um buraco)?
+# Amostra a textura do corpo nos vértices da frente do tronco e compara com a cor da pele.
+static func _peito_de_pele(raiz: Node3D) -> bool:
+	var corpo := _fonte(raiz, "Body_00")
+	var esq := _esqueleto(raiz)
+	if corpo == null or esq == null:
+		return false
+	var chave := "peito_pele:%d" % corpo.mesh.get_instance_id()
+	if _malhas.has(chave):
+		return _malhas[chave]
+	var R := _ref(esq)
+	var ok := false
+	var m = corpo.mesh.surface_get_material(0)
+	if m is BaseMaterial3D and m.albedo_texture:
+		var img: Image = m.albedo_texture.get_image()
+		if img:
+			img = img.duplicate()
+			if img.is_compressed():
+				img.decompress()
+			var ref: Color = preload("res://aparencia.gd").media(m.albedo_texture, true)
+			var n := 0
+			var bons := 0
+			for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+				if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or not "Body_00" in mi.mesh.surface_get_name(0):
+					continue
+				var a: Array = mi.mesh.surface_get_arrays(0)
+				var V: PackedVector3Array = _FA(a[Mesh.ARRAY_VERTEX])
+				var U: PackedVector2Array = a[Mesh.ARRAY_TEX_UV]
+				for i in V.size():
+					var p := V[i]
+					if p.z < 0.0 or absf(p.x) > 0.08 or p.y < R.y_cintura + 0.03 or p.y > R.y_pescoco - 0.08:
+						continue
+					n += 1
+					var c := img.get_pixelv(Vector2i(clampi(int(U[i].x * img.get_width()), 0, img.get_width() - 1), clampi(int(U[i].y * img.get_height()), 0, img.get_height() - 1)))
+					if absf(c.r - ref.r) + absf(c.g - ref.g) + absf(c.b - ref.b) < 0.25:
+						bons += 1
+			ok = n >= 20 and bons >= n * 0.7
+	_malhas[chave] = ok
+	return ok
+
+static func _material_pele(raiz: Node3D) -> Material:
+	var pele := _cor_pele(raiz)
+	var chave := "pele:%s" % pele.to_html()
+	if not _materiais.has(chave):
+		var m := StandardMaterial3D.new()
+		m.set_meta("armadura", true)
+		m.albedo_color = pele * PELE_PINTADA * Color(1.0, 0.97, 0.95)
+		m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		m.roughness = 1.0
+		m.backlight_enabled = true # a mesma sombra quente da pele (main.pele_viva)
+		m.backlight = Color(0.32, 0.12, 0.07)
+		m.rim_enabled = true
+		m.rim = 0.08
+		m.rim_tint = 0.6
+		_materiais[chave] = m
+	return _materiais[chave]
+
+# a aparência trocou a cor da pele: a pele pintada na blusa (sem peitoral) e no quadril acompanha
+static func atualizar_pele(raiz: Node3D) -> void:
+	var mi := _fonte(raiz, "Tops")
+	if mi:
+		for sfc in mi.get_surface_override_material_count():
+			var m := mi.get_surface_override_material(sfc)
+			if m != null and m.has_meta("biquini"):
+				mi.set_surface_override_material(sfc, _material_biquini(raiz, mi.get_meta("decote_fem", true)))
+	var esq := _esqueleto(raiz)
+	var p: MeshInstance3D = esq.get_node_or_null("Roupa_base/Pele") if esq else null
+	if p:
+		p.material_override = _material_pele(raiz)
+
+# Menina: o corpo debaixo da blusa (pele de rascunho, textura escura, e o contorno escuro 6 mm maior de main.pintar)
+# furava a blusa justa em pontos pretos na cintura quando ela vira pele pintada. No tronco a blusa (ou a armadura)
+# sempre cobre o corpo, então ali o contorno sai e a pele entra 1,2 cm.
+static func _sem_contorno_tronco(raiz: Node3D, esq: Skeleton3D) -> void:
+	if esq.find_bone("J_Sec_L_Bust1") < 0:
+		return
+	var R := _ref(esq)
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() < 2 or not "Body_00" in mi.mesh.surface_get_name(0):
+			continue
+		var orig: ArrayMesh = mi.mesh
+		if orig.has_meta("sem_contorno"):
+			continue
+		var chave := "sem_contorno:%d" % orig.get_instance_id()
+		if not _malhas.has(chave):
+			var am := ArrayMesh.new()
+			for sfc in orig.get_surface_count():
+				var arr := orig.surface_get_arrays(sfc)
+				if "Outline" in orig.surface_get_name(sfc) and arr[Mesh.ARRAY_INDEX] != null:
+					var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+					var I: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+					var fora := PackedByteArray()
+					fora.resize(V.size())
+					for i in V.size():
+						var p := V[i]
+						fora[i] = 1 if (p.y > R.y_cintura - 0.06 and p.y < R.y_pescoco - 0.03 and absf(p.x) < R.x_braco + 0.01) else 0
+					var J := PackedInt32Array()
+					for t in range(0, I.size(), 3):
+						if not (fora[I[t]] and fora[I[t + 1]] and fora[I[t + 2]]):
+							J.append_array([I[t], I[t + 1], I[t + 2]])
+					arr[Mesh.ARRAY_INDEX] = J
+				elif arr[Mesh.ARRAY_NORMAL] != null:
+					# a pele de rascunho debaixo da blusa (textura escura) furava a cintura justa: entra 1,2 cm
+					var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+					var N: PackedVector3Array = _FA(arr[Mesh.ARRAY_NORMAL])
+					for i in V.size():
+						var p := V[i]
+						if p.y > R.y_cintura - 0.05 and p.y < R.y_pescoco - 0.05 and absf(p.x) < R.x_braco - 0.01:
+							V[i] = p - N[i] * 0.012
+					arr[Mesh.ARRAY_VERTEX] = _FA(V)
+				var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+				am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, orig.surface_get_blend_shape_arrays(sfc), {}, flags)
+				am.surface_set_material(sfc, orig.surface_get_material(sfc))
+				am.surface_set_name(sfc, orig.surface_get_name(sfc))
+			am.set_meta("sem_contorno", true)
+			_malhas[chave] = am
+		_trocar_malha(mi, _malhas[chave])
 
 static func _trocar_malha(mi: MeshInstance3D, malha: Mesh) -> void:
 	if mi.mesh == malha:
@@ -660,9 +828,18 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 				else:
 					mi.set_surface_override_material(sfc, _material_tecido(r))
 			elif trecho == "Tops":
-				mi.set_surface_override_material(sfc, _material_base()) # roupa de baixo branca (André 2026-11-03)
+				# André 2026-11-07: sem peitoral, no lugar da camiseta branca (2026-11-03) a blusa vira pele, com top
+				# de biquíni na menina e peito nu no menino (biquini.gdshader)
+				mi.set_surface_override_material(sfc, _material_biquini(raiz, mi.get_meta("decote_fem", true)))
 			elif sfc == 0 or mi.get_surface_override_material(sfc) in _materiais.values():
 				mi.set_surface_override_material(sfc, null) # só tira o que a armadura pôs (a cor da aparência fica)
+	# André 2026-11-07: menino sem peitoral fica sem camisa. Se o corpo do VRoid tem o peito de pele de verdade
+	# (desenho do peito e da barriga), a blusa some; senão (camiseta pintada na pele) ela vira pele (biquini.gdshader)
+	var blusa := _fonte(raiz, "Tops")
+	if blusa:
+		var c = equip.get("corpo")
+		var sem_peitoral := not (c is Dictionary and PECAS.has(str(c.get("k", ""))))
+		blusa.visible = not (sem_peitoral and not blusa.get_meta("decote_fem", true) and _peito_de_pele(raiz))
 	# André 2026-11-04 (print no jogo): com calça ou short de armadura, o short branco de baixo aparecia entre as
 	# peças no meio das pernas (pose de espada, pernas abertas). Com peça nas pernas ele fica na cor da calça.
 	var esq := _esqueleto(raiz)
@@ -671,7 +848,11 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 		var pe = equip.get("pernas")
 		var r_p := clampi(int(pe.get("r", 0)), 0, 4) if pe is Dictionary and PECAS.has(str(pe.get("k", ""))) else -1
 		for mi in base.find_children("*", "MeshInstance3D", true, false):
-			mi.material_override = _material("calca", r_p) if r_p >= 0 else _material_base()
+			if mi.name == "Baixo" or mi.name == "Pele": # calcinha ou samba-canção: só sem peça nas pernas
+				mi.visible = r_p < 0
+			else: # short colado: debaixo da calça, na cor dela (sem calça fica escondido debaixo da roupa de baixo)
+				mi.visible = r_p >= 0 or base.get_node_or_null("Baixo") == null
+				mi.material_override = _material("calca", r_p) if r_p >= 0 else _material_base()
 	# gravata some com peitoral de aço (a gola metálica fica no lugar dela)
 	var gravata := _fonte(raiz, "Tie")
 	if gravata:
@@ -818,7 +999,7 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 # ---------- regiões (posição de descanso em T, metros; +x = esquerda do personagem, +z = frente) ----------
 # off(p, b): quanto a casca sai do corpo naquele ponto (<= 0 = fora da peça). seg: coordenada das faixas (lâminas).
 const REGIOES := {
-	"peito": {"fonte": "Tops"}, "base_short": {"fonte": "Body_00"}, "ombro_e": {"fonte": "Tops"}, "ombro_d": {"fonte": "Tops"},
+	"peito": {"fonte": "Tops"}, "base_short": {"fonte": "Body_00"}, "base_pele": {"fonte": "Body_00"}, "base_calcinha": {"fonte": "Body_00"}, "base_samba": {"fonte": "Body_00"}, "ombro_e": {"fonte": "Tops"}, "ombro_d": {"fonte": "Tops"},
 	"braco_e": {"fonte": "Tops"}, "braco_d": {"fonte": "Tops"}, 
 	"canela_e": {"fonte": "Body_00"}, "canela_d": {"fonte": "Body_00"}, "cano_e": {"fonte": "Body_00"}, "cano_d": {"fonte": "Body_00"},
 	"sapato": {"fonte": "Shoes"}, "sapato_couro": {"fonte": "Shoes"},
@@ -841,6 +1022,8 @@ class Ref:
 	var p_cotovelo := Vector3.ZERO
 	var p_mao := Vector3.ZERO
 	var masc := false # corpo sem osso de busto: cintura de verdade fica abaixo do osso da coluna
+	var y_coxa := 0.93 # alto da coxa (osso UpperLeg): a virilha fica uns 7 cm abaixo (roupa de baixo)
+	var busto := Vector3.ZERO # osso do busto esquerdo (J_Sec_L_Bust1) na pose de descanso; zero no masculino
 
 static func _ref(esq: Skeleton3D) -> Ref:
 	var r := Ref.new()
@@ -859,7 +1042,9 @@ static func _ref(esq: Skeleton3D) -> Ref:
 	r.p_braco = p.call("J_Bip_L_UpperArm")
 	r.p_cotovelo = p.call("J_Bip_L_LowerArm")
 	r.p_mao = p.call("J_Bip_L_Hand")
+	r.y_coxa = p.call("J_Bip_L_UpperLeg").y
 	var busto: Vector3 = p.call("J_Sec_L_Bust1")
+	r.busto = busto
 	if busto != Vector3.ZERO:
 		junta_peito = busto.y - 0.11 # base do busto ~8 cm abaixo do osso, mais 3 cm
 	else:
@@ -981,6 +1166,29 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			if p.y > R.y_cintura - (0.0 if R.masc else 0.05) or p.y < lerpf(R.y_joelho, R.y_cintura, 0.45) or ax > 0.2:
 				return Vector2(-1, 0)
 			return Vector2(0.0025, -1.0)
+		"base_pele":
+			# a Ruiva não tem pele do quadril até a coxa (era a saia, e nas costas a blusa acaba mais alto): pele pintada da cintura ao alto da coxa,
+			# por baixo da calcinha
+			if p.y > R.y_cintura + 0.02 or p.y < R.y_coxa - 0.11 or ax > 0.2:
+				return Vector2(-1, 0)
+			return Vector2(0.0015, -1.0)
+		"base_calcinha":
+			# André 2026-11-07: sem calça, a menina fica de calcinha de biquíni. Cós baixo no quadril, cavada dos
+			# lados (sobe até o osso do quadril) e atrás cobre o bumbum
+			var virilha := R.y_coxa - 0.07
+			var tras := smoothstep(0.02, -0.04, p.z)
+			var topo_c := R.y_cintura - 0.07 # logo abaixo da barra da blusa (ela por cima piscava com a calcinha)
+			var lado := smoothstep(0.025, 0.13, ax)
+			var fundo_c := virilha + lerpf(lerpf(0.0, 0.085, lado), lerpf(-0.015, 0.035, lado), tras)
+			if p.y > topo_c or p.y < fundo_c or ax > 0.17:
+				return Vector2(-1, 0)
+			return Vector2(0.006, -1.0) # bem acima da pele pintada (mais perto piscava)
+		"base_samba":
+			# André 2026-11-07: sem calça, o menino fica de samba-canção: folgado, da cintura até o meio da coxa,
+			# com listras finas (seg = ângulo em volta do quadril, como as lâminas do saiote)
+			if p.y > R.y_cintura - 0.02 or p.y < lerpf(R.y_joelho, R.y_coxa, 0.5) or ax > 0.17:
+				return Vector2(-1, 0)
+			return Vector2(0.009, atan2(p.x, p.z) * 0.16 + 0.1)
 		"saia", "saia_frente":
 			# placas verticais (lâminas) em volta do quadril; começa abaixo da barra da blusa (que cobre o alto da saia)
 			# saia_frente (com capa): só a frente e os lados; atrás fica o pano da capa
@@ -1532,6 +1740,8 @@ static func _malha_ombreira(lado: float) -> ArrayMesh:
 # escuro fazendo a borda do decote). A pele do VRoid por baixo da blusa é só um rascunho (quase sem vértices), então
 # o V é pintado na própria blusa, por pixel (decote.gdshader), com a cor da pele.
 static func _cor_pele(raiz: Node3D) -> Color:
+	if raiz.has_meta("pele_cor"): # cor da pele escolhida na aparência (Aparencia.aplicar)
+		return raiz.get_meta("pele_cor")
 	var corpo := _fonte(raiz, "Body_00")
 	if corpo:
 		var m = corpo.mesh.surface_get_material(0)

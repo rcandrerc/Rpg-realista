@@ -98,6 +98,14 @@ static func aplicar(no: Node3D, ap) -> void:
 			if idx >= 0:
 				var v = a.get(k)
 				mi.set_blend_shape_value(idx, (float(v) if v != null else 1.0) - 1.0)
+	# André 2026-11-07: sem peitoral a blusa vira pele pintada (Armadura._material_biquini); ela segue a pele escolhida
+	if a.get("pele") != null:
+		var c := _cor(int(a.pele))
+		var l := c.get_luminance()
+		no.set_meta("pele_cor", Color(l, l, l).lerp(c, 0.85) * Color(1.0, 0.9, 0.84))
+	elif no.has_meta("pele_cor"):
+		no.remove_meta("pele_cor")
+	load("res://armadura.gd").atualizar_pele(no)
 
 static func _parte(base, malha: Mesh, i: int) -> String:
 	if not (base is StandardMaterial3D) or base.albedo_texture == null:
