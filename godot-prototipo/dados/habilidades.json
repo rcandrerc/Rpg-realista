@@ -2518,6 +2518,83 @@
    }
   }
  },
+ "fogao": {
+  "combustivel": {
+   "lenha": 12,
+   "carvao": 30
+  },
+  "tempo": {
+   "carne_assada": 10,
+   "sopa_legumes": 15,
+   "pao_milho": 15,
+   "ensopado": 20,
+   "torta_abobora": 25
+  },
+  "receitas": {
+   "carne_assada": {
+    "faz": "carne_assada",
+    "receita": "carne_assada",
+    "usa": 1,
+    "dur": 10,
+    "nivel": 1,
+    "vigor": 2,
+    "ing": {
+     "carne": 1,
+     "lenha": 1
+    }
+   },
+   "sopa_legumes": {
+    "faz": "sopa_legumes",
+    "receita": "sopa_legumes",
+    "usa": 1,
+    "dur": 15,
+    "nivel": 1,
+    "vigor": 3,
+    "ing": {
+     "cenoura": 1,
+     "batata": 1,
+     "rabanete": 1
+    }
+   },
+   "pao_milho": {
+    "faz": "pao_milho",
+    "receita": "pao_milho",
+    "usa": 1,
+    "dur": 15,
+    "nivel": 2,
+    "vigor": 3,
+    "ing": {
+     "milho": 2,
+     "lenha": 1
+    }
+   },
+   "ensopado": {
+    "faz": "ensopado",
+    "receita": "ensopado",
+    "usa": 1,
+    "dur": 20,
+    "nivel": 3,
+    "vigor": 4,
+    "ing": {
+     "carne": 2,
+     "batata": 1,
+     "tomate": 1
+    }
+   },
+   "torta_abobora": {
+    "faz": "torta_abobora",
+    "receita": "torta_abobora",
+    "usa": 1,
+    "dur": 25,
+    "nivel": 5,
+    "vigor": 5,
+    "ing": {
+     "abobora": 1,
+     "milho": 1
+    }
+   }
+  }
+ },
  "criarObra": {
   "min": 3,
   "max": 5,

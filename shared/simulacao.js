@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
 
@@ -27,8 +27,10 @@ export function fornoValido(d) {
   F.prog = Math.max(0, +d.prog || 0); F.t = Number(d.t) > 0 ? Number(d.t) : Date.now();
   return F;
 }
-// a receita do material posto, ou null
-export const receitaForno = (F) => (F.ent ? FORNALHA.receitas[F.ent.k] || null : null);
+// a receita do material posto, ou null. C = FORNALHA ou FOGAO (o fogão usa a mesma conta, André 2026-11-07)
+export const receitaForno = (F, C = FORNALHA) => (F.ent ? C.receitas[F.ent.k] || null : null);
+// a regra da peça: fogão ou fornalha
+export const regraForno = (k) => (k === 'fogao' ? FOGAO : FORNALHA);
 // dá para seguir agora? (material bastante e cabe na saída)
 function fornoPodeSeguir(F, R) {
   if (!R || !F.ent || F.ent.n < R.usa) return false;
@@ -36,17 +38,17 @@ function fornoPodeSeguir(F, R) {
 }
 // anda o relógio da fornalha até agora; devolve true se mudou alguma coisa
 const fornoTemCoisa = (F) => !!(F && (F.comb || F.ent || F.sai));
-export function avancarForno(F, agora = Date.now()) {
+export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
   let dt = Math.max(0, (agora - F.t) / 1000), mudou = false;
   F.t = agora;
   for (let volta = 0; dt > 1e-6 && volta < 400; volta++) {
-    const R = receitaForno(F);
+    const R = receitaForno(F, C);
     if (!fornoPodeSeguir(F, R)) break; // parada: o fogo que sobra fica guardado (não gasta à toa)
     if (R.fogo && F.fogo > 0 && F.fogoK !== R.fogo) { F.fogo = 0; mudou = true; } // aço só com carvão: apaga a lenha
     if (F.fogo <= 1e-6) {
       const c = F.comb;
-      if (!c || (R.fogo && c.k !== R.fogo) || !FORNALHA.combustivel[c.k]) { F.fogo = 0; break; }
-      F.fogo = FORNALHA.combustivel[c.k]; F.fogoK = c.k;
+      if (!c || (R.fogo && c.k !== R.fogo) || !C.combustivel[c.k]) { F.fogo = 0; break; }
+      F.fogo = C.combustivel[c.k]; F.fogoK = c.k;
       if (--c.n <= 0) F.comb = null;
       mudou = true;
     }
@@ -58,7 +60,7 @@ export function avancarForno(F, agora = Date.now()) {
       mudou = true;
     }
   }
-  if (!fornoPodeSeguir(F, receitaForno(F))) F.prog = 0; // trocou o material: começa do zero
+  if (!fornoPodeSeguir(F, receitaForno(F, C))) F.prog = 0; // trocou o material: começa do zero
   if (F.fogo <= 1e-6) { F.fogo = 0; if (!F.comb) F.fogoK = ''; }
   return mudou;
 }
@@ -1726,7 +1728,7 @@ export class Simulacao {
     const of = OFICINA[R.prof], npc0 = (this.mapa.npcs || []).find((n) => n.id === of.npc);
     // na oficina do NPC ou perto da estação certa construída num lote (bigorna, fornalha ou bancada)
     const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
-    if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? `Crie ${of.onde} ou perto da fornalha do seu terreno` : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? `Crie ${of.onde} ou perto da fornalha do seu terreno` : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
     if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return { motivo: `Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})` };
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
@@ -1770,8 +1772,8 @@ export class Simulacao {
   // estação construída (bigorna, fornalha, bancada) perto do jogador que serve para a receita: {x, z} ou null
   estacaoPerto(j, R) {
     const k = RECEITA_ESTACAO(R);
-    // fornalha (André 2026-11-07): só a do próprio terreno, porque o dono deixa material dentro; bancada e bigorna valem em qualquer terreno
-    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && (k !== 'fornalha' || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
+    // fornalha e fogão (André 2026-11-07): só os do próprio terreno, porque o dono deixa coisa dentro; bancada e bigorna valem em qualquer terreno
+    for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && ((k !== 'fornalha' && k !== 'fogao') || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
   }
   // o que o celular precisa saber de um lote (agora = relógio do servidor, para a horta crescer igual nos dois)
@@ -1882,7 +1884,7 @@ export class Simulacao {
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
     if (Object.values(L.horta).some((t) => t.c)) return aviso('Colha ou desfaça as plantas antes de vender');
     if ((L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de vender');
-    if (Object.values(L.fornos || {}).some(fornoTemCoisa)) return aviso('Esvazie a fornalha antes de vender');
+    if (Object.values(L.fornos || {}).some(fornoTemCoisa)) return aviso('Esvazie a fornalha e o fogão antes de vender');
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
     for (const p of L.pecas) if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: as peças do terreno não cabem');
     const w = L.def.x1 - L.def.x0, d = L.def.z1 - L.def.z0, c = contaTerreno(L.def, L.taxa, Date.now());
@@ -1989,9 +1991,9 @@ export class Simulacao {
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
     const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
     if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
-    if (p.k === 'fornalha' && L.fornos && L.fornos[p.id]) {
-      avancarForno(L.fornos[p.id]);
-      if (fornoTemCoisa(L.fornos[p.id])) return aviso('Esvazie a fornalha antes de desmontar');
+    if ((p.k === 'fornalha' || p.k === 'fogao') && L.fornos && L.fornos[p.id]) {
+      avancarForno(L.fornos[p.id], Date.now(), regraForno(p.k));
+      if (fornoTemCoisa(L.fornos[p.id])) return aviso(p.k === 'fogao' ? 'Esvazie o fogão antes de desmontar' : 'Esvazie a fornalha antes de desmontar');
       delete L.fornos[p.id];
     }
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
@@ -2234,24 +2236,41 @@ export class Simulacao {
     this.evento({ t: 'dormiu', para: id, vigor: Math.round(vigor), espera: Math.ceil(espera) });
     this.avisarProg(j);
   }
-  // Fornalha do meu terreno (2026-11-07). m = { acao: 'abrir' | 'por' | 'tirar', p: id da peça, lugar: 'comb' | 'ent' | 'sai', i }
+  // Fornalha ou fogão do meu terreno (2026-11-07). m = { acao: 'abrir' | 'por' | 'tirar', p: id da peça, lugar: 'comb' | 'ent' | 'sai', i }
   // por: a pilha do lugar i da mochila vai para o lugar (junta se for o mesmo item); tirar: o lugar volta para a mochila
+  // fogão (André 2026-11-07, "que nem a fornalha"): no 'ent' vai o prato: m.r = prato, m.n = quantos; os ingredientes
+  // saem da mochila para a panela e voltam se você tirar o que não cozinhou
   forno(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    const L = this.loteDe(j); if (!L) return aviso('Só dá para usar a fornalha do seu terreno');
-    const peca = L.pecas.find((o) => o.k === 'fornalha' && o.id === String(m.p));
-    if (!peca || dist(peca, j) > LOTE.estacaoDist + 0.6 || !semParede(this.lotes.values(), j, peca)) return aviso('Chegue perto da sua fornalha');
+    const L = this.loteDe(j); if (!L) return aviso('Só dá para usar a fornalha e o fogão do seu terreno');
+    const peca = L.pecas.find((o) => (o.k === 'fornalha' || o.k === 'fogao') && o.id === String(m.p));
+    const fogao = !!peca && peca.k === 'fogao', C = fogao ? FOGAO : FORNALHA;
+    if (!peca || dist(peca, j) > LOTE.estacaoDist + 0.6 || !semParede(this.lotes.values(), j, peca)) return aviso(peca && fogao ? 'Chegue perto do seu fogão' : 'Chegue perto da sua fornalha');
     if (!L.fornos) L.fornos = {};
     const F = L.fornos[peca.id] || (L.fornos[peca.id] = fornoVazio());
-    if (avancarForno(F)) this.lotesMudados.add(L.def.id);
+    if (avancarForno(F, Date.now(), C)) this.lotesMudados.add(L.def.id);
     const p = j.prog, lugar = m.lugar;
-    if (m.acao === 'por') {
+    if (m.acao === 'por' && fogao && lugar === 'ent') {
+      const R = C.receitas[m.r]; if (!R) return aviso('Esse prato não se faz no fogão');
+      if (profNivel(p.prof.coz) < R.nivel) return aviso(`Precisa de Cozinheiro Nv ${R.nivel}`);
+      const atual = F.ent;
+      if (atual && atual.k !== R.faz) return aviso('Tire o prato que já está na panela antes');
+      const cabe = (ITENS[R.faz].pilha || 20) - (atual ? atual.n : 0);
+      if (cabe <= 0) return aviso('A panela já está cheia');
+      let n = Math.min(cabe, Math.max(1, m.n | 0));
+      for (const [k, q] of Object.entries(R.ing)) n = Math.min(n, Math.floor(contar(p.mochila, k) / q));
+      if (n <= 0) { const [k, q] = Object.entries(R.ing).find(([k, q]) => contar(p.mochila, k) < q); return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${q})`); }
+      for (const [k, q] of Object.entries(R.ing)) tirar(p.mochila, k, q * n);
+      F.ent = { k: R.faz, n: (atual ? atual.n : 0) + n };
+      if (!atual) F.prog = 0;
+      aviso(`${n}x ${ITENS[R.faz].nome} na panela`);
+    } else if (m.acao === 'por') {
       if (lugar !== 'comb' && lugar !== 'ent') return;
       const o = p.mochila[m.i | 0]; if (!o) return;
       if (o.h) return aviso('Tire o item do lugar rápido antes');
-      if (lugar === 'comb' && !FORNALHA.combustivel[o.k]) return aviso('Combustível é lenha ou carvão');
-      const R = lugar === 'ent' ? FORNALHA.receitas[o.k] : null;
+      if (lugar === 'comb' && !C.combustivel[o.k]) return aviso('Combustível é lenha ou carvão');
+      const R = lugar === 'ent' ? C.receitas[o.k] : null;
       if (lugar === 'ent' && !R) return aviso('A fornalha derrete minério de ferro ou de cobre, queima lenha em carvão e faz aço da barra de ferro');
       if (R && profNivel(p.prof.fer) < R.nivel) return aviso(`Precisa de Ferreiro Nv ${R.nivel}`);
       const atual = F[lugar];
@@ -2265,24 +2284,27 @@ export class Simulacao {
       if (!['comb', 'ent', 'sai'].includes(lugar)) return;
       const o = F[lugar]; if (!o) return;
       const prova = p.mochila.map((q) => (q ? { ...q } : null));
-      if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
+      if (fogao && lugar === 'ent') { // o que não cozinhou volta como ingredientes
+        const R = C.receitas[o.k];
+        if (R) { for (const [k, q] of Object.entries(R.ing)) if (!guardar(prova, { k, n: q * o.n })) return aviso('Mochila cheia'); }
+      } else if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
       p.mochila = prova; F[lugar] = null;
       if (lugar === 'ent') F.prog = 0;
-      if (lugar === 'sai') { // pontos de Ferreiro e XP pelo que saiu (como criar na forja)
-        const R = Object.values(FORNALHA.receitas).find((r) => r.faz === o.k);
-        if (R) { this.pontosProf(j, 'fer', R.vigor * o.n); this.ganharXP(j, Math.max(1, Math.round(R.vigor * o.n))); }
+      if (lugar === 'sai') { // pontos da profissão e XP pelo que saiu (como criar na forja ou no fogão)
+        const R = Object.values(C.receitas).find((r) => r.faz === o.k);
+        if (R) { this.pontosProf(j, fogao ? 'coz' : 'fer', R.vigor * o.n); this.ganharXP(j, Math.max(1, Math.round(R.vigor * o.n))); }
         aviso(`Pegou ${ITENS[o.k].nome} x${o.n}`);
       }
     } else if (m.acao !== 'abrir') return;
-    if (m.acao !== 'abrir') { avancarForno(F); this.lotesMudados.add(L.def.id); }
-    this.evento({ t: 'forno', para: id, p: peca.id, abrir: m.acao === 'abrir', ...this.dadosForno(F) });
+    if (m.acao !== 'abrir') { avancarForno(F, Date.now(), C); this.lotesMudados.add(L.def.id); }
+    this.evento({ t: 'forno', para: id, p: peca.id, tipo: peca.k, abrir: m.acao === 'abrir', ...this.dadosForno(F, C) });
     if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
   }
   // o que o celular mostra (dur e fogoMax para as barrinhas andarem sozinhas até a próxima conta)
-  dadosForno(F) {
-    const R = receitaForno(F), anda = fornoPodeSeguir(F, R) && (F.fogo > 0 || (F.comb && (!R.fogo || F.comb.k === R.fogo)));
+  dadosForno(F, C = FORNALHA) {
+    const R = receitaForno(F, C), anda = fornoPodeSeguir(F, R) && (F.fogo > 0 || (F.comb && (!R.fogo || F.comb.k === R.fogo)));
     const c = (o) => (o ? { k: o.k, n: o.n } : null);
-    return { comb: c(F.comb), ent: c(F.ent), sai: c(F.sai), fogo: r2(F.fogo), fogoK: F.fogoK, fogoMax: FORNALHA.combustivel[F.fogoK] || 0,
+    return { comb: c(F.comb), ent: c(F.ent), sai: c(F.sai), fogo: r2(F.fogo), fogoK: F.fogoK, fogoMax: C.combustivel[F.fogoK] || 0,
       prog: r2(F.prog), dur: R ? R.dur : 0, faz: R ? R.faz : '', anda: !!anda, precisa: R && R.fogo && (!F.comb || F.comb.k !== R.fogo) && !(F.fogo > 0 && F.fogoK === R.fogo) ? R.fogo : '' };
   }
   // m = { acao: 'arar' | 'plantar' | 'regar' | 'colher' | 'tirar', c: 'i,j' (quadrado de 1 m), s: planta (no plantar) }
