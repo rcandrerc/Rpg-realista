@@ -656,6 +656,10 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.construiu(ev)
 			return
+		"regador": # encheu o regador (botão Encher ou mergulho)
+			if m.construcao:
+				m.construcao.encheu(ev)
+			return
 		"colheu":
 			if m.construcao:
 				m.construcao.colheu(ev)

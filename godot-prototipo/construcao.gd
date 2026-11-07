@@ -165,6 +165,7 @@ func _ready() -> void:
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("forno", Vector2(333, 340), 30, "cs_fornalha", m.hud.COR_TROCA) # 2026-11-07: a minha fornalha
 	m.hud.botoes[-1].oculto = true
+	m.hud._botao("encher", Vector2(509, 250), 30, "cs_regar", m.hud.COR_TROCA) # perto do poço da vila ou na beira do lago: encher o regador
 	m.hud._botao("cama", Vector2(423, 250), 30, "cs_cama", m.hud.COR_TROCA) # à noite, perto da minha cama: dormir (Quimera)
 	m.hud.botoes[-1].oculto = true
 	m.hud._botao("correio", Vector2(333, 160), 30, "correio", m.hud.COR_TROCA) # perto da minha caixa de correio: a conta do terreno
@@ -1901,6 +1902,37 @@ func _ima(R: Dictionary) -> Dictionary:
 				r[k] = alvo_
 	return r
 
+# ---------- água do regador (André 2026-11-07): 20 regas; enche no poço da praça ou na beira do lago ----------
+func agua_regador() -> int:
+	return int(m.P.prog.get("agua", D.horta.get("agua", 20)))
+
+# a mesma conta do servidor (shared/simulacao.js pertoDeAgua)
+func perto_de_agua(hp: Vector3) -> bool:
+	var pc: Dictionary = D.horta.get("poco", {})
+	if not pc.is_empty() and Vector2(hp.x - float(pc.x), hp.z - float(pc.z)).length() <= float(pc.r):
+		return true
+	var b := float(D.horta.get("beira", 2.5))
+	for o in [Vector2.ZERO, Vector2(b, 0), Vector2(-b, 0), Vector2(0, b), Vector2(0, -b), Vector2(b, b) * 0.7, Vector2(-b, b) * 0.7, Vector2(b, -b) * 0.7, Vector2(-b, -b) * 0.7]:
+		if not m.terreno.no_lago(hp.x + o.x, hp.z + o.y).is_empty():
+			return true
+	return false
+
+func encher_regador() -> void:
+	if not m.on():
+		m.hud.aviso("Encher o regador só funciona online")
+		return
+	m.rede("regador", {})
+
+# o servidor encheu (botão ou mergulho): respingo nas mãos, "+20" azul subindo e o aviso
+func encheu(ev: Dictionary) -> void:
+	var p: Vector3 = m.heroi.position + Vector3(0, 0.9, 0) + m.heroi.global_transform.basis.z * 0.45
+	if m.agua_fx:
+		m.agua_fx._espirrar(p, 18)
+		get_tree().create_timer(0.3).timeout.connect(func(): m.agua_fx._espirrar(p, 12))
+	m.fx.numero(m.heroi.position + Vector3(0, 1.6, 0), float(ev.get("agua", 20)), Color("7cc8ff"))
+	m.sons.tocar("pano_1", -6.0, 0.15)
+	m.hud.aviso(str(ev.get("texto", "Regador cheio")))
+
 # ---------- a cada quadro ----------
 func _process(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
@@ -1935,6 +1967,7 @@ func _process(dt: float) -> void:
 	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
 	var noite: bool = m.get("dia") != null and m.dia.eh_noite()
 	m.hud.mostrar_botao("cama", ((noite and no_meu and not _pecas_minhas(["cama"]).is_empty()) or not _cama_perto().is_empty()) and vivo and not livre)
+	m.hud.mostrar_botao("encher", m.P.contar("regador") > 0 and agua_regador() < int(D.horta.get("agua", 20)) and perto_de_agua(hp) and vivo and not livre)
 	_passo_ir_estacao()
 	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
 		fechar_bau()
@@ -2332,6 +2365,8 @@ func _atualizar_mira() -> void:
 					mot = "Precisa arar a terra primeiro"
 				elif _molhada(h):
 					mot = "A terra ainda está molhada"
+				elif m.P.contar("regador") > 0 and agua_regador() <= 0:
+					mot = "Regador sem água: encha no poço da vila ou na beira de um lago"
 			"colher":
 				if h == null or h.c == "":
 					mot = "Não tem nada plantado aqui"
@@ -3687,7 +3722,7 @@ func _montar_itens() -> void:
 		n.queue_free()
 	var L = lotes.get(meu)
 	var pc: Label = linha_abas.get_node("pecas")
-	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d" % int(m.P.vigor())
+	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d · Água do regador %d/%d" % [int(m.P.vigor()), agua_regador(), int(D.horta.get("agua", 20))]
 	var nome := ""
 	if aba == "terreno":
 		if L:
