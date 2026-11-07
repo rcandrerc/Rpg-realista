@@ -549,6 +549,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			L.raiz.add_child(p.no)
 	_refazer_telhado(L)
 	_achar_portas()
+	L.erase("_moveis_chave") # peças mudaram: _moveis_dentro confere de novo
 	# horta
 	var vistas := {}
 	for t in ev.get("horta", []):
@@ -1170,6 +1171,29 @@ func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 		if quieto and tl != null and is_instance_valid(tl) and tl.get_meta("apagado", 0.0) != 0.0:
 			quieto = false
 		L.quieto = quieto
+
+# Móveis dentro de casa (ideia do André, 2026-11-07: "o que tiver dentro das casas, só carregar quando a pessoa
+# entrar"): móvel debaixo de um telhado (mesa, baú, cama, fornalha, tocha...) só é desenhado com o herói a até 8 m do
+# terreno (ou construindo nele). De longe a casa fechada esconde ele mesmo; com 6, 7, 8 casas perto, os móveis de
+# todo mundo deixam de ser desenhados à toa. Móvel no quintal (sem telhado em cima) continua sempre.
+const MOVEIS_PERTO := 8.0
+func _moveis_dentro(hp: Vector3) -> void:
+	var G := grade()
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		var mostra: bool = dist_ret(L.def, hp.x, hp.z) < MOVEIS_PERTO or ((ativo or comprando) and id == meu)
+		var chave := [mostra, L.get("telhado_chave", ""), L.pecas.size()]
+		if L.get("_moveis_chave") == chave:
+			continue
+		L._moveis_chave = chave
+		var cel := {}
+		for c in L.get("telhado_celulas", []):
+			cel[c] = true
+		for p in L.pecas:
+			if tipo_peca(p.k) != "movel" or not p.get("no") or not is_instance_valid(p.no):
+				continue
+			var coberto := cel.has(Vector2(floorf(p.x / G) * G + G / 2.0, floorf(p.z / G) * G + G / 2.0))
+			p.no.visible = mostra or not coberto
 
 # a parede p (de 2 m, na linha da grade) tapa a vista do herói (a2) até a câmera (b2)?
 func _parede_tapa(p: Dictionary, a2: Vector2, b2: Vector2, dir: Vector2, g: float) -> bool:
@@ -2173,6 +2197,7 @@ func _process(dt: float) -> void:
 	_passo_fab()
 	_mexer_portas(hp, dt)
 	_telhados_visiveis(hp, dt)
+	_moveis_dentro(hp)
 	if livre:
 		if not vivo or m.menu.aberto():
 			sair()
