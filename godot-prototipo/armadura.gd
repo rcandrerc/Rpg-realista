@@ -187,6 +187,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 		if ba is BoneAttachment3D and ba.bone_name == "J_Bip_C_UpperChest":
 			for arma in ba.get_children():
 				costas(esq, arma, capa)
+	preload("res://realista.gd").aplicar(raiz) # pele semi-realista (André 2026-11-07)
 
 # André 2026-11-03: "tá gordão, sem cintura". A blusa (Tops) e o cós da saia (Bottoms) do VRoid são largos na
 # cintura (~3 cm de folga de cada lado). Uma cópia das malhas é apertada para o centro do corpo entre o quadril e o
