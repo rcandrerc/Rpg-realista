@@ -22,6 +22,10 @@ extends Node3D
 
 const Menu = preload("res://menu.gd")
 const Andar = preload("res://andar.gd")
+const FazendaPlano = preload("res://fazenda_plano.gd")
+var plano # fazenda_plano.gd: marcar os canteiros e o herói faz tudo depois do Salvar (André 2026-11-07)
+var b_salvar: Button
+var b_limpar: Button
 
 var m # main.gd
 var D: Dictionary # m.P.dados
@@ -153,6 +157,8 @@ func _ready() -> void:
 	_mat_ok = _mat_fantasma(Color(0.43, 1.0, 0.54, 0.45))
 	_mat_nao = _mat_fantasma(Color(1.0, 0.35, 0.29, 0.45))
 	_carregar_modelos()
+	plano = FazendaPlano.new(self)
+	add_child(plano)
 	_montar_tela()
 	# botões da HUD: comprar terreno (nas terras, sem terreno), construir (no meu terreno) e a estação perto (Alfaiate/Ferreiro)
 	m.hud._botao("construir", Vector2(597, 160), 30, "construir", m.hud.COR_TROCA)
@@ -1888,11 +1894,13 @@ func motivo_criar(k: String) -> String:
 	return ""
 
 # o que o botão Criar faz agora ("" = nada): a peça escolhida, ou a ferramenta que falta na fazenda
-func _criar_qual() -> String:
-	if aba == "fazenda":
-		if sel == "arar" and m.P.contar("enxada") < 1:
+func _criar_qual(acao := "") -> String:
+	if acao == "":
+		acao = sel
+	if aba == "fazenda" or acao != sel:
+		if acao == "arar" and m.P.contar("enxada") < 1:
 			return "enxada"
-		if sel == "regar" and m.P.contar("regador") < 1:
+		if acao == "regar" and m.P.contar("regador") < 1:
 			return "regador"
 		return ""
 	return sel if D.construcoes.has(sel) else ""
@@ -2379,6 +2387,7 @@ func abrir() -> void:
 		return
 	if m.trabalho.coletando != null:
 		m.trabalho.parar(true)
+	plano.parar() # trabalhando no plano: para; o que falta continua marcado
 	ativo = true
 	giro = 0
 	andar = "terreo"
@@ -2579,6 +2588,9 @@ func tocou_tela(pos: Vector2) -> void:
 	var p = _chao_na_tela(pos)
 	if p != null and lotes.has(meu) and dist_ret(lotes[meu].def, p.x, p.z) <= 1.5:
 		mira = p
+		if aba == "fazenda" and plano and plano.planeja(sel): # fazenda: tocar no canteiro já marca (ou desmarca)
+			_atualizar_mira()
+			colocar()
 
 func _atualizar_mira() -> void:
 	var p: Vector3 = mira
@@ -2677,48 +2689,59 @@ func _atualizar_mira() -> void:
 		var i := floori(p.x)
 		var j := floori(p.z)
 		var c := "%d,%d" % [i, j]
-		var h = L.horta.get(c)
-		var mot := ""
 		var dados := {"acao": sel, "c": c}
-		match sel:
-			"arar":
-				mot = "Essa terra já está arada" if h != null else motivo_horta(L, i, j)
-			"plantar":
-				dados.s = semente
-				if h == null:
-					mot = "Precisa arar a terra primeiro"
-				elif h.c != "":
-					mot = "Já tem planta aqui"
-				elif m.P.contar("semente_" + semente) < 1:
-					mot = "Sem semente de %s (a Rosa vende)" % str(D.plantas[semente].nome).to_lower()
-			"regar":
-				if h == null:
-					mot = "Precisa arar a terra primeiro"
-				elif _molhada(h):
-					mot = "A terra ainda está molhada"
-				elif m.P.contar("regador") > 0 and agua_regador() <= 0:
-					mot = "Regador sem água: encha no poço da vila ou na beira de um lago"
-			"colher":
-				if h == null or h.c == "":
-					mot = "Não tem nada plantado aqui"
-				elif fase(_crescida(h)) < 4:
-					mot = "%s: %d%% crescida%s" % [D.plantas[h.c].nome, int(_crescida(h) * 100), "" if _molhada(h) else " (precisa de água!)"]
-			"tirar":
-				if h == null:
-					mot = "Aqui não tem terra arada"
-				elif h.c != "":
-					mot = "Colha a planta antes de desfazer a terra"
-		if mot == "" and _criar_qual() != "":
-			var f := _criar_qual()
-			var mc := motivo_criar(f)
-			mot = "Precisa de %s: toque em Criar%s" % [str(D.itens[f].nome).to_lower(), "" if mc == "" else " (" + mc.to_lower() + ")"]
-		if mot == "" and m.P.vigor() < float(m.P.custo_vigor("faz", float(D.horta.vigor))) and sel != "tirar":
-			mot = "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h) ou durma na cama"
+		if sel == "plantar":
+			dados.s = semente
+		var mot := motivo_fazenda(L, sel, i, j, semente)
+		# planejar (André 2026-11-07): arar, plantar, regar e colher só marcam; o Salvar põe o herói para trabalhar
+		if plano and plano.planeja(sel):
+			mot = plano.motivo_marcar(L, dados, mot)
 		alvo = {"ok": mot == "", "motivo": mot, "tipo": "horta", "dados": dados}
+		if mot == "" and plano and plano.planeja(sel):
+			alvo.motivo = plano.dica(dados)
 		_destaque_em(Vector3(i + 0.5, m.terreno.altura(i + 0.5, j + 0.5), j + 0.5), Vector3(1.0, 0.16, 1.0), Color(0.43, 1.0, 0.54, 0.35) if alvo.ok else Color(1, 0.35, 0.29, 0.35))
 	txt_motivo.text = alvo.motivo if alvo.motivo != "" else "Pode colocar aqui"
 	txt_motivo.add_theme_color_override("font_color", Color("b8f0a0") if alvo.ok else Color("ffb3a3"))
 	b_ok.disabled = not alvo.ok
+
+# por que a ação da fazenda não pode ser feita no quadrado (i, j) ('' = pode). Usado na mira e no plano (fazenda_plano.gd)
+func motivo_fazenda(L: Dictionary, acao: String, i: int, j: int, s: String) -> String:
+	var h = L.horta.get("%d,%d" % [i, j])
+	var mot := ""
+	match acao:
+		"arar":
+			mot = "Essa terra já está arada" if h != null else motivo_horta(L, i, j)
+		"plantar":
+			if h == null:
+				mot = "Precisa arar a terra primeiro"
+			elif h.c != "":
+				mot = "Já tem planta aqui"
+			elif m.P.contar("semente_" + s) < 1:
+				mot = "Sem semente de %s (a Rosa vende)" % str(D.plantas[s].nome).to_lower()
+		"regar":
+			if h == null:
+				mot = "Precisa arar a terra primeiro"
+			elif _molhada(h):
+				mot = "A terra ainda está molhada"
+			elif m.P.contar("regador") > 0 and agua_regador() <= 0:
+				mot = "Regador sem água: encha no poço da vila ou na beira de um lago"
+		"colher":
+			if h == null or h.c == "":
+				mot = "Não tem nada plantado aqui"
+			elif fase(_crescida(h)) < 4:
+				mot = "%s: %d%% crescida%s" % [D.plantas[h.c].nome, int(_crescida(h) * 100), "" if _molhada(h) else " (precisa de água!)"]
+		"tirar":
+			if h == null:
+				mot = "Aqui não tem terra arada"
+			elif h.c != "":
+				mot = "Colha a planta antes de desfazer a terra"
+	if mot == "" and _criar_qual(acao) != "":
+		var f := _criar_qual(acao)
+		var mc := motivo_criar(f)
+		mot = "Precisa de %s: toque em Criar%s" % [str(D.itens[f].nome).to_lower(), "" if mc == "" else " (" + mc.to_lower() + ")"]
+	if mot == "" and m.P.vigor() < float(m.P.custo_vigor("faz", float(D.horta.vigor))) and acao != "tirar":
+		mot = "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h) ou durma na cama"
+	return mot
 
 func _mostrar_fantasma(k: String) -> void:
 	if k == _fantasma_k:
@@ -2769,6 +2792,11 @@ func colocar() -> void:
 	if not alvo.get("ok", false):
 		m.hud.aviso(str(alvo.get("motivo", "")))
 		m.sons.tocar("dash", -12.0)
+		return
+	if alvo.tipo == "horta" and plano and plano.planeja(str(alvo.dados.acao)): # só marca; o Salvar faz tudo
+		plano.alternar(alvo.dados)
+		_montar_itens()
+		_atualizar_mira()
 		return
 	m.rede(str(alvo.tipo), alvo.dados)
 
@@ -3303,6 +3331,17 @@ func _montar_tela() -> void:
 	acoes.move_child(b_ok, 0)
 	# André 2026-11-07: regando sem vigor o botão só ficava vermelho. Travado, o toque agora mostra o motivo (colocar() avisa)
 	Menu.ao_tocar_travado(b_ok, colocar)
+	# fazenda: Salvar põe o herói para fazer o que foi marcado; Limpar desmarca tudo
+	b_salvar = _botao("Salvar", salvar_plano, true, 22)
+	b_salvar.custom_minimum_size = Vector2(170, 62)
+	b_salvar.visible = false
+	acoes.add_child(b_salvar)
+	acoes.move_child(b_salvar, 1)
+	b_limpar = _botao("Limpar", limpar_plano, false, 18)
+	b_limpar.custom_minimum_size = Vector2(170, 46)
+	b_limpar.visible = false
+	acoes.add_child(b_limpar)
+	acoes.move_child(b_limpar, 2)
 	linha_andares = HBoxContainer.new()
 	linha_andares.add_theme_constant_override("separation", 8)
 	acoes.add_child(linha_andares)
@@ -4117,6 +4156,27 @@ func _montar_itens() -> void:
 		linha_andares.visible = aba == "casa" or aba == "moveis"
 	b_ok.text = {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")
 	Menu.estilo_botao(b_ok, true)
+	var n_plano: int = plano.quantos() if plano else 0
+	if aba == "fazenda" and plano and plano.planeja(sel):
+		b_ok.text = "Marcar"
+	if b_salvar:
+		b_salvar.visible = aba == "fazenda" and n_plano > 0
+		b_salvar.text = "Salvar (%d)" % n_plano
+		b_limpar.visible = b_salvar.visible
+	if aba == "fazenda" and n_plano > 0:
+		txt_nome.text += (" · " if txt_nome.text != "" else "") + "%d marcados: toque em Salvar" % n_plano
+
+# Salvar o plano da fazenda: sai do modo construção e o herói vai fazendo cada tarefa marcada (fazenda_plano.gd)
+func salvar_plano() -> void:
+	if plano.quantos() == 0:
+		return
+	sair()
+	plano.comecar()
+
+func limpar_plano() -> void:
+	plano.limpar()
+	_montar_itens()
+	_atualizar_mira()
 
 func escolher(k: String) -> void:
 	if k.begins_with("plantar:"):

@@ -2620,6 +2620,8 @@ func direcao_joystick() -> Vector3:
 			return conversa.direcao_auto()
 		if rota and rota.ativo: # "Ir para" do mapa: vai pela estrada
 			return rota.direcao_auto()
+		if construcao and construcao.plano and construcao.plano.andando(): # plano da fazenda: vai até o próximo canteiro
+			return construcao.plano.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
