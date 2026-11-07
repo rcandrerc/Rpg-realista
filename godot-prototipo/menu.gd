@@ -1862,6 +1862,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	var d := rotulo(P.texto_item(it), 14, TEXTO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(d)
+	if P.eh_equip(it): # reforço (igual ao Quimera, André 2026-11-07): +N de +máx, próxima chance, custo e se falhar
+		txt.add_child(linha_reforco(it))
 	if P.eh_equip(it) and lugar == "":
 		var atual = P.prog.equip.get(P.dados.itens[it.k].lugar)
 		txt.add_child(rotulo(("No corpo: %s (%s)" % [P.nome_item(atual), P.texto_item(atual)]) if atual != null else "Lugar vazio no corpo", 12, APAGADO))
@@ -1873,6 +1875,14 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Equipar", {"acao": "equipar", "i": i}))
 	elif not P.eh_mat(it):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
+	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
+		var onde := {"i": i} if lugar == "" else {"lugar": lugar}
+		var r1 := botao("Reforçar 1× · %d" % P.custo_reforco(it), func(): m.reforco.comecar(onde, false), 14, true)
+		r1.custom_minimum_size = Vector2(150, 36)
+		bs.add_child(r1)
+		var r2 := botao("Reforçar até cancelar", func(): m.reforco.comecar(onde, true), 14)
+		r2.custom_minimum_size = Vector2(170, 36)
+		bs.add_child(r2)
 	if i >= 0 and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
 	if i >= 0: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
@@ -2016,6 +2026,32 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 		ok.add_theme_color_override("font_hover_color", PIOR)
 	linha.add_child(ok)
 
+# "Raro · Reforço +2 de +5 · Próximo: +3 · chance 75% · 24 de ouro · se falhar volta pra +2" (números do Quimera)
+func linha_reforco(it) -> Control:
+	var P = m.P
+	var mx: int = P.reforco_max(it)
+	var e := int(it.get("e", 0))
+	var t := ""
+	var cor := APAGADO
+	if mx <= 0:
+		t = "Comum · não dá pra reforçar"
+	elif e >= mx:
+		t = "Reforço +%d de +%d · Reforço no máximo!" % [e, mx]
+		cor = Color("ffd76a")
+	else:
+		t = "Reforço +%d de +%d · Próximo: +%d · chance %d%% · %d de ouro" % [e, mx, e + 1, P.chance_reforco(e), P.custo_reforco(it)]
+		var pr: Array = P.reforco_precisa(it, e + 1)
+		if int(pr[1]) > 0:
+			t += " · precisa %d %s" % [pr[1], P.nome_atributo_reforco(pr[0])]
+			if P.atributo_reforco(pr[0]) < int(pr[1]):
+				cor = PIOR
+		if P.chance_reforco(e) < 100:
+			var f: int = P.reforco_falhou(e)
+			t += (" · se falhar volta pra +%d" % f) if f < e else (" · se falhar continua +%d" % e)
+	var l := rotulo(t, 12, cor)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
 func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	var b := botao(t, func(): acao_item(msg), 14, ativo)
 	b.custom_minimum_size = Vector2(120, 36)
@@ -2071,7 +2107,7 @@ func st_item(it) -> Dictionary:
 	if m.P.eh_equip(it):
 		var st: Dictionary = m.P.dados.itens[it.k].st
 		for c in st:
-			r[c] = float(st[c][int(it.r)])
+			r[c] = float(st[c][int(it.r)]) * m.P.reforco_k(it, c) # com o reforço (+N)
 	return r
 
 # diferença da peça nova para a vestida: {"defesa": +2, "mana": -3}
@@ -2197,12 +2233,18 @@ func montar_janela() -> void:
 		var d := rotulo(P.texto_item(atual), 12, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		txt.add_child(d)
+		txt.add_child(linha_reforco(atual))
 	else:
 		txt.add_child(rotulo("Nada vestido", 16, APAGADO))
 		if l in ["corpo", "pernas"]:
 			txt.add_child(rotulo("Aparece a roupa de baixo", 12, APAGADO))
 	linha.add_child(txt)
 	var cheia: bool = P.prog.mochila.find(null) < 0
+	if atual != null and int(atual.get("e", 0)) < P.reforco_max(atual): # reforçar a peça vestida (igual ao Quimera)
+		var rf := botao("Reforçar", func(): m.reforco.comecar({"lugar": l}, false), 15, true)
+		rf.custom_minimum_size = Vector2(110, 44)
+		rf.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		linha.add_child(rf)
 	if atual != null:
 		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
 		b.custom_minimum_size = Vector2(96, 44)

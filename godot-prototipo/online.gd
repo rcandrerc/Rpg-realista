@@ -746,6 +746,10 @@ func evento(ev: Dictionary) -> void:
 		"aviso":
 			m.hud.aviso(str(ev.texto))
 			return
+		"reforco": # reforço de equipamento: o servidor sorteou (reforco.gd mostra na janelinha)
+			if m.reforco:
+				m.reforco.do_servidor(ev)
+			return
 		"troca": # troca entre jogadores (troca.gd): pedido que chegou, como está a mesa, fim
 			if m.troca:
 				m.troca.do_servidor(ev)
