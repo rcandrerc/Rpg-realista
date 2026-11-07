@@ -1522,11 +1522,34 @@ func custo_reset() -> int:
 	var R: Dictionary = mundo.get("resetBuild", {"minimo": 50, "porNivel": 10})
 	return max(int(R.minimo), int(R.porNivel) * int(P.prog.nivel))
 
+# botão de poção da HUD: a primeira pilha daquela poção na bolsa, pelo mesmo caminho do "Usar" da bolsa (menu.acao_item)
+func beber_pocao(k: String) -> void:
+	var i := -1
+	for j in P.prog.mochila.size():
+		var it = P.prog.mochila[j]
+		if it != null and it.k == k:
+			i = j
+			break
+	if i < 0:
+		hud.aviso("Sem %s na bolsa" % ("poção de vida" if k == "pocao" else "poção de mana"))
+		hud.negar(k)
+		return
+	menu.acao_item({"acao": "usar", "i": i})
+
+# recarga da poção (POCAO_RECARGA de shared/dados.js; o servidor confere a mesma)
+func recarga_pocao() -> float:
+	return float(P.dados.get("pocaoRecarga", 10))
+
 # poção da mochila: confere se vale a pena; sem internet já recupera aqui (online quem aplica é o servidor)
 func usar_pocao(it: Dictionary) -> bool:
 	if h.morto > 0.0:
 		return false
 	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
+	var rc: float = recargas.get("it:" + str(it.k), 0.0)
+	if rc > 0.0 and not P.dados.itens[it.k].get("comida", false):
+		hud.aviso("Espere %d s para outra %s" % [int(ceil(rc)), str(P.dados.itens[it.k].nome).to_lower()])
+		hud.negar(it.k)
+		return false
 	if P.dados.itens[it.k].get("comida", false): # prato do fogão (2026-11-07): o servidor confere vida, mana e vigor
 		if u.has("vida") and h.vida < P.st.vidaMax:
 			var nc: float = min(P.st.vidaMax - h.vida, round(P.st.vidaMax * float(u.vida)))
@@ -1552,6 +1575,7 @@ func usar_pocao(it: Dictionary) -> bool:
 			return false
 		if not on():
 			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+	recargas["it:" + str(it.k)] = recarga_pocao() # o mesmo tempo do servidor: o botão da HUD mostra a contagem
 	return true
 
 # ouro e itens que caíram do monstro: sobem do corpo dele (cor da raridade)
@@ -2075,6 +2099,9 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
+	if qual in ["pocao", "pocao_mana"]: # botões de poção da HUD (2026-11-07): não param coleta, volta nem golpe
+		beber_pocao(qual)
+		return
 	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau", "forno", "encher"]:
 		trabalho.parar(true) # qualquer ação para a coleta
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
@@ -2240,6 +2267,8 @@ func _tentar(qual: String) -> bool:
 			construcao.tocar_estacao("forno")
 		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
 			construcao.abrir_correio()
+		"estacoes": # no terreno/casa (André 2026-11-07): recolhe ou expande os botões das estações (construcao.gd)
+			construcao.alternar_estacoes()
 		_:
 			if qual.begins_with("hab"):
 				return habilidade(int(qual.substr(3)))
@@ -2823,6 +2852,9 @@ func _process(dt: float) -> void:
 		if menu:
 			menu.atualizar()
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
+	for k in ["pocao", "pocao_mana"]:
+		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
+		hud.contagem(k, P.contar(k))
 	hud.recarga("dash", recargas.get("dash", 0.0), D.MOVIMENTO.dash_cd)
 	hud.recarga("rolar", recargas.get("rolar", 0.0), D.HEROI.rolar_cd)
 	atualizar_teste(dt)
