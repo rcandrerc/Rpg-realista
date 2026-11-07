@@ -165,7 +165,8 @@ class SalaClareira extends Room {
       b.n = Math.min(LIMITE.max, b.n + ((agora - b.t) / 1000) * LIMITE.porSeg); b.t = agora;
       if (b.n < custo) return;
       b.n -= custo;
-      fn(c, m);
+      // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
+      try { fn(c, m); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
     });
   }
 

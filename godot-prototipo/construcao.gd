@@ -2533,6 +2533,15 @@ func prof_da_estacao() -> String:
 var _pode_aqui := false
 var _t_botoes := 0.0 # FPS: os botões das estações se conferem a cada 0,15 s (_process)
 var _chave_botoes := []
+# "Colocar" na mochila (André 2026-11-07): abre o modo construção (igual ao martelo) já com a peça escolhida
+func abrir_com(k: String) -> void:
+	if not ativo:
+		abrir()
+	if not ativo or not D.construcoes.has(k):
+		return
+	aba = str(D.construcoes[k].get("aba", "moveis"))
+	escolher(k)
+
 func pode_construir_aqui() -> bool:
 	return _pode_aqui
 
