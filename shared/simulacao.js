@@ -63,6 +63,13 @@ export function avancarForno(F, agora = Date.now()) {
 }
 
 // ---------- Vila dos Lotes: contas da construção e da horta (godot-prototipo/construcao.gd repete as mesmas) ----------
+// água do regador (conta sem o campo = cheio) e se (x, z) está perto do poço da praça ou na beira/dentro de um lago
+const aguaRegador = (p) => (typeof p.agua === 'number' ? p.agua : HORTA.agua);
+function pertoDeAgua(x, z) {
+  if (Math.hypot(x - HORTA.poco.x, z - HORTA.poco.z) <= HORTA.poco.r) return true;
+  const b = HORTA.beira;
+  return [[0, 0], [b, 0], [-b, 0], [0, b], [0, -b], [b * 0.7, b * 0.7], [-b * 0.7, b * 0.7], [b * 0.7, -b * 0.7], [-b * 0.7, -b * 0.7]].some(([ox, oz]) => noLago(x + ox, z + oz));
+}
 // Planta cresce só enquanto a terra está molhada (HORTA.rega horas depois de regar), em horas de relógio de verdade
 // (Quimera UJ): g = horas de rega acumuladas; madura quando g >= PLANTAS[c].G. u = última conta (ms).
 export function crescerPlanta(t, agora) {
@@ -572,6 +579,8 @@ export class Simulacao {
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     j.chao = p.y - chao < 0.15; j.vy = 0;
+    // nadando no lago com o regador vazio pela metade: enche sozinho e avisa (André 2026-11-07)
+    if (aguaRegador(j.prog) < HORTA.agua && (noLago(p.x, p.z)?.fundo || 0) > 1.2 && contar(j.prog.mochila, 'regador') > 0) this.encher(j, 'Você mergulhou: regador cheio');
     if (typeof p.anim === 'string' && p.anim.length < 64) j.anim = p.anim; // só aparência, para os outros jogadores
     j.cliente = { t: this.tempo };
     return true;
@@ -1596,6 +1605,7 @@ export class Simulacao {
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    if (!this.cabeColeta(j.prog, C)) return aviso('Mochila cheia: venda ou guarde algo no baú para coletar');
     this.virarPara(j, no);
     this.proximaBatida(j, no);
   }
@@ -1641,6 +1651,7 @@ export class Simulacao {
     const no = this.coletaveis.get(j.coleta.no), C = COLETA[no.tipo], p = j.prog;
     if (C.ferramenta && contar(p.mochila, C.ferramenta) < 1) return this.pararColeta(j, `Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()}`); // vendeu ou guardou no meio
     if (this.cargas(j, no) <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`); // outro jogador esgotou antes
+    if (!this.cabeColeta(p, C)) return this.pararColeta(j, 'Mochila cheia: venda ou guarde algo no baú para coletar'); // não gasta vigor à toa
     const custo = this.custoVigor(j, C);
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     const b = profBonus(p.prof[C.prof]), ganhou = [];
@@ -1661,6 +1672,11 @@ export class Simulacao {
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
+  }
+  // André 2026-11-07: com a mochila cheia a coleta para e diz o motivo (antes gastava vigor e a carga do veio)
+  cabeColeta(p, C) {
+    const prova = p.mochila.map((o) => (o ? { ...o } : null));
+    return Object.entries(C.da).every(([k, n]) => guardar(prova, { k, n }));
   }
   pararColeta(j, motivo = undefined) {
     if (!j.coleta) return;
@@ -2062,6 +2078,20 @@ export class Simulacao {
   // Dormir na cama do meu terreno (igual ao Quimera, André 2026-11-07): só à noite no relógio da conta (19h às 5h) e sem
   // monstro a menos de CAMA.perigo m. Pula para as 6h30 (só para quem dormiu: o relógio é da conta) com vida, mana e
   // estamina cheias; o vigor ganha CAMA.vigor uma vez a cada CAMA.cada s. A cama já é onde você renasce.
+  // encher o regador (André 2026-11-07): perto do poço da praça ou na beira de um lago (o botão "Encher" do Godot)
+  encherRegador(id) {
+    const j = this.jogadores.get(id); if (!j || j.morto) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (contar(j.prog.mochila, 'regador') < 1) return aviso('Você não tem regador');
+    if (aguaRegador(j.prog) >= HORTA.agua) return aviso('O regador já está cheio');
+    if (!pertoDeAgua(j.x, j.z)) return aviso('Chegue no poço da vila ou na beira de um lago');
+    this.encher(j, 'Regador cheio');
+  }
+  encher(j, texto) {
+    j.prog.agua = HORTA.agua;
+    this.evento({ t: 'regador', para: j.id, agua: HORTA.agua, texto: `${texto}: dá ${HORTA.agua} regas` });
+    this.avisarProg(j);
+  }
   dormir(id) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -2167,8 +2197,11 @@ export class Simulacao {
       if (!t) return aviso('Precisa arar a terra primeiro');
       if (contar(p.mochila, 'regador') < 1) return aviso('Precisa de regador (crie perto de uma bancada, aba Fazenda)');
       if (t.w && agora < t.w + HORTA.rega * 3600000) return aviso('A terra ainda está molhada');
+      if (aguaRegador(p) <= 0) return aviso('Regador sem água: encha no poço da vila ou na beira de um lago');
       if (!vigor()) return;
       t.w = agora; t.u = agora;
+      p.agua = aguaRegador(p) - 1;
+      if (p.agua === 0) aviso('O regador secou: encha no poço da vila ou na beira de um lago');
     } else if (m.acao === 'colher') {
       if (!t || !t.c) return aviso('Não tem nada plantado aqui');
       const P = PLANTAS[t.c];

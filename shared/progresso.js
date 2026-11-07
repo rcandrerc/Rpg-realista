@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -448,6 +448,7 @@ export function progressoValido(p) {
   // relógio do dia da conta (depois de dormir) e quando a cama deu vigor pela última vez (ms, relógio do servidor)
   if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
+  if (num(p.agua) && p.agua >= 0) n.agua = Math.min(Math.floor(p.agua), HORTA.agua); // água do regador (sem o campo = cheio)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
   return n;
