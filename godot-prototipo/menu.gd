@@ -1472,8 +1472,89 @@ func montar_criar_aqui() -> void:
 		separador(c[1])
 		for e in lista:
 			conteudo.add_child(linha_criavel(e))
+	algum = montar_melhorar_aqui(ests) or algum
 	if not algum:
 		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
+
+# "Melhorar equipamento" no submenu da estação (André 2026-11-07: "pegar um épico, transformar em lendário" na bancada):
+# as peças da mochila e as vestidas que esta estação melhora (bigorna/forja do Tomás: armas; bancada/banca da Rosa:
+# armaduras e colar). Evoluir e Reforçar são os mesmos do cartão da peça na mochila (que continua igual); o servidor confere.
+func montar_melhorar_aqui(ests: Array) -> bool:
+	var P = m.P
+	var D: Dictionary = P.dados
+	if not D.has("catalisador"):
+		return false
+	var pecas := [] # [peça, i da mochila (-1 = vestida), lugar vestido]
+	for lg in P.prog.equip:
+		var v = P.prog.equip[lg]
+		if v != null and P.eh_equip(v):
+			pecas.append([v, -1, str(lg)])
+	for i in P.prog.mochila.size():
+		var it = P.prog.mochila[i]
+		if it != null and P.eh_equip(it):
+			pecas.append([it, i, ""])
+	var achou := false
+	for p in pecas:
+		var it = p[0]
+		var tipo := tipo_catalisador(it.k)
+		var prof: String = str(D.receitas[it.k].prof) if D.receitas.has(it.k) else ("fer" if tipo == "arma" else "alf")
+		if not (("bigorna" if prof == "fer" else "bancada") in ests):
+			continue
+		var pode_evoluir: bool = p[1] >= 0 and int(it.r) < D.raridades.size() - 1
+		var pode_reforcar: bool = int(it.get("e", 0)) < P.reforco_max(it)
+		if not pode_evoluir and not pode_reforcar:
+			continue
+		if not achou:
+			separador("Melhorar equipamento")
+			var ex := rotulo("Evoluir sobe a raridade (Épica vira Lendária, Lendária vira Mítica) com catalisador e material. Reforçar dá +1.", 12, APAGADO)
+			ex.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			conteudo.add_child(ex)
+			achou = true
+		var cx := PanelContainer.new()
+		cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), P.cor_item(it).darkened(0.3), 1, 8))
+		var l := HBoxContainer.new()
+		l.add_theme_constant_override("separation", 12)
+		cx.add_child(l)
+		var c := celula(it, false, func(): pass, 52)
+		c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		l.add_child(c)
+		var txt := VBoxContainer.new()
+		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		txt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		txt.add_theme_constant_override("separation", 2)
+		txt.add_child(rotulo(P.nome_item(it), 15, P.cor_item(it)))
+		if pode_evoluir:
+			var r := int(it.r) + 1
+			var usa := {D.catalisador[tipo][r - 1]: 1}
+			usa.merge(D.catalisador.usa[tipo][r - 1])
+			var partes := []
+			var tem_tudo := true
+			for k in usa:
+				var tem: int = P.contar(k)
+				tem_tudo = tem_tudo and tem >= int(usa[k])
+				partes.append("%s %d/%d" % [D.itens[k].nome, tem, int(usa[k])])
+			var u := rotulo("Para %s: %s" % [D.raridades[r].nome, " · ".join(partes)], 12, VERDE if tem_tudo else Color("e0806a"))
+			u.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			txt.add_child(u)
+		elif p[1] < 0:
+			txt.add_child(rotulo("Vestida · para evoluir, tire e guarde na mochila", 12, APAGADO))
+		l.add_child(txt)
+		var bs := VBoxContainer.new()
+		bs.add_theme_constant_override("separation", 4)
+		bs.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		if pode_evoluir:
+			var i: int = p[1]
+			var be := botao("Evoluir", func(): perguntar_evoluir(i), 14, true)
+			be.custom_minimum_size = Vector2(120, 36)
+			bs.add_child(be)
+		if pode_reforcar:
+			var onde := {"i": p[1]} if p[1] >= 0 else {"lugar": p[2]}
+			var rf := botao("Reforçar", func(): m.reforco.comecar(onde, false), 14, not pode_evoluir)
+			rf.custom_minimum_size = Vector2(120, 36)
+			bs.add_child(rf)
+		l.add_child(bs)
+		conteudo.add_child(cx)
+	return achou
 
 # estação que o item pede ("" = cria em qualquer lugar). A mesma conta de linha_criavel.
 func estacao_do_item(e: Dictionary) -> String:
