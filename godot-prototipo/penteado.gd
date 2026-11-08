@@ -1,12 +1,15 @@
 # Penteado (André 2026-11-07): o cabelo de outro modelo VRoid do jogo na cabeça do herói, escolhido no criador.
-# O cabelo do outro modelo vem preso na cabeça dele (os "baked" não têm ossos de mola). Cada vértice é levado da cabeça
-# do doador para a do herói por raio: na direção dele, a distância até o centro da cabeça cresce ou encolhe na razão
-# entre o couro cabeludo do herói e o do doador (mapa de raios do Face_00_SKIN). Assim o cabelo fica colado na cabeça,
-# sem folga e sem furar, mesmo com cabeças de tamanho e formato diferentes. Quem chama: Aparencia.aplicar ("penteado").
+# O cabelo do outro modelo vem preso na cabeça dele (os "baked" não têm ossos de mola). Encaixe (2026-11-08, André: "deformou
+# os cabelos todos"): o cabelo inteiro vai da cabeça do doador para a do herói por uma só escala por eixo (largura, altura e
+# profundidade do crânio de um e de outro), então o penteado mantém a forma original. Depois, só o que ficou por dentro do
+# couro cabeludo do herói é empurrado para fora, e esse empurrão some aos poucos longe da cabeça (nada de volume a mais).
+# Quem chama: Aparencia.aplicar ("penteado").
 extends RefCounted
 
 const GRADE_T := 18 # faixas de altura do mapa de raios (de cima para baixo)
 const GRADE_F := 36 # faixas em volta da cabeça
+const FOLGA := 0.003 # cabelo pelo menos 3 mm acima do couro cabeludo do herói
+const EMPURRAO := 0.006 # no máximo 6 mm para fora: o penteado não ganha volume (antes chegava a 40%)
 
 static var _cenas := {} # id do modelo -> PackedScene
 static var _feitos := {} # "doador|malha do rosto do alvo" -> [[ArrayMesh, Material], ...]
@@ -88,7 +91,7 @@ static func _F(p: Vector3, vira: bool) -> Vector3:
 	return Vector3(-p.x, p.y, -p.z) if vira else p
 
 # posição de cada vértice na pose de descanso, no espaço do esqueleto, já virada para a frente (+z)
-static func _descanso(mi: MeshInstance3D, esq: Skeleton3D, sfc: int, vira: bool) -> PackedVector3Array:
+static func _descanso(mi: MeshInstance3D, esq: Skeleton3D, sfc: int, vira: bool, pose := false) -> PackedVector3Array:
 	var a: Array = mi.mesh.surface_get_arrays(sfc)
 	var V: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
 	var out := PackedVector3Array()
@@ -105,7 +108,8 @@ static func _descanso(mi: MeshInstance3D, esq: Skeleton3D, sfc: int, vira: bool)
 	for j in mi.skin.get_bind_count():
 		var n := mi.skin.get_bind_name(j)
 		var b := esq.find_bone(n) if n != "" else mi.skin.get_bind_bone(j)
-		mats.append(esq.get_bone_global_rest(b) * mi.skin.get_bind_pose(j) if b >= 0 else Transform3D.IDENTITY)
+		var g := (esq.get_bone_global_pose(b) if pose else esq.get_bone_global_rest(b)) if b >= 0 else Transform3D.IDENTITY
+		mats.append(g * mi.skin.get_bind_pose(j) if b >= 0 else Transform3D.IDENTITY)
 	for i in V.size():
 		var p := Vector3.ZERO
 		var s := 0.0
@@ -118,9 +122,10 @@ static func _descanso(mi: MeshInstance3D, esq: Skeleton3D, sfc: int, vira: bool)
 	return out
 
 # centro da cabeça e raio do couro cabeludo por direção (pele do rosto e da cabeça, acima do osso Head)
-static func _mapa(rosto: MeshInstance3D, esq: Skeleton3D, vira: bool) -> Array:
-	var P := _descanso(rosto, esq, 0, vira)
-	var y_cab := _F(esq.get_bone_global_rest(esq.find_bone("J_Bip_C_Head")).origin, vira).y
+static func _mapa(rosto: MeshInstance3D, esq: Skeleton3D, vira: bool, pose := false) -> Array:
+	var P := _descanso(rosto, esq, 0, vira, pose)
+	var cab := esq.find_bone("J_Bip_C_Head")
+	var y_cab := _F((esq.get_bone_global_pose(cab) if pose else esq.get_bone_global_rest(cab)).origin, vira).y
 	var cx := AABB()
 	var primeiro := true
 	for p in P:
@@ -138,6 +143,10 @@ static func _mapa(rosto: MeshInstance3D, esq: Skeleton3D, vira: bool) -> Array:
 		var d := p - c
 		var ij := _celula(d)
 		R[ij] = maxf(R[ij], d.length())
+	var real := PackedFloat32Array()
+	real.resize(R.size())
+	for i in R.size():
+		real[i] = 1.0 if R[i] > 0.0 else 0.0
 	# células vazias (embaixo do queixo, nuca): média das vizinhas, várias passadas; o que sobrar vira a média geral
 	for passada in 8:
 		var R2 := PackedFloat32Array(R)
@@ -167,7 +176,7 @@ static func _mapa(rosto: MeshInstance3D, esq: Skeleton3D, vira: bool) -> Array:
 	for i in R.size():
 		if R[i] <= 0.0:
 			R[i] = media
-	return [c, R]
+	return [c, R, cx, real]
 
 static func _celula(d: Vector3) -> int:
 	var l := maxf(d.length(), 1e-6)
@@ -201,41 +210,80 @@ static func _montar(doador: String, esq_a: Skeleton3D, rosto_a: MeshInstance3D) 
 		return saida
 	var vd := _vira(esq_d)
 	var va := _vira(esq_a)
-	var md := _mapa(rosto_d, esq_d, vd)
+	var md := _mapa(rosto_d, esq_d, vd, true)
 	var ma := _mapa(rosto_a, esq_a, va)
+	# uma escala só para o penteado inteiro (altura do crânio), quase sempre perto de 1: a forma do doador fica igual
+	var ed: Vector3 = (md[2] as AABB).size
+	var ea: Vector3 = (ma[2] as AABB).size
+	var esc := clampf(ea.y / maxf(ed.y, 0.01), 0.9, 1.1)
+	var malhas := []
+	var rmin := PackedFloat32Array() # camada de dentro do cabelo em cada direção
+	rmin.resize(GRADE_T * GRADE_F)
+	rmin.fill(1e9)
 	for mi in _cabelos_proprios(no_d):
 		for sfc in mi.mesh.get_surface_count():
-			var a: Array = mi.mesh.surface_get_arrays(sfc)
-			var P := _descanso(mi, esq_d, sfc, vd)
-			var N: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
-			var V2 := PackedVector3Array()
-			var N2 := PackedVector3Array()
-			V2.resize(P.size())
-			N2.resize(P.size())
+			var P := _descanso(mi, esq_d, sfc, vd, true)
 			for i in P.size():
-				var d: Vector3 = P[i] - md[0]
-				var k := clampf(_raio(ma[1], d) / maxf(_raio(md[1], d), 0.01), 0.7, 1.4)
-				V2[i] = _F(ma[0] + d * k, va)
-				N2[i] = _F(_F(N[i], vd), va) if N != null and N.size() == P.size() else Vector3.UP
-			var arr := []
-			arr.resize(Mesh.ARRAY_MAX)
-			arr[Mesh.ARRAY_VERTEX] = V2
-			arr[Mesh.ARRAY_NORMAL] = N2
-			arr[Mesh.ARRAY_TEX_UV] = a[Mesh.ARRAY_TEX_UV]
-			arr[Mesh.ARRAY_INDEX] = a[Mesh.ARRAY_INDEX]
-			var B := PackedInt32Array()
-			var W := PackedFloat32Array()
-			B.resize(P.size() * 4)
-			W.resize(P.size() * 4)
-			for i in P.size():
-				W[i * 4] = 1.0
-			arr[Mesh.ARRAY_BONES] = B
-			arr[Mesh.ARRAY_WEIGHTS] = W
-			var am := ArrayMesh.new()
-			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-			am.surface_set_name(0, mi.mesh.surface_get_name(sfc))
-			am.surface_set_material(0, _material(mi.mesh.surface_get_material(sfc)))
-			saida.append([am])
+				P[i] = (P[i] - md[0]) * esc
+				var ij := _celula(P[i])
+				rmin[ij] = minf(rmin[ij], P[i].length())
+			malhas.append([mi, sfc, P])
+	# quanto falta para a camada de dentro ficar fora do couro cabeludo do herói, só onde há crânio de verdade (não no
+	# pescoço); depois alisado, para o empurrão não fazer degrau entre uma direção e outra
+	var emp := PackedFloat32Array()
+	emp.resize(GRADE_T * GRADE_F)
+	for i in emp.size():
+		if (ma[3] as PackedFloat32Array)[i] > 0.0 and rmin[i] < 1e8:
+			emp[i] = clampf((ma[1] as PackedFloat32Array)[i] + FOLGA - rmin[i], 0.0, EMPURRAO)
+	for passada in 3:
+		var e2 := PackedFloat32Array(emp)
+		for t in GRADE_T:
+			for f in GRADE_F:
+				var v := emp[t * GRADE_F + f]
+				for n in [[t - 1, f], [t + 1, f], [t, f - 1], [t, f + 1]]:
+					if n[0] >= 0 and n[0] < GRADE_T:
+						v = maxf(v, emp[n[0] * GRADE_F + posmod(n[1], GRADE_F)] * 0.6)
+				e2[t * GRADE_F + f] = v
+		emp = e2
+	for item in malhas:
+		var mi: MeshInstance3D = item[0]
+		var sfc: int = item[1]
+		var P: PackedVector3Array = item[2]
+		var a: Array = mi.mesh.surface_get_arrays(sfc)
+		var N: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+		var V2 := PackedVector3Array()
+		var N2 := PackedVector3Array()
+		V2.resize(P.size())
+		N2.resize(P.size())
+		for i in P.size():
+			var d: Vector3 = P[i]
+			var r := d.length()
+			if r > 1e-4:
+				# a camada inteira sai junto (mechas de fora não achatam); some devagar longe do crânio
+				var e := _raio(emp, d)
+				var perto := 1.0 - smoothstep(0.03, 0.09, r - _raio(ma[1], d))
+				d *= (r + e * perto) / r
+			V2[i] = _F(ma[0] + d, va)
+			N2[i] = _F(_F(N[i], vd), va) if N != null and N.size() == P.size() else Vector3.UP
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = V2
+		arr[Mesh.ARRAY_NORMAL] = N2
+		arr[Mesh.ARRAY_TEX_UV] = a[Mesh.ARRAY_TEX_UV]
+		arr[Mesh.ARRAY_INDEX] = a[Mesh.ARRAY_INDEX]
+		var B := PackedInt32Array()
+		var W := PackedFloat32Array()
+		B.resize(P.size() * 4)
+		W.resize(P.size() * 4)
+		for i in P.size():
+			W[i * 4] = 1.0
+		arr[Mesh.ARRAY_BONES] = B
+		arr[Mesh.ARRAY_WEIGHTS] = W
+		var am := ArrayMesh.new()
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		am.surface_set_name(0, mi.mesh.surface_get_name(sfc))
+		am.surface_set_material(0, _material(mi.mesh.surface_get_material(sfc)))
+		saida.append([am])
 	no_d.free()
 	return saida
 
