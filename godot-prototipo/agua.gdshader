@@ -8,6 +8,9 @@ uniform vec3 cor_fundo : source_color = vec3(0.08, 0.27, 0.42);
 uniform vec3 cor_espuma : source_color = vec3(0.93, 0.97, 0.98);
 uniform vec3 cor_ceu : source_color = vec3(0.72, 0.86, 0.96);
 uniform float fundo_lago = 1.0;
+// reflexo da lua na água à noite (dia_noite.gd manda só quando muda; André 2026-11-08)
+uniform float noite = 0.0;
+uniform vec3 lua_dir = vec3(0.77, 0.22, 0.44);
 varying vec3 mundo;
 varying float fundura;
 void vertex() {
@@ -50,5 +53,15 @@ void fragment() {
 		vec3 baixo = mix(vec3(0.32, 0.62, 0.66), cor_ceu, 0.35 + (o1 + o2) * 0.12);
 		ALBEDO = baixo + brilho * 0.25;
 		ALPHA = 0.7;
+	}
+	if (noite > 0.01 && CAMERA_POSITION_WORLD.y > mundo.y) {
+		// caminho de luz da lua: reflexo na superfície com as ondas quebrando o brilho em pedaços (só vista de cima;
+		// fica fora do FRONT_FACING porque no OpenGL do PC a face de cima pode vir como a de trás)
+		vec3 olho = normalize(mundo - CAMERA_POSITION_WORLD);
+		vec3 r = reflect(olho, normalize(vec3(o1 * 0.05, 1.0, o2 * 0.05)));
+		float lm = max(dot(r, normalize(lua_dir)), 0.0);
+		float reflexo = pow(lm, 500.0) * 1.3 + pow(lm, 60.0) * 0.12;
+		ALBEDO += vec3(0.85, 0.9, 1.0) * reflexo * noite;
+		ALPHA = max(ALPHA, min(reflexo * noite, 0.95));
 	}
 }

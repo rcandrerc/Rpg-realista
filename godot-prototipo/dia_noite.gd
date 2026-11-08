@@ -22,6 +22,8 @@ var _cortina_txt: Label
 var _sono := {} # {"t", "ev"} enquanto a tela escurece e clareia
 var _ceu_noite := -1.0 # o que o céu já recebeu (atualizar só manda quando muda)
 var _ceu_por := -1.0
+var _lua := Vector3.UP
+var _aguas: Array = [] # materiais da água dos lagos (reflexo da lua)
 # luz do dia (a de main.gd montar_ambiente) e a da noite (cores do Quimera: céu 0b1128, luz 8fa6ff, ambiente 5a6aa8)
 var _dia := {}
 const NOITE := {"amb": Color("4a5a98"), "amb_e": 0.62, "sol": Color("8fa6ff"), "sol_e": 0.34, "nevoa": Color("141c38"), "exp": 0.74}
@@ -45,8 +47,21 @@ func _ready() -> void:
 	ceu.shader = load("res://ceu.gdshader")
 	if velho is PanoramaSkyMaterial:
 		ceu.set_shader_parameter("panorama", velho.panorama)
-	ceu.set_shader_parameter("lua_dir", (-m.sol.global_transform.basis.z * Vector3(-1, 1, -1)).normalized() + Vector3(0, 0.35, 0))
+	# lua do lado de onde vem a luz da noite (as sombras batem com ela), baixa no céu (~13 graus) para a câmera do
+	# herói (que olha um pouco para baixo) conseguir ver. Antes ficava abaixo do horizonte (André 2026-11-08).
+	var de_onde: Vector3 = m.sol.global_transform.basis.z
+	var hz := Vector2(de_onde.x, de_onde.z).normalized()
+	_lua = Vector3(hz.x * cos(deg_to_rad(13.0)), sin(deg_to_rad(13.0)), hz.y * cos(deg_to_rad(13.0)))
+	ceu.set_shader_parameter("lua_dir", _lua)
+	# a água dos lagos (relevo.gd, agua.gdshader) reflete a lua à noite
+	if m.relevo:
+		for a in m.relevo.get_children():
+			if a is MeshInstance3D and str(a.name).begins_with("Agua_") and a.material_override is ShaderMaterial:
+				_aguas.append(a.material_override)
+				a.material_override.set_shader_parameter("lua_dir", _lua)
 	env.sky.sky_material = ceu
+	# a névoa pintava o céu inteiro da cor dela (lua, estrelas e nuvens sumiam); agora o céu faz o horizonte (ceu.gdshader)
+	env.fog_sky_affect = 0.25
 	env.sky.radiance_size = Sky.RADIANCE_SIZE_32 # o céu não ilumina nada (luz ambiente é cor): radiância mínima
 	env.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	lanterna = OmniLight3D.new()
@@ -161,6 +176,9 @@ func atualizar(_forcar: bool) -> void:
 		_ceu_por = float(b.por)
 		ceu.set_shader_parameter("noite", noite)
 		ceu.set_shader_parameter("por", b.por)
+		ceu.set_shader_parameter("nevoa", b.nevoa)
+		for ma in _aguas:
+			ma.set_shader_parameter("noite", noite)
 	lanterna.light_energy = 0.9 * noite
 	lanterna.visible = noite > 0.02
 
