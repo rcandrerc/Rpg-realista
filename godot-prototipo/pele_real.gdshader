@@ -67,12 +67,13 @@ void fragment() {
 	float curva = length(fwidth(NORMAL)) / max(length(fwidth(q)) * 120.0, 1e-4);
 	c *= 1.0 - clamp(curva * 0.15, 0.0, 0.06) * vinco * (1.0 - 0.6 * rosto);
 	// cor mais viva (o toon lavava a pele) e luz ambiente mais fraca embaixo (queixo, peito, barriga, axila):
-	// é a sombra de contato que dá peso ao corpo
+	// é a sombra de contato que dá peso ao corpo e ameniza a junção entre queixo e pescoço
 	float lc = dot(c, vec3(0.3, 0.59, 0.11));
 	c = mix(vec3(lc), c, 1.2);
 	ALBEDO = c;
 	vec3 nm = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
-	AO = mix(mix(0.4, 0.8, rosto), 1.0, clamp(nm.y * 0.5 + 0.55, 0.0, 1.0)) ;
+	// gradiente suave de oclusão no queixo/mandíbula conectando com o pescoço
+	AO = mix(mix(0.45, 0.82, rosto), 1.0, clamp(nm.y * 0.5 + 0.55, 0.0, 1.0)) ;
 	AO_LIGHT_AFFECT = 0.0;
 	ROUGHNESS = mix(0.62, 0.55, rosto);
 	SPECULAR = 0.28;

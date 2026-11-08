@@ -66,6 +66,14 @@ static func _trocar(m: Material, nome: String) -> Material:
 			o.grow_amount = CONTORNO
 			h.next_pass = o
 		return h
+	if "EYE" in nome or "Eye" in nome:
+		var e: StandardMaterial3D = m.duplicate()
+		e.diffuse_mode = BaseMaterial3D.DIFFUSE_BURLEY
+		e.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+		e.roughness = 0.15 # superfície vítrea brilhante dos olhos
+		e.metallic_specular = 0.5
+		e.rim = 0.08
+		return e
 	return m
 
 # pele com a cor escolhida no criador: o mesmo pele_real com a troca de cor da aparência no meio
