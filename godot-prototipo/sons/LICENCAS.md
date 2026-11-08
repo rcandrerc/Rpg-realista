@@ -45,3 +45,8 @@ Pedido do André: o lobo correndo tinha o mesmo som de passo do herói. Agora, m
 | Arquivo | O que é | Gravação |
 |---|---|---|
 | pata_1 a pata_8 | passada de um cão correndo em chão macio (patas) | OpenGameArt, "Dog running" de congusbongus (opengameart.org/content/dog-running-0), CC-BY 3.0: uso comercial liberado, **crédito obrigatório** ("Dog running" por congusbongus, CC-BY 3.0). Arquivos 0 a 7 do pacote, mono, pico em -1,5 dB; originais no New-Game-Anime-fontes (sons/opengameart/cao-correndo/) |
+
+# Sons da pescaria (pesca_*.ogg)
+
+Sintetizados por `ferramentas/sons/pesca.py` (próprios, CC0, sem gravação de terceiros), com as receitas do Quimera
+(splash, bloop da boia, estalo do molinete) e um "vupt" de ar para o lançamento.

@@ -28,6 +28,7 @@ const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
+const Pesca = preload("res://pesca.gd")
 const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
 var cenario # cenario.gd
 const MenuTopo = preload("res://menu_topo.gd")
@@ -92,6 +93,7 @@ var online # online.gd: servidor do Oracle (login, outros jogadores, dano de ver
 var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
+var pesca # pesca.gd: pescaria igual à do Quimera (André 2026-11-08): botão Pescar, vara, boia, linha e a briga
 
 # ---------- herói ----------
 var heroi: Node3D
@@ -273,6 +275,8 @@ func _ready() -> void:
 	mostrar_build()
 	trabalho = Trabalho.new(self)
 	add_child(trabalho)
+	pesca = Pesca.new(self)
+	add_child(pesca)
 	menu = Menu.new(self)
 	add_child(menu)
 	conversa = Conversa.new(self)
@@ -1020,6 +1024,8 @@ func trocar_corpo(v, salvar := true) -> void:
 	var pos: Vector3 = heroi.position
 	var ry: float = heroi.rotation.y
 	var modo: String = h.modo
+	if pesca:
+		pesca.recolher() # a vara sai das mãos antes de trocar o corpo
 	if trabalho:
 		trabalho.parar(true) # a picareta e o machado saem da mão antes (senão iam junto com o corpo velho)
 		for k in trabalho.ferramentas:
@@ -2116,6 +2122,11 @@ func usar(qual: String) -> void:
 		return
 	if trabalho.coletando != null and not qual in ["coletar", "menu", "troca", "falar", "construir", "lote", "bancada", "bau", "forno", "encher"]:
 		trabalho.parar(true) # qualquer ação para a coleta
+	if pesca != null and pesca.ativo() and not qual in ["pescar", "menu", "troca", "falar", "encher"]:
+		pesca.recolher() # Quimera: bater, pular, dash, rolar ou montar recolhe a linha
+	if qual == "pescar": # beira de um lago com a vara (pesca.gd): lança, puxa no "!" e toca rápido na briga
+		pesca.tocar()
+		return
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para
 	if qual in ["afundar", "subir"]: # mergulho: quem age é o botão seguro (_process)

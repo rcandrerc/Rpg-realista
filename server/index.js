@@ -104,6 +104,8 @@ class SalaClareira extends Room {
       else if (m && typeof m.k === 'string' && m.k.length < 20) this.sim.fabricar(c.sessionId, { k: m.k, n: Number.isInteger(m.n) ? m.n : 1 });
     });
     this.ouvir('regador', (c) => this.sim.encherRegador(c.sessionId)); // encher no poço da vila ou na beira do lago
+    // pescaria (igual ao Quimera, André 2026-11-08): lançar (onde a boia cai), puxar (o "!" e a briga) e recolher
+    this.ouvir('pescar', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 8) this.sim.pescar(c.sessionId, { acao: m.acao, x: Number(m.x), z: Number(m.z) }); });
     this.ouvir('dormir', (c) => this.sim.dormir(c.sessionId)); // dormir na cama do meu terreno (dia e noite do Quimera)
     this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1 }); });
     this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1, r: String(m.r || '').slice(0, 20), n: Number.isInteger(m.n) ? Math.max(1, Math.min(m.n, 99)) : 1 }); });

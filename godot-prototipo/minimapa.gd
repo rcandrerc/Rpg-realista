@@ -347,6 +347,14 @@ func _caverna() -> Dictionary:
 		return {}
 	return {"nome": str(cv.get("nome", "Caverna")), "x": float(am[0].x), "z": float(am[0].z)}
 
+# spot de pesca (Radar): peixinho claro num círculo da cor do tipo (comum azul-claro, raro azul, épico roxo)
+func _marca_spot(c: Control, q: Vector2, t: float, cor: Color) -> void:
+	c.draw_circle(q, t + 2.0, Color(0.03, 0.05, 0.08, 0.85))
+	c.draw_circle(q, t, cor)
+	var f := PackedVector2Array([q + Vector2(-t * 0.6, 0), q + Vector2(-t * 0.1, -t * 0.35), q + Vector2(t * 0.35, 0), q + Vector2(-t * 0.1, t * 0.35)])
+	c.draw_colored_polygon(f, Color(1, 1, 1, 0.95))
+	c.draw_colored_polygon(PackedVector2Array([q + Vector2(t * 0.3, 0), q + Vector2(t * 0.7, -t * 0.3), q + Vector2(t * 0.7, t * 0.3)]), Color(1, 1, 1, 0.95))
+
 # marca da dungeon: arco de pedra escuro com a luz do selo dentro
 func _marca_caverna(c: Control, q: Vector2, t: float) -> void:
 	var arco := PackedVector2Array()
@@ -530,6 +538,12 @@ func _desenhar_mini() -> void:
 		if dc.length() > RAIO - 11.0:
 			dc = dc.normalized() * (RAIO - 11.0)
 		_marca_casa(c, meio + dc, 6.0)
+	if m.pesca and m.pesca.radar_ligado(): # Radar de pesca (pesca.gd): os spots que cabem no minimapa
+		for id in m.pesca.spots:
+			var v: Dictionary = m.pesca.spots[id]
+			var qs: Vector2 = meio + Vector2(v.x - p.x, v.z - p.z) * k
+			if qs.distance_to(meio) < RAIO - 5.0:
+				_marca_spot(c, qs, 4.5, m.pesca.cor_spot(v.tipo))
 	for o in _time(): # amigos do time (amigos.gd): verde, na beirada quando estão longe
 		var dq: Vector2 = Vector2(o.x - p.x, o.z - p.z) * k
 		if dq.length() > RAIO - 6.0:
@@ -635,6 +649,12 @@ func _desenhar_mapa() -> void:
 		var qc: Vector2 = em.call(cv.x, cv.z)
 		_marca_caverna(c, qc, 10.0)
 		_texto(c, qc + Vector2(0, 22), str(cv.nome), 14, Color("ffc27a"))
+	if m.pesca and m.pesca.radar_ligado(): # Radar de pesca: todos os spots com o tipo embaixo
+		for id in m.pesca.spots:
+			var v: Dictionary = m.pesca.spots[id]
+			var qs: Vector2 = em.call(v.x, v.z)
+			_marca_spot(c, qs, 7.0, m.pesca.cor_spot(v.tipo))
+			_texto(c, qs + Vector2(0, 18), str(m.P.dados.pesca.spots[v.tipo].nome), 12, m.pesca.cor_spot(v.tipo).lightened(0.3))
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno: contorno tracejado dourado e a casinha no meio, com o nome
 		var cantos := [em.call(casa.x0, casa.z0), em.call(casa.x1, casa.z0), em.call(casa.x1, casa.z1), em.call(casa.x0, casa.z1)]
