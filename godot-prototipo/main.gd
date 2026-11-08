@@ -1107,6 +1107,8 @@ func criar_heroi(nascer := true) -> void:
 	heroi_esq.add_child(inclinar)
 	heroi_esq.move_child(inclinar, 0) # antes do braço da espada (que lê a pose do ombro)
 	inclinar.preparar(heroi_esq)
+	# corpo masculino (sem osso de busto): postura firme de guerreiro, peito erguido e ombros para trás (inclinar.porte)
+	inclinar.porte = 0.0 if heroi_esq.find_bone("J_Sec_L_Bust1") >= 0 else 1.0
 	encostar = Encostar.new()
 	heroi_esq.add_child(encostar)
 	heroi_esq.move_child(encostar, 1) # depois do inclinar, antes do braço da espada e das molas do cabelo

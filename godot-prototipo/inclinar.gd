@@ -5,11 +5,20 @@ extends SkeletonModifier3D
 #   dividido pela coluna e pelo peito; o pescoço compensa um pouco para a cabeça ficar firme;
 # - afunda: quadril desce (metros), no pouso e na freada; negativo sobe (nadando no lago fundo);
 # - olhar: cabeça vira antes do corpo para onde o jogador vai.
+# - porte (0 a 1): postura firme de guerreiro (André 2026-11-08, corpo masculino): peito erguido e ombros um pouco
+#   para trás e para baixo, o pescoço compensa para a cabeça ficar no lugar.
 
 var inclinacao := 0.0
 var frente := 0.0
 var afunda := 0.0
 var olhar := 0.0 # radianos que a cabeça vira (+ = para a esquerda do corpo), 40% no pescoço e 60% na cabeça
+var porte := 0.0
+const PORTE_PEITO := 0.12 # rad: peito para trás
+const PORTE_PESCOCO := 0.08 # rad: pescoço volta para a frente (a cabeça não deita para trás)
+const PORTE_OMBRO_TRAS := 0.16 # rad: ombro para trás
+const PORTE_OMBRO_BAIXO := 0.08 # rad: ombro desce (tira o ombro encolhido)
+var _ombro_e := -1
+var _ombro_d := -1
 var _cabeca := -1
 var _coluna := -1
 var _peito := -1
@@ -25,6 +34,8 @@ func preparar(esq: Skeleton3D) -> void:
 	_pescoco = esq.find_bone("J_Bip_C_Neck")
 	_cabeca = esq.find_bone("J_Bip_C_Head")
 	_quadril = esq.find_bone("J_Bip_C_Hips")
+	_ombro_e = esq.find_bone("J_Bip_L_Shoulder")
+	_ombro_d = esq.find_bone("J_Bip_R_Shoulder")
 	if _coluna < 0 or _quadril < 0:
 		return
 	var p := func(n: String) -> Vector3: return esq.get_bone_global_rest(esq.find_bone(n)).origin
@@ -56,6 +67,14 @@ func _process_modification() -> void:
 	_girar(s, _pescoco, _lado, -f * 0.45)
 	_girar(s, _pescoco, _cima, olhar * 0.4)
 	_girar(s, _cabeca, _cima, olhar * 0.6)
+	if porte > 0.0:
+		_girar(s, _peito if _peito >= 0 else _coluna, _lado, PORTE_PEITO * porte)
+		_girar(s, _pescoco, _lado, -PORTE_PESCOCO * porte)
+		# ombro esquerdo e direito espelhados: para trás em volta do eixo de cima, para baixo em volta da frente
+		_girar(s, _ombro_e, _cima, PORTE_OMBRO_TRAS * porte)
+		_girar(s, _ombro_d, _cima, -PORTE_OMBRO_TRAS * porte)
+		_girar(s, _ombro_e, _frente, -PORTE_OMBRO_BAIXO * porte)
+		_girar(s, _ombro_d, _frente, PORTE_OMBRO_BAIXO * porte)
 	# curva: deita em volta da frente do corpo
 	_girar(s, _coluna, _frente, inclinacao)
 	if absf(afunda) > 0.001: # negativo sobe (nadando)
