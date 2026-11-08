@@ -95,6 +95,7 @@ var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quim
 
 # ---------- herói ----------
 var heroi: Node3D
+var expressao: Expressao # rosto no combate: olhos semicerrados no dano, olhar firme no combo (expressao.gd)
 var heroi_anim # anim_heroi.gd: AnimationTree com locomoção misturada e ações por cima (mesma cara do AnimationPlayer)
 var heroi_esq: Skeleton3D
 var espada: Node3D
@@ -1084,6 +1085,7 @@ func nova_arma(nome: String, do_heroi := true) -> Node3D:
 func criar_heroi(nascer := true) -> void:
 	heroi = modelo(visual)
 	heroi.position = D.NASCIMENTO
+	expressao = Expressao.new(heroi, visual)
 	heroi_anim = AnimHeroi.new(heroi.find_child("AnimationPlayer", true, false))
 	heroi_esq = esqueleto(heroi)
 	mao_direita = heroi_esq.find_bone(lugar_armas().espadaMao.osso)
@@ -2338,6 +2340,8 @@ func basico_espada() -> void:
 	var i: int = 0 if tempo - h.combo_fim > hab.comboZera else (h.combo + 1) % hab.combo.size()
 	passo_golpe(alvo, i == hab.combo.size() - 1)
 	h.combo = i
+	if expressao:
+		expressao.golpeou()
 	var g: Dictionary = hab.combo[i]
 	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
 	h.combo_fim = tempo + g.dur
@@ -3111,6 +3115,8 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando
 	heroi_anim.nadando = _nadando
 	heroi_anim.atualizar(dt, vel_anim)
+	if expressao:
+		expressao.atualizar(dt)
 	if montaria != null:
 		montaria.passo(dt, vel)
 	# Peso do corpo: molas que passam do ponto e voltam (o "tranco" da freada e da arrancada).
@@ -3812,6 +3818,8 @@ func apanhou() -> void:
 	volta.cancelar("Atacado! A volta para a vila parou")
 	cam.tremer(0.45)
 	hud.levou_dano()
+	if expressao:
+		expressao.levou_dano()
 	sons.tocar("apanhar", -2.0, 0.1)
 	vibrar(60)
 
