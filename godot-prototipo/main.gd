@@ -1786,7 +1786,8 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			e.puxao = empurra.normalized() * D.COMBATE.voaMorte / 0.35
 			e.puxao_t = 0.35
 		combate.morreu(e.no)
-		sons.tocar("morte", -2.0, 0.1, e.no.position)
+		if SOM_MORTE_MOB: # teste do André 2026-11-08: sem o estalo seco quando o monstro morre
+			sons.tocar("morte", -2.0, 0.1, e.no.position)
 		e.barra.get_parent().get_child(e.barra.get_index() - 1).visible = false
 		e.barra.visible = false
 		var subiu: String = P.ganhar_xp(xp_do_inimigo(e))
@@ -1824,6 +1825,7 @@ var _impacto_t := -9.0
 # tiro_basico: a Faísca do cajado acertou. O herói continua andando enquanto atira, então aqui NÃO congela o jogo
 # nem treme a câmera (André 2026-11-03: "correndo e trava, parece lag"); fica o som, o flash, o número e um toque leve.
 const SOM_ACERTO_MAGIA := false # false = magia acerta sem o som genérico de golpe (teste do André 2026-11-08)
+const SOM_MORTE_MOB := false # false = monstro morre sem o som "morte" (estalo seco). Para voltar, true
 var _faisca_t := -9.0 # último acerto da Faísca: a confirmação do servidor não toca outro golpe por cima
 func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_basico := false) -> void:
 	if _impacto_quadro == Engine.get_process_frames():
