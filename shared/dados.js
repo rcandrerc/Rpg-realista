@@ -807,6 +807,8 @@ export const FERRAMENTAS_FAZENDA = {
   picareta: { custo: { lenha: 2, pedra: 3 }, bancada: false, para: 'minerar' },
   machado: { custo: { lenha: 3, pedra: 2 }, bancada: false, para: 'cortar' },
   regador: { custo: { barra_cobre: 1, lenha: 2 }, bancada: true, para: 'regar' },
+  vara: { custo: { lenha: 3, couro: 1 }, bancada: false, para: 'pescar' }, // Quimera: 3 madeira + 1 couro, na mochila
+  radar_pesca: { custo: { barra_cobre: 1, cristal: 1 }, bancada: true, para: 'radar' }, // spots de pesca no mapa (André 2026-11-08)
 };
 // Criar peça da casa ou ferramenta (André 2026-11-05): cada uma leva de 3 a 5 s (mais material, mais tempo), com a
 // barrinha carregando; dá para pedir várias de uma vez (até maxFila) e elas saem uma atrás da outra
@@ -1175,6 +1177,16 @@ export const ITENS = {
   ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5, vigor: 15 }, venda: 14, desc: 'Recupera 50% da vida e 15 de vigor.' },
   torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4, vigor: 20 }, venda: 22, desc: 'Recupera 40% da vida, 40% da mana e 20 de vigor.' },
   passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
+  // pescaria (igual ao Quimera, André 2026-11-08): peixes crus (comer recupera um pouco; preço e vigor do Quimera) e o peixe assado do fogão
+  lambari: { nome: 'Lambari', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho de rio e lago. Asse dois no fogão.' },
+  tilapia: { nome: 'Tilápia', pilha: 99, comida: true, peixe: true, usar: { vida: 0.1, vigor: 1 }, venda: 6, desc: 'Peixe de lago e rio. Vale umas moedas.' },
+  traira: { nome: 'Traíra', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14, vigor: 2 }, venda: 11, desc: 'Peixe bravo de água doce. Briga muito na linha!' },
+  sardinha: { nome: 'Sardinha', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho do mar.' },
+  robalo: { nome: 'Robalo', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14, vigor: 2 }, venda: 9, desc: 'Peixe do mar. Ótimo pra moqueca.' },
+  garoupa: { nome: 'Garoupa', pilha: 99, comida: true, peixe: true, usar: { vida: 0.2, vigor: 2 }, venda: 18, desc: 'Peixe grande do mar. Vale bem.' },
+  atum: { nome: 'Atum', pilha: 99, comida: true, peixe: true, usar: { vida: 0.28, vigor: 4 }, venda: 30, desc: 'Peixe enorme do mar aberto. Raro!' },
+  dourado: { nome: 'Peixe-Dourado', pilha: 99, comida: true, peixe: true, usar: { vida: 0.6, vigor: 8 }, venda: 160, desc: 'Lendário! Só nas águas em volta da ilha. Vale uma fortuna.' },
+  peixe_assado: { nome: 'Peixe assado', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 4 }, venda: 7, desc: 'Recupera 30% da vida e 4 de vigor.' },
 };
 // Recarga das poções (André 2026-11-06): segundos entre uma poção e outra do mesmo tipo (vida e mana contam separado).
 export const POCAO_RECARGA = 10;
@@ -1310,6 +1322,7 @@ export const PROFISSOES = {
   fer: { nome: 'Ferreiro', grupo: 'Criação', desc: 'Barras, espadas, cajados e colares na forja do Tomás' },
   alf: { nome: 'Alfaiate', grupo: 'Criação', desc: 'Calças, shorts, capas, botas e óculos na banca da Rosa' },
   coz: { nome: 'Cozinheiro', grupo: 'Criação', desc: 'Pratos de comida no fogão do seu terreno' },
+  pes: { nome: 'Pescador', grupo: 'Coleta', desc: 'Pescar nos lagos (vara de pescar)' }, // André 2026-11-08: pescaria igual à do Quimera
   mer: { nome: 'Mercador', grupo: 'Comércio', desc: 'Negociar com a Rosa: vende mais caro e compra mais barato' },
 };
 export const RANKS = ['Novato', 'Veterano', 'Especialista', 'Mestre', 'Autoridade', 'Campeão', 'Adepto', 'Arauto', 'Virtuoso', 'Celebridade', 'Famoso'];
@@ -1370,6 +1383,7 @@ export const RECEITAS = {
   pao_milho: { prof: 'coz', faz: 'pao_milho', usa: { milho: 2, lenha: 1 }, vigor: 3, nivel: 2 },
   ensopado: { prof: 'coz', faz: 'ensopado', usa: { carne: 2, batata: 1, tomate: 1 }, vigor: 4, nivel: 3 },
   torta_abobora: { prof: 'coz', faz: 'torta_abobora', usa: { abobora: 1, milho: 1 }, vigor: 5, nivel: 5 },
+  peixe_assado: { prof: 'coz', faz: 'peixe_assado', usa: { lambari: 2 }, vigor: 2, nivel: 1 }, // Quimera: 2 lambaris no forno
 };
 // receita de item que não existe (ex.: o manto, que virou peitoral) some sozinha
 for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEITAS[k];
@@ -1380,7 +1394,7 @@ for (const k of Object.keys(RECEITAS)) if (!ITENS[RECEITAS[k].faz]) delete RECEI
 // receitas[prato] = { faz, usa: 1 (cada um na panela vira um prato), dur, nivel, vigor, ing: ingredientes de um prato }
 export const FOGAO = {
   combustivel: { lenha: 12, carvao: 30 },
-  tempo: { carne_assada: 10, sopa_legumes: 15, pao_milho: 15, ensopado: 20, torta_abobora: 25 },
+  tempo: { carne_assada: 10, sopa_legumes: 15, pao_milho: 15, ensopado: 20, torta_abobora: 25, peixe_assado: 10 },
   receitas: {},
 };
 for (const [k, R] of Object.entries(RECEITAS)) if (R.prof === 'coz') FOGAO.receitas[R.faz] = { faz: R.faz, receita: k, usa: 1, dur: FOGAO.tempo[R.faz] || 15, nivel: R.nivel, vigor: R.vigor, ing: R.usa };
@@ -1448,6 +1462,43 @@ ITENS.machado = { nome: 'Machado de pedra', pilha: 1, venda: 2, ferramenta: 'cor
 // minerar pede a picareta e cortar pede o machado (o galho e a pedra soltos no chão saem com a mão)
 for (const C of Object.values(COLETA)) C.ferramenta = C.prof === 'min' ? 'picareta' : 'machado';
 ITENS.regador = { nome: 'Regador', pilha: 1, venda: 3, ferramenta: 'regar', desc: 'Rega as plantas (modo construção, aba Fazenda). Cada rega vale por 1 dia. Cheio dá 20 regas: encha no poço da vila ou na beira de um lago.' };
+ITENS.radar_pesca = { nome: 'Radar de pesca', pilha: 1, venda: 10, ferramenta: 'radar', usar: { radar: true }, desc: 'Use na mochila: mostra no mapa todos os spots de pesca por 3 minutos. Não gasta.' };
+ITENS.vara = { nome: 'Vara de pescar', pilha: 1, venda: 8, ferramenta: 'pescar', desc: 'Chegue na beira de um spot de pesca (a água borbulhando) e toque no botão de pescar. Quando a boia afundar, toque de novo rapidinho! Aguenta 150 peixes.' };
+// ---------- pescaria (igual ao Quimera, André 2026-11-08) ----------
+// No Quimera não tem lugar fixo (qualquer água; o tipo da água escolhe o peixe). Aqui o André pediu spots marcados (spots,
+// lá embaixo): a boia cai de 2,2 a 4,4 m da beira e precisa cair dentro de um spot; o spot escolhe o peixe.
+// tier: 0 e 1 vêm direto; 2 em diante brigam (toque rápido até encher a barra); 3 "Que peixão!", 4 LENDÁRIO.
+// peso [min, max] kg, sai quase sempre puxando para o menor (sorteio^1.6). vigor: o que custa cada peixe (antes do Pescador).
+// Tempos do Quimera: lança em 0,6 s, espera 2,5 a 7,5 s / 1,5, janela do "!" 0,95 s (0,75 no tier 3+). Briga: começa em 0,3,
+// cada toque soma max(0,06; 0,13 - 0,018 x tier), cai 0,1 + 0,045 x tier por segundo, 8 s no máximo.
+// folga: o celular está longe do servidor (ping), então a janela do "!" ganha esse tanto a mais no servidor.
+export const PESCA = {
+  tier: { lambari: 0, sardinha: 0, tilapia: 1, robalo: 1, traira: 2, garoupa: 2, atum: 3, dourado: 4 },
+  peso: { lambari: [0.05, 0.18], sardinha: [0.06, 0.2], tilapia: [0.4, 1.6], robalo: [1.2, 5], traira: [0.8, 3.2], garoupa: [4, 18], atum: [20, 90], dourado: [3, 9] },
+  vigor: { lambari: 0.5, sardinha: 0.5, tilapia: 1, robalo: 1, traira: 2, garoupa: 2, atum: 4, dourado: 6 },
+  cor: { lambari: ['#b8c4cc', '#7a8a96'], tilapia: ['#8a9a7a', '#5a6a4a'], traira: ['#6a5a3a', '#3a2a1a'], sardinha: ['#a8c8e0', '#5a7a9a'], robalo: ['#c8d0d8', '#4a5a6a'], garoupa: ['#b06a4a', '#6a3a2a'], atum: ['#4a6a9a', '#c8d8e8'], dourado: ['#ffd040', '#c08010'] },
+  vigorLancar: 0.5, // precisa ter isso de vigor para lançar
+  distancias: [4, 3.4, 2.8, 2.2], // onde a boia cai (m do herói), na frente; depois procura dos lados
+  lancar: 0.6, espera: [2.5, 7.5], esperaK: 1 / 1.5, janela: 0.95, janelaRaro: 0.75, folga: 0.3,
+  briga: { comeco: 0.3, toque: 0.13, toqueTier: 0.018, toqueMin: 0.06, cai: 0.1, caiTier: 0.045, max: 8, toquesSeg: 14 },
+  durabilidade: 150, // peixes que a vara aguenta
+  dobro: 0.02, // por rank de Pescador: chance de vir mais um
+  // Spots marcados (André 2026-11-08, mudou do Quimera): só se pesca dentro de um spot (a água borbulhando). O spot
+  // dura "vida" s e some; "volta" s depois nasce outro no mesmo lago (em outro lugar). por = quantos ao mesmo tempo em
+  // cada água (lago com pesca: true ganha "grande"). peixes[agua] = o que sai do spot nessa água. Comum: lagos, rios e
+  // mar (toda hora); raro e épico: só no mar (menos e bem menos). Lambari, tilápia e traíra são só de água doce.
+  raioSpot: 5, // André 2026-11-08: uns 10 m de largura
+  spots: {
+    comum: { nome: 'Spot comum', cor: '#7fd0ff', vida: [240, 480], volta: [5, 25], por: { doce: 1, mar: 2 }, grande: 3,
+      peixes: { doce: [['lambari', 55], ['tilapia', 30], ['traira', 14]], mar: [['sardinha', 60], ['robalo', 40]] } },
+    raro: { nome: 'Spot raro', cor: '#5f8cff', vida: [180, 300], volta: [180, 420], por: { mar: 1 },
+      peixes: { mar: [['sardinha', 42], ['robalo', 32], ['garoupa', 17], ['atum', 9]] } },
+    epico: { nome: 'Spot épico', cor: '#c070ff', vida: [120, 240], volta: [900, 1800], por: { mar: 1 },
+      peixes: { mar: [['garoupa', 40], ['atum', 45], ['dourado', 15]] } },
+  },
+  // Radar de pesca: usado na mochila, mostra todos os spots no mapa e no minimapa por "mostra" s; recarga "recarga" s
+  radar: { mostra: 180, recarga: 60 },
+};
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
 LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
 // Botão "Organizar" da mochila e do baú (André 2026-11-07): junta as pilhas pela metade e põe em ordem de tipo (esta

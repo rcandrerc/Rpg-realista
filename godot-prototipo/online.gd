@@ -429,6 +429,8 @@ func aplicar_foto(f: Dictionary) -> void:
 			_barra_visivel(e, false)
 	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
 	m.trabalho.veios_comuns(f.get("veios", []))
+	if m.pesca: # spots de pesca na água (pesca.gd): bolhas de perto, no mapa com o Radar
+		m.pesca.atualizar_spots(f.get("spots", []))
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
 		esconder_login()
 
@@ -694,6 +696,14 @@ func evento(ev: Dictionary) -> void:
 		"construiu":
 			if m.construcao:
 				m.construcao.construiu(ev)
+			return
+		"radar": # Radar de pesca: os spots aparecem no mapa e no minimapa por um tempo
+			if m.pesca:
+				m.pesca.radar(ev)
+			return
+		"pesca": # pescaria (pesca.gd): lançou, boia na água, "!", briga, pegou, fim
+			if m.pesca:
+				m.pesca.evento(ev)
 			return
 		"regador": # encheu o regador (botão Encher ou mergulho)
 			if m.construcao:

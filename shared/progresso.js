@@ -465,6 +465,7 @@ export function progressoValido(p) {
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
   const filtro = filtroValido(p.filtro); if (filtro) n.filtro = filtro; // filtro de coleta da mochila
   if (num(p.agua) && p.agua >= 0) n.agua = Math.min(Math.floor(p.agua), HORTA.agua); // água do regador (sem o campo = cheio)
+  if (num(p.vara) && p.vara > 0) n.vara = Math.min(Math.floor(p.vara), 1000); // peixes que a vara de pescar já tirou (PESCA.durabilidade)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
   return n;

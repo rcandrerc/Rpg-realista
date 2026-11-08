@@ -3,9 +3,9 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
-import { noLago, relevo, AGUA, MERGULHO_MAX } from './relevo.js';
+import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -327,6 +327,7 @@ export class Simulacao {
     // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
+    this.spots = this.criarSpots(); // spots de pesca (PESCA.spots): cada vaga nasce num lago, dura e volta noutro lugar
     // Vila dos Lotes (construção e fazenda): dono, peças e horta de cada lote. O servidor põe o que está salvo
     // (carregarLotes) e grava o que mudou (lotesParaSalvar). dono = chave da conta (j.conta).
     this.lotes = new Map((mapa.lotes || []).map((l) => [l.id, { def: l, dono: null, nomeDono: '', pecas: [], horta: {}, prox: 1 }]));
@@ -488,6 +489,7 @@ export class Simulacao {
     const j = this.jogadores.get(id);
     if (!j || j.morto || j.esc || j.criando || j.trava > 0) return;
     this.cancelarVila(j);
+    if (j.pesca) this.pararPesca(j, 'Você recolheu a linha');
     j.montado = j.montado ? null : 'lobo';
   }
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
@@ -579,6 +581,7 @@ export class Simulacao {
       }
     } else if (j.janCorrida) { j.janCorrida.d = 0; j.janCorrida.t = 0; }
     if (j.coleta && Math.hypot(p.x - j.coleta.x, p.z - j.coleta.z) > 0.5) this.pararColeta(j); // saiu do lugar: para de coletar
+    if (j.pesca && j.pesca.st !== 'pegou' && Math.hypot(p.x - j.pesca.ox, p.z - j.pesca.oz) > 0.7) this.pararPesca(j, 'Você recolheu a linha'); // Quimera: andar recolhe a linha
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     j.chao = p.y - chao < 0.15; j.vy = 0;
@@ -592,6 +595,7 @@ export class Simulacao {
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
     if (j.coleta) this.pararColeta(j);
+    if (j.pesca) this.pararPesca(j, 'Você recolheu a linha');
     this.cancelarVila(j);
     const antes = this.ator; this.ator = j;
     try { this.usarHabilidadeDe(j, id, i); } finally { this.ator = antes; }
@@ -1102,6 +1106,14 @@ export class Simulacao {
       p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
     } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
       if (j.morto || ITENS[it.k].mat) return;
+      if (it.k === 'radar_pesca') { // Radar de pesca (André 2026-11-08): os spots aparecem no mapa por um tempo; não gasta
+        const R = PESCA.radar, falta = (j.radarCd || 0) - this.tempo;
+        if (falta > 0) return aviso(`Radar de pesca: pronto em ${Math.ceil(falta)} s`);
+        j.radarCd = this.tempo + R.recarga;
+        const n = this.spots.filter((v) => v.ativo).length;
+        this.evento({ t: 'radar', para: id, mostra: R.mostra });
+        return aviso(n ? `Radar: ${n} spots de pesca no mapa por ${Math.round(R.mostra / 60)} min` : 'Radar: nenhum spot de pesca agora. Tente daqui a pouco');
+      }
       // peça de construção, estação ou ferramenta não se "usa" (André 2026-11-07: tocar em Usar na bancada desconectava)
       if (it.k !== 'tomo' && !ITENS[it.k].usar) return aviso(ITENS[it.k].obra ? 'Coloque pelo modo construção (martelo) ou pelo botão Colocar' : 'Este item não se usa assim');
       if (it.k === 'tomo') {
@@ -1705,6 +1717,133 @@ export class Simulacao {
     if (!j.coleta) return;
     const no = j.coleta.no; j.coleta = null;
     this.evento({ t: 'coletaFim', id: j.id, no });
+    if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
+  }
+
+  // ---------- pescaria (igual ao Quimera, André 2026-11-08; números em shared/dados.js PESCA) ----------
+  // m = { acao: 'lancar', x, z } (onde a boia cai, o celular procura na frente do herói) | { acao: 'puxar' } | { acao: 'parar' }
+  // Estados de j.pesca.st: lancando (0,6 s) > espera (a boia dá beliscadas falsas; puxar aqui perde) > fisgou (o "!": toque
+  // na janela) > briga (peixe grande: toques enchem a barra) > pegou (1,6 s do peixe saindo da água).
+  pescar(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando || !m) return;
+    const P = PESCA, f = j.pesca, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (m.acao === 'parar') return f && f.st !== 'pegou' ? this.pararPesca(j, null) : undefined;
+    if (m.acao === 'puxar') {
+      if (!f) return;
+      if (f.st === 'espera') return this.pararPesca(j, 'Puxou cedo demais! Espere a boia afundar.');
+      if (f.st === 'fisgou') {
+        if (P.tier[f.peixe] < 2) return this.pegarPeixe(j);
+        const t = P.tier[f.peixe], B = P.briga;
+        Object.assign(f, { st: 'briga', t: 0, prog: B.comeco, tap: Math.max(B.toqueMin, B.toque - B.toqueTier * t), dec: B.cai + B.caiTier * t, toques: [] });
+        this.evento({ t: 'pesca', para: id, st: 'briga', prog: f.prog, tap: r2(f.tap), dec: r2(f.dec), max: B.max });
+        return aviso('Peixe grande! Toque rápido no botão pra puxar!');
+      }
+      if (f.st === 'briga') {
+        f.toques = f.toques.filter((t) => this.tempo - t < 1); // no máximo toquesSeg por segundo (dedo de gente)
+        if (f.toques.length >= P.briga.toquesSeg) return;
+        f.toques.push(this.tempo);
+        f.prog = Math.min(1, f.prog + f.tap);
+        if (f.prog >= 1) return this.pegarPeixe(j);
+        this.evento({ t: 'pesca', para: id, st: 'briga', prog: r2(f.prog), tap: r2(f.tap), dec: r2(f.dec), max: P.briga.max, t: r2(f.t) });
+      }
+      return;
+    }
+    if (m.acao !== 'lancar' || f) return;
+    const p = j.prog;
+    if (contar(p.mochila, 'vara') < 1) return aviso('Você precisa de uma vara de pescar (crie na mochila: Criar > Ferramentas)');
+    if ((noLago(j.x, j.z)?.fundo || 0) > AGUA.peito - 0.2) return aviso('Saia da água pra pescar');
+    if (j.esc || j.trava > 0 || j.arrancada) return;
+    const x = Number(m.x), z = Number(m.z);
+    const d = Math.hypot(x - j.x, z - j.z);
+    if (!Number.isFinite(d) || d < 1.5 || d > 5.2 || !((noLago(x, z)?.fundo || 0) > 0.1)) return aviso('Chegue mais perto da água');
+    if (vigorAgora(p.vigor) < P.vigorLancar * (1 - profBonus(p.prof.pes).menosVigor)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
+    if (j.coleta) this.pararColeta(j);
+    this.cancelarVila(j);
+    j.montado = null; // Quimera: desce da montaria para pescar
+    const sp = this.spots.find((v) => v.ativo && Math.hypot(v.x - x, v.z - z) <= P.raioSpot + 0.4);
+    if (!sp) return aviso('Aqui não tem peixe. Procure um spot de pesca (a água borbulhando) ou use o Radar de pesca');
+    j.ry = Math.atan2(x - j.x, z - j.z);
+    j.pesca = { st: 'lancando', t: 0, x, z, ox: j.x, oz: j.z, lista: P.spots[sp.tipo].peixes[sp.agua], spot: sp.tipo, espera: (P.espera[0] + Math.random() * (P.espera[1] - P.espera[0])) * P.esperaK };
+    this.evento({ t: 'pesca', para: id, st: 'lancando', x: r2(x), z: r2(z) });
+  }
+  passoPesca(j, dt) {
+    const P = PESCA, f = j.pesca; if (!f) return;
+    if (j.morto || j.montado || j.criando) return this.pararPesca(j, null);
+    f.t += dt;
+    if (f.st === 'lancando' && f.t >= P.lancar) { f.st = 'espera'; f.t = 0; this.evento({ t: 'pesca', para: j.id, st: 'espera' }); }
+    else if (f.st === 'espera' && f.t >= f.espera) {
+      const lista = f.lista;
+      let r = Math.random() * lista.reduce((a, [, w]) => a + w, 0);
+      f.peixe = lista[0][0];
+      for (const [k, w] of lista) { r -= w; if (r <= 0) { f.peixe = k; break; } }
+      f.st = 'fisgou'; f.t = 0; f.janela = (P.tier[f.peixe] >= 3 ? P.janelaRaro : P.janela) + P.folga;
+      this.evento({ t: 'pesca', para: j.id, st: 'fisgou' });
+    } else if (f.st === 'fisgou' && f.t > f.janela) this.pararPesca(j, 'O peixe escapou...');
+    else if (f.st === 'briga') {
+      f.prog -= f.dec * dt;
+      if (f.prog <= 0 || f.t > P.briga.max) this.pararPesca(j, 'A linha arrebentou... o peixe fugiu!');
+    } else if (f.st === 'pegou' && f.t > 1.6) j.pesca = null;
+  }
+  // tirou o peixe da água: peso sorteado (quase sempre o menor), vigor e pontos de Pescador, XP, gasta a vara
+  pegarPeixe(j) {
+    const P = PESCA, f = j.pesca, p = j.prog, k = f.peixe, [a, b] = P.peso[k];
+    const peso = a + (b - a) * Math.pow(Math.random(), 1.6), nome = ITENS[k].nome, tier = P.tier[k];
+    const txt = peso < 1 ? `${Math.round(peso * 1000)} g` : `${peso.toFixed(1).replace('.', ',')} kg`;
+    if (!guardar(p.mochila, { k, n: 1 })) {
+      this.pararPesca(j, `Mochila cheia! O ${nome.toLowerCase()} escapou`);
+      return;
+    }
+    const custo = P.vigor[k] * (1 - profBonus(p.prof.pes).menosVigor);
+    gastarVigor(p, Math.min(custo, vigorAgora(p.vigor))); // Quimera: paga o que tem
+    const dobro = Math.random() < P.dobro * profBonus(p.prof.pes).rank && guardar(p.mochila, { k, n: 1 });
+    this.pontosProf(j, 'pes', P.vigor[k]);
+    p.vara = (p.vara || 0) + 1;
+    let quebrou = false;
+    if (p.vara >= P.durabilidade) { tirar(p.mochila, 'vara', 1); p.vara = 0; quebrou = true; }
+    Object.assign(f, { st: 'pegou', t: 0 });
+    this.evento({ t: 'pesca', para: j.id, st: 'pegou', peixe: k, nome, peso: txt, tier, dobro, vara: P.durabilidade - p.vara });
+    this.evento({ t: 'aviso', para: j.id, texto: (tier >= 4 ? 'LENDÁRIO! ' : tier >= 3 ? 'Que peixão! ' : '') + `Pegou: ${nome} · ${txt}` });
+    if (quebrou) this.evento({ t: 'aviso', para: j.id, texto: 'Sua vara de pescar quebrou. Crie outra na mochila' });
+    if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(P.vigor[k]))); else this.avisarProg(j);
+  }
+  // vagas de spot: por lago e por tipo (PESCA.spots[tipo].por[água]; lago com pesca: true ganha "grande" comuns)
+  criarSpots() {
+    const P = PESCA, lista = [];
+    for (const L of LAGOS) {
+      const agua = L.agua || 'doce';
+      for (const [tipo, T] of Object.entries(P.spots)) {
+        const n = T.por[agua] ? (L.pesca && T.grande ? T.grande : T.por[agua]) : 0;
+        for (let i = 0; i < n; i++) lista.push({ id: `s${lista.length}`, lago: L, agua, tipo, ativo: false, nasce: Math.random() * 3, fim: 0, x: 0, z: 0 });
+      }
+    }
+    return lista;
+  }
+  passoSpots() {
+    const P = PESCA, sorte = ([a, b]) => a + Math.random() * (b - a);
+    for (const v of this.spots) {
+      if (v.ativo && this.tempo >= v.fim) { v.ativo = false; v.nasce = this.tempo + sorte(P.spots[v.tipo].volta); }
+      else if (!v.ativo && this.tempo >= v.nasce) {
+        const L = v.lago, R = Math.max(L.rx, L.rz) * 1.45;
+        for (let t = 0; t < 40; t++) { // perto da beira (dá para lançar de terra), água funda e longe dos outros spots
+          const a = Math.random() * Math.PI * 2, sx = Math.sin(a), sz = Math.cos(a);
+          let borda = 0;
+          for (let r = 0.5; r < R; r += 0.5) { if (noLago(L.x + sx * r, L.z + sz * r)?.lago !== L) break; borda = r; }
+          const rr = borda - (1.5 + Math.random() * 2.5); // o centro fica de 1,5 a 4 m da beira: a boia alcança o spot de terra
+          if (rr < 1) continue;
+          const x = L.x + sx * rr, z = L.z + sz * rr, q = noLago(x, z);
+          if (!q || q.lago !== L || q.fundo < 0.3) continue;
+          if (this.spots.some((o) => o !== v && o.ativo && Math.hypot(o.x - x, o.z - z) < P.raioSpot * 2.5)) continue;
+          Object.assign(v, { ativo: true, x, z, fim: this.tempo + sorte(P.spots[v.tipo].vida) });
+          break;
+        }
+        if (!v.ativo) v.nasce = this.tempo + 5; // não achou lugar: tenta de novo daqui a pouco
+      }
+    }
+  }
+  pararPesca(j, motivo = undefined) {
+    if (!j.pesca) return;
+    j.pesca = null;
+    this.evento({ t: 'pesca', para: j.id, st: 'fim' });
     if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
   }
 
@@ -2455,6 +2594,7 @@ export class Simulacao {
   pular(id) {
     const j = this.jogadores.get(id);
     if (j?.coleta) this.pararColeta(j);
+    if (j?.pesca) this.pararPesca(j, 'Você recolheu a linha');
     if (j?.canal) this.cancelarCanal(j);
     this.cancelarVila(j);
     if (j?.esc) { if (!j.esc.clip) this.soltar(j); return; } // na parede: solta
@@ -2466,6 +2606,7 @@ export class Simulacao {
   rolar(id) {
     const j = this.jogadores.get(id);
     if (j?.coleta) this.pararColeta(j);
+    if (j?.pesca) this.pararPesca(j, 'Você recolheu a linha');
     if (j?.canal) this.cancelarCanal(j);
     this.cancelarVila(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || !j.chao || j.arrancada || (j.cds.rolar || 0) > this.tempo) return;
@@ -2482,6 +2623,7 @@ export class Simulacao {
   dash(id) {
     const j = this.jogadores.get(id);
     if (j?.coleta) this.pararColeta(j);
+    if (j?.pesca) this.pararPesca(j, 'Você recolheu a linha');
     if (j?.canal) this.cancelarCanal(j);
     this.cancelarVila(j);
     if (!j || j.morto || j.criando || j.esc || j.trava > 0 || j.arrancada || (j.cds.dash || 0) > this.tempo || (!j.chao && j.arrancadaNoAr)) return;
@@ -2923,6 +3065,7 @@ export class Simulacao {
   // ---------- passo da simulação ----------
   passo(dt) {
     this.tempo += dt;
+    this.passoSpots();
     const vencidos = this.timers.filter((t) => t.t <= this.tempo);
     this.timers = this.timers.filter((t) => t.t > this.tempo);
     vencidos.forEach((t) => t.fn());
@@ -2954,6 +3097,7 @@ export class Simulacao {
     j.mana = Math.min(j.manaMax, j.mana + j.st.regenMana * (luta ? REGEN.manaCombate : 1) * dt);
     this.passoEstamina(j, dt);
     if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);
+    if (j.pesca) this.passoPesca(j, dt);
     if (j.fabrica && this.tempo >= j.fabrica.fim) this.passoFabrica(j);
     if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * (luta ? REGEN.vidaCombate : 1) * dt);
     if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
@@ -3111,6 +3255,8 @@ export class Simulacao {
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
+      // spots de pesca que estão na água agora: [id, tipo (comum/raro/epico), x, z]
+      spots: this.spots.filter((v) => v.ativo).map((v) => [v.id, v.tipo, r2(v.x), r2(v.z)]),
     };
   }
 }
