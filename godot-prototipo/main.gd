@@ -1823,6 +1823,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 var _impacto_t := -9.0
 # tiro_basico: a Faísca do cajado acertou. O herói continua andando enquanto atira, então aqui NÃO congela o jogo
 # nem treme a câmera (André 2026-11-03: "correndo e trava, parece lag"); fica o som, o flash, o número e um toque leve.
+const SOM_ACERTO_MAGIA := false # false = magia acerta sem o som genérico de golpe (teste do André 2026-11-08)
 var _faisca_t := -9.0 # último acerto da Faísca: a confirmação do servidor não toca outro golpe por cima
 func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_basico := false) -> void:
 	if _impacto_quadro == Engine.get_process_frames():
@@ -1837,7 +1838,10 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_bas
 		return
 	parar_golpe(HITSTOP_FORTE if pesado else HITSTOP)
 	cam.tremer(TREME_FORTE if pesado else TREME)
-	sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
+	# teste do André (2026-11-08): skills de mago sem o "acerto" genérico ("saco duro batendo"); ficam os sons próprios
+	# de cada magia (explosão, gelo, raio...). Para voltar como era, troque SOM_ACERTO_MAGIA para true.
+	if SOM_ACERTO_MAGIA or h.modo != "Magia":
+		sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
 	if lamina:
 		sons.tocar("corte", -7.0, 0.1, pos)
 		# faíscas do corte no ponto do golpe
