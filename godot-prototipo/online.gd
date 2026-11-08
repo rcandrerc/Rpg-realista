@@ -634,7 +634,8 @@ func inimigo(c: Dictionary) -> void:
 		e.anim.play("morrer", 0.1)
 		e.prep_fim = -1.0
 		m.combate.morreu(e.no)
-		m.sons.tocar("morte", -2.0, 0.1, e.no.position)
+		if m.SOM_MORTE_MOB: # teste do André 2026-11-08 (main.gd)
+			m.sons.tocar("morte", -2.0, 0.1, e.no.position)
 		_barra_visivel(e, false)
 	elif not c.morto and e.estado == "morto":
 		e.estado = "vivo"
