@@ -585,6 +585,10 @@ func _slot_item(k: String, conta: String, cor: Color) -> Control:
 	var caixa := PanelContainer.new()
 	caixa.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO3, cor.darkened(0.2), 2, 7))
 	caixa.custom_minimum_size = Vector2(54, 50)
+	caixa.mouse_filter = Control.MOUSE_FILTER_STOP # no celular não tem tooltip: tocar mostra o nome (André 2026-11-09)
+	caixa.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
+			Menu.balao_nome(caixa, _nome_item(k)))
 	var ic := TextureRect.new()
 	ic.texture = Menu.icone_tex("it_" + k)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

@@ -190,6 +190,47 @@ static func caixa(cor: Color, borda: Color, b := 1, raio := 6, sombra := 0) -> S
 	s.content_margin_bottom = 6
 	return s
 
+# André 2026-11-09: "clicou ali aquela barra, já aparece barra de ferro". Balãozinho com o nome do item em cima do
+# ícone tocado, dentro do próprio menu (o aviso da HUD fica atrás do menu aberto e ninguém via). Só o nome, nada de
+# "onde conseguir" (para não poluir). Some sozinho em 2,5 s ou no próximo toque em outro ícone.
+static func balao_nome(alvo: Control, texto: String, cor := OURO_CLARO) -> void:
+	var camada: Node = alvo
+	while camada != null and not (camada is CanvasLayer):
+		camada = camada.get_parent()
+	if camada == null:
+		return
+	var velho = camada.get_meta("balao_nome") if camada.has_meta("balao_nome") else null
+	if velho != null and is_instance_valid(velho):
+		velho.queue_free()
+	var bx := PanelContainer.new()
+	bx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bx.add_theme_stylebox_override("panel", caixa(Color(0.06, 0.052, 0.042, 0.96), Color(cor, 0.9), 2, 8, 6))
+	var l := rotulo(texto, 20, cor)
+	l.add_theme_constant_override("outline_size", 4)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bx.add_child(l)
+	bx.modulate.a = 0.0
+	camada.add_child(bx)
+	camada.set_meta("balao_nome", bx)
+	await bx.get_tree().process_frame # tamanho certo só depois de entrar na árvore
+	if not is_instance_valid(bx) or not is_instance_valid(alvo):
+		if is_instance_valid(bx):
+			bx.queue_free()
+		return
+	var r := alvo.get_global_rect()
+	var tela := bx.get_viewport().get_visible_rect().size
+	var pos := Vector2(r.get_center().x - bx.size.x * 0.5, r.position.y - bx.size.y - 6)
+	if pos.y < 4: # sem espaço em cima: vai para baixo do ícone
+		pos.y = r.end.y + 6
+	pos.x = clampf(pos.x, 4, tela.x - bx.size.x - 4)
+	bx.position = pos
+	var tw := bx.create_tween()
+	tw.tween_property(bx, "modulate:a", 1.0, 0.1)
+	tw.tween_interval(2.4)
+	tw.tween_property(bx, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(bx.queue_free)
+
 static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
 	var l := Label.new()
 	l.text = t
@@ -1910,6 +1951,9 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	var l := HBoxContainer.new()
 	l.add_theme_constant_override("separation", 10)
 	var c := celula(it, false, func(): pass, 52)
+	c.pressed.connect(func(): # tocar na peça também diz o nome
+		if not _arrastou:
+			balao_nome(c, P.nome_item(it), P.cor_item(it)))
 	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(c)
 	var txt := VBoxContainer.new()
@@ -2019,7 +2063,7 @@ func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	var nome: String = str(P.nome_item(alvo)) if not peca.is_empty() else str(P.dados.itens[k].nome)
 	q.pressed.connect(func():
 		if not _arrastou:
-			m.hud.aviso("%s: tem %d, precisa de %d" % [nome, tem, precisa]))
+			balao_nome(q, nome, P.cor_item(alvo)))
 	bx.add_child(q)
 	var n := rotulo("%d/%d" % [tem, precisa], 11, VERDE if tem >= precisa else Color("e0806a"))
 	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
