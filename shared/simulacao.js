@@ -463,6 +463,7 @@ export class Simulacao {
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
       nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
+    if (!sp.caverna && !t.treino) e.y = Math.max(0, relevo(e.x, e.z)); // no chão do mundo grande (0 no mapa de hoje)
     if (t.treino) { e.treino = true; e.ry = sp.ry || 0; e.anim = 'Idle'; } // espantalho: fica plantado onde está
     this.inimigos.push(e);
     return e;
@@ -2903,7 +2904,10 @@ export class Simulacao {
     [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
     if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
   }
-  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c); }
+  mover(c, dx, dz) {
+    if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c);
+    if (!c.sub) c.y = Math.max(0, relevo(c.x, c.z)); // FASE 3: monstro anda no relevo do mundo grande (morro, platô)
+  }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
   moverJogador(j, dx, dz) {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;

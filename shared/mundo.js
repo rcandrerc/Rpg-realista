@@ -86,6 +86,7 @@ export function montarMundo(mapaHoje) {
     h[k] = dist[k] === 0 ? 0 : v * sm;
   }
   const G = { x0: M.x0, z0: M.z0, passo: M.passo, nx, nz, h, terra, estrada: new Uint8Array(nx * nz) };
+  lugaresDeMina(G);
   aplainarLugares(G, dist);
   abrirEstradas(G, dist);
   return G;
@@ -140,6 +141,37 @@ export const ESTRADAS_MUNDO = [
 export const RAMPA_MAX = 0.1;
 const LARG_ESTRADA = 4, OMBRO = 7;
 
+// Parte 6 (André 2026-11-08: "pequenos spots de minério bem diluídos... o jogador não pode precisar atravessar o mundo
+// para coletar um recurso básico"): perto de cada campo novo, um veio pequeno de pedra e um de cobre (a 20-40 m) e, em
+// campo sim, campo não, um de ferro (Vael) ou de cristal (ilha e Aurora). Cada um é um lugar plano pequeno (tipo mina),
+// em terra firme, longe do mar, das estradas e dos outros lugares. Sorteio fixo pela ordem dos campos.
+const MINAS_FEITAS = { ok: false };
+function lugaresDeMina(G) {
+  if (MINAS_FEITAS.ok) return;
+  MINAS_FEITAS.ok = true;
+  const rotas = ESTRADAS_MUNDO.map((E) => curva(E.pontos));
+  const livre = (x, z, r) => {
+    if (!terraEm(G, x, z)) return false;
+    for (let a = 0; a < 6.28; a += 0.5) for (const d of [0, r + 12, r + 22]) if (alturaMundo(G, x + Math.cos(a) * d, z + Math.sin(a) * d) < 0.3) return false;
+    if (LUGARES_MUNDO.some((l) => Math.hypot(l.x - x, l.z - z) < l.r + r + 14)) return false;
+    return !rotas.some((C) => C.some(([px, pz]) => Math.hypot(px - x, pz - z) < r + 9));
+  };
+  const campos = LUGARES_MUNDO.filter((l) => l.tipo === 'caca');
+  campos.forEach((L, n) => {
+    const tipos = ['pedra', 'cobre', ...(n % 2 ? [] : [L.terra === 'vael' ? 'ferro' : 'cristal'])];
+    let k = 0;
+    for (const tipo of tipos) {
+      const r = tipo === 'pedra' ? 4.2 : 3.4;
+      for (let t = 0; t < 120; t++, k++) {
+        const a = (k * 2.399) % 6.283, d = L.r + 18 + (k % 8) * 6, x = +(L.x + Math.cos(a) * d).toFixed(1), z = +(L.z + Math.sin(a) * d).toFixed(1);
+        if (!livre(x, z, r)) continue;
+        LUGARES_MUNDO.push({ id: `m_${L.id}_${tipo}`, tipo: 'mina', minerio: tipo, terra: L.terra, perto: L.id, x, z, r });
+        break;
+      }
+    }
+  });
+}
+
 // altura de cada lugar: a média do chão dele (nunca na areia; o cais fica rente, a 0,8 m da água). Depois as alturas
 // de lugares ligados pela mesma estrada se aproximam até a rampa entre eles caber nos 10% (morro alto vira platô
 // mais baixo, sem paredão na estrada).
@@ -179,7 +211,8 @@ function aplainarLugares(G, dist) {
         const k = j * nx + i, d = Math.hypot(G.x0 + i * passo - L.x, G.z0 + j * passo - L.z);
         if (d > R || dist[k] === 0) continue;
         if (L.tipo === 'porto' && h[k] < 0) continue; // o cais não aterra o mar
-        const t = Math.min(1, Math.max(0, (d - L.r - 3) / (RAMPA - 3))), w = 1 - t * t * (3 - 2 * t);
+        const nucleo = L.tipo === 'mina' ? 6 : 3; // o veio pequeno ganha mais chão plano em volta (as pedras ficam inteiras no plano)
+        const t = Math.min(1, Math.max(0, (d - L.r - nucleo) / (RAMPA - nucleo))), w = 1 - t * t * (3 - 2 * t);
         if (!alvo.has(k) || alvo.get(k)[0] < w) alvo.set(k, [w, L.y]);
       }
   }

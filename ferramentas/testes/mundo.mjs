@@ -10,7 +10,7 @@ let terra = 0; for (const t of G.terra) if (t) terra++;
 const area = terra * G.passo * G.passo;
 ok(area > 350000 && area < 600000, `terra do mundo: ${Math.round(area / 1000)} mil m² (o mapa de hoje tem uns 100 mil)`);
 ok(TERRAS.every((T) => G.terra.includes(TERRAS.indexOf(T) + 1)), 'Vael, a Ilha do Meio e Aurora existem');
-const pontos = [[0, 0], ...M.npcs.map((n) => [n.x, n.z]), ...M.caca.map((c) => [c.x, c.z]), ...M.mina.map((c) => [c.x, c.z])];
+const pontos = [[0, 0], ...M.npcs.map((n) => [n.x, n.z]), ...M.caca.filter((c) => !c.mundo).map((c) => [c.x, c.z]), ...M.mina.filter((c) => !c.mundo).map((c) => [c.x, c.z])];
 ok(pontos.every(([x, z]) => Math.abs(alturaMundo(G, x, z)) < 1e-6 && terraEm(G, x, z)?.id === 'vael'), 'o mapa de hoje fica no plano (grade 0) e em Vael');
 // do litoral leste de Vael até Aurora passando pela ilha: tem mar fundo para o navio dos dois lados da ilha
 const fundo = (a, b) => { let m = 0; for (let x = a; x <= b; x += 2) m = Math.min(m, alturaMundo(G, x, 40)); return m; };
@@ -43,7 +43,7 @@ for (const L of LUGARES_MUNDO) {
 }
 for (let a = 0; a < LUGARES_MUNDO.length; a++) for (let b = a + 1; b < LUGARES_MUNDO.length; b++) {
   const A = LUGARES_MUNDO[a], B = LUGARES_MUNDO[b];
-  if (A.tipo !== 'porto' && B.tipo !== 'porto') ok(Math.hypot(A.x - B.x, A.z - B.z) > A.r + B.r + 25, `${A.id} longe de ${B.id}`);
+  if (![A.tipo, B.tipo].some((t) => t === 'porto' || t === 'mina')) ok(Math.hypot(A.x - B.x, A.z - B.z) > A.r + B.r + 25, `${A.id} longe de ${B.id}`);
 }
 for (const E of ESTRADAS_MUNDO) {
   let pior = 0, molhado = 0;
@@ -54,4 +54,14 @@ for (const E of ESTRADAS_MUNDO) {
   }
   for (const [x, z] of E.curva) if (alturaMundo(G, x, z) < 0) molhado++;
   ok(pior <= RAMPA_MAX * 1.25 && molhado === 0, `${E.id}: rampa máxima ${(pior * 100).toFixed(1)}%, ${molhado} pontos na água`);
+}
+
+// Parte 5: campos de caça do Nv 30 ao 100 nos lugares planos, com monstros vivos e no nível
+const novos = M.caca.filter((c) => c.mundo);
+ok(novos.length >= 20 && Math.min(...novos.map((c) => c.nivel)) > 30 && Math.max(...novos.map((c) => c.nivel)) === 100, `${novos.length} campos novos, Nv ${Math.min(...novos.map((c) => c.nivel))} a 100`);
+const sim = new Simulacao(M);
+for (const c of novos) {
+  const ci = M.caca.indexOf(c), vivos = sim.cacas[ci].vagas.filter((vg) => vg.e && vg.e.vida > 0);
+  const chao = vivos.every((vg) => Math.abs(vg.e.y ?? 0) < 30 && Math.hypot(vg.e.x - c.x, vg.e.z - c.z) <= c.r + 0.5);
+  ok(vivos.length === 11 && chao, `${c.id} Nv ${c.nivel}: ${vivos.length} monstros dentro do campo`);
 }

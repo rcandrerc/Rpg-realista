@@ -3273,6 +3273,7 @@ func separar_inimigos() -> void:
 func lod_inimigos() -> void:
 	if heroi == null:
 		return
+	materializar_perto(get_process_delta_time())
 	var hp: Vector3 = heroi.position
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
@@ -3460,7 +3461,51 @@ func montar_cacas() -> void:
 			_a_criar.append(criar_vaga.bind(k, ci, i)) # um monstro por vez (criar_aos_poucos), na ordem do servidor
 		cacas.append(k)
 
+# FASE 3 (mundo grande): os campos novos (caca.mundo) são 20 campos x 11 monstros. Para o celular não carregar ~220
+# monstros que estão a centenas de metros, cada vaga deles começa como um lugar vazio na lista (o v do servidor não
+# muda) e o modelo só nasce quando o herói chega a MUNDO_PERTO m do campo (ou o servidor manda o monstro).
+const MUNDO_PERTO := 140.0
 func criar_vaga(k: Dictionary, ci: int, i: int) -> void:
+	var c: Dictionary = k.def
+	if c.get("mundo", false) and (heroi == null or Vector2(heroi.position.x - float(c.x), heroi.position.z - float(c.z)).length() > MUNDO_PERTO):
+		var no := Node3D.new()
+		no.visible = false
+		no.position = Vector3(float(c.x), 0, float(c.z))
+		add_child(no)
+		inimigos.append({"no": no, "anim": null, "barra": null, "estado": "morto", "vida": 0.0, "vida_max": 1.0, "tipo": str(c.tipos[i]),
+			"vazio": true, "longe": true, "centro": no.position, "alvo": no.position, "morreu": -999.0, "caca": ci, "_k": k, "_i": i})
+		return
+	_criar_vaga(k, ci, i)
+
+# monta o modelo de uma vaga vazia do mundo grande no mesmo lugar da lista (inimigos[v])
+func materializar(e: Dictionary) -> void:
+	if not e.get("vazio", false):
+		return
+	var k: Dictionary = e._k
+	_criar_vaga(k, int(e.caca), int(e._i))
+	var novo: Dictionary = inimigos.pop_back()
+	k.vagas[k.vagas.find(novo)] = e
+	e.no.queue_free()
+	e.clear()
+	e.merge(novo, true)
+
+var _mundo_t := 0.0
+func materializar_perto(dt: float) -> void:
+	_mundo_t -= dt
+	if _mundo_t > 0.0 or heroi == null:
+		return
+	_mundo_t = 1.0
+	var hp := Vector2(heroi.position.x, heroi.position.z)
+	var n := 0
+	for e in inimigos:
+		if e.get("vazio", false) and hp.distance_to(Vector2(e.centro.x, e.centro.z)) < MUNDO_PERTO:
+			materializar(e)
+			n += 1
+			if n >= 3: # poucos por segundo: sem engasgo
+				_mundo_t = 0.1
+				return
+
+func _criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 	var c: Dictionary = k.def
 	var tipo := str(c.tipos[i])
 	var nv := int(c.get("nivel", 1))
@@ -3521,6 +3566,8 @@ func ponto_caca(c: Dictionary, inicio := false):
 		var a := randf() * TAU
 		var r: float = sqrt(randf()) * float(c.r) * float(c.ate)
 		var p := Vector3(float(c.x) + cos(a) * r, 0, float(c.z) + sin(a) * r)
+		if c.get("mundo", false) and terreno: # campo do mundo grande (FASE 3): platô acima do 0
+			p.y = maxf(0.0, terreno.relevo(p.x, p.z))
 		if not inicio and heroi and Vector2(p.x - heroi.position.x, p.z - heroi.position.z).length() < float(c.longe):
 			continue
 		var livre := true
@@ -3530,7 +3577,7 @@ func ponto_caca(c: Dictionary, inicio := false):
 				break
 		if livre:
 			return p
-	return null if not inicio else Vector3(float(c.x), 0, float(c.z))
+	return null if not inicio else Vector3(float(c.x), maxf(0.0, terreno.relevo(float(c.x), float(c.z))) if c.get("mundo", false) and terreno else 0.0, float(c.z))
 
 func passo_cacas(dt: float) -> void:
 	for k in cacas:
