@@ -38,6 +38,7 @@ var manifesto := {}
 var barra: ProgressBar
 var aviso: Label
 var detalhe: Label
+var versao_rot: Label # canto de baixo: a versão fica sempre à vista (André 2026-11-09)
 var pular: Button
 var baixando := false
 var saindo := false
@@ -66,6 +67,7 @@ func _ready() -> void:
 		_entrar("")
 		return
 	_texto("Procurando atualização…", "versão %s" % _versao_local())
+	_versao(_versao_local())
 	http = HTTPRequest.new()
 	http.use_threads = true
 	http.timeout = ESPERA_MANIFESTO
@@ -213,6 +215,8 @@ func _casca_iniciar() -> void:
 	if tentar:
 		tentar.visible = false
 	barra.visible = false
+	var inst := _casca_versao_instalada()
+	_versao(inst)
 	_texto("Procurando atualização…", "")
 	var r = await _casca_pedir(url_conteudo + "?t=%d" % Time.get_unix_time_from_system(), "", 8.0)
 	if r == null:
@@ -223,6 +227,8 @@ func _casca_iniciar() -> void:
 		_casca_sem_internet()
 		return
 	conteudo = m
+	var nova := str(m.get("versao", ""))
+	_versao(nova if inst == "" or inst == nova else "%s → %s" % [inst, nova])
 	var est := _casca_estado()
 	var comp: Dictionary = m.completo
 	var deltas: Array = m.get("deltas", [])
@@ -267,6 +273,7 @@ func _casca_iniciar() -> void:
 		return
 	_limpar_deltas_velhos(aplicados)
 	_texto("Abrindo…", "versão %s" % str(m.get("versao", "")))
+	_versao(str(m.get("versao", "")))
 	_casca_entrar()
 
 # completo em partes: baixa uma, confere, junta no completo.tmp e apaga (cabe em celular com pouco espaço)
@@ -364,6 +371,18 @@ func _limpar_deltas_velhos(aplicados: Array) -> void:
 	for f in dir.get_files():
 		if f.begins_with("delta-") and f.ends_with(".pck") and not aplicados.has(f.trim_prefix("delta-").trim_suffix(".pck")):
 			DirAccess.remove_absolute(PASTA_CONTEUDO + f)
+
+# versão que já está no celular: o último delta aplicado, ou o completo
+func _casca_versao_instalada() -> String:
+	var est := _casca_estado()
+	if not FileAccess.file_exists(COMPLETO):
+		return ""
+	var ds: Array = est.get_value("c", "deltas", [])
+	return str(ds[-1]) if not ds.is_empty() else str(est.get_value("c", "completo", ""))
+
+func _versao(v: String) -> void:
+	if versao_rot:
+		versao_rot.text = ("versão " + v) if v != "" else ""
 
 func _casca_estado() -> ConfigFile:
 	var est := ConfigFile.new()
@@ -494,6 +513,15 @@ func _montar_tela() -> void:
 	tentar.custom_minimum_size = Vector2(220, 44)
 	tentar.pressed.connect(_casca_iniciar)
 	caixa.add_child(tentar)
+	versao_rot = _rotulo(14, Color(TEXTO, 0.7))
+	versao_rot.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	versao_rot.anchor_top = 1
+	versao_rot.anchor_bottom = 1
+	versao_rot.offset_left = 16
+	versao_rot.offset_top = -34
+	versao_rot.offset_right = 400
+	versao_rot.offset_bottom = -10
+	add_child(versao_rot)
 
 func _rotulo(tam: int, cor: Color) -> Label:
 	var l := Label.new()

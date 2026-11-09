@@ -225,6 +225,7 @@ func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
+	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
 	h.mana = P.st.manaMax
@@ -3958,6 +3959,27 @@ func apanhou() -> void:
 		expressao.levou_dano()
 	sons.tocar("apanhar", -2.0, 0.1)
 	vibrar(60)
+
+# ---------- versão do jogo sempre à vista, desde a tela de carregamento (André 2026-11-09) ----------
+func montar_versao() -> void:
+	var tela := CanvasLayer.new()
+	tela.layer = 50 # por cima de tudo (capa de login, HUD, menus); é pequeno e não pega toque
+	add_child(tela)
+	var l := Label.new()
+	var n := str(load("res://versao.gd").NUMERO)
+	l.text = "versão " + (n if n != "" else "dev")
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+	l.add_theme_constant_override("outline_size", 3)
+	l.anchor_top = 1.0
+	l.anchor_bottom = 1.0
+	l.offset_left = 16
+	l.offset_top = -26
+	l.offset_right = 200
+	l.offset_bottom = -6
+	tela.add_child(l)
 
 # ---------- teste de desempenho (botão Teste) ----------
 func montar_teste() -> void:
