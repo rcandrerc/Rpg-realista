@@ -1437,7 +1437,7 @@ export class Simulacao {
     if (canal === 'amigos' && !j.amigos.size) return aviso('Você ainda não tem amigos. Toque num jogador e escolha "Adicionar amigo"');
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
-    if (canal === 'pm' && !j.amigos.has(para)) return aviso('Só dá para mandar mensagem privada para amigo');
+    if (canal === 'pm' && !j.amigos.has(para) && !(para === AMIGA.conta && id === this.amigaDono)) return aviso('Só dá para mandar mensagem privada para amigo'); // a Cecília é amiga virtual do dono (shared/amiga.js)
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
     j.chatT = this.tempo;
     const msg = { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
@@ -1484,7 +1484,9 @@ export class Simulacao {
       const o = this.porConta(c);
       return { c, nome: o?.nome || nome, id: o ? o.id : null, nivel: o ? o.prog.nivel : null, on: o ? 1 : this.onlineFora?.(c) ? 2 : 0, time: !!(o && j.time && o.time === j.time) };
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
-    this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max });
+    // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
+    const a = this.amiga, virtuais = a && j.id === this.amigaDono ? [{ c: AMIGA.conta, nome: AMIGA.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: a.amizade | 0 }] : [];
+    this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais });
   }
   amigo(id, m) {
     const j = this.jogadores.get(id); if (!j || !m) return;

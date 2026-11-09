@@ -1936,4 +1936,57 @@ export const AMIGA = {
     ocupada: ['Peraí, já já eu falo com você!'],
     tchau: ['Até mais! Passa aqui de novo.', 'Tchau! Cuidado com os lobos.'],
   },
+  // Chat de longe (André 2026-11-09: "falar com ela no chat como uma pessoa normal", "ter ela na lista de amigos",
+  // "amigos reais e amigos virtuais, como eu fiz no Quimera", "de longe eu trocar ideia com ela e chamar ela, ou até ela
+  // me chamar"). Ela fica em "Amigos virtuais" na lista do Multijogador e conversa pela mensagem privada do chat.
+  // Quem responde: a IA grátis (Gemini, só se o servidor tiver a chave GEMINI_CHAVE, até 'iaPorDia' respostas por dia)
+  // e, sem IA, as regras abaixo (palavras -> assunto -> fala + o que ela faz). A IA também só escolhe entre as mesmas ações.
+  chat: {
+    digitando: [1.2, 3], // segundos até a resposta (parece gente digitando)
+    iaPorDia: 150,
+    chamar: { primeiro: [240, 480], entre: [600, 1200], longe: 30, espera: 150 }, // ela chama o André: s até a 1ª, s entre uma e outra, m de distância, s esperando resposta
+    // assunto: palavras que contam (sem acento, minúsculas)
+    assuntos: {
+      sairTime: ['sai do time', 'sair do time', 'pode ir pra casa', 'pode voltar pra casa', 'volta pra casa', 'te libero'],
+      time: ['time', 'vamos', 'partiu', 'cacar', 'caca', 'upar', 'grind', 'lutar', 'aventura', 'me ajuda a matar', 'missao'],
+      vir: ['vem ca', 'vem aqui', 'vem pra ca', 'vem me ver', 'cola aqui', 'chega aqui', 'aparece', 'vem comigo', 'onde voce', 'cade voce', 'cade vc', 'onde vc', 'onde ce'],
+      sim: ['sim', 'claro', 'pode ser', 'fechou', 'beleza', 'blz', 'ok', 'vou', 'to indo', 'ja vou', 'bora', 'simbora', 'demorou'],
+      nao: ['nao', 'agora nao', 'depois', 'mais tarde', 'nem', 'to ocupado', 'nao da'],
+      oi: ['oi', 'ola', 'e ai', 'eai', 'opa', 'bom dia', 'boa tarde', 'boa noite', 'salve', 'fala'],
+      comoVai: ['como vai', 'como voce ta', 'como vc ta', 'tudo bem', 'td bem', 'como esta', 'beleza?', 'suave', 'de boa'],
+      casa: ['casa', 'obra', 'construi', 'construcao'],
+      horta: ['horta', 'planta', 'cenoura', 'rabanete', 'batata', 'colheita', 'fazenda'],
+      ajuda: ['precisa de algo', 'precisa de alguma', 'quer alguma coisa', 'posso ajudar', 'te ajudo', 'precisa de ajuda', 'quer ajuda'],
+      dungeon: ['dungeon', 'caverna', 'masmorra', 'chefe', 'boss', 'warrok'],
+      troca: ['troca', 'trocar', 'vende', 'vender', 'compra', 'comprar', 'item', 'tem '],
+      obrigado: ['obrigado', 'obrigada', 'valeu', 'vlw', 'brigado', 'agradeco'],
+      elogio: ['linda', 'bonita', 'legal', 'gosto de voce', 'te adoro', 'melhor amiga', 'incrivel', 'top'],
+      piada: ['piada', 'conta uma', 'me faz rir', 'algo engracado'],
+      tchau: ['tchau', 'falou', 'flw', 'ate mais', 'ate logo', 'fui', 'boa noite cecilia', 'vou dormir', 'vou sair'],
+    },
+    falas: {
+      oi: ['Oii! Tava pensando em você agora mesmo, sério.', 'Ei! Que bom que mandou mensagem, tava entediada.', 'Opa! Fala, aventureiro!'],
+      comoVai: ['Tô ótima! A horta tá linda e eu tô cheia de energia.', 'Tudo certo por aqui! E você, matou muito lobo hoje?', 'Bem! Meio suja de terra, mas feliz.'],
+      vir: ['Tô indo aí! Me espera que eu já chego.', 'Já vou! Não sai daí, hein?', 'Partiu! Chego num instante.'],
+      chegou: ['Cheguei! Sentiu minha falta?', 'Pronto, tô aqui! Que foi?'],
+      naoVir: ['Agora não dá, tô no meio de uma coisa aqui. Daqui a pouco!', 'Ai, agora não consigo... me chama mais tarde?'],
+      perto: ['Ué, eu tô do seu lado! Olha pra trás.', 'Tô aqui pertinho, bobo!'],
+      chamaRespostaSim: ['Eba! Tô indo aí!', 'Isso! Já tô a caminho.'],
+      chamaRespostaNao: ['Tudo bem, fica pra próxima!', 'Poxa... tá bom, mais tarde então.'],
+      elogio: ['Para, assim eu fico vermelha!', 'Hehe, você também é demais!', 'Eu sei, eu sei. Mas obrigada mesmo assim!'],
+      obrigado: ['De nada! Amigo é pra isso.', 'Imagina! Você faria o mesmo por mim.'],
+      piada: ['Sabe por que o lobo não joga cartas? Porque sempre tem um lobo na manga... tá, essa foi ruim.', 'Minha cenoura falou que me ama. Ela é bem raiz!', 'Por que o esqueleto não briga? Porque ele não tem estômago pra isso!'],
+      naoEntendi: ['Hmm, não entendi direito. Fala de outro jeito?', 'Hã? Tô aqui regando a horta, me explica melhor!', 'Hehe, você tá falando enigma? Me explica!'],
+      tchau: ['Tchau! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Falou! Vou voltar pra minha horta.'],
+      semIa: 'Tô meio cansada de conversar hoje, mas me chama pra caçar que eu topo!',
+      // ela chama o André (sozinha, de vez em quando, quando ele está longe e fora do time)
+      chama: [
+        { texto: 'Ei! Bora caçar uns lobos? Tô entediada aqui.', quer: 'time' },
+        { texto: 'Vem ver minha horta! As cenouras tão enormes.', quer: 'vir' },
+        { texto: 'Tô precisando de uma ajudinha... passa aqui?', quer: 'ajuda' },
+        { texto: 'Cadê você? Faz tempo que não aparece!', quer: 'vir' },
+        { texto: 'Bora fazer alguma coisa juntos? Me chama pro time!', quer: 'time' },
+      ],
+    },
+  },
 };
