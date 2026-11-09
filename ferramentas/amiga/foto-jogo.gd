@@ -58,9 +58,13 @@ func _initialize() -> void:
 		await esperar(4)
 		await foto("2-ela-%d" % k)
 		await esperar(140)
-	# 3) o herói vai até ela andando sozinho (toque no corpo dela) e abre a conversa
+	# 3) espera ela passear pela vila (a casa dela fica no caminho reto) e o herói vai até ela andando sozinho
 	cam.current = false
 	m.camera.current = true
+	for i in 3000:
+		if no.position.z < 25.0:
+			break
+		await esperar(1)
 	m.conversa.indo = {"npc": m.conversa._amiga_npc(), "ate": m.tempo + 60.0, "d": 999.0, "t": m.tempo}
 	for i in 1500:
 		await esperar(1)
@@ -69,13 +73,30 @@ func _initialize() -> void:
 	print("conversa aberta: ", m.conversa.aberto(), " heroi ", m.heroi.position)
 	await esperar(8)
 	await foto("3-conversa")
-	m.rede("amiga", {"acao": "ajuda"})
-	await esperar(50)
-	await foto("4-pediu-ajuda")
-	m.rede("amiga", {"acao": "ajuda"})
-	await esperar(50)
-	await foto("5-pediu-ajuda-2")
+	# fase 2: chama para o time (tenta até 3 vezes) e anda até a Rosa; ela vem atrás
+	for k in 3:
+		m.rede("amiga", {"acao": "time"})
+		await esperar(40)
+		if m.amigos and m.amigos.em_time():
+			break
+	await foto("4-time")
 	m.conversa.fechar()
-	await esperar(30)
-	await foto("6-minimapa")
+	var rosa = null
+	for n in m.npcs:
+		if str(n.get("id", "")) == "comerciante":
+			rosa = n
+	m.conversa.indo = {"npc": rosa, "ate": m.tempo + 60.0, "d": 999.0, "t": m.tempo}
+	for i in 600:
+		await esperar(1)
+		if m.conversa.aberto():
+			break
+	m.conversa.fechar()
+	await esperar(60)
+	await foto("5-seguindo")
+	cam.current = true
+	var hp: Vector3 = m.heroi.position
+	cam.global_position = hp + Vector3(4, 2.2, 4)
+	cam.look_at(hp + Vector3(0, 1, 0))
+	await esperar(5)
+	await foto("6-seguindo-de-lado")
 	quit()

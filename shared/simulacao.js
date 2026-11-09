@@ -489,7 +489,7 @@ export class Simulacao {
   inimigosDe(c) {
     // caverna da montanha: quem está lá dentro só enxerga quem também está (nada atravessa a rocha do teto)
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
-    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !o.bot && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
+    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
   }
   maisPerto(c, max = 22) {
     let melhor = null, md = max;
@@ -1535,7 +1535,7 @@ export class Simulacao {
     if (m.acao === 'sair') return j.time && this.sairDoTime(j, `${j.nome} saiu do time`);
     // com: id do jogador na sala ou a conta do amigo (lista de amigos)
     const o = this.jogadores.get(String(m.com || '')) || this.porConta(String(m.com || ''));
-    if (o?.bot) return; // time com a Cecília: fase 2
+    if (o?.bot) return; // a Cecília entra no time pela conversa com ela (shared/amiga.js), não pelo convite
     if (m.acao === 'expulsar') {
       const T = j.time; if (!T || T.lider !== j.id || !o || o.time !== T || o === j) return;
       aviso('Você saiu do time', o.id);
