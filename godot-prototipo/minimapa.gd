@@ -634,6 +634,12 @@ func _desenhar_mini() -> void:
 			dq = dq.normalized() * (RAIO - 6.0)
 		c.draw_circle(meio + dq, 5.0, Color(0.03, 0.08, 0.03, 0.9))
 		c.draw_circle(meio + dq, 4.0, m.amigos.COR_TIME)
+	var ce := _amiga() # Cecília: coração rosa, na beirada quando está longe (só o dono dela vê)
+	if not ce.is_empty():
+		var dq: Vector2 = Vector2(ce.x - p.x, ce.z - p.z) * k
+		if dq.length() > RAIO - 7.0:
+			dq = dq.normalized() * (RAIO - 7.0)
+		_coracao(c, meio + dq, 5.5)
 	# "Ir para" em andamento: o resto da rota e o lugar marcado (na beirada, se estiver longe)
 	if m.rota and m.rota.ativo:
 		var cam: PackedVector2Array = m.rota.caminho
@@ -688,6 +694,34 @@ func _relogio(c: Control, pos: Vector2) -> void:
 			c.draw_line(ic + Vector2(cos(a), sin(a)) * 4.6, ic + Vector2(cos(a), sin(a)) * 6.6, Color("ffc94a"), 1.6, true)
 		c.draw_circle(ic, 3.4, Color("ffd76a"))
 	_texto(c, Vector2(r.position.x + 22.0, pos.y - 1.0), t, 13, Color(1, 0.94, 0.8) if not noite else Color(0.85, 0.89, 1.0), false, 0)
+
+# Cecília, a amiga (shared/amiga.js): onde ela está ({x, z, nome}) para quem é o dono dela; senão vazio
+const COR_AMIGA := Color("ff6fae")
+func _amiga() -> Dictionary:
+	if not (m.online and m.online.get("ligado")) or str(m.online.get("amiga_id")) == "":
+		return {}
+	var id: String = m.online.amiga_id
+	var o = m.online.outros.get(id)
+	if o is Dictionary and o.has("no") and is_instance_valid(o.no):
+		return {"x": o.no.position.x, "z": o.no.position.z, "nome": str(o.get("nome", "Cecília"))}
+	var lista = m.online.get("no_mapa")
+	if lista is Array:
+		for q in lista:
+			if q is Array and q.size() >= 3 and str(q[0]) == id:
+				return {"x": float(q[1]), "z": float(q[2]), "nome": "Cecília"}
+	return {}
+
+# coraçãozinho rosa com borda escura
+func _coracao(c: Control, q: Vector2, r: float) -> void:
+	var pts := PackedVector2Array()
+	for i in 24:
+		var t := TAU * i / 24.0
+		pts.append(q + Vector2(16.0 * pow(sin(t), 3), -(13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t))) * (r / 16.0))
+	var borda := PackedVector2Array()
+	for v in pts:
+		borda.append(q + (v - q) * 1.3)
+	c.draw_colored_polygon(borda, Color(0.08, 0.02, 0.05, 0.9))
+	c.draw_colored_polygon(pts, COR_AMIGA)
 
 # amigos do time (amigos.gd)
 func _time() -> Array:
@@ -780,6 +814,11 @@ func _desenhar_mapa() -> void:
 		c.draw_circle(q, 6.0, Color(0.03, 0.08, 0.03, 0.9))
 		c.draw_circle(q, 5.0, m.amigos.COR_TIME)
 		_texto(c, q + Vector2(0, -12), p.nome, 13, m.amigos.COR_TIME.lightened(0.3))
+	var ce := _amiga()
+	if not ce.is_empty():
+		var q: Vector2 = em.call(ce.x, ce.z)
+		_coracao(c, q, 7.0)
+		_texto(c, q + Vector2(0, -14), ce.nome, 13, COR_AMIGA.lightened(0.3))
 	# rota pela estrada: a que está sendo andada e a do lugar marcado agora
 	if m.rota and m.rota.ativo and marcado == null:
 		_rota_grande(c, m.rota.caminho, m.rota.i, em)
