@@ -1061,7 +1061,7 @@ export const MAPA_CLAREIRA = {
     ] },
     // Alquimista (André 2026-11-09): sintetiza catalisador da raridade de cima (CATALISADOR.sintese), na porta da casa3.
     { id: 'alquimista', nome: 'Mirela, a alquimista', x: 2.3, z: -12.4, ry: -1.7, visual: 'shibu', escala: 0.98, roupa: 'peitoral0,botas0,capa2', veste: { tunica: 0x3e2a5c, saia: 0x3e2a5c, ate: 'canela', faixa: 0xc9a23a, avental: 0x4a3626 }, tinta: { cabelo: 0x2f4a3c, roupa: 0x3e2a5c, calca: 0x2b2433 }, funcao: 'alquimia', acoes: ['alquimia'], falas: [
-      'Quatro selos fracos viram um forte, se o ouro ajudar. Alquimia é paciência e moeda.',
+      'Dez selos fracos viram um forte, se o ouro ajudar. Alquimia é paciência e moeda.',
       'Até o Lendário eu chego. O Mítico... esse nenhum caldeirão da vila aguenta.',
       'Runa com runa, selo com selo. Misturar os dois só dá fumaça.',
     ] },
@@ -1455,7 +1455,8 @@ export const CATALISADOR = {
   // com `ouro` e faz 1 da raridade de cima, do mesmo tipo (Selo com Selo, Runa com Runa). sintese[r] = o que custa
   // fazer um catalisador da raridade r. Só até Lendário (`ate`, André: "só até lendário"); Mítico ela nunca faz.
   // Sem barrinha e sem falha. n por clique: 1 ou o máximo que dá (`lote`).
-  sintese: { npc: 'alquimista', perto: 4.5, ate: 3, lote: 20, custo: [null, null, { n: 4, ouro: 800 }, { n: 4, ouro: 3000 }] },
+  // André 2026-11-09: 4 + 800/3000 estava fácil (no Nv 30 ele tinha uns 40 mil): "o preço e a qtd de catalizador tb".
+  sintese: { npc: 'alquimista', perto: 4.5, ate: 3, lote: 20, custo: [null, null, { n: 10, ouro: 8000 }, { n: 10, ouro: 30000 }] },
 };
 {
   const NOME_R = ['', 'Raro', 'Épico', 'Lendário', 'Mítico'], NOME_A = ['', 'Rara', 'Épica', 'Lendária', 'Mítica'];
