@@ -213,6 +213,8 @@ const VOLTA_FOLGA := [Vector2(1, 0), Vector2(0.866025, 0.5), Vector2(0.5, 0.8660
 # está fundo numa área (como antes) ou se ele e a volta dele a "margem" metros estão todos dentro do mapa: onde duas
 # áreas se encostam por pouco não sobra mais parede invisível
 func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
+	if T != null and T.na_cais(px, pz): # FASE 3: o cais de madeira dos portos
+		return true
 	if T != null and _terra_mundo(px, pz, margem): # FASE 3: a terra dos continentes (shared/dados.js andavelMundo)
 		return true
 	if _dentro_de_alguma(px, pz, margem):

@@ -1818,3 +1818,17 @@ export function vilaEm(x, z) {
 }
 // o chão de um terreno: 0 no mapa de hoje (como sempre foi); nas vilas do mundo grande, o platô
 export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo ? Math.max(0, alturaMontanha(x, z)) : 0);
+
+// FASE 3, Parte 7b: cais de madeira em cada porto do mundo grande (André 2026-11-08: barco e navio saem do cais). Sai da
+// praia para o lado mais fundo, 3 m de largura, com o tablado a 0,6 m (acima da água, o herói anda por cima).
+{
+  const G = gradeDoMundo();
+  MAPA_CLAREIRA.cais = LUGARES_MUNDO.filter((l) => l.tipo === 'porto').map((L) => {
+    let melhor = 0, hMin = Infinity;
+    for (let k = 0; k < 48; k++) { const a = k / 48 * 2 * Math.PI, h = alturaMundo(G, L.x + Math.sin(a) * 22, L.z + Math.cos(a) * 22); if (h < hMin) { hMin = h; melhor = a; } }
+    const dx = Math.sin(melhor), dz = Math.cos(melhor);
+    let t0 = 0; while (t0 < 40 && alturaMundo(G, L.x + dx * t0, L.z + dz * t0) > 0.25) t0 += 0.5;
+    const ini = t0 - 3, fim = t0 + 15;
+    return { id: 'cais_' + L.id, nome: L.nome, x: +(L.x + dx * (ini + fim) / 2).toFixed(2), z: +(L.z + dz * (ini + fim) / 2).toFixed(2), ry: +melhor.toFixed(4), w: 3, d: fim - ini, y1: 0.6 };
+  });
+}

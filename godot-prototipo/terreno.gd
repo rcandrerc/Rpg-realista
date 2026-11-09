@@ -65,6 +65,16 @@ func terra_mundo(x: float, z: float) -> bool:
 		return false
 	return str(mundo_g.terra)[j * int(mundo_g.nx) + i] != "0"
 
+# FASE 3, Parte 7b: em cima de um cais de madeira (mundo.cais) também se anda, mesmo por cima do mar (shared/simulacao.js naCais)
+func na_cais(x: float, z: float) -> bool:
+	for c in m.get("cais", []):
+		var ox: float = x - float(c.x)
+		var oz: float = z - float(c.z)
+		var ry: float = float(c.ry)
+		if absf(ox * sin(ry) + oz * cos(ry)) <= float(c.d) / 2.0 + 0.3 and absf(ox * cos(ry) - oz * sin(ry)) <= float(c.w) / 2.0 + 0.3:
+			return true
+	return false
+
 func _init(mundo: Dictionary) -> void:
 	m = mundo
 	_carregar_mundo()

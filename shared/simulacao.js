@@ -266,6 +266,15 @@ function itemDaChave(chave, n) { const it = JSON.parse(chave); return ehEquip(it
 export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + '. O equipamento desgastou'
   + (pen.quebrou.length ? `; quebrou: ${pen.quebrou.join(', ')} (o Tomás conserta)` : '');
 
+// FASE 3, Parte 7b: em cima de um cais de madeira (mapa.cais) também se anda, mesmo por cima do mar
+export function naCais(mapa, x, z) {
+  for (const c of mapa.cais || []) {
+    const ox = x - c.x, oz = z - c.z, u = ox * Math.sin(c.ry) + oz * Math.cos(c.ry), v = ox * Math.cos(c.ry) - oz * Math.sin(c.ry);
+    if (Math.abs(u) <= c.d / 2 + 0.3 && Math.abs(v) <= c.w / 2 + 0.3) return c;
+  }
+  return null;
+}
+
 export class Simulacao {
   constructor(mapa) {
     this.mapa = mapa;
@@ -571,7 +580,7 @@ export class Simulacao {
     // mergulho (André 2026-11-06): no lago fundo o herói desce abaixo da linha em que boia, até o leito (MERGULHO_MAX)
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
-    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
+    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });

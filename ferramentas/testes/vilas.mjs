@@ -44,3 +44,15 @@ for (const V of mundo) {
 }
 ok(vilaEm(-13.5, 88)?.id === 'terras', 'as Terras da Estrada continuam sendo a vila de terrenos do começo');
 ok(chaoDaVila(-13.5, 88) === 0, 'no mapa de hoje o chão das casas continua 0');
+
+// cais de madeira em cada porto: o tablado sai da praia e chega na água funda, e o herói anda por cima dele
+import { noLago } from '../../shared/relevo.js';
+for (const C of MAPA_CLAREIRA.cais) {
+  const dx = Math.sin(C.ry), dz = Math.cos(C.ry), ponta = (t) => [C.x + dx * t * C.d / 2, C.z + dz * t * C.d / 2];
+  const [xi, zi] = ponta(-0.95), [xf, zf] = ponta(0.95);
+  ok(relevo(xi, zi) > -0.3 && relevo(xf, zf) < -1.5, `${C.nome}: sai da praia (${relevo(xi, zi).toFixed(2)} m) e chega no fundo (${relevo(xf, zf).toFixed(2)} m)`);
+  ok(Math.abs(s.terreno.altura(xf, zf, 1) - C.y1) < 0.01 && noLago(xf, zf), `${C.nome}: o chão na ponta é o tablado (${s.terreno.altura(xf, zf, 1).toFixed(2)} m), em cima do mar`);
+  const id = 'cais_' + C.id, j = s.adicionarJogador(id, 'Cais', undefined, { conta: id });
+  j.criando = false; j.x = xf; j.z = zf; j.y = C.y1; j.orc = 10; j.orcT = s.tempo;
+  ok(s.posicaoCliente(id, { x: xf + dx * 0.3, y: C.y1, z: zf + dz * 0.3, ry: 0 }) !== false, `${C.nome}: o servidor aceita o herói em pé na ponta`);
+}

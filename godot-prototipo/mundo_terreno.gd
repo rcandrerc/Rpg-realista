@@ -33,6 +33,60 @@ func _ready() -> void:
 		for pi in range(0, int(g.nx) - 1, PEDACO):
 			_pedaco(pi, pj)
 	_mar_aberto()
+	_cais()
+
+# FASE 3, Parte 7b: os cais de madeira dos portos (mundo.cais, o mesmo tablado onde o servidor deixa andar): tábuas de
+# madeira de verdade (construcao3d/medieval_wood), vigas dos lados e os esteios entrando no mar. 2 malhas por cais.
+func _cais() -> void:
+	var lista: Array = T.m.get("cais", [])
+	if lista.is_empty():
+		return
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
+	mat.normal_enabled = true
+	mat.normal_texture = load("res://construcao3d/medieval_wood_nor_gl_1k.jpg")
+	mat.roughness = 0.85
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
+	var esteio := CylinderMesh.new()
+	esteio.top_radius = 0.13
+	esteio.bottom_radius = 0.15
+	esteio.height = 5.0
+	esteio.radial_segments = 8
+	esteio.material = mat
+	for c in lista:
+		var no := Node3D.new()
+		no.name = str(c.id)
+		no.position = Vector3(float(c.x), 0.0, float(c.z))
+		no.rotation.y = float(c.ry)
+		add_child(no)
+		var w: float = c.w
+		var d: float = c.d
+		var y1: float = c.y1
+		var tab := MeshInstance3D.new() # tablado e as duas vigas da beira numa malha só
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for caixa in [[0.0, y1 - 0.09, w, 0.18], [-w / 2.0 + 0.1, y1 - 0.3, 0.2, 0.3], [w / 2.0 - 0.1, y1 - 0.3, 0.2, 0.3]]:
+			var bm := BoxMesh.new()
+			bm.size = Vector3(caixa[2], caixa[3], d)
+			st.append_from(bm, 0, Transform3D(Basis(), Vector3(caixa[0], caixa[1], 0.0)))
+		st.set_material(mat)
+		tab.mesh = st.commit()
+		tab.visibility_range_end = 260.0
+		no.add_child(tab)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = esteio
+		var n := int(d / 3.0) + 1
+		mm.instance_count = n * 2
+		for i in n:
+			for lado in 2:
+				var z: float = -d / 2.0 + 0.4 + i * (d - 0.8) / maxf(1.0, n - 1)
+				mm.set_instance_transform(i * 2 + lado, Transform3D(Basis(), Vector3((lado * 2 - 1) * (w / 2.0 - 0.1), y1 - 2.6, z)))
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = mm
+		mi.visibility_range_end = 260.0
+		no.add_child(mi)
 
 # depois da grade é mar até o horizonte: uma moldura de 4 quadrados em volta dela, no nível da água
 func _mar_aberto() -> void:
