@@ -63,6 +63,8 @@ export const DURACAO = {
   // parada solta fora de combate (André 2026-11-09): a parada do Mixamo com o peso numa perna e a mão na cintura
   // (ferramentas/assar-animacoes/parada-solta.mjs)
   parada_solta: 9.933,
+  // a do corpo masculino (André: a do homem estava feminina demais): pernas abertas, peito erguido, braços soltos
+  parada_solta_m: 9.933,
   // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
   // 2H Magic Area Attack 01 e 2H Cast Spell 01
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,

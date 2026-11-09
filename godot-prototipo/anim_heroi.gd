@@ -46,6 +46,13 @@ var em_guarda := true
 var tem_solta := false
 var pode_soltar := true # quem chama desliga montado, sentado, escalando, nadando, coletando ou pescando
 var _solta := 0.0
+var _no_solta: AnimationNodeAnimation
+# corpo masculino: parada_solta_m (pernas abertas, peito erguido, braços soltos; André: a de mão na cintura ficou feminina)
+func usar_solta(masculino: bool) -> void:
+	if _no_solta and masculino and player.has_animation("parada_solta_m"):
+		_no_solta.animation = "parada_solta_m"
+	elif _no_solta:
+		_no_solta.animation = "parada_solta"
 var _gcaj := 0.0
 var _mexe := 0.0 # 0 = parado, 1 = andando/correndo
 var _corre := 0.0 # 0 = andar, 1 = corrida
@@ -116,6 +123,7 @@ func _init(p: AnimationPlayer) -> void:
 		bt.connect_node("solta", 0, "parada")
 		bt.connect_node("solta", 1, "parada_solta")
 		parada_no = "solta"
+		_no_solta = bt.get_node("parada_solta")
 	var idle := AnimationNodeBlend2.new()
 	bt.add_node("idle", idle, Vector2(200, 60))
 	tem_guarda_cajado = player.has_animation("cajado_parada")
