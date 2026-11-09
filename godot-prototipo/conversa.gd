@@ -24,6 +24,7 @@ const ACOES := {
 	"resetar": ["Resetar build", "desfazer"],
 	"passe": ["Fazer passe da caverna", "it_passe_caverna"], # Gaspar, na boca da Caverna da Montanha (2026-11-06)
 	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
+	"alquimia": ["Sintetizar catalisador", "it_selo_epico"], # Mirela, a alquimista (André 2026-11-09)
 	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
 	"amiga_casa": ["Como vai a casa?", "lote"],
 	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
@@ -297,6 +298,8 @@ func abrir(n: Dictionary) -> void:
 		fala_ui.text = _fala_passe()
 	elif n.funcao == "pack" and m.transporte: # mercador de pack: material, quanto paga em cada um e o que dá para entregar
 		fala_ui.text = m.transporte.opcoes_mercador(n)[0]
+	elif n.funcao == "alquimia":
+		fala_ui.text = "Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário."
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
 	_itens_passe(n.funcao == "passe")
@@ -408,6 +411,12 @@ func escolher(a: String) -> void:
 			await get_tree().create_timer(0.5).timeout
 			if npc == n:
 				escolher("pack")
+		"alquimia": # Mirela: a lista de sínteses (Selo e Runa, Épico e Lendário) no lugar das opções
+			_lista_alquimia(n)
+		"alquimia_volta": # depois de sintetizar, refaz a lista quando o servidor responde (mochila e ouro chegam depois)
+			await get_tree().create_timer(0.6).timeout
+			if npc == n:
+				_lista_alquimia(n, false)
 		"passe": # faz um passe com o material dos monstros (o servidor confere e gasta; a resposta chega em fala())
 			if not m.on():
 				fala_ui.text = "Sem conexão com o servidor eu não posso fazer o passe. Volte depois."
@@ -582,3 +591,55 @@ func _slot_item(k: String, conta: String, cor: Color) -> Control:
 	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(n)
 	return col
+
+# ---------- Mirela, a alquimista (André 2026-11-09; números em CATALISADOR.sintese, shared/dados.js) ----------
+# Junta n catalisadores de uma raridade + ouro e faz 1 da raridade de cima, do mesmo tipo. Só até Lendário (Mítico
+# nunca). Cada botão faz 1; "Fazer o máximo" liga e desliga fazer quantos der de uma vez (até o lote). Online só:
+# o servidor confere a distância, os catalisadores e o ouro, e responde com a fala dela.
+var _alq_max := false
+
+func _lista_alquimia(n: Dictionary, falar := true) -> void:
+	var C: Dictionary = m.P.dados.get("catalisador", {})
+	var S = C.get("sintese")
+	for c in opcoes.get_children():
+		opcoes.remove_child(c)
+		c.queue_free()
+	if S == null:
+		fala_ui.text = "O caldeirão ainda está frio. Volte depois."
+	else:
+		if falar:
+			fala_ui.text = "Escolha o catalisador. Mostro quanto você tem de cada um. Mítico eu não faço."
+		for tipo in ["armadura", "arma"]:
+			for r in range(2, int(S.ate) + 1):
+				var custo = S.custo[r]
+				if custo == null:
+					continue
+				var k: String = str(C[tipo][r - 1])
+				var de: String = str(C[tipo][r - 2])
+				var tem := _tenho(de)
+				var da := mini(tem / int(custo.n), int(m.P.prog.ouro) / int(custo.ouro))
+				var t := "%s\n%d %s (tem %d) + %d ouro" % [_nome_item(k), int(custo.n), _nome_item(de), tem, int(custo.ouro)]
+				var b := _opcao(t, "it_" + k, func(): _sintetizar(n, k, da))
+				b.custom_minimum_size = Vector2(250, 52)
+				b.add_theme_font_size_override("font_size", 13)
+				b.add_theme_constant_override("icon_max_width", 30)
+				if da < 1:
+					b.modulate = Color(1, 1, 1, 0.55)
+				opcoes.add_child(b)
+	opcoes.add_child(_opcao("Fazer o máximo: %s" % ("sim" if _alq_max else "não"), "it_ouro", func():
+		_alq_max = not _alq_max
+		_lista_alquimia(n, false)))
+	opcoes.add_child(_opcao("Voltar", "desfazer", func(): abrir(n)))
+
+func _sintetizar(n: Dictionary, k: String, da: int) -> void:
+	if not m.on():
+		fala_ui.text = "Sem conexão com o servidor o caldeirão não acende. Volte depois."
+		return
+	if da < 1:
+		fala_ui.text = "Ainda não dá: falta catalisador ou ouro. O que está apagado é o que falta."
+		return
+	var quantos: int = mini(da, int(m.P.dados.catalisador.sintese.lote)) if _alq_max else 1
+	m.rede("item", {"acao": "sintetizar", "k": k, "n": quantos})
+	m.sons.tocar("magia", -6.0)
+	escolher.call_deferred("alquimia_volta")
+
