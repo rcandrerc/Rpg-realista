@@ -46,7 +46,7 @@ func _ready() -> void:
 	sta = sta_max()
 	for c in m.mundo.get("coletaveis", []):
 		var o := {"id": str(c.id), "tipo": str(c.tipo), "pos": Vector3(float(c.x), 0, float(c.z)), "r": float(c.r), "cargas": -1, "volta_ate": -1.0}
-		o.pos.y = m.terreno.altura(o.pos.x, o.pos.z)
+		o.pos.y = float(c.y) if c.has("y") else m.terreno.altura(o.pos.x, o.pos.z) # veio de caverna: o chão dela
 		if c.get("solto", false):
 			o.solto = true
 			_montar_solto(o, float(c.get("ry", 0.0)))

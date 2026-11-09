@@ -6,6 +6,7 @@ import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HER
 import { GRADES } from '../../shared/rochas.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
+import { TUNEIS_MUNDO } from '../../shared/dados.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
 import { gerarMascaraMundo } from './mascara_mundo.mjs';
@@ -83,6 +84,10 @@ const mundo = {
   // do chão; caverna.gd desenha aos poucos quando o herói chega perto) e a dungeon (passe, salas e o v de cada monstro)
   caverna: { nome: CAVERNA.nome, porta: CAVERNA.porta, folga: CAVERNA.folga, salas: CAVERNA.salas,
     amostras: TUNEL.amostras.map((a) => ({ s: a.s, x: r4(a.x), z: r4(a.z), y: r4(a.y), l: r4(a.l), teto: r4(a.teto), dx: r4(a.dx), dz: r4(a.dz), incl: a.incl })) },
+  // Parte 8 (2026-11-09): as cavernas do mundo grande, o mesmo túnel do servidor (terreno.gd chão e teto; caverna.gd
+  // desenha cada uma, sem selo nem passe)
+  cavernas_mundo: TUNEIS_MUNDO.map((C) => ({ id: C.id, nome: C.def.nome, folga: C.def.folga, salas: C.def.salas,
+    amostras: C.amostras.map((a) => ({ s: a.s, x: r4(a.x), z: r4(a.z), y: r4(a.y), l: r4(a.l), teto: r4(a.teto), dx: r4(a.dx), dz: r4(a.dz), incl: a.incl })) })),
   dungeon: MAPA_CLAREIRA.dungeon ? { ...MAPA_CLAREIRA.dungeon, salas: sim.dungeon.salas.map((S) => ({ id: S.def.id, nome: S.def.nome, nivel: S.def.nivel,
     monstros: S.vagas.map((vg) => ({ ...vg.pt, v: vg.v, status: statusInimigo(vg.pt.tipo, S.def.nivel) })) })) } : null,
   casas: T.casas.map((_, i) => i), // índices em solidos que são casa (teto)

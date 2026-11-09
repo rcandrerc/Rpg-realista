@@ -92,6 +92,13 @@ var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
 var dia # dia_noite.gd: dia e noite do Quimera (relógio da conta, céu, luz e o sono na cama)
 var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
+var cavernas_mundo: Array = [] # caverna.gd das cavernas do mundo grande (Parte 8)
+# o quanto o herói está no escuro de alguma caverna (0 fora): quem manda na luz lá dentro é a caverna.gd
+func escuro_caverna() -> float:
+	var e: float = float(caverna.escuro) if caverna != null else 0.0
+	for c in cavernas_mundo:
+		e = maxf(e, float(c.escuro))
+	return e
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
@@ -408,6 +415,11 @@ func montar_chao() -> void:
 	relevo = Relevo.new(terreno, m, load("res://modelos/forrest_ground_01.jpg"), caverna.buraco_na_montanha)
 	add_child(relevo)
 	add_child(caverna)
+	# Parte 8 (2026-11-09): as cavernas do mundo grande, o mesmo desenho (montam só com o herói perto)
+	for cm in terreno.tuneis_mundo:
+		var cw = Caverna.new(self, terreno, cm)
+		cavernas_mundo.append(cw)
+		add_child(cw)
 	dia = preload("res://dia_noite.gd").new(self) # dia e noite (André 2026-11-07): depois do ambiente e da caverna
 	add_child(dia)
 	add_child(Submerso.new(self)) # câmera dentro do lago: tom azul, neblina e luz da superfície (André 2026-11-07)
@@ -1730,7 +1742,10 @@ func molas(no: Node) -> void:
 # ---------- combate ----------
 # dentro da Caverna da Montanha (primeira masmorra)
 func na_masmorra() -> bool:
-	return caverna != null and not terreno.dentro_caverna(heroi.position.x, heroi.position.z, heroi.position.y + 0.3).is_empty()
+	if caverna == null:
+		return false
+	var c: Dictionary = terreno.dentro_caverna(heroi.position.x, heroi.position.z, heroi.position.y + 0.3)
+	return not c.is_empty() and c.id == "" # só a dungeon (as cavernas do mundo grande são caminho aberto)
 
 # algum monstro vivo a até 15 m bateu ou apanhou nos últimos segundos (a luta continua mesmo se o herói ficou sem bater)
 func luta_perto() -> bool:
@@ -3433,6 +3448,8 @@ func colidir_inimigo(no: Node3D) -> void:
 		for k in lista:
 			if k.has("veio") and mov.vazios.has(k.veio):
 				continue # veio esgotado: não está mais lá
+			if k.has("base") and p.y < float(k.base) - 2.5:
+				continue # árvore em cima da montanha (o monstro está na caverna embaixo)
 			var dx: float = p.x - k.x
 			var dz: float = p.z - k.z
 			var d := sqrt(dx * dx + dz * dz)
@@ -3579,7 +3596,12 @@ func ponto_caca(c: Dictionary, inicio := false):
 		var a := randf() * TAU
 		var r: float = sqrt(randf()) * float(c.r) * float(c.ate)
 		var p := Vector3(float(c.x) + cos(a) * r, 0, float(c.z) + sin(a) * r)
-		if c.get("mundo", false) and terreno: # campo do mundo grande (FASE 3): platô acima do 0
+		if c.has("tunel") and terreno: # covil dentro de caverna do mundo grande: no chão dela, longe da parede
+			var cv: Dictionary = terreno.no_tunel(p.x, p.z)
+			if cv.is_empty() or cv.id != str(c.tunel) or float(cv.d) > float(cv.l) - 1.0:
+				continue
+			p.y = float(cv.y)
+		elif c.get("mundo", false) and terreno: # campo do mundo grande (FASE 3): platô acima do 0
 			p.y = maxf(0.0, terreno.relevo(p.x, p.z))
 		if not inicio and heroi and Vector2(p.x - heroi.position.x, p.z - heroi.position.z).length() < float(c.longe):
 			continue
@@ -3590,6 +3612,9 @@ func ponto_caca(c: Dictionary, inicio := false):
 				break
 		if livre:
 			return p
+	if inicio and c.has("tunel") and terreno: # covil: o meio da sala, no chão da caverna
+		var cv0: Dictionary = terreno.no_tunel(float(c.x), float(c.z))
+		return Vector3(float(c.x), float(cv0.get("y", 0.0)), float(c.z))
 	return null if not inicio else Vector3(float(c.x), maxf(0.0, terreno.relevo(float(c.x), float(c.z))) if c.get("mundo", false) and terreno else 0.0, float(c.z))
 
 func passo_cacas(dt: float) -> void:
@@ -3742,7 +3767,7 @@ func atualizar_inimigos(dt: float) -> void:
 	passo_cacas(dt)
 	_ativos = []
 	for e in inimigos:
-		if e.get("longe", false) and e.estado != "apanhar":
+		if (e.get("longe", false) and e.estado != "apanhar") or e.get("vazio", false): # vaga ainda sem corpo (chegou de teleporte)
 			continue
 		_ativos.append(e)
 		if not e.get("treino", false): # o espantalho não sai do lugar

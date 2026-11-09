@@ -3,8 +3,8 @@
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
-import { montarMundo, alturaMundo, terraEm, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from './mundo.js';
-import { CAVERNA, TUNEL, noTunel, pontoDoTunel } from './caverna.js';
+import { montarMundo, alturaMundo, terraEm, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
+import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -1725,12 +1725,16 @@ MAPA_CLAREIRA.npcs.push(...MERCADORES_PACK.map((n) => ({ ...n, nome: `${n.nome},
   falas: [`Eu faço o ${PACKS[n.merch].nome}. Traga o material e leve pra bem longe: quanto mais longe, mais paga!`,
     'Pack de outro mercador? Me entregue que eu pago bem. Pack feito aqui eu não compro.'] })));
 
+export const TUNEIS_MUNDO = []; // túneis das cavernas do mundo grande (shared/caverna.js montarCaverna)
 // FASE 3, Parte 3 (André 2026-11-08): o mundo grande (shared/mundo.js) em volta do mapa de hoje. A grade sai das áreas
 // andáveis de hoje (ali ela vale 0, nada muda); depois disso a terra dos continentes também é andável (até a água pela
 // cintura na praia) e o mar vira água de verdade (relevo.js noLago). andavelMundo não vai para o JSON (não enumerável).
 {
   const G = montarMundo(MAPA_CLAREIRA);
   usarMundo(G);
+  // Parte 8: os túneis das cavernas do mundo grande (shared/mundo.js CAVERNAS_MUNDO): chão e teto de cada uma valem
+  // para todo mundo (shared/terreno.js altura e teto)
+  for (const def of defsDasCavernas()) TUNEIS_MUNDO.push(registrarTunel(montarCaverna((x, z) => alturaMundo(G, x, z), def)));
   const seco = (x, z) => alturaMundo(G, x, z) > -0.9 && terraEm(G, x, z);
   Object.defineProperty(MAPA_CLAREIRA, 'andavelMundo', { enumerable: false, value: (x, z, margem = 0) => seco(x, z)
     && (margem <= 0 || (seco(x + margem, z) && seco(x - margem, z) && seco(x, z + margem) && seco(x, z - margem))) });
@@ -1756,6 +1760,20 @@ MAPA_CLAREIRA.npcs.push(...MERCADORES_PACK.map((n) => ({ ...n, nome: `${n.nome},
     const [a, b] = PAR[L.terra][n++ % PAR[L.terra].length];
     CACA.push({ id: L.id, nome: `Campo dos ${NOME[a]} e ${NOME[b]} (${REGIAO[L.terra]})`, nivel: L.nivel, bicho: a, x: L.x, z: L.z, r: L.r - 2, mundo: true,
       n: 11, tipos: [...Array(5).fill(a), ...Array(5).fill(b), 'warrok'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 });
+  }
+  // Parte 8 (André 2026-11-09): dentro de cada caverna do mundo grande, a primeira sala é um covil (monstros de pedra
+  // e de sombra do nível da região, um pouco acima do campo de fora, e um Warrok) e a segunda tem o minério bom da
+  // região (ferro em Vael, cristal na ilha e em Aurora), mais farto que os veios de fora. tunel = id da caverna: o
+  // monstro e a pedra ficam no chão dela (o servidor prende o monstro no túnel, Simulacao.prenderNoTunel).
+  const FORMA = CAVERNA_MUNDO_FORMA;
+  for (const C of TUNEIS_MUNDO) {
+    const L = LUGARES_MUNDO.find((l) => l.id === C.id), [s1, s2] = FORMA.salas, p1 = pontoDoTunel(s1.s, 0, C), p2 = pontoDoTunel(s2.s, 0, C);
+    CACA.push({ id: C.id, nome: `Covil da ${L.nome} (${REGIAO[L.terra]})`, nivel: L.nivel, bicho: 'golem', x: +p1.x.toFixed(2), z: +p1.z.toFixed(2), r: 6, tunel: C.id, mundo: true,
+      n: 6, tipos: ['golem', 'golem', 'maw', 'maw', 'golem', 'warrok'], passo: 0.35, rapido: 0.4, normal: 2, longe: 5, corpo: 2.2, ate: 1 });
+    const tipo = L.terra === 'vael' ? 'ferro' : 'cristal';
+    const z = { id: `m_${C.id}`, nome: `${NOME_VEIO[tipo]} da caverna`, tipo, x: +p2.x.toFixed(2), z: +p2.z.toFixed(2), r: 4.6, veios: 4, volta: VOLTA_VEIO[tipo], pequeno: true, mundo: true, tunel: C.id };
+    MINA.push(z);
+    VEIOS.push(...veiosDaZona(z).map((v) => ({ ...v, y: +noTunel(C, v.x, v.z).y.toFixed(3) })));
   }
 }
 

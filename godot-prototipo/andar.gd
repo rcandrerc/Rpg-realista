@@ -55,7 +55,10 @@ func _init(terreno, mundo: Dictionary) -> void:
 		var k := Vector2i(floori(float(a.x) / 6.0), floori(float(a.z) / 6.0))
 		if not mata.has(k):
 			mata[k] = []
-		mata[k].append({"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)})
+		var ar := {"x": float(a.x), "z": float(a.z), "r": 0.32 * float(a.s)}
+		if float(a.get("y", 0.0)) != 0.0:
+			ar.base = float(a.y) # árvore do mundo grande: quem passa na caverna embaixo dela não bate
+		mata[k].append(ar)
 	# ruínas, rochedos, troncos caídos e pedras da mata (mundo.cenario.solidos), na mesma grade (Simulacao faz igual)
 	for o in m.get("cenario", {}).get("solidos", []):
 		var k := Vector2i(floori(float(o.x) / 6.0), floori(float(o.z) / 6.0))
@@ -138,6 +141,8 @@ func colidir() -> void:
 			continue # por cima (esteio da ferraria visto do telhado, em pé na bancada)
 		if k.has("veio") and vazios.has(k.veio):
 			continue # veio esgotado: a pedra sumiu, dá para passar (André 2026-11-06)
+		if k.has("base") and y < float(k.base) - 2.5:
+			continue # árvore em cima da montanha; o herói está na caverna embaixo
 		var dx: float = x - k.x
 		var dz: float = z - k.z
 		var d := sqrt(dx * dx + dz * dz)
@@ -298,7 +303,7 @@ func _vai(nx: float, nz: float) -> bool:
 		return false
 	if h > y + m.subida.degrau:
 		# parede da caverna (rocha da montanha por cima do túnel): não é pedra, não escala
-		if not T.tunel.is_empty() and h <= T.chao_relevo(nx, nz) + 0.01 and not T.dentro_caverna(x, z, y + 0.3).is_empty():
+		if (not T.tunel.is_empty() or not T.tuneis_mundo.is_empty()) and h <= T.chao_relevo(nx, nz) + 0.01 and not T.dentro_caverna(x, z, y + 0.3).is_empty():
 			no_relevo = true
 		return false
 	# encosta da montanha (shared/relevo.js INGREME): subida forte demais não dá para subir andando

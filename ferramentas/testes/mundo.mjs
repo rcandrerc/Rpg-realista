@@ -68,7 +68,7 @@ const sim = new Simulacao(M);
 for (const c of novos) {
   const ci = M.caca.indexOf(c), vivos = sim.cacas[ci].vagas.filter((vg) => vg.e && vg.e.vida > 0);
   const chao = vivos.every((vg) => Math.abs(vg.e.y ?? 0) < 30 && Math.hypot(vg.e.x - c.x, vg.e.z - c.z) <= c.r + 0.5);
-  ok(vivos.length === 11 && chao, `${c.id} Nv ${c.nivel}: ${vivos.length} monstros dentro do campo`);
+  ok(vivos.length === c.n && chao, `${c.id} Nv ${c.nivel}: ${vivos.length} monstros dentro do campo`);
 }
 
 // Parte 6b: poucos mercadores por região no mundo grande, em terra firme; a entrega que cruza o mar de navio é a que
