@@ -81,6 +81,14 @@ export const capacidadeCarrinho = (c) => V.carrinho.capacidade * Math.min(V.carr
 export const velCarrinho = (c) => V.carrinho.vel - V.carrinho.perdePorPack * Math.max(0, (c?.packs?.length || 0) - V.carrinho.packsLivres);
 // água funda o bastante em (x, z)? (lago hoje; o mar entra na FASE 3)
 export const fundoAgua = (x, z) => noLago(x, z)?.fundo || 0;
+// o ponto mais perto do herói (anéis de 0,5 m, 24 direções, a da frente primeiro) que passa em ok(x, z)
+export function acharPonto(j, ok, raio) {
+  for (let r = 0.5; r <= raio + 0.01; r += 0.5) for (let i = 0; i < 24; i++) {
+    const a = j.ry + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI / 12), x = j.x + Math.sin(a) * r, z = j.z + Math.cos(a) * r;
+    if (ok(x, z)) return { x: r2(x), z: r2(z) };
+  }
+  return null;
+}
 
 export const Transporte = {
   // ---------- packs ----------
@@ -195,8 +203,12 @@ export const Transporte = {
     if (m.acao === 'colocar') {
       const k = m.k; if (!V[k] || contar(p.mochila, k) < 1) return;
       if (j.veiculo) return aviso('Desça primeiro');
-      const x = num(m.x) ? m.x : j.x, z = num(m.z) ? m.z : j.z, ry = num(m.ry) ? m.ry : j.ry;
-      if (Math.hypot(x - j.x, z - j.z) > 6) return;
+      // sem lugar escolhido: o carrinho vai na frente do herói; barco e navio na água funda mais perto (até 6 m)
+      const precisa = k === 'carrinho' ? null : V[k].fundo, q = num(m.x) && num(m.z) ? { x: m.x, z: m.z }
+        : precisa == null ? { x: j.x + Math.sin(j.ry) * 1.6, z: j.z + Math.cos(j.ry) * 1.6 } : acharPonto(j, (a, b) => fundoAgua(a, b) >= precisa, 6);
+      if (!q) return aviso(k === 'navio' ? 'Chegue na beira de água funda pra colocar o navio' : 'Chegue na beira da água pra usar o barquinho');
+      const x = q.x, z = q.z, ry = num(m.ry) ? m.ry : j.ry;
+      if (Math.hypot(x - j.x, z - j.z) > 6.5) return;
       if (k === 'carrinho') {
         if (fundoAgua(x, z) > 0.05) return aviso('O carrinho não entra na água.');
         p.carrinho ||= carrinhoNovo(); p.carrinho.chao = { x: r2(x), z: r2(z), ry: r2(ry) };
@@ -236,7 +248,12 @@ export const Transporte = {
     if (m.acao === 'descer') {
       const k = j.veiculo; if (!k) return;
       // onde o herói pisa depois (o celular acha a margem; aqui só conferimos que é terra perto)
-      const sx = num(m.x) ? m.x : j.x, sz = num(m.z) ? m.z : j.z;
+      let sx = num(m.x) ? m.x : j.x, sz = num(m.z) ? m.z : j.z;
+      if (k !== 'carrinho' && !(num(m.x) && num(m.z))) { // a margem mais perto (terra firme)
+        const q = acharPonto(j, (a, b) => fundoAgua(a, b) <= 0.05, k === 'navio' ? V.navio.cabe + 3 : 4);
+        if (!q) return aviso('Chegue mais perto da margem pra descer');
+        sx = q.x; sz = q.z;
+      }
       if (k !== 'carrinho') {
         if (Math.hypot(sx - j.x, sz - j.z) > (k === 'navio' ? V.navio.cabe + 3 : 4)) return aviso('Chegue mais perto da margem pra descer');
         if (fundoAgua(sx, sz) > AGUA.peito - 0.3) return aviso('Chegue mais perto da margem pra descer');

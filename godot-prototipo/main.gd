@@ -29,6 +29,7 @@ const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
 const Trabalho = preload("res://trabalho.gd")
 const Pesca = preload("res://pesca.gd")
+const Transporte = preload("res://transporte.gd") # FASE 1: packs e transportes do Quimera
 const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
 var cenario # cenario.gd
 const MenuTopo = preload("res://menu_topo.gd")
@@ -58,11 +59,12 @@ const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lob
 # o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
 const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
-const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m"}
+const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m",
+	"m_lenha": "cabelo_m", "m_pedra": "cabelo_m", "m_metal": "cabelo_m", "m_horta": "vivi", "m_peixe": "cabelo_m", "m_couro": "cabelo_m"} # mercadores de pack (FASE 1)
 # NPCs pintados com a "tinta" de shared/dados.js (cabelo, roupa, calça e tamanho). O Tomás virou homem (pedido do André,
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 # O Aldo virou o ancião da vila (pedido do André, 2026-11-05): cabelo grisalho da tinta dele
-const TINGIR_NPC := ["ferreiro", "lider"]
+const TINGIR_NPC := ["ferreiro", "lider", "m_lenha", "m_pedra", "m_metal", "m_horta", "m_peixe", "m_couro"]
 const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
@@ -93,6 +95,7 @@ var online # online.gd: servidor do Oracle (login, outros jogadores, dano de ver
 var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
+var transporte # transporte.gd: packs, carrinho, barquinho e navio mercante (FASE 1, cópia do Quimera)
 var pesca # pesca.gd: pescaria igual à do Quimera (André 2026-11-08): botão Pescar, vara, boia, linha e a briga
 
 # ---------- herói ----------
@@ -216,6 +219,7 @@ func _ready() -> void:
 	pre_carregar()
 	terreno = Terreno.new(mundo)
 	mov = Andar.new(terreno, mundo)
+	mov.jogo = self
 	mascara = load("res://modelos/mascara_vila.png").get_image()
 	if mascara.is_compressed():
 		mascara.decompress()
@@ -277,6 +281,8 @@ func _ready() -> void:
 	add_child(trabalho)
 	pesca = Pesca.new(self)
 	add_child(pesca)
+	transporte = Transporte.new(self)
+	add_child(transporte)
 	menu = Menu.new(self)
 	add_child(menu)
 	conversa = Conversa.new(self)
@@ -2126,6 +2132,16 @@ func usar(qual: String) -> void:
 		pesca.recolher() # Quimera: bater, pular, dash, rolar ou montar recolhe a linha
 	if qual == "pescar": # beira de um lago com a vara (pesca.gd): lança, puxa no "!" e toca rápido na briga
 		pesca.tocar()
+		return
+	if qual == "veiculo": # FASE 1 (transporte.gd): dirigir, descer, abrir o carrinho ou o navio, pôr o barquinho na água
+		transporte.usar_botao()
+		return
+	if qual == "pegar_pack":
+		transporte.pegar_pack()
+		return
+	# dirigindo não dá para lutar, pular, rolar, montar nem coletar (Quimera)
+	if not mov.veiculo.is_empty() and (qual in ["basico", "cura", "dash", "rolar", "pular", "coletar", "montar", "disparada"] or qual.begins_with("hab")):
+		hud.aviso("Desça primeiro")
 		return
 	if volta.ativo() and not qual in ["menu", "troca", "loja", "forja", "resetar", "falar"]:
 		volta.cancelar() # atacar, pular, dash, coletar: a volta para a vila para

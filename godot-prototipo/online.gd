@@ -431,6 +431,8 @@ func aplicar_foto(f: Dictionary) -> void:
 	m.trabalho.veios_comuns(f.get("veios", []))
 	if m.pesca: # spots de pesca na água (pesca.gd): bolhas de perto, no mapa com o Radar
 		m.pesca.atualizar_spots(f.get("spots", []))
+	if m.transporte and f.has("carga"): # FASE 1: packs no chão, carrinhos, barquinhos e navios
+		m.transporte.atualizar(f.carga)
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
 		esconder_login()
 
@@ -542,6 +544,7 @@ func outro(j: Dictionary) -> void:
 	corpos[id] = o.no
 	if o.barra:
 		o.barra.scale.x = max(0.001, float(j.vida) / max(1.0, float(j.vidaMax)))
+	o.pack_k = j.get("pack") # pack nas costas (transporte.gd desenha)
 	# montado no lobo (Simulacao.montar): o lobo embaixo, o corpo agachado na sela e as armas nas costas
 	var montado: bool = j.get("montado") != null and not j.get("morto", false)
 	if montado != (o.get("montaria") != null):
@@ -679,6 +682,8 @@ func evento(ev: Dictionary) -> void:
 				m.troca.progresso_mudou() # a mochila da janela de troca mostra o que sobrou
 			if m.construcao:
 				m.construcao.progresso_mudou() # custos e sementes da barra do modo construção
+			if m.transporte:
+				m.transporte.prog_chegou() # combustível do carrinho de verdade
 			return
 		# Vila dos Lotes (construcao.gd): todos os lotes ao entrar, um lote que mudou, o lote que comprei
 		"lotes":
@@ -701,6 +706,9 @@ func evento(ev: Dictionary) -> void:
 			if m.pesca:
 				m.pesca.radar(ev)
 			return
+		"veiculo": # FASE 1 (transporte.gd): subiu, desceu, quebrou, apanhou dentro do carrinho
+			if m.transporte:
+				m.transporte.evento(ev)
 		"pesca": # pescaria (pesca.gd): lançou, boia na água, "!", briga, pegou, fim
 			if m.pesca:
 				m.pesca.evento(ev)

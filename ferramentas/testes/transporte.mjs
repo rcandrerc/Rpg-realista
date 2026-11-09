@@ -112,13 +112,13 @@ const fundo = (x, z) => noLago(x, z)?.fundo || 0;
 let bx = L.x, bz = L.z; while (fundo(bx, bz) > 2) bz -= 0.5; // perto da margem sul, ainda funda
 ir(bx, bz - 1);
 dar('barquinho', 1);
-s.eventos = []; s.veiculo('P', { acao: 'colocar', k: 'barquinho', x: bx, z: bz, ry: 0 });
+s.eventos = []; j.ry = 0; s.veiculo('P', { acao: 'colocar', k: 'barquinho' }); // acha a água sozinho
 ok(j.veiculo === 'barquinho', 'subiu no barquinho: ' + avisos().join(' | '));
 j.orc = 0; j.orcT = s.tempo; s.tempo += 1;
 ok(s.posicaoCliente('P', { x: j.x, y: j.y, z: j.z + 5, ry: 0 }), 'barquinho rema 5 m/s');
 let tx = j.x, tz = j.z; while (fundo(tx, tz) > 0.05) tz -= 0.5;
 j.z = tz + 2; // remou até perto da margem
-s.eventos = []; s.veiculo('P', { acao: 'descer', x: tx, z: tz - 0.5 });
+s.eventos = []; s.veiculo('P', { acao: 'descer' }); // acha a margem sozinho
 ok(!j.veiculo && j.prog.mochila.some((o) => o?.k === 'barquinho'), 'desceu na margem e o barquinho voltou para a mochila: ' + avisos().join(' | '));
 // navio: Nv 60 e 40.000 de ouro
 s.eventos = []; j.prog.nivel = 10; j.prog.ouro = 50000;
