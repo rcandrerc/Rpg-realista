@@ -3,6 +3,7 @@ extends Node3D
 # Por enquanto tudo roda no aparelho (modo solo); o servidor Colyseus entra depois.
 
 const D = preload("res://dados.gd")
+const MundoTerreno = preload("res://mundo_terreno.gd") # FASE 3: continentes e mar
 const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
@@ -379,6 +380,22 @@ func montar_chao() -> void:
 	var chao := MeshInstance3D.new()
 	chao.mesh = p
 	chao.position = Vector3(95, 0, 70)
+	# FASE 3 (mundo grande): o chão plano fica só em volta do mapa de hoje (caixa das áreas + 40 m); o resto é o chão dos
+	# continentes e o mar (mundo_terreno.gd)
+	if not terreno.mundo_g.is_empty():
+		var cx0 := INF
+		var cx1 := -INF
+		var cz0 := INF
+		var cz1 := -INF
+		for a in mundo.get("areas", []):
+			var r: float = maxf(float(a.get("r", 0.0)), maxf(float(a.get("rx", 0.0)), float(a.get("rz", 0.0)))) * 1.2 + 40.0
+			cx0 = minf(cx0, float(a.x) - r)
+			cx1 = maxf(cx1, float(a.x) + r)
+			cz0 = minf(cz0, float(a.z) - r)
+			cz1 = maxf(cz1, float(a.z) + r)
+		p.size = Vector2(cx1 - cx0, cz1 - cz0)
+		chao.position = Vector3((cx0 + cx1) * 0.5, 0, (cz0 + cz1) * 0.5)
+		add_child(MundoTerreno.new(terreno))
 	chao.material_override = m
 	chao.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(chao)

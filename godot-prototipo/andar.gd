@@ -131,6 +131,7 @@ func ad(a: float, b: float) -> float:
 	return atan2(sin(a - b), cos(a - b))
 
 # ---------- andar e colidir ----------
+var _pos_ok = null # último lugar dentro do mapa (Vector2)
 func colidir() -> void:
 	for k in m.obstaculos + perto_na_mata(x, z) + extras:
 		if k.has("alto") and y > float(k.alto) - 0.05:
@@ -153,6 +154,18 @@ func colidir() -> void:
 		if d < 0.7 and d > 0:
 			x = o.x + dx / d * 0.7
 			z = o.z + dz / d * 0.7
+	# FASE 3: de barco no mar não tem borda (o servidor confere: posicaoCliente aceita o barco na água)
+	if str(veiculo.get("k", "")) in ["barquinho", "navio"] and not T.no_lago(x, z).is_empty():
+		_pos_ok = Vector2(x, z)
+		return
+	if dentro_do_mapa(x, z, 2.2):
+		_pos_ok = Vector2(x, z)
+		return
+	# na beira do mar (e de todo o mundo grande) a borda segura o herói onde ele estava, sem puxar para longe
+	if _pos_ok != null and Vector2(x, z).distance_to(_pos_ok) < 3.0:
+		x = _pos_ok.x
+		z = _pos_ok.y
+		return
 	var lim := limitar_ao_mapa(x, z, 2.2) # vila, passagem e clareira de fora (shared/mapa.js limitarAoMapa)
 	x = lim.x
 	z = lim.y
@@ -200,6 +213,8 @@ const VOLTA_FOLGA := [Vector2(1, 0), Vector2(0.866025, 0.5), Vector2(0.5, 0.8660
 # está fundo numa área (como antes) ou se ele e a volta dele a "margem" metros estão todos dentro do mapa: onde duas
 # áreas se encostam por pouco não sobra mais parede invisível
 func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
+	if T != null and _terra_mundo(px, pz, margem): # FASE 3: a terra dos continentes (shared/dados.js andavelMundo)
+		return true
 	if _dentro_de_alguma(px, pz, margem):
 		return true
 	if margem <= 0.0 or not _dentro_de_alguma(px, pz, 0.0):
@@ -208,6 +223,11 @@ func dentro_do_mapa(px: float, pz: float, margem := 0.0) -> bool:
 		if not _dentro_de_alguma(px + v.x * margem, pz + v.y * margem, 0.0):
 			return false
 	return true
+
+func _terra_mundo(px: float, pz: float, margem: float) -> bool:
+	if not T.terra_mundo(px, pz):
+		return false
+	return margem <= 0.0 or (T.terra_mundo(px + margem, pz) and T.terra_mundo(px - margem, pz) and T.terra_mundo(px, pz + margem) and T.terra_mundo(px, pz - margem))
 
 # Desempenho (2026-11-07, mapa todo circulável: 184 áreas): cada quadrado de BALDE m guarda só as áreas que encostam
 # nele, então cada conta olha umas poucas áreas em vez de todas (o celular não sente as áreas novas)
