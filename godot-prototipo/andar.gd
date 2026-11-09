@@ -39,6 +39,8 @@ var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 var disparada := false
 var selo_aberto := false # Caverna da Montanha: o servidor deixou passar do selo (usou o passe; online.gd)
 var montado := {} # montado no lobo: montaria.gd DADOS (andar, trote, correr m/s); vazio = a pé
+var jogo = null # main.gd (main põe; o veículo precisa dos dados, do aviso e do combustível)
+var veiculo := {} # carrinho, barquinho ou navio (transporte.gd): {k, v (m/s agora)}; vazio = a pé
 var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd lê, faz a câmera afundar e zera
 
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
@@ -476,6 +478,9 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		vx = 0.0
 		vz = 0.0
 		return
+	if not veiculo.is_empty(): # FASE 1: dirigindo (a mesma física do Quimera, números de shared/dados.js VEICULOS)
+		passo_veiculo(dt, mx, mz)
+		return
 	anim = ""
 	passo_vertical(dt)
 	bloqueado = false
@@ -898,3 +903,89 @@ func passo_escalada(dt: float, mx: float, mz: float) -> void:
 		anim = "parede_balanca"
 	else:
 		anim = "parede_agarrado"
+
+# ---------- veículos (FASE 1, cópia do Quimera: BL do carrinho, Oy do barquinho e mgNvMv do navio) ----------
+# O joystick aponta para onde ir: o veículo vira até lá no giro dele (mais devagar parado) e acelera. Curva fechada
+# (mais de 1,6 rad) anda a 30%. Carrinho: sem combustível não anda, não entra na água e bate nas coisas como o herói.
+# Barquinho e navio: só na água (encostou na margem, volta um pouco), na linha da água.
+func passo_veiculo(dt: float, mx: float, mz: float) -> void:
+	var V: Dictionary = jogo.P.dados.veiculos
+	var k: String = veiculo.k
+	var mag: float = min(1.0, Vector2(mx, mz).length())
+	var v: float = float(veiculo.get("v", 0.0))
+	var dif := 0.0
+	var tr = jogo.transporte
+	if k == "carrinho":
+		var C: Dictionary = V.carrinho
+		if mag > 0.12:
+			dif = ad(atan2(mx, mz), ry)
+			ry += clamp(dif, -float(C.giro) * dt, float(C.giro) * dt) * (0.55 + 0.45 * min(1.0, absf(v) / 2.0 + 0.3))
+		var tem: bool = tr != null and tr.tem_combustivel()
+		var cap = jogo.P.prog.get("carrinho", {})
+		var npk: int = (cap.get("packs", []) as Array).size() if cap is Dictionary else 0
+		var vel: float = float(C.vel) - float(C.perdePorPack) * max(0, npk - int(C.packsLivres))
+		var quer: float = vel * mag * (float(C.curvaK) if absf(dif) > float(C.curvaFechada) else 1.0) if tem and mag > 0.12 else 0.0
+		if not tem and mag > 0.12:
+			_sem_comb_t -= dt
+			if _sem_comb_t <= 0.0:
+				_sem_comb_t = 3.0
+				jogo.hud.aviso("Sem combustível! Toque no carrinho e abasteça.")
+		v += (quer - v) * min(1.0, dt * (float(C.acelera) if quer > v else float(C.freia)))
+		var d := v * dt
+		if absf(d) > 0.0001:
+			var nx := x + sin(ry) * d
+			var nz := z + cos(ry) * d
+			var L: Dictionary = T.no_lago(nx, nz)
+			if not L.is_empty() and float(L.fundo) > 0.3:
+				v = 0.0
+				_aviso_agua_t -= dt
+				if _aviso_agua_t <= 0.0:
+					_aviso_agua_t = 4.0
+					jogo.hud.aviso("O carrinho não entra na água.")
+			else:
+				var x0 := x
+				var z0 := z
+				mover(sin(ry) * d, cos(ry) * d)
+				var andou := Vector2(x - x0, z - z0).length()
+				if bloqueado and andou < absf(d) * 0.3:
+					v *= 0.2
+				if tr:
+					tr.gastou(andou)
+		passo_vertical(dt)
+	else:
+		var B: Dictionary = V[k]
+		var fundo_min: float = float(B.fundo) * 0.5
+		if k == "navio": # mgNvMv: empuxo pelo cosseno do ângulo, acelera 0,9 m/s²
+			var th := 0.0
+			if mag > 0.12:
+				dif = ad(atan2(mx, mz), ry)
+				th = mag * max(0.25, cos(dif))
+				ry += clamp(dif, -1.0, 1.0) * (0.3 + 0.4 * min(1.0, absf(v) / 2.0)) * dt
+			v += clamp(th * float(B.vel) - v, -float(B.acelera) * dt, float(B.acelera) * dt)
+		else: # Oy: remada, até 5,6 m/s, a água freia
+			if mag > 0.12:
+				dif = ad(atan2(mx, mz), ry)
+				ry += clamp(dif, -float(B.giro) * dt, float(B.giro) * dt) * (0.45 + 0.55 * min(1.0, absf(v) / 2.0 + 0.3))
+			var rema: float = mag * (1.0 - min(0.55, absf(clamp(dif, -1.2, 1.2)) * 0.45)) if mag > 0.12 else 0.0
+			v += (rema * float(B.vel) - v) * 0.55 * dt * 2.0
+		var d := v * dt
+		var nx := x + sin(ry) * d
+		var nz := z + cos(ry) * d
+		var L: Dictionary = T.no_lago(nx, nz)
+		if not L.is_empty() and float(L.fundo) >= fundo_min:
+			x = nx
+			z = nz
+		else:
+			if absf(v) > 1.2:
+				jogo.sons.tocar("arvore_estalo", -14.0)
+			v = -v * 0.25
+		y = float(T.agua.nivel)
+		vy = 0.0
+		chao = true
+	veiculo.v = v
+	vx = sin(ry) * v
+	vz = cos(ry) * v
+	giro = 0.0
+	anim = ""
+var _sem_comb_t := 0.0
+var _aviso_agua_t := 0.0

@@ -23,7 +23,7 @@ export const VISAO = {
 };
 
 // o que muda quase toda foto
-const MUDA_J = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'escudo', 'coleta', 'montado'];
+const MUDA_J = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'escudo', 'coleta', 'montado', 'pack', 'veiculo'];
 const MUDA_I = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'ef'];
 // o que quase não muda. Dos OUTROS jogadores o celular só usa isto (online.gd: outro e animar);
 // recargas, missões, mana, estamina e build são só do dono e vão só para ele (inteiro, como antes).
@@ -66,7 +66,8 @@ export class Visao {
     const mapa = this.passos % VISAO.mapaCada === 1
       ? JSON.stringify(foto.jogadores.filter((j) => !j.criando).map((j) => [j.id, r1(j.x), r1(j.z)]))
       : null;
-    return { foto, pos, jogadores, inimigos, evs, total, mapa, veios: JSON.stringify(foto.veios || []) };
+    // spots de pesca e carga (packs no chão, carrinhos e navios: FASE 1) vão iguais para todos
+    return { foto, pos, jogadores, inimigos, evs, total, mapa, veios: JSON.stringify(foto.veios || []), spots: JSON.stringify(foto.spots || []), carga: JSON.stringify(foto.carga || { packs: [], veic: [] }) };
   }
 
   // a mensagem "mundoJ" de um jogador: só o que está perto do herói dele, e de cada corpo só o que mudou
@@ -120,6 +121,6 @@ export class Visao {
       if (ev.para) { if (ev.para === id) es.push(ev.s); continue; }
       if (ev.x === null || (ev.x - px) ** 2 + (ev.z - pz) ** 2 <= r2ev) es.push(ev.s);
     }
-    return `{"foto":{"tempo":${ctx.foto.tempo},"aoi":1,"total":${ctx.total},"jogadores":[${js.join(',')}],"inimigos":[${is.join(',')}],"veios":${ctx.veios}${ctx.mapa ? `,"mapa":${ctx.mapa}` : ''}},"eventos":[${es.join(',')}]}`;
+    return `{"foto":{"tempo":${ctx.foto.tempo},"aoi":1,"total":${ctx.total},"jogadores":[${js.join(',')}],"inimigos":[${is.join(',')}],"veios":${ctx.veios},"spots":${ctx.spots},"carga":${ctx.carga}${ctx.mapa ? `,"mapa":${ctx.mapa}` : ''}},"eventos":[${es.join(',')}]}`;
   }
 }

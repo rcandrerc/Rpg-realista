@@ -1261,6 +1261,43 @@
    "venda": 8,
    "ferramenta": "pescar",
    "desc": "Chegue na beira de um spot de pesca (a água borbulhando) e toque no botão de pescar. Quando a boia afundar, toque de novo rapidinho! Aguenta 150 peixes."
+  },
+  "galao": {
+   "nome": "Combustível",
+   "mat": true,
+   "pilha": 20,
+   "venda": 4,
+   "desc": "Galão pro carrinho de carga. Cada um roda uns 160 m. Toque no carrinho pra abastecer."
+  },
+  "carrinho": {
+   "nome": "Carrinho de carga",
+   "pilha": 1,
+   "venda": 60,
+   "ferramenta": "carrinho",
+   "usar": {
+    "veiculo": "carrinho"
+   },
+   "desc": "Carrinho a combustível. Leva 2 packs (melhore na bancada até 8), e você ainda leva 1 nas costas. Quebra se apanhar muito dos monstros, mas dá pra consertar. Use na mochila pra colocar no chão."
+  },
+  "barquinho": {
+   "nome": "Barquinho",
+   "pilha": 1,
+   "venda": 40,
+   "ferramenta": "barquinho",
+   "usar": {
+    "veiculo": "barquinho"
+   },
+   "desc": "Barco de madeira pra 2 pessoas, a remo. Chegue na beira da água e use na mochila. Leva só o pack das suas costas."
+  },
+  "navio": {
+   "nome": "Navio mercante",
+   "pilha": 1,
+   "venda": 4000,
+   "ferramenta": "navio",
+   "usar": {
+    "veiculo": "navio"
+   },
+   "desc": "Leva 16 packs no porão (mais 1 nas costas). Na beira de água funda, use na mochila pra pôr na água; você pilota e ancora em qualquer margem. Fazer custa 40.000 de ouro e precisa Nv 60."
   }
  },
  "raridades": [
@@ -2609,6 +2646,45 @@
    },
    "bancada": true,
    "para": "radar"
+  },
+  "galao": {
+   "custo": {
+    "carvao": 2,
+    "tecido": 1
+   },
+   "bancada": true,
+   "para": "abastecer",
+   "varios": true
+  },
+  "carrinho": {
+   "custo": {
+    "lenha": 30,
+    "barra_ferro": 6,
+    "barra_cobre": 4,
+    "couro": 4
+   },
+   "bancada": true,
+   "para": "carrinho"
+  },
+  "barquinho": {
+   "custo": {
+    "lenha": 30,
+    "couro": 4
+   },
+   "bancada": true,
+   "para": "barquinho"
+  },
+  "navio": {
+   "custo": {
+    "lenha": 400,
+    "barra_ferro": 40,
+    "barra_cobre": 30,
+    "couro": 40
+   },
+   "bancada": true,
+   "para": "navio",
+   "nivel": 60,
+   "ouro": 40000
   }
  },
  "casa": {
@@ -3168,6 +3244,246 @@
   "radar": {
    "mostra": 180,
    "recarga": 60
+  }
+ },
+ "packs": {
+  "lenha": {
+   "nome": "Pack de Lenha Nobre",
+   "custo": {
+    "lenha": 20
+   },
+   "base": 45,
+   "cor": "#a0703a"
+  },
+  "pedra": {
+   "nome": "Pack de Pedra Lapidada",
+   "custo": {
+    "pedra": 18,
+    "cristal": 1
+   },
+   "base": 60,
+   "cor": "#a8a29a"
+  },
+  "horta": {
+   "nome": "Pack de Temperos da Horta",
+   "custo": {
+    "rabanete": 4,
+    "cenoura": 4,
+    "tomate": 3
+   },
+   "base": 85,
+   "cor": "#e8742a"
+  },
+  "conserva": {
+   "nome": "Pack de Conservas",
+   "custo": {
+    "batata": 5,
+    "milho": 4,
+    "tecido": 2
+   },
+   "base": 100,
+   "cor": "#c9a46a"
+  },
+  "abobora": {
+   "nome": "Pack de Doce de Abóbora",
+   "custo": {
+    "abobora": 2,
+    "rabanete": 6,
+    "pao_milho": 2
+   },
+   "base": 130,
+   "cor": "#ff9a2a"
+  },
+  "couro": {
+   "nome": "Pack de Couro Curtido",
+   "custo": {
+    "couro": 8,
+    "carne": 2
+   },
+   "base": 80,
+   "cor": "#8a5a34"
+  },
+  "metal": {
+   "nome": "Pack de Barras de Metal",
+   "custo": {
+    "barra_ferro": 3,
+    "barra_cobre": 3
+   },
+   "base": 140,
+   "cor": "#9aa3ad"
+  },
+  "peixe": {
+   "nome": "Pack de Peixe Salgado",
+   "custo": {
+    "lambari": 4,
+    "tilapia": 2,
+    "pedra": 3
+   },
+   "base": 95,
+   "cor": "#7ab8e0"
+  },
+  "perola": {
+   "nome": "Pack de Pérolas",
+   "custo": {
+    "traira": 3,
+    "cristal": 2,
+    "tecido": 3
+   },
+   "base": 150,
+   "cor": "#e8e4f4"
+  },
+  "ervas": {
+   "nome": "Pack de Ervas do Pântano",
+   "custo": {
+    "rabanete": 8,
+    "tecido": 4,
+    "fragmento": 2
+   },
+   "base": 160,
+   "cor": "#6a9a3a"
+  },
+  "obsid": {
+   "nome": "Pack de Obsidiana",
+   "custo": {
+    "pedra": 25,
+    "cristal": 3,
+    "barra_ferro": 2
+   },
+   "base": 190,
+   "cor": "#3a3040"
+  },
+  "brasa": {
+   "nome": "Pack de Brasa Viva",
+   "custo": {
+    "cristal": 4,
+    "carvao": 6,
+    "barra_aco": 1
+   },
+   "base": 220,
+   "cor": "#d0461c"
+  }
+ },
+ "packRegras": {
+  "k": 1.4,
+  "extra": 1.2,
+  "perto": 40,
+  "vigor": 12,
+  "dist": {
+   "curto": 462,
+   "a": 0.3,
+   "porM": 0.007142857142857143,
+   "maxCurto": 3.6,
+   "porMLongo": 0.002,
+   "max": 6
+  },
+  "areas": {
+   "niveis": [
+    1,
+    10,
+    30,
+    50,
+    70
+   ],
+   "fator": [
+    1,
+    1.8,
+    2.9,
+    4.3,
+    5.9
+   ],
+   "raio": 60
+  },
+  "mercado": {
+   "livres": 4,
+   "cai": 0.03,
+   "minimo": 0.5,
+   "volta": 360
+  },
+  "mercador": {
+   "material": 0.15,
+   "preco": 0.25
+  },
+  "navio": 1.5,
+  "navioMin": 30,
+  "costas": {
+   "vel": 0.68
+  },
+  "pegar": 2.5,
+  "falar": 4
+ },
+ "veiculos": {
+  "carrinho": {
+   "nome": "Carrinho de carga",
+   "vida": 400,
+   "vel": 2.8,
+   "perdePorPack": 0.05,
+   "packsLivres": 2,
+   "giro": 2.4,
+   "acelera": 1.3,
+   "freia": 3.5,
+   "curvaFechada": 1.6,
+   "curvaK": 0.3,
+   "galao": 160,
+   "tanque": 5,
+   "capacidade": 2,
+   "nivelMax": 4,
+   "melhorar": [
+    null,
+    null,
+    {
+     "lenha": 40,
+     "barra_ferro": 8,
+     "barra_cobre": 6,
+     "couro": 6,
+     "ouro": 2000
+    },
+    {
+     "lenha": 60,
+     "barra_ferro": 14,
+     "barra_cobre": 10,
+     "couro": 10,
+     "ouro": 8000
+    },
+    {
+     "lenha": 100,
+     "barra_ferro": 24,
+     "barra_cobre": 16,
+     "couro": 16,
+     "ouro": 25000
+    }
+   ],
+   "golpe": 1.1,
+   "heroi": 0.2,
+   "consertoQuebrado": {
+    "lenha": 8,
+    "barra_ferro": 1
+   },
+   "consertoParcial": {
+    "lenha": 4
+   },
+   "perto": 3.5,
+   "entregar": 12,
+   "carregar": 8
+  },
+  "barquinho": {
+   "nome": "Barquinho",
+   "vel": 5.6,
+   "giro": 1.6,
+   "pessoas": 2,
+   "packs": 0,
+   "fundo": 0.35,
+   "perto": 3.5
+  },
+  "navio": {
+   "nome": "Navio mercante",
+   "vel": 4,
+   "acelera": 0.9,
+   "giro": 0.7,
+   "porao": 16,
+   "fundo": 1.6,
+   "ancorar": 1.6,
+   "perto": 18,
+   "cabe": 4.5
   }
  }
 }

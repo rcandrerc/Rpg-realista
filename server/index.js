@@ -106,6 +106,9 @@ class SalaClareira extends Room {
     this.ouvir('regador', (c) => this.sim.encherRegador(c.sessionId)); // encher no poço da vila ou na beira do lago
     // pescaria (igual ao Quimera, André 2026-11-08): lançar (onde a boia cai), puxar (o "!" e a briga) e recolher
     this.ouvir('pescar', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 8) this.sim.pescar(c.sessionId, { acao: m.acao, x: Number(m.x), z: Number(m.z) }); });
+    // FASE 1 (André 2026-11-09): packs e transportes do Quimera (shared/transporte.js decide tudo)
+    this.ouvir('pack', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 16) this.sim.pack(c.sessionId, { acao: m.acao, npc: String(m.npc || '').slice(0, 24), de: String(m.de || '').slice(0, 10), i: Number.isInteger(m.i) ? m.i : 0, g: String(m.g || '').slice(0, 12) }); });
+    this.ouvir('veiculo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.veiculo(c.sessionId, { acao: m.acao, k: String(m.k || '').slice(0, 12), x: Number(m.x), z: Number(m.z), ry: Number(m.ry) }); });
     this.ouvir('dormir', (c) => this.sim.dormir(c.sessionId)); // dormir na cama do meu terreno (dia e noite do Quimera)
     this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1 }); });
     this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1, r: String(m.r || '').slice(0, 20), n: Number.isInteger(m.n) ? Math.max(1, Math.min(m.n, 99)) : 1 }); });
@@ -231,6 +234,7 @@ class SalaClareira extends Room {
     if (!consentiu && !client.userData?.substituido) {
       try { await this.allowReconnection(client, 20); return; } catch { /* não voltou a tempo */ }
     }
+    { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
     this.sim.removerJogador(client.sessionId);
     this.visao.esquecer(client.sessionId);

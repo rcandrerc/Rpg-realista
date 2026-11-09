@@ -23,6 +23,7 @@ const ACOES := {
 	"cura": ["Curar", "cura"],
 	"resetar": ["Resetar build", "desfazer"],
 	"passe": ["Fazer passe da caverna", "it_passe_caverna"], # Gaspar, na boca da Caverna da Montanha (2026-11-06)
+	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
 }
 
 var m # main.gd
@@ -250,6 +251,8 @@ func abrir(n: Dictionary) -> void:
 		fala_ui.text = "Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro."
 	elif n.funcao == "passe": # o Gaspar mostra o material do passe em ícones, com quanto você já tem
 		fala_ui.text = _fala_passe()
+	elif n.funcao == "pack" and m.transporte: # mercador de pack: material, quanto paga em cada um e o que dá para entregar
+		fala_ui.text = m.transporte.opcoes_mercador(n)[0]
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
 	_itens_passe(n.funcao == "passe")
@@ -342,6 +345,20 @@ func escolher(a: String) -> void:
 				m.hud.aviso(r)
 				m.sons.tocar("forja", -4.0)
 			_atualizar_consertar()
+		"pack": # FASE 1: as opções do mercador (fazer o pack, entregar o das costas, do carrinho ou do porão)
+			var r: Array = m.transporte.opcoes_mercador(n)
+			fala_ui.text = r[0]
+			for c in opcoes.get_children():
+				opcoes.remove_child(c)
+				c.queue_free()
+			for o in r[1]:
+				var fn: Callable = o[2]
+				opcoes.add_child(_opcao(str(o[0]), str(o[1]), func(): fn.call(); escolher.call_deferred("pack_volta")))
+			opcoes.add_child(_opcao("Até logo", "sair", fechar))
+		"pack_volta": # depois de fazer/entregar, a lista refaz quando o servidor responde (o progresso chega um instante depois)
+			await get_tree().create_timer(0.5).timeout
+			if npc == n:
+				escolher("pack")
 		"passe": # faz um passe com o material dos monstros (o servidor confere e gasta; a resposta chega em fala())
 			if not m.on():
 				fala_ui.text = "Sem conexão com o servidor eu não posso fazer o passe. Volte depois."
