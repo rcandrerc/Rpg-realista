@@ -3780,7 +3780,7 @@ func _montar_bau() -> void:
 const COLADO := 1.25 # m da borda da peça
 const GRADE_IR := 0.4 # m por quadrado da grade
 const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
-const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
+const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "fornalha": ["fornalha"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
@@ -3870,7 +3870,7 @@ func _abrir_estacao(qual: String, p) -> void:
 	match qual:
 		"bau":
 			abrir_bau()
-		"forno":
+		"forno", "fornalha": # "fornalha": botão da aba Criar (menu.gd ir_fornalha) vai só até a fornalha
 			abrir_forno(str(p.id))
 		"cama": # do lado da cama: o servidor confere a noite e os monstros e responde "dormiu" (dia_noite.gd)
 			if m.on():
