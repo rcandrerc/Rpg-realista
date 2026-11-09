@@ -88,7 +88,7 @@ ok(dentro, 'a emenda fica dentro do mapa de antes');
 // FASE 2 (André 2026-11-08): spots pequenos de pedra, cobre, ferro e cristal espalhados, em chão plano, sem árvore
 // dentro, longe dos campos de caça; de qualquer campo de caça tem pedra e cobre por perto.
 import { relevo } from '../../shared/relevo.js';
-const pq = M.mina.filter((z) => z.pequeno);
+const pq = M.mina.filter((z) => z.pequeno && !z.tunel); // os de dentro das cavernas: ferramentas/testes/cavernas-mundo.mjs
 ok(['pedra', 'cobre', 'ferro', 'cristal'].every((t) => pq.filter((z) => z.tipo === t).length >= 3), 'pelo menos 3 spots pequenos de cada minério (com cristal)');
 for (const z of pq) {
   const n = [...s.coletaveis.values()].filter((c) => c.mina === z.id).length;
@@ -97,7 +97,7 @@ for (const z of pq) {
     && !M.caca.some((c) => Math.hypot(c.x - z.x, c.z - z.z) < c.r + 6) && dentroDoMapa(M, z.x, z.z, z.r + 2), `${z.id}: 3 pedras, plano, sem árvore, fora da caça, dentro do mapa`);
   ok(M.mina.every((o) => o === z || Math.hypot(o.x - z.x, o.z - z.z) > 15), `${z.id} longe dos outros veios`);
 }
-for (const c of M.caca) for (const t of ['pedra', 'cobre']) {
+for (const c of M.caca.filter((c) => !c.tunel)) for (const t of ['pedra', 'cobre']) { // covil de caverna tem o minério dele lá dentro
   const d = Math.min(...M.mina.filter((z) => z.tipo === t).map((z) => Math.hypot(z.x - c.x, z.z - c.z)));
   ok(d < 75, `${c.id}: ${t} a ${Math.round(d)} m`);
 }

@@ -20,6 +20,9 @@ var tunel_grade := {}
 var tunel_caixa := Rect2()
 var porta := 12.0 # s do selo
 const TUNEL_G := 4.0
+# Parte 8 (2026-11-09): as cavernas do mundo grande (mundo.json cavernas_mundo), cada uma {id, nome, A, grade, caixa,
+# folga, salas}. A conta é a mesma do túnel da dungeon; o selo e o passe são só da dungeon.
+var tuneis_mundo: Array = []
 
 # FASE 3 (shared/mundo.js): a grade do mundo grande, os continentes em volta do mapa de hoje (dados/mundo_grade.json).
 # Na terra soma na altura; no mar vira água (no_lago devolve o MAR). Mesma conta de shared/relevo.js.
@@ -148,6 +151,12 @@ func _init(mundo: Dictionary) -> void:
 		for a in cv.amostras:
 			tunel.append({"s": float(a.s), "x": float(a.x), "z": float(a.z), "y": float(a.y), "l": float(a.l), "teto": float(a.teto), "dx": float(a.dx), "dz": float(a.dz), "incl": float(a.get("incl", 0.0))})
 		_grade_tunel(float(cv.folga))
+	for cm in m.get("cavernas_mundo", []):
+		var A2: Array = []
+		for a in cm.amostras:
+			A2.append({"s": float(a.s), "x": float(a.x), "z": float(a.z), "y": float(a.y), "l": float(a.l), "teto": float(a.teto), "dx": float(a.dx), "dz": float(a.dz), "incl": float(a.get("incl", 0.0))})
+		var g := _montar_grade(A2, float(cm.folga))
+		tuneis_mundo.append({"id": str(cm.id), "nome": str(cm.nome), "A": A2, "grade": g.grade, "caixa": g.caixa, "folga": float(cm.folga), "salas": cm.salas})
 	for g in m.grades:
 		grades.append({"x0": float(g.x0), "z0": float(g.z0), "passo": float(g.passo), "nx": int(g.nx), "nz": int(g.nz), "h": PackedFloat32Array(g.h)})
 	for s in m.solidos:
@@ -515,6 +524,12 @@ func frente(x: float, z: float, ry: float, ate: float, acima, y: float) -> Dicti
 
 # ---------- Caverna da Montanha (shared/caverna.js: a mesma conta) ----------
 func _grade_tunel(folga: float) -> void:
+	var g := _montar_grade(tunel, folga)
+	tunel_grade = g.grade
+	tunel_caixa = g.caixa
+
+func _montar_grade(tunel: Array, folga: float) -> Dictionary:
+	var tunel_grade := {}
 	var x0 := INF
 	var z0 := INF
 	var x1 := -INF
@@ -537,10 +552,23 @@ func _grade_tunel(folga: float) -> void:
 				if not tunel_grade.has(key):
 					tunel_grade[key] = []
 				tunel_grade[key].append(k)
-	tunel_caixa = Rect2(x0, z0, x1 - x0, z1 - z0)
+	return {"grade": tunel_grade, "caixa": Rect2(x0, z0, x1 - x0, z1 - z0)}
 
-# onde (x, z) cai no túnel: {s, y, l, teto, d} ou vazio fora (extra = metros além da beira andável)
+# onde (x, z) cai em alguma caverna: {s, y, l, teto, d, id} ou vazio fora (extra = metros além da beira andável).
+# id "" = a dungeon (Caverna da Montanha, com o selo); senão, a caverna do mundo grande
 func no_tunel(x: float, z: float, extra := 0.0) -> Dictionary:
+	var c := _no_tunel_em(tunel, tunel_grade, tunel_caixa, x, z, extra)
+	if not c.is_empty():
+		c.id = ""
+		return c
+	for t in tuneis_mundo:
+		c = _no_tunel_em(t.A, t.grade, t.caixa, x, z, extra)
+		if not c.is_empty():
+			c.id = t.id
+			return c
+	return {}
+
+func _no_tunel_em(tunel: Array, tunel_grade: Dictionary, tunel_caixa: Rect2, x: float, z: float, extra: float) -> Dictionary:
 	if tunel.is_empty() or not tunel_caixa.has_point(Vector2(x, z)):
 		return {}
 	var l = tunel_grade.get(floori(x / TUNEL_G) * 10007 + floori(z / TUNEL_G))
@@ -600,7 +628,7 @@ func dentro_caverna(x: float, z: float, y: float) -> Dictionary:
 # passou do selo (do selo para dentro da caverna)? folga > 0 conta o selo um pouco antes (andar.gd para o herói antes da linha)
 func alem_do_selo(x: float, z: float, y: float, folga := 0.0) -> bool:
 	var c := dentro_caverna(x, z, y + 0.3)
-	return not c.is_empty() and float(c.s) > porta - folga
+	return not c.is_empty() and c.id == "" and float(c.s) > porta - folga
 
 # chão "natural" para a conta da encosta íngreme: o da caverna lá dentro, a montanha fora
 func chao_relevo_em(x: float, z: float, y: float) -> float:

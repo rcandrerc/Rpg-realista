@@ -4,7 +4,7 @@ import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
 import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
-import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
+import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA } from './dados.js';
@@ -294,14 +294,14 @@ export class Simulacao {
     const vila = mapa.vila || { casas: [], arvores: [] };
     // onde se coleta (Parte 3): veios do Minerador (v0, v1...) e as árvores do Lenhador (a0, a1...)
     this.coletaveis = new Map([
-      ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), ...(v.mina ? { mina: v.mina } : {}) }]),
+      ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), ...(v.mina ? { mina: v.mina } : {}), ...(v.y != null ? { y: v.y } : {}) }]),
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
       ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // pedras e galhos soltos no chão (André 2026-11-07): pega com a mão; não são sólidos (s0, s1...)
       ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
-    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i })), // veio: some quando esgota (veioVazio)
+    this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i, ...(v.y != null ? { alto: v.y + 2.5 } : {}) })), // veio: some quando esgota (veioVazio)
       ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
       ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto, semTopo: 1 }))]; // ninguém fica em pé no espantalho
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
@@ -312,7 +312,7 @@ export class Simulacao {
     for (const a of mapa.mata || []) {
       const k = Math.floor(a.x / 6) * 10007 + Math.floor(a.z / 6);
       if (!this.mata.has(k)) this.mata.set(k, []);
-      this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s });
+      this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s, ...(a.y ? { base: a.y } : {}) }); // base: chão da árvore do mundo grande
     }
     // ruínas, rochedos, troncos caídos e pedras da mata (MAPA_CLAREIRA.cenario): na mesma grade (são todos menores que 2 m
     // de raio, e quem pergunta olha as 9 casas em volta)
@@ -364,7 +364,10 @@ export class Simulacao {
       const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * d.r * d.ate, x = d.x + Math.cos(a) * r, z = d.z + Math.sin(a) * r;
       if (!inicio && [...this.jogadores.values()].some((j) => !j.morto && Math.hypot(j.x - x, j.z - z) < d.longe)) continue;
       if (this.obstaculos.some((k) => Math.hypot(k.x - x, k.z - z) < k.r + 0.8) || !dentroDoMapa(this.mapa, x, z, 2.2)) continue;
-      vg.e = this.criarInimigo({ tipo: vg.tipo, x, z, caca: ci, vaga: vg.k, v: vg.v, nivel: d.nivel || 1 });
+      // covil dentro de caverna do mundo grande: nasce no túnel, longe da parede
+      const C = d.tunel && TUNEIS.find((t) => t.id === d.tunel), c = C && noTunel(C, x, z);
+      if (C && (!c || c.d > c.l - 1)) continue;
+      vg.e = this.criarInimigo({ tipo: vg.tipo, x, z, caca: ci, vaga: vg.k, v: vg.v, nivel: d.nivel || 1, ...(C ? { tunel: C.id } : {}) });
       return true;
     }
     return false;
@@ -476,7 +479,8 @@ export class Simulacao {
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
       nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
-    if (!sp.caverna && !t.treino) e.y = Math.max(0, relevo(e.x, e.z)); // no chão do mundo grande (0 no mapa de hoje)
+    if (sp.tunel) this.prenderNoTunel(e); // covil de caverna do mundo grande: no chão da caverna
+    else if (!sp.caverna && !t.treino) e.y = Math.max(0, relevo(e.x, e.z)); // no chão do mundo grande (0 no mapa de hoje)
     if (t.treino) { e.treino = true; e.ry = sp.ry || 0; e.anim = 'Idle'; } // espantalho: fica plantado onde está
     this.inimigos.push(e);
     return e;
@@ -1106,6 +1110,19 @@ export class Simulacao {
     }
     const cv = noTunel(TUNEL, c.x, c.z); if (cv) c.y = cv.y;
   }
+  // monstro do covil de uma caverna do mundo grande: não sai do túnel (nem pela boca: fica até 4 m dela) e pisa no
+  // chão da caverna
+  prenderNoTunel(c) {
+    const C = TUNEIS.find((t) => t.id === c.sp.tunel); if (!C) return;
+    const A = C.amostras, lim = noTunel(C, c.x, c.z, 50);
+    if (!lim) { const b = A[Math.min(A.length - 1, 8)]; c.x = b.x; c.z = b.z; }
+    else {
+      const k = Math.max(0, Math.min(A.length - 1, Math.round(lim.s / C.def.passo))), a = A[k];
+      if (lim.s < 4) { const b = A[4]; c.x = b.x; c.z = b.z; }
+      else if (lim.d > lim.l - 0.6) { const k2 = (lim.l - 0.6) / lim.d; c.x = a.x + (c.x - a.x) * k2; c.z = a.z + (c.z - a.z) * k2; }
+    }
+    const cv = noTunel(C, c.x, c.z); if (cv) c.y = cv.y;
+  }
   item(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object' || j.criando) return;
     if (m.acao === 'fazer_passe' || m.acao === 'usar_passe') { // Caverna da Montanha (Gaspar e o selo)
@@ -1660,7 +1677,7 @@ export class Simulacao {
     const no = this.coletaveis.get(m.no), aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!no) return;
     if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
-    if (dist(no, j) - no.r > COLETA_DISTANCIA) return aviso('Chegue mais perto');
+    if (dist(no, j) - no.r > COLETA_DISTANCIA || (no.y != null && Math.abs((j.y || 0) - no.y) > 2.5)) return aviso('Chegue mais perto'); // veio de caverna: lá dentro
     const C = COLETA[no.tipo];
     if (C.mao) return this.pegarSolto(j, no, C);
     // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
@@ -2934,6 +2951,7 @@ export class Simulacao {
     for (const k of c.tipo === 'jogador' ? [...this.obstaculos, ...this.pertoNaMata(c.x, c.z)] : [...this.obstaculos, ...this.obstaculosRocha, ...this.pertoNaMata(c.x, c.z)]) {
       if (k.alto != null && (c.y || 0) > k.alto - 0.05) continue; // por cima (esteio da ferraria visto do telhado, em pé na bancada)
       if (k.veio && this.veioVazio(k.veio, c)) continue; // veio esgotado: a pedra sumiu, dá para passar
+      if (k.base != null && (c.y || 0) < k.base - 2.5) continue; // árvore lá em cima da montanha, e quem está embaixo, na caverna
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }
@@ -2954,10 +2972,11 @@ export class Simulacao {
     }
     [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
     if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
+    else if (c.sp?.tunel) this.prenderNoTunel(c); // e o do covil das cavernas do mundo grande também
   }
   mover(c, dx, dz) {
     if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c);
-    if (!c.sub) c.y = Math.max(0, relevo(c.x, c.z)); // FASE 3: monstro anda no relevo do mundo grande (morro, platô)
+    if (!c.sub && !c.sp?.tunel) c.y = Math.max(0, relevo(c.x, c.z)); // FASE 3: monstro anda no relevo do mundo grande (morro, platô)
   }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
   moverJogador(j, dx, dz) {

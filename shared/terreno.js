@@ -1,6 +1,6 @@
 // Chão com pedras: a altura em cada ponto vem da forma real dos modelos (grade em shared/rochas.js).
 // O herói não atravessa pedra: degrau baixo ele sobe andando, mais alto ele escala.
-import { TUNEL, chaoDaCaverna, dentroDaCaverna } from './caverna.js';
+import { chaoDosTuneis, dentroDosTuneis } from './caverna.js';
 import { GRADES } from './rochas.js';
 import { chaoDoRelevo } from './relevo.js';
 
@@ -189,7 +189,7 @@ export class Terreno {
   altura(x, z, y) {
     let h = chaoDoRelevo(x, z);
     // caverna da montanha (shared/caverna.js): dentro do túnel e abaixo do teto dele, o chão é o da caverna
-    const cv = chaoDaCaverna(TUNEL, x, z, y); if (cv != null && cv < h) h = cv;
+    const cv = chaoDosTuneis(x, z, y); if (cv != null && cv < h) h = cv; // e as cavernas do mundo grande
     for (const r of this.solidos) { const a = this.alturaNa(r, x, z, y); if (a > h && a >= 0) h = a; } // -1 = fora da peça (no lago o chão fica abaixo de -1)
     if (this.tampos.size) h = Math.max(h, this.tampoEm(x, z));
     return h;
@@ -197,7 +197,7 @@ export class Terreno {
   // teto: a parte de baixo da peça suspensa mais baixa acima de quem está em (x, y, z) (Infinity se céu aberto)
   teto(x, z, y) {
     let t = Infinity;
-    const cv = dentroDaCaverna(TUNEL, x, z, y); if (cv) t = cv.y + cv.teto; // o teto da caverna
+    const cv = dentroDosTuneis(x, z, y); if (cv) t = cv.y + cv.teto; // o teto da caverna
     for (const r of this.casas) if (r.base > y + ACIMA && r.base < t && this.alturaCasa(r, x, z) >= 0) t = r.base;
     for (const r of this.doJogador) if (r.base > y + ACIMA && r.base < t && this.alturaCasa(r, x, z) >= 0) t = r.base;
     return t;

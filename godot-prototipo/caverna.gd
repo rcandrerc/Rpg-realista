@@ -21,7 +21,14 @@ const CHAO_N := 7 # pontos do chão por anel
 
 var m # main.gd
 var T # terreno.gd
-var A: Array = [] # T.tunel
+var A: Array = [] # T.tunel (ou o túnel da caverna do mundo grande)
+# Parte 8 (2026-11-09): o mesmo desenho serve as cavernas do mundo grande (terreno.gd tuneis_mundo). Lá não tem selo,
+# passe, pilares lavrados nem braseiros (caverna de verdade, aberta): só a rocha, as tochas, os cristais e as pedras.
+var id := "" # "" = a dungeon
+var dungeon := true
+var caixa := Rect2()
+var porta := 12.0
+var salas: Array = []
 var folga := 0.35
 const BURACO_ATE := 5.0 # metros do túnel (a partir da boca) em que a montanha pode abrir buraco para o arco aparecer
 var montada := false
@@ -43,12 +50,25 @@ var _amb_cor0 := Color()
 var _amb_ceu0 := 1.0
 var escuro := 0.0 # 0 fora, 1 no fundo da caverna
 
-func _init(main, terreno) -> void:
+func _init(main, terreno, cav := {}) -> void:
 	m = main
 	T = terreno
-	A = T.tunel
-	name = "Caverna"
-	folga = float(T.m.get("caverna", {}).get("folga", 0.35))
+	if cav.is_empty():
+		A = T.tunel
+		name = "Caverna"
+		folga = float(T.m.get("caverna", {}).get("folga", 0.35))
+		caixa = T.tunel_caixa
+		porta = T.porta
+		salas = T.m.get("caverna", {}).get("salas", [])
+	else:
+		dungeon = false
+		id = str(cav.id)
+		A = cav.A
+		name = "Caverna_" + id
+		folga = float(cav.folga)
+		caixa = cav.caixa
+		porta = 0.0
+		salas = cav.salas
 	_ruido.seed = 4417
 	_ruido.frequency = 0.32
 	_ruido.fractal_octaves = 3
@@ -94,12 +114,13 @@ func _process(dt: float) -> void:
 				l.no.visible = l.p.distance_to(hp) < float(l.get("longe", LUZ_LONGE))
 		_criar_monstros()
 	_luz_de_dentro(hp, dt)
-	_botao_do_selo(hp)
+	if dungeon:
+		_botao_do_selo(hp)
 	if selo_mat:
 		selo_mat.set_shader_parameter("aberto", move_toward(float(selo_mat.get_shader_parameter("aberto")), 1.0 if m.mov.selo_aberto else 0.0, dt * 1.5))
 
 func _distancia(p: Vector3) -> float:
-	var r: Rect2 = T.tunel_caixa
+	var r: Rect2 = caixa
 	var dx := maxf(0.0, maxf(r.position.x - p.x, p.x - r.end.x))
 	var dz := maxf(0.0, maxf(r.position.y - p.z, p.z - r.end.y))
 	return Vector2(dx, dz).length()
@@ -116,7 +137,8 @@ func montar() -> void:
 	_fila.append(_corte_na_montanha.bind(true))
 	_fila.append(_portal_da_boca)
 	_fila.append(_fundo)
-	_fila.append(_selo)
+	if dungeon:
+		_fila.append(_selo)
 	_fila.append(_enfeites)
 
 func desmontar() -> void:
@@ -248,7 +270,8 @@ func _paredao() -> void:
 	var H: float = float(a.teto)
 	var cy := H * 0.35
 	var Wf := W + 3.8
-	var topo := maxf(T.altura(O.x + d.x * 3.0, O.z + d.z * 3.0), O.y + H + 2.2) + 0.6 # um pouco acima da rocha de trás
+	var atras := 3.0 if dungeon else 7.0 # no mundo grande a rocha por cima da boca começa uns metros para dentro
+	var topo := maxf(T.altura(O.x + d.x * atras, O.z + d.z * atras), O.y + H + 2.2) + 0.6 # um pouco acima da rocha de trás
 	var Hf := topo - O.y - cy
 	var pf := _perfil(a)
 	var arco: Array = [[W, -1.2, 0.0]] + pf.slice(CHAO_N - 1) + [pf[0], [-W, -1.2, 0.0]]
@@ -318,10 +341,21 @@ var _mat_paredao: ShaderMaterial
 # a montanha (relevo.gd, nó "Montanha") deixa de desenhar o que fica dentro do vão do arco, só enquanto a caverna está
 # montada (de longe a boca fica tapada pela rocha e nada aparece furado)
 func _corte_na_montanha(ligado: bool) -> void:
-	var mt := get_tree().root.find_child("Montanha", true, false) if is_inside_tree() else null
-	if mt == null or not (mt is MeshInstance3D) or not (mt.material_override is ShaderMaterial):
-		return
-	var mm: ShaderMaterial = mt.material_override
+	var mm: ShaderMaterial = null
+	if dungeon:
+		var mt := get_tree().root.find_child("Montanha", true, false) if is_inside_tree() else null
+		if mt == null or not (mt is MeshInstance3D) or not (mt.material_override is ShaderMaterial):
+			return
+		mm = mt.material_override
+	else: # o chão dos continentes (mundo_terreno.gd): um corte por vez, o da caverna montada
+		var mg := get_tree().root.find_child("MundoGrande", true, false) if is_inside_tree() else null
+		if mg == null or not (mg.get("_mat_chao") is ShaderMaterial):
+			return
+		mm = mg.get("_mat_chao")
+		if not ligado and str(mm.get_meta("boca_de", "")) != id:
+			return # outra caverna já pegou o corte
+		mm.set_meta("boca_de", id if ligado else "")
+		mm.set_shader_parameter("boca_ate", 10.0)
 	var a: Dictionary = A[0]
 	mm.set_shader_parameter("boca_on", 1.0 if ligado else 0.0)
 	mm.set_shader_parameter("boca_o", Vector3(float(a.x), float(a.y), float(a.z)))
@@ -363,7 +397,7 @@ func _ponto_s(s: float, lado := 0.0) -> Dictionary:
 	return {"p": Vector3(x, lerpf(a.y, b.y, t), z), "dx": dx, "dz": dz, "l": lerpf(a.l, b.l, t), "teto": lerpf(a.teto, b.teto, t)}
 
 func _selo() -> void:
-	var q := _ponto_s(T.porta)
+	var q := _ponto_s(porta)
 	var W: float = float(q.l) + folga + 0.3
 	var H: float = float(q.teto) + 0.2
 	var pm := PlaneMesh.new()
@@ -382,13 +416,13 @@ func _selo() -> void:
 	selo.position = q.p + Vector3(0, H / 2.0 - 0.05, 0)
 	selo.rotation.y = atan2(float(q.dx), float(q.dz))
 	# dois pilares de pedra lavrada segurando o selo e uma luz dourada fraca
-	_pilares(T.porta, H - 0.4, 0.15, false)
+	_pilares(porta, H - 0.4, 0.15, false)
 	_luz(q.p + Vector3(0, 2.2, 0) - Vector3(float(q.dx), 0, float(q.dz)) * 1.0, Color(1.0, 0.62, 0.25), 7.0, 1.0)
 
 func _enfeites() -> void:
-	var dados: Dictionary = T.m.get("caverna", {})
+	var dados: Dictionary = {"salas": salas}
 	# tochas nas paredes, alternando os lados, do selo até o fundo
-	var s: float = T.porta + 4.0
+	var s: float = porta + 4.0
 	var lado := 1.0
 	while s < A[A.size() - 1].s - 2.0:
 		var q := _ponto_s(s)
@@ -400,6 +434,8 @@ func _enfeites() -> void:
 	for S in dados.get("salas", []):
 		var c := _ponto_s(float(S.s))
 		for ld in [-1.0, 1.0]:
+			if not dungeon:
+				break # caverna aberta: sem braseiro (as tochas e os cristais iluminam)
 			var b := _ponto_s(float(S.s) + ld * 3.0, ld * (float(c.l) - 1.4))
 			_braseiro(b.p)
 		for k in 4:
@@ -419,7 +455,7 @@ func _enfeites() -> void:
 		i += 1
 	_cascalho()
 	# cogumelos que brilham perto das paredes do corredor
-	var sc: float = T.porta + 6.0
+	var sc: float = porta + 6.0
 	var n := 0
 	while sc < A[A.size() - 1].s - 2.0:
 		var ld4 := 1.0 if n % 2 == 0 else -1.0
@@ -678,7 +714,8 @@ func _pilares(s: float, alto: float, recuo: float, com_lintel: bool) -> void:
 # em volta do arco tapando a emenda com o paredão
 func _portal_da_boca() -> void:
 	var a: Dictionary = A[0]
-	_pilares(-0.5, float(a.teto) - 0.7, 0.15, true)
+	if dungeon:
+		_pilares(-0.5, float(a.teto) - 0.7, 0.15, true)
 	var q := _ponto_s(0.4)
 	var W: float = float(q.l) + folga
 	var H: float = float(a.teto)
@@ -749,7 +786,7 @@ func _cascalho() -> void:
 		if mesh == null:
 			continue
 		var tr := []
-		var s: float = 1.0 if tipo == 0 else T.porta + 2.0
+		var s: float = 1.0 if tipo == 0 else porta + 2.0
 		while s < fim:
 			var lado := 1.0 if rng.randf() < 0.5 else -1.0
 			var q := _ponto_s(s)
@@ -777,6 +814,8 @@ func _cascalho() -> void:
 # e o espantalho já entraram na lista (main.gd criar_aos_poucos) e se o jogo está online (sem servidor a caverna
 # fica vazia: o selo não abre).
 func _criar_monstros() -> void:
+	if not dungeon:
+		return # caverna do mundo grande: os monstros do covil são de campo de caça (main.gd)
 	if _monstros_feitos or not montada or not m.on() or not m._a_criar.is_empty():
 		return
 	var dg = T.m.get("dungeon")
@@ -829,7 +868,7 @@ func _luz_de_dentro(hp: Vector3, dt: float) -> void:
 	var c: Dictionary = T.dentro_caverna(hp.x, hp.z, hp.y + 0.3)
 	var alvo := 0.0
 	if not c.is_empty():
-		alvo = smoothstep(1.0, T.porta + 8.0, float(c.s))
+		alvo = smoothstep(1.0, porta + 8.0, float(c.s)) if c.id == id else 0.0
 	if alvo == 0.0 and escuro == 0.0:
 		return
 	if _amb0 < 0.0:
