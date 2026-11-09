@@ -331,7 +331,7 @@ export const Amiga = {
     const monta = !!dono.montado && !alvo;
     if (monta !== !!j.montado) j.montado = monta ? (MONTARIAS[dono.montado] ? dono.montado : 'lobo') : null;
     // vida baixa: poção (a recarga é a do jogo); sem poção e quase caindo, foge para perto do dono
-    if (j.vida < j.vidaMax * R.pocao && (ia.pocaoT || 0) <= this.tempo) {
+    if (j.vida < j.vidaMax * R.pocao && (ia.pocaoT || 0) <= this.tempo && (j.pocaoAte?.pocao || 0) <= this.tempo) {
       const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
       if (i >= 0) { ia.pocaoT = this.tempo + 2; this.item(j.id, { acao: 'usar', i }); }
     }
