@@ -3487,8 +3487,10 @@
   },
   "barquinho": {
    "nome": "Barquinho",
-   "vel": 5.6,
-   "giro": 1.6,
+   "vel": 3.2,
+   "giro": 1.15,
+   "acelera": 0.8,
+   "deriva": 0.45,
    "pessoas": 2,
    "packs": 0,
    "fundo": 0.35,

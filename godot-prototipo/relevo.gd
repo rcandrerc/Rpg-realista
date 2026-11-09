@@ -277,7 +277,9 @@ func _malha_polar(L: Dictionary, dmax: float, altura: Callable, fundura := false
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in idx:
 		if fundura: # água: a fundura embaixo de cada ponto vai na cor (o shader pinta raso -> fundo sem ler a tela)
-			st.set_color(Color(clampf((float(T.agua.nivel) - T.relevo(vs[i].x, vs[i].z)) / 5.0, 0.0, 1.0), 0, 0))
+			var fu: float = float(T.agua.nivel) - T.relevo(vs[i].x, vs[i].z)
+			st.set_color(Color(clampf(fu / 5.0, 0.0, 1.0), 0, 0))
+			st.set_uv(Vector2(fu, 0.0)) # 2026-11-09: a fundura com sinal (a borda da água cai no zero certinho)
 		st.add_vertex(vs[i])
 	st.index()
 	st.generate_normals()
@@ -305,6 +307,8 @@ func _lago(L: Dictionary) -> void:
 	var ma := ShaderMaterial.new()
 	ma.shader = load("res://agua.gdshader")
 	ma.set_shader_parameter("fundo_lago", float(L.fundo))
+	ma.set_shader_parameter("prof_uv", true)
+	ma.set_shader_parameter("ondas_tex", load("res://agua_ondas.png"))
 	agua.material_override = ma
 	agua.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(agua)
