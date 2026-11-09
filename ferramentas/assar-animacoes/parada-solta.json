@@ -1,0 +1,17 @@
+{ "ossos": {
+  "Hips": [0, 6, -6],
+  "RightUpLeg": [0, -4, 6],
+  "LeftUpLeg": [-15, 7, 6],
+  "LeftLeg": [32, 0, 0],
+  "LeftFoot": [-17, 0, 0],
+  "Spine": [0, -2, 4], "Spine1": [0, -2, 4], "Spine2": [0, -2, 3],
+  "Head": [3, 4, -7]
+ },
+ "mirar": {
+  "RightArm": [-0.4, -0.9, 0.1], "RightForeArm": [-0.15, -0.75, 0.6],
+  "LeftArm": [0.6, -0.7, -0.3], "LeftForeArm": [-0.6, -0.75, 0.25], "LeftHand": [-0.3, -0.6, -0.7]
+ },
+ "quadril": [-3, -1, 0],
+ "balanco": { "Hips": [0, 0, 1], "Spine1": [0, 0, -0.6] },
+ "quadrilBalanco": [0.8, 0, 0]
+}

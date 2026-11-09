@@ -52,7 +52,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -1159,6 +1159,7 @@ func criar_heroi(nascer := true) -> void:
 	inclinar.preparar(heroi_esq)
 	# corpo masculino (sem osso de busto): postura firme de guerreiro, peito erguido e ombros para trás (inclinar.porte)
 	inclinar.porte = 0.0 if heroi_esq.find_bone("J_Sec_L_Bust1") >= 0 else 1.0
+	heroi_anim.usar_solta(inclinar.porte > 0.0)
 	encostar = Encostar.new()
 	heroi_esq.add_child(encostar)
 	heroi_esq.move_child(encostar, 1) # depois do inclinar, antes do braço da espada e das molas do cabelo
@@ -3194,6 +3195,9 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
 	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando
 	heroi_anim.nadando = _nadando
+	# parada solta fora de combate (André 2026-11-09) só em pé no chão, com as mãos livres
+	heroi_anim.pode_soltar = montaria == null and mov.chao and mov.esc == null and mov.veiculo.is_empty() and not _nadando \
+		and h.modo != "Coleta" and not (pesca != null and pesca.ativo())
 	heroi_anim.atualizar(dt, vel_anim)
 	if expressao:
 		expressao.atualizar(dt)
