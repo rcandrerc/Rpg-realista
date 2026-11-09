@@ -526,7 +526,32 @@ func montar_config() -> void:
 		mostrar_fps = v
 		aplicar_config()
 		salvar())
+	_qualidade_grafica()
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
+
+# Qualidade gráfica (André 2026-11-09, celular da filha): Baixa, Média e Alta (grafico.gd). O escolhido fica dourado.
+func _qualidade_grafica() -> void:
+	var G = m.grafico
+	if G == null:
+		return
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var l := Menu.rotulo("Gráficos", 17)
+	l.custom_minimum_size = Vector2(120, 0)
+	linha.add_child(l)
+	for i in G.NOMES.size():
+		var b := _botao(G.NOMES[i], func():
+			if G.nivel != i:
+				G.trocar(i)
+				montar(), G.nivel == i)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
+	var dica := "Baixa: mais leve (celular mais fraco ou esquentando). Alta: mais bonito."
+	if G.placa != "":
+		dica += " Sugerido para este celular (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
+	_texto(dica, Menu.APAGADO, 13)
 
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:

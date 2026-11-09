@@ -11,6 +11,9 @@ uniform float fundo_lago = 1.0;
 // reflexo da lua na água à noite (dia_noite.gd manda só quando muda; André 2026-11-08)
 uniform float noite = 0.0;
 uniform vec3 lua_dir = vec3(0.77, 0.22, 0.44);
+// qualidade gráfica Baixa (grafico.gd, André 2026-11-09): sem a espuma quebrada e sem os riscos de brilho (menos conta
+// por ponto no mar, que cobre boa parte da tela)
+uniform bool simples = false;
 varying vec3 mundo;
 varying float fundura;
 void vertex() {
@@ -35,12 +38,12 @@ void fragment() {
 	c *= 1.0 + (o1 + o2) * 0.025;
 	// riscos finos de brilho que vêm e vão (desenho de anime, não reflexo de foto)
 	float risco = sin(mundo.x * 0.42 + mundo.z * 0.9 + o1 * 0.5 + TIME * 0.35);
-	float brilho = smoothstep(0.978, 0.995, risco) * smoothstep(0.6, 0.95, o2 * 0.5 + 0.5);
+	float brilho = simples ? 0.0 : smoothstep(0.978, 0.995, risco) * smoothstep(0.6, 0.95, o2 * 0.5 + 0.5);
 	float fr = pow(1.0 - clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0), 4.0);
 	c = mix(c, cor_ceu, fr * 0.35);
 	// espuma: fio de até ~10 cm rente à margem, quebrado em pedaços (não um contorno contínuo)
 	float fio = 1.0 - smoothstep(0.0, 0.025, prof);
-	float pedacos = smoothstep(0.45, 0.65, ruido(mundo.xz * 1.6 + vec2(TIME * 0.15, 0.0)));
+	float pedacos = simples ? 0.5 : smoothstep(0.45, 0.65, ruido(mundo.xz * 1.6 + vec2(TIME * 0.15, 0.0)));
 	float espuma = fio * pedacos * 0.5;
 	c = mix(c, cor_espuma, max(espuma, brilho * 0.4));
 	ALBEDO = c;
