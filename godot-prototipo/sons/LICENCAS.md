@@ -50,3 +50,8 @@ Pedido do André: o lobo correndo tinha o mesmo som de passo do herói. Agora, m
 
 Sintetizados por `ferramentas/sons/pesca.py` (próprios, CC0, sem gravação de terceiros), com as receitas do Quimera
 (splash, bloop da boia, estalo do molinete) e um "vupt" de ar para o lançamento.
+
+# Motor do carrinho (motor_partida.ogg, motor_lento.ogg)
+
+Sintetizados por `ferramentas/sons/motor.py` (próprios, CC0, sem gravação de terceiros): manivela e explosões de um
+motor de 1 cilindro lento ("pó-pó-pó" de tratorzinho); a marcha lenta é um laço de 4 s sem emenda.

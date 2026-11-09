@@ -1168,6 +1168,7 @@ export class Simulacao {
       aviso(o.cad ? `${nomeItem(o)} trancado: não dá para vender nem jogar fora` : `${nomeItem(o)} destrancado`);
     } else if (m.acao === 'vender' && it) {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
+      if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Toque nele na mochila pra guardar antes');
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       const preco = precoVenda(it, mercador(p.prof.mer).venda);
       if (it.n > 1) it.n--; else p.mochila[i] = null;
@@ -1178,7 +1179,7 @@ export class Simulacao {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       // item com cadeado (André 2026-11-07) fica de fora, mesmo que venha na lista
-      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad))];
+      const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad && !this.carrinhoFora(j, p.mochila[x])))];
       if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
       const merc = mercador(p.prof.mer).venda;
       let ouro = 0, n = 0;
@@ -1192,6 +1193,7 @@ export class Simulacao {
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
     } else if (m.acao === 'apagar' && it) {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para jogar fora');
+      if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Toque nele na mochila pra guardar antes');
       // André 2026-11-04: jogar fora um item da mochila (o celular pergunta antes; não dá ouro e não volta)
       p.mochila[i] = null;
       aviso(`Jogou fora ${nomeItem(it)}${!ehEquip(it.k) && it.n > 1 ? ` (${it.n})` : ''}`);
@@ -1326,6 +1328,7 @@ export class Simulacao {
       const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
       if (!it) return;
       if (it.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
+      if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Guarde ele antes de trocar');
       const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
       const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
       if (n <= 0) return aviso('Você já pôs tudo desse item');

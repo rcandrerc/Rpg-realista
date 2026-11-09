@@ -61,7 +61,16 @@ dar('carrinho', 1); s.carrinhoPerto; j.prog.carrinho = undefined;
 ir(joca.x + 3, joca.z + 3);
 const ic = j.prog.mochila.findIndex((o) => o?.k === 'carrinho');
 s.eventos = []; s.item('P', { acao: 'usar', i: ic });
-ok(j.prog.carrinho?.chao && !j.prog.mochila.some((o) => o?.k === 'carrinho'), 'carrinho no chão: ' + avisos().join(' | '));
+ok(j.prog.carrinho?.chao && j.prog.mochila.some((o) => o?.k === 'carrinho'), 'carrinho no chão e continua na mochila (travado): ' + avisos().join(' | '));
+s.eventos = []; s.item('P', { acao: 'apagar', i: ic });
+ok(j.prog.mochila[ic]?.k === 'carrinho' && avisos().some((t) => /no mundo/.test(t)), 'carrinho no mundo: não joga fora');
+// recolher de longe: tocar no da mochila traz de volta
+ir(joca.x + 40, joca.z + 3);
+s.item('P', { acao: 'usar', i: ic });
+ok(!j.prog.carrinho.chao && j.prog.mochila.filter((o) => o?.k === 'carrinho').length === 1, 'tocar na mochila recolhe de longe');
+ir(joca.x + 3, joca.z + 3);
+s.item('P', { acao: 'usar', i: ic });
+ok(j.prog.carrinho.chao, 'colocou de novo');
 ok(capacidadeCarrinho(j.prog.carrinho) === 2, 'Nv 1 leva 2 packs');
 s.veiculo('P', { acao: 'subir', k: 'carrinho' });
 ok(j.veiculo === 'carrinho', 'subiu no carrinho');
