@@ -194,6 +194,11 @@ export const Transporte = {
     this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(x), z: r2(z), fim: this.tempo + PACK_CHAO_DURA });
   },
   // ---------- veículos ----------
+  // o carrinho está no mundo (no chão ou dirigindo): na mochila ele fica travado (não vende, não joga fora, não troca)
+  carrinhoFora(j, it) {
+    if (it && it.k !== 'carrinho') return false;
+    return !!(j.prog.carrinho?.chao || j.veiculo === 'carrinho');
+  },
   // m = { acao: 'colocar'|'subir'|'descer'|'guardar'|'abastecer'|'consertar'|'melhorar', k, x, z, ry }
   veiculo(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando || !m) return;
@@ -202,6 +207,7 @@ export const Transporte = {
     const num = (v) => typeof v === 'number' && Number.isFinite(v);
     if (m.acao === 'colocar') {
       const k = m.k; if (!V[k] || contar(p.mochila, k) < 1) return;
+      if (k === 'carrinho' && this.carrinhoFora(j)) return this.veiculo(id, { acao: 'recolher' }); // o travado na mochila: volta
       if (j.veiculo) return aviso('Desça primeiro');
       // sem lugar escolhido: o carrinho vai na frente do herói; barco e navio na água funda mais perto (até 6 m)
       const precisa = k === 'carrinho' ? null : V[k].fundo, q = num(m.x) && num(m.z) ? { x: m.x, z: m.z }
@@ -210,9 +216,10 @@ export const Transporte = {
       const x = q.x, z = q.z, ry = num(m.ry) ? m.ry : j.ry;
       if (Math.hypot(x - j.x, z - j.z) > 6.5) return;
       if (k === 'carrinho') {
+        // Quimera (André 2026-11-09): o carrinho fica na mochila, travado e com outro ícone, enquanto está no mundo
         if (fundoAgua(x, z) > 0.05) return aviso('O carrinho não entra na água.');
         p.carrinho ||= carrinhoNovo(); p.carrinho.chao = { x: r2(x), z: r2(z), ry: r2(ry) };
-        tirar(p.mochila, 'carrinho', 1); aviso('Carrinho no chão! Toque nele pra dirigir, abastecer e carregar.');
+        aviso('Carrinho no chão! Toque nele pra dirigir, abastecer e carregar. Pra guardar, toque nele na mochila (de qualquer distância).');
       } else if (k === 'barquinho') {
         if (fundoAgua(x, z) < V.barquinho.fundo) return aviso('Chegue na beira da água pra usar o barquinho');
         tirar(p.mochila, 'barquinho', 1); j.veiculo = 'barquinho'; j.montado = null; j.x = x; j.z = z; j.y = AGUA.nivel;
@@ -237,7 +244,7 @@ export const Transporte = {
         const n = p.navio; if (!n?.chao || Math.hypot(n.chao.x - j.x, n.chao.z - j.z) > V.navio.perto + 0.5) return aviso('Chegue perto do navio e toque de novo');
         if (p.carrinho?.chao && Math.hypot(p.carrinho.chao.x - j.x, p.carrinho.chao.z - j.z) < 25) {
           if (p.carrinho.packs.length) return aviso(`Tire os packs do carrinho antes (o porão tem ${V.navio.porao - n.porao.length} lugares livres).`);
-          if (guardar(p.mochila, { k: 'carrinho', n: 1 })) { p.carrinho.chao = null; aviso('Carrinho guardado na mochila: ele vai junto.'); }
+          if (contar(p.mochila, 'carrinho') > 0 || guardar(p.mochila, { k: 'carrinho', n: 1 })) { p.carrinho.chao = null; aviso('Carrinho guardado na mochila: ele vai junto.'); }
         }
         j.veiculo = 'navio'; j.montado = null; j.x = n.chao.x; j.z = n.chao.z; j.ry = n.chao.ry; j.y = AGUA.nivel; j.navioAndou = 0; n.chao = null;
         aviso('Você está no leme! Pra descer, chegue devagar perto da margem e toque no botão do barco.');
@@ -266,10 +273,24 @@ export const Transporte = {
       this.evento({ t: 'veiculo', para: id, acao: 'desceu', k, x: r2(j.x), z: r2(j.z) });
       return pronto();
     }
+    // recolher (Quimera, André 2026-11-09): tocar no carrinho travado na mochila traz ele de volta de qualquer distância;
+    // dirigindo, você desce. Os packs que estavam nele ficam no chão onde ele estava.
+    if (m.acao === 'recolher') {
+      const c = p.carrinho; if (!this.carrinhoFora(j)) return;
+      if (contar(p.mochila, 'carrinho') < 1 && !guardar(p.mochila, { k: 'carrinho', n: 1 })) return aviso('Mochila cheia');
+      if (j.veiculo === 'carrinho') {
+        c.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) }; j.veiculo = null;
+        this.evento({ t: 'veiculo', para: id, acao: 'desceu', k: 'carrinho', x: r2(j.x), z: r2(j.z) });
+      }
+      c.packs.forEach((pk, i) => this.packNoChao(pk, c.chao.x + (i % 2 ? 1 : -1) * 1.2, c.chao.z + 0.8 + Math.floor(i / 2) * 0.7));
+      aviso(c.packs.length ? 'Carrinho de volta na mochila. Os packs ficaram no chão onde ele estava.' : 'Carrinho de volta na mochila');
+      c.packs = []; c.chao = null;
+      return pronto();
+    }
     if (m.acao === 'guardar') {
       if (m.k === 'carrinho') {
         const c = p.carrinho; if (!c?.chao || Math.hypot(c.chao.x - j.x, c.chao.z - j.z) > C.perto + 0.5) return aviso('Chegue perto do carrinho');
-        if (!guardar(p.mochila, { k: 'carrinho', n: 1 })) return aviso('Mochila cheia');
+        if (contar(p.mochila, 'carrinho') < 1 && !guardar(p.mochila, { k: 'carrinho', n: 1 })) return aviso('Mochila cheia');
         c.packs.forEach((pk, i) => this.packNoChao(pk, c.chao.x + (i % 2 ? 1 : -1) * 1.2, c.chao.z + 0.8 + Math.floor(i / 2) * 0.7));
         if (c.packs.length) aviso('Os packs do carrinho ficaram no chão');
         c.packs = []; c.chao = null;

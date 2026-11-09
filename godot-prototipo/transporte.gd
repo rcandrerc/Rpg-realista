@@ -132,63 +132,166 @@ func modelo_pack(k: String) -> Node3D:
 	_caixa(g, Vector3(0.6, 0.04, 0.46), Vector3(0, 0.4, 0), _mt_corda)
 	return g
 
-# ---------- carrinho de carga (Quimera: veículo a combustível que você dirige sentado; André 2026-11-09: "nada de
-# carroça de cavalo"): motor com capô de ferro na frente, banco do motorista com encosto, volante na coluna, farol,
-# quatro rodas (as da frente viram com o volante) e a caçamba de tábuas atrás do banco, que cresce com o nível ----------
-const CARRO_BANCO := Vector3(0, 1.02, -0.02) # onde o quadril senta (no "corpo" do carrinho)
-const CARRO_PE := Vector3(0.15, 0.64, 0.5) # pés no assoalho (x = cada lado)
-const CARRO_VOLANTE := Vector3(0, 1.2, 0.34) # centro do volante
+# ---------- carrinho de carga = "trenzinho" (André 2026-11-09, modelo do Quimera e desenho de conceito aprovado):
+# trator com caldeira de barril deitada na frente (tampa de ferro, chaminé), banco do motorista com volante, rodas da
+# frente pequenas e de trás grandes; atrás, engatada, a mini carreta de um eixo com os engradados de ripas, que vira
+# sozinha nas curvas (articulada). Nv 1: 2 packs · Nv 2: 4 (cintas de bronze) · Nv 3: 6 (aro de ferro e chaminé maior) ·
+# Nv 4: 8 (bandeirinhas). "Só faz mais realista": madeira e pano com textura de verdade, ferro e bronze metálicos.
+# Desempenho (Poco X7): as peças paradas de mesmo material viram 1 malha só (_juntar); rodas, volante e packs à parte.
+const CARRO_BANCO := Vector3(0, 1.0, -0.36) # onde o quadril senta (no "corpo" do trator)
+const CARRO_PE := Vector3(0.15, 0.62, 0.02) # pés no assoalho (x = cada lado)
+const CARRO_VOLANTE := Vector3(0, 1.2, -0.04) # centro do volante
 const CARRO_VOLANTE_INCL := -0.93 # o volante deitado virado para o motorista
+const CARRO_ENGATE := Vector3(0, 0.52, -0.82) # onde a carreta engata (no trator)
+const CARRETA_LANCA := 0.55 # do engate até a frente da caçamba
+const PACK_PASSO := Vector2(0.62, 0.62) # um engradado (largura, comprimento)
+var _mt_bronze: StandardMaterial3D
+var _mt_ferro_esc: StandardMaterial3D
+
+# lugares dos packs na carreta por nível: [fileira, coluna, andar]
+func _lugares_carreta(nv: int) -> Array:
+	var l := []
+	var fileiras: int = 1 if nv <= 1 else 2
+	for f in fileiras:
+		for c in 2:
+			l.append([f, c, 0])
+	if nv >= 3:
+		for c in 2:
+			l.append([0, c, 1])
+	if nv >= 4:
+		for c in 2:
+			l.append([1, c, 1])
+	return l
+
+func _materiais_carrinho() -> void:
+	if _mt_bronze:
+		return
+	_mt_bronze = StandardMaterial3D.new()
+	_mt_bronze.albedo_color = Color(0.62, 0.43, 0.2)
+	_mt_bronze.metallic = 0.85
+	_mt_bronze.roughness = 0.4
+	# ferro fosco (metálico demais fica preto chapado sem reflexo no celular)
+	_mt_ferro_esc = StandardMaterial3D.new()
+	_mt_ferro_esc.albedo_color = Color(0.3, 0.29, 0.28)
+	_mt_ferro_esc.metallic = 0.45
+	_mt_ferro_esc.roughness = 0.55
+
+# roda de madeira com raios, cubo e aro de ferro (o pivô vira em y; a roda gira em x)
+func _roda(pai: Node3D, pos: Vector3, rr: float, larg: float, raios: int, aro_grosso: bool, frente: bool, lista: Array) -> void:
+	var piv := Node3D.new()
+	piv.position = pos
+	piv.set_meta("frente", frente)
+	pai.add_child(piv)
+	var r := Node3D.new()
+	r.name = "roda"
+	r.set_meta("r", rr)
+	piv.add_child(r)
+	var t := TorusMesh.new() # aro de madeira (as cambotas)
+	t.inner_radius = rr - 0.07
+	t.outer_radius = rr - 0.015
+	t.rings = 24
+	t.ring_segments = 6
+	var mi := MeshInstance3D.new()
+	mi.mesh = t
+	mi.material_override = _mt_madeira
+	mi.rotation.z = PI / 2
+	mi.scale = Vector3(1, larg / 0.055, 1)
+	r.add_child(mi)
+	var t2 := TorusMesh.new() # aro de ferro por fora (Nv 3+: mais grosso)
+	t2.inner_radius = rr - (0.035 if aro_grosso else 0.022)
+	t2.outer_radius = rr
+	t2.rings = 24
+	t2.ring_segments = 6
+	var mi2 := MeshInstance3D.new()
+	mi2.mesh = t2
+	mi2.material_override = _mt_ferro_esc
+	mi2.rotation.z = PI / 2
+	mi2.scale = Vector3(1, larg * (1.2 if aro_grosso else 1.0) / maxf(0.01, t2.outer_radius - t2.inner_radius), 1)
+	r.add_child(mi2)
+	_cil(r, rr * 0.2, larg * 1.6, Vector3.ZERO, _mt_madeira_esc, Vector3(0, 0, PI / 2), 12) # cubo
+	_cil(r, rr * 0.09, larg * 1.9, Vector3.ZERO, _mt_bronze, Vector3(0, 0, PI / 2), 8)
+	for i in raios:
+		var a := float(i) * TAU / float(raios)
+		_caixa(r, Vector3(0.035, rr * 0.82, 0.045), Vector3(0, cos(a), sin(a)) * rr * 0.5, _mt_madeira, Vector3(a, 0, 0))
+	lista.append(piv)
+
+# engradado de ripas em volta de um pack: 4 esteios, ripas em cima e embaixo e o X dos lados
+func _engradado(pai: Node3D, c: Vector3) -> void:
+	var w := 0.6
+	var h := 0.56
+	var d := 0.58
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			_caixa(pai, Vector3(0.045, h, 0.045), c + Vector3(sx * w * 0.5, h * 0.5, sz * d * 0.5), _mt_madeira)
+	for y in [0.03, h]:
+		for sx in [-1.0, 1.0]:
+			_caixa(pai, Vector3(0.035, 0.045, d), c + Vector3(sx * w * 0.5, y, 0), _mt_madeira)
+		for sz in [-1.0, 1.0]:
+			_caixa(pai, Vector3(w, 0.045, 0.035), c + Vector3(0, y, sz * d * 0.5), _mt_madeira)
+	var diag := Vector2(d, h).length()
+	for sx in [-1.0, 1.0]: # X nos lados compridos
+		for g in [-1.0, 1.0]:
+			_caixa(pai, Vector3(0.025, diag * 0.95, 0.04), c + Vector3(sx * w * 0.5, h * 0.5, 0), _mt_madeira_esc, Vector3(g * atan2(d, h), 0, 0))
+	var diag2 := Vector2(w, h).length()
+	for g in [-1.0, 1.0]: # X atrás
+		_caixa(pai, Vector3(diag2 * 0.95, 0.025, 0.04), c + Vector3(0, h * 0.5, -d * 0.5), _mt_madeira_esc, Vector3(0, 0, g * (PI / 2 - atan2(w, h))))
+
 func modelo_carrinho(nv: int) -> Node3D:
+	_materiais_carrinho()
+	var cinta: Material = _mt_bronze if nv >= 2 else _mt_ferro_esc
 	var g := Node3D.new()
+	var rodas: Array = []
 	var corpo := Node3D.new()
 	corpo.name = "corpo"
 	g.add_child(corpo)
-	var comp: float = 1.6 + 0.35 * float(max(0, nv - 1)) # caçamba cresce com o nível (leva mais packs)
-	var zc: float = -0.35 - comp * 0.5 # meio da caçamba
-	# chassi: duas longarinas de ferro de ponta a ponta
+	var fixo := Node3D.new() # tudo o que não mexe: vira 1 malha por material
+	corpo.add_child(fixo)
+	# chassi: duas longarinas de madeira com cantoneira de ferro, travessas e o eixo da frente
 	for lado in [-1.0, 1.0]:
-		_caixa(corpo, Vector3(0.08, 0.1, comp + 1.75), Vector3(lado * 0.42, 0.47, zc + (comp + 1.75) * 0.5 - comp * 0.5 - 0.05), _mt_ferro)
-	# caçamba: piso, laterais baixas com estacas e a tampa de trás
-	_caixa(corpo, Vector3(1.3, 0.08, comp), Vector3(0, 0.55, zc), _mt_madeira)
+		_caixa(fixo, Vector3(0.1, 0.14, 2.2), Vector3(lado * 0.36, 0.5, 0.25), _mt_madeira_esc)
+		_caixa(fixo, Vector3(0.11, 0.03, 2.2), Vector3(lado * 0.36, 0.58, 0.25), _mt_ferro_esc)
+	for z in [-0.78, -0.3, 0.4, 1.15]:
+		_caixa(fixo, Vector3(0.82, 0.08, 0.1), Vector3(0, 0.5, z), _mt_madeira_esc)
+	_cil(fixo, 0.04, 1.0, Vector3(0, 0.3, 1.0), _mt_ferro_esc, Vector3(0, 0, PI / 2), 8)
+	_cil(fixo, 0.05, 1.3, Vector3(0, 0.5, -0.36), _mt_ferro_esc, Vector3(0, 0, PI / 2), 8)
+	# caldeira de barril deitada: aduelas (madeira no sentido do comprimento), cintas, tampa de ferro com a porta
+	_cil(fixo, 0.37, 1.12, Vector3(0, 0.98, 0.68), _mt_madeira, Vector3(PI / 2, 0, 0), 18)
+	_cil(fixo, 0.39, 0.5, Vector3(0, 0.98, 0.68), _mt_madeira, Vector3(PI / 2, 0, 0), 18) # barriga do barril
+	for z in [0.2, 0.42, 0.94, 1.16]:
+		_cil(fixo, 0.385 if absf(z - 0.68) > 0.4 else 0.4, 0.05, Vector3(0, 0.98, z), cinta, Vector3(PI / 2, 0, 0), 18)
+	_cil(fixo, 0.36, 0.06, Vector3(0, 0.98, 1.25), _mt_ferro_esc, Vector3(PI / 2, 0, 0), 18) # tampa da frente
+	_cil(fixo, 0.17, 0.04, Vector3(0, 0.95, 1.29), _mt_ferro_esc, Vector3(PI / 2, 0, 0), 14) # porta da fornalha
+	_cil(fixo, 0.025, 0.06, Vector3(0.12, 0.95, 1.31), _mt_bronze, Vector3(PI / 2, 0, 0), 8) # trinco
+	_cil(fixo, 0.36, 0.06, Vector3(0, 0.98, 0.1), _mt_ferro_esc, Vector3(PI / 2, 0, 0), 18) # tampa de trás
+	for lado in [-1.0, 1.0]: # berço que segura o barril
+		_caixa(fixo, Vector3(0.08, 0.3, 0.1), Vector3(lado * 0.3, 0.68, 0.3), _mt_madeira_esc)
+		_caixa(fixo, Vector3(0.08, 0.3, 0.1), Vector3(lado * 0.3, 0.68, 1.05), _mt_madeira_esc)
+	# chaminé (Nv 3+: mais alta, com a boca larga)
+	var alta: float = 0.85 if nv >= 3 else 0.6
+	_cil(fixo, 0.075, alta, Vector3(0, 1.3 + alta * 0.5, 1.0), _mt_ferro_esc, Vector3.ZERO, 12)
+	_cil(fixo, 0.1, 0.05, Vector3(0, 1.32, 1.0), cinta, Vector3.ZERO, 12)
+	_cil(fixo, 0.12 if nv >= 3 else 0.09, 0.07, Vector3(0, 1.3 + alta, 1.0), _mt_ferro_esc, Vector3.ZERO, 12)
+	var cano := Node3D.new()
+	cano.name = "cano" # a fumaça sai daqui
+	cano.position = Vector3(0, 1.36 + alta, 1.0)
+	corpo.add_child(cano)
+	# cabine aberta: assoalho, banco com almofada de couro e encosto, caixa de lenha do lado
+	_caixa(fixo, Vector3(0.95, 0.06, 0.75), Vector3(0, 0.6, -0.33), _mt_madeira)
+	_caixa(fixo, Vector3(0.7, 0.3, 0.36), Vector3(0, 0.76, -0.42), _mt_madeira)
+	var couro: StandardMaterial3D = _mt_pano.duplicate()
+	couro.albedo_color = Color(0.36, 0.2, 0.12)
+	couro.roughness = 0.7
+	_caixa(fixo, Vector3(0.66, 0.08, 0.36), Vector3(0, 0.93, -0.41), couro)
+	_caixa(fixo, Vector3(0.66, 0.4, 0.07), Vector3(0, 1.14, -0.62), couro, Vector3(-0.15, 0, 0))
+	_caixa(fixo, Vector3(0.72, 0.05, 0.09), Vector3(0, 1.35, -0.65), _mt_madeira_esc, Vector3(-0.15, 0, 0))
 	for lado in [-1.0, 1.0]:
-		_caixa(corpo, Vector3(0.06, 0.28, comp), Vector3(lado * 0.62, 0.72, zc), _mt_madeira)
-		_caixa(corpo, Vector3(0.07, 0.04, comp + 0.04), Vector3(lado * 0.62, 0.87, zc), _mt_madeira_esc)
-		var n_est: int = 2 + nv
-		for e in n_est:
-			_caixa(corpo, Vector3(0.08, 0.34, 0.07), Vector3(lado * 0.64, 0.72, -0.35 - comp * float(e) / float(n_est - 1)), _mt_madeira_esc)
-	_caixa(corpo, Vector3(1.3, 0.28, 0.06), Vector3(0, 0.72, -0.35 - comp), _mt_madeira)
-	_caixa(corpo, Vector3(1.3, 0.36, 0.06), Vector3(0, 0.76, -0.35), _mt_madeira_esc) # divisória atrás do banco
-	# cabine aberta: assoalho, banco com almofada de pano e encosto
-	_caixa(corpo, Vector3(1.2, 0.07, 1.1), Vector3(0, 0.56, 0.2), _mt_madeira_esc)
-	_caixa(corpo, Vector3(0.95, 0.3, 0.4), Vector3(0, 0.74, -0.08), _mt_madeira)
-	var almofada: StandardMaterial3D = _mt_pano.duplicate()
-	almofada.albedo_color = Color(0.55, 0.22, 0.16)
-	_caixa(corpo, Vector3(0.9, 0.08, 0.4), Vector3(0, 0.92, -0.06), almofada)
-	_caixa(corpo, Vector3(0.9, 0.42, 0.07), Vector3(0, 1.14, -0.29), almofada, Vector3(-0.16, 0, 0))
-	_caixa(corpo, Vector3(0.95, 0.05, 0.09), Vector3(0, 1.36, -0.32), _mt_madeira_esc, Vector3(-0.16, 0, 0))
-	# motor: capô de ferro com a grade, tanque de combustível em cima, escapamento do lado e o farol
-	_caixa(corpo, Vector3(0.95, 0.46, 0.62), Vector3(0, 0.82, 1.07), _mt_ferro)
-	_caixa(corpo, Vector3(0.98, 0.06, 0.66), Vector3(0, 1.07, 1.07), _mt_madeira_esc) # tampa de madeira do capô
-	for i in 5:
-		_caixa(corpo, Vector3(0.7, 0.03, 0.03), Vector3(0, 0.66 + float(i) * 0.07, 1.39), _mt_madeira_esc) # grade
-	_cil(corpo, 0.13, 0.6, Vector3(0, 1.2, 1.0), _mt_madeira_esc, Vector3(0, 0, PI / 2)) # tanque (barril deitado)
-	for x in [-0.22, 0.22]:
-		_cil(corpo, 0.137, 0.03, Vector3(x, 1.2, 1.0), _mt_ferro, Vector3(0, 0, PI / 2)) # cintas do barril
-	var cano := _cil(corpo, 0.04, 0.75, Vector3(0.52, 1.0, 0.82), _mt_ferro)
-	cano.name = "cano"
-	var farol_mt := StandardMaterial3D.new()
-	farol_mt.albedo_color = Color(1.0, 0.86, 0.55)
-	farol_mt.emission_enabled = true
-	farol_mt.emission = Color(1.0, 0.75, 0.4)
-	farol_mt.emission_energy_multiplier = 0.8
-	_cil(corpo, 0.1, 0.1, Vector3(0, 0.98, 1.43), _mt_ferro, Vector3(PI / 2, 0, 0))
-	_cil(corpo, 0.08, 0.02, Vector3(0, 0.98, 1.49), farol_mt, Vector3(PI / 2, 0, 0))
-	# para-lamas de tábua sobre as rodas da frente
+		_caixa(fixo, Vector3(0.05, 0.34, 0.5), Vector3(lado * 0.46, 0.79, -0.33), _mt_madeira_esc) # guardas laterais
+	# para-lamas das rodas grandes
 	for lado in [-1.0, 1.0]:
-		_caixa(corpo, Vector3(0.24, 0.04, 0.7), Vector3(lado * 0.7, 0.74, 1.05), _mt_madeira_esc)
-	# volante: coluna saindo do assoalho e o aro de madeira com aro de ferro e 4 raios (gira com a direção)
-	_cil(corpo, 0.025, 0.66, (Vector3(0, 0.62, 0.66) + CARRO_VOLANTE) * 0.5, _mt_ferro, Vector3(-0.5, 0, 0))
+		_caixa(fixo, Vector3(0.22, 0.04, 0.9), Vector3(lado * 0.64, 1.02, -0.36), _mt_madeira_esc)
+		_caixa(fixo, Vector3(0.2, 0.3, 0.04), Vector3(lado * 0.64, 0.88, -0.82), _mt_madeira_esc)
+	# volante: coluna e aro (gira com a direção)
+	_cil(fixo, 0.025, 0.6, (Vector3(0, 0.62, 0.3) + CARRO_VOLANTE) * 0.5, _mt_ferro_esc, Vector3(-0.52, 0, 0), 8)
 	var vol := Node3D.new()
 	vol.name = "volante"
 	vol.position = CARRO_VOLANTE
@@ -199,42 +302,96 @@ func modelo_carrinho(nv: int) -> Node3D:
 	vol.add_child(aro)
 	var t := TorusMesh.new()
 	t.inner_radius = 0.15
-	t.outer_radius = 0.19
+	t.outer_radius = 0.185
 	t.rings = 20
-	t.ring_segments = 8
+	t.ring_segments = 6
 	var mi := MeshInstance3D.new()
 	mi.mesh = t
 	mi.material_override = _mt_madeira_esc
 	aro.add_child(mi)
 	for i in 2:
-		_caixa(aro, Vector3(0.32, 0.02, 0.025), Vector3.ZERO, _mt_ferro, Vector3(0, float(i) * PI / 2, 0))
-	# rodas: as de trás grandes, embaixo da caçamba; as da frente menores, embaixo do motor (viram com o volante)
-	var rodas := Node3D.new()
-	rodas.name = "rodas"
-	g.add_child(rodas)
-	for frente in [false, true]:
-		var rr: float = 0.32 if frente else 0.42
-		var zr: float = 1.05 if frente else -0.35 - comp * 0.6
-		for lado in [-1.0, 1.0]:
-			var piv := Node3D.new() # gira em y (direção) por fora; a roda gira em x por dentro
-			piv.position = Vector3(lado * 0.72, rr, zr)
-			piv.set_meta("frente", frente)
-			rodas.add_child(piv)
-			var r := Node3D.new()
-			r.name = "roda"
-			r.set_meta("r", rr)
-			piv.add_child(r)
-			_cil(r, rr, 0.08, Vector3.ZERO, _mt_ferro, Vector3(0, 0, PI / 2), 20)
-			_cil(r, rr - 0.05, 0.1, Vector3.ZERO, _mt_madeira, Vector3(0, 0, PI / 2), 20)
-			_cil(r, 0.07, 0.14, Vector3.ZERO, _mt_ferro, Vector3(0, 0, PI / 2), 10) # cubo
-			for i in 4:
-				_caixa(r, Vector3(0.05, rr * 1.7, 0.05), Vector3.ZERO, _mt_madeira_esc, Vector3(i * PI / 4, 0, 0))
+		_caixa(aro, Vector3(0.32, 0.02, 0.025), Vector3.ZERO, _mt_ferro_esc, Vector3(0, float(i) * PI / 2, 0))
+	# rodas do trator: as da frente pequenas (viram), as de trás grandes
+	var rd := Node3D.new()
+	rd.name = "rodas"
+	g.add_child(rd)
+	for lado in [-1.0, 1.0]:
+		_roda(rd, Vector3(lado * 0.5, 0.3, 1.0), 0.3, 0.09, 8, nv >= 3, true, rodas)
+		_roda(rd, Vector3(lado * 0.62, 0.5, -0.36), 0.5, 0.11, 10, nv >= 3, false, rodas)
+	# engate
+	_cil(fixo, 0.05, 0.08, CARRO_ENGATE, _mt_ferro_esc, Vector3.ZERO, 10)
+	_juntar(fixo)
+	# ---- a carreta (articulada no engate) ----
+	var car := Node3D.new()
+	car.name = "carreta"
+	car.position = CARRO_ENGATE
+	g.add_child(car)
+	var cfix := Node3D.new()
+	car.add_child(cfix)
+	var lug := _lugares_carreta(nv)
+	var fileiras: int = 1 if nv <= 1 else 2
+	var comp: float = float(fileiras) * PACK_PASSO.y + 0.12
+	var z0 := -CARRETA_LANCA # frente da caçamba
+	var zc: float = z0 - comp * 0.5
+	for lado in [-1.0, 1.0]: # lança em V até o engate
+		var de := Vector3(lado * 0.4, 0.0, z0)
+		var meio := (de + Vector3(0, 0, -0.04)) * 0.5
+		var lanca := _caixa(cfix, Vector3(0.06, 0.07, de.length()), meio, _mt_madeira_esc)
+		lanca.basis = Basis.looking_at(de - Vector3(0, 0, -0.04), Vector3.UP)
+	_cil(cfix, 0.045, 0.06, Vector3(0, 0.0, -0.02), _mt_ferro_esc, Vector3.ZERO, 10) # olhal
+	_caixa(cfix, Vector3(1.3, 0.07, comp), Vector3(0, 0.08, zc), _mt_madeira) # piso
+	for lado in [-1.0, 1.0]:
+		_caixa(cfix, Vector3(0.08, 0.12, comp + 0.1), Vector3(lado * 0.6, 0.01, zc), _mt_madeira_esc) # longarinas
+		_caixa(cfix, Vector3(0.05, 0.16, comp), Vector3(lado * 0.66, 0.2, zc), _mt_madeira) # guarda baixa
+	_caixa(cfix, Vector3(1.3, 0.16, 0.05), Vector3(0, 0.2, z0 - comp), _mt_madeira)
+	_cil(cfix, 0.045, 1.5, Vector3(0, -0.07, zc), _mt_ferro_esc, Vector3(0, 0, PI / 2), 8) # eixo
+	for lado in [-1.0, 1.0]:
+		_caixa(cfix, Vector3(0.24, 0.04, 0.95), Vector3(lado * 0.76, 0.42, zc), _mt_madeira_esc) # para-lamas
+	var lugares := []
+	for l in lug:
+		var c := Vector3((float(l[1]) - 0.5) * PACK_PASSO.x, 0.12 + float(l[2]) * 0.58, z0 - 0.06 - PACK_PASSO.y * 0.5 - float(l[0]) * PACK_PASSO.y)
+		_engradado(cfix, c)
+		lugares.append(c + Vector3(0, 0.02, 0))
+	if nv >= 4: # bandeirinhas nos cantos de cima
+		var flamula: StandardMaterial3D = _mt_pano.duplicate()
+		flamula.albedo_color = Color(0.85, 0.2, 0.15)
+		for sx in [-1.0, 1.0]:
+			for f in fileiras:
+				var base := Vector3(sx * 0.62, 1.28, z0 - 0.06 - float(f) * PACK_PASSO.y * 1.0 - (0.0 if f == 0 else 0.55))
+				_cil(cfix, 0.012, 0.6, base + Vector3(0, 0.3, 0), _mt_ferro_esc, Vector3.ZERO, 6)
+				_caixa(cfix, Vector3(0.01, 0.13, 0.2), base + Vector3(0, 0.52, -0.1), flamula)
+	_juntar(cfix)
+	for lado in [-1.0, 1.0]:
+		_roda(car, Vector3(lado * 0.76, -0.07, zc), 0.45, 0.1, 10, nv >= 3, false, rodas)
 	var pk := Node3D.new()
 	pk.name = "packs"
-	pk.position = Vector3(0, 0, -0.68)
-	corpo.add_child(pk)
+	pk.set_meta("lugares", lugares)
+	car.add_child(pk)
+	g.set_meta("rodas", rodas)
+	g.set_meta("carreta_eixo", absf(zc)) # do engate até o eixo da carreta
 	_sombra(g)
 	return g
+
+# junta as malhas filhas de mesmo material numa só (menos chamadas de desenho no celular)
+func _juntar(pai: Node3D) -> void:
+	var por_mt := {}
+	for c in pai.get_children():
+		if c is MeshInstance3D and c.visible and c.get_child_count() == 0:
+			var mt: Material = c.material_override
+			if not por_mt.has(mt):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				por_mt[mt] = st
+			(por_mt[mt] as SurfaceTool).append_from(c.mesh, 0, c.transform)
+	for c in pai.get_children():
+		if c is MeshInstance3D and c.get_child_count() == 0:
+			pai.remove_child(c)
+			c.free()
+	for mt in por_mt:
+		var mi := MeshInstance3D.new()
+		mi.mesh = (por_mt[mt] as SurfaceTool).commit()
+		mi.material_override = mt
+		pai.add_child(mi)
 
 # ---------- barquinho a remo (2 pessoas): casco curvo de tábuas (feito aqui, seção por seção), amurada, faixas das
 # tábuas, bancos, assoalho e o remo de pá que o herói segura sentado (André 2026-11-09) ----------
@@ -358,6 +515,7 @@ func _por_packs(no: Node3D, lista: Array, por_fila: int, passo: Vector2, base_y:
 	var pk: Node3D = no.find_child("packs", true, false)
 	if pk == null:
 		return
+	var lug: Array = pk.get_meta("lugares", [])
 	var txt := ",".join(PackedStringArray(lista.map(func(k): return str(k))))
 	if pk.get_meta("txt", "-") == txt:
 		return
@@ -368,7 +526,7 @@ func _por_packs(no: Node3D, lista: Array, por_fila: int, passo: Vector2, base_y:
 		var p := modelo_pack(str(lista[i]))
 		var col := i % por_fila
 		var fila := i / por_fila
-		p.position = Vector3((col - (por_fila - 1) * 0.5) * passo.x, base_y, -fila * passo.y)
+		p.position = lug[i] if i < lug.size() else Vector3((col - (por_fila - 1) * 0.5) * passo.x, base_y, -fila * passo.y)
 		p.rotation.y = float(i) * 0.3 - floor(float(i) * 0.3)
 		pk.add_child(p)
 
@@ -957,6 +1115,8 @@ func evento(ev: Dictionary) -> void:
 			m.mov.vx = 0.0
 			m.mov.vz = 0.0
 			m.mov.veiculo = {"k": k, "v": 0.0}
+			m.P.dirigindo_carrinho = k == "carrinho"
+			m.P.carrinho_no_mundo()
 			m.mov.disparada = false
 			comb_local = float(m.P.prog.get("carrinho", {}).get("comb", 0)) if k == "carrinho" else -1.0
 			if m.montaria != null:
@@ -964,6 +1124,8 @@ func evento(ev: Dictionary) -> void:
 			m.sons.tocar("pano", -6.0)
 		"desceu":
 			m.mov.veiculo = {}
+			m.P.dirigindo_carrinho = false
+			m.P.carrinho_no_mundo()
 			m.mov.x = float(ev.x)
 			m.mov.z = float(ev.z)
 			m.mov.y = m.terreno.altura(m.mov.x, m.mov.z)
@@ -971,6 +1133,8 @@ func evento(ev: Dictionary) -> void:
 			comb_local = -1.0
 		"quebrou":
 			m.mov.veiculo = {}
+			m.P.dirigindo_carrinho = false
+			m.P.carrinho_no_mundo()
 			m.sons.tocar("arvore_queda", -6.0)
 		"dano":
 			if m.fx and m.fx.has_method("numero"):
@@ -1089,17 +1253,31 @@ func _rodas_volante(v: Dictionary, no: Node3D, corpo: Node3D, dt: float) -> void
 	var anda: float = float(m.mov.veiculo.get("v", 0.0)) if v.eu and m.mov.veiculo.get("k", "") == "carrinho" else float(v.get("vel", 0.0))
 	var vira: float = clampf(float(v.get("giro", 0.0)) / 2.4, -1.0, 1.0) # 2,4 rad/s = volante todo virado
 	v.volante = lerpf(float(v.get("volante", 0.0)), vira, minf(1.0, dt * 8.0))
-	var rodas: Node3D = no.get_node_or_null("rodas")
-	if rodas:
-		for piv in rodas.get_children():
-			if piv.get_meta("frente", false):
-				piv.rotation.y = float(v.volante) * 0.45
-			var r: Node3D = piv.get_node_or_null("roda")
-			if r:
-				r.rotation.x += anda * dt / float(r.get_meta("r", 0.42))
+	for piv in no.get_meta("rodas", []):
+		if piv.get_meta("frente", false):
+			piv.rotation.y = float(v.volante) * 0.45
+		var r: Node3D = piv.get_node_or_null("roda")
+		if r:
+			r.rotation.x += anda * dt / float(r.get_meta("r", 0.42))
 	var aro: Node3D = corpo.get_node_or_null("volante/aro")
 	if aro:
 		aro.rotation.y = -float(v.volante) * 1.6
+	# carreta articulada: o eixo dela é puxado pelo engate (como reboque de verdade), então ela fecha a curva por dentro
+	var car: Node3D = no.get_node_or_null("carreta")
+	if car:
+		var L: float = float(no.get_meta("carreta_eixo", 1.0))
+		var H: Vector3 = no.global_transform * CARRO_ENGATE
+		var frente := Vector3(sin(no.rotation.y), 0, cos(no.rotation.y))
+		var A: Vector3 = v.get("eixo", H - frente * L)
+		var d := Vector3(H.x - A.x, 0, H.z - A.z)
+		if d.length() > L * 3.0 or d.length() < 0.001: # chegou agora ou pulou de lugar: carreta reta atrás
+			d = frente * L
+		d = d.normalized()
+		v.eixo = H - d * L
+		var rel: float = clampf(angle_difference(no.rotation.y, atan2(d.x, d.z)), -1.3, 1.3)
+		car.rotation.y = rel
+		v.eixo = H - Vector3(sin(no.rotation.y + rel), 0, cos(no.rotation.y + rel)) * L
+		car.rotation.z = -0.1 if v.quebrado else 0.0
 
 # remada do barquinho (pá de um lado, depois do outro, como canoa): o remo e as duas mãos do herói.
 # Puxada (65%): a pá entra na frente e sai atrás; volta (35%): levanta, passa por cima da proa e entra do outro lado.

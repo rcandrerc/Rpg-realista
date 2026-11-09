@@ -40,6 +40,15 @@ func novo() -> Dictionary:
 	return {"nivel": 1, "xp": 0, "pontos": 0, "atr": {"for": 3, "des": 3, "int": 3, "vit": 3}, "habs": {}, "barras": dados.botoesPadrao.duplicate(true),
 		"ouro": 20, "mochila": mochila, "paginas": 1, "equip": {}, "vigor": {"v": float(dados.vigor.max), "t": agora_ms()}, "prof": {}}
 
+# Quimera (André 2026-11-09): o carrinho no mundo (no chão ou dirigindo) fica na mochila travado e com outro ícone;
+# tocar nele guarda de qualquer distância. transporte.gd avisa quando sobe e desce (dirigindo o "chao" vem vazio).
+static var carrinho_fora := false
+static var dirigindo_carrinho := false
+func carrinho_no_mundo() -> bool:
+	var c = prog.get("carrinho")
+	carrinho_fora = dirigindo_carrinho or (c is Dictionary and c.get("chao") is Dictionary)
+	return carrinho_fora
+
 func definir(p: Dictionary) -> void:
 	prog = p
 	for k in ["nivel", "xp", "pontos"]:
@@ -95,6 +104,7 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("agora"):
 		relogio = float(ev.agora) - Time.get_unix_time_from_system() * 1000.0
 	definir(ev.prog)
+	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	if ev.has("st"):
 		for k in ev.st:
@@ -562,6 +572,8 @@ func estado_tomo(it) -> int:
 # o que se colhe na horta da Vila dos Lotes (shared/dados.js PLANTAS): ícone de colheita na cor da planta
 const COLHEITA := ["rabanete", "cenoura", "batata", "tomate", "milho", "abobora"]
 static func icone_item(it) -> String:
+	if it.k == "carrinho" and carrinho_fora:
+		return "it_carrinho_fora" # no mundo: o mesmo carrinho com a seta de voltar (toque = guarda)
 	# pintado em icones/itens/<k>.png vem primeiro (minérios, barras, colheita, sementes... ganharam pintura própria em 2026-11-06)
 	if not (it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k)) \
 			and ResourceLoader.exists("res://icones/itens/%s.png" % it.k):
