@@ -262,6 +262,25 @@ static func item_int(it):
 		r.cad = 1
 	return r
 
+# receita na raridade escolhida (mesma conta de shared/simulacao.js receitaNaRaridade, André 2026-11-09):
+# rar 0 = a receita de sempre; 1-4 = soma o catalisador dessa raridade (Selo/Runa) e o material de evoluir
+func receita_na_raridade(rk: String, rar: int) -> Dictionary:
+	var R: Dictionary = dados.receitas[rk]
+	if rar <= 0 or not dados.has("catalisador") or not dados.itens[str(R.faz)].has("lugar"):
+		return R
+	var C: Dictionary = dados.catalisador
+	var tipo := "arma" if str(dados.itens[str(R.faz)].lugar) in ["espada", "cajado"] else "armadura"
+	var usa: Dictionary = R.usa.duplicate()
+	var extra := {str(C[tipo][rar - 1]): 1}
+	extra.merge(C.usa[tipo][rar - 1])
+	for k in extra:
+		usa[k] = int(usa.get(k, 0)) + int(extra[k])
+	var novo: Dictionary = R.duplicate()
+	novo.usa = usa
+	novo.vigor = float(R.vigor) + float(C.vigor)
+	novo.rar = rar
+	return novo
+
 func eh_equip(it) -> bool:
 	return it is Dictionary and dados.itens.has(it.k) and dados.itens[it.k].has("lugar")
 

@@ -65,6 +65,15 @@ var botoes_prof := {}
 var sub_prof := "lista" # aba Profissões: "lista", "fer" (Ferreiro) ou "alf" (Alfaiate)
 const SUB_PROF := {"lista": "Profissões", "fer": "Ferreiro", "alf": "Alfaiate"}
 var cat_criar := "materiais" # submenu aberto na aba Criar
+var rar_criar := {} # receita -> raridade escolhida nas abas Armas e Armaduras (André 2026-11-09)
+# Criar igual ao Quimera (André 2026-11-09, com print do Quimera: "eu quero exatamente assim"): Buscar, as estações
+# perto em cima para alternar (Ver tudo = todas), e grupos sanfona (ARMADURAS, ARMAS...) com "dá para criar/total".
+const GRUPOS_CRIAR := [["armaduras", "Armaduras"], ["armas", "Armas"], ["melhorar", "Melhorar"], ["ferramentas", "Ferramentas"],
+	["materiais", "Materiais"], ["comida", "Comida"], ["estacoes", "Estações"], ["casa", "Casa"], ["moveis", "Móveis"]]
+var est_criar := "" # estação escolhida em cima ("" = Ver tudo)
+var busca_criar := ""
+var grupos_abertos := {} # grupo -> aberto
+var lista_criar: VBoxContainer # só a lista se refaz ao digitar na busca (a caixa não perde o foco)
 var linha_criar: HBoxContainer
 var botoes_criar := {}
 var titulo_nivel: Label
@@ -706,6 +715,8 @@ func abrir(qual := "", sub := "") -> void:
 # botão de ação perto da bancada, bigorna ou fornalha: a aba Criar inteira, aberta no que esta estação faz
 func abrir_estacao() -> void:
 	cat_criar = "aqui"
+	var ests := estacoes_perto()
+	est_criar = ests[0] if not ests.is_empty() else ""
 	abrir("criar")
 	rolagem.scroll_vertical = 0
 
@@ -778,7 +789,7 @@ func atualizar() -> void:
 		estilo_botao(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
-	linha_criar.visible = aba == "criar"
+	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
 	var est_aqui := estacoes_perto()
 	if cat_criar == "aqui" and est_aqui.is_empty():
 		cat_criar = "materiais"
@@ -1413,14 +1424,14 @@ func motivo_receita(aqui: bool, onde: String, nv_ok: bool, nv_txt: String, usa: 
 		return "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)"
 	return ""
 
-func criar(r: String) -> void:
+func criar(r: String, rar := 0) -> void:
 	if not m.on():
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
 	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
-		m.construcao.pedir_criar("receita", r)
+		m.construcao.pedir_criar("receita", r, rar)
 		return
-	m.rede("criar", {"r": r})
+	m.rede("criar", {"r": r, "rar": rar})
 
 # ---------- aba Criar (André 2026-11-04): tudo o que se cria, em submenus ----------
 # receitas das profissões (Ferreiro, Alfaiate) e peças da construção / ferramentas da fazenda, cada uma com onde se cria
@@ -1491,6 +1502,9 @@ func ir_fornalha() -> void:
 
 func montar_criar() -> void:
 	conteudo.add_child(linha_vigor())
+	montar_criar_quimera()
+	return
+	# (antes: submenus Aqui, Materiais, Armas...; ficou de reserva)
 	if cat_criar == "aqui":
 		montar_criar_aqui()
 		return
@@ -1500,7 +1514,7 @@ func montar_criar() -> void:
 	if lista.is_empty():
 		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
 	for e in lista:
-		conteudo.add_child(linha_criavel(e))
+		conteudo.add_child(linha_do_criar(e))
 
 # submenu "Aqui": tudo o que pede a estação perto, separado pelos outros submenus (Materiais, Armas, Armaduras...)
 func montar_criar_aqui() -> void:
@@ -1529,7 +1543,7 @@ func montar_criar_aqui() -> void:
 		algum = true
 		separador(c[1])
 		for e in lista:
-			conteudo.add_child(linha_criavel(e))
+			conteudo.add_child(linha_do_criar(e))
 	algum = montar_melhorar_aqui(ests) or algum
 	if not algum:
 		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
@@ -1625,6 +1639,348 @@ func estacao_do_item(e: Dictionary) -> String:
 	var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
 	return "bancada" if C.get("bancada", false) else ""
 
+# ---------- Criar igual ao Quimera ----------
+func montar_criar_quimera() -> void:
+	var busca := LineEdit.new()
+	busca.placeholder_text = "Buscar"
+	busca.text = busca_criar
+	busca.right_icon = icone_tex("lupa") if ResourceLoader.exists("res://icones/lupa.svg") else null
+	busca.add_theme_font_size_override("font_size", 16)
+	busca.custom_minimum_size = Vector2(0, 42)
+	busca.add_theme_stylebox_override("normal", caixa(Color(0.035, 0.03, 0.026, 1), Color(0.36, 0.29, 0.19), 1, 10))
+	busca.add_theme_stylebox_override("focus", caixa(Color(0.035, 0.03, 0.026, 1), OURO, 1, 10))
+	busca.clear_button_enabled = true
+	busca.text_changed.connect(func(t: String):
+		busca_criar = t
+		preencher_lista_criar())
+	conteudo.add_child(busca)
+	# estações perto, para alternar entre uma e outra (Fornalha e Baú abrem a janela deles)
+	var ests := estacoes_perto()
+	var cons = m.construcao
+	var tem_bau: bool = cons != null and cons.estacao_perto(["bau"])
+	if est_criar != "" and not (est_criar in ests):
+		est_criar = ""
+	var chips := HFlowContainer.new()
+	chips.add_theme_constant_override("h_separation", 8)
+	chips.add_theme_constant_override("v_separation", 6)
+	for est in ["bancada", "bigorna", "fornalha", "fogao"]: # mesma ordem do Quimera (Bancada, Bigorna, Forno, Baú)
+		if est in ests:
+			chips.add_child(chip_estacao(est, str(NOME_ESTACAO[est]).split(" ")[0], est == est_criar))
+	if tem_bau:
+		chips.add_child(chip_estacao("bau", "Baú", false))
+	var vt := botao("Ver tudo", func():
+		est_criar = ""
+		atualizar(), 15, est_criar == "")
+	vt.custom_minimum_size = Vector2(0, 40)
+	chips.add_child(vt)
+	conteudo.add_child(chips)
+	lista_criar = VBoxContainer.new()
+	lista_criar.add_theme_constant_override("separation", 8)
+	conteudo.add_child(lista_criar)
+	preencher_lista_criar()
+
+func chip_estacao(est: String, nome: String, ativo: bool) -> Button:
+	var b := botao(nome, func(): tocar_chip_estacao(est), 15, ativo)
+	b.custom_minimum_size = Vector2(0, 40)
+	b.icon = icone_tex("cs_" + est)
+	b.expand_icon = false
+	b.add_theme_constant_override("icon_max_width", 26)
+	return b
+
+func tocar_chip_estacao(est: String) -> void:
+	var cons = m.construcao
+	if est == "fornalha" and cons != null and cons.minha_fornalha_perto() != "":
+		fechar()
+		cons.abrir_forno(cons.minha_fornalha_perto())
+		return
+	if est == "bau" and cons != null:
+		fechar()
+		cons.tocar_estacao("bau")
+		return
+	est_criar = est
+	grupos_abertos = {}
+	atualizar()
+	rolagem.scroll_vertical = 0
+
+# o que entra num grupo: [{e, rar}] (arma e armadura: uma linha por raridade), já filtrado pela estação e pela busca
+func entradas_grupo(g: String) -> Array:
+	var D: Dictionary = m.P.dados
+	var out := []
+	var q := busca_criar.strip_edges().to_lower()
+	for e in itens_criar(g):
+		if est_criar != "" and estacao_do_item(e) != est_criar:
+			continue
+		var equip: bool = e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar")
+		for r in (D.raridades.size() if equip else 1):
+			var nome: String = m.P.nome_item({"k": str(D.receitas[e.k].faz), "r": r}) if equip else str(e.nome)
+			if q != "" and not (q in nome.to_lower()) and not (q in str(e.nome).to_lower()):
+				continue
+			out.append({"e": e, "rar": r if equip else -1})
+	return out
+
+# dá para criar agora? (a mesma conta do botão Criar da linha)
+func pode_criar_ja(x: Dictionary) -> bool:
+	var P = m.P
+	var D: Dictionary = P.dados
+	var e: Dictionary = x.e
+	var cons = m.construcao
+	if e.tipo == "receita":
+		var R: Dictionary = P.receita_na_raridade(e.k, maxi(0, int(x.rar)))
+		var est := estacao_do_item(e)
+		if not (m.trabalho.perto_oficina(str(R.prof)) or (cons != null and cons.estacao_perto([est]))):
+			return false
+		if P.prof_nivel(str(R.prof)) < int(R.nivel) or P.vigor() < P.custo_vigor(str(R.prof), float(R.vigor)):
+			return false
+		for k in R.usa:
+			if P.contar(k) < int(R.usa[k]):
+				return false
+		return true
+	if cons == null or cons.motivo_criar(e.k) != "":
+		return false
+	var C: Dictionary = cons.dados_criar(e.k)
+	if C.get("bancada", false) and not cons.estacao_perto(["bancada"]):
+		return false
+	for k in C.get("custo", {}):
+		if P.contar(k) < int(C.custo[k]):
+			return false
+	return true
+
+func preencher_lista_criar() -> void:
+	if lista_criar == null or not is_instance_valid(lista_criar):
+		return
+	for c in lista_criar.get_children():
+		lista_criar.remove_child(c)
+		c.queue_free()
+	var buscando := busca_criar.strip_edges() != ""
+	var algum := false
+	for g in GRUPOS_CRIAR:
+		var k: String = g[0]
+		if k == "melhorar":
+			if busca_criar.strip_edges() != "":
+				continue
+			var ests: Array = [est_criar] if est_criar != "" else estacoes_perto()
+			if not ("bigorna" in ests or "bancada" in ests):
+				continue
+			var antes = conteudo # montar_melhorar_aqui escreve em "conteudo": aponta para a sanfona
+			var corpo := VBoxContainer.new()
+			corpo.add_theme_constant_override("separation", 6)
+			conteudo = corpo
+			var tem := montar_melhorar_aqui(ests)
+			conteudo = antes
+			if not tem:
+				corpo.queue_free()
+				continue
+			algum = true
+			for i in 2: # sem o separador "MELHORAR EQUIPAMENTO": o cabeçalho da sanfona já diz
+				var sp := corpo.get_child(0)
+				corpo.remove_child(sp)
+				sp.queue_free()
+			lista_criar.add_child(cabeca_grupo(k, str(g[1]), -1, corpo.get_child_count() - 1))
+			if grupos_abertos.get(k, false):
+				lista_criar.add_child(corpo)
+			else:
+				corpo.queue_free()
+			continue
+		var itens := entradas_grupo(k)
+		if itens.is_empty():
+			continue
+		algum = true
+		var prontas := 0
+		for x in itens:
+			if pode_criar_ja(x):
+				prontas += 1
+		lista_criar.add_child(cabeca_grupo(k, str(g[1]), prontas, itens.size()))
+		if not (grupos_abertos.get(k, false) or buscando):
+			continue
+		var corpo := VBoxContainer.new()
+		corpo.add_theme_constant_override("separation", 6)
+		if k == "materiais" and est_criar in ["", "fornalha"] and not buscando:
+			corpo.add_child(linha_fornalha())
+		for x in itens:
+			corpo.add_child(linha_criavel_rar(x.e, int(x.rar)) if int(x.rar) >= 0 else linha_criavel(x.e))
+		lista_criar.add_child(corpo)
+	if not algum:
+		lista_criar.add_child(rotulo("Nada encontrado." if buscando else "Nada para criar aqui.", 14, APAGADO))
+
+# cabeçalho da sanfona: ▸ ARMADURAS ........ 2/25 (verde = dá para criar agora)
+func cabeca_grupo(k: String, nome: String, prontas: int, total: int) -> Control:
+	var aberto: bool = grupos_abertos.get(k, false) or busca_criar.strip_edges() != ""
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 54)
+	var st := caixa(Color(0.16, 0.135, 0.11, 1) if aberto else Color(0.12, 0.103, 0.085, 1), Color(0.34, 0.28, 0.2), 1, 12)
+	for e in ["normal", "hover", "pressed"]:
+		b.add_theme_stylebox_override(e, st)
+	b.pressed.connect(func():
+		if _arrastou:
+			return
+		grupos_abertos[k] = not grupos_abertos.get(k, false)
+		preencher_lista_criar())
+	var h := HBoxContainer.new()
+	h.set_anchors_preset(Control.PRESET_FULL_RECT)
+	h.offset_left = 16
+	h.offset_right = -18
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t := rotulo(("▾  " if aberto else "▸  ") + nome.to_upper(), 18, TEXTO)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	t.size_flags_vertical = Control.SIZE_FILL
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(t)
+	var n := RichTextLabel.new()
+	n.bbcode_enabled = true
+	n.fit_content = true
+	n.scroll_active = false
+	n.autowrap_mode = TextServer.AUTOWRAP_OFF
+	n.custom_minimum_size = Vector2(90, 0)
+	n.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	n.add_theme_font_size_override("normal_font_size", 17)
+	n.add_theme_font_size_override("bold_font_size", 17)
+	n.text = "[right]%s[/right]" % (str(total) if prontas < 0 else ("[b][color=#7fd46a]%d[/color][/b]/%d" % [prontas, total] if prontas > 0 else "%d" % total))
+	h.add_child(n)
+	b.add_child(h)
+	return b
+
+# arma e armadura: linha com as 5 raridades; o resto, a linha de sempre
+func linha_do_criar(e: Dictionary) -> Control:
+	var D: Dictionary = m.P.dados
+	if e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar"):
+		return linha_criavel_rar(e)
+	return linha_criavel(e)
+
+# André 2026-11-09: "comum, raro, épico, lendário e mítico para craftar, mostrando os itens que precisa com um
+# símbolozinho, nada de lista". Toque na raridade; embaixo os materiais em ícones com tem/precisa (toque no ícone
+# diz o nome). Comum é a receita de sempre (com a sorte de sair melhor); as outras saem certinho nela e pedem o
+# Selo/Runa da raridade e o material de evoluir (shared/simulacao.js receitaNaRaridade).
+func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
+	var P = m.P
+	var D: Dictionary = P.dados
+	var cons = m.construcao
+	var R0: Dictionary = D.receitas[e.k]
+	var rar: int = clampi(fixa if fixa >= 0 else int(rar_criar.get(e.k, 0)), 0, D.raridades.size() - 1)
+	var R: Dictionary = P.receita_na_raridade(e.k, rar)
+	var faz_s := str(R0.faz)
+	var est := "bigorna" if str(R0.prof) == "fer" else "bancada"
+	var of: Dictionary = D.oficina[str(R0.prof)]
+	var onde: String = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
+	var aqui: bool = m.trabalho.perto_oficina(str(R0.prof)) or (cons != null and cons.estacao_perto([est]))
+	var nv_ok: bool = P.prof_nivel(str(R0.prof)) >= int(R0.nivel)
+	var custo: float = P.custo_vigor(str(R0.prof), float(R.vigor))
+	var it := {"k": faz_s, "r": rar}
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1) if aqui and nv_ok else Color(0.07, 0.063, 0.055, 1), P.cor_item(it).darkened(0.35), 1, 8))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	cx.add_child(v)
+	# cabeçalho: peça na raridade escolhida, nome e nível
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 10)
+	var c := celula(it, false, func(): pass, 52)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	txt.add_child(rotulo(P.nome_item(it), 15, P.cor_item(it) if nv_ok else APAGADO))
+	txt.add_child(rotulo("%s Nv %d" % [D.profissoes[str(R0.prof)].nome, int(R0.nivel)], 12, OURO_CLARO if nv_ok else Color("e0806a")))
+	var o := rotulo(("%s · você está aqui" % onde) if aqui else onde, 12, VERDE if aqui else OURO)
+	o.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if fixa < 0 or not aqui: # na linha compacta (sanfona) a estação já está escolhida em cima
+		txt.add_child(o)
+	if fixa >= 0:
+		txt.size_flags_horizontal = Control.SIZE_FILL
+		txt.custom_minimum_size = Vector2(190, 0)
+		txt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(txt)
+	v.add_child(l)
+	# as 5 raridades (na tela do Quimera cada raridade já é uma linha: sem seletor)
+	var rs := HBoxContainer.new()
+	rs.visible = fixa < 0
+	rs.add_theme_constant_override("separation", 4)
+	for r in D.raridades.size():
+		var nome_r := str(D.raridades[r].nome)
+		var br := botao(nome_r, func():
+			rar_criar[e.k] = r
+			atualizar(), 12, r == rar)
+		br.custom_minimum_size = Vector2(0, 30)
+		br.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		br.add_theme_color_override("font_color", Color(D.raridades[r].cor) if r != rar else Color(D.raridades[r].cor).lightened(0.35))
+		rs.add_child(br)
+	if fixa < 0:
+		v.add_child(rs)
+	else:
+		rs.queue_free()
+	# materiais em ícones + botão Criar
+	var baixo := HBoxContainer.new()
+	baixo.add_theme_constant_override("separation", 8)
+	var mats := HFlowContainer.new()
+	mats.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mats.add_theme_constant_override("h_separation", 8)
+	mats.add_theme_constant_override("v_separation", 4)
+	var tem := true
+	for k in R.usa:
+		var n := int(R.usa[k])
+		var t2: int = P.contar(k)
+		tem = tem and t2 >= n
+		mats.add_child(icone_material(str(k), t2, n))
+	if custo > 0.0:
+		var vg := rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR if P.vigor() >= custo else Color("e0806a"))
+		vg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		mats.add_child(vg)
+	baixo.add_child(mats)
+	var pode: bool = aqui and nv_ok and tem and P.vigor() >= custo
+	var b := botao("Criar", func():
+		if not _arrastou:
+			criar(e.k, rar), 14, pode)
+	b.custom_minimum_size = Vector2(96, 40)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.disabled = not pode
+	avisar_travado(b, func(): return motivo_receita(aqui, onde, nv_ok, "%s Nv %d" % [D.profissoes[str(R0.prof)].nome, int(R0.nivel)], R.usa, custo))
+	baixo.add_child(b)
+	if fixa >= 0: # uma linha só: peça · nome · materiais · Criar (como no Quimera)
+		baixo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mats.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		l.add_child(baixo)
+	else:
+		v.add_child(baixo)
+	return cx
+
+# material como símbolo: ícone com "tem/precisa" embaixo (verde ou vermelho); tocar diz o nome
+func icone_material(k: String, tem: int, precisa: int) -> Control:
+	var P = m.P
+	var bx := VBoxContainer.new()
+	bx.add_theme_constant_override("separation", 0)
+	bx.custom_minimum_size = Vector2(44, 0)
+	var q := Button.new()
+	q.focus_mode = Control.FOCUS_NONE
+	q.custom_minimum_size = Vector2(40, 40)
+	q.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var st := caixa(Color(0.045, 0.04, 0.036, 1), Color(0.45, 0.78, 0.45, 0.8) if tem >= precisa else Color(0.88, 0.5, 0.42, 0.8), 1, 6)
+	for e in ["normal", "hover", "pressed"]:
+		q.add_theme_stylebox_override(e, st)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.icone_item({"k": k}))
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 4
+	ic.offset_top = 4
+	ic.offset_right = -4
+	ic.offset_bottom = -4
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = tinta(ic.texture, P.cor_item({"k": k}))
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	q.add_child(ic)
+	var nome := str(P.dados.itens[k].nome)
+	q.pressed.connect(func():
+		if not _arrastou:
+			m.hud.aviso("%s: tem %d, precisa de %d" % [nome, tem, precisa]))
+	bx.add_child(q)
+	var n := rotulo("%d/%d" % [tem, precisa], 11, VERDE if tem >= precisa else Color("e0806a"))
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bx.add_child(n)
+	return bx
+
 # uma linha da aba Criar: ícone, nome, onde se cria (verde se você está lá), materiais e o botão Criar.
 # Longe da estação certa o botão vira uma plaquinha com o nome dela: dá para ver a receita, mas não criar.
 func linha_criavel(e: Dictionary) -> Control:
@@ -1691,18 +2047,7 @@ func linha_criavel(e: Dictionary) -> Control:
 		var t2: int = P.contar(k)
 		if t2 < n:
 			tem = false
-		var ml := HBoxContainer.new()
-		ml.add_theme_constant_override("separation", 4)
-		var ic := TextureRect.new()
-		ic.texture = icone_tex(P.icone_item({"k": k}))
-		ic.custom_minimum_size = Vector2(18, 18)
-		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.modulate = tinta(ic.texture, P.cor_item({"k": k}))
-		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		ml.add_child(ic)
-		ml.add_child(rotulo("%s %d/%d" % [D.itens[k].nome, t2, n], 12, VERDE if t2 >= n else Color("e0806a")))
-		mats.add_child(ml)
+		mats.add_child(icone_material(str(k), t2, n)) # André 2026-11-09: material em ícone, nada de lista
 	if custo > 0.0:
 		mats.add_child(rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR if P.vigor() >= custo else Color("e0806a")))
 	txt.add_child(mats)

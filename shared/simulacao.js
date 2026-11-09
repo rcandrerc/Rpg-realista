@@ -1875,15 +1875,27 @@ export class Simulacao {
   // m = { r, n } (André 2026-11-05): fila de n com barrinha, igual à construção (fabricar); cada uma leva tempoCriar(R) s.
   criar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
-    const R = RECEITAS[m.r], aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const R = this.receitaNaRaridade(RECEITAS[m.r], m.rar), aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!R) return;
     if (m.n === undefined) return this.criarUm(id, m);
     if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
     const motivo = this.motivoReceita(j, R).motivo; if (motivo) return aviso(motivo);
     const n = Math.max(1, Math.min(CRIAR_OBRA.maxFila, m.n | 0 || 1)), dur = tempoCriar(R);
-    const nome = ITENS[R.faz].nome;
-    j.fabrica = { r: m.r, k: R.faz, nome, n, feito: 0, dur, fim: this.tempo + dur };
+    const nome = R.rar ? nomeItem({ k: R.faz, r: R.rar }) : ITENS[R.faz].nome;
+    j.fabrica = { r: m.r, rar: R.rar || 0, k: R.faz, nome, n, feito: 0, dur, fim: this.tempo + dur };
     this.evento({ t: 'fabricando', para: id, k: R.faz, r: m.r, nome, n, feito: 0, dur });
+  }
+  // Criar já na raridade escolhida (André 2026-11-09: "comum, raro, épico, lendário e mítico para craftar" nas abas
+  // Armas e Armaduras). rar 0 (ou sem rar) = a receita de sempre, com a sorte de sair melhor. rar 1-4 = sai certinho
+  // nessa raridade e pede, além da receita, o catalisador dela (Selo/Runa) e o material de evoluir (CATALISADOR.usa).
+  receitaNaRaridade(R, rar) {
+    if (!R) return null;
+    rar = rar | 0;
+    if (rar <= 0) return R;
+    if (!ehEquip(R.faz) || rar >= RARIDADES.length) return null;
+    const tipo = ehArma(R.faz) ? 'arma' : 'armadura', usa = { ...R.usa };
+    for (const [k, n] of Object.entries({ [CATALISADOR[tipo][rar - 1]]: 1, ...CATALISADOR.usa[tipo][rar - 1] })) usa[k] = (usa[k] || 0) + n;
+    return { ...R, usa, vigor: R.vigor + CATALISADOR.vigor, rar };
   }
   // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
   motivoReceita(j, R) {
@@ -1901,12 +1913,13 @@ export class Simulacao {
   // cria uma da receita na hora (a fila chama uma vez por barrinha)
   criarUm(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
-    const R = RECEITAS[m.r], p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const R = this.receitaNaRaridade(RECEITAS[m.r], m.rar), p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!R) return;
     const { motivo, npc } = this.motivoReceita(j, R); if (motivo) return aviso(motivo);
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
     let novo;
-    if (ehEquip(R.faz)) {
+    if (R.rar) novo = { k: R.faz, r: R.rar }; // raridade escolhida: sai certinho nela
+    else if (ehEquip(R.faz)) {
       let r = 0; const ch = chanceRaridade(p.prof[R.prof]);
       while (r < RARIDADE_CRIAR.ate && Math.random() < ch) r++;
       novo = { k: R.faz, r };
@@ -2206,8 +2219,8 @@ export class Simulacao {
     if (j.morto) return this.pararFabrica(j, '');
     if (f.des) return this.passoDestruir(j, f);
     if (f.ev) return this.passoEvoluir(j, f);
-    const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
-    if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
+    const motivo = f.r ? this.motivoReceita(j, this.receitaNaRaridade(RECEITAS[f.r], f.rar)).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
+    if (f.r) this.criarUm(j.id, { r: f.r, rar: f.rar }); else this.fabricarUm(j.id, f.k);
     f.feito++;
     if (f.feito >= f.n) return this.pararFabrica(j, f.n > 1 ? `Pronto: ${f.n} criados` : '');
     f.fim = this.tempo + f.dur;

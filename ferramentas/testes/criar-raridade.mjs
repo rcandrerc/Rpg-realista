@@ -1,0 +1,24 @@
+// Criar já na raridade escolhida (André 2026-11-09). Uso: node ferramentas/testes/criar-raridade.mjs
+import { Simulacao, MAPA_CLAREIRA, contar, CATALISADOR } from '../../shared/index.js';
+const s = new Simulacao(MAPA_CLAREIRA);
+const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
+a.criando = false; a.x = -19; a.z = 60; a.prog.ouro = 5000;
+const ev = () => { const e = s.eventos; s.eventos = []; return e; };
+const avisos = (e) => e.filter((x) => x.t === 'aviso').map((x) => x.texto).join(' | ');
+const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
+s.comprarLote('A', { x0: -28, z0: 55, x1: -20, z1: 63 }); ev();
+a.prog.mochila[10] = { k: 'obra_bancada', n: 1 };
+s.construir('A', { k: 'bancada', x: -25, z: 58.5, r: 0 }); ev();
+a.x = -23.6; a.z = 58.5;
+const R = s.receitaNaRaridade({ prof: 'alf', faz: 'botas', usa: { couro: 4 }, vigor: 8, nivel: 1 }, 2);
+ok(R.usa.couro === 4 + CATALISADOR.usa.armadura[1].couro && R.usa.selo_epico === 1 && R.rar === 2, 'receita Épica soma selo e material');
+ok(s.receitaNaRaridade({ prof: 'coz', faz: 'carne_assada', usa: {}, vigor: 1, nivel: 1 }, 2) === null, 'comida não tem raridade');
+a.prog.mochila[0] = { k: 'couro', n: 4 };
+s.criarUm('A', { r: 'botas', rar: 2 }); ok(contar(a.prog.mochila, 'botas') === 0 && avisos(ev()).includes('Falta'), 'sem selo não cria');
+a.prog.mochila[0] = { k: 'couro', n: 50 }; a.prog.mochila[1] = { k: 'selo_epico', n: 1 }; a.prog.mochila[2] = { k: 'barra_ferro', n: 10 };
+a.prog.vigor = { v: 999, t: Date.now() };
+s.criarUm('A', { r: 'botas', rar: 2 }); const e = ev();
+const b = a.prog.mochila.find((o) => o && o.k === 'botas');
+ok(b && b.r === 2, 'saiu Épica certinho ' + avisos(e));
+ok(contar(a.prog.mochila, 'selo_epico') === 0 && contar(a.prog.mochila, 'couro') === 50 - 4 - CATALISADOR.usa.armadura[1].couro, 'gastou selo e couro');
+s.criar('A', { r: 'botas', rar: 0, n: 1 }); ok(ev().some((x) => x.t === 'fabricando'), 'Comum continua igual');
