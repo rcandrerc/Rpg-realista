@@ -42,7 +42,7 @@ func _process(_dt: float) -> void:
 	cam.far = lerpf(400.0, LONGE_CAMERA, k)
 	# 2026-11-09: no mundo grande o chão sobe; o que conta é a câmera alta em relação ao chão embaixo dela (antes, num
 	# morro, a câmera passava de 7 m e as copas de longe apareciam em cima do herói)
-	var alto := cam.global_position.y - T.altura_montanha(cam.global_position.x, cam.global_position.z) > 9.0
+	var alto: bool = cam.global_position.y - float(T.altura_montanha(cam.global_position.x, cam.global_position.z)) > 9.0
 	for c in _copas:
 		c.visible = alto
 

@@ -257,7 +257,7 @@ function ramificar(G, dist) {
     const { L } = melhor, p = [melhor.p[0], melhor.p[1]]; feitos.add(L.id);
     const dx = L.x - p[0], dz = L.z - p[1], d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
     const fim = [L.x - ux * L.r * 0.4, L.z - uz * L.r * 0.4]; // entra na clareira
-    const passaLonge = (C) => C.every(([x, z]) => !hoje(x, z) && longeDoRio(x, z) && LUGARES_MUNDO.every((o) => o === L || o.tipo === 'porto' || o.tipo === 'vila' || o.tipo === 'posto' || Math.hypot(x - o.x, z - o.z) > o.r + 3));
+    const passaLonge = (C) => C.every(([x, z]) => !hoje(x, z) && longeDoRio(x, z) && LUGARES_MUNDO.every((o) => o === L || o.tipo === 'porto' || o.tipo === 'vila' || o.tipo === 'posto' || Math.hypot(x - o.x, z - o.z) > o.r + 8));
     let escolha = null;
     // a curva para um lado ou para o outro (cada vez mais aberta) até passar longe de tudo; sem nenhuma que passe, a
     // que esbarra em menos pontos
@@ -491,7 +491,7 @@ function abrirEstradas(G, dist) {
       const cx = G.x0 + (k % nx) * passo, cz = G.z0 + Math.floor(k / nx) * passo;
       // o leito de uma estrada já aberta não muda (no cruzamento a nova chega na altura dela)
       // a trilha não mexe no chão de estrada nenhuma (nem na beira dela): a estrada principal fica como estava
-      if (dist[k] !== 0 && !noLugar(cx, cz) && G.estrada[k] < (E.trilha ? 1 : 3)) h[k] = h[k] + (yy - h[k]) * w;
+      if (dist[k] !== 0 && !noLugar(cx, cz) && !(noLugar(cx, cz, 6) && noLugar(cx, cz, 6) !== fimDe(E)) && G.estrada[k] < (E.trilha ? 1 : 3)) h[k] = h[k] + (yy - h[k]) * w;
       marcas.push([k, Math.round(9 * Math.max(0, 1 - Math.max(0, d - LE / 2 + 1) / 2.5))]);
     }
     for (const [k, v] of marcas) G.estrada[k] = Math.max(G.estrada[k], v);
