@@ -45,7 +45,7 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`;
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-        body: JSON.stringify({ model: process.env.GROQ_MODELO || 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 200 }),
+        body: JSON.stringify({ model: process.env.GROQ_MODELO || 'openai/gpt-oss-120b', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 400, reasoning_effort: 'low' }),
         signal: AbortSignal.timeout(8000),
       });
       if (r.ok) { const v = lerResposta((await r.json())?.choices?.[0]?.message?.content); if (v) return v; }
