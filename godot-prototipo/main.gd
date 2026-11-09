@@ -396,6 +396,7 @@ func montar_chao() -> void:
 			cz1 = maxf(cz1, float(a.z) + r)
 		p.size = Vector2(cx1 - cx0, cz1 - cz0)
 		chao.position = Vector3((cx0 + cx1) * 0.5, 0, (cz0 + cz1) * 0.5)
+		terreno.ligar_mascara(m) # o chão plano só onde a grade do mundo é o mapa de hoje (nada de quadrado)
 		add_child(MundoTerreno.new(terreno))
 	chao.material_override = m
 	chao.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -2216,6 +2217,8 @@ func _tentar(qual: String) -> bool:
 		"disparada":
 			ligar_disparada(not mov.disparada)
 		"montar": # botão do lobo: sobe (parado ou andando, no chão) ou desce
+			if rota and rota.ativo: # no "Ir para": desceu no botão segue a pé; subiu, volta a ir no lobo (rota.gd)
+				rota.a_pe = montaria != null
 			if montaria != null:
 				montar_lobo(false)
 			elif mov.esc != null or not mov.chao or not acao.is_empty() or mov.arrancada != null:

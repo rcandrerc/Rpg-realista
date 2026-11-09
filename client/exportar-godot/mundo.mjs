@@ -8,6 +8,7 @@ import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../.
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
+import { gerarMascaraMundo } from './mascara_mundo.mjs';
 import { RAIZ } from '@rpg/shared';
 import { montarMundo, MUNDO, TERRAS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from '../../shared/mundo.js';
 
@@ -117,6 +118,9 @@ fs.writeFileSync(new URL('../../godot-prototipo/relevo/longe.png', import.meta.u
     // Parte 4b: o leito dos rios (0-9) e cada rio com o nível da água ponto a ponto e a cachoeira
     rio: Array.from(G.rio).join(''), rios: RIOS_MUNDO.map((r) => ({ id: r.id, nome: r.nome, curva: r.curva, cachoeira: r.cachoeira })), pontes: PONTES_MUNDO }));
   console.log('mundo_grade.json:', G.nx, 'x', G.nz);
+  const mk = gerarMascaraMundo(G, ESTRADAS_MUNDO, MAPA_CLAREIRA);
+  fs.writeFileSync(new URL('../../godot-prototipo/relevo/mundo_mascara.png', import.meta.url), mk.png);
+  console.log('mundo_mascara.png:', mk.w + 1, 'x', mk.h + 1);
 }
 console.log('mundo.json:', solidos.length, 'sólidos,', mundo.obstaculos.length, 'obstáculos,', grades.length, 'grades');
 

@@ -38,11 +38,22 @@ uniform sampler2D longe_tex : filter_linear, repeat_disable;
 uniform sampler2D folha_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec3 longe_area = vec3(-64.0, -146.0, 412.0);
 uniform float longe_ligado = 0.0;
+// 2026-11-09 (FASE 3): máscara do mundo grande (relevo/mundo_mascara.png, 1 px por metro). B = onde a grade do mundo é o
+// mapa de hoje: fora disso o chão plano some e quem aparece é o chão do mundo (nada de quadrado do mapa antigo).
+// R = estradas e trilhas do mundo, que entram no mapa de hoje com a mesma borda macia.
+uniform sampler2D mascara_mundo : filter_linear, repeat_disable;
+uniform vec4 mascara_area = vec4(-260.5, -320.5, 1441.0, 741.0);
+uniform float com_mascara = 0.0;
 varying vec3 mundo;
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 void fragment() {
+	vec3 mm = vec3(0.0, 0.0, 1.0);
+	if (com_mascara > 0.5) {
+		mm = texture(mascara_mundo, (mundo.xz - mascara_area.xy) / mascara_area.zw).rgb;
+		if (mm.b < 0.5) discard;
+	}
 	// distância (m) até a margem do lago mais perto, por fora da água (99 = longe de todos)
 	float dist_agua = 99.0;
 	vec2 faixa = vec2(0.3, 1.2); // terra mín e máx do lago mais perto
@@ -79,6 +90,8 @@ void fragment() {
 	float pp = smoothstep(0.35, 0.6, mk.g + (dot(pow(texture(pedra_cru, w / 2.6).rgb, vec3(2.2)), vec3(0.5)) - 0.15) * 0.8);
 	vec3 c = mix(grama, terra, pt);
 	c = mix(c, pedra * 1.6, pp);
+	// estrada do mundo chegando no mapa de hoje: a mesma terra e a mesma borda do chão do mundo
+	c = mix(c, terra, smoothstep(0.3, 0.75, mm.r + (lum - 0.3) * 0.8));
 	if (dist_agua < beira.y + beira.w) {
 		// direção de arte 2026-11-06: largura da terra proporcional ao lago, variando devagar (1 ciclo a cada ~7 m), e em
 		// ~30% da margem a faixa some (a grama chega na terra molhada); mistura grama -> terra quebrada em tufos de ~0,4 m
