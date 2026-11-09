@@ -68,7 +68,8 @@ var cat_criar := "materiais" # submenu aberto na aba Criar
 var rar_criar := {} # receita -> raridade escolhida nas abas Armas e Armaduras (André 2026-11-09)
 # Criar igual ao Quimera (André 2026-11-09, com print do Quimera: "eu quero exatamente assim"): Buscar, as estações
 # perto em cima para alternar (Ver tudo = todas), e grupos sanfona (ARMADURAS, ARMAS...) com "dá para criar/total".
-const GRUPOS_CRIAR := [["armaduras", "Armaduras"], ["armas", "Armas"], ["melhorar", "Melhorar"], ["ferramentas", "Ferramentas"],
+# André 2026-11-09: sem grupo Melhorar; evoluir/reforçar fica dentro de Armaduras (bancada) e de Armas (bigorna)
+const GRUPOS_CRIAR := [["armaduras", "Armaduras"], ["armas", "Armas"], ["ferramentas", "Ferramentas"],
 	["materiais", "Materiais"], ["comida", "Comida"], ["estacoes", "Estações"], ["casa", "Casa"], ["moveis", "Móveis"]]
 var est_criar := "" # estação escolhida em cima ("" = Ver tudo)
 var busca_criar := ""
@@ -1551,7 +1552,7 @@ func montar_criar_aqui() -> void:
 # "Melhorar equipamento" no submenu da estação (André 2026-11-07: "pegar um épico, transformar em lendário" na bancada):
 # as peças da mochila e as vestidas que esta estação melhora (bigorna/forja do Tomás: armas; bancada/banca da Rosa:
 # armaduras e colar). Evoluir e Reforçar são os mesmos do cartão da peça na mochila (que continua igual); o servidor confere.
-func montar_melhorar_aqui(ests: Array) -> bool:
+func montar_melhorar_aqui(ests: Array, so_tipo := "") -> bool:
 	var P = m.P
 	var D: Dictionary = P.dados
 	if not D.has("catalisador"):
@@ -1569,6 +1570,8 @@ func montar_melhorar_aqui(ests: Array) -> bool:
 	for p in pecas:
 		var it = p[0]
 		var tipo := tipo_catalisador(it.k)
+		if so_tipo != "" and tipo != so_tipo:
+			continue
 		var prof: String = str(D.receitas[it.k].prof) if D.receitas.has(it.k) else ("fer" if tipo == "arma" else "alf")
 		if not (("bigorna" if prof == "fer" else "bancada") in ests):
 			continue
@@ -1605,9 +1608,12 @@ func montar_melhorar_aqui(ests: Array) -> bool:
 				var tem: int = P.contar(k)
 				tem_tudo = tem_tudo and tem >= int(usa[k])
 				partes.append("%s %d/%d" % [D.itens[k].nome, tem, int(usa[k])])
-			var u := rotulo("Para %s: %s" % [D.raridades[r].nome, " · ".join(partes)], 12, VERDE if tem_tudo else Color("e0806a"))
-			u.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			txt.add_child(u)
+			txt.add_child(rotulo("Evoluir para %s:" % D.raridades[r].nome, 12, VERDE if tem_tudo else Color("e0806a")))
+			var ics := HFlowContainer.new() # André 2026-11-09: materiais em ícone, nada de lista
+			ics.add_theme_constant_override("h_separation", 8)
+			for k in usa:
+				ics.add_child(icone_material(str(k), P.contar(k), int(usa[k])))
+			txt.add_child(ics)
 		elif p[1] < 0:
 			txt.add_child(rotulo("Vestida · para evoluir, tire e guarde na mochila", 12, APAGADO))
 		l.add_child(txt)
@@ -1798,9 +1804,29 @@ func preencher_lista_criar() -> void:
 			corpo.add_child(linha_fornalha())
 		for x in itens:
 			corpo.add_child(linha_criavel_rar(x.e, int(x.rar)) if int(x.rar) >= 0 else linha_criavel(x.e))
+		if k in ["armaduras", "armas"] and not buscando: # as suas peças para evoluir e reforçar, no mesmo grupo
+			linhas_melhorar(corpo, "armadura" if k == "armaduras" else "arma")
 		lista_criar.add_child(corpo)
 	if not algum:
 		lista_criar.add_child(rotulo("Nada encontrado." if buscando else "Nada para criar aqui.", 14, APAGADO))
+
+# evoluir/reforçar as peças da mochila e vestidas, dentro do grupo (sem o título "Melhorar equipamento")
+func linhas_melhorar(corpo: Control, tipo: String) -> void:
+	var ests: Array = [est_criar] if est_criar != "" else estacoes_perto()
+	var antes = conteudo # montar_melhorar_aqui escreve em "conteudo"
+	var tmp := VBoxContainer.new()
+	conteudo = tmp
+	var tem := montar_melhorar_aqui(ests, tipo)
+	conteudo = antes
+	if tem:
+		for i in 3: # separador (2) e a explicação: o grupo já diz o que é
+			var sp := tmp.get_child(0)
+			tmp.remove_child(sp)
+			sp.queue_free()
+		for c in tmp.get_children():
+			tmp.remove_child(c)
+			corpo.add_child(c)
+	tmp.queue_free()
 
 # cabeçalho da sanfona: ▸ ARMADURAS ........ 2/25 (verde = dá para criar agora)
 func cabeca_grupo(k: String, nome: String, prontas: int, total: int) -> Control:
