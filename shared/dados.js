@@ -154,7 +154,7 @@ export const HABILIDADES = {
   barreira: { nome: 'Barreira Arcana', tipo: 'Magia', anim: A.block, ts: 1, segurar: 2.6, defesa: 0.8, cd: 10, mana: 15, fx: true, desc: 'Uma bolha de luz: recebe 80% menos dano.' },
 };
 // A cura tem botão próprio, fora da build
-export const CURA = { nome: 'Cura', tipo: 'Magia', anim: A.heal, ts: 1.2, at: 0.55, cura: 38, cd: 8, mana: 25, fx: true, desc: 'Recupera vida. Tem botão próprio, sempre à mão.' };
+export const CURA = { nome: 'Cura', tipo: 'Magia', anim: A.heal, ts: 1.2, at: 0.55, cura: 38, cd: 8, mana: 25, fx: true, time: 0.5, timeR: 8, desc: 'Recupera vida. Quem é do seu time e está perto (8 m) recebe metade.' }; // time: André 2026-11-09
 export const ESPACOS_ESPADA = 4, ESPACOS_MAGIA = 4; // 4 de espada (modo espada) e 4 de magia (modo magia); o botão Trocar alterna
 export const ESPACOS_BUILD = ESPACOS_ESPADA + ESPACOS_MAGIA;
 // a build é a lista das 8: primeiro as 4 de espada, depois as 4 de magia
@@ -1951,6 +1951,9 @@ export const AMIGA = {
   // tem pra ela. Ela cobra o valor de venda x margem (menos com amizade) e paga em ouro o que ele põe na mesa
   // (ou nada, se ele disser que é presente). Tranca e confirma sozinha quando a conta fecha.
   mochila: { paginas: 4, arrumar: 30, pocoes: 10 },
+  // André 2026-11-09: "idêntica a um jogador, nem mais forte, nem mais fraca". O equip acima vira só a aparência dela
+  // (look B, como uma skin); de verdade ela começa com as peças Comuns e compra poção com o ouro dela.
+  justa: { raridade: 0, curaVida: 0.5, curaDono: 0.45 },
   troca: { margem: 1.5, porAmizade: 0.05, margemMin: 1.1, pensar: 1.2, longe: 6 },
   falasTroca: {
     abre: ['Bora negociar! Me diz o que você quer ("quero 3 cenouras") ou põe na mesa o que tem pra mim.', 'Troca? Adoro! Fala o que você quer ou mostra o que trouxe.'],

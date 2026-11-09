@@ -2764,7 +2764,13 @@ export class Simulacao {
     } else if (h.cura) {
       const n = Math.min(h.cura, j.vidaMax - j.vida); j.vida += n;
       this.evento({ t: 'cura', alvo: j.id, n });
-      this.evento({ t: 'anel', x: j.x, z: j.z, r: 1.6, cor: 0x9be08f, dur: 0.8 });
+      // André 2026-11-09: a cura passa para quem é do time e está perto, mais fraca (h.time da cura)
+      if (h.time && j.time) for (const k of j.time.membros) {
+        const o = this.jogadores.get(k); if (!o || o === j || o.morto || dist(o, j) > (h.timeR || 8)) continue;
+        const q = Math.min(Math.round(h.cura * h.time), o.vidaMax - o.vida); o.vida += q;
+        if (q > 0) this.evento({ t: 'cura', alvo: o.id, n: q });
+      }
+      this.evento({ t: 'anel', x: j.x, z: j.z, r: h.time && j.time ? (h.timeR || 8) : 1.6, cor: 0x9be08f, dur: 0.8 });
     } else if (h.campo) {
       const a = this.maisPerto(j, 16);
       const p = a ? { x: a.x, z: a.z } : this.aFrente(j, 5);
@@ -3349,6 +3355,7 @@ export class Simulacao {
       tempo: r2(this.tempo),
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
         roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
+        ...(j.roupaFixa ? { roupa: roupa(j.roupaFixa) } : {}), // a Cecília: aparência fixa do look B (as peças de verdade são outras)
         semCapacete: !!j.prog.semCapacete,
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
