@@ -2244,6 +2244,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		var bc := botao("Colocar", por, 14, true)
 		bc.custom_minimum_size = Vector2(120, 36)
 		bs.add_child(bc)
+	elif it.k == "carrinho" and lugar == "": # Quimera: coloca no chão; no mundo, o mesmo botão traz de volta de onde estiver
+		bs.add_child(botao_acao("Guardar carrinho" if P.carrinho_no_mundo() else "Colocar no chão", {"acao": "usar", "i": i}))
 	elif not P.eh_mat(it) and (it.k == "tomo" or (P.dados.itens.has(it.k) and P.dados.itens[it.k].has("usar"))):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
@@ -2258,6 +2260,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(r2)
 		bs.add_child(dica_ate_maximo(it))
 	var trancado: bool = bool(it.get("cad", false))
+	if it.k == "carrinho" and P.carrinho_no_mundo():
+		txt.add_child(rotulo("No mundo: travado na mochila. Toque em Guardar pra ele voltar de qualquer distância.", 12, APAGADO))
 	# cadeado (André 2026-11-07): trancado não vende (nem no Vender vários), não vai para o lixo nem para a troca
 	var cad := botao("Destrancar" if trancado else "Trancar", func(): acao_item({"acao": "cadeado", "i": i} if lugar == "" else {"acao": "cadeado", "lugar": lugar}), 14, false)
 	cad.icon = icone_tex("cadeado")
@@ -2265,6 +2269,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	cad.add_theme_constant_override("icon_max_width", 18)
 	cad.custom_minimum_size = Vector2(130, 36)
 	bs.add_child(cad)
+	if it.k == "carrinho" and P.carrinho_no_mundo():
+		trancado = true # no mundo: não vende nem joga fora (o servidor também recusa)
 	if i >= 0 and not trancado and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
 	if i >= 0 and not trancado: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
