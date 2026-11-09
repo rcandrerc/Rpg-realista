@@ -1949,6 +1949,27 @@ export const AMIGA = {
   // André 2026-11-09: "idêntica a um jogador, nem mais forte, nem mais fraca". O equip acima vira só a aparência dela
   // (look B, como uma skin); de verdade ela começa com as peças Comuns e compra poção com o ouro dela.
   justa: { raridade: 0, curaVida: 0.5, curaDono: 0.45 },
+  // Coleta junto (André 2026-11-09: "chamar pra pescar, chamar pra minerar"; divisão: parte de presente e o resto à
+  // venda). No time, "bora pescar/minerar/lenha": ela faz a própria ferramenta (pega pedra e galho soltos se faltar),
+  // coleta como um jogador (vigor, profissão, mesma velocidade) perto do André e, a cada 'dividir' itens e no fim,
+  // dá 'presente' (+ 'porAmizade' por ponto, até 'presenteMax') do que pegou; o resto ela oferece pelo preço de amiga.
+  coleta: { raio: 28, presente: 0.3, porAmizade: 0.03, presenteMax: 0.5, dividir: 10, reacao: [0.25, 0.6], toquesK: 0.8, pedirDeNovo: 90 },
+  atividades: {
+    pescar: { ferramenta: 'vara', nome: 'pescar', lugar: 'um spot de pesca (água borbulhando)' },
+    minerar: { ferramenta: 'picareta', nome: 'minerar', lugar: 'um veio de minério' },
+    lenha: { ferramenta: 'machado', nome: 'cortar lenha', lugar: 'árvore pra cortar' },
+  },
+  falasColeta: {
+    aceita: ['Bora {o}! Fica perto que eu acho um lugar.', 'Fechou, bora {o}! Quem pegar menos paga o jantar.'],
+    fazendo: 'Peraí, vou fazer {item} rapidinho.',
+    falta: 'Pra fazer {item} me falta {falta}. Tem aí pra me dar? (dá pela troca: "é presente")',
+    semLugar: 'Não achei {lugar} aqui perto. Me leva até um?',
+    cansada: 'Ufa, acabou meu vigor... vou parar por aqui.',
+    parte: 'Toma sua parte: {itens}!',
+    resto: 'O resto ({itens}) eu te vendo por {preco} de ouro, se quiser. É só abrir a troca.',
+    fim: 'Foi divertido! Me chama de novo.',
+    nada: 'Hoje não rendeu nada... próxima a gente pega mais!',
+  },
   troca: { margem: 1.5, porAmizade: 0.05, margemMin: 1.1, pensar: 1.2, longe: 6 },
   falasTroca: {
     abre: ['Bora negociar! Me diz o que você quer ("quero 3 cenouras") ou põe na mesa o que tem pra mim.', 'Troca? Adoro! Fala o que você quer ou mostra o que trouxe.'],
@@ -1990,6 +2011,11 @@ export const AMIGA = {
       // só valem com a janela de troca aberta (fase 3)
       presente: ['presente', 'de graca', 'pra voce', 'e seu', 'e sua', 'toma'],
       pedirItem: ['quero', 'me vende', 'vende', 'me ve', 'tem ', 'me da', 'preciso de', 'compro'],
+      // coleta junto (vem antes de "time": "vamos pescar" é pescar, não caçar)
+      pararAtividade: ['para de', 'parar de', 'chega de', 'pode parar', 'vamos parar', 'bora parar'],
+      pescar: ['pescar', 'pesca', 'pescaria', 'peixe'],
+      minerar: ['minerar', 'minerio', 'minera', 'mineracao', 'minerando'],
+      lenha: ['lenha', 'madeira', 'cortar arvore', 'cortar arvores', 'lenhador', 'lenhar'],
       obrigado: ['obrigado', 'obrigada', 'valeu', 'vlw', 'brigado', 'agradeco'],
       elogio: ['linda', 'bonita', 'legal', 'gosto de voce', 'te adoro', 'melhor amiga', 'incrivel', 'top'],
       piada: ['piada', 'conta uma', 'me faz rir', 'algo engracado'],

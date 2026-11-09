@@ -2,7 +2,9 @@
 // só o dono conversa, pede ajuda e paga de volta, guarda tudo no terreno e não ocupa vaga nas Terras.
 // Uso: node ferramentas/testes/amiga.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS } from '../../shared/index.js';
-import { contar } from '../../shared/progresso.js';
+import { contar, guardar } from '../../shared/progresso.js';
+import { PESCA } from '../../shared/dados.js';
+import { noLago } from '../../shared/relevo.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});
@@ -194,3 +196,46 @@ ok(ITENS.lenha, 'itens');
   for (let i = 0; i < 20 * 3; i++) s5.passo(0.05);
   ok(d.vida > v0, `ela viu o André mal e usou a Cura: +${d.vida - v0} de vida nele`);
 }
+// ---------- coleta junto: lenha e pesca, com a divisão (André 2026-11-09) ----------
+{
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  s6.adicionarJogador('andre', 'André', 'ruiva', {});
+  s6.amigaEntrar('andre');
+  const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
+  const fala = []; s6.aoChatAmiga = (m) => fala.push(m.texto);
+  const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
+  ok(s6.assuntoAmiga('vamos pescar?') === 'pescar' && s6.assuntoAmiga('bora minerar') === 'minerar' && s6.assuntoAmiga('bora cortar lenha') === 'lenha', 'entende "vamos pescar", "bora minerar" e "bora cortar lenha"');
+  // lenha: ela faz o machado com o que tem e corta perto do André
+  const arv = [...s6.coletaveis.values()].filter((n) => n.tipo === 'arvore').sort((a, b) => Math.hypot(a.x - c.x, a.z - c.z) - Math.hypot(b.x - c.x, b.z - c.z))[0];
+  Object.assign(d, { x: arv.x + 4, z: arv.z, y: s6.terreno.altura(arv.x + 4, arv.z) }); Object.assign(c, { x: arv.x + 5, z: arv.z + 1, y: s6.terreno.altura(arv.x + 5, arv.z + 1) });
+  guardarItem(c, 'lenha', 3); guardarItem(c, 'pedra', 2);
+  const lenha0 = contar(c.prog.mochila, 'lenha') - 3, dono0 = contar(d.prog.mochila, 'lenha');
+  const rr = Math.random; Math.random = () => 0.01; chat('bora cortar lenha'); Math.random = rr;
+  ok(c.time && c.ia.atividade === 'lenha', 'topou cortar lenha e entrou no time');
+  esp(90);
+  const cortou = contar(c.prog.mochila, 'lenha') - lenha0 + contar(d.prog.mochila, 'lenha') - dono0;
+  ok(contar(c.prog.mochila, 'machado') === 1 && cortou > 0, `fez o próprio machado e cortou ${cortou} lenha`);
+  chat('chega de lenha');
+  const parte = contar(d.prog.mochila, 'lenha') - dono0;
+  ok(!c.ia.atividade && parte > 0 && parte < cortou && c.ia.reserva?.some((x) => x.k === 'lenha'), `parou, deu ${parte} de presente e oferece o resto (${c.ia.reserva?.map((x) => x.n + ' ' + x.k).join(', ')})`);
+}
+{ // pesca (sala nova: o vigor dela foi todo na lenha): com a vara, acha o spot perto do André e pesca sozinha
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  s6.adicionarJogador('andre', 'André', 'ruiva', {});
+  s6.amigaEntrar('andre');
+  const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
+  const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
+  c.ia.combinado = s6.tempo + 999;
+  let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo); }
+  if (sp) {
+    sp.fim = s6.tempo + 9999;
+    const L = sp.lago, dx = sp.x - L.x, dz = sp.z - L.z, n = Math.hypot(dx, dz) || 1; let r = 0; while (noLago(sp.x + dx / n * r, sp.z + dz / n * r)) r += 0.25;
+    const bx = sp.x + dx / n * (r + 3), bz = sp.z + dz / n * (r + 3);
+    Object.assign(d, { x: bx, z: bz, y: s6.terreno.altura(bx, bz) }); Object.assign(c, { x: bx + 1, z: bz + 1, y: s6.terreno.altura(bx + 1, bz + 1) });
+    guardarItem(c, 'vara', 1);
+    const peixes = () => Object.keys(PESCA.tier).reduce((t, k) => t + contar(c.prog.mochila, k) + contar(d.prog.mochila, k), 0), p0 = peixes();
+    chat('vamos pescar?'); esp(120);
+    ok(c.ia.atividade === 'pescar' && peixes() > p0, `pescou ${peixes() - p0} peixe(s) no spot perto do André`);
+  } else ok(false, 'nenhum spot de pesca nasceu no teste');
+}
+function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
