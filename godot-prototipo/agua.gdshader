@@ -7,10 +7,10 @@ render_mode blend_mix, depth_draw_never, cull_disabled, specular_disabled, unsha
 // A fundura de cada ponto vem pronta na malha (sem ler a tela, igual em qualquer celular):
 // - lagos e mar: UV.x = metros de água (negativo onde o chão já saiu da água: a borda cai no zero certinho)
 // - antigo: cor do vértice (COLOR.r x 5 m), se prof_uv for falso
-uniform vec3 cor_raso : source_color = vec3(0.3, 0.66, 0.62);
-uniform vec3 cor_fundo : source_color = vec3(0.06, 0.24, 0.36);
+uniform vec3 cor_raso : source_color = vec3(0.2, 0.56, 0.7); // 2026-11-09 (André): mais azul
+uniform vec3 cor_fundo : source_color = vec3(0.04, 0.19, 0.42);
 uniform vec3 cor_espuma : source_color = vec3(0.93, 0.97, 0.98);
-uniform vec3 cor_ceu : source_color = vec3(0.72, 0.86, 0.96); // horizonte refletido
+uniform vec3 cor_ceu : source_color = vec3(0.6, 0.78, 0.95); // horizonte refletido
 uniform vec3 cor_zenite : source_color = vec3(0.36, 0.58, 0.86); // céu alto refletido
 uniform float fundo_lago = 1.0;
 uniform bool prof_uv = false;
@@ -64,7 +64,7 @@ void fragment() {
 	// corpo da água pela fundura; as cristas pegam um pouco mais de luz (a água "acende" onde a onda vira pro sol)
 	vec3 c = mix(cor_raso, cor_fundo, t);
 	c *= 1.0 + dot(inc, normalize(sol_dir.xz)) * 0.35;
-	c = mix(c, ceu, clamp(fr * 0.85, 0.0, 0.85));
+	c = mix(c, ceu, clamp(fr * 0.7, 0.0, 0.7)); // 2026-11-09: reflexo menos forte (a água ficava clara demais)
 	// riscos finos de brilho que vêm e vão (desenho de anime, não reflexo de foto)
 	float o1 = sin(mundo.x * 0.8 + TIME * 0.9 + sin(mundo.z * 0.55 + TIME * 0.5) * 1.6);
 	float o2 = sin(mundo.z * 1.1 - TIME * 0.7 + sin(mundo.x * 0.45 - TIME * 0.3) * 2.0);
@@ -92,7 +92,9 @@ void fragment() {
 	float rente = smoothstep(-0.01, 0.07, prof);
 	ALPHA = clamp((mix(0.6, 0.93, t) + fr * 0.5) * rente + espuma * 0.6 + sol * 0.5, 0.0, 0.96);
 	// vista de baixo (mergulhando, André 2026-11-07): a superfície é um teto claro que ondula, com o céu passando
-	if (!FRONT_FACING) {
+	// 2026-11-09: decide pela altura da câmera, não pelo lado da face (a malha dos lagos vem virada: de cima eles
+	// caíam aqui e ficavam com a cor clara chapada da vista de baixo)
+	if (CAMERA_POSITION_WORLD.y < mundo.y) {
 		vec3 baixo = mix(vec3(0.32, 0.62, 0.66), cor_ceu, 0.35 + (o1 + o2) * 0.12 + inc.x * 0.5);
 		ALBEDO = (baixo + brilho * 0.25) * mix(1.0, 0.3, noite);
 		ALPHA = 0.7;
