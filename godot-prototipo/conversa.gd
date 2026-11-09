@@ -27,13 +27,15 @@ const ACOES := {
 	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
 	"amiga_casa": ["Como vai a casa?", "lote"],
 	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
-	"amiga_time": ["Bora caçar juntos?", "basico"],
+	"amiga_time": ["Chamar para o time", "basico"],
+	"amiga_sair": ["Sair do time", "desfazer"],
 	"amiga_dungeon": ["Vamos na caverna?", "it_passe_caverna"],
 	"amiga_troca": ["Quer trocar itens?", "it_ouro"],
 }
 const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca"]
 var _amiga := {} # a Cecília vista como NPC da janela (o corpo vem do online.gd, como outro jogador)
 var _amiga_pedido = null # o que ela pediu ({k, n, nome}): aparece o botão Dar
+var _amiga_time := false # ela está no meu time: o botão vira "Sair do time" (fase 2)
 
 var m # main.gd
 var raiz: Control
@@ -226,7 +228,8 @@ func _botoes_amiga() -> void:
 	if _amiga_pedido is Dictionary:
 		var p: Dictionary = _amiga_pedido
 		opcoes.add_child(_opcao("Dar %d %s" % [int(p.n), str(p.nome).to_lower()], "it_" + str(p.k), func(): m.rede("amiga", {"acao": "dar"})))
-	for a in AMIGA_BOTOES:
+	for a0 in AMIGA_BOTOES:
+		var a: String = "amiga_sair" if a0 == "amiga_time" and _amiga_time else a0
 		var acao: String = a.trim_prefix("amiga_")
 		opcoes.add_child(_opcao(ACOES[a][0], ACOES[a][1], func(): m.rede("amiga", {"acao": acao})))
 	opcoes.add_child(_opcao("Até logo", "sair", func(): m.rede("amiga", {"acao": "tchau"}); fechar()))
@@ -460,8 +463,10 @@ func fala(npc_id: String, texto: String, ev := {}) -> bool:
 	fala_ui.text = texto
 	if npc.get("amiga", false): # Cecília: pediu alguma coisa (ou não pede mais) -> o botão Dar aparece ou some
 		var p = ev.get("pedido")
-		if JSON.stringify(p) != JSON.stringify(_amiga_pedido):
+		var no_time: bool = ev.get("noTime", false) == true
+		if JSON.stringify(p) != JSON.stringify(_amiga_pedido) or no_time != _amiga_time:
 			_amiga_pedido = p
+			_amiga_time = no_time
 			_botoes_amiga()
 	if itens_ui.visible:
 		_itens_passe(true)

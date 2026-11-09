@@ -11,8 +11,8 @@
 // - this.amigaDono: id da sessão do dono (quem pode conversar).
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { AMIGA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, fasePlanta } from './dados.js';
-import { guardar, contar, tirar } from './progresso.js';
+import { AMIGA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta } from './dados.js';
+import { guardar, contar, tirar, horaDoJogo, ehNoite } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -48,6 +48,7 @@ export const Amiga = {
       j.amizade = salvo.amizade | 0;
       j.pedido = salvo.pedido && ITENS[salvo.pedido.k] ? { k: salvo.pedido.k, n: salvo.pedido.n | 0 } : null;
       j.ia = { fase: 'pensar', ate: 0 };
+      this.pocoesAmiga(j);
       // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe)
       const def = L?.def, x = def ? def.x0 + AMIGA.porta[0] : this.mapa.nascimento.x + 2, z = def ? def.z0 + AMIGA.porta[1] : this.mapa.nascimento.z + 2;
       Object.assign(j, { x, z, y: this.terreno.altura(x, z), ry: Math.PI, chao: true });
@@ -58,6 +59,7 @@ export const Amiga = {
   // o dono saiu: ela guarda o que tem e sai junto (parada, sem gastar servidor)
   amigaSair(donoId) {
     if (!this.amiga || (donoId != null && donoId !== this.amigaDono)) return;
+    if (this.amiga.time) this.sairDoTime(this.amiga, `${AMIGA.nome} saiu do jogo`);
     this.guardarAmiga();
     this.jogadores.delete(this.amiga.id);
     this.amiga = null; this.amigaDono = null;
@@ -91,8 +93,12 @@ export const Amiga = {
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
   passoAmiga(dt) {
-    const j = this.amiga; if (!j || j.morto) return;
+    const j = this.amiga; if (!j) return;
     const ia = j.ia, L = this.loteDaAmiga();
+    // caiu lutando: sai do time e renasce em casa (a cama dela), como qualquer jogador
+    if (j.morto) { if (j.time) { this.falarAmiga(AMIGA.falas.caiu); this.sairDoTime(j, `${AMIGA.nome} caiu`); } ia.fase = 'pensar'; return; }
+    // subiu de nível: põe os pontos metade em força e metade em vitalidade (guerreira)
+    while (j.prog.pontos > 0) this.distribuirAtributo(j.id, j.prog.atr.for <= j.prog.atr.vit ? 'for' : 'vit');
     // conversando: fica parada olhando para o dono
     const dono = this.jogadores.get(this.amigaDono);
     if (ia.conversaAte > this.tempo && dono) {
@@ -106,6 +112,10 @@ export const Amiga = {
       if (d > 6) ia.viu = false;
       else if (d < 3 && !ia.viu && ia.fase === 'andar') { ia.viu = true; ia.conversaAte = this.tempo + 4; return; }
     }
+    // no time do dono: segue, luta e cuida da vida (fase 2); saiu do time: volta para a vida dela
+    if (j.time && dono && j.time.membros.includes(dono.id)) { ia.noTime = true; return this.passoTimeAmiga(j, dono, dt); }
+    if (j.time) this.sairDoTime(j, `${AMIGA.nome} saiu do time`); // o dono saiu da sala ou do time: ela não fica com outros
+    if (ia.noTime) { ia.noTime = false; j.montado = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 1; if (dono) this.falarAmiga(AMIGA.falas.voltou); this.pocoesAmiga(j); }
     if (ia.fase === 'andar') return this.andarAmiga(j, dt);
     if (ia.fase === 'trabalhar') {
       if (this.tempo >= ia.golpe) { ia.golpe = this.tempo + ia.ritmo; j.acao = { nome: ia.anim, ts: 1 }; j.acaoSeq++; }
@@ -215,7 +225,7 @@ export const Amiga = {
     const j = this.jogadores.get(id), a = this.amiga;
     if (!j || !a || id !== this.amigaDono || !m || typeof m.acao !== 'string') return;
     if (Math.hypot(a.x - j.x, a.z - j.z) > 4.5) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${AMIGA.nome}` });
-    const F = AMIGA.falas, diga = (texto, extra = {}) => this.evento({ t: 'fala', para: id, npc: AMIGA.id, texto, pedido: a.pedido ? { k: a.pedido.k, n: a.pedido.n, nome: ITENS[a.pedido.k].nome } : null, amizade: a.amizade | 0, ...extra });
+    const F = AMIGA.falas, diga = (texto, extra = {}) => this.evento({ t: 'fala', para: id, npc: AMIGA.id, texto, pedido: a.pedido ? { k: a.pedido.k, n: a.pedido.n, nome: ITENS[a.pedido.k].nome } : null, amizade: a.amizade | 0, noTime: !!(a.time && a.time === j.time), ...extra });
     const nomeItem = (p) => `${p.n} ${ITENS[p.k].nome.toLowerCase()}`;
     a.ia.conversaAte = m.acao === 'tchau' ? 0 : this.tempo + AMIGA.conversa;
     if (a.ia.fase === 'trabalhar') { a.ia.ate = Math.max(a.ia.ate, this.tempo); } // larga o trabalho na hora e volta depois
@@ -224,10 +234,22 @@ export const Amiga = {
       case 'oi': return diga(sorteia(F.oi));
       case 'casa': return diga(pronta ? sorteia(F.pronta) : sorteia(F.obra));
       case 'horta': return diga(sorteia(F.horta));
-      case 'time': return diga(sorteia(F.time));
+      case 'time': {
+        if (a.time && a.time === j.time) return diga(sorteia(F.jaNoTime));
+        if ((a.ia.recusaAte || 0) > this.tempo) return diga(F.recusa.jaFalei);
+        const v = this.vontadeAmiga(a, j);
+        if (Math.random() >= v.p) { a.ia.recusaAte = this.tempo + AMIGA.time.esperaRecusa; return diga(F.recusa[v.motivo] || F.recusa.vontade); }
+        if (!this.entrarTimeAmiga(a, j)) { a.ia.recusaAte = this.tempo + 5; return diga(F.recusa.cheio); }
+        a.ia.conversaAte = this.tempo + 2;
+        return diga(sorteia(F.time), { time: true });
+      }
       case 'dungeon': return diga(sorteia(F.dungeon));
       case 'troca': return diga(sorteia(F.troca));
       case 'tchau': return diga(sorteia(F.tchau));
+      case 'sair': { // o dono tira ela do time pela conversa
+        if (a.time && a.time === j.time) { a.ia.noTime = false; this.sairDoTime(a, `${AMIGA.nome} saiu do time`); a.ia.fase = 'pensar'; this.pocoesAmiga(a); }
+        return diga(F.voltou);
+      }
       case 'ajuda': {
         if (!a.pedido && Math.random() < 0.7) { const p = sorteia(AMIGA.pedidos); a.pedido = { k: p.k, n: p.n }; this.guardarAmiga(); }
         return diga(a.pedido ? sorteia(F.pedido).replace('{item}', nomeItem(a.pedido)) : sorteia(F.semPedido));
@@ -251,5 +273,90 @@ export const Amiga = {
         return diga(sorteia(F.obrigada).replace('{paga}', paga));
       }
     }
+  },
+  // ---------- fase 2: time e combate (André 2026-11-09) ----------
+  // fala dela que aparece para o dono mesmo sem a janela aberta (aviso no topo)
+  falarAmiga(texto) { if (this.amigaDono) this.evento({ t: 'fala', para: this.amigaDono, npc: AMIGA.id, texto: `${AMIGA.nome}: ${texto}` }); },
+  // completa as poções dela até AMIGA.time.pocoes (ela passa na Rosa quando volta para casa)
+  pocoesAmiga(j) {
+    const falta = AMIGA.time.pocoes - contar(j.prog.mochila, 'pocao');
+    if (falta > 0) guardar(j.prog.mochila, { k: 'pocao', n: falta });
+  },
+  // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
+  vontadeAmiga(a, dono) {
+    const R = AMIGA.time, contra = [];
+    let p = R.base + Math.min(R.amizadeMax, (a.amizade | 0) * R.porAmizade);
+    if (a.vida < a.vidaMax * 0.5) contra.push(['cansada', R.cansada]);
+    const L = this.loteDaAmiga(), agora = Date.now();
+    if (L && Object.values(L.horta).some((t) => { if (!t.c) return false; crescerPlanta(t, agora); return fasePlanta(t.g / PLANTAS[t.c].G) >= 4 || !(t.w && agora < t.w + REGA_MS); })) contra.push(['horta', R.horta]);
+    if (ehNoite(horaDoJogo(dono.prog.dia))) contra.push(['noite', R.noite]);
+    const dif = (dono.prog.nivel | 0) - (a.prog.nivel | 0) - R.nivelLivre;
+    if (dif > 0) contra.push(['perigo', Math.min(R.perigoMax, dif * R.porNivel)]);
+    for (const [, n] of contra) p -= n;
+    contra.sort((x, y) => y[1] - x[1]);
+    return { p: Math.max(R.min, Math.min(R.max, p)), motivo: contra[0]?.[0] || 'vontade' };
+  },
+  // entra no time do dono (o mesmo time de jogadores: XP dividido, barras e pontos no minimapa). false = não coube
+  entrarTimeAmiga(a, dono) {
+    let T = dono.time;
+    if (!T) { T = { lider: dono.id, membros: [dono.id] }; dono.time = T; (this.times ||= new Set()).add(T); }
+    if (T.membros.length >= TIME.max) return false;
+    T.membros.push(a.id); a.time = T;
+    for (const k of T.membros) if (k !== a.id) this.evento({ t: 'aviso', para: k, texto: `${AMIGA.nome} entrou no time` });
+    Object.assign(a.ia, { fase: 'seguir', chegou: null, preso: 0, noTime: true });
+    this.mudouTime(T);
+    return true;
+  },
+  // o monstro que ela vai bater: o mais perto dela entre os que estão perto do dono, quando alguém do time está lutando
+  alvoAmiga(j, dono) {
+    if (!this.emCombate(dono) && !this.emCombate(j)) return null;
+    let melhor = null, md = Infinity;
+    for (const e of this.inimigosDe(j)) {
+      if (e.treino || Math.hypot(e.x - dono.x, e.z - dono.z) > AMIGA.time.ajudar) continue;
+      const d = Math.hypot(e.x - j.x, e.z - j.z); if (d < md) { md = d; melhor = e; }
+    }
+    return melhor;
+  },
+  passoTimeAmiga(j, dono, dt) {
+    const R = AMIGA.time, ia = j.ia, d = Math.hypot(dono.x - j.x, dono.z - j.z);
+    // ficou muito para trás (o dono voltou para a vila, disparou no lobo...): chega correndo atrás dele
+    if (d > R.longe || (dono.caverna && !j.caverna && d > 8)) {
+      const ang = dono.ry + Math.PI + 0.6, x = dono.x + Math.sin(ang) * 2, z = dono.z + Math.cos(ang) * 2;
+      Object.assign(j, { x, z, y: dono.y, vy: 0, chao: true, caverna: dono.caverna ? { desde: this.tempo } : j.caverna });
+      return this.pararAmiga(j);
+    }
+    if (j.trava > 0) return this.pararAmiga(j);
+    const alvo = this.alvoAmiga(j, dono);
+    // montaria: monta quando o dono monta (e desce para lutar)
+    const monta = !!dono.montado && !alvo;
+    if (monta !== !!j.montado) j.montado = monta ? (MONTARIAS[dono.montado] ? dono.montado : 'lobo') : null;
+    // vida baixa: poção (a recarga é a do jogo); sem poção e quase caindo, foge para perto do dono
+    if (j.vida < j.vidaMax * R.pocao && (ia.pocaoT || 0) <= this.tempo) {
+      const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
+      if (i >= 0) { ia.pocaoT = this.tempo + 2; this.item(j.id, { acao: 'usar', i }); }
+    }
+    const semPocao = !j.prog.mochila.some((o) => o?.k === 'pocao');
+    if (alvo && !(semPocao && j.vida < j.vidaMax * R.fugir)) {
+      const da = Math.hypot(alvo.x - j.x, alvo.z - j.z);
+      if (da > 1.9) return this.irDireto(j, alvo.x, alvo.z, da > 4);
+      this.pararAmiga(j);
+      j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
+      // de vez em quando uma skill de espada da barra dela (1 a 4); no resto, o combo do golpe
+      if (this.tempo >= (ia.skillT || 0)) {
+        ia.skillT = this.tempo + R.skill * (0.7 + Math.random() * 0.6);
+        const k = 1 + Math.floor(Math.random() * 4), h = j.build[k - 1];
+        if (h && (j.cds[h] || 0) <= this.tempo) return this.usarHabilidade(j.id, k);
+      }
+      return this.usarHabilidade(j.id, 0);
+    }
+    // seguindo: fica um pouco atrás e do lado dele
+    const ang = dono.ry + Math.PI + 0.7, px = dono.x + Math.sin(ang) * R.seguir, pz = dono.z + Math.cos(ang) * R.seguir;
+    const dp = Math.hypot(px - j.x, pz - j.z);
+    if (dp < 0.6 || (d < R.seguir + 0.8 && !dono.montado)) return this.pararAmiga(j);
+    this.irDireto(j, px, pz, dp > R.correr || !!dono.montado);
+  },
+  irDireto(j, x, z, correr) {
+    const dx = x - j.x, dz = z - j.z, d = Math.hypot(dx, dz) || 1;
+    j.entrada = { mx: dx / d, mz: dz / d, correr };
   },
 };

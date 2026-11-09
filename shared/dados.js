@@ -1849,12 +1849,12 @@ export { RIOS_MUNDO, PONTES_MUNDO };
 // Mora num terreno das Terras da Estrada, constrói a casa dela peça por peça e cuida da horta. Só o André conversa com
 // ela (contas de teste, server/contas.js); os outros veem ela andando e trabalhando, mas tocar nela não abre nada.
 // Visual escolhido pelo André (opção B, 2026-11-09): corpo victoria, cabelo preto, olhos vermelhos, vinho e capa roxa.
-// Fase 1: corpo, casa, horta, passeio pela vila e conversa por botões. Time, combate e troca de verdade vêm nas fases 2 e 3.
+// Fase 1: corpo, casa, horta, passeio pela vila e conversa por botões. Fase 2: time e combate. Troca de verdade vem na fase 3.
 export const AMIGA = {
   id: 'cecilia', nome: 'Cecília', conta: 'a:cecilia', papel: 'a guerreira',
   visual: 'victoria',
   aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1 },
-  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'short', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 } },
+  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'short', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
   terreno: { w: 10, d: 10 }, // tamanho do terreno dela (procura o primeiro lugar livre perto da entrada das Terras)
   // a casa (6 x 4 m, a 2 m da borda, porta para o sul) e a horta, relativas ao canto do terreno (x0, z0); a grade é a de CASA.grade
   // b: lado da borda de um quadrado de fundação ('n','s','l','o'); a casa sai peça por peça, nesta ordem
@@ -1871,6 +1871,12 @@ export const AMIGA = {
   plantas: ['cenoura', 'rabanete', 'batata'],
   passo: { obra: 14, canteiro: 6, passeio: 40 }, // segundos entre uma peça e outra, um canteiro e outro, e quanto passeia
   conversa: 25, // segundos parada olhando para o André depois do último botão
+  // Fase 2 (André 2026-11-09): time e combate. Ela decide por regras com sorteio (sem IA paga): a vontade começa em
+  // base e muda com a amizade, o cansaço, a horta, a noite e a diferença de nível; depois sorteia. Recusou: espera
+  // 'esperaRecusa' s para ser chamada de novo. No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
+  // bebe poção com pouca vida e foge para perto dele quando não tem poção.
+  time: { base: 0.6, porAmizade: 0.08, amizadeMax: 0.35, cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0.4,
+    min: 0.05, max: 0.95, esperaRecusa: 45, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
   // o que ela pede ao André (e paga de volta com o que colheu, ou em ouro)
   pedidos: [{ k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'couro', n: 2 }, { k: 'semente_cenoura', n: 3 }, { k: 'minerio_cobre', n: 3 }],
   falas: {
@@ -1878,7 +1884,19 @@ export const AMIGA = {
     obra: ['Tô levantando minha casinha, peça por peça. Ficando linda, né?', 'Mais umas peças e eu durmo debaixo de telhado de verdade!', 'Parede, porta, janela... quem diria que espada também serve de martelo.'],
     pronta: ['Minha casa ficou pronta! Pode entrar, só não repara a bagunça.', 'Casa pronta, horta plantada. Agora só falta aventura!'],
     horta: ['Essa horta é meu orgulho. Cenoura daqui é outro nível.', 'Plantar é fácil, difícil é não comer tudo antes de colher.'],
-    time: ['Caçar juntos? Bora! Só me dá um tempinho pra eu me equipar, logo logo eu pego a espada.', 'Time? Quero muito! Só preciso me ajeitar aqui antes. Me chama de novo daqui a pouco.'],
+    time: ['Bora! Tô no seu time. Vai na frente que eu cuido das suas costas.', 'Fechou! Time formado. Quem cair primeiro paga o jantar!', 'Partiu! Espada afiada e cenoura no bolso.'],
+    jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
+    recusa: {
+      cansada: 'Ai, tô moída... deixa eu descansar um pouco antes, tá?',
+      horta: 'Agora não, minha horta tá precisando de mim. Me chama daqui a pouco!',
+      noite: 'De noite? Prefiro ficar em casa. Amanhã cedo a gente vai!',
+      perigo: 'Hmm, você tá forte demais pra mim. Lá eu ia só atrapalhar...',
+      cheio: 'Seu time tá lotado! Não cabe mais ninguém.',
+      vontade: 'Hoje não tô no clima, desculpa! Me chama mais tarde?',
+      jaFalei: 'Já te falei, daqui a pouco! Paciência, guerreiro.',
+    },
+    caiu: 'Ai... essa doeu. Vou pra casa me recuperar.',
+    voltou: 'Valeu pela caçada! Vou cuidar da minha horta.',
     dungeon: ['Caverna? Adoro! Mas lá embaixo o Warrok morde. Primeiro eu me equipo melhor, combinado?', 'Dungeon comigo vai ser divertido. Ainda não, mas logo!'],
     troca: ['Troca? Ainda tô juntando minhas coisas. Quando eu tiver mais, a gente negocia.', 'Hmm, tenho pouca coisa ainda. Volta quando a horta render!'],
     pedido: ['Pra falar a verdade, preciso sim: {item}. Você tem aí? Eu te pago!', 'Tô precisando de {item}. Se você me arrumar, fico te devendo uma.'],
