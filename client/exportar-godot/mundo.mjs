@@ -9,7 +9,7 @@ import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import { TUNEIS_MUNDO } from '../../shared/dados.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
-import { gerarMascaraMundo } from './mascara_mundo.mjs';
+import { gerarMascaraMundo, praiaDaGrade } from './mascara_mundo.mjs';
 import { RAIZ } from '@rpg/shared';
 import { montarMundo, MUNDO, TERRAS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from '../../shared/mundo.js';
 
@@ -119,9 +119,10 @@ fs.writeFileSync(new URL('../../godot-prototipo/relevo/longe.png', import.meta.u
   const G = montarMundo(MAPA_CLAREIRA);
   fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo_grade.json', import.meta.url), JSON.stringify({ x0: G.x0, z0: G.z0, passo: G.passo, nx: G.nx, nz: G.nz,
     mar: MUNDO.mar, terras: TERRAS, h: Array.from(G.h, (v) => Math.round(v * 10)), terra: Array.from(G.terra).join(''), estrada: Array.from(G.estrada).join(''),
-    lugares: LUGARES_MUNDO, estradas: ESTRADAS_MUNDO.map((e) => ({ id: e.id, curva: e.curva })),
+    lugares: LUGARES_MUNDO, estradas: ESTRADAS_MUNDO.map((e) => ({ id: e.id, larg: e.larg ?? 4, curva: e.curva })), // larg: o mapa desenha na largura de verdade
     // Parte 4b: o leito dos rios (0-9) e cada rio com o nível da água ponto a ponto e a cachoeira
-    rio: Array.from(G.rio).join(''), rios: RIOS_MUNDO.map((r) => ({ id: r.id, nome: r.nome, curva: r.curva, cachoeira: r.cachoeira })), pontes: PONTES_MUNDO }));
+    rio: Array.from(G.rio).join(''), praia: praiaDaGrade(G), // praia: 0-9, a areia só perto do mar
+    rios: RIOS_MUNDO.map((r) => ({ id: r.id, nome: r.nome, curva: r.curva, cachoeira: r.cachoeira })), pontes: PONTES_MUNDO }));
   console.log('mundo_grade.json:', G.nx, 'x', G.nz);
   const mk = gerarMascaraMundo(G, ESTRADAS_MUNDO, MAPA_CLAREIRA);
   fs.writeFileSync(new URL('../../godot-prototipo/relevo/mundo_mascara.png', import.meta.url), mk.png);

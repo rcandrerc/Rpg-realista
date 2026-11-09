@@ -161,7 +161,19 @@ export function montarMundo(mapaHoje) {
   abrirEstradas(G, dist);
   abrirRios(G, dist);
   cobrirCavernas(G, dist);
+  firmarAlturas(G, dist);
   return G;
+}
+
+// 2026-11-09 (André: "um cruzamento com uma placa cinza e uma parada invisível"): altura 0 é a marca do mapa de hoje (o
+// app desenha ali o chão plano). Fora dele, um ponto que as contas deixaram quase em 0 (|h| < 6 cm) virava 0 na grade
+// do app (decímetros): o chão do mundo pulava aquele quadrado e o chão plano não estava lá, então abria um buraco para o
+// céu. Fora do mapa de hoje a altura nunca fica tão perto de 0.
+function firmarAlturas(G, dist) {
+  for (let k = 0; k < G.h.length; k++) {
+    if (dist[k] === 0 || Math.abs(G.h[k]) >= 0.06) continue;
+    G.h[k] = G.h[k] < 0 ? -0.06 : 0.06;
+  }
 }
 
 // ---------- Parte 4: lugares planos e estradas de subida suave ----------

@@ -9,6 +9,30 @@
 import { dentroDoMapa } from '../../shared/mapa.js';
 import { png } from './longe.mjs';
 
+// 2026-11-09 (André: "um lado com transição, do outro uma coisa reta horrível, e no mapa nem existe"): a areia da praia
+// só vale perto do mar. Antes era só pela altura (abaixo de 1,1 m), então o chão baixo encostado no mapa de hoje virava
+// uma faixa de terra que parecia estrada, macia de um lado e cortada reta pelo chão plano do outro.
+// Devolve, por ponto da grade, 0-9: 9 até 10 m do mar (terra 0), caindo até 0 aos 22 m. terreno_mundo.gdshader (cor B).
+export function praiaDaGrade(G) {
+  const nx = G.nx, nz = G.nz, p = G.passo, d2 = p * Math.SQRT2, dm = new Float32Array(nx * nz);
+  for (let k = 0; k < dm.length; k++) dm[k] = G.terra[k] === 0 ? 0 : 1e9;
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const k = j * nx + i; let v = dm[k];
+    if (i > 0) v = Math.min(v, dm[k - 1] + p); if (j > 0) v = Math.min(v, dm[k - nx] + p);
+    if (i > 0 && j > 0) v = Math.min(v, dm[k - nx - 1] + d2); if (i < nx - 1 && j > 0) v = Math.min(v, dm[k - nx + 1] + d2);
+    dm[k] = v;
+  }
+  for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
+    const k = j * nx + i; let v = dm[k];
+    if (i < nx - 1) v = Math.min(v, dm[k + 1] + p); if (j < nz - 1) v = Math.min(v, dm[k + nx] + p);
+    if (i < nx - 1 && j < nz - 1) v = Math.min(v, dm[k + nx + 1] + d2); if (i > 0 && j < nz - 1) v = Math.min(v, dm[k + nx - 1] + d2);
+    dm[k] = v;
+  }
+  let s = '';
+  for (let k = 0; k < dm.length; k++) { const t = Math.min(1, Math.max(0, (dm[k] - 10) / 12)); s += Math.round((1 - t * t * (3 - 2 * t)) * 9); }
+  return s;
+}
+
 export function gerarMascaraMundo(G, estradas, M) {
   const hoje = { areas: M.areas, corredores: M.corredores, raio: M.raio };
   const W = Math.round((G.nx - 1) * G.passo) + 1, H = Math.round((G.nz - 1) * G.passo) + 1;

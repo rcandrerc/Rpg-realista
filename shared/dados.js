@@ -1831,6 +1831,48 @@ for (const n of MERCADORES_MUNDO) {
   MAPA_CLAREIRA.mata.push(...novas);
 }
 
+// 2026-11-09 (André: "o cruzamento com uma parada invisível"): as três estradas do mundo grande que entram no mapa de
+// hoje (e_oeste, e_sul, e_leste) passavam por cima de árvores da mata de hoje e de uma pedra do Veio de pedra: o tronco
+// segurava quem vinha pela estrada. Elas só vão para a beira da estrada (nada some e o índice de cada uma não muda).
+{
+  const trechos = ESTRADAS_MUNDO.flatMap((E) => E.curva.slice(1).map((b, i) => ({ a: E.curva[i], b, meia: (E.larg ?? 4) / 2 })));
+  // quanto falta (m) para (x, z) ficar a "raio" da beira da estrada mais apertada, e para que lado sair
+  const aperto = (x, z, raio) => {
+    let pior = null;
+    for (const { a: [ax, az], b: [bx, bz], meia } of trechos) {
+      if (Math.min(ax, bx) - meia - raio > x || Math.max(ax, bx) + meia + raio < x || Math.min(az, bz) - meia - raio > z || Math.max(az, bz) + meia + raio < z) continue;
+      const vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / L2));
+      const px = ax + vx * t, pz = az + vz * t, d = Math.hypot(x - px, z - pz), falta = meia + raio - d;
+      if (falta > 0 && (!pior || falta > pior.falta)) pior = { falta, meia, ux: d > 1e-6 ? (x - px) / d : -vz / Math.sqrt(L2), uz: d > 1e-6 ? (z - pz) / d : vx / Math.sqrt(L2) };
+    }
+    return pior;
+  };
+  const empurrar = (x, z, raio) => {
+    for (let k = 0; k < 6; k++) {
+      const p = aperto(x, z, raio);
+      if (!p) return [+x.toFixed(2), +z.toFixed(2)];
+      x += p.ux * (p.falta + 0.05); z += p.uz * (p.falta + 0.05);
+    }
+    return null;
+  };
+  // o lado de lá: o ponto espelhado pelo meio da estrada (ou logo depois do meio), e daí para a beira
+  const outroLado = (x, z, raio) => {
+    const p = aperto(x, z, raio), d = Math.max(0.02, p.meia + raio - p.falta);
+    return empurrar(x - p.ux * 2 * d, z - p.uz * 2 * d, raio);
+  };
+  // vai para a beira mais perto; se ali for zona de mineração (chão limpo de árvore), vai para a outra beira
+  const ruim = (x, z) => MINA.some((m) => Math.hypot(m.x - x, m.z - z) < m.r + 1.6);
+  const paraBeira = (o, raio, livre = () => true) => {
+    if (!aperto(o.x, o.z, raio)) return;
+    const a = empurrar(o.x, o.z, raio), b = a && livre(a[0], a[1]) ? null : outroLado(o.x, o.z, raio);
+    const r = b && livre(b[0], b[1]) ? b : a;
+    if (r) [o.x, o.z] = r;
+  };
+  for (const a of MAPA_CLAREIRA.mata) if (!a.mundo) paraBeira(a, 0.32 * a.s + 0.5, (x, z) => !ruim(x, z));
+  const deHoje = new Set(MINA.filter((z) => !z.mundo).map((z) => z.id)); // os veios do mundo grande ficam no fim da trilha deles
+  for (const v of MAPA_CLAREIRA.veios || []) if (deHoje.has(v.mina)) paraBeira(v, VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1) + 0.5);
+}
+
 // FASE 3, Parte 7b (André 2026-11-08: vilas pequenas de no máximo 5 terrenos; a grande do Nv 100 em bairros de ~5
 // terrenos a 60-80 m um do outro, 20-25 terrenos). Cada vila é uma área onde se compra terreno, com as mesmas regras
 // das Terras da Estrada (LOTE). A primeira é a de hoje, igual (a área e as estradas são as mesmas objetos); as do mundo
