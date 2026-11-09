@@ -46,14 +46,20 @@ static func imagem(g: Dictionary, mata: Array) -> Image:
 		var c := Vector2i(int((float(a.x) - x0) * k_px), int((float(a.z) - z0) * k_px))
 		_bola(base, c, 2, Color8(34, 66, 38))
 		_bola(base, c - Vector2i(1, 1), 0, Color8(70, 112, 60))
-	# estradas: borda escura e o chão de terra por cima
-	for e in g.get("estradas", []):
-		var trilha := str(e.get("id", "")).begins_with("t_") # trilha (2026-11-09): mais fina que a estrada principal
-		for camada in 2:
-			for p in e.get("curva", []):
-				var c := Vector2i(int((float(p[0]) - x0) * k_px), int((float(p[1]) - z0) * k_px))
-				var r := (2 if camada == 0 else 1) if trilha else (3 if camada == 0 else 2)
-				_bola(base, c, r, Color8(92, 70, 42) if camada == 0 else Color8(214, 184, 126))
+	# estradas: borda escura e o chão de terra por cima, na largura de verdade (André 2026-11-09: "no mapa umas são
+	# muito mais largas que as outras... fazer proporcional"): estrada 4 m, trilha 2,6 m, com a mesma borda de ~0,9 m
+	# das estradinhas do desenho de hoje (client/src/minimapa.js)
+	for camada in 2:
+		for e in g.get("estradas", []):
+			var trilha := str(e.get("id", "")).begins_with("t_")
+			var larg: float = float(e.get("larg", 2.6 if trilha else 4.0))
+			var meia: float = (larg * 0.5 + (0.45 if camada == 0 else 0.0)) * k_px
+			var cor := Color8(92, 70, 42) if camada == 0 else Color8(214, 184, 126)
+			var cv: Array = e.get("curva", [])
+			for i in range(1, cv.size()):
+				var a := Vector2((float(cv[i - 1][0]) - x0) * k_px, (float(cv[i - 1][1]) - z0) * k_px)
+				var b := Vector2((float(cv[i][0]) - x0) * k_px, (float(cv[i][1]) - z0) * k_px)
+				_faixa(base, a, b, meia, cor, 0.75 if camada == 0 else 1.0)
 	# lugares (vila, porto, posto e clareiras): chão batido mais claro
 	for l in g.get("lugares", []):
 		var tipo := str(l.get("tipo", ""))
@@ -80,3 +86,24 @@ static func _bola(img: Image, c: Vector2i, r: int, cor: Color, a := 1.0) -> void
 			if x < 0 or x >= w or (x - c.x) * (x - c.x) + (y - c.y) * (y - c.y) > r * r + r:
 				continue
 			img.set_pixel(x, y, cor if a >= 1.0 else img.get_pixel(x, y).lerp(cor, a))
+
+# faixa (segmento com ponta redonda) de meia largura "meia" px, com a beira suave (meio px)
+static func _faixa(img: Image, a: Vector2, b: Vector2, meia: float, cor: Color, forca := 1.0) -> void:
+	var w := img.get_width()
+	var hh := img.get_height()
+	var x0 := maxi(0, int(floor(minf(a.x, b.x) - meia - 1.0)))
+	var x1 := mini(w - 1, int(ceil(maxf(a.x, b.x) + meia + 1.0)))
+	var y0 := maxi(0, int(floor(minf(a.y, b.y) - meia - 1.0)))
+	var y1 := mini(hh - 1, int(ceil(maxf(a.y, b.y) + meia + 1.0)))
+	var ab := b - a
+	var l2 := maxf(ab.length_squared(), 0.0001)
+	for y in range(y0, y1 + 1):
+		for x in range(x0, x1 + 1):
+			var p := Vector2(x + 0.5, y + 0.5)
+			var t := clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+			var d := p.distance_to(a + ab * t)
+			var k := clampf(meia + 0.5 - d, 0.0, 1.0) * forca
+			if k <= 0.0:
+				continue
+			var atual := img.get_pixel(x, y)
+			img.set_pixel(x, y, atual.lerp(cor, k) if k < 1.0 else cor)

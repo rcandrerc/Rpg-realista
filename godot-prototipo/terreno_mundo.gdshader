@@ -29,11 +29,13 @@ varying vec3 mundo;
 varying vec3 nm;
 varying float estrada;
 varying float rio;
+varying float perto_mar;
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	nm = NORMAL;
 	estrada = COLOR.r;
 	rio = COLOR.g;
+	perto_mar = COLOR.b;
 }
 vec3 tri(vec3 p, vec3 b, float esc) {
 	return texture(pedra_tex, p.zy / esc).rgb * b.x + texture(pedra_tex, p.xz / esc).rgb * b.y + texture(pedra_tex, p.xy / esc).rgb * b.z;
@@ -74,6 +76,9 @@ void fragment() {
 	// praia: areia que entra na grama em ondas; rente à água (e embaixo dela) a areia molhada escurece
 	vec3 areia = texture(areia_tex, w / 3.0).rgb * tom_areia * (0.92 + 0.16 * ruido2);
 	float ka = 1.0 - smoothstep(praia - 0.35, praia + 0.25, mundo.y + (ruido - 0.5) * 0.6);
+	// só na beira do mar (mundo_grade.json "praia", cor B do vértice): o chão baixo longe do mar (encostado no mapa de
+	// hoje, beira de rio) fica grama
+	ka *= perto_mar;
 	areia = mix(areia, areia * vec3(0.62, 0.6, 0.58), 1.0 - smoothstep(-0.1, 0.35, mundo.y));
 	c = mix(c, areia, ka * (1.0 - pr * 0.7));
 	// estrada de terra batida (shared/mundo.js), com a borda comida pela grama
