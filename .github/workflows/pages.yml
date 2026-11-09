@@ -61,3 +61,9 @@ jobs:
           path: client/dist
       - id: deploy
         uses: actions/deploy-pages@v4
+        # O GitHub identifica cada publicação pelo commit: a segunda publicação do MESMO commit (a que o apk.yml chama
+        # depois de subir o pacote novo) dava "sucesso" mas o site continuava com a primeira, que ainda tinha o
+        # conteudo.json da versão anterior. Resultado: o celular ficava sempre uma versão atrás (2026-11-09: 1731 não
+        # chegava). Com o número da execução junto, cada publicação vale.
+        env:
+          GITHUB_SHA: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

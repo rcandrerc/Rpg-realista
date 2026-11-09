@@ -322,6 +322,8 @@ jobs:
           sed -i "s/^version\/name=.*/version\/name=\"0.4.${{ github.run_number }}\"/" export_presets.cfg
           # versão base do APK: o app só aceita pacote de atualização feito para esta base (inicio.gd)
           printf '\n[aethra]\n\natualizacao/base="%s"\n' "$((1000 + ${{ github.run_number }}))" >> project.godot
+          # número da versão dentro do pacote: o jogo mostra no canto da tela (versao.gd, main.gd montar_versao)
+          printf '# Gerado pelo CI (apk.yml).\nconst NUMERO := "%s"\n' "$((1000 + ${{ github.run_number }}))" > versao.gd
           $GODOT_BIN --headless --import || true
       - name: Pacote do jogo desta versão (mesmo conteúdo do APK)
         working-directory: godot-prototipo
