@@ -9,6 +9,7 @@ import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
 import { RAIZ } from '@rpg/shared';
+import { montarMundo, MUNDO, TERRAS } from '../../shared/mundo.js';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
 const r4 = (n) => Math.round(n * 1e4) / 1e4;
@@ -102,6 +103,14 @@ const mundo = {
 };
 fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo.json', import.meta.url), JSON.stringify(mundo));
 fs.writeFileSync(new URL('../../godot-prototipo/relevo/longe.png', import.meta.url), gerarLonge());
+// FASE 3, Parte 2: a grade do mundo (2 continentes, mar central e ilha; shared/mundo.js). Altura em decímetros e a
+// terra de cada ponto (0 = mar, 1 = Vael, 2 = ilha, 3 = Aurora) num texto de dígitos.
+{
+  const G = montarMundo(MAPA_CLAREIRA);
+  fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo_grade.json', import.meta.url), JSON.stringify({ x0: G.x0, z0: G.z0, passo: G.passo, nx: G.nx, nz: G.nz,
+    mar: MUNDO.mar, terras: TERRAS, h: Array.from(G.h, (v) => Math.round(v * 10)), terra: Array.from(G.terra).join('') }));
+  console.log('mundo_grade.json:', G.nx, 'x', G.nz);
+}
 console.log('mundo.json:', solidos.length, 'sólidos,', mundo.obstaculos.length, 'obstáculos,', grades.length, 'grades');
 
 // Skills do Quimera (shared/progresso.js) para o menu do personagem e o modo sem internet do Godot.
