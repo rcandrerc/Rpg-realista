@@ -8,6 +8,7 @@ const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
+const Grafico = preload("res://grafico.gd")
 const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
@@ -90,6 +91,7 @@ var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (c
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
+var grafico # grafico.gd: qualidade gráfica Baixa/Média/Alta (Configurações; a primeira vez escolhe pelo celular)
 var dia # dia_noite.gd: dia e noite do Quimera (relógio da conta, céu, luz e o sono na cama)
 var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
 var cavernas_mundo: Array = [] # caverna.gd das cavernas do mundo grande (Parte 8)
@@ -221,6 +223,9 @@ const MEDE := 5.0
 
 func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
+	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
+	add_child(grafico)
+	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
 	h.mana = P.st.manaMax
@@ -340,6 +345,7 @@ func _ready() -> void:
 	hud.editor = editar_hud
 	retrato_heroi = RetratoHeroi.new(self)
 	add_child(retrato_heroi)
+	grafico.aplicar() # resolução, sombra, névoa e alcance do nível escolhido (Alta = como sempre foi)
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -3954,6 +3960,27 @@ func apanhou() -> void:
 	sons.tocar("apanhar", -2.0, 0.1)
 	vibrar(60)
 
+# ---------- versão do jogo sempre à vista, desde a tela de carregamento (André 2026-11-09) ----------
+func montar_versao() -> void:
+	var tela := CanvasLayer.new()
+	tela.layer = 50 # por cima de tudo (capa de login, HUD, menus); é pequeno e não pega toque
+	add_child(tela)
+	var l := Label.new()
+	var n := str(load("res://versao.gd").NUMERO)
+	l.text = "versão " + (n if n != "" else "dev")
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+	l.add_theme_constant_override("outline_size", 3)
+	l.anchor_top = 1.0
+	l.anchor_bottom = 1.0
+	l.offset_left = 16
+	l.offset_top = -26
+	l.offset_right = 200
+	l.offset_bottom = -6
+	tela.add_child(l)
+
 # ---------- teste de desempenho (botão Teste) ----------
 func montar_teste() -> void:
 	var tela := CanvasLayer.new()
@@ -4007,6 +4034,8 @@ func restaurar() -> void:
 	sol.shadow_enabled = true
 	grama.visible = true
 	mostrar_extras(false)
+	if grafico:
+		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
 func comecar_teste() -> void:
 	resultados.clear()

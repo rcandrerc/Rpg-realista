@@ -109,15 +109,14 @@ void fragment() {
 		// terra e cascalho fino (textura 2x menor), sem o vermelho: seca 6b5a40 e molhada 3f3426, com o desenho da textura
 		float tl = dot(texture(terra_tex, w / 1.6).rgb, vec3(0.3, 0.5, 0.2));
 		float det = clamp(0.55 + tl * 3.2, 0.6, 1.45);
-		vec3 seca = vec3(0.147, 0.102, 0.051) * det;
-		vec3 molhada = vec3(0.05, 0.034, 0.02) * det;
-		vec3 clara = grama * vec3(1.15, 1.13, 0.96); // ~15% mais clara e amarelada
+		// 2026-11-09 (André, 2ª): a faixa escura molhada parecia borda de piscina (toda igual em volta). Agora só a terra
+		// clara das trilhas, em manchas irregulares que entram na grama, e a grama clareando antes; nada de contorno escuro
+		vec3 clara = grama * vec3(1.24, 1.19, 0.86) + vec3(0.04, 0.035, 0.0); // mais clara e amarelada
+		float mancha = ruido_v(pm / 2.2 + 41.0) * 0.6 + ruido_v(pm / 0.9 + 7.7) * 0.4;
 		float fc = 1.0 - smoothstep(lt, lc, dist_agua + tufo * 0.5);
-		float ft = 1.0 - smoothstep(lt - 0.2, lt + 0.2, dist_agua + tufo);
-		float fm = 1.0 - smoothstep(0.12, 0.3, dist_agua + tufo * 0.25);
-		vec3 b = mix(c, clara, fc * 0.8);
-		b = mix(b, seca, ft);
-		b = mix(b, molhada, fm);
+		float ft = 1.0 - smoothstep(lt - 0.35, lt + 0.35, dist_agua + tufo + (mancha - 0.5) * 1.4);
+		vec3 b = mix(c, clara, fc * 0.9);
+		b = mix(b, terra * (0.92 + 0.16 * mancha), ft);
 		c = b;
 	}
 	if (longe_ligado > 0.5) {
