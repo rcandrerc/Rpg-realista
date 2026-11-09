@@ -1391,7 +1391,8 @@ export class Simulacao {
       const o = this.jogadores.get(outro); if (!o) continue;
       const ver = (of, meu) => ({ ouro: of.ouro, tranca: of.tranca, ok: of.ok,
         itens: of.itens.map((e) => ({ ...(meu ? { i: e.i } : {}), n: e.n, it: itemDaChave(e.chave, e.n) })) });
-      this.evento({ t: 'troca', para: k, fase: 'estado', com: outro, nome: o.nome, eu: ver(T.of[k], true), ele: ver(T.of[outro], false) });
+      const sug = this.amiga && o === this.amiga ? { sugestao: this.sugestaoTrocaAmiga(T) } : {}; // troca com a Cecília: o preço dela
+      this.evento({ t: 'troca', para: k, fase: 'estado', com: outro, nome: o.nome, eu: ver(T.of[k], true), ele: ver(T.of[outro], false), ...sug });
     }
     if (this.amiga && (T.a === this.amiga.id || T.b === this.amiga.id)) this.mexeuTrocaAmiga(); // a Cecília pensa de novo (shared/amiga.js)
   }

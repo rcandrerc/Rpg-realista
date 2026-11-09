@@ -16,6 +16,7 @@ import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, precoVenda
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
+const normAmiga = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1, 12]]; // praça, Rosa, ferraria, entrada
 const REGA_MS = HORTA.rega * 3600000;
 
@@ -377,6 +378,7 @@ export const Amiga = {
     const A = AMIGA.chat.assuntos, tem = (k) => A[k].some((w) => t.includes(' ' + w.trim() + ' ') || (w.includes(' ') && t.includes(w.trim())));
     const ia = this.amiga?.ia;
     if (this.amiga?.troca) { if (tem('presente')) return 'presente'; if (tem('pedirItem')) return 'pedirItem'; } // janela de troca aberta (fase 3)
+    else if (this.amiga && tem('pedirItem') && this.itensNoTextoAmiga(t).length) return 'pedirItem'; // "tem cenoura?" e ela tem: oferece
     for (const k of ['sairTime', 'vir', 'time']) if (tem(k)) return k;
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
     for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'elogio', 'casa', 'horta', 'troca', 'oi']) if (tem(k)) return k;
@@ -537,6 +539,8 @@ export const Amiga = {
     this.pararAmiga(a);
     Object.assign(a.ia, { trocaT: this.tempo + AMIGA.troca.pensar, trocaPresente: false, trocaDisse: '' });
     this.abrirTroca(dono, a);
+    for (const r of a.ia.reserva || []) { const i = a.prog.mochila.findIndex((o) => o?.k === r.k && !o.cad); if (i >= 0) this.troca(a.id, { acao: 'por', i, n: Math.min(r.n, a.prog.mochila[i].n || 1) }); }
+    a.ia.reserva = null; // o que ela ofereceu no chat já vai pra mesa
     return true;
   },
   // o servidor mexeu na troca dela (enviarTroca): pensa de novo daqui a pouco
@@ -550,7 +554,7 @@ export const Amiga = {
     if (!dono || ia.trocaT == null || this.tempo < ia.trocaT) return;
     ia.trocaT = null; // o que ela mexer agora (enviarTroca) marca outra pensada
     const R = AMIGA.troca, F = AMIGA.falasTroca, eu = T.of[a.id], ele = T.of[dono.id];
-    const margem = Math.max(R.margemMin, R.margem - (a.amizade | 0) * R.porAmizade);
+    const margem = this.margemAmiga(a);
     const pede = Math.ceil(this.valorMesa(eu) * margem), traz = this.valorMesa(ele) + ele.ouro;
     const dizer = (t) => { if (t && t !== ia.trocaDisse) { ia.trocaDisse = t; this.falarAmiga(t); } };
     // o ouro dela: paga pelo que ele trouxe (menos o que ele já deve pelo que pegou); presente = não paga nada
@@ -582,25 +586,49 @@ export const Amiga = {
   combinouAmiga(a) { return (a.ia.combinado || 0) > this.tempo; },
   // pelo chat com a troca aberta: "quero 3 cenouras" (ela põe na mesa) ou "é presente" (ela não paga)
   pedidoTrocaAmiga(assunto, texto) {
-    const a = this.amiga, F = AMIGA.falasTroca; if (!a?.troca) return sorteia(AMIGA.falas.troca);
-    if (assunto === 'presente') { a.ia.trocaPresente = true; a.ia.trocaT = this.tempo + 0.3; return F.presente; }
-    const norm = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
-    const t = ' ' + norm(texto) + ' ', num = Number((t.match(/ (\d{1,3}) /) || [])[1]) || 0;
-    const p = a.prog.mochila, achados = [];
+    const a = this.amiga, F = AMIGA.falasTroca; if (!a) return '';
+    if (assunto === 'presente') { if (!a.troca) return sorteia(AMIGA.chat.falas.obrigado); a.ia.trocaPresente = true; a.ia.trocaT = this.tempo + 0.3; return F.presente; }
+    const t = ' ' + normAmiga(texto) + ' ', num = Number((t.match(/ (\d{1,3}) /) || [])[1]) || 0;
+    const achados = this.itensNoTextoAmiga(t);
+    if (!achados.length) return F.naoTenho;
+    const precisa = achados.filter((x) => a.pedido?.k === x.k);
+    const vende = achados.filter((x) => a.pedido?.k !== x.k);
+    if (!vende.length) return F.preciso.replace('{item}', nomeDoItem(precisa[0].it).toLowerCase());
+    const lista = vende.map(({ i, it }) => ({ i, k: it.k, n: Math.min(it.n || 1, num || it.n || 1), it }));
+    const texto2 = lista.map((x) => `${x.n} ${nomeDoItem(x.it).toLowerCase()}`).join(', ');
+    const preco = Math.ceil(lista.reduce((s2, x) => s2 + precoVenda(x.it) * x.n, 0) * this.margemAmiga(a));
+    if (!a.troca) { // fora da troca: oferece e guarda reservado; quando ele abrir a troca, já vai pra mesa
+      a.ia.reserva = lista.map(({ k, n }) => ({ k, n }));
+      const dono = this.jogadores.get(this.amigaDono);
+      if (dono && Math.hypot(a.x - dono.x, a.z - dono.z) <= AMIGA.troca.longe && this.abrirTrocaAmiga(dono) === true) return F.pus.replace('{item}', texto2).replace('{preco}', preco);
+      return F.oferta.replace('{item}', texto2).replace('{preco}', preco);
+    }
+    for (const x of lista) this.troca(a.id, { acao: 'por', i: x.i, n: x.n });
+    a.ia.trocaT = this.tempo + AMIGA.troca.pensar;
+    return F.pus.replace('{item}', texto2).replace('{preco}', preco);
+  },
+  margemAmiga(a) { return Math.max(AMIGA.troca.margemMin, AMIGA.troca.margem - (a.amizade | 0) * AMIGA.troca.porAmizade); },
+  // itens da mochila dela citados no texto (já normalizado com espaços nas pontas): "cenoura(s)", "tomo", "espada"
+  itensNoTextoAmiga(t) {
+    const p = this.amiga.prog.mochila, achados = [];
     for (let i = 0; i < p.length; i++) {
       const it = itemValido(p[i]); if (!it || it.cad) continue;
-      const nome = norm(ehEquip(it.k) ? ITENS[it.k].nome : nomeDoItem(it)), base = nome.replace(/s$/, '');
-      if (t.includes(' ' + base) && !achados.some((x) => x.k === it.k)) achados.push({ i, k: it.k, it });
+      const nome = normAmiga(ehEquip(it.k) ? ITENS[it.k].nome : nomeDoItem(it)), base = nome.replace(/s$/, '');
+      const curto = normAmiga(ITENS[it.k].nome).replace(/s$/, '');
+      if ((t.includes(' ' + base) || t.includes(' ' + curto)) && !achados.some((x) => x.k === it.k && (it.k !== 'tomo' || x.it.h === it.h))) achados.push({ i, k: it.k, it });
     }
-    if (!achados.length) return F.naoTenho;
-    const postos = [];
-    for (const { i, it } of achados) {
-      const n = Math.min(it.n || 1, num || it.n || 1);
-      this.troca(a.id, { acao: 'por', i, n });
-      postos.push(`${n} ${nomeDoItem(it).toLowerCase()}`);
-    }
-    const preco = Math.ceil(this.valorMesa(a.troca.of[a.id]) * Math.max(AMIGA.troca.margemMin, AMIGA.troca.margem - (a.amizade | 0) * AMIGA.troca.porAmizade));
-    a.ia.trocaT = this.tempo + AMIGA.troca.pensar;
-    return F.pus.replace('{item}', postos.join(', ')).replace('{preco}', preco);
+    return achados;
   },
+  // o que vai na janela do dono: quanto ela cobra pelos itens dela e quanto ele precisa pôr de ouro (sugestão)
+  sugestaoTrocaAmiga(T) {
+    const a = this.amiga, eu = T.of[a.id], ele = T.of[T.a === a.id ? T.b : T.a];
+    const pede = Math.ceil(this.valorMesa(eu) * this.margemAmiga(a)), dele = this.valorMesa(ele);
+    const sugerido = Math.max(0, pede - dele);
+    let texto = '';
+    if (pede) texto = `${AMIGA.nome} cobra ${pede} de ouro pelo que pôs na mesa` + (dele ? ` (seus itens valem ${dele} pra ela)` : '') + `. Ponha ${sugerido} de ouro.`;
+    else if (dele) texto = a.ia.trocaPresente ? 'Presente: ela não vai pagar nada.' : `${AMIGA.nome} paga ${Math.min(a.prog.ouro, dele)} de ouro pelo que você pôs.`;
+    else texto = 'Peça no chat o que quer dela ("quero 3 cenouras") ou ponha o que tem pra ela.';
+    return { sugerido, texto };
+  },
+
 };

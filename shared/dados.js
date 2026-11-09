@@ -1953,6 +1953,8 @@ export const AMIGA = {
     ocupada: 'Agora não dá, tô no meio de uma coisa! Daqui a pouco a gente troca.',
     pus: 'Coloquei na mesa: {item}. Sai por {preco} de ouro.',
     naoTenho: 'Hmm, isso eu não tenho aqui na mochila.',
+    oferta: 'Tenho sim: {item}. Não vou usar, te vendo por {preco} de ouro. Chega perto e abre a troca comigo que eu já ponho na mesa!',
+    preciso: 'Tenho {item}, mas tô precisando. Esse eu não vendo!',
     falta: 'Assim não fecha, hein! Põe mais {falta} de ouro que eu topo.',
     pago: 'Gostei! Te pago {ouro} de ouro por isso.',
     presente: 'Presente?! Ai, que fofo! Vou guardar com carinho.',

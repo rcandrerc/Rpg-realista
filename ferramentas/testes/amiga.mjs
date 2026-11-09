@@ -167,4 +167,14 @@ ok(ITENS.lenha, 'itens');
   ok(c.troca.of[c.id].ouro === 0 && c.troca.of[c.id].tranca, '"é presente": ela tira o ouro');
   s4.troca('andre', { acao: 'trancar', v: true }); s4.troca('andre', { acao: 'confirmar' }); esp(2);
   ok(!c.troca && contar(cp.mochila, 'barra_ferro') === 2 && c.amizade === amz + 1, 'presente recebido: amizade +1');
+  // fora da troca, de longe: "tem cenoura?" -> ela oferece com preço; ao abrir a troca já vai pra mesa e o preço sugerido aparece
+  Object.assign(d, { x: c.x + 20, z: c.z }); fala.length = 0; c.ia.trocaT = null;
+  ok(s4.assuntoAmiga('tem cenoura?') === 'pedirItem', '"tem cenoura?" vira pedido de item quando ela tem');
+  chat('tem cenoura?'); esp(5);
+  ok(fala.some((t) => t.startsWith('Tenho sim: 2 cenoura')) && c.ia.reserva?.[0]?.k === 'cenoura', `ela oferece: "${fala[0]}"`);
+  Object.assign(d, { x: c.x + 1.5, z: c.z }); s4.eventos = [];
+  s4.troca('andre', { acao: 'pedir', com: AMIGA.id });
+  const est = s4.eventos.filter((e) => e.t === 'troca' && e.para === 'andre' && e.fase === 'estado').pop();
+  ok(c.troca?.of[c.id].itens[0]?.n === 2 && est?.sugestao?.sugerido > 0 && /cobra/.test(est.sugestao.texto), `abriu a troca com as cenouras na mesa e a sugestão: "${est?.sugestao?.texto}"`);
+  s4.troca('andre', { acao: 'cancelar' });
 }
