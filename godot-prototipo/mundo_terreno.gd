@@ -5,8 +5,12 @@ extends Node3D
 # quadrados da grade (cada pedaço é uma malha: a câmera só desenha os que vê, e os longe somem com a névoa).
 # O mar é uma água por pedaço, só onde o fundo fica abaixo da linha d'água (não passa por cima da terra nem dos lagos).
 
-const PEDACO := 16 # quadrados da grade por pedaço (16 x 4 m = 64 m)
+const PEDACO := 32 # quadrados da grade por pedaço (32 x 4 m = 128 m)
 const LONGE := 1100.0 # m: além disso o pedaço some (a névoa já apagou)
+# 2026-11-09 (mundo 2x maior, celular): perto o pedaço tem a grade inteira (4 m); passando de PERTO m da câmera ele
+# troca por uma malha de 16 m (1/16 dos triângulos, sem sombra) com uma saia em volta para não abrir fresta na emenda
+const PERTO := 300.0
+const PASSO_LONGE := 4
 
 var T # terreno.gd
 var _mat_chao: ShaderMaterial
@@ -25,6 +29,7 @@ func _ready() -> void:
 	_mat_chao.set_shader_parameter("pedra_tex", load("res://relevo/rocky_terrain_02.jpg"))
 	_mat_chao.set_shader_parameter("areia_tex", load("res://modelos/stony_dirt_path.jpg"))
 	_mat_chao.set_shader_parameter("terra_tex", load("res://modelos/stony_dirt_path.jpg")) # estradas (a mesma terra das trilhas de hoje)
+	T.ligar_mascara(_mat_chao) # estradas com a borda macia dos dois lados (máscara de 1 m)
 	_mat_mar = ShaderMaterial.new()
 	_mat_mar.shader = load("res://agua.gdshader")
 	_mat_mar.set_shader_parameter("fundo_lago", 6.0)
@@ -151,15 +156,123 @@ func _pedaco(i0: int, j0: int) -> void:
 				agua.append_array([a, b, d, a, d, c])
 	if idx.is_empty():
 		return
-	var meio := Vector3(float(g.x0) + (i0 + i1) * 0.5 * passo, 0, float(g.z0) + (j0 + j1) * 0.5 * passo)
-	add_child(_malha("Chao_%d_%d" % [i0, j0], vs, ns, idx, _mat_chao, true, cs))
-	if not agua.is_empty(): # água plana na linha d'água, só nos quadrados que têm fundo de mar
-		var va := PackedVector3Array()
-		var na := PackedVector3Array()
-		for v in vs:
-			va.append(Vector3(v.x, float(T.agua.nivel), v.z))
-			na.append(Vector3.UP)
-		add_child(_malha("Mar_%d_%d" % [i0, j0], va, na, agua, _mat_mar, false))
+	var perto := _malha("Chao_%d_%d" % [i0, j0], vs, ns, idx, _mat_chao, true, cs)
+	perto.visibility_range_end = PERTO
+	perto.visibility_range_end_margin = 20.0
+	add_child(perto)
+	_pedaco_longe(i0, j0, i1, j1)
+	if not agua.is_empty(): # água plana na linha d'água, só nos quadrados que têm fundo de mar (em quadrados de 16 m)
+		_agua_longe(i0, j0, i1, j1)
+
+# os índices da grade de PASSO_LONGE em PASSO_LONGE de a até b (o último é sempre b)
+func _passos(a: int, b: int) -> Array:
+	var r := []
+	for i in range(a, b, PASSO_LONGE):
+		r.append(i)
+	r.append(b)
+	return r
+
+# o mesmo pedaço visto de longe: grade de 16 m e uma saia de 4 m para baixo na borda
+func _pedaco_longe(i0: int, j0: int, i1: int, j1: int) -> void:
+	var g: Dictionary = T.mundo_g
+	var nx: int = g.nx
+	var nz: int = g.nz
+	var h: PackedFloat32Array = g.h
+	var passo: float = g.passo
+	var rio: String = g.get("rio", "")
+	var xs := _passos(i0, i1)
+	var zs := _passos(j0, j1)
+	var w := xs.size()
+	var vs := PackedVector3Array()
+	var ns := PackedVector3Array()
+	var cs := PackedColorArray()
+	var idx := PackedInt32Array()
+	for j in zs:
+		for i in xs:
+			var k: int = j * nx + i
+			var y: float = h[k]
+			vs.append(Vector3(float(g.x0) + i * passo, y if absf(y) > 0.08 else y - 0.06, float(g.z0) + j * passo))
+			var hx: float = h[j * nx + mini(nx - 1, i + PASSO_LONGE)] - h[j * nx + maxi(0, i - PASSO_LONGE)]
+			var hz: float = h[mini(nz - 1, j + PASSO_LONGE) * nx + i] - h[maxi(0, j - PASSO_LONGE) * nx + i]
+			ns.append(Vector3(-hx, 2.0 * passo * PASSO_LONGE, -hz).normalized())
+			cs.append(Color(0, float(rio.unicode_at(k) - 48) / 9.0 if rio.length() > k else 0.0, 0))
+	for b in zs.size() - 1:
+		for a in w - 1:
+			# o mapa de hoje (tudo 0 no quadrado inteiro): o chão plano já desenha
+			var zero := true
+			for jj in range(zs[b], zs[b + 1] + 1):
+				for ii in range(xs[a], xs[a + 1] + 1):
+					if h[jj * nx + ii] != 0.0:
+						zero = false
+						break
+				if not zero:
+					break
+			if zero:
+				continue
+			var q := b * w + a
+			idx.append_array([q, q + 1, q + w + 1, q, q + w + 1, q + w])
+	if idx.is_empty():
+		return
+	# saia: cada vértice da borda ganha um par 4 m abaixo, e a parede fecha a fresta com o pedaço vizinho
+	var borda := []
+	for a in w:
+		borda.append(a)
+	for b in range(1, zs.size()):
+		borda.append(b * w + w - 1)
+	for a in range(w - 2, -1, -1):
+		borda.append((zs.size() - 1) * w + a)
+	for b in range(zs.size() - 2, 0, -1):
+		borda.append(b * w)
+	borda.append(0)
+	var base := vs.size()
+	for n in borda.size():
+		var v: Vector3 = vs[borda[n]]
+		vs.append(v - Vector3(0, 4.0, 0))
+		ns.append(ns[borda[n]])
+		cs.append(cs[borda[n]])
+	for n in borda.size() - 1:
+		var a2: int = borda[n]
+		var b2: int = borda[n + 1]
+		idx.append_array([a2, b2, base + n + 1, a2, base + n + 1, base + n, a2, base + n + 1, b2, a2, base + n, base + n + 1])
+	var longe := _malha("ChaoLonge_%d_%d" % [i0, j0], vs, ns, idx, _mat_chao, false, cs)
+	longe.visibility_range_begin = PERTO
+	longe.visibility_range_begin_margin = 20.0
+	add_child(longe)
+
+func _agua_longe(i0: int, j0: int, i1: int, j1: int) -> void:
+	var g: Dictionary = T.mundo_g
+	var nx: int = g.nx
+	var h: PackedFloat32Array = g.h
+	var passo: float = g.passo
+	var y: float = T.agua.nivel
+	var xs := _passos(i0, i1)
+	var zs := _passos(j0, j1)
+	var vs := PackedVector3Array()
+	var ns := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for b in zs.size() - 1:
+		for a in xs.size() - 1:
+			var molhado := false
+			for jj in range(zs[b], zs[b + 1] + 1):
+				for ii in range(xs[a], xs[a + 1] + 1):
+					if h[jj * nx + ii] < 0.0:
+						molhado = true
+						break
+				if molhado:
+					break
+			if not molhado:
+				continue
+			var k := vs.size()
+			var xa: float = float(g.x0) + xs[a] * passo
+			var xb: float = float(g.x0) + xs[a + 1] * passo
+			var za: float = float(g.z0) + zs[b] * passo
+			var zb: float = float(g.z0) + zs[b + 1] * passo
+			vs.append_array([Vector3(xa, y, za), Vector3(xb, y, za), Vector3(xa, y, zb), Vector3(xb, y, zb)])
+			for n in 4:
+				ns.append(Vector3.UP)
+			idx.append_array([k, k + 1, k + 3, k, k + 3, k + 2])
+	if not idx.is_empty():
+		add_child(_malha("Mar_%d_%d" % [i0, j0], vs, ns, idx, _mat_mar, false))
 
 func _malha(nome: String, vs: PackedVector3Array, ns: PackedVector3Array, idx: PackedInt32Array, mat: Material, sombra: bool, cs := PackedColorArray()) -> MeshInstance3D:
 	var arr := []
