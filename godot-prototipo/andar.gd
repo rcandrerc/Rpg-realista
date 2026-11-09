@@ -989,12 +989,19 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 				th = mag * max(0.25, cos(dif))
 				ry += clamp(dif, -1.0, 1.0) * (0.3 + 0.4 * min(1.0, absf(v) / 2.0)) * dt
 			v += clamp(th * float(B.vel) - v, -float(B.acelera) * dt, float(B.acelera) * dt)
-		else: # Oy: remada, até 5,6 m/s, a água freia
+		else: # Oy: remada. 2026-11-09 (André: "o barco tá muito rápido"): mais lento (dados.js), com peso: só ganha
+			# velocidade com as pás na água (transporte.gd _remar manda "empurra") e desliza entre uma remada e outra
 			if mag > 0.12:
 				dif = ad(atan2(mx, mz), ry)
-				ry += clamp(dif, -float(B.giro) * dt, float(B.giro) * dt) * (0.45 + 0.55 * min(1.0, absf(v) / 2.0 + 0.3))
+				ry += clamp(dif, -float(B.giro) * dt, float(B.giro) * dt) * (0.4 + 0.6 * min(1.0, absf(v) / 1.5 + 0.25))
 			var rema: float = mag * (1.0 - min(0.55, absf(clamp(dif, -1.2, 1.2)) * 0.45)) if mag > 0.12 else 0.0
-			v += (rema * float(B.vel) - v) * 0.55 * dt * 2.0
+			veiculo.quer = rema
+			var alvo_v: float = rema * float(B.vel)
+			if alvo_v > v:
+				var empurra: float = float(veiculo.get("empurra", 0.5))
+				v += (alvo_v - v) * float(B.get("acelera", 0.8)) * (0.2 + 1.6 * empurra) * dt
+			else: # a água freia devagar (desliza)
+				v += (alvo_v - v) * float(B.get("deriva", 0.45)) * dt
 		var d := v * dt
 		var nx := x + sin(ry) * d
 		var nz := z + cos(ry) * d

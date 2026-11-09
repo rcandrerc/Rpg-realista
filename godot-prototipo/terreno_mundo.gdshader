@@ -84,6 +84,10 @@ void fragment() {
 	// leito e barranco do rio (Parte 4b): seixo e cascalho molhado, mais escuro no fundo
 	float kr = smoothstep(0.25, 0.7, rio + (ruido2 - 0.5) * 0.3);
 	c = mix(c, cascalho * mix(0.85, 0.55, smoothstep(0.6, 1.0, rio)), kr);
+	// 2026-11-09: embaixo da água o fundo escurece e esverdeia com a fundura (a água do agua.gdshader é translúcida
+	// no raso: sem isso a areia do fundo parecia praia seca com o barco em cima)
+	float sub = -0.05 - mundo.y;
+	c *= mix(vec3(1.0), vec3(0.5, 0.68, 0.7), smoothstep(-0.02, 1.2, sub));
 	ALBEDO = c;
-	ROUGHNESS = mix(1.0, 0.55, kr * smoothstep(0.6, 1.0, rio));
+	ROUGHNESS = mix(1.0, 0.55, max(kr * smoothstep(0.6, 1.0, rio), smoothstep(-0.3, 0.0, sub)));
 }

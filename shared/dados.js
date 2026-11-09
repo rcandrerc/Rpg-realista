@@ -1690,7 +1690,9 @@ export const VEICULOS = {
     melhorar: [null, null, { lenha: 40, barra_ferro: 8, barra_cobre: 6, couro: 6, ouro: 2000 }, { lenha: 60, barra_ferro: 14, barra_cobre: 10, couro: 10, ouro: 8000 },
       { lenha: 100, barra_ferro: 24, barra_cobre: 16, couro: 16, ouro: 25000 }],
     golpe: 1.1, heroi: 0.2, consertoQuebrado: { lenha: 8, barra_ferro: 1 }, consertoParcial: { lenha: 4 }, perto: 3.5, entregar: 12, carregar: 8 },
-  barquinho: { nome: 'Barquinho', vel: 5.6, giro: 1.6, pessoas: 2, packs: 0, fundo: 0.35, perto: 3.5 },
+  // 2026-11-09 (André: "o barco tá muito rápido"): 5,6 -> 3,2 m/s, gira mais devagar; acelera só com as pás na água
+  // (acelera) e desliza parando de remar (deriva: quanto a água freia por segundo)
+  barquinho: { nome: 'Barquinho', vel: 3.2, giro: 1.15, acelera: 0.8, deriva: 0.45, pessoas: 2, packs: 0, fundo: 0.35, perto: 3.5 },
   navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5 },
 };
 // itens: galão de combustível (pilha) e os veículos (um de cada, na mochila)
