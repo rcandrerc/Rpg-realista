@@ -33,6 +33,10 @@ func _ready() -> void:
 	_mat_mar = ShaderMaterial.new()
 	_mat_mar.shader = load("res://agua.gdshader")
 	_mat_mar.set_shader_parameter("fundo_lago", 6.0)
+	_mat_mar.set_shader_parameter("prof_uv", true) # fundura com sinal na UV.x (_agua_longe)
+	_mat_mar.set_shader_parameter("escala_fundo", 2.2)
+	_mat_mar.set_shader_parameter("ondas", 1.25)
+	_mat_mar.set_shader_parameter("ondas_tex", load("res://agua_ondas.png"))
 	var g: Dictionary = T.mundo_g
 	for pj in range(0, int(g.nz) - 1, PEDACO):
 		for pi in range(0, int(g.nx) - 1, PEDACO):
@@ -105,9 +109,11 @@ func _mar_aberto() -> void:
 		vs.append_array([Vector3(q[0], y, q[1]), Vector3(q[2], y, q[1]), Vector3(q[0], y, q[3]), Vector3(q[2], y, q[3])])
 		idx.append_array([k, k + 1, k + 3, k, k + 3, k + 2])
 	var ns := PackedVector3Array()
+	var uvs := PackedVector2Array()
 	for v in vs:
 		ns.append(Vector3.UP)
-	var mi := _malha("MarAberto", vs, ns, idx, _mat_mar, false)
+		uvs.append(Vector2(40.0, 0.0)) # mar aberto: fundo
+	var mi := _malha("MarAberto", vs, ns, idx, _mat_mar, false, PackedColorArray(), uvs)
 	mi.visibility_range_end = 0.0
 	add_child(mi)
 
@@ -161,7 +167,7 @@ func _pedaco(i0: int, j0: int) -> void:
 	perto.visibility_range_end_margin = 20.0
 	add_child(perto)
 	_pedaco_longe(i0, j0, i1, j1)
-	if not agua.is_empty(): # água plana na linha d'água, só nos quadrados que têm fundo de mar (em quadrados de 16 m)
+	if not agua.is_empty(): # água plana na linha d'água, só nos quadrados que têm fundo de mar
 		_agua_longe(i0, j0, i1, j1)
 
 # os índices da grade de PASSO_LONGE em PASSO_LONGE de a até b (o último é sempre b)
@@ -239,6 +245,11 @@ func _pedaco_longe(i0: int, j0: int, i1: int, j1: int) -> void:
 	longe.visibility_range_begin_margin = 20.0
 	add_child(longe)
 
+# 2026-11-09 (André: "as bordas são esquisitas"): a água do mar com a fundura de cada ponto (UV.x, em metros, negativa
+# onde o chão já saiu da água). Perto da costa vai em quadrados de 4 m, com a mesma diagonal do chão: a fundura cai a
+# zero exatamente onde o chão corta a água, então a beira fica rasa e transparente, com as ondinhas de espuma
+# (agua.gdshader). Mar fundo (blocos de 16 m todos com mais de 3 m de água) vai num quadrado só (poucos triângulos).
+const MAR_FUNDO := 3.0
 func _agua_longe(i0: int, j0: int, i1: int, j1: int) -> void:
 	var g: Dictionary = T.mundo_g
 	var nx: int = g.nx
@@ -249,36 +260,61 @@ func _agua_longe(i0: int, j0: int, i1: int, j1: int) -> void:
 	var zs := _passos(j0, j1)
 	var vs := PackedVector3Array()
 	var ns := PackedVector3Array()
+	var uvs := PackedVector2Array()
 	var idx := PackedInt32Array()
+	var alt := func(i: int, j: int) -> float: # a mesma altura que o chão usa no vértice
+		var a: float = h[j * nx + i]
+		return a if absf(a) > 0.08 else a - 0.06
+	var ponto := func(i: int, j: int) -> void:
+		vs.append(Vector3(float(g.x0) + i * passo, y, float(g.z0) + j * passo))
+		ns.append(Vector3.UP)
+		uvs.append(Vector2(y - alt.call(i, j), 0.0))
 	for b in zs.size() - 1:
 		for a in xs.size() - 1:
 			var molhado := false
+			var fundo := true
 			for jj in range(zs[b], zs[b + 1] + 1):
 				for ii in range(xs[a], xs[a + 1] + 1):
-					if h[jj * nx + ii] < 0.0:
+					var hh: float = h[jj * nx + ii]
+					if hh < y:
 						molhado = true
-						break
-				if molhado:
-					break
+					if hh > y - MAR_FUNDO:
+						fundo = false
 			if not molhado:
 				continue
-			var k := vs.size()
-			var xa: float = float(g.x0) + xs[a] * passo
-			var xb: float = float(g.x0) + xs[a + 1] * passo
-			var za: float = float(g.z0) + zs[b] * passo
-			var zb: float = float(g.z0) + zs[b + 1] * passo
-			vs.append_array([Vector3(xa, y, za), Vector3(xb, y, za), Vector3(xa, y, zb), Vector3(xb, y, zb)])
-			for n in 4:
-				ns.append(Vector3.UP)
-			idx.append_array([k, k + 1, k + 3, k, k + 3, k + 2])
+			if fundo:
+				var k := vs.size()
+				for q in [[xs[a], zs[b]], [xs[a + 1], zs[b]], [xs[a], zs[b + 1]], [xs[a + 1], zs[b + 1]]]:
+					ponto.call(q[0], q[1])
+				idx.append_array([k, k + 1, k + 3, k, k + 3, k + 2])
+				continue
+			for jj in range(zs[b], zs[b + 1]):
+				for ii in range(xs[a], xs[a + 1]):
+					var ha: float = alt.call(ii, jj)
+					var hb: float = alt.call(ii + 1, jj)
+					var hc: float = alt.call(ii, jj + 1)
+					var hd: float = alt.call(ii + 1, jj + 1)
+					if minf(minf(ha, hb), minf(hc, hd)) >= y:
+						continue
+					var k2 := vs.size()
+					ponto.call(ii, jj)
+					ponto.call(ii + 1, jj)
+					ponto.call(ii, jj + 1)
+					ponto.call(ii + 1, jj + 1)
+					if absf(ha - hd) < absf(hb - hc): # a mesma diagonal do chão (_pedaco)
+						idx.append_array([k2, k2 + 1, k2 + 3, k2, k2 + 3, k2 + 2])
+					else:
+						idx.append_array([k2, k2 + 1, k2 + 2, k2 + 1, k2 + 3, k2 + 2])
 	if not idx.is_empty():
-		add_child(_malha("Mar_%d_%d" % [i0, j0], vs, ns, idx, _mat_mar, false))
+		add_child(_malha("Mar_%d_%d" % [i0, j0], vs, ns, idx, _mat_mar, false, PackedColorArray(), uvs))
 
-func _malha(nome: String, vs: PackedVector3Array, ns: PackedVector3Array, idx: PackedInt32Array, mat: Material, sombra: bool, cs := PackedColorArray()) -> MeshInstance3D:
+func _malha(nome: String, vs: PackedVector3Array, ns: PackedVector3Array, idx: PackedInt32Array, mat: Material, sombra: bool, cs := PackedColorArray(), uvs := PackedVector2Array()) -> MeshInstance3D:
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = vs
 	arr[Mesh.ARRAY_NORMAL] = ns
+	if not uvs.is_empty():
+		arr[Mesh.ARRAY_TEX_UV] = uvs
 	if not cs.is_empty():
 		arr[Mesh.ARRAY_COLOR] = cs
 	arr[Mesh.ARRAY_INDEX] = idx

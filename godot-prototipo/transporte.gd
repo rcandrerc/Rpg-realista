@@ -399,6 +399,46 @@ const BARCO_BANCO := Vector3(0, 0.33, -0.22) # quadril no banco do meio (no "cor
 const BARCO_PE := Vector3(0.15, 0.03, 0.32)
 const BARCO_L := 1.35 # meio comprimento do casco
 const BARCO_W := 0.52 # meia largura no meio (1 m de boca: a pá entra logo fora da amurada)
+const BARCO_AFUNDA := -0.1 # o "corpo" do barco em relação à linha d'água (quilha ~25 cm embaixo)
+const REMO_PINO := Vector3(0.55, 0.47, 0.14) # tolete (x = cada lado), no "corpo"
+const REMO_DENTRO := 0.4 # do tolete ao punho
+const REMO_FORA := 1.55 # do tolete à ponta da pá
+
+# tampa invisível no casco, na linha d'água: escreve só a profundidade antes da água (render_priority menor), então a
+# água não aparece dentro do barco afundado. Fica um dedo para dentro do casco (senão abria um buraco na água de fora).
+var _mt_seco: ShaderMaterial
+func _tampa_seca(corpo: Node3D) -> void:
+	if _mt_seco == null:
+		var sh := Shader.new()
+		sh.code = "shader_type spatial;\nrender_mode unshaded, depth_draw_always, cull_disabled, shadows_disabled;\nvoid fragment() { ALBEDO = vec3(0.0); ALPHA = 0.0; }\n"
+		_mt_seco = ShaderMaterial.new()
+		_mt_seco.shader = sh
+		_mt_seco.render_priority = -2
+	var yw := -BARCO_AFUNDA + 0.03 # um tiquinho acima da água (o balanço mexe ~2 cm)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 24
+	var meio: Array = [] # [z, meia largura] onde o casco corta a altura yw
+	for i in n + 1:
+		var z: float = -BARCO_L + 2.0 * BARCO_L * float(i) / float(n)
+		var sc: Array = _barco_secao(z)
+		var k: float = (yw - float(sc[2])) / maxf(0.001, float(sc[1]) - float(sc[2]))
+		if k <= 0.0:
+			continue
+		var w: float = float(sc[0]) * sin(acos(clampf(1.0 - k, -1.0, 1.0))) - 0.015
+		if w > 0.0:
+			meio.append([z, w])
+	for i in meio.size() - 1:
+		var a: Array = meio[i]
+		var b: Array = meio[i + 1]
+		for v in [Vector3(-a[1], yw, a[0]), Vector3(a[1], yw, a[0]), Vector3(b[1], yw, b[0]), Vector3(-a[1], yw, a[0]), Vector3(b[1], yw, b[0]), Vector3(-b[1], yw, b[0])]:
+			st.add_vertex(v)
+	var mi := MeshInstance3D.new()
+	mi.name = "seco"
+	mi.mesh = st.commit()
+	mi.material_override = _mt_seco
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	corpo.add_child(mi)
 func _barco_secao(z: float) -> Array: # [meia largura, altura da amurada, altura da quilha]
 	var u: float = clampf(absf(z) / BARCO_L, 0.0, 1.0)
 	var w: float = BARCO_W * pow(maxf(0.0, 1.0 - pow(u, 2.2)), 0.6)
@@ -437,7 +477,9 @@ func modelo_barquinho() -> Node3D:
 	var g := Node3D.new()
 	var corpo := Node3D.new()
 	corpo.name = "corpo"
-	corpo.position.y = 0.1 # o fundo fica acima da água (a água não aparece dentro do barco)
+	# 2026-11-09 (André: "parece que o barco tá voando na água"): o casco fica afundado ~25 cm (antes a quilha mal
+	# encostava). A água de dentro some com a tampa invisível "seco" na linha d'água (_tampa_seca).
+	corpo.position.y = BARCO_AFUNDA
 	g.add_child(corpo)
 	var casco_mt: StandardMaterial3D = _mt_madeira.duplicate()
 	casco_mt.cull_mode = BaseMaterial3D.CULL_DISABLED # o mesmo casco por fora e por dentro
@@ -472,14 +514,26 @@ func modelo_barquinho() -> Node3D:
 	for z in [BARCO_BANCO.z, 0.62, -0.95]:
 		var sc2: Array = _barco_secao(z)
 		_caixa(corpo, Vector3(float(sc2[0]) * 2.0 - 0.05, 0.05, 0.26), Vector3(0, 0.22, z), _mt_madeira)
-	# o remo de pá: o eixo local -Y aponta para a pá; a origem fica entre as mãos (transporte.gd move a cada quadro)
-	var remo := Node3D.new()
-	remo.name = "remo"
-	remo.position = Vector3(0, 0.5, 0.15)
-	corpo.add_child(remo)
-	_cil(remo, 0.022, 1.32, Vector3(0, -0.36, 0), _mt_madeira_esc, Vector3.ZERO, 8)
-	_caixa(remo, Vector3(0.12, 0.035, 0.035), Vector3(0, 0.31, 0), _mt_madeira_esc) # punho em T
-	_caixa(remo, Vector3(0.17, 0.4, 0.025), Vector3(0, -1.12, 0), _mt_madeira) # pá
+	# 2026-11-09 (André: "a remada não tá legal"): no lugar do remo de pá de canoa (trocava de lado por cima da proa a
+	# cada remada), dois remos de verdade nos toletes da amurada, remando de frente (empurrando, como os pescadores):
+	# as duas pás entram juntas, empurram a água para trás e voltam por cima, deitadas. transporte.gd _remar move.
+	for lado in [-1.0, 1.0]:
+		var pino := Vector3(lado * REMO_PINO.x, REMO_PINO.y, REMO_PINO.z)
+		_cil(corpo, 0.016, 0.12, pino + Vector3(0, -0.02, 0.035), _mt_ferro, Vector3.ZERO, 6) # tolete (dois pinos)
+		_cil(corpo, 0.016, 0.12, pino + Vector3(0, -0.02, -0.035), _mt_ferro, Vector3.ZERO, 6)
+		_caixa(corpo, Vector3(0.09, 0.04, 0.16), pino + Vector3(0, -0.07, 0), _mt_madeira_esc) # calço do tolete
+		var remo := Node3D.new()
+		remo.name = "remo_d" if lado > 0 else "remo_e"
+		remo.position = pino
+		corpo.add_child(remo)
+		# o remo deitado no eixo local +X (para fora), origem no tolete: punho para dentro, pá para fora
+		var ext := REMO_FORA + 0.08
+		_cil(remo, 0.022, REMO_DENTRO + ext, Vector3((ext - REMO_DENTRO) * 0.5 * lado, 0, 0), _mt_madeira_esc, Vector3(0, 0, PI / 2), 8)
+		_cil(remo, 0.026, 0.14, Vector3(-(REMO_DENTRO - 0.02) * lado, 0, 0), _mt_corda, Vector3(0, 0, PI / 2), 8) # punho
+		_cil(remo, 0.03, 0.05, Vector3(0.0, 0, 0), _mt_corda, Vector3(0, 0, PI / 2), 8) # couro onde roça no tolete
+		var pa := _caixa(remo, Vector3(0.46, 0.022, 0.15), Vector3((REMO_FORA - 0.12) * lado, 0, 0), _mt_madeira)
+		pa.name = "pa"
+	_tampa_seca(corpo)
 	_sombra(g)
 	return g
 
@@ -1195,10 +1249,10 @@ func _process(dt: float) -> void:
 				_motor(v, no, corpo, dt)
 				_rodas_volante(v, no, corpo, dt)
 			else: # balança na água
-				corpo.rotation.z = sin(m.tempo * 1.3 + v.x) * (0.012 if v.tipo == "n" else 0.03)
-				corpo.rotation.x = sin(m.tempo * 0.9 + v.z) * (0.008 if v.tipo == "n" else 0.02)
+				_boiar(v, corpo, dt)
 				if v.tipo == "b":
 					_remar(v, corpo, dt)
+				_rastro(v, no, dt)
 		# quem está sentado nele (o carrinho e o barquinho; no navio o herói fica de pé no leme)
 		if v.dirigindo and v.tipo != "n":
 			if dirigindo_eu:
@@ -1212,8 +1266,8 @@ func _process(dt: float) -> void:
 		if meu_k == "carrinho": # o quadril vai no banco (sentar.gd); o corpo fica em cima do assoalho
 			dy = 0.15
 			atras = CARRO_BANCO.z
-		elif meu_k == "barquinho": # no banco do meio
-			dy = 0.12
+		elif meu_k == "barquinho": # no banco do meio (o quadril vai no banco pelo sentar.gd; o casco afundou 0,2 m)
+			dy = 0.12 + BARCO_AFUNDA - 0.1
 			atras = BARCO_BANCO.z
 		else: # no convés, na frente do castelo de popa (o leme)
 			dy = 0.33
@@ -1340,74 +1394,190 @@ func _rodas_volante(v: Dictionary, no: Node3D, corpo: Node3D, dt: float) -> void
 		v.eixo = H - Vector3(sin(no.rotation.y + rel), 0, cos(no.rotation.y + rel)) * L
 		car.rotation.z = -0.1 if v.quebrado else 0.0
 
-# remada do barquinho (pá de um lado, depois do outro, como canoa): o remo e as duas mãos do herói.
-# Puxada (65%): a pá entra na frente e sai atrás; volta (35%): levanta, passa por cima da proa e entra do outro lado.
-# Parado: o remo atravessado no colo.
-func _remar(v: Dictionary, corpo: Node3D, dt: float) -> void:
-	var remo: Node3D = corpo.get_node_or_null("remo")
-	if remo == null:
+# barco na água (2026-11-09, André: "parece que o barco tá voando"): sobe e desce devagar com a ondinha (duas ondas
+# misturadas, não um vaivém de relógio), a proa sobe um pouco com a velocidade e dá um tranco a cada remada, e o
+# casco deita para fora na curva. No navio tudo bem menor (é pesado).
+func _boiar(v: Dictionary, corpo: Node3D, dt: float) -> void:
+	var nav: bool = v.tipo == "n"
+	var k: float = 0.35 if nav else 1.0
+	var t: float = m.tempo
+	var fx: float = float(v.x) * 0.37
+	var fz: float = float(v.z) * 0.29
+	var vel: float = float(v.get("vel", 0.0))
+	var rapido: float = clampf(vel / float(V.navio.vel if nav else V.barquinho.vel), 0.0, 1.0)
+	v.tranco = lerpf(float(v.get("tranco", 0.0)), float(v.get("empurra", 0.0)), minf(1.0, dt * 5.0))
+	var base: float = 0.0 if nav else BARCO_AFUNDA
+	corpo.position.y = base + (sin(t * 1.15 + fx) * 0.022 + sin(t * 1.9 + fz) * 0.01) * k
+	var inclina: float = clampf(float(v.get("giro", 0.0)), -1.2, 1.2) * rapido * 0.05 # deita para fora da curva
+	corpo.rotation.z = (sin(t * 1.3 + fz) * 0.028 + sin(t * 2.3 + fx) * 0.01) * k + inclina * k
+	corpo.rotation.x = (sin(t * 0.9 + fx) * 0.018) * k - rapido * 0.035 * k - float(v.tranco) * 0.025 * k
+
+# rastro na água atrás do barco e do navio (2026-11-09, André: "o barquinho na água precisava fazer um rastro"):
+# uma fita colada na água pelo caminho que a popa fez (pontos a cada ~0,3 m, vivem RASTRO_VIDA s), que abre em V
+# como esteira de verdade (~20° de cada lado) com espuma nas bordas e a água mexida no meio sumindo. Mais a espuma
+# da proa e em volta do casco na linha d'água (agua_fx.gdshader modo 2), mais forte com a velocidade.
+const RASTRO_VIDA := 4.5
+var _mt_rastro: ShaderMaterial
+func _rastro(v: Dictionary, no: Node3D, dt: float) -> void:
+	var nav: bool = v.tipo == "n"
+	var fita: MeshInstance3D = v.get("fita")
+	if fita == null or not is_instance_valid(fita):
+		if _mt_rastro == null:
+			_mt_rastro = ShaderMaterial.new()
+			_mt_rastro.shader = load("res://rastro_barco.gdshader")
+			_mt_rastro.render_priority = 1 # depois da água
+		fita = MeshInstance3D.new()
+		fita.name = "rastro"
+		fita.top_level = true
+		fita.mesh = ImmediateMesh.new()
+		fita.material_override = _mt_rastro
+		fita.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		fita.extra_cull_margin = 60.0
+		no.add_child(fita)
+		v.fita = fita
+		v.pontos = []
+		# espuma em volta do casco
+		var col := MeshInstance3D.new()
+		col.name = "espuma_casco"
+		var q := PlaneMesh.new()
+		q.size = Vector2(3.4, 9.6) if nav else Vector2(1.45, 3.15)
+		col.mesh = q
+		var mc := ShaderMaterial.new()
+		mc.shader = load("res://agua_fx.gdshader")
+		mc.set_shader_parameter("modo", 2)
+		mc.set_shader_parameter("alfa", 0.0)
+		mc.set_shader_parameter("faixa", 0.35 if nav else 0.14)
+		mc.set_shader_parameter("meio", 2.0 if nav else 0.8)
+		mc.render_priority = 1
+		col.material_override = mc
+		col.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		col.position = Vector3(0, (0.25 if nav else 0.0) + 0.012, 0) # o navio fica 0,25 m abaixo do nível
+		no.add_child(col)
+		v.espuma_casco = mc
+	var vel: float = float(v.get("vel", 0.0))
+	var rapido: float = clampf(vel / float(V.navio.vel if nav else V.barquinho.vel), 0.0, 1.0)
+	(v.espuma_casco as ShaderMaterial).set_shader_parameter("alfa", 0.12 + rapido * 0.4)
+	(v.espuma_casco as ShaderMaterial).set_shader_parameter("forca", 1.0)
+	var agora: float = m.tempo
+	var frente := Vector3(sin(no.rotation.y), 0, cos(no.rotation.y))
+	var popa: Vector3 = no.global_position - frente * ((4.3 if nav else BARCO_L) * 0.92)
+	popa.y = float(m.terreno.agua.nivel) + 0.015
+	var pts: Array = v.pontos
+	if pts.is_empty() or (pts[pts.size() - 1][0] as Vector3).distance_to(popa) > (0.6 if nav else 0.3):
+		if pts.size() > 0 and (pts[pts.size() - 1][0] as Vector3).distance_to(popa) > 6.0:
+			pts.clear() # pulou de lugar (entrou agora): não liga os pontos
+		pts.append([popa, frente, agora, rapido])
+	while pts.size() > 0 and agora - float(pts[0][2]) > RASTRO_VIDA:
+		pts.pop_front()
+	var im: ImmediateMesh = fita.mesh
+	im.clear_surfaces()
+	if pts.size() < 2 and rapido < 0.05:
 		return
-	var anda: float = absf(float(m.mov.veiculo.get("v", 0.0))) if v.eu and m.mov.veiculo.get("k", "") == "barquinho" else float(v.get("vel", 0.0))
-	v.rema = move_toward(float(v.get("rema", 0.0)), 1.0 if anda > 0.25 and v.dirigindo else 0.0, dt * 2.5)
-	var lado: float = float(v.get("lado", 1.0))
+	# a ponta da fita fica sempre colada na popa (o último ponto pode estar até 0,3 m para trás)
+	var lista: Array = pts.duplicate()
+	lista.append([popa, frente, agora, rapido])
+	var w0: float = 1.0 if nav else 0.32 # meia largura na popa
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in range(lista.size() - 1, -1, -1):
+		var p: Array = lista[i]
+		var idade: float = (agora - float(p[2])) / RASTRO_VIDA
+		var f: Vector3 = p[1]
+		var lado := Vector3(f.z, 0, -f.x)
+		var longe: float = (popa as Vector3).distance_to(p[0]) # o V abre com a distância andada (~20° de cada lado)
+		var hw: float = w0 + minf(longe * 0.36, (6.0 if nav else 2.6)) + idade * 0.4
+		var forca: float = float(p[3])
+		im.surface_set_color(Color(1, 1, 1, forca))
+		im.surface_set_uv(Vector2(0.0, idade))
+		im.surface_add_vertex((p[0] as Vector3) - lado * hw)
+		im.surface_set_color(Color(1, 1, 1, forca))
+		im.surface_set_uv(Vector2(1.0, idade))
+		im.surface_add_vertex((p[0] as Vector3) + lado * hw)
+	im.surface_end()
+
+# remada do barquinho (2026-11-09, André: "a remada não tá legal"): dois remos nos toletes, remando de frente
+# (empurrando). Uma volta (fase 0..1): pega (as pás entram na água, em pé), empurrada (as pás varrem para trás e o barco
+# ganha velocidade, o tronco vai para a frente), solta (as pás saem pingando) e volta (as pás deitadas passam por cima
+# da água para a frente). Na curva o remo de dentro varre menos (o barco vira para o lado dele). Parado: os remos
+# atravessados, pás fora da água. "empurra" (0..1) vai para o andar.gd: o barco ganha velocidade só com as pás na água.
+const REMO_AGUA := 0.45 # parte da volta com as pás na água
+func _remar(v: Dictionary, corpo: Node3D, dt: float) -> void:
+	var remos := [corpo.get_node_or_null("remo_d"), corpo.get_node_or_null("remo_e")]
+	if remos[0] == null or remos[1] == null:
+		return
+	var meu: bool = v.eu and m.mov.veiculo.get("k", "") == "barquinho"
+	var anda: float = absf(float(m.mov.veiculo.get("v", 0.0))) if meu else float(v.get("vel", 0.0))
+	var vira: float = clampf(float(v.get("giro", 0.0)) / 0.9, -1.0, 1.0)
+	var quer: bool = v.dirigindo and (anda > 0.25 or absf(vira) > 0.3 or (meu and float(m.mov.veiculo.get("quer", 0.0)) > 0.1))
+	v.rema = move_toward(float(v.get("rema", 0.0)), 1.0 if quer else 0.0, dt * 2.0)
 	var fase: float = float(v.get("fase", 0.0))
-	if float(v.rema) > 0.05:
-		fase += dt * (0.5 + 0.55 * minf(1.0, anda / float(V.barquinho.vel)))
+	var rapido: float = clampf(anda / float(V.barquinho.vel), 0.0, 1.0)
+	var antes := fase
+	if float(v.rema) > 0.05 or fase > 0.0:
+		fase += dt * (0.6 + 0.35 * rapido)
 		if fase >= 1.0:
-			fase -= 1.0
-			lado = -lado
+			fase = fase - 1.0 if float(v.rema) > 0.05 else 0.0 # parando: termina a volta e fica
 	v.fase = fase
-	v.lado = lado
-	var b := Vector3.ZERO # para onde vai a pá (saindo das mãos)
-	var zp := 0.0
-	var troca := 0.0 # 0 = mãos no lado de agora, 1 = já no papel do outro lado
-	if fase < 0.65:
-		var k := fase / 0.65
-		b = Vector3(lado * 0.3, -0.95, lerpf(0.3, -0.25, k))
-		zp = lerpf(0.3, -0.05, k)
-	else:
-		var r := (fase - 0.65) / 0.35
-		zp = lerpf(-0.05, 0.3, r)
-		if r < 0.3:
-			var e := lerpf(-1.25, 0.15, r / 0.3)
-			b = Vector3(lado * cos(e), sin(e), lerpf(-0.25, 0.0, r / 0.3))
-		elif r < 0.7:
-			var s2 := (r - 0.3) / 0.4
-			b = Vector3(lado * cos(PI * s2), 0.15, sin(PI * s2))
-			troca = smoothstep(0.0, 1.0, s2)
-		else:
-			var e2 := lerpf(0.15, -1.25, (r - 0.7) / 0.3)
-			b = Vector3(-lado * cos(e2), sin(e2), lerpf(0.0, 0.3, (r - 0.7) / 0.3))
-			troca = 1.0
-	b = b.normalized()
-	# as mãos vão para a amurada do lado da pá (o cabo passa por fora do casco); com o remo deitado voltam para o meio
-	var piv := Vector3(0.45 * b.x / maxf(0.3, absf(b.x)) * clampf(-b.y * 1.1, 0.0, 1.0), 0.62, zp)
-	# parado: atravessado no colo
 	var w: float = smoothstep(0.0, 1.0, float(v.rema))
-	var b_parado := Vector3(1, 0, 0)
-	var piv_parado := Vector3(0, 0.5, 0.16)
-	b = b_parado.lerp(b, w).normalized()
-	piv = piv_parado.lerp(piv, w)
-	var yb := -b
-	var zb := Vector3(0, 0, 1) - yb * yb.z
-	if zb.length() < 0.2:
-		zb = Vector3.UP - yb * yb.y
-	zb = zb.normalized()
-	remo.transform = Transform3D(Basis(yb.cross(zb), yb, zb), piv)
-	# mãos: a de baixo (do lado da pá) perto da pá, a de cima no punho; na troca de lado as duas mudam de papel
-	var de_baixo := piv + b * 0.17
-	var de_cima := piv - b * 0.3
+	# na água: entra rápido na pega, sai na solta
+	var na_agua: float = smoothstep(0.0, 0.07, fase) * (1.0 - smoothstep(REMO_AGUA - 0.06, REMO_AGUA + 0.04, fase))
+	var varre := 0.0 # 0 = pá na frente, 1 = pá atrás
+	if fase < REMO_AGUA:
+		varre = smoothstep(0.0, 1.0, fase / REMO_AGUA)
+	else:
+		varre = 1.0 - smoothstep(0.0, 1.0, (fase - REMO_AGUA) / (1.0 - REMO_AGUA))
+	v.empurra = na_agua * w
+	if meu:
+		m.mov.veiculo["empurra"] = v.empurra # o andar.gd só acelera com as pás na água
+	var yw: float = -corpo.position.y # a linha d'água no "corpo" (o balanço mexe junto)
 	var maos := [Vector3.ZERO, Vector3.ZERO] # [lado +x, lado -x] do barco
 	for i in 2:
-		var sx: float = 1.0 if i == 0 else -1.0
-		var antes: Vector3 = de_baixo if sx == lado else de_cima
-		var depois: Vector3 = de_baixo if sx == -lado else de_cima
-		var remando: Vector3 = antes.lerp(depois, troca)
-		var parado := piv_parado + Vector3(sx * 0.24, 0, 0)
-		maos[i] = parado.lerp(remando, w)
+		var lado: float = 1.0 if i == 0 else -1.0
+		var remo: Node3D = remos[i]
+		var pino := Vector3(lado * REMO_PINO.x, REMO_PINO.y, REMO_PINO.z)
+		# curva para o lado +x (vira > 0): o remo de +x varre pouco e o de -x varre tudo
+		var forca: float = 1.0 - clampf(vira * lado, 0.0, 1.0) * 0.85
+		var al: float = lerpf(0.55, -0.5, varre) * forca + (1.0 - forca) * 0.05 # ângulo da varrida (rad, + = pá na frente)
+		# pá na água: a ponta afunda ~8 cm; na volta passa ~15 cm acima da água
+		var queda_agua: float = REMO_PINO.y - (yw - 0.08)
+		var queda_ar: float = REMO_PINO.y - (yw + 0.15)
+		var be: float = asin(clampf(lerpf(queda_ar, queda_agua, na_agua) / (REMO_FORA - 0.12), -0.9, 0.9))
+		var gira: float = lerpf(0.0, PI / 2, smoothstep(0.0, 1.0, na_agua * 1.3)) # pá em pé na água, deitada no ar
+		# parado: os remos atravessados, perpendiculares ao barco, as pás um palmo fora da água
+		var al0 := 0.0
+		var be0: float = asin(clampf((REMO_PINO.y - (yw + 0.1)) / (REMO_FORA - 0.12), -0.9, 0.9))
+		al = lerpf(al0, al, w)
+		be = lerpf(be0, be, w)
+		gira = lerpf(0.0, gira, w)
+		var d := Vector3(lado * cos(al) * cos(be), -sin(be), sin(al) * cos(be)) # do tolete para a pá
+		var e := d * lado # o eixo +X do remo
+		var y := (Vector3.UP - e * e.y).normalized()
+		var bs := Basis(e, y, e.cross(y)) * Basis(Vector3.RIGHT, gira * lado)
+		remo.transform = Transform3D(bs, pino)
+		maos[i] = pino - d * (REMO_DENTRO - 0.04)
+		# respingo: a pá entrando (pega) e pingando ao sair (solta); só perto da câmera
+		if w > 0.5 and m.fx and m.fx.has_method("part") and corpo.global_position.distance_to(m.camera.global_position if "camera" in m and m.camera else corpo.global_position) < 40.0:
+			var pa: Node3D = remo.get_node_or_null("pa")
+			if pa:
+				var gp: Vector3 = pa.global_position
+				var agua_y: float = float(m.terreno.agua.nivel)
+				if antes < 0.03 and fase >= 0.03: # pega
+					for k in 5:
+						m.fx.part(m.fx.FUMA, gp.x, agua_y + 0.02, gp.z, randf_range(-0.5, 0.5), randf_range(0.8, 1.6), randf_range(-0.5, 0.5),
+							randf_range(0.35, 0.55), 0.05, 0.02, "f2f8fa", "d8ecf0", 0.75, -6.5, 0.4)
+				elif antes < REMO_AGUA and fase >= REMO_AGUA: # solta: a pá sai levantando água
+					for k in 7:
+						m.fx.part(m.fx.FUMA, gp.x + randf_range(-0.12, 0.12), agua_y + 0.06, gp.z + randf_range(-0.12, 0.12), randf_range(-0.3, 0.3), randf_range(0.6, 1.4), randf_range(-0.6, -0.1),
+							randf_range(0.4, 0.6), 0.04, 0.02, "f2f8fa", "d8ecf0", 0.7, -6.5, 0.3)
+				if fase > 0.05 and fase < REMO_AGUA and anda > 0.4: # redemoinho da pá na água
+					v.poca_t = float(v.get("poca_t", 0.0)) - dt
+					if float(v.poca_t) <= 0.0:
+						v.poca_t = 0.12
+						m.fx.part(m.fx.FUMA, gp.x, agua_y + 0.015, gp.z, 0.0, 0.0, 0.0, 0.9, 0.12, 0.4, "eaf4f6", "cfe6ea", 0.35, 0.0, 0.0)
 	v.maos = maos
-	v.deita = 0.06 + w * (0.22 if fase < 0.65 else 0.1) * (1.0 - fase / 0.65 if fase < 0.65 else 0.5)
-	v.torce = w * clampf(piv.x / 0.45, -1.0, 1.0) * -0.3
+	# tronco: vai para a frente empurrando e volta; na curva gira um pouco para o remo que trabalha
+	var corpo_vai: float = varre if fase < REMO_AGUA else varre
+	v.deita = 0.05 + w * (0.06 + 0.2 * corpo_vai)
+	v.torce = w * vira * -0.12
 
 # poses de sentado (sentar.gd) no esqueleto de quem está no carrinho ou no barco; tira de quem desceu
 const Sentar = preload("res://sentar.gd")
