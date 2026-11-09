@@ -1296,7 +1296,11 @@ export class Simulacao {
     const livre = (c) => c && !c.morto && !c.criando;
     if (m.acao === 'pedir' || m.acao === 'aceitar') {
       const o = this.jogadores.get(String(m.com));
-      if (!o || o === j || o.bot) return; // a Cecília ainda não troca (fase 3)
+      if (o && o.bot && o === this.amiga) { // a Cecília (fase 3): ela mesma decide na hora, sem cartão de pedido
+        const r = this.abrirTrocaAmiga(j); if (r !== true) this.falarAmiga(r);
+        return;
+      }
+      if (!o || o === j || o.bot) return;
       if (!livre(j)) return;
       if (!livre(o)) return aviso(`${o.nome} não pode trocar agora`);
       if (j.troca) return aviso('Termine a troca que está aberta primeiro');
@@ -1389,6 +1393,7 @@ export class Simulacao {
         itens: of.itens.map((e) => ({ ...(meu ? { i: e.i } : {}), n: e.n, it: itemDaChave(e.chave, e.n) })) });
       this.evento({ t: 'troca', para: k, fase: 'estado', com: outro, nome: o.nome, eu: ver(T.of[k], true), ele: ver(T.of[outro], false) });
     }
+    if (this.amiga && (T.a === this.amiga.id || T.b === this.amiga.id)) this.mexeuTrocaAmiga(); // a Cecília pensa de novo (shared/amiga.js)
   }
   fecharTroca(T, motivo = '', feita = false) {
     this.trocas?.delete(T);
@@ -1629,6 +1634,7 @@ export class Simulacao {
     a.prog.ouro += B.ouro - A.ouro; b.prog.ouro += A.ouro - B.ouro;
     for (const [j, o] of [[a, b], [b, a]]) { this.aplicarStatus(j); this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: `Troca com ${o.nome} feita!` }); }
     this.fecharTroca(T, '', true);
+    if (this.amiga && (a === this.amiga || b === this.amiga)) this.trocaFeitaAmiga(T);
     this.aoTrocar?.(); // o servidor grava as duas contas na hora (nada fica só na memória)
   }
   precoCompra(j, o) { return Math.max(1, Math.round(o.preco * (1 - mercador(j.prog.prof.mer).compra))); }

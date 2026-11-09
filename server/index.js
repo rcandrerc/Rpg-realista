@@ -93,6 +93,7 @@ class SalaClareira extends Room {
         pensarAmiga(ctx, msg.texto).then((r) => {
           const regra = this.sim.assuntoAmiga(msg.texto);
           // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
+          if (['presente', 'pedirItem'].includes(regra)) return this.sim.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
           this.sim.respostaAmiga(id, r ? { assunto: r.assunto === 'conversa' ? (['time', 'sairTime', 'vir', 'sim', 'nao'].includes(regra) ? regra : 'conversa') : r.assunto, fala: r.fala } : { assunto: regra });
         });
       }

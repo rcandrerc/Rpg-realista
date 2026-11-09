@@ -1938,6 +1938,27 @@ export const AMIGA = {
     ocupada: ['Peraí, já já eu falo com você!'],
     tchau: ['Até mais! Passa aqui de novo.', 'Tchau! Cuidado com os lobos.'],
   },
+  // Fase 3 (André 2026-11-09: "quero que ela tenha inventário e gold próprio", "mesma qtd de slots que eu tenho, as 4
+  // páginas", "o que não for de interesse pra ela ela vende, o que for interessante ela guarda ou usa").
+  // Mochila: 4 páginas como a do jogador. De tempos em tempos (fora do time) ela arruma: veste peça melhor, guarda poção,
+  // semente, colheita e o que costuma pedir, e vende o resto (cajado ela não usa: é guerreira).
+  // Troca: pela janela normal de troca. Ela não põe nada sozinha; o André pede no chat ("quero 3 cenouras") ou põe o que
+  // tem pra ela. Ela cobra o valor de venda x margem (menos com amizade) e paga em ouro o que ele põe na mesa
+  // (ou nada, se ele disser que é presente). Tranca e confirma sozinha quando a conta fecha.
+  mochila: { paginas: 4, arrumar: 30, pocoes: 10 },
+  troca: { margem: 1.5, porAmizade: 0.05, margemMin: 1.1, pensar: 1.2, longe: 6 },
+  falasTroca: {
+    abre: ['Bora negociar! Me diz o que você quer ("quero 3 cenouras") ou põe na mesa o que tem pra mim.', 'Troca? Adoro! Fala o que você quer ou mostra o que trouxe.'],
+    longe: 'Chega mais perto que a gente troca! Toca em mim e escolhe Troca.',
+    ocupada: 'Agora não dá, tô no meio de uma coisa! Daqui a pouco a gente troca.',
+    pus: 'Coloquei na mesa: {item}. Sai por {preco} de ouro.',
+    naoTenho: 'Hmm, isso eu não tenho aqui na mochila.',
+    falta: 'Assim não fecha, hein! Põe mais {falta} de ouro que eu topo.',
+    pago: 'Gostei! Te pago {ouro} de ouro por isso.',
+    presente: 'Presente?! Ai, que fofo! Vou guardar com carinho.',
+    feita: ['Negócio fechado! Bom fazer troca com você.', 'Feito! Volta sempre, freguês!'],
+    obrigada: 'Obrigada pelo presente! Você é demais.',
+  },
   // Chat de longe (André 2026-11-09: "falar com ela no chat como uma pessoa normal", "ter ela na lista de amigos",
   // "amigos reais e amigos virtuais, como eu fiz no Quimera", "de longe eu trocar ideia com ela e chamar ela, ou até ela
   // me chamar"). Ela fica em "Amigos virtuais" na lista do Multijogador e conversa pela mensagem privada do chat.
@@ -1961,6 +1982,9 @@ export const AMIGA = {
       ajuda: ['precisa de algo', 'precisa de alguma', 'quer alguma coisa', 'posso ajudar', 'te ajudo', 'precisa de ajuda', 'quer ajuda'],
       dungeon: ['dungeon', 'caverna', 'masmorra', 'chefe', 'boss', 'warrok'],
       troca: ['troca', 'trocar', 'vende', 'vender', 'compra', 'comprar', 'item', 'tem '],
+      // só valem com a janela de troca aberta (fase 3)
+      presente: ['presente', 'de graca', 'pra voce', 'e seu', 'e sua', 'toma'],
+      pedirItem: ['quero', 'me vende', 'vende', 'me ve', 'tem ', 'me da', 'preciso de', 'compro'],
       obrigado: ['obrigado', 'obrigada', 'valeu', 'vlw', 'brigado', 'agradeco'],
       elogio: ['linda', 'bonita', 'legal', 'gosto de voce', 'te adoro', 'melhor amiga', 'incrivel', 'top'],
       piada: ['piada', 'conta uma', 'me faz rir', 'algo engracado'],
