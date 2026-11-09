@@ -289,7 +289,10 @@ export const Transporte = {
     if (m.acao === 'abastecer') {
       const max = C.galao * C.tanque; if (c.comb >= max - 1) return aviso('Tanque cheio');
       if (contar(p.mochila, 'galao') < 1) return aviso('Sem combustível na mochila (crie na bancada: 2 carvão + 1 tecido)');
-      tirar(p.mochila, 'galao', 1); c.comb = Math.min(max, c.comb + C.galao);
+      // n = quantos galões pôr de uma vez (o lugar do combustível na janela do carrinho: "Encher" põe até lotar)
+      let n = Math.max(1, Math.min(C.tanque, Math.floor(+m.n) || 1));
+      n = Math.min(n, contar(p.mochila, 'galao'), Math.ceil((max - c.comb) / C.galao));
+      tirar(p.mochila, 'galao', n); c.comb = Math.min(max, c.comb + C.galao * n);
       this.evento({ t: 'veiculo', para: id, acao: 'abasteceu' });
       return pronto();
     }

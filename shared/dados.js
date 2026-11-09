@@ -1668,11 +1668,11 @@ export const PACK_REGRAS = {
 // Veículos (Quimera): o carrinho anda a combustível na terra; o barquinho é a remo (leva só o pack das suas costas); o
 // navio mercante leva 16 no porão e mais 1 nas costas. Ficam na mochila; "Colocar" põe no chão (carrinho) ou na água.
 // Carrinho: vida 400, 2,8 m/s menos 0,05 por pack acima de 2, curva 2,4 rad/s, combustível: 1 galão = 160 m, tanque de
-// 5 galões. Leva 2 packs no Nv 1 e +2 por melhoria (até Nv 4 = 8 packs). Apanhando dentro dele: o carrinho leva 110% do
+// 8 galões (André 2026-11-09: um lugar só de combustível que empilha até 8). Leva 2 packs no Nv 1 e +2 por melhoria (até Nv 4 = 8 packs). Apanhando dentro dele: o carrinho leva 110% do
 // golpe e você 20%. Vida zero = quebra e os packs caem no chão. Não entra na água.
 export const VEICULOS = {
   carrinho: { nome: 'Carrinho de carga', vida: 400, vel: 2.8, perdePorPack: 0.05, packsLivres: 2, giro: 2.4, acelera: 1.3, freia: 3.5,
-    curvaFechada: 1.6, curvaK: 0.3, galao: 160, tanque: 5, capacidade: 2, nivelMax: 4,
+    curvaFechada: 1.6, curvaK: 0.3, galao: 160, tanque: 8, capacidade: 2, nivelMax: 4,
     melhorar: [null, null, { lenha: 40, barra_ferro: 8, barra_cobre: 6, couro: 6, ouro: 2000 }, { lenha: 60, barra_ferro: 14, barra_cobre: 10, couro: 10, ouro: 8000 },
       { lenha: 100, barra_ferro: 24, barra_cobre: 16, couro: 16, ouro: 25000 }],
     golpe: 1.1, heroi: 0.2, consertoQuebrado: { lenha: 8, barra_ferro: 1 }, consertoParcial: { lenha: 4 }, perto: 3.5, entregar: 12, carregar: 8 },

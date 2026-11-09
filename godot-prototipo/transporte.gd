@@ -132,58 +132,197 @@ func modelo_pack(k: String) -> Node3D:
 	_caixa(g, Vector3(0.6, 0.04, 0.46), Vector3(0, 0.4, 0), _mt_corda)
 	return g
 
-# ---------- carrinho de carga: caçamba de tábuas, duas rodas com aro de ferro, varais e o motor a combustível ----------
+# ---------- carrinho de carga (Quimera: veículo a combustível que você dirige sentado; André 2026-11-09: "nada de
+# carroça de cavalo"): motor com capô de ferro na frente, banco do motorista com encosto, volante na coluna, farol,
+# quatro rodas (as da frente viram com o volante) e a caçamba de tábuas atrás do banco, que cresce com o nível ----------
+const CARRO_BANCO := Vector3(0, 1.02, -0.02) # onde o quadril senta (no "corpo" do carrinho)
+const CARRO_PE := Vector3(0.15, 0.64, 0.5) # pés no assoalho (x = cada lado)
+const CARRO_VOLANTE := Vector3(0, 1.2, 0.34) # centro do volante
+const CARRO_VOLANTE_INCL := -0.93 # o volante deitado virado para o motorista
 func modelo_carrinho(nv: int) -> Node3D:
 	var g := Node3D.new()
 	var corpo := Node3D.new()
 	corpo.name = "corpo"
 	g.add_child(corpo)
-	var comp: float = 1.6 + 0.35 * float(max(0, nv - 1)) # cresce com o nível (leva mais packs)
-	_caixa(corpo, Vector3(1.3, 0.08, comp), Vector3(0, 0.55, -0.15), _mt_madeira) # piso
+	var comp: float = 1.6 + 0.35 * float(max(0, nv - 1)) # caçamba cresce com o nível (leva mais packs)
+	var zc: float = -0.35 - comp * 0.5 # meio da caçamba
+	# chassi: duas longarinas de ferro de ponta a ponta
 	for lado in [-1.0, 1.0]:
-		_caixa(corpo, Vector3(0.06, 0.32, comp), Vector3(lado * 0.62, 0.74, -0.15), _mt_madeira) # laterais
-		_caixa(corpo, Vector3(0.08, 0.36, 0.08), Vector3(lado * 0.62, 0.74, -0.15 + comp * 0.5), _mt_madeira_esc)
-		_caixa(corpo, Vector3(0.08, 0.36, 0.08), Vector3(lado * 0.62, 0.74, -0.15 - comp * 0.5), _mt_madeira_esc)
-		_caixa(corpo, Vector3(0.06, 0.06, 1.2), Vector3(lado * 0.45, 0.62, 0.95 + comp * 0.5 - 0.8), _mt_madeira_esc) # varais
-	_caixa(corpo, Vector3(1.3, 0.32, 0.06), Vector3(0, 0.74, -0.15 - comp * 0.5), _mt_madeira)
-	# motorzinho na frente (o carrinho anda a combustível): caixa de ferro com o tanque e o escapamento
-	_caixa(corpo, Vector3(0.7, 0.36, 0.42), Vector3(0, 0.78, 0.35 + comp * 0.5 - 0.6), _mt_ferro)
-	_cil(corpo, 0.13, 0.5, Vector3(0, 1.0, 0.35 + comp * 0.5 - 0.6), _mt_madeira_esc, Vector3(0, 0, PI / 2))
-	var cano := _cil(corpo, 0.04, 0.5, Vector3(0.3, 1.1, 0.25 + comp * 0.5 - 0.6), _mt_ferro)
+		_caixa(corpo, Vector3(0.08, 0.1, comp + 1.75), Vector3(lado * 0.42, 0.47, zc + (comp + 1.75) * 0.5 - comp * 0.5 - 0.05), _mt_ferro)
+	# caçamba: piso, laterais baixas com estacas e a tampa de trás
+	_caixa(corpo, Vector3(1.3, 0.08, comp), Vector3(0, 0.55, zc), _mt_madeira)
+	for lado in [-1.0, 1.0]:
+		_caixa(corpo, Vector3(0.06, 0.28, comp), Vector3(lado * 0.62, 0.72, zc), _mt_madeira)
+		_caixa(corpo, Vector3(0.07, 0.04, comp + 0.04), Vector3(lado * 0.62, 0.87, zc), _mt_madeira_esc)
+		var n_est: int = 2 + nv
+		for e in n_est:
+			_caixa(corpo, Vector3(0.08, 0.34, 0.07), Vector3(lado * 0.64, 0.72, -0.35 - comp * float(e) / float(n_est - 1)), _mt_madeira_esc)
+	_caixa(corpo, Vector3(1.3, 0.28, 0.06), Vector3(0, 0.72, -0.35 - comp), _mt_madeira)
+	_caixa(corpo, Vector3(1.3, 0.36, 0.06), Vector3(0, 0.76, -0.35), _mt_madeira_esc) # divisória atrás do banco
+	# cabine aberta: assoalho, banco com almofada de pano e encosto
+	_caixa(corpo, Vector3(1.2, 0.07, 1.1), Vector3(0, 0.56, 0.2), _mt_madeira_esc)
+	_caixa(corpo, Vector3(0.95, 0.3, 0.4), Vector3(0, 0.74, -0.08), _mt_madeira)
+	var almofada: StandardMaterial3D = _mt_pano.duplicate()
+	almofada.albedo_color = Color(0.55, 0.22, 0.16)
+	_caixa(corpo, Vector3(0.9, 0.08, 0.4), Vector3(0, 0.92, -0.06), almofada)
+	_caixa(corpo, Vector3(0.9, 0.42, 0.07), Vector3(0, 1.14, -0.29), almofada, Vector3(-0.16, 0, 0))
+	_caixa(corpo, Vector3(0.95, 0.05, 0.09), Vector3(0, 1.36, -0.32), _mt_madeira_esc, Vector3(-0.16, 0, 0))
+	# motor: capô de ferro com a grade, tanque de combustível em cima, escapamento do lado e o farol
+	_caixa(corpo, Vector3(0.95, 0.46, 0.62), Vector3(0, 0.82, 1.07), _mt_ferro)
+	_caixa(corpo, Vector3(0.98, 0.06, 0.66), Vector3(0, 1.07, 1.07), _mt_madeira_esc) # tampa de madeira do capô
+	for i in 5:
+		_caixa(corpo, Vector3(0.7, 0.03, 0.03), Vector3(0, 0.66 + float(i) * 0.07, 1.39), _mt_madeira_esc) # grade
+	_cil(corpo, 0.13, 0.6, Vector3(0, 1.2, 1.0), _mt_madeira_esc, Vector3(0, 0, PI / 2)) # tanque (barril deitado)
+	for x in [-0.22, 0.22]:
+		_cil(corpo, 0.137, 0.03, Vector3(x, 1.2, 1.0), _mt_ferro, Vector3(0, 0, PI / 2)) # cintas do barril
+	var cano := _cil(corpo, 0.04, 0.75, Vector3(0.52, 1.0, 0.82), _mt_ferro)
 	cano.name = "cano"
-	# rodas
+	var farol_mt := StandardMaterial3D.new()
+	farol_mt.albedo_color = Color(1.0, 0.86, 0.55)
+	farol_mt.emission_enabled = true
+	farol_mt.emission = Color(1.0, 0.75, 0.4)
+	farol_mt.emission_energy_multiplier = 0.8
+	_cil(corpo, 0.1, 0.1, Vector3(0, 0.98, 1.43), _mt_ferro, Vector3(PI / 2, 0, 0))
+	_cil(corpo, 0.08, 0.02, Vector3(0, 0.98, 1.49), farol_mt, Vector3(PI / 2, 0, 0))
+	# para-lamas de tábua sobre as rodas da frente
+	for lado in [-1.0, 1.0]:
+		_caixa(corpo, Vector3(0.24, 0.04, 0.7), Vector3(lado * 0.7, 0.74, 1.05), _mt_madeira_esc)
+	# volante: coluna saindo do assoalho e o aro de madeira com aro de ferro e 4 raios (gira com a direção)
+	_cil(corpo, 0.025, 0.66, (Vector3(0, 0.62, 0.66) + CARRO_VOLANTE) * 0.5, _mt_ferro, Vector3(-0.5, 0, 0))
+	var vol := Node3D.new()
+	vol.name = "volante"
+	vol.position = CARRO_VOLANTE
+	vol.rotation.x = CARRO_VOLANTE_INCL
+	corpo.add_child(vol)
+	var aro := Node3D.new()
+	aro.name = "aro"
+	vol.add_child(aro)
+	var t := TorusMesh.new()
+	t.inner_radius = 0.15
+	t.outer_radius = 0.19
+	t.rings = 20
+	t.ring_segments = 8
+	var mi := MeshInstance3D.new()
+	mi.mesh = t
+	mi.material_override = _mt_madeira_esc
+	aro.add_child(mi)
+	for i in 2:
+		_caixa(aro, Vector3(0.32, 0.02, 0.025), Vector3.ZERO, _mt_ferro, Vector3(0, float(i) * PI / 2, 0))
+	# rodas: as de trás grandes, embaixo da caçamba; as da frente menores, embaixo do motor (viram com o volante)
 	var rodas := Node3D.new()
 	rodas.name = "rodas"
 	g.add_child(rodas)
-	for lado in [-1.0, 1.0]:
-		var r := Node3D.new()
-		r.position = Vector3(lado * 0.75, 0.42, -0.25)
-		rodas.add_child(r)
-		_cil(r, 0.42, 0.07, Vector3.ZERO, _mt_ferro, Vector3(0, 0, PI / 2), 20)
-		_cil(r, 0.37, 0.09, Vector3.ZERO, _mt_madeira, Vector3(0, 0, PI / 2), 20)
-		for i in 4:
-			_caixa(r, Vector3(0.05, 0.7, 0.05), Vector3.ZERO, _mt_madeira_esc, Vector3(i * PI / 4, 0, 0))
+	for frente in [false, true]:
+		var rr: float = 0.32 if frente else 0.42
+		var zr: float = 1.05 if frente else -0.35 - comp * 0.6
+		for lado in [-1.0, 1.0]:
+			var piv := Node3D.new() # gira em y (direção) por fora; a roda gira em x por dentro
+			piv.position = Vector3(lado * 0.72, rr, zr)
+			piv.set_meta("frente", frente)
+			rodas.add_child(piv)
+			var r := Node3D.new()
+			r.name = "roda"
+			r.set_meta("r", rr)
+			piv.add_child(r)
+			_cil(r, rr, 0.08, Vector3.ZERO, _mt_ferro, Vector3(0, 0, PI / 2), 20)
+			_cil(r, rr - 0.05, 0.1, Vector3.ZERO, _mt_madeira, Vector3(0, 0, PI / 2), 20)
+			_cil(r, 0.07, 0.14, Vector3.ZERO, _mt_ferro, Vector3(0, 0, PI / 2), 10) # cubo
+			for i in 4:
+				_caixa(r, Vector3(0.05, rr * 1.7, 0.05), Vector3.ZERO, _mt_madeira_esc, Vector3(i * PI / 4, 0, 0))
 	var pk := Node3D.new()
 	pk.name = "packs"
+	pk.position = Vector3(0, 0, -0.68)
 	corpo.add_child(pk)
 	_sombra(g)
 	return g
 
-# barquinho a remo (2 pessoas): casco de tábuas, bancos e os remos
+# ---------- barquinho a remo (2 pessoas): casco curvo de tábuas (feito aqui, seção por seção), amurada, faixas das
+# tábuas, bancos, assoalho e o remo de pá que o herói segura sentado (André 2026-11-09) ----------
+const BARCO_BANCO := Vector3(0, 0.33, -0.22) # quadril no banco do meio (no "corpo" do barco)
+const BARCO_PE := Vector3(0.15, 0.03, 0.32)
+const BARCO_L := 1.35 # meio comprimento do casco
+const BARCO_W := 0.52 # meia largura no meio (1 m de boca: a pá entra logo fora da amurada)
+func _barco_secao(z: float) -> Array: # [meia largura, altura da amurada, altura da quilha]
+	var u: float = clampf(absf(z) / BARCO_L, 0.0, 1.0)
+	var w: float = BARCO_W * pow(maxf(0.0, 1.0 - pow(u, 2.2)), 0.6)
+	return [maxf(w, 0.008), 0.4 + 0.16 * u * u, -0.14 + 0.36 * pow(u, 4.0)]
+
+func _barco_ponto(z: float, t: float, fora := 0.0) -> Vector3: # t: -1 (amurada esq) .. 0 (quilha) .. 1 (amurada dir)
+	var sc: Array = _barco_secao(z)
+	var f: float = t * PI * 0.5
+	var p := Vector3(float(sc[0]) * sin(f), float(sc[2]) + (float(sc[1]) - float(sc[2])) * (1.0 - cos(f)), z)
+	if fora != 0.0: # um pouco para fora da superfície (as faixas das tábuas)
+		p += Vector3(sin(f), -cos(f), 0).normalized() * fora
+	return p
+
+func _malha_casco(t0: float, t1: float, fora: float, nt: int, nz: int, mt: Material) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for iz in nz:
+		var za: float = -BARCO_L + 2.0 * BARCO_L * float(iz) / float(nz)
+		var zb: float = -BARCO_L + 2.0 * BARCO_L * float(iz + 1) / float(nz)
+		for it in nt:
+			var ta: float = lerpf(t0, t1, float(it) / float(nt))
+			var tb: float = lerpf(t0, t1, float(it + 1) / float(nt))
+			var a := _barco_ponto(za, ta, fora)
+			var b := _barco_ponto(za, tb, fora)
+			var c := _barco_ponto(zb, tb, fora)
+			var d := _barco_ponto(zb, ta, fora)
+			for v in [a, c, b, a, d, c]:
+				st.add_vertex(v)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mt
+	return mi
+
 func modelo_barquinho() -> Node3D:
 	var g := Node3D.new()
 	var corpo := Node3D.new()
 	corpo.name = "corpo"
+	corpo.position.y = 0.1 # o fundo fica acima da água (a água não aparece dentro do barco)
 	g.add_child(corpo)
-	_caixa(corpo, Vector3(0.9, 0.06, 2.4), Vector3(0, 0.05, 0), _mt_madeira) # fundo
+	var casco_mt: StandardMaterial3D = _mt_madeira.duplicate()
+	casco_mt.cull_mode = BaseMaterial3D.CULL_DISABLED # o mesmo casco por fora e por dentro
+	casco_mt.uv1_scale = Vector3(0.9, 0.9, 2.6) # veio ao longo das tábuas
+	corpo.add_child(_malha_casco(-1.0, 1.0, 0.0, 12, 22, casco_mt))
+	# faixas das tábuas (mais escuras, um dedo para fora) e a amurada grossa no alto
+	var faixa_mt: StandardMaterial3D = _mt_madeira_esc.duplicate()
+	faixa_mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for lado in [-1.0, 1.0]:
-		_caixa(corpo, Vector3(0.06, 0.36, 2.3), Vector3(lado * 0.5, 0.2, 0), _mt_madeira, Vector3(0, 0, lado * -0.18))
-		_caixa(corpo, Vector3(0.07, 0.05, 2.3), Vector3(lado * 0.54, 0.38, 0), _mt_madeira_esc)
-		var remo := _caixa(corpo, Vector3(0.05, 0.05, 1.7), Vector3(lado * 0.8, 0.32, -0.1), _mt_madeira_esc, Vector3(0.2, lado * 0.5, 0))
-		remo.name = "remo_e" if lado < 0 else "remo_d"
-	_caixa(corpo, Vector3(0.6, 0.3, 0.5), Vector3(0, 0.18, 1.25), _mt_madeira, Vector3(0.5, 0, 0)) # proa
-	_caixa(corpo, Vector3(0.9, 0.05, 0.3), Vector3(0, 0.25, 0.4), _mt_madeira_esc) # bancos
-	_caixa(corpo, Vector3(0.9, 0.05, 0.3), Vector3(0, 0.25, -0.6), _mt_madeira_esc)
+		for t in [0.42, 0.72]:
+			corpo.add_child(_malha_casco(lado * t, lado * (t + 0.035), 0.006, 1, 22, faixa_mt))
+		corpo.add_child(_malha_casco(lado * 0.965, lado * 1.0, 0.018, 1, 22, faixa_mt))
+	# amurada: tábua deitada em cima da borda, de ponta a ponta
+	var n := 14
+	for i in n:
+		var za: float = -BARCO_L * 0.92 + 2.0 * BARCO_L * 0.92 * float(i) / float(n)
+		var zb: float = -BARCO_L * 0.92 + 2.0 * BARCO_L * 0.92 * float(i + 1) / float(n)
+		for lado in [-1.0, 1.0]:
+			var a := _barco_ponto(za, lado)
+			var b := _barco_ponto(zb, lado)
+			var meio := (a + b) * 0.5
+			var seg := _caixa(corpo, Vector3(0.07, 0.035, a.distance_to(b) + 0.02), meio + Vector3(0, 0.015, 0), _mt_madeira_esc)
+			seg.basis = Basis.looking_at(b - a, Vector3.UP)
+	# proa e popa: as pontas de madeira subindo
+	_cil(corpo, 0.035, 0.42, Vector3(0, 0.42, BARCO_L - 0.02), _mt_madeira_esc, Vector3(0.25, 0, 0), 8)
+	_cil(corpo, 0.035, 0.4, Vector3(0, 0.4, -BARCO_L + 0.02), _mt_madeira_esc, Vector3(-0.25, 0, 0), 8)
+	# assoalho, cavernas (costelas) e bancos
+	_caixa(corpo, Vector3(0.44, 0.03, 1.6), Vector3(0, -0.05, 0), _mt_madeira_esc)
+	for z in [-0.8, -0.4, 0.0, 0.4, 0.8]:
+		var sc: Array = _barco_secao(z)
+		_caixa(corpo, Vector3(float(sc[0]) * 1.05, 0.04, 0.05), Vector3(0, -0.02, z), _mt_madeira_esc)
+	for z in [BARCO_BANCO.z, 0.62, -0.95]:
+		var sc2: Array = _barco_secao(z)
+		_caixa(corpo, Vector3(float(sc2[0]) * 2.0 - 0.05, 0.05, 0.26), Vector3(0, 0.22, z), _mt_madeira)
+	# o remo de pá: o eixo local -Y aponta para a pá; a origem fica entre as mãos (transporte.gd move a cada quadro)
+	var remo := Node3D.new()
+	remo.name = "remo"
+	remo.position = Vector3(0, 0.5, 0.15)
+	corpo.add_child(remo)
+	_cil(remo, 0.022, 1.32, Vector3(0, -0.36, 0), _mt_madeira_esc, Vector3.ZERO, 8)
+	_caixa(remo, Vector3(0.12, 0.035, 0.035), Vector3(0, 0.31, 0), _mt_madeira_esc) # punho em T
+	_caixa(remo, Vector3(0.17, 0.4, 0.025), Vector3(0, -1.12, 0), _mt_madeira) # pá
 	_sombra(g)
 	return g
 
@@ -395,39 +534,244 @@ func opcoes_mercador(n: Dictionary) -> Array:
 func _perto_de(q, x: float, z: float, d: float) -> bool:
 	return q is Dictionary and Vector2(float(q.x) - x, float(q.z) - z).length() <= d
 
-# ---------- janela do carrinho e do navio (tocar no botão do veículo parado perto) ----------
+# ---------- janela do carrinho (André 2026-11-09: "nada de lista": ícones e lugares) ----------
+# Combustível: um lugar só, onde os galões empilham até 8 (tocar = põe 1 galão da mochila; "Encher" põe até lotar).
+# Carga: um lugar por pack; os que o carrinho ainda não leva aparecem com cadeado e o nível da melhoria que abre.
+# Embaixo: Dirigir, Consertar, Melhorar e Guardar, cada um com o seu ícone. A janela se refaz quando o "prog" chega.
+var _jan_carrinho := false
 func abrir_carrinho() -> void:
 	var c = m.P.prog.get("carrinho")
 	if not (c is Dictionary):
 		return
-	var ops := []
+	if _jan:
+		_jan.queue_free()
+	_jan_carrinho = true
+	var C: Dictionary = V.carrinho
 	var dirigindo: bool = m.mov.veiculo.get("k", "") == "carrinho"
-	if c.get("quebrado", false):
-		ops.append(["Consertar (8 lenha + 1 barra de ferro)", func(): m.rede("veiculo", {"acao": "consertar"})])
-	elif not dirigindo:
-		ops.append(["Dirigir", func(): m.rede("veiculo", {"acao": "subir", "k": "carrinho"})])
-	if float(c.get("comb", 0)) < float(V.carrinho.galao) * float(V.carrinho.tanque) - 1.0:
-		ops.append(["Abastecer (1 galão)", func(): m.rede("veiculo", {"acao": "abastecer"}); m.sons.tocar("pesca_splash", -14.0)])
-	if not c.get("quebrado", false) and float(c.get("vida", 0)) < float(V.carrinho.vida):
-		ops.append(["Consertar (4 lenha)", func(): m.rede("veiculo", {"acao": "consertar"})])
-	var pk = m.P.prog.get("pack")
-	if pk is Dictionary:
-		ops.append(["Pôr o pack das costas no carrinho", func(): m.rede("pack", {"acao": "por_carrinho"})])
-	var cp: Array = c.get("packs", [])
-	if not (pk is Dictionary):
-		for i in cp.size():
-			ops.append(["Pegar %s nas costas" % str(PK.get(str(cp[i].k), {}).get("nome", "pack")).replace("Pack de ", ""), func(): m.rede("pack", {"acao": "tirar_carrinho", "i": i})])
 	var lv := int(c.get("lv", 1))
-	if lv < int(V.carrinho.nivelMax) and not c.get("quebrado", false):
-		var cu: Dictionary = V.carrinho.melhorar[lv + 1]
-		var t := PackedStringArray()
-		for it in cu:
-			t.append(("%d de ouro" % int(cu[it])) if it == "ouro" else "%d %s" % [int(cu[it]), m.P.nome_item({"k": it}) if m.P.has_method("nome_item") else it])
-		ops.append(["Melhorar pro Nv %d (%d packs, na bancada): %s" % [lv + 1, 2 * (lv + 1), ", ".join(t)], func(): m.rede("veiculo", {"acao": "melhorar"})])
-	if not dirigindo and not c.get("quebrado", false):
-		ops.append(["Guardar na mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "carrinho"})])
-	var titulo := "Carrinho Nv %d · %d/%d packs · %s galões" % [lv, cp.size(), capacidade(c), String.num(snappedf(float(c.get("comb", 0)) / float(V.carrinho.galao), 0.1)).replace(".", ",")]
-	_janela(titulo, ops)
+	var cp: Array = c.get("packs", [])
+	var pk = m.P.prog.get("pack")
+	var quebrado: bool = c.get("quebrado", false)
+	_jan = CanvasLayer.new()
+	_jan.layer = 16
+	add_child(_jan)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0, 0, 0, 0.35)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.gui_input.connect(func(ev): if ev is InputEventMouseButton and ev.pressed: _fechar_janela())
+	_jan.add_child(fundo)
+	var pc := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.09, 0.06, 0.96)
+	sb.border_color = Color(0.85, 0.7, 0.4)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.set_content_margin_all(14)
+	pc.add_theme_stylebox_override("panel", sb)
+	_jan.add_child(pc)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pc.add_child(vb)
+	# topo: ícone, nome e nível, barra de vida e o X
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 10)
+	vb.add_child(topo)
+	topo.add_child(_icone(m.hud.icone("it_carrinho"), 40))
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(tv)
+	tv.add_child(_rotulo("Carrinho de carga · Nv %d" % lv, 18, Color("#ffe7a8")))
+	var vida := float(c.get("vida", 0)) / float(C.vida)
+	tv.add_child(_barra(vida, Color("#c0392b") if quebrado else Color("#5fae4a"), "QUEBRADO" if quebrado else "Vida %d/%d" % [int(c.get("vida", 0)), int(C.vida)], 300))
+	var x := Button.new()
+	x.text = "✕"
+	x.focus_mode = Control.FOCUS_NONE
+	x.custom_minimum_size = Vector2(44, 44)
+	x.add_theme_font_size_override("font_size", 20)
+	x.pressed.connect(_fechar_janela)
+	topo.add_child(x)
+	# meio: combustível (1 lugar) | carga (lugares por nível)
+	var meio := HBoxContainer.new()
+	meio.add_theme_constant_override("separation", 18)
+	vb.add_child(meio)
+	var vc := VBoxContainer.new()
+	vc.add_theme_constant_override("separation", 6)
+	meio.add_child(vc)
+	vc.add_child(_rotulo("Combustível", 14, Color("#cbbfa8")))
+	var comb: float = comb_local if dirigindo and comb_local >= 0.0 else float(c.get("comb", 0))
+	var max_comb: float = float(C.galao) * float(C.tanque)
+	var galoes: int = int(ceil(comb / float(C.galao) - 0.01))
+	var na_mochila: int = m.P.contar("galao")
+	var slot_c := _slot(Vector2(96, 96), m.hud.icone("it_galao"), "%d/%d" % [galoes, int(C.tanque)], Color("#e0a040") if galoes > 0 else Color(0.5, 0.42, 0.3),
+		func(): _abastecer(1, comb, max_comb, na_mochila))
+	vc.add_child(slot_c)
+	vc.add_child(_barra(comb / max_comb, Color("#e0a040"), "%d m" % int(comb), 96))
+	var encher := Button.new()
+	encher.text = "Encher"
+	encher.focus_mode = Control.FOCUS_NONE
+	encher.custom_minimum_size = Vector2(96, 36)
+	encher.disabled = comb >= max_comb - 1.0 or na_mochila <= 0
+	encher.pressed.connect(func(): _abastecer(int(C.tanque), comb, max_comb, na_mochila))
+	vc.add_child(encher)
+	vc.add_child(_rotulo("Na mochila: %d" % na_mochila, 12, Color("#a89a80")))
+	var vg := VBoxContainer.new()
+	vg.add_theme_constant_override("separation", 6)
+	meio.add_child(vg)
+	var cap := capacidade(c)
+	vg.add_child(_rotulo("Carga · %d/%d packs" % [cp.size(), cap], 14, Color("#cbbfa8")))
+	var grade := GridContainer.new()
+	grade.columns = 4
+	grade.add_theme_constant_override("h_separation", 8)
+	grade.add_theme_constant_override("v_separation", 8)
+	vg.add_child(grade)
+	var total: int = int(C.capacidade) * int(C.nivelMax)
+	for i in total:
+		if i < cp.size():
+			var k := str(cp[i].get("k", ""))
+			var nome := str(PK.get(k, {}).get("nome", "Pack")).replace("Pack de ", "")
+			var sl := _slot(Vector2(72, 72), m.hud.icone("it_pack"), nome, Color(str(PK.get(k, {}).get("cor", "#a0703a"))),
+				func(): _tirar_pack(i))
+			grade.add_child(sl)
+		elif i < cap:
+			grade.add_child(_slot(Vector2(72, 72), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_pack()))
+		else:
+			var nv_abre: int = i / int(C.capacidade) + 1
+			var tr := _slot(Vector2(72, 72), m.hud.icone("cadeado"), "Nv %d" % nv_abre, Color(0.32, 0.28, 0.22),
+				func(): m.hud.aviso("Melhore o carrinho pro Nv %d na bancada pra abrir este lugar" % nv_abre))
+			tr.modulate = Color(1, 1, 1, 0.55)
+			grade.add_child(tr)
+	vg.add_child(_rotulo("Toque num pack pra pegar nas costas; num lugar vazio pra pôr o das costas.", 12, Color("#a89a80")))
+	# embaixo: ações com ícone
+	var acoes := HBoxContainer.new()
+	acoes.add_theme_constant_override("separation", 10)
+	acoes.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(acoes)
+	var custo_txt := _rotulo("", 12, Color("#cbbfa8"))
+	custo_txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	custo_txt.custom_minimum_size = Vector2(480, 0)
+	if quebrado:
+		acoes.add_child(_acao("Consertar", "cs_desmontar", func(): m.rede("veiculo", {"acao": "consertar"})))
+		custo_txt.text = "Consertar o quebrado: 8 lenha + 1 barra de ferro"
+	else:
+		if not dirigindo:
+			acoes.add_child(_acao("Dirigir", "it_carrinho", func(): m.rede("veiculo", {"acao": "subir", "k": "carrinho"}); _fechar_janela()))
+		if float(c.get("vida", 0)) < float(C.vida):
+			acoes.add_child(_acao("Consertar", "cs_desmontar", func(): m.rede("veiculo", {"acao": "consertar"})))
+		if lv < int(C.nivelMax):
+			var cu: Dictionary = C.melhorar[lv + 1]
+			var t := PackedStringArray()
+			for it in cu:
+				t.append(("%d de ouro" % int(cu[it])) if it == "ouro" else "%d %s" % [int(cu[it]), m.P.nome_item({"k": it}) if m.P.has_method("nome_item") else it])
+			acoes.add_child(_acao("Melhorar", "cs_bancada", func(): m.rede("veiculo", {"acao": "melhorar"})))
+			custo_txt.text = "Melhorar pro Nv %d (%d packs, na bancada): %s" % [lv + 1, int(C.capacidade) * (lv + 1), ", ".join(t)]
+		if not dirigindo:
+			acoes.add_child(_acao("Guardar", "topo_mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "carrinho"}); _fechar_janela()))
+	if custo_txt.text != "":
+		vb.add_child(custo_txt)
+	m.hud.bloqueado = true
+	await get_tree().process_frame
+	if is_instance_valid(pc):
+		pc.position = (pc.get_viewport_rect().size - pc.size) * 0.5
+
+func _abastecer(n: int, comb: float, max_comb: float, na_mochila: int) -> void:
+	if comb >= max_comb - 1.0:
+		m.hud.aviso("Tanque cheio")
+		return
+	if na_mochila <= 0:
+		m.hud.aviso("Sem combustível na mochila (crie na bancada: 2 carvão + 1 tecido)")
+		return
+	m.rede("veiculo", {"acao": "abastecer", "n": n})
+	m.sons.tocar("pesca_splash", -14.0)
+
+func _tirar_pack(i: int) -> void:
+	if m.P.prog.get("pack") is Dictionary:
+		m.hud.aviso("Você já tem um pack nas costas")
+		return
+	m.rede("pack", {"acao": "tirar_carrinho", "i": i})
+
+func _por_pack() -> void:
+	if not (m.P.prog.get("pack") is Dictionary):
+		m.hud.aviso("Traga um pack nas costas pra pôr no carrinho")
+		return
+	m.rede("pack", {"acao": "por_carrinho"})
+
+func _rotulo(t: String, tam: int, cor: Color) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_size_override("font_size", tam)
+	l.add_theme_color_override("font_color", cor)
+	return l
+
+func _icone(tex: Texture2D, tam: float) -> TextureRect:
+	var r := TextureRect.new()
+	r.texture = tex
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	r.custom_minimum_size = Vector2(tam, tam)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
+
+# barra com texto por cima (vida, combustível)
+func _barra(f: float, cor: Color, texto: String, larg: float) -> Control:
+	var pb := ProgressBar.new()
+	pb.min_value = 0.0
+	pb.max_value = 1.0
+	pb.value = clampf(f, 0.0, 1.0)
+	pb.show_percentage = false
+	pb.custom_minimum_size = Vector2(larg, 18)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.05, 0.04, 0.03, 0.9)
+	bg.set_corner_radius_all(5)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = cor
+	fg.set_corner_radius_all(5)
+	pb.add_theme_stylebox_override("background", bg)
+	pb.add_theme_stylebox_override("fill", fg)
+	var l := _rotulo(texto, 12, Color.WHITE)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 4)
+	pb.add_child(l)
+	return pb
+
+# um lugar (quadrado com borda na cor do que tem dentro, ícone e o texto embaixo)
+func _slot(tam: Vector2, tex: Texture2D, texto: String, cor: Color, fn: Callable) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = tam
+	for estado in ["normal", "hover", "pressed"]:
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(0.06, 0.05, 0.04, 0.95) if estado != "pressed" else Color(0.2, 0.15, 0.08, 0.95)
+		st.border_color = cor
+		st.set_border_width_all(2)
+		st.set_corner_radius_all(8)
+		b.add_theme_stylebox_override(estado, st)
+	if tex:
+		var ic := _icone(tex, tam.x * 0.62)
+		ic.position = Vector2(tam.x * 0.19, tam.y * 0.06)
+		ic.size = Vector2(tam.x * 0.62, tam.x * 0.62)
+		b.add_child(ic)
+	var l := _rotulo(texto, 12 if tam.x < 90 else 15, Color.WHITE)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 4)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM if tex else VERTICAL_ALIGNMENT_CENTER
+	l.clip_text = true
+	l.position = Vector2(2, 0)
+	l.size = Vector2(tam.x - 4, tam.y - 4)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not tex:
+		l.add_theme_color_override("font_color", Color(0.6, 0.55, 0.45))
+	b.add_child(l)
+	b.pressed.connect(fn)
+	return b
+
+# botão de ação com ícone grande e o nome embaixo
+func _acao(nome: String, ic: String, fn: Callable) -> Button:
+	var b := _slot(Vector2(84, 74), m.hud.icone(ic), nome, Color(0.85, 0.7, 0.4), fn)
+	return b
 
 func abrir_navio() -> void:
 	var nv = m.P.prog.get("navio")
@@ -452,6 +796,7 @@ func abrir_navio() -> void:
 # janelinha simples de opções (a mesma cara da janela do NPC)
 var _jan: CanvasLayer
 func _janela(titulo: String, ops: Array) -> void:
+	_jan_carrinho = false
 	if _jan:
 		_jan.queue_free()
 	_jan = CanvasLayer.new()
@@ -501,6 +846,7 @@ func _janela(titulo: String, ops: Array) -> void:
 	pc.position = (pc.get_viewport_rect().size - pc.size) * 0.5
 
 func _fechar_janela() -> void:
+	_jan_carrinho = false
 	if _jan:
 		_jan.queue_free()
 		_jan = null
@@ -632,6 +978,8 @@ func evento(ev: Dictionary) -> void:
 
 # o "prog" chegou (o servidor é quem sabe): combustível de verdade
 func prog_chegou() -> void:
+	if _jan_carrinho and _jan and is_instance_valid(_jan):
+		abrir_carrinho.call_deferred() # a janela mostra o que o servidor mandou (combustível, packs, vida, nível)
 	var c = m.P.prog.get("carrinho")
 	if c is Dictionary and m.mov.veiculo.get("k", "") == "carrinho":
 		comb_local = float(c.get("comb", 0))
@@ -651,6 +999,7 @@ func _process(dt: float) -> void:
 	# meu veículo segue o herói (o servidor manda a posição dele 20 vezes por segundo; a minha eu já sei)
 	var hp: Vector3 = m.heroi.position
 	var meu_k: String = m.mov.veiculo.get("k", "")
+	var sentados := {} # id do jogador ("eu" = o herói) -> veículo onde ele está sentado (carrinho e barquinho)
 	for chave in veic:
 		var v: Dictionary = veic[chave]
 		var no: Node3D = v.no
@@ -666,29 +1015,43 @@ func _process(dt: float) -> void:
 			ry = o.no.rotation.y
 		var agua: bool = v.tipo != "c"
 		alvo.y = float(m.terreno.agua.nivel) - (0.25 if v.tipo == "n" else 0.0) if agua else m.terreno.altura(alvo.x, alvo.z)
+		var antes := no.position
+		var ry_antes := no.rotation.y
 		no.position = alvo if dirigindo_eu or no.position.distance_to(alvo) > 6.0 else no.position.lerp(alvo, minf(1.0, dt * 12.0))
 		no.rotation.y = lerp_angle(no.rotation.y, ry, minf(1.0, dt * 12.0))
+		# velocidade e giro de verdade (servem para o meu e para o dos outros: rodas, volante e remada)
+		var vel: float = Vector2(no.position.x - antes.x, no.position.z - antes.z).length() / maxf(dt, 0.001)
+		if vel > 12.0:
+			vel = 0.0 # pulou para a posição nova (chegou agora): não é velocidade
+		v.vel = lerpf(float(v.get("vel", 0.0)), vel, minf(1.0, dt * 6.0))
+		v.giro = lerpf(float(v.get("giro", 0.0)), clampf(angle_difference(ry_antes, no.rotation.y) / maxf(dt, 0.001), -3.0, 3.0), minf(1.0, dt * 6.0))
 		var corpo: Node3D = no.get_node_or_null("corpo")
 		if corpo:
 			if v.tipo == "c":
 				corpo.rotation.z = 0.18 if v.quebrado else (sin(m.tempo * 31.0) * 0.006 + sin(m.tempo * 13.0) * 0.01) * (1.0 if v.dirigindo else 0.0)
 				corpo.rotation.x = -0.08 if v.quebrado else 0.0
-				var rodas: Node3D = no.get_node_or_null("rodas")
-				if rodas and dirigindo_eu:
-					for r in rodas.get_children():
-						r.rotation.x += float(m.mov.veiculo.get("v", 0.0)) * dt / 0.42
+				_rodas_volante(v, no, corpo, dt)
 			else: # balança na água
 				corpo.rotation.z = sin(m.tempo * 1.3 + v.x) * (0.012 if v.tipo == "n" else 0.03)
 				corpo.rotation.x = sin(m.tempo * 0.9 + v.z) * (0.008 if v.tipo == "n" else 0.02)
-	# o herói no veículo: sentado no carrinho, no banco do barco ou no leme do navio
+				if v.tipo == "b":
+					_remar(v, corpo, dt)
+		# quem está sentado nele (o carrinho e o barquinho; no navio o herói fica de pé no leme)
+		if v.dirigindo and v.tipo != "n":
+			if dirigindo_eu:
+				sentados["eu"] = v
+			elif m.online and m.online.outros.has(v.dono):
+				sentados[str(v.dono)] = v
+	# o herói no veículo: sentado no banco do carrinho ou do barco (sentar.gd), de pé no leme do navio
 	if meu_k != "":
 		var dy := 0.0
 		var atras := 0.0
-		if meu_k == "carrinho": # em pé na caçamba, atrás do motor
-			dy = 0.58
-			atras = -0.55
+		if meu_k == "carrinho": # o quadril vai no banco (sentar.gd); o corpo fica em cima do assoalho
+			dy = 0.15
+			atras = CARRO_BANCO.z
 		elif meu_k == "barquinho": # no banco do meio
 			dy = 0.12
+			atras = BARCO_BANCO.z
 		else: # no convés, na frente do castelo de popa (o leme)
 			dy = 0.33
 			atras = -2.3
@@ -696,6 +1059,7 @@ func _process(dt: float) -> void:
 		if atras != 0.0:
 			m.heroi.position.x += sin(m.mov.ry) * atras
 			m.heroi.position.z += cos(m.mov.ry) * atras
+	_poses_sentado(sentados)
 	# pack nas costas: o meu e o dos outros jogadores
 	_costas("eu", m.heroi, m.P.prog.get("pack"), m.heroi_esq if "heroi_esq" in m else null)
 	if m.online:
@@ -719,6 +1083,159 @@ func _process(dt: float) -> void:
 					_perto_g = g
 		m.hud.mostrar_botao("pegar_pack", _perto_g != "")
 		_atualizar_painel()
+
+# rodas girando pelo chão andado, as da frente e o volante virando com a curva
+func _rodas_volante(v: Dictionary, no: Node3D, corpo: Node3D, dt: float) -> void:
+	var anda: float = float(m.mov.veiculo.get("v", 0.0)) if v.eu and m.mov.veiculo.get("k", "") == "carrinho" else float(v.get("vel", 0.0))
+	var vira: float = clampf(float(v.get("giro", 0.0)) / 2.4, -1.0, 1.0) # 2,4 rad/s = volante todo virado
+	v.volante = lerpf(float(v.get("volante", 0.0)), vira, minf(1.0, dt * 8.0))
+	var rodas: Node3D = no.get_node_or_null("rodas")
+	if rodas:
+		for piv in rodas.get_children():
+			if piv.get_meta("frente", false):
+				piv.rotation.y = float(v.volante) * 0.45
+			var r: Node3D = piv.get_node_or_null("roda")
+			if r:
+				r.rotation.x += anda * dt / float(r.get_meta("r", 0.42))
+	var aro: Node3D = corpo.get_node_or_null("volante/aro")
+	if aro:
+		aro.rotation.y = -float(v.volante) * 1.6
+
+# remada do barquinho (pá de um lado, depois do outro, como canoa): o remo e as duas mãos do herói.
+# Puxada (65%): a pá entra na frente e sai atrás; volta (35%): levanta, passa por cima da proa e entra do outro lado.
+# Parado: o remo atravessado no colo.
+func _remar(v: Dictionary, corpo: Node3D, dt: float) -> void:
+	var remo: Node3D = corpo.get_node_or_null("remo")
+	if remo == null:
+		return
+	var anda: float = absf(float(m.mov.veiculo.get("v", 0.0))) if v.eu and m.mov.veiculo.get("k", "") == "barquinho" else float(v.get("vel", 0.0))
+	v.rema = move_toward(float(v.get("rema", 0.0)), 1.0 if anda > 0.25 and v.dirigindo else 0.0, dt * 2.5)
+	var lado: float = float(v.get("lado", 1.0))
+	var fase: float = float(v.get("fase", 0.0))
+	if float(v.rema) > 0.05:
+		fase += dt * (0.5 + 0.55 * minf(1.0, anda / float(V.barquinho.vel)))
+		if fase >= 1.0:
+			fase -= 1.0
+			lado = -lado
+	v.fase = fase
+	v.lado = lado
+	var b := Vector3.ZERO # para onde vai a pá (saindo das mãos)
+	var zp := 0.0
+	var troca := 0.0 # 0 = mãos no lado de agora, 1 = já no papel do outro lado
+	if fase < 0.65:
+		var k := fase / 0.65
+		b = Vector3(lado * 0.3, -0.95, lerpf(0.3, -0.25, k))
+		zp = lerpf(0.3, -0.05, k)
+	else:
+		var r := (fase - 0.65) / 0.35
+		zp = lerpf(-0.05, 0.3, r)
+		if r < 0.3:
+			var e := lerpf(-1.25, 0.15, r / 0.3)
+			b = Vector3(lado * cos(e), sin(e), lerpf(-0.25, 0.0, r / 0.3))
+		elif r < 0.7:
+			var s2 := (r - 0.3) / 0.4
+			b = Vector3(lado * cos(PI * s2), 0.15, sin(PI * s2))
+			troca = smoothstep(0.0, 1.0, s2)
+		else:
+			var e2 := lerpf(0.15, -1.25, (r - 0.7) / 0.3)
+			b = Vector3(-lado * cos(e2), sin(e2), lerpf(0.0, 0.3, (r - 0.7) / 0.3))
+			troca = 1.0
+	b = b.normalized()
+	# as mãos vão para a amurada do lado da pá (o cabo passa por fora do casco); com o remo deitado voltam para o meio
+	var piv := Vector3(0.45 * b.x / maxf(0.3, absf(b.x)) * clampf(-b.y * 1.1, 0.0, 1.0), 0.62, zp)
+	# parado: atravessado no colo
+	var w: float = smoothstep(0.0, 1.0, float(v.rema))
+	var b_parado := Vector3(1, 0, 0)
+	var piv_parado := Vector3(0, 0.5, 0.16)
+	b = b_parado.lerp(b, w).normalized()
+	piv = piv_parado.lerp(piv, w)
+	var yb := -b
+	var zb := Vector3(0, 0, 1) - yb * yb.z
+	if zb.length() < 0.2:
+		zb = Vector3.UP - yb * yb.y
+	zb = zb.normalized()
+	remo.transform = Transform3D(Basis(yb.cross(zb), yb, zb), piv)
+	# mãos: a de baixo (do lado da pá) perto da pá, a de cima no punho; na troca de lado as duas mudam de papel
+	var de_baixo := piv + b * 0.17
+	var de_cima := piv - b * 0.3
+	var maos := [Vector3.ZERO, Vector3.ZERO] # [lado +x, lado -x] do barco
+	for i in 2:
+		var sx: float = 1.0 if i == 0 else -1.0
+		var antes: Vector3 = de_baixo if sx == lado else de_cima
+		var depois: Vector3 = de_baixo if sx == -lado else de_cima
+		var remando: Vector3 = antes.lerp(depois, troca)
+		var parado := piv_parado + Vector3(sx * 0.24, 0, 0)
+		maos[i] = parado.lerp(remando, w)
+	v.maos = maos
+	v.deita = 0.06 + w * (0.22 if fase < 0.65 else 0.1) * (1.0 - fase / 0.65 if fase < 0.65 else 0.5)
+	v.torce = w * clampf(piv.x / 0.45, -1.0, 1.0) * -0.3
+
+# poses de sentado (sentar.gd) no esqueleto de quem está no carrinho ou no barco; tira de quem desceu
+const Sentar = preload("res://sentar.gd")
+var poses := {} # id -> {pose, esq}
+func _poses_sentado(sentados: Dictionary) -> void:
+	for id in poses.keys():
+		var p: Dictionary = poses[id]
+		if not sentados.has(id) or not is_instance_valid(p.esq) or p.esq != _esq_de(id):
+			if is_instance_valid(p.pose):
+				p.pose.queue_free()
+			poses.erase(id)
+			if id == "eu":
+				m.armar(m.h.modo) # as armas voltam do jeito do modo
+	for id in sentados:
+		var esq = _esq_de(id)
+		if not (esq is Skeleton3D) or not is_instance_valid(esq):
+			continue
+		if not poses.has(id):
+			var pose = Sentar.new()
+			esq.add_child(pose)
+			# depois do inclinar.gd e do braço da espada, antes das molas do cabelo e da saia (como o cavalgar.gd)
+			var antes: int = esq.get_child_count() - 1
+			for i in esq.get_child_count():
+				if esq.get_child(i) is SpringBoneSimulator3D:
+					antes = i
+					break
+			esq.move_child(pose, antes)
+			pose.preparar(esq)
+			poses[id] = {"pose": pose, "esq": esq}
+			if id == "eu":
+				m.armar(m.h.modo) # sentado: as duas armas nas costas, mãos no volante ou no remo
+		_alvos_sentado(poses[id].pose, sentados[id])
+
+func _esq_de(id: String):
+	if id == "eu":
+		return m.heroi_esq
+	if m.online and m.online.outros.has(id):
+		return m.online.outros[id].get("esq")
+	return null
+
+func _alvos_sentado(pose, v: Dictionary) -> void:
+	var corpo: Node3D = v.no.get_node_or_null("corpo")
+	if corpo == null:
+		return
+	var T: Transform3D = corpo.global_transform
+	pose.frente_lobo = T.basis.z.normalized()
+	pose.lado_lobo = T.basis.x.normalized()
+	pose.cima_lobo = T.basis.y.normalized()
+	if v.tipo == "c":
+		pose.sela = T * CARRO_BANCO
+		for i in 2:
+			var sx: float = 1.0 if i == 0 else -1.0
+			pose.pe[i] = T * Vector3(sx * CARRO_PE.x, CARRO_PE.y, CARRO_PE.z)
+			# mãos no aro, nas "nove e quinze", girando com o volante
+			var na_roda := Basis(Vector3.UP, -float(v.get("volante", 0.0)) * 1.6) * Vector3(sx * 0.17, 0.025, 0.0)
+			pose.pegada[i] = T * (CARRO_VOLANTE + Basis(Vector3.RIGHT, CARRO_VOLANTE_INCL) * na_roda)
+		pose.deita = 0.1
+		pose.torce = 0.0
+	else:
+		pose.sela = T * BARCO_BANCO
+		for i in 2:
+			var sx2: float = 1.0 if i == 0 else -1.0
+			pose.pe[i] = T * Vector3(sx2 * BARCO_PE.x, BARCO_PE.y, BARCO_PE.z)
+			var maos: Array = v.get("maos", [Vector3(0.24, 0.5, 0.16), Vector3(-0.24, 0.5, 0.16)])
+			pose.pegada[i] = T * maos[i]
+		pose.deita = float(v.get("deita", 0.06))
+		pose.torce = float(v.get("torce", 0.0))
 
 func _costas(id: String, corpo: Node3D, pk, esq) -> void:
 	var k := ""

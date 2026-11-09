@@ -1192,13 +1192,17 @@ func vestir_heroi() -> void:
 	_roupa = k
 	Armadura.vestir(heroi, eq)
 
+# sentado no carrinho ou no barquinho (transporte.gd + sentar.gd): as mãos vão no volante ou no remo
+func sentado_veiculo() -> bool:
+	return mov != null and mov.veiculo.get("k", "") in ["carrinho", "barquinho"]
+
 func armar(modo: String) -> void:
 	# modo espada: espada na mão e cajado nas costas; modo magia: o contrário
 	# "Coleta" (minerando ou cortando lenha): as duas nas costas, cruzadas em X (pedido do André, 2026-11-06)
 	if modo != "Escalada" and modo != "Coleta":
 		h.modo = modo
 	var L: Dictionary = lugar_armas()
-	if modo == "Escalada" or modo == "Coleta" or montaria != null or _nadando: # escalando, coletando, montado ou nadando: as duas nas costas, mãos livres
+	if modo == "Escalada" or modo == "Coleta" or montaria != null or _nadando or sentado_veiculo(): # escalando, coletando, montado, nadando ou sentado no carrinho/barco: as duas nas costas, mãos livres
 		prender(heroi_esq, espada, L.espadaCostas)
 		prender(heroi_esq, cajado, L.cajadoCostas)
 		if montaria != null:
@@ -3103,6 +3107,8 @@ func atualizar_heroi(dt: float) -> void:
 			a = "andar" if mov.velocidade() > 0.3 else "parada" # quem troca para nadar/boiar é o anim_heroi.gd (nome para o servidor)
 		elif montaria != null:
 			a = "parada" # montado: quem anda é o lobo (cavalgar.gd põe o corpo na sela por cima)
+		elif not mov.veiculo.is_empty():
+			a = "parada" # no carrinho, no barco ou no navio: quem anda é o veículo (sentar.gd põe o corpo no banco)
 		elif mov.manobra != null and heroi_anim.has_animation(mov.manobra.nome):
 			a = mov.manobra.nome # freada e meia-volta: o corpo anda pelo caminho do quadril da animação (andar.gd)
 		elif mov.arrancada != null:
@@ -3152,7 +3158,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var vel_anim: float = vel
 	if mov.arrancada != null:
 		vel_anim = mov.CORRIDA * 1.2
-	elif not mov.chao or mov.esc != null or montaria != null:
+	elif not mov.chao or mov.esc != null or montaria != null or not mov.veiculo.is_empty():
 		vel_anim = 0.0
 	# postura de luta só em combate ou logo depois de um golpe/magia (fora disso, parada relaxada)
 	if not acao.is_empty():
@@ -3173,7 +3179,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	var _a_inst: float = clamp((vel - _vel_ant) / max(dt, 0.0001), -30.0, 30.0) # teleporte e fim do dash não viram tranco gigante
 	_vel_ant = vel
 	_acel = lerp(_acel, _a_inst, min(1.0, dt * 14.0))
-	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty() and montaria == null and not _nadando and _saindo_agua <= 0.0
+	var livre_corpo: bool = mov.chao and mov.esc == null and mov.arrancada == null and mov.manobra == null and acao.is_empty() and montaria == null and mov.veiculo.is_empty() and not _nadando and _saindo_agua <= 0.0
 	# arrancada: saindo do parado com o joystick todo, as pernas tocam a animação de sair correndo
 	if heroi_anim.arrancando <= 0.0:
 		if livre_corpo and vel_antes < 0.4 and _forca_joy > 0.85 and mov.vel_max > 4.0 and mov.disparada: # arranca só na disparada (o joystick sozinho trota)
@@ -3235,7 +3241,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	if agua_fx:
 		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
-	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando:
+	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando and mov.veiculo.is_empty():
 		_passo_dist += vel * dt
 		var passada: float = lerp(0.75, 1.45, clamp((vel - 1.8) / 3.6, 0.0, 1.0))
 		if montaria != null: # patas do lobo: passada mais longa no galope
