@@ -19,7 +19,8 @@ void fragment() {
 	vec3 c = mix(lama * 0.95, lama * vec3(0.42, 0.52, 0.58), smoothstep(0.15, 3.5, prof));
 	// terra molhada (a mesma da beira do chão plano) no raso e acima da água; vira lama ao afundar, com a borda quebrada
 	float tl = dot(texture(terra_tex, w / 1.6).rgb, vec3(0.3, 0.5, 0.2));
-	vec3 molhada = vec3(0.05, 0.034, 0.02) * clamp(0.55 + tl * 3.2, 0.6, 1.45); // a mesma terra molhada da beira (chao.gdshader)
+	// 2026-11-09 (André): sem a terra escura molhada (borda de piscina): a mesma terra clara da beira do chão plano
+	vec3 molhada = texture(terra_tex, w / 3.2).rgb * 0.82 * (0.9 + tl * 0.3);
 	float quebra = (texture(lama_tex, w / 1.3).g - 0.4) * 0.25;
 	c = mix(c, molhada, 1.0 - smoothstep(0.02, 0.14, prof + quebra * 0.5));
 	ALBEDO = c;

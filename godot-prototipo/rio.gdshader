@@ -2,8 +2,8 @@ shader_type spatial;
 render_mode cull_disabled, depth_draw_opaque, specular_schlick_ggx;
 // Água do rio (FASE 3, Parte 4b): corre ao longo do leito (UV.y = metros rio abaixo / 4), com as listras da correnteza
 // e espuma nas beiras e onde desce mais rápido (rapidez = quanto o nível cai, vem na cor do vértice)
-uniform vec3 cor_raso : source_color = vec3(0.32, 0.6, 0.56);
-uniform vec3 cor_fundo : source_color = vec3(0.1, 0.3, 0.36);
+uniform vec3 cor_raso : source_color = vec3(0.2, 0.5, 0.62); // 2026-11-09: o mesmo azul do lago e do mar
+uniform vec3 cor_fundo : source_color = vec3(0.04, 0.19, 0.42);
 uniform vec3 cor_espuma : source_color = vec3(0.9, 0.95, 0.96);
 uniform float velocidade = 0.55;
 // qualidade gráfica Baixa (grafico.gd, André 2026-11-09): uma camada de ruído só e sem o relevo da superfície
