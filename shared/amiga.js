@@ -12,7 +12,7 @@
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { AMIGA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta } from './dados.js';
-import { guardar, contar, tirar, horaDoJogo, ehNoite } from './progresso.js';
+import { guardar, contar, tirar, horaDoJogo, ehNoite, NIVEL_MAX, PONTOS_POR_NIVEL } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -287,7 +287,18 @@ export const Amiga = {
     if (falta > 0) guardar(j.prog.mochila, { k: 'pocao', n: falta });
   },
   // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
+  // André 2026-11-09: ela não ficava no nível 1 enquanto ele subia, e recusava o time por "você tá forte demais".
+  // Como uma amiga que também joga, ela treina por conta própria: fica no máximo 'atras' níveis abaixo dele.
+  alcancarAmiga(a, dono) {
+    const alvo = Math.min(NIVEL_MAX, (dono.prog.nivel | 0) - AMIGA.time.atras);
+    if ((a.prog.nivel | 0) >= alvo) return;
+    a.prog.pontos += (alvo - a.prog.nivel) * PONTOS_POR_NIVEL; a.prog.nivel = alvo; a.prog.xp = 0;
+    while (a.prog.pontos > 0) this.distribuirAtributo(a.id, a.prog.atr.for <= a.prog.atr.vit ? 'for' : 'vit');
+    a.vida = a.vidaMax; // subir de nível enche a vida
+    this.guardarAmiga();
+  },
   vontadeAmiga(a, dono) {
+    this.alcancarAmiga(a, dono);
     const R = AMIGA.time, contra = [];
     let p = R.base + Math.min(R.amizadeMax, (a.amizade | 0) * R.porAmizade);
     if (a.vida < a.vidaMax * 0.5) contra.push(['cansada', R.cansada]);
