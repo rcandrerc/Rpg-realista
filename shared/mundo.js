@@ -89,6 +89,7 @@ export function montarMundo(mapaHoje) {
   lugaresDeMina(G);
   aplainarLugares(G, dist);
   abrirEstradas(G, dist);
+  abrirRios(G, dist);
   return G;
 }
 
@@ -282,6 +283,79 @@ function abrirEstradas(G, dist) {
       marcas.push([k, Math.round(9 * Math.max(0, 1 - Math.max(0, d - LARG_ESTRADA / 2 + 1) / 2.5))]);
     }
     for (const [k, v] of marcas) G.estrada[k] = Math.max(G.estrada[k], v);
+  }
+}
+
+// ---------- Parte 4b: rios e cachoeiras (André 2026-11-08: "montanhas, rios, cachoeiras") ----------
+// Cada rio desce do morro até o mar pelos pontos (nascente -> foz), num leito de LARG_RIO m com a água pela coxa (dá
+// para atravessar a pé). O nível da água só desce. Na cachoeira (fração "cai" do caminho) a água despenca "altura" m e
+// segue num cânion que vai se abrindo até o mar. Onde cruza uma estrada fica uma ponte de madeira (PONTES_MUNDO, o
+// tablado é chão de verdade: o carrinho passa por cima). G.rio marca o leito (0-9) para o chão (pedra) e a mata.
+export const RIOS_MUNDO = [
+  { id: 'rio_juncos', nome: 'Rio dos Juncos', pontos: [[-104, 282], [-101, 300], [-97, 322], [-94, 352]], cai: 0.45, altura: 4 },
+  { id: 'rio_claro', nome: 'Rio Claro', pontos: [[26, 302], [29, 318], [32, 334], [35, 356]], cai: 0.8, altura: 3.5 },
+  { id: 'rio_aurora', nome: 'Rio da Aurora', pontos: [[904, -126], [905, -150], [906, -172], [907, -200]] },
+  { id: 'rio_veu', nome: 'Rio do Véu', pontos: [[972, 166], [1012, 170], [1024, 200], [1026, 240], [1028, 282]], cai: 0.22, altura: 5 },
+];
+export const PONTES_MUNDO = [];
+const LARG_RIO = 7, BARRANCO = 5, FUNDO_RIO = 0.8;
+
+function abrirRios(G, dist) {
+  const { nx, nz, h, passo } = G;
+  G.rio = new Uint8Array(nx * nz);
+  PONTES_MUNDO.length = 0;
+  for (const R of RIOS_MUNDO) {
+    // o rio acaba onde chega no mar (a foz): o resto da curva fica de fora
+    const C0 = curva(R.pontos), foz = C0.findIndex(([x, z]) => alturaMundo(G, x, z) < MUNDO.mar);
+    const C = foz > 0 ? C0.slice(0, foz + 1) : C0, n = C.length;
+    const ds = C.map((p, i) => (i ? Math.hypot(p[0] - C[i - 1][0], p[1] - C[i - 1][1]) : 0));
+    const S = []; ds.reduce((a, d, i) => (S[i] = a + d), 0);
+    const total = S[n - 1], ic = R.cai ? C.findIndex((_, i) => S[i] >= total * R.cai) : n; // sem "cai": rio sem cachoeira
+    // nível da água: o chão (menos meio metro) e só desce; depois da cachoeira, reta até o mar no cânion
+    const nivel = new Array(n);
+    let run = Infinity;
+    for (let i = 0; i < n; i++) {
+      // o chão mais baixo do corte (meio e as duas beiras): a água nunca fica acima do barranco
+      const a = C[Math.max(0, i - 1)], b = C[Math.min(n - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, px = -(b[1] - a[1]) / l * (LARG_RIO / 2 + 1.5), pz = (b[0] - a[0]) / l * (LARG_RIO / 2 + 1.5);
+      run = Math.min(run, Math.min(alturaMundo(G, C[i][0], C[i][1]), alturaMundo(G, C[i][0] + px, C[i][1] + pz), alturaMundo(G, C[i][0] - px, C[i][1] - pz)) - 0.5);
+      if (i < ic) nivel[i] = Math.max(MUNDO.mar, run);
+      else { const t = (S[i] - S[ic]) / (total - S[ic]); nivel[i] = Math.max(MUNDO.mar, Math.min(run, (nivel[ic - 1] - R.altura) * (1 - t) + MUNDO.mar * t)); run = Math.min(run, nivel[i] + 0.5); }
+    }
+    // pontes: onde o rio cruza uma estrada, na altura da estrada antes de abrir o leito
+    for (const E of ESTRADAS_MUNDO) {
+      let melhor = null;
+      for (const q of E.curva) for (let i = 0; i < n; i++) { const d = Math.hypot(q[0] - C[i][0], q[1] - C[i][1]); if (d < 3 && (!melhor || d < melhor.d)) melhor = { d, q, i }; }
+      if (!melhor) continue;
+      const k = E.curva.indexOf(melhor.q), a = E.curva[Math.max(0, k - 3)], b = E.curva[Math.min(E.curva.length - 1, k + 3)];
+      const ry = Math.atan2(b[0] - a[0], b[1] - a[1]);
+      // o rio cruza torto: a ponte vai de um barranco ao outro medidos ao longo da estrada
+      const ra = C[Math.max(0, melhor.i - 2)], rb = C[Math.min(n - 1, melhor.i + 2)], rr = Math.atan2(rb[0] - ra[0], rb[1] - ra[1]);
+      const vao = Math.min(40, (LARG_RIO + 2 * BARRANCO) / Math.max(0.35, Math.abs(Math.sin(ry - rr))) + 3);
+      // a ponte acompanha a rampa da estrada: a altura de cada ponta é a da estrada ali
+      const yEm = (u) => { const px = melhor.q[0] + Math.sin(ry) * u, pz = melhor.q[1] + Math.cos(ry) * u; let m = null; for (const q of E.curva) { const d = Math.hypot(q[0] - px, q[1] - pz); if (!m || d < m[0]) m = [d, q[2]]; } return m[1]; };
+      // a água passa por baixo da ponte com folga: o rio desce até 1,2 m abaixo do tablado (rio acima, uma corredeira
+      // de 15% até lá; rio abaixo, nunca mais alto que isso)
+      const yp = Math.min(yEm(-vao / 2), yEm(vao / 2), melhor.q[2]) + 0.1 - 1.2;
+      for (let i = 0; i < n; i++) nivel[i] = Math.max(MUNDO.mar, Math.min(nivel[i], yp + Math.max(0, S[melhor.i] - S[i]) * 0.15));
+      PONTES_MUNDO.push({ id: `ponte_${R.id}_${E.id}`, nome: `Ponte do ${R.nome}`, rio: R.id, x: melhor.q[0], z: melhor.q[1], ry: +ry.toFixed(4), w: 5, d: +vao.toFixed(2), y1: +(melhor.q[2] + 0.1).toFixed(2), ya: +(yEm(-vao / 2) + 0.1).toFixed(2), yb: +(yEm(vao / 2) + 0.1).toFixed(2), nivel: +nivel[melhor.i].toFixed(2) });
+    }
+    // leito: cada quadrado perto do rio desce até o fundo do ponto mais perto, com o barranco liso em volta
+    const RR = LARG_RIO / 2 + BARRANCO, melhor = new Map();
+    C.forEach(([x, z], c) => {
+      for (let j = Math.max(0, Math.floor((z - RR - G.z0) / passo)); j <= Math.min(nz - 1, Math.ceil((z + RR - G.z0) / passo)); j++)
+        for (let i = Math.max(0, Math.floor((x - RR - G.x0) / passo)); i <= Math.min(nx - 1, Math.ceil((x + RR - G.x0) / passo)); i++) {
+          const k = j * nx + i, d = Math.hypot(G.x0 + i * passo - x, G.z0 + j * passo - z);
+          if (d <= RR && (!melhor.has(k) || melhor.get(k)[0] > d)) melhor.set(k, [d, nivel[c] - FUNDO_RIO]);
+        }
+    });
+    for (const [k, [d, fundo]] of melhor) {
+      if (dist[k] === 0 || h[k] < MUNDO.mar) continue;
+      const t = Math.min(1, Math.max(0, (d - LARG_RIO / 2) / BARRANCO)), w = 1 - t * t * (3 - 2 * t);
+      h[k] = Math.min(h[k], fundo + (h[k] - fundo) * (1 - w));
+      G.rio[k] = Math.max(G.rio[k], Math.round(9 * w));
+    }
+    R.curva = C.map((p, i) => [+p[0].toFixed(2), +p[1].toFixed(2), +nivel[i].toFixed(2)]);
+    R.cachoeira = ic >= n - 1 || nivel[ic - 1] - nivel[ic] < 1 ? null : { i: ic, x: +C[ic][0].toFixed(2), z: +C[ic][1].toFixed(2), topo: +nivel[ic - 1].toFixed(2), pe: +nivel[ic].toFixed(2), ry: +Math.atan2(C[ic + 1][0] - C[ic - 1][0], C[ic + 1][1] - C[ic - 1][1]).toFixed(4) };
   }
 }
 

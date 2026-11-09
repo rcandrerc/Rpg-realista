@@ -34,6 +34,8 @@ func _ready() -> void:
 			_pedaco(pi, pj)
 	_mar_aberto()
 	_cais()
+	_rios()
+	_pontes()
 
 # FASE 3, Parte 7b: os cais de madeira dos portos (mundo.cais, o mesmo tablado onde o servidor deixa andar): tábuas de
 # madeira de verdade (construcao3d/medieval_wood), vigas dos lados e os esteios entrando no mar. 2 malhas por cais.
@@ -41,13 +43,7 @@ func _cais() -> void:
 	var lista: Array = T.m.get("cais", [])
 	if lista.is_empty():
 		return
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
-	mat.normal_enabled = true
-	mat.normal_texture = load("res://construcao3d/medieval_wood_nor_gl_1k.jpg")
-	mat.roughness = 0.85
-	mat.uv1_triplanar = true
-	mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
+	var mat := _madeira()
 	var esteio := CylinderMesh.new()
 	esteio.top_radius = 0.13
 	esteio.bottom_radius = 0.15
@@ -124,6 +120,7 @@ func _pedaco(i0: int, j0: int) -> void:
 	var idx := PackedInt32Array()
 	var agua := PackedInt32Array()
 	var est: String = g.estrada
+	var rio: String = g.get("rio", "")
 	for j in range(j0, j1 + 1):
 		for i in range(i0, i1 + 1):
 			var y: float = h[j * nx + i]
@@ -132,7 +129,8 @@ func _pedaco(i0: int, j0: int) -> void:
 			var hx: float = h[j * nx + mini(nx - 1, i + 1)] - h[j * nx + maxi(0, i - 1)]
 			var hz: float = h[mini(int(g.nz) - 1, j + 1) * nx + i] - h[maxi(0, j - 1) * nx + i]
 			ns.append(Vector3(-hx, 2.0 * passo, -hz).normalized())
-			cs.append(Color(float(est.unicode_at(j * nx + i) - 48) / 9.0 if est.length() > j * nx + i else 0.0, 0, 0))
+			cs.append(Color(float(est.unicode_at(j * nx + i) - 48) / 9.0 if est.length() > j * nx + i else 0.0,
+				float(rio.unicode_at(j * nx + i) - 48) / 9.0 if rio.length() > j * nx + i else 0.0, 0)) # g = leito do rio
 	for j in range(j1 - j0):
 		for i in range(w - 1):
 			var a := j * w + i
@@ -180,3 +178,134 @@ func _malha(nome: String, vs: PackedVector3Array, ns: PackedVector3Array, idx: P
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if sombra else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.visibility_range_end = LONGE
 	return mi
+
+var _mat_madeira: StandardMaterial3D
+func _madeira() -> StandardMaterial3D:
+	if _mat_madeira == null:
+		_mat_madeira = StandardMaterial3D.new()
+		_mat_madeira.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
+		_mat_madeira.normal_enabled = true
+		_mat_madeira.normal_texture = load("res://construcao3d/medieval_wood_nor_gl_1k.jpg")
+		_mat_madeira.roughness = 0.85
+		_mat_madeira.uv1_triplanar = true
+		_mat_madeira.uv1_scale = Vector3(0.45, 0.45, 0.45)
+	return _mat_madeira
+
+# FASE 3, Parte 4b: a água de cada rio (uma fita no nível da água, rio abaixo) e a cachoeira (o trecho em que o nível
+# despenca vira uma cortina de água caindo). O leito já vem aberto na grade (shared/mundo.js abrirRios).
+const LARG_AGUA := 8.0
+func _rios() -> void:
+	var mat_rio := ShaderMaterial.new()
+	mat_rio.shader = load("res://rio.gdshader")
+	var mat_cai := ShaderMaterial.new()
+	mat_cai.shader = load("res://cachoeira.gdshader")
+	for R in T.mundo_g.get("rios", []):
+		var C: Array = R.curva
+		var cai = R.get("cachoeira")
+		var ic: int = int(cai.i) if cai != null else -1
+		var trechos := [[0, ic - 1], [ic, C.size() - 1]] if ic > 0 else [[0, C.size() - 1]]
+		for tr in trechos:
+			var mi := _fita(C, int(tr[0]), int(tr[1]), LARG_AGUA, 0.0)
+			if mi != null:
+				mi.material_override = mat_rio
+				add_child(mi)
+		if ic > 0: # a cortina: do último ponto de cima ao primeiro de baixo, um pouco mais larga e para fora do barranco
+			var mc := _fita(C, ic - 1, ic, LARG_AGUA + 1.0, 0.04, true)
+			if mc != null:
+				mc.material_override = mat_cai
+				add_child(mc)
+
+# fita de água pelos pontos [a..b] da curva (x, z, nível); UV.y = metros / 4 (a cachoeira: 0 em cima, 1 embaixo)
+func _fita(C: Array, a: int, b: int, larg: float, sobe: float, cortina := false) -> MeshInstance3D:
+	if b - a < 1:
+		return null
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var s := 0.0
+	var pts := []
+	for k in range(a, b + 1):
+		var p := Vector3(float(C[k][0]), float(C[k][2]) + sobe, float(C[k][1]))
+		var q := Vector3(float(C[mini(k + 1, C.size() - 1)][0]), 0, float(C[mini(k + 1, C.size() - 1)][1]))
+		var o := Vector3(float(C[maxi(k - 1, 0)][0]), 0, float(C[maxi(k - 1, 0)][1]))
+		var dir := Vector3(q.x - o.x, 0, q.z - o.z).normalized()
+		var lado := Vector3(-dir.z, 0, dir.x) * larg * 0.5
+		if k > a:
+			s += Vector2(p.x - pts[-1][0].x, p.z - pts[-1][0].z).length()
+		var queda := 0.0
+		if k < C.size() - 1:
+			queda = clampf((float(C[k][2]) - float(C[k + 1][2])) / 0.6, 0.0, 1.0)
+		pts.append([p, lado, s, queda])
+	for k in pts.size() - 1:
+		var p0: Array = pts[k]
+		var p1: Array = pts[k + 1]
+		var v0 := 0.0 if cortina else float(p0[2]) / 4.0
+		var v1 := 1.0 if cortina else float(p1[2]) / 4.0
+		var quad := [[p0[0] - p0[1], 0.0, v0, p0[3]], [p0[0] + p0[1], 1.0, v0, p0[3]], [p1[0] + p1[1], 1.0, v1, p1[3]], [p1[0] - p1[1], 0.0, v1, p1[3]]]
+		for ix in [0, 1, 2, 0, 2, 3]:
+			st.set_color(Color(quad[ix][3], 0, 0))
+			st.set_uv(Vector2(quad[ix][1], quad[ix][2]))
+			st.set_normal(Vector3.UP)
+			st.add_vertex(quad[ix][0])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.visibility_range_end = 320.0
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+# Parte 4b: as pontes de madeira onde o rio cruza a estrada (o chão delas vem em mundo.json como peças sólidas):
+# tablado na rampa da estrada (ya numa ponta, yb na outra), corrimão dos dois lados e esteios descendo até o leito
+func _pontes() -> void:
+	var mat := _madeira()
+	for c in T.mundo_g.get("pontes", []):
+		var no := Node3D.new()
+		no.name = str(c.id)
+		no.position = Vector3(float(c.x), (float(c.ya) + float(c.yb)) / 2.0, float(c.z))
+		no.rotation.y = float(c.ry)
+		add_child(no)
+		var w: float = c.w
+		var d: float = c.d
+		var inc := atan2(float(c.yb) - float(c.ya), d) # sobe de -z para +z (local)
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var tomba := Basis(Vector3.RIGHT, -inc)
+		var pecas := [[0.0, -0.1, w, 0.2], [-w / 2.0 + 0.1, -0.35, 0.22, 0.3], [w / 2.0 - 0.1, -0.35, 0.22, 0.3], # tablado e vigas
+			[-w / 2.0 + 0.08, 0.95, 0.12, 0.12], [w / 2.0 - 0.08, 0.95, 0.12, 0.12]] # corrimão
+		for pc in pecas:
+			var bm := BoxMesh.new()
+			bm.size = Vector3(pc[2], pc[3], d)
+			st.append_from(bm, 0, Transform3D(tomba, tomba * Vector3(pc[0], pc[1], 0.0)))
+		var n := int(d / 2.5) + 1
+		for i in n: # balaústres do corrimão
+			for lado in [-1.0, 1.0]:
+				var z: float = -d / 2.0 + 0.3 + i * (d - 0.6) / maxf(1.0, n - 1)
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.12, 1.0, 0.12)
+				st.append_from(bm, 0, Transform3D(Basis(), tomba * Vector3(lado * (w / 2.0 - 0.08), 0.45, z)))
+		st.set_material(mat)
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.visibility_range_end = 300.0
+		no.add_child(mi)
+		# esteios: do tablado até abaixo do leito, a cada 4 m
+		var es := CylinderMesh.new()
+		es.top_radius = 0.16
+		es.bottom_radius = 0.19
+		es.height = 1.0
+		es.radial_segments = 8
+		es.material = mat
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = es
+		var ne := int(d / 4.0) + 1
+		mm.instance_count = ne * 2
+		var fundo: float = float(c.get("nivel", 0.0)) - 1.6 - no.position.y
+		for i in ne:
+			for k in 2:
+				var z: float = -d / 2.0 + 0.5 + i * (d - 1.0) / maxf(1.0, ne - 1)
+				var topo: float = (tomba * Vector3(0, -0.3, z)).y
+				var alt := maxf(0.5, topo - fundo)
+				mm.set_instance_transform(i * 2 + k, Transform3D(Basis().scaled(Vector3(1, alt, 1)), Vector3((k * 2 - 1) * (w / 2.0 - 0.1), topo - alt / 2.0, (tomba * Vector3(0, 0, z)).z)))
+		var mx := MultiMeshInstance3D.new()
+		mx.multimesh = mm
+		mx.visibility_range_end = 300.0
+		no.add_child(mx)

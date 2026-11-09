@@ -33,7 +33,7 @@ const s = new Simulacao(M);
 ok(s.terreno.altura(905, 50) > 0, 'o terreno do servidor tem a altura de Aurora');
 
 // Parte 4: lugares planos e estradas de subida suave
-import { LUGARES_MUNDO, ESTRADAS_MUNDO, RAMPA_MAX } from '../../shared/mundo.js';
+import { LUGARES_MUNDO, ESTRADAS_MUNDO, RAMPA_MAX, PONTES_MUNDO, RIOS_MUNDO } from '../../shared/mundo.js';
 for (const L of LUGARES_MUNDO) {
   let pior = 0, praia = Infinity;
   for (let a = 0; a < 6.28; a += 0.3) for (const f of [0.3, 0.6, 0.9]) pior = Math.max(pior, Math.abs(alturaMundo(G, L.x + Math.cos(a) * L.r * f, L.z + Math.sin(a) * L.r * f) - L.y));
@@ -45,14 +45,17 @@ for (let a = 0; a < LUGARES_MUNDO.length; a++) for (let b = a + 1; b < LUGARES_M
   const A = LUGARES_MUNDO[a], B = LUGARES_MUNDO[b];
   if (![A.tipo, B.tipo].some((t) => t === 'porto' || t === 'mina')) ok(Math.hypot(A.x - B.x, A.z - B.z) > A.r + B.r + 25, `${A.id} longe de ${B.id}`);
 }
+// em cima da ponte (Parte 4b) o chão é o tablado dela: o carrinho passa por cima do rio
+const naPonte = (x, z) => PONTES_MUNDO.find((c) => { const ox = x - c.x, oz = z - c.z; return Math.abs(ox * Math.sin(c.ry) + oz * Math.cos(c.ry)) <= c.d / 2 && Math.abs(ox * Math.cos(c.ry) - oz * Math.sin(c.ry)) <= c.w / 2; });
+const chaoEstrada = (x, z) => { const c = naPonte(x, z); if (!c) return alturaMundo(G, x, z); const u = (x - c.x) * Math.sin(c.ry) + (z - c.z) * Math.cos(c.ry); return c.ya + (c.yb - c.ya) * (u / c.d + 0.5); };
 for (const E of ESTRADAS_MUNDO) {
   let pior = 0, molhado = 0;
   // rampa medida em trechos de ~6 m (a grade tem 4 m: de 2 em 2 m sobra degrauzinho de interpolação)
   for (let i = 3; i < E.curva.length; i++) {
     const [x0, z0] = E.curva[i - 3], [x1, z1] = E.curva[i], d = Math.hypot(x1 - x0, z1 - z0);
-    if (d > 3) pior = Math.max(pior, Math.abs(alturaMundo(G, x1, z1) - alturaMundo(G, x0, z0)) / d);
+    if (d > 3) pior = Math.max(pior, Math.abs(chaoEstrada(x1, z1) - chaoEstrada(x0, z0)) / d);
   }
-  for (const [x, z] of E.curva) if (alturaMundo(G, x, z) < 0) molhado++;
+  for (const [x, z] of E.curva) if (chaoEstrada(x, z) < 0) molhado++;
   ok(pior <= RAMPA_MAX * 1.25 && molhado === 0, `${E.id}: rampa máxima ${(pior * 100).toFixed(1)}%, ${molhado} pontos na água`);
 }
 
@@ -83,3 +86,17 @@ for (const a of MERCADORES_PACK) for (const b of MERCADORES_PACK) {
   if (mesma) melhorTerra = Math.max(melhorTerra, porBase); else melhorMar = Math.max(melhorMar, porBase);
 }
 ok(melhorMar > melhorTerra * 1.3, `entrega pelo mar paga mais: ${melhorMar} contra ${melhorTerra} em terra`);
+
+// Parte 4b: rios que descem até o mar, cachoeiras de verdade e ponte de madeira onde cruzam a estrada
+for (const R of RIOS_MUNDO) {
+  const C = R.curva; let sobe = 0; for (let i = 1; i < C.length; i++) if (C[i][2] > C[i - 1][2] + 1e-6) sobe++;
+  ok(sobe === 0 && Math.abs(C[C.length - 1][2] - MUNDO.mar) < 0.01, `${R.nome}: a água só desce e chega no mar (${C[0][2]} m na nascente)`);
+  if (R.cachoeira) ok(R.cachoeira.topo - R.cachoeira.pe >= 2.3, `${R.nome}: cachoeira de ${(R.cachoeira.topo - R.cachoeira.pe).toFixed(1)} m`);
+  // (fora a foz, já no mar, e o pé da cachoeira, onde a água cai num poço)
+  let fundo = 0; C.forEach(([x, z, y], i) => { if (y > MUNDO.mar + 0.01 && !(R.cachoeira && Math.abs(i - R.cachoeira.i) <= 2)) fundo = Math.max(fundo, y - alturaMundo(G, x, z)); });
+  ok(fundo > 0.5 && fundo < 1.6, `${R.nome}: água no máximo pela cintura no leito (${fundo.toFixed(2)} m), dá para atravessar a pé`);
+  ok(!LUGARES_MUNDO.some((l) => C.some(([x, z]) => Math.hypot(x - l.x, z - l.z) < l.r + 4)), `${R.nome}: não passa por cima de campo, mina, vila ou porto`);
+}
+ok(RIOS_MUNDO.filter((R) => R.cachoeira).length >= 3, `${RIOS_MUNDO.filter((R) => R.cachoeira).length} cachoeiras`);
+for (const P of PONTES_MUNDO) ok(Math.min(P.ya, P.yb) - P.nivel >= 1, `${P.nome}: o tablado fica ${(Math.min(P.ya, P.yb) - P.nivel).toFixed(1)} m acima da água`);
+ok(!M.mata.some((a) => a.mundo && RIOS_MUNDO.some((R) => R.curva.some(([x, z]) => Math.hypot(x - a.x, z - a.z) < 6))), 'nenhuma árvore dentro do rio');

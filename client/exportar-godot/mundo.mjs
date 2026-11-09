@@ -9,7 +9,7 @@ import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
 import { RAIZ } from '@rpg/shared';
-import { montarMundo, MUNDO, TERRAS, LUGARES_MUNDO, ESTRADAS_MUNDO } from '../../shared/mundo.js';
+import { montarMundo, MUNDO, TERRAS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from '../../shared/mundo.js';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
 const r4 = (n) => Math.round(n * 1e4) / 1e4;
@@ -113,7 +113,9 @@ fs.writeFileSync(new URL('../../godot-prototipo/relevo/longe.png', import.meta.u
   const G = montarMundo(MAPA_CLAREIRA);
   fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo_grade.json', import.meta.url), JSON.stringify({ x0: G.x0, z0: G.z0, passo: G.passo, nx: G.nx, nz: G.nz,
     mar: MUNDO.mar, terras: TERRAS, h: Array.from(G.h, (v) => Math.round(v * 10)), terra: Array.from(G.terra).join(''), estrada: Array.from(G.estrada).join(''),
-    lugares: LUGARES_MUNDO, estradas: ESTRADAS_MUNDO.map((e) => ({ id: e.id, curva: e.curva })) }));
+    lugares: LUGARES_MUNDO, estradas: ESTRADAS_MUNDO.map((e) => ({ id: e.id, curva: e.curva })),
+    // Parte 4b: o leito dos rios (0-9) e cada rio com o nível da água ponto a ponto e a cachoeira
+    rio: Array.from(G.rio).join(''), rios: RIOS_MUNDO.map((r) => ({ id: r.id, nome: r.nome, curva: r.curva, cachoeira: r.cachoeira })), pontes: PONTES_MUNDO }));
   console.log('mundo_grade.json:', G.nx, 'x', G.nz);
 }
 console.log('mundo.json:', solidos.length, 'sólidos,', mundo.obstaculos.length, 'obstáculos,', grades.length, 'grades');

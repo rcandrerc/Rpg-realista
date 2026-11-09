@@ -14,10 +14,12 @@ uniform float praia = 1.1; // até essa altura é areia
 varying vec3 mundo;
 varying vec3 nm;
 varying float estrada;
+varying float rio;
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	nm = NORMAL;
 	estrada = COLOR.r;
+	rio = COLOR.g;
 }
 vec3 tri(vec3 p, vec3 b, float esc) {
 	return texture(pedra_tex, p.zy / esc).rgb * b.x + texture(pedra_tex, p.xz / esc).rgb * b.y + texture(pedra_tex, p.xy / esc).rgb * b.z;
@@ -50,6 +52,9 @@ void fragment() {
 	// estrada de terra batida (shared/mundo.js), com a borda comida pela grama
 	float ke = smoothstep(0.35, 0.7, estrada + (ruido2 - 0.5) * 0.35);
 	c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, ke);
+	// leito e barranco do rio (Parte 4b): seixo e cascalho molhado, mais escuro no fundo
+	float kr = smoothstep(0.25, 0.7, rio + (ruido2 - 0.5) * 0.3);
+	c = mix(c, cascalho * mix(0.85, 0.55, smoothstep(0.6, 1.0, rio)), kr);
 	ALBEDO = c;
-	ROUGHNESS = 1.0;
+	ROUGHNESS = mix(1.0, 0.55, kr * smoothstep(0.6, 1.0, rio));
 }

@@ -3,7 +3,7 @@
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
-import { montarMundo, alturaMundo, terraEm, LUGARES_MUNDO, ESTRADAS_MUNDO } from './mundo.js';
+import { montarMundo, alturaMundo, terraEm, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, pontoDoTunel } from './caverna.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
@@ -1788,6 +1788,7 @@ for (const n of MERCADORES_MUNDO) {
     if (inc > 0.45) continue;
     if (LUGARES_MUNDO.some((l) => Math.hypot(l.x - ax, l.z - az) < l.r + 7) || pertoDaEstrada(ax, az)) continue;
     if (MERCADORES_PACK.some((n) => Math.hypot(n.x - ax, n.z - az) < 5)) continue;
+    if (RIOS_MUNDO.some((R) => R.curva.some(([px, pz]) => Math.abs(px - ax) < 8 && Math.abs(pz - az) < 8 && Math.hypot(px - ax, pz - az) < 7.5))) continue; // o leito do rio (Parte 4b)
     novas.push({ x: +ax.toFixed(2), z: +az.toFixed(2), s: +(0.75 + rnd() * 0.6).toFixed(2), ry: +(rnd() * 6.28).toFixed(2), v: Math.floor(rnd() * 3), y: +y.toFixed(2), mundo: true });
   }
   MAPA_CLAREIRA.mata.push(...novas);
@@ -1832,3 +1833,8 @@ export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo ? Math.max(0, alturaMon
     return { id: 'cais_' + L.id, nome: L.nome, x: +(L.x + dx * (ini + fim) / 2).toFixed(2), z: +(L.z + dz * (ini + fim) / 2).toFixed(2), ry: +melhor.toFixed(4), w: 3, d: fim - ini, y1: 0.6 };
   });
 }
+
+// FASE 3, Parte 4b: as pontes de madeira onde os rios cruzam as estradas (shared/mundo.js abrirRios) são chão de
+// verdade (shared/terreno.js), e os rios vão para o app desenhar a água e as cachoeiras (mundo_grade.json)
+MAPA_CLAREIRA.pontes = PONTES_MUNDO;
+export { RIOS_MUNDO, PONTES_MUNDO };
