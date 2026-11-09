@@ -87,8 +87,8 @@ ok(ITENS.lenha, 'itens');
   ok(c.prog.xp > xp0 || c.prog.nivel > nv0, `ganhou XP no time (nível ${c.prog.nivel}, XP ${c.prog.xp})`);
   // pouca vida: bebe poção
   const p0 = contar(c.prog.mochila, 'pocao'); c.vida = c.vidaMax * 0.2; c.ia.pocaoT = 0; c.pocaoAte = {}; // sem a recarga de uma poção que ela já bebeu na luta
-  for (let i = 0; i < 20 && c.ia.pocaoT === 0; i++) { c.vida = c.vidaMax * 0.2; s3.passo(0.05); } // espera o golpe em andamento acabar
-  ok(contar(c.prog.mochila, 'pocao') === p0 - 1, 'bebeu poção com pouca vida');
+  for (let i = 0; i < 80 && c.ia.pocaoT === 0; i++) { c.vida = c.vidaMax * 0.2; s3.passo(0.05); } // espera a habilidade em andamento acabar (trava até ~2 s)
+  ok(c.ia.pocaoT > 0 && c.vida > c.vidaMax * 0.2, `bebeu poção com pouca vida (vida ${Math.round(c.vida / c.vidaMax * 100)}%)`); // pela vida: na mesma luta ela pode pegar poção do chão
   // o dono tira ela do time pela conversa
   Object.assign(d, { x: c.x + 1, z: c.z }); s3.conversaAmiga('andre', { acao: 'sair' });
   for (let i = 0; i < 20; i++) s3.passo(0.05);
