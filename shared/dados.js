@@ -1806,7 +1806,6 @@ for (const n of MERCADORES_MUNDO) {
     // o mapa de hoje (altura 0 exata) e a praia ficam sem; 2026-11-09 (André: "dá para perceber as árvores... um
     // quadrado perfeito que era o mapa antigo"): a mata chega até a borda do mapa de hoje, sem o anel pelado em volta
     if (y === 0 || !terraEm(G, ax, az)) continue;
-    if (noTuneis(ax, az, 6)) continue; // nada de árvore por cima das cavernas (o tronco atravessaria o túnel)
     if (y < 1.4 && [[10, 0], [-10, 0], [0, 10], [0, -10], [7, 7], [-7, -7], [7, -7], [-7, 7]].some(([dx, dz]) => alturaMundo(G, ax + dx, az + dz) < -0.05)) continue;
     let inc = 0; for (const [dx, dz] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5]]) inc = Math.max(inc, Math.abs(alturaMundo(G, ax + dx, az + dz) - y) / 1.5);
     if (inc > 0.55 || y > 42) continue; // paredão e cume de montanha: pedra pelada

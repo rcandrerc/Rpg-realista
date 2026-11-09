@@ -3447,6 +3447,8 @@ func colidir_inimigo(no: Node3D) -> void:
 		for k in lista:
 			if k.has("veio") and mov.vazios.has(k.veio):
 				continue # veio esgotado: não está mais lá
+			if k.has("base") and p.y < float(k.base) - 2.5:
+				continue # árvore em cima da montanha (o monstro está na caverna embaixo)
 			var dx: float = p.x - k.x
 			var dz: float = p.z - k.z
 			var d := sqrt(dx * dx + dz * dz)

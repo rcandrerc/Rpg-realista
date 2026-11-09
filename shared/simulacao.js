@@ -312,7 +312,7 @@ export class Simulacao {
     for (const a of mapa.mata || []) {
       const k = Math.floor(a.x / 6) * 10007 + Math.floor(a.z / 6);
       if (!this.mata.has(k)) this.mata.set(k, []);
-      this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s });
+      this.mata.get(k).push({ x: a.x, z: a.z, r: 0.32 * a.s, ...(a.y ? { base: a.y } : {}) }); // base: chão da árvore do mundo grande
     }
     // ruínas, rochedos, troncos caídos e pedras da mata (MAPA_CLAREIRA.cenario): na mesma grade (são todos menores que 2 m
     // de raio, e quem pergunta olha as 9 casas em volta)
@@ -2923,6 +2923,7 @@ export class Simulacao {
     for (const k of c.tipo === 'jogador' ? [...this.obstaculos, ...this.pertoNaMata(c.x, c.z)] : [...this.obstaculos, ...this.obstaculosRocha, ...this.pertoNaMata(c.x, c.z)]) {
       if (k.alto != null && (c.y || 0) > k.alto - 0.05) continue; // por cima (esteio da ferraria visto do telhado, em pé na bancada)
       if (k.veio && this.veioVazio(k.veio, c)) continue; // veio esgotado: a pedra sumiu, dá para passar
+      if (k.base != null && (c.y || 0) < k.base - 2.5) continue; // árvore lá em cima da montanha, e quem está embaixo, na caverna
       const dx = c.x - k.x, dz = c.z - k.z, d = Math.hypot(dx, dz), m = k.r + 0.35;
       if (d < m && d > 0) { c.x = k.x + dx / d * m; c.z = k.z + dz / d * m; }
     }
