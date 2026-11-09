@@ -153,12 +153,14 @@ export function montarMundo(mapaHoje) {
     h[k] = dist[k] === 0 ? 0 : v * sm;
   }
   const G = { x0: M.x0, z0: M.z0, passo: M.passo, nx, nz, h, terra, estrada: new Uint8Array(nx * nz) };
+  cavernasNasMontanhas(G, dist);
   caisNaCosta(G);
   lugaresDeMina(G);
   ramificar(G, dist);
   aplainarLugares(G, dist);
   abrirEstradas(G, dist);
   abrirRios(G, dist);
+  cobrirCavernas(G, dist);
   return G;
 }
 
@@ -227,6 +229,8 @@ const PRINCIPAIS = ESTRADAS_MUNDO.length;
 // trilhas (2,6 m): da rede (estradas e trilhas já feitas) até cada campo de caça e cada veio, a mais perto primeiro,
 // com uma curva para o lado (nada de reta de régua) e sem passar por cima de outro lugar
 const TRILHAS_FEITAS = { ok: false };
+// (x, z) em cima da rocha de alguma caverna (o túnel e a volta dele): trilha não passa ali
+const porCimaDeCaverna = (x, z) => CAVERNAS_MUNDO.some((D) => D.linha && curva(D.linha).some(([px, pz], i) => i > 0 && Math.hypot(px - x, pz - z) < 16));
 function ramificar(G, dist) {
   if (TRILHAS_FEITAS.ok) return;
   TRILHAS_FEITAS.ok = true;
@@ -238,7 +242,7 @@ function ramificar(G, dist) {
   const grossos = leitos.map((C) => C.filter((_, i) => i % 3 === 0));
   const cruzaRio = (p, L) => grossos.some((C) => C.some(([px, pz]) => { const t = Math.max(0, Math.min(1, ((px - p[0]) * (L.x - p[0]) + (pz - p[1]) * (L.z - p[1])) / ((L.x - p[0]) ** 2 + (L.z - p[1]) ** 2 || 1))); return Math.hypot(p[0] + (L.x - p[0]) * t - px, p[1] + (L.z - p[1]) * t - pz) < 10; }));
   for (const E of ESTRADAS_MUNDO) for (const p of curva(E.pontos)) if (!hoje(p[0], p[1]) && longeDoRio(p[0], p[1])) rede.push([p[0], p[1], 1]);
-  const alvos = LUGARES_MUNDO.filter((l) => l.tipo === 'caca' || l.tipo === 'mina');
+  const alvos = LUGARES_MUNDO.filter((l) => l.tipo === 'caca' || l.tipo === 'mina' || l.tipo === 'caverna');
   const feitos = new Set();
   while (feitos.size < alvos.length) {
     let melhor = null;
@@ -257,7 +261,7 @@ function ramificar(G, dist) {
     const { L } = melhor, p = [melhor.p[0], melhor.p[1]]; feitos.add(L.id);
     const dx = L.x - p[0], dz = L.z - p[1], d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
     const fim = [L.x - ux * L.r * 0.4, L.z - uz * L.r * 0.4]; // entra na clareira
-    const passaLonge = (C) => C.every(([x, z]) => !hoje(x, z) && longeDoRio(x, z) && LUGARES_MUNDO.every((o) => o === L || o.tipo === 'porto' || o.tipo === 'vila' || o.tipo === 'posto' || Math.hypot(x - o.x, z - o.z) > o.r + 8));
+    const passaLonge = (C) => C.every(([x, z]) => !hoje(x, z) && longeDoRio(x, z) && !porCimaDeCaverna(x, z) && LUGARES_MUNDO.every((o) => o === L || o.tipo === 'porto' || o.tipo === 'vila' || o.tipo === 'posto' || Math.hypot(x - o.x, z - o.z) > o.r + 8));
     let escolha = null;
     // a curva para um lado ou para o outro (cada vez mais aberta) até passar longe de tudo; sem nenhuma que passe, a
     // que esbarra em menos pontos
@@ -272,7 +276,7 @@ function ramificar(G, dist) {
     ESTRADAS_MUNDO.push({ id: `t_${L.id}`, nome: 'Trilha', trilha: true, larg: 2.6, pontos: escolha.map(([x, z]) => [+x.toFixed(1), +z.toFixed(1)]) });
     // a trilha nova também vira rede, menos o pedaço perto do campo (trilha não sai de dentro de clareira: nada de
     // campo emendado em campo, que vira anel de novo)
-    for (const q of curva(escolha)) if (longeDoRio(q[0], q[1]) && LUGARES_MUNDO.every((o) => (o.tipo !== 'caca' && o.tipo !== 'mina') || Math.hypot(q[0] - o.x, q[1] - o.z) > o.r + 10)) rede.push([q[0], q[1], 1.35]);
+    for (const q of curva(escolha)) if (longeDoRio(q[0], q[1]) && LUGARES_MUNDO.every((o) => (o.tipo !== 'caca' && o.tipo !== 'mina' && o.tipo !== 'caverna') || Math.hypot(q[0] - o.x, q[1] - o.z) > o.r + 10)) rede.push([q[0], q[1], 1.35]);
   }
 }
 export const RAMPA_MAX = 0.1;
@@ -311,6 +315,7 @@ function lugaresDeMina(G) {
     if (!terraEm(G, x, z)) return false;
     for (let a = 0; a < 6.28; a += 0.5) for (const d of [0, r + 12, r + 22]) if (alturaMundo(G, x + Math.cos(a) * d, z + Math.sin(a) * d) < 0.3) return false;
     if (LUGARES_MUNDO.some((l) => Math.hypot(l.x - x, l.z - z) < l.r + r + 14)) return false;
+    if (CAVERNAS_MUNDO.some((D) => D.linha && D.linha.some(([px, pz]) => Math.hypot(px - x, pz - z) < r + 36))) return false; // a rocha por cima do túnel
     if (RIOS_MUNDO.some((R) => meandro(curva(R.pontos)).some(([px, pz]) => Math.hypot(px - x, pz - z) < r + 34))) return false;
     return !rotas.some((C) => C.some(([px, pz]) => Math.hypot(px - x, pz - z) < r + 9));
   };
@@ -582,6 +587,118 @@ function abrirRios(G, dist) {
     }
     R.curva = C.map((p, i) => [+p[0].toFixed(2), +p[1].toFixed(2), +nivel[i].toFixed(2)]);
     R.cachoeira = ic >= n - 1 || nivel[ic - 1] - nivel[ic] < 1 ? null : { i: ic, x: +C[ic][0].toFixed(2), z: +C[ic][1].toFixed(2), topo: +nivel[ic - 1].toFixed(2), pe: +nivel[ic].toFixed(2), ry: +Math.atan2(C[ic + 1][0] - C[ic - 1][0], C[ic + 1][1] - C[ic - 1][1]).toFixed(4) };
+  }
+}
+
+// ---------- Parte 8: cavernas nas montanhas (André 2026-11-09: "cadê as cavernas?") ----------
+// Cada caverna entra numa montanha grande (MONTANHAS) pelo pé dela: um túnel com duas salas (shared/caverna.js faz
+// o chão e o teto; o resto do mundo é a montanha, então a parede sai de graça). Na frente da boca fica um lugar plano
+// (tipo "caverna") com trilha da rede, igual aos campos. A boca é escolhida sozinha: o lado da montanha que sobe forte
+// logo atrás dela, com rocha bastante por cima do túnel inteiro e perto do campo "perto". Depois das estradas e dos
+// rios, cobrirCavernas levanta a rocha por cima do túnel (a boca vira um paredão, sem cano de túnel para fora).
+export const CAVERNAS_MUNDO = [
+  { id: 'cav_serra_norte', nome: 'Gruta da Serra do Norte', montanha: 'serra_norte', terra: 'vael', perto: 'c_v8', nivel: 46 },
+  { id: 'cav_juncos', nome: 'Gruta dos Juncos', montanha: 'pico_juncos', terra: 'vael', perto: 'c_v9', nivel: 50 },
+  { id: 'cav_ilha', nome: 'Gruta da Ilha', montanha: 'pico_ilha', terra: 'ilha', perto: 'c_i4', nivel: 62 },
+  { id: 'cav_aurora', nome: 'Gruta da Serra de Aurora', montanha: 'serra_aurora', terra: 'aurora', perto: 'c_a1', nivel: 80 },
+  { id: 'cav_nevoa', nome: 'Gruta da Névoa', montanha: 'pico_aurora_oeste', terra: 'aurora', perto: 'c_a9', nivel: 100 },
+];
+export const CAVERNA_MUNDO_FORMA = { comprimento: 58, frente: 7, desce: 2, cobre: 4,
+  salas: [{ id: 'sala1', s: 22, r: 5, l: 6, teto: 6.6 }, { id: 'sala2', s: 46, r: 6, l: 7, teto: 8 }],
+  corredor: { l: 2.4, teto: 4.4 }, boca: { l: 3, teto: 5 }, porta: 0, passo: 1, folga: 0.35 };
+const CAVERNAS_FEITAS = { ok: false };
+function cavernasNasMontanhas(G, dist) {
+  if (CAVERNAS_FEITAS.ok) return;
+  CAVERNAS_FEITAS.ok = true;
+  const F = CAVERNA_MUNDO_FORMA, h = (x, z) => alturaMundo(G, x, z);
+  const leitos = RIOS_MUNDO.map((R) => meandro(curva(R.pontos)));
+  const rotas = ESTRADAS_MUNDO.map((E) => curva(E.pontos));
+  const hoje = (x, z) => { const i = Math.round((x - G.x0) / G.passo), j = Math.round((z - G.z0) / G.passo); return !(dist[j * G.nx + i] > 50); };
+  for (const D of CAVERNAS_MUNDO) {
+    const m = MONTANHAS.find((o) => o.id === D.montanha), alvo = LUGARES_MUNDO.find((l) => l.id === D.perto);
+    let melhor = null;
+    for (let a = 0; a < 72; a++) {
+      const ang = (a / 72) * Math.PI * 2, ux = Math.cos(ang), uz = Math.sin(ang);
+      for (let d = m.r * 1.1; d > m.r * 0.3; d -= 2) {
+        const px = m.x + ux * d, pz = m.z + uz * d, qx = px + ux * (F.frente + 4), qz = pz + uz * (F.frente + 4);
+        if (h(px, pz) - h(qx, qz) < 6) continue; // a encosta logo atrás da boca precisa subir forte
+        // a frente: terra firme, longe do mar, do mapa de hoje, dos rios, das estradas e dos outros lugares
+        const yq = h(qx, qz);
+        if (!terraEm(G, qx, qz) || yq < 1.5 || hoje(qx, qz)) break;
+        let mar = false; for (let b = 0; b < 6.28; b += 0.2) for (let d2 = 4; d2 < F.frente + 13; d2 += 2) if (h(qx + Math.cos(b) * d2, qz + Math.sin(b) * d2) < 0) mar = true;
+        if (mar) break;
+        if (leitos.some((C) => C.some(([x, z]) => Math.hypot(x - qx, z - qz) < 30))) break;
+        if (rotas.some((C) => C.some(([x, z]) => Math.hypot(x - qx, z - qz) < F.frente + 12))) break;
+        if (LUGARES_MUNDO.some((l) => Math.hypot(l.x - qx, l.z - qz) < l.r + F.frente + 27)) break;
+        let plano = 0; for (let b = 0; b < 6.28; b += 0.8) plano = Math.max(plano, Math.abs(h(qx + Math.cos(b) * F.frente, qz + Math.sin(b) * F.frente) - yq));
+        // rocha por cima do túnel (e nada de rio cortando por cima)
+        let falta = 0;
+        for (let s = 6; s <= F.comprimento; s += 4) {
+          const tx = px - ux * s, tz = pz - uz * s, cobre = h(tx, tz) - (yq - F.desce) - 13;
+          if (cobre < 0) falta -= cobre;
+          if (leitos.some((C) => C.some(([x, z]) => Math.hypot(x - tx, z - tz) < 14))) falta += 100;
+        }
+        // a boca olha para o campo (a trilha chega pela frente, nunca por cima do túnel)
+        const ax = alvo.x - qx, az = alvo.z - qz, frenteAlvo = (ax * ux + az * uz) / (Math.hypot(ax, az) || 1);
+        const nota = falta * 4 + plano * 3 + Math.hypot(qx - alvo.x, qz - alvo.z) * 0.15 + Math.max(0, 0.3 - frenteAlvo) * 200;
+        if (!melhor || nota < melhor.nota) melhor = { nota, px, pz, qx, qz, ux, uz };
+        break;
+      }
+    }
+    if (!melhor) continue;
+    const { px, pz, qx, qz, ux, uz } = melhor;
+    // a linha do túnel: da boca para dentro da montanha, com uma curva leve para um lado (nada de régua)
+    const sg = D.id.length % 2 ? 1 : -1, linha = [];
+    for (let k = 0; k <= 6; k++) {
+      const s = (k / 6) * F.comprimento, lado = Math.sin((s / F.comprimento) * Math.PI) * 6 * sg;
+      linha.push([+(px - ux * s - uz * lado).toFixed(2), +(pz - uz * s + ux * lado).toFixed(2)]);
+    }
+    D.linha = linha; D.boca = [+px.toFixed(2), +pz.toFixed(2)]; D.dir = [+(-ux).toFixed(4), +(-uz).toFixed(4)];
+    LUGARES_MUNDO.push({ id: D.id, tipo: 'caverna', terra: D.terra, nome: D.nome, nivel: D.nivel, x: +qx.toFixed(1), z: +qz.toFixed(1), r: F.frente });
+  }
+}
+// definição do túnel de cada caverna para shared/caverna.js (montarCaverna): y0 = o chão plano da frente
+export function defsDasCavernas() {
+  const F = CAVERNA_MUNDO_FORMA;
+  return CAVERNAS_MUNDO.filter((D) => D.linha).map((D) => ({ id: D.id, nome: D.nome, linha: D.linha, salas: F.salas, corredor: F.corredor,
+    boca: F.boca, porta: F.porta, chao: { desce: F.desce }, passo: F.passo, folga: F.folga, y0: LUGARES_MUNDO.find((l) => l.id === D.id).y }));
+}
+function cobrirCavernas(G, dist) {
+  const F = CAVERNA_MUNDO_FORMA, { nx, nz, h, passo } = G;
+  for (const D of CAVERNAS_MUNDO) {
+    if (!D.linha) continue;
+    const L = LUGARES_MUNDO.find((l) => l.id === D.id), C = curva(D.linha), S = [0];
+    for (let i = 1; i < C.length; i++) S.push(S[i - 1] + Math.hypot(C[i][0] - C[i - 1][0], C[i][1] - C[i - 1][1]));
+    const total = S[S.length - 1], LARG = 9 + 14;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const [x, z] of C) { x0 = Math.min(x0, x - LARG); x1 = Math.max(x1, x + LARG); z0 = Math.min(z0, z - LARG); z1 = Math.max(z1, z + LARG); }
+    for (let j = Math.max(0, Math.floor((z0 - G.z0) / passo)); j <= Math.min(nz - 1, Math.ceil((z1 - G.z0) / passo)); j++)
+      for (let i = Math.max(0, Math.floor((x0 - G.x0) / passo)); i <= Math.min(nx - 1, Math.ceil((x1 - G.x0) / passo)); i++) {
+        const k = j * nx + i, x = G.x0 + i * passo, z = G.z0 + j * passo;
+        if (dist[k] === 0 || G.estrada[k]) continue;
+        // ponto mais perto da linha: s pelo túnel e d de lado (passando do fim, d conta até a ponta: fundo arredondado)
+        let md = Infinity, ms = 0;
+        for (let q = 0; q < C.length - 1; q++) {
+          const ax = C[q][0], az = C[q][1], vx = C[q + 1][0] - ax, vz = C[q + 1][1] - az, l2 = vx * vx + vz * vz || 1;
+          const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)), d = Math.hypot(x - ax - vx * t, z - az - vz * t);
+          if (d < md) { md = d; ms = S[q] + (S[q + 1] - S[q]) * t; }
+        }
+        // s antes da boca: conta para trás (a frente da boca fica no chão plano)
+        const bx = x - C[0][0], bz = z - C[0][1], frente = bx * (C[1][0] - C[0][0]) + bz * (C[1][1] - C[0][1]);
+        // na frente da boca e nos primeiros metros dela: o chão desce até o plano da frente (entra-se andando, sem
+        // degrau; a cara de rocha em volta da boca é o paredão que o app desenha)
+        if (frente < 0 || ms < 3.5) {
+          const db = Math.hypot(bx, bz), t2 = Math.min(1, Math.max(0, (db - 6) / 6)), w2 = 1 - t2 * t2 * (3 - 2 * t2);
+          if (w2 > 0 && h[k] > L.y) h[k] += (L.y - h[k]) * w2;
+          continue;
+        }
+        let larg = F.corredor.l, teto = F.corredor.teto;
+        for (const Sa of F.salas) { const k2 = Math.abs(ms - Sa.s) < Sa.r + 5 ? 1 : 0; larg = Math.max(larg, k2 ? Sa.l : larg); teto = Math.max(teto, k2 ? Sa.teto : teto); }
+        const chao = L.y - F.desce * Math.min(1, Math.max(0, (ms - 3) / (total - 3)));
+        const alvo = chao + teto + F.cobre + Math.min(ms, 20) * 0.25;
+        const lw = larg + F.folga + 2, t = Math.min(1, Math.max(0, (md - lw) / 14)), w = (1 - t * t * (3 - 2 * t)) * Math.min(1, Math.max(0, (ms - 3.5) / 2));
+        if (w > 0 && h[k] < alvo) h[k] += (alvo - h[k]) * w;
+      }
   }
 }
 

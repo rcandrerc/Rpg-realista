@@ -38,8 +38,9 @@ export const CAVERNA = {
 const suave = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
 
 // curva suave (Catmull-Rom) pela linha, amostrada a cada CAVERNA.passo metros pelo comprimento
-function amostrar(alturaDoMonte) {
-  const P = CAVERNA.linha, fino = [];
+// def = a caverna (CAVERNA ou uma das cavernas do mundo grande, shared/mundo.js CAVERNAS_MUNDO)
+function amostrar(alturaDoMonte, def = CAVERNA) {
+  const P = def.linha, fino = [];
   for (let i = 0; i < P.length - 1; i++) {
     const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
     for (let k = 0; k < 20; k++) {
@@ -51,28 +52,31 @@ function amostrar(alturaDoMonte) {
   fino.push(P[P.length - 1]);
   const acum = [0];
   for (let i = 1; i < fino.length; i++) acum.push(acum[i - 1] + Math.hypot(fino[i][0] - fino[i - 1][0], fino[i][1] - fino[i - 1][1]));
-  const total = acum[acum.length - 1], n = Math.floor(total / CAVERNA.passo) + 1, out = [];
+  const total = acum[acum.length - 1], n = Math.floor(total / def.passo) + 1, out = [];
   let j = 0;
   // chão na boca = a encosta ali (no meio), e quanto ela pende para o lado (incl: metros por metro, + sobe à esquerda)
   const d0 = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]), ex = -(P[1][1] - P[0][1]) / d0, ez = (P[1][0] - P[0][0]) / d0;
-  const y0 = alturaDoMonte(P[0][0], P[0][1]);
-  const incl0 = (alturaDoMonte(P[0][0] + ex * 2.4, P[0][1] + ez * 2.4) - alturaDoMonte(P[0][0] - ex * 2.4, P[0][1] - ez * 2.4)) / 4.8;
+  // (as cavernas do mundo grande trazem y0: a boca fica no chão plano da frente, sem inclinação de lado)
+  const y0 = def.y0 ?? alturaDoMonte(P[0][0], P[0][1]);
+  const incl0 = def.y0 != null ? 0 : (alturaDoMonte(P[0][0] + ex * 2.4, P[0][1] + ez * 2.4) - alturaDoMonte(P[0][0] - ex * 2.4, P[0][1] - ez * 2.4)) / 4.8;
   for (let k = 0; k < n; k++) {
-    const s = k * CAVERNA.passo;
+    const s = k * def.passo;
     while (j < acum.length - 2 && acum[j + 1] < s) j++;
     const u = (s - acum[j]) / ((acum[j + 1] - acum[j]) || 1);
     const x = fino[j][0] + (fino[j + 1][0] - fino[j][0]) * u, z = fino[j][1] + (fino[j + 1][1] - fino[j][1]) * u;
     // largura e teto: corredor, boca no começo e as salas (sobe e desce suave, sem degrau)
-    let l = CAVERNA.corredor.l, teto = CAVERNA.corredor.teto;
+    let l = def.corredor.l, teto = def.corredor.teto;
     const b = 1 - suave(0, 3, s);
-    l += (CAVERNA.boca.l - l) * b; teto += (CAVERNA.boca.teto - teto) * b;
-    for (const S of CAVERNA.salas) {
+    l += (def.boca.l - l) * b; teto += (def.boca.teto - teto) * b;
+    for (const S of def.salas) {
       const k2 = 1 - suave(S.r, S.r + 5, Math.abs(s - S.s));
-      l = Math.max(l, CAVERNA.corredor.l + (S.l - CAVERNA.corredor.l) * k2);
-      teto = Math.max(teto, CAVERNA.corredor.teto + (S.teto - CAVERNA.corredor.teto) * k2);
+      l = Math.max(l, def.corredor.l + (S.l - def.corredor.l) * k2);
+      teto = Math.max(teto, def.corredor.teto + (S.teto - def.corredor.teto) * k2);
     }
-    // chão: na boca acompanha a encosta (sem degrau na entrada); depois desce até o fundo
-    const desce = suave(3, total, s), y = y0 + (CAVERNA.chao.fundo - y0) * desce;
+    // chão: na boca acompanha a encosta (sem degrau na entrada); depois desce até o fundo (fundo = altura certa; ou
+    // desce = metros abaixo da boca, nas cavernas do mundo grande)
+    const fundo = def.chao.desce != null ? y0 - def.chao.desce : def.chao.fundo;
+    const desce = suave(3, total, s), y = y0 + (fundo - y0) * desce;
     out.push({ s, x, z, y, l, teto, incl: +(incl0 * (1 - suave(0, 4, s))).toFixed(4) });
   }
   // direção (tangente) de cada amostra
@@ -84,18 +88,18 @@ function amostrar(alturaDoMonte) {
 }
 
 // Monta as amostras e a grade de busca (4 m). alturaDoMonte(x, z) = a montanha (shared/relevo.js alturaMontanha).
-export function montarCaverna(alturaDoMonte) {
-  const A = amostrar(alturaDoMonte), G = 4, grade = new Map();
+export function montarCaverna(alturaDoMonte, def = CAVERNA) {
+  const A = amostrar(alturaDoMonte, def), G = 4, grade = new Map();
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (let k = 0; k < A.length - 1; k++) {
-    const a = A[k], b = A[k + 1], m = Math.max(a.l, b.l) + CAVERNA.folga + 1;
+    const a = A[k], b = A[k + 1], m = Math.max(a.l, b.l) + def.folga + 1;
     const ax = Math.min(a.x, b.x) - m, bx = Math.max(a.x, b.x) + m, az = Math.min(a.z, b.z) - m, bz = Math.max(a.z, b.z) + m;
     x0 = Math.min(x0, ax); z0 = Math.min(z0, az); x1 = Math.max(x1, bx); z1 = Math.max(z1, bz);
     for (let i = Math.floor(ax / G); i <= Math.floor(bx / G); i++) for (let j = Math.floor(az / G); j <= Math.floor(bz / G); j++) {
       const key = i * 10007 + j; if (!grade.has(key)) grade.set(key, []); grade.get(key).push(k);
     }
   }
-  return { amostras: A, grade, G, caixa: [x0, z0, x1, z1], total: A[A.length - 1].s };
+  return { id: def.id, def, amostras: A, grade, G, caixa: [x0, z0, x1, z1], total: A[A.length - 1].s };
 }
 
 // Onde (x, z) cai no túnel: { s, y (chão), l, teto, lado (distância ao meio, com sinal), d } do trecho mais perto que
@@ -140,9 +144,28 @@ export function dentroDaCaverna(C, x, z, y) {
 import { alturaMontanha } from './relevo.js';
 // o túnel de verdade (amostras e grade), igual no servidor, no site e no mundo.json do Godot
 export const TUNEL = montarCaverna(alturaMontanha);
+
+// Todas as cavernas (2026-11-09, André: "cavernas nas montanhas"): a da dungeon (TUNEL) e as do mundo grande, que
+// shared/dados.js monta depois da grade do mundo (registrarTunel). O chão e o teto de quem está em qualquer uma.
+export const TUNEIS = [TUNEL];
+export function registrarTunel(C) { TUNEIS.push(C); return C; }
+// o trecho do túnel em (x, z), em qualquer caverna (com C = a caverna), ou null
+export function noTuneis(x, z, extra = 0) {
+  for (const C of TUNEIS) { const c = noTunel(C, x, z, extra); if (c) { c.C = C; return c; } }
+  return null;
+}
+export function chaoDosTuneis(x, z, y = Infinity) {
+  let h = null;
+  for (const C of TUNEIS) { const v = chaoDaCaverna(C, x, z, y); if (v != null && (h == null || v < h)) h = v; }
+  return h;
+}
+export function dentroDosTuneis(x, z, y) {
+  for (const C of TUNEIS) { const c = dentroDaCaverna(C, x, z, y); if (c) { c.C = C; return c; } }
+  return null;
+}
 // ponto do túnel a "s" metros da entrada, "lado" metros para a esquerda (+) ou direita (-) do meio, com o chão ali
-export function pontoDoTunel(s, lado = 0) {
-  const A = TUNEL.amostras, k = Math.max(0, Math.min(A.length - 2, Math.floor(s / CAVERNA.passo))), a = A[k], b = A[k + 1];
+export function pontoDoTunel(s, lado = 0, C = TUNEL) {
+  const A = C.amostras, k = Math.max(0, Math.min(A.length - 2, Math.floor(s / C.def.passo))), a = A[k], b = A[k + 1];
   const t = Math.max(0, Math.min(1, (s - a.s) / (b.s - a.s || 1)));
   const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, dx = a.dx + (b.dx - a.dx) * t, dz = a.dz + (b.dz - a.dz) * t, d = Math.hypot(dx, dz) || 1;
   return { x: x - (dz / d) * lado, z: z + (dx / d) * lado, y: a.y + (b.y - a.y) * t + (a.incl + (b.incl - a.incl) * t) * lado, dx: dx / d, dz: dz / d, l: a.l + (b.l - a.l) * t };
