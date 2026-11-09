@@ -3010,7 +3010,25 @@
    0.06
   ],
   "vigor": 8,
-  "tempoEvoluir": 3
+  "tempoEvoluir": 3,
+  "sintese": {
+   "npc": "alquimista",
+   "perto": 4.5,
+   "ate": 3,
+   "lote": 20,
+   "custo": [
+    null,
+    null,
+    {
+     "n": 4,
+     "ouro": 800
+    },
+    {
+     "n": 4,
+     "ouro": 3000
+    }
+   ]
+  }
  },
  "pesca": {
   "tier": {

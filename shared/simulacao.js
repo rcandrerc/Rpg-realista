@@ -1112,6 +1112,7 @@ export class Simulacao {
       return;
     }
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (m.acao === 'sintetizar') { if (!j.morto && this.sintetizar(j, m, aviso)) this.avisarProg(j); return; } // alquimista
     const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
     // catalisador (André 2026-11-07): { acao: 'destruir', i } (uma peça) ou { acao: 'destruir', raridade } (todas da
     // raridade, sem as com cadeado; uma barrinha por peça, uma depois da outra) · { acao: 'evoluir', i } (sobe a raridade)
@@ -2215,6 +2216,32 @@ export class Simulacao {
   }
   // ---------- catalisador: destruir peça e evoluir raridade (CATALISADOR em shared/dados.js, André 2026-11-07) ----------
   // usa a mesma fila/barrinha da criação (j.fabrica), então "Parar" vale e uma coisa de cada vez
+  // Alquimista (André 2026-11-09): { acao: 'sintetizar', k: catalisador que sai, n: quantos (1 a CATALISADOR.sintese.lote) }.
+  // Cada um gasta sintese.custo[r].n catalisadores da raridade de baixo (mesmo tipo) e sintese.custo[r].ouro.
+  // Só até sintese.ate (Lendário): Mítico nunca. Faz quantos der até n (falta catalisador ou ouro = para antes).
+  sintetizar(j, m, aviso) {
+    const S = CATALISADOR.sintese, p = j.prog, k = typeof m.k === 'string' ? m.k : '', D = ITENS[k];
+    const npc = (this.mapa.npcs || []).find((n) => n.id === S.npc);
+    if (!npc || dist(npc, j) > S.perto) { aviso('Quem sintetiza catalisador é a alquimista da vila'); return false; }
+    if (!D || !D.catalisador) return false;
+    const r = D.cr, C = S.custo[r];
+    if (r > S.ate || !C) { aviso(r >= 4 ? 'Catalisador Mítico nenhuma alquimia faz' : 'Esse catalisador não se sintetiza'); return false; }
+    const de = CATALISADOR[D.catalisador][r - 2];
+    const quer = Math.max(1, Math.min(S.lote, Number.isInteger(m.n) ? m.n : 1));
+    const da = Math.min(quer, Math.floor(contar(p.mochila, de) / C.n), Math.floor((p.ouro || 0) / C.ouro));
+    if (da < 1) {
+      const falta = [];
+      if (contar(p.mochila, de) < C.n) falta.push(`${C.n - contar(p.mochila, de)} ${ITENS[de].nome}`);
+      if ((p.ouro || 0) < C.ouro) falta.push(`${C.ouro - (p.ouro || 0)} de ouro`);
+      aviso('Falta ' + falta.join(' e ')); return false;
+    }
+    tirar(p.mochila, de, C.n * da);
+    if (!guardar(p.mochila, { k, n: da })) { guardar(p.mochila, { k: de, n: C.n * da }); aviso('Mochila cheia'); return false; }
+    p.ouro -= C.ouro * da;
+    this.evento({ t: 'fala', para: j.id, npc: npc.id, texto: da > 1 ? `Pronto: ${da} ${D.nome}. O caldeirão até cansou.` : `Pronto, um ${D.nome} fresquinho. Cuidado que ainda está quente.` });
+    aviso(`Recebeu ${da} ${D.nome} (−${C.ouro * da} de ouro)`);
+    return true;
+  }
   comecarCatalisador(j, m, i, it, aviso) {
     if (j.morto) return;
     if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
@@ -2610,6 +2637,7 @@ export class Simulacao {
       const D = this.dungeon?.def, rec = D ? Object.entries(D.passe).map(([k, n]) => `${n} ${ITENS[k].nome}`).join(', ') : '';
       return diga(`Um passe sai por ${rec}. Tem o material? Eu faço na hora.`, { abrir: 'passe' });
     }
+    if (npc.funcao === 'alquimia') return diga('Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário.', { abrir: 'alquimia' });
     if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
     if (npc.funcao === 'resetar') return diga(npc.falas[0] + ` Custa ${this.custoReset(j)} de ouro.`, { abrir: 'resetar', custo: this.custoReset(j) });
     diga(proxima());

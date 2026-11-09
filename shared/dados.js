@@ -1057,6 +1057,12 @@ export const MAPA_CLAREIRA = {
     { id: 'reset', nome: 'Mestre Ivo, o instrutor', x: 2.6, z: 4.6, ry: -2.4, visual: 'cabelo_m', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true, tinta: { cabelo: 0x2a2622, roupa: 0x3c4a5e, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
       'Quer recomeçar a build? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.',
     ] },
+    // Alquimista (André 2026-11-09): sintetiza catalisador da raridade de cima (CATALISADOR.sintese), na porta da casa3.
+    { id: 'alquimista', nome: 'Mirela, a alquimista', x: 2.3, z: -12.4, ry: -1.7, visual: 'shibu', escala: 0.98, roupa: 'peitoral0,botas0,capa2', veste: { tunica: 0x3e2a5c, saia: 0x3e2a5c, ate: 'canela', faixa: 0xc9a23a, avental: 0x4a3626 }, tinta: { cabelo: 0x2f4a3c, roupa: 0x3e2a5c, calca: 0x2b2433 }, funcao: 'alquimia', acoes: ['alquimia'], falas: [
+      'Quatro selos fracos viram um forte, se o ouro ajudar. Alquimia é paciência e moeda.',
+      'Até o Lendário eu chego. O Mítico... esse nenhum caldeirão da vila aguenta.',
+      'Runa com runa, selo com selo. Misturar os dois só dá fumaça.',
+    ] },
   ],
   rochas: ROCHAS,
   // escada de madeira encostada na rocha grande: pé no chão e topo na beirada
@@ -1443,6 +1449,11 @@ export const CATALISADOR = {
   sorte: [0.02, 0.06],
   vigor: 8,
   tempoEvoluir: 3,
+  // Alquimista (André 2026-11-09): a Mirela, na casa do lado leste da praça, junta `n` catalisadores de uma raridade
+  // com `ouro` e faz 1 da raridade de cima, do mesmo tipo (Selo com Selo, Runa com Runa). sintese[r] = o que custa
+  // fazer um catalisador da raridade r. Só até Lendário (`ate`, André: "só até lendário"); Mítico ela nunca faz.
+  // Sem barrinha e sem falha. n por clique: 1 ou o máximo que dá (`lote`).
+  sintese: { npc: 'alquimista', perto: 4.5, ate: 3, lote: 20, custo: [null, null, { n: 4, ouro: 800 }, { n: 4, ouro: 3000 }] },
 };
 {
   const NOME_R = ['', 'Raro', 'Épico', 'Lendário', 'Mítico'], NOME_A = ['', 'Rara', 'Épica', 'Lendária', 'Mítica'];
