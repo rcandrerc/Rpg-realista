@@ -4,7 +4,9 @@
 // trilha (G: terra, o chao.gdshader usa a 50%). Uso: node client/exportar-godot/longe.mjs (o mundo.mjs já chama).
 import fs from 'node:fs';
 import zlib from 'node:zlib';
-import { MAPA_CLAREIRA } from '@rpg/shared';
+import { MAPA_CLAREIRA as MAPA_TODO } from '@rpg/shared';
+// só o mapa de hoje (sem a terra do mundo grande da FASE 3, MAPA_TODO.andavelMundo): a mata de longe continua igual
+const MAPA_CLAREIRA = { areas: MAPA_TODO.areas, corredores: MAPA_TODO.corredores, raio: MAPA_TODO.raio, mata: MAPA_TODO.mata, estrada: MAPA_TODO.estrada, vila: MAPA_TODO.vila };
 import { dentroDoMapa } from '../../shared/mapa.js';
 
 export const LONGE = { x0: -64, z0: -146, tam: 412, px: 512 };

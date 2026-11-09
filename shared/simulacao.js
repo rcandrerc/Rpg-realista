@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -128,14 +128,16 @@ export function motivoTerreno(R, outros = []) {
   if (w < LOTE.ladoMin || d < LOTE.ladoMin) return `O terreno precisa de pelo menos ${LOTE.ladoMin} x ${LOTE.ladoMin} m`;
   if (w > LOTE.ladoMax || d > LOTE.ladoMax) return `Cada lado vai até ${LOTE.ladoMax} m`;
   if (w * d > LOTE.areaMax) return `No máximo ${LOTE.areaMax} blocos (este tem ${w * d})`;
-  const A = VILA_LOTES.area;
+  // FASE 3: a vila do terreno (o meio dele); as Terras da Estrada continuam com as estradas de sempre
+  const V = vilaEm((R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2) || VILAS_TERRENO[0], A = V.area;
+  const ruas = V === VILAS_TERRENO[0] ? ESTRADAS_TERRAS : V.estradas.map((e) => e.pontos), largs = V === VILAS_TERRENO[0] ? LARG_TERRAS : V.estradas.map((e) => e.largura);
   for (let t = 0; t <= 2 * (w + d); t += 1) { // a borda inteira dentro das terras, longe das árvores
     const x = t <= w ? R.x0 + t : t <= w + d ? R.x1 : t <= 2 * w + d ? R.x1 - (t - w - d) : R.x0;
     const z = t <= w ? R.z0 : t <= w + d ? R.z0 + (t - w) : t <= 2 * w + d ? R.z1 : R.z1 - (t - 2 * w - d);
     if (Math.hypot(x - A.x, z - A.z) > raioNaDirecao(A, Math.atan2(z - A.z, x - A.x)) - LOTE.folgaBorda) return 'Passa da borda das terras';
   }
-  for (let k = 0; k < ESTRADAS_TERRAS.length; k++) { // não pega a estrada
-    const L = ESTRADAS_TERRAS[k], meia = LARG_TERRAS[k] / 2 + LOTE.folgaRua;
+  for (let k = 0; k < ruas.length; k++) { // não pega a estrada
+    const L = ruas[k], meia = largs[k] / 2 + LOTE.folgaRua;
     for (let i = 1; i < L.length; i++) {
       const [ax, az] = L[i - 1], [bx, bz] = L[i], n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5);
       for (let q = 0; q <= n; q++) if (distRet(R, ax + (bx - ax) * q / n, az + (bz - az) * q / n) < meia) return 'Não pode pegar a estrada';
@@ -263,6 +265,15 @@ function itemDaChave(chave, n) { const it = JSON.parse(chave); return ehEquip(it
 // o que a morte custou, para o aviso de quando levanta (MORTE)
 export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + '. O equipamento desgastou'
   + (pen.quebrou.length ? `; quebrou: ${pen.quebrou.join(', ')} (o Tomás conserta)` : '');
+
+// FASE 3, Parte 7b: em cima de um cais de madeira (mapa.cais) também se anda, mesmo por cima do mar
+export function naCais(mapa, x, z) {
+  for (const c of mapa.cais || []) {
+    const ox = x - c.x, oz = z - c.z, u = ox * Math.sin(c.ry) + oz * Math.cos(c.ry), v = ox * Math.cos(c.ry) - oz * Math.sin(c.ry);
+    if (Math.abs(u) <= c.d / 2 + 0.3 && Math.abs(v) <= c.w / 2 + 0.3) return c;
+  }
+  return null;
+}
 
 export class Simulacao {
   constructor(mapa) {
@@ -463,6 +474,7 @@ export class Simulacao {
     const e = this.novoCorpo({ tipo: sp.tipo, nome: t.nome, x: sp.x, z: sp.z, casa: { x: sp.x, z: sp.z }, vida: st.vida, vidaMax: st.vida,
       nivel, dano: st.dano, ataqueCd: 1 + Math.random(), sp, v: sp.v ?? this.mapa.inimigos.indexOf(sp) });
     e.anim = A.swordIdle;
+    if (!sp.caverna && !t.treino) e.y = Math.max(0, relevo(e.x, e.z)); // no chão do mundo grande (0 no mapa de hoje)
     if (t.treino) { e.treino = true; e.ry = sp.ry || 0; e.anim = 'Idle'; } // espantalho: fica plantado onde está
     this.inimigos.push(e);
     return e;
@@ -568,7 +580,7 @@ export class Simulacao {
     // mergulho (André 2026-11-06): no lago fundo o herói desce abaixo da linha em que boia, até o leito (MERGULHO_MAX)
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
-    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z)
+    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
@@ -1986,7 +1998,7 @@ export class Simulacao {
   // as peças são sólidas: os círculos de cada uma entram nos obstáculos (o herói não atravessa a bigorna)
   refazerSolidosLotes() {
     this.obstaculos = this.obstaculos.filter((k) => !k.peca);
-    const T = this.terreno, chao = (x, z) => { let h = 0; for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
+    const T = this.terreno, chao = (x, z) => { let h = chaoDaVila(x, z); for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
     // o móvel fica no chão ou em cima da fundação: o topo dele (CONSTRUCOES.alto) parte daí
     const piso = (L, p) => chao(p.x, p.z) + (L.pecas.some((o) => tipoPeca(o.k) === 'fundacao' && Math.abs(o.x - p.x) < CASA.grade / 2 && Math.abs(o.z - p.z) < CASA.grade / 2) ? CASA.fundacao : 0);
     for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p, CONSTRUCOES[p.k].alto ? piso(L, p) : null));
@@ -2003,6 +2015,10 @@ export class Simulacao {
     const R = retTerreno(m); if (!R) return;
     const motivo = motivoTerreno(R, [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def)); if (motivo) return aviso(motivo);
     if (distRet(R, j.x, j.z) > 40) return aviso('Chegue mais perto do terreno');
+    // FASE 3 (André 2026-11-08): cada vila tem no máximo V.max terrenos com dono; cheia, procure outra vila ou bairro
+    const V = vilaEm((R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2) || VILAS_TERRENO[0];
+    const naVila = [...this.lotes.values()].filter((L) => L.dono && (vilaEm((L.def.x0 + L.def.x1) / 2, (L.def.z0 + L.def.z1) / 2) || VILAS_TERRENO[0]) === V).length;
+    if (naVila >= V.max) return aviso(`${V.nome} já tem ${V.max} terrenos. Procure outra vila`);
     const w = R.x1 - R.x0, d = R.z1 - R.z0, preco = precoTerreno(w, d);
     if (j.prog.ouro < preco) return aviso(`Faltam ${preco - j.prog.ouro} de ouro (o terreno custa ${preco})`);
     const lid = 't' + String(j.conta).replace(/[^\w]/g, '').slice(0, 14);
@@ -2903,7 +2919,10 @@ export class Simulacao {
     [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
     if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
   }
-  mover(c, dx, dz) { if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c); }
+  mover(c, dx, dz) {
+    if (c.tipo === 'jogador') return this.moverJogador(c, dx, dz); if (c.treino) return; c.x += dx; c.z += dz; this.colidir(c);
+    if (!c.sub) c.y = Math.max(0, relevo(c.x, c.z)); // FASE 3: monstro anda no relevo do mundo grande (morro, platô)
+  }
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
   moverJogador(j, dx, dz) {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;

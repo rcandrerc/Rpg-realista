@@ -11,6 +11,7 @@ extends CanvasLayer
 # Zoom com a pinça ou com os botões − e + embaixo; arrastar com um dedo anda pelo mapa. A lista da direita (Lugares)
 # funciona: tocar num nome marca o lugar, leva o mapa até ele e mostra o "Ir para"; tocar de novo no mesmo nome já vai.
 
+const MapaMundo = preload("res://mapa_mundo.gd")
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
 # o minimapa subiu para não encostar nas skills)
@@ -24,6 +25,10 @@ const COR_FUNDO := Color(0.06, 0.07, 0.05, 0.85)
 var m # main.gd
 var info: Dictionary # mundo.minimapa: x0, z0, tam (metros) e px
 var textura: Texture2D
+# FASE 3 (2026-11-09): o mundo inteiro (mapa_mundo.gd) embaixo e o desenho de hoje (minimapa.png) por cima, nítido
+var mundo_r := Rect2() # metros: x0, z0, largura e altura do mundo (sem a grade, o quadrado de hoje)
+var textura_mundo: Texture2D
+var mapa_hoje: TextureRect # o desenho de hoje no mapa completo, no quadrado dele
 var mini: Control
 var mapa_mini: TextureRect
 var marcas: Control
@@ -68,6 +73,12 @@ func _ready() -> void:
 	fonte = load("res://fontes/AlegreyaSans-Bold.ttf")
 	if ResourceLoader.exists("res://modelos/minimapa.png"):
 		textura = load("res://modelos/minimapa.png")
+	mundo_r = Rect2(float(info.x0), float(info.z0), float(info.tam), float(info.tam))
+	var g: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
+	if not g.is_empty():
+		mundo_r = Rect2(float(g.x0), float(g.z0), (int(g.nx) - 1) * float(g.passo), (int(g.nz) - 1) * float(g.passo))
+		textura_mundo = ImageTexture.create_from_image(MapaMundo.imagem(g, m.mundo.get("mata", [])))
+	var hoje_r := Rect2((Vector2(float(info.x0), float(info.z0)) - mundo_r.position) / mundo_r.size, Vector2.ONE * float(info.tam) / mundo_r.size)
 	# minimapa redondo
 	mini = Control.new()
 	mini.anchor_left = 1.0
@@ -79,7 +90,7 @@ func _ready() -> void:
 	mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(mini)
 	mapa_mini = TextureRect.new()
-	mapa_mini.texture = textura
+	mapa_mini.texture = textura_mundo if textura_mundo != null else textura
 	mapa_mini.set_anchors_preset(Control.PRESET_FULL_RECT)
 	mapa_mini.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	mapa_mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -87,15 +98,29 @@ func _ready() -> void:
 	sm.shader = Shader.new()
 	sm.shader.code = """shader_type canvas_item;
 uniform vec2 centro = vec2(0.5);
-uniform float alcance = 0.3;
+uniform vec2 alcance = vec2(0.3);
+uniform sampler2D hoje : filter_linear, repeat_disable;
+uniform vec4 hoje_r = vec4(0.0, 0.0, 1.0, 1.0); // onde fica o desenho de hoje dentro do mundo (fração)
+uniform float com_hoje = 0.0;
+""" + VINHETA_HOJE + """
 void fragment() {
 	vec2 d = UV - 0.5;
 	float r = length(d);
-	vec4 c = texture(TEXTURE, centro + d * alcance);
+	vec2 uv = centro + d * alcance;
+	vec4 c = texture(TEXTURE, uv);
+	if (com_hoje > 0.5) {
+		vec2 q = (uv - hoje_r.xy) / hoje_r.zw;
+		float b = min(min(q.x, q.y), min(1.0 - q.x, 1.0 - q.y));
+		if (b > 0.0) c.rgb = mix(c.rgb, sem_vinheta(texture(hoje, q).rgb, q), smoothstep(0.0, 0.03, b));
+	}
 	c.rgb *= 1.0 - smoothstep(0.36, 0.5, r) * 0.35; // escurece perto da moldura
 	COLOR = vec4(c.rgb, 1.0 - smoothstep(0.485, 0.5, r));
 }"""
 	mapa_mini.material = sm
+	if textura_mundo != null and textura != null:
+		sm.set_shader_parameter("hoje", textura)
+		sm.set_shader_parameter("hoje_r", Vector4(hoje_r.position.x, hoje_r.position.y, hoje_r.size.x, hoje_r.size.y))
+		sm.set_shader_parameter("com_hoje", 1.0)
 	mini.add_child(mapa_mini)
 	marcas = Control.new()
 	marcas.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -118,12 +143,12 @@ void fragment() {
 	janela.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	grande.add_child(janela)
 	var fundo := ColorRect.new() # fora do mundo (zoom pequeno): verde bem escuro, como a mata vista de longe
-	fundo.color = Color(0.05, 0.07, 0.045, 1.0)
+	fundo.color = Color(0.05, 0.07, 0.045, 1.0) if textura_mundo == null else Color8(22, 54, 92) # com o mundo: mar fundo
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	janela.add_child(fundo)
 	mapa_grande = TextureRect.new()
-	mapa_grande.texture = textura
+	mapa_grande.texture = textura_mundo if textura_mundo != null else textura
 	mapa_grande.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	mapa_grande.stretch_mode = TextureRect.STRETCH_SCALE
 	mapa_grande.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -139,6 +164,21 @@ void fragment() {
 }"""
 	mapa_grande.material = sg
 	janela.add_child(mapa_grande)
+	if textura_mundo != null and textura != null: # o desenho de hoje por cima do mundo, sem a vinheta e com a borda macia
+		mapa_hoje = TextureRect.new()
+		mapa_hoje.texture = textura
+		mapa_hoje.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mapa_hoje.stretch_mode = TextureRect.STRETCH_SCALE
+		mapa_hoje.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sh := ShaderMaterial.new()
+		sh.shader = Shader.new()
+		sh.shader.code = "shader_type canvas_item;\n" + VINHETA_HOJE + """
+void fragment() {
+	float b = min(min(UV.x, UV.y), min(1.0 - UV.x, 1.0 - UV.y));
+	COLOR = vec4(sem_vinheta(texture(TEXTURE, UV).rgb, UV), smoothstep(0.0, 0.03, b));
+}"""
+		mapa_hoje.material = sh
+		janela.add_child(mapa_hoje)
 	marcas_mapa = Control.new()
 	marcas_mapa.set_anchors_preset(Control.PRESET_FULL_RECT)
 	marcas_mapa.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -150,9 +190,23 @@ void fragment() {
 	marcas_grande.draw.connect(_desenhar_grande)
 	grande.add_child(marcas_grande)
 
-# metros -> fração da textura (0..1)
+# o minimapa.png (client/src/minimapa.js) escurece as pontas; por cima do mundo a conta volta à cor de antes
+const VINHETA_HOJE := """
+vec3 sem_vinheta(vec3 c, vec2 q) {
+	float t = clamp((length(q - 0.5) - 0.35) / 0.4, 0.0, 1.0);
+	return min(c / (1.0 - 0.35 * t), vec3(1.0));
+}
+"""
+
+# metros -> fração da textura (0..1) do mundo (sem a grade, do quadrado de hoje)
 func _uv(x: float, z: float) -> Vector2:
-	return Vector2((x - float(info.x0)) / float(info.tam), (z - float(info.z0)) / float(info.tam))
+	return (Vector2(x, z) - mundo_r.position) / mundo_r.size
+
+# zoom em que o mundo inteiro cabe na janela (com a grade do mundo dá para afastar além do quadrado de hoje)
+func _z_min() -> float:
+	if janela == null or janela.size.y <= 0.0:
+		return Z_MIN
+	return minf(Z_MIN, minf(janela.size.x / mundo_r.size.x, janela.size.y / mundo_r.size.y) * float(info.tam) / janela.size.y)
 
 # o toque é do minimapa? (a HUD não usa esse toque para o joystick nem para a câmera)
 func cobre(p: Vector2) -> bool:
@@ -233,7 +287,7 @@ func _gesto(ev: InputEvent) -> void:
 		var ks: Array = toques.keys()
 		var a: Vector2 = toques[ks[0]].p
 		var b: Vector2 = toques[ks[1]].p
-		zoom = clamp(float(pinca.z) * a.distance_to(b) / max(float(pinca.d), 1.0), Z_MIN, Z_MAX)
+		zoom = clamp(float(pinca.z) * a.distance_to(b) / max(float(pinca.d), 1.0), _z_min(), Z_MAX)
 		zoom_alvo = zoom
 		var meio: Vector2 = (a + b) * 0.5 - jr.position
 		foco = pinca.w - (meio - janela.size * 0.5) / _k()
@@ -264,7 +318,7 @@ func _comecar_pinca() -> void:
 # zoom em volta de um ponto da janela (roda do mouse); os botões − e + usam o meio
 func _zoom_em(lp: Vector2, fator: float) -> void:
 	var w: Vector2 = _no_mundo(lp)
-	zoom_alvo = clamp(zoom_alvo * fator, Z_MIN, Z_MAX)
+	zoom_alvo = clamp(zoom_alvo * fator, _z_min(), Z_MAX)
 	zoom = zoom_alvo
 	foco = _prender(w - (lp - janela.size * 0.5) / _k(), zoom)
 	foco_alvo = foco
@@ -273,11 +327,11 @@ func _zoom_em(lp: Vector2, fator: float) -> void:
 func _prender(f: Vector2, z: float) -> Vector2:
 	var k: float = janela.size.y / float(info.tam) * z
 	var meia: Vector2 = janela.size * 0.5 / k
-	var t: float = float(info.tam)
-	var x0: float = float(info.x0)
-	var z0: float = float(info.z0)
-	f.x = x0 + t * 0.5 if meia.x * 2.0 >= t else clamp(f.x, x0 + meia.x, x0 + t - meia.x)
-	f.y = z0 + t * 0.5 if meia.y * 2.0 >= t else clamp(f.y, z0 + meia.y, z0 + t - meia.y)
+	var t: Vector2 = mundo_r.size
+	var x0: float = mundo_r.position.x
+	var z0: float = mundo_r.position.y
+	f.x = x0 + t.x * 0.5 if meia.x * 2.0 >= t.x else clamp(f.x, x0 + meia.x, x0 + t.x - meia.x)
+	f.y = z0 + t.y * 0.5 if meia.y * 2.0 >= t.y else clamp(f.y, z0 + meia.y, z0 + t.y - meia.y)
 	return f
 
 # onde fica a lista da direita (tela)
@@ -296,7 +350,7 @@ func _toque_no_mapa(pos: Vector2) -> void:
 		fechar()
 		return
 	if dentro and (botao_mais.has_point(lp) or botao_menos.has_point(lp)):
-		zoom_alvo = clamp(zoom_alvo * (1.45 if botao_mais.has_point(lp) else 1.0 / 1.45), Z_MIN, Z_MAX)
+		zoom_alvo = clamp(zoom_alvo * (1.45 if botao_mais.has_point(lp) else 1.0 / 1.45), _z_min(), Z_MAX)
 		if m.sons:
 			m.sons.tocar("pano", -16.0)
 		return
@@ -409,6 +463,11 @@ func _lugares() -> Array:
 		if lg.get("pesca", false):
 			var mg: Array = lg.get("chegada", [lg.x, lg.z])
 			l.append({"id": str(lg.id), "tipo": "lago", "nome": str(lg.nome), "curto": str(lg.nome), "x": float(mg[0]), "z": float(mg[1]), "r": 4.0})
+	var gm: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
+	for lm in gm.get("lugares", []): # FASE 3: vilas, cais e postos do mundo grande
+		var tl := str(lm.get("tipo", ""))
+		if tl == "vila" or tl == "porto" or tl == "posto":
+			l.append({"id": str(lm.id), "tipo": "vila", "nome": str(lm.nome), "curto": str(lm.nome), "x": float(lm.x), "z": float(lm.z), "r": float(lm.r)})
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:
@@ -418,7 +477,7 @@ func _lugares() -> Array:
 	var perto := {}
 	var hp: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
 	for mn in m.mundo.get("mina", []):
-		if not mn.get("pequeno", false):
+		if not mn.get("pequeno", false) and not mn.get("mundo", false): # os do mundo grande também: só o mais perto
 			l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
 			continue
 		var t := str(mn.get("tipo", ""))
@@ -464,9 +523,11 @@ func _arrumar_grande() -> void:
 	janela.position = Vector2(16, 16)
 	janela.size = Vector2(max(200.0, tela.x - LARGURA_LISTA - 24.0), max(200.0, tela.y - 32.0))
 	var k: float = _k()
-	var o: Vector2 = _na_janela(float(info.x0), float(info.z0))
-	mapa_grande.position = o
-	mapa_grande.size = Vector2.ONE * float(info.tam) * k
+	mapa_grande.position = _na_janela(mundo_r.position.x, mundo_r.position.y)
+	mapa_grande.size = mundo_r.size * k
+	if mapa_hoje != null:
+		mapa_hoje.position = _na_janela(float(info.x0), float(info.z0))
+		mapa_hoje.size = Vector2.ONE * float(info.tam) * k
 
 func _process(_dt: float) -> void:
 	if m.heroi == null:
@@ -476,7 +537,7 @@ func _process(_dt: float) -> void:
 	if mini.visible:
 		var p: Vector3 = m.heroi.position
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("centro", _uv(p.x, p.z))
-		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", ALCANCE * 2.0 / float(info.tam))
+		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", Vector2.ONE * ALCANCE * 2.0 / mundo_r.size)
 		marcas.queue_redraw()
 	if aberto:
 		var dt: float = get_process_delta_time()
@@ -647,16 +708,32 @@ func _desenhar_mapa() -> void:
 	var c := marcas_mapa
 	var tam: Vector2 = janela.size
 	var em := func(x: float, z: float) -> Vector2: return _na_janela(x, z)
+	var longe: bool = zoom < 0.95 # FASE 3: afastado além do quadrado de hoje, só as bolinhas (os nomes se embolam)
 	# lugares
 	_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})
 	if not vl.is_empty(): # Vila dos Lotes (construção e fazenda)
 		_texto(c, em.call(float(vl.x), float(vl.z) - 20.0), str(vl.nome), 15, Color(1, 0.95, 0.85))
+	# FASE 3: o nome de cada terra (Vael, ilha, Aurora) e as vilas, cais e postos do mundo grande
+	var g: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
+	for t in g.get("terras", []):
+		var nv: Array = t.get("niveis", [])
+		_texto(c, em.call(float(t.x), float(t.z) - float(t.rz) * 0.97), "%s%s" % [str(t.nome), "  (Nv %d-%d)" % [int(nv[0]), int(nv[1])] if nv.size() == 2 else ""], 18, Color("f4e6c4"))
+	for l in g.get("lugares", []):
+		var tl := str(l.get("tipo", ""))
+		if tl == "vila" or tl == "porto" or tl == "posto":
+			var q: Vector2 = em.call(float(l.x), float(l.z))
+			c.draw_circle(q, 4.0, Color(0.05, 0.04, 0.03, 0.85))
+			c.draw_circle(q, 3.0, COR_OURO if tl == "vila" else Color(1, 0.95, 0.85))
+			if tl == "vila" or not longe:
+				_texto(c, q + Vector2(0, -12), str(l.get("nome", "")), 15 if tl == "vila" else 12, Color(1, 0.95, 0.85))
 	for mn in m.mundo.get("mina", []):
+		if longe and (mn.get("pequeno", false) or mn.get("mundo", false)):
+			continue
 		var q: Vector2 = em.call(float(mn.x), float(mn.z))
 		var cm: Color = COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b"))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -7), q + Vector2(6, 0), q + Vector2(0, 7), q + Vector2(-6, 0)]), cm)
-		if mn.get("pequeno", false):
+		if mn.get("pequeno", false) or mn.get("mundo", false):
 			continue # veio pequeno (FASE 2): só o losango, sem nome (são muitos)
 		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	var cv := _caverna()
@@ -681,8 +758,9 @@ func _desenhar_mapa() -> void:
 		_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
 	for cc in m.mundo.get("caca", []):
 		var q: Vector2 = em.call(float(cc.x), float(cc.z))
-		_marca_clareira(c, q, cc, 10.0, true)
-		_texto(c, q + Vector2(0, 22), "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
+		_marca_clareira(c, q, cc, 7.0 if longe else 10.0, true)
+		if not longe:
+			_texto(c, q + Vector2(0, 22), "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
 	for p in _outros():
 		var q: Vector2 = em.call(p.x, p.z)
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
@@ -727,7 +805,7 @@ func _desenhar_mapa() -> void:
 	var cp := cz + Vector2(31, 0)
 	botao_menos = Rect2(cm - Vector2(30, 26), Vector2(60, 52))
 	botao_mais = Rect2(cp - Vector2(30, 26), Vector2(60, 52))
-	var cor_m: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo <= Z_MIN + 0.01 else 1.0)
+	var cor_m: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo <= _z_min() + 0.01 else 1.0)
 	var cor_p: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo >= Z_MAX - 0.01 else 1.0)
 	c.draw_line(cm + Vector2(-9, 0), cm + Vector2(9, 0), cor_m, 3.0, true)
 	c.draw_line(cp + Vector2(-9, 0), cp + Vector2(9, 0), cor_p, 3.0, true)
