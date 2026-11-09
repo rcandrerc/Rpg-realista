@@ -48,10 +48,12 @@ static func imagem(g: Dictionary, mata: Array) -> Image:
 		_bola(base, c - Vector2i(1, 1), 0, Color8(70, 112, 60))
 	# estradas: borda escura e o chão de terra por cima
 	for e in g.get("estradas", []):
+		var trilha := str(e.get("id", "")).begins_with("t_") # trilha (2026-11-09): mais fina que a estrada principal
 		for camada in 2:
 			for p in e.get("curva", []):
 				var c := Vector2i(int((float(p[0]) - x0) * k_px), int((float(p[1]) - z0) * k_px))
-				_bola(base, c, 3 if camada == 0 else 2, Color8(92, 70, 42) if camada == 0 else Color8(214, 184, 126))
+				var r := (2 if camada == 0 else 1) if trilha else (3 if camada == 0 else 2)
+				_bola(base, c, r, Color8(92, 70, 42) if camada == 0 else Color8(214, 184, 126))
 	# lugares (vila, porto, posto e clareiras): chão batido mais claro
 	for l in g.get("lugares", []):
 		var tipo := str(l.get("tipo", ""))

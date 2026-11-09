@@ -8,15 +8,16 @@ const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 
 const G = montarMundo(M);
 let terra = 0; for (const t of G.terra) if (t) terra++;
 const area = terra * G.passo * G.passo;
-ok(area > 350000 && area < 600000, `terra do mundo: ${Math.round(area / 1000)} mil m² (o mapa de hoje tem uns 100 mil)`);
+ok(area > 1300000 && area < 2600000, `terra do mundo: ${Math.round(area / 1000)} mil m² (o mapa de hoje tem uns 100 mil)`);
 ok(TERRAS.every((T) => G.terra.includes(TERRAS.indexOf(T) + 1)), 'Vael, a Ilha do Meio e Aurora existem');
 const pontos = [[0, 0], ...M.npcs.filter((n) => !n.mundo).map((n) => [n.x, n.z]), ...M.caca.filter((c) => !c.mundo).map((c) => [c.x, c.z]), ...M.mina.filter((c) => !c.mundo).map((c) => [c.x, c.z])];
 ok(pontos.every(([x, z]) => Math.abs(alturaMundo(G, x, z)) < 1e-6 && terraEm(G, x, z)?.id === 'vael'), 'o mapa de hoje fica no plano (grade 0) e em Vael');
 // do litoral leste de Vael até Aurora passando pela ilha: tem mar fundo para o navio dos dois lados da ilha
-const fundo = (a, b) => { let m = 0; for (let x = a; x <= b; x += 2) m = Math.min(m, alturaMundo(G, x, 40)); return m; };
-ok(fundo(420, 470) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre Vael e a ilha: ' + fundo(395, 445).toFixed(1));
-ok(fundo(655, 700) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre a ilha e Aurora: ' + fundo(595, 640).toFixed(1));
-ok(terraEm(G, 565, 40)?.id === 'ilha' && terraEm(G, 905, 50)?.id === 'aurora' && terraEm(G, 500, 300) === null, 'terraEm');
+// 2026-11-09: continente norte (Vael), a ilha no meio e o continente sul (Aurora), com mar fundo entre eles
+const fundo = (a, b) => { let m = 0; for (let z = a; z <= b; z += 2) m = Math.min(m, alturaMundo(G, 200, z)); return m; };
+ok(fundo(470, 520) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre Vael e a ilha: ' + fundo(470, 520).toFixed(1));
+ok(fundo(800, 860) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre a ilha e Aurora: ' + fundo(800, 860).toFixed(1));
+ok(terraEm(G, 200, 662)?.id === 'ilha' && terraEm(G, 200, 1085)?.id === 'aurora' && terraEm(G, 200, 495) === null && terraEm(G, -400, -300)?.id === 'vael', 'terraEm');
 // sorteio fixo: duas montagens saem iguais
 const G2 = montarMundo(M); ok(G2.h.every((v, i) => v === G.h[i]), 'sorteio fixo');
 
@@ -24,13 +25,13 @@ const G2 = montarMundo(M); ok(G2.h.every((v, i) => v === G.h[i]), 'sorteio fixo'
 import { Simulacao } from '../../shared/index.js';
 import { dentroDoMapa } from '../../shared/mapa.js';
 import { noLago, chaoDoRelevo, relevo, alturaMontanha } from '../../shared/relevo.js';
-ok(dentroDoMapa(M, 300, 300) === false || terraEm(G, 300, 300), 'fora da terra não anda');
-ok(dentroDoMapa(M, 905, 50) && dentroDoMapa(M, 565, 40) && dentroDoMapa(M, -150, 50), 'Aurora, a ilha e o oeste de Vael são andáveis');
-ok(!dentroDoMapa(M, 470, 40) && noLago(450, 40)?.lago.mar && relevo(450, 40) < -1.6, 'o mar entre Vael e a ilha é água funda e não se anda nele');
-ok(chaoDoRelevo(450, 40) > relevo(450, 40), 'no mar o herói boia');
+ok(dentroDoMapa(M, 200, 495) === false, 'fora da terra não anda');
+ok(dentroDoMapa(M, 200, 1085) && dentroDoMapa(M, 200, 662) && dentroDoMapa(M, -150, 50), 'Aurora, a ilha e o oeste de Vael são andáveis');
+ok(!dentroDoMapa(M, 200, 495) && noLago(200, 495)?.lago.mar && relevo(200, 495) < -1.6, 'o mar entre Vael e a ilha é água funda e não se anda nele');
+ok(chaoDoRelevo(200, 495) > relevo(200, 495), 'no mar o herói boia');
 ok(alturaMontanha(0, 0) === 0 && alturaMontanha(188, -62) > 0, 'a vila e a montanha de hoje não mudaram de altura');
 const s = new Simulacao(M);
-ok(s.terreno.altura(905, 50) > 0, 'o terreno do servidor tem a altura de Aurora');
+ok(s.terreno.altura(200, 1085) > 0, 'o terreno do servidor tem a altura de Aurora');
 
 // Parte 4: lugares planos e estradas de subida suave
 import { LUGARES_MUNDO, ESTRADAS_MUNDO, RAMPA_MAX, PONTES_MUNDO, RIOS_MUNDO } from '../../shared/mundo.js';
@@ -56,7 +57,8 @@ for (const E of ESTRADAS_MUNDO) {
     if (d > 3) pior = Math.max(pior, Math.abs(chaoEstrada(x1, z1) - chaoEstrada(x0, z0)) / d);
   }
   for (const [x, z] of E.curva) if (chaoEstrada(x, z) < 0) molhado++;
-  ok(pior <= RAMPA_MAX * 1.25 && molhado === 0, `${E.id}: rampa máxima ${(pior * 100).toFixed(1)}%, ${molhado} pontos na água`);
+  // trilha (2026-11-09) é caminho a pé até o campo ou o veio: aceita um pouco mais (o carrinho anda nas estradas)
+  ok(pior <= RAMPA_MAX * (E.trilha ? 1.5 : 1.25) && molhado === 0, `${E.id}: rampa máxima ${(pior * 100).toFixed(1)}%, ${molhado} pontos na água`);
 }
 
 // Parte 5: campos de caça do Nv 30 ao 100 nos lugares planos, com monstros vivos e no nível
@@ -93,10 +95,22 @@ for (const R of RIOS_MUNDO) {
   ok(sobe === 0 && Math.abs(C[C.length - 1][2] - MUNDO.mar) < 0.01, `${R.nome}: a água só desce e chega no mar (${C[0][2]} m na nascente)`);
   if (R.cachoeira) ok(R.cachoeira.topo - R.cachoeira.pe >= 2.3, `${R.nome}: cachoeira de ${(R.cachoeira.topo - R.cachoeira.pe).toFixed(1)} m`);
   // (fora a foz, já no mar, e o pé da cachoeira, onde a água cai num poço)
-  let fundo = 0; C.forEach(([x, z, y], i) => { if (y > MUNDO.mar + 0.01 && !(R.cachoeira && Math.abs(i - R.cachoeira.i) <= 2)) fundo = Math.max(fundo, y - alturaMundo(G, x, z)); });
+  // (nem a nascente, os 3 primeiros pontos na encosta da serra)
+  let fundo = 0; C.forEach(([x, z, y], i) => { if (i > 2 && y > MUNDO.mar + 0.01 && !(R.cachoeira && Math.abs(i - R.cachoeira.i) <= 2)) fundo = Math.max(fundo, y - alturaMundo(G, x, z)); });
   ok(fundo > 0.5 && fundo < 1.6, `${R.nome}: água no máximo pela cintura no leito (${fundo.toFixed(2)} m), dá para atravessar a pé`);
   ok(!LUGARES_MUNDO.some((l) => C.some(([x, z]) => Math.hypot(x - l.x, z - l.z) < l.r + 4)), `${R.nome}: não passa por cima de campo, mina, vila ou porto`);
 }
 ok(RIOS_MUNDO.filter((R) => R.cachoeira).length >= 3, `${RIOS_MUNDO.filter((R) => R.cachoeira).length} cachoeiras`);
 for (const P of PONTES_MUNDO) ok(Math.min(P.ya, P.yb) - P.nivel >= 1, `${P.nome}: o tablado fica ${(Math.min(P.ya, P.yb) - P.nivel).toFixed(1)} m acima da água`);
 ok(!M.mata.some((a) => a.mundo && RIOS_MUNDO.some((R) => R.curva.some(([x, z]) => Math.hypot(x - a.x, z - a.z) < 6))), 'nenhuma árvore dentro do rio');
+
+// 2026-11-09 (André: "uma estrada principal livre... ramificações que vão levar aos pontos de minério e de caça"):
+// campo de caça e veio longe da estrada principal, e cada um com a sua trilha saindo da rede
+{
+  const principais = ESTRADAS_MUNDO.filter((E) => !E.trilha);
+  for (const L of LUGARES_MUNDO.filter((l) => l.tipo === 'caca' || l.tipo === 'mina')) {
+    const perto = Math.min(...principais.flatMap((E) => E.curva.map(([x, z]) => Math.hypot(x - L.x, z - L.z) - L.r)));
+    const trilha = ESTRADAS_MUNDO.find((E) => E.id === 't_' + L.id);
+    ok(perto > 12 && trilha && Math.hypot(trilha.curva.at(-1)[0] - L.x, trilha.curva.at(-1)[1] - L.z) < L.r, `${L.id}: a ${perto.toFixed(0)} m da estrada principal, com trilha até lá`);
+  }
+}

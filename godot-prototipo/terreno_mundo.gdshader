@@ -11,6 +11,10 @@ uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 uniform vec3 tom_areia : source_color = vec3(1.18, 1.08, 0.86);
 uniform float alto = 22.0;
 uniform float praia = 1.1; // até essa altura é areia
+// 2026-11-09: estradas e trilhas vêm da máscara de 1 m (relevo/mundo_mascara.png, R), com a borda macia dos dois lados
+uniform sampler2D mascara_mundo : filter_linear, repeat_disable;
+uniform vec4 mascara_area = vec4(-260.5, -320.5, 1441.0, 741.0);
+uniform float com_mascara = 0.0;
 varying vec3 mundo;
 varying vec3 nm;
 varying float estrada;
@@ -50,7 +54,9 @@ void fragment() {
 	areia = mix(areia, areia * vec3(0.62, 0.6, 0.58), 1.0 - smoothstep(-0.1, 0.35, mundo.y));
 	c = mix(c, areia, ka * (1.0 - pr * 0.7));
 	// estrada de terra batida (shared/mundo.js), com a borda comida pela grama
-	float ke = smoothstep(0.35, 0.7, estrada + (ruido2 - 0.5) * 0.35);
+	float est = estrada;
+	if (com_mascara > 0.5) est = texture(mascara_mundo, (mundo.xz - mascara_area.xy) / mascara_area.zw).r;
+	float ke = smoothstep(0.3, 0.75, est + (ruido2 - 0.5) * 0.4 + (texture(terra_tex, w / 0.9).g - 0.4) * 0.25);
 	c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, ke);
 	// leito e barranco do rio (Parte 4b): seixo e cascalho molhado, mais escuro no fundo
 	float kr = smoothstep(0.25, 0.7, rio + (ruido2 - 0.5) * 0.3);

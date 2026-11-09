@@ -40,6 +40,17 @@ func _carregar_mundo() -> void:
 		"rio": str(g.get("rio", "")), "rios": g.get("rios", []), "pontes": g.get("pontes", [])}
 
 # altura da grade do mundo (bilinear); fora dela é mar fundo
+# 2026-11-09: a máscara de 1 m do mundo grande (client/exportar-godot/mascara_mundo.mjs): R estradas, G mapa andável de
+# hoje, B onde o chão é o mapa de hoje. Liga num material (chao, terreno_mundo ou minimapa) os uniforms dela.
+func ligar_mascara(mat: ShaderMaterial) -> bool:
+	if mundo_g.is_empty() or not ResourceLoader.exists("res://relevo/mundo_mascara.png"):
+		return false
+	mat.set_shader_parameter("mascara_mundo", load("res://relevo/mundo_mascara.png"))
+	mat.set_shader_parameter("mascara_area", Vector4(float(mundo_g.x0) - 0.5, float(mundo_g.z0) - 0.5,
+		(int(mundo_g.nx) - 1) * float(mundo_g.passo) + 1.0, (int(mundo_g.nz) - 1) * float(mundo_g.passo) + 1.0))
+	mat.set_shader_parameter("com_mascara", 1.0)
+	return true
+
 func altura_mundo(x: float, z: float) -> float:
 	if mundo_g.is_empty():
 		return 0.0
