@@ -241,7 +241,7 @@ func modelo_carrinho(nv: int) -> Node3D:
 const BARCO_BANCO := Vector3(0, 0.33, -0.22) # quadril no banco do meio (no "corpo" do barco)
 const BARCO_PE := Vector3(0.15, 0.03, 0.32)
 const BARCO_L := 1.35 # meio comprimento do casco
-const BARCO_W := 0.62 # meia largura no meio
+const BARCO_W := 0.52 # meia largura no meio (1 m de boca: a pá entra logo fora da amurada)
 func _barco_secao(z: float) -> Array: # [meia largura, altura da amurada, altura da quilha]
 	var u: float = clampf(absf(z) / BARCO_L, 0.0, 1.0)
 	var w: float = BARCO_W * pow(maxf(0.0, 1.0 - pow(u, 2.2)), 0.6)
@@ -280,6 +280,7 @@ func modelo_barquinho() -> Node3D:
 	var g := Node3D.new()
 	var corpo := Node3D.new()
 	corpo.name = "corpo"
+	corpo.position.y = 0.1 # o fundo fica acima da água (a água não aparece dentro do barco)
 	g.add_child(corpo)
 	var casco_mt: StandardMaterial3D = _mt_madeira.duplicate()
 	casco_mt.cull_mode = BaseMaterial3D.CULL_DISABLED # o mesmo casco por fora e por dentro
@@ -307,10 +308,10 @@ func modelo_barquinho() -> Node3D:
 	_cil(corpo, 0.035, 0.42, Vector3(0, 0.42, BARCO_L - 0.02), _mt_madeira_esc, Vector3(0.25, 0, 0), 8)
 	_cil(corpo, 0.035, 0.4, Vector3(0, 0.4, -BARCO_L + 0.02), _mt_madeira_esc, Vector3(-0.25, 0, 0), 8)
 	# assoalho, cavernas (costelas) e bancos
-	_caixa(corpo, Vector3(0.5, 0.03, 1.7), Vector3(0, -0.05, 0), _mt_madeira_esc)
+	_caixa(corpo, Vector3(0.44, 0.03, 1.6), Vector3(0, -0.05, 0), _mt_madeira_esc)
 	for z in [-0.8, -0.4, 0.0, 0.4, 0.8]:
 		var sc: Array = _barco_secao(z)
-		_caixa(corpo, Vector3(float(sc[0]) * 1.75, 0.04, 0.05), Vector3(0, -0.02, z), _mt_madeira_esc)
+		_caixa(corpo, Vector3(float(sc[0]) * 1.05, 0.04, 0.05), Vector3(0, -0.02, z), _mt_madeira_esc)
 	for z in [BARCO_BANCO.z, 0.62, -0.95]:
 		var sc2: Array = _barco_secao(z)
 		_caixa(corpo, Vector3(float(sc2[0]) * 2.0 - 0.05, 0.05, 0.26), Vector3(0, 0.22, z), _mt_madeira)
@@ -1123,24 +1124,25 @@ func _remar(v: Dictionary, corpo: Node3D, dt: float) -> void:
 	var troca := 0.0 # 0 = mãos no lado de agora, 1 = já no papel do outro lado
 	if fase < 0.65:
 		var k := fase / 0.65
-		b = Vector3(lado * 0.48, -0.88, lerpf(0.35, -0.3, k))
-		zp = lerpf(0.24, -0.1, k)
+		b = Vector3(lado * 0.3, -0.95, lerpf(0.3, -0.25, k))
+		zp = lerpf(0.3, -0.05, k)
 	else:
 		var r := (fase - 0.65) / 0.35
-		zp = lerpf(-0.1, 0.24, r)
+		zp = lerpf(-0.05, 0.3, r)
 		if r < 0.3:
-			var e := lerpf(-1.07, 0.15, r / 0.3)
-			b = Vector3(lado * cos(e), sin(e), lerpf(-0.3, 0.0, r / 0.3))
+			var e := lerpf(-1.25, 0.15, r / 0.3)
+			b = Vector3(lado * cos(e), sin(e), lerpf(-0.25, 0.0, r / 0.3))
 		elif r < 0.7:
 			var s2 := (r - 0.3) / 0.4
 			b = Vector3(lado * cos(PI * s2), 0.15, sin(PI * s2))
 			troca = smoothstep(0.0, 1.0, s2)
 		else:
-			var e2 := lerpf(0.15, -1.07, (r - 0.7) / 0.3)
-			b = Vector3(-lado * cos(e2), sin(e2), lerpf(0.0, 0.35, (r - 0.7) / 0.3))
+			var e2 := lerpf(0.15, -1.25, (r - 0.7) / 0.3)
+			b = Vector3(-lado * cos(e2), sin(e2), lerpf(0.0, 0.3, (r - 0.7) / 0.3))
 			troca = 1.0
 	b = b.normalized()
-	var piv := Vector3(0.1 * b.x, 0.6, zp)
+	# as mãos vão para a amurada do lado da pá (o cabo passa por fora do casco); com o remo deitado voltam para o meio
+	var piv := Vector3(0.45 * b.x / maxf(0.3, absf(b.x)) * clampf(-b.y * 1.1, 0.0, 1.0), 0.62, zp)
 	# parado: atravessado no colo
 	var w: float = smoothstep(0.0, 1.0, float(v.rema))
 	var b_parado := Vector3(1, 0, 0)
@@ -1154,8 +1156,8 @@ func _remar(v: Dictionary, corpo: Node3D, dt: float) -> void:
 	zb = zb.normalized()
 	remo.transform = Transform3D(Basis(yb.cross(zb), yb, zb), piv)
 	# mãos: a de baixo (do lado da pá) perto da pá, a de cima no punho; na troca de lado as duas mudam de papel
-	var de_baixo := piv + b * 0.2
-	var de_cima := piv - b * 0.28
+	var de_baixo := piv + b * 0.17
+	var de_cima := piv - b * 0.3
 	var maos := [Vector3.ZERO, Vector3.ZERO] # [lado +x, lado -x] do barco
 	for i in 2:
 		var sx: float = 1.0 if i == 0 else -1.0
@@ -1166,7 +1168,7 @@ func _remar(v: Dictionary, corpo: Node3D, dt: float) -> void:
 		maos[i] = parado.lerp(remando, w)
 	v.maos = maos
 	v.deita = 0.06 + w * (0.22 if fase < 0.65 else 0.1) * (1.0 - fase / 0.65 if fase < 0.65 else 0.5)
-	v.torce = w * clampf(b.x, -1.0, 1.0) * -0.25
+	v.torce = w * clampf(piv.x / 0.45, -1.0, 1.0) * -0.3
 
 # poses de sentado (sentar.gd) no esqueleto de quem está no carrinho ou no barco; tira de quem desceu
 const Sentar = preload("res://sentar.gd")
