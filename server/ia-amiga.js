@@ -38,6 +38,7 @@ Conversa até agora:
 ${conversa || '(nenhuma)'}
 ${ctx.amigo}: ${texto}
 Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caçar), "sairTime" (ele quer que você saia do time), "vir" (ele pede para você ir até ele), "ajuda" (ele oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta ao seu chamado), "nada" (só conversa).
+Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá para ir é o jogo; se não der, ele troca a fala). Nunca recuse na fala.
 Devolva só JSON: {"fala": "...", "acao": "nada"}`;
   // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
   const groq = segredo('GROQ_CHAVE');
@@ -45,7 +46,7 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`;
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-        body: JSON.stringify({ model: process.env.GROQ_MODELO || 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 200 }),
+        body: JSON.stringify({ model: process.env.GROQ_MODELO || 'openai/gpt-oss-120b', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 400, reasoning_effort: 'low' }),
         signal: AbortSignal.timeout(8000),
       });
       if (r.ok) { const v = lerResposta((await r.json())?.choices?.[0]?.message?.content); if (v) return v; }
