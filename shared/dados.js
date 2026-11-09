@@ -650,6 +650,17 @@ export const MINA = [
   { id: 'cobre1', nome: 'Veio de cobre', tipo: 'cobre', x: 46, z: -15, r: 4.5, veios: 6, volta: 360 },
   { id: 'pedra1', nome: 'Veio de pedra', tipo: 'pedra', x: 8, z: -48, r: 6.5, veios: 7, volta: 240 },
   { id: 'ferro1', nome: 'Veio de ferro', tipo: 'ferro', x: 104, z: 8, r: 4, veios: 5, volta: 420 },
+  // FASE 2 (André 2026-11-08: "pequenos spots de minério bem diluídos e espalhados por todo o mapa... já preveja o
+  // cristal"): veios pequenos (3 pedras) em chão plano, longe de árvore, estrada e campo de caça, para ter pedra e cobre
+  // perto de qualquer canto, ferro do meio para a frente e cristal (Minerador Nv 8) perto dos campos mais altos.
+  // Ficam fora de naMina (abaixo): os lugares já não têm árvore, então o sorteio da mata não muda nada.
+  ...[['pedra2', 'pedra', -48, -2], ['pedra3', 'pedra', 72, 30], ['pedra4', 'pedra', -28, 212], ['pedra5', 'pedra', 186, 150],
+    ['pedra6', 'pedra', 88, -30], ['cobre2', 'cobre', 34, 24], ['cobre3', 'cobre', 82, 80], ['cobre4', 'cobre', 142, 162],
+    ['cobre5', 'cobre', -26, -40], ['ferro2', 'ferro', 130, 40], ['ferro3', 'ferro', 0, 138], ['ferro4', 'ferro', 190, 108],
+    ['cristal1', 'cristal', 168, 84], ['cristal2', 'cristal', 96, 156], ['cristal3', 'cristal', 174, 172],
+    ['pedra7', 'pedra', 170, 50], ['cobre6', 'cobre', 140, 90], ['pedra8', 'pedra', 120, 72], ['pedra9', 'pedra', 30, 190], ['cobre7', 'cobre', 62, 114]].map(([id, tipo, x, z]) => ({
+    id, nome: { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' }[tipo], tipo, x, z,
+    r: { pedra: 4.2, cobre: 3.4, ferro: 2.8, cristal: 3.4 }[tipo], veios: 3, volta: { pedra: 240, cobre: 360, ferro: 420, cristal: 480 }[tipo], pequeno: true })),
 ];
 // tamanho de cada pedra de veio (1 = a de cobre): a de pedra é maior, a de ferro menor. Vale para o desenho no Godot e
 // para o raio sólido (VEIO_RAIO x tamanho).
@@ -679,7 +690,7 @@ const TRILHA_LAGO = { largura: 1.8, pontos: [[-16, 132], [-15.2, 141], [-13, 150
 const GUARDA_CAVERNA = { x: 147.4, z: -23.6, ry: -1.6 };
 // (x, z) dentro de uma zona de mineração da mata ou em cima da trilha dela (com folga): ali não nasce árvore, mato nem
 // pedra solta
-const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && Math.hypot(x - m.x, z - m.z) < m.r + folga)
+const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && !m.pequeno && Math.hypot(x - m.x, z - m.z) < m.r + folga)
   || TRILHAS_MINA.some((t) => pertoDaLinha(t.pontos, x, z).d < 2);
 // em cima da trilha do Lago Grande (árvore da mata de antes que caía ali sai)
 const naTrilhaLago = (x, z) => pertoDaLinha(TRILHA_LAGO.pontos, x, z).d < 2.4;
@@ -1680,14 +1691,17 @@ FERRAMENTAS_FAZENDA.carrinho = { custo: { lenha: 30, barra_ferro: 6, barra_cobre
 FERRAMENTAS_FAZENDA.barquinho = { custo: { lenha: 30, couro: 4 }, bancada: true, para: 'barquinho' };
 FERRAMENTAS_FAZENDA.navio = { custo: { lenha: 400, barra_ferro: 40, barra_cobre: 30, couro: 40 }, bancada: true, para: 'navio', nivel: 60, ouro: 40000 };
 // Mercadores de pack (FASE 1: poucos, só para testar a economia no mapa de hoje; a FASE 2 espalha de novo, mais longe).
+// FASE 2 (André 2026-11-08: "reduzir a quantidade de mercadores... spots mais distantes para valorizar a viagem e o
+// combustível"): 6 mercadores (o Quimera tinha 12), nos cantos do mapa: Pedrão no noroeste, Malaquias ao pé da montanha,
+// Sálvia no sul do meio, Bráulio no sudeste (perto dos campos Nv 28-30, paga mais), Joca na vila e Nico no Lago Grande.
 // Humanos com o corpo do herói e roupa medieval (CLAUDE.md). merch = o pack que ele faz; todos compram os packs dos outros.
 export const MERCADORES_PACK = [
   { id: 'm_lenha', nome: 'Seu Joca', merch: 'lenha', x: 20, z: 10, ry: -1.6, visual: 'cabelo_m', veste: { tunica: 0x6b4a2e, faixa: 0x3a2616 }, tinta: { cabelo: 0x5a3a22, roupa: 0x6b4a2e, calca: 0x3a3028 } },
-  { id: 'm_pedra', nome: 'Mestre Pedrão', merch: 'pedra', x: 18, z: -42, ry: -1.2, visual: 'cabelo_m', escala: 1.1, veste: { tunica: 0x8a8580, faixa: 0x4a4640 }, tinta: { cabelo: 0x3a3a3a, roupa: 0x7a756e, calca: 0x3a3630 } },
-  { id: 'm_metal', nome: 'Malaquias', merch: 'metal', x: 96, z: -7, ry: 0.8, visual: 'cabelo_m', veste: { tunica: 0x5a6068, faixa: 0x2a2a2a }, tinta: { cabelo: 0x2a2420, roupa: 0x5a6068, calca: 0x2f2a24 } },
-  { id: 'm_horta', nome: 'Dona Sálvia', merch: 'horta', x: 6, z: 68, ry: 2.6, visual: 'vivi', veste: { tunica: 0x5f8f3a, saia: 0x5f8f3a, ate: 'canela', faixa: 0xe8742a }, tinta: { cabelo: 0x6a4a2a, roupa: 0x6f9a44, calca: 0x4a3c2c } },
+  { id: 'm_pedra', nome: 'Mestre Pedrão', merch: 'pedra', x: -40, z: -30, ry: -1.2, visual: 'cabelo_m', escala: 1.1, veste: { tunica: 0x8a8580, faixa: 0x4a4640 }, tinta: { cabelo: 0x3a3a3a, roupa: 0x7a756e, calca: 0x3a3630 } },
+  { id: 'm_metal', nome: 'Malaquias', merch: 'metal', x: 104, z: -30, ry: 0.8, visual: 'cabelo_m', veste: { tunica: 0x5a6068, faixa: 0x2a2a2a }, tinta: { cabelo: 0x2a2420, roupa: 0x5a6068, calca: 0x2f2a24 } },
+  { id: 'm_horta', nome: 'Dona Sálvia', merch: 'horta', x: 56, z: 126, ry: 2.6, visual: 'vivi', veste: { tunica: 0x5f8f3a, saia: 0x5f8f3a, ate: 'canela', faixa: 0xe8742a }, tinta: { cabelo: 0x6a4a2a, roupa: 0x6f9a44, calca: 0x4a3c2c } },
   { id: 'm_peixe', nome: 'Pescador Nico', merch: 'peixe', x: -14, z: 172, ry: 2.8, visual: 'cabelo_m', veste: { tunica: 0x3a5a7a, faixa: 0xd9d2c6 }, tinta: { cabelo: 0xd9d2c6, roupa: 0x3a5a7a, calca: 0x2f4a6a } },
-  { id: 'm_couro', nome: 'Bráulio Curtidor', merch: 'couro', x: 148, z: 38, ry: -2.2, visual: 'cabelo_m', escala: 1.05, veste: { tunica: 0x8a5a34, faixa: 0x3a2616 }, tinta: { cabelo: 0x3a2616, roupa: 0x8a5a34, calca: 0x3a2a20 } },
+  { id: 'm_couro', nome: 'Bráulio Curtidor', merch: 'couro', x: 206, z: 166, ry: -2.2, visual: 'cabelo_m', escala: 1.05, veste: { tunica: 0x8a5a34, faixa: 0x3a2616 }, tinta: { cabelo: 0x3a2616, roupa: 0x8a5a34, calca: 0x3a2a20 } },
 ];
 // os mercadores de pack entram na lista de NPCs do mapa (depois do sorteio das árvores e dos soltos, para nada mudar de
 // lugar; as posições acima foram conferidas longe de árvore, pedra, veio e solto)
