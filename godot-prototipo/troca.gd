@@ -266,6 +266,14 @@ func montar() -> void:
 	var ele: Dictionary = estado.get("ele", {})
 	dir.add_child(painel_oferta("Você oferece", eu, true))
 	dir.add_child(painel_oferta("%s oferece" % outro, ele, false))
+	# troca com a Cecília (André 2026-11-09): o preço que ela pede já aparece, e o ouro sugerido vem no campo
+	var sug: Dictionary = estado.get("sugestao", {})
+	if not sug.is_empty():
+		var st := Menu.rotulo(str(sug.get("texto", "")), 14, Color("ffd36a"))
+		st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		dir.add_child(st)
+		if ouro_ui != null and int(eu.get("ouro", 0)) == 0 and int(sug.get("sugerido", 0)) > 0:
+			ouro_ui.text = str(int(sug.sugerido))
 	dir.add_child(linha_botoes(eu, ele, outro))
 
 # quanto deste lugar da mochila já está na oferta

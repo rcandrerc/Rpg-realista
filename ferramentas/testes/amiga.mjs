@@ -32,9 +32,9 @@ s.eventos = []; s.conversaAmiga('andre', { acao: 'dar' });
 const sobrou = dono.prog.mochila.filter((o) => o?.k === 'lenha').reduce((t, o) => t + o.n, 0);
 ok(sobrou === 2 && a.pedido === null && a.amizade === amz0 + 1, 'Dar: 5 lenha saíram, pedido cumprido, amizade +1');
 ok(dono.prog.ouro > ouro0 || dono.prog.mochila.some((o) => o && AMIGA.plantas.includes(o.k)), 'ela pagou de volta (ouro ou colheita)');
-// troca e time com ela são ignorados (fases 2 e 3)
-s.troca('andre', { acao: 'pedir', com: AMIGA.id });
-ok(!a.pedidoTroca && !s.eventos.some((e) => e.t === 'troca' && e.para === AMIGA.id), 'pedido de troca com ela é ignorado');
+// troca com ela: só o dono (fase 3); o outro jogador é ignorado
+s.troca('outro', { acao: 'pedir', com: AMIGA.id });
+ok(!a.pedidoTroca && !a.troca && !s.eventos.some((e) => e.t === 'troca' && e.para === AMIGA.id), 'o outro jogador não troca com ela');
 // guarda no terreno e o terreno dela não conta na vaga das Terras
 s.guardarAmiga();
 const salvo = s.lotesParaSalvar().find((l) => l.id === L.def.id);
@@ -112,7 +112,11 @@ ok(ITENS.lenha, 'itens');
   ok(!!c.ia.vir, 'aceitou ir até ele');
   let perto = 99; for (let i = 0; i < 20 * 60 && c.ia.vir; i++) { s3.passo(0.05); perto = Math.hypot(c.x - d.x, c.z - d.z); }
   esperar(4);
-  ok(perto < 4 && falas.some((f) => AMIGA.chat.falas.chegou.includes(f.texto)), `chegou perto dele (a ${perto.toFixed(1)} m) e avisou`);
+  ok(perto < 4 && falas.some((f) => AMIGA.chat.falas.chegou.some((t) => f.texto.startsWith(t)) && AMIGA.chat.falas.chegouPergunta.some((t) => f.texto.endsWith(t))), `chegou perto dele (a ${perto.toFixed(1)} m), avisou e perguntou o que fazer`);
+  // ela veio porque topou: o convite de time logo depois entra sem sorteio (nem "já te falei")
+  { const rr = Math.random; Math.random = () => 0.999; s3.eventos = []; Object.assign(d, { x: c.x + 1.5, z: c.z }); s3.conversaAmiga('andre', { acao: 'time' }); Math.random = rr;
+    ok(c.time && d.time === c.time, 'veio quando chamou e entrou no time sem recusar (combinado)');
+    s3.conversaAmiga('andre', { acao: 'sair' }); esperar(1); c.ia.combinado = 0; c.ia.chamado = null; }
   // ela chama: com ele longe, uma hora ela manda mensagem; "bora" entra no time sem sorteio
   Object.assign(d, { x: c.x + 60, z: c.z, y: s3.terreno.altura(c.x + 60, c.z) }); c.ia.conversaAte = 0; c.ia.chamaEm = s3.tempo; c.ia.recusaAte = 0;
   const n0 = falas.length; esperar(1);
@@ -121,4 +125,56 @@ ok(ITENS.lenha, 'itens');
   ok(c.time && d.time === c.time, 'respondeu "bora" ao chamado e ela entrou no time');
   s3.tempo += 2; chat('pode sair do time'); esperar(1);
   ok(!c.time, 'pelo chat ela sai do time');
+}
+// ---------- fase 3: mochila, ouro e troca ----------
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  s4.adicionarJogador('andre', 'André', 'ruiva', {});
+  s4.amigaEntrar('andre');
+  const c = s4.amiga, d = s4.jogadores.get('andre'), cp = c.prog;
+  ok(cp.paginas === AMIGA.mochila.paginas && cp.mochila.length >= 4 * (d.prog.mochila.length / (d.prog.paginas || 1)), `mochila dela com ${cp.paginas} páginas (${cp.mochila.length} lugares)`);
+  // arrumar: veste a peça melhor, vende cajado, a peça velha e o que não usa; guarda poção e colheita
+  cp.mochila.fill(null);
+  cp.mochila[0] = { k: 'peitoral', r: 3 }; cp.mochila[1] = { k: 'cajado', r: 4 }; cp.mochila[2] = { k: 'barra_ferro', n: 4 };
+  cp.mochila[3] = { k: 'pocao', n: 2 }; cp.mochila[4] = { k: 'cenoura', n: 5 };
+  const ouroA = cp.ouro; s4.arrumarMochilaAmiga(c);
+  const tem = (k) => cp.mochila.some((o) => o?.k === k);
+  ok(cp.equip.corpo?.r === 3 && !tem('peitoral') && !tem('cajado') && !tem('barra_ferro') && tem('pocao') && tem('cenoura') && cp.ouro > ouroA,
+    `arrumou: vestiu o peitoral melhor, vendeu cajado, peitoral velho e barras (+${cp.ouro - ouroA} de ouro), guardou poção e cenoura`);
+  // troca: o dono pede, abre na hora
+  Object.assign(d, { x: c.x + 1.5, z: c.z, y: c.y });
+  const esp = (t) => { for (let i = 0; i < t * 20; i++) s4.passo(0.05); };
+  const chat = (texto) => { s4.ouvirAmiga('andre', texto); s4.respostaAmiga('andre', { assunto: s4.assuntoAmiga(texto) }); };
+  const fala = []; s4.aoChatAmiga = (m) => fala.push(m.texto);
+  s4.troca('andre', { acao: 'pedir', com: AMIGA.id });
+  ok(d.troca && c.troca === d.troca, 'o dono pede troca e a janela abre para os dois');
+  chat('quero 3 cenouras');
+  const T = c.troca, minha = T.of[c.id], dele = T.of['andre'];
+  ok(minha.itens.length === 1 && minha.itens[0].n === 3, 'pelo chat "quero 3 cenouras" ela põe 3 cenouras na mesa');
+  esp(2);
+  ok(!minha.tranca, 'sem ouro do outro lado ela não tranca');
+  const preco = Math.ceil(3 * ITENS.cenoura.venda * Math.max(AMIGA.troca.margemMin, AMIGA.troca.margem - (c.amizade | 0) * AMIGA.troca.porAmizade));
+  d.prog.ouro = 1000; s4.troca('andre', { acao: 'ouro', n: preco }); esp(2);
+  ok(minha.tranca && minha.ouro === 0, `com ${preco} de ouro na mesa ela tranca`);
+  s4.troca('andre', { acao: 'trancar', v: true }); s4.troca('andre', { acao: 'confirmar' }); esp(2);
+  ok(!c.troca && !d.troca && contar(d.prog.mochila, 'cenoura') === 3 && contar(cp.mochila, 'cenoura') === 2 && d.prog.ouro === 1000 - preco, 'troca feita: 3 cenouras pra ele, ouro pra ela');
+  // ele vende pra ela: ela paga em ouro
+  d.prog.mochila[5] = { k: 'barra_ferro', n: 2 }; cp.ouro = 500;
+  s4.troca('andre', { acao: 'pedir', com: AMIGA.id }); s4.troca('andre', { acao: 'por', i: 5, n: 2 }); esp(2);
+  ok(c.troca.of[c.id].ouro > 0 && c.troca.of[c.id].tranca, `ele põe 2 barras e ela oferece ${c.troca.of[c.id].ouro} de ouro`);
+  // vira presente: ela tira o ouro e agradece no fim (amizade +1)
+  const amz = c.amizade | 0; chat('é presente'); esp(2);
+  ok(c.troca.of[c.id].ouro === 0 && c.troca.of[c.id].tranca, '"é presente": ela tira o ouro');
+  s4.troca('andre', { acao: 'trancar', v: true }); s4.troca('andre', { acao: 'confirmar' }); esp(2);
+  ok(!c.troca && contar(cp.mochila, 'barra_ferro') === 2 && c.amizade === amz + 1, 'presente recebido: amizade +1');
+  // fora da troca, de longe: "tem cenoura?" -> ela oferece com preço; ao abrir a troca já vai pra mesa e o preço sugerido aparece
+  Object.assign(d, { x: c.x + 20, z: c.z }); fala.length = 0; c.ia.trocaT = null;
+  ok(s4.assuntoAmiga('tem cenoura?') === 'pedirItem', '"tem cenoura?" vira pedido de item quando ela tem');
+  chat('tem cenoura?'); esp(5);
+  ok(fala.some((t) => t.startsWith('Tenho sim: 2 cenoura')) && c.ia.reserva?.[0]?.k === 'cenoura', `ela oferece: "${fala[0]}"`);
+  Object.assign(d, { x: c.x + 1.5, z: c.z }); s4.eventos = [];
+  s4.troca('andre', { acao: 'pedir', com: AMIGA.id });
+  const est = s4.eventos.filter((e) => e.t === 'troca' && e.para === 'andre' && e.fase === 'estado').pop();
+  ok(c.troca?.of[c.id].itens[0]?.n === 2 && est?.sugestao?.sugerido > 0 && /cobra/.test(est.sugestao.texto), `abriu a troca com as cenouras na mesa e a sugestão: "${est?.sugestao?.texto}"`);
+  s4.troca('andre', { acao: 'cancelar' });
 }
