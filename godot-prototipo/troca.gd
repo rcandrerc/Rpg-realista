@@ -123,6 +123,8 @@ func tocou_tela(pos: Vector2) -> void:
 	var outros: Dictionary = m.online.outros
 	for id in outros:
 		var no: Node3D = outros[id].no
+		if outros[id].get("bot", false): # a Cecília (shared/amiga.js): o dono conversa com ela pela conversa.gd; os outros, nada
+			continue
 		if not no.visible or no.position.distance_to(m.heroi.position) > 30.0:
 			continue
 		var pe: Vector3 = no.position

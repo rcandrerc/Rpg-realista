@@ -1448,6 +1448,8 @@ func xp_do_inimigo(e: Dictionary) -> int:
 			base *= min(float(N.xpMax), 1.0 + float(N.xpSobe) * (d - 1))
 		else:
 			base *= clampf(1.0 - float(N.xpCai) * (-d - 2), float(N.xpMin), 1.0)
+			if N.has("xpAlem"): # sem limite de nível: o corte continua além do piso (André 2026-11-09)
+				base *= pow(float(N.xpAlem), max(0, -d - int(N.xpAlemDe)))
 	else: # dados antigos sem os números do Quimera
 		var sobra: float = int(P.prog.nivel) - nv - float(N.get("folga", 99))
 		if sobra > 0.0:
