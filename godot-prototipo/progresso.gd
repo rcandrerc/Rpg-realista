@@ -501,6 +501,8 @@ func organizar(lista: Array) -> Array:
 		var x: int = dados.lugares.find(dados.itens.get(it.k, {}).get("lugar", ""))
 		return x if x >= 0 else dados.lugares.size()
 	itens.sort_custom(func(a, b):
+		var ca: bool = bool(a.get("cad", false)) # André 2026-11-09: trancados vão para o começo
+		if ca != bool(b.get("cad", false)): return ca
 		if g.call(a) != g.call(b): return g.call(a) < g.call(b)
 		if l.call(a) != l.call(b): return l.call(a) < l.call(b)
 		if int(a.get("r", 0)) != int(b.get("r", 0)): return int(a.get("r", 0)) > int(b.get("r", 0))

@@ -18,3 +18,6 @@ j.criando = false; j.morto = false;
 j.prog.mochila = j.prog.mochila.map((_, i) => L[i] ?? null);
 s.item('C', { acao: 'organizar' });
 ok(j.prog.mochila[0].k === 'peitoral' && conta(j.prog.mochila, 'lenha') === 70, 'servidor: item/organizar');
+// André 2026-11-09: trancados (cadeado) vão para o começo, na mesma ordem entre eles
+const T = organizar([{ k: 'peitoral', r: 4 }, { k: 'lenha', n: 5, cad: true }, null, { k: 'espada', r: 0, cad: true }, { k: 'pocao', n: 2 }]);
+ok(T[0].k === 'espada' && T[0].cad && T[1].k === 'lenha' && T[1].cad && T[2].k === 'peitoral', 'trancados primeiro');

@@ -406,7 +406,14 @@ func slot(id: String, nome: String, lado := 1) -> Control:
 	l.offset_bottom = 18
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(l)
-	slots_ui[id] = {"icone": ic, "painel": p, "no": c}
+	# reforço da peça vestida (André 2026-11-09: "+N" para saber qual é qual)
+	var rf := rotulo("", 13, OURO_CLARO)
+	rf.add_theme_constant_override("outline_size", 5)
+	rf.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	rf.position = Vector2(MEDALHAO * 0.62, -4)
+	rf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(rf)
+	slots_ui[id] = {"icone": ic, "painel": p, "no": c, "reforco": rf}
 	if id == "arma":
 		slot_arma = slots_ui[id]
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -444,6 +451,8 @@ func atualizar_slots() -> void:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
 		var escolhido: bool = (sel_equip != "" and sel_equip == lugar_de(id)) or (janela_lugar != "" and janela_lugar == lugar_de(id))
+		if u.has("reforco"):
+			u.reforco.text = "+%d" % int(it.get("e", 0)) if it != null and int(it.get("e", 0)) > 0 else ""
 		if it != null:
 			var c: Color = m.P.cor_item(it)
 			u.icone.texture = icone_tex(m.P.icone_item(it))
@@ -1421,6 +1430,10 @@ func itens_criar(cat: String) -> Array:
 	var lista := []
 	for r in D.receitas:
 		var R: Dictionary = D.receitas[r]
+		# André 2026-11-09: barras e carvão saem da janela da fornalha (combustível + minério), não da aba Criar
+		# (criar por aqui desconectava). A receita na hora continua no Tomás (Profissões > Ferreiro).
+		if eh_da_fornalha(R):
+			continue
 		var lugar := str(D.itens[str(R.faz)].get("lugar", ""))
 		var c := "comida" if str(R.prof) == "coz" else "materiais" if lugar == "" else "armas" if lugar in ["espada", "cajado", "acessorio"] else "armaduras"
 		if c == cat:
@@ -1436,11 +1449,53 @@ func itens_criar(cat: String) -> Array:
 	lista.sort_custom(func(a, b): return a.nivel < b.nivel or (a.nivel == b.nivel and a.nome.naturalnocasecmp_to(b.nome) < 0))
 	return lista
 
+# receita que é da fornalha (mesma conta de shared/dados.js RECEITA_ESTACAO)
+static func eh_da_fornalha(R: Dictionary) -> bool:
+	var faz := str(R.faz)
+	return faz.begins_with("barra_") or faz == "carvao"
+
+# aviso com botão: barras e carvão ficam na fornalha (perto do herói abre a janela; longe, leva até ela)
+func linha_fornalha() -> Control:
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex("cs_fornalha")
+	ic.custom_minimum_size = Vector2(40, 40)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(ic)
+	var t := rotulo("Barras e carvão saem da Fornalha: ponha lenha ou carvão e o minério, ela funde sozinha.", 13, OURO_CLARO)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.add_child(t)
+	var cons = m.construcao
+	var b := botao("Fornalha", ir_fornalha, 14, cons != null)
+	b.custom_minimum_size = Vector2(96, 40)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(b)
+	return cx
+
+func ir_fornalha() -> void:
+	var cons = m.construcao
+	if cons == null:
+		return
+	if cons._alvos_estacao("fornalha").is_empty():
+		_avisar_motivo("Construa uma fornalha no seu terreno (ou crie as barras no Tomás)")
+		return
+	fechar()
+	cons.tocar_estacao("fornalha")
+
 func montar_criar() -> void:
 	conteudo.add_child(linha_vigor())
 	if cat_criar == "aqui":
 		montar_criar_aqui()
 		return
+	if cat_criar == "materiais":
+		conteudo.add_child(linha_fornalha())
 	var lista := itens_criar(cat_criar)
 	if lista.is_empty():
 		conteudo.add_child(rotulo("Nada para criar aqui ainda.", 13, APAGADO))
@@ -1457,6 +1512,9 @@ func montar_criar_aqui() -> void:
 	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(st)
 	var algum := false
+	if "fornalha" in ests and m.construcao != null and m.construcao.minha_fornalha_perto() != "":
+		conteudo.add_child(linha_fornalha())
+		algum = true
 	for c in CATS_CRIAR:
 		if c[0] == "aqui":
 			continue
@@ -1765,6 +1823,13 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 		cd.size = Vector2(tam * 0.34, tam * 0.36)
 		cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(cd)
+	if it != null and P.eh_equip(it) and int(it.get("e", 0)) > 0: # reforço "+N" no canto de cima (André 2026-11-09)
+		var rf := rotulo("+%d" % int(it.e), 11 if tam < 56 else 12, OURO_CLARO)
+		rf.add_theme_constant_override("outline_size", 4)
+		rf.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		rf.position = Vector2(4, 1)
+		rf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(rf)
 	if it != null and marcado:
 		var vel := ColorRect.new() # escurece um pouco e põe o sinal dourado no canto
 		vel.color = Color(0.95, 0.75, 0.3, 0.16)
@@ -2183,12 +2248,15 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
 		var onde := {"i": i} if lugar == "" else {"lugar": lugar}
-		var r1 := botao("Reforçar", func(): m.reforco.comecar(onde, false), 14, true)
-		r1.custom_minimum_size = Vector2(120, 36)
+		# André 2026-11-09: "até cancelar" confundia. Agora: uma tentativa, ou repetir sozinho até o máximo da peça
+		var r1 := botao("Reforçar 1 vez", func(): m.reforco.comecar(onde, false), 14, true)
+		r1.custom_minimum_size = Vector2(140, 36)
 		bs.add_child(r1)
-		var r2 := botao("Até cancelar", func(): m.reforco.comecar(onde, true), 14)
-		r2.custom_minimum_size = Vector2(130, 36)
+		var r2 := botao("Até o máximo", func(): m.reforco.comecar(onde, true), 14)
+		r2.custom_minimum_size = Vector2(140, 36)
+		r2.tooltip_text = texto_ate_maximo(it)
 		bs.add_child(r2)
+		bs.add_child(dica_ate_maximo(it))
 	var trancado: bool = bool(it.get("cad", false))
 	# cadeado (André 2026-11-07): trancado não vende (nem no Vender vários), não vai para o lixo nem para a troca
 	var cad := botao("Destrancar" if trancado else "Trancar", func(): acao_item({"acao": "cadeado", "i": i} if lugar == "" else {"acao": "cadeado", "lugar": lugar}), 14, false)
@@ -2466,6 +2534,16 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 
 # André 2026-11-07: no card da peça só os números (o +N já vem no nome). Chance, custo e falta de atributo aparecem
 # na janelinha de reforçar e nos avisos. Aqui só um aviso curto quando a peça reforçada não pode ser usada (Quimera).
+# explica o botão "Até o máximo" (antes "Até cancelar"): tenta de novo sozinho, cada tentativa cobra o ouro
+func texto_ate_maximo(it) -> String:
+	return "Tenta de novo sozinho até +%d, até o ouro acabar ou até você tocar em Cancelar" % int(m.P.reforco_max(it))
+
+func dica_ate_maximo(it) -> Control:
+	var d := rotulo(texto_ate_maximo(it), 11, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	d.custom_minimum_size = Vector2(140, 0)
+	return d
+
 func linha_reforco(it) -> Control:
 	var P = m.P
 	var l := rotulo("", 12, PIOR)
@@ -2668,12 +2746,13 @@ func montar_janela() -> void:
 		var rv := VBoxContainer.new() # uma vez ou até cancelar (para sozinho no limite da peça, do atributo ou do ouro)
 		rv.add_theme_constant_override("separation", 4)
 		rv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var rf := botao("Reforçar", func(): m.reforco.comecar({"lugar": l}, false), 14, true)
-		rf.custom_minimum_size = Vector2(120, 38)
+		var rf := botao("Reforçar 1 vez", func(): m.reforco.comecar({"lugar": l}, false), 14, true)
+		rf.custom_minimum_size = Vector2(140, 38)
 		rv.add_child(rf)
-		var ra := botao("Até cancelar", func(): m.reforco.comecar({"lugar": l}, true), 14)
-		ra.custom_minimum_size = Vector2(120, 38)
+		var ra := botao("Até o máximo", func(): m.reforco.comecar({"lugar": l}, true), 14)
+		ra.custom_minimum_size = Vector2(140, 38)
 		rv.add_child(ra)
+		rv.add_child(dica_ate_maximo(atual))
 		linha.add_child(rv)
 	if atual != null:
 		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
