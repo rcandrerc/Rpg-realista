@@ -295,7 +295,7 @@ export const Amiga = {
     if (L && Object.values(L.horta).some((t) => { if (!t.c) return false; crescerPlanta(t, agora); return fasePlanta(t.g / PLANTAS[t.c].G) >= 4 || !(t.w && agora < t.w + REGA_MS); })) contra.push(['horta', R.horta]);
     if (ehNoite(horaDoJogo(dono.prog.dia))) contra.push(['noite', R.noite]);
     const dif = (dono.prog.nivel | 0) - (a.prog.nivel | 0) - R.nivelLivre;
-    if (dif > 0) contra.push(['perigo', Math.min(R.perigoMax, dif * R.porNivel)]);
+    if (dif > 0 && R.perigoMax > 0) contra.push(['perigo', Math.min(R.perigoMax, dif * R.porNivel)]);
     for (const [, n] of contra) p -= n;
     contra.sort((x, y) => y[1] - x[1]);
     return { p: Math.max(R.min, Math.min(R.max, p)), motivo: contra[0]?.[0] || 'vontade' };
