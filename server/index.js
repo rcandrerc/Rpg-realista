@@ -9,6 +9,7 @@ import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGA } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
+import { pensarAmiga } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 
 const { Server, Room, ServerError } = colyseus;
@@ -85,7 +86,19 @@ class SalaClareira extends Room {
       const h = historicoChat[msg.canal];
       h.push(msg); if (h.length > (msg.canal === 'pm' ? CHAT.historicoPm : CHAT.historico)) h.shift();
       for (const s of salas) s.sim.receberChat(msg);
+      // mensagem para a Cecília (amiga virtual do dono): a IA grátis pensa a resposta; sem IA, as regras (shared/amiga.js)
+      if (msg.canal === 'pm' && msg.alvo === AMIGA.conta && this.sim.amiga) {
+        const id = c.sessionId, ctx = this.sim.contextoAmiga(id);
+        this.sim.ouvirAmiga(id, msg.texto);
+        pensarAmiga(ctx, msg.texto).then((r) => {
+          const regra = this.sim.assuntoAmiga(msg.texto);
+          // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
+          this.sim.respostaAmiga(id, r ? { assunto: r.assunto === 'conversa' ? (['time', 'sairTime', 'vir', 'sim', 'nao'].includes(regra) ? regra : 'conversa') : r.assunto, fala: r.fala } : { assunto: regra });
+        });
+      }
     });
+    // as falas da Cecília no chat entram no histórico (quem volta ao jogo vê a conversa) e vão para o dono
+    this.sim.aoChatAmiga = (msg) => { historicoChat.pm.push(msg); if (historicoChat.pm.length > CHAT.historicoPm) historicoChat.pm.shift(); this.sim.receberChat(msg); };
     // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
     this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, Number.isInteger(m.n) ? { r: m.r, n: m.n } : { r: m.r }); });

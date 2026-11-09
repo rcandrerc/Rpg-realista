@@ -10,6 +10,7 @@ const COR_TIME := Color("7ee08a") # verde do time (minimapa e barras)
 
 var m # main.gd
 var lista: Array = [] # do servidor: [{c, nome, id, nivel, on (0 off, 1 aqui, 2 outro mundo), time}]
+var virtuais: Array = [] # amigos virtuais (André 2026-11-09, como no Quimera): a Cecília, só para o dono [{c, nome, id, nivel, time, amizade}]
 var maximo := 20
 var time: Array = [] # do servidor: [{id, nome, nivel, vida, vidaMax, mana, manaMax, x, z, morto}]
 var lider := ""
@@ -86,6 +87,7 @@ func do_servidor(ev: Dictionary) -> void:
 		"amigos":
 			lista = ev.get("lista", [])
 			maximo = int(ev.get("max", 20))
+			virtuais = ev.get("virtuais", [])
 		"amigo": # pedido de amizade
 			var de := str(ev.de)
 			m.troca.mostrar_cartao("%s quer ser seu amigo" % str(ev.get("nome", "Alguém")), [["Aceitar", func(): _enviar("amigo", {"acao": "aceitar", "com": de})], ["Recusar", func(): _enviar("amigo", {"acao": "recusar", "com": de})]], float(ev.get("dur", 30)))
@@ -239,10 +241,43 @@ func montar_janela(mt) -> void:
 			mt.montar(), false, confirmar), 92))
 		col.add_child(linha)
 		linhas += 1
+	# amigos virtuais: a Cecília (shared/amiga.js). "Msg" abre a conversa privada; "Chamar" e "Time" mandam a mensagem
+	# por ela (o servidor entende e ela decide se vem ou entra no time, como uma pessoa)
+	if not virtuais.is_empty():
+		col.add_child(Menu.rotulo("Amigos virtuais", 18, Color("ff8fc8")))
+		linhas += 1
+		for v in virtuais:
+			var c := str(v.c)
+			var nome := str(v.nome)
+			var linha := HBoxContainer.new()
+			linha.add_theme_constant_override("separation", 8)
+			var coracao := Menu.rotulo("♥", 15, Color("ff8fc8"))
+			linha.add_child(coracao)
+			var l := Menu.rotulo("%s  (Nv %d · amizade %d)" % [nome, int(v.get("nivel", 1)), int(v.get("amizade", 0))], 15, Menu.TEXTO)
+			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			l.clip_text = true
+			linha.add_child(l)
+			if m.chat:
+				linha.add_child(_pequeno(mt._botao("Msg", func():
+					mt.fechar()
+					m.chat.abrir_pm(c, nome), false), 64))
+				linha.add_child(_pequeno(mt._botao("Chamar", func(): _falar_virtual(mt, c, nome, "Vem aqui comigo?"), false), 86))
+				if v.get("time", false):
+					linha.add_child(_pequeno(mt._botao("Sair do time", func(): _falar_virtual(mt, c, nome, "Pode sair do time, valeu pela ajuda!"), false), 120))
+				else:
+					linha.add_child(_pequeno(mt._botao("Time", func(): _falar_virtual(mt, c, nome, "Bora pro meu time?")), 70))
+			col.add_child(linha)
+			linhas += 1
 	rolar.custom_minimum_size = Vector2(416, min(230.0, 26.0 + 40.0 * linhas))
 	mt.conteudo.add_child(rolar)
 	rolar.get_v_scroll_bar().value_changed.connect(func(v): _rolar_y = int(v))
 	rolar.set_deferred("scroll_vertical", _rolar_y)
+
+# manda a mensagem para a amiga virtual e abre a conversa para ver a resposta dela
+func _falar_virtual(mt, c: String, nome: String, texto: String) -> void:
+	m.rede("chat", {"canal": "pm", "para": c, "texto": texto})
+	mt.fechar()
+	m.chat.abrir_pm(c, nome)
 
 func _pequeno(b: Button, largura: float) -> Button:
 	b.custom_minimum_size = Vector2(largura, 34)
