@@ -58,9 +58,13 @@ func _initialize() -> void:
 		await esperar(4)
 		await foto("2-ela-%d" % k)
 		await esperar(140)
-	# 3) o herói vai até ela andando sozinho (toque no corpo dela) e abre a conversa
+	# 3) espera ela passear pela vila (a casa dela fica no caminho reto) e o herói vai até ela andando sozinho
 	cam.current = false
 	m.camera.current = true
+	for i in 3000:
+		if no.position.z < 25.0:
+			break
+		await esperar(1)
 	m.conversa.indo = {"npc": m.conversa._amiga_npc(), "ate": m.tempo + 60.0, "d": 999.0, "t": m.tempo}
 	for i in 1500:
 		await esperar(1)
