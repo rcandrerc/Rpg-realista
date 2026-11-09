@@ -103,7 +103,6 @@ var txt_qtd_n: Label
 var b_qtd_ok: Button
 var qtd := 1
 var _qtd_k := ""
-var _qtd_rar := 0 # raridade escolhida na aba Criar (André 2026-11-09); 0 = a receita de sempre
 var _qtd_tipo := "obra" # "obra" (peça/ferramenta: fabricar) ou "receita" (Ferreiro/Alfaiate: criar)
 var tela_criar: CanvasLayer # janela e barrinha por cima do menu (a aba Criar da mochila e a mesa também usam)
 var painel_fab: PanelContainer # "Criando Fundação 2/6" com a barrinha carregando
@@ -1973,7 +1972,7 @@ func criar() -> void:
 
 # abre a janelinha de quantas (construção, aba Criar da mochila e mesa de criar).
 # tipo "obra": peça da casa ou ferramenta (ferramenta sai uma só, direto na barrinha); "receita": Ferreiro/Alfaiate.
-func pedir_criar(tipo: String, k: String, rar := 0) -> void:
+func pedir_criar(tipo: String, k: String) -> void:
 	if not m.on():
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
@@ -1990,25 +1989,22 @@ func pedir_criar(tipo: String, k: String, rar := 0) -> void:
 			return
 	_qtd_tipo = tipo
 	_qtd_k = k
-	_qtd_rar = rar if tipo == "receita" else 0
 	qtd = 1
 	_mostrar_qtd()
 	painel_qtd.visible = true
 
 # custo em materiais de uma unidade (peça: custo; receita: usa)
 func _custo_qtd() -> Dictionary:
-	return m.P.receita_na_raridade(_qtd_k, _qtd_rar).usa if _qtd_tipo == "receita" else dados_criar(_qtd_k).custo
+	return D.receitas[_qtd_k].usa if _qtd_tipo == "receita" else dados_criar(_qtd_k).custo
 
 func _nome_qtd() -> String:
-	if _qtd_tipo == "receita" and _qtd_rar > 0:
-		return "%s %s" % [str(D.itens[str(D.receitas[_qtd_k].faz)].nome), str(D.raridades[_qtd_rar].nome)]
 	return str(D.itens[str(D.receitas[_qtd_k].faz)].nome) if _qtd_tipo == "receita" else str(dados_criar(_qtd_k).nome)
 
 # vigor de uma receita (0 nas peças)
 func _vigor_qtd() -> float:
 	if _qtd_tipo != "receita":
 		return 0.0
-	var R: Dictionary = m.P.receita_na_raridade(_qtd_k, _qtd_rar)
+	var R: Dictionary = D.receitas[_qtd_k]
 	return float(m.P.custo_vigor(str(R.prof), float(R.vigor)))
 
 # quantas dá para criar com o que tenho (no máximo a fila do servidor)
@@ -2054,7 +2050,7 @@ func _mudar_qtd(d: int) -> void:
 func _confirmar_qtd() -> void:
 	painel_qtd.visible = false
 	if _qtd_tipo == "receita":
-		m.rede("criar", {"r": _qtd_k, "n": qtd, "rar": _qtd_rar})
+		m.rede("criar", {"r": _qtd_k, "n": qtd})
 		return
 	var mot := motivo_criar(_qtd_k)
 	if mot != "":

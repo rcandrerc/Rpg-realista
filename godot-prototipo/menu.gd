@@ -1429,10 +1429,17 @@ func criar(r: String, rar := 0) -> void:
 	if not m.on():
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
-	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
-		m.construcao.pedir_criar("receita", r, rar)
+	if rar > 0: # Raro em diante: evolui a peça da raridade de baixo (a janelinha de sempre pergunta e mostra a chance)
+		var i: int = m.P.peca_para_evoluir(str(m.P.dados.receitas[r].faz), rar)
+		if i < 0:
+			_avisar_motivo("Precisa de %s na mochila" % m.P.nome_item({"k": str(m.P.dados.receitas[r].faz), "r": rar - 1}))
+			return
+		perguntar_evoluir(i)
 		return
-	m.rede("criar", {"r": r, "rar": rar})
+	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
+		m.construcao.pedir_criar("receita", r)
+		return
+	m.rede("criar", {"r": r})
 
 # ---------- aba Criar (André 2026-11-04): tudo o que se cria, em submenus ----------
 # receitas das profissões (Ferreiro, Alfaiate) e peças da construção / ferramentas da fazenda, cada uma com onde se cria
@@ -1552,7 +1559,7 @@ func montar_criar_aqui() -> void:
 # "Melhorar equipamento" no submenu da estação (André 2026-11-07: "pegar um épico, transformar em lendário" na bancada):
 # as peças da mochila e as vestidas que esta estação melhora (bigorna/forja do Tomás: armas; bancada/banca da Rosa:
 # armaduras e colar). Evoluir e Reforçar são os mesmos do cartão da peça na mochila (que continua igual); o servidor confere.
-func montar_melhorar_aqui(ests: Array, so_tipo := "") -> bool:
+func montar_melhorar_aqui(ests: Array, so_tipo := "", so_reforco := false) -> bool:
 	var P = m.P
 	var D: Dictionary = P.dados
 	if not D.has("catalisador"):
@@ -1575,7 +1582,7 @@ func montar_melhorar_aqui(ests: Array, so_tipo := "") -> bool:
 		var prof: String = str(D.receitas[it.k].prof) if D.receitas.has(it.k) else ("fer" if tipo == "arma" else "alf")
 		if not (("bigorna" if prof == "fer" else "bancada") in ests):
 			continue
-		var pode_evoluir: bool = p[1] >= 0 and int(it.r) < D.raridades.size() - 1
+		var pode_evoluir: bool = not so_reforco and p[1] >= 0 and int(it.r) < D.raridades.size() - 1
 		var pode_reforcar: bool = int(it.get("e", 0)) < P.reforco_max(it)
 		if not pode_evoluir and not pode_reforcar:
 			continue
@@ -1614,7 +1621,7 @@ func montar_melhorar_aqui(ests: Array, so_tipo := "") -> bool:
 			for k in usa:
 				ics.add_child(icone_material(str(k), P.contar(k), int(usa[k])))
 			txt.add_child(ics)
-		elif p[1] < 0:
+		elif p[1] < 0 and not so_reforco:
 			txt.add_child(rotulo("Vestida · para evoluir, tire e guarde na mochila", 12, APAGADO))
 		l.add_child(txt)
 		var bs := VBoxContainer.new()
@@ -1740,7 +1747,7 @@ func pode_criar_ja(x: Dictionary) -> bool:
 		for k in R.usa:
 			if P.contar(k) < int(R.usa[k]):
 				return false
-		return true
+		return int(x.rar) <= 0 or P.peca_para_evoluir(str(R.faz), int(x.rar)) >= 0
 	if cons == null or cons.motivo_criar(e.k) != "":
 		return false
 	var C: Dictionary = cons.dados_criar(e.k)
@@ -1816,7 +1823,7 @@ func linhas_melhorar(corpo: Control, tipo: String) -> void:
 	var antes = conteudo # montar_melhorar_aqui escreve em "conteudo"
 	var tmp := VBoxContainer.new()
 	conteudo = tmp
-	var tem := montar_melhorar_aqui(ests, tipo)
+	var tem := montar_melhorar_aqui(ests, tipo, true) # evoluir já é a linha da raridade (precisa da peça de baixo)
 	conteudo = antes
 	if tem:
 		for i in 3: # separador (2) e a explicação: o grupo já diz o que é
@@ -1891,7 +1898,7 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	var of: Dictionary = D.oficina[str(R0.prof)]
 	var onde: String = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 	var aqui: bool = m.trabalho.perto_oficina(str(R0.prof)) or (cons != null and cons.estacao_perto([est]))
-	var nv_ok: bool = P.prof_nivel(str(R0.prof)) >= int(R0.nivel)
+	var nv_ok: bool = P.prof_nivel(str(R0.prof)) >= int(R.nivel)
 	var custo: float = P.custo_vigor(str(R0.prof), float(R.vigor))
 	var it := {"k": faz_s, "r": rar}
 	var cx := PanelContainer.new()
@@ -1945,6 +1952,14 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	mats.add_theme_constant_override("h_separation", 8)
 	mats.add_theme_constant_override("v_separation", 4)
 	var tem := true
+	if rar > 0: # evoluir: primeiro a peça da raridade de baixo
+		var baixa := {"k": faz_s, "r": rar - 1}
+		var qt := 0
+		for ob in P.prog.mochila:
+			if ob != null and str(ob.k) == faz_s and int(ob.get("r", 0)) == rar - 1 and not ob.has("n"):
+				qt += 1
+		tem = qt >= 1
+		mats.add_child(icone_material(faz_s, qt, 1, baixa))
 	for k in R.usa:
 		var n := int(R.usa[k])
 		var t2: int = P.contar(k)
@@ -1956,13 +1971,16 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 		mats.add_child(vg)
 	baixo.add_child(mats)
 	var pode: bool = aqui and nv_ok and tem and P.vigor() >= custo
-	var b := botao("Criar", func():
+	var b := botao("Criar", func(): # Raro em diante gasta a peça da raridade de baixo (André: "é uma aba só")
 		if not _arrastou:
 			criar(e.k, rar), 14, pode)
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
-	avisar_travado(b, func(): return motivo_receita(aqui, onde, nv_ok, "%s Nv %d" % [D.profissoes[str(R0.prof)].nome, int(R0.nivel)], R.usa, custo))
+	avisar_travado(b, func():
+		if rar > 0 and P.peca_para_evoluir(faz_s, rar) < 0:
+			return "Precisa de %s na mochila (evolui a de baixo)" % P.nome_item({"k": faz_s, "r": rar - 1})
+		return motivo_receita(aqui, onde, nv_ok, "%s Nv %d" % [D.profissoes[str(R0.prof)].nome, int(R.nivel)], R.usa, custo))
 	baixo.add_child(b)
 	if fixa >= 0: # uma linha só: peça · nome · materiais · Criar (como no Quimera)
 		baixo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1973,8 +1991,9 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	return cx
 
 # material como símbolo: ícone com "tem/precisa" embaixo (verde ou vermelho); tocar diz o nome
-func icone_material(k: String, tem: int, precisa: int) -> Control:
+func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	var P = m.P
+	var alvo: Dictionary = peca if not peca.is_empty() else {"k": k}
 	var bx := VBoxContainer.new()
 	bx.add_theme_constant_override("separation", 0)
 	bx.custom_minimum_size = Vector2(44, 0)
@@ -1986,7 +2005,7 @@ func icone_material(k: String, tem: int, precisa: int) -> Control:
 	for e in ["normal", "hover", "pressed"]:
 		q.add_theme_stylebox_override(e, st)
 	var ic := TextureRect.new()
-	ic.texture = icone_tex(P.icone_item({"k": k}))
+	ic.texture = icone_tex(P.icone_item(alvo))
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ic.offset_left = 4
 	ic.offset_top = 4
@@ -1994,10 +2013,10 @@ func icone_material(k: String, tem: int, precisa: int) -> Control:
 	ic.offset_bottom = -4
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.modulate = tinta(ic.texture, P.cor_item({"k": k}))
+	ic.modulate = tinta(ic.texture, P.cor_item(alvo))
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	q.add_child(ic)
-	var nome := str(P.dados.itens[k].nome)
+	var nome: String = str(P.nome_item(alvo)) if not peca.is_empty() else str(P.dados.itens[k].nome)
 	q.pressed.connect(func():
 		if not _arrastou:
 			m.hud.aviso("%s: tem %d, precisa de %d" % [nome, tem, precisa]))

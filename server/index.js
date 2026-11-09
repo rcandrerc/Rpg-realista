@@ -88,8 +88,7 @@ class SalaClareira extends Room {
     });
     // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
-    // rar (André 2026-11-09): raridade escolhida na aba Criar (0 a 4); sem rar = a receita de sempre
-    this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) { const rar = Number.isInteger(m.rar) && m.rar > 0 && m.rar < 5 ? m.rar : 0; this.sim.criar(c.sessionId, Number.isInteger(m.n) ? { r: m.r, n: m.n, rar } : { r: m.r, rar }); } });
+    this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, Number.isInteger(m.n) ? { r: m.r, n: m.n } : { r: m.r }); });
     // Vila dos Lotes (construção e fazenda do Quimera): comprar o lote, construir, desmontar e a horta
     // Terras: m = { x0, z0, x1, z1 } (o terreno que ele marcou arrastando o dedo)
     this.ouvir('lote', (c, m) => { if (m && typeof m === 'object') this.sim.comprarLote(c.sessionId, { x0: Number(m.x0), z0: Number(m.z0), x1: Number(m.x1), z1: Number(m.z1) }); });
