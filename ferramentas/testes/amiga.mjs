@@ -69,15 +69,8 @@ ok(ITENS.lenha, 'itens');
   ok(c.time && d.time === c.time && c.time.membros.length === 2, 'aceitou e entrou no time do dono');
   // vontade: amizade sobe a chance, nível muito acima baixa e diz o motivo
   c.amizade = 0; const v0 = s3.vontadeAmiga(c, d).p; c.amizade = 4; const v1 = s3.vontadeAmiga(c, d).p;
-  ok(v1 > v0, `vontade: ${v0.toFixed(2)} sem amizade, ${v1.toFixed(2)} com amizade`);
-  // dono bem acima: ela treina sozinha e alcança (fica 'atras' níveis abaixo), então não recusa por "forte demais"
-  const salvoNv = JSON.parse(JSON.stringify(c.prog));
-  d.prog.nivel = 40; const v2 = s3.vontadeAmiga(c, d); d.prog.nivel = 1;
-  ok(c.prog.nivel === 40 - AMIGA.time.atras && c.prog.pontos === 0 && v2.motivo !== 'perigo' && v2.p >= v1 - 0.01, `dono nível 40: ela alcança o nível ${c.prog.nivel} e não recusa por nível (${v2.p.toFixed(2)}, ${v2.motivo})`);
-  c.prog = salvoNv; s3.aplicarStatus(c);
-  // perigo ainda existe se ela estiver muito abaixo (regra antiga mantida)
-  c.prog.nivel = 1; d.prog.nivel = 40; const R = AMIGA.time; const atras0 = R.atras; R.atras = 39; const v3 = s3.vontadeAmiga(c, d); R.atras = atras0; d.prog.nivel = 1; c.prog = salvoNv; s3.aplicarStatus(c);
-  ok(v3.motivo === 'perigo', `regra de nível antiga continua valendo (${v3.motivo})`);
+  const nvC = c.prog.nivel; d.prog.nivel = 40; const v2 = s3.vontadeAmiga(c, d); d.prog.nivel = 1;
+  ok(v1 > v0 && v2.motivo !== 'perigo' && c.prog.nivel === nvC, `vontade: ${v0.toFixed(2)} sem amizade, ${v1.toFixed(2)} com amizade; dono 39 níveis acima não pesa (${v2.p.toFixed(2)}, ${v2.motivo}) e ela não sobe sozinha`);
   // segue o dono
   Object.assign(d, { x: -1, z: 12, y: s3.terreno.altura(-1, 12), ry: 0 });
   for (let i = 0; i < 20 * 30; i++) s3.passo(0.05);
