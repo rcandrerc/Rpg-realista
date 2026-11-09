@@ -10,7 +10,7 @@ uniform sampler2D terra_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 uniform vec3 tom_areia : source_color = vec3(1.18, 1.08, 0.86);
 uniform float alto = 22.0;
-uniform float praia = 1.1; // até essa altura é areia
+uniform float praia = 1.3; // até essa altura é areia (2026-11-09: 1,1 -> 1,3, prainha mais larga no mar)
 // 2026-11-09: estradas e trilhas vêm da máscara de 1 m (relevo/mundo_mascara.png, R), com a borda macia dos dois lados
 uniform sampler2D mascara_mundo : filter_linear, repeat_disable;
 uniform vec4 mascara_area = vec4(-260.5, -320.5, 1441.0, 741.0);
@@ -70,9 +70,15 @@ void fragment() {
 	vec3 g = mix(grama, grama * vec3(1.08, 1.0, 0.78), smoothstep(0.35, 0.8, hk));
 	vec3 rocha = mix(pedra, cascalho, talus * smoothstep(0.35, 0.55, ruido2 + 0.2));
 	rocha *= mix(1.0, 0.78, smoothstep(0.45, 0.78, incl));
+	// 2026-11-09 (André: "como na estradinha: a grama vai ficando mais clarinha e a faixa em volta cor de terra, uma
+	// prainha"): antes da areia do mar e na beira dos rios a grama clareia (seca, amarelada) numa faixa larga e macia
+	float kc = 1.0 - smoothstep(praia + 0.3, praia + 2.2, mundo.y + (ruido - 0.5) * 1.1);
+	kc = max(kc, smoothstep(0.02, 0.22, rio + (ruido2 - 0.5) * 0.15));
+	g = mix(g, g * vec3(1.22, 1.16, 0.86) + vec3(0.05, 0.04, 0.0), kc * 0.85);
 	vec3 c = mix(g, rocha, pr);
-	// praia: areia que entra na grama em ondas; rente à água (e embaixo dela) a areia molhada escurece
+	// praia: faixa de terra/areia que entra na grama em ondas; rente à água (e embaixo dela) a areia molhada escurece
 	vec3 areia = texture(areia_tex, w / 3.0).rgb * tom_areia * (0.92 + 0.16 * ruido2);
+	areia = mix(areia, vec3(dot(areia, vec3(0.333))) * vec3(1.12, 1.02, 0.86), 0.35); // menos alaranjada (prainha)
 	float ka = 1.0 - smoothstep(praia - 0.35, praia + 0.25, mundo.y + (ruido - 0.5) * 0.6);
 	areia = mix(areia, areia * vec3(0.62, 0.6, 0.58), 1.0 - smoothstep(-0.1, 0.35, mundo.y));
 	c = mix(c, areia, ka * (1.0 - pr * 0.7));
