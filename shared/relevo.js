@@ -3,6 +3,8 @@
 // Servidor, site e Godot usam a mesma conta: o Godot recebe a grade da montanha e os lagos pelo mundo.json
 // (client/exportar-godot/mundo.mjs) e repete relevo() e chaoDoRelevo() em godot-prototipo/terreno.gd.
 
+import { alturaMundo } from './mundo.js';
+
 // ---------- lagos ----------
 // x, z: centro; rx, rz: raios da elipse; giro: rad; lobos: ondas na margem [[k, amplitude, fase]] (margem orgânica);
 // fundo: profundidade de verdade no meio (m). Raso: dá para atravessar andando com água pelo joelho. Fundo: o leito
@@ -47,6 +49,7 @@ export function noLago(x, z) {
     const p = L.fundo > 1.5 ? L.fundo * (0.12 * suave(1, 0.85, d) + 0.88 * suave(0.85, 0.35, d)) : L.fundo * suave(1, 0.55, d) * (0.55 + 0.45 * suave(0.55, 0.1, d));
     return { lago: L, fundo: p, d };
   }
+  if (MUNDO_G) { const h = mundoEm(x, z); if (h < 0) return { lago: MAR, fundo: -h, d: 0.5 }; } // o mar (FASE 3)
   return null;
 }
 
@@ -169,7 +172,19 @@ export const BOCA_CAVERNA = { x: 150.58, z: -28.53, dx: 0.829, dz: -0.559, alto:
   }
 })(GRADE_MONTANHA, BOCA_CAVERNA);
 
+// FASE 3 (shared/mundo.js): a grade do mundo (os continentes em volta do mapa de hoje). Fica registrada depois que o
+// mapa existe (shared/dados.js chama usarMundo). Na terra ela soma na altura; no mar vira água (noLago devolve o MAR).
+let MUNDO_G = null;
+export function usarMundo(G) { MUNDO_G = G; }
+export const gradeDoMundo = () => MUNDO_G;
+export const MAR = { id: 'mar', nome: 'Mar', mar: true, fundo: 7 };
+const mundoEm = (x, z) => (MUNDO_G ? alturaMundo(MUNDO_G, x, z) : 0);
+
 export function alturaMontanha(x, z) {
+  const w = MUNDO_G ? Math.max(0, mundoEm(x, z)) : 0;
+  return w + soMontanha(x, z);
+}
+function soMontanha(x, z) {
   const G = GRADE_MONTANHA, fx = (x - G.x0) / G.passo, fz = (z - G.z0) / G.passo;
   if (fx < 0 || fz < 0 || fx >= G.n - 1 || fz >= G.n - 1) return 0;
   const ix = Math.floor(fx), iz = Math.floor(fz), ax = fx - ix, az = fz - iz, k = iz * G.n + ix, h = G.h;

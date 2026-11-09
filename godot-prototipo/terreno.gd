@@ -21,8 +21,64 @@ var tunel_caixa := Rect2()
 var porta := 12.0 # s do selo
 const TUNEL_G := 4.0
 
+# FASE 3 (shared/mundo.js): a grade do mundo grande, os continentes em volta do mapa de hoje (dados/mundo_grade.json).
+# Na terra soma na altura; no mar vira água (no_lago devolve o MAR). Mesma conta de shared/relevo.js.
+var mundo_g := {} # x0, z0, passo, nx, nz, h (PackedFloat32Array, m), terra (texto de dígitos)
+const MAR := {"nome": "Mar", "mar": true, "id": "mar"}
+func _carregar_mundo() -> void:
+	if not FileAccess.file_exists("res://dados/mundo_grade.json"):
+		return
+	var g = JSON.parse_string(FileAccess.get_file_as_string("res://dados/mundo_grade.json"))
+	if typeof(g) != TYPE_DICTIONARY:
+		return
+	var h := PackedFloat32Array()
+	h.resize(g.h.size())
+	for i in g.h.size():
+		h[i] = float(g.h[i]) * 0.1
+	mundo_g = {"x0": float(g.x0), "z0": float(g.z0), "passo": float(g.passo), "nx": int(g.nx), "nz": int(g.nz), "h": h, "terra": str(g.terra), "terras": g.terras,
+		"estrada": str(g.get("estrada", "")), "lugares": g.get("lugares", []), "estradas": g.get("estradas", []),
+		"rio": str(g.get("rio", "")), "rios": g.get("rios", []), "pontes": g.get("pontes", [])}
+
+# altura da grade do mundo (bilinear); fora dela é mar fundo
+func altura_mundo(x: float, z: float) -> float:
+	if mundo_g.is_empty():
+		return 0.0
+	var fx: float = (x - mundo_g.x0) / mundo_g.passo
+	var fz: float = (z - mundo_g.z0) / mundo_g.passo
+	var nx: int = mundo_g.nx
+	if fx < 0.0 or fz < 0.0 or fx >= nx - 1 or fz >= int(mundo_g.nz) - 1:
+		return -7.0
+	var ix := int(fx)
+	var iz := int(fz)
+	var ax := fx - ix
+	var az := fz - iz
+	var k := iz * nx + ix
+	var h: PackedFloat32Array = mundo_g.h
+	return (h[k] * (1.0 - ax) + h[k + 1] * ax) * (1.0 - az) + (h[k + nx] * (1.0 - ax) + h[k + nx + 1] * ax) * az
+
+# terra andável do mundo grande (shared/dados.js andavelMundo): seco ou com água até a cintura, numa das terras
+func terra_mundo(x: float, z: float) -> bool:
+	if mundo_g.is_empty() or altura_mundo(x, z) <= -0.9:
+		return false
+	var i := int(round((x - float(mundo_g.x0)) / float(mundo_g.passo)))
+	var j := int(round((z - float(mundo_g.z0)) / float(mundo_g.passo)))
+	if i < 0 or j < 0 or i >= int(mundo_g.nx) or j >= int(mundo_g.nz):
+		return false
+	return str(mundo_g.terra)[j * int(mundo_g.nx) + i] != "0"
+
+# FASE 3, Parte 7b: em cima de um cais de madeira (mundo.cais) também se anda, mesmo por cima do mar (shared/simulacao.js naCais)
+func na_cais(x: float, z: float) -> bool:
+	for c in m.get("cais", []):
+		var ox: float = x - float(c.x)
+		var oz: float = z - float(c.z)
+		var ry: float = float(c.ry)
+		if absf(ox * sin(ry) + oz * cos(ry)) <= float(c.d) / 2.0 + 0.3 and absf(ox * cos(ry) - oz * sin(ry)) <= float(c.w) / 2.0 + 0.3:
+			return true
+	return false
+
 func _init(mundo: Dictionary) -> void:
 	m = mundo
+	_carregar_mundo()
 	for l in m.get("lagos", []):
 		lagos.append({"x": float(l.x), "z": float(l.z), "rx": float(l.rx), "rz": float(l.rz), "giro": float(l.giro), "fundo": float(l.fundo),
 			"lobos": l.lobos, "R": maxf(float(l.rx), float(l.rz)) * 1.4, "c": cos(float(l.giro)), "s": sin(float(l.giro)), "nome": str(l.get("nome", "")),
@@ -233,9 +289,16 @@ func no_lago(x: float, z: float) -> Dictionary:
 		var f: float = L.fundo
 		var p: float = f * (0.12 * _suave(1.0, 0.85, d) + 0.88 * _suave(0.85, 0.35, d)) if f > 1.5 else f * _suave(1.0, 0.55, d) * (0.55 + 0.45 * _suave(0.55, 0.1, d))
 		return {"lago": L, "fundo": p, "d": d}
+	if not mundo_g.is_empty(): # o mar (FASE 3)
+		var hm := altura_mundo(x, z)
+		if hm < 0.0:
+			return {"lago": MAR, "fundo": -hm, "d": 0.5}
 	return {}
 
 func altura_montanha(x: float, z: float) -> float:
+	return maxf(0.0, altura_mundo(x, z)) + _so_montanha(x, z)
+
+func _so_montanha(x: float, z: float) -> float:
 	if monte.is_empty():
 		return 0.0
 	var fx: float = (x - monte.x0) / monte.passo
@@ -266,7 +329,7 @@ func chao_relevo(x: float, z: float) -> float:
 
 # quanto da água cobre quem está em (x, y, z) (0 = seco)
 func agua_no_corpo(x: float, z: float, y: float) -> float:
-	if lagos.is_empty() or no_lago(x, z).is_empty():
+	if (lagos.is_empty() and mundo_g.is_empty()) or no_lago(x, z).is_empty():
 		return 0.0
 	return maxf(0.0, float(agua.nivel) - y)
 
@@ -318,7 +381,7 @@ func casas_em(x: float, z: float) -> Array:
 	return _casas_grade.get(Vector2i(floori(x / SOL_G), floori(z / SOL_G)), _NADA)
 
 func altura(x: float, z: float, y := INF) -> float:
-	var h := chao_relevo(x, z) if (not lagos.is_empty() or not monte.is_empty()) else 0.0
+	var h := chao_relevo(x, z) if (not lagos.is_empty() or not monte.is_empty() or not mundo_g.is_empty()) else 0.0
 	# caverna da montanha: dentro do túnel e abaixo do teto dele, o chão é o da caverna
 	var cv := chao_caverna(x, z, y)
 	if not is_nan(cv) and cv < h:
