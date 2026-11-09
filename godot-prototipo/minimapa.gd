@@ -102,6 +102,8 @@ uniform vec2 alcance = vec2(0.3);
 uniform sampler2D hoje : filter_linear, repeat_disable;
 uniform vec4 hoje_r = vec4(0.0, 0.0, 1.0, 1.0); // onde fica o desenho de hoje dentro do mundo (fração)
 uniform float com_hoje = 0.0;
+uniform sampler2D mascara_mundo : filter_linear, repeat_disable; // G = mapa andável de hoje (sem o quadrado em volta)
+uniform float com_mascara = 0.0;
 """ + VINHETA_HOJE + """
 void fragment() {
 	vec2 d = UV - 0.5;
@@ -111,7 +113,8 @@ void fragment() {
 	if (com_hoje > 0.5) {
 		vec2 q = (uv - hoje_r.xy) / hoje_r.zw;
 		float b = min(min(q.x, q.y), min(1.0 - q.x, 1.0 - q.y));
-		if (b > 0.0) c.rgb = mix(c.rgb, sem_vinheta(texture(hoje, q).rgb, q), smoothstep(0.0, 0.03, b));
+		float k = smoothstep(0.0, 0.03, b) * (com_mascara > 0.5 ? texture(mascara_mundo, uv).g : 1.0);
+		if (b > 0.0) c.rgb = mix(c.rgb, sem_vinheta(texture(hoje, q).rgb, q), k);
 	}
 	c.rgb *= 1.0 - smoothstep(0.36, 0.5, r) * 0.35; // escurece perto da moldura
 	COLOR = vec4(c.rgb, 1.0 - smoothstep(0.485, 0.5, r));
@@ -121,6 +124,7 @@ void fragment() {
 		sm.set_shader_parameter("hoje", textura)
 		sm.set_shader_parameter("hoje_r", Vector4(hoje_r.position.x, hoje_r.position.y, hoje_r.size.x, hoje_r.size.y))
 		sm.set_shader_parameter("com_hoje", 1.0)
+		m.terreno.ligar_mascara(sm)
 	mini.add_child(mapa_mini)
 	marcas = Control.new()
 	marcas.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -173,10 +177,16 @@ void fragment() {
 		var sh := ShaderMaterial.new()
 		sh.shader = Shader.new()
 		sh.shader.code = "shader_type canvas_item;\n" + VINHETA_HOJE + """
+uniform sampler2D mascara_mundo : filter_linear, repeat_disable;
+uniform float com_mascara = 0.0;
+uniform vec4 hoje_r = vec4(0.0, 0.0, 1.0, 1.0);
 void fragment() {
 	float b = min(min(UV.x, UV.y), min(1.0 - UV.x, 1.0 - UV.y));
-	COLOR = vec4(sem_vinheta(texture(TEXTURE, UV).rgb, UV), smoothstep(0.0, 0.03, b));
+	float k = com_mascara > 0.5 ? texture(mascara_mundo, hoje_r.xy + UV * hoje_r.zw).g : 1.0;
+	COLOR = vec4(sem_vinheta(texture(TEXTURE, UV).rgb, UV), smoothstep(0.0, 0.03, b) * k);
 }"""
+		sh.set_shader_parameter("hoje_r", Vector4(hoje_r.position.x, hoje_r.position.y, hoje_r.size.x, hoje_r.size.y))
+		m.terreno.ligar_mascara(sh)
 		mapa_hoje.material = sh
 		janela.add_child(mapa_hoje)
 	marcas_mapa = Control.new()

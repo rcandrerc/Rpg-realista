@@ -40,8 +40,11 @@ func _process(_dt: float) -> void:
 	k = k * k * (3.0 - 2.0 * k)
 	env.fog_density = NEVOA * (1.0 - 0.63 * k)
 	cam.far = lerpf(400.0, LONGE_CAMERA, k)
+	# 2026-11-09: no mundo grande o chão sobe; o que conta é a câmera alta em relação ao chão embaixo dela (antes, num
+	# morro, a câmera passava de 7 m e as copas de longe apareciam em cima do herói)
+	var alto := cam.global_position.y - T.altura_montanha(cam.global_position.x, cam.global_position.z) > 9.0
 	for c in _copas:
-		c.visible = cam.global_position.y > 7.0
+		c.visible = alto
 
 # Chão visto de longe (direção de arte 2026-11-05: nada de desenho do minimapa colado no chão). Passando de ~75 m da
 # câmera, o chão continua sendo a mesma grama de perto; a máscara relevo/longe.png (client/exportar-godot/longe.mjs)
@@ -96,7 +99,7 @@ func copas_simples(arvores: Dictionary, malhas: Dictionary) -> void:
 		_chao_mat.set_shader_parameter("folha_tex", _folha)
 
 var _folha: Texture2D
-func _grupo_de_copas(lista: Array, malha: Mesh, sh: Shader, sem_arvore: bool, v: int) -> void:
+func _grupo_de_copas(lista: Array, malha: Mesh, sh: Shader, _sem_arvore: bool, v: int) -> void:
 	if malha == null or lista.is_empty():
 		return
 	var m0 = malha.surface_get_material(0)
@@ -106,8 +109,7 @@ func _grupo_de_copas(lista: Array, malha: Mesh, sh: Shader, sem_arvore: bool, v:
 	mat.shader = sh
 	if _folha:
 		mat.set_shader_parameter("folha_tex", _folha)
-	if sem_arvore:
-		mat.set_shader_parameter("perto", -10.0)
+	# a mata da borda (sem árvore de verdade) também encolhe perto: o herói agora anda até ela pelo mundo grande
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true

@@ -18,7 +18,8 @@ export function copasDeFora(M = MAPA_CLAREIRA) {
   let sem = 12345; const rnd = () => ((sem = (sem * 1103515245 + 12345) % 2147483648) / 2147483648);
   for (let z = z0 + passo / 2; z < z0 + tam; z += passo) for (let x = x0 + passo / 2; x < x0 + tam; x += passo) {
     const px = x + (rnd() - 0.5) * passo * 0.8, pz = z + (rnd() - 0.5) * passo * 0.8, s = 0.95 + rnd() * 0.4, v = Math.floor(rnd() * 3);
-    if (dentroDoMapa(M, px, pz, -3)) continue;
+    // 2026-11-09: fora do mapa de hoje agora é o mundo grande (chão e árvores de verdade): só a faixa de mata da borda
+    if (dentroDoMapa(M, px, pz, -3) || !dentroDoMapa(M, px, pz, -12)) continue;
     out.push([Math.round(px * 10) / 10, Math.round(pz * 10) / 10, Math.round(s * 100) / 100, v]);
   }
   return out;
@@ -27,8 +28,8 @@ export function copasDeFora(M = MAPA_CLAREIRA) {
 export function gerarLonge(M = MAPA_CLAREIRA) {
   const { x0, z0, tam, px } = LONGE, st = tam / px;
   const R = new Float32Array(px * px), G = new Float32Array(px * px);
-  // fora do mapa andável: mata fechada (a mesma borda que para o herói)
-  for (let j = 0; j < px; j++) for (let i = 0; i < px; i++) if (!dentroDoMapa(M, x0 + (i + 0.5) * st, z0 + (j + 0.5) * st, 0)) R[j * px + i] = 1;
+  // fora do mapa andável: mata fechada (a mesma borda que para o herói), só na faixa de 12 m; além dela é o mundo grande
+  for (let j = 0; j < px; j++) for (let i = 0; i < px; i++) { const x = x0 + (i + 0.5) * st, z = z0 + (j + 0.5) * st; if (!dentroDoMapa(M, x, z, 0) && dentroDoMapa(M, x, z, -12)) R[j * px + i] = 1; }
   // cada árvore escurece o chão embaixo da copa (sombra de mata), com borda macia
   for (const a of M.mata) {
     const r = 3.2 * (a.s || 1), ci = (a.x - x0) / st, cj = (a.z - z0) / st, rp = r / st;
@@ -66,7 +67,7 @@ export function gerarLonge(M = MAPA_CLAREIRA) {
   return png(px, px, linhas);
 }
 
-function png(w, h, dados) {
+export function png(w, h, dados) {
   const crc = (b) => { let c = ~0; for (const x of b) { c ^= x; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return ~c >>> 0; };
   const bloco = (tipo, d) => { const t = Buffer.from(tipo), n = Buffer.alloc(4), c = Buffer.alloc(4); n.writeUInt32BE(d.length); c.writeUInt32BE(crc(Buffer.concat([t, d]))); return Buffer.concat([n, t, d, c]); };
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6;
