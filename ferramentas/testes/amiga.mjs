@@ -69,8 +69,8 @@ ok(ITENS.lenha, 'itens');
   ok(c.time && d.time === c.time && c.time.membros.length === 2, 'aceitou e entrou no time do dono');
   // vontade: amizade sobe a chance, nível muito acima baixa e diz o motivo
   c.amizade = 0; const v0 = s3.vontadeAmiga(c, d).p; c.amizade = 4; const v1 = s3.vontadeAmiga(c, d).p;
-  d.prog.nivel = 40; const v2 = s3.vontadeAmiga(c, d); d.prog.nivel = 1;
-  ok(v1 > v0 && v2.p < v1 && v2.motivo === 'perigo', `vontade: ${v0.toFixed(2)} sem amizade, ${v1.toFixed(2)} com amizade, ${v2.p.toFixed(2)} com o dono 39 níveis acima (${v2.motivo})`);
+  const nvC = c.prog.nivel; d.prog.nivel = 40; const v2 = s3.vontadeAmiga(c, d); d.prog.nivel = 1;
+  ok(v1 > v0 && v2.motivo !== 'perigo' && c.prog.nivel === nvC, `vontade: ${v0.toFixed(2)} sem amizade, ${v1.toFixed(2)} com amizade; dono 39 níveis acima não pesa (${v2.p.toFixed(2)}, ${v2.motivo}) e ela não sobe sozinha`);
   // segue o dono
   Object.assign(d, { x: -1, z: 12, y: s3.terreno.altura(-1, 12), ry: 0 });
   for (let i = 0; i < 20 * 30; i++) s3.passo(0.05);
