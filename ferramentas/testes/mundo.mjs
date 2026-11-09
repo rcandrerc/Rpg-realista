@@ -31,3 +31,27 @@ ok(chaoDoRelevo(450, 40) > relevo(450, 40), 'no mar o herói boia');
 ok(alturaMontanha(0, 0) === 0 && alturaMontanha(188, -62) > 0, 'a vila e a montanha de hoje não mudaram de altura');
 const s = new Simulacao(M);
 ok(s.terreno.altura(905, 50) > 0, 'o terreno do servidor tem a altura de Aurora');
+
+// Parte 4: lugares planos e estradas de subida suave
+import { LUGARES_MUNDO, ESTRADAS_MUNDO, RAMPA_MAX } from '../../shared/mundo.js';
+for (const L of LUGARES_MUNDO) {
+  let pior = 0, praia = Infinity;
+  for (let a = 0; a < 6.28; a += 0.3) for (const f of [0.3, 0.6, 0.9]) pior = Math.max(pior, Math.abs(alturaMundo(G, L.x + Math.cos(a) * L.r * f, L.z + Math.sin(a) * L.r * f) - L.y));
+  for (let a = 0; a < 6.28; a += 0.2) for (let d = 0; d < 60; d += 2) if (alturaMundo(G, L.x + Math.cos(a) * d, L.z + Math.sin(a) * d) < 0) { praia = Math.min(praia, d); break; }
+  const T = terraEm(G, L.x, L.z);
+  ok(T?.id === L.terra && (L.tipo === 'porto' ? praia < 30 : pior < 0.15 && praia > L.r + 10), `${L.id} (${L.tipo}) em ${L.terra}, plano (${pior.toFixed(2)} m), mar a ${praia === Infinity ? '60+' : praia} m`);
+}
+for (let a = 0; a < LUGARES_MUNDO.length; a++) for (let b = a + 1; b < LUGARES_MUNDO.length; b++) {
+  const A = LUGARES_MUNDO[a], B = LUGARES_MUNDO[b];
+  if (A.tipo !== 'porto' && B.tipo !== 'porto') ok(Math.hypot(A.x - B.x, A.z - B.z) > A.r + B.r + 25, `${A.id} longe de ${B.id}`);
+}
+for (const E of ESTRADAS_MUNDO) {
+  let pior = 0, molhado = 0;
+  // rampa medida em trechos de ~6 m (a grade tem 4 m: de 2 em 2 m sobra degrauzinho de interpolação)
+  for (let i = 3; i < E.curva.length; i++) {
+    const [x0, z0] = E.curva[i - 3], [x1, z1] = E.curva[i], d = Math.hypot(x1 - x0, z1 - z0);
+    if (d > 3) pior = Math.max(pior, Math.abs(alturaMundo(G, x1, z1) - alturaMundo(G, x0, z0)) / d);
+  }
+  for (const [x, z] of E.curva) if (alturaMundo(G, x, z) < 0) molhado++;
+  ok(pior <= RAMPA_MAX * 1.25 && molhado === 0, `${E.id}: rampa máxima ${(pior * 100).toFixed(1)}%, ${molhado} pontos na água`);
+}

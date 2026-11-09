@@ -6,15 +6,18 @@ render_mode diffuse_toon, specular_disabled;
 uniform sampler2D grama_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pedra_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D areia_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D terra_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 uniform vec3 tom_areia : source_color = vec3(1.18, 1.08, 0.86);
 uniform float alto = 22.0;
 uniform float praia = 1.1; // até essa altura é areia
 varying vec3 mundo;
 varying vec3 nm;
+varying float estrada;
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	nm = NORMAL;
+	estrada = COLOR.r;
 }
 vec3 tri(vec3 p, vec3 b, float esc) {
 	return texture(pedra_tex, p.zy / esc).rgb * b.x + texture(pedra_tex, p.xz / esc).rgb * b.y + texture(pedra_tex, p.xy / esc).rgb * b.z;
@@ -44,6 +47,9 @@ void fragment() {
 	float ka = 1.0 - smoothstep(praia - 0.35, praia + 0.25, mundo.y + (ruido - 0.5) * 0.6);
 	areia = mix(areia, areia * vec3(0.62, 0.6, 0.58), 1.0 - smoothstep(-0.1, 0.35, mundo.y));
 	c = mix(c, areia, ka * (1.0 - pr * 0.7));
+	// estrada de terra batida (shared/mundo.js), com a borda comida pela grama
+	float ke = smoothstep(0.35, 0.7, estrada + (ruido2 - 0.5) * 0.35);
+	c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, ke);
 	ALBEDO = c;
 	ROUGHNESS = 1.0;
 }

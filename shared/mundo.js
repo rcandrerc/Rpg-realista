@@ -85,7 +85,168 @@ export function montarMundo(mapaHoje) {
     const tr = Math.min(1, dist[k] / M.transicao), sm = tr * tr * (3 - 2 * tr);
     h[k] = dist[k] === 0 ? 0 : v * sm;
   }
-  return { x0: M.x0, z0: M.z0, passo: M.passo, nx, nz, h, terra };
+  const G = { x0: M.x0, z0: M.z0, passo: M.passo, nx, nz, h, terra, estrada: new Uint8Array(nx * nz) };
+  aplainarLugares(G, dist);
+  abrirEstradas(G, dist);
+  return G;
+}
+
+// ---------- Parte 4: lugares planos e estradas de subida suave ----------
+// Lugares do mundo novo (André 2026-11-08): campos de caça (Parte 5) e vilas e portos (Partes 6 e 7) ficam em chão
+// estritamente plano. Cada um é um disco de raio r aplainado na altura média dele, com uma rampa de "rampa" m em volta.
+// Vael (anel em volta do mapa de hoje): Nv 30-50 e o Porto de Vael (mini vila Nv 50) na costa leste. Ilha do Meio: Nv
+// 50-65 e um porto de cada lado. Aurora: Nv 60-100, o porto oeste e a vila grande Nv 100 no meio (bairros, Parte 7).
+export const LUGARES_MUNDO = [
+  { id: 'c_v1', tipo: 'caca', terra: 'vael', nivel: 32, x: -135, z: -15, r: 14 },
+  { id: 'c_v2', tipo: 'caca', terra: 'vael', nivel: 35, x: -138, z: 130, r: 14 },
+  { id: 'c_v3', tipo: 'caca', terra: 'vael', nivel: 38, x: -50, z: 300, r: 14 },
+  { id: 'c_v4', tipo: 'caca', terra: 'vael', nivel: 42, x: 120, z: 320, r: 14 },
+  { id: 'c_v5', tipo: 'caca', terra: 'vael', nivel: 45, x: 290, z: 250, r: 14 },
+  { id: 'c_v6', tipo: 'caca', terra: 'vael', nivel: 48, x: 300, z: -112, r: 14 },
+  { id: 'c_v7', tipo: 'caca', terra: 'vael', nivel: 40, x: 90, z: -220, r: 14 },
+  { id: 'vila_vael', tipo: 'vila', terra: 'vael', nivel: 50, nome: 'Porto de Vael', x: 350, z: 45, r: 30 },
+  { id: 'porto_vael', tipo: 'porto', terra: 'vael', nome: 'Cais de Vael', x: 402, z: 45, r: 9 },
+  { id: 'porto_ilha_o', tipo: 'porto', terra: 'ilha', nome: 'Cais Oeste da Ilha', x: 505, z: 40, r: 9 },
+  { id: 'porto_ilha_l', tipo: 'porto', terra: 'ilha', nome: 'Cais Leste da Ilha', x: 628, z: 40, r: 9 },
+  { id: 'c_i1', tipo: 'caca', terra: 'ilha', nivel: 52, x: 540, z: 10, r: 11 },
+  { id: 'c_i2', tipo: 'caca', terra: 'ilha', nivel: 56, x: 590, z: 72, r: 11 },
+  { id: 'c_i3', tipo: 'caca', terra: 'ilha', nivel: 60, x: 592, z: 5, r: 11 },
+  { id: 'c_i4', tipo: 'caca', terra: 'ilha', nivel: 64, x: 535, z: 72, r: 11 },
+  { id: 'porto_aurora', tipo: 'porto', terra: 'aurora', nome: 'Cais de Aurora', x: 736, z: 50, r: 9 },
+  { id: 'vila_aurora', tipo: 'vila', terra: 'aurora', nivel: 100, nome: 'Aurora', x: 905, z: 50, r: 70 },
+  { id: 'c_a1', tipo: 'caca', terra: 'aurora', nivel: 66, x: 780, z: -40, r: 14 },
+  { id: 'c_a2', tipo: 'caca', terra: 'aurora', nivel: 70, x: 790, z: 150, r: 14 },
+  { id: 'c_a3', tipo: 'caca', terra: 'aurora', nivel: 74, x: 860, z: -120, r: 14 },
+  { id: 'c_a4', tipo: 'caca', terra: 'aurora', nivel: 78, x: 870, z: 215, r: 14 },
+  { id: 'c_a5', tipo: 'caca', terra: 'aurora', nivel: 82, x: 980, z: -110, r: 14 },
+  { id: 'c_a6', tipo: 'caca', terra: 'aurora', nivel: 86, x: 990, z: 190, r: 14 },
+  { id: 'c_a7', tipo: 'caca', terra: 'aurora', nivel: 90, x: 1060, z: 60, r: 14 },
+  { id: 'c_a8', tipo: 'caca', terra: 'aurora', nivel: 95, x: 1040, z: -60, r: 14 },
+  { id: 'c_a9', tipo: 'caca', terra: 'aurora', nivel: 100, x: 1040, z: 150, r: 15 },
+];
+// Estradas (largura 4 m, rampa máxima de 10%: o carrinho carregado sobe sem bugar). Em Vael saem do mapa de hoje
+// (das trilhas que já existem) e dão a volta pelo anel até o Porto de Vael; na ilha e em Aurora ligam o cais aos campos
+// e à vila. Os pontos são o caminho grosso: a estrada faz curvas suaves entre eles.
+export const ESTRADAS_MUNDO = [
+  { id: 'e_leste', pontos: [[214, 140], [262, 120], [300, 90], [335, 55], [402, 45]] },
+  { id: 'e_norte', pontos: [[335, 55], [345, 0], [330, -70], [300, -112], [250, -190], [160, -225], [90, -220]] },
+  { id: 'e_sul', pontos: [[262, 120], [290, 190], [290, 250], [210, 300], [120, 320], [30, 320], [-50, 300]] },
+  { id: 'e_oeste', pontos: [[-50, 300], [-120, 250], [-138, 130], [-150, 60], [-135, -15], [-110, -100], [-30, -190], [90, -220]] },
+  { id: 'e_ilha', pontos: [[505, 40], [540, 10], [592, 5], [628, 40], [590, 72], [535, 72], [540, 10]] },
+  { id: 'e_aurora', pontos: [[736, 50], [790, 50], [835, 50], [905, 50], [975, 50], [1060, 60]] },
+  { id: 'e_aurora_n', pontos: [[790, 50], [780, -40], [860, -120], [930, -110], [980, -110], [1040, -60], [1060, 60]] },
+  { id: 'e_aurora_s', pontos: [[790, 50], [790, 150], [870, 215], [930, 205], [990, 190], [1040, 150], [1060, 60]] },
+];
+export const RAMPA_MAX = 0.1;
+const LARG_ESTRADA = 4, OMBRO = 7;
+
+// altura de cada lugar: a média do chão dele (nunca na areia; o cais fica rente, a 0,8 m da água). Depois as alturas
+// de lugares ligados pela mesma estrada se aproximam até a rampa entre eles caber nos 10% (morro alto vira platô
+// mais baixo, sem paredão na estrada).
+function alturasDosLugares(G) {
+  for (const L of LUGARES_MUNDO) {
+    let soma = 0, n = 0;
+    for (let a = 0; a < 6.28; a += 0.5) for (const f of [0, 0.5, 1]) { soma += alturaMundo(G, L.x + Math.cos(a) * L.r * f, L.z + Math.sin(a) * L.r * f); n++; }
+    L.y = L.tipo === 'porto' ? 0.8 : Math.max(1.6, soma / n);
+  }
+  const ligados = [];
+  for (const E of ESTRADAS_MUNDO) {
+    const C = curva(E.pontos); let d = 0, ant = null;
+    C.forEach((p, i) => {
+      if (i) d += Math.hypot(p[0] - C[i - 1][0], p[1] - C[i - 1][1]);
+      const L = LUGARES_MUNDO.find((l) => Math.hypot(p[0] - l.x, p[1] - l.z) <= l.r);
+      if (L && L !== ant?.L) { if (ant) ligados.push([ant.L, L, d - ant.d]); ant = { L, d }; } else if (L) ant.d = d;
+    });
+  }
+  for (let r = 0; r < 60; r++) for (const [A, B, d] of ligados) {
+    const max = RAMPA_MAX * 0.6 * d, dif = B.y - A.y;
+    if (Math.abs(dif) <= max) continue;
+    const corr = (Math.abs(dif) - max) / 2 * Math.sign(dif);
+    if (A.tipo !== 'porto') A.y += corr; else B.y -= corr;
+    if (B.tipo !== 'porto') B.y -= corr; else A.y += corr;
+  }
+  for (const L of LUGARES_MUNDO) L.y = +Math.max(L.tipo === 'porto' ? 0.8 : 1.6, L.y).toFixed(2);
+}
+
+function aplainarLugares(G, dist) {
+  alturasDosLugares(G);
+  const { nx, nz, h, passo } = G, RAMPA = 16;
+  const alvo = new Map(); // quadrado -> [peso, altura] do lugar que mais manda nele
+  for (const L of LUGARES_MUNDO) {
+    const R = L.r + RAMPA;
+    for (let j = Math.max(0, Math.floor((L.z - R - G.z0) / passo)); j <= Math.min(nz - 1, Math.ceil((L.z + R - G.z0) / passo)); j++)
+      for (let i = Math.max(0, Math.floor((L.x - R - G.x0) / passo)); i <= Math.min(nx - 1, Math.ceil((L.x + R - G.x0) / passo)); i++) {
+        const k = j * nx + i, d = Math.hypot(G.x0 + i * passo - L.x, G.z0 + j * passo - L.z);
+        if (d > R || dist[k] === 0) continue;
+        if (L.tipo === 'porto' && h[k] < 0) continue; // o cais não aterra o mar
+        const t = Math.min(1, Math.max(0, (d - L.r - 3) / (RAMPA - 3))), w = 1 - t * t * (3 - 2 * t);
+        if (!alvo.has(k) || alvo.get(k)[0] < w) alvo.set(k, [w, L.y]);
+      }
+  }
+  for (const [k, [w, y]] of alvo) h[k] += (y - h[k]) * w;
+}
+// (x, z) no miolo plano de algum lugar (até r + 3 m)
+const noLugar = (x, z, folga = 3) => LUGARES_MUNDO.find((l) => Math.hypot(x - l.x, z - l.z) <= l.r + folga);
+
+// caminho suave (Catmull-Rom) pelos pontos, de 2 em 2 m
+function curva(P) {
+  const out = [];
+  for (let s = 0; s < P.length - 1; s++) {
+    const p0 = P[Math.max(0, s - 1)], p1 = P[s], p2 = P[s + 1], p3 = P[Math.min(P.length - 1, s + 2)];
+    const n = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2));
+    for (let k = 0; k < n; k++) {
+      const t = k / n, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+    }
+  }
+  out.push(P[P.length - 1]);
+  return out;
+}
+
+function abrirEstradas(G, dist) {
+  const { nx, nz, h, passo } = G;
+  for (const E of ESTRADAS_MUNDO) {
+    const C = curva(E.pontos);
+    // perfil: a altura do chão por baixo, com a rampa limitada (vai e volta) e alisada
+    let y = C.map(([x, z]) => Math.max(0.9, alturaMundo(G, x, z)));
+    // pontos presos: dentro de um lugar plano fica na altura dele; em cima de uma estrada já aberta (cruzamento), na dela;
+    // no mapa de hoje, no chão dele
+    const preso = C.map(([x, z]) => {
+      const L = noLugar(x, z);
+      if (L) return L.y;
+      const i = Math.round((x - G.x0) / passo), j = Math.round((z - G.z0) / passo), k = j * nx + i;
+      if (k >= 0 && k < h.length && (G.estrada[k] >= 6 || dist[k] === 0)) return h[k];
+      return null;
+    });
+    preso.forEach((v, i) => { if (v != null) y[i] = v; });
+    const ds = C.map((p, i) => (i ? Math.hypot(p[0] - C[i - 1][0], p[1] - C[i - 1][1]) : 0));
+    const g = RAMPA_MAX * 0.85;
+    for (let r = 0; r < 4; r++) {
+      const s = y.slice(); for (let i = 1; i < y.length - 1; i++) if (preso[i] == null) y[i] = (s[i - 1] + 2 * s[i] + s[i + 1]) / 4;
+      for (let i = 1; i < y.length; i++) if (preso[i] == null) y[i] = Math.min(Math.max(y[i], y[i - 1] - g * ds[i]), y[i - 1] + g * ds[i]);
+      for (let i = y.length - 2; i >= 0; i--) if (preso[i] == null) y[i] = Math.min(Math.max(y[i], y[i + 1] - g * ds[i + 1]), y[i + 1] + g * ds[i + 1]);
+    }
+    E.curva = C.map((p, i) => [+p[0].toFixed(2), +p[1].toFixed(2), +y[i].toFixed(2)]);
+    // cada quadrado da grade perto da estrada vai para a altura do ponto mais perto dela
+    const R = LARG_ESTRADA / 2 + OMBRO, melhor = new Map();
+    C.forEach(([x, z], c) => {
+      for (let j = Math.max(0, Math.floor((z - R - G.z0) / passo)); j <= Math.min(nz - 1, Math.ceil((z + R - G.z0) / passo)); j++)
+        for (let i = Math.max(0, Math.floor((x - R - G.x0) / passo)); i <= Math.min(nx - 1, Math.ceil((x + R - G.x0) / passo)); i++) {
+          const k = j * nx + i, d = Math.hypot(G.x0 + i * passo - x, G.z0 + j * passo - z);
+          if (d <= R && (!melhor.has(k) || melhor.get(k)[0] > d)) melhor.set(k, [d, y[c]]);
+        }
+    });
+    const marcas = [];
+    for (const [k, [d, yy]] of melhor) {
+      const t = Math.min(1, Math.max(0, (d - LARG_ESTRADA / 2) / OMBRO)), w = 1 - t * t * (3 - 2 * t);
+      const cx = G.x0 + (k % nx) * passo, cz = G.z0 + Math.floor(k / nx) * passo;
+      // o leito de uma estrada já aberta não muda (no cruzamento a nova chega na altura dela)
+      if (dist[k] !== 0 && !noLugar(cx, cz) && G.estrada[k] < 5) h[k] = h[k] + (yy - h[k]) * w;
+      marcas.push([k, Math.round(9 * Math.max(0, 1 - Math.max(0, d - LARG_ESTRADA / 2 + 1) / 2.5))]);
+    }
+    for (const [k, v] of marcas) G.estrada[k] = Math.max(G.estrada[k], v);
+  }
 }
 
 // altura da grade em (x, z), bilinear; fora da grade é mar fundo

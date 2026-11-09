@@ -24,6 +24,7 @@ func _ready() -> void:
 	_mat_chao.set_shader_parameter("grama_tex", load("res://modelos/forrest_ground_01.jpg"))
 	_mat_chao.set_shader_parameter("pedra_tex", load("res://relevo/rocky_terrain_02.jpg"))
 	_mat_chao.set_shader_parameter("areia_tex", load("res://modelos/stony_dirt_path.jpg"))
+	_mat_chao.set_shader_parameter("terra_tex", load("res://modelos/stony_dirt_path.jpg")) # estradas (a mesma terra das trilhas de hoje)
 	_mat_mar = ShaderMaterial.new()
 	_mat_mar.shader = load("res://agua.gdshader")
 	_mat_mar.set_shader_parameter("fundo_lago", 6.0)
@@ -65,8 +66,10 @@ func _pedaco(i0: int, j0: int) -> void:
 	var w := i1 - i0 + 1
 	var vs := PackedVector3Array()
 	var ns := PackedVector3Array()
+	var cs := PackedColorArray() # r = estrada de terra (shared/mundo.js abrirEstradas)
 	var idx := PackedInt32Array()
 	var agua := PackedInt32Array()
+	var est: String = g.estrada
 	for j in range(j0, j1 + 1):
 		for i in range(i0, i1 + 1):
 			var y: float = h[j * nx + i]
@@ -75,6 +78,7 @@ func _pedaco(i0: int, j0: int) -> void:
 			var hx: float = h[j * nx + mini(nx - 1, i + 1)] - h[j * nx + maxi(0, i - 1)]
 			var hz: float = h[mini(int(g.nz) - 1, j + 1) * nx + i] - h[maxi(0, j - 1) * nx + i]
 			ns.append(Vector3(-hx, 2.0 * passo, -hz).normalized())
+			cs.append(Color(float(est.unicode_at(j * nx + i) - 48) / 9.0 if est.length() > j * nx + i else 0.0, 0, 0))
 	for j in range(j1 - j0):
 		for i in range(w - 1):
 			var a := j * w + i
@@ -96,7 +100,7 @@ func _pedaco(i0: int, j0: int) -> void:
 	if idx.is_empty():
 		return
 	var meio := Vector3(float(g.x0) + (i0 + i1) * 0.5 * passo, 0, float(g.z0) + (j0 + j1) * 0.5 * passo)
-	add_child(_malha("Chao_%d_%d" % [i0, j0], vs, ns, idx, _mat_chao, true))
+	add_child(_malha("Chao_%d_%d" % [i0, j0], vs, ns, idx, _mat_chao, true, cs))
 	if not agua.is_empty(): # água plana na linha d'água, só nos quadrados que têm fundo de mar
 		var va := PackedVector3Array()
 		var na := PackedVector3Array()
@@ -105,11 +109,13 @@ func _pedaco(i0: int, j0: int) -> void:
 			na.append(Vector3.UP)
 		add_child(_malha("Mar_%d_%d" % [i0, j0], va, na, agua, _mat_mar, false))
 
-func _malha(nome: String, vs: PackedVector3Array, ns: PackedVector3Array, idx: PackedInt32Array, mat: Material, sombra: bool) -> MeshInstance3D:
+func _malha(nome: String, vs: PackedVector3Array, ns: PackedVector3Array, idx: PackedInt32Array, mat: Material, sombra: bool, cs := PackedColorArray()) -> MeshInstance3D:
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = vs
 	arr[Mesh.ARRAY_NORMAL] = ns
+	if not cs.is_empty():
+		arr[Mesh.ARRAY_COLOR] = cs
 	arr[Mesh.ARRAY_INDEX] = idx
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
