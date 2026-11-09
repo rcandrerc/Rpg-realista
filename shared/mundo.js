@@ -688,7 +688,8 @@ function cobrirCavernas(G, dist) {
         // na frente da boca e nos primeiros metros dela: o chão desce até o plano da frente (entra-se andando, sem
         // degrau; a cara de rocha em volta da boca é o paredão que o app desenha)
         if (frente < 0 || ms < 3.5) {
-          const db = Math.hypot(bx, bz), t2 = Math.min(1, Math.max(0, (db - 6) / 6)), w2 = 1 - t2 * t2 * (3 - 2 * t2);
+          // (dos lados da boca, para dentro da linha dela, a encosta fica como está: a boca entra na montanha)
+          const db = Math.hypot(bx, bz), t2 = Math.min(1, Math.max(0, frente < 0 ? (db - 6) / 6 : (md - 5) / 3)), w2 = 1 - t2 * t2 * (3 - 2 * t2);
           if (w2 > 0 && h[k] > L.y) h[k] += (L.y - h[k]) * w2;
           continue;
         }

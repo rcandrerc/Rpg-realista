@@ -159,7 +159,7 @@ func atualizar(_forcar: bool) -> void:
 	hora = hora_agora()
 	noite = fator_noite(hora, m.P.dados.get("dia", {}))
 	var b := base()
-	var dentro: bool = m.caverna != null and float(m.caverna.escuro) > 0.0
+	var dentro: bool = m.escuro_caverna() > 0.0 # dungeon ou caverna do mundo grande
 	if not dentro: # na caverna quem manda na luz é caverna.gd (ela usa base())
 		env.ambient_light_color = b.amb
 		env.ambient_light_energy = b.amb_e

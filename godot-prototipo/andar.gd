@@ -298,7 +298,7 @@ func _vai(nx: float, nz: float) -> bool:
 		return false
 	if h > y + m.subida.degrau:
 		# parede da caverna (rocha da montanha por cima do túnel): não é pedra, não escala
-		if not T.tunel.is_empty() and h <= T.chao_relevo(nx, nz) + 0.01 and not T.dentro_caverna(x, z, y + 0.3).is_empty():
+		if (not T.tunel.is_empty() or not T.tuneis_mundo.is_empty()) and h <= T.chao_relevo(nx, nz) + 0.01 and not T.dentro_caverna(x, z, y + 0.3).is_empty():
 			no_relevo = true
 		return false
 	# encosta da montanha (shared/relevo.js INGREME): subida forte demais não dá para subir andando
