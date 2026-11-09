@@ -7,7 +7,8 @@ import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCAL
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS } from './dados.js';
+import { PACK_REGRAS, AMIGA } from './dados.js';
+import { Amiga } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -280,6 +281,7 @@ export class Simulacao {
     this.mapa = mapa;
     this.tempo = 0;
     this.jogadores = new Map();
+    this.amiga = null; this.amigaDono = null; // Cecília (shared/amiga.js): o corpo dela e quem pode conversar
     this.inimigos = [];
     this.projeteis = [];
     this.campos = [];
@@ -487,7 +489,7 @@ export class Simulacao {
   inimigosDe(c) {
     // caverna da montanha: quem está lá dentro só enxerga quem também está (nada atravessa a rocha do teto)
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
-    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
+    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !o.bot && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
   }
   maisPerto(c, max = 22) {
     let melhor = null, md = max;
@@ -1293,7 +1295,7 @@ export class Simulacao {
     const livre = (c) => c && !c.morto && !c.criando;
     if (m.acao === 'pedir' || m.acao === 'aceitar') {
       const o = this.jogadores.get(String(m.com));
-      if (!o || o === j) return;
+      if (!o || o === j || o.bot) return; // a Cecília ainda não troca (fase 3)
       if (!livre(j)) return;
       if (!livre(o)) return aviso(`${o.nome} não pode trocar agora`);
       if (j.troca) return aviso('Termine a troca que está aberta primeiro');
@@ -1498,6 +1500,7 @@ export class Simulacao {
       return aviso(`${nome} saiu da sua lista de amigos`);
     }
     const o = this.jogadores.get(String(m.com || ''));
+    if (o?.bot) return; // a Cecília não entra na lista de amigos pelo botão
     if (m.acao === 'recusar') {
       const p = j.pedidoAmigo; if (!p || p.de !== String(m.com)) return;
       j.pedidoAmigo = null;
@@ -1531,6 +1534,7 @@ export class Simulacao {
     if (m.acao === 'sair') return j.time && this.sairDoTime(j, `${j.nome} saiu do time`);
     // com: id do jogador na sala ou a conta do amigo (lista de amigos)
     const o = this.jogadores.get(String(m.com || '')) || this.porConta(String(m.com || ''));
+    if (o?.bot) return; // time com a Cecília: fase 2
     if (m.acao === 'expulsar') {
       const T = j.time; if (!T || T.lider !== j.id || !o || o.time !== T || o === j) return;
       aviso('Você saiu do time', o.id);
@@ -1999,6 +2003,7 @@ export class Simulacao {
       L.fornos = {};
       for (const [pid, f] of Object.entries(d.fornos && typeof d.fornos === 'object' ? d.fornos : {})) L.fornos[String(pid)] = fornoValido(f);
       // taxa semanal (2026-11-05): terreno de antes começa a contar agora (ninguém recebe conta atrasada)
+      if (d.amiga && typeof d.amiga === 'object') L.amiga = d.amiga; // Cecília: o progresso dela vai junto com o terreno
       if (Number(d.taxa) > 0) L.taxa = Number(d.taxa); else if (!L.taxa) { L.taxa = Date.now(); this.lotesMudados.add(L.def.id); }
     }
     this.refazerSolidosLotes();
@@ -2007,7 +2012,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, fornos: L.fornos || {}, taxa: L.taxa || null } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, fornos: L.fornos || {}, taxa: L.taxa || null, ...(L.amiga ? { amiga: L.amiga } : {}) } };
     });
     // terrenos vendidos de volta para o jogo: a linha fica sem dono (o chão volta a ser livre)
     for (const id of this.lotesSoltos) l.push({ id, dono: null, nome: '', dados: {} });
@@ -2037,7 +2042,7 @@ export class Simulacao {
     if (distRet(R, j.x, j.z) > 40) return aviso('Chegue mais perto do terreno');
     // FASE 3 (André 2026-11-08): cada vila tem no máximo V.max terrenos com dono; cheia, procure outra vila ou bairro
     const V = vilaEm((R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2) || VILAS_TERRENO[0];
-    const naVila = [...this.lotes.values()].filter((L) => L.dono && (vilaEm((L.def.x0 + L.def.x1) / 2, (L.def.z0 + L.def.z1) / 2) || VILAS_TERRENO[0]) === V).length;
+    const naVila = [...this.lotes.values()].filter((L) => L.dono && L.dono !== AMIGA.conta && (vilaEm((L.def.x0 + L.def.x1) / 2, (L.def.z0 + L.def.z1) / 2) || VILAS_TERRENO[0]) === V).length;
     if (naVila >= V.max) return aviso(`${V.nome} já tem ${V.max} terrenos. Procure outra vila`);
     const w = R.x1 - R.x0, d = R.z1 - R.z0, preco = precoTerreno(w, d);
     if (j.prog.ouro < preco) return aviso(`Faltam ${preco - j.prog.ouro} de ouro (o terreno custa ${preco})`);
@@ -3136,6 +3141,7 @@ export class Simulacao {
         }
       }
     }
+    this.passoAmiga(dt); // Cecília decide o que fazer (anda pela entrada, como um jogador sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
     this.passoTimes(dt);
@@ -3308,7 +3314,7 @@ export class Simulacao {
         semCapacete: !!j.prog.semCapacete,
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
-        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
+        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}) })), // bot: a Cecília (só o dono conversa)
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
@@ -3321,3 +3327,4 @@ export class Simulacao {
 }
 // packs e transportes (FASE 1): as funções de shared/transporte.js entram na Simulacao
 Object.assign(Simulacao.prototype, Transporte);
+Object.assign(Simulacao.prototype, Amiga);

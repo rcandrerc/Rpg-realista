@@ -374,6 +374,8 @@ export const CACA = [
 //  - herói bate menos em monstro com mais de golpeFolga níveis acima (-golpeCai por nível, até golpeMin) e mais no de
 //    nível abaixo (+golpeSobe por nível, até golpeMax)
 //  - XP: monstro 2+ níveis acima dá +xpSobe por nível (até xpMax); herói 3+ níveis acima perde xpCai por nível (até xpMin)
+//    e, passando xpAlemDe níveis acima, cada nível a mais multiplica o XP por xpAlem (André 2026-11-09: sem limite de
+//    nível, o castigo de XP só aumenta quanto mais acima do bicho)
 //  - nome do monstro: cinza (fácil) com corFacil níveis ou menos, vermelho (perigo) com corForte ou mais, verde no meio
 // folga, perde e min eram a regra de XP de antes (sem uso desde 2026-11-04, ficam por causa da regra "Nada some").
 // Ajuste fino depois do teste (André 2026-11-06: "volta a regra do Quimera, testo, se achar fácil ainda modificamos"):
@@ -387,7 +389,7 @@ export const CACA = [
 export const NIVEL_INIMIGO = { forca: 1.8, resistencia: 1.6, defesaBase: 10, defesaNivel: 3, defesaMax: 1, vida: 0.16, dano: 0.32, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1,
   danoAcima: 0.06, danoAbaixo: 0.05, danoAbaixoMin: 0.55, teto: 0.3, tetoChefe: 0.45,
   golpeFolga: 3, golpeCai: 0.06, golpeMin: 0.6, golpeSobe: 0.04, golpeMax: 1.4,
-  xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, corFacil: -3, corForte: 2 };
+  xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, xpAlemDe: 7, xpAlem: 0.9, corFacil: -3, corForte: 2 };
 export const statusInimigo = (tipo, nivel = 1) => {
   const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
   return { vida: Math.round(t.vida * (NIVEL_INIMIGO.resistencia ?? 1) * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (NIVEL_INIMIGO.forca ?? 1) * (1 + NIVEL_INIMIGO.dano * k)) };
@@ -1860,3 +1862,49 @@ export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo ? Math.max(0, alturaMon
 // verdade (shared/terreno.js), e os rios vão para o app desenhar a água e as cachoeiras (mundo_grade.json)
 MAPA_CLAREIRA.pontes = PONTES_MUNDO;
 export { RIOS_MUNDO, PONTES_MUNDO };
+
+// ---------- Cecília, a amiga (André 2026-11-07 e 2026-11-09) ----------
+// Uma "jogadora" que vive no servidor (shared/amiga.js): guerreira brincalhona, amiga de igual para igual, não ajudante.
+// Mora num terreno das Terras da Estrada, constrói a casa dela peça por peça e cuida da horta. Só o André conversa com
+// ela (contas de teste, server/contas.js); os outros veem ela andando e trabalhando, mas tocar nela não abre nada.
+// Visual escolhido pelo André (opção B, 2026-11-09): corpo victoria, cabelo preto, olhos vermelhos, vinho e capa roxa.
+// Fase 1: corpo, casa, horta, passeio pela vila e conversa por botões. Time, combate e troca de verdade vêm nas fases 2 e 3.
+export const AMIGA = {
+  id: 'cecilia', nome: 'Cecília', conta: 'a:cecilia', papel: 'a guerreira',
+  visual: 'victoria',
+  aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1 },
+  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'short', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 } },
+  terreno: { w: 10, d: 10 }, // tamanho do terreno dela (procura o primeiro lugar livre perto da entrada das Terras)
+  // a casa (6 x 4 m, a 2 m da borda, porta para o sul) e a horta, relativas ao canto do terreno (x0, z0); a grade é a de CASA.grade
+  // b: lado da borda de um quadrado de fundação ('n','s','l','o'); a casa sai peça por peça, nesta ordem
+  casa: [
+    ['fundacao', 3, 3], ['fundacao', 5, 3], ['fundacao', 7, 3], ['fundacao', 3, 5], ['fundacao', 5, 5], ['fundacao', 7, 5],
+    ['parede', 3, 3, 'n'], ['janela', 5, 3, 'n'], ['parede', 7, 3, 'n'], ['parede', 3, 3, 'o'], ['parede', 3, 5, 'o'],
+    ['parede', 7, 3, 'l'], ['janela', 7, 5, 'l'], ['parede', 3, 5, 's'], ['porta', 5, 5, 's'], ['parede', 7, 5, 's'],
+    ['telhado', 3, 3, 0], ['telhado', 5, 3, 0], ['telhado', 7, 3, 0], ['telhado', 3, 5, 2], ['telhado', 5, 5, 2], ['telhado', 7, 5, 2],
+    ['cama', 3.4, 4.3, 1], ['bau', 7, 5.2, 0], ['tocha', 4.1, 6.6, 0],
+  ],
+  dentro: [2, 2, 8, 6], // o retângulo da casa (relativo ao canto do terreno): dentro dele ela entra e sai pela porta
+  porta: [5, 6.7], // em pé na frente da porta, do lado de fora
+  horta: { x: 2, z: 7, w: 6, d: 3 }, // canteiros de 1 m na frente da casa
+  plantas: ['cenoura', 'rabanete', 'batata'],
+  passo: { obra: 14, canteiro: 6, passeio: 40 }, // segundos entre uma peça e outra, um canteiro e outro, e quanto passeia
+  conversa: 25, // segundos parada olhando para o André depois do último botão
+  // o que ela pede ao André (e paga de volta com o que colheu, ou em ouro)
+  pedidos: [{ k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'couro', n: 2 }, { k: 'semente_cenoura', n: 3 }, { k: 'minerio_cobre', n: 3 }],
+  falas: {
+    oi: ['Ei, você! Veio me ver ou veio filar uma cenoura?', 'Olha quem apareceu! Tava com saudade, sabia?', 'Opa! Chegou na hora certa, eu tava precisando de companhia.'],
+    obra: ['Tô levantando minha casinha, peça por peça. Ficando linda, né?', 'Mais umas peças e eu durmo debaixo de telhado de verdade!', 'Parede, porta, janela... quem diria que espada também serve de martelo.'],
+    pronta: ['Minha casa ficou pronta! Pode entrar, só não repara a bagunça.', 'Casa pronta, horta plantada. Agora só falta aventura!'],
+    horta: ['Essa horta é meu orgulho. Cenoura daqui é outro nível.', 'Plantar é fácil, difícil é não comer tudo antes de colher.'],
+    time: ['Caçar juntos? Bora! Só me dá um tempinho pra eu me equipar, logo logo eu pego a espada.', 'Time? Quero muito! Só preciso me ajeitar aqui antes. Me chama de novo daqui a pouco.'],
+    dungeon: ['Caverna? Adoro! Mas lá embaixo o Warrok morde. Primeiro eu me equipo melhor, combinado?', 'Dungeon comigo vai ser divertido. Ainda não, mas logo!'],
+    troca: ['Troca? Ainda tô juntando minhas coisas. Quando eu tiver mais, a gente negocia.', 'Hmm, tenho pouca coisa ainda. Volta quando a horta render!'],
+    pedido: ['Pra falar a verdade, preciso sim: {item}. Você tem aí? Eu te pago!', 'Tô precisando de {item}. Se você me arrumar, fico te devendo uma.'],
+    semPedido: ['Agora não preciso de nada, mas valeu por perguntar!', 'Tô tranquila. Se precisar, eu grito!'],
+    obrigada: ['Valeu demais! Toma {paga}, foi o que eu tinha. Amigo é pra isso!', 'Você é demais! Fica com {paga} de presente.'],
+    falta: ['Você não tem {item} na mochila. Tudo bem, sem pressa!'],
+    ocupada: ['Peraí, já já eu falo com você!'],
+    tchau: ['Até mais! Passa aqui de novo.', 'Tchau! Cuidado com os lobos.'],
+  },
+};

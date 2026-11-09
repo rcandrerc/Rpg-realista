@@ -13,7 +13,10 @@ export const ATRIBUTOS = {
 export const PONTOS_POR_NIVEL = 2;
 // André 2026-11-06: nível máximo 200 (era 30). Até o Nv 30 a curva é a mesma de antes; depois aperta aos poucos
 // (x2,4 no Nv 100, x4,4 no Nv 200: uns 100 monstros por nível perto do 100 e 250 perto do 200).
-export const NIVEL_MAX = 200;
+// André 2026-11-09: o personagem não tem limite de nível ("o jogo não tem cap"). Os monstros vão até o Nv 100 e pouco;
+// quem passar disso continua subindo, mas o XP cai cada vez mais quanto mais acima do bicho estiver (xpNivel abaixo).
+// 9999 é só uma trava técnica contra save quebrado, ninguém chega lá.
+export const NIVEL_MAX = 9999;
 export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50));
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
 export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7, golem: 9, maw: 10, warrok: 30 };
@@ -24,9 +27,13 @@ export const xpDoInimigo = (tipo, nv, nh, N) => {
   return Math.max(1, Math.round(base * xpNivel(nv, nh, N)));
 };
 // Diferença de nível como no Quimera (números em NIVEL_INIMIGO de shared/dados.js). d = nível do monstro - nível do herói.
+// André 2026-11-09: o corte não para no piso xpMin. Passando xpAlemDe níveis acima do bicho, cada nível a mais
+// multiplica o XP por xpAlem de novo (o castigo só aumenta, sem fim). xpDoInimigo ainda garante 1 XP por bicho.
 export const xpNivel = (nv, nh, N) => {
   const d = (nv || 1) - (nh || 1);
-  return d >= 2 ? Math.min(N.xpMax, 1 + N.xpSobe * (d - 1)) : Math.min(1, Math.max(N.xpMin, 1 - N.xpCai * (-d - 2)));
+  if (d >= 2) return Math.min(N.xpMax, 1 + N.xpSobe * (d - 1));
+  const f = Math.min(1, Math.max(N.xpMin, 1 - N.xpCai * (-d - 2)));
+  return N.xpAlem ? f * N.xpAlem ** Math.max(0, -d - N.xpAlemDe) : f;
 };
 // monstro batendo no herói: mais forte acima, mais fraco abaixo
 export const danoMonstroNivel = (nv, nh, N) => {

@@ -13,6 +13,7 @@ var m # main.gd
 var rede
 var ligado := false # dentro da sala
 var meu_id := ""
+var amiga_id := "" # a Cecília (shared/amiga.js): o servidor só manda para o dono dela, que pode conversar
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
@@ -527,6 +528,8 @@ func outro(j: Dictionary) -> void:
 		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador))
 	if str(j.get("nome", "")) != "":
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
+	if j.has("bot"):
+		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
@@ -689,6 +692,9 @@ func evento(ev: Dictionary) -> void:
 				m.transporte.prog_chegou() # combustível do carrinho de verdade
 			return
 		# Vila dos Lotes (construcao.gd): todos os lotes ao entrar, um lote que mudou, o lote que comprei
+		"amiga": # sou o dono da Cecília: tocar nela abre a conversa (conversa.gd)
+			amiga_id = str(ev.get("id", ""))
+			return
 		"lotes":
 			if m.construcao:
 				m.construcao.do_servidor_lotes(ev)
@@ -871,7 +877,7 @@ func evento(ev: Dictionary) -> void:
 					m.sons.tocar("magia", -6.0)
 			return
 		"fala":
-			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), str(ev.texto))): # janela do NPC aberta: a fala aparece nela
+			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), str(ev.texto), ev)): # janela do NPC aberta: a fala aparece nela
 				m.hud.aviso(str(ev.texto))
 			if str(ev.get("abrir", "")) == "resetar":
 				m.menu.perguntar_reset(int(ev.get("custo", 0)))

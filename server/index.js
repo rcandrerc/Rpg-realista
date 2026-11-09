@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGA } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
@@ -18,7 +18,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
 const historicoChat = { geral: [], amigos: [], pm: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
@@ -123,7 +123,9 @@ class SalaClareira extends Room {
     this.ouvir('aparencia', (c, a) => this.sim.definirAparencia(c.sessionId, a));
     this.ouvir('criando', (c, v) => this.sim.definirCriando(c.sessionId, v === true)); // no palco do criador: fora do mundo
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
-    this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m)); // m opcional: { npc, conversa } (menu do NPC no app)
+    this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m));
+    // Cecília (shared/amiga.js): só o dono recebe resposta; os outros não conversam com ela
+    this.ouvir('amiga', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.conversaAmiga(c.sessionId, { acao: m.acao }); }); // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
     this.ouvir('vila', (c) => this.sim.voltarVila(c.sessionId)); // botão da casinha: canaliza e volta para a vila (recarga de 10 min)
     // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
@@ -154,6 +156,7 @@ class SalaClareira extends Room {
   // Grava na conta o progresso de quem mudou desde a última vez
   salvarProgressos() {
     if (!contas) return;
+    this.sim.guardarAmiga(); // Cecília: bolsa, ouro e amizade vão junto com o terreno dela
     const porSessao = new Map(this.clients.map((c) => [c.sessionId, c.auth]));
     for (const { id, prog } of this.sim.progressosParaSalvar()) {
       const conta = porSessao.get(id) || this.contaDe?.get(id);
@@ -224,7 +227,14 @@ class SalaClareira extends Room {
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (conta) this.sim.definirAmigos(client.sessionId, contas.amigos(conta.id).map((a) => ({ c: 'c' + a.id, nome: a.nome })));
     this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos, historicoChat.pm); // as últimas mensagens do chat
-    if (podeCriar) this.sim.definirCriando(client.sessionId, true); // primeira vez: entra já no palco do criador
+    if (podeCriar) this.sim.definirCriando(client.sessionId, true);
+    // Cecília (André 2026-11-09): entra na sala junto com o dono (as contas de teste do André; sem contas, o primeiro
+    // que entra) e sai quando ele sai. O terreno dela vem do banco do jeito que está (outra sala pode ter mexido).
+    if (conta ? conta.testador : !this.sim.amiga) {
+      if (contas && !this.sim.amiga) { const l = contas.loteDoDono(AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
+      this.sim.amigaEntrar(client.sessionId);
+      this.sim.enviarLotes(client.sessionId);
+    } // primeira vez: entra já no palco do criador
   }
 
   onDispose() { this.salvarProgressos(); salas.delete(this); }
@@ -236,6 +246,7 @@ class SalaClareira extends Room {
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
+    if (this.sim.amigaDono === client.sessionId) { this.sim.amigaSair(client.sessionId); this.salvarProgressos(); } // Cecília sai junto com o dono
     this.sim.removerJogador(client.sessionId);
     this.visao.esquecer(client.sessionId);
     this.contaDe?.delete(client.sessionId);

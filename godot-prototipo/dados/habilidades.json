@@ -432,7 +432,7 @@
   }
  },
  "pontosPorNivel": 2,
- "nivelMax": 200,
+ "nivelMax": 9999,
  "skillMax": 10,
  "botoesPadrao": {
   "espada": [
@@ -2150,6 +2150,8 @@
   "xpMax": 1.6,
   "xpCai": 0.2,
   "xpMin": 0.15,
+  "xpAlemDe": 7,
+  "xpAlem": 0.9,
   "corFacil": -3,
   "corForte": 2
  },

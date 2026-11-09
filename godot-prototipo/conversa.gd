@@ -24,7 +24,16 @@ const ACOES := {
 	"resetar": ["Resetar build", "desfazer"],
 	"passe": ["Fazer passe da caverna", "it_passe_caverna"], # Gaspar, na boca da Caverna da Montanha (2026-11-06)
 	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
+	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
+	"amiga_casa": ["Como vai a casa?", "lote"],
+	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
+	"amiga_time": ["Bora caçar juntos?", "basico"],
+	"amiga_dungeon": ["Vamos na caverna?", "it_passe_caverna"],
+	"amiga_troca": ["Quer trocar itens?", "it_ouro"],
 }
+const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca"]
+var _amiga := {} # a Cecília vista como NPC da janela (o corpo vem do online.gd, como outro jogador)
+var _amiga_pedido = null # o que ela pediu ({k, n, nome}): aparece o botão Dar
 
 var m # main.gd
 var raiz: Control
@@ -141,7 +150,7 @@ func npc_perto(metros := PERTO):
 		return null
 	var achou = null
 	var md := metros
-	for n in m.npcs:
+	for n in _com_amiga():
 		var d := _dist(n)
 		if d < md and abs(n.no.position.y - m.heroi.position.y) < 2.0:
 			md = d
@@ -163,7 +172,7 @@ func tocou_tela(pos: Vector2) -> void:
 		return
 	var achou = null
 	var md := 1e9
-	for n in m.npcs:
+	for n in _com_amiga():
 		var d := _dist(n)
 		if d > 35.0:
 			continue
@@ -186,6 +195,41 @@ func tocou_tela(pos: Vector2) -> void:
 		return
 	indo = {"npc": achou, "ate": m.tempo + 3.0 + md / 3.0, "d": md, "t": m.tempo}
 	m.hud.aviso("Indo até %s" % _curto(achou))
+
+# os NPCs da vila e, para o dono dela, a Cecília (um jogador do servidor com bot: o corpo é o do online.gd)
+func _com_amiga() -> Array:
+	var l: Array = m.npcs
+	var a = _amiga_npc()
+	return l if a == null else l + [a]
+
+func _amiga_npc():
+	if not m.on() or m.online.amiga_id == "":
+		return null
+	var o = m.online.outros.get(m.online.amiga_id)
+	if o == null or not is_instance_valid(o.get("no")) or not o.no.visible:
+		return null
+	if _amiga.is_empty():
+		_amiga = {"id": m.online.amiga_id, "nome": "%s, a guerreira" % str(o.get("nome", "Cecília")), "funcao": "amiga", "amiga": true,
+			"acoes": [], "falas": [], "modelo": str(o.get("visual", "victoria")), "aparencia": {}, "info": {"roupa": str(o.get("roupa", ""))}}
+	_amiga.no = o.no
+	if _amiga.aparencia.is_empty() and o.get("ap", "") != "": # as cores dela (as mesmas do corpo no mundo), para o retrato
+		var ap = JSON.parse_string(str(o.ap))
+		if ap is Dictionary:
+			_amiga.aparencia = Aparencia.valida(ap, m.P.dados.criador)
+	return _amiga
+
+# botões da conversa com a Cecília (o Dar aparece quando ela pediu alguma coisa)
+func _botoes_amiga() -> void:
+	for c in opcoes.get_children():
+		opcoes.remove_child(c)
+		c.queue_free()
+	if _amiga_pedido is Dictionary:
+		var p: Dictionary = _amiga_pedido
+		opcoes.add_child(_opcao("Dar %d %s" % [int(p.n), str(p.nome).to_lower()], "it_" + str(p.k), func(): m.rede("amiga", {"acao": "dar"})))
+	for a in AMIGA_BOTOES:
+		var acao: String = a.trim_prefix("amiga_")
+		opcoes.add_child(_opcao(ACOES[a][0], ACOES[a][1], func(): m.rede("amiga", {"acao": acao})))
+	opcoes.add_child(_opcao("Até logo", "sair", func(): m.rede("amiga", {"acao": "tchau"}); fechar()))
 
 # para onde o herói anda sozinho (main.direcao_joystick), ou zero
 func direcao_auto() -> Vector3:
@@ -256,10 +300,14 @@ func abrir(n: Dictionary) -> void:
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
 	_itens_passe(n.funcao == "passe")
-	for c in opcoes.get_children():
+	if n.get("amiga", false): # Cecília: o servidor responde (shared/amiga.js) e os botões são os dela
+		fala_ui.text = "..."
+		m.rede("amiga", {"acao": "oi"})
+		_botoes_amiga()
+	for c in (opcoes.get_children() if not n.get("amiga", false) else []):
 		opcoes.remove_child(c)
 		c.queue_free()
-	for a in n.get("acoes", []):
+	for a in (n.get("acoes", []) if not n.get("amiga", false) else []):
 		if not ACOES.has(a):
 			continue
 		var t: String = ACOES[a][0]
@@ -269,8 +317,9 @@ func abrir(n: Dictionary) -> void:
 			var custo: int = m.P.custo_conserto_tudo()
 			t = ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)"
 		opcoes.add_child(_opcao(t, ACOES[a][1], func(): escolher(a)))
-	opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
-	opcoes.add_child(_opcao("Até logo", "sair", fechar))
+	if not n.get("amiga", false):
+		opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
+		opcoes.add_child(_opcao("Até logo", "sair", fechar))
 	retrato_ui.texture = _retrato(n)
 	_aberto_ms = Time.get_ticks_msec()
 	raiz.visible = true
@@ -405,10 +454,15 @@ func _atualizar_consertar() -> void:
 			b.text = ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)"
 
 # o servidor respondeu ("fala"): se a janela desse NPC está aberta, a fala aparece nela. true = mostrou aqui
-func fala(npc_id: String, texto: String) -> bool:
+func fala(npc_id: String, texto: String, ev := {}) -> bool:
 	if npc == null or str(npc.id) != npc_id:
 		return false
 	fala_ui.text = texto
+	if npc.get("amiga", false): # Cecília: pediu alguma coisa (ou não pede mais) -> o botão Dar aparece ou some
+		var p = ev.get("pedido")
+		if JSON.stringify(p) != JSON.stringify(_amiga_pedido):
+			_amiga_pedido = p
+			_botoes_amiga()
 	if itens_ui.visible:
 		_itens_passe(true)
 	return true
