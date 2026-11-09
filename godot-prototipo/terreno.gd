@@ -40,7 +40,7 @@ func _carregar_mundo() -> void:
 		h[i] = float(g.h[i]) * 0.1
 	mundo_g = {"x0": float(g.x0), "z0": float(g.z0), "passo": float(g.passo), "nx": int(g.nx), "nz": int(g.nz), "h": h, "terra": str(g.terra), "terras": g.terras,
 		"estrada": str(g.get("estrada", "")), "lugares": g.get("lugares", []), "estradas": g.get("estradas", []),
-		"rio": str(g.get("rio", "")), "rios": g.get("rios", []), "pontes": g.get("pontes", [])}
+		"rio": str(g.get("rio", "")), "praia": str(g.get("praia", "")), "rios": g.get("rios", []), "pontes": g.get("pontes", [])}
 
 # altura da grade do mundo (bilinear); fora dela é mar fundo
 # 2026-11-09: a máscara de 1 m do mundo grande (client/exportar-godot/mascara_mundo.mjs): R estradas, G mapa andável de

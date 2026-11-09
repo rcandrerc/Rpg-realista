@@ -132,6 +132,7 @@ func _pedaco(i0: int, j0: int) -> void:
 	var agua := PackedInt32Array()
 	var est: String = g.estrada
 	var rio: String = g.get("rio", "")
+	var praia: String = g.get("praia", "") # 0-9: areia da praia só perto do mar (sem a grade velha: em todo chão baixo)
 	for j in range(j0, j1 + 1):
 		for i in range(i0, i1 + 1):
 			var y: float = h[j * nx + i]
@@ -141,7 +142,8 @@ func _pedaco(i0: int, j0: int) -> void:
 			var hz: float = h[mini(int(g.nz) - 1, j + 1) * nx + i] - h[maxi(0, j - 1) * nx + i]
 			ns.append(Vector3(-hx, 2.0 * passo, -hz).normalized())
 			cs.append(Color(float(est.unicode_at(j * nx + i) - 48) / 9.0 if est.length() > j * nx + i else 0.0,
-				float(rio.unicode_at(j * nx + i) - 48) / 9.0 if rio.length() > j * nx + i else 0.0, 0)) # g = leito do rio
+				float(rio.unicode_at(j * nx + i) - 48) / 9.0 if rio.length() > j * nx + i else 0.0,
+				float(praia.unicode_at(j * nx + i) - 48) / 9.0 if praia.length() > j * nx + i else 1.0)) # g = leito do rio, b = beira do mar
 	for j in range(j1 - j0):
 		for i in range(w - 1):
 			var a := j * w + i
@@ -186,6 +188,7 @@ func _pedaco_longe(i0: int, j0: int, i1: int, j1: int) -> void:
 	var h: PackedFloat32Array = g.h
 	var passo: float = g.passo
 	var rio: String = g.get("rio", "")
+	var praia: String = g.get("praia", "")
 	var xs := _passos(i0, i1)
 	var zs := _passos(j0, j1)
 	var w := xs.size()
@@ -201,7 +204,8 @@ func _pedaco_longe(i0: int, j0: int, i1: int, j1: int) -> void:
 			var hx: float = h[j * nx + mini(nx - 1, i + PASSO_LONGE)] - h[j * nx + maxi(0, i - PASSO_LONGE)]
 			var hz: float = h[mini(nz - 1, j + PASSO_LONGE) * nx + i] - h[maxi(0, j - PASSO_LONGE) * nx + i]
 			ns.append(Vector3(-hx, 2.0 * passo * PASSO_LONGE, -hz).normalized())
-			cs.append(Color(0, float(rio.unicode_at(k) - 48) / 9.0 if rio.length() > k else 0.0, 0))
+			cs.append(Color(0, float(rio.unicode_at(k) - 48) / 9.0 if rio.length() > k else 0.0,
+				float(praia.unicode_at(k) - 48) / 9.0 if praia.length() > k else 1.0))
 	for b in zs.size() - 1:
 		for a in w - 1:
 			# o mapa de hoje (tudo 0 no quadrado inteiro): o chão plano já desenha
