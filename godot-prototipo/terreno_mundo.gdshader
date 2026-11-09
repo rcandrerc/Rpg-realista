@@ -80,7 +80,7 @@ void fragment() {
 	vec3 areia = texture(areia_tex, w / 3.0).rgb * tom_areia * (0.92 + 0.16 * ruido2);
 	areia = mix(areia, vec3(dot(areia, vec3(0.333))) * vec3(1.12, 1.02, 0.86), 0.35); // menos alaranjada (prainha)
 	float ka = 1.0 - smoothstep(praia - 0.35, praia + 0.25, mundo.y + (ruido - 0.5) * 0.6);
-	areia = mix(areia, areia * vec3(0.62, 0.6, 0.58), 1.0 - smoothstep(-0.1, 0.35, mundo.y));
+	// (2026-11-09, André: sem a faixa escura molhada rente à água, parecia borda de piscina; só embaixo d'água escurece)
 	c = mix(c, areia, ka * (1.0 - pr * 0.7));
 	// estrada de terra batida (shared/mundo.js), com a borda comida pela grama
 	float est = estrada;
