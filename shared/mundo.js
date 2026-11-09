@@ -233,9 +233,11 @@ function ramificar(G, dist) {
   const rede = []; // [x, z, peso]: a trilha nova sai de preferência da estrada principal
   const hoje = (x, z) => { const i = Math.round((x - G.x0) / G.passo), j = Math.round((z - G.z0) / G.passo); return dist[j * G.nx + i] < 6; };
   // trilha não sai de dentro do mapa de hoje (o chão dele fica preso no nível 0) nem atravessa rio (sem ponte na trilha)
-  for (const E of ESTRADAS_MUNDO) for (const p of curva(E.pontos)) if (!hoje(p[0], p[1])) rede.push([p[0], p[1], 1]);
   const leitos = RIOS_MUNDO.map((R) => meandro(curva(R.pontos)));
   const longeDoRio = (x, z) => leitos.every((C) => C.every((q) => Math.hypot(q[0] - x, q[1] - z) > LARG_RIO / 2 + BARRANCO + 3));
+  const grossos = leitos.map((C) => C.filter((_, i) => i % 3 === 0));
+  const cruzaRio = (p, L) => grossos.some((C) => C.some(([px, pz]) => { const t = Math.max(0, Math.min(1, ((px - p[0]) * (L.x - p[0]) + (pz - p[1]) * (L.z - p[1])) / ((L.x - p[0]) ** 2 + (L.z - p[1]) ** 2 || 1))); return Math.hypot(p[0] + (L.x - p[0]) * t - px, p[1] + (L.z - p[1]) * t - pz) < 10; }));
+  for (const E of ESTRADAS_MUNDO) for (const p of curva(E.pontos)) if (!hoje(p[0], p[1]) && longeDoRio(p[0], p[1])) rede.push([p[0], p[1], 1]);
   const alvos = LUGARES_MUNDO.filter((l) => l.tipo === 'caca' || l.tipo === 'mina');
   const feitos = new Set();
   while (feitos.size < alvos.length) {
@@ -245,7 +247,9 @@ function ramificar(G, dist) {
       const T = terraEm(G, L.x, L.z);
       for (const p of rede) {
         if (terraEm(G, p[0], p[1]) !== T) continue;
-        const d = Math.hypot(p[0] - L.x, p[1] - L.z) * p[2];
+        let d = Math.hypot(p[0] - L.x, p[1] - L.z) * p[2];
+        if (melhor && d >= melhor.d) continue;
+        if (cruzaRio(p, L)) d *= 4; // atravessar rio só sem outro jeito
         if (!melhor || d < melhor.d) melhor = { L, p, d };
       }
     }
@@ -268,7 +272,7 @@ function ramificar(G, dist) {
     ESTRADAS_MUNDO.push({ id: `t_${L.id}`, nome: 'Trilha', trilha: true, larg: 2.6, pontos: escolha.map(([x, z]) => [+x.toFixed(1), +z.toFixed(1)]) });
     // a trilha nova também vira rede, menos o pedaço perto do campo (trilha não sai de dentro de clareira: nada de
     // campo emendado em campo, que vira anel de novo)
-    for (const q of curva(escolha)) if (LUGARES_MUNDO.every((o) => (o.tipo !== 'caca' && o.tipo !== 'mina') || Math.hypot(q[0] - o.x, q[1] - o.z) > o.r + 10)) rede.push([q[0], q[1], 1.35]);
+    for (const q of curva(escolha)) if (longeDoRio(q[0], q[1]) && LUGARES_MUNDO.every((o) => (o.tipo !== 'caca' && o.tipo !== 'mina') || Math.hypot(q[0] - o.x, q[1] - o.z) > o.r + 10)) rede.push([q[0], q[1], 1.35]);
   }
 }
 export const RAMPA_MAX = 0.1;
@@ -319,6 +323,8 @@ function lugaresDeMina(G) {
       for (let t = 0; t < 120; t++, k++) {
         const a = (k * 2.399) % 6.283, d = L.r + 18 + (k % 8) * 6, x = +(L.x + Math.cos(a) * d).toFixed(1), z = +(L.z + Math.sin(a) * d).toFixed(1);
         if (!livre(x, z, r)) continue;
+        // sem rio entre o campo e o veio (a trilha não precisa de ponte)
+        if (RIOS_MUNDO.some((R) => meandro(curva(R.pontos)).some(([px, pz]) => { const t = Math.max(0, Math.min(1, ((px - L.x) * (x - L.x) + (pz - L.z) * (z - L.z)) / ((x - L.x) ** 2 + (z - L.z) ** 2))); return Math.hypot(L.x + (x - L.x) * t - px, L.z + (z - L.z) * t - pz) < 12; }))) continue;
         LUGARES_MUNDO.push({ id: `m_${L.id}_${tipo}`, tipo: 'mina', minerio: tipo, terra: L.terra, perto: L.id, x, z, r });
         break;
       }
@@ -544,6 +550,8 @@ function abrirRios(G, dist) {
       let melhor = null;
       for (const q of E.curva) for (let i = 0; i < n; i++) { const d = Math.hypot(q[0] - C[i][0], q[1] - C[i][1]); if (d < 3 && (!melhor || d < melhor.d)) melhor = { d, q, i }; }
       if (!melhor) continue;
+      // trilha que cruza o rio rente à ponte da estrada usa a mesma ponte
+      if (PONTES_MUNDO.some((p) => p.rio === R.id && Math.hypot(p.x - melhor.q[0], p.z - melhor.q[1]) < 25)) continue;
       const k = E.curva.indexOf(melhor.q), a = E.curva[Math.max(0, k - 3)], b = E.curva[Math.min(E.curva.length - 1, k + 3)];
       const ry = Math.atan2(b[0] - a[0], b[1] - a[1]);
       // o rio cruza torto: a ponte vai de um barranco ao outro medidos ao longo da estrada
