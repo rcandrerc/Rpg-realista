@@ -244,9 +244,10 @@ export const Amiga = {
       case 'horta': return diga(sorteia(F.horta));
       case 'time': {
         if (a.time && a.time === j.time) return diga(sorteia(F.jaNoTime));
-        if ((a.ia.recusaAte || 0) > this.tempo) return diga(F.recusa.jaFalei);
+        const topou = this.combinouAmiga(a) || (a.ia.chamado?.quer === 'time' && a.ia.chamado.ate > this.tempo);
+        if (!topou && (a.ia.recusaAte || 0) > this.tempo) return diga(F.recusa.jaFalei);
         const v = this.vontadeAmiga(a, j);
-        if (Math.random() >= v.p) { a.ia.recusaAte = this.tempo + AMIGA.time.esperaRecusa; return diga(F.recusa[v.motivo] || F.recusa.vontade); }
+        if (!topou && Math.random() >= v.p) { a.ia.recusaAte = this.tempo + AMIGA.time.esperaRecusa; return diga(F.recusa[v.motivo] || F.recusa.vontade); }
         if (!this.entrarTimeAmiga(a, j)) { a.ia.recusaAte = this.tempo + 5; return diga(F.recusa.cheio); }
         a.ia.conversaAte = this.tempo + 2;
         return diga(sorteia(F.time), { time: true });
@@ -407,7 +408,7 @@ export const Amiga = {
       case 'time': {
         if (noTime) { fala = sorteia(FA.jaNoTime); break; }
         if (a.morto) { fala = FA.caiu; break; }
-        const pediu = chamado?.quer === 'time'; // ela que chamou: aceita sem sorteio
+        const pediu = chamado?.quer === 'time' || this.combinouAmiga(a); // ela que chamou ou já topou: aceita sem sorteio
         if (!pediu && (ia.recusaAte || 0) > this.tempo) { fala = FA.recusa.jaFalei; break; }
         const v = this.vontadeAmiga(a, j);
         if (!pediu && Math.random() >= v.p) { ia.recusaAte = this.tempo + AMIGA.time.esperaRecusa; fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
@@ -426,6 +427,7 @@ export const Amiga = {
         const pediu = chamado && chamado.quer !== 'time';
         if (!pediu && Math.random() >= Math.min(0.95, this.vontadeAmiga(a, j).p + 0.2)) { fala = sorteia(F.naoVir); break; }
         ia.vir = { ate: this.tempo + 120, longe: this.tempo + 4 }; ia.chamado = null; ia.conversaAte = 0;
+        this.combinarAmiga(a); // topou vir: está disponível, então não recusa o time logo depois
         fala = sorteia(F.vir);
         break;
       }
@@ -488,7 +490,9 @@ export const Amiga = {
     if (d < 2.8) {
       ia.vir = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.viu = true;
       ia.conversaAte = this.tempo + AMIGA.conversa; j.ry = Math.atan2(dono.x - j.x, dono.z - j.z);
-      this.dizerAmiga(sorteia(AMIGA.chat.falas.chegou));
+      this.dizerAmiga(sorteia(AMIGA.chat.falas.chegou) + ' ' + sorteia(AMIGA.chat.falas.chegouPergunta));
+      ia.chamado = { quer: 'time', ate: this.tempo + AMIGA.chat.chamar.espera }; // "bora"/"sim"/Time agora entram sem sorteio
+      this.combinarAmiga(j);
       return true;
     }
     if ((d > AMIGA.time.longe || (dono.caverna && !j.caverna)) && this.tempo >= v.longe) {
@@ -573,6 +577,9 @@ export const Amiga = {
     a.ia.trocaT = null;
     this.guardarAmiga();
   },
+  // o que ela topou fica combinado um tempo (André 2026-11-09: falou que vem/que caça, não recusa o time em seguida)
+  combinarAmiga(a) { a.ia.combinado = this.tempo + AMIGA.chat.chamar.combinado; a.ia.recusaAte = 0; },
+  combinouAmiga(a) { return (a.ia.combinado || 0) > this.tempo; },
   // pelo chat com a troca aberta: "quero 3 cenouras" (ela põe na mesa) ou "é presente" (ela não paga)
   pedidoTrocaAmiga(assunto, texto) {
     const a = this.amiga, F = AMIGA.falasTroca; if (!a?.troca) return sorteia(AMIGA.falas.troca);

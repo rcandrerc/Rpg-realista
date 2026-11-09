@@ -112,7 +112,11 @@ ok(ITENS.lenha, 'itens');
   ok(!!c.ia.vir, 'aceitou ir até ele');
   let perto = 99; for (let i = 0; i < 20 * 60 && c.ia.vir; i++) { s3.passo(0.05); perto = Math.hypot(c.x - d.x, c.z - d.z); }
   esperar(4);
-  ok(perto < 4 && falas.some((f) => AMIGA.chat.falas.chegou.includes(f.texto)), `chegou perto dele (a ${perto.toFixed(1)} m) e avisou`);
+  ok(perto < 4 && falas.some((f) => AMIGA.chat.falas.chegou.some((t) => f.texto.startsWith(t)) && AMIGA.chat.falas.chegouPergunta.some((t) => f.texto.endsWith(t))), `chegou perto dele (a ${perto.toFixed(1)} m), avisou e perguntou o que fazer`);
+  // ela veio porque topou: o convite de time logo depois entra sem sorteio (nem "já te falei")
+  { const rr = Math.random; Math.random = () => 0.999; s3.eventos = []; Object.assign(d, { x: c.x + 1.5, z: c.z }); s3.conversaAmiga('andre', { acao: 'time' }); Math.random = rr;
+    ok(c.time && d.time === c.time, 'veio quando chamou e entrou no time sem recusar (combinado)');
+    s3.conversaAmiga('andre', { acao: 'sair' }); esperar(1); c.ia.combinado = 0; c.ia.chamado = null; }
   // ela chama: com ele longe, uma hora ela manda mensagem; "bora" entra no time sem sorteio
   Object.assign(d, { x: c.x + 60, z: c.z, y: s3.terreno.altura(c.x + 60, c.z) }); c.ia.conversaAte = 0; c.ia.chamaEm = s3.tempo; c.ia.recusaAte = 0;
   const n0 = falas.length; esperar(1);

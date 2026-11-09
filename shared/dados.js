@@ -1967,7 +1967,7 @@ export const AMIGA = {
   chat: {
     digitando: [1.2, 3], // segundos até a resposta (parece gente digitando)
     iaPorDia: 150,
-    chamar: { primeiro: [240, 480], entre: [600, 1200], longe: 30, espera: 150 }, // ela chama o André: s até a 1ª, s entre uma e outra, m de distância, s esperando resposta
+    chamar: { primeiro: [240, 480], entre: [600, 1200], longe: 30, espera: 150 }, combinado: 300, // ela chama o André: s até a 1ª, s entre uma e outra, m de distância, s esperando resposta
     // assunto: palavras que contam (sem acento, minúsculas)
     assuntos: {
       sairTime: ['sai do time', 'sair do time', 'pode ir pra casa', 'pode voltar pra casa', 'volta pra casa', 'te libero'],
@@ -1995,6 +1995,9 @@ export const AMIGA = {
       comoVai: ['Tô ótima! A horta tá linda e eu tô cheia de energia.', 'Tudo certo por aqui! E você, matou muito lobo hoje?', 'Bem! Meio suja de terra, mas feliz.'],
       vir: ['Tô indo aí! Me espera que eu já chego.', 'Já vou! Não sai daí, hein?', 'Partiu! Chego num instante.'],
       chegou: ['Cheguei! Sentiu minha falta?', 'Pronto, tô aqui! Que foi?'],
+      // André 2026-11-09 ("as respostas têm que ter lógica"): chegou porque ele chamou, então pergunta o que vão fazer;
+      // o que ela topou (vir, caçar) fica combinado por 'combinado' s e o convite de time entra sem sorteio
+      chegouPergunta: ['O que vamos fazer? Bora caçar?', 'Tô pronta! Vamos caçar ou você tem outra ideia?', 'E aí, qual o plano? Caçar uns monstros?'],
       naoVir: ['Agora não dá, tô no meio de uma coisa aqui. Daqui a pouco!', 'Ai, agora não consigo... me chama mais tarde?'],
       perto: ['Ué, eu tô do seu lado! Olha pra trás.', 'Tô aqui pertinho, bobo!'],
       chamaRespostaSim: ['Eba! Tô indo aí!', 'Isso! Já tô a caminho.'],
