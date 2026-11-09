@@ -1,12 +1,17 @@
 // IA grátis da Cecília (André 2026-11-09: conversar com ela "no chat como uma pessoa normal").
-// Só liga quando o servidor tem a chave GEMINI_CHAVE (Google AI Studio, plano grátis) no ambiente; sem chave, sem
+// Só liga quando o servidor tem a chave GROQ_CHAVE (Groq, grátis, preferida) ou GEMINI_CHAVE (Google AI Studio); sem chave, sem
 // internet, passou do limite do dia ou a IA demorou, devolve null e quem responde são as regras (shared/amiga.js).
 // A IA só escreve a fala e escolhe UMA ação da lista; o jogo confere tudo (ela pode recusar o time mesmo assim).
 import fs from 'node:fs';
 import path from 'node:path';
 import { AMIGA } from '@rpg/shared';
 
-// a chave: do ambiente ou do segredos.json que a atualização trancada grava ao lado do servidor (segredo GEMINI_CHAVE do GitHub)
+
+// chave de um segredo: do ambiente ou do segredos.json (GROQ_CHAVE ou GEMINI_CHAVE, segredos do GitHub)
+function segredo(k) {
+  if (process.env[k]) return process.env[k];
+  try { return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8'))[k] || ''; } catch { return ''; }
+}
 function chaveGemini() {
   if (process.env.GEMINI_CHAVE) return process.env.GEMINI_CHAVE;
   try { return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8')).GEMINI_CHAVE || ''; } catch { return ''; }
@@ -15,11 +20,11 @@ function chaveGemini() {
 const ACOES = ['nada', 'time', 'sairTime', 'vir', 'ajuda', 'sim', 'nao'];
 let dia = '', usadas = 0;
 
-export function iaLigada() { return !!chaveGemini(); }
+export function iaLigada() { return !!(segredo('GROQ_CHAVE') || chaveGemini()); }
 
 export async function pensarAmiga(ctx, texto) {
   if (!ctx) return null;
-  const chave = chaveGemini(); if (!chave) return null;
+  const chave = chaveGemini(); if (!chave && !segredo('GROQ_CHAVE')) return null;
   const hoje = new Date().toISOString().slice(0, 10);
   if (hoje !== dia) { dia = hoje; usadas = 0; }
   if (usadas >= AMIGA.chat.iaPorDia) return null;
@@ -34,6 +39,19 @@ ${conversa || '(nenhuma)'}
 ${ctx.amigo}: ${texto}
 Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caçar), "sairTime" (ele quer que você saia do time), "vir" (ele pede para você ir até ele), "ajuda" (ele oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta ao seu chamado), "nada" (só conversa).
 Devolva só JSON: {"fala": "...", "acao": "nada"}`;
+  // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
+  const groq = segredo('GROQ_CHAVE');
+  if (groq) {
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
+        body: JSON.stringify({ model: process.env.GROQ_MODELO || 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 200 }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (r.ok) { const v = lerResposta((await r.json())?.choices?.[0]?.message?.content); if (v) return v; }
+    } catch { /* cai para o Gemini ou para as regras */ }
+  }
+  if (!chave) return null;
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
@@ -41,10 +59,13 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`;
       signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) return null;
-    const j = await r.json();
-    const out = JSON.parse(j?.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
-    const fala = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
-    if (!fala) return null;
-    return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala };
+    return lerResposta((await r.json())?.candidates?.[0]?.content?.parts?.[0]?.text);
   } catch { return null; }
+}
+// {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
+function lerResposta(txt) {
+  let out; try { out = JSON.parse(txt || '{}'); } catch { return null; }
+  const fala = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+  if (!fala) return null;
+  return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala };
 }

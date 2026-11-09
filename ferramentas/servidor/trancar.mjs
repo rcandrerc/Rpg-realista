@@ -10,7 +10,7 @@ const iv = crypto.randomBytes(12);
 const cifra = crypto.createCipheriv('aes-256-gcm', aes, iv);
 cifra.setAAD(Buffer.from(String(versao)));
 // segredos do servidor (segredo do GitHub, ex.: GEMINI_CHAVE da Cecília): só aqui dentro, trancados; a máquina grava em segredos.json
-const segredos = {}; for (const k of ['GEMINI_CHAVE']) if (process.env[k]) segredos[k] = process.env[k];
+const segredos = {}; for (const k of ['GEMINI_CHAVE', 'GROQ_CHAVE']) if (process.env[k]) segredos[k] = process.env[k];
 const arquivos = { 'servidor.mjs': fs.readFileSync(servidor, 'utf8'), 'package.json': fs.readFileSync(pacote, 'utf8') };
 if (Object.keys(segredos).length) arquivos['segredos.json'] = JSON.stringify(segredos);
 const claro = Buffer.from(JSON.stringify({ arquivos }));
