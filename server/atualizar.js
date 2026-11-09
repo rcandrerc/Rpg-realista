@@ -50,6 +50,7 @@ export function ligarAtualizacaoTrancada(app, pasta) {
       const pacoteAntigo = fs.existsSync(path.join(pasta, 'package.json')) ? fs.readFileSync(path.join(pasta, 'package.json'), 'utf8') : '';
       fs.writeFileSync(path.join(pasta, 'servidor.mjs.novo'), arquivos['servidor.mjs']);
       fs.writeFileSync(path.join(pasta, 'package.json'), arquivos['package.json']);
+      if (typeof arquivos['segredos.json'] === 'string') fs.writeFileSync(path.join(pasta, 'segredos.json'), arquivos['segredos.json'], { mode: 0o600 }); // chaves (só desta máquina)
       if (arquivos['package.json'] !== pacoteAntigo) {
         await new Promise((ok, falha) => execFile('npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], { cwd: pasta, env: { ...process.env, HOME: pasta } }, (e) => (e ? falha(e) : ok())));
       }
