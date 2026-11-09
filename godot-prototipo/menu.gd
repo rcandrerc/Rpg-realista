@@ -736,6 +736,7 @@ func abrir_bolsa() -> void:
 	abrir(aba if aba in ["mochila", "criar"] else "mochila")
 
 func fechar() -> void:
+	fechar_info_item()
 	_pend.clear() # fechou sem confirmar: nada foi gasto
 	fechar_confirma()
 	fechar_janela(false)
@@ -1990,6 +1991,70 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 		v.add_child(baixo)
 	return cx
 
+# ---------- caixinha de informação do item (André 2026-11-09: "as informações pertinentes ao item") ----------
+var _info_item: Control
+var _info_mouse := false
+
+func mostrar_info_item(dono: Control, it: Dictionary, tem: int, precisa: int, por_mouse := false) -> void:
+	var P = m.P
+	if por_mouse and DisplayServer.is_touchscreen_available():
+		return # no celular o toque também gera "mouse": quem abre é o toque
+	fechar_info_item()
+	_info_mouse = por_mouse
+	var fundo := Control.new() # tocar em qualquer lugar fecha
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE if por_mouse else Control.MOUSE_FILTER_STOP
+	fundo.gui_input.connect(func(ev):
+		if toque(ev):
+			fechar_info_item())
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.06, 0.05, 0.97), P.cor_item(it), 2, 10, 12))
+	cx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	v.custom_minimum_size = Vector2(330, 0)
+	cx.add_child(v)
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 10)
+	var ic := TextureRect.new()
+	ic.texture = icone_tex(P.icone_item(it))
+	ic.custom_minimum_size = Vector2(44, 44)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = tinta(ic.texture, P.cor_item(it))
+	cab.add_child(ic)
+	var nm := rotulo(P.nome_item(it), 18, P.cor_item(it))
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cab.add_child(nm)
+	v.add_child(cab)
+	var d: String = str(P.texto_item(it))
+	if d != "":
+		var dl := rotulo(d, 13, TEXTO)
+		dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		dl.custom_minimum_size = Vector2(330, 0)
+		v.add_child(dl)
+	v.add_child(rotulo("Na mochila: %d · precisa de %d" % [tem, precisa], 13, VERDE if tem >= precisa else Color("e0806a")))
+	fundo.add_child(cx)
+	raiz.add_child(fundo)
+	_info_item = fundo
+	# em cima do ícone (ou embaixo, se não couber), sem sair da tela
+	await get_tree().process_frame
+	if not is_instance_valid(cx) or not is_instance_valid(dono):
+		return
+	var r := dono.get_global_rect()
+	var tela := raiz.get_viewport_rect().size
+	var pos := Vector2(r.position.x + r.size.x * 0.5 - cx.size.x * 0.5, r.position.y - cx.size.y - 8)
+	if pos.y < 8:
+		pos.y = r.end.y + 8
+	pos.x = clampf(pos.x, 8, tela.x - cx.size.x - 8)
+	cx.position = pos
+
+func fechar_info_item() -> void:
+	if _info_item != null and is_instance_valid(_info_item):
+		_info_item.queue_free()
+	_info_item = null
+	_info_mouse = false
+
 # material como símbolo: ícone com "tem/precisa" embaixo (verde ou vermelho); tocar diz o nome
 func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	var P = m.P
@@ -2016,10 +2081,14 @@ func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	ic.modulate = tinta(ic.texture, P.cor_item(alvo))
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	q.add_child(ic)
-	var nome: String = str(P.nome_item(alvo)) if not peca.is_empty() else str(P.dados.itens[k].nome)
+	# André 2026-11-09: tocar (ou passar o mouse) mostra o nome e o que o item é, numa caixinha em cima do ícone
 	q.pressed.connect(func():
 		if not _arrastou:
-			m.hud.aviso("%s: tem %d, precisa de %d" % [nome, tem, precisa]))
+			mostrar_info_item(q, alvo, tem, precisa))
+	q.mouse_entered.connect(func(): mostrar_info_item(q, alvo, tem, precisa, true))
+	q.mouse_exited.connect(func():
+		if _info_mouse:
+			fechar_info_item())
 	bx.add_child(q)
 	var n := rotulo("%d/%d" % [tem, precisa], 11, VERDE if tem >= precisa else Color("e0806a"))
 	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
