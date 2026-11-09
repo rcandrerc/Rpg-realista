@@ -11,7 +11,7 @@
 // - this.amigaDono: id da sessão do dono (quem pode conversar).
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { AMIGA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta } from './dados.js';
+import { AMIGA, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta } from './dados.js';
 import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
@@ -45,7 +45,12 @@ export const Amiga = {
       j.conta = AMIGA.conta; j.bot = true;
       delete j.prog.pos;
       // a roupa dela (look B) na primeira vez; depois ela veste o que achar melhor (fase 3) e isso fica salvo
-      for (const [l, it] of Object.entries(AMIGA.equip)) if (!salvo.prog || !j.prog.equip[l]) j.prog.equip[l] = { ...it };
+      // a roupa do look B é só aparência (roupaFixa); as peças de verdade começam Comuns, como um jogador novo (André 2026-11-09)
+      j.roupaFixa = Object.fromEntries(Object.entries(AMIGA.equip).map(([l, it]) => [l, { ...it }]));
+      for (const [l, it] of Object.entries(AMIGA.equip)) {
+        const atual = j.prog.equip[l], doLook = atual && atual.k === it.k && atual.r === it.r && !atual.e;
+        if (!salvo.prog || !atual || (!salvo.justa && doLook)) j.prog.equip[l] = { k: it.k, r: AMIGA.justa.raridade };
+      }
       liberarPaginas(j.prog, AMIGA.mochila.paginas); // fase 3: 4 páginas, como a mochila do André
       this.aplicarStatus(j, true);
       j.amizade = salvo.amizade | 0;
@@ -92,7 +97,7 @@ export const Amiga = {
   // guarda o progresso dela dentro do terreno (vai para o banco em lotesParaSalvar)
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || !L) return;
-    L.amiga = { prog: j.prog, amizade: j.amizade | 0, pedido: j.pedido || null };
+    L.amiga = { prog: j.prog, amizade: j.amizade | 0, pedido: j.pedido || null, justa: 1 };
     this.lotesMudados.add(L.def.id);
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
@@ -288,9 +293,10 @@ export const Amiga = {
   // fala dela que aparece para o dono mesmo sem a janela aberta (aviso no topo)
   falarAmiga(texto) { if (this.amigaDono) this.evento({ t: 'fala', para: this.amigaDono, npc: AMIGA.id, texto: `${AMIGA.nome}: ${texto}` }); },
   // completa as poções dela até AMIGA.time.pocoes (ela passa na Rosa quando volta para casa)
-  pocoesAmiga(j) {
-    const falta = AMIGA.time.pocoes - contar(j.prog.mochila, 'pocao');
-    if (falta > 0) guardar(j.prog.mochila, { k: 'pocao', n: falta });
+  pocoesAmiga(j) { // compra na Rosa com o ouro dela, pelo preço da loja (André 2026-11-09: nada de poção de graça)
+    const preco = ITENS.pocao.preco || 15;
+    const falta = Math.min(AMIGA.time.pocoes - contar(j.prog.mochila, 'pocao'), Math.floor(j.prog.ouro / preco));
+    if (falta > 0 && guardar(j.prog.mochila, { k: 'pocao', n: falta })) j.prog.ouro -= falta * preco;
   },
   // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
   vontadeAmiga(a, dono) {
@@ -344,6 +350,11 @@ export const Amiga = {
     if (j.vida < j.vidaMax * R.pocao && (ia.pocaoT || 0) <= this.tempo && (j.pocaoAte?.pocao || 0) <= this.tempo) {
       const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
       if (i >= 0) { ia.pocaoT = this.tempo + 2; this.item(j.id, { acao: 'usar', i }); }
+    }
+    // Cura (o botão de cura de todo jogador): nela quando a poção não dá, ou no dono quando ele está mal e perto
+    const J = AMIGA.justa, podeCurar = (j.cds.cura || 0) <= this.tempo && j.mana >= CURA.mana && !(j.trava > 0);
+    if (podeCurar && ((j.vida < j.vidaMax * J.curaVida && (j.pocaoAte?.pocao || 0) > this.tempo) || (dono.vida < dono.vidaMax * J.curaDono && !dono.morto && d < (CURA.timeR || 8)))) {
+      this.pararAmiga(j); return this.usarHabilidade(j.id, 9);
     }
     const semPocao = !j.prog.mochila.some((o) => o?.k === 'pocao');
     if (alvo && !(semPocao && j.vida < j.vidaMax * R.fugir)) {

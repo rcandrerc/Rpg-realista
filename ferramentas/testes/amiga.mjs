@@ -178,3 +178,19 @@ ok(ITENS.lenha, 'itens');
   ok(c.troca?.of[c.id].itens[0]?.n === 2 && est?.sugestao?.sugerido > 0 && /cobra/.test(est.sugestao.texto), `abriu a troca com as cenouras na mesa e a sugestão: "${est?.sugestao?.texto}"`);
   s4.troca('andre', { acao: 'cancelar' });
 }
+// ---------- igual a um jogador (André 2026-11-09) ----------
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  s5.adicionarJogador('andre', 'André', 'ruiva', {});
+  s5.amigaEntrar('andre');
+  const c = s5.amiga, d = s5.jogadores.get('andre');
+  const f5 = s5.foto().jogadores.find((j) => j.id === AMIGA.id);
+  ok(Object.keys(AMIGA.equip).every((l) => c.prog.equip[l]?.r === AMIGA.justa.raridade) && f5.roupa.includes('capa2'), `peças de verdade Comuns (${Object.values(c.prog.equip).filter(Boolean).map((o) => o.k + o.r).join(',')}) e a aparência continua o look B (${f5.roupa})`);
+  c.prog.mochila = c.prog.mochila.map(() => null); c.prog.ouro = 40; s5.pocoesAmiga(c);
+  ok(contar(c.prog.mochila, 'pocao') === 2 && c.prog.ouro === 40 - 2 * ITENS.pocao.preco, `poção custa o ouro dela: comprou 2 e ficou com ${c.prog.ouro}`);
+  // a Cura passa para o parceiro do time, mais fraca
+  s5.entrarTimeAmiga(c, d);
+  Object.assign(d, { x: c.x + 2, z: c.z }); d.vida = Math.round(d.vidaMax * 0.3); const v0 = d.vida; c.mana = c.manaMax; c.vida = c.vidaMax;
+  for (let i = 0; i < 20 * 3; i++) s5.passo(0.05);
+  ok(d.vida > v0, `ela viu o André mal e usou a Cura: +${d.vida - v0} de vida nele`);
+}
