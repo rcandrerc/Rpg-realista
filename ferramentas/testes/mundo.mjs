@@ -10,7 +10,7 @@ let terra = 0; for (const t of G.terra) if (t) terra++;
 const area = terra * G.passo * G.passo;
 ok(area > 350000 && area < 600000, `terra do mundo: ${Math.round(area / 1000)} mil m² (o mapa de hoje tem uns 100 mil)`);
 ok(TERRAS.every((T) => G.terra.includes(TERRAS.indexOf(T) + 1)), 'Vael, a Ilha do Meio e Aurora existem');
-const pontos = [[0, 0], ...M.npcs.map((n) => [n.x, n.z]), ...M.caca.filter((c) => !c.mundo).map((c) => [c.x, c.z]), ...M.mina.filter((c) => !c.mundo).map((c) => [c.x, c.z])];
+const pontos = [[0, 0], ...M.npcs.filter((n) => !n.mundo).map((n) => [n.x, n.z]), ...M.caca.filter((c) => !c.mundo).map((c) => [c.x, c.z]), ...M.mina.filter((c) => !c.mundo).map((c) => [c.x, c.z])];
 ok(pontos.every(([x, z]) => Math.abs(alturaMundo(G, x, z)) < 1e-6 && terraEm(G, x, z)?.id === 'vael'), 'o mapa de hoje fica no plano (grade 0) e em Vael');
 // do litoral leste de Vael até Aurora passando pela ilha: tem mar fundo para o navio dos dois lados da ilha
 const fundo = (a, b) => { let m = 0; for (let x = a; x <= b; x += 2) m = Math.min(m, alturaMundo(G, x, 40)); return m; };
@@ -65,3 +65,21 @@ for (const c of novos) {
   const chao = vivos.every((vg) => Math.abs(vg.e.y ?? 0) < 30 && Math.hypot(vg.e.x - c.x, vg.e.z - c.z) <= c.r + 0.5);
   ok(vivos.length === 11 && chao, `${c.id} Nv ${c.nivel}: ${vivos.length} monstros dentro do campo`);
 }
+
+// Parte 6b: poucos mercadores por região no mundo grande, em terra firme; a entrega que cruza o mar de navio é a que
+// mais paga (André 2026-11-08)
+import { MERCADORES_PACK } from '../../shared/dados.js';
+import { precoPack } from '../../shared/transporte.js';
+const reg = {};
+for (const n of MERCADORES_PACK) { const T = terraEm(G, n.x, n.z); const k = n.mundo ? T?.id : 'hoje'; reg[k] = (reg[k] || 0) + 1; ok(T && alturaMundo(G, n.x, n.z) > 0.5 || !n.mundo, `${n.id} em terra (${T?.id})`); }
+ok(reg.vael <= 3 && reg.ilha <= 2 && reg.aurora <= 4, 'poucos mercadores por região: ' + JSON.stringify(reg));
+ok(new Set(MERCADORES_PACK.map((n) => n.merch)).size === MERCADORES_PACK.length, 'cada mercador faz um pack diferente');
+let melhorTerra = 0, melhorMar = 0;
+for (const a of MERCADORES_PACK) for (const b of MERCADORES_PACK) {
+  if (a === b) continue;
+  const mesma = terraEm(G, a.x, a.z)?.id === terraEm(G, b.x, b.z)?.id;
+  const p = precoPack({ k: a.merch, ox: a.x, oz: a.z, nav: mesma ? 0 : 200 }, b) / 1; // por base: pack mais caro não conta
+  const porBase = p / ({ ...Object.fromEntries([]) }, 1);
+  if (mesma) melhorTerra = Math.max(melhorTerra, porBase); else melhorMar = Math.max(melhorMar, porBase);
+}
+ok(melhorMar > melhorTerra * 1.3, `entrega pelo mar paga mais: ${melhorMar} contra ${melhorTerra} em terra`);

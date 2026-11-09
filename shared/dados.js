@@ -1744,3 +1744,24 @@ MAPA_CLAREIRA.npcs.push(...MERCADORES_PACK.map((n) => ({ ...n, nome: `${n.nome},
       n: 11, tipos: [...Array(5).fill(a), ...Array(5).fill(b), 'warrok'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 });
   }
 }
+
+// FASE 3, Parte 6 (André 2026-11-08: "reduzir a quantidade de mercadores... spots mais distantes"; 2026-11-09: "6 muito
+// pra uma região"): o mundo grande ganha 6 mercadores de pack, poucos por região, com os 6 packs que faltavam. Vael
+// (anel novo): 2, no Porto de Vael e no Posto do Oeste. Ilha do Meio: 1, no cais oeste (pérolas). Aurora: 3, no cais,
+// na vila e no Posto do Leste. Pack que cruza o mar no porão do navio paga 1,5x (PACK_REGRAS.navio).
+export const MERCADORES_MUNDO = [
+  { id: 'm_conserva', nome: 'Dona Marta', merch: 'conserva', lugar: 'vila_vael', dx: -6, dz: 8, ry: 2.4, visual: 'vivi', veste: { tunica: 0x8a3a2e, saia: 0x8a3a2e, ate: 'canela', faixa: 0xe0c070 }, tinta: { cabelo: 0x3a2616, roupa: 0x8a3a2e, calca: 0x4a3c2c } },
+  { id: 'm_abobora', nome: 'Seu Abel', merch: 'abobora', lugar: 'posto_oeste', dx: 3, dz: 5, ry: 3.6, visual: 'cabelo_m', veste: { tunica: 0xc0702a, faixa: 0x5a3a1a }, tinta: { cabelo: 0x6a4a2a, roupa: 0xc0702a, calca: 0x3a3028 } },
+  { id: 'm_perola', nome: 'Maré', merch: 'perola', lugar: 'porto_ilha_o', dx: 2, dz: -4, ry: -1.6, visual: 'vivi', veste: { tunica: 0x3a7a9a, saia: 0x3a7a9a, ate: 'joelho', faixa: 0xe8e4f4 }, tinta: { cabelo: 0x1a2a3a, roupa: 0x3a7a9a, calca: 0x2f4a6a } },
+  { id: 'm_ervas', nome: 'Velho Sálvio', merch: 'ervas', lugar: 'porto_aurora', dx: 3, dz: 5, ry: -1.6, visual: 'cabelo_m', escala: 0.98, veste: { tunica: 0x4a7a3a, faixa: 0x2a3a1a }, tinta: { cabelo: 0xd9d2c6, roupa: 0x4a7a3a, calca: 0x3a3028 } },
+  { id: 'm_obsid', nome: 'Ônix', merch: 'obsid', lugar: 'vila_aurora', dx: 10, dz: -10, ry: 0.8, visual: 'cabelo_m', escala: 1.08, veste: { tunica: 0x3a3040, faixa: 0x8a6ad0 }, tinta: { cabelo: 0x1a1a1a, roupa: 0x3a3040, calca: 0x2a2a2a } },
+  { id: 'm_brasa', nome: 'Fagulha', merch: 'brasa', lugar: 'posto_leste', dx: -3, dz: 5, ry: 3.4, visual: 'vivi', veste: { tunica: 0xb8401e, saia: 0xb8401e, ate: 'joelho', faixa: 0xffb040 }, tinta: { cabelo: 0xb83a1a, roupa: 0xb8401e, calca: 0x3a2a20 } },
+];
+for (const n of MERCADORES_MUNDO) {
+  const L = LUGARES_MUNDO.find((l) => l.id === n.lugar);
+  n.x = L.x + n.dx; n.z = L.z + n.dz; n.mundo = true;
+  MERCADORES_PACK.push(n);
+  MAPA_CLAREIRA.npcs.push({ ...n, nome: `${n.nome}, mercador`, roupa: 'peitoral0,calca0,botas0', funcao: 'pack', acoes: ['pack'], mundo: true,
+    falas: [`Eu faço o ${PACKS[n.merch].nome}. Leve pra bem longe, do outro lado do mar paga muito mais!`,
+      'Pack de outro mercador? Me entregue que eu pago bem. Pack feito aqui eu não compro.'] });
+}

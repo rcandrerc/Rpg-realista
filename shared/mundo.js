@@ -124,6 +124,9 @@ export const LUGARES_MUNDO = [
   { id: 'c_a7', tipo: 'caca', terra: 'aurora', nivel: 90, x: 1060, z: 60, r: 14 },
   { id: 'c_a8', tipo: 'caca', terra: 'aurora', nivel: 95, x: 1040, z: -60, r: 14 },
   { id: 'c_a9', tipo: 'caca', terra: 'aurora', nivel: 100, x: 1040, z: 150, r: 15 },
+  // postos de troca na beira da estrada (Parte 6: mercador de pack longe da vila)
+  { id: 'posto_oeste', tipo: 'posto', terra: 'vael', nome: 'Posto do Oeste', x: -138, z: 60, r: 8 },
+  { id: 'posto_leste', tipo: 'posto', terra: 'aurora', nome: 'Posto do Leste', x: 1012, z: 51, r: 8 },
 ];
 // Estradas (largura 4 m, rampa máxima de 10%: o carrinho carregado sobe sem bugar). Em Vael saem do mapa de hoje
 // (das trilhas que já existem) e dão a volta pelo anel até o Porto de Vael; na ilha e em Aurora ligam o cais aos campos
