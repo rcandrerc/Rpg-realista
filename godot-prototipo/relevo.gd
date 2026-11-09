@@ -32,14 +32,17 @@ func _ready() -> void:
 # enxerga até 1200 m (o chão vai até 1500 m do centro, com a mata continuando) e a névoa apaga o longe aos poucos:
 # a 1200 m sobra uns 3% do chão, então não tem corte para o vazio. As copas simples (copas_simples) só ligam no alto.
 const LONGE_CAMERA := 1200.0
+# qualidade gráfica (grafico.gd): na Baixa e na Média a névoa fecha um pouco e a câmera enxerga menos longe
+var nevoa_mult := 1.0
+var longe_mult := 1.0
 func _process(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if env == null or cam == null:
 		return
 	var k := clampf((cam.global_position.y - 8.0) / 22.0, 0.0, 1.0)
 	k = k * k * (3.0 - 2.0 * k)
-	env.fog_density = NEVOA * (1.0 - 0.63 * k)
-	cam.far = lerpf(400.0, LONGE_CAMERA, k)
+	env.fog_density = NEVOA * nevoa_mult * (1.0 - 0.63 * k)
+	cam.far = lerpf(400.0, LONGE_CAMERA, k) * longe_mult
 	# 2026-11-09: no mundo grande o chão sobe; o que conta é a câmera alta em relação ao chão embaixo dela (antes, num
 	# morro, a câmera passava de 7 m e as copas de longe apareciam em cima do herói)
 	var alto: bool = cam.global_position.y - float(T.altura_montanha(cam.global_position.x, cam.global_position.z)) > 9.0
@@ -274,7 +277,9 @@ func _malha_polar(L: Dictionary, dmax: float, altura: Callable, fundura := false
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in idx:
 		if fundura: # água: a fundura embaixo de cada ponto vai na cor (o shader pinta raso -> fundo sem ler a tela)
-			st.set_color(Color(clampf((float(T.agua.nivel) - T.relevo(vs[i].x, vs[i].z)) / 5.0, 0.0, 1.0), 0, 0))
+			var fu: float = float(T.agua.nivel) - T.relevo(vs[i].x, vs[i].z)
+			st.set_color(Color(clampf(fu / 5.0, 0.0, 1.0), 0, 0))
+			st.set_uv(Vector2(fu, 0.0)) # 2026-11-09: a fundura com sinal (a borda da água cai no zero certinho)
 		st.add_vertex(vs[i])
 	st.index()
 	st.generate_normals()
@@ -302,6 +307,8 @@ func _lago(L: Dictionary) -> void:
 	var ma := ShaderMaterial.new()
 	ma.shader = load("res://agua.gdshader")
 	ma.set_shader_parameter("fundo_lago", float(L.fundo))
+	ma.set_shader_parameter("prof_uv", true)
+	ma.set_shader_parameter("ondas_tex", load("res://agua_ondas.png"))
 	agua.material_override = ma
 	agua.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(agua)

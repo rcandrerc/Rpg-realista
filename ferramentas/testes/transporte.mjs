@@ -127,7 +127,7 @@ dar('barquinho', 1);
 s.eventos = []; j.ry = 0; s.veiculo('P', { acao: 'colocar', k: 'barquinho' }); // acha a água sozinho
 ok(j.veiculo === 'barquinho', 'subiu no barquinho: ' + avisos().join(' | '));
 j.orc = 0; j.orcT = s.tempo; s.tempo += 1;
-ok(s.posicaoCliente('P', { x: j.x, y: j.y, z: j.z + 5, ry: 0 }), 'barquinho rema 5 m/s');
+ok(s.posicaoCliente('P', { x: j.x, y: j.y, z: j.z + 3, ry: 0 }), 'barquinho rema 3 m/s (2026-11-09: 3,2 m/s, mais lento)');
 let tx = j.x, tz = j.z; while (fundo(tx, tz) > 0.05) tz -= 0.5;
 j.z = tz + 2; // remou até perto da margem
 s.eventos = []; s.veiculo('P', { acao: 'descer' }); // acha a margem sozinho

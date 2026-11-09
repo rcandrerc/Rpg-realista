@@ -8,6 +8,7 @@ const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
+const Grafico = preload("res://grafico.gd")
 const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
@@ -90,6 +91,7 @@ var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (c
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
+var grafico # grafico.gd: qualidade gráfica Baixa/Média/Alta (Configurações; a primeira vez escolhe pelo celular)
 var dia # dia_noite.gd: dia e noite do Quimera (relógio da conta, céu, luz e o sono na cama)
 var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
 var cavernas_mundo: Array = [] # caverna.gd das cavernas do mundo grande (Parte 8)
@@ -221,6 +223,8 @@ const MEDE := 5.0
 
 func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
+	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
+	add_child(grafico)
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
 	h.mana = P.st.manaMax
@@ -340,6 +344,7 @@ func _ready() -> void:
 	hud.editor = editar_hud
 	retrato_heroi = RetratoHeroi.new(self)
 	add_child(retrato_heroi)
+	grafico.aplicar() # resolução, sombra, névoa e alcance do nível escolhido (Alta = como sempre foi)
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:
@@ -4007,6 +4012,8 @@ func restaurar() -> void:
 	sol.shadow_enabled = true
 	grama.visible = true
 	mostrar_extras(false)
+	if grafico:
+		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
 func comecar_teste() -> void:
 	resultados.clear()

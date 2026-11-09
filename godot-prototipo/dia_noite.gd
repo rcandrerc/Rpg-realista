@@ -59,6 +59,13 @@ func _ready() -> void:
 			if a is MeshInstance3D and str(a.name).begins_with("Agua_") and a.material_override is ShaderMaterial:
 				_aguas.append(a.material_override)
 				a.material_override.set_shader_parameter("lua_dir", _lua)
+	# 2026-11-09: o mar também (escurece à noite e reflete a lua) e todas as águas sabem de onde vem o sol (o brilho)
+	var mg = m.find_child("MundoGrande", false, false)
+	if mg and mg.get("_mat_mar") is ShaderMaterial:
+		_aguas.append(mg._mat_mar)
+		mg._mat_mar.set_shader_parameter("lua_dir", _lua)
+	for ma in _aguas:
+		ma.set_shader_parameter("sol_dir", de_onde.normalized())
 	env.sky.sky_material = ceu
 	# a névoa pintava o céu inteiro da cor dela (lua, estrelas e nuvens sumiam); agora o céu faz o horizonte (ceu.gdshader)
 	env.fog_sky_affect = 0.25
