@@ -767,11 +767,16 @@ export const Amiga = {
     if (tipo === 'pescar') {
       for (const v of this.spots) {
         if (!v.ativo || ruim(v.id) || Math.hypot(v.x - dono.x, v.z - dono.z) > C.raio) continue;
-        const L = v.lago, dx = v.x - L.x, dz = v.z - L.z, n = Math.hypot(dx, dz) || 1, ux = dx / n, uz = dz / n;
-        let r = 0; while (r < 12 && noLago(v.x + ux * r, v.z + uz * r)) r += 0.25; // anda do spot para fora até a beira
-        const x = v.x + ux * (r + 0.6), z = v.z + uz * (r + 0.6), dd = Math.hypot(x - v.x, z - v.z);
-        if (dd < 1.6 || dd > 5) continue;
-        const dj = Math.hypot(x - j.x, z - j.z); if (dj < md) { md = dj; melhor = { id: v.id, x, z, sx: v.x, sz: v.z, perto: 0.45 }; }
+        // um lugar em terra firme a 1,6-5 m do spot (a boia alcança): procura em volta, o mais perto dela
+        for (let k = 0; k < 24; k++) {
+          const ang = (k / 24) * Math.PI * 2, ux = Math.sin(ang), uz = Math.cos(ang);
+          for (let r = 2; r <= 4.9; r += 0.2) {
+            const x = v.x + ux * r, z = v.z + uz * r;
+            if ((noLago(x, z)?.fundo || 0) > AGUA.peito - 0.5) continue; // fundo demais pra pescar daqui (a beira rasa serve)
+            const dj = Math.hypot(x - j.x, z - j.z); if (dj < md) { md = dj; melhor = { id: v.id, x, z, sx: v.x, sz: v.z, perto: 0.35 }; }
+            break;
+          }
+        }
       }
       return melhor;
     }
