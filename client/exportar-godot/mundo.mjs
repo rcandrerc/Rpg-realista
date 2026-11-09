@@ -2,13 +2,14 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, PESCA, PACKS, PACK_REGRAS, VEICULOS, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, VILAS_TERRENO, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, PESCA, PACKS, PACK_REGRAS, VEICULOS, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
 import { RAIZ } from '@rpg/shared';
+import { montarMundo, MUNDO, TERRAS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from '../../shared/mundo.js';
 
 const sim = new Simulacao(MAPA_CLAREIRA), T = sim.terreno;
 const r4 = (n) => Math.round(n * 1e4) / 1e4;
@@ -99,9 +100,24 @@ const mundo = {
   // conferir o terreno marcado antes de mandar (a mesma conta de motivoTerreno no servidor)
   lotes: MAPA_CLAREIRA.lotes || [], vilaLotes: { nome: VILA_LOTES.nome, x: VILA_LOTES.area.x, z: VILA_LOTES.area.z,
     area: VILA_LOTES.area, estradas: [{ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas] },
+  cais: MAPA_CLAREIRA.cais || [], // FASE 3, Parte 7b: cais de madeira dos portos (andar.gd anda por cima; mundo_terreno.gd desenha)
+  // FASE 3, Parte 7b: todas as vilas de terreno (a primeira é a de cima), com as estradas que o terreno não pode pegar
+  vilasTerreno: VILAS_TERRENO.map((V) => ({ id: V.id, nome: V.nome, x: V.area.x, z: V.area.z, area: V.area, max: V.max, mundo: !!V.mundo, bairro: !!V.bairro,
+    estradas: V.estradas.map((e) => ({ largura: e.largura, pontos: e.pontos.map((p) => [r4(p[0]), r4(p[1])]) })) })),
 };
 fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo.json', import.meta.url), JSON.stringify(mundo));
 fs.writeFileSync(new URL('../../godot-prototipo/relevo/longe.png', import.meta.url), gerarLonge());
+// FASE 3, Parte 2: a grade do mundo (2 continentes, mar central e ilha; shared/mundo.js). Altura em decímetros e a
+// terra de cada ponto (0 = mar, 1 = Vael, 2 = ilha, 3 = Aurora) num texto de dígitos.
+{
+  const G = montarMundo(MAPA_CLAREIRA);
+  fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo_grade.json', import.meta.url), JSON.stringify({ x0: G.x0, z0: G.z0, passo: G.passo, nx: G.nx, nz: G.nz,
+    mar: MUNDO.mar, terras: TERRAS, h: Array.from(G.h, (v) => Math.round(v * 10)), terra: Array.from(G.terra).join(''), estrada: Array.from(G.estrada).join(''),
+    lugares: LUGARES_MUNDO, estradas: ESTRADAS_MUNDO.map((e) => ({ id: e.id, curva: e.curva })),
+    // Parte 4b: o leito dos rios (0-9) e cada rio com o nível da água ponto a ponto e a cachoeira
+    rio: Array.from(G.rio).join(''), rios: RIOS_MUNDO.map((r) => ({ id: r.id, nome: r.nome, curva: r.curva, cachoeira: r.cachoeira })), pontes: PONTES_MUNDO }));
+  console.log('mundo_grade.json:', G.nx, 'x', G.nz);
+}
 console.log('mundo.json:', solidos.length, 'sólidos,', mundo.obstaculos.length, 'obstáculos,', grades.length, 'grades');
 
 // Skills do Quimera (shared/progresso.js) para o menu do personagem e o modo sem internet do Godot.

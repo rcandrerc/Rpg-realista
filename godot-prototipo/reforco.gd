@@ -1,7 +1,7 @@
 extends CanvasLayer
 # Janelinha do reforço de equipamento (igual ao Quimera, André 2026-11-07; regras em REFORCO de shared/dados.js).
 # Sem o atributo a peça reforçada não equipa e, vestida, não dá bônus (progresso reforco_ok, igual ao Quimera).
-# Na mochila: toque na peça e em "Reforçar 1×" ou "Reforçar até cancelar". A janela mostra a peça, "+e → +e+1 · chance X%",
+# Na mochila: toque na peça e em "Reforçar 1 vez" ou "Até o máximo" (André 2026-11-09: era "Até cancelar"). A janela mostra a peça, "+e → +e+1 · chance X%",
 # uma barrinha dourada que enche em 1,6 s ("Reforçando…") e depois SUCESSO! (verde) ou FALHOU… (vermelho, com "Voltou pra +N"
 # ou "Continua +N"). Toque para continuar (ou fecha sozinha em 1,8 s). No automático tenta de novo até chegar no máximo,
 # acabar o ouro ou tocar em Cancelar ("Vai parar depois deste"); embaixo fica a fila de +N que deram certo e errado.

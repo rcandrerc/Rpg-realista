@@ -621,6 +621,9 @@ func inimigo(c: Dictionary) -> void:
 	if v < 0 or v >= m.inimigos.size():
 		return
 	var e: Dictionary = m.inimigos[v]
+	if e.get("vazio", false): # campo do mundo grande ainda sem modelo (main.gd criar_vaga): monta agora
+		m.materializar(e)
+		m.entrou_online(e)
 	corpos[str(c.id)] = e.no
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)

@@ -2,7 +2,8 @@
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
-import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME } from './relevo.js';
+import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
+import { montarMundo, alturaMundo, terraEm, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, pontoDoTunel } from './caverna.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
@@ -1358,7 +1359,7 @@ export const COLETA_DISTANCIA = 2.4; // metros da borda do veio ou do tronco
 // Dentro da vila não tem mais veio (pedido do André 2026-11-02): o cobre fica na zona de mineração lá fora (MINA).
 // 2026-11-05: pedra e ferro ganharam zona também; o cristal fica para depois (COLETA continua sabendo minerá-lo).
 // mina = id da zona (o minério é de todos e volta no tempo da zona); sorteio fixo, igual no servidor e no Godot.
-export const VEIOS = MINA.flatMap((z) => {
+export const veiosDaZona = (z) => {
   let sem = 777; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
   const lista = [];
   for (let t = 0; lista.length < z.veios && t < 500; t++) {
@@ -1368,7 +1369,8 @@ export const VEIOS = MINA.flatMap((z) => {
     lista.push({ tipo: z.tipo, x: +x.toFixed(2), z: +zz.toFixed(2), ry: +rnd(0, 6.28).toFixed(2), mina: z.id });
   }
   return lista;
-});
+};
+export const VEIOS = MINA.flatMap(veiosDaZona);
 export const VEIO_RAIO = 0.8; // sólido: ninguém atravessa
 // Receitas (Ferreiro na forja do Tomás, Alfaiate na banca da Rosa): usa os materiais, gasta vigor e dá pontos.
 // Peça de equipamento sai Comum, com chance de subir de raridade (melhor com o nível da profissão: 6% no Nv 1, 30% no Nv 20).
@@ -1708,3 +1710,131 @@ export const MERCADORES_PACK = [
 MAPA_CLAREIRA.npcs.push(...MERCADORES_PACK.map((n) => ({ ...n, nome: `${n.nome}, mercador`, roupa: 'peitoral0,calca0,botas0', funcao: 'pack', acoes: ['pack'],
   falas: [`Eu faço o ${PACKS[n.merch].nome}. Traga o material e leve pra bem longe: quanto mais longe, mais paga!`,
     'Pack de outro mercador? Me entregue que eu pago bem. Pack feito aqui eu não compro.'] })));
+
+// FASE 3, Parte 3 (André 2026-11-08): o mundo grande (shared/mundo.js) em volta do mapa de hoje. A grade sai das áreas
+// andáveis de hoje (ali ela vale 0, nada muda); depois disso a terra dos continentes também é andável (até a água pela
+// cintura na praia) e o mar vira água de verdade (relevo.js noLago). andavelMundo não vai para o JSON (não enumerável).
+{
+  const G = montarMundo(MAPA_CLAREIRA);
+  usarMundo(G);
+  const seco = (x, z) => alturaMundo(G, x, z) > -0.9 && terraEm(G, x, z);
+  Object.defineProperty(MAPA_CLAREIRA, 'andavelMundo', { enumerable: false, value: (x, z, margem = 0) => seco(x, z)
+    && (margem <= 0 || (seco(x + margem, z) && seco(x - margem, z) && seco(x, z + margem) && seco(x, z - margem))) });
+}
+
+// FASE 3, Parte 5 (André 2026-11-08: "spots de grind do 1 ao 100"): campos de caça novos nos lugares planos do mundo
+// grande (shared/mundo.js LUGARES_MUNDO), mesma regra do Quimera dos campos de hoje (11 monstros, um deles chefe).
+// Os bichos são os que já temos, mais fortes pelo nível (statusInimigo); em Vael misturam dois tipos por campo, na ilha
+// e em Aurora também, e o chefe é sempre o Warrok. mundo: true = o app só monta os modelos quando o herói chega perto.
+{
+  const PAR = { vael: [['lobo', 'golem'], ['maw', 'lobo'], ['golem', 'imp'], ['maw', 'golem']], ilha: [['maw', 'lobo'], ['golem', 'maw']], aurora: [['golem', 'maw'], ['lobo', 'maw'], ['maw', 'golem']] };
+  const REGIAO = { vael: 'Vael', ilha: 'Ilha do Meio', aurora: 'Aurora' };
+  const NOME = { lobo: 'Lobos', golem: 'Golens', maw: 'Maws', imp: 'Imps', puglin: 'Puglins' };
+  // os veios pequenos de cada campo (shared/mundo.js lugaresDeMina) entram nas zonas de mineração, depois das de hoje
+  const NOME_VEIO = { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' };
+  const VOLTA_VEIO = { pedra: 240, cobre: 360, ferro: 420, cristal: 480 };
+  for (const L of LUGARES_MUNDO.filter((l) => l.tipo === 'mina')) {
+    const z = { id: L.id, nome: NOME_VEIO[L.minerio], tipo: L.minerio, x: L.x, z: L.z, r: L.r, veios: 3, volta: VOLTA_VEIO[L.minerio], pequeno: true, mundo: true };
+    MINA.push(z); VEIOS.push(...veiosDaZona(z));
+  }
+  let n = 0;
+  for (const L of LUGARES_MUNDO.filter((l) => l.tipo === 'caca')) {
+    const [a, b] = PAR[L.terra][n++ % PAR[L.terra].length];
+    CACA.push({ id: L.id, nome: `Campo dos ${NOME[a]} e ${NOME[b]} (${REGIAO[L.terra]})`, nivel: L.nivel, bicho: a, x: L.x, z: L.z, r: L.r - 2, mundo: true,
+      n: 11, tipos: [...Array(5).fill(a), ...Array(5).fill(b), 'warrok'], passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 });
+  }
+}
+
+// FASE 3, Parte 6 (André 2026-11-08: "reduzir a quantidade de mercadores... spots mais distantes"; 2026-11-09: "6 muito
+// pra uma região"): o mundo grande ganha 6 mercadores de pack, poucos por região, com os 6 packs que faltavam. Vael
+// (anel novo): 2, no Porto de Vael e no Posto do Oeste. Ilha do Meio: 1, no cais oeste (pérolas). Aurora: 3, no cais,
+// na vila e no Posto do Leste. Pack que cruza o mar no porão do navio paga 1,5x (PACK_REGRAS.navio).
+export const MERCADORES_MUNDO = [
+  { id: 'm_conserva', nome: 'Dona Marta', merch: 'conserva', lugar: 'vila_vael', dx: -6, dz: 8, ry: 2.4, visual: 'vivi', veste: { tunica: 0x8a3a2e, saia: 0x8a3a2e, ate: 'canela', faixa: 0xe0c070 }, tinta: { cabelo: 0x3a2616, roupa: 0x8a3a2e, calca: 0x4a3c2c } },
+  { id: 'm_abobora', nome: 'Seu Abel', merch: 'abobora', lugar: 'posto_oeste', dx: 3, dz: 5, ry: 3.6, visual: 'cabelo_m', veste: { tunica: 0xc0702a, faixa: 0x5a3a1a }, tinta: { cabelo: 0x6a4a2a, roupa: 0xc0702a, calca: 0x3a3028 } },
+  { id: 'm_perola', nome: 'Maré', merch: 'perola', lugar: 'porto_ilha_o', dx: 2, dz: -4, ry: -1.6, visual: 'vivi', veste: { tunica: 0x3a7a9a, saia: 0x3a7a9a, ate: 'joelho', faixa: 0xe8e4f4 }, tinta: { cabelo: 0x1a2a3a, roupa: 0x3a7a9a, calca: 0x2f4a6a } },
+  { id: 'm_ervas', nome: 'Velho Sálvio', merch: 'ervas', lugar: 'porto_aurora', dx: 3, dz: 5, ry: -1.6, visual: 'cabelo_m', escala: 0.98, veste: { tunica: 0x4a7a3a, faixa: 0x2a3a1a }, tinta: { cabelo: 0xd9d2c6, roupa: 0x4a7a3a, calca: 0x3a3028 } },
+  { id: 'm_obsid', nome: 'Ônix', merch: 'obsid', lugar: 'vila_aurora', dx: 10, dz: -10, ry: 0.8, visual: 'cabelo_m', escala: 1.08, veste: { tunica: 0x3a3040, faixa: 0x8a6ad0 }, tinta: { cabelo: 0x1a1a1a, roupa: 0x3a3040, calca: 0x2a2a2a } },
+  { id: 'm_brasa', nome: 'Fagulha', merch: 'brasa', lugar: 'posto_leste', dx: -3, dz: 5, ry: 3.4, visual: 'vivi', veste: { tunica: 0xb8401e, saia: 0xb8401e, ate: 'joelho', faixa: 0xffb040 }, tinta: { cabelo: 0xb83a1a, roupa: 0xb8401e, calca: 0x3a2a20 } },
+];
+for (const n of MERCADORES_MUNDO) {
+  const L = LUGARES_MUNDO.find((l) => l.id === n.lugar);
+  n.x = L.x + n.dx; n.z = L.z + n.dz; n.mundo = true;
+  MERCADORES_PACK.push(n);
+  MAPA_CLAREIRA.npcs.push({ ...n, nome: `${n.nome}, mercador`, roupa: 'peitoral0,calca0,botas0', funcao: 'pack', acoes: ['pack'], mundo: true,
+    falas: [`Eu faço o ${PACKS[n.merch].nome}. Leve pra bem longe, do outro lado do mar paga muito mais!`,
+      'Pack de outro mercador? Me entregue que eu pago bem. Pack feito aqui eu não compro.'] });
+}
+
+// FASE 3, Parte 7a: mata nas terras novas (direção de arte: nada de chão pelado). Bosques e árvores soltas pelos morros,
+// mais ralas que a mata de hoje (campo aberto entre os bosques), longe da praia, das estradas, dos lugares planos e das
+// encostas fortes. Entram no fim de mata (as árvores de hoje não mudam de índice: o "a" de cada uma continua igual) e
+// todas dão lenha, como as outras. y = altura do chão do mundo grande.
+{
+  const G = gradeDoMundo();
+  let sem = 20261109; const rnd = () => { sem = (sem * 16807) % 2147483647; return sem / 2147483647; };
+  const P = new Float32Array(64 * 64); for (let i = 0; i < P.length; i++) P[i] = rnd();
+  const val = (x, z) => { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, g = (a, b) => P[((iz + b) & 63) * 64 + ((ix + a) & 63)];
+    const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz); return (g(0, 0) * (1 - ux) + g(1, 0) * ux) * (1 - uz) + (g(0, 1) * (1 - ux) + g(1, 1) * ux) * uz; };
+  const rotas = ESTRADAS_MUNDO.map((E) => E.curva);
+  const pertoDaEstrada = (x, z) => rotas.some((C) => C.some(([px, pz]) => Math.abs(px - x) < 7 && Math.abs(pz - z) < 7 && Math.hypot(px - x, pz - z) < 6.5));
+  const novas = [], PASSO = 6.5;
+  for (let z = G.z0 + 4; z < G.z0 + (G.nz - 1) * G.passo - 4; z += PASSO) for (let x = G.x0 + 4; x < G.x0 + (G.nx - 1) * G.passo - 4; x += PASSO) {
+    const bosque = val(x / 48, z / 48) * 0.7 + val(x / 13, z / 13) * 0.3; // manchas de bosque
+    if (rnd() > (bosque > 0.52 ? 0.85 : 0.07)) continue;
+    const ax = x + (rnd() - 0.5) * PASSO * 0.8, az = z + (rnd() - 0.5) * PASSO * 0.8, y = alturaMundo(G, ax, az);
+    if (y < 1.4 || !terraEm(G, ax, az)) continue; // praia, mar e o mapa de hoje (0) ficam sem
+    let inc = 0; for (const [dx, dz] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5]]) inc = Math.max(inc, Math.abs(alturaMundo(G, ax + dx, az + dz) - y) / 1.5);
+    if (inc > 0.45) continue;
+    if (LUGARES_MUNDO.some((l) => Math.hypot(l.x - ax, l.z - az) < l.r + 7) || pertoDaEstrada(ax, az)) continue;
+    if (MERCADORES_PACK.some((n) => Math.hypot(n.x - ax, n.z - az) < 5)) continue;
+    if (RIOS_MUNDO.some((R) => R.curva.some(([px, pz]) => Math.abs(px - ax) < 8 && Math.abs(pz - az) < 8 && Math.hypot(px - ax, pz - az) < 7.5))) continue; // o leito do rio (Parte 4b)
+    novas.push({ x: +ax.toFixed(2), z: +az.toFixed(2), s: +(0.75 + rnd() * 0.6).toFixed(2), ry: +(rnd() * 6.28).toFixed(2), v: Math.floor(rnd() * 3), y: +y.toFixed(2), mundo: true });
+  }
+  MAPA_CLAREIRA.mata.push(...novas);
+}
+
+// FASE 3, Parte 7b (André 2026-11-08: vilas pequenas de no máximo 5 terrenos; a grande do Nv 100 em bairros de ~5
+// terrenos a 60-80 m um do outro, 20-25 terrenos). Cada vila é uma área onde se compra terreno, com as mesmas regras
+// das Terras da Estrada (LOTE). A primeira é a de hoje, igual (a área e as estradas são as mesmas objetos); as do mundo
+// grande ficam nos platôs das vilas (shared/mundo.js) e não podem pegar as estradas do mundo. max: terrenos com dono.
+const curvaRua = (id) => ({ largura: 4, pontos: ESTRADAS_MUNDO.find((e) => e.id === id).curva });
+const VAEL = LUGARES_MUNDO.find((l) => l.id === 'vila_vael'), AURORA = LUGARES_MUNDO.find((l) => l.id === 'vila_aurora');
+// a praça da vila (onde fica o mercador) entra como "estrada": terreno nenhum em cima dela
+const praca = (x, z, r) => ({ largura: 2 * r, pontos: [[x - 0.05, z], [x + 0.05, z]] });
+export const VILAS_TERRENO = [
+  { id: 'terras', nome: VILA_LOTES.nome, area: VILA_LOTES.area, estradas: [{ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas], max: 5 },
+  { id: 'vila_vael', nome: 'Porto de Vael', nivel: 50, mundo: true, area: { x: VAEL.x, z: VAEL.z, rx: VAEL.r - 3, rz: VAEL.r - 3 },
+    estradas: [curvaRua('e_leste'), curvaRua('e_norte'), praca(MERCADORES_MUNDO[0].x, MERCADORES_MUNDO[0].z, 4)], max: 5 },
+  // Aurora: a praça no meio (mercador, encontro de todo mundo) e 4 bairros nas diagonais, a 48 m do centro (68 m entre
+  // os vizinhos); cada bairro é uma área de 5 terrenos
+  ...[['no', 'Bairro do Noroeste', -1, -1], ['ne', 'Bairro do Nordeste', 1, -1], ['so', 'Bairro do Sudoeste', -1, 1], ['se', 'Bairro do Sudeste', 1, 1]].map(([s, nome, dx, dz]) => ({
+    id: `aurora_${s}`, nome: `Aurora, ${nome}`, nivel: 100, mundo: true, bairro: true,
+    area: { x: AURORA.x + dx * 34, z: AURORA.z + dz * 34, rx: 24, rz: 24 }, estradas: [curvaRua('e_aurora')], max: 5 })),
+];
+// a vila de um ponto (o meio do terreno), ou null
+export function vilaEm(x, z) {
+  for (const V of VILAS_TERRENO) if (Math.hypot(x - V.area.x, z - V.area.z) <= raioNaDirecao(V.area, Math.atan2(z - V.area.z, x - V.area.x))) return V;
+  return null;
+}
+// o chão de um terreno: 0 no mapa de hoje (como sempre foi); nas vilas do mundo grande, o platô
+export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo ? Math.max(0, alturaMontanha(x, z)) : 0);
+
+// FASE 3, Parte 7b: cais de madeira em cada porto do mundo grande (André 2026-11-08: barco e navio saem do cais). Sai da
+// praia para o lado mais fundo, 3 m de largura, com o tablado a 0,6 m (acima da água, o herói anda por cima).
+{
+  const G = gradeDoMundo();
+  MAPA_CLAREIRA.cais = LUGARES_MUNDO.filter((l) => l.tipo === 'porto').map((L) => {
+    let melhor = 0, hMin = Infinity;
+    for (let k = 0; k < 48; k++) { const a = k / 48 * 2 * Math.PI, h = alturaMundo(G, L.x + Math.sin(a) * 22, L.z + Math.cos(a) * 22); if (h < hMin) { hMin = h; melhor = a; } }
+    const dx = Math.sin(melhor), dz = Math.cos(melhor);
+    let t0 = 0; while (t0 < 40 && alturaMundo(G, L.x + dx * t0, L.z + dz * t0) > 0.25) t0 += 0.5;
+    const ini = t0 - 3, fim = t0 + 15;
+    return { id: 'cais_' + L.id, nome: L.nome, x: +(L.x + dx * (ini + fim) / 2).toFixed(2), z: +(L.z + dz * (ini + fim) / 2).toFixed(2), ry: +melhor.toFixed(4), w: 3, d: fim - ini, y1: 0.6 };
+  });
+}
+
+// FASE 3, Parte 4b: as pontes de madeira onde os rios cruzam as estradas (shared/mundo.js abrirRios) são chão de
+// verdade (shared/terreno.js), e os rios vão para o app desenhar a água e as cachoeiras (mundo_grade.json)
+MAPA_CLAREIRA.pontes = PONTES_MUNDO;
+export { RIOS_MUNDO, PONTES_MUNDO };

@@ -42,6 +42,7 @@ var _mat_forro: StandardMaterial3D
 var _mat_reboco: StandardMaterial3D
 var _mat_viga: StandardMaterial3D
 var terras: Dictionary # mundo.vilaLotes: area (elipse), estradas [{largura, pontos}]
+var vilas: Array # FASE 3: mundo.vilasTerreno (Terras da Estrada, Porto de Vael e os bairros de Aurora), mesmo formato
 
 # modo construção
 var ativo := false
@@ -163,6 +164,7 @@ func _init(principal) -> void:
 
 func _ready() -> void:
 	terras = m.mundo.get("vilaLotes", {})
+	vilas = m.mundo.get("vilasTerreno", [])
 	_mat_ok = _mat_fantasma(Color(0.43, 1.0, 0.54, 0.45))
 	_mat_nao = _mat_fantasma(Color(1.0, 0.35, 0.29, 0.45))
 	_carregar_modelos()
@@ -798,7 +800,9 @@ func bordas_do_quadrado(x: float, z: float) -> Array:
 
 # chão sem as casas dos jogadores (pedras e casas da vila contam)
 func _chao(x: float, z: float) -> float:
-	var h := 0.0
+	var h := 0.0 # FASE 3: nas vilas do mundo grande o chão é o platô (shared/dados.js chaoDaVila); no mapa de hoje, 0
+	if vila_em(x, z).get("mundo", false):
+		h = maxf(0.0, m.terreno.relevo(x, z))
 	for r in m.terreno.solidos_em(x, z): # só os da casa de 4 m do ponto (FPS 2026-11-07)
 		if r.get("obra", false):
 			continue
@@ -2197,8 +2201,16 @@ static func max_pecas(L: Dictionary, regra: Dictionary) -> int:
 func preco_terreno(R: Dictionary) -> int:
 	return int((float(R.x1) - float(R.x0)) * (float(R.z1) - float(R.z0))) * int(D.lote.precoBloco)
 
-func dentro_das_terras(x: float, z: float, folga := 0.0) -> bool:
-	var A: Dictionary = terras.get("area", {})
+# FASE 3: a vila de terrenos de um ponto ({} fora de todas); a mesma conta do servidor (shared/dados.js vilaEm)
+func vila_em(x: float, z: float) -> Dictionary:
+	for V in vilas:
+		var A: Dictionary = V.area
+		if Vector2(x - float(A.x), z - float(A.z)).length() <= Andar.raio_na_direcao(A, atan2(z - float(A.z), x - float(A.x))):
+			return V
+	return {}
+
+func dentro_das_terras(x: float, z: float, folga := 0.0, V := {}) -> bool:
+	var A: Dictionary = (V if not V.is_empty() else terras).get("area", {})
 	if A.is_empty():
 		return false
 	return Vector2(x - float(A.x), z - float(A.z)).length() <= Andar.raio_na_direcao(A, atan2(z - float(A.z), x - float(A.x))) - folga
@@ -2213,6 +2225,9 @@ func motivo_terreno(R: Dictionary, menos := "") -> String:
 		return "Cada lado vai até %d m" % int(lo.ladoMax)
 	if w * d > int(lo.areaMax):
 		return "No máximo %d blocos (este tem %d)" % [int(lo.areaMax), w * d]
+	var V := vila_em((float(R.x0) + float(R.x1)) / 2.0, (float(R.z0) + float(R.z1)) / 2.0)
+	if V.is_empty():
+		V = vilas[0] if not vilas.is_empty() else terras
 	for t in 2 * (w + d) + 1:
 		var x: float
 		var z: float
@@ -2224,9 +2239,9 @@ func motivo_terreno(R: Dictionary, menos := "") -> String:
 			x = R.x1 - (t - w - d); z = R.z1
 		else:
 			x = R.x0; z = R.z1 - (t - 2 * w - d)
-		if not dentro_das_terras(x, z, float(lo.folgaBorda)):
+		if not dentro_das_terras(x, z, float(lo.folgaBorda), V):
 			return "Passa da borda das terras"
-	for e in terras.get("estradas", []):
+	for e in V.get("estradas", []):
 		var meia: float = float(e.largura) / 2.0 + float(lo.folgaRua)
 		var pts: Array = e.pontos
 		for i in range(1, pts.size()):
@@ -2344,6 +2359,11 @@ func _process(dt: float) -> void:
 	var livre := ativo or comprando
 	m.hud.modo_construcao = livre
 	m.hud.arrastar_terreno = comprando
+	# FASE 3: as terras de agora são a vila onde o herói está (fora da compra; comprando, ficam as mesmas)
+	if not livre and not vilas.is_empty():
+		var vh := vila_em(hp.x, hp.z)
+		if not vh.is_empty():
+			terras = vh
 	# nas terras e sem terreno: botão Comprar terreno
 	m.hud.mostrar_botao("lote", meu == "" and dentro_das_terras(hp.x, hp.z, -2.0) and vivo and not livre)
 	var no_meu := meu != "" and lotes.has(meu) and dist_ret(lotes[meu].def, hp.x, hp.z) <= float(D.lote.alcance)
@@ -3096,8 +3116,12 @@ func _por_correio(id: String) -> void:
 		_correios[id] = no
 	var d: Dictionary = L.def
 	var rua_x := -16.0
-	for e in terras.get("estradas", []):
-		rua_x = float(e.pontos[0][0])
+	var vc := vila_em((float(d.x0) + float(d.x1)) / 2.0, (float(d.z0) + float(d.z1)) / 2.0)
+	if vc.get("mundo", false): # FASE 3: nas vilas do mundo grande o correio fica do lado do meio da vila
+		rua_x = float(vc.area.x)
+	else:
+		for e in (vc if not vc.is_empty() else terras).get("estradas", []):
+			rua_x = float(e.pontos[0][0])
 	var lado := 1.0 if (float(d.x0) + float(d.x1)) / 2.0 < rua_x else -1.0 # a estrada fica a leste (+x) ou a oeste
 	var x: float = (float(d.x1) - 0.35) if lado > 0 else (float(d.x0) + 0.35)
 	var z: float = clampf(float(d.z0) + 0.45, float(d.z0), float(d.z1))
@@ -3780,7 +3804,7 @@ func _montar_bau() -> void:
 const COLADO := 1.25 # m da borda da peça
 const GRADE_IR := 0.4 # m por quadrado da grade
 const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
-const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
+const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "fornalha": ["fornalha"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
@@ -3870,7 +3894,7 @@ func _abrir_estacao(qual: String, p) -> void:
 	match qual:
 		"bau":
 			abrir_bau()
-		"forno":
+		"forno", "fornalha": # "fornalha": botão da aba Criar (menu.gd ir_fornalha) vai só até a fornalha
 			abrir_forno(str(p.id))
 		"cama": # do lado da cama: o servidor confere a noite e os monstros e responde "dormiu" (dia_noite.gd)
 			if m.on():

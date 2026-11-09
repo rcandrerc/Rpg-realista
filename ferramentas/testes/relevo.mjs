@@ -75,7 +75,7 @@ for (const L of LAGOS) {
   }
   let topo = 0; for (let k = 0; k < n * n; k++) if (visto[k]) topo = Math.max(topo, h[k]);
   ok(topo > alto - 1, `dá para subir andando até ${topo.toFixed(1)} m (topo ${alto.toFixed(1)} m)`);
-  ok(!M.caca.some((c) => alturaMontanha(c.x, c.z) > 0 || alturaMontanha(c.x + c.r, c.z) > 0), 'campo de caça nenhum em cima da montanha');
+  ok(!M.caca.filter((c) => !c.mundo).some((c) => alturaMontanha(c.x, c.z) > 0 || alturaMontanha(c.x + c.r, c.z) > 0), 'campo de caça nenhum em cima da montanha (os do mundo grande ficam em platôs: teste mundo.mjs)');
 }
 
 // 2026-11-07 (André: "não quero nenhuma barreira invisível nesse mapa"): do terreno nas Terras da Estrada dá para

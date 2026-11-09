@@ -41,6 +41,10 @@ func _montar() -> void:
 	var linhas: Array = m.mundo.get("caminhos", [])
 	if linhas.is_empty() and m.mundo.has("estrada"): # mundo.json antigo: só a estrada principal
 		linhas = [{"pontos": m.mundo.estrada}]
+	if m.terreno != null: # FASE 3: as estradas do mundo grande (shared/mundo.js) também entram na rede
+		linhas = linhas.duplicate()
+		for e in m.terreno.mundo_g.get("estradas", []):
+			linhas.append({"pontos": e.get("curva", [])})
 	var por_linha: Array = []
 	for L in linhas:
 		var pts: Array = L.get("pontos", [])
