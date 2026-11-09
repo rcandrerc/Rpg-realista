@@ -2,7 +2,9 @@
 // só o dono conversa, pede ajuda e paga de volta, guarda tudo no terreno e não ocupa vaga nas Terras.
 // Uso: node ferramentas/testes/amiga.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS } from '../../shared/index.js';
-import { contar } from '../../shared/progresso.js';
+import { contar, guardar } from '../../shared/progresso.js';
+import { PESCA } from '../../shared/dados.js';
+import { noLago } from '../../shared/relevo.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});
@@ -86,6 +88,7 @@ ok(ITENS.lenha, 'itens');
   ok(bateu > 3, `ela lutou: ${bateu} golpes nos monstros`);
   ok(c.prog.xp > xp0 || c.prog.nivel > nv0, `ganhou XP no time (nível ${c.prog.nivel}, XP ${c.prog.xp})`);
   // pouca vida: bebe poção
+  guardar(c.prog.mochila, { k: 'pocao', n: 3 }); // desde o #317 ela compra poção com o ouro dela: na luta pode ter bebido a única
   const p0 = contar(c.prog.mochila, 'pocao'); c.vida = c.vidaMax * 0.2; c.ia.pocaoT = 0; c.pocaoAte = {}; // sem a recarga de uma poção que ela já bebeu na luta
   for (let i = 0; i < 80 && c.ia.pocaoT === 0; i++) { c.vida = c.vidaMax * 0.2; s3.passo(0.05); } // espera a habilidade em andamento acabar (trava até ~2 s)
   ok(c.ia.pocaoT > 0 && c.vida > c.vidaMax * 0.2, `bebeu poção com pouca vida (vida ${Math.round(c.vida / c.vidaMax * 100)}%)`); // pela vida: na mesma luta ela pode pegar poção do chão
@@ -111,7 +114,7 @@ ok(ITENS.lenha, 'itens');
   const rnd2 = Math.random; Math.random = () => 0.01; s3.tempo += 2; chat('Vem aqui comigo?'); Math.random = rnd2;
   ok(!!c.ia.vir, 'aceitou ir até ele');
   let perto = 99; for (let i = 0; i < 20 * 60 && c.ia.vir; i++) { s3.passo(0.05); perto = Math.hypot(c.x - d.x, c.z - d.z); }
-  esperar(4);
+  esperar(8); // a fala sai depois do "digitando" (até ~5 s)
   ok(perto < 4 && falas.some((f) => AMIGA.chat.falas.chegou.some((t) => f.texto.startsWith(t)) && AMIGA.chat.falas.chegouPergunta.some((t) => f.texto.endsWith(t))), `chegou perto dele (a ${perto.toFixed(1)} m), avisou e perguntou o que fazer`);
   // ela veio porque topou: o convite de time logo depois entra sem sorteio (nem "já te falei")
   { const rr = Math.random; Math.random = () => 0.999; s3.eventos = []; Object.assign(d, { x: c.x + 1.5, z: c.z }); s3.conversaAmiga('andre', { acao: 'time' }); Math.random = rr;
@@ -194,3 +197,47 @@ ok(ITENS.lenha, 'itens');
   for (let i = 0; i < 20 * 3; i++) s5.passo(0.05);
   ok(d.vida > v0, `ela viu o André mal e usou a Cura: +${d.vida - v0} de vida nele`);
 }
+// ---------- coleta junto: lenha e pesca, com a divisão (André 2026-11-09) ----------
+{
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  s6.adicionarJogador('andre', 'André', 'ruiva', {});
+  s6.amigaEntrar('andre');
+  const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
+  const fala = []; s6.aoChatAmiga = (m) => fala.push(m.texto);
+  const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
+  ok(s6.assuntoAmiga('vamos pescar?') === 'pescar' && s6.assuntoAmiga('bora minerar') === 'minerar' && s6.assuntoAmiga('bora cortar lenha') === 'lenha', 'entende "vamos pescar", "bora minerar" e "bora cortar lenha"');
+  // lenha: ela faz o machado com o que tem e corta perto do André
+  const arv = [...s6.coletaveis.values()].filter((n) => n.tipo === 'arvore').sort((a, b) => Math.hypot(a.x - c.x, a.z - c.z) - Math.hypot(b.x - c.x, b.z - c.z))[0];
+  Object.assign(d, { x: arv.x + 4, z: arv.z, y: s6.terreno.altura(arv.x + 4, arv.z) }); Object.assign(c, { x: arv.x + 5, z: arv.z + 1, y: s6.terreno.altura(arv.x + 5, arv.z + 1) });
+  guardarItem(c, 'lenha', 3); guardarItem(c, 'pedra', 2);
+  const lenha0 = contar(c.prog.mochila, 'lenha') - 3, dono0 = contar(d.prog.mochila, 'lenha');
+  const rr = Math.random; Math.random = () => 0.01; chat('bora cortar lenha'); Math.random = rr;
+  ok(c.time && c.ia.atividade === 'lenha', 'topou cortar lenha e entrou no time');
+  esp(90);
+  const cortou = contar(c.prog.mochila, 'lenha') - lenha0 + contar(d.prog.mochila, 'lenha') - dono0;
+  ok(contar(c.prog.mochila, 'machado') === 1 && cortou > 0, `fez o próprio machado e cortou ${cortou} lenha`);
+  chat('chega de lenha');
+  const parte = contar(d.prog.mochila, 'lenha') - dono0;
+  ok(!c.ia.atividade && parte > 0 && parte < cortou && c.ia.reserva?.some((x) => x.k === 'lenha'), `parou, deu ${parte} de presente e oferece o resto (${c.ia.reserva?.map((x) => x.n + ' ' + x.k).join(', ')})`);
+}
+{ // pesca (sala nova: o vigor dela foi todo na lenha): com a vara, acha o spot perto do André e pesca sozinha
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  s6.adicionarJogador('andre', 'André', 'ruiva', {});
+  s6.amigaEntrar('andre');
+  const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
+  const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
+  c.ia.combinado = s6.tempo + 999;
+  let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo); }
+  if (sp) {
+    sp.fim = s6.tempo + 9999;
+    for (const v of s6.spots) if (v !== sp) v.ativo = false; // só este spot
+    c.ia.ruins = new Map(); const beira = s6.acharColetaAmiga(c, { x: sp.x, z: sp.z }, 'pescar'); // a beira de onde dá pra lançar
+    const bx = beira.x, bz = beira.z;
+    Object.assign(d, { x: bx, z: bz, y: s6.terreno.altura(bx, bz) }); Object.assign(c, { x: bx, z: bz, y: s6.terreno.altura(bx, bz) });
+    guardarItem(c, 'vara', 1);
+    const peixes = () => Object.keys(PESCA.tier).reduce((t, k) => t + contar(c.prog.mochila, k) + contar(d.prog.mochila, k), 0), p0 = peixes();
+    chat('vamos pescar?'); esp(120);
+    ok(c.ia.atividade === 'pescar' && peixes() > p0, `pescou ${peixes() - p0} peixe(s) no spot perto do André`);
+  } else ok(false, 'nenhum spot de pesca nasceu no teste');
+}
+function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }

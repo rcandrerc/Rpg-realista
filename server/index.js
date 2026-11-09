@@ -95,7 +95,7 @@ class SalaClareira extends Room {
           // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
           if (['presente', 'pedirItem'].includes(regra)) return this.sim.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
           // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
-          const acao = ['time', 'sairTime', 'vir'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
+          const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
           this.sim.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
         });
       }
