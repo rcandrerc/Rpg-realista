@@ -13,11 +13,11 @@ import { dentroDoMapa } from './mapa.js';
 // Vael (o de hoje, Nv 1-50) a oeste, a Ilha do Meio (Nv 50-65) no mar central e Aurora (Nv 60-100) a leste.
 export const TERRAS = [
   { id: 'vael', nome: 'Continente de Vael', x: 110, z: 50, rx: 290, rz: 330, lobos: [[3, 0.07, 0.4], [5, 0.05, 2.1], [9, 0.025, 1.0]], niveis: [1, 50] },
-  { id: 'ilha', nome: 'Ilha do Meio', x: 520, z: 40, rx: 82, rz: 74, lobos: [[3, 0.08, 1.7], [7, 0.04, 0.3]], niveis: [50, 65] },
-  { id: 'aurora', nome: 'Continente de Aurora', x: 830, z: 50, rx: 195, rz: 225, lobos: [[3, 0.07, 2.8], [5, 0.05, 0.9], [8, 0.03, 4.0]], niveis: [60, 100] },
+  { id: 'ilha', nome: 'Ilha do Meio', x: 565, z: 40, rx: 82, rz: 74, lobos: [[3, 0.08, 1.7], [7, 0.04, 0.3]], niveis: [50, 65] },
+  { id: 'aurora', nome: 'Continente de Aurora', x: 905, z: 50, rx: 195, rz: 225, lobos: [[3, 0.07, 2.8], [5, 0.05, 0.9], [8, 0.03, 4.0]], niveis: [60, 100] },
 ];
 // a grade cobre o mundo todo com o mar em volta
-export const MUNDO = { x0: -260, z0: -320, w: 1320, h: 740, passo: 4, mar: -0.05, fundoMar: -7, praia: 26, morros: 16, transicao: 40 };
+export const MUNDO = { x0: -260, z0: -320, w: 1440, h: 740, passo: 4, mar: -0.05, fundoMar: -7, praia: 26, morros: 16, transicao: 40 };
 
 // ruído de valor suave com tabela fixa (mesmo jeito da montanha em relevo.js)
 function ruido(semente) {
@@ -46,9 +46,13 @@ export function montarMundo(mapaHoje) {
   const fbm = ruido(424242), fbm2 = ruido(171717), costa = ruido(9091);
   // distância (m) até o mapa de hoje: 0 dentro dele; espalha pela grade (chanfro 3-4)
   const INF = 1e9, dist = new Float32Array(nx * nz).fill(INF);
+  // só as áreas e corredores de hoje (sem a terra do mundo) e só dentro da caixa deles (rápido)
+  const hoje = mapaHoje ? { areas: mapaHoje.areas, corredores: mapaHoje.corredores, raio: mapaHoje.raio } : null;
+  let cx0 = Infinity, cx1 = -Infinity, cz0 = Infinity, cz1 = -Infinity;
+  for (const a of hoje?.areas || []) { const r = Math.max(a.r || 0, a.rx || 0, a.rz || 0) * 1.3 + 14; cx0 = Math.min(cx0, a.x - r); cx1 = Math.max(cx1, a.x + r); cz0 = Math.min(cz0, a.z - r); cz1 = Math.max(cz1, a.z + r); }
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
     const x = M.x0 + i * M.passo, z = M.z0 + j * M.passo;
-    if (mapaHoje && dentroDoMapa(mapaHoje, x, z, -12)) dist[j * nx + i] = 0; // 12 m a mais: a mata fechada da borda
+    if (hoje && x >= cx0 && x <= cx1 && z >= cz0 && z <= cz1 && dentroDoMapa(hoje, x, z, -12)) dist[j * nx + i] = 0; // 12 m a mais: a mata fechada da borda
   }
   const p = M.passo, d2 = p * Math.SQRT2;
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {

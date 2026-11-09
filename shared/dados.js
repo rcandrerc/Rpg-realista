@@ -2,7 +2,8 @@
 // para criar uma habilidade, horda ou mapa novo, mexa só aqui.
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
-import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME } from './relevo.js';
+import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo } from './relevo.js';
+import { montarMundo, alturaMundo, terraEm } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, pontoDoTunel } from './caverna.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
@@ -1708,3 +1709,14 @@ export const MERCADORES_PACK = [
 MAPA_CLAREIRA.npcs.push(...MERCADORES_PACK.map((n) => ({ ...n, nome: `${n.nome}, mercador`, roupa: 'peitoral0,calca0,botas0', funcao: 'pack', acoes: ['pack'],
   falas: [`Eu faço o ${PACKS[n.merch].nome}. Traga o material e leve pra bem longe: quanto mais longe, mais paga!`,
     'Pack de outro mercador? Me entregue que eu pago bem. Pack feito aqui eu não compro.'] })));
+
+// FASE 3, Parte 3 (André 2026-11-08): o mundo grande (shared/mundo.js) em volta do mapa de hoje. A grade sai das áreas
+// andáveis de hoje (ali ela vale 0, nada muda); depois disso a terra dos continentes também é andável (até a água pela
+// cintura na praia) e o mar vira água de verdade (relevo.js noLago). andavelMundo não vai para o JSON (não enumerável).
+{
+  const G = montarMundo(MAPA_CLAREIRA);
+  usarMundo(G);
+  const seco = (x, z) => alturaMundo(G, x, z) > -0.9 && terraEm(G, x, z);
+  Object.defineProperty(MAPA_CLAREIRA, 'andavelMundo', { enumerable: false, value: (x, z, margem = 0) => seco(x, z)
+    && (margem <= 0 || (seco(x + margem, z) && seco(x - margem, z) && seco(x, z + margem) && seco(x, z - margem))) });
+}

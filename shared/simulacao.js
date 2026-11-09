@@ -568,7 +568,7 @@ export class Simulacao {
     // mergulho (André 2026-11-06): no lago fundo o herói desce abaixo da linha em que boia, até o leito (MERGULHO_MAX)
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
-    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z)
+    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });

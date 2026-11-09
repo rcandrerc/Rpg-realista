@@ -14,8 +14,20 @@ const pontos = [[0, 0], ...M.npcs.map((n) => [n.x, n.z]), ...M.caca.map((c) => [
 ok(pontos.every(([x, z]) => Math.abs(alturaMundo(G, x, z)) < 1e-6 && terraEm(G, x, z)?.id === 'vael'), 'o mapa de hoje fica no plano (grade 0) e em Vael');
 // do litoral leste de Vael até Aurora passando pela ilha: tem mar fundo para o navio dos dois lados da ilha
 const fundo = (a, b) => { let m = 0; for (let x = a; x <= b; x += 2) m = Math.min(m, alturaMundo(G, x, 40)); return m; };
-ok(fundo(395, 445) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre Vael e a ilha: ' + fundo(395, 445).toFixed(1));
-ok(fundo(595, 640) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre a ilha e Aurora: ' + fundo(595, 640).toFixed(1));
-ok(terraEm(G, 520, 40)?.id === 'ilha' && terraEm(G, 830, 50)?.id === 'aurora' && terraEm(G, 500, 300) === null, 'terraEm');
+ok(fundo(420, 470) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre Vael e a ilha: ' + fundo(395, 445).toFixed(1));
+ok(fundo(655, 700) < MUNDO.mar - VEICULOS.navio.fundo, 'mar fundo entre a ilha e Aurora: ' + fundo(595, 640).toFixed(1));
+ok(terraEm(G, 565, 40)?.id === 'ilha' && terraEm(G, 905, 50)?.id === 'aurora' && terraEm(G, 500, 300) === null, 'terraEm');
 // sorteio fixo: duas montagens saem iguais
 const G2 = montarMundo(M); ok(G2.h.every((v, i) => v === G.h[i]), 'sorteio fixo');
+
+// Parte 3: o servidor já conhece o mundo grande. A terra nova é andável, o mar é água (boia), e no mar só de barco.
+import { Simulacao } from '../../shared/index.js';
+import { dentroDoMapa } from '../../shared/mapa.js';
+import { noLago, chaoDoRelevo, relevo, alturaMontanha } from '../../shared/relevo.js';
+ok(dentroDoMapa(M, 300, 300) === false || terraEm(G, 300, 300), 'fora da terra não anda');
+ok(dentroDoMapa(M, 905, 50) && dentroDoMapa(M, 565, 40) && dentroDoMapa(M, -150, 50), 'Aurora, a ilha e o oeste de Vael são andáveis');
+ok(!dentroDoMapa(M, 470, 40) && noLago(450, 40)?.lago.mar && relevo(450, 40) < -1.6, 'o mar entre Vael e a ilha é água funda e não se anda nele');
+ok(chaoDoRelevo(450, 40) > relevo(450, 40), 'no mar o herói boia');
+ok(alturaMontanha(0, 0) === 0 && alturaMontanha(188, -62) > 0, 'a vila e a montanha de hoje não mudaram de altura');
+const s = new Simulacao(M);
+ok(s.terreno.altura(905, 50) > 0, 'o terreno do servidor tem a altura de Aurora');

@@ -39,6 +39,7 @@ export const VOLTA_FOLGA = Array.from({ length: 12 }, (_, i) => [Math.cos(i * Ma
 // áreas se encostavam por pouco sobrava uma parede invisível no meio da mata. Agora o ponto vale se está fundo numa
 // área (como antes) ou se ele e a volta dele a "margem" metros estão todos dentro do mapa.
 export function dentroDoMapa(mapa, x, z, margem = 0) {
+  if (mapa.andavelMundo && mapa.andavelMundo(x, z, margem)) return true; // FASE 3: a terra dos continentes (shared/mundo.js)
   const F = formasDoMapa(mapa);
   if (dentroDeAlguma(F, x, z, margem)) return true;
   if (margem <= 0 || !dentroDeAlguma(F, x, z, 0)) return false;
