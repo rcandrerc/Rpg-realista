@@ -23,6 +23,9 @@ uniform vec3 sol_cor : source_color = vec3(1.0, 0.95, 0.84);
 // reflexo da lua na água à noite (dia_noite.gd manda só quando muda; André 2026-11-08)
 uniform float noite = 0.0;
 uniform vec3 lua_dir = vec3(0.77, 0.22, 0.44);
+// qualidade gráfica Baixa (grafico.gd, André 2026-11-09): sem as ondinhas (2 leituras de textura a menos) e sem os
+// riscos de brilho (menos conta por ponto no mar, que cobre boa parte da tela)
+uniform bool simples = false;
 varying vec3 mundo;
 varying float fundura;
 void vertex() {
@@ -45,9 +48,12 @@ void fragment() {
 	float dist = length(CAMERA_POSITION_WORLD - mundo);
 	float perto = 1.0 - smoothstep(18.0, 160.0, dist); // longe as ondinhas somem (sem chiado na tela do celular)
 	// ondinhas: duas camadas do mesmo mapa em escalas e direções diferentes (não se vê a repetição)
-	vec2 n1 = texture(ondas_tex, mundo.xz * 0.11 + vec2(TIME * 0.021, TIME * 0.009)).xy * 2.0 - 1.0;
-	vec2 n2 = texture(ondas_tex, mundo.xz * 0.29 + vec2(-TIME * 0.016, TIME * 0.027)).xy * 2.0 - 1.0;
-	vec2 inc = (n1 * 0.6 + n2 * 0.4) * ondas * mix(0.25, 0.75, perto) * mix(0.35, 1.0, smoothstep(0.0, 0.6, p));
+	vec2 inc = vec2(0.0);
+	if (!simples) {
+		vec2 n1 = texture(ondas_tex, mundo.xz * 0.11 + vec2(TIME * 0.021, TIME * 0.009)).xy * 2.0 - 1.0;
+		vec2 n2 = texture(ondas_tex, mundo.xz * 0.29 + vec2(-TIME * 0.016, TIME * 0.027)).xy * 2.0 - 1.0;
+		inc = (n1 * 0.6 + n2 * 0.4) * ondas * mix(0.25, 0.75, perto) * mix(0.35, 1.0, smoothstep(0.0, 0.6, p));
+	}
 	vec3 nw = normalize(vec3(inc.x, 1.0, inc.y));
 	vec3 olho = normalize(mundo - CAMERA_POSITION_WORLD);
 	float cosv = clamp(dot(-olho, nw), 0.0, 1.0);
@@ -63,8 +69,10 @@ void fragment() {
 	float o1 = sin(mundo.x * 0.8 + TIME * 0.9 + sin(mundo.z * 0.55 + TIME * 0.5) * 1.6);
 	float o2 = sin(mundo.z * 1.1 - TIME * 0.7 + sin(mundo.x * 0.45 - TIME * 0.3) * 2.0);
 	float risco = sin(mundo.x * 0.42 + mundo.z * 0.9 + o1 * 0.5 + TIME * 0.35);
-	float brilho = smoothstep(0.978, 0.995, risco) * smoothstep(0.6, 0.95, o2 * 0.5 + 0.5) * (0.4 + 0.6 * perto);
-	brilho *= smoothstep(0.55, 0.8, ruido(mundo.xz * 0.9 + vec2(0.0, TIME * 0.2))); // em pedaços curtos, não arcos longos
+	float brilho = simples ? 0.0 : smoothstep(0.978, 0.995, risco) * smoothstep(0.6, 0.95, o2 * 0.5 + 0.5) * (0.4 + 0.6 * perto);
+	if (!simples) {
+		brilho *= smoothstep(0.55, 0.8, ruido(mundo.xz * 0.9 + vec2(0.0, TIME * 0.2))); // em pedaços curtos, não arcos longos
+	}
 	// sol na água: um caminho largo e suave e, por cima, os pontinhos cortados (anime) onde a onda espelha o sol
 	float s = max(dot(r, normalize(sol_dir)), 0.0);
 	float sol = pow(s, 40.0) * 0.22 + smoothstep(0.988, 0.996, s) * 0.9 * (0.5 + 0.5 * perto);
