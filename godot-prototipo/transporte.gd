@@ -44,28 +44,55 @@ func _ready() -> void:
 
 # ---------- materiais ----------
 func _materiais() -> void:
+	# madeira: a faixa de veio quente do topo do T_WoodTrim (Quaternius, a mesma das casas), recortada e repetida
+	var wt: Image = (load("res://construcao3d/T_WoodTrim_BaseColor.png") as Texture2D).get_image()
+	if wt.is_compressed():
+		wt.decompress()
+	var veio := ImageTexture.create_from_image(wt.get_region(Rect2i(0, 8, wt.get_width(), int(wt.get_height() * 0.2))))
+	var wn: Image = (load("res://construcao3d/T_WoodTrim_Normal.png") as Texture2D).get_image()
+	if wn.is_compressed():
+		wn.decompress()
+	var veio_n := ImageTexture.create_from_image(wn.get_region(Rect2i(0, 8, wn.get_width(), int(wn.get_height() * 0.2))))
 	_mt_madeira = StandardMaterial3D.new()
-	_mt_madeira.albedo_texture = load("res://construcao3d/medieval_wood_diff_1k.jpg")
+	_mt_madeira.albedo_texture = veio
 	_mt_madeira.normal_enabled = true
-	_mt_madeira.normal_texture = load("res://construcao3d/medieval_wood_nor_gl_1k.jpg")
-	_mt_madeira.roughness = 0.85
+	_mt_madeira.normal_texture = veio_n
+	_mt_madeira.roughness = 0.82
 	_mt_madeira.uv1_triplanar = true
-	_mt_madeira.uv1_scale = Vector3(1.6, 1.6, 1.6)
+	_mt_madeira.uv1_scale = Vector3(0.7, 3.2, 0.7)
 	_mt_madeira_esc = _mt_madeira.duplicate()
-	_mt_madeira_esc.albedo_color = Color(0.62, 0.5, 0.4)
+	_mt_madeira_esc.albedo_color = Color(0.58, 0.44, 0.34)
 	_mt_ferro = StandardMaterial3D.new()
 	_mt_ferro.albedo_color = Color(0.32, 0.31, 0.3)
 	_mt_ferro.metallic = 0.8
 	_mt_ferro.roughness = 0.45
+	# pano de lona: trama de verdade (fios cruzados com variação), feita uma vez aqui
 	_mt_pano = StandardMaterial3D.new()
-	_mt_pano.albedo_texture = load("res://construcao3d/T_Trim_Cloth_BaseColor.png")
-	_mt_pano.normal_enabled = true
-	_mt_pano.normal_texture = load("res://construcao3d/T_Trim_Cloth_Normal.png")
+	_mt_pano.albedo_texture = _tex_lona()
 	_mt_pano.roughness = 0.95
 	_mt_pano.uv1_triplanar = true
-	_mt_pano.uv1_scale = Vector3(2, 2, 2)
+	_mt_pano.uv1_scale = Vector3(3, 3, 3)
+	_mt_pano.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_mt_corda = _mt_pano.duplicate()
-	_mt_corda.albedo_color = Color(0.78, 0.66, 0.48)
+	_mt_corda.albedo_color = Color(0.72, 0.58, 0.4)
+
+func _tex_lona() -> ImageTexture:
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = 77
+	var fio := []
+	for i in n:
+		fio.append(rnd.randf_range(-0.05, 0.05))
+	for y in n:
+		for x in n:
+			var cima: bool = ((x / 2) + (y / 2)) % 2 == 0 # trama: um fio por cima, outro por baixo
+			var f: float = fio[y] if cima else fio[x]
+			var borda: float = 0.9 if (x % 2 == 0 if cima else y % 2 == 0) else 1.0
+			var v: float = (0.9 + f + rnd.randf_range(-0.03, 0.03)) * borda
+			img.set_pixel(x, y, Color(0.93 * v, 0.88 * v, 0.77 * v))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 func _caixa(pai: Node3D, tam: Vector3, pos: Vector3, mt: Material, rot := Vector3.ZERO) -> MeshInstance3D:
 	var b := BoxMesh.new()
@@ -169,7 +196,7 @@ func modelo_navio() -> Node3D:
 	_caixa(corpo, Vector3(3.0, 1.2, 8.5), Vector3(0, -0.1, 0), _mt_madeira_esc) # casco
 	for lado in [-1.0, 1.0]:
 		_caixa(corpo, Vector3(0.12, 0.5, 8.4), Vector3(lado * 1.5, 0.75, 0), _mt_madeira) # amurada
-	_caixa(corpo, Vector3(2.0, 1.0, 1.6), Vector3(0, 0.0, 4.6), _mt_madeira_esc, Vector3(0.6, 0, 0)) # proa
+	_caixa(corpo, Vector3(2.2, 1.1, 1.8), Vector3(0, 0.25, 4.5), _mt_madeira_esc, Vector3(-0.35, 0, 0)) # proa
 	_caixa(corpo, Vector3(2.9, 0.08, 8.3), Vector3(0, 0.52, 0), _mt_madeira) # convés
 	_caixa(corpo, Vector3(2.8, 0.9, 1.6), Vector3(0, 0.95, -3.4), _mt_madeira) # castelo de popa
 	_cil(corpo, 0.12, 7.0, Vector3(0, 4.0, 0.6), _mt_madeira_esc) # mastro
@@ -400,7 +427,7 @@ func abrir_carrinho() -> void:
 	if not dirigindo and not c.get("quebrado", false):
 		ops.append(["Guardar na mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "carrinho"})])
 	var titulo := "Carrinho Nv %d · %d/%d packs · %s galões" % [lv, cp.size(), capacidade(c), String.num(snappedf(float(c.get("comb", 0)) / float(V.carrinho.galao), 0.1)).replace(".", ",")]
-	m.menu.escolher_opcao(titulo, ops) if m.menu.has_method("escolher_opcao") else _janela(titulo, ops)
+	_janela(titulo, ops)
 
 func abrir_navio() -> void:
 	var nv = m.P.prog.get("navio")
@@ -657,17 +684,17 @@ func _process(dt: float) -> void:
 	if meu_k != "":
 		var dy := 0.0
 		var atras := 0.0
-		if meu_k == "carrinho":
-			dy = 0.34
-			atras = 0.56
-		elif meu_k == "barquinho":
-			dy = 0.05
-		else:
-			dy = 0.6
-			atras = -3.2
+		if meu_k == "carrinho": # em pé na caçamba, atrás do motor
+			dy = 0.58
+			atras = -0.55
+		elif meu_k == "barquinho": # no banco do meio
+			dy = 0.12
+		else: # no convés, na frente do castelo de popa (o leme)
+			dy = 0.33
+			atras = -2.3
 		m.heroi.position.y = (float(m.terreno.agua.nivel) if meu_k != "carrinho" else m.heroi.position.y) + dy
 		if atras != 0.0:
-			m.heroi.position.x += sin(m.mov.ry) * atras * (1.0 if meu_k == "carrinho" else 1.0)
+			m.heroi.position.x += sin(m.mov.ry) * atras
 			m.heroi.position.z += cos(m.mov.ry) * atras
 	# pack nas costas: o meu e o dos outros jogadores
 	_costas("eu", m.heroi, m.P.prog.get("pack"), m.heroi_esq if "heroi_esq" in m else null)
@@ -681,6 +708,7 @@ func _process(dt: float) -> void:
 		_busca = 0.25
 		_botao_estado = _estado_botao()
 		m.hud.mostrar_botao("veiculo", _botao_estado != "" and m.h.morto <= 0.0)
+		m.hud.icone_botao("veiculo", "it_" + (meu_k if _botao_estado == "descer" else _botao_estado) if _botao_estado != "" else "it_carrinho")
 		_perto_g = ""
 		if not m.P.prog.get("pack") is Dictionary and meu_k == "":
 			var dm: float = float(PR.get("pegar", 2.5))
@@ -718,10 +746,11 @@ func _costas(id: String, corpo: Node3D, pk, esq) -> void:
 	if id == "eu" and m.mov.veiculo.get("k", "") == "carrinho":
 		alto = 0.36
 		atras = 0.3
-	var base := corpo.position
-	if esq is Skeleton3D: # preso no peito de cima do esqueleto: acompanha o corpo correndo e agachado
+	# o fundo do caixote fica um palmo abaixo do peito (Quimera: nas costas, com as alças)
+	var base := corpo.position + Vector3(0, alto + 0.33, 0)
+	if esq is Skeleton3D and is_instance_valid(esq): # preso no peito de cima do esqueleto: acompanha o corpo correndo e agachado
 		var i: int = (esq as Skeleton3D).find_bone("J_Bip_C_UpperChest")
 		if i >= 0:
-			base = (esq as Skeleton3D).global_transform * (esq as Skeleton3D).get_bone_global_pose(i).origin - Vector3(0, 0.62 + 0.3, 0)
-	no.position = base + Vector3(-sin(ry) * atras, alto + 0.3, -cos(ry) * atras)
+			base = (esq as Skeleton3D).global_transform * (esq as Skeleton3D).get_bone_global_pose(i).origin - Vector3(0, 0.38, 0)
+	no.position = base + Vector3(-sin(ry) * atras, 0, -cos(ry) * atras)
 	no.rotation.y = ry
