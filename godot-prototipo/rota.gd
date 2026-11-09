@@ -26,6 +26,18 @@ var _t := 0.0
 var _p0 := Vector2.ZERO
 var olha := OLHA # dentro de casa (ir até uma estação) mira mais perto, para não cortar o canto da porta
 
+# Montado no "Ir para" (André 2026-11-09: "sempre que eu usar o autopath já entra na montaria; se for cruzar algum rio
+# ele sai da montaria e nada; se for cruzar continente ele para, não deixa ir"). Só nas viagens do mapa (viagem = true);
+# ir até uma estação dentro de casa segue a pé. Rio, lago e mar vêm da grade do mundo (terreno.gd agua_no_caminho,
+# terra_id, mar_fundo), nada preso ao mapa de hoje.
+const AGUA_FRENTE := 3.0 # m à frente na rota: água aqui já desce do lobo (entra na água a pé e nada)
+const SECO_MONTA := 0.8 # s em terra seca, andando, para subir de novo no lobo (sem pisca-pisca na margem)
+const AMOSTRA_MAR := 3.0 # m entre as amostras da rota na conferência do mar
+var viagem := false # viagem do mapa: vai no lobo
+var a_pe := false # o jogador desceu do lobo no botão durante a viagem: respeita e segue a pé
+var _seco := 0.0
+var _confere_agua := 0.0
+
 func _init(principal) -> void:
 	m = principal
 
@@ -116,9 +128,39 @@ func comprimento(r: PackedVector2Array, de := 0) -> float:
 		t += r[k - 1].distance_to(r[k])
 	return t
 
-func ir(r: PackedVector2Array, aviso := "Indo pela estrada", olha_ := OLHA) -> void:
+# por que essa rota não dá ("" = dá): atravessar o mar para outro continente ou para a ilha só de barco ou navio
+func bloqueio(r: PackedVector2Array) -> String:
+	var T = m.terreno
+	if T == null or r.is_empty() or T.mundo_g.is_empty():
+		return ""
+	var h := _heroi()
+	var de: int = T.terra_id(h.x, h.y)
+	var ate: int = T.terra_id(r[r.size() - 1].x, r[r.size() - 1].y)
+	if de > 0 and ate > 0 and de != ate:
+		return "Fica em outro continente: só de barco ou navio"
+	var a := h
+	for p in r:
+		var n: int = max(1, ceili(a.distance_to(p) / AMOSTRA_MAR))
+		for s in range(1, n + 1):
+			var q: Vector2 = a.lerp(p, float(s) / n)
+			if T.mar_fundo(q.x, q.y):
+				return "O caminho passa pelo mar: só de barco ou navio"
+		a = p
+	return ""
+
+func ir(r: PackedVector2Array, aviso := "Indo pela estrada", olha_ := OLHA, viagem_ := false) -> void:
 	if r.is_empty() or m.heroi == null:
 		return
+	if viagem_:
+		var porque := bloqueio(r)
+		if porque != "":
+			parar()
+			m.hud.aviso(porque)
+			return
+	viagem = viagem_
+	a_pe = false
+	_seco = SECO_MONTA # a viagem já começa no lobo (se der)
+	_confere_agua = 0.0
 	caminho = r
 	i = 0
 	ativo = true
@@ -136,6 +178,7 @@ func parar(aviso := "") -> void:
 	if not ativo:
 		return
 	ativo = false
+	viagem = false
 	caminho = PackedVector2Array()
 	if aviso != "":
 		m.hud.aviso(aviso)
@@ -174,6 +217,8 @@ func _process(dt: float) -> void:
 		_t = 0.0
 		_p0 = _heroi()
 		return
+	if viagem:
+		_montaria(dt)
 	var p := _heroi()
 	if i >= caminho.size() - 1 and p.distance_to(caminho[caminho.size() - 1]) <= CHEGOU:
 		parar("Chegou")
@@ -185,3 +230,52 @@ func _process(dt: float) -> void:
 			return
 		_t = 0.0
 		_p0 = p
+
+# água logo ali na rota: o herói, o ponto da frente e AGUA_FRENTE m adiante na direção dele
+func _agua_a_frente() -> bool:
+	var T = m.terreno
+	if T == null or caminho.is_empty():
+		return false
+	var p := _heroi()
+	if T.agua_no_caminho(p.x, p.y):
+		return true
+	var alvo: Vector2 = caminho[min(i, caminho.size() - 1)]
+	var d := alvo - p
+	if d.length() < 0.05:
+		return false
+	var q: Vector2 = p + d.normalized() * minf(AGUA_FRENTE, d.length())
+	return T.agua_no_caminho(q.x, q.y) or (d.length() < AGUA_FRENTE and T.agua_no_caminho(alvo.x, alvo.y))
+
+# dá para subir no lobo agora (as mesmas regras do botão e do servidor: Simulacao.montar e motivoCarga)
+func _pode_montar() -> bool:
+	if m.mov == null or m.mov.esc != null or not m.mov.chao or m.mov.arrancada != null or not m.mov.veiculo.is_empty():
+		return false
+	if not m.acao.is_empty() or m._nadando or m._saindo_agua > 0.0 or m.h.morto > 0.0:
+		return false
+	if m.P and m.P.prog.get("pack") is Dictionary: # pack nas costas não monta (Quimera)
+		return false
+	if m.trabalho and (m.trabalho.coletando != null or m.trabalho.em_combate()):
+		return false
+	return m.tempo >= m._guarda_ate # acabou de golpear: espera a guarda baixar
+
+# a cada quadro da viagem: água à frente desce do lobo (ele entra a pé e nada); seco de novo, sobe
+func _montaria(dt: float) -> void:
+	_confere_agua -= dt
+	if _confere_agua > 0.0:
+		return
+	_confere_agua = 0.15
+	var agua := _agua_a_frente()
+	if m.montaria != null:
+		_seco = 0.0
+		if agua:
+			m.montar_lobo(false)
+			m.hud.aviso("Água no caminho: atravessando a nado")
+		return
+	if a_pe or agua or m._nadando:
+		_seco = 0.0
+		return
+	if not _pode_montar():
+		return
+	_seco += 0.15
+	if _seco >= SECO_MONTA:
+		m.montar_lobo(true)

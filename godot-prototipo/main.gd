@@ -2216,6 +2216,8 @@ func _tentar(qual: String) -> bool:
 		"disparada":
 			ligar_disparada(not mov.disparada)
 		"montar": # botão do lobo: sobe (parado ou andando, no chão) ou desce
+			if rota and rota.ativo: # no "Ir para": desceu no botão segue a pé; subiu, volta a ir no lobo (rota.gd)
+				rota.a_pe = montaria != null
 			if montaria != null:
 				montar_lobo(false)
 			elif mov.esc != null or not mov.chao or not acao.is_empty() or mov.arrancada != null:

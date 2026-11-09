@@ -76,6 +76,49 @@ func na_cais(x: float, z: float) -> bool:
 			return true
 	return false
 
+# "Ir para" montado (André 2026-11-09): de qual terra é (x, z) pela grade do mundo (mundo_grade.json "terra":
+# 1, 2, 3... = a ordem de "terras", continentes e ilha), 0 = mar e -1 = sem mundo grande (aí ninguém bloqueia).
+# Vale para qualquer mapa novo: só lê a grade, nada de coordenada fixa.
+func terra_id(x: float, z: float) -> int:
+	if mundo_g.is_empty():
+		return -1
+	var i := int(round((x - float(mundo_g.x0)) / float(mundo_g.passo)))
+	var j := int(round((z - float(mundo_g.z0)) / float(mundo_g.passo)))
+	if i < 0 or j < 0 or i >= int(mundo_g.nx) or j >= int(mundo_g.nz):
+		return 0
+	return int(str(mundo_g.terra).unicode_at(j * int(mundo_g.nx) + i)) - 48
+
+# em cima de uma ponte de madeira do rio (mundo_grade.json pontes): ali não tem água no caminho
+func na_ponte(x: float, z: float) -> bool:
+	for c in mundo_g.get("pontes", []):
+		var ox: float = x - float(c.x)
+		var oz: float = z - float(c.z)
+		var ry: float = float(c.ry)
+		if absf(ox * sin(ry) + oz * cos(ry)) <= float(c.d) / 2.0 + 1.0 and absf(ox * cos(ry) - oz * sin(ry)) <= float(c.w) / 2.0 + 0.5:
+			return true
+	return false
+
+const RIO_AGUA := 8 # grade "rio" 0-9: 9 no leito; daqui para cima é a água do rio (o resto é o barranco)
+# tem água no chão em (x, z) que o lobo não atravessa: leito do rio, lago ou mar com mais de meio metro (fora de ponte e cais)
+func agua_no_caminho(x: float, z: float) -> bool:
+	if na_ponte(x, z) or na_cais(x, z):
+		return false
+	var L := no_lago(x, z)
+	if not L.is_empty() and float(L.fundo) > 0.5:
+		return true
+	var rio: String = mundo_g.get("rio", "")
+	if rio != "":
+		var i := int(round((x - float(mundo_g.x0)) / float(mundo_g.passo)))
+		var j := int(round((z - float(mundo_g.z0)) / float(mundo_g.passo)))
+		if i >= 0 and j >= 0 and i < int(mundo_g.nx) and j < int(mundo_g.nz):
+			return rio.unicode_at(j * int(mundo_g.nx) + i) - 48 >= RIO_AGUA
+	return false
+
+# mar fundo (não dá pé) em (x, z), fora do cais: a pé ou no lobo não se passa
+func mar_fundo(x: float, z: float) -> bool:
+	var L := no_lago(x, z)
+	return not L.is_empty() and L.lago.get("mar", false) and float(L.fundo) > 0.9 and not na_cais(x, z)
+
 func _init(mundo: Dictionary) -> void:
 	m = mundo
 	_carregar_mundo()
