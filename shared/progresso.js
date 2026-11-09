@@ -1,6 +1,7 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
 import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
+import { packValido, carrinhoValido, navioValido } from './transporte.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -465,6 +466,11 @@ export function progressoValido(p) {
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
   const filtro = filtroValido(p.filtro); if (filtro) n.filtro = filtro; // filtro de coleta da mochila
   if (num(p.agua) && p.agua >= 0) n.agua = Math.min(Math.floor(p.agua), HORTA.agua); // água do regador (sem o campo = cheio)
+  // FASE 1 (André 2026-11-09): pack nas costas, carrinho, navio e o "mercado cheio" de cada mercador (shared/transporte.js)
+  { const pk = packValido(p.pack); if (pk) n.pack = pk; }
+  { const c = carrinhoValido(p.carrinho); if (c) n.carrinho = c; }
+  { const nv = navioValido(p.navio); if (nv) n.navio = nv; }
+  if (p.pkD && typeof p.pkD === 'object') { const D = {}; for (const [k, e] of Object.entries(p.pkD).slice(0, 200)) if (typeof k === 'string' && k.length < 40 && Array.isArray(e) && num(e[0]) && num(e[1])) D[k] = [Math.min(1e4, Math.max(0, e[0])), Math.min(agora, e[1])]; n.pkD = D; }
   if (num(p.vara) && p.vara > 0) n.vara = Math.min(Math.floor(p.vara), 1000); // peixes que a vara de pescar já tirou (PESCA.durabilidade)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);

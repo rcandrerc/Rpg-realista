@@ -6,6 +6,8 @@ import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barra
 import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
+import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
+import { PACK_REGRAS } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -327,6 +329,7 @@ export class Simulacao {
     // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
+    this.packsChao = []; // packs largados no chão (shared/transporte.js)
     this.spots = this.criarSpots(); // spots de pesca (PESCA.spots): cada vaga nasce num lago, dura e volta noutro lugar
     // Vila dos Lotes (construção e fazenda): dono, peças e horta de cada lote. O servidor põe o que está salvo
     // (carregarLotes) e grava o que mudou (lotesParaSalvar). dono = chave da conta (j.conta).
@@ -423,6 +426,7 @@ export class Simulacao {
   voltarVila(id) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     if (j.vila) return this.cancelarVila(j, null); // tocou de novo na casinha: desiste
+    if (this.motivoCarga(j)) return this.evento({ t: 'aviso', para: id, texto: this.motivoCarga(j) }); // pack não teleporta (Quimera)
     const V = VOLTA_VILA, falta = (j.prog.vilaAte || 0) - Date.now();
     if (falta > 0) return this.evento({ t: 'aviso', para: id, texto: `Voltar para a vila: pronto em ${Math.ceil(falta / 60000)} min` });
     const n = this.mapa.nascimento;
@@ -490,6 +494,7 @@ export class Simulacao {
     if (!j || j.morto || j.esc || j.criando || j.trava > 0) return;
     this.cancelarVila(j);
     if (j.pesca) this.pararPesca(j, 'Você recolheu a linha');
+    if (!j.montado && this.motivoCarga(j)) return this.evento({ t: 'aviso', para: id, texto: j.prog.pack ? 'Com pack nas costas não dá pra montar. Use o carrinho!' : 'Desça primeiro' });
     j.montado = j.montado ? null : 'lobo';
   }
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
@@ -552,7 +557,9 @@ export class Simulacao {
     const num = (v) => typeof v === 'number' && Number.isFinite(v);
     if (!p || !num(p.x) || !num(p.y) || !num(p.z) || !num(p.ry)) return false;
     if (p.e === 1) j.ciente = true; // app que conhece a estamina (o Godot): sem fôlego não corre
-    const mont = MONTARIAS[j.montado], vmax = (mont ? Math.max(mont.correr, HEROI.correr) : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3;
+    const mont = MONTARIAS[j.montado], vv = this.velVeiculo(j);
+    // carrinho, barquinho ou navio: a velocidade dele; pack nas costas: anda mais devagar e não corre (Quimera x0,68)
+    const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3;
     if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
     j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
     const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
@@ -563,7 +570,7 @@ export class Simulacao {
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
     const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && dentroDoMapa(this.mapa, p.x, p.z)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
-    if (!ok) {
+    if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
       j.cliente = null;
       return false;
@@ -1106,6 +1113,7 @@ export class Simulacao {
       p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
     } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
       if (j.morto || ITENS[it.k].mat) return;
+      if (ITENS[it.k].usar?.veiculo) return this.veiculo(id, { acao: 'colocar', k: it.k, x: Number(m.x), z: Number(m.z), ry: Number(m.ry) }); // carrinho, barquinho, navio
       if (it.k === 'radar_pesca') { // Radar de pesca (André 2026-11-08): os spots aparecem no mapa por um tempo; não gasta
         const R = PESCA.radar, falta = (j.radarCd || 0) - this.tempo;
         if (falta > 0) return aviso(`Radar de pesca: pronto em ${Math.ceil(falta)} s`);
@@ -2160,7 +2168,7 @@ export class Simulacao {
     if (m.parar) { if (j.fabrica) this.pararFabrica(j, 'Parou de criar'); return; }
     if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
     const C = CONSTRUCOES[m.k] || FERRAMENTAS_FAZENDA[m.k]; if (!C) return;
-    const n = FERRAMENTAS_FAZENDA[m.k] ? 1 : Math.max(1, Math.min(CRIAR_OBRA.maxFila, m.n | 0 || 1));
+    const n = FERRAMENTAS_FAZENDA[m.k] && !FERRAMENTAS_FAZENDA[m.k].varios ? 1 : Math.max(1, Math.min(CRIAR_OBRA.maxFila, m.n | 0 || 1)); // varios: o galão de combustível
     const motivo = this.motivoFabricar(j, m.k); if (motivo) return aviso(motivo);
     const dur = tempoCriar(C);
     j.fabrica = { k: m.k, n, feito: 0, dur, fim: this.tempo + dur };
@@ -2286,7 +2294,10 @@ export class Simulacao {
   motivoFabricar(j, k) {
     const C = CONSTRUCOES[k] || FERRAMENTAS_FAZENDA[k]; if (!C) return 'Isso não se cria';
     const item = CONSTRUCOES[k] ? 'obra_' + k : k, p = j.prog;
-    if (FERRAMENTAS_FAZENDA[k] && contar(p.mochila, item) > 0) return `Você já tem ${ITENS[item].nome.toLowerCase()}`;
+    if (FERRAMENTAS_FAZENDA[k] && !C.varios && contar(p.mochila, item) > 0) return `Você já tem ${ITENS[item].nome.toLowerCase()}`;
+    if (FERRAMENTAS_FAZENDA[k] && !C.varios && (k === 'carrinho' && p.carrinho?.chao || k === 'navio' && p.navio?.chao || j.veiculo === k)) return `Você já tem ${ITENS[item].nome.toLowerCase()}`; // o dele está no mundo
+    if (C.nivel && p.nivel < C.nivel) return `Precisa Nv ${C.nivel} pra fazer ${ITENS[item].nome.toLowerCase()}`;
+    if (C.ouro && (p.ouro || 0) < C.ouro) return `Precisa de ${C.ouro.toLocaleString('pt-BR')} de ouro pra fazer ${ITENS[item].nome.toLowerCase()}`;
     if (C.bancada && !this.bancadaPerto(j)) return `${ITENS[item].nome}: crie perto de uma bancada de trabalho`;
     for (const [c, n] of Object.entries(C.custo)) if (contar(p.mochila, c) < n) return `Falta ${ITENS[c].nome} (${contar(p.mochila, c)}/${n})`;
     const prova = p.mochila.map((o) => (o ? { ...o } : null));
@@ -2301,13 +2312,15 @@ export class Simulacao {
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const C = CONSTRUCOES[m.k] || FERRAMENTAS_FAZENDA[m.k]; if (!C) return;
     const item = CONSTRUCOES[m.k] ? 'obra_' + m.k : m.k, p = j.prog;
-    if (FERRAMENTAS_FAZENDA[m.k] && contar(p.mochila, item) > 0) return aviso(`Você já tem ${ITENS[item].nome.toLowerCase()}`);
-    if (C.bancada && !this.bancadaPerto(j)) return aviso(`${ITENS[item].nome}: crie perto de uma bancada de trabalho`);
+    { const mot = this.motivoFabricar(j, m.k); if (mot) return aviso(mot); } // carrinho/navio: um só; navio: Nv 60 e 40.000 de ouro
     for (const [k, n] of Object.entries(C.custo)) if (contar(p.mochila, k) < n) return aviso(`Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})`);
     const prova = p.mochila.map((o) => (o ? { ...o } : null));
     for (const [k, n] of Object.entries(C.custo)) tirar(prova, k, n);
     if (!guardar(prova, { k: item, n: 1 })) return aviso('Mochila cheia');
     p.mochila = prova;
+    if (C.ouro) p.ouro -= C.ouro; // navio mercante: 40.000 de ouro (Quimera)
+    if (m.k === 'carrinho') p.carrinho = carrinhoNovo(); // carrinho novo: Nv 1, tanque vazio
+    if (m.k === 'navio') p.navio = { porao: [], chao: null };
     this.evento({ t: 'fabricou', para: id, k: m.k, nome: ITENS[item].nome });
     aviso(`Criou ${ITENS[item].nome}!`);
     this.avisarProg(j);
@@ -2742,6 +2755,7 @@ export class Simulacao {
       n = Math.round(n * COMBATE_INIMIGO.contraK); crit = true; de.contraAte = 0;
     }
     if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
+    if (alvo.tipo === 'jogador' && alvo.veiculo === 'carrinho') n = this.golpeNoCarrinho(alvo, n); // Quimera: o carrinho apanha por você
     alvo.vida = Math.max(0, alvo.vida - n);
     if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; alvo.lutouT = this.tempo; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
     if (de?.tipo === 'jogador') { de.combateAte = this.tempo + ESTAMINA.combate; de.lutouT = this.tempo; } // lutouT: time só ganha XP de quem lutou nos últimos TIME.combate s
@@ -2801,6 +2815,7 @@ export class Simulacao {
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
       this.cancelarVila(c, null);
+      this.morreuComCarga(c); // o pack das costas cai no chão; o veículo fica onde estava
       if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde parte do ouro e o equipamento desgasta
@@ -3066,6 +3081,7 @@ export class Simulacao {
   passo(dt) {
     this.tempo += dt;
     this.passoSpots();
+    this.passoPacks();
     const vencidos = this.timers.filter((t) => t.t <= this.tempo);
     this.timers = this.timers.filter((t) => t.t > this.tempo);
     vencidos.forEach((t) => t.fn());
@@ -3249,7 +3265,8 @@ export class Simulacao {
       tempo: r2(this.tempo),
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
         roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
-        semCapacete: !!j.prog.semCapacete, // capacete escondido pelo dono: os outros também não veem
+        semCapacete: !!j.prog.semCapacete,
+        pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])) })),
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
@@ -3257,6 +3274,10 @@ export class Simulacao {
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
       // spots de pesca que estão na água agora: [id, tipo (comum/raro/epico), x, z]
       spots: this.spots.filter((v) => v.ativo).map((v) => [v.id, v.tipo, r2(v.x), r2(v.z)]),
+      // FASE 1: packs no chão [g, tipo, x, z] e veículos ['c'|'n'|'b', dono, x, z, ry, nv, packs, quebrado, dirigindo]
+      carga: this.fotoCarga(),
     };
   }
 }
+// packs e transportes (FASE 1): as funções de shared/transporte.js entram na Simulacao
+Object.assign(Simulacao.prototype, Transporte);

@@ -1610,3 +1610,87 @@ export const SOLTOS = (() => {
 MAPA_CLAREIRA.soltos = SOLTOS;
 COLETA.galho = { nome: 'Galho no chão', mao: true, prof: 'len', vigor: 0, tempo: 0, cargas: 1, volta: 300, da: { lenha: 1 } };
 COLETA.pedrinha = { nome: 'Pedra solta', mao: true, prof: 'min', vigor: 0, tempo: 0, cargas: 1, volta: 300, da: { pedra: 1 } };
+
+// ======================================================================================================================
+// FASE 1 (André 2026-11-08/09): packs e transportes, cópia do Quimera (mesma conta, mesma capacidade, mesmos upgrades).
+// Pack: o mercador faz o pack com o material dele (gasta vigor) e você leva para OUTRO mercador: quanto mais longe e
+// mais forte a área, mais paga. Nas costas: anda mais devagar, não corre, não monta, não teleporta (nem Voltar para a
+// vila) e, se morrer, o pack cai no chão. Carrinho, barquinho e navio levam mais.
+// Material: os mesmos números do Quimera, com o material equivalente do Aethra (gel = tecido, osso = carne, frutinha =
+// rabanete, pão = pão de milho, presa = fragmento, obsidiana = cristal, barra de obsidiana = barra de aço; peixe do mar
+// = peixe de lago enquanto o mar não existe, FASE 3). Quem ajusta o visual depois é o André.
+export const PACKS = {
+  lenha: { nome: 'Pack de Lenha Nobre', custo: { lenha: 20 }, base: 45, cor: '#a0703a' },
+  pedra: { nome: 'Pack de Pedra Lapidada', custo: { pedra: 18, cristal: 1 }, base: 60, cor: '#a8a29a' },
+  horta: { nome: 'Pack de Temperos da Horta', custo: { rabanete: 4, cenoura: 4, tomate: 3 }, base: 85, cor: '#e8742a' },
+  conserva: { nome: 'Pack de Conservas', custo: { batata: 5, milho: 4, tecido: 2 }, base: 100, cor: '#c9a46a' },
+  abobora: { nome: 'Pack de Doce de Abóbora', custo: { abobora: 2, rabanete: 6, pao_milho: 2 }, base: 130, cor: '#ff9a2a' },
+  couro: { nome: 'Pack de Couro Curtido', custo: { couro: 8, carne: 2 }, base: 80, cor: '#8a5a34' },
+  metal: { nome: 'Pack de Barras de Metal', custo: { barra_ferro: 3, barra_cobre: 3 }, base: 140, cor: '#9aa3ad' },
+  peixe: { nome: 'Pack de Peixe Salgado', custo: { lambari: 4, tilapia: 2, pedra: 3 }, base: 95, cor: '#7ab8e0' },
+  perola: { nome: 'Pack de Pérolas', custo: { traira: 3, cristal: 2, tecido: 3 }, base: 150, cor: '#e8e4f4' },
+  ervas: { nome: 'Pack de Ervas do Pântano', custo: { rabanete: 8, tecido: 4, fragmento: 2 }, base: 160, cor: '#6a9a3a' },
+  obsid: { nome: 'Pack de Obsidiana', custo: { pedra: 25, cristal: 3, barra_ferro: 2 }, base: 190, cor: '#3a3040' },
+  brasa: { nome: 'Pack de Brasa Viva', custo: { cristal: 4, carvao: 6, barra_aco: 1 }, base: 220, cor: '#d0461c' },
+};
+// Conta do preço (Quimera UK/VK): preco = base x dist x 1,4 x Mercador x área x 1,2 x mercado cheio.
+// dist: até 462 m = 0,3 + d/140 (entre 0,3 e 3,6); depois sobe devagar até 6 (3,6 + (d - 462)/500).
+// perto: pack feito a menos disso do mercador não vende ali. area: o fator da área mais forte entre a de onde saiu e a
+// de entrega (pelo nível dos campos de caça em volta: niveis[i] ou mais vale areas[i]; Quimera: 1 / 1,8 / 2,9 / 4,3 / 5,9).
+// mercado: cada entrega do mesmo pack no mesmo mercador conta 1 (some 1 a cada "volta" s); depois de "livres", cai
+// "cai" por entrega, no mínimo "minimo". mercador: Nv 20 de Mercador = -15% de material e +25% no preço.
+// vigor: o que custa fazer um pack. navio: entrega que atravessou o mar no porão do navio (regra do André: a troca mais
+// cara do jogo) vale "navio" vezes mais; conta se o navio andou ao menos "navioMin" m com o pack no porão.
+export const PACK_REGRAS = {
+  k: 1.4, extra: 1.2, perto: 40, vigor: 12,
+  dist: { curto: 462, a: 0.3, porM: 1 / 140, maxCurto: 3.6, porMLongo: 1 / 500, max: 6 },
+  areas: { niveis: [1, 10, 30, 50, 70], fator: [1, 1.8, 2.9, 4.3, 5.9], raio: 60 },
+  mercado: { livres: 4, cai: 0.03, minimo: 0.5, volta: 360 },
+  mercador: { material: 0.15, preco: 0.25 },
+  navio: 1.5, navioMin: 30,
+  costas: { vel: 0.68 }, // nas costas: velocidade x0,68 e sem corrida
+  pegar: 2.5, // metros para pegar um pack do chão
+  falar: 4, // metros do mercador para fazer ou entregar
+};
+// Veículos (Quimera): o carrinho anda a combustível na terra; o barquinho é a remo (leva só o pack das suas costas); o
+// navio mercante leva 16 no porão e mais 1 nas costas. Ficam na mochila; "Colocar" põe no chão (carrinho) ou na água.
+// Carrinho: vida 400, 2,8 m/s menos 0,05 por pack acima de 2, curva 2,4 rad/s, combustível: 1 galão = 160 m, tanque de
+// 5 galões. Leva 2 packs no Nv 1 e +2 por melhoria (até Nv 4 = 8 packs). Apanhando dentro dele: o carrinho leva 110% do
+// golpe e você 20%. Vida zero = quebra e os packs caem no chão. Não entra na água.
+export const VEICULOS = {
+  carrinho: { nome: 'Carrinho de carga', vida: 400, vel: 2.8, perdePorPack: 0.05, packsLivres: 2, giro: 2.4, acelera: 1.3, freia: 3.5,
+    curvaFechada: 1.6, curvaK: 0.3, galao: 160, tanque: 5, capacidade: 2, nivelMax: 4,
+    melhorar: [null, null, { lenha: 40, barra_ferro: 8, barra_cobre: 6, couro: 6, ouro: 2000 }, { lenha: 60, barra_ferro: 14, barra_cobre: 10, couro: 10, ouro: 8000 },
+      { lenha: 100, barra_ferro: 24, barra_cobre: 16, couro: 16, ouro: 25000 }],
+    golpe: 1.1, heroi: 0.2, consertoQuebrado: { lenha: 8, barra_ferro: 1 }, consertoParcial: { lenha: 4 }, perto: 3.5, entregar: 12, carregar: 8 },
+  barquinho: { nome: 'Barquinho', vel: 5.6, giro: 1.6, pessoas: 2, packs: 0, fundo: 0.35, perto: 3.5 },
+  navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5 },
+};
+// itens: galão de combustível (pilha) e os veículos (um de cada, na mochila)
+ITENS.galao = { nome: 'Combustível', mat: true, pilha: 20, venda: 4, desc: 'Galão pro carrinho de carga. Cada um roda uns 160 m. Toque no carrinho pra abastecer.' };
+ITENS.carrinho = { nome: 'Carrinho de carga', pilha: 1, venda: 60, ferramenta: 'carrinho', usar: { veiculo: 'carrinho' },
+  desc: 'Carrinho a combustível. Leva 2 packs (melhore na bancada até 8), e você ainda leva 1 nas costas. Quebra se apanhar muito dos monstros, mas dá pra consertar. Use na mochila pra colocar no chão.' };
+ITENS.barquinho = { nome: 'Barquinho', pilha: 1, venda: 40, ferramenta: 'barquinho', usar: { veiculo: 'barquinho' },
+  desc: 'Barco de madeira pra 2 pessoas, a remo. Chegue na beira da água e use na mochila. Leva só o pack das suas costas.' };
+ITENS.navio = { nome: 'Navio mercante', pilha: 1, venda: 4000, ferramenta: 'navio', usar: { veiculo: 'navio' },
+  desc: 'Leva 16 packs no porão (mais 1 nas costas). Na beira de água funda, use na mochila pra pôr na água; você pilota e ancora em qualquer margem. Fazer custa 40.000 de ouro e precisa Nv 60.' };
+// receitas (Quimera: na bancada). varios: dá para ter mais de um (o galão). nivel e ouro: o navio pede Nv 60 e 40.000.
+FERRAMENTAS_FAZENDA.galao = { custo: { carvao: 2, tecido: 1 }, bancada: true, para: 'abastecer', varios: true };
+FERRAMENTAS_FAZENDA.carrinho = { custo: { lenha: 30, barra_ferro: 6, barra_cobre: 4, couro: 4 }, bancada: true, para: 'carrinho' };
+FERRAMENTAS_FAZENDA.barquinho = { custo: { lenha: 30, couro: 4 }, bancada: true, para: 'barquinho' };
+FERRAMENTAS_FAZENDA.navio = { custo: { lenha: 400, barra_ferro: 40, barra_cobre: 30, couro: 40 }, bancada: true, para: 'navio', nivel: 60, ouro: 40000 };
+// Mercadores de pack (FASE 1: poucos, só para testar a economia no mapa de hoje; a FASE 2 espalha de novo, mais longe).
+// Humanos com o corpo do herói e roupa medieval (CLAUDE.md). merch = o pack que ele faz; todos compram os packs dos outros.
+export const MERCADORES_PACK = [
+  { id: 'm_lenha', nome: 'Seu Joca', merch: 'lenha', x: 20, z: 10, ry: -1.6, visual: 'cabelo_m', veste: { tunica: 0x6b4a2e, faixa: 0x3a2616 }, tinta: { cabelo: 0x5a3a22, roupa: 0x6b4a2e, calca: 0x3a3028 } },
+  { id: 'm_pedra', nome: 'Mestre Pedrão', merch: 'pedra', x: 18, z: -42, ry: -1.2, visual: 'cabelo_m', escala: 1.1, veste: { tunica: 0x8a8580, faixa: 0x4a4640 }, tinta: { cabelo: 0x3a3a3a, roupa: 0x7a756e, calca: 0x3a3630 } },
+  { id: 'm_metal', nome: 'Malaquias', merch: 'metal', x: 94, z: 0, ry: 0.8, visual: 'cabelo_m', veste: { tunica: 0x5a6068, faixa: 0x2a2a2a }, tinta: { cabelo: 0x2a2420, roupa: 0x5a6068, calca: 0x2f2a24 } },
+  { id: 'm_horta', nome: 'Dona Sálvia', merch: 'horta', x: 6, z: 68, ry: 2.6, visual: 'vivi', veste: { tunica: 0x5f8f3a, saia: 0x5f8f3a, ate: 'canela', faixa: 0xe8742a }, tinta: { cabelo: 0x6a4a2a, roupa: 0x6f9a44, calca: 0x4a3c2c } },
+  { id: 'm_peixe', nome: 'Pescador Nico', merch: 'peixe', x: -14, z: 172, ry: 2.8, visual: 'cabelo_m', veste: { tunica: 0x3a5a7a, faixa: 0xd9d2c6 }, tinta: { cabelo: 0xd9d2c6, roupa: 0x3a5a7a, calca: 0x2f4a6a } },
+  { id: 'm_couro', nome: 'Bráulio Curtidor', merch: 'couro', x: 148, z: 38, ry: -2.2, visual: 'cabelo_m', escala: 1.05, veste: { tunica: 0x8a5a34, faixa: 0x3a2616 }, tinta: { cabelo: 0x3a2616, roupa: 0x8a5a34, calca: 0x3a2a20 } },
+];
+// os mercadores de pack entram na lista de NPCs do mapa (depois do sorteio das árvores e dos soltos, para nada mudar de
+// lugar; as posições acima foram conferidas longe de árvore, pedra, veio e solto)
+MAPA_CLAREIRA.npcs.push(...MERCADORES_PACK.map((n) => ({ ...n, nome: `${n.nome}, mercador`, roupa: 'peitoral0,calca0,botas0', funcao: 'pack', acoes: ['pack'],
+  falas: [`Eu faço o ${PACKS[n.merch].nome}. Traga o material e leve pra bem longe: quanto mais longe, mais paga!`,
+    'Pack de outro mercador? Me entregue que eu pago bem. Pack feito aqui eu não compro.'] })));
