@@ -387,7 +387,7 @@ func _ir() -> void:
 	var r: PackedVector2Array = previa
 	fechar()
 	if m.rota:
-		m.rota.ir(r)
+		m.rota.ir(r, "Indo pela estrada", m.rota.OLHA, true) # viagem do mapa: vai no lobo; mar no meio não deixa
 	if m.sons:
 		m.sons.tocar("pano", -10.0)
 
