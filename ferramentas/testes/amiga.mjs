@@ -95,4 +95,30 @@ ok(ITENS.lenha, 'itens');
   ok(!c.time && !d.time, 'saiu do time e o time acabou');
   // um monstro não mira nela fora do time
   ok(!s3.inimigosDe(m).includes(c), 'fora do time os monstros não miram nela');
+  // ---------- chat de longe (amigos virtuais) ----------
+  const falas = []; s3.aoChatAmiga = (msg) => falas.push(msg);
+  const chat = (texto) => { const msg = s3.chat('andre', { canal: 'pm', para: AMIGA.conta, texto }); if (msg) { s3.ouvirAmiga('andre', texto); s3.respostaAmiga('andre', { assunto: s3.assuntoAmiga(texto) }); } return msg; };
+  const esperar = (s) => { for (let i = 0; i < s * 20; i++) s3.passo(0.05); };
+  const ev0 = s3.eventos.length; s3.enviarAmigos(d);
+  const am = s3.eventos.slice(ev0).find((e) => e.t === 'amigos' && e.para === 'andre');
+  ok(am?.virtuais?.[0]?.c === AMIGA.conta, 'ela aparece em "Amigos virtuais" do dono');
+  ok(s3.assuntoAmiga('Vem cá!') === 'vir' && s3.assuntoAmiga('bora pro meu time?') === 'time' && s3.assuntoAmiga('Pode sair do time') === 'sairTime' && s3.assuntoAmiga('oi, tudo bem?') === 'comoVai' && s3.assuntoAmiga('xyz qwe') === 'naoEntendi', 'entende o assunto pelas palavras');
+  ok(chat('Oi Cecília!'), 'o dono manda mensagem privada para ela sem ser amigo de lista');
+  esperar(6);
+  ok(falas.length === 1 && falas[0].c === AMIGA.conta && falas[0].alvo === d.conta && falas[0].canal === 'pm', `ela responde no privado: "${falas[0]?.texto}"`);
+  // vem cá de longe: ela vai até ele
+  Object.assign(d, { x: -1, z: 30, y: s3.terreno.altura(-1, 30) }); Object.assign(c, { x: -6, z: -10, y: s3.terreno.altura(-6, -10) });
+  const rnd2 = Math.random; Math.random = () => 0.01; s3.tempo += 2; chat('Vem aqui comigo?'); Math.random = rnd2;
+  ok(!!c.ia.vir, 'aceitou ir até ele');
+  let perto = 99; for (let i = 0; i < 20 * 60 && c.ia.vir; i++) { s3.passo(0.05); perto = Math.hypot(c.x - d.x, c.z - d.z); }
+  esperar(4);
+  ok(perto < 4 && falas.some((f) => AMIGA.chat.falas.chegou.includes(f.texto)), `chegou perto dele (a ${perto.toFixed(1)} m) e avisou`);
+  // ela chama: com ele longe, uma hora ela manda mensagem; "bora" entra no time sem sorteio
+  Object.assign(d, { x: c.x + 60, z: c.z, y: s3.terreno.altura(c.x + 60, c.z) }); c.ia.conversaAte = 0; c.ia.chamaEm = s3.tempo; c.ia.recusaAte = 0;
+  const n0 = falas.length; esperar(1);
+  ok(falas.length === n0 + 1 && c.ia.chamado, `ela chama o André: "${falas[n0]?.texto}"`);
+  c.ia.chamado.quer = 'time'; s3.tempo += 2; const rnd3 = Math.random; Math.random = () => 0.999; chat('bora!'); Math.random = rnd3;
+  ok(c.time && d.time === c.time, 'respondeu "bora" ao chamado e ela entrou no time');
+  s3.tempo += 2; chat('pode sair do time'); esperar(1);
+  ok(!c.time, 'pelo chat ela sai do time');
 }
