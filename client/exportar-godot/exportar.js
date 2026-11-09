@@ -71,6 +71,7 @@ async function principal() {
     // Mixamo Pro Magic Pack: andar e correr de lado e de costas, para o mago atirar virado para o alvo (André 2026-11-04)
     lado_e_andar: 'lado_e_andar', lado_d_andar: 'lado_d_andar', tras_andar: 'tras_andar', lado_e_correr: 'lado_e_correr', lado_d_correr: 'lado_d_correr', tras_correr: 'tras_correr',
     cajado_parada: 'cajado_parada', // guarda do cajado parada (Pro Magic Pack, Standing Idle 03)
+    parada_solta: 'parada_solta', // parada relaxada fora de combate (André 2026-11-09): peso numa perna, mão na cintura
     nadar: 'nadar', boiar: 'boiar', sair_agua: 'saiAgua', // lago fundo (André 2026-11-06): nado, boiando parada e saindo da água
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)
     ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),

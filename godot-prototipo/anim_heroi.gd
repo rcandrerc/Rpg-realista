@@ -40,6 +40,12 @@ var guarda_cajado := false
 # postura de luta só em combate (André 2026-11-06: "até o posicionamento de livre em combate deveria ser diferente"):
 # fora de combate a guarda da espada vira a parada relaxada; quem chama (main.gd) desliga. true = como era antes.
 var em_guarda := true
+# parada solta (André 2026-11-09: "uma pose mais legalzinha quando fica parado, mas não retão"): fora de combate a
+# parada vira parada_solta (peso numa perna, joelho solto, mão livre na cintura, quadril balançando devagar). Em
+# combate volta para a parada/guarda de sempre. Corpo exportado antes, sem a animação, fica com a parada.
+var tem_solta := false
+var pode_soltar := true # quem chama desliga montado, sentado, escalando, nadando, coletando ou pescando
+var _solta := 0.0
 var _gcaj := 0.0
 var _mexe := 0.0 # 0 = parado, 1 = andando/correndo
 var _corre := 0.0 # 0 = andar, 1 = corrida
@@ -102,6 +108,14 @@ func _init(p: AnimationPlayer) -> void:
 		return a
 	anim.call("parada", "parada", Vector2(0, 0))
 	anim.call("espada_parada", "espada", Vector2(0, 120))
+	var parada_no := "parada"
+	tem_solta = player.has_animation("parada_solta")
+	if tem_solta:
+		anim.call("parada_solta", "parada_solta", Vector2(-150, 60))
+		bt.add_node("solta", AnimationNodeBlend2.new(), Vector2(60, 30))
+		bt.connect_node("solta", 0, "parada")
+		bt.connect_node("solta", 1, "parada_solta")
+		parada_no = "solta"
 	var idle := AnimationNodeBlend2.new()
 	bt.add_node("idle", idle, Vector2(200, 60))
 	tem_guarda_cajado = player.has_animation("cajado_parada")
@@ -120,11 +134,11 @@ func _init(p: AnimationPlayer) -> void:
 					or osso.begins_with("J_Bip_R_Middle") or osso.begins_with("J_Bip_R_Ring") or osso.begins_with("J_Bip_R_Little")):
 				gc.set_filter_path(cam, true)
 		bt.add_node("idle_caj", gc, Vector2(120, -60))
-		bt.connect_node("idle_caj", 0, "parada")
+		bt.connect_node("idle_caj", 0, parada_no)
 		bt.connect_node("idle_caj", 1, "cajado")
 		bt.connect_node("idle", 0, "idle_caj")
 	else:
-		bt.connect_node("idle", 0, "parada")
+		bt.connect_node("idle", 0, parada_no)
 	bt.connect_node("idle", 1, "espada")
 	anim.call("andar", "andar", Vector2(0, 260))
 	anim.call("corrida", "corrida", Vector2(0, 380))
@@ -390,6 +404,8 @@ func atualizar(dt: float, vel: float) -> void:
 	_ab = move_toward(_ab, _ab_alvo, dt * _ab_vel)
 	_idle = move_toward(_idle, _idle_alvo if em_guarda else 0.0, dt * (5.0 if em_guarda else 2.5)) # baixa a guarda devagar
 	_gcaj = move_toward(_gcaj, 1.0 if guarda_cajado and em_guarda else 0.0, dt * (4.0 if em_guarda else 2.0))
+	var solta_alvo := 1.0 if pode_soltar and not em_guarda else 0.0
+	_solta = move_toward(_solta, solta_alvo, dt * (1.2 if solta_alvo > _solta else 5.0)) # entra na guarda rápido, relaxa devagar
 	if tem_nado:
 		_nado = move_toward(_nado, 1.0 if nadando else 0.0, dt * 2.5)
 		_nada = move_toward(_nada, smoothstep(0.15, 0.9, vel) if nadando else 0.0, dt * 2.0)
@@ -408,6 +424,8 @@ func _aplicar(_dt: float) -> void:
 	tree.set("parameters/idle/blend_amount", _idle)
 	if tem_guarda_cajado:
 		tree.set("parameters/idle_caj/blend_amount", _gcaj)
+	if tem_solta:
+		tree.set("parameters/solta/blend_amount", _solta)
 	tree.set("parameters/passo/blend_amount", _corre)
 	if tem_trote:
 		tree.set("parameters/rapido/blend_amount", _rapido)

@@ -91,6 +91,8 @@
     { "nome": "Animação trote exportada no herói (André 2026-11-03)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["trote: 'trote'"] },
     { "nome": "Guarda do cajado parada (André 2026-11-04)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["tem_guarda_cajado = player.has_animation(\"cajado_parada\")", "bt.connect_node(\"idle_caj\", 1, \"cajado\")"] },
     { "nome": "Animação cajado_parada exportada no herói (André 2026-11-04)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["cajado_parada: 'cajado_parada'"] },
+    { "nome": "Parada solta fora de combate (André 2026-11-09)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["tem_solta = player.has_animation(\"parada_solta\")", "bt.connect_node(\"solta\", 1, \"parada_solta\")"] },
+    { "nome": "Animação parada_solta exportada no herói (André 2026-11-09)", "arquivo": "client/exportar-godot/exportar.js", "contem": ["parada_solta: 'parada_solta'"] },
     { "nome": "Mago atirando anda de lado e de costas virado para o alvo (André 2026-11-04)", "arquivo": "godot-prototipo/anim_heroi.gd", "contem": ["const LADO_ANIMS", "bt.connect_node(\"mexe\", 1, \"lado\")", "tree.set(\"parameters/lado/blend_amount\", _lado)"] },
     { "nome": "Faísca: alvo morreu, vira e atira no mais perto; sem ninguém não atira no ar (André 2026-11-04)", "arquivo": "godot-prototipo/main.gd", "contem": ["func novo_alvo_mago()", "var novo = novo_alvo_mago()", "alvo = acao.get(\"alvo\") if vivo(acao.get(\"alvo\")) else novo_alvo_mago()"] },
     { "nome": "Faísca no servidor: alvo morto vai no mais perto, nunca no ar (André 2026-11-04)", "arquivo": "shared/simulacao.js", "contem": ["const a = alvo && !alvo.morto ? alvo : this.maisPerto(j, h.alcance + 0.5);"] },

@@ -21,3 +21,9 @@ Elas vieram noutro boneco do Mixamo (pose de descanso diferente e só polegar e 
 `node ferramentas/assar-animacoes/outra-pose.mjs <anims.json.gz atual> anims.json <saída.json.gz>`. Ele mantém a rotação de
 mundo de cada osso no `_rest` que já está no arquivo, copia o indicador para os outros dedos e desce o quadril do
 Swimming To Edge até a altura do Swimming (ele nada 78 cm mais alto, porque termina pendurado na borda de uma piscina).
+
+Em 2026-11-09 entrou parada_solta (André: "uma pose mais legalzinha quando fica parado, mas não retão"): não é um
+`.fbx` novo, sai da `parada` com `node ferramentas/assar-animacoes/parada-solta.mjs <anims.json.gz atual>
+ferramentas/assar-animacoes/parada-solta.json <saída.json.gz> parada_solta`. O `.json` diz quanto cada osso gira
+(peso na perna direita, joelho esquerdo solto, mão esquerda na cintura, cabeça de lado, quadril balançando devagar).
+As paradas prontas do Pro Magic Pack (standing idle e idle 02) foram testadas antes: são guardas de mago agachadas.

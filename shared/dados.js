@@ -60,6 +60,9 @@ export const DURACAO = {
   lado_e_andar: 1.167, lado_d_andar: 1.2, tras_andar: 1.2, lado_e_correr: 0.767, lado_d_correr: 0.767, tras_correr: 0.633,
   // Mixamo Pro Magic Pack, Standing Idle 03 (André 2026-11-04): guarda do cajado, joelhos dobrados e a mão livre na frente
   cajado_parada: 11.167,
+  // parada solta fora de combate (André 2026-11-09): a parada do Mixamo com o peso numa perna e a mão na cintura
+  // (ferramentas/assar-animacoes/parada-solta.mjs)
+  parada_solta: 9.933,
   // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
   // 2H Magic Area Attack 01 e 2H Cast Spell 01
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
