@@ -1792,3 +1792,29 @@ for (const n of MERCADORES_MUNDO) {
   }
   MAPA_CLAREIRA.mata.push(...novas);
 }
+
+// FASE 3, Parte 7b (André 2026-11-08: vilas pequenas de no máximo 5 terrenos; a grande do Nv 100 em bairros de ~5
+// terrenos a 60-80 m um do outro, 20-25 terrenos). Cada vila é uma área onde se compra terreno, com as mesmas regras
+// das Terras da Estrada (LOTE). A primeira é a de hoje, igual (a área e as estradas são as mesmas objetos); as do mundo
+// grande ficam nos platôs das vilas (shared/mundo.js) e não podem pegar as estradas do mundo. max: terrenos com dono.
+const curvaRua = (id) => ({ largura: 4, pontos: ESTRADAS_MUNDO.find((e) => e.id === id).curva });
+const VAEL = LUGARES_MUNDO.find((l) => l.id === 'vila_vael'), AURORA = LUGARES_MUNDO.find((l) => l.id === 'vila_aurora');
+// a praça da vila (onde fica o mercador) entra como "estrada": terreno nenhum em cima dela
+const praca = (x, z, r) => ({ largura: 2 * r, pontos: [[x - 0.05, z], [x + 0.05, z]] });
+export const VILAS_TERRENO = [
+  { id: 'terras', nome: VILA_LOTES.nome, area: VILA_LOTES.area, estradas: [{ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas], max: 5 },
+  { id: 'vila_vael', nome: 'Porto de Vael', nivel: 50, mundo: true, area: { x: VAEL.x, z: VAEL.z, rx: VAEL.r - 3, rz: VAEL.r - 3 },
+    estradas: [curvaRua('e_leste'), curvaRua('e_norte'), praca(MERCADORES_MUNDO[0].x, MERCADORES_MUNDO[0].z, 4)], max: 5 },
+  // Aurora: a praça no meio (mercador, encontro de todo mundo) e 4 bairros nas diagonais, a 48 m do centro (68 m entre
+  // os vizinhos); cada bairro é uma área de 5 terrenos
+  ...[['no', 'Bairro do Noroeste', -1, -1], ['ne', 'Bairro do Nordeste', 1, -1], ['so', 'Bairro do Sudoeste', -1, 1], ['se', 'Bairro do Sudeste', 1, 1]].map(([s, nome, dx, dz]) => ({
+    id: `aurora_${s}`, nome: `Aurora, ${nome}`, nivel: 100, mundo: true, bairro: true,
+    area: { x: AURORA.x + dx * 34, z: AURORA.z + dz * 34, rx: 24, rz: 24 }, estradas: [curvaRua('e_aurora')], max: 5 })),
+];
+// a vila de um ponto (o meio do terreno), ou null
+export function vilaEm(x, z) {
+  for (const V of VILAS_TERRENO) if (Math.hypot(x - V.area.x, z - V.area.z) <= raioNaDirecao(V.area, Math.atan2(z - V.area.z, x - V.area.x))) return V;
+  return null;
+}
+// o chão de um terreno: 0 no mapa de hoje (como sempre foi); nas vilas do mundo grande, o platô
+export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo ? Math.max(0, alturaMontanha(x, z)) : 0);

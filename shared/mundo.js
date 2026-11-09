@@ -105,7 +105,7 @@ export const LUGARES_MUNDO = [
   { id: 'c_v5', tipo: 'caca', terra: 'vael', nivel: 45, x: 290, z: 250, r: 14 },
   { id: 'c_v6', tipo: 'caca', terra: 'vael', nivel: 48, x: 300, z: -112, r: 14 },
   { id: 'c_v7', tipo: 'caca', terra: 'vael', nivel: 40, x: 90, z: -220, r: 14 },
-  { id: 'vila_vael', tipo: 'vila', terra: 'vael', nivel: 50, nome: 'Porto de Vael', x: 350, z: 45, r: 30 },
+  { id: 'vila_vael', tipo: 'vila', terra: 'vael', nivel: 50, nome: 'Porto de Vael', x: 350, z: 45, r: 35 },
   { id: 'porto_vael', tipo: 'porto', terra: 'vael', nome: 'Cais de Vael', x: 402, z: 45, r: 9 },
   { id: 'porto_ilha_o', tipo: 'porto', terra: 'ilha', nome: 'Cais Oeste da Ilha', x: 505, z: 40, r: 9 },
   { id: 'porto_ilha_l', tipo: 'porto', terra: 'ilha', nome: 'Cais Leste da Ilha', x: 628, z: 40, r: 9 },

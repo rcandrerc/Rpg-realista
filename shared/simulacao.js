@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
 import { TUNEL, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -128,14 +128,16 @@ export function motivoTerreno(R, outros = []) {
   if (w < LOTE.ladoMin || d < LOTE.ladoMin) return `O terreno precisa de pelo menos ${LOTE.ladoMin} x ${LOTE.ladoMin} m`;
   if (w > LOTE.ladoMax || d > LOTE.ladoMax) return `Cada lado vai até ${LOTE.ladoMax} m`;
   if (w * d > LOTE.areaMax) return `No máximo ${LOTE.areaMax} blocos (este tem ${w * d})`;
-  const A = VILA_LOTES.area;
+  // FASE 3: a vila do terreno (o meio dele); as Terras da Estrada continuam com as estradas de sempre
+  const V = vilaEm((R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2) || VILAS_TERRENO[0], A = V.area;
+  const ruas = V === VILAS_TERRENO[0] ? ESTRADAS_TERRAS : V.estradas.map((e) => e.pontos), largs = V === VILAS_TERRENO[0] ? LARG_TERRAS : V.estradas.map((e) => e.largura);
   for (let t = 0; t <= 2 * (w + d); t += 1) { // a borda inteira dentro das terras, longe das árvores
     const x = t <= w ? R.x0 + t : t <= w + d ? R.x1 : t <= 2 * w + d ? R.x1 - (t - w - d) : R.x0;
     const z = t <= w ? R.z0 : t <= w + d ? R.z0 + (t - w) : t <= 2 * w + d ? R.z1 : R.z1 - (t - 2 * w - d);
     if (Math.hypot(x - A.x, z - A.z) > raioNaDirecao(A, Math.atan2(z - A.z, x - A.x)) - LOTE.folgaBorda) return 'Passa da borda das terras';
   }
-  for (let k = 0; k < ESTRADAS_TERRAS.length; k++) { // não pega a estrada
-    const L = ESTRADAS_TERRAS[k], meia = LARG_TERRAS[k] / 2 + LOTE.folgaRua;
+  for (let k = 0; k < ruas.length; k++) { // não pega a estrada
+    const L = ruas[k], meia = largs[k] / 2 + LOTE.folgaRua;
     for (let i = 1; i < L.length; i++) {
       const [ax, az] = L[i - 1], [bx, bz] = L[i], n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5);
       for (let q = 0; q <= n; q++) if (distRet(R, ax + (bx - ax) * q / n, az + (bz - az) * q / n) < meia) return 'Não pode pegar a estrada';
@@ -1987,7 +1989,7 @@ export class Simulacao {
   // as peças são sólidas: os círculos de cada uma entram nos obstáculos (o herói não atravessa a bigorna)
   refazerSolidosLotes() {
     this.obstaculos = this.obstaculos.filter((k) => !k.peca);
-    const T = this.terreno, chao = (x, z) => { let h = 0; for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
+    const T = this.terreno, chao = (x, z) => { let h = chaoDaVila(x, z); for (const r of T.rochas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } for (const r of T.casas) { const a = T.alturaNa(r, x, z); if (a > h) h = a; } return h; };
     // o móvel fica no chão ou em cima da fundação: o topo dele (CONSTRUCOES.alto) parte daí
     const piso = (L, p) => chao(p.x, p.z) + (L.pecas.some((o) => tipoPeca(o.k) === 'fundacao' && Math.abs(o.x - p.x) < CASA.grade / 2 && Math.abs(o.z - p.z) < CASA.grade / 2) ? CASA.fundacao : 0);
     for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p, CONSTRUCOES[p.k].alto ? piso(L, p) : null));
@@ -2004,6 +2006,10 @@ export class Simulacao {
     const R = retTerreno(m); if (!R) return;
     const motivo = motivoTerreno(R, [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def)); if (motivo) return aviso(motivo);
     if (distRet(R, j.x, j.z) > 40) return aviso('Chegue mais perto do terreno');
+    // FASE 3 (André 2026-11-08): cada vila tem no máximo V.max terrenos com dono; cheia, procure outra vila ou bairro
+    const V = vilaEm((R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2) || VILAS_TERRENO[0];
+    const naVila = [...this.lotes.values()].filter((L) => L.dono && (vilaEm((L.def.x0 + L.def.x1) / 2, (L.def.z0 + L.def.z1) / 2) || VILAS_TERRENO[0]) === V).length;
+    if (naVila >= V.max) return aviso(`${V.nome} já tem ${V.max} terrenos. Procure outra vila`);
     const w = R.x1 - R.x0, d = R.z1 - R.z0, preco = precoTerreno(w, d);
     if (j.prog.ouro < preco) return aviso(`Faltam ${preco - j.prog.ouro} de ouro (o terreno custa ${preco})`);
     const lid = 't' + String(j.conta).replace(/[^\w]/g, '').slice(0, 14);
