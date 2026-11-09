@@ -3354,7 +3354,8 @@ export class Simulacao {
     return {
       tempo: r2(this.tempo),
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
-        roupa: roupa(j.roupaFixa || j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1" (a Cecília tem aparência fixa)
+        roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
+        ...(j.roupaFixa ? { roupa: roupa(j.roupaFixa) } : {}), // a Cecília: aparência fixa do look B (as peças de verdade são outras)
         semCapacete: !!j.prog.semCapacete,
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
