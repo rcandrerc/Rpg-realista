@@ -45,6 +45,7 @@ jobs:
       - run: bash ferramentas/servidor/empacotar.sh # o servidor sai junto; a máquina da Oracle se atualiza a partir daqui
         env:
           ABRIR_SERVIDOR: ${{ inputs.abrir_servidor && '1' || '0' }}
+          GEMINI_CHAVE: ${{ secrets.GEMINI_CHAVE }} # IA da Cecília: vai só dentro do pacote trancado (nunca no site aberto)
       - name: Atualização do app Godot em /atualizacao (gerada pelo apk.yml no release "atualizacao")
         env:
           GH_TOKEN: ${{ github.token }}

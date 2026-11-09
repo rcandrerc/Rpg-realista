@@ -2,15 +2,24 @@
 // Só liga quando o servidor tem a chave GEMINI_CHAVE (Google AI Studio, plano grátis) no ambiente; sem chave, sem
 // internet, passou do limite do dia ou a IA demorou, devolve null e quem responde são as regras (shared/amiga.js).
 // A IA só escreve a fala e escolhe UMA ação da lista; o jogo confere tudo (ela pode recusar o time mesmo assim).
+import fs from 'node:fs';
+import path from 'node:path';
 import { AMIGA } from '@rpg/shared';
+
+// a chave: do ambiente ou do segredos.json que a atualização trancada grava ao lado do servidor (segredo GEMINI_CHAVE do GitHub)
+function chaveGemini() {
+  if (process.env.GEMINI_CHAVE) return process.env.GEMINI_CHAVE;
+  try { return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8')).GEMINI_CHAVE || ''; } catch { return ''; }
+}
 
 const ACOES = ['nada', 'time', 'sairTime', 'vir', 'ajuda', 'sim', 'nao'];
 let dia = '', usadas = 0;
 
-export function iaLigada() { return !!process.env.GEMINI_CHAVE; }
+export function iaLigada() { return !!chaveGemini(); }
 
 export async function pensarAmiga(ctx, texto) {
-  const chave = process.env.GEMINI_CHAVE; if (!chave || !ctx) return null;
+  if (!ctx) return null;
+  const chave = chaveGemini(); if (!chave) return null;
   const hoje = new Date().toISOString().slice(0, 10);
   if (hoje !== dia) { dia = hoje; usadas = 0; }
   if (usadas >= AMIGA.chat.iaPorDia) return null;
