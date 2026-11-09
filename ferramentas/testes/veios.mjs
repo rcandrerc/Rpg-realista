@@ -4,11 +4,11 @@ import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const M = MAPA_CLAREIRA, s = new Simulacao(M);
 const zona = (id) => M.mina.find((z) => z.id === id);
-const veios = (tipo) => [...s.coletaveis.values()].filter((c) => c.tipo === tipo);
+const veios = (tipo) => [...s.coletaveis.values()].filter((c) => c.tipo === tipo && !zona(c.mina)?.pequeno); // as 3 zonas grandes (os spots pequenos da FASE 2 têm teste próprio no fim)
 ok(zona('cobre1') && zona('pedra1') && zona('ferro1'), 'as três zonas existem (cobre continua)');
 ok(veios('cobre').length === 6 && veios('pedra').length === 7 && veios('ferro').length === 5, 'quantidade de pedras por zona');
 ok(veios('pedra')[0].r > veios('cobre')[0].r && veios('ferro')[0].r < veios('cobre')[0].r, 'pedra > cobre > ferro');
-const zs = M.mina;
+const zs = M.mina.filter((z) => !z.pequeno);
 for (let i = 0; i < zs.length; i++) for (let k = i + 1; k < zs.length; k++) ok(Math.hypot(zs[i].x - zs[k].x, zs[i].z - zs[k].z) > 40, `espaçadas: ${zs[i].id} x ${zs[k].id}`);
 for (const z of zs) ok(!M.mata.some((a) => Math.hypot(a.x - z.x, a.z - z.z) < z.r + 1.5), `sem árvore dentro de ${z.id}`);
 // minerar: Minerador Nv 1 minera pedra mas não ferro (Nv 5)
@@ -83,4 +83,21 @@ ok(dentro, 'a emenda fica dentro do mapa de antes');
   ok(s2.livreParaHeroi(b, no.x, no.z), 'dá para parar em cima do veio esgotado');
   s2.veiosComuns.set(no.id, { n: 0, volta: s2.tempo - 1 });
   ok(empurra() > no.r, 'veio que voltou bloqueia de novo');
+}
+
+// FASE 2 (André 2026-11-08): spots pequenos de pedra, cobre, ferro e cristal espalhados, em chão plano, sem árvore
+// dentro, longe dos campos de caça; de qualquer campo de caça tem pedra e cobre por perto.
+import { relevo } from '../../shared/relevo.js';
+const pq = M.mina.filter((z) => z.pequeno);
+ok(['pedra', 'cobre', 'ferro', 'cristal'].every((t) => pq.filter((z) => z.tipo === t).length >= 3), 'pelo menos 3 spots pequenos de cada minério (com cristal)');
+for (const z of pq) {
+  const n = [...s.coletaveis.values()].filter((c) => c.mina === z.id).length;
+  let plano = 0; for (let a = 0; a < 6.28; a += 0.4) plano = Math.max(plano, Math.abs(relevo(z.x + Math.cos(a) * (z.r + 1), z.z + Math.sin(a) * (z.r + 1)) - relevo(z.x, z.z)));
+  ok(n === 3 && plano < 0.2 && !M.mata.some((a) => Math.hypot(a.x - z.x, a.z - z.z) < z.r + 1.2)
+    && !M.caca.some((c) => Math.hypot(c.x - z.x, c.z - z.z) < c.r + 6) && dentroDoMapa(M, z.x, z.z, z.r + 2), `${z.id}: 3 pedras, plano, sem árvore, fora da caça, dentro do mapa`);
+  ok(M.mina.every((o) => o === z || Math.hypot(o.x - z.x, o.z - z.z) > 15), `${z.id} longe dos outros veios`);
+}
+for (const c of M.caca) for (const t of ['pedra', 'cobre']) {
+  const d = Math.min(...M.mina.filter((z) => z.tipo === t).map((z) => Math.hypot(z.x - c.x, z.z - c.z)));
+  ok(d < 75, `${c.id}: ${t} a ${Math.round(d)} m`);
 }

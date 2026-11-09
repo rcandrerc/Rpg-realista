@@ -18,7 +18,7 @@ const ALCANCE := 46.0 # metros do centro até a borda do minimapa
 const COR_BICHO := {"puglin": Color("b98cff"), "imp": Color("ff8f45"), "lobo": Color("a9d6ff"), "chefe": Color("ff4a4a"), "golem": Color("ff7a1a"), "maw": Color("9cff5a"), "warrok": Color("ffcc40")}
 const NOME_BICHO := {"puglin": "Puglins", "imp": "Imps", "lobo": "Lobos", "golem": "Golens", "maw": "Maws"}
 const COR_OURO := Color("e9c46a")
-const COR_MINA := {"cobre": Color("d9822b"), "pedra": Color("a39d92"), "ferro": Color("8fa3bd")} # losango de cada zona de mineração
+const COR_MINA := {"cobre": Color("d9822b"), "pedra": Color("a39d92"), "ferro": Color("8fa3bd"), "cristal": Color("9a7cff")} # losango de cada zona de mineração
 const COR_FUNDO := Color(0.06, 0.07, 0.05, 0.85)
 
 var m # main.gd
@@ -414,8 +414,21 @@ func _lugares() -> Array:
 	for cc in cs:
 		l.append({"id": str(cc.get("id", cc.nome)), "tipo": "caca", "cc": cc, "nome": "Nv %d  %s" % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))],
 			"curto": "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], "x": float(cc.x), "z": float(cc.z), "r": float(cc.get("r", 12.0)) + 2.0})
+	# FASE 2: os veios pequenos espalhados entram só o mais perto de cada minério (a lista não fica comprida)
+	var perto := {}
+	var hp: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
 	for mn in m.mundo.get("mina", []):
-		l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
+		if not mn.get("pequeno", false):
+			l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
+			continue
+		var t := str(mn.get("tipo", ""))
+		var d := Vector2(float(mn.x) - hp.x, float(mn.z) - hp.z).length()
+		if not perto.has(t) or d < float(perto[t][0]):
+			perto[t] = [d, mn]
+	for t in ["pedra", "cobre", "ferro", "cristal"]:
+		if perto.has(t):
+			var mn: Dictionary = perto[t][1]
+			l.append({"id": str(mn.id), "tipo": "mina", "mn": mn, "nome": "%s mais perto (%d m)" % [str(mn.nome), int(perto[t][0])], "curto": str(mn.nome), "x": float(mn.x), "z": float(mn.z), "r": float(mn.r) + 2.0})
 	return l
 
 func abrir() -> void:
@@ -643,6 +656,8 @@ func _desenhar_mapa() -> void:
 		var q: Vector2 = em.call(float(mn.x), float(mn.z))
 		var cm: Color = COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b"))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -7), q + Vector2(6, 0), q + Vector2(0, 7), q + Vector2(-6, 0)]), cm)
+		if mn.get("pequeno", false):
+			continue # veio pequeno (FASE 2): só o losango, sem nome (são muitos)
 		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	var cv := _caverna()
 	if not cv.is_empty():
