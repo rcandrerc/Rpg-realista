@@ -1192,8 +1192,7 @@ func _process(dt: float) -> void:
 		var corpo: Node3D = no.get_node_or_null("corpo")
 		if corpo:
 			if v.tipo == "c":
-				corpo.rotation.z = 0.18 if v.quebrado else (sin(m.tempo * 31.0) * 0.006 + sin(m.tempo * 13.0) * 0.01) * (1.0 if v.dirigindo else 0.0)
-				corpo.rotation.x = -0.08 if v.quebrado else 0.0
+				_motor(v, no, corpo, dt)
 				_rodas_volante(v, no, corpo, dt)
 			else: # balança na água
 				corpo.rotation.z = sin(m.tempo * 1.3 + v.x) * (0.012 if v.tipo == "n" else 0.03)
@@ -1247,6 +1246,68 @@ func _process(dt: float) -> void:
 					_perto_g = g
 		m.hud.mostrar_botao("pegar_pack", _perto_g != "")
 		_atualizar_painel()
+
+# motor do carrinho (André 2026-11-09: "tremor quando liga e barulho de motor de tratorzinho"): ligado enquanto
+# alguém dirige. Ao ligar toca a partida (manivela, falha, pega) e o tremor vem forte; depois a marcha lenta em laço,
+# com o tom e o tremor subindo com a velocidade, e baforadas de fumaça na chaminé a cada batida. Som 3D no carrinho
+# (o dos outros jogadores também se ouve, mais baixo longe). Sons: ferramentas/sons/motor.py.
+const MOTOR_BATIDAS := 8.5 # batidas por segundo na marcha lenta (o mesmo do som)
+var _motor_laco: AudioStream
+func _motor(v: Dictionary, no: Node3D, corpo: Node3D, dt: float) -> void:
+	var ligado: bool = v.dirigindo and not v.quebrado
+	var anda: float = absf(float(m.mov.veiculo.get("v", 0.0))) if v.eu and m.mov.veiculo.get("k", "") == "carrinho" else float(v.get("vel", 0.0))
+	var rapido: float = clampf(anda / float(V.carrinho.vel), 0.0, 1.0)
+	var som: AudioStreamPlayer3D = v.get("som")
+	if ligado and som == null:
+		if _motor_laco == null and ResourceLoader.exists("res://sons/motor_lento.ogg"):
+			_motor_laco = (load("res://sons/motor_lento.ogg") as AudioStream).duplicate()
+			if "loop" in _motor_laco:
+				_motor_laco.set("loop", true)
+		som = AudioStreamPlayer3D.new()
+		som.unit_size = 5.0
+		som.max_distance = 32.0
+		som.position = Vector3(0, 0.9, 0.7)
+		no.add_child(som)
+		v.som = som
+		v.liga_t = 0.0
+		if ResourceLoader.exists("res://sons/motor_partida.ogg"):
+			som.stream = load("res://sons/motor_partida.ogg")
+			som.volume_db = -4.0 + m.sons.volume_geral
+			som.play()
+	elif not ligado and som != null:
+		var tw := create_tween()
+		tw.tween_property(som, "volume_db", som.volume_db - 30.0, 0.35)
+		tw.tween_callback(som.queue_free)
+		v.erase("som")
+		som = null
+	var tremor := 0.0
+	if som != null:
+		v.liga_t = float(v.get("liga_t", 0.0)) + dt
+		if som.stream != _motor_laco and (not som.playing or float(v.liga_t) > 2.2) and _motor_laco:
+			som.stream = _motor_laco
+			som.play()
+		som.pitch_scale = lerpf(som.pitch_scale, 1.0 + rapido * 0.55, minf(1.0, dt * 3.0))
+		som.volume_db = lerpf(som.volume_db, -6.0 + rapido * 3.0 + m.sons.volume_geral, minf(1.0, dt * 4.0))
+		# tremor: forte na partida (falha e pega), depois a batida do cilindro sacudindo o trator inteiro
+		var partida: float = clampf(1.0 - (float(v.liga_t) - 0.6) / 0.9, 0.0, 1.0) if float(v.liga_t) > 0.5 else 0.3
+		tremor = 1.0 + partida * 2.0 + rapido * 0.4
+		var f: float = MOTOR_BATIDAS * som.pitch_scale
+		var bate: float = pow(maxf(0.0, sin(m.tempo * TAU * f)), 6.0) # um tranco por batida
+		corpo.position.y = bate * 0.012 * tremor
+		corpo.rotation.z = (sin(m.tempo * TAU * f * 0.5) * 0.004 + bate * 0.003) * tremor
+		corpo.rotation.x = -bate * 0.004 * tremor
+		# baforada na chaminé (a cada 2 batidas, menos longe da câmera)
+		v.fuma_t = float(v.get("fuma_t", 0.0)) - dt
+		var cano: Node3D = corpo.get_node_or_null("cano")
+		if cano and float(v.fuma_t) <= 0.0 and m.fx and m.fx.has_method("part"):
+			v.fuma_t = 2.0 / f
+			var p: Vector3 = cano.global_position
+			m.fx.part(m.fx.FUMA, p.x, p.y, p.z, randf_range(-0.15, 0.15), randf_range(0.6, 1.0), randf_range(-0.15, 0.15),
+				randf_range(0.8, 1.3), 0.12, 0.45 + partida * 0.3, "8a857e", "4a4642", 0.45, 0.4, 1.2)
+	if som == null:
+		corpo.position.y = 0.0
+		corpo.rotation.z = 0.18 if v.quebrado else 0.0
+		corpo.rotation.x = -0.08 if v.quebrado else 0.0
 
 # rodas girando pelo chão andado, as da frente e o volante virando com a curva
 func _rodas_volante(v: Dictionary, no: Node3D, corpo: Node3D, dt: float) -> void:
