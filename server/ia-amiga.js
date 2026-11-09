@@ -38,6 +38,7 @@ Conversa até agora:
 ${conversa || '(nenhuma)'}
 ${ctx.amigo}: ${texto}
 Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caçar), "sairTime" (ele quer que você saia do time), "vir" (ele pede para você ir até ele), "ajuda" (ele oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta ao seu chamado), "nada" (só conversa).
+Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá para ir é o jogo; se não der, ele troca a fala). Nunca recuse na fala.
 Devolva só JSON: {"fala": "...", "acao": "nada"}`;
   // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
   const groq = segredo('GROQ_CHAVE');
