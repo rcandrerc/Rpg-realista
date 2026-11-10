@@ -275,6 +275,12 @@ export const reforcoK = (it) => { const e = it?.e | 0; return { st: 1 + REFORCO.
 export const reforcoMax = (it) => (it && ehEquip(it.k) ? REFORCO.max[it.r] || 0 : 0);
 export const chanceReforco = (e) => REFORCO.chance[Math.min(e | 0, REFORCO.chance.length - 1)];
 export const custoReforco = (it) => Math.round((REFORCO.custo.base + REFORCO.custo.porRaridade * it.r) * REFORCO.custo.sobe ** (it.e | 0));
+// Tecido que a tentativa gasta (André 2026-11-09): arma não gasta; armadura 1 até +10, 2 até +20... ({ k, n } ou null)
+export function materialReforco(it) {
+  const M = REFORCO.material, l = ITENS[it?.k]?.lugar;
+  if (!M || l === 'espada' || l === 'cajado') return null;
+  return { k: M.k, n: Math.floor((it.e | 0) / M.porFaixa) + 1 };
+}
 // para onde volta quando falha (nunca abaixo do último +5, +10...)
 export const reforcoFalhou = (e) => Math.max(Math.floor(e / REFORCO.seguro) * REFORCO.seguro, e - 1);
 // atributo que a peça pede para chegar no reforço e: { k: 'for' | 'int' | 'maior', n } (n = 0: não pede)
@@ -298,11 +304,14 @@ export function reforcar(p, it, sorte = Math.random()) {
   if (tem < pr.n) return { erro: `Você não pode reforçar mais: não tem atributo suficiente (precisa ${pr.n} de ${nomeAtributoReforco(pr.k)}, você tem ${tem})` };
   const custo = custoReforco(it);
   if ((p.ouro || 0) < custo) return { erro: `Ouro insuficiente (${p.ouro || 0}/${custo})` };
+  const mat = materialReforco(it), temMat = mat ? contar(p.mochila || [], mat.k) : 0;
+  if (mat && temMat < mat.n) return { erro: `${ITENS[mat.k].nome} insuficiente (${temMat}/${mat.n})` };
   p.ouro -= custo;
+  if (mat) tirar(p.mochila, mat.k, mat.n);
   const ok = sorte * 100 < chanceReforco(de);
   const e = ok ? de + 1 : reforcoFalhou(de);
   if (e > 0) it.e = e; else delete it.e;
-  return { ok, de, e, custo };
+  return mat ? { ok, de, e, custo, mat: mat.n } : { ok, de, e, custo };
 }
 // Quanto a loja paga por uma unidade
 export const precoVenda = (it, merc = 0) => Math.round((ehEquip(it.k) ? VENDA_EQUIP[it.r] : it.k === 'tomo' ? VENDA_TOMO * it.nv : ITENS[it.k].venda || 1) * (1 + merc));

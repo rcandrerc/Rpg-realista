@@ -1267,7 +1267,7 @@ export class Simulacao {
       if (!alvo || !ehEquip(alvo.k)) return;
       const r = reforcar(p, alvo);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
-      this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, nome: nomeItem(alvo) });
+      this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, ...(r.mat ? { mat: r.mat } : {}), nome: nomeItem(alvo) });
     } else if (m.acao === 'filtro') {
       // filtro de coleta (André 2026-11-07): { r: [raridades desmarcadas], k: [recursos desmarcados] }; tudo marcado = sem filtro
       const f = filtroValido(m);

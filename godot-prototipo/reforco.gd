@@ -192,6 +192,9 @@ func _tentar() -> void:
 	nome_ui.text = P.nome_item(it)
 	nome_ui.add_theme_color_override("font_color", cor)
 	info_ui.text = "+%d → +%d · chance %d%% · %d de ouro" % [e, e + 1, P.chance_reforco(e), P.custo_reforco(it)]
+	var mat: Dictionary = P.material_reforco(it)
+	if not mat.is_empty():
+		info_ui.text += " · %d de %s" % [int(mat.n), str(P.dados.itens[mat.k].nome)]
 	tentativas += 1
 	auto_ui.visible = auto
 	auto_ui.text = "Automático: tentativa %d · %d de ouro" % [tentativas, ouro0 - int(P.prog.ouro) + P.custo_reforco(it)]

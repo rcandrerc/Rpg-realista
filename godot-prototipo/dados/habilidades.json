@@ -754,7 +754,7 @@
    "mat": true,
    "pilha": 50,
    "venda": 3,
-   "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas."
+   "desc": "Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas. Também vai na camisa, nas botas e no colar, e para evoluir e reforçar o que não é arma."
   },
   "fragmento": {
    "nome": "Fragmento rúnico",
@@ -1975,7 +1975,8 @@
    "faz": "colar",
    "usa": {
     "barra_cobre": 2,
-    "cristal": 2
+    "cristal": 2,
+    "tecido": 1
    },
    "vigor": 4,
    "nivel": 4
@@ -1984,7 +1985,8 @@
    "prof": "alf",
    "faz": "botas",
    "usa": {
-    "couro": 4
+    "couro": 4,
+    "tecido": 1
    },
    "vigor": 8,
    "nivel": 1
@@ -2035,7 +2037,8 @@
    "faz": "peitoral",
    "usa": {
     "barra_ferro": 4,
-    "couro": 2
+    "couro": 2,
+    "tecido": 2
    },
    "vigor": 6,
    "nivel": 3
@@ -2931,7 +2934,11 @@
    "livre": 2,
    "porNivel": 10
   },
-  "tempo": 1.6
+  "tempo": 1.6,
+  "material": {
+   "k": "tecido",
+   "porFaixa": 10
+  }
  },
  "catalisador": {
   "arma": [
@@ -2983,20 +2990,24 @@
    "armadura": [
     {
      "couro": 4,
-     "barra_cobre": 3
+     "barra_cobre": 3,
+     "tecido": 3
     },
     {
      "couro": 6,
-     "barra_ferro": 4
+     "barra_ferro": 4,
+     "tecido": 5
     },
     {
      "couro": 8,
-     "cristal": 5
+     "cristal": 5,
+     "tecido": 8
     },
     {
      "couro": 10,
      "cristal": 6,
-     "barra_aco": 2
+     "barra_aco": 2,
+     "tecido": 12
     }
    ]
   },
