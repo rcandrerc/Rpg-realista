@@ -418,7 +418,7 @@ func reforcar(it) -> Dictionary:
 	prog.ouro = int(prog.ouro) - custo
 	var mat := material_reforco(it)
 	var falta := int(mat.get("n", 0))
-	var i := prog.mochila.size() - 1
+	var i: int = prog.mochila.size() - 1 # tipo explícito: mochila não tem tipo e o Godot recusava o script inteiro (jogo não abria)
 	while falta > 0 and i >= 0:
 		var o = prog.mochila[i]
 		if o != null and o.k == mat.k and not o.has("h"):
