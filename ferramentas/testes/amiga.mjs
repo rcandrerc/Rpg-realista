@@ -288,3 +288,39 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s8.amigaEntrar('andre');
   ok(s8.amiga.amizade === 7 && s8.amizadeAmiga(d8) === 7, 'André continua com a amizade antiga (7)');
 }
+
+// ---------- memória (André 2026-11-10: ela aprende com o dia a dia) ----------
+{
+  const s9 = new Simulacao(MAPA_CLAREIRA);
+  const d = s9.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 });
+  s9.amigaEntrar('andre');
+  const c = s9.amiga, esp = (t) => { for (let i = 0; i < t * 20; i++) s9.passo(0.05); };
+  const pedidos = [];
+  s9.aoDiarioAmiga = (dados) => { pedidos.push(dados); return Promise.resolve({ memorias: ['Ele adora pescar no lago.', 'Me ensinou a curar ele antes.'], regras: { curaCedo: true, pertinho: true, inventada: true } }); };
+  s9.ouvirAmiga('andre', 'oi Cecília, bora pescar amanhã?'); s9.ouvirAmiga('andre', 'e me cura mais cedo quando eu tiver mal');
+  esp(30);
+  ok(!pedidos.length, 'no meio da conversa ela ainda não escreve o diário');
+  esp(AMIGA.memoria.pausa);
+  await new Promise((r) => setTimeout(r, 0));
+  ok(pedidos.length === 1 && pedidos[0].conversa.length === 2 && pedidos[0].conta === 'c1', 'conversa parada: pediu o diário uma vez, com a conversa dele');
+  ok(c.memorias.c1?.length === 2 && c.regras.c1.curaCedo && !c.regras.c1.inventada, `anotou: ${JSON.stringify(c.memorias.c1)} e regras ${JSON.stringify(c.regras.c1)}`);
+  const ctx = s9.contextoAmiga('andre');
+  ok(ctx.memoria.length === 2 && ctx.regras.includes(AMIGA.memoria.regras.curaCedo.texto), 'a IA recebe o que ela lembra e as dicas');
+  ok(s9.regraAmiga('seguir') === AMIGA.memoria.regras.pertinho.seguir && s9.regraAmiga('curaDono') === AMIGA.memoria.regras.curaCedo.curaDono && s9.regraAmiga('pocao') === undefined, 'as dicas mudam como ela joga');
+  for (let i = 0; i < AMIGA.memoria.gostoMin; i++) s9.gostoAmiga(d, 'pescar');
+  ok(s9.gostoTopoAmiga(d) === 'pescar', 'o que mais fazem juntos vira o convite dela');
+  c.ia.chamado = { quer: 'pescar', ate: s9.tempo + 60 }; c.ia.combinado = 0;
+  s9.respostaAmiga('andre', { assunto: 'sim' });
+  ok(c.ia.atividade === 'pescar', '"sim" ao convite de pescar: ela vai pescar junto');
+  // ele sai no meio de outra conversa: o diário é escrito na hora e vai para o terreno mesmo com ela fora da sala
+  s9.aoDiarioAmiga = () => new Promise((r) => setTimeout(() => r({ memorias: ['Ele saiu correndo hoje.'], regras: {} }), 5));
+  s9.ouvirAmiga('andre', 'tenho que ir'); s9.ouvirAmiga('andre', 'tchau!');
+  s9.amigaSair('andre');
+  await new Promise((r) => setTimeout(r, 20));
+  ok(!s9.amiga && s9.loteDaAmiga().amiga.memorias.c1[0] === 'Ele saiu correndo hoje.', 'saiu: o diário vai para o terreno dela');
+  const s10 = new Simulacao(MAPA_CLAREIRA);
+  s10.carregarLotes([s9.lotesParaSalvar().find((l) => l.dados?.amiga)]);
+  s10.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 });
+  s10.amigaEntrar('andre');
+  ok(s10.contextoAmiga('andre').memoria[0] === 'Ele saiu correndo hoje.' && s10.regraAmiga('seguir') === AMIGA.memoria.regras.pertinho.seguir, 'no outro dia ela lembra');
+}

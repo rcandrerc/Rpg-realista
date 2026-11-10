@@ -9,7 +9,7 @@ import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGA } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
-import { pensarAmiga, testarChaveGroq } from './ia-amiga.js';
+import { pensarAmiga, testarChaveGroq, escreverDiario } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 
 const { Server, Room, ServerError } = colyseus;
@@ -43,7 +43,14 @@ class SalaClareira extends Room {
       this.sim.aoComprarLote = (id, dono, nome, ret) => contas.reservarLote(id, dono, nome, ret, (o) => retTerreno(o.dados?.ret) || LOTES_ANTIGOS[o.id] || null);
       this.sim.aoVenderLote = (id) => contas.soltarLote(id);
       this.sim.aoMudarLote = (id, dono, ret) => contas.mudarLote(id, dono, ret, (o) => retTerreno(o.dados?.ret) || LOTES_ANTIGOS[o.id] || null);
-      this.sim.iaPorChave = true; // a Cecília aparece na lista para todos; quem não tem chave vê "Ativar conversa com IA"
+      this.sim.iaPorChave = true;
+      // memória da Cecília: o diário de cada conversa é escrito com a chave de quem conversou (as contas de teste: a do servidor)
+      this.sim.aoDiarioAmiga = (d) => escreverDiario(d, /^c\d+$/.test(d.conta) ? contas.chaveIa(Number(d.conta.slice(1))) : '').then((r) => {
+        if (!r || this.sim.amiga) return r;
+        this.sim.anotarAmiga(d.conta, r); // ela já saiu (a sala pode até ter fechado): grava direto no banco
+        for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l);
+        return null;
+      }); // a Cecília aparece na lista para todos; quem não tem chave vê "Ativar conversa com IA"
     }
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });

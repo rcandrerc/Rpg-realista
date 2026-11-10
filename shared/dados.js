@@ -1962,6 +1962,16 @@ export const AMIGA = {
   // venda). No time, "bora pescar/minerar/lenha": ela faz a própria ferramenta (pega pedra e galho soltos se faltar),
   // coleta como um jogador (vigor, profissão, mesma velocidade) perto do André e, a cada 'dividir' itens e no fim,
   // dá 'presente' (+ 'porAmizade' por ponto, até 'presenteMax') do que pegou; o resto ela oferece pelo preço de amiga.
+  // memória (André 2026-11-10: "ir aprendendo com o dia a dia"): ao fim de cada conversa a IA escreve o diário dela sobre a pessoa
+  // (até 'max' anotações curtas, as velhas resumidas) e as dicas que viram regra no jogo. pausa = s sem mensagem para fechar a conversa.
+  memoria: { max: 15, tamanho: 120, pausa: 180, minimo: 2, cheia: 10, gostoMin: 3, gostoChance: 0.5,
+    regras: { // dica que ele ensinou -> o que muda nela (no time de quem ensinou)
+      curaCedo: { texto: 'curar ele mais cedo', curaDono: 0.65 },
+      pocaoCedo: { texto: 'beber poção mais cedo', pocao: 0.6 },
+      pertinho: { texto: 'andar mais perto dele', seguir: 1.6 },
+      naoChefe: { texto: 'não atacar chefe', naoChefe: true },
+    },
+  },
   coleta: { raio: 28, presente: 0.3, porAmizade: 0.03, presenteMax: 0.5, dividir: 10, reacao: [0.25, 0.6], toquesK: 0.8, pedirDeNovo: 90 },
   atividades: {
     pescar: { ferramenta: 'vara', nome: 'pescar', lugar: 'um spot de pesca (água borbulhando)' },
@@ -2050,6 +2060,8 @@ export const AMIGA = {
       tchau: ['Tchau! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Falou! Vou voltar pra minha horta.'],
       semIa: 'Tô meio cansada de conversar hoje, mas me chama pra caçar que eu topo!',
       // ela chama o André (sozinha, de vez em quando, quando ele está longe e fora do time)
+      // convite pelo que vocês mais fazem juntos (memória: gostos)
+      chamaGosto: { time: 'Bora caçar de novo? Tô com saudade das nossas caçadas!', pescar: 'Bora pescar? Sei que você curte!', minerar: 'Bora minerar juntos de novo? Tô precisando de minério!', lenha: 'Bora cortar lenha? Igual da outra vez!' },
       chama: [
         { texto: 'Ei! Bora caçar uns lobos? Tô entediada aqui.', quer: 'time' },
         { texto: 'Vem ver minha horta! As cenouras tão enormes.', quer: 'vir' },
