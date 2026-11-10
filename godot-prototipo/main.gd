@@ -93,6 +93,7 @@ var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (c
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
 var terreno
 var relevo # relevo.gd: montanha e lagos (desenho)
+var leve # visual_leve.gd: Sombras "Leves" e cor da grama "Natural" (Configurações, André 2026-11-10)
 var grafico # grafico.gd: qualidade gráfica Baixa/Média/Alta (Configurações; a primeira vez escolhe pelo celular)
 var dia # dia_noite.gd: dia e noite do Quimera (relógio da conta, céu, luz e o sono na cama)
 var caverna # caverna.gd: a Caverna da Montanha (primeira dungeon), desenhada aos poucos quando o herói chega perto
@@ -442,6 +443,8 @@ func montar_chao() -> void:
 	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
 	mato = Mato.new(self) # capim alto e samambaia de verdade em volta do herói (André 2026-11-10)
 	add_child(mato)
+	leve = preload("res://visual_leve.gd").new(self) # depois da mata, do chão e do mato (acha tudo que já existe)
+	add_child(leve)
 
 # chão onde um efeito ou um drop cai: com o herói lá dentro da caverna da montanha, o chão da caverna (não o alto da
 # montanha, que fica por cima do túnel)

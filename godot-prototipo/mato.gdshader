@@ -12,6 +12,7 @@ uniform sampler2D grama_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D capim_tex : source_color, filter_linear_mipmap, repeat_disable;
 uniform bool com_textura = false;
 uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
+uniform vec3 tom_ponta : source_color = vec3(1.0); // visual_leve.gd: cor da grama "Natural"
 uniform float encolhe_de = 30.0;
 uniform float encolhe_ate = 42.0;
 uniform float vento = 1.0;
@@ -49,7 +50,7 @@ void vertex() {
 	cor_chao = textureLod(grama_tex, w * (70.0 / 320.0), 5.0).rgb * tom_grama;
 }
 void fragment() {
-	vec3 ponta = COLOR.rgb;
+	vec3 ponta = COLOR.rgb * tom_ponta;
 	vec3 c;
 	if (com_textura) {
 		vec4 t = texture(capim_tex, vec2(UV.x * 0.5 + step(0.5, metade) * 0.5, 1.0 - UV.y));

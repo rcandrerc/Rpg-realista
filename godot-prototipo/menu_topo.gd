@@ -553,6 +553,7 @@ func _qualidade_grafica() -> void:
 		dica += " Sugerido para este celular (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
 	_texto(dica, Menu.APAGADO, 13)
 	_limite_fps()
+	_visual_leve()
 
 # Limite de FPS (varredura de FPS 2026-11-10): 30, 60 ou sem limite (grafico.gd). Sem escolha, vale o do nível.
 func _limite_fps() -> void:
@@ -573,6 +574,29 @@ func _limite_fps() -> void:
 		linha.add_child(b)
 	conteudo.add_child(linha)
 	_texto("Travar em 30 ou 60 deixa o jogo com ritmo igual e o celular esquenta menos.", Menu.APAGADO, 13)
+
+# Visual leve (visual_leve.gd, André 2026-11-10): sombra de verdade só nos personagens e casas + cor da grama
+func _visual_leve() -> void:
+	var V = m.leve
+	if V == null:
+		return
+	for o in [["Sombras", ["Completas", "Leves"], V.sombra_leve, V.trocar_sombra],
+			["Cor da grama", ["Atual", "Natural"], V.grama_natural, V.trocar_grama]]:
+		var linha := HBoxContainer.new()
+		linha.add_theme_constant_override("separation", 8)
+		var l := Menu.rotulo(o[0], 17)
+		l.custom_minimum_size = Vector2(120, 0)
+		linha.add_child(l)
+		for i in 2:
+			var fn: Callable = o[3]
+			var b := _botao(o[1][i], func():
+				fn.call(i == 1)
+				montar(), bool(o[2]) == (i == 1))
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.custom_minimum_size = Vector2(0, 40)
+			linha.add_child(b)
+		conteudo.add_child(linha)
+	_texto("Sombras leves: sombra de verdade só nas pessoas, monstros e casas; árvores ganham sombra pintada (mais leve).", Menu.APAGADO, 13)
 
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:

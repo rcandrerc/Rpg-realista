@@ -35,8 +35,13 @@ void vertex() {
 	estrada = COLOR.r;
 	rio = COLOR.g;
 }
+// (leveza 2026-11-10) no chão quase plano só a projeção de cima conta: as dos lados só são lidas onde pesam
 vec3 tri(vec3 p, vec3 b, float esc) {
-	return texture(pedra_tex, p.zy / esc).rgb * b.x + texture(pedra_tex, p.xz / esc).rgb * b.y + texture(pedra_tex, p.xy / esc).rgb * b.z;
+	vec3 c = texture(pedra_tex, p.xz / esc).rgb * b.y;
+	float s = b.y;
+	if (b.x > 0.02) { c += texture(pedra_tex, p.zy / esc).rgb * b.x; s += b.x; }
+	if (b.z > 0.02) { c += texture(pedra_tex, p.xy / esc).rgb * b.z; s += b.z; }
+	return c / s;
 }
 void fragment() {
 	if (boca_on > 0.5) {
@@ -57,19 +62,25 @@ void fragment() {
 	vec3 grama = texture(grama_tex, w * (70.0 / 320.0)).rgb * tom_grama;
 	vec3 b = pow(abs(n), vec3(4.0));
 	b /= b.x + b.y + b.z;
-	vec3 base = tri(mundo, b, 4.0);
-	vec3 det = tri(mundo, b, 0.5);
-	vec3 pedra = base * (0.75 + 0.5 * dot(det, vec3(0.333)));
 	float hk = clamp(mundo.y / alto, 0.0, 1.0);
 	float incl = 1.0 - n.y;
 	float ruido = texture(pedra_tex, w / 37.0).g;
 	float ruido2 = texture(pedra_tex, w / 11.0).r;
 	float pr = smoothstep(0.2, 0.36, incl + (ruido - 0.5) * 0.25 + smoothstep(0.45, 0.8, hk) * 0.3);
 	float talus = smoothstep(0.12, 0.25, incl) * (1.0 - smoothstep(0.42, 0.6, incl));
-	vec3 cascalho = mix(base, det, 0.6) * vec3(1.12, 1.1, 1.04) * (0.85 + 0.3 * ruido2);
+	float kr = smoothstep(0.25, 0.7, rio + (ruido2 - 0.5) * 0.3);
+	// (leveza 2026-11-10) rocha e cascalho (6 a 12 leituras) só onde aparecem: na grama plana não lê nada disso
+	vec3 cascalho = vec3(0.0);
+	vec3 rocha = vec3(0.0);
+	if (pr > 0.001 || kr > 0.001) {
+		vec3 base = tri(mundo, b, 4.0);
+		vec3 det = tri(mundo, b, 0.5);
+		vec3 pedra = base * (0.75 + 0.5 * dot(det, vec3(0.333)));
+		cascalho = mix(base, det, 0.6) * vec3(1.12, 1.1, 1.04) * (0.85 + 0.3 * ruido2);
+		rocha = mix(pedra, cascalho, talus * smoothstep(0.35, 0.55, ruido2 + 0.2));
+		rocha *= mix(1.0, 0.78, smoothstep(0.45, 0.78, incl));
+	}
 	vec3 g = mix(grama, grama * vec3(1.08, 1.0, 0.78), smoothstep(0.35, 0.8, hk));
-	vec3 rocha = mix(pedra, cascalho, talus * smoothstep(0.35, 0.55, ruido2 + 0.2));
-	rocha *= mix(1.0, 0.78, smoothstep(0.45, 0.78, incl));
 	// 2026-11-09 (André: "como na estradinha: a grama vai ficando mais clarinha e a faixa em volta cor de terra, uma
 	// prainha"): antes da areia do mar e na beira dos rios a grama clareia (seca, amarelada) numa faixa larga e macia
 	float kc = 1.0 - smoothstep(praia + 0.3, praia + 2.2, mundo.y + (ruido - 0.5) * 1.1);
@@ -77,18 +88,22 @@ void fragment() {
 	g = mix(g, g * vec3(1.22, 1.16, 0.86) + vec3(0.05, 0.04, 0.0), kc * 0.85);
 	vec3 c = mix(g, rocha, pr);
 	// praia: faixa de terra/areia que entra na grama em ondas; rente à água (e embaixo dela) a areia molhada escurece
-	vec3 areia = texture(areia_tex, w / 3.0).rgb * tom_areia * (0.92 + 0.16 * ruido2);
-	areia = mix(areia, vec3(dot(areia, vec3(0.333))) * vec3(1.12, 1.02, 0.86), 0.35); // menos alaranjada (prainha)
 	float ka = 1.0 - smoothstep(praia - 0.35, praia + 0.25, mundo.y + (ruido - 0.5) * 0.6);
-	// (2026-11-09, André: sem a faixa escura molhada rente à água, parecia borda de piscina; só embaixo d'água escurece)
-	c = mix(c, areia, ka * (1.0 - pr * 0.7));
+	if (ka > 0.001) {
+		vec3 areia = texture(areia_tex, w / 3.0).rgb * tom_areia * (0.92 + 0.16 * ruido2);
+		areia = mix(areia, vec3(dot(areia, vec3(0.333))) * vec3(1.12, 1.02, 0.86), 0.35); // menos alaranjada (prainha)
+		// (2026-11-09, André: sem a faixa escura molhada rente à água, parecia borda de piscina; só embaixo d'água escurece)
+		c = mix(c, areia, ka * (1.0 - pr * 0.7));
+	}
 	// estrada de terra batida (shared/mundo.js), com a borda comida pela grama
 	float est = estrada;
 	if (com_mascara > 0.5) est = texture(mascara_mundo, (mundo.xz - mascara_area.xy) / mascara_area.zw).r;
-	float ke = smoothstep(0.3, 0.75, est + (ruido2 - 0.5) * 0.4 + (texture(terra_tex, w / 0.9).g - 0.4) * 0.25);
-	c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, ke);
+	// (leveza 2026-11-10) longe da estrada a terra nem é lida (a borda comida chega a no máximo +0,35)
+	if (est + (ruido2 - 0.5) * 0.4 + 0.15 > 0.3) {
+		float ke = smoothstep(0.3, 0.75, est + (ruido2 - 0.5) * 0.4 + (texture(terra_tex, w / 0.9).g - 0.4) * 0.25);
+		c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, ke);
+	}
 	// leito e barranco do rio (Parte 4b): seixo e cascalho molhado, mais escuro no fundo
-	float kr = smoothstep(0.25, 0.7, rio + (ruido2 - 0.5) * 0.3);
 	c = mix(c, cascalho * mix(0.85, 0.55, smoothstep(0.6, 1.0, rio)), kr);
 	// 2026-11-09: embaixo da água o fundo escurece e esverdeia com a fundura (a água do agua.gdshader é translúcida
 	// no raso: sem isso a areia do fundo parecia praia seca com o barco em cima)
