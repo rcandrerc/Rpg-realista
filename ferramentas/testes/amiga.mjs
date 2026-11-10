@@ -356,3 +356,27 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s11.troca('andre', { acao: 'trancar', v: true }); s11.troca('andre', { acao: 'confirmar' }); esp(3);
   ok(!c.troca && c.prog.equip.corpo.r === 1 && falas.some((t) => t.includes('Vesti')), `vestiu na hora: "${falas.find((t) => t.includes('Vesti'))}"`);
 }
+// André 2026-11-10: longe dela (no time ou chamada pelo chat) ela NUNCA aparece do lado: monta no lobo e vem pela estrada
+// (shared/rota.js); em outra terra (só de barco) avisa e espera
+{
+  const { LUGARES_MUNDO } = await import('../../shared/mundo.js');
+  for (const [lugar, modo] of [['vila_vael', 'time'], ['posto_oeste', 'vir'], ['c_i1', 'time']]) {
+    const s12 = new Simulacao(MAPA_CLAREIRA);
+    s12.adicionarJogador('andre', 'André', 'ruiva', {}); s12.amigaEntrar('andre');
+    const c = s12.amiga, d = s12.jogadores.get('andre'), L = LUGARES_MUNDO.find((l) => l.id === lugar);
+    for (let i = 0; i < 40; i++) s12.passo(0.05);
+    const ditos = []; const dz0 = s12.dizerAmiga.bind(s12); s12.dizerAmiga = (t, ...r) => { ditos.push(t); dz0(t, ...r); };
+    const aqui = () => Object.assign(d, { x: L.x, z: L.z, y: s12.terreno.altura(L.x, L.z), vila: null, vida: d.vidaMax });
+    aqui();
+    if (modo === 'time') s12.entrarTimeAmiga(c, d); else c.ia.vir = { ate: s12.tempo + 120, longe: s12.tempo + 4 };
+    let pulo = 0, montada = 0, px = c.x, pz = c.z, perto = 1e9; const d0 = Math.hypot(c.x - d.x, c.z - d.z);
+    for (let i = 0; i < 20 * 240 && perto > 4; i++) {
+      aqui(); s12.passo(0.05);
+      pulo = Math.max(pulo, Math.hypot(c.x - px, c.z - pz)); px = c.x; pz = c.z;
+      if (c.montado) montada += 0.05;
+      perto = Math.hypot(c.x - d.x, c.z - d.z);
+    }
+    if (lugar === 'c_i1') ok(perto > 300 && c.ia.viagem?.bloqueio && pulo < 0.6 && ditos.some((t) => AMIGA.chat.falas.outraTerra.includes(t)), 'ele em outra terra: ela não aparece lá, avisa que sem barco não chega e espera');
+    else ok(perto <= 4 && pulo < 0.6 && montada > 10, `${modo === 'time' ? 'no time' : '"vem cá"'}: veio de lobo pela estrada ${Math.round(d0)} m sem se teletransportar (maior passo ${pulo.toFixed(2)} m, ${Math.round(montada)} s montada)`);
+  }
+}
