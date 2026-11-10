@@ -47,6 +47,8 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   const prompt = `Você é ${ctx.nome}, uma guerreira de anime brincalhona num RPG medieval de fantasia. Você é AMIGA de ${ctx.amigo} (de igual para igual, não serva): tem sua casinha e sua horta na vila inicial, tem vontade própria, pode recusar e pedir favores.
 Responda em português do Brasil, como amiga conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
 Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'} Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}. ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
+${ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} (de outros dias, use com naturalidade quando fizer sentido):\n- ${ctx.memoria.join('\n- ')}` : ''}
+${ctx.regras?.length ? `Dicas que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : ''}
 Conversa até agora:
 ${conversa || '(nenhuma)'}
 ${ctx.amigo}: ${texto}
@@ -82,4 +84,38 @@ function lerResposta(txt) {
   const fala = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
   if (!fala) return null;
   return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala };
+}
+
+// ---------- memória (André 2026-11-10: ela aprende com o dia a dia) ----------
+// No fim de cada conversa, a IA reescreve o diário dela sobre a pessoa: até AMIGA.memoria.max anotações curtas (junta as
+// velhas com o que aconteceu hoje) e marca as dicas que viraram regra no jogo. Usa um modelo menor do Groq, que tem
+// limite separado do das respostas. dados = { nome, memoria, regras, conversa }.
+const MODELOS_DIARIO = ['llama-3.1-8b-instant', 'openai/gpt-oss-20b'];
+export async function escreverDiario(dados, chaveJogador = '') {
+  const chave = chaveJogador || segredo('GROQ_CHAVE');
+  if (!chave || !dados?.conversa?.length) return null;
+  const M = AMIGA.memoria, regras = Object.entries(M.regras).map(([k, r]) => `"${k}" = ${r.texto}`).join('; ');
+  const conversa = dados.conversa.map((m) => `${m.de === 'ele' ? dados.nome : AMIGA.nome}: ${m.texto}`).join('\n');
+  const prompt = `Você é ${AMIGA.nome}, uma guerreira de um RPG medieval, escrevendo seu diário sobre seu amigo ${dados.nome}.
+O que você já lembrava dele:
+${dados.memoria.length ? '- ' + dados.memoria.join('\n- ') : '(nada ainda)'}
+A conversa de hoje:
+${conversa}
+Reescreva a lista do que vale lembrar dele (gostos, o que fizeram juntos, promessas, combinados, dicas que ele deu, como ele se sentiu). Junte com o que já lembrava, tire repetições e coisas sem importância. No máximo ${M.max} itens curtos (até ${M.tamanho} letras), em português do Brasil, na primeira pessoa ("ele gosta de...").
+Dicas de combate que ele pediu para você seguir (true se ele pediu, false se pediu para parar, deixe de fora se não falou): ${regras}.
+Devolva só JSON: {"memorias": ["..."], "regras": {}}`;
+  for (const modelo of [...MODELOS_DIARIO, process.env.GROQ_MODELO || 'openai/gpt-oss-120b']) {
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
+        body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 900 }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (r.status === 404 || r.status === 400) continue; // modelo saiu do Groq: tenta o próximo
+      if (!r.ok) return null; // limite do dia ou chave ruim: fica para a próxima conversa
+      const out = JSON.parse((await r.json())?.choices?.[0]?.message?.content || '{}');
+      return { memorias: Array.isArray(out.memorias) ? out.memorias : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null };
+    } catch { return null; }
+  }
+  return null;
 }
