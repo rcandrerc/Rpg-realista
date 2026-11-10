@@ -1,14 +1,16 @@
 shader_type spatial;
 render_mode cull_disabled, diffuse_toon, specular_disabled, world_vertex_coords;
 // Mato alto (mato.gd, André 2026-11-10: "os matos crescendo, mais mato mesmo, em vez de um chão pintado de verde").
-// Folhas de verdade em malha (sem textura com recorte: no celular o discard de transparência pesa mais que uns
-// triângulos a mais). UV.y = altura na folha (0 no pé, 1 na ponta).
+// Capim em cartas com folhinhas desenhadas (com_textura) e samambaia em malha. UV.y = altura (0 no pé, 1 na ponta).
 // - pé da touceira na cor do chão em volta (o mesmo forrest_ground do chão, lido bem borrado), ponta na cor sorteada
 //   da touceira (COLOR, a PALETA da grama do jogo): o mato nasce do chão pintado sem emenda;
 // - vento: balanço lento com rajada que corre pelo campo;
 // - o herói passa por dentro e o mato abre e deita em volta dele (pisa);
 // - longe a touceira encolhe até sumir (de encolhe_de a encolhe_ate m): sem borda reta onde o mato acaba.
 uniform sampler2D grama_tex : source_color, filter_linear_mipmap, repeat_enable;
+// capim em cartas (2026-11-10): mato_capim.png, duas touceiras lado a lado (COLOR.a escolhe), recortada pelo alfa
+uniform sampler2D capim_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform bool com_textura = false;
 uniform vec3 tom_grama : source_color = vec3(0.91, 0.94, 0.85);
 uniform float encolhe_de = 30.0;
 uniform float encolhe_ate = 42.0;
@@ -17,8 +19,10 @@ uniform vec4 pisa = vec4(0.0, -999.0, 0.0, 0.9); // xyz = pés do herói, w = ra
 varying float altura;
 varying vec3 cor_chao;
 varying vec3 nw;
+varying float metade;
 void vertex() {
 	altura = UV.y;
+	metade = COLOR.a;
 	vec3 o = MODEL_MATRIX[3].xyz;
 	float tam = 1.0 - smoothstep(encolhe_de, encolhe_ate, distance(o, CAMERA_POSITION_WORLD));
 	VERTEX = o + (VERTEX - o) * tam; // world_vertex_coords: VERTEX e NORMAL já vêm no mundo
@@ -46,7 +50,18 @@ void vertex() {
 }
 void fragment() {
 	vec3 ponta = COLOR.rgb;
-	vec3 c = mix(cor_chao * 0.62, ponta, smoothstep(0.0, 0.55, altura));
+	vec3 c;
+	if (com_textura) {
+		vec4 t = texture(capim_tex, vec2(UV.x * 0.5 + step(0.5, metade) * 0.5, 1.0 - UV.y));
+		ALPHA = t.a;
+		ALPHA_SCISSOR_THRESHOLD = 0.45;
+		// o desenho dá as folhinhas claras e escuras; a touceira dá o tom (PALETA da grama do jogo)
+		c = t.rgb * ponta * 1.85;
+		c = mix(vec3(dot(c, vec3(0.333))), c, 0.8); // menos neon
+		c = mix(cor_chao * 0.7, c, smoothstep(0.0, 0.3, altura));
+	} else {
+		c = mix(cor_chao * 0.62, ponta, smoothstep(0.0, 0.55, altura));
+	}
 	c *= mix(0.9, 1.04, altura);
 	NORMAL = normalize(mat3(VIEW_MATRIX) * nw);
 	ALBEDO = c;
