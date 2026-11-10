@@ -596,7 +596,7 @@ func _visual_leve() -> void:
 			b.custom_minimum_size = Vector2(0, 40)
 			linha.add_child(b)
 		conteudo.add_child(linha)
-	_texto("Sombras leves: sombra de verdade só nas pessoas, monstros e casas; árvores ganham sombra pintada (mais leve).", Menu.APAGADO, 13)
+	_texto("Sombras leves: sombra de verdade só nas pessoas e monstros; árvores e casas da vila ganham sombra pintada (mais leve).", Menu.APAGADO, 13)
 
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:

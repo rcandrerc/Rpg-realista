@@ -264,7 +264,10 @@ func _ready() -> void:
 	achar_troncos(vila)
 	juntar_vila(vila)
 	montar_chao()
-	montar_grama()
+	# André 2026-11-10 ("pode tirar essas plantinhas quadradas que sobraram, todas, no mapa inteiro; deixa só o mato
+	# novo"): as folhinhas de grama antigas (montar_grama, grama.gdshader) não são mais montadas; o capim e a samambaia
+	# do mato.gd ficam. O nó vazio fica para quem ainda fala com a grama (Teste "Sem grama", construcao.gd).
+	grama = MultiMeshInstance3D.new()
 	# fonte do jogo (Alegreya Sans, OFL) no lugar da letra padrão do Godot: HUD, menus e números de dano
 	ThemeDB.fallback_font = load("res://fontes/AlegreyaSans-Bold.ttf")
 	fx = Efeitos.new()

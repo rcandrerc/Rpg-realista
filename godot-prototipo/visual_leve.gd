@@ -2,8 +2,9 @@ extends Node
 # Visual leve (André 2026-11-10, olhando o Evil Lands: "gráficos simples mas bonitos e o jogo muito leve").
 # Duas escolhas em Configurações (o padrão é o jogo de hoje; nada some, só liga quando o jogador escolhe):
 # - Sombras "Leves": a sombra de verdade (a que a placa desenha de novo todo quadro) só nos personagens (herói, NPCs,
-#   monstros, montaria) e nas casas; árvores, mato, pedras e chão param de entrar no mapa de sombra. Embaixo de cada
-#   árvore fica uma sombra pintada (mancha macia no chão, igual nos jogos leves de celular), que fica bem fraca à noite.
+#   monstros, montaria) e nas casas construídas nos lotes; árvores, casas da vila, mato, pedras e chão param de entrar no
+#   mapa de sombra. Embaixo de cada árvore e em volta de cada casa da vila fica uma sombra pintada (mancha macia no chão,
+#   igual nos jogos leves de celular), que fica bem fraca à noite. Padrão desde 2026-11-10 (André aprovou pelas fotos).
 #   Na medição (placa de vídeo por software, 2400x1080) a sombra era 1/3 a 1/2 do desenho; assim cai ~15-20%.
 # - Cor da grama "Natural": verde-oliva mais natural (como o capim do Evil Lands), ainda pintado: o chão, o capim alto
 #   e as folhinhas de grama ganham o mesmo tom.
@@ -18,8 +19,9 @@ const PEDACO := 32.0
 var m # main.gd
 var sombra_leve := false
 var grama_natural := false
-var casas := true # casas continuam com sombra de verdade no modo leve
+var casas := false # André 2026-11-10: na vila a sombra das casas pode ser fixa, pintada (as casas que o jogador constrói continuam com a de verdade)
 var _mat_mancha: ShaderMaterial
+var _mat_casa: ShaderMaterial
 var _manchas: Array = [] # MultiMeshInstance3D das sombras pintadas
 var _feito := false
 var _t := 0.0
@@ -31,10 +33,13 @@ func _init(jogo) -> void:
 	name = "VisualLeve"
 	var cfg := ConfigFile.new()
 	cfg.load(ARQUIVO)
-	sombra_leve = bool(cfg.get_value("config", "sombra_leve", false))
-	grama_natural = bool(cfg.get_value("config", "grama_natural", false))
+	sombra_leve = bool(cfg.get_value("config", "sombra_leve", true)) # André 2026-11-10: o leve é o padrão
+	grama_natural = bool(cfg.get_value("config", "grama_natural", false)) # André preferiu a cor atual (fica a opção)
 	_mat_mancha = ShaderMaterial.new()
 	_mat_mancha.shader = load("res://sombra_pintada.gdshader")
+	_mat_casa = ShaderMaterial.new()
+	_mat_casa.shader = _mat_mancha.shader
+	_mat_casa.set_shader_parameter("retangulo", true)
 
 func _enter_tree() -> void:
 	get_tree().node_added.connect(_entrou)
@@ -100,11 +105,11 @@ func _projeta(g: Node) -> bool:
 			return true
 		if a == m.vila_no:
 			if not casas:
-				return false
+				return false # a casa ganha sombra pintada (_montar_manchas)
 			# casas do vila.glb: as grandes que não são árvore (as árvores ganham sombra pintada)
 			return g is MeshInstance3D and g.get_aabb().size.y * g.global_transform.basis.get_scale().y > 3.0 and not _eh_arvore_vila(g)
-		if a == m.construcao: # Vila dos Lotes: casas e peças construídas
-			return casas
+		if a == m.construcao: # Vila dos Lotes: casas e peças construídas (poucas, continuam com sombra de verdade)
+			return true
 		a = a.get_parent()
 		n += 1
 	return false
@@ -176,10 +181,31 @@ func _montar_manchas() -> void:
 			i += 1
 		_manchas.append(_instancia(mm))
 
-func _instancia(mm: MultiMesh) -> MultiMeshInstance3D:
+	# casas da vila (vila.glb, terreno.casas): mancha retangular macia em volta da base, girada como a casa
+	var lista: Array = []
+	if m.terreno and not casas:
+		for c in m.terreno.casas:
+			if not c.has("cel") and c.has("hw"):
+				lista.append(c)
+	if not lista.is_empty():
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = plano
+		mm.instance_count = lista.size()
+		for i in lista.size():
+			var c: Dictionary = lista[i]
+			var ex := Vector3(float(c.cos), 0, -float(c.sen))
+			var ez := Vector3(float(c.sen), 0, float(c.cos))
+			var o := Vector3(float(c.x), 0, float(c.z))
+			var fora := o + ex * (float(c.hw) + 1.5)
+			var y: float = m.terreno.altura(fora.x, fora.z)
+			mm.set_instance_transform(i, Transform3D(Basis(ex * (float(c.hw) + 1.6), Vector3.UP, ez * (float(c.hd) + 1.6)), Vector3(o.x, y + 0.07, o.z)))
+		_manchas.append(_instancia(mm, _mat_casa))
+
+func _instancia(mm: MultiMesh, mat: ShaderMaterial = null) -> MultiMeshInstance3D:
 	var g := MultiMeshInstance3D.new()
 	g.multimesh = mm
-	g.material_override = _mat_mancha
+	g.material_override = mat if mat else _mat_mancha
 	g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.visibility_range_end = 80.0
 	g.visibility_range_end_margin = 6.0
@@ -220,6 +246,7 @@ func _process(dt: float) -> void:
 	if absf(f - _forca) > 0.01:
 		_forca = f
 		_mat_mancha.set_shader_parameter("forca", f)
+		_mat_casa.set_shader_parameter("forca", f)
 
 # ---------- cor da grama ----------
 func _param(mat: ShaderMaterial) -> String:
