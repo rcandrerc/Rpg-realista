@@ -85,9 +85,11 @@ void fragment() {
 	vec3 p0 = texture(pedra_tex, w / 2.6).rgb;
 	vec3 pedra = p0 * 0.8 * 0.5;
 	vec2 mk = texture(mascara, (mundo.xz - area.xy) / area.z).rg;
-	float lum = dot(pow(texture(grama_cru, w * (70.0 / 320.0)).rgb, vec3(2.2)), vec3(0.6));
+	// (leveza 2026-11-10) o brilho linear da foto é o mesmo g0/p0 já lido (source_color = a foto em linear): sem ler
+	// a mesma textura duas vezes por ponto
+	float lum = dot(g0, vec3(0.6));
 	float pt = smoothstep(0.3, 0.62, mk.r + (lum - 0.3) * 1.4);
-	float pp = smoothstep(0.35, 0.6, mk.g + (dot(pow(texture(pedra_cru, w / 2.6).rgb, vec3(2.2)), vec3(0.5)) - 0.15) * 0.8);
+	float pp = smoothstep(0.35, 0.6, mk.g + (dot(p0, vec3(0.5)) - 0.15) * 0.8);
 	vec3 c = mix(grama, terra, pt);
 	c = mix(c, pedra * 1.6, pp);
 	// estrada do mundo chegando no mapa de hoje: a mesma terra e a mesma borda do chão do mundo

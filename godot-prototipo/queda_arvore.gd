@@ -65,6 +65,8 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 		for parte in ["tronco", "copa"]:
 			if c.has(parte):
 				c[parte][0].set_instance_transform(c[parte][1], Transform3D(Basis().scaled(Vector3.ZERO), c.t.origin))
+		if m.leve: # a sombra pintada (Sombras "Leves") some junto
+			m.leve.crescer(c, 0.0)
 	else:
 		for mi in _vila.get(_chave(pos.x, pos.z), []):
 			info.partes_vila.append([mi, mi.scale])
@@ -185,6 +187,8 @@ func _crescer_mata(k: float, c: Dictionary) -> void:
 	for parte in ["tronco", "copa"]:
 		if c.has(parte):
 			c[parte][0].set_instance_transform(c[parte][1], Transform3D(c.t.basis.scaled(Vector3.ONE * k), c.t.origin))
+	if m.leve:
+		m.leve.crescer(c, k)
 
 func _cresceu_mata(c: Dictionary) -> void:
 	_crescer_mata(1.0, c)
