@@ -41,6 +41,7 @@ var _cache := {} # Vector2i -> [buffer capim, buffer samambaia]
 var _fila: Array = [] # quadrados a montar, do mais perto para o mais longe
 var _fazendo := {} # quadrado sendo sorteado aos poucos: {k, i, capim, sam, rng}
 var _centro := Vector2i(999999, 999999)
+var _sinal_obst := -1 # soma de peças e hortas de todos os lotes: igual = nada mudou, nem olha lote por lote
 var _sinais := {} # lote -> sinal (peças e horta); mudou: só os quadrados daquele lote são sorteados de novo
 var _refazer := {} # quadrados na tela que estão sendo sorteados de novo (o mato velho fica até o novo ficar pronto)
 var _t_sinal := 0.0
@@ -170,7 +171,10 @@ func _process(dt: float) -> void:
 	_t_sinal -= dt
 	if _t_sinal <= 0.0:
 		_t_sinal = 2.0
-		_conferir_lotes()
+		var sn := _sinal_obstaculos()
+		if sn != _sinal_obst:
+			_sinal_obst = sn
+			_conferir_lotes()
 	var c := Vector2i(floori(hp.x / CEL), floori(hp.z / CEL))
 	if c != _centro:
 		_centro = c
@@ -360,6 +364,14 @@ func _conferir_lotes() -> void:
 				if _vivos.has(k) and not _refazer.has(k):
 					_refazer[k] = true
 					_fila.push_front(k)
+
+func _sinal_obstaculos() -> int:
+	var s: int = T.solidos.size() * 7919
+	var cons = m.get("construcao")
+	if cons != null:
+		for id in cons.lotes:
+			s += cons.lotes[id].pecas.size() * 31 + cons.lotes[id].horta.size()
+	return s
 
 # ---------- montar e soltar os quadrados ----------
 
