@@ -241,3 +241,50 @@ ok(ITENS.lenha, 'itens');
   } else ok(false, 'nenhum spot de pesca nasceu no teste');
 }
 function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
+
+// ---------- vários amigos com chave (André 2026-11-10: irmão e irmã, cada um com a sua chave Groq) ----------
+{
+  const s7 = new Simulacao(MAPA_CLAREIRA);
+  const d = s7.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 });
+  const ir = s7.adicionarJogador('irmao', 'Irmão', 'ruiva', { conta: 2 });
+  s7.adicionarJogador('sem', 'Sem Chave', 'ruiva', { conta: 3 });
+  s7.amigaEntrar('andre'); s7.amigaEntrar('irmao');
+  const c = s7.amiga, esp = (t) => { for (let i = 0; i < t * 20; i++) s7.passo(0.05); };
+  const fila = () => c.ia.chatFila || [];
+  ok(s7.amigaDono === 'andre' && s7.podeAmiga('irmao') && !s7.podeAmiga('sem'), 'os dois com chave conversam; ela acompanha quem chegou primeiro');
+  s7.eventos = []; s7.chat('sem', { canal: 'pm', para: AMIGA.conta, texto: 'oi' });
+  ok(!s7.contextoAmiga('sem') && s7.eventos.some((e) => e.t === 'aviso' && e.para === 'sem'), 'sem chave: vê, mas não conversa');
+  s7.eventos = []; s7.enviarAmigos(s7.jogadores.get('sem'));
+  ok(s7.eventos.some((e) => e.t === 'amigos' && e.virtuais[0]?.ia === false), 'sem chave: a lista mostra ela com o botão de ativar');
+  c.amizade = 3;
+  const rr = Math.random; Math.random = () => 0.01; s7.respostaAmiga('andre', { assunto: 'time' }); Math.random = rr;
+  ok(c.time && c.time === d.time, 'André chamou primeiro: ela entrou no time dele');
+  s7.respostaAmiga('irmao', { assunto: 'time' });
+  ok(s7.amigaDono === 'andre' && fila().at(-1)?.para === 'irmao' && fila().at(-1).texto.includes('André'), `irmão chamou depois: "${fila().at(-1)?.texto}"`);
+  s7.respostaAmiga('irmao', { assunto: 'conversa', fala: 'Oi! Tudo bem por aí?' });
+  ok(fila().at(-1)?.para === 'irmao' && s7.amigaDono === 'andre', 'mas conversa com o irmão ao mesmo tempo');
+  esp(20);
+  ok(s7.chatDeAmiga(ir).some((m) => m.de === 'ela') && !s7.chatDeAmiga(d).some((m) => m.texto === 'Oi! Tudo bem por aí?'), 'cada um tem a sua conversa');
+  s7.amigaSair('andre');
+  ok(s7.amiga === c && s7.amigaDono === 'irmao' && !c.time && c.amizade === 0, 'André saiu: ela fica com o irmão (amizade dele começa do zero)');
+  c.amizade = 1;
+  s7.guardarAmiga();
+  const sv = s7.loteDaAmiga().amiga;
+  ok(sv.amizades.c1 === 3 && sv.amizades.c2 === 1, `amizade separada por conta: ${JSON.stringify(sv.amizades)}`);
+  s7.amigaSair('irmao');
+  ok(!s7.amiga, 'o último com chave saiu: ela sai');
+}
+{ // save antigo (amizade era só do André): o irmão entra primeiro e a amizade do André não se perde
+  const s8 = new Simulacao(MAPA_CLAREIRA);
+  s8.adicionarJogador('irmao', 'Irmão', 'ruiva', { conta: 2 });
+  s8.amigaEntrar('irmao');
+  s8.loteDaAmiga().amiga = {}; s8.amigaSair('irmao');
+  const L8 = s8.loteDaAmiga(); L8.amiga = { amizade: 7 };
+  s8.adicionarJogador('irmao2', 'Irmão', 'ruiva', { conta: 2 });
+  s8.amigaEntrar('irmao2');
+  ok(s8.amiga.amizade === 0, 'irmão começa do zero');
+  s8.guardarAmiga(); s8.amigaSair('irmao2');
+  const d8 = s8.adicionarJogador('andre', 'André', 'ruiva', { conta: 1, testador: true });
+  s8.amigaEntrar('andre');
+  ok(s8.amiga.amizade === 7 && s8.amizadeAmiga(d8) === 7, 'André continua com a amizade antiga (7)');
+}

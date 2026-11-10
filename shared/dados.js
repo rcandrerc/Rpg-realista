@@ -2041,6 +2041,7 @@ export const AMIGA = {
       naoVir: ['Agora não dá, tô no meio de uma coisa aqui. Daqui a pouco!', 'Ai, agora não consigo... me chama mais tarde?'],
       perto: ['Ué, eu tô do seu lado! Olha pra trás.', 'Tô aqui pertinho, bobo!'],
       chamaRespostaSim: ['Eba! Tô indo aí!', 'Isso! Já tô a caminho.'],
+      comOutro: ['Agora tô com {nome}! Assim que eu terminar aqui, a gente vê isso, tá?', 'Opa, tô ocupada com {nome} agora. Me chama daqui a pouco!'], // André 2026-11-10: ela é de todos, mas um de cada vez
       chamaRespostaNao: ['Tudo bem, fica pra próxima!', 'Poxa... tá bom, mais tarde então.'],
       elogio: ['Para, assim eu fico vermelha!', 'Hehe, você também é demais!', 'Eu sei, eu sei. Mas obrigada mesmo assim!'],
       obrigado: ['De nada! Amigo é pra isso.', 'Imagina! Você faria o mesmo por mim.'],

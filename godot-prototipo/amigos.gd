@@ -20,6 +20,7 @@ var barras_s := 1.0
 const BARRAS := Vector2(18, 122)
 var _remover := "" # conta do amigo esperando o segundo toque em "Remover"
 var _lista_t := 0.0
+var _ativar_ia := false # mostrando os 2 passos de "Ativar conversa com IA" (André 2026-11-10)
 var _rolar_y := 0 # a janela Multijogador refaz a cada 1 s: a lista não volta para o topo
 
 func _init(principal) -> void:
@@ -257,6 +258,29 @@ func montar_janela(mt) -> void:
 			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			l.clip_text = true
 			linha.add_child(l)
+			if not v.get("ia", true):
+				# sem a chave Groq dele: cria a chave grátis no site e cola aqui uma vez só (o servidor testa e guarda na conta)
+				linha.add_child(_pequeno(mt._botao("Ativar conversa com IA", func():
+					_ativar_ia = not _ativar_ia
+					mt.montar(), _ativar_ia), 200))
+				col.add_child(linha)
+				linhas += 1
+				if _ativar_ia:
+					col.add_child(Menu.rotulo("1. Entre com sua conta Google no site e toque em Create API Key. Copie a chave.\n2. Volte aqui e toque em Colar a chave.", 14, Menu.APAGADO))
+					var passos := HBoxContainer.new()
+					passos.add_theme_constant_override("separation", 8)
+					passos.add_child(_pequeno(mt._botao("1. Criar chave grátis", func(): OS.shell_open("https://console.groq.com/keys"), false), 190))
+					passos.add_child(_pequeno(mt._botao("2. Colar a chave", func():
+						var chave := DisplayServer.clipboard_get().strip_edges()
+						if not chave.begins_with("gsk_"):
+							m.troca.mostrar_cartao("Copie a chave no site do Groq primeiro (começa com gsk_)", [["Ok", func(): pass]], 6.0)
+							return
+						m.rede("chaveIa", {"chave": chave})
+						_ativar_ia = false
+						mt.montar(), false), 170))
+					col.add_child(passos)
+					linhas += 3
+				continue
 			if m.chat:
 				linha.add_child(_pequeno(mt._botao("Msg", func():
 					mt.fechar()
