@@ -221,6 +221,10 @@ var etapa := -1
 var t_etapa := 0.0
 var quadros := 0
 var soma_proc := 0.0
+# FPS (2026-11-10): o Teste também mede a placa de vídeo (tempo que a GPU leva para desenhar o quadro) e o tempo do
+# processador para mandar desenhar. Assim dá para ver no celular quem segura o FPS: o jogo (CPU) ou a placa (GPU).
+var soma_gpu := 0.0
+var soma_rcpu := 0.0
 var resultados := []
 var rotulo: Label
 var botao_teste: Button
@@ -4033,6 +4037,8 @@ func montar_teste() -> void:
 		{"nome": "Sem sombra", "f": func(): sol.shadow_enabled = false},
 		{"nome": "Sem grama", "f": func(): _sem_grama()},
 		{"nome": "20 personagens", "f": func(): mostrar_extras(true)},
+		{"nome": "Resolução menor 0.45x", "f": func(): get_viewport().scaling_3d_scale = 0.45},
+		{"nome": "Sem mato alto", "f": func(): mato.visible = false},
 	]
 
 func _sem_grama() -> void:
@@ -4062,6 +4068,7 @@ func restaurar() -> void:
 		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
 func comecar_teste() -> void:
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	resultados.clear()
 	botao_teste.visible = false
 	etapa = -1
@@ -4073,11 +4080,14 @@ func proxima_etapa() -> void:
 	if etapa >= etapas.size():
 		etapa = -1
 		botao_teste.visible = true
+		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), false)
 		return
 	etapas[etapa].f.call()
 	t_etapa = 0.0
 	quadros = 0
 	soma_proc = 0.0
+	soma_gpu = 0.0
+	soma_rcpu = 0.0
 
 func atualizar_teste(dt: float) -> void:
 	var fps := Engine.get_frames_per_second()
@@ -4092,9 +4102,12 @@ func atualizar_teste(dt: float) -> void:
 		if t_etapa > ESPERA:
 			quadros += 1
 			soma_proc += proc
+			soma_gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+			soma_rcpu += RenderingServer.viewport_get_measured_render_time_cpu(get_viewport().get_viewport_rid())
 		txt += "\nTestando %d/%d: %s…" % [etapa + 1, etapas.size(), etapas[etapa].nome]
 		if t_etapa >= ESPERA + MEDE:
-			resultados.append("%s: %.0f FPS · %.1f ms" % [etapas[etapa].nome, quadros / MEDE, soma_proc / max(1, quadros)])
+			var q: float = max(1, quadros)
+			resultados.append("%s: %.0f FPS · jogo %.1f ms · desenho %.1f ms · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE, soma_proc / q, soma_rcpu / q, soma_gpu / q])
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
