@@ -17,7 +17,34 @@ uniform float encolhe_de = 30.0;
 uniform float encolhe_ate = 42.0;
 uniform float vento = 1.0;
 uniform vec4 pisa = vec4(0.0, -999.0, 0.0, 0.9); // xyz = pés do herói, w = raio
+// sombra pintada das árvores (visual_leve.gd, Sombras "Leves"): mapa do mundo, 1 px por metro, 1 = sol
+uniform sampler2D sombra_mapa : filter_linear, repeat_disable;
+uniform vec4 sombra_area = vec4(0.0, 0.0, 1.0, 1.0);
+uniform float sombra_forca = 0.0;
+// R = copas (com manchinhas de sol entre as folhas, ruído no chão), G = casas (sombra lisa)
+float sp_ruido(vec2 p) {
+	vec2 i = floor(p), f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5);
+	float b = fract(sin(dot(i + vec2(1, 0), vec2(127.1, 311.7))) * 43758.5);
+	float c = fract(sin(dot(i + vec2(0, 1), vec2(127.1, 311.7))) * 43758.5);
+	float d = fract(sin(dot(i + vec2(1, 1), vec2(127.1, 311.7))) * 43758.5);
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float sombra_pintada(vec2 xz) {
+	if (sombra_forca <= 0.0) return 1.0;
+	vec2 uv = (xz - sombra_area.xy) / sombra_area.zw;
+	if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 1.0;
+	vec2 s = textureLod(sombra_mapa, uv, 0.0).rg;
+	float copa = 1.0 - s.r;
+	if (copa > 0.01) {
+		float n = sp_ruido(xz * 1.35) * 0.65 + sp_ruido(xz * 3.1 + 7.3) * 0.35;
+		copa *= clamp(0.35 + 1.1 * smoothstep(0.25, 0.75, n), 0.0, 1.1);
+	}
+	return 1.0 - clamp(copa + (1.0 - s.g), 0.0, 0.72) * sombra_forca;
+}
 varying float altura;
+varying float sombra_v;
 varying vec3 cor_chao;
 varying vec3 nw;
 varying float metade;
@@ -48,6 +75,7 @@ void vertex() {
 	nw = normalize(vec3(0.0, 1.0, 0.0) + NORMAL * 0.35);
 	vec2 w = vec2(o.x, -o.z);
 	cor_chao = textureLod(grama_tex, w * (70.0 / 320.0), 5.0).rgb * tom_grama;
+	sombra_v = sombra_pintada(o.xz);
 }
 void fragment() {
 	vec3 ponta = COLOR.rgb * tom_ponta;
@@ -65,7 +93,7 @@ void fragment() {
 	}
 	c *= mix(0.9, 1.04, altura);
 	NORMAL = normalize(mat3(VIEW_MATRIX) * nw);
-	ALBEDO = c;
+	ALBEDO = c * sombra_v;
 	ROUGHNESS = 0.9;
 	BACKLIGHT = c * 0.25; // contraluz: a folha fina acende quando o sol está atrás
 }
