@@ -71,6 +71,7 @@ class SalaClareira extends Room {
     });
     // amigos (até 20, ficam na conta) e time (shared/simulacao.js amigo/time): pedir, aceitar, recusar, remover, convidar, sair
     const texto = (v) => (typeof v === 'string' ? v.slice(0, 32) : undefined);
+    this.ouvir('verEquip', (c, m) => { if (m && typeof m.com === 'string' && m.com.length < 40) this.sim.verEquip(c.sessionId, { com: m.com }); }); // ver o equipamento de quem está perto
     this.ouvir('amigo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.amigo(c.sessionId, { acao: m.acao, com: texto(m.com), c: texto(m.c) }); });
     this.ouvir('time', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.time(c.sessionId, { acao: m.acao, com: texto(m.com) }); });
     // amizade feita ou desfeita: grava na conta (as duas pontas); desfeita, avisa também as outras salas
