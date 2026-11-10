@@ -75,6 +75,8 @@ export class Contas {
       personagem: this.db.prepare('UPDATE contas SET nome = ?, visual = ?, aparencia = ? WHERE id = ? AND visual IS NULL'),
       aparencia: this.db.prepare('UPDATE contas SET aparencia = ? WHERE id = ? AND visual IS NOT NULL'),
       visual: this.db.prepare('UPDATE contas SET visual = ? WHERE id = ? AND visual IS NOT NULL'),
+      nome: this.db.prepare('UPDATE contas SET nome = ? WHERE id = ? AND visual IS NOT NULL'),
+      nomeLote: this.db.prepare('UPDATE lotes SET nome = ? WHERE dono = ?'),
       apagarSessoes: this.db.prepare('DELETE FROM sessoes WHERE conta = ?'),
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
@@ -143,6 +145,16 @@ export class Contas {
   salvarAparencia(id, aparencia) { this.q.aparencia.run(JSON.stringify(aparencia), id); }
   // Corpo trocado depois de criado (só os da lista: visualValido)
   salvarVisual(id, visual) { if (visualValido(visual)) this.q.visual.run(visual, id); }
+  // Nome único (André 2026-11-10): nenhuma outra conta com personagem criado usa o mesmo nome (sem diferença de
+  // maiúscula; o lower do SQLite só conhece A-Z, então a conferência com acento é feita aqui)
+  nomeLivre(nome, id) {
+    const k = String(nome).toLocaleLowerCase('pt-BR');
+    for (const c of this.db.prepare('SELECT id, nome FROM contas WHERE visual IS NOT NULL AND id != ?').iterate(id ?? -1))
+      if (String(c.nome || '').toLocaleLowerCase('pt-BR') === k) return false;
+    return true;
+  }
+  // Nome trocado pagando (o personagem já existe): a conta e a placa do terreno
+  salvarNome(id, nome) { this.q.nome.run(nome, id); this.q.nomeLote.run(nome, 'c' + id); }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }

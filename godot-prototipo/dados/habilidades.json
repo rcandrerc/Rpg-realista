@@ -1682,7 +1682,8 @@
  },
  "nome": {
   "min": 3,
-  "max": 16
+  "max": 16,
+  "troca": 10000
  },
  "estamina": {
   "base": 50,

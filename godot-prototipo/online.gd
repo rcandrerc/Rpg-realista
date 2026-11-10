@@ -30,6 +30,8 @@ static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela i
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
 var _pronto := false
+var _nome_recusado := "" # nome que o servidor recusou no criador (já é de outra conta)
+var _erro_nome := ""
 var _ap_mandar = null # aparência do criador esperando para ir ao servidor (no máximo 4 por segundo)
 var _ap_t := 0.0
 var _ap_txt := "" # última aparência do meu herói que veio do servidor
@@ -388,7 +390,9 @@ func aplicar_foto(f: Dictionary) -> void:
 		if j.get("criando", false):
 			if str(j.id) == meu_id and not _pronto: # conta nova: abre o criador (a base é a Ruiva)
 				_pronto = true
-				var nome := str(rede.conta.get("nome", "")).strip_edges().left(16)
+				# André 2026-11-10: o jogador escolhe o nome (antes vinha o nome da conta Google); se o servidor
+				# recusou (nome de outra conta), volta com o nome recusado e o aviso
+				var nome := _nome_recusado
 				m.criador.abrir_criacao(nome, m.aparencia, func(n, a, corpo):
 					rede.enviar("pronto", {"nome": n, "visual": corpo, "aparencia": a})
 					m.trocar_corpo(corpo, false)
@@ -399,6 +403,9 @@ func aplicar_foto(f: Dictionary) -> void:
 						if corpo != _visual_mandado:
 							_visual_mandado = corpo
 							rede.enviar("visual", corpo), m.visual)
+				if _erro_nome != "":
+					m.criador.erro.text = _erro_nome
+					_erro_nome = ""
 			continue
 		jogadores += 1
 		if str(j.id) == meu_id:
@@ -519,6 +526,12 @@ func outro(j: Dictionary) -> void:
 			"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
 		no.position = o.alvo
 		o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
+		o.placa = null
+		for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
+			if f is Label3D:
+				o.placa = f
+				break
+		o.placa_txt = ""
 		o.ap = ""
 		outros[id] = o
 	var antes: Vector3 = o.alvo
@@ -528,6 +541,11 @@ func outro(j: Dictionary) -> void:
 		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador))
 	if str(j.get("nome", "")) != "":
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
+	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
+	var placa: String = "%s · Nv %d" % [str(j.get("nome", "")), int(j.get("nivel", 1))] if j.has("nivel") else str(j.get("nome", ""))
+	if placa != o.placa_txt and o.placa != null:
+		o.placa_txt = placa
+		o.placa.text = placa
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
@@ -827,6 +845,18 @@ func evento(ev: Dictionary) -> void:
 			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
+			if m.criador and m.criador.aberto():
+				m.criador.aviso_servidor(str(ev.texto))
+			return
+		"nomeUsado": # criador: o nome já é de outra conta; a próxima foto (ainda criando) abre o criador de novo
+			_nome_recusado = str(ev.get("nome", ""))
+			_erro_nome = str(ev.get("texto", ""))
+			_pronto = false
+			return
+		"nome": # troquei o nome pagando (botão no Aparência)
+			m.hud.nome = str(ev.get("nome", m.hud.nome))
+			if m.criador and m.criador.aberto():
+				m.criador.nome_trocado(m.hud.nome)
 			return
 		"tomo": # aprendeu com o Tomo (André 2026-11-07): faixa de "Parabéns!" por cima da janela
 			if m.menu:
