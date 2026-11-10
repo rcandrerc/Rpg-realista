@@ -16,6 +16,7 @@
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { AMIGA, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
+import { planejarRota } from './rota.js';
 import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
@@ -189,7 +190,7 @@ export const Amiga = {
     // no time do dono: segue, luta e cuida da vida (fase 2); saiu do time: volta para a vida dela
     if (j.time && dono && j.time.membros.includes(dono.id)) { ia.noTime = true; return this.passoTimeAmiga(j, dono, dt); }
     if (j.time) this.sairDoTime(j, `${AMIGA.nome} saiu do time`); // o dono saiu da sala ou do time: ela não fica com outros
-    if (ia.noTime) { ia.noTime = false; j.montado = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 1; if (dono) this.falarAmiga(AMIGA.falas.voltou); this.pocoesAmiga(j); }
+    if (ia.noTime) { ia.noTime = false; ia.viagem = null; j.montado = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 1; if (dono) this.falarAmiga(AMIGA.falas.voltou); this.pocoesAmiga(j); }
     if (ia.fase === 'andar') return this.andarAmiga(j, dt);
     if (ia.fase === 'trabalhar') {
       if (this.tempo >= ia.golpe) { ia.golpe = this.tempo + ia.ritmo; j.acao = { nome: ia.anim, ts: 1 }; j.acaoSeq++; }
@@ -400,12 +401,10 @@ export const Amiga = {
   },
   passoTimeAmiga(j, dono, dt) {
     const R = AMIGA.time, ia = j.ia, d = Math.hypot(dono.x - j.x, dono.z - j.z);
-    // ficou muito para trás (o dono voltou para a vila, disparou no lobo...): chega correndo atrás dele
-    if (d > R.longe || (dono.caverna && !j.caverna && d > 8)) {
-      const ang = dono.ry + Math.PI + 0.6, x = dono.x + Math.sin(ang) * 2, z = dono.z + Math.cos(ang) * 2;
-      Object.assign(j, { x, z, y: dono.y, vy: 0, chao: true, caverna: dono.caverna ? { desde: this.tempo } : j.caverna });
-      return this.pararAmiga(j);
-    }
+    // ficou muito para trás (o dono voltou para a vila, disparou no lobo...): monta no lobo e vem pela estrada até ele
+    // (André 2026-11-10: nada de aparecer do lado; antes, de R.longe m para lá, ela surgia atrás dele)
+    this.cavernaAmiga(j, dono);
+    if (this.longeAmiga(j, dono, d, dt)) return;
     if (j.trava > 0) return this.pararAmiga(j);
     const alvo = this.alvoAmiga(j, dono);
     // montaria: monta quando o dono monta (e desce para lutar)
@@ -443,6 +442,58 @@ export const Amiga = {
     const dp = Math.hypot(px - j.x, pz - j.z);
     if (dp < 0.6 || (d < seguir + 0.8 && !dono.montado)) return this.pararAmiga(j);
     this.irDireto(j, px, pz, dp > R.correr || !!dono.montado);
+  },
+  // ---------- viagem até o dono (André 2026-11-10: "ela entra na montaria e vem até mim, não se teleporta; eu vejo ela
+  // no mapa vindo na minha direção, como um jogador normal"; "vai pelas estradas para não travar") ----------
+  // true = está viajando (já cuidou do passo). Longe do dono: monta no lobo e segue a rota pela estrada (shared/rota.js);
+  // água no caminho desce do lobo e atravessa (sobe de novo no seco); preso desvia de lado. Perto (V.chega m): larga a
+  // estrada e o resto (seguir, chegar, lutar) é o de sempre. Em outra terra (só de barco): avisa uma vez e espera.
+  longeAmiga(j, dono, d, dt) {
+    const V = AMIGA.viagem, ia = j.ia;
+    if (!(ia.viagem ? d > V.chega : d > V.estrada)) { ia.viagem = null; return false; }
+    let v = ia.viagem;
+    if (!v || (this.tempo >= v.novaEm && Math.hypot(v.fx - dono.x, v.fz - dono.z) > (v.bloqueio ? 2 : V.replanejar))) {
+      const r = planejarRota(this.mapa, j, dono), aviso = !v && !!dono && this.tempo >= (ia.avisoViagem || 0);
+      if (r.bloqueio) {
+        if (!v?.bloqueio) this.dizerAmiga(sorteia(AMIGA.chat.falas.outraTerra));
+        ia.viagem = { bloqueio: r.bloqueio, fx: dono.x, fz: dono.z, novaEm: this.tempo + 5 };
+        j.montado = null; this.pararAmiga(j); return true;
+      }
+      if (aviso && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; this.dizerAmiga(sorteia(AMIGA.chat.falas.aCaminho)); }
+      v = ia.viagem = { rota: r.pontos, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1 };
+      // a chamada pelo chat espera o tempo da viagem (lobo no galope + folga)
+      if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + r.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
+    }
+    if (v.bloqueio) { j.montado = null; this.pararAmiga(j); return true; }
+    if (j.trava > 0) return this.pararAmiga(j), true;
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    const P = v.rota, ult = P.length - 1;
+    while (v.i < ult && Math.hypot(P[v.i].x - j.x, P[v.i].z - j.z) < V.olha) v.i++;
+    const alvo = P[v.i], dx = alvo.x - j.x, dz = alvo.z - j.z, da = Math.hypot(dx, dz) || 1;
+    // montaria: água logo à frente desce do lobo; no seco de novo, sobe (como o "Ir para" do app)
+    const funda = (x, z) => (noLago(x, z)?.fundo || 0) > V.agua, f = Math.min(V.frente, da);
+    const agua = funda(j.x, j.z) || funda(j.x + dx / da * f, j.z + dz / da * f);
+    if (agua) { v.seco = 0; if (j.montado) j.montado = null; }
+    else if (!j.montado) { v.seco += dt; if (v.seco >= V.seco && j.chao && !j.esc) j.montado = MONTARIAS[dono.montado] ? dono.montado : 'lobo'; }
+    // preso (árvore, pedra, gente): desvia de lado um pouco; no mesmo ponto 3 vezes, pula para o próximo
+    v.t += dt;
+    if (v.desvio > 0) v.desvio -= dt;
+    else if (v.t >= V.preso) {
+      if (Math.hypot(j.x - v.x0, j.z - v.z0) < 0.8) {
+        v.desvio = V.desvio; v.lado = -v.lado;
+        if (v.iFalha === v.i) { if (++v.falhas >= 3 && v.i < ult) { v.i++; v.falhas = 0; } } else { v.iFalha = v.i; v.falhas = 1; }
+      }
+      v.t = 0; v.x0 = j.x; v.z0 = j.z;
+    }
+    let mx = dx / da, mz = dz / da;
+    if (v.desvio > 0) { const l = v.lado; [mx, mz] = [mx * 0.3 + mz * l, mz * 0.3 - mx * l]; const n = Math.hypot(mx, mz); mx /= n; mz /= n; }
+    j.entrada = { mx, mz, correr: true };
+    return true;
+  },
+  // o dono entrou na caverna (já com o selo aberto): chegando lá dentro andando, ela entra junto (passe do time)
+  cavernaAmiga(j, dono) {
+    if (dono.caverna && !j.caverna && this.naCaverna(j)) j.caverna = { desde: this.tempo };
   },
   irDireto(j, x, z, correr) {
     const dx = x - j.x, dz = z - j.z, d = Math.hypot(dx, dz) || 1;
@@ -638,10 +689,10 @@ export const Amiga = {
     ia.chamado = { quer: ch.quer, ate: this.tempo + C.espera };
     this.dizerAmiga(ch.texto, true);
   },
-  // indo até o André: perto anda/corre; muito longe (outra parte do mapa) chega correndo depois de uns segundos, como no time
+  // indo até o André: perto anda/corre; longe vem de lobo pela estrada (longeAmiga), como no time
   virAmiga(j, dono, dt) {
     const ia = j.ia, v = ia.vir, d = Math.hypot(dono.x - j.x, dono.z - j.z);
-    if (this.tempo > v.ate || dono.morto) { ia.vir = null; this.pararAmiga(j); ia.fase = 'pensar'; return false; }
+    if (this.tempo > v.ate || dono.morto) { ia.vir = null; ia.viagem = null; j.montado = null; this.pararAmiga(j); ia.fase = 'pensar'; return false; }
     if (d < 2.8) {
       ia.vir = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.viu = true;
       ia.conversaAte = this.tempo + AMIGA.conversa; j.ry = Math.atan2(dono.x - j.x, dono.z - j.z);
@@ -650,12 +701,11 @@ export const Amiga = {
       this.combinarAmiga(j);
       return true;
     }
-    if ((d > AMIGA.time.longe || (dono.caverna && !j.caverna)) && this.tempo >= v.longe) {
-      const ang = dono.ry + Math.PI + 0.6, x = dono.x + Math.sin(ang) * 3, z = dono.z + Math.cos(ang) * 3;
-      Object.assign(j, { x, z, y: dono.y, vy: 0, chao: true, caverna: dono.caverna ? { desde: this.tempo } : j.caverna });
-      return true;
-    }
+    // longe: monta no lobo e vem pela estrada (André 2026-11-10: antes, muito longe, ela aparecia do lado dele)
     ia.fase = 'vir';
+    this.cavernaAmiga(j, dono);
+    if (this.longeAmiga(j, dono, d, dt)) return true;
+    if (j.montado) j.montado = null; // perto: desce do lobo e chega a pé
     this.irDireto(j, dono.x, dono.z, d > 5);
     return true;
   },
