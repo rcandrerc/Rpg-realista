@@ -8,7 +8,7 @@ extends Node3D
 #   metros ganham mato; andando, os de trás voltam para a fila e os da frente nascem (no máximo ORCAMENTO_US de conta
 #   por quadro, nada de engasgo);
 # - cada quadrado é um MultiMesh (a placa de vídeo desenha todas as touceiras de uma vez) e a câmera só desenha os
-#   quadrados que vê; folhas de malha, sem textura recortada (o discard pesa no celular); sem sombra;
+#   quadrados que vê; o capim são 3 cartas cruzadas com folhinhas desenhadas (12 triângulos por touceira); sem sombra;
 # - longe a touceira encolhe até sumir (mato.gdshader), então não aparece a borda do círculo;
 # - Qualidade gráfica (grafico.gd): Alta = mais denso e mais longe; Média menos; Baixa só um pouco em volta do herói,
 #   sem samambaia.
@@ -17,19 +17,20 @@ extends Node3D
 # dos lotes com construção ou horta. O sorteio de cada quadrado é sempre o mesmo (semente pelo quadrado).
 
 const CEL := 16.0
-const ORCAMENTO_US := 1800 # conta de mato por quadro (µs); o resto fica para o próximo quadro
+const ORCAMENTO_US := 1000 # conta de mato por quadro (µs); o resto fica para o próximo quadro
 const CACHE_MAX := 600 # quadrados já sorteados guardados (voltar por onde passou não refaz a conta)
 # por nível de qualidade (grafico.gd BAIXA, MEDIA, ALTA): raio em m, touceiras por m² e samambaias por m²
 const NIVEIS := [
-	{"raio": 15.0, "dens": 0.7, "sam": 0.0},
-	{"raio": 24.0, "dens": 1.2, "sam": 0.03},
-	{"raio": 34.0, "dens": 1.8, "sam": 0.05},
+	{"raio": 14.0, "dens": 0.55, "sam": 0.0},
+	{"raio": 22.0, "dens": 0.95, "sam": 0.02},
+	{"raio": 30.0, "dens": 1.4, "sam": 0.035},
 ]
 
 var m # main.gd
 var T # terreno.gd
 var _mat: ShaderMaterial
 var _malha_capim: ArrayMesh
+var _mat_sam: ShaderMaterial # a samambaia é de malha (sem a textura do capim)
 var _malha_samambaia: ArrayMesh
 var _mascara: Image # relevo/mundo_mascara.png: R estradas, B chão do mapa de hoje
 var _masc_area := Vector4()
@@ -40,7 +41,9 @@ var _cache := {} # Vector2i -> [buffer capim, buffer samambaia]
 var _fila: Array = [] # quadrados a montar, do mais perto para o mais longe
 var _fazendo := {} # quadrado sendo sorteado aos poucos: {k, i, capim, sam, rng}
 var _centro := Vector2i(999999, 999999)
-var _sinal_obst := -1 # muda quando casa, pedra, móvel ou horta mudam: o mato em volta é sorteado de novo
+var _sinal_obst := -1 # soma de peças e hortas de todos os lotes: igual = nada mudou, nem olha lote por lote
+var _sinais := {} # lote -> sinal (peças e horta); mudou: só os quadrados daquele lote são sorteados de novo
+var _refazer := {} # quadrados na tela que estão sendo sorteados de novo (o mato velho fica até o novo ficar pronto)
 var _t_sinal := 0.0
 var _matas: Array = [] # áreas de mata do mapa de hoje (chão de floresta: mato mais ralo)
 var _livres: Array = [] # MultiMeshInstance3D sem uso (reaproveitados)
@@ -54,6 +57,9 @@ func _ready() -> void:
 	_mat = ShaderMaterial.new()
 	_mat.shader = load("res://mato.gdshader")
 	_mat.set_shader_parameter("grama_tex", load("res://modelos/forrest_ground_01.jpg"))
+	_mat_sam = _mat.duplicate()
+	_mat.set_shader_parameter("capim_tex", load("res://mato_capim.png"))
+	_mat.set_shader_parameter("com_textura", true)
 	_malha_capim = _touceira_capim()
 	_malha_samambaia = _touceira_samambaia()
 	if not T.mundo_g.is_empty() and ResourceLoader.exists("res://relevo/mundo_mascara.png"):
@@ -68,38 +74,30 @@ func _ready() -> void:
 
 # ---------- malhas (uma touceira de cada, feita aqui: nada de arquivo de modelo) ----------
 
-# Capim: 14 folhas finas saindo do mesmo pé, abertas em leque, cada uma curvando para fora (3 gomos e a ponta).
-# 2 gomos e a ponta (5 triângulos por folha). 1 m de altura (a escala de cada touceira dá 0,35 a 0,9 m). UV.y = altura na folha (o shader usa para cor e vento).
+# Capim (2026-11-10, André: "parecendo uns fiapos de plástico, eu queria mais uns bush fininhos, igual a da foto"):
+# em vez de folhas de malha, 3 cartas cruzadas com a textura mato_capim.png (centenas de folhinhas finas desenhadas,
+# ferramentas/mato/textura_mato.py), recortadas no shader. Cada carta tem 2 gomos na altura para o vento dobrar.
+# 12 triângulos por touceira (a de malha tinha 70): bem mais leve para a placa de vídeo.
+# 1 m de largura e 1 m de altura (a escala de cada touceira ajusta). UV.x 0-1 na carta (o shader escolhe a metade
+# da textura pela touceira), UV.y = altura (0 no pé, 1 em cima).
 func _touceira_capim() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 1110
-	var n := 14
-	for f in n:
-		var ang := TAU * f / n + rng.randf_range(-0.25, 0.25)
-		var dir := Vector3(cos(ang), 0.0, sin(ang))
-		var lado := Vector3(-dir.z, 0.0, dir.x).rotated(Vector3.UP, rng.randf_range(-0.5, 0.5))
-		var alto := rng.randf_range(0.6, 1.0)
-		var curva := rng.randf_range(0.18, 0.45) * alto # quanto a ponta cai para fora
-		var larg := rng.randf_range(0.022, 0.034)
-		var pe := dir * rng.randf_range(0.0, 0.2) + Vector3(-dir.z, 0.0, dir.x) * rng.randf_range(-0.08, 0.08) # touceira larga: o campo fecha
-		var anel: Array = []
-		var segs := 2
-		for s in segs + 1:
-			var t := float(s) / segs
-			var c := pe + dir * (curva * t * t + 0.05 * t) + Vector3(0.0, alto * t * (1.0 - 0.18 * t * t), 0.0)
-			var w := larg * (1.0 - t * 0.85)
-			anel.append([c - lado * w, c + lado * w, t])
-		var ponta: Vector3 = pe + dir * (curva * 1.15 + 0.05) + Vector3(0.0, alto * 0.84, 0.0)
-		var nrm := (dir * 0.6 + Vector3.UP).normalized()
-		for s in segs:
-			var a: Array = anel[s]
-			var b: Array = anel[s + 1]
-			_tri(st, a[0], a[1], b[1], a[2], a[2], b[2], nrm)
-			_tri(st, a[0], b[1], b[0], a[2], b[2], b[2], nrm)
-		var u: Array = anel[segs]
-		_tri(st, u[0], u[1], ponta, 1.0, 1.0, 1.0, nrm)
+	for q in 3:
+		var ang := PI * q / 3.0 + 0.2
+		var lado := Vector3(cos(ang), 0.0, sin(ang)) * 0.5
+		var nrm := Vector3(-lado.z, 0.0, lado.x).normalized()
+		for g in 2:
+			var t0 := g / 2.0
+			var t1 := (g + 1) / 2.0
+			var a := -lado + Vector3(0, t0, 0)
+			var b := lado + Vector3(0, t0, 0)
+			var c := lado + Vector3(0, t1, 0)
+			var e := -lado + Vector3(0, t1, 0)
+			for v in [[a, 0.0, t0], [b, 1.0, t0], [c, 1.0, t1], [a, 0.0, t0], [c, 1.0, t1], [e, 0.0, t1]]:
+				st.set_normal(nrm)
+				st.set_uv(Vector2(v[1], v[2]))
+				st.add_vertex(v[0])
 	st.index()
 	var mesh := st.commit()
 	mesh.surface_set_material(0, _mat)
@@ -145,7 +143,7 @@ func _touceira_samambaia() -> ArrayMesh:
 				_tri(st, base, p, q, h, 1.0, h, nrm)
 	st.index()
 	var mesh := st.commit()
-	mesh.surface_set_material(0, _mat)
+	mesh.surface_set_material(0, _mat_sam)
 	return mesh
 
 func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, ha: float, hb: float, hc: float, nrm: Vector3) -> void:
@@ -163,19 +161,20 @@ func _process(dt: float) -> void:
 	if nv != _nivel:
 		_nivel = nv
 		P = NIVEIS[nv]
-		_mat.set_shader_parameter("encolhe_de", P.raio * 0.72)
-		_mat.set_shader_parameter("encolhe_ate", P.raio)
+		for mt in [_mat, _mat_sam]:
+			mt.set_shader_parameter("encolhe_de", P.raio * 0.7)
+			mt.set_shader_parameter("encolhe_ate", P.raio)
 		_limpar(false) # a densidade mudou: sorteia de novo
 	var hp: Vector3 = m.heroi.global_position
 	_mat.set_shader_parameter("pisa", Vector4(hp.x, hp.y, hp.z, 0.9))
+	_mat_sam.set_shader_parameter("pisa", Vector4(hp.x, hp.y, hp.z, 0.9))
 	_t_sinal -= dt
 	if _t_sinal <= 0.0:
-		_t_sinal = 1.0
-		var s := _sinal_obstaculos()
-		if s != _sinal_obst:
-			if _sinal_obst != -1:
-				_limpar(false)
-			_sinal_obst = s
+		_t_sinal = 2.0
+		var sn := _sinal_obstaculos()
+		if sn != _sinal_obst:
+			_sinal_obst = sn
+			_conferir_lotes()
 	var c := Vector2i(floori(hp.x / CEL), floori(hp.z / CEL))
 	if c != _centro:
 		_centro = c
@@ -199,7 +198,7 @@ func _refazer_fila(hp: Vector3) -> void:
 	for k in _vivos.keys():
 		if not quer.has(k):
 			_soltar(k)
-	_fila = quer.keys().filter(func(k): return not _vivos.has(k))
+	_fila = quer.keys().filter(func(k): return not _vivos.has(k) or _refazer.has(k))
 	_fila.sort_custom(func(a, b): return quer[a] < quer[b])
 	if not _fazendo.is_empty() and not quer.has(_fazendo.k):
 		_fazendo = {}
@@ -211,7 +210,7 @@ func _trabalhar() -> void:
 			if _fila.is_empty():
 				return
 			var k: Vector2i = _fila.pop_front()
-			if _vivos.has(k):
+			if _vivos.has(k) and not _refazer.has(k):
 				continue
 			if _cache.has(k):
 				_mostrar(k, _cache[k][0], _cache[k][1])
@@ -253,13 +252,16 @@ func _sortear_um_pouco(t0: int) -> void:
 			continue
 		if sorte >= frac:
 			continue
-		# capim: a maioria até o joelho, algumas touceiras mais altas (como na foto)
-		var s := lerpf(0.75, 1.3, esc)
-		var alto := lerpf(0.35, 0.62, esc_y)
-		if esc_y > 0.82:
-			alto = lerpf(0.7, 0.95, (esc_y - 0.82) / 0.18)
-		var b := Basis(Vector3.UP, giro).scaled(Vector3(s * 0.9, alto, s * 0.9))
-		_por(f.capim, b, Vector3(x, y - 0.03, z), _cor_capim(tom, x, z))
+		# capim: a maioria até o joelho, algumas touceiras mais altas (como na foto); 1 em 4 é o capim de beira
+		# (folhas largas e pendões, a metade direita da textura: alfa da cor = 1)
+		var s := lerpf(1.0, 1.5, esc)
+		var alto := lerpf(0.4, 0.68, esc_y)
+		if esc_y > 0.8:
+			alto = lerpf(0.8, 1.05, (esc_y - 0.8) / 0.2)
+		var b := Basis(Vector3.UP, giro).scaled(Vector3(s, alto, s))
+		var cor := _cor_capim(tom, x, z)
+		cor.a = 1.0 if tipo > 0.75 else 0.0
+		_por(f.capim, b, Vector3(x, y - 0.04, z), cor)
 	_cache[k] = [f.capim, f.sam]
 	if _cache.size() > CACHE_MAX:
 		_cache.erase(_cache.keys()[0])
@@ -340,6 +342,29 @@ func _no_lote(x: float, z: float) -> bool:
 			return true
 	return false
 
+# 2026-11-10 (André: "perda de performance entrando na cidade"): antes qualquer peça ou planta nova em qualquer lote
+# (a cidade tem muitos, e a horta muda sozinha) apagava TODO o mato e sorteava tudo de novo, sem parar. Agora só os
+# quadrados que encostam no lote que mudou são refeitos, e o mato velho continua na tela até o novo ficar pronto.
+func _conferir_lotes() -> void:
+	var cons = m.get("construcao")
+	if cons == null:
+		return
+	for id in cons.lotes:
+		var L: Dictionary = cons.lotes[id]
+		var s: int = L.pecas.size() * 31 + L.horta.size()
+		var antes: int = _sinais.get(id, -1)
+		_sinais[id] = s
+		if antes == -1 or antes == s:
+			continue
+		var d: Dictionary = L.def
+		for j in range(floori((float(d.z0) - 1.0) / CEL), floori((float(d.z1) + 1.0) / CEL) + 1):
+			for i in range(floori((float(d.x0) - 1.0) / CEL), floori((float(d.x1) + 1.0) / CEL) + 1):
+				var k := Vector2i(i, j)
+				_cache.erase(k)
+				if _vivos.has(k) and not _refazer.has(k):
+					_refazer[k] = true
+					_fila.push_front(k)
+
 func _sinal_obstaculos() -> int:
 	var s: int = T.solidos.size() * 7919
 	var cons = m.get("construcao")
@@ -351,6 +376,9 @@ func _sinal_obstaculos() -> int:
 # ---------- montar e soltar os quadrados ----------
 
 func _mostrar(k: Vector2i, capim: PackedFloat32Array, sam: PackedFloat32Array) -> void:
+	if _vivos.has(k): # refeito (lote mudou): troca o velho pelo novo
+		_soltar(k)
+	_refazer.erase(k)
 	_vivos[k] = [_instancia(_malha_capim, capim), _instancia(_malha_samambaia, sam) if P.sam > 0.0 else null]
 
 func _instancia(malha: Mesh, buf: PackedFloat32Array) -> MultiMeshInstance3D:
@@ -378,11 +406,13 @@ func _soltar(k: Vector2i) -> void:
 			g.multimesh = null
 			_livres.append(g)
 	_vivos.erase(k)
+	_refazer.erase(k)
 
 # troca de qualidade ou obstáculo novo: sorteia tudo de novo
 func _limpar(_x := false) -> void:
 	for k in _vivos.keys():
 		_soltar(k)
 	_cache.clear()
+	_refazer.clear()
 	_fazendo = {}
 	_centro = Vector2i(999999, 999999)

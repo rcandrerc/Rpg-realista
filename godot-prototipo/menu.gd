@@ -2905,7 +2905,136 @@ func perguntar_evoluir(i: int) -> void:
 		txt += "\nAtenção: perde o reforço +%d." % int(it.e)
 	if falta:
 		txt += "\nFalta material: destrua peças para juntar catalisador."
-	confirmar("Evoluir peça", txt, "Evoluir", func(): acao_item({"acao": "evoluir", "i": i}))
+	# André 2026-11-10: "tá uma lista de obrigações", quer entender de relance. Mesma informação em desenho: peça de
+	# agora -> peça nova, materiais em ícone com tem/precisa, chances numa barra colorida e avisos em faixinha.
+	# O texto acima fica guardado como dica (tooltip) da janela, nada some.
+	var corpo := corpo_evoluir(it, r, usa, falha, sorte, onde)
+	corpo.tooltip_text = txt
+	confirmar("Evoluir peça", "", "Evoluir", func(): acao_item({"acao": "evoluir", "i": i}), false, "", Callable(), corpo)
+
+# conteúdo desenhado da janelinha de evoluir
+func corpo_evoluir(it, r: int, usa: Dictionary, falha: float, sorte: float, onde: String) -> Control:
+	var P = m.P
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	# 1) peça de agora -> peça nova
+	var topo := HBoxContainer.new()
+	topo.alignment = BoxContainer.ALIGNMENT_CENTER
+	topo.add_theme_constant_override("separation", 14)
+	col.add_child(topo)
+	var novo := {"k": it.k, "r": r}
+	topo.add_child(peca_com_nome(it))
+	var seta := VBoxContainer.new()
+	seta.alignment = BoxContainer.ALIGNMENT_CENTER
+	var st := rotulo("➜", 34, Color(P.dados.raridades[r].cor))
+	st.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	seta.add_child(st)
+	var sub := rotulo("evoluir", 12, APAGADO)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	seta.add_child(sub)
+	topo.add_child(seta)
+	topo.add_child(peca_com_nome(novo))
+	# 2) materiais (ícones com tem/precisa; tocar diz o nome)
+	var mats := HBoxContainer.new()
+	mats.alignment = BoxContainer.ALIGNMENT_CENTER
+	mats.add_theme_constant_override("separation", 10)
+	for k in usa:
+		mats.add_child(icone_material(k, P.contar(k), int(usa[k])))
+	col.add_child(faixa_titulo("Usa", mats))
+	# 3) chances numa barra só: verde = evolui, dourado = sorte (pula uma raridade), vermelho = falha
+	var ok: float = maxf(0.0, 1.0 - falha - sorte)
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 0)
+	bar.custom_minimum_size = Vector2(0, 14)
+	for par in [[ok, VERDE], [sorte, OURO_CLARO], [falha, PIOR]]:
+		if float(par[0]) <= 0.0:
+			continue
+		var pd := Panel.new()
+		pd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pd.size_flags_stretch_ratio = maxf(float(par[0]), 0.02)
+		pd.add_theme_stylebox_override("panel", caixa(Color(par[1]).darkened(0.15), Color(par[1]).lightened(0.15), 0, 3))
+		bar.add_child(pd)
+	var chances := VBoxContainer.new()
+	chances.add_theme_constant_override("separation", 6)
+	chances.add_child(bar)
+	var leg := HBoxContainer.new()
+	leg.alignment = BoxContainer.ALIGNMENT_CENTER
+	leg.add_theme_constant_override("separation", 8)
+	leg.add_child(selo_chance("Evolui", ok, VERDE, ""))
+	if sorte > 0:
+		leg.add_child(selo_chance("Sorte", sorte, OURO_CLARO, "pula 1 raridade"))
+	leg.add_child(selo_chance("Falha", falha, PIOR, "perde catalisador e material, a peça fica"))
+	chances.add_child(leg)
+	col.add_child(faixa_titulo("Chance", chances))
+	# 4) onde fazer e +0, linha pequena
+	var info := rotulo("A peça nova sai +0 · Faça %s" % onde, 12, APAGADO)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(info)
+	# 5) avisos em faixinha colorida
+	if int(it.get("e", 0)) > 0:
+		col.add_child(faixa_aviso("⚠ Perde o reforço +%d" % int(it.e), Color("e8a24a")))
+	for k in usa:
+		if P.contar(k) < int(usa[k]):
+			col.add_child(faixa_aviso("✖ Falta material: destrua peças para juntar catalisador", PIOR))
+			break
+	return col
+
+# quadrado do item (moldura da raridade, +N no canto) com o nome embaixo na cor da raridade
+func peca_com_nome(it) -> Control:
+	var P = m.P
+	var bx := VBoxContainer.new()
+	bx.add_theme_constant_override("separation", 4)
+	bx.custom_minimum_size = Vector2(120, 0)
+	var c := celula(it, false, func(): balao_nome(bx, P.nome_item(it), P.cor_item(it)), 76)
+	c.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bx.add_child(c)
+	var n := rotulo(P.nome_item(it), 14, P.cor_item(it))
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bx.add_child(n)
+	return bx
+
+# bloquinho com título pequeno à esquerda ("Usa", "Chance") e o conteúdo ao lado
+func faixa_titulo(t: String, conteudo: Control) -> Control:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.11, 0.095, 0.08, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	pc.add_child(h)
+	var l := rotulo(t, 13, OURO)
+	l.custom_minimum_size = Vector2(56, 0)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(l)
+	conteudo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(conteudo)
+	return pc
+
+# "● Falha 14,6%" com a explicação curtinha embaixo
+func selo_chance(nome: String, v: float, cor: Color, explica: String) -> Control:
+	var P = m.P
+	var bx := VBoxContainer.new()
+	bx.add_theme_constant_override("separation", 0)
+	bx.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var l := rotulo("● %s %s%%" % [nome, P.num(v * 100, 1)], 14, cor)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bx.add_child(l)
+	if explica != "":
+		var e := rotulo(explica, 12, APAGADO)
+		e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		e.custom_minimum_size = Vector2(110, 0)
+		bx.add_child(e)
+	return bx
+
+# aviso curto em faixa colorida (perde reforço, falta material)
+func faixa_aviso(t: String, cor: Color) -> Control:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", caixa(Color(cor, 0.14), Color(cor, 0.6), 1, 6))
+	var l := rotulo(t, 13, cor)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pc.add_child(l)
+	return pc
 
 func perguntar_apagar(i: int) -> void:
 	var P = m.P
@@ -2923,7 +3052,7 @@ func fechar_confirma() -> void:
 		_confirma.queue_free()
 		_confirma = null
 
-func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false, extra := "", fn_extra := Callable()) -> void:
+func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false, extra := "", fn_extra := Callable(), conteudo: Control = null) -> void:
 	fechar_confirma()
 	_confirma = Control.new()
 	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2932,19 +3061,25 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 	escuro.color = Color(0, 0, 0, 0.5)
 	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_confirma.add_child(escuro)
+	# André 2026-11-10: a de Destruir (com 2 botões) abria cortada no canto esquerdo: o position.x = -280 era aplicado
+	# já dentro da árvore, onde vira posição absoluta. Agora um CenterContainer centraliza qualquer tamanho.
+	var meio := CenterContainer.new()
+	meio.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_confirma.add_child(meio)
 	var cx := PanelContainer.new()
 	cx.add_theme_stylebox_override("panel", caixa(FUNDO, (PIOR if perigo else OURO).darkened(0.25), 2, 10, 14))
-	cx.set_anchors_preset(Control.PRESET_CENTER)
-	cx.custom_minimum_size = Vector2(430, 0)
-	cx.position = Vector2(-215, -90)
-	_confirma.add_child(cx)
+	cx.custom_minimum_size = Vector2(430 if conteudo == null else 520, 0)
+	meio.add_child(cx)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 12)
 	cx.add_child(col)
 	col.add_child(rotulo(titulo, 20, OURO_CLARO))
-	var d := rotulo(texto, 15, TEXTO)
-	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(d)
+	if texto != "":
+		var d := rotulo(texto, 15, TEXTO)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(d)
+	if conteudo != null:
+		col.add_child(conteudo)
 	var linha := HBoxContainer.new()
 	linha.alignment = BoxContainer.ALIGNMENT_END
 	linha.add_theme_constant_override("separation", 10)
@@ -2961,8 +3096,7 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 		ok.add_theme_color_override("font_hover_color", PIOR)
 	linha.add_child(ok)
 	if extra != "" and fn_extra.is_valid(): # segunda escolha (ex.: destruir todas da raridade)
-		cx.custom_minimum_size.x = 560
-		cx.position.x = -280
+		cx.custom_minimum_size.x = maxf(cx.custom_minimum_size.x, 560)
 		var b2 := botao(extra, func():
 			fechar_confirma()
 			fn_extra.call(), 15, true)
