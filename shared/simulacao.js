@@ -281,7 +281,7 @@ export class Simulacao {
     this.mapa = mapa;
     this.tempo = 0;
     this.jogadores = new Map();
-    this.amiga = null; this.amigaDono = null; // Cecília (shared/amiga.js): o corpo dela e quem pode conversar
+    this.amiga = null; this.amigaDono = null; this.amigaFalam = new Set(); // Cecília (shared/amiga.js): o corpo dela, quem ela acompanha e quem pode conversar
     this.inimigos = [];
     this.projeteis = [];
     this.campos = [];
@@ -1443,7 +1443,7 @@ export class Simulacao {
     if (canal === 'amigos' && !j.amigos.size) return aviso('Você ainda não tem amigos. Toque num jogador e escolha "Adicionar amigo"');
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
-    if (canal === 'pm' && !j.amigos.has(para) && !(para === AMIGA.conta && id === this.amigaDono)) return aviso('Só dá para mandar mensagem privada para amigo'); // a Cecília é amiga virtual do dono (shared/amiga.js)
+    if (canal === 'pm' && !j.amigos.has(para) && !(para === AMIGA.conta && this.podeAmiga(id))) return aviso(para === AMIGA.conta ? `Ative a conversa com IA para falar com ${AMIGA.nome}` : 'Só dá para mandar mensagem privada para amigo'); // a Cecília: quem tem a chave Groq (shared/amiga.js)
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
     j.chatT = this.tempo;
     const msg = { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
@@ -1491,7 +1491,7 @@ export class Simulacao {
       return { c, nome: o?.nome || nome, id: o ? o.id : null, nivel: o ? o.prog.nivel : null, on: o ? 1 : this.onlineFora?.(c) ? 2 : 0, time: !!(o && j.time && o.time === j.time) };
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
-    const a = this.amiga, virtuais = a && j.id === this.amigaDono ? [{ c: AMIGA.conta, nome: AMIGA.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: a.amizade | 0 }] : [];
+    const a = this.amiga, virtuais = a ? [{ c: AMIGA.conta, nome: AMIGA.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: this.amizadeAmiga(j), ia: this.podeAmiga(j.id) }] : this.iaPorChave ? [{ c: AMIGA.conta, nome: AMIGA.nome, id: null, on: 0, amizade: 0, ia: false }] : []; // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais });
   }
   amigo(id, m) {

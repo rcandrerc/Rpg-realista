@@ -22,18 +22,31 @@ let dia = '', usadas = 0;
 
 export function iaLigada() { return !!(segredo('GROQ_CHAVE') || chaveGemini()); }
 
-export async function pensarAmiga(ctx, texto) {
+// a chave Groq que o jogador colou no jogo funciona? (André 2026-11-10: cada um usa a sua, o servidor só guarda)
+export async function testarChaveGroq(chave) {
+  if (!/^gsk_[A-Za-z0-9]{20,100}$/.test(chave || '')) return false;
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { authorization: `Bearer ${chave}` }, signal: AbortSignal.timeout(8000) });
+    return r.ok;
+  } catch { return false; }
+}
+
+// chaveJogador: a chave Groq de quem está conversando (André 2026-11-10: "a chave é por jogador"). Sem ela, as chaves do servidor
+// (contas de teste do André), com o limite do dia.
+export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   if (!ctx) return null;
-  const chave = chaveGemini(); if (!chave && !segredo('GROQ_CHAVE')) return null;
-  const hoje = new Date().toISOString().slice(0, 10);
-  if (hoje !== dia) { dia = hoje; usadas = 0; }
-  if (usadas >= AMIGA.chat.iaPorDia) return null;
-  usadas++;
+  const chave = chaveJogador ? '' : chaveGemini(); if (!chave && !chaveJogador && !segredo('GROQ_CHAVE')) return null;
+  if (!chaveJogador) {
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (hoje !== dia) { dia = hoje; usadas = 0; }
+    if (usadas >= AMIGA.chat.iaPorDia) return null;
+    usadas++;
+  }
   const modelo = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
   const conversa = ctx.conversa.map((m) => `${m.de === 'ele' ? ctx.amigo : ctx.nome}: ${m.texto}`).join('\n');
   const prompt = `Você é ${ctx.nome}, uma guerreira de anime brincalhona num RPG medieval de fantasia. Você é AMIGA de ${ctx.amigo} (de igual para igual, não serva): tem sua casinha e sua horta na vila inicial, tem vontade própria, pode recusar e pedir favores.
 Responda em português do Brasil, como amiga conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
-Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'} Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}. ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''}
+Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'} Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}. ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
 Conversa até agora:
 ${conversa || '(nenhuma)'}
 ${ctx.amigo}: ${texto}
@@ -41,7 +54,7 @@ Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caç
 Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá para ir é o jogo; se não der, ele troca a fala). Nunca recuse na fala.
 Devolva só JSON: {"fala": "...", "acao": "nada"}`;
   // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
-  const groq = segredo('GROQ_CHAVE');
+  const groq = chaveJogador || segredo('GROQ_CHAVE');
   if (groq) {
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {

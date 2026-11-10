@@ -57,6 +57,8 @@ export class Contas {
     const colunas = this.db.prepare('PRAGMA table_info(contas)').all().map((c) => c.name);
     if (!colunas.includes('aparencia')) this.db.exec('ALTER TABLE contas ADD COLUMN aparencia TEXT');
     if (!colunas.includes('progresso')) this.db.exec('ALTER TABLE contas ADD COLUMN progresso TEXT');
+    // chave Groq do próprio jogador (André 2026-11-10): quem conversa com a Cecília paga com a chave dele. Fica só aqui no banco.
+    if (!colunas.includes('ia_chave')) this.db.exec('ALTER TABLE contas ADD COLUMN ia_chave TEXT');
     // Vila dos Lotes: dono (chave da conta: 'c' + id), nome do dono e o que tem no lote (peças e horta, em JSON)
     this.db.exec('CREATE TABLE IF NOT EXISTS lotes (id TEXT PRIMARY KEY, dono TEXT, nome TEXT, dados TEXT, atualizado INTEGER)');
     // amigos (André 2026-11-05): cada amizade fica gravada nas duas pontas (a -> b e b -> a), até 20 por conta
@@ -77,6 +79,8 @@ export class Contas {
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
       progresso: this.db.prepare('UPDATE contas SET progresso = ? WHERE id = ?'),
+      chaveIa: this.db.prepare('SELECT ia_chave FROM contas WHERE id = ?'),
+      salvarChaveIa: this.db.prepare('UPDATE contas SET ia_chave = ? WHERE id = ?'),
       lotes: this.db.prepare('SELECT * FROM lotes'),
       lote: this.db.prepare('SELECT * FROM lotes WHERE id = ?'),
       loteDoDono: this.db.prepare('SELECT * FROM lotes WHERE dono = ?'),
@@ -142,6 +146,9 @@ export class Contas {
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
+  // chave Groq do jogador (conversa com a Cecília): nunca vai para o celular nem para o código, só o servidor usa
+  chaveIa(id) { return this.q.chaveIa.get(id)?.ia_chave || ''; }
+  salvarChaveIa(id, chave) { this.q.salvarChaveIa.run(chave || null, id); }
 
   // ---------- amigos ----------
   amigos(id) { return this.q.amigos.all(id).map((r) => ({ id: Number(r.id), nome: r.nome })); }
@@ -222,5 +229,5 @@ function publica(c) {
   try { aparencia = c.aparencia ? aparenciaValida(JSON.parse(c.aparencia)) : null; } catch { /* inválida: usa a padrão */ }
   let progresso = null;
   try { progresso = c.progresso ? progressoValido(JSON.parse(c.progresso)) : null; } catch { /* inválido: começa do nível 1 */ }
-  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email) };
+  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email), ia: !!c.ia_chave };
 }
