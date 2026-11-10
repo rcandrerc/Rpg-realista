@@ -9,6 +9,7 @@ const Efeitos = preload("res://efeitos.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
 const Grafico = preload("res://grafico.gd")
+const Mato = preload("res://mato.gd") # mato alto perto do herói (André 2026-11-10)
 const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
@@ -80,6 +81,7 @@ const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "viv
 var sol: DirectionalLight3D
 var camera: Camera3D
 var grama: MultiMeshInstance3D
+var mato # mato.gd: capim alto e samambaia perto do herói
 var hud
 var fx
 var morte # morte.gd: bordas vermelhas, coração e cor sumindo com a vida baixa; "VOCÊ CAIU" e o escuro ao morrer
@@ -430,6 +432,8 @@ func montar_chao() -> void:
 	add_child(dia)
 	add_child(Submerso.new(self)) # câmera dentro do lago: tom azul, neblina e luz da superfície (André 2026-11-07)
 	relevo.copas_simples(arvores_mata, _malhas_mata) # do alto: as árvores além de 80 m viram copas simples
+	mato = Mato.new(self) # capim alto e samambaia de verdade em volta do herói (André 2026-11-10)
+	add_child(mato)
 
 # chão onde um efeito ou um drop cai: com o herói lá dentro da caverna da montanha, o chão da caverna (não o alto da
 # montanha, que fica por cima do túnel)
@@ -4016,9 +4020,13 @@ func montar_teste() -> void:
 		{"nome": "Normal (0.6x)", "f": func(): pass},
 		{"nome": "Resolução cheia 1.0x", "f": func(): get_viewport().scaling_3d_scale = 1.0},
 		{"nome": "Sem sombra", "f": func(): sol.shadow_enabled = false},
-		{"nome": "Sem grama", "f": func(): grama.visible = false},
+		{"nome": "Sem grama", "f": func(): _sem_grama()},
 		{"nome": "20 personagens", "f": func(): mostrar_extras(true)},
 	]
+
+func _sem_grama() -> void:
+	grama.visible = false
+	mato.visible = false
 
 func mostrar_extras(v: bool) -> void:
 	if v and extras.is_empty():
@@ -4037,6 +4045,7 @@ func restaurar() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	sol.shadow_enabled = true
 	grama.visible = true
+	mato.visible = true
 	mostrar_extras(false)
 	if grafico:
 		grafico.aplicar() # volta para a qualidade gráfica escolhida
