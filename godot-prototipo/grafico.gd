@@ -41,6 +41,11 @@ var _pend: Array = []
 var _agendado := false
 var _mats_agua := {} # materiais de água achados (para ligar e desligar o "simples")
 var _mats_grama := {}
+# Limite de quadros por segundo (varredura de FPS 2026-11-10): Configurações > Limite de FPS. -1 = o do nível (Baixa
+# trava em 30; Média e Alta sem limite, como sempre foi). Sem limite, num celular de tela 120 Hz o jogo tenta fazer
+# 120 quadros, esquenta e oscila (60, 45, 40...): travado em 30 ou 60 o ritmo fica igual e o celular esquenta menos.
+const LIMITES := [30, 60, 0] # 0 = sem limite
+var limite := -1
 
 func _init(jogo) -> void:
 	m = jogo
@@ -54,6 +59,21 @@ func _init(jogo) -> void:
 		cfg.set_value("config", "grafico", nivel)
 		cfg.save(ARQUIVO)
 	P = PRESETS[nivel]
+	limite = int(cfg.get_value("config", "fps_limite", -1))
+	if limite not in LIMITES:
+		limite = -1
+
+# quantos quadros por segundo valem agora (0 = sem limite)
+func fps_alvo() -> int:
+	return limite if limite >= 0 else int(P.fps)
+
+func trocar_limite(v: int) -> void:
+	limite = v if v in LIMITES else -1
+	var cfg := ConfigFile.new()
+	cfg.load(ARQUIVO)
+	cfg.set_value("config", "fps_limite", limite)
+	cfg.save(ARQUIVO)
+	Engine.max_fps = fps_alvo()
 
 func _enter_tree() -> void:
 	# tudo que entra na cena depois (pedaços do mapa, monstros, casas) recebe o alcance do nível escolhido
@@ -109,7 +129,7 @@ func aplicar() -> void:
 	vp.scaling_3d_scale = P.escala
 	vp.msaa_3d = P.msaa
 	vp.mesh_lod_threshold = P.lod
-	Engine.max_fps = P.fps
+	Engine.max_fps = fps_alvo()
 	RenderingServer.directional_shadow_atlas_set_size(P.atlas, true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(P.suave)
 	if m.sol:
@@ -123,6 +143,11 @@ func aplicar() -> void:
 	_ajustar_pendentes()
 
 func _entrou(no: Node) -> void:
+	# FPS (varredura 2026-11-10): na Alta o ajuste não muda nada (alcance x1, grama inteira, água completa) e cada
+	# monstro, magia ou pedaço de mato que entra na cena passava por ele. Trocar de nível chama aplicar(), que
+	# confere de novo tudo que está na cena.
+	if nivel == ALTA:
+		return
 	if no is GeometryInstance3D:
 		_pend.append(no)
 		if not _agendado:

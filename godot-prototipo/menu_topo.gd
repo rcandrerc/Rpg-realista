@@ -552,6 +552,27 @@ func _qualidade_grafica() -> void:
 	if G.placa != "":
 		dica += " Sugerido para este celular (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
 	_texto(dica, Menu.APAGADO, 13)
+	_limite_fps()
+
+# Limite de FPS (varredura de FPS 2026-11-10): 30, 60 ou sem limite (grafico.gd). Sem escolha, vale o do nível.
+func _limite_fps() -> void:
+	var G = m.grafico
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var l := Menu.rotulo("Limite FPS", 17)
+	l.custom_minimum_size = Vector2(120, 0)
+	linha.add_child(l)
+	var atual: int = G.fps_alvo()
+	for v in G.LIMITES:
+		var b := _botao(str(v) if v > 0 else "Sem limite", func():
+			if G.fps_alvo() != v or G.limite != v:
+				G.trocar_limite(v)
+				montar(), atual == v)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
+	_texto("Travar em 30 ou 60 deixa o jogo com ritmo igual e o celular esquenta menos.", Menu.APAGADO, 13)
 
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:
