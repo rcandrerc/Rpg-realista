@@ -1142,7 +1142,9 @@ export function aparenciaValida(a) {
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
 // Nome do personagem: 3 a 16 letras, números ou espaços (sem espaço sobrando). Devolve o nome limpo ou null.
-export const NOME = { min: 3, max: 16 };
+// André 2026-11-10: o nome é escolhido no criador e fica travado; trocar depois custa `troca` de ouro (botão no
+// Aparência). Nome único entre as contas (sem diferença de maiúscula).
+export const NOME = { min: 3, max: 16, troca: 10000 };
 export function nomeValido(n) {
   if (typeof n !== 'string') return null;
   const s = n.normalize('NFC').replace(/\s+/g, ' ').trim();
