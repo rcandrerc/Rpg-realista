@@ -73,22 +73,135 @@ func _montar() -> void:
 			astar.connect_points(ids[k - 1], ids[k])
 		if not ids.is_empty():
 			por_linha.append(ids)
-	# junções: cada ponta de caminho liga no ponto mais perto dos outros caminhos (as trilhas saem do meio da estrada)
+	_ligar(por_linha)
+
+# Junções da rede (2026-11-10, André: "o mapa inteiro tem que seguir essa regra"). Antes só a ponta de um caminho a até
+# JUNTA m de outro ligava: a estrada sul (e_sul) e a leste (e_leste) do mundo grande começam a 10 e 13 m do fim das
+# ruas da vila, então a rede ficava em pedaços e o "Ir para" das partes novas ia em linha reta pelo mato. Agora:
+#  1. ponta de caminho liga no ponto mais perto de outro caminho até JUNTA m (como antes);
+#  2. dois caminhos que se cruzam no meio ligam onde passam a até CRUZA m um do outro;
+#  3. pedaços que ainda ficaram soltos na mesma terra se emendam pela ponta mais perto, até EMENDA m, sem passar no
+#     mar (o menor vão primeiro). Nada preso ao mapa de hoje: vale para qualquer estrada nova que entrar no mundo.
+# Tudo por uma grade de CELULA m (antes comparava cada ponta com todos os pontos: bem mais lento ao abrir o jogo).
+const CRUZA := 1.6
+const EMENDA := 30.0
+const CELULA := 8.0
+var _grade := {} # Vector2i -> [[id, linha], ...]
+
+func _cel(p: Vector2) -> Vector2i:
+	return Vector2i(floori(p.x / CELULA), floori(p.y / CELULA))
+
+# ponto de outra linha (ou de outro pedaço, com pedaco) mais perto de p até raio m; -1 se nenhum
+func _perto(p: Vector2, raio: float, linha: int, pedaco := {}, meu := -1) -> int:
+	var c := _cel(p)
+	var r := ceili(raio / CELULA)
+	var melhor := -1
+	var md := raio
+	for gx in range(c.x - r, c.x + r + 1):
+		for gz in range(c.y - r, c.y + r + 1):
+			for e in _grade.get(Vector2i(gx, gz), []):
+				if e[1] == linha or (meu >= 0 and _raiz(pedaco, e[0]) == meu):
+					continue
+				var d: float = p.distance_to(astar.get_point_position(e[0]))
+				if d < md:
+					md = d
+					melhor = e[0]
+	return melhor
+
+func _raiz(pai: Dictionary, a: int) -> int:
+	while pai.get(a, a) != a:
+		pai[a] = pai.get(pai[a], pai[a])
+		a = pai[a]
+	return a
+
+func _unir(pai: Dictionary, a: int, b: int) -> void:
+	pai[_raiz(pai, a)] = _raiz(pai, b)
+
+func _ligar(por_linha: Array) -> void:
+	_grade.clear()
+	for li in por_linha.size():
+		for id in por_linha[li]:
+			var c := _cel(astar.get_point_position(id))
+			if not _grade.has(c):
+				_grade[c] = []
+			_grade[c].append([id, li])
+	var pai := {}
+	for li in por_linha.size():
+		var ids: Array = por_linha[li]
+		for id in ids:
+			pai[id] = ids[0]
+	# 1. pontas
 	for li in por_linha.size():
 		for ponta in [por_linha[li][0], por_linha[li][-1]]:
 			var pp: Vector2 = astar.get_point_position(ponta)
-			for lj in por_linha.size():
-				if lj == li:
-					continue
-				var melhor := -1
-				var md := JUNTA
-				for id in por_linha[lj]:
-					var d: float = pp.distance_to(astar.get_point_position(id))
-					if d < md:
-						md = d
-						melhor = id
+			var ja := {}
+			for e in _vizinhos(pp, JUNTA):
+				if e[1] != li:
+					ja[e[1]] = true
+			for lj in ja: # como antes: liga no ponto mais perto de CADA outro caminho
+				var melhor := _perto_na_linha(pp, JUNTA, lj)
 				if melhor >= 0 and melhor != ponta:
 					astar.connect_points(ponta, melhor)
+					_unir(pai, ponta, melhor)
+	# 2. cruzamentos no meio
+	for li in por_linha.size():
+		for id in por_linha[li]:
+			var o := _perto(astar.get_point_position(id), CRUZA, li)
+			if o >= 0 and not astar.are_points_connected(id, o):
+				astar.connect_points(id, o)
+				_unir(pai, id, o)
+	# 3. emendas dos pedaços soltos (menor vão primeiro)
+	var vaos: Array = []
+	for li in por_linha.size():
+		for ponta in [por_linha[li][0], por_linha[li][-1]]:
+			var pp: Vector2 = astar.get_point_position(ponta)
+			var o := _perto(pp, EMENDA, li, pai, _raiz(pai, ponta))
+			if o >= 0:
+				vaos.append([pp.distance_to(astar.get_point_position(o)), ponta, o])
+	vaos.sort_custom(func(a, b): return a[0] < b[0])
+	for v in vaos:
+		if _raiz(pai, v[1]) == _raiz(pai, v[2]) or not _emenda_ok(astar.get_point_position(v[1]), astar.get_point_position(v[2])):
+			continue
+		astar.connect_points(v[1], v[2])
+		_unir(pai, v[1], v[2])
+	_grade.clear()
+
+func _vizinhos(p: Vector2, raio: float) -> Array:
+	var c := _cel(p)
+	var r := ceili(raio / CELULA)
+	var out: Array = []
+	for gx in range(c.x - r, c.x + r + 1):
+		for gz in range(c.y - r, c.y + r + 1):
+			for e in _grade.get(Vector2i(gx, gz), []):
+				if p.distance_to(astar.get_point_position(e[0])) < raio:
+					out.append(e)
+	return out
+
+func _perto_na_linha(p: Vector2, raio: float, linha: int) -> int:
+	var melhor := -1
+	var md := raio
+	for e in _vizinhos(p, raio):
+		if e[1] != linha:
+			continue
+		var d: float = p.distance_to(astar.get_point_position(e[0]))
+		if d < md:
+			md = d
+			melhor = e[0]
+	return melhor
+
+# emenda só na mesma terra e sem passar pelo mar
+func _emenda_ok(a: Vector2, b: Vector2) -> bool:
+	var T = m.terreno
+	if T == null or T.mundo_g.is_empty():
+		return true
+	if T.terra_id(a.x, a.y) != T.terra_id(b.x, b.y):
+		return false
+	var n: int = max(1, ceili(a.distance_to(b) / 2.0))
+	for s in range(n + 1):
+		var q: Vector2 = a.lerp(b, float(s) / n)
+		if T.mar_fundo(q.x, q.y):
+			return false
+	return true
 
 func _heroi() -> Vector2:
 	return Vector2(m.heroi.position.x, m.heroi.position.z)
