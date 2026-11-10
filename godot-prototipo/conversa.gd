@@ -32,8 +32,9 @@ const ACOES := {
 	"amiga_sair": ["Sair do time", "desfazer"],
 	"amiga_dungeon": ["Vamos na caverna?", "it_passe_caverna"],
 	"amiga_troca": ["Quer trocar itens?", "it_ouro"],
+	"amiga_equip": ["Ver equipamento", "basico"],
 }
-const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca"]
+const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca", "amiga_equip"]
 var _amiga := {} # a Cecília vista como NPC da janela (o corpo vem do online.gd, como outro jogador)
 var _amiga_pedido = null # o que ela pediu ({k, n, nome}): aparece o botão Dar
 var _amiga_time := false # ela está no meu time: o botão vira "Sair do time" (fase 2)
@@ -232,6 +233,9 @@ func _botoes_amiga() -> void:
 	for a0 in AMIGA_BOTOES:
 		var a: String = "amiga_sair" if a0 == "amiga_time" and _amiga_time else a0
 		var acao: String = a.trim_prefix("amiga_")
+		if a == "amiga_equip": # ver o equipamento dela (o mesmo de qualquer jogador, troca.gd)
+			opcoes.add_child(_opcao(ACOES[a][0], ACOES[a][1], func(): fechar(); m.troca.pedir_equip(m.online.amiga_id)))
+			continue
 		opcoes.add_child(_opcao(ACOES[a][0], ACOES[a][1], func(): m.rede("amiga", {"acao": acao})))
 	opcoes.add_child(_opcao("Até logo", "sair", func(): m.rede("amiga", {"acao": "tchau"}); fechar()))
 

@@ -840,6 +840,10 @@ func evento(ev: Dictionary) -> void:
 			if m.reforco:
 				m.reforco.do_servidor(ev)
 			return
+		"equipVer": # o equipamento de outro jogador ou da Cecília (troca.gd, André 2026-11-10)
+			if m.troca:
+				m.troca.mostrar_equip(ev)
+			return
 		"troca": # troca entre jogadores (troca.gd): pedido que chegou, como está a mesa, fim
 			if m.troca:
 				m.troca.do_servidor(ev)

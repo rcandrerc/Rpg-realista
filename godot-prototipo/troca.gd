@@ -124,7 +124,9 @@ func tocou_tela(pos: Vector2) -> void:
 	for id in outros:
 		var no: Node3D = outros[id].no
 		if outros[id].get("bot", false): # a Cecília (shared/amiga.js): o dono conversa com ela pela conversa.gd; os outros, nada
-			continue
+			if m.online.amiga_id != "":
+				continue
+			# sem a conversa com IA ativada: tocar nela só mostra o equipamento (abaixo)
 		if not no.visible or no.position.distance_to(m.heroi.position) > 30.0:
 			continue
 		var pe: Vector3 = no.position
@@ -145,13 +147,20 @@ func tocou_tela(pos: Vector2) -> void:
 	var nome := nome_de(achou)
 	var dist: float = Vector2(outros[achou].no.position.x - m.heroi.position.x, outros[achou].no.position.z - m.heroi.position.z).length()
 	var extras: Array = m.amigos.botoes_para(achou) if m.amigos else [] # amigos.gd: adicionar amigo ou chamar pro time
+	var ver := [["Equipamento", pedir_equip.bind(achou)]] # André 2026-11-10: ver o que qualquer jogador veste (de perto)
+	if outros[achou].get("bot", false): # Cecília para quem ainda não ativou a conversa com IA: só ver o equipamento
+		if dist > perto():
+			m.hud.aviso("Chegue mais perto de %s" % nome)
+			return
+		mostrar_cartao(nome, ver + [["Agora não", esconder_cartao]], 8.0)
+		return
 	if dist > perto():
 		if extras.is_empty():
 			m.hud.aviso("Chegue mais perto de %s para trocar" % nome)
 			return
 		mostrar_cartao(nome, extras + [["Agora não", esconder_cartao]], 8.0)
 		return
-	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + [["Agora não", esconder_cartao]], 8.0)
+	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + ver + [["Agora não", esconder_cartao]], 8.0)
 
 # botão do cartão: pedir, aceitar ou recusar a troca
 func _responder(acao: String, com: String) -> void:
@@ -183,7 +192,61 @@ func mostrar_cartao(texto: String, botoes: Array, dur: float) -> void:
 
 # o dedo caiu no cartão (a HUD não usa esse toque)
 func cobre(p: Vector2) -> bool:
+	if equip_jan != null and equip_jan.visible and equip_jan.get_global_rect().grow(6).has_point(p):
+		return true
 	return cartao != null and cartao.visible and cartao.get_global_rect().grow(6).has_point(p)
+
+# ---------- ver o equipamento de outro jogador (André 2026-11-10: qualquer jogador e a Cecília, de perto) ----------
+var equip_jan: PanelContainer
+const NOMES_LUGAR := {"cabeca": "Cabeça", "corpo": "Corpo", "pernas": "Pernas", "capa": "Capa", "pes": "Pés", "acessorio": "Acessório", "espada": "Espada", "cajado": "Cajado"}
+
+func pedir_equip(id: String) -> void:
+	esconder_cartao()
+	m.rede("verEquip", {"com": id})
+
+# o servidor mandou: { nome, nivel, equip: { lugar: {k, r, e} } }
+func mostrar_equip(ev: Dictionary) -> void:
+	if equip_jan == null:
+		equip_jan = PanelContainer.new()
+		equip_jan.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO, Menu.OURO.darkened(0.25), 2, 12, 14))
+		equip_jan.set_anchors_preset(Control.PRESET_CENTER)
+		equip_jan.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		equip_jan.grow_vertical = Control.GROW_DIRECTION_BOTH
+		add_child(equip_jan)
+	for c in equip_jan.get_children():
+		equip_jan.remove_child(c)
+		c.queue_free()
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	equip_jan.add_child(col)
+	col.add_child(Menu.rotulo("Equipamento de %s  (Nv %d)" % [str(ev.get("nome", "")), int(ev.get("nivel", 1))], 18, Menu.OURO_CLARO))
+	var grade := GridContainer.new()
+	grade.columns = 2
+	grade.add_theme_constant_override("h_separation", 16)
+	grade.add_theme_constant_override("v_separation", 6)
+	col.add_child(grade)
+	var eq: Dictionary = ev.get("equip", {})
+	for l in NOMES_LUGAR:
+		var it = eq.get(l)
+		var linha := HBoxContainer.new()
+		linha.add_theme_constant_override("separation", 8)
+		linha.custom_minimum_size = Vector2(250, 0)
+		if it is Dictionary:
+			linha.add_child(m.menu.celula(it, false, m.hud.aviso.bind(m.P.nome_item(it)), 44))
+			var t := Menu.rotulo("%s\n%s" % [NOMES_LUGAR[l], m.P.nome_item(it)], 13, m.P.cor_item(it))
+			t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			linha.add_child(t)
+		else:
+			var vazio := Menu.rotulo("%s\n(vazio)" % NOMES_LUGAR[l], 13, Menu.APAGADO)
+			vazio.custom_minimum_size = Vector2(0, 44)
+			linha.add_child(vazio)
+		grade.add_child(linha)
+	var fechar: Button = m.menu.botao("Fechar", func(): equip_jan.visible = false, 15, true)
+	fechar.custom_minimum_size = Vector2(140, 38)
+	fechar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(fechar)
+	equip_jan.reset_size()
+	equip_jan.visible = true
 
 func esconder_cartao() -> void:
 	cartao.visible = false

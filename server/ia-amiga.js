@@ -48,6 +48,7 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
 Responda em português do Brasil, como amiga conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
 Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'} Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}. ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
 ${ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} (de outros dias, use com naturalidade quando fizer sentido):\n- ${ctx.memoria.join('\n- ')}` : ''}
+${ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca}; você adoraria uma melhor (ele pode te dar pela troca).` : ''}` : ''}
 ${ctx.regras?.length ? `Dicas que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : ''}
 Conversa até agora:
 ${conversa || '(nenhuma)'}

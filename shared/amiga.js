@@ -328,6 +328,7 @@ export const Amiga = {
         return diga(F.voltou);
       }
       case 'ajuda': {
+        if (!a.pedido && Math.random() < AMIGA.equipInteresse.pedir && this.pecaFracaAmiga()) return diga(this.pedeEquipAmiga());
         if (!a.pedido && Math.random() < 0.7) { const p = sorteia(AMIGA.pedidos); a.pedido = { k: p.k, n: p.n }; this.guardarAmiga(); }
         return diga(a.pedido ? sorteia(F.pedido).replace('{item}', nomeItem(a.pedido)) : sorteia(F.semPedido));
       }
@@ -459,6 +460,7 @@ export const Amiga = {
     else if (this.amiga && tem('pedirItem') && this.itensNoTextoAmiga(t).length) return 'pedirItem'; // "tem cenoura?" e ela tem: oferece
     if (ia?.atividade && tem('pararAtividade')) return 'pararAtividade';
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) return k; // "vamos pescar" é pescar, não caçar
+    if (tem('equip')) return 'equip'; // "o que você tá usando?" (André 2026-11-10)
     for (const k of ['sairTime', 'vir', 'time']) if (tem(k)) return k;
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
     for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'elogio', 'casa', 'horta', 'troca', 'oi']) if (tem(k)) return k;
@@ -479,6 +481,7 @@ export const Amiga = {
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 15).map(([k, n]) => `${n} ${k}`).join(', '),
       conversa: this.chatDeAmiga(j).slice(-8),
       memoria: (a.memorias?.[j.conta] || []).slice(0, AMIGA.memoria.max),
+      equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       regras: Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && AMIGA.memoria.regras[k]).map((k) => AMIGA.memoria.regras[k].texto),
     };
   },
@@ -545,12 +548,14 @@ export const Amiga = {
         break;
       case 'nao': ia.chamado = null; fala = sorteia(F.chamaRespostaNao); break;
       case 'ajuda':
+        if (!a.pedido && Math.random() < AMIGA.equipInteresse.pedir && this.pecaFracaAmiga()) { fala = this.pedeEquipAmiga(); break; } // às vezes é a peça mais fraca
         if (!a.pedido && Math.random() < 0.7) { const p = sorteia(AMIGA.pedidos); a.pedido = { k: p.k, n: p.n }; this.guardarAmiga(); }
         fala = a.pedido ? sorteia(FA.pedido).replace('{item}', `${a.pedido.n} ${ITENS[a.pedido.k].nome.toLowerCase()}`) + ' Me entrega quando passar aqui!' : sorteia(FA.semPedido);
         break;
       case 'casa': { const L = this.loteDaAmiga(), pronta = L && AMIGA.casa.every((c) => L.pecas.some((o) => mesmaPeca(o, pecaDaCasa(L.def, c)))); fala = sorteia(pronta ? FA.pronta : FA.obra); break; }
       case 'troca': { const t = this.abrirTrocaAmiga(j); fala = t === true ? sorteia(AMIGA.falasTroca.abre) : t; r = { ...r, fala: '' }; break; }
       case 'presente': case 'pedirItem': { const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele'); fala = this.pedidoTrocaAmiga(r.assunto, ult?.texto || ''); r = { ...r, fala: '' }; break; }
+      case 'equip': fala = this.falaEquipAmiga(); break;
       case 'horta': case 'dungeon': fala = sorteia(FA[r.assunto]); break;
       default: fala = sorteia(F[r.assunto] || F.naoEntendi);
     }
@@ -656,6 +661,38 @@ export const Amiga = {
   },
   // ---------- fase 3: mochila, ouro e troca (André 2026-11-09) ----------
   // arruma a mochila: veste a peça melhor, guarda o que serve e vende o resto (ela passa na Rosa: preço normal de venda)
+  // ---------- equipamento (André 2026-11-10: ela liga para as peças, pede a mais fraca e veste a melhor que ganhar) ----------
+  notaEquipAmiga(it) { return it ? it.r * 100 + (it.e || 0) * 10 - (it.d || 0) : -1; },
+  listaEquipAmiga() {
+    const e = this.amiga?.prog.equip || {};
+    return Object.entries(e).filter(([l, it]) => it && l !== 'cajado').map(([, it]) => nomeDoItem(it)).join(', ');
+  },
+  // a peça mais fraca dela (que ainda dá para melhorar): { l, it }
+  pecaFracaAmiga() {
+    const e = this.amiga?.prog.equip || {}; let f = null;
+    for (const [l, it] of Object.entries(e)) if (it && l !== 'cajado' && (it.r | 0) < AMIGA.equipInteresse.rarMax && (!f || this.notaEquipAmiga(it) < this.notaEquipAmiga(f.it))) f = { l, it };
+    return f;
+  },
+  falaEquipAmiga() { const f = this.pecaFracaAmiga(); return AMIGA.falasEquip.lista.replace('{lista}', this.listaEquipAmiga() || 'nada').replace('{fraca}', f ? nomeDoItem(f.it) : 'nenhuma, tô bem equipada'); },
+  pedeEquipAmiga() {
+    const f = this.pecaFracaAmiga();
+    return sorteia(AMIGA.falasEquip.pede).replace('{meu}', `minha peça ${nomeDoItem(f.it)}`);
+  },
+  // peça que ela usaria no lugar da dela (melhor e que ela consegue vestir)
+  melhorPecaAmiga(it) {
+    const p = this.amiga?.prog; if (!p || !it || !ehEquip(it.k)) return false;
+    const l = ITENS[it.k].lugar;
+    return l !== 'cajado' && Object.hasOwn(p.equip, l) && reforcoOk(it, p.atr) && this.notaEquipAmiga(it) > this.notaEquipAmiga(p.equip[l]);
+  },
+  // veste na hora o que for melhor na mochila (depois da troca); devolve os nomes
+  vestirMelhorAmiga(j) {
+    const p = j.prog, vestiu = [];
+    for (let i = 0; i < p.mochila.length; i++) {
+      const it = itemValido(p.mochila[i]); if (!it || !this.melhorPecaAmiga(it)) continue;
+      this.item(j.id, { acao: 'equipar', i }); vestiu.push(nomeDoItem(it));
+    }
+    return vestiu;
+  },
   arrumarMochilaAmiga(j) {
     const p = j.prog, nota = (it) => (it ? it.r * 100 + (it.e || 0) * 10 - (it.d || 0) : -1);
     for (let i = 0; i < p.mochila.length; i++) {
@@ -703,8 +740,15 @@ export const Amiga = {
     ia.trocaT = null; // o que ela mexer agora (enviarTroca) marca outra pensada
     const R = AMIGA.troca, F = AMIGA.falasTroca, eu = T.of[a.id], ele = T.of[dono.id];
     const margem = this.margemAmiga(a);
-    const pede = Math.ceil(this.valorMesa(eu) * margem), traz = this.valorMesa(ele) + ele.ouro;
     const dizer = (t) => { if (t && t !== ia.trocaDisse) { ia.trocaDisse = t; this.falarAmiga(t); } };
+    // peças de equipamento que ele pôs (André 2026-11-10): melhor que a dela, ela quer; pior, ela não paga
+    let naoServe = 0;
+    for (const e of ele.itens) {
+      const it = itemValido(JSON.parse(e.chave)); if (!it || !ehEquip(it.k)) continue;
+      if (this.melhorPecaAmiga(it)) { if (!(ia.trocaViu ||= new Set()).has(e.chave)) { ia.trocaViu.add(e.chave); dizer(AMIGA.falasEquip.melhor.replace('{item}', nomeDoItem(it))); } }
+      else { naoServe += precoVenda(it) * e.n; if (!(ia.trocaViu ||= new Set()).has(e.chave)) { ia.trocaViu.add(e.chave); dizer(AMIGA.falasEquip.pior.replace('{item}', nomeDoItem(it))); } }
+    }
+    const pede = Math.ceil(this.valorMesa(eu) * margem), traz = this.valorMesa(ele) - (ia.trocaPresente ? 0 : naoServe) + ele.ouro;
     // o ouro dela: paga pelo que ele trouxe (menos o que ele já deve pelo que pegou); presente = não paga nada
     const ouro = ia.trocaPresente ? 0 : Math.max(0, Math.min(a.prog.ouro, Math.floor(traz - pede)));
     if (eu.tranca && eu.ouro === ouro) {
@@ -726,7 +770,9 @@ export const Amiga = {
     const a = this.amiga, eu = T.of[a.id], ele = T.of[T.a === a.id ? T.b : T.a];
     const presente = !eu.itens.length && !eu.ouro && (ele.itens.length || ele.ouro);
     if (presente) { a.amizade = (a.amizade | 0) + 1; this.falarAmiga(AMIGA.falasTroca.obrigada); } else this.falarAmiga(sorteia(AMIGA.falasTroca.feita));
-    a.ia.trocaT = null;
+    a.ia.trocaT = null; a.ia.trocaViu = null;
+    const vestiu = this.vestirMelhorAmiga(a); // ganhou peça melhor: veste na hora
+    if (vestiu.length) { this.aplicarStatus(a); this.falarAmiga(AMIGA.falasEquip.vestiu.replace('{item}', vestiu.join(' e '))); }
     this.guardarAmiga();
   },
   // o que ela topou fica combinado um tempo (André 2026-11-09: falou que vem/que caça, não recusa o time em seguida)

@@ -1290,6 +1290,15 @@ export class Simulacao {
   // (o item ainda está no mesmo lugar, o ouro existe, cabe na mochila do outro): sem duplicar nada.
   // m = { acao: 'pedir' | 'aceitar' | 'recusar', com } · { acao: 'por', i, n } (lugar da mochila) · { acao: 'tirar', o }
   //   · { acao: 'ouro', n } · { acao: 'trancar', v } · { acao: 'confirmar' } · { acao: 'cancelar' }
+  // ver o equipamento de outro jogador (André 2026-11-10): de perto, como a troca; vale também para a Cecília
+  verEquip(id, m) {
+    const j = this.jogadores.get(id), o = this.jogadores.get(m?.com);
+    if (!j || !o || o === j || o.criando) return;
+    if (Math.hypot(o.x - j.x, o.z - j.z) > TROCA.perto + 2) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${o.nome}` });
+    const equip = {};
+    for (const l of LUGARES) { const it = o.prog.equip?.[l]; if (it) equip[l] = { k: it.k, r: it.r | 0, ...(it.e ? { e: it.e | 0 } : {}) }; }
+    this.evento({ t: 'equipVer', para: id, de: o.id, nome: o.nome, nivel: o.prog.nivel, equip });
+  }
   troca(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object') return;
     const aviso = (texto, para = id) => this.evento({ t: 'aviso', para, texto });
