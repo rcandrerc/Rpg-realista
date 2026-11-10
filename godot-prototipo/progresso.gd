@@ -350,6 +350,15 @@ func custo_reforco(it) -> int:
 	var C: Dictionary = reforco_dados().custo
 	return int(round((float(C.base) + float(C.porRaridade) * int(it.r)) * pow(float(C.sobe), int(it.get("e", 0)))))
 
+# Tecido que a tentativa gasta (André 2026-11-09, igual a materialReforco em shared/progresso.js): arma não gasta;
+# armadura 1 até +10, 2 até +20... Devolve {"k", "n"} ou {} (não gasta)
+func material_reforco(it) -> Dictionary:
+	var M = reforco_dados().get("material", {"k": "tecido", "porFaixa": 10})
+	var l: String = str(dados.itens[it.k].get("lugar", ""))
+	if M == null or l == "espada" or l == "cajado":
+		return {}
+	return {"k": str(M.k), "n": int(floor(float(int(it.get("e", 0))) / float(M.porFaixa))) + 1}
+
 func reforco_falhou(e: int) -> int:
 	var s := int(reforco_dados().seguro)
 	return max(int(floor(float(e) / s)) * s, e - 1)
@@ -394,6 +403,9 @@ func reforco_erro(it) -> String:
 		return "Você não pode reforçar mais: não tem atributo suficiente (precisa %d de %s, você tem %d)" % [pr[1], nome_atributo_reforco(pr[0]), atributo_reforco(pr[0])]
 	if int(prog.ouro) < custo_reforco(it):
 		return "Ouro insuficiente (%d/%d)" % [int(prog.ouro), custo_reforco(it)]
+	var mat := material_reforco(it)
+	if not mat.is_empty() and contar(mat.k) < int(mat.n):
+		return "%s insuficiente (%d/%d)" % [str(dados.itens[mat.k].nome), contar(mat.k), int(mat.n)]
 	return ""
 
 # sem internet: tenta aqui mesmo (online quem sorteia é o servidor). Devolve como o evento 'reforco' do servidor
@@ -404,6 +416,19 @@ func reforcar(it) -> Dictionary:
 	var de := int(it.get("e", 0))
 	var custo := custo_reforco(it)
 	prog.ouro = int(prog.ouro) - custo
+	var mat := material_reforco(it)
+	var falta := int(mat.get("n", 0))
+	var i := prog.mochila.size() - 1
+	while falta > 0 and i >= 0:
+		var o = prog.mochila[i]
+		if o != null and o.k == mat.k and not o.has("h"):
+			var t: int = min(falta, int(o.get("n", 1)))
+			falta -= t
+			if int(o.get("n", 1)) - t <= 0:
+				prog.mochila[i] = null
+			else:
+				o.n = int(o.n) - t
+		i -= 1
 	var ok: bool = randf() * 100.0 < chance_reforco(de)
 	var e := de + 1 if ok else reforco_falhou(de)
 	if e > 0:

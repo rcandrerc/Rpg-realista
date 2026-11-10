@@ -65,13 +65,13 @@ ok(CATALISADOR.arma.concat(CATALISADOR.armadura).every((k) => ITENS[k]?.mat), 'o
   M[0] = { k: 'peitoral', r: 1, e: 4, cad: 1 };
   s.item('C', { acao: 'evoluir', i: 0 });
   ok(!j.fabrica, 'sem Selo Épico não evolui');
-  M[1] = { k: 'selo_epico', n: 1 }; M[2] = { k: 'couro', n: 6 }; M[3] = { k: 'barra_ferro', n: 4 };
+  M[1] = { k: 'selo_epico', n: 1 }; M[2] = { k: 'couro', n: 6 }; M[3] = { k: 'barra_ferro', n: 4 }; M[8] = { k: 'tecido', n: 5 };
   const r0 = Math.random; Math.random = () => 0.5;
   s.item('C', { acao: 'evoluir', i: 0 }); fim();
   ok(M[0].r === 2 && !M[0].e && M[0].cad === 1, 'Peitoral Raro +4 vira Épico +0 (cadeado fica)');
-  ok(!contar(M, 'selo_epico') && !contar(M, 'couro') && !contar(M, 'barra_ferro'), 'gasta catalisador e material');
+  ok(!contar(M, 'selo_epico') && !contar(M, 'couro') && !contar(M, 'barra_ferro') && !contar(M, 'tecido'), 'gasta catalisador e material (com o tecido)');
   // falha: perde o catalisador e o material, a peça fica
-  M[1] = { k: 'selo_lendario', n: 1 }; M[2] = { k: 'couro', n: 8 }; M[3] = { k: 'cristal', n: 5 };
+  M[1] = { k: 'selo_lendario', n: 1 }; M[2] = { k: 'couro', n: 8 }; M[3] = { k: 'cristal', n: 5 }; M[8] = { k: 'tecido', n: 8 };
   Math.random = () => 0.0;
   s.item('C', { acao: 'evoluir', i: 0 }); fim();
   ok(M[0].r === 2 && !contar(M, 'selo_lendario'), 'falhou: perde o catalisador, a peça continua Épica');

@@ -1190,7 +1190,7 @@ export const ITENS = {
   carvao: { nome: 'Carvão', mat: true, pilha: 50, venda: 2, desc: 'Lenha queimada na forja. Misturado ao ferro, vira aço.' },
   barra_aco: { nome: 'Barra de aço', mat: true, pilha: 50, venda: 20, desc: 'Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores.' },
   couro: { nome: 'Couro', mat: true, pilha: 50, venda: 3, desc: 'Couro grosso dos Puglins. O alfaiate faz botas e reforços.' },
-  tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas.' },
+  tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas. Também vai na camisa, nas botas e no colar, e para evoluir e reforçar o que não é arma.' },
   // dungeon da montanha (2026-11-06): o fragmento cai dos monstros; o Gaspar junta e faz o passe que abre o selo
   fragmento: { nome: 'Fragmento rúnico', mat: true, pilha: 50, venda: 4, desc: 'Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela.' },
   // carne (2026-11-07): cai dos bichos (Puglin, Lobo, Maw) e vai para o fogão
@@ -1236,6 +1236,9 @@ export const REFORCO = {
   seguro: 5, bonus: 0.4, bonusCritico: 0.2,
   atributo: { livre: 2, porNivel: 10 },
   tempo: 1.6,
+  // André 2026-11-09: peça que não é arma também gasta Tecido dos Imps a cada tentativa, além do ouro:
+  // 1 até o +10, 2 até o +20, 3 até o +30, 4 até o +40 (porFaixa: de quantos em quantos + sobe 1).
+  material: { k: 'tecido', porFaixa: 10 },
 };
 export const VENDA_TOMO = 30; // x nível do Tomo
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -1394,15 +1397,15 @@ export const RECEITAS = {
   barra_cobre: { prof: 'fer', faz: 'barra_cobre', usa: { minerio_cobre: 3, lenha: 1 }, vigor: 1, nivel: 1 },
   espada: { prof: 'fer', faz: 'espada', usa: { barra_ferro: 3, lenha: 2 }, vigor: 4, nivel: 1 },
   cajado: { prof: 'fer', faz: 'cajado', usa: { lenha: 4, barra_cobre: 1, cristal: 1 }, vigor: 4, nivel: 2 },
-  colar: { prof: 'fer', faz: 'colar', usa: { barra_cobre: 2, cristal: 2 }, vigor: 4, nivel: 4 },
-  botas: { prof: 'alf', faz: 'botas', usa: { couro: 4 }, vigor: 8, nivel: 1 },
+  colar: { prof: 'fer', faz: 'colar', usa: { barra_cobre: 2, cristal: 2, tecido: 1 }, vigor: 4, nivel: 4 },
+  botas: { prof: 'alf', faz: 'botas', usa: { couro: 4, tecido: 1 }, vigor: 8, nivel: 1 },
   chapeu: { prof: 'fer', faz: 'chapeu', usa: { barra_ferro: 2, couro: 1, tecido: 1 }, vigor: 6, nivel: 2 }, // Capacete
   short: { prof: 'alf', faz: 'short', usa: { couro: 2, tecido: 1 }, vigor: 8, nivel: 1 },
   capa: { prof: 'alf', faz: 'capa', usa: { tecido: 4, couro: 1 }, vigor: 8, nivel: 2 },
   manto: { prof: 'alf', faz: 'manto', usa: { tecido: 5, couro: 2 }, vigor: 8, nivel: 3 },
   // peças das armaduras visíveis (camisa, calça, botas, capa, acessório): entram quando o item existir em ITENS
   calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
-  peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2 }, vigor: 6, nivel: 3 },
+  peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2, tecido: 2 }, vigor: 6, nivel: 3 },
   // Cozinheiro no fogão (2026-11-07): carne dos bichos e o que sai da horta
   carne_assada: { prof: 'coz', faz: 'carne_assada', usa: { carne: 1, lenha: 1 }, vigor: 2, nivel: 1 },
   sopa_legumes: { prof: 'coz', faz: 'sopa_legumes', usa: { cenoura: 1, batata: 1, rabanete: 1 }, vigor: 3, nivel: 1 },
@@ -1450,7 +1453,8 @@ export const CATALISADOR = {
   tempoDestruir: 1.5,
   usa: {
     arma: [{ lenha: 4, barra_cobre: 3 }, { lenha: 6, barra_ferro: 4 }, { lenha: 8, cristal: 5 }, { lenha: 10, cristal: 6, barra_aco: 2 }],
-    armadura: [{ couro: 4, barra_cobre: 3 }, { couro: 6, barra_ferro: 4 }, { couro: 8, cristal: 5 }, { couro: 10, cristal: 6, barra_aco: 2 }],
+    // André 2026-11-09: armadura também leva Tecido dos Imps (3 / 5 / 8 / 12)
+    armadura: [{ couro: 4, barra_cobre: 3, tecido: 3 }, { couro: 6, barra_ferro: 4, tecido: 5 }, { couro: 8, cristal: 5, tecido: 8 }, { couro: 10, cristal: 6, barra_aco: 2, tecido: 12 }],
   },
   falha: [0, 0.1, 0.15, 0.2, 0.25],
   sorte: [0.02, 0.06],
