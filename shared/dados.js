@@ -1964,6 +1964,15 @@ export const AMIGA = {
   // dá 'presente' (+ 'porAmizade' por ponto, até 'presenteMax') do que pegou; o resto ela oferece pelo preço de amiga.
   // memória (André 2026-11-10: "ir aprendendo com o dia a dia"): ao fim de cada conversa a IA escreve o diário dela sobre a pessoa
   // (até 'max' anotações curtas, as velhas resumidas) e as dicas que viram regra no jogo. pausa = s sem mensagem para fechar a conversa.
+  // equipamento (André 2026-11-10): ela liga para as peças dela, pede a mais fraca e veste na hora a melhor que ganhar
+  equipInteresse: { pedir: 0.4, rarMax: 3 }, // chance do "precisa de ajuda?" virar a peça mais fraca; não pede acima de Lendário
+  falasEquip: {
+    lista: 'Tô usando: {lista}. A mais fraquinha é {fraca}.',
+    pede: ['Tô precisando de algo melhor que {meu}... se tiver, me passa na troca?', 'Sabe o que eu queria? Trocar {meu} por algo melhor. Se achar, lembra de mim!'],
+    melhor: 'Nossa, {item}! Bem melhor que o que eu uso. Vou querer!',
+    pior: '{item} não serve pra mim, o que eu uso é melhor. Por isso eu não pago, tá?',
+    vestiu: 'Vesti {item}! Ficou bom em mim? Valeu demais!',
+  },
   memoria: { max: 15, tamanho: 120, pausa: 180, minimo: 2, cheia: 10, gostoMin: 3, gostoChance: 0.5,
     regras: { // dica que ele ensinou -> o que muda nela (no time de quem ensinou)
       curaCedo: { texto: 'curar ele mais cedo', curaDono: 0.65 },
@@ -2026,6 +2035,7 @@ export const AMIGA = {
       horta: ['horta', 'planta', 'cenoura', 'rabanete', 'batata', 'colheita', 'fazenda'],
       ajuda: ['precisa de algo', 'precisa de alguma', 'quer alguma coisa', 'posso ajudar', 'te ajudo', 'precisa de ajuda', 'quer ajuda'],
       dungeon: ['dungeon', 'caverna', 'masmorra', 'chefe', 'boss', 'warrok'],
+      equip: ['equipamento', 'equipamentos', 'equipada', 'usando', 'vestindo', 'armadura', 'sua roupa', 'seu peitoral', 'sua espada', 'seu capacete', 'suas botas'], // André 2026-11-10
       troca: ['troca', 'trocar', 'vende', 'vender', 'compra', 'comprar', 'item', 'tem '],
       // só valem com a janela de troca aberta (fase 3)
       presente: ['presente', 'de graca', 'pra voce', 'e seu', 'e sua', 'toma'],

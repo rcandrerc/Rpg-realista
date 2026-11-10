@@ -324,3 +324,35 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s10.amigaEntrar('andre');
   ok(s10.contextoAmiga('andre').memoria[0] === 'Ele saiu correndo hoje.' && s10.regraAmiga('seguir') === AMIGA.memoria.regras.pertinho.seguir, 'no outro dia ela lembra');
 }
+
+// ---------- equipamento (André 2026-11-10): ver de qualquer jogador, ela liga para as peças e veste a melhor que ganhar ----------
+{
+  const s11 = new Simulacao(MAPA_CLAREIRA);
+  const d = s11.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 });
+  const o = s11.adicionarJogador('outro', 'Outro', 'ruiva', { conta: 2 });
+  s11.amigaEntrar('andre');
+  const c = s11.amiga, esp = (t) => { for (let i = 0; i < t * 20; i++) s11.passo(0.05); };
+  o.prog.equip.corpo = { k: 'peitoral', r: 2, e: 3 };
+  Object.assign(o, { x: d.x + 2, z: d.z }); s11.eventos = [];
+  s11.verEquip('andre', { com: 'outro' });
+  const ev = s11.eventos.find((e) => e.t === 'equipVer' && e.para === 'andre');
+  ok(ev && ev.nome === 'Outro' && ev.equip.corpo?.r === 2 && ev.equip.corpo.e === 3, `ver o equipamento de outro jogador perto (${Object.keys(ev?.equip || {}).join(', ')})`);
+  Object.assign(o, { x: d.x + 40 }); s11.eventos = []; s11.verEquip('andre', { com: 'outro' });
+  ok(!s11.eventos.some((e) => e.t === 'equipVer') && s11.eventos.some((e) => e.t === 'aviso'), 'longe: pede para chegar perto');
+  Object.assign(d, { x: c.x + 1.5, z: c.z, y: c.y }); s11.eventos = []; s11.verEquip('andre', { com: AMIGA.id });
+  const evc = s11.eventos.find((e) => e.t === 'equipVer');
+  ok(evc && evc.equip.corpo?.k === c.prog.equip.corpo.k && evc.equip.corpo.r === c.prog.equip.corpo.r, 'ver o equipamento da Cecília (as peças de verdade, não a aparência)');
+  ok(s11.assuntoAmiga('o que você tá usando?') === 'equip' && s11.falaEquipAmiga().includes('mais fraquinha'), `"o que você tá usando?": "${s11.falaEquipAmiga()}"`);
+  ok(s11.pecaFracaAmiga() && s11.pedeEquipAmiga().length > 10, `pede a peça mais fraca: "${s11.pedeEquipAmiga()}"`);
+  // troca: peitoral Raro (melhor que o Comum dela) ela quer e veste na hora; botas Comuns iguais às dela ela não paga
+  c.prog.equip.corpo = { k: 'peitoral', r: 0 }; c.prog.equip.pes = { k: 'botas', r: 0 }; c.prog.ouro = 5000;
+  d.prog.mochila.fill(null); d.prog.mochila[0] = { k: 'peitoral', r: 1 }; d.prog.mochila[1] = { k: 'botas', r: 0 };
+  const falas = []; const fa = s11.falarAmiga.bind(s11); s11.falarAmiga = (t) => { falas.push(t); fa(t); };
+  s11.troca('andre', { acao: 'pedir', com: AMIGA.id });
+  s11.troca('andre', { acao: 'por', i: 0, n: 1 }); s11.troca('andre', { acao: 'por', i: 1, n: 1 }); esp(3);
+  const T = c.troca, minha = T.of[c.id];
+  ok(falas.some((t) => t.includes('Bem melhor')) && falas.some((t) => t.includes('não serve')), 'na troca ela reconhece a peça melhor e recusa pagar a pior');
+  ok(minha.tranca && minha.ouro > 0, `paga preço de amigo só pelo peitoral (${minha.ouro} de ouro)`);
+  s11.troca('andre', { acao: 'trancar', v: true }); s11.troca('andre', { acao: 'confirmar' }); esp(3);
+  ok(!c.troca && c.prog.equip.corpo.r === 1 && falas.some((t) => t.includes('Vesti')), `vestiu na hora: "${falas.find((t) => t.includes('Vesti'))}"`);
+}
