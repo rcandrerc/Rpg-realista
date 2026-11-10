@@ -37,6 +37,28 @@ func _ready() -> void:
 	_pc = AudioStreamPlayer.new()
 	_pc.bus = "Master"
 	add_child(_pc)
+	_pre_carregar_combate()
+
+# FPS (varredura 2026-11-10): as faixas de combate têm 2 a 3 MB; carregar na hora em que a luta começa travava o jogo
+# no primeiro golpe (e de novo quando trocava entre a comum e a do chefe). Agora carregam em segundo plano quando o
+# jogo abre e ficam guardadas; se a luta começar antes de acabar de carregar, a música entra assim que ficar pronta.
+var _faixas_luta := {} # nome -> AudioStream já carregado
+func _pre_carregar_combate() -> void:
+	faixa_combate() # lê a lista da pasta
+	for nome in _lista_combate:
+		ResourceLoader.load_threaded_request(PASTA_COMBATE + nome + ".ogg")
+
+func _faixa_luta(nome: String):
+	if _faixas_luta.has(nome):
+		return _faixas_luta[nome]
+	var caminho := PASTA_COMBATE + nome + ".ogg"
+	var st := ResourceLoader.load_threaded_get_status(caminho)
+	if st == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		return null # ainda carregando: tenta no próximo quadro
+	var s = ResourceLoader.load_threaded_get(caminho) if st == ResourceLoader.THREAD_LOAD_LOADED else load(caminho)
+	if s != null:
+		_faixas_luta[nome] = s
+	return s
 
 func faixas() -> Array[String]:
 	var nomes: Array[String] = []
@@ -125,7 +147,7 @@ func faixa_combate(chefe := false) -> String:
 func _entrar_combate(nome: String) -> void:
 	if faixa == "": # música parada: não toca a de combate
 		return
-	var s = load(PASTA_COMBATE + nome + ".ogg")
+	var s = _faixa_luta(nome)
 	if s == null:
 		return
 	if s is AudioStreamOggVorbis:

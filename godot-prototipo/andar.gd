@@ -46,7 +46,11 @@ var pousou := 0.0 # força do pouso que acabou de acontecer (0 a 1); o main.gd l
 var mata := {} # árvores da mata (mundo.mata) numa grade de 6 m: só confere as de perto (como Simulacao.pertoNaMata)
 var obst := {} # mundo.obstaculos na mesma grade de 6 m (cada um em toda casa que ele toca, com 1 m de folga)
 var vazios := {} # veios esgotados ("v3": true): a pedra sumiu e não bloqueia até voltar (trabalho.gd _mostrar_veio)
-var extras: Array = [] # sólidos que mudam com o jogo: peças construídas nos lotes (construcao.gd), [{x, z, r, alto?}]
+var extras: Array = []: # sólidos que mudam com o jogo: peças construídas nos lotes (construcao.gd), [{x, z, r, alto?}]
+	set(v):
+		extras = v
+		_obst_extras = _grade(extras)
+var _obst_extras := {} # extras na grade de 6 m (como obst)
 
 func _init(terreno, mundo: Dictionary) -> void:
 	T = terreno
@@ -65,15 +69,21 @@ func _init(terreno, mundo: Dictionary) -> void:
 		if not mata.has(k):
 			mata[k] = []
 		mata[k].append({"x": float(o.x), "z": float(o.z), "r": float(o.r), "alto": float(o.get("alto", 4.0))})
-	for o in m.get("obstaculos", []):
+	obst = _grade(m.get("obstaculos", []))
+	refazer_tampos()
+
+# cada obstáculo em toda casa de 6 m que ele toca, com 1 m de folga (o empurrão do herói é a r + 0,35 m)
+static func _grade(lista: Array) -> Dictionary:
+	var g := {}
+	for o in lista:
 		var r: float = float(o.r) + 1.0
 		for i in range(floori((float(o.x) - r) / 6.0), floori((float(o.x) + r) / 6.0) + 1):
 			for j in range(floori((float(o.z) - r) / 6.0), floori((float(o.z) + r) / 6.0) + 1):
 				var k := Vector2i(i, j)
-				if not obst.has(k):
-					obst[k] = []
-				obst[k].append(o)
-	refazer_tampos()
+				if not g.has(k):
+					g[k] = []
+				g[k].append(o)
+	return g
 
 # topo dos obstáculos baixos vira chão (terreno.gd por_tampos): mesa da Rosa, caixotes, tronco caído, pedra pequena e
 # as peças construídas (extras: bancada, bigorna, fornalha, baú, cama, cerca). construcao.gd chama de novo quando muda
@@ -136,7 +146,11 @@ func ad(a: float, b: float) -> float:
 # ---------- andar e colidir ----------
 var _pos_ok = null # último lugar dentro do mapa (Vector2)
 func colidir() -> void:
-	for k in m.obstaculos + perto_na_mata(x, z) + extras:
+	# FPS (varredura 2026-11-10): só os da casa da grade onde o herói está (antes: todos os obstáculos do mapa e todas
+	# as peças de todos os lotes, juntados numa lista nova em cada passo do movimento). Quem pode empurrar o herói
+	# (a menos de r + 0,35 m) está sempre na casa dele, porque a grade guarda cada um com 1 m de folga.
+	var ci := Vector2i(floori(x / 6.0), floori(z / 6.0))
+	for k in obst.get(ci, _NADA) + perto_na_mata(x, z) + _obst_extras.get(ci, _NADA):
 		if k.has("alto") and y > float(k.alto) - 0.05:
 			continue # por cima (esteio da ferraria visto do telhado, em pé na bancada)
 		if k.has("veio") and vazios.has(k.veio):
@@ -494,10 +508,16 @@ func vel_montado(forca: float) -> float:
 		return 0.0
 	return float(montado.correr)
 
+# FPS (varredura 2026-11-10): a procura de parede para correr nela (parede_a_frente, 31 pontos de chão à frente) só
+# no último passo do quadro: era a conta mais pesada do movimento e, a 30 FPS, rodava 2 vezes por quadro. Correndo a
+# 9 m/s o herói anda 0,3 m entre uma procura e outra; a janela de pegar a parede (1,5 a 3,1 m) tem 1,6 m.
+var _sonda_parede := true
 func passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	var n: int = max(1, ceili(dt / SUBPASSO - 0.001))
 	for i in n:
+		_sonda_parede = i == n - 1
 		_passo(dt / n, mx, mz, correr, livre, vel_k)
+	_sonda_parede = true
 
 func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k := 1.0) -> void:
 	if esc != null:
@@ -817,7 +837,7 @@ func tentar_escalar(mx: float, mz: float, correr: bool, dt: float) -> void:
 		if Vector2(x - (e.x - sin(e.ry) * 0.2), z - (e.z - cos(e.ry) * 0.2)).length() < 0.55 and cos(ad(dir, e.ry)) > 0.6:
 			pegar_escada(e)
 			return
-	if correr:
+	if correr and _sonda_parede:
 		var f = parede_a_frente(dir, 3.1)
 		if f != null and f.dist >= 1.5:
 			ry = dir

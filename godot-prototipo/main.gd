@@ -152,6 +152,10 @@ var tempo := 0.0
 
 # ---------- outros ----------
 var inimigos: Array = []
+# FPS (varredura 2026-11-10): os monstros a menos de LONGE_INIMIGO do herói, refeita todo quadro em lod_inimigos. O mundo
+# grande tem ~400 monstros; as contas de todo quadro que só valem de perto (barras e nomes, quem empurra o herói) olham
+# só esta lista em vez de passar pelos 400.
+var inimigos_perto: Array = []
 var npcs: Array = []
 var extras: Array = []
 
@@ -3023,8 +3027,10 @@ func atualizar_heroi(dt: float) -> void:
 	mov.outros.clear()
 	var fantasma: bool = h.lunge != null and h.lunge.fantasma
 	if not fantasma:
-		for e in inimigos:
-			if e.estado != "morto":
+		# só quem está a menos de 20 m (o empurrão é a 0,7 m): antes iam os ~400 monstros do mapa, e andar.gd confere
+		# cada um em todo passo do movimento
+		for e in inimigos_perto:
+			if e.estado != "morto" and e.no.position.distance_squared_to(heroi.position) < 400.0:
 				mov.outros.append(e.no.position)
 		for n in npcs:
 			mov.outros.append(n.no.position)
@@ -3331,25 +3337,28 @@ func lod_inimigos() -> void:
 		if meio_n != n.get("simples", false):
 			n.simples = meio_n
 			npc_simples(n.no, meio_n)
+	inimigos_perto.clear()
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
 		if longe != e.get("longe", false):
 			e.longe = longe
 			if e.anim:
 				e.anim.active = not longe
+		if not longe:
+			inimigos_perto.append(e)
 
 # barra de vida do monstro: some quando ele está com a vida cheia e longe. Nome só do alvo atual (o mais perto, que o
 # golpe pega sozinho) e de quem está em combate (levou ou deu dano nos últimos 5 s): três monstros juntos não encavalam
 func barras_perto() -> void:
 	var alvo = null
 	var md := 12.0
-	for e in inimigos:
+	for e in inimigos_perto: # os longe (outra clareira) nem entram (lod_inimigos)
 		if e.estado != "morto" and not e.get("longe", false):
 			var d0: float = e.no.position.distance_to(heroi.position)
 			if d0 < md:
 				md = d0
 				alvo = e
-	for e in inimigos:
+	for e in inimigos_perto:
 		if e.barra == null or e.estado == "morto" or e.get("longe", false): # longe (outra clareira) nem é desenhado
 			continue
 		var d: float = e.no.position.distance_to(heroi.position)
@@ -3368,7 +3377,7 @@ const NOME_PASSO := (14.0 + 18.0) * 72.0 / 14.0 # letra de 14 px + 18 px de espa
 const NOME_PASSO_M := 0.42 # m que cada nome empilhado sobe (com a barra junto)
 func empilhar_nomes() -> void:
 	var lista := []
-	for e in inimigos:
+	for e in inimigos_perto:
 		if e.barra != null and e.estado != "morto" and not e.get("longe", false): # os de outras clareiras nem aparecem
 			lista.append(e)
 	if camera:
@@ -3545,7 +3554,9 @@ func materializar_perto(dt: float) -> void:
 		if e.get("vazio", false) and hp.distance_to(Vector2(e.centro.x, e.centro.z)) < MUNDO_PERTO:
 			materializar(e)
 			n += 1
-			if n >= 3: # poucos por segundo: sem engasgo
+			# um corpo por vez, a cada 0,1 s (até 10 por segundo): montar um monstro (modelo, tinta, contorno, nome) leva
+			# ~5 ms no PC e uns 20 ms no celular; antes saíam 3 no mesmo quadro (engasgo de ~60 ms chegando num campo)
+			if n >= 1:
 				_mundo_t = 0.1
 				return
 

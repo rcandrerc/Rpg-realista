@@ -456,15 +456,20 @@ func esgotado(o: Dictionary) -> bool:
 	return o.cargas == 0 and o.volta_ate > m.tempo
 
 # ---------- quadro a quadro ----------
+var _t_veios := 0.0
 func _process(dt: float) -> void:
 	if m.heroi == null:
 		return
 	_passo_soltos()
-	# veio que voltou: o minério aparece de novo
-	for o in veios:
-		if o.has("corpo") and not o.corpo.visible and not esgotado(o):
-			_mostrar_veio(o, true)
-			o.cargas = -1
+	# veio que voltou: o minério aparece de novo. FPS (varredura 2026-11-10): o mapa grande tem veio espalhado por
+	# todo lado; conferir todos a cada 0,25 s basta (o minério volta no máximo 0,25 s depois)
+	_t_veios -= dt
+	if _t_veios <= 0.0:
+		_t_veios = 0.25
+		for o in veios:
+			if o.has("corpo") and not o.corpo.visible and not esgotado(o):
+				_mostrar_veio(o, true)
+				o.cargas = -1
 	# árvore que voltou: o toco some e ela cresce de novo
 	for i in range(caidas.size() - 1, -1, -1):
 		var ca: Dictionary = caidas[i]
