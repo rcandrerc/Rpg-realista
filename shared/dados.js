@@ -1142,7 +1142,9 @@ export function aparenciaValida(a) {
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
 // Nome do personagem: 3 a 16 letras, números ou espaços (sem espaço sobrando). Devolve o nome limpo ou null.
-export const NOME = { min: 3, max: 16 };
+// André 2026-11-10: o nome é escolhido no criador e fica travado; trocar depois custa `troca` de ouro (botão no
+// Aparência). Nome único entre as contas (sem diferença de maiúscula).
+export const NOME = { min: 3, max: 16, troca: 10000 };
 export function nomeValido(n) {
   if (typeof n !== 'string') return null;
   const s = n.normalize('NFC').replace(/\s+/g, ' ').trim();
@@ -1945,6 +1947,14 @@ export const AMIGA = {
   // bebe poção com pouca vida e foge para perto dele quando não tem poção.
   time: { base: 0.6, porAmizade: 0.08, amizadeMax: 0.35, cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
     min: 0.05, max: 0.95, esperaRecusa: 45, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
+  // André 2026-11-10 ("ela não se teleporta: entra na montaria e vem até mim, eu vejo ela no mapa vindo, como um jogador
+  // normal"; "vai pelas estradas para não travar"): longe do dono (chamada pelo chat ou no time) ela monta no lobo e vem
+  // pela rede de estradas (shared/rota.js, a mesma do "Ir para"). estrada: m a partir de quando vai pela estrada; chega: m
+  // do dono em que larga a estrada e segue direto; olha: m para mirar no próximo ponto; replanejar: m que o dono andou
+  // longe do fim da rota para refazer (no máximo a cada novaEm s); preso: s sem sair do lugar = desvia de lado por desvio s
+  // (depois de 3 desvios no mesmo ponto pula para o próximo); seco: s fora da água para subir de novo no lobo; agua: fundo
+  // (m) que já desce do lobo e atravessa a nado; frente: m adiante na rota para ver a água
+  viagem: { estrada: 25, chega: 10, olha: 2.4, replanejar: 12, novaEm: 3, preso: 1.5, desvio: 0.8, seco: 0.8, agua: 0.5, frente: 3, folga: 1.6, extra: 60 },
   // o que ela pede ao André (e paga de volta com o que colheu, ou em ouro)
   pedidos: [{ k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'couro', n: 2 }, { k: 'semente_cenoura', n: 3 }, { k: 'minerio_cobre', n: 3 }],
   falas: {
@@ -2082,6 +2092,9 @@ export const AMIGA = {
       comoVai: ['Tô ótima! A horta tá linda e eu tô cheia de energia.', 'Tudo certo por aqui! E você, matou muito lobo hoje?', 'Bem! Meio suja de terra, mas feliz.'],
       vir: ['Tô indo aí! Me espera que eu já chego.', 'Já vou! Não sai daí, hein?', 'Partiu! Chego num instante.'],
       chegou: ['Cheguei! Sentiu minha falta?', 'Pronto, tô aqui! Que foi?'],
+      // André 2026-11-10: ela vem de lobo pela estrada (nunca aparece do lado); longe avisa que está a caminho
+      aCaminho: ['Tô montando no lobo e indo pela estrada! Me espera aí.', 'Subi no lobo, tô indo pela estrada. Já já chego!', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
+      outraTerra: ['Você tá do outro lado do mar! De lobo não chego aí... me espera voltar pra essa terra?', 'Eita, você tá em outra terra. Sem barco eu não chego, te espero por aqui!'],
       // André 2026-11-09 ("as respostas têm que ter lógica"): chegou porque ele chamou, então pergunta o que vão fazer;
       // o que ela topou (vir, caçar) fica combinado por 'combinado' s e o convite de time entra sem sorteio
       chegouPergunta: ['O que vamos fazer? Bora caçar?', 'Tô pronta! Vamos caçar ou você tem outra ideia?', 'E aí, qual o plano? Caçar uns monstros?'],

@@ -44,7 +44,33 @@ uniform float longe_ligado = 0.0;
 uniform sampler2D mascara_mundo : filter_linear, repeat_disable;
 uniform vec4 mascara_area = vec4(-260.5, -320.5, 1441.0, 741.0);
 uniform float com_mascara = 0.0;
+// sombra pintada das árvores (visual_leve.gd, Sombras "Leves"): mapa do mundo, 1 px por metro, 1 = sol
+uniform sampler2D sombra_mapa : filter_linear, repeat_disable;
+uniform vec4 sombra_area = vec4(0.0, 0.0, 1.0, 1.0);
+uniform float sombra_forca = 0.0;
 varying vec3 mundo;
+// R = copas (com manchinhas de sol entre as folhas, ruído no chão), G = casas (sombra lisa)
+float sp_ruido(vec2 p) {
+	vec2 i = floor(p), f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5);
+	float b = fract(sin(dot(i + vec2(1, 0), vec2(127.1, 311.7))) * 43758.5);
+	float c = fract(sin(dot(i + vec2(0, 1), vec2(127.1, 311.7))) * 43758.5);
+	float d = fract(sin(dot(i + vec2(1, 1), vec2(127.1, 311.7))) * 43758.5);
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float sombra_pintada(vec2 xz) {
+	if (sombra_forca <= 0.0) return 1.0;
+	vec2 uv = (xz - sombra_area.xy) / sombra_area.zw;
+	if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 1.0;
+	vec2 s = textureLod(sombra_mapa, uv, 0.0).rg;
+	float copa = 1.0 - s.r;
+	if (copa > 0.01) {
+		float n = sp_ruido(xz * 1.35) * 0.65 + sp_ruido(xz * 3.1 + 7.3) * 0.35;
+		copa *= clamp(0.35 + 1.1 * smoothstep(0.25, 0.75, n), 0.0, 1.1);
+	}
+	return 1.0 - clamp(copa + (1.0 - s.g), 0.0, 0.72) * sombra_forca;
+}
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
@@ -142,6 +168,6 @@ void fragment() {
 			c = mix(c, cf, longe);
 		}
 	}
-	ALBEDO = c;
+	ALBEDO = c * sombra_pintada(mundo.xz);
 	ROUGHNESS = 1.0;
 }
