@@ -47,6 +47,7 @@ var em_combate := false # main.gd: bateu ou apanhou nos últimos segundos (traba
 var _combate_a := 0.0 # 0..1: o selo de combate entra e sai suave
 var canal := -1.0 # magia concentrada: 0..1 (barra no meio da tela); -1 = nenhuma
 var canal_vila := false # a barra é a do Voltar para a vila (dourada, com o nome em cima, mais alta na tela)
+var canal_vila_txt := "Voltando para a vila" # ou "Viajando para ..." (totem de teleporte)
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
 var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joystick nem câmera
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
@@ -595,7 +596,7 @@ func _desenhar() -> void:
 		_tela.draw_rect(Rect2(pc, tam), Color(0.05, 0.04, 0.03, 0.7))
 		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(1.0, 0.78, 0.38))
 		_tela.draw_rect(Rect2(pc - Vector2(1, 1), tam + Vector2(2, 2)), Color(0.925, 0.81, 0.55, 0.9), false, 1.0)
-		var tv := "Voltando para a vila"
+		var tv := canal_vila_txt
 		var wv := f.get_string_size(tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		_tela.draw_string_outline(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 6), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.6))
 		_tela.draw_string(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 6), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.68))

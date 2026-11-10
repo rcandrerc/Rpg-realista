@@ -78,9 +78,40 @@ func pedir() -> void:
 	m.heroi_anim.play("cura", 0.35, 0.5)
 	m.fx.volta_vila(m.heroi, V.canal)
 
+# Totem de teleporte (André 2026-11-10, totem.gd): a mesma canalização, para o totem escolhido, sem recarga e pagando a
+# taxa ao chegar. Online o servidor confere tudo de novo (Simulacao.irTotem) e manda o evento "vila" com o totem.
+func pedir_totem(t: Dictionary) -> void:
+	if m.h.morto > 0.0 or m.criador.aberto():
+		return
+	if ativo():
+		cancelar("Viagem cancelada")
+		m.rede("vila")
+		return
+	if m.mov.esc != null or not m.mov.chao:
+		m.hud.aviso("Fique no chão para viajar")
+		return
+	if m.acao.get("canal", false):
+		m.cancelar_canal("")
+	m.acao = {}
+	m.h.segurando = false
+	m.fila = null
+	if m.trabalho.coletando != null:
+		m.trabalho.parar(true)
+	m.rede("totem", {"para": str(t.id)})
+	canal = {"t": 0.0, "dur": float(m.totem.T.canal), "totem": t}
+	_congelou = false
+	m.heroi_anim.play("cura", 0.35, 0.5)
+	m.fx.volta_vila(m.heroi, float(m.totem.T.canal))
+
+# texto da barra do meio da tela
+func texto() -> String:
+	return "Viajando para %s" % canal.totem.nome if ativo() and canal.has("totem") else "Voltando para a vila"
+
 func cancelar(motivo := "Volta para a vila cancelada") -> void:
 	if not ativo():
 		return
+	if canal.has("totem"): # totem: "viagem", não "volta para a vila"
+		motivo = motivo.replace("Volta para a vila", "Viagem").replace("volta para a vila", "viagem")
 	canal = {}
 	m.fx.volta_vila_fim(m.heroi, false)
 	if motivo != "":
@@ -88,9 +119,11 @@ func cancelar(motivo := "Volta para a vila cancelada") -> void:
 	if m.h.morto <= 0.0 and m.acao.is_empty():
 		m.heroi_anim.play("parada" if m.h.modo == "Magia" else "espada_parada", 0.3)
 
-# chegou na praça (sozinho: aqui mesmo; online: o servidor manda onde, no evento "vila")
-func chegar(para: Vector3) -> void:
+# chegou na praça (sozinho: aqui mesmo; online: o servidor manda onde, no evento "vila"). totem: chegou num totem
+func chegar(para: Vector3, totem_id := "") -> void:
 	var de: Vector3 = m.heroi.position
+	if totem_id == "" and canal.has("totem") and not m.on():
+		totem_id = str(canal.totem.id)
 	canal = {}
 	m.acao = {}
 	m.mov.por_em(para)
@@ -98,6 +131,17 @@ func chegar(para: Vector3) -> void:
 	m.cam.colocar(m.heroi.position)
 	m.fx.volta_vila_fim(m.heroi, true, de)
 	m.heroi_anim.play("parada" if m.h.modo == "Magia" else "espada_parada", 0.3)
+	var t: Dictionary = m.totem.dados(totem_id) if totem_id != "" else {}
+	if not t.is_empty():
+		if not m.on(): # sozinho: paga aqui e o totem vira o lugar de renascer (online vem no progresso do servidor)
+			var c: int = m.totem.taxa(t)
+			m.P.prog.ouro = int(m.P.prog.get("ouro", 0)) - c
+			m.P.prog.totem = str(t.id)
+			m.P.mudou = true
+			m.hud.aviso("Você chegou em %s (-%d de ouro)" % [t.nome, c])
+		m.sons.tocar("moedas", -8.0)
+		guardar(true)
+		return
 	if not m.on(): # sozinho a recarga também conta (online vem no progresso do servidor)
 		m.P.prog.vilaAte = m.P.agora_ms() + V.cd * 1000.0
 		m.P.mudou = true
@@ -118,7 +162,13 @@ func passo(dt: float) -> void:
 		m.heroi_anim.ritmo_acao(0.04)
 	if canal.t < canal.dur:
 		return
-	if not m.on():
+	if not m.on() and canal.has("totem"):
+		var tt: Dictionary = canal.totem
+		if int(m.P.prog.get("ouro", 0)) < m.totem.taxa(tt):
+			cancelar("Ouro insuficiente: viagem cancelada")
+			return
+		chegar(m.totem.lado(tt), str(tt.id))
+	elif not m.on():
 		var x := D.NASCIMENTO.x + randf_range(-1.5, 1.5)
 		var z := D.NASCIMENTO.z + randf_range(-1.5, 1.5)
 		chegar(Vector3(x, 0, z))

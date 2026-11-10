@@ -324,7 +324,7 @@ func _chao_de_grama(x: float, z: float, sorte: float) -> float:
 	var h: float = T.altura(x, z)
 	if h > base + 0.05: # casa, pedra, móvel, cais...
 		return NAN
-	if _no_lote(x, z):
+	if _no_lote(x, z) or m.no_totem(x, z): # terreno com obra e pedra do totem de teleporte
 		return NAN
 	return h
 

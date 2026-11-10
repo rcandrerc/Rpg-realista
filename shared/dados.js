@@ -1840,6 +1840,31 @@ for (const n of MERCADORES_MUNDO) {
   MAPA_CLAREIRA.mata.push(...novas);
 }
 
+// Totens de teleporte (André 2026-11-10, escolheu "Só os 7 principais"): poucos, um por faixa de nível, na beira da
+// estrada principal (fora dos campos de caça). Passou a até `toque` m de um totem a pé: ele fica descoberto na conta
+// (prog.totens) e vira o lugar onde você renasce ao morrer (prog.totem, o último tocado; o da vila deixa a cama valer).
+// A pedra (plataforma de raio `raio` m) bloqueia a passagem. Perto de um totem (até `usar` m do meio) dá para ir a outro já descoberto pagando taxaNivel x nível do destino (mínimo
+// taxaMin) de ouro, depois de `canal` s parado (andar ou levar dano cancela). Pack nas costas e carrinho não vão (igual
+// ao Voltar para a vila: o comércio continua pela estrada). Em volta (`seguro` m) é área segura: monstro não persegue
+// nem bate em quem está lá dentro, e a vida volta `regen` vezes mais rápido. O botão Voltar para a vila não muda.
+export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50, seguro: 15, regen: 2, raio: 1.75, lista: [
+  { id: 'clareira', nome: 'Vila da Clareira', nivel: 1, faixa: 'Nv 1-30', x: -6, z: 1 },
+  { id: 'rio_claro', nome: 'Ponte do Rio Claro', nivel: 35, faixa: 'Nv 32-44', x: -261, z: 11 },
+  { id: 'juncos', nome: 'Ponte dos Juncos', nivel: 45, faixa: 'Nv 42-48', x: 564, z: 45 },
+  { id: 'porto_vael', nome: 'Porto de Vael', nivel: 50, faixa: 'Nv 50', x: 104, z: 310 },
+  { id: 'ilha', nome: 'Ilha do Meio', nivel: 60, faixa: 'Nv 50-65', x: 173, z: 663 },
+  { id: 'aurora', nome: 'Aurora', nivel: 100, faixa: 'Nv 60-100', x: 186, z: 1068 },
+  { id: 'posto_leste', nome: 'Posto do Leste', nivel: 88, faixa: 'Nv 82-95', x: 640, z: 1075 },
+] };
+// ouro para ir até o totem t
+export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
+// o totem a até r m de (x, z), ou null
+export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
+// dentro da área segura de algum totem?
+export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro);
+// a pedra do totem bloqueia a passagem (servidor e app, que lê mundo.json)
+for (const t of TOTENS.lista) MAPA_CLAREIRA.obstaculos.push({ x: t.x, z: t.z, r: TOTENS.raio, totem: t.id });
+
 // FASE 3, Parte 7b (André 2026-11-08: vilas pequenas de no máximo 5 terrenos; a grande do Nv 100 em bairros de ~5
 // terrenos a 60-80 m um do outro, 20-25 terrenos). Cada vila é uma área onde se compra terreno, com as mesmas regras
 // das Terras da Estrada (LOTE). A primeira é a de hoje, igual (a área e as estradas são as mesmas objetos); as do mundo
@@ -1858,6 +1883,8 @@ export const VILAS_TERRENO = [
     id: `aurora_${s}`, nome: `Aurora, ${nome}`, nivel: 100, mundo: true, bairro: true,
     area: { x: AURORA.x + dx * 34, z: AURORA.z + dz * 34, rx: 24, rz: 24 }, estradas: [curvaRua('e_aurora')], max: 5 })),
 ];
+// a pedra do totem (TOTENS) entra como praça: terreno nenhum em cima dela
+for (const V of VILAS_TERRENO) for (const t of TOTENS.lista) if (Math.hypot(t.x - V.area.x, t.z - V.area.z) < Math.max(V.area.rx, V.area.rz) + 6) V.estradas.push(praca(t.x, t.z, 3));
 // a vila de um ponto (o meio do terreno), ou null
 export function vilaEm(x, z) {
   for (const V of VILAS_TERRENO) if (Math.hypot(x - V.area.x, z - V.area.z) <= raioNaDirecao(V.area, Math.atan2(z - V.area.z, x - V.area.x))) return V;

@@ -477,6 +477,7 @@ func meu(j: Dictionary) -> void:
 		h.morto = 0.0
 		m.mov.por_em(Vector3(float(j.x), float(j.y), float(j.z)))
 		m.heroi.position = m.mov.posicao()
+		m.cam.colocar(m.heroi.position) # pode ter renascido longe (totem de teleporte, cama)
 		m.heroi_anim.play("parada", 0.2)
 	h.vida = float(j.vida)
 	# Escudo Arcano (o que sobra dele vem do servidor)
@@ -754,6 +755,10 @@ func evento(ev: Dictionary) -> void:
 			if m.construcao:
 				m.construcao.do_forno(ev)
 			return
+		"totem": # totem de teleporte descoberto ou marcado para renascer (o aviso vem junto): o totem acende
+			if m.totem:
+				m.totem.brilhar(str(ev.get("id", "")), ev.get("novo", false) == true)
+			return
 		"vila": # Voltar para a vila (casinha do menu do topo): começou, desistiu ou chegou na praça
 			var id := str(ev.id)
 			var fase := str(ev.get("fase", ""))
@@ -761,7 +766,7 @@ func evento(ev: Dictionary) -> void:
 				if fase == "cancela":
 					m.volta.cancelar("") # o aviso do porquê vem do servidor
 				elif fase == "chegou":
-					m.volta.chegar(Vector3(float(ev.x), float(ev.y), float(ev.z)))
+					m.volta.chegar(Vector3(float(ev.x), float(ev.y), float(ev.z)), str(ev.get("totem", ""))) # totem: chegou num totem de teleporte
 				return # "comeca": aqui no celular já começou na hora do toque
 			var no = corpos.get(id)
 			if no == null:
