@@ -455,6 +455,14 @@ func _marca_casa(c: Control, q: Vector2, t: float) -> void:
 	c.draw_colored_polygon(teto, COR_CASA)
 	c.draw_polyline(teto, esc, 1.5, true)
 
+# totem de teleporte: losango azul com o miolo claro; ainda não visitado, cinza
+func _marca_totem(c: Control, q: Vector2, r: float, aceso: bool) -> void:
+	var cor := Color("5ad8ff") if aceso else Color(0.62, 0.66, 0.72)
+	var borda := PackedVector2Array([q + Vector2(0, -r - 2), q + Vector2(r * 0.75 + 2, 0), q + Vector2(0, r + 2), q + Vector2(-r * 0.75 - 2, 0)])
+	c.draw_colored_polygon(borda, Color(0.04, 0.06, 0.1, 0.9))
+	c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -r), q + Vector2(r * 0.75, 0), q + Vector2(0, r), q + Vector2(-r * 0.75, 0)]), cor)
+	c.draw_circle(q, r * 0.22, Color(1, 1, 1, 0.9) if aceso else Color(0.85, 0.87, 0.9))
+
 # os lugares da lista: as vilas, as clareiras de caça (por nível) e os veios
 func _lugares() -> Array:
 	var l: Array = []
@@ -478,6 +486,9 @@ func _lugares() -> Array:
 		var tl := str(lm.get("tipo", ""))
 		if tl == "vila" or tl == "porto" or tl == "posto":
 			l.append({"id": str(lm.id), "tipo": "vila", "nome": str(lm.nome), "curto": str(lm.nome), "x": float(lm.x), "z": float(lm.z), "r": float(lm.r)})
+	if m.totem: # totens de teleporte (André 2026-11-10): "Ir para" leva até a pedra
+		for t in m.totem.T.lista:
+			l.append({"id": "totem_%s" % t.id, "tipo": "totem", "nome": "Totem: %s" % t.nome, "curto": "Totem %s" % t.nome, "x": float(t.x), "z": float(t.z), "r": 4.0})
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:
@@ -611,6 +622,11 @@ func _desenhar_mini() -> void:
 		var q: Vector2 = meio + Vector2(float(mn.x) - p.x, float(mn.z) - p.z) * k
 		if q.distance_to(meio) < RAIO - 8.0:
 			c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -6), q + Vector2(5, 0), q + Vector2(0, 6), q + Vector2(-5, 0)]), COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b")))
+	if m.totem:
+		for t in m.totem.T.lista:
+			var q: Vector2 = meio + Vector2(float(t.x) - p.x, float(t.z) - p.z) * k
+			if q.distance_to(meio) < RAIO - 8.0:
+				_marca_totem(c, q, 6.0, m.totem.descoberto(str(t.id)))
 	for o in _outros():
 		var q: Vector2 = meio + Vector2(o.x - p.x, o.z - p.z) * k
 		if q.distance_to(meio) < RAIO - 4.0:
@@ -762,7 +778,11 @@ func _desenhar_mapa() -> void:
 	var g: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
 	for t in g.get("terras", []):
 		var nv: Array = t.get("niveis", [])
-		_texto(c, em.call(float(t.x), float(t.z) - float(t.rz) * 0.97), "%s%s" % [str(t.nome), "  (Nv %d-%d)" % [int(nv[0]), int(nv[1])] if nv.size() == 2 else ""], 18, Color("f4e6c4"))
+		# os continentes (forma norte/sul, desde 2026-11-09) não têm x e z: o nome vai no meio, perto da costa (sem isto o
+		# desenho do mapa parava aqui e o resto, vilas, veios, casa e totens, não aparecia)
+		var tx: float = float(t.x) if t.has("x") else float(g.x0) + float(g.nx) * float(g.passo) * 0.5
+		var tz: float = float(t.z) - float(t.rz) * 0.97 if t.has("z") else (float(t.costa) - 560.0 if str(t.get("forma", "")) == "norte" else float(t.costa) + 60.0)
+		_texto(c, em.call(tx, tz), "%s%s" % [str(t.nome), "  (Nv %d-%d)" % [int(nv[0]), int(nv[1])] if nv.size() == 2 else ""], 18, Color("f4e6c4"))
 	for l in g.get("lugares", []):
 		var tl := str(l.get("tipo", ""))
 		if tl == "vila" or tl == "porto" or tl == "posto":
@@ -771,6 +791,13 @@ func _desenhar_mapa() -> void:
 			c.draw_circle(q, 3.0, COR_OURO if tl == "vila" else Color(1, 0.95, 0.85))
 			if tl == "vila" or not longe:
 				_texto(c, q + Vector2(0, -12), str(l.get("nome", "")), 15 if tl == "vila" else 12, Color(1, 0.95, 0.85))
+	if m.totem: # totens de teleporte: losango azul (apagado = ainda não visitado)
+		for t in m.totem.T.lista:
+			var qt: Vector2 = em.call(float(t.x), float(t.z))
+			var dt: bool = m.totem.descoberto(str(t.id))
+			_marca_totem(c, qt, 8.0, dt)
+			if not longe:
+				_texto(c, qt + Vector2(0, 17), "Totem", 12, Color("9fe6ff") if dt else Color(0.75, 0.8, 0.85))
 	for mn in m.mundo.get("mina", []):
 		if longe and (mn.get("pequeno", false) or mn.get("mundo", false)):
 			continue
@@ -925,6 +952,8 @@ func _desenhar_grande() -> void:
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
 				"casa": # o meu terreno: casinha de telhado vermelho
 					_marca_casa(c, qi + Vector2(0, 1), 6.5)
+				"totem":
+					_marca_totem(c, qi, 6.0, m.totem.descoberto(str(l.id).trim_prefix("totem_")))
 				"lago": # gota d'água azul
 					c.draw_circle(qi + Vector2(0, 2), 5.0, Color("4fa3e0"))
 					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-4.4, 0), qi + Vector2(0, -8), qi + Vector2(4.4, 0)]), Color("4fa3e0"))

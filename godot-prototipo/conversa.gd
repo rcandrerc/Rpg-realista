@@ -161,8 +161,8 @@ func npc_perto(metros := PERTO):
 			achou = n
 	return achou
 
-func _dist(n: Dictionary) -> float:
-	return Vector2(n.no.position.x - m.heroi.position.x, n.no.position.z - m.heroi.position.z).length()
+func _dist(n: Dictionary) -> float: # folga: o totem é largo (conta da beira da pedra)
+	return Vector2(n.no.position.x - m.heroi.position.x, n.no.position.z - m.heroi.position.z).length() - float(n.get("folga", 0.0))
 
 # botão Falar da HUD
 func tocar_botao() -> void:
@@ -203,6 +203,8 @@ func tocou_tela(pos: Vector2) -> void:
 # os NPCs da vila e, para o dono dela, a Cecília (um jogador do servidor com bot: o corpo é o do online.gd)
 func _com_amiga() -> Array:
 	var l: Array = m.npcs
+	if m.totem: # totens de teleporte (totem.gd): a pedra abre a janela como um NPC
+		l = l + m.totem.como_npcs()
 	var a = _amiga_npc()
 	return l if a == null else l + [a]
 
@@ -268,7 +270,8 @@ func _process(dt: float) -> void:
 	if npc != null:
 		# o NPC vira para o herói enquanto conversa e volta para onde olhava depois
 		var alvo: float = atan2(m.heroi.position.x - npc.no.position.x, m.heroi.position.z - npc.no.position.z)
-		npc.no.rotation.y = lerp_angle(npc.no.rotation.y, alvo, min(1.0, dt * 6.0))
+		if npc.funcao != "totem": # a pedra não vira
+			npc.no.rotation.y = lerp_angle(npc.no.rotation.y, alvo, min(1.0, dt * 6.0))
 		if _dist(npc) > 4.5 or m.h.morto > 0.0:
 			fechar()
 	for n in m.npcs:
@@ -310,6 +313,17 @@ func abrir(n: Dictionary) -> void:
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
 	_itens_passe(n.funcao == "passe")
+	if n.funcao == "totem": # totem de teleporte: os destinos com a taxa no lugar das opções
+		_destinos_totem(n)
+		retrato_ui.texture = Menu.icone_tex("salto_arcano")
+		retrato_ui.modulate = Color("8fe2ff") # o traço branco do ícone fica azul das runas
+		_aberto_ms = Time.get_ticks_msec()
+		raiz.visible = true
+		m.hud.bloqueado = true
+		m.hud.esconder_combate = true
+		m.cam.olhar_conversa(m.heroi.position, n.no.position)
+		m.sons.tocar("q_anel_1", -14.0)
+		return
 	if n.get("amiga", false): # Cecília: o servidor responde (shared/amiga.js) e os botões são os dela
 		fala_ui.text = "..."
 		m.rede("amiga", {"acao": "oi"})
@@ -331,6 +345,7 @@ func abrir(n: Dictionary) -> void:
 		opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
 		opcoes.add_child(_opcao("Até logo", "sair", fechar))
 	retrato_ui.texture = _retrato(n)
+	retrato_ui.modulate = Color.WHITE
 	_aberto_ms = Time.get_ticks_msec()
 	raiz.visible = true
 	m.hud.bloqueado = true
@@ -458,6 +473,35 @@ func escolher(a: String) -> void:
 					var i: int = (int(_falas.get(n.id, 0)) + 1) % falas.size()
 					_falas[n.id] = i
 					fala_ui.text = str(falas[i])
+
+# Totem de teleporte (André 2026-11-10, totem.gd): os outros totens, cada um com a taxa; o que ainda não foi visitado
+# a pé aparece trancado. Tocar num destino fecha a janela e começa a viagem (volta_vila.gd pedir_totem).
+func _destinos_totem(n: Dictionary) -> void:
+	var de: Dictionary = n.totem
+	var ouro := int(m.P.prog.get("ouro", 0))
+	fala_ui.text = "As runas brilham. Para onde você quer ir? Você tem %d de ouro." % ouro
+	for c in opcoes.get_children():
+		opcoes.remove_child(c)
+		c.queue_free()
+	for t in m.totem.T.lista:
+		if str(t.id) == str(de.id):
+			continue
+		var tt: Dictionary = t
+		var ok: bool = m.totem.descoberto(str(t.id))
+		var b := _opcao("%s · %d" % [t.nome, m.totem.taxa(t)] if ok else "%s (visite a pé)" % t.nome, "salto_arcano" if ok else "cadeado",
+func(): _ir_totem(de, tt))
+		b.tooltip_text = str(t.get("faixa", ""))
+		if not ok:
+			b.modulate = Color(1, 1, 1, 0.55)
+		elif m.totem.taxa(t) > ouro:
+			b.modulate = Color(1, 0.75, 0.7)
+		opcoes.add_child(b)
+	opcoes.add_child(_opcao("Até logo", "sair", fechar))
+
+func _ir_totem(de: Dictionary, para: Dictionary) -> void:
+	var r: String = m.totem.ir(de, para)
+	if r != "":
+		fala_ui.text = r
 
 # depois de consertar o botão mostra o preço novo (online o progresso chega um instante depois)
 func _atualizar_consertar() -> void:

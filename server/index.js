@@ -169,6 +169,7 @@ class SalaClareira extends Room {
     this.ouvir('amiga', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.conversaAmiga(c.sessionId, { acao: m.acao }); }); // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
     this.ouvir('vila', (c) => this.sim.voltarVila(c.sessionId)); // botão da casinha: canaliza e volta para a vila (recarga de 10 min)
+    this.ouvir('totem', (c, m) => { if (m && typeof m.para === 'string' && m.para.length < 24) this.sim.irTotem(c.sessionId, m.para); }); // totem de teleporte: vai para outro já descoberto (paga a taxa)
     // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
     this.ouvir('pos', (c, p) => this.sim.posicaoCliente(c.sessionId, p));
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)

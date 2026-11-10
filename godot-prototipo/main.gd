@@ -44,6 +44,7 @@ const Amigos = preload("res://amigos.gd")
 const Chat = preload("res://chat.gd")
 const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
+const Totem = preload("res://totem.gd") # totens de teleporte (André 2026-11-10)
 const Rota = preload("res://rota.gd")
 const Construcao = preload("res://construcao.gd")
 const EditarHud = preload("res://editar_hud.gd")
@@ -138,6 +139,7 @@ var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera
 var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenciado)
 var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e mana (só online)
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
+var totem # totem.gd: totens de teleporte (descobrir, viajar pagando, área segura, renascer)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
@@ -349,6 +351,8 @@ func _ready() -> void:
 	hud.minimapa = minimapa
 	volta = VoltaVila.new(self)
 	add_child(volta)
+	totem = Totem.new(self)
+	add_child(totem)
 	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
 	construcao = Construcao.new(self)
 	add_child(construcao)
@@ -597,7 +601,24 @@ func montar_grama() -> void:
 # lago (com a beirada) ou encosta da montanha: grama solta não nasce (shared/dados.js noRelevo)
 # 2026-11-06: a beirada é a faixa de terra em volta da água (mundo.beira) mais um tiquinho
 var _folga_beira := 0.8
+# em cima da pedra de um totem de teleporte (André 2026-11-10)? Grama e mato não nascem ali
+var _totens_chao: Array = []
+func no_totem(x: float, z: float) -> bool:
+	if _totens_chao.is_empty():
+		var td = P.dados.get("totens", {})
+		var rr: float = float(td.get("raio", 1.75)) + 0.4 if td is Dictionary else 2.0
+		for t in (td.get("lista", []) if td is Dictionary else []):
+			_totens_chao.append(Vector3(float(t.x), rr, float(t.z)))
+		if _totens_chao.is_empty():
+			_totens_chao.append(Vector3(1e9, 0, 1e9))
+	for t in _totens_chao:
+		if absf(x - t.x) < t.y and absf(z - t.z) < t.y and Vector2(x - t.x, z - t.z).length() < t.y:
+			return true
+	return false
+
 func fora_do_plano(x: float, z: float) -> bool:
+	if no_totem(x, z):
+		return true
 	if mundo.has("beira"):
 		_folga_beira = float(mundo.beira.get("terra_max", 1.6)) * 0.5 + 0.3
 	if terreno.altura_montanha(x, z) > 0.15:
@@ -2954,6 +2975,8 @@ func _process(dt: float) -> void:
 		hud.sem_mana("hab%d" % i, k != null and P.habs.has(k) and h.mana < float(P.habs[k].get("mana", 0)))
 	hud.canal = acao.t / (acao.dur * acao.hits[0]) if acao.get("canal", false) else volta.progresso()
 	hud.canal_vila = volta.ativo()
+	if volta.ativo():
+		hud.canal_vila_txt = volta.texto()
 	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
 	if P.mudou:
 		P.mudou = false
@@ -2977,8 +3000,9 @@ func atualizar_heroi(dt: float) -> void:
 		if h.morto <= 0.0:
 			h.vida = P.st.vidaMax
 			h.mana = P.st.manaMax
-			mov.por_em(D.NASCIMENTO)
+			mov.por_em(totem.onde_renascer(D.NASCIMENTO) if totem else D.NASCIMENTO) # último totem tocado (André 2026-11-10)
 			heroi.position = mov.posicao()
+			cam.colocar(heroi.position)
 			heroi_anim.play("parada", 0.2)
 			hud.aviso("Você se levanta de novo" + _penalidade_txt)
 			_penalidade_txt = ""
@@ -2987,7 +3011,7 @@ func atualizar_heroi(dt: float) -> void:
 	var R: Dictionary = P.regen()
 	h.mana = min(P.st.manaMax, h.mana + P.st.regenMana * (float(R.manaCombate) if luta else 1.0) * dt)
 	if not on():
-		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * (float(R.vidaCombate) if luta else 1.0) * dt)
+		h.vida = min(P.st.vidaMax, h.vida + P.st.regenVida * (float(R.vidaCombate) if luta else 1.0) * (totem.regen_k(heroi.position) if totem else 1.0) * dt)
 	if h.escudo_ate <= tempo:
 		h.escudo = 0.0
 	# repete o ataque básico só enquanto o dedo está no botão; soltou, para na hora (sem deixar o herói farmando sozinho)
@@ -3844,6 +3868,8 @@ func atualizar_inimigos(dt: float) -> void:
 		var ate: Vector3 = heroi.position - no.position
 		ate.y = 0
 		var d := ate.length()
+		if totem and totem.seguro(heroi.position): # área segura do totem: o monstro não persegue nem acerta
+			d = 999.0
 		var dy: float = abs(heroi.position.y - no.position.y)
 		if e.golpe >= 0.0: # corte em andamento: preparo devagar, depois acerta perto da metade (como no servidor)
 			e.golpe += dt

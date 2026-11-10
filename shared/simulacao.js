@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, NOME, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -457,6 +457,7 @@ export class Simulacao {
   }
   cancelarVila(j, motivo = 'Volta para a vila cancelada') {
     if (!j?.vila) return;
+    if (motivo && j.vila.totem) motivo = motivo.replace('Volta para a vila', 'Viagem').replace('volta para a vila', 'viagem'); // totem de teleporte
     j.vila = null;
     this.evento({ t: 'vila', id: j.id, fase: 'cancela' });
     if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
@@ -471,6 +472,58 @@ export class Simulacao {
     delete j.prog.pos;
     this.avisarProg(j); // o app mostra a recarga na casinha
     this.evento({ t: 'vila', id: j.id, fase: 'chegou', x0: r2(x0), z0: r2(z0), x: r2(x), y: r2(y), z: r2(z) });
+  }
+  // ---------- Totens de teleporte (André 2026-11-10, TOTENS em shared/dados.js) ----------
+  // passou perto a pé: o totem fica descoberto e vira o lugar de renascer (o último tocado)
+  tocarTotem(j, t) {
+    const lista = j.prog.totens || (j.prog.totens = []);
+    const novo = !lista.includes(t.id);
+    if (!novo && j.prog.totem === t.id) return;
+    if (novo) lista.push(t.id);
+    j.prog.totem = t.id; j.progSujo = true;
+    this.avisarProg(j);
+    this.evento({ t: 'totem', para: j.id, id: t.id, novo });
+    this.evento({ t: 'aviso', para: j.id, texto: novo ? `Totem descoberto: ${t.nome}. Se cair, você renasce aqui` : `Você renasce aqui agora: ${t.nome}` });
+  }
+  // perto de um totem, pediu para ir a outro: canaliza parado (o mesmo jeito da casinha: andar ou dano cancela) e paga
+  irTotem(id, para) {
+    const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (j.vila) return this.cancelarVila(j, null); // pediu de novo: desiste
+    const de = totemPerto(j.x, j.z, TOTENS.usar + 0.5), D = TOTENS.lista.find((t) => t.id === para);
+    if (!de) return aviso('Chegue perto de um totem');
+    if (!D || D.id === de.id) return;
+    if (!(j.prog.totens || []).includes(D.id)) return aviso(`Você ainda não visitou o totem ${D.nome}`);
+    if (this.motivoCarga(j)) return aviso(this.motivoCarga(j)); // pack e carrinho não teleportam (Quimera)
+    const taxa = taxaTotem(D);
+    if ((j.prog.ouro || 0) < taxa) return aviso(`Faltam ${taxa - (j.prog.ouro || 0)} de ouro (a viagem custa ${taxa})`);
+    if (j.esc || !j.chao) return;
+    if (j.coleta) this.pararColeta(j);
+    if (j.canal) this.cancelarCanal(j);
+    j.montado = null;
+    const v = j.vila = { x: j.x, z: j.z, totem: D.id };
+    this.evento({ t: 'vila', id: j.id, fase: 'comeca', dur: TOTENS.canal, totem: D.id });
+    this.depois(TOTENS.canal, () => { if (j.vila === v && !j.morto && this.jogadores.get(j.id) === j) this.chegarNoTotem(j, D); });
+  }
+  // onde o herói aparece num totem: um pouco à frente da pedra, para o lado da estrada (sorteio pequeno)
+  ladoDoTotem(t) {
+    const a = Math.random() * Math.PI * 2, r = TOTENS.raio + 1.6 + Math.random() * 1.2;
+    return { x: t.x + Math.cos(a) * r, z: t.z + Math.sin(a) * r };
+  }
+  chegarNoTotem(j, D) {
+    j.vila = null;
+    const taxa = taxaTotem(D);
+    if ((j.prog.ouro || 0) < taxa) { this.evento({ t: 'vila', id: j.id, fase: 'cancela' }); return this.evento({ t: 'aviso', para: j.id, texto: 'Ouro insuficiente: viagem cancelada' }); }
+    j.prog.ouro -= taxa;
+    const x0 = j.x, z0 = j.z, n = this.ladoDoTotem(D), y = this.terreno.altura(n.x, n.z);
+    Object.assign(j, { x: n.x, y, z: n.z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
+    j.cliente = null; j.orcT = null;
+    if (!j.prog.totens.includes(D.id)) j.prog.totens.push(D.id);
+    j.prog.totem = D.id;
+    delete j.prog.pos; j.progSujo = true;
+    this.avisarProg(j);
+    this.evento({ t: 'vila', id: j.id, fase: 'chegou', totem: D.id, x0: r2(x0), z0: r2(z0), x: r2(n.x), y: r2(y), z: r2(n.z) });
+    this.evento({ t: 'aviso', para: j.id, texto: `Você chegou em ${D.nome} (-${taxa} de ouro)` });
   }
   criarInimigo(sp) {
     const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = { ...statusInimigo(sp.tipo, nivel) }; // nível do campo de caça
@@ -2935,9 +2988,11 @@ export class Simulacao {
       this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
-        const L = this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
-        const n = cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : this.mapa.nascimento;
-        Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: 0, vy: 0, chao: true, trava: 0, acao: null });
+        // totem de teleporte (André 2026-11-10): renasce no último tocado; o da vila (ou nenhum) deixa a cama valer
+        const T = TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira');
+        const L = !T && this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
+        const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : this.mapa.nascimento;
+        Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: T ? this.terreno.altura(n.x, n.z) : 0, vy: 0, chao: true, trava: 0, acao: null });
         this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' + textoPenalidade(pen) });
       });
     } else {
@@ -3233,7 +3288,10 @@ export class Simulacao {
     if (j.coleta && this.tempo >= j.coleta.fim) this.batidaColeta(j);
     if (j.pesca) this.passoPesca(j, dt);
     if (j.fabrica && this.tempo >= j.fabrica.fim) this.passoFabrica(j);
-    if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * (luta ? REGEN.vidaCombate : 1) * dt);
+    // totem (André 2026-11-10): passou perto, descobre; na área segura a vida volta mais rápido
+    const seguro = !j.morto && !j.criando && naAreaSegura(j.x, j.z);
+    if (seguro) { const t = totemPerto(j.x, j.z, TOTENS.toque); if (t) this.tocarTotem(j, t); }
+    if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * (luta ? REGEN.vidaCombate : 1) * (seguro ? TOTENS.regen : 1) * dt);
     if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
       if (j.arrancada) { j.arrancada.t -= dt; if (j.arrancada.t <= 0) j.arrancada = null; }
@@ -3293,7 +3351,8 @@ export class Simulacao {
     if (b.trava > 0) return;
     const t = TIPOS_INIMIGO[b.tipo];
     const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
-    const alvo = this.maisPerto(b, 14);
+    let alvo = this.maisPerto(b, 14);
+    if (alvo && naAreaSegura(alvo.x, alvo.z)) alvo = null; // totem (André 2026-11-10): lá dentro monstro não persegue; volta para casa
     b.ataqueCd -= dt;
     const CI = COMBATE_INIMIGO;
     if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
@@ -3327,6 +3386,7 @@ export class Simulacao {
             return;
           }
           if (dist(alvo, b) >= 2.4 || Math.abs(alvo.y - b.y) >= 1.3) return;
+          if (naAreaSegura(alvo.x, alvo.z)) return; // entrou na área do totem bem na hora do golpe
           this.ferir(alvo, b.dano ?? t.dano, b);
         });
         if (Math.random() < 0.5) { b.vez = null; b.folgaAte = this.tempo + b.trava + CI.folga; } // passa a vez para quem está rodeando

@@ -2165,6 +2165,74 @@
   "cd": 600,
   "vila": 30
  },
+ "totens": {
+  "toque": 8,
+  "usar": 4,
+  "canal": 5,
+  "taxaNivel": 10,
+  "taxaMin": 50,
+  "seguro": 15,
+  "regen": 2,
+  "raio": 1.75,
+  "lista": [
+   {
+    "id": "clareira",
+    "nome": "Vila da Clareira",
+    "nivel": 1,
+    "faixa": "Nv 1-30",
+    "x": -6,
+    "z": 1
+   },
+   {
+    "id": "rio_claro",
+    "nome": "Ponte do Rio Claro",
+    "nivel": 35,
+    "faixa": "Nv 32-44",
+    "x": -261,
+    "z": 11
+   },
+   {
+    "id": "juncos",
+    "nome": "Ponte dos Juncos",
+    "nivel": 45,
+    "faixa": "Nv 42-48",
+    "x": 564,
+    "z": 45
+   },
+   {
+    "id": "porto_vael",
+    "nome": "Porto de Vael",
+    "nivel": 50,
+    "faixa": "Nv 50",
+    "x": 104,
+    "z": 310
+   },
+   {
+    "id": "ilha",
+    "nome": "Ilha do Meio",
+    "nivel": 60,
+    "faixa": "Nv 50-65",
+    "x": 173,
+    "z": 663
+   },
+   {
+    "id": "aurora",
+    "nome": "Aurora",
+    "nivel": 100,
+    "faixa": "Nv 60-100",
+    "x": 186,
+    "z": 1068
+   },
+   {
+    "id": "posto_leste",
+    "nome": "Posto do Leste",
+    "nivel": 88,
+    "faixa": "Nv 82-95",
+    "x": 640,
+    "z": 1075
+   }
+  ]
+ },
  "lote": {
   "preco": 400,
   "placaDist": 3,

@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
@@ -491,6 +491,9 @@ export function progressoValido(p) {
   if (num(p.vara) && p.vara > 0) n.vara = Math.min(Math.floor(p.vara), 1000); // peixes que a vara de pescar já tirou (PESCA.durabilidade)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
+  // totens de teleporte (André 2026-11-10): os já descobertos a pé e o último tocado (onde renasce)
+  if (Array.isArray(p.totens)) n.totens = [...new Set(p.totens.filter((id) => TOTENS.lista.some((t) => t.id === id)))];
+  if (TOTENS.lista.some((t) => t.id === p.totem)) n.totem = p.totem;
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));
