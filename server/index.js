@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGA } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGA, nomeValido } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { pensarAmiga, testarChaveGroq, escreverDiario } from './ia-amiga.js';
@@ -176,6 +176,9 @@ class SalaClareira extends Room {
     this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador
     // "Pronto" no criador: nome, corpo e aparência ficam gravados na conta e o criador não abre mais
     this.ouvir('pronto', (c, p) => {
+      // nome único (André 2026-11-10): se já é de outra conta, o criador abre de novo com o aviso
+      const n = nomeValido(p?.nome);
+      if (n && contas && c.auth && !contas.nomeLivre(n, c.auth.id)) return this.sim.evento({ t: 'nomeUsado', para: c.sessionId, nome: n, texto: `O nome ${n} já é de outro jogador. Escolha outro.` });
       const r = this.sim.concluirCriacao(c.sessionId, p);
       if (r && contas && c.auth) contas.salvarPersonagem(c.auth.id, r);
     });
@@ -183,6 +186,12 @@ class SalaClareira extends Room {
     this.ouvir('mudarAparencia', (c, a) => {
       const r = this.sim.mudarAparencia(c.sessionId, a);
       if (r && contas && c.auth) contas.salvarAparencia(c.auth.id, r);
+    });
+    // Trocar o nome depois de criado, pagando NOME.troca de ouro (André 2026-11-10); só com conta (o nome fica nela)
+    this.ouvir('trocarNome', (c, n) => {
+      if (!contas || !c.auth) return this.sim.evento({ t: 'aviso', para: c.sessionId, texto: 'Trocar o nome só com conta, jogando online' });
+      const r = this.sim.trocarNome(c.sessionId, n, (nome) => contas.nomeLivre(nome, c.auth.id));
+      if (r) { contas.salvarNome(c.auth.id, r); this.salvarProgressos(); } // o ouro gasto grava junto
     });
     // Trocar o corpo depois de criado (criador do app Godot: a Ruiva, os masculinos e os outros corpos, sem nome)
     this.ouvir('mudarVisual', (c, v) => {

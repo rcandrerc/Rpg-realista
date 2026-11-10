@@ -71,6 +71,8 @@ var sub: Label
 var b_pronto: Button
 var b_cancelar: Button
 var linha_nome: Control
+var b_nome: Button # Aparência: trocar o nome pagando (André 2026-11-10)
+var _nome_confirmar := false # primeiro toque mostra o preço, o segundo paga
 var cores_ui := {} # parte -> [[botão, cor]]
 var originais := {} # parte -> botão Original
 var faixas := {} # chave -> HSlider
@@ -347,8 +349,14 @@ func montar_painel() -> Control:
 	nome_edit.add_theme_stylebox_override("focus", Menu.caixa(Color(0.05, 0.045, 0.04), OURO, 1, 6))
 	nome_edit.add_theme_color_override("font_color", TEXTO)
 	nome_edit.custom_minimum_size.y = 40
-	nome_edit.text_changed.connect(func(_t): erro.text = "")
+	nome_edit.text_changed.connect(func(_t):
+		erro.text = ""
+		_nome_confirmar = false
+		_texto_b_nome())
 	ln.add_child(nome_edit)
+	# Aparência (personagem já criado): o nome fica travado; trocar custa ouro (NOME.troca em shared/dados.js)
+	b_nome = botao("", false, trocar_nome)
+	ln.add_child(b_nome)
 	linha_nome = ln
 	lista.add_child(ln)
 	# corpo: rostos redondos, sem nome (a Ruiva primeiro, depois os masculinos e os outros)
@@ -639,12 +647,18 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	_ao_concluir = ao_concluir
 	_ao_mudar = ao_mudar
 	ap = Aparencia.valida(inicial, criador)
-	linha_nome.visible = _criacao
+	# nome: na criação escolhe; no Aparência aparece o atual e o botão de trocar pagando (só online, o nome fica na conta)
+	linha_nome.visible = _criacao or m.on()
+	b_nome.visible = not _criacao
+	if not _criacao:
+		nome_edit.text = str(m.hud.nome)
+	_nome_confirmar = false
+	_texto_b_nome()
 	b_cancelar.visible = not _criacao
 	b_pronto.text = "Pronto" if _criacao else "Salvar"
 	titulo.text = "CRIAR PERSONAGEM" if _criacao else "APARÊNCIA"
-	sub.text = "Escolha o corpo, as cores, a altura e o rosto. Dá para mudar depois no menu do personagem." if _criacao \
-		else "Mude o corpo, as cores, a altura e o rosto. O nome continua o mesmo."
+	sub.text = ("Escolha o nome, o corpo, as cores, a altura e o rosto. A aparência dá para mudar depois no menu do personagem; o nome fica travado (trocar custa %s de ouro)." % _ouro_txt(_preco_nome())) if _criacao \
+		else "Mude o corpo, as cores, a altura e o rosto. Para trocar o nome, escreva o novo e toque em Trocar nome."
 	erro.text = ""
 	giro = 0.0
 	rosto = false
@@ -695,6 +709,62 @@ func pronto() -> void:
 	else:
 		fechar()
 		_ao_concluir.call(ap.duplicate(), corpo)
+
+# ---------- trocar o nome pagando (André 2026-11-10) ----------
+func _preco_nome() -> int:
+	return int(m.P.dados.nome.get("troca", 10000))
+
+func _ouro_txt(n: int) -> String: # 10000 -> "10.000"
+	var t := str(n)
+	var r := ""
+	while t.length() > 3:
+		r = "." + t.right(3) + r
+		t = t.left(t.length() - 3)
+	return t + r
+
+func _texto_b_nome() -> void:
+	if b_nome == null:
+		return
+	var novo := valido(nome_edit.text)
+	var pode := novo != "" and novo != str(m.hud.nome)
+	if _nome_confirmar:
+		b_nome.text = "Confirmar: pagar %s de ouro" % _ouro_txt(_preco_nome())
+	else:
+		b_nome.text = "Trocar nome · %s de ouro" % _ouro_txt(_preco_nome())
+	Menu.estilo_botao(b_nome, pode)
+
+func trocar_nome() -> void:
+	var novo := valido(nome_edit.text)
+	if novo == "":
+		erro.text = "Nome inválido: de %d a %d letras ou números." % [int(m.P.dados.nome.min), int(m.P.dados.nome.max)]
+		return
+	if novo == str(m.hud.nome):
+		erro.text = "Escreva o nome novo no campo acima."
+		return
+	if int(m.P.prog.get("ouro", 0)) < _preco_nome():
+		erro.text = "Falta ouro: trocar o nome custa %s." % _ouro_txt(_preco_nome())
+		return
+	if not _nome_confirmar: # primeiro toque: mostra o preço; o segundo paga
+		_nome_confirmar = true
+		_texto_b_nome()
+		return
+	_nome_confirmar = false
+	nome_edit.release_focus()
+	m.rede("trocarNome", novo) # o servidor confere (ouro e nome único) e responde com "nome" ou um aviso
+	b_nome.text = "Trocando..."
+
+# aviso do servidor com o criador aberto (nome de outro jogador, falta ouro...): aparece aqui embaixo também
+func aviso_servidor(t: String) -> void:
+	if b_nome != null and b_nome.visible and b_nome.text == "Trocando...":
+		erro.text = t
+		_texto_b_nome()
+
+# o servidor trocou o nome (online.gd, evento "nome")
+func nome_trocado(n: String) -> void:
+	nome_edit.text = n
+	_nome_confirmar = false
+	_texto_b_nome()
+	erro.text = ""
 
 # igual a nomeValido (shared/dados.js): 3 a 16 letras, números ou espaços
 func valido(n: String) -> String:
