@@ -27,6 +27,7 @@ var _deitado := false
 var _levantando := -1.0
 var _novo_levantar := false
 var _fx_tomada := -1
+var _branco_antes := false
 const SENTA_FADE := 1.1 # s da passagem de deitada para sentada
 const SENTA_ATE := 2.0 # s sentada tonta antes de apoiar as mãos
 const LEVANTA_RITMO := 0.6 # velocidade da animação de levantar (mais lenta, ainda zonza)
@@ -110,6 +111,28 @@ func _arrumar() -> void:
 	_pular.position = Vector2(tam.x - _pular.size.x - 22.0, max(8.0, h - _pular.size.y - 10.0))
 	_pular.modulate.a = _k
 
+# herói novo apertou "Pronto" no criador: a tela já fica preta até a abertura chegar do servidor (André 2026-11-11: não
+# pode aparecer de pé antes de aparecer deitada). Se a cena não vier em seg s, o preto some sozinho.
+var _espera := 0.0
+func escurecer(seg := 2.0) -> void:
+	if ativa:
+		return
+	_espera = seg
+	visible = true
+	_k = 0.0
+	_quem.text = ""
+	_fala.text = ""
+	_arrumar()
+	_preto.color = Color(0, 0, 0, 1)
+
+func _process(dt: float) -> void:
+	if _espera <= 0.0 or ativa:
+		return
+	_espera -= dt
+	_preto.color.a = clamp(_espera / 0.5, 0.0, 1.0)
+	if _espera <= 0.0:
+		visible = false
+
 # começa a cena id (vinda do servidor). Sem os dados (app velho), não faz nada.
 func tocar(id: String) -> void:
 	var todas = m.P.dados.get("historia", {}).get("cenas", {})
@@ -123,10 +146,12 @@ func tocar(id: String) -> void:
 		_restaurar()
 	ativa = true
 	visible = true
+	_espera = 0.0
 	_saindo = false
 	_i = 0
 	_t = 0.0
 	_fx_tomada = -1
+	_branco_antes = true # a primeira tomada põe as cores da legenda no lugar (se a última cena foi pulada no branco)
 	_k = 0.0
 	_ultima = {}
 	_fala_t = 0.0
@@ -254,8 +279,19 @@ func camera(dt: float) -> void:
 		var depois_b: bool = _i + 1 < _tomadas.size() and float(_tomadas[_i + 1].get("branco", 0.0)) > 0.0
 		var k_b: float = min(1.0 if antes_b else _t / branco, 1.0 if depois_b else (d - _t) / branco)
 		_preto.color = Color(0.97, 0.96, 1.0, clamp(k_b, 0.0, 1.0))
+		# no branco a legenda clara some: escurece junto com o branco
+		var esc: float = _preto.color.a
+		_fala.add_theme_color_override("font_color", Color(0.86, 0.84, 1.0).lerp(Color(0.22, 0.2, 0.32), esc))
+		_quem.add_theme_color_override("font_color", DOURADO.lerp(Color(0.5, 0.38, 0.12), esc))
+		for l in [_fala, _quem]:
+			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9).lerp(Color(1, 1, 1, 0.6), esc))
 	else:
 		_preto.color = Color(0, 0, 0, 1.0 - clamp(_t / preto, 0.0, 1.0) if preto > 0.0 else 0.0)
+		if _branco_antes: # saiu da memória: legenda volta às cores de sempre
+			_quem.add_theme_color_override("font_color", DOURADO)
+			for l in [_fala, _quem]:
+				l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_branco_antes = branco > 0.0
 	if tm.has("fx") and _fx_tomada != _i: # brilho na mão do herói (fragmento, selo, chave)
 		_fx_tomada = _i
 		if m.fx:

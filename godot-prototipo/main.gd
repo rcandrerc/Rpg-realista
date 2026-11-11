@@ -3998,6 +3998,8 @@ func atualizar_inimigos(dt: float) -> void:
 				e.anim.play("espada_parada", 0.2)
 
 func ferir_heroi(dmg: float, teto := 99.0) -> void:
+	if cinematica and cinematica.ativa: # vendo uma cena da história: ninguém bate (como no servidor, Simulacao.cena)
+		return
 	trabalho.combate()
 	if trabalho.coletando != null:
 		trabalho.parar(false)

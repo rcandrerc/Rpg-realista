@@ -2532,12 +2532,12 @@ export const CENAS = {
   // no branco e a legenda conta); fx: brilho na mão do herói.
   fragmento: { nome: 'O fragmento', tomadas: [
     { d: 3.0, rel: 'heroi', fx: 'brilho', de: { p: [0.9, 1.3, 1.8], o: [0, 0.9, 0] }, para: { p: [0.6, 1.45, 1.4], o: [0, 1.0, 0] }, fala: ['', 'O fragmento brilha junto com a marca da sua mão.'] },
-    { d: 3.4, rel: 'heroi', de: { p: [0.18, 1.55, 0.95], o: [0, 1.45, 0] }, para: { p: [0.12, 1.55, 0.78], o: [0, 1.45, 0] }, fala: ['Uma voz', '"...a estrela acordou."'] },
+    { d: 3.4, rel: 'heroi', de: { p: [0.18, 1.66, 0.95], o: [0, 1.6, 0] }, para: { p: [0.12, 1.66, 0.78], o: [0, 1.6, 0] }, fala: ['Uma voz', '"...a estrela acordou."'] },
     { d: 3.2, rel: 'heroi', de: { p: [-1.5, 2.0, 2.5], o: [0, 1.0, 0] }, para: { p: [-3, 6.5, 5], o: [0, 0.6, 0] }, fala: ['', 'Depois, apaga.'] },
   ] },
   presa: { nome: 'Presa-de-Prata', tomadas: [
     { d: 3.6, rel: 'heroi', de: { p: [2.2, 0.5, 1.6], o: [0, 0.6, 0] }, para: { p: [1.6, 0.6, 2.2], o: [0, 0.7, 0] }, fala: ['', 'Presa-de-Prata deita na grama, ofegante.'] },
-    { d: 3.4, rel: 'heroi', de: { p: [0.4, 1.5, 1.3], o: [0, 1.4, 0] }, para: { p: [0.3, 1.5, 1.1], o: [0, 1.4, 0] }, fala: ['{nome}', 'Calma... ninguém vai te machucar.'] },
+    { d: 3.4, rel: 'heroi', de: { p: [0.4, 1.66, 1.3], o: [0, 1.6, 0] }, para: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, fala: ['{nome}', 'Calma... ninguém vai te machucar.'] },
     { d: 3.4, rel: 'heroi', de: { p: [-3, 2.2, 3], o: [0, 0.8, 0] }, para: { p: [-4, 3, 0.5], o: [0, 0.8, 0] }, fala: ['', 'Ele deixa você pôr a coleira.'] },
   ] },
   diario: { nome: 'O diário do condutor', tomadas: [
@@ -2550,19 +2550,19 @@ export const CENAS = {
     { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O selo racha debaixo da sua mão.'] },
     { d: 4.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Uma mulher de cabelo prateado segura uma luz pequena... e chora.'] },
     { d: 3.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Mulher', '"Me perdoa."'] },
-    { d: 2.8, rel: 'heroi', de: { p: [0.2, 1.5, 0.85], o: [0, 1.45, 0] }, para: { p: [0.16, 1.5, 0.75], o: [0, 1.45, 0] }, fala: ['{nome}', '...Quem é você?'] },
+    { d: 2.8, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', '...Quem é você?'] },
   ] },
   kael: { nome: 'Kael', tomadas: [
     { d: 3.4, rel: 'heroi', de: { p: [-0.5, 1.7, -1.4], o: [0, 1.3, 6] }, para: { p: [-0.6, 1.75, -1.8], o: [0, 1.3, 6] }, fala: ['', 'Onde ele estava, só sobrou a névoa.'] },
-    { d: 3.6, rel: 'heroi', de: { p: [0.3, 1.5, 1.1], o: [0, 1.42, 0] }, para: { p: [0.22, 1.5, 0.95], o: [0, 1.42, 0] }, fala: ['Kael', '"Você não lembra mesmo de mim..."'] },
+    { d: 3.6, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"Você não lembra mesmo de mim..."'] },
     { d: 3.2, rel: 'heroi', de: { p: [3, 2.5, 4], o: [0, 1.0, 0] }, para: { p: [2, 2.2, 5], o: [0, 1.0, 0] }, fala: ['Kael', '"Ela vai gostar de saber."'] },
-    { d: 2.6, rel: 'heroi', de: { p: [0.22, 1.5, 0.9], o: [0, 1.45, 0] }, para: { p: [0.18, 1.5, 0.8], o: [0, 1.45, 0] }, fala: ['{nome}', 'Ela... quem?'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.22, 1.66, 0.9], o: [0, 1.6, 0] }, para: { p: [0.18, 1.66, 0.8], o: [0, 1.6, 0] }, fala: ['{nome}', 'Ela... quem?'] },
   ] },
   memoria2: { nome: 'Memória: Aethra', tomadas: [
     { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'A Chave do Oeste acende na sua mão.'] },
     { d: 4.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Um salão de cristal. Vozes cantando um nome.'] },
     { d: 3.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Vozes', '"Aethra."'] },
-    { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.5, 0.85], o: [0, 1.45, 0] }, para: { p: [0.16, 1.5, 0.75], o: [0, 1.45, 0] }, fala: ['{nome}', 'Aethra...'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Aethra...'] },
   ] },
 };
 // Chefes com nome da história: um monstro do campo vira o chefe quando o herói da etapa chega perto (o mesmo modelo,
