@@ -36,19 +36,34 @@ func hist() -> Dictionary:
 		return {"p": H.get("missoes", []).size(), "ac": false, "n": 0}
 	return h
 
+# estrito (lobo, André 2026-11-11 de novo: "até eu fazer a missão, vou a pé"): com conta, vale o progresso da conta
+# mesmo com a conexão caída ou voltando. O "tudo aberto" sem conexão era a brecha: a cada queda (o servidor reinicia
+# quando o código dele muda, e hoje foram vários merges) o botão do lobo voltava e o "Ir para" chamava o lobo; o
+# servidor recusava e o app soltava o lobo, e o "Ir para" chamava de novo. Sem conta nenhuma (sozinho): tudo aberto.
+func hist_conta() -> Dictionary:
+	var h = m.P.prog.get("hist")
+	if h is Dictionary:
+		return h
+	if tem_conta():
+		return {"p": 0, "ac": false, "n": 0}
+	return hist()
+
+func tem_conta() -> bool:
+	return m.online != null and (m.online.ligado or (m.online.rede != null and str(m.online.rede.sessao) != ""))
+
 func feitas() -> int:
 	return int(hist().get("p", 0))
 
-func liberado(k: String) -> bool:
+func liberado(k: String, estrito := false) -> bool:
 	if not quem_libera.has(k):
 		return true
 	var i := int(quem_libera[k])
-	if feitas() > i:
+	var h: Dictionary = hist_conta() if estrito else hist()
+	if int(h.get("p", 0)) > i:
 		return true
 	# história v2 (shared/historia.js liberado): o recurso abre no meio da própria missão (fundir, montar, pescar)
 	var M: Dictionary = H.get("missoes", [])[i]
-	var h := hist()
-	return feitas() == i and h.get("ac", false) == true and int(M.get("liberaNaEtapa", -1)) >= 0 and int(h.get("e", 0)) >= int(M.liberaNaEtapa)
+	return int(h.get("p", 0)) == i and h.get("ac", false) == true and int(M.get("liberaNaEtapa", -1)) >= 0 and int(h.get("e", 0)) >= int(M.liberaNaEtapa)
 
 func missao_atual() -> Dictionary:
 	var ms: Array = H.get("missoes", [])

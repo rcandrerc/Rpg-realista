@@ -22,7 +22,7 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10 } };
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
-const historicoChat = { geral: [], amigos: [], pm: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
+const historicoChat = { geral: [], amigos: [], pm: [], time: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
 
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID;
@@ -33,6 +33,28 @@ const ORIGENS = [/^https:\/\/rcandrerc\.github\.io$/, /^http:\/\/(localhost|127\
 class SalaClareira extends Room {
   maxClients = 16;
 
+  // a mensagem chegou a um NPC amigo (Cecília, Dario, aventureiros): a IA grátis pensa a resposta; sem IA, as regras (shared/amiga.js).
+  // viaTime: veio do chat de time, então a resposta dele também vai para o time
+  falarComAmigoIa(c, amg, msg, viaTime) {
+    const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
+    amg.ouvirAmiga(id, msg.texto);
+    amg.amiga.ia.viaTime = viaTime ? this.sim.tempo + CHAT.respostaTime : 0; // do time: responde no time; do privado: no privado
+    // dica de combate (André 2026-11-11): a IA é chamada uma vez e devolve a regra; esquecer/listar dicas vai pelas regras
+    const tipoDica = amg.tipoDicaAmiga(msg.texto), chaveDe = conta && contas ? contas.chaveIa(conta.id) : '';
+    if (tipoDica === 'esquecer' || tipoDica === 'listar') { amg.comandoDicaAmiga(id, tipoDica, msg.texto); return; }
+    // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
+    const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
+      const regra = amg.assuntoAmiga(msg.texto);
+      // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
+      if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
+      // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
+      const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
+      amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
+    });
+    // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
+    if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); });
+    else conversar();
+  }
   onCreate() {
     salas.add(this);
     this.sim = new Simulacao(MAPA_CLAREIRA);
@@ -55,6 +77,7 @@ class SalaClareira extends Room {
     }
     // bosses de mundo (André 2026-11-11): a hora de voltar de cada um fica no banco (vale para todas as salas e depois de
     // reiniciar); nasceu, caiu ou soltou Mítico: aviso no chat geral de todo mundo online
+    if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
     this.sim.aoAnuncio = (msg) => {
       const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
@@ -105,25 +128,9 @@ class SalaClareira extends Room {
       for (const s of salas) s.sim.receberChat(msg);
       // mensagem para a Cecília (amiga virtual do dono): a IA grátis pensa a resposta; sem IA, as regras (shared/amiga.js)
       const amg = msg.canal === 'pm' ? this.sim.amigoIaDe(msg.alvo) : null; // Cecília ou Dario (André 2026-11-11), cada um com a sua cabeça
-      if (amg && amg.amiga) {
-        const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
-        amg.ouvirAmiga(id, msg.texto);
-        // dica de combate (André 2026-11-11): a IA é chamada uma vez e devolve a regra; esquecer/listar dicas vai pelas regras
-        const tipoDica = amg.tipoDicaAmiga(msg.texto), chaveDe = conta && contas ? contas.chaveIa(conta.id) : '';
-        if (tipoDica === 'esquecer' || tipoDica === 'listar') { amg.comandoDicaAmiga(id, tipoDica, msg.texto); return; }
-        // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
-        const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
-          const regra = amg.assuntoAmiga(msg.texto);
-          // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
-          if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
-          // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
-          const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
-          amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
-        });
-        // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
-        if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); });
-        else conversar();
-      }
+      if (amg && amg.amiga) this.falarComAmigoIa(c, amg, msg, false);
+      // chat de time (André 2026-11-11): cada NPC do time (Cecília, Dario, aventureiros) ouve como se fosse no privado (dicas e comandos valem para todos)
+      if (msg.canal === 'time') for (const ctx of this.sim.amigosIaNoTime(c.sessionId)) this.falarComAmigoIa(c, ctx, msg, true);
     });
     // "Ativar conversa com IA" (André 2026-11-10): o jogador cria a chave grátis no Groq e cola no jogo uma vez só.
     // O servidor testa e guarda na conta dele (server/contas.js); ninguém precisa mandar chave para o André.
@@ -141,7 +148,7 @@ class SalaClareira extends Room {
       aviso(`Pronto! Agora você pode conversar com ${AMIGOS_VIRTUAIS.map((d) => d.nome).join(' e ')}`);
     });
     // as falas da Cecília no chat entram no histórico (quem volta ao jogo vê a conversa) e vão para o dono
-    this.sim.aoChatAmiga = (msg) => { historicoChat.pm.push(msg); if (historicoChat.pm.length > CHAT.historicoPm) historicoChat.pm.shift(); this.sim.receberChat(msg); };
+    this.sim.aoChatAmiga = (msg) => { const h = historicoChat[msg.canal] || historicoChat.pm; h.push(msg); if (h.length > (msg.canal === 'pm' ? CHAT.historicoPm : CHAT.historico)) h.shift(); this.sim.receberChat(msg); }; // no privado ou no time
     // profissões (Parte 3): coletar num veio ou árvore e criar pela receita (o servidor confere distância, vigor e materiais)
     this.ouvir('coletar', (c, m) => { if (m && typeof m.no === 'string' && m.no.length < 8) this.sim.coletar(c.sessionId, { no: m.no, parar: m.parar === true }); });
     this.ouvir('criar', (c, m) => { if (m && typeof m.r === 'string' && m.r.length < 32) this.sim.criar(c.sessionId, Number.isInteger(m.n) ? { r: m.r, n: m.n } : { r: m.r }); });
@@ -229,6 +236,7 @@ class SalaClareira extends Room {
       if (conta) contas.salvarProgresso(conta.id, prog);
     }
     for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); // lotes que mudaram (compra, peça, horta)
+    for (const n of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + n.id, n.dados); // aventureiros sem casa
   }
 
   // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
@@ -292,19 +300,23 @@ class SalaClareira extends Room {
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (conta) this.sim.definirAmigos(client.sessionId, contas.amigos(conta.id).map((a) => ({ c: 'c' + a.id, nome: a.nome })));
-    this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos, historicoChat.pm); // as últimas mensagens do chat
+    this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos, historicoChat.pm, historicoChat.time); // as últimas mensagens do chat
     if (podeCriar) this.sim.definirCriando(client.sessionId, true);
     // Cecília (André 2026-11-09): entra na sala junto com o dono (as contas de teste do André; sem contas, o primeiro
     // que entra) e sai quando ele sai. O terreno dela vem do banco do jeito que está (outra sala pode ter mexido).
     // 2026-11-10: e também quem ativou a conversa com IA (a chave Groq dele); ela fica enquanto tiver um deles na sala
-    if (conta ? conta.testador || conta.ia : !this.sim.amiga) this.entrarAmiga(client); // primeira vez: entra já no palco do criador
+    // André 2026-11-11 ("quero que eles andem sozinhos"): os NPCs vivem no mundo para todos da sala; conversar, só com chave
+    this.entrarAmiga(client, conta ? !!(conta.testador || conta.ia) : !this.sim.amiga); // primeira vez: entra já no palco do criador
   }
 
   // Cecília na sala para quem pode conversar com ela (shared/amiga.js amigaEntrar)
-  entrarAmiga(client) {
-    for (const ctx of this.sim.amigosIa) { // a Cecília e o Dario (André 2026-11-11) entram juntos, cada um com o seu terreno
-      if (contas && !ctx.amiga) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
-      ctx.amigaEntrar(client.sessionId);
+  entrarAmiga(client, fala = true) {
+    for (const ctx of this.sim.amigosIa) { // a Cecília, o Dario e os 20 aventureiros (André 2026-11-11), cada um com o seu save
+      if (contas && !ctx.amiga) {
+        if (ctx.AMIGA.terreno) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
+        else this.sim.carregarNpc(ctx.AMIGA.id, contas.lerMundo('npc:' + ctx.AMIGA.id)); // sem casa: o save fica na tabela mundo
+      }
+      ctx.amigaEntrar(client.sessionId, fala);
     }
     this.sim.enviarLotes(client.sessionId);
   }
@@ -318,7 +330,8 @@ class SalaClareira extends Room {
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
-    for (const ctx of this.sim.amigosIa) if (ctx.amigaFalam.has(client.sessionId)) { ctx.amigaSair(client.sessionId); this.salvarProgressos(); } // Cecília: o último com chave saiu, ela sai junto
+    for (const ctx of this.sim.amigosIa) ctx.amigaSair(client.sessionId); // NPCs: quem saiu deixa de ser acompanhado; o último da sala leva todos junto
+    this.salvarProgressos();
     this.sim.removerJogador(client.sessionId);
     this.visao.esquecer(client.sessionId);
     this.contaDe?.delete(client.sessionId);

@@ -41,7 +41,7 @@ ok(!a.pedidoTroca && !a.troca && !s.eventos.some((e) => e.t === 'troca' && e.par
 s.guardarAmiga();
 const salvo = s.lotesParaSalvar().find((l) => l.id === L.def.id);
 ok(salvo?.dados?.amiga?.prog && salvo.dados.amiga.amizade === a.amizade, 'bolsa e amizade vão junto com o terreno');
-s.amigaSair('outro');
+s.amigaSair('outro'); s.removerJogador('outro'); // como o servidor: sai da sala depois
 ok(s.amiga === a, 'sair de outro jogador não tira ela');
 s.amigaSair('andre');
 ok(!s.amiga && !s.jogadores.has(AMIGA.id), 'sai junto com o dono');
@@ -265,14 +265,16 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(fila().at(-1)?.para === 'irmao' && s7.amigaDono === 'andre', 'mas conversa com o irmão ao mesmo tempo');
   esp(20);
   ok(s7.chatDeAmiga(ir).some((m) => m.de === 'ela') && !s7.chatDeAmiga(d).some((m) => m.texto === 'Oi! Tudo bem por aí?'), 'cada um tem a sua conversa');
-  s7.amigaSair('andre');
+  s7.amigaSair('andre'); s7.removerJogador('andre');
   ok(s7.amiga === c && s7.amigaDono === 'irmao' && !c.time && c.amizade === 0, 'André saiu: ela fica com o irmão (amizade dele começa do zero)');
   c.amizade = 1;
   s7.guardarAmiga();
   const sv = s7.loteDaAmiga().amiga;
   ok(sv.amizades.c1 === 3 && sv.amizades.c2 === 1, `amizade separada por conta: ${JSON.stringify(sv.amizades)}`);
-  s7.amigaSair('irmao');
-  ok(!s7.amiga, 'o último com chave saiu: ela sai');
+  s7.amigaSair('irmao'); s7.removerJogador('irmao');
+  ok(s7.amiga === c && s7.amigaDono == null, 'o último com chave saiu: ela fica no mundo para quem está na sala, sem dono (André 2026-11-11)');
+  s7.amigaSair('sem'); s7.removerJogador('sem');
+  ok(!s7.amiga, 'o último da sala saiu: ela sai');
 }
 { // save antigo (amizade era só do André): o irmão entra primeiro e a amizade do André não se perde
   const s8 = new Simulacao(MAPA_CLAREIRA);
