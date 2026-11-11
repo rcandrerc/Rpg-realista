@@ -9,7 +9,7 @@ import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, nomeValido } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
-import { pensarAmiga, testarChaveGroq, escreverDiario } from './ia-amiga.js';
+import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 
 const { Server, Room, ServerError } = colyseus;
@@ -108,8 +108,11 @@ class SalaClareira extends Room {
       if (amg && amg.amiga) {
         const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
         amg.ouvirAmiga(id, msg.texto);
+        // dica de combate (André 2026-11-11): a IA é chamada uma vez e devolve a regra; esquecer/listar dicas vai pelas regras
+        const tipoDica = amg.tipoDicaAmiga(msg.texto), chaveDe = conta && contas ? contas.chaveIa(conta.id) : '';
+        if (tipoDica === 'esquecer' || tipoDica === 'listar') { amg.comandoDicaAmiga(id, tipoDica, msg.texto); return; }
         // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
-        pensarAmiga(ctx, msg.texto, conta && contas ? contas.chaveIa(conta.id) : '').then((r) => {
+        const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
           const regra = amg.assuntoAmiga(msg.texto);
           // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
           if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
@@ -117,6 +120,9 @@ class SalaClareira extends Room {
           const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
           amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
         });
+        // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
+        if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); });
+        else conversar();
       }
     });
     // "Ativar conversa com IA" (André 2026-11-10): o jogador cria a chave grátis no Groq e cola no jogo uma vez só.
