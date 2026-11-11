@@ -6,6 +6,7 @@ const D = preload("res://dados.gd")
 const MundoTerreno = preload("res://mundo_terreno.gd") # FASE 3: continentes e mar
 const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
+const BossMundo = preload("res://boss_mundo.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
 const Grafico = preload("res://grafico.gd")
@@ -63,9 +64,9 @@ const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "c
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
 const BANDO := []
-const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok"}
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok", "tita": "Titã", "dragao": "Dragão"}
 # o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
-const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok", "tita": "tita", "dragao": "dragao"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m",
 	"m_lenha": "cabelo_m", "m_pedra": "cabelo_m", "m_metal": "cabelo_m", "m_horta": "vivi", "m_peixe": "cabelo_m", "m_couro": "cabelo_m", # mercadores de pack (FASE 1)
@@ -75,7 +76,7 @@ const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": 
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 # O Aldo virou o ancião da vila (pedido do André, 2026-11-05): cabelo grisalho da tinta dele
 const TINGIR_NPC := ["ferreiro", "lider", "m_lenha", "m_pedra", "m_metal", "m_horta", "m_peixe", "m_couro", "m_conserva", "m_abobora", "m_perola", "m_ervas", "m_obsid", "m_brasa", "alquimista"]
-const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0, "tita": 260.0, "dragao": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
 const NOME_LONGE := 30.0
@@ -89,6 +90,7 @@ var grama: MultiMeshInstance3D
 var mato # mato.gd: capim alto e samambaia perto do herói
 var hud
 var fx
+var boss_mundo # boss_mundo.gd: bosses de mundo (André 2026-11-11): aviso no chão, barra no topo, efeitos no herói
 var morte # morte.gd: bordas vermelhas, coração e cor sumindo com a vida baixa; "VOCÊ CAIU" e o escuro ao morrer
 var combate # combate.gd: aviso antes do golpe do monstro, tranco, firme, esquiva, morte em fumaça
 var _lenta_ate := 0.0 # câmera lenta (só o tempo): esquiva e último inimigo
@@ -283,6 +285,8 @@ func _ready() -> void:
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
+	boss_mundo = BossMundo.new(self)
+	add_child(boss_mundo)
 	agua_fx = AguaFx.new()
 	add_child(agua_fx)
 	combate = Combate.new(self)
@@ -1443,8 +1447,10 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 # Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
 # (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
 const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02, "olho": "9cff5a"},
-	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2}}
-const CHEFES := ["chefe", "warrok"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
+	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2},
+	# bosses de mundo com modelo próprio (André 2026-11-11): Titã do Quimera e dragão da Quaternius (client/exportar-godot/bosses-modelos.js)
+	"tita": {"alto": 2.4, "contorno": 0.02, "olho": "ffa31a", "brilho": 2.2}, "dragao": {"alto": 2.2, "contorno": 0.015, "olho": "ffd34a"}}
+const CHEFES := ["chefe", "warrok", "tita", "dragao"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
 var _shader_monstro: Shader
 func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 	if _shader_monstro == null:
@@ -2230,6 +2236,8 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
+	if boss_mundo.preso() and (qual in ["basico", "cura", "dash", "rolar", "pular", "montar", "disparada", "coletar"] or qual.begins_with("hab")):
+		return # atordoado por skill de boss: só poção
 	if qual in ["pocao", "pocao_mana"]: # botões de poção da HUD (2026-11-07): não param coleta, volta nem golpe
 		beber_pocao(qual)
 		return
@@ -3136,7 +3144,9 @@ func atualizar_heroi(dt: float) -> void:
 	if alvo_mira != null:
 		k_alvo = float(P.dados.andarAtirando) # andando de lado ou de costas: o mesmo passo de quem atira
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
-	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
+	if boss_mundo.preso(): # atordoado, congelado ou derrubado por skill de boss: não anda
+		livre = false
+	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k * boss_mundo.lento())
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
 	_forca_joy = forca
 	trabalho.passo_estamina(dt)
@@ -3627,7 +3637,13 @@ func _criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 	var tipo := str(c.tipos[i])
 	var nv := int(c.get("nivel", 1))
 	var nome: String = NOME_TIPO.get(tipo, "Inimigo") + ("  Nv %d" % nv if c.has("nivel") else "")
-	var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, 1.15 if tipo == "chefe" else 1.0)
+	var bv: Dictionary = c.get("visual", {}) if c.has("boss") and i == 0 else {} # boss de mundo (boss_mundo.gd): maior, outra cor, nome dele
+	if not bv.is_empty():
+		nome = "%s  Nv %d" % [str(bv.get("nome", nome)), nv]
+	var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, float(bv.get("esc", 1.0)) if not bv.is_empty() else (1.15 if tipo == "chefe" else 1.0))
+	if not bv.is_empty():
+		e.boss = str(c.boss)
+		boss_mundo.vestir(e, bv)
 	e.tipo = tipo
 	e.nivel = nv
 	for l in e.no.get_children(): # cor do nome pelo nível (Quimera); colorir_niveis troca quando o herói sobe
@@ -3635,7 +3651,7 @@ func _criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 			l.modulate = cor_nivel(nv)
 			break
 	if tipo == "lobo": # bicho de quatro patas: nome e barra mais perto do lombo
-		e.alto = 1.45
+		e.alto = 1.45 * float(bv.get("esc", 1.0))
 	var st: Dictionary = c.get("status", {}).get(tipo, {}) # vida e dano no nível do campo (statusInimigo do servidor)
 	e.vida_max = float(st.get("vida", VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)))
 	e.dano = float(st.get("dano", D.INIMIGO.dmg))

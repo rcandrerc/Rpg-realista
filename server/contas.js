@@ -66,6 +66,8 @@ export class Contas {
     // Vila dos Lotes: dono (chave da conta: 'c' + id), nome do dono e o que tem no lote (peças e horta, em JSON)
     this.db.exec('CREATE TABLE IF NOT EXISTS lotes (id TEXT PRIMARY KEY, dono TEXT, nome TEXT, dados TEXT, atualizado INTEGER)');
     // amigos (André 2026-11-05): cada amizade fica gravada nas duas pontas (a -> b e b -> a), até 20 por conta
+    // coisas do mundo que valem para todas as salas (André 2026-11-11: a hora em que cada boss de mundo volta)
+    this.db.exec('CREATE TABLE IF NOT EXISTS mundo (chave TEXT PRIMARY KEY, valor TEXT)');
     this.db.exec('CREATE TABLE IF NOT EXISTS amizades (a INTEGER NOT NULL, b INTEGER NOT NULL, desde INTEGER, PRIMARY KEY (a, b))');
     this.q = {
       porGoogle: this.db.prepare('SELECT * FROM contas WHERE google = ?'),
@@ -210,6 +212,8 @@ export class Contas {
 
   // ---------- Vila dos Lotes ----------
   // todos os lotes guardados (formato de Simulacao.carregarLotes)
+  lerMundo(chave) { try { const r = this.db.prepare('SELECT valor FROM mundo WHERE chave = ?').get(chave); return r ? JSON.parse(r.valor) : null; } catch { return null; } }
+  gravarMundo(chave, valor) { this.db.prepare('INSERT INTO mundo (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, JSON.stringify(valor)); }
   lotes() { return this.q.lotes.all().map(linhaLote); }
   lote(id) { const l = this.q.lote.get(id); return l ? linhaLote(l) : null; }
   loteDoDono(dono) { const l = this.q.loteDoDono.get(dono); return l ? linhaLote(l) : null; }
