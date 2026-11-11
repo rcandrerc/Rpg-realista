@@ -93,12 +93,12 @@ export function histValida(h, nivel) {
 }
 const histDe = (p) => p.hist || histNova();
 // a zona ou o recurso k já está liberado para a conta p? (liberaNaEtapa: o recurso abre no meio da própria missão)
-export function liberado(p, k) {
+export const liberado = (p, k) => {
   const i = QUEM_LIBERA[k]; if (i == null) return true;
   const h = histDe(p); if (h.p > i) return true;
   const M = HISTORIA[i];
   return h.p === i && h.ac === true && M.liberaNaEtapa != null && (h.e || 0) >= M.liberaNaEtapa;
-}
+};
 // a missão atual (a próxima a fazer) ou null (todas feitas)
 export const missaoAtual = (p) => HISTORIA[histDe(p).p] || null;
 // a etapa da vez (só com a missão aceita) ou null
