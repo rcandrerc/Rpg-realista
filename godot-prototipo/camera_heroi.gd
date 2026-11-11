@@ -43,6 +43,7 @@ var _afunda := 0.0
 var _afunda_v := 0.0
 var _t := 0.0
 var _fov := FOV_BASE
+var soco := 0.0 # festa.gd (subiu de nível, missão): o campo de visão fecha uns graus e volta, um "soco" leve na câmera
 # montado no lobo (direção de arte 2026-11-03): a câmera sobe 0,4 m e se afasta 1 m, para o lobo não tapar a estrada
 const MONTADO_SOBE := 0.4
 const MONTADO_AFASTA := 1.0
@@ -107,6 +108,9 @@ func _init(principal, camera: Camera3D) -> void:
 func colocar(p: Vector3) -> void:
 	alvo = p + Vector3(0, 1.35, 0)
 	_vel_alvo = Vector3.ZERO
+
+func socar(graus: float) -> void:
+	soco = max(soco, graus)
 
 func tremer(q: float) -> void:
 	trauma = min(1.0, trauma + q)
@@ -219,4 +223,5 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	if mov.arrancada != null or (m.h.lunge != null and m.h.lunge.fantasma):
 		fov_alvo = FOV_BASE + FOV_DASH
 	_fov = lerp(_fov, fov_alvo, min(1.0, dt * (9.0 if fov_alvo > _fov else 3.0)))
-	cam.fov = _fov
+	cam.fov = _fov - soco
+	soco = move_toward(soco, 0.0, dt * max(4.0, soco * 3.0))
