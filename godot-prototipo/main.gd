@@ -240,6 +240,17 @@ var soma_proc := 0.0
 var soma_gpu := 0.0
 var soma_rcpu := 0.0
 var resultados := []
+# FPS (auditoria 2026-11-11): o "jogo" (TIME_PROCESS) é o PIOR quadro do último segundo e ainda inclui a espera da tela,
+# por isso dava 60-80 ms com o jogo a 40 FPS. Agora o quadro é medido por partes, com os sinais do motor:
+# física (passos de física), lógica (scripts, animações, ossos), desenho (mandar desenhar e esperar a tela) e o resto
+# (o limite de FPS segurando). Média dos últimos quadros, sempre ligada (são 4 relógios por quadro).
+var _q_fis := 0
+var _q_proc := 0
+var _q_pre := 0
+var _q_fim := 0
+var q_ms := {"quadro": 0.0, "fisica": 0.0, "logica": 0.0, "desenho": 0.0, "espera": 0.0}
+var soma_q := {}
+var _sem_gente := [] # etapa "Sem personagens": [nó, estava visível]
 var rotulo: Label
 var botao_teste: Button
 const ESPERA := 2.5
@@ -4148,7 +4159,59 @@ func montar_teste() -> void:
 		{"nome": "20 personagens", "f": func(): mostrar_extras(true)},
 		{"nome": "Resolução menor 0.45x", "f": func(): get_viewport().scaling_3d_scale = 0.45},
 		{"nome": "Sem mato alto", "f": func(): mato.visible = false},
+		{"nome": "Sem personagens", "f": func(): _esconder_gente(true)},
+		{"nome": "Sem limite de FPS", "f": func(): Engine.max_fps = 0},
 	]
+	get_tree().physics_frame.connect(_q_fisica)
+	get_tree().process_frame.connect(_q_logica)
+	RenderingServer.frame_pre_draw.connect(_q_desenho)
+	RenderingServer.frame_post_draw.connect(_q_fechar)
+
+func _q_fisica() -> void:
+	if _q_fis == 0:
+		_q_fis = Time.get_ticks_usec()
+
+func _q_logica() -> void:
+	_q_proc = Time.get_ticks_usec()
+
+func _q_desenho() -> void:
+	_q_pre = Time.get_ticks_usec()
+
+func _q_fechar() -> void:
+	var agora := Time.get_ticks_usec()
+	if _q_fim > 0 and _q_proc > _q_fim and _q_pre >= _q_proc:
+		var ini: int = _q_fis if _q_fis > _q_fim and _q_fis < _q_proc else _q_proc
+		var v := {"quadro": agora - _q_fim, "fisica": _q_proc - ini, "logica": _q_pre - _q_proc, "desenho": agora - _q_pre}
+		v.espera = v.quadro - v.fisica - v.logica - v.desenho
+		for k in v:
+			q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
+			if etapa >= 0 and t_etapa > ESPERA:
+				soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
+	_q_fim = agora
+	_q_fis = 0
+
+# etapa do Teste: esconde os outros corpos (NPCs da vila, jogadores e bots) para ver quanto eles pesam
+func _esconder_gente(v: bool) -> void:
+	if v:
+		var nos := []
+		for n in npcs:
+			nos.append(n.no)
+		if online:
+			for o in online.outros.values():
+				nos.append(o.no)
+				if o.get("montaria") != null:
+					nos.append(o.montaria.no)
+		for no in nos:
+			if no is Node3D and is_instance_valid(no):
+				_sem_gente.append([no, no.visible, no.process_mode])
+				no.visible = false
+				no.process_mode = Node.PROCESS_MODE_DISABLED
+	else:
+		for g in _sem_gente:
+			if is_instance_valid(g[0]):
+				g[0].visible = g[1]
+				g[0].process_mode = g[2]
+		_sem_gente.clear()
 
 func _sem_grama() -> void:
 	grama.visible = false
@@ -4173,6 +4236,7 @@ func restaurar() -> void:
 	grama.visible = true
 	mato.visible = true
 	mostrar_extras(false)
+	_esconder_gente(false)
 	if grafico:
 		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
@@ -4197,6 +4261,7 @@ func proxima_etapa() -> void:
 	soma_proc = 0.0
 	soma_gpu = 0.0
 	soma_rcpu = 0.0
+	soma_q.clear()
 
 func atualizar_teste(dt: float) -> void:
 	var fps := Engine.get_frames_per_second()
@@ -4206,6 +4271,7 @@ func atualizar_teste(dt: float) -> void:
 	if online:
 		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
 		txt += " · mato %.1f ms · capas %.1f ms" % [mato.ms if mato else 0.0, Armadura.PanoCapa.ms_quadro] # auditoria de FPS 2026-11-11
+	txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
@@ -4217,7 +4283,8 @@ func atualizar_teste(dt: float) -> void:
 		txt += "\nTestando %d/%d: %s…" % [etapa + 1, etapas.size(), etapas[etapa].nome]
 		if t_etapa >= ESPERA + MEDE:
 			var q: float = max(1, quadros)
-			resultados.append("%s: %.0f FPS · jogo %.1f ms · desenho %.1f ms · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE, soma_proc / q, soma_rcpu / q, soma_gpu / q])
+			resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
+					soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
