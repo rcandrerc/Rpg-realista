@@ -2,6 +2,7 @@
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
 import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
+import { histNova, histValida } from './historia.js';
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -435,7 +436,7 @@ export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
   return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, paginas: 1, equip: equipNovo(),
-    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false };
+    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false, hist: histNova() };
 }
 export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
@@ -494,6 +495,8 @@ export function progressoValido(p) {
   // totens de teleporte (André 2026-11-10): os já descobertos a pé e o último tocado (onde renasce)
   if (Array.isArray(p.totens)) n.totens = [...new Set(p.totens.filter((id) => TOTENS.lista.some((t) => t.id === id)))];
   if (TOTENS.lista.some((t) => t.id === p.totem)) n.totem = p.totem;
+  // missões principais (André 2026-11-10, shared/historia.js): conta de antes da progressão ganha as missões até o nível dela
+  n.hist = histValida(p.hist, n.nivel);
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));

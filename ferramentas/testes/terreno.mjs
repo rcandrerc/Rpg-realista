@@ -1,6 +1,7 @@
 // Teste do terreno (André 2026-11-05): mínimo 6 x 6, sem frestinha, vender, mudar o tamanho e a conta do correio.
 // Uso: node ferramentas/testes/terreno.mjs
 import { Simulacao, MAPA_CLAREIRA, motivoTerreno, LOTE, contaTerreno } from '../../shared/index.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 }), b = s.adicionarJogador('B', 'Beto', undefined, { conta: 2 });
 for (const j of [a, b]) { j.criando = false; j.x = -19; j.z = 60; j.prog.ouro = 5000; }

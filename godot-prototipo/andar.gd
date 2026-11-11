@@ -37,6 +37,7 @@ var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
 # 3 velocidades (André 2026-11-03): o joystick só anda (1) e trota (2); a corrida de 5,4 m/s, a que gasta estamina,
 # só com o botão de disparada ligado (hud.gd "disparada", main.gd ligar_disparada). Sem fôlego ela desliga sozinha.
 var disparada := false
+var nevoa = null # nevoa.gd (progressão, André 2026-11-10): zona ainda fechada, o herói para na borda
 var selo_aberto := false # Caverna da Montanha: o servidor deixou passar do selo (usou o passe; online.gd)
 var montado := {} # montado no lobo: montaria.gd DADOS (andar, trote, correr m/s); vazio = a pé
 var jogo = null # main.gd (main põe; o veículo precisa dos dados, do aviso e do combustível)
@@ -314,6 +315,9 @@ func _vai(nx: float, nz: float) -> bool:
 	# não manda "corrigir" (que antes jogava o herói em cima da montanha; André 2026-11-06: "só fique parado")
 	if not selo_aberto and not T.tunel.is_empty() and T.alem_do_selo(nx, nz, y, SELO_FOLGA) and not T.alem_do_selo(x, z, y, SELO_FOLGA):
 		no_relevo = true
+		return false
+	# névoa encantada (zona que a missão principal ainda não abriu): para na borda, sem "corrigir" do servidor
+	if nevoa and nevoa.fechado(nx, nz) and not nevoa.fechado(x, z):
 		return false
 	if h > y + m.subida.degrau:
 		# parede da caverna (rocha da montanha por cima do túnel): não é pedra, não escala

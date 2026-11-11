@@ -47,6 +47,7 @@ ok(chaoDaVila(-13.5, 88) === 0, 'no mapa de hoje o chão das casas continua 0');
 
 // cais de madeira em cada porto: o tablado sai da praia e chega na água funda, e o herói anda por cima dele
 import { noLago } from '../../shared/relevo.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 for (const C of MAPA_CLAREIRA.cais) {
   const dx = Math.sin(C.ry), dz = Math.cos(C.ry), ponta = (t) => [C.x + dx * t * C.d / 2, C.z + dz * t * C.d / 2];
   const [xi, zi] = ponta(-0.95), [xf, zf] = ponta(0.95);

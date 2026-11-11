@@ -8,6 +8,8 @@ import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA } from './dados.js';
+import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL } from './dados.js';
+import { zonaFechadaEm, textoNevoa, liberado, motivoLibera, missaoAtual, totalMissao, liberaNoNivel, histNova } from './historia.js'; // progressão (André 2026-11-10)
 import { Amiga } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
 const TAU = Math.PI * 2;
@@ -425,6 +427,7 @@ export class Simulacao {
     const q = j.prog.pos; if (!q) return;
     const chao = this.terreno.altura(q.x, q.z, q.y + 0.3); // dentro de casa: o piso, não o telhado de cima (André 2026-11-05)
     if (!dentroDoMapa(this.mapa, q.x, q.z) || q.y < chao - 0.6 || q.y > chao + ORCAMENTO.altura) { delete j.prog.pos; return; } // o mapa mudou: vila
+    if (zonaFechadaEm(j.prog, q.x, q.z)) { delete j.prog.pos; return; } // saiu numa zona que agora está na névoa: vila
     Object.assign(j, { x: q.x, y: Math.max(q.y, chao), z: q.z, ry: q.ry, chao: q.y - chao < 0.15 });
     // saiu do jogo lá dentro da caverna (já tinha usado o passe): volta lá dentro com a entrada valendo
     const cv = dentroDaCaverna(TUNEL, j.x, j.z, j.y + 0.3); if (cv && cv.s > CAVERNA.porta) j.caverna = { desde: this.tempo };
@@ -494,6 +497,7 @@ export class Simulacao {
     if (!de) return aviso('Chegue perto de um totem');
     if (!D || D.id === de.id) return;
     if (!(j.prog.totens || []).includes(D.id)) return aviso(`Você ainda não visitou o totem ${D.nome}`);
+    { const Z = zonaFechadaEm(j.prog, D.x, D.z); if (Z) return aviso(textoNevoa(j.prog, Z.id)); } // progressão (André 2026-11-10)
     if (this.motivoCarga(j)) return aviso(this.motivoCarga(j)); // pack e carrinho não teleportam (Quimera)
     const taxa = taxaTotem(D);
     if ((j.prog.ouro || 0) < taxa) return aviso(`Faltam ${taxa - (j.prog.ouro || 0)} de ouro (a viagem custa ${taxa})`);
@@ -566,6 +570,7 @@ export class Simulacao {
     this.cancelarVila(j);
     if (j.pesca) this.pararPesca(j, 'Você recolheu a linha');
     if (!j.montado && this.motivoCarga(j)) return this.evento({ t: 'aviso', para: id, texto: j.prog.pack ? 'Com pack nas costas não dá pra montar. Use o carrinho!' : 'Desça primeiro' });
+    if (!j.montado && !liberado(j.prog, 'lobo')) return this.evento({ t: 'aviso', para: id, texto: motivoLibera(j.prog, 'lobo') }); // progressão (André 2026-11-10)
     j.montado = j.montado ? null : 'lobo';
   }
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
@@ -659,7 +664,8 @@ export class Simulacao {
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
     const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
-      && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)); // caverna da montanha: do selo para dentro só com o passe usado
+      && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)) // caverna da montanha: do selo para dentro só com o passe usado
+      && !this.naNevoa(j, p.x, p.z); // progressão (André 2026-11-10): zona ainda fechada pela névoa, fica na borda
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
       this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
       j.cliente = null;
@@ -769,6 +775,7 @@ export class Simulacao {
   }
   ganharXP(j, n) {
     const p = j.prog; if (p.nivel >= NIVEL_MAX) return;
+    const nivelAntes = p.nivel;
     p.xp += n;
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
@@ -777,7 +784,68 @@ export class Simulacao {
       this.aplicarStatus(j, true);
       this.evento({ t: 'nivel', id: j.id, nivel: p.nivel });
       this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
+      this.avisarLibera(j, nivelAntes);
     }
+    this.avisarProg(j);
+  }
+  // Progressão (André 2026-11-10, shared/historia.js): o que abriu nos níveis que acabou de passar e a missão nova
+  avisarLibera(j, de) {
+    const p = j.prog, nomes = {};
+    for (const k of Object.keys(LIBERA_NIVEL.receita)) nomes[k] = ITENS[RECEITAS[k]?.faz || k]?.nome || k;
+    for (const k of Object.keys(LIBERA_NIVEL.obra)) nomes[k] = (CONSTRUCOES[k]?.nome || ITENS[k]?.nome || k);
+    const novos = []; for (let nv = de + 1; nv <= p.nivel; nv++) novos.push(...liberaNoNivel(nv, nomes));
+    if (novos.length) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${novos.join(', ')}` });
+    const M = missaoAtual(p);
+    if (M && !p.hist?.ac && M.nv > de && M.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Missão nova: fale com ${this.nomeNpc(M.npc)} (${M.nome})` });
+  }
+  nomeNpc(id) { const n = (this.mapa.npcs || []).find((o) => o.id === id); return n ? n.nome.split(',')[0] : id; }
+  // (x, z) está numa zona que a névoa ainda fecha para j? Avisa (no máximo a cada 4 s) qual missão abre
+  naNevoa(j, x, z) {
+    const Z = zonaFechadaEm(j.prog, x, z); if (!Z) return false;
+    if (!(j.nevoaT > this.tempo)) { j.nevoaT = this.tempo + 4; this.evento({ t: 'aviso', para: j.id, texto: textoNevoa(j.prog, Z.id) }); this.evento({ t: 'nevoa', para: j.id, zona: Z.id }); }
+    return true;
+  }
+  // a missão principal que o NPC dá agora (ou entrega). Devolve true se falou da missão.
+  falaHistoria(j, npc, diga) {
+    const p = j.prog, M = missaoAtual(p); if (!M || M.npc !== npc.id) return false;
+    const h = p.hist || (p.hist = histNova());
+    if (p.nivel < M.nv) return false; // ainda cedo: o NPC fala o de sempre (o app mostra "Nv X" na lista de missões)
+    if (!h.ac) {
+      h.ac = true; h.n = 0; j.progSujo = true;
+      this.evento({ t: 'aviso', para: j.id, texto: 'Missão nova: ' + M.nome });
+      this.avisarProg(j);
+      diga(M.pedido, { missao: M.id });
+      return true;
+    }
+    // ainda não terminou: o NPC faz o que faz sempre (loja, forja, cura...); o andamento aparece na lista de missões
+    // e, no Aldo e no Bento (que só conversam), na fala dele
+    const total = totalMissao(M);
+    const falta = M.entregar ? Object.entries(M.entregar).reduce((a, [k, n]) => a + Math.max(0, n - contar(p.mochila, k)), 0) : total - h.n;
+    if (falta > 0) {
+      if (M.entregar && h.n !== total - falta) { h.n = total - falta; this.avisarProg(j); }
+      if (npc.funcao && npc.funcao !== 'missao' && npc.funcao !== 'dica') return false;
+      diga(M.andamento.replace('{faltam}', falta), { missao: M.id }); return true;
+    }
+    if (M.entregar) for (const [k, n] of Object.entries(M.entregar)) tirar(p.mochila, k, n);
+    // pronto: entrega, prêmio e o que libera
+    h.p++; h.ac = false; h.n = 0; j.progSujo = true;
+    const ouro = HISTORIA_PREMIO.ouro * M.nv; p.ouro = (p.ouro || 0) + ouro;
+    this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
+    this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
+    for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${textoNevoa(p, k).split(' abre com')[0].replace('Névoa encantada: ', '')}` });
+    diga(M.pronto, { missao: M.id });
+    this.ganharXP(j, Math.round(xpProximo(M.nv) * HISTORIA_PREMIO.xp));
+    const P = missaoAtual(p); if (P && P.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Próxima missão: fale com ${this.nomeNpc(P.npc)}` });
+    this.avisarProg(j);
+    return true;
+  }
+  // monstro c caiu e j ganhou: conta na missão principal aceita (campo certo e, se pedir, o tipo certo)
+  contarHistoria(j, c) {
+    const p = j.prog, M = missaoAtual(p), h = p.hist; if (!M?.matar || !h?.ac || h.n >= M.matar.n) return;
+    const campo = c.sp?.caca != null ? this.cacas[c.sp.caca]?.def?.id : null;
+    if (!M.matar.campos.includes(campo) || (M.matar.tipos && !M.matar.tipos.includes(c.tipo))) return;
+    h.n++; j.progSujo = true;
+    this.evento({ t: 'aviso', para: j.id, texto: h.n >= M.matar.n ? `${M.nome}: ${h.n}/${M.matar.n}. Volte e fale com ${this.nomeNpc(M.npc)}!` : `${M.nome}: ${h.n}/${M.matar.n}` });
     this.avisarProg(j);
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
@@ -1115,6 +1183,7 @@ export class Simulacao {
     }
     if (acao === 'usar_passe') {
       if (j.caverna) { aviso('O selo já está aberto para você'); return false; }
+      if (!liberado(j.prog, '1e')) { aviso(textoNevoa(j.prog, '1e')); return false; } // progressão (André 2026-11-10)
       const c = noTunel(TUNEL, j.x, j.z);
       if (!c || c.s > CAVERNA.porta + 0.5 || c.s < CAVERNA.porta - D.portaPerto - 1) { aviso('Chegue perto do selo da caverna'); return false; }
       // time (D.passeDoTime): alguém do time já abriu o selo e está lá dentro = entra de graça
@@ -1203,7 +1272,10 @@ export class Simulacao {
       return;
     }
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    if (m.acao === 'sintetizar') { if (!j.morto && this.sintetizar(j, m, aviso)) this.avisarProg(j); return; } // alquimista
+    if (m.acao === 'sintetizar') { // alquimista
+      const lib = motivoLibera(p, 'alquimia'); if (lib) return aviso(`A Mirela só ensina alquimia a partir do nível ${LIBERA_NIVEL.alquimia}`); // progressão (André 2026-11-10)
+      if (!j.morto && this.sintetizar(j, m, aviso)) this.avisarProg(j); return;
+    }
     const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
     // catalisador (André 2026-11-07): { acao: 'destruir', i } (uma peça) ou { acao: 'destruir', raridade } (todas da
     // raridade, sem as com cadeado; uma barrinha por peça, uma depois da outra) · { acao: 'evoluir', i } (sobe a raridade)
@@ -1337,6 +1409,7 @@ export class Simulacao {
       // Em qualquer lugar; o servidor cobra e sorteia, o celular mostra a janelinha com o resultado (evento 'reforco').
       const alvo = it || (typeof m.lugar === 'string' && LUGARES.includes(m.lugar) ? p.equip[m.lugar] : null);
       if (!alvo || !ehEquip(alvo.k)) return;
+      { const lib = motivoLibera(p, 'reforcar'); if (lib) return aviso(`Reforçar: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
       const r = reforcar(p, alvo);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
       this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, ...(r.mat ? { mat: r.mat } : {}), nome: nomeItem(alvo) });
@@ -1863,6 +1936,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando || !m) return;
     const P = PESCA, f = j.pesca, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (m.acao === 'parar') return f && f.st !== 'pegou' ? this.pararPesca(j, null) : undefined;
+    if (!f && !liberado(j.prog, 'pesca')) return aviso(motivoLibera(j.prog, 'pesca')); // progressão (André 2026-11-10)
     if (m.acao === 'puxar') {
       if (!f) return;
       if (f.st === 'espera') return this.pararPesca(j, 'Puxou cedo demais! Espere a boia afundar.');
@@ -2005,6 +2079,10 @@ export class Simulacao {
     const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
     if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? `Crie ${of.onde} ou perto da fornalha do seu terreno` : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
     if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
+    { // progressão (André 2026-11-10): Ferreiro e Alfaiate depois da missão do Tomás; cada receita e cada evolução no seu nível
+      const lib = (R.prof === 'fer' || R.prof === 'alf') && motivoLibera(p, 'forja') || (R.r ? motivoLibera(p, 'evoluir', R.r) : motivoLibera(p, 'receita', R.faz));
+      if (lib) return { motivo: lib };
+    }
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return { motivo: `Falta ${ITENS[k].nome} (${contar(p.mochila, k)}/${n})` };
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
     if (vigorAgora(p.vigor) < custo) return { motivo: 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)' };
@@ -2128,6 +2206,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (this.loteDe(j)) return aviso('Você já tem um terreno');
+    { const lib = motivoLibera(j.prog, 'terreno'); if (lib) return aviso(`Terreno: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
     const R = retTerreno(m); if (!R) return;
     const motivo = motivoTerreno(R, [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def)); if (motivo) return aviso(motivo);
     if (distRet(R, j.x, j.z) > 40) return aviso('Chegue mais perto do terreno');
@@ -2455,6 +2534,7 @@ export class Simulacao {
     if (FERRAMENTAS_FAZENDA[k] && !C.varios && contar(p.mochila, item) > 0) return `Você já tem ${ITENS[item].nome.toLowerCase()}`;
     if (FERRAMENTAS_FAZENDA[k] && !C.varios && (k === 'carrinho' && p.carrinho?.chao || k === 'navio' && p.navio?.chao || j.veiculo === k)) return `Você já tem ${ITENS[item].nome.toLowerCase()}`; // o dele está no mundo
     if (C.nivel && p.nivel < C.nivel) return `Precisa Nv ${C.nivel} pra fazer ${ITENS[item].nome.toLowerCase()}`;
+    { const lib = (k === 'fornalha' && motivoLibera(p, 'forja')) || motivoLibera(p, 'obra', k); if (lib) return `${ITENS[item].nome}: ${lib.toLowerCase()}`; } // progressão (André 2026-11-10)
     if (C.ouro && (p.ouro || 0) < C.ouro) return `Precisa de ${C.ouro.toLocaleString('pt-BR')} de ouro pra fazer ${ITENS[item].nome.toLowerCase()}`;
     if (C.bancada && !this.bancadaPerto(j)) return `${ITENS[item].nome}: crie perto de uma bancada de trabalho`;
     for (const [c, n] of Object.entries(C.custo)) if (contar(p.mochila, c) < n) return `Falta ${ITENS[c].nome} (${contar(p.mochila, c)}/${n})`;
@@ -2731,6 +2811,7 @@ export class Simulacao {
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
     if (m?.conversa) return diga(proxima());
+    if (this.falaHistoria(j, npc, diga)) return; // missão principal primeiro (André 2026-11-10)
     if (npc.funcao === 'cura') {
       if (j.vida >= j.vidaMax && j.mana >= j.manaMax) return diga('Você está inteiro. Volte quando precisar.');
       const n = j.vidaMax - j.vida; j.vida = j.vidaMax; j.mana = j.manaMax;
@@ -3012,6 +3093,7 @@ export class Simulacao {
         const n = j.time ? doTime.get(j.time) : 1;
         const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1));
         this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
+        this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       if (c.sp.caverna) { // sala da caverna: o corpo some; a sala volta cheia depois (passoCaverna)

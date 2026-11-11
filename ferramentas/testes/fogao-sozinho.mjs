@@ -1,6 +1,7 @@
 // Fogão que cozinha sozinho, como a fornalha (André 2026-11-07). Uso: node ferramentas/testes/fogao-sozinho.mjs
 import { Simulacao, MAPA_CLAREIRA, FOGAO, contar } from '../../shared/index.js';
 import { avancarForno } from '../../shared/simulacao.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
 const b = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 });

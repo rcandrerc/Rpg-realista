@@ -613,6 +613,7 @@ func _desenhar_mini() -> void:
 	var meio := tam * 0.5
 	var p: Vector3 = m.heroi.position
 	var k: float = RAIO / ALCANCE # px por metro
+	_nevoa_mini(c, meio, p, k) # zonas ainda fechadas pela névoa (progressão, André 2026-11-10)
 	# clareiras, veio de cobre e outros jogadores que estão dentro do círculo
 	for cc in m.mundo.get("caca", []):
 		var q: Vector2 = meio + Vector2(float(cc.x) - p.x, float(cc.z) - p.z) * k
@@ -685,6 +686,122 @@ func _desenhar_mini() -> void:
 	c.draw_circle(n, 9.0, Color(0.05, 0.04, 0.03, 0.9))
 	_texto(c, n + Vector2(0, -1), "N", 13, COR_OURO)
 	_relogio(c, meio + Vector2(0, RAIO + 2.0))
+	_missao(c, meio + Vector2(RAIO + 4.0, RAIO + 30.0))
+
+# ---------- progressão (André 2026-11-10, nevoa.gd) ----------
+const COR_NEVOA := Color(0.78, 0.74, 0.92, 0.55)
+# a missão principal da vez, embaixo do relógio (alinhada pela direita do minimapa): nome, quanto falta e com quem falar
+func _missao(c: Control, dir: Vector2) -> void:
+	if m.nevoa == null:
+		return
+	var M: Dictionary = m.nevoa.missao_atual()
+	if M.is_empty():
+		return
+	var h: Dictionary = m.nevoa.hist()
+	var quem: String = _nome_npc(str(M.npc))
+	var l1 := "Missão: %s" % M.nome
+	var l2: String
+	if int(m.P.prog.nivel) < int(M.nv):
+		l2 = "Libera no Nv %d (%s)" % [int(M.nv), quem]
+	elif not h.get("ac", false):
+		l2 = "Fale com %s" % quem
+	elif int(h.get("n", 0)) >= int(M.total):
+		l2 = "Pronto! Volte e fale com %s" % quem
+	else:
+		l2 = "%d/%d · %s" % [int(h.get("n", 0)), int(M.total), quem]
+	var w: float = maxf(fonte.get_string_size(l1, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x, fonte.get_string_size(l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x) + 18.0
+	var r := Rect2(dir - Vector2(w, 0), Vector2(w, 38))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.05, 0.04, 0.85)
+	sb.border_color = Color(0.72, 0.62, 0.95, 0.9)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(7)
+	sb.draw(c.get_canvas_item(), r)
+	_texto(c, r.position + Vector2(9, 12), l1, 13, Color("e6dcff"), false, 3)
+	_texto(c, r.position + Vector2(9, 28), l2, 12, Color(1, 0.95, 0.85) if l2.begins_with("Pronto") else Color(0.85, 0.82, 0.78), false, 3)
+
+func _nome_npc(id: String) -> String:
+	for n in m.mundo.get("npcs", []):
+		if str(n.get("id", "")) == id:
+			return str(n.get("nome", id)).split(",")[0]
+	return id
+
+# a névoa no minimapa: os círculos das zonas fechadas e, perto do mar, a costa fechada (cortados no círculo do minimapa)
+func _nevoa_mini(c: Control, meio: Vector2, p: Vector3, k: float) -> void:
+	if m.nevoa == null:
+		return
+	var borda := _circulo(meio, RAIO - 2.0, 48)
+	for Z in m.nevoa.H.get("zonas", []):
+		if Z.get("selo", false) or m.nevoa.liberado(str(Z.id)):
+			continue
+		var formas: Array = []
+		if Z.get("terra"):
+			formas.append(_contorno(Z, func(x, z): return meio + Vector2(x - p.x, z - p.z) * k, 900.0))
+		else:
+			for q in Z.get("circulos", []):
+				var d: Vector2 = Vector2(float(q.x) - p.x, float(q.z) - p.z) * k
+				if d.length() - float(q.r) * k < RAIO:
+					formas.append(_circulo(meio + d, float(q.r) * k, 24))
+		for f in formas:
+			for pc in Geometry2D.intersect_polygons(f, borda):
+				c.draw_colored_polygon(pc, COR_NEVOA)
+
+func _circulo(q: Vector2, r: float, n: int) -> PackedVector2Array:
+	var pol := PackedVector2Array()
+	for i in n:
+		pol.append(q + Vector2(cos(TAU * i / n), sin(TAU * i / n)) * r)
+	return pol
+
+# o contorno de uma zona de terra em pixels (em = função (x, z) -> tela). Continente: a linha da costa fechada com a
+# borda do mundo do lado da terra (fundo = metros além da linha)
+func _contorno(Z: Dictionary, em: Callable, fundo: float) -> PackedVector2Array:
+	var pol := PackedVector2Array()
+	var cs: Array = Z.get("contorno", [])
+	for q in cs:
+		pol.append(em.call(float(q[0]), float(q[1])))
+	if not Z.get("fechado", false) and cs.size() > 1:
+		var s: float = fundo if str(Z.get("forma", "sul")) == "sul" else -fundo
+		pol.append(em.call(float(cs[cs.size() - 1][0]), float(cs[cs.size() - 1][1]) + s))
+		pol.append(em.call(float(cs[0][0]), float(cs[0][1]) + s))
+	return pol
+
+# a névoa no mapa aberto: mancha lilás sobre cada zona fechada, com o nome e o nível da missão que abre
+func _nevoa_mapa(c: Control, em: Callable) -> void:
+	if m.nevoa == null:
+		return
+	var k := _k()
+	for Z in m.nevoa.H.get("zonas", []):
+		var id := str(Z.id)
+		if Z.get("selo", false) or m.nevoa.liberado(id):
+			continue
+		var M: Dictionary = m.nevoa.H.missoes[int(m.nevoa.quem_libera[id])]
+		var centro := Vector2.ZERO
+		if Z.get("terra"):
+			var pol := _contorno(Z, em, 700.0)
+			if pol.size() >= 3 and Geometry2D.triangulate_polygon(pol).size() > 0:
+				c.draw_colored_polygon(pol, COR_NEVOA)
+			var cs: Array = Z.get("contorno", [])
+			var q = cs[cs.size() / 2] if Z.get("fechado", false) else cs[cs.size() / 2]
+			centro = em.call(float(q[0]), float(q[1]) + (0.0 if Z.get("fechado", false) else 120.0))
+			if Z.get("fechado", false):
+				var sx := 0.0
+				var sz := 0.0
+				for o in cs:
+					sx += float(o[0])
+					sz += float(o[1])
+				centro = em.call(sx / cs.size(), sz / cs.size())
+		else:
+			var sx := 0.0
+			var sz := 0.0
+			var cs: Array = Z.get("circulos", [])
+			for q in cs:
+				c.draw_circle(em.call(float(q.x), float(q.z)), float(q.r) * k, COR_NEVOA)
+				sx += float(q.x)
+				sz += float(q.z)
+			centro = em.call(sx / max(1, cs.size()), sz / max(1, cs.size()))
+		if Rect2(Vector2.ZERO, janela.size).has_point(centro):
+			_texto(c, centro, "Névoa: %s" % Z.nome, 14, Color("e6dcff"))
+			_texto(c, centro + Vector2(0, 16), "Missão Nv %d" % int(M.nv), 12, Color(0.85, 0.82, 0.78))
 
 # hora do jogo (dia e noite do Quimera, André 2026-11-07): plaquinha na borda de baixo do minimapa com o sol ou a lua
 func _relogio(c: Control, pos: Vector2) -> void:
@@ -769,6 +886,7 @@ func _desenhar_mapa() -> void:
 	var tam: Vector2 = janela.size
 	var em := func(x: float, z: float) -> Vector2: return _na_janela(x, z)
 	var longe: bool = zoom < 0.95 # FASE 3: afastado além do quadrado de hoje, só as bolinhas (os nomes se embolam)
+	_nevoa_mapa(c, em) # zonas ainda fechadas pela névoa (progressão, André 2026-11-10)
 	# lugares
 	_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})

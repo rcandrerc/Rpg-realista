@@ -1,6 +1,7 @@
 // Árvore cortada é de todos: cai (evento "veio" com cargas 0 e dir), ninguém mais corta até voltar, e volta no tempo.
 // Uso: node ferramentas/testes/arvore-cai.mjs
 import { Simulacao, MAPA_CLAREIRA, COLETA } from '../../shared/index.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana'), b = s.adicionarJogador('B', 'Beto');
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };

@@ -2,6 +2,7 @@
 // "Destruir todas" de uma raridade faz uma barrinha por peça, uma depois da outra; evoluir sobe a raridade.
 // Uso: node ferramentas/testes/catalisador.mjs
 import { Simulacao, MAPA_CLAREIRA, CATALISADOR, ITENS, contar } from '../../shared/index.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const nova = () => {
   const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('C', 'Cris');

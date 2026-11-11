@@ -1,5 +1,6 @@
 // Tomo entra no baú (André 2026-11-07: "os outros itens vão, menos os tomos"). Uso: node ferramentas/testes/bau-tomo.mjs
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
 a.criando = false; a.x = -19; a.z = 60; a.prog.ouro = 5000;
