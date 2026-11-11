@@ -5,6 +5,7 @@ import { PACKS, PACK_REGRAS, VEICULOS, MERCADORES_PACK, ITENS, FERRAMENTAS_FAZEN
 import { noLago } from '../../shared/relevo.js';
 import { progressoValido } from '../../shared/progresso.js';
 import { fatorDistancia, precoPack, capacidadeCarrinho, velCarrinho } from '../../shared/transporte.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('P', 'Pia');
 j.criando = false; j.morto = false;

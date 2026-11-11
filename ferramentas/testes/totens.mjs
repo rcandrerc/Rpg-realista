@@ -2,6 +2,7 @@
 // renascer no último tocado, área segura (monstro não bate) e o progresso guardando tudo. Uso: node ferramentas/testes/totens.mjs
 import { Simulacao, MAPA_CLAREIRA, TOTENS, taxaTotem, HEROI } from '../../shared/index.js';
 import { progressoValido } from '../../shared/progresso.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const j = s.adicionarJogador('A', 'Ana');

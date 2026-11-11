@@ -12,6 +12,7 @@
 import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
+import { motivoLibera } from './historia.js'; // progressão (André 2026-11-10)
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const PACK_CHAO_DURA = 1800; // s: pack esquecido no chão some depois de meia hora
@@ -116,6 +117,7 @@ export const Transporte = {
     const pronto = () => { j.progSujo = true; this.avisarProg(j); };
     if (m.acao === 'fazer') {
       const n = this.mercadorPack(j, m.npc); if (!n) return aviso('Chegue perto do mercador');
+      { const lib = motivoLibera(p, 'pack'); if (lib) return aviso(`Packs: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
       const P = PACKS[n.merch], custo = custoPack(n.merch, p.prof.mer);
       const falta = Object.entries(custo).filter(([k, q]) => contar(p.mochila, k) < q);
       if (falta.length) return aviso('Falta material: ' + falta.map(([k, q]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${q}`).join(', '));
@@ -329,6 +331,7 @@ export const Transporte = {
     if (m.acao === 'melhorar') {
       if (c.quebrado) return;
       const n = c.lv + 1, custo = C.melhorar[n]; if (!custo) return aviso('O carrinho já está no nível máximo');
+      { const lib = motivoLibera(p, 'carrinho', n); if (lib) return aviso(`Carrinho nível ${n}: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
       if (!this.bancadaPerto(j)) return aviso('Melhore perto de uma bancada de trabalho');
       const tem = (k) => (k === 'ouro' ? p.ouro || 0 : contar(p.mochila, k));
       const falta = Object.entries(custo).filter(([k, q]) => tem(k) < q);

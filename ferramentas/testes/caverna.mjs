@@ -5,6 +5,7 @@ import { Simulacao, MAPA_CLAREIRA, CAVERNA, TUNEL, CAVERNA_DUNGEON, ITENS } from
 import { noTunel, pontoDoTunel } from '../../shared/caverna.js';
 import { alturaMontanha } from '../../shared/relevo.js';
 import { dentroDoMapa } from '../../shared/mapa.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA), T = s.terreno;
 

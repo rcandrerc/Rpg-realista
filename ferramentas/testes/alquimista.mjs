@@ -1,6 +1,7 @@
 // Alquimista (André 2026-11-09): junta catalisadores de uma raridade + ouro e faz 1 da raridade de cima. Só até Lendário.
 // Uso: node ferramentas/testes/alquimista.mjs
 import { Simulacao, MAPA_CLAREIRA, CATALISADOR, contar } from '../../shared/index.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const S = CATALISADOR.sintese, npc = MAPA_CLAREIRA.npcs.find((n) => n.id === S.npc);
 ok(npc && npc.acoes.includes('alquimia'), 'a alquimista está na vila com a ação alquimia');

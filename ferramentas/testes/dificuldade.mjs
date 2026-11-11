@@ -38,6 +38,7 @@ c.item('C', { acao: 'usar_passe' }); ok(!C.caverna, 'fora do time: precisa do pa
 
 // Recarga da poção (POCAO_RECARGA)
 import { POCAO_RECARGA } from '../../shared/dados.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const q = new Simulacao(MAPA_CLAREIRA), P = q.adicionarJogador('P', 'Pia');
 P.prog.mochila[0] = { k: 'pocao', n: 5 }; P.vida = 10; q.item('P', { acao: 'usar', i: 0 }); const v1 = P.vida;
 q.item('P', { acao: 'usar', i: 0 }); ok(P.vida === v1 && P.prog.mochila[0].n === 4, 'poção seguida espera a recarga');

@@ -1,5 +1,6 @@
 // Dia e noite e dormir na cama (igual ao Quimera, André 2026-11-07). Uso: node ferramentas/testes/dormir.mjs
 import { Simulacao, MAPA_CLAREIRA, horaDoJogo, ehNoite, DIA, CAMA, VIGOR, vigorAgora, progressoValido } from '../../shared/index.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
 a.criando = false; a.x = -19; a.z = 60; a.prog.ouro = 5000;

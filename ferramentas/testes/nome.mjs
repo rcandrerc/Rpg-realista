@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Simulacao, MAPA_CLAREIRA, NOME } from '../../shared/index.js';
 import { Contas } from '../../server/contas.js';
+import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (v, m) => { if (!v) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', null, { conta: 1 });

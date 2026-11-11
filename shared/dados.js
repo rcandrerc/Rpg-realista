@@ -2122,3 +2122,112 @@ export const AMIGA = {
     },
   },
 };
+
+// ---------- Progressão até o Nv 100 (André 2026-11-10: "o mapa vai começar não todo liberado... skills, craft, tudo
+// com uma sequência de desbloqueio de acordo com o nível") ----------
+// Plano aprovado: /mnt/project-files/progressao/plano-progressao-v1.md. Uma Névoa encantada cobre o mundo; cada missão
+// principal (HISTORIA, em ordem) limpa um pedaço (ZONAS). Zona fechada = névoa visível no mundo e no mapa; quem tenta
+// entrar recebe o aviso da missão e fica na borda (André escolheu "Névoa visível + aviso"; nada de parede invisível).
+// Nada muda de lugar nem some: as zonas só ficam fechadas até a missão. Personagem que já existia (sem prog.hist) ganha
+// as missões até o nível que já tem (shared/historia.js histPorNivel).
+// ZONAS: circulos = ids de campos de caça do mapa de hoje (CLAREIRAS), de LUGARES_MUNDO (campo, caverna, vila, porto,
+// posto) ou de TOTENS; folga = metros além do raio de cada um. terra = a terra inteira (TERRAS, shared/mundo.js) mais
+// `mar` m de mar em volta (o barco para na névoa, longe da praia). selo = a Caverna da Montanha (do selo para dentro).
+// Os veios do mundo grande perto de um campo fechado (LUGARES_MUNDO tipo 'mina', perto = id do campo) entram junto.
+export const ZONAS = [
+  { id: '1b', nome: 'Arredores da vila', circulos: ['caca2', 'caca3', 'caca4'], folga: 6 },
+  { id: '1c', nome: 'Bosque do Sul', circulos: ['caca6', 'caca8'], folga: 6 },
+  { id: '1d', nome: 'Fundo do Leste', circulos: ['caca5', 'caca7', 'caca9', 'caca10'], folga: 6 },
+  { id: '1e', nome: 'Caverna da Montanha', selo: true },
+  { id: '1f', nome: 'Terras dos Golens', circulos: ['caca11', 'caca12'], folga: 6 },
+  { id: 'B1', nome: 'Oeste de Vael', circulos: ['c_v1', 'c_v2', 'c_v3', 'posto_oeste', 'rio_claro'], folga: 8 },
+  { id: 'B2', nome: 'Norte de Vael', circulos: ['c_v7', 'c_v8', 'cav_serra_norte'], folga: 8 },
+  { id: 'B3', nome: 'Leste de Vael', circulos: ['c_v4', 'c_v5', 'c_v6', 'c_v9', 'cav_juncos', 'juncos'], folga: 8 },
+  { id: 'B4', nome: 'Porto de Vael', circulos: ['vila_vael', 'porto_vael'], folga: 8 },
+  { id: 'C', nome: 'Ilha do Meio', terra: 'ilha', mar: 25 },
+  { id: 'D1', nome: 'Aurora', terra: 'aurora', mar: 25 },
+  { id: 'D2', nome: 'Leste de Aurora', circulos: ['c_a5', 'c_a6', 'c_a7', 'c_a8', 'posto_leste'], folga: 8 },
+  { id: 'D3', nome: 'Pico da Névoa', circulos: ['c_a9', 'cav_nevoa'], folga: 8 },
+];
+// Missões principais, nesta ordem (uma de cada vez). nv = nível para o NPC dar a missão. npc = id em MAPA_CLAREIRA.npcs.
+// matar: n monstros dos campos (ids de CACA) e, se tiver, só destes tipos. entregar: itens que o NPC pega na entrega.
+// libera: zona (ZONAS) ou recurso: 'forja' (aba Criar: Ferreiro, Alfaiate e fornalha), 'lobo' (montaria), 'pesca'.
+// Prêmio: XP (fração do XP do nível nv, HISTORIA_PREMIO.xp) e ouro (HISTORIA_PREMIO.ouro x nv).
+export const HISTORIA = [
+  { id: 'h1', nv: 1, npc: 'lider', nome: 'Monstros perto da vila', matar: { n: 4, campos: ['caca1'] }, libera: ['1b'],
+    pedido: 'Uma névoa estranha cobriu tudo em volta da vila, e os Puglins vieram junto. Derrube quatro no campo do leste e volte aqui.',
+    andamento: 'Ainda faltam {faltam} Puglins. O campo fica no leste, seguindo o caminho de terra.',
+    pronto: 'Muito bem! Quando eles caíram, a névoa dos arredores se abriu. Agora dá pra ir mais longe.' },
+  { id: 'h2', nv: 3, npc: 'ferreiro', nome: 'Minério para a forja', entregar: { minerio_cobre: 6 }, libera: ['forja'],
+    pedido: 'Quer aprender a forjar? Me traga seis minérios de cobre. O veio fica a leste da praça. Faça uma picareta na aba Criar.',
+    andamento: 'Ainda faltam {faltam} minérios de cobre.',
+    pronto: 'Bom cobre! Pode usar a minha forja e a banca da Rosa quando quiser. A fornalha também é sua.' },
+  { id: 'h3', nv: 5, npc: 'andarilho', nome: 'Amansar o lobo', matar: { n: 6, campos: ['caca3'], tipos: ['lobo'] }, libera: ['lobo'],
+    pedido: 'Os lobos andam bravos com essa névoa. Derrube seis no campo dos lobos e eu te ensino a montar um deles.',
+    andamento: 'Faltam {faltam} lobos.',
+    pronto: 'Pronto, agora um lobo te respeita. Toque no botão de montar e ele te leva.' },
+  { id: 'h4', nv: 8, npc: 'curandeira', nome: 'O caminho do lago', matar: { n: 10, campos: ['caca2'] }, libera: ['1c', 'pesca'],
+    pedido: 'Preciso de ervas do Lago Grande, mas os Imps fecham o caminho. Derrube dez deles para mim.',
+    andamento: 'Ainda faltam {faltam} Imps.',
+    pronto: 'Obrigada! A névoa do sul baixou. O Nico, lá no lago, te ensina a pescar.' },
+  { id: 'h5', nv: 12, npc: 'lider', nome: 'Lobos do bosque', matar: { n: 10, campos: ['caca6'] }, libera: ['1d'],
+    pedido: 'Os lobos do Bosque do Sul estão atacando quem passa. Derrube dez e a gente abre o caminho do fundo do leste.',
+    andamento: 'Faltam {faltam} lobos do bosque.',
+    pronto: 'O fundo do leste está aberto. Tem Imps e Puglins mais fortes por lá, vá preparado.' },
+  { id: 'h6', nv: 18, npc: 'guardiao', nome: 'A boca da montanha', matar: { n: 12, campos: ['caca7', 'caca8'] }, libera: ['1e'],
+    pedido: 'Ninguém entra na caverna enquanto os monstros do lado de fora não se acalmarem. Derrube doze nos campos Nv 15.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'Agora sim. Faça um passe comigo e o selo da caverna se abre pra você.' },
+  { id: 'h7', nv: 25, npc: 'lider', nome: 'O que tem depois do leste', matar: { n: 12, campos: ['caca9', 'caca10'] }, libera: ['1f'],
+    pedido: 'Os batedores viram golens no sudeste. Antes, limpe doze monstros dos campos Nv 20 e 25.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'A névoa das Terras dos Golens caiu. Cuidado com o Warrok.' },
+  { id: 'h8', nv: 30, npc: 'lider', nome: 'O chefe Warrok', matar: { n: 1, campos: ['caca11', 'caca12'], tipos: ['warrok'] }, libera: ['B1'],
+    pedido: 'É o Warrok que segura a névoa por aqui. Derrube ele e o continente se abre para o oeste.',
+    andamento: 'O Warrok ainda está de pé. Ele aparece nos campos dos Golens e dos Maws.',
+    pronto: 'Você conseguiu! A estrada do oeste está livre até a Ponte do Rio Claro. O Abel, no Posto do Oeste, sabe mais.' },
+  { id: 'h9', nv: 38, npc: 'm_abobora', nome: 'A trilha da serra', matar: { n: 15, campos: ['c_v3'] }, libera: ['B2'],
+    pedido: 'Quero levar meus doces para o norte, mas a serra está fechada. Derrube quinze monstros do campo Nv 38 que eu te mostro o caminho.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'A névoa da Serra do Norte abriu. Tem uma gruta lá em cima.' },
+  { id: 'h10', nv: 42, npc: 'm_metal', nome: 'A ponte dos Juncos', matar: { n: 15, campos: ['c_v7', 'c_v8'] }, libera: ['B3'],
+    pedido: 'Meu metal não chega no leste. Limpe quinze monstros no norte (Nv 40 e 44) que a ponte dos Juncos abre.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'O leste de Vael está aberto, com a Ponte dos Juncos e a gruta do pico.' },
+  { id: 'h11', nv: 48, npc: 'lider', nome: 'Carta para o Porto', matar: { n: 20, campos: ['c_v6', 'c_v9'] }, libera: ['B4'],
+    pedido: 'Preciso mandar notícias ao Porto de Vael. Limpe vinte monstros dos campos Nv 47 e 48 para a estrada ficar segura.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'O Porto de Vael está aberto. Lá dá para comprar terreno e pegar o barco.' },
+  { id: 'h12', nv: 50, npc: 'm_conserva', nome: 'A travessia', matar: { n: 15, campos: ['cav_juncos'] }, libera: ['C'],
+    pedido: 'A névoa no mar não deixa ninguém chegar à Ilha do Meio. Dizem que ela nasce na Gruta dos Juncos. Derrube quinze lá dentro.',
+    andamento: 'Faltam {faltam} na Gruta dos Juncos.',
+    pronto: 'O mar abriu! Pegue um barco no cais e vá até a Ilha do Meio. A Maré te espera lá.' },
+  { id: 'h13', nv: 64, npc: 'm_perola', nome: 'O cais de Aurora', matar: { n: 20, campos: ['c_i3', 'c_i4'] }, libera: ['D1'],
+    pedido: 'Aurora está do outro lado, mas a névoa fecha a costa. Derrube vinte monstros nos campos Nv 60 e 64 da ilha.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'A costa de Aurora abriu. O Sálvio te recebe no cais.' },
+  { id: 'h14', nv: 80, npc: 'm_ervas', nome: 'A estrada do leste de Aurora', matar: { n: 20, campos: ['c_a4', 'cav_aurora'] }, libera: ['D2'],
+    pedido: 'Minhas ervas vêm do leste, mas a estrada está tomada. Derrube vinte nos campos Nv 78 e 80.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'O leste de Aurora abriu até o Posto do Leste.' },
+  { id: 'h15', nv: 95, npc: 'alquimista', nome: 'A fonte da Névoa', matar: { n: 25, campos: ['c_a8'] }, libera: ['D3'],
+    pedido: 'Estudei a névoa: ela nasce no Pico da Névoa, no sul de Aurora. Derrube vinte e cinco monstros do campo Nv 95 e o caminho se abre.',
+    andamento: 'Faltam {faltam}.',
+    pronto: 'O Pico da Névoa está aberto. É o lugar mais perigoso do mundo. Boa sorte!' },
+];
+export const HISTORIA_PREMIO = { xp: 0.3, ouro: 25 };
+// Desbloqueio por nível do herói (além do nível de cada profissão, que continua igual). As skills já abrem por nível
+// (HABS[k].libera em shared/progresso.js, regra do Quimera) e não mudam aqui.
+// receita: RECEITAS (aba Criar); obra: CONSTRUCOES e FERRAMENTAS_FAZENDA (o navio já pede Nv 60 no FERRAMENTAS_FAZENDA);
+// evoluir[r]: nível para evoluir uma peça para a raridade r (1 Raro ... 4 Mítico); carrinho[n]: melhorar o carrinho
+// para o nível n; o resto: comprar terreno, fazer pack, reforçar e a alquimista Mirela.
+export const LIBERA_NIVEL = {
+  receita: { barra_ferro: 3, barra_cobre: 3, carvao: 3, espada: 3, botas: 3, short: 3, calca: 3, chapeu: 5, capa: 5, cajado: 5, peitoral: 8, colar: 12, barra_aco: 15,
+    carne_assada: 6, sopa_legumes: 6, pao_milho: 6, ensopado: 6, torta_abobora: 6, peixe_assado: 8 },
+  obra: { bancada: 3, bigorna: 3, fornalha: 5, fogao: 6, regador: 6, vara: 8, radar_pesca: 8, barquinho: 10, galao: 15, carrinho: 15 },
+  evoluir: [0, 10, 20, 35, 50],
+  carrinho: [0, 0, 20, 30, 40],
+  terreno: 8, pack: 12, reforcar: 12, alquimia: 40,
+};
+// o que é recurso de missão (libera de HISTORIA que não é zona): o que bloqueia e a frase do aviso
+export const RECURSOS_HISTORIA = { forja: 'a forja e a banca', lobo: 'a montaria', pesca: 'a pescaria' };
