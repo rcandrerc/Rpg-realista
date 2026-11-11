@@ -4,11 +4,9 @@ extends Node
 # Aurora) fica coberta por uma parede de névoa lilás até a missão principal que a abre. O André escolheu "Névoa
 # visível + aviso": nada de parede invisível. O herói para na borda (andar.gd pergunta fechado()) e o servidor
 # confere (Simulacao.naNevoa) e manda o aviso de qual missão abre.
-# Desempenho (André prefere FPS a enfeite): só as zonas fechadas a até ALCANCE m têm malha; um material só para todas;
-# sem sombra, sem luz.
+# Desempenho (André prefere FPS a enfeite): uma malha por região fechada, um material só para todas; sem sombra, sem luz.
 
-const ALCANCE := 260.0
-const ALTURA := 11.0 # m da parede de névoa dos campos
+const ALTURA := 16.0 # m da parede de névoa na borda das regiões
 const ALTURA_TERRA := 34.0 # m da parede de névoa na costa da ilha e de Aurora
 const COR := Color(0.86, 0.82, 0.97)
 
@@ -55,24 +53,22 @@ func zona(id: String) -> Dictionary:
 			return z
 	return {}
 
-# (x, z) dentro da zona? Círculos (campo, gruta, vila) ou contorno da terra (ilha fechada, continente aberto)
+# (x, z) dentro da região? (André 2026-11-11: regiões grandes; toda zona vem como polígono, a ilha também)
 func na_zona(Z: Dictionary, x: float, z: float) -> bool:
-	if Z.get("terra"):
-		var c: Array = Z.get("contorno", [])
-		if c.is_empty():
-			return false
-		if Z.get("fechado", false):
-			var pol := PackedVector2Array()
-			for q in c:
+	var pol: PackedVector2Array = _pol(Z)
+	return pol.size() >= 3 and Geometry2D.is_point_in_polygon(Vector2(x, z), pol)
+
+var _pols: Dictionary = {}
+func _pol(Z: Dictionary) -> PackedVector2Array:
+	var id := str(Z.id)
+	if not _pols.has(id):
+		var pol := PackedVector2Array()
+		var lista = Z.get("poligono")
+		if lista is Array:
+			for q in lista:
 				pol.append(Vector2(float(q[0]), float(q[1])))
-			return Geometry2D.is_point_in_polygon(Vector2(x, z), pol)
-		# continente (Aurora, forma sul): fechado ao sul da linha
-		var i: int = clampi(int(round((x - float(c[0][0])) / 8.0)), 0, c.size() - 1)
-		return z > float(c[i][1]) if str(Z.get("forma", "sul")) == "sul" else z < float(c[i][1])
-	for q in Z.get("circulos", []):
-		if Vector2(float(q.x) - x, float(q.z) - z).length() < float(q.r):
-			return true
-	return false
+		_pols[id] = pol
+	return _pols[id]
 
 # a zona ainda na névoa em (x, z), ou {}
 func fechada_em(x: float, z: float) -> Dictionary:
@@ -86,13 +82,22 @@ func fechada_em(x: float, z: float) -> Dictionary:
 func fechado(x: float, z: float) -> bool:
 	return not fechada_em(x, z).is_empty()
 
-# a missão que abre a zona ou o recurso k
+# a missão que abre a zona ou o recurso k (André 2026-11-11: "falar concluir tal missão para desbloquear")
 func texto(k: String) -> String:
 	if not quem_libera.has(k):
 		return ""
 	var M: Dictionary = H.missoes[int(quem_libera[k])]
 	var Z := zona(k)
-	return "%s abre com a missão \"%s\" (Nv %d)" % [Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), M.nome, int(M.nv)]
+	return "%s: %s. Conclua a missão \"%s\" (fale com %s, Nv %d) para desbloquear" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), M.nome, str(M.get("npcNome", M.npc)), int(M.nv)]
+
+# andar.gd: o herói bateu na névoa em (x, z). Avisa qual missão abre (no máximo a cada 4 s)
+var _aviso_t := 0.0
+func bateu(x: float, z: float) -> void:
+	var Z := fechada_em(x, z)
+	if Z.is_empty() or Time.get_ticks_msec() < _aviso_t:
+		return
+	_aviso_t = Time.get_ticks_msec() + 4000.0
+	m.hud.aviso(texto(str(Z.id)))
 
 # ---------- desenho ----------
 func _material() -> ShaderMaterial:
@@ -123,18 +128,6 @@ void fragment() {
 	_mat.set_shader_parameter("cor", Vector3(COR.r, COR.g, COR.b))
 	return _mat
 
-# anel de névoa em volta de um círculo do campo (parede baixa, sobe do chão)
-func _anel(cx: float, cz: float, r: float, st: SurfaceTool) -> void:
-	var n: int = clampi(int(r * 1.6), 24, 72)
-	for i in n:
-		var a0 := TAU * i / n
-		var a1 := TAU * (i + 1) / n
-		var x0 := cx + cos(a0) * r
-		var z0 := cz + sin(a0) * r
-		var x1 := cx + cos(a1) * r
-		var z1 := cz + sin(a1) * r
-		_parede(st, Vector3(x0, _chao(x0, z0) - 0.4, z0), Vector3(x1, _chao(x1, z1) - 0.4, z1), ALTURA)
-
 func _chao(x: float, z: float) -> float:
 	return m.terreno.altura(x, z) if m.terreno else 0.0
 
@@ -146,21 +139,23 @@ func _parede(st: SurfaceTool, a: Vector3, b: Vector3, h: float) -> void:
 		st.set_uv(Vector2(0.0, v[1]))
 		st.add_vertex(v[0])
 
+# a parede de névoa em toda a borda da região, em pedaços de PASSO m que seguem o chão (no mar fica um pouco abaixo da
+# água). Bordas fora do mundo não aparecem para ninguém, então tanto faz.
+const PASSO := 6.0
 func _montar(Z: Dictionary) -> MeshInstance3D:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var alt := ALTURA
-	if Z.get("terra"):
-		alt = ALTURA_TERRA
-		var c: Array = Z.get("contorno", [])
-		var n := c.size()
-		for i in (n if Z.get("fechado", false) else n - 1):
-			var p0 = c[i]
-			var p1 = c[(i + 1) % n]
-			_parede(st, Vector3(float(p0[0]), -3.0, float(p0[1])), Vector3(float(p1[0]), -3.0, float(p1[1])), alt)
-	else:
-		for q in Z.get("circulos", []):
-			_anel(float(q.x), float(q.z), float(q.r), st)
+	var pol := _pol(Z)
+	var alt := ALTURA_TERRA if Z.get("terra") else ALTURA
+	for i in pol.size():
+		var a: Vector2 = pol[i]
+		var b: Vector2 = pol[(i + 1) % pol.size()]
+		var n: int = maxi(1, int(ceil(a.distance_to(b) / PASSO)))
+		var q0 := a
+		for k in n:
+			var q1: Vector2 = a.lerp(b, float(k + 1) / n)
+			_parede(st, Vector3(q0.x, maxf(_chao(q0.x, q0.y), -1.0) - 0.5, q0.y), Vector3(q1.x, maxf(_chao(q1.x, q1.y), -1.0) - 0.5, q1.y), alt)
+			q0 = q1
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = _material() # um material só para todas as zonas
@@ -172,35 +167,20 @@ func _process(dt: float) -> void:
 	if H.is_empty() or m.heroi == null or m.terreno == null:
 		return
 	_t -= dt
-	if _t > 0.0 and _feito_p == feitas():
+	if _t > 0.0:
 		return
 	_t = 0.5
-	if _feito_p != feitas(): # missão entregue: a névoa da zona liberada some
-		_feito_p = feitas()
-		for id in _malhas.keys():
-			if liberado(id):
-				_malhas[id].queue_free()
-				_malhas.erase(id)
-	var hp: Vector3 = m.heroi.position
+	if _feito_p == feitas():
+		return
+	_feito_p = feitas() # missão entregue (ou o progresso chegou): a névoa da região liberada some, a das fechadas aparece
+	for id in _malhas.keys():
+		if liberado(id):
+			_malhas[id].queue_free()
+			_malhas.erase(id)
 	for Z in H.get("zonas", []):
 		var id := str(Z.id)
-		if Z.get("selo", false) or liberado(id):
+		if Z.get("selo", false) or liberado(id) or _malhas.has(id):
 			continue
-		var perto := _perto(Z, hp)
-		if perto and not _malhas.has(id):
-			var mi := _montar(Z)
-			m.add_child(mi)
-			_malhas[id] = mi
-		elif _malhas.has(id):
-			_malhas[id].visible = perto
-
-func _perto(Z: Dictionary, hp: Vector3) -> bool:
-	if Z.get("terra"):
-		for q in Z.get("contorno", []):
-			if absf(float(q[0]) - hp.x) < ALCANCE * 1.6 and absf(float(q[1]) - hp.z) < ALCANCE * 1.6:
-				return true
-		return false
-	for q in Z.get("circulos", []):
-		if Vector2(float(q.x) - hp.x, float(q.z) - hp.z).length() < ALCANCE + float(q.r):
-			return true
-	return false
+		var mi := _montar(Z)
+		m.add_child(mi)
+		_malhas[id] = mi

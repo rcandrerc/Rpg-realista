@@ -42,7 +42,7 @@ const SLOTS := [
 	["arma", "Arma", 0.85, 0.64, "J_Bip_L_Hand", 1]]
 const MEDALHAO := 52.0
 # abas de cada menu (André 2026-11-04): barra de vida = personagem; botão da mochila no topo = bolsa
-const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "aparencia"]
+const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "missoes", "aparencia"]
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
@@ -662,7 +662,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["missoes", "Missões"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -858,6 +858,8 @@ func atualizar() -> void:
 		montar_loja()
 	elif aba == "criar":
 		montar_criar()
+	elif aba == "missoes":
+		montar_missoes()
 	elif aba == "profissoes":
 		if sub_prof == "lista":
 			montar_profissoes()
@@ -1310,6 +1312,58 @@ func montar_profissoes() -> void:
 		var nv := "20" if r == 10 else "19" if r == 9 else "%d-%d" % [2 * r + 1, 2 * r + 2]
 		g.add_child(rotulo("%s  ·  Nv %s" % [ranks[r], nv], 12, OURO_CLARO if r == 0 else TEXTO))
 	conteudo.add_child(g)
+
+# ---------- Missões (progressão até o Nv 100, André 2026-11-11: "um menu de missões") ----------
+# As 15 missões principais em ordem: feitas (verde), a da vez (com quanto falta e com quem falar) e as próximas (com o
+# nível e a região que abrem). Cada uma abre uma região do mapa (a névoa some) ou um recurso (forja, lobo, pesca).
+func montar_missoes() -> void:
+	var nv = m.nevoa
+	if nv == null or nv.H.is_empty():
+		conteudo.add_child(rotulo("Sem missões por enquanto.", 14, APAGADO))
+		return
+	var ms: Array = nv.H.get("missoes", [])
+	var feitas: int = nv.feitas()
+	var h: Dictionary = nv.hist()
+	var d := rotulo("Cada missão principal abre uma região do mapa (a névoa some) ou um recurso. Fale com quem dá a missão.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	separador("Missões principais  ·  %d de %d feitas" % [feitas, ms.size()])
+	for i in ms.size():
+		conteudo.add_child(_card_missao(ms[i], i, feitas, h))
+
+func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
+	var feita := i < feitas
+	var atual := i == feitas
+	var cedo: bool = int(m.P.prog.nivel) < int(M.nv)
+	var pc := PanelContainer.new()
+	var borda := Color(0.45, 0.75, 0.4) if feita else (Color(0.72, 0.62, 0.95) if atual else Color(0.3, 0.26, 0.2))
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, 8))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	pc.add_child(v)
+	var topo := rotulo("%s%d. %s   ·   Nv %d" % ["✓ " if feita else "", i + 1, M.nome, int(M.nv)], 15, Color(0.6, 0.9, 0.55) if feita else (Color("e6dcff") if atual else (APAGADO if cedo else TEXTO)))
+	v.add_child(topo)
+	var quem: String = str(M.get("npcNome", M.npc))
+	var abre: Array = []
+	for k in M.get("libera", []):
+		var Z: Dictionary = m.nevoa.zona(str(k))
+		abre.append(Z.nome if not Z.is_empty() else str(m.nevoa.H.get("recursos", {}).get(k, k)))
+	var linha := "Com %s  ·  abre: %s" % [quem, ", ".join(abre)]
+	if atual:
+		if cedo:
+			linha += "\nLibera no nível %d" % int(M.nv)
+		elif not h.get("ac", false):
+			linha += "\nFale com %s para começar" % quem
+		elif int(h.get("n", 0)) >= int(M.total):
+			linha += "\nPronto! Volte e fale com %s" % quem
+		else:
+			linha += "\nAndamento: %d/%d" % [int(h.get("n", 0)), int(M.total)]
+	var l := rotulo(linha, 12, APAGADO if not atual else TEXTO)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(l)
+	if atual and h.get("ac", false) and int(M.total) > 0:
+		v.add_child(barra_prog(float(h.get("n", 0)) / float(M.total), Color(0.72, 0.62, 0.95)))
+	return pc
 
 func linha_prof_card(k: String) -> Control:
 	var P = m.P
