@@ -3733,6 +3733,7 @@ export class Simulacao {
     let alvo = this.maisPerto(b, b.bm ? b.arena.r * 2 : 14);
     if (alvo && naAreaSegura(alvo.x, alvo.z)) alvo = null; // totem (André 2026-11-10): lá dentro monstro não persegue; volta para casa
     if (alvo && this.mobFechadoPara(b, alvo)) alvo = null; // região fechada para esse herói (André 2026-11-11): não sai atrás dele
+    if (alvo && alvo.cenaAte > this.tempo) alvo = null; // vendo uma cena da história (cena()): o monstro deixa ele em paz
     if (b.bm) { if (alvo && !this.naArena(b, alvo, COMBATE_BOSS.solta)) alvo = null; if (this.passoBoss(b, alvo, dt)) return; } // boss de mundo: só briga dentro da arena
     b.ataqueCd -= dt;
     const CI = COMBATE_INIMIGO;
