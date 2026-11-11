@@ -154,7 +154,13 @@ func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, ha: float, hb: fl
 
 # ---------- todo quadro: quais quadrados em volta do herói têm mato ----------
 
+var ms := 0.0 # tempo do mato por quadro (média), aparece no Teste (André 2026-11-11, auditoria de FPS)
 func _process(dt: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_passo(dt)
+	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+
+func _passo(dt: float) -> void:
 	if m.heroi == null:
 		return
 	var nv: int = m.grafico.nivel if m.grafico else 2

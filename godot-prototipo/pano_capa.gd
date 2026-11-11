@@ -43,6 +43,8 @@ const OUTRAS_PERTO := 10.0
 static var _quadro := -1
 static var _cand := {} # capas de outros que pediram pano neste quadro: id -> distância da câmera
 static var _vez := {} # as escolhidas para este quadro (vêm das candidatas do quadro anterior)
+static var ms_quadro := 0.0 # tempo de todas as capas no último quadro (Teste)
+static var _ms_acum := 0.0
 var _outro := -1 # -1 = ainda não sabe; 0 = herói/boneco (pano sempre); 1 = NPC ou outro jogador
 var _rigido := false # na forma de descanso (grade = base), sem simular
 
@@ -51,6 +53,8 @@ static func _novo_quadro() -> void:
 	if fr == _quadro:
 		return
 	_quadro = fr
+	ms_quadro = _ms_acum
+	_ms_acum = 0.0
 	var l := []
 	for id in _cand:
 		l.append([_cand[id] * (0.8 if _vez.has(id) else 1.0), id]) # quem já tem pano tem preferência (não fica trocando)
@@ -142,8 +146,8 @@ func _process_modification() -> void:
 	if _outro < 0:
 		_outro = _eh_outro(s)
 	var cam := get_viewport().get_camera_3d()
+	_novo_quadro()
 	if _outro == 1: # NPC ou outro jogador: pano só para os mais perto da câmera
-		_novo_quadro()
 		var dc := cam.global_position.distance_to(s.global_position) if cam else 0.0
 		var id := get_instance_id()
 		if dc <= OUTRAS_PERTO and s.is_visible_in_tree():
@@ -198,6 +202,7 @@ func _process_modification() -> void:
 		g[k] = inv * _p[k]
 	_mat.set_shader_parameter("grade", g)
 	tempo_us = Time.get_ticks_usec() - t0
+	_ms_acum += tempo_us / 1000.0
 
 var _M_ant := Transform3D()
 var _topo_ant := Vector3.ZERO
