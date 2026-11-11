@@ -55,3 +55,9 @@ Sintetizados por `ferramentas/sons/pesca.py` (próprios, CC0, sem gravação de 
 
 Sintetizados por `ferramentas/sons/motor.py` (próprios, CC0, sem gravação de terceiros): manivela e explosões de um
 motor de 1 cilindro lento ("pó-pó-pó" de tratorzinho); a marcha lenta é um laço de 4 s sem emenda.
+
+# Sons de comemoração (festa_*.ogg, 2026-11-11)
+
+Sintetizados por `ferramentas/sons/festa.py` (próprios, CC0, sem gravação de terceiros): sino, sopro de metal simples,
+baque grave e cintilar. festa_nivel (subiu de nível), festa_missao (missão concluída), festa_sucesso e festa_falha
+(reforço/evoluir), festa_libera (novidade liberada).

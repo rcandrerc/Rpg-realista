@@ -73,6 +73,7 @@ var aviso_txt := ""
 var _aviso_t := 0.0
 var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros avisos
 var _destaque_t := 0.0
+var festa # festa.gd (main.gd liga); sem ela o nível segue no destaque dourado de antes
 var _dano_t := 0.0 # levou golpe: borda vermelha rápida (e fraca, contínua, com a vida baixa)
 
 # modo construção / compra de terreno (construcao.gd, como no Quimera): os botões de combate somem, o joystick fica
@@ -200,6 +201,8 @@ func recarga(acao: String, falta: float, total: float) -> void:
 			b.cd_max = max(total, 0.01)
 
 func aviso(t: String) -> void:
+	if festa and festa.do_aviso(t): # nível, missão, liberado, skill: vira faixa de comemoração (festa.gd)
+		return
 	if t.begins_with("Nível "):
 		destaque_txt = t
 		_destaque_t = 3.2

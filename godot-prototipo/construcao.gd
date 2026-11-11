@@ -2116,9 +2116,13 @@ func evoluiu(ev: Dictionary) -> void:
 		m.sons.tocar("nivel", -4.0)
 		m.fx.surto(p.x, p.y, p.z, 18 if ev.get("sorte", false) else 12, "ffffff", cor.to_html(false), 4.0, 0.07)
 		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), ("Sorte! " if ev.get("sorte", false) else "") + str(ev.get("nome", "")), cor, 0.0)
+		if m.festa: # comemoração (festa.gd): faixa e coluna de luz na cor da raridade nova
+			m.festa.evoluiu(str(ev.get("nome", "")), cor, ev.get("sorte", false) == true)
 	else:
 		m.sons.tocar("acerto_forte", -8.0)
 		m.fx.texto(m.heroi.position + Vector3(0, 2.0, 0), "Falhou!", Color("ff7a5a"), 0.0)
+		if m.festa:
+			m.festa.falhou()
 
 func parar_criar() -> void:
 	m.rede("fabricar", {"parar": true})

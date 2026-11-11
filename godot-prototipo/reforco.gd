@@ -287,6 +287,8 @@ func _mostrar() -> void:
 		if m.sons:
 			m.sons.tocar("pano", -4.0)
 	toque_ui.visible = true
+	if m.festa: # comemoração (festa.gd): faíscas e borda dourada; a cada +5, festa grande; falhou, borda vermelha
+		m.festa.reforco(ok, e, str(resp.get("nome", "")))
 	if auto:
 		var chip := PanelContainer.new()
 		chip.add_theme_stylebox_override("panel", Menu.caixa(Color(0.5, 0.86, 0.41, 0.25) if ok else Color(1, 0.43, 0.35, 0.2), Color(0, 0, 0, 0), 0, 6))
