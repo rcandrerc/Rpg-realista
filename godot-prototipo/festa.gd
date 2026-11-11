@@ -179,9 +179,15 @@ func _ligar() -> void:
 	_ativo = true
 	set_process(true)
 
+# som futurista da "janela do sistema" (André 2026-11-11: os festa_* ficaram "breguinhas"; sistema_* cortados do pacote
+# grátis da The Audio Horizon SFX, ver sons/LICENCAS.md). Os festa_* continuam na pasta e voltam sozinhos se faltar o sistema_*.
+const SOM_SISTEMA := {"festa_nivel": "sistema_nivel", "festa_missao": "sistema_nivel", "festa_libera": "sistema_janela",
+	"festa_sucesso": "sistema_sucesso", "festa_falha": "sistema_falha"}
+
 func _tocar(nome: String, vol: float) -> void:
 	if m.sons:
-		m.sons.tocar(nome, vol, 0.0)
+		var novo: String = SOM_SISTEMA.get(nome, "")
+		m.sons.tocar(novo if novo != "" and m.sons.tem(novo) else nome, vol, 0.0)
 
 func _borda(cor: Color, dur: float) -> void:
 	_borda_cor = cor
