@@ -1037,7 +1037,9 @@ export const Amiga = {
     // as respostas na hora certa
     while (ia.chatFila?.length && ia.chatFila[0].t <= this.tempo) {
       const { texto, para } = ia.chatFila.shift(), quem = this.jogadores.get(para ?? this.amigaDono); if (!quem) continue;
-      const msg = { canal: 'pm', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), alvo: quem.conta, alvoNome: quem.nome };
+      // falaram com ela no chat de time (André 2026-11-11): a resposta vai para o time todo, não para o privado
+      const T = ia.viaTime > this.tempo && a.time && quem.time === a.time ? a.time : null;
+      const msg = T ? { canal: 'time', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), membros: this.contasDoTime(T) } : { canal: 'pm', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), alvo: quem.conta, alvoNome: quem.nome };
       const c = this.chatDeAmiga(quem); c.push({ de: 'ela', texto }); if (c.length > 12) c.shift();
       if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
     }

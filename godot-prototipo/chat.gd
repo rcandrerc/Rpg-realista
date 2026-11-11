@@ -25,9 +25,9 @@ const ALTURA_BARRA := 46.0
 const ALTURA_LISTA := 210.0
 
 var m # main.gd
-var msgs := {"geral": [], "amigos": []}
+var msgs := {"geral": [], "amigos": [], "time": []}
 var todas: Array = [] # os dois canais em ordem de chegada (a caixa de leitura)
-var nao_lidas := {"geral": 0, "amigos": 0}
+var nao_lidas := {"geral": 0, "amigos": 0, "time": 0}
 var aba := "geral"
 # aba: "geral" ou "pm:<conta>". Mensagem privada (André 2026-11-06: "tipo um pm, private msg pra cada amigo"; "na janela não é
 # pra aparecer amigos [...] aparece só o nome da pessoa que você abriu o privado na aba"): cada privada é uma aba com o nome
@@ -35,6 +35,9 @@ var aba := "geral"
 var abas_pm: Array = [] # [{c, nome}]
 var abas_box: HBoxContainer
 const COR_PM := Color("e6a8ff") # lilás das mensagens privadas
+# aba Time (André 2026-11-11: "quando eu tiver em time com 2, 3 jogadores [...] eu falo com eles todos"): fala com todo o time
+# de uma vez, NPCs inclusive (Cecília, Dario e os aventureiros ouvem dicas e comandos como no privado e respondem no time)
+const COR_TIME := Color("7ee08a")
 var geral_mudo := false
 var raiz: Control
 # leitura (embaixo, sem toque)
@@ -160,7 +163,7 @@ func fechar_aba_pm(conta: String) -> void:
 func _atualizar_selo() -> void:
 	if _selo == null:
 		return
-	var n: int = _nao_lidas_pm() + (0 if geral_mudo else int(nao_lidas.get("geral", 0)))
+	var n: int = _nao_lidas_pm() + int(nao_lidas.get("time", 0)) + (0 if geral_mudo else int(nao_lidas.get("geral", 0)))
 	_selo.visible = n > 0
 	_selo.text = "99+" if n > 99 else str(n)
 	_selo.size = Vector2(28 if n > 9 else 20, 18)
@@ -422,6 +425,8 @@ func abrir(qual := "", historico := false) -> void:
 		m.menu_topo.fechar()
 	if qual != "":
 		aba = qual
+	elif int(nao_lidas.get("time", 0)) > 0 and int(nao_lidas.get(aba, 0)) == 0:
+		aba = "time" # o time falou: abre no time
 	elif _nao_lidas_pm() > 0 and int(nao_lidas.get(aba, 0)) == 0 and (geral_mudo or int(nao_lidas.get("geral", 0)) == 0):
 		for t in abas_pm: # abre na privada que tem mensagem nova
 			if int(nao_lidas.get("pm:" + str(t.c), 0)) > 0:
@@ -488,7 +493,11 @@ func _refazer_abas() -> void:
 	for c in abas_box.get_children():
 		abas_box.remove_child(c)
 		c.queue_free()
+	if aba == "time" and not _tem_aba_time():
+		aba = "geral"
 	var lista_abas: Array = [["geral", "Geral (mudo)" if geral_mudo else "Geral", ""]]
+	if _tem_aba_time():
+		lista_abas.append(["time", "Time", ""])
 	for t in abas_pm:
 		lista_abas.append(["pm:" + str(t.c), str(t.nome), str(t.c)])
 	for it in lista_abas:
@@ -501,10 +510,11 @@ func _refazer_abas() -> void:
 		b.text = it[1] if n == 0 or (k == "geral" and geral_mudo) else "%s (%d)" % [it[1], n]
 		Menu.estilo_botao(b, k == aba)
 		if k != "geral":
-			b.add_theme_color_override("font_color", COR_PM if k == aba else Color(COR_PM, 0.75))
+			var cor: Color = COR_TIME if k == "time" else COR_PM
+			b.add_theme_color_override("font_color", cor if k == aba else Color(cor, 0.75))
 		b.pressed.connect(func(): trocar_aba(k))
 		abas_box.add_child(b)
-		if k != "geral": # "x" para fechar a conversa
+		if k.begins_with("pm:"): # "x" para fechar a conversa
 			var c: String = it[2]
 			var x := Button.new()
 			x.text = "x"
@@ -527,15 +537,19 @@ func montar() -> void:
 	var dica := ""
 	if not on:
 		dica = "O chat é só online. Entre com a sua conta Google pelo menu Multijogador."
+	elif aba == "time" and not em_time():
+		dica = "Você saiu do time. Entre num time pelo menu Multijogador para falar com ele."
 	elif mudo:
 		dica = "Chat geral silenciado: as mensagens do geral não aparecem para você. Desligue \"Silenciar geral\" para ver de novo."
 	aviso_l.text = dica
 	aviso_l.visible = dica != ""
-	var pode: bool = on and not mudo
+	var pode: bool = on and not mudo and (aba != "time" or em_time())
 	campo.editable = pode
 	enviar_b.disabled = not pode
 	if aba == "geral":
 		campo.placeholder_text = "Escreva para todo mundo…"
+	elif aba == "time":
+		campo.placeholder_text = "Escreva para todo o time…"
 	else:
 		campo.placeholder_text = "Mensagem privada para %s…" % _nome_pm(chave)
 	for c in lista.get_children():
@@ -545,10 +559,24 @@ func montar() -> void:
 		return
 	var l: Array = msgs.get(chave, [])
 	if l.is_empty() and on:
-		lista.add_child(Menu.rotulo("Nenhuma mensagem ainda. Diga oi!", 14, Menu.APAGADO))
+		lista.add_child(Menu.rotulo("Nenhuma mensagem ainda. O que você escrever aqui chega a todos do time, NPCs também." if aba == "time" else "Nenhuma mensagem ainda. Diga oi!", 14, Menu.APAGADO))
 	for x in l:
 		lista.add_child(_linha(x, 15, true))
 	_descer()
+
+# no time agora (amigos.gd recebe o time do servidor)
+func em_time() -> bool:
+	return m.amigos != null and m.amigos.em_time()
+
+# a aba Time aparece no time (e continua enquanto tiver conversa dele guardada)
+func _tem_aba_time() -> bool:
+	return em_time() or not msgs.get("time", []).is_empty()
+
+# abrir direto no time (botão "Falar com o time" do Multijogador)
+func abrir_time() -> void:
+	if aberto():
+		fechar()
+	abrir("time")
 
 func _nome_pm(chave: String) -> String:
 	var c := chave.substr(3)
@@ -568,7 +596,7 @@ func _descer() -> void:
 func enviar() -> void:
 	var t := campo.text.strip_edges()
 	var chave := _chave_atual()
-	if t == "" or not m.on() or (aba == "geral" and geral_mudo):
+	if t == "" or not m.on() or (aba == "geral" and geral_mudo) or (aba == "time" and not em_time()):
 		return
 	if chave.begins_with("pm:"):
 		m.rede("chat", {"canal": "pm", "para": chave.substr(3), "texto": t.left(MAX)})
@@ -594,12 +622,15 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 	r.add_theme_color_override("default_color", Menu.TEXTO)
 	var amigo: bool = str(x.get("canal", "")) == "amigos"
 	var pm: bool = str(x.get("canal", "")) == "pm"
-	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else COR_PM if pm else Color(0.86, 0.72, 0.5))
+	var do_time: bool = str(x.get("canal", "")) == "time"
+	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else COR_PM if pm else COR_TIME if do_time else Color(0.86, 0.72, 0.5))
 	var s := ""
 	if com_hora:
 		s += "[color=#%s]%s[/color]  " % [Menu.APAGADO.to_html(false), _hora(float(x.get("hora", 0)))]
 	elif amigo:
 		s += "[color=#%s][lb]Amigos][/color] " % COR_AMIGO.to_html(false)
+	elif do_time:
+		s += "[color=#%s][lb]Time][/color] " % COR_TIME.to_html(false)
 	elif pm: # na caixa de baixo: de quem veio ou para quem foi
 		s += "[color=#%s][lb]%s %s][/color] " % [COR_PM.to_html(false), "Para" if x.get("meu", false) == true else "De", _seguro(outro_nome(x))]
 	s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(str(x.get("texto", "")))]
@@ -617,10 +648,10 @@ static func _hora(ms: float) -> String:
 func do_servidor(ev: Dictionary) -> void:
 	match str(ev.get("t", "")):
 		"chatHist": # acabou de entrar: as últimas do servidor (troca o que tinha)
-			msgs = {"geral": [], "amigos": []}
+			msgs = {"geral": [], "amigos": [], "time": []}
 			todas = []
 			for x in ev.get("lista", []):
-				if x is Dictionary and str(x.get("canal", "")) in ["geral", "pm"]: # "todos os amigos" saiu da janela (André)
+				if x is Dictionary and str(x.get("canal", "")) in ["geral", "pm", "time"]: # "todos os amigos" saiu da janela (André)
 					var kk := chave_de(x)
 					if not msgs.has(kk):
 						msgs[kk] = []
@@ -630,11 +661,13 @@ func do_servidor(ev: Dictionary) -> void:
 			if aberto():
 				montar()
 		"chat":
-			if not (str(ev.get("canal", "")) in ["geral", "pm"]):
+			if not (str(ev.get("canal", "")) in ["geral", "pm", "time"]):
 				return
 			var k := chave_de(ev)
 			if k.begins_with("pm:") and ev.get("meu", false) != true and _abrir_aba_pm(k.substr(3), outro_nome(ev)) and aberto():
 				_refazer_abas() # amigo mandou privada: a aba com o nome dele aparece
+			elif k == "time" and msgs.get("time", []).is_empty() and aberto():
+				_refazer_abas.call_deferred() # primeira do time: a aba aparece
 			if not msgs.has(k):
 				msgs[k] = []
 			msgs[k].append(ev)
@@ -704,7 +737,7 @@ func _unhandled_key_input(ev: InputEvent) -> void:
 
 # caiu a conexão: o que já chegou fica; ao voltar o servidor manda o histórico de novo
 func desligou() -> void:
-	nao_lidas = {"geral": 0, "amigos": 0}
+	nao_lidas = {"geral": 0, "amigos": 0, "time": 0}
 	_atualizar_selo()
 	if aberto():
 		montar()
