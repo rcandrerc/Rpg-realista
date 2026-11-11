@@ -1242,8 +1242,7 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	for mi in o.malhas:
 		if is_instance_valid(mi):
 			mi.lod_bias = [0.2, 0.4, 0.8][nivel]
-	if o.anim:
-		o.anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE if cheio else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	m.anim_espacada(o.anim, o.esq, not cheio)
 	o.anim_acc = 0.0
 
 # saiu da visão: o corpo de NPC fica escondido e parado para ser reaproveitado; o de jogador vai embora como antes
@@ -1314,10 +1313,13 @@ func _passo(dt: float) -> void:
 		var antes: Vector3 = o.no.position
 		_interpolar(o, o.no, dt_pos)
 		var passo: int = o.get("anim_passo", 1)
-		if passo > 1 and o.anim and o.no.visible: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
+		if passo > 1 and o.no.visible: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
 			o.anim_acc = float(o.get("anim_acc", 0.0)) + dt
 			if (_quadro + int(o.get("fase", 0))) % passo == 0:
-				o.anim.advance(o.anim_acc)
+				if o.anim:
+					o.anim.advance(o.anim_acc)
+				if o.esq:
+					o.esq.advance(o.anim_acc) # os ajustes de osso (molas, mão, ombro) andam junto com a animação
 				o.anim_acc = 0.0
 		if o.has("sobe_alvo") and o.esq: # nadando: o corpo sobe como o do herói (main.gd SOBE_*)
 			o.sobe = move_toward(float(o.get("sobe", 0.0)), float(o.sobe_alvo), dt_pos * 0.6)
