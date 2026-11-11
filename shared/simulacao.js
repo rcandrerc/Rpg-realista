@@ -3669,6 +3669,7 @@ export class Simulacao {
         // Quimera: o tempo até o próximo golpe conta a partir do acerto (o ataqueCd só corre depois da trava)
         b.ataqueCd = Math.max(0, hit + CI.cdMin + Math.random() * (CI.cdMax - CI.cdMin) - b.trava);
         this.evento({ t: 'preparo', id: b.id, dur: P });
+        b.preparoAte = this.tempo + P; // o cérebro dos NPCs (shared/cerebro.js) enxerga o braço levantado e pode recuar
         const seq = b.acaoSeq; // apanhou no meio (ou foi atordoado): o golpe foi cortado
         this.depois(hit, () => {
           if (b.acaoSeq !== seq || b.parado > this.tempo || b.morto || alvo.morto) return;
