@@ -115,10 +115,10 @@ dar('minerio_cobre', 6); dar('lenha', 4); ir(npc('ferreiro').x + 1, npc('ferreir
 s.criarUm('A', { r: 'barra_cobre' }); s.criarUm('A', { r: 'barra_cobre' }); correr(0.1); ok(h().e === 2, 'fundiu 2 barras de cobre | ' + avisos());
 falar('ferreiro'); fim('a4');
 falar('comerciante'); ok(missao() === 'a5', 'Rosa deu a banca');
-dar('couro', 2); dar('tecido', 1); correr(0.6); ok(h().e === 1, 'juntou couro e tecido (etapa ter)');
-ir(npc('comerciante').x + 1, npc('comerciante').z); s.criarUm('A', { r: 'short' }); correr(0.1); ok(h().e === 2, 'costurou o short | ' + avisos());
-const iv = p.mochila.findIndex((o) => o?.k === 'lenha'); s.item('A', { acao: 'vender', i: iv }); ok(h().e === 3, 'vendeu algo');
-p.ouro += 500; s.item('A', { acao: 'comprar', i: 0, n: 3 }); correr(0.1); ok(h().e === 4, 'comprou 3 poções | ' + avisos());
+ok(contar(p.mochila, 'couro') >= 2 && contar(p.mochila, 'tecido') >= 1, 'a Rosa deu o couro e o tecido ao dar a missão'); // André 2026-11-11
+ir(npc('comerciante').x + 1, npc('comerciante').z); s.criarUm('A', { r: 'short' }); correr(0.1); ok(h().e === 1, 'costurou o short na bancada | ' + avisos());
+const iv = p.mochila.findIndex((o) => o?.k === 'lenha'); s.item('A', { acao: 'vender', i: iv }); ok(h().e === 2, 'vendeu algo');
+p.ouro += 500; s.item('A', { acao: 'comprar', i: 0, n: 3 }); correr(0.1); ok(h().e === 3, 'comprou 3 poções | ' + avisos());
 falar('comerciante'); fim('a5');
 falar('ferreiro'); ok(missao() === 'a6', 'Tomás deu "Sua própria luta"');
 s.definirBarra('A', { barra: 'espada', lista: p.barras.espada }); ok(h().e === 1, 'montou a barra');
