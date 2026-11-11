@@ -324,9 +324,32 @@ func _chao_de_grama(x: float, z: float, sorte: float) -> float:
 	var h: float = T.altura(x, z)
 	if h > base + 0.05: # casa, pedra, móvel, cais...
 		return NAN
+	if _encosta_em_solido(x, z, base): # 2026-11-11 (André: "as gramas novas se sobressaindo no chão das casas")
+		return NAN
 	if _no_lote(x, z) or m.no_totem(x, z): # terreno com obra e pedra do totem de teleporte
 		return NAN
 	return h
+
+# a touceira tem ~0,5 m de raio: com o pé fora da casa (ou pedra, móvel, piso) as folhas entravam pelo chão de dentro.
+# Agora o mato só nasce a mais de FOLGA_SOLIDO de qualquer peça que vira chão (olha em 8 pontos em volta).
+const FOLGA_SOLIDO := 0.75
+const _VOLTA := [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1), Vector2(0.71, 0.71), Vector2(-0.71, 0.71), Vector2(0.71, -0.71), Vector2(-0.71, -0.71)]
+func _encosta_em_solido(x: float, z: float, base: float) -> bool:
+	# casa (vila e vilas do mundo): a planta inteira mais a folga, mesmo onde o chão de dentro é na altura do terreno
+	for c in T.casas_em(x, z):
+		if c.has("cel") or not c.has("hw"):
+			continue
+		var dx: float = x - float(c.x)
+		var dz: float = z - float(c.z)
+		if absf(dx * c.cos - dz * c.sen) < float(c.hw) + FOLGA_SOLIDO and absf(dx * c.sen + dz * c.cos) < float(c.hd) + FOLGA_SOLIDO:
+			return true
+	for v in _VOLTA:
+		var px: float = x + v.x * FOLGA_SOLIDO
+		var pz: float = z + v.y * FOLGA_SOLIDO
+		for r in T.solidos_em(px, pz):
+			if T.altura_na(r, px, pz) > base + 0.05:
+				return true
+	return false
 
 # lote com construção ou horta (construcao.gd lotes): ali dentro o mato não nasce
 func _no_lote(x: float, z: float) -> bool:
@@ -338,7 +361,7 @@ func _no_lote(x: float, z: float) -> bool:
 		if L.pecas.is_empty() and L.horta.is_empty():
 			continue
 		var d: Dictionary = L.def
-		if x >= float(d.x0) - 0.5 and x <= float(d.x1) + 0.5 and z >= float(d.z0) - 0.5 and z <= float(d.z1) + 0.5:
+		if x >= float(d.x0) - 1.0 and x <= float(d.x1) + 1.0 and z >= float(d.z0) - 1.0 and z <= float(d.z1) + 1.0: # 1 m: a touceira não entra no lote
 			return true
 	return false
 
