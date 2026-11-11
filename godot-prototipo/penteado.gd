@@ -62,7 +62,8 @@ static func aplicar(no: Node3D, id) -> void:
 static func _cabelos_proprios(no: Node3D) -> Array:
 	var r := []
 	for mi in no.find_children("*", "MeshInstance3D", true, false):
-		if str(mi.name).begins_with("Penteado") or str(mi.name).begins_with("Armadura") or mi.mesh == null:
+		# só malha importada tem nome de superfície (a placa/sombra dos outros jogadores é QuadMesh: o Dario, 2026-11-11)
+		if str(mi.name).begins_with("Penteado") or str(mi.name).begins_with("Armadura") or not (mi.mesh is ArrayMesh):
 			continue
 		var todos: bool = mi.mesh.get_surface_count() > 0
 		for s in mi.mesh.get_surface_count():

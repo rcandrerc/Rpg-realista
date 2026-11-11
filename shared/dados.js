@@ -2129,6 +2129,105 @@ export const AMIGA = {
   },
 };
 
+// ---------- Dario, o amigo (André 2026-11-11) ----------
+// "Mais um NPC estilo Cecília, só que homem e guerreiro também." Idêntico a ela em tudo (shared/amiga.js): mochila de 4
+// páginas, ouro, terreno com casa e horta (vizinho ao dela, começa do zero), amizade, diário e gostos, tudo só dele.
+// Rotina e decisões próprias: os dois podem estar no time do André ao mesmo tempo (TIME.max 5). A IA usa a chave de
+// quem conversa, a mesma da Cecília. Aqui só o que muda; o resto vem da AMIGA (mesclarAmigo).
+function mesclarAmigo(base, muda) {
+  if (!muda || typeof muda !== 'object' || Array.isArray(muda)) return muda === undefined ? base : muda;
+  const r = { ...base };
+  for (const [k, v] of Object.entries(muda)) r[k] = base && typeof base[k] === 'object' && !Array.isArray(base[k]) ? mesclarAmigo(base[k], v) : v;
+  return r;
+}
+export const DARIO = mesclarAmigo(AMIGA, {
+  id: 'dario', nome: 'Dario', conta: 'a:dario', papel: 'o guerreiro', genero: 'm',
+  persona: 'um guerreiro de anime num RPG medieval de fantasia: calmo, confiante, leal, de humor seco e provocador com os amigos, competitivo nas caçadas e orgulhoso da espada',
+  visual: 'cabelo_m',
+  // visual B (cabelo preto rebelde, olhos dourados, capa roxo-escura); só aparência, as peças de verdade começam Comuns
+  aparencia: { cabelo: 0x1c1a1f, olhos: 0xe0b030, roupa: 0x24345c, calca: 0x222226, altura: 1.06, penteado: 'fumiriya' }, // cores da lista do criador (CRIADOR)
+  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
+  plantas: ['batata', 'cenoura', 'rabanete'],
+  pedidos: [{ k: 'minerio_cobre', n: 4 }, { k: 'couro', n: 3 }, { k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'semente_batata', n: 3 }],
+  falas: {
+    oi: ['E aí! Veio treinar ou veio só me ver afiar a espada?', 'Opa, chegou quem faltava. Tava ficando parado demais aqui.', 'Fala! Bom te ver.'],
+    obra: ['Tô levantando minha casa. Parede torta não entra, tá?', 'Mais umas peças e acabou dormir no relento.', 'Construir é que nem lutar: firmeza e paciência.'],
+    pronta: ['Casa pronta! Simples, mas aguenta qualquer tempestade.', 'Telhado em cima, horta plantada. Agora sim, aventura.'],
+    horta: ['A horta me acalma. Batata daqui dá força pra caçada.', 'Plantar dá menos trabalho que matar lobo. Quase.'],
+    time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
+    jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
+    recusa: {
+      cansada: 'Tô moído... deixa eu recuperar o fôlego antes.',
+      horta: 'Agora não, a horta precisa de mim. Me chama daqui a pouco.',
+      noite: 'De noite eu prefiro guardar a casa. Amanhã cedo a gente vai.',
+      vontade: 'Hoje não tô no clima. Me chama mais tarde?',
+      jaFalei: 'Já te falei, daqui a pouco. Paciência, guerreiro.',
+    },
+    caiu: 'Argh... essa pegou. Vou pra casa me recuperar.',
+    voltou: 'Boa caçada! Vou cuidar das minhas coisas.',
+    dungeon: ['Caverna? Gosto. Mas o Warrok não perdoa, primeiro eu me equipo melhor.', 'Dungeon comigo vai ser bom. Ainda não, mas logo.'],
+    troca: ['Troca? Ainda tô juntando minhas coisas. Volta depois que a gente negocia.'],
+    pedido: ['Pra falar a verdade, preciso sim: {item}. Tem aí? Eu pago.', 'Tô precisando de {item}. Se arrumar, fico te devendo uma.'],
+    semPedido: ['Agora não preciso de nada, mas valeu.', 'Tô tranquilo. Se precisar, eu falo.'],
+    obrigada: ['Valeu, parceiro! Toma {paga}, foi o que eu tinha.', 'Você é dos bons. Fica com {paga}.'],
+    ocupada: ['Peraí, já falo com você!'],
+    tchau: ['Até mais! Passa aqui de novo.', 'Falou! Cuidado com os lobos.'],
+  },
+  falasEquip: {
+    pede: ['Tô precisando de algo melhor que {meu}... se tiver, me passa na troca?', 'Sabe o que eu queria? Trocar {meu} por algo melhor. Se achar, lembra de mim.'],
+    melhor: '{item}! Bem melhor que o que eu uso. Vou querer.',
+    pior: '{item} não serve pra mim, o que eu uso é melhor. Por isso não pago.',
+    vestiu: 'Vesti {item}! Caiu bem. Valeu, parceiro!',
+  },
+  falasColeta: {
+    aceita: ['Bora {o}! Fica perto que eu acho um lugar.', 'Fechou, bora {o}! Quem pegar menos paga a janta.'],
+    cansada: 'Ufa, acabou meu vigor... vou parar por aqui.',
+    fim: 'Foi bom! Me chama de novo.',
+  },
+  falasTroca: {
+    abre: ['Bora negociar. Me diz o que você quer ("quero 3 batatas") ou põe na mesa o que tem pra mim.', 'Troca? Pode ser. Fala o que quer ou mostra o que trouxe.'],
+    presente: 'Presente? Valeu mesmo, vou guardar.',
+    feita: ['Negócio fechado. Bom fazer troca com você.', 'Feito! Volta sempre.'],
+    obrigada: 'Obrigado pelo presente! Você é dos bons.',
+  },
+  chat: {
+    assuntos: {
+      tchau: ['tchau', 'falou', 'flw', 'ate mais', 'ate logo', 'fui', 'boa noite dario', 'vou dormir', 'vou sair'],
+      elogio: ['lindo', 'bonito', 'legal', 'gosto de voce', 'te adoro', 'melhor amigo', 'incrivel', 'top', 'forte', 'brabo'],
+    },
+    falas: {
+      oi: ['Fala! Tava afiando a espada aqui.', 'E aí! Bom ver mensagem sua, tava parado demais.', 'Opa! Fala, aventureiro.'],
+      comoVai: ['Tô bem! Treinei cedo e a horta tá firme.', 'Tudo certo. E você, derrubou muito lobo hoje?', 'Bem! Meio sujo de terra, mas inteiro.'],
+      vir: ['Tô indo aí. Me espera.', 'Já vou! Não sai daí.', 'Partiu! Chego num instante.'],
+      chegou: ['Cheguei. Sentiu minha falta?', 'Pronto, tô aqui. Que foi?'],
+      aCaminho: ['Montei no lobo, tô indo pela estrada. Me espera aí.', 'Subi no lobo, já já chego pela estrada.', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
+      outraTerra: ['Você tá do outro lado do mar. De lobo não chego aí... volta pra essa terra que eu te encontro.', 'Você tá em outra terra. Sem barco não chego, te espero por aqui.'],
+      chegouPergunta: ['E aí, qual o plano? Bora caçar?', 'Tô pronto. Vamos caçar ou tem outra ideia?', 'Fala o plano. Caçar uns monstros?'],
+      naoVir: ['Agora não dá, tô no meio de uma coisa. Daqui a pouco.', 'Agora não consigo... me chama mais tarde?'],
+      perto: ['Eu tô do seu lado! Olha pra trás.', 'Tô aqui pertinho, parceiro.'],
+      chamaRespostaSim: ['Boa! Tô indo aí.', 'Isso! Já tô a caminho.'],
+      comOutro: ['Agora tô com {nome}! Quando eu terminar aqui, a gente vê isso.', 'Opa, tô ocupado com {nome} agora. Me chama daqui a pouco.'],
+      chamaRespostaNao: ['Tranquilo, fica pra próxima.', 'Beleza, mais tarde então.'],
+      elogio: ['Para com isso, assim eu fico sem graça.', 'Hehe, você também é brabo!', 'Eu sei. Mas valeu mesmo assim!'],
+      obrigado: ['De nada! Parceiro é pra isso.', 'Imagina, você faria o mesmo.'],
+      piada: ['Sabe por que o lobo perdeu o duelo? Faltou dente pra tanta coragem... tá, essa foi fraca.', 'Minha batata me desafiou. Descasquei ela na hora.', 'Por que o esqueleto não luta? Porque não tem estômago pra isso.'],
+      naoEntendi: ['Hmm, não entendi. Fala de outro jeito?', 'Hã? Tava concentrado na horta, me explica melhor.', 'Isso foi charada? Explica aí.'],
+      tchau: ['Falou! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Tchau! Vou voltar pra minha horta.'],
+      semIa: 'Tô cansado de conversar hoje, mas me chama pra caçar que eu topo!',
+      chamaGosto: { time: 'Bora caçar de novo? Tô com a espada coçando.', pescar: 'Bora pescar? Sei que você curte.', minerar: 'Bora minerar? Tô precisando de minério.', lenha: 'Bora cortar lenha? Igual da outra vez.' },
+      chama: [
+        { texto: 'Ei! Bora caçar uns lobos? Tô parado demais aqui.', quer: 'time' },
+        { texto: 'Passa aqui pra ver minha horta, as batatas tão enormes.', quer: 'vir' },
+        { texto: 'Tô precisando de uma mão... passa aqui?', quer: 'ajuda' },
+        { texto: 'Cadê você? Faz tempo que não aparece!', quer: 'vir' },
+        { texto: 'Bora fazer alguma coisa juntos? Me chama pro time.', quer: 'time' },
+      ],
+    },
+  },
+});
+// os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
+export const AMIGOS_VIRTUAIS = [AMIGA, DARIO];
+
 // ---------- Progressão até o Nv 100 (André 2026-11-10: "o mapa vai começar não todo liberado... skills, craft, tudo
 // com uma sequência de desbloqueio de acordo com o nível") ----------
 // Plano aprovado: /mnt/project-files/progressao/plano-progressao-v1.md. Uma Névoa encantada cobre o mundo; cada missão

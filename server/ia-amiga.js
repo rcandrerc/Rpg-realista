@@ -44,8 +44,9 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   }
   const modelo = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
   const conversa = ctx.conversa.map((m) => `${m.de === 'ele' ? ctx.amigo : ctx.nome}: ${m.texto}`).join('\n');
-  const prompt = `Você é ${ctx.nome}, uma guerreira de anime brincalhona num RPG medieval de fantasia. Você é AMIGA de ${ctx.amigo} (de igual para igual, não serva): tem sua casinha e sua horta na vila inicial, tem vontade própria, pode recusar e pedir favores.
-Responda em português do Brasil, como amiga conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
+  const homem = ctx.genero === 'm'; // o Dario (André 2026-11-11): outra pessoa, outro jeito de falar
+  const prompt = `Você é ${ctx.nome}, ${ctx.persona || 'uma guerreira de anime brincalhona num RPG medieval de fantasia'}. Você é ${homem ? 'AMIGO' : 'AMIGA'} de ${ctx.amigo} (de igual para igual, ${homem ? 'não servo' : 'não serva'}): tem sua casinha e sua horta na vila inicial, tem vontade própria, pode recusar e pedir favores.
+Responda em português do Brasil, como ${homem ? 'amigo' : 'amiga'} conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
 Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'} Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}. ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
 ${ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} (de outros dias, use com naturalidade quando fizer sentido):\n- ${ctx.memoria.join('\n- ')}` : ''}
 ${ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca}; você adoraria uma melhor (ele pode te dar pela troca).` : ''}` : ''}
@@ -96,8 +97,9 @@ export async function escreverDiario(dados, chaveJogador = '') {
   const chave = chaveJogador || segredo('GROQ_CHAVE');
   if (!chave || !dados?.conversa?.length) return null;
   const M = AMIGA.memoria, regras = Object.entries(M.regras).map(([k, r]) => `"${k}" = ${r.texto}`).join('; ');
-  const conversa = dados.conversa.map((m) => `${m.de === 'ele' ? dados.nome : AMIGA.nome}: ${m.texto}`).join('\n');
-  const prompt = `Você é ${AMIGA.nome}, uma guerreira de um RPG medieval, escrevendo seu diário sobre seu amigo ${dados.nome}.
+  const eu = dados.nomeAmigo || AMIGA.nome; // Cecília ou Dario (André 2026-11-11)
+  const conversa = dados.conversa.map((m) => `${m.de === 'ele' ? dados.nome : eu}: ${m.texto}`).join('\n');
+  const prompt = `Você é ${eu}, ${dados.genero === 'm' ? 'um guerreiro' : 'uma guerreira'} de um RPG medieval, escrevendo seu diário sobre seu amigo ${dados.nome}.
 O que você já lembrava dele:
 ${dados.memoria.length ? '- ' + dados.memoria.join('\n- ') : '(nada ainda)'}
 A conversa de hoje:

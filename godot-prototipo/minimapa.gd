@@ -651,8 +651,7 @@ func _desenhar_mini() -> void:
 			dq = dq.normalized() * (RAIO - 6.0)
 		c.draw_circle(meio + dq, 5.0, Color(0.03, 0.08, 0.03, 0.9))
 		c.draw_circle(meio + dq, 4.0, m.amigos.COR_TIME)
-	var ce := _amiga() # Cecília: coração rosa, na beirada quando está longe (só o dono dela vê)
-	if not ce.is_empty():
+	for ce in _amigas(): # Cecília e Dario: coração rosa, na beirada quando está longe (só quem conversa com eles vê)
 		var dq: Vector2 = Vector2(ce.x - p.x, ce.z - p.z) * k
 		if dq.length() > RAIO - 7.0:
 			dq = dq.normalized() * (RAIO - 7.0)
@@ -828,20 +827,27 @@ func _relogio(c: Control, pos: Vector2) -> void:
 		c.draw_circle(ic, 3.4, Color("ffd76a"))
 	_texto(c, Vector2(r.position.x + 22.0, pos.y - 1.0), t, 13, Color(1, 0.94, 0.8) if not noite else Color(0.85, 0.89, 1.0), false, 0)
 
-# Cecília, a amiga (shared/amiga.js): onde ela está ({x, z, nome}) para quem é o dono dela; senão vazio
+# os amigos virtuais (shared/amiga.js: Cecília e Dario, André 2026-11-11): onde cada um está ([{x, z, nome}]) para quem conversa com eles
 const COR_AMIGA := Color("ff6fae")
-func _amiga() -> Dictionary:
-	if not (m.online and m.online.get("ligado")) or str(m.online.get("amiga_id")) == "":
-		return {}
-	var id: String = m.online.amiga_id
+func _amigas() -> Array:
+	var r := []
+	if not (m.online and m.online.get("ligado")):
+		return r
+	for aid in m.online.get("amiga_ids") if m.online.get("amiga_ids") is Array else []:
+		var a := _amiga(str(aid))
+		if not a.is_empty():
+			r.append(a)
+	return r
+
+func _amiga(id: String) -> Dictionary:
 	var o = m.online.outros.get(id)
 	if o is Dictionary and o.has("no") and is_instance_valid(o.no):
-		return {"x": o.no.position.x, "z": o.no.position.z, "nome": str(o.get("nome", "Cecília"))}
+		return {"x": o.no.position.x, "z": o.no.position.z, "nome": str(o.get("nome", id.capitalize()))}
 	var lista = m.online.get("no_mapa")
 	if lista is Array:
 		for q in lista:
 			if q is Array and q.size() >= 3 and str(q[0]) == id:
-				return {"x": float(q[1]), "z": float(q[2]), "nome": "Cecília"}
+				return {"x": float(q[1]), "z": float(q[2]), "nome": "Cecília" if id == "cecilia" else id.capitalize()}
 	return {}
 
 # coraçãozinho rosa com borda escura
@@ -959,8 +965,7 @@ func _desenhar_mapa() -> void:
 		c.draw_circle(q, 6.0, Color(0.03, 0.08, 0.03, 0.9))
 		c.draw_circle(q, 5.0, m.amigos.COR_TIME)
 		_texto(c, q + Vector2(0, -12), p.nome, 13, m.amigos.COR_TIME.lightened(0.3))
-	var ce := _amiga()
-	if not ce.is_empty():
+	for ce in _amigas():
 		var q: Vector2 = em.call(ce.x, ce.z)
 		_coracao(c, q, 7.0)
 		_texto(c, q + Vector2(0, -14), ce.nome, 13, COR_AMIGA.lightened(0.3))

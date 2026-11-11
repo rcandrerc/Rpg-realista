@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGA, nomeValido } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, nomeValido } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { pensarAmiga, testarChaveGroq, escreverDiario } from './ia-amiga.js';
@@ -46,8 +46,9 @@ class SalaClareira extends Room {
       this.sim.iaPorChave = true;
       // memória da Cecília: o diário de cada conversa é escrito com a chave de quem conversou (as contas de teste: a do servidor)
       this.sim.aoDiarioAmiga = (d) => escreverDiario(d, /^c\d+$/.test(d.conta) ? contas.chaveIa(Number(d.conta.slice(1))) : '').then((r) => {
-        if (!r || this.sim.amiga) return r;
-        this.sim.anotarAmiga(d.conta, r); // ela já saiu (a sala pode até ter fechado): grava direto no banco
+        const ctx = this.sim.amigoIaDe(d.amigo) || this.sim; // Cecília ou Dario (André 2026-11-11)
+        if (!r || ctx.amiga) return r;
+        ctx.anotarAmiga(d.conta, r); // ela já saiu (a sala pode até ter fechado): grava direto no banco
         for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l);
         return null;
       }); // a Cecília aparece na lista para todos; quem não tem chave vê "Ativar conversa com IA"
@@ -96,17 +97,18 @@ class SalaClareira extends Room {
       h.push(msg); if (h.length > (msg.canal === 'pm' ? CHAT.historicoPm : CHAT.historico)) h.shift();
       for (const s of salas) s.sim.receberChat(msg);
       // mensagem para a Cecília (amiga virtual do dono): a IA grátis pensa a resposta; sem IA, as regras (shared/amiga.js)
-      if (msg.canal === 'pm' && msg.alvo === AMIGA.conta && this.sim.amiga) {
-        const id = c.sessionId, ctx = this.sim.contextoAmiga(id), conta = this.contaDe?.get(id);
-        this.sim.ouvirAmiga(id, msg.texto);
+      const amg = msg.canal === 'pm' ? this.sim.amigoIaDe(msg.alvo) : null; // Cecília ou Dario (André 2026-11-11), cada um com a sua cabeça
+      if (amg && amg.amiga) {
+        const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
+        amg.ouvirAmiga(id, msg.texto);
         // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
         pensarAmiga(ctx, msg.texto, conta && contas ? contas.chaveIa(conta.id) : '').then((r) => {
-          const regra = this.sim.assuntoAmiga(msg.texto);
+          const regra = amg.assuntoAmiga(msg.texto);
           // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
-          if (['presente', 'pedirItem'].includes(regra)) return this.sim.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
+          if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
           // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
-          const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
-          this.sim.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
+          const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
+          amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
         });
       }
     });
@@ -123,7 +125,7 @@ class SalaClareira extends Room {
       contas.salvarChaveIa(conta.id, chave);
       conta.ia = true;
       this.entrarAmiga(c);
-      aviso(`Pronto! Agora você pode conversar com ${AMIGA.nome}`);
+      aviso(`Pronto! Agora você pode conversar com ${AMIGOS_VIRTUAIS.map((d) => d.nome).join(' e ')}`);
     });
     // as falas da Cecília no chat entram no histórico (quem volta ao jogo vê a conversa) e vão para o dono
     this.sim.aoChatAmiga = (msg) => { historicoChat.pm.push(msg); if (historicoChat.pm.length > CHAT.historicoPm) historicoChat.pm.shift(); this.sim.receberChat(msg); };
@@ -166,7 +168,7 @@ class SalaClareira extends Room {
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m));
     // Cecília (shared/amiga.js): só o dono recebe resposta; os outros não conversam com ela
-    this.ouvir('amiga', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.conversaAmiga(c.sessionId, { acao: m.acao }); }); // m opcional: { npc, conversa } (menu do NPC no app)
+    this.ouvir('amiga', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) (this.sim.amigoIaDe(typeof m.id === 'string' ? m.id : '') || this.sim).conversaAmiga(c.sessionId, { acao: m.acao }); }); // m.id: qual amigo (Cecília ou Dario); sem id, a Cecília // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
     this.ouvir('vila', (c) => this.sim.voltarVila(c.sessionId)); // botão da casinha: canaliza e volta para a vila (recarga de 10 min)
     this.ouvir('totem', (c, m) => { if (m && typeof m.para === 'string' && m.para.length < 24) this.sim.irTotem(c.sessionId, m.para); }); // totem de teleporte: vai para outro já descoberto (paga a taxa)
@@ -207,7 +209,7 @@ class SalaClareira extends Room {
   // Grava na conta o progresso de quem mudou desde a última vez
   salvarProgressos() {
     if (!contas) return;
-    this.sim.guardarAmiga(); // Cecília: bolsa, ouro e amizade vão junto com o terreno dela
+    for (const ctx of this.sim.amigosIa) ctx.guardarAmiga(); // Cecília e Dario: bolsa, ouro e amizade vão junto com o terreno de cada um
     const porSessao = new Map(this.clients.map((c) => [c.sessionId, c.auth]));
     for (const { id, prog } of this.sim.progressosParaSalvar()) {
       const conta = porSessao.get(id) || this.contaDe?.get(id);
@@ -287,8 +289,10 @@ class SalaClareira extends Room {
 
   // Cecília na sala para quem pode conversar com ela (shared/amiga.js amigaEntrar)
   entrarAmiga(client) {
-    if (contas && !this.sim.amiga) { const l = contas.loteDoDono(AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
-    this.sim.amigaEntrar(client.sessionId);
+    for (const ctx of this.sim.amigosIa) { // a Cecília e o Dario (André 2026-11-11) entram juntos, cada um com o seu terreno
+      if (contas && !ctx.amiga) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
+      ctx.amigaEntrar(client.sessionId);
+    }
     this.sim.enviarLotes(client.sessionId);
   }
 
@@ -301,7 +305,7 @@ class SalaClareira extends Room {
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
-    if (this.sim.amigaFalam.has(client.sessionId)) { this.sim.amigaSair(client.sessionId); this.salvarProgressos(); } // Cecília: o último com chave saiu, ela sai junto
+    for (const ctx of this.sim.amigosIa) if (ctx.amigaFalam.has(client.sessionId)) { ctx.amigaSair(client.sessionId); this.salvarProgressos(); } // Cecília: o último com chave saiu, ela sai junto
     this.sim.removerJogador(client.sessionId);
     this.visao.esquecer(client.sessionId);
     this.contaDe?.delete(client.sessionId);

@@ -14,6 +14,8 @@ var rede
 var ligado := false # dentro da sala
 var meu_id := ""
 var amiga_id := "" # a Cecília (shared/amiga.js): o servidor só manda para o dono dela, que pode conversar
+var amiga_ids: Array = [] # todos os amigos virtuais com quem posso conversar: Cecília e Dario (André 2026-11-11)
+var amiga_papeis := {} # id -> "a guerreira" / "o guerreiro" (o título na janela de conversa)
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
@@ -712,7 +714,12 @@ func evento(ev: Dictionary) -> void:
 			return
 		# Vila dos Lotes (construcao.gd): todos os lotes ao entrar, um lote que mudou, o lote que comprei
 		"amiga": # sou o dono da Cecília: tocar nela abre a conversa (conversa.gd)
-			amiga_id = str(ev.get("id", ""))
+			var aid := str(ev.get("id", ""))
+			if amiga_id == "":
+				amiga_id = aid
+			if aid != "" and not aid in amiga_ids:
+				amiga_ids.append(aid)
+			amiga_papeis[aid] = str(ev.get("papel", "a guerreira"))
 			return
 		"lotes":
 			if m.construcao:
