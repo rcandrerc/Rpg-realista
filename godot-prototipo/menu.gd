@@ -1339,7 +1339,7 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	var cedo: bool = int(m.P.prog.nivel) < int(M.nv)
 	var pc := PanelContainer.new()
 	var borda := Color(0.45, 0.75, 0.4) if feita else (Color(0.72, 0.62, 0.95) if atual else Color(0.3, 0.26, 0.2))
-	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, 8))
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, 14)) # André 2026-11-11: mais arredondado
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	pc.add_child(v)
