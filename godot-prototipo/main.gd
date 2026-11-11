@@ -6,6 +6,7 @@ const D = preload("res://dados.gd")
 const MundoTerreno = preload("res://mundo_terreno.gd") # FASE 3: continentes e mar
 const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
+const BossMundo = preload("res://boss_mundo.gd")
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
 const Grafico = preload("res://grafico.gd")
@@ -88,6 +89,7 @@ var grama: MultiMeshInstance3D
 var mato # mato.gd: capim alto e samambaia perto do herói
 var hud
 var fx
+var boss_mundo # boss_mundo.gd: bosses de mundo (André 2026-11-11): aviso no chão, barra no topo, efeitos no herói
 var morte # morte.gd: bordas vermelhas, coração e cor sumindo com a vida baixa; "VOCÊ CAIU" e o escuro ao morrer
 var combate # combate.gd: aviso antes do golpe do monstro, tranco, firme, esquiva, morte em fumaça
 var _lenta_ate := 0.0 # câmera lenta (só o tempo): esquiva e último inimigo
@@ -281,6 +283,8 @@ func _ready() -> void:
 	fx = Efeitos.new()
 	fx.mundo = self
 	add_child(fx)
+	boss_mundo = BossMundo.new(self)
+	add_child(boss_mundo)
 	agua_fx = AguaFx.new()
 	add_child(agua_fx)
 	combate = Combate.new(self)
@@ -2226,6 +2230,8 @@ func pode_agir() -> bool:
 func usar(qual: String) -> void:
 	if h.morto > 0.0:
 		return
+	if boss_mundo.preso() and (qual in ["basico", "cura", "dash", "rolar", "pular", "montar", "disparada", "coletar"] or qual.begins_with("hab")):
+		return # atordoado por skill de boss: só poção
 	if qual in ["pocao", "pocao_mana"]: # botões de poção da HUD (2026-11-07): não param coleta, volta nem golpe
 		beber_pocao(qual)
 		return
@@ -3127,7 +3133,9 @@ func atualizar_heroi(dt: float) -> void:
 	if alvo_mira != null:
 		k_alvo = float(P.dados.andarAtirando) # andando de lado ou de costas: o mesmo passo de quem atira
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
-	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k)
+	if boss_mundo.preso(): # atordoado, congelado ou derrubado por skill de boss: não anda
+		livre = false
+	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k * boss_mundo.lento())
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
 	_forca_joy = forca
 	trabalho.passo_estamina(dt)
@@ -3618,7 +3626,13 @@ func _criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 	var tipo := str(c.tipos[i])
 	var nv := int(c.get("nivel", 1))
 	var nome: String = NOME_TIPO.get(tipo, "Inimigo") + ("  Nv %d" % nv if c.has("nivel") else "")
-	var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, 1.15 if tipo == "chefe" else 1.0)
+	var bv: Dictionary = c.get("visual", {}) if c.has("boss") and i == 0 else {} # boss de mundo (boss_mundo.gd): maior, outra cor, nome dele
+	if not bv.is_empty():
+		nome = "%s  Nv %d" % [str(bv.get("nome", nome)), nv]
+	var e := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), ponto_caca(c, true), nome, float(bv.get("esc", 1.0)) if not bv.is_empty() else (1.15 if tipo == "chefe" else 1.0))
+	if not bv.is_empty():
+		e.boss = str(c.boss)
+		boss_mundo.vestir(e, bv)
 	e.tipo = tipo
 	e.nivel = nv
 	for l in e.no.get_children(): # cor do nome pelo nível (Quimera); colorir_niveis troca quando o herói sobe
@@ -3626,7 +3640,7 @@ func _criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 			l.modulate = cor_nivel(nv)
 			break
 	if tipo == "lobo": # bicho de quatro patas: nome e barra mais perto do lombo
-		e.alto = 1.45
+		e.alto = 1.45 * float(bv.get("esc", 1.0))
 	var st: Dictionary = c.get("status", {}).get(tipo, {}) # vida e dano no nível do campo (statusInimigo do servidor)
 	e.vida_max = float(st.get("vida", VIDA_INIMIGO.get(tipo, D.INIMIGO.vida)))
 	e.dano = float(st.get("dano", D.INIMIGO.dmg))
