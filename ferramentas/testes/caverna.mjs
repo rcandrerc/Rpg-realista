@@ -56,10 +56,11 @@ ok(!!j.caverna && !j.prog.mochila.some((o) => o?.k === 'passe_caverna'), 'usou o
 ok(s.eventos.some((e) => e.t === 'caverna' && e.aberta), 'avisa o app que o selo abriu');
 
 // 5) monstros só nascem com gente lá dentro, e perto da sala
-const v0 = s.inimigos.length;
+const semBoss = () => s.inimigos.filter((e) => !e.bm).length; // boss de mundo nasce sozinho na arena dele, longe daqui
+const v0 = semBoss();
 j.vida = j.vidaMax = 1e9; // o teste não quer que os golens derrubem a Ana
 for (let t = 0; t < 20; t++) s.passo(0.05);
-ok(s.inimigos.length === v0, 'na porta ainda não nasce monstro nenhum');
+ok(semBoss() === v0, 'na porta ainda não nasce monstro nenhum');
 for (let sv = CAVERNA.porta - 2; sv <= 22; sv += 1) ir(sv);
 for (let t = 0; t < 4; t++) s.passo(0.05);
 const sala1 = s.dungeon.salas[0];
@@ -81,4 +82,4 @@ for (let sv = 22; sv >= -1; sv -= 1) { const p = pontoDoTunel(Math.max(0, sv)); 
 ok(!j.caverna, 'saiu da caverna: a entrada acabou');
 ok(!ir(CAVERNA.porta + 1.5), 'para entrar de novo precisa de outro passe');
 for (let t = 0; t < (CAVERNA_DUNGEON.esvazia + 1) / 0.05; t++) s.passo(0.05);
-ok(s.inimigos.length === v0 && !sala1.ativa, 'caverna vazia: os monstros somem');
+ok(semBoss() === v0 && !sala1.ativa, 'caverna vazia: os monstros somem');

@@ -45,7 +45,9 @@ const A = b.arena;
 const por = (x, z) => Object.assign(j, { x, z, y: s.terreno.altura(x, z), cliente: null, orcT: null });
 por(A.x + 3, A.z);
 ev = [];
-correr(5);
+// a ordem das skills muda: espera o giro do machado (área) sair e cair, segurando a vida da Ana
+for (let t = 0; t < 600 && !ev.some((e) => e.t === 'bossSkill' && e.k === 'area'); t++) { ev.push(...s.passo(0.05)); if (j.vida < j.vidaMax * 0.3) j.vida = j.vidaMax; j.presoAte = 0; }
+{ const g = ev.find((e) => e.t === 'bossSkill' && e.k === 'area'); if (g) { por(A.x + 3, A.z); correr(g.dur + 1.5); } }
 const sk = ev.find((e) => e.t === 'bossSkill' && e.id === b.id);
 ok(!!sk && sk.formas.length && sk.dur >= 1, `skill avisada antes (${sk?.nome}, ${sk?.dur} s)`);
 ok(ev.some((e) => e.t === 'efeito' && e.id === 'A' && e.ef === 'sangra') || ev.some((e) => e.t === 'esquiva'), 'giro do machado faz sangrar');
@@ -55,7 +57,7 @@ ok(ev.some((e) => e.t === 'dano' && e.alvo === 'A' && e.dot === 'sangra'), 'sang
 j.vida = j.vidaMax; j.dots = null; ev = [];
 let viu = null;
 for (let t = 0; t < 400 && !viu; t++) { const e = s.passo(0.05); ev.push(...e); viu = e.find((x) => x.t === 'bossSkill' && x.k === 'salto'); if (j.vida < j.vidaMax * 0.3) j.vida = j.vidaMax; }
-ok(!!viu, "salto de guerra avisado"); if (!viu) { console.log(j.morto, j.vida, b.skillCd, b.skillI, b.trava, b.semAlvo, ev.filter(e=>e.t==="bossSkill").map(e=>e.k)); process.exit(1); }
+ok(!!viu, "salto de guerra avisado"); if (!viu) process.exit(1);
 correr(viu.dur - 0.15); j.defesa = 1; const vAntes = j.vida; correr(0.3); j.defesa = 0;
 ok(!ev.slice(-20).some((e) => e.t === 'efeito' && e.id === 'A' && e.ef === 'atordoa'), 'rolou na hora: não foi atordoado');
 // sem rolar: atordoa e não anda

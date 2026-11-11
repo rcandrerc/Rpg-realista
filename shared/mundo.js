@@ -395,8 +395,8 @@ export const ARENAS_BOSS = [
   { id: 'uivo_rei', x: -374, z: 108, r: 16 },
   { id: 'mandibula', x: -206, z: -294, r: 16 },
   { id: 'chifre_ferro', x: 508, z: -126, r: 16 },
-  { id: 'garra_abismo', x: 330, z: 640, r: 15 },
-  { id: 'colosso_gelido', x: -278, z: 1192, r: 17 },
+  { id: 'garra_abismo', x: 286, z: 976, r: 15 },
+  { id: 'colosso_gelido', x: -270, z: 1240, r: 17 },
   { id: 'dragao_cinzas', x: 680, z: 1228, r: 18 },
 ];
 function aplainarArenas(G, dist) {
