@@ -570,6 +570,7 @@ func outro(j: Dictionary) -> void:
 			_detalhe_t = 0.0 # acerta o detalhe dele já no próximo quadro
 		else:
 			var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
+			no.set_meta("pano_outro", true) # capa de outro: pano de verdade só nas mais perto da câmera (pano_capa.gd)
 			var esq: Skeleton3D = m.esqueleto(no)
 			var esp: Node3D = m.nova_arma("espada")
 			var caj: Node3D = m.nova_arma("cajado")
@@ -1231,6 +1232,7 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	# malha mais simples mais cedo (o LOD automático do Godot) para quem não está entre os mais perto
 	if antes == -1 or not o.has("malhas"):
 		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false)
+		m.LodMalha.pedir(o.no) # roupa, cabelo e corpo montados no jogo ganham LOD (lod_malha.gd)
 	for mi in o.malhas:
 		if is_instance_valid(mi):
 			mi.lod_bias = [0.3, 0.6, 1.0][nivel]

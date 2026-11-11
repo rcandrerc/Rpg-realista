@@ -224,6 +224,10 @@ func enviar(tipo: String, dados = null) -> void:
 	if dados != null:
 		b.append_array(MP.codificar(dados))
 	ws.send(b)
+	# André 2026-11-11 (ping 200 a 1000): o WebSocket do Godot só põe na rede o que foi enviado no próximo poll(), que
+	# era no quadro seguinte. A 30 FPS cada mensagem (posição, golpe, ping) esperava até mais um quadro inteiro.
+	# Agora sai na hora.
+	ws.poll()
 
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
