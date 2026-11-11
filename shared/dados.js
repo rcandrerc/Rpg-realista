@@ -1920,8 +1920,14 @@ export { RIOS_MUNDO, PONTES_MUNDO };
 // ela (contas de teste, server/contas.js); os outros veem ela andando e trabalhando, mas tocar nela não abre nada.
 // Visual escolhido pelo André (opção B, 2026-11-09): corpo victoria, cabelo preto, olhos vermelhos, vinho e capa roxa.
 // Fase 1: corpo, casa, horta, passeio pela vila e conversa por botões. Fase 2: time e combate. Troca de verdade vem na fase 3.
+// Recomeço do zero (André 2026-11-11): a conta de teste dele volta ao Nv 1 uma vez (server/contas.js recomecar) e a
+// Cecília também (AMIGA.recomeco). Trocar a data zera de novo; o anterior fica guardado ('antes') para dar para voltar.
+export const RECOMECO = { data: '2026-11-11' };
 export const AMIGA = {
   id: 'cecilia', nome: 'Cecília', conta: 'a:cecilia', papel: 'a guerreira',
+  // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
+  // zera de novo; o save anterior fica em 'antes' no terreno dela.
+  recomeco: RECOMECO.data,
   visual: 'victoria',
   aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1 },
   equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'short', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },

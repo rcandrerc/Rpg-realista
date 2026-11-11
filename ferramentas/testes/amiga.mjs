@@ -279,7 +279,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s8.adicionarJogador('irmao', 'Irmão', 'ruiva', { conta: 2 });
   s8.amigaEntrar('irmao');
   s8.loteDaAmiga().amiga = {}; s8.amigaSair('irmao');
-  const L8 = s8.loteDaAmiga(); L8.amiga = { amizade: 7 };
+  const L8 = s8.loteDaAmiga(); L8.amiga = { amizade: 7, recomeco: AMIGA.recomeco };
   s8.adicionarJogador('irmao2', 'Irmão', 'ruiva', { conta: 2 });
   s8.amigaEntrar('irmao2');
   ok(s8.amiga.amizade === 0, 'irmão começa do zero');
@@ -379,4 +379,21 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
     if (lugar === 'c_i1') ok(perto > 300 && c.ia.viagem?.bloqueio && pulo < 0.6 && ditos.some((t) => AMIGA.chat.falas.outraTerra.includes(t)), 'ele em outra terra: ela não aparece lá, avisa que sem barco não chega e espera');
     else ok(perto <= 4 && pulo < 0.6 && montada > 10, `${modo === 'time' ? 'no time' : '"vem cá"'}: veio de lobo pela estrada ${Math.round(d0)} m sem se teletransportar (maior passo ${pulo.toFixed(2)} m, ${Math.round(montada)} s montada)`);
   }
+}
+
+{ // recomeço (André 2026-11-11): o que ela jogou volta ao zero, o save antigo fica guardado em 'antes'
+  const s9 = new Simulacao(MAPA_CLAREIRA);
+  s9.adicionarJogador('andre', 'André', 'ruiva', { conta: 1, testador: true });
+  s9.amigaEntrar('andre');
+  const L9 = s9.loteDaAmiga(), velho = { ...s9.amiga.prog, nivel: 44, ouro: 9999 };
+  s9.amigaSair('andre'); L9.amiga = { prog: velho, amizade: 9, amizades: { 1: 9 }, memorias: { 1: ['pescamos'] }, justa: 1 };
+  s9.adicionarJogador('andre2', 'André', 'ruiva', { conta: 1, testador: true });
+  s9.amigaEntrar('andre2');
+  const a9 = s9.amiga;
+  ok(a9.prog.nivel === 1 && a9.prog.ouro < 9999 && a9.amizade === 0 && !Object.keys(a9.amizades).length && !Object.keys(a9.memorias).length, 'recomeço: ela volta ao Nv 1, sem ouro, amizade nem diário');
+  s9.guardarAmiga();
+  ok(L9.amiga.recomeco === AMIGA.recomeco && L9.amiga.antes?.prog?.nivel === 44 && L9.amiga.antes.amizades?.[1] === 9, 'o save antigo fica em antes e o recomeço não repete');
+  s9.amiga.prog.nivel = 3; s9.guardarAmiga(); s9.amigaSair('andre2');
+  s9.adicionarJogador('andre3', 'André', 'ruiva', { conta: 1, testador: true }); s9.amigaEntrar('andre3');
+  ok(s9.amiga.prog.nivel === 3 && s9.loteDaAmiga().amiga.antes?.prog?.nivel === 44, 'depois do recomeço ela guarda o que joga de novo');
 }
