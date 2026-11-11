@@ -124,7 +124,7 @@ func tocou_tela(pos: Vector2) -> void:
 	for id in outros:
 		var no: Node3D = outros[id].no
 		if outros[id].get("bot", false): # a Cecília (shared/amiga.js): o dono conversa com ela pela conversa.gd; os outros, nada
-			if m.online.amiga_id != "":
+			if str(id) in m.online.amiga_ids: # Cecília ou Dario: com a conversa ativada, tocar abre a conversa
 				continue
 			# sem a conversa com IA ativada: tocar nela só mostra o equipamento (abaixo)
 		if not no.visible or no.position.distance_to(m.heroi.position) > 30.0:

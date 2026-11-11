@@ -7,10 +7,10 @@ import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCAL
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS, AMIGA } from './dados.js';
+import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL } from './dados.js';
 import { zonaFechadaEm, textoNevoa, liberado, motivoLibera, missaoAtual, totalMissao, liberaNoNivel, histNova } from './historia.js'; // progressão (André 2026-11-10)
-import { Amiga } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
+import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -284,6 +284,8 @@ export class Simulacao {
     this.tempo = 0;
     this.jogadores = new Map();
     this.amiga = null; this.amigaDono = null; this.amigaFalam = new Set(); // Cecília (shared/amiga.js): o corpo dela, quem ela acompanha e quem pode conversar
+    this.AMIGA = AMIGA; // a definição dela (dados.js); os outros amigos virtuais (Dario, André 2026-11-11) são contextos com os próprios campos
+    this.amigosIa = [this, ...AMIGOS_VIRTUAIS.filter((d) => d !== AMIGA).map((d) => contextoDeAmigo(this, d))];
     this.inimigos = [];
     this.projeteis = [];
     this.campos = [];
@@ -1450,8 +1452,9 @@ export class Simulacao {
     const livre = (c) => c && !c.morto && !c.criando;
     if (m.acao === 'pedir' || m.acao === 'aceitar') {
       const o = this.jogadores.get(String(m.com));
-      if (o && o.bot && o === this.amiga) { // a Cecília (fase 3): ela mesma decide na hora, sem cartão de pedido
-        const r = this.abrirTrocaAmiga(j); if (r !== true) this.falarAmiga(r);
+      const ctx = this.amigoIaDe(o);
+      if (o && o.bot && ctx) { // a Cecília ou o Dario (fase 3): decide na hora, sem cartão de pedido
+        const r = ctx.abrirTrocaAmiga(j); if (r !== true) ctx.falarAmiga(r);
         return;
       }
       if (!o || o === j || o.bot) return;
@@ -1545,10 +1548,10 @@ export class Simulacao {
       const o = this.jogadores.get(outro); if (!o) continue;
       const ver = (of, meu) => ({ ouro: of.ouro, tranca: of.tranca, ok: of.ok,
         itens: of.itens.map((e) => ({ ...(meu ? { i: e.i } : {}), n: e.n, it: itemDaChave(e.chave, e.n) })) });
-      const sug = this.amiga && o === this.amiga ? { sugestao: this.sugestaoTrocaAmiga(T) } : {}; // troca com a Cecília: o preço dela
+      const ctxO = this.amigoIaDe(o), sug = ctxO ? { sugestao: ctxO.sugestaoTrocaAmiga(T) } : {}; // troca com a Cecília ou o Dario: o preço dele(a)
       this.evento({ t: 'troca', para: k, fase: 'estado', com: outro, nome: o.nome, eu: ver(T.of[k], true), ele: ver(T.of[outro], false), ...sug });
     }
-    if (this.amiga && (T.a === this.amiga.id || T.b === this.amiga.id)) this.mexeuTrocaAmiga(); // a Cecília pensa de novo (shared/amiga.js)
+    for (const ctx of this.amigosIa) if (ctx.amiga && (T.a === ctx.amiga.id || T.b === ctx.amiga.id)) ctx.mexeuTrocaAmiga(); // ela (ou ele) pensa de novo (shared/amiga.js)
   }
   fecharTroca(T, motivo = '', feita = false) {
     this.trocas?.delete(T);
@@ -1597,7 +1600,8 @@ export class Simulacao {
     if (canal === 'amigos' && !j.amigos.size) return aviso('Você ainda não tem amigos. Toque num jogador e escolha "Adicionar amigo"');
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
-    if (canal === 'pm' && !j.amigos.has(para) && !(para === AMIGA.conta && this.podeAmiga(id))) return aviso(para === AMIGA.conta ? `Ative a conversa com IA para falar com ${AMIGA.nome}` : 'Só dá para mandar mensagem privada para amigo'); // a Cecília: quem tem a chave Groq (shared/amiga.js)
+    const ctxPm = canal === 'pm' ? this.amigosIa.find((x) => x.AMIGA.conta === para) : null; // Cecília ou Dario
+    if (canal === 'pm' && !j.amigos.has(para) && !(ctxPm && ctxPm.podeAmiga(id))) return aviso(ctxPm ? `Ative a conversa com IA para falar com ${ctxPm.AMIGA.nome}` : 'Só dá para mandar mensagem privada para amigo'); // a Cecília: quem tem a chave Groq (shared/amiga.js)
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
     j.chatT = this.tempo;
     const msg = { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
@@ -1645,7 +1649,7 @@ export class Simulacao {
       return { c, nome: o?.nome || nome, id: o ? o.id : null, nivel: o ? o.prog.nivel : null, on: o ? 1 : this.onlineFora?.(c) ? 2 : 0, time: !!(o && j.time && o.time === j.time) };
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
-    const a = this.amiga, virtuais = a ? [{ c: AMIGA.conta, nome: AMIGA.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: this.amizadeAmiga(j), ia: this.podeAmiga(j.id) }] : this.iaPorChave ? [{ c: AMIGA.conta, nome: AMIGA.nome, id: null, on: 0, amizade: 0, ia: false }] : []; // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.podeAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais });
   }
   amigo(id, m) {
@@ -1789,7 +1793,7 @@ export class Simulacao {
     a.prog.ouro += B.ouro - A.ouro; b.prog.ouro += A.ouro - B.ouro;
     for (const [j, o] of [[a, b], [b, a]]) { this.aplicarStatus(j); this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: `Troca com ${o.nome} feita!` }); }
     this.fecharTroca(T, '', true);
-    if (this.amiga && (a === this.amiga || b === this.amiga)) this.trocaFeitaAmiga(T);
+    for (const ctx of this.amigosIa) if (ctx.amiga && (a === ctx.amiga || b === ctx.amiga)) ctx.trocaFeitaAmiga(T);
     this.aoTrocar?.(); // o servidor grava as duas contas na hora (nada fica só na memória)
   }
   precoCompra(j, o) { return Math.max(1, Math.round(o.preco * (1 - mercador(j.prog.prof.mer).compra))); }
@@ -2212,7 +2216,7 @@ export class Simulacao {
     if (distRet(R, j.x, j.z) > 40) return aviso('Chegue mais perto do terreno');
     // FASE 3 (André 2026-11-08): cada vila tem no máximo V.max terrenos com dono; cheia, procure outra vila ou bairro
     const V = vilaEm((R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2) || VILAS_TERRENO[0];
-    const naVila = [...this.lotes.values()].filter((L) => L.dono && L.dono !== AMIGA.conta && (vilaEm((L.def.x0 + L.def.x1) / 2, (L.def.z0 + L.def.z1) / 2) || VILAS_TERRENO[0]) === V).length;
+    const naVila = [...this.lotes.values()].filter((L) => L.dono && !AMIGOS_VIRTUAIS.some((d) => d.conta === L.dono) && (vilaEm((L.def.x0 + L.def.x1) / 2, (L.def.z0 + L.def.z1) / 2) || VILAS_TERRENO[0]) === V).length;
     if (naVila >= V.max) return aviso(`${V.nome} já tem ${V.max} terrenos. Procure outra vila`);
     const w = R.x1 - R.x0, d = R.z1 - R.z0, preco = precoTerreno(w, d);
     if (j.prog.ouro < preco) return aviso(`Faltam ${preco - j.prog.ouro} de ouro (o terreno custa ${preco})`);
@@ -3350,7 +3354,7 @@ export class Simulacao {
         }
       }
     }
-    this.passoAmiga(dt); // Cecília decide o que fazer (anda pela entrada, como um jogador sem celular)
+    for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
     this.passoTimes(dt);
@@ -3543,3 +3547,8 @@ export class Simulacao {
 // packs e transportes (FASE 1): as funções de shared/transporte.js entram na Simulacao
 Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
+// o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
+Simulacao.prototype.amigoIaDe = function (o) {
+  if (!o) return null;
+  return this.amigosIa.find((x) => (typeof o === 'string' ? x.AMIGA.id === o || x.AMIGA.conta === o : x.amiga === o)) || null;
+};
