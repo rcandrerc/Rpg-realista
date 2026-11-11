@@ -8,7 +8,7 @@ import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS } from './dados.js';
-import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS } from './dados.js';
+import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
@@ -614,6 +614,7 @@ export class Simulacao {
     if (visualValido(p.visual)) j.visual = p.visual;
     j.aparencia = aparenciaValida(p.aparencia);
     j.nome = nome; j.podeCriar = false; j.criando = false;
+    if (!j.prog.hist?.p && !j.prog.hist?.ac && !j.bot) this.cena(j, 'acordar'); // herói novo: a abertura, acordando do lado do poço
     return { nome, visual: j.visual, aparencia: j.aparencia };
   }
   // Trocar o nome depois de criado (André 2026-11-10): custa NOME.troca de ouro. livre(nome) é do servidor (nome único
@@ -831,6 +832,7 @@ export class Simulacao {
       if (primeiraDoCap(h.p)) { const C = capituloDe(M); if (C) this.evento({ t: 'capitulo', para: j.id, fase: 'abre', n: C.n, nome: C.nome, frase: C.frase, ato: C.ato }); }
       this.evento({ t: 'aviso', para: j.id, texto: 'Missão nova: ' + M.nome });
       if (M.recebe) this.darItens(j, M.recebe);
+      if (M.cena) this.cena(j, M.cena); // cena ao aceitar a missão
       diga(M.pedido, { missao: M.id });
       this.checarEtapa(j);
       this.avisarProg(j);
@@ -858,10 +860,21 @@ export class Simulacao {
     diga(`Primeiro: ${this.textoEtapa(j)}.`, { missao: M.id });
     return true;
   }
+  // Cena da história (CENAS em shared/dados.js, godot-prototipo/cinematica.gd): põe o herói no lugar dela, se tiver, e
+  // manda o app tocar. Só para quem vê (o herói fica onde a cena deixou).
+  cena(j, id) {
+    const C = CENAS[id]; if (!C || j.bot) return;
+    if (C.heroi?.pos) {
+      const [x, z] = C.heroi.pos, y = this.terreno.altura(x, z, (j.y || 0) + 2);
+      Object.assign(j, { x, z, y, ry: C.heroi.ry ?? j.ry, vy: 0, chao: true, esc: null });
+      this.evento({ t: 'corrigir', para: j.id, x: r2(x), y: r2(y), z: r2(z), ry: r2(j.ry) });
+    }
+    this.evento({ t: 'cena', para: j.id, id });
+  }
   // monstro c caiu e j ganhou: conta na etapa de matar (campo, tipo e chefe da história)
   contarHistoria(j, c) {
     const campo = c.sp?.caca != null ? this.cacas[c.sp.caca]?.def?.id : null;
-    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null });
+    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null, sala: c.sp?.caverna || null });
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
@@ -876,6 +889,7 @@ export class Simulacao {
   }
   proximaEtapa(j) {
     const h = j.prog.hist, M = HISTORIA[h.p], L = etapasDe(M), E = L[h.e];
+    if (E?.cena) this.cena(j, E.cena); // cena ao terminar a etapa
     if (E?.diz) this.evento({ t: 'aviso', para: j.id, texto: E.diz });
     h.e++; h.n = 0; h.m = 0; j.progSujo = true;
     const N = L[h.e];
@@ -888,7 +902,11 @@ export class Simulacao {
     const p = j.prog, h = p.hist, E = etapaAtual(p); if (!E) return false;
     let feito = false;
     if (E.ja === 'lote') feito = !!this.loteDe(j);
-    else if (E.ja === 'peca') feito = !!this.loteDe(j)?.pecas.some((o) => o.k === E.k);
+    else if (E.ja === 'peca') { // peças do terreno: com n > 1 conta quantas já estão lá (4 fundações)
+      const q = this.loteDe(j)?.pecas.filter((o) => o.k === E.k).length || 0;
+      if ((E.n || 1) > 1 && Math.min(q, E.n) > h.n) { h.n = Math.min(q, E.n); j.progSujo = true; this.avisarProg(j); }
+      feito = q >= (E.n || 1);
+    }
     else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho');
     else if (E.ja === 'atributos') feito = Object.values(p.atr).some((v) => v > 3);
     if (!feito && E.ev === 'ter') {
@@ -897,6 +915,7 @@ export class Simulacao {
       feito = n >= totalEtapa(E);
     }
     if (!feito && E.ev === 'noite') feito = ehNoite(horaDoJogo(p.dia));
+    if (!feito && E.ev === 'time') feito = (j.time?.membros.length || 0) >= 2; // alguém no time (a Cecília e o Dario contam)
     if (!feito && E.ev === 'pos' && !j.morto) {
       const [x, z, r, y] = E.pos;
       feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho');
@@ -920,7 +939,7 @@ export class Simulacao {
     for (const j of this.jogadores.values()) {
       if (j.bot || j.criando || !j.prog.hist?.ac) continue;
       const E = etapaAtual(j.prog); if (!E) continue;
-      if (E.ja || ['ter', 'noite', 'pos', 'pistas'].includes(E.ev)) this.checarEtapa(j);
+      if (E.ja || ['ter', 'noite', 'pos', 'pistas', 'time'].includes(E.ev)) this.checarEtapa(j);
       if (E.hc) this.chamarChefe(j, E.hc);
     }
   }
@@ -941,7 +960,7 @@ export class Simulacao {
   // missão entregue: prêmio, presente, o que libera, cartão do fim do capítulo e a próxima missão
   concluirMissao(j, M, diga) {
     const p = j.prog, h = p.hist, i = h.p;
-    Object.assign(h, { p: h.p + 1, ac: false, e: 0, n: 0, m: 0 }); j.progSujo = true;
+    Object.assign(h, { p: h.p + 1, ac: false, e: 0, n: 0, m: 0, u: M.id }); j.progSujo = true; // u: a última entregue (historia.js histValida)
     const abre = M.libera.length > 0, P = HISTORIA_PREMIO;
     const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro;
     this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
@@ -1361,6 +1380,7 @@ export class Simulacao {
       if (!guardar(p.mochila, novo)) { for (const [k, n] of Object.entries(D.passe)) guardar(p.mochila, { k, n }); aviso('Mochila cheia'); return false; }
       this.evento({ t: 'fala', para: j.id, npc: npc.id, texto: 'Pronto. Mostre isso no selo e ele abre. Uma vez só, hein.' });
       aviso('Recebeu Passe da Caverna');
+      this.historia(j, 'passe', { k: 'fazer' });
       return true;
     }
     if (acao === 'usar_passe') {
@@ -1375,6 +1395,7 @@ export class Simulacao {
       j.caverna = { desde: this.tempo };
       this.evento({ t: 'caverna', id: j.id, aberta: true });
       aviso(doTime ? 'O selo reconhece seu time e se abre. Boa sorte lá dentro!' : 'O selo se abre. Boa sorte lá dentro!');
+      this.historia(j, 'passe', { k: 'usar' });
       return true;
     }
     return false;
@@ -2834,6 +2855,7 @@ export class Simulacao {
     const espera = camaVigorEm(p, agora);
     if (espera <= 0) { vigor = ganharVigor(p, CAMA.vigor, agora); p.camaT = agora; }
     this.evento({ t: 'dormiu', para: id, vigor: Math.round(vigor), espera: Math.ceil(espera) });
+    this.historia(j, 'dormir'); // história: dormir uma noite na cama
     this.avisarProg(j);
   }
   // Fornalha ou fogão do meu terreno (2026-11-07). m = { acao: 'abrir' | 'por' | 'tirar', p: id da peça, lugar: 'comb' | 'ent' | 'sai', i }
@@ -2937,6 +2959,7 @@ export class Simulacao {
       if (!vigor()) return;
       tirar(p.mochila, 'semente_' + m.s, 1);
       Object.assign(t, { c: m.s, g: 0, u: agora });
+      this.historia(j, 'plantar', { k: m.s });
     } else if (m.acao === 'regar') {
       if (!t) return aviso('Precisa arar a terra primeiro');
       if (contar(p.mochila, 'regador') < 1) return aviso('Precisa de regador (crie perto de uma bancada, aba Fazenda)');
@@ -2946,6 +2969,7 @@ export class Simulacao {
       t.w = agora; t.u = agora;
       p.agua = aguaRegador(p) - 1;
       if (p.agua === 0) aviso('O regador secou: encha no poço da vila ou na beira de um lago');
+      this.historia(j, 'regar');
     } else if (m.acao === 'colher') {
       if (!t || !t.c) return aviso('Não tem nada plantado aqui');
       const P = PLANTAS[t.c];
@@ -2956,6 +2980,7 @@ export class Simulacao {
       this.pontosProf(j, 'faz', P.semente / 2);
       this.evento({ t: 'colheu', para: id, c: m.c, nome: P.nome, n });
       if (p.nivel < NIVEL_MAX) this.ganharXP(j, 1);
+      this.historia(j, 'colher', { k: t.c });
       Object.assign(t, { c: '', g: 0, u: agora });
     } else if (m.acao === 'tirar') {
       if (!t) return;

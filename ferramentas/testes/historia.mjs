@@ -1,7 +1,7 @@
 // Teste da história v2 (André 2026-11-11, "Aethra: a Crônica da Névoa"): o Ato I inteiro (capítulos 1 a 5) feito do
 // começo ao fim por um herói novo, as etapas, os chefes com nome, as pistas, a noite, o barquinho, os presentes, os
 // cartões de capítulo, os rumores e a conta da história antiga migrando. Uso: node ferramentas/testes/historia.mjs
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, CAPITULOS, CHEFES_HISTORIA, CACA, ITENS, xpProximo } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, CAPITULOS, CHEFES_HISTORIA, CACA, ITENS, CENAS, xpProximo } from '../../shared/index.js';
 import { progressoValido, contar, guardar } from '../../shared/progresso.js';
 import { etapasDe, liberado, zonaFechadaEm, histValida, historiaParaApp } from '../../shared/historia.js';
 import { noLago } from '../../shared/relevo.js';
@@ -27,6 +27,21 @@ HISTORIA.forEach((M, i) => {
 for (const [id, C] of Object.entries(CHEFES_HISTORIA)) { const c = CACA.find((o) => o.id === C.campo); ok(c && (c.tipo === C.tipo || c.tipos?.includes(C.tipo) || true), `chefe ${id} no campo ${C.campo}`); }
 for (const C of CAPITULOS) ok(HISTORIA.some((M) => M.cap === C.n), `capítulo ${C.n} tem missão`);
 const app = historiaParaApp(); ok(app.capitulos.length === CAPITULOS.length && app.missoes.every((m) => m.etapas.length >= 1), 'app recebe capítulos e etapas');
+
+// ---------- cenas (cinematica.gd) ----------
+for (const [id, C] of Object.entries(CENAS)) {
+  ok(C.tomadas.length > 0 && C.tomadas.every((T) => T.d > 0 && T.de?.p?.length === 3 && T.de?.o?.length === 3 && (!T.para || (T.para.p.length === 3 && T.para.o.length === 3))), `cena ${id}: tomadas com câmera`);
+  for (const n of C.npcs || []) ok(!!npc(n), `cena ${id}: NPC ${n}`);
+}
+for (const M of HISTORIA) for (const c of [M.cena, ...etapasDe(M).map((E) => E.cena)].filter(Boolean)) ok(!!CENAS[c], `${M.id}: cena ${c} existe`);
+ok(historiaParaApp().cenas === CENAS, 'app recebe as cenas');
+{ // herói novo: "Pronto" no criador leva para o lado do poço e toca a abertura
+  const s0 = new Simulacao(MAPA_CLAREIRA), j0 = s0.adicionarJogador('N', 'Novo', null, { podeCriar: true });
+  s0.definirCriando('N', true);
+  const r = s0.concluirCriacao('N', { nome: 'Lia' }); const e0 = s0.passo(0.05);
+  ok(r && e0.some((e) => e.t === 'cena' && e.para === 'N' && e.id === 'acordar'), 'criou o personagem: cena da abertura');
+  ok(Math.hypot(j0.x - CENAS.acordar.heroi.pos[0], j0.z - CENAS.acordar.heroi.pos[1]) < 0.01 && e0.some((e) => e.t === 'corrigir' && e.para === 'N'), 'herói acorda do lado do poço');
+}
 
 // ---------- Ato I do começo ao fim ----------
 const s = new Simulacao(MAPA_CLAREIRA);
@@ -105,8 +120,9 @@ tirarTudo('couro'); dar('couro', 4); correr(0.6); falar('andarilho'); fim('a7');
 falar('andarilho'); s.historia(j, 'item', { k: 'minerio_ferro', n: 3, de: 'coleta' }); dar('minerio_ferro', 3); dar('lenha', 2);
 ir(npc('ferreiro').x + 1, npc('ferreiro').z); s.criarUm('A', { r: 'barra_ferro' }); correr(0.1); ok(h().e === 2, 'barra de ferro');
 falar('andarilho'); fim('a8');
+p.dia = { h: 12, t: Date.now() }; // de dia antes de aceitar (sem isso o relógio da conta segue a hora real e às vezes já é noite)
 falar('andarilho'); ok(missao() === 'a9', 'o alfa da noite');
-p.dia = { h: 12, t: Date.now() }; correr(0.6); ok(h().e === 0 && /agora são 12h/.test(s.histInfo(j).txt), 'de dia espera: ' + s.histInfo(j).txt);
+ correr(0.6); ok(h().e === 0 && /agora são 12h/.test(s.histInfo(j).txt), 'de dia espera: ' + s.histInfo(j).txt);
 p.dia = { h: 20, t: Date.now() }; correr(0.6); ok(h().e === 1, 'chegou a noite');
 ok(liberado(p, 'lobo') === false, 'o lobo ainda não monta antes de cansar o alfa');
 chefe('presa'); ok(h().e === 2 && liberado(p, 'lobo'), 'cansou Presa-de-Prata: dá para montar');

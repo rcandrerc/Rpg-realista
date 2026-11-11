@@ -2299,6 +2299,25 @@ export const CAPITULOS = [
   { n: 14, nome: 'As janelas acesas', nv: 80, ato: 'Ato V · Aurora', frase: 'Alguém acendeu as janelas de Aurora.' },
   { n: 15, nome: 'O último selo', nv: 95, ato: 'Ato V · Aurora', frase: 'O Pico da Névoa chama.' },
 ];
+// Cenas da história (André 2026-11-11: "acrescenta cinemáticas em algumas missões"). Não é vídeo gravado: roda dentro
+// do jogo, com a câmera andando em volta do herói de verdade (a cara, a roupa e a arma de agora) e dos NPCs, com faixas
+// de cinema, legenda e o botão Pular (godot-prototipo/cinematica.gd). O servidor manda { t: 'cena', id } na hora certa.
+// heroi: onde o herói fica (pos [x, z] no mundo, ry em radianos, deitado = começa caído e levanta na tomada 'levantar').
+// npcs: quem vira para o herói. Tomadas: d = segundos; de/para = câmera { p: [x, y, z], o: [x, y, z] } (o = para onde
+// olha; y conta da altura do herói; com rel: true, x e z contam a partir do herói); fala = [quem, texto] (quem vazio =
+// narração; {nome} = o nome do herói); preto = a tomada começa saindo do preto; acao = 'levantar'.
+const POCO_H = [-4.2, -15.6]; // ao lado do poço da praça, de frente para o Aldo
+export const CENAS = {
+  acordar: { nome: 'Acordar', heroi: { pos: POCO_H, ry: -2.6, deitado: true }, npcs: ['lider'], tomadas: [
+    { d: 4.6, preto: 1.4, de: { p: [24, 24, 14], o: [-6, 0.5, -14] }, para: { p: [9, 10, -2], o: [-5.5, 0.4, -14.8] }, fala: ['', 'Ninguém lembra de onde você veio.'] },
+    { d: 3.2, de: { p: [-2.5, 0.65, -14.6], o: [-4.2, 0.2, -15.6] }, para: { p: [-2.9, 0.55, -14.9], o: [-4.2, 0.2, -15.6] }, fala: ['', 'Nem você.'] },
+    { d: 3.0, acao: 'levantar', de: { p: [-1.7, 1.0, -14.5], o: [-4.2, 0.8, -15.6] }, para: { p: [-1.9, 1.5, -14.4], o: [-4.2, 1.35, -15.6] } },
+    { d: 4.0, de: { p: [-2.9, 1.75, -14.4], o: [-6, 1.45, -18.6] }, para: { p: [-3.15, 1.7, -14.65], o: [-6, 1.45, -18.6] }, fala: ['Aldo', 'Te achei aqui ao amanhecer, dormindo do lado do poço.'] },
+    { d: 2.4, de: { p: [-6.0, 1.7, -17.55], o: [-4.2, 1.45, -15.6] }, para: { p: [-5.9, 1.68, -17.4], o: [-4.2, 1.45, -15.6] }, fala: ['Aldo', 'Lembra do seu nome?'] },
+    { d: 2.2, de: { p: [-5.9, 1.68, -17.4], o: [-4.2, 1.45, -15.6] }, para: { p: [-5.8, 1.66, -17.25], o: [-4.2, 1.45, -15.6] }, fala: ['{nome}', '...{nome}.'] },
+    { d: 3.6, de: { p: [-1.2, 1.6, -19.4], o: [-5.1, 1.2, -17.1] }, para: { p: [-0.9, 1.9, -18.5], o: [-5.1, 1.2, -17.1] }, fala: ['Aldo', 'Pelo menos isso. Venha, fale comigo: tem muita coisa que você precisa saber.'] },
+  ] },
+};
 // Chefes com nome da história: um monstro do campo vira o chefe quando o herói da etapa chega perto (o mesmo modelo,
 // maior e com outro brilho; sem modelo novo). vida e dano: vezes o do campo. noite: só aparece à noite (19h às 5h).
 export const CHEFES_HISTORIA = {

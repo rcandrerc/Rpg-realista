@@ -1,7 +1,7 @@
 // Progressão até o Nv 100 (André 2026-11-10): missões principais em ordem (HISTORIA), zonas fechadas pela névoa
 // (ZONAS) e o que abre por nível (LIBERA_NIVEL). Os dados ficam em shared/dados.js; aqui só as contas, que o servidor
 // (shared/simulacao.js) usa para decidir e o exportador manda para o app (habilidades.json, chave "historia").
-import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS } from './dados.js';
+import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS, CENAS } from './dados.js';
 import { LUGARES_MUNDO, TERRAS, dentroDaTerra } from './mundo.js';
 import { REGIOES_POLIGONOS } from './regioes.js';
 
@@ -50,6 +50,7 @@ export function casaEtapa(E, ev, d = {}) {
   if (E.npc && d.npc !== E.npc) return 0;
   if (E.k && ![].concat(E.k).includes(d.k)) return 0;
   if (E.campos && !E.campos.includes(d.campo)) return 0;
+  if (E.salas && !E.salas.includes(d.sala)) return 0; // sala da caverna da montanha (CAVERNA_DUNGEON.salas)
   if (E.tipos && !E.tipos.includes(d.tipo)) return 0;
   if (E.hc && d.hc !== E.hc) return 0;
   if (E.de && d.de !== E.de) return 0;
@@ -70,13 +71,17 @@ export const QUEM_LIBERA = {};
 HISTORIA.forEach((M, i) => { for (const k of M.libera) QUEM_LIBERA[k] = i; });
 
 // estado das missões da conta: { v: 2, p: quantas já foram entregues, ac: aceitou a próxima, e: etapa da vez,
-// n: quanto já fez da etapa, m: pistas já vistas (bits) }
+// n: quanto já fez da etapa, m: pistas já vistas (bits), u: id da última entregue (missão nova no meio da lista não
+// desloca quem já passou dela) }
 export const histNova = () => ({ v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 });
 // personagem de antes da progressão (sem hist): as missões até o nível que ele já tem contam como feitas
 export const histPorNivel = (nivel) => ({ ...histNova(), p: HISTORIA.filter((M) => M.nv <= nivel).length });
 // conta da história de antes (h1 a h15, sem v): a missão que abria a mesma coisa conta como a última feita
 const ANTIGA = { h1: 'a3', h2: 'a4', h3: 'a9', h4: 'a11', h5: 'a16' };
 const ANTIGAS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15'];
+// a lista da Entrega 1 (contas v2 ainda sem u): a posição p vira o id da última entregue. As missões que fecham um
+// capítulo novo herdam o id da missão de uma etapa que abria a mesma zona (h6 abre a caverna, h7 os Golens, h8 o oeste).
+const V2_ENTREGA1 = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10', 'a11', 'a12', 'a13', 'a14', 'a15', 'a16', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15'];
 export function histValida(h, nivel) {
   if (!h || typeof h !== 'object') return histPorNivel(nivel);
   let p = Number.isInteger(h.p) ? Math.max(0, h.p) : 0;
@@ -85,11 +90,16 @@ export function histValida(h, nivel) {
     p = id ? HISTORIA.findIndex((M) => M.id === (ANTIGA[id] || id)) + 1 : 0;
     return { ...histNova(), p: Math.max(0, Math.min(HISTORIA.length, p)) };
   }
+  { // a lista mudou: a última entregue (u, ou a posição na lista da Entrega 1) diz onde a conta está
+    const u = typeof h.u === 'string' ? h.u : p > 0 ? V2_ENTREGA1[Math.min(p, V2_ENTREGA1.length) - 1] : null;
+    const i = u ? HISTORIA.findIndex((M) => M.id === u) : -1;
+    if (i >= 0 && i + 1 !== p) return { ...histNova(), p: i + 1, u }; // a missão que estava fazendo começa de novo
+  }
   p = Math.min(HISTORIA.length, p);
   const M = HISTORIA[p], L = M ? etapasDe(M) : [], ac = !!M && h.ac === true;
   const e = ac && Number.isInteger(h.e) ? Math.max(0, Math.min(L.length - 1, h.e)) : 0, E = L[e];
   const max = E ? (E.itens ? Object.values(E.itens).reduce((a, n) => a + n, 0) : E.pontos ? E.pontos.length : E.n || 1) : 0;
-  return { v: 2, p, ac, e, n: ac && Number.isInteger(h.n) ? Math.max(0, Math.min(max, h.n)) : 0, m: ac && Number.isInteger(h.m) ? h.m & 0xffff : 0 };
+  return { v: 2, p, ac, e, n: ac && Number.isInteger(h.n) ? Math.max(0, Math.min(max, h.n)) : 0, m: ac && Number.isInteger(h.m) ? h.m & 0xffff : 0, ...(p > 0 ? { u: HISTORIA[p - 1].id } : {}) };
 }
 const histDe = (p) => p.hist || histNova();
 // a zona ou o recurso k já está liberado para a conta p? (liberaNaEtapa: o recurso abre no meio da própria missão)
@@ -182,4 +192,5 @@ export const historiaParaApp = () => ({
     liberaNaEtapa: M.liberaNaEtapa ?? -1, total: totalMissao(M), etapas: etapasDe(M).map((E) => E.txt) })),
   capitulos: CAPITULOS.map((c) => ({ n: c.n, nome: c.nome, nv: c.nv, ato: c.ato, frase: c.frase, diario: c.diario || '', rumores: c.rumores || [] })),
   libera: LIBERA_NIVEL, recursos: RECURSOS_HISTORIA,
+  cenas: CENAS, // cenas da história (godot-prototipo/cinematica.gd)
 });

@@ -865,6 +865,10 @@ func evento(ev: Dictionary) -> void:
 			if m.sons:
 				m.sons.tocar("pano", -6.0)
 			return
+		"cena": # cena da história (cinematica.gd): o herói já está no lugar ("corrigir" vem antes)
+			if m.cinematica:
+				m.cinematica.tocar(str(ev.get("id", "")))
+			return
 		"etapa": # próxima etapa da missão: aviso curto e o som da janela
 			m.hud.aviso("Próximo passo: %s" % str(ev.get("txt", "")))
 			if m.sons:
