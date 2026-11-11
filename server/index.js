@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, nomeValido } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, nomeValido, REINICIO } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -20,6 +20,7 @@ const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10 } };
+const carga = { ms: 0, pico: 0 }; // tempo de cada passo da sala (média e pico), aparece em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
 const historicoChat = { geral: [], amigos: [], pm: [], time: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
@@ -253,6 +254,11 @@ class SalaClareira extends Room {
   }
 
   tick() {
+    const t0 = performance.now();
+    try { this.tickDeVerdade(); } finally { const ms = performance.now() - t0; carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms; }
+  }
+
+  tickDeVerdade() {
     const eventos = this.sim.passo(TICK);
     const foto = this.sim.foto();
     let fotoJson = null;
@@ -351,9 +357,35 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
-app.get('/saude', (_req, res) => res.json({ ok: true, contas: !!contas }));
+// carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
+app.get('/saude', (_req, res) => {
+  let jogadores = 0; for (const s of salas) jogadores += s.clients.length;
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576) });
+  carga.pico = 0;
+});
 // Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
-ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)));
+const naOracle = ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)));
+
+// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada. Avisa no chat geral, grava todo mundo e sai;
+// o systemd (Restart=always) liga de novo. Com a sala vazia, reinicia sem aviso.
+if (naOracle || process.env.REINICIO_TESTE) {
+  const total = (Number(process.env.REINICIO_TESTE) || REINICIO.horas * 60) * 60; // segundos ligado até reiniciar
+  const avisados = new Set();
+  setInterval(() => {
+    const falta = total - process.uptime(), alguem = [...salas].some((s) => s.clients.length);
+    for (const min of REINICIO.avisos) if (alguem && falta <= min * 60 && falta > 0 && !avisados.has(min)) {
+      avisados.add(min);
+      const sala = [...salas][0];
+      sala?.sim.anunciar(`O servidor vai reiniciar em ${min} minuto${min > 1 ? 's' : ''} para ficar mais leve. Seu progresso fica salvo; é só entrar de novo.`);
+    }
+    if (falta <= 0 && !avisados.has('fim')) {
+      avisados.add('fim');
+      for (const s of salas) { try { s.salvarProgressos(); } catch (e) { console.error('reinício: gravar falhou', e); } }
+      console.log(`Reinício programado depois de ${Math.round(process.uptime() / 60)} min ligado.`);
+      setTimeout(() => process.exit(0), 1500);
+    }
+  }, 5000);
+}
 
 // ---------- conta (login com Google) ----------
 app.use('/conta', (_req, res, next) => (contas ? next() : res.status(404).json({ erro: 'contas desligadas' })), express.json({ limit: '8kb' }));
