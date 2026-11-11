@@ -31,9 +31,9 @@ ok(aventureiros.every((x) => Math.hypot(x.amiga.x - M0.x, x.amiga.z - M0.z) <= M
 // algumas horas de jogo (de dia): saem para caçar, matam, ganham XP, voltam
 const xp0 = aventureiros.map((x) => x.amiga.prog.nivel * 1e6 + x.amiga.prog.xp);
 const t0 = performance.now(); let passos = 0;
-const fases = new Set(), longe = new Set();
+const fases = new Set(), longe = new Set(), dia = { h: 12, t: Date.now() };
 for (let i = 0; i < 20 * 60 * 6; i++) { // 6 minutos
-  for (const x of aventureiros) x.amiga.prog.dia = d.prog.dia; // mesmo relógio do dia
+  for (const x of aventureiros) x.amiga.prog.dia = dia; // meio-dia fixo (a hora do jogo segue o relógio de verdade)
   s.passo(0.05); passos++;
   if (i % 200 === 0) for (const x of aventureiros) { if (x.amiga.ia.av) fases.add(x.amiga.ia.av.fase); if (Math.hypot(x.amiga.x - M0.x, x.amiga.z - M0.z) > 40) longe.add(x.AMIGA.id); }
 }
