@@ -1047,9 +1047,9 @@ export const Amiga = {
 // A Cecília é a própria Simulacao (this.amiga, this.amigaDono, this.amigaFalam, this.AMIGA). Cada outro amigo é uma
 // "janela" para a mesma Simulacao com só estes campos próprios: as funções acima rodam iguais, com o corpo, o dono, quem
 // fala e a definição (dados.js) dele. Tudo o mais (jogadores, lotes, times, eventos) é o mesmo mundo.
-const PROPRIOS = ['this.AMIGA', 'amiga', 'amigaDono', 'amigaFalam'];
+const PROPRIOS = ['AMIGA', 'amiga', 'amigaDono', 'amigaFalam'];
 export function contextoDeAmigo(sim, def) {
-  const own = { this.AMIGA: def, amiga: null, amigaDono: null, amigaFalam: new Set() };
+  const own = { AMIGA: def, amiga: null, amigaDono: null, amigaFalam: new Set() };
   return new Proxy(sim, {
     get: (t, k) => (PROPRIOS.includes(k) ? own[k] : Reflect.get(t, k)),
     set: (t, k, v) => { if (PROPRIOS.includes(k)) own[k] = v; else t[k] = v; return true; },
