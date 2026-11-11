@@ -190,6 +190,10 @@ export const TIPOS_INIMIGO = {
   golem: { nome: 'Golem de Magma', horda: 'Monstros do Leste', visual: 'golem', vida: 130, dano: 13, intervalo: 2.6, escala: 1, brilho: 0xff7a1a },
   maw: { nome: 'Maw', horda: 'Monstros do Leste', visual: 'maw', vida: 140, dano: 14, intervalo: 2.4, escala: 1, brilho: 0x9cff5a },
   warrok: { nome: 'Warrok', horda: 'Monstros do Leste', visual: 'warrok', vida: 260, dano: 18, intervalo: 2.0, escala: 1, brilho: 0xffcc40, chefe: true },
+  // Bosses de mundo com modelo próprio (André 2026-11-11): o Titã do Quimera (do André; malha IA no esqueleto KayKit, CC0)
+  // e o dragão evoluído da Quaternius (CC0). Só aparecem como boss (BOSSES_MUNDO); a força vem do boss, isto é a base.
+  tita: { nome: 'Titã', horda: 'Monstros do Leste', visual: 'tita', vida: 260, dano: 18, intervalo: 2.2, escala: 1, brilho: 0x9ad8ff, chefe: true },
+  dragao: { nome: 'Dragão', horda: 'Monstros do Leste', visual: 'dragao', vida: 260, dano: 18, intervalo: 2.0, escala: 1, brilho: 0xff6a2a, chefe: true },
   // espantalho de treino (TREINO, abaixo): não anda, não bate, não morre, não dá XP nem item
   espantalho: { nome: 'Espantalho de treino', horda: 'Treino', visual: 'espantalho', vida: 1000, dano: 0, intervalo: 99, escala: 1, brilho: 0, treino: true },
 };
@@ -1333,20 +1337,21 @@ export const BOSSES_MUNDO = {
       { k: 'salto', nome: 'Salto de guerra', cd: 13, aviso: 1.3, r: 7, dano: 2.0, ef: { atordoa: 2 } },
     ],
     drop: { cat: 2, mitico: 0.12 } },
-  // 5 a 7: modelos novos (Quaternius Ultimate Monsters, CC0). Entram quando o André aprovar a foto de cada um.
+  // 5 a 7: modelo próprio. O 6 (Titã do Quimera) e o 7 (dragão da Quaternius) o André escolheu (2026-11-11); o 5 espera
+  // um modelo novo (o demônio da Quaternius o André achou feio).
   garra_abismo: { ativo: false, nome: 'Garra do Abismo', titulo: 'o Demônio', tipo: 'maw', nivel: 62, regiao: 'Ilha do Meio', vida: 20, dano: 1.5, esc: 2.0, cor: 0x7a3ab0, volta: [4.5, 5.5], xp: 32,
     skills: [
       { k: 'pocas', nome: 'Nuvem venenosa', cd: 12, aviso: 1.0, n: 3, r: 3.2, fica: 6, dano: 0.5, ef: { dot: { k: 'veneno', dps: 0.04, dur: 6, max: 1 } } },
       { k: 'sumir', nome: 'Passo das sombras', cd: 11, aviso: 0.8, r: 4, dano: 1.8, ef: { lento: { k: 0.35, dur: 3 } } },
     ],
     drop: { cat: 2, mitico: 0.15 } },
-  colosso_gelido: { ativo: false, nome: 'Colosso Gélido', titulo: 'o Yeti da Serra', tipo: 'golem', nivel: 76, regiao: 'Oeste de Aurora', vida: 22, dano: 1.5, esc: 2.4, cor: 0x9ad8ff, volta: [5.5, 6], xp: 35,
+  colosso_gelido: { nome: 'Colosso Gélido', titulo: 'o Titã da Serra', tipo: 'tita', nivel: 76, regiao: 'Oeste de Aurora', vida: 22, dano: 1.5, esc: 2.2, cor: 0x9ad8ff, tinta: 0.15, volta: [5.5, 6], xp: 35,
     skills: [
       { k: 'cone', nome: 'Sopro gelado', cd: 11, aviso: 1.1, alcance: 9, ang: 1.2, dano: 1.2, ef: { congela: 1.5 } },
       { k: 'pedra', nome: 'Pedra arremessada', cd: 9, aviso: 1.4, r: 4, dano: 2.0, ef: { atordoa: 1.2 } },
     ],
     drop: { cat: 2, mitico: 0.20 } },
-  dragao_cinzas: { ativo: false, nome: 'Dragão de Cinzas', titulo: 'o Último Dragão', tipo: 'warrok', nivel: 92, regiao: 'Leste de Aurora', vida: 25, dano: 1.55, esc: 2.4, cor: 0xff4a2a, volta: [5.5, 6], xp: 40,
+  dragao_cinzas: { nome: 'Dragão de Cinzas', titulo: 'o Último Dragão', tipo: 'dragao', nivel: 92, regiao: 'Leste de Aurora', vida: 25, dano: 1.55, esc: 2.6, cor: 0xff4a2a, tinta: 0.25, volta: [5.5, 6], xp: 40,
     skills: [
       { k: 'cone', nome: 'Sopro de fogo', cd: 10, aviso: 1.1, alcance: 11, ang: 1.0, dano: 1.2, ef: { dot: { k: 'queima', dps: 0.05, dur: 6, max: 1 } } },
       { k: 'voo', nome: 'Voo e queda', cd: 18, aviso: 2.2, r: 8, dano: 2.2, ef: { atordoa: 1.5 } },
@@ -1865,7 +1870,7 @@ for (const A of ARENAS_BOSS) {
   const B = BOSSES_MUNDO[A.id];
   if (!B || B.ativo === false) continue;
   CACA.push({ id: `boss_${A.id}`, nome: `${B.nome}, ${B.titulo}`, nivel: B.nivel, bicho: B.tipo, x: A.x, z: A.z, r: A.r, mundo: true, boss: A.id,
-    visual: { esc: B.esc, cor: B.cor, nome: B.nome }, n: 1 + (B.invoca?.length || 0), tipos: [B.tipo, ...(B.invoca || [])],
+    visual: { esc: B.esc, cor: B.cor, nome: B.nome, tinta: B.tinta ?? 0.55 }, n: 1 + (B.invoca?.length || 0), tipos: [B.tipo, ...(B.invoca || [])],
     passo: 1, rapido: 1, normal: 1, longe: 0, corpo: 6, ate: 0.15 });
 }
 // enfeite das arenas (André 2026-11-11: "umas ruínas assim... só para dar uma graça, mas cuidado para não travar"):

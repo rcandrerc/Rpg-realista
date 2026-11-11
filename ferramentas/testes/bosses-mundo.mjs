@@ -99,3 +99,17 @@ for (let t = 0; t < 900 && !ev.some((e) => e.t === 'bossGolpe' && e.k === 'uivo'
 const c = s.cacas.find((c) => c.boss?.id === 'uivo_rei');
 ok(c.vagas.slice(1).some((vg) => vg.e), 'uivo chama lobos');
 ok((j.lentoH?.ate || 0) > 0, 'uivo deixa lento');
+
+// Colosso Gélido (Titã) e Dragão de Cinzas (André 2026-11-11): nascem com o modelo deles, sopro gelado congela, voo não leva golpe
+const col = boss('colosso_gelido'), dra = boss('dragao_cinzas');
+ok(col?.tipo === 'tita' && dra?.tipo === 'dragao', 'Colosso é o Titã e o Dragão de Cinzas é o dragão');
+j.prog.nivel = 100; s.aplicarStatus(j); por(col.arena.x + 3, col.arena.z); ev = [];
+for (let t = 0; t < 900 && !ev.some((e) => e.t === 'efeito' && e.id === 'A' && e.ef === 'congela'); t++) { ev.push(...s.passo(0.05)); j.vida = j.vidaMax; if (j.presoAte && !ev.some((e) => e.ef === 'congela')) j.presoAte = 0; por(col.arena.x + 3, col.arena.z); }
+ok(ev.some((e) => e.t === 'efeito' && e.id === 'A' && e.ef === 'congela'), 'sopro gelado congela');
+por(dra.arena.x + 3, dra.arena.z); j.presoAte = 0; ev = []; let voou = null;
+for (let t = 0; t < 900 && !voou; t++) { const e = s.passo(0.05); ev.push(...e); voou = e.find((x) => x.t === 'bossSkill' && x.k === 'voo'); j.vida = j.vidaMax; j.presoAte = 0; }
+ok(!!voou && dra.voando, 'dragão levanta voo avisando onde cai');
+const vd = dra.vida; dra.atacantes = new Set(['A']); s.ferir(dra, 500, j);
+ok(dra.vida === vd, 'no ar não leva golpe');
+correr(voou.dur + 0.3);
+ok(!dra.voando, 'volta para o chão depois da queda');
