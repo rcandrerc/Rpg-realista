@@ -26,6 +26,9 @@ s.passo(0.05);
 lia.amiga.ia.av = { fase: 'cacar', c: { id: 'caca1', tipo: 'puglin' } };
 const cl = lia.contextoAmiga('andre');
 ok(cl && cl.semCasa && cl.mora === 'a vila' && /caçando .* sozinha/.test(cl.fazendo), `aventureira: sem casa, mora na vila, "${cl?.fazendo}"`);
+lia.amiga.ia.av = { fase: 'cacar', coleta: 'pescar', c: { id: 'sp1', x: 0, z: 0 } };
+ok(lia.contextoAmiga('andre').fazendo === 'pescando sozinha', 'pescando sozinha: a ficha diz');
+lia.amiga.ia.av = { fase: 'cacar', c: { id: 'caca1', tipo: 'puglin' } };
 const cc = cec.contextoAmiga('andre');
 ok(cc && !cc.semCasa && cc.mora == null, 'Cecília continua com a casa dela');
 

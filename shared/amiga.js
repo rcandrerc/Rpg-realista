@@ -968,7 +968,8 @@ export const Amiga = {
     // ficha curta (entrega 5): o que ele está fazendo sozinho e onde mora (os aventureiros não têm casa)
     const av = a.ia.av, bicho = av?.c ? TIPOS_INIMIGO[av.c.tipo]?.nome || 'monstros' : '';
     const so = this.AMIGA.genero === 'm' ? 'sozinho' : 'sozinha';
-    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: `indo caçar ${bicho} ${so}`, cacar: `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada' }[av.fase];
+    const col = av?.coleta && { pescar: 'pescar', minerar: 'minerar', lenha: 'cortar lenha' }[av.coleta], colG = av?.coleta && { pescar: 'pescando', minerar: 'minerando', lenha: 'cortando lenha' }[av.coleta];
+    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: col ? `indo ${col} ${so}` : `indo caçar ${bicho} ${so}`, cacar: col ? `${colG} ${so}` : `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada' }[av.fase];
     return {
       semCasa: !this.AMIGA.terreno, mora: !this.AMIGA.terreno ? this.moradiaAmiga(a)?.nome || 'a vila' : null,
       nome: this.AMIGA.nome, persona: this.AMIGA.persona || null, genero: this.AMIGA.genero || 'f', amigo: j.nome, amizade: this.amizadeAmiga(j),

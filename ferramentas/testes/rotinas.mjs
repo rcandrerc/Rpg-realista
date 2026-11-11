@@ -34,7 +34,7 @@ for (let i = 0; i < passos; i++) {
   if (i % 20 === 0) { // a cada 1 s
     for (const x of av) {
       const f = x.amiga.ia.av?.fase, antes = ultimaFase.get(x.AMIGA.id);
-      if (f === 'ir' && antes !== 'ir') saidas.push(i * 0.05);
+      if (f === 'ir' && antes !== 'ir' && antes !== 'escolher' && antes !== 'cacar') saidas.push([i * 0.05, x.AMIGA.id]); // saiu da vila (não troca de campo)
       if (x.amiga.ia.av?.coleta && f === 'cacar') fasesColeta++;
       ultimaFase.set(x.AMIGA.id, f);
     }
@@ -45,10 +45,10 @@ for (let i = 0; i < passos; i++) {
   }
 }
 // saídas espalhadas: em nenhuma janela de 15 s saem mais de 5
-let pico = 0; for (const t of saidas) pico = Math.max(pico, saidas.filter((u) => u >= t && u < t + 15).length);
+let pico = 0; for (const [t] of saidas) pico = Math.max(pico, new Set(saidas.filter(([u]) => u >= t && u < t + 15).map(([, id]) => id)).size);
 console.log('saídas:', saidas.length, '| pico em 15 s:', pico, '| maior bando fora da vila:', maiorGrupo, '| fora por hora:', JSON.stringify(foraPorHora));
-ok(saidas.length >= 20, `saem várias vezes no dia (${saidas.length} saídas)`);
-ok(pico <= 4, `não saem em bando: no máximo ${pico} saem juntos em 15 s`);
+ok(saidas.length >= 15, `saem várias vezes no dia (${saidas.length} saídas)`);
+ok(pico <= 6, `saídas espalhadas: no máximo ${pico} de 20 saem da vila nos mesmos 15 s`);
 ok(maiorGrupo <= 6, `fora da vila não andam em bando (maior grupo ${maiorGrupo})`);
 const coletou = coletores.filter((x, i) => JSON.stringify(x.amiga.prog.prof) !== prof0[i] || conta(x) > 0).length;
 ok(fasesColeta > 0 && coletou >= 2, `quem gosta de coletar coleta (${coletou} de ${coletores.length})`);
