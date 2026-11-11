@@ -88,7 +88,7 @@ func vestir(e: Dictionary, v: Dictionary) -> void:
 				s.set_shader_parameter("tinta", cor)
 				s.set_shader_parameter("tinta_forca", float(v.get("tinta", 0.55))) # o Titã e o dragão já têm a cor deles: tinta fraca
 				s.set_shader_parameter("borda_cor", cor.lightened(0.25))
-				s.set_shader_parameter("borda_forca", 0.75)
+				s.set_shader_parameter("borda_forca", 0.75 if float(v.get("tinta", 0.55)) > 0.1 else 0.25) # sem tinta (Titã): cor do Quimera, borda fraca
 				s.set_shader_parameter("brilho_forca", 1.8)
 				mi.set_surface_override_material(i, s)
 			elif mat is BaseMaterial3D:

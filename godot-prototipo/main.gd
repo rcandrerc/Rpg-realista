@@ -1445,7 +1445,7 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02, "olho": "9cff5a"},
 	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2},
 	# bosses de mundo com modelo próprio (André 2026-11-11): Titã do Quimera e dragão da Quaternius (client/exportar-godot/bosses-modelos.js)
-	"tita": {"alto": 2.4, "contorno": 0.02, "olho": "9ad8ff", "brilho": 1.4}, "dragao": {"alto": 2.2, "contorno": 0.015, "olho": "ffd34a"}}
+	"tita": {"alto": 2.4, "contorno": 0.02, "olho": "ffa31a", "brilho": 2.2}, "dragao": {"alto": 2.2, "contorno": 0.015, "olho": "ffd34a"}}
 const CHEFES := ["chefe", "warrok", "tita", "dragao"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
 var _shader_monstro: Shader
 func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
