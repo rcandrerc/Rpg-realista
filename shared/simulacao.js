@@ -677,7 +677,9 @@ export class Simulacao {
     // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
     const dtc = j.cliente ? Math.min(0.5, this.tempo - j.cliente.t) : 0;
     // A velocidade sai da média de ~0,3 s: pacotes que chegam juntos (rede oscilando) pareciam corrida e o trote gastava estamina.
-    if (j.ciente && dtc > 0 && !mont && !j.arrancada && !j.esc && !(j.dash?.t > 0) && !(tele && d > 1)) {
+    // Pacote que chega no mesmo tick do anterior (dtc 0) soma os metros e não zera a janela: antes zerava, e no celular
+    // (pacotes juntos o tempo todo) a corrida nunca gastava; o servidor mandava a barra cheia de volta (André 2026-11-11).
+    if (j.ciente && j.cliente && !mont && !j.arrancada && !j.esc && !(j.dash?.t > 0) && !(tele && d > 1)) {
       const jan = j.janCorrida || (j.janCorrida = { d: 0, t: 0 });
       jan.d += d; jan.t += dtc;
       if (jan.t >= 0.3) {
