@@ -17,7 +17,7 @@ for (let i = 0; i < 20 * 900; i++) s.passo(0.05);
 ok(L.pecas.length === AMIGA.casa.length, `casa inteira: ${L.pecas.length} de ${AMIGA.casa.length} peças`);
 ok(Object.keys(L.horta).length === AMIGA.horta.w * AMIGA.horta.d && Object.values(L.horta).every((t) => t.c), `horta: ${Object.keys(L.horta).length} canteiros plantados`);
 const f = s.foto().jogadores.find((j) => j.id === AMIGA.id);
-ok(f && f.bot === 1 && f.roupa.includes('capa2') && f.visual === 'ruiva' && f.aparencia?.penteado === 'victoria', 'na foto: bot, corpo da Ruiva com o penteado da Victoria e capa');
+ok(f && f.bot === 1 && f.roupa.includes('capa2') && f.visual === 'victoria', 'na foto: bot, corpo victoria e capa');
 ok(!s.inimigosDe(s.inimigos[0] || { tipo: 'lobo' }).includes(a), 'monstro não mira nela');
 // conversa: o outro não recebe nada; o dono recebe
 const perto = (id) => Object.assign(s.jogadores.get(id), { x: a.x + 1, z: a.z });
