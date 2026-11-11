@@ -407,28 +407,29 @@ func _desenhar_faixa(tam: Vector2) -> void:
 	# brilho difuso atrás (3 retângulos cada vez maiores e mais fracos)
 	for k in 3:
 		var g: float = 6.0 + k * 9.0
-		_tela.draw_rect(r.grow(g), Color(cor, (0.07 - k * 0.02) * a))
-	_tela.draw_rect(r, Color(FUNDO, 0.86 * a))
-	# faixa mais clara no topo do painel (cabeçalho)
+		_caixa(r.grow(g), RAIO + g, Color(cor, (0.07 - k * 0.02) * a))
+	var ra: float = min(RAIO, h * 0.5)
+	_caixa(r, ra, Color(FUNDO, 0.86 * a))
+	# faixa mais clara no topo do painel (cabeçalho), arredondada só em cima
 	if h > 30.0:
-		_tela.draw_rect(Rect2(r.position, Vector2(w, min(h, 30.0))), Color(cor, 0.10 * a))
+		_caixa(Rect2(r.position, Vector2(w, min(h, 30.0))), ra, Color(cor, 0.10 * a), 0.0, true)
 	# linhas de varredura fracas e uma barra de luz descendo logo que abre
 	var yy: float = r.position.y + 3.0
 	while yy < r.end.y:
-		_tela.draw_line(Vector2(r.position.x, yy), Vector2(r.end.x, yy), Color(cor, 0.035 * a), 1.0)
+		var e: float = _recuo(r, ra, yy)
+		_tela.draw_line(Vector2(r.position.x + e, yy), Vector2(r.end.x - e, yy), Color(cor, 0.035 * a), 1.0)
 		yy += 4.0
 	if abre > 0.0 and _t < 0.9:
 		var by: float = r.position.y + h * clamp((_t - 0.2) / 0.6, 0.0, 1.0)
-		_tela.draw_rect(Rect2(r.position.x, by - 6.0, w, 12.0), Color(cor, 0.10 * a))
+		var y0: float = max(r.position.y, by - 6.0)
+		var y1: float = min(r.end.y, by + 6.0)
+		var e2: float = max(_recuo(r, ra, y0), _recuo(r, ra, y1))
+		if y1 > y0:
+			_tela.draw_rect(Rect2(r.position.x + e2, y0, w - e2 * 2.0, y1 - y0), Color(cor, 0.10 * a))
 	# borda e cantoneiras
-	_tela.draw_rect(r, Color(cor, 0.85 * a), false, 1.5)
-	_tela.draw_rect(r.grow(3.0), Color(cor, 0.18 * a), false, 1.0)
-	var c: float = min(18.0, h * 0.4)
-	var cc := Color(cor.lerp(Color.WHITE, 0.45), a)
-	for q in [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]:
-		var p: Vector2 = q[0] + q[1] * -3.0
-		_tela.draw_line(p, p + Vector2(q[1].x * c, 0), cc, 3.0)
-		_tela.draw_line(p, p + Vector2(0, q[1].y * c), cc, 3.0)
+	_caixa(r, ra, Color(cor, 0.85 * a), 1.5)
+	_caixa(r.grow(3.0), ra + 3.0, Color(cor, 0.18 * a), 1.0)
+	_cantos(r.grow(3.0), ra + 3.0, min(18.0, h * 0.4), Color(cor.lerp(Color.WHITE, 0.45), a), 3.0)
 	if abre < 0.6:
 		return
 	# texto: pisca ao entrar (liga, apaga, liga) e assenta
@@ -471,19 +472,16 @@ func _desenhar_canto(tam: Vector2) -> void:
 	var a: float = min(1.0, risco * 2.0) * clamp(fecha * 3.0, 0.0, 1.0)
 	var r := Rect2(R.get_center().x - w * 0.5, R.get_center().y - h * 0.5, w, h)
 	for k in 2:
-		_tela.draw_rect(r.grow(4.0 + k * 6.0), Color(cor, (0.06 - k * 0.02) * a))
-	_tela.draw_rect(r, Color(FUNDO, 0.84 * a))
+		_caixa(r.grow(4.0 + k * 6.0), RAIO_CANTO + 4.0 + k * 6.0, Color(cor, (0.06 - k * 0.02) * a))
+	var ra: float = min(RAIO_CANTO, h * 0.5)
+	_caixa(r, ra, Color(FUNDO, 0.84 * a))
 	var yy: float = r.position.y + 3.0
 	while yy < r.end.y:
-		_tela.draw_line(Vector2(r.position.x, yy), Vector2(r.end.x, yy), Color(cor, 0.035 * a), 1.0)
+		var e: float = _recuo(r, ra, yy)
+		_tela.draw_line(Vector2(r.position.x + e, yy), Vector2(r.end.x - e, yy), Color(cor, 0.035 * a), 1.0)
 		yy += 4.0
-	_tela.draw_rect(r, Color(cor, 0.85 * a), false, 1.5)
-	var c: float = min(12.0, h * 0.4)
-	var cc := Color(cor.lerp(Color.WHITE, 0.45), a)
-	for q in [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]:
-		var p: Vector2 = q[0] + q[1] * -2.0
-		_tela.draw_line(p, p + Vector2(q[1].x * c, 0), cc, 2.5)
-		_tela.draw_line(p, p + Vector2(0, q[1].y * c), cc, 2.5)
+	_caixa(r, ra, Color(cor, 0.85 * a), 1.5)
+	_cantos(r.grow(2.0), ra + 2.0, min(12.0, h * 0.4), Color(cor.lerp(Color.WHITE, 0.45), a), 2.5)
 	if abre < 0.6:
 		return
 	var tt: float = t - 0.2
@@ -500,12 +498,61 @@ func _desenhar_canto(tam: Vector2) -> void:
 	var b := _canto_botao(tam)
 	_tela.draw_line(Vector2(b.position.x - 7.0, R.position.y + 10.0), Vector2(b.position.x - 7.0, R.end.y - 10.0), Color(cor, 0.35 * at), 1.0)
 	var pulso: float = 0.5 + 0.5 * sin(t * 4.0)
-	_tela.draw_rect(b.grow(2.0 + pulso * 2.0), Color(cor, (0.06 + 0.08 * pulso) * at))
-	_tela.draw_rect(b, Color(cor, 0.22 * at))
-	_tela.draw_rect(b, Color(cor.lerp(Color.WHITE, 0.3), 0.9 * at), false, 1.5)
+	_caixa(b.grow(2.0 + pulso * 2.0), RAIO_BOTAO + 2.0 + pulso * 2.0, Color(cor, (0.06 + 0.08 * pulso) * at))
+	_caixa(b, RAIO_BOTAO, Color(cor, 0.22 * at))
+	_caixa(b, RAIO_BOTAO, Color(cor.lerp(Color.WHITE, 0.3), 0.9 * at), 1.5)
 	var bx: float = b.get_center().x
 	_texto_centro("+%d PONTOS" % pts, Vector2(bx, b.position.y + 19.0), 15, Color(1.0, 0.95, 0.75), at, 1.0, 0, cor)
 	_texto_centro("DISTRIBUIR  ▸", Vector2(bx, b.position.y + 36.0), 11, cor.lerp(Color.WHITE, 0.5), at, 1.0, 0, cor)
+
+# Cantos arredondados (André 2026-11-11: "as bordinhas um pouco mais arredondadas"; cor e o resto iguais).
+# Tudo pelo StyleBoxFlat (um só, reaproveitado): fundo cheio, ou só a borda quando largura > 0.
+const RAIO := 16.0 # janela do meio (igual às janelas pop-up, Menu.RAIO_JANELA)
+const RAIO_CANTO := 12.0 # janelinha do nível no alto
+const RAIO_BOTAO := 8.0 # botão "+N PONTOS"
+var _sb: StyleBoxFlat
+
+func _caixa(r: Rect2, raio: float, cor: Color, largura := 0.0, so_em_cima := false) -> void:
+	if cor.a <= 0.003 or r.size.x <= 0.0 or r.size.y <= 0.0:
+		return
+	if _sb == null:
+		_sb = StyleBoxFlat.new()
+		_sb.anti_aliasing = true
+		_sb.corner_detail = 8
+	var rr: int = int(round(min(raio, r.size.y * 0.5, r.size.x * 0.5)))
+	_sb.corner_radius_top_left = rr
+	_sb.corner_radius_top_right = rr
+	_sb.corner_radius_bottom_left = 0 if so_em_cima else rr
+	_sb.corner_radius_bottom_right = 0 if so_em_cima else rr
+	if largura > 0.0:
+		_sb.draw_center = false
+		_sb.set_border_width_all(int(ceil(largura)))
+		_sb.border_color = cor
+	else:
+		_sb.draw_center = true
+		_sb.set_border_width_all(0)
+		_sb.bg_color = cor
+	_sb.draw(_tela.get_canvas_item(), r)
+
+# quanto a linha na altura y entra para dentro por causa do canto arredondado (linhas de varredura não vazam)
+static func _recuo(r: Rect2, raio: float, y: float) -> float:
+	var d: float = min(y - r.position.y, r.end.y - y)
+	if d >= raio:
+		return 0.0
+	var k: float = raio - max(d, 0.0)
+	return raio - sqrt(max(raio * raio - k * k, 0.0))
+
+# cantoneiras claras acompanhando a curva: arco de 90° em cada canto e um trechinho reto saindo dele
+func _cantos(r: Rect2, raio: float, c: float, cor: Color, larg: float) -> void:
+	raio = min(raio, r.size.y * 0.5)
+	var reto: float = max(c - raio * 0.6, 2.0)
+	for q in [[Vector2(1, 1), PI], [Vector2(-1, 1), PI * 1.5], [Vector2(-1, -1), 0.0], [Vector2(1, -1), PI * 0.5]]:
+		var dirv: Vector2 = q[0]
+		var canto := Vector2(r.position.x if dirv.x > 0 else r.end.x, r.position.y if dirv.y > 0 else r.end.y)
+		var centro: Vector2 = canto + dirv * raio
+		_tela.draw_arc(centro, raio, q[1], q[1] + PI * 0.5, 10, cor, larg, true)
+		_tela.draw_line(Vector2(centro.x, canto.y), Vector2(centro.x + dirv.x * reto, canto.y), cor, larg, true)
+		_tela.draw_line(Vector2(canto.x, centro.y), Vector2(canto.x, centro.y + dirv.y * reto), cor, larg, true)
 
 func _espacar(s: String) -> String:
 	var out := ""
