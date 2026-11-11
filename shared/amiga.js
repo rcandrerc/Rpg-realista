@@ -965,16 +965,21 @@ export const Amiga = {
   contextoAmiga(id) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id)) return null;
     const L = this.loteDaAmiga(), pronta = L && this.AMIGA.casa.every((c) => L.pecas.some((o) => mesmaPeca(o, pecaDaCasa(L.def, c))));
+    // ficha curta (entrega 5): o que ele está fazendo sozinho e onde mora (os aventureiros não têm casa)
+    const av = a.ia.av, bicho = av?.c ? TIPOS_INIMIGO[av.c.tipo]?.nome || 'monstros' : '';
+    const so = this.AMIGA.genero === 'm' ? 'sozinho' : 'sozinha';
+    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: `indo caçar ${bicho} ${so}`, cacar: `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada' }[av.fase];
     return {
+      semCasa: !this.AMIGA.terreno, mora: !this.AMIGA.terreno ? this.moradiaAmiga(a)?.nome || 'a vila' : null,
       nome: this.AMIGA.nome, persona: this.AMIGA.persona || null, genero: this.AMIGA.genero || 'f', amigo: j.nome, amizade: this.amizadeAmiga(j),
       comOutro: id !== this.amigaDono && this.ocupadaAmiga() ? this.jogadores.get(this.amigaDono)?.nome || null : null, nivel: a.prog.nivel, nivelAmigo: j.prog.nivel,
       noTime: !!(a.time && a.time === j.time), distancia: Math.round(Math.hypot(a.x - j.x, a.z - j.z)),
-      fazendo: a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : 'descansando na porta de casa',
+      fazendo: sozinho ? sozinho : a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : (this.AMIGA.terreno ? 'descansando na porta de casa' : 'passeando pela vila'),
       casaPronta: !!pronta, noite: ehNoite(horaDoJogo(j.prog.dia)), pedido: a.pedido ? `${a.pedido.n} ${ITENS[a.pedido.k].nome}` : null,
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       ouro: a.prog.ouro | 0,
-      mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 15).map(([k, n]) => `${n} ${k}`).join(', '),
-      conversa: this.chatDeAmiga(j).slice(-8),
+      mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
+      conversa: this.chatDeAmiga(j).slice(-6),
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],
