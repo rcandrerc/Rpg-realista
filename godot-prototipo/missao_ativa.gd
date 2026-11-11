@@ -1,14 +1,15 @@
 extends CanvasLayer
 # Missão ativa na tela (André 2026-11-11: "a missão ativa tem que ficar aparecendo ali do lado esquerdo embaixo, onde fica
 # o negócio de time"; "eu clicando, quero um botão Ir para... ele faz o autopath até a região"). Fica à esquerda, logo
-# embaixo do painel do herói e das barras do time (amigos.gd). Tocar no cartão abre "Ir para" e "Missões" (a lista toda,
-# que agora mora no menu do topo, menu_topo.gd). "Ir para" usa o mesmo autopath do mapa (rota.gd, pela estrada, montado
+# embaixo do painel do herói e das barras do time (amigos.gd). Do lado da descrição fica o botão "Ir" (André
+# 2026-11-11: um toque e vai; a lista toda mora no menu do topo, menu_topo.gd). "Ir" usa o mesmo autopath do mapa (rota.gd, pela estrada, montado
 # no lobo): até o NPC da missão (e já abre a conversa ao chegar), até o campo de caça dos monstros pedidos ou até o veio
 # do minério que falta entregar. O herói só anda: não ataca nem procura briga (se apanhar no caminho, apanha). O caminho
 # desvia das regiões ainda na névoa (rota.gd).
 
 const Menu = preload("res://menu.gd")
-const LARGURA := 220.0
+const LARGURA := 240.0
+const BOTAO := 52.0 # largura do botão "Ir"
 const COR := Color(0.72, 0.62, 0.95) # lilás das missões (o mesmo da aba Missões e da névoa)
 const PERTO_NPC := 4.0 # m: já está do lado do NPC, abre a conversa sem andar (conversa.gd fecha a 4,5 m)
 const PARA_ANTES := 1.8 # m: para um pouco antes do NPC (não esbarra nele)
@@ -17,9 +18,7 @@ var m # main.gd
 var cartao: PanelContainer
 var l1: Label
 var l2: Label
-var botoes: HBoxContainer
 var ir_btn: Button
-var aberto := false
 var _t := 0.0
 var _npc_alvo := "" # id do NPC para onde o "Ir para" levou: ao chegar, abre a conversa
 
@@ -33,30 +32,32 @@ func _ready() -> void:
 	cartao.custom_minimum_size = Vector2(LARGURA, 0)
 	cartao.size = Vector2(LARGURA, 0)
 	cartao.mouse_filter = Control.MOUSE_FILTER_STOP
-	cartao.gui_input.connect(_toque)
 	add_child(cartao)
+	# André 2026-11-11: sem tocar para abrir botões e sem o "Missões" aqui: o "Ir" fica sempre do lado da descrição
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	linha.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cartao.add_child(linha)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 1)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cartao.add_child(v)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	linha.add_child(v)
 	l1 = _linha(13, Color("e6dcff"))
 	v.add_child(l1)
 	l2 = _linha(12, Color(0.85, 0.82, 0.78))
 	v.add_child(l2)
-	botoes = HBoxContainer.new()
-	botoes.add_theme_constant_override("separation", 6)
-	botoes.visible = false
-	v.add_child(botoes)
-	ir_btn = _botao("Ir para", ir)
-	botoes.add_child(ir_btn)
-	botoes.add_child(_botao("Missões", func(): fechar_botoes(); m.menu.abrir("missoes")))
+	ir_btn = _botao("Ir", ir)
+	ir_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	linha.add_child(ir_btn)
 	cartao.visible = false
 
 func _linha(tam: int, cor: Color) -> Label:
 	var l := Menu.rotulo("", tam, cor)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(LARGURA - 20, 0)
+	l.custom_minimum_size = Vector2(LARGURA - 20 - BOTAO - 8, 0)
 	l.add_theme_constant_override("outline_size", 3)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	return l
@@ -65,28 +66,19 @@ func _botao(t: String, fn: Callable) -> Button:
 	var b := Button.new()
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 14)
-	b.custom_minimum_size = Vector2(0, 34)
-	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	Menu.estilo_botao(b, t == "Ir para")
+	b.add_theme_font_size_override("font_size", 15)
+	b.custom_minimum_size = Vector2(BOTAO, 34)
+	Menu.estilo_botao(b, true)
+	for k in ["normal", "hover", "pressed", "disabled"]: # arredondado como o cartão
+		var sb = b.get_theme_stylebox(k)
+		if sb is StyleBoxFlat:
+			sb.set_corner_radius_all(10)
 	b.pressed.connect(fn)
 	return b
 
 # hud.gd: toque aqui não vira joystick nem câmera
 func cobre(p: Vector2) -> bool:
 	return cartao != null and cartao.visible and cartao.get_global_rect().grow(6).has_point(p)
-
-func _toque(ev: InputEvent) -> void:
-	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
-		aberto = not aberto
-		botoes.visible = aberto
-		_t = 0.0
-		if m.sons:
-			m.sons.tocar("pano", -16.0)
-
-func fechar_botoes() -> void:
-	aberto = false
-	botoes.visible = false
 
 # ---------- o que mostrar ----------
 func _missao() -> Dictionary:
@@ -120,8 +112,6 @@ func _process(dt: float) -> void:
 	var mostrar: bool = not M.is_empty() and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
 	if cartao.visible != mostrar:
 		cartao.visible = mostrar
-		if not mostrar:
-			fechar_botoes()
 	_chegou_npc()
 	if not mostrar:
 		return
@@ -149,7 +139,7 @@ func _process(dt: float) -> void:
 		l2.text = tx[1]
 		l2.add_theme_color_override("font_color", Color(1, 0.95, 0.85) if tx[1].begins_with("Pronto") else Color(0.85, 0.82, 0.78))
 	ir_btn.disabled = int(m.P.prog.nivel) < int(M.nv)
-	cartao.size = Vector2(LARGURA, 0) # encolhe de novo quando os botões somem
+	cartao.size = Vector2(LARGURA, 0) # encolhe de novo quando o texto fica menor
 
 # ---------- "Ir para" ----------
 # {pos: Vector2, nome, npc: id ou ""} do próximo passo da missão: falar com o NPC, ir caçar ou ir minerar
@@ -203,7 +193,6 @@ func _npc(id: String) -> Dictionary:
 	return {}
 
 func ir() -> void:
-	fechar_botoes()
 	if m.rota == null or m.heroi == null:
 		return
 	var A := alvo()

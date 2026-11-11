@@ -10,7 +10,16 @@ npx esbuild server/index.js --bundle --platform=node --format=esm --target=node2
   --external:colyseus --external:@colyseus/ws-transport --external:express --external:jose
 cp ferramentas/servidor/package.json "$saida/package.json"
 cp ferramentas/servidor/oracle-cloud-init.sh "$saida/instalar.sh" # a Oracle pode rodar só: curl -fsSL .../servidor/instalar.sh | bash
-echo "${GITHUB_SHA:-$(git rev-parse HEAD)}" > "$saida/versao.txt"
+# Versão = impressão digital do que o servidor realmente roda (código + package.json + segredos), não o commit.
+# André 2026-11-11: antes cada merge na main (mesmo só de tela/cliente) trocava a versão e a máquina reiniciava
+# o servidor, derrubando todo mundo (6 merges seguidos = várias quedas). Agora só reinicia quando o servidor mudou.
+versao=$(
+  {
+    sha256sum "$saida/servidor.mjs" "$saida/package.json" | cut -d' ' -f1
+    printf '%s|%s' "${GEMINI_CHAVE:-}" "${GROQ_CHAVE:-}" | sha256sum | cut -d' ' -f1
+  } | sha256sum | cut -c1-40
+)
+echo "$versao" > "$saida/versao.txt"
 echo "Servidor empacotado em $saida ($(cat "$saida/versao.txt"))"
 
 # André 2026-11-03: o código do servidor não fica mais aberto no site.
