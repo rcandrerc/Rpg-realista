@@ -774,11 +774,12 @@ func _desenhar_mini() -> void:
 	c.draw_circle(n, 9.0, Color(0.05, 0.04, 0.03, 0.9))
 	_texto(c, n + Vector2(0, -1), "N", 13, COR_OURO)
 	_relogio(c, meio + Vector2(0, RAIO + 2.0))
-	_missao(c, meio + Vector2(RAIO + 4.0, RAIO + 30.0))
+	# a missão da vez saiu daqui (André 2026-11-11): fica à esquerda, embaixo do time, com "Ir para" (missao_ativa.gd)
 
 # ---------- progressão (André 2026-11-10, nevoa.gd) ----------
 const COR_NEVOA := Color(0.78, 0.74, 0.92, 0.55)
-# a missão principal da vez, embaixo do relógio (alinhada pela direita do minimapa): nome, quanto falta e com quem falar
+# a missão principal da vez, embaixo do relógio (alinhada pela direita do minimapa): nome, quanto falta e com quem falar.
+# Desde 2026-11-11 não é mais chamada: a missão fica à esquerda, embaixo do time (missao_ativa.gd); fica de reserva.
 func _missao(c: Control, dir: Vector2) -> void:
 	if m.nevoa == null:
 		return
