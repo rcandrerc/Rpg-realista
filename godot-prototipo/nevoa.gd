@@ -54,11 +54,15 @@ func zona(id: String) -> Dictionary:
 	return {}
 
 # (x, z) dentro da região? (André 2026-11-11: regiões grandes; toda zona vem como polígono, a ilha também)
+# (2026-11-11: regiões redondas têm centenas de pontos; a caixa em volta corta a conta quando o ponto está longe)
 func na_zona(Z: Dictionary, x: float, z: float) -> bool:
 	var pol: PackedVector2Array = _pol(Z)
-	return pol.size() >= 3 and Geometry2D.is_point_in_polygon(Vector2(x, z), pol)
+	if pol.size() < 3 or not _caixas[str(Z.id)].has_point(Vector2(x, z)):
+		return false
+	return Geometry2D.is_point_in_polygon(Vector2(x, z), pol)
 
 var _pols: Dictionary = {}
+var _caixas: Dictionary = {} # id -> Rect2 do polígono
 func _pol(Z: Dictionary) -> PackedVector2Array:
 	var id := str(Z.id)
 	if not _pols.has(id):
@@ -68,6 +72,10 @@ func _pol(Z: Dictionary) -> PackedVector2Array:
 			for q in lista:
 				pol.append(Vector2(float(q[0]), float(q[1])))
 		_pols[id] = pol
+		var cx := Rect2(pol[0], Vector2.ZERO) if pol.size() > 0 else Rect2()
+		for q in pol:
+			cx = cx.expand(q)
+		_caixas[id] = cx.grow(0.01)
 	return _pols[id]
 
 # a zona ainda na névoa em (x, z), ou {}

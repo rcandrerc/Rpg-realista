@@ -86,3 +86,31 @@ ok(zonaFechadaEm(j.prog, 200, 662)?.id === 'C' && zonaFechadaEm(j.prog, 200, 108
   ok(s2.mobFechadoPara(b, k), 'lobo do campo fechado conta como fechado para o herói Nv 1');
   const v0 = b.vida; s2.ferir(b, 50, k); ok(b.vida === v0, 'golpe do herói de fora não tira vida dele');
   k.prog.hist.p = 1; ok(!s2.mobFechadoPara(b, k), 'depois da missão 1 vale de novo'); }
+
+// André 2026-11-11: "consegui passar pela névoa andando esquisito". O celular insiste em andar para dentro; o servidor
+// recusa, anda o herói pelo joystick e antes ele escalava a borda da névoa como parede. Agora tem que ficar fora.
+{ const s3 = new Simulacao(MAPA_CLAREIRA); const k = s3.adicionarJogador('K', 'Kai'); k.prog.nivel = 10; k.prog.hist = { p: 0, ac: false, n: 0 };
+  for (const mont of [null, 'lobo']) for (const [x0, z0, dx, dz] of [[80, 0, 1, 0], [0, 60, 0, 1], [-50, 0, -1, 0], [0, -60, 0, -1]]) {
+    Object.assign(k, { x: x0, z: z0, y: s3.terreno.altura(x0, z0), cliente: null, orcT: null, montado: mont, esc: null });
+    let cx = x0, cz = z0;
+    for (let t = 0; t < 600; t++) {
+      k.entrada = { mx: dx, mz: dz, correr: true };
+      const c = s3.passo(0.05).find((e) => e.t === 'corrigir' && e.para === 'K'); if (c) { cx = c.x; cz = c.z; }
+      cx += dx * 0.4; cz += dz * 0.4; s3.posicaoCliente('K', { x: cx, y: s3.terreno.altura(cx, cz), z: cz, ry: 0 });
+    }
+    ok(!zonaFechadaEm(k.prog, k.x, k.z), `insistindo para ${dx > 0 ? 'leste' : dx < 0 ? 'oeste' : dz > 0 ? 'sul' : 'norte'}${mont ? ' de lobo' : ''} não entra na névoa (parou em ${k.x.toFixed(0)}, ${k.z.toFixed(0)})`);
+  } }
+
+// regiões redondas (André 2026-11-11, desenho regioes-v3-arredondadas.png): cada campo, vila e totem na região certa
+{ const { LUGARES_MUNDO } = await import('../../shared/mundo.js');
+  const onde = (x, z) => ZONAS_GEO.find((Z) => !Z.selo && naZona(Z, x, z))?.id || 'Vila';
+  const pos = {}; for (const c of CACA) pos[c.id] = c; for (const l of LUGARES_MUNDO) pos[l.id] ??= l; for (const t of TOTENS.lista) pos['t_' + t.id] = t; for (const n of MAPA_CLAREIRA.npcs) pos['n_' + n.id] ??= n;
+  const esp = { Vila: 'caca1 caca2 t_clareira n_lider n_ferreiro n_m_lenha n_m_pedra', '1b': 'caca3 caca4 caca5 n_guardiao n_m_metal', '1c': 'caca6 caca8 n_m_horta n_m_peixe',
+    '1d': 'caca7 caca9 caca10', '1f': 'caca11 caca12', B1: 'c_v1 c_v2 c_v3 t_rio_claro posto_oeste', B2: 'c_v7 c_v8 cav_serra_norte', B3: 'c_v5 c_v6 c_v9 cav_juncos t_juncos',
+    B4: 'c_v4 vila_vael t_porto_vael', C: 'c_i1 c_i2 c_i3 c_i4 cav_ilha t_ilha', D1: 'c_a1 c_a2 c_a3 c_a4 cav_aurora vila_aurora t_aurora', D2: 'c_a5 c_a6 c_a7 c_a8 t_posto_leste', D3: 'c_a9 cav_nevoa' };
+  for (const [Z, lista] of Object.entries(esp)) for (const id of lista.split(' ')) ok(onde(pos[id].x, pos[id].z) === Z, `${id} na região ${Z} (está em ${onde(pos[id].x, pos[id].z)})`);
+  // as minas de cada campo do mundo ficam na região do campo
+  for (const l of LUGARES_MUNDO.filter((q) => q.tipo === 'mina')) { const c = pos[l.id.split('_').slice(1, 3).join('_')]; if (c) ok(onde(l.x, l.z) === onde(c.x, c.z), `mina ${l.id} na região do campo`); }
+  // borda redonda: nenhum canto em ângulo reto nos contornos das regiões de Vael
+  let reto = 0; for (const Z of ZONAS_GEO.filter((q) => /^1|^B/.test(q.id) && q.poligono)) { const P = Z.poligono; for (let i = 0; i < P.length; i++) { const a = P[(i + P.length - 1) % P.length], b = P[i], c = P[(i + 1) % P.length]; const u = [b[0] - a[0], b[1] - a[1]], v = [c[0] - b[0], c[1] - b[1]]; const cos = (u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v) || 1); if (cos < 0.3 && Math.abs(b[0]) < 590 && b[1] > -570) reto++; } }
+  ok(reto === 0, `regiões sem quina (${reto})`); }

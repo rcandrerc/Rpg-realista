@@ -819,11 +819,17 @@ func _nevoa_mini(c: Control, meio: Vector2, p: Vector3, k: float) -> void:
 	if m.nevoa == null:
 		return
 	var borda := _circulo(meio, RAIO - 2.0, 48)
+	var r_mundo := RAIO / k # o que cabe no minimapa, em metros
+	var vista := Rect2(p.x - r_mundo, p.z - r_mundo, r_mundo * 2.0, r_mundo * 2.0)
+	var tr := Transform2D(0.0, Vector2(k, k), 0.0, meio - Vector2(p.x, p.z) * k) # mundo -> tela, sem conta ponto a ponto
 	for Z in m.nevoa.H.get("zonas", []):
-		if Z.get("selo", false) or m.nevoa.liberado(str(Z.id)):
+		var id := str(Z.id)
+		if Z.get("selo", false) or m.nevoa.liberado(id):
 			continue
-		var f := _contorno(Z, func(x, z): return meio + Vector2(x - p.x, z - p.z) * k)
-		for pc in Geometry2D.intersect_polygons(f, borda):
+		var pol: PackedVector2Array = m.nevoa._pol(Z)
+		if pol.size() < 3 or not m.nevoa._caixas[id].intersects(vista): # região longe: nem entra na conta (FPS)
+			continue
+		for pc in Geometry2D.intersect_polygons(tr * pol, borda):
 			c.draw_colored_polygon(pc, COR_NEVOA)
 
 func _circulo(q: Vector2, r: float, n: int) -> PackedVector2Array:
