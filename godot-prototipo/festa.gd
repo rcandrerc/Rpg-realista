@@ -101,9 +101,63 @@ func do_aviso(t: String) -> bool:
 		return true
 	return false
 
+# Subiu de nível (André 2026-11-11: "tem que ser mais pro canto, lá em cima, de maneira que não atrapalhe se o jogador
+# estiver em combate, e já ter um botãozinho de atalho que te leva pra distribuir os pontos"): janelinha do sistema
+# pequena no alto da tela, fora da fila do meio (missão e liberado seguem no meio sem esperar por ela), com o botão
+# "+N PONTOS" que abre o menu do personagem na aba Status. Sem clarão na tela e sem soco na câmera; fica a coluna de
+# luz no herói, o som e umas faíscas saindo da janelinha. Fica mais tempo aberta (dá tempo de tocar no atalho) e some sozinha.
+const CANTO_DUR := 7.0 # com pontos para distribuir
+const CANTO_DUR_SEM := 3.2
+const CANTO_W := 236.0 # parte do texto
+const CANTO_BT := 118.0 # botão do atalho
+const CANTO_H := 60.0
+const CANTO_TOPO := 6.0
+var _canto: Dictionary = {} # {nv, pts, t, dur}
+
 func nivel(nv: int, sub := "") -> void:
-	_faixa({"tipo": "grande", "cab": "NÍVEL AUMENTOU", "titulo": "NÍVEL  %d" % nv, "sub": sub, "cor": SISTEMA, "dur": 3.2,
-		"som": "festa_nivel", "coluna": "7ad8ff", "faiscas": 30, "soco": 3.0})
+	var pts := 0
+	var i := sub.find("+")
+	if i >= 0 and sub.contains("ponto"):
+		pts = int(sub.substr(i + 1).get_slice(" ", 0))
+	if not _canto.is_empty() and float(_canto.t) < float(_canto.dur) - 0.3: # subiu de novo com a janelinha aberta: só atualiza
+		_canto.nv = nv
+		_canto.pts = int(_canto.pts) + pts
+		_canto.t = min(float(_canto.t), 0.45)
+		_canto.dur = CANTO_DUR
+	else:
+		_canto = {"nv": nv, "pts": pts, "t": 0.0, "dur": CANTO_DUR}
+	_tocar("festa_nivel", -1.0)
+	_borda(SISTEMA, 0.5)
+	m.vibrar(40)
+	_coluna(Color("7ad8ff"))
+	_ligar()
+	_soltar_faiscas(14, false, null, _canto_rect(_tela.size))
+
+# pontos livres para o atalho: o que o jogo já sabe (progresso) ou, se ainda não chegou, o que veio no aviso
+func _canto_pontos() -> int:
+	var vivo := 0
+	if m.P and m.P.get("prog") is Dictionary:
+		vivo = int(m.P.prog.get("pontos", 0))
+	return max(vivo, int(_canto.get("pts", 0)))
+
+func _canto_rect(tam: Vector2) -> Rect2:
+	var w: float = CANTO_W + (CANTO_BT if _canto_pontos() > 0 else 0.0)
+	return Rect2(tam.x * 0.5 - w * 0.5, CANTO_TOPO, w, CANTO_H)
+
+func _canto_botao(tam: Vector2) -> Rect2:
+	var r := _canto_rect(tam)
+	return Rect2(r.end.x - CANTO_BT + 4.0, r.position.y + 8.0, CANTO_BT - 12.0, r.size.y - 16.0)
+
+# hud.gd pergunta antes de virar câmera/joystick: toque no botão "+N PONTOS" abre a aba Status e fecha a janelinha
+func atalho(p: Vector2) -> bool:
+	if _canto.is_empty() or _canto_pontos() <= 0 or float(_canto.t) < 0.25:
+		return false
+	if not _canto_botao(_tela.size).grow(10.0).has_point(p):
+		return false
+	_canto.dur = min(float(_canto.dur), float(_canto.t) + 0.22) # fecha encolhendo
+	if m.menu:
+		m.menu.abrir("status")
+	return true
 
 func missao(nome: String, sub := "") -> void:
 	_faixa({"tipo": "grande", "cab": "MISSÃO CONCLUÍDA", "titulo": nome, "sub": sub, "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.2,
@@ -188,7 +242,7 @@ func _borda(cor: Color, dur: float) -> void:
 	_borda_t = dur
 
 # ---------------------------------------------------------------- faíscas (2D, um _draw só)
-func _soltar_faiscas(n: int, do_meio: bool, tinta = null) -> void:
+func _soltar_faiscas(n: int, do_meio: bool, tinta = null, de = null) -> void:
 	# André 2026-11-11: "cuidado para não exagerar e ficar brega". Nada de chuva de confete: faíscas douradas
 	# pequenas que sobem devagar do meio da tela e piscam, como brasa de fogueira, e somem.
 	var tam: Vector2 = _tela.size
@@ -196,7 +250,11 @@ func _soltar_faiscas(n: int, do_meio: bool, tinta = null) -> void:
 	for i in n:
 		var p: Vector2
 		var v: Vector2
-		if do_meio: # reforço: saem da janelinha
+		if de is Rect2: # janelinha do nível no alto: saem dela e descem um pouco, sem tampar o meio da tela
+			var rr: Rect2 = de
+			p = Vector2(randf_range(rr.position.x, rr.end.x), rr.end.y + randf_range(-6, 4))
+			v = Vector2(randf_range(-25, 25), randf_range(10, 45))
+		elif do_meio: # reforço: saem da janelinha
 			p = tam * Vector2(0.5, 0.5) + Vector2(randf_range(-170, 170), randf_range(-30, 50))
 			v = Vector2(randf_range(-25, 25), randf_range(-150, -60))
 		else: # faixa grande: sobem da faixa para cima, espalhadas
@@ -241,6 +299,10 @@ func _process(dt: float) -> void:
 		_t += dt
 		if _t >= float(_atual.dur):
 			_proxima()
+	if not _canto.is_empty():
+		_canto.t = float(_canto.t) + dt
+		if float(_canto.t) >= float(_canto.dur) or (m.menu and m.menu.aberto() and float(_canto.t) > 0.3):
+			_canto = {}
 	_borda_t = max(0.0, _borda_t - dt)
 	_clarao_t = max(0.0, _clarao_t - dt)
 	var i := _faiscas.size() - 1
@@ -274,7 +336,7 @@ func _process(dt: float) -> void:
 			_colunas.remove_at(i)
 		i -= 1
 	_tela.queue_redraw()
-	if _atual.is_empty() and _faiscas.is_empty() and _colunas.is_empty() and _borda_t <= 0.0 and _clarao_t <= 0.0:
+	if _atual.is_empty() and _canto.is_empty() and _faiscas.is_empty() and _colunas.is_empty() and _borda_t <= 0.0 and _clarao_t <= 0.0:
 		_ativo = false
 		set_process(false)
 
@@ -289,6 +351,8 @@ func _desenhar() -> void:
 		_desenhar_borda(tam, clamp(_borda_t / 0.5, 0.0, 1.0))
 	if not _atual.is_empty():
 		_desenhar_faixa(tam)
+	if not _canto.is_empty():
+		_desenhar_canto(tam)
 	for c in _faiscas:
 		if c.atraso > 0.0:
 			continue
@@ -385,6 +449,57 @@ func _desenhar_faixa(tam: Vector2) -> void:
 	_texto_centro(titulo, Vector2(cx, y_tit), t_tit, f.get("tit", Color(0.93, 0.98, 1.0)), at, esc, 0, cor)
 	if grande and f.sub != "":
 		_texto_centro(f.sub, Vector2(cx, r.end.y - 14.0), 17, Color(0.72, 0.86, 0.95), at * clamp((tt - 0.25) / 0.2, 0.0, 1.0), 1.0, 0, cor)
+
+# janelinha do nível no alto (mesmo visual da janela do sistema, pequena): abre num risco de luz, texto à esquerda
+# ("NÍVEL AUMENTOU" / "NÍVEL 12") e, com pontos livres, o botão "+N PONTOS / DISTRIBUIR" à direita, que pulsa de leve
+func _desenhar_canto(tam: Vector2) -> void:
+	var t: float = _canto.t
+	var dur: float = _canto.dur
+	var cor := SISTEMA
+	var R := _canto_rect(tam)
+	var risco: float = clamp(t / 0.12, 0.0, 1.0)
+	var abre: float = clamp((t - 0.12) / 0.14, 0.0, 1.0)
+	var fecha: float = clamp((dur - t) / 0.22, 0.0, 1.0)
+	var w: float = R.size.x * (1.0 - pow(1.0 - risco, 3.0)) * (0.4 + 0.6 * clamp(fecha * 2.0, 0.0, 1.0))
+	var h: float = max(2.0, R.size.y * (1.0 - pow(1.0 - abre, 3.0)) * min(1.0, fecha * 1.6))
+	var a: float = min(1.0, risco * 2.0) * clamp(fecha * 3.0, 0.0, 1.0)
+	var r := Rect2(R.get_center().x - w * 0.5, R.get_center().y - h * 0.5, w, h)
+	for k in 2:
+		_tela.draw_rect(r.grow(4.0 + k * 6.0), Color(cor, (0.06 - k * 0.02) * a))
+	_tela.draw_rect(r, Color(FUNDO, 0.84 * a))
+	var yy: float = r.position.y + 3.0
+	while yy < r.end.y:
+		_tela.draw_line(Vector2(r.position.x, yy), Vector2(r.end.x, yy), Color(cor, 0.035 * a), 1.0)
+		yy += 4.0
+	_tela.draw_rect(r, Color(cor, 0.85 * a), false, 1.5)
+	var c: float = min(12.0, h * 0.4)
+	var cc := Color(cor.lerp(Color.WHITE, 0.45), a)
+	for q in [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]:
+		var p: Vector2 = q[0] + q[1] * -2.0
+		_tela.draw_line(p, p + Vector2(q[1].x * c, 0), cc, 2.5)
+		_tela.draw_line(p, p + Vector2(0, q[1].y * c), cc, 2.5)
+	if abre < 0.6:
+		return
+	var tt: float = t - 0.2
+	var pisca: float = 1.0 if tt > 0.22 else (0.35 if fmod(tt, 0.08) < 0.04 else 1.0)
+	var at: float = a * clamp(tt / 0.1, 0.0, 1.0) * pisca
+	var cx: float = R.position.x + CANTO_W * 0.5
+	_texto_centro(_espacar("NÍVEL AUMENTOU"), Vector2(cx, R.position.y + 19.0), 12, cor.lerp(Color.WHITE, 0.25), at, 1.0, 0, cor)
+	var esc: float = 1.0 + (1.0 - _volta(clamp(tt / 0.3, 0.0, 1.0))) * 0.12
+	_texto_centro("NÍVEL  %d" % int(_canto.nv), Vector2(cx, R.position.y + 49.0), 27, Color(0.93, 0.98, 1.0), at, esc, 0, cor)
+	var pts := _canto_pontos()
+	if pts <= 0:
+		return
+	# botão do atalho: separador fino, caixa azul que pulsa devagar
+	var b := _canto_botao(tam)
+	_tela.draw_line(Vector2(b.position.x - 7.0, R.position.y + 10.0), Vector2(b.position.x - 7.0, R.end.y - 10.0), Color(cor, 0.35 * at), 1.0)
+	var pulso: float = 0.5 + 0.5 * sin(t * 4.0)
+	_tela.draw_rect(b.grow(2.0 + pulso * 2.0), Color(cor, (0.06 + 0.08 * pulso) * at))
+	_tela.draw_rect(b, Color(cor, 0.22 * at))
+	_tela.draw_rect(b, Color(cor.lerp(Color.WHITE, 0.3), 0.9 * at), false, 1.5)
+	var bx: float = b.get_center().x
+	_texto_centro("+%d PONTOS" % pts, Vector2(bx, b.position.y + 19.0), 15, Color(1.0, 0.95, 0.75), at, 1.0, 0, cor)
+	_texto_centro("DISTRIBUIR  ▸", Vector2(bx, b.position.y + 36.0), 11, cor.lerp(Color.WHITE, 0.5), at, 1.0, 0, cor)
 
 func _espacar(s: String) -> String:
 	var out := ""
