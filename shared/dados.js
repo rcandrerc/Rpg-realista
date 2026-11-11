@@ -2740,25 +2740,25 @@ export const HISTORIA = [
       { ev: 'matar', campos: ['caca10'], tipos: ['imp'], n: 8, txt: 'Derrube 8 Imps na clareira do sudeste' },
       { ev: 'matar', hc: 'cacador', txt: 'Derrote o Velado Caçador' },
     ],
-    pronto: 'Os três vivos, graças a você. Capuz, olhos cinzentos... são os mesmos que levaram a carroça da Rosa. Velados. O Bráulio, no sudeste, está precisando de ajuda também.' },
-  { id: 'b7', cap: 7, nv: 25, npc: 'm_couro', nome: 'Couro em troca de rodas', libera: [],
+    pronto: 'Os três vivos, graças a você. Capuz, olhos cinzentos... são os mesmos que levaram a carroça da Rosa. Velados. E os batedores viram mais uma coisa: um brilho no Ninho dos Golens, ao sul.' },
+  { id: 'h7', cap: 7, nv: 27, npc: 'lider', nome: 'Brasa-Antiga', libera: ['1f'], liberaNaEtapa: 0,
+    pedido: 'Um golem com brasa no peito, do tamanho de uma casa, no Ninho dos Golens. Dizem que é ele que segura a névoa do sul. Derrube Brasa-Antiga e as terras do sul se abrem. O Bráulio Curtidor mora lá, isolado há semanas: depois vá ver se ele está bem.',
+    etapas: [
+      { ev: 'matar', hc: 'brasa_antiga', txt: 'Derrote Brasa-Antiga na Clareira dos Golens',
+        diz: 'Brasa-Antiga desmorona. No alto do morro, uma figura de capa cinza assiste. Quando você olha de novo, não tem ninguém.' },
+      { ev: 'falar', npc: 'm_couro', txt: 'Procure o Bráulio, nas terras que abriram' },
+    ],
+    pronto: 'Você derrubou aquilo?! Faz semanas que ninguém passava. Leve esses galões, vai precisar de rodas por aqui. ...E quem era o de capa cinza no morro?',
+    presente: { galao: 6 } },
+  // ---------- Capítulo 8 · A Lâmina Cinzenta (Nv 28) ----------
+  { id: 'b7', cap: 8, nv: 28, npc: 'm_couro', nome: 'Couro em troca de rodas', libera: [],
     pedido: 'Os Velados quebraram o meu carrinho e ninguém mais me traz lenha. Me traga dois packs de lenha, de carrinho, e eu te ensino a cuidar das rodas.',
     etapas: [
       { ev: 'pack_fez', k: 'lenha', n: 2, txt: 'Faça 2 Packs de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
       { ev: 'pack', k: 'lenha', npc: 'm_couro', de: 'carrinho', n: 2, txt: 'Leve os 2 packs de carrinho até o Bráulio', alvo: 'npc:m_couro' },
       { ev: 'veiculo', k: 'consertar', ja: 'carro_ok', txt: 'Deixe o carrinho inteiro (conserte se estiver batido)' },
     ],
-    pronto: 'Roda boa e lenha boa. Escuta: vi um brilho no Ninho dos Golens, ao sul. Um golem com brasa no peito, do tamanho de uma casa. Dizem que é ele que segura a névoa de lá.' },
-  { id: 'h7', cap: 7, nv: 27, npc: 'm_couro', nome: 'Brasa-Antiga', libera: ['1f'], liberaNaEtapa: 0,
-    pedido: 'A névoa das Terras dos Golens está baixando sozinha, mas aquele golem não deixa ninguém passar. Derrube Brasa-Antiga e as terras do sul são suas.',
-    etapas: [
-      { ev: 'matar', hc: 'brasa_antiga', txt: 'Derrote Brasa-Antiga na Clareira dos Golens',
-        diz: 'Brasa-Antiga desmorona. No alto do morro, uma figura de capa cinza assiste. Quando você olha de novo, não tem ninguém.' },
-      { ev: 'falar', npc: 'm_couro', txt: 'Volte ao Bráulio' },
-    ],
-    pronto: 'Você derrubou aquilo?! As Terras dos Golens estão abertas. Leve esses galões, vai precisar de rodas por lá. ...E quem era o de capa cinza no morro?',
-    presente: { galao: 6 } },
-  // ---------- Capítulo 8 · A Lâmina Cinzenta (Nv 28) ----------
+    pronto: 'Roda boa e lenha boa. Escuta: o de capa cinza voltou ontem, rondando o Ninho. Perguntou de você pelo nome. Tome cuidado.' },
   { id: 'b9', cap: 8, nv: 28, npc: 'ferreiro', nome: 'Prontos para a caçada', libera: [],
     pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +6. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca.',
     etapas: [

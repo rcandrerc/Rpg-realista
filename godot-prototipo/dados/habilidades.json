@@ -20449,9 +20449,26 @@
     ]
    },
    {
-    "id": "b7",
+    "id": "h7",
     "cap": 7,
-    "nv": 25,
+    "nv": 27,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "Brasa-Antiga",
+    "libera": [
+     "1f"
+    ],
+    "liberaNaEtapa": 0,
+    "total": 2,
+    "etapas": [
+     "Derrote Brasa-Antiga na Clareira dos Golens",
+     "Procure o Bráulio, nas terras que abriram"
+    ]
+   },
+   {
+    "id": "b7",
+    "cap": 8,
+    "nv": 28,
     "npc": "m_couro",
     "npcNome": "Bráulio Curtidor",
     "nome": "Couro em troca de rodas",
@@ -20463,23 +20480,6 @@
      "Leve os 2 packs de carrinho até o Bráulio",
      "Deixe o carrinho inteiro (conserte se estiver batido)",
      "Volte e fale com Bráulio Curtidor"
-    ]
-   },
-   {
-    "id": "h7",
-    "cap": 7,
-    "nv": 27,
-    "npc": "m_couro",
-    "npcNome": "Bráulio Curtidor",
-    "nome": "Brasa-Antiga",
-    "libera": [
-     "1f"
-    ],
-    "liberaNaEtapa": 0,
-    "total": 2,
-    "etapas": [
-     "Derrote Brasa-Antiga na Clareira dos Golens",
-     "Volte ao Bráulio"
     ]
    },
    {

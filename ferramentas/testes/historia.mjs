@@ -217,15 +217,17 @@ for (const [x, z] of etapa().pontos) { ok(!zonaFechadaEm(p, x, z) && !noLago(x, 
 const ci10 = s.cacas.findIndex((c) => c.def.id === 'caca10');
 for (let k = 0; k < 8; k++) s.contarHistoria(j, { tipo: 'imp', sp: { caca: ci10 } });
 chefe('cacador'); falar('lider'); fim('b6');
-falar('m_couro'); ok(missao() === 'b7', 'Bráulio: couro em troca de rodas');
+ok(zonaFechadaEm(p, 206, 166), 'o Bráulio ainda está atrás da névoa antes da Brasa-Antiga');
+subir(27); falar('lider'); ok(missao() === 'h7' && liberado(p, '1f'), 'Brasa-Antiga: as Terras dos Golens abrem');
+ok(!zonaFechadaEm(p, 206, 166), 'com a missão aceita, a névoa do Bráulio abre');
+chefe('brasa_antiga'); falar('m_couro'); fim('h7'); ok(contar(p.mochila, 'galao') >= 6, '6 galões de presente');
+// Capítulo 8
+subir(28); falar('m_couro'); ok(missao() === 'b7', 'Bráulio: couro em troca de rodas');
 s.historia(j, 'pack_fez', { k: 'lenha' }); s.historia(j, 'pack_fez', { k: 'lenha' });
 s.historia(j, 'pack', { k: 'lenha', npc: 'm_couro', de: 'carrinho' }); s.historia(j, 'pack', { k: 'lenha', npc: 'm_couro', de: 'carrinho' });
 correr(0.6); ok(etapa().ev === 'falar', 'carrinho inteiro: a etapa de consertar passa');
 falar('m_couro'); fim('b7');
-subir(27); falar('m_couro'); ok(missao() === 'h7' && liberado(p, '1f'), 'Brasa-Antiga: as Terras dos Golens abrem');
-chefe('brasa_antiga'); falar('m_couro'); fim('h7'); ok(contar(p.mochila, 'galao') >= 6, '6 galões de presente');
-// Capítulo 8
-subir(28); falar('ferreiro'); ok(missao() === 'b9', 'Tomás: prontos para a caçada');
+falar('ferreiro'); ok(missao() === 'b9', 'Tomás: prontos para a caçada');
 s.historia(j, 'evoluir', { v: 1 }); ok(h().e === 0, 'Rara não vale'); s.historia(j, 'evoluir', { v: 2 });
 s.historia(j, 'reforcar', { v: 5 }); ok(h().e === 1, '+5 não vale'); s.historia(j, 'reforcar', { v: 6 });
 guardar(p.mochila, { k: 'colar', r: 0 }); dar('ensopado', 3); correr(0.6); falar('ferreiro'); fim('b9');
