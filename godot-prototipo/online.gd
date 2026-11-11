@@ -562,7 +562,10 @@ func outro(j: Dictionary) -> void:
 		if g != null:
 			o = {"no": g.no, "visual": vis, "anim": g.anim, "esq": g.esq, "espada": g.espada, "cajado": g.cajado,
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0,
-				"barra": g.barra, "placa": g.placa, "placa_txt": "", "ap": "", "lod": -1, "sumiu": false, "molas": g.get("molas", []), "fase": g.get("fase", 0)}
+				"barra": g.barra, "placa": g.placa, "placa_txt": "", "lod": -1, "sumiu": false, "molas": g.get("molas", []), "fase": g.get("fase", 0),
+				# o corpo guardado já está com a cor e a roupa de antes: só pinta e veste de novo se mudou (André 2026-11-11:
+				# "passa alguma coisa, vai pra 22": pintar de novo o corpo e o penteado custava ~120 ms a cada NPC que voltava)
+				"ap": g.get("ap", ""), "roupa": g.get("roupa", "-")}
 			g.no.position = o.alvo
 			g.no.visible = true
 			g.no.process_mode = Node.PROCESS_MODE_INHERIT
@@ -1172,11 +1175,13 @@ func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
 # entrava na visão. Agora: só os DETALHE_MAX mais perto (até DETALHE_PERTO m) ficam com tudo; os outros ficam sem
 # sombra, sem contorno e sem mola (como os NPCs da vila de longe), e a animação deles anda a cada 2 quadros (até
 # ANIM_LONGE m) ou 3 quadros (mais longe). O corpo do NPC que sai da visão fica guardado para voltar sem tranco.
-const DETALHE_MAX := 4
-const SOME_LONGE := 75.0 # m: mais longe que isso o corpo de outro jogador ou NPC some (fica o ponto no minimapa)
-const VISIVEIS_MAX := 24 # no máximo 24 corpos de outros na tela (os mais perto)
+# André 2026-11-11 ("reduzir qualidade dos npcs e personagens", liso em celular mediano): 2 com tudo (até 10 m),
+# corpos somem a 45 m (era 75) e no máximo 10 na tela (era 24); LOD mais forte em quem não está entre os mais perto.
+const DETALHE_MAX := 2
+const SOME_LONGE := 45.0 # m: mais longe que isso o corpo de outro jogador ou NPC some (fica o ponto no minimapa)
+const VISIVEIS_MAX := 10 # no máximo 10 corpos de outros na tela (os mais perto)
 const FX_LONGE := 45.0 # m: magia dos outros mais longe que isso não é desenhada (o servidor já corta a 100 m)
-const DETALHE_PERTO := 15.0
+const DETALHE_PERTO := 10.0
 const ANIM_LONGE := 25.0
 const GUARDADOS_MAX := 10 # corpos de NPC guardados escondidos (por corpo do criador)
 var _guardados := {} # visual -> [o]
@@ -1233,9 +1238,10 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	if antes == -1 or not o.has("malhas"):
 		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false)
 		m.LodMalha.pedir(o.no) # roupa, cabelo e corpo montados no jogo ganham LOD (lod_malha.gd)
+		m.pecinhas_de_perto(o.no) # olhos, cílios, fivelas: só desenhados de perto
 	for mi in o.malhas:
 		if is_instance_valid(mi):
-			mi.lod_bias = [0.3, 0.6, 1.0][nivel]
+			mi.lod_bias = [0.2, 0.4, 0.8][nivel]
 	if o.anim:
 		o.anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE if cheio else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	o.anim_acc = 0.0

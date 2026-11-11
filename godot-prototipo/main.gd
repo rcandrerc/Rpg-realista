@@ -1024,8 +1024,9 @@ func modelo(id: String) -> Node3D:
 # NPC de longe (André 2026-11-07, FPS na vila, escolheu sombra e contorno só de perto): a mais de 15 m o NPC não
 # desenha sombra e o contorno de desenho (a casca escura um pouco maior que o corpo) troca por um material que não
 # desenha nada; de perto volta tudo igual (a sombra que cada pedaço tinha e o contorno de antes).
-const NPC_DETALHE := 15.0
-const NPC_DETALHE_SAI := 17.0 # volta a ter detalhe só abaixo de 15 m, sai acima de 17 m (não pisca no limite)
+const NPC_LONGE := 45.0 # m: NPC da vila mais longe que isso some (era 70, o mesmo dos monstros)
+const NPC_DETALHE := 10.0 # André 2026-11-11: era 15 (NPCs mais leves, celular mediano)
+const NPC_DETALHE_SAI := 12.0 # volta a ter detalhe só abaixo de 10 m, sai acima de 12 m (não pisca no limite)
 static var _mat_nada: ShaderMaterial
 static func npc_simples(no: Node, simples: bool) -> void:
 	if _mat_nada == null:
@@ -1036,6 +1037,7 @@ static func npc_simples(no: Node, simples: bool) -> void:
 	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null:
 			continue
+		mi.lod_bias = 0.35 if simples else 0.8 # LOD mais forte nos NPCs (o herói não passa por aqui)
 		if simples:
 			if not mi.has_meta("sombra_perto"):
 				mi.set_meta("sombra_perto", mi.cast_shadow)
@@ -1055,6 +1057,24 @@ static func npc_simples(no: Node, simples: bool) -> void:
 				if mi.has_meta("contorno_%d" % i):
 					mi.set_surface_override_material(i, mi.get_meta("contorno_%d" % i)[0])
 					mi.remove_meta("contorno_%d" % i)
+
+# Pecinhas do corpo (olho, cílio, brilho, fivela, rebite: menos de PECINHA_TRIS triângulos) só são desenhadas até
+# PECINHA_LONGE m da câmera (alcance de visão do Godot). De longe elas viram 1 ou 2 pontos na tela, mas cada uma é uma
+# chamada de desenho a mais: ~40 por NPC (André 2026-11-11: liso em celular mediano). O herói não passa por aqui.
+const PECINHA_TRIS := 400
+const PECINHA_LONGE := 14.0
+static func pecinhas_de_perto(no: Node) -> void:
+	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or mi.visibility_range_end > 0.0:
+			continue
+		var am: ArrayMesh = mi.mesh
+		var tris := 0
+		for i in am.get_surface_count():
+			var n := am.surface_get_array_index_len(i)
+			tris += (n if n > 0 else am.surface_get_array_len(i)) / 3
+		if tris < PECINHA_TRIS:
+			mi.visibility_range_end = PECINHA_LONGE
+			mi.visibility_range_end_margin = 1.0
 
 # FPS (André 2026-11-07, vila): cada personagem (herói, NPC, outro jogador) tem 8 pecinhas do rosto (olhos, brilho do
 # olho, boca, cílios, delineado, sobrancelha) e cada uma também era desenhada de novo na sombra. Elas ficam coladas no
@@ -3404,7 +3424,7 @@ func lod_inimigos() -> void:
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
 	for n in npcs:
 		var dn: float = n.no.position.distance_squared_to(hp)
-		var longe_n: bool = dn > (LONGE_INIMIGO + 5.0) * (LONGE_INIMIGO + 5.0) if n.get("longe", false) else dn > LONGE_INIMIGO * LONGE_INIMIGO
+		var longe_n: bool = dn > (NPC_LONGE + 5.0) * (NPC_LONGE + 5.0) if n.get("longe", false) else dn > NPC_LONGE * NPC_LONGE
 		if longe_n != n.get("longe", false):
 			n.longe = longe_n
 			n.no.visible = not longe_n
@@ -3417,6 +3437,7 @@ func lod_inimigos() -> void:
 		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)
+			pecinhas_de_perto(n.no)
 	inimigos_perto.clear()
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
