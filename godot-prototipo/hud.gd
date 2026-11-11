@@ -59,6 +59,8 @@ const PAINEL := Rect2(18, 14, 330, 104) # tocar aqui abre o menu do personagem; 
 var painel_d := Vector2.ZERO
 var painel_s := 1.0
 var joy_s := 1.0 # tamanho do joystick (ele continua nascendo onde o dedo toca)
+var _sinal_tela := [] # o que o painel mostrou da última vez (redesenha só quando muda)
+var _sinal_comb := []
 var editando := false # modo de edição aberto: a HUD não anda, não ataca e não abre menu
 var editor # editar_hud.gd
 const SEGURAR := 0.55 # segundos segurando o painel para abrir o modo de edição
@@ -442,8 +444,26 @@ func _process(dt: float) -> void:
 	# fade de 0,15 s da HUD de combate (janela do NPC)
 	_combate.modulate.a = move_toward(_combate.modulate.a, 0.0 if (esconder_combate or caido) and not editando else 1.0, dt / (0.6 if caido else 0.15))
 	_combate.visible = _combate.modulate.a > 0.0
-	_tela.queue_redraw()
-	_combate.queue_redraw()
+	# FPS (auditoria 2026-11-11, Teste no celular: sem a interface a lógica caía de 15 para 9,6 ms): o painel e os
+	# botões eram redesenhados todo quadro (cada círculo e cada texto refeito do zero). Agora só quando algo que
+	# aparece mudou, ou todo quadro enquanto há coisa animando (aviso, dano, recarga, joystick, edição). O brilho
+	# que respira no selo do nível é lento: 15 vezes por segundo bastam.
+	var q := Engine.get_process_frames()
+	var anim_tela: bool = editando or _aviso_t > 0 or _destaque_t > 0 or _dano_t > 0 or (vida < 0.3 and vida > 0.0) or _combate_a > 0.0 or canal >= 0.0
+	var st := [vida, mana, estamina, vigor, xp, texto_vida, texto_mana, nivel, nome, modo, escudo, sem_folego, canal_vila, canal_vila_txt, painel_d, painel_s, retrato, _tela.size]
+	if anim_tela or st != _sinal_tela or q % 4 == 0:
+		_sinal_tela = st
+		_tela.queue_redraw()
+	if _combate.visible:
+		var anim_comb: bool = editando or _toques.values().has("joy")
+		var sc := [modo_construcao, _combate.size]
+		for b in botoes:
+			if b.cd > 0.0 or b.pronto_t > 0.0 or b.nega_t > 0.0 or b.get("ligado", false):
+				anim_comb = true
+			sc.append([b.oculto, b.cor, b.borda, b.travado, b.sem_mana, b.get("n", -1), b.icone, b.apertado, b.raio, b.canto, b.d, b.s])
+		if anim_comb or sc != _sinal_comb:
+			_sinal_comb = sc
+			_combate.queue_redraw()
 
 # joystick e botões (num Control próprio, para sumir com fade quando a janela de um NPC abre)
 func _desenhar_combate() -> void:

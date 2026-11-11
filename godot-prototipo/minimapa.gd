@@ -649,7 +649,8 @@ func _process(_dt: float) -> void:
 		var p: Vector3 = m.heroi.position
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("centro", _uv(p.x, p.z))
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", Vector2.ONE * ALCANCE * 2.0 / mundo_r.size)
-		marcas.queue_redraw()
+		if Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): marcas do minimapa 20 vezes por segundo
+			marcas.queue_redraw()
 	if aberto:
 		var dt: float = get_process_delta_time()
 		var a: float = 1.0 - exp(-12.0 * dt) # zoom dos botões e ida até o lugar da lista, suave
