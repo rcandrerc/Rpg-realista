@@ -343,6 +343,17 @@ export function liberarPaginas(p, n) {
   while (p.mochila.length < MOCHILA * p.paginas) p.mochila.push(null);
   return true;
 }
+// Volta a mochila para as páginas que os itens precisam (conta de teste que tinha as 4 de graça). Nada some: os itens
+// das páginas de trás vão para os lugares vazios da frente, na ordem; sobra página só se não couber. Devolve quantas ficou.
+export function devolverPaginas(p) {
+  const itens = p.mochila.filter((it) => it);
+  const precisa = Math.min(MOCHILA_PAGINAS, Math.max(1, Math.ceil(itens.length / MOCHILA)));
+  if ((p.paginas || 1) <= precisa) return p.paginas || 1;
+  const nova = p.mochila.slice(0, MOCHILA * precisa);
+  for (const it of p.mochila.slice(MOCHILA * precisa)) if (it) nova[nova.indexOf(null)] = it;
+  p.mochila = nova; p.paginas = precisa;
+  return precisa;
+}
 export const equipNovo = () => Object.fromEntries(LUGARES.map((l) => [l, null]));
 export { ehEquip };
 
@@ -506,6 +517,7 @@ export function progressoValido(p) {
   if (TOTENS.lista.some((t) => t.id === p.totem)) n.totem = p.totem;
   // missões principais (André 2026-11-10, shared/historia.js): conta de antes da progressão ganha as missões até o nível dela
   n.hist = histValida(p.hist, n.nivel);
+  if (typeof p.devPag === 'string' && p.devPag.length < 20) n.devPag = p.devPag; // páginas de teste já devolvidas (CONTA_TESTE)
   return n;
 }
 export const barrasPadrao = () => Object.fromEntries(BARRAS.map((b) => [b, [...BOTOES_PADRAO[b]]]));
