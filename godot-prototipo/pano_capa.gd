@@ -32,6 +32,51 @@ var _pronto := false
 var _t := 0.0
 var _mat: ShaderMaterial
 
+# Desempenho (André 2026-11-11: "FPS péssimo, 30 no máximo"): cada capa custava ~0,4 ms por passo de pano em script,
+# 60 passos por segundo, e a vila tinha 10 capas (os NPCs e os aventureiros vestem capa): o pano sozinho gastava
+# tanto quanto o resto do jogo. Agora o pano de verdade fica para o herói (e os bonecos do menu e do criador) e para
+# as OUTRAS_MAX capas de NPC ou outro jogador mais perto da câmera (até OUTRAS_PERTO m). As outras ficam na forma de
+# descanso presa no peito (a mesma que já valia longe, a mais de 30 m), sem conta nenhuma por quadro.
+# Quem é "outro" vem marcado no corpo (meta "pano_outro": online.gd e os NPCs da vila no main.gd).
+const OUTRAS_MAX := 2
+const OUTRAS_PERTO := 10.0
+static var _quadro := -1
+static var _cand := {} # capas de outros que pediram pano neste quadro: id -> distância da câmera
+static var _vez := {} # as escolhidas para este quadro (vêm das candidatas do quadro anterior)
+var _outro := -1 # -1 = ainda não sabe; 0 = herói/boneco (pano sempre); 1 = NPC ou outro jogador
+var _rigido := false # na forma de descanso (grade = base), sem simular
+
+static func _novo_quadro() -> void:
+	var fr := Engine.get_process_frames()
+	if fr == _quadro:
+		return
+	_quadro = fr
+	var l := []
+	for id in _cand:
+		l.append([_cand[id] * (0.8 if _vez.has(id) else 1.0), id]) # quem já tem pano tem preferência (não fica trocando)
+	l.sort_custom(func(a, b): return a[0] < b[0])
+	_vez.clear()
+	for k in mini(OUTRAS_MAX, l.size()):
+		_vez[l[k][1]] = true
+	_cand.clear()
+
+func _eh_outro(s: Skeleton3D) -> int:
+	var no: Node = s
+	while no != null:
+		if no.has_meta("pano_outro"):
+			return 1
+		no = no.get_parent()
+	return 0
+
+# forma de descanso: a grade do shader é a própria base (no espaço da malha), sem conta por quadro
+func _ficar_rigido() -> void:
+	if _rigido:
+		return
+	_rigido = true
+	_mat.set_shader_parameter("grade", base)
+	_p.resize(0) # na volta para o pano nasce em descanso
+	_M_ant_ok = false
+
 func preparar(esq: Skeleton3D, malha: MeshInstance3D, grade: PackedVector3Array) -> void:
 	mi = malha
 	osso = esq.find_bone("J_Bip_C_UpperChest")
@@ -94,13 +139,26 @@ func _process_modification() -> void:
 	if get_index() != s.get_child_count() - 1:
 		_ao_fim.call_deferred()
 	var t0 := Time.get_ticks_usec()
+	if _outro < 0:
+		_outro = _eh_outro(s)
+	var cam := get_viewport().get_camera_3d()
+	if _outro == 1: # NPC ou outro jogador: pano só para os mais perto da câmera
+		_novo_quadro()
+		var dc := cam.global_position.distance_to(s.global_position) if cam else 0.0
+		var id := get_instance_id()
+		if dc <= OUTRAS_PERTO and s.is_visible_in_tree():
+			_cand[id] = dc
+		if not _vez.has(id):
+			_ficar_rigido()
+			tempo_us = 0
+			return
+	_rigido = false
 	var M := _malha_mundo(s)
 	var esc := M.basis.get_scale().x
 	var n := base.size()
 	var dt := get_viewport().get_process_delta_time() if is_inside_tree() else PASSO
 	# começo, teletransporte (sair do lobo, voltar para a vila) ou longe da câmera parado: nasce em descanso
 	var topo0 := M * base[COLS / 2]
-	var cam := get_viewport().get_camera_3d()
 	var dcam := cam.global_position.distance_to(topo0) if cam else 0.0
 	var longe := dcam > 30.0
 	if _p.size() != n or _p[COLS / 2].distance_to(topo0) > 1.5:

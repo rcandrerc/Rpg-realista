@@ -7,6 +7,7 @@ const MundoTerreno = preload("res://mundo_terreno.gd") # FASE 3: continentes e m
 const Hud = preload("res://hud.gd")
 const Efeitos = preload("res://efeitos.gd")
 const BossMundo = preload("res://boss_mundo.gd")
+const LodMalha = preload("res://lod_malha.gd") # LOD para roupa, cabelo e corpo montados no jogo (NPCs e outros jogadores)
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
 const Grafico = preload("res://grafico.gd")
@@ -1609,6 +1610,7 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		var t: Dictionary = info.tinta
 		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
 		Aparencia.aplicar(no, ap)
+	no.set_meta("pano_outro", true) # capa de NPC: pano de verdade só nas mais perto da câmera (pano_capa.gd)
 	VisualNpc.vestir(no, str(info.get("id", "")), info) # roupa de ofício (avental e martelo do ferreiro) e de fantasia
 	# arma do NPC (André 2026-11-05: guerreiros e magos, nada moderno): espada ou cajado nas costas, ou cajado na mão
 	var arma := str(info.get("arma", ""))
@@ -2942,6 +2944,7 @@ func _notification(what: int) -> void:
 func _process(dt: float) -> void:
 	if not _a_criar.is_empty():
 		criar_aos_poucos()
+	LodMalha.passo() # LOD das malhas montadas no jogo, aos poucos e na linha de fundo
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
 	var agora_s: float = Time.get_ticks_usec() / 1000000.0
@@ -3411,6 +3414,9 @@ func lod_inimigos() -> void:
 		if meio_n != n.get("simples", false):
 			n.simples = meio_n
 			npc_simples(n.no, meio_n)
+		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
+			n.lod_pedido = true
+			LodMalha.pedir(n.no)
 	inimigos_perto.clear()
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
