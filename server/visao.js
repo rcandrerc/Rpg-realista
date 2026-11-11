@@ -19,7 +19,9 @@ export const VISAO = {
   maxJogadores: 30, // multidão (cidade cheia): só os 30 mais perto aparecem; o resto fica no mapa
   // NPCs (André 2026-11-11: 22 vivendo no mundo; Poco X7 e celulares mais fracos): aparecem de mais perto e no máximo os
   // maxBots mais perto ficam com corpo na tela (cada corpo VRoid pesa); o resto continua no mapa e no minimapa
-  botEntra: 70, botSai: 80, maxBots: 10,
+  // 2026-11-11 (André: a vila travava com os 20 aventureiros juntos, FPS 18-40): 55/65 m e no máximo 8 corpos; no app
+  // só os 4 mais perto ficam com sombra, contorno e cabelo com mola (online.gd _detalhe_outros)
+  botEntra: 55, botSai: 65, maxBots: 8,
   meiaVelocidade: 40, // m: corpo mais longe que isso atualiza 10 vezes por segundo em vez de 20 (o app desliza entre as fotos)
   evento: 100, // efeito, número de dano e magia mais longe que isso não vão (ninguém veria)
   mapaCada: 10, // a cada 10 fotos (0,5 s) vai a lista leve de onde está todo mundo (mapa grande e minimapa)
