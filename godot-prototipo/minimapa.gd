@@ -61,6 +61,15 @@ var marcado = null # Vector2 (metros) do lugar tocado no mapa completo, ou null
 var previa := PackedVector2Array() # rota pela estrada até o lugar marcado (rota.planejar)
 var botao_ir := Rect2() # onde está o botão "Ir para" na tela (para o toque)
 var botao_x := Rect2() # X de fechar o mapa
+# Mapa do totem (André 2026-11-11): encostar num totem abre este mapa no lugar da lista de destinos. Os totens ficam
+# acesos (os liberados) e tocar num deles mostra "Teleportar" com a taxa; os ainda não visitados aparecem apagados e
+# não respondem ao toque. O botão do canto alterna entre o mapa cheio e uma janela menor no meio da tela.
+var totem_de := {} # o totem onde o herói está (vazio = mapa normal)
+var totem_alvo := "" # id do totem escolhido no mapa
+var cheio := true # mapa do totem: tela inteira (true) ou janela menor (false)
+var botao_tam := Rect2() # minimizar / maximizar
+var botao_tp := Rect2() # "Teleportar"
+var escuro: ColorRect
 const COR_ROTA := Color("ffd27a")
 const COR_PINO := Color("ff6a4a")
 
@@ -137,7 +146,7 @@ void fragment() {
 	grande.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	grande.visible = false
 	add_child(grande)
-	var escuro := ColorRect.new()
+	escuro = ColorRect.new()
 	escuro.color = Color(0.02, 0.03, 0.02, 0.82)
 	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
 	escuro.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -346,6 +355,8 @@ func _prender(f: Vector2, z: float) -> Vector2:
 
 # onde fica a lista da direita (tela)
 func _painel() -> Rect2:
+	if not totem_de.is_empty(): # mapa do totem: sem a lista
+		return Rect2()
 	var g: Rect2 = grande.get_global_rect()
 	return Rect2(g.position + Vector2(g.size.x - LARGURA_LISTA, 0), Vector2(LARGURA_LISTA, g.size.y))
 
@@ -363,6 +374,9 @@ func _toque_no_mapa(pos: Vector2) -> void:
 		zoom_alvo = clamp(zoom_alvo * (1.45 if botao_mais.has_point(lp) else 1.0 / 1.45), _z_min(), Z_MAX)
 		if m.sons:
 			m.sons.tocar("pano", -16.0)
+		return
+	if not totem_de.is_empty():
+		_toque_totem(lp, dentro)
 		return
 	var pp: Rect2 = _painel()
 	if pp.has_point(pos):
@@ -511,6 +525,74 @@ func _lugares() -> Array:
 			l.append({"id": str(mn.id), "tipo": "mina", "mn": mn, "nome": "%s mais perto (%d m)" % [str(mn.nome), int(perto[t][0])], "curto": str(mn.nome), "x": float(mn.x), "z": float(mn.z), "r": float(mn.r) + 2.0})
 	return l
 
+# encostou num totem de teleporte (conversa.gd): o mapa abre mostrando todos os totens
+func abrir_totem(de: Dictionary) -> void:
+	abrir()
+	totem_de = de
+	totem_alvo = ""
+	_ver_totens()
+
+# zoom e meio que mostram todos os totens na janela
+func _ver_totens() -> void:
+	_arrumar_grande()
+	var r := Rect2()
+	var primeiro := true
+	for t in m.totem.T.lista:
+		var p := Vector2(float(t.x), float(t.z))
+		if primeiro:
+			r = Rect2(p, Vector2.ZERO)
+			primeiro = false
+		else:
+			r = r.expand(p)
+	r = r.grow(90.0)
+	var k: float = minf((janela.size.x - 60.0) / r.size.x, (janela.size.y - 150.0) / r.size.y) # folga para o título e o zoom
+	zoom = clamp(k * float(info.tam) / janela.size.y, _z_min(), Z_MAX)
+	zoom_alvo = zoom
+	foco = _prender(r.get_center(), zoom)
+	foco_alvo = foco
+	_arrumar_grande()
+
+func _toque_totem(lp: Vector2, dentro: bool) -> void:
+	if not dentro:
+		fechar() # tocou fora da janela (mapa pequeno): volta para o jogo
+		return
+	if botao_tam.has_point(lp):
+		cheio = not cheio
+		_ver_totens()
+		if m.sons:
+			m.sons.tocar("pano", -14.0)
+		return
+	if totem_alvo != "" and botao_tp.has_point(lp):
+		_teleportar()
+		return
+	# o totem mais perto do toque (até 30 px); só os liberados respondem
+	var melhor := ""
+	var menor := 30.0
+	for t in m.totem.T.lista:
+		var d: float = _na_janela(float(t.x), float(t.z)).distance_to(lp)
+		if d < menor:
+			menor = d
+			melhor = str(t.id)
+	if melhor == "" or melhor == str(totem_de.id) or not m.totem.descoberto(melhor):
+		totem_alvo = "" # vazio, o próprio totem ou um ainda trancado: nada a fazer
+		return
+	if melhor == totem_alvo:
+		_teleportar() # o mesmo totem de novo já viaja
+		return
+	totem_alvo = melhor
+	if m.sons:
+		m.sons.tocar("pano", -14.0)
+
+func _teleportar() -> void:
+	var para: Dictionary = m.totem.dados(totem_alvo)
+	if para.is_empty():
+		return
+	var r: String = m.totem.ir(totem_de, para)
+	if r != "":
+		m.hud.aviso(r) # sem ouro: o mapa fica aberto
+		return
+	fechar()
+
 func abrir() -> void:
 	aberto = true
 	marcado = null
@@ -534,6 +616,9 @@ func abrir() -> void:
 
 func fechar() -> void:
 	aberto = false
+	totem_de = {}
+	totem_alvo = ""
+	escuro.color.a = 0.82
 	layer = 3
 	grande.visible = false
 	m.hud.bloqueado = false
@@ -543,6 +628,10 @@ func _arrumar_grande() -> void:
 	var tela: Vector2 = grande.size
 	janela.position = Vector2(16, 16)
 	janela.size = Vector2(max(200.0, tela.x - LARGURA_LISTA - 24.0), max(200.0, tela.y - 32.0))
+	if not totem_de.is_empty(): # mapa do totem: sem a lista; cheio ocupa a tela, pequeno fica no meio e o jogo aparece em volta
+		janela.size = Vector2(max(200.0, tela.x - 32.0), max(200.0, tela.y - 32.0)) if cheio else Vector2(max(200.0, tela.x * 0.6), max(200.0, tela.y * 0.72))
+		janela.position = (tela - janela.size) * 0.5
+		escuro.color.a = 0.82 if cheio else 0.35
 	var k: float = _k()
 	mapa_grande.position = _na_janela(mundo_r.position.x, mundo_r.position.y)
 	mapa_grande.size = mundo_r.size * k
@@ -863,15 +952,18 @@ func _desenhar_mapa() -> void:
 	var tam: Vector2 = janela.size
 	var em := func(x: float, z: float) -> Vector2: return _na_janela(x, z)
 	var longe: bool = zoom < 0.95 # FASE 3: afastado além do quadrado de hoje, só as bolinhas (os nomes se embolam)
+	var tm: bool = not totem_de.is_empty() # mapa do totem: os nomes que importam são os dos totens (os outros embolam)
+	longe = longe or tm
 	_nevoa_mapa(c, em) # zonas ainda fechadas pela névoa (progressão, André 2026-11-10)
 	# lugares
-	_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
+	if not tm:
+		_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})
-	if not vl.is_empty(): # Vila dos Lotes (construção e fazenda)
+	if not vl.is_empty() and not tm: # Vila dos Lotes (construção e fazenda)
 		_texto(c, em.call(float(vl.x), float(vl.z) - 20.0), str(vl.nome), 15, Color(1, 0.95, 0.85))
 	# FASE 3: o nome de cada terra (Vael, ilha, Aurora) e as vilas, cais e postos do mundo grande
 	var g: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
-	for t in g.get("terras", []):
+	for t in (g.get("terras", []) if not tm else []):
 		var nv: Array = t.get("niveis", [])
 		# os continentes (forma norte/sul, desde 2026-11-09) não têm x e z: o nome vai no meio, perto da costa (sem isto o
 		# desenho do mapa parava aqui e o resto, vilas, veios, casa e totens, não aparecia)
@@ -884,9 +976,9 @@ func _desenhar_mapa() -> void:
 			var q: Vector2 = em.call(float(l.x), float(l.z))
 			c.draw_circle(q, 4.0, Color(0.05, 0.04, 0.03, 0.85))
 			c.draw_circle(q, 3.0, COR_OURO if tl == "vila" else Color(1, 0.95, 0.85))
-			if tl == "vila" or not longe:
+			if (tl == "vila" or not longe) and not tm:
 				_texto(c, q + Vector2(0, -12), str(l.get("nome", "")), 15 if tl == "vila" else 12, Color(1, 0.95, 0.85))
-	if m.totem: # totens de teleporte: losango azul (apagado = ainda não visitado)
+	if m.totem and totem_de.is_empty(): # totens de teleporte: losango azul (apagado = ainda não visitado)
 		for t in m.totem.T.lista:
 			var qt: Vector2 = em.call(float(t.x), float(t.z))
 			var dt: bool = m.totem.descoberto(str(t.id))
@@ -899,14 +991,15 @@ func _desenhar_mapa() -> void:
 		var q: Vector2 = em.call(float(mn.x), float(mn.z))
 		var cm: Color = COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b"))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -7), q + Vector2(6, 0), q + Vector2(0, 7), q + Vector2(-6, 0)]), cm)
-		if mn.get("pequeno", false) or mn.get("mundo", false):
-			continue # veio pequeno (FASE 2): só o losango, sem nome (são muitos)
+		if mn.get("pequeno", false) or mn.get("mundo", false) or tm:
+			continue # veio pequeno (FASE 2): só o losango, sem nome (são muitos); no mapa do totem, nenhum nome
 		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	var cv := _caverna()
 	if not cv.is_empty():
 		var qc: Vector2 = em.call(cv.x, cv.z)
 		_marca_caverna(c, qc, 10.0)
-		_texto(c, qc + Vector2(0, 22), str(cv.nome), 14, Color("ffc27a"))
+		if not tm:
+			_texto(c, qc + Vector2(0, 22), str(cv.nome), 14, Color("ffc27a"))
 	if m.pesca and m.pesca.radar_ligado(): # Radar de pesca: todos os spots com o tipo embaixo
 		for id in m.pesca.spots:
 			var v: Dictionary = m.pesca.spots[id]
@@ -921,7 +1014,8 @@ func _desenhar_mapa() -> void:
 		var qa: Vector2 = em.call(casa.x, casa.z)
 		_marca_casa(c, qa, 11.0)
 		var baixo: float = maxf(cantos[2].y, cantos[0].y) # o nome fica embaixo do contorno
-		_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
+		if not tm:
+			_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
 	for cc in m.mundo.get("caca", []):
 		var q: Vector2 = em.call(float(cc.x), float(cc.z))
 		_marca_clareira(c, q, cc, 7.0 if longe else 10.0, true)
@@ -949,6 +1043,9 @@ func _desenhar_mapa() -> void:
 	var qh: Vector2 = em.call(hp.x, hp.z)
 	c.draw_circle(qh, 13.0, Color(1, 0.85, 0.4, 0.18))
 	_seta(c, qh, _frente_heroi(), 11.0, COR_OURO)
+	if not totem_de.is_empty():
+		_desenhar_totens(c, tam, em)
+		return
 	# moldura dourada da janela
 	c.draw_rect(Rect2(Vector2(1, 1), tam - Vector2(2, 2)), Color(0.05, 0.04, 0.03, 0.9), false, 3.0)
 	c.draw_rect(Rect2(Vector2(3, 3), tam - Vector2(6, 6)), Color("c9a35a"), false, 1.5)
@@ -1010,6 +1107,8 @@ func _desenhar_mapa() -> void:
 # lista da direita (Lugares): cada nome é um botão; o escolhido fica dourado com "Ir para ›"
 func _desenhar_grande() -> void:
 	var c := marcas_grande
+	if not totem_de.is_empty(): # mapa do totem: sem a lista
+		return
 	var pp: Rect2 = _painel()
 	var base: Vector2 = pp.position - grande.get_global_rect().position
 	var x0: float = base.x + 14.0
@@ -1163,3 +1262,118 @@ func _pino(c: Control, pos: Vector2, s: float) -> void:
 	c.draw_colored_polygon(PackedVector2Array([pos + Vector2(0, -1.5), topo + Vector2(-r * 0.75, r * 0.45), topo + Vector2(r * 0.75, r * 0.45)]), COR_PINO)
 	c.draw_circle(topo, r, COR_PINO)
 	c.draw_circle(topo, r * 0.38, Color(1, 0.95, 0.85))
+
+# mapa do totem: os totens grandes por cima (liberados acesos e pulsando, trancados apagados), o título, o botão de
+# minimizar/maximizar, o X, o zoom e o "Teleportar" do totem escolhido
+func _desenhar_totens(c: Control, tam: Vector2, em: Callable) -> void:
+	var ouro := int(m.P.prog.get("ouro", 0))
+	var pulso: float = 0.5 + 0.5 * sin(m.tempo * 3.0)
+	for t in m.totem.T.lista:
+		var id := str(t.id)
+		var q: Vector2 = em.call(float(t.x), float(t.z))
+		var aqui: bool = id == str(totem_de.id)
+		var ok: bool = m.totem.descoberto(id)
+		var esc: bool = id == totem_alvo
+		if ok and not aqui: # brilho em volta: os que dá para tocar
+			c.draw_circle(q, 20.0 + pulso * 5.0, Color(0.35, 0.85, 1.0, 0.12 + pulso * 0.1))
+			c.draw_circle(q, 15.0, Color(0.35, 0.85, 1.0, 0.22))
+		if esc:
+			c.draw_arc(q, 21.0, 0, TAU, 40, COR_OURO, 2.5, true)
+		_marca_totem(c, q, 12.0, ok)
+		var nome := str(t.nome)
+		var sub := ""
+		var cor_sub := Color("9fe6ff")
+		if aqui:
+			sub = "Você está aqui"
+			cor_sub = COR_OURO
+			c.draw_arc(q, 19.0, 0, TAU, 40, COR_OURO, 2.0, true)
+		elif ok:
+			sub = "%d de ouro" % m.totem.taxa(t)
+			if m.totem.taxa(t) > ouro:
+				cor_sub = Color(1, 0.62, 0.55)
+		else:
+			sub = "visite a pé"
+			cor_sub = Color(0.72, 0.75, 0.8)
+		_texto(c, q + Vector2(0, -24), nome, 16, Color(1, 0.96, 0.88) if ok else Color(0.78, 0.8, 0.84))
+		_texto(c, q + Vector2(0, 26), sub, 13, cor_sub)
+	# moldura dourada
+	c.draw_rect(Rect2(Vector2(1, 1), tam - Vector2(2, 2)), Color(0.05, 0.04, 0.03, 0.9), false, 3.0)
+	c.draw_rect(Rect2(Vector2(3, 3), tam - Vector2(6, 6)), Color("c9a35a"), false, 1.5)
+	# título: o totem daqui e o ouro
+	var t1 := "Totem de teleporte · %s" % str(totem_de.get("nome", ""))
+	var t2 := "Você tem %d de ouro. Toque num totem aceso para viajar." % ouro
+	var wt: float = max(fonte.get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x) + 40.0
+	var rt := Rect2(Vector2(tam.x * 0.5 - wt * 0.5, 12.0), Vector2(wt, 52.0))
+	var sbt := StyleBoxFlat.new()
+	sbt.bg_color = Color(0.08, 0.06, 0.04, 0.9)
+	sbt.border_color = Color("c9a35a")
+	sbt.set_border_width_all(2)
+	sbt.set_corner_radius_all(12)
+	sbt.shadow_color = Color(0, 0, 0, 0.4)
+	sbt.shadow_size = 5
+	sbt.draw(c.get_canvas_item(), rt)
+	_texto(c, rt.position + Vector2(wt * 0.5, 18.0), t1, 20, COR_OURO, true, 4)
+	_texto(c, rt.position + Vector2(wt * 0.5, 39.0), t2, 14, Color(1, 0.96, 0.88, 0.9), true, 3)
+	# X de fechar e, ao lado, minimizar / maximizar
+	var cx := Vector2(tam.x - 26.0, 26.0)
+	botao_x = Rect2(cx - Vector2(22, 22), Vector2(44, 44))
+	c.draw_circle(cx, 15.0, Color(0.05, 0.04, 0.03, 0.85))
+	c.draw_arc(cx, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
+	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)
+	c.draw_line(cx + Vector2(6, -6), cx + Vector2(-6, 6), Color(1, 0.95, 0.85), 2.5, true)
+	var ct := Vector2(tam.x - 66.0, 26.0)
+	botao_tam = Rect2(ct - Vector2(20, 22), Vector2(40, 44))
+	c.draw_circle(ct, 15.0, Color(0.05, 0.04, 0.03, 0.85))
+	c.draw_arc(ct, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
+	var bc := Color(1, 0.95, 0.85)
+	if cheio: # minimizar: um traço embaixo
+		c.draw_line(ct + Vector2(-6, 4), ct + Vector2(6, 4), bc, 2.5, true)
+	else: # maximizar: um quadradinho
+		c.draw_rect(Rect2(ct - Vector2(6, 6), Vector2(12, 12)), bc, false, 2.0)
+	# zoom − e + embaixo (o mesmo do mapa normal)
+	var cz := Vector2(tam.x * 0.5, tam.y - 34.0)
+	var barra := Rect2(cz - Vector2(62, 22), Vector2(124, 44))
+	var sbz := StyleBoxFlat.new()
+	sbz.bg_color = Color(0.08, 0.06, 0.04, 0.88)
+	sbz.border_color = Color("c9a35a")
+	sbz.set_border_width_all(2)
+	sbz.set_corner_radius_all(22)
+	sbz.draw(c.get_canvas_item(), barra)
+	c.draw_line(cz + Vector2(0, -13), cz + Vector2(0, 13), Color("c9a35a", 0.55), 1.5, true)
+	var cm := cz + Vector2(-31, 0)
+	var cp := cz + Vector2(31, 0)
+	botao_menos = Rect2(cm - Vector2(30, 26), Vector2(60, 52))
+	botao_mais = Rect2(cp - Vector2(30, 26), Vector2(60, 52))
+	var cor_m: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo <= _z_min() + 0.01 else 1.0)
+	var cor_p: Color = Color(1, 0.95, 0.85, 0.35 if zoom_alvo >= Z_MAX - 0.01 else 1.0)
+	c.draw_line(cm + Vector2(-9, 0), cm + Vector2(9, 0), cor_m, 3.0, true)
+	c.draw_line(cp + Vector2(-9, 0), cp + Vector2(9, 0), cor_p, 3.0, true)
+	c.draw_line(cp + Vector2(0, -9), cp + Vector2(0, 9), cor_p, 3.0, true)
+	# o escolhido: botão "Teleportar" ao lado, ligado por uma linha dourada
+	botao_tp = Rect2()
+	if totem_alvo == "":
+		return
+	var alvo: Dictionary = m.totem.dados(totem_alvo)
+	if alvo.is_empty():
+		return
+	var qa: Vector2 = em.call(float(alvo.x), float(alvo.z))
+	var custo: int = m.totem.taxa(alvo)
+	var falta: int = custo - ouro
+	var b1 := "Teleportar"
+	var b2 := "%d de ouro" % custo if falta <= 0 else "Faltam %d de ouro" % falta
+	var w: float = max(fonte.get_string_size(b1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(b2, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 40.0
+	var bt := _lugar_do_botao(qa, Vector2(w, 54.0), em, Rect2(Vector2(0, 70), tam - Vector2(0, 70)))
+	botao_tp = bt.grow(8.0)
+	var borda: Vector2 = Vector2(clamp(qa.x, bt.position.x, bt.end.x), clamp(qa.y, bt.position.y, bt.end.y))
+	c.draw_line(qa + (borda - qa).normalized() * 14.0, borda, Color(0.05, 0.04, 0.03, 0.6), 3.0, true)
+	c.draw_line(qa + (borda - qa).normalized() * 14.0, borda, COR_OURO, 1.2, true)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.1, 0.14, 0.95) if falta <= 0 else Color(0.14, 0.07, 0.06, 0.95)
+	sb.border_color = Color("5ad8ff") if falta <= 0 else Color(1, 0.62, 0.55)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 6
+	sb.draw(c.get_canvas_item(), bt)
+	_texto(c, bt.position + Vector2(w * 0.5, 19.0), b1, 20, Color("9fe6ff") if falta <= 0 else Color(1, 0.8, 0.75), true, 4)
+	_texto(c, bt.position + Vector2(w * 0.5, 39.0), b2, 13, Color(1, 0.96, 0.88, 0.85) if falta <= 0 else Color(1, 0.62, 0.55), true, 3)
