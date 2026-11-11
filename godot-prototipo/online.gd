@@ -562,7 +562,7 @@ func outro(j: Dictionary) -> void:
 		if g != null:
 			o = {"no": g.no, "visual": vis, "anim": g.anim, "esq": g.esq, "espada": g.espada, "cajado": g.cajado,
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0,
-				"barra": g.barra, "placa": g.placa, "placa_txt": "", "ap": "", "lod": -1, "molas": g.get("molas", []), "fase": g.get("fase", 0)}
+				"barra": g.barra, "placa": g.placa, "placa_txt": "", "ap": "", "lod": -1, "sumiu": false, "molas": g.get("molas", []), "fase": g.get("fase", 0)}
 			g.no.position = o.alvo
 			g.no.visible = true
 			g.no.process_mode = Node.PROCESS_MODE_INHERIT
@@ -1033,6 +1033,10 @@ func evento(ev: Dictionary) -> void:
 			return
 	if meu: # o que eu fiz já apareceu na hora, aqui no celular
 		return
+	# magia dos outros longe (André 2026-11-11: os NPCs caçando juntos travavam o spot): a mais de FX_LONGE m nem desenha
+	if t in ["proj", "raio", "explosao", "chuva", "meteoro", "cadeia"] and ev.has("x") and ev.has("z") and m.heroi != null:
+		if Vector2(float(ev.x) - m.heroi.position.x, float(ev.z) - m.heroi.position.z).length() > FX_LONGE:
+			return
 	match t:
 		"proj":
 			var info := {"vel": float(ev.vel), "cor": cor(ev.get("cor")), "tam": float(ev.get("tam", 0.24)), "estilo": str(ev.get("estilo", "arcano"))}
@@ -1168,6 +1172,9 @@ func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
 # sombra, sem contorno e sem mola (como os NPCs da vila de longe), e a animação deles anda a cada 2 quadros (até
 # ANIM_LONGE m) ou 3 quadros (mais longe). O corpo do NPC que sai da visão fica guardado para voltar sem tranco.
 const DETALHE_MAX := 4
+const SOME_LONGE := 75.0 # m: mais longe que isso o corpo de outro jogador ou NPC some (fica o ponto no minimapa)
+const VISIVEIS_MAX := 24 # no máximo 24 corpos de outros na tela (os mais perto)
+const FX_LONGE := 45.0 # m: magia dos outros mais longe que isso não é desenhada (o servidor já corta a 100 m)
 const DETALHE_PERTO := 15.0
 const ANIM_LONGE := 25.0
 const GUARDADOS_MAX := 10 # corpos de NPC guardados escondidos (por corpo do criador)
@@ -1202,6 +1209,14 @@ func _detalhe_outros(dt: float) -> void:
 		var nivel := 2 if k < DETALHE_MAX and d2 < perto * perto else (1 if d2 < anim_l * anim_l else 0)
 		if nivel != int(o.get("lod", -1)):
 			_aplicar_detalhe(o, nivel)
+		# muito longe (ou além dos VISIVEIS_MAX mais perto): o corpo some e para de animar; o ponto continua no minimapa
+		var some_l: float = SOME_LONGE - (5.0 if o.get("sumiu", false) else 0.0)
+		var sumiu: bool = d2 > some_l * some_l or k >= VISIVEIS_MAX
+		if sumiu != o.get("sumiu", false):
+			o.sumiu = sumiu
+			o.no.visible = not sumiu
+			if o.get("montaria") != null and is_instance_valid(o.montaria.no):
+				o.montaria.no.visible = not sumiu
 
 func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	var antes := int(o.get("lod", -1))
@@ -1213,6 +1228,12 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 			if is_instance_valid(mo):
 				mo.active = cheio
 	o.anim_passo = [3, 2, 1][nivel]
+	# malha mais simples mais cedo (o LOD automático do Godot) para quem não está entre os mais perto
+	if antes == -1 or not o.has("malhas"):
+		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false)
+	for mi in o.malhas:
+		if is_instance_valid(mi):
+			mi.lod_bias = [0.3, 0.6, 1.0][nivel]
 	if o.anim:
 		o.anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE if cheio else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	o.anim_acc = 0.0
@@ -1285,7 +1306,7 @@ func _passo(dt: float) -> void:
 		var antes: Vector3 = o.no.position
 		_interpolar(o, o.no, dt_pos)
 		var passo: int = o.get("anim_passo", 1)
-		if passo > 1 and o.anim: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
+		if passo > 1 and o.anim and o.no.visible: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
 			o.anim_acc = float(o.get("anim_acc", 0.0)) + dt
 			if (_quadro + int(o.get("fase", 0))) % passo == 0:
 				o.anim.advance(o.anim_acc)

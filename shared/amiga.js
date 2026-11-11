@@ -19,7 +19,7 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
-import { PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
+import { HABS, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -858,12 +858,20 @@ export const Amiga = {
       const quer = escolherArma(s, c.jeito, j.modo, C);
       if (quer !== j.modo) { this.trocarModo(j.id, quer); ia.armaT = t + C.trocaMin; }
     }
-    const skill = (de, ate) => { // de vez em quando uma skill da barra da arma; false = nenhuma pronta agora
+    // de vez em quando uma skill da barra da arma; false = nenhuma pronta agora. André 2026-11-11: as MESMAS skills do
+    // jogador (HABS, barra da espada ou do cajado do NPC, usarHabQ), com o visual e o som novos; antes era o build antigo
+    const skill = () => {
       if (t < (ia.skillT || 0)) return false;
       ia.skillT = t + R.skill * (0.7 + Math.random() * 0.6);
-      const k = de + Math.floor(Math.random() * (ate - de + 1)), h = j.build[k - 1], H = h && HABILIDADES[h];
-      if (!H || (j.cds[h] || 0) > t || (H.mana && j.mana < H.mana)) return false;
-      this.usarHabilidade(j.id, k); return true;
+      const barra = j.prog.barras?.[j.modo === 'Magia' ? 'cajado' : 'espada'] || [];
+      const prontas = barra.filter((hid) => {
+        const b = HABS[hid];
+        return b && b.tipo !== 'teleporte' && (b.libera || 1) <= j.prog.nivel && (j.cds[hid] || 0) <= t && !(b.mana && j.mana < b.mana);
+      });
+      if (!prontas.length) return false;
+      const hid = prontas[Math.floor(Math.random() * prontas.length)], cd0 = j.cds[hid] || 0;
+      this.usarHabQ(j.id, hid);
+      return (j.cds[hid] || 0) !== cd0 || !!j.canal;
     };
     if (j.modo === 'Magia') {
       const [min, , max] = C.magia;
@@ -871,13 +879,13 @@ export const Amiga = {
       if (da < min && !(j.trava > 0)) { const d = da || 1; j.entrada = { mx: (j.x - alvo.x) / d, mz: (j.z - alvo.z) / d, correr: true }; return true; }
       if (da > max) return this.irDireto(j, alvo.x, alvo.z, true), true;
       this.pararAmiga(j);
-      if (!skill(5, 8)) this.usarHabilidade(j.id, 10);
+      if (!skill()) this.usarHabQ(j.id, 'cajado_basico'); // Faísca de fogo, como a do jogador
       return true;
     }
     if (da > 1.9) return this.irDireto(j, alvo.x, alvo.z, da > 4), true;
     this.pararAmiga(j);
     j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
-    if (!skill(1, 4)) this.usarHabilidade(j.id, 0);
+    if (!skill()) this.usarHabQ(j.id, 'espada_basico');
     return true;
   },
   // ---------- viagem até o dono (André 2026-11-10: "ela entra na montaria e vem até mim, não se teleporta; eu vejo ela
