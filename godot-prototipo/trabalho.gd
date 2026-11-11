@@ -513,13 +513,13 @@ func _perto_do_heroi() -> Array:
 				l.append_array(c)
 	return l
 
-# perto da oficina (forja do Tomás ou banca da Rosa)? O servidor confere a mesma distância.
+# perto da oficina? André 2026-11-11: o Tomás e a Rosa não criam mais; a oficina agora é a estação pública ao lado
+# deles (bigorna/forninho da ferraria, bancada da Rosa: construcao.gd publica_perto). O servidor confere a mesma distância.
 func perto_oficina(prof: String) -> bool:
-	var of: Dictionary = m.P.dados.oficina[prof]
-	for n in m.npcs:
-		if n.id == str(of.npc) and Vector2(n.no.position.x - m.heroi.position.x, n.no.position.z - m.heroi.position.z).length() < float(m.P.dados.oficinaDistancia) - 0.3:
-			return true
-	return false
+	if m.construcao == null:
+		return false
+	var tipos := ["bigorna", "fornalha"] if prof == "fer" else ["bancada"] if prof == "alf" else []
+	return not tipos.is_empty() and not m.construcao.publica_perto(tipos).is_empty()
 
 # botão Coletar: começa (o servidor confere e manda "coleta") ou para
 func tocar_botao() -> void:

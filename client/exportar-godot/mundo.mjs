@@ -107,6 +107,7 @@ const mundo = {
   // conferir o terreno marcado antes de mandar (a mesma conta de motivoTerreno no servidor)
   lotes: MAPA_CLAREIRA.lotes || [], vilaLotes: { nome: VILA_LOTES.nome, x: VILA_LOTES.area.x, z: VILA_LOTES.area.z,
     area: VILA_LOTES.area, estradas: [{ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas] },
+  estacoes: MAPA_CLAREIRA.estacoes || [], // estações públicas da vila (bigorna e forninho da ferraria, bancada da Rosa; 2026-11-11)
   cais: MAPA_CLAREIRA.cais || [], // FASE 3, Parte 7b: cais de madeira dos portos (andar.gd anda por cima; mundo_terreno.gd desenha)
   // FASE 3, Parte 7b: todas as vilas de terreno (a primeira é a de cima), com as estradas que o terreno não pode pegar
   vilasTerreno: VILAS_TERRENO.map((V) => ({ id: V.id, nome: V.nome, x: V.area.x, z: V.area.z, area: V.area, max: V.max, mundo: !!V.mundo, bairro: !!V.bairro,

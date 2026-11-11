@@ -1095,6 +1095,28 @@ export const MAPA_CLAREIRA = {
 };
 // árvores das baías abertas: no fim da lista (os ids das de antes não mudam)
 MAPA_CLAREIRA.mata.push(...sortearMataFrestas(MAPA_CLAREIRA.mata));
+// Estações públicas da vila (André 2026-11-11: "não criar no próprio NPC, que tá esquisito"). O Tomás e a Rosa não
+// criam mais pelo jogador: quem cria é o próprio herói, numa estação ao lado deles (e ganha o XP da profissão).
+// Ferraria do Tomás: a bigorna que já existe (terreno.js, esteio da ferraria) e um forninho novo no canto da frente
+// (fornalha de verdade: põe minério e lenha, tira as barras; cada jogador tem a sua carga). Rosa: uma bancada atrás dela.
+// lx/lz: lugar dentro da ferraria (mesma conta do terreno.js); desenho: false = o app já desenha (bigorna da ferraria).
+// Todas valem para qualquer um; a fornalha também dá barra na hora pela aba Criar (como a forja do Tomás dava).
+export const ESTACOES_PUBLICAS = (() => {
+  const F = CASAS.find((c) => c.id === 'ferraria'), cos = Math.cos(F.ry), sen = Math.sin(F.ry);
+  const naFerraria = (lx, lz) => ({ x: +(F.x + lx * cos + lz * sen).toFixed(3), z: +(F.z - lx * sen + lz * cos).toFixed(3) });
+  return [
+    { id: 'pub_bigorna', k: 'bigorna', nome: 'Bigorna da ferraria', npc: 'ferreiro', ...naFerraria(0.55, 0.15), ry: F.ry, desenho: false },
+    { id: 'pub_fornalha', k: 'fornalha', nome: 'Forninho da ferraria', npc: 'ferreiro', ...naFerraria(-1.1, 1.0), ry: F.ry, y: 0.22 }, // y: em cima do piso da ferraria (terreno.js Y0)
+    { id: 'pub_bancada', k: 'bancada', nome: 'Bancada da Rosa', npc: 'comerciante', x: -11.1, z: -9.9, ry: 0.9 },
+  ];
+})();
+MAPA_CLAREIRA.estacoes = ESTACOES_PUBLICAS;
+// as novas (a bigorna já é sólida) viram obstáculo com tampo, como as do terreno: o herói não atravessa e pode pular em cima
+for (const E of ESTACOES_PUBLICAS) {
+  if (E.desenho === false) continue;
+  const C = CONSTRUCOES[E.k], c = Math.cos(E.ry), s = Math.sin(E.ry);
+  for (const [dx, dz, r] of C.circulos) MAPA_CLAREIRA.obstaculos.push({ x: +(E.x + dx * c + dz * s).toFixed(3), z: +(E.z - dx * s + dz * c).toFixed(3), r, alto: +(C.alto + (E.y || 0)).toFixed(3) });
+}
 
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
 // As duas bases (VRoid CC0) vêm primeiro: o criador de personagem pinta cabelo, olhos, pele e roupa em cima delas.
@@ -1516,8 +1538,9 @@ export const FOGAO = {
   receitas: {},
 };
 for (const [k, R] of Object.entries(RECEITAS)) if (R.prof === 'coz') FOGAO.receitas[R.faz] = { faz: R.faz, receita: k, usa: 1, dur: FOGAO.tempo[R.faz] || 15, nivel: R.nivel, vigor: R.vigor, ing: R.usa };
-// Onde cada profissão de criação trabalha: perto do NPC dessa função (metros)
-export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na forja do Tomás' }, alf: { npc: 'comerciante', onde: 'na banca da Rosa' }, coz: { npc: '', onde: 'no seu fogão' } };
+// Onde cada profissão de criação trabalha. André 2026-11-11: o NPC não cria mais; npc = de quem é a estação pública ao
+// lado (ESTACOES_PUBLICAS), onde = o texto do lugar. OFICINA_DISTANCIA ficou para o app (era a distância do NPC).
+export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na bigorna ou no forninho da ferraria do Tomás' }, alf: { npc: 'comerciante', onde: 'na bancada ao lado da Rosa' }, coz: { npc: '', onde: 'no seu fogão' } };
 export const OFICINA_DISTANCIA = 4.5;
 // chance de subir cada raridade e até qual (André 2026-11-06: era até 2 = Épico; agora até 4 = Mítico, que só sai criando).
 // Cada degrau é um sorteio: no Nv 20 da profissão, Épico 9%, Lendário 2,7%, Mítico 0,8%.
@@ -2778,15 +2801,15 @@ export const HISTORIA = [
     pedido: 'Você aí, da estrela! A minha bigorna rachou sozinha esta noite. Sozinha! Preciso de cobre para remendar: seis minérios, do veio a leste da praça. Faça a picareta, se ainda não tem.',
     etapas: [
       { ev: 'item', k: 'minerio_cobre', de: 'coleta', n: 6, txt: 'Minere minério de cobre', alvo: 'veio:cobre' },
-      { ev: 'criar', k: 'barra_cobre', n: 2, txt: 'Funda 2 barras de cobre na forja do Tomás', alvo: 'npc:ferreiro' },
+      { ev: 'criar', k: 'barra_cobre', n: 2, txt: 'Funda 2 barras de cobre no forninho da ferraria do Tomás', alvo: 'estacao:pub_fornalha' },
       { ev: 'falar', npc: 'ferreiro', entregar: { barra_cobre: 2 }, txt: 'Entregue as 2 barras de cobre ao Tomás' },
     ],
-    pronto: 'Remendada! E olha o que tinha dentro da rachadura: uma lasca de cristal azul. Isso não é daqui. Veio do sul, de muito longe... A forja agora é sua também, e a banca da Rosa.' },
+    pronto: 'Remendada! E olha o que tinha dentro da rachadura: uma lasca de cristal azul. Isso não é daqui. Veio do sul, de muito longe... A bigorna e o forninho aqui da ferraria são seus também, e a bancada da Rosa.' },
   { id: 'a5', cap: 2, nv: 3, npc: 'comerciante', nome: 'A banca da Rosa', libera: [],
-    pedido: 'O Tomás disse que você tem mão boa. Quero ver na agulha! Traga 2 couros dos Puglins e 1 tecido dos Imps, e costure um short na minha banca.',
+    pedido: 'O Tomás disse que você tem mão boa. Quero ver na agulha! Traga 2 couros dos Puglins e 1 tecido dos Imps, e costure você mesmo um short na bancada aqui do meu lado.',
     etapas: [
       { ev: 'ter', itens: { couro: 2, tecido: 1 }, txt: 'Junte 2 couros (Puglins) e 1 tecido (Imps)', alvo: { couro: 'caca:caca1', tecido: 'caca:caca2' } },
-      { ev: 'criar', k: 'short', txt: 'Costure um short na banca da Rosa (Alfaiate)', alvo: 'npc:comerciante' },
+      { ev: 'criar', k: 'short', txt: 'Costure um short na bancada ao lado da Rosa (Alfaiate)', alvo: 'estacao:pub_bancada' },
       { ev: 'vender', txt: 'Venda qualquer coisa para a Rosa', alvo: 'npc:comerciante' },
       { ev: 'comprar', k: 'pocao', n: 3, txt: 'Compre 3 poções da Rosa', alvo: 'npc:comerciante' },
     ],
@@ -2808,10 +2831,10 @@ export const HISTORIA = [
     ],
     pronto: 'Bom couro. Se a gente fizer uma coleira de verdade, talvez dê para amansar um deles. Um lobo na estrada vale mais que dez cavalos.' },
   { id: 'a8', cap: 3, nv: 5, npc: 'andarilho', nome: 'A coleira', libera: [],
-    pedido: 'Para a coleira eu preciso de ferro: minere 3 minérios de ferro e funda uma barra na forja. Traga os couros junto.',
+    pedido: 'Para a coleira eu preciso de ferro: minere 3 minérios de ferro e funda uma barra no forninho da ferraria do Tomás. Traga os couros junto.',
     etapas: [
       { ev: 'item', k: 'minerio_ferro', de: 'coleta', n: 3, txt: 'Minere minério de ferro', alvo: 'veio:ferro' },
-      { ev: 'criar', k: 'barra_ferro', ja: 'tem', txt: 'Funda 1 barra de ferro na forja', alvo: 'npc:ferreiro' },
+      { ev: 'criar', k: 'barra_ferro', ja: 'tem', txt: 'Funda 1 barra de ferro no forninho da ferraria', alvo: 'estacao:pub_fornalha' },
       { ev: 'falar', npc: 'andarilho', entregar: { barra_ferro: 1, couro: 4 }, txt: 'Leve a barra de ferro e 4 couros ao Bento' },
     ],
     pronto: 'Coleira pronta. Agora vem a parte difícil: o alfa da matilha. Ele só sai à noite.' },
@@ -2872,7 +2895,7 @@ export const HISTORIA = [
     recebe: { selo_raro: 1 },
     etapas: [
       { ev: 'destruir', txt: 'Destrua uma peça velha (Mochila > peça > Destruir)' },
-      { ev: 'evoluir', min: 1, txt: 'Evolua uma peça para Rara (Forja > Evoluir)', alvo: 'npc:ferreiro' },
+      { ev: 'evoluir', min: 1, txt: 'Evolua uma peça para Rara na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
       { ev: 'reforcar', n: 2, txt: 'Reforce uma peça com sucesso (Mochila > peça > Reforçar)' },
     ],
     pronto: 'Agora sim você está pronto para o que vem. Toma outro Selo Raro, de reserva.',
@@ -2982,9 +3005,9 @@ export const HISTORIA = [
   { id: 'b9', cap: 8, nv: 28, npc: 'ferreiro', nome: 'Prontos para a caçada', libera: [],
     pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +6. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca.',
     etapas: [
-      { ev: 'evoluir', min: 2, txt: 'Evolua uma peça para Épica (Forja > Evoluir)', alvo: 'npc:ferreiro' },
+      { ev: 'evoluir', min: 2, txt: 'Evolua uma peça para Épica na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
       { ev: 'reforcar', min: 6, txt: 'Reforce uma peça até +6 (Mochila > peça > Reforçar)' },
-      { ev: 'criar', k: 'colar', ja: 'tem', txt: 'Forje um Colar de Estrela na bigorna', alvo: 'npc:ferreiro' },
+      { ev: 'criar', k: 'colar', ja: 'tem', txt: 'Forje um Colar de Estrela na bigorna da ferraria', alvo: 'estacao:pub_bigorna' },
       { ev: 'ter', itens: { ensopado: 3 }, txt: 'Leve 3 Ensopados de carne na mochila (fogão)', alvo: 'lote' },
     ],
     pronto: 'Agora sim você tem cara de caçador. O Aldo está montando a caçada ao Warrok. Vá com ele.' },

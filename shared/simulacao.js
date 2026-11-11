@@ -1058,6 +1058,7 @@ export class Simulacao {
       }
       const [tipo, id] = a.split(':');
       if (tipo === 'npc') return npcEm(id);
+      if (tipo === 'estacao') { const E = (this.mapa.estacoes || []).find((o) => o.id === id); return E ? { x: r2(E.x), z: r2(E.z), nome: E.nome, npc: '', estacao: E.id } : null; }
       if (tipo === 'caca') { const c = this.cacaDef(id); return c ? { x: c.x, z: c.z, nome: c.nome || 'o campo', npc: '' } : null; }
       if (tipo === 'veio' || a === 'solto') {
         const tipos = a === 'solto' ? ['galho', 'pedrinha'] : [id];
@@ -2338,10 +2339,11 @@ export class Simulacao {
   // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
   motivoReceita(j, R) {
     const p = j.prog;
-    const of = OFICINA[R.prof], npc0 = (this.mapa.npcs || []).find((n) => n.id === of.npc);
-    // na oficina do NPC ou perto da estação certa construída num lote (bigorna, fornalha ou bancada)
-    const npc = npc0 && dist(npc0, j) <= OFICINA_DISTANCIA ? npc0 : this.estacaoPerto(j, R);
-    if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? `Crie ${of.onde} ou perto da fornalha do seu terreno` : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    const of = OFICINA[R.prof];
+    // perto da estação certa: a pública da vila (André 2026-11-11: o NPC não cria mais, quem cria é o herói na bigorna,
+    // no forninho ou na bancada ao lado dele) ou uma construída num lote (bigorna, fornalha ou bancada)
+    const npc = this.estacaoPerto(j, R);
+    if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? 'Funda no forninho da ferraria do Tomás ou na fornalha do seu terreno' : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
     if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     { // progressão (André 2026-11-10): Ferreiro e Alfaiate depois da missão do Tomás; cada receita e cada evolução no seu nível
       const lib = (R.prof === 'fer' || R.prof === 'alf') && motivoLibera(p, 'forja') || (R.r ? motivoLibera(p, 'evoluir', R.r) : motivoLibera(p, 'receita', R.faz));
@@ -2390,6 +2392,8 @@ export class Simulacao {
   // estação construída (bigorna, fornalha, bancada) perto do jogador que serve para a receita: {x, z} ou null
   estacaoPerto(j, R) {
     const k = RECEITA_ESTACAO(R);
+    // as públicas da vila (bigorna e forninho da ferraria, bancada da Rosa): qualquer um usa
+    for (const E of this.mapa.estacoes || []) if (E.k === k && dist(E, j) <= LOTE.estacaoDist + 0.6) return E;
     // fornalha e fogão (André 2026-11-07): só os do próprio terreno, porque o dono deixa coisa dentro; bancada e bigorna valem em qualquer terreno
     for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && ((k !== 'fornalha' && k !== 'fogao') || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
@@ -2924,6 +2928,7 @@ export class Simulacao {
   forno(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if ((this.mapa.estacoes || []).some((E) => E.k === 'fornalha' && E.id === String(m.p))) return this.fornoPublico(j, m);
     const L = this.loteDe(j); if (!L) return aviso('Só dá para usar a fornalha e o fogão do seu terreno');
     const peca = L.pecas.find((o) => (o.k === 'fornalha' || o.k === 'fogao') && o.id === String(m.p));
     const fogao = !!peca && peca.k === 'fogao', C = fogao ? FOGAO : FORNALHA;
@@ -2931,6 +2936,25 @@ export class Simulacao {
     if (!L.fornos) L.fornos = {};
     const F = L.fornos[peca.id] || (L.fornos[peca.id] = fornoVazio());
     if (avancarForno(F, Date.now(), C)) this.lotesMudados.add(L.def.id);
+    if (!this.mexerForno(j, F, C, fogao, m)) return;
+    if (m.acao !== 'abrir') this.lotesMudados.add(L.def.id);
+    this.evento({ t: 'forno', para: id, p: peca.id, tipo: peca.k, abrir: m.acao === 'abrir', ...this.dadosForno(F, C) });
+    if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
+  }
+  // forninho público da ferraria (André 2026-11-11): a mesma fornalha, mas cada jogador tem a sua carga (prog.fornosPub)
+  fornoPublico(j, m) {
+    const E = this.mapa.estacoes.find((o) => o.id === String(m.p)), p = j.prog;
+    if (dist(E, j) > LOTE.estacaoDist + 0.6) return this.evento({ t: 'aviso', para: j.id, texto: `Chegue perto do ${E.nome.toLowerCase()}` });
+    if (!p.fornosPub || typeof p.fornosPub !== 'object') p.fornosPub = {};
+    const F = p.fornosPub[E.id] = fornoValido(p.fornosPub[E.id]);
+    avancarForno(F, Date.now(), FORNALHA);
+    if (!this.mexerForno(j, F, FORNALHA, false, m)) return;
+    this.evento({ t: 'forno', para: j.id, p: E.id, tipo: 'fornalha', abrir: m.acao === 'abrir', ...this.dadosForno(F, FORNALHA) });
+    if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
+  }
+  // pôr ou tirar da fornalha ou do fogão F (o do terreno ou o público); false = não mexeu (o aviso já foi)
+  mexerForno(j, F, C, fogao, m) {
+    const aviso = (texto) => this.evento({ t: 'aviso', para: j.id, texto });
     const p = j.prog, lugar = m.lugar;
     if (m.acao === 'por' && fogao && lugar === 'ent') {
       const R = C.receitas[m.r]; if (!R) return aviso('Esse prato não se faz no fogão');
@@ -2977,10 +3001,9 @@ export class Simulacao {
         aviso(`Pegou ${ITENS[o.k].nome} x${o.n}`);
         this.historia(j, 'criar', { k: o.k, n: o.n });
       }
-    } else if (m.acao !== 'abrir') return;
-    if (m.acao !== 'abrir') { avancarForno(F, Date.now(), C); this.lotesMudados.add(L.def.id); }
-    this.evento({ t: 'forno', para: id, p: peca.id, tipo: peca.k, abrir: m.acao === 'abrir', ...this.dadosForno(F, C) });
-    if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
+    } else if (m.acao !== 'abrir') return false;
+    if (m.acao !== 'abrir') avancarForno(F, Date.now(), C);
+    return true;
   }
   // o que o celular mostra (dur e fogoMax para as barrinhas andarem sozinhas até a próxima conta)
   dadosForno(F, C = FORNALHA) {
