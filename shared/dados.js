@@ -2454,7 +2454,7 @@ export const NPC_VIDA = {
 // jeitos: coragem (0 a 1), cuidado com os outros (0 a 1) e gosto pelo cajado (0 a 1) de cada NPC.
 // regras: { id, pri, quando: [[sentido, op, valor]], faca, por, texto } (o mesmo formato das dicas que vão virar regra).
 export const CEREBRO = {
-  pensar: 4, trocaMin: 6, trocar: 0.5, ficar: 0.4, longe: 6, magia: [4.5, 7, 10], recuar: 0.9, preparoPerto: 3.2, agrupados: 3.5,
+  pensar: 4, trocaMin: 6, trocar: 0.5, ficar: 0.4, longe: 6, magia: [4.5, 7, 8.5], basicoCd: 0.9, recuar: 0.9, preparoPerto: 3.2, agrupados: 3.5,
   jeitos: {
     cecilia: { coragem: 0.75, cuidado: 0.5, cajado: 0.25 }, // brincalhona e corajosa: espada na cara
     dario: { coragem: 0.6, cuidado: 0.85, cajado: 0.35 }, // calmo e leal: protege quem está apanhando
@@ -2521,6 +2521,15 @@ export const CEREBRO = {
   },
   // max: dicas por NPC (passou, sai a mais velha). pri: prioridade que a dica ganha (acima de atacar e de proteger, abaixo
   // da poção; o resto das regras fica no meio). por: segundos que dura a ação (recuar, trocar arma). texto: letras da frase.
+  // skills: as mesmas do jogador (as do Quimera, HABS em shared/progresso.js, André 2026-11-11: "é pra deixar igual ao
+  // que eu uso"). As barras do NPC: as da espada e do cajado do padrão, com a Cura da Floresta no lugar do Abraço do Vórtice
+  // e do Salto Arcano (ele não usa joystick). Cada skill só sai a partir do nível dela (libera), como para o jogador.
+  // basicoCd (acima): s entre dois ataques básicos do NPC (o jogador pode a cada 0,5 s; com 20 NPCs isso enchia a tela de
+  // Faísca e pesava no celular).
+  barras: {
+    espada: ['corte_duplo', 'giro', 'golpe_esmagador', 'pisao_sismico', 'investida', 'cura_floresta'],
+    cajado: ['bola_fogo', 'anel_chamas', 'cura_floresta', 'meteoro', 'nova_gelo', 'raio_cadeia'],
+  },
   dicas: { max: 12, pri: 88, priMin: 55, priMax: 99, por: [0.3, 8], porPadrao: 1.2, texto: 90, condicoes: 4 },
   falas: {
     aprendeu: 'Beleza, anotado! Agora eu vou {regra}.',
