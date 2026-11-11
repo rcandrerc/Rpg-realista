@@ -19,7 +19,7 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
-import { PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
+import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -109,6 +109,7 @@ export const Amiga = {
         j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; j.prog.ouro += 25 * n;
       }
       if (!j.prog.equip.cajado) j.prog.equip.cajado = { k: 'cajado', r: this.AMIGA.justa.raridade }; // espada E cajado, como todo herói
+      for (const b of ['espada', 'cajado']) j.prog.barras[b] = barraValida(CEREBRO.barras[b], b) || j.prog.barras[b]; // as skills novas, como o jogador
       const ferr = this.AMIGA.atividades?.[this.AMIGA.gosto]?.ferramenta; // quem gosta de pescar/minerar/lenha já tem a ferramenta
       if (!this.AMIGA.terreno && ferr && rotinaDe(this.AMIGA.id).coleta > 0 && contar(j.prog.mochila, ferr) < 1) guardar(j.prog.mochila, { k: ferr, n: 1 });
       this.offlineAmiga(j, salvo.t); // o tempo em que ninguém estava no jogo (devagar, sem passar do jogador mais alto)
@@ -736,7 +737,7 @@ export const Amiga = {
     s.vida = j.vida / j.vidaMax; s.mana = j.mana / (j.manaMax || 1);
     s.temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
     s.pocaoPronta = (ia.pocaoT || 0) <= t && (j.pocaoAte?.pocao || 0) <= t;
-    s.curaPronta = (j.cds.cura || 0) <= t && j.mana >= CURA.mana && !(j.trava > 0);
+    s.curaPronta = this.habOkAmiga(j, 'cura_floresta') && !(j.trava > 0); // Cura da Floresta (a do jogador, libera no Nv 6)
     const inimigos = this.inimigosDe(j);
     // aliados do time (o dono e os outros amigos): o mais machucado e quem está apanhando
     const aliados = (j.time?.membros || [dono.id]).filter((k) => k !== j.id).map((k) => this.jogadores.get(k)).filter((o) => o && !o.morto);
@@ -784,16 +785,16 @@ export const Amiga = {
         if (i >= 0) { ia.pocaoT = t + 2; this.item(j.id, { acao: 'usar', i }); }
         ia.cer = null; ia.cerT = t; return false;
       }
-      if (c?.faca === 'curarSi') { ia.cer = null; this.pararAmiga(j); this.usarHabilidade(j.id, 9); return true; }
+      if (c?.faca === 'curarSi') { ia.cer = null; this.pararAmiga(j); this.usarHabQ(j.id, 'cura_floresta'); return true; }
     }
     if (!c) return false;
     const achar = (id) => this.inimigos.find((e) => e.id === id && !e.morto);
     if (c.faca === 'curarAliado') {
       const o = this.jogadores.get(c.aliado);
-      if (!o || o.morto || !((j.cds.cura || 0) <= t && j.mana >= CURA.mana)) { ia.cer = null; return false; }
+      if (!o || o.morto || !this.habOkAmiga(j, 'cura_floresta')) { ia.cer = null; return false; }
       const d = Math.hypot(o.x - j.x, o.z - j.z);
-      if (d > (CURA.timeR || 8) - 1) return this.irDireto(j, o.x, o.z, true), true;
-      this.pararAmiga(j); ia.cer = null; this.usarHabilidade(j.id, 9); return true;
+      if (d > (HABS.cura_floresta.grupo || 8) - 1) return this.irDireto(j, o.x, o.z, true), true;
+      this.pararAmiga(j); ia.cer = null; this.usarHabQ(j.id, 'cura_floresta'); return true;
     }
     if (c.faca === 'fugir' || c.faca === 'naoAtacar') return false; // o seguir leva para perto do dono
     if (c.faca === 'recuar') {
@@ -846,10 +847,29 @@ export const Amiga = {
     a.ia.regrasOrd = null; this.guardarAmiga();
     this.dizerAmiga(CEREBRO.falas.esqueci, false, id);
   },
-  // ataque com a arma da situação (sem classe: o estilo é a arma). Espada: colada no monstro, golpe e skills 1 a 4.
-  // Cajado: fica a CEREBRO.magia m, se afasta quando ele chega perto, Disparo e skills 5 a 8 quando tem mana.
+  // a skill nova (HABS) dá para usar agora? nível, barra, recarga e mana, igual ao botão do jogador
+  habOkAmiga(j, hid) {
+    const B = HABS[hid]; if (!B || B.libera > (j.prog.nivel | 0) || j.canal) return false;
+    if (!B.basico && !['espada', 'cajado'].some((b) => j.prog.barras?.[b]?.includes(hid))) return false;
+    if ((j.cds[hid] || 0) > this.tempo) return false;
+    const h = this.habPronta(j, hid); return !(h.mana && j.mana < h.mana);
+  },
+  // a skill da barra da arma na mão que combina com a situação (área quando tem vários perto; avanço quando está longe)
+  escolherSkillAmiga(j, alvo, da, c) {
+    const barra = j.modo === 'Magia' ? 'cajado' : 'espada', perto = c?.s?.pertoDeMim || 0, juntos = c?.s?.agrupados || 0;
+    const peso = { corte_duplo: 2, giro: perto >= 2 ? 4 : 0.5, golpe_esmagador: 2, pisao_sismico: perto >= 2 ? 4 : 0.5, investida: da > 3 && da < 9 ? 4 : 0.3,
+      bola_fogo: 3, anel_chamas: da < 4.5 || perto >= 2 ? 4 : 0, meteoro: juntos >= 2 ? 4 : 1.5, nova_gelo: da < 5.5 ? (perto >= 2 ? 4 : 1) : 0, raio_cadeia: juntos >= 2 ? 4 : 1 };
+    const l = (j.prog.barras?.[barra] || []).filter((k) => k && peso[k] > 0 && this.habOkAmiga(j, k));
+    let soma = l.reduce((a, k) => a + peso[k], 0), r = Math.random() * soma;
+    for (const k of l) { r -= peso[k]; if (r <= 0) return k; }
+    return null;
+  },
+  // ataque com a arma da situação (sem classe: o estilo é a arma). Usa as skills novas do jogador (HABS: Ataque de espada,
+  // Faísca, Bola de Fogo, Meteoro...), com o mesmo efeito e o mesmo som. Espada: colada no monstro. Cajado: fica a
+  // CEREBRO.magia m, se afasta quando ele chega perto, Faísca e as skills da barra do cajado quando tem mana.
   atacarAmiga(j, alvo, c) {
     const C = CEREBRO, R = this.AMIGA.time, ia = j.ia, t = this.tempo;
+    if (j.canal) return this.pararAmiga(j), true; // concentrando a magia: fica parado até sair
     const da = Math.hypot(alvo.x - j.x, alvo.z - j.z);
     const forcada = ia.armaForcada?.ate > t ? ia.armaForcada.modo : null; // dica: "usa o cajado no chefe"
     if (forcada) { if (j.modo !== forcada) { this.trocarModo(j.id, forcada); ia.armaT = t + C.trocaMin; } }
@@ -858,12 +878,12 @@ export const Amiga = {
       const quer = escolherArma(s, c.jeito, j.modo, C);
       if (quer !== j.modo) { this.trocarModo(j.id, quer); ia.armaT = t + C.trocaMin; }
     }
-    const skill = (de, ate) => { // de vez em quando uma skill da barra da arma; false = nenhuma pronta agora
+    const skill = () => { // de vez em quando uma skill da barra da arma; false = nenhuma pronta agora
       if (t < (ia.skillT || 0)) return false;
       ia.skillT = t + R.skill * (0.7 + Math.random() * 0.6);
-      const k = de + Math.floor(Math.random() * (ate - de + 1)), h = j.build[k - 1], H = h && HABILIDADES[h];
-      if (!H || (j.cds[h] || 0) > t || (H.mana && j.mana < H.mana)) return false;
-      this.usarHabilidade(j.id, k); return true;
+      const k = this.escolherSkillAmiga(j, alvo, Math.hypot(alvo.x - j.x, alvo.z - j.z), c);
+      if (!k) return false;
+      this.usarHabQ(j.id, k); return true;
     };
     if (j.modo === 'Magia') {
       const [min, , max] = C.magia;
@@ -871,13 +891,13 @@ export const Amiga = {
       if (da < min && !(j.trava > 0)) { const d = da || 1; j.entrada = { mx: (j.x - alvo.x) / d, mz: (j.z - alvo.z) / d, correr: true }; return true; }
       if (da > max) return this.irDireto(j, alvo.x, alvo.z, true), true;
       this.pararAmiga(j);
-      if (!skill(5, 8)) this.usarHabilidade(j.id, 10);
+      if (!skill() && t >= (ia.basicoT || 0)) { ia.basicoT = t + C.basicoCd; this.usarHabQ(j.id, 'cajado_basico'); }
       return true;
     }
     if (da > 1.9) return this.irDireto(j, alvo.x, alvo.z, da > 4), true;
     this.pararAmiga(j);
     j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
-    if (!skill(1, 4)) this.usarHabilidade(j.id, 0);
+    if (!skill() && t >= (ia.basicoT || 0)) { ia.basicoT = t + C.basicoCd; this.usarHabQ(j.id, 'espada_basico'); }
     return true;
   },
   // ---------- viagem até o dono (André 2026-11-10: "ela entra na montaria e vem até mim, não se teleporta; eu vejo ela
