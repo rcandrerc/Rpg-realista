@@ -2109,11 +2109,11 @@
  "oficina": {
   "fer": {
    "npc": "ferreiro",
-   "onde": "na forja do Tomás"
+   "onde": "na bigorna ou no forninho da ferraria do Tomás"
   },
   "alf": {
    "npc": "comerciante",
-   "onde": "na banca da Rosa"
+   "onde": "na bancada ao lado da Rosa"
   },
   "coz": {
    "npc": "",
@@ -20120,7 +20120,7 @@
     "total": 3,
     "etapas": [
      "Minere minério de cobre",
-     "Funda 2 barras de cobre na forja do Tomás",
+     "Funda 2 barras de cobre no forninho da ferraria do Tomás",
      "Entregue as 2 barras de cobre ao Tomás"
     ]
    },
@@ -20136,7 +20136,7 @@
     "total": 5,
     "etapas": [
      "Junte 2 couros (Puglins) e 1 tecido (Imps)",
-     "Costure um short na banca da Rosa (Alfaiate)",
+     "Costure um short na bancada ao lado da Rosa (Alfaiate)",
      "Venda qualquer coisa para a Rosa",
      "Compre 3 poções da Rosa",
      "Volte e fale com Rosa"
@@ -20186,7 +20186,7 @@
     "total": 3,
     "etapas": [
      "Minere minério de ferro",
-     "Funda 1 barra de ferro na forja",
+     "Funda 1 barra de ferro no forninho da ferraria",
      "Leve a barra de ferro e 4 couros ao Bento"
     ]
    },
@@ -20307,7 +20307,7 @@
     "total": 4,
     "etapas": [
      "Destrua uma peça velha (Mochila > peça > Destruir)",
-     "Evolua uma peça para Rara (Forja > Evoluir)",
+     "Evolua uma peça para Rara na bigorna da ferraria (Criar > Evoluir)",
      "Reforce uma peça com sucesso (Mochila > peça > Reforçar)",
      "Volte e fale com Tomás"
     ]
@@ -20493,9 +20493,9 @@
     "liberaNaEtapa": -1,
     "total": 5,
     "etapas": [
-     "Evolua uma peça para Épica (Forja > Evoluir)",
+     "Evolua uma peça para Épica na bigorna da ferraria (Criar > Evoluir)",
      "Reforce uma peça até +6 (Mochila > peça > Reforçar)",
-     "Forje um Colar de Estrela na bigorna",
+     "Forje um Colar de Estrela na bigorna da ferraria",
      "Leve 3 Ensopados de carne na mochila (fogão)",
      "Volte e fale com Tomás"
     ]

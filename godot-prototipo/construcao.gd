@@ -168,6 +168,7 @@ func _ready() -> void:
 	_mat_ok = _mat_fantasma(Color(0.43, 1.0, 0.54, 0.45))
 	_mat_nao = _mat_fantasma(Color(1.0, 0.35, 0.29, 0.45))
 	_carregar_modelos()
+	_estacoes_publicas.call_deferred()
 	plano = FazendaPlano.new(self)
 	add_child(plano)
 	_montar_tela()
@@ -590,6 +591,73 @@ func _copia(k: String) -> Node3D:
 	var n: Node3D = _modelos[k].duplicate()
 	n.visible = true
 	return n
+
+# ---------- estações públicas da vila (André 2026-11-11: "não criar no próprio NPC, que tá esquisito") ----------
+# O Tomás e a Rosa não criam mais: o herói cria na bigorna e no forninho da ferraria e na bancada ao lado da Rosa
+# (shared/dados.js ESTACOES_PUBLICAS, mundo.json "estacoes"). Funcionam como as peças do terreno: o botão da estação
+# aparece perto, toca e o herói vai até o lado. A bigorna já é desenhada com a ferraria (desenho: false).
+var publicas: Array = []
+
+func _estacoes_publicas() -> void:
+	publicas = []
+	for e in m.mundo.get("estacoes", []):
+		var p := {"id": str(e.id), "k": str(e.k), "x": float(e.x), "z": float(e.z), "ry": float(e.get("ry", 0.0)), "r": 0,
+			"nome": str(e.get("nome", "")), "npc": str(e.get("npc", "")), "publica": true}
+		publicas.append(p)
+		if e.get("desenho", true) == false or not _modelos.has(p.k):
+			continue
+		var n := _copia(p.k)
+		n.name = "Publica_" + p.id
+		add_child(n)
+		n.position = Vector3(p.x, _chao_publica(p.x, p.z), p.z)
+		n.rotation.y = p.ry
+
+# chão da estação pública: o piso de pedra da ferraria conta, o telhado dela não (_chao pegaria o alto do telhado)
+func _chao_publica(x: float, z: float) -> float:
+	var h := 0.0
+	for r in m.terreno.solidos_em(x, z):
+		var a: float = m.terreno.altura_na(r, x, z, 0.0)
+		if a > h and a < 0.6:
+			h = a
+	return h
+
+# a pública de um desses tipos perto do herói (mesma distância do servidor) ou {}
+func publica_perto(tipos: Array) -> Dictionary:
+	if m.heroi == null:
+		return {}
+	var hp: Vector3 = m.heroi.position
+	var melhor := {}
+	var dm := float(D.lote.estacaoDist) + 0.3
+	for p in publicas:
+		var d := Vector2(p.x - hp.x, p.z - hp.z).length()
+		if p.k in tipos and d < dm:
+			dm = d
+			melhor = p
+	return melhor
+
+# "Forja" do Tomás ou "Bancada" da Rosa na conversa: o herói vai até a estação pública e ela abre (quem cria é ele)
+func ir_publica(prof: String) -> void:
+	if m.heroi == null:
+		return
+	var tipos := ["bigorna"] if prof == "fer" else ["bancada"]
+	var alvos := []
+	for p in publicas:
+		if p.k in tipos:
+			alvos.append(p)
+	if alvos.is_empty():
+		m.menu.abrir("profissoes", prof)
+		return
+	var p0: Dictionary = _mais_perta(alvos)
+	if _colado(p0):
+		_indo_estacao = {}
+		_abrir_estacao("bancada", p0)
+		return
+	var ida := _rota_ate([p0])
+	if ida.is_empty():
+		m.hud.aviso("%s fica logo ali, do lado" % p0.nome)
+		return
+	_indo_estacao = {"qual": "bancada", "id": str(p0.id)}
+	m.rota.ir(ida.r, "", 0.7)
 
 # ---------- terrenos: nascem quando alguém compra (o servidor manda o retângulo) ----------
 func _lote_novo(id: String, ret: Array) -> Dictionary:
@@ -2167,6 +2235,8 @@ func estacao_perto(tipos: Array) -> bool:
 	if m.heroi == null:
 		return false
 	var hp: Vector3 = m.heroi.position
+	if not publica_perto(tipos).is_empty(): # bigorna, forninho e bancada públicos da vila (2026-11-11)
+		return true
 	for id in lotes:
 		for p in lotes[id].pecas:
 			if p.k == "fogao" and id != meu: # fogão (2026-11-07): só o do meu terreno, como no servidor
@@ -2443,6 +2513,10 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	var correio := _meu_correio_perto() and prof == ""
 	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
 	_mostrar_estacao("bancada", com_mesa and vivo and not livre)
+	# estação pública (bigorna da ferraria, bancada da Rosa): o botão aparece mesmo com as estações recolhidas
+	var pub_mesa := publica_perto(["bancada", "bigorna"])
+	if not pub_mesa.is_empty() and vivo and not livre:
+		m.hud.mostrar_botao("bancada", true)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
 	elif not mesa_minha.is_empty():
@@ -2451,7 +2525,11 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	# fornalha e fogão (2026-11-07) dividem o botão: o ícone é o da minha mais perto
 	var fornos_meus := _pecas_minhas(["fornalha", "fogao"])
 	_mostrar_estacao("forno", ((no_meu and not fornos_meus.is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
-	if not fornos_meus.is_empty():
+	var pub_forno := publica_perto(["fornalha"]) # o forninho da ferraria (2026-11-11): cada um com a sua carga
+	if not pub_forno.is_empty() and vivo and not livre:
+		m.hud.mostrar_botao("forno", true)
+		m.hud.icone_botao("forno", "cs_fornalha")
+	elif not fornos_meus.is_empty():
 		m.hud.icone_botao("forno", "cs_fogao" if _mais_perta(fornos_meus).k == "fogao" else "cs_fornalha")
 	_mostrar_estacao("correio", correio and vivo and not livre)
 	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
@@ -3812,9 +3890,9 @@ const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "fornalh
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
-	var a: float = p.r * PI / 2.0
-	var c := roundi(cos(a))
-	var s := roundi(sin(a))
+	var a: float = float(p.ry) if p.has("ry") else p.r * PI / 2.0 # as públicas têm o giro livre (ry)
+	var c: float = cos(a) if p.has("ry") else float(roundi(cos(a)))
+	var s: float = sin(a) if p.has("ry") else float(roundi(sin(a)))
 	var l := []
 	for q in D.construcoes[p.k].circulos:
 		l.append(Vector3(p.x + float(q[0]) * c + float(q[1]) * s, p.z - float(q[0]) * s + float(q[1]) * c, float(q[2])))
@@ -3866,9 +3944,13 @@ func _colado(p) -> bool:
 # as peças que o botão serve: baú e fornalha só as minhas; a mesa também a de outro terreno (como antes)
 func _alvos_estacao(qual: String) -> Array:
 	var tipos: Array = TIPOS_ESTACAO.get(qual, [])
+	var pub := []
+	for p in publicas:
+		if p.k in tipos:
+			pub.append(p)
 	if qual != "bancada":
-		return _pecas_minhas(tipos)
-	var l := []
+		return _pecas_minhas(tipos) + pub
+	var l := pub.duplicate()
 	for id in lotes:
 		for p in lotes[id].pecas:
 			if p.k in tipos:
@@ -3956,6 +4038,13 @@ func _rota_ate(alvos: Array) -> Dictionary:
 			for cz in range(maxi(c0.y, 0), mini(c1.y, n.y - 1) + 1):
 				if (lo + Vector2(cx, cz) * GRADE_IR).distance_to(Vector2(o.x, o.z)) < r:
 					g.set_point_solid(Vector2i(cx, cz), true)
+	for pp in publicas: # as estações públicas (não estão em mov.extras: são obstáculos do mundo.json)
+		for o: Vector3 in _circulos_peca(pp):
+			var r: float = o.z + FOLGA_IR
+			for cx in range(maxi(floori((o.x - r - lo.x) / GRADE_IR), 0), mini(ceili((o.x + r - lo.x) / GRADE_IR), n.x - 1) + 1):
+				for cz in range(maxi(floori((o.y - r - lo.y) / GRADE_IR), 0), mini(ceili((o.y + r - lo.y) / GRADE_IR), n.y - 1) + 1):
+					if (lo + Vector2(cx, cz) * GRADE_IR).distance_to(Vector2(o.x, o.y)) < r:
+						g.set_point_solid(Vector2i(cx, cz), true)
 	var ch := Vector2i(roundi((h.x - lo.x) / GRADE_IR), roundi((h.y - lo.y) / GRADE_IR))
 	g.set_point_solid(ch, false)
 	var melhor := {}
@@ -3987,11 +4076,17 @@ func _rota_ate(alvos: Array) -> Dictionary:
 # ---------- fornalha (2026-11-07: "o forno tá igual uma mesa de craft"): combustível, material e o que ficou pronto ----------
 # A conta é do servidor (shared/simulacao.js avancarForno) e segue mesmo com você longe; aqui só mostra e anda as barrinhas.
 func minha_fornalha_perto() -> String:
-	if meu == "" or not lotes.has(meu) or m.heroi == null:
+	if m.heroi == null:
 		return ""
 	var hp: Vector3 = m.heroi.position
 	var melhor := ""
 	var dm := float(D.lote.estacaoDist) + 0.4
+	var pub := publica_perto(["fornalha"]) # o forninho público da ferraria também (cada um com a sua carga)
+	if not pub.is_empty():
+		melhor = str(pub.id)
+		dm = Vector2(pub.x - hp.x, pub.z - hp.z).length()
+	if meu == "" or not lotes.has(meu):
+		return melhor
 	for p in lotes[meu].pecas:
 		if p.k == "fornalha" or p.k == "fogao":
 			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
