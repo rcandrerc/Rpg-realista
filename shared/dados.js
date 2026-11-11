@@ -2357,8 +2357,61 @@ export const DARIO = mesclarAmigo(AMIGA, {
     },
   },
 });
+// Os 20 aventureiros (André 2026-11-11, lista aprovada em "Os 22 NPCs do Aethra"): iguais à Cecília e ao Dario por dentro
+// (cérebro, memória, dicas, conversa, time, troca), cada um com o seu jeito e a sua cara. Mesmo padrão do criador de
+// personagem: moças no corpo da Ruiva e rapazes no cabelo_m; muda só penteado, cores, altura (André 2026-11-11). Sem
+// terreno (terreno: null): moram na vila do nível deles (NPC_VIDA.moradia) e o progresso vai para o banco (tabela mundo).
+// [id, nome, g, penteado, cabelo, olhos, pele, roupa, calça, altura, nível inicial, gosto, jeito]
+const AV = [
+  ['lia', 'Lia Brasa', 'f', null, 0xa8401c, 0x3d8a4a, 0xf3cdb0, 0xa8322c, 0x222226, 0.97, 3, 'cacar', 'impulsiva e risonha, a primeira a pular na briga, caça sem parar'],
+  ['tome', 'Tomé Pedreira', 'm', null, 0x6b4429, 0x6b3f22, 0xc68a62, 0x6b4a2e, 0x5a4632, 0.94, 5, 'minerar', 'teimoso e trabalhador, fala pouco e vive na mina'],
+  ['nara', 'Nara do Vale', 'f', 'shino', 0x3f7a4a, 0x6b3f22, 0xe2ad88, 0x4a5a32, 0x4a5a32, 1, 2, 'cacar', 'calma e observadora, curandeira de coração, gosta de plantar e colher ervas'],
+  ['ravi', 'Ravi Lenhador', 'm', null, 0x1c1a1f, 0x6b3f22, 0x6e4530, 0x7a7c80, 0x222226, 1.08, 6, 'lenha', 'brincalhão e fortão, conta vantagem das árvores que derrubou'],
+  ['isolda', 'Isolda Vane', 'f', 'victoria', 0x9a9894, 0x3a6fd0, 0xffe6d6, 0x24345c, 0x2a3a5a, 1.07, 14, 'cacar', 'séria e orgulhosa, maga estudiosa que corrige os outros'],
+  ['bia', 'Bia Anzol', 'f', 'vivi', 0xd9799a, 0xe0b030, 0xf3cdb0, 0xf0eee8, 0x2a3a5a, 0.95, 4, 'pescar', 'tagarela e otimista, pescadora de coração que vende peixe para todo mundo'],
+  ['caio', 'Caio Rocha', 'm', 'fumiriya', 0xd9b36c, 0x8a96a0, 0xffe6d6, 0x4a5a32, 0x3c3a52, 1.02, 9, 'cacar', 'cauteloso e estrategista, odeia arriscar à toa, bom de equipe'],
+  ['maya', 'Maya Corvo', 'f', 'shibu_sombrio', 0x1c1a1f, 0x7a4ac0, 0xffe6d6, 0x222226, 0x222226, 1, 16, 'cacar', 'misteriosa e irônica, gosta de caçar sozinha à noite'],
+  ['jonas', 'Jonas Ferro', 'm', null, 0xa8401c, 0x6b3f22, 0xf3cdb0, 0x6e1e2a, 0x5a4632, 1.05, 11, 'minerar', 'ferreiro aventureiro, rabugento mas generoso, conserta as coisas dos amigos'],
+  ['lune', 'Lune Orvalho', 'f', 'vita', 0x2f4f9c, 0x3a6fd0, 0xffe6d6, 0x7aa6d0, 0xe8e2d4, 0.92, 1, 'cacar', 'tímida e doce, morre de medo de chefe, prefere magia de longe'],
+  ['breno', 'Breno Galope', 'm', 'fumiriya', 0x6b4429, 0xb07a2a, 0xe2ad88, 0x7aa6d0, 0x2a3a5a, 1.03, 12, 'cacar', 'aventureiro viajante, adora estrada e montaria, está sempre de passagem'],
+  ['helena', 'Helena Torre', 'f', null, 0xe9e4d8, 0x8a96a0, 0xf3cdb0, 0x7a7c80, 0x3c3a52, 1.08, 20, 'cacar', 'veterana disciplinada que dá conselhos sem pedir; chefe é com ela'],
+  ['pipo', 'Pipo Moeda', 'm', null, 0xd9b36c, 0x3d8a4a, 0xffe6d6, 0x6b4a2e, 0x5a4632, 0.92, 7, 'cacar', 'comerciante esperto, vende tudo e vive negociando preço'],
+  ['sora', 'Sora Vento', 'f', 'shibu', 0xd9b36c, 0x3d8a4a, 0xf3cdb0, 0x4a5a32, 0x4a5a32, 0.98, 8, 'cacar', 'alegre e veloz, vive correndo de um canto para outro'],
+  ['ulisses', 'Ulisses Grave', 'm', null, 0x9a9894, 0x6b3f22, 0x996344, 0x222226, 0x222226, 1.08, 18, 'cacar', 'velho guerreiro filosófico, de poucas palavras e frases fortes'],
+  ['mel', 'Mel Colmeia', 'f', 'vivi', 0x6b4429, 0x6b3f22, 0xe2ad88, 0x6b4a2e, 0x5a4632, 0.96, 2, 'pescar', 'caseira e carinhosa, adora horta e cozinhar para os amigos'],
+  ['theo', 'Theo Faísca', 'm', 'fumiriya', 0x9c1c24, 0x7a4ac0, 0xf3cdb0, 0xa8322c, 0x222226, 1, 13, 'cacar', 'mago metido e engraçado, adora explosão e magia de área'],
+  ['ayla', 'Ayla Pena', 'f', 'shino', 0x5b3a8a, 0xc02a2a, 0xffe6d6, 0x5a3a7a, 0x3c3a52, 1, 10, 'minerar', 'curiosa e sonhadora, explora cavernas atrás de minério raro'],
+  ['gael', 'Gael Lobo', 'm', null, 0x1c1a1f, 0xe0b030, 0xc68a62, 0x7a7c80, 0x222226, 1.04, 15, 'cacar', 'caçador frio e eficiente, competitivo, não gosta de perder drop'],
+  ['rosamar', 'Rosa-Mar', 'f', 'vita', 0xa8401c, 0x3a6fd0, 0xf3cdb0, 0x24345c, 0xe8e2d4, 1, 9, 'pescar', 'marinheira animada, ama o mar e adora contar histórias'],
+];
+export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele, roupa, calca, altura, nivel, gosto, jeito]) => mesclarAmigo(g === 'm' ? DARIO : AMIGA, {
+  id, nome, conta: 'a:' + id, papel: g === 'm' ? 'o aventureiro' : 'a aventureira', genero: g,
+  persona: `${g === 'm' ? 'um aventureiro' : 'uma aventureira'} de anime num RPG medieval de fantasia: ${jeito}`,
+  visual: g === 'm' ? 'cabelo_m' : 'ruiva', aparencia: { cabelo, olhos, pele, roupa, calca, altura, penteado }, // penteado null = o cabelo do próprio corpo
+  terreno: null, nivelInicial: nivel, gosto,
+}));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
-export const AMIGOS_VIRTUAIS = [AMIGA, DARIO];
+export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
+
+// Vida própria dos NPCs (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais). Fora do time cada um sai
+// para caçar no campo do nível dele, volta para a vila para vender, consertar e comprar poção, e de noite fica na vila.
+// moradia: a vila de cada faixa de nível (André: começam na vila inicial e mudam conforme evoluem: Porto de Vael no Nv 50
+// e Aurora, a vila grande, no Nv 100); x, z = o ponto de encontro, r = espalhamento. aventura: chance (Cecília e Dario,
+// que têm casa: quando a casa e a horta estão em dia), caçar (s no campo), campoAcima (campo até N níveis acima do NPC),
+// mobAcima (só bate em monstro até N níveis acima), raio (m em volta do campo), mochilaLivre (vagas livres para voltar e
+// vender), descanso (s na vila), sem chefe nem boss de mundo sozinho.
+// offline (André 2026-11-11, "ganham XP devagar e nunca passam do nível do jogador mais alto do servidor"): ao voltar
+// para o mundo, cada hora fora conta como horasPorDia/24 h jogadas; cada hora jogada dá porHora do XP do próximo nível,
+// dividido por (1 + nível/meio). No máximo maxDias dias.
+export const NPC_VIDA = {
+  moradia: [
+    { nivel: 1, nome: 'a vila', x: -3.5, z: -7, r: 9 },
+    { nivel: 50, nome: 'Porto de Vael', x: 92, z: 318, r: 16 },
+    { nivel: 100, nome: 'Aurora', x: 200, z: 1085, r: 30 },
+  ],
+  aventura: { chance: 0.6, cacar: [240, 600], campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 120] },
+  offline: { horasPorDia: 1.5, porHora: 0.6, meio: 20, maxDias: 14 },
+};
 
 // Cérebro por regras dos NPCs (André 2026-11-11, estilo bots do WoW; motor em shared/cerebro.js). Por enquanto só no
 // combate da Cecília e do Dario no time. pensar: decisões por segundo. trocaMin: s entre trocas de arma. trocar/ficar:
@@ -2372,6 +2425,27 @@ export const CEREBRO = {
   jeitos: {
     cecilia: { coragem: 0.75, cuidado: 0.5, cajado: 0.25 }, // brincalhona e corajosa: espada na cara
     dario: { coragem: 0.6, cuidado: 0.85, cajado: 0.35 }, // calmo e leal: protege quem está apanhando
+    // os 20 aventureiros (lista aprovada pelo André 2026-11-11)
+    lia: { coragem: 0.9, cuidado: 0.3, cajado: 0.2 },
+    tome: { coragem: 0.7, cuidado: 0.6, cajado: 0.1 },
+    nara: { coragem: 0.4, cuidado: 1, cajado: 0.8 },
+    ravi: { coragem: 0.8, cuidado: 0.5, cajado: 0.1 },
+    isolda: { coragem: 0.5, cuidado: 0.4, cajado: 1 },
+    bia: { coragem: 0.4, cuidado: 0.7, cajado: 0.4 },
+    caio: { coragem: 0.3, cuidado: 0.8, cajado: 0.5 },
+    maya: { coragem: 0.7, cuidado: 0.2, cajado: 0.7 },
+    jonas: { coragem: 0.6, cuidado: 0.7, cajado: 0.1 },
+    lune: { coragem: 0.2, cuidado: 0.8, cajado: 0.9 },
+    breno: { coragem: 0.7, cuidado: 0.5, cajado: 0.3 },
+    helena: { coragem: 0.9, cuidado: 0.7, cajado: 0.4 },
+    pipo: { coragem: 0.3, cuidado: 0.3, cajado: 0.4 },
+    sora: { coragem: 0.6, cuidado: 0.5, cajado: 0.6 },
+    ulisses: { coragem: 0.8, cuidado: 0.6, cajado: 0.2 },
+    mel: { coragem: 0.3, cuidado: 0.9, cajado: 0.5 },
+    theo: { coragem: 0.6, cuidado: 0.3, cajado: 1 },
+    ayla: { coragem: 0.6, cuidado: 0.5, cajado: 0.6 },
+    gael: { coragem: 0.8, cuidado: 0.3, cajado: 0.2 },
+    rosamar: { coragem: 0.5, cuidado: 0.6, cajado: 0.5 },
     padrao: { coragem: 0.5, cuidado: 0.5, cajado: 0.3 },
   },
   regras: [

@@ -212,6 +212,13 @@ export class Contas {
 
   // ---------- Vila dos Lotes ----------
   // todos os lotes guardados (formato de Simulacao.carregarLotes)
+  // o nível do jogador mais alto do servidor (André 2026-11-11: os NPCs nunca passam dele)
+  // null (sem teto) se não deu para ler: melhor sem teto do que todos parados no Nv 1
+  nivelMaisAlto() {
+    try { return this.db.prepare("SELECT MAX(CAST(json_extract(progresso, '$.nivel') AS INTEGER)) AS n FROM contas WHERE progresso IS NOT NULL").get()?.n || null; } catch {
+      try { let n = 0; for (const r of this.db.prepare('SELECT progresso FROM contas WHERE progresso IS NOT NULL').all()) { try { n = Math.max(n, JSON.parse(r.progresso)?.nivel | 0); } catch { /* conta com progresso estragado */ } } return n || null; } catch { return null; }
+    }
+  }
   lerMundo(chave) { try { const r = this.db.prepare('SELECT valor FROM mundo WHERE chave = ?').get(chave); return r ? JSON.parse(r.valor) : null; } catch { return null; } }
   gravarMundo(chave, valor) { this.db.prepare('INSERT INTO mundo (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, JSON.stringify(valor)); }
   lotes() { return this.q.lotes.all().map(linhaLote); }

@@ -17,6 +17,9 @@ export const VISAO = {
   jogadorEntra: 120, // outros jogadores aparecem de mais longe (são poucos e chamam mais atenção)
   jogadorSai: 135,
   maxJogadores: 30, // multidão (cidade cheia): só os 30 mais perto aparecem; o resto fica no mapa
+  // NPCs (André 2026-11-11: 22 vivendo no mundo; Poco X7 e celulares mais fracos): aparecem de mais perto e no máximo os
+  // maxBots mais perto ficam com corpo na tela (cada corpo VRoid pesa); o resto continua no mapa e no minimapa
+  botEntra: 70, botSai: 80, maxBots: 10,
   meiaVelocidade: 40, // m: corpo mais longe que isso atualiza 10 vezes por segundo em vez de 20 (o app desliza entre as fotos)
   evento: 100, // efeito, número de dano e magia mais longe que isso não vão (ninguém veria)
   mapaCada: 10, // a cada 10 fotos (0,5 s) vai a lista leve de onde está todo mundo (mapa grande e minimapa)
@@ -93,12 +96,19 @@ export class Visao {
     };
     const js = [];
     let perto = [];
+    const bots = [];
     for (const o of ctx.jogadores) {
       if (o.c.id === id) { js.push(JSON.stringify(o.c)); continue; } // eu: tudo (recargas, missões, mana...)
       if (o.fora) continue;
-      const d2 = dentro(o, VISAO.jogadorEntra, VISAO.jogadorSai);
-      if (d2 >= 0) perto.push([viu.has(o.c.id) ? d2 * 0.8 : d2, o, d2]); else viu.delete(o.c.id);
+      const bot = !!o.c.bot, d2 = bot ? dentro(o, VISAO.botEntra, VISAO.botSai) : dentro(o, VISAO.jogadorEntra, VISAO.jogadorSai);
+      if (d2 >= 0) (bot ? bots : perto).push([viu.has(o.c.id) ? d2 * 0.8 : d2, o, d2]); else viu.delete(o.c.id);
     }
+    if (bots.length > VISAO.maxBots) { // muitos NPCs juntos (a vila de noite): só os mais perto ganham corpo
+      bots.sort((a, b) => a[0] - b[0]);
+      for (let k = VISAO.maxBots; k < bots.length; k++) viu.delete(bots[k][1].c.id);
+      bots.length = VISAO.maxBots;
+    }
+    perto.push(...bots);
     if (perto.length > VISAO.maxJogadores) { // multidão: os mais perto (quem já estava na tela tem um pouco de preferência)
       perto.sort((a, b) => a[0] - b[0]);
       for (let k = VISAO.maxJogadores; k < perto.length; k++) viu.delete(perto[k][1].c.id);
