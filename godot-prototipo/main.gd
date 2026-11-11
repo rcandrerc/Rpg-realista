@@ -251,6 +251,10 @@ var _q_fim := 0
 var q_ms := {"quadro": 0.0, "fisica": 0.0, "logica": 0.0, "desenho": 0.0, "espera": 0.0}
 var soma_q := {}
 var _sem_gente := [] # etapa "Sem personagens": [nó, estava visível]
+var _desligados_teste := [] # etapas "Sem interface", "Herói sem animação", "Sem monstros": [objeto, propriedade, valor de antes]
+var _tela_teste: CanvasLayer
+var _rotulo_t := 0.0
+var ms_main := 0.0 # tempo do _process do main por quadro (média), aparece no Teste
 var rotulo: Label
 var botao_teste: Button
 const ESPERA := 2.5
@@ -2984,6 +2988,11 @@ func _notification(what: int) -> void:
 			volta.guardar(true)
 
 func _process(dt: float) -> void:
+	var t0_main := Time.get_ticks_usec()
+	_passo_main(dt)
+	ms_main = lerp(ms_main, (Time.get_ticks_usec() - t0_main) / 1000.0, 0.05)
+
+func _passo_main(dt: float) -> void:
 	if not _a_criar.is_empty():
 		criar_aos_poucos()
 	LodMalha.passo() # LOD das malhas montadas no jogo, aos poucos e na linha de fundo
@@ -4163,6 +4172,7 @@ func montar_teste() -> void:
 	var tela := CanvasLayer.new()
 	tela.layer = 2
 	add_child(tela)
+	_tela_teste = tela
 	rotulo = Label.new()
 	rotulo.add_theme_font_size_override("font_size", 15)
 	rotulo.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
@@ -4195,6 +4205,9 @@ func montar_teste() -> void:
 		{"nome": "Sem mato alto", "f": func(): mato.visible = false},
 		{"nome": "Sem personagens", "f": func(): _esconder_gente(true)},
 		{"nome": "Sem limite de FPS", "f": func(): Engine.max_fps = 0},
+		{"nome": "Sem interface", "f": func(): _teste_desligar("interface")},
+		{"nome": "Herói sem animação", "f": func(): _teste_desligar("heroi")},
+		{"nome": "Sem monstros", "f": func(): _teste_desligar("monstros")},
 	]
 	get_tree().physics_frame.connect(_q_fisica)
 	get_tree().process_frame.connect(_q_logica)
@@ -4223,6 +4236,37 @@ func _q_fechar() -> void:
 				soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
 	_q_fim = agora
 	_q_fis = 0
+
+# etapas do Teste que desligam uma parte do jogo para ver quanto ela pesa no celular (restaurar() devolve tudo)
+func _teste_guardar(o: Object, prop: String, v) -> void:
+	_desligados_teste.append([o, prop, o.get(prop)])
+	o.set(prop, v)
+
+func _teste_desligar(qual: String) -> void:
+	match qual:
+		"interface": # as telas da HUD, do menu, do minimapa e do chat (fica só a do Teste)
+			for c in get_tree().root.find_children("*", "CanvasLayer", true, false):
+				if c != _tela_teste and c.visible:
+					_teste_guardar(c, "visible", false)
+		"heroi": # animação e ajustes de osso do herói (ele congela na pose; a capa fica dura)
+			for a in heroi.find_children("*", "AnimationMixer", true, false):
+				if a.active:
+					_teste_guardar(a, "active", false)
+			for mo in heroi.find_children("*", "SkeletonModifier3D", true, false):
+				if mo.active:
+					_teste_guardar(mo, "active", false)
+		"monstros":
+			for e in inimigos:
+				if is_instance_valid(e.no):
+					_teste_guardar(e.no, "visible", false)
+					_teste_guardar(e.no, "process_mode", Node.PROCESS_MODE_DISABLED)
+
+func _teste_religar() -> void:
+	for i in range(_desligados_teste.size() - 1, -1, -1):
+		var d: Array = _desligados_teste[i]
+		if is_instance_valid(d[0]):
+			d[0].set(d[1], d[2])
+	_desligados_teste.clear()
 
 # etapa do Teste: esconde os outros corpos (NPCs da vila, jogadores e bots) para ver quanto eles pesam
 func _esconder_gente(v: bool) -> void:
@@ -4271,6 +4315,7 @@ func restaurar() -> void:
 	mato.visible = true
 	mostrar_extras(false)
 	_esconder_gente(false)
+	_teste_religar()
 	if grafico:
 		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
@@ -4304,7 +4349,7 @@ func atualizar_teste(dt: float) -> void:
 		txt += " · ping %d ms" % online.rede.ping_ms
 	if online:
 		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
-		txt += " · mato %.1f ms · capas %.1f ms" % [mato.ms if mato else 0.0, Armadura.PanoCapa.ms_quadro] # auditoria de FPS 2026-11-11
+		txt += " · mato %.1f ms · capas %.1f ms · main %.1f ms" % [mato.ms if mato else 0.0, Armadura.PanoCapa.ms_quadro, ms_main] # auditoria de FPS 2026-11-11
 	txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
@@ -4322,5 +4367,9 @@ func atualizar_teste(dt: float) -> void:
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
-	if rotulo.text != txt: # trocar o texto refaz a letra toda (caro no celular): só quando mudou (FPS, 2026-11-07)
+	# trocar o texto refaz a letra toda (caro no celular): só quando mudou (FPS, 2026-11-07) e no máximo 4 vezes por
+	# segundo (auditoria 2026-11-11: os números do Teste mudam todo quadro, e o próprio Teste pesava na lógica)
+	_rotulo_t -= dt
+	if rotulo.text != txt and _rotulo_t <= 0.0:
 		rotulo.text = txt
+		_rotulo_t = 0.25
