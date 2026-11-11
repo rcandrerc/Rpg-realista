@@ -3045,7 +3045,9 @@ func _process(dt: float) -> void:
 	# André 2026-11-07: a música não corta enquanto um monstro perto ainda está na luta (preparando golpe, perseguindo)
 	var luta_musica: bool = hud.em_combate or (musica.lutando and luta_perto()) # só segura a luta que já começou
 	musica.combate(luta_musica, dt_real, luta_musica and (luta_com_chefe() or na_masmorra()))
-	var barra: Array = barra_atual()
+	# FPS (auditoria 2026-11-11): recargas a cada 2 quadros; poções e o botão Falar a cada 6 (mudam devagar)
+	var q_hud := Engine.get_process_frames()
+	var barra: Array = barra_atual() if q_hud % 2 == 0 else []
 	for i in barra.size():
 		var k = barra[i]
 		hud.recarga("hab%d" % i, recargas.get(k, 0.0) if k != null else 0.0, P.hab_nivel(k).cd * (1 - P.st.recarga) if k != null else 1.0)
@@ -3054,7 +3056,8 @@ func _process(dt: float) -> void:
 	hud.canal_vila = volta.ativo()
 	if volta.ativo():
 		hud.canal_vila_txt = volta.texto()
-	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
+	if q_hud % 6 == 0:
+		hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
 	# lobo: o botão só aparece depois da missão que amansa o lobo (André 2026-11-11: "tira o botão de montaria enquanto
 	# não tiver liberado"). Montado continua aparecendo, para poder descer.
 	hud.mostrar_botao("montar", montaria != null or nevoa == null or nevoa.liberado("lobo", true)) # estrito: queda de conexão não abre
@@ -3066,7 +3069,8 @@ func _process(dt: float) -> void:
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
 	for k in ["pocao", "pocao_mana"]:
 		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
-		hud.contagem(k, P.contar(k))
+		if q_hud % 6 == 0:
+			hud.contagem(k, P.contar(k))
 	hud.recarga("dash", recargas.get("dash", 0.0), D.MOVIMENTO.dash_cd)
 	hud.recarga("rolar", recargas.get("rolar", 0.0), D.HEROI.rolar_cd)
 	atualizar_teste(dt)
@@ -3475,6 +3479,10 @@ func lod_inimigos() -> void:
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)
 			pecinhas_de_perto(n.no)
+	# FPS (auditoria 2026-11-11): a lista dos monstros perto é refeita a cada 4 quadros (são centenas no mapa; um
+	# monstro que chega a LONGE_INIMIGO entra na lista no máximo 3 quadros depois)
+	if Engine.get_process_frames() % 4 != 0 and not inimigos_perto.is_empty():
+		return
 	inimigos_perto.clear()
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO

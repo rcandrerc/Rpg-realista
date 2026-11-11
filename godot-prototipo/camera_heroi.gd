@@ -119,6 +119,12 @@ func afundar(q: float) -> void:
 	_afunda_v -= q * 1.6
 
 # dt de verdade (sem câmera lenta do hitstop): a câmera não congela junto com o golpe
+var _livre_v := 0.0
+var _livre_foco := Vector3(INF, INF, INF)
+var _livre_dir := Vector3.ZERO
+var _livre_ate := 0.0
+var _livre_t := 0.0
+
 func atualizar(dt: float, giro: Vector2) -> void:
 	_t += dt
 	# dedo: acumula e solta aos poucos
@@ -177,7 +183,17 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		_vel_alvo = Vector3.ZERO
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
-	var livre: float = max(DIST_MIN, m.distancia_livre(foco_base, dir_cam, dist + MONTADO_AFASTA * _montado_k, true))
+	# FPS (auditoria 2026-11-11): a conta de parede (passos ao longo da linha da câmera) só é refeita quando o foco,
+	# a direção ou a distância mudaram, ou a cada 0,25 s (árvore caiu, parede nova); parado, ela custava todo quadro
+	var ate_l: float = dist + MONTADO_AFASTA * _montado_k
+	_livre_t -= dt
+	if _livre_t <= 0.0 or foco_base.distance_squared_to(_livre_foco) > 0.0001 or dir_cam.dot(_livre_dir) < 0.99999 or absf(ate_l - _livre_ate) > 0.005:
+		_livre_v = m.distancia_livre(foco_base, dir_cam, ate_l, true)
+		_livre_foco = foco_base
+		_livre_dir = dir_cam
+		_livre_ate = ate_l
+		_livre_t = 0.25
+	var livre: float = max(DIST_MIN, _livre_v)
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
 	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
 	# muito perto (parede atrás): sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado

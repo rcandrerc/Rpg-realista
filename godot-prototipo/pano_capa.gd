@@ -38,7 +38,7 @@ var _mat: ShaderMaterial
 # as OUTRAS_MAX capas de NPC ou outro jogador mais perto da câmera (até OUTRAS_PERTO m). As outras ficam na forma de
 # descanso presa no peito (a mesma que já valia longe, a mais de 30 m), sem conta nenhuma por quadro.
 # Quem é "outro" vem marcado no corpo (meta "pano_outro": online.gd e os NPCs da vila no main.gd).
-const OUTRAS_MAX := 2
+const OUTRAS_MAX := 0 # FPS (auditoria 2026-11-11, André aprovou NPCs mais leves): no celular cada pano custava ~1,3 ms; só o do herói balança
 const OUTRAS_PERTO := 10.0
 static var _quadro := -1
 static var _cand := {} # capas de outros que pediram pano neste quadro: id -> distância da câmera
