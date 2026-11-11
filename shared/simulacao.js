@@ -7,7 +7,7 @@ import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCAL
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE } from './dados.js';
+import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
@@ -289,7 +289,7 @@ export class Simulacao {
     this.jogadores = new Map();
     this.amiga = null; this.amigaDono = null; this.amigaFalam = new Set(); // Cecília (shared/amiga.js): o corpo dela, quem ela acompanha e quem pode conversar
     this.AMIGA = AMIGA; // a definição dela (dados.js); os outros amigos virtuais (Dario, André 2026-11-11) são contextos com os próprios campos
-    this.amigosIa = [this, ...AMIGOS_VIRTUAIS.filter((d) => d !== AMIGA).map((d) => contextoDeAmigo(this, d))];
+    this.amigosIa = [this, ...AMIGOS_VIRTUAIS.filter((d) => d !== AMIGA && npcNoMundo(d)).map((d) => contextoDeAmigo(this, d))];
     this.inimigos = [];
     this.projeteis = [];
     this.campos = [];

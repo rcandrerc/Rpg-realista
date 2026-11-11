@@ -3,6 +3,7 @@
 // de Fogo, Meteoro, Nova de Gelo, Cura da Floresta... e nunca as antigas (build/HABILIDADES/usarHabilidade).
 // Uso: node ferramentas/testes/npc-skills.mjs
 import { Simulacao, MAPA_CLAREIRA, HABS } from '../../shared/index.js';
+import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 const s = new Simulacao(MAPA_CLAREIRA);

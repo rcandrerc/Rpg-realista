@@ -4,6 +4,7 @@
 // Uso: node ferramentas/testes/rotinas.mjs
 import { Simulacao, MAPA_CLAREIRA, NPC_VIDA, ITENS } from '../../shared/index.js';
 import { rotinaDe, naHoraDe } from '../../shared/amiga.js';
+import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 const ids = Object.keys(NPC_VIDA.rotina).filter((k) => k !== 'padrao');
