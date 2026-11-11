@@ -1038,7 +1038,18 @@ func modelo(id: String) -> Node3D:
 const NPC_LONGE := 45.0 # m: NPC da vila mais longe que isso some (era 70, o mesmo dos monstros)
 const NPC_DETALHE := 10.0 # André 2026-11-11: era 15 (NPCs mais leves, celular mediano)
 const NPC_DETALHE_SAI := 12.0 # volta a ter detalhe só abaixo de 10 m, sai acima de 12 m (não pisca no limite)
+const NPC_ANIM_LONGE := 25.0 # m: NPC da vila mais longe que isso anima a cada 3 quadros (perto disso, a cada 2)
 static var _mat_nada: ShaderMaterial
+# FPS (auditoria 2026-11-11, Teste no celular): cada corpo humano custava quase 1 ms do processador por quadro, mesmo
+# longe. Longe do herói, a animação E os ajustes de osso (molas do cabelo e da saia, mão fechada, ombro do ferreiro,
+# capa) passam a andar só quando o jogo manda (advance), a cada 2 ou 3 quadros. Antes o esqueleto refazia todos os
+# ossos todo quadro só porque tinha um modificador, mesmo com a animação espaçada. Perto (e o herói) fica igual.
+static func anim_espacada(anim: AnimationPlayer, esq: Skeleton3D, espacar: bool) -> void:
+	if anim:
+		anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL if espacar else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+	if esq:
+		esq.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL if espacar else Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
+
 static func npc_simples(no: Node, simples: bool) -> void:
 	if _mat_nada == null:
 		var sh := Shader.new()
@@ -3445,6 +3456,21 @@ func lod_inimigos() -> void:
 		if meio_n != n.get("simples", false):
 			n.simples = meio_n
 			npc_simples(n.no, meio_n)
+			if not n.has("anim_p"):
+				n.anim_p = n.no.find_child("AnimationPlayer", true, false)
+				n.esq_p = esqueleto(n.no)
+				n.fase = npcs.find(n)
+			anim_espacada(n.anim_p, n.esq_p, meio_n)
+			n.anim_acc = 0.0
+		# FPS (auditoria 2026-11-11): longe do herói, o NPC anima a cada 2 quadros (a 25 m, a cada 3), no mesmo tempo total
+		if meio_n and not longe_n and n.get("anim_p") != null:
+			n.anim_acc = float(n.get("anim_acc", 0.0)) + get_process_delta_time()
+			var passo_n: int = 3 if dn > NPC_ANIM_LONGE * NPC_ANIM_LONGE else 2
+			if (Engine.get_process_frames() + int(n.fase)) % passo_n == 0:
+				n.anim_p.advance(n.anim_acc)
+				if n.esq_p:
+					n.esq_p.advance(n.anim_acc)
+				n.anim_acc = 0.0
 		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)
