@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, nomeValido } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, nomeValido } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -145,7 +145,7 @@ class SalaClareira extends Room {
       contas.salvarChaveIa(conta.id, chave);
       conta.ia = true;
       this.entrarAmiga(c);
-      aviso(`Pronto! Agora você pode conversar com ${AMIGOS_VIRTUAIS.map((d) => d.nome).join(' e ')}`);
+      aviso(`Pronto! Agora você pode conversar com ${AMIGOS_VIRTUAIS.filter(npcNoMundo).map((d) => d.nome).join(' e ')}`);
     });
     // as falas da Cecília no chat entram no histórico (quem volta ao jogo vê a conversa) e vão para o dono
     this.sim.aoChatAmiga = (msg) => { const h = historicoChat[msg.canal] || historicoChat.pm; h.push(msg); if (h.length > (msg.canal === 'pm' ? CHAT.historicoPm : CHAT.historico)) h.shift(); this.sim.receberChat(msg); }; // no privado ou no time

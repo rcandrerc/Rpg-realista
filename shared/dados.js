@@ -2392,6 +2392,10 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
+// Quantos aventureiros andam no mundo agora (André 2026-11-11: o ping foi a 29 mil com os 20; "diminui pra 4 e vai
+// aumentando aos poucos"). A lista inteira continua acima; para aumentar é só pôr mais ids aqui (null = todos os 20).
+export const NPCS_NO_MUNDO = { aventureiros: ['lia', 'tome', 'ravi', 'bia'] }; // caça, mina, lenha e pesca
+export const npcNoMundo = (d) => !AVENTUREIROS.includes(d) || NPCS_NO_MUNDO.aventureiros == null || NPCS_NO_MUNDO.aventureiros.includes(d.id);
 
 // Vida própria dos NPCs (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais). Fora do time cada um sai
 // para caçar no campo do nível dele, volta para a vila para vender, consertar e comprar poção, e de noite fica na vila.

@@ -3,6 +3,7 @@
 // nunca passam do jogador mais alto do servidor, e ganham XP devagar no tempo em que ninguém jogou.
 // Uso: node ferramentas/testes/aventureiros.mjs
 import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, CEREBRO, NPC_VIDA, CRIADOR, aparenciaValida } from '../../shared/index.js';
+import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 ok(AVENTUREIROS.length === 20 && AMIGOS_VIRTUAIS.length === 22, '20 aventureiros + Cecília e Dario');
@@ -80,4 +81,12 @@ ok(bia.amiga && bia.amigaDono == null, 'quem tinha a chave saiu: ela continua vi
   const lista = msg.foto?.jogadores || [];
   const nBots = lista.filter((o) => s4.jogadores.get(o.id)?.bot).length;
   ok(nBots === VISAO.maxBots && lista.some((o) => o.id === 'eu'), `22 NPCs na praça: o celular recebe ${nBots} corpos (máximo ${VISAO.maxBots})`);
+}
+// André 2026-11-11 (ping de 29 mil): no jogo andam só os aventureiros de NPCS_NO_MUNDO; a lista dos 20 continua guardada
+{
+  NPCS_NO_MUNDO.aventureiros = ['lia', 'tome', 'ravi', 'bia'];
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const ids = s5.amigosIa.map((x) => x.AMIGA.id);
+  ok(ids.length === 6 && ['cecilia', 'dario', 'lia', 'tome', 'ravi', 'bia'].every((id) => ids.includes(id)) && AVENTUREIROS.length === 20, `no mundo só ${ids.join(', ')}; a lista dos 20 fica guardada`);
+  NPCS_NO_MUNDO.aventureiros = null;
 }
