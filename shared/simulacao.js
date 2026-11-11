@@ -279,6 +279,9 @@ export function naCais(mapa, x, z) {
   return null;
 }
 
+// quem bateu no NPC por último (aprender com a morte, shared/amiga.js): só o que importa, sem segurar o monstro
+const golpeDe = (e) => ({ tipo: e.tipo, nivel: e.nivel || 1, hc: e.hc || null, bm: !!e.bm });
+
 export class Simulacao {
   constructor(mapa) {
     this.mapa = mapa;
@@ -3282,6 +3285,7 @@ export class Simulacao {
     if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
     if (alvo.tipo === 'jogador' && alvo.veiculo === 'carrinho') n = this.golpeNoCarrinho(alvo, n); // Quimera: o carrinho apanha por você
     alvo.vida = Math.max(0, alvo.vida - n);
+    if (alvo.bot && de && de.tipo !== 'jogador') alvo.golpeDe = golpeDe(de); // NPC: quem bateu por último (aprender com a morte)
     if (alvo.hc && CHEFES_HISTORIA[alvo.hc]?.foge && alvo.vida <= alvo.vidaMax * CHEFES_HISTORIA[alvo.hc].foge) { // duelo que para no meio
       if (de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
       return this.fugirChefe(alvo);
@@ -3986,6 +3990,7 @@ export class Simulacao {
   feridaDot(j, d) {
     if (j.morto || naAreaSegura(j.x, j.z)) return;
     j.vida = Math.max(0, j.vida - d.n); j.combateAte = this.tempo + ESTAMINA.combate;
+    if (j.bot && d.de && d.de.tipo !== 'jogador') j.golpeDe = golpeDe(d.de);
     this.evento({ t: 'dano', alvo: j.id, n: d.n, dot: d.k });
     if (j.vida <= 0) this.morrer(j);
   }
