@@ -266,6 +266,9 @@ export function consertarTudo(p) {
 export function penalidadeMorte(p) {
   const ouro = Math.floor((p.ouro || 0) * MORTE.ouro);
   p.ouro = (p.ouro || 0) - ouro;
+  // André 2026-11-11: "5% da XP atual, do nível atual": só do que já juntou neste nível, então nunca desce de nível
+  const xp = Math.floor(Math.max(0, p.xp || 0) * (MORTE.xp || 0));
+  p.xp = Math.max(0, (p.xp || 0) - xp);
   const quebrou = [];
   for (const l of LUGARES) {
     const it = p.equip?.[l]; if (!it || !ehEquip(it.k)) continue;
@@ -274,7 +277,7 @@ export function penalidadeMorte(p) {
     it.d = Math.max(0, antes - MORTE.desgaste);
     if (it.d === 0) quebrou.push(nomeItem(it));
   }
-  return { ouro, quebrou };
+  return { ouro, xp, quebrou };
 }
 // ---------- reforço de equipamento (igual ao Quimera; REFORCO em shared/dados.js, André 2026-11-07) ----------
 // multiplicador dos números da peça pelo reforço (+0 = 1)
