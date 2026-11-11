@@ -3914,6 +3914,8 @@ func atualizar_inimigos(dt: float) -> void:
 		var d := ate.length()
 		if totem and totem.seguro(heroi.position): # área segura do totem: o monstro não persegue nem acerta
 			d = 999.0
+		if cinematica and cinematica.ativa: # vendo uma cena da história: o monstro deixa o herói em paz (como no servidor)
+			d = 999.0
 		var dy: float = abs(heroi.position.y - no.position.y)
 		if e.golpe >= 0.0: # corte em andamento: preparo devagar, depois acerta perto da metade (como no servidor)
 			e.golpe += dt

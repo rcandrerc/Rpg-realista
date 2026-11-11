@@ -2543,7 +2543,7 @@ export const CENAS = {
   diario: { nome: 'O diário do condutor', tomadas: [
     { d: 3.8, rel: 'heroi', de: { p: [6, 4, 6], o: [0, 0.8, 0] }, para: { p: [4, 3, 7], o: [0, 0.8, 0] }, fala: ['', 'Junto com o peixe, sobe uma caixa da carroça da Rosa.'] },
     { d: 3.4, rel: 'heroi', de: { p: [0.6, 1.3, 1.3], o: [0, 1.0, 0] }, para: { p: [0.5, 1.25, 1.1], o: [0, 1.0, 0] }, fala: ['', 'Dentro, um caderno encharcado: o diário do condutor.'] },
-    { d: 4.8, rel: 'heroi', de: { p: [0.22, 1.4, 0.95], o: [0, 1.25, 0] }, para: { p: [0.16, 1.4, 0.82], o: [0, 1.25, 0] }, fala: ['{nome}', '"Eles abriram caminho até a montanha. O selo de lá vai ser o primeiro a cair."'] },
+    { d: 4.8, rel: 'heroi', de: { p: [0.5, 1.55, 1.5], o: [0, 1.3, 0] }, para: { p: [0.4, 1.55, 1.3], o: [0, 1.3, 0] }, fala: ['{nome}', '"Eles abriram caminho até a montanha. O selo de lá vai ser o primeiro a cair."'] },
     { d: 3.0, rel: 'heroi', de: { p: [-2, 3, 4], o: [0, 0.6, 0] }, para: { p: [-3, 5, 6], o: [0, 0.5, 0] }, fala: ['{nome}', 'Selo...?'] },
   ] },
   memoria1: { nome: 'Memória: a mulher de cabelo prateado', tomadas: [
