@@ -1,22 +1,15 @@
 // Progressão até o Nv 100 (André 2026-11-10): missões principais em ordem (HISTORIA), zonas fechadas pela névoa
 // (ZONAS) e o que abre por nível (LIBERA_NIVEL). Os dados ficam em shared/dados.js; aqui só as contas, que o servidor
 // (shared/simulacao.js) usa para decidir e o exportador manda para o app (habilidades.json, chave "historia").
-import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, CACA, TOTENS } from './dados.js';
+import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA } from './dados.js';
 import { LUGARES_MUNDO, TERRAS, dentroDaTerra } from './mundo.js';
 
-// círculos de cada zona: { x, z, r } já com a folga (os veios do mundo perto de um campo da zona entram junto)
+// as zonas como o servidor e o app usam: região (polígono), terra inteira ou o selo da caverna
 export const ZONAS_GEO = ZONAS.map((Z) => {
-  const circulos = [];
-  for (const id of Z.circulos || []) {
-    const c = CACA.find((k) => k.id === id && !k.mundo), L = LUGARES_MUNDO.find((l) => l.id === id), t = TOTENS.lista.find((o) => o.id === id);
-    const o = c || L || (t && { x: t.x, z: t.z, r: TOTENS.seguro });
-    if (!o) throw new Error(`ZONAS ${Z.id}: não achei ${id}`);
-    circulos.push({ x: o.x, z: o.z, r: +(o.r + (Z.folga || 0)).toFixed(1) });
-    for (const m of LUGARES_MUNDO) if (m.tipo === 'mina' && m.perto === id) circulos.push({ x: m.x, z: m.z, r: +(m.r + (Z.folga || 0)).toFixed(1) });
-  }
   const T = Z.terra && TERRAS.find((t) => t.id === Z.terra);
   if (Z.terra && !T) throw new Error(`ZONAS ${Z.id}: terra ${Z.terra}?`);
-  return { id: Z.id, nome: Z.nome, circulos, terra: Z.terra || null, mar: Z.mar || 0, selo: !!Z.selo };
+  if (!Z.terra && !Z.selo && !(Z.poligono?.length >= 3)) throw new Error(`ZONAS ${Z.id}: sem polígono`);
+  return { id: Z.id, nome: Z.nome, poligono: Z.poligono || null, terra: Z.terra || null, mar: Z.mar || 0, selo: !!Z.selo };
 });
 const ZONA_POR_ID = Object.fromEntries(ZONAS_GEO.map((z) => [z.id, z]));
 // a missão que libera cada zona ou recurso
@@ -41,11 +34,19 @@ export const missaoAtual = (p) => HISTORIA[histDe(p).p] || null;
 // quanto falta na missão atual
 export const totalMissao = (M) => M.matar ? M.matar.n : Object.values(M.entregar || {}).reduce((a, n) => a + n, 0);
 
-// (x, z) dentro da zona Z? (círculos ou a terra inteira com um pouco de mar em volta)
+// (x, z) dentro do polígono P ([[x, z], ...])?
+export function noPoligono(P, x, z) {
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, zi] = P[i], [xj, zj] = P[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+  }
+  return c;
+}
+// (x, z) dentro da zona Z? (a região ou a terra inteira com um pouco de mar em volta)
 export function naZona(Z, x, z) {
   if (Z.terra) return dentroDaTerra(TERRAS.find((t) => t.id === Z.terra), x, z) > -Z.mar;
-  for (const c of Z.circulos) if (Math.abs(c.x - x) < c.r && Math.abs(c.z - z) < c.r && Math.hypot(c.x - x, c.z - z) < c.r) return true;
-  return false;
+  return !!Z.poligono && noPoligono(Z.poligono, x, z);
 }
 // a zona fechada (ainda na névoa) para a conta p em (x, z), ou null. A caverna (selo) o servidor confere à parte.
 export function zonaFechadaEm(p, x, z) {
@@ -54,16 +55,20 @@ export function zonaFechadaEm(p, x, z) {
 }
 export const zonaPorId = (id) => ZONA_POR_ID[id] || null;
 // aviso de quando chega na névoa: qual missão abre e com quem
+// nome da região ou do recurso k (para o "Liberado: ...")
+export const nomeLibera = (k) => ZONA_POR_ID[k]?.nome || RECURSOS_HISTORIA[k] || k;
+export const nomeNpcHistoria = (id) => (MAPA_CLAREIRA.npcs.find((n) => n.id === id)?.nome || id).split(',')[0];
+// André 2026-11-11: "quando tentar entrar numa área que não tá liberada, falar concluir tal missão para desbloquear"
 export function textoNevoa(p, k) {
   const i = QUEM_LIBERA[k], M = HISTORIA[i]; if (!M) return '';
   const nome = ZONA_POR_ID[k]?.nome || RECURSOS_HISTORIA[k] || k;
-  return `${ZONA_POR_ID[k] ? 'Névoa encantada: ' : ''}${nome} abre com a missão "${M.nome}" (Nv ${M.nv})`;
+  return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Conclua a missão "${M.nome}" (fale com ${nomeNpcHistoria(M.npc)}, Nv ${M.nv}) para desbloquear`;
 }
 
 // Por que a conta p ainda não pode (texto) ou '' se pode. tipo: 'receita' | 'obra' | 'evoluir' | 'carrinho' | 'terreno' |
 // 'pack' | 'reforcar' | 'alquimia' | 'forja' | 'lobo' | 'pesca'; k: a receita, a obra ou o nível (evoluir, carrinho).
 export function motivoLibera(p, tipo, k) {
-  if (RECURSOS_HISTORIA[tipo]) return liberado(p, tipo) ? '' : `Ainda não liberado: ${textoNevoa(p, tipo)}`;
+  if (RECURSOS_HISTORIA[tipo]) return liberado(p, tipo) ? '' : textoNevoa(p, tipo);
   const L = LIBERA_NIVEL[tipo];
   const nv = typeof L === 'number' ? L : Array.isArray(L) ? L[k] : L?.[k];
   return nv && p.nivel < nv ? `Libera no nível ${nv}` : '';
@@ -92,7 +97,9 @@ export function contornoTerra(Z) {
   }
   return pts;
 }
+// o app recebe toda zona como polígono (a ilha vira o contorno da névoa no mar em volta dela)
 export const historiaParaApp = () => ({
-  zonas: ZONAS_GEO.map((Z) => (Z.terra ? { ...Z, contorno: contornoTerra(Z), fechado: !TERRAS.find((t) => t.id === Z.terra).forma, forma: TERRAS.find((t) => t.id === Z.terra).forma || null } : Z)), missoes: HISTORIA.map((M) => ({ id: M.id, nv: M.nv, npc: M.npc, nome: M.nome, libera: M.libera, total: totalMissao(M), matar: M.matar || null, entregar: M.entregar || null })),
+  zonas: ZONAS_GEO.map((Z) => (Z.terra ? { ...Z, poligono: contornoTerra(Z) } : Z)),
+  missoes: HISTORIA.map((M) => ({ id: M.id, nv: M.nv, npc: M.npc, npcNome: nomeNpcHistoria(M.npc), nome: M.nome, libera: M.libera, total: totalMissao(M), matar: M.matar || null, entregar: M.entregar || null })),
   libera: LIBERA_NIVEL, recursos: RECURSOS_HISTORIA,
 });

@@ -1,5 +1,6 @@
 // Teste do mapa todo andável, dos lagos e da montanha (André 2026-11-05: "onde der pra ir, tem que poder ir"; "uns
 // lagos rasos e outros fundos"; "uma montanha realista"). Uso: node ferramentas/testes/relevo.mjs
+import './_tudo-aberto.mjs';
 import { Simulacao, MAPA_CLAREIRA, LAGOS, AGUA } from '../../shared/index.js';
 import { dentroDoMapa, VOLTA_FOLGA } from '../../shared/mapa.js';
 import { noLago, chaoDoRelevo, MERGULHO_MAX, alturaMontanha, GRADE_MONTANHA, INGREME, BOCA_CAVERNA } from '../../shared/relevo.js';

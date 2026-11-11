@@ -318,6 +318,7 @@ func _vai(nx: float, nz: float) -> bool:
 		return false
 	# névoa encantada (zona que a missão principal ainda não abriu): para na borda, sem "corrigir" do servidor
 	if nevoa and nevoa.fechado(nx, nz) and not nevoa.fechado(x, z):
+		nevoa.bateu(nx, nz) # "Conclua a missão X para desbloquear" (André 2026-11-11)
 		return false
 	if h > y + m.subida.degrau:
 		# parede da caverna (rocha da montanha por cima do túnel): não é pedra, não escala

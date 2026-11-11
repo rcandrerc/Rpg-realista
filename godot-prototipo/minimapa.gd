@@ -725,7 +725,7 @@ func _nome_npc(id: String) -> String:
 			return str(n.get("nome", id)).split(",")[0]
 	return id
 
-# a névoa no minimapa: os círculos das zonas fechadas e, perto do mar, a costa fechada (cortados no círculo do minimapa)
+# a névoa no minimapa: as regiões fechadas (André 2026-11-11), cortadas no círculo do minimapa
 func _nevoa_mini(c: Control, meio: Vector2, p: Vector3, k: float) -> void:
 	if m.nevoa == null:
 		return
@@ -733,17 +733,9 @@ func _nevoa_mini(c: Control, meio: Vector2, p: Vector3, k: float) -> void:
 	for Z in m.nevoa.H.get("zonas", []):
 		if Z.get("selo", false) or m.nevoa.liberado(str(Z.id)):
 			continue
-		var formas: Array = []
-		if Z.get("terra"):
-			formas.append(_contorno(Z, func(x, z): return meio + Vector2(x - p.x, z - p.z) * k, 900.0))
-		else:
-			for q in Z.get("circulos", []):
-				var d: Vector2 = Vector2(float(q.x) - p.x, float(q.z) - p.z) * k
-				if d.length() - float(q.r) * k < RAIO:
-					formas.append(_circulo(meio + d, float(q.r) * k, 24))
-		for f in formas:
-			for pc in Geometry2D.intersect_polygons(f, borda):
-				c.draw_colored_polygon(pc, COR_NEVOA)
+		var f := _contorno(Z, func(x, z): return meio + Vector2(x - p.x, z - p.z) * k)
+		for pc in Geometry2D.intersect_polygons(f, borda):
+			c.draw_colored_polygon(pc, COR_NEVOA)
 
 func _circulo(q: Vector2, r: float, n: int) -> PackedVector2Array:
 	var pol := PackedVector2Array()
@@ -751,56 +743,35 @@ func _circulo(q: Vector2, r: float, n: int) -> PackedVector2Array:
 		pol.append(q + Vector2(cos(TAU * i / n), sin(TAU * i / n)) * r)
 	return pol
 
-# o contorno de uma zona de terra em pixels (em = função (x, z) -> tela). Continente: a linha da costa fechada com a
-# borda do mundo do lado da terra (fundo = metros além da linha)
-func _contorno(Z: Dictionary, em: Callable, fundo: float) -> PackedVector2Array:
+# a borda da região em pixels (em = função (x, z) -> tela)
+func _contorno(Z: Dictionary, em: Callable) -> PackedVector2Array:
 	var pol := PackedVector2Array()
-	var cs: Array = Z.get("contorno", [])
-	for q in cs:
+	for q in Z.get("poligono", []):
 		pol.append(em.call(float(q[0]), float(q[1])))
-	if not Z.get("fechado", false) and cs.size() > 1:
-		var s: float = fundo if str(Z.get("forma", "sul")) == "sul" else -fundo
-		pol.append(em.call(float(cs[cs.size() - 1][0]), float(cs[cs.size() - 1][1]) + s))
-		pol.append(em.call(float(cs[0][0]), float(cs[0][1]) + s))
 	return pol
 
-# a névoa no mapa aberto: mancha lilás sobre cada zona fechada, com o nome e o nível da missão que abre
+# a névoa no mapa aberto: mancha lilás sobre cada região fechada, com o nome e o nível da missão que abre
 func _nevoa_mapa(c: Control, em: Callable) -> void:
 	if m.nevoa == null:
 		return
-	var k := _k()
+	var tela := PackedVector2Array([Vector2(-50, -50), Vector2(janela.size.x + 50, -50), janela.size + Vector2(50, 50), Vector2(-50, janela.size.y + 50)])
 	for Z in m.nevoa.H.get("zonas", []):
 		var id := str(Z.id)
 		if Z.get("selo", false) or m.nevoa.liberado(id):
 			continue
 		var M: Dictionary = m.nevoa.H.missoes[int(m.nevoa.quem_libera[id])]
-		var centro := Vector2.ZERO
-		if Z.get("terra"):
-			var pol := _contorno(Z, em, 700.0)
-			if pol.size() >= 3 and Geometry2D.triangulate_polygon(pol).size() > 0:
-				c.draw_colored_polygon(pol, COR_NEVOA)
-			var cs: Array = Z.get("contorno", [])
-			var q = cs[cs.size() / 2] if Z.get("fechado", false) else cs[cs.size() / 2]
-			centro = em.call(float(q[0]), float(q[1]) + (0.0 if Z.get("fechado", false) else 120.0))
-			if Z.get("fechado", false):
-				var sx := 0.0
-				var sz := 0.0
-				for o in cs:
-					sx += float(o[0])
-					sz += float(o[1])
-				centro = em.call(sx / cs.size(), sz / cs.size())
-		else:
-			var sx := 0.0
-			var sz := 0.0
-			var cs: Array = Z.get("circulos", [])
-			for q in cs:
-				c.draw_circle(em.call(float(q.x), float(q.z)), float(q.r) * k, COR_NEVOA)
-				sx += float(q.x)
-				sz += float(q.z)
-			centro = em.call(sx / max(1, cs.size()), sz / max(1, cs.size()))
-		if Rect2(Vector2.ZERO, janela.size).has_point(centro):
-			_texto(c, centro, "Névoa: %s" % Z.nome, 14, Color("e6dcff"))
-			_texto(c, centro + Vector2(0, 16), "Missão Nv %d" % int(M.nv), 12, Color(0.85, 0.82, 0.78))
+		var soma := Vector2.ZERO
+		var n := 0
+		for pc in Geometry2D.intersect_polygons(_contorno(Z, em), tela):
+			c.draw_colored_polygon(pc, COR_NEVOA)
+			for q in pc:
+				soma += q
+				n += 1
+		if n == 0:
+			continue
+		var centro := soma / n # o meio do pedaço que aparece na tela
+		_texto(c, centro, "Névoa: %s" % Z.nome, 14, Color("e6dcff"))
+		_texto(c, centro + Vector2(0, 16), "Missão Nv %d (%s)" % [int(M.nv), str(M.get("npcNome", M.npc))], 12, Color(0.85, 0.82, 0.78))
 
 # hora do jogo (dia e noite do Quimera, André 2026-11-07): plaquinha na borda de baixo do minimapa com o sol ou a lua
 func _relogio(c: Control, pos: Vector2) -> void:

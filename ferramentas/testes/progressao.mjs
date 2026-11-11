@@ -24,12 +24,14 @@ for (const M of HISTORIA) {
 for (const Z of ZONAS) ok(HISTORIA.some((M) => M.libera.includes(Z.id)), `zona ${Z.id} tem missão`);
 ok(HISTORIA.every((M, i) => !i || M.nv >= HISTORIA[i - 1].nv), 'missões em ordem de nível');
 
-// as estradas do mapa de hoje e a praça não ficam na névoa (nem com tudo fechado)
+// regiões (André 2026-11-11): a Vila (R0) começa aberta com o campo Nv 1 e o Nv 3; o resto do mapa de hoje fechado
 const novo = { nivel: 1, hist: { p: 0, ac: false, n: 0 } };
-let presos = 0;
-for (const E of [MAPA_CLAREIRA.estrada || [], ...(MAPA_CLAREIRA.caminhos || []).map((c) => c.pontos || c)]) for (const q of E) if (Array.isArray(q) && zonaFechadaEm(novo, q[0], q[1])) presos++;
-ok(presos === 0, `nenhum ponto das estradas de hoje na névoa (${presos})`);
-for (const n of ['lider', 'ferreiro', 'curandeira', 'andarilho', 'comerciante', 'guardiao', 'alquimista']) ok(!zonaFechadaEm(novo, npc(n).x, npc(n).z), `${n} fora da névoa no começo`);
+const campo = (id) => CACA.find((k) => k.id === id);
+ok(!zonaFechadaEm(novo, campo('caca1').x, campo('caca1').z) && !zonaFechadaEm(novo, campo('caca2').x, campo('caca2').z), 'campos Nv 1 e Nv 3 abertos no começo');
+for (const id of ['caca3', 'caca5', 'caca6', 'caca9', 'caca11']) ok(!!zonaFechadaEm(novo, campo(id).x, campo(id).z), `${id} fechado no começo`);
+for (const n of ['lider', 'ferreiro', 'curandeira', 'andarilho', 'comerciante', 'alquimista', 'reset']) ok(!zonaFechadaEm(novo, npc(n).x, npc(n).z), `${n} fora da névoa no começo`);
+// toda região cobre um pedaço de terra de verdade e todo campo de caça fora da Vila cai em alguma região
+for (const k of CACA) { const Z = ZONAS_GEO.find((z) => naZona(z, k.x, k.z)); ok(['caca1', 'caca2'].includes(k.id) ? !Z : !!Z, `campo ${k.id} na região ${Z?.id || 'Vila'}`); }
 for (const t of TOTENS.lista) { const Z = ZONAS_GEO.find((z) => naZona(z, t.x, t.z)); ok(t.id === 'clareira' ? !Z : !!Z, `totem ${t.id} na zona ${Z?.id || '-'}`); }
 
 // conta antiga: as missões até o nível dela contam como feitas
@@ -40,7 +42,7 @@ ok(j.prog.hist.p === 0, 'personagem novo começa na missão 1');
 // névoa: entrar no campo dos lobos (fechado) não deixa e avisa
 ir(104, 52); correr(0.1);
 let ok1 = s.posicaoCliente('A', { x: 104, y: s.terreno.altura(104, 40), z: 40, ry: 0 });
-ok(!ok1, 'não entra no campo dos lobos (Arredores) fechado');
+ok(!ok1, 'não entra nos Campos do Leste fechados');
 let ev = correr(0.1); ok(true, 'aviso: ' + avisos(ev));
 
 // missão 1: Aldo dá, matar 4 Puglins no caca1, entregar
@@ -74,6 +76,13 @@ ok(/Liberado: .*Capacete|Liberado: .*Fornalha/.test(avisos(ev)) && /Missão nova
 
 // totem numa zona fechada: não viaja
 j.prog.totens = ['clareira', 'rio_claro']; j.prog.ouro = 5000; const C = TOTENS.lista[0]; ir(C.x + 3, C.z); correr(0.1);
-s.irTotem('A', 'rio_claro'); ev = correr(0.2); ok(/Névoa encantada/.test(avisos(ev)), 'totem dentro da névoa não leva: ' + avisos(ev));
+s.irTotem('A', 'rio_claro'); ev = correr(0.2); ok(/Região fechada: .*Conclua a missão/.test(avisos(ev)), 'totem dentro da névoa não leva: ' + avisos(ev));
 // ilha e Aurora: a terra inteira (e um pouco de mar) fecham
-ok(zonaFechadaEm(j.prog, 200, 662)?.id === 'C' && zonaFechadaEm(j.prog, 200, 1085)?.id === 'D1' && !zonaFechadaEm(j.prog, 200, 470), 'ilha e Aurora fechadas, o mar do meio aberto');
+ok(zonaFechadaEm(j.prog, 200, 662)?.id === 'C' && zonaFechadaEm(j.prog, 200, 1085)?.id === 'D1' && !zonaFechadaEm(j.prog, 200, 520), 'ilha e Aurora fechadas, o mar do meio aberto');
+
+// monstro de região fechada não persegue nem apanha de quem está fora (André 2026-11-11: puxou mob pela névoa)
+{ const s2 = new Simulacao(MAPA_CLAREIRA); const k = s2.adicionarJogador('K', 'Kai');
+  const ci3 = s2.cacas.findIndex((c) => c.def.id === 'caca3'); const b = s2.inimigos.find((e) => e.sp?.caca === ci3 && !e.morto) || s2.criarInimigo({ tipo: 'lobo', x: 104, z: 30, caca: ci3, nivel: 5 });
+  ok(s2.mobFechadoPara(b, k), 'lobo do campo fechado conta como fechado para o herói Nv 1');
+  const v0 = b.vida; s2.ferir(b, 50, k); ok(b.vida === v0, 'golpe do herói de fora não tira vida dele');
+  k.prog.hist.p = 1; ok(!s2.mobFechadoPara(b, k), 'depois da missão 1 vale de novo'); }

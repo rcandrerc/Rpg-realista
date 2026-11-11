@@ -9,7 +9,7 @@ import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL } from './dados.js';
-import { zonaFechadaEm, textoNevoa, liberado, motivoLibera, missaoAtual, totalMissao, liberaNoNivel, histNova } from './historia.js'; // progressão (André 2026-11-10)
+import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, totalMissao, liberaNoNivel, histNova } from './historia.js'; // progressão (André 2026-11-10)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
 const TAU = Math.PI * 2;
@@ -801,6 +801,12 @@ export class Simulacao {
     if (M && !p.hist?.ac && M.nv > de && M.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Missão nova: fale com ${this.nomeNpc(M.npc)} (${M.nome})` });
   }
   nomeNpc(id) { const n = (this.mapa.npcs || []).find((o) => o.id === id); return n ? n.nome.split(',')[0] : id; }
+  // o monstro b mora numa região que ainda está fechada para o herói j? (vale o meio do campo de caça dele)
+  mobFechadoPara(b, j) {
+    if (!j?.prog || b.tipo === 'jogador') return false;
+    const d = b.sp?.caca != null ? this.cacas[b.sp.caca]?.def : null, o = d || b.casa || b;
+    return !!zonaFechadaEm(j.prog, o.x, o.z);
+  }
   // (x, z) está numa zona que a névoa ainda fecha para j? Avisa (no máximo a cada 4 s) qual missão abre
   naNevoa(j, x, z) {
     const Z = zonaFechadaEm(j.prog, x, z); if (!Z) return false;
@@ -834,7 +840,7 @@ export class Simulacao {
     const ouro = HISTORIA_PREMIO.ouro * M.nv; p.ouro = (p.ouro || 0) + ouro;
     this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
     this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
-    for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${textoNevoa(p, k).split(' abre com')[0].replace('Névoa encantada: ', '')}` });
+    for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${nomeLibera(k)}` });
     diga(M.pronto, { missao: M.id });
     this.ganharXP(j, Math.round(xpProximo(M.nv) * HISTORIA_PREMIO.xp));
     const P = missaoAtual(p); if (P && P.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Próxima missão: fale com ${this.nomeNpc(P.npc)}` });
@@ -2985,6 +2991,7 @@ export class Simulacao {
   // h: a habilidade que acertou (skills do Quimera trazem crítico e efeitos: atordoa, congela, lento, vulnerável)
   ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando) return;
+    if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
     if (alvo.vuln && alvo.vuln.ate > this.tempo) n *= 1 + alvo.vuln.k;
@@ -3439,6 +3446,7 @@ export class Simulacao {
     const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
     let alvo = this.maisPerto(b, 14);
     if (alvo && naAreaSegura(alvo.x, alvo.z)) alvo = null; // totem (André 2026-11-10): lá dentro monstro não persegue; volta para casa
+    if (alvo && this.mobFechadoPara(b, alvo)) alvo = null; // região fechada para esse herói (André 2026-11-11): não sai atrás dele
     b.ataqueCd -= dt;
     const CI = COMBATE_INIMIGO;
     if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
