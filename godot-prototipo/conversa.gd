@@ -291,6 +291,10 @@ func abrir(n: Dictionary) -> void:
 	if m.menu.aberto():
 		return
 	indo = null
+	if n.funcao == "totem" and m.minimapa: # totem de teleporte (André 2026-11-11): abre o mapa mundi com os totens acesos
+		m.minimapa.abrir_totem(n.totem)
+		m.sons.tocar("q_anel_1", -14.0)
+		return
 	if m.trabalho.coletando != null:
 		m.trabalho.parar(true)
 	npc = n
