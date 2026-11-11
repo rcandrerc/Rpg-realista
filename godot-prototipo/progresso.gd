@@ -147,7 +147,8 @@ func guardar_agora() -> void:
 	cfg.save(ARQUIVO)
 
 static func xp_proximo(n: int) -> int:
-	return int(round(16.0 * pow(n, 1.45) * (1.0 + max(0, n - 30) / 50.0))) # igual a shared/progresso.js (Nv 200)
+	# igual a shared/progresso.js (XP_ESCALA: desde o Nv10 cada nível pede mais, André 2026-11-11)
+	return int(round(16.0 * pow(n, 1.45) * (1.0 + max(0, n - 30) / 50.0) * (1.0 + max(0, n - 10) / 50.0)))
 
 func passiva(k: String) -> bool:
 	return prog.nivel >= int(dados.passivas[k].libera)

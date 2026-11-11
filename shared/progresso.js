@@ -18,7 +18,13 @@ export const PONTOS_POR_NIVEL = 2;
 // quem passar disso continua subindo, mas o XP cai cada vez mais quanto mais acima do bicho estiver (xpNivel abaixo).
 // 9999 é só uma trava técnica contra save quebrado, ninguém chega lá.
 export const NIVEL_MAX = 9999;
-export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50));
+// Curva de XP (André 2026-11-11: "no começo é rápido, mas à medida que vou evoluindo vai ficando mais difícil e mais
+// lento"). Até o Nv10 fica igual; dali em diante cada nível pede (1 + (nível - 10) / XP_ESCALA.passo) vezes o de antes,
+// então a quantidade de bichos por nível cresce de verdade (antes ficava quase a mesma do Nv20 ao Nv30).
+// Fórmula de antes: Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50)).
+export const XP_ESCALA = { desde: 10, passo: 50 };
+export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50)
+  * (1 + Math.max(0, nivel - XP_ESCALA.desde) / XP_ESCALA.passo));
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
 export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7, golem: 9, maw: 10, warrok: 30 };
 // XP de um monstro de nível nv (campos de caça) para um herói de nível nh: sobe com o nível do bicho e cai quando o
