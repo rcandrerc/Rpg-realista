@@ -1282,7 +1282,7 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 // max: letras por mensagem; entre: segundos entre duas mensagens; historico: quantas o servidor guarda para quem acabou de entrar.
 // pm (André 2026-11-06: "tipo um pm, private msg pra cada amigo"): conversa só entre você e um amigo; historicoPm = quantas
 // mensagens privadas o servidor guarda (de todo mundo junto) para quem acabou de entrar.
-export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm'] };
+export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm', 'time'], respostaTime: 30 }; // time (André 2026-11-11): fala com todos do time de uma vez; os NPCs do time respondem no time por respostaTime segundos
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
@@ -2496,6 +2496,23 @@ export const CEREBRO = {
     lista: 'O que eu aprendi: {lista}.',
     nenhuma: 'Ainda não aprendi nenhuma dica. Me ensina alguma!',
     esqueci: 'Pronto, esqueci.',
+  },
+  // Aprender com a morte (entrega 4, André 2026-11-11; sem IA): quando o NPC cai, olha o que estava acontecendo e mexe
+  // nos próprios limites. Vale para os 22, cada um aprende sozinho. passo: quanto cada queda mexe; max: até onde vai;
+  // acima: o monstro que derrubou estava X níveis acima (caça mais baixo); cercado: X monstros em volta (foge mais cedo);
+  // esquece: a cada nível que sobe, a lição perde essa parte (para ele não virar medroso para sempre).
+  morte: {
+    passo: { pocao: 0.06, fugir: 0.05, recuar: 0.08, acima: 1, pocoes: 1 },
+    max: { pocao: 0.2, fugir: 0.15, recuar: 0.25, acima: 3, pocoes: 3 },
+    acima: 2, cercado: 3, esquece: 0.25,
+    falas: {
+      pocao: 'Caí com poção na mochila... da próxima eu bebo mais cedo.',
+      pocoes: 'Acabou a poção bem na hora. Vou levar mais da próxima vez.',
+      acima: 'Esse era forte demais para mim. Vou caçar coisa do meu tamanho por um tempo.',
+      fugir: 'Me cercaram... da próxima eu saio antes de ficar cercado.',
+      recuar: 'Aquele golpe grande me pegou. Vou ficar mais esperto com o braço levantado e com a marca no chão.',
+      nada: 'Da próxima eu presto mais atenção.',
+    },
   },
 };
 
