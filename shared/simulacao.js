@@ -1840,6 +1840,7 @@ export class Simulacao {
     if (!texto) return null;
     if (j.criando) return aviso('Termine de criar o personagem para conversar');
     if (canal === 'amigos' && !j.amigos.size) return aviso('Você ainda não tem amigos. Toque num jogador e escolha "Adicionar amigo"');
+    if (canal === 'time' && !j.time) return aviso('Você não está em um time. Chame alguém pelo menu Multijogador');
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
     const ctxPm = canal === 'pm' ? this.amigosIa.find((x) => x.AMIGA.conta === para) : null; // Cecília ou Dario
@@ -1848,21 +1849,30 @@ export class Simulacao {
     j.chatT = this.tempo;
     const msg = { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
     if (canal === 'pm') { msg.alvo = para; msg.alvoNome = this.porConta(para)?.nome || j.amigos.get(para) || ''; } // alvo: 'para' é de quem recebe o evento
+    if (canal === 'time') msg.membros = this.contasDoTime(j.time); // quem estava no time quando ele falou (o histórico usa a mesma lista)
     return msg;
+  }
+  // chat de time (André 2026-11-11: "eu falo com eles todos"): as contas de todos do time, NPCs inclusive
+  contasDoTime(T) { return (T?.membros || []).map((k) => this.jogadores.get(k)?.conta).filter(Boolean); }
+  // os NPCs (Cecília, Dario, aventureiros) que estão no time de quem falou: cada um ouve a mensagem como ouviria no privado
+  amigosIaNoTime(id) {
+    const j = this.jogadores.get(id); if (!j?.time) return [];
+    return this.amigosIa.filter((x) => x.amiga && x.amiga.time === j.time && x.podeAmiga(id));
   }
   // entrega a mensagem a quem deve ver nesta sala (o geral para todos; amigos para quem falou e os amigos dele)
   receberChat(msg) {
     for (const o of this.jogadores.values()) {
       if (msg.canal === 'amigos' && o.conta !== msg.c && !o.amigos?.has(msg.c)) continue;
       if (msg.canal === 'pm' && o.conta !== msg.c && o.conta !== msg.alvo) continue; // pm: só as duas pontas
+      if (msg.canal === 'time' && !msg.membros?.includes(o.conta)) continue; // time: só quem está nele
       this.evento({ t: 'chat', para: o.id, ...msg, meu: o.conta === msg.c });
     }
   }
   // quem acabou de entrar vê as últimas mensagens (o geral inteiro; do amigos, só as dele e as dos amigos dele)
-  historicoChat(id, geral, amigos, pm) {
+  historicoChat(id, geral, amigos, pm, time) {
     const j = this.jogadores.get(id); if (!j) return;
-    const ver = (x) => (x.canal === 'pm' ? x.c === j.conta || x.alvo === j.conta : x.canal === 'geral' || x.c === j.conta || j.amigos.has(x.c));
-    const lista = [...(geral || []), ...(amigos || []), ...(pm || [])].filter(ver).sort((a, b) => a.hora - b.hora).map((x) => ({ ...x, meu: x.c === j.conta }));
+    const ver = (x) => (x.canal === 'pm' ? x.c === j.conta || x.alvo === j.conta : x.canal === 'time' ? !!x.membros?.includes(j.conta) : x.canal === 'geral' || x.c === j.conta || j.amigos.has(x.c));
+    const lista = [...(geral || []), ...(amigos || []), ...(pm || []), ...(time || [])].filter(ver).sort((a, b) => a.hora - b.hora).map((x) => ({ ...x, meu: x.c === j.conta }));
     this.evento({ t: 'chatHist', para: id, lista });
   }
   // ---------- amigos (até 20) e time (André 2026-11-05) ----------
