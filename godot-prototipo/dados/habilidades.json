@@ -21244,7 +21244,7 @@
     "cor": 9344680,
     "humano": {
      "modelo": "shibu_sombrio",
-     "roupa": "capacete2,peitoral1,calca1,botas1,capa1"
+     "roupa": "chapeu2,peitoral1,calca1,botas1,capa1"
     }
    },
    "cacador": {
@@ -21257,7 +21257,7 @@
     "cor": 9344680,
     "humano": {
      "modelo": "shibu_sombrio",
-     "roupa": "capacete1,peitoral1,calca1,botas1,capa1"
+     "roupa": "chapeu1,peitoral1,calca1,botas1,capa1"
     }
    },
    "brasa_antiga": {

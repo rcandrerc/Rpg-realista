@@ -2342,9 +2342,9 @@ export const CHEFES_HISTORIA = {
   // (CLAUDE.md: humanos usam o corpo do herói); sala: monstro da sala da caverna em vez do campo; foge: com essa fração
   // da vida ele para a luta e some na névoa (conta como vencido na missão); fala: o que ele diz ao sumir.
   velado_montanha: { nome: 'Velado da Montanha', tipo: 'warrok', sala: 'sala3', vida: 1.2, dano: 1.1, escala: 1, cor: 0x8e96a8,
-    humano: { modelo: 'shibu_sombrio', roupa: 'capacete2,peitoral1,calca1,botas1,capa1' } },
+    humano: { modelo: 'shibu_sombrio', roupa: 'chapeu2,peitoral1,calca1,botas1,capa1' } },
   cacador: { nome: 'Velado Caçador', tipo: 'imp', campo: 'caca10', vida: 7, dano: 1.5, escala: 1, cor: 0x8e96a8,
-    humano: { modelo: 'shibu_sombrio', roupa: 'capacete1,peitoral1,calca1,botas1,capa1' } },
+    humano: { modelo: 'shibu_sombrio', roupa: 'chapeu1,peitoral1,calca1,botas1,capa1' } },
   brasa_antiga: { nome: 'Brasa-Antiga', tipo: 'golem', campo: 'caca11', vida: 8, dano: 1.6, escala: 2, cor: 0xff7a2a },
   kael: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'caca11', vida: 9, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.5,
     fala: 'Kael: "Você não lembra mesmo de mim... Ela vai gostar de saber." E some na névoa.',
