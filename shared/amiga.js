@@ -40,6 +40,18 @@ function pecaDaCasa(def, c) {
 const chavePeca = (p) => `${p.k}:${p.x},${p.z}`;
 const mesmaPeca = (a, b) => a.k === b.k && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.z - b.z) < 0.01 && (a.r & 1) === (b.r & 1);
 
+// número fixo de cada NPC (do id): o atraso, o lugar na vila e o sorteio do campo saem dele, sempre iguais para o mesmo NPC
+export function hashNpc(id) { let h = 2166136261; for (const c of String(id)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0; return h; }
+// a rotina dele (NPC_VIDA.rotina) com o atraso só dele (até NPC_VIDA.atraso h depois do horário)
+export function rotinaDe(id) {
+  const R = { ...NPC_VIDA.rotina.padrao, ...(NPC_VIDA.rotina[id] || {}) }, h = hashNpc(id);
+  R.saiDe = (R.sai + ((h % 1000) / 1000) * NPC_VIDA.atraso) % 24;
+  R.voltaDe = (R.volta + (((h >> 10) % 1000) / 1000) * NPC_VIDA.atraso * 0.6) % 24;
+  return R;
+}
+// a hora do jogo está dentro do horário dele? (volta antes de sai = caça de noite, vira a meia-noite)
+export function naHoraDe(R, hora) { return R.saiDe < R.voltaDe ? hora >= R.saiDe && hora < R.voltaDe : hora >= R.saiDe || hora < R.voltaDe; }
+
 // lições da morte vindas do banco: só números dentro do máximo (CEREBRO.morte.max)
 export function licoesValidas(o) {
   const M = CEREBRO.morte, L = {};
@@ -97,6 +109,8 @@ export const Amiga = {
         j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; j.prog.ouro += 25 * n;
       }
       if (!j.prog.equip.cajado) j.prog.equip.cajado = { k: 'cajado', r: this.AMIGA.justa.raridade }; // espada E cajado, como todo herói
+      const ferr = this.AMIGA.atividades?.[this.AMIGA.gosto]?.ferramenta; // quem gosta de pescar/minerar/lenha já tem a ferramenta
+      if (!this.AMIGA.terreno && ferr && rotinaDe(this.AMIGA.id).coleta > 0 && contar(j.prog.mochila, ferr) < 1) guardar(j.prog.mochila, { k: ferr, n: 1 });
       this.offlineAmiga(j, salvo.t); // o tempo em que ninguém estava no jogo (devagar, sem passar do jogador mais alto)
       this.aplicarStatus(j, true);
       j.amizade = salvo.amizade | 0;
@@ -283,7 +297,7 @@ export const Amiga = {
       return this.irTrabalhar(j, L, { x: ci + 0.5, z: cj + 1.1 }, this.AMIGA.passo.canteiro, 'pouso', 1.6, () => this.cuidarCanteiro(L, c));
     }
     // 3) tudo em ordem: sai para caçar (vida própria, André 2026-11-11), passeia pela vila ou descansa na porta de casa
-    if (Math.random() < NPC_VIDA.aventura.chance && !ehNoite(horaDoJogo(j.prog.dia))) { ia.av = { fase: 'escolher' }; return; }
+    if (Math.random() < NPC_VIDA.aventura.chance && naHoraDe(this.rotinaAmiga(), horaDoJogo(j.prog.dia))) { ia.av = { fase: 'escolher' }; return; }
     if (Math.random() < 0.5) {
       const [x, z] = sorteia(PASSEIOS);
       this.irPara(j, L, { x: x + Math.random() - 0.5, z: z + Math.random() - 0.5 }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio * (0.5 + Math.random()); });
@@ -320,9 +334,13 @@ export const Amiga = {
     const A = NPC_VIDA.aventura, n = j.prog.nivel | 0;
     const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)));
     ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
-    // entre os 3 do nível dele, o que tem menos NPC caçando (para não juntar todo mundo no mesmo campo)
+    // a faixa que ele prefere (rotina.campo): alto = os 3 mais fortes; medio = do 2º ao 4º; baixo = do 3º ao 6º (mais
+    // seguro); longe = qualquer um, de preferência longe da vila. Dentro da faixa, o que tem menos NPC (cada NPC lá pesa 2)
+    const R = this.rotinaAmiga(), faixa = { alto: [0, 3], medio: [1, 4], baixo: [2, 6], longe: [0, 99] }[R.campo] || [0, 3];
+    let lista = ok.slice(faixa[0], faixa[1]); if (!lista.length) lista = ok.slice(-3);
     const n0 = (c) => this.amigosIa.filter((x) => x.amiga && x.amiga !== j && x.amiga.ia?.av?.c?.id === c.id).length;
-    const top = ok.slice(0, 3).map((c) => [c, n0(c) + Math.random() * 0.9]).sort((a, b) => a[1] - b[1]);
+    const M = this.moradiaAmiga(j), longe = (c) => (R.campo === 'longe' ? -Math.hypot(c.x - M.x, c.z - M.z) / 150 : 0);
+    const top = lista.map((c) => [c, n0(c) * 2 + longe(c) + Math.random() * 0.9]).sort((a, b) => a[1] - b[1]);
     return top.length ? top[0][0] : null;
   },
   // o monstro que ele ataca sozinho no campo: o mais perto dele, sem chefe nem boss, até mobAcima níveis acima
@@ -345,19 +363,31 @@ export const Amiga = {
   // A rotina sozinho: escolher -> ir ao campo -> caçar -> voltar para a vila -> vender/consertar/poção -> descansar.
   // De noite fica na vila. Mochila cheia, sem poção ou fugindo: volta. Quem tem casa (Cecília, Dario) volta para ela.
   passoSozinhoAmiga(j, dt) {
-    const ia = j.ia, A = NPC_VIDA.aventura, t = this.tempo, av = (ia.av ||= { fase: 'escolher' });
+    const ia = j.ia, A = NPC_VIDA.aventura, t = this.tempo, R = this.rotinaAmiga(), sorte = ([a, b], k = 1) => (a + Math.random() * (b - a)) * k;
+    // primeira vez na sala: cada um espera um pouco antes de sair (ninguém sai junto)
+    if (!ia.av) { ia.av = ia.jaSaiu ? { fase: 'escolher' } : { fase: 'descansar', ate: t + ((hashNpc(this.AMIGA.id) >> 4) % 1000) / 1000 * 240 }; ia.jaSaiu = true; }
+    const av = ia.av;
     if (j.trava > 0) return this.pararAmiga(j);
-    const noite = ehNoite(horaDoJogo(j.prog.dia));
+    const noite = !naHoraDe(R, horaDoJogo(j.prog.dia)); // fora do horário dele (cada um tem o seu)
     const livres = j.prog.mochila.filter((o) => !o).length, temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
-    const voltar = () => { Object.assign(av, { fase: 'voltar', c: null }); ia.viagem = null; };
+    const voltar = () => { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); Object.assign(av, { fase: 'voltar', c: null, coleta: null }); ia.viagem = null; };
     if (av.fase === 'escolher') {
-      if (noite || livres < A.mochilaLivre || !temPocao) return voltar();
+      if (noite || livres < A.mochilaLivre) return voltar();
+      // quem gosta de pescar, minerar ou cortar lenha vai fazer isso (com vigor); senão, caça
+      const gosto = this.AMIGA.gosto, Ativ = this.AMIGA.atividades?.[gosto];
+      if (Ativ && !av.semColeta && Math.random() < R.coleta && vigorAgora(j.prog.vigor) >= 1 && contar(j.prog.mochila, Ativ.ferramenta) > 0) {
+        const c = this.lugarColetaAmiga(j, gosto);
+        if (c) { Object.assign(av, { fase: 'ir', c, coleta: gosto, ate: t + sorte(A.cacar, R.caca) }); ia.viagem = null; ia.alvoColeta = null; return; }
+      }
+      av.semColeta = false;
+      if (!temPocao) return voltar();
       const c = this.campoAmiga(j, av.fora);
       if (!c) return voltar();
-      Object.assign(av, { fase: 'ir', c, ate: t + A.cacar[0] + Math.random() * (A.cacar[1] - A.cacar[0]) });
+      Object.assign(av, { fase: 'ir', c, coleta: null, ate: t + sorte(A.cacar, R.caca) });
       ia.viagem = null;
       return;
     }
+    if (av.coleta && (av.fase === 'ir' || av.fase === 'cacar')) return this.coletaSozinhoAmiga(j, av, noite, livres, voltar, dt);
     if (av.fase === 'ir' || av.fase === 'cacar') {
       const c = av.c;
       if (ia.viagem?.bloqueio) { (av.fora ||= new Set()).add(c.id); ia.viagem = null; av.fase = 'escolher'; return; } // outra terra: outro campo
@@ -377,17 +407,18 @@ export const Amiga = {
       return this.pararAmiga(j);
     }
     if (av.fase === 'voltar') {
-      const M = this.moradiaAmiga(j), L = this.loteDaAmiga();
+      const M = this.pontoVilaAmiga(j), L = this.loteDaAmiga();
       const casa = L ? { x: L.def.x0 + this.AMIGA.porta[0], z: L.def.z0 + this.AMIGA.porta[1] } : M;
       if (!this.irLongeAmiga(j, casa.x, casa.z, dt)) return;
       // na vila: vende o que não usa, conserta no Tomás e compra poção na Rosa (com o ouro dele)
       this.arrumarMochilaAmiga(j); this.pocoesAmiga(j);
-      Object.assign(av, { fase: 'descansar', ate: t + A.descanso[0] + Math.random() * (A.descanso[1] - A.descanso[0]) });
+      Object.assign(av, { fase: 'descansar', ate: t + sorte(A.descanso, R.pausa) });
       return;
     }
     if (av.fase === 'descansar') {
-      if (t < av.ate || noite) { // passeia devagar pela vila (de noite fica por ali até o dia)
-        const M = this.moradiaAmiga(j);
+      if (noite) av.ate = t + (av.espera ??= Math.random() * NPC_VIDA.esperaManha); // abriu o horário: ainda espera um tanto só dele
+      if (t < av.ate || noite) { // passeia devagar pela vila, no canto dele (fora do horário fica por ali)
+        const M = this.pontoVilaAmiga(j);
         if (!av.passeio || Math.hypot(av.passeio.x - j.x, av.passeio.z - j.z) < 1) {
           if (Math.random() < 0.02) { const a = Math.random() * Math.PI * 2, r = Math.random() * M.r * 0.6; av.passeio = { x: M.x + Math.cos(a) * r, z: M.z + Math.sin(a) * r }; }
           return this.pararAmiga(j);
@@ -395,8 +426,57 @@ export const Amiga = {
         return this.irDireto(j, av.passeio.x, av.passeio.z, false);
       }
       if (this.loteDaAmiga()) { ia.av = null; ia.fase = 'pensar'; return; } // quem tem casa volta para a rotina dela
-      ia.av = { fase: 'escolher', fora: av.fora };
+      ia.av = { fase: 'escolher', fora: av.fora, semColeta: av.semColeta };
     }
+  },
+  rotinaAmiga() { return (this._rotina ||= new Map()).get(this.AMIGA.id) || this._rotina.set(this.AMIGA.id, rotinaDe(this.AMIGA.id)).get(this.AMIGA.id); },
+  // o canto dele na vila: perto do NPC que ele gosta (rotina.ponto) na vila inicial; nas outras, o ponto espalhado
+  pontoVilaAmiga(j) {
+    const M = this.moradiaAmiga(j), R = this.rotinaAmiga();
+    const n = R.ponto && M.nivel === NPC_VIDA.moradia[0].nivel && (this.mapa.npcs || []).find((o) => o.id === R.ponto);
+    if (!n) return M;
+    const a = (hashNpc(this.AMIGA.id) % 628) / 100, r = 2.5 + (hashNpc(this.AMIGA.id + 'r') % 150) / 100;
+    return { ...M, x: n.x + Math.cos(a) * r, z: n.z + Math.sin(a) * r, r: 4 };
+  },
+  // onde vai coletar sozinho: entre os NPC_VIDA.coleta.opcoes lugares mais perto da vila dele (até raio m), o que tem
+  // menos NPC coletando por perto. { id, x, z, y } ou null
+  lugarColetaAmiga(j, tipo) {
+    const NC = NPC_VIDA.coleta, M = this.moradiaAmiga(j), cand = [];
+    if (tipo === 'pescar') { for (const v of this.spots || []) if (v.ativo && Math.hypot(v.x - M.x, v.z - M.z) <= NC.raio) cand.push({ id: v.id, x: v.x, z: v.z, y: 0 }); }
+    else for (const no of this.coletaveis.values()) {
+      const K = COLETA[no.tipo]; if (!K || K.mao) continue;
+      if (tipo === 'lenha' ? no.tipo !== 'arvore' : K.prof !== 'min') continue;
+      if (profNivel(j.prog.prof[K.prof]) < (K.nivel || 1) || this.cargas(j, no) <= 0) continue;
+      if (Math.hypot(no.x - M.x, no.z - M.z) <= NC.raio) cand.push({ id: no.id, x: no.x, z: no.z, y: no.y ?? null });
+    }
+    if (!cand.length) return null;
+    cand.sort((a, b) => Math.hypot(a.x - M.x, a.z - M.z) - Math.hypot(b.x - M.x, b.z - M.z));
+    const perto = (c) => this.amigosIa.filter((x) => x.amiga && x.amiga !== j && x.amiga.ia?.av?.c && Math.hypot(x.amiga.ia.av.c.x - c.x, x.amiga.ia.av.c.z - c.z) < 20).length;
+    const l = cand.slice(0, NC.opcoes * 3).filter((_, i) => i % 3 === 0 || cand.length < NC.opcoes * 2).slice(0, NC.opcoes); // espalhados, não 6 árvores vizinhas
+    return l.map((c) => [c, perto(c) * 2 + Math.random()]).sort((a, b) => a[1] - b[1])[0][0];
+  },
+  // coletando sozinho (pesca, minério, lenha): vai até o lugar, coleta o que der (fica com tudo, vende na vila), briga se
+  // um monstro vier nele. Sem lugar ou sem vigor: volta (e da próxima vez caça).
+  coletaSozinhoAmiga(j, av, foraDeHora, livres, voltar, dt) {
+    const ia = j.ia, t = this.tempo, c = av.c, A = NPC_VIDA.aventura;
+    if (foraDeHora || livres < A.mochilaLivre || t >= av.ate) return voltar();
+    const bate = this.inimigosDe(j).find((e) => !e.morto && !e.treino && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < 6);
+    if (bate) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); if (!this.cerebroAmiga(j, j, bate)) this.pararAmiga(j); if (ia.cer?.faca === 'fugir') voltar(); return; }
+    if (j.pesca) return this.pescandoAmiga(j);
+    if (j.coleta || j.fabrica) return this.pararAmiga(j);
+    if (av.fase === 'ir') { if (this.irLongeAmiga(j, c.x, c.z, dt)) av.fase = 'cacar'; return; }
+    ia.ruins ||= new Map();
+    if (!ia.alvoColeta || t > ia.alvoColetaT) { ia.alvoColeta = this.acharColetaAmiga(j, { x: c.x, z: c.z, y: c.y ?? j.y }, av.coleta); ia.alvoColetaT = t + NPC_VIDA.coleta.cada; }
+    const al = ia.alvoColeta;
+    if (!al) { av.semColeta = true; av.fase = 'escolher'; av.coleta = null; return; } // acabou o lugar: vai caçar
+    const d = Math.hypot(al.x - j.x, al.z - j.z);
+    if (d > al.perto) return this.irDireto(j, al.x, al.z, d > 6);
+    this.pararAmiga(j);
+    if (av.coleta === 'pescar') { j.ry = Math.atan2(al.sx - j.x, al.sz - j.z); this.pescar(j.id, { acao: 'lancar', x: al.sx, z: al.sz }); }
+    else this.coletar(j.id, { no: al.no });
+    if (j.coleta || j.pesca) return;
+    if (vigorAgora(j.prog.vigor) < 1) { av.semColeta = true; return voltar(); } // cansou: volta, e na próxima caça
+    ia.ruins.set(al.id, t + 60); ia.alvoColeta = null;
   },
   pararAmiga(j) { j.entrada = { mx: 0, mz: 0, correr: false }; },
   // onde ela fica em pé para pôr a peça: do lado de dentro da casa (a parede da frente, pelo lado de fora)
@@ -885,16 +965,22 @@ export const Amiga = {
   contextoAmiga(id) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id)) return null;
     const L = this.loteDaAmiga(), pronta = L && this.AMIGA.casa.every((c) => L.pecas.some((o) => mesmaPeca(o, pecaDaCasa(L.def, c))));
+    // ficha curta (entrega 5): o que ele está fazendo sozinho e onde mora (os aventureiros não têm casa)
+    const av = a.ia.av, bicho = av?.c ? TIPOS_INIMIGO[av.c.tipo]?.nome || 'monstros' : '';
+    const so = this.AMIGA.genero === 'm' ? 'sozinho' : 'sozinha';
+    const col = av?.coleta && { pescar: 'pescar', minerar: 'minerar', lenha: 'cortar lenha' }[av.coleta], colG = av?.coleta && { pescar: 'pescando', minerar: 'minerando', lenha: 'cortando lenha' }[av.coleta];
+    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: col ? `indo ${col} ${so}` : `indo caçar ${bicho} ${so}`, cacar: col ? `${colG} ${so}` : `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada' }[av.fase];
     return {
+      semCasa: !this.AMIGA.terreno, mora: !this.AMIGA.terreno ? this.moradiaAmiga(a)?.nome || 'a vila' : null,
       nome: this.AMIGA.nome, persona: this.AMIGA.persona || null, genero: this.AMIGA.genero || 'f', amigo: j.nome, amizade: this.amizadeAmiga(j),
       comOutro: id !== this.amigaDono && this.ocupadaAmiga() ? this.jogadores.get(this.amigaDono)?.nome || null : null, nivel: a.prog.nivel, nivelAmigo: j.prog.nivel,
       noTime: !!(a.time && a.time === j.time), distancia: Math.round(Math.hypot(a.x - j.x, a.z - j.z)),
-      fazendo: a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : 'descansando na porta de casa',
+      fazendo: sozinho ? sozinho : a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : (this.AMIGA.terreno ? 'descansando na porta de casa' : 'passeando pela vila'),
       casaPronta: !!pronta, noite: ehNoite(horaDoJogo(j.prog.dia)), pedido: a.pedido ? `${a.pedido.n} ${ITENS[a.pedido.k].nome}` : null,
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       ouro: a.prog.ouro | 0,
-      mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 15).map(([k, n]) => `${n} ${k}`).join(', '),
-      conversa: this.chatDeAmiga(j).slice(-8),
+      mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
+      conversa: this.chatDeAmiga(j).slice(-6),
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],

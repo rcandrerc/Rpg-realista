@@ -45,9 +45,9 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   const modelo = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
   const conversa = ctx.conversa.map((m) => `${m.de === 'ele' ? ctx.amigo : ctx.nome}: ${m.texto}`).join('\n');
   const homem = ctx.genero === 'm'; // o Dario (André 2026-11-11): outra pessoa, outro jeito de falar
-  const prompt = `Você é ${ctx.nome}, ${ctx.persona || 'uma guerreira de anime brincalhona num RPG medieval de fantasia'}. Você é ${homem ? 'AMIGO' : 'AMIGA'} de ${ctx.amigo} (de igual para igual, ${homem ? 'não servo' : 'não serva'}): tem sua casinha e sua horta na vila inicial, tem vontade própria, pode recusar e pedir favores.
+  const prompt = `Você é ${ctx.nome}, ${ctx.persona || 'uma guerreira de anime brincalhona num RPG medieval de fantasia'}. Você é ${homem ? 'AMIGO' : 'AMIGA'} de ${ctx.amigo} (de igual para igual, ${homem ? 'não servo' : 'não serva'}): ${ctx.semCasa ? `vive de aventura, ainda sem casa própria (mora em ${ctx.mora || 'a vila'}) e caça ${homem ? 'sozinho' : 'sozinha'} quando ninguém chama` : 'tem sua casinha e sua horta na vila inicial'}, tem vontade própria, pode recusar e pedir favores.
 Responda em português do Brasil, como ${homem ? 'amigo' : 'amiga'} conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
-Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'} Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}. ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
+Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'}${ctx.semCasa ? '' : ` Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}.`} ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
 ${ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} (de outros dias, use com naturalidade quando fizer sentido):\n- ${ctx.memoria.join('\n- ')}` : ''}
 ${ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca}; você adoraria uma melhor (ele pode te dar pela troca).` : ''}` : ''}
 ${ctx.regras?.length ? `Dicas que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : ''}
@@ -56,18 +56,25 @@ ${conversa || '(nenhuma)'}
 ${ctx.amigo}: ${texto}
 Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caçar), "sairTime" (ele quer que você saia do time), "vir" (ele pede para você ir até ele), "ajuda" (ele oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta ao seu chamado), "nada" (só conversa).
 Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá para ir é o jogo; se não der, ele troca a fala). Nunca recuse na fala.
-Devolva só JSON: {"fala": "...", "acao": "nada"}`;
+Devolva só JSON: {"fala": "...", "acao": "nada"}`.replace(/\n{2,}/g, '\n').replace(/ {2,}/g, ' '); // ficha curta: sem linha vazia
   // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
+  // Modelo menor na conversa (André 2026-11-11, entrega 5): gasta menos da chave e responde mais rápido. Se o Groq tirar o
+  // modelo (404/400) ou a resposta vier quebrada, tenta o grande uma vez, dentro dos mesmos 8 s.
   const groq = chaveJogador || segredo('GROQ_CHAVE');
   if (groq) {
-    try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-        body: JSON.stringify({ model: process.env.GROQ_MODELO || 'openai/gpt-oss-120b', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 400, reasoning_effort: 'low' }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (r.ok) { const v = lerResposta((await r.json())?.choices?.[0]?.message?.content); if (v) return v; }
-    } catch { /* cai para o Gemini ou para as regras */ }
+    const fim = Date.now() + 8000;
+    for (const modelo of modelosConversa()) {
+      const falta = fim - Date.now(); if (falta < 1500) break;
+      try {
+        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
+          body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 400, reasoning_effort: 'low' }),
+          signal: AbortSignal.timeout(falta),
+        });
+        if (r.ok) { const v = lerResposta((await r.json())?.choices?.[0]?.message?.content); if (v) return v; continue; }
+        if (r.status === 429 || r.status === 401) break; // limite do dia ou chave errada: o grande também não vai
+      } catch { /* tempo acabou ou rede: tenta o próximo se ainda der */ }
+    }
   }
   if (!chave) return null;
   try {
@@ -79,6 +86,11 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`;
     if (!r.ok) return null;
     return lerResposta((await r.json())?.candidates?.[0]?.content?.parts?.[0]?.text);
   } catch { return null; }
+}
+// a ordem dos modelos da conversa: o menor primeiro, o grande de reserva (GROQ_MODELO_CONVERSA troca o menor)
+export function modelosConversa() {
+  const grande = process.env.GROQ_MODELO || 'openai/gpt-oss-120b';
+  return [...new Set([process.env.GROQ_MODELO_CONVERSA || 'openai/gpt-oss-20b', grande])];
 }
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {
