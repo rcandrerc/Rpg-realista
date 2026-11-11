@@ -14,7 +14,8 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # (André 2026-11-03: menu puxado para a esquerda e o minimapa sobe para o canto, para não cobrir as skills)
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+# André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
@@ -81,6 +82,8 @@ func _ready() -> void:
 			b.pressed.connect(_construir)
 			construir_ico = b.get_child(0)
 			construir_btn = b
+		elif k == "missoes": # a lista das missões (menu.gd montar_missoes), sozinha, sem as abas do personagem
+			b.pressed.connect(func(): m.menu.abrir("missoes"))
 		elif k == "mochila": # André 2026-11-04: a bolsa (Mochila e Criar) sai do menu da barra de vida e ganha botão aqui
 			b.pressed.connect(func(): m.menu.abrir_bolsa())
 		else:

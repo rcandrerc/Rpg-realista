@@ -42,7 +42,9 @@ const SLOTS := [
 	["arma", "Arma", 0.85, 0.64, "J_Bip_L_Hand", 1]]
 const MEDALHAO := 52.0
 # abas de cada menu (André 2026-11-04): barra de vida = personagem; botão da mochila no topo = bolsa
-const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "missoes", "aparencia"]
+const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "aparencia"]
+# André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
+const ABAS_MISSOES := ["missoes"]
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
@@ -740,7 +742,7 @@ func abrir(qual := "", sub := "") -> void:
 		sub_prof = sub
 	if qual != "":
 		aba = qual
-	elif aba in ABAS_BOLSA: # barra de vida: só o menu do personagem
+	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
 	sel_equip = ""
@@ -826,7 +828,7 @@ func atualizar() -> void:
 	titulo_nivel.text = "%s  ·  Nível %d" % [m.hud.nome, P.prog.nivel]
 	if aba == "loja" and not m.perto_da_loja():
 		aba = "mochila"
-	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else ABAS_PERSONAGEM
+	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else ABAS_PERSONAGEM)
 	for k in botoes_aba:
 		estilo_botao(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
@@ -1337,7 +1339,7 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	var cedo: bool = int(m.P.prog.nivel) < int(M.nv)
 	var pc := PanelContainer.new()
 	var borda := Color(0.45, 0.75, 0.4) if feita else (Color(0.72, 0.62, 0.95) if atual else Color(0.3, 0.26, 0.2))
-	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, 8))
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, 14)) # André 2026-11-11: mais arredondado
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	pc.add_child(v)
@@ -1363,7 +1365,16 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	v.add_child(l)
 	if atual and h.get("ac", false) and int(M.total) > 0:
 		v.add_child(barra_prog(float(h.get("n", 0)) / float(M.total), Color(0.72, 0.62, 0.95)))
+	if atual and not cedo and m.missao_ativa != null: # André 2026-11-11: "Ir para" leva sozinho até o NPC ou o lugar
+		var ir := botao("Ir para", _ir_missao, 14, true)
+		ir.custom_minimum_size = Vector2(130, 34)
+		ir.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		v.add_child(ir)
 	return pc
+
+func _ir_missao() -> void:
+	fechar()
+	m.missao_ativa.ir()
 
 func linha_prof_card(k: String) -> Control:
 	var P = m.P

@@ -61,3 +61,18 @@ motor de 1 cilindro lento ("pó-pó-pó" de tratorzinho); a marcha lenta é um l
 Sintetizados por `ferramentas/sons/festa.py` (próprios, CC0, sem gravação de terceiros): sino, sopro de metal simples,
 baque grave e cintilar. festa_nivel (subiu de nível), festa_missao (missão concluída), festa_sucesso e festa_falha
 (reforço/evoluir), festa_libera (novidade liberada).
+
+# Sons futuristas da janela do sistema (sistema_*.ogg, 2026-11-11)
+
+André achou os festa_*.ogg "breguinhas" e mandou o vídeo "Computer Interface SOUND EFFECTS (NO Copyright)" de
+The Audio Horizon SFX (theaudiohorizon.com: "Enjoy these sound effects, designed by us and completely free to use!").
+Crédito: The Audio Horizon SFX. Cortes (segundos do arquivo completo, ffmpeg, mono, loudnorm -16 LUFS):
+
+| Arquivo | Trecho |
+|---|---|
+| sistema_nivel | 32,30 a 35,25 (som 5) |
+| sistema_janela | 24,62 a 25,30 (som 4) |
+| sistema_sucesso | 10,25 a 11,50 (som 2) |
+| sistema_falha | 3,40 a 4,70 (som 1) |
+
+Os festa_*.ogg ficam na pasta como reserva (festa.gd volta para eles se faltar um sistema_*).
