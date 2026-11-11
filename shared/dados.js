@@ -1279,6 +1279,11 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 // mensagens privadas o servidor guarda (de todo mundo junto) para quem acabou de entrar.
 export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm'] };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
+// André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
+// o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
+// (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.
+export const TIME_XP = { nerfLivre: 5, nerfPorNivel: 0.1 };
+export const fatorXpTime = (meu, maior, T = TIME_XP) => Math.max(0, Math.min(1, 1 - T.nerfPorNivel * ((maior | 0) - (meu | 0) - T.nerfLivre)));
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }
