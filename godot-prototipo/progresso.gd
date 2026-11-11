@@ -442,7 +442,7 @@ func reforcar(it) -> Dictionary:
 
 # ---------- durabilidade e penalidade de morte (igual a shared/progresso.js; MORTE em shared/dados.js) ----------
 func morte_dados() -> Dictionary:
-	return dados.get("morte", {"ouro": 0.1, "desgaste": 10, "durMax": 100, "conserto": 0.3})
+	return dados.get("morte", {"ouro": 0.1, "desgaste": 10, "durMax": 100, "conserto": 0.3, "xp": 0.05})
 
 func durab(it) -> int:
 	return int(it.d) if it is Dictionary and it.has("d") else int(morte_dados().durMax)
@@ -491,6 +491,8 @@ func penalidade_morte() -> String:
 	var M := morte_dados()
 	var ouro := int(floor(int(prog.ouro) * float(M.ouro)))
 	prog.ouro = int(prog.ouro) - ouro
+	var xp := int(floor(max(0, int(prog.get("xp", 0))) * float(M.get("xp", 0.0)))) # André 2026-11-11: 5% do XP do nível atual
+	prog.xp = max(0, int(prog.get("xp", 0)) - xp)
 	var quebrou := []
 	for l in dados.lugares:
 		var it = prog.equip.get(l)
@@ -505,6 +507,8 @@ func penalidade_morte() -> String:
 	st = calcular_status()
 	mudou = true
 	var t := (". Perdeu %d de ouro" % ouro) if ouro > 0 else ""
+	if xp > 0:
+		t += ". Perdeu %d de XP" % xp
 	t += ". O equipamento desgastou"
 	if quebrou.size() > 0:
 		t += "; quebrou: %s (o Tomás conserta)" % ", ".join(quebrou)

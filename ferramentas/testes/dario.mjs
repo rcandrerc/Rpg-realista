@@ -47,3 +47,22 @@ const salvos = s.lotesParaSalvar();
 ok(salvos.find((l) => l.id === 'tdario')?.dados?.amiga?.prog, 'o progresso do Dario vai junto com o terreno dele');
 for (const x of s.amigosIa) x.amigaSair('andre');
 ok(!s.amiga && !dario.amiga && !s.jogadores.has(DARIO.id), 'os dois saem com o dono');
+
+// ---------- morte (André 2026-11-11): 5% do XP do nível atual para todos, e os amigos consertam sozinhos no Tomás ----------
+{
+  const { penalidadeMorte, durab } = await import('../../shared/progresso.js');
+  const p = { ouro: 1000, xp: 400, nivel: 7, equip: { corpo: { k: 'peitoral', r: 1 } }, mochila: [] };
+  const pen = penalidadeMorte(p);
+  ok(pen.xp === 20 && p.xp === 380 && p.nivel === 7 && p.ouro === 900, `morrer: -5% do XP do nível (${pen.xp}), -10% do ouro, nível igual`);
+  const p0 = { ouro: 0, xp: 0, nivel: 3, equip: {}, mochila: [] }; penalidadeMorte(p0);
+  ok(p0.xp === 0 && p0.nivel === 3, 'sem XP no nível: não cai de nível');
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  s4.adicionarJogador('andre', 'André', 'ruiva', {});
+  const dar4 = s4.amigoIaDe(DARIO.id); dar4.amigaEntrar('andre');
+  const b4 = dar4.amiga;
+  b4.prog.equip.corpo.d = 0; b4.prog.equip.pes.d = 60; b4.prog.ouro = 5000;
+  const ouro0 = b4.prog.ouro, n = dar4.consertoAmiga(b4);
+  ok(n === 2 && durab(b4.prog.equip.corpo) === 100 && durab(b4.prog.equip.pes) === 100 && b4.prog.ouro < ouro0, `Dario consertou ${n} peças com o ouro dele (${ouro0 - b4.prog.ouro})`);
+  b4.prog.equip.corpo.d = 0; b4.prog.ouro = 0;
+  ok(dar4.consertoAmiga(b4) === 0 && durab(b4.prog.equip.corpo) === 0, 'sem ouro não conserta (nada de graça)');
+}

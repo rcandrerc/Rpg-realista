@@ -18,7 +18,7 @@ import { CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTA
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { HISTORIA } from './dados.js';
-import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem } from './progresso.js';
+import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -178,7 +178,7 @@ export const Amiga = {
     this.passoChatAmiga(j); // mensagens dela no chat (respostas "digitando" e quando ela chama o André)
     if (j.troca) return this.passoTrocaAmiga(j); // trocando (fase 3): fica parada olhando para ele e negocia
     // caiu lutando: sai do time e renasce em casa (a cama dela), como qualquer jogador
-    if (j.morto) { if (j.time) { this.falarAmiga(this.AMIGA.falas.caiu); this.sairDoTime(j, `${this.AMIGA.nome} caiu`); } ia.fase = 'pensar'; return; }
+    if (j.morto) { if (j.time) { this.falarAmiga(this.AMIGA.falas.caiu); this.sairDoTime(j, `${this.AMIGA.nome} caiu`); this.consertoAmiga(j); } ia.fase = 'pensar'; return; }
     // subiu de nível: põe os pontos metade em força e metade em vitalidade (guerreira)
     while (j.prog.pontos > 0) this.distribuirAtributo(j.id, j.prog.atr.for <= j.prog.atr.vit ? 'for' : 'vit');
     // conversando: fica parada olhando para o dono
@@ -369,9 +369,24 @@ export const Amiga = {
   falarAmiga(texto) { if (this.amigaDono) this.evento({ t: 'fala', para: this.amigaDono, npc: this.AMIGA.id, texto: `${this.AMIGA.nome}: ${texto}` }); },
   // completa as poções dela até this.AMIGA.time.pocoes (ela passa na Rosa quando volta para casa)
   pocoesAmiga(j) { // compra na Rosa com o ouro dela, pelo preço da loja (André 2026-11-09: nada de poção de graça)
+    this.consertoAmiga(j); // antes da poção: equipamento gasto passa no Tomás
     const preco = ITENS.pocao.preco || 15;
     const falta = Math.min(this.AMIGA.time.pocoes - contar(j.prog.mochila, 'pocao'), Math.floor(j.prog.ouro / preco));
     if (falta > 0 && guardar(j.prog.mochila, { k: 'pocao', n: falta })) j.prog.ouro -= falta * preco;
+  },
+  // conserto (André 2026-11-11: "reparar sozinho com gold deles"): quando volta para casa ou cai, leva o que está gasto ao
+  // Tomás e paga o preço normal do conserto (custoConserto) com o próprio ouro. Primeiro as peças do corpo, a mais gasta
+  // antes; sem ouro para tudo, conserta só o que dá. Devolve quantas consertou.
+  consertoAmiga(j) {
+    const p = j.prog, gastas = pecasGastas(p).filter((x) => x.onde === 'equip')
+      .sort((a, b) => durabilidade(p.equip[a.l]) - durabilidade(p.equip[b.l]));
+    let n = 0;
+    for (const x of gastas) {
+      if ((p.ouro || 0) < x.custo) continue;
+      p.ouro -= x.custo; delete p.equip[x.l].d; n++;
+    }
+    if (n) { this.aplicarStatus(j); j.progSujo = true; }
+    return n;
   },
   // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
   vontadeAmiga(a, dono) {
