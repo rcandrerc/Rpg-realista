@@ -86,7 +86,7 @@ func vestir(e: Dictionary, v: Dictionary) -> void:
 			if mat is ShaderMaterial:
 				var s: ShaderMaterial = mat.duplicate() # só este boss: os monstros comuns continuam com o material de sempre
 				s.set_shader_parameter("tinta", cor)
-				s.set_shader_parameter("tinta_forca", 0.55)
+				s.set_shader_parameter("tinta_forca", float(v.get("tinta", 0.55))) # o Titã e o dragão já têm a cor deles: tinta fraca
 				s.set_shader_parameter("borda_cor", cor.lightened(0.25))
 				s.set_shader_parameter("borda_forca", 0.75)
 				s.set_shader_parameter("brilho_forca", 1.8)

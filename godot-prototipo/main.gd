@@ -63,9 +63,9 @@ const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "c
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
 const BANDO := []
-const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok"}
+const NOME_TIPO := {"puglin": "Puglin", "imp": "Imp", "chefe": "Imp Chefe", "lobo": "Lobo", "golem": "Golem de Magma", "maw": "Maw", "warrok": "Warrok", "tita": "Titã", "dragao": "Dragão"}
 # o lobo (modelos/lobo.glb, feito por IA) era montaria de teste e virou bicho de caça (pedido do André 2026-11-03)
-const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok"}
+const MODELO_TIPO := {"puglin": "puglin", "imp": "imp", "chefe": "imp", "lobo": "lobo", "golem": "pumpkinhulk", "maw": "maw", "warrok": "warrok", "tita": "tita", "dragao": "dragao"}
 # NPCs: lugar e função vêm do servidor (dados/mundo.json); aqui só o modelo de cada um
 const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": "vivi", "andarilho": "vita", "ferreiro": "cabelo_m", "reset": "cabelo_m",
 	"m_lenha": "cabelo_m", "m_pedra": "cabelo_m", "m_metal": "cabelo_m", "m_horta": "vivi", "m_peixe": "cabelo_m", "m_couro": "cabelo_m", # mercadores de pack (FASE 1)
@@ -75,7 +75,7 @@ const MODELO_NPC := {"lider": "fumiriya", "curandeira": "shino", "comerciante": 
 # 2026-11-03): base masculina com roupa de couro marrom, mais alto, para não ficar igual ao Mestre Ivo
 # O Aldo virou o ancião da vila (pedido do André, 2026-11-05): cabelo grisalho da tinta dele
 const TINGIR_NPC := ["ferreiro", "lider", "m_lenha", "m_pedra", "m_metal", "m_horta", "m_peixe", "m_couro", "m_conserva", "m_abobora", "m_perola", "m_ervas", "m_obsid", "m_brasa", "alquimista"]
-const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0} # TIPOS_INIMIGO de shared/dados.js
+const VIDA_INIMIGO := {"puglin": 80.0, "imp": 110.0, "chefe": 220.0, "lobo": 95.0, "golem": 130.0, "maw": 140.0, "warrok": 260.0, "tita": 260.0, "dragao": 260.0} # TIPOS_INIMIGO de shared/dados.js
 # monstros longe do herói (outra clareira): não desenha, não anima e (sem internet) não pensa
 const LONGE_INIMIGO := 70.0
 const NOME_LONGE := 30.0
@@ -1443,8 +1443,10 @@ func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -
 # Monstros do Mixamo (pedido do André 2026-11-03; receita da direção de arte, Warrok v2 2026-11-04): shader próprio
 # (monstro.gdshader: 3 faixas de luz, borda quente, olhos acesos) e contorno mais grosso (alto em m: nome e barra).
 const MIXAMO := {"warrok": {"alto": 2.55, "contorno": 0.02}, "maw": {"alto": 2.85, "contorno": 0.02, "olho": "9cff5a"},
-	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2}}
-const CHEFES := ["chefe", "warrok"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
+	"pumpkinhulk": {"alto": 2.65, "contorno": 0.02, "olho": "ffd34a", "brilho": 1.2},
+	# bosses de mundo com modelo próprio (André 2026-11-11): Titã do Quimera e dragão da Quaternius (client/exportar-godot/bosses-modelos.js)
+	"tita": {"alto": 2.4, "contorno": 0.02, "olho": "9ad8ff", "brilho": 1.4}, "dragao": {"alto": 2.2, "contorno": 0.015, "olho": "ffd34a"}}
+const CHEFES := ["chefe", "warrok", "tita", "dragao"] # chefe: não voa longe, não é puxado, sofre metade do controle (TIPOS_INIMIGO.chefe)
 var _shader_monstro: Shader
 func estilo_mixamo(no: Node3D, cfg: Dictionary) -> void:
 	if _shader_monstro == null:

@@ -1,11 +1,12 @@
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Exportar Bestiário para o Godot</title></head>
-<body><p>Ferramenta (só no vite dev): gera Puglin.glb, Imp.glb e Lobo.glb com as animações já gravadas, nos nomes que o Godot usa.</p>
+<body><p>Ferramenta (só no vite dev): gera Puglin.glb, Imp.glb, Lobo.glb, os do Mixamo e os dos bosses (Tita.glb, Dragao.glb) com as animações já gravadas, nos nomes que o Godot usa.</p>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { A } from '@rpg/shared';
+import { modelosBosses } from './exportar-godot/bosses-modelos.js';
 const NOMES = { Idle: 'parada', Walk: 'andar', Run: 'corrida', [A.swordIdle]: 'espada_parada', [A.slash]: 'golpe1', [A.slash2]: 'golpe2', [A.hit]: 'apanhar', [A.death]: 'morrer' };
 const ALTURA = { Imp: 1.36, Puglin: null }; // Imp na altura do ombro da Ruiva (direção de arte)
 function desaturar(tex, q) {
@@ -110,5 +111,7 @@ for (const [nome, g] of Object.entries(GOLPES)) MIXAMO[nome] = { ...MIXAMO[nome]
     saida[nome] = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(new Blob([bin])); });
   }
 }
+// bosses de mundo com modelo próprio: Titã (Colosso Gélido) e dragão (Dragão das Cinzas), exportar-godot/bosses-modelos.js
+Object.assign(saida, await modelosBosses());
 window.resultado = saida;
 </script></body></html>
