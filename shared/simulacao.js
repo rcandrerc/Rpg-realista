@@ -884,6 +884,8 @@ export class Simulacao {
       this.evento({ t: 'corrigir', para: j.id, x: r2(x), y: r2(y), z: r2(z), ry: r2(j.ry) });
     }
     this.evento({ t: 'cena', para: j.id, id });
+    // durante a cena (no meio da luta, do lado dos monstros) ninguém bate no herói: a soma das tomadas e a saída
+    j.cenaAte = this.tempo + C.tomadas.reduce((a, T) => a + (T.d || 3), 0) + 1.5;
   }
   // monstro c caiu e j ganhou: conta na etapa de matar (campo, tipo e chefe da história)
   contarHistoria(j, c) {
@@ -3262,6 +3264,7 @@ export class Simulacao {
   // h: a habilidade que acertou (skills do Quimera trazem crítico e efeitos: atordoa, congela, lento, vulnerável)
   ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
+    if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
@@ -3755,6 +3758,7 @@ export class Simulacao {
     let alvo = this.maisPerto(b, b.bm ? b.arena.r * 2 : 14);
     if (alvo && naAreaSegura(alvo.x, alvo.z)) alvo = null; // totem (André 2026-11-10): lá dentro monstro não persegue; volta para casa
     if (alvo && this.mobFechadoPara(b, alvo)) alvo = null; // região fechada para esse herói (André 2026-11-11): não sai atrás dele
+    if (alvo && alvo.cenaAte > this.tempo) alvo = null; // vendo uma cena da história (cena()): o monstro deixa ele em paz
     if (b.bm) { if (alvo && !this.naArena(b, alvo, COMBATE_BOSS.solta)) alvo = null; if (this.passoBoss(b, alvo, dt)) return; } // boss de mundo: só briga dentro da arena
     b.ataqueCd -= dt;
     const CI = COMBATE_INIMIGO;

@@ -427,6 +427,9 @@ func aplicar_foto(f: Dictionary) -> void:
 				var nome := _nome_recusado
 				m.criador.abrir_criacao(nome, m.aparencia, func(n, a, corpo):
 					rede.enviar("pronto", {"nome": n, "visual": corpo, "aparencia": a})
+					var hn = m.P.prog.get("hist")
+					if m.cinematica and (not (hn is Dictionary) or (int(hn.get("p", 0)) == 0 and not hn.get("ac", false))): # herói novo: a abertura vem já
+						m.cinematica.escurecer()
 					m.trocar_corpo(corpo, false)
 					m.definir_aparencia(a)
 					m.hud.nome = n,
