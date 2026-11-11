@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -3297,12 +3297,13 @@ export class Simulacao {
         const o = this.jogadores.get(k);
         if (o && !o.morto && !o.criando && dist(o, c) < TIME.perto && this.tempo - (o.lutouT ?? -1e9) <= TIME.combate) ganham.add(o);
       }
-      const doTime = new Map(); // time -> quantos dele ganharam
-      for (const j of ganham) if (j.time) doTime.set(j.time, (doTime.get(j.time) || 0) + 1);
+      const doTime = new Map(), maiorDoTime = new Map(); // time -> quantos dele ganharam / o nível mais alto entre eles
+      for (const j of ganham) if (j.time) { doTime.set(j.time, (doTime.get(j.time) || 0) + 1); maiorDoTime.set(j.time, Math.max(maiorDoTime.get(j.time) || 0, j.prog.nivel | 0)); }
       for (const j of ganham) {
         const n = j.time ? doTime.get(j.time) : 1;
         const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1) * (c.bm ? BOSSES_MUNDO[c.bm].xp : 1));
-        this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
+        const nerf = n > 1 ? fatorXpTime(j.prog.nivel, maiorDoTime.get(j.time)) : 1; // muito abaixo do mais alto do time: menos XP (TIME_XP)
+        this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1)) * nerf) : xp); this.soltarDrops(c, j);
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
@@ -3698,6 +3699,7 @@ export class Simulacao {
         // Quimera: o tempo até o próximo golpe conta a partir do acerto (o ataqueCd só corre depois da trava)
         b.ataqueCd = Math.max(0, hit + CI.cdMin + Math.random() * (CI.cdMax - CI.cdMin) - b.trava);
         this.evento({ t: 'preparo', id: b.id, dur: P });
+        b.preparoAte = this.tempo + P; // o cérebro dos NPCs (shared/cerebro.js) enxerga o braço levantado e pode recuar
         const seq = b.acaoSeq; // apanhou no meio (ou foi atordoado): o golpe foi cortado
         this.depois(hit, () => {
           if (b.acaoSeq !== seq || b.parado > this.tempo || b.morto || alvo.morto) return;
@@ -3854,6 +3856,7 @@ export class Simulacao {
     if (sk.k === 'voo' || sk.k === 'sumir') b.voando = true; // no ar (ou sumido): ninguém acerta
     b.trava = sk.aviso + 0.5; b.acao = null; b.anim = A.swordIdle;
     this.evento({ t: 'bossSkill', id: b.id, k: sk.k, nome: sk.nome, dur: sk.aviso, formas, ef: this.corDoEfeito(sk.ef), fica: sk.fica || 0 });
+    b.perigo = { formas, ate: this.tempo + sk.aviso }; // o cérebro dos NPCs (shared/cerebro.js) vê a área marcada no chão e sai dela
     this.evento({ t: 'preparo', id: b.id, dur: sk.aviso });
     this.depois(sk.aviso, () => {
       if (b.morto || b.skillSeq !== seq) return;

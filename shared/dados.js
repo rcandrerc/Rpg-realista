@@ -1279,6 +1279,11 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 // mensagens privadas o servidor guarda (de todo mundo junto) para quem acabou de entrar.
 export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm'] };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
+// André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
+// o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
+// (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.
+export const TIME_XP = { nerfLivre: 5, nerfPorNivel: 0.1 };
+export const fatorXpTime = (meu, maior, T = TIME_XP) => Math.max(0, Math.min(1, 1 - T.nerfPorNivel * ((maior | 0) - (meu | 0) - T.nerfLivre)));
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }
@@ -2049,8 +2054,9 @@ export const AMIGA = {
   // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
   // zera de novo; o save anterior fica em 'antes' no terreno dela.
   recomeco: RECOMECO.data,
-  visual: 'victoria',
-  aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1 },
+  // André 2026-11-11: todas as moças no corpo da Ruiva (a armadura foi ajustada para ele); o cabelo da Victoria vira penteado
+  visual: 'ruiva',
+  aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1, penteado: 'victoria' },
   equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'short', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
   terreno: { w: 10, d: 10 }, // tamanho do terreno dela (procura o primeiro lugar livre perto da entrada das Terras)
   // a casa (6 x 4 m, a 2 m da borda, porta para o sul) e a horta, relativas ao canto do terreno (x0, z0); a grade é a de CASA.grade
@@ -2348,6 +2354,33 @@ export const DARIO = mesclarAmigo(AMIGA, {
 });
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO];
+
+// Cérebro por regras dos NPCs (André 2026-11-11, estilo bots do WoW; motor em shared/cerebro.js). Por enquanto só no
+// combate da Cecília e do Dario no time. pensar: decisões por segundo. trocaMin: s entre trocas de arma. trocar/ficar:
+// nota do cajado para pegar / continuar com ele. longe: m do alvo que puxa para o cajado. magia: distância que quem está
+// de cajado mantém [min, ideal, max]. recuar: m que se afasta do golpe carregado. preparoPerto: m do monstro que
+// prepara o golpe para contar como perigo. agrupados: raio em volta do alvo que conta monstros juntos.
+// jeitos: coragem (0 a 1), cuidado com os outros (0 a 1) e gosto pelo cajado (0 a 1) de cada NPC.
+// regras: { id, pri, quando: [[sentido, op, valor]], faca, por, texto } (o mesmo formato das dicas que vão virar regra).
+export const CEREBRO = {
+  pensar: 4, trocaMin: 6, trocar: 0.5, ficar: 0.4, longe: 6, magia: [4.5, 7, 10], recuar: 0.9, preparoPerto: 3.2, agrupados: 3.5,
+  jeitos: {
+    cecilia: { coragem: 0.75, cuidado: 0.5, cajado: 0.25 }, // brincalhona e corajosa: espada na cara
+    dario: { coragem: 0.6, cuidado: 0.85, cajado: 0.35 }, // calmo e leal: protege quem está apanhando
+    padrao: { coragem: 0.5, cuidado: 0.5, cajado: 0.3 },
+  },
+  regras: [
+    { id: 'pocao', pri: 100, quando: [['vida', '<', '$limPocao'], ['temPocao', '=', true], ['pocaoPronta', '=', true]], faca: 'pocao', texto: 'beber poção com pouca vida' },
+    { id: 'curaSi', pri: 95, quando: [['vida', '<', '$limCuraSi'], ['curaPronta', '=', true], ['pocaoPronta', '=', false]], faca: 'curarSi', texto: 'usar Cura em si quando a poção está recarregando' },
+    { id: 'curaAliado', pri: 90, quando: [['aliadoVida', '<', '$limCura'], ['aliadoPerto', '=', true], ['curaPronta', '=', true]], faca: 'curarAliado', texto: 'curar aliado que está mal' },
+    { id: 'fugir', pri: 85, quando: [['vida', '<', '$limFugir'], ['temPocao', '=', false]], faca: 'fugir', texto: 'sem poção e quase caindo: correr para perto do dono' },
+    { id: 'sairDaArea', pri: 82, quando: [['naAreaDePerigo', '=', true]], faca: 'sairDaArea', texto: 'sair da área marcada no chão (skill de boss, poça)' },
+    { id: 'recuarChefe', pri: 80, quando: [['preparando', '=', true], ['preparoChefe', '=', true]], faca: 'recuar', texto: 'sair da frente do golpe carregado do chefe' },
+    { id: 'recuarFraca', pri: 75, quando: [['preparando', '=', true], ['vida', '<', '$limRecuar']], faca: 'recuar', texto: 'sair da frente do golpe carregado com pouca vida' },
+    { id: 'proteger', pri: 60, quando: [['aliadoApanhando', '=', true], ['apanhandoVida', '<', '$limProteger']], faca: 'proteger', texto: 'ir no monstro que bate no aliado' },
+    { id: 'atacar', pri: 50, quando: [['temAlvo', '=', true]], faca: 'atacar', texto: 'atacar com a arma da situação' },
+  ],
+};
 
 // ---------- Progressão até o Nv 100 (André 2026-11-10: "o mapa vai começar não todo liberado... skills, craft, tudo
 // com uma sequência de desbloqueio de acordo com o nível") ----------

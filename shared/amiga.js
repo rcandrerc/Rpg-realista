@@ -14,9 +14,10 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
+import { CEREBRO, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
+import { decidir, ordenarRegras, limites, escolherArma } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -438,30 +439,9 @@ export const Amiga = {
     // montaria: monta quando o dono monta (e desce para lutar)
     const monta = !!dono.montado && !alvo && !ia.atividade; // coletando: a pé
     if (monta !== !!j.montado) j.montado = monta ? (MONTARIAS[dono.montado] ? dono.montado : 'lobo') : null;
-    // vida baixa: poção (a recarga é a do jogo); sem poção e quase caindo, foge para perto do dono
-    if (j.vida < j.vidaMax * (this.regraAmiga('pocao') ?? R.pocao) && (ia.pocaoT || 0) <= this.tempo && (j.pocaoAte?.pocao || 0) <= this.tempo) {
-      const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
-      if (i >= 0) { ia.pocaoT = this.tempo + 2; this.item(j.id, { acao: 'usar', i }); }
-    }
-    // Cura (o botão de cura de todo jogador): nela quando a poção não dá, ou no dono quando ele está mal e perto
-    const J = this.AMIGA.justa, podeCurar = (j.cds.cura || 0) <= this.tempo && j.mana >= CURA.mana && !(j.trava > 0);
-    if (podeCurar && ((j.vida < j.vidaMax * J.curaVida && (j.pocaoAte?.pocao || 0) > this.tempo) || (dono.vida < dono.vidaMax * (this.regraAmiga('curaDono') ?? J.curaDono) && !dono.morto && d < (CURA.timeR || 8)))) {
-      this.pararAmiga(j); return this.usarHabilidade(j.id, 9);
-    }
-    const semPocao = !j.prog.mochila.some((o) => o?.k === 'pocao');
-    if (alvo && !(semPocao && j.vida < j.vidaMax * R.fugir)) {
-      const da = Math.hypot(alvo.x - j.x, alvo.z - j.z);
-      if (da > 1.9) return this.irDireto(j, alvo.x, alvo.z, da > 4);
-      this.pararAmiga(j);
-      j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
-      // de vez em quando uma skill de espada da barra dela (1 a 4); no resto, o combo do golpe
-      if (this.tempo >= (ia.skillT || 0)) {
-        ia.skillT = this.tempo + R.skill * (0.7 + Math.random() * 0.6);
-        const k = 1 + Math.floor(Math.random() * 4), h = j.build[k - 1];
-        if (h && (j.cds[h] || 0) <= this.tempo) return this.usarHabilidade(j.id, k);
-      }
-      return this.usarHabilidade(j.id, 0);
-    }
+    // combate pelo cérebro por regras (André 2026-11-11, shared/cerebro.js + CEREBRO em dados.js): poção, Cura (nela e
+    // em quem do time está mal), fugir sem poção, recuar do golpe carregado, proteger aliado, atacar de espada ou cajado
+    if (this.cerebroAmiga(j, dono, alvo)) return;
     if (alvo && (j.coleta || j.pesca)) { this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); } // monstro: larga a coleta
     if (!alvo && ia.atividade && this.passoAtividadeAmiga(j, dono)) return; // coletando junto (pesca, minério, lenha)
     // seguindo: fica um pouco atrás e do lado dele
@@ -470,6 +450,120 @@ export const Amiga = {
     const dp = Math.hypot(px - j.x, pz - j.z);
     if (dp < 0.6 || (d < seguir + 0.8 && !dono.montado)) return this.pararAmiga(j);
     this.irDireto(j, px, pz, dp > R.correr || !!dono.montado);
+  },
+  // ---------- cérebro por regras (André 2026-11-11: "eles agem muito robozão"; estilo bots do WoW) ----------
+  // O que ela enxerga agora (os sentidos que as regras de CEREBRO.regras leem). alvo = o monstro do alvoAmiga.
+  sentidosAmiga(j, dono, alvo) {
+    const C = CEREBRO, R = this.AMIGA.time, J = this.AMIGA.justa, ia = j.ia, t = this.tempo;
+    const jeito = C.jeitos[this.AMIGA.id] || C.jeitos.padrao;
+    const s = limites(jeito, { pocao: this.regraAmiga('pocao') ?? R.pocao, curaDono: this.regraAmiga('curaDono') ?? J.curaDono, curaVida: J.curaVida, fugir: R.fugir });
+    s.vida = j.vida / j.vidaMax; s.mana = j.mana / (j.manaMax || 1);
+    s.temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
+    s.pocaoPronta = (ia.pocaoT || 0) <= t && (j.pocaoAte?.pocao || 0) <= t;
+    s.curaPronta = (j.cds.cura || 0) <= t && j.mana >= CURA.mana && !(j.trava > 0);
+    const inimigos = this.inimigosDe(j);
+    // aliados do time (o dono e os outros amigos): o mais machucado e quem está apanhando
+    const aliados = (j.time?.membros || [dono.id]).filter((k) => k !== j.id).map((k) => this.jogadores.get(k)).filter((o) => o && !o.morto);
+    let mal = null, bate = null, bateEm = null;
+    for (const o of aliados) {
+      if (!mal || o.vida / o.vidaMax < mal.vida / mal.vidaMax) mal = o;
+      const e = inimigos.find((e) => !e.treino && e.vez === o.id && Math.hypot(e.x - j.x, e.z - j.z) < R.ajudar);
+      if (e && (!bateEm || o.vida / o.vidaMax < bateEm.vida / bateEm.vidaMax)) { bate = e; bateEm = o; }
+    }
+    s.aliadoVida = mal ? mal.vida / mal.vidaMax : 1; s.aliadoPerto = !!mal && Math.hypot(mal.x - j.x, mal.z - j.z) < R.ajudar;
+    s.aliadoApanhando = !!bate; s.apanhandoVida = bateEm ? bateEm.vida / bateEm.vidaMax : 1;
+    // monstro com o braço levantado (preparo do golpe) vindo nela
+    const prep = inimigos.find((e) => e.preparoAte > t && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < C.preparoPerto);
+    s.preparando = !!prep; s.preparoChefe = !!prep && !!(e => e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe || e.hc)(prep);
+    // área marcada no chão (skill de boss de mundo com aviso, ou poça que fica): sai dela como um jogador atento
+    let area = null;
+    for (const e of inimigos) if (e.perigo?.ate > t) { const F = e.perigo.formas.find((F) => this.dentroDaForma(F, j)); if (F) { area = { F, bx: e.x, bz: e.z }; break; } }
+    if (!area) for (const f of this.camposBoss || []) if (Math.hypot(f.x - j.x, f.z - j.z) <= f.r + 0.3) { area = { F: { f: 'c', x: f.x, z: f.z, r: f.r } }; break; }
+    s.naAreaDePerigo = !!area;
+    s.temAlvo = !!alvo; s.distAlvo = alvo ? Math.hypot(alvo.x - j.x, alvo.z - j.z) : 99;
+    s.pertoDeMim = 0; s.agrupados = 0;
+    for (const e of inimigos) {
+      if (e.treino) continue;
+      if (Math.hypot(e.x - j.x, e.z - j.z) < 3) s.pertoDeMim++;
+      if (alvo && Math.hypot(e.x - alvo.x, e.z - alvo.z) < C.agrupados) s.agrupados++;
+    }
+    return { s, jeito, mal, bate, prep, area };
+  },
+  // Decide (CEREBRO.pensar vezes por segundo) e executa. true = já cuidou do passo; false = segue o resto (coleta, seguir).
+  cerebroAmiga(j, dono, alvo) {
+    const C = CEREBRO, ia = j.ia, t = this.tempo;
+    if (ia.cerT == null) ia.cerT = t + Math.random() / C.pensar; // cada NPC pensa num tick diferente
+    let c = ia.cer;
+    if (t >= ia.cerT && !(c && c.ate > t)) {
+      ia.cerT = t + 1 / C.pensar;
+      const v = this.sentidosAmiga(j, dono, alvo), r = decidir(v.s, ia.regrasOrd ||= ordenarRegras(C.regras));
+      c = ia.cer = r ? { faca: r.faca, id: r.id, ate: 0, s: v.s, jeito: v.jeito, aliado: v.mal?.id, alvo: (r.faca === 'proteger' ? v.bate : alvo)?.id, de: v.prep?.id, area: v.area } : null;
+      if (c?.faca === 'recuar') c.ate = t + C.recuar;
+      if (c?.faca === 'pocao') { // uma vez: bebe e pensa de novo no próximo tick
+        const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
+        if (i >= 0) { ia.pocaoT = t + 2; this.item(j.id, { acao: 'usar', i }); }
+        ia.cer = null; ia.cerT = t; return false;
+      }
+      if (c?.faca === 'curarSi') { ia.cer = null; this.pararAmiga(j); this.usarHabilidade(j.id, 9); return true; }
+    }
+    if (!c) return false;
+    const achar = (id) => this.inimigos.find((e) => e.id === id && !e.morto);
+    if (c.faca === 'curarAliado') {
+      const o = this.jogadores.get(c.aliado);
+      if (!o || o.morto || !((j.cds.cura || 0) <= t && j.mana >= CURA.mana)) { ia.cer = null; return false; }
+      const d = Math.hypot(o.x - j.x, o.z - j.z);
+      if (d > (CURA.timeR || 8) - 1) return this.irDireto(j, o.x, o.z, true), true;
+      this.pararAmiga(j); ia.cer = null; this.usarHabilidade(j.id, 9); return true;
+    }
+    if (c.faca === 'fugir') return false; // o seguir leva para perto do dono
+    if (c.faca === 'recuar') {
+      const e = achar(c.de); if (!e || c.ate <= t) { ia.cer = null; return !!e; }
+      const dx = j.x - e.x, dz = j.z - e.z, d = Math.hypot(dx, dz) || 1;
+      j.entrada = { mx: dx / d, mz: dz / d, correr: true }; return true;
+    }
+    if (c.faca === 'sairDaArea') { // corre para fora: círculo = para longe do meio; linha = para o lado; cone = para longe do boss
+      const { F, bx, bz } = c.area;
+      if (!this.dentroDaForma(F, j)) { c.fora = (c.fora || 0) + 1; if (c.fora > 6) { ia.cer = null; return false; } } // um passinho a mais e pensa de novo
+      let mx, mz;
+      if (F.f === 'l') { const fx = Math.sin(F.ry), fz = Math.cos(F.ry), lado = (j.x - F.x) * fz - (j.z - F.z) * fx >= 0 ? 1 : -1; mx = fz * lado; mz = -fx * lado; }
+      else { const cx = F.f === 'v' ? bx ?? F.x : F.x, cz = F.f === 'v' ? bz ?? F.z : F.z, dx = j.x - cx, dz = j.z - cz, d = Math.hypot(dx, dz); if (d < 0.1) { mx = Math.sin(j.ry + Math.PI / 2); mz = Math.cos(j.ry + Math.PI / 2); } else { mx = dx / d; mz = dz / d; } }
+      c.ate = t + 0.5; j.entrada = { mx, mz, correr: true }; return true;
+    }
+    const e = c.faca === 'proteger' ? achar(c.alvo) || alvo : alvo;
+    if (!e) { ia.cer = null; return false; }
+    return this.atacarAmiga(j, e, c);
+  },
+  // ataque com a arma da situação (sem classe: o estilo é a arma). Espada: colada no monstro, golpe e skills 1 a 4.
+  // Cajado: fica a CEREBRO.magia m, se afasta quando ele chega perto, Disparo e skills 5 a 8 quando tem mana.
+  atacarAmiga(j, alvo, c) {
+    const C = CEREBRO, R = this.AMIGA.time, ia = j.ia, t = this.tempo;
+    const da = Math.hypot(alvo.x - j.x, alvo.z - j.z);
+    if (t >= (ia.armaT || 0)) {
+      const s = { ...c.s, distAlvo: da, vida: j.vida / j.vidaMax, mana: j.mana / (j.manaMax || 1) };
+      const quer = escolherArma(s, c.jeito, j.modo, C);
+      if (quer !== j.modo) { this.trocarModo(j.id, quer); ia.armaT = t + C.trocaMin; }
+    }
+    const skill = (de, ate) => { // de vez em quando uma skill da barra da arma; false = nenhuma pronta agora
+      if (t < (ia.skillT || 0)) return false;
+      ia.skillT = t + R.skill * (0.7 + Math.random() * 0.6);
+      const k = de + Math.floor(Math.random() * (ate - de + 1)), h = j.build[k - 1], H = h && HABILIDADES[h];
+      if (!H || (j.cds[h] || 0) > t || (H.mana && j.mana < H.mana)) return false;
+      this.usarHabilidade(j.id, k); return true;
+    };
+    if (j.modo === 'Magia') {
+      const [min, , max] = C.magia;
+      j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
+      if (da < min && !(j.trava > 0)) { const d = da || 1; j.entrada = { mx: (j.x - alvo.x) / d, mz: (j.z - alvo.z) / d, correr: true }; return true; }
+      if (da > max) return this.irDireto(j, alvo.x, alvo.z, true), true;
+      this.pararAmiga(j);
+      if (!skill(5, 8)) this.usarHabilidade(j.id, 10);
+      return true;
+    }
+    if (da > 1.9) return this.irDireto(j, alvo.x, alvo.z, da > 4), true;
+    this.pararAmiga(j);
+    j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
+    if (!skill(1, 4)) this.usarHabilidade(j.id, 0);
+    return true;
   },
   // ---------- viagem até o dono (André 2026-11-10: "ela entra na montaria e vem até mim, não se teleporta; eu vejo ela
   // no mapa vindo na minha direção, como um jogador normal"; "vai pelas estradas para não travar") ----------
