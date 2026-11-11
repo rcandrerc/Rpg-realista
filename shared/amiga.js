@@ -46,7 +46,14 @@ export const Amiga = {
     (this.amigaFalam ||= new Set()).add(donoId);
     if (!this.amiga) {
       const L = this.loteDaAmiga(true);
-      const salvo = L?.amiga || {};
+      let salvo = L?.amiga || {};
+      // recomeço (André 2026-11-11): tudo o que ela jogou volta ao zero (nível, peças, ouro, bolsa, amizades, diário);
+      // o jeito dela (código) fica. O save antigo fica guardado em 'antes' para dar para voltar se ele pedir.
+      let antes = salvo.antes || null;
+      if (AMIGA.recomeco && salvo.recomeco !== AMIGA.recomeco) {
+        if (salvo.prog) { const { antes: _velho, ...resto } = salvo; antes = { ...resto, guardado: AMIGA.recomeco }; }
+        salvo = {};
+      }
       const j = this.adicionarJogador(AMIGA.id, AMIGA.nome, AMIGA.visual, { aparencia: AMIGA.aparencia, progresso: salvo.prog || null });
       j.conta = AMIGA.conta; j.bot = true;
       j.prog.hist = { p: HISTORIA.length, ac: false, n: 0 }; // progressão (André 2026-11-10): ela mora no mundo, nada fica na névoa para ela
@@ -68,6 +75,7 @@ export const Amiga = {
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
       j.amizadeAntiga = salvo.amizades ? salvo.antiga ?? null : salvo.amizade | 0; // save de antes de 2026-11-10: a amizade era do André (conta de teste)
       j.pedido = salvo.pedido && ITENS[salvo.pedido.k] ? { k: salvo.pedido.k, n: salvo.pedido.n | 0 } : null;
+      j.amigaAntes = antes;
       j.ia = { fase: 'pensar', ate: 0 };
       this.pocoesAmiga(j);
       // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe)
@@ -159,7 +167,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || !L) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    L.amiga = { prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1 };
+    L.amiga = { prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(AMIGA.recomeco ? { recomeco: AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     this.lotesMudados.add(L.def.id);
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
