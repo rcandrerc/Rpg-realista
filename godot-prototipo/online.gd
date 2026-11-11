@@ -348,6 +348,36 @@ func _desconectado() -> void:
 	_voltar_a_tela_inicial()
 	aviso_login.text = "Sem conexão com o servidor."
 
+# Apagou o personagem ou saiu da conta (menu do topo): volta para a tela de login sem recarregar a cena.
+# André 2026-11-11: recarregar a cena (reload_current_scene) fechava o app no celular ao apagar o personagem, e só
+# dava para criar outro reabrindo o jogo (o mesmo tranco da queda de conexão, #262). Agora limpa o que era da conta
+# antiga e mostra "Entrar com Google"; entrando, a conta nova abre o criador normalmente.
+func voltar_ao_login(texto := "") -> void:
+	desligar()
+	rede.fechar()
+	meu_id = ""
+	_pronto = false # conta nova: a primeira foto (ainda criando) abre o criador de novo
+	_nome_recusado = ""
+	_erro_nome = ""
+	_ap_mandar = null
+	_ap_txt = ""
+	_visual_txt = ""
+	_visual_mandado = ""
+	_build_ok = false
+	_lugar_pendente = false
+	_srv.clear()
+	corpos.clear()
+	no_mapa = []
+	amiga_id = ""
+	amiga_ids.clear()
+	amiga_papeis.clear()
+	_foi_desconectado = false
+	_conta_antes = {}
+	if m.criador and m.criador.aberto():
+		m.criador.fechar()
+	mostrar_login()
+	aviso_login.text = texto
+
 # tela inicial com a conta salva (Entrar como… / Trocar de conta / Jogar sozinho) e o motivo embaixo
 func _voltar_a_tela_inicial() -> void:
 	var conta: Dictionary = rede.conta if rede.conta is Dictionary and not rede.conta.is_empty() else _conta_antes

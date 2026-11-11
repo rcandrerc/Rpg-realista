@@ -478,13 +478,12 @@ func _sair(o) -> void:
 	o.desligar()
 	o.cobrir("Saindo da conta…")
 	await o.rede.sair_de_vez()
-	_recarregar(o, "Saindo da conta…")
+	_recarregar(o, "Você saiu da conta.")
 
-# começa o jogo do zero: sem sessão guardada, abre direto na tela de login (Entrar com Google ou Jogar sozinho)
+# volta para a tela de login (Entrar com Google ou Jogar sozinho). Sem recarregar a cena: o reload_current_scene
+# fechava o app no celular depois de apagar o personagem (André 2026-11-11); online.gd limpa a conta antiga.
 func _recarregar(o, texto: String) -> void:
-	o.cobrir(texto)
-	await get_tree().process_frame
-	get_tree().reload_current_scene()
+	o.voltar_ao_login(texto)
 
 func montar_multi() -> void:
 	_cabeca("topo_multi", "Multijogador")

@@ -1,7 +1,7 @@
 // Balanço da dificuldade (André 2026-11-06): todos os monstros batem juntos, defesa contra nível, drops só Comum/Raro,
 // criação até Mítico, nível 200 e o teste de nível só para a conta de teste.
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
-import { COMBATE_INIMIGO, DROPS, RARIDADE_CRIAR, NIVEL_INIMIGO } from '../../shared/dados.js';
+import { COMBATE_INIMIGO, DROPS, RARIDADE_CRIAR, NIVEL_INIMIGO, CONTA_TESTE, MOCHILA } from '../../shared/dados.js';
 import { NIVEL_MAX, xpProximo, reducaoContra } from '../../shared/progresso.js';
 const ok = (c, t) => { if (!c) { console.error('FALHOU', t); process.exit(1); } console.log('ok', t); };
 ok(COMBATE_INIMIGO.aoMesmoTempo >= 99, 'todos os monstros batem juntos');
@@ -13,10 +13,28 @@ const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('A', 'André', null, { testador: true });
 s.adicionarJogador('B', 'Beto', null, {});
 s.nivelTeste('B', 50); ok(s.jogadores.get('B').prog.nivel === 1, 'quem não é de teste não muda o nível');
+// André 2026-11-11: "quero ser um player normal" — atalhos desligados (o código fica, CONTA_TESTE)
+ok(!CONTA_TESTE.nivel && !CONTA_TESTE.paginas, 'atalhos de teste desligados');
+s.nivelTeste('A', 20); ok(s.jogadores.get('A').prog.nivel === 1, 'conta do André não muda mais o nível');
+ok(s.jogadores.get('A').prog.paginas === 1, 'conta do André começa com 1 página, como todo mundo');
+{ // quem já tinha as 4 de graça: volta para 1 página, itens de trás vão para a frente, nada some; só uma vez
+  const mo = Array(MOCHILA * 4).fill(null); mo[0] = { k: 'pocao', n: 3 }; mo[MOCHILA * 2 + 5] = { k: 'pocao_mana', n: 2 };
+  const s2 = new Simulacao(MAPA_CLAREIRA); s2.adicionarJogador('A', 'André', null, { testador: true, progresso: { nivel: 3, mochila: mo, paginas: 4 } });
+  const p2 = s2.jogadores.get('A').prog;
+  ok(p2.paginas === 1 && p2.mochila.length === MOCHILA && p2.mochila.filter(Boolean).length === 2 && p2.devPag === CONTA_TESTE.devolver, 'páginas de graça devolvidas sem perder item');
+  const cheia = Array(MOCHILA * 4).fill(null).map((_, i) => (i < 50 ? { k: 'pocao', n: 1 } : null));
+  const s3 = new Simulacao(MAPA_CLAREIRA); s3.adicionarJogador('A', 'André', null, { testador: true, progresso: { nivel: 3, mochila: cheia, paginas: 4 } });
+  ok(s3.jogadores.get('A').prog.paginas === 2 && s3.jogadores.get('A').prog.mochila.filter(Boolean).length === 50, 'não cabe em 1 página: fica com 2, nada some');
+  const comprada = { ...p2, paginas: 3, mochila: [...p2.mochila, ...Array(MOCHILA * 2).fill(null)] };
+  const s4 = new Simulacao(MAPA_CLAREIRA); s4.adicionarJogador('A', 'André', null, { testador: true, progresso: comprada });
+  ok(s4.jogadores.get('A').prog.paginas === 3, 'página comprada depois não é tirada de novo');
+}
+CONTA_TESTE.nivel = true; // se o André pedir de volta, liga e funciona como antes
 s.nivelTeste('A', 20); const a = s.jogadores.get('A').prog; ok(a.nivel === 20 && a.pontos === 38, 'teste: nível 20 com 38 pontos');
 s.distribuirAtributos('A', { int: 30 }); s.nivelTeste('A', 5); ok(a.atr.int === 3 && a.pontos === 8, 'desceu abaixo do gasto: pontos voltam');
 s.distribuirAtributos('A', { des: 4 }); s.nivelTeste('A', 5, true); ok(a.atr.des === 3 && a.pontos === 8, 'zerar pontos de graça');
 s.nivelTeste('A', 250); ok(a.nivel === 250, 'passa do 200 (sem limite de nível)');
+CONTA_TESTE.nivel = false;
 // André 2026-11-09: quanto mais acima do bicho, menos XP, sem parar no piso
 import { xpNivel } from '../../shared/progresso.js';
 ok(xpNivel(110, 117, NIVEL_INIMIGO) === NIVEL_INIMIGO.xpMin && xpNivel(110, 130, NIVEL_INIMIGO) < xpNivel(110, 120, NIVEL_INIMIGO) && xpNivel(110, 120, NIVEL_INIMIGO) < xpNivel(110, 117, NIVEL_INIMIGO), 'XP cai cada vez mais acima do bicho');
