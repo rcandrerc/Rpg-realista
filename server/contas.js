@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido } from '@rpg/shared';
+import { PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido, RECOMECO, AMIGA } from '@rpg/shared';
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
@@ -29,8 +29,9 @@ export function verificadorGoogle(clientId) {
 }
 
 export class Contas {
-  constructor({ pasta, verificar }) {
+  constructor({ pasta, verificar, ehTestador }) {
     this.pasta = pasta;
+    this.ehTestador = ehTestador || testador; // os testes trocam (o e-mail de teste não fica no repositório)
     this.verificar = verificar;
     fs.mkdirSync(pasta, { recursive: true });
     this.db = new DatabaseSync(path.join(pasta, 'contas.db'));
@@ -59,6 +60,9 @@ export class Contas {
     if (!colunas.includes('progresso')) this.db.exec('ALTER TABLE contas ADD COLUMN progresso TEXT');
     // chave Groq do próprio jogador (André 2026-11-10): quem conversa com a Cecília paga com a chave dele. Fica só aqui no banco.
     if (!colunas.includes('ia_chave')) this.db.exec('ALTER TABLE contas ADD COLUMN ia_chave TEXT');
+    // recomeço (André 2026-11-11): a conta de teste volta ao zero uma vez por RECOMECO.data; o que tinha fica em 'antes'
+    if (!colunas.includes('recomeco')) this.db.exec('ALTER TABLE contas ADD COLUMN recomeco TEXT');
+    if (!colunas.includes('antes')) this.db.exec('ALTER TABLE contas ADD COLUMN antes TEXT');
     // Vila dos Lotes: dono (chave da conta: 'c' + id), nome do dono e o que tem no lote (peças e horta, em JSON)
     this.db.exec('CREATE TABLE IF NOT EXISTS lotes (id TEXT PRIMARY KEY, dono TEXT, nome TEXT, dados TEXT, atualizado INTEGER)');
     // amigos (André 2026-11-05): cada amizade fica gravada nas duas pontas (a -> b e b -> a), até 20 por conta
@@ -81,6 +85,9 @@ export class Contas {
       apagarConta: this.db.prepare('DELETE FROM contas WHERE id = ?'),
       build: this.db.prepare('UPDATE contas SET build = ? WHERE id = ?'),
       progresso: this.db.prepare('UPDATE contas SET progresso = ? WHERE id = ?'),
+      recomecar: this.db.prepare('UPDATE contas SET antes = ?, progresso = NULL, build = NULL, recomeco = ? WHERE id = ?'),
+      todasContas: this.db.prepare('SELECT id, email, progresso, build, recomeco, antes FROM contas'),
+      lotesDoDono: this.db.prepare('SELECT * FROM lotes WHERE dono = ?'),
       chaveIa: this.db.prepare('SELECT ia_chave FROM contas WHERE id = ?'),
       salvarChaveIa: this.db.prepare('UPDATE contas SET ia_chave = ? WHERE id = ?'),
       lotes: this.db.prepare('SELECT * FROM lotes'),
@@ -96,6 +103,34 @@ export class Contas {
     };
     this.copiar();
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
+    this.recomecar(); // depois da cópia de segurança: o banco de antes do recomeço fica na pasta de cópias
+  }
+
+  // Recomeço do zero (André 2026-11-11: "zera tudo como se a Cecília tivesse começado hoje; eu também, do zero").
+  // Roda quando o servidor sobe (antes de qualquer sala carregar os terrenos), uma vez para cada RECOMECO.data:
+  // - conta de teste: nível, XP, atributos, skills, build, ouro, mochila, equipamento, profissões e missões zeram, e o
+  //   terreno (casa, baú, horta, fornos) volta à venda. Nome, aparência, amigos e chave da IA ficam.
+  // - Cecília: o terreno dela fica vazio (ela levanta a casa de novo) e o progresso dela zera (shared/amiga.js).
+  // Tudo o que tinha vai para a coluna 'antes' da conta (ou 'antes' dentro do terreno dela): dá para voltar.
+  recomecar() {
+    const data = RECOMECO?.data; if (!data) return;
+    for (const c of this.q.todasContas.all()) {
+      if (c.recomeco === data || !this.ehTestador(c.email)) continue;
+      const lotes = this.q.lotesDoDono.all('c' + c.id);
+      const antes = JSON.stringify({ data, em: Date.now(), progresso: c.progresso || null, build: c.build || null, lotes, antes: c.antes || null });
+      this.q.recomecar.run(antes, data, c.id);
+      this.q.soltarLotes.run('c' + c.id);
+      console.log(`Recomeço ${data}: conta ${c.id} voltou ao Nv 1 (${lotes.length} terreno(s) à venda)`);
+    }
+    for (const l of this.q.lotesDoDono.all(AMIGA.conta)) {
+      let d = {}; try { d = l.dados ? JSON.parse(l.dados) : {}; } catch { /* estragado: começa vazio */ }
+      if (d.amiga?.recomeco === data) continue;
+      const { amiga: velha, ...resto } = d;
+      const antes = { ...(velha || {}), lote: resto, guardado: data }; delete antes.antes;
+      const novo = { ret: d.ret, pecas: [], horta: {}, prox: 1, taxa: Date.now(), amiga: { recomeco: data, antes } };
+      this.q.gravarLote.run(l.id, l.dono, l.nome, JSON.stringify(novo), Date.now());
+      console.log(`Recomeço ${data}: terreno da ${AMIGA.nome} vazio, progresso dela zerado`);
+    }
   }
 
   // Login com Google. modo 'entrar' só entra em conta que já existe (sem conta → erro semConta);
