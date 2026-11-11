@@ -54,3 +54,45 @@ export function escolherArma(s, jeito, atual, C) {
   const quer = atual === 'Magia' ? (p >= C.ficar ? 'Magia' : 'Espada') : (p >= C.trocar ? 'Magia' : 'Espada');
   return quer;
 }
+
+// ---------- dica vira regra (entrega 2) ----------
+const OPS = { n: ['<', '>'], b: ['='], a: ['='] };
+// regra que veio da IA (ou do banco) -> regra limpa, ou null se não dá para seguir. C = CEREBRO.
+export function validarRegra(r, C) {
+  if (!r || typeof r !== 'object' || !Array.isArray(r.quando)) return null;
+  const D = C.dicas, faca = r.faca;
+  if (!Object.hasOwn(C.acoes, faca)) return null;
+  if (r.quando.length < 1 || r.quando.length > D.condicoes) return null;
+  const quando = [];
+  for (const q of r.quando) {
+    if (!Array.isArray(q) || q.length !== 3) return null;
+    const [k, op, v] = q, S = C.sentidos[k];
+    if (!S || !OPS[S.tipo].includes(op)) return null;
+    if (S.tipo === 'n' && !(typeof v === 'number' && Number.isFinite(v) && v >= -100 && v <= 1000)) return null;
+    if (S.tipo === 'b' && typeof v !== 'boolean') return null;
+    if (S.tipo === 'a' && v !== 'Espada' && v !== 'Magia') return null;
+    quando.push([k, op, v]);
+  }
+  const pri = Number.isFinite(r.pri) ? Math.min(D.priMax, Math.max(D.priMin, Math.round(r.pri))) : D.pri;
+  const por = Number.isFinite(r.por) ? Math.min(D.por[1], Math.max(D.por[0], r.por)) : D.porPadrao;
+  const texto = String(r.texto || C.acoes[faca]).replace(/\s+/g, ' ').trim().slice(0, D.texto);
+  const out = { id: String(r.id || 'dica').slice(0, 24), pri, quando, faca, por, texto };
+  if (typeof r.autor === 'string') out.autor = r.autor.slice(0, 64);
+  if (Number.isFinite(r.t)) out.t = r.t;
+  return out;
+}
+// duas regras falam da mesma situação (mesmos sentidos)? Aí a nova substitui a velha (ex.: "usa espada no chefe" depois
+// de "usa cajado no chefe"). Ações da mesma família (trocar de arma; atacar ou não) também contam como a mesma coisa.
+const FAMILIA = { usarCajado: 'arma', usarEspada: 'arma', atacar: 'luta', naoAtacar: 'luta', proteger: 'luta', recuar: 'luta', fugir: 'luta' };
+export function mesmaSituacao(a, b) {
+  const ka = a.quando.map(([k, op]) => k + op).sort().join(), kb = b.quando.map(([k, op]) => k + op).sort().join();
+  return ka === kb && (a.faca === b.faca || (FAMILIA[a.faca] && FAMILIA[a.faca] === FAMILIA[b.faca]));
+}
+// junta a dica nova na lista do NPC: troca a que fala da mesma situação; passou do máximo, sai a mais velha
+export function juntarDica(lista, nova, max) {
+  const l = lista.filter((d) => !mesmaSituacao(d, nova));
+  const trocou = l.length < lista.length;
+  l.push(nova);
+  while (l.length > max) l.shift();
+  return { lista: l, trocou };
+}
