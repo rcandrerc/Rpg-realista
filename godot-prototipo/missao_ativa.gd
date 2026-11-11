@@ -90,8 +90,19 @@ func _nome_npc(id: String) -> String:
 			return str(n.get("nome", id)).split(",")[0]
 	return id
 
+# a etapa da vez que o servidor mandou (história v2, André 2026-11-11: missão com etapas), se é desta missão
+func _info(M: Dictionary) -> Dictionary:
+	var hi: Dictionary = m.P.hist_info
+	return hi if not hi.is_empty() and str(hi.get("id", "")) == str(M.get("id", "")) else {}
+
 # [linha de cima, linha de baixo] (o que antes ficava embaixo do relógio do minimapa)
 func textos(M: Dictionary) -> Array:
+	var hi := _info(M)
+	if not hi.is_empty(): # o servidor já manda o texto da etapa com o andamento ("Derrube Puglins 3/6")
+		var tot: int = int(M.get("total", 1))
+		var e: int = int(hi.get("e", -1))
+		var cab := "Cap. %d · %s" % [int(M.get("cap", 0)), M.nome] if int(M.get("cap", 0)) > 0 else "Missão: %s" % M.nome
+		return [cab, ("%d/%d · " % [e + 1, tot] if e >= 0 and tot > 1 else "") + str(hi.get("txt", ""))]
 	var h: Dictionary = m.nevoa.hist()
 	var quem: String = _nome_npc(str(M.npc))
 	var l: String
@@ -137,9 +148,10 @@ func _process(dt: float) -> void:
 		l1.text = tx[0]
 	if l2.text != tx[1]:
 		l2.text = tx[1]
-		l2.add_theme_color_override("font_color", Color(1, 0.95, 0.85) if tx[1].begins_with("Pronto") else Color(0.85, 0.82, 0.78))
+		l2.add_theme_color_override("font_color", Color(1, 0.95, 0.85) if tx[1].begins_with("Pronto") or tx[1].contains("Volte") else Color(0.85, 0.82, 0.78))
 	ir_btn.disabled = int(m.P.prog.nivel) < int(M.nv)
 	cartao.size = Vector2(LARGURA, 0) # encolhe de novo quando o texto fica menor
+	_marca_atualizar(M)
 
 # ---------- "Ir para" ----------
 # {pos: Vector2, nome, npc: id ou ""} do próximo passo da missão: falar com o NPC, ir caçar ou ir minerar
@@ -147,6 +159,10 @@ func alvo() -> Dictionary:
 	var M := _missao()
 	if M.is_empty():
 		return {}
+	var hi := _info(M)
+	if hi.get("alvo") is Dictionary: # história v2: o servidor diz para onde vai a etapa da vez (NPC, campo, veio, pista...)
+		var a: Dictionary = hi.alvo
+		return {"pos": Vector2(float(a.x), float(a.z)), "nome": str(a.get("nome", "a missão")), "npc": str(a.get("npc", ""))}
 	var h: Dictionary = m.nevoa.hist()
 	var npc := _npc(str(M.npc))
 	var hp := Vector2(m.heroi.position.x, m.heroi.position.z)
@@ -235,3 +251,52 @@ func _abrir_npc(id: String) -> void:
 		if str(n.get("id", "")) == id:
 			m.conversa.abrir(n)
 			return
+
+# ---------- marca no chão (história v2): coluna de luz lilás na pista, no fragmento ou no meio do lago ----------
+# Uma só, sem luz e sem sombra (André: FPS antes de enfeite); aparece a menos de MARCA_LONGE m.
+const MARCA_LONGE := 140.0
+const SH_MARCA := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec4 cor = vec4(0.72, 0.62, 0.95, 1.0);
+void fragment() {
+	float h = 1.0 - UV.y;
+	float borda = pow(abs(dot(NORMAL, VIEW)), 1.4);
+	float pulso = 0.75 + 0.25 * sin(TIME * 2.4);
+	float risco = smoothstep(0.0, 0.25, fract(h * 3.0 - TIME * 0.6));
+	ALBEDO = mix(cor.rgb, vec3(1.0), (1.0 - h) * 0.5);
+	ALPHA = clamp(borda * (1.0 - h) * pulso * (0.35 + 0.35 * risco), 0.0, 1.0);
+}
+"""
+var _marca: MeshInstance3D
+
+func _marca_atualizar(M: Dictionary) -> void:
+	var hi := _info(M)
+	var mostrar: bool = hi.get("marca", false) == true and hi.get("alvo") is Dictionary and m.heroi != null
+	if mostrar:
+		var a: Dictionary = hi.alvo
+		var p := Vector3(float(a.x), 0.0, float(a.z))
+		mostrar = Vector2(p.x, p.z).distance_to(Vector2(m.heroi.position.x, m.heroi.position.z)) < MARCA_LONGE
+		if mostrar:
+			if _marca == null:
+				_marca = MeshInstance3D.new()
+				var c := CylinderMesh.new()
+				c.top_radius = 0.9
+				c.bottom_radius = 1.2
+				c.height = 9.0
+				c.radial_segments = 16
+				c.rings = 1
+				c.cap_top = false
+				c.cap_bottom = false
+				_marca.mesh = c
+				_marca.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				var mat := ShaderMaterial.new()
+				var sh := Shader.new()
+				sh.code = SH_MARCA
+				mat.shader = sh
+				_marca.material_override = mat
+				m.add_child(_marca)
+			p.y = m.chao_em(p.x, p.z) + 4.5
+			_marca.position = p
+	if _marca != null and _marca.visible != mostrar:
+		_marca.visible = mostrar

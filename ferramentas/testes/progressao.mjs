@@ -35,7 +35,7 @@ for (const k of CACA) { const Z = ZONAS_GEO.find((z) => naZona(z, k.x, k.z)); ok
 for (const t of TOTENS.lista) { const Z = ZONAS_GEO.find((z) => naZona(z, t.x, t.z)); ok(t.id === 'clareira' ? !Z : !!Z, `totem ${t.id} na zona ${Z?.id || '-'}`); }
 
 // conta antiga: as missões até o nível dela contam como feitas
-ok(progressoValido({ nivel: 31, mochila: [] }).hist.p === 8 && liberado(progressoValido({ nivel: 31, mochila: [] }), 'B1'), 'conta antiga Nv 31 abre até o Oeste de Vael');
+ok(progressoValido({ nivel: 31, mochila: [] }).hist.p === HISTORIA.filter((M) => M.nv <= 31).length && liberado(progressoValido({ nivel: 31, mochila: [] }), 'B1'), 'conta antiga Nv 31 abre até o Oeste de Vael');
 ok(progressoValido({ nivel: 100, mochila: [] }).hist.p === HISTORIA.length, 'conta antiga Nv 100 abre tudo');
 ok(j.prog.hist.p === 0, 'personagem novo começa na missão 1');
 
@@ -45,22 +45,28 @@ let ok1 = s.posicaoCliente('A', { x: 104, y: s.terreno.altura(104, 40), z: 40, r
 ok(!ok1, 'não entra nos Campos do Leste fechados');
 let ev = correr(0.1); ok(true, 'aviso: ' + avisos(ev));
 
-// missão 1: Aldo dá, matar 4 Puglins no caca1, entregar
+// capítulo 1 (história v2): o Aldo dá "Acordar"; a missão que abre os Campos do Leste é a 3ª (a3). O teste inteiro do
+// Ato I fica em ferramentas/testes/historia.mjs; aqui só o essencial da névoa.
 const L = npc('lider'); ir(L.x + 1, L.z); s.falar('A'); ev = correr(0.1);
-ok(j.prog.hist.ac, 'Aldo deu a missão 1: ' + avisos(ev));
+ok(j.prog.hist.ac && j.prog.hist.p === 0, 'Aldo deu a missão 1: ' + avisos(ev));
+const i3 = HISTORIA.findIndex((M) => M.id === 'a3');
+Object.assign(j.prog.hist, { p: i3, ac: true, e: 0, n: 0 });
 const ci = s.cacas.findIndex((c) => c.def.id === 'caca1');
-for (let k = 0; k < 4; k++) s.contarHistoria(j, { tipo: 'puglin', sp: { caca: ci } });
-ok(j.prog.hist.n === 4, 'contou 4 Puglins');
-const ouro0 = j.prog.ouro; s.falar('A'); ev = correr(0.1);
-ok(j.prog.hist.p === 1 && liberado(j.prog, '1b') && j.prog.ouro > ouro0, 'entregou: Arredores liberados | ' + avisos(ev));
+for (let k = 0; k < 6; k++) s.contarHistoria(j, { tipo: 'puglin', sp: { caca: ci } });
+ok(j.prog.hist.e === 1, 'contou 6 Puglins: agora o Gorduncho');
+s.contarHistoria(j, { tipo: 'puglin', sp: { caca: ci }, hc: 'gorduncho' });
+ir(77, -8); correr(0.6);
+ok(j.prog.hist.e === 3, 'tocou no fragmento: volta ao Aldo');
+const ouro0 = j.prog.ouro; ir(L.x + 1, L.z); s.falar('A'); ev = correr(0.1);
+ok(j.prog.hist.p === i3 + 1 && liberado(j.prog, '1b') && j.prog.ouro > ouro0, 'entregou: Campos do Leste liberados | ' + avisos(ev));
 ok(s.posicaoCliente('A', { x: j.x, y: j.y, z: j.z, ry: 0 }) !== false, 'segue andando');
 
-// forja: antes da missão do Tomás, não cria; Nv e cobre: libera
-ok(/Tomás|forja/.test(motivoLibera(j.prog, 'forja')), 'forja fechada antes da missão 2: ' + motivoLibera(j.prog, 'forja'));
+// forja: antes da missão do Tomás, não cria; na etapa de fundir, libera
+ok(/Tomás|forja/.test(motivoLibera(j.prog, 'forja')), 'forja fechada antes da missão do cobre: ' + motivoLibera(j.prog, 'forja'));
 j.prog.nivel = 3; const T = npc('ferreiro'); ir(T.x + 1, T.z); s.falar('A'); correr(0.1);
-ok(j.prog.hist.ac, 'Tomás deu a missão 2');
-j.prog.mochila[5] = { k: 'minerio_cobre', n: 6 }; s.falar('A'); ev = correr(0.1);
-ok(j.prog.hist.p === 2 && liberado(j.prog, 'forja') && !j.prog.mochila.some((o) => o?.k === 'minerio_cobre'), 'entregou o cobre: forja liberada | ' + avisos(ev));
+ok(j.prog.hist.ac && HISTORIA[j.prog.hist.p].id === 'a4', 'Tomás deu a missão do cobre');
+s.historia(j, 'item', { k: 'minerio_cobre', n: 6, de: 'coleta' });
+ok(liberado(j.prog, 'forja'), 'minerou o cobre: a forja abre para fundir');
 
 // níveis
 ok(motivoLibera({ nivel: 4 }, 'receita', 'peitoral') === 'Libera no nível 8', 'peitoral no Nv 8');
@@ -70,7 +76,8 @@ ok(motivoLibera({ nivel: 11 }, 'pack') !== '' && motivoLibera({ nivel: 12 }, 'pa
 
 // lobo: sem a missão do Bento não monta
 j.montado = null; s.montar('A'); ev = correr(0.1); ok(!j.montado, 'sem a missão 3 não monta: ' + avisos(ev));
-// subir de nível avisa o que abriu
+// subir de nível avisa o que abriu (e a missão do Bento, a próxima depois do capítulo 2)
+Object.assign(j.prog.hist, { p: HISTORIA.findIndex((M) => M.id === 'a7'), ac: false, e: 0, n: 0 });
 s.ganharXP(j, xpProximo(3) + xpProximo(4) + 1); ev = correr(0.1);
 ok(/Liberado: .*Capacete|Liberado: .*Fornalha/.test(avisos(ev)) && /Missão nova: fale com Bento/.test(avisos(ev)), 'Nv 5 avisa o que abriu e a missão nova | ' + avisos(ev));
 
@@ -85,7 +92,7 @@ ok(zonaFechadaEm(j.prog, 200, 662)?.id === 'C' && zonaFechadaEm(j.prog, 200, 108
   const ci3 = s2.cacas.findIndex((c) => c.def.id === 'caca3'); const b = s2.inimigos.find((e) => e.sp?.caca === ci3 && !e.morto) || s2.criarInimigo({ tipo: 'lobo', x: 104, z: 30, caca: ci3, nivel: 5 });
   ok(s2.mobFechadoPara(b, k), 'lobo do campo fechado conta como fechado para o herói Nv 1');
   const v0 = b.vida; s2.ferir(b, 50, k); ok(b.vida === v0, 'golpe do herói de fora não tira vida dele');
-  k.prog.hist.p = 1; ok(!s2.mobFechadoPara(b, k), 'depois da missão 1 vale de novo'); }
+  k.prog.hist.p = HISTORIA.findIndex((M) => M.id === 'a3') + 1; ok(!s2.mobFechadoPara(b, k), 'depois da missão dos Puglins vale de novo'); }
 
 // André 2026-11-11: "consegui passar pela névoa andando esquisito". O celular insiste em andar para dentro; o servidor
 // recusa, anda o herói pelo joystick e antes ele escalava a borda da névoa como parede. Agora tem que ficar fora.

@@ -163,6 +163,17 @@ func missao(nome: String, sub := "") -> void:
 	_faixa({"tipo": "grande", "cab": "MISSÃO CONCLUÍDA", "titulo": nome, "sub": sub, "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.2,
 		"som": "festa_missao", "coluna": "9fe4ff", "faiscas": 30, "soco": 2.5})
 
+# História v2 (André 2026-11-11): cartão de capítulo. Abre: "CAPÍTULO 3" + nome + a frase de efeito. Fecha: "CAPÍTULO 3
+# CONCLUÍDO" + nome + o nível do próximo capítulo (o nome dele só aparece no Diário quando chegar no nível).
+func capitulo(fase: String, n: int, nome: String, frase: String, prox) -> void:
+	if fase == "abre":
+		_faixa({"tipo": "grande", "cab": "CAPÍTULO %d" % n, "titulo": nome, "sub": frase, "cor": SISTEMA, "tit": Color("e6dcff"), "dur": 4.2,
+			"som": "festa_missao", "coluna": "b9a4ff", "faiscas": 24, "soco": 2.0})
+	else:
+		var sub := ("Próximo capítulo no Nv %d" % int(prox.get("nv", 0))) if prox is Dictionary else "Fim do que já foi escrito. Continua..."
+		_faixa({"tipo": "grande", "cab": "CAPÍTULO %d CONCLUÍDO" % n, "titulo": nome, "sub": sub, "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.8,
+			"som": "festa_nivel", "faiscas": 30})
+
 func liberado(txt: String) -> void:
 	# várias coisas liberadas juntas (subiu 2 níveis, missão que abre zona) viram uma janela só
 	for f in _fila:

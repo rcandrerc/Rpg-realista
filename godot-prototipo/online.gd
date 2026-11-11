@@ -649,6 +649,7 @@ func inimigo(c: Dictionary) -> void:
 		m.materializar(e)
 		m.entrou_online(e)
 	corpos[str(c.id)] = e.no
+	_chefe_historia(e, c)
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
 	e.ry = float(c.ry)
 	if c.get("_mexeu", true): # área de interesse: monstro parado vem só com o id
@@ -854,6 +855,20 @@ func evento(ev: Dictionary) -> void:
 			if str(ev.alvo) != meu_id and corpos.has(str(ev.alvo)):
 				fx.cura(corpos[str(ev.alvo)])
 				fx.numero(corpos[str(ev.alvo)].position, ev.n, Color("7dffa0"))
+			return
+		"capitulo": # história v2 (André 2026-11-11): cartão de abertura e de fim de capítulo na janela do sistema
+			if m.festa:
+				m.festa.capitulo(str(ev.get("fase", "")), int(ev.get("n", 0)), str(ev.get("nome", "")), str(ev.get("frase", "")), ev.get("prox"))
+			return
+		"rumor": # recado curto de um personagem ao subir de nível, entre um capítulo e outro
+			m.hud.aviso("%s: \"%s\"" % [str(ev.get("quem", "")), str(ev.get("texto", ""))])
+			if m.sons:
+				m.sons.tocar("pano", -6.0)
+			return
+		"etapa": # próxima etapa da missão: aviso curto e o som da janela
+			m.hud.aviso("Próximo passo: %s" % str(ev.get("txt", "")))
+			if m.sons:
+				m.sons.tocar("q_anel_1", -16.0)
 			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
@@ -1158,3 +1173,33 @@ func _passo(dt: float) -> void:
 	if _status_t <= 0.0:
 		_status_t = 0.5
 		atualizar_status()
+
+# Chefe com nome da história (André 2026-11-11, CHEFES_HISTORIA): o servidor transforma um monstro do campo no chefe
+# (hc). Aqui o mesmo modelo cresce (esc), o nome vira o dele em dourado e a barra fica da cor do brilho; quando o corpo
+# volta a ser um monstro comum (outro id, sem hc), desfaz.
+func _chefe_historia(e: Dictionary, c: Dictionary) -> void:
+	var hc := str(c.get("hc", "")) if c.get("hc") != null else ""
+	if hc == str(e.get("hc", "")):
+		return
+	if not e.has("escala0"):
+		e.escala0 = e.no.scale
+	var nome_l: Label3D = null
+	for l in e.no.get_children():
+		if l is Label3D:
+			nome_l = l
+			break
+	if nome_l != null and not e.has("nome0"):
+		e.nome0 = nome_l.text
+		e.cor_nome0 = nome_l.modulate
+	if hc != "":
+		e.no.scale = e.escala0 * float(c.get("esc", 1.5))
+		if nome_l != null:
+			nome_l.text = str(c.get("nome", nome_l.text))
+			nome_l.modulate = Color("ffd76a")
+		e.combate = m.tempo + 8.0 # o nome aparece logo
+	else:
+		e.no.scale = e.escala0
+		if nome_l != null:
+			nome_l.text = str(e.get("nome0", nome_l.text))
+			nome_l.modulate = e.get("cor_nome0", Color.WHITE)
+	e.hc = hc

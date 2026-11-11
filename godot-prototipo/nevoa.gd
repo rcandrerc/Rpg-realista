@@ -40,7 +40,15 @@ func feitas() -> int:
 	return int(hist().get("p", 0))
 
 func liberado(k: String) -> bool:
-	return not quem_libera.has(k) or feitas() > int(quem_libera[k])
+	if not quem_libera.has(k):
+		return true
+	var i := int(quem_libera[k])
+	if feitas() > i:
+		return true
+	# história v2 (shared/historia.js liberado): o recurso abre no meio da própria missão (fundir, montar, pescar)
+	var M: Dictionary = H.get("missoes", [])[i]
+	var h := hist()
+	return feitas() == i and h.get("ac", false) == true and int(M.get("liberaNaEtapa", -1)) >= 0 and int(h.get("e", 0)) >= int(M.liberaNaEtapa)
 
 func missao_atual() -> Dictionary:
 	var ms: Array = H.get("missoes", [])

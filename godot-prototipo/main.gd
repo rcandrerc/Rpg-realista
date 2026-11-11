@@ -1819,7 +1819,7 @@ func luta_perto() -> bool:
 # algum chefe (Imp Chefe, Warrok) bateu ou apanhou nos últimos segundos: a música de combate vira a de chefe
 func luta_com_chefe() -> bool:
 	for e in inimigos:
-		if e.tipo in CHEFES and e.vida > 0.0 and float(e.get("combate", 0.0)) > tempo and e.no.position.distance_to(heroi.position) < 30.0:
+		if (e.tipo in CHEFES or str(e.get("hc", "")) != "") and e.vida > 0.0 and float(e.get("combate", 0.0)) > tempo and e.no.position.distance_to(heroi.position) < 30.0:
 			return true
 	return false
 

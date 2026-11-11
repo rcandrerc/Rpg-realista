@@ -2257,73 +2257,263 @@ export const ZONAS = [
   { id: 'D2', nome: 'Leste de Aurora', regiao: true },
   { id: 'D3', nome: 'Pico da Névoa', regiao: true },
 ];
-// Missões principais, nesta ordem (uma de cada vez). nv = nível para o NPC dar a missão. npc = id em MAPA_CLAREIRA.npcs.
-// matar: n monstros dos campos (ids de CACA) e, se tiver, só destes tipos. entregar: itens que o NPC pega na entrega.
-// libera: zona (ZONAS) ou recurso: 'forja' (aba Criar: Ferreiro, Alfaiate e fornalha), 'lobo' (montaria), 'pesca'.
-// Prêmio: XP (fração do XP do nível nv, HISTORIA_PREMIO.xp) e ouro (HISTORIA_PREMIO.ouro x nv).
+// História principal v2 (André 2026-11-11: "Aethra: a Crônica da Névoa", plano aprovado, doc
+// https://claude.ai/artifact/QT4yDTx9qNLTbL37XeZXJQ). A história vira capítulos (CAPITULOS) de missões com etapas
+// (HISTORIA). A névoa, as regiões e os níveis em que elas abrem ficam iguais; cada região continua abrindo numa missão.
+// Entrega 1: o Ato I inteiro (capítulos 1 a 5, Nv 1 a 12). Os capítulos 6 a 15 ainda são a missão de uma etapa de antes
+// (h6 a h15) e viram capítulos completos nas próximas entregas. As missões h1 a h5 de antes viraram o Ato I (pedido do
+// André: "elabore mais ainda... super atraente... todas as missões"), por isso saíram (remoção aprovada no plano).
+//
+// CAPITULOS: n, nome, nv (nível da primeira missão), ato, frase (cartão de abertura), diario (página do Diário na aba
+// Missões, aparece depois do capítulo), rumores (recado de um personagem ao subir para o nível nv, depois do capítulo).
+export const CAPITULOS = [
+  { n: 1, nome: 'A manhã de névoa', nv: 1, ato: 'Ato I · Desperto na Névoa', frase: 'Ninguém lembra de onde você veio. Nem você.',
+    diario: 'O Aldo me achou dormindo ao lado do poço, sem memória e com uma marca de estrela na mão. Uma parede de névoa lilás cerca a vila. Quem entra nela esquece tudo. No campo do leste, o Puglin Rei largou um fragmento rúnico que brilhou junto com a minha marca e sussurrou: "a estrela acordou".',
+    rumores: [{ nv: 2, quem: 'Tomás', texto: 'A minha bigorna rachou sozinha esta noite. Passa aqui na forja quando chegar no Nv 3.' }] },
+  { n: 2, nome: 'A bigorna rachada', nv: 3, ato: 'Ato I · Desperto na Névoa', frase: 'O ferro também guarda segredos.',
+    diario: 'Remendei a bigorna do Tomás com cobre. Dentro da rachadura tinha uma lasca de cristal azul que "veio do sul, de muito longe". Aprendi a forja, a banca da Rosa e a montar o meu jeito de lutar. A carroça de mercadoria da Rosa está atrasada há três semanas.',
+    rumores: [{ nv: 4, quem: 'Bento', texto: 'Os lobos uivaram a noite inteira. Nunca uivam assim. No Nv 5 a gente conversa.' }] },
+  { n: 3, nome: 'Presa-de-Prata', nv: 5, ato: 'Ato I · Desperto na Névoa', frase: 'Na noite da Névoa, até os lobos têm dono.',
+    diario: 'Com o Bento, fiz uma coleira de ferro e couro e cansei o lobo alfa numa noite de lua. Presa-de-Prata me aceitou. No pescoço dele havia uma coleira de runas pretas, quebrada: alguém tentou prender o lobo com magia da Névoa.',
+    rumores: [{ nv: 6, quem: 'Irmã Lúcia', texto: 'Mais dois aldeões acordaram sem lembrar o próprio nome. Vou precisar de você no Nv 8.' },
+      { nv: 7, quem: 'Aldo', texto: 'Tem terra boa nas Terras da Estrada. Quando chegar a hora, conversamos.' }] },
+  { n: 4, nome: 'Os que esquecem', nv: 8, ato: 'Ato I · Desperto na Névoa', frase: 'A Névoa não mata. Ela apaga.',
+    diario: 'Abri a estrada do sul vencendo Brasa, a Mãe-Imp. O Nico me ensinou a pescar no Lago Grande, comprei meu terreno ao lado da Cecília e do Dario e assei peixe para o remédio da Lúcia. O aldeão curado lembrou de encapuzados de olhos cinzentos levando a carroça da Rosa para o leste.',
+    rumores: [{ nv: 9, quem: 'Nico', texto: 'Tem água borbulhando diferente no meio do Lago Grande. Só dá pra chegar de barco.' },
+      { nv: 10, quem: 'Mestre Ivo', texto: 'Você já pode evoluir peças para Rara. Pergunte ao Tomás.' },
+      { nv: 11, quem: 'Rosa', texto: 'Se achar a minha carroça, a casa te paga. Fale comigo no Nv 12.' }] },
+  { n: 5, nome: 'A caravana perdida', nv: 12, ato: 'Ato I · Desperto na Névoa', frase: 'Encapuzados de olhos cinzentos. Quem são eles?',
+    diario: 'Segui as rodas da carroça da Rosa pelo Bosque do Sul até Sombra, um lobo da Névoa que a guardava. Salvei a lenha num pack, aprendi a destruir, evoluir e reforçar, e de barquinho achei no meio do lago o diário do condutor: "Eles abriram caminho até a montanha. O selo de lá vai ser o primeiro a cair."',
+    rumores: [{ nv: 14, quem: 'Gaspar', texto: 'A pedra do selo, aqui na montanha, está quente. Nunca esteve.' },
+      { nv: 15, quem: 'Bráulio', texto: 'Pago bem por couro no sudeste, mas a pé ninguém chega.' },
+      { nv: 16, quem: 'Cecília', texto: 'Bora testar a sua espada nos Puglins do Nv 15?' },
+      { nv: 17, quem: 'Mestre Ivo', texto: 'Aquela lasca de cristal do Tomás... preciso falar com você. Venha quando chegar no Nv 18.' }] },
+  { n: 6, nome: 'Debaixo da montanha', nv: 18, ato: 'Ato II · O primeiro selo', frase: 'O primeiro selo está cedendo.' },
+  { n: 7, nome: 'Rodas para o sudeste', nv: 25, ato: 'Ato II · O primeiro selo', frase: 'Além do leste, os golens acordaram.' },
+  { n: 8, nome: 'A Lâmina Cinzenta', nv: 30, ato: 'Ato II · O primeiro selo', frase: 'Quem segura a névoa do oeste?' },
+  { n: 9, nome: 'A trilha da serra', nv: 38, ato: 'Ato III · As estradas de Vael', frase: 'O norte guarda o caminho das grutas.' },
+  { n: 10, nome: 'O selo que caiu', nv: 42, ato: 'Ato III · As estradas de Vael', frase: 'Um selo caiu. Outros vão cair.' },
+  { n: 11, nome: 'A carta para o Porto', nv: 48, ato: 'Ato III · As estradas de Vael', frase: 'O mar espera do outro lado.' },
+  { n: 12, nome: 'A luz roxa', nv: 50, ato: 'Ato IV · O mar esquecido', frase: 'No meio do mar, uma luz roxa.' },
+  { n: 13, nome: 'O cais de Aurora', nv: 64, ato: 'Ato IV · O mar esquecido', frase: 'Uma cidade inteira esquecida.' },
+  { n: 14, nome: 'As janelas acesas', nv: 80, ato: 'Ato V · Aurora', frase: 'Alguém acendeu as janelas de Aurora.' },
+  { n: 15, nome: 'O último selo', nv: 95, ato: 'Ato V · Aurora', frase: 'O Pico da Névoa chama.' },
+];
+// Chefes com nome da história: um monstro do campo vira o chefe quando o herói da etapa chega perto (o mesmo modelo,
+// maior e com outro brilho; sem modelo novo). vida e dano: vezes o do campo. noite: só aparece à noite (19h às 5h).
+export const CHEFES_HISTORIA = {
+  gorduncho: { nome: 'Gorduncho, o Puglin Rei', tipo: 'puglin', campo: 'caca1', vida: 6, dano: 1.4, escala: 1.7, cor: 0xb04dff },
+  presa: { nome: 'Presa-de-Prata, o alfa', tipo: 'lobo', campo: 'caca3', vida: 6, dano: 1.4, escala: 1.45, cor: 0xe8f2ff, noite: true },
+  brasa: { nome: 'Brasa, a Mãe-Imp', tipo: 'imp', campo: 'caca2', vida: 6, dano: 1.5, escala: 1.6, cor: 0xff5a1a },
+  sombra: { nome: 'Sombra, o lobo da Névoa', tipo: 'lobo', campo: 'caca6', vida: 7, dano: 1.5, escala: 1.55, cor: 0x7a5ad8 },
+};
+// Missões principais, nesta ordem (uma de cada vez). nv = nível para o NPC dar a missão; npc = quem dá (id em
+// MAPA_CLAREIRA.npcs); cap = capítulo; libera = zona (ZONAS) ou recurso ('forja', 'lobo', 'pesca'); liberaNaEtapa = o
+// recurso já abre nessa etapa (para usar na própria missão: fundir na forja, montar no lobo, pescar).
+// pedido = o que o NPC diz ao dar; pronto = o que diz na entrega (quem fala é o NPC da última etapa); recebe = itens ao
+// aceitar; presente = itens na entrega. Depois da última etapa o herói volta ao NPC da missão, a não ser que a última
+// etapa já seja falar com alguém (shared/historia.js etapasDe). Prêmio de XP e ouro: HISTORIA_PREMIO.
+// Etapas (shared/historia.js casaEtapa; o servidor chama Simulacao.historia(j, ev, dados) em cada ação):
+//   ev: 'falar' (npc; fala = o que ele diz; entregar = itens que ele pega) · 'treino' (golpe no espantalho; skill) ·
+//   'item' (k, de: 'solto' | 'coleta' | 'pesca' | 'drop') · 'ter' (itens na mochila) · 'criar' (k: receita, ferramenta ou
+//   obra) · 'construir' (k) · 'terreno' · 'vender' · 'comprar' (k) · 'barra' · 'atributo' · 'montar' · 'matar' (campos,
+//   tipos, hc = chefe de CHEFES_HISTORIA) · 'destruir' · 'evoluir' (min = raridade) · 'reforcar' · 'pack_fez' (k) ·
+//   'pack' (npc que recebe) · 'pesca' (k, barco) · 'pos' (pos: [x, z, raio, altura mínima], barco) · 'pistas' (pontos) ·
+//   'noite'. n = quantas vezes; txt = o que aparece no quadrinho; diz = recado ao terminar a etapa; ja = já vale se
+//   ('lote', 'peca', 'tem', 'atributos'); alvo = para onde o "Ir" leva ('npc:id', 'caca:id', 'veio:tipo', 'pos', 'lote',
+//   'spot', 'treino' ou { item: alvo } para cada item que falta).
+const lobo = (n) => ({ ev: 'matar', campos: ['caca3'], tipos: ['lobo'], n, txt: 'Derrube lobos na Clareira dos Lobos' });
 export const HISTORIA = [
-  { id: 'h1', nv: 1, npc: 'lider', nome: 'Monstros perto da vila', matar: { n: 4, campos: ['caca1'] }, libera: ['1b'],
-    pedido: 'Uma névoa estranha cobriu tudo em volta da vila, e os Puglins vieram junto. Derrube quatro no campo do leste e volte aqui.',
-    andamento: 'Ainda faltam {faltam} Puglins. O campo fica no leste, seguindo o caminho de terra.',
-    pronto: 'Muito bem! Quando eles caíram, a névoa dos arredores se abriu. Agora dá pra ir mais longe.' },
-  { id: 'h2', nv: 3, npc: 'ferreiro', nome: 'Minério para a forja', entregar: { minerio_cobre: 6 }, libera: ['forja'],
-    pedido: 'Quer aprender a forjar? Me traga seis minérios de cobre. O veio fica a leste da praça. Faça uma picareta na aba Criar.',
-    andamento: 'Ainda faltam {faltam} minérios de cobre.',
-    pronto: 'Bom cobre! Pode usar a minha forja e a banca da Rosa quando quiser. A fornalha também é sua.' },
-  { id: 'h3', nv: 5, npc: 'andarilho', nome: 'Amansar o lobo', matar: { n: 6, campos: ['caca3'], tipos: ['lobo'] }, libera: ['lobo'],
-    pedido: 'Os lobos andam bravos com essa névoa. Derrube seis no campo dos lobos e eu te ensino a montar um deles.',
-    andamento: 'Faltam {faltam} lobos.',
-    pronto: 'Pronto, agora um lobo te respeita. Toque no botão de montar e ele te leva.' },
-  { id: 'h4', nv: 8, npc: 'curandeira', nome: 'O caminho do lago', matar: { n: 10, campos: ['caca2'] }, libera: ['1c', 'pesca'],
-    pedido: 'Preciso de ervas do Lago Grande, mas os Imps fecham o caminho. Derrube dez deles para mim.',
-    andamento: 'Ainda faltam {faltam} Imps.',
-    pronto: 'Obrigada! A névoa do sul baixou. O Nico, lá no lago, te ensina a pescar.' },
-  { id: 'h5', nv: 12, npc: 'lider', nome: 'Lobos do bosque', matar: { n: 10, campos: ['caca6'] }, libera: ['1d'],
-    pedido: 'Os lobos do Bosque do Sul estão atacando quem passa. Derrube dez e a gente abre o caminho do fundo do leste.',
-    andamento: 'Faltam {faltam} lobos do bosque.',
-    pronto: 'O fundo do leste está aberto. Tem Imps e Puglins mais fortes por lá, vá preparado.' },
-  { id: 'h6', nv: 18, npc: 'guardiao', nome: 'A boca da montanha', matar: { n: 12, campos: ['caca7', 'caca8'] }, libera: ['1e'],
+  // ---------- Capítulo 1 · A manhã de névoa (Nv 1) ----------
+  { id: 'a1', cap: 1, nv: 1, npc: 'lider', nome: 'Acordar', libera: [],
+    pedido: 'Te achei aqui ao amanhecer, dormindo do lado do poço. Lembra do seu nome? ...Pelo menos isso. E essa marca de estrela na sua mão eu nunca vi. Vá falar com o Mestre Ivo, perto da praça: ele vai ver se você sabe se defender.',
+    etapas: [
+      { ev: 'falar', npc: 'reset', txt: 'Fale com o Mestre Ivo', fala: 'Então você é o forasteiro do poço. Mostre o que essas mãos sabem: dez golpes no espantalho e, depois, uma habilidade.' },
+      { ev: 'treino', n: 10, txt: 'Dê 10 golpes no espantalho de treino', alvo: 'treino' },
+      { ev: 'treino', skill: true, txt: 'Use uma habilidade no espantalho', alvo: 'treino', diz: 'Mestre Ivo: Hm. O seu corpo lembra do que a cabeça esqueceu. Interessante...' },
+      { ev: 'falar', npc: 'andarilho', txt: 'Fale com o Bento, o andarilho', fala: 'O Aldo me contou de você. Quer ver o tamanho do problema? Suba na rocha grande, aqui do lado, e olhe em volta. Escalando, que é mais bonito.' },
+      { ev: 'pos', pos: [-12.6, 12.6, 6, 2.2], txt: 'Suba na rocha grande e olhe a Névoa', alvo: 'pos', diz: 'Lá de cima dá para ver: uma parede de névoa lilás em volta da vila inteira. Ela não se mexe com o vento.' },
+    ],
+    pronto: 'Viu a Névoa, né? Faz três luas que ela chegou, e ninguém que entrou nela voltou lembrando de nada. Fique com a gente. Mas antes, você vai precisar de ferramentas.' },
+  { id: 'a2', cap: 1, nv: 1, npc: 'lider', nome: 'Ferramentas de pedra', libera: [],
+    pedido: 'Aqui ninguém vive sem machado e picareta. Pegue galhos e pedrinhas soltos pelo chão, em volta da vila, e faça os seus. Depois me traga lenha e pedra para a cerca.',
+    etapas: [
+      { ev: 'item', de: 'solto', n: 4, txt: 'Pegue galhos ou pedrinhas soltos no chão', alvo: 'solto' },
+      { ev: 'criar', k: 'machado', ja: 'tem', txt: 'Crie o machado (Mochila > Criar > Ferramentas)' },
+      { ev: 'criar', k: 'picareta', ja: 'tem', txt: 'Crie a picareta (Mochila > Criar > Ferramentas)' },
+      { ev: 'item', k: 'lenha', de: 'coleta', n: 5, txt: 'Corte lenha nas árvores', alvo: 'veio:arvore' },
+      { ev: 'item', k: 'pedra', de: 'coleta', n: 3, txt: 'Minere pedra nas rochas', alvo: 'veio:pedra' },
+      { ev: 'falar', npc: 'lider', entregar: { lenha: 5, pedra: 3 }, txt: 'Leve 5 lenhas e 3 pedras para o Aldo' },
+    ],
+    pronto: 'Madeira boa, vai virar cerca. ...Escuta. Ontem à noite os Puglins saíram da Névoa e chegaram até o campo do leste. Isso nunca aconteceu.' },
+  { id: 'a3', cap: 1, nv: 1, npc: 'lider', nome: 'O que veio com a Névoa', libera: ['1b'],
+    pedido: 'Os Puglins da clareira do leste estão com os olhos acesos de roxo. Derrube seis. E se aparecer um grandão... cuidado.',
+    etapas: [
+      { ev: 'matar', campos: ['caca1'], tipos: ['puglin'], n: 6, txt: 'Derrube Puglins na Clareira dos Puglins' },
+      { ev: 'matar', hc: 'gorduncho', txt: 'Derrote Gorduncho, o Puglin Rei', diz: 'Gorduncho caiu e deixou para trás uma pedra rúnica que brilha.' },
+      { ev: 'pos', pos: [77, -8, 7], txt: 'Toque no fragmento rúnico que brilha na clareira', alvo: 'pos', marca: true,
+        diz: 'O fragmento brilha junto com a marca da sua mão e sussurra: "...a estrela acordou." Depois apaga.' },
+    ],
+    pronto: 'Uma pedra que fala? Nunca vi isso em sessenta anos. ...Olha: a névoa do leste baixou, os Campos do Leste estão abertos. E o Mestre Ivo mandou isto para você.',
+    presente: { pocao: 3, pocao_mana: 2 } },
+  // ---------- Capítulo 2 · A bigorna rachada (Nv 3) ----------
+  { id: 'a4', cap: 2, nv: 3, npc: 'ferreiro', nome: 'Cobre para a bigorna', libera: ['forja'], liberaNaEtapa: 1,
+    pedido: 'Você aí, da estrela! A minha bigorna rachou sozinha esta noite. Sozinha! Preciso de cobre para remendar: seis minérios, do veio a leste da praça. Faça a picareta, se ainda não tem.',
+    etapas: [
+      { ev: 'item', k: 'minerio_cobre', de: 'coleta', n: 6, txt: 'Minere minério de cobre', alvo: 'veio:cobre' },
+      { ev: 'criar', k: 'barra_cobre', n: 2, txt: 'Funda 2 barras de cobre na forja do Tomás', alvo: 'npc:ferreiro' },
+      { ev: 'falar', npc: 'ferreiro', entregar: { barra_cobre: 2 }, txt: 'Entregue as 2 barras de cobre ao Tomás' },
+    ],
+    pronto: 'Remendada! E olha o que tinha dentro da rachadura: uma lasca de cristal azul. Isso não é daqui. Veio do sul, de muito longe... A forja agora é sua também, e a banca da Rosa.' },
+  { id: 'a5', cap: 2, nv: 3, npc: 'comerciante', nome: 'A banca da Rosa', libera: [],
+    pedido: 'O Tomás disse que você tem mão boa. Quero ver na agulha! Traga 2 couros dos Puglins e 1 tecido dos Imps, e costure um short na minha banca.',
+    etapas: [
+      { ev: 'ter', itens: { couro: 2, tecido: 1 }, txt: 'Junte 2 couros (Puglins) e 1 tecido (Imps)', alvo: { couro: 'caca:caca1', tecido: 'caca:caca2' } },
+      { ev: 'criar', k: 'short', txt: 'Costure um short na banca da Rosa (Alfaiate)', alvo: 'npc:comerciante' },
+      { ev: 'vender', txt: 'Venda qualquer coisa para a Rosa', alvo: 'npc:comerciante' },
+      { ev: 'comprar', k: 'pocao', n: 3, txt: 'Compre 3 poções da Rosa', alvo: 'npc:comerciante' },
+    ],
+    pronto: 'Freguesia boa! Quem sabe vender anda com ouro no bolso. ...Minha carroça de mercadoria já devia ter chegado, sabe? Três semanas de atraso.' },
+  { id: 'a6', cap: 2, nv: 3, npc: 'ferreiro', nome: 'Sua própria luta', libera: [],
+    pedido: 'Lutar todo mundo luta. Lutar do SEU jeito é outra coisa. Monte a sua barra de habilidades aqui comigo, e depois gaste os seus pontos de atributo. O Mestre Ivo tira as dúvidas.',
+    etapas: [
+      { ev: 'barra', txt: 'Monte sua barra de habilidades (Tomás > Habilidades)', alvo: 'npc:ferreiro' },
+      { ev: 'atributo', ja: 'atributos', txt: 'Gaste seus pontos de atributo (Menu > Status)' },
+    ],
+    pronto: 'Agora sim. Toma: forjei pensando em você, uma espada Rara, do melhor ferro que eu tinha. ...Aquela lasca de cristal o Mestre Ivo pediu para ver. Ficou branco quando olhou.',
+    presente: { espada: { r: 1 } } },
+  // ---------- Capítulo 3 · Presa-de-Prata (Nv 5) ----------
+  { id: 'a7', cap: 3, nv: 5, npc: 'andarilho', nome: 'Uivos na clareira', libera: [],
+    pedido: 'Ouviu os lobos ontem? Tem alguma coisa deixando eles bravos. Derrube seis na Clareira dos Lobos e me traga 4 couros: tenho uma ideia.',
+    etapas: [
+      lobo(6),
+      { ev: 'ter', itens: { couro: 4 }, txt: 'Junte 4 couros', alvo: { couro: 'caca:caca3' } },
+    ],
+    pronto: 'Bom couro. Se a gente fizer uma coleira de verdade, talvez dê para amansar um deles. Um lobo na estrada vale mais que dez cavalos.' },
+  { id: 'a8', cap: 3, nv: 5, npc: 'andarilho', nome: 'A coleira', libera: [],
+    pedido: 'Para a coleira eu preciso de ferro: minere 3 minérios de ferro e funda uma barra na forja. Traga os couros junto.',
+    etapas: [
+      { ev: 'item', k: 'minerio_ferro', de: 'coleta', n: 3, txt: 'Minere minério de ferro', alvo: 'veio:ferro' },
+      { ev: 'criar', k: 'barra_ferro', ja: 'tem', txt: 'Funda 1 barra de ferro na forja', alvo: 'npc:ferreiro' },
+      { ev: 'falar', npc: 'andarilho', entregar: { barra_ferro: 1, couro: 4 }, txt: 'Leve a barra de ferro e 4 couros ao Bento' },
+    ],
+    pronto: 'Coleira pronta. Agora vem a parte difícil: o alfa da matilha. Ele só sai à noite.' },
+  { id: 'a9', cap: 3, nv: 5, npc: 'andarilho', nome: 'O alfa da noite', libera: ['lobo'], liberaNaEtapa: 2,
+    pedido: 'O alfa só aparece quando escurece, na Clareira dos Lobos. Não é para matar: é para cansar. Quando ele deitar, a coleira entra.',
+    etapas: [
+      { ev: 'noite', txt: 'Espere a noite (das 19h às 5h)', alvo: 'caca:caca3' },
+      { ev: 'matar', hc: 'presa', txt: 'Canse Presa-de-Prata, o lobo alfa', diz: 'Presa-de-Prata deita na grama, ofegante, e deixa você pôr a coleira.' },
+      { ev: 'montar', txt: 'Monte no lobo (botão de montar)' },
+      { ev: 'falar', npc: 'andarilho', txt: 'Corra montado até o Bento' },
+    ],
+    pronto: 'Olha só, ele te escolheu! Presa-de-Prata, que nome bom. Mas veja isto: no pescoço dele tinha uma coleira de runas pretas, já quebrada. Alguém tentou prender esse lobo com magia da Névoa. Não foi bicho.' },
+  // ---------- Capítulo 4 · Os que esquecem (Nv 8) ----------
+  { id: 'a10', cap: 4, nv: 8, npc: 'curandeira', nome: 'O caminho do lago', libera: ['1c'],
+    pedido: 'Mais dois aldeões acordaram sem lembrar o próprio nome. O remédio vem do Lago Grande, mas os Imps fecham a estrada do sul. E a mãe deles está furiosa.',
+    etapas: [
+      { ev: 'matar', campos: ['caca2'], tipos: ['imp'], n: 8, txt: 'Derrube Imps na Clareira dos Imps' },
+      { ev: 'matar', hc: 'brasa', txt: 'Derrote Brasa, a Mãe-Imp' },
+    ],
+    pronto: 'A névoa do sul baixou! O Bosque do Sul e o Lago Grande estão abertos. O Nico, o pescador, mora na beira do lago. Peixe de lá é parte do remédio.' },
+  { id: 'a11', cap: 4, nv: 8, npc: 'm_peixe', nome: 'A primeira vara', libera: ['pesca'], liberaNaEtapa: 0,
+    pedido: 'Quer pescar? Primeiro a vara: 3 lenhas e 1 couro, dá para fazer na mochila mesmo. Depois procure a água borbulhando no lago e lance a linha.',
+    etapas: [
+      { ev: 'criar', k: 'vara', ja: 'tem', txt: 'Crie a vara de pescar (Mochila > Criar > Ferramentas)' },
+      { ev: 'pesca', k: 'lambari', n: 4, txt: 'Pesque lambaris num spot do Lago Grande', alvo: 'spot' },
+    ],
+    pronto: 'Tem jeito para a coisa! Guarde os lambaris: assados, a Irmã Lúcia faz o caldo do remédio.' },
+  { id: 'a12', cap: 4, nv: 8, npc: 'lider', nome: 'Um chão seu', libera: [],
+    pedido: 'Você não pode morar no poço para sempre. Tem terra boa nas Terras da Estrada, do lado das casas da Cecília e do Dario. Compre um terreno, monte uma bancada e um fogão, e asse aqueles peixes para a Lúcia.',
+    etapas: [
+      { ev: 'terreno', ja: 'lote', txt: 'Compre um terreno nas Terras da Estrada', alvo: 'lote' },
+      { ev: 'construir', k: 'bancada', ja: 'peca', txt: 'Crie e coloque uma bancada no terreno (martelo)', alvo: 'lote' },
+      { ev: 'construir', k: 'fogao', ja: 'peca', txt: 'Crie e coloque um fogão (pede 1 barra de ferro)', alvo: 'lote' },
+      { ev: 'criar', k: 'peixe_assado', n: 2, txt: 'Asse 2 peixes no fogão (2 lambaris cada)', alvo: 'lote' },
+      { ev: 'falar', npc: 'curandeira', entregar: { peixe_assado: 2 }, txt: 'Leve 2 peixes assados para a Irmã Lúcia' },
+    ],
+    pronto: 'O caldo ficou pronto... e funcionou! O aldeão lembrou de uma coisa só: encapuzados de olhos cinzentos levaram a carroça da Rosa para o leste. Ah, a Cecília deixou sementes de cenoura para você: "vizinho sem horta é triste".',
+    presente: { pocao_mana: 2, semente_cenoura: 4 } },
+  // ---------- Capítulo 5 · A caravana perdida (Nv 12) ----------
+  { id: 'a13', cap: 5, nv: 12, npc: 'comerciante', nome: 'Rastros no bosque', libera: [],
+    pedido: 'Encapuzados?! Levaram a minha carroça? Por favor, siga as marcas de roda pelo Bosque do Sul. Se achar qualquer coisa, me conta.',
+    etapas: [
+      { ev: 'pistas', pontos: [[34, 79, 'a roda quebrada'], [41, 107, 'as caixas abertas'], [62, 112, 'as pegadas']], txt: 'Examine as pistas no Bosque do Sul',
+        diz: 'As pegadas são de botas, muitas, e terminam na carroça tombada. Tem um lobo escuro em volta dela.' },
+      { ev: 'matar', hc: 'sombra', txt: 'Derrote Sombra, o lobo da Névoa, perto da carroça' },
+    ],
+    pronto: 'A carroça tombada... e um lobo guardando? Lobo não guarda nada. Alguém mandou. Pelo menos a lenha da carga deu para salvar: o Seu Joca sabe o que fazer com ela.' },
+  { id: 'a14', cap: 5, nv: 12, npc: 'm_lenha', nome: 'Mercadoria salva', libera: [],
+    pedido: 'A Rosa me contou. Lenha que sobra vira pack! Faça o pack aqui comigo e leve nas costas até a Dona Sálvia, no bosque. Quanto mais longe, mais ela paga.',
+    etapas: [
+      { ev: 'pack_fez', k: 'lenha', txt: 'Faça um Pack de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
+      { ev: 'pack', npc: 'm_horta', txt: 'Leve o pack nas costas até a Dona Sálvia', alvo: 'npc:m_horta' },
+      { ev: 'falar', npc: 'comerciante', txt: 'Conte para a Rosa que a carga foi salva' },
+    ],
+    pronto: 'Você fez isso por mim? ...Fique com o ouro do pack, você mereceu. Quando eu tiver carroça de novo, a casa te paga.' },
+  { id: 'a15', cap: 5, nv: 12, npc: 'ferreiro', nome: 'Melhor que novo', libera: [],
+    pedido: 'Peça velha não se joga fora: se destrói, e sai catalisador. Com catalisador a gente evolui uma peça para Rara. E reforço... reforço é a alma do ferro. Toma um Selo Raro para começar.',
+    recebe: { selo_raro: 1 },
+    etapas: [
+      { ev: 'destruir', txt: 'Destrua uma peça velha (Mochila > peça > Destruir)' },
+      { ev: 'evoluir', min: 1, txt: 'Evolua uma peça para Rara (Forja > Evoluir)', alvo: 'npc:ferreiro' },
+      { ev: 'reforcar', n: 2, txt: 'Reforce uma peça com sucesso (Mochila > peça > Reforçar)' },
+    ],
+    pronto: 'Agora sim você está pronto para o que vem. Toma outro Selo Raro, de reserva.',
+    presente: { selo_raro: 1 } },
+  { id: 'a16', cap: 5, nv: 12, npc: 'm_peixe', nome: 'O barquinho do Nico', libera: ['1d'],
+    pedido: 'No meio do lago tem uma água que borbulha diferente, e ontem vi caixas boiando lá. Faça um barquinho perto de uma bancada e vá ver: a pé não chega.',
+    etapas: [
+      { ev: 'criar', k: 'barquinho', ja: 'tem', txt: 'Crie o barquinho perto de uma bancada (30 lenhas e 4 couros)' },
+      { ev: 'pos', pos: [-3, 198, 14], barco: true, txt: 'Reme de barquinho até o meio do Lago Grande', alvo: 'pos', marca: true },
+      { ev: 'pesca', barco: true, pos: [-3, 198, 14], txt: 'Pesque um peixe de dentro do barquinho', alvo: 'pos',
+        diz: 'Junto com o peixe sobe uma caixa da carroça da Rosa. Dentro, o diário do condutor.' },
+    ],
+    pronto: 'O diário do condutor? Deixa eu ler... "Eles abriram caminho até a montanha. Disseram que o selo de lá vai ser o primeiro a cair." Selo? Que selo?! ...A névoa do Fundo do Leste baixou. Leve o meu radar de pesca, você mereceu.',
+    presente: { radar_pesca: 1 } },
+  // ---------- Capítulos 6 a 15: ainda a missão de uma etapa (viram capítulos completos nas próximas entregas) ----------
+  { id: 'h6', cap: 6, nv: 18, npc: 'guardiao', nome: 'A boca da montanha', matar: { n: 12, campos: ['caca7', 'caca8'] }, libera: ['1e'],
     pedido: 'Ninguém entra na caverna enquanto os monstros do lado de fora não se acalmarem. Derrube doze nos campos Nv 15.',
     andamento: 'Faltam {faltam}.',
     pronto: 'Agora sim. Faça um passe comigo e o selo da caverna se abre pra você.' },
-  { id: 'h7', nv: 25, npc: 'lider', nome: 'O que tem depois do leste', matar: { n: 12, campos: ['caca9', 'caca10'] }, libera: ['1f'],
+  { id: 'h7', cap: 7, nv: 25, npc: 'lider', nome: 'O que tem depois do leste', matar: { n: 12, campos: ['caca9', 'caca10'] }, libera: ['1f'],
     pedido: 'Os batedores viram golens no sudeste. Antes, limpe doze monstros dos campos Nv 20 e 25.',
     andamento: 'Faltam {faltam}.',
     pronto: 'A névoa das Terras dos Golens caiu. Cuidado com o Warrok.' },
-  { id: 'h8', nv: 30, npc: 'lider', nome: 'O chefe Warrok', matar: { n: 1, campos: ['caca11', 'caca12'], tipos: ['warrok'] }, libera: ['B1'],
+  { id: 'h8', cap: 8, nv: 30, npc: 'lider', nome: 'O chefe Warrok', matar: { n: 1, campos: ['caca11', 'caca12'], tipos: ['warrok'] }, libera: ['B1'],
     pedido: 'É o Warrok que segura a névoa por aqui. Derrube ele e o continente se abre para o oeste.',
     andamento: 'O Warrok ainda está de pé. Ele aparece nos campos dos Golens e dos Maws.',
     pronto: 'Você conseguiu! A estrada do oeste está livre até a Ponte do Rio Claro. O Abel, no Posto do Oeste, sabe mais.' },
-  { id: 'h9', nv: 38, npc: 'm_abobora', nome: 'A trilha da serra', matar: { n: 15, campos: ['c_v3'] }, libera: ['B2'],
+  { id: 'h9', cap: 9, nv: 38, npc: 'm_abobora', nome: 'A trilha da serra', matar: { n: 15, campos: ['c_v3'] }, libera: ['B2'],
     pedido: 'Quero levar meus doces para o norte, mas a serra está fechada. Derrube quinze monstros do campo Nv 38 que eu te mostro o caminho.',
     andamento: 'Faltam {faltam}.',
     pronto: 'A névoa da Serra do Norte abriu. Tem uma gruta lá em cima.' },
-  { id: 'h10', nv: 42, npc: 'm_metal', nome: 'A ponte dos Juncos', matar: { n: 15, campos: ['c_v7', 'c_v8'] }, libera: ['B3'],
+  { id: 'h10', cap: 10, nv: 42, npc: 'm_metal', nome: 'A ponte dos Juncos', matar: { n: 15, campos: ['c_v7', 'c_v8'] }, libera: ['B3'],
     pedido: 'Meu metal não chega no leste. Limpe quinze monstros no norte (Nv 40 e 44) que a ponte dos Juncos abre.',
     andamento: 'Faltam {faltam}.',
     pronto: 'O leste de Vael está aberto, com a Ponte dos Juncos e a gruta do pico.' },
-  { id: 'h11', nv: 48, npc: 'lider', nome: 'Carta para o Porto', matar: { n: 20, campos: ['c_v6', 'c_v9'] }, libera: ['B4'],
+  { id: 'h11', cap: 11, nv: 48, npc: 'lider', nome: 'Carta para o Porto', matar: { n: 20, campos: ['c_v6', 'c_v9'] }, libera: ['B4'],
     pedido: 'Preciso mandar notícias ao Porto de Vael. Limpe vinte monstros dos campos Nv 47 e 48 para a estrada ficar segura.',
     andamento: 'Faltam {faltam}.',
     pronto: 'O Porto de Vael está aberto. Lá dá para comprar terreno e pegar o barco.' },
-  { id: 'h12', nv: 50, npc: 'm_conserva', nome: 'A travessia', matar: { n: 15, campos: ['cav_juncos'] }, libera: ['C'],
+  { id: 'h12', cap: 12, nv: 50, npc: 'm_conserva', nome: 'A travessia', matar: { n: 15, campos: ['cav_juncos'] }, libera: ['C'],
     pedido: 'A névoa no mar não deixa ninguém chegar à Ilha do Meio. Dizem que ela nasce na Gruta dos Juncos. Derrube quinze lá dentro.',
     andamento: 'Faltam {faltam} na Gruta dos Juncos.',
     pronto: 'O mar abriu! Pegue um barco no cais e vá até a Ilha do Meio. A Maré te espera lá.' },
-  { id: 'h13', nv: 64, npc: 'm_perola', nome: 'O cais de Aurora', matar: { n: 20, campos: ['c_i3', 'c_i4'] }, libera: ['D1'],
+  { id: 'h13', cap: 13, nv: 64, npc: 'm_perola', nome: 'O cais de Aurora', matar: { n: 20, campos: ['c_i3', 'c_i4'] }, libera: ['D1'],
     pedido: 'Aurora está do outro lado, mas a névoa fecha a costa. Derrube vinte monstros nos campos Nv 60 e 64 da ilha.',
     andamento: 'Faltam {faltam}.',
     pronto: 'A costa de Aurora abriu. O Sálvio te recebe no cais.' },
-  { id: 'h14', nv: 80, npc: 'm_ervas', nome: 'A estrada do leste de Aurora', matar: { n: 20, campos: ['c_a4', 'cav_aurora'] }, libera: ['D2'],
+  { id: 'h14', cap: 14, nv: 80, npc: 'm_ervas', nome: 'A estrada do leste de Aurora', matar: { n: 20, campos: ['c_a4', 'cav_aurora'] }, libera: ['D2'],
     pedido: 'Minhas ervas vêm do leste, mas a estrada está tomada. Derrube vinte nos campos Nv 78 e 80.',
     andamento: 'Faltam {faltam}.',
     pronto: 'O leste de Aurora abriu até o Posto do Leste.' },
-  { id: 'h15', nv: 95, npc: 'alquimista', nome: 'A fonte da Névoa', matar: { n: 25, campos: ['c_a8'] }, libera: ['D3'],
+  { id: 'h15', cap: 15, nv: 95, npc: 'alquimista', nome: 'A fonte da Névoa', matar: { n: 25, campos: ['c_a8'] }, libera: ['D3'],
     pedido: 'Estudei a névoa: ela nasce no Pico da Névoa, no sul de Aurora. Derrube vinte e cinco monstros do campo Nv 95 e o caminho se abre.',
     andamento: 'Faltam {faltam}.',
     pronto: 'O Pico da Névoa está aberto. É o lugar mais perigoso do mundo. Boa sorte!' },
 ];
-export const HISTORIA_PREMIO = { xp: 0.3, ouro: 25 };
+// Prêmio de cada missão: a que abre região ou recurso (libera) vale xp do XP do nível nv e ouro x nv; as outras, xpEtapa e ouroEtapa
+export const HISTORIA_PREMIO = { xp: 0.3, ouro: 25, xpEtapa: 0.12, ouroEtapa: 10 };
 // Desbloqueio por nível do herói (além do nível de cada profissão, que continua igual). As skills já abrem por nível
 // (HABS[k].libera em shared/progresso.js, regra do Quimera) e não mudam aqui.
 // receita: RECEITAS (aba Criar); obra: CONSTRUCOES e FERRAMENTAS_FAZENDA (o navio já pede Nv 60 no FERRAMENTAS_FAZENDA);
