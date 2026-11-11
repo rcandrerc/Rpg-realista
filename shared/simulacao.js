@@ -8,7 +8,7 @@ import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS } from './dados.js';
-import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS } from './dados.js';
+import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
@@ -909,6 +909,9 @@ export class Simulacao {
     }
     else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho');
     else if (E.ja === 'atributos') feito = Object.values(p.atr).some((v) => v > 3);
+    else if (E.ja === 'passe') feito = contar(p.mochila, 'passe_caverna') > 0; // já tem o Passe da Caverna
+    else if (E.ja === 'carrinho') feito = (p.carrinho?.lv || 0) >= (E.min || 1); // carrinho já no nível pedido
+    else if (E.ja === 'carro_ok') feito = !!p.carrinho && !p.carrinho.quebrado && p.carrinho.vida >= VEICULOS.carrinho.vida; // inteiro
     if (!feito && E.ev === 'ter') {
       const n = Object.entries(E.itens).reduce((a, [k, q]) => a + Math.min(q, contar(p.mochila, k)), 0);
       if (n !== h.n) { h.n = n; j.progSujo = true; this.avisarProg(j); }
@@ -918,7 +921,7 @@ export class Simulacao {
     if (!feito && E.ev === 'time') feito = (j.time?.membros.length || 0) >= 2; // alguém no time (a Cecília e o Dario contam)
     if (!feito && E.ev === 'pos' && !j.morto) {
       const [x, z, r, y] = E.pos;
-      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho');
+      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho') && (!E.caverna || !!j.caverna);
     }
     if (!feito && E.ev === 'pistas' && !j.morto) {
       E.pontos.forEach(([x, z, nome], i) => {
@@ -947,15 +950,36 @@ export class Simulacao {
   // (o mesmo modelo, maior e com outro brilho). Morto, some como os outros e a vaga volta normal.
   chamarChefe(j, id) {
     const C = CHEFES_HISTORIA[id]; if (!C) return;
-    const ci = this.cacas.findIndex((c) => c.def.id === C.campo); if (ci < 0) return;
-    const def = this.cacas[ci].def; if (Math.hypot(j.x - def.x, j.z - def.z) > 60) return;
     if (C.noite && !ehNoite(horaDoJogo(j.prog.dia))) return;
     if (this.inimigos.some((e) => e.hc === id && !e.morto)) return;
-    const e = this.inimigos.find((o) => o.sp?.caca === ci && !o.morto && o.tipo === C.tipo && !o.hc && !(o.atacantes?.size));
+    let e = null;
+    if (C.sala) { // sala da caverna da montanha: o monstro da sala vira o chefe quando o herói está lá dentro, perto dela
+      const S = this.dungeon?.salas.find((o) => o.def.id === C.sala); if (!S || !j.caverna) return;
+      const pt = S.def.pontos[0]; if (Math.hypot(j.x - pt.x, j.z - pt.z) > 25) return;
+      e = S.vagas.map((vg) => vg.e).find((o) => o && !o.morto && o.tipo === C.tipo && !o.hc && !(o.atacantes?.size));
+    } else {
+      const ci = this.cacas.findIndex((c) => c.def.id === C.campo); if (ci < 0) return;
+      const def = this.cacas[ci].def; if (Math.hypot(j.x - def.x, j.z - def.z) > 60) return;
+      e = this.inimigos.find((o) => o.sp?.caca === ci && !o.morto && o.tipo === C.tipo && !o.hc && !(o.atacantes?.size));
+    }
     if (!e) return;
     Object.assign(e, { hc: id, nome: C.nome, esc: C.escala, cor: C.cor, vidaMax: Math.round(e.vidaMax * C.vida), dano: Math.round((e.dano || 0) * C.dano) });
     e.vida = e.vidaMax;
     this.evento({ t: 'aviso', para: j.id, texto: `${C.nome} apareceu!` });
+  }
+  // Chefe da história que para a luta no meio (foge em CHEFES_HISTORIA, o Kael): diz a fala, some na névoa e conta como
+  // vencido para quem lutou com ele ou estava perto. Sem XP nem drop: o prêmio é o da missão.
+  fugirChefe(c) {
+    const C = CHEFES_HISTORIA[c.hc];
+    for (const j of this.jogadores.values()) {
+      if (j.morto || j.criando || !(c.atacantes?.has(j.id) || dist(j, c) < 14)) continue;
+      if (C.fala) this.evento({ t: 'aviso', para: j.id, texto: C.fala });
+      this.contarHistoria(j, c);
+    }
+    this.evento({ t: 'nevoa_some', x: r2(c.x), y: r2(c.y || 0), z: r2(c.z) });
+    c.morto = true; c.atacantes = null; c.trava = Infinity;
+    const i = this.inimigos.indexOf(c); if (i >= 0) this.inimigos.splice(i, 1); // some na hora (a vaga do campo abre)
+    if (c.sp?.caca != null) { const vg = this.cacas[c.sp.caca].vagas[c.sp.vaga]; if (vg?.e === c) vg.e = null; }
   }
   // missão entregue: prêmio, presente, o que libera, cartão do fim do capítulo e a próxima missão
   concluirMissao(j, M, diga) {
@@ -965,6 +989,7 @@ export class Simulacao {
     const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro;
     this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
     if (M.presente) this.darItens(j, M.presente);
+    if (M.titulo) this.evento({ t: 'aviso', para: j.id, texto: `Título novo: ${M.titulo}` }); // título do ato (histInfo.titulo)
     this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
     for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${nomeLibera(k)}` });
     if (diga) diga(M.pronto, { missao: M.id });
@@ -1043,7 +1068,8 @@ export class Simulacao {
     const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M || !h) return null;
     const E = h.ac ? etapaAtual(p) : null;
     const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' ? E.npc : '';
-    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas' };
+    const tit = HISTORIA.slice(0, h.p).filter((o) => o.titulo).at(-1)?.titulo || ''; // título do último ato fechado
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...(tit ? { titulo: tit } : {}) };
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -3227,6 +3253,10 @@ export class Simulacao {
     if (alvo.treino) return this.ferirTreino(alvo, n, crit, de, h);
     if (alvo.tipo === 'jogador' && alvo.veiculo === 'carrinho') n = this.golpeNoCarrinho(alvo, n); // Quimera: o carrinho apanha por você
     alvo.vida = Math.max(0, alvo.vida - n);
+    if (alvo.hc && CHEFES_HISTORIA[alvo.hc]?.foge && alvo.vida <= alvo.vidaMax * CHEFES_HISTORIA[alvo.hc].foge) { // duelo que para no meio
+      if (de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
+      return this.fugirChefe(alvo);
+    }
     if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; alvo.lutouT = this.tempo; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
     if (de?.tipo === 'jogador') { de.combateAte = this.tempo + ESTAMINA.combate; de.lutouT = this.tempo; } // lutouT: time só ganha XP de quem lutou nos últimos TIME.combate s
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });

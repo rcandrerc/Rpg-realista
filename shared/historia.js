@@ -1,7 +1,7 @@
 // Progressão até o Nv 100 (André 2026-11-10): missões principais em ordem (HISTORIA), zonas fechadas pela névoa
 // (ZONAS) e o que abre por nível (LIBERA_NIVEL). Os dados ficam em shared/dados.js; aqui só as contas, que o servidor
 // (shared/simulacao.js) usa para decidir e o exportador manda para o app (habilidades.json, chave "historia").
-import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS, CENAS } from './dados.js';
+import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS, CENAS, CHEFES_HISTORIA } from './dados.js';
 import { LUGARES_MUNDO, TERRAS, dentroDaTerra } from './mundo.js';
 import { REGIOES_POLIGONOS } from './regioes.js';
 
@@ -193,4 +193,5 @@ export const historiaParaApp = () => ({
   capitulos: CAPITULOS.map((c) => ({ n: c.n, nome: c.nome, nv: c.nv, ato: c.ato, frase: c.frase, diario: c.diario || '', rumores: c.rumores || [] })),
   libera: LIBERA_NIVEL, recursos: RECURSOS_HISTORIA,
   cenas: CENAS, // cenas da história (godot-prototipo/cinematica.gd)
+  chefes: CHEFES_HISTORIA, // chefes com nome; humano = o app troca o corpo pelo do herói (online.gd _chefe_historia)
 });

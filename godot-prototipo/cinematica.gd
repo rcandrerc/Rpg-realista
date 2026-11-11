@@ -6,7 +6,7 @@ extends CanvasLayer
 # - faixas pretas de cinema em cima e embaixo, a HUD some e o toque na tela não move o herói;
 # - a câmera vai de um ponto a outro em cada tomada (suave no começo e no fim), com o campo de visão mais fechado;
 # - legenda embaixo: quem fala em dourado e a fala aparecendo aos poucos (narração sem nome, em itálico);
-# - o herói pode começar caído e levantar (a animação de cair tocada ao contrário) e os NPCs da cena viram para ele;
+# - o herói pode começar caído e levantar (senta tonto no chão, apoia as mãos e fica de pé) e os NPCs da cena viram para ele;
 # - botão "Pular" no canto: acaba na hora; no fim a câmera volta para as costas do herói.
 
 const FAIXA := 0.115 # fração da altura da tela de cada faixa preta
@@ -25,6 +25,10 @@ var _saindo := false
 var _escondidos: Array = []
 var _deitado := false
 var _levantando := -1.0
+var _novo_levantar := false
+const SENTA_FADE := 1.1 # s da passagem de deitada para sentada
+const SENTA_ATE := 2.0 # s sentada tonta antes de apoiar as mãos
+const LEVANTA_RITMO := 0.6 # velocidade da animação de levantar (mais lenta, ainda zonza)
 var _fonte: Font
 var _cima: ColorRect
 var _baixo: ColorRect
@@ -170,8 +174,16 @@ func heroi(dt: float) -> void:
 	m.heroi.position = m.mov.posicao()
 	m.heroi.rotation.y = m.mov.ry
 	if _levantando >= 0.0:
+		var antes := _levantando
 		_levantando += dt
-		if _levantando > float(_tomadas[_i].get("d", 3.0)) * 0.75:
+		if _novo_levantar: # sentada tonta no chão, depois apoia as mãos e fica de pé
+			var dl: float = m.heroi_anim.get_animation("levantar").length / LEVANTA_RITMO
+			if antes < SENTA_ATE and _levantando >= SENTA_ATE:
+				m.heroi_anim.play("levantar", 0.35, LEVANTA_RITMO)
+			elif antes < SENTA_ATE + dl * 0.9 and _levantando >= SENTA_ATE + dl * 0.9:
+				_levantando = -1.0
+				m.heroi_anim.play("parada", 0.4)
+		elif _levantando > float(_tomadas[_i].get("d", 3.0)) * 0.75:
 			_levantando = -1.0
 			m.heroi_anim.play("parada", 0.35)
 	m.heroi_anim.atualizar(dt, 0.0)
@@ -232,7 +244,11 @@ func camera(dt: float) -> void:
 	if str(tm.get("acao", "")) == "levantar" and _deitado and _levantando < 0.0 and _t < 0.5:
 		_deitado = false
 		_levantando = 0.0
-		if m.heroi_anim.has_animation("morrer"):
+		# senta no chão meio tonta, fica um pouco, apoia as mãos e levanta (KayKit Character Animations, CC0)
+		_novo_levantar = m.heroi_anim.has_animation("sentado_chao") and m.heroi_anim.has_animation("levantar")
+		if _novo_levantar:
+			m.heroi_anim.play("sentado_chao", SENTA_FADE)
+		elif m.heroi_anim.has_animation("morrer"):
 			var dur: float = m.heroi_anim.get_animation("morrer").length
 			m.heroi_anim.play("morrer", 0.0, -dur / (d * 0.85)) # a queda ao contrário: levanta (troca para a parada antes do começo)
 			m.heroi_anim.seek(dur * 0.97)
