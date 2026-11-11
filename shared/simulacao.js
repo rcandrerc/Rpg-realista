@@ -10,6 +10,7 @@ import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e t
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
+import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
 const TAU = Math.PI * 2;
@@ -330,10 +331,12 @@ export class Simulacao {
     mapa.inimigos.forEach((sp) => this.criarInimigo(sp));
     // campos de caça (CACA, regra do Quimera): cada vaga tem um índice v fixo (depois dos inimigos parados) e já começa cheia
     let v = mapa.inimigos.length;
+    this.bossVolta = {}; this.camposBoss = []; // bosses de mundo: hora (ms) em que cada um pode nascer de novo e as poças no chão
     this.cacas = (mapa.caca || []).map((def, ci) => {
       const c = { def, vagas: def.tipos.map((tipo, k) => ({ tipo, k, v: v + k, e: null })), nx: 0, t: 0 };
       v += def.tipos.length;
-      for (const vg of c.vagas) this.nascerNaCaca(c, ci, vg, true);
+      if (def.boss) c.boss = { id: def.boss, def: BOSSES_MUNDO[def.boss] }; // boss de mundo: nasce pela hora salva (passoBosses)
+      else for (const vg of c.vagas) this.nascerNaCaca(c, ci, vg, true);
       return c;
     });
     // espantalhos de treino (TREINO): o v deles vem depois das vagas dos campos de caça
@@ -380,6 +383,7 @@ export class Simulacao {
   passoCacas(dt) {
     this.cacas.forEach((c, ci) => {
       const d = c.def;
+      if (c.boss) return; // boss de mundo: passoBosses
       c.t -= dt; if (c.t > 0) return;
       c.t = d.passo;
       const vivos = c.vagas.filter((vg) => vg.e).length, vaga = c.vagas.find((vg) => !vg.e);
@@ -657,7 +661,8 @@ export class Simulacao {
     if (p.e === 1) j.ciente = true; // app que conhece a estamina (o Godot): sem fôlego não corre
     const mont = MONTARIAS[j.montado], vv = this.velVeiculo(j);
     // carrinho, barquinho ou navio: a velocidade dele; pack nas costas: anda mais devagar e não corre (Quimera x0,68)
-    const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3;
+    const lentoH = j.lentoH && j.lentoH.ate > this.tempo ? 1 - j.lentoH.k * 0.8 : 1; // lentidão de skill de boss (folga de 20% para a rede)
+    const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3 * lentoH;
     if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
     j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
     const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
@@ -666,7 +671,8 @@ export class Simulacao {
     // mergulho (André 2026-11-06): no lago fundo o herói desce abaixo da linha em que boia, até o leito (MERGULHO_MAX)
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
-    const ok = d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
+    const preso = (j.presoAte || 0) > this.tempo && j.presoEm && Math.hypot(p.x - j.presoEm.x, p.z - j.presoEm.z) > 0.6; // atordoado, congelado ou derrubado por boss: não sai do lugar
+    const ok = !preso && d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)) // caverna da montanha: do selo para dentro só com o passe usado
       && !this.naNevoa(j, p.x, p.z); // progressão (André 2026-11-10): zona ainda fechada pela névoa, fica na borda
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
@@ -1176,7 +1182,7 @@ export class Simulacao {
   // golpe do Quimera: dano (com crítico) e o inimigo voa para longe do ponto p
   bater(j, o, n, h, p = j) {
     this.ferir(o, n, j, h);
-    if (o.morto || !h.empurra || o.tipo === 'chefe' || TIPOS_INIMIGO[o.tipo]?.chefe || o.firmeAte > this.tempo) return;
+    if (o.morto || !h.empurra || o.tipo === 'chefe' || TIPOS_INIMIGO[o.tipo]?.chefe || o.bm || o.firmeAte > this.tempo) return;
     const d = Math.hypot(o.x - p.x, o.z - p.z) || 1, t = 0.22;
     o.dash = { vx: (o.x - p.x) / d * h.empurra / t, vz: (o.z - p.z) / d * h.empurra / t, t };
   }
@@ -1192,7 +1198,7 @@ export class Simulacao {
     if (d > 0.3 && !this.guiado(j)) this.empurrar(j, d, dur);
   }
   soltarQ(j, h, alvo, m) {
-    const t = h.tipo, chefe = (o) => o.tipo === 'chefe' || !!TIPOS_INIMIGO[o.tipo]?.chefe;
+    const t = h.tipo, chefe = (o) => o.tipo === 'chefe' || !!TIPOS_INIMIGO[o.tipo]?.chefe || !!o.bm;
     if (t === 'basicoEspada') {
       const cb = j.comboQ || { n: -1, fim: 0 };
       const n = this.tempo - cb.fim > h.comboZera ? 0 : (cb.n + 1) % h.combo.length, g = h.combo[n];
@@ -2967,6 +2973,7 @@ export class Simulacao {
   }
   // Monstro caiu: cada herói que ganhou XP tira a sua sorte (ouro, poções, peça, Tomo de uma skill que ele já tem)
   soltarDrops(c, j) {
+    if (c.bm) return this.dropBoss(c, j); // boss de mundo: catalisador garantido e a chance do Mítico
     const d = DROPS[c.tipo]; if (!d) return;
     const p = j.prog, ganhou = [];
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
@@ -3178,7 +3185,7 @@ export class Simulacao {
   }
   // h: a habilidade que acertou (skills do Quimera trazem crítico e efeitos: atordoa, congela, lento, vulnerável)
   ferir(alvo, n, de, h = null) {
-    if (alvo.morto || alvo.arrancada || alvo.criando) return;
+    if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
@@ -3190,7 +3197,7 @@ export class Simulacao {
     if (alvo.st) n *= 1 - (nvM ? reducaoContra(alvo.st.defesa, nvM, NIVEL_INIMIGO) : alvo.st.reducao); // defesa do herói (contra monstro: cai com o nível dele)
     if (alvo.defesa > 0) n *= 1 - alvo.defesa;
     n = Math.max(1, Math.round(n));
-    if (nvM) n = Math.max(1, Math.min(n, Math.round(alvo.vidaMax * tetoMonstroNivel(nvM, alvo.prog?.nivel, de.tipo === 'chefe' || !!TIPOS_INIMIGO[de.tipo]?.chefe, NIVEL_INIMIGO))));
+    if (nvM) n = Math.max(1, Math.min(n, Math.round(alvo.vidaMax * tetoMonstroNivel(nvM, alvo.prog?.nivel, de.tipo === 'chefe' || !!TIPOS_INIMIGO[de.tipo]?.chefe || !!de.bm, NIVEL_INIMIGO))));
     if (alvo.escudo && alvo.escudo.ate > this.tempo) { // Escudo Arcano segura primeiro
       const seg = Math.min(alvo.escudo.n, n); alvo.escudo.n -= seg; n -= seg;
       if (alvo.escudo.n <= 0) { alvo.escudo = null; this.evento({ t: 'escudo', id: alvo.id, n: 0, dur: 0 }); }
@@ -3204,9 +3211,9 @@ export class Simulacao {
     alvo.vida = Math.max(0, alvo.vida - n);
     if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; alvo.lutouT = this.tempo; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
     if (de?.tipo === 'jogador') { de.combateAte = this.tempo + ESTAMINA.combate; de.lutouT = this.tempo; } // lutouT: time só ganha XP de quem lutou nos últimos TIME.combate s
-    this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : { t: 'dano', alvo: alvo.id, n });
+    this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : h?.dot ? { t: 'dano', alvo: alvo.id, n, dot: h.dot } : { t: 'dano', alvo: alvo.id, n });
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
-    const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe; // fora do if: o golpe final também usa
+    const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe || !!alvo.bm; // fora do if: o golpe final também usa
     if (h && alvo.tipo !== 'jogador' && alvo.vida > 0) {
       const ate = (s) => this.tempo + s * (ehChefe ? 0.5 : 1); // chefe sofre metade
       if (h.atordoa) { alvo.parado = Math.max(alvo.parado || 0, ate(h.atordoa)); alvo.ef = 'atordoado'; }
@@ -3235,6 +3242,8 @@ export class Simulacao {
       }
     } else if (firme) { /* firme: aguenta o golpe sem parar o que está fazendo */ }
     else if (alvo.parado > this.tempo) { /* atordoado ou congelado: nem reage */ }
+    else if (h?.dot) { /* sangramento, veneno ou queimadura: só o número */ }
+    else if (alvo.bm) { /* boss de mundo não para o que faz quando apanha */ }
     else if (alvo.defesa <= 0 && !alvo.esc && (alvo.trava <= 0 || alvo.tipo !== 'jogador')) this.tocar(alvo, A.hit, 1.4);
   }
   // espantalho de treino: mostra o dano e balança, mas nunca morre (a vida acabou, volta cheia na hora);
@@ -3278,6 +3287,7 @@ export class Simulacao {
       });
     } else {
       this.contarMissao(c);
+      if (c.bm) this.bossMorreu(c); // boss de mundo: hora de voltar salva e aviso no chat geral
       // XP para quem bateu nele ou estava perto (grupo). Time (André 2026-11-05): quem é do time de quem ganhou também ganha
       // XP e drop se está a até TIME.perto metros e lutou nos últimos TIME.combate segundos (parado longe da luta não ganha),
       // e cada um do time que ganhou soma TIME.bonus de XP para todos eles.
@@ -3291,7 +3301,7 @@ export class Simulacao {
       for (const j of ganham) if (j.time) doTime.set(j.time, (doTime.get(j.time) || 0) + 1);
       for (const j of ganham) {
         const n = j.time ? doTime.get(j.time) : 1;
-        const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1));
+        const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1) * (c.bm ? BOSSES_MUNDO[c.bm].xp : 1));
         this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1))) : xp); this.soltarDrops(c, j);
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
@@ -3347,10 +3357,11 @@ export class Simulacao {
     for (const o of this.todos()) {
       if (o === c || o.morto || o.criando || Math.abs((o.y || 0) - (c.y || 0)) > 1) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz);
-      const m = c.tipo !== 'jogador' && o.tipo !== 'jogador' ? 1.2 : 0.7; // monstro com monstro: ~0,6 m de raio cada
+      const m = (c.tipo !== 'jogador' && o.tipo !== 'jogador' ? 1.2 : 0.7) + (c.bm || o.bm ? COMBATE_BOSS.raio - 0.35 : 0); // monstro com monstro: ~0,6 m de raio cada; boss de mundo é largo
       if (d < m && d > 0) { c.x = o.x + dx / d * m; c.z = o.z + dz / d * m; }
     }
     [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
+    if (c.bm) { const A = c.arena, d = Math.hypot(c.x - A.x, c.z - A.z); if (d > A.r) { c.x = A.x + (c.x - A.x) / d * A.r; c.z = A.z + (c.z - A.z) / d * A.r; } } // boss não sai da arena
     if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
     else if (c.sp?.tunel) this.prenderNoTunel(c); // e o do covil das cavernas do mundo grande também
   }
@@ -3564,6 +3575,7 @@ export class Simulacao {
     this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
+    this.passoBosses(dt); // bosses de mundo (André 2026-11-11)
     this.passoHistoria(dt); // história com etapas (André 2026-11-11)
     this.passoCaverna(dt);
     this.passoProjeteis(dt);
@@ -3584,6 +3596,14 @@ export class Simulacao {
     if (seguro) { const t = totemPerto(j.x, j.z, TOTENS.toque); if (t) this.tocarTotem(j, t); }
     if (!j.morto && j.vida < j.vidaMax) j.vida = Math.min(j.vidaMax, j.vida + j.st.regenVida * (luta ? REGEN.vidaCombate : 1) * (seguro ? TOTENS.regen : 1) * dt);
     if (j.escudo && j.escudo.ate <= this.tempo) j.escudo = null;
+    if (j.dots) { // sangramento, veneno e queimadura das skills dos bosses de mundo: um tique por segundo
+      if (j.morto) j.dots = null;
+      else {
+        for (const d of j.dots) { d.t -= dt; if (d.t <= 0 && d.ate > this.tempo - 0.01 && !j.morto) { d.t += 1; this.feridaDot(j, d); } }
+        j.dots = j.dots && j.dots.filter((d) => d.ate > this.tempo);
+        if (!j.dots?.length) j.dots = null;
+      }
+    }
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
       if (j.arrancada) { j.arrancada.t -= dt; if (j.arrancada.t <= 0) j.arrancada = null; }
       return;
@@ -3639,12 +3659,21 @@ export class Simulacao {
       if (b.trava <= 0) b.anim = 'Idle';
       return;
     }
+    if (b.bm) { // boss de mundo: o tempo da próxima skill corre mesmo parado; abaixo da metade da vida, fúria
+      b.skillCd -= dt;
+      if (!b.furia && b.vida < b.vidaMax * COMBATE_BOSS.furia) {
+        b.furia = true;
+        this.evento({ t: 'furia', id: b.id });
+        for (const j of this.inimigosDe(b)) if (this.naArena(b, j, 20)) this.evento({ t: 'aviso', para: j.id, texto: `${b.nome} entrou em fúria!` });
+      }
+    }
     if (b.trava > 0) return;
     const t = TIPOS_INIMIGO[b.tipo];
     const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
-    let alvo = this.maisPerto(b, 14);
+    let alvo = this.maisPerto(b, b.bm ? b.arena.r * 2 : 14);
     if (alvo && naAreaSegura(alvo.x, alvo.z)) alvo = null; // totem (André 2026-11-10): lá dentro monstro não persegue; volta para casa
     if (alvo && this.mobFechadoPara(b, alvo)) alvo = null; // região fechada para esse herói (André 2026-11-11): não sai atrás dele
+    if (b.bm) { if (alvo && !this.naArena(b, alvo, COMBATE_BOSS.solta)) alvo = null; if (this.passoBoss(b, alvo, dt)) return; } // boss de mundo: só briga dentro da arena
     b.ataqueCd -= dt;
     const CI = COMBATE_INIMIGO;
     if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
@@ -3657,10 +3686,10 @@ export class Simulacao {
       const vx = Math.cos(b.ry) * lado * CI.rodaVel + Math.sin(b.ry) * perto, vz = -Math.sin(b.ry) * lado * CI.rodaVel + Math.cos(b.ry) * perto;
       this.mover(b, vx * dt, vz * dt);
       b.anim = 'Walk';
-    } else if (alvo && dist(alvo, b) < 1.9 && Math.abs(alvo.y - b.y) < 1.3) {
+    } else if (alvo && dist(alvo, b) < (b.bm ? COMBATE_BOSS.alcance : 1.9) && Math.abs(alvo.y - b.y) < (b.bm ? 2.5 : 1.3)) {
       this.virarPara(b, alvo); b.anim = A.swordIdle; b.vez = alvo.id;
       if (b.ataqueCd <= 0) {
-        b.ataqueCd = t.intervalo;
+        b.ataqueCd = t.intervalo * (b.furia ? COMBATE_BOSS.furiaIntervalo : 1);
         // preparo: a animação começa bem devagar (braço para trás) e o celular acende um brilho vermelho
         const nome = Math.random() < 0.5 ? A.slash : A.slash2, P = CI.preparo[b.tipo] ?? 0.5;
         const dur = DURACAO[nome] || 1, hit = P + Math.max(0.05, dur * CI.acerto - P * CI.preparoTs) / CI.golpeTs;
@@ -3677,9 +3706,9 @@ export class Simulacao {
             this.evento({ t: 'esquiva', id: alvo.id, de: b.id });
             return;
           }
-          if (dist(alvo, b) >= 2.4 || Math.abs(alvo.y - b.y) >= 1.3) return;
+          if (dist(alvo, b) >= (b.bm ? COMBATE_BOSS.alcance + 0.6 : 2.4) || Math.abs(alvo.y - b.y) >= (b.bm ? 2.5 : 1.3)) return;
           if (naAreaSegura(alvo.x, alvo.z)) return; // entrou na área do totem bem na hora do golpe
-          this.ferir(alvo, b.dano ?? t.dano, b);
+          this.ferir(alvo, (b.dano ?? t.dano) * (b.furia ? COMBATE_BOSS.furiaDano : 1), b);
         });
         if (Math.random() < 0.5) { b.vez = null; b.folgaAte = this.tempo + b.trava + CI.folga; } // passa a vez para quem está rodeando
       }
@@ -3702,7 +3731,7 @@ export class Simulacao {
       let fim = p.vida <= 0 || p.y < this.terreno.altura(p.x, p.z, p.y); // bate no chão ou na pedra
       for (const o of this.inimigosDe(p.dono)) {
         if (p.acertou.has(o)) continue;
-        const esc = TIPOS_INIMIGO[o.tipo]?.escala || 1;
+        const esc = o.bmEsc || TIPOS_INIMIGO[o.tipo]?.escala || 1;
         if (Math.hypot(o.x - p.x, o.z - p.z) < (p.h.proj.largura || 0.6) && p.y - (o.y || 0) < 2.1 * esc && p.y > (o.y || 0) - 0.3) {
           p.acertou.add(o); this.ferir(o, p.h.dmg, p.dono, p.h);
           if (!p.h.proj.atravessa) { fim = true; break; }
@@ -3724,6 +3753,189 @@ export class Simulacao {
       if (f.vida <= 0) this.campos.splice(i, 1);
     }
     this.ator = null;
+  }
+
+  // ---------- bosses de mundo (André 2026-11-11; BOSSES_MUNDO e COMBATE_BOSS em shared/dados.js) ----------
+  // bossVolta: { id do boss: hora (ms, Date.now) em que pode nascer de novo }. O servidor (server/index.js) carrega do banco
+  // ao abrir a sala e grava a cada morte (aoBosses), então reiniciar o servidor ou fechar a sala não faz nascer antes.
+  carregarBosses(est) { this.bossVolta = est && typeof est === 'object' ? { ...est } : {}; }
+  agoraMs() { return this.relogioMs ? this.relogioMs() : Date.now(); } // os testes trocam o relógio
+  naArena(b, o, folga = 0) { const A = b.arena; return Math.hypot(o.x - A.x, o.z - A.z) <= A.r + folga; }
+  anunciar(texto) { // chat geral, para todo mundo online (todas as salas, pelo servidor)
+    const msg = { canal: 'geral', c: 'sistema', nome: 'Aethra', texto, hora: Date.now(), sistema: true };
+    if (this.aoAnuncio) this.aoAnuncio(msg); else this.receberChat(msg);
+  }
+  listaBosses() { // para o mapa: [id, vivo (1/0), segundos até voltar]
+    const agora = this.agoraMs();
+    return this.cacas.filter((c) => c.boss).map((c) => { const e = c.vagas[0].e; return [c.boss.id, e && !e.morto ? 1 : 0, e && !e.morto ? 0 : Math.max(0, Math.round(((this.bossVolta[c.boss.id] || 0) - agora) / 1000))]; });
+  }
+  passoBosses(dt) {
+    // poças (lava, veneno): quem fica dentro recebe o efeito de novo a cada segundo
+    for (let i = this.camposBoss.length - 1; i >= 0; i--) {
+      const f = this.camposBoss[i]; f.t -= dt;
+      if (f.ate <= this.tempo || f.b.morto) { this.camposBoss.splice(i, 1); continue; }
+      if (f.t > 0) continue;
+      f.t = 1;
+      for (const j of this.inimigosDe(f.b)) if (Math.hypot(j.x - f.x, j.z - f.z) < f.r && !naAreaSegura(j.x, j.z)) this.efeitoNoHeroi(j, f.sk.ef, f.b);
+    }
+    this._bossT = (this._bossT ?? 0) - dt; if (this._bossT > 0) return;
+    this._bossT = 1;
+    const agora = this.agoraMs();
+    let mudou = false;
+    this.cacas.forEach((c, ci) => {
+      if (!c.boss) return;
+      const vg = c.vagas[0];
+      if (vg.e || (this.bossVolta[c.boss.id] || 0) > agora) return;
+      if (!this.nascerNaCaca(c, ci, vg)) return;
+      this.virarBoss(vg.e, c); mudou = true;
+      const B = c.boss.def;
+      this.anunciar(`⚔ ${B.nome}, ${B.titulo}, apareceu em ${B.regiao} (Nv ${B.nivel})!`);
+    });
+    this._bossLista = (this._bossLista ?? 0) - 1;
+    if (mudou || this._bossLista <= 0) { this._bossLista = 10; this.evento({ t: 'bosses', l: this.listaBosses() }); }
+  }
+  virarBoss(e, c) {
+    const B = c.boss.def;
+    Object.assign(e, { bm: c.boss.id, nome: B.nome, vidaMax: Math.round(e.vidaMax * B.vida), dano: Math.round(e.dano * B.dano), bmEsc: B.esc,
+      skillCd: COMBATE_BOSS.primeiraSkill, skillI: 0, skillSeq: 0, furia: false, semAlvo: 0, arena: { x: c.def.x, z: c.def.z, r: c.def.r } });
+    e.vida = e.vidaMax;
+  }
+  bossMorreu(c) {
+    const B = BOSSES_MUNDO[c.bm], h = B.volta[0] + Math.random() * (B.volta[1] - B.volta[0]);
+    this.bossVolta[c.bm] = this.agoraMs() + Math.round(h * 3600e3);
+    this.aoBosses?.({ ...this.bossVolta });
+    c.skillSeq++; c.voando = false;
+    const quem = [...(c.atacantes || [])].map((id) => this.jogadores.get(id)?.nome).filter(Boolean);
+    this.anunciar(`${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h.`);
+    this._bossLista = 0;
+  }
+  // um passo do boss com alvo (ou sem). true = ele está ocupado (lançou uma skill), o resto do passoInimigo não roda
+  passoBoss(b, alvo, dt) {
+    if (!alvo) {
+      b.semAlvo += dt;
+      if (b.semAlvo > COMBATE_BOSS.reset && (b.vida < b.vidaMax || b.furia)) { // largaram ele: volta inteiro (nada de matar aos pouquinhos)
+        b.vida = b.vidaMax; b.furia = false; b.atacantes = null; b.skillCd = COMBATE_BOSS.primeiraSkill; b.skillI = 0;
+      }
+      return false; // anda de volta para o meio (b.casa) pelo passoInimigo
+    }
+    b.semAlvo = 0;
+    if (b.skillCd > 0) return false;
+    const B = BOSSES_MUNDO[b.bm], sk = B.skills[b.skillI++ % B.skills.length];
+    b.skillCd = sk.cd * (b.furia ? COMBATE_BOSS.furiaCd : 1);
+    this.lancarSkillBoss(b, sk, alvo);
+    return true;
+  }
+  // ponto dentro da arena (o boss não pula para fora)
+  naArenaPonto(b, x, z, folga = 1) { const A = b.arena, d = Math.hypot(x - A.x, z - A.z), m = A.r - folga; return d <= m ? { x, z } : { x: A.x + (x - A.x) / d * m, z: A.z + (z - A.z) / d * m }; }
+  lancarSkillBoss(b, sk, alvo) {
+    const seq = ++b.skillSeq, dano = b.dano * (b.furia ? COMBATE_BOSS.furiaDano : 1);
+    this.virarPara(b, alvo);
+    const r = (n) => r2(n), formas = [];
+    let fim = null; // para onde o boss vai (salto, voo, investida, sumir)
+    if (sk.k === 'salto' || sk.k === 'voo') { fim = this.naArenaPonto(b, alvo.x, alvo.z); formas.push({ f: 'c', x: r(fim.x), z: r(fim.z), r: sk.r }); }
+    else if (sk.k === 'pedra') formas.push({ f: 'c', x: r(alvo.x), z: r(alvo.z), r: sk.r });
+    else if (sk.k === 'area' || sk.k === 'uivo') formas.push({ f: 'c', x: r(b.x), z: r(b.z), r: sk.r });
+    else if (sk.k === 'cone') formas.push({ f: 'v', x: r(b.x), z: r(b.z), ry: r(b.ry), a: sk.alcance, ang: sk.ang });
+    else if (sk.k === 'investida') {
+      let L = sk.comp; while (L > 2 && !this.naArena(b, { x: b.x + Math.sin(b.ry) * L, z: b.z + Math.cos(b.ry) * L }, -1)) L -= 1;
+      fim = { x: b.x + Math.sin(b.ry) * L, z: b.z + Math.cos(b.ry) * L };
+      formas.push({ f: 'l', x: r(b.x), z: r(b.z), ry: r(b.ry), a: L, l: sk.larg });
+    } else if (sk.k === 'sumir') {
+      fim = this.naArenaPonto(b, alvo.x - Math.sin(alvo.ry) * 1.8, alvo.z - Math.cos(alvo.ry) * 1.8);
+      formas.push({ f: 'c', x: r(fim.x), z: r(fim.z), r: sk.r });
+    } else if (sk.k === 'pocas') {
+      const herois = this.inimigosDe(b).filter((j) => this.naArena(b, j, COMBATE_BOSS.solta));
+      for (let i = 0; i < sk.n; i++) {
+        const j = herois[i % Math.max(1, herois.length)] || alvo, a = Math.random() * TAU, d = i < herois.length ? 0 : 2 + Math.random() * 4;
+        const p = this.naArenaPonto(b, j.x + Math.cos(a) * d, j.z + Math.sin(a) * d, 0);
+        formas.push({ f: 'c', x: r(p.x), z: r(p.z), r: sk.r });
+      }
+    }
+    if (sk.k === 'voo' || sk.k === 'sumir') b.voando = true; // no ar (ou sumido): ninguém acerta
+    b.trava = sk.aviso + 0.5; b.acao = null; b.anim = A.swordIdle;
+    this.evento({ t: 'bossSkill', id: b.id, k: sk.k, nome: sk.nome, dur: sk.aviso, formas, ef: this.corDoEfeito(sk.ef), fica: sk.fica || 0 });
+    this.evento({ t: 'preparo', id: b.id, dur: sk.aviso });
+    this.depois(sk.aviso, () => {
+      if (b.morto || b.skillSeq !== seq) return;
+      b.voando = false;
+      if (fim) { b.x = fim.x; b.z = fim.z; b.y = Math.max(0, relevo(b.x, b.z)); this.colidir(b); }
+      if (sk.k === 'sumir') this.virarPara(b, alvo);
+      b.acao = { nome: A.slash, ts: 1.2, segurar: false }; b.acaoSeq++;
+      for (const j of this.inimigosDe(b)) if (formas.some((F) => this.dentroDaForma(F, j))) this.golpeBoss(b, j, sk, dano);
+      if (sk.k === 'pocas' && sk.fica) for (const F of formas) this.camposBoss.push({ x: F.x, z: F.z, r: F.r, ate: this.tempo + sk.fica, t: 1, b, sk });
+      if (sk.k === 'uivo') this.invocarDoBoss(b);
+      this.evento({ t: 'bossGolpe', id: b.id, k: sk.k, formas, ef: this.corDoEfeito(sk.ef) });
+    });
+  }
+  corDoEfeito(ef) { return !ef ? 'dano' : ef.dot ? ef.dot.k : ef.congela ? 'congela' : ef.lento && !ef.atordoa ? 'lento' : 'atordoa'; }
+  dentroDaForma(F, o) {
+    const dx = o.x - F.x, dz = o.z - F.z, d = Math.hypot(dx, dz);
+    if (F.f === 'c') return d <= F.r + 0.3;
+    if (F.f === 'v') return d <= F.a + 0.3 && (d < 1 || Math.abs(angDif(Math.atan2(dx, dz), F.ry)) <= F.ang / 2);
+    const fx = Math.sin(F.ry), fz = Math.cos(F.ry), ao = dx * fx + dz * fz, lado = Math.abs(dx * fz - dz * fx); // linha: ao longo e de lado
+    return ao >= -1 && ao <= F.a + 1 && lado <= F.l / 2 + 0.3;
+  }
+  golpeBoss(b, j, sk, dano) {
+    if (j.morto || j.tipo !== 'jogador') return;
+    if (j.defesa >= 1 || j.arrancada) { this.evento({ t: 'esquiva', id: j.id, de: b.id }); return; } // rolou ou deu dash na hora: escapou
+    if (naAreaSegura(j.x, j.z)) return;
+    if (sk.dano > 0) this.ferir(j, dano * sk.dano, b);
+    if (!j.morto) this.efeitoNoHeroi(j, sk.ef, b);
+  }
+  // efeito de skill de boss no herói: preso (atordoa, congela, derruba: não anda nem age), lento e dano por segundo
+  efeitoNoHeroi(j, ef, b) {
+    if (!ef || j.morto) return;
+    const preso = ef.atordoa || ef.congela || ef.derruba;
+    if (preso) {
+      if (!((j.presoAte || 0) > this.tempo)) j.presoEm = { x: j.x, z: j.z };
+      j.presoAte = Math.max(j.presoAte || 0, this.tempo + preso);
+      if (j.canal) this.cancelarCanal(j.id, 'Atordoado');
+      j.trava = Math.max(j.trava || 0, preso); j.acao = null; j.fila = null; j.montado = null;
+      this.evento({ t: 'efeito', id: j.id, ef: ef.congela ? 'congela' : ef.derruba ? 'derruba' : 'atordoa', dur: preso });
+    }
+    if (ef.lento) { j.lentoH = { k: ef.lento.k, ate: this.tempo + ef.lento.dur }; this.evento({ t: 'efeito', id: j.id, ef: 'lento', k: ef.lento.k, dur: ef.lento.dur }); }
+    if (ef.dot) {
+      const D = ef.dot, n = Math.max(1, Math.round(j.vidaMax * D.dps)); j.dots ||= []; // dps = fração da vida máxima do herói por segundo (vale igual em todo nível)
+      const ja = j.dots.filter((d) => d.k === D.k);
+      if (ja.length >= (D.max || 1)) { const v = ja.reduce((a, d) => (d.ate < a.ate ? d : a)); v.ate = this.tempo + D.dur; v.n = n; }
+      else j.dots.push({ k: D.k, n, ate: this.tempo + D.dur, t: 1, de: b });
+      this.evento({ t: 'efeito', id: j.id, ef: D.k, dur: D.dur, n: Math.min(D.max || 1, ja.length + 1) });
+    }
+  }
+  // um tique de sangramento, veneno ou queimadura: tira direto da vida (a defesa já valeu no golpe que causou)
+  feridaDot(j, d) {
+    if (j.morto || naAreaSegura(j.x, j.z)) return;
+    j.vida = Math.max(0, j.vida - d.n); j.combateAte = this.tempo + ESTAMINA.combate;
+    this.evento({ t: 'dano', alvo: j.id, n: d.n, dot: d.k });
+    if (j.vida <= 0) this.morrer(j);
+  }
+  invocarDoBoss(b) {
+    const ci = b.sp.caca, c = this.cacas[ci];
+    for (const vg of c.vagas.slice(1)) if (!vg.e && this.nascerNaCaca(c, ci, vg)) {
+      const a = Math.random() * TAU; vg.e.x = b.x + Math.cos(a) * 3; vg.e.z = b.z + Math.sin(a) * 3; this.colidir(vg.e);
+      vg.e.casa = { x: c.def.x, z: c.def.z };
+    }
+  }
+  dropBoss(c, j) {
+    const B = BOSSES_MUNDO[c.bm], D = B.drop, p = j.prog, ganhou = [];
+    const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    const ouro = Math.round((c.nivel || 1) * (DROP_BOSS.ouro[0] + Math.random() * (DROP_BOSS.ouro[1] - DROP_BOSS.ouro[0])));
+    p.ouro += ouro;
+    por({ k: 'pocao', n: DROP_BOSS.pocao[0] + Math.floor(Math.random() * (DROP_BOSS.pocao[1] - DROP_BOSS.pocao[0] + 1)) });
+    const pecas = Object.keys(ITENS).filter(ehEquip);
+    por({ k: pecas[Math.floor(Math.random() * pecas.length)], r: 1 }); // monstro só solta até Rara (André 2026-11-06)
+    const cat = () => (Math.random() < 0.5 ? CATALISADOR.arma : CATALISADOR.armadura);
+    por({ k: cat()[D.cat], n: 1 });
+    if (Math.random() < D.mitico) {
+      por({ k: cat()[3], n: 1 });
+      this.anunciar(`✦ ${j.nome} ganhou um catalisador Mítico de ${B.nome}!`);
+    }
+    if (Math.random() < DROP_BOSS.tomo) {
+      const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
+      if (sk.length) { const h = sk[Math.floor(Math.random() * sk.length)]; por({ k: 'tomo', h, nv: Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1), n: 1 }); }
+    }
+    this.evento({ t: 'drop', para: j.id, x: r2(c.x), z: r2(c.z), ouro, itens: ganhou });
+    this.avisarProg(j);
   }
 
   // ---------- o que vai para a tela ----------

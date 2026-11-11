@@ -9,9 +9,14 @@ uniform float brilho_forca = 0.6;
 uniform vec3 borda_cor : source_color = vec3(1.0, 0.69, 0.44);
 uniform float borda_forca = 0.25;
 uniform vec3 faixas = vec3(1.0, 0.82, 0.65);
+// boss de mundo (André 2026-11-11, boss_mundo.gd): tinta própria por cima da textura; 0 = o monstro de sempre
+uniform vec3 tinta : source_color = vec3(1.0);
+uniform float tinta_forca = 0.0;
 
 void fragment() {
-	ALBEDO = texture(textura, UV).rgb;
+	vec3 cor = texture(textura, UV).rgb;
+	float lum = dot(cor, vec3(0.299, 0.587, 0.114));
+	ALBEDO = mix(cor, tinta * (0.35 + lum * 1.3), tinta_forca);
 	ROUGHNESS = 1.0;
 	METALLIC = 0.0;
 	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);

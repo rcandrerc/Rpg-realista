@@ -506,7 +506,8 @@ func _lugares() -> Array:
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:
-		l.append({"id": str(cc.get("id", cc.nome)), "tipo": "caca", "cc": cc, "nome": "Nv %d  %s" % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))],
+		var vt: String = m.boss_mundo.volta_texto(str(cc.boss)) if cc.has("boss") else "" # boss de mundo caído: quando volta
+		l.append({"id": str(cc.get("id", cc.nome)), "tipo": "caca", "cc": cc, "nome": ("Boss Nv %d  %s" if cc.has("boss") else "Nv %d  %s") % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))] + ("  (%s)" % vt if vt != "" else ""),
 			"curto": "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], "x": float(cc.x), "z": float(cc.z), "r": float(cc.get("r", 12.0)) + 2.0})
 	# FASE 2: os veios pequenos espalhados entram só o mais perto de cada minério (a lista não fica comprida)
 	var perto := {}
@@ -689,12 +690,33 @@ func _texto(c: Control, pos: Vector2, t: String, tam: int, cor: Color, centro :=
 	c.draw_string(fonte, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, cor)
 
 func _marca_clareira(c: Control, pos: Vector2, cc: Dictionary, r: float, com_nivel: bool) -> void:
+	if cc.has("boss"): # boss de mundo (André 2026-11-11): escudo vermelho com borda de ouro; caído, cinza com a hora de voltar
+		_marca_boss(c, pos, cc, r + 2.0, com_nivel)
+		return
 	var cor: Color = COR_BICHO.get(str(cc.get("bicho", "")), Color.WHITE)
 	c.draw_circle(pos, r + 2.0, Color(0.05, 0.04, 0.03, 0.85))
 	c.draw_circle(pos, r, cor)
 	c.draw_circle(pos + Vector2(-r, -r) * 0.32, r * 0.28, Color(1, 1, 1, 0.3))
 	if com_nivel:
 		_texto(c, pos + Vector2(0, 0), str(int(cc.get("nivel", 1))), int(r * 1.3), Color(0.1, 0.07, 0.04), true, 0)
+
+func _marca_boss(c: Control, pos: Vector2, cc: Dictionary, r: float, com_texto: bool) -> void:
+	var id := str(cc.boss)
+	var vivo: bool = m.boss_mundo.vivo(id)
+	var fundo := Color("b4141e") if vivo else Color(0.42, 0.4, 0.4)
+	var escudo := PackedVector2Array([pos + Vector2(-r, -r * 0.85), pos + Vector2(r, -r * 0.85), pos + Vector2(r * 0.9, r * 0.2), pos + Vector2(0, r * 1.15), pos + Vector2(-r * 0.9, r * 0.2)])
+	var borda := PackedVector2Array()
+	for q in escudo:
+		borda.append(pos + (q - pos) * 1.22)
+	c.draw_colored_polygon(borda, COR_OURO if vivo else Color(0.2, 0.19, 0.18))
+	c.draw_colored_polygon(escudo, fundo)
+	# duas espadas cruzadas
+	var a := r * 0.62
+	for sgn in [-1.0, 1.0]:
+		c.draw_line(pos + Vector2(-a * sgn, -a * 0.8), pos + Vector2(a * sgn, a * 0.75), Color(1, 0.95, 0.85), max(1.5, r * 0.18))
+		c.draw_line(pos + Vector2(a * 0.55 * sgn, a * 0.35), pos + Vector2(a * 0.95 * sgn, a * 0.05), Color(1, 0.95, 0.85), max(1.5, r * 0.16))
+	if com_texto and not vivo:
+		_texto(c, pos + Vector2(0, r * 1.9), m.boss_mundo.volta_texto(id), int(max(11.0, r * 1.15)), Color(0.92, 0.9, 0.86), true, 2)
 
 func _desenhar_mini() -> void:
 	var c := marcas

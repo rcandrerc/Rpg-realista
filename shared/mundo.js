@@ -161,6 +161,9 @@ export function montarMundo(mapaHoje) {
   abrirEstradas(G, dist);
   abrirRios(G, dist);
   cobrirCavernas(G, dist);
+  // por último: o chão de antes fica guardado para as árvores do mundo (shared/dados.js) sortearem igual (nenhuma muda de índice)
+  G.hAntesArenas = Float32Array.from(h);
+  aplainarArenas(G, dist);
   return G;
 }
 
@@ -382,6 +385,35 @@ function aplainarLugares(G, dist) {
       }
   }
   for (const [k, [w, y]] of alvo) h[k] += (y - h[k]) * w;
+}
+// Arenas dos bosses de mundo (André 2026-11-11: "a área tá limpa... não tem muita árvore, não tem muito acidente", para
+// o boss não travar em árvore nem em morro). Cada uma é um disco de raio r aplainado na altura média do chão de antes,
+// com rampa suave. Ficam FORA de LUGARES_MUNDO de propósito: assim trilhas, veios e o resto do mundo não mudam de lugar.
+// O conteúdo (boss, skills, drop) fica em shared/dados.js BOSSES_MUNDO. Esboço aprovado: /mnt/project-files/bosses-mundo/esboco-bosses-v1.jpg
+export const ARENAS_BOSS = [
+  { id: 'brasaferro', x: 212, z: 292, r: 16 },
+  { id: 'uivo_rei', x: -374, z: 108, r: 16 },
+  { id: 'mandibula', x: -206, z: -294, r: 16 },
+  { id: 'chifre_ferro', x: 508, z: -126, r: 16 },
+  { id: 'garra_abismo', x: 330, z: 640, r: 15 },
+  { id: 'colosso_gelido', x: -278, z: 1192, r: 17 },
+  { id: 'dragao_cinzas', x: 680, z: 1228, r: 18 },
+];
+function aplainarArenas(G, dist) {
+  const { nx, nz, h, passo } = G, RAMPA = 16;
+  for (const A of ARENAS_BOSS) {
+    let soma = 0, n = 0;
+    for (let a = 0; a < 6.28; a += 0.5) for (const f of [0, 0.5, 1]) { soma += alturaMundo(G, A.x + Math.cos(a) * A.r * f, A.z + Math.sin(a) * A.r * f); n++; }
+    A.y = +Math.max(1.6, soma / n).toFixed(2);
+    const R = A.r + RAMPA;
+    for (let j = Math.max(0, Math.floor((A.z - R - G.z0) / passo)); j <= Math.min(nz - 1, Math.ceil((A.z + R - G.z0) / passo)); j++)
+      for (let i = Math.max(0, Math.floor((A.x - R - G.x0) / passo)); i <= Math.min(nx - 1, Math.ceil((A.x + R - G.x0) / passo)); i++) {
+        const k = j * nx + i, d = Math.hypot(G.x0 + i * passo - A.x, G.z0 + j * passo - A.z);
+        if (d > R || dist[k] === 0 || G.terra[k] === 0 || G.estrada[k] >= 5 || (G.rio && G.rio[k] > 0)) continue; // estrada e rio ficam como estão
+        const t = Math.min(1, Math.max(0, (d - A.r - 3) / (RAMPA - 3))), w = 1 - t * t * (3 - 2 * t);
+        h[k] += (A.y - h[k]) * w;
+      }
+  }
 }
 // refaz o chão plano de um lugar na altura L.y (sem mexer no mapa de hoje nem nas estradas já abertas)
 function aplainarUm(G, dist, L) {

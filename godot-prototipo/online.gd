@@ -657,6 +657,8 @@ func inimigo(c: Dictionary) -> void:
 	if float(c.vida) < float(e.get("vida", c.vida)):
 		e.combate = m.tempo + 5.0 # levou dano: nome aparece por 5 s
 	e.vida = float(c.vida)
+	if e.has("boss") and c.has("vidaMax"): # boss de mundo: a vida inteira vem do servidor (barra do topo, boss_mundo.gd)
+		e.vida_max = float(c.vidaMax)
 	if e.barra:
 		e.barra.scale.x = max(0.001, float(c.vida) / max(1.0, float(c.vidaMax)))
 	if not e.has("seq"):
@@ -703,6 +705,9 @@ func evento(ev: Dictionary) -> void:
 	var t := str(ev.get("t", ""))
 	var meu := str(ev.get("de", "")) == meu_id
 	var fx = m.fx
+	if t in ["bossSkill", "bossGolpe", "bosses", "furia", "efeito"]: # bosses de mundo (boss_mundo.gd)
+		m.boss_mundo.evento(ev, corpos, meu_id)
+		return
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
@@ -837,6 +842,9 @@ func evento(ev: Dictionary) -> void:
 				if eu or meu:
 					m.trabalho.combate()
 				var crit: bool = ev.get("crit", false) == true
+				if ev.has("dot"): # sangramento, veneno ou queimadura de skill de boss: só o número, na cor do efeito
+					fx.numero(no.position, ev.n, m.boss_mundo.cor_dot(str(ev.dot)), false)
+					return
 				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 				if eu:
 					m.apanhou()

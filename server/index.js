@@ -53,6 +53,13 @@ class SalaClareira extends Room {
         return null;
       }); // a Cecília aparece na lista para todos; quem não tem chave vê "Ativar conversa com IA"
     }
+    // bosses de mundo (André 2026-11-11): a hora de voltar de cada um fica no banco (vale para todas as salas e depois de
+    // reiniciar); nasceu, caiu ou soltou Mítico: aviso no chat geral de todo mundo online
+    if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
+    this.sim.aoAnuncio = (msg) => {
+      const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
+      for (const s of salas) s.sim.receberChat(msg);
+    };
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
