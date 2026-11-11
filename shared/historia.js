@@ -1,7 +1,7 @@
 // Progressão até o Nv 100 (André 2026-11-10): missões principais em ordem (HISTORIA), zonas fechadas pela névoa
 // (ZONAS) e o que abre por nível (LIBERA_NIVEL). Os dados ficam em shared/dados.js; aqui só as contas, que o servidor
 // (shared/simulacao.js) usa para decidir e o exportador manda para o app (habilidades.json, chave "historia").
-import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA } from './dados.js';
+import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS } from './dados.js';
 import { LUGARES_MUNDO, TERRAS, dentroDaTerra } from './mundo.js';
 import { REGIOES_POLIGONOS } from './regioes.js';
 
@@ -31,27 +31,85 @@ function naFaixa(c, x, z) {
   return d;
 }
 const ZONA_POR_ID = Object.fromEntries(ZONAS_GEO.map((z) => [z.id, z]));
+
+// ---------- missões com etapas (história v2, André 2026-11-11) ----------
+// As etapas de cada missão, já com a volta ao NPC no fim (a não ser que a última etapa seja falar com alguém).
+// Missão antiga de uma etapa (matar: { n, campos, tipos }) vira [matar, voltar].
+const nomeCurto = (id) => (MAPA_CLAREIRA.npcs.find((n) => n.id === id)?.nome || id).split(',')[0];
+const ETAPAS = new Map();
+export function etapasDe(M) {
+  let L = ETAPAS.get(M); if (L) return L;
+  L = (M.etapas || (M.matar ? [{ ev: 'matar', ...M.matar, txt: `Derrube ${M.matar.n === 1 ? 'o chefe' : 'monstros'} nos campos pedidos` }] : [])).map((E) => ({ n: 1, ...E }));
+  if (L.at(-1)?.ev !== 'falar') L.push({ ev: 'falar', npc: M.npc, n: 1, volta: true, txt: `Volte e fale com ${nomeCurto(M.npc)}` });
+  ETAPAS.set(M, L);
+  return L;
+}
+// a etapa casa com o que aconteceu? devolve quanto conta (0 = não casa). d: o que o servidor sabe da ação.
+export function casaEtapa(E, ev, d = {}) {
+  if (!E || E.ev !== ev) return 0;
+  if (E.npc && d.npc !== E.npc) return 0;
+  if (E.k && ![].concat(E.k).includes(d.k)) return 0;
+  if (E.campos && !E.campos.includes(d.campo)) return 0;
+  if (E.tipos && !E.tipos.includes(d.tipo)) return 0;
+  if (E.hc && d.hc !== E.hc) return 0;
+  if (E.de && d.de !== E.de) return 0;
+  if (E.skill && !d.skill) return 0;
+  if (E.barco && !d.barco) return 0;
+  if (E.min != null && !(d.v >= E.min)) return 0;
+  if (d.ok === false) return 0;
+  return Math.max(1, d.n | 0);
+}
+// capítulo da missão M e se M é a primeira / a última dele
+export const capituloDe = (M) => CAPITULOS.find((c) => c.n === M?.cap) || null;
+export const primeiraDoCap = (i) => !!HISTORIA[i] && (i === 0 || HISTORIA[i - 1].cap !== HISTORIA[i].cap);
+export const ultimaDoCap = (i) => !!HISTORIA[i] && (i === HISTORIA.length - 1 || HISTORIA[i + 1].cap !== HISTORIA[i].cap);
+// o capítulo n já terminou para quem já entregou p missões?
+export const capFeito = (n, p) => HISTORIA.slice(0, p).some((M) => M.cap === n) && !HISTORIA.slice(p).some((M) => M.cap === n);
 // a missão que libera cada zona ou recurso
 export const QUEM_LIBERA = {};
 HISTORIA.forEach((M, i) => { for (const k of M.libera) QUEM_LIBERA[k] = i; });
 
-// estado das missões da conta: { p: quantas já foram entregues, ac: aceitou a próxima, n: quanto já fez dela }
-export const histNova = () => ({ p: 0, ac: false, n: 0 });
+// estado das missões da conta: { v: 2, p: quantas já foram entregues, ac: aceitou a próxima, e: etapa da vez,
+// n: quanto já fez da etapa, m: pistas já vistas (bits) }
+export const histNova = () => ({ v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 });
 // personagem de antes da progressão (sem hist): as missões até o nível que ele já tem contam como feitas
-export const histPorNivel = (nivel) => ({ p: HISTORIA.filter((M) => M.nv <= nivel).length, ac: false, n: 0 });
+export const histPorNivel = (nivel) => ({ ...histNova(), p: HISTORIA.filter((M) => M.nv <= nivel).length });
+// conta da história de antes (h1 a h15, sem v): a missão que abria a mesma coisa conta como a última feita
+const ANTIGA = { h1: 'a3', h2: 'a4', h3: 'a9', h4: 'a11', h5: 'a16' };
+const ANTIGAS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15'];
 export function histValida(h, nivel) {
   if (!h || typeof h !== 'object') return histPorNivel(nivel);
-  const p = Number.isInteger(h.p) ? Math.max(0, Math.min(HISTORIA.length, h.p)) : 0;
-  const M = HISTORIA[p], max = M ? (M.matar?.n || Object.values(M.entregar || {}).reduce((a, n) => a + n, 0) || 1) : 0;
-  return { p, ac: !!M && h.ac === true, n: M && Number.isInteger(h.n) ? Math.max(0, Math.min(max, h.n)) : 0 };
+  let p = Number.isInteger(h.p) ? Math.max(0, h.p) : 0;
+  if (h.v !== 2) { // conta da história de antes: migra (a missão que estava fazendo começa de novo)
+    const id = p > 0 ? ANTIGAS[Math.min(p, ANTIGAS.length) - 1] : null;
+    p = id ? HISTORIA.findIndex((M) => M.id === (ANTIGA[id] || id)) + 1 : 0;
+    return { ...histNova(), p: Math.max(0, Math.min(HISTORIA.length, p)) };
+  }
+  p = Math.min(HISTORIA.length, p);
+  const M = HISTORIA[p], L = M ? etapasDe(M) : [], ac = !!M && h.ac === true;
+  const e = ac && Number.isInteger(h.e) ? Math.max(0, Math.min(L.length - 1, h.e)) : 0, E = L[e];
+  const max = E ? (E.itens ? Object.values(E.itens).reduce((a, n) => a + n, 0) : E.pontos ? E.pontos.length : E.n || 1) : 0;
+  return { v: 2, p, ac, e, n: ac && Number.isInteger(h.n) ? Math.max(0, Math.min(max, h.n)) : 0, m: ac && Number.isInteger(h.m) ? h.m & 0xffff : 0 };
 }
 const histDe = (p) => p.hist || histNova();
-// a zona ou o recurso k já está liberado para a conta p?
-export const liberado = (p, k) => QUEM_LIBERA[k] == null || histDe(p).p > QUEM_LIBERA[k];
+// a zona ou o recurso k já está liberado para a conta p? (liberaNaEtapa: o recurso abre no meio da própria missão)
+export function liberado(p, k) {
+  const i = QUEM_LIBERA[k]; if (i == null) return true;
+  const h = histDe(p); if (h.p > i) return true;
+  const M = HISTORIA[i];
+  return h.p === i && h.ac === true && M.liberaNaEtapa != null && (h.e || 0) >= M.liberaNaEtapa;
+}
 // a missão atual (a próxima a fazer) ou null (todas feitas)
 export const missaoAtual = (p) => HISTORIA[histDe(p).p] || null;
-// quanto falta na missão atual
-export const totalMissao = (M) => M.matar ? M.matar.n : Object.values(M.entregar || {}).reduce((a, n) => a + n, 0);
+// a etapa da vez (só com a missão aceita) ou null
+export function etapaAtual(p) {
+  const h = histDe(p), M = HISTORIA[h.p]; if (!M || !h.ac) return null;
+  return etapasDe(M)[h.e || 0] || null;
+}
+// quantas etapas tem a missão (o app mostra "etapa 2 de 5")
+export const totalMissao = (M) => etapasDe(M).length;
+// quanto a etapa pede (para o "3/6")
+export const totalEtapa = (E) => (E.itens ? Object.values(E.itens).reduce((a, n) => a + n, 0) : E.pontos ? E.pontos.length : E.n || 1);
 
 // (x, z) dentro do polígono P ([[x, z], ...])?
 export function noPoligono(P, x, z) {
@@ -120,6 +178,8 @@ export function contornoTerra(Z) {
 // o app recebe toda zona como polígono (a ilha vira o contorno da névoa no mar em volta dela)
 export const historiaParaApp = () => ({
   zonas: ZONAS_GEO.map((Z) => (Z.terra ? { ...Z, poligono: contornoTerra(Z) } : Z)),
-  missoes: HISTORIA.map((M) => ({ id: M.id, nv: M.nv, npc: M.npc, npcNome: nomeNpcHistoria(M.npc), nome: M.nome, libera: M.libera, total: totalMissao(M), matar: M.matar || null, entregar: M.entregar || null })),
+  missoes: HISTORIA.map((M) => ({ id: M.id, cap: M.cap, nv: M.nv, npc: M.npc, npcNome: nomeNpcHistoria(M.npc), nome: M.nome, libera: M.libera,
+    liberaNaEtapa: M.liberaNaEtapa ?? -1, total: totalMissao(M), etapas: etapasDe(M).map((E) => E.txt) })),
+  capitulos: CAPITULOS.map((c) => ({ n: c.n, nome: c.nome, nv: c.nv, ato: c.ato, frase: c.frase, diario: c.diario || '', rumores: c.rumores || [] })),
   libera: LIBERA_NIVEL, recursos: RECURSOS_HISTORIA,
 });

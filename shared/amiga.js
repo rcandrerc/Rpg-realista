@@ -56,7 +56,7 @@ export const Amiga = {
       }
       const j = this.adicionarJogador(this.AMIGA.id, this.AMIGA.nome, this.AMIGA.visual, { aparencia: this.AMIGA.aparencia, progresso: salvo.prog || null });
       j.conta = this.AMIGA.conta; j.bot = true;
-      j.prog.hist = { p: HISTORIA.length, ac: false, n: 0 }; // progressão (André 2026-11-10): ela mora no mundo, nada fica na névoa para ela
+      j.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 }; // progressão (André 2026-11-10): ela mora no mundo, nada fica na névoa para ela
       delete j.prog.pos;
       // a roupa dela (look B) na primeira vez; depois ela veste o que achar melhor (fase 3) e isso fica salvo
       // a roupa do look B é só aparência (roupaFixa); as peças de verdade começam Comuns, como um jogador novo (André 2026-11-09)

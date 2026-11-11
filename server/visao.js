@@ -28,7 +28,7 @@ const MUDA_I = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq',
 // o que quase não muda. Dos OUTROS jogadores o celular só usa isto (online.gd: outro e animar);
 // recargas, missões, mana, estamina e build são só do dono e vão só para ele (inteiro, como antes).
 const FIXO_J = ['vidaMax', 'nome', 'nivel', 'roupa', 'semCapacete', 'visual', 'aparencia', 'modo', 'bot']; // bot: a Cecília (shared/amiga.js)
-const FIXO_I = ['vidaMax', 'nome', 'tipo', 'v', 'nivel'];
+const FIXO_I = ['vidaMax', 'nome', 'tipo', 'v', 'nivel', 'hc', 'esc', 'cor']; // hc/esc/cor: chefe com nome da história (CHEFES_HISTORIA)
 // pedaço de JSON sem as chaves de fora: "x":1,"z":2 (null entra; undefined fica de fora, igual ao JSON.stringify)
 const pedaco = (o, ks) => { let s = ''; for (const k of ks) if (o[k] !== undefined) s += (s ? ',' : '') + JSON.stringify(k) + ':' + JSON.stringify(o[k]); return s; };
 const r1 = (n) => Math.round(n * 10) / 10;

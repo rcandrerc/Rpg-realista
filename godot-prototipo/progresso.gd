@@ -13,6 +13,7 @@ var st := {} # números do herói: vidaMax, manaMax, defesa, danoFisico...
 var xp_prox := 16
 var teste := false # conta de teste do André: o menu mostra os botões de mudar o nível (o servidor confere)
 var mudou := false # o menu redesenha quando muda
+var hist_info: Dictionary = {} # história v2 (André 2026-11-11): a etapa da vez que o servidor manda (texto, NPC, alvo do Ir)
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
 # ícone (icones/*.svg) e cores dos efeitos (efeitos.gd FXCOR) de cada skill
@@ -104,6 +105,8 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("agora"):
 		relogio = float(ev.agora) - Time.get_unix_time_from_system() * 1000.0
 	definir(ev.prog)
+	if ev.has("hi"):
+		hist_info = ev.hi if ev.hi is Dictionary else {}
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	if ev.has("st"):

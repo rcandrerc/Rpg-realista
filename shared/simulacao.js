@@ -8,8 +8,8 @@ import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS } from './dados.js';
-import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL } from './dados.js';
-import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, totalMissao, liberaNoNivel, histNova } from './historia.js'; // progressão (André 2026-11-10)
+import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS } from './dados.js';
+import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 
 const TAU = Math.PI * 2;
@@ -574,6 +574,7 @@ export class Simulacao {
     if (!j.montado && this.motivoCarga(j)) return this.evento({ t: 'aviso', para: id, texto: j.prog.pack ? 'Com pack nas costas não dá pra montar. Use o carrinho!' : 'Desça primeiro' });
     if (!j.montado && !liberado(j.prog, 'lobo')) return this.evento({ t: 'aviso', para: id, texto: motivoLibera(j.prog, 'lobo') }); // progressão (André 2026-11-10)
     j.montado = j.montado ? null : 'lobo';
+    if (j.montado) this.historia(j, 'montar');
   }
   // Visual e aparência só mudam no criador, e o criador só abre uma vez (na criação da conta)
   trocarVisual(id, visual) {
@@ -767,7 +768,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), ...(j.testador ? { teste: true } : {}) });
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), ...(j.testador ? { teste: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -789,6 +790,8 @@ export class Simulacao {
       this.evento({ t: 'nivel', id: j.id, nivel: p.nivel });
       this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
       this.avisarLibera(j, nivelAntes);
+      // rumores (André 2026-11-11, história v2): recado curto de um personagem ao subir, depois do capítulo dele
+      for (const C of CAPITULOS) if (C.rumores && capFeito(C.n, p.hist?.p || 0)) for (const R of C.rumores) if (R.nv > nivelAntes && R.nv <= p.nivel) this.evento({ t: 'rumor', para: j.id, quem: R.quem, texto: R.texto });
     }
     this.avisarProg(j);
   }
@@ -815,48 +818,213 @@ export class Simulacao {
     if (!(j.nevoaT > this.tempo)) { j.nevoaT = this.tempo + 4; this.evento({ t: 'aviso', para: j.id, texto: textoNevoa(j.prog, Z.id) }); this.evento({ t: 'nevoa', para: j.id, zona: Z.id }); }
     return true;
   }
-  // a missão principal que o NPC dá agora (ou entrega). Devolve true se falou da missão.
-  falaHistoria(j, npc, diga) {
-    const p = j.prog, M = missaoAtual(p); if (!M || M.npc !== npc.id) return false;
+  // ---------- História principal com etapas (André 2026-11-11, shared/historia.js e HISTORIA em shared/dados.js) ----------
+  // Falar com um NPC: dar a missão, cumprir a etapa "falar" (com a fala dele e os itens que ele pega) ou entregar.
+  // Devolve true se o NPC falou da história. pediu = o jogador tocou em "Missão" (senão o NPC de serviço, como a cura, a
+  // loja ou o reset, faz o que faz sempre quando a etapa não é com ele).
+  falaHistoria(j, npc, diga, pediu = false) {
+    const p = j.prog, M = missaoAtual(p); if (!M) return false;
     const h = p.hist || (p.hist = histNova());
-    if (p.nivel < M.nv) return false; // ainda cedo: o NPC fala o de sempre (o app mostra "Nv X" na lista de missões)
     if (!h.ac) {
-      h.ac = true; h.n = 0; j.progSujo = true;
+      if (M.npc !== npc.id || p.nivel < M.nv) return false; // ainda cedo: o NPC fala o de sempre
+      Object.assign(h, { ac: true, e: 0, n: 0, m: 0 }); j.progSujo = true;
+      if (primeiraDoCap(h.p)) { const C = capituloDe(M); if (C) this.evento({ t: 'capitulo', para: j.id, fase: 'abre', n: C.n, nome: C.nome, frase: C.frase, ato: C.ato }); }
       this.evento({ t: 'aviso', para: j.id, texto: 'Missão nova: ' + M.nome });
-      this.avisarProg(j);
+      if (M.recebe) this.darItens(j, M.recebe);
       diga(M.pedido, { missao: M.id });
+      this.checarEtapa(j);
+      this.avisarProg(j);
       return true;
     }
-    // ainda não terminou: o NPC faz o que faz sempre (loja, forja, cura...); o andamento aparece na lista de missões
-    // e, no Aldo e no Bento (que só conversam), na fala dele
-    const total = totalMissao(M);
-    const falta = M.entregar ? Object.entries(M.entregar).reduce((a, [k, n]) => a + Math.max(0, n - contar(p.mochila, k)), 0) : total - h.n;
-    if (falta > 0) {
-      if (M.entregar && h.n !== total - falta) { h.n = total - falta; this.avisarProg(j); }
-      if (npc.funcao && npc.funcao !== 'missao' && npc.funcao !== 'dica') return false;
-      diga(M.andamento.replace('{faltam}', falta), { missao: M.id }); return true;
+    const L = etapasDe(M), E = L[h.e];
+    if (E?.ev === 'falar' && E.npc === npc.id) {
+      if (E.entregar) {
+        const falta = Object.entries(E.entregar).filter(([k, n]) => contar(p.mochila, k) < n);
+        if (falta.length) {
+          if (!pediu && npc.funcao && !['missao', 'dica'].includes(npc.funcao)) return false;
+          diga(`Ainda falta: ${falta.map(([k, n]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${n}`).join(', ')}.`, { missao: M.id }); return true;
+        }
+        for (const [k, n] of Object.entries(E.entregar)) tirar(p.mochila, k, n);
+      }
+      if (h.e >= L.length - 1) return this.concluirMissao(j, M, diga), true;
+      if (E.fala) diga(E.fala, { missao: M.id });
+      this.proximaEtapa(j);
+      return true;
     }
-    if (M.entregar) for (const [k, n] of Object.entries(M.entregar)) tirar(p.mochila, k, n);
-    // pronto: entrega, prêmio e o que libera
-    h.p++; h.ac = false; h.n = 0; j.progSujo = true;
-    const ouro = HISTORIA_PREMIO.ouro * M.nv; p.ouro = (p.ouro || 0) + ouro;
-    this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
-    this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
-    for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${nomeLibera(k)}` });
-    diga(M.pronto, { missao: M.id });
-    this.ganharXP(j, Math.round(xpProximo(M.nv) * HISTORIA_PREMIO.xp));
-    const P = missaoAtual(p); if (P && P.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Próxima missão: fale com ${this.nomeNpc(P.npc)}` });
-    this.avisarProg(j);
+    // a etapa da vez é outra: só o NPC da missão (ou quem o jogador chamou pela missão) lembra o que falta
+    if (M.npc !== npc.id && !pediu) return false;
+    if (!pediu && npc.funcao && !['missao', 'dica'].includes(npc.funcao)) return false;
+    if (M.npc !== npc.id) return false;
+    diga(`Primeiro: ${this.textoEtapa(j)}.`, { missao: M.id });
     return true;
   }
-  // monstro c caiu e j ganhou: conta na missão principal aceita (campo certo e, se pedir, o tipo certo)
+  // monstro c caiu e j ganhou: conta na etapa de matar (campo, tipo e chefe da história)
   contarHistoria(j, c) {
-    const p = j.prog, M = missaoAtual(p), h = p.hist; if (!M?.matar || !h?.ac || h.n >= M.matar.n) return;
     const campo = c.sp?.caca != null ? this.cacas[c.sp.caca]?.def?.id : null;
-    if (!M.matar.campos.includes(campo) || (M.matar.tipos && !M.matar.tipos.includes(c.tipo))) return;
-    h.n++; j.progSujo = true;
-    this.evento({ t: 'aviso', para: j.id, texto: h.n >= M.matar.n ? `${M.nome}: ${h.n}/${M.matar.n}. Volte e fale com ${this.nomeNpc(M.npc)}!` : `${M.nome}: ${h.n}/${M.matar.n}` });
+    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null });
+  }
+  // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
+  historia(j, ev, d = {}) {
+    const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
+    const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E || E.ev === 'falar') return;
+    const add = casaEtapa(E, ev, d); if (!add) return;
+    const t = totalEtapa(E);
+    h.n = Math.min(t, h.n + add); j.progSujo = true;
+    if (h.n >= t) return this.proximaEtapa(j);
+    this.evento({ t: 'aviso', para: j.id, texto: `${E.txt}: ${h.n}/${t}` });
     this.avisarProg(j);
+  }
+  proximaEtapa(j) {
+    const h = j.prog.hist, M = HISTORIA[h.p], L = etapasDe(M), E = L[h.e];
+    if (E?.diz) this.evento({ t: 'aviso', para: j.id, texto: E.diz });
+    h.e++; h.n = 0; h.m = 0; j.progSujo = true;
+    const N = L[h.e];
+    if (!N) return this.concluirMissao(j, M, null);
+    this.evento({ t: 'etapa', para: j.id, txt: N.txt, e: h.e, total: L.length });
+    if (!this.checarEtapa(j)) this.avisarProg(j);
+  }
+  // a etapa da vez já está feita? (ja: o que o herói já tem; ter: itens na mochila; noite; lugar). Avança se sim.
+  checarEtapa(j) {
+    const p = j.prog, h = p.hist, E = etapaAtual(p); if (!E) return false;
+    let feito = false;
+    if (E.ja === 'lote') feito = !!this.loteDe(j);
+    else if (E.ja === 'peca') feito = !!this.loteDe(j)?.pecas.some((o) => o.k === E.k);
+    else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho');
+    else if (E.ja === 'atributos') feito = Object.values(p.atr).some((v) => v > 3);
+    if (!feito && E.ev === 'ter') {
+      const n = Object.entries(E.itens).reduce((a, [k, q]) => a + Math.min(q, contar(p.mochila, k)), 0);
+      if (n !== h.n) { h.n = n; j.progSujo = true; this.avisarProg(j); }
+      feito = n >= totalEtapa(E);
+    }
+    if (!feito && E.ev === 'noite') feito = ehNoite(horaDoJogo(p.dia));
+    if (!feito && E.ev === 'pos' && !j.morto) {
+      const [x, z, r, y] = E.pos;
+      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho');
+    }
+    if (!feito && E.ev === 'pistas' && !j.morto) {
+      E.pontos.forEach(([x, z, nome], i) => {
+        if (h.m & (1 << i) || Math.hypot(j.x - x, j.z - z) > 3.5) return;
+        h.m |= 1 << i; h.n = Math.min(E.pontos.length, h.n + 1); j.progSujo = true;
+        this.evento({ t: 'aviso', para: j.id, texto: `Pista: ${nome} (${h.n}/${E.pontos.length})` });
+        this.avisarProg(j);
+      });
+      feito = h.n >= E.pontos.length;
+    }
+    if (feito) this.proximaEtapa(j);
+    return feito;
+  }
+  // a cada meio segundo: etapas de lugar, noite e mochila, e o chefe da história aparece para quem chega no campo dele
+  passoHistoria(dt) {
+    this.histT = (this.histT || 0) - dt; if (this.histT > 0) return;
+    this.histT = 0.5;
+    for (const j of this.jogadores.values()) {
+      if (j.bot || j.criando || !j.prog.hist?.ac) continue;
+      const E = etapaAtual(j.prog); if (!E) continue;
+      if (E.ja || ['ter', 'noite', 'pos', 'pistas'].includes(E.ev)) this.checarEtapa(j);
+      if (E.hc) this.chamarChefe(j, E.hc);
+    }
+  }
+  // Chefe com nome (CHEFES_HISTORIA): um monstro vivo do campo vira o chefe quando o herói da etapa está a menos de 60 m
+  // (o mesmo modelo, maior e com outro brilho). Morto, some como os outros e a vaga volta normal.
+  chamarChefe(j, id) {
+    const C = CHEFES_HISTORIA[id]; if (!C) return;
+    const ci = this.cacas.findIndex((c) => c.def.id === C.campo); if (ci < 0) return;
+    const def = this.cacas[ci].def; if (Math.hypot(j.x - def.x, j.z - def.z) > 60) return;
+    if (C.noite && !ehNoite(horaDoJogo(j.prog.dia))) return;
+    if (this.inimigos.some((e) => e.hc === id && !e.morto)) return;
+    const e = this.inimigos.find((o) => o.sp?.caca === ci && !o.morto && o.tipo === C.tipo && !o.hc && !(o.atacantes?.size));
+    if (!e) return;
+    Object.assign(e, { hc: id, nome: C.nome, esc: C.escala, cor: C.cor, vidaMax: Math.round(e.vidaMax * C.vida), dano: Math.round((e.dano || 0) * C.dano) });
+    e.vida = e.vidaMax;
+    this.evento({ t: 'aviso', para: j.id, texto: `${C.nome} apareceu!` });
+  }
+  // missão entregue: prêmio, presente, o que libera, cartão do fim do capítulo e a próxima missão
+  concluirMissao(j, M, diga) {
+    const p = j.prog, h = p.hist, i = h.p;
+    Object.assign(h, { p: h.p + 1, ac: false, e: 0, n: 0, m: 0 }); j.progSujo = true;
+    const abre = M.libera.length > 0, P = HISTORIA_PREMIO;
+    const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro;
+    this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
+    if (M.presente) this.darItens(j, M.presente);
+    this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
+    for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${nomeLibera(k)}` });
+    if (diga) diga(M.pronto, { missao: M.id });
+    else if (M.pronto) this.evento({ t: 'aviso', para: j.id, texto: `${this.nomeNpc(M.npc)}: ${M.pronto}` });
+    if (ultimaDoCap(i)) {
+      const C = capituloDe(M), N = HISTORIA[h.p], CN = N && capituloDe(N);
+      if (C) this.evento({ t: 'capitulo', para: j.id, fase: 'fecha', n: C.n, nome: C.nome, prox: CN ? { n: CN.n, nome: CN.nome, nv: N.nv } : null });
+    }
+    this.ganharXP(j, Math.round(xpProximo(M.nv) * (abre ? P.xp : P.xpEtapa)));
+    const N = missaoAtual(p); if (N && N.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Próxima missão: fale com ${this.nomeNpc(N.npc)}` });
+    this.avisarProg(j);
+  }
+  // itens de presente (sem lugar na mochila, o resto cai no baú do correio? não: avisa e perde só o que não coube)
+  darItens(j, itens) {
+    const p = j.prog, ganhou = [];
+    for (const [k, v] of Object.entries(itens)) {
+      const it = typeof v === 'object' ? { k, r: v.r ?? 0, ...(v.e ? { e: v.e } : {}) } : { k, n: v };
+      if (guardar(p.mochila, it)) ganhou.push(typeof v === 'object' ? nomeItem(it) + (v.e ? ` +${v.e}` : '') : `${v} ${ITENS[k].nome}`);
+      else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia: ${nomeItem(it)} não coube` });
+    }
+    if (ganhou.length) this.evento({ t: 'aviso', para: j.id, texto: `Presente: ${ganhou.join(', ')}` });
+    this.aplicarStatus(j);
+  }
+  // texto da etapa da vez com o andamento ("Derrube Puglins na Clareira dos Puglins 3/6")
+  textoEtapa(j) {
+    const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M) return '';
+    if (!h?.ac) return p.nivel < M.nv ? `Libera no Nv ${M.nv} (${this.nomeNpc(M.npc)})` : `Fale com ${this.nomeNpc(M.npc)}`;
+    const E = etapaAtual(p); if (!E) return '';
+    const t = totalEtapa(E);
+    let txt = E.txt + (t > 1 ? ` ${h.n}/${t}` : '');
+    if (E.ev === 'noite') { const hr = horaDoJogo(p.dia); txt += ` · agora são ${String(Math.floor(hr)).padStart(2, '0')}h`; }
+    return txt;
+  }
+  // para onde o "Ir" do quadrinho leva: { x, z, nome, npc } ou null
+  alvoHistoria(j) {
+    const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M) return null;
+    const npcEm = (id) => { const n = (this.mapa.npcs || []).find((o) => o.id === id); return n ? { x: r2(n.x), z: r2(n.z), nome: n.nome.split(',')[0], npc: n.id } : null; };
+    if (!h?.ac) return npcEm(M.npc);
+    const E = etapaAtual(p); if (!E) return null;
+    const aberto = (x, z) => !zonaFechadaEm(p, x, z);
+    const resolve = (a) => {
+      if (!a) return null;
+      if (a === 'pos') { const [x, z] = E.pos; return { x, z, nome: E.txt, npc: '' }; }
+      if (a === 'treino') { const t = this.inimigos.find((e) => e.treino); return t ? { x: r2(t.x), z: r2(t.z), nome: 'o espantalho', npc: '' } : null; }
+      if (a === 'lote') { const L = this.loteDe(j), d = L?.def || VILAS_TERRENO[0].area; return L ? { x: r2((d.x0 + d.x1) / 2), z: r2((d.z0 + d.z1) / 2), nome: 'o seu terreno', npc: '' } : { x: d.x, z: d.z, nome: 'as Terras da Estrada', npc: '' }; }
+      if (a === 'spot') {
+        let b = null, md = Infinity;
+        for (const v of this.spots) if (v.ativo && v.tipo === 'comum' && aberto(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; b = v; } }
+        return b ? { x: r2(b.x), z: r2(b.z), nome: 'o spot de pesca', npc: '' } : { x: -3, z: 180, nome: 'o Lago Grande', npc: '' };
+      }
+      const [tipo, id] = a.split(':');
+      if (tipo === 'npc') return npcEm(id);
+      if (tipo === 'caca') { const c = this.cacaDef(id); return c ? { x: c.x, z: c.z, nome: c.nome || 'o campo', npc: '' } : null; }
+      if (tipo === 'veio' || a === 'solto') {
+        const tipos = a === 'solto' ? ['galho', 'pedrinha'] : [id];
+        let b = null, md = Infinity;
+        for (const no of this.coletaveis.values()) {
+          if (!tipos.includes(no.tipo) || !aberto(no.x, no.z)) continue;
+          const d = Math.hypot(no.x - j.x, no.z - j.z); if (d < md && this.cargas(j, no) > 0) { md = d; b = no; }
+        }
+        return b ? { x: r2(b.x), z: r2(b.z), nome: COLETA[b.tipo]?.nome || 'o recurso', npc: '' } : null;
+      }
+      return null;
+    };
+    if (E.ev === 'falar') return npcEm(E.npc);
+    if (E.ev === 'pistas') { const i = E.pontos.findIndex((q, k) => !(h.m & (1 << k))); const q = E.pontos[Math.max(0, i)]; return { x: q[0], z: q[1], nome: q[2], npc: '' }; }
+    if (E.hc) { const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto); return b ? { x: r2(b.x), z: r2(b.z), nome: C.nome, npc: '' } : c ? { x: c.x, z: c.z, nome: c.nome || C.nome, npc: '' } : null; }
+    if (E.alvo && typeof E.alvo === 'object') { const k = Object.keys(E.alvo).find((q) => contar(p.mochila, q) < E.itens[q]); return resolve(E.alvo[k || Object.keys(E.alvo)[0]]); }
+    if (E.alvo) return resolve(E.alvo);
+    if (E.ev === 'matar' && E.campos) { let b = null, md = Infinity; for (const id of E.campos) { const c = this.cacaDef(id); if (c && aberto(c.x, c.z)) { const d = Math.hypot(c.x - j.x, c.z - j.z); if (d < md) { md = d; b = c; } } } return b ? { x: b.x, z: b.z, nome: b.nome || 'o campo', npc: '' } : null; }
+    return null;
+  }
+  cacaDef(id) { return this.cacas.find((c) => c.def.id === id)?.def || null; }
+  // o que o app mostra da história (quadrinho da missão, botão Ir, botão "Missão" no NPC certo, marca no chão)
+  histInfo(j) {
+    const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M || !h) return null;
+    const E = h.ac ? etapaAtual(p) : null;
+    const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' ? E.npc : '';
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas' };
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -878,6 +1046,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !ATRIBUTOS[k] || j.prog.pontos <= 0) return;
     j.prog.atr[k]++; j.prog.pontos--;
     this.aplicarStatus(j);
+    this.historia(j, 'atributo');
     this.avisarProg(j);
   }
   // Vários pontos de uma vez (o menu junta com + e − e manda só no Confirmar): { for: 2, vit: 1 }.
@@ -891,6 +1060,7 @@ export class Simulacao {
     for (const k of ks) p.atr[k] += mapa[k];
     p.pontos -= total;
     this.aplicarStatus(j);
+    this.historia(j, 'atributo');
     this.avisarProg(j);
   }
   // Mestre Ivo (NPC funcao 'resetar', perto de onde o herói nasce): atributos voltam para 3 e os pontos voltam; skills ficam
@@ -914,6 +1084,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !m || !BARRAS.includes(m.barra)) return;
     const b = barraValida(m.lista, m.barra); if (!b) return;
     j.prog.barras[m.barra] = b;
+    this.historia(j, 'barra');
     this.avisarProg(j);
   }
   // ---------- skills do Quimera (cada tipo = uma função do Quimera, com os mesmos números) ----------
@@ -1350,6 +1521,7 @@ export class Simulacao {
       p.ouro += preco;
       this.pontosMercador(j, preco);
       aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
+      this.historia(j, 'vender', { k: it.k });
     } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
@@ -1366,6 +1538,7 @@ export class Simulacao {
       p.ouro += ouro;
       this.pontosMercador(j, ouro);
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
+      this.historia(j, 'vender', {});
     } else if (m.acao === 'apagar' && it) {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para jogar fora');
       if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Toque nele na mochila pra guardar antes');
@@ -1400,6 +1573,7 @@ export class Simulacao {
       aviso(n > 1 ? `Comprou ${n}x ${nome} por ${total} de ouro` : `Comprou ${nome}`);
       if (n < pedido) aviso(n >= cabe ? `Só coube ${n} na mochila` : `O ouro deu para ${n}`);
       this.evento({ t: 'compra', para: j.id, i, k: o.k, r: equip ? o.r : -1, n, ouro: total });
+      if (n > 0) this.historia(j, 'comprar', { k: o.k, n });
     } else if (m.acao === 'pagina') {
       const tem = p.paginas || 1;
       if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
@@ -1424,6 +1598,7 @@ export class Simulacao {
       const r = reforcar(p, alvo);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
       this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, ...(r.mat ? { mat: r.mat } : {}), nome: nomeItem(alvo) });
+      if (r.ok) this.historia(j, 'reforcar', { v: r.e });
     } else if (m.acao === 'filtro') {
       // filtro de coleta (André 2026-11-07): { r: [raridades desmarcadas], k: [recursos desmarcados] }; tudo marcado = sem filtro
       const f = filtroValido(m);
@@ -1875,6 +2050,7 @@ export class Simulacao {
     }
     j.coletas[no.id] = { n: 0, volta: this.tempo + C.volta };
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: 0, volta: C.volta });
+    for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'solto' });
     this.avisarProg(j);
   }
   custoVigor(j, C) { return C.vigor * (1 - profBonus(j.prog.prof[C.prof]).menosVigor); }
@@ -1924,6 +2100,7 @@ export class Simulacao {
     this.pontosProf(j, C.prof, C.vigor);
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
+    for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
     if (!ganhou.length) return this.pararColeta(j, null);
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
@@ -2026,6 +2203,7 @@ export class Simulacao {
     this.evento({ t: 'pesca', para: j.id, st: 'pegou', peixe: k, nome, peso: txt, tier, dobro, vara: P.durabilidade - p.vara });
     this.evento({ t: 'aviso', para: j.id, texto: (tier >= 4 ? 'LENDÁRIO! ' : tier >= 3 ? 'Que peixão! ' : '') + `Pegou: ${nome} · ${txt}` });
     if (quebrou) this.evento({ t: 'aviso', para: j.id, texto: 'Sua vara de pescar quebrou. Crie outra na mochila' });
+    this.historia(j, 'pesca', { k, n: dobro ? 2 : 1, barco: j.veiculo === 'barquinho' });
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(P.vigor[k]))); else this.avisarProg(j);
   }
   // vagas de spot: por lago e por tipo (PESCA.spots[tipo].por[água]; lago com pesca: true ganha "grande" comuns)
@@ -2124,6 +2302,7 @@ export class Simulacao {
     this.ganharXP(j, Math.max(1, Math.round(R.vigor)));
     this.evento({ t: 'criou', para: id, prof: R.prof, nome: nomeItem(novo), r: novo.r ?? -1, x: r2(npc.x), z: r2(npc.z) });
     aviso(`Criou ${nomeItem(novo)}!`);
+    this.historia(j, 'criar', { k: R.faz });
     this.aplicarStatus(j);
     this.avisarProg(j);
   }
@@ -2237,6 +2416,7 @@ export class Simulacao {
     this.lotes.set(lid, L);
     aviso(`Terreno de ${w} x ${d} m comprado por ${preco} de ouro! Toque no martelo para construir e plantar`);
     this.evento({ t: 'meuLote', para: id, lote: lid });
+    this.historia(j, 'terreno');
     this.avisarLote(L);
     this.avisarProg(j);
   }
@@ -2351,6 +2531,7 @@ export class Simulacao {
     L.pecas.push(p);
     this.refazerSolidosLotes();
     this.evento({ t: 'construiu', para: id, k: p.k, px: x, pz: z });
+    this.historia(j, 'construir', { k: p.k });
     this.avisarLote(L);
     this.avisarProg(j);
   }
@@ -2502,6 +2683,7 @@ export class Simulacao {
       for (const [k, n] of ganho) f.ganho[k] = (f.ganho[k] || 0) + n;
       f.feitas = (f.feitas || 0) + 1;
       this.evento({ t: 'destruiu', para: j.id, nome: nomeItem(it), ganho: ganho.map(([k, n]) => ({ k, n, nome: ITENS[k].nome })) });
+      this.historia(j, 'destruir', { k: it.k });
       this.avisarProg(j);
     }
     f.feito++;
@@ -2537,6 +2719,7 @@ export class Simulacao {
       texto = pulou ? `Sorte! Pulou uma raridade: ${nomeItem(novo)}!` : `Evoluiu: ${nomeItem(novo)}!`;
     }
     this.evento({ t: 'evoluiu', para: j.id, ok: !falhou, sorte: pulou, nome: nomeItem(p.mochila[f.i] || it), r: (p.mochila[f.i] || it).r });
+    if (!falhou) this.historia(j, 'evoluir', { k: it.k, v: p.mochila[f.i]?.r ?? 0 });
     this.avisarProg(j);
     this.pararFabrica(j, texto);
   }
@@ -2574,6 +2757,7 @@ export class Simulacao {
     if (m.k === 'navio') p.navio = { porao: [], chao: null };
     this.evento({ t: 'fabricou', para: id, k: m.k, nome: ITENS[item].nome });
     aviso(`Criou ${ITENS[item].nome}!`);
+    this.historia(j, 'criar', { k: m.k });
     this.avisarProg(j);
   }
   // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar', i }
@@ -2710,6 +2894,7 @@ export class Simulacao {
         const R = Object.values(C.receitas).find((r) => r.faz === o.k);
         if (R) { this.pontosProf(j, fogao ? 'coz' : 'fer', R.vigor * o.n); this.ganharXP(j, Math.max(1, Math.round(R.vigor * o.n))); }
         aviso(`Pegou ${ITENS[o.k].nome} x${o.n}`);
+        this.historia(j, 'criar', { k: o.k, n: o.n });
       }
     } else if (m.acao !== 'abrir') return;
     if (m.acao !== 'abrir') { avancarForno(F, Date.now(), C); this.lotesMudados.add(L.def.id); }
@@ -2824,7 +3009,7 @@ export class Simulacao {
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
     if (m?.conversa) return diga(proxima());
-    if (this.falaHistoria(j, npc, diga)) return; // missão principal primeiro (André 2026-11-10)
+    if (this.falaHistoria(j, npc, diga, m?.missao === true)) return; // missão principal primeiro (André 2026-11-10; m.missao: tocou em "Missão")
     if (npc.funcao === 'cura') {
       if (j.vida >= j.vidaMax && j.mana >= j.manaMax) return diga('Você está inteiro. Volte quando precisar.');
       const n = j.vidaMax - j.vida; j.vida = j.vidaMax; j.mana = j.manaMax;
@@ -3055,6 +3240,7 @@ export class Simulacao {
   // espantalho de treino: mostra o dano e balança, mas nunca morre (a vida acabou, volta cheia na hora);
   // sem XP, sem item, sem missão e sem "firme". Congelar, atordoar, lentidão e Quebrado pegam (para testar).
   ferirTreino(alvo, n, crit, de, h) {
+    if (de?.tipo === 'jogador') this.historia(de, 'treino', { skill: !!h?.q }); // história: golpes e skill no espantalho
     alvo.vida -= n;
     if (alvo.vida <= 0) alvo.vida = alvo.vidaMax;
     alvo.golpeT = this.tempo;
@@ -3378,6 +3564,7 @@ export class Simulacao {
     this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
+    this.passoHistoria(dt); // história com etapas (André 2026-11-11)
     this.passoCaverna(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
@@ -3553,7 +3740,7 @@ export class Simulacao {
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}) })), // bot: a Cecília (só o dono conversa)
-      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
+      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
       // spots de pesca que estão na água agora: [id, tipo (comum/raro/epico), x, z]

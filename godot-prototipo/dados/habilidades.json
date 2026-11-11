@@ -20050,98 +20050,290 @@
   ],
   "missoes": [
    {
-    "id": "h1",
+    "id": "a1",
+    "cap": 1,
     "nv": 1,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "Monstros perto da vila",
+    "nome": "Acordar",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 6,
+    "etapas": [
+     "Fale com o Mestre Ivo",
+     "Dê 10 golpes no espantalho de treino",
+     "Use uma habilidade no espantalho",
+     "Fale com o Bento, o andarilho",
+     "Suba na rocha grande e olhe a Névoa",
+     "Volte e fale com Aldo"
+    ]
+   },
+   {
+    "id": "a2",
+    "cap": 1,
+    "nv": 1,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "Ferramentas de pedra",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 6,
+    "etapas": [
+     "Pegue galhos ou pedrinhas soltos no chão",
+     "Crie o machado (Mochila > Criar > Ferramentas)",
+     "Crie a picareta (Mochila > Criar > Ferramentas)",
+     "Corte lenha nas árvores",
+     "Minere pedra nas rochas",
+     "Leve 5 lenhas e 3 pedras para o Aldo"
+    ]
+   },
+   {
+    "id": "a3",
+    "cap": 1,
+    "nv": 1,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "O que veio com a Névoa",
     "libera": [
      "1b"
     ],
+    "liberaNaEtapa": -1,
     "total": 4,
-    "matar": {
-     "n": 4,
-     "campos": [
-      "caca1"
-     ]
-    },
-    "entregar": null
+    "etapas": [
+     "Derrube Puglins na Clareira dos Puglins",
+     "Derrote Gorduncho, o Puglin Rei",
+     "Toque no fragmento rúnico que brilha na clareira",
+     "Volte e fale com Aldo"
+    ]
    },
    {
-    "id": "h2",
+    "id": "a4",
+    "cap": 2,
     "nv": 3,
     "npc": "ferreiro",
     "npcNome": "Tomás",
-    "nome": "Minério para a forja",
+    "nome": "Cobre para a bigorna",
     "libera": [
      "forja"
     ],
-    "total": 6,
-    "matar": null,
-    "entregar": {
-     "minerio_cobre": 6
-    }
+    "liberaNaEtapa": 1,
+    "total": 3,
+    "etapas": [
+     "Minere minério de cobre",
+     "Funda 2 barras de cobre na forja do Tomás",
+     "Entregue as 2 barras de cobre ao Tomás"
+    ]
    },
    {
-    "id": "h3",
+    "id": "a5",
+    "cap": 2,
+    "nv": 3,
+    "npc": "comerciante",
+    "npcNome": "Rosa",
+    "nome": "A banca da Rosa",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Junte 2 couros (Puglins) e 1 tecido (Imps)",
+     "Costure um short na banca da Rosa (Alfaiate)",
+     "Venda qualquer coisa para a Rosa",
+     "Compre 3 poções da Rosa",
+     "Volte e fale com Rosa"
+    ]
+   },
+   {
+    "id": "a6",
+    "cap": 2,
+    "nv": 3,
+    "npc": "ferreiro",
+    "npcNome": "Tomás",
+    "nome": "Sua própria luta",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Monte sua barra de habilidades (Tomás > Habilidades)",
+     "Gaste seus pontos de atributo (Menu > Status)",
+     "Volte e fale com Tomás"
+    ]
+   },
+   {
+    "id": "a7",
+    "cap": 3,
     "nv": 5,
     "npc": "andarilho",
     "npcNome": "Bento",
-    "nome": "Amansar o lobo",
+    "nome": "Uivos na clareira",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Derrube lobos na Clareira dos Lobos",
+     "Junte 4 couros",
+     "Volte e fale com Bento"
+    ]
+   },
+   {
+    "id": "a8",
+    "cap": 3,
+    "nv": 5,
+    "npc": "andarilho",
+    "npcNome": "Bento",
+    "nome": "A coleira",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Minere minério de ferro",
+     "Funda 1 barra de ferro na forja",
+     "Leve a barra de ferro e 4 couros ao Bento"
+    ]
+   },
+   {
+    "id": "a9",
+    "cap": 3,
+    "nv": 5,
+    "npc": "andarilho",
+    "npcNome": "Bento",
+    "nome": "O alfa da noite",
     "libera": [
      "lobo"
     ],
-    "total": 6,
-    "matar": {
-     "n": 6,
-     "campos": [
-      "caca3"
-     ],
-     "tipos": [
-      "lobo"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": 2,
+    "total": 4,
+    "etapas": [
+     "Espere a noite (das 19h às 5h)",
+     "Canse Presa-de-Prata, o lobo alfa",
+     "Monte no lobo (botão de montar)",
+     "Corra montado até o Bento"
+    ]
    },
    {
-    "id": "h4",
+    "id": "a10",
+    "cap": 4,
     "nv": 8,
     "npc": "curandeira",
     "npcNome": "Irmã Lúcia",
     "nome": "O caminho do lago",
     "libera": [
-     "1c",
-     "pesca"
+     "1c"
     ],
-    "total": 10,
-    "matar": {
-     "n": 10,
-     "campos": [
-      "caca2"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Derrube Imps na Clareira dos Imps",
+     "Derrote Brasa, a Mãe-Imp",
+     "Volte e fale com Irmã Lúcia"
+    ]
    },
    {
-    "id": "h5",
-    "nv": 12,
+    "id": "a11",
+    "cap": 4,
+    "nv": 8,
+    "npc": "m_peixe",
+    "npcNome": "Pescador Nico",
+    "nome": "A primeira vara",
+    "libera": [
+     "pesca"
+    ],
+    "liberaNaEtapa": 0,
+    "total": 3,
+    "etapas": [
+     "Crie a vara de pescar (Mochila > Criar > Ferramentas)",
+     "Pesque lambaris num spot do Lago Grande",
+     "Volte e fale com Pescador Nico"
+    ]
+   },
+   {
+    "id": "a12",
+    "cap": 4,
+    "nv": 8,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "Lobos do bosque",
+    "nome": "Um chão seu",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Compre um terreno nas Terras da Estrada",
+     "Crie e coloque uma bancada no terreno (martelo)",
+     "Crie e coloque um fogão (pede 1 barra de ferro)",
+     "Asse 2 peixes no fogão (2 lambaris cada)",
+     "Leve 2 peixes assados para a Irmã Lúcia"
+    ]
+   },
+   {
+    "id": "a13",
+    "cap": 5,
+    "nv": 12,
+    "npc": "comerciante",
+    "npcNome": "Rosa",
+    "nome": "Rastros no bosque",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Examine as pistas no Bosque do Sul",
+     "Derrote Sombra, o lobo da Névoa, perto da carroça",
+     "Volte e fale com Rosa"
+    ]
+   },
+   {
+    "id": "a14",
+    "cap": 5,
+    "nv": 12,
+    "npc": "m_lenha",
+    "npcNome": "Seu Joca",
+    "nome": "Mercadoria salva",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Faça um Pack de Lenha com o Seu Joca",
+     "Leve o pack nas costas até a Dona Sálvia",
+     "Conte para a Rosa que a carga foi salva"
+    ]
+   },
+   {
+    "id": "a15",
+    "cap": 5,
+    "nv": 12,
+    "npc": "ferreiro",
+    "npcNome": "Tomás",
+    "nome": "Melhor que novo",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Destrua uma peça velha (Mochila > peça > Destruir)",
+     "Evolua uma peça para Rara (Forja > Evoluir)",
+     "Reforce uma peça com sucesso (Mochila > peça > Reforçar)",
+     "Volte e fale com Tomás"
+    ]
+   },
+   {
+    "id": "a16",
+    "cap": 5,
+    "nv": 12,
+    "npc": "m_peixe",
+    "npcNome": "Pescador Nico",
+    "nome": "O barquinho do Nico",
     "libera": [
      "1d"
     ],
-    "total": 10,
-    "matar": {
-     "n": 10,
-     "campos": [
-      "caca6"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Crie o barquinho perto de uma bancada (30 lenhas e 4 couros)",
+     "Reme de barquinho até o meio do Lago Grande",
+     "Pesque um peixe de dentro do barquinho",
+     "Volte e fale com Pescador Nico"
+    ]
    },
    {
     "id": "h6",
+    "cap": 6,
     "nv": 18,
     "npc": "guardiao",
     "npcNome": "Gaspar",
@@ -20149,18 +20341,16 @@
     "libera": [
      "1e"
     ],
-    "total": 12,
-    "matar": {
-     "n": 12,
-     "campos": [
-      "caca7",
-      "caca8"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Gaspar"
+    ]
    },
    {
     "id": "h7",
+    "cap": 7,
     "nv": 25,
     "npc": "lider",
     "npcNome": "Aldo",
@@ -20168,18 +20358,16 @@
     "libera": [
      "1f"
     ],
-    "total": 12,
-    "matar": {
-     "n": 12,
-     "campos": [
-      "caca9",
-      "caca10"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Aldo"
+    ]
    },
    {
     "id": "h8",
+    "cap": 8,
     "nv": 30,
     "npc": "lider",
     "npcNome": "Aldo",
@@ -20187,21 +20375,16 @@
     "libera": [
      "B1"
     ],
-    "total": 1,
-    "matar": {
-     "n": 1,
-     "campos": [
-      "caca11",
-      "caca12"
-     ],
-     "tipos": [
-      "warrok"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube o chefe nos campos pedidos",
+     "Volte e fale com Aldo"
+    ]
    },
    {
     "id": "h9",
+    "cap": 9,
     "nv": 38,
     "npc": "m_abobora",
     "npcNome": "Seu Abel",
@@ -20209,17 +20392,16 @@
     "libera": [
      "B2"
     ],
-    "total": 15,
-    "matar": {
-     "n": 15,
-     "campos": [
-      "c_v3"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Seu Abel"
+    ]
    },
    {
     "id": "h10",
+    "cap": 10,
     "nv": 42,
     "npc": "m_metal",
     "npcNome": "Malaquias",
@@ -20227,18 +20409,16 @@
     "libera": [
      "B3"
     ],
-    "total": 15,
-    "matar": {
-     "n": 15,
-     "campos": [
-      "c_v7",
-      "c_v8"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Malaquias"
+    ]
    },
    {
     "id": "h11",
+    "cap": 11,
     "nv": 48,
     "npc": "lider",
     "npcNome": "Aldo",
@@ -20246,18 +20426,16 @@
     "libera": [
      "B4"
     ],
-    "total": 20,
-    "matar": {
-     "n": 20,
-     "campos": [
-      "c_v6",
-      "c_v9"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Aldo"
+    ]
    },
    {
     "id": "h12",
+    "cap": 12,
     "nv": 50,
     "npc": "m_conserva",
     "npcNome": "Dona Marta",
@@ -20265,17 +20443,16 @@
     "libera": [
      "C"
     ],
-    "total": 15,
-    "matar": {
-     "n": 15,
-     "campos": [
-      "cav_juncos"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Dona Marta"
+    ]
    },
    {
     "id": "h13",
+    "cap": 13,
     "nv": 64,
     "npc": "m_perola",
     "npcNome": "Maré",
@@ -20283,18 +20460,16 @@
     "libera": [
      "D1"
     ],
-    "total": 20,
-    "matar": {
-     "n": 20,
-     "campos": [
-      "c_i3",
-      "c_i4"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Maré"
+    ]
    },
    {
     "id": "h14",
+    "cap": 14,
     "nv": 80,
     "npc": "m_ervas",
     "npcNome": "Velho Sálvio",
@@ -20302,18 +20477,16 @@
     "libera": [
      "D2"
     ],
-    "total": 20,
-    "matar": {
-     "n": 20,
-     "campos": [
-      "c_a4",
-      "cav_aurora"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Velho Sálvio"
+    ]
    },
    {
     "id": "h15",
+    "cap": 15,
     "nv": 95,
     "npc": "alquimista",
     "npcNome": "Mirela",
@@ -20321,14 +20494,209 @@
     "libera": [
      "D3"
     ],
-    "total": 25,
-    "matar": {
-     "n": 25,
-     "campos": [
-      "c_a8"
-     ]
-    },
-    "entregar": null
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Derrube monstros nos campos pedidos",
+     "Volte e fale com Mirela"
+    ]
+   }
+  ],
+  "capitulos": [
+   {
+    "n": 1,
+    "nome": "A manhã de névoa",
+    "nv": 1,
+    "ato": "Ato I · Desperto na Névoa",
+    "frase": "Ninguém lembra de onde você veio. Nem você.",
+    "diario": "O Aldo me achou dormindo ao lado do poço, sem memória e com uma marca de estrela na mão. Uma parede de névoa lilás cerca a vila. Quem entra nela esquece tudo. No campo do leste, o Puglin Rei largou um fragmento rúnico que brilhou junto com a minha marca e sussurrou: \"a estrela acordou\".",
+    "rumores": [
+     {
+      "nv": 2,
+      "quem": "Tomás",
+      "texto": "A minha bigorna rachou sozinha esta noite. Passa aqui na forja quando chegar no Nv 3."
+     }
+    ]
+   },
+   {
+    "n": 2,
+    "nome": "A bigorna rachada",
+    "nv": 3,
+    "ato": "Ato I · Desperto na Névoa",
+    "frase": "O ferro também guarda segredos.",
+    "diario": "Remendei a bigorna do Tomás com cobre. Dentro da rachadura tinha uma lasca de cristal azul que \"veio do sul, de muito longe\". Aprendi a forja, a banca da Rosa e a montar o meu jeito de lutar. A carroça de mercadoria da Rosa está atrasada há três semanas.",
+    "rumores": [
+     {
+      "nv": 4,
+      "quem": "Bento",
+      "texto": "Os lobos uivaram a noite inteira. Nunca uivam assim. No Nv 5 a gente conversa."
+     }
+    ]
+   },
+   {
+    "n": 3,
+    "nome": "Presa-de-Prata",
+    "nv": 5,
+    "ato": "Ato I · Desperto na Névoa",
+    "frase": "Na noite da Névoa, até os lobos têm dono.",
+    "diario": "Com o Bento, fiz uma coleira de ferro e couro e cansei o lobo alfa numa noite de lua. Presa-de-Prata me aceitou. No pescoço dele havia uma coleira de runas pretas, quebrada: alguém tentou prender o lobo com magia da Névoa.",
+    "rumores": [
+     {
+      "nv": 6,
+      "quem": "Irmã Lúcia",
+      "texto": "Mais dois aldeões acordaram sem lembrar o próprio nome. Vou precisar de você no Nv 8."
+     },
+     {
+      "nv": 7,
+      "quem": "Aldo",
+      "texto": "Tem terra boa nas Terras da Estrada. Quando chegar a hora, conversamos."
+     }
+    ]
+   },
+   {
+    "n": 4,
+    "nome": "Os que esquecem",
+    "nv": 8,
+    "ato": "Ato I · Desperto na Névoa",
+    "frase": "A Névoa não mata. Ela apaga.",
+    "diario": "Abri a estrada do sul vencendo Brasa, a Mãe-Imp. O Nico me ensinou a pescar no Lago Grande, comprei meu terreno ao lado da Cecília e do Dario e assei peixe para o remédio da Lúcia. O aldeão curado lembrou de encapuzados de olhos cinzentos levando a carroça da Rosa para o leste.",
+    "rumores": [
+     {
+      "nv": 9,
+      "quem": "Nico",
+      "texto": "Tem água borbulhando diferente no meio do Lago Grande. Só dá pra chegar de barco."
+     },
+     {
+      "nv": 10,
+      "quem": "Mestre Ivo",
+      "texto": "Você já pode evoluir peças para Rara. Pergunte ao Tomás."
+     },
+     {
+      "nv": 11,
+      "quem": "Rosa",
+      "texto": "Se achar a minha carroça, a casa te paga. Fale comigo no Nv 12."
+     }
+    ]
+   },
+   {
+    "n": 5,
+    "nome": "A caravana perdida",
+    "nv": 12,
+    "ato": "Ato I · Desperto na Névoa",
+    "frase": "Encapuzados de olhos cinzentos. Quem são eles?",
+    "diario": "Segui as rodas da carroça da Rosa pelo Bosque do Sul até Sombra, um lobo da Névoa que a guardava. Salvei a lenha num pack, aprendi a destruir, evoluir e reforçar, e de barquinho achei no meio do lago o diário do condutor: \"Eles abriram caminho até a montanha. O selo de lá vai ser o primeiro a cair.\"",
+    "rumores": [
+     {
+      "nv": 14,
+      "quem": "Gaspar",
+      "texto": "A pedra do selo, aqui na montanha, está quente. Nunca esteve."
+     },
+     {
+      "nv": 15,
+      "quem": "Bráulio",
+      "texto": "Pago bem por couro no sudeste, mas a pé ninguém chega."
+     },
+     {
+      "nv": 16,
+      "quem": "Cecília",
+      "texto": "Bora testar a sua espada nos Puglins do Nv 15?"
+     },
+     {
+      "nv": 17,
+      "quem": "Mestre Ivo",
+      "texto": "Aquela lasca de cristal do Tomás... preciso falar com você. Venha quando chegar no Nv 18."
+     }
+    ]
+   },
+   {
+    "n": 6,
+    "nome": "Debaixo da montanha",
+    "nv": 18,
+    "ato": "Ato II · O primeiro selo",
+    "frase": "O primeiro selo está cedendo.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 7,
+    "nome": "Rodas para o sudeste",
+    "nv": 25,
+    "ato": "Ato II · O primeiro selo",
+    "frase": "Além do leste, os golens acordaram.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 8,
+    "nome": "A Lâmina Cinzenta",
+    "nv": 30,
+    "ato": "Ato II · O primeiro selo",
+    "frase": "Quem segura a névoa do oeste?",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 9,
+    "nome": "A trilha da serra",
+    "nv": 38,
+    "ato": "Ato III · As estradas de Vael",
+    "frase": "O norte guarda o caminho das grutas.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 10,
+    "nome": "O selo que caiu",
+    "nv": 42,
+    "ato": "Ato III · As estradas de Vael",
+    "frase": "Um selo caiu. Outros vão cair.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 11,
+    "nome": "A carta para o Porto",
+    "nv": 48,
+    "ato": "Ato III · As estradas de Vael",
+    "frase": "O mar espera do outro lado.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 12,
+    "nome": "A luz roxa",
+    "nv": 50,
+    "ato": "Ato IV · O mar esquecido",
+    "frase": "No meio do mar, uma luz roxa.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 13,
+    "nome": "O cais de Aurora",
+    "nv": 64,
+    "ato": "Ato IV · O mar esquecido",
+    "frase": "Uma cidade inteira esquecida.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 14,
+    "nome": "As janelas acesas",
+    "nv": 80,
+    "ato": "Ato V · Aurora",
+    "frase": "Alguém acendeu as janelas de Aurora.",
+    "diario": "",
+    "rumores": []
+   },
+   {
+    "n": 15,
+    "nome": "O último selo",
+    "nv": 95,
+    "ato": "Ato V · Aurora",
+    "frase": "O Pico da Névoa chama.",
+    "diario": "",
+    "rumores": []
    }
   ],
   "libera": {

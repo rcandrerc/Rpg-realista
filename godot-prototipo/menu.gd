@@ -1322,61 +1322,117 @@ func montar_profissoes() -> void:
 	conteudo.add_child(g)
 
 # ---------- Missões (progressão até o Nv 100, André 2026-11-11: "um menu de missões") ----------
-# As 15 missões principais em ordem: feitas (verde), a da vez (com quanto falta e com quem falar) e as próximas (com o
-# nível e a região que abrem). Cada uma abre uma região do mapa (a névoa some) ou um recurso (forja, lobo, pesca).
+# História v2 (André 2026-11-11, "Aethra: a Crônica da Névoa"): a aba vira o livro da história. Capítulos em ordem,
+# agrupados por ato. Capítulo feito: a página do Diário (o que aconteceu) e os rumores ouvidos. Capítulo da vez: as
+# missões dele, e na missão da vez cada etapa (feita, a da vez com o andamento, as próximas) e o "Ir para". Capítulo
+# que ainda não chegou: só o número e o nível (o nome aparece quando o herói chega no nível dele).
+const LILAS := Color(0.72, 0.62, 0.95)
 func montar_missoes() -> void:
 	var nv = m.nevoa
 	if nv == null or nv.H.is_empty():
 		conteudo.add_child(rotulo("Sem missões por enquanto.", 14, APAGADO))
 		return
 	var ms: Array = nv.H.get("missoes", [])
+	var caps: Array = nv.H.get("capitulos", [])
 	var feitas: int = nv.feitas()
 	var h: Dictionary = nv.hist()
-	var d := rotulo("Cada missão principal abre uma região do mapa (a névoa some) ou um recurso. Fale com quem dá a missão.", 12, APAGADO)
+	var d := rotulo("A história principal abre o mapa: cada capítulo tira a névoa de uma região ou abre um recurso. O nível sobe caçando; a história chama quando você chega no nível do próximo capítulo.", 12, APAGADO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(d)
-	separador("Missões principais  ·  %d de %d feitas" % [feitas, ms.size()])
-	for i in ms.size():
-		conteudo.add_child(_card_missao(ms[i], i, feitas, h))
+	if caps.is_empty(): # dados antigos: lista simples
+		for i in ms.size():
+			conteudo.add_child(_card_missao(ms[i], i, feitas, h))
+		return
+	var ato := ""
+	for C in caps:
+		var idx: Array = [] # índices das missões do capítulo
+		for i in ms.size():
+			if int(ms[i].get("cap", 0)) == int(C.n):
+				idx.append(i)
+		if idx.is_empty():
+			continue
+		if str(C.get("ato", "")) != ato:
+			ato = str(C.get("ato", ""))
+			separador(ato)
+		var feito: bool = feitas > int(idx[-1])
+		var atual: bool = not feito and feitas >= int(idx[0])
+		conteudo.add_child(_card_capitulo(C, idx, ms, feitas, h, feito, atual))
+
+func _card_capitulo(C: Dictionary, idx: Array, ms: Array, feitas: int, h: Dictionary, feito: bool, atual: bool) -> Control:
+	var nivel := int(m.P.prog.nivel)
+	var cedo: bool = nivel < int(C.nv) and not feito and not atual
+	var pc := PanelContainer.new()
+	var borda := Color(0.45, 0.75, 0.4) if feito else (LILAS if atual else Color(0.3, 0.26, 0.2))
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.12, 0.1, 0.16, 1) if atual else Color(0.09, 0.075, 0.06, 1), borda, 2 if atual else 1, RAIO_JANELA))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	pc.add_child(v)
+	var nome := "???" if cedo else str(C.nome)
+	var topo := rotulo("%sCapítulo %d · %s   ·   Nv %d" % ["✓ " if feito else "", int(C.n), nome, int(C.nv)], 16, Color(0.6, 0.9, 0.55) if feito else (Color("e6dcff") if atual else APAGADO))
+	topo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(topo)
+	if cedo:
+		v.add_child(rotulo("Chega no nível %d para a história continuar." % int(C.nv), 12, APAGADO))
+		return pc
+	if atual and str(C.get("frase", "")) != "":
+		v.add_child(rotulo(str(C.frase), 12, Color(0.8, 0.76, 0.95)))
+	if feito: # a página do Diário e os rumores que já chegaram
+		if str(C.get("diario", "")) != "":
+			var dd := rotulo(str(C.diario), 12, TEXTO)
+			dd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(dd)
+		for R in C.get("rumores", []):
+			if int(R.nv) <= nivel:
+				var r := rotulo("Rumor (Nv %d) · %s: \"%s\"" % [int(R.nv), str(R.quem), str(R.texto)], 11, APAGADO)
+				r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				v.add_child(r)
+		return pc
+	for i in idx:
+		v.add_child(_card_missao(ms[i], i, feitas, h))
+	return pc
 
 func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	var feita := i < feitas
 	var atual := i == feitas
 	var cedo: bool = int(m.P.prog.nivel) < int(M.nv)
-	var pc := PanelContainer.new()
-	var borda := Color(0.45, 0.75, 0.4) if feita else (Color(0.72, 0.62, 0.95) if atual else Color(0.3, 0.26, 0.2))
-	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, RAIO_JANELA)) # André 2026-11-11: mais arredondado
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
-	pc.add_child(v)
-	var topo := rotulo("%s%d. %s   ·   Nv %d" % ["✓ " if feita else "", i + 1, M.nome, int(M.nv)], 15, Color(0.6, 0.9, 0.55) if feita else (Color("e6dcff") if atual else (APAGADO if cedo else TEXTO)))
+	var topo := rotulo("%s%s   ·   Nv %d" % ["✓ " if feita else ("▸ " if atual else "○ "), M.nome, int(M.nv)], 14, Color(0.6, 0.9, 0.55) if feita else (Color("e6dcff") if atual else (APAGADO if cedo else TEXTO)))
 	v.add_child(topo)
+	if not atual:
+		return v
 	var quem: String = str(M.get("npcNome", M.npc))
 	var abre: Array = []
 	for k in M.get("libera", []):
 		var Z: Dictionary = m.nevoa.zona(str(k))
 		abre.append(Z.nome if not Z.is_empty() else str(m.nevoa.H.get("recursos", {}).get(k, k)))
-	var linha := "Com %s  ·  abre: %s" % [quem, ", ".join(abre)]
-	if atual:
-		if cedo:
-			linha += "\nLibera no nível %d" % int(M.nv)
-		elif not h.get("ac", false):
-			linha += "\nFale com %s para começar" % quem
-		elif int(h.get("n", 0)) >= int(M.total):
-			linha += "\nPronto! Volte e fale com %s" % quem
-		else:
-			linha += "\nAndamento: %d/%d" % [int(h.get("n", 0)), int(M.total)]
-	var l := rotulo(linha, 12, APAGADO if not atual else TEXTO)
+	var linha := "Com %s" % quem + ("  ·  abre: %s" % ", ".join(abre) if not abre.is_empty() else "")
+	if cedo:
+		linha += "\nLibera no nível %d" % int(M.nv)
+	elif not h.get("ac", false):
+		linha += "\nFale com %s para começar" % quem
+	var l := rotulo(linha, 12, TEXTO)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(l)
-	if atual and h.get("ac", false) and int(M.total) > 0:
-		v.add_child(barra_prog(float(h.get("n", 0)) / float(M.total), Color(0.72, 0.62, 0.95)))
-	if atual and not cedo and m.missao_ativa != null: # André 2026-11-11: "Ir para" leva sozinho até o NPC ou o lugar
+	if h.get("ac", false): # as etapas: feitas, a da vez (com o texto do servidor) e as próximas
+		var e := int(h.get("e", 0))
+		var hi: Dictionary = m.P.hist_info
+		var etapas: Array = M.get("etapas", [])
+		for k in etapas.size():
+			var txt: String = str(etapas[k])
+			if k == e and str(hi.get("id", "")) == str(M.id):
+				txt = str(hi.get("txt", txt))
+			var et := rotulo("%s %s" % ["✓" if k < e else ("▸" if k == e else "·"), txt], 12, Color(0.6, 0.9, 0.55) if k < e else (Color(1, 0.95, 0.85) if k == e else APAGADO))
+			et.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(et)
+		if etapas.size() > 1:
+			v.add_child(barra_prog(float(e) / float(etapas.size()), LILAS))
+	if not cedo and m.missao_ativa != null: # André 2026-11-11: "Ir para" leva sozinho até o NPC ou o lugar
 		var ir := botao("Ir para", _ir_missao, 14, true)
 		ir.custom_minimum_size = Vector2(130, 34)
 		ir.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		v.add_child(ir)
-	return pc
+	return v
 
 func _ir_missao() -> void:
 	fechar()

@@ -130,6 +130,7 @@ export const Transporte = {
       if (p.pack) { cart.packs.push(novo); aviso('Pack feito e colocado no carrinho!'); } else { p.pack = novo; j.montado = null; aviso(`${P.nome} nas costas! Leve pra outro mercador.`); }
       this.pontosProf(j, 'mer', PR.vigor / 2);
       this.evento({ t: 'pack', para: id, acao: 'fez', k: n.merch });
+      this.historia(j, 'pack_fez', { k: n.merch });
       return pronto();
     }
     if (m.acao === 'entregar') {
@@ -147,6 +148,7 @@ export const Transporte = {
       p.ouro = (p.ouro || 0) + preco;
       this.pontosProf(j, 'mer', preco / 10);
       this.evento({ t: 'pack', para: id, acao: 'entregou', k: pk.k, ouro: preco, navio: (pk.nav || 0) >= PR.navioMin });
+      this.historia(j, 'pack', { k: pk.k, npc: n.id });
       aviso(`Pack entregue! +${preco} de ouro` + ((pk.nav || 0) >= PR.navioMin ? ' (veio de navio!)' : '') + (k < 0.995 ? ` · mercado cheio: ${Math.round(k * 100)}%` : ''));
       return pronto();
     }

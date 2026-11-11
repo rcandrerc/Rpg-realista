@@ -342,6 +342,10 @@ func abrir(n: Dictionary) -> void:
 	for c in (opcoes.get_children() if not n.get("amiga", false) else []):
 		opcoes.remove_child(c)
 		c.queue_free()
+	# história v2 (André 2026-11-11): o NPC com quem a missão principal quer falar agora ganha o botão da missão, primeiro
+	var hi: Dictionary = m.P.hist_info
+	if not n.get("amiga", false) and m.on() and str(hi.get("npc", "")) == str(n.id):
+		opcoes.add_child(_opcao("Missão: %s" % str(hi.get("nome", "")), "it_tomo", func(): escolher("historia")))
 	for a in (n.get("acoes", []) if not n.get("amiga", false) else []):
 		if not ACOES.has(a):
 			continue
@@ -465,6 +469,9 @@ func escolher(a: String) -> void:
 				m.rede("falar", {"npc": n.id}) # ele responde com o preço e a janela de confirmar abre (online.gd "fala")
 			else:
 				m.menu.perguntar_reset(m.custo_reset())
+		"historia": # missão principal: aceitar, cumprir a etapa de falar ou entregar (o servidor responde em fala())
+			m.rede("falar", {"npc": n.id, "missao": true})
+			m.sons.tocar("q_anel_1", -14.0)
 		"missao", "cura":
 			if m.on():
 				m.rede("falar", {"npc": n.id}) # a resposta chega em fala()
