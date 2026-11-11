@@ -212,9 +212,25 @@ func ajustar(alvo: Vector2) -> Vector2:
 		return m.mov.limitar_ao_mapa(alvo.x, alvo.y, 0.6)
 	return alvo
 
+# A névoa (André 2026-11-11, "Ir para" da missão ativa): a rota não passa por estrada que está numa região ainda fechada
+# (nevoa.gd). Os pontos da rede dentro da névoa ficam desligados no AStar; refaz só quando uma missão abre região.
+var _nevoa_p := -1
+func _desligar_nevoa() -> void:
+	var nv = m.nevoa
+	if nv == null:
+		return
+	var p: int = nv.feitas()
+	if p == _nevoa_p:
+		return
+	_nevoa_p = p
+	for id in astar.get_point_ids():
+		var q: Vector2 = astar.get_point_position(id)
+		astar.set_point_disabled(id, nv.fechado(q.x, q.y))
+
 # rota pela estrada até o lugar (o último ponto é o lugar)
 func planejar(alvo: Vector2) -> PackedVector2Array:
 	alvo = ajustar(alvo)
+	_desligar_nevoa()
 	var h := _heroi()
 	var r := PackedVector2Array()
 	if h.distance_to(alvo) < PERTO or astar.get_point_count() == 0:
