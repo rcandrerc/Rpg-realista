@@ -2380,6 +2380,44 @@ export const CEREBRO = {
     { id: 'proteger', pri: 60, quando: [['aliadoApanhando', '=', true], ['apanhandoVida', '<', '$limProteger']], faca: 'proteger', texto: 'ir no monstro que bate no aliado' },
     { id: 'atacar', pri: 50, quando: [['temAlvo', '=', true]], faca: 'atacar', texto: 'atacar com a arma da situação' },
   ],
+  // Dica vira regra (entrega 2, André 2026-11-11: "recua quando o chefe levantar o braço"): a IA é chamada UMA vez e só pode
+  // montar a regra com estes sentidos e ações (o servidor confere tudo em cerebro.js validarRegra). A dica vale para todo
+  // mundo que estiver com aquele NPC. tipo: n = número, b = sim/não, a = arma ('Espada' ou 'Magia').
+  sentidos: {
+    vida: { tipo: 'n', texto: 'minha vida, de 0 a 1 (0.3 = 30%)' },
+    mana: { tipo: 'n', texto: 'minha mana, de 0 a 1' },
+    aliadoVida: { tipo: 'n', texto: 'vida do aliado do time mais machucado, de 0 a 1' },
+    apanhandoVida: { tipo: 'n', texto: 'vida do aliado que está apanhando, de 0 a 1' },
+    distAlvo: { tipo: 'n', texto: 'metros até o monstro que eu ataco' },
+    pertoDeMim: { tipo: 'n', texto: 'quantos monstros estão a até 3 m de mim' },
+    agrupados: { tipo: 'n', texto: 'quantos monstros estão juntos em volta do alvo' },
+    alvoAcima: { tipo: 'n', texto: 'quantos níveis o monstro está acima de mim (negativo = abaixo)' },
+    temAlvo: { tipo: 'b', texto: 'tem monstro para atacar' },
+    alvoChefe: { tipo: 'b', texto: 'o monstro que eu ataco é chefe' },
+    temPocao: { tipo: 'b', texto: 'tenho poção na mochila' },
+    preparando: { tipo: 'b', texto: 'um monstro está com o braço levantado (golpe carregado) vindo em mim' },
+    preparoChefe: { tipo: 'b', texto: 'quem está com o braço levantado é chefe' },
+    naAreaDePerigo: { tipo: 'b', texto: 'estou dentro da área marcada no chão (skill de boss, poça)' },
+    aliadoApanhando: { tipo: 'b', texto: 'um aliado está apanhando de um monstro' },
+    arma: { tipo: 'a', texto: 'a arma na mão agora: "Espada" ou "Magia" (cajado)' },
+  },
+  acoes: {
+    pocao: 'beber poção', curarSi: 'usar Cura em mim', curarAliado: 'chegar perto e usar Cura no aliado mais machucado',
+    fugir: 'correr para perto do dono', recuar: 'recuar para longe do monstro', proteger: 'atacar o monstro que bate no aliado',
+    atacar: 'atacar normal', usarCajado: 'pegar o cajado e atacar de longe', usarEspada: 'pegar a espada e atacar de perto',
+    naoAtacar: 'não atacar, ficar perto do dono',
+  },
+  // max: dicas por NPC (passou, sai a mais velha). pri: prioridade que a dica ganha (acima de atacar e de proteger, abaixo
+  // da poção; o resto das regras fica no meio). por: segundos que dura a ação (recuar, trocar arma). texto: letras da frase.
+  dicas: { max: 12, pri: 88, priMin: 55, priMax: 99, por: [0.3, 8], porPadrao: 1.2, texto: 90, condicoes: 4 },
+  falas: {
+    aprendeu: 'Beleza, anotado! Agora eu vou {regra}.',
+    trocou: 'Ah, mudou? Fechou: agora eu vou {regra}.',
+    naoEntendi: ['Hm, não entendi como fazer isso na luta. Fala de outro jeito?', 'Essa eu não peguei... explica de novo, tipo "quando X, faz Y"?'],
+    lista: 'O que eu aprendi: {lista}.',
+    nenhuma: 'Ainda não aprendi nenhuma dica. Me ensina alguma!',
+    esqueci: 'Pronto, esqueci.',
+  },
 };
 
 // ---------- Progressão até o Nv 100 (André 2026-11-10: "o mapa vai começar não todo liberado... skills, craft, tudo
