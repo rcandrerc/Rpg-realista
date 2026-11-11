@@ -35,7 +35,7 @@ const ACOES := {
 	"amiga_equip": ["Ver equipamento", "basico"],
 }
 const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca", "amiga_equip"]
-var _amigas := {} # id -> a Cecília ou o Dario vistos como NPC da janela (o corpo vem do online.gd, como outro jogador)
+var _amiga := {} # id -> a Cecília ou o Dario vistos como NPC da janela (o corpo vem do online.gd, como outro jogador)
 var _amiga_pedido = null # o que ela pediu ({k, n, nome}): aparece o botão Dar
 var _amiga_time := false # ela está no meu time: o botão vira "Sair do time" (fase 2)
 
@@ -217,10 +217,10 @@ func _amiga_npc(aid: String):
 	var o = m.online.outros.get(aid)
 	if o == null or not is_instance_valid(o.get("no")) or not o.no.visible:
 		return null
-	if not _amigas.has(aid):
-		_amigas[aid] = {"id": aid, "nome": "%s, %s" % [str(o.get("nome", "Cecília")), str(m.online.amiga_papeis.get(aid, "a guerreira"))], "funcao": "amiga", "amiga": true,
+	if not _amiga.has(aid):
+		_amiga[aid] = {"id": aid, "nome": "%s, %s" % [str(o.get("nome", "Cecília")), str(m.online.amiga_papeis.get(aid, "a guerreira"))], "funcao": "amiga", "amiga": true,
 			"acoes": [], "falas": [], "modelo": str(o.get("visual", "victoria")), "aparencia": {}, "info": {"roupa": str(o.get("roupa", ""))}}
-	var a: Dictionary = _amigas[aid]
+	var a: Dictionary = _amiga[aid]
 	a.no = o.no
 	if a.aparencia.is_empty() and o.get("ap", "") != "": # as cores (as mesmas do corpo no mundo), para o retrato
 		var ap = JSON.parse_string(str(o.ap))
