@@ -2939,7 +2939,8 @@
   "ouro": 0.1,
   "desgaste": 10,
   "durMax": 100,
-  "conserto": 0.3
+  "conserto": 0.3,
+  "xp": 0.05
  },
  "reforco": {
   "max": [

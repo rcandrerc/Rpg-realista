@@ -266,7 +266,7 @@ const chaveItem = (it) => JSON.stringify({ ...it, n: undefined });
 function itemDaChave(chave, n) { const it = JSON.parse(chave); return ehEquip(it.k) ? it : { ...it, n }; }
 
 // o que a morte custou, para o aviso de quando levanta (MORTE)
-export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + '. O equipamento desgastou'
+export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + (pen.xp ? `. Perdeu ${pen.xp} de XP` : '') + '. O equipamento desgastou'
   + (pen.quebrou.length ? `; quebrou: ${pen.quebrou.join(', ')} (o Tomás conserta)` : '');
 
 // FASE 3, Parte 7b: em cima de um cais de madeira (mapa.cais) também se anda, mesmo por cima do mar

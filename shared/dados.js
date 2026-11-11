@@ -1221,7 +1221,7 @@ export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por r
 // Penalidade de morte (André 2026-11-05): quem cai perde `ouro` do ouro que carrega e cada peça equipada perde `desgaste`
 // de durabilidade (de durMax). Peça com 0 fica Quebrada: continua no corpo, mas não dá bônus (nem conta para o conjunto)
 // até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
-export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3 };
+export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3, xp: 0.05 }; // xp (André 2026-11-11): perde 5% do XP que já tem no nível atual (nunca cai de nível)
 // Reforço de equipamento (igual ao Quimera, André 2026-11-07): toque na peça e em "Reforçar". Cada tentativa custa ouro e
 // pode falhar. Números do Quimera (index.html: Sh = chance, Th = custo, Rh = bônus, mgGNeed = atributo):
 // - max: até onde cada raridade vai, igual ao Quimera (André 2026-11-07: "faz igual Quimera"): Comum não reforça,
