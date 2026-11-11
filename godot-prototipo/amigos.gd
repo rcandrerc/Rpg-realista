@@ -79,7 +79,7 @@ func _process(dt: float) -> void:
 	else:
 		_lista_t = 0.0
 		_remover = ""
-	if em_time():
+	if em_time() and Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): barras do time 20 vezes por segundo
 		_barras.queue_redraw()
 
 # ---------- o que vem do servidor (online.gd) ----------
