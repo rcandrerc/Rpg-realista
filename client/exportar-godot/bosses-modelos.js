@@ -53,14 +53,15 @@ async function tita(altura) {
     const b = por[n], p = ex.pts[n === 'handslotl' ? 'handEndl' : n === 'handslotr' ? 'handEndr' : n]; if (!b || !p) continue;
     w.fromArray(p); corpo.localToWorld(w); b.parent.worldToLocal(w); b.position.copy(w); b.updateMatrixWorld(true);
   }
-  mixer.stopAllAction();
+  // o mixer NÃO para aqui: ao parar, o three.js devolve os ossos à pose original do KayKit (posição e giro) e a malha
+  // ficava presa nela (braços esticados para cima no jogo)
   // pesos na ordem do esqueleto
   const geo = malha.geometry.clone(), ix = ex.bones.map((n) => ossos.findIndex((b) => b.name === n)), si = geo.attributes.skinIndex;
   for (let i = 0; i < si.count * 4; i++) si.array[i] = Math.max(0, ix[si.array[i]]);
-  // tons escuros mais claros (lift 0.5 do Quimera) e o brilho próprio (rachaduras, olhos) ao quadrado
+  // tons escuros mais claros (o Quimera usa lift 0.5 com luz mais forte; aqui 0.2: o André prefere o Titã mais escuro, 2026-11-11) e o brilho próprio (rachaduras, olhos) ao quadrado
   const m0 = malha.material;
   const mat = new THREE.MeshStandardMaterial({ name: 'tita', roughness: 0.9, metalness: 0,
-    map: repintar(m0.map, (r, g, b) => [r, g, b].map((v) => { const l = lin(v); return srgb(l + (Math.sqrt(l) - l) * 0.5); })) });
+    map: repintar(m0.map, (r, g, b) => [r, g, b].map((v) => { const l = lin(v); return srgb(l + (Math.sqrt(l) - l) * 0.2); })) });
   if (m0.emissiveMap) { mat.emissiveMap = repintar(m0.emissiveMap, (r, g, b) => [r * r, g * g, b * b]); mat.emissive = new THREE.Color(1, 1, 1); }
   const pele = new THREE.SkinnedMesh(geo, mat); pele.name = 'TitaMalha';
   corpo.add(pele); corpo.updateMatrixWorld(true); pele.bind(new THREE.Skeleton(ossos), pele.matrixWorld);
