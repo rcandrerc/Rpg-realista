@@ -2409,8 +2409,41 @@ export const NPC_VIDA = {
     { nivel: 50, nome: 'Porto de Vael', x: 92, z: 318, r: 16 },
     { nivel: 100, nome: 'Aurora', x: 200, z: 1085, r: 30 },
   ],
-  aventura: { chance: 0.6, cacar: [240, 600], campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 120] },
+  aventura: { chance: 0.6, cacar: [150, 420], campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 160] },
   offline: { horasPorDia: 1.5, porHora: 0.6, meio: 20, maxDias: 14 },
+  // Rotina de cada um (André 2026-11-11: "todos fazendo a mesma coisa... onde eles passam trava tudo"). Cada NPC tem o
+  // horário dele (sai/volta em hora do jogo; volta < sai = caça de noite), o campo que prefere (alto = o mais forte que
+  // aguenta; medio; baixo = mais seguro; longe = qualquer um, de preferência longe), quanto dura a saída (caca) e a
+  // folga na vila (pausa) em relação ao padrão, a chance de ir coletar o que gosta (pescar, minerar, lenha) em vez de
+  // caçar, e onde fica na vila (perto de qual NPC: ferreiro, comerciante, curandeira, lider, alquimista, andarilho, reset).
+  // Além disso cada um sai com um atraso só dele (até atraso h) e espera mais um tanto sorteado, para ninguém sair junto.
+  atraso: 2, esperaManha: 150, // esperaManha: s de espera sorteada quando o horário abre (cada dia um)
+  rotina: {
+    padrao: { sai: 7, volta: 18, campo: 'medio', caca: 1, pausa: 1, coleta: 0, ponto: null },
+    cecilia: { sai: 8, volta: 17, campo: 'medio', caca: 1, pausa: 1, coleta: 0, ponto: null },
+    dario: { sai: 6, volta: 18, campo: 'alto', caca: 1.1, pausa: 1, coleta: 0, ponto: null },
+    lia: { sai: 5, volta: 21, campo: 'alto', caca: 1.3, pausa: 0.5, coleta: 0, ponto: 'andarilho' },
+    tome: { sai: 6, volta: 17, campo: 'baixo', caca: 1.2, pausa: 1, coleta: 0.8, ponto: 'ferreiro' },
+    nara: { sai: 7, volta: 16, campo: 'baixo', caca: 0.9, pausa: 1.5, coleta: 0, ponto: 'curandeira' },
+    ravi: { sai: 6, volta: 18, campo: 'medio', caca: 1.1, pausa: 1, coleta: 0.75, ponto: 'reset' },
+    isolda: { sai: 9, volta: 18, campo: 'medio', caca: 1, pausa: 1.4, coleta: 0, ponto: 'alquimista' },
+    bia: { sai: 5, volta: 19, campo: 'baixo', caca: 1.2, pausa: 0.8, coleta: 0.8, ponto: 'comerciante' },
+    caio: { sai: 7, volta: 17, campo: 'baixo', caca: 0.8, pausa: 1.2, coleta: 0, ponto: 'lider' },
+    maya: { sai: 18, volta: 3, campo: 'alto', caca: 1.2, pausa: 1, coleta: 0, ponto: 'alquimista' },
+    jonas: { sai: 8, volta: 17, campo: 'medio', caca: 1, pausa: 1.6, coleta: 0.6, ponto: 'ferreiro' },
+    lune: { sai: 8, volta: 15, campo: 'baixo', caca: 0.6, pausa: 1.5, coleta: 0, ponto: 'curandeira' },
+    breno: { sai: 5, volta: 20, campo: 'longe', caca: 1.4, pausa: 0.6, coleta: 0, ponto: 'andarilho' },
+    helena: { sai: 5, volta: 18, campo: 'alto', caca: 1.1, pausa: 1, coleta: 0, ponto: 'lider' },
+    pipo: { sai: 10, volta: 16, campo: 'medio', caca: 0.7, pausa: 2, coleta: 0, ponto: 'comerciante' },
+    sora: { sai: 6, volta: 20, campo: 'longe', caca: 0.6, pausa: 0.4, coleta: 0, ponto: 'reset' },
+    ulisses: { sai: 9, volta: 16, campo: 'alto', caca: 1, pausa: 1.8, coleta: 0, ponto: 'lider' },
+    mel: { sai: 9, volta: 15, campo: 'baixo', caca: 0.8, pausa: 2, coleta: 0.6, ponto: 'comerciante' },
+    theo: { sai: 10, volta: 22, campo: 'medio', caca: 1, pausa: 1, coleta: 0, ponto: 'alquimista' },
+    ayla: { sai: 7, volta: 19, campo: 'longe', caca: 1.2, pausa: 1, coleta: 0.7, ponto: 'reset' },
+    gael: { sai: 16, volta: 2, campo: 'alto', caca: 1.3, pausa: 0.8, coleta: 0, ponto: 'andarilho' },
+    rosamar: { sai: 5, volta: 20, campo: 'baixo', caca: 1.2, pausa: 0.8, coleta: 0.8, ponto: 'comerciante' },
+  },
+  coleta: { raio: 260, opcoes: 6, cada: 6 }, // até onde procura lugar de coleta a partir da vila; entre quantos sorteia; s entre buscas
 };
 
 // Cérebro por regras dos NPCs (André 2026-11-11, estilo bots do WoW; motor em shared/cerebro.js). Por enquanto só no
