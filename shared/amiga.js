@@ -17,7 +17,7 @@
 import { CEREBRO, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
-import { decidir, ordenarRegras, limites, escolherArma } from './cerebro.js';
+import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -74,6 +74,8 @@ export const Amiga = {
       // memória de cada pessoa (conta -> lista), dicas que viraram regra (conta -> { curaCedo: true }) e o que fazem juntos
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
+      // dicas que viraram regra do cérebro (entrega 2, André 2026-11-11): valem para todo mundo; o banco é conferido de novo
+      j.dicas = Array.isArray(salvo.dicas) ? salvo.dicas.map((d) => validarRegra(d, CEREBRO)).filter(Boolean).slice(-CEREBRO.dicas.max) : [];
       j.amizadeAntiga = salvo.amizades ? salvo.antiga ?? null : salvo.amizade | 0; // save de antes de 2026-11-10: a amizade era do André (conta de teste)
       j.pedido = salvo.pedido && ITENS[salvo.pedido.k] ? { k: salvo.pedido.k, n: salvo.pedido.n | 0 } : null;
       j.amigaAntes = antes;
@@ -168,7 +170,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || !L) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    L.amiga = { prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    L.amiga = { prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     this.lotesMudados.add(L.def.id);
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
@@ -474,12 +476,15 @@ export const Amiga = {
     s.aliadoApanhando = !!bate; s.apanhandoVida = bateEm ? bateEm.vida / bateEm.vidaMax : 1;
     // monstro com o braço levantado (preparo do golpe) vindo nela
     const prep = inimigos.find((e) => e.preparoAte > t && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < C.preparoPerto);
-    s.preparando = !!prep; s.preparoChefe = !!prep && !!(e => e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe || e.hc)(prep);
+    s.preparando = !!prep; s.preparoChefe = !!prep && !!(prep.tipo === 'chefe' || TIPOS_INIMIGO[prep.tipo]?.chefe || prep.hc || prep.bm);
     // área marcada no chão (skill de boss de mundo com aviso, ou poça que fica): sai dela como um jogador atento
     let area = null;
     for (const e of inimigos) if (e.perigo?.ate > t) { const F = e.perigo.formas.find((F) => this.dentroDaForma(F, j)); if (F) { area = { F, bx: e.x, bz: e.z }; break; } }
     if (!area) for (const f of this.camposBoss || []) if (Math.hypot(f.x - j.x, f.z - j.z) <= f.r + 0.3) { area = { F: { f: 'c', x: f.x, z: f.z, r: f.r } }; break; }
     s.naAreaDePerigo = !!area;
+    s.alvoChefe = !!alvo && !!(alvo.tipo === 'chefe' || TIPOS_INIMIGO[alvo.tipo]?.chefe || alvo.hc || alvo.bm);
+    s.alvoAcima = alvo ? (alvo.nivel || 1) - (j.prog.nivel | 0) : 0;
+    s.arma = j.modo === 'Magia' ? 'Magia' : 'Espada';
     s.temAlvo = !!alvo; s.distAlvo = alvo ? Math.hypot(alvo.x - j.x, alvo.z - j.z) : 99;
     s.pertoDeMim = 0; s.agrupados = 0;
     for (const e of inimigos) {
@@ -496,9 +501,10 @@ export const Amiga = {
     let c = ia.cer;
     if (t >= ia.cerT && !(c && c.ate > t)) {
       ia.cerT = t + 1 / C.pensar;
-      const v = this.sentidosAmiga(j, dono, alvo), r = decidir(v.s, ia.regrasOrd ||= ordenarRegras(C.regras));
+      const v = this.sentidosAmiga(j, dono, alvo), r = decidir(v.s, ia.regrasOrd ||= ordenarRegras([...C.regras, ...(j.dicas || [])]));
       c = ia.cer = r ? { faca: r.faca, id: r.id, ate: 0, s: v.s, jeito: v.jeito, aliado: v.mal?.id, alvo: (r.faca === 'proteger' ? v.bate : alvo)?.id, de: v.prep?.id, area: v.area } : null;
-      if (c?.faca === 'recuar') c.ate = t + C.recuar;
+      if (c?.faca === 'recuar') { c.ate = t + (r.pri === undefined || !r.id.startsWith('dica') ? C.recuar : r.por); if (!c.de && alvo) c.de = alvo.id; } // dica: recua do alvo pelo tempo dela
+      if (c?.faca === 'usarCajado' || c?.faca === 'usarEspada') { ia.armaForcada = { modo: c.faca === 'usarCajado' ? 'Magia' : 'Espada', ate: t + Math.max(r.por || 0, C.trocaMin) }; c.faca = 'atacar'; }
       if (c?.faca === 'pocao') { // uma vez: bebe e pensa de novo no próximo tick
         const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
         if (i >= 0) { ia.pocaoT = t + 2; this.item(j.id, { acao: 'usar', i }); }
@@ -515,7 +521,7 @@ export const Amiga = {
       if (d > (CURA.timeR || 8) - 1) return this.irDireto(j, o.x, o.z, true), true;
       this.pararAmiga(j); ia.cer = null; this.usarHabilidade(j.id, 9); return true;
     }
-    if (c.faca === 'fugir') return false; // o seguir leva para perto do dono
+    if (c.faca === 'fugir' || c.faca === 'naoAtacar') return false; // o seguir leva para perto do dono
     if (c.faca === 'recuar') {
       const e = achar(c.de); if (!e || c.ate <= t) { ia.cer = null; return !!e; }
       const dx = j.x - e.x, dz = j.z - e.z, d = Math.hypot(dx, dz) || 1;
@@ -533,12 +539,47 @@ export const Amiga = {
     if (!e) { ia.cer = null; return false; }
     return this.atacarAmiga(j, e, c);
   },
+  // ---------- dica vira regra (entrega 2, André 2026-11-11) ----------
+  // O que a mensagem é: 'dica' (vira regra pela IA, uma chamada), 'esquecer' / 'listar' (pelas regras) ou null (conversa).
+  tipoDicaAmiga(texto) {
+    const t = ' ' + normAmiga(texto) + ' ';
+    if (/ (esquece|esqueca|apaga|desaprende)\w* (a |as |essa |essas |aquela |todas as |tudo |a ultima |as suas )?(dica|dicas|regra|regras|tudo|ultima)/.test(t)) return 'esquecer';
+    if (/ (o que|quais|que) (voce |vc )?(aprendeu|sabe fazer|dicas)| suas dicas | lista de dicas /.test(t)) return 'listar';
+    const quando = / (quando|se|sempre|nunca|toda vez|cuidado|evita|evite|prefere|prefira|antes de|depois de|com pouca|com menos|contra) /.test(t);
+    const faz = / (recu|fug|foge|cur|poc|bebe|beba|troc|cajad|espad|magia|proteg|ajud|ataca|ataque|bate|sai |sair|afast|chega|longe|perto|distanc)/.test(t);
+    return quando && faz ? 'dica' : null;
+  },
+  // a IA devolveu a regra (ou null, se não deu): confere, guarda no NPC (vale para todos) e responde
+  aprenderDicaAmiga(id, regra, texto) {
+    const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return false;
+    const r = regra && validarRegra({ ...regra, id: 'dica' + Date.now().toString(36), autor: j.conta || j.nome, t: Date.now() }, CEREBRO);
+    if (!r) return false; // o servidor responde como conversa normal (CEREBRO.falas.naoEntendi fica para quem chamar sem IA)
+    const { lista, trocou } = juntarDica(a.dicas || [], r, CEREBRO.dicas.max);
+    a.dicas = lista; a.ia.regrasOrd = null; // o cérebro pega a lista nova na próxima decisão
+    this.guardarAmiga();
+    this.dizerAmiga((trocou ? CEREBRO.falas.trocou : CEREBRO.falas.aprendeu).replace('{regra}', r.texto), false, id);
+    return true;
+  },
+  comandoDicaAmiga(id, tipo, texto) {
+    const a = this.amiga; if (!a) return;
+    const l = a.dicas || [];
+    if (tipo === 'listar') return this.dizerAmiga(l.length ? CEREBRO.falas.lista.replace('{lista}', l.map((d, i) => `${i + 1}) ${d.texto}`).join('; ')) : CEREBRO.falas.nenhuma, false, id);
+    if (!l.length) return this.dizerAmiga(CEREBRO.falas.nenhuma, false, id);
+    const t = normAmiga(texto), num = t.match(/\b(\d{1,2})\b/);
+    if (/todas|tudo/.test(t)) a.dicas = [];
+    else if (num && +num[1] >= 1 && +num[1] <= l.length) a.dicas = l.filter((_, i) => i !== +num[1] - 1);
+    else a.dicas = l.slice(0, -1); // "esquece a última dica" (ou sem dizer qual)
+    a.ia.regrasOrd = null; this.guardarAmiga();
+    this.dizerAmiga(CEREBRO.falas.esqueci, false, id);
+  },
   // ataque com a arma da situação (sem classe: o estilo é a arma). Espada: colada no monstro, golpe e skills 1 a 4.
   // Cajado: fica a CEREBRO.magia m, se afasta quando ele chega perto, Disparo e skills 5 a 8 quando tem mana.
   atacarAmiga(j, alvo, c) {
     const C = CEREBRO, R = this.AMIGA.time, ia = j.ia, t = this.tempo;
     const da = Math.hypot(alvo.x - j.x, alvo.z - j.z);
-    if (t >= (ia.armaT || 0)) {
+    const forcada = ia.armaForcada?.ate > t ? ia.armaForcada.modo : null; // dica: "usa o cajado no chefe"
+    if (forcada) { if (j.modo !== forcada) { this.trocarModo(j.id, forcada); ia.armaT = t + C.trocaMin; } }
+    else if (t >= (ia.armaT || 0)) {
       const s = { ...c.s, distAlvo: da, vida: j.vida / j.vidaMax, mana: j.mana / (j.manaMax || 1) };
       const quer = escolherArma(s, c.jeito, j.modo, C);
       if (quer !== j.modo) { this.trocarModo(j.id, quer); ia.armaT = t + C.trocaMin; }
@@ -662,7 +703,7 @@ export const Amiga = {
       conversa: this.chatDeAmiga(j).slice(-8),
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
-      regras: Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto),
+      regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto)],
     };
   },
   // a resposta: r = { assunto } (regras) ou { assunto: ação da IA, fala } (IA). Faz a ação e responde.

@@ -4,7 +4,7 @@
 // A IA só escreve a fala e escolhe UMA ação da lista; o jogo confere tudo (ela pode recusar o time mesmo assim).
 import fs from 'node:fs';
 import path from 'node:path';
-import { AMIGA } from '@rpg/shared';
+import { AMIGA, CEREBRO } from '@rpg/shared';
 
 
 // chave de um segredo: do ambiente ou do segredos.json (GROQ_CHAVE ou GEMINI_CHAVE, segredos do GitHub)
@@ -121,4 +121,43 @@ Devolva só JSON: {"memorias": ["..."], "regras": {}}`;
     } catch { return null; }
   }
   return null;
+}
+
+// ---------- dica vira regra (André 2026-11-11: "a IA é chamada uma vez e transforma a dica numa regra") ----------
+// Uma chamada só, com a lista fechada de sentidos e ações do cérebro (CEREBRO em shared/dados.js). Devolve a regra crua
+// ({ quando, faca, por, texto }) ou null; quem confere e guarda é o jogo (shared/cerebro.js validarRegra).
+export async function dicaParaRegra(texto, nomeNpc, chaveJogador = '') {
+  const chave = chaveJogador || segredo('GROQ_CHAVE');
+  if (!chave || !texto) return null;
+  if (!chaveJogador) { // chave do servidor: o mesmo limite do dia das respostas
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (hoje !== dia) { dia = hoje; usadas = 0; }
+    if (usadas >= AMIGA.chat.iaPorDia) return null;
+    usadas++;
+  }
+  const S = Object.entries(CEREBRO.sentidos).map(([k, v]) => `- ${k} (${v.tipo === 'n' ? 'número, use "<" ou ">"' : v.tipo === 'b' ? 'true/false, use "="' : '"Espada" ou "Magia", use "="'}): ${v.texto}`).join('\n');
+  const A = Object.entries(CEREBRO.acoes).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+  const prompt = `Você transforma a dica que um jogador deu para ${nomeNpc} (um NPC de RPG medieval que luta com espada e cajado) numa regra de combate.
+Sentidos que o NPC enxerga:
+${S}
+Ações que ele pode fazer:
+${A}
+A regra é: quando TODAS as condições forem verdadeiras, ele faz a ação. Use de 1 a ${CEREBRO.dicas.condicoes} condições, só com os sentidos da lista.
+"por" = quantos segundos a ação dura (recuar, trocar de arma), de ${CEREBRO.dicas.por[0]} a ${CEREBRO.dicas.por[1]}.
+"texto" = o que ${nomeNpc} vai fazer, curto, em primeira pessoa sem "eu" e começando com verbo (ex.: "recuar quando o chefe levantar o braço").
+Se a dica não for sobre combate ou não der para montar com a lista, devolva {"ok": false}.
+Exemplo: "recua quando o chefe levantar o braço" -> {"ok": true, "regra": {"quando": [["preparando", "=", true], ["preparoChefe", "=", true]], "faca": "recuar", "por": 1.2, "texto": "recuar quando o chefe levantar o braço"}}
+Exemplo: "bebe poção quando tiver com metade da vida" -> {"ok": true, "regra": {"quando": [["vida", "<", 0.5], ["temPocao", "=", true]], "faca": "pocao", "texto": "beber poção com metade da vida"}}
+Dica: "${String(texto).slice(0, 300).replace(/"/g, "'")}"
+Devolva só JSON.`;
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
+      body: JSON.stringify({ model: process.env.GROQ_MODELO || 'openai/gpt-oss-120b', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.1, max_tokens: 500, reasoning_effort: 'low' }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return null;
+    const out = JSON.parse((await r.json())?.choices?.[0]?.message?.content || '{}');
+    return out?.ok && out.regra && typeof out.regra === 'object' ? out.regra : null;
+  } catch { return null; }
 }
