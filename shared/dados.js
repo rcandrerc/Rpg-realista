@@ -2660,6 +2660,43 @@ export const CENAS = {
     { d: 2.2, de: { p: [-5.9, 1.68, -17.4], o: [-4.2, 1.45, -15.6] }, para: { p: [-5.8, 1.66, -17.25], o: [-4.2, 1.45, -15.6] }, fala: ['{nome}', '...{nome}.'] },
     { d: 3.6, de: { p: [-1.2, 1.6, -19.4], o: [-5.1, 1.2, -17.1] }, para: { p: [-0.9, 1.9, -18.5], o: [-5.1, 1.2, -17.1] }, fala: ['Aldo', 'Pelo menos isso. Venha, fale comigo: tem muita coisa que você precisa saber.'] },
   ] },
+  // As outras cenas (André 2026-11-11: "faz as outras, depois eu vou corrigindo"): tocam no fim de uma etapa, onde o herói
+  // estiver. rel: 'heroi' = câmera em volta do herói, girada com ele (z para a frente dele); branco: memória (a tela some
+  // no branco e a legenda conta); fx: brilho na mão do herói.
+  fragmento: { nome: 'O fragmento', tomadas: [
+    { d: 3.0, rel: 'heroi', fx: 'brilho', de: { p: [0.9, 1.3, 1.8], o: [0, 0.9, 0] }, para: { p: [0.6, 1.45, 1.4], o: [0, 1.0, 0] }, fala: ['', 'O fragmento brilha junto com a marca da sua mão.'] },
+    { d: 3.4, rel: 'heroi', de: { p: [0.18, 1.66, 0.95], o: [0, 1.6, 0] }, para: { p: [0.12, 1.66, 0.78], o: [0, 1.6, 0] }, fala: ['Uma voz', '"...a estrela acordou."'] },
+    { d: 3.2, rel: 'heroi', de: { p: [-1.5, 2.0, 2.5], o: [0, 1.0, 0] }, para: { p: [-3, 6.5, 5], o: [0, 0.6, 0] }, fala: ['', 'Depois, apaga.'] },
+  ] },
+  presa: { nome: 'Presa-de-Prata', tomadas: [
+    { d: 3.6, rel: 'heroi', de: { p: [2.2, 0.5, 1.6], o: [0, 0.6, 0] }, para: { p: [1.6, 0.6, 2.2], o: [0, 0.7, 0] }, fala: ['', 'Presa-de-Prata deita na grama, ofegante.'] },
+    { d: 3.4, rel: 'heroi', de: { p: [0.4, 1.66, 1.3], o: [0, 1.6, 0] }, para: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, fala: ['{nome}', 'Calma... ninguém vai te machucar.'] },
+    { d: 3.4, rel: 'heroi', de: { p: [-3, 2.2, 3], o: [0, 0.8, 0] }, para: { p: [-4, 3, 0.5], o: [0, 0.8, 0] }, fala: ['', 'Ele deixa você pôr a coleira.'] },
+  ] },
+  diario: { nome: 'O diário do condutor', tomadas: [
+    { d: 3.8, rel: 'heroi', de: { p: [6, 4, 6], o: [0, 0.8, 0] }, para: { p: [4, 3, 7], o: [0, 0.8, 0] }, fala: ['', 'Junto com o peixe, sobe uma caixa da carroça da Rosa.'] },
+    { d: 3.4, rel: 'heroi', de: { p: [0.6, 1.3, 1.3], o: [0, 1.0, 0] }, para: { p: [0.5, 1.25, 1.1], o: [0, 1.0, 0] }, fala: ['', 'Dentro, um caderno encharcado: o diário do condutor.'] },
+    { d: 4.8, rel: 'heroi', de: { p: [0.5, 1.55, 1.5], o: [0, 1.3, 0] }, para: { p: [0.4, 1.55, 1.3], o: [0, 1.3, 0] }, fala: ['{nome}', '"Eles abriram caminho até a montanha. O selo de lá vai ser o primeiro a cair."'] },
+    { d: 3.0, rel: 'heroi', de: { p: [-2, 3, 4], o: [0, 0.6, 0] }, para: { p: [-3, 5, 6], o: [0, 0.5, 0] }, fala: ['{nome}', 'Selo...?'] },
+  ] },
+  memoria1: { nome: 'Memória: a mulher de cabelo prateado', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O selo racha debaixo da sua mão.'] },
+    { d: 4.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Uma mulher de cabelo prateado segura uma luz pequena... e chora.'] },
+    { d: 3.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Mulher', '"Me perdoa."'] },
+    { d: 2.8, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', '...Quem é você?'] },
+  ] },
+  kael: { nome: 'Kael', tomadas: [
+    { d: 3.4, rel: 'heroi', de: { p: [-0.5, 1.7, -1.4], o: [0, 1.3, 6] }, para: { p: [-0.6, 1.75, -1.8], o: [0, 1.3, 6] }, fala: ['', 'Onde ele estava, só sobrou a névoa.'] },
+    { d: 3.6, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"Você não lembra mesmo de mim..."'] },
+    { d: 3.2, rel: 'heroi', de: { p: [3, 2.5, 4], o: [0, 1.0, 0] }, para: { p: [2, 2.2, 5], o: [0, 1.0, 0] }, fala: ['Kael', '"Ela vai gostar de saber."'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.22, 1.66, 0.9], o: [0, 1.6, 0] }, para: { p: [0.18, 1.66, 0.8], o: [0, 1.6, 0] }, fala: ['{nome}', 'Ela... quem?'] },
+  ] },
+  memoria2: { nome: 'Memória: Aethra', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'A Chave do Oeste acende na sua mão.'] },
+    { d: 4.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Um salão de cristal. Vozes cantando um nome.'] },
+    { d: 3.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Vozes', '"Aethra."'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Aethra...'] },
+  ] },
 };
 // Chefes com nome da história: um monstro do campo vira o chefe quando o herói da etapa chega perto (o mesmo modelo,
 // maior e com outro brilho; sem modelo novo). vida e dano: vezes o do campo. noite: só aparece à noite (19h às 5h).
@@ -2724,7 +2761,7 @@ export const HISTORIA = [
     etapas: [
       { ev: 'matar', campos: ['caca1'], tipos: ['puglin'], n: 6, txt: 'Derrube Puglins na Clareira dos Puglins' },
       { ev: 'matar', hc: 'gorduncho', txt: 'Derrote Gorduncho, o Puglin Rei', diz: 'Gorduncho caiu e deixou para trás uma pedra rúnica que brilha.' },
-      { ev: 'pos', pos: [77, -8, 7], txt: 'Toque no fragmento rúnico que brilha na clareira', alvo: 'pos', marca: true,
+      { ev: 'pos', pos: [77, -8, 7], txt: 'Toque no fragmento rúnico que brilha na clareira', alvo: 'pos', marca: true, cena: 'fragmento',
         diz: 'O fragmento brilha junto com a marca da sua mão e sussurra: "...a estrela acordou." Depois apaga.' },
     ],
     pronto: 'Uma pedra que fala? Nunca vi isso em sessenta anos. ...Olha: a névoa do leste baixou, os Campos do Leste estão abertos. E o Mestre Ivo mandou isto para você.',
@@ -2775,7 +2812,7 @@ export const HISTORIA = [
     pedido: 'O alfa só aparece quando escurece, na Clareira dos Lobos. Não é para matar: é para cansar. Quando ele deitar, a coleira entra.',
     etapas: [
       { ev: 'noite', txt: 'Espere a noite (das 19h às 5h)', alvo: 'caca:caca3' },
-      { ev: 'matar', hc: 'presa', txt: 'Canse Presa-de-Prata, o lobo alfa', diz: 'Presa-de-Prata deita na grama, ofegante, e deixa você pôr a coleira.' },
+      { ev: 'matar', hc: 'presa', txt: 'Canse Presa-de-Prata, o lobo alfa', cena: 'presa', diz: 'Presa-de-Prata deita na grama, ofegante, e deixa você pôr a coleira.' },
       { ev: 'montar', txt: 'Monte no lobo (botão de montar)' },
       { ev: 'falar', npc: 'andarilho', txt: 'Corra montado até o Bento' },
     ],
@@ -2838,7 +2875,7 @@ export const HISTORIA = [
     etapas: [
       { ev: 'criar', k: 'barquinho', ja: 'tem', txt: 'Crie o barquinho perto de uma bancada (30 lenhas e 4 couros)' },
       { ev: 'pos', pos: [-3, 198, 14], barco: true, txt: 'Reme de barquinho até o meio do Lago Grande', alvo: 'pos', marca: true },
-      { ev: 'pesca', barco: true, pos: [-3, 198, 14], txt: 'Pesque um peixe de dentro do barquinho', alvo: 'pos',
+      { ev: 'pesca', barco: true, pos: [-3, 198, 14], txt: 'Pesque um peixe de dentro do barquinho', alvo: 'pos', cena: 'diario',
         diz: 'Junto com o peixe sobe uma caixa da carroça da Rosa. Dentro, o diário do condutor.' },
     ],
     pronto: 'O diário do condutor? Deixa eu ler... "Eles abriram caminho até a montanha. Disseram que o selo de lá vai ser o primeiro a cair." Selo? Que selo?! ...A névoa do Fundo do Leste baixou. Leve o meu radar de pesca, você mereceu.',
@@ -2890,7 +2927,7 @@ export const HISTORIA = [
       { ev: 'matar', salas: ['sala2'], n: 3, txt: 'Atravesse o Poço dos Maws', alvo: 'pos', pos: [183.9, -56.4] },
       { ev: 'matar', hc: 'velado_montanha', txt: 'Derrote o Velado da Montanha no Trono', alvo: 'pos', pos: [198.5, -74.6],
         diz: 'O trono do Warrok está vazio. O mascarado cai, e atrás dele o selo está rachado.' },
-      { ev: 'pos', pos: [200.8, -79.6, 2.5], caverna: true, txt: 'Toque no selo rachado atrás do trono', alvo: 'pos', marca: true,
+      { ev: 'pos', pos: [200.8, -79.6, 2.5], caverna: true, txt: 'Toque no selo rachado atrás do trono', alvo: 'pos', marca: true, cena: 'memoria1',
         diz: 'Memória: uma mulher de cabelo prateado segura uma luz pequena e chora. "Me perdoa."' },
       { ev: 'falar', npc: 'guardiao', txt: 'Conte ao Gaspar o que viu' },
     ],
@@ -2955,8 +2992,8 @@ export const HISTORIA = [
   { id: 'b11', cap: 8, nv: 30, npc: 'reset', nome: 'Você não lembra de mim', libera: [], titulo: 'Sentinela da Ordem',
     pedido: 'Um homem de capa cinza anda pelo Ninho dos Golens perguntando por alguém com uma marca de estrela. Se ele te achar antes de você achar ele... Vá. E volte.',
     etapas: [
-      { ev: 'matar', hc: 'kael', txt: 'Enfrente o homem de capa cinza na Clareira dos Golens' },
-      { ev: 'pos', pos: [196, 202, 5], txt: 'Toque na Chave do Oeste, a pedra que brilha perto dos Maws', alvo: 'pos', marca: true,
+      { ev: 'matar', hc: 'kael', txt: 'Enfrente o homem de capa cinza na Clareira dos Golens', cena: 'kael' },
+      { ev: 'pos', pos: [196, 202, 5], txt: 'Toque na Chave do Oeste, a pedra que brilha perto dos Maws', alvo: 'pos', marca: true, cena: 'memoria2',
         diz: 'Memória: um salão de cristal, e vozes cantando um nome. "Aethra."' },
       { ev: 'falar', npc: 'reset', txt: 'Conte tudo ao Mestre Ivo' },
     ],
