@@ -903,6 +903,20 @@ func evento(ev: Dictionary) -> void:
 			if m.sons:
 				m.sons.tocar("pano", -6.0)
 			return
+		"cena": # cena da história (cinematica.gd): o herói já está no lugar ("corrigir" vem antes)
+			if m.cinematica:
+				m.cinematica.tocar(str(ev.get("id", "")))
+			return
+		"nevoa_some": # chefe da história que para a luta e some (Kael): névoa no lugar e o corpo some na hora
+			var p := Vector3(float(ev.get("x", 0)), float(ev.get("y", 0)), float(ev.get("z", 0)))
+			if m.fx:
+				m.fx.fumaca_chao(p.x, p.z, 1.6, 26, "b8bccc", 1.4)
+			for e in m.inimigos:
+				if str(e.get("hc", "")) != "" and e.no.visible and e.no.position.distance_to(p) < 3.0:
+					e.no.visible = false
+			if m.sons:
+				m.sons.tocar("pano", -4.0)
+			return
 		"etapa": # próxima etapa da missão: aviso curto e o som da janela
 			m.hud.aviso("Próximo passo: %s" % str(ev.get("txt", "")))
 			if m.sons:
@@ -1219,6 +1233,8 @@ func _chefe_historia(e: Dictionary, c: Dictionary) -> void:
 	var hc := str(c.get("hc", "")) if c.get("hc") != null else ""
 	if hc == str(e.get("hc", "")):
 		return
+	_corpo_humano(e, hc)
+	corpos[str(c.id)] = e.no
 	if not e.has("escala0"):
 		e.escala0 = e.no.scale
 	var nome_l: Label3D = null
@@ -1241,3 +1257,41 @@ func _chefe_historia(e: Dictionary, c: Dictionary) -> void:
 			nome_l.text = str(e.get("nome0", nome_l.text))
 			nome_l.modulate = e.get("cor_nome0", Color.WHITE)
 	e.hc = hc
+
+# chefe humano da história (Velados, Kael; CHEFES_HISTORIA.humano em shared/dados.js): o servidor segue usando o monstro
+# da vaga, mas na tela ele vira o corpo do herói (modelo de NPC) com a roupa da armadura e espada (CLAUDE.md: humanos
+# usam o corpo do herói). Quando o chefe sai (vencido, fugiu ou expirou), o monstro da vaga volta.
+const CAMPOS_CORPO := ["no", "anim", "barra", "alto", "escala0", "nome0", "cor_nome0"]
+func _corpo_humano(e: Dictionary, hc: String) -> void:
+	var H = null
+	if hc != "":
+		H = m.P.dados.get("historia", {}).get("chefes", {}).get(hc, {}).get("humano")
+	if e.has("monstro"): # volta o monstro
+		var no_h: Node3D = e.no
+		var mo: Dictionary = e.monstro
+		for k in CAMPOS_CORPO:
+			e.erase(k)
+			if mo.has(k):
+				e[k] = mo[k]
+		e.erase("monstro")
+		e.no.position = no_h.position
+		e.no.rotation = no_h.rotation
+		e.no.visible = true
+		no_h.queue_free()
+	if not (H is Dictionary) or not ResourceLoader.exists("res://modelos/%s.glb" % str(H.get("modelo", ""))):
+		return
+	var guarda := {}
+	for k in CAMPOS_CORPO:
+		if e.has(k):
+			guarda[k] = e[k]
+	var h: Dictionary = m.criar_inimigo(str(H.modelo), e.no.position, "Inimigo")
+	m.inimigos.pop_back() # o corpo novo fica no lugar do da vaga, não vira outro inimigo
+	h.no.rotation = e.no.rotation
+	m.Armadura.vestir(h.no, m.Armadura.de_texto(str(H.get("roupa", ""))))
+	e.no.visible = false
+	for k in CAMPOS_CORPO:
+		e.erase(k)
+	e.no = h.no
+	e.anim = h.anim
+	e.barra = h.barra
+	e.monstro = guarda

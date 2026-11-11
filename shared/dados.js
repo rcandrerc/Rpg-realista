@@ -2559,9 +2559,22 @@ export const CAPITULOS = [
       { nv: 15, quem: 'Bráulio', texto: 'Pago bem por couro no sudeste, mas a pé ninguém chega.' },
       { nv: 16, quem: 'Cecília', texto: 'Bora testar a sua espada nos Puglins do Nv 15?' },
       { nv: 17, quem: 'Mestre Ivo', texto: 'Aquela lasca de cristal do Tomás... preciso falar com você. Venha quando chegar no Nv 18.' }] },
-  { n: 6, nome: 'Debaixo da montanha', nv: 18, ato: 'Ato II · O primeiro selo', frase: 'O primeiro selo está cedendo.' },
-  { n: 7, nome: 'Rodas para o sudeste', nv: 25, ato: 'Ato II · O primeiro selo', frase: 'Além do leste, os golens acordaram.' },
-  { n: 8, nome: 'A Lâmina Cinzenta', nv: 30, ato: 'Ato II · O primeiro selo', frase: 'Quem segura a névoa do oeste?' },
+  { n: 6, nome: 'Debaixo da montanha', nv: 15, ato: 'Ato II · O primeiro selo', frase: 'O primeiro selo está cedendo.',
+    diario: 'Levantei uma casa de verdade no meu terreno e dormi debaixo do meu próprio teto. Com a Dona Sálvia fiz horta e sopa para quem ia descer na montanha. Com o passe do Gaspar e alguém do time, desci na Caverna da Montanha: no Trono do Warrok o trono estava vazio e um encapuzado de máscara guardava o selo rachado. Quando toquei o selo, vi uma mulher de cabelo prateado segurando uma luz pequena. Ela chorava: "Me perdoa."',
+    rumores: [{ nv: 20, quem: 'Malaquias', texto: 'Metal parado não dá dinheiro. Preciso de alguém com rodas. Passa aqui.' },
+      { nv: 21, quem: 'Tomás', texto: 'A sua lasca de cristal está quente de novo. Igual àquela pedra do selo.' },
+      { nv: 22, quem: 'Bráulio', texto: 'Uns encapuzados passaram pelo sudeste. Não pagaram nada e levaram couro.' },
+      { nv: 23, quem: 'Dario', texto: 'Máscara cinza? Já vi uma dessas. Faz muito tempo. Deixa pra lá.' }] },
+  { n: 7, nome: 'Rodas para o sudeste', nv: 20, ato: 'Ato II · O primeiro selo', frase: 'Além do leste, os golens acordaram.',
+    diario: 'Montei o carrinho e levei metal do Malaquias até o Nico. Os batedores do Aldo foram atacados no sudeste por um Velado de capuz e espada: agora eles têm nome. Com lenha para o Bráulio, aprendi a cuidar das rodas, e derrubei Brasa-Antiga, um golem do tamanho de uma casa. Do alto do morro, alguém de capa cinza assistia.',
+    rumores: [{ nv: 28, quem: 'Gaspar', texto: 'Um homem de capa cinza passou pela boca da caverna e perguntou por você. Pelo nome.' },
+      { nv: 29, quem: 'Cecília', texto: 'Se esse tal de capa cinza aparecer, eu vou junto. Nem discute.' }] },
+  { n: 8, nome: 'A Lâmina Cinzenta', nv: 28, ato: 'Ato II · O primeiro selo', frase: 'Quem segura a névoa do oeste?',
+    diario: 'Fiz uma peça Épica com reforço, o meu Colar de Estrela e ensopado para a caçada. Com o time, derrubei o Warrok e o oeste abriu. Depois veio ele: Kael, a Lâmina Cinzenta. Lutou comigo até a metade e parou: "Você não lembra mesmo de mim... Ela vai gostar de saber." Na Chave do Oeste vi um salão de cristal onde vozes cantavam um nome: Aethra. O Mestre Ivo me chamou de Sentinela da Ordem.',
+    rumores: [{ nv: 32, quem: 'Abel', texto: 'No Posto do Oeste todo mundo fala de você. E de um homem de capa cinza.' },
+      { nv: 34, quem: 'Bento', texto: 'Andei pelo oeste. O rio está cinza de manhã. Nunca foi.' },
+      { nv: 35, quem: 'Tomás', texto: 'Aprendiz da Ordem? O Ivo nunca contou isso pra ninguém.' },
+      { nv: 36, quem: 'Dario', texto: 'Kael... Esse nome eu conheço. Me deixa pensar.' }] },
   { n: 9, nome: 'A trilha da serra', nv: 38, ato: 'Ato III · As estradas de Vael', frase: 'O norte guarda o caminho das grutas.' },
   { n: 10, nome: 'O selo que caiu', nv: 42, ato: 'Ato III · As estradas de Vael', frase: 'Um selo caiu. Outros vão cair.' },
   { n: 11, nome: 'A carta para o Porto', nv: 48, ato: 'Ato III · As estradas de Vael', frase: 'O mar espera do outro lado.' },
@@ -2570,6 +2583,25 @@ export const CAPITULOS = [
   { n: 14, nome: 'As janelas acesas', nv: 80, ato: 'Ato V · Aurora', frase: 'Alguém acendeu as janelas de Aurora.' },
   { n: 15, nome: 'O último selo', nv: 95, ato: 'Ato V · Aurora', frase: 'O Pico da Névoa chama.' },
 ];
+// Cenas da história (André 2026-11-11: "acrescenta cinemáticas em algumas missões"). Não é vídeo gravado: roda dentro
+// do jogo, com a câmera andando em volta do herói de verdade (a cara, a roupa e a arma de agora) e dos NPCs, com faixas
+// de cinema, legenda e o botão Pular (godot-prototipo/cinematica.gd). O servidor manda { t: 'cena', id } na hora certa.
+// heroi: onde o herói fica (pos [x, z] no mundo, ry em radianos, deitado = começa caído e levanta na tomada 'levantar').
+// npcs: quem vira para o herói. Tomadas: d = segundos; de/para = câmera { p: [x, y, z], o: [x, y, z] } (o = para onde
+// olha; y conta da altura do herói; com rel: true, x e z contam a partir do herói); fala = [quem, texto] (quem vazio =
+// narração; {nome} = o nome do herói); preto = a tomada começa saindo do preto; acao = 'levantar'.
+const POCO_H = [-4.2, -15.6]; // ao lado do poço da praça, de frente para o Aldo
+export const CENAS = {
+  acordar: { nome: 'Acordar', heroi: { pos: POCO_H, ry: -2.6, deitado: true }, npcs: ['lider'], tomadas: [
+    { d: 4.6, preto: 1.4, de: { p: [24, 24, 14], o: [-6, 0.5, -14] }, para: { p: [9, 10, -2], o: [-5.5, 0.4, -14.8] }, fala: ['', 'Ninguém lembra de onde você veio.'] },
+    { d: 3.2, de: { p: [-2.5, 0.65, -14.6], o: [-4.2, 0.2, -15.6] }, para: { p: [-2.9, 0.55, -14.9], o: [-4.2, 0.2, -15.6] }, fala: ['', 'Nem você.'] },
+    { d: 4.4, acao: 'levantar', de: { p: [-1.7, 1.0, -14.5], o: [-4.2, 0.8, -15.6] }, para: { p: [-1.9, 1.5, -14.4], o: [-4.2, 1.35, -15.6] } },
+    { d: 4.0, de: { p: [-2.9, 1.75, -14.4], o: [-6, 1.45, -18.6] }, para: { p: [-3.15, 1.7, -14.65], o: [-6, 1.45, -18.6] }, fala: ['Aldo', 'Te achei aqui ao amanhecer, dormindo do lado do poço.'] },
+    { d: 2.4, de: { p: [-6.0, 1.7, -17.55], o: [-4.2, 1.45, -15.6] }, para: { p: [-5.9, 1.68, -17.4], o: [-4.2, 1.45, -15.6] }, fala: ['Aldo', 'Lembra do seu nome?'] },
+    { d: 2.2, de: { p: [-5.9, 1.68, -17.4], o: [-4.2, 1.45, -15.6] }, para: { p: [-5.8, 1.66, -17.25], o: [-4.2, 1.45, -15.6] }, fala: ['{nome}', '...{nome}.'] },
+    { d: 3.6, de: { p: [-1.2, 1.6, -19.4], o: [-5.1, 1.2, -17.1] }, para: { p: [-0.9, 1.9, -18.5], o: [-5.1, 1.2, -17.1] }, fala: ['Aldo', 'Pelo menos isso. Venha, fale comigo: tem muita coisa que você precisa saber.'] },
+  ] },
+};
 // Chefes com nome da história: um monstro do campo vira o chefe quando o herói da etapa chega perto (o mesmo modelo,
 // maior e com outro brilho; sem modelo novo). vida e dano: vezes o do campo. noite: só aparece à noite (19h às 5h).
 export const CHEFES_HISTORIA = {
@@ -2577,6 +2609,17 @@ export const CHEFES_HISTORIA = {
   presa: { nome: 'Presa-de-Prata, o alfa', tipo: 'lobo', campo: 'caca3', vida: 6, dano: 1.4, escala: 1.45, cor: 0xe8f2ff, noite: true },
   brasa: { nome: 'Brasa, a Mãe-Imp', tipo: 'imp', campo: 'caca2', vida: 6, dano: 1.5, escala: 1.6, cor: 0xff5a1a },
   sombra: { nome: 'Sombra, o lobo da Névoa', tipo: 'lobo', campo: 'caca6', vida: 7, dano: 1.5, escala: 1.55, cor: 0x7a5ad8 },
+  // Ato II. humano: o app troca o corpo do monstro pelo corpo do herói (modelo de NPC) com a roupa da armadura
+  // (CLAUDE.md: humanos usam o corpo do herói); sala: monstro da sala da caverna em vez do campo; foge: com essa fração
+  // da vida ele para a luta e some na névoa (conta como vencido na missão); fala: o que ele diz ao sumir.
+  velado_montanha: { nome: 'Velado da Montanha', tipo: 'warrok', sala: 'sala3', vida: 1.2, dano: 1.1, escala: 1, cor: 0x8e96a8,
+    humano: { modelo: 'shibu_sombrio', roupa: 'chapeu2,peitoral1,calca1,botas1,capa1' } },
+  cacador: { nome: 'Velado Caçador', tipo: 'imp', campo: 'caca10', vida: 7, dano: 1.5, escala: 1, cor: 0x8e96a8,
+    humano: { modelo: 'shibu_sombrio', roupa: 'chapeu1,peitoral1,calca1,botas1,capa1' } },
+  brasa_antiga: { nome: 'Brasa-Antiga', tipo: 'golem', campo: 'caca11', vida: 8, dano: 1.6, escala: 2, cor: 0xff7a2a },
+  kael: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'caca11', vida: 9, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.5,
+    fala: 'Kael: "Você não lembra mesmo de mim... Ela vai gostar de saber." E some na névoa.',
+    humano: { modelo: 'cabelo_m', roupa: 'peitoral2,calca2,botas2,capa2' } },
 };
 // Missões principais, nesta ordem (uma de cada vez). nv = nível para o NPC dar a missão; npc = quem dá (id em
 // MAPA_CLAREIRA.npcs); cap = capítulo; libera = zona (ZONAS) ou recurso ('forja', 'lobo', 'pesca'); liberaNaEtapa = o
@@ -2741,19 +2784,126 @@ export const HISTORIA = [
     ],
     pronto: 'O diário do condutor? Deixa eu ler... "Eles abriram caminho até a montanha. Disseram que o selo de lá vai ser o primeiro a cair." Selo? Que selo?! ...A névoa do Fundo do Leste baixou. Leve o meu radar de pesca, você mereceu.',
     presente: { radar_pesca: 1 } },
-  // ---------- Capítulos 6 a 15: ainda a missão de uma etapa (viram capítulos completos nas próximas entregas) ----------
-  { id: 'h6', cap: 6, nv: 18, npc: 'guardiao', nome: 'A boca da montanha', matar: { n: 12, campos: ['caca7', 'caca8'] }, libera: ['1e'],
-    pedido: 'Ninguém entra na caverna enquanto os monstros do lado de fora não se acalmarem. Derrube doze nos campos Nv 15.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'Agora sim. Faça um passe comigo e o selo da caverna se abre pra você.' },
-  { id: 'h7', cap: 7, nv: 25, npc: 'lider', nome: 'O que tem depois do leste', matar: { n: 12, campos: ['caca9', 'caca10'] }, libera: ['1f'],
-    pedido: 'Os batedores viram golens no sudeste. Antes, limpe doze monstros dos campos Nv 20 e 25.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'A névoa das Terras dos Golens caiu. Cuidado com o Warrok.' },
-  { id: 'h8', cap: 8, nv: 30, npc: 'lider', nome: 'O chefe Warrok', matar: { n: 1, campos: ['caca11', 'caca12'], tipos: ['warrok'] }, libera: ['B1'],
-    pedido: 'É o Warrok que segura a névoa por aqui. Derrube ele e o continente se abre para o oeste.',
-    andamento: 'O Warrok ainda está de pé. Ele aparece nos campos dos Golens e dos Maws.',
-    pronto: 'Você conseguiu! A estrada do oeste está livre até a Ponte do Rio Claro. O Abel, no Posto do Oeste, sabe mais.' },
+  // ---------- Ato II · O primeiro selo (Nv 15 a 30) ----------
+  // A última missão de cada capítulo herda o id da missão de uma etapa que abria a mesma zona (h6, h7, h8): quem já tinha
+  // entregue a de antes não faz o capítulo de novo (shared/historia.js histValida).
+  // ---------- Capítulo 6 · Debaixo da montanha (Nv 15) ----------
+  { id: 'b1', cap: 6, nv: 15, npc: 'lider', nome: 'Uma casa que aguenta', libera: [],
+    pedido: 'A Névoa está mais grossa à noite. Quem dorme sem teto acorda sem lembrar de nada. Levante uma casa de verdade no seu terreno, com cama e baú. E durma nela.',
+    etapas: [
+      { ev: 'construir', k: 'fundacao', n: 4, ja: 'peca', txt: 'Coloque 4 fundações no seu terreno', alvo: 'lote' },
+      { ev: 'construir', k: 'parede', n: 4, ja: 'peca', txt: 'Levante 4 paredes', alvo: 'lote' },
+      { ev: 'construir', k: 'porta', ja: 'peca', txt: 'Coloque uma porta', alvo: 'lote' },
+      { ev: 'construir', k: 'janela', ja: 'peca', txt: 'Coloque uma janela', alvo: 'lote' },
+      { ev: 'construir', k: 'telhado', ja: 'peca', txt: 'Ponha o telhado', alvo: 'lote' },
+      { ev: 'construir', k: 'cama', ja: 'peca', txt: 'Coloque uma cama', alvo: 'lote' },
+      { ev: 'construir', k: 'bau', ja: 'peca', txt: 'Coloque um baú', alvo: 'lote' },
+      { ev: 'dormir', txt: 'Durma uma noite na sua cama (só à noite)', alvo: 'lote', diz: 'Você dormiu debaixo do seu próprio teto. Acordou lembrando de tudo.' },
+    ],
+    pronto: 'Agora sim, isso é uma casa! ...Escuta: o Gaspar mandou recado da montanha. A pedra do selo de lá está quente. A Dona Sálvia vai mandar comida para quem descer.' },
+  { id: 'b2', cap: 6, nv: 15, npc: 'm_horta', nome: 'Provisões', libera: [],
+    pedido: 'O Gaspar pediu comida para quem vai descer na montanha, e lá embaixo não tem horta, querido. Faça a enxada e o regador, plante seis sementes e cuide até colher. Depois, sopa no fogão! Tome umas sementes para começar.',
+    recebe: { semente_cenoura: 2, semente_batata: 2, semente_rabanete: 2 },
+    etapas: [
+      { ev: 'criar', k: 'enxada', ja: 'tem', txt: 'Crie a enxada (bancada, aba Fazenda)' },
+      { ev: 'criar', k: 'regador', ja: 'tem', txt: 'Crie o regador (bancada, aba Fazenda)' },
+      { ev: 'plantar', n: 6, txt: 'Plante 6 sementes na horta do terreno', alvo: 'lote' },
+      { ev: 'regar', n: 3, txt: 'Regue a horta', alvo: 'lote' },
+      { ev: 'colher', n: 6, txt: 'Colha o que plantou (leva alguns dias de jogo)', alvo: 'lote' },
+      { ev: 'criar', k: 'sopa_legumes', n: 3, txt: 'Cozinhe 3 Sopas de legumes no fogão', alvo: 'lote' },
+      { ev: 'criar', k: 'barra_aco', ja: 'tem', txt: 'Funda 1 barra de aço na fornalha', alvo: 'lote' },
+      { ev: 'falar', npc: 'guardiao', entregar: { sopa_legumes: 3, barra_aco: 1 }, txt: 'Leve as 3 sopas e a barra de aço ao Gaspar, na montanha' },
+    ],
+    pronto: 'Sopa da Sálvia e aço bom. Agora dá para pensar em descer. Fique, que eu explico o resto.' },
+  { id: 'b3', cap: 6, nv: 18, npc: 'guardiao', nome: 'O passe', libera: [],
+    pedido: 'Eu sou o último guardião desta caverna. O selo lá no fundo está rachando, e eu velho não desço mais. Faça um passe comigo, com os fragmentos dos monstros. E não desça sozinho: chame alguém para o time. A Cecília, o Dario ou um amigo.',
+    etapas: [
+      { ev: 'passe', k: 'fazer', ja: 'passe', txt: 'Faça o Passe da Caverna com o Gaspar (fragmentos, couro e tecido)', alvo: 'npc:guardiao' },
+      { ev: 'time', txt: 'Chame alguém para o time (Cecília, Dario ou um amigo)' },
+      { ev: 'falar', npc: 'guardiao', txt: 'Volte ao Gaspar com o time' },
+    ],
+    pronto: 'Bom. Lá embaixo tem a Galeria dos Golens, o Poço dos Maws e o Trono do Warrok. O selo fica atrás do trono. Quando estiver pronto, fale comigo de novo.' },
+  { id: 'h6', cap: 6, nv: 20, npc: 'guardiao', nome: 'O Trono vazio', libera: ['1e'], liberaNaEtapa: 0,
+    pedido: 'Vá. Use o passe no selo da boca e desça. Se o Warrok ainda estiver no trono, derrube. Se não estiver... aí é pior.',
+    etapas: [
+      { ev: 'passe', k: 'usar', txt: 'Use o passe no selo da boca da caverna', alvo: 'npc:guardiao' },
+      { ev: 'matar', salas: ['sala1'], n: 4, txt: 'Atravesse a Galeria dos Golens', alvo: 'pos', pos: [171, -42.4] },
+      { ev: 'matar', salas: ['sala2'], n: 3, txt: 'Atravesse o Poço dos Maws', alvo: 'pos', pos: [183.9, -56.4] },
+      { ev: 'matar', hc: 'velado_montanha', txt: 'Derrote o Velado da Montanha no Trono', alvo: 'pos', pos: [198.5, -74.6],
+        diz: 'O trono do Warrok está vazio. O mascarado cai, e atrás dele o selo está rachado.' },
+      { ev: 'pos', pos: [200.8, -79.6, 2.5], caverna: true, txt: 'Toque no selo rachado atrás do trono', alvo: 'pos', marca: true,
+        diz: 'Memória: uma mulher de cabelo prateado segura uma luz pequena e chora. "Me perdoa."' },
+      { ev: 'falar', npc: 'guardiao', txt: 'Conte ao Gaspar o que viu' },
+    ],
+    pronto: 'Mascarados... Velados, é como os antigos chamavam. Gente que deixou a Névoa levar a memória e passou a servir quem a controla. Se o selo daqui rachou, os outros também vão. O caminho da caverna é seu agora.',
+    presente: { pocao: 4, selo_raro: 1 } },
+  // ---------- Capítulo 7 · Rodas para o sudeste (Nv 20) ----------
+  { id: 'b5', cap: 7, nv: 20, npc: 'm_metal', nome: 'O carrinho', libera: [],
+    pedido: 'Metal parado não dá dinheiro, e a pé ninguém leva peso até o lago. Monte um carrinho de carga, encha de combustível e leve dois packs meus para o Nico. Se aguentar, melhore o carrinho.',
+    etapas: [
+      { ev: 'criar', k: 'carrinho', ja: 'tem', txt: 'Crie o carrinho de carga (bancada)' },
+      { ev: 'criar', k: 'galao', n: 4, txt: 'Crie 4 galões de combustível (bancada)' },
+      { ev: 'veiculo', k: 'abastecer', txt: 'Abasteça o carrinho (perto dele, na janela do carrinho)' },
+      { ev: 'pack_fez', k: 'metal', n: 2, txt: 'Faça 2 Packs de Metal com o Malaquias', alvo: 'npc:m_metal' },
+      { ev: 'pack', k: 'metal', npc: 'm_peixe', de: 'carrinho', n: 2, txt: 'Leve os 2 packs de carrinho até o Nico, no Lago Grande', alvo: 'npc:m_peixe' },
+      { ev: 'veiculo', k: 'melhorar', min: 2, ja: 'carrinho', txt: 'Melhore o carrinho para o Nv 2 (perto de uma bancada)', alvo: 'lote' },
+    ],
+    pronto: 'Rodando e ganhando! ...Ah, o Aldo mandou chamar: os batedores dele sumiram no sudeste.' },
+  { id: 'b6', cap: 7, nv: 25, npc: 'lider', nome: 'Os batedores', libera: [],
+    pedido: 'Mandei três batedores olhar o sudeste, depois da clareira dos Imps de lá. Nenhum voltou. Ache os três. Vivos, se os deuses quiserem.',
+    etapas: [
+      { ev: 'pistas', pontos: [[198, 124, 'o batedor ferido'], [214, 142, 'a lança quebrada'], [222, 122, 'o batedor escondido no mato']], txt: 'Procure os batedores no sudeste',
+        diz: 'O batedor escondido sussurra: "Capuz cinza, espada... chamam ele de Velado. E os Imps obedecem."' },
+      { ev: 'matar', campos: ['caca10'], tipos: ['imp'], n: 8, txt: 'Derrube 8 Imps na clareira do sudeste' },
+      { ev: 'matar', hc: 'cacador', txt: 'Derrote o Velado Caçador' },
+    ],
+    pronto: 'Os três vivos, graças a você. Capuz, olhos cinzentos... são os mesmos que levaram a carroça da Rosa. Velados. E os batedores viram mais uma coisa: um brilho no Ninho dos Golens, ao sul.' },
+  { id: 'h7', cap: 7, nv: 27, npc: 'lider', nome: 'Brasa-Antiga', libera: ['1f'], liberaNaEtapa: 0,
+    pedido: 'Um golem com brasa no peito, do tamanho de uma casa, no Ninho dos Golens. Dizem que é ele que segura a névoa do sul. Derrube Brasa-Antiga e as terras do sul se abrem. O Bráulio Curtidor mora lá, isolado há semanas: depois vá ver se ele está bem.',
+    etapas: [
+      { ev: 'matar', hc: 'brasa_antiga', txt: 'Derrote Brasa-Antiga na Clareira dos Golens',
+        diz: 'Brasa-Antiga desmorona. No alto do morro, uma figura de capa cinza assiste. Quando você olha de novo, não tem ninguém.' },
+      { ev: 'falar', npc: 'm_couro', txt: 'Procure o Bráulio, nas terras que abriram' },
+    ],
+    pronto: 'Você derrubou aquilo?! Faz semanas que ninguém passava. Leve esses galões, vai precisar de rodas por aqui. ...E quem era o de capa cinza no morro?',
+    presente: { galao: 6 } },
+  // ---------- Capítulo 8 · A Lâmina Cinzenta (Nv 28) ----------
+  { id: 'b7', cap: 8, nv: 28, npc: 'm_couro', nome: 'Couro em troca de rodas', libera: [],
+    pedido: 'Os Velados quebraram o meu carrinho e ninguém mais me traz lenha. Me traga dois packs de lenha, de carrinho, e eu te ensino a cuidar das rodas.',
+    etapas: [
+      { ev: 'pack_fez', k: 'lenha', n: 2, txt: 'Faça 2 Packs de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
+      { ev: 'pack', k: 'lenha', npc: 'm_couro', de: 'carrinho', n: 2, txt: 'Leve os 2 packs de carrinho até o Bráulio', alvo: 'npc:m_couro' },
+      { ev: 'veiculo', k: 'consertar', ja: 'carro_ok', txt: 'Deixe o carrinho inteiro (conserte se estiver batido)' },
+    ],
+    pronto: 'Roda boa e lenha boa. Escuta: o de capa cinza voltou ontem, rondando o Ninho. Perguntou de você pelo nome. Tome cuidado.' },
+  { id: 'b9', cap: 8, nv: 28, npc: 'ferreiro', nome: 'Prontos para a caçada', libera: [],
+    pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +6. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca.',
+    etapas: [
+      { ev: 'evoluir', min: 2, txt: 'Evolua uma peça para Épica (Forja > Evoluir)', alvo: 'npc:ferreiro' },
+      { ev: 'reforcar', min: 6, txt: 'Reforce uma peça até +6 (Mochila > peça > Reforçar)' },
+      { ev: 'criar', k: 'colar', ja: 'tem', txt: 'Forje um Colar de Estrela na bigorna', alvo: 'npc:ferreiro' },
+      { ev: 'ter', itens: { ensopado: 3 }, txt: 'Leve 3 Ensopados de carne na mochila (fogão)', alvo: 'lote' },
+    ],
+    pronto: 'Agora sim você tem cara de caçador. O Aldo está montando a caçada ao Warrok. Vá com ele.' },
+  { id: 'h8', cap: 8, nv: 30, npc: 'lider', nome: 'Warrok, o Carcereiro', libera: ['B1'],
+    pedido: 'O Warrok segura a estrada do oeste como um carcereiro segura a chave. Monte um time, limpe os Golens e os Maws dele e derrube o bicho.',
+    etapas: [
+      { ev: 'time', txt: 'Monte um time (Cecília, Dario ou um amigo)' },
+      { ev: 'matar', campos: ['caca11', 'caca12'], tipos: ['golem', 'maw'], n: 6, txt: 'Derrube 6 Golens ou Maws nas clareiras do Warrok' },
+      { ev: 'matar', campos: ['caca11', 'caca12'], tipos: ['warrok'], txt: 'Derrube o Warrok' },
+    ],
+    pronto: 'O Carcereiro caiu! A estrada do oeste está livre até a Ponte do Rio Claro. ...O Mestre Ivo pediu para você passar lá. Disse que é urgente.' },
+  { id: 'b11', cap: 8, nv: 30, npc: 'reset', nome: 'Você não lembra de mim', libera: [], titulo: 'Sentinela da Ordem',
+    pedido: 'Um homem de capa cinza anda pelo Ninho dos Golens perguntando por alguém com uma marca de estrela. Se ele te achar antes de você achar ele... Vá. E volte.',
+    etapas: [
+      { ev: 'matar', hc: 'kael', txt: 'Enfrente o homem de capa cinza na Clareira dos Golens' },
+      { ev: 'pos', pos: [196, 202, 5], txt: 'Toque na Chave do Oeste, a pedra que brilha perto dos Maws', alvo: 'pos', marca: true,
+        diz: 'Memória: um salão de cristal, e vozes cantando um nome. "Aethra."' },
+      { ev: 'falar', npc: 'reset', txt: 'Conte tudo ao Mestre Ivo' },
+    ],
+    pronto: 'Kael. A Lâmina Cinzenta... Então ele está vivo. Escute: eu e o Gaspar somos os últimos Guardiões da Ordem, que fechou a Névoa com sete selos. Essa marca na sua mão é da Ordem. Ou de algo mais velho que ela. A partir de hoje você é uma Sentinela da Ordem.',
+    presente: { peitoral: { r: 1, e: 5 } } },
+  // ---------- Capítulos 9 a 15: ainda a missão de uma etapa (viram capítulos completos nas próximas entregas) ----------
   { id: 'h9', cap: 9, nv: 38, npc: 'm_abobora', nome: 'A trilha da serra', matar: { n: 15, campos: ['c_v3'] }, libera: ['B2'],
     pedido: 'Quero levar meus doces para o norte, mas a serra está fechada. Derrube quinze monstros do campo Nv 38 que eu te mostro o caminho.',
     andamento: 'Faltam {faltam}.',

@@ -20332,37 +20332,172 @@
     ]
    },
    {
-    "id": "h6",
+    "id": "b1",
+    "cap": 6,
+    "nv": 15,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "Uma casa que aguenta",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 9,
+    "etapas": [
+     "Coloque 4 fundações no seu terreno",
+     "Levante 4 paredes",
+     "Coloque uma porta",
+     "Coloque uma janela",
+     "Ponha o telhado",
+     "Coloque uma cama",
+     "Coloque um baú",
+     "Durma uma noite na sua cama (só à noite)",
+     "Volte e fale com Aldo"
+    ]
+   },
+   {
+    "id": "b2",
+    "cap": 6,
+    "nv": 15,
+    "npc": "m_horta",
+    "npcNome": "Dona Sálvia",
+    "nome": "Provisões",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 8,
+    "etapas": [
+     "Crie a enxada (bancada, aba Fazenda)",
+     "Crie o regador (bancada, aba Fazenda)",
+     "Plante 6 sementes na horta do terreno",
+     "Regue a horta",
+     "Colha o que plantou (leva alguns dias de jogo)",
+     "Cozinhe 3 Sopas de legumes no fogão",
+     "Funda 1 barra de aço na fornalha",
+     "Leve as 3 sopas e a barra de aço ao Gaspar, na montanha"
+    ]
+   },
+   {
+    "id": "b3",
     "cap": 6,
     "nv": 18,
     "npc": "guardiao",
     "npcNome": "Gaspar",
-    "nome": "A boca da montanha",
+    "nome": "O passe",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Faça o Passe da Caverna com o Gaspar (fragmentos, couro e tecido)",
+     "Chame alguém para o time (Cecília, Dario ou um amigo)",
+     "Volte ao Gaspar com o time"
+    ]
+   },
+   {
+    "id": "h6",
+    "cap": 6,
+    "nv": 20,
+    "npc": "guardiao",
+    "npcNome": "Gaspar",
+    "nome": "O Trono vazio",
     "libera": [
      "1e"
     ],
-    "liberaNaEtapa": -1,
-    "total": 2,
+    "liberaNaEtapa": 0,
+    "total": 6,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Gaspar"
+     "Use o passe no selo da boca da caverna",
+     "Atravesse a Galeria dos Golens",
+     "Atravesse o Poço dos Maws",
+     "Derrote o Velado da Montanha no Trono",
+     "Toque no selo rachado atrás do trono",
+     "Conte ao Gaspar o que viu"
+    ]
+   },
+   {
+    "id": "b5",
+    "cap": 7,
+    "nv": 20,
+    "npc": "m_metal",
+    "npcNome": "Malaquias",
+    "nome": "O carrinho",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 7,
+    "etapas": [
+     "Crie o carrinho de carga (bancada)",
+     "Crie 4 galões de combustível (bancada)",
+     "Abasteça o carrinho (perto dele, na janela do carrinho)",
+     "Faça 2 Packs de Metal com o Malaquias",
+     "Leve os 2 packs de carrinho até o Nico, no Lago Grande",
+     "Melhore o carrinho para o Nv 2 (perto de uma bancada)",
+     "Volte e fale com Malaquias"
+    ]
+   },
+   {
+    "id": "b6",
+    "cap": 7,
+    "nv": 25,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "Os batedores",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Procure os batedores no sudeste",
+     "Derrube 8 Imps na clareira do sudeste",
+     "Derrote o Velado Caçador",
+     "Volte e fale com Aldo"
     ]
    },
    {
     "id": "h7",
     "cap": 7,
-    "nv": 25,
+    "nv": 27,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "O que tem depois do leste",
+    "nome": "Brasa-Antiga",
     "libera": [
      "1f"
     ],
-    "liberaNaEtapa": -1,
+    "liberaNaEtapa": 0,
     "total": 2,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Aldo"
+     "Derrote Brasa-Antiga na Clareira dos Golens",
+     "Procure o Bráulio, nas terras que abriram"
+    ]
+   },
+   {
+    "id": "b7",
+    "cap": 8,
+    "nv": 28,
+    "npc": "m_couro",
+    "npcNome": "Bráulio Curtidor",
+    "nome": "Couro em troca de rodas",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Faça 2 Packs de Lenha com o Seu Joca",
+     "Leve os 2 packs de carrinho até o Bráulio",
+     "Deixe o carrinho inteiro (conserte se estiver batido)",
+     "Volte e fale com Bráulio Curtidor"
+    ]
+   },
+   {
+    "id": "b9",
+    "cap": 8,
+    "nv": 28,
+    "npc": "ferreiro",
+    "npcNome": "Tomás",
+    "nome": "Prontos para a caçada",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Evolua uma peça para Épica (Forja > Evoluir)",
+     "Reforce uma peça até +6 (Mochila > peça > Reforçar)",
+     "Forje um Colar de Estrela na bigorna",
+     "Leve 3 Ensopados de carne na mochila (fogão)",
+     "Volte e fale com Tomás"
     ]
    },
    {
@@ -20371,15 +20506,33 @@
     "nv": 30,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "O chefe Warrok",
+    "nome": "Warrok, o Carcereiro",
     "libera": [
      "B1"
     ],
     "liberaNaEtapa": -1,
-    "total": 2,
+    "total": 4,
     "etapas": [
-     "Derrube o chefe nos campos pedidos",
+     "Monte um time (Cecília, Dario ou um amigo)",
+     "Derrube 6 Golens ou Maws nas clareiras do Warrok",
+     "Derrube o Warrok",
      "Volte e fale com Aldo"
+    ]
+   },
+   {
+    "id": "b11",
+    "cap": 8,
+    "nv": 30,
+    "npc": "reset",
+    "npcNome": "Mestre Ivo",
+    "nome": "Você não lembra de mim",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Enfrente o homem de capa cinza na Clareira dos Golens",
+     "Toque na Chave do Oeste, a pedra que brilha perto dos Maws",
+     "Conte tudo ao Mestre Ivo"
     ]
    },
    {
@@ -20611,29 +20764,82 @@
    {
     "n": 6,
     "nome": "Debaixo da montanha",
-    "nv": 18,
+    "nv": 15,
     "ato": "Ato II · O primeiro selo",
     "frase": "O primeiro selo está cedendo.",
-    "diario": "",
-    "rumores": []
+    "diario": "Levantei uma casa de verdade no meu terreno e dormi debaixo do meu próprio teto. Com a Dona Sálvia fiz horta e sopa para quem ia descer na montanha. Com o passe do Gaspar e alguém do time, desci na Caverna da Montanha: no Trono do Warrok o trono estava vazio e um encapuzado de máscara guardava o selo rachado. Quando toquei o selo, vi uma mulher de cabelo prateado segurando uma luz pequena. Ela chorava: \"Me perdoa.\"",
+    "rumores": [
+     {
+      "nv": 20,
+      "quem": "Malaquias",
+      "texto": "Metal parado não dá dinheiro. Preciso de alguém com rodas. Passa aqui."
+     },
+     {
+      "nv": 21,
+      "quem": "Tomás",
+      "texto": "A sua lasca de cristal está quente de novo. Igual àquela pedra do selo."
+     },
+     {
+      "nv": 22,
+      "quem": "Bráulio",
+      "texto": "Uns encapuzados passaram pelo sudeste. Não pagaram nada e levaram couro."
+     },
+     {
+      "nv": 23,
+      "quem": "Dario",
+      "texto": "Máscara cinza? Já vi uma dessas. Faz muito tempo. Deixa pra lá."
+     }
+    ]
    },
    {
     "n": 7,
     "nome": "Rodas para o sudeste",
-    "nv": 25,
+    "nv": 20,
     "ato": "Ato II · O primeiro selo",
     "frase": "Além do leste, os golens acordaram.",
-    "diario": "",
-    "rumores": []
+    "diario": "Montei o carrinho e levei metal do Malaquias até o Nico. Os batedores do Aldo foram atacados no sudeste por um Velado de capuz e espada: agora eles têm nome. Com lenha para o Bráulio, aprendi a cuidar das rodas, e derrubei Brasa-Antiga, um golem do tamanho de uma casa. Do alto do morro, alguém de capa cinza assistia.",
+    "rumores": [
+     {
+      "nv": 28,
+      "quem": "Gaspar",
+      "texto": "Um homem de capa cinza passou pela boca da caverna e perguntou por você. Pelo nome."
+     },
+     {
+      "nv": 29,
+      "quem": "Cecília",
+      "texto": "Se esse tal de capa cinza aparecer, eu vou junto. Nem discute."
+     }
+    ]
    },
    {
     "n": 8,
     "nome": "A Lâmina Cinzenta",
-    "nv": 30,
+    "nv": 28,
     "ato": "Ato II · O primeiro selo",
     "frase": "Quem segura a névoa do oeste?",
-    "diario": "",
-    "rumores": []
+    "diario": "Fiz uma peça Épica com reforço, o meu Colar de Estrela e ensopado para a caçada. Com o time, derrubei o Warrok e o oeste abriu. Depois veio ele: Kael, a Lâmina Cinzenta. Lutou comigo até a metade e parou: \"Você não lembra mesmo de mim... Ela vai gostar de saber.\" Na Chave do Oeste vi um salão de cristal onde vozes cantavam um nome: Aethra. O Mestre Ivo me chamou de Sentinela da Ordem.",
+    "rumores": [
+     {
+      "nv": 32,
+      "quem": "Abel",
+      "texto": "No Posto do Oeste todo mundo fala de você. E de um homem de capa cinza."
+     },
+     {
+      "nv": 34,
+      "quem": "Bento",
+      "texto": "Andei pelo oeste. O rio está cinza de manhã. Nunca foi."
+     },
+     {
+      "nv": 35,
+      "quem": "Tomás",
+      "texto": "Aprendiz da Ordem? O Ivo nunca contou isso pra ninguém."
+     },
+     {
+      "nv": 36,
+      "quem": "Dario",
+      "texto": "Kael... Esse nome eu conheço. Me deixa pensar."
+     }
+    ]
    },
    {
     "n": 9,
@@ -20756,6 +20962,328 @@
    "forja": "a forja e a banca",
    "lobo": "a montaria",
    "pesca": "a pescaria"
+  },
+  "cenas": {
+   "acordar": {
+    "nome": "Acordar",
+    "heroi": {
+     "pos": [
+      -4.2,
+      -15.6
+     ],
+     "ry": -2.6,
+     "deitado": true
+    },
+    "npcs": [
+     "lider"
+    ],
+    "tomadas": [
+     {
+      "d": 4.6,
+      "preto": 1.4,
+      "de": {
+       "p": [
+        24,
+        24,
+        14
+       ],
+       "o": [
+        -6,
+        0.5,
+        -14
+       ]
+      },
+      "para": {
+       "p": [
+        9,
+        10,
+        -2
+       ],
+       "o": [
+        -5.5,
+        0.4,
+        -14.8
+       ]
+      },
+      "fala": [
+       "",
+       "Ninguém lembra de onde você veio."
+      ]
+     },
+     {
+      "d": 3.2,
+      "de": {
+       "p": [
+        -2.5,
+        0.65,
+        -14.6
+       ],
+       "o": [
+        -4.2,
+        0.2,
+        -15.6
+       ]
+      },
+      "para": {
+       "p": [
+        -2.9,
+        0.55,
+        -14.9
+       ],
+       "o": [
+        -4.2,
+        0.2,
+        -15.6
+       ]
+      },
+      "fala": [
+       "",
+       "Nem você."
+      ]
+     },
+     {
+      "d": 4.4,
+      "acao": "levantar",
+      "de": {
+       "p": [
+        -1.7,
+        1,
+        -14.5
+       ],
+       "o": [
+        -4.2,
+        0.8,
+        -15.6
+       ]
+      },
+      "para": {
+       "p": [
+        -1.9,
+        1.5,
+        -14.4
+       ],
+       "o": [
+        -4.2,
+        1.35,
+        -15.6
+       ]
+      }
+     },
+     {
+      "d": 4,
+      "de": {
+       "p": [
+        -2.9,
+        1.75,
+        -14.4
+       ],
+       "o": [
+        -6,
+        1.45,
+        -18.6
+       ]
+      },
+      "para": {
+       "p": [
+        -3.15,
+        1.7,
+        -14.65
+       ],
+       "o": [
+        -6,
+        1.45,
+        -18.6
+       ]
+      },
+      "fala": [
+       "Aldo",
+       "Te achei aqui ao amanhecer, dormindo do lado do poço."
+      ]
+     },
+     {
+      "d": 2.4,
+      "de": {
+       "p": [
+        -6,
+        1.7,
+        -17.55
+       ],
+       "o": [
+        -4.2,
+        1.45,
+        -15.6
+       ]
+      },
+      "para": {
+       "p": [
+        -5.9,
+        1.68,
+        -17.4
+       ],
+       "o": [
+        -4.2,
+        1.45,
+        -15.6
+       ]
+      },
+      "fala": [
+       "Aldo",
+       "Lembra do seu nome?"
+      ]
+     },
+     {
+      "d": 2.2,
+      "de": {
+       "p": [
+        -5.9,
+        1.68,
+        -17.4
+       ],
+       "o": [
+        -4.2,
+        1.45,
+        -15.6
+       ]
+      },
+      "para": {
+       "p": [
+        -5.8,
+        1.66,
+        -17.25
+       ],
+       "o": [
+        -4.2,
+        1.45,
+        -15.6
+       ]
+      },
+      "fala": [
+       "{nome}",
+       "...{nome}."
+      ]
+     },
+     {
+      "d": 3.6,
+      "de": {
+       "p": [
+        -1.2,
+        1.6,
+        -19.4
+       ],
+       "o": [
+        -5.1,
+        1.2,
+        -17.1
+       ]
+      },
+      "para": {
+       "p": [
+        -0.9,
+        1.9,
+        -18.5
+       ],
+       "o": [
+        -5.1,
+        1.2,
+        -17.1
+       ]
+      },
+      "fala": [
+       "Aldo",
+       "Pelo menos isso. Venha, fale comigo: tem muita coisa que você precisa saber."
+      ]
+     }
+    ]
+   }
+  },
+  "chefes": {
+   "gorduncho": {
+    "nome": "Gorduncho, o Puglin Rei",
+    "tipo": "puglin",
+    "campo": "caca1",
+    "vida": 6,
+    "dano": 1.4,
+    "escala": 1.7,
+    "cor": 11554303
+   },
+   "presa": {
+    "nome": "Presa-de-Prata, o alfa",
+    "tipo": "lobo",
+    "campo": "caca3",
+    "vida": 6,
+    "dano": 1.4,
+    "escala": 1.45,
+    "cor": 15266559,
+    "noite": true
+   },
+   "brasa": {
+    "nome": "Brasa, a Mãe-Imp",
+    "tipo": "imp",
+    "campo": "caca2",
+    "vida": 6,
+    "dano": 1.5,
+    "escala": 1.6,
+    "cor": 16734746
+   },
+   "sombra": {
+    "nome": "Sombra, o lobo da Névoa",
+    "tipo": "lobo",
+    "campo": "caca6",
+    "vida": 7,
+    "dano": 1.5,
+    "escala": 1.55,
+    "cor": 8018648
+   },
+   "velado_montanha": {
+    "nome": "Velado da Montanha",
+    "tipo": "warrok",
+    "sala": "sala3",
+    "vida": 1.2,
+    "dano": 1.1,
+    "escala": 1,
+    "cor": 9344680,
+    "humano": {
+     "modelo": "shibu_sombrio",
+     "roupa": "chapeu2,peitoral1,calca1,botas1,capa1"
+    }
+   },
+   "cacador": {
+    "nome": "Velado Caçador",
+    "tipo": "imp",
+    "campo": "caca10",
+    "vida": 7,
+    "dano": 1.5,
+    "escala": 1,
+    "cor": 9344680,
+    "humano": {
+     "modelo": "shibu_sombrio",
+     "roupa": "chapeu1,peitoral1,calca1,botas1,capa1"
+    }
+   },
+   "brasa_antiga": {
+    "nome": "Brasa-Antiga",
+    "tipo": "golem",
+    "campo": "caca11",
+    "vida": 8,
+    "dano": 1.6,
+    "escala": 2,
+    "cor": 16742954
+   },
+   "kael": {
+    "nome": "Kael, a Lâmina Cinzenta",
+    "tipo": "golem",
+    "campo": "caca11",
+    "vida": 9,
+    "dano": 1.7,
+    "escala": 1,
+    "cor": 12107980,
+    "foge": 0.5,
+    "fala": "Kael: \"Você não lembra mesmo de mim... Ela vai gostar de saber.\" E some na névoa.",
+    "humano": {
+     "modelo": "cabelo_m",
+     "roupa": "peitoral2,calca2,botas2,capa2"
+    }
+   }
   }
  }
 }

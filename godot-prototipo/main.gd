@@ -48,6 +48,7 @@ const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Totem = preload("res://totem.gd") # totens de teleporte (André 2026-11-10)
 const MissaoAtiva = preload("res://missao_ativa.gd") # missão ativa no canto esquerdo com "Ir para" (André 2026-11-11)
+const Cinematica = preload("res://cinematica.gd") # cenas da história com a câmera do jogo (André 2026-11-11)
 const Nevoa = preload("res://nevoa.gd") # névoa das zonas ainda fechadas (progressão até o Nv 100, André 2026-11-10)
 const Rota = preload("res://rota.gd")
 const Construcao = preload("res://construcao.gd")
@@ -58,7 +59,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -147,6 +148,7 @@ var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e ma
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
 var totem # totem.gd: totens de teleporte (descobrir, viajar pagando, área segura, renascer)
 var missao_ativa # missao_ativa.gd: a missão da vez à esquerda, embaixo do time; tocar dá "Ir para" (autopath)
+var cinematica # cinematica.gd: cena da história (faixas de cinema, câmera andando, legenda, Pular)
 var nevoa # nevoa.gd: zonas que a missão principal ainda não abriu (parede de névoa, o herói para na borda)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
@@ -373,6 +375,8 @@ func _ready() -> void:
 	missao_ativa = MissaoAtiva.new(self)
 	add_child(missao_ativa)
 	hud.missao = missao_ativa
+	cinematica = Cinematica.new(self)
+	add_child(cinematica)
 	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
 	construcao = Construcao.new(self)
 	add_child(construcao)
@@ -2973,6 +2977,8 @@ func _process(dt: float) -> void:
 	cam.zoom(hud.zoom_cam) # dois dedos (pinça) ou roda do mouse
 	hud.zoom_cam = 1.0
 	cam.atualizar(min(dt_real, 0.1), g)
+	if cinematica and cinematica.ativa:
+		cinematica.camera(min(dt_real, 0.1)) # a câmera da cena manda por cima da do jogo
 	folhagem_na_frente(dt_real)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
@@ -3019,6 +3025,9 @@ func _process(dt: float) -> void:
 	atualizar_teste(dt)
 
 func atualizar_heroi(dt: float) -> void:
+	if cinematica and cinematica.ativa and h.morto <= 0.0: # cena da história: o herói fica parado (cinematica.gd)
+		cinematica.heroi(dt)
+		return
 	if h.morto > 0.0:
 		corpo_caido(dt)
 		if on():
