@@ -53,6 +53,7 @@ var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joyst
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
 var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 var troca # troca.gd: o cartão do pedido de troca não vira joystick nem câmera
+var missao # missao_ativa.gd: o cartão da missão ativa (e o "Ir para") não vira joystick nem câmera
 const PAINEL := Rect2(18, 14, 330, 104) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
 # modo de editar a interface (André 2026-11-06, editar_hud.gd): cada elemento ganha um deslocamento (d, px) e uma escala (s)
 var painel_d := Vector2.ZERO
@@ -273,6 +274,10 @@ func _input(ev: InputEvent) -> void:
 		if ev.pressed and construcao and construcao.cobre(ev.position): # barra do modo construção (construcao.gd)
 			return
 		if ev.pressed and troca and troca.cobre(ev.position): # cartão do pedido de troca (troca.gd)
+			return
+		if ev.pressed and missao and missao.cobre(ev.position): # cartão da missão ativa (missao_ativa.gd)
+			return
+		if ev.pressed and festa and festa.atalho(ev.position): # "+N PONTOS" da janelinha de nível: abre a aba Status (festa.gd)
 			return
 		if ev.pressed and painel_rect().has_point(ev.position):
 			# toque curto abre o menu do personagem (ao soltar); segurar abre o modo de editar a interface

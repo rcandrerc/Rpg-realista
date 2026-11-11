@@ -774,11 +774,12 @@ func _desenhar_mini() -> void:
 	c.draw_circle(n, 9.0, Color(0.05, 0.04, 0.03, 0.9))
 	_texto(c, n + Vector2(0, -1), "N", 13, COR_OURO)
 	_relogio(c, meio + Vector2(0, RAIO + 2.0))
-	_missao(c, meio + Vector2(RAIO + 4.0, RAIO + 30.0))
+	# a missão da vez saiu daqui (André 2026-11-11): fica à esquerda, embaixo do time, com "Ir para" (missao_ativa.gd)
 
 # ---------- progressão (André 2026-11-10, nevoa.gd) ----------
 const COR_NEVOA := Color(0.78, 0.74, 0.92, 0.55)
-# a missão principal da vez, embaixo do relógio (alinhada pela direita do minimapa): nome, quanto falta e com quem falar
+# a missão principal da vez, embaixo do relógio (alinhada pela direita do minimapa): nome, quanto falta e com quem falar.
+# Desde 2026-11-11 não é mais chamada: a missão fica à esquerda, embaixo do time (missao_ativa.gd); fica de reserva.
 func _missao(c: Control, dir: Vector2) -> void:
 	if m.nevoa == null:
 		return
@@ -803,7 +804,7 @@ func _missao(c: Control, dir: Vector2) -> void:
 	sb.bg_color = Color(0.06, 0.05, 0.04, 0.85)
 	sb.border_color = Color(0.72, 0.62, 0.95, 0.9)
 	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(7)
+	sb.set_corner_radius_all(10)
 	sb.draw(c.get_canvas_item(), r)
 	_texto(c, r.position + Vector2(9, 12), l1, 13, Color("e6dcff"), false, 3)
 	_texto(c, r.position + Vector2(9, 28), l2, 12, Color(1, 0.95, 0.85) if l2.begins_with("Pronto") else Color(0.85, 0.82, 0.78), false, 3)
@@ -1103,7 +1104,7 @@ func _desenhar_mapa() -> void:
 		sb.bg_color = Color(0.12, 0.09, 0.05, 0.94)
 		sb.border_color = COR_OURO
 		sb.set_border_width_all(2)
-		sb.set_corner_radius_all(12)
+		sb.set_corner_radius_all(16)
 		sb.shadow_color = Color(0, 0, 0, 0.45)
 		sb.shadow_size = 6
 		sb.draw(c.get_canvas_item(), bt)
@@ -1123,7 +1124,7 @@ func _desenhar_grande() -> void:
 	sbp.bg_color = Color(0.07, 0.055, 0.035, 0.9)
 	sbp.border_color = Color("c9a35a", 0.7)
 	sbp.set_border_width_all(1)
-	sbp.set_corner_radius_all(10)
+	sbp.set_corner_radius_all(14)
 	sbp.draw(c.get_canvas_item(), Rect2(base + Vector2(4, 16), Vector2(LARGURA_LISTA - 16.0, pp.size.y - 32.0)))
 	var y: float = base.y + 40.0 - rolar
 	_texto(c, Vector2(x0, y), "Lugares", 24, COR_OURO, false)
@@ -1314,7 +1315,7 @@ func _desenhar_totens(c: Control, tam: Vector2, em: Callable) -> void:
 	sbt.bg_color = Color(0.08, 0.06, 0.04, 0.9)
 	sbt.border_color = Color("c9a35a")
 	sbt.set_border_width_all(2)
-	sbt.set_corner_radius_all(12)
+	sbt.set_corner_radius_all(16)
 	sbt.shadow_color = Color(0, 0, 0, 0.4)
 	sbt.shadow_size = 5
 	sbt.draw(c.get_canvas_item(), rt)
@@ -1377,7 +1378,7 @@ func _desenhar_totens(c: Control, tam: Vector2, em: Callable) -> void:
 	sb.bg_color = Color(0.06, 0.1, 0.14, 0.95) if falta <= 0 else Color(0.14, 0.07, 0.06, 0.95)
 	sb.border_color = Color("5ad8ff") if falta <= 0 else Color(1, 0.62, 0.55)
 	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(12)
+	sb.set_corner_radius_all(16)
 	sb.shadow_color = Color(0, 0, 0, 0.45)
 	sb.shadow_size = 6
 	sb.draw(c.get_canvas_item(), bt)

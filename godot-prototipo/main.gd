@@ -46,6 +46,7 @@ const Chat = preload("res://chat.gd")
 const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Totem = preload("res://totem.gd") # totens de teleporte (André 2026-11-10)
+const MissaoAtiva = preload("res://missao_ativa.gd") # missão ativa no canto esquerdo com "Ir para" (André 2026-11-11)
 const Nevoa = preload("res://nevoa.gd") # névoa das zonas ainda fechadas (progressão até o Nv 100, André 2026-11-10)
 const Rota = preload("res://rota.gd")
 const Construcao = preload("res://construcao.gd")
@@ -143,6 +144,7 @@ var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenci
 var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e mana (só online)
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
 var totem # totem.gd: totens de teleporte (descobrir, viajar pagando, área segura, renascer)
+var missao_ativa # missao_ativa.gd: a missão da vez à esquerda, embaixo do time; tocar dá "Ir para" (autopath)
 var nevoa # nevoa.gd: zonas que a missão principal ainda não abriu (parede de névoa, o herói para na borda)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
@@ -364,6 +366,9 @@ func _ready() -> void:
 	add_child(nevoa)
 	if mov:
 		mov.nevoa = nevoa
+	missao_ativa = MissaoAtiva.new(self)
+	add_child(missao_ativa)
+	hud.missao = missao_ativa
 	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
 	construcao = Construcao.new(self)
 	add_child(construcao)
@@ -2989,6 +2994,9 @@ func _process(dt: float) -> void:
 	if volta.ativo():
 		hud.canal_vila_txt = volta.texto()
 	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
+	# lobo: o botão só aparece depois da missão que amansa o lobo (André 2026-11-11: "tira o botão de montaria enquanto
+	# não tiver liberado"). Montado continua aparecendo, para poder descer.
+	hud.mostrar_botao("montar", montaria != null or nevoa == null or nevoa.liberado("lobo"))
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()

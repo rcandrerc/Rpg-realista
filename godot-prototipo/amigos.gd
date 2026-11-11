@@ -129,8 +129,9 @@ func _desenhar_barras() -> void:
 		var p := Vector2(0, y)
 		var tam := Vector2(196, 36)
 		var morto: bool = t.get("morto", false) == true
-		_barras.draw_rect(Rect2(p, tam), Color(0.08, 0.07, 0.06, 0.72))
-		_barras.draw_rect(Rect2(p, tam), Color(COR_TIME, 0.5) if not morto else Color(0.5, 0.3, 0.3, 0.6), false, 1.0)
+		# André 2026-11-11: cartão do time com as pontas mais arredondadas (cor igual)
+		_caixa(Rect2(p, tam), 10, Color(0.08, 0.07, 0.06, 0.72))
+		_caixa(Rect2(p, tam), 10, Color(COR_TIME, 0.5) if not morto else Color(0.5, 0.3, 0.3, 0.6), 1)
 		var nome := str(t.get("nome", ""))
 		var cab := "%s%s  Nv %d" % ["★ " if str(t.id) == lider else "", nome, int(t.get("nivel", 1))]
 		_barras.draw_string_outline(f, p + Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, 3, Color(0, 0, 0, 0.7))
@@ -142,9 +143,23 @@ func _desenhar_barras() -> void:
 		y += tam.y + 4.0
 	_barras.draw_set_transform(Vector2.ZERO)
 
+var _sb: StyleBoxFlat
+func _caixa(r: Rect2, raio: int, cor: Color, borda := 0) -> void:
+	if r.size.x <= 0.5 or r.size.y <= 0.5:
+		return
+	if _sb == null:
+		_sb = StyleBoxFlat.new()
+		_sb.anti_aliasing = true
+	_sb.set_corner_radius_all(int(min(float(raio), r.size.y * 0.5, r.size.x * 0.5)))
+	_sb.draw_center = borda == 0
+	_sb.set_border_width_all(borda)
+	_sb.bg_color = cor
+	_sb.border_color = cor
+	_sb.draw(_barras.get_canvas_item(), r)
+
 func _barra(pos: Vector2, tam: Vector2, frac: float, cor: Color, texto: String) -> void:
-	_barras.draw_rect(Rect2(pos, tam), Color(0, 0, 0, 0.5))
-	_barras.draw_rect(Rect2(pos, Vector2(tam.x * clamp(frac, 0.0, 1.0), tam.y)), cor)
+	_caixa(Rect2(pos, tam), 3, Color(0, 0, 0, 0.5))
+	_caixa(Rect2(pos, Vector2(tam.x * clamp(frac, 0.0, 1.0), tam.y)), 3, cor)
 	if texto != "":
 		var f := ThemeDB.fallback_font
 		var w := f.get_string_size(texto, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
