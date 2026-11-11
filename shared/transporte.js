@@ -148,7 +148,7 @@ export const Transporte = {
       p.ouro = (p.ouro || 0) + preco;
       this.pontosProf(j, 'mer', preco / 10);
       this.evento({ t: 'pack', para: id, acao: 'entregou', k: pk.k, ouro: preco, navio: (pk.nav || 0) >= PR.navioMin });
-      this.historia(j, 'pack', { k: pk.k, npc: n.id });
+      this.historia(j, 'pack', { k: pk.k, npc: n.id, de: m.de });
       aviso(`Pack entregue! +${preco} de ouro` + ((pk.nav || 0) >= PR.navioMin ? ' (veio de navio!)' : '') + (k < 0.995 ? ` · mercado cheio: ${Math.round(k * 100)}%` : ''));
       return pronto();
     }
@@ -319,6 +319,7 @@ export const Transporte = {
       n = Math.min(n, contar(p.mochila, 'galao'), Math.ceil((max - c.comb) / C.galao));
       tirar(p.mochila, 'galao', n); c.comb = Math.min(max, c.comb + C.galao * n);
       this.evento({ t: 'veiculo', para: id, acao: 'abasteceu' });
+      this.historia(j, 'veiculo', { k: 'abastecer' });
       return pronto();
     }
     if (m.acao === 'consertar') {
@@ -328,6 +329,7 @@ export const Transporte = {
       if (falta.length) return aviso('Pra consertar: ' + Object.entries(custo).map(([k, q]) => `${q} ${ITENS[k].nome}`).join(' + '));
       for (const [k, q] of Object.entries(custo)) tirar(p.mochila, k, q);
       c.quebrado = false; c.vida = C.vida; aviso('Carrinho consertado!');
+      this.historia(j, 'veiculo', { k: 'consertar' });
       return pronto();
     }
     if (m.acao === 'melhorar') {
@@ -340,6 +342,7 @@ export const Transporte = {
       if (falta.length) return aviso('Falta: ' + falta.map(([k, q]) => `${k === 'ouro' ? 'ouro' : ITENS[k].nome} ${tem(k)}/${q}`).join(', '));
       for (const [k, q] of Object.entries(custo)) if (k === 'ouro') p.ouro -= q; else tirar(p.mochila, k, q);
       c.lv = n; aviso(`Carrinho Nv ${n}! Agora leva ${capacidadeCarrinho(c)} packs.`);
+      this.historia(j, 'veiculo', { k: 'melhorar', v: n });
       return pronto();
     }
   },

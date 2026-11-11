@@ -1336,6 +1336,9 @@ func montar_missoes() -> void:
 	var caps: Array = nv.H.get("capitulos", [])
 	var feitas: int = nv.feitas()
 	var h: Dictionary = nv.hist()
+	var titulo := str(m.P.hist_info.get("titulo", "")) if m.P.hist_info.get("titulo") != null else ""
+	if titulo != "": # título do ato (Ato II: Sentinela da Ordem), vem do servidor (histInfo)
+		conteudo.add_child(rotulo("Título: %s" % titulo, 15, Color("f3d27a")))
 	var d := rotulo("A história principal abre o mapa: cada capítulo tira a névoa de uma região ou abre um recurso. O nível sobe caçando; a história chama quando você chega no nível do próximo capítulo.", 12, APAGADO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(d)
