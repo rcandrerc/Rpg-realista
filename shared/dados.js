@@ -2497,6 +2497,23 @@ export const CEREBRO = {
     nenhuma: 'Ainda não aprendi nenhuma dica. Me ensina alguma!',
     esqueci: 'Pronto, esqueci.',
   },
+  // Aprender com a morte (entrega 4, André 2026-11-11; sem IA): quando o NPC cai, olha o que estava acontecendo e mexe
+  // nos próprios limites. Vale para os 22, cada um aprende sozinho. passo: quanto cada queda mexe; max: até onde vai;
+  // acima: o monstro que derrubou estava X níveis acima (caça mais baixo); cercado: X monstros em volta (foge mais cedo);
+  // esquece: a cada nível que sobe, a lição perde essa parte (para ele não virar medroso para sempre).
+  morte: {
+    passo: { pocao: 0.06, fugir: 0.05, recuar: 0.08, acima: 1, pocoes: 1 },
+    max: { pocao: 0.2, fugir: 0.15, recuar: 0.25, acima: 3, pocoes: 3 },
+    acima: 2, cercado: 3, esquece: 0.25,
+    falas: {
+      pocao: 'Caí com poção na mochila... da próxima eu bebo mais cedo.',
+      pocoes: 'Acabou a poção bem na hora. Vou levar mais da próxima vez.',
+      acima: 'Esse era forte demais para mim. Vou caçar coisa do meu tamanho por um tempo.',
+      fugir: 'Me cercaram... da próxima eu saio antes de ficar cercado.',
+      recuar: 'Aquele golpe grande me pegou. Vou ficar mais esperto com o braço levantado e com a marca no chão.',
+      nada: 'Da próxima eu presto mais atenção.',
+    },
+  },
 };
 
 // ---------- Progressão até o Nv 100 (André 2026-11-10: "o mapa vai começar não todo liberado... skills, craft, tudo
