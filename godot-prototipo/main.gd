@@ -4205,6 +4205,7 @@ func atualizar_teste(dt: float) -> void:
 		txt += " · ping %d ms" % online.rede.ping_ms
 	if online:
 		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
+		txt += " · mato %.1f ms · capas %.1f ms" % [mato.ms if mato else 0.0, Armadura.PanoCapa.ms_quadro] # auditoria de FPS 2026-11-11
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
