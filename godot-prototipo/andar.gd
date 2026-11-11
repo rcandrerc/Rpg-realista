@@ -118,6 +118,7 @@ func posicao() -> Vector3:
 # usar_y: o lugar guardado diz a altura (em cima de um telhado ou no chão embaixo dele: Voltar para a vila, lugar ao sair)
 func por_em(p: Vector3, usar_y := false) -> void:
 	x = p.x
+	_fora_nevoa = null # teleporte ou "corrigir": o lugar novo vale
 	y = T.altura(p.x, p.z, p.y + 0.3) if usar_y else T.altura(p.x, p.z)
 	mergulho = 0.0
 	z = p.z
@@ -146,6 +147,7 @@ func ad(a: float, b: float) -> float:
 
 # ---------- andar e colidir ----------
 var _pos_ok = null # último lugar dentro do mapa (Vector2)
+var _fora_nevoa = null # último lugar fora da névoa (Vector2)
 func colidir() -> void:
 	# FPS (varredura 2026-11-10): só os da casa da grade onde o herói está (antes: todos os obstáculos do mapa e todas
 	# as peças de todos os lotes, juntados numa lista nova em cada passo do movimento). Quem pode empurrar o herói
@@ -174,6 +176,14 @@ func colidir() -> void:
 		if d < 0.7 and d > 0:
 			x = o.x + dx / d * 0.7
 			z = o.z + dz / d * 0.7
+	# névoa (André 2026-11-11): nada empurra o herói para dentro da zona fechada; volta para o último lugar fora dela
+	if nevoa:
+		if nevoa.fechado(x, z):
+			if _fora_nevoa != null:
+				x = _fora_nevoa.x
+				z = _fora_nevoa.y
+		else:
+			_fora_nevoa = Vector2(x, z)
 	# FASE 3: de barco no mar não tem borda (o servidor confere: posicaoCliente aceita o barco na água)
 	if str(veiculo.get("k", "")) in ["barquinho", "navio"] and not T.no_lago(x, z).is_empty():
 		_pos_ok = Vector2(x, z)
@@ -319,6 +329,7 @@ func _vai(nx: float, nz: float) -> bool:
 	# névoa encantada (zona que a missão principal ainda não abriu): para na borda, sem "corrigir" do servidor
 	if nevoa and nevoa.fechado(nx, nz) and not nevoa.fechado(x, z):
 		nevoa.bateu(nx, nz) # "Conclua a missão X para desbloquear" (André 2026-11-11)
+		no_relevo = true # névoa não é parede de escalar (André 2026-11-11: o herói subia nela "andando esquisito" e entrava)
 		return false
 	if h > y + m.subida.degrau:
 		# parede da caverna (rocha da montanha por cima do túnel): não é pedra, não escala
@@ -836,8 +847,19 @@ func correr_na_parede() -> bool:
 		iniciar_clip("correrNaParede", 1.0, max(0.2, (f.dist - 0.4) / 2.69), 1.0, "agarrar")
 	return true
 
+func _nevoa_a_frente(dir: float) -> bool:
+	if nevoa == null or nevoa.fechado(x, z):
+		return false
+	for d in [0.6, 1.6, 3.2]:
+		if nevoa.fechado(x + sin(dir) * d, z + cos(dir) * d):
+			return true
+	return false
+
 func tentar_escalar(mx: float, mz: float, correr: bool, dt: float) -> void:
 	var dir := atan2(mx, mz)
+	if _nevoa_a_frente(dir): # borda da névoa (e pedra logo depois dela): não escala nem corre na parede
+		empurra = 0.0
+		return
 	for e in m.escadas:
 		if Vector2(x - (e.x - sin(e.ry) * 0.2), z - (e.z - cos(e.ry) * 0.2)).length() < 0.55 and cos(ad(dir, e.ry)) > 0.6:
 			pegar_escada(e)
@@ -1031,6 +1053,9 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 		var nx := x + sin(ry) * d
 		var nz := z + cos(ry) * d
 		var L: Dictionary = T.no_lago(nx, nz)
+		if nevoa and nevoa.fechado(nx, nz) and not nevoa.fechado(x, z): # de barco também não entra na névoa
+			nevoa.bateu(nx, nz)
+			L = {}
 		if not L.is_empty() and float(L.fundo) >= fundo_min:
 			x = nx
 			z = nz

@@ -2236,25 +2236,26 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO];
 // Nada muda de lugar nem some: as zonas só ficam fechadas até a missão. Personagem que já existia (sem prog.hist) ganha
 // as missões até o nível que já tem (shared/historia.js histPorNivel).
 // ZONAS (André 2026-11-11: "tinham que ser regiões, não áreas tão pequenas e isoladas"; esboço aprovado:
-// /mnt/project-files/progressao/regioes-v2.png): cada zona é uma REGIÃO inteira do mapa, um polígono em metros
-// ([x, z], na ordem da borda). O que não está em região nenhuma (a Vila da Clareira, R0) começa aberto. Fora do mapa de
-// hoje as regiões vão até a borda do mundo e cobrem o mar da costa. terra = a terra inteira (TERRAS, shared/mundo.js)
-// mais `mar` m de mar em volta (a ilha). selo = a Caverna da Montanha (do selo para dentro).
-// Antes (2026-11-10) eram círculos em volta de cada campo; o André pediu a troca, por isso saíram.
+// /mnt/project-files/progressao/regioes-v2.png): cada zona é uma REGIÃO inteira do mapa. O que não está em região
+// nenhuma (a Vila da Clareira, R0) começa aberto. regiao = o contorno vem de shared/regioes.js, gerado por
+// ferramentas/regioes/gerar.mjs (André 2026-11-11: "mais arredondada... como se fosse o raio"; desenho aprovado:
+// /mnt/project-files/progressao/regioes-v3-arredondadas.png): as regiões crescem a partir da Vila, de bordas redondas.
+// terra = a terra inteira (TERRAS, shared/mundo.js) mais `mar` m de mar em volta (a ilha). selo = a Caverna da Montanha.
+// Antes eram círculos (2026-11-10) e depois retângulos (2026-11-11); o André pediu as trocas, por isso saíram.
 export const ZONAS = [
-  { id: '1b', nome: 'Campos do Leste', poligono: [[95, -70], [240, -70], [240, 90], [100, 90], [100, 75], [95, 75]] },
-  { id: '1c', nome: 'Bosque do Sul e Lago Grande', poligono: [[-60, 75], [100, 75], [100, 235], [-60, 235]] },
-  { id: '1d', nome: 'Fundo do Leste', poligono: [[100, 90], [240, 90], [240, 170], [100, 170]] },
+  { id: '1b', nome: 'Campos do Leste', regiao: true },
+  { id: '1c', nome: 'Bosque do Sul e Lago Grande', regiao: true },
+  { id: '1d', nome: 'Fundo do Leste', regiao: true },
   { id: '1e', nome: 'Caverna da Montanha', selo: true },
-  { id: '1f', nome: 'Terras dos Golens', poligono: [[100, 170], [240, 170], [240, 235], [100, 235]] },
-  { id: 'B1', nome: 'Oeste de Vael', poligono: [[-600, -190], [-60, -190], [-60, 480], [-600, 480]] },
-  { id: 'B2', nome: 'Norte de Vael', poligono: [[-600, -600], [300, -600], [300, -70], [-60, -70], [-60, -190], [-600, -190]] },
-  { id: 'B3', nome: 'Leste de Vael', poligono: [[240, -70], [300, -70], [300, -600], [1000, -600], [1000, 480], [300, 480], [300, 235], [240, 235]] },
-  { id: 'B4', nome: 'Sul de Vael e o Porto', poligono: [[-60, 235], [300, 235], [300, 480], [-60, 480]] },
+  { id: '1f', nome: 'Terras dos Golens', regiao: true },
+  { id: 'B1', nome: 'Oeste de Vael', regiao: true },
+  { id: 'B2', nome: 'Norte de Vael', regiao: true },
+  { id: 'B3', nome: 'Leste de Vael', regiao: true },
+  { id: 'B4', nome: 'Sul de Vael e o Porto', regiao: true },
   { id: 'C', nome: 'Ilha do Meio', terra: 'ilha', mar: 25 },
-  { id: 'D1', nome: 'Aurora (oeste e a vila)', poligono: [[-600, 850], [330, 850], [330, 1310], [0, 1310], [0, 1600], [-600, 1600]] },
-  { id: 'D2', nome: 'Leste de Aurora', poligono: [[330, 850], [1000, 850], [1000, 1600], [460, 1600], [460, 1310], [330, 1310]] },
-  { id: 'D3', nome: 'Pico da Névoa', poligono: [[0, 1310], [460, 1310], [460, 1600], [0, 1600]] },
+  { id: 'D1', nome: 'Aurora (oeste e a vila)', regiao: true },
+  { id: 'D2', nome: 'Leste de Aurora', regiao: true },
+  { id: 'D3', nome: 'Pico da Névoa', regiao: true },
 ];
 // Missões principais, nesta ordem (uma de cada vez). nv = nível para o NPC dar a missão. npc = id em MAPA_CLAREIRA.npcs.
 // matar: n monstros dos campos (ids de CACA) e, se tiver, só destes tipos. entregar: itens que o NPC pega na entrega.

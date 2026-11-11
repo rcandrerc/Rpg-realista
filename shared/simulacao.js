@@ -1142,6 +1142,7 @@ export class Simulacao {
   // o herói pode ficar ali? (sem pedra alta, casa, árvore ou poço; dentro do mapa) — o Salto Arcano para antes
   livreParaHeroi(j, x, z) {
     if (!dentroDoMapa(this.mapa, x, z, 2.2)) return false;
+    if (j.prog && zonaFechadaEm(j.prog, x, z)) return false; // Salto Arcano não atravessa a névoa
     if (this.terreno.altura(x, z, j.y) > j.y + SUBIDA.degrau) return false;
     for (const k of [...this.obstaculos, ...this.pertoNaMata(x, z)]) {
       if (k.alto != null && (j.y || 0) > k.alto - 0.05) continue; // por cima (em pé no tampo da mesa)
@@ -3174,7 +3175,11 @@ export class Simulacao {
   // O herói anda por cima das pedras: degrau baixo sobe andando, pedra alta bloqueia (e aí dá para escalar)
   moverJogador(j, dx, dz) {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;
+    // névoa (André 2026-11-11: "consegui passar"): quando o servidor recusa a posição do celular, ele mesmo anda o herói
+    // pelo joystick por meio segundo; aqui também a zona fechada é parede, senão cada "corrigir" levava ele mais para dentro
+    const dentro = !!zonaFechadaEm(j.prog, j.x, j.z);
     const vai = (x, z) => {
+      if (!dentro && j.prog && zonaFechadaEm(j.prog, x, z)) { this.naNevoa(j, x, z); return false; }
       const h = T.altura(x, z, j.y); if (h > lim) return false;
       j.x = x; j.z = z;
       if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
@@ -3183,6 +3188,7 @@ export class Simulacao {
     const x0 = j.x, y0 = j.y, z0 = j.z, chao0 = j.chao;
     if (!vai(j.x + dx, j.z + dz)) { j.bloqueado = true; if (!vai(j.x + dx, j.z)) vai(j.x, j.z + dz); }
     this.colidir(j);
+    if (!dentro && j.prog && zonaFechadaEm(j.prog, j.x, j.z)) { j.x = x0; j.y = y0; j.z = z0; j.chao = chao0; j.bloqueado = true; } // empurrão para dentro da névoa
     // o empurrão de um obstáculo (tina, bigorna, esteio, outro jogador) não pode jogar o herói para dentro de uma parede:
     // senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
     if (T.altura(j.x, j.z, j.y) > lim) { j.x = x0; j.y = y0; j.z = z0; j.chao = chao0; j.bloqueado = true; }
@@ -3291,6 +3297,9 @@ export class Simulacao {
   // andando no chão contra uma pedra: decide se sobe (escada, corrida na parede, mini escalada ou agarra na parede)
   tentarEscalar(j, correr, dt) {
     const { mx, mz } = j.entrada, ry = Math.atan2(mx, mz);
+    // névoa (André 2026-11-11): empurrar a borda da zona fechada não é parede de escalar (era assim que o herói
+    // "andava esquisito" por cima dela e entrava); nem pedra ou parede logo depois dela
+    if (j.prog && !zonaFechadaEm(j.prog, j.x, j.z) && [0.6, 1.6, 3.2].some((d) => zonaFechadaEm(j.prog, j.x + Math.sin(ry) * d, j.z + Math.cos(ry) * d))) { j.empurra = 0; return; }
     for (const e of this.escadas) if (Math.hypot(j.x - (e.x - Math.sin(e.ry) * 0.2), j.z - (e.z - Math.cos(e.ry) * 0.2)) < 0.55 && Math.cos(angDif(ry, e.ry)) > 0.6) return this.pegarEscada(j, e); // de frente para a escada, no pé dela
     if (correr) {
       const f = this.paredeAFrente(j, ry, 3.1);

@@ -3,14 +3,33 @@
 // (shared/simulacao.js) usa para decidir e o exportador manda para o app (habilidades.json, chave "historia").
 import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA } from './dados.js';
 import { LUGARES_MUNDO, TERRAS, dentroDaTerra } from './mundo.js';
+import { REGIOES_POLIGONOS } from './regioes.js';
 
 // as zonas como o servidor e o app usam: região (polígono), terra inteira ou o selo da caverna
 export const ZONAS_GEO = ZONAS.map((Z) => {
   const T = Z.terra && TERRAS.find((t) => t.id === Z.terra);
   if (Z.terra && !T) throw new Error(`ZONAS ${Z.id}: terra ${Z.terra}?`);
-  if (!Z.terra && !Z.selo && !(Z.poligono?.length >= 3)) throw new Error(`ZONAS ${Z.id}: sem polígono`);
-  return { id: Z.id, nome: Z.nome, poligono: Z.poligono || null, terra: Z.terra || null, mar: Z.mar || 0, selo: !!Z.selo };
+  const pol = Z.poligono || (Z.regiao ? REGIOES_POLIGONOS[Z.id] : null);
+  if (!Z.terra && !Z.selo && !(pol?.length >= 3)) throw new Error(`ZONAS ${Z.id}: sem polígono (rode ferramentas/regioes/gerar.mjs)`);
+  return { id: Z.id, nome: Z.nome, poligono: pol || null, terra: Z.terra || null, mar: Z.mar || 0, selo: !!Z.selo };
 });
+// caixa e faixas de cada polígono (as regiões redondas têm centenas de pontos e o servidor pergunta a cada passo de cada
+// herói e monstro): só olha as arestas da faixa de FAIXA m onde o ponto está. Mesma resposta do noPoligono.
+const FAIXA = 8;
+const CAIXA = new Map(ZONAS_GEO.filter((Z) => Z.poligono).map((Z) => {
+  const P = Z.poligono, xs = P.map((q) => q[0]), zs = P.map((q) => q[1]), z0 = Math.min(...zs), faixas = [];
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const a = Math.floor((Math.min(P[i][1], P[j][1]) - z0) / FAIXA), b = Math.floor((Math.max(P[i][1], P[j][1]) - z0) / FAIXA);
+    for (let k = a; k <= b; k++) (faixas[k] ||= []).push(P[i][0], P[i][1], P[j][0], P[j][1]);
+  }
+  return [Z, { x0: Math.min(...xs), x1: Math.max(...xs), z0, z1: Math.max(...zs), faixas }];
+}));
+function naFaixa(c, x, z) {
+  const L = c.faixas[Math.floor((z - c.z0) / FAIXA)]; if (!L) return false;
+  let d = false;
+  for (let k = 0; k < L.length; k += 4) { const xi = L[k], zi = L[k + 1], xj = L[k + 2], zj = L[k + 3]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) d = !d; }
+  return d;
+}
 const ZONA_POR_ID = Object.fromEntries(ZONAS_GEO.map((z) => [z.id, z]));
 // a missão que libera cada zona ou recurso
 export const QUEM_LIBERA = {};
@@ -46,6 +65,7 @@ export function noPoligono(P, x, z) {
 // (x, z) dentro da zona Z? (a região ou a terra inteira com um pouco de mar em volta)
 export function naZona(Z, x, z) {
   if (Z.terra) return dentroDaTerra(TERRAS.find((t) => t.id === Z.terra), x, z) > -Z.mar;
+  const c = CAIXA.get(Z); if (c) return x >= c.x0 && x <= c.x1 && z >= c.z0 && z <= c.z1 && naFaixa(c, x, z);
   return !!Z.poligono && noPoligono(Z.poligono, x, z);
 }
 // a zona fechada (ainda na névoa) para a conta p em (x, z), ou null. A caverna (selo) o servidor confere à parte.
