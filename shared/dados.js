@@ -2806,9 +2806,10 @@ export const HISTORIA = [
     ],
     pronto: 'Remendada! E olha o que tinha dentro da rachadura: uma lasca de cristal azul. Isso não é daqui. Veio do sul, de muito longe... A bigorna e o forninho aqui da ferraria são seus também, e a bancada da Rosa.' },
   { id: 'a5', cap: 2, nv: 3, npc: 'comerciante', nome: 'A banca da Rosa', libera: [],
-    pedido: 'O Tomás disse que você tem mão boa. Quero ver na agulha! Traga 2 couros dos Puglins e 1 tecido dos Imps, e costure você mesmo um short na bancada aqui do meu lado.',
+    // André 2026-11-11: "quando você fala com a Rosa na missão ela te dá o material, aí você crafta na mesa"
+    pedido: 'O Tomás disse que você tem mão boa. Quero ver na agulha! Toma: 2 couros e 1 tecido. Costure você mesmo um short na bancada aqui do meu lado.',
+    recebe: { couro: 2, tecido: 1 },
     etapas: [
-      { ev: 'ter', itens: { couro: 2, tecido: 1 }, txt: 'Junte 2 couros (Puglins) e 1 tecido (Imps)', alvo: { couro: 'caca:caca1', tecido: 'caca:caca2' } },
       { ev: 'criar', k: 'short', txt: 'Costure um short na bancada ao lado da Rosa (Alfaiate)', alvo: 'estacao:pub_bancada' },
       { ev: 'vender', txt: 'Venda qualquer coisa para a Rosa', alvo: 'npc:comerciante' },
       { ev: 'comprar', k: 'pocao', n: 3, txt: 'Compre 3 poções da Rosa', alvo: 'npc:comerciante' },
