@@ -2313,6 +2313,8 @@ func _tentar(qual: String) -> bool:
 				rota.a_pe = montaria != null
 			if montaria != null:
 				montar_lobo(false)
+			elif nevoa and not nevoa.liberado("lobo", true): # lobo ainda não amansado (missão do Bento): nem tenta
+				hud.negar("montar")
 			elif mov.esc != null or not mov.chao or not acao.is_empty() or mov.arrancada != null:
 				hud.negar("montar")
 			else:
@@ -3010,7 +3012,7 @@ func _process(dt: float) -> void:
 	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
 	# lobo: o botão só aparece depois da missão que amansa o lobo (André 2026-11-11: "tira o botão de montaria enquanto
 	# não tiver liberado"). Montado continua aparecendo, para poder descer.
-	hud.mostrar_botao("montar", montaria != null or nevoa == null or nevoa.liberado("lobo"))
+	hud.mostrar_botao("montar", montaria != null or nevoa == null or nevoa.liberado("lobo", true)) # estrito: queda de conexão não abre
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
