@@ -499,6 +499,8 @@ func meu(j: Dictionary) -> void:
 		_montado_dif += 0.05
 		if _montado_dif > 0.8:
 			m.montar_lobo(sm, false)
+			if not sm and m.rota and m.rota.ativo: # o servidor não deixou montar: o "Ir para" segue a pé (nada de chamar e soltar o lobo sem parar)
+				m.rota.a_pe = true
 	else:
 		_montado_dif = 0.0
 	h.mana = float(j.mana)
