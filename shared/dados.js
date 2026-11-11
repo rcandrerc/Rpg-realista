@@ -3,7 +3,7 @@
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
-import { montarMundo, alturaMundo, terraEm, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
+import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
@@ -190,6 +190,10 @@ export const TIPOS_INIMIGO = {
   golem: { nome: 'Golem de Magma', horda: 'Monstros do Leste', visual: 'golem', vida: 130, dano: 13, intervalo: 2.6, escala: 1, brilho: 0xff7a1a },
   maw: { nome: 'Maw', horda: 'Monstros do Leste', visual: 'maw', vida: 140, dano: 14, intervalo: 2.4, escala: 1, brilho: 0x9cff5a },
   warrok: { nome: 'Warrok', horda: 'Monstros do Leste', visual: 'warrok', vida: 260, dano: 18, intervalo: 2.0, escala: 1, brilho: 0xffcc40, chefe: true },
+  // Bosses de mundo com modelo próprio (André 2026-11-11): o Titã do Quimera (do André; malha IA no esqueleto KayKit, CC0)
+  // e o dragão evoluído da Quaternius (CC0). Só aparecem como boss (BOSSES_MUNDO); a força vem do boss, isto é a base.
+  tita: { nome: 'Titã', horda: 'Monstros do Leste', visual: 'tita', vida: 260, dano: 18, intervalo: 2.2, escala: 1, brilho: 0x9ad8ff, chefe: true },
+  dragao: { nome: 'Dragão', horda: 'Monstros do Leste', visual: 'dragao', vida: 260, dano: 18, intervalo: 2.0, escala: 1, brilho: 0xff6a2a, chefe: true },
   // espantalho de treino (TREINO, abaixo): não anda, não bate, não morre, não dá XP nem item
   espantalho: { nome: 'Espantalho de treino', horda: 'Treino', visual: 'espantalho', vida: 1000, dano: 0, intervalo: 99, escala: 1, brilho: 0, treino: true },
 };
@@ -1290,6 +1294,76 @@ export const DROPS = {
   warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
 };
 
+// ---------- Bosses de mundo (André 2026-11-11) ----------
+// "uns bosses espalhados pelo mundo... que spawnassem de 6 horas, de 4 horas, e dropassem alguma coisa especial, um
+// catalisador mítico"; "não ficar todos iguais... skills especiais, não só bater: um pulo com stun ou alguma skill em
+// área... bleed" (eram exemplos). Esboço aprovado ("Pode"): /mnt/project-files/bosses-mundo/esboco-bosses-v1.jpg.
+// Não são de missão. Cada um mora numa arena limpa (shared/mundo.js ARENAS_BOSS: chão plano, sem árvore) e não sai dela:
+// quem foge para fora da arena + `solta` m é largado, e o boss sem ninguém volta para o meio com a vida cheia.
+// tipo = o bicho (modelo e golpe comum); vida/dano = vezes o status do bicho nesse nível (statusInimigo); esc = tamanho;
+// cor = tinta do modelo; volta = [mín, máx] horas até nascer de novo depois de morrer (sorteado; o horário fica salvo
+// no servidor, então reiniciar não faz nascer antes). xp = vezes o XP do bicho. ativo: false = esperando o modelo novo
+// (André vê a foto antes de entrar).
+// skills (todas avisam antes: marca vermelha no chão por `aviso` s; rolar ou dar dash na hora escapa):
+//   k: 'salto' (pula no alvo, círculo r) · 'area' (em volta dele, r) · 'cone' (na frente, alcance e ang) · 'investida'
+//   (corre em linha: comp x larg) · 'pocas' (n poças de r que ficam `fica` s machucando) · 'uivo' (r em volta + chama os
+//   `invoca`) · 'sumir' (some e aparece atrás do alvo, golpe em r) · 'pedra' (cai no alvo, r) · 'voo' (sobe `aviso` s sem
+//   poder ser atingido e cai no alvo, r). dano = vezes o dano do boss; cd = s entre usos (fúria: x COMBATE_BOSS.furiaCd).
+//   ef (no herói): atordoa / congela / derruba (s parado, sem agir) · lento { k, dur } · dot { k: 'sangra' | 'veneno' |
+//   'queima', dps (fração da vida máxima do herói por s), dur, max (quantas vezes acumula) }.
+export const COMBATE_BOSS = { solta: 4, aggro: 14, reset: 4, furia: 0.5, furiaCd: 0.65, furiaDano: 1.15, furiaIntervalo: 0.8, alcance: 2.6, raio: 1.4, primeiraSkill: 4 };
+export const BOSSES_MUNDO = {
+  brasaferro: { nome: 'Brasaferro', titulo: 'o Golem Ancião', tipo: 'golem', nivel: 28, regiao: 'Terras dos Golens', vida: 15, dano: 1.4, esc: 2.3, cor: 0xff6a1a, volta: [4, 4.5], xp: 25,
+    skills: [
+      { k: 'salto', nome: 'Salto esmagador', cd: 10, aviso: 1.3, r: 6, dano: 2.0, ef: { atordoa: 1.5 } },
+      { k: 'pocas', nome: 'Chão de lava', cd: 15, aviso: 1.1, n: 3, r: 3, fica: 5, dano: 0.6, ef: { dot: { k: 'queima', dps: 0.05, dur: 5, max: 1 } } },
+    ],
+    drop: { cat: 1, mitico: 0.05 } },
+  uivo_rei: { nome: 'Uivo-Rei', titulo: 'o Lobo Cinzento', tipo: 'lobo', nivel: 36, regiao: 'Oeste de Vael', vida: 15, dano: 1.4, esc: 2.4, cor: 0xc8d8f0, volta: [4, 4.5], xp: 25, invoca: ['lobo', 'lobo', 'lobo'],
+    skills: [
+      { k: 'cone', nome: 'Mordida dilacerante', cd: 7, aviso: 0.9, alcance: 4, ang: 1.3, dano: 1.6, ef: { dot: { k: 'sangra', dps: 0.025, dur: 6, max: 3 } } },
+      { k: 'uivo', nome: 'Uivo', cd: 20, aviso: 1.2, r: 12, dano: 0, ef: { lento: { k: 0.3, dur: 5 } } },
+    ],
+    drop: { cat: 1, mitico: 0.08 } },
+  mandibula: { nome: 'Mandíbula Velha', titulo: 'o Devorador', tipo: 'maw', nivel: 42, regiao: 'Norte de Vael', vida: 18, dano: 1.45, esc: 2.0, cor: 0x5a7a3a, volta: [4.5, 5.5], xp: 28,
+    skills: [
+      { k: 'investida', nome: 'Investida', cd: 11, aviso: 1.2, comp: 14, larg: 3, dano: 1.8, ef: { derruba: 1.2 } },
+      { k: 'cone', nome: 'Vômito ácido', cd: 13, aviso: 1.0, alcance: 8, ang: 1.05, dano: 0.8, ef: { dot: { k: 'veneno', dps: 0.04, dur: 6, max: 1 } } },
+    ],
+    drop: { cat: 2, mitico: 0.10 } },
+  chifre_ferro: { nome: 'Chifre-de-Ferro', titulo: 'o Warrok Couraçado', tipo: 'warrok', nivel: 48, regiao: 'Leste de Vael', vida: 10, dano: 1.45, esc: 1.8, cor: 0x8a929c, volta: [4.5, 5.5], xp: 30,
+    skills: [
+      { k: 'area', nome: 'Giro do machado', cd: 9, aviso: 1.0, r: 5, dano: 1.6, ef: { dot: { k: 'sangra', dps: 0.025, dur: 6, max: 3 } } },
+      { k: 'salto', nome: 'Salto de guerra', cd: 13, aviso: 1.3, r: 7, dano: 2.0, ef: { atordoa: 2 } },
+    ],
+    drop: { cat: 2, mitico: 0.12 } },
+  // 5 a 7: modelo próprio. O 6 (Titã do Quimera) e o 7 (dragão da Quaternius) o André escolheu (2026-11-11); o 5 espera
+  // um modelo novo (o demônio da Quaternius o André achou feio).
+  garra_abismo: { ativo: false, nome: 'Garra do Abismo', titulo: 'o Demônio', tipo: 'maw', nivel: 62, regiao: 'Ilha do Meio', vida: 20, dano: 1.5, esc: 2.0, cor: 0x7a3ab0, volta: [4.5, 5.5], xp: 32,
+    skills: [
+      { k: 'pocas', nome: 'Nuvem venenosa', cd: 12, aviso: 1.0, n: 3, r: 3.2, fica: 6, dano: 0.5, ef: { dot: { k: 'veneno', dps: 0.04, dur: 6, max: 1 } } },
+      { k: 'sumir', nome: 'Passo das sombras', cd: 11, aviso: 0.8, r: 4, dano: 1.8, ef: { lento: { k: 0.35, dur: 3 } } },
+    ],
+    drop: { cat: 2, mitico: 0.15 } },
+  colosso_gelido: { nome: 'Colosso Gélido', titulo: 'o Titã da Serra', tipo: 'tita', nivel: 76, regiao: 'Oeste de Aurora', vida: 22, dano: 1.5, esc: 2.2, cor: 0x9ad8ff, tinta: 0.15, volta: [5.5, 6], xp: 35,
+    skills: [
+      { k: 'cone', nome: 'Sopro gelado', cd: 11, aviso: 1.1, alcance: 9, ang: 1.2, dano: 1.2, ef: { congela: 1.5 } },
+      { k: 'pedra', nome: 'Pedra arremessada', cd: 9, aviso: 1.4, r: 4, dano: 2.0, ef: { atordoa: 1.2 } },
+    ],
+    drop: { cat: 2, mitico: 0.20 } },
+  dragao_cinzas: { nome: 'Dragão de Cinzas', titulo: 'o Último Dragão', tipo: 'dragao', nivel: 92, regiao: 'Leste de Aurora', vida: 25, dano: 1.55, esc: 2.6, cor: 0xff4a2a, tinta: 0.25, volta: [5.5, 6], xp: 40,
+    skills: [
+      { k: 'cone', nome: 'Sopro de fogo', cd: 10, aviso: 1.1, alcance: 11, ang: 1.0, dano: 1.2, ef: { dot: { k: 'queima', dps: 0.05, dur: 6, max: 1 } } },
+      { k: 'voo', nome: 'Voo e queda', cd: 18, aviso: 2.2, r: 8, dano: 2.2, ef: { atordoa: 1.5 } },
+    ],
+    drop: { cat: 2, mitico: 0.25 } },
+};
+// drop de boss: cada herói que ganhou (mesma regra do XP) tira a sua sorte. ouro = [mín, máx] vezes o nível; 1 peça
+// Rara (monstro só solta até Rara: Épico+ só craftando); tomo = chance; cat = raridade do catalisador garantido
+// (1 Épico, 2 Lendário, na lista CATALISADOR: runa ou selo, sorteado); mitico = chance de um catalisador Mítico (runa
+// ou selo). Hoje o Mítico não sai da Mirela: é a fonte nova (André 2026-11-11).
+export const DROP_BOSS = { ouro: [8, 12], tomo: 0.35, pocao: [2, 4] };
+
 // ---------- Dungeon: Caverna da Montanha (pedido do André 2026-11-06) ----------
 // O túnel (forma, chão, teto, porta) fica em shared/caverna.js. Aqui o conteúdo:
 // - passe: o Gaspar (NPC 'guardiao', na boca) faz um passe com estes materiais; cada entrada pelo selo gasta um passe.
@@ -1790,6 +1864,43 @@ export const TUNEIS_MUNDO = []; // túneis das cavernas do mundo grande (shared/
   }
 }
 
+// Bosses de mundo (BOSSES_MUNDO, acima): cada um é um "campo" de 1 vaga (o boss) mais as vagas de quem ele chama, no
+// meio da arena dele. O servidor faz nascer pela hora salva (Simulacao.passoBosses), nunca pela regra dos campos.
+for (const A of ARENAS_BOSS) {
+  const B = BOSSES_MUNDO[A.id];
+  if (!B || B.ativo === false) continue;
+  CACA.push({ id: `boss_${A.id}`, nome: `${B.nome}, ${B.titulo}`, nivel: B.nivel, bicho: B.tipo, x: A.x, z: A.z, r: A.r, mundo: true, boss: A.id,
+    visual: { esc: B.esc, cor: B.cor, nome: B.nome, tinta: B.tinta ?? 0.55 }, n: 1 + (B.invoca?.length || 0), tipos: [B.tipo, ...(B.invoca || [])],
+    passo: 1, rapido: 1, normal: 1, longe: 0, corpo: 6, ate: 0.15 });
+}
+// enfeite das arenas (André 2026-11-11: "umas ruínas assim... só para dar uma graça, mas cuidado para não travar"):
+// um portal em ruínas do lado de longe da estrada e dois pilares quebrados, todos FORA da arena (o boss nunca passa da
+// borda e quem está ali já foi largado por ele), então não dá para se esconder atrás nem prender o boss.
+{
+  const rotas = ESTRADAS_MUNDO.map((E) => E.curva).filter(Boolean);
+  const C = MAPA_CLAREIRA.cenario;
+  const peca = (m, x, z, ry, s, rx = 0, rz = 0, dy = 0) => {
+    C.pecas.push({ m, x: +x.toFixed(2), z: +z.toFixed(2), y: dy, ry: +ry.toFixed(3), s, ...(rx ? { rx } : {}), ...(rz ? { rz } : {}) });
+    const alto = +Math.max(0.2, (rx ? 0.45 : ALTO_CENARIO[m] * s) + dy).toFixed(2);
+    if (SOLIDO_CENARIO[m]) C.solidos.push({ x: +x.toFixed(2), z: +z.toFixed(2), r: +(SOLIDO_CENARIO[m] * s).toFixed(2), alto });
+    for (const [lx, r] of FILA_CENARIO[m] || []) C.solidos.push({ x: +(x + lx * s * Math.cos(ry)).toFixed(2), z: +(z - lx * s * Math.sin(ry)).toFixed(2), r: +(r * s).toFixed(2), alto });
+  };
+  for (const A of ARENAS_BOSS) {
+    if (!CACA.some((c) => c.boss === A.id)) continue;
+    let md = 1e9, ang = 0; // direção da estrada mais perto: o portal fica do outro lado (a entrada fica livre)
+    for (const L of rotas) for (const [x, z] of L) { const d = Math.hypot(x - A.x, z - A.z); if (d < md) { md = d; ang = Math.atan2(z - A.z, x - A.x); } }
+    const R = A.r + 5.5, fundo = ang + Math.PI;
+    const px = A.x + Math.cos(fundo) * R, pz = A.z + Math.sin(fundo) * R, ry = Math.atan2(A.x - px, A.z - pz); // de frente para o meio
+    const cs = Math.cos(ry), sn = Math.sin(ry); // as peças do CONJUNTO já vêm no tamanho dele (esc)
+    for (const [m, dx, dz, dy, r2, s, rx = 0, rz = 0] of CONJUNTOS.arco.pecas) peca(m, px + dx * cs + dz * sn, pz - dx * sn + dz * cs, ry + r2, s, rx, rz, dy);
+    for (const lado of [-1.15, 1.15]) {
+      const a = fundo + lado, x = A.x + Math.cos(a) * (R + 0.5), z = A.z + Math.sin(a) * (R + 0.5);
+      peca('pilar', x, z, a, 1.1, 0, lado > 0 ? 0.06 : -0.05, -0.9);
+      peca('tijolo3', x + 1.2, z + 0.8, a + 1, 1.2, 0, 0, 0.06);
+    }
+  }
+}
+
 // FASE 3, Parte 6 (André 2026-11-08: "reduzir a quantidade de mercadores... spots mais distantes"; 2026-11-09: "6 muito
 // pra uma região"): o mundo grande ganha 6 mercadores de pack, poucos por região, com os 6 packs que faltavam. Vael
 // (anel novo): 2, no Porto de Vael e no Posto do Oeste. Ilha do Meio: 1, no cais oeste (pérolas). Aurora: 3, no cais,
@@ -1816,7 +1927,8 @@ for (const n of MERCADORES_MUNDO) {
 // encostas fortes. Entram no fim de mata (as árvores de hoje não mudam de índice: o "a" de cada uma continua igual) e
 // todas dão lenha, como as outras. y = altura do chão do mundo grande.
 {
-  const G = gradeDoMundo();
+  // arenas dos bosses (BOSSES_MUNDO): o sorteio usa o chão de antes delas (assim nenhuma árvore muda de índice nem de tamanho)
+  const G = gradeDoMundo().hAntesArenas ? { ...gradeDoMundo(), h: gradeDoMundo().hAntesArenas } : gradeDoMundo();
   let sem = 20261109; const rnd = () => { sem = (sem * 16807) % 2147483647; return sem / 2147483647; };
   const P = new Float32Array(64 * 64); for (let i = 0; i < P.length; i++) P[i] = rnd();
   const val = (x, z) => { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, g = (a, b) => P[((iz + b) & 63) * 64 + ((ix + a) & 63)];
@@ -1838,6 +1950,15 @@ for (const n of MERCADORES_MUNDO) {
     if (MERCADORES_PACK.some((n) => Math.hypot(n.x - ax, n.z - az) < 5)) continue;
     if (RIOS_MUNDO.some((R) => R.curva.some(([px, pz]) => Math.abs(px - ax) < 8 && Math.abs(pz - az) < 8 && Math.hypot(px - ax, pz - az) < 7.5))) continue; // o leito do rio (Parte 4b)
     novas.push({ x: +ax.toFixed(2), z: +az.toFixed(2), s: +(0.75 + rnd() * 0.6).toFixed(2), ry: +(rnd() * 6.28).toFixed(2), v: Math.floor(rnd() * 3), y: +y.toFixed(2), mundo: true });
+  }
+  // árvore que caiu dentro de uma arena de boss vai para fora da borda (não some: só muda de lugar) e as da rampa
+  // acompanham o chão novo
+  const GR = gradeDoMundo();
+  for (const t of novas) for (const A of ARENAS_BOSS) {
+    const d = Math.hypot(t.x - A.x, t.z - A.z);
+    if (d > A.r + 20) continue;
+    if (d < A.r + 4) { const k = (A.r + 4 + (d % 3)) / (d || 1); t.x = +(A.x + (t.x - A.x) * k + (d ? 0 : A.r + 4)).toFixed(2); t.z = +(A.z + (t.z - A.z) * k).toFixed(2); }
+    t.y = +alturaMundo(GR, t.x, t.z).toFixed(2);
   }
   MAPA_CLAREIRA.mata.push(...novas);
 }

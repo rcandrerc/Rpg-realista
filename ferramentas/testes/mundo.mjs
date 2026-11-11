@@ -62,7 +62,7 @@ for (const E of ESTRADAS_MUNDO) {
 }
 
 // Parte 5: campos de caça do Nv 30 ao 100 nos lugares planos, com monstros vivos e no nível
-const novos = M.caca.filter((c) => c.mundo);
+const novos = M.caca.filter((c) => c.mundo && !c.boss);
 ok(novos.length >= 20 && Math.min(...novos.map((c) => c.nivel)) > 30 && Math.max(...novos.map((c) => c.nivel)) === 100, `${novos.length} campos novos, Nv ${Math.min(...novos.map((c) => c.nivel))} a 100`);
 const sim = new Simulacao(M);
 for (const c of novos) {
