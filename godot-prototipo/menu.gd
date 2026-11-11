@@ -177,11 +177,17 @@ static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
 		g.set_border_width_all(3) # um respiro dentro do trilho
 		vb.add_theme_stylebox_override(e[0], g)
 
+const RAIO_JANELA := 16 # cantos das janelas pop-up (André 2026-11-11)
+
 static func caixa(cor: Color, borda: Color, b := 1, raio := 6, sombra := 0) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = cor
 	s.border_color = borda
 	s.set_border_width_all(b)
+	# André 2026-11-11: "qualquer janela pop-up ... com as pontinhas mais arredondadas". Toda caixa com sombra é
+	# janela flutuante (pop-up, painel da bancada, baú, troca, conversa, menu): raio mínimo 16. Cor e o resto iguais.
+	if sombra > 0:
+		raio = max(raio, RAIO_JANELA)
 	s.set_corner_radius_all(raio)
 	if sombra > 0:
 		s.shadow_color = Color(0, 0, 0, 0.55)
@@ -1339,7 +1345,7 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	var cedo: bool = int(m.P.prog.nivel) < int(M.nv)
 	var pc := PanelContainer.new()
 	var borda := Color(0.45, 0.75, 0.4) if feita else (Color(0.72, 0.62, 0.95) if atual else Color(0.3, 0.26, 0.2))
-	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, 14)) # André 2026-11-11: mais arredondado
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.09, 0.075, 0.06, 1) if not atual else Color(0.12, 0.1, 0.16, 1), borda, 2 if atual else 1, RAIO_JANELA)) # André 2026-11-11: mais arredondado
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	pc.add_child(v)

@@ -507,7 +507,7 @@ func _desenhar_canto(tam: Vector2) -> void:
 
 # Cantos arredondados (André 2026-11-11: "as bordinhas um pouco mais arredondadas"; cor e o resto iguais).
 # Tudo pelo StyleBoxFlat (um só, reaproveitado): fundo cheio, ou só a borda quando largura > 0.
-const RAIO := 14.0 # janela do meio
+const RAIO := 16.0 # janela do meio (igual às janelas pop-up, Menu.RAIO_JANELA)
 const RAIO_CANTO := 12.0 # janelinha do nível no alto
 const RAIO_BOTAO := 8.0 # botão "+N PONTOS"
 var _sb: StyleBoxFlat
