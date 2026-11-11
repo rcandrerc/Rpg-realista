@@ -32,7 +32,7 @@ ok(a.amizade === amzA && !(a.gostos?.[d.conta]?.pescar) && b.gostos[d.conta].pes
 // "Amigos virtuais" mostra os dois
 const ev0 = s.eventos.length; s.enviarAmigos(d);
 const am = s.eventos.slice(ev0).find((e) => e.t === 'amigos' && e.para === 'andre');
-ok(am?.virtuais?.length === 2 && am.virtuais.some((v) => v.c === DARIO.conta && v.time), 'os dois em "Amigos virtuais", Dario no time');
+ok(am?.virtuais?.length >= 2 && am.virtuais.some((v) => v.c === DARIO.conta && v.time) && am.virtuais.some((v) => v.c === 'a:cecilia'), 'os dois em "Amigos virtuais" (com os aventureiros), Dario no time');
 // mensagem privada para o Dario vai para ele (o servidor escolhe pelo alvo)
 ok(s.chat('andre', { canal: 'pm', para: DARIO.conta, texto: 'e aí' }), 'mensagem privada para o Dario');
 // "não vamos caçar" (André 2026-11-11)

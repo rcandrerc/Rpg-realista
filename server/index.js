@@ -55,6 +55,7 @@ class SalaClareira extends Room {
     }
     // bosses de mundo (André 2026-11-11): a hora de voltar de cada um fica no banco (vale para todas as salas e depois de
     // reiniciar); nasceu, caiu ou soltou Mítico: aviso no chat geral de todo mundo online
+    if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
     this.sim.aoAnuncio = (msg) => {
       const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
@@ -229,6 +230,7 @@ class SalaClareira extends Room {
       if (conta) contas.salvarProgresso(conta.id, prog);
     }
     for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); // lotes que mudaram (compra, peça, horta)
+    for (const n of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + n.id, n.dados); // aventureiros sem casa
   }
 
   // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
@@ -297,14 +299,18 @@ class SalaClareira extends Room {
     // Cecília (André 2026-11-09): entra na sala junto com o dono (as contas de teste do André; sem contas, o primeiro
     // que entra) e sai quando ele sai. O terreno dela vem do banco do jeito que está (outra sala pode ter mexido).
     // 2026-11-10: e também quem ativou a conversa com IA (a chave Groq dele); ela fica enquanto tiver um deles na sala
-    if (conta ? conta.testador || conta.ia : !this.sim.amiga) this.entrarAmiga(client); // primeira vez: entra já no palco do criador
+    // André 2026-11-11 ("quero que eles andem sozinhos"): os NPCs vivem no mundo para todos da sala; conversar, só com chave
+    this.entrarAmiga(client, conta ? !!(conta.testador || conta.ia) : !this.sim.amiga); // primeira vez: entra já no palco do criador
   }
 
   // Cecília na sala para quem pode conversar com ela (shared/amiga.js amigaEntrar)
-  entrarAmiga(client) {
-    for (const ctx of this.sim.amigosIa) { // a Cecília e o Dario (André 2026-11-11) entram juntos, cada um com o seu terreno
-      if (contas && !ctx.amiga) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
-      ctx.amigaEntrar(client.sessionId);
+  entrarAmiga(client, fala = true) {
+    for (const ctx of this.sim.amigosIa) { // a Cecília, o Dario e os 20 aventureiros (André 2026-11-11), cada um com o seu save
+      if (contas && !ctx.amiga) {
+        if (ctx.AMIGA.terreno) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
+        else this.sim.carregarNpc(ctx.AMIGA.id, contas.lerMundo('npc:' + ctx.AMIGA.id)); // sem casa: o save fica na tabela mundo
+      }
+      ctx.amigaEntrar(client.sessionId, fala);
     }
     this.sim.enviarLotes(client.sessionId);
   }
@@ -318,7 +324,8 @@ class SalaClareira extends Room {
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
-    for (const ctx of this.sim.amigosIa) if (ctx.amigaFalam.has(client.sessionId)) { ctx.amigaSair(client.sessionId); this.salvarProgressos(); } // Cecília: o último com chave saiu, ela sai junto
+    for (const ctx of this.sim.amigosIa) ctx.amigaSair(client.sessionId); // NPCs: quem saiu deixa de ser acompanhado; o último da sala leva todos junto
+    this.salvarProgressos();
     this.sim.removerJogador(client.sessionId);
     this.visao.esquecer(client.sessionId);
     this.contaDe?.delete(client.sessionId);

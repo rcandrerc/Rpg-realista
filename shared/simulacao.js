@@ -786,10 +786,14 @@ export class Simulacao {
   }
   ganharXP(j, n) {
     const p = j.prog; if (p.nivel >= NIVEL_MAX) return;
+    // NPC (André 2026-11-11): nunca passa do jogador mais alto do servidor (nivelTetoNpc vem do banco; sem banco, sem teto)
+    if (j.bot && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
     const nivelAntes = p.nivel;
     p.xp += n;
     let subiu = false;
-    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
+    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
+    if (j.bot && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
+    if (!j.bot && this.nivelTetoNpc != null && p.nivel > this.nivelTetoNpc) this.nivelTetoNpc = p.nivel; // jogador subiu: o teto sobe junto
     if (p.nivel >= NIVEL_MAX) p.xp = 0;
     if (subiu) {
       this.aplicarStatus(j, true);
@@ -2375,6 +2379,13 @@ export class Simulacao {
     }
     this.refazerSolidosLotes();
   }
+  // aventureiros sem casa (André 2026-11-11): o progresso de cada um vai para a tabela mundo do banco ('npc:' + id)
+  npcsParaSalvar() {
+    const l = [...(this.npcsMudados || [])].map((id) => ({ id, dados: this.npcSalvos.get(id) })).filter((o) => o.dados);
+    this.npcsMudados?.clear();
+    return l;
+  }
+  carregarNpc(id, dados) { if (dados && typeof dados === 'object') (this.npcSalvos ||= new Map()).set(id, dados); }
   lotesParaSalvar() {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);

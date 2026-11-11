@@ -14,12 +14,12 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { CEREBRO, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
+import { CEREBRO, NPC_VIDA, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
-import { guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
+import { PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -43,11 +43,13 @@ const mesmaPeca = (a, b) => a.k === b.k && Math.abs(a.x - b.x) < 0.01 && Math.ab
 export const Amiga = {
   // ---------- entra e sai junto com o dono ----------
   // o servidor chama quando o dono entra na sala (contas de teste do André; sem contas, o primeiro que entra)
-  amigaEntrar(donoId) {
-    (this.amigaFalam ||= new Set()).add(donoId);
+  // fala: quem entrou pode conversar com ele (chave de IA ou conta de teste). André 2026-11-11 ("quero que eles andem
+  // sozinhos"): o NPC fica no mundo para todo mundo da sala; só quem pode conversar vira o "dono" que ele acompanha.
+  amigaEntrar(donoId, fala = true) {
+    if (fala) (this.amigaFalam ||= new Set()).add(donoId); else this.amigaFalam ||= new Set();
     if (!this.amiga) {
       const L = this.loteDaAmiga(true);
-      let salvo = L?.amiga || {};
+      let salvo = L?.amiga || (!this.AMIGA.terreno && this.npcSalvos?.get(this.AMIGA.id)) || {};
       // recomeço (André 2026-11-11): tudo o que ela jogou volta ao zero (nível, peças, ouro, bolsa, amizades, diário);
       // o jeito dela (código) fica. O save antigo fica guardado em 'antes' para dar para voltar se ele pedir.
       let antes = salvo.antes || null;
@@ -67,6 +69,13 @@ export const Amiga = {
         if (!salvo.prog || !atual || (!salvo.justa && doLook)) j.prog.equip[l] = { k: it.k, r: this.AMIGA.justa.raridade };
       }
       liberarPaginas(j.prog, this.AMIGA.mochila.paginas); // fase 3: 4 páginas, como a mochila do André
+      // aventureiro novo (André 2026-11-11): começa no nível da lista, mas nunca acima do jogador mais alto do servidor
+      if (!salvo.prog && this.AMIGA.nivelInicial > 1) {
+        const n = Math.max(1, Math.min(this.AMIGA.nivelInicial, this.nivelTetoNpc ?? Infinity));
+        j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; j.prog.ouro += 25 * n;
+      }
+      if (!j.prog.equip.cajado) j.prog.equip.cajado = { k: 'cajado', r: this.AMIGA.justa.raridade }; // espada E cajado, como todo herói
+      this.offlineAmiga(j, salvo.t); // o tempo em que ninguém estava no jogo (devagar, sem passar do jogador mais alto)
       this.aplicarStatus(j, true);
       j.amizade = salvo.amizade | 0;
       j.amizades = salvo.amizades && typeof salvo.amizades === 'object' ? { ...salvo.amizades } : {};
@@ -81,12 +90,13 @@ export const Amiga = {
       j.amigaAntes = antes;
       j.ia = { fase: 'pensar', ate: 0 };
       this.pocoesAmiga(j);
-      // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe)
-      const def = L?.def, x = def ? def.x0 + this.AMIGA.porta[0] : this.mapa.nascimento.x + 2, z = def ? def.z0 + this.AMIGA.porta[1] : this.mapa.nascimento.z + 2;
+      // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe); sem casa, na vila do nível dele
+      const def = L?.def, M = !def && this.moradiaAmiga(j), x = def ? def.x0 + this.AMIGA.porta[0] : M ? M.x : this.mapa.nascimento.x + 2, z = def ? def.z0 + this.AMIGA.porta[1] : M ? M.z : this.mapa.nascimento.z + 2;
       Object.assign(j, { x, z, y: this.terreno.altura(x, z), ry: Math.PI, chao: true });
       this.amiga = j;
       this.amigaDono = null;
     }
+    if (!fala) return; // só passeia no mundo dele; conversar, só quem tem a chave
     if (!this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
     this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null });
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
@@ -128,7 +138,9 @@ export const Amiga = {
     if (!this.amiga) return;
     { const sai = this.jogadores.get(donoId); if (sai) this.diarioAmiga(sai.conta); } // quem saiu: o diário da conversa de hoje
     if (donoId != null) this.amigaFalam?.delete(donoId);
-    if (donoId != null && donoId !== this.amigaDono) return this.avisarVirtuaisAmiga(); // saiu outro amigo: ela fica com quem está
+    // André 2026-11-11: ele vive no mundo enquanto tiver gente na sala (com ou sem chave); só sai com o último jogador
+    const fica = [...this.jogadores.values()].some((o) => !o.bot && o.id !== donoId);
+    if (fica && donoId != null && donoId !== this.amigaDono) return this.avisarVirtuaisAmiga(); // saiu outro: ela fica com quem está
     const prox = [...(this.amigaFalam || [])].find((k) => k !== donoId && this.jogadores.has(k));
     if (prox) { // quem ela acompanhava saiu, mas tem outro amigo com chave aqui: ela fica e passa a acompanhar ele
       const a = this.amiga;
@@ -136,6 +148,17 @@ export const Amiga = {
       if (a.time) this.sairDoTime(a, `${this.AMIGA.nome} saiu do time`);
       a.ia.fase = 'pensar'; a.ia.chatFila = (a.ia.chatFila || []).filter((e) => e.para !== donoId);
       this.mudarDonoAmiga(prox);
+      this.guardarAmiga();
+      return this.avisarVirtuaisAmiga();
+    }
+    if (fica) { // ninguém com chave por aqui: segue a vida dele sozinho (caça, vila), sem dono
+      const a = this.amiga;
+      if (a.ia.atividade) this.fimAtividadeAmiga(a, true);
+      if (a.time) this.sairDoTime(a, `${this.AMIGA.nome} saiu do time`);
+      if (a.donoConta) a.amizades[a.donoConta] = a.amizade | 0;
+      a.donoConta = null; a.amizade = 0; this.amigaDono = null;
+      Object.assign(a.ia, { chamado: null, vir: null, combinado: 0, reserva: null, chamaEm: null, fase: 'pensar' });
+      a.ia.chatFila = (a.ia.chatFila || []).filter((e) => e.para !== donoId);
       this.guardarAmiga();
       return this.avisarVirtuaisAmiga();
     }
@@ -149,6 +172,7 @@ export const Amiga = {
   // ---------- o terreno dela ----------
   // o terreno da Cecília; com criar, procura um lugar livre nas Terras da Estrada perto da entrada e reserva no banco
   loteDaAmiga(criar = false) {
+    if (!this.AMIGA.terreno) return null; // aventureiro sem casa (André 2026-11-11): mora na vila do nível dele
     for (const L of this.lotes.values()) if (L.dono === this.AMIGA.conta) return L;
     if (!criar) return null;
     const outros = [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def);
@@ -168,9 +192,11 @@ export const Amiga = {
   },
   // guarda o progresso dela dentro do terreno (vai para o banco em lotesParaSalvar)
   guardarAmiga() {
-    const j = this.amiga, L = this.loteDaAmiga(); if (!j || !L) return;
+    const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    L.amiga = { prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
+    L.amiga = dados;
     this.lotesMudados.add(L.def.id);
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
@@ -183,10 +209,11 @@ export const Amiga = {
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
     // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
-    if (j.morto) { if (!ia.caiu) { ia.caiu = true; if (j.time) this.falarAmiga(this.AMIGA.falas.caiu); this.pocoesAmiga(j); } ia.fase = 'pensar'; return; }
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; if (j.time) this.falarAmiga(this.AMIGA.falas.caiu); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
-    // subiu de nível: põe os pontos metade em força e metade em vitalidade (guerreira)
-    while (j.prog.pontos > 0) this.distribuirAtributo(j.id, j.prog.atr.for <= j.prog.atr.vit ? 'for' : 'vit');
+    // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
+    // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
+    if (j.prog.pontos > 0) this.pontosAmiga(j);
     // conversando: fica parada olhando para o dono
     const dono = this.jogadores.get(this.amigaDono);
     if (ia.conversaAte > this.tempo && dono) {
@@ -207,6 +234,8 @@ export const Amiga = {
     if (j.time && dono && j.time.membros.includes(dono.id)) { ia.noTime = true; return this.passoTimeAmiga(j, dono, dt); }
     if (j.time) this.sairDoTime(j, `${this.AMIGA.nome} saiu do time`); // o dono saiu da sala ou do time: ela não fica com outros
     if (ia.noTime) { ia.noTime = false; ia.viagem = null; j.montado = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 1; if (dono) this.falarAmiga(this.AMIGA.falas.voltou); this.pocoesAmiga(j); }
+    // vida própria (André 2026-11-11): saiu para caçar ou mora sem casa: caça, volta para a vila, descansa
+    if (ia.av || !L) return this.passoSozinhoAmiga(j, dt);
     if (ia.fase === 'andar') return this.andarAmiga(j, dt);
     if (ia.fase === 'trabalhar') {
       if (this.tempo >= ia.golpe) { ia.golpe = this.tempo + ia.ritmo; j.acao = { nome: ia.anim, ts: 1 }; j.acaoSeq++; }
@@ -229,11 +258,121 @@ export const Amiga = {
       if (t && t.c && !madura && !seca) continue;
       return this.irTrabalhar(j, L, { x: ci + 0.5, z: cj + 1.1 }, this.AMIGA.passo.canteiro, 'pouso', 1.6, () => this.cuidarCanteiro(L, c));
     }
-    // 3) tudo em ordem: passeia pela vila (às vezes) ou descansa na porta de casa
+    // 3) tudo em ordem: sai para caçar (vida própria, André 2026-11-11), passeia pela vila ou descansa na porta de casa
+    if (Math.random() < NPC_VIDA.aventura.chance && !ehNoite(horaDoJogo(j.prog.dia))) { ia.av = { fase: 'escolher' }; return; }
     if (Math.random() < 0.5) {
       const [x, z] = sorteia(PASSEIOS);
       this.irPara(j, L, { x: x + Math.random() - 0.5, z: z + Math.random() - 0.5 }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio * (0.5 + Math.random()); });
     } else this.irPara(j, L, { x: L.def.x0 + this.AMIGA.porta[0] + Math.random() * 2 - 1, z: L.def.z0 + this.AMIGA.porta[1] }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio; j.ry = 0; });
+  },
+  // ---------- vida própria (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais) ----------
+  // a vila onde ele mora agora (muda com o nível: NPC_VIDA.moradia); o ponto é espalhado por NPC para não juntar todos
+  moradiaAmiga(j) {
+    let M = NPC_VIDA.moradia[0];
+    for (const m of NPC_VIDA.moradia) if ((j.prog.nivel | 0) >= m.nivel) M = m;
+    let h = 0; for (const c of this.AMIGA.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const a = (h % 360) * Math.PI / 180, r = M.r * (0.35 + ((h >> 9) % 60) / 100);
+    return { ...M, x: M.x + Math.cos(a) * r, z: M.z + Math.sin(a) * r };
+  },
+  // pontos de atributo pelo jeito (gosto pelo cajado): Força, Inteligência e Vitalidade na proporção dele
+  pontosAmiga(j) {
+    const J = CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao, peso = { for: Math.max(0.05, 1 - J.cajado), int: Math.max(0.05, J.cajado), vit: 0.8 };
+    for (let n = 0; j.prog.pontos > 0 && n < 400; n++) {
+      const k = Object.keys(peso).reduce((m, k) => (j.prog.atr[k] / peso[k] < j.prog.atr[m] / peso[m] ? k : m), 'vit');
+      const antes = j.prog.pontos; this.distribuirAtributo(j.id, k); if (j.prog.pontos === antes) break;
+    }
+  },
+  // o tempo em que ninguém jogou: ganha XP devagar (NPC_VIDA.offline), nunca acima do jogador mais alto do servidor
+  offlineAmiga(j, desde) {
+    const O = NPC_VIDA.offline; if (!Number.isFinite(desde)) return 0;
+    const horas = Math.min(O.maxDias * 24, Math.max(0, (Date.now() - desde) / 3600000)) * O.horasPorDia / 24;
+    const n0 = j.prog.nivel;
+    for (let h = horas; h > 0; h -= 1) this.ganharXP(j, Math.round(xpProximo(j.prog.nivel) * O.porHora * Math.min(1, h) / (1 + j.prog.nivel / O.meio)));
+    return j.prog.nivel - n0;
+  },
+  // o campo de caça para o nível dele: entre os que não passam de campoAcima níveis acima, um dos 3 mais altos (sem
+  // boss, sem covil de caverna); sorteado para os NPCs se espalharem
+  campoAmiga(j, fora = null) {
+    const A = NPC_VIDA.aventura, n = j.prog.nivel | 0;
+    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima && !(fora && fora.has(c.id)));
+    ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
+    // entre os 3 do nível dele, o que tem menos NPC caçando (para não juntar todo mundo no mesmo campo)
+    const n0 = (c) => this.amigosIa.filter((x) => x.amiga && x.amiga !== j && x.amiga.ia?.av?.c?.id === c.id).length;
+    const top = ok.slice(0, 3).map((c) => [c, n0(c) + Math.random() * 0.9]).sort((a, b) => a[1] - b[1]);
+    return top.length ? top[0][0] : null;
+  },
+  // o monstro que ele ataca sozinho no campo: o mais perto dele, sem chefe nem boss, até mobAcima níveis acima
+  alvoSozinhoAmiga(j, c) {
+    const A = NPC_VIDA.aventura; let melhor = null, md = Infinity;
+    for (const e of this.inimigosDe(j)) {
+      if (e.treino || e.bm || e.hc || e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe) continue;
+      if ((e.nivel || 1) > (j.prog.nivel | 0) + A.mobAcima || Math.hypot(e.x - c.x, e.z - c.z) > (c.r || 12) + A.raio) continue;
+      const d = Math.hypot(e.x - j.x, e.z - j.z); if (d < md) { md = d; melhor = e; }
+    }
+    return melhor;
+  },
+  // vai até o ponto (estrada e lobo de longe, como quando vem até o dono); true = chegou
+  irLongeAmiga(j, x, z, dt) {
+    const d = Math.hypot(x - j.x, z - j.z);
+    if (this.longeAmiga(j, { x, z, solo: true, montado: null }, d, dt)) return false;
+    if (d > 2) { j.montado = null; this.irDireto(j, x, z, d > 5); return false; }
+    this.pararAmiga(j); j.montado = null; return true;
+  },
+  // A rotina sozinho: escolher -> ir ao campo -> caçar -> voltar para a vila -> vender/consertar/poção -> descansar.
+  // De noite fica na vila. Mochila cheia, sem poção ou fugindo: volta. Quem tem casa (Cecília, Dario) volta para ela.
+  passoSozinhoAmiga(j, dt) {
+    const ia = j.ia, A = NPC_VIDA.aventura, t = this.tempo, av = (ia.av ||= { fase: 'escolher' });
+    if (j.trava > 0) return this.pararAmiga(j);
+    const noite = ehNoite(horaDoJogo(j.prog.dia));
+    const livres = j.prog.mochila.filter((o) => !o).length, temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
+    const voltar = () => { Object.assign(av, { fase: 'voltar', c: null }); ia.viagem = null; };
+    if (av.fase === 'escolher') {
+      if (noite || livres < A.mochilaLivre || !temPocao) return voltar();
+      const c = this.campoAmiga(j, av.fora);
+      if (!c) return voltar();
+      Object.assign(av, { fase: 'ir', c, ate: t + A.cacar[0] + Math.random() * (A.cacar[1] - A.cacar[0]) });
+      ia.viagem = null;
+      return;
+    }
+    if (av.fase === 'ir' || av.fase === 'cacar') {
+      const c = av.c;
+      if (ia.viagem?.bloqueio) { (av.fora ||= new Set()).add(c.id); ia.viagem = null; av.fase = 'escolher'; return; } // outra terra: outro campo
+      if (noite || livres < A.mochilaLivre || t >= av.ate) return voltar();
+      const alvo = this.alvoSozinhoAmiga(j, c);
+      if (av.fase === 'ir') {
+        if (alvo && Math.hypot(alvo.x - j.x, alvo.z - j.z) < 10) av.fase = 'cacar'; // monstro no caminho do campo: briga
+        else { if (this.irLongeAmiga(j, c.x, c.z, dt)) av.fase = 'cacar'; return; }
+      }
+      if (!alvo) { // campo vazio: anda um pouco pelo campo esperando os monstros voltarem
+        if (!av.passeio || Math.hypot(av.passeio.x - j.x, av.passeio.z - j.z) < 1.5) { const a = Math.random() * Math.PI * 2, r = Math.random() * (c.r || 10); av.passeio = { x: c.x + Math.cos(a) * r, z: c.z + Math.sin(a) * r }; }
+        return this.irDireto(j, av.passeio.x, av.passeio.z, false);
+      }
+      j.montado = null;
+      if (this.cerebroAmiga(j, j, alvo)) return;
+      if (ia.cer?.faca === 'fugir') return voltar(); // quase caindo e sem poção: volta para a vila
+      return this.pararAmiga(j);
+    }
+    if (av.fase === 'voltar') {
+      const M = this.moradiaAmiga(j), L = this.loteDaAmiga();
+      const casa = L ? { x: L.def.x0 + this.AMIGA.porta[0], z: L.def.z0 + this.AMIGA.porta[1] } : M;
+      if (!this.irLongeAmiga(j, casa.x, casa.z, dt)) return;
+      // na vila: vende o que não usa, conserta no Tomás e compra poção na Rosa (com o ouro dele)
+      this.arrumarMochilaAmiga(j); this.pocoesAmiga(j);
+      Object.assign(av, { fase: 'descansar', ate: t + A.descanso[0] + Math.random() * (A.descanso[1] - A.descanso[0]) });
+      return;
+    }
+    if (av.fase === 'descansar') {
+      if (t < av.ate || noite) { // passeia devagar pela vila (de noite fica por ali até o dia)
+        const M = this.moradiaAmiga(j);
+        if (!av.passeio || Math.hypot(av.passeio.x - j.x, av.passeio.z - j.z) < 1) {
+          if (Math.random() < 0.02) { const a = Math.random() * Math.PI * 2, r = Math.random() * M.r * 0.6; av.passeio = { x: M.x + Math.cos(a) * r, z: M.z + Math.sin(a) * r }; }
+          return this.pararAmiga(j);
+        }
+        return this.irDireto(j, av.passeio.x, av.passeio.z, false);
+      }
+      if (this.loteDaAmiga()) { ia.av = null; ia.fase = 'pensar'; return; } // quem tem casa volta para a rotina dela
+      ia.av = { fase: 'escolher', fora: av.fora };
+    }
   },
   pararAmiga(j) { j.entrada = { mx: 0, mz: 0, correr: false }; },
   // onde ela fica em pé para pôr a peça: do lado de dentro da casa (a parede da frente, pelo lado de fora)
@@ -415,7 +554,7 @@ export const Amiga = {
     if (T.membros.length >= TIME.max) return false;
     T.membros.push(a.id); a.time = T;
     for (const k of T.membros) if (k !== a.id) this.evento({ t: 'aviso', para: k, texto: `${this.AMIGA.nome} entrou no time` });
-    Object.assign(a.ia, { fase: 'seguir', chegou: null, preso: 0, noTime: true });
+    Object.assign(a.ia, { fase: 'seguir', chegou: null, preso: 0, noTime: true, av: null, viagem: null });
     this.mudouTime(T);
     return true;
   },
@@ -618,11 +757,11 @@ export const Amiga = {
     if (!v || (this.tempo >= v.novaEm && Math.hypot(v.fx - dono.x, v.fz - dono.z) > (v.bloqueio ? 2 : V.replanejar))) {
       const r = planejarRota(this.mapa, j, dono), aviso = !v && !!dono && this.tempo >= (ia.avisoViagem || 0);
       if (r.bloqueio) {
-        if (!v?.bloqueio) this.dizerAmiga(sorteia(this.AMIGA.chat.falas.outraTerra));
+        if (!v?.bloqueio && !dono.solo) this.dizerAmiga(sorteia(this.AMIGA.chat.falas.outraTerra));
         ia.viagem = { bloqueio: r.bloqueio, fx: dono.x, fz: dono.z, novaEm: this.tempo + 5 };
         j.montado = null; this.pararAmiga(j); return true;
       }
-      if (aviso && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; this.dizerAmiga(sorteia(this.AMIGA.chat.falas.aCaminho)); }
+      if (aviso && !dono.solo && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; this.dizerAmiga(sorteia(this.AMIGA.chat.falas.aCaminho)); }
       v = ia.viagem = { rota: r.pontos, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1 };
       // a chamada pelo chat espera o tempo da viagem (lobo no galope + folga)
       if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + r.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
