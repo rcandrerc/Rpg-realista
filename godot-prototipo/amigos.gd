@@ -212,6 +212,12 @@ func montar_janela(mt) -> void:
 				linha.add_child(_pequeno(mt._botao("Tirar do time", func(): m.rede("time", {"acao": "expulsar", "com": id}), false), 130))
 			col.add_child(linha)
 			linhas += 1
+		if m.chat: # chat de time (André 2026-11-11): falar com todos de uma vez
+			var bc: Button = mt._botao("Falar com o time", func(): m.chat.abrir_time(), false)
+			bc.custom_minimum_size = Vector2(0, 38)
+			bc.add_theme_color_override("font_color", COR_TIME)
+			col.add_child(bc)
+			linhas += 1
 		var bs: Button = mt._botao("Sair do time", func(): m.rede("time", {"acao": "sair"}), false)
 		bs.custom_minimum_size = Vector2(0, 38)
 		col.add_child(bs)
