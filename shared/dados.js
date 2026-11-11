@@ -2368,6 +2368,7 @@ export const CEREBRO = {
     { id: 'curaSi', pri: 95, quando: [['vida', '<', '$limCuraSi'], ['curaPronta', '=', true], ['pocaoPronta', '=', false]], faca: 'curarSi', texto: 'usar Cura em si quando a poção está recarregando' },
     { id: 'curaAliado', pri: 90, quando: [['aliadoVida', '<', '$limCura'], ['aliadoPerto', '=', true], ['curaPronta', '=', true]], faca: 'curarAliado', texto: 'curar aliado que está mal' },
     { id: 'fugir', pri: 85, quando: [['vida', '<', '$limFugir'], ['temPocao', '=', false]], faca: 'fugir', texto: 'sem poção e quase caindo: correr para perto do dono' },
+    { id: 'sairDaArea', pri: 82, quando: [['naAreaDePerigo', '=', true]], faca: 'sairDaArea', texto: 'sair da área marcada no chão (skill de boss, poça)' },
     { id: 'recuarChefe', pri: 80, quando: [['preparando', '=', true], ['preparoChefe', '=', true]], faca: 'recuar', texto: 'sair da frente do golpe carregado do chefe' },
     { id: 'recuarFraca', pri: 75, quando: [['preparando', '=', true], ['vida', '<', '$limRecuar']], faca: 'recuar', texto: 'sair da frente do golpe carregado com pouca vida' },
     { id: 'proteger', pri: 60, quando: [['aliadoApanhando', '=', true], ['apanhandoVida', '<', '$limProteger']], faca: 'proteger', texto: 'ir no monstro que bate no aliado' },

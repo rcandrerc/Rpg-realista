@@ -71,3 +71,13 @@ const t0 = performance.now();
 for (let i = 0; i < 4000; i++) { a.ia.cerT = 0; a.ia.cer = null; s.cerebroAmiga(a, d, e); }
 const ms = (performance.now() - t0) / 4000;
 ok(ms < 0.2, `uma decisão custa ${ms.toFixed(4)} ms (40 NPCs x 4 por s = ${(ms * 160).toFixed(2)} ms por s)`);
+// área marcada no chão de um boss de mundo: sai correndo do círculo
+{
+  a.ia.cer = null; a.ia.cerT = 0; a.trava = 0; e.preparoAte = 0;
+  e.perigo = { formas: [{ f: 'c', x: a.x + 0.5, z: a.z, r: 3 }], ate: s.tempo + 2 };
+  const F = e.perigo.formas[0];
+  for (let i = 0; i < 40; i++) { d.combateAte = s.tempo + 60; s.passo(0.05); }
+  ok(!s.dentroDaForma(F, a), `saiu da área do boss (a ${Math.hypot(a.x - F.x, a.z - F.z).toFixed(1)} m do meio, raio ${F.r})`);
+  e.perigo = null;
+  ok(decidir({ ...base, naAreaDePerigo: true, vida: 0.3 }, R)?.faca === 'pocao' && decidir({ ...base, naAreaDePerigo: true, preparando: true, preparoChefe: true }, R)?.faca === 'sairDaArea', 'área no chão vem antes de recuar; poção antes de tudo');
+}

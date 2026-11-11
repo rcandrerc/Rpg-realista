@@ -475,6 +475,11 @@ export const Amiga = {
     // monstro com o braço levantado (preparo do golpe) vindo nela
     const prep = inimigos.find((e) => e.preparoAte > t && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < C.preparoPerto);
     s.preparando = !!prep; s.preparoChefe = !!prep && !!(e => e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe || e.hc)(prep);
+    // área marcada no chão (skill de boss de mundo com aviso, ou poça que fica): sai dela como um jogador atento
+    let area = null;
+    for (const e of inimigos) if (e.perigo?.ate > t) { const F = e.perigo.formas.find((F) => this.dentroDaForma(F, j)); if (F) { area = { F, bx: e.x, bz: e.z }; break; } }
+    if (!area) for (const f of this.camposBoss || []) if (Math.hypot(f.x - j.x, f.z - j.z) <= f.r + 0.3) { area = { F: { f: 'c', x: f.x, z: f.z, r: f.r } }; break; }
+    s.naAreaDePerigo = !!area;
     s.temAlvo = !!alvo; s.distAlvo = alvo ? Math.hypot(alvo.x - j.x, alvo.z - j.z) : 99;
     s.pertoDeMim = 0; s.agrupados = 0;
     for (const e of inimigos) {
@@ -482,7 +487,7 @@ export const Amiga = {
       if (Math.hypot(e.x - j.x, e.z - j.z) < 3) s.pertoDeMim++;
       if (alvo && Math.hypot(e.x - alvo.x, e.z - alvo.z) < C.agrupados) s.agrupados++;
     }
-    return { s, jeito, mal, bate, prep };
+    return { s, jeito, mal, bate, prep, area };
   },
   // Decide (CEREBRO.pensar vezes por segundo) e executa. true = já cuidou do passo; false = segue o resto (coleta, seguir).
   cerebroAmiga(j, dono, alvo) {
@@ -492,7 +497,7 @@ export const Amiga = {
     if (t >= ia.cerT && !(c && c.ate > t)) {
       ia.cerT = t + 1 / C.pensar;
       const v = this.sentidosAmiga(j, dono, alvo), r = decidir(v.s, ia.regrasOrd ||= ordenarRegras(C.regras));
-      c = ia.cer = r ? { faca: r.faca, id: r.id, ate: 0, s: v.s, jeito: v.jeito, aliado: v.mal?.id, alvo: (r.faca === 'proteger' ? v.bate : alvo)?.id, de: v.prep?.id } : null;
+      c = ia.cer = r ? { faca: r.faca, id: r.id, ate: 0, s: v.s, jeito: v.jeito, aliado: v.mal?.id, alvo: (r.faca === 'proteger' ? v.bate : alvo)?.id, de: v.prep?.id, area: v.area } : null;
       if (c?.faca === 'recuar') c.ate = t + C.recuar;
       if (c?.faca === 'pocao') { // uma vez: bebe e pensa de novo no próximo tick
         const i = j.prog.mochila.findIndex((o) => o?.k === 'pocao');
@@ -515,6 +520,14 @@ export const Amiga = {
       const e = achar(c.de); if (!e || c.ate <= t) { ia.cer = null; return !!e; }
       const dx = j.x - e.x, dz = j.z - e.z, d = Math.hypot(dx, dz) || 1;
       j.entrada = { mx: dx / d, mz: dz / d, correr: true }; return true;
+    }
+    if (c.faca === 'sairDaArea') { // corre para fora: círculo = para longe do meio; linha = para o lado; cone = para longe do boss
+      const { F, bx, bz } = c.area;
+      if (!this.dentroDaForma(F, j)) { c.fora = (c.fora || 0) + 1; if (c.fora > 6) { ia.cer = null; return false; } } // um passinho a mais e pensa de novo
+      let mx, mz;
+      if (F.f === 'l') { const fx = Math.sin(F.ry), fz = Math.cos(F.ry), lado = (j.x - F.x) * fz - (j.z - F.z) * fx >= 0 ? 1 : -1; mx = fz * lado; mz = -fx * lado; }
+      else { const cx = F.f === 'v' ? bx ?? F.x : F.x, cz = F.f === 'v' ? bz ?? F.z : F.z, dx = j.x - cx, dz = j.z - cz, d = Math.hypot(dx, dz); if (d < 0.1) { mx = Math.sin(j.ry + Math.PI / 2); mz = Math.cos(j.ry + Math.PI / 2); } else { mx = dx / d; mz = dz / d; } }
+      c.ate = t + 0.5; j.entrada = { mx, mz, correr: true }; return true;
     }
     const e = c.faca === 'proteger' ? achar(c.alvo) || alvo : alvo;
     if (!e) { ia.cer = null; return false; }

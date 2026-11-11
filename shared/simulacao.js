@@ -3855,6 +3855,7 @@ export class Simulacao {
     if (sk.k === 'voo' || sk.k === 'sumir') b.voando = true; // no ar (ou sumido): ninguém acerta
     b.trava = sk.aviso + 0.5; b.acao = null; b.anim = A.swordIdle;
     this.evento({ t: 'bossSkill', id: b.id, k: sk.k, nome: sk.nome, dur: sk.aviso, formas, ef: this.corDoEfeito(sk.ef), fica: sk.fica || 0 });
+    b.perigo = { formas, ate: this.tempo + sk.aviso }; // o cérebro dos NPCs (shared/cerebro.js) vê a área marcada no chão e sai dela
     this.evento({ t: 'preparo', id: b.id, dur: sk.aviso });
     this.depois(sk.aviso, () => {
       if (b.morto || b.skillSeq !== seq) return;
