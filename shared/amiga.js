@@ -40,6 +40,28 @@ function pecaDaCasa(def, c) {
 const chavePeca = (p) => `${p.k}:${p.x},${p.z}`;
 const mesmaPeca = (a, b) => a.k === b.k && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.z - b.z) < 0.01 && (a.r & 1) === (b.r & 1);
 
+// lições da morte vindas do banco: só números dentro do máximo (CEREBRO.morte.max)
+export function licoesValidas(o) {
+  const M = CEREBRO.morte, L = {};
+  if (!o || typeof o !== 'object') return L;
+  for (const q of Object.keys(M.max)) if (Number.isFinite(o[q]) && o[q] > 0) L[q] = Math.min(M.max[q], o[q]);
+  if (Number.isFinite(o.mortes) && o.mortes > 0) L.mortes = o.mortes | 0;
+  if (o.ultima && typeof o.ultima === 'object') L.ultima = { de: String(o.ultima.de || '').slice(0, 40), nivel: +o.ultima.nivel || 0, t: +o.ultima.t || 0 };
+  return L;
+}
+
+// as lições em frases curtas (vão na ficha da conversa: o NPC sabe dizer o que aprendeu caindo)
+export function textoLicoes(L) {
+  if (!L) return [];
+  const t = [];
+  if (L.pocao) t.push('aprendi caindo: beber poção mais cedo');
+  if (L.pocoes) t.push(`aprendi caindo: levar ${L.pocoes} poção a mais`);
+  if (L.acima) t.push(`aprendi caindo: caçar monstro até ${L.acima} nível mais baixo que antes`);
+  if (L.fugir) t.push('aprendi caindo: sair antes de ficar cercado');
+  if (L.recuar) t.push('aprendi caindo: recuar mais cedo do golpe carregado e da marca no chão');
+  return t;
+}
+
 export const Amiga = {
   // ---------- entra e sai junto com o dono ----------
   // o servidor chama quando o dono entra na sala (contas de teste do André; sem contas, o primeiro que entra)
@@ -85,6 +107,7 @@ export const Amiga = {
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
       // dicas que viraram regra do cérebro (entrega 2, André 2026-11-11): valem para todo mundo; o banco é conferido de novo
       j.dicas = Array.isArray(salvo.dicas) ? salvo.dicas.map((d) => validarRegra(d, CEREBRO)).filter(Boolean).slice(-CEREBRO.dicas.max) : [];
+      j.licoes = licoesValidas(salvo.licoes); // o que aprendeu caindo (entrega 4)
       j.amizadeAntiga = salvo.amizades ? salvo.antiga ?? null : salvo.amizade | 0; // save de antes de 2026-11-10: a amizade era do André (conta de teste)
       j.pedido = salvo.pedido && ITENS[salvo.pedido.k] ? { k: salvo.pedido.k, n: salvo.pedido.n | 0 } : null;
       j.amigaAntes = antes;
@@ -194,7 +217,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -209,11 +232,12 @@ export const Amiga = {
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
     // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
-    if (j.morto) { if (!ia.caiu) { ia.caiu = true; if (j.time) this.falarAmiga(this.AMIGA.falas.caiu); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
     if (j.prog.pontos > 0) this.pontosAmiga(j);
+    if ((j.prog.nivel | 0) > (ia.nivelVisto ??= j.prog.nivel | 0)) { this.esquecerMorteAmiga(j, (j.prog.nivel | 0) - ia.nivelVisto); ia.nivelVisto = j.prog.nivel | 0; }
     // conversando: fica parada olhando para o dono
     const dono = this.jogadores.get(this.amigaDono);
     if (ia.conversaAte > this.tempo && dono) {
@@ -294,7 +318,7 @@ export const Amiga = {
   // boss, sem covil de caverna); sorteado para os NPCs se espalharem
   campoAmiga(j, fora = null) {
     const A = NPC_VIDA.aventura, n = j.prog.nivel | 0;
-    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima && !(fora && fora.has(c.id)));
+    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)));
     ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
     // entre os 3 do nível dele, o que tem menos NPC caçando (para não juntar todo mundo no mesmo campo)
     const n0 = (c) => this.amigosIa.filter((x) => x.amiga && x.amiga !== j && x.amiga.ia?.av?.c?.id === c.id).length;
@@ -306,7 +330,7 @@ export const Amiga = {
     const A = NPC_VIDA.aventura; let melhor = null, md = Infinity;
     for (const e of this.inimigosDe(j)) {
       if (e.treino || e.bm || e.hc || e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe) continue;
-      if ((e.nivel || 1) > (j.prog.nivel | 0) + A.mobAcima || Math.hypot(e.x - c.x, e.z - c.z) > (c.r || 12) + A.raio) continue;
+      if ((e.nivel || 1) > (j.prog.nivel | 0) + A.mobAcima - (j.licoes?.acima || 0) || Math.hypot(e.x - c.x, e.z - c.z) > (c.r || 12) + A.raio) continue;
       const d = Math.hypot(e.x - j.x, e.z - j.z); if (d < md) { md = d; melhor = e; }
     }
     return melhor;
@@ -516,7 +540,7 @@ export const Amiga = {
   pocoesAmiga(j) { // compra na Rosa com o ouro dela, pelo preço da loja (André 2026-11-09: nada de poção de graça)
     this.consertoAmiga(j); // antes da poção: equipamento gasto passa no Tomás
     const preco = ITENS.pocao.preco || 15;
-    const falta = Math.min(this.AMIGA.time.pocoes - contar(j.prog.mochila, 'pocao'), Math.floor(j.prog.ouro / preco));
+    const falta = Math.min(this.AMIGA.time.pocoes + (j.licoes?.pocoes || 0) - contar(j.prog.mochila, 'pocao'), Math.floor(j.prog.ouro / preco));
     if (falta > 0 && guardar(j.prog.mochila, { k: 'pocao', n: falta })) j.prog.ouro -= falta * preco;
   },
   // conserto (André 2026-11-11: "reparar sozinho com gold deles"): quando volta para casa ou cai, leva o que está gasto ao
@@ -593,11 +617,42 @@ export const Amiga = {
     this.irDireto(j, px, pz, dp > R.correr || !!dono.montado);
   },
   // ---------- cérebro por regras (André 2026-11-11: "eles agem muito robozão"; estilo bots do WoW) ----------
+  // ---------- aprender com a morte (entrega 4, André 2026-11-11; sem IA) ----------
+  // Caiu: olha o que viu na última decisão (ia.cer.s) e quem deu o último golpe (j.golpeDe) e mexe nos próprios limites
+  // (CEREBRO.morte). Devolve a frase do que aprendeu (ela fala se estiver no time).
+  aprenderMorteAmiga(j) {
+    const M = CEREBRO.morte, L = (j.licoes ||= {}), s = j.ia.ultS || {}, k = j.golpeDe, n = j.prog.nivel | 0;
+    const soma = (q) => { const v = Math.min(M.max[q], (L[q] || 0) + M.passo[q]); const mudou = v > (L[q] || 0); L[q] = Math.round(v * 100) / 100; return mudou; };
+    const chefe = !!k && !!(k.tipo === 'chefe' || TIPOS_INIMIGO[k.tipo]?.chefe || k.hc || k.bm);
+    const aprendeu = [];
+    if (contar(j.prog.mochila, 'pocao') > 0) { if (soma('pocao')) aprendeu.push('pocao'); } // morreu com poção sobrando
+    else if (soma('pocoes')) aprendeu.push('pocoes'); // acabou a poção: leva mais
+    if (k && !chefe && (k.nivel || 1) - n >= M.acima && soma('acima')) aprendeu.push('acima');
+    if ((s.pertoDeMim || 0) >= M.cercado && soma('fugir')) aprendeu.push('fugir');
+    if ((chefe || s.preparoChefe || s.naAreaDePerigo) && soma('recuar')) aprendeu.push('recuar');
+    L.mortes = (L.mortes | 0) + 1;
+    L.ultima = { de: k ? String(TIPOS_INIMIGO[k.tipo]?.nome || k.tipo || '') : '', nivel: k?.nivel || 0, t: Date.now() };
+    j.golpeDe = null; j.ia.regrasOrd = null;
+    // a lição que mais pesou primeiro (o golpe de chefe e o monstro forte explicam mais que a poção)
+    const ordem = ['acima', 'recuar', 'fugir', 'pocoes', 'pocao'], f = ordem.find((q) => aprendeu.includes(q));
+    return M.falas[f || 'nada'];
+  },
+  // subiu de nível: a lição perde um pedaço (CEREBRO.morte.esquece por nível); o 'acima' volta um nível por vez
+  esquecerMorteAmiga(j, niveis = 1) {
+    const M = CEREBRO.morte, L = j.licoes; if (!L) return;
+    for (let i = 0; i < niveis; i++) for (const q of Object.keys(M.max)) {
+      if (!L[q]) continue;
+      L[q] = q === 'acima' || q === 'pocoes' ? Math.max(0, L[q] - 1) : Math.floor(L[q] * (1 - M.esquece) * 100) / 100;
+      if (L[q] < 0.01) delete L[q];
+    }
+  },
   // O que ela enxerga agora (os sentidos que as regras de CEREBRO.regras leem). alvo = o monstro do alvoAmiga.
   sentidosAmiga(j, dono, alvo) {
     const C = CEREBRO, R = this.AMIGA.time, J = this.AMIGA.justa, ia = j.ia, t = this.tempo;
     const jeito = C.jeitos[this.AMIGA.id] || C.jeitos.padrao;
-    const s = limites(jeito, { pocao: this.regraAmiga('pocao') ?? R.pocao, curaDono: this.regraAmiga('curaDono') ?? J.curaDono, curaVida: J.curaVida, fugir: R.fugir });
+    const Li = j.licoes || {}; // o que aprendeu caindo: bebe, foge e recua mais cedo
+    const s = limites(jeito, { pocao: Math.min(0.95, (this.regraAmiga('pocao') ?? R.pocao) + (Li.pocao || 0)), curaDono: this.regraAmiga('curaDono') ?? J.curaDono, curaVida: J.curaVida, fugir: Math.min(0.9, R.fugir + (Li.fugir || 0)) });
+    s.limRecuar = Math.min(0.95, s.limRecuar + (Li.recuar || 0));
     s.vida = j.vida / j.vidaMax; s.mana = j.mana / (j.manaMax || 1);
     s.temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
     s.pocaoPronta = (ia.pocaoT || 0) <= t && (j.pocaoAte?.pocao || 0) <= t;
@@ -640,7 +695,7 @@ export const Amiga = {
     let c = ia.cer;
     if (t >= ia.cerT && !(c && c.ate > t)) {
       ia.cerT = t + 1 / C.pensar;
-      const v = this.sentidosAmiga(j, dono, alvo), r = decidir(v.s, ia.regrasOrd ||= ordenarRegras([...C.regras, ...(j.dicas || [])]));
+      const v = this.sentidosAmiga(j, dono, alvo); ia.ultS = v.s; const r = decidir(v.s, ia.regrasOrd ||= ordenarRegras([...C.regras, ...(j.dicas || [])]));
       c = ia.cer = r ? { faca: r.faca, id: r.id, ate: 0, s: v.s, jeito: v.jeito, aliado: v.mal?.id, alvo: (r.faca === 'proteger' ? v.bate : alvo)?.id, de: v.prep?.id, area: v.area } : null;
       if (c?.faca === 'recuar') { c.ate = t + (r.pri === undefined || !r.id.startsWith('dica') ? C.recuar : r.por); if (!c.de && alvo) c.de = alvo.id; } // dica: recua do alvo pelo tempo dela
       if (c?.faca === 'usarCajado' || c?.faca === 'usarEspada') { ia.armaForcada = { modo: c.faca === 'usarCajado' ? 'Magia' : 'Espada', ate: t + Math.max(r.por || 0, C.trocaMin) }; c.faca = 'atacar'; }
@@ -842,7 +897,7 @@ export const Amiga = {
       conversa: this.chatDeAmiga(j).slice(-8),
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
-      regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto)],
+      regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],
     };
   },
   // a resposta: r = { assunto } (regras) ou { assunto: ação da IA, fala } (IA). Faz a ação e responde.

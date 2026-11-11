@@ -449,7 +449,7 @@ func aplicar_foto(f: Dictionary) -> void:
 		jogadores = int(f.get("total", jogadores))
 	for id in outros.keys():
 		if not vistos.has(id):
-			outros[id].no.queue_free()
+			_soltar_corpo(outros[id])
 			outros.erase(id)
 	var com_corpo := {}
 	for e0 in f.get("inimigos", []):
@@ -553,22 +553,38 @@ func outro(j: Dictionary) -> void:
 		outros.erase(id)
 		o = null
 	if o == null:
-		var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
-		var esq: Skeleton3D = m.esqueleto(no)
-		var esp: Node3D = m.nova_arma("espada")
-		var caj: Node3D = m.nova_arma("cajado")
-		o = {"no": no, "visual": vis, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
-			"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
-		no.position = o.alvo
-		o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
-		o.placa = null
-		for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
-			if f is Label3D:
-				o.placa = f
-				break
-		o.placa_txt = ""
-		o.ap = ""
-		outros[id] = o
+		# NPC que já passou por aqui (André 2026-11-11, os 20 aventureiros): reaproveita o corpo guardado em vez de montar
+		# um VRoid novo (montar dava um tranco de quase 1 s no celular toda vez que um NPC entrava na visão)
+		var g = _tirar_guardado(vis) if j.has("bot") else null
+		if g != null:
+			o = {"no": g.no, "visual": vis, "anim": g.anim, "esq": g.esq, "espada": g.espada, "cajado": g.cajado,
+				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0,
+				"barra": g.barra, "placa": g.placa, "placa_txt": "", "ap": "", "lod": -1, "molas": g.get("molas", []), "fase": g.get("fase", 0)}
+			g.no.position = o.alvo
+			g.no.visible = true
+			g.no.process_mode = Node.PROCESS_MODE_INHERIT
+			outros[id] = o
+			_detalhe_t = 0.0 # acerta o detalhe dele já no próximo quadro
+		else:
+			var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
+			var esq: Skeleton3D = m.esqueleto(no)
+			var esp: Node3D = m.nova_arma("espada")
+			var caj: Node3D = m.nova_arma("cajado")
+			o = {"no": no, "visual": vis, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
+				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
+			no.position = o.alvo
+			o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
+			o.placa = null
+			for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
+				if f is Label3D:
+					o.placa = f
+					break
+			o.placa_txt = ""
+			o.ap = ""
+			o.lod = -1
+			o.molas = _molas_de(esq)
+			o.fase = randi() % 6
+			outros[id] = o
 	var antes: Vector3 = o.alvo
 	var ap_txt := JSON.stringify(j.get("aparencia"))
 	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
@@ -592,6 +608,7 @@ func outro(j: Dictionary) -> void:
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
+		o.lod = -1 # peça nova vem com sombra e contorno: o detalhe por distância confere de novo
 	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
 	if roupa.contains("capa") and mexeu:
 		m.Armadura.vento(o.no, Vector2(o.alvo.x - antes.x, o.alvo.z - antes.z).length() * 20.0, 0.05)
@@ -1142,6 +1159,86 @@ func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
 		no.position = no.position.lerp(p, min(1.0, dt * 25.0))
 	no.rotation.y = lerp_angle(no.rotation.y, lerp_angle(a[2], b[2], u), min(1.0, dt * 15.0))
 
+# ---------- muitos personagens na tela (André 2026-11-11: os 20 aventureiros travavam a vila) ----------
+# Cada corpo VRoid perto custava sombra, contorno, cabelo com mola e animação cheia, e era montado do zero toda vez que
+# entrava na visão. Agora: só os DETALHE_MAX mais perto (até DETALHE_PERTO m) ficam com tudo; os outros ficam sem
+# sombra, sem contorno e sem mola (como os NPCs da vila de longe), e a animação deles anda a cada 2 quadros (até
+# ANIM_LONGE m) ou 3 quadros (mais longe). O corpo do NPC que sai da visão fica guardado para voltar sem tranco.
+const DETALHE_MAX := 4
+const DETALHE_PERTO := 15.0
+const ANIM_LONGE := 25.0
+const GUARDADOS_MAX := 10 # corpos de NPC guardados escondidos (por corpo do criador)
+var _guardados := {} # visual -> [o]
+var _detalhe_t := 0.0
+var _quadro := 0
+
+func _molas_de(esq: Skeleton3D) -> Array:
+	var l := []
+	if esq != null:
+		for c in esq.get_children():
+			if c is SpringBoneSimulator3D:
+				l.append(c)
+	return l
+
+func _detalhe_outros(dt: float) -> void:
+	_quadro += 1
+	_detalhe_t -= dt
+	if _detalhe_t > 0.0 or m.heroi == null:
+		return
+	_detalhe_t = 0.25
+	var hp: Vector3 = m.heroi.position
+	var lista := []
+	for id in outros:
+		lista.append([outros[id].no.position.distance_squared_to(hp), id])
+	lista.sort_custom(func(a, b): return a[0] < b[0])
+	for k in lista.size():
+		var o: Dictionary = outros[lista[k][1]]
+		var d2: float = lista[k][0]
+		var perto: float = DETALHE_PERTO + (2.0 if int(o.get("lod", -1)) == 2 else 0.0) # não pisca no limite
+		var anim_l: float = ANIM_LONGE + (3.0 if int(o.get("lod", -1)) >= 1 else 0.0)
+		var nivel := 2 if k < DETALHE_MAX and d2 < perto * perto else (1 if d2 < anim_l * anim_l else 0)
+		if nivel != int(o.get("lod", -1)):
+			_aplicar_detalhe(o, nivel)
+
+func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
+	var antes := int(o.get("lod", -1))
+	o.lod = nivel
+	var cheio := nivel == 2
+	if antes == -1 or (antes == 2) != cheio:
+		m.npc_simples(o.no, not cheio)
+		for mo in o.get("molas", []):
+			if is_instance_valid(mo):
+				mo.active = cheio
+	o.anim_passo = [3, 2, 1][nivel]
+	if o.anim:
+		o.anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE if cheio else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	o.anim_acc = 0.0
+
+# saiu da visão: o corpo de NPC fica escondido e parado para ser reaproveitado; o de jogador vai embora como antes
+func _soltar_corpo(o: Dictionary) -> void:
+	if o.get("montaria") != null:
+		o.montaria.remover()
+		o.montaria = null
+	var l: Array = _guardados.get(o.visual, [])
+	if not o.get("bot", false) or l.size() >= GUARDADOS_MAX or not is_instance_valid(o.no):
+		if is_instance_valid(o.no):
+			o.no.queue_free()
+		return
+	if o.has("esq_y0") and o.esq:
+		o.esq.position.y = float(o.esq_y0)
+	o.no.visible = false
+	o.no.process_mode = Node.PROCESS_MODE_DISABLED
+	l.append(o)
+	_guardados[o.visual] = l
+
+func _tirar_guardado(vis: String):
+	var l: Array = _guardados.get(vis, [])
+	while not l.is_empty():
+		var g = l.pop_back()
+		if is_instance_valid(g.no):
+			return g
+	return null
+
 # ---------- quadro a quadro ----------
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
@@ -1179,10 +1276,17 @@ func _passo(dt: float) -> void:
 	# animação mais lenta). Antes eles ficavam para trás durante a câmera lenta e davam um salto quando ela acabava,
 	# porque o servidor não para.
 	var dt_pos: float = dt / max(Engine.time_scale, 0.001)
+	_detalhe_outros(dt)
 	for id in outros:
 		var o: Dictionary = outros[id]
 		var antes: Vector3 = o.no.position
 		_interpolar(o, o.no, dt_pos)
+		var passo: int = o.get("anim_passo", 1)
+		if passo > 1 and o.anim: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
+			o.anim_acc = float(o.get("anim_acc", 0.0)) + dt
+			if (_quadro + int(o.get("fase", 0))) % passo == 0:
+				o.anim.advance(o.anim_acc)
+				o.anim_acc = 0.0
 		if o.has("sobe_alvo") and o.esq: # nadando: o corpo sobe como o do herói (main.gd SOBE_*)
 			o.sobe = move_toward(float(o.get("sobe", 0.0)), float(o.sobe_alvo), dt_pos * 0.6)
 			if not o.has("esq_y0"):
