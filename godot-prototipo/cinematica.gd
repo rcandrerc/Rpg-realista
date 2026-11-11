@@ -26,6 +26,7 @@ var _escondidos: Array = []
 var _deitado := false
 var _levantando := -1.0
 var _novo_levantar := false
+var _fx_tomada := -1
 const SENTA_FADE := 1.1 # s da passagem de deitada para sentada
 const SENTA_ATE := 2.0 # s sentada tonta antes de apoiar as mãos
 const LEVANTA_RITMO := 0.6 # velocidade da animação de levantar (mais lenta, ainda zonza)
@@ -125,6 +126,7 @@ func tocar(id: String) -> void:
 	_saindo = false
 	_i = 0
 	_t = 0.0
+	_fx_tomada = -1
 	_k = 0.0
 	_ultima = {}
 	_fala_t = 0.0
@@ -195,10 +197,15 @@ func heroi(dt: float) -> void:
 					n.ry0 = n.no.rotation.y
 				n.no.rotation.y = lerp_angle(n.no.rotation.y, alvo, min(1.0, dt * 3.0))
 
-func _ponto(v, rel: bool) -> Vector3:
+# rel false: ponto do mundo (só a altura segue o herói); true: perto do herói; "heroi": perto do herói e girado com ele
+# (z para a frente dele), para a cena que toca onde o herói estiver olhando para qualquer lado
+func _ponto(v, rel) -> Vector3:
 	var b: Vector3 = m.heroi.position
 	var p := Vector3(float(v[0]), float(v[1]), float(v[2]))
-	return Vector3((b.x if rel else 0.0) + p.x, b.y + p.y, (b.z if rel else 0.0) + p.z)
+	if rel is String:
+		p = p.rotated(Vector3.UP, m.mov.ry)
+	var perto: bool = rel is String or rel == true
+	return Vector3((b.x if perto else 0.0) + p.x, b.y + p.y, (b.z if perto else 0.0) + p.z)
 
 func _mostrar_fala(tm: Dictionary) -> void:
 	var f = tm.get("fala")
@@ -240,7 +247,22 @@ func camera(dt: float) -> void:
 		_fala.visible_ratio = clamp(_fala_t / max(0.35, _fala.text.length() * 0.028), 0.0, 1.0)
 	# saindo do preto no começo da tomada
 	var preto: float = float(tm.get("preto", 0.0))
-	_preto.color.a = 1.0 - clamp(_t / preto, 0.0, 1.0) if preto > 0.0 else 0.0
+	var branco: float = float(tm.get("branco", 0.0)) # memória: a tela some no branco e a legenda conta
+	if branco > 0.0:
+		# entre duas tomadas brancas a tela segue branca (sem piscar)
+		var antes_b: bool = _i > 0 and float(_tomadas[_i - 1].get("branco", 0.0)) > 0.0
+		var depois_b: bool = _i + 1 < _tomadas.size() and float(_tomadas[_i + 1].get("branco", 0.0)) > 0.0
+		var k_b: float = min(1.0 if antes_b else _t / branco, 1.0 if depois_b else (d - _t) / branco)
+		_preto.color = Color(0.97, 0.96, 1.0, clamp(k_b, 0.0, 1.0))
+	else:
+		_preto.color = Color(0, 0, 0, 1.0 - clamp(_t / preto, 0.0, 1.0) if preto > 0.0 else 0.0)
+	if tm.has("fx") and _fx_tomada != _i: # brilho na mão do herói (fragmento, selo, chave)
+		_fx_tomada = _i
+		if m.fx:
+			var h: Vector3 = m.heroi.position
+			m.fx.surto(h.x, h.y + 0.9, h.z, 22, "e8d8ff", "b48cff", 2.2, 0.1)
+		if m.sons:
+			m.sons.tocar("q_anel_1", -10.0)
 	if str(tm.get("acao", "")) == "levantar" and _deitado and _levantando < 0.0 and _t < 0.5:
 		_deitado = false
 		_levantando = 0.0
@@ -252,7 +274,7 @@ func camera(dt: float) -> void:
 			var dur: float = m.heroi_anim.get_animation("morrer").length
 			m.heroi_anim.play("morrer", 0.0, -dur / (d * 0.85)) # a queda ao contrário: levanta (troca para a parada antes do começo)
 			m.heroi_anim.seek(dur * 0.97)
-	var rel := bool(tm.get("rel", false))
+	var rel = tm.get("rel", false)
 	var s: float = smoothstep(0.0, 1.0, clamp(_t / d, 0.0, 1.0))
 	var de: Dictionary = tm.get("de", {})
 	var para: Dictionary = tm.get("para", de)

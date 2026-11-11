@@ -45,6 +45,14 @@ ok(historiaParaApp().cenas === CENAS, 'app recebe as cenas');
   ok(r && e0.some((e) => e.t === 'cena' && e.para === 'N' && e.id === 'acordar'), 'criou o personagem: cena da abertura');
   ok(Math.hypot(j0.x - CENAS.acordar.heroi.pos[0], j0.z - CENAS.acordar.heroi.pos[1]) < 0.01 && e0.some((e) => e.t === 'corrigir' && e.para === 'N'), 'herói acorda do lado do poço');
 }
+{ // as cenas das etapas (fragmento, Presa-de-Prata, diário, memórias, Kael) e o herói protegido enquanto ela toca
+  const usadas = new Set(HISTORIA.flatMap((M) => etapasDe(M).map((E) => E.cena)).filter(Boolean));
+  for (const c of ['fragmento', 'presa', 'diario', 'memoria1', 'kael', 'memoria2']) ok(usadas.has(c), `cena ${c} ligada numa etapa`);
+  const s1 = new Simulacao(MAPA_CLAREIRA), j1 = s1.adicionarJogador('C', 'Cena');
+  s1.cena(j1, 'kael'); s1.passo(0.05);
+  const v0 = j1.vida; s1.ferir(j1, 50, { tipo: 'imp', nivel: 1 }); ok(j1.vida === v0, 'na cena o herói não apanha');
+  s1.tempo = j1.cenaAte + 0.1; s1.ferir(j1, 50, { tipo: 'imp', nivel: 1 }); ok(j1.vida < v0, 'acabou a cena: apanha de novo');
+}
 
 // ---------- Ato I do começo ao fim ----------
 const s = new Simulacao(MAPA_CLAREIRA);

@@ -877,6 +877,8 @@ export class Simulacao {
       this.evento({ t: 'corrigir', para: j.id, x: r2(x), y: r2(y), z: r2(z), ry: r2(j.ry) });
     }
     this.evento({ t: 'cena', para: j.id, id });
+    // durante a cena (no meio da luta, do lado dos monstros) ninguém bate no herói: a soma das tomadas e a saída
+    j.cenaAte = this.tempo + C.tomadas.reduce((a, T) => a + (T.d || 3), 0) + 1.5;
   }
   // monstro c caiu e j ganhou: conta na etapa de matar (campo, tipo e chefe da história)
   contarHistoria(j, c) {
@@ -3238,6 +3240,7 @@ export class Simulacao {
   // h: a habilidade que acertou (skills do Quimera trazem crítico e efeitos: atordoa, congela, lento, vulnerável)
   ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
+    if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
