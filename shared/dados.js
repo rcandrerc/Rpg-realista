@@ -2054,8 +2054,9 @@ export const AMIGA = {
   // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
   // zera de novo; o save anterior fica em 'antes' no terreno dela.
   recomeco: RECOMECO.data,
-  visual: 'victoria',
-  aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1 },
+  // André 2026-11-11: todas as moças no corpo da Ruiva (a armadura foi ajustada para ele); o cabelo da Victoria vira penteado
+  visual: 'ruiva',
+  aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1, penteado: 'victoria' },
   equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'short', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
   terreno: { w: 10, d: 10 }, // tamanho do terreno dela (procura o primeiro lugar livre perto da entrada das Terras)
   // a casa (6 x 4 m, a 2 m da borda, porta para o sul) e a horta, relativas ao canto do terreno (x0, z0); a grade é a de CASA.grade
