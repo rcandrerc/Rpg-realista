@@ -29,7 +29,7 @@ func _init(principal) -> void:
 
 func _ready() -> void:
 	cartao = PanelContainer.new()
-	cartao.add_theme_stylebox_override("panel", Menu.caixa(Color(0.06, 0.05, 0.04, 0.8), Color(COR, 0.9), 1, 7))
+	cartao.add_theme_stylebox_override("panel", Menu.caixa(Color(0.06, 0.05, 0.04, 0.8), Color(COR, 0.9), 1, 14)) # André 2026-11-11: bordas mais arredondadas
 	cartao.custom_minimum_size = Vector2(LARGURA, 0)
 	cartao.size = Vector2(LARGURA, 0)
 	cartao.mouse_filter = Control.MOUSE_FILTER_STOP

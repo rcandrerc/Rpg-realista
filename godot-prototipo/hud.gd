@@ -277,6 +277,8 @@ func _input(ev: InputEvent) -> void:
 			return
 		if ev.pressed and missao and missao.cobre(ev.position): # cartão da missão ativa (missao_ativa.gd)
 			return
+		if ev.pressed and festa and festa.atalho(ev.position): # "+N PONTOS" da janelinha de nível: abre a aba Status (festa.gd)
+			return
 		if ev.pressed and painel_rect().has_point(ev.position):
 			# toque curto abre o menu do personagem (ao soltar); segurar abre o modo de editar a interface
 			_painel_dedo = ev.index
