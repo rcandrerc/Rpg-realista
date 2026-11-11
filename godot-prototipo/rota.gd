@@ -365,6 +365,8 @@ func _pode_montar() -> bool:
 		return false
 	if not m.acao.is_empty() or m._nadando or m._saindo_agua > 0.0 or m.h.morto > 0.0:
 		return false
+	if m.nevoa and not m.nevoa.liberado("lobo"): # lobo ainda não amansado (missão): o "Ir para" vai a pé
+		return false
 	if m.P and m.P.prog.get("pack") is Dictionary: # pack nas costas não monta (Quimera)
 		return false
 	if m.trabalho and (m.trabalho.coletando != null or m.trabalho.em_combate()):

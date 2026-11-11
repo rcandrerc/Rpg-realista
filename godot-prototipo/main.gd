@@ -2989,6 +2989,9 @@ func _process(dt: float) -> void:
 	if volta.ativo():
 		hud.canal_vila_txt = volta.texto()
 	hud.mostrar_botao("falar", conversa != null and conversa.npc_perto() != null and h.morto <= 0.0)
+	# lobo: o botão só aparece depois da missão que amansa o lobo (André 2026-11-11: "tira o botão de montaria enquanto
+	# não tiver liberado"). Montado continua aparecendo, para poder descer.
+	hud.mostrar_botao("montar", montaria != null or nevoa == null or nevoa.liberado("lobo"))
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
