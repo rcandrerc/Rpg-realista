@@ -177,8 +177,11 @@ export const Amiga = {
     if (this.tempo >= (ia.diarioT || 0)) { ia.diarioT = this.tempo + 5; this.diarioAmiga(); } // memória: conversas que terminaram
     this.passoChatAmiga(j); // mensagens dela no chat (respostas "digitando" e quando ela chama o André)
     if (j.troca) return this.passoTrocaAmiga(j); // trocando (fase 3): fica parada olhando para ele e negocia
-    // caiu lutando: sai do time e renasce em casa (a cama dela), como qualquer jogador
-    if (j.morto) { if (j.time) { this.falarAmiga(this.AMIGA.falas.caiu); this.sairDoTime(j, `${this.AMIGA.nome} caiu`); this.consertoAmiga(j); } ia.fase = 'pensar'; return; }
+    // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
+    // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
+    // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; if (j.time) this.falarAmiga(this.AMIGA.falas.caiu); this.pocoesAmiga(j); } ia.fase = 'pensar'; return; }
+    ia.caiu = false;
     // subiu de nível: põe os pontos metade em força e metade em vitalidade (guerreira)
     while (j.prog.pontos > 0) this.distribuirAtributo(j.id, j.prog.atr.for <= j.prog.atr.vit ? 'for' : 'vit');
     // conversando: fica parada olhando para o dono

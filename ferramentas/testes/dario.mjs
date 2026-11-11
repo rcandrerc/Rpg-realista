@@ -66,3 +66,24 @@ ok(!s.amiga && !dario.amiga && !s.jogadores.has(DARIO.id), 'os dois saem com o d
   b4.prog.equip.corpo.d = 0; b4.prog.ouro = 0;
   ok(dar4.consertoAmiga(b4) === 0 && durab(b4.prog.equip.corpo) === 0, 'sem ouro não conserta (nada de graça)');
 }
+
+// ---------- caiu no time (André 2026-11-11: "quando o bot morre, ele sai do meu time. Eu não quero") ----------
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const d5 = s5.adicionarJogador('andre', 'André', 'ruiva', {});
+  const dar5 = s5.amigoIaDe(DARIO.id);
+  for (const x of s5.amigosIa) x.amigaEntrar('andre');
+  const a5 = s5.amiga, b5 = dar5.amiga;
+  const rnd = Math.random; Math.random = () => 0;
+  Object.assign(d5, { x: a5.x + 1, z: a5.z }); s5.conversaAmiga('andre', { acao: 'time' });
+  Object.assign(d5, { x: b5.x + 1, z: b5.z }); dar5.conversaAmiga('andre', { acao: 'time' });
+  Math.random = rnd;
+  ok(a5.time && b5.time && d5.time.membros.length === 3, 'os dois no time antes de cair');
+  b5.prog.ouro = 5000; b5.prog.mochila = b5.prog.mochila.map((o) => (o?.k === 'pocao' ? null : o));
+  s5.morrer(b5); s5.morrer(a5);
+  for (let i = 0; i < 20; i++) s5.passo(0.05);
+  ok(b5.morto && a5.morto && b5.time === d5.time && a5.time === d5.time && d5.time.membros.length === 3, 'caídos, continuam no time');
+  for (let i = 0; i < 20 * 15; i++) s5.passo(0.05);
+  ok(!b5.morto && !a5.morto && b5.time === d5.time && a5.time === d5.time, 'levantaram e continuam no time');
+  ok(b5.prog.mochila.some((o) => o?.k === 'pocao'), 'Dario repôs as poções com o ouro dele ao cair');
+}
