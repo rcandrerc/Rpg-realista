@@ -191,7 +191,8 @@ func _tentar() -> void:
 	icone.texture = Menu.icone_tex(P.icone_item(it))
 	nome_ui.text = P.nome_item(it)
 	nome_ui.add_theme_color_override("font_color", cor)
-	info_ui.text = "+%d → +%d · chance %d%% · %d de ouro" % [e, e + 1, P.chance_reforco(e), P.custo_reforco(it)]
+	var custo_txt: String = "grátis (missão)" if P.etapa_gratis("reforcar") else "%d de ouro" % P.custo_reforco(it) # shared/kit.js
+	info_ui.text = "+%d → +%d · chance %d%% · %s" % [e, e + 1, P.chance_reforco(e), custo_txt]
 	var mat: Dictionary = P.material_reforco(it)
 	if not mat.is_empty():
 		info_ui.text += " · %d de %s" % [int(mat.n), str(P.dados.itens[mat.k].nome)]

@@ -82,6 +82,9 @@ func sair_livre() -> void:
 	_antes_livre["voltando"] = true # volta deslizando até o herói (sem pulo)
 
 func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
+	if _dist_alvo >= 0.0: # atalho do zoom andando: termina na hora (a conversa guarda a distância final)
+		dist = _dist_alvo
+		_dist_alvo = -1.0
 	if not _conversando and _conv_k <= 0.0:
 		_antes = {"yaw": yaw, "pitch": pitch, "dist": dist}
 	_conversando = true
@@ -92,10 +95,36 @@ func olhar_conversa(heroi_pos: Vector3, npc_pos: Vector3) -> void:
 func zoom(fator: float) -> void:
 	if is_equal_approx(fator, 1.0) or _conversando or _conv_k > 0.0:
 		return
+	_dist_alvo = -1.0 # a pinça manda: o atalho para onde está
 	if foco_livre != null: # câmera flutuante do modo construção: afasta mais para ver o terreno inteiro
 		dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), LIVRE_LONGE)
 		return
 	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), min(DIST_MAX, ZOOM_LONGE))
+
+# atalho do zoom (André 2026-11-12: "no combate quero afastar a tela ao máximo, rápido, com um toque só"): um toque
+# vai em ~0,3 s para o mais longe da pinça (ZOOM_LONGE); outro toque volta para onde estava. Só mexe na distância
+# (nada novo para desenhar além do que a pinça já mostra).
+const ZOOM_RAPIDO := 14.0 # quão rápido a distância anda no atalho (maior = mais rápido)
+const DIST_PADRAO := 5.2 # onde a câmera começa
+var _dist_alvo := -1.0 # < 0 = atalho parado
+var _dist_volta := DIST_PADRAO # onde estava antes de afastar
+var _rapido_t := 0.0 # s em que a câmera acompanha a distância nova sem a volta lenta de depois da parede
+
+func longe() -> bool:
+	return (_dist_alvo if _dist_alvo >= 0.0 else dist) >= ZOOM_LONGE - 0.05
+
+func zoom_maximo() -> void:
+	if _conversando or _conv_k > 0.0 or foco_livre != null:
+		return
+	var perto_min: float = max(DIST_MIN, ZOOM_PERTO)
+	if not longe():
+		_dist_volta = _dist_alvo if _dist_alvo >= 0.0 else dist
+		_dist_alvo = ZOOM_LONGE
+	else: # já está longe: volta (se chegou longe pela pinça, volta para a distância de começo)
+		_dist_alvo = clamp(_dist_volta, perto_min, ZOOM_LONGE)
+		if _dist_alvo >= ZOOM_LONGE - 0.05:
+			_dist_alvo = DIST_PADRAO
+	_rapido_t = 0.6
 
 func soltar_conversa() -> void:
 	_conversando = false
@@ -181,6 +210,13 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		dist = lerp(float(_antes.dist), float(_conv.dist), s)
 		alvo = alvo.lerp(_conv.foco, s)
 		_vel_alvo = Vector3.ZERO
+	# atalho do zoom: a distância desliza rápida até o alvo
+	if _dist_alvo >= 0.0:
+		dist = lerp(dist, _dist_alvo, 1.0 - exp(-ZOOM_RAPIDO * dt))
+		if absf(dist - _dist_alvo) < 0.02:
+			dist = _dist_alvo
+			_dist_alvo = -1.0
+	_rapido_t = maxf(0.0, _rapido_t - dt)
 	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
 	# FPS (auditoria 2026-11-11): a conta de parede (passos ao longo da linha da câmera) só é refeita quando o foco,
@@ -195,7 +231,8 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		_livre_t = 0.25
 	var livre: float = max(DIST_MIN, _livre_v)
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
-	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * 2.5))
+	# (no atalho do zoom ela acompanha rápido: afastar ao máximo leva ~0,3 s, não 1 s)
+	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * (ZOOM_RAPIDO if _rapido_t > 0.0 else 2.5)))
 	# muito perto (parede atrás): sobe por cima do ombro esquerdo, para não ficar dentro do cabelo e do cajado
 	var ombro: float = clamp((1.3 - dist_cam) / 0.7, 0.0, 1.0)
 	var lado := Vector3(cos(yaw), 0, -sin(yaw))

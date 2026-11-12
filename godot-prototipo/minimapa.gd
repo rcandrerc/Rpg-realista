@@ -248,6 +248,13 @@ func cobre(p: Vector2) -> bool:
 	var c: Vector2 = mini.get_global_rect().get_center()
 	return p.distance_to(c) <= RAIO * mini.scale.x + 6.0
 
+# onde fica o botão do atalho do zoom (hud.gd): encostado na borda do minimapa, em cima à esquerda (fora do alvo de
+# abrir o mapa), acompanhando o lugar e o tamanho do minimapa
+const ZOOM_ANG := -2.36 # rad (em cima à esquerda, com y para baixo): longe do botão Teste, do relógio e do menu do topo
+func ponto_zoom(r: float) -> Vector2:
+	var c: Vector2 = mini.get_global_rect().get_center()
+	return c + Vector2(cos(ZOOM_ANG), sin(ZOOM_ANG)) * (RAIO * mini.scale.x + r * 0.55)
+
 # modo de editar a interface (editar_hud.gd): o minimapa muda de lugar e de tamanho (escala em volta do centro)
 func posicionar(d: Vector2, s: float) -> void:
 	mini.offset_right = -MARGEM.x + d.x

@@ -16,6 +16,7 @@ const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
+const Aquecer = preload("res://aquecer.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
 const BracoEspada = preload("res://braco_espada.gd")
@@ -122,6 +123,7 @@ func escuro_caverna() -> float:
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
+var aquecer # aquecer.gd: mostra cada efeito e monstro uma vez atrás da capa (sem travada no primeiro uso)
 var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
@@ -272,6 +274,11 @@ const ESPERA := 2.5
 const MEDE := 5.0
 
 func _ready() -> void:
+	# Godot 4.7 (André 2026-11-12, "o app não abre"): sem o ajuste das linhas de fundo o jogo trava antes do primeiro
+	# quadro (grafico.gd ajustar_linhas). Gravado agora, só vale ao abrir de novo: avisa e fecha antes de montar o mundo.
+	if Grafico.ajustar_linhas():
+		_abrir_de_novo()
+		return
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
@@ -393,6 +400,8 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
+	aquecer = Aquecer.new(self)
+	add_child(aquecer)
 	online = Online.new(self)
 	add_child(online)
 	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
@@ -2380,9 +2389,14 @@ func rede(tipo: String, dados = null) -> void:
 func pode_agir() -> bool:
 	return h.morto <= 0.0 and acao.is_empty() and mov.esc == null
 
+var _lupa_zoom := "zoom_longe" # ícone do atalho do zoom agora (troca só quando muda)
+
 # Botão apertado. Se não dá para fazer agora (golpe ainda no fim, no ar, recarga quase acabando), o botão fica
 # guardado um instante (fila) e sai assim que der: o combo e as skills emendam sem perder toque.
 func usar(qual: String) -> void:
+	if qual == "zoom": # atalho do zoom (2026-11-12): só a câmera; não para golpe, coleta, volta nem fila
+		cam.zoom_maximo()
+		return
 	if h.morto > 0.0:
 		return
 	if boss_mundo.preso() and (qual in ["basico", "cura", "dash", "rolar", "pular", "montar", "disparada", "coletar"] or qual.begins_with("hab")):
@@ -3090,6 +3104,39 @@ func direcao_joystick() -> Vector3:
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
 # ---------- quadro a quadro ----------
+# tela de aviso da primeira abertura depois do ajuste do motor (ajustar_linhas): o mundo não é montado
+func _abrir_de_novo() -> void:
+	set_process(false)
+	var cl := CanvasLayer.new()
+	add_child(cl)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0.05, 0.06, 0.09)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cl.add_child(fundo)
+	if ResourceLoader.exists("res://ui/abertura.png"):
+		var capa := TextureRect.new()
+		capa.texture = load("res://ui/abertura.png")
+		capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+		capa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		capa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		cl.add_child(capa)
+	var faixa := ColorRect.new()
+	faixa.color = Color(0, 0, 0, 0.55)
+	faixa.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	faixa.offset_top = -150
+	cl.add_child(faixa)
+	var t := Label.new()
+	t.text = "Ajuste feito.\nAbra o jogo de novo."
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	t.set_anchors_preset(Control.PRESET_FULL_RECT)
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	t.add_theme_constant_override("outline_size", 8)
+	faixa.add_child(t)
+	Grafico.linhas_avisou()
+	get_tree().create_timer(4.0).timeout.connect(func(): get_tree().quit())
+
 # app indo para o fundo ou fechando: grava na hora a cópia do progresso que estava esperando
 func _notification(what: int) -> void:
 	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
@@ -3143,6 +3190,10 @@ func _passo_main(dt: float) -> void:
 	cam.zoom(hud.zoom_cam) # dois dedos (pinça) ou roda do mouse
 	hud.zoom_cam = 1.0
 	cam.atualizar(min(dt_real, 0.1), g)
+	var lupa := "zoom_perto" if cam.longe() else "zoom_longe" # atalho do zoom: − afasta, + volta
+	if lupa != _lupa_zoom:
+		_lupa_zoom = lupa
+		hud.icone_botao("zoom", lupa)
 	if cinematica and cinematica.ativa:
 		cinematica.camera(min(dt_real, 0.1)) # a câmera da cena manda por cima da do jogo
 	folhagem_na_frente(dt_real)

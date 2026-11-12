@@ -4,7 +4,7 @@ extends CanvasLayer
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
 # Todo toque passa por aqui (vários dedos ao mesmo tempo): botão, joystick ou câmera.
 
-signal apertou(acao: String) # "pocao", "pocao_mana", "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "coletar", "falar", "menu" (toque no painel do herói)
+signal apertou(acao: String) # "zoom", "pocao", "pocao_mana", "basico", "hab0".."hab5", "cura", "troca", "pular", "dash", "rolar", "disparada", "coletar", "falar", "menu" (toque no painel do herói)
 signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
@@ -142,6 +142,12 @@ func _ready() -> void:
 	botoes[-1].n = 0
 	_botao("pocao_mana", Vector2(40, 311), 25, "it_pocao_mana", COR_POCAO_MANA)
 	botoes[-1].n = 0
+	# atalho do zoom (André 2026-11-12: "zoom out máximo com um toque só, sem atrapalhar o combate nem poluir a tela"):
+	# botãozinho colado no minimapa, em cima à esquerda dele, longe do polegar das skills. Um toque afasta a câmera ao
+	# máximo; outro volta (camera_heroi.gd zoom_maximo). A lupa troca de − para + quando está longe. Acompanha o
+	# minimapa quando ele muda de lugar no modo de editar a interface (e dá para mover o botão também).
+	_botao("zoom", Vector2.ZERO, 18, "zoom_longe", COR_FUNDO)
+	botoes[-1].mini = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
@@ -214,6 +220,10 @@ func aviso(t: String) -> void:
 	_aviso_t = 2.2
 
 func _centro(b: Dictionary) -> Vector2:
+	if b.get("mini", false): # colado no minimapa (atalho do zoom)
+		if minimapa and minimapa.has_method("ponto_zoom"):
+			return minimapa.ponto_zoom(b.raio) + b.d
+		return Vector2(_tela.size.x - 156.0, 36.0) + b.d
 	if b.get("tl", false): # contado do canto de cima à esquerda (poções, ao lado do painel)
 		return b.canto + b.d
 	return _tela.size - b.canto + b.d
@@ -271,7 +281,7 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		if ev.pressed and menu_topo and menu_topo.cobre(ev.position):
 			return
-		if ev.pressed and minimapa and minimapa.cobre(ev.position): # tocar no minimapa abre o mapa (minimapa.gd)
+		if ev.pressed and minimapa and minimapa.cobre(ev.position) and not _no_zoom(ev.position): # tocar no minimapa abre o mapa (minimapa.gd)
 			return
 		if ev.pressed and construcao and construcao.cobre(ev.position): # barra do modo construção (construcao.gd)
 			return
@@ -377,14 +387,19 @@ func zona_morta(p: Vector2) -> bool:
 		if b.oculto:
 			continue
 		var c := _centro(b)
-		# poções (canto de cima): folga curta, para não roubar o joystick de quem começa a andar ali perto
-		if p.distance_to(c) <= b.raio * 1.15 + (8.0 if b.get("tl", false) else FOLGA_BOTAO):
+		# poções (canto de cima) e o zoom do minimapa: folga curta, para não roubar o joystick nem o giro da câmera ali perto
+		if p.distance_to(c) <= b.raio * 1.15 + (8.0 if b.get("tl", false) or b.get("mini", false) else FOLGA_BOTAO):
 			return true
 		if b.acao == "basico" and _arco_padrao(): # o arco inteiro das skills (inclui os vãos entre elas)
 			var v := p - c
 			if v.length() <= 172.0 + 33.0 * 1.15 + FOLGA_ARCO and v.x <= 0.0 + b.raio and v.y <= b.raio:
 				return true
 	return false
+
+# o toque pega o botão do zoom? (ele encosta na borda do minimapa: o toque nele não abre o mapa)
+func _no_zoom(p: Vector2) -> bool:
+	var b := botao("zoom")
+	return not b.is_empty() and not b.oculto and not modo_construcao and _combate.visible and p.distance_to(_centro(b)) <= b.raio * 1.15
 
 # distância entre os dois primeiros dedos da câmera (0 se não tem dois)
 func _dist_pinca() -> float:

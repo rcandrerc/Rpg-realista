@@ -238,6 +238,8 @@ func mostrar_escolha(conta: Dictionary) -> void:
 # só a capa, sem o painel: o jogo ainda não aparece (abrindo o app, entrando na sala)
 func cobrir(texto: String) -> void:
 	_cobrindo = true
+	if m.aquecer: # atrás da capa: cada efeito e monstro aparece uma vez (sem travada no primeiro uso; aquecer.gd)
+		m.aquecer.comecar()
 	_cobrir_t = COBRIR_MAX
 	painel.visible = false
 	capa.visible = true
@@ -533,7 +535,8 @@ func aplicar_foto(f: Dictionary) -> void:
 	if m.transporte and f.has("carga"): # FASE 1: packs no chão, carrinhos, barquinhos e navios
 		m.transporte.atualizar(f.carga)
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
-		esconder_login()
+		if not (m.aquecer and m.aquecer.cobre): # efeitos ainda na frente da câmera (aquecer.gd): sai na próxima foto
+			esconder_login()
 
 var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
@@ -1471,7 +1474,7 @@ func _process(dt: float) -> void:
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
-	if _cobrindo:
+	if _cobrindo and not (m.aquecer and m.aquecer.cobre): # preparando os efeitos atrás da capa não conta como espera
 		_cobrir_t -= dt
 		if _cobrir_t <= 0.0: # o servidor não respondeu
 			if rede.sessao != "": # com conta: volta para a tela inicial (André 2026-11-07)
@@ -1486,7 +1489,7 @@ func _passo(dt: float) -> void:
 	if _tentar_de_novo > 0.0:
 		_tentar_de_novo -= dt
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":
-			rede.iniciar()
+			rede.religar() # mesma sessão se o servidor ainda segura o herói; senão entra de novo (rede.iniciar)
 	if not ligado:
 		return
 	_ap_t -= dt
