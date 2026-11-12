@@ -230,6 +230,7 @@ func enviar(tipo: String, dados = null) -> void:
 	ws.poll()
 
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
+var _fila_mundo: Array = [] # fotos do mundo que chegaram neste quadro
 func _process(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
@@ -262,6 +263,15 @@ func _passo(dt: float) -> void:
 		return
 	while ws.get_available_packet_count() > 0:
 		_receber(ws.get_packet())
+	# André 2026-11-12: depois de um engasgo da internet chegam dezenas de fotos atrasadas juntas. Antes cada uma era
+	# aplicada inteira no mesmo quadro (o jogo travava na volta). Agora só a mais nova é aplicada inteira; as do meio só
+	# completam o que se sabe de cada corpo e entregam os eventos (online.gd "mundo_meio")
+	if not _fila_mundo.is_empty():
+		var fila := _fila_mundo
+		_fila_mundo = []
+		for k in fila.size() - 1:
+			mensagem.emit("mundo_meio", fila[k])
+		mensagem.emit("mundo", fila[fila.size() - 1])
 	if conectado:
 		_ping_t -= dt
 		if _ping_t <= 0.0:
@@ -307,7 +317,9 @@ func _receber(p: PackedByteArray) -> void:
 			var tipo = MP.ler(b)
 			var dados = MP.ler(b) if b.get_position() < p.size() else null
 			if str(tipo) == "mundoJ" and dados is String: # o mundo em JSON (mais rápido de ler aqui)
-				mensagem.emit("mundo", JSON.parse_string(dados))
+				var d = JSON.parse_string(dados)
+				if d is Dictionary:
+					_fila_mundo.append(d) # vai no fim do quadro (_passo): só a foto mais nova é aplicada inteira
 				return
 			if str(tipo) == "pong" and dados is int:
 				ping_ms = Time.get_ticks_msec() - dados

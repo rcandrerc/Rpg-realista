@@ -407,6 +407,12 @@ func enviar(tipo: String, dados = null) -> void:
 		rede.enviar(tipo, dados)
 
 func ao_receber(tipo, dados) -> void:
+	if str(tipo) == "mundo_meio" and dados is Dictionary: # foto atrasada que chegou junto com outras (rede.gd): a mais nova vem depois
+		if dados.has("foto"):
+			_foto_meio(dados.foto)
+		for ev in dados.get("eventos", []):
+			evento(ev)
+		return
 	if str(tipo) != "mundo" or not (dados is Dictionary):
 		return
 	if dados.has("foto"):
@@ -419,10 +425,29 @@ func _juntar(c: Dictionary, agora: Dictionary) -> Dictionary:
 	var id := str(c.get("id", ""))
 	var tudo: Dictionary = _srv.get(id, {})
 	tudo.merge(c, true)
-	tudo["_mexeu"] = c.has("x")
+	tudo["_mexeu"] = c.has("x") or tudo.get("_mexeu_meio", false) # andou numa foto do meio: a posição dela vale
+	tudo.erase("_mexeu_meio")
 	_srv[id] = tudo
 	agora[id] = true
 	return tudo
+
+# foto do meio (várias chegaram juntas depois de um engasgo): só completa o que se sabe de cada corpo, porque a área de
+# interesse manda cada mudança uma vez só; a foto mais nova, que vem em seguida, é que mexe na tela
+func _foto_meio(f: Dictionary) -> void:
+	if not f.has("aoi"): # foto inteira (sem área de interesse): a mais nova já traz tudo
+		return
+	if f.has("mapa"):
+		no_mapa = f.mapa
+	for lista in [f.get("jogadores", []), f.get("inimigos", [])]:
+		for c in lista:
+			var id := str(c.get("id", ""))
+			if id == meu_id or id == "":
+				continue
+			var tudo: Dictionary = _srv.get(id, {})
+			tudo.merge(c, true)
+			if c.has("x"):
+				tudo["_mexeu_meio"] = true
+			_srv[id] = tudo
 
 func aplicar_foto(f: Dictionary) -> void:
 	_medir_chegada()
