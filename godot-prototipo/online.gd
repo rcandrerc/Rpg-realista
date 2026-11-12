@@ -285,7 +285,9 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 		m.reinicio.voltou() # servidor de volta: some a faixa do reinício
 	_conta_antes = conta.duplicate()
 	_build_ok = false
-	_lugar_pendente = true
+	# entrou agora (vindo da capa): o herói vai para onde a conta guardou. Reconexão (já jogando): fica onde está, o caminho
+	# andado sem internet vale (o servidor confere: Simulacao.folgaDaQueda; André 2026-11-12)
+	_lugar_pendente = capa.visible
 	m.volta.cancelar("") # a volta para a vila começada sem internet não vale aqui
 	if capa.visible: # vindo da capa ou da tela de login: a capa sai quando a primeira foto do mundo chegar (aplicar_foto)
 		cobrir("Entrando…")

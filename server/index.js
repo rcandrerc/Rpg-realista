@@ -22,6 +22,10 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
+// queda (André 2026-11-12): conta -> hora (ms) da última posição que o servidor recebeu dela antes de cair. Entrando de novo,
+// o caminho andado sem internet vale (Simulacao.folgaDaQueda), em vez de puxar o herói de volta
+const saidas = new Map();
+const ultimaNoticia = (sim, j) => Date.now() - Math.max(0, sim.tempo - (j.vivoT ?? sim.tempo)) * 1000;
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
 const historicoChat = { geral: [], amigos: [], pm: [], time: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
 
@@ -312,14 +316,24 @@ class SalaClareira extends Room {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
         const vj = this.sim.jogadores.get(outro.sessionId);
-        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; } // o mais novo vale (com o lugar onde ele estava)
+        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); } // o mais novo vale (com o lugar onde ele estava)
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
+      }
+      // o servidor já tinha visto a queda: o herói antigo está no mundo esperando reconexão (allowReconnection, 20 s) e
+      // o jogo entrou de novo como sessão nova. O novo herda o progresso e o lugar dele (antes vinham do banco, de até
+      // 15 s atrás, e o antigo ficava 20 s no mundo como fantasma)
+      const vivos = new Set(this.clients.map((o) => o.sessionId));
+      for (const vj of [...this.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && vj.id !== client.sessionId && !vivos.has(vj.id)) {
+        this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
+        this.sim.removerJogador(vj.id); this.visao.esquecer(vj.id);
       }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
     this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador, conta: conta?.id ?? null });
+    // voltou de uma queda (a conta saiu há pouco): o caminho que andou sem internet vale
+    if (conta && saidas.has(conta.id)) { const seg = (Date.now() - saidas.get(conta.id)) / 1000; saidas.delete(conta.id); if (seg < 120) this.sim.folgaDaQueda(client.sessionId, seg); }
     if (conta) { const l = contas.loteDoDono('c' + conta.id); this.sim.esquecerLotesDe('c' + conta.id, l?.id); if (l) this.sim.carregarLotes([l]); } // o lote dele como está no banco
     this.sim.enviarLotes(client.sessionId); // Vila dos Lotes: todos os lotes e qual é o dele
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
@@ -368,6 +382,7 @@ class SalaClareira extends Room {
       try { await this.allowReconnection(client, 20); return; } catch { /* não voltou a tempo */ }
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
+    { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); } // queda: a hora da última notícia
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
     for (const ctx of this.sim.amigosIa) ctx.amigaSair(client.sessionId); // NPCs: quem saiu deixa de ser acompanhado; o último da sala leva todos junto
     this.salvarProgressos();
