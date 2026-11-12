@@ -3199,7 +3199,8 @@ export class Simulacao {
   falar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     let npc = null, md = 3.2;
-    const ve = (n) => !n.depois || npcApareceu(j.prog, n.depois); // NPC que só aparece depois de uma missão (o Kael em Aurora)
+    // NPC que só aparece depois de uma missão (o Kael em Aurora) ou some depois dela (a Elara muda para o Paço: ate)
+    const ve = (n) => (!n.depois || npcApareceu(j.prog, n.depois)) && (!n.ate || !npcApareceu(j.prog, n.ate));
     for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md && ve(n)) { md = d; npc = n; } }
     const quem = m && typeof m === 'object' && typeof m.npc === 'string' ? (this.mapa.npcs || []).find((n) => n.id === m.npc) : null;
     if (quem && dist(quem, j) < 3.2 && ve(quem)) npc = quem;
