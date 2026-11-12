@@ -43,6 +43,11 @@ var _ping_t := 0.0
 # {processo, sala, id, token, caiu_ms}; vazio = não dá para religar (saiu de propósito, foi trocado, passou do tempo)
 var _volta := {}
 const VOLTA_MAX_MS := 17000 # o servidor espera 20 s a partir de quando ele viu a queda
+# Conexão morta sem o celular saber (André 2026-11-12: ligação corta os dados móveis). O WebSocket fica "aberto" e o
+# sistema demora muito para desistir; e quando os dados voltam, o TCP antigo pode levar mais uns 10 a 30 s para
+# reenviar. O servidor manda algo 20 vezes por segundo (o mundo) e o pong a cada 2 s: SILENCIO_MAX_MS sem nada é
+# conexão morta. Larga ela e religa (mesma sessão se o servidor já viu a queda; senão entra de novo, o #408 cuida)
+const SILENCIO_MAX_MS := 6000
 
 func _ready() -> void:
 	if OS.get_environment("RPG_SERVIDOR") != "":
@@ -233,6 +238,10 @@ func religar() -> void:
 	var r := await pedir("POST", "/matchmake/reconnect/" + str(v.sala), {"reconnectionToken": str(v.token)})
 	if conectado or ws != null: # já voltou por outro caminho enquanto esperava a resposta
 		return
+	if r.codigo == 0: # sem internet ainda: o token continua valendo, tenta de novo daqui a pouco (online.gd)
+		estado.emit("Sem internet")
+		caiu.emit("fora")
+		return
 	if r.codigo != 200 or not r.dados.has("room") or str(r.dados.get("sessionId", "")) != str(v.id):
 		_volta = {} # o servidor não segura mais o herói (passou dos 20 s ou reiniciou): entra de novo
 		iniciar()
@@ -289,6 +298,14 @@ func _passo(dt: float) -> void:
 		return
 	ws.poll()
 	var st := ws.get_ready_state()
+	if conectado and st == WebSocketPeer.STATE_OPEN and ws.get_available_packet_count() == 0 and ult_pacote_ms > 0 and Time.get_ticks_msec() - ult_pacote_ms > SILENCIO_MAX_MS:
+		ws = null # não espera o fechamento educado de um socket morto
+		conectado = false
+		if not _volta.is_empty():
+			_volta.caiu_ms = Time.get_ticks_msec()
+		estado.emit("Caiu a conexão")
+		caiu.emit("silencio")
+		return
 	if st == WebSocketPeer.STATE_CLOSED:
 		var codigo_fim := ws.get_close_code()
 		var motivo := "fechou %d" % codigo_fim
@@ -347,6 +364,7 @@ func _receber(p: PackedByteArray) -> void:
 				_volta.token = p.slice(2, 2 + n).get_string_from_utf8() # o servidor troca o token a cada entrada
 				_volta.caiu_ms = 0
 			ws.send(PackedByteArray([JOIN_ROOM]))
+			ult_pacote_ms = Time.get_ticks_msec() # o silêncio conta a partir de agora
 			conectado = true
 			estado.emit("Online")
 			entrou.emit(meu_id, conta)
