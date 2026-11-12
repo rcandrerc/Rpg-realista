@@ -678,7 +678,12 @@ export class Simulacao {
     // carrinho, barquinho ou navio: a velocidade dele; pack nas costas: anda mais devagar e não corre (Quimera x0,68)
     const lentoH = j.lentoH && j.lentoH.ate > this.tempo ? 1 - j.lentoH.k * 0.8 : 1; // lentidão de skill de boss (folga de 20% para a rede)
     const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3 * lentoH;
-    if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
+    if (j.orcT == null) {
+      j.orc = ORCAMENTO.burst; j.orcT = this.tempo;
+      // voltou de uma queda (folgaDaQueda): o celular seguiu andando sem internet; vale o caminho que deu para fazer
+      if (j.queda && j.queda.ate > this.tempo) j.orc += Math.max(vmax, ...Object.values(MONTARIAS).map((m) => m.correr * 1.3)) * j.queda.seg;
+      j.queda = null;
+    }
     // a folga enche na velocidade máxima. Depois de um silêncio (internet engasgada), as posições guardadas chegam juntas:
     // o teto cresce com o tempo calado (até ORCAMENTO.silencio s de corrida), e o que sobrar dele vai minguando depois
     { const dtS = this.tempo - j.orcT;
@@ -726,6 +731,13 @@ export class Simulacao {
     if (typeof p.anim === 'string' && p.anim.length < 64) j.anim = p.anim; // só aparência, para os outros jogadores
     j.cliente = { t: this.tempo };
     return true;
+  }
+  // Entrou de novo depois de cair (server/index.js: a mesma conta, segundos depois): a primeira posição que o celular mandar
+  // pode estar até seg s de corrida longe de onde o servidor o viu por último (o jogo seguiu sem internet). Vale por 15 s.
+  folgaDaQueda(id, seg) {
+    const j = this.jogadores.get(id); if (!j || !(seg > 0)) return;
+    j.queda = { seg: Math.min(seg, ORCAMENTO.queda), ate: this.tempo + 15 };
+    j.orcT = null;
   }
   // "corrigir" numerado (c): o celular aplica só o mais novo e manda o número de volta em cada posição
   corrigir(j) {

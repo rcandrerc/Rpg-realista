@@ -76,3 +76,21 @@ for (const t of [1.5, 2, 3, 4.5]) {
   for (let t = 0; t < 2; t += TICK) s.passo(TICK);
   ok(Math.abs(j.z - z0) < 0.01, `2 s calado correndo: o herói ficou parado no servidor (andou ${(j.z - z0).toFixed(2)} m)`);
 }
+
+// a internet caiu de vez e o jogo entrou de novo (sessão nova): o caminho andado sem internet vale (folgaDaQueda),
+// dentro do que dava para andar no tempo da queda; sem queda, longe demais continua recusado
+{
+  const volta = (seg, z, comFolga = true) => {
+    const { s, j } = novo();
+    if (comFolga) s.folgaDaQueda('A', seg);
+    s.posicaoCliente('A', { x: 0, y: s.terreno.altura(0, z, 10), z, ry: 0, e: 1, c: 0 });
+    const n = correcoes(s.passo(TICK)).length;
+    return { n, z: j.z };
+  };
+  const a = volta(8, HEROI.correr * 8);
+  ok(a.n === 0 && Math.abs(a.z - HEROI.correr * 8) < 0.01, `8 s sem internet correndo (${(HEROI.correr * 8).toFixed(0)} m): ao voltar fica onde está`);
+  const b = volta(8, HEROI.correr * 8, false);
+  ok(b.n === 1, 'sem queda registrada, os mesmos metros de uma vez são recusados');
+  const c = volta(3, 120);
+  ok(c.n === 1, '3 s de queda não deixam aparecer 120 m longe');
+}
