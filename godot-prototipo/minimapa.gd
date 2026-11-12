@@ -669,6 +669,24 @@ func _toque_totem(lp: Vector2, dentro: bool) -> void:
 	if m.sons:
 		m.sons.tocar("pano", -14.0)
 
+# guia das missões (guia.gd, André 2026-11-12): onde está, na tela, o totem de destino da etapa (k vazio = qualquer
+# outro já visitado); se ele já foi escolhido, o botão "Teleportar". Rect2() = não aparece agora.
+func guia_totem(k: String) -> Rect2:
+	if not aberto or totem_de.is_empty() or janela == null:
+		return Rect2()
+	var xf: Transform2D = janela.get_global_transform_with_canvas()
+	if totem_alvo != "" and (k == "" or totem_alvo == k) and botao_tp.has_area():
+		return Rect2(xf * botao_tp.position, botao_tp.size * xf.get_scale())
+	for t in m.totem.T.lista:
+		var id := str(t.id)
+		if id == str(totem_de.id) or not m.totem.descoberto(id) or (k != "" and id != k):
+			continue
+		var p: Vector2 = _na_janela(float(t.x), float(t.z))
+		if not Rect2(Vector2.ZERO, janela.size).has_point(p):
+			continue
+		return Rect2(xf * (p - Vector2(20, 20)), Vector2(40, 40) * xf.get_scale())
+	return Rect2()
+
 func _teleportar() -> void:
 	var para: Dictionary = m.totem.dados(totem_alvo)
 	if para.is_empty():

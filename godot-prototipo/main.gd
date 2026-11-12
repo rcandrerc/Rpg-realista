@@ -53,6 +53,7 @@ const Minimapa = preload("res://minimapa.gd")
 const VoltaVila = preload("res://volta_vila.gd")
 const Totem = preload("res://totem.gd") # totens de teleporte (André 2026-11-10)
 const MissaoAtiva = preload("res://missao_ativa.gd") # missão ativa no canto esquerdo com "Ir para" (André 2026-11-11)
+const Guia = preload("res://guia.gd") # guia das missões: pisca o botão do próximo toque (André 2026-11-12)
 const Cinematica = preload("res://cinematica.gd") # cenas da história com a câmera do jogo (André 2026-11-11)
 const Nevoa = preload("res://nevoa.gd") # névoa das zonas ainda fechadas (progressão até o Nv 100, André 2026-11-10)
 const Rota = preload("res://rota.gd")
@@ -155,6 +156,7 @@ var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e ma
 var volta # volta_vila.gd: casinha do menu do topo (Voltar para a vila) e o lugar onde o herói estava ao sair
 var totem # totem.gd: totens de teleporte (descobrir, viajar pagando, área segura, renascer)
 var missao_ativa # missao_ativa.gd: a missão da vez à esquerda, embaixo do time; tocar dá "Ir para" (autopath)
+var guia # guia.gd: guia das missões, o botão do próximo toque pisca (André 2026-11-12)
 var cinematica # cinematica.gd: cena da história (faixas de cinema, câmera andando, legenda, Pular)
 var nevoa # nevoa.gd: zonas que a missão principal ainda não abriu (parede de névoa, o herói para na borda)
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
@@ -405,6 +407,8 @@ func _ready() -> void:
 		mov.nevoa = nevoa
 	missao_ativa = MissaoAtiva.new(self)
 	add_child(missao_ativa)
+	guia = Guia.new(self) # guia das missões (André 2026-11-12): o botão do próximo toque pisca
+	add_child(guia)
 	hud.missao = missao_ativa
 	cinematica = Cinematica.new(self)
 	add_child(cinematica)

@@ -792,6 +792,8 @@ func _lista_alquimia(n: Dictionary, falar := true) -> void:
 				var da := mini(tem / int(custo.n), int(m.P.prog.ouro) / int(custo.ouro))
 				var t := "%s\n%d %s (tem %d) + %d ouro" % [_nome_item(k), int(custo.n), _nome_item(de), tem, int(custo.ouro)]
 				var b := _opcao(t, "it_" + k, func(): _sintetizar(n, k, da))
+				if da >= 1:
+					b.set_meta("guia", "alq") # guia das missões (guia.gd): a síntese que dá para fazer agora
 				b.custom_minimum_size = Vector2(250, 52)
 				b.add_theme_font_size_override("font_size", 13)
 				b.add_theme_constant_override("icon_max_width", 30)
