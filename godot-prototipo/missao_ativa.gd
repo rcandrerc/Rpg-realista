@@ -276,7 +276,7 @@ func _abrir_npc(id: String) -> void:
 		return
 	for n in m.npcs:
 		if str(n.get("id", "")) == id:
-			m.conversa.abrir(n)
+			m.conversa.abrir(n, false) # abriu sozinha (Ir): o primeiro toque em Missão já vale
 			return
 
 # ---------- marca no chão (história v2): coluna de luz lilás na pista, no fragmento ou no meio do lago ----------
