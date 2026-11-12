@@ -123,6 +123,12 @@ export class Terreno {
         this.casas.push({ casa: true, x: c.x + sen * u, z: c.z + cos * u, cos, sen, hw: c.w / 2, hd: c.d / n / 2, sobe: 0, y1, base: 0, R: Math.hypot(c.w / 2, c.d / n / 2) });
       }
     }
+    // Entrega 3 da história: as casas das mini vilas do mundo grande (shared/vilas.js, dados.js VILAS_MUNDO): paredes que
+    // se escalam e telhado de duas águas; o piso e o muro do fundo das ferrarias abertas
+    for (const c of mapa.casasMundo || []) {
+      const cos = Math.cos(c.ry), sen = Math.sin(c.ry);
+      this.casas.push({ casa: true, x: c.x, z: c.z, cos, sen, hw: c.hw, hd: c.hd, sobe: c.sobe || 0, y1: c.y1, base: 0, R: Math.hypot(c.hw, c.hd) });
+    }
     this.solidos = [...this.rochas, ...this.casas];
     this.doJogador = []; // casas que os jogadores constroem nos terrenos (pecasCasaSolidas): mudam com o jogo
     this.tampos = new Map(); // topo dos obstáculos baixos (porTampos): grade de 6 m

@@ -7,7 +7,7 @@ import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
-import { TUNEIS_MUNDO } from '../../shared/dados.js';
+import { TUNEIS_MUNDO, VILAS_MUNDO } from '../../shared/dados.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
 import { gerarMascaraMundo } from './mascara_mundo.mjs';
@@ -99,7 +99,7 @@ const mundo = {
   escalada: Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => [k, { dur: r4(DURACAO[e.anim] / e.ts), traj: e.traj }])),
   subida: SUBIDA, parado: PARADO_PAREDE, alturaHeroi: HEROI.altura, movimento: MOVIMENTO,
   // NPCs da vila no mesmo lugar do servidor (a loja só vende perto da Rosa)
-  npcs: (MAPA_CLAREIRA.npcs || []).map((n) => ({ id: n.id, nome: n.nome, x: n.x, z: n.z, ry: n.ry, funcao: n.funcao, tinta: n.tinta, escala: n.escala, roupa: n.roupa, arma: n.arma, anciao: n.anciao, veste: n.veste, esconder: n.esconder, limpar_rosto: n.limpar_rosto, friso: n.friso, acoes: n.acoes || [], merch: n.merch, missao: n.missao ? MISSOES[n.missao]?.nome : undefined, falas: n.falas })),
+  npcs: (MAPA_CLAREIRA.npcs || []).map((n) => ({ id: n.id, nome: n.nome, x: n.x, z: n.z, ry: n.ry, funcao: n.funcao, tinta: n.tinta, escala: n.escala, roupa: n.roupa, arma: n.arma, anciao: n.anciao, veste: n.veste, esconder: n.esconder, limpar_rosto: n.limpar_rosto, friso: n.friso, visual: n.visual, vila: n.vila, oficio: n.oficio, acoes: n.acoes || [], merch: n.merch, missao: n.missao ? MISSOES[n.missao]?.nome : undefined, falas: n.falas })),
   // onde se coleta (Parte 3): veios (v0...) com o giro do desenho e as árvores (a0...), com os mesmos ids do servidor
   coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: c.ry ?? MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
   // Vila dos Lotes (construção e fazenda): os lotes com a placa e a área (godot-prototipo/construcao.gd)
@@ -108,6 +108,8 @@ const mundo = {
   lotes: MAPA_CLAREIRA.lotes || [], vilaLotes: { nome: VILA_LOTES.nome, x: VILA_LOTES.area.x, z: VILA_LOTES.area.z,
     area: VILA_LOTES.area, estradas: [{ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas] },
   estacoes: MAPA_CLAREIRA.estacoes || [], // estações públicas da vila (bigorna e forninho da ferraria, bancada da Rosa; 2026-11-11)
+  // história v2, Entrega 3: as mini vilas do mundo grande (shared/vilas.js): casas, banca e enfeites que vilas_mundo.gd desenha
+  vilasMundo: VILAS_MUNDO.map((V) => ({ id: V.id, nome: V.nome, nivel: V.nivel, x: V.x, z: V.z, raio: V.raio, casas: V.casas, banca: V.banca, enfeites: V.enfeites })),
   cais: MAPA_CLAREIRA.cais || [], // FASE 3, Parte 7b: cais de madeira dos portos (andar.gd anda por cima; mundo_terreno.gd desenha)
   // FASE 3, Parte 7b: todas as vilas de terreno (a primeira é a de cima), com as estradas que o terreno não pode pegar
   vilasTerreno: VILAS_TERRENO.map((V) => ({ id: V.id, nome: V.nome, x: V.area.x, z: V.area.z, area: V.area, max: V.max, mundo: !!V.mundo, bairro: !!V.bairro,

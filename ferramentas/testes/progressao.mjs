@@ -29,7 +29,9 @@ const novo = { nivel: 1, hist: { p: 0, ac: false, n: 0 } };
 const campo = (id) => CACA.find((k) => k.id === id);
 ok(!zonaFechadaEm(novo, campo('caca1').x, campo('caca1').z) && !zonaFechadaEm(novo, campo('caca2').x, campo('caca2').z), 'campos Nv 1 e Nv 3 abertos no começo');
 for (const id of ['caca3', 'caca5', 'caca6', 'caca9', 'caca11']) ok(!!zonaFechadaEm(novo, campo(id).x, campo(id).z), `${id} fechado no começo`);
-for (const n of ['lider', 'ferreiro', 'curandeira', 'andarilho', 'comerciante', 'alquimista', 'reset']) ok(!zonaFechadaEm(novo, npc(n).x, npc(n).z), `${n} fora da névoa no começo`);
+for (const n of ['lider', 'ferreiro', 'curandeira', 'andarilho', 'comerciante', 'reset']) ok(!zonaFechadaEm(novo, npc(n).x, npc(n).z), `${n} fora da névoa no começo`);
+// história v2, Entrega 3 (plano aprovado pelo André 2026-11-11): a Mirela, a alquimista, muda para a Vila do Rio Claro
+ok(npc('alquimista').vila === 'rio_claro' && liberado(progressoValido({ nivel: 31, mochila: [] }), 'B1'), 'alquimista no Rio Claro, aberto com o Oeste de Vael');
 // toda região cobre um pedaço de terra de verdade e todo campo de caça fora da Vila cai em alguma região
 for (const k of CACA) { const Z = ZONAS_GEO.find((z) => naZona(z, k.x, k.z)); ok(['caca1', 'caca2'].includes(k.id) ? !Z : !!Z, `campo ${k.id} na região ${Z?.id || 'Vila'}`); }
 for (const t of TOTENS.lista) { const Z = ZONAS_GEO.find((z) => naZona(z, t.x, t.z)); ok(t.id === 'clareira' ? !Z : !!Z, `totem ${t.id} na zona ${Z?.id || '-'}`); }

@@ -37,10 +37,13 @@ const Pesca = preload("res://pesca.gd")
 const Transporte = preload("res://transporte.gd") # FASE 1: packs e transportes do Quimera
 const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
 var cenario # cenario.gd
+const VilasMundo = preload("res://vilas_mundo.gd") # as mini vilas do mundo grande (história v2, Entrega 3)
+var vilas_mundo # vilas_mundo.gd
 const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Troca = preload("res://troca.gd")
+const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
 const Festa = preload("res://festa.gd")
 const Amigos = preload("res://amigos.gd")
@@ -142,6 +145,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
+var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
 var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var festa # festa.gd: comemoração de nível, missão, liberado, reforço e evoluir (faixa, faíscas, coluna de luz, som)
 var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenciado)
@@ -288,6 +292,8 @@ func _ready() -> void:
 	montar_mata(vila)
 	cenario = Cenario.new(self)
 	add_child(cenario)
+	vilas_mundo = VilasMundo.new(self)
+	add_child(vilas_mundo)
 	alcance_da_vila(vila)
 	achar_troncos(vila)
 	juntar_vila(vila)
@@ -317,6 +323,9 @@ func _ready() -> void:
 	montar_cacas() # só põe na fila
 	_a_criar.append(montar_treino)
 	for n in mundo.get("npcs", []):
+		if n.get("vila") != null: # gente das mini vilas do mundo grande: o corpo só nasce de perto (npcs_das_vilas)
+			npcs_vila.append(n)
+			continue
 		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
 	camera = Camera3D.new()
 	camera.far = 400
@@ -351,6 +360,8 @@ func _ready() -> void:
 	hud.tocou.connect(conversa.tocou_tela)
 	troca = Troca.new(self)
 	add_child(troca)
+	leilao = LeilaoUi.new(self)
+	add_child(leilao)
 	reforco = Reforco.new(self)
 	add_child(reforco)
 	festa = Festa.new(self)
@@ -1652,7 +1663,7 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 			l.pixel_size = 0.00034 * 1.5
 			l.offset = Vector2(0, 52.0 / 1.5)
 	var ap := {}
-	if str(info.get("id", "")) in TINGIR_NPC and info.get("tinta") is Dictionary:
+	if (str(info.get("id", "")) in TINGIR_NPC or info.get("vila") != null) and info.get("tinta") is Dictionary:
 		var t: Dictionary = info.tinta
 		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
 		Aparencia.aplicar(no, ap)
@@ -3448,12 +3459,42 @@ func separar_inimigos() -> void:
 				a.no.position -= Vector3(n.x, 0, n.y) * empurra
 				b.no.position += Vector3(n.x, 0, n.y) * empurra
 
+# História v2, Entrega 3: a gente das mini vilas do mundo grande (são 26, longe uma vila da outra). O corpo de cada um
+# só nasce com o herói a menos de NPC_VILA_NASCE m (um por vez, a cada meio segundo: nada de travada) e sai da cena
+# passando de NPC_VILA_SAI m. Antes disso não pesa nada no celular (nem memória, nem carregar na abertura).
+const NPC_VILA_NASCE := 110.0
+const NPC_VILA_SAI := 170.0
+var npcs_vila: Array = [] # as fichas (mundo.json npcs com "vila")
+var _npc_vila_t := 0.0
+func npcs_das_vilas(dt: float) -> void:
+	_npc_vila_t -= dt
+	if _npc_vila_t > 0.0 or npcs_vila.is_empty():
+		return
+	_npc_vila_t = 0.5
+	var hp: Vector3 = heroi.position
+	var criou := false
+	for info in npcs_vila:
+		var d := Vector2(float(info.x) - hp.x, float(info.z) - hp.z).length()
+		var id := str(info.id)
+		var n = null
+		for o in npcs:
+			if o.id == id:
+				n = o
+				break
+		if n == null and d < NPC_VILA_NASCE and not criou:
+			criar_npc(MODELO_NPC.get(id, str(info.get("visual", "vivi"))), Vector3(float(info.x), 0, float(info.z)), str(info.nome).get_slice(",", 0), info)
+			criou = true
+		elif n != null and d > NPC_VILA_SAI and (conversa == null or conversa.npc != n):
+			npcs.erase(n)
+			n.no.queue_free()
+
 # monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
 # Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
 func lod_inimigos() -> void:
 	if heroi == null:
 		return
 	materializar_perto(get_process_delta_time())
+	npcs_das_vilas(get_process_delta_time())
 	var hp: Vector3 = heroi.position
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
@@ -3767,7 +3808,7 @@ func pre_carregar() -> void:
 	var lista := ["res://modelos/vila.glb", "res://modelos/ruiva.glb", "res://treino3d/Dummy.gltf", "res://modelos/arma_espada.glb",
 		"res://armas3d/espada.glb", "res://armas3d/cajado.glb"]
 	for n in mundo.get("npcs", []):
-		lista.append("res://modelos/%s.glb" % MODELO_NPC.get(n.id, "vivi"))
+		lista.append("res://modelos/%s.glb" % MODELO_NPC.get(n.id, str(n.get("visual", "vivi"))))
 	for t in MODELO_TIPO.values():
 		lista.append("res://modelos/%s.glb" % t)
 	var vistos := {}

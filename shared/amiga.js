@@ -450,7 +450,7 @@ export const Amiga = {
   // o canto dele na vila: perto do NPC que ele gosta (rotina.ponto) na vila inicial; nas outras, o ponto espalhado
   pontoVilaAmiga(j) {
     const M = this.moradiaAmiga(j), R = this.rotinaAmiga();
-    const n = R.ponto && M.nivel === NPC_VIDA.moradia[0].nivel && (this.mapa.npcs || []).find((o) => o.id === R.ponto);
+    const n = R.ponto && M.nivel === NPC_VIDA.moradia[0].nivel && (this.mapa.npcs || []).find((o) => o.id === R.ponto && !o.mundo); // quem mudou para uma vila do mundo grande (a Mirela) não conta
     if (!n) return M;
     const a = (hashNpc(this.AMIGA.id) % 628) / 100, r = 2.5 + (hashNpc(this.AMIGA.id + 'r') % 150) / 100;
     return { ...M, x: n.x + Math.cos(a) * r, z: n.z + Math.sin(a) * r, r: 4 };

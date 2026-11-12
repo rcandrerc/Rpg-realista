@@ -2185,19 +2185,19 @@
    },
    {
     "id": "rio_claro",
-    "nome": "Ponte do Rio Claro",
+    "nome": "Vila do Rio Claro",
     "nivel": 35,
     "faixa": "Nv 32-44",
-    "x": -261,
-    "z": 11
+    "x": -234,
+    "z": 85
    },
    {
     "id": "juncos",
-    "nome": "Ponte dos Juncos",
+    "nome": "Juncal",
     "nivel": 45,
     "faixa": "Nv 42-48",
-    "x": 564,
-    "z": 45
+    "x": 546,
+    "z": 43
    },
    {
     "id": "porto_vael",
@@ -2209,11 +2209,11 @@
    },
    {
     "id": "ilha",
-    "nome": "Ilha do Meio",
+    "nome": "Vila da Maré",
     "nivel": 60,
     "faixa": "Nv 50-65",
-    "x": 173,
-    "z": 663
+    "x": 241,
+    "z": 624
    },
    {
     "id": "aurora",
@@ -2225,11 +2225,27 @@
    },
    {
     "id": "posto_leste",
-    "nome": "Posto do Leste",
+    "nome": "Vila do Véu",
     "nivel": 88,
     "faixa": "Nv 82-95",
-    "x": 640,
-    "z": 1075
+    "x": 652,
+    "z": 1095
+   },
+   {
+    "id": "pouso_serra",
+    "nome": "Pouso da Serra",
+    "nivel": 38,
+    "faixa": "Nv 38-42",
+    "x": 4,
+    "z": -271
+   },
+   {
+    "id": "ultimo_pouso",
+    "nome": "Último Pouso",
+    "nivel": 95,
+    "faixa": "Nv 95-100",
+    "x": 222,
+    "z": 1328
    }
   ]
  },

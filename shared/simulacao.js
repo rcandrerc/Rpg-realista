@@ -12,6 +12,7 @@ import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CE
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
+import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -314,6 +315,8 @@ export class Simulacao {
       ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto, semTopo: 1 }))]; // ninguém fica em pé no espantalho
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
+    // as casas das mini vilas do mundo grande (história v2, Entrega 3): monstro e NPC dão a volta (o piso da ferraria não conta)
+    for (const c of mapa.casasMundo || []) if (!c.piso) this.casas.push({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.hw + 0.35, hd: c.hd + 0.35 });
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
     // árvores da mata (são muitas): numa grade de 6 m, cada um só confere as de perto (pertoNaMata)
     this.mata = new Map();
@@ -1130,7 +1133,7 @@ export class Simulacao {
   resetarBuild(id) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    if (!(this.mapa.npcs || []).some((n) => n.funcao === 'resetar' && dist(n, j) < 4.5)) return aviso('Fale com o Mestre Ivo');
+    if (!(this.mapa.npcs || []).some((n) => n.funcao === 'resetar' && dist(n, j) < 4.5)) return aviso('Fale com o Mestre Ivo, na Clareira, ou com a Mestra Iara, no Rio Claro');
     const p = j.prog, gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0), custo = this.custoReset(j);
     if (gastos <= 0) return aviso('Você ainda não gastou nenhum ponto.');
     if (p.ouro < custo) return aviso(`Falta ouro: custa ${custo}`);
@@ -2386,6 +2389,59 @@ export class Simulacao {
   pertoDeQuemConserta(j) { return (this.mapa.npcs || []).some((n) => (n.acoes || []).includes('consertar') && dist(n, j) < LOJA_DISTANCIA); }
   pertoDaLoja(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'loja' && dist(n, j) < LOJA_DISTANCIA); }
 
+  // ---------- a Casa do Comércio (shared/leilao.js; história v2, Entrega 3) ----------
+  // Um leilão só para o mundo inteiro: o servidor põe o mesmo em todas as salas (this.leilao) e grava quando muda
+  // (aoLeilao). Sem servidor (teste), cada simulação tem o seu. m = { acao: 'ver' | 'anunciar' | 'comprar' | 'cancelar' |
+  // 'retirar', busca: { tipo, r, ordem, texto }, i (lugar na mochila), preco, horas, id (do anúncio) }
+  pertoDoLeiloeiro(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'leilao' && dist(n, j) < LEILAO.distancia); }
+  leilaoMsg(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || !m || typeof m !== 'object') return;
+    const L = (this.leilao ||= new Leilao()), p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!this.pertoDoLeiloeiro(j)) return aviso('O leilão é com o Otávio, na Casa do Comércio da Vila do Rio Claro');
+    if (j.morto) return;
+    let mudou = L.vencer();
+    const busca = m.busca && typeof m.busca === 'object' ? { tipo: TIPOS_LEILAO[m.busca.tipo] ? m.busca.tipo : undefined, r: Number.isInteger(m.busca.r) && m.busca.r >= 0 && m.busca.r < RARIDADES.length ? m.busca.r : undefined,
+      ordem: ['barato', 'caro', 'novo'].includes(m.busca.ordem) ? m.busca.ordem : 'barato', texto: typeof m.busca.texto === 'string' ? m.busca.texto.slice(0, 24) : undefined } : {};
+    if (m.acao === 'anunciar') {
+      const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null;
+      if (!it) return aviso('Escolha um item da mochila');
+      if (it.cad) return aviso('Item trancado não vai à venda. Abra o cadeado antes');
+      if (ITENS[it.k]?.usar?.veiculo || this.carrinhoFora(j, it)) return aviso('Veículo não vai para o leilão');
+      const r = L.anunciar(j.conta, j.nome, { ...it }, Number(m.preco), Number(m.horas));
+      if (typeof r === 'string') return aviso(r);
+      p.mochila[i] = null; mudou = true;
+      aviso(`${nomeItem(it)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)`);
+      this.historia(j, 'leilao', { de: 'anunciar' });
+    } else if (m.acao === 'comprar' && typeof m.id === 'string') {
+      const a = L.achar(m.id); if (!a) return aviso('Esse anúncio já saiu');
+      if (p.ouro < a.preco) return aviso(`Faltam ${a.preco - p.ouro} de ouro`);
+      const prova = p.mochila.map((o) => (o ? { ...o } : null)); // cabe na mochila?
+      if (!guardar(prova, { ...a.item })) return aviso('Mochila cheia');
+      const r = L.comprar(m.id, j.conta);
+      if (typeof r === 'string') return aviso(r);
+      p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); mudou = mudou || !a.casa;
+      aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro`);
+      this.historia(j, 'leilao', { de: 'comprar' });
+      const avisa = this.aoVendaLeilao || ((c, t) => { const v = this.porConta(c); if (v) this.evento({ t: 'aviso', para: v.id, texto: t }); }); // o servidor avisa em qualquer sala
+      if (!a.casa) avisa(a.conta, `Vendeu ${nomeItem(a.item)} no leilão: ${r.liquido} de ouro com o Otávio${r.taxa ? ` (taxa ${r.taxa})` : ''}`);
+    } else if (m.acao === 'cancelar' && typeof m.id === 'string') {
+      const a = L.cancelar(m.id, j.conta); if (typeof a === 'string') return aviso(a);
+      if (!guardar(p.mochila, a.item)) L.caixaDe(j.conta).itens.push(a.item); // mochila cheia: fica com o Otávio
+      mudou = true;
+      aviso(`Anúncio cancelado: ${nomeItem(a.item)} voltou`);
+    } else if (m.acao === 'retirar') {
+      const cx = L.caixaDe(j.conta); let n = 0;
+      const ouro = cx.ouro; p.ouro += ouro; cx.ouro = 0;
+      while (cx.itens.length && guardar(p.mochila, cx.itens[0])) { cx.itens.shift(); n++; }
+      if (ouro || n) { mudou = true; aviso(`Retirou ${ouro ? ouro + ' de ouro' : ''}${ouro && n ? ' e ' : ''}${n ? n + (n === 1 ? ' item' : ' itens') : ''}${cx.itens.length ? ' (mochila cheia: o resto fica guardado)' : ''}`); this.historia(j, 'leilao', { de: 'retirar' }); }
+      else aviso(cx.itens.length ? 'Mochila cheia' : 'Nada para retirar');
+    }
+    if (mudou) { this.aoLeilao?.(L); this.avisarProg(j); }
+    const cx = L.caixa[j.conta] || { ouro: 0, itens: [] };
+    this.evento({ t: 'leilao', para: id, lista: L.buscar(busca, j.conta).map(anuncioParaApp), meus: L.meus(j.conta).map(anuncioParaApp),
+      caixa: { ouro: cx.ouro, itens: cx.itens }, semTaxa: L.semTaxaDe(j.conta), taxa: LEILAO.taxa, max: LEILAO.max, horas: LEILAO.horas, agora: Date.now() });
+  }
+
   // ---------- Vila dos Lotes: comprar lote, construir e horta (shared/dados.js VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS) ----------
   // Como no Quimera (modo construção com abas Construir e Fazenda), só que cada jogador constrói apenas no lote que comprou.
   loteDe(j) { for (const L of this.lotes.values()) if (L.dono === j.conta) return L; return null; }
@@ -3139,6 +3195,7 @@ export class Simulacao {
     if (npc.funcao === 'alquimia') return diga('Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário.', { abrir: 'alquimia' });
     if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
     if (npc.funcao === 'resetar') return diga(npc.falas[0] + ` Custa ${this.custoReset(j)} de ouro.`, { abrir: 'resetar', custo: this.custoReset(j) });
+    if (npc.funcao === 'leilao') { diga(npc.falas[0], { abrir: 'leilao' }); return this.leilaoMsg(id, { acao: 'ver' }); } // Otávio: a Casa do Comércio
     diga(proxima());
   }
   // Inimigo caiu: conta para quem está numa missão contra a horda dele (vale para todos do grupo)

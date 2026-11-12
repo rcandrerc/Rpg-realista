@@ -5,6 +5,7 @@ import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
 import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
+import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -2008,12 +2009,17 @@ for (const n of MERCADORES_MUNDO) {
 // nem bate em quem está lá dentro, e a vida volta `regen` vezes mais rápido. O botão Voltar para a vila não muda.
 export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50, seguro: 15, regen: 2, raio: 1.75, lista: [
   { id: 'clareira', nome: 'Vila da Clareira', nivel: 1, faixa: 'Nv 1-30', x: -6, z: 1 },
-  { id: 'rio_claro', nome: 'Ponte do Rio Claro', nivel: 35, faixa: 'Nv 32-44', x: -261, z: 11 },
-  { id: 'juncos', nome: 'Ponte dos Juncos', nivel: 45, faixa: 'Nv 42-48', x: 564, z: 45 },
+  // história v2, Entrega 3 (André 2026-11-11: "um totem em cada vila"; totem perto de uma vila nova muda para dentro
+  // dela, com o mesmo id, e quem já tinha descoberto continua com ele). Antes: Ponte do Rio Claro (-261, 11), Ponte dos
+  // Juncos (564, 45), Ilha do Meio (173, 663) e Posto do Leste (640, 1075). Esboço aprovado: historia/mini-vilas-v2.jpg
+  { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 35, faixa: 'Nv 32-44', x: -234, z: 85 },
+  { id: 'juncos', nome: 'Juncal', nivel: 45, faixa: 'Nv 42-48', x: 546, z: 43 },
   { id: 'porto_vael', nome: 'Porto de Vael', nivel: 50, faixa: 'Nv 50', x: 104, z: 310 },
-  { id: 'ilha', nome: 'Ilha do Meio', nivel: 60, faixa: 'Nv 50-65', x: 173, z: 663 },
+  { id: 'ilha', nome: 'Vila da Maré', nivel: 60, faixa: 'Nv 50-65', x: 241, z: 624 },
   { id: 'aurora', nome: 'Aurora', nivel: 100, faixa: 'Nv 60-100', x: 186, z: 1068 },
-  { id: 'posto_leste', nome: 'Posto do Leste', nivel: 88, faixa: 'Nv 82-95', x: 640, z: 1075 },
+  { id: 'posto_leste', nome: 'Vila do Véu', nivel: 88, faixa: 'Nv 82-95', x: 652, z: 1095 },
+  { id: 'pouso_serra', nome: 'Pouso da Serra', nivel: 38, faixa: 'Nv 38-42', x: 4, z: -271 }, // totens novos (Entrega 3)
+  { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, faixa: 'Nv 95-100', x: 222, z: 1328 },
 ] };
 // ouro para ir até o totem t
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
@@ -2021,6 +2027,242 @@ export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
 // dentro da área segura de algum totem?
 export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro);
+// ---------- Mini vilas do mundo grande (história v2, Entrega 3; André 2026-11-11) ----------
+// Esboço aprovado (com um totem em cada vila): /mnt/project-files/historia/mini-vilas-v2.jpg. Cada vila tem a praça com
+// o totem no meio, casas do Medieval Village MegaKit (godot-prototipo/vilas3d/vilas.glb, feito por
+// ferramentas/vilas/montar.mjs) viradas para a praça, uma ferraria aberta com bigorna, forninho e bancada de uso
+// público, a banca da loja e o chefe que dá as missões dali (Entregas 4 e 5). Terreno só no Porto de Vael e em Aurora,
+// como o André decidiu (2026-11-08): as vilas novas não têm terreno, e o Porto e Aurora não ganham casa (o chão de lá é
+// dos terrenos), só a ferraria, a banca e os NPCs. shared/vilas.js arruma as casas. Todos os NPCs são humanos com o
+// corpo do herói, a cor e a roupa medieval deles (CLAUDE.md). onde: 'totem' (o chefe, entre o totem e a estrada),
+// 'forja' (dentro da ferraria), 'banca' (atrás da banca), 'comercio:e' / 'comercio:d' (na frente da Casa do Comércio, à
+// esquerda e à direita da porta), 'casa:n' (na porta da casa n). oficio: o avental e o martelo do ferreiro (visual_npc.gd).
+const ROUPA_OFICIO = 'peitoral0,calca0,botas0';
+const ferreiroDe = (id, nome, visual, tinta, veste, falas, extra = {}) => ({ id, nome, visual, onde: 'forja', roupa: ROUPA_OFICIO, tinta, veste, oficio: visual === 'cabelo_m',
+  funcao: 'ferreiro', acoes: ['vender', 'forja', 'consertar'], falas, ...extra });
+const lojaDe = (id, nome, visual, tinta, veste, falas) => ({ id, nome, visual, onde: 'banca', roupa: 'peitoral0,botas0', tinta, veste, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas });
+export const VILAS_MUNDO = [
+  { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 30, totem: 'rio_claro', jeito: 'Cidade de madeira na estrada do rio, com a Casa do Comércio no meio',
+    itens: ['comercio', 'forja', 'casa_4x6', 'casa_4x4', 'casa_6x6', 'casa_4x4'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['mesa', 'praca'], ['carroca', 'casa'], ['banco', 'praca'], ['estandarte', 'praca']],
+    npcs: [
+      { id: 'v_heitor', nome: 'Capitão Heitor, o chefe do Rio Claro', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x3a2a1e, roupa: 0x2e4a6a, calca: 0x2a2a30 }, funcao: 'dica', acoes: [], falas: [
+          'Faz anos que ninguém chega do leste. Seja bem-vindo à cidade da ponte.',
+          'Tudo que é raro passa por esta estrada. E a Névoa também.',
+          'Tem manhã em que o rio amanhece cinza. Os velhos dizem que é mau sinal.'] },
+      { id: 'v_otavio', nome: 'Otávio, o leiloeiro', visual: 'cabelo_m', onde: 'comercio:e', escala: 1.0, roupa: ROUPA_OFICIO, veste: { tunica: 0x2f5a3a, faixa: 0xd4a84a },
+        tinta: { cabelo: 0x1e1a18, roupa: 0x2f5a3a, calca: 0x2a2620 }, funcao: 'leilao', acoes: ['leilao'], falas: [
+          'Aqui o mundo inteiro vende e compra. Quem sabe negociar não precisa caçar tudo.',
+          'Ponha à venda, escolha o preço e o prazo. Quando vender, o ouro fica comigo até você vir buscar.',
+          'A casa fica com cinco por cento de cada venda. Justo, não acha?'] },
+      { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'comercio:d', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0x1a1a22, roupa: 0x5a2a3a, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
+          'Quer lutar de outro jeito? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.'] },
+      ferreiroDe('v_galdino', 'Galdino, o ferreiro', 'cabelo_m', { cabelo: 0x2a1a10, roupa: 0x5a3a22, calca: 0x2f2a24 }, { tunica: 0x8a6a4a }, [
+        'A bigorna, o forninho e a bancada são de todos. Use à vontade, eu só conserto e compro.',
+        'Peça batida? Eu deixo nova por um punhado de ouro.'], { escala: 1.1 }),
+      lojaDe('v_dalia', 'Dália, a comerciante', 'vivi', { cabelo: 0xc8a060, roupa: 0x6a8a3a, calca: 0x3c3a52 }, { tunica: 0x6a8a3a, corpete: 0x4a6a2a, saia: 0x5a4030, ate: 'joelho', avental: 0xe8dfc8 }, [
+        'Poção, lenha, pedra... o que a estrada pede, eu tenho.',
+        'A bancada aqui do lado é de todos, se quiser costurar.']),
+    ] },
+  { id: 'pouso_serra', nome: 'Pouso da Serra', nivel: 38, totem: 'pouso_serra', jeito: 'Pedra, peles e fogueira grande, ao pé da serra',
+    itens: ['forja', 'pedra_6x6', 'pedra_4x6', 'pedra_4x6'], banca: true,
+    enfeites: [['fogueira', 'praca'], ['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['banco', 'praca'], ['armas', 'casa']],
+    npcs: [
+      { id: 'v_ursula', nome: 'Úrsula, a caçadora', visual: 'shino', onde: 'totem', escala: 1.04, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
+        tinta: { cabelo: 0x6a3a1e, roupa: 0x5a4a32, calca: 0x3a3028 }, funcao: 'dica', acoes: [], falas: [
+          'Que bom que chegou ao Pouso da Serra. Aqui a gente vive do que a serra deixa caçar.',
+          'Tem uma gruta lá em cima que canta. Quem entra ouvindo aquele canto sai sem lembrar o caminho.',
+          'A fogueira da praça é de todo mundo. Senta, esquenta e conta uma história.'] },
+      ferreiroDe('v_bruno', 'Bruno Martelo, o ferreiro', 'cabelo_m', { cabelo: 0x1a1410, roupa: 0x4a3a2a, calca: 0x2a2620 }, { tunica: 0x6a5040 }, [
+        'Ferro da serra é duro de trabalhar. E duro de quebrar.',
+        'A bigorna é de todos. Eu só conserto e compro.'], { escala: 1.12 }),
+      lojaDe('v_cida', 'Cida, a comerciante', 'vivi', { cabelo: 0x3a2214, roupa: 0x8a5a3a, calca: 0x3a3028 }, { tunica: 0x8a5a3a, saia: 0x5a3a2a, ate: 'canela', faixa: 0xd8c8a0 }, [
+        'Pele, lenha e poção. Na serra não precisa de mais nada.',
+        'O frio aqui pega de noite. Leve comida quente.']),
+    ] },
+  { id: 'juncal', nome: 'Juncal', nivel: 42, totem: 'juncos', jeito: 'Vila de pescadores na beira do Rio dos Juncos',
+    itens: ['forja', 'casa_4x6', 'casa_4x4', 'casa_6x6'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['mesa', 'praca'], ['banco', 'praca']],
+    npcs: [
+      { id: 'v_tiao', nome: 'Tião dos Juncos, o chefe do Juncal', visual: 'fumiriya', onde: 'totem', escala: 0.98, roupa: 'peitoral0,calca0,botas0,capa0',
+        veste: { tunica: 0x4a6a5a, faixa: 0xc8b070 }, tinta: { cabelo: 0x5a4a3a, roupa: 0x4a6a5a, calca: 0x3a3a30 }, funcao: 'dica', acoes: [], falas: [
+          'O rio dá peixe, junco e notícia. Quase sempre nessa ordem.',
+          'De noite uma luz roxa sai da gruta e vai para o mar. Ninguém aqui chega perto.',
+          'Com três totens acesos você atravessa Vael inteiro num piscar de olhos.'] },
+      ferreiroDe('v_lia', 'Lia, a ferreira', 'shibu', { cabelo: 0x8a2a1e, roupa: 0x5a3a2a, calca: 0x2f2a24 }, { tunica: 0x7a5a3a, saia: 0x4a3626, ate: 'joelho', avental: 0x3a2a1e }, [
+        'Ferro molhado enferruja. Aqui tudo leva graxa de peixe. Funciona, juro.',
+        'A bigorna é de todos. Eu conserto e compro o que você não quiser.']),
+      lojaDe('v_zeca', 'Zeca, o comerciante', 'cabelo_m', { cabelo: 0x2a2a2a, roupa: 0x3a5a7a, calca: 0x2a3040 }, { tunica: 0x3a5a7a, faixa: 0xe0d0a0 }, [
+        'Isca, linha, poção. E o peixe mais fresco de Vael.',
+        'Vende pra mim o que pescar. Eu pago justo.']),
+    ] },
+  { id: 'porto', nome: 'Porto de Vael', nivel: 48, totem: 'porto_vael', semCasas: true, jeito: 'Cais, armazéns e barcos (os terrenos continuam)',
+    itens: ['forja'], banca: true, enfeites: [['barris', 'praca'], ['caixotes', 'praca'], ['estandarte', 'praca']],
+    npcs: [
+      { id: 'v_odete', nome: 'Capitã Odete, a chefe do Porto', visual: 'vivi', onde: 'totem', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x2a1a14, roupa: 0x1e3a5a, calca: 0x2a2a30 }, funcao: 'dica', acoes: [], falas: [
+          'O barquinho leva dois. Navio de verdade, só com quarenta mil de ouro e muita madeira.',
+          'O mar esquece quem não respeita ele.',
+          'Antes da névoa, dava pra ver a Ilha do Meio daqui.'] },
+      ferreiroDe('v_ruy', 'Ruy, o ferreiro', 'cabelo_m', { cabelo: 0x4a3a2a, roupa: 0x4a4038, calca: 0x2e2a26 }, { tunica: 0x7a6a5a }, [
+        'Âncora, corrente, prego de casco. E espada, se pedir com jeito.',
+        'A bigorna é de todos. Eu conserto e compro.']),
+      lojaDe('v_graca', 'Graça, a comerciante', 'shibu', { cabelo: 0x3a2a1a, roupa: 0x8a6a3a, calca: 0x3a3028 }, { tunica: 0x8a6a3a, saia: 0x5a4030, ate: 'canela', avental: 0xe8dfc8 }, [
+        'Tudo que chega pelo mar passa pela minha banca.',
+        'Corda e poção nunca sobram num porto.']),
+    ] },
+  { id: 'vila_mare', nome: 'Vila da Maré', nivel: 50, totem: 'ilha', jeito: 'Redes de pesca e barcos virados no meio da Ilha do Meio',
+    itens: ['forja', 'casa_4x6', 'casa_4x4', 'casa_6x6'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['mesa', 'praca'], ['estandarte', 'praca'], ['banco', 'praca']],
+    npcs: [
+      { id: 'v_coral', nome: 'Avó Coral, a chefe da Maré', visual: 'shino', onde: 'totem', escala: 0.95, roupa: 'peitoral0,botas0,capa1',
+        veste: { tunica: 0x3a6a8a, saia: 0x3a6a8a, ate: 'canela', faixa: 0xe8e4f4 }, tinta: { cabelo: 0xe8e4dc, roupa: 0x3a6a8a, calca: 0x2f4a6a }, funcao: 'dica', acoes: [], falas: [
+          'Na Maré todo mundo pesca, até as crianças.',
+          'Barco que não navega mais vira telhado. Aqui nada se perde.',
+          'Toda noite a luz roxa passa por cima da ilha, indo para o sul.'] },
+      ferreiroDe('v_teodoro', 'Teodoro, o ferreiro', 'cabelo_m', { cabelo: 0x6a5a4a, roupa: 0x4a5a5a, calca: 0x2e2a26 }, { tunica: 0x6a7a7a }, [
+        'Sal come o ferro. Eu como o sal: venho consertando há quarenta anos.',
+        'A bigorna é de todos. Eu conserto e compro.'], { escala: 1.04 }),
+      lojaDe('v_perola', 'Pérola, a comerciante', 'vivi', { cabelo: 0x1a2a3a, roupa: 0x5a8aaa, calca: 0x2f4a6a }, { tunica: 0x5a8aaa, saia: 0x3a6a8a, ate: 'joelho', faixa: 0xf0e8d8 }, [
+        'Concha, pérola, peixe seco. E poção, que ninguém vive só de peixe.',
+        'Do continente quase ninguém vem. Que bom que você veio.']),
+    ] },
+  { id: 'aurora', nome: 'Aurora', nivel: 64, totem: 'aurora', semCasas: true, jeito: 'Pedra branca e torres apagadas; só a praça tem gente (os bairros são dos terrenos)',
+    itens: ['forja'], banca: true, enfeites: [['estandarte', 'praca'], ['estandarte', 'praca'], ['barris', 'praca'], ['mesa', 'praca']],
+    npcs: [
+      { id: 'v_elara', nome: 'Guardiã Elara, a chefe de Aurora', visual: 'shibu', onde: 'totem', escala: 1.03, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0xd8d8e8, roupa: 0xe8e4d8, calca: 0x5a5a6a }, funcao: 'dica', acoes: [], falas: [
+          'Só a praça ainda tem gente. As casas vazias acendem as janelas sozinhas à noite.',
+          'Aurora esqueceu de si mesma. A gente só lembra porque não sai de perto da praça.'] },
+      ferreiroDe('v_icaro', 'Ícaro, o ferreiro', 'cabelo_m', { cabelo: 0xb8a888, roupa: 0x5a5a6a, calca: 0x2e2a30 }, { tunica: 0x8a8a9a }, [
+        'O cristal daqui corta melhor que aço. Pena que quase ninguém lembra como forjar.',
+        'A bigorna é de todos. Eu conserto e compro.']),
+      lojaDe('v_lume', 'Lume, a comerciante', 'shino', { cabelo: 0xe8c860, roupa: 0xc8b890, calca: 0x4a4a5a }, { tunica: 0xc8b890, saia: 0x8a7a5a, ate: 'canela', faixa: 0x8a6ad0 }, [
+        'Velas, poções e pão. O resto, a Névoa levou.',
+        'Você não é daqui... mas parece que eu te conheço.']),
+    ] },
+  { id: 'vila_veu', nome: 'Vila do Véu', nivel: 80, totem: 'posto_leste', jeito: 'Forjas de brasa e pedra escura em volta do Posto do Leste',
+    itens: ['forja', 'pedra_6x6', 'pedra_4x6', 'pedra_4x6'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['bigorna_enfeite', 'casa'], ['estandarte', 'praca'], ['armas', 'casa']],
+    npcs: [
+      { id: 'v_bras', nome: 'Brás, o vigia', visual: 'fumiriya', onde: 'totem', escala: 1.05, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x1a1410, roupa: 0x3a2a2a, calca: 0x2a2020 }, funcao: 'dica', acoes: [], falas: [
+          'Daqui se vê o Morro do Véu. Ninguém sobe lá faz trezentos anos.',
+          'As forjas de brasa nunca apagam. Nem de noite.'] },
+      ferreiroDe('v_nadia', 'Nádia, a ferreira', 'vivi', { cabelo: 0x1a1a1a, roupa: 0x5a2a1e, calca: 0x2a2020 }, { tunica: 0x6a3a2a, saia: 0x3a2a20, ate: 'joelho', avental: 0x2a1e18 }, [
+        'Brasa viva derrete até cristal. Cuidado com os dedos.',
+        'A bigorna é de todos. Eu conserto e compro.']),
+      lojaDe('v_otto', 'Otto, o comerciante', 'cabelo_m', { cabelo: 0x5a3a2a, roupa: 0x5a4a3a, calca: 0x2e2a26 }, { tunica: 0x5a4a3a, faixa: 0xb8401e }, [
+        'Carvão, poção, couro grosso. No leste a gente se vira com pouco.',
+        'Vende pra mim o que achar no morro. Eu pago bem.']),
+    ] },
+  { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, totem: 'ultimo_pouso', jeito: 'Acampamento da Ordem, de estandartes azuis, ao pé do Pico da Névoa',
+    itens: ['pedra_4x6', 'pedra_4x6'], banca: true,
+    enfeites: [['fogueira', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['mesa', 'praca'], ['armas', 'casa'], ['caixotes', 'casa']],
+    npcs: [
+      { id: 'v_rui', nome: 'Sentinela Rui, da Ordem', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0x2a2622, roupa: 0x2e4a7a, calca: 0x2b2a30 }, funcao: 'dica', acoes: [], falas: [
+          'O acampamento da Ordem esperou trezentos anos por alguém como você.',
+          'Daqui pra frente é o Pico da Névoa. Quem sobe não volta pela estrada.'] },
+      { id: 'v_celeste', nome: 'Irmã Celeste, a curandeira', visual: 'shino', onde: 'casa:0', escala: 1.0, roupa: 'peitoral0,botas0,capa1', arma: 'cajado',
+        veste: { tunica: 0x2e4a7a, saia: 0x2e4a7a, ate: 'canela', faixa: 0xe4dccb }, tinta: { cabelo: 0xe8e4dc, roupa: 0xe8e1cf, calca: 0x6d7f8c }, funcao: 'cura', acoes: ['cura'], falas: [
+          'Ferido? Venha cá. A Ordem cuida dos seus.',
+          'Toda arma que sobe o Pico passa pela minha bênção.'] },
+      lojaDe('v_dimas', 'Dimas, o intendente', 'cabelo_m', { cabelo: 0x3a3632, roupa: 0x2e4a7a, calca: 0x2a2a30 }, { tunica: 0x2e4a7a, faixa: 0xd8c070 }, [
+        'Poções, comida, lenha. No pé do Pico ninguém cobra caro.',
+        'A Ordem paga o que você trouxer. Tudo serve na subida.']),
+    ] },
+];
+// Mirela, a alquimista, muda para o Rio Claro (André 2026-11-11, plano aprovado: "a alquimia passa a ser lá"; a casa
+// dela na Clareira continua de pé, como o laboratório antigo). Fica na porta da casa grande, perto da Casa do Comércio.
+const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
+{
+  const G = gradeDoMundo(), mar = -0.05;
+  const totem = (id) => TOTENS.lista.find((t) => t.id === id);
+  // o que nenhuma casa pode pisar: campos, minas, cavernas, cais, arenas e os mercadores que já estão no lugar
+  const evitar = [...LUGARES_MUNDO.filter((l) => l.tipo !== 'vila' && l.tipo !== 'posto').map((l) => ({ x: l.x, z: l.z, r: l.r + 4 })),
+    ...ARENAS_BOSS.map((a) => ({ x: a.x, z: a.z, r: a.r + 10 })), ...MERCADORES_MUNDO.map((n) => ({ x: n.x, z: n.z, r: 2.5 })),
+    ...(MAPA_CLAREIRA.cais || []).map((c) => ({ x: c.x, z: c.z, r: c.d / 2 + 3 }))];
+  // os bairros de Aurora (terrenos dos jogadores): nada de casa em cima
+  const AUR = LUGARES_MUNDO.find((l) => l.id === 'vila_aurora');
+  const areas = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz]) => ({ x: AUR.x + dx * 34, z: AUR.z + dz * 34, r: 27 }));
+  const amb = { G, alturaMundo, terraEm, mar, estradas: ESTRADAS_MUNDO.map((e) => e.curva), rios: RIOS_MUNDO.map((r) => r.curva), evitar, areas };
+  const npcs = MAPA_CLAREIRA.npcs, obst = MAPA_CLAREIRA.obstaculos;
+  MAPA_CLAREIRA.casasMundo = []; // peças sólidas das casas (shared/terreno.js): paredes que se escalam e telhado de andar em cima
+  for (const V of VILAS_MUNDO) {
+    const T = totem(V.totem);
+    V.x = T.x; V.z = T.z;
+    const A = arrumarVila(V, amb);
+    V.casas = A.casas; V.banca = A.banca; V.enfeites = A.enfeites; V.raio = A.raio;
+    // casas: o retângulo das paredes vira peça sólida (a cumeeira corre de frente para trás: a peça gira 90 graus, como o
+    // telhado de duas águas do terreno.js, que sobe no meio do fundo)
+    for (const c of A.casas) {
+      const M = MODELOS_VILA[c.m];
+      if (M.aberta) { // ferraria: piso de pedra (chão), muro do fundo e quatro esteios
+        const [px, pz] = naPeca(c, 0, 0), [mx, mz] = naPeca(c, 0, -M.d / 2 + 0.15);
+        MAPA_CLAREIRA.casasMundo.push({ x: px, z: pz, ry: c.ry, hw: M.w / 2 + 0.1, hd: M.d / 2 + 0.1, y1: c.y + 0.03, sobe: 0, piso: true },
+          { x: mx, z: mz, ry: c.ry, hw: M.w / 2, hd: 0.2, y1: c.y + 3.1, sobe: 0 });
+        for (const [sx, sz] of [[1, 1], [-1, 1]]) { const [ex, ez] = naPeca(c, sx * M.w / 2, sz * M.d / 2); obst.push({ x: ex, z: ez, r: 0.16 }); }
+        continue;
+      }
+      MAPA_CLAREIRA.casasMundo.push({ x: c.x, z: c.z, ry: c.ry + Math.PI / 2, hw: M.d / 2, hd: M.w / 2, y1: c.y + M.alto, sobe: M.sobe });
+    }
+    for (const e of A.enfeites) { const M = MODELOS_VILA[e.m]; obst.push({ x: e.x, z: e.z, r: M.r || 0.5, ...(M.alto ? { alto: +(e.y + M.alto).toFixed(2) } : {}) }); }
+    if (A.banca) obst.push({ x: A.banca.x, z: A.banca.z, r: MODELOS_VILA.banca.r, alto: +(A.banca.y + MODELOS_VILA.banca.alto).toFixed(2) });
+    // estações públicas: bigorna e forninho na ferraria, bancada ao lado da banca (qualquer um usa, como as da Clareira)
+    const F = A.casas.find((c) => c.m === 'forja');
+    const est = [];
+    if (F) {
+      const [bx, bz] = naPeca(F, 0.6, 0.35), [fx, fz] = naPeca(F, -0.85, -1.0);
+      est.push({ id: 'pub_bigorna_' + V.id, k: 'bigorna', nome: 'Bigorna da ferraria', x: bx, z: bz, ry: F.ry, y: +(F.y + 0.03).toFixed(2), vila: V.id },
+        { id: 'pub_fornalha_' + V.id, k: 'fornalha', nome: 'Forninho da ferraria', x: fx, z: fz, ry: F.ry, y: +(F.y + 0.03).toFixed(2), vila: V.id });
+    }
+    if (A.banca) { const [qx, qz] = naPeca(A.banca, 2.3, 0.2); est.push({ id: 'pub_bancada_' + V.id, k: 'bancada', nome: 'Bancada da praça', x: qx, z: qz, ry: A.banca.ry, y: +alturaMundo(G, qx, qz).toFixed(2), vila: V.id }); }
+    for (const E of est) {
+      ESTACOES_PUBLICAS.push(E);
+      const C = CONSTRUCOES[E.k], c = Math.cos(E.ry), s = Math.sin(E.ry);
+      for (const [dx, dz, r] of C.circulos) obst.push({ x: +(E.x + dx * c + dz * s).toFixed(3), z: +(E.z - dx * s + dz * c).toFixed(3), r, alto: +(C.alto + E.y).toFixed(3) });
+    }
+    // os NPCs: no lugar de cada um, virados para a praça (o chefe olha para a estrada, de onde se chega)
+    const perto = (lx, lz, P) => lugarNaVila(A, ...naPeca(P, lx, lz), 0.5);
+    let estrada = [V.x, V.z + 1], de = Infinity;
+    for (const L of amb.estradas) for (const [x, z] of L) { const d = Math.hypot(x - V.x, z - V.z); if (d < de) { de = d; estrada = [x, z]; } }
+    const lugar = (onde) => {
+      if (onde === 'totem') { const a = Math.atan2(estrada[0] - V.x, estrada[1] - V.z); return [...lugarNaVila(A, V.x + Math.sin(a) * 3.6, V.z + Math.cos(a) * 3.6, 0.6), a]; }
+      if (onde === 'forja' && F) return [...perto(-1.15, 0.85, F), F.ry];
+      if (onde === 'banca' && A.banca) return [...naPeca(A.banca, 0, -1.15), A.banca.ry];
+      const [o, q] = onde.split(':');
+      const C = o === 'comercio' ? A.casas.find((c) => c.m === 'comercio') : A.casas.filter((c) => c.m !== 'forja')[Number(q) || 0];
+      if (C) { const D = MODELOS_VILA[C.m]; return [...perto(o === 'comercio' ? (q === 'e' ? -2.2 : 2.2) : 1.4, D.d / 2 + 1.3, C), C.ry]; }
+      return [...lugarNaVila(A, V.x + 5, V.z + 5, 0.6), 0];
+    };
+    for (const n of V.npcs) {
+      const [x, z, ry] = lugar(n.onde);
+      npcs.push({ ...n, x, z, ry: +ry.toFixed(3), vila: V.id, mundo: true });
+    }
+    for (const [id, D] of Object.entries(MUDA_PARA_VILA)) if (D.vila === V.id) {
+      const n = npcs.find((o) => o.id === id), [x, z, ry] = lugar(D.onde);
+      Object.assign(n, { x, z, ry: +ry.toFixed(3), vila: V.id, mundo: true });
+    }
+  }
+  // as árvores do mundo que caíam dentro de uma vila vão para fora da borda dela, na mesma direção (não somem; o "a" de
+  // cada uma continua o mesmo). Se cair numa estrada ou em outra vila, anda mais um pouco.
+  const naEstrada = (x, z) => amb.estradas.some((L) => L.some(([a, b]) => Math.abs(a - x) < 5 && Math.abs(b - z) < 5 && Math.hypot(a - x, b - z) < 4));
+  for (const t of MAPA_CLAREIRA.mata) {
+    if (!t.mundo) continue;
+    for (const V of VILAS_MUNDO) {
+      const d = Math.hypot(t.x - V.x, t.z - V.z), R = V.raio + 3;
+      if (d >= R) continue;
+      const ux = d ? (t.x - V.x) / d : 1, uz = d ? (t.z - V.z) / d : 0;
+      let r = R + (d % 3);
+      while (r < R + 14 && (naEstrada(V.x + ux * r, V.z + uz * r) || VILAS_MUNDO.some((W) => W !== V && Math.hypot(V.x + ux * r - W.x, V.z + uz * r - W.z) < W.raio + 3))) r += 2;
+      t.x = +(V.x + ux * r).toFixed(2); t.z = +(V.z + uz * r).toFixed(2); t.y = +alturaMundo(G, t.x, t.z).toFixed(2);
+    }
+  }
+}
+
 // a pedra do totem bloqueia a passagem (servidor e app, que lê mundo.json)
 for (const t of TOTENS.lista) MAPA_CLAREIRA.obstaculos.push({ x: t.x, z: t.z, r: TOTENS.raio, totem: t.id });
 
@@ -2044,6 +2286,13 @@ export const VILAS_TERRENO = [
 ];
 // a pedra do totem (TOTENS) entra como praça: terreno nenhum em cima dela
 for (const V of VILAS_TERRENO) for (const t of TOTENS.lista) if (Math.hypot(t.x - V.area.x, t.z - V.area.z) < Math.max(V.area.rx, V.area.rz) + 6) V.estradas.push(praca(t.x, t.z, 3));
+// e as peças das mini vilas do mundo grande (ferraria e banca do Porto, banca de Aurora...): terreno nenhum em cima delas
+for (const V of VILAS_TERRENO) for (const W of VILAS_MUNDO) {
+  if (Math.hypot(W.x - V.area.x, W.z - V.area.z) > Math.max(V.area.rx, V.area.rz) + W.raio + 6) continue;
+  for (const c of W.casas) { const M = MODELOS_VILA[c.m]; V.estradas.push(praca(c.x, c.z, Math.hypot(M.w, M.d) / 2 + 1)); }
+  if (W.banca) V.estradas.push(praca(W.banca.x, W.banca.z, 3));
+  for (const e of W.enfeites) V.estradas.push(praca(e.x, e.z, (MODELOS_VILA[e.m].r || 0.6) + 1));
+}
 // a vila de um ponto (o meio do terreno), ou null
 export function vilaEm(x, z) {
   for (const V of VILAS_TERRENO) if (Math.hypot(x - V.area.x, z - V.area.z) <= raioNaDirecao(V.area, Math.atan2(z - V.area.z, x - V.area.x))) return V;

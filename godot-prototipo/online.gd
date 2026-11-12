@@ -769,6 +769,8 @@ func evento(ev: Dictionary) -> void:
 			m.P.do_servidor(ev)
 			if m.troca:
 				m.troca.progresso_mudou() # a mochila da janela de troca mostra o que sobrou
+			if m.leilao:
+				m.leilao.progresso_mudou() # o ouro e a mochila da janela do leilão
 			if m.construcao:
 				m.construcao.progresso_mudou() # custos e sementes da barra do modo construção
 			if m.transporte:
@@ -1014,6 +1016,10 @@ func evento(ev: Dictionary) -> void:
 				m.mov.selo_aberto = ev.get("aberta", false) == true
 				if m.mov.selo_aberto:
 					m.sons.tocar("magia", -6.0)
+			return
+		"leilao": # Casa do Comércio (leilao_ui.gd): a busca, os meus anúncios e o que está guardado com o Otávio
+			if m.leilao:
+				m.leilao.do_servidor(ev)
 			return
 		"fala":
 			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), str(ev.texto), ev)): # janela do NPC aberta: a fala aparece nela
