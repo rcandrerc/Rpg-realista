@@ -389,26 +389,56 @@ app.get('/saude', (_req, res) => {
   res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576) });
   carga.pico = 0;
 });
-// Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
-const naOracle = ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)));
+// Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
+// REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
+// e no começo da contagem; o celular conta sozinho entre um e outro. No fim grava o progresso de todos e sai (o systemd liga de novo).
+// Com ninguém online, sai na hora. Serve ao servidor novo do merge (server/atualizar.js) e ao reinício programado.
+let reiniciando = null;
+const alguemOnline = () => [...salas].some((s) => s.clients.length);
+function reiniciarComAviso(motivo, segundos = REINICIO.aviso) {
+  if (reiniciando) return reiniciando;
+  reiniciando = new Promise((pronto) => {
+    const fim = Date.now() + (alguemOnline() ? segundos * 1000 : 0);
+    const sair = () => {
+      for (const s of salas) { try { s.salvarProgressos(); } catch (e) { console.error('reinício: gravar falhou', e); } }
+      console.log(`Reiniciando (${motivo}) depois de ${Math.round(process.uptime() / 60)} min ligado.`);
+      pronto();
+      setTimeout(() => process.exit(0), 1500);
+    };
+    let ultimo = Infinity;
+    const passo = () => {
+      const falta = Math.ceil((fim - Date.now()) / 1000);
+      if (falta <= 0) return sair();
+      // a cada 10 s, e no começo da contagem grande
+      if (falta <= ultimo - 10 || (falta <= REINICIO.contagem && ultimo > REINICIO.contagem)) {
+        ultimo = falta;
+        for (const s of salas) s.sim.evento({ t: 'reinicio', s: falta });
+      }
+      setTimeout(passo, 250);
+    };
+    passo();
+  });
+  return reiniciando;
+}
 
-// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada. Avisa no chat geral, grava todo mundo e sai;
-// o systemd (Restart=always) liga de novo. Com a sala vazia, reinicia sem aviso.
+// Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
+const naOracle = ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)), () => reiniciarComAviso('servidor novo'));
+
+// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada. Avisa no chat geral, depois a faixa na tela
+// com a contagem, grava todo mundo e sai; o systemd (Restart=always) liga de novo. Com a sala vazia, reinicia sem aviso.
 if (naOracle || process.env.REINICIO_TESTE) {
   const total = (Number(process.env.REINICIO_TESTE) || REINICIO.horas * 60) * 60; // segundos ligado até reiniciar
   const avisados = new Set();
   setInterval(() => {
-    const falta = total - process.uptime(), alguem = [...salas].some((s) => s.clients.length);
+    const falta = total - process.uptime(), alguem = alguemOnline();
     for (const min of REINICIO.avisos) if (alguem && falta <= min * 60 && falta > 0 && !avisados.has(min)) {
       avisados.add(min);
       const sala = [...salas][0];
       sala?.sim.anunciar(`O servidor vai reiniciar em ${min} minuto${min > 1 ? 's' : ''} para ficar mais leve. Seu progresso fica salvo; é só entrar de novo.`);
     }
-    if (falta <= 0 && !avisados.has('fim')) {
+    if (falta <= REINICIO.aviso && !avisados.has('fim')) {
       avisados.add('fim');
-      for (const s of salas) { try { s.salvarProgressos(); } catch (e) { console.error('reinício: gravar falhou', e); } }
-      console.log(`Reinício programado depois de ${Math.round(process.uptime() / 60)} min ligado.`);
-      setTimeout(() => process.exit(0), 1500);
+      reiniciarComAviso('programado', Math.max(0, Math.round(falta)));
     }
   }, 5000);
 }

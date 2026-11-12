@@ -697,6 +697,15 @@ func custo(k: String) -> Dictionary:
 		r[c] = maxi(1, int(round(float(PK[k].custo[c]) * (1.0 - float(PR.mercador.material) * km))))
 	return r
 
+# o pack que esse mercador faz e o material dele (já com o desconto da profissão): conversa.gd desenha em ícones
+func receita_mercador(n) -> Dictionary:
+	if not (n is Dictionary):
+		return {}
+	var k := str(n.get("info", {}).get("merch", ""))
+	if not PK.has(k):
+		return {}
+	return {"k": k, "nome": str(PK[k].nome), "custo": custo(k)}
+
 # ---------- janela do mercador (conversa.gd chama quando o NPC é de pack) ----------
 # devolve [fala, opções [[texto, ícone, Callable]]]
 func opcoes_mercador(n: Dictionary) -> Array:
@@ -707,11 +716,8 @@ func opcoes_mercador(n: Dictionary) -> Array:
 	var p: Dictionary = m.P.prog
 	var nx: float = n.no.position.x
 	var nz: float = n.no.position.z
-	var c := custo(k)
-	var mat := PackedStringArray()
-	for it in c:
-		mat.append("%s %d/%d" % [m.P.nome_item({"k": it}) if m.P.has_method("nome_item") else it, m.P.contar(it) if m.P.has_method("contar") else 0, c[it]])
-	var fala := "Eu faço o %s. Me traga: %s.\nQuanto paga em cada mercador (mais longe e área mais forte = mais caro):" % [PK[k].nome, ", ".join(mat)]
+	# o material aparece desenhado em cima, com tem/precisa (conversa.gd _itens_passe, igual ao passe do Gaspar)
+	var fala := "Eu faço o %s com o material aí em cima.\nQuanto paga em cada mercador (mais longe e área mais forte = mais caro):" % PK[k].nome
 	var lista := []
 	for o in m.npcs:
 		if o.funcao != "pack" or o == n:

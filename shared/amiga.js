@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { CEREBRO, NPC_VIDA, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
+import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
@@ -28,7 +28,7 @@ const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1,
 const REGA_MS = HORTA.rega * 3600000;
 
 // peça da casa da lista AMIGA.casa no mundo (o terreno começa em x0, z0)
-function pecaDaCasa(def, c) {
+export function pecaDaCasa(def, c) {
   const [k, dx, dz, lado] = c, T = CONSTRUCOES[k]?.tipo;
   let x = def.x0 + dx, z = def.z0 + dz, r = 0;
   if (T === 'borda') {
@@ -38,7 +38,7 @@ function pecaDaCasa(def, c) {
   return { k, x, z, r };
 }
 const chavePeca = (p) => `${p.k}:${p.x},${p.z}`;
-const mesmaPeca = (a, b) => a.k === b.k && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.z - b.z) < 0.01 && (a.r & 1) === (b.r & 1);
+export const mesmaPeca = (a, b) => a.k === b.k && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.z - b.z) < 0.01 && (a.r & 1) === (b.r & 1);
 
 // número fixo de cada NPC (do id): o atraso, o lugar na vila e o sorteio do campo saem dele, sempre iguais para o mesmo NPC
 export function hashNpc(id) { let h = 2166136261; for (const c of String(id)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0; return h; }
@@ -254,7 +254,42 @@ export const Amiga = {
     this.lotesMudados.add(L.def.id);
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
+  // Em volta da cabeça: confere se o passo anterior saiu do lugar (André 2026-11-12: "ficam caminhando sem sair do lugar
+  // o tempo todo, batendo na parede lá da casa deles... ou ficam parados, ou ficam andando de verdade"). AMIGA.parede.
   passoAmiga(dt) {
+    const j = this.amiga; if (!j) return;
+    this.paredeAmiga(j, dt);
+    j.ia.mira = null; j.ia.naEstrada = false;
+    this.cabecaAmiga(dt);
+    const ia = j.ia, e = j.entrada, dv = ia.desvioParede;
+    if (dv && this.tempo < dv.ate && e && Math.hypot(e.mx, e.mz) > 0.15) { // desviando: anda de lado (um pouco para a frente)
+      let mx = e.mx * 0.3 + e.mz * dv.lado, mz = e.mz * 0.3 - e.mx * dv.lado; const n = Math.hypot(mx, mz) || 1;
+      j.entrada = { mx: mx / n, mz: mz / n, correr: e.correr };
+    }
+  },
+  // quer andar e não sai do lugar (parede, cerca, pedra): larga o passeio, desvia ou, no último caso, aparece no ponto
+  paredeAmiga(j, dt) {
+    const ia = j.ia, P = this.AMIGA.parede, e = j.entrada, u = ia.passoAntes;
+    ia.passoAntes = { x: j.x, z: j.z };
+    const m = e ? Math.hypot(e.mx, e.mz) : 0;
+    // na estrada o longeAmiga já desvia sozinho
+    if (!P || !u || m <= 0.15 || ia.naEstrada || j.morto || j.esc || j.trava > 0 || j.arrancada || j.troca || !(dt > 0)) { ia.parede = 0; return; }
+    const v = MONTARIAS[j.montado]?.correr || (e.correr ? HEROI.correr : HEROI.andar), andou = Math.hypot(j.x - u.x, j.z - u.z);
+    if (andou >= v * Math.min(1, m) * dt * P.minimo) { ia.parede = Math.max(0, (ia.parede || 0) - dt); if (!ia.parede && this.tempo >= (ia.desvioParede?.ate || 0) + P.preso * 2) ia.tentaParede = 0; return; }
+    if ((ia.parede = (ia.parede || 0) + dt) < P.preso) return;
+    ia.parede = 0;
+    const av = ia.av;
+    if (av?.passeio) { av.passeio = null; this.pararAmiga(j); return; } // passeio à toa: fica parado e depois escolhe outro canto
+    const alvo = ia.fase === 'andar' && !av && !ia.noTime ? ia.rota?.[0] : ia.mira;
+    if ((ia.tentaParede = (ia.tentaParede || 0) + 1) > P.desvios && !j.time && alvo && Math.hypot(alvo.x - j.x, alvo.z - j.z) < P.salto && !j.montado) {
+      this.teleportes = (this.teleportes | 0) + 1; ia.tentaParede = 0; ia.desvioParede = null;
+      Object.assign(j, { x: alvo.x, z: alvo.z, y: this.terreno.altura(alvo.x, alvo.z) });
+      if (ia.fase === 'andar' && !av && ia.rota?.[0] === alvo) { ia.rota.shift(); ia.preso = 0; ia.longe = Infinity; }
+      return;
+    }
+    ia.desvioParede = { ate: this.tempo + P.desvio, lado: ia.desvioParede?.lado === 1 ? -1 : 1 };
+  },
+  cabecaAmiga(dt) {
     const j = this.amiga; if (!j) return;
     const ia = j.ia, L = this.loteDaAmiga();
     if (this.tempo >= (ia.diarioT || 0)) { ia.diarioT = this.tempo + 5; this.diarioAmiga(); } // memória: conversas que terminaram
@@ -961,7 +996,7 @@ export const Amiga = {
     }
     let mx = dx / da, mz = dz / da;
     if (v.desvio > 0) { const l = v.lado; [mx, mz] = [mx * 0.3 + mz * l, mz * 0.3 - mx * l]; const n = Math.hypot(mx, mz); mx /= n; mz /= n; }
-    j.entrada = { mx, mz, correr: true };
+    j.entrada = { mx, mz, correr: true }; ia.naEstrada = true;
     return true;
   },
   // o dono entrou na caverna (já com o selo aberto): chegando lá dentro andando, ela entra junto (passe do time)
@@ -969,6 +1004,7 @@ export const Amiga = {
     if (dono.caverna && !j.caverna && this.naCaverna(j)) j.caverna = { desde: this.tempo };
   },
   irDireto(j, x, z, correr) {
+    j.ia.mira = { x, z }; // para onde está indo (paredeAmiga: aparece aqui se não conseguir passar)
     const dx = x - j.x, dz = z - j.z, d = Math.hypot(dx, dz) || 1;
     j.entrada = { mx: dx / d, mz: dz / d, correr };
   },

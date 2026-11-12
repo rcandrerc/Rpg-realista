@@ -1309,7 +1309,10 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm', 'time'], respostaTime: 30 }; // time (André 2026-11-11): fala com todos do time de uma vez; os NPCs do time respondem no time por respostaTime segundos
 // Reinício programado do servidor (André 2026-11-11: "a cada 5 horas tem um reset, reinicia automaticamente"):
 // avisa no chat geral antes (minutos), grava o progresso de todos e reinicia; o systemd liga de novo em segundos.
-export const REINICIO = { horas: 5, avisos: [5, 1] };
+// Faixa na tela (André 2026-11-12: "um aviso na tela, em cima, meio grande... servidor está reiniciando em 10, 9, 8"; "primeiro
+// o servidor reiniciará em um minuto, e depois uma contagem de 10 segundos"): vale para o reinício programado e para o servidor
+// novo que chega com o merge. aviso = segundos antes do reinício em que sai "reinicia em 1 minuto"; contagem = a contagem grande.
+export const REINICIO = { horas: 5, avisos: [5, 1], aviso: 60, contagem: 10 };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
@@ -2484,6 +2487,11 @@ export const AMIGA = {
   // (depois de 3 desvios no mesmo ponto pula para o próximo); seco: s fora da água para subir de novo no lobo; agua: fundo
   // (m) que já desce do lobo e atravessa a nado; frente: m adiante na rota para ver a água
   viagem: { estrada: 25, chega: 10, olha: 2.4, replanejar: 12, novaEm: 3, preso: 1.5, desvio: 0.8, seco: 0.8, agua: 0.5, frente: 3, folga: 1.6, extra: 60 },
+  // André 2026-11-12 ("ficam caminhando sem sair do lugar o tempo todo, batendo na parede... ou ficam parados, ou ficam
+  // andando de verdade"): querendo andar mas sem sair do lugar por preso s (andou menos que minimo do passo esperado):
+  // passeio à toa é largado (fica parado e escolhe outro); indo para um lugar, desvia de lado por desvio s; depois de
+  // desvios tentativas seguidas sem sair, aparece no ponto (só fora do time e até salto m; no time só desvia)
+  parede: { preso: 1.5, minimo: 0.25, desvio: 0.9, desvios: 3, salto: 30 },
   // o que ela pede ao André (e paga de volta com o que colheu, ou em ouro)
   pedidos: [{ k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'couro', n: 2 }, { k: 'semente_cenoura', n: 3 }, { k: 'minerio_cobre', n: 3 }],
   falas: {

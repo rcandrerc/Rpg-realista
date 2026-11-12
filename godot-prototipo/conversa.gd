@@ -328,7 +328,7 @@ func abrir(n: Dictionary, toque := true) -> void:
 		fala_ui.text = "Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário."
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
-	_itens_passe(n.funcao == "passe")
+	_itens_passe(n.funcao == "passe" or (n.funcao == "pack" and m.transporte != null))
 	if n.funcao == "totem": # totem de teleporte: os destinos com a taxa no lugar das opções
 		_destinos_totem(n)
 		retrato_ui.texture = Menu.icone_tex("salto_arcano")
@@ -499,6 +499,7 @@ func escolher(a: String) -> void:
 		"pack": # FASE 1: as opções do mercador (fazer o pack, entregar o das costas, do carrinho ou do porão)
 			var r: Array = m.transporte.opcoes_mercador(n)
 			fala_ui.text = r[0]
+			_itens_passe(true) # o material do pack em ícones com tem/precisa (refaz depois de fazer/entregar)
 			for c in opcoes.get_children():
 				opcoes.remove_child(c)
 				c.queue_free()
@@ -709,7 +710,7 @@ func _fala_passe() -> String:
 	return "Ninguém passa do selo sem passe. Traga isto e eu faço um. Cada passe abre o selo uma vez."
 
 # os itens do passe em ícones: cada um com "tem/precisa" (verde quando já tem tudo, vermelho quando falta), uma seta
-# e o passe que sai
+# e o passe que sai. Os mercadores de pack usam o mesmo desenho (André 2026-11-12): o material do pack dele e o pack.
 func _itens_passe(mostrar: bool) -> void:
 	for c in itens_ui.get_children():
 		itens_ui.remove_child(c)
@@ -717,7 +718,15 @@ func _itens_passe(mostrar: bool) -> void:
 	itens_ui.visible = mostrar
 	if not mostrar:
 		return
-	var r := _receita_passe()
+	var de_pack: bool = npc != null and npc.get("funcao", "") == "pack" and m.transporte != null
+	var pk: Dictionary = m.transporte.receita_mercador(npc) if de_pack else {}
+	var r: Dictionary = pk.get("custo", {}) if de_pack else _receita_passe()
+	# no mercador o fala tem a lista de preços (comprida): os ícones vão logo acima dela; no Gaspar ficam embaixo
+	var caixa_txt := itens_ui.get_parent()
+	caixa_txt.move_child(itens_ui, mini(fala_ui.get_index(), itens_ui.get_index()) if de_pack else caixa_txt.get_child_count() - 1)
+	if r.is_empty():
+		itens_ui.visible = false
+		return
 	for k in r:
 		var tem := _tenho(k)
 		var precisa := int(r[k])
@@ -725,19 +734,24 @@ func _itens_passe(mostrar: bool) -> void:
 	var seta := Menu.rotulo("›", 26, Menu.OURO_CLARO)
 	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	itens_ui.add_child(seta)
-	itens_ui.add_child(_slot_item("passe_caverna", "x%d" % _tenho("passe_caverna"), Menu.OURO_CLARO))
+	if de_pack:
+		itens_ui.add_child(_slot_item("pack", "x1", Menu.OURO_CLARO, str(pk.get("nome", "Pack"))))
+	else:
+		itens_ui.add_child(_slot_item("passe_caverna", "x%d" % _tenho("passe_caverna"), Menu.OURO_CLARO))
 
-func _slot_item(k: String, conta: String, cor: Color) -> Control:
+func _slot_item(k: String, conta: String, cor: Color, nome := "") -> Control:
+	if nome == "":
+		nome = _nome_item(k)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
-	col.tooltip_text = _nome_item(k)
+	col.tooltip_text = nome
 	var caixa := PanelContainer.new()
 	caixa.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO3, cor.darkened(0.2), 2, 7))
 	caixa.custom_minimum_size = Vector2(54, 50)
 	caixa.mouse_filter = Control.MOUSE_FILTER_STOP # no celular não tem tooltip: tocar mostra o nome (André 2026-11-09)
 	caixa.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
-			Menu.balao_nome(caixa, _nome_item(k)))
+			Menu.balao_nome(caixa, nome))
 	var ic := TextureRect.new()
 	ic.texture = Menu.icone_tex("it_" + k)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

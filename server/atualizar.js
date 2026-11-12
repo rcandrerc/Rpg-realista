@@ -21,7 +21,8 @@ export function abrirPacote(pacote, chavePrivada) {
 }
 
 // Liga a atualização trancada só na máquina instalada (pasta com versao.txt ao lado do servidor.mjs).
-export function ligarAtualizacaoTrancada(app, pasta) {
+// antesDeSair (server/index.js): aviso na tela + contagem e gravar todo mundo; o arquivo novo já está no lugar.
+export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
   if (process.env.NODE_ENV !== 'production' || !fs.existsSync(path.join(pasta, 'versao.txt'))) return false;
   const arqPrivada = path.join(pasta, 'chave-privada.pem');
   if (!fs.existsSync(arqPrivada)) {
@@ -57,6 +58,7 @@ export function ligarAtualizacaoTrancada(app, pasta) {
       fs.renameSync(path.join(pasta, 'servidor.mjs.novo'), path.join(pasta, 'servidor.mjs'));
       fs.writeFileSync(path.join(pasta, 'versao.txt'), nova + '\n');
       console.log(`Servidor novo ${nova} instalado; reiniciando.`);
+      if (antesDeSair) await antesDeSair();
       process.exit(0); // o systemd (Restart=always) liga de novo com o arquivo novo
     } catch (e) {
       console.warn('Atualização trancada falhou:', e.message);
