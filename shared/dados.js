@@ -1119,6 +1119,29 @@ for (const E of ESTACOES_PUBLICAS) {
   for (const [dx, dz, r] of C.circulos) MAPA_CLAREIRA.obstaculos.push({ x: +(E.x + dx * c + dz * s).toFixed(3), z: +(E.z - dx * s + dz * c).toFixed(3), r, alto: +(C.alto + (E.y || 0)).toFixed(3) });
 }
 
+// Título e símbolo de cada NPC (André 2026-11-12): um títulozinho da função embaixo do nome ("Ferreiro", "Alquimista",
+// "Leiloeiro", "Mercador de pack") e um símbolo próprio da função no mapa e no minimapa, para achar de longe. O título
+// sai do próprio nome ("Tomás, o ferreiro" -> "Ferreiro"; já vem no masculino ou no feminino certo) ou de `cargo` na
+// ficha do NPC. O desenho de cada símbolo e a legenda do mapa ficam em godot-prototipo/icones_npc.gd.
+export const TITULO_FUNCAO = { pack: 'Mercador de pack', ferreiro: 'Ferreiro', habilidades: 'Ferreiro', loja: 'Comerciante', alquimia: 'Alquimista',
+  leilao: 'Leiloeiro', cura: 'Curandeira', passe: 'Guardião', resetar: 'Instrutor', missao: 'Líder da vila' };
+// símbolo de cada função (o NPC que só conversa e dá missão: 'chefe' se manda na vila, senão 'conversa')
+export const ICONE_FUNCAO = { ferreiro: 'ferreiro', habilidades: 'ferreiro', loja: 'loja', alquimia: 'alquimia', leilao: 'leilao', pack: 'pack',
+  cura: 'cura', passe: 'passe', resetar: 'instrutor', missao: 'chefe' };
+export function cargoNpc(n) {
+  if (n.cargo) return n.cargo;
+  if (n.funcao === 'pack') return TITULO_FUNCAO.pack; // "Seu Joca, mercador": o pack é o que importa
+  const i = String(n.nome || '').indexOf(', ');
+  if (i < 0) return TITULO_FUNCAO[n.funcao] || '';
+  const t = n.nome.slice(i + 2).replace(/^(o|a|os|as) /, '');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+export function iconeNpc(n) {
+  if (n.icone) return n.icone;
+  if (ICONE_FUNCAO[n.funcao]) return ICONE_FUNCAO[n.funcao];
+  return /^(Chefe|Líder)/.test(cargoNpc(n)) ? 'chefe' : 'conversa';
+}
+
 // Corpos que o jogador pode escolher para o herói. Os avatares VRoid A, B e C nunca entram (licença).
 // As duas bases (VRoid CC0) vêm primeiro: o criador de personagem pinta cabelo, olhos, pele e roupa em cima delas.
 export const PERSONAGENS = [
@@ -2209,11 +2232,11 @@ export const VILAS_MUNDO = [
         tinta: { cabelo: 0x5a4a3a, roupa: 0xe8e0d0, calca: 0x4a4038 }, veste: { tunica: 0xe8e0d0, avental: 0xf4efe4 }, funcao: 'dica', acoes: [], falas: [
           'O forno ficou trezentos anos frio. Hoje o pão saiu dourado na primeira fornada.',
           'Cheiro de pão é o jeito mais rápido de uma cidade lembrar que está viva.'] },
-      { id: 'v_zelia', nome: 'Dona Zélia, a das velas', visual: 'shino', onde: 'cidade:velas', depois: 'f3', escala: 0.95, roupa: 'peitoral0,botas0,capa1',
+      { id: 'v_zelia', nome: 'Dona Zélia, a das velas', cargo: 'Vendedora de velas', visual: 'shino', onde: 'cidade:velas', depois: 'f3', escala: 0.95, roupa: 'peitoral0,botas0,capa1',
         tinta: { cabelo: 0xe0dcd4, roupa: 0x7a5a8a, calca: 0x3a3040 }, veste: { tunica: 0x7a5a8a, saia: 0x5a4068, ate: 'canela', faixa: 0xf0e0a0 }, funcao: 'dica', acoes: [], falas: [
           'Eu acendia vela para ninguém, toda noite. Agora acendo para todo mundo.',
           'Vela de Aurora não apaga com vento. Só com esquecimento.'] },
-      { id: 'v_anselmo', nome: 'Irmão Anselmo, do Templo da Luz', visual: 'cabelo_m', onde: 'cidade:templo', depois: 'f3', escala: 1.0, roupa: 'peitoral0,botas0,capa1', arma: 'cajado',
+      { id: 'v_anselmo', nome: 'Irmão Anselmo, do Templo da Luz', cargo: 'Sacerdote do Templo', visual: 'cabelo_m', onde: 'cidade:templo', depois: 'f3', escala: 1.0, roupa: 'peitoral0,botas0,capa1', arma: 'cajado',
         tinta: { cabelo: 0x8a8a8a, roupa: 0xe8e4d8, calca: 0x6a6a7a }, veste: { tunica: 0xe8e4d8, saia: 0xe8e4d8, ate: 'canela', faixa: 0x9ad0f0 }, funcao: 'dica', acoes: [], falas: [
           'O Templo guardava a luz da estrela. Você devolveu o resto.',
           'Reze se quiser. Ou só sente um pouco. A luz não cobra nada.'] },
@@ -2249,7 +2272,7 @@ export const VILAS_MUNDO = [
     itens: ['pedra_4x6', 'pedra_4x6'], banca: true,
     enfeites: [['fogueira', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['mesa', 'praca'], ['armas', 'casa'], ['caixotes', 'casa']],
     npcs: [
-      { id: 'v_rui', nome: 'Sentinela Rui, da Ordem', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+      { id: 'v_rui', nome: 'Sentinela Rui, da Ordem', cargo: 'Sentinela da Ordem', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
         tinta: { cabelo: 0x2a2622, roupa: 0x2e4a7a, calca: 0x2b2a30 }, funcao: 'dica', acoes: [], falas: [
           'O acampamento da Ordem esperou trezentos anos por alguém como você.',
           'Daqui pra frente é o Pico da Névoa. Quem sobe não volta pela estrada.'] },

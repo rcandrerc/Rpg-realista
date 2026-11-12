@@ -12,6 +12,7 @@ extends CanvasLayer
 # funciona: tocar num nome marca o lugar, leva o mapa até ele e mostra o "Ir para"; tocar de novo no mesmo nome já vai.
 
 const MapaMundo = preload("res://mapa_mundo.gd")
+const IconesNpc = preload("res://icones_npc.gd") # símbolo de cada NPC e a legenda do mapa (André 2026-11-12)
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
 # o minimapa subiu para não encostar nas skills)
@@ -23,6 +24,7 @@ const COR_MINA := {"cobre": Color("d9822b"), "pedra": Color("a39d92"), "ferro": 
 const COR_FUNDO := Color(0.06, 0.07, 0.05, 0.85)
 
 var m # main.gd
+var icones # icones_npc.gd
 var info: Dictionary # mundo.minimapa: x0, z0, tam (metros) e px
 var textura: Texture2D
 # FASE 3 (2026-11-09): o mundo inteiro (mapa_mundo.gd) embaixo e o desenho de hoje (minimapa.png) por cima, nítido
@@ -84,6 +86,7 @@ const COR_PINO := Color("ff6a4a")
 
 func _init(principal) -> void:
 	m = principal
+	icones = IconesNpc.new(principal)
 	layer = 3 # acima da HUD (os botões não passam por cima); o menu do topo (4) e as janelas ficam acima
 
 func _ready() -> void:
@@ -386,6 +389,8 @@ func _toque_no_mapa(pos: Vector2) -> void:
 		return
 	if not totem_de.is_empty():
 		_toque_totem(lp, dentro)
+		return
+	if dentro and icones.toque(lp): # abre e fecha a legenda
 		return
 	var pp: Rect2 = _painel()
 	if pp.has_point(pos):
@@ -827,6 +832,7 @@ func _desenhar_mini() -> void:
 		if q.distance_to(meio) < RAIO - 4.0:
 			c.draw_circle(q, 4.0, Color(0.05, 0.05, 0.1, 0.8))
 			c.draw_circle(q, 3.0, Color("6fb6ff"))
+	icones.desenhar_mini(c, meio, p, k, RAIO) # NPCs: o símbolo da função (ferreiro, alquimista, mercador de pack...)
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno: a casinha, na beirada quando está longe (aponta o caminho de casa)
 		var dc: Vector2 = Vector2(casa.x - p.x, casa.z - p.z) * k
@@ -1133,6 +1139,8 @@ func _desenhar_mapa() -> void:
 		_marca_clareira(c, q, cc, 7.0 if longe else 10.0, true)
 		if not longe:
 			_texto(c, q + Vector2(0, 22), "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
+	if not tm:
+		icones.desenhar_mapa(c, em, _k(), longe, fonte, tam) # NPCs: o símbolo da função e, de perto, nome e título
 	for p in _outros():
 		var q: Vector2 = em.call(p.x, p.z)
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
@@ -1158,6 +1166,7 @@ func _desenhar_mapa() -> void:
 	if not totem_de.is_empty():
 		_desenhar_totens(c, tam, em)
 		return
+	icones.legenda(c, self, fonte, tam) # legenda dos símbolos no canto de baixo à esquerda (André 2026-11-12)
 	# moldura dourada da janela
 	c.draw_rect(Rect2(Vector2(1, 1), tam - Vector2(2, 2)), Color(0.05, 0.04, 0.03, 0.9), false, 3.0)
 	c.draw_rect(Rect2(Vector2(3, 3), tam - Vector2(6, 6)), Color("c9a35a"), false, 1.5)
