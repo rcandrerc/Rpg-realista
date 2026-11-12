@@ -16,6 +16,7 @@ const Submerso = preload("res://submerso.gd")
 const Caverna = preload("res://caverna.gd")
 const Andar = preload("res://andar.gd")
 const Online = preload("res://online.gd")
+const Aquecer = preload("res://aquecer.gd")
 const Progresso = preload("res://progresso.gd")
 const Menu = preload("res://menu.gd")
 const BracoEspada = preload("res://braco_espada.gd")
@@ -122,6 +123,7 @@ func escuro_caverna() -> float:
 var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
+var aquecer # aquecer.gd: mostra cada efeito e monstro uma vez atrás da capa (sem travada no primeiro uso)
 var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
@@ -393,6 +395,8 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
+	aquecer = Aquecer.new(self)
+	add_child(aquecer)
 	online = Online.new(self)
 	add_child(online)
 	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
