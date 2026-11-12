@@ -2380,9 +2380,14 @@ func rede(tipo: String, dados = null) -> void:
 func pode_agir() -> bool:
 	return h.morto <= 0.0 and acao.is_empty() and mov.esc == null
 
+var _lupa_zoom := "zoom_longe" # ícone do atalho do zoom agora (troca só quando muda)
+
 # Botão apertado. Se não dá para fazer agora (golpe ainda no fim, no ar, recarga quase acabando), o botão fica
 # guardado um instante (fila) e sai assim que der: o combo e as skills emendam sem perder toque.
 func usar(qual: String) -> void:
+	if qual == "zoom": # atalho do zoom (2026-11-12): só a câmera; não para golpe, coleta, volta nem fila
+		cam.zoom_maximo()
+		return
 	if h.morto > 0.0:
 		return
 	if boss_mundo.preso() and (qual in ["basico", "cura", "dash", "rolar", "pular", "montar", "disparada", "coletar"] or qual.begins_with("hab")):
@@ -3143,6 +3148,10 @@ func _passo_main(dt: float) -> void:
 	cam.zoom(hud.zoom_cam) # dois dedos (pinça) ou roda do mouse
 	hud.zoom_cam = 1.0
 	cam.atualizar(min(dt_real, 0.1), g)
+	var lupa := "zoom_perto" if cam.longe() else "zoom_longe" # atalho do zoom: − afasta, + volta
+	if lupa != _lupa_zoom:
+		_lupa_zoom = lupa
+		hud.icone_botao("zoom", lupa)
 	if cinematica and cinematica.ativa:
 		cinematica.camera(min(dt_real, 0.1)) # a câmera da cena manda por cima da do jogo
 	folhagem_na_frente(dt_real)
