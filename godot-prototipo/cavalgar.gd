@@ -20,6 +20,7 @@ var tronco := 0.0
 var pescoco := 0.0
 var lombo := 0.0 # quanto o lombo do lobo está inclinado agora (rad): o quadril acompanha
 var pronto := false
+var com_sela := false # montaria.gd já mandou a sela (antes disso a sela é (0,0,0) e o quadril ia para a origem do mundo por um quadro)
 
 var _o := {} # nome curto -> índice do osso
 var _cima := Vector3.UP
@@ -133,7 +134,7 @@ func _agarrar(s: Skeleton3D, i: int, fr: Vector3, lat: Vector3, cm: Vector3, den
 
 func _process_modification() -> void:
 	var s := get_skeleton()
-	if s == null or not pronto:
+	if s == null or not pronto or not com_sela:
 		return
 	var inv := s.global_transform.affine_inverse()
 	var ib := inv.basis
