@@ -303,8 +303,12 @@ func _procurar() -> void:
 		for r in [m.menu_topo.raiz if m.menu_topo else null, m.missao_ativa.cartao if m.missao_ativa else null, m.construcao.tela if m.construcao else null]:
 			if r != null:
 				_varrer(r)
+	var fala := lista.find("hud:falar") # os botões da conversa com o NPC só valem depois do "Falar"
 	for i in range(lista.size() - 1, -1, -1):
 		var p := str(lista[i])
+		# André 2026-11-12: no barquinho, o "Criar " do menu achava o "Criar pack" da conversa do Nico e travava nele
+		if tipo == "conversa" and (p.begins_with("b:") or p.begins_with("b^")) and (fala < 0 or i < fala):
+			continue
 		if _achar(p, hi, tipo):
 			if _chave != p:
 				_chave = p
