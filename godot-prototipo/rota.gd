@@ -57,6 +57,14 @@ func _montar() -> void:
 		linhas = linhas.duplicate()
 		for e in m.terreno.mundo_g.get("estradas", []):
 			linhas.append({"pontos": e.get("curva", [])})
+	# ruas das vilas com terreno (Terras da Estrada e os bairros de Aurora, mundo.vilasTerreno): o "Ir para" entra na vila
+	# pelas ruas dela, não pelo meio dos lotes (André 2026-11-12: "sempre pela cidade")
+	var vts: Array = m.mundo.get("vilasTerreno", [])
+	if not vts.is_empty():
+		linhas = linhas.duplicate()
+		for vt in vts:
+			for e in vt.get("estradas", []):
+				linhas.append({"pontos": e.get("pontos", [])})
 	var por_linha: Array = []
 	for L in linhas:
 		var pts: Array = L.get("pontos", [])
@@ -239,6 +247,8 @@ func planejar(alvo: Vector2) -> PackedVector2Array:
 	var a := astar.get_closest_point(h)
 	var b := astar.get_closest_point(alvo)
 	r = astar.get_point_path(a, b)
+	if r.is_empty() and a >= 0: # sem estrada até lá (a névoa fechada corta a rede): vai pela estrada até onde dá, nunca reto
+		r = astar.get_point_path(a, _alcancavel_mais_perto(a, alvo))
 	# já está na estrada um pouco à frente do ponto mais perto: não volta para trás
 	if r.size() >= 2 and h.distance_to(r[1]) < r[0].distance_to(r[1]):
 		r.remove_at(0)
@@ -247,6 +257,30 @@ func planejar(alvo: Vector2) -> PackedVector2Array:
 		r.remove_at(r.size() - 1)
 	r.append(alvo)
 	return r
+
+# Todo autopath vai pelos caminhos (André 2026-11-12: "qualquer coisa que seja no autopath eu tenho que ir pelos
+# caminhos, por mais que seja mais longo; a única forma de cortar caminho é no controle manual"). Antes, quando o AStar
+# não achava rota (a névoa de uma região fechada separava a rede em pedaços), a rota virava uma linha reta até o lugar,
+# pelo meio do mato. Agora: o ponto da rede ligado ao do herói (andando só pelas estradas abertas) mais perto do lugar.
+func _alcancavel_mais_perto(a: int, alvo: Vector2) -> int:
+	var visto := {a: true}
+	var fila: Array = [a]
+	var melhor := a
+	var md: float = astar.get_point_position(a).distance_to(alvo)
+	var k := 0
+	while k < fila.size():
+		var u: int = fila[k]
+		k += 1
+		for v in astar.get_point_connections(u):
+			if visto.has(v) or astar.is_point_disabled(v):
+				continue
+			visto[v] = true
+			fila.append(v)
+			var d: float = astar.get_point_position(v).distance_to(alvo)
+			if d < md:
+				md = d
+				melhor = v
+	return melhor
 
 # metros da rota a partir do herói (para o botão mostrar)
 func comprimento(r: PackedVector2Array, de := 0) -> float:
