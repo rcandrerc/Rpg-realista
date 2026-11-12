@@ -435,6 +435,29 @@ export class Simulacao {
     this.jogadores.delete(id);
     if (j) for (const o of this.jogadores.values()) if (o.amigos?.has(j.conta)) this.enviarAmigos(o); // amigo ficou offline
   }
+  // Queda curta (André 2026-11-12, "se a internet cair por alguns segundos... ele vai voltar"): o jogo entrou de novo
+  // com outra sessão. O herói novo assume o lugar do antigo no time e com a Cecília/Dario (dono, quem conversa, mensagens
+  // na fila), para nada se desfazer. Chamar antes de tirar o antigo do mundo (removerJogador não desfaz mais o time).
+  trocarSessao(velho, novo) {
+    const v = this.jogadores.get(velho), n = this.jogadores.get(novo);
+    if (!v || !n || velho === novo) return false;
+    const T = v.time;
+    if (T && !n.time) {
+      T.membros = T.membros.map((k) => (k === velho ? novo : k));
+      if (T.lider === velho) T.lider = novo;
+      n.time = T; v.time = null;
+      this.mudouTime(T);
+    }
+    for (const ctx of this.amigosIa) {
+      const falava = ctx.amigaFalam?.delete(velho);
+      if (falava) ctx.amigaFalam.add(novo);
+      if (ctx.amigaDono === velho) ctx.amigaDono = novo;
+      const ia = ctx.amiga?.ia;
+      if (ia?.chatFila) for (const e of ia.chatFila) if (e.para === velho) e.para = novo;
+    }
+    this.enviarAmigosDe([n]);
+    return true;
+  }
   // ---------- onde o herói estava (André 2026-11-03) ----------
   // Saiu do jogo longe da vila: entra de volta no mesmo lugar. Só a morte (ou o Voltar para a vila) leva para a praça.
   nascerOndeSaiu(j) {
