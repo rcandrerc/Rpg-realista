@@ -76,3 +76,25 @@ Crédito: The Audio Horizon SFX. Cortes (segundos do arquivo completo, ffmpeg, m
 | sistema_falha | 3,40 a 4,70 (som 1) |
 
 Os festa_*.ogg ficam na pasta como reserva (festa.gd volta para eles se faltar um sistema_*).
+
+# Skills de espada (esp_*.ogg, André 2026-11-12)
+
+Pedido do André: "som das skills estão péssimos", revamp igual ao do mago. Montados em camadas por `ferramentas/sons/espada.py`
+(grave curto do Esmagador e do Pisão sintetizado lá). Todas as gravações são CC0 1.0 (domínio público): uso comercial liberado,
+sem obrigação de crédito. Originais no New-Game-Anime-fontes (sons/opengameart/espada/, lista em LICENCA.txt, e pacotes_cc0/).
+Os sons antigos (golpe_*, corte_*, acerto_*) continuam na pasta e voltam se `SOM_ESPADA_NOVO` (main.gd) for false.
+
+| Arquivo | O que é | Gravações |
+|---|---|---|
+| esp_vento_*, esp_vento_forte_* | vento do golpe básico (o forte é o último corte do combo) | artisticdude "Swishes Sound Pack" e "RPG Sound Pack" (swing), StarNinjas "20 Sword Sound Effects" (brilho da lâmina) |
+| esp_corte_*, esp_corte_forte_* | a lâmina acertando o monstro | rubberduck "80 CC0 RPG SFX" (blade), StarNinjas (brilho), Kenney chop e impactPunch |
+| esp_duplo_* | Corte Duplo (dois cortes cruzados) | artisticdude (swing), StarNinjas (ataques e choques de lâmina), Kenney drawKnife |
+| esp_giro_* | Giro (lâmina rodando) | artisticdude (swishes e swing), StarNinjas (brilho) |
+| esp_esmagar | Golpe Esmagador (lâmina batendo no chão e rachando) | rubberduck "75 CC0 Breaking/Falling/Hit SFX" (rocha), mieki256 "Earthquake", StarNinjas "Cave In" e choque de lâmina, Kenney chop, impactPunch e impactMetal |
+| esp_pisao | Pisão Sísmico (tremor, pedras subindo e terra caindo) | mieki256 "Earthquake", rubberduck (rocha quebrando), StarNinjas "Cave In", Kenney chop e impactPunch |
+| esp_investida | Investida (arrancada) | artisticdude (swishes e swing), StarNinjas (brilho) |
+| esp_estocada_* | a estocada da Investida no alvo | rubberduck (blade), StarNinjas (brilho), Kenney chop e impactPunch |
+| esp_foco_* | carga da skill (lâmina brilhando) | artisticdude "RPG Sound Pack" (sword-unsheathe) |
+
+Páginas: opengameart.org/content/20-sword-sound-effects-attacks-and-clashes, /cave-in, /swishes-sound-pack, /rpg-sound-pack,
+/80-cc0-rpg-sfx, /75-cc0-breaking-falling-hit-sfx, /earthquake-and-open-sesame. Kenney: kenney.nl (Impact Sounds, RPG Audio).

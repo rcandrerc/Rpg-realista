@@ -1326,7 +1326,7 @@ export class Simulacao {
         const p = this.aFrente(j, h.ponto);
         const hh = t === 'esmagar' ? { ...h, atordoa: 0 } : h;
         for (const o of this.areaQ(j, p, h.area, h.dmg, hh)) if (t === 'esmagar' && !chefe(o) && !o.morto) { o.parado = Math.max(o.parado || 0, this.tempo + h.atordoa); o.ef = 'atordoado'; o.trava = 0; o.acao = null; }
-        this.evento({ t: 'explosao', x: r2(p.x), z: r2(p.z), r: h.area, fx: h.id });
+        this.evento({ t: 'explosao', x: r2(p.x), z: r2(p.z), r: h.area, fx: h.id, ry: r2(j.ry) }); // ry: o app desenha o corte nessa direção
       });
     } else if (t === 'giro' || t === 'pisao') {
       this.tocarQ(j, h.anim, h.dur); j.acao.lamina = true;

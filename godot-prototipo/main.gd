@@ -2016,6 +2016,9 @@ var _impacto_t := -9.0
 # nem treme a câmera (André 2026-11-03: "correndo e trava, parece lag"); fica o som, o flash, o número e um toque leve.
 const SOM_ACERTO_MAGIA := false # false = magia acerta sem o som genérico de golpe (teste do André 2026-11-08)
 const SOM_MORTE_MOB := false # false = monstro morre sem o som "morte" (estalo seco). Para voltar, true
+# Sons novos da espada (André 2026-11-12: "som das skills estão péssimos"): vento do corte (esp_vento), lâmina acertando
+# (esp_corte) e um som por skill (golpes.gd). false = volta o vento sintetizado, o soco e o corte antigos (continuam na pasta).
+const SOM_ESPADA_NOVO := true
 var _faisca_t := -9.0 # último acerto da Faísca: a confirmação do servidor não toca outro golpe por cima
 func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_basico := false) -> void:
 	if _impacto_quadro == Engine.get_process_frames():
@@ -2032,10 +2035,14 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_bas
 	cam.tremer(TREME_FORTE if pesado else TREME)
 	# teste do André (2026-11-08): skills de mago sem o "acerto" genérico ("saco duro batendo"); ficam os sons próprios
 	# de cada magia (explosão, gelo, raio...). Para voltar como era, troque SOM_ACERTO_MAGIA para true.
-	if SOM_ACERTO_MAGIA or h.modo != "Magia":
+	var esp_novo: bool = SOM_ESPADA_NOVO and h.modo == "Espada" and sons.tem("esp_corte")
+	if esp_novo: # lâmina acertando: 'tchak' + baque + brilho, um som só (sons/esp_corte*, André 2026-11-12)
+		sons.tocar("esp_corte_forte" if pesado else "esp_corte", -1.0 if pesado else -2.5, 0.07, pos)
+	elif SOM_ACERTO_MAGIA or h.modo != "Magia":
 		sons.tocar("acerto_forte" if pesado else "acerto", -1.0 if pesado else -3.0, 0.1, pos)
 	if lamina:
-		sons.tocar("corte", -7.0, 0.1, pos)
+		if not esp_novo:
+			sons.tocar("corte", -7.0, 0.1, pos)
 		# faíscas do corte no ponto do golpe
 		var p := pos + Vector3(0, 1.05, 0) - frente() * 0.25
 		fx.surto(p.x, p.y, p.z, 14 if pesado else 9, "ffffff", "ffd27a", 6.0 if pesado else 4.5, 0.08)
@@ -2574,7 +2581,10 @@ func basico_espada() -> void:
 	h.mira_ate = tempo + g.dur + 0.6
 	# vento da lâmina um pouco antes do corte
 	var vento_t: float = max(0.0, g.hit - 0.12)
-	fx.agenda.append({"t": vento_t, "fn": func(): sons.tocar("golpe", -3.0 if ultimo else -5.0, 0.08, null, 0.85 if ultimo else 1.0)})
+	if SOM_ESPADA_NOVO and sons.tem("esp_vento"):
+		fx.agenda.append({"t": vento_t, "fn": func(): sons.tocar("esp_vento_forte" if ultimo else "esp_vento", -2.0 if ultimo else -3.5, 0.06)})
+	else:
+		fx.agenda.append({"t": vento_t, "fn": func(): sons.tocar("golpe", -3.0 if ultimo else -5.0, 0.08, null, 0.85 if ultimo else 1.0)})
 	segurar_pose(0.35)
 
 # Alvo travado do mago (André 2026-11-03): o 1º ataque pega o monstro mais perto e daí em diante o alvo
@@ -2833,13 +2843,13 @@ func soltar(k: String, hab: Dictionary, alvo, dir: Vector3) -> void:
 	match hab.tipo:
 		"corte", "esmagar":
 			lunge(alvo, hab.lunge.para)
-			fx.conjura(heroi, fxk, hab.dur, maos)
+			fx.conjura(heroi, fxk, hab.dur, ponta_espada)
 			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
 				var p: Vector3 = heroi.position + frente() * hab.ponto
 				dano_area(p, hab.area, hab.dmg, hab)
-				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y), {"cancela": true, "lamina": true})
+				fx.explosao_hab(fxk, p.x, p.z, hab.area, heroi.position.y, heroi.rotation.y), {"cancela": true, "lamina": true})
 		"giro", "pisao":
-			fx.conjura(heroi, fxk, hab.dur, maos)
+			fx.conjura(heroi, fxk, hab.dur, ponta_espada)
 			comecar_q(hab.anim, hab.dur, hab.hits, func(_n):
 				dano_area(heroi.position, hab.area, hab.dmg, hab)
 				fx.explosao_hab(fxk, heroi.position.x, heroi.position.z, hab.area, heroi.position.y), {"cancela": true, "lamina": true})
@@ -2951,6 +2961,12 @@ func teleportar(hab: Dictionary, dir: Vector3) -> void:
 	fx.agenda.append({"t": 0.1, "fn": func(): heroi.visible = true})
 
 func maos() -> Array:
+	return [ponto_mao()]
+
+# ponta da espada na mão (o brilho do começo das skills de espada, golpes.gd)
+func ponta_espada() -> Array:
+	if espada and espada.is_inside_tree() and espada.visible:
+		return [espada.global_transform * Vector3(0, 0.92, 0)]
 	return [ponto_mao()]
 
 func maos2() -> Array:

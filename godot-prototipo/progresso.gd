@@ -20,8 +20,9 @@ var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enc
 const ICONE := {"espada_basico": "basico", "cajado_basico": "magia", "corte_duplo": "corte", "giro": "giro", "golpe_esmagador": "salto",
 	"pisao_sismico": "fenda", "investida": "investida", "bola_fogo": "bola", "anel_chamas": "explosao", "meteoro": "meteoros",
 	"nova_gelo": "gelo", "raio_cadeia": "raio", "salto_arcano": "salto_arcano", "cura_floresta": "cura", "escudo_arcano": "barreira", "vortice": "vortice"}
-const FX := {"espada_basico": "giro", "cajado_basico": "magia", "corte_duplo": "relampago", "giro": "giro", "golpe_esmagador": "salto",
-	"pisao_sismico": "salto", "investida": "investida", "bola_fogo": "bola", "anel_chamas": "explosao", "meteoro": "meteoros",
+# Golpe Esmagador e Pisão Sísmico ganharam efeito próprio (golpes.gd, 2026-11-12); antes os dois eram "salto"
+const FX := {"espada_basico": "giro", "cajado_basico": "magia", "corte_duplo": "relampago", "giro": "giro", "golpe_esmagador": "esmagar",
+	"pisao_sismico": "pisao", "investida": "investida", "bola_fogo": "bola", "anel_chamas": "explosao", "meteoro": "meteoros",
 	"nova_gelo": "gelo", "raio_cadeia": "raio", "salto_arcano": "magia", "cura_floresta": "cura", "escudo_arcano": "escudo", "vortice": "vortice"}
 
 func _init() -> void:
