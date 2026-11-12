@@ -3495,6 +3495,8 @@ func npcs_das_vilas(dt: float) -> void:
 		var d := Vector2(float(info.x) - hp.x, float(info.z) - hp.z).length()
 		if info.get("depois") != null and nevoa != null and not nevoa.npc_apareceu(str(info.depois)):
 			d = INF # só aparece depois dessa missão (o Kael em Aurora, história v2)
+		if info.get("ate") != null and nevoa != null and nevoa.npc_apareceu(str(info.ate)):
+			d = INF # some depois dessa missão (a Elara muda para o Paço da Guardiã: Aurora viva)
 		var id := str(info.id)
 		var n = null
 		for o in npcs:

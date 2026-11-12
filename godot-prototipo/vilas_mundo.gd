@@ -14,6 +14,14 @@ const LONGE := 330.0 # tira a vila
 const VE_CASA := 170.0
 const VE_ENFEITE := 60.0
 const ARQUIVO := "res://vilas3d/vilas.glb"
+# Aurora viva (André 2026-11-12, esboço aprovado): a cidade de pedra branca. As torres e os prédios grandes aparecem de
+# mais longe; o vidro das janelas e lanternas, os cristais e a água da fonte acendem depois da Vesper (mundo.json
+# vilasMundo[].cidade.acende, a mesma conta do servidor para a gente nova: nevoa.npc_apareceu). Praça e ruas de calçada
+# branca são uma malha só, feita aqui com o material do calçamento (modelo aurora_chao).
+const VE_LONGE := 320.0
+const MODELOS_LONGE := ["aurora_torre", "aurora_paco", "aurora_templo", "aurora_pousada", "aurora_portao"]
+var mats_aurora := {} # nome do material (Vidro_Aurora, Cristal_Aurora, Agua_Aurora) -> [StandardMaterial3D]
+var aceso := -1 # -1 ainda não olhou, 0 apagada, 1 acesa
 var vilas: Array = []
 var montadas := {} # id da vila -> Node3D
 var malhas := {} # nome do modelo -> [[Mesh, Transform3D], ...]
@@ -31,6 +39,7 @@ func _process(dt: float) -> void:
 	if _espera > 0.0 or vilas.is_empty() or m.heroi == null:
 		return
 	_espera = 1.0
+	_acender()
 	var h: Vector3 = m.heroi.position
 	var precisa := false
 	for V in vilas:
@@ -71,7 +80,16 @@ func _carregado() -> bool:
 			if mi.mesh != null:
 				l.append([mi.mesh, modelo.global_transform.affine_inverse() * mi.global_transform])
 		malhas[str(modelo.name)] = l
+		for par in l: # os materiais que acendem (os mesmos em todas as peças da cidade)
+			for i in par[0].get_surface_count():
+				var mt = par[0].surface_get_material(i)
+				if mt is StandardMaterial3D and mt.resource_name in ["Vidro_Aurora", "Cristal_Aurora", "Agua_Aurora"]:
+					if not mats_aurora.has(mt.resource_name):
+						mats_aurora[mt.resource_name] = []
+					if not mats_aurora[mt.resource_name].has(mt):
+						mats_aurora[mt.resource_name].append(mt)
 	raiz.queue_free()
+	aceso = -1 # pinta os materiais da cidade no estado certo já na primeira vez
 	var fog = load("res://cenario3d/fogueira.glb")
 	if fog is PackedScene:
 		var r2: Node3D = fog.instantiate()
@@ -114,10 +132,86 @@ func _montar(V: Dictionary) -> void:
 			var grande: bool = casa.has(nome)
 			# só as casas fazem sombra (cada sombra é mais um desenho no celular)
 			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if grande else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			g.visibility_range_end = VE_CASA if grande else VE_ENFEITE
+			g.visibility_range_end = VE_LONGE if nome in MODELOS_LONGE else (VE_CASA if grande else VE_ENFEITE)
 			g.visibility_range_end_margin = 8.0
 			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			no.add_child(g)
+	if V.get("cidade") is Dictionary:
+		_calcada(no, V.cidade)
+
+# Praça das Luzes (disco) e ruas de pedra branca (faixas que seguem as estradas), um pouco acima do chão (o mesmo
+# CALCADA de shared/vilas.js: o servidor tem o piso de andar na mesma altura). Textura no mundo: 2 m por ladrilho.
+func _calcada(no: Node3D, C: Dictionary) -> void:
+	var mat: Material = null
+	for par in malhas.get("aurora_chao", []):
+		mat = par[0].surface_get_material(0)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pt := func(p: Vector3) -> void:
+		st.set_normal(Vector3.UP)
+		st.set_uv(Vector2(p.x * 0.5, p.z * 0.5))
+		st.add_vertex(p)
+	var P: Dictionary = C.praca
+	var c := Vector3(float(P.x), float(P.y) + float(C.sobePraca), float(P.z))
+	var r := float(P.r)
+	var n := 40
+	for i in n:
+		var a0 := TAU * i / n
+		var a1 := TAU * (i + 1) / n
+		pt.call(c)
+		pt.call(c + Vector3(sin(a1), 0, cos(a1)) * r)
+		pt.call(c + Vector3(sin(a0), 0, cos(a0)) * r)
+	var meia := float(C.largura) / 2.0
+	for L in C.ruas:
+		var k: int = L.size()
+		var esq: Array = []
+		var dir: Array = []
+		for i in k:
+			var a: Array = L[maxi(i - 1, 0)]
+			var b: Array = L[mini(i + 1, k - 1)]
+			var t := Vector2(float(b[0]) - float(a[0]), float(b[1]) - float(a[1])).normalized() # direção da rua (dx, dz); cada ponto é [x, z, y]
+			var q := Vector3(float(L[i][0]), float(L[i][2]) + float(C.sobe), float(L[i][1]))
+			esq.append(q + Vector3(-t.y, 0, t.x) * meia)
+			dir.append(q + Vector3(t.y, 0, -t.x) * meia)
+		for i in k - 1:
+			pt.call(esq[i]); pt.call(dir[i]); pt.call(dir[i + 1])
+			pt.call(esq[i]); pt.call(dir[i + 1]); pt.call(esq[i + 1])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	if mat != null:
+		mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visibility_range_end = VE_CASA
+	no.add_child(mi)
+
+# depois da Vesper (a missão "acende" da cidade): janelas, lanternas, cristais e a água da fonte com luz própria
+func _acender() -> void:
+	if mats_aurora.is_empty() or m.nevoa == null:
+		return
+	var acende := ""
+	for V in vilas:
+		if V.get("cidade") is Dictionary:
+			acende = str(V.cidade.acende)
+	var agora := 1 if acende != "" and m.nevoa.tem_conta() and not m.nevoa.H.is_empty() and m.nevoa.npc_apareceu(acende) else 0
+	if agora == aceso:
+		return
+	aceso = agora
+	var luz := agora == 1
+	for mt in mats_aurora.get("Vidro_Aurora", []):
+		mt.albedo_color = Color(1.0, 0.86, 0.58) if luz else Color(0.13, 0.15, 0.22)
+		mt.emission_enabled = luz
+		mt.emission = Color(1.0, 0.76, 0.4)
+		mt.emission_energy_multiplier = 1.5
+	for mt in mats_aurora.get("Cristal_Aurora", []):
+		mt.albedo_color = Color(0.75, 0.95, 1.0) if luz else Color(0.5, 0.55, 0.68)
+		mt.emission_enabled = luz
+		mt.emission = Color(0.45, 0.85, 1.0)
+		mt.emission_energy_multiplier = 2.0
+	for mt in mats_aurora.get("Agua_Aurora", []):
+		mt.albedo_color = Color(0.35, 0.66, 0.86) if luz else Color(0.2, 0.32, 0.42)
+		mt.emission_enabled = luz
+		mt.emission = Color(0.2, 0.5, 0.72)
+		mt.emission_energy_multiplier = 0.6
 
 func _por(grupos: Dictionary, nome: String, p: Dictionary) -> void:
 	if not grupos.has(nome):
