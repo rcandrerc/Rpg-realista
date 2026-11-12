@@ -5,7 +5,8 @@ config_version=5
 config/name="RPG Prototipo Godot"
 run/main_scene="res://inicio.tscn"
 config/icon="res://icone_app/principal_192.png"
-config/features=PackedStringArray("4.5", "Mobile")
+config/features=PackedStringArray("4.7", "Mobile")
+config/project_settings_override="user://motor.cfg"
 boot_splash/bg_color=Color(0.05, 0.06, 0.09, 1)
 boot_splash/image="res://ui/abertura.png"
 boot_splash/fullsize=true
@@ -21,6 +22,7 @@ window/vsync/vsync_mode=1
 
 [rendering]
 renderer/rendering_method="mobile"
+driver/threads/thread_model=2
 textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_3d=1
 lights_and_shadows/directional_shadow/size=2048

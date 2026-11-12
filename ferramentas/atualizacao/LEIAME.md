@@ -24,6 +24,13 @@ então basta o link de escrita: vem do secret `ORACLE_PAR` ou, sem ele, de `ferr
 
 Sem internet na primeira abertura: tela "Sem internet" com **Tentar de novo**. Depois disso, abre com o que já baixou.
 
+**Uma corrente por motor (2026-11-12, Godot 4.5 → 4.7).** Pacote feito por um motor não abre no outro. O
+`publicar-conteudo.sh` pergunta a versão ao `$GODOT_BIN` e grava a corrente com o nome do motor: o 4.5 continua em
+`conteudo.json` (parado na última versão do 4.5, para o APK casca antigo ainda abrir) e o 4.7 em `conteudo-4.7.json`,
+que é o que o `inicio.gd` do APK novo lê (`_conteudo_do_motor`). A primeira vez de um motor vira completo. Os arquivos
+de todas as correntes ficam no release. Trocar de motor de novo: muda `GODOT` no `apk.yml` e entrega APK novo.
+O modo antigo abaixo (`publicar.sh`, APK com o jogo dentro) só roda no 4.5 e ficou parado.
+
 O modo antigo abaixo (APK com o jogo dentro + um pacote só) continua funcionando para quem tem o APK antigo.
 
 

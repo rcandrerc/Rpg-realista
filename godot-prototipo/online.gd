@@ -1502,7 +1502,9 @@ func _passo(dt: float) -> void:
 		var passo: int = o.get("anim_passo", 1)
 		if passo > 1 and o.no.visible: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
 			o.anim_acc = float(o.get("anim_acc", 0.0)) + dt
-			if (_quadro + int(o.get("fase", 0))) % passo == 0:
+			if (_quadro + int(o.get("fase", 0))) % passo == 0 and m.fora_da_tela(o.no.position + Vector3(0, 1, 0)):
+				o.anim_acc = minf(o.anim_acc, m.FORA_ACC_MAX) # sem sombra e fora da tela: espera voltar (main.gd fora_da_tela)
+			elif (_quadro + int(o.get("fase", 0))) % passo == 0:
 				if o.anim:
 					o.anim.advance(o.anim_acc)
 				if o.esq:

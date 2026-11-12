@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GODOT: 4.5-stable
+  GODOT: 4.7.1-stable
 
 jobs:
   windows:
@@ -51,7 +51,7 @@ jobs:
       - name: Godot e modelo de exportação do Windows
         run: |
           # no runner da Oracle o Godot já vem instalado (GODOT_BIN no .env)
-          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ] && [ -f ~/.local/share/godot/export_templates/4.5.stable/windows_release_x86_64.exe ]; then
+          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ] && [ -f ~/.local/share/godot/export_templates/4.7.1.stable/windows_release_x86_64.exe ]; then
             echo "Godot já instalado em $GODOT_BIN"; exit 0
           fi
           case "$(uname -m)" in aarch64|arm64) PLAT=linux.arm64;; *) PLAT=linux.x86_64;; esac
@@ -63,8 +63,8 @@ jobs:
           fi
           curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
           unzip -qo tpl.tpz 'templates/windows_release_x86_64.exe' 'templates/version.txt'
-          mkdir -p ~/.local/share/godot/export_templates/4.5.stable
-          cp templates/* ~/.local/share/godot/export_templates/4.5.stable/
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp templates/* ~/.local/share/godot/export_templates/4.7.1.stable/
           rm -f tpl.tpz
       - name: Preparar a cópia para PC (texturas de PC, teclado e mouse, preset Windows)
         run: bash ferramentas/pc/preparar.sh

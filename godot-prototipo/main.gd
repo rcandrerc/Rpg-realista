@@ -271,6 +271,10 @@ func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
+	# desenho em paralelo (APK 2026-11-12): rodou uns segundos sem cair, a escolha do jogador volta a valer (grafico.gd)
+	get_tree().create_timer(Grafico.PARALELO_OK).timeout.connect(func():
+		if is_instance_valid(grafico):
+			grafico.paralelo_confirmar())
 	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
@@ -1069,6 +1073,27 @@ static func anim_espacada(anim: AnimationPlayer, esq: Skeleton3D, espacar: bool)
 		anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL if espacar else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
 	if esq:
 		esq.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL if espacar else Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
+
+# Fora da tela (André 2026-11-12, aprovou a "versão pequena" do item 4 do prompt de performance): quem já está sem
+# sombra (NPC a mais de 10 m, jogador fora dos mais perto) e não aparece na câmera não precisa animar. A conta do tempo
+# continua e a animação anda tudo de uma vez quando ele volta para a tela, então ninguém vê a pausa. Perto (com
+# sombra) fica igual: a sombra de quem está atrás da câmera ainda aparece no chão.
+const FORA_RAIO := 2.0 # m: folga em volta do corpo (braço, arma, capa na beira da tela continuam animando)
+const FORA_ACC_MAX := 0.25 # s: ao voltar para a tela, as molas (cabelo, saia) não recebem um passo grande demais
+var _planos: Array[Plane] = []
+var _planos_q := -1
+
+func fora_da_tela(p: Vector3) -> bool:
+	if camera == null:
+		return false
+	var q := Engine.get_process_frames()
+	if q != _planos_q:
+		_planos_q = q
+		_planos = camera.get_frustum()
+	for pl in _planos:
+		if pl.distance_to(p) > FORA_RAIO:
+			return true
+	return false
 
 static func npc_simples(no: Node, simples: bool) -> void:
 	if _mat_nada == null:
@@ -2142,9 +2167,9 @@ func folhagem_na_frente(dt: float) -> void:
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
 	for f in folhas:
-		var mi: MeshInstance3D = f[0]
-		if not is_instance_valid(mi):
+		if not is_instance_valid(f[0]): # (Godot 4.7) olhar antes de pôr na variável com tipo: nó já apagado dá erro
 			continue
+		var mi: MeshInstance3D = f[0]
 		if f[1] == null:
 			f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
 		var tapa: bool = f[1].intersects_segment(a, b) != null
@@ -3595,10 +3620,13 @@ func lod_inimigos() -> void:
 			n.anim_acc = float(n.get("anim_acc", 0.0)) + get_process_delta_time()
 			var passo_n: int = 3 if dn > NPC_ANIM_LONGE * NPC_ANIM_LONGE else 2
 			if (Engine.get_process_frames() + int(n.fase)) % passo_n == 0:
-				n.anim_p.advance(n.anim_acc)
-				if n.esq_p:
-					n.esq_p.advance(n.anim_acc)
-				n.anim_acc = 0.0
+				if fora_da_tela(n.no.position + Vector3(0, 1, 0)):
+					n.anim_acc = minf(n.anim_acc, FORA_ACC_MAX)
+				else:
+					n.anim_p.advance(n.anim_acc)
+					if n.esq_p:
+						n.esq_p.advance(n.anim_acc)
+					n.anim_acc = 0.0
 		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)
@@ -4325,9 +4353,47 @@ func montar_teste() -> void:
 		{"nome": "Sem monstros", "f": func(): _teste_desligar("monstros")},
 	]
 	get_tree().physics_frame.connect(_q_fisica)
-	get_tree().process_frame.connect(_q_logica)
-	RenderingServer.frame_pre_draw.connect(_q_desenho)
-	RenderingServer.frame_post_draw.connect(_q_fechar)
+	_q_paralelo = grafico != null and grafico.paralelo_agora()
+	if _q_paralelo:
+		# desenho em paralelo (APK 2026-11-12): o desenho roda em outra linha, então o quadro daqui é física + lógica +
+		# espera (a linha principal parada esperando a tela ou a linha do desenho). A lógica acaba no último _process.
+		get_tree().process_frame.connect(_q_par_proc)
+		var ult := _UltimoQ.new()
+		ult.name = "UltimoDoQuadro"
+		ult.process_priority = 1 << 30
+		ult.cb = func(): _q_ult = Time.get_ticks_usec()
+		add_child(ult)
+	else:
+		get_tree().process_frame.connect(_q_logica)
+		RenderingServer.frame_pre_draw.connect(_q_desenho)
+		RenderingServer.frame_post_draw.connect(_q_fechar)
+
+class _UltimoQ extends Node:
+	var cb: Callable
+	func _process(_d: float) -> void:
+		cb.call()
+
+var _q_paralelo := false
+var _q_ult := 0
+var _q_fis_ant := 0
+
+func _q_par_proc() -> void:
+	var agora := Time.get_ticks_usec()
+	var ini: int = _q_fis if _q_fis > 0 and _q_fis <= agora else agora # começo desta volta (física, se teve)
+	if _q_fim > 0 and _q_proc > 0 and _q_ult >= _q_proc:
+		var v := {"quadro": ini - _q_fim, "fisica": _q_fis_ant, "logica": _q_ult - _q_proc, "desenho": 0}
+		v.espera = max(0, v.quadro - v.fisica - v.logica)
+		_q_somar(v)
+	_q_fis_ant = agora - ini
+	_q_fim = ini
+	_q_proc = agora
+	_q_fis = 0
+
+func _q_somar(v: Dictionary) -> void:
+	for k in v:
+		q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
+		if etapa >= 0 and t_etapa > ESPERA:
+			soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
 
 func _q_fisica() -> void:
 	if _q_fis == 0:
@@ -4345,10 +4411,7 @@ func _q_fechar() -> void:
 		var ini: int = _q_fis if _q_fis > _q_fim and _q_fis < _q_proc else _q_proc
 		var v := {"quadro": agora - _q_fim, "fisica": _q_proc - ini, "logica": _q_pre - _q_proc, "desenho": agora - _q_pre}
 		v.espera = v.quadro - v.fisica - v.logica - v.desenho
-		for k in v:
-			q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
-			if etapa >= 0 and t_etapa > ESPERA:
-				soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
+		_q_somar(v)
 	_q_fim = agora
 	_q_fis = 0
 
@@ -4435,7 +4498,8 @@ func restaurar() -> void:
 		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
 func comecar_teste() -> void:
-	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	if not _q_paralelo:
+		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	resultados.clear()
 	botao_teste.visible = false
 	etapa = -1
@@ -4465,20 +4529,28 @@ func atualizar_teste(dt: float) -> void:
 	if online:
 		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
 		txt += " · mato %.1f ms · capas %.1f ms · main %.1f ms" % [mato.ms if mato else 0.0, Armadura.PanoCapa.ms_quadro, ms_main] # auditoria de FPS 2026-11-11
-	txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
+	if _q_paralelo:
+		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + espera %.1f (desenho em paralelo)" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.espera]
+	else:
+		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
 		if t_etapa > ESPERA:
 			quadros += 1
 			soma_proc += proc
-			soma_gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
-			soma_rcpu += RenderingServer.viewport_get_measured_render_time_cpu(get_viewport().get_viewport_rid())
+			if not _q_paralelo: # em paralelo, ler o tempo da placa faz a linha principal esperar o desenho (distorce)
+				soma_gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+				soma_rcpu += RenderingServer.viewport_get_measured_render_time_cpu(get_viewport().get_viewport_rid())
 		txt += "\nTestando %d/%d: %s…" % [etapa + 1, etapas.size(), etapas[etapa].nome]
 		if t_etapa >= ESPERA + MEDE:
 			var q: float = max(1, quadros)
-			resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
-					soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
+			if _q_paralelo:
+				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · espera %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("espera", 0.0) / q])
+			else:
+				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)

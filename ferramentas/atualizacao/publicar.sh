@@ -13,6 +13,13 @@ cd "$(dirname "$0")/../.."
 CODIGO="$1"
 LIMITE=$((90 * 1024 * 1024)) # o site do GitHub Pages aceita até 1 GB no total; pacote maior pede APK novo
 RAIZ=$(pwd)
+# Modo antigo (APK com o jogo dentro) só existe no Godot 4.5: pacote de outro motor não abre nesses APKs.
+# Desde a troca para o 4.7 (2026-11-12) o manifesto fica parado na última versão do 4.5; o app de hoje é o APK casca.
+MOTOR=$("$GODOT_BIN" --version | head -n1 | cut -d. -f1,2)
+if [ "$MOTOR" != 4.5 ]; then
+  echo "Godot $MOTOR: modo antigo (manifesto.json) fica parado no 4.5; nada a publicar aqui."
+  exit 0
+fi
 
 # 1) pacote completo desta versão
 gh release view pacotes > /dev/null 2>&1 || gh release create pacotes --target main --prerelease --title "Pacotes base (uso interno)" \
