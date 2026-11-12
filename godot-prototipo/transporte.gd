@@ -585,12 +585,29 @@ func _por_packs(no: Node3D, lista: Array, por_fila: int, passo: Vector2, base_y:
 		pk.add_child(p)
 
 # ---------- painel do pack e do carrinho (Quimera #packc), em cima à esquerda embaixo da vida ----------
+# o painel do pack (o que vai nas costas) também muda de lugar e tamanho no modo de editar a interface
+# (André 2026-11-12, editar_hud.gd id "pack")
+const PAINEL_POS := Vector2(16, 150)
+var _painel_d := Vector2.ZERO
+var _painel_s := 1.0
+
+func posicionar(d: Vector2, s: float) -> void:
+	_painel_d = d
+	_painel_s = s
+	if _painel:
+		_painel.position = PAINEL_POS + d
+		_painel.scale = Vector2(s, s)
+
+func area() -> Rect2:
+	return _painel.get_global_rect() if _painel and _painel.visible else Rect2()
+
 func _montar_painel() -> void:
 	var cl := CanvasLayer.new()
 	cl.layer = 5
 	add_child(cl)
 	_painel = PanelContainer.new()
-	_painel.position = Vector2(16, 150)
+	_painel.position = PAINEL_POS + _painel_d
+	_painel.scale = Vector2(_painel_s, _painel_s)
 	_painel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.09, 0.07, 0.05, 0.72)
@@ -636,8 +653,12 @@ func _atualizar_painel() -> void:
 	var nv = p.get("navio")
 	if nv is Dictionary and m.mov.veiculo.get("k", "") == "navio":
 		t += ("\n" if t != "" else "") + "[b]Navio mercante[/b]\n[color=#cbbfa8]Porão: %d/%d packs[/color]" % [(nv.get("porao", []) as Array).size(), int(V.navio.porao)]
-	_painel_txt.text = t
-	_painel.visible = t != "" and not m.menu.aberto()
+	var editando: bool = m.hud.editando
+	if t == "" and editando: # no modo de editar aparece mesmo sem pack, para dar para mover
+		t = "[b][color=#ffe7a8]Pack nas costas[/color][/b]\n[color=#cbbfa8]Aparece aqui quando você carrega um pack[/color]"
+	if _painel_txt.text != t:
+		_painel_txt.text = t
+	_painel.visible = t != "" and (editando or not m.menu.aberto())
 	_largar.visible = pk is Dictionary
 
 # onde o pack foi feito: o mercador mais perto da origem
@@ -1202,6 +1223,9 @@ func evento(ev: Dictionary) -> void:
 
 # o "prog" chegou (o servidor é quem sabe): combustível de verdade
 func prog_chegou() -> void:
+	var cv = m.conversa # o pack saiu da barrinha: a mochila mudou, os números do material refazem na janela do mercador
+	if cv and cv.raiz.visible and cv.npc is Dictionary and cv.npc.get("funcao", "") == "pack" and cv.itens_ui.visible:
+		cv._itens_passe(true)
 	if _jan_carrinho and _jan and is_instance_valid(_jan):
 		abrir_carrinho.call_deferred() # a janela mostra o que o servidor mandou (combustível, packs, vida, nível)
 	var c = m.P.prog.get("carrinho")
