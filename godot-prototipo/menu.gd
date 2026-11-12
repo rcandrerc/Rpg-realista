@@ -16,6 +16,7 @@ extends CanvasLayer
 # A lista rola arrastando o dedo (feito aqui em _input: as linhas e os botões não deixavam o ScrollContainer rolar).
 
 const Armadura = preload("res://armadura.gd")
+const Titulos = preload("res://titulos.gd") # cores e enfeites dos títulos (aba Títulos)
 const OURO := Color(0.80, 0.64, 0.36)
 const OURO_CLARO := Color(0.95, 0.82, 0.55)
 const TEXTO := Color(0.93, 0.89, 0.80)
@@ -42,7 +43,8 @@ const SLOTS := [
 	["arma", "Arma", 0.85, 0.64, "J_Bip_L_Hand", 1]]
 const MEDALHAO := 52.0
 # abas de cada menu (André 2026-11-04): barra de vida = personagem; botão da mochila no topo = bolsa
-const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "aparencia"]
+# André 2026-11-12: aba Títulos (títulos com bônus; um em uso por vez)
+const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
 const ABAS_MISSOES := ["missoes"]
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
@@ -671,7 +673,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["missoes", "Missões"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "Missões"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -871,6 +873,8 @@ func atualizar() -> void:
 		montar_criar()
 	elif aba == "missoes":
 		montar_missoes()
+	elif aba == "titulos":
+		montar_titulos()
 	elif aba == "profissoes":
 		if sub_prof == "lista":
 			montar_profissoes()
@@ -1323,6 +1327,91 @@ func montar_profissoes() -> void:
 		var nv := "20" if r == 10 else "19" if r == 9 else "%d-%d" % [2 * r + 1, 2 * r + 2]
 		g.add_child(rotulo("%s  ·  Nv %s" % [ranks[r], nv], 12, OURO_CLARO if r == 0 else TEXTO))
 	conteudo.add_child(g)
+
+# ---------- Títulos (André 2026-11-12) ----------
+# Todos os títulos, os ganhos primeiro em cada grupo. Cada um: nome na cor do brilho, como ganhou e o bônus
+# ("Venceu o Uivo-Rei · +5% crítico"). Tocar em Usar põe o título em cima da cabeça e liga o bônus (o servidor confere);
+# Tirar deixa sem título. Os que faltam ficam apagados, com o feito que falta.
+const GRUPOS_TITULO := [["caca", "Caça"], ["boss", "Bosses de mundo"], ["historia", "História"], ["prof", "Profissões"]]
+func grupo_titulo(T: Dictionary) -> String:
+	var c: Dictionary = T.get("cond", {})
+	if c.has("boss"):
+		return "boss"
+	if c.has("prof"):
+		return "prof"
+	if c.has("abates"):
+		return "caca"
+	return "historia"
+
+func montar_titulos() -> void:
+	var P = m.P
+	var todos: Dictionary = Titulos.dados_de(P)
+	var tit = P.prog.get("tit")
+	var tem: Array = tit.get("tem", []) if tit is Dictionary else []
+	var uso: String = str(tit.get("uso", "")) if tit is Dictionary else ""
+	var d := rotulo("Um título em uso por vez: ele aparece em cima da sua cabeça e o bônus só vale enquanto está em uso. Troque quando quiser. Quanto mais difícil, mais brilhante.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	separador("Em uso")
+	if uso != "" and todos.has(uso):
+		conteudo.add_child(card_titulo(uso, todos[uso], true, true))
+	else:
+		conteudo.add_child(rotulo("Nenhum. Toque em Usar num título ganho.", 13, APAGADO))
+	var n := 0
+	for id in todos:
+		if id in tem:
+			n += 1
+	for g in GRUPOS_TITULO:
+		var ids: Array = todos.keys().filter(func(id): return grupo_titulo(todos[id]) == g[0])
+		if ids.is_empty():
+			continue
+		ids.sort_custom(func(a, b):
+			var ta: bool = a in tem
+			var tb: bool = b in tem
+			if ta != tb:
+				return ta
+			return int(todos[a].get("r", 0)) < int(todos[b].get("r", 0)))
+		var ganhos: int = ids.filter(func(id): return id in tem).size()
+		separador("%s  ·  %d de %d" % [g[1], ganhos, ids.size()])
+		for id in ids:
+			conteudo.add_child(card_titulo(id, todos[id], id in tem, id == uso))
+
+func card_titulo(id: String, T: Dictionary, ganho: bool, em_uso: bool) -> Control:
+	var r: int = clampi(int(T.get("r", 0)), 0, 4)
+	var cor: Color = Titulos.COR[r] if ganho else Color(0.45, 0.42, 0.38)
+	var cx := PanelContainer.new()
+	var fundo := Color(0.1, 0.088, 0.072, 1) if ganho else Color(0.07, 0.064, 0.056, 1)
+	cx.add_theme_stylebox_override("panel", caixa(fundo, cor.darkened(0.35) if ganho and r >= 2 else Color(0.3, 0.24, 0.16) if ganho else Color(0.18, 0.16, 0.13), 2 if em_uso else 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 10)
+	cx.add_child(l)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 1)
+	var nome := rotulo(Titulos.enfeite(str(T.nome), r) if ganho else str(T.nome), 16, cor)
+	if ganho and r >= 3:
+		nome.add_theme_color_override("font_outline_color", Titulos.CONTORNO[r])
+		nome.add_theme_constant_override("outline_size", 4)
+	txt.add_child(nome)
+	var raridade: String = str(m.P.dados.raridades[r].nome) if r < m.P.dados.raridades.size() else ""
+	var dsc := rotulo("%s · %s" % [str(T.como), str(T.txt)], 12, TEXTO if ganho else APAGADO)
+	dsc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(dsc)
+	if raridade != "":
+		txt.add_child(rotulo(raridade, 11, Titulos.COR[r].darkened(0.15) if ganho else APAGADO.darkened(0.3)))
+	l.add_child(txt)
+	var b: Button
+	if not ganho:
+		b = botao("Falta", func(): m.hud.aviso("Para ganhar: %s" % str(T.como)), 13)
+		b.modulate = Color(1, 1, 1, 0.6)
+	elif em_uso:
+		b = botao("Tirar", func(): acao_item({"acao": "titulo", "id": ""}), 13, true)
+	else:
+		b = botao("Usar", func(): acao_item({"acao": "titulo", "id": id}), 13)
+	b.custom_minimum_size = Vector2(86, 38)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(b)
+	return cx
 
 # ---------- Missões (progressão até o Nv 100, André 2026-11-11: "um menu de missões") ----------
 # História v2 (André 2026-11-11, "Aethra: a Crônica da Névoa"): a aba vira o livro da história. Capítulos em ordem,
@@ -3856,6 +3945,10 @@ func acao_item(msg: Dictionary) -> void:
 			atualizar()
 		return
 	match msg.acao:
+		"titulo": # sozinho (sem servidor): só usa o que a conta já ganhou
+			var tt = P.prog.get("tit")
+			if tt is Dictionary and (msg.id == "" or msg.id in tt.get("tem", [])):
+				tt.uso = msg.id
 		"capacete":
 			P.prog.semCapacete = msg.mostrar == false
 		"equipar":

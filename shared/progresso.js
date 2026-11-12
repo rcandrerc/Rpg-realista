@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 
@@ -64,24 +64,49 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
-  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a);
+  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
   const nivelK = 1 + 0.08 * (n - 1);
-  const def = a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa;
+  const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0));
   return {
-    vidaMax: Math.round(84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida),
+    vidaMax: Math.round((84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida) * (1 + (ti.vida || 0))),
     manaMax: Math.round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (passivas.mente_arcana ? 1.1 : 1)),
     // fora de combate (REGEN em shared/dados.js, números do Quimera); em luta a Simulacao aplica vidaCombate/manaCombate
     regenMana: (REGEN.mana + REGEN.manaNivel * n + REGEN.manaInt * a.int + (passivas.mente_arcana ? REGEN.manaMente : 0)) * (1 + eq.regenManaK),
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK),
-    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK),
-    critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico),
+    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0)),
+    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0)),
+    critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0)),
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
     areaK: eq.areaK, // área das skills a mais (conjunto de 6 peças)
     estaminaMax: Math.round(ESTAMINA.base + ESTAMINA.porNivel * n + ESTAMINA.porDes * a.des),
   };
+}
+
+// ---------- títulos (André 2026-11-12, TITULOS em shared/dados.js) ----------
+// p.tit = { tem: [ids ganhos], uso: id em uso ('' = nenhum) } · p.abates = monstros derrubados (conta para os de caça)
+// bônus do título em uso (só vale se ele foi ganho de verdade)
+export function bonusTitulo(p) {
+  const id = p?.tit?.uso, t = id && TITULOS[id];
+  return t && p.tit.tem.includes(id) ? t.b : {};
+}
+// bônus que só vale na profissão do título (extra, raridade, venda): 0 se o título em uso é de outra coisa
+export const bonusTituloProf = (p, k, campo) => { const t = TITULOS[p?.tit?.uso]; return t && t.cond.prof === k && p.tit.tem.includes(p.tit.uso) ? t.b[campo] || 0 : 0; };
+// títulos que o progresso já merece e ainda não estão na lista (os de boss e chefe entram na hora da vitória)
+export function titulosNovos(p) {
+  const tem = new Set(p.tit?.tem || []), h = p.hist?.p | 0, r = [];
+  for (const [id, t] of Object.entries(TITULOS)) {
+    if (tem.has(id)) continue;
+    const c = t.cond;
+    if ((c.abates && (p.abates | 0) >= c.abates) || (c.prof && profNivel(p.prof?.[c.prof]) >= c.nv)
+      || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))) r.push(id);
+  }
+  return r;
+}
+export function titValido(t) {
+  const tem = Array.isArray(t?.tem) ? [...new Set(t.tem.filter((id) => typeof id === 'string' && TITULOS[id]))] : [];
+  return { tem, uso: typeof t?.uso === 'string' && tem.includes(t.uso) ? t.uso : '' };
 }
 
 // ---------- profissões e vigor (Parte 3 do Quimera; dados em shared/dados.js: PROFISSOES, COLETA, RECEITAS) ----------
@@ -456,7 +481,7 @@ export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
   return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, paginas: 1, equip: equipNovo(),
-    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false, hist: histNova() };
+    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false, hist: histNova(), tit: { tem: [], uso: '' }, abates: 0 };
 }
 export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
@@ -523,6 +548,9 @@ export function progressoValido(p) {
   if (TOTENS.lista.some((t) => t.id === p.totem)) n.totem = p.totem;
   // missões principais (André 2026-11-10, shared/historia.js): conta de antes da progressão ganha as missões até o nível dela
   n.hist = histValida(p.hist, n.nivel);
+  // títulos (André 2026-11-12): os ganhos e o em uso; e quantos monstros já derrubou (títulos de caça)
+  n.tit = titValido(p.tit);
+  n.abates = int(p.abates, 0, 1e9, 0);
   if (typeof p.devPag === 'string' && p.devPag.length < 20) n.devPag = p.devPag; // páginas de teste já devolvidas (CONTA_TESTE)
   return n;
 }

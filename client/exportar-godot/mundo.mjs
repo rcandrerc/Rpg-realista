@@ -7,7 +7,7 @@ import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
-import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc } from '../../shared/dados.js';
+import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo } from '../../shared/dados.js';
 import { CALCADA } from '../../shared/vilas.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
@@ -174,6 +174,8 @@ const habs = {
   pesca: PESCA, // pescaria igual à do Quimera (André 2026-11-08): águas, peixes, tempos da boia e da briga
   packs: PACKS, packRegras: PACK_REGRAS, veiculos: VEICULOS, // FASE 1: packs e transportes do Quimera (transporte.gd)
   historia: historiaParaApp(), // progressão (André 2026-11-10): zonas da névoa, missões principais e níveis (nevoa.gd)
+  // títulos com bônus (André 2026-11-12): a aba Títulos do menu e o título em cima da cabeça (titulos.gd)
+  titulos: Object.fromEntries(Object.entries(TITULOS).filter(([id]) => tituloAtivo(id)).map(([id, t]) => [id, { nome: t.nome, r: t.r, como: t.como, txt: t.txt, b: t.b, cond: t.cond }])),
 };
 const faltam = Object.entries(habs.habs).flatMap(([k, h]) => [h.anim, ...(h.combo || []).map((c) => c.anim)].filter((a) => a && !anims[a]).map((a) => k + ':' + a));
 if (faltam.length) console.log('ATENÇÃO, animação sem nome no Godot:', faltam.join(', '));

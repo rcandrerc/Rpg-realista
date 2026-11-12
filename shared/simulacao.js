@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -420,6 +420,7 @@ export class Simulacao {
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo
     j.testador = !!testador;
     this.nascerOndeSaiu(j);
+    this.conferirTitulos(j, true); // conta de antes dos títulos: já ganha os que o progresso merece (sem faixa)
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
     j.amigos = new Map(); // conta do amigo -> nome (o servidor carrega da conta: definirAmigos)
@@ -1080,6 +1081,7 @@ export class Simulacao {
     if (M.gravar) this.gravarEstrela(j); // capítulo 15: o Tomás grava a estrela na arma (+1 de reforço)
     if (M.titulo) this.evento({ t: 'aviso', para: j.id, texto: `Título novo: ${M.titulo}` }); // título do ato (histInfo.titulo)
     this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
+    this.conferirTitulos(j, false, true); // título do ato (o aviso "Título novo" já foi aí em cima)
     for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${nomeLibera(k)}` });
     if (diga) diga(M.pronto, { missao: M.id });
     else if (M.pronto) this.evento({ t: 'aviso', para: j.id, texto: `${this.nomeNpc(M.npc)}: ${M.pronto}` });
@@ -1680,7 +1682,7 @@ export class Simulacao {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Toque nele na mochila pra guardar antes');
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const preco = precoVenda(it, mercador(p.prof.mer).venda);
+      const preco = precoVenda(it, mercador(p.prof.mer).venda + bonusTituloProf(p, 'mer', 'venda'));
       if (it.n > 1) it.n--; else p.mochila[i] = null;
       p.ouro += preco;
       this.pontosMercador(j, preco);
@@ -1692,7 +1694,7 @@ export class Simulacao {
       // item com cadeado (André 2026-11-07) fica de fora, mesmo que venha na lista
       const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad && !this.carrinhoFora(j, p.mochila[x])))];
       if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
-      const merc = mercador(p.prof.mer).venda;
+      const merc = mercador(p.prof.mer).venda + bonusTituloProf(p, 'mer', 'venda');
       let ouro = 0, n = 0;
       for (const x of lugares) {
         const v = p.mochila[x], q = ehEquip(v.k) ? 1 : Math.max(1, v.n || 1);
@@ -1774,6 +1776,12 @@ export class Simulacao {
       // mostrar ou esconder o capacete no corpo (fica gravado na conta; o bônus da peça continua).
       // 2026-11-07: o merge do reforço tinha engolido este ramo (o capacete escondido voltava a aparecer)
       p.semCapacete = m.mostrar === false;
+    } else if (m.acao === 'titulo') {
+      // títulos (André 2026-11-12): usar um título ganho (id) ou tirar ('' ou null); o bônus vale só enquanto está em uso
+      const id = typeof m.id === 'string' ? m.id : '';
+      if (id && !(TITULOS[id] && p.tit.tem.includes(id))) return aviso('Você ainda não ganhou esse título');
+      p.tit.uso = id;
+      aviso(id ? `Título em uso: ${TITULOS[id].nome} (${TITULOS[id].txt})` : 'Sem título');
     } else return;
     this.aplicarStatus(j);
     this.avisarProg(j);
@@ -2166,6 +2174,7 @@ export class Simulacao {
       const b = profBonus(j.prog.prof[k]);
       this.evento({ t: 'aviso', para: j.id, texto: `${PROFISSOES[k].nome} subiu para o Nv ${nv}` + (b.menosVigor ? ` (gasta ${Math.round(b.menosVigor * 100)}% menos vigor)` : '') });
       this.evento({ t: 'profNivel', para: j.id, prof: k, nv });
+      this.conferirTitulos(j); // título da profissão (Nv 10 e Nv 20)
     }
   }
 
@@ -2262,7 +2271,8 @@ export class Simulacao {
     if (!gastarVigor(p, custo)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     const b = profBonus(p.prof[C.prof]), ganhou = [];
     const por = (k, n) => { if (guardar(p.mochila, { k, n })) { const g = ganhou.find((x) => x.k === k); if (g) g.n += n; else ganhou.push({ k, nome: ITENS[k].nome, n }); } else this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); };
-    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < b.extra ? 1 : 0));
+    const extra = b.extra + bonusTituloProf(p, C.prof, 'extra'); // título da profissão em uso
+    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < extra ? 1 : 0));
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch && !filtrado(p, { k })) por(k, 1); // bônus desmarcado no filtro fica no chão
     const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
     const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
@@ -2368,7 +2378,7 @@ export class Simulacao {
     }
     const custo = P.vigor[k] * (1 - profBonus(p.prof.pes).menosVigor);
     gastarVigor(p, Math.min(custo, vigorAgora(p.vigor))); // Quimera: paga o que tem
-    const dobro = Math.random() < P.dobro * profBonus(p.prof.pes).rank && guardar(p.mochila, { k, n: 1 });
+    const dobro = Math.random() < P.dobro * profBonus(p.prof.pes).rank + bonusTituloProf(p, 'pes', 'extra') && guardar(p.mochila, { k, n: 1 });
     this.pontosProf(j, 'pes', P.vigor[k]);
     p.vara = (p.vara || 0) + 1;
     let quebrou = false;
@@ -2463,7 +2473,7 @@ export class Simulacao {
     const custo = R.vigor * (1 - profBonus(p.prof[R.prof]).menosVigor);
     let novo;
     if (ehEquip(R.faz)) {
-      let r = 0; const ch = chanceRaridade(p.prof[R.prof]);
+      let r = 0; const ch = chanceRaridade(p.prof[R.prof]) + bonusTituloProf(p, R.prof, 'raridade');
       while (r < RARIDADE_CRIAR.ate && Math.random() < ch) r++;
       novo = { k: R.faz, r };
     } else novo = { k: R.faz, n: 1 };
@@ -3234,7 +3244,7 @@ export class Simulacao {
     const p = j.prog, ganhou = [];
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
     const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
-    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)));
+    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0)));
     p.ouro += ouro;
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
@@ -3575,7 +3585,9 @@ export class Simulacao {
         const n = j.time ? doTime.get(j.time) : 1;
         const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1) * (c.bm ? BOSSES_MUNDO[c.bm].xp : 1));
         const nerf = n > 1 ? fatorXpTime(j.prog.nivel, maiorDoTime.get(j.time)) : 1; // muito abaixo do mais alto do time: menos XP (TIME_XP)
-        this.ganharXP(j, n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1)) * nerf) : xp); this.soltarDrops(c, j);
+        const xpT = 1 + (bonusTitulo(j.prog).xp || 0); // título em uso: + XP dos monstros
+        this.ganharXP(j, Math.round((n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1)) * nerf) : xp) * xpT)); this.soltarDrops(c, j);
+        this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
@@ -4087,6 +4099,24 @@ export class Simulacao {
       skillCd: COMBATE_BOSS.primeiraSkill, skillI: 0, skillSeq: 0, furia: false, semAlvo: 0, arena: { x: c.def.x, z: c.def.z, r: c.def.r } });
     e.vida = e.vidaMax;
   }
+  // ---------- títulos (André 2026-11-12, TITULOS em shared/dados.js) ----------
+  // vitória sobre um monstro: conta para os títulos de caça; boss de mundo e chefe da história dão o título na hora
+  titulosDaVitoria(j, c) {
+    const p = j.prog; p.abates = (p.abates | 0) + 1;
+    for (const [id, t] of Object.entries(TITULOS)) if ((c.bm && t.cond.boss === c.bm) || (c.hc && t.cond.hc === c.hc)) this.ganharTitulo(j, id);
+    this.conferirTitulos(j);
+  }
+  // os títulos que o progresso já merece (caça, profissão, atos da história) entram na lista. quieto: sem faixa (ao entrar)
+  conferirTitulos(j, quieto = false, semAvisoHist = false) {
+    for (const id of titulosNovos(j.prog)) this.ganharTitulo(j, id, quieto || (semAvisoHist && !!TITULOS[id].cond.hist));
+  }
+  ganharTitulo(j, id, quieto = false) {
+    const p = j.prog, T = TITULOS[id];
+    if (!T || p.tit.tem.includes(id)) return;
+    p.tit.tem.push(id); j.progSujo = true;
+    if (!quieto && !j.bot) this.evento({ t: 'aviso', para: j.id, texto: `Título novo: ${T.nome} (${T.txt})` });
+    if (!quieto) this.avisarProg(j);
+  }
   bossMorreu(c) {
     const B = BOSSES_MUNDO[c.bm], h = B.volta[0] + Math.random() * (B.volta[1] - B.volta[0]);
     this.bossVolta[c.bm] = this.agoraMs() + Math.round(h * 3600e3);
@@ -4270,6 +4300,7 @@ export class Simulacao {
         roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
         ...(j.roupaFixa ? { roupa: roupa(j.roupaFixa) } : {}), // a Cecília: aparência fixa do look B (as peças de verdade são outras)
         semCapacete: !!j.prog.semCapacete,
+        tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}) })), // bot: a Cecília (só o dono conversa)

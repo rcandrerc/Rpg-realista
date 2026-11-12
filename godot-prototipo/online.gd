@@ -637,6 +637,7 @@ func outro(j: Dictionary) -> void:
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
 			no.position = o.alvo
 			o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
+			m.nome_legivel(no) # André 2026-11-12: nome, nível e título dos outros do tamanho dos nomes dos NPCs
 			o.placa = null
 			for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
 				if f is Label3D:
@@ -660,6 +661,11 @@ func outro(j: Dictionary) -> void:
 	if placa != o.placa_txt and o.placa != null:
 		o.placa_txt = placa
 		o.placa.text = placa
+	# título em uso (André 2026-11-12): em cima do nome, mais brilhante quanto mais difícil (titulos.gd)
+	var tit := str(j.get("tit", "")) if j.get("tit") != null else ""
+	if tit != str(o.get("tit", "")) and m.titulos != null:
+		o.tit = tit
+		m.titulos.por(o.no, o.placa, tit)
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
