@@ -21,7 +21,8 @@ const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens d
 	"bt:pular": "Pular", "bt:afundar": "Afundar", "bt:subir": "Subir", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
 	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
 	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio", "bt:estacoes": "Recolher estações",
-	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana"}
+	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana",
+	"pack": "Pack nas costas", "bt:veiculo": "Carrinho e barco", "bt:pegar_pack": "Pegar pack"} # pack: André 2026-11-12
 
 var m # main.gd
 var layout := {} # id -> [dx, dy, escala]; sem a chave = lugar e tamanho de sempre
@@ -93,7 +94,7 @@ func _bt(t: String, fn: Callable, ativo: bool) -> Button:
 
 # ---------- elementos ----------
 func ids() -> Array:
-	var l := ["painel", "joy", "chat", "mapa", "topo", "time"]
+	var l := ["painel", "joy", "chat", "mapa", "topo", "time", "pack"]
 	for b in m.hud.botoes:
 		l.append("bt:" + str(b.acao))
 	return l
@@ -137,6 +138,8 @@ func rect(id: String) -> Rect2:
 			if not m.amigos:
 				return Rect2()
 			return Rect2(m.amigos.BARRAS + m.amigos.barras_d, Vector2(196, 76) * m.amigos.barras_s)
+		"pack":
+			return m.transporte.area() if m.transporte else Rect2()
 	if id.begins_with("bt:"):
 		var b: Dictionary = h.botao(id.substr(3))
 		if b.is_empty():
@@ -171,6 +174,9 @@ func aplicar(id: String) -> void:
 			if m.amigos:
 				m.amigos.barras_d = d
 				m.amigos.barras_s = s
+		"pack":
+			if m.transporte:
+				m.transporte.posicionar(d, s)
 		_:
 			if id.begins_with("bt:"):
 				h.ajustar_botao(id.substr(3), d, s)

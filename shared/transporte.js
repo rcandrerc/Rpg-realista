@@ -9,7 +9,7 @@
 // - j.prog.navio: { porao: [], chao: {x, z, ry} | null }. O barquinho não fica no mundo: desceu, volta para a mochila.
 // - j.veiculo: 'carrinho' | 'barquinho' | 'navio' | null (dirigindo agora; não vai para a conta).
 // - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s).
-import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX } from './dados.js';
+import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
 import { motivoLibera } from './historia.js'; // progressão (André 2026-11-10)
@@ -110,28 +110,48 @@ export const Transporte = {
     const pos = j.veiculo === 'navio' ? { x: j.x, z: j.z } : n.chao;
     return pos && Math.hypot(pos.x - j.x, pos.z - j.z) <= metros ? n : null;
   },
+  // pode fazer o pack nesse mercador agora? { motivo } ou { n, custo, cart }
+  conferirPack(j, npcId) {
+    const p = j.prog;
+    const n = this.mercadorPack(j, npcId); if (!n) return { motivo: 'Chegue perto do mercador' };
+    { const lib = motivoLibera(p, 'pack'); if (lib) return { motivo: `Packs: ${lib.toLowerCase()}` }; } // progressão (André 2026-11-10)
+    const custo = custoPack(n.merch, p.prof.mer);
+    const falta = Object.entries(custo).filter(([k, q]) => contar(p.mochila, k) < q);
+    if (falta.length) return { motivo: 'Falta material: ' + falta.map(([k, q]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${q}`).join(', ') };
+    const cart = p.pack ? this.carrinhoPerto(j, V.carrinho.carregar) : null;
+    if (p.pack && !(cart && j.veiculo !== 'carrinho' && cart.packs.length < capacidadeCarrinho(cart))) return { motivo: 'Suas costas já têm um pack. Ponha no carrinho ou entregue primeiro.' };
+    if (vigorAgora(p.vigor) < PR.vigor) return { motivo: `Sem vigor: fazer um pack gasta ${PR.vigor}` };
+    return { n, custo, cart };
+  },
+  // a barrinha encheu: confere de novo, gasta e põe o pack nas costas (ou no carrinho). Devolve o motivo se não deu.
+  fazerPackUm(j, npcId) {
+    const id = j.id, p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const r = this.conferirPack(j, npcId); if (r.motivo) return r.motivo;
+    const { n, custo, cart } = r, P = PACKS[n.merch];
+    const novo = { k: n.merch, ox: Math.round(n.x), oz: Math.round(n.z), mo: n.id };
+    gastarVigor(p, PR.vigor);
+    for (const [k, q] of Object.entries(custo)) tirar(p.mochila, k, q);
+    if (p.pack) { cart.packs.push(novo); aviso('Pack feito e colocado no carrinho!'); } else { p.pack = novo; j.montado = null; aviso(`${P.nome} nas costas! Leve pra outro mercador.`); }
+    this.pontosProf(j, 'mer', PR.vigor / 2);
+    this.evento({ t: 'pack', para: id, acao: 'fez', k: n.merch });
+    this.historia(j, 'pack_fez', { k: n.merch });
+    j.progSujo = true; this.avisarProg(j);
+    return '';
+  },
   // m = { acao, npc, de, i, g }
   pack(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando || !m) return;
     const p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto }), agora = Date.now();
     const pronto = () => { j.progSujo = true; this.avisarProg(j); };
+    // fazer: a barrinha de criar (j.fabrica, igual a qualquer criação, André 2026-11-12) carrega e o pack sai no fim
+    // (passoFabrica chama fazerPackUm, que confere tudo de novo). "Parar" na barrinha cancela sem gastar nada.
     if (m.acao === 'fazer') {
-      const n = this.mercadorPack(j, m.npc); if (!n) return aviso('Chegue perto do mercador');
-      { const lib = motivoLibera(p, 'pack'); if (lib) return aviso(`Packs: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
-      const P = PACKS[n.merch], custo = custoPack(n.merch, p.prof.mer);
-      const falta = Object.entries(custo).filter(([k, q]) => contar(p.mochila, k) < q);
-      if (falta.length) return aviso('Falta material: ' + falta.map(([k, q]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${q}`).join(', '));
-      const novo = { k: n.merch, ox: Math.round(n.x), oz: Math.round(n.z), mo: n.id };
-      const cart = p.pack ? this.carrinhoPerto(j, V.carrinho.carregar) : null;
-      if (p.pack && !(cart && j.veiculo !== 'carrinho' && cart.packs.length < capacidadeCarrinho(cart))) return aviso('Suas costas já têm um pack. Ponha no carrinho ou entregue primeiro.');
-      if (vigorAgora(p.vigor) < PR.vigor) return aviso(`Sem vigor: fazer um pack gasta ${PR.vigor}`);
-      gastarVigor(p, PR.vigor);
-      for (const [k, q] of Object.entries(custo)) tirar(p.mochila, k, q);
-      if (p.pack) { cart.packs.push(novo); aviso('Pack feito e colocado no carrinho!'); } else { p.pack = novo; j.montado = null; aviso(`${P.nome} nas costas! Leve pra outro mercador.`); }
-      this.pontosProf(j, 'mer', PR.vigor / 2);
-      this.evento({ t: 'pack', para: id, acao: 'fez', k: n.merch });
-      this.historia(j, 'pack_fez', { k: n.merch });
-      return pronto();
+      if (j.fabrica) return aviso('Já está criando: espere terminar ou pare');
+      const r = this.conferirPack(j, m.npc); if (r.motivo) return aviso(r.motivo);
+      const nome = PACKS[r.n.merch].nome, dur = tempoCriar({ custo: r.custo });
+      j.fabrica = { pk: true, npc: r.n.id, k: 'pack', nome, n: 1, feito: 0, dur, fim: this.tempo + dur };
+      this.evento({ t: 'fabricando', para: id, k: 'pack', nome, v: 'Fazendo', n: 1, feito: 0, dur });
+      return;
     }
     if (m.acao === 'entregar') {
       const n = this.mercadorPack(j, m.npc); if (!n) return aviso('Chegue perto do mercador');

@@ -2771,6 +2771,7 @@ export class Simulacao {
     if (j.morto) return this.pararFabrica(j, '');
     if (f.des) return this.passoDestruir(j, f);
     if (f.ev) return this.passoEvoluir(j, f);
+    if (f.pk) { const mot = this.fazerPackUm(j, f.npc); if (mot) return this.pararFabrica(j, mot); f.feito = 1; return this.pararFabrica(j, ''); } // pack do mercador (shared/transporte.js)
     const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
     if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
     f.feito++;
