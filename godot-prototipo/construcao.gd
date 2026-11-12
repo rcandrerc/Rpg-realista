@@ -702,12 +702,20 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		return
 	var L = lotes.get(id)
 	var ret = ev.get("ret")
+	# 2026-11-12 (travadas): a Cecília e o Dario mexem na horta a toda hora e cada mexida manda o terreno inteiro.
+	# Refazer tudo (terra de todos os canteiros, pisos, telhado, grama, sólidos) custava 80+ ms por aviso no PC e
+	# muito mais no celular. Agora só refaz o que mudou de verdade.
+	var mudou_forma := false
 	if L == null:
 		if not (ret is Array) or ret.size() < 4:
 			return
 		L = _lote_novo(id, ret)
+		mudou_forma = true
 	elif ret is Array and ret.size() >= 4: # o dono mudou o tamanho
-		L.def.x0 = float(ret[0]); L.def.z0 = float(ret[1]); L.def.x1 = float(ret[2]); L.def.z1 = float(ret[3])
+		var r4 := [float(ret[0]), float(ret[1]), float(ret[2]), float(ret[3])]
+		if r4 != [float(L.def.x0), float(L.def.z0), float(L.def.x1), float(L.def.z1)]:
+			mudou_forma = true
+		L.def.x0 = r4[0]; L.def.z0 = r4[1]; L.def.x1 = r4[2]; L.def.z1 = r4[3]
 	L.taxa = float(ev.get("taxa")) if ev.get("taxa") != null else 0.0
 	relogio = float(ev.get("agora", 0)) - Time.get_unix_time_from_system() * 1000.0
 	L.dono = ev.get("dono")
@@ -716,17 +724,22 @@ func do_servidor_lote(ev: Dictionary) -> void:
 	for p in ev.get("pecas", []):
 		novas[str(p[0])] = {"id": str(p[0]), "k": str(p[1]), "x": float(p[2]), "z": float(p[3]), "r": int(p[4])}
 	var ficam: Array = []
+	var saiu_peca := false
 	for p in L.pecas:
 		var n = novas.get(p.id)
 		if n != null and n.k == p.k and is_equal_approx(n.x, p.x) and is_equal_approx(n.z, p.z) and n.r == p.r:
 			ficam.append(p)
 			novas.erase(p.id)
-		elif p.get("no"):
-			p.no.queue_free()
+		else:
+			saiu_peca = true
+			if p.get("no"):
+				p.no.queue_free()
 	for k in novas:
 		ficam.append(novas[k])
 	L.pecas = ficam
-	_refazer_pisos() # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso
+	var mudou_pecas: bool = mudou_forma or saiu_peca or not novas.is_empty()
+	if mudou_pecas:
+		_refazer_pisos() # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso
 	for k in novas:
 		var p: Dictionary = novas[k]
 		if _modelos.has(p.k) and p.k != "telhado": # o telhado é um só por terreno (_refazer_telhado)
@@ -737,20 +750,29 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			if pil: # dois pilares no mesmo canto: cada giro um tiquinho maior, para um cobrir o outro sem piscar
 				pil.scale = Vector3(1.0 + 0.012 * p.r, 1.0 + 0.003 * p.r, 1.0 + 0.012 * p.r)
 			L.raiz.add_child(p.no)
-	_refazer_telhado(L)
-	_achar_portas()
-	L.erase("_moveis_chave") # peças mudaram: _moveis_dentro confere de novo
+	if mudou_pecas:
+		_refazer_telhado(L)
+		_achar_portas()
+		L.erase("_moveis_chave") # peças mudaram: _moveis_dentro confere de novo
 	# horta
+	var mudou_canteiros := false
 	var vistas := {}
 	for t in ev.get("horta", []):
 		var c := str(t[0])
 		vistas[c] = true
 		var h: Dictionary = L.horta.get(c, {})
+		var antes_c = h.get("c")
+		var antes_w = h.get("w")
 		h.c = str(t[1])
 		h.g = float(t[2]) if t[2] != null else 0.0
 		h.w = float(t[3]) if t[3] != null else 0.0 # terra recém-arada ainda não foi regada (null)
 		h.u = float(t[4]) if t[4] != null else 0.0
+		# só o canteiro que mudou de verdade (plantou, colheu, regou) é desenhado de novo na marra; o crescimento
+		# (g) muda a cada aviso e o desenho normal (_desenhar_canteiro sem forçar) já troca a fase quando precisa
+		if antes_c != h.c or antes_w != h.w:
+			h.mudou = true
 		if not h.has("no"):
+			mudou_canteiros = true
 			h.no = Node3D.new()
 			var ij := c.split(",")
 			h.i = int(ij[0])
@@ -760,11 +782,11 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			h.fase = -9
 			h.molhada = null
 		L.horta[c] = h
-		h.mudou = true
 	for c in L.horta.keys():
 		if not vistas.has(c):
 			L.horta[c].no.queue_free()
 			L.horta.erase(c)
+			mudou_canteiros = true
 	# terra emenda com os vizinhos: refaz quem mudou e quem ganhou ou perdeu vizinho
 	for c in L.horta:
 		var h: Dictionary = L.horta[c]
@@ -774,8 +796,10 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			_desenhar_canteiro(h, true)
 		elif h.mask != h.get("mask_feita", -1):
 			_desenhar_canteiro(h)
-	_grama_sob_horta(L)
-	_refazer_solidos()
+	if mudou_pecas or mudou_canteiros:
+		_grama_sob_horta(L)
+	if mudou_pecas:
+		_refazer_solidos()
 	_por_correio(id)
 	if id == meu and not _avisou_conta:
 		_avisou_conta = true
