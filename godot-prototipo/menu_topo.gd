@@ -532,6 +532,41 @@ func montar_config() -> void:
 		salvar())
 	_qualidade_grafica()
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
+	_chave_ia()
+
+# Chave IA dos NPCs (André 2026-11-12): ativar a conversa com a Cecília e o Dario também aqui, sem precisar achar eles.
+# É o mesmo "Ativar conversa com IA" de Multijogador > Amigos virtuais (que continua lá): cria a chave grátis no Groq
+# e cola uma vez só; o servidor testa e guarda na conta (server/index.js 'chaveIa').
+func _chave_ia() -> void:
+	var a = m.amigos
+	if a == null or not m.on() or a.virtuais.is_empty():
+		return
+	var ativa := false
+	var nomes: Array = []
+	for v in a.virtuais:
+		nomes.append(str(v.get("nome", "")))
+		if v.get("ia", false):
+			ativa = true
+	_texto("Chave IA dos NPCs", Menu.TEXTO, 17)
+	if ativa:
+		_texto("Ativada. Você conversa com %s." % " e ".join(nomes), Menu.APAGADO, 13)
+		return
+	_texto("Para conversar com %s:\n1. Crie a chave grátis (conta Google, Create API Key) e copie.\n2. Toque em Colar a chave." % " e ".join(nomes), Menu.APAGADO, 13)
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var b1 := _botao("1. Criar chave", func(): OS.shell_open("https://console.groq.com/keys"), false)
+	var b2 := _botao("2. Colar a chave", func():
+		var chave := DisplayServer.clipboard_get().strip_edges()
+		if not chave.begins_with("gsk_"):
+			m.hud.aviso("Copie a chave no site primeiro (começa com gsk_)")
+			return
+		m.rede("chaveIa", {"chave": chave})
+		m.hud.aviso("Testando a chave..."))
+	for b in [b1, b2]:
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
 
 # Qualidade gráfica (André 2026-11-09, celular da filha): Baixa, Média e Alta (grafico.gd). O escolhido fica dourado.
 func _qualidade_grafica() -> void:
