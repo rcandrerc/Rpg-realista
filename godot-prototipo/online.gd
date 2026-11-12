@@ -990,6 +990,12 @@ func evento(ev: Dictionary) -> void:
 			if m.troca:
 				m.troca.do_servidor(ev)
 			return
+		"anuncio": # boss de mundo apareceu, caiu ou soltou Mítico: faixa na tela que some (festa.gd), fora do chat
+			if m.hud.festa:
+				m.hud.festa.anuncio(str(ev.get("cab", "")), str(ev.get("titulo", "")), str(ev.get("cor", "boss")))
+			else:
+				m.hud.aviso(str(ev.get("titulo", "")))
+			return
 		"chat", "chatHist": # chat geral e de amigos (chat.gd)
 			if m.chat:
 				m.chat.do_servidor(ev)

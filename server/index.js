@@ -94,6 +94,7 @@ class SalaClareira extends Room {
       const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
       for (const s of salas) s.sim.receberChat(msg);
     };
+    this.sim.aoAnuncioTela = (ev) => { for (const s of salas) s.sim.evento({ ...ev }); }; // bosses de mundo: faixa na tela, fora do chat
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
     this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
