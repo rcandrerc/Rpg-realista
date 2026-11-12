@@ -23,9 +23,16 @@ func _initialize() -> void:
 	print("FUMACA motor ", Engine.get_version_info().string, " desenho ", "junto" if RenderingServer.is_on_render_thread() else "em paralelo")
 	change_scene_to_file("res://main.tscn")
 
+var aviso_t := 0.0
+
 func _process(dt: float) -> bool:
 	t += dt
 	var m = current_scene
+	if t - aviso_t >= 5.0: # andamento (se o log parar aqui, o jogo travou)
+		aviso_t = t
+		var on = m.get("online") if m else null
+		print("FUMACA t=%.0f s quadros=%d cena=%s online=%s conectado=%s" % [t, Engine.get_process_frames(), m.name if m else "-",
+			on != null, on != null and on.rede != null and on.rede.conectado])
 	if entrou_t < 0.0 and t > ESPERA_MAX:
 		print("FUMACA FALHOU: não entrou no servidor em %d s" % ESPERA_MAX)
 		quit(1)

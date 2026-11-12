@@ -338,34 +338,6 @@ jobs:
         run: |
           $GODOT_BIN --headless --export-pack Android $GITHUB_WORKSPACE/base-$((1000 + ${{ github.run_number }})).pck
           ls -la $GITHUB_WORKSPACE/base-*.pck
-      # Só em PR (troca de motor, 2026-11-12): abre a vila de verdade (servidor local, Vulkan por software), anda ~45 s
-      # com o desenho em paralelo e depois junto, e falha se aparecer erro de script ou de shader. Pega o que o
-      # motor novo quebrar antes de ir para a main. Os números de FPS daqui não valem para o celular.
-      - name: Teste do jogo aberto (só em PR)
-        if: github.event_name == 'pull_request'
-        timeout-minutes: 20
-        run: |
-          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers > /dev/null
-          mkdir -p /tmp/srv
-          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null)
-          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
-          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
-          falhou=0
-          for modo in separate safe; do
-            RPG_SERVIDOR=http://127.0.0.1:2567 RPG_SESSAO="$SESSAO" timeout 480 xvfb-run -a -s "-screen 0 960x432x24" \
-              $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --resolution 960x432 --render-thread $modo \
-              -s $GITHUB_WORKSPACE/ferramentas/motor/fumaca.gd > /tmp/fumaca-$modo.log 2>&1 || falhou=1
-            echo "--- desenho $modo ---"
-            grep -E "^FUMACA" /tmp/fumaca-$modo.log || true
-            echo "erros e avisos (repetições):"
-            grep -E "^(ERROR|WARNING|SCRIPT ERROR|SHADER ERROR)" /tmp/fumaca-$modo.log | sort | uniq -c | sort -rn | head -25 || true
-            if grep -qE "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log; then
-              echo "::error::erro de script ou shader no desenho $modo"; grep -E -A3 "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log | head -60
-              falhou=1
-            fi
-            grep -q "^FUMACA ok" /tmp/fumaca-$modo.log || falhou=1
-          done
-          exit $falhou
       - name: Atualização dentro do app (pacote só com o que mudou desde o APK base)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
@@ -403,6 +375,48 @@ jobs:
           name: rpg-realista-casca-apk
           path: rpg-realista-casca.apk
           retention-days: 14
+      # Só em PR (troca de motor, 2026-11-12): abre a vila de verdade (servidor local, Vulkan por software), anda ~45 s
+      # com o desenho em paralelo e depois junto, e falha se aparecer erro de script ou de shader. Pega o que o
+      # motor novo quebrar antes de ir para a main. Os números de FPS daqui não valem para o celular.
+      - name: Teste do jogo aberto (só em PR)
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 30
+        run: |
+          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers > /dev/null
+          mkdir -p /tmp/srv
+          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null)
+          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          falhou=0
+          mkdir -p /tmp/fumaca
+          # sem tela primeiro (rápido, pega erro de script); depois com Vulkan por software, em paralelo e junto
+          for modo in sem-tela separate safe; do
+            if [ $modo = sem-tela ]; then
+              CMD="$GODOT_BIN --headless --path godot-prototipo"
+            else
+              CMD="xvfb-run -a -s \"-screen 0 960x432x24\" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --resolution 960x432 --render-thread $modo"
+            fi
+            RPG_SERVIDOR=http://127.0.0.1:2567 RPG_SESSAO="$SESSAO" timeout 420 stdbuf -oL -eL bash -c "$CMD -s $GITHUB_WORKSPACE/ferramentas/motor/fumaca.gd" \
+              > /tmp/fumaca/$modo.log 2>&1 || falhou=1
+            cp /tmp/fumaca/$modo.log /tmp/fumaca-$modo.log
+            echo "--- desenho $modo ---"
+            grep -E "^FUMACA" /tmp/fumaca-$modo.log || true
+            echo "erros e avisos (repetições):"
+            grep -E "^(ERROR|WARNING|SCRIPT ERROR|SHADER ERROR)" /tmp/fumaca-$modo.log | sort | uniq -c | sort -rn | head -25 || true
+            if grep -qE "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log; then
+              echo "::error::erro de script ou shader no desenho $modo"; grep -E -A3 "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log | head -60
+              falhou=1
+            fi
+            grep -q "^FUMACA ok" /tmp/fumaca-$modo.log || { echo "fim do log:"; tail -40 /tmp/fumaca-$modo.log; falhou=1; }
+          done
+          cp /tmp/srv/log.txt /tmp/fumaca/servidor.log || true
+          exit $falhou
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'pull_request'
+        with:
+          name: teste-jogo-logs
+          path: /tmp/fumaca
+          retention-days: 3
       - name: Publicar no release "apk"
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.TEM_CHAVE == '1'
         env:
