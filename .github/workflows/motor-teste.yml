@@ -40,6 +40,7 @@ jobs:
           # o servidor pode ouvir só no IPv6 (::1) na máquina do GitHub: usa o endereço que responde
           for h in 127.0.0.1 '[::1]'; do curl -s -m 3 "http://$h:2567/saude" > /dev/null && SRV="http://$h:2567" && break; done
           echo "endereço do servidor: ${SRV:-nenhum}"
+          ss -ltnp | grep 2567 || true; sysctl net.ipv6.conf.all.disable_ipv6 || true; env | grep -i proxy || true
           RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" timeout 120 $GODOT_BIN --headless --path /tmp/vazio \
             -s $GITHUB_WORKSPACE/ferramentas/motor/rede_teste.gd 2>&1 | tee /tmp/rede.log | grep -E "^REDE|ERROR"
           echo "--- servidor ---"; tail -20 /tmp/srv/log.txt

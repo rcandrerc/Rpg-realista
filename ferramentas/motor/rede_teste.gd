@@ -23,8 +23,35 @@ func _pedir(metodo: int, caminho: String, corpo = null) -> Array:
 	print("REDE ", caminho, " resultado=", res[0], " codigo=", res[1], " bytes=", (res[3] as PackedByteArray).size(), " corpo=", txt.left(160).c_escape())
 	return [res[0], res[1], txt]
 
+func _tcp() -> void:
+	var u := srv.trim_prefix("http://")
+	var host := u.get_slice(":", 0)
+	var porta := int(u.get_slice(":", 1))
+	var t := StreamPeerTCP.new()
+	var e := t.connect_to_host(host, porta)
+	var st := []
+	for i in 60:
+		t.poll()
+		st.append(t.get_status())
+		if t.get_status() != StreamPeerTCP.STATUS_CONNECTING:
+			break
+		await process_frame
+	print("REDE tcp ", host, ":", porta, " connect=", e, " estados=", st)
+	print("REDE resolve localhost=", IP.resolve_hostname("localhost"), " tipo_any=", IP.resolve_hostname("localhost", IP.TYPE_ANY))
+	var c := HTTPClient.new()
+	print("REDE httpclient connect=", c.connect_to_host(host, porta))
+	var sts := []
+	for i in 60:
+		c.poll()
+		sts.append(c.get_status())
+		if c.get_status() != HTTPClient.STATUS_CONNECTING and c.get_status() != HTTPClient.STATUS_RESOLVING:
+			break
+		await process_frame
+	print("REDE httpclient estados=", sts)
+
 func _rodar() -> void:
 	await process_frame
+	await _tcp()
 	await _pedir(HTTPClient.METHOD_GET, "/saude")
 	await _pedir(HTTPClient.METHOD_GET, "/conta/eu")
 	var r := await _pedir(HTTPClient.METHOD_POST, "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": "Teste", "json": true, "aoi": true})
