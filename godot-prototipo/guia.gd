@@ -125,10 +125,11 @@ func passos(hi: Dictionary) -> Array:
 			return ["hud:painel", "aba:status", "b:+", "b^Confirmar ("]
 		"barra":
 			return ["hud:painel", "aba:habilidades", "m:barra:livre"]
+		# o mercador tem "Criar pack" e "Entregar pack" direto na janela (André 2026-11-12)
 		"pack_fez":
-			return ["ir", "hud:falar", "b^Packs", "b^Fazer o pack"]
+			return ["ir", "hud:falar", "b^Criar pack"]
 		"pack":
-			return ["ir", "hud:falar", "b^Packs", "b^Entregar"]
+			return ["ir", "hud:falar", "b^Entregar pack"]
 		"passe":
 			return ["ir", "hud:selo"] if k == "usar" else ["ir", "hud:falar", "b^Fazer passe"]
 		"resetar":
