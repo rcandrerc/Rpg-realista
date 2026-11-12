@@ -12,6 +12,12 @@ export const MODELOS_VILA = {
   casa_4x4: { w: 4, d: 4, alto: 3, sobe: 3.6 }, casa_4x6: { w: 4, d: 6, alto: 3, sobe: 3.6 }, casa_6x6: { w: 6, d: 6, alto: 3, sobe: 4.8 },
   pedra_4x6: { w: 4, d: 6, alto: 3, sobe: 3.6 }, pedra_6x6: { w: 6, d: 6, alto: 3, sobe: 4.8 }, comercio: { w: 6, d: 10, alto: 3, sobe: 4.8 },
   forja: { w: 4, d: 4, aberta: true },
+  // Aurora viva (pedra branca, telhado de ardósia; ferramentas/vilas/pecas.mjs CIDADE_AURORA). porta = x da porta na frente
+  aurora_casa: { w: 4, d: 6, alto: 3, sobe: 3.6, porta: 1 }, aurora_sobrado: { w: 4, d: 4, alto: 6, sobe: 3.6, porta: 1 },
+  aurora_sobrado2: { w: 4, d: 4, alto: 6, sobe: 3.6, porta: -1 }, aurora_pousada: { w: 8, d: 12, alto: 6, sobe: 6, porta: -1 },
+  aurora_templo: { w: 8, d: 12, alto: 6, sobe: 6, porta: 0 }, aurora_paco: { w: 8, d: 14, alto: 6, sobe: 6, porta: 0 },
+  aurora_torre: { w: 4, d: 4, alto: 9, sobe: 0, porta: -1, longe: true }, aurora_portao: { w: 10, d: 2, portao: true, porta: 0 },
+  aurora_fonte: { r: 2.6, alto: 0.85 },
   banca: { r: 1.0, alto: 2.6 }, banca_carroca: { r: 1.3, alto: 2.6 }, barris: { r: 0.85, alto: 0.9 }, barril: { r: 0.4, alto: 0.9 },
   caixotes: { r: 1.0, alto: 1.8 }, banco: { r: 0.6, alto: 0.53 }, mesa: { r: 1.45, alto: 0.81 }, estandarte: { r: 0.18 },
   carroca: { r: 1.0 }, bigorna_enfeite: { r: 0.6, alto: 0.6 }, armas: { r: 0.7, alto: 1.1 }, fogueira: { r: 0.8, alto: 0.4 },
@@ -148,3 +154,51 @@ export function lugarNaVila(A, x, z, folga = 0.9) {
   }
   return [x, z];
 }
+
+// Aurora viva (André 2026-11-12, esboço aprovado): as peças da cidade de pedra branca ficam no lugar do esboço (C.pecas),
+// assentadas no chão como ele é (a casa na altura do canto mais alto; o alicerce cobre até ALICERCE). Ruas e praça de
+// calçada branca: as ruas seguem as estradas que já existem (C.ruas: [id da estrada, filtro dos pontos]) ou uma linha
+// nova ([[x, z], [x, z]]). Devolve { pecas, ruas: [[[x, z, y]...]...], praca: { x, z, r, y }, pisos: retângulos do
+// calçamento (chão de andar), postos: retângulos das peças (para os NPCs não nascerem dentro) }.
+export const CALCADA = { largura: 4.4, sobe: 0.04, sobePraca: 0.06 };
+export function arrumarCidade(C, amb) {
+  const { G, alturaMundo } = amb, chao = (x, z) => alturaMundo(G, x, z);
+  const pecas = [], postos = [];
+  for (const P of C.pecas) {
+    const M = MODELOS_VILA[P.m];
+    const ry = P.olha ? Math.atan2(C.praca.x - P.x, C.praca.z - P.z) : P.ry;
+    const R = M.r != null && M.w == null ? { x: P.x, z: P.z, ry, w: 2 * M.r, d: 2 * M.r } : { x: P.x, z: P.z, ry, w: M.w, d: M.d };
+    const hs = cantos(R, 0.3).map(([x, z]) => chao(x, z));
+    pecas.push({ m: P.m, n: P.n, x: P.x, z: P.z, ry: +ry.toFixed(4), y: +Math.max(...hs).toFixed(2), desnivel: +(Math.max(...hs) - Math.min(...hs)).toFixed(2) });
+    postos.push(R);
+  }
+  // ruas: pontos de ~2 m (a estrada já vem assim), sem os que caem dentro da praça (a praça cobre o encontro)
+  const ruas = [];
+  for (const def of C.ruas) {
+    let pts;
+    if (typeof def[0] === 'string') { const E = amb.estradasPorId[def[0]]; pts = E.filter(([x, z]) => def[1](x, z)); }
+    else { pts = []; const [[x0, z0], [x1, z1]] = def, n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 2); for (let i = 0; i <= n; i++) pts.push([x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n]); }
+    pts = pts.filter(([x, z]) => Math.hypot(x - C.praca.x, z - C.praca.z) > C.praca.r - 1.6);
+    if (pts.length > 1) ruas.push(pts.map(([x, z]) => [+x.toFixed(2), +z.toFixed(2), +chao(x, z).toFixed(2)]));
+  }
+  const praca = { ...C.praca, y: +chao(C.praca.x, C.praca.z).toFixed(2) };
+  // o chão de andar do calçamento: faixas de 2 m na praça e trechos de ~4 m nas ruas
+  const pisos = [];
+  for (let t = -C.praca.r + 1; t < C.praca.r; t += 2) pisos.push({ x: C.praca.x, z: C.praca.z + t, ry: 0, hw: +Math.sqrt(C.praca.r ** 2 - t * t).toFixed(2), hd: 1.05, y1: +(praca.y + CALCADA.sobePraca).toFixed(2) });
+  for (const L of ruas) for (let i = 0; i + 1 < L.length; i += 2) {
+    const a = L[i], b = L[Math.min(i + 2, L.length - 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    pisos.push({ x: +((a[0] + b[0]) / 2).toFixed(2), z: +((a[1] + b[1]) / 2).toFixed(2), ry: +Math.atan2(b[0] - a[0], b[1] - a[1]).toFixed(4), hw: CALCADA.largura / 2, hd: +(len / 2 + 0.3).toFixed(2), y1: +(Math.max(a[2], b[2]) + CALCADA.sobe).toFixed(2) });
+  }
+  return { pecas, ruas, praca, pisos, postos };
+}
+// distância do ponto às ruas da cidade (para tirar as árvores de cima)
+export function distRuas(ruas, x, z) {
+  let md = Infinity;
+  for (const L of ruas) for (let i = 0; i + 1 < L.length; i++) {
+    const [ax, az] = L[i], [bx, bz] = L[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+    md = Math.min(md, Math.hypot(x - ax - dx * t, z - az - dz * t));
+  }
+  return md;
+}
+export { distRet };
