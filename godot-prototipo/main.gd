@@ -2178,7 +2178,8 @@ func folhagem_na_frente(dt: float) -> void:
 	copas_da_mata_na_frente(dt)
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
-	for f in folhas:
+	var cand := _folhas_perto(a, b)
+	for f in cand:
 		if not is_instance_valid(f[0]): # (Godot 4.7) olhar antes de pôr na variável com tipo: nó já apagado dá erro
 			continue
 		var mi: MeshInstance3D = f[0]
@@ -2209,6 +2210,60 @@ func folhagem_na_frente(dt: float) -> void:
 			mi.material_override.albedo_color = Color(cor, cor.a * (1.0 - atual))
 		else:
 			mi.material_override = null
+	_folhas_vivas.clear() # as que ficaram apagadas (ou voltando) são conferidas no próximo quadro mesmo longe da linha
+	for f in cand:
+		if f.size() > 2 and float(f[2]) > 0.0 and is_instance_valid(f[0]):
+			_folhas_vivas.append(f)
+
+# FPS (varredura 2026-11-12, preset Alta): a conta acima passava por todas as copas e troncos da vila e do mapa todo
+# quadro. Agora uma grade de FOLHA_G m diz quais estão perto da linha câmera-herói; só elas (e as que ainda estão
+# apagadas) entram. Mesmo resultado: as de fora nem tocavam a linha e já estavam inteiras. A grade é refeita quando a
+# lista folhas muda de tamanho (só cresce na montagem e só diminui quando um pedaço do cenário sai).
+const FOLHA_G := 8.0
+var _folhas_grade := {}
+var _folhas_n := -1
+var _folhas_vivas: Array = []
+func _folhas_perto(a: Vector3, b: Vector3) -> Array:
+	if folhas.size() != _folhas_n:
+		_folhas_n = folhas.size()
+		_folhas_grade.clear()
+		_folhas_vivas.clear()
+		for f in folhas:
+			if not is_instance_valid(f[0]):
+				continue
+			var mi: MeshInstance3D = f[0]
+			if f[1] == null:
+				f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
+			if f.size() > 2 and float(f[2]) > 0.0: # apagada agora: volta mesmo se a linha já estiver longe
+				_folhas_vivas.append(f)
+			var bb: AABB = f[1]
+			for i in range(floori(bb.position.x / FOLHA_G), floori(bb.end.x / FOLHA_G) + 1):
+				for j in range(floori(bb.position.z / FOLHA_G), floori(bb.end.z / FOLHA_G) + 1):
+					var k := i * 100003 + j
+					if not _folhas_grade.has(k):
+						_folhas_grade[k] = []
+					_folhas_grade[k].append(f)
+	var folga: float = TRONCO_PERTO + FOLHA_RAIO + 0.5 # o tronco colado na câmera, de lado, também conta
+	var x0: float = minf(a.x, b.x) - folga
+	var x1: float = maxf(a.x, b.x) + folga
+	var z0: float = minf(a.z, b.z) - folga
+	var z1: float = maxf(a.z, b.z) + folga
+	var vistos := {}
+	var r: Array = []
+	for f in _folhas_vivas:
+		if is_instance_valid(f[0]):
+			vistos[f[0].get_instance_id() * 2 + int(f.size() > 3)] = true
+			r.append(f)
+	for i in range(floori(x0 / FOLHA_G), floori(x1 / FOLHA_G) + 1):
+		for j in range(floori(z0 / FOLHA_G), floori(z1 / FOLHA_G) + 1):
+			for f in _folhas_grade.get(i * 100003 + j, []):
+				if not is_instance_valid(f[0]):
+					continue
+				var id: int = f[0].get_instance_id() * 2 + int(f.size() > 3) # a mesma malha pode ser copa e tronco
+				if not vistos.has(id):
+					vistos[id] = true
+					r.append(f)
+	return r
 
 # Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
 # (tronco, galhos e copa) num fade de 0,15 s, sem pontilhado: a cópia dela no MultiMesh encolhe para zero e no lugar
@@ -3663,6 +3718,9 @@ func lod_inimigos() -> void:
 			e.longe = longe
 			if e.anim:
 				e.anim.active = not longe
+			# FPS (varredura 2026-11-12, preset Alta): longe, o esqueleto do monstro ainda era conferido todo quadro pelo
+			# motor (uns 120 no mapa, ~10% do quadro). Parado como o NPC longe; perto volta igual (o corpo já nem é desenhado)
+			e.no.process_mode = Node.PROCESS_MODE_DISABLED if longe else Node.PROCESS_MODE_INHERIT
 		if not longe:
 			inimigos_perto.append(e)
 
@@ -3765,10 +3823,12 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 		if Geometry2D.get_closest_point_to_segment(c, a2, b2).distance_to(c) <= r.R:
 			chao.append(r)
 	var t := 0.35
+	# FPS (varredura 2026-11-12): a conta da caverna só quando a linha passa perto de alguma (era ~4 us por passo)
+	var com_caverna: bool = terreno.caverna_na_caixa(Rect2(a2, Vector2.ZERO).expand(b2).grow(1.0))
 	while t <= ate:
 		var p := de + dir * t
 		var h: float = terreno.altura_montanha(p.x, p.z) # a encosta da montanha também segura a câmera (lago: fica acima da água)
-		var cv: float = terreno.chao_caverna(p.x, p.z, p.y + 0.45) # dentro da caverna: o chão dela (o teto e as paredes seguram)
+		var cv: float = terreno.chao_caverna(p.x, p.z, p.y + 0.45) if com_caverna else NAN # dentro da caverna: o chão dela (o teto e as paredes seguram)
 		if not is_nan(cv) and cv < h:
 			h = cv
 		for r in chao:
