@@ -478,9 +478,12 @@ func escolher(a: String) -> void:
 		"historia": # missão principal: aceitar, cumprir a etapa de falar ou entregar (o servidor responde em fala())
 			m.rede("falar", {"npc": n.id, "missao": true})
 			m.sons.tocar("q_anel_1", -14.0)
+			_missao_iniciada()
 		"missao", "cura":
 			if m.on():
 				m.rede("falar", {"npc": n.id}) # a resposta chega em fala()
+				if a == "missao":
+					_missao_iniciada()
 			elif a == "cura":
 				m.h.vida = m.P.st.vidaMax
 				m.h.mana = m.P.st.manaMax
@@ -497,6 +500,14 @@ func escolher(a: String) -> void:
 					var i: int = (int(_falas.get(n.id, 0)) + 1) % falas.size()
 					_falas[n.id] = i
 					fala_ui.text = str(falas[i])
+
+# André 2026-11-12: "iniciar a missão, fecha, já aparece a barrinha lá". Tocou na missão: a janela do NPC fecha na hora
+# (antes ficava aberta e tocar de novo travava), a resposta do NPC vira aviso na tela (online.gd "fala") e a barrinha da
+# missão ativa (missao_ativa.gd) pisca para mostrar onde está o "Ir".
+func _missao_iniciada() -> void:
+	fechar()
+	if m.missao_ativa != null:
+		m.missao_ativa.destacar()
 
 # Totem de teleporte (André 2026-11-10, totem.gd): os outros totens, cada um com a taxa; o que ainda não foi visitado
 # a pé aparece trancado. Tocar num destino fecha a janela e começa a viagem (volta_vila.gd pedir_totem).
