@@ -990,6 +990,12 @@ func evento(ev: Dictionary) -> void:
 			if m.troca:
 				m.troca.do_servidor(ev)
 			return
+		"anuncio": # boss de mundo apareceu, caiu ou soltou Mítico: faixa na tela que some (festa.gd), fora do chat
+			if m.hud.festa:
+				m.hud.festa.anuncio(str(ev.get("cab", "")), str(ev.get("titulo", "")), str(ev.get("cor", "boss")))
+			else:
+				m.hud.aviso(str(ev.get("titulo", "")))
+			return
 		"chat", "chatHist": # chat geral e de amigos (chat.gd)
 			if m.chat:
 				m.chat.do_servidor(ev)
@@ -1064,7 +1070,7 @@ func evento(ev: Dictionary) -> void:
 			var x := float(ev.x)
 			var z := float(ev.z)
 			var k := str(ev.get("fx", "explosao"))
-			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z))
+			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z), float(ev.get("ry", -999.0))) # ry: Corte Duplo e Esmagador
 		"chuva":
 			fx.chuva(float(ev.x), float(ev.z), float(ev.r), int(ev.ondas), func(_p): pass)
 		"meteoro":
