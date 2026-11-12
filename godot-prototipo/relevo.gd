@@ -34,6 +34,7 @@ func _ready() -> void:
 const LONGE_CAMERA := 1200.0
 # qualidade gráfica (grafico.gd): na Baixa e na Média a névoa fecha um pouco e a câmera enxerga menos longe
 var nevoa_mult := 1.0
+var ceu_limpo := 1.0 # 0,6 depois da última missão da história (nevoa.gd): a Névoa acabou
 var longe_mult := 1.0
 func _process(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
@@ -41,7 +42,7 @@ func _process(_dt: float) -> void:
 		return
 	var k := clampf((cam.global_position.y - 8.0) / 22.0, 0.0, 1.0)
 	k = k * k * (3.0 - 2.0 * k)
-	env.fog_density = NEVOA * nevoa_mult * (1.0 - 0.63 * k)
+	env.fog_density = NEVOA * nevoa_mult * ceu_limpo * (1.0 - 0.63 * k)
 	cam.far = lerpf(400.0, LONGE_CAMERA, k) * longe_mult
 	# 2026-11-09: no mundo grande o chão sobe; o que conta é a câmera alta em relação ao chão embaixo dela (antes, num
 	# morro, a câmera passava de 7 m e as copas de longe apareciam em cima do herói)

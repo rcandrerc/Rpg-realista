@@ -5,6 +5,7 @@ import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
 import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
+import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -1234,6 +1235,7 @@ export const ITENS = {
   pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3, vigor: 8 }, venda: 8, desc: 'Recupera 30% da mana e 8 de vigor.' },
   ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5, vigor: 15 }, venda: 14, desc: 'Recupera 50% da vida e 15 de vigor.' },
   torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4, vigor: 20 }, venda: 22, desc: 'Recupera 40% da vida, 40% da mana e 20 de vigor.' },
+  catalisador_memoria: { nome: 'Catalisador da Memória', mat: true, pilha: 1, venda: 1, desc: 'Feito pela Mirela com obsidiana, ervas e cristal de Aurora. Devolve a memória a quem a Névoa comeu. Só serve uma vez.' },
   passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
   // pescaria (igual ao Quimera, André 2026-11-08): peixes crus (comer recupera um pouco; preço e vigor do Quimera) e o peixe assado do fogão
   lambari: { nome: 'Lambari', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho de rio e lago. Asse dois no fogão.' },
@@ -2008,12 +2010,17 @@ for (const n of MERCADORES_MUNDO) {
 // nem bate em quem está lá dentro, e a vida volta `regen` vezes mais rápido. O botão Voltar para a vila não muda.
 export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50, seguro: 15, regen: 2, raio: 1.75, lista: [
   { id: 'clareira', nome: 'Vila da Clareira', nivel: 1, faixa: 'Nv 1-30', x: -6, z: 1 },
-  { id: 'rio_claro', nome: 'Ponte do Rio Claro', nivel: 35, faixa: 'Nv 32-44', x: -261, z: 11 },
-  { id: 'juncos', nome: 'Ponte dos Juncos', nivel: 45, faixa: 'Nv 42-48', x: 564, z: 45 },
+  // história v2, Entrega 3 (André 2026-11-11: "um totem em cada vila"; totem perto de uma vila nova muda para dentro
+  // dela, com o mesmo id, e quem já tinha descoberto continua com ele). Antes: Ponte do Rio Claro (-261, 11), Ponte dos
+  // Juncos (564, 45), Ilha do Meio (173, 663) e Posto do Leste (640, 1075). Esboço aprovado: historia/mini-vilas-v2.jpg
+  { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 35, faixa: 'Nv 32-44', x: -234, z: 85 },
+  { id: 'juncos', nome: 'Juncal', nivel: 45, faixa: 'Nv 42-48', x: 546, z: 43 },
   { id: 'porto_vael', nome: 'Porto de Vael', nivel: 50, faixa: 'Nv 50', x: 104, z: 310 },
-  { id: 'ilha', nome: 'Ilha do Meio', nivel: 60, faixa: 'Nv 50-65', x: 173, z: 663 },
+  { id: 'ilha', nome: 'Vila da Maré', nivel: 60, faixa: 'Nv 50-65', x: 241, z: 624 },
   { id: 'aurora', nome: 'Aurora', nivel: 100, faixa: 'Nv 60-100', x: 186, z: 1068 },
-  { id: 'posto_leste', nome: 'Posto do Leste', nivel: 88, faixa: 'Nv 82-95', x: 640, z: 1075 },
+  { id: 'posto_leste', nome: 'Vila do Véu', nivel: 88, faixa: 'Nv 82-95', x: 652, z: 1095 },
+  { id: 'pouso_serra', nome: 'Pouso da Serra', nivel: 38, faixa: 'Nv 38-42', x: 4, z: -271 }, // totens novos (Entrega 3)
+  { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, faixa: 'Nv 95-100', x: 222, z: 1328 },
 ] };
 // ouro para ir até o totem t
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
@@ -2021,6 +2028,247 @@ export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
 // dentro da área segura de algum totem?
 export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro);
+// ---------- Mini vilas do mundo grande (história v2, Entrega 3; André 2026-11-11) ----------
+// Esboço aprovado (com um totem em cada vila): /mnt/project-files/historia/mini-vilas-v2.jpg. Cada vila tem a praça com
+// o totem no meio, casas do Medieval Village MegaKit (godot-prototipo/vilas3d/vilas.glb, feito por
+// ferramentas/vilas/montar.mjs) viradas para a praça, uma ferraria aberta com bigorna, forninho e bancada de uso
+// público, a banca da loja e o chefe que dá as missões dali (Entregas 4 e 5). Terreno só no Porto de Vael e em Aurora,
+// como o André decidiu (2026-11-08): as vilas novas não têm terreno, e o Porto e Aurora não ganham casa (o chão de lá é
+// dos terrenos), só a ferraria, a banca e os NPCs. shared/vilas.js arruma as casas. Todos os NPCs são humanos com o
+// corpo do herói, a cor e a roupa medieval deles (CLAUDE.md). onde: 'totem' (o chefe, entre o totem e a estrada),
+// 'forja' (dentro da ferraria), 'banca' (atrás da banca), 'comercio:e' / 'comercio:d' (na frente da Casa do Comércio, à
+// esquerda e à direita da porta), 'casa:n' (na porta da casa n). oficio: o avental e o martelo do ferreiro (visual_npc.gd).
+const ROUPA_OFICIO = 'peitoral0,calca0,botas0';
+const ferreiroDe = (id, nome, visual, tinta, veste, falas, extra = {}) => ({ id, nome, visual, onde: 'forja', roupa: ROUPA_OFICIO, tinta, veste, oficio: visual === 'cabelo_m',
+  funcao: 'ferreiro', acoes: ['vender', 'forja', 'consertar'], falas, ...extra });
+const lojaDe = (id, nome, visual, tinta, veste, falas) => ({ id, nome, visual, onde: 'banca', roupa: 'peitoral0,botas0', tinta, veste, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas });
+export const VILAS_MUNDO = [
+  { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 30, totem: 'rio_claro', jeito: 'Cidade de madeira na estrada do rio, com a Casa do Comércio no meio',
+    itens: ['comercio', 'forja', 'casa_4x6', 'casa_4x4', 'casa_6x6', 'casa_4x4'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['mesa', 'praca'], ['carroca', 'casa'], ['banco', 'praca'], ['estandarte', 'praca']],
+    npcs: [
+      { id: 'v_heitor', nome: 'Capitão Heitor, o chefe do Rio Claro', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x3a2a1e, roupa: 0x2e4a6a, calca: 0x2a2a30 }, funcao: 'dica', acoes: [], falas: [
+          'Faz anos que ninguém chega do leste. Seja bem-vindo à cidade da ponte.',
+          'Tudo que é raro passa por esta estrada. E a Névoa também.',
+          'Tem manhã em que o rio amanhece cinza. Os velhos dizem que é mau sinal.'] },
+      { id: 'v_otavio', nome: 'Otávio, o leiloeiro', visual: 'cabelo_m', onde: 'comercio:e', escala: 1.0, roupa: ROUPA_OFICIO, veste: { tunica: 0x2f5a3a, faixa: 0xd4a84a },
+        tinta: { cabelo: 0x1e1a18, roupa: 0x2f5a3a, calca: 0x2a2620 }, funcao: 'leilao', acoes: ['leilao'], falas: [
+          'Aqui o mundo inteiro vende e compra. Quem sabe negociar não precisa caçar tudo.',
+          'Ponha à venda, escolha o preço e o prazo. Quando vender, o ouro fica comigo até você vir buscar.',
+          'A casa fica com cinco por cento de cada venda. Justo, não acha?'] },
+      { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'comercio:d', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0x1a1a22, roupa: 0x5a2a3a, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
+          'Quer lutar de outro jeito? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.'] },
+      ferreiroDe('v_galdino', 'Galdino, o ferreiro', 'cabelo_m', { cabelo: 0x2a1a10, roupa: 0x5a3a22, calca: 0x2f2a24 }, { tunica: 0x8a6a4a }, [
+        'A bigorna, o forninho e a bancada são de todos. Use à vontade, eu só conserto e compro.',
+        'Peça batida? Eu deixo nova por um punhado de ouro.'], { escala: 1.1 }),
+      lojaDe('v_dalia', 'Dália, a comerciante', 'vivi', { cabelo: 0xc8a060, roupa: 0x6a8a3a, calca: 0x3c3a52 }, { tunica: 0x6a8a3a, corpete: 0x4a6a2a, saia: 0x5a4030, ate: 'joelho', avental: 0xe8dfc8 }, [
+        'Poção, lenha, pedra... o que a estrada pede, eu tenho.',
+        'A bancada aqui do lado é de todos, se quiser costurar.']),
+    ] },
+  { id: 'pouso_serra', nome: 'Pouso da Serra', nivel: 38, totem: 'pouso_serra', jeito: 'Pedra, peles e fogueira grande, ao pé da serra',
+    itens: ['forja', 'pedra_6x6', 'pedra_4x6', 'pedra_4x6'], banca: true,
+    enfeites: [['fogueira', 'praca'], ['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['banco', 'praca'], ['armas', 'casa']],
+    npcs: [
+      { id: 'v_ursula', nome: 'Úrsula, a caçadora', visual: 'shino', onde: 'totem', escala: 1.04, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
+        tinta: { cabelo: 0x6a3a1e, roupa: 0x5a4a32, calca: 0x3a3028 }, funcao: 'dica', acoes: [], falas: [
+          'Que bom que chegou ao Pouso da Serra. Aqui a gente vive do que a serra deixa caçar.',
+          'Tem uma gruta lá em cima que canta. Quem entra ouvindo aquele canto sai sem lembrar o caminho.',
+          'A fogueira da praça é de todo mundo. Senta, esquenta e conta uma história.'] },
+      ferreiroDe('v_bruno', 'Bruno Martelo, o ferreiro', 'cabelo_m', { cabelo: 0x1a1410, roupa: 0x4a3a2a, calca: 0x2a2620 }, { tunica: 0x6a5040 }, [
+        'Ferro da serra é duro de trabalhar. E duro de quebrar.',
+        'A bigorna é de todos. Eu só conserto e compro.'], { escala: 1.12 }),
+      lojaDe('v_cida', 'Cida, a comerciante', 'vivi', { cabelo: 0x3a2214, roupa: 0x8a5a3a, calca: 0x3a3028 }, { tunica: 0x8a5a3a, saia: 0x5a3a2a, ate: 'canela', faixa: 0xd8c8a0 }, [
+        'Pele, lenha e poção. Na serra não precisa de mais nada.',
+        'O frio aqui pega de noite. Leve comida quente.']),
+    ] },
+  { id: 'juncal', nome: 'Juncal', nivel: 42, totem: 'juncos', jeito: 'Vila de pescadores na beira do Rio dos Juncos',
+    itens: ['forja', 'casa_4x6', 'casa_4x4', 'casa_6x6'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['mesa', 'praca'], ['banco', 'praca']],
+    npcs: [
+      { id: 'v_tiao', nome: 'Tião dos Juncos, o chefe do Juncal', visual: 'fumiriya', onde: 'totem', escala: 0.98, roupa: 'peitoral0,calca0,botas0,capa0',
+        veste: { tunica: 0x4a6a5a, faixa: 0xc8b070 }, tinta: { cabelo: 0x5a4a3a, roupa: 0x4a6a5a, calca: 0x3a3a30 }, funcao: 'dica', acoes: [], falas: [
+          'O rio dá peixe, junco e notícia. Quase sempre nessa ordem.',
+          'De noite uma luz roxa sai da gruta e vai para o mar. Ninguém aqui chega perto.',
+          'Com três totens acesos você atravessa Vael inteiro num piscar de olhos.'] },
+      ferreiroDe('v_lia', 'Lia, a ferreira', 'shibu', { cabelo: 0x8a2a1e, roupa: 0x5a3a2a, calca: 0x2f2a24 }, { tunica: 0x7a5a3a, saia: 0x4a3626, ate: 'joelho', avental: 0x3a2a1e }, [
+        'Ferro molhado enferruja. Aqui tudo leva graxa de peixe. Funciona, juro.',
+        'A bigorna é de todos. Eu conserto e compro o que você não quiser.']),
+      lojaDe('v_zeca', 'Zeca, o comerciante', 'cabelo_m', { cabelo: 0x2a2a2a, roupa: 0x3a5a7a, calca: 0x2a3040 }, { tunica: 0x3a5a7a, faixa: 0xe0d0a0 }, [
+        'Isca, linha, poção. E o peixe mais fresco de Vael.',
+        'Vende pra mim o que pescar. Eu pago justo.']),
+    ] },
+  { id: 'porto', nome: 'Porto de Vael', nivel: 48, totem: 'porto_vael', semCasas: true, jeito: 'Cais, armazéns e barcos (os terrenos continuam)',
+    itens: ['forja'], banca: true, enfeites: [['barris', 'praca'], ['caixotes', 'praca'], ['estandarte', 'praca']],
+    npcs: [
+      { id: 'v_odete', nome: 'Capitã Odete, a chefe do Porto', visual: 'vivi', onde: 'totem', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x2a1a14, roupa: 0x1e3a5a, calca: 0x2a2a30 }, funcao: 'dica', acoes: [], falas: [
+          'O barquinho leva dois. Navio de verdade, só com quarenta mil de ouro e muita madeira.',
+          'O mar esquece quem não respeita ele.',
+          'Antes da névoa, dava pra ver a Ilha do Meio daqui.'] },
+      ferreiroDe('v_ruy', 'Ruy, o ferreiro', 'cabelo_m', { cabelo: 0x4a3a2a, roupa: 0x4a4038, calca: 0x2e2a26 }, { tunica: 0x7a6a5a }, [
+        'Âncora, corrente, prego de casco. E espada, se pedir com jeito.',
+        'A bigorna é de todos. Eu conserto e compro.']),
+      lojaDe('v_graca', 'Graça, a comerciante', 'shibu', { cabelo: 0x3a2a1a, roupa: 0x8a6a3a, calca: 0x3a3028 }, { tunica: 0x8a6a3a, saia: 0x5a4030, ate: 'canela', avental: 0xe8dfc8 }, [
+        'Tudo que chega pelo mar passa pela minha banca.',
+        'Corda e poção nunca sobram num porto.']),
+    ] },
+  { id: 'vila_mare', nome: 'Vila da Maré', nivel: 50, totem: 'ilha', jeito: 'Redes de pesca e barcos virados no meio da Ilha do Meio',
+    itens: ['forja', 'casa_4x6', 'casa_4x4', 'casa_6x6'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['mesa', 'praca'], ['estandarte', 'praca'], ['banco', 'praca']],
+    npcs: [
+      { id: 'v_coral', nome: 'Avó Coral, a chefe da Maré', visual: 'shino', onde: 'totem', escala: 0.95, roupa: 'peitoral0,botas0,capa1',
+        veste: { tunica: 0x3a6a8a, saia: 0x3a6a8a, ate: 'canela', faixa: 0xe8e4f4 }, tinta: { cabelo: 0xe8e4dc, roupa: 0x3a6a8a, calca: 0x2f4a6a }, funcao: 'dica', acoes: [], falas: [
+          'Na Maré todo mundo pesca, até as crianças.',
+          'Barco que não navega mais vira telhado. Aqui nada se perde.',
+          'Toda noite a luz roxa passa por cima da ilha, indo para o sul.'] },
+      ferreiroDe('v_teodoro', 'Teodoro, o ferreiro', 'cabelo_m', { cabelo: 0x6a5a4a, roupa: 0x4a5a5a, calca: 0x2e2a26 }, { tunica: 0x6a7a7a }, [
+        'Sal come o ferro. Eu como o sal: venho consertando há quarenta anos.',
+        'A bigorna é de todos. Eu conserto e compro.'], { escala: 1.04 }),
+      lojaDe('v_perola', 'Pérola, a comerciante', 'vivi', { cabelo: 0x1a2a3a, roupa: 0x5a8aaa, calca: 0x2f4a6a }, { tunica: 0x5a8aaa, saia: 0x3a6a8a, ate: 'joelho', faixa: 0xf0e8d8 }, [
+        'Concha, pérola, peixe seco. E poção, que ninguém vive só de peixe.',
+        'Do continente quase ninguém vem. Que bom que você veio.']),
+    ] },
+  { id: 'aurora', nome: 'Aurora', nivel: 64, totem: 'aurora', semCasas: true, jeito: 'Pedra branca e torres apagadas; só a praça tem gente (os bairros são dos terrenos)',
+    itens: ['forja'], banca: true, enfeites: [['estandarte', 'praca'], ['estandarte', 'praca'], ['barris', 'praca'], ['mesa', 'praca']],
+    npcs: [
+      { id: 'v_elara', nome: 'Guardiã Elara, a chefe de Aurora', visual: 'shibu', onde: 'totem', escala: 1.03, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0xd8d8e8, roupa: 0xe8e4d8, calca: 0x5a5a6a }, funcao: 'dica', acoes: [], falas: [
+          'Só a praça ainda tem gente. As casas vazias acendem as janelas sozinhas à noite.',
+          'Aurora esqueceu de si mesma. A gente só lembra porque não sai de perto da praça.'] },
+      ferreiroDe('v_icaro', 'Ícaro, o ferreiro', 'cabelo_m', { cabelo: 0xb8a888, roupa: 0x5a5a6a, calca: 0x2e2a30 }, { tunica: 0x8a8a9a }, [
+        'O cristal daqui corta melhor que aço. Pena que quase ninguém lembra como forjar.',
+        'A bigorna é de todos. Eu conserto e compro.']),
+      lojaDe('v_lume', 'Lume, a comerciante', 'shino', { cabelo: 0xe8c860, roupa: 0xc8b890, calca: 0x4a4a5a }, { tunica: 0xc8b890, saia: 0x8a7a5a, ate: 'canela', faixa: 0x8a6ad0 }, [
+        'Velas, poções e pão. O resto, a Névoa levou.',
+        'Você não é daqui... mas parece que eu te conheço.']),
+      // o Kael passa a morar em Aurora depois da missão "Kael" (depois: o app só mostra para quem já fez; Entrega 5)
+      { id: 'v_kael', nome: 'Kael, a Lâmina Cinzenta', visual: 'cabelo_m', onde: 'praca', depois: 'h14', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x9a9aa4, roupa: 0x6a6e78, calca: 0x2e2e34 }, funcao: 'dica', acoes: [], falas: [
+          'Eu devo a esta cidade trezentos anos de silêncio. Vou ficar.',
+          'O Dario ainda me derruba no treino. Não conte para ninguém.'] },
+    ] },
+  { id: 'vila_veu', nome: 'Vila do Véu', nivel: 80, totem: 'posto_leste', jeito: 'Forjas de brasa e pedra escura em volta do Posto do Leste',
+    itens: ['forja', 'pedra_6x6', 'pedra_4x6', 'pedra_4x6'], banca: true,
+    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['bigorna_enfeite', 'casa'], ['estandarte', 'praca'], ['armas', 'casa']],
+    npcs: [
+      { id: 'v_bras', nome: 'Brás, o vigia', visual: 'fumiriya', onde: 'totem', escala: 1.05, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x1a1410, roupa: 0x3a2a2a, calca: 0x2a2020 }, funcao: 'dica', acoes: [], falas: [
+          'Daqui se vê o Morro do Véu. Ninguém sobe lá faz trezentos anos.',
+          'As forjas de brasa nunca apagam. Nem de noite.'] },
+      ferreiroDe('v_nadia', 'Nádia, a ferreira', 'vivi', { cabelo: 0x1a1a1a, roupa: 0x5a2a1e, calca: 0x2a2020 }, { tunica: 0x6a3a2a, saia: 0x3a2a20, ate: 'joelho', avental: 0x2a1e18 }, [
+        'Brasa viva derrete até cristal. Cuidado com os dedos.',
+        'A bigorna é de todos. Eu conserto e compro.']),
+      lojaDe('v_otto', 'Otto, o comerciante', 'cabelo_m', { cabelo: 0x5a3a2a, roupa: 0x5a4a3a, calca: 0x2e2a26 }, { tunica: 0x5a4a3a, faixa: 0xb8401e }, [
+        'Carvão, poção, couro grosso. No leste a gente se vira com pouco.',
+        'Vende pra mim o que achar no morro. Eu pago bem.']),
+    ] },
+  { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, totem: 'ultimo_pouso', jeito: 'Acampamento da Ordem, de estandartes azuis, ao pé do Pico da Névoa',
+    itens: ['pedra_4x6', 'pedra_4x6'], banca: true,
+    enfeites: [['fogueira', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['estandarte', 'praca'], ['mesa', 'praca'], ['armas', 'casa'], ['caixotes', 'casa']],
+    npcs: [
+      { id: 'v_rui', nome: 'Sentinela Rui, da Ordem', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0x2a2622, roupa: 0x2e4a7a, calca: 0x2b2a30 }, funcao: 'dica', acoes: [], falas: [
+          'O acampamento da Ordem esperou trezentos anos por alguém como você.',
+          'Daqui pra frente é o Pico da Névoa. Quem sobe não volta pela estrada.'] },
+      { id: 'v_celeste', nome: 'Irmã Celeste, a curandeira', visual: 'shino', onde: 'casa:0', escala: 1.0, roupa: 'peitoral0,botas0,capa1', arma: 'cajado',
+        veste: { tunica: 0x2e4a7a, saia: 0x2e4a7a, ate: 'canela', faixa: 0xe4dccb }, tinta: { cabelo: 0xe8e4dc, roupa: 0xe8e1cf, calca: 0x6d7f8c }, funcao: 'cura', acoes: ['cura'], falas: [
+          'Ferido? Venha cá. A Ordem cuida dos seus.',
+          'Toda arma que sobe o Pico passa pela minha bênção.'] },
+      lojaDe('v_dimas', 'Dimas, o intendente', 'cabelo_m', { cabelo: 0x3a3632, roupa: 0x2e4a7a, calca: 0x2a2a30 }, { tunica: 0x2e4a7a, faixa: 0xd8c070 }, [
+        'Poções, comida, lenha. No pé do Pico ninguém cobra caro.',
+        'A Ordem paga o que você trouxer. Tudo serve na subida.']),
+    ] },
+];
+// Mirela, a alquimista, muda para o Rio Claro (André 2026-11-11, plano aprovado: "a alquimia passa a ser lá"; a casa
+// dela na Clareira continua de pé, como o laboratório antigo). Fica na porta da casa grande, perto da Casa do Comércio.
+const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
+{
+  const G = gradeDoMundo(), mar = -0.05;
+  const totem = (id) => TOTENS.lista.find((t) => t.id === id);
+  // o que nenhuma casa pode pisar: campos, minas, cavernas, cais, arenas e os mercadores que já estão no lugar
+  const evitar = [...LUGARES_MUNDO.filter((l) => l.tipo !== 'vila' && l.tipo !== 'posto').map((l) => ({ x: l.x, z: l.z, r: l.r + 4 })),
+    ...ARENAS_BOSS.map((a) => ({ x: a.x, z: a.z, r: a.r + 10 })), ...MERCADORES_MUNDO.map((n) => ({ x: n.x, z: n.z, r: 2.5 })),
+    ...(MAPA_CLAREIRA.cais || []).map((c) => ({ x: c.x, z: c.z, r: c.d / 2 + 3 }))];
+  // os bairros de Aurora (terrenos dos jogadores): nada de casa em cima
+  const AUR = LUGARES_MUNDO.find((l) => l.id === 'vila_aurora');
+  const areas = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz]) => ({ x: AUR.x + dx * 34, z: AUR.z + dz * 34, r: 27 }));
+  const amb = { G, alturaMundo, terraEm, mar, estradas: ESTRADAS_MUNDO.map((e) => e.curva), rios: RIOS_MUNDO.map((r) => r.curva), evitar, areas };
+  const npcs = MAPA_CLAREIRA.npcs, obst = MAPA_CLAREIRA.obstaculos;
+  MAPA_CLAREIRA.casasMundo = []; // peças sólidas das casas (shared/terreno.js): paredes que se escalam e telhado de andar em cima
+  for (const V of VILAS_MUNDO) {
+    const T = totem(V.totem);
+    V.x = T.x; V.z = T.z;
+    const A = arrumarVila(V, amb);
+    V.casas = A.casas; V.banca = A.banca; V.enfeites = A.enfeites; V.raio = A.raio;
+    // casas: o retângulo das paredes vira peça sólida (a cumeeira corre de frente para trás: a peça gira 90 graus, como o
+    // telhado de duas águas do terreno.js, que sobe no meio do fundo)
+    for (const c of A.casas) {
+      const M = MODELOS_VILA[c.m];
+      if (M.aberta) { // ferraria: piso de pedra (chão), muro do fundo e quatro esteios
+        const [px, pz] = naPeca(c, 0, 0), [mx, mz] = naPeca(c, 0, -M.d / 2 + 0.15);
+        MAPA_CLAREIRA.casasMundo.push({ x: px, z: pz, ry: c.ry, hw: M.w / 2 + 0.1, hd: M.d / 2 + 0.1, y1: c.y + 0.03, sobe: 0, piso: true },
+          { x: mx, z: mz, ry: c.ry, hw: M.w / 2, hd: 0.2, y1: c.y + 3.1, sobe: 0 });
+        for (const [sx, sz] of [[1, 1], [-1, 1]]) { const [ex, ez] = naPeca(c, sx * M.w / 2, sz * M.d / 2); obst.push({ x: ex, z: ez, r: 0.16 }); }
+        continue;
+      }
+      MAPA_CLAREIRA.casasMundo.push({ x: c.x, z: c.z, ry: c.ry + Math.PI / 2, hw: M.d / 2, hd: M.w / 2, y1: c.y + M.alto, sobe: M.sobe });
+    }
+    for (const e of A.enfeites) { const M = MODELOS_VILA[e.m]; obst.push({ x: e.x, z: e.z, r: M.r || 0.5, ...(M.alto ? { alto: +(e.y + M.alto).toFixed(2) } : {}) }); }
+    if (A.banca) obst.push({ x: A.banca.x, z: A.banca.z, r: MODELOS_VILA.banca.r, alto: +(A.banca.y + MODELOS_VILA.banca.alto).toFixed(2) });
+    // estações públicas: bigorna e forninho na ferraria, bancada ao lado da banca (qualquer um usa, como as da Clareira)
+    const F = A.casas.find((c) => c.m === 'forja');
+    const est = [];
+    if (F) {
+      const [bx, bz] = naPeca(F, 0.6, 0.35), [fx, fz] = naPeca(F, -0.85, -1.0);
+      est.push({ id: 'pub_bigorna_' + V.id, k: 'bigorna', nome: 'Bigorna da ferraria', x: bx, z: bz, ry: F.ry, y: +(F.y + 0.03).toFixed(2), vila: V.id },
+        { id: 'pub_fornalha_' + V.id, k: 'fornalha', nome: 'Forninho da ferraria', x: fx, z: fz, ry: F.ry, y: +(F.y + 0.03).toFixed(2), vila: V.id });
+    }
+    if (A.banca) { const [qx, qz] = naPeca(A.banca, 2.3, 0.2); est.push({ id: 'pub_bancada_' + V.id, k: 'bancada', nome: 'Bancada da praça', x: qx, z: qz, ry: A.banca.ry, y: +alturaMundo(G, qx, qz).toFixed(2), vila: V.id }); }
+    for (const E of est) {
+      ESTACOES_PUBLICAS.push(E);
+      const C = CONSTRUCOES[E.k], c = Math.cos(E.ry), s = Math.sin(E.ry);
+      for (const [dx, dz, r] of C.circulos) obst.push({ x: +(E.x + dx * c + dz * s).toFixed(3), z: +(E.z - dx * s + dz * c).toFixed(3), r, alto: +(C.alto + E.y).toFixed(3) });
+    }
+    // os NPCs: no lugar de cada um, virados para a praça (o chefe olha para a estrada, de onde se chega)
+    const perto = (lx, lz, P) => lugarNaVila(A, ...naPeca(P, lx, lz), 0.5);
+    let estrada = [V.x, V.z + 1], de = Infinity;
+    for (const L of amb.estradas) for (const [x, z] of L) { const d = Math.hypot(x - V.x, z - V.z); if (d < de) { de = d; estrada = [x, z]; } }
+    const lugar = (onde) => {
+      if (onde === 'totem') { const a = Math.atan2(estrada[0] - V.x, estrada[1] - V.z); return [...lugarNaVila(A, V.x + Math.sin(a) * 3.6, V.z + Math.cos(a) * 3.6, 0.6), a]; }
+      if (onde === 'forja' && F) return [...perto(-1.15, 0.85, F), F.ry];
+      if (onde === 'banca' && A.banca) return [...naPeca(A.banca, 0, -1.15), A.banca.ry];
+      const [o, q] = onde.split(':');
+      const C = o === 'comercio' ? A.casas.find((c) => c.m === 'comercio') : A.casas.filter((c) => c.m !== 'forja')[Number(q) || 0];
+      if (C) { const D = MODELOS_VILA[C.m]; return [...perto(o === 'comercio' ? (q === 'e' ? -2.2 : 2.2) : 1.4, D.d / 2 + 1.3, C), C.ry]; }
+      return [...lugarNaVila(A, V.x + 5, V.z + 5, 0.6), 0];
+    };
+    for (const n of V.npcs) {
+      const [x, z, ry] = lugar(n.onde);
+      npcs.push({ ...n, x, z, ry: +ry.toFixed(3), vila: V.id, mundo: true });
+    }
+    for (const [id, D] of Object.entries(MUDA_PARA_VILA)) if (D.vila === V.id) {
+      const n = npcs.find((o) => o.id === id), [x, z, ry] = lugar(D.onde);
+      Object.assign(n, { x, z, ry: +ry.toFixed(3), vila: V.id, mundo: true });
+    }
+  }
+  // as árvores do mundo que caíam dentro de uma vila vão para fora da borda dela, na mesma direção (não somem; o "a" de
+  // cada uma continua o mesmo). Se cair numa estrada ou em outra vila, anda mais um pouco.
+  const naEstrada = (x, z) => amb.estradas.some((L) => L.some(([a, b]) => Math.abs(a - x) < 5 && Math.abs(b - z) < 5 && Math.hypot(a - x, b - z) < 4));
+  for (const t of MAPA_CLAREIRA.mata) {
+    if (!t.mundo) continue;
+    for (const V of VILAS_MUNDO) {
+      const d = Math.hypot(t.x - V.x, t.z - V.z), R = V.raio + 3;
+      if (d >= R) continue;
+      const ux = d ? (t.x - V.x) / d : 1, uz = d ? (t.z - V.z) / d : 0;
+      let r = R + (d % 3);
+      while (r < R + 14 && (naEstrada(V.x + ux * r, V.z + uz * r) || VILAS_MUNDO.some((W) => W !== V && Math.hypot(V.x + ux * r - W.x, V.z + uz * r - W.z) < W.raio + 3))) r += 2;
+      t.x = +(V.x + ux * r).toFixed(2); t.z = +(V.z + uz * r).toFixed(2); t.y = +alturaMundo(G, t.x, t.z).toFixed(2);
+    }
+  }
+}
+
 // a pedra do totem bloqueia a passagem (servidor e app, que lê mundo.json)
 for (const t of TOTENS.lista) MAPA_CLAREIRA.obstaculos.push({ x: t.x, z: t.z, r: TOTENS.raio, totem: t.id });
 
@@ -2044,6 +2292,13 @@ export const VILAS_TERRENO = [
 ];
 // a pedra do totem (TOTENS) entra como praça: terreno nenhum em cima dela
 for (const V of VILAS_TERRENO) for (const t of TOTENS.lista) if (Math.hypot(t.x - V.area.x, t.z - V.area.z) < Math.max(V.area.rx, V.area.rz) + 6) V.estradas.push(praca(t.x, t.z, 3));
+// e as peças das mini vilas do mundo grande (ferraria e banca do Porto, banca de Aurora...): terreno nenhum em cima delas
+for (const V of VILAS_TERRENO) for (const W of VILAS_MUNDO) {
+  if (Math.hypot(W.x - V.area.x, W.z - V.area.z) > Math.max(V.area.rx, V.area.rz) + W.raio + 6) continue;
+  for (const c of W.casas) { const M = MODELOS_VILA[c.m]; V.estradas.push(praca(c.x, c.z, Math.hypot(M.w, M.d) / 2 + 1)); }
+  if (W.banca) V.estradas.push(praca(W.banca.x, W.banca.z, 3));
+  for (const e of W.enfeites) V.estradas.push(praca(e.x, e.z, (MODELOS_VILA[e.m].r || 0.6) + 1));
+}
 // a vila de um ponto (o meio do terreno), ou null
 export function vilaEm(x, z) {
   for (const V of VILAS_TERRENO) if (Math.hypot(x - V.area.x, z - V.area.z) <= raioNaDirecao(V.area, Math.atan2(z - V.area.z, x - V.area.x))) return V;
@@ -2668,13 +2923,37 @@ export const CAPITULOS = [
       { nv: 34, quem: 'Bento', texto: 'Andei pelo oeste. O rio está cinza de manhã. Nunca foi.' },
       { nv: 35, quem: 'Tomás', texto: 'Aprendiz da Ordem? O Ivo nunca contou isso pra ninguém.' },
       { nv: 36, quem: 'Dario', texto: 'Kael... Esse nome eu conheço. Me deixa pensar.' }] },
-  { n: 9, nome: 'A trilha da serra', nv: 38, ato: 'Ato III · As estradas de Vael', frase: 'O norte guarda o caminho das grutas.' },
-  { n: 10, nome: 'O selo que caiu', nv: 42, ato: 'Ato III · As estradas de Vael', frase: 'Um selo caiu. Outros vão cair.' },
-  { n: 11, nome: 'A carta para o Porto', nv: 48, ato: 'Ato III · As estradas de Vael', frase: 'O mar espera do outro lado.' },
-  { n: 12, nome: 'A luz roxa', nv: 50, ato: 'Ato IV · O mar esquecido', frase: 'No meio do mar, uma luz roxa.' },
-  { n: 13, nome: 'O cais de Aurora', nv: 64, ato: 'Ato IV · O mar esquecido', frase: 'Uma cidade inteira esquecida.' },
-  { n: 14, nome: 'As janelas acesas', nv: 80, ato: 'Ato V · Aurora', frase: 'Alguém acendeu as janelas de Aurora.' },
-  { n: 15, nome: 'O último selo', nv: 95, ato: 'Ato V · Aurora', frase: 'O Pico da Névoa chama.' },
+  { n: 9, nome: 'A trilha da serra', nv: 33, ato: 'Ato III · As estradas de Vael', frase: 'O norte guarda o caminho das grutas.',
+    diario: 'Montei na Presa-de-Prata e segui a estrada do oeste até a Vila do Rio Claro. O totem acendeu sob a minha marca, o Capitão Heitor me recebeu e a Mirela agora vive lá. Na Casa do Comércio o Otávio me ensinou a vender e comprar. Levei Doce de Abóbora do Abel até o Pedrão, pesquei uma máscara de Velado no rio cinza e venci a Velada Tecelã. Pedra-Viva caiu e a trilha do norte abriu: lá do alto, uma luz roxa pisca dentro da serra, e alguém canta.',
+    rumores: [{ nv: 39, quem: 'Dario', texto: 'Aquele canto da serra... o meu irmão ouvia igual. Me leva lá. Por favor.' }] },
+  { n: 10, nome: 'O selo que caiu', nv: 40, ato: 'Ato III · As estradas de Vael', frase: 'Um selo caiu. Outros vão cair.',
+    diario: 'No Pouso da Serra, a Úrsula me falou da gruta que canta. Achei um pingente quebrado: era do irmão do Dario. Dentro da gruta, o Kael quebrou o selo na minha frente. Nos pedaços vi muitas mãos de capa azul numa porta de pedra: "Dorme. Quando os selos caírem, você acorda." A Mestra Iara refez o meu jeito de lutar, o Malaquias reforçou a Ponte dos Juncos e a Mirela fez a tinta das runas. O Dario, na beira do rio: "Meu irmão não sabe quem eu sou."',
+    rumores: [{ nv: 43, quem: 'Mirela', texto: 'Se a Névoa come memória, talvez dê para devolver. Preciso de tempo, e de coisas raras.' },
+      { nv: 45, quem: 'Bento', texto: 'Na Ponte dos Juncos tem outra pedra que brilha. Igual à do Rio Claro.' },
+      { nv: 46, quem: 'Aldo', texto: 'Preciso que uma carta chegue ao Porto de Vael. Ninguém volta de lá faz anos. Fale comigo no Nv 47.' }] },
+  { n: 11, nome: 'A carta para o Porto', nv: 45, ato: 'Ato III · As estradas de Vael', frase: 'O mar espera do outro lado.',
+    diario: 'No Juncal toquei o terceiro totem. Levei a carta do Aldo pela estrada, passei pela emboscada dos Velados e venci Maíra, a Velada da Maré. No Porto de Vael, a Capitã Odete e a Dona Marta tinham esquecido que o continente existia. Levei conservas do Porto até o Abel. Agora me chamam de Voz das Estradas. Toda noite, uma luz roxa sai da Gruta dos Juncos e vai para o mar.',
+    rumores: [{ nv: 49, quem: 'Nico', texto: 'Barquinho no mar? Só louco. Eu iria.' },
+      { nv: 50, quem: 'Tomás', texto: 'Mítico. Nunca forjei um Mítico na vida. Me traz um?' }] },
+  { n: 12, nome: 'A luz roxa', nv: 50, ato: 'Ato IV · O mar esquecido', frase: 'No meio do mar, uma luz roxa.',
+    diario: 'Entrei na Gruta dos Juncos de noite e derrubei Bocarra, o Maw da Gruta. Desta vez cheguei antes dos Velados: segurei o selo do mar com a marca até ele fechar. Vi uma moça de cabelo prateado ensinando uma luz pequena a acender uma vela: "Viu? Luz não precisa ter medo." A Ilha do Meio voltou ao horizonte. Atravessei de barquinho e a Maré, quando viu a minha mão, contou de um rapaz de capa cinza que passou de barco carregando alguém dormindo. Alguém com uma estrela na mão.',
+    rumores: [{ nv: 54, quem: 'Cecília', texto: 'Sonhei com uma cidade de luz. Nunca vi uma cidade assim... mas eu sabia o caminho.' },
+      { nv: 57, quem: 'Capitã Odete', texto: 'Navio de verdade, só com 40 mil de ouro. Vai juntando.' }] },
+  { n: 13, nome: 'O cais de Aurora', nv: 54, ato: 'Ato IV · O mar esquecido', frase: 'Uma cidade inteira esquecida.',
+    diario: 'Fiz o Pack de Pérolas com a Maré e o navio da Ordem com a Capitã Odete. Na Gruta da Ilha, o Kael quis a minha estrela. O Dario entrou na frente: "Kael, sou eu." O Kael fugiu e deixou cair uma insígnia de aprendiz da Ordem. No selo vi um rapaz de capa cinza me carregando por uma estrada de névoa: "Aguenta. Tem uma vila logo ali." O Mestre Ivo: "Kael foi meu aprendiz. O melhor que eu tive." Venci o Abissal e levei pérolas no porão até o Cais de Aurora. A Cecília conhece essa cidade sem nunca ter vindo.',
+    rumores: [{ nv: 66, quem: 'Sálvio', texto: 'Só a praça de Aurora tem gente. Mas à noite as janelas das casas vazias acendem sozinhas.' }] },
+  { n: 14, nome: 'As janelas acesas', nv: 68, ato: 'Ato V · Aurora', frase: 'Alguém acendeu as janelas de Aurora.',
+    diario: 'Em Aurora, de noite, achei três ecos: um brinquedo, uma coroa partida e uma carta da Vesper: "Se eu acender o Coração mais uma vez, todos voltam." A Cecília achou a casa da avó dela, consertamos juntos e ela me deu o Colar de Estrela. A Mirela fez o Catalisador da Memória. Na Gruta da Serra de Aurora, o Dario chamou o irmão e o catalisador fez o resto. O Kael caiu de joelhos: "Dario?" Foi ele que me deixou no poço. Na memória do selo, a Vesper jovem embalava uma luz pequena: "Vou te chamar de Aethra. Como a estrela."',
+    rumores: [{ nv: 81, quem: 'Fagulha', texto: 'Quem anda acendendo as pedras do leste? Toda noite uma acende sozinha.' },
+      { nv: 83, quem: 'Kael', texto: 'O Morro do Véu guarda o último selo. Ela vai estar lá.' }] },
+  { n: 15, nome: 'O último selo', nv: 84, ato: 'Ato V · Aurora', frase: 'O Pico da Névoa chama.',
+    diario: 'Levei Brasa Viva da Vila do Véu até a Clareira e o Tomás gravou a estrela na minha lâmina. No Morro do Véu, depois do Arauto, a Vesper apareceu: congelou todo mundo com um gesto e quebrou o último selo. O Mestre Ivo se pôs na minha frente e saiu ferido. A última memória contou a verdade: uma estrela caiu, uma lasca dela virou uma criança de luz, e a Vesper a achou. Eu sou o último fragmento vivo de Aethra. Com o elixir da Lúcia, o Mestre Ivo ficou de pé e abriu o caminho do Pico.',
+    rumores: [{ nv: 96, quem: 'Cecília', texto: 'Se ela fizer todo mundo esquecer de você, eu vou lembrar. Prometo.' },
+      { nv: 97, quem: 'Dario', texto: 'Eu e o Kael voltamos a treinar juntos. Ele ainda perde.' },
+      { nv: 98, quem: 'Aldo', texto: 'Te achei no poço. Volta pra cá depois, tá? Fale comigo.' }] },
+  { n: 16, nome: 'O Coração de Cristal', nv: 98, ato: 'Final · Estrela de Aethra', frase: 'A Névoa acaba onde começou.',
+    diario: 'Me despedi de todos e subi com o time até o Último Pouso. O Kael foi na frente. Na Gruta da Névoa derrubamos o Sentinela de Cristal e, no Coração, a Vesper: fogo, gelo e raio, depois a Névoa fazendo meus amigos esquecerem de mim. A Cecília lembrou primeiro, como prometeu. Caída, a Vesper me olhou: "Aethra... você cresceu." Encostei a marca no Coração e a rachadura fechou com a minha luz. A névoa sumiu do céu. Mas o Mestre Ivo olhou além da cordilheira: a estrela não caiu sozinha. Continua...',
+    rumores: [] },
 ];
 // Cenas da história (André 2026-11-11: "acrescenta cinemáticas em algumas missões"). Não é vídeo gravado: roda dentro
 // do jogo, com a câmera andando em volta do herói de verdade (a cara, a roupa e a arma de agora) e dos NPCs, com faixas
@@ -2731,6 +3010,70 @@ export const CENAS = {
     { d: 3.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Vozes', '"Aethra."'] },
     { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Aethra...'] },
   ] },
+  // Atos III e IV (Entrega 4)
+  kael2: { nome: 'O selo da serra', tomadas: [
+    { d: 3.2, rel: 'heroi', de: { p: [-0.5, 1.7, -1.4], o: [0, 1.2, 6] }, para: { p: [-0.6, 1.75, -1.8], o: [0, 1.2, 6] }, fala: ['Dario', '"KAEL!"'] },
+    { d: 3.4, rel: 'heroi', de: { p: [3, 2.2, 4], o: [0, 1.0, 0] }, para: { p: [2.4, 2.0, 4.6], o: [0, 1.0, 0] }, fala: ['', 'Ele para por um segundo. Só um.'] },
+    { d: 3.2, rel: 'heroi', de: { p: [0.6, 1.3, 1.3], o: [0, 0.6, 0] }, para: { p: [0.5, 1.1, 1.1], o: [0, 0.5, 0] }, fala: ['', 'E quebra o selo assim mesmo.'] },
+    { d: 2.8, rel: 'heroi', de: { p: [0.22, 1.66, 0.9], o: [0, 1.6, 0] }, para: { p: [0.18, 1.66, 0.8], o: [0, 1.6, 0] }, fala: ['Dario', 'Ele nem olhou pra mim...'] },
+  ] },
+  memoria3: { nome: 'Memória: a porta de pedra', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Os pedaços do selo ainda estão quentes.'] },
+    { d: 4.2, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Muitas mãos de capa azul encostam numa porta de pedra.'] },
+    { d: 3.6, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Vozes', '"Dorme. Quando os selos caírem, você acorda."'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Eu... dormia?'] },
+  ] },
+  memoria4: { nome: 'Memória: a vela', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O selo do mar fecha debaixo da sua mão.'] },
+    { d: 4.2, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Uma moça de cabelo prateado ensina uma luz pequena a acender uma vela.'] },
+    { d: 3.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Moça', '"Viu? Luz não precisa ter medo."'] },
+    { d: 3.4, rel: 'heroi', de: { p: [-2, 3, 4], o: [0, 0.8, 0] }, para: { p: [-3, 5.5, 6], o: [0, 0.6, 0] }, fala: ['', 'Lá fora, a névoa do mar recua. A Ilha do Meio aparece no horizonte.'] },
+  ] },
+  kael3: { nome: 'Kael, sou eu', tomadas: [
+    { d: 3.2, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"Me dá a estrela e ninguém mais se machuca."'] },
+    { d: 3.2, rel: 'heroi', de: { p: [-0.5, 1.7, -1.4], o: [0, 1.2, 6] }, para: { p: [-0.6, 1.75, -1.8], o: [0, 1.2, 6] }, fala: ['Dario', '"Kael, sou eu. O Dario."'] },
+    { d: 3.4, rel: 'heroi', de: { p: [3, 2.5, 4], o: [0, 1.0, 0] }, para: { p: [2, 2.2, 5], o: [0, 1.0, 0] }, fala: ['', 'Ele leva a mão à cabeça e some na névoa.'] },
+    { d: 3.0, rel: 'heroi', de: { p: [0.6, 1.0, 1.2], o: [0, 0.2, 0] }, para: { p: [0.5, 0.8, 1.0], o: [0, 0.1, 0] }, fala: ['', 'No chão ficou uma insígnia de aprendiz da Ordem.'] },
+  ] },
+  memoria5: { nome: 'Memória: quem te carregou', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O selo da ilha fica de pé.'] },
+    { d: 4.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Um rapaz de capa cinza, ferido, carrega você por uma estrada de névoa.'] },
+    { d: 3.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Rapaz', '"Aguenta. Tem uma vila logo ali."'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Kael...?'] },
+  ] },
+  // Ato V e o final (Entrega 5)
+  kael4: { nome: 'Dario?', tomadas: [
+    { d: 3.0, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.3, 1.2], o: [0, 1.0, 0] }, para: { p: [0.55, 1.3, 1.0], o: [0, 1.0, 0] }, fala: ['', 'Você encosta o Catalisador da Memória no peito dele.'] },
+    { d: 3.2, rel: 'heroi', de: { p: [3, 1.4, 4], o: [0, 0.6, 0] }, para: { p: [2.4, 1.2, 4.4], o: [0, 0.5, 0] }, fala: ['', 'O Kael cai de joelhos.'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"...Dario?"'] },
+    { d: 3.8, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"Fui eu que te deixei no poço. Ela queria você."'] },
+  ] },
+  memoria6: { nome: 'Memória: Aethra', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O Kael segura o selo junto com você.'] },
+    { d: 4.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'A Vesper, jovem, embala uma luz pequena no colo.'] },
+    { d: 3.6, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Vesper', '"Vou te chamar de Aethra. Como a estrela."'] },
+    { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Aethra... sou eu.'] },
+  ] },
+  vesper_veu: { nome: 'Vesper', tomadas: [
+    { d: 3.6, rel: 'heroi', de: { p: [-0.5, 1.7, -1.4], o: [0, 1.6, 6] }, para: { p: [-0.7, 1.9, -2.0], o: [0, 1.8, 6] }, fala: ['', 'No alto do morro, uma mulher de cabelo prateado espera.'] },
+    { d: 3.2, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Vesper', '"Você cresceu."'] },
+    { d: 3.4, rel: 'heroi', de: { p: [3, 2.5, 4], o: [0, 1.0, 0] }, para: { p: [4, 3.2, 5], o: [0, 1.0, 0] }, fala: ['', 'Um gesto, e todo mundo congela. O último selo se parte.'] },
+    { d: 3.4, rel: 'heroi', de: { p: [-2, 2.0, 2.5], o: [0, 1.0, 0] }, para: { p: [-1.6, 1.8, 2.0], o: [0, 1.0, 0] }, fala: ['Mestre Ivo', '"Não. Ela não."'] },
+    { d: 3.4, rel: 'heroi', de: { p: [-3, 3, 5], o: [0, 0.8, 0] }, para: { p: [-4, 5, 7], o: [0, 0.6, 0] }, fala: ['', 'O Mestre Ivo se põe na sua frente e cai ferido. A Vesper some na névoa.'] },
+  ] },
+  memoria7: { nome: 'Memória: a estrela que caiu', tomadas: [
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Os pedaços do último selo brilham sob a sua mão.'] },
+    { d: 4.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Uma estrela cai do céu sobre Aurora.'] },
+    { d: 4.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Uma lasca dela vira uma criança de luz. A Vesper a acha.'] },
+    { d: 4.0, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Você é o último fragmento vivo de Aethra.'] },
+  ] },
+  final: { nome: 'O Coração de Cristal', tomadas: [
+    { d: 3.4, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Vesper', '"Aethra... você cresceu."'] },
+    { d: 3.4, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'Você encosta a marca no Coração. A rachadura fecha com a sua luz.'] },
+    { d: 4.2, rel: 'heroi', branco: 0.5, de: { p: [-3, 4, 6], o: [0, 1.0, 0] }, para: { p: [-6, 12, 12], o: [0, 1.5, 0] }, fala: ['', 'A névoa some do céu no mundo inteiro. As janelas de Aurora acendem de verdade.'] },
+    { d: 3.8, rel: 'heroi', de: { p: [-0.5, 1.7, -1.4], o: [0, 1.6, 6] }, para: { p: [-0.6, 1.8, -1.8], o: [0, 1.7, 6] }, fala: ['', 'A Vesper fica no Pico, como espírito, guardando o Coração.'] },
+    { d: 3.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Acabou.'] },
+  ] },
 };
 // Chefes com nome da história: um monstro do campo vira o chefe quando o herói da etapa chega perto (o mesmo modelo,
 // maior e com outro brilho; sem modelo novo). vida e dano: vezes o do campo. noite: só aparece à noite (19h às 5h).
@@ -2750,6 +3093,40 @@ export const CHEFES_HISTORIA = {
   kael: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'caca11', vida: 9, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.5,
     fala: 'Kael: "Você não lembra mesmo de mim... Ela vai gostar de saber." E some na névoa.',
     humano: { modelo: 'cabelo_m', roupa: 'peitoral2,calca2,botas2,capa2' } },
+  // Atos III e IV (Entrega 4): os Velados com nome usam o corpo do herói; o Kael volta duas vezes e foge de novo.
+  tecela: { nome: 'Velada Tecelã', tipo: 'lobo', campo: 'c_v2', vida: 7, dano: 1.5, escala: 1, cor: 0x9a8ec0,
+    humano: { modelo: 'shibu_sombrio', roupa: 'chapeu2,peitoral1,calca1,botas1,capa1' } },
+  pedra_viva: { nome: 'Pedra-Viva, o Golem da Serra', tipo: 'golem', campo: 'c_v3', vida: 8, dano: 1.6, escala: 2.1, cor: 0x9aa4b0 },
+  kael2: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'cav_serra_norte', vida: 9, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.4,
+    fala: 'Kael para por um segundo quando ouve o próprio nome... e quebra o selo assim mesmo. Some na névoa.',
+    humano: { modelo: 'cabelo_m', roupa: 'peitoral2,calca2,botas2,capa2' } },
+  maira: { nome: 'Maíra, a Velada da Maré', tipo: 'lobo', campo: 'c_v6', vida: 8, dano: 1.6, escala: 1, cor: 0x7ab8d8,
+    humano: { modelo: 'shibu_sombrio', roupa: 'chapeu1,peitoral1,calca1,botas1,capa1' } },
+  bocarra: { nome: 'Bocarra, o Maw da Gruta', tipo: 'maw', campo: 'cav_juncos', vida: 8, dano: 1.6, escala: 1.9, cor: 0x9a4dff, noite: true },
+  kael3: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'cav_ilha', vida: 9, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.35,
+    fala: 'Dario: "Kael, sou eu. O Dario." O Kael leva a mão à cabeça, foge e deixa cair uma insígnia de aprendiz da Ordem.',
+    humano: { modelo: 'cabelo_m', roupa: 'peitoral2,calca2,botas2,capa2' } },
+  abissal: { nome: 'Abissal, o Maw das Marés', tipo: 'maw', campo: 'c_i3', vida: 9, dano: 1.7, escala: 2.1, cor: 0x2a8ad8 },
+  // Ato V e o final (Entrega 5). skills: golpes com aviso no chão, do mesmo jeito dos bosses de mundo (COMBATE_BOSS e
+  // Simulacao.lancarSkillBoss); fases: com essa fração da vida o chefe muda (Simulacao.faseChefe): 'esquecer' = a Névoa
+  // faz o time parar e esquecer do herói por uns segundos; 'fundir' = cresce (esc), bate mais forte e chama o covil.
+  kael4: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'cav_aurora', vida: 10, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.25,
+    fala: 'O Catalisador da Memória brilha no peito do Kael. Ele larga a espada e cai de joelhos: "...Dario?"',
+    humano: { modelo: 'cabelo_m', roupa: 'peitoral2,calca2,botas2,capa2' } },
+  arauto: { nome: 'Arauto do Véu', tipo: 'warrok', campo: 'c_a7', vida: 10, dano: 1.7, escala: 2.4, cor: 0x9ad8ff,
+    skills: [{ k: 'salto', nome: 'Queda de cristal', cd: 11, aviso: 1.3, r: 6, dano: 1.8, ef: { atordoa: 1.2 } },
+      { k: 'area', nome: 'Estilhaços', cd: 9, aviso: 1.0, r: 5, dano: 1.4, ef: { dot: { k: 'sangra', dps: 0.025, dur: 6, max: 3 } } }] },
+  sentinela: { nome: 'Sentinela de Cristal', tipo: 'golem', campo: 'cav_nevoa', vida: 11, dano: 1.7, escala: 2.3, cor: 0xb89aff,
+    skills: [{ k: 'area', nome: 'Pulso de cristal', cd: 9, aviso: 1.1, r: 5.5, dano: 1.5, ef: { atordoa: 1 } },
+      { k: 'pedra', nome: 'Lança de cristal', cd: 7, aviso: 0.9, r: 2.6, dano: 1.6 }] },
+  vesper: { nome: 'Vesper, a Rainha das Luzes', tipo: 'warrok', campo: 'cav_nevoa', vida: 14, dano: 1.8, escala: 1, cor: 0xc8b8ff,
+    humano: { modelo: 'vivi', roupa: 'chapeu2,peitoral3,calca3,botas3,capa3' },
+    skills: [{ k: 'pocas', nome: 'Chuva de fogo', cd: 12, aviso: 1.1, n: 3, r: 3, fica: 5, dano: 0.7, ef: { dot: { k: 'queima', dps: 0.05, dur: 5, max: 1 } } },
+      { k: 'area', nome: 'Inverno', cd: 11, aviso: 1.2, r: 6, dano: 1.2, ef: { congela: 1.5 } },
+      { k: 'pedra', nome: 'Raio', cd: 6, aviso: 0.8, r: 2.4, dano: 1.6, ef: { atordoa: 0.8 } }],
+    fases: [{ vida: 0.6, k: 'esquecer', dur: 8, fala: 'Vesper: "Esqueçam." A Névoa toma o seu time: eles param e não lembram mais de você.',
+      volta: 'Cecília: "Eu prometi que ia lembrar!" O time volta para o seu lado.' },
+    { vida: 0.25, k: 'fundir', esc: 1.7, dano: 1.25, fala: 'A Vesper se funde ao Coração, cresce e chama os Maws e Golens da gruta!' }] },
 };
 // Missões principais, nesta ordem (uma de cada vez). nv = nível para o NPC dar a missão; npc = quem dá (id em
 // MAPA_CLAREIRA.npcs); cap = capítulo; libera = zona (ZONAS) ou recurso ('forja', 'lobo', 'pesca'); liberaNaEtapa = o
@@ -3034,35 +3411,339 @@ export const HISTORIA = [
     ],
     pronto: 'Kael. A Lâmina Cinzenta... Então ele está vivo. Escute: eu e o Gaspar somos os últimos Guardiões da Ordem, que fechou a Névoa com sete selos. Essa marca na sua mão é da Ordem. Ou de algo mais velho que ela. A partir de hoje você é uma Sentinela da Ordem.',
     presente: { peitoral: { r: 1, e: 5 } } },
-  // ---------- Capítulos 9 a 15: ainda a missão de uma etapa (viram capítulos completos nas próximas entregas) ----------
-  { id: 'h9', cap: 9, nv: 38, npc: 'm_abobora', nome: 'A trilha da serra', matar: { n: 15, campos: ['c_v3'] }, libera: ['B2'],
-    pedido: 'Quero levar meus doces para o norte, mas a serra está fechada. Derrube quinze monstros do campo Nv 38 que eu te mostro o caminho.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'A névoa da Serra do Norte abriu. Tem uma gruta lá em cima.' },
-  { id: 'h10', cap: 10, nv: 42, npc: 'm_metal', nome: 'A ponte dos Juncos', matar: { n: 15, campos: ['c_v7', 'c_v8'] }, libera: ['B3'],
-    pedido: 'Meu metal não chega no leste. Limpe quinze monstros no norte (Nv 40 e 44) que a ponte dos Juncos abre.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'O leste de Vael está aberto, com a Ponte dos Juncos e a gruta do pico.' },
-  { id: 'h11', cap: 11, nv: 48, npc: 'lider', nome: 'Carta para o Porto', matar: { n: 20, campos: ['c_v6', 'c_v9'] }, libera: ['B4'],
-    pedido: 'Preciso mandar notícias ao Porto de Vael. Limpe vinte monstros dos campos Nv 47 e 48 para a estrada ficar segura.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'O Porto de Vael está aberto. Lá dá para comprar terreno e pegar o barco.' },
-  { id: 'h12', cap: 12, nv: 50, npc: 'm_conserva', nome: 'A travessia', matar: { n: 15, campos: ['cav_juncos'] }, libera: ['C'],
-    pedido: 'A névoa no mar não deixa ninguém chegar à Ilha do Meio. Dizem que ela nasce na Gruta dos Juncos. Derrube quinze lá dentro.',
-    andamento: 'Faltam {faltam} na Gruta dos Juncos.',
-    pronto: 'O mar abriu! Pegue um barco no cais e vá até a Ilha do Meio. A Maré te espera lá.' },
-  { id: 'h13', cap: 13, nv: 64, npc: 'm_perola', nome: 'O cais de Aurora', matar: { n: 20, campos: ['c_i3', 'c_i4'] }, libera: ['D1'],
-    pedido: 'Aurora está do outro lado, mas a névoa fecha a costa. Derrube vinte monstros nos campos Nv 60 e 64 da ilha.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'A costa de Aurora abriu. O Sálvio te recebe no cais.' },
-  { id: 'h14', cap: 14, nv: 80, npc: 'm_ervas', nome: 'A estrada do leste de Aurora', matar: { n: 20, campos: ['c_a4', 'cav_aurora'] }, libera: ['D2'],
-    pedido: 'Minhas ervas vêm do leste, mas a estrada está tomada. Derrube vinte nos campos Nv 78 e 80.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'O leste de Aurora abriu até o Posto do Leste.' },
-  { id: 'h15', cap: 15, nv: 95, npc: 'alquimista', nome: 'A fonte da Névoa', matar: { n: 25, campos: ['c_a8'] }, libera: ['D3'],
-    pedido: 'Estudei a névoa: ela nasce no Pico da Névoa, no sul de Aurora. Derrube vinte e cinco monstros do campo Nv 95 e o caminho se abre.',
-    andamento: 'Faltam {faltam}.',
-    pronto: 'O Pico da Névoa está aberto. É o lugar mais perigoso do mundo. Boa sorte!' },
+  // ---------- Capítulo 9 · A trilha da serra (Nv 33 a 38; história v2, Entrega 4) ----------
+  { id: 'c1', cap: 9, nv: 33, npc: 'andarilho', nome: 'A cidade da ponte', libera: [],
+    pedido: 'Agora que o Warrok caiu, a estrada do oeste está aberta até o Rio Claro, uma cidade de madeira do lado da ponte. Ninguém de lá vem aqui faz anos. Monte no Presa-de-Prata e vá ver. Tem um totem no meio da praça, dizem.',
+    etapas: [
+      { ev: 'montar', txt: 'Monte no Presa-de-Prata (botão do lobo)' },
+      { ev: 'totem', k: 'rio_claro', ja: 'totem', txt: 'Siga a estrada do oeste e toque o totem da Vila do Rio Claro', alvo: 'totem:rio_claro',
+        diz: 'A pedra acende sob a sua marca. Bento, pelo cristal do totem: "Pra mim ele nunca brilhou assim."' },
+      { ev: 'falar', npc: 'v_heitor', txt: 'Fale com o Capitão Heitor, o chefe do Rio Claro',
+        fala: 'Faz anos que ninguém chega do leste. Então a estrada abriu mesmo... Esse totem leva você a qualquer outro que já tenha tocado. Experimente: vá até a Clareira e volte.' },
+      { ev: 'viajar', k: 'clareira', txt: 'Use o totem para ir à Vila da Clareira', alvo: 'totem:rio_claro' },
+      { ev: 'viajar', k: 'rio_claro', txt: 'E volte pelo totem para o Rio Claro', alvo: 'totem:clareira' },
+      { ev: 'falar', npc: 'alquimista', txt: 'Na praça, uma cara conhecida: fale com a Mirela',
+        fala: 'Surpresa! Mudei o caldeirão para cá. Tudo que é raro passa por esta ponte. E a Névoa também.' },
+    ],
+    pronto: 'Aqui eu acho tudo que preciso. E você também vai: o Otávio, da Casa do Comércio, quer te conhecer. Vá lá, do lado da minha porta.' },
+  { id: 'c2', cap: 9, nv: 33, npc: 'v_otavio', nome: 'A Casa do Comércio', libera: [],
+    pedido: 'Bem-vindo à Casa do Comércio! Aqui o mundo inteiro vende e compra. Quem sabe negociar não precisa caçar tudo. Vou te mostrar como funciona, e de presente as suas três primeiras vendas não pagam taxa.',
+    etapas: [
+      { ev: 'leilao', de: 'anunciar', txt: 'Ponha um item seu à venda no leilão (Otávio > Leilão > Vender)', alvo: 'npc:v_otavio' },
+      { ev: 'leilao', de: 'comprar', txt: 'Compre um item no leilão (de outro jogador ou da casa)', alvo: 'npc:v_otavio' },
+      { ev: 'leilao', de: 'retirar', txt: 'Quando vender (ou vencer o prazo), retire com o Otávio', alvo: 'npc:v_otavio' },
+    ],
+    pronto: 'Negócio fechado! Volte sempre: o leilão é de todos, até de quem está do outro lado do mar.', presente: { pocao: 5 } },
+  { id: 'c3', cap: 9, nv: 35, npc: 'm_abobora', nome: 'Doce para o norte', libera: [],
+    pedido: 'Meu doce de abóbora vende até no norte, mas a serra está fechada e eu não tenho rodas. Plante, asse e faça o pack comigo. Depois leve no carrinho até o Mestre Pedrão, na Clareira: viagem longa paga muito. Tome as sementes.',
+    recebe: { semente_abobora: 2, semente_milho: 2, semente_rabanete: 6 },
+    etapas: [
+      { ev: 'plantar', k: 'abobora', txt: 'Plante abóbora na horta', alvo: 'lote' },
+      { ev: 'plantar', k: 'milho', txt: 'Plante milho', alvo: 'lote' },
+      { ev: 'plantar', k: 'rabanete', txt: 'Plante rabanete', alvo: 'lote' },
+      { ev: 'criar', k: 'pao_milho', n: 2, txt: 'Asse 2 Pães de milho no fogão', alvo: 'lote' },
+      { ev: 'pack_fez', k: 'abobora', n: 2, txt: 'Faça 2 Packs de Doce de Abóbora com o Seu Abel', alvo: 'npc:m_abobora' },
+      { ev: 'veiculo', k: 'melhorar', min: 3, ja: 'carrinho', txt: 'Melhore o carrinho para o Nv 3 (perto de uma bancada)', alvo: 'lote' },
+      { ev: 'pack', k: 'abobora', npc: 'm_pedra', de: 'carrinho', n: 2, txt: 'Leve os 2 packs de carrinho até o Mestre Pedrão, na Clareira', alvo: 'npc:m_pedra' },
+    ],
+    pronto: 'O Pedrão pagou bem, né? Eu disse. Agora, se a serra abrisse...' },
+  { id: 'c4', cap: 9, nv: 36, npc: 'v_heitor', nome: 'O rio que esqueceu', libera: [],
+    pedido: 'O Rio Claro amanheceu cinza hoje. Cinza! Os peixes sobem de barriga para cima. Pesque no rio e me diga o que tem lá embaixo.',
+    etapas: [
+      { ev: 'pesca', k: 'tilapia', n: 3, txt: 'Pesque 3 tilápias no rio', alvo: 'spot',
+        diz: 'Na terceira tilápia, presa no anzol, sobe uma máscara cinza. Máscara de Velado.' },
+      { ev: 'matar', hc: 'tecela', txt: 'Derrote a Velada Tecelã no campo Nv 35',
+        diz: 'A Tecelã cai, e as paredes de névoa dela se desfazem com o vento.' },
+    ],
+    pronto: 'Uma Velada tecendo névoa no nosso rio... Obrigado. O Seu Abel está pedindo ajuda com a serra. Fale com ele.' },
+  { id: 'h9', cap: 9, nv: 38, npc: 'm_abobora', nome: 'A serra fechada', libera: ['B2'],
+    pedido: 'A trilha do norte está fechada desde que a Névoa chegou. Um golem de pedra viva dorme no meio dela. Limpe o campo e derrube o bicho que eu levo meus doces para o norte.',
+    etapas: [
+      { ev: 'matar', campos: ['c_v3'], n: 8, txt: 'Derrube 8 monstros no campo Nv 38' },
+      { ev: 'matar', hc: 'pedra_viva', txt: 'Derrote Pedra-Viva, o Golem da Serra',
+        diz: 'Pedra-Viva desmorona. Do alto da trilha, uma luz roxa pisca dentro da Serra do Norte, e se ouve um canto.' },
+    ],
+    pronto: 'A trilha do norte abriu! Tome uns doces e essa runa. ...Ouviu o canto lá na serra? Os velhos dizem que quem segue aquele canto não volta.',
+    presente: { torta_abobora: 4, runa_rara: 1 } },
+  // ---------- Capítulo 10 · O selo que caiu (Nv 40 a 42) ----------
+  { id: 'c5', cap: 10, nv: 40, npc: 'v_ursula', nome: 'A canção da serra', libera: [],
+    pedido: 'Você ouviu o canto, não ouviu? Vem da gruta da serra. Quem entra ouvindo aquele canto sai sem lembrar o caminho. Antes, limpe os monstros do campo do norte. E não venha sozinho: o seu amigo Dario pediu para vir.',
+    etapas: [
+      { ev: 'totem', k: 'pouso_serra', ja: 'totem', txt: 'Toque o totem do Pouso da Serra', alvo: 'totem:pouso_serra' },
+      { ev: 'time', txt: 'Chame o Dario (ou um jogador) para o time' },
+      { ev: 'matar', campos: ['c_v7'], n: 8, txt: 'Derrube 8 monstros no campo Nv 40' },
+      { ev: 'pistas', pontos: [[128, -246, 'um pingente quebrado no chão']], txt: 'Procure o que brilha no campo Nv 40',
+        diz: 'O Dario pega o pingente, baixinho: "É do meu irmão."' },
+    ],
+    pronto: 'Do irmão dele? Então o que canta na gruta é gente. Prepare o time: a entrada fica a oeste daqui.' },
+  { id: 'c6', cap: 10, nv: 42, npc: 'v_ursula', nome: 'A gruta que canta', libera: [],
+    pedido: 'A Gruta da Serra do Norte. Entre com o time e não pare de andar. Se ouvir o seu nome lá dentro, não responda.',
+    etapas: [
+      { ev: 'time', txt: 'Monte o time (o Dario, a Cecília ou um amigo)' },
+      { ev: 'matar', campos: ['cav_serra_norte'], n: 4, txt: 'Entre na Gruta da Serra do Norte e abra caminho' },
+      { ev: 'matar', hc: 'kael2', txt: 'Enfrente o homem que quebra o selo', cena: 'kael2' },
+      { ev: 'pos', pos: [-182.4, -353.9, 4], ate: 22, txt: 'Toque nos pedaços do selo, no fundo da gruta', alvo: 'pos', marca: true, cena: 'memoria3',
+        diz: 'Memória: muitas mãos de capa azul encostam numa porta de pedra. "Dorme. Quando os selos caírem, você acorda."' },
+    ],
+    pronto: 'O Kael... o irmão do Dario. E quebrou o selo assim mesmo. Vá ao Rio Claro: a Mestra Iara viu tudo de longe e quer falar com você.' },
+  { id: 'c7', cap: 10, nv: 42, npc: 'v_iara', nome: 'Lutar diferente', libera: [],
+    pedido: 'Eu vi o duelo do alto da torre. O Kael leu cada golpe seu, como se já tivesse visto antes. Vamos mudar isso. Desta vez eu reseto a sua build de graça.',
+    etapas: [
+      { ev: 'resetar', gratis: true, txt: 'Resete a build com a Mestra Iara (de graça desta vez)', alvo: 'npc:v_iara' },
+      { ev: 'atributo', txt: 'Distribua os pontos de atributo de novo (menu do personagem)' },
+      { ev: 'barra', txt: 'Troque pelo menos 1 skill da barra' },
+      { ev: 'matar', campos: ['c_v7', 'c_v8'], n: 6, txt: 'Derrube 6 monstros com a build nova' },
+    ],
+    pronto: 'Melhor. Bem melhor. Da próxima vez eu cobro. Ouro de verdade.' },
+  { id: 'h10', cap: 10, nv: 42, npc: 'm_metal', nome: 'A ponte dos Juncos', libera: ['B3'],
+    pedido: 'Com o selo quebrado, os Velados descem para o Rio dos Juncos. Preciso reforçar a ponte antes deles: madeira grossa, ferro e aço. Traga que eu levanto.',
+    etapas: [
+      { ev: 'falar', npc: 'm_metal', entregar: { lenha: 40, barra_ferro: 6, barra_aco: 2 }, txt: 'Entregue 40 lenhas, 6 barras de ferro e 2 barras de aço ao Malaquias',
+        fala: 'Isso aí. Com isso a ponte aguenta até um Warrok.' },
+    ],
+    pronto: 'A ponte dos Juncos está de pé, e o leste de Vael abriu! Tome galões para o carrinho. ...O Dario está sentado na beira do rio. Disse que o irmão olhou para ele e não reconheceu.',
+    presente: { galao: 4, runa_rara: 1 } },
+  { id: 'c8', cap: 10, nv: 43, npc: 'alquimista', nome: 'A tinta das runas', libera: [],
+    pedido: 'A ponte nova precisa de runas, e runa precisa de tinta boa. Faça uma síntese de catalisador comigo e eu tiro a tinta do caldeirão. Se a Névoa come memória... talvez dê para devolver. Preciso de coisas raras.',
+    etapas: [
+      { ev: 'sintetizar', txt: 'Faça 1 síntese de catalisador com a Mirela', alvo: 'npc:alquimista' },
+    ],
+    pronto: 'Pronto, a tinta das runas da ponte. E a sobra é sua: guarde, que catalisador bom não dá em árvore.', presente: { runa_epica: 1 } },
+  // ---------- Capítulo 11 · A carta para o Porto (Nv 45 a 49) ----------
+  { id: 'c9', cap: 11, nv: 45, npc: 'v_tiao', nome: 'Três pedras', libera: [],
+    pedido: 'Bem-vindo ao Juncal, casa em cima d\'água! Aqui também tem pedra que brilha. Toque nela, e use para ir e voltar: três pedras acesas são um caminho. E já que está aqui, pesque umas traíras para a janta.',
+    etapas: [
+      { ev: 'totem', k: 'juncos', ja: 'totem', txt: 'Toque o totem do Juncal', alvo: 'totem:juncos' },
+      { ev: 'viajar', n: 2, txt: 'Viaje de totem: vá a outro e volte ao Juncal', alvo: 'totem:juncos' },
+      { ev: 'pesca', k: 'traira', n: 2, txt: 'Pesque 2 traíras', alvo: 'spot' },
+    ],
+    pronto: 'Traíra frita e três pedras acesas! O Aldo mandou recado: precisa de alguém que leve uma carta para o Porto de Vael.' },
+  { id: 'c10', cap: 11, nv: 47, npc: 'lider', nome: 'A carta pela estrada', libera: [],
+    pedido: 'Preciso que esta carta chegue ao Porto de Vael. Ninguém volta de lá faz anos. Pela estrada, não pela pedra: quero que vejam você chegar. E cuidado, os Velados vigiam o leste.',
+    etapas: [
+      { ev: 'matar', campos: ['c_v9', 'c_v6'], n: 6, txt: 'Emboscada no caminho: derrube 6 monstros nos campos Nv 47 e 48' },
+    ],
+    pronto: 'Você passou pela emboscada. Agora a última parte: a estrada do sul, até o Porto. Fale comigo quando estiver pronto.' },
+  { id: 'h11', cap: 11, nv: 48, npc: 'lider', nome: 'O Porto esquecido', libera: ['B4'], liberaNaEtapa: 1,
+    pedido: 'Uma Velada guarda a estrada do sul: a Maíra, a Velada da Maré. Derrube ela e leve a minha carta à Capitã Odete, no Porto de Vael.',
+    etapas: [
+      { ev: 'matar', hc: 'maira', txt: 'Derrote Maíra, a Velada da Maré, no campo Nv 48',
+        diz: 'Maíra cai. A névoa da estrada do sul se abre até o mar.' },
+      { ev: 'falar', npc: 'v_odete', txt: 'Entregue a carta à Capitã Odete, no Porto de Vael',
+        fala: 'Uma carta? Da terra? Achei que o continente tinha acabado...' },
+    ],
+    pronto: 'A gente tinha esquecido o resto do mundo. Todo mundo aqui. Obrigada por vir pela estrada.', presente: { pocao: 6 } },
+  { id: 'c11', cap: 11, nv: 49, npc: 'm_conserva', nome: 'Conservas para longe', libera: [], titulo: 'Voz das Estradas',
+    pedido: 'Carta da terra! E agora que a estrada abriu, a minha conserva pode viajar de novo. Plante batata e milho, faça os packs comigo e leve no carrinho até o Seu Abel, lá no oeste.',
+    recebe: { semente_batata: 3, semente_milho: 3 },
+    etapas: [
+      { ev: 'plantar', k: 'batata', txt: 'Plante batata', alvo: 'lote' },
+      { ev: 'plantar', k: 'milho', txt: 'Plante milho', alvo: 'lote' },
+      { ev: 'pack_fez', k: 'conserva', n: 4, txt: 'Faça 4 Packs de Conservas com a Dona Marta', alvo: 'npc:m_conserva' },
+      { ev: 'pack', k: 'conserva', npc: 'm_abobora', de: 'carrinho', n: 4, txt: 'Leve os 4 packs de carrinho até o Seu Abel', alvo: 'npc:m_abobora' },
+    ],
+    pronto: 'Antes da névoa dava para ver a Ilha do Meio daqui. Agora, toda noite, uma luz roxa sai da Gruta dos Juncos e vai para o mar. Tome, você é a Voz das Estradas.',
+    presente: { selo_epico: 1 } },
+  // ---------- Capítulo 12 · A luz roxa (Nv 50 a 52) ----------
+  { id: 'c12', cap: 12, nv: 50, npc: 'm_conserva', nome: 'A gruta dos Juncos', libera: [],
+    pedido: 'A luz roxa sai da Gruta dos Juncos toda noite. Vá lá à noite e veja o que é. Leve gente com você.',
+    etapas: [
+      { ev: 'noite', txt: 'Espere a noite (19h às 5h)' },
+      { ev: 'matar', campos: ['cav_juncos'], n: 8, txt: 'Derrube 8 monstros do covil da Gruta dos Juncos' },
+      { ev: 'matar', hc: 'bocarra', txt: 'Derrote Bocarra, o Maw da Gruta',
+        diz: 'No fundo da gruta, Velados cantam em volta de uma pedra rachada: o selo do mar.' },
+    ],
+    pronto: 'Um selo no fundo da gruta? Isso é coisa da Ordem. Corra ao Mestre Ivo.' },
+  { id: 'h12', cap: 12, nv: 50, npc: 'reset', nome: 'Segurar o selo', libera: ['C'],
+    pedido: 'O selo do mar. Desta vez você chega antes do Kael. Encoste a marca no selo e segure: ele vai se fechar, mas os Velados vão vir em ondas. Leve o time.',
+    etapas: [
+      { ev: 'pos', pos: [665.3, -264, 5], ate: 32, txt: 'Vá ao selo, no fundo da Gruta dos Juncos', alvo: 'pos' },
+      { ev: 'matar', campos: ['cav_juncos'], n: 10, txt: 'Segure o selo: aguente as ondas de Velados' },
+      { ev: 'pos', pos: [665.3, -264, 3], ate: 32, txt: 'Encoste a marca no selo', alvo: 'pos', marca: true, cena: 'memoria4',
+        diz: 'Memória: uma moça de cabelo prateado ensina uma luz pequena a acender uma vela. "Viu? Luz não precisa ter medo."' },
+    ],
+    pronto: 'O selo do mar está de pé. O primeiro que a gente salva! A névoa do mar voltou para dentro dele: olhe o horizonte, a Ilha do Meio apareceu.' },
+  { id: 'c13', cap: 12, nv: 52, npc: 'v_odete', nome: 'A travessia', libera: [],
+    pedido: 'A ilha apareceu! Faz anos que ninguém atravessa. Ponha o seu barquinho no Cais de Vael e reme até o Cais Norte da Ilha. A Maré vive lá: ela vai te receber.',
+    etapas: [
+      { ev: 'pos', pos: [101.3, 454, 12], barco: true, txt: 'Ponha o barquinho na água no Cais de Vael', alvo: 'pos' },
+      { ev: 'pesca', k: 'sardinha', n: 2, txt: 'Pesque 2 sardinhas num spot do mar', alvo: 'spot' },
+      { ev: 'pos', pos: [205.5, 549.9, 14], barco: true, txt: 'Reme até o Cais Norte da Ilha', alvo: 'pos' },
+      { ev: 'falar', npc: 'm_perola', txt: 'Fale com a Maré, no cais da ilha',
+        fala: 'Gente do continente! ...Me deixa ver a sua mão. Faz poucos meses, um rapaz de capa cinza passou por aqui de barco. Carregava alguém dormindo nos braços. Alguém com uma estrela na mão.' },
+    ],
+    pronto: 'Era você. Era você nos braços dele. Fique na Vila da Maré e descanse: a Avó Coral quer falar com você.', presente: { runa_epica: 2 } },
+  // ---------- Capítulo 13 · O cais de Aurora (Nv 54 a 64) ----------
+  { id: 'c14', cap: 13, nv: 54, npc: 'v_coral', nome: 'Pérolas da Maré', libera: [],
+    pedido: 'A ilha vive da pérola. Mas pérola boa precisa de cristal da ilha e de peixe de água doce, e esse só tem no continente. Volte pelo totem, que eu espero.',
+    etapas: [
+      { ev: 'totem', k: 'ilha', ja: 'totem', txt: 'Toque o totem da Vila da Maré', alvo: 'totem:ilha' },
+      { ev: 'item', k: 'cristal', n: 2, de: 'coleta', txt: 'Minere 2 cristais', alvo: 'veio:cristal' },
+      { ev: 'pesca', k: 'traira', n: 3, txt: 'Pesque 3 traíras na água doce do continente', alvo: 'spot' },
+      { ev: 'pack_fez', k: 'perola', txt: 'Faça 1 Pack de Pérolas com a Maré', alvo: 'npc:m_perola' },
+    ],
+    pronto: 'Pérola das boas. Essa vai longe... A Capitã Odete mandou dizer que o barquinho não basta para o que vem. Fale com ela.' },
+  { id: 'c15', cap: 13, nv: 60, npc: 'v_odete', nome: 'O navio da Ordem', libera: [],
+    pedido: 'Barquinho é para o lago. Para cruzar até Aurora você precisa de um navio de verdade, com porão. Custa caro, mas é seu para sempre. Construa, ponha na água e ancore na ilha.',
+    etapas: [
+      { ev: 'criar', k: 'navio', ja: 'tem', txt: 'Crie o navio mercante na bancada (Nv 60)', alvo: 'lote' },
+      { ev: 'pos', pos: [101.3, 454, 14], navio: true, txt: 'Ponha o navio na água no Cais de Vael', alvo: 'pos' },
+      { ev: 'pos', pos: [205.5, 549.9, 16], navio: true, txt: 'Navegue e ancore no Cais Norte da Ilha', alvo: 'pos' },
+    ],
+    pronto: 'Um navio da Ordem de novo no mar! Faz trezentos anos que este porto não vê isso.' },
+  { id: 'c16', cap: 13, nv: 62, npc: 'm_perola', nome: 'Quem te carregou', libera: [],
+    pedido: 'O rapaz de capa cinza saiu da Gruta da Ilha naquela noite. Se ele voltou, está lá. Leve gente com você.',
+    etapas: [
+      { ev: 'time', txt: 'Monte o time (o Dario, a Cecília ou um amigo)' },
+      { ev: 'matar', campos: ['cav_ilha'], n: 4, txt: 'Entre na Gruta da Ilha e abra caminho' },
+      { ev: 'matar', hc: 'kael3', txt: 'Enfrente o Kael no selo da ilha', cena: 'kael3' },
+      { ev: 'pos', pos: [48.3, 642.7, 4], ate: 16, txt: 'Toque no selo da ilha', alvo: 'pos', marca: true, cena: 'memoria5',
+        diz: 'Memória: um rapaz de capa cinza, ferido, carrega você por uma estrada de névoa. "Aguenta. Tem uma vila logo ali."' },
+      { ev: 'falar', npc: 'reset', txt: 'Mostre a insígnia que o Kael deixou cair ao Mestre Ivo',
+        fala: 'Essa insígnia... é de aprendiz da Ordem. Kael foi meu aprendiz. O melhor que eu tive. Foi ele que te deixou no poço, então. Te salvando.' },
+    ],
+    pronto: 'Volte para a Maré. O que a Ordem começou, você vai ter que terminar do outro lado do mar.' },
+  { id: 'h13', cap: 13, nv: 64, npc: 'm_perola', nome: 'A outra margem', libera: ['D1'], liberaNaEtapa: 2, titulo: 'Vento do Mar',
+    pedido: 'Aurora fica do outro lado. A costa está fechada pela névoa e por um Maw do tamanho de um barco. Abra caminho e leve as minhas pérolas no porão do navio até o Velho Sálvio, no Cais de Aurora. O mar paga mais.',
+    etapas: [
+      { ev: 'matar', campos: ['c_i3', 'c_i4'], n: 10, txt: 'Derrube 10 monstros nos campos Nv 60 e 64' },
+      { ev: 'matar', hc: 'abissal', txt: 'Derrote Abissal, o Maw das Marés',
+        diz: 'Abissal afunda. A névoa da costa de Aurora se abre.' },
+      { ev: 'pack_fez', k: 'perola', n: 2, txt: 'Faça 2 Packs de Pérolas com a Maré', alvo: 'npc:m_perola' },
+      { ev: 'pack', k: 'perola', npc: 'm_ervas', de: 'porao', n: 2, txt: 'Leve os 2 packs no porão do navio até o Velho Sálvio, no Cais de Aurora', alvo: 'npc:m_ervas' },
+      { ev: 'falar', npc: 'm_ervas', txt: 'Fale com o Velho Sálvio',
+        fala: 'Gente do mar! ...E essa moça de olhos vermelhos com você? Olhos de Aurora. Faz trezentos anos que não vejo esses olhos.' },
+    ],
+    pronto: 'Bem-vindo a Aurora. Só a praça ainda tem gente. Mas à noite as janelas das casas vazias acendem sozinhas. Você é o Vento do Mar que a gente esperava.',
+    presente: { selo_lendario: 1 } },
+  // ---------- Capítulo 14 · As janelas acesas (Nv 68 a 80; história v2, Entrega 5) ----------
+  { id: 'e1', cap: 14, nv: 68, npc: 'm_ervas', nome: 'A cidade que esqueceu', libera: [],
+    pedido: 'Aurora fica logo ali, na pedra branca. Só a praça ainda tem gente. Toque o totem e entre de noite: é quando as janelas acendem. Você vai ver coisas que ninguém mais vê.',
+    etapas: [
+      { ev: 'totem', k: 'aurora', ja: 'totem', txt: 'Toque o totem de Aurora', alvo: 'totem:aurora' },
+      { ev: 'noite', txt: 'Espere a noite em Aurora (19h às 5h)' },
+      { ev: 'pistas', pontos: [[176, 1056, 'um brinquedo de madeira'], [199, 1062, 'uma coroa partida'], [192, 1084, 'uma carta, com a letra da Vesper']], txt: 'Examine os 3 ecos que brilham nas ruas de Aurora',
+        diz: 'A carta diz: "Se eu acender o Coração mais uma vez, todos voltam." Assinado: Vesper.' },
+      { ev: 'falar', npc: 'v_elara', txt: 'Fale com a Guardiã Elara, na praça',
+        fala: 'Você leu a carta dela. Vesper foi a rainha das luzes daqui. Quando o Coração de Cristal rachou, a cidade inteira esqueceu. Ela não. Ela nunca esqueceu.' },
+      { ev: 'falar', npc: 'm_obsid', txt: 'Conheça o Ônix, que corta obsidiana na costa',
+        fala: 'Gente nova em Aurora? Faz tempo. Se precisar de pedra preta, é comigo. Obsidiana não esquece nada: guarda até o calor do dia em que nasceu.' },
+    ],
+    pronto: 'A Guardiã já sabe de você. E a moça de olhos vermelhos que veio com você... ela anda pelos bairros como se conhecesse cada pedra.' },
+  { id: 'e2', cap: 14, nv: 72, npc: 'v_elara', nome: 'A casa da avó', libera: [],
+    pedido: 'A sua amiga Cecília achou uma casa num bairro daqui. Diz que era da avó dela. Uma parede caiu e a janela quebrou. Faça as peças na bancada e traga para mim, que eu levo o pessoal da praça para ajudar.',
+    etapas: [
+      { ev: 'pos', pos: [168, 1052, 6], txt: 'Ache a casa da avó da Cecília, no bairro do oeste de Aurora', alvo: 'pos',
+        diz: 'Cecília, parada na porta: "Eu conheço essa casa. Eu conheço até o cheiro dela."' },
+      { ev: 'criar', k: 'obra_parede', n: 3, txt: 'Crie 3 paredes na bancada', alvo: 'lote' },
+      { ev: 'criar', k: 'obra_janela', txt: 'Crie 1 janela na bancada', alvo: 'lote' },
+      { ev: 'falar', npc: 'v_elara', entregar: { obra_parede: 3, obra_janela: 1 }, txt: 'Leve as 3 paredes e a janela à Guardiã Elara',
+        fala: 'A Cecília consertou rindo: "Ficou torta. Ficou perfeita." No baú da casa tinha um colar de estrela. Ela pôs no seu pescoço: "Sangue de Aurora lembra através da Névoa. Por isso eu sonhava. Agora é seu."' },
+    ],
+    pronto: 'O colar da avó dela. Guarde bem: quem usa a estrela de Aurora lembra mais do que devia.', presente: { colar: { r: 2 } } },
+  { id: 'e3', cap: 14, nv: 76, npc: 'alquimista', nome: 'O Catalisador da Memória', libera: [],
+    pedido: 'Achei! Um jeito de devolver a memória a quem a Névoa comeu. Preciso de obsidiana do Ônix e de ervas do pântano do Sálvio, as duas de Aurora. Traga de navio até o Cais de Vael e de carrinho pela estrada do oeste. O Abel guarda para mim no Posto do Oeste.',
+    etapas: [
+      { ev: 'pack_fez', k: 'obsid', txt: 'Faça 1 Pack de Obsidiana com o Ônix', alvo: 'npc:m_obsid' },
+      { ev: 'pack_fez', k: 'ervas', txt: 'Faça 1 Pack de Ervas do Pântano com o Velho Sálvio', alvo: 'npc:m_ervas' },
+      { ev: 'pack', k: 'obsid', npc: 'm_abobora', de: 'carrinho', txt: 'Leve o Pack de Obsidiana (navio e carrinho) até o Seu Abel', alvo: 'npc:m_abobora' },
+      { ev: 'pack', k: 'ervas', npc: 'm_abobora', de: 'carrinho', txt: 'Leve o Pack de Ervas (navio e carrinho) até o Seu Abel', alvo: 'npc:m_abobora' },
+      { ev: 'falar', npc: 'alquimista', entregar: { cristal: 6, barra_aco: 2 }, txt: 'Leve 6 cristais e 2 barras de aço à Mirela para a síntese',
+        fala: 'Obsidiana para segurar, erva para soltar, cristal para lembrar... Pronto. O Catalisador da Memória. Só dá para usar uma vez. Use bem.' },
+    ],
+    pronto: 'Quando o Kael estiver fraco, encoste isso nele. Se ainda sobrar alguém lá dentro, ele volta.', presente: { catalisador_memoria: 1 } },
+  { id: 'h14', cap: 14, nv: 80, npc: 'v_elara', nome: 'Kael', libera: ['D2'], liberaNaEtapa: 4,
+    pedido: 'A Lâmina Cinzenta entrou na Gruta da Serra de Aurora. Dizem que está quebrando o último selo do oeste. Leve o Dario. E leve o que a Mirela fez.',
+    etapas: [
+      { ev: 'ter', itens: { catalisador_memoria: 1 }, txt: 'Leve o Catalisador da Memória na mochila' },
+      { ev: 'time', txt: 'Chame o Dario (ou um jogador) para o time' },
+      { ev: 'matar', campos: ['cav_aurora'], n: 4, txt: 'Entre na Gruta da Serra de Aurora e abra caminho' },
+      { ev: 'matar', hc: 'kael4', txt: 'O último duelo com o Kael: com pouca vida, use o Catalisador', cena: 'kael4' },
+      { ev: 'pos', pos: [-383.8, 1299.7, 4], ate: 18, txt: 'Segure o selo do oeste junto com o Kael', alvo: 'pos', marca: true, cena: 'memoria6',
+        diz: 'Memória: a Vesper, jovem, embala a luz pequena no colo. "Vou te chamar de Aethra. Como a estrela."' },
+      { ev: 'falar', npc: 'v_kael', entregar: { catalisador_memoria: 1 }, txt: 'Fale com o Kael na praça de Aurora',
+        fala: 'Dario... eu lembro do Dario. E de você. Fui eu que te deixei no poço. Ela queria você. Eu ainda lembrava do juramento... só dele. Ela não quer destruir o mundo. Quer devolver Aurora. E para isso precisa da sua estrela.' },
+    ],
+    pronto: 'Eu abro o caminho do leste. Fico aqui, em Aurora: devo isso a esta cidade. E a você. Tome a minha espada: ela já te machucou demais, agora vai te proteger.',
+    presente: { espada: { r: 1, e: 10 }, runa_lendaria: 1 } },
+  // ---------- Capítulo 15 · O último selo (Nv 84 a 95) ----------
+  { id: 'e4', cap: 15, nv: 84, npc: 'm_brasa', nome: 'Brasa viva', libera: [],
+    pedido: 'Brasa viva é a pedra que não apaga. O Tomás, lá no continente, vai precisar dela para o que vem. Fale com o Brás, toque o totem e leve dois packs até o Mestre Pedrão, na Clareira.',
+    etapas: [
+      { ev: 'falar', npc: 'v_bras', txt: 'Fale com o Brás, o vigia da Vila do Véu',
+        fala: 'Alguém anda acendendo as pedras do leste. Toda noite uma acende sozinha, mais perto do Morro do Véu. Fique de olho.' },
+      { ev: 'totem', k: 'posto_leste', ja: 'totem', txt: 'Toque o totem da Vila do Véu', alvo: 'totem:posto_leste' },
+      { ev: 'pack_fez', k: 'brasa', n: 2, txt: 'Faça 2 Packs de Brasa Viva com a Fagulha', alvo: 'npc:m_brasa' },
+      { ev: 'pack', k: 'brasa', npc: 'm_pedra', de: 'carrinho', n: 2, txt: 'Leve os 2 packs (navio e carrinho) até o Mestre Pedrão, na Clareira', alvo: 'npc:m_pedra' },
+    ],
+    pronto: 'O Pedrão mandou a brasa direto para a forja do Tomás. Ele disse que quer te ver. Com a sua melhor arma.' },
+  { id: 'e5', cap: 15, nv: 88, npc: 'ferreiro', nome: 'A estrela na lâmina', libera: [], gravar: true,
+    pedido: 'Brasa de Aurora! Com ela eu gravo a sua estrela numa lâmina. Mas tem que ser uma lâmina à altura: Lendária ou melhor, equipada. E me traga aço e cristal.',
+    etapas: [
+      { ev: 'arma', min: 3, ja: 'arma', txt: 'Equipe uma arma Lendária (ou melhor)' },
+      { ev: 'falar', npc: 'ferreiro', entregar: { barra_aco: 10, cristal: 10 }, txt: 'Leve 10 barras de aço e 10 cristais ao Tomás',
+        fala: 'Segura firme. ...Pronto. Olha a estrela brilhando no metal. Igual à da sua mão.' },
+    ],
+    pronto: 'A estrela está na lâmina, e ganhou um reforço de graça. Agora ela é sua de verdade: da Aurora.' },
+  { id: 'e6', cap: 15, nv: 92, npc: 'v_kael', nome: 'O Véu', libera: [],
+    pedido: 'O Morro do Véu guarda o último selo. Ela vai estar lá. Um Warrok enorme, coberto de cristal, guarda a subida: o Arauto do Véu. Limpe o campo e suba.',
+    etapas: [
+      { ev: 'matar', campos: ['c_a7'], n: 10, txt: 'Derrube 10 monstros no campo Nv 90' },
+      { ev: 'matar', hc: 'arauto', txt: 'Derrote o Arauto do Véu' },
+      { ev: 'pos', pos: [620, 1360, 12, 45], txt: 'Suba ao alto do Morro do Véu', alvo: 'pos', cena: 'vesper_veu',
+        diz: 'A Vesper congela todo mundo com um gesto e quebra o último selo. O Mestre Ivo chega pelo totem e se põe na sua frente. Sai ferido.' },
+      { ev: 'pos', pos: [620, 1360, 12, 45], txt: 'Encoste a marca nos pedaços do último selo', alvo: 'pos', marca: true, cena: 'memoria7',
+        diz: 'Memória: uma estrela cai, uma lasca dela vira uma criança de luz, e a Vesper a acha. Você é o último fragmento vivo de Aethra.' },
+      { ev: 'falar', npc: 'v_kael', txt: 'Volte ao Kael, em Aurora',
+        fala: 'Então é isso. Você é a estrela. Por isso ela te quer. E por isso eu te levei para longe dela.' },
+    ],
+    pronto: 'O Mestre Ivo foi levado para a Vila do Véu. Vá vê-lo. Ele quer falar com você antes de tudo.' },
+  { id: 'h15', cap: 15, nv: 95, npc: 'reset', nome: 'A bênção da Ordem', libera: ['D3'], titulo: 'Luz de Aurora',
+    pedido: 'Estou bem. Mais ou menos. A Lúcia quer me fazer um elixir com peixe do mar fundo: garoupa e atum, dos spots raros. Use o radar. E enquanto isso, limpe o campo do Nv 95: o caminho do Pico tem que estar livre.',
+    etapas: [
+      { ev: 'pesca', k: 'garoupa', txt: 'Pesque 1 Garoupa num spot raro (use o radar)', alvo: 'spot' },
+      { ev: 'pesca', k: 'atum', txt: 'Pesque 1 Atum num spot raro', alvo: 'spot' },
+      { ev: 'falar', npc: 'curandeira', entregar: { garoupa: 1, atum: 1 }, txt: 'Leve a garoupa e o atum à Irmã Lúcia',
+        fala: 'Peixe do mar fundo, para quem segurou a Névoa com o corpo. Leve o elixir ao Mestre Ivo. E diga que ele é teimoso.' },
+      { ev: 'matar', campos: ['c_a8'], n: 12, txt: 'Derrube 12 monstros no campo Nv 95' },
+    ],
+    pronto: 'De pé de novo. A Ordem esperou trezentos anos por você. O caminho do Pico está aberto. Vai. ...Ouviu? É a voz dela, lá de cima: "Venha. Traga seus amigos, se quiser. Eles vão esquecer você de qualquer jeito."',
+    presente: { runa_lendaria: 1 } },
+  // ---------- Final · O Coração de Cristal (Nv 98 a 100) ----------
+  { id: 'f1', cap: 16, nv: 98, npc: 'lider', nome: 'Todos juntos', libera: [],
+    pedido: 'Te achei dormindo do lado do poço. Lembra? Antes de subir aquele Pico, passe em quem te ajudou. Ninguém vai deixar você ir sem uma lembrança.',
+    etapas: [
+      { ev: 'falar', npc: 'ferreiro', txt: 'Despeça-se do Tomás', fala: 'A bigorna rachada, lembra? Agora vai, e volta inteiro. A forja fica acesa.' },
+      { ev: 'falar', npc: 'curandeira', txt: 'Despeça-se da Irmã Lúcia', fala: 'Leve as minhas poções. Todas. Não discuta.' },
+      { ev: 'falar', npc: 'andarilho', txt: 'Despeça-se do Bento', fala: 'Do poço até o Pico. Quem diria. Cuida do Presa-de-Prata.' },
+      { ev: 'falar', npc: 'comerciante', txt: 'Despeça-se da Rosa', fala: 'A carroça que você achou pagou a minha casa. Essa aqui é por conta da casa.' },
+      { ev: 'falar', npc: 'guardiao', txt: 'Despeça-se do Gaspar', fala: 'Passe da caverna você não precisa mais. Precisa de coragem. Isso você tem.' },
+      { ev: 'falar', npc: 'alquimista', txt: 'Despeça-se da Mirela', fala: 'Um catalisador dos bons. O melhor que já saiu do meu caldeirão.' },
+      { ev: 'time', txt: 'Monte o time para a subida' },
+      { ev: 'totem', k: 'ultimo_pouso', ja: 'totem', txt: 'Encontre todos no Último Pouso, ao pé do Pico', alvo: 'totem:ultimo_pouso' },
+      { ev: 'falar', npc: 'v_celeste', txt: 'Peça a bênção da Irmã Celeste', fala: 'Que a luz que te trouxe até aqui te leve até o fim. As suas armas estão abençoadas.' },
+    ],
+    pronto: 'Está todo mundo aqui. O Kael também: ele vai na frente. O caminho da Gruta da Névoa está aberto.',
+    presente: { pocao: 10, pocao_mana: 10, selo_lendario: 1, runa_lendaria: 1 } },
+  { id: 'f2', cap: 16, nv: 100, npc: 'v_rui', nome: 'A Gruta da Névoa', libera: [],
+    pedido: 'A Gruta da Névoa leva à câmara do Coração. Quem a guarda é o Sentinela de Cristal, um golem do tamanho de uma torre. O Kael vai na frente. Fique perto dele.',
+    etapas: [
+      { ev: 'matar', campos: ['cav_nevoa'], n: 6, txt: 'Atravesse a Gruta da Névoa' },
+      { ev: 'matar', hc: 'sentinela', txt: 'Derrote o Sentinela de Cristal',
+        diz: 'O Sentinela desmorona em mil pedaços de cristal. Atrás dele, a câmara do Coração pulsa, roxa.' },
+    ],
+    pronto: 'O caminho está livre. Ela está lá dentro. Fale comigo quando estiver pronto: não tem volta.' },
+  { id: 'f3', cap: 16, nv: 100, npc: 'v_rui', nome: 'Vesper', libera: ['fim'], grande: true, titulo: 'Estrela de Aethra',
+    pedido: 'A Vesper espera no Coração. Ela vai usar fogo, gelo e raio. Depois a Névoa, para seus amigos esquecerem de você. No fim, vai se fundir ao Coração. Não solte a sua luz.',
+    etapas: [
+      { ev: 'matar', hc: 'vesper', txt: 'Vença a Vesper no Coração de Cristal' },
+      { ev: 'pos', pos: [155.5, 1399.5, 5], ate: 18, txt: 'Encoste a marca no Coração de Cristal', alvo: 'pos', marca: true, cena: 'final',
+        diz: 'A rachadura do Coração fecha com a sua luz. A névoa some do céu no mundo inteiro.' },
+      { ev: 'falar', npc: 'reset', txt: 'Volte ao Mestre Ivo, na Clareira',
+        fala: 'A Névoa acabou. Aurora tem gente de novo, e a Vesper guarda o Coração como espírito. ...Mas olhe além da cordilheira. A estrela não caiu sozinha. Tinha outras.' },
+    ],
+    pronto: 'Você é a Estrela de Aethra. Tome: a Ordem guardou isso trezentos anos para este dia. Continua...',
+    presente: { runa_mitica: 1, selo_mitico: 1 } },
 ];
 // Prêmio de cada missão: a que abre região ou recurso (libera) vale xp do XP do nível nv e ouro x nv; as outras, xpEtapa e ouroEtapa
 export const HISTORIA_PREMIO = { xp: 0.3, ouro: 25, xpEtapa: 0.12, ouroEtapa: 10 };
@@ -3080,4 +3761,4 @@ export const LIBERA_NIVEL = {
   terreno: 8, pack: 12, reforcar: 12, alquimia: 40,
 };
 // o que é recurso de missão (libera de HISTORIA que não é zona): o que bloqueia e a frase do aviso
-export const RECURSOS_HISTORIA = { forja: 'a forja e a banca', lobo: 'a montaria', pesca: 'a pescaria' };
+export const RECURSOS_HISTORIA = { forja: 'a forja e a banca', lobo: 'a montaria', pesca: 'a pescaria', fim: 'o céu sem Névoa' }; // fim: a última missão (o app limpa o céu)

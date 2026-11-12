@@ -22,6 +22,7 @@ var _remover := "" # conta do amigo esperando o segundo toque em "Remover"
 var _lista_t := 0.0
 var _ativar_ia := false # mostrando os 2 passos de "Ativar conversa com IA" (André 2026-11-10)
 var _rolar_y := 0 # a janela Multijogador refaz a cada 1 s: a lista não volta para o topo
+var esquecido_ate := 0.0 # história v2 (luta da Vesper, fase 2): a Névoa faz o time esquecer de você e os nomes somem
 
 func _init(principal) -> void:
 	m = principal
@@ -133,6 +134,8 @@ func _desenhar_barras() -> void:
 		_caixa(Rect2(p, tam), 10, Color(0.08, 0.07, 0.06, 0.72))
 		_caixa(Rect2(p, tam), 10, Color(COR_TIME, 0.5) if not morto else Color(0.5, 0.3, 0.3, 0.6), 1)
 		var nome := str(t.get("nome", ""))
+		if m.tempo < esquecido_ate:
+			nome = "· · ·"
 		var cab := "%s%s  Nv %d" % ["★ " if str(t.id) == lider else "", nome, int(t.get("nivel", 1))]
 		_barras.draw_string_outline(f, p + Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, 3, Color(0, 0, 0, 0.7))
 		_barras.draw_string(f, p + Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, COR_TIME if not morto else Color(0.75, 0.6, 0.6))

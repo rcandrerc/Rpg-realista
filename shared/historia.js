@@ -65,6 +65,11 @@ export const capituloDe = (M) => CAPITULOS.find((c) => c.n === M?.cap) || null;
 export const primeiraDoCap = (i) => !!HISTORIA[i] && (i === 0 || HISTORIA[i - 1].cap !== HISTORIA[i].cap);
 export const ultimaDoCap = (i) => !!HISTORIA[i] && (i === HISTORIA.length - 1 || HISTORIA[i + 1].cap !== HISTORIA[i].cap);
 // o capítulo n já terminou para quem já entregou p missões?
+// NPC que só aparece a partir da última etapa da missão id (o Kael em Aurora: na missão "Kael" a gente vai falar com ele lá)
+export function npcApareceu(p, id) {
+  const i = HISTORIA.findIndex((M) => M.id === id), h = p?.hist || {};
+  return i < 0 || (h.p || 0) > i || ((h.p || 0) === i && h.ac === true && (h.e || 0) >= etapasDe(HISTORIA[i]).length - 1);
+}
 export const capFeito = (n, p) => HISTORIA.slice(0, p).some((M) => M.cap === n) && !HISTORIA.slice(p).some((M) => M.cap === n);
 // a missão que libera cada zona ou recurso
 export const QUEM_LIBERA = {};

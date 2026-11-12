@@ -2,6 +2,8 @@
 // começo ao fim por um herói novo, as etapas, os chefes com nome, as pistas, a noite, o barquinho, os presentes, os
 // cartões de capítulo, os rumores e a conta da história antiga migrando. Uso: node ferramentas/testes/historia.mjs
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CAPITULOS, CHEFES_HISTORIA, CACA, ITENS, CENAS, xpProximo } from '../../shared/index.js';
+import { TOTENS, TUNEIS_MUNDO } from '../../shared/dados.js';
+import { noTunel } from '../../shared/caverna.js';
 import { progressoValido, contar, guardar } from '../../shared/progresso.js';
 import { etapasDe, liberado, zonaFechadaEm, histValida, historiaParaApp } from '../../shared/historia.js';
 import { noLago } from '../../shared/relevo.js';
@@ -61,7 +63,7 @@ const p = j.prog, h = () => p.hist;
 let ev = [];
 const correr = (seg) => { for (let t = 0; t < seg / 0.05; t++) ev.push(...s.passo(0.05)); };
 const avisos = () => ev.filter((e) => e.t === 'aviso' && e.para === 'A').map((e) => e.texto).join(' | ');
-const ir = (x, z, y) => Object.assign(j, { x, z, y: y ?? s.terreno.altura(x, z), cliente: null, orcT: null });
+const ir = (x, z, y) => Object.assign(j, { x, z, y: y ?? s.terreno.altura(x, z), cliente: null, orcT: null, cenaAte: 0 }); // ir = o tempo passou (a cena de antes acabou)
 const falar = (id) => { const n = npc(id); ir(n.x + 1, n.z); s.falar('A', { npc: id, missao: true }); correr(0.1); };
 const missao = () => HISTORIA[h().p]?.id;
 const etapa = () => etapasDe(HISTORIA[h().p])[h().e];
@@ -251,7 +253,191 @@ ok(!s.inimigos.some((e) => e.hc === 'kael'), 'o corpo do Kael sumiu');
 ok(etapa().ev === 'pos', 'duelo conta como vencido');
 ir(196, 202); correr(0.6); falar('reset'); fim('b11');
 ok(s.histInfo(j).titulo === 'Sentinela da Ordem' && contar(p.mochila, 'peitoral') >= 1, 'título do ato e o peitoral Raro +5');
-ok(missao() === 'h9', 'depois do Ato II vem o capítulo 9');
+ok(missao() === 'c1', 'depois do Ato II vem o capítulo 9 (A cidade da ponte)');
+
+// ---------- Atos III e IV (Entrega 4: capítulos 9 a 13) ----------
+const chaoGruta = (id, x, z) => noTunel(TUNEIS_MUNDO.find((C) => C.id === id), x, z)?.y; // o chão do túnel (o terreno dá o topo do morro)
+const totem = (id) => TOTENS.lista.find((t) => t.id === id);
+const tocar = (id) => { const t = totem(id); ir(t.x + 2, t.z); s.tocarTotem(j, t); correr(0.6); };
+const viajar = (id) => { s.chegarNoTotem(j, totem(id)); correr(0.1); };
+const matarEm = (id, n, tipo) => { const ci = s.cacas.findIndex((c) => c.def.id === id); for (let k = 0; k < n; k++) s.contarHistoria(j, { tipo: tipo || s.cacas[ci].def.tipos[0], sp: { caca: ci } }); };
+const entregar = (k, npcId, de, n = 1) => { for (let q = 0; q < n; q++) s.historia(j, 'pack', { k, npc: npcId, de }); };
+p.ouro += 200000;
+// Capítulo 9
+subir(33); falar('andarilho'); ok(missao() === 'c1' && ev.some((e) => e.t === 'capitulo' && e.fase === 'abre' && e.n === 9), 'Bento: a cidade da ponte (Capítulo 9)');
+s.montar('A'); correr(0.1); ok(etapa().ev === 'totem', 'montou no lobo'); j.montado = null;
+ok(alvoOk(), 'Ir leva ao totem do Rio Claro');
+tocar('rio_claro'); ok(etapa().npc === 'v_heitor', 'tocou o totem do Rio Claro');
+falar('v_heitor'); viajar('rio_claro'); ok(etapa().ev === 'viajar' && etapa().k === 'clareira', 'viajar para o lugar errado não conta');
+viajar('clareira'); viajar('rio_claro'); ok(etapa().npc === 'alquimista', 'foi e voltou de totem');
+falar('alquimista'); falar('andarilho'); fim('c1');
+falar('v_otavio'); ok(missao() === 'c2', 'Otávio: a Casa do Comércio');
+{ const o = npc('v_otavio'); ir(o.x + 1, o.z); dar('lenha', 3); const iv = p.mochila.findIndex((x) => x?.k === 'lenha');
+  s.leilaoMsg('A', { acao: 'anunciar', i: iv, n: 1, preco: 50, horas: 24 }); correr(0.1); ok(h().e === 1, 'anunciou no leilão | ' + avisos());
+  const casa = s.leilao.casa[0]; s.leilaoMsg('A', { acao: 'comprar', id: casa.id }); correr(0.1); ok(h().e === 2, 'comprou da casa | ' + avisos());
+  const meu = s.leilao.meus(j.conta)[0]; ok(!!meu, 'o anúncio está lá');
+  const C = s.adicionarJogador('C2', 'Caio'); C.prog.ouro = 1000; Object.assign(C, { x: o.x + 1.5, z: o.z, y: j.y });
+  s.leilaoMsg('C2', { acao: 'comprar', id: meu.id }); correr(0.1);
+  s.leilaoMsg('A', { acao: 'retirar' }); correr(0.1); }
+falar('v_otavio'); fim('c2');
+subir(35); falar('m_abobora'); ok(missao() === 'c3' && contar(p.mochila, 'semente_abobora') >= 2, 'Abel deu as sementes');
+for (const k of ['abobora', 'milho', 'rabanete']) s.historia(j, 'plantar', { k });
+s.historia(j, 'criar', { k: 'pao_milho', n: 2 }); s.historia(j, 'pack_fez', { k: 'abobora' }); s.historia(j, 'pack_fez', { k: 'abobora' });
+p.carrinho = { lv: 3, vida: 600, comb: 0, packs: [] }; correr(0.6); ok(etapa().ev === 'pack', 'carrinho já no Nv 3');
+entregar('abobora', 'm_pedra', 'costas'); ok(h().n === 0, 'pack nas costas não vale');
+entregar('abobora', 'm_pedra', 'carrinho', 2); falar('m_abobora'); fim('c3');
+subir(36); falar('v_heitor'); ok(missao() === 'c4', 'Heitor: o rio cinza');
+s.historia(j, 'pesca', { k: 'tilapia', n: 3 }); chefe('tecela'); falar('v_heitor'); fim('c4');
+subir(38); falar('m_abobora'); ok(missao() === 'h9', 'A serra fechada');
+matarEm('c_v3', 8); chefe('pedra_viva'); falar('m_abobora'); fim('h9');
+ok(liberado(p, 'B2') && contar(p.mochila, 'runa_rara') >= 1, 'o norte abriu e a runa de presente');
+// Capítulo 10
+subir(40); ok(ev.some((e) => e.t === 'rumor' && e.quem === 'Dario'), 'rumor do Dario');
+falar('v_ursula'); ok(missao() === 'c5', 'Úrsula: a canção da serra');
+tocar('pouso_serra'); correr(0.6); ok(etapa().ev === 'matar', 'totem do Pouso tocado e o time ainda junto');
+matarEm('c_v7', 8);
+for (const [x, z] of etapa().pontos) { ok(!zonaFechadaEm(p, x, z) && !noLago(x, z), `pingente em (${x}, ${z}) fora da névoa e da água`); ir(x, z); correr(0.6); }
+falar('v_ursula'); fim('c5');
+subir(42); falar('v_ursula'); ok(missao() === 'c6', 'a gruta que canta'); correr(0.6);
+matarEm('cav_serra_norte', 4);
+chefe('kael2'); ok(ev.some((e) => e.t === 'aviso' && /quebra o selo assim mesmo/.test(e.texto)), 'Kael foge de novo');
+const selo2 = etapa(); ok(selo2.ev === 'pos' && selo2.ate, 'falta tocar os pedaços do selo');
+ir(selo2.pos[0], selo2.pos[1], 40); correr(0.6); ok(etapa() === selo2, 'em cima do morro não vale');
+ir(selo2.pos[0], selo2.pos[1], chaoGruta('cav_serra_norte', selo2.pos[0], selo2.pos[1])); correr(0.6); ok(etapa().ev === 'falar', `tocou o selo no chão da gruta (y ${j.y.toFixed(1)}) | ` + avisos());
+ok(ev.some((e) => e.t === 'cena' && e.id === 'memoria3'), 'memória 3');
+falar('v_ursula'); fim('c6');
+falar('v_iara'); ok(missao() === 'c7', 'Iara: lutar diferente');
+s.distribuirAtributo('A', 'for'); { const o = npc('v_iara'); ir(o.x + 1, o.z); const ouro0 = p.ouro; s.resetarBuild('A'); correr(0.1);
+  ok(h().e === 1 && p.ouro === ouro0, 'resetou de graça com a Iara | ' + avisos()); }
+s.distribuirAtributo('A', 'for'); s.definirBarra('A', { barra: 'espada', lista: p.barras.espada }); matarEm('c_v8', 6);
+falar('v_iara'); fim('c7');
+{ const o = npc('v_iara'); ir(o.x + 1, o.z); const ouro0 = p.ouro; s.resetarBuild('A'); ok(p.ouro < ouro0, 'depois da missão o reset cobra'); }
+falar('m_metal'); ok(missao() === 'h10', 'Malaquias: a ponte dos Juncos');
+dar('lenha', 40); dar('barra_ferro', 6); dar('barra_aco', 2); falar('m_metal'); falar('m_metal'); fim('h10'); ok(liberado(p, 'B3'), 'o leste abriu');
+subir(43); falar('alquimista'); ok(missao() === 'c8', 'Mirela: a tinta das runas');
+s.historia(j, 'sintetizar', { k: 'catalisador_raro' }); falar('alquimista'); fim('c8');
+// Capítulo 11
+subir(45); falar('v_tiao'); ok(missao() === 'c9', 'Tião: três pedras');
+tocar('juncos'); viajar('rio_claro'); viajar('juncos'); ok(etapa().ev === 'pesca', 'duas viagens de totem');
+s.historia(j, 'pesca', { k: 'traira', n: 2 }); falar('v_tiao'); fim('c9');
+subir(47); falar('lider'); matarEm('c_v9', 3); matarEm('c_v6', 3); falar('lider'); fim('c10');
+subir(48); falar('lider'); ok(missao() === 'h11' && !liberado(p, 'B4'), 'O Porto esquecido: o sul ainda fechado');
+chefe('maira'); ok(liberado(p, 'B4'), 'Maíra caiu: o sul abre na etapa');
+falar('v_odete'); fim('h11');
+subir(49); falar('m_conserva'); ok(missao() === 'c11', 'Dona Marta: conservas');
+s.historia(j, 'plantar', { k: 'batata' }); s.historia(j, 'plantar', { k: 'milho' });
+for (let k = 0; k < 4; k++) s.historia(j, 'pack_fez', { k: 'conserva' });
+entregar('conserva', 'm_abobora', 'carrinho', 4); falar('m_conserva'); fim('c11');
+ok(s.histInfo(j).titulo === 'Voz das Estradas' && contar(p.mochila, 'selo_epico') >= 1, 'título Voz das Estradas e o Selo Épico');
+// Capítulo 12
+subir(50); p.dia = { h: 12, t: Date.now() }; falar('m_conserva'); ok(missao() === 'c12', 'a gruta dos Juncos'); correr(0.6); ok(h().e === 0, 'de dia espera');
+p.dia = { h: 21, t: Date.now() }; correr(0.6); matarEm('cav_juncos', 8); chefe('bocarra'); falar('m_conserva'); fim('c12');
+falar('reset'); ok(missao() === 'h12', 'Mestre Ivo: segurar o selo');
+const fundo = etapa(); ir(fundo.pos[0], fundo.pos[1], chaoGruta('cav_juncos', fundo.pos[0], fundo.pos[1])); correr(0.6); ok(etapa().ev === 'matar', `chegou no selo do mar (y ${j.y.toFixed(1)})`);
+matarEm('cav_juncos', 10); correr(0.6); correr(0.6); ok(etapa().ev === 'falar', 'aguentou as ondas ao lado do selo e encostou a marca'); ok(ev.some((e) => e.t === 'cena' && e.id === 'memoria4'), 'memória 4'); falar('reset'); fim('h12');
+ok(liberado(p, 'C'), 'a Ilha do Meio abriu');
+subir(52); falar('v_odete'); ok(missao() === 'c13', 'Odete: a travessia');
+const cais = etapa(); ir(cais.pos[0], cais.pos[1]); correr(0.6); ok(etapa() === cais, 'sem barco não vale');
+j.veiculo = 'barquinho'; correr(0.6); ok(etapa().ev === 'pesca', 'barquinho no Cais de Vael');
+s.historia(j, 'pesca', { k: 'sardinha', n: 2 }); const ilha = etapa(); ir(ilha.pos[0], ilha.pos[1]); correr(0.6); j.veiculo = null;
+ok(etapa().npc === 'm_perola', 'remou até o Cais Norte da Ilha'); falar('m_perola'); fim('c13');
+// Capítulo 13
+subir(54); falar('v_coral'); ok(missao() === 'c14', 'Avó Coral: pérolas');
+tocar('ilha'); ok(alvoOk(), 'Ir leva a um veio de cristal');
+s.historia(j, 'item', { k: 'cristal', n: 2, de: 'coleta' }); s.historia(j, 'pesca', { k: 'traira', n: 3 }); s.historia(j, 'pack_fez', { k: 'perola' });
+falar('v_coral'); fim('c14');
+subir(60); falar('v_odete'); ok(missao() === 'c15', 'Odete: o navio');
+p.navio = { porao: [], chao: { x: 101, z: 454 } }; correr(0.6); ok(etapa().ev === 'pos' && etapa().navio, 'já tinha o navio (na água)');
+const c1 = etapa(); ir(c1.pos[0], c1.pos[1]); j.veiculo = 'barquinho'; correr(0.6); ok(etapa() === c1, 'de barquinho não vale');
+j.veiculo = 'navio'; correr(0.6); const c2 = etapa(); ir(c2.pos[0], c2.pos[1]); correr(0.6); j.veiculo = null;
+falar('v_odete'); fim('c15');
+subir(62); falar('m_perola'); ok(missao() === 'c16', 'Maré: quem te carregou'); correr(0.6);
+matarEm('cav_ilha', 4); chefe('kael3'); ok(ev.some((e) => e.t === 'aviso' && /insígnia/.test(e.texto)), 'Kael foge e deixa a insígnia');
+const selo3 = etapa(); ir(selo3.pos[0], selo3.pos[1], chaoGruta('cav_ilha', selo3.pos[0], selo3.pos[1])); correr(0.6); ok(etapa().npc === 'reset', `tocou o selo da ilha (y ${j.y.toFixed(1)})`);
+ok(ev.some((e) => e.t === 'cena' && e.id === 'memoria5'), 'memória 5');
+falar('reset'); falar('m_perola'); fim('c16');
+subir(64); falar('m_perola'); ok(missao() === 'h13' && !liberado(p, 'D1'), 'A outra margem');
+matarEm('c_i3', 5); matarEm('c_i4', 5); chefe('abissal'); ok(liberado(p, 'D1'), 'Abissal caiu: a costa de Aurora abre');
+s.historia(j, 'pack_fez', { k: 'perola' }); s.historia(j, 'pack_fez', { k: 'perola' });
+entregar('perola', 'm_ervas', 'carrinho'); ok(h().n === 0, 'pérola de carrinho não vale (é no porão)');
+entregar('perola', 'm_ervas', 'porao', 2); p.mochila.fill(null, 20); // mochila com lugar para o presente
+falar('m_ervas');
+ok(ev.some((e) => e.t === 'capitulo' && e.fase === 'fecha' && e.n === 13), 'cartão do fim do Capítulo 13'); fim('h13');
+ok(s.histInfo(j).titulo === 'Vento do Mar' && contar(p.mochila, 'selo_lendario') >= 1, `título Vento do Mar e o Selo Lendário (${s.histInfo(j).titulo}, ${contar(p.mochila, 'selo_lendario')}, ${p.mochila.filter(Boolean).length}/${p.mochila.length})`);
+ok(missao() === 'e1', 'depois do Ato IV vem o capítulo 14 (A cidade que esqueceu)');
+
+// ---------- Ato V e o final (Entrega 5: capítulos 14 a 16, Nv 68 a 100) ----------
+// Capítulo 14
+subir(68); p.dia = { h: 12, t: Date.now() }; falar('m_ervas'); ok(missao() === 'e1' && ev.some((e) => e.t === 'capitulo' && e.fase === 'abre' && e.n === 14), 'Sálvio: a cidade que esqueceu (Capítulo 14)');
+tocar('aurora'); ok(etapa().ev === 'noite', 'totem de Aurora tocado: espera a noite');
+p.dia = { h: 22, t: Date.now() }; correr(0.6);
+for (const [x, z] of etapa().pontos) { ok(!zonaFechadaEm(p, x, z) && !noLago(x, z), `eco em (${x}, ${z}) fora da névoa e da água`); ir(x, z); correr(0.6); }
+ok(/Vesper/.test(avisos()), 'a carta da Vesper');
+falar('v_elara'); falar('m_obsid'); fim('e1');
+ok(!!npc('v_kael'), 'o Kael está na lista de NPCs de Aurora');
+{ const k = npc('v_kael'); ir(k.x + 1, k.z); ev = []; s.falar('A', { npc: 'v_kael' }); correr(0.1); ok(!ev.some((e) => e.t === 'fala' && e.npc === 'v_kael'), 'antes da missão o Kael não está em Aurora'); }
+subir(72); falar('v_elara'); ok(missao() === 'e2', 'Elara: a casa da avó');
+const casa = etapa(); ok(!zonaFechadaEm(p, casa.pos[0], casa.pos[1]) && !noLago(casa.pos[0], casa.pos[1]), 'a casa da avó fora da névoa e da água'); ir(casa.pos[0], casa.pos[1]); correr(0.6);
+s.historia(j, 'criar', { k: 'obra_parede', n: 3 }); s.historia(j, 'criar', { k: 'obra_janela' }); dar('obra_parede', 3); dar('obra_janela', 1);
+falar('v_elara'); fim('e2'); ok(p.mochila.some((o) => o?.k === 'colar' && o.r === 2), 'Colar de Estrela Épico');
+subir(76); falar('alquimista'); ok(missao() === 'e3', 'Mirela: o Catalisador da Memória');
+s.historia(j, 'pack_fez', { k: 'obsid' }); s.historia(j, 'pack_fez', { k: 'ervas' });
+entregar('obsid', 'm_abobora', 'carrinho'); entregar('ervas', 'm_abobora', 'carrinho'); dar('cristal', 6); dar('barra_aco', 2);
+falar('alquimista'); fim('e3'); ok(contar(p.mochila, 'catalisador_memoria') === 1, 'Catalisador da Memória na mochila');
+subir(80); falar('v_elara'); ok(missao() === 'h14' && !liberado(p, 'D2'), 'Kael: o leste ainda fechado'); correr(0.6);
+ok(etapa().ev === 'matar', 'com o catalisador e o time, entra na gruta');
+matarEm('cav_aurora', 4); chefe('kael4'); ok(ev.some((e) => e.t === 'aviso' && /Dario\?/.test(e.texto)), 'o catalisador: "Dario?"');
+const selo6 = etapa(); ir(selo6.pos[0], selo6.pos[1], chaoGruta('cav_aurora', selo6.pos[0], selo6.pos[1])); correr(0.6);
+ok(etapa().npc === 'v_kael' && liberado(p, 'D2'), `segurou o selo com o Kael e o leste abriu (y ${j.y.toFixed(1)})`);
+ok(ev.some((e) => e.t === 'cena' && e.id === 'memoria6'), 'memória 6');
+falar('v_kael'); fim('h14'); ok(contar(p.mochila, 'catalisador_memoria') === 0 && p.mochila.some((o) => o?.k === 'espada' && o.r === 1 && o.e === 10), 'o Kael pegou o catalisador e deu a espada Rara +10');
+// Capítulo 15
+subir(84); ok(ev.some((e) => e.t === 'rumor' && e.quem === 'Kael'), 'rumor do Kael');
+falar('m_brasa'); ok(missao() === 'e4', 'Fagulha: brasa viva');
+falar('v_bras'); tocar('posto_leste'); s.historia(j, 'pack_fez', { k: 'brasa' }); s.historia(j, 'pack_fez', { k: 'brasa' });
+entregar('brasa', 'm_pedra', 'carrinho', 2); falar('m_brasa'); fim('e4');
+subir(88); falar('ferreiro'); ok(missao() === 'e5', 'Tomás: a estrela na lâmina');
+p.equip.espada = { k: 'espada', r: 2, e: 0 }; correr(0.6); ok(etapa().ev === 'arma', 'arma Épica não vale');
+p.equip.espada = { k: 'espada', r: 3, e: 4 }; correr(0.6); ok(etapa().ev === 'falar', 'arma Lendária equipada');
+dar('barra_aco', 10); dar('cristal', 10); falar('ferreiro'); falar('ferreiro'); fim('e5'); ok(p.equip.espada.e === 5, 'a estrela gravada: +1 de reforço');
+subir(92); falar('v_kael'); ok(missao() === 'e6', 'Kael: o Véu');
+matarEm('c_a7', 10); chefe('arauto');
+{ const a = etapa(); ok(a.ev === 'pos' && !j.morto, `falta subir o morro (morto ${j.morto}, arauto vivo ${s.inimigos.some((e) => e.hc === 'arauto' && !e.morto)})`); ir(a.pos[0], a.pos[1]); correr(0.6); ok(etapa().marca && ev.some((e) => e.t === 'cena' && e.id === 'vesper_veu'), `no alto do Morro do Véu (y ${j.y.toFixed(1)}): a Vesper aparece`);
+  correr(0.6); ok(etapa().marca && !ev.some((e) => e.t === 'cena' && e.id === 'memoria7'), 'durante a cena da Vesper a etapa seguinte espera');
+  correr(j.cenaAte - s.tempo + 0.6); ok(etapa().npc === 'v_kael' && ev.some((e) => e.t === 'cena' && e.id === 'memoria7'), 'memória 7: a verdade'); }
+falar('v_kael'); fim('e6');
+subir(95); falar('reset'); ok(missao() === 'h15', 'Mestre Ivo: a bênção da Ordem');
+s.historia(j, 'pesca', { k: 'garoupa' }); s.historia(j, 'pesca', { k: 'atum' }); dar('garoupa', 1); dar('atum', 1); falar('curandeira');
+matarEm('c_a8', 12); falar('reset'); fim('h15'); ok(liberado(p, 'D3') && s.histInfo(j).titulo === 'Luz de Aurora', 'o Pico abriu e o título Luz de Aurora');
+// Final
+subir(98); falar('lider'); ok(missao() === 'f1' && ev.some((e) => e.t === 'capitulo' && e.fase === 'abre' && e.n === 16), 'Aldo: todos juntos (o final)');
+for (const n of ['ferreiro', 'curandeira', 'andarilho', 'comerciante', 'guardiao', 'alquimista']) falar(n);
+correr(0.6); ok(etapa().ev === 'totem', 'despediu de todos e o time está junto');
+tocar('ultimo_pouso'); falar('v_celeste'); p.mochila.fill(null, 10); falar('lider'); fim('f1');
+subir(100); falar('v_rui'); ok(missao() === 'f2', 'Rui: a Gruta da Névoa');
+matarEm('cav_nevoa', 6);
+{ const C = CHEFES_HISTORIA.sentinela, c = CACA.find((o) => o.id === C.campo); ir(c.x, c.z, c.y); correr(0.6);
+  const b = s.inimigos.find((e) => e.hc === 'sentinela' && !e.morto); ok(!!b && b.hcSk, 'o Sentinela de Cristal apareceu com golpes');
+  const vm = j.vidaMax; j.vidaMax = j.vida = 1e9; // o teste não quer morrer: só ver os golpes
+  for (let k = 0; k < 12; k++) { ir(b.x + 1, b.z, b.y); correr(0.5); } // no túnel o teste segura o herói no chão dele
+  ok(ev.some((e) => e.t === 'bossSkill' && e.id === b.id), 'o Sentinela lança golpe com aviso no chão');
+  ok(!j.morto, 'o herói segue de pé'); ir(b.x + 1, b.z, b.y); b.atacantes = new Set(['A']); s.ferir(b, 1e9, j); correr(0.1); j.vidaMax = j.vida = vm; }
+falar('v_rui'); fim('f2');
+falar('v_rui'); ok(missao() === 'f3', 'Rui: Vesper');
+{ const C = CHEFES_HISTORIA.vesper, c = CACA.find((o) => o.id === C.campo), vm = j.vidaMax; j.vidaMax = j.vida = 1e9; ir(c.x, c.z, c.y); correr(0.6);
+  const b = s.inimigos.find((e) => e.hc === 'vesper' && !e.morto); ok(!!b && b.nome === C.nome, 'a Vesper apareceu no Coração');
+  const D = s.adicionarJogador('D', 'Dani'); D.bot = true; Object.assign(D, { x: j.x + 1, z: j.z, y: j.y }); j.time = { lider: 'A', membros: ['A', 'D'] }; D.time = j.time;
+  b.vida = Math.round(b.vidaMax * 0.55); ev = []; correr(0.6);
+  ok(ev.some((e) => e.t === 'esquecer' && e.para === 'A' && e.ids.includes('D')) && (D.presoAte || 0) > s.tempo, 'fase 2: a Névoa faz o time esquecer (o amigo para)');
+  correr(8.5); ok(ev.some((e) => e.t === 'aviso' && /Eu prometi que ia lembrar/.test(e.texto)), 'a Cecília lembra primeiro');
+  const esc0 = b.esc; b.vida = Math.round(b.vidaMax * 0.2); correr(0.6); ok(b.esc > esc0 && ev.some((e) => e.t === 'aviso' && /se funde ao Coração/.test(e.texto)), 'fase 3: a Vesper se funde ao Coração e cresce');
+  ir(b.x + 1, b.z, b.y); b.atacantes = new Set(['A']); s.ferir(b, 1e9, j); correr(0.1); j.vidaMax = j.vida = vm; }
+const coracao = etapa(); ir(coracao.pos[0], coracao.pos[1], chaoGruta('cav_nevoa', coracao.pos[0], coracao.pos[1])); correr(0.6);
+ok(etapa().npc === 'reset' && ev.some((e) => e.t === 'cena' && e.id === 'final'), 'encostou a marca no Coração: a cena final');
+p.mochila.fill(null, 10); falar('reset');
+ok(ev.some((e) => e.t === 'capitulo' && e.fase === 'fecha' && e.n === 16), 'cartão do fim'); fim('f3');
+ok(liberado(p, 'fim') && s.histInfo(j) === null, 'a história acabou: o céu limpa');
+ok(contar(p.mochila, 'runa_mitica') === 1 && contar(p.mochila, 'selo_mitico') === 1, 'Runa Mítica e Selo Mítico de presente');
 
 // ---------- conta antiga ----------
 const idx = (id) => HISTORIA.findIndex((M) => M.id === id);
@@ -267,3 +453,12 @@ ok(histValida({ p: 0, ac: true, n: 2 }, 1).p === 0 && histValida({ p: 0, ac: tru
 ok(progressoValido({ nivel: 100, mochila: [] }).hist.p === HISTORIA.length, 'conta sem hist no Nv 100: tudo feito');
 
 function tirarTudo(k) { p.mochila.forEach((o, i) => { if (o?.k === k) p.mochila[i] = null; }); }
+{ // "Ir" para a gruta: de fora vai até a boca; lá dentro vai até o ponto
+  const s2 = new Simulacao(MAPA_CLAREIRA), j2 = s2.adicionarJogador('G', 'Gil'); const M = HISTORIA.find((o) => o.id === 'c16');
+  Object.assign(j2.prog, { nivel: 62 }); j2.prog.hist = { ...j2.prog.hist, p: HISTORIA.indexOf(M), ac: true, e: 3, n: 0, m: 0 };
+  const T = TUNEIS_MUNDO.find((C) => C.id === 'cav_ilha');
+  Object.assign(j2, { x: 0, z: 0, y: 0 }); const fora = s2.histInfo(j2).alvo;
+  ok(fora && /entrada da Gruta da Ilha/.test(fora.nome) && Math.hypot(fora.x - T.def.linha[0][0], fora.z - T.def.linha[0][1]) < 0.1, `de fora, Ir leva à boca da gruta (${fora?.nome})`);
+  const pe = M.etapas[3].pos; Object.assign(j2, { x: pe[0], z: pe[1] + 0.5, y: noTunel(T, pe[0], pe[1] + 0.5)?.y ?? 0 });
+  const dentro = s2.histInfo(j2).alvo; ok(dentro && Math.hypot(dentro.x - pe[0], dentro.z - pe[1]) < 0.1, 'dentro do túnel, Ir leva ao selo');
+}

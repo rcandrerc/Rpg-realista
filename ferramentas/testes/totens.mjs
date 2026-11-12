@@ -9,7 +9,7 @@ const j = s.adicionarJogador('A', 'Ana');
 const T = (id) => TOTENS.lista.find((t) => t.id === id);
 const correr = (seg) => { const ev = []; for (let t = 0; t < seg / 0.05; t++) ev.push(...s.passo(0.05)); return ev; };
 const avisos = (ev) => ev.filter((e) => e.t === 'aviso' && e.para === 'A').map((e) => e.texto).join(' | ');
-ok(TOTENS.lista.length === 7, '7 totens');
+ok(TOTENS.lista.length === 9, '9 totens (Entrega 3: Pouso da Serra e Último Pouso)');
 ok(taxaTotem(T('clareira')) === 50 && taxaTotem(T('rio_claro')) === 350 && taxaTotem(T('aurora')) === 1000, 'taxas da proposta');
 // todos em terra firme, fora dos campos de caça e sem árvore em cima
 for (const t of TOTENS.lista) {

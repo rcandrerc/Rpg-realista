@@ -609,8 +609,11 @@ func _estacoes_publicas() -> void:
 		var n := _copia(p.k)
 		n.name = "Publica_" + p.id
 		add_child(n)
-		n.position = Vector3(p.x, _chao_publica(p.x, p.z), p.z)
+		n.position = Vector3(p.x, float(e.y) if e.has("y") else _chao_publica(p.x, p.z), p.z)
 		n.rotation.y = p.ry
+		if e.has("vila"): # as das mini vilas do mundo grande (história v2): só desenha de perto
+			for g in n.find_children("*", "GeometryInstance3D", true, false):
+				(g as GeometryInstance3D).visibility_range_end = 90.0
 
 # chão da estação pública: o piso de pedra da ferraria conta, o telhado dela não (_chao pegaria o alto do telhado)
 func _chao_publica(x: float, z: float) -> float:

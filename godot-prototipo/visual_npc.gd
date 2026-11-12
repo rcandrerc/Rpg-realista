@@ -40,7 +40,8 @@ static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
 	if info is Dictionary and info.get("anciao", false):
 		_corpo_de_anciao(esq)
 		_barba(no, esq, info)
-	if npc_id != "ferreiro":
+	# o Tomás e os ferreiros das mini vilas do mundo grande (história v2: "oficio" em shared/dados.js ferreiroDe)
+	if npc_id != "ferreiro" and not (info is Dictionary and info.get("oficio", false)):
 		return
 	_corpo_de_ferreiro(esq)
 	_avental(esq)

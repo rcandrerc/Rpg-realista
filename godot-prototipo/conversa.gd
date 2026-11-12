@@ -25,6 +25,7 @@ const ACOES := {
 	"passe": ["Fazer passe da caverna", "it_passe_caverna"], # Gaspar, na boca da Caverna da Montanha (2026-11-06)
 	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
 	"alquimia": ["Sintetizar catalisador", "it_selo_epico"], # Mirela, a alquimista (André 2026-11-09)
+	"leilao": ["Leilão (comprar e vender)", "negociar"], # Otávio, na Casa do Comércio do Rio Claro (história v2, Entrega 3)
 	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
 	"amiga_casa": ["Como vai a casa?", "lote"],
 	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
@@ -448,6 +449,11 @@ func escolher(a: String) -> void:
 			await get_tree().create_timer(0.5).timeout
 			if npc == n:
 				escolher("pack")
+		"leilao": # Otávio: a janela da Casa do Comércio abre quando o servidor responde (leilao_ui.gd)
+			if not m.on():
+				fala_ui.text = "Sem conexão com o servidor o leilão fica fechado. Volte depois."
+			else:
+				m.leilao.pedir({"acao": "ver"})
 		"alquimia": # Mirela: a lista de sínteses (Selo e Runa, Épico e Lendário) no lugar das opções
 			_lista_alquimia(n)
 		"alquimia_volta": # depois de sintetizar, refaz a lista quando o servidor responde (mochila e ouro chegam depois)

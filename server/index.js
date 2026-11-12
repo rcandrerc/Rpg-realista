@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -19,7 +19,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
 const carga = { ms: 0, pico: 0 }; // tempo de cada passo da sala (média e pico), aparece em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
@@ -28,6 +28,8 @@ const historicoChat = { geral: [], amigos: [], pm: [], time: [] }; // pm: mensag
 // Contas só com Google. Sem Client ID o servidor aceita qualquer um sem conta (como antes).
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID;
 const contas = CLIENT_ID ? new Contas({ pasta: path.resolve(process.env.DADOS || 'dados'), verificar: verificadorGoogle(CLIENT_ID) }) : null;
+// a Casa do Comércio (shared/leilao.js; história v2, Entrega 3): um leilão só para todas as salas, guardado no banco
+const leilao = new Leilao(contas?.lerMundo('leilao'));
 // Páginas que podem pedir login a este servidor (o jogo no GitHub Pages e o "npm run dev")
 const ORIGENS = [/^https:\/\/rcandrerc\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/];
 
@@ -84,6 +86,10 @@ class SalaClareira extends Room {
     if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
     if (contas && salas.size === 1) this.npcsForaDoMundo(true); // primeira sala aberta: os aventureiros fora do mundo evoluem pelo tempo vazio
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
+    // leilão: o mesmo em todas as salas; mudou, grava. Vendeu: avisa o dono, esteja em que sala estiver
+    this.sim.leilao = leilao;
+    if (contas) this.sim.aoLeilao = (L) => contas.gravarMundo('leilao', L.estado());
+    this.sim.aoVendaLeilao = (conta, texto) => { for (const s of salas) { const v = s.sim.porConta(conta); if (v) s.sim.evento({ t: 'aviso', para: v.id, texto }); } };
     this.sim.aoAnuncio = (msg) => {
       const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
       for (const s of salas) s.sim.receberChat(msg);
@@ -99,6 +105,7 @@ class SalaClareira extends Room {
     this.ouvir('cancelar', (c) => this.sim.cancelarCanal(c.sessionId)); // andou no meio da magia concentrada
     this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
+    this.ouvir('leilao', (c, m) => this.sim.leilaoMsg(c.sessionId, m)); // Casa do Comércio (Otávio, Rio Claro)
     // troca entre jogadores com cadeado (shared/simulacao.js troca): pedir, aceitar, pôr item e ouro, trancar e confirmar
     this.ouvir('troca', (c, m) => {
       if (!m || typeof m.acao !== 'string' || m.acao.length > 12) return;

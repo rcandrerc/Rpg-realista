@@ -826,6 +826,13 @@
    "venda": 22,
    "desc": "Recupera 40% da vida, 40% da mana e 20 de vigor."
   },
+  "catalisador_memoria": {
+   "nome": "Catalisador da Memória",
+   "mat": true,
+   "pilha": 1,
+   "venda": 1,
+   "desc": "Feito pela Mirela com obsidiana, ervas e cristal de Aurora. Devolve a memória a quem a Névoa comeu. Só serve uma vez."
+  },
   "passe_caverna": {
    "nome": "Passe da Caverna",
    "mat": true,
@@ -2185,19 +2192,19 @@
    },
    {
     "id": "rio_claro",
-    "nome": "Ponte do Rio Claro",
+    "nome": "Vila do Rio Claro",
     "nivel": 35,
     "faixa": "Nv 32-44",
-    "x": -261,
-    "z": 11
+    "x": -234,
+    "z": 85
    },
    {
     "id": "juncos",
-    "nome": "Ponte dos Juncos",
+    "nome": "Juncal",
     "nivel": 45,
     "faixa": "Nv 42-48",
-    "x": 564,
-    "z": 45
+    "x": 546,
+    "z": 43
    },
    {
     "id": "porto_vael",
@@ -2209,11 +2216,11 @@
    },
    {
     "id": "ilha",
-    "nome": "Ilha do Meio",
+    "nome": "Vila da Maré",
     "nivel": 60,
     "faixa": "Nv 50-65",
-    "x": 173,
-    "z": 663
+    "x": 241,
+    "z": 624
    },
    {
     "id": "aurora",
@@ -2225,11 +2232,27 @@
    },
    {
     "id": "posto_leste",
-    "nome": "Posto do Leste",
+    "nome": "Vila do Véu",
     "nivel": 88,
     "faixa": "Nv 82-95",
-    "x": 640,
-    "z": 1075
+    "x": 652,
+    "z": 1095
+   },
+   {
+    "id": "pouso_serra",
+    "nome": "Pouso da Serra",
+    "nivel": 38,
+    "faixa": "Nv 38-42",
+    "x": 4,
+    "z": -271
+   },
+   {
+    "id": "ultimo_pouso",
+    "nome": "Último Pouso",
+    "nivel": 95,
+    "faixa": "Nv 95-100",
+    "x": 222,
+    "z": 1328
    }
   ]
  },
@@ -20535,20 +20558,148 @@
     ]
    },
    {
+    "id": "c1",
+    "cap": 9,
+    "nv": 33,
+    "npc": "andarilho",
+    "npcNome": "Bento",
+    "nome": "A cidade da ponte",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 6,
+    "etapas": [
+     "Monte no Presa-de-Prata (botão do lobo)",
+     "Siga a estrada do oeste e toque o totem da Vila do Rio Claro",
+     "Fale com o Capitão Heitor, o chefe do Rio Claro",
+     "Use o totem para ir à Vila da Clareira",
+     "E volte pelo totem para o Rio Claro",
+     "Na praça, uma cara conhecida: fale com a Mirela"
+    ]
+   },
+   {
+    "id": "c2",
+    "cap": 9,
+    "nv": 33,
+    "npc": "v_otavio",
+    "npcNome": "Otávio",
+    "nome": "A Casa do Comércio",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Ponha um item seu à venda no leilão (Otávio > Leilão > Vender)",
+     "Compre um item no leilão (de outro jogador ou da casa)",
+     "Quando vender (ou vencer o prazo), retire com o Otávio",
+     "Volte e fale com Otávio"
+    ]
+   },
+   {
+    "id": "c3",
+    "cap": 9,
+    "nv": 35,
+    "npc": "m_abobora",
+    "npcNome": "Seu Abel",
+    "nome": "Doce para o norte",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 8,
+    "etapas": [
+     "Plante abóbora na horta",
+     "Plante milho",
+     "Plante rabanete",
+     "Asse 2 Pães de milho no fogão",
+     "Faça 2 Packs de Doce de Abóbora com o Seu Abel",
+     "Melhore o carrinho para o Nv 3 (perto de uma bancada)",
+     "Leve os 2 packs de carrinho até o Mestre Pedrão, na Clareira",
+     "Volte e fale com Seu Abel"
+    ]
+   },
+   {
+    "id": "c4",
+    "cap": 9,
+    "nv": 36,
+    "npc": "v_heitor",
+    "npcNome": "Capitão Heitor",
+    "nome": "O rio que esqueceu",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Pesque 3 tilápias no rio",
+     "Derrote a Velada Tecelã no campo Nv 35",
+     "Volte e fale com Capitão Heitor"
+    ]
+   },
+   {
     "id": "h9",
     "cap": 9,
     "nv": 38,
     "npc": "m_abobora",
     "npcNome": "Seu Abel",
-    "nome": "A trilha da serra",
+    "nome": "A serra fechada",
     "libera": [
      "B2"
     ],
     "liberaNaEtapa": -1,
-    "total": 2,
+    "total": 3,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
+     "Derrube 8 monstros no campo Nv 38",
+     "Derrote Pedra-Viva, o Golem da Serra",
      "Volte e fale com Seu Abel"
+    ]
+   },
+   {
+    "id": "c5",
+    "cap": 10,
+    "nv": 40,
+    "npc": "v_ursula",
+    "npcNome": "Úrsula",
+    "nome": "A canção da serra",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Toque o totem do Pouso da Serra",
+     "Chame o Dario (ou um jogador) para o time",
+     "Derrube 8 monstros no campo Nv 40",
+     "Procure o que brilha no campo Nv 40",
+     "Volte e fale com Úrsula"
+    ]
+   },
+   {
+    "id": "c6",
+    "cap": 10,
+    "nv": 42,
+    "npc": "v_ursula",
+    "npcNome": "Úrsula",
+    "nome": "A gruta que canta",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Monte o time (o Dario, a Cecília ou um amigo)",
+     "Entre na Gruta da Serra do Norte e abra caminho",
+     "Enfrente o homem que quebra o selo",
+     "Toque nos pedaços do selo, no fundo da gruta",
+     "Volte e fale com Úrsula"
+    ]
+   },
+   {
+    "id": "c7",
+    "cap": 10,
+    "nv": 42,
+    "npc": "v_iara",
+    "npcNome": "Mestra Iara",
+    "nome": "Lutar diferente",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Resete a build com a Mestra Iara (de graça desta vez)",
+     "Distribua os pontos de atributo de novo (menu do personagem)",
+     "Troque pelo menos 1 skill da barra",
+     "Derrube 6 monstros com a build nova",
+     "Volte e fale com Mestra Iara"
     ]
    },
    {
@@ -20562,10 +20713,56 @@
      "B3"
     ],
     "liberaNaEtapa": -1,
+    "total": 1,
+    "etapas": [
+     "Entregue 40 lenhas, 6 barras de ferro e 2 barras de aço ao Malaquias"
+    ]
+   },
+   {
+    "id": "c8",
+    "cap": 10,
+    "nv": 43,
+    "npc": "alquimista",
+    "npcNome": "Mirela",
+    "nome": "A tinta das runas",
+    "libera": [],
+    "liberaNaEtapa": -1,
     "total": 2,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Malaquias"
+     "Faça 1 síntese de catalisador com a Mirela",
+     "Volte e fale com Mirela"
+    ]
+   },
+   {
+    "id": "c9",
+    "cap": 11,
+    "nv": 45,
+    "npc": "v_tiao",
+    "npcNome": "Tião dos Juncos",
+    "nome": "Três pedras",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Toque o totem do Juncal",
+     "Viaje de totem: vá a outro e volte ao Juncal",
+     "Pesque 2 traíras",
+     "Volte e fale com Tião dos Juncos"
+    ]
+   },
+   {
+    "id": "c10",
+    "cap": 11,
+    "nv": 47,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "A carta pela estrada",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Emboscada no caminho: derrube 6 monstros nos campos Nv 47 e 48",
+     "Volte e fale com Aldo"
     ]
    },
    {
@@ -20574,32 +20771,139 @@
     "nv": 48,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "Carta para o Porto",
+    "nome": "O Porto esquecido",
     "libera": [
      "B4"
     ],
-    "liberaNaEtapa": -1,
+    "liberaNaEtapa": 1,
     "total": 2,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Aldo"
+     "Derrote Maíra, a Velada da Maré, no campo Nv 48",
+     "Entregue a carta à Capitã Odete, no Porto de Vael"
+    ]
+   },
+   {
+    "id": "c11",
+    "cap": 11,
+    "nv": 49,
+    "npc": "m_conserva",
+    "npcNome": "Dona Marta",
+    "nome": "Conservas para longe",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Plante batata",
+     "Plante milho",
+     "Faça 4 Packs de Conservas com a Dona Marta",
+     "Leve os 4 packs de carrinho até o Seu Abel",
+     "Volte e fale com Dona Marta"
+    ]
+   },
+   {
+    "id": "c12",
+    "cap": 12,
+    "nv": 50,
+    "npc": "m_conserva",
+    "npcNome": "Dona Marta",
+    "nome": "A gruta dos Juncos",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Espere a noite (19h às 5h)",
+     "Derrube 8 monstros do covil da Gruta dos Juncos",
+     "Derrote Bocarra, o Maw da Gruta",
+     "Volte e fale com Dona Marta"
     ]
    },
    {
     "id": "h12",
     "cap": 12,
     "nv": 50,
-    "npc": "m_conserva",
-    "npcNome": "Dona Marta",
-    "nome": "A travessia",
+    "npc": "reset",
+    "npcNome": "Mestre Ivo",
+    "nome": "Segurar o selo",
     "libera": [
      "C"
     ],
     "liberaNaEtapa": -1,
-    "total": 2,
+    "total": 4,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Dona Marta"
+     "Vá ao selo, no fundo da Gruta dos Juncos",
+     "Segure o selo: aguente as ondas de Velados",
+     "Encoste a marca no selo",
+     "Volte e fale com Mestre Ivo"
+    ]
+   },
+   {
+    "id": "c13",
+    "cap": 12,
+    "nv": 52,
+    "npc": "v_odete",
+    "npcNome": "Capitã Odete",
+    "nome": "A travessia",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Ponha o barquinho na água no Cais de Vael",
+     "Pesque 2 sardinhas num spot do mar",
+     "Reme até o Cais Norte da Ilha",
+     "Fale com a Maré, no cais da ilha"
+    ]
+   },
+   {
+    "id": "c14",
+    "cap": 13,
+    "nv": 54,
+    "npc": "v_coral",
+    "npcNome": "Avó Coral",
+    "nome": "Pérolas da Maré",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Toque o totem da Vila da Maré",
+     "Minere 2 cristais",
+     "Pesque 3 traíras na água doce do continente",
+     "Faça 1 Pack de Pérolas com a Maré",
+     "Volte e fale com Avó Coral"
+    ]
+   },
+   {
+    "id": "c15",
+    "cap": 13,
+    "nv": 60,
+    "npc": "v_odete",
+    "npcNome": "Capitã Odete",
+    "nome": "O navio da Ordem",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Crie o navio mercante na bancada (Nv 60)",
+     "Ponha o navio na água no Cais de Vael",
+     "Navegue e ancore no Cais Norte da Ilha",
+     "Volte e fale com Capitã Odete"
+    ]
+   },
+   {
+    "id": "c16",
+    "cap": 13,
+    "nv": 62,
+    "npc": "m_perola",
+    "npcNome": "Maré",
+    "nome": "Quem te carregou",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Monte o time (o Dario, a Cecília ou um amigo)",
+     "Entre na Gruta da Ilha e abra caminho",
+     "Enfrente o Kael no selo da ilha",
+     "Toque no selo da ilha",
+     "Mostre a insígnia que o Kael deixou cair ao Mestre Ivo"
     ]
    },
    {
@@ -20608,49 +20912,219 @@
     "nv": 64,
     "npc": "m_perola",
     "npcNome": "Maré",
-    "nome": "O cais de Aurora",
+    "nome": "A outra margem",
     "libera": [
      "D1"
     ],
-    "liberaNaEtapa": -1,
-    "total": 2,
+    "liberaNaEtapa": 2,
+    "total": 5,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Maré"
+     "Derrube 10 monstros nos campos Nv 60 e 64",
+     "Derrote Abissal, o Maw das Marés",
+     "Faça 2 Packs de Pérolas com a Maré",
+     "Leve os 2 packs no porão do navio até o Velho Sálvio, no Cais de Aurora",
+     "Fale com o Velho Sálvio"
+    ]
+   },
+   {
+    "id": "e1",
+    "cap": 14,
+    "nv": 68,
+    "npc": "m_ervas",
+    "npcNome": "Velho Sálvio",
+    "nome": "A cidade que esqueceu",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Toque o totem de Aurora",
+     "Espere a noite em Aurora (19h às 5h)",
+     "Examine os 3 ecos que brilham nas ruas de Aurora",
+     "Fale com a Guardiã Elara, na praça",
+     "Conheça o Ônix, que corta obsidiana na costa"
+    ]
+   },
+   {
+    "id": "e2",
+    "cap": 14,
+    "nv": 72,
+    "npc": "v_elara",
+    "npcNome": "Guardiã Elara",
+    "nome": "A casa da avó",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Ache a casa da avó da Cecília, no bairro do oeste de Aurora",
+     "Crie 3 paredes na bancada",
+     "Crie 1 janela na bancada",
+     "Leve as 3 paredes e a janela à Guardiã Elara"
+    ]
+   },
+   {
+    "id": "e3",
+    "cap": 14,
+    "nv": 76,
+    "npc": "alquimista",
+    "npcNome": "Mirela",
+    "nome": "O Catalisador da Memória",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Faça 1 Pack de Obsidiana com o Ônix",
+     "Faça 1 Pack de Ervas do Pântano com o Velho Sálvio",
+     "Leve o Pack de Obsidiana (navio e carrinho) até o Seu Abel",
+     "Leve o Pack de Ervas (navio e carrinho) até o Seu Abel",
+     "Leve 6 cristais e 2 barras de aço à Mirela para a síntese"
     ]
    },
    {
     "id": "h14",
     "cap": 14,
     "nv": 80,
-    "npc": "m_ervas",
-    "npcNome": "Velho Sálvio",
-    "nome": "A estrada do leste de Aurora",
+    "npc": "v_elara",
+    "npcNome": "Guardiã Elara",
+    "nome": "Kael",
     "libera": [
      "D2"
     ],
+    "liberaNaEtapa": 4,
+    "total": 6,
+    "etapas": [
+     "Leve o Catalisador da Memória na mochila",
+     "Chame o Dario (ou um jogador) para o time",
+     "Entre na Gruta da Serra de Aurora e abra caminho",
+     "O último duelo com o Kael: com pouca vida, use o Catalisador",
+     "Segure o selo do oeste junto com o Kael",
+     "Fale com o Kael na praça de Aurora"
+    ]
+   },
+   {
+    "id": "e4",
+    "cap": 15,
+    "nv": 84,
+    "npc": "m_brasa",
+    "npcNome": "Fagulha",
+    "nome": "Brasa viva",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Fale com o Brás, o vigia da Vila do Véu",
+     "Toque o totem da Vila do Véu",
+     "Faça 2 Packs de Brasa Viva com a Fagulha",
+     "Leve os 2 packs (navio e carrinho) até o Mestre Pedrão, na Clareira",
+     "Volte e fale com Fagulha"
+    ]
+   },
+   {
+    "id": "e5",
+    "cap": 15,
+    "nv": 88,
+    "npc": "ferreiro",
+    "npcNome": "Tomás",
+    "nome": "A estrela na lâmina",
+    "libera": [],
     "liberaNaEtapa": -1,
     "total": 2,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Velho Sálvio"
+     "Equipe uma arma Lendária (ou melhor)",
+     "Leve 10 barras de aço e 10 cristais ao Tomás"
+    ]
+   },
+   {
+    "id": "e6",
+    "cap": 15,
+    "nv": 92,
+    "npc": "v_kael",
+    "npcNome": "Kael",
+    "nome": "O Véu",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 5,
+    "etapas": [
+     "Derrube 10 monstros no campo Nv 90",
+     "Derrote o Arauto do Véu",
+     "Suba ao alto do Morro do Véu",
+     "Encoste a marca nos pedaços do último selo",
+     "Volte ao Kael, em Aurora"
     ]
    },
    {
     "id": "h15",
     "cap": 15,
     "nv": 95,
-    "npc": "alquimista",
-    "npcNome": "Mirela",
-    "nome": "A fonte da Névoa",
+    "npc": "reset",
+    "npcNome": "Mestre Ivo",
+    "nome": "A bênção da Ordem",
     "libera": [
      "D3"
     ],
     "liberaNaEtapa": -1,
-    "total": 2,
+    "total": 5,
     "etapas": [
-     "Derrube monstros nos campos pedidos",
-     "Volte e fale com Mirela"
+     "Pesque 1 Garoupa num spot raro (use o radar)",
+     "Pesque 1 Atum num spot raro",
+     "Leve a garoupa e o atum à Irmã Lúcia",
+     "Derrube 12 monstros no campo Nv 95",
+     "Volte e fale com Mestre Ivo"
+    ]
+   },
+   {
+    "id": "f1",
+    "cap": 16,
+    "nv": 98,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "Todos juntos",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 9,
+    "etapas": [
+     "Despeça-se do Tomás",
+     "Despeça-se da Irmã Lúcia",
+     "Despeça-se do Bento",
+     "Despeça-se da Rosa",
+     "Despeça-se do Gaspar",
+     "Despeça-se da Mirela",
+     "Monte o time para a subida",
+     "Encontre todos no Último Pouso, ao pé do Pico",
+     "Peça a bênção da Irmã Celeste"
+    ]
+   },
+   {
+    "id": "f2",
+    "cap": 16,
+    "nv": 100,
+    "npc": "v_rui",
+    "npcNome": "Sentinela Rui",
+    "nome": "A Gruta da Névoa",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Atravesse a Gruta da Névoa",
+     "Derrote o Sentinela de Cristal",
+     "Volte e fale com Sentinela Rui"
+    ]
+   },
+   {
+    "id": "f3",
+    "cap": 16,
+    "nv": 100,
+    "npc": "v_rui",
+    "npcNome": "Sentinela Rui",
+    "nome": "Vesper",
+    "libera": [
+     "fim"
+    ],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Vença a Vesper no Coração de Cristal",
+     "Encoste a marca no Coração de Cristal",
+     "Volte ao Mestre Ivo, na Clareira"
     ]
    }
   ],
@@ -20843,29 +21317,62 @@
    {
     "n": 9,
     "nome": "A trilha da serra",
-    "nv": 38,
+    "nv": 33,
     "ato": "Ato III · As estradas de Vael",
     "frase": "O norte guarda o caminho das grutas.",
-    "diario": "",
-    "rumores": []
+    "diario": "Montei na Presa-de-Prata e segui a estrada do oeste até a Vila do Rio Claro. O totem acendeu sob a minha marca, o Capitão Heitor me recebeu e a Mirela agora vive lá. Na Casa do Comércio o Otávio me ensinou a vender e comprar. Levei Doce de Abóbora do Abel até o Pedrão, pesquei uma máscara de Velado no rio cinza e venci a Velada Tecelã. Pedra-Viva caiu e a trilha do norte abriu: lá do alto, uma luz roxa pisca dentro da serra, e alguém canta.",
+    "rumores": [
+     {
+      "nv": 39,
+      "quem": "Dario",
+      "texto": "Aquele canto da serra... o meu irmão ouvia igual. Me leva lá. Por favor."
+     }
+    ]
    },
    {
     "n": 10,
     "nome": "O selo que caiu",
-    "nv": 42,
+    "nv": 40,
     "ato": "Ato III · As estradas de Vael",
     "frase": "Um selo caiu. Outros vão cair.",
-    "diario": "",
-    "rumores": []
+    "diario": "No Pouso da Serra, a Úrsula me falou da gruta que canta. Achei um pingente quebrado: era do irmão do Dario. Dentro da gruta, o Kael quebrou o selo na minha frente. Nos pedaços vi muitas mãos de capa azul numa porta de pedra: \"Dorme. Quando os selos caírem, você acorda.\" A Mestra Iara refez o meu jeito de lutar, o Malaquias reforçou a Ponte dos Juncos e a Mirela fez a tinta das runas. O Dario, na beira do rio: \"Meu irmão não sabe quem eu sou.\"",
+    "rumores": [
+     {
+      "nv": 43,
+      "quem": "Mirela",
+      "texto": "Se a Névoa come memória, talvez dê para devolver. Preciso de tempo, e de coisas raras."
+     },
+     {
+      "nv": 45,
+      "quem": "Bento",
+      "texto": "Na Ponte dos Juncos tem outra pedra que brilha. Igual à do Rio Claro."
+     },
+     {
+      "nv": 46,
+      "quem": "Aldo",
+      "texto": "Preciso que uma carta chegue ao Porto de Vael. Ninguém volta de lá faz anos. Fale comigo no Nv 47."
+     }
+    ]
    },
    {
     "n": 11,
     "nome": "A carta para o Porto",
-    "nv": 48,
+    "nv": 45,
     "ato": "Ato III · As estradas de Vael",
     "frase": "O mar espera do outro lado.",
-    "diario": "",
-    "rumores": []
+    "diario": "No Juncal toquei o terceiro totem. Levei a carta do Aldo pela estrada, passei pela emboscada dos Velados e venci Maíra, a Velada da Maré. No Porto de Vael, a Capitã Odete e a Dona Marta tinham esquecido que o continente existia. Levei conservas do Porto até o Abel. Agora me chamam de Voz das Estradas. Toda noite, uma luz roxa sai da Gruta dos Juncos e vai para o mar.",
+    "rumores": [
+     {
+      "nv": 49,
+      "quem": "Nico",
+      "texto": "Barquinho no mar? Só louco. Eu iria."
+     },
+     {
+      "nv": 50,
+      "quem": "Tomás",
+      "texto": "Mítico. Nunca forjei um Mítico na vida. Me traz um?"
+     }
+    ]
    },
    {
     "n": 12,
@@ -20873,34 +21380,87 @@
     "nv": 50,
     "ato": "Ato IV · O mar esquecido",
     "frase": "No meio do mar, uma luz roxa.",
-    "diario": "",
-    "rumores": []
+    "diario": "Entrei na Gruta dos Juncos de noite e derrubei Bocarra, o Maw da Gruta. Desta vez cheguei antes dos Velados: segurei o selo do mar com a marca até ele fechar. Vi uma moça de cabelo prateado ensinando uma luz pequena a acender uma vela: \"Viu? Luz não precisa ter medo.\" A Ilha do Meio voltou ao horizonte. Atravessei de barquinho e a Maré, quando viu a minha mão, contou de um rapaz de capa cinza que passou de barco carregando alguém dormindo. Alguém com uma estrela na mão.",
+    "rumores": [
+     {
+      "nv": 54,
+      "quem": "Cecília",
+      "texto": "Sonhei com uma cidade de luz. Nunca vi uma cidade assim... mas eu sabia o caminho."
+     },
+     {
+      "nv": 57,
+      "quem": "Capitã Odete",
+      "texto": "Navio de verdade, só com 40 mil de ouro. Vai juntando."
+     }
+    ]
    },
    {
     "n": 13,
     "nome": "O cais de Aurora",
-    "nv": 64,
+    "nv": 54,
     "ato": "Ato IV · O mar esquecido",
     "frase": "Uma cidade inteira esquecida.",
-    "diario": "",
-    "rumores": []
+    "diario": "Fiz o Pack de Pérolas com a Maré e o navio da Ordem com a Capitã Odete. Na Gruta da Ilha, o Kael quis a minha estrela. O Dario entrou na frente: \"Kael, sou eu.\" O Kael fugiu e deixou cair uma insígnia de aprendiz da Ordem. No selo vi um rapaz de capa cinza me carregando por uma estrada de névoa: \"Aguenta. Tem uma vila logo ali.\" O Mestre Ivo: \"Kael foi meu aprendiz. O melhor que eu tive.\" Venci o Abissal e levei pérolas no porão até o Cais de Aurora. A Cecília conhece essa cidade sem nunca ter vindo.",
+    "rumores": [
+     {
+      "nv": 66,
+      "quem": "Sálvio",
+      "texto": "Só a praça de Aurora tem gente. Mas à noite as janelas das casas vazias acendem sozinhas."
+     }
+    ]
    },
    {
     "n": 14,
     "nome": "As janelas acesas",
-    "nv": 80,
+    "nv": 68,
     "ato": "Ato V · Aurora",
     "frase": "Alguém acendeu as janelas de Aurora.",
-    "diario": "",
-    "rumores": []
+    "diario": "Em Aurora, de noite, achei três ecos: um brinquedo, uma coroa partida e uma carta da Vesper: \"Se eu acender o Coração mais uma vez, todos voltam.\" A Cecília achou a casa da avó dela, consertamos juntos e ela me deu o Colar de Estrela. A Mirela fez o Catalisador da Memória. Na Gruta da Serra de Aurora, o Dario chamou o irmão e o catalisador fez o resto. O Kael caiu de joelhos: \"Dario?\" Foi ele que me deixou no poço. Na memória do selo, a Vesper jovem embalava uma luz pequena: \"Vou te chamar de Aethra. Como a estrela.\"",
+    "rumores": [
+     {
+      "nv": 81,
+      "quem": "Fagulha",
+      "texto": "Quem anda acendendo as pedras do leste? Toda noite uma acende sozinha."
+     },
+     {
+      "nv": 83,
+      "quem": "Kael",
+      "texto": "O Morro do Véu guarda o último selo. Ela vai estar lá."
+     }
+    ]
    },
    {
     "n": 15,
     "nome": "O último selo",
-    "nv": 95,
+    "nv": 84,
     "ato": "Ato V · Aurora",
     "frase": "O Pico da Névoa chama.",
-    "diario": "",
+    "diario": "Levei Brasa Viva da Vila do Véu até a Clareira e o Tomás gravou a estrela na minha lâmina. No Morro do Véu, depois do Arauto, a Vesper apareceu: congelou todo mundo com um gesto e quebrou o último selo. O Mestre Ivo se pôs na minha frente e saiu ferido. A última memória contou a verdade: uma estrela caiu, uma lasca dela virou uma criança de luz, e a Vesper a achou. Eu sou o último fragmento vivo de Aethra. Com o elixir da Lúcia, o Mestre Ivo ficou de pé e abriu o caminho do Pico.",
+    "rumores": [
+     {
+      "nv": 96,
+      "quem": "Cecília",
+      "texto": "Se ela fizer todo mundo esquecer de você, eu vou lembrar. Prometo."
+     },
+     {
+      "nv": 97,
+      "quem": "Dario",
+      "texto": "Eu e o Kael voltamos a treinar juntos. Ele ainda perde."
+     },
+     {
+      "nv": 98,
+      "quem": "Aldo",
+      "texto": "Te achei no poço. Volta pra cá depois, tá? Fale comigo."
+     }
+    ]
+   },
+   {
+    "n": 16,
+    "nome": "O Coração de Cristal",
+    "nv": 98,
+    "ato": "Final · Estrela de Aethra",
+    "frase": "A Névoa acaba onde começou.",
+    "diario": "Me despedi de todos e subi com o time até o Último Pouso. O Kael foi na frente. Na Gruta da Névoa derrubamos o Sentinela de Cristal e, no Coração, a Vesper: fogo, gelo e raio, depois a Névoa fazendo meus amigos esquecerem de mim. A Cecília lembrou primeiro, como prometeu. Caída, a Vesper me olhou: \"Aethra... você cresceu.\" Encostei a marca no Coração e a rachadura fechou com a minha luz. A névoa sumiu do céu. Mas o Mestre Ivo olhou além da cordilheira: a estrela não caiu sozinha. Continua...",
     "rumores": []
    }
   ],
@@ -20960,7 +21520,8 @@
   "recursos": {
    "forja": "a forja e a banca",
    "lobo": "a montaria",
-   "pesca": "a pescaria"
+   "pesca": "a pescaria",
+   "fim": "o céu sem Névoa"
   },
   "cenas": {
    "acordar": {
@@ -21886,6 +22447,1287 @@
       ]
      }
     ]
+   },
+   "kael2": {
+    "nome": "O selo da serra",
+    "tomadas": [
+     {
+      "d": 3.2,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -0.5,
+        1.7,
+        -1.4
+       ],
+       "o": [
+        0,
+        1.2,
+        6
+       ]
+      },
+      "para": {
+       "p": [
+        -0.6,
+        1.75,
+        -1.8
+       ],
+       "o": [
+        0,
+        1.2,
+        6
+       ]
+      },
+      "fala": [
+       "Dario",
+       "\"KAEL!\""
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        3,
+        2.2,
+        4
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        2.4,
+        2,
+        4.6
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Ele para por um segundo. Só um."
+      ]
+     },
+     {
+      "d": 3.2,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.6,
+        1.3,
+        1.3
+       ],
+       "o": [
+        0,
+        0.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.5,
+        1.1,
+        1.1
+       ],
+       "o": [
+        0,
+        0.5,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "E quebra o selo assim mesmo."
+      ]
+     },
+     {
+      "d": 2.8,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.22,
+        1.66,
+        0.9
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.18,
+        1.66,
+        0.8
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Dario",
+       "Ele nem olhou pra mim..."
+      ]
+     }
+    ]
+   },
+   "memoria3": {
+    "nome": "Memória: a porta de pedra",
+    "tomadas": [
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.4,
+        1
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Os pedaços do selo ainda estão quentes."
+      ]
+     },
+     {
+      "d": 4.2,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Muitas mãos de capa azul encostam numa porta de pedra."
+      ]
+     },
+     {
+      "d": 3.6,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "Vozes",
+       "\"Dorme. Quando os selos caírem, você acorda.\""
+      ]
+     },
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.2,
+        1.66,
+        0.85
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.16,
+        1.66,
+        0.75
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "{nome}",
+       "Eu... dormia?"
+      ]
+     }
+    ]
+   },
+   "memoria4": {
+    "nome": "Memória: a vela",
+    "tomadas": [
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.4,
+        1
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "O selo do mar fecha debaixo da sua mão."
+      ]
+     },
+     {
+      "d": 4.2,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Uma moça de cabelo prateado ensina uma luz pequena a acender uma vela."
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "Moça",
+       "\"Viu? Luz não precisa ter medo.\""
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -2,
+        3,
+        4
+       ],
+       "o": [
+        0,
+        0.8,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        -3,
+        5.5,
+        6
+       ],
+       "o": [
+        0,
+        0.6,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Lá fora, a névoa do mar recua. A Ilha do Meio aparece no horizonte."
+      ]
+     }
+    ]
+   },
+   "kael3": {
+    "nome": "Kael, sou eu",
+    "tomadas": [
+     {
+      "d": 3.2,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.3,
+        1.66,
+        1.1
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.22,
+        1.66,
+        0.95
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Kael",
+       "\"Me dá a estrela e ninguém mais se machuca.\""
+      ]
+     },
+     {
+      "d": 3.2,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -0.5,
+        1.7,
+        -1.4
+       ],
+       "o": [
+        0,
+        1.2,
+        6
+       ]
+      },
+      "para": {
+       "p": [
+        -0.6,
+        1.75,
+        -1.8
+       ],
+       "o": [
+        0,
+        1.2,
+        6
+       ]
+      },
+      "fala": [
+       "Dario",
+       "\"Kael, sou eu. O Dario.\""
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        3,
+        2.5,
+        4
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        2,
+        2.2,
+        5
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Ele leva a mão à cabeça e some na névoa."
+      ]
+     },
+     {
+      "d": 3,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.6,
+        1,
+        1.2
+       ],
+       "o": [
+        0,
+        0.2,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.5,
+        0.8,
+        1
+       ],
+       "o": [
+        0,
+        0.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "No chão ficou uma insígnia de aprendiz da Ordem."
+      ]
+     }
+    ]
+   },
+   "memoria5": {
+    "nome": "Memória: quem te carregou",
+    "tomadas": [
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.4,
+        1
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "O selo da ilha fica de pé."
+      ]
+     },
+     {
+      "d": 4.4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Um rapaz de capa cinza, ferido, carrega você por uma estrada de névoa."
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "Rapaz",
+       "\"Aguenta. Tem uma vila logo ali.\""
+      ]
+     },
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.2,
+        1.66,
+        0.85
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.16,
+        1.66,
+        0.75
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "{nome}",
+       "Kael...?"
+      ]
+     }
+    ]
+   },
+   "kael4": {
+    "nome": "Dario?",
+    "tomadas": [
+     {
+      "d": 3,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.3,
+        1.2
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.3,
+        1
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Você encosta o Catalisador da Memória no peito dele."
+      ]
+     },
+     {
+      "d": 3.2,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        3,
+        1.4,
+        4
+       ],
+       "o": [
+        0,
+        0.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        2.4,
+        1.2,
+        4.4
+       ],
+       "o": [
+        0,
+        0.5,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "O Kael cai de joelhos."
+      ]
+     },
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.3,
+        1.66,
+        1.1
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.22,
+        1.66,
+        0.95
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Kael",
+       "\"...Dario?\""
+      ]
+     },
+     {
+      "d": 3.8,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.3,
+        1.66,
+        1.1
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.22,
+        1.66,
+        0.95
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Kael",
+       "\"Fui eu que te deixei no poço. Ela queria você.\""
+      ]
+     }
+    ]
+   },
+   "memoria6": {
+    "nome": "Memória: Aethra",
+    "tomadas": [
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.4,
+        1
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "O Kael segura o selo junto com você."
+      ]
+     },
+     {
+      "d": 4.4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "A Vesper, jovem, embala uma luz pequena no colo."
+      ]
+     },
+     {
+      "d": 3.6,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "Vesper",
+       "\"Vou te chamar de Aethra. Como a estrela.\""
+      ]
+     },
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.2,
+        1.66,
+        0.85
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.16,
+        1.66,
+        0.75
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "{nome}",
+       "Aethra... sou eu."
+      ]
+     }
+    ]
+   },
+   "vesper_veu": {
+    "nome": "Vesper",
+    "tomadas": [
+     {
+      "d": 3.6,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -0.5,
+        1.7,
+        -1.4
+       ],
+       "o": [
+        0,
+        1.6,
+        6
+       ]
+      },
+      "para": {
+       "p": [
+        -0.7,
+        1.9,
+        -2
+       ],
+       "o": [
+        0,
+        1.8,
+        6
+       ]
+      },
+      "fala": [
+       "",
+       "No alto do morro, uma mulher de cabelo prateado espera."
+      ]
+     },
+     {
+      "d": 3.2,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.3,
+        1.66,
+        1.1
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.22,
+        1.66,
+        0.95
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Vesper",
+       "\"Você cresceu.\""
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        3,
+        2.5,
+        4
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        4,
+        3.2,
+        5
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Um gesto, e todo mundo congela. O último selo se parte."
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -2,
+        2,
+        2.5
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        -1.6,
+        1.8,
+        2
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "fala": [
+       "Mestre Ivo",
+       "\"Não. Ela não.\""
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -3,
+        3,
+        5
+       ],
+       "o": [
+        0,
+        0.8,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        -4,
+        5,
+        7
+       ],
+       "o": [
+        0,
+        0.6,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "O Mestre Ivo se põe na sua frente e cai ferido. A Vesper some na névoa."
+      ]
+     }
+    ]
+   },
+   "memoria7": {
+    "nome": "Memória: a estrela que caiu",
+    "tomadas": [
+     {
+      "d": 2.6,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.4,
+        1
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Os pedaços do último selo brilham sob a sua mão."
+      ]
+     },
+     {
+      "d": 4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Uma estrela cai do céu sobre Aurora."
+      ]
+     },
+     {
+      "d": 4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Uma lasca dela vira uma criança de luz. A Vesper a acha."
+      ]
+     },
+     {
+      "d": 4,
+      "rel": "heroi",
+      "branco": 0.7,
+      "de": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Você é o último fragmento vivo de Aethra."
+      ]
+     }
+    ]
+   },
+   "final": {
+    "nome": "O Coração de Cristal",
+    "tomadas": [
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.3,
+        1.66,
+        1.1
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.22,
+        1.66,
+        0.95
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Vesper",
+       "\"Aethra... você cresceu.\""
+      ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "fx": "brilho",
+      "de": {
+       "p": [
+        0.7,
+        1.4,
+        1
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.55,
+        1.4,
+        0.85
+       ],
+       "o": [
+        0,
+        1.1,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "Você encosta a marca no Coração. A rachadura fecha com a sua luz."
+      ]
+     },
+     {
+      "d": 4.2,
+      "rel": "heroi",
+      "branco": 0.5,
+      "de": {
+       "p": [
+        -3,
+        4,
+        6
+       ],
+       "o": [
+        0,
+        1,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        -6,
+        12,
+        12
+       ],
+       "o": [
+        0,
+        1.5,
+        0
+       ]
+      },
+      "fala": [
+       "",
+       "A névoa some do céu no mundo inteiro. As janelas de Aurora acendem de verdade."
+      ]
+     },
+     {
+      "d": 3.8,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        -0.5,
+        1.7,
+        -1.4
+       ],
+       "o": [
+        0,
+        1.6,
+        6
+       ]
+      },
+      "para": {
+       "p": [
+        -0.6,
+        1.8,
+        -1.8
+       ],
+       "o": [
+        0,
+        1.7,
+        6
+       ]
+      },
+      "fala": [
+       "",
+       "A Vesper fica no Pico, como espírito, guardando o Coração."
+      ]
+     },
+     {
+      "d": 3.6,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.2,
+        1.66,
+        0.85
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.16,
+        1.66,
+        0.75
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "{nome}",
+       "Acabou."
+      ]
+     }
+    ]
    }
   },
   "chefes": {
@@ -21975,6 +23817,244 @@
      "modelo": "cabelo_m",
      "roupa": "peitoral2,calca2,botas2,capa2"
     }
+   },
+   "tecela": {
+    "nome": "Velada Tecelã",
+    "tipo": "lobo",
+    "campo": "c_v2",
+    "vida": 7,
+    "dano": 1.5,
+    "escala": 1,
+    "cor": 10129088,
+    "humano": {
+     "modelo": "shibu_sombrio",
+     "roupa": "chapeu2,peitoral1,calca1,botas1,capa1"
+    }
+   },
+   "pedra_viva": {
+    "nome": "Pedra-Viva, o Golem da Serra",
+    "tipo": "golem",
+    "campo": "c_v3",
+    "vida": 8,
+    "dano": 1.6,
+    "escala": 2.1,
+    "cor": 10134704
+   },
+   "kael2": {
+    "nome": "Kael, a Lâmina Cinzenta",
+    "tipo": "golem",
+    "campo": "cav_serra_norte",
+    "vida": 9,
+    "dano": 1.7,
+    "escala": 1,
+    "cor": 12107980,
+    "foge": 0.4,
+    "fala": "Kael para por um segundo quando ouve o próprio nome... e quebra o selo assim mesmo. Some na névoa.",
+    "humano": {
+     "modelo": "cabelo_m",
+     "roupa": "peitoral2,calca2,botas2,capa2"
+    }
+   },
+   "maira": {
+    "nome": "Maíra, a Velada da Maré",
+    "tipo": "lobo",
+    "campo": "c_v6",
+    "vida": 8,
+    "dano": 1.6,
+    "escala": 1,
+    "cor": 8042712,
+    "humano": {
+     "modelo": "shibu_sombrio",
+     "roupa": "chapeu1,peitoral1,calca1,botas1,capa1"
+    }
+   },
+   "bocarra": {
+    "nome": "Bocarra, o Maw da Gruta",
+    "tipo": "maw",
+    "campo": "cav_juncos",
+    "vida": 8,
+    "dano": 1.6,
+    "escala": 1.9,
+    "cor": 10112511,
+    "noite": true
+   },
+   "kael3": {
+    "nome": "Kael, a Lâmina Cinzenta",
+    "tipo": "golem",
+    "campo": "cav_ilha",
+    "vida": 9,
+    "dano": 1.7,
+    "escala": 1,
+    "cor": 12107980,
+    "foge": 0.35,
+    "fala": "Dario: \"Kael, sou eu. O Dario.\" O Kael leva a mão à cabeça, foge e deixa cair uma insígnia de aprendiz da Ordem.",
+    "humano": {
+     "modelo": "cabelo_m",
+     "roupa": "peitoral2,calca2,botas2,capa2"
+    }
+   },
+   "abissal": {
+    "nome": "Abissal, o Maw das Marés",
+    "tipo": "maw",
+    "campo": "c_i3",
+    "vida": 9,
+    "dano": 1.7,
+    "escala": 2.1,
+    "cor": 2788056
+   },
+   "kael4": {
+    "nome": "Kael, a Lâmina Cinzenta",
+    "tipo": "golem",
+    "campo": "cav_aurora",
+    "vida": 10,
+    "dano": 1.7,
+    "escala": 1,
+    "cor": 12107980,
+    "foge": 0.25,
+    "fala": "O Catalisador da Memória brilha no peito do Kael. Ele larga a espada e cai de joelhos: \"...Dario?\"",
+    "humano": {
+     "modelo": "cabelo_m",
+     "roupa": "peitoral2,calca2,botas2,capa2"
+    }
+   },
+   "arauto": {
+    "nome": "Arauto do Véu",
+    "tipo": "warrok",
+    "campo": "c_a7",
+    "vida": 10,
+    "dano": 1.7,
+    "escala": 2.4,
+    "cor": 10148095,
+    "skills": [
+     {
+      "k": "salto",
+      "nome": "Queda de cristal",
+      "cd": 11,
+      "aviso": 1.3,
+      "r": 6,
+      "dano": 1.8,
+      "ef": {
+       "atordoa": 1.2
+      }
+     },
+     {
+      "k": "area",
+      "nome": "Estilhaços",
+      "cd": 9,
+      "aviso": 1,
+      "r": 5,
+      "dano": 1.4,
+      "ef": {
+       "dot": {
+        "k": "sangra",
+        "dps": 0.025,
+        "dur": 6,
+        "max": 3
+       }
+      }
+     }
+    ]
+   },
+   "sentinela": {
+    "nome": "Sentinela de Cristal",
+    "tipo": "golem",
+    "campo": "cav_nevoa",
+    "vida": 11,
+    "dano": 1.7,
+    "escala": 2.3,
+    "cor": 12098303,
+    "skills": [
+     {
+      "k": "area",
+      "nome": "Pulso de cristal",
+      "cd": 9,
+      "aviso": 1.1,
+      "r": 5.5,
+      "dano": 1.5,
+      "ef": {
+       "atordoa": 1
+      }
+     },
+     {
+      "k": "pedra",
+      "nome": "Lança de cristal",
+      "cd": 7,
+      "aviso": 0.9,
+      "r": 2.6,
+      "dano": 1.6
+     }
+    ]
+   },
+   "vesper": {
+    "nome": "Vesper, a Rainha das Luzes",
+    "tipo": "warrok",
+    "campo": "cav_nevoa",
+    "vida": 14,
+    "dano": 1.8,
+    "escala": 1,
+    "cor": 13154559,
+    "humano": {
+     "modelo": "vivi",
+     "roupa": "chapeu2,peitoral3,calca3,botas3,capa3"
+    },
+    "skills": [
+     {
+      "k": "pocas",
+      "nome": "Chuva de fogo",
+      "cd": 12,
+      "aviso": 1.1,
+      "n": 3,
+      "r": 3,
+      "fica": 5,
+      "dano": 0.7,
+      "ef": {
+       "dot": {
+        "k": "queima",
+        "dps": 0.05,
+        "dur": 5,
+        "max": 1
+       }
+      }
+     },
+     {
+      "k": "area",
+      "nome": "Inverno",
+      "cd": 11,
+      "aviso": 1.2,
+      "r": 6,
+      "dano": 1.2,
+      "ef": {
+       "congela": 1.5
+      }
+     },
+     {
+      "k": "pedra",
+      "nome": "Raio",
+      "cd": 6,
+      "aviso": 0.8,
+      "r": 2.4,
+      "dano": 1.6,
+      "ef": {
+       "atordoa": 0.8
+      }
+     }
+    ],
+    "fases": [
+     {
+      "vida": 0.6,
+      "k": "esquecer",
+      "dur": 8,
+      "fala": "Vesper: \"Esqueçam.\" A Névoa toma o seu time: eles param e não lembram mais de você.",
+      "volta": "Cecília: \"Eu prometi que ia lembrar!\" O time volta para o seu lado."
+     },
+     {
+      "vida": 0.25,
+      "k": "fundir",
+      "esc": 1.7,
+      "dano": 1.25,
+      "fala": "A Vesper se funde ao Coração, cresce e chama os Maws e Golens da gruta!"
+     }
+    ]
    }
   }
  }

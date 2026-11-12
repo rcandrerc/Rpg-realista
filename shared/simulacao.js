@@ -3,15 +3,16 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
 import { Transporte, carrinhoNovo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
-import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito } from './historia.js'; // progressão (André 2026-11-10)
+import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
+import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -314,6 +315,8 @@ export class Simulacao {
       ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto, semTopo: 1 }))]; // ninguém fica em pé no espantalho
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
+    // as casas das mini vilas do mundo grande (história v2, Entrega 3): monstro e NPC dão a volta (o piso da ferraria não conta)
+    for (const c of mapa.casasMundo || []) if (!c.piso) this.casas.push({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.hw + 0.35, hd: c.hd + 0.35 });
     this.obstaculosRocha = this.terreno.rochas.map((r) => ({ x: r.x, z: r.z, r: r.R * 0.62 }));
     // árvores da mata (são muitas): numa grade de 6 m, cada um só confere as de perto (pertoNaMata)
     this.mata = new Map();
@@ -491,6 +494,7 @@ export class Simulacao {
   tocarTotem(j, t) {
     const lista = j.prog.totens || (j.prog.totens = []);
     const novo = !lista.includes(t.id);
+    this.historia(j, 'totem', { k: t.id }); // história v2 (Entrega 4): "toque o totem"
     if (!novo && j.prog.totem === t.id) return;
     if (novo) lista.push(t.id);
     j.prog.totem = t.id; j.progSujo = true;
@@ -538,6 +542,7 @@ export class Simulacao {
     this.avisarProg(j);
     this.evento({ t: 'vila', id: j.id, fase: 'chegou', totem: D.id, x0: r2(x0), z0: r2(z0), x: r2(n.x), y: r2(y), z: r2(n.z) });
     this.evento({ t: 'aviso', para: j.id, texto: `Você chegou em ${D.nome} (-${taxa} de ouro)` });
+    this.historia(j, 'viajar', { k: D.id }); // história v2 (Entrega 4): viagem de totem
   }
   criarInimigo(sp) {
     const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = { ...statusInimigo(sp.tipo, nivel) }; // nível do campo de caça
@@ -916,6 +921,7 @@ export class Simulacao {
   // a etapa da vez já está feita? (ja: o que o herói já tem; ter: itens na mochila; noite; lugar). Avança se sim.
   checarEtapa(j) {
     const p = j.prog, h = p.hist, E = etapaAtual(p); if (!E) return false;
+    if (E.cena && j.cenaAte > this.tempo && (E.ev === 'pos' || E.ev === 'pistas')) return false; // etapa de lugar com cena espera a cena que está tocando (duas não se atropelam)
     let feito = false;
     if (E.ja === 'lote') feito = !!this.loteDe(j);
     else if (E.ja === 'peca') { // peças do terreno: com n > 1 conta quantas já estão lá (4 fundações)
@@ -923,10 +929,12 @@ export class Simulacao {
       if ((E.n || 1) > 1 && Math.min(q, E.n) > h.n) { h.n = Math.min(q, E.n); j.progSujo = true; this.avisarProg(j); }
       feito = q >= (E.n || 1);
     }
-    else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho');
+    else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho') || (E.k === 'navio' && !!p.navio); // navio já feito (na água ou no porto)
     else if (E.ja === 'atributos') feito = Object.values(p.atr).some((v) => v > 3);
     else if (E.ja === 'passe') feito = contar(p.mochila, 'passe_caverna') > 0; // já tem o Passe da Caverna
     else if (E.ja === 'carrinho') feito = (p.carrinho?.lv || 0) >= (E.min || 1); // carrinho já no nível pedido
+    else if (E.ja === 'totem') feito = (p.totens || []).includes(E.k); // já tocou esse totem antes
+    else if (E.ja === 'arma') feito = Math.max(p.equip?.espada?.r ?? -1, p.equip?.cajado?.r ?? -1) >= (E.min || 0); // arma equipada dessa raridade
     else if (E.ja === 'carro_ok') feito = !!p.carrinho && !p.carrinho.quebrado && p.carrinho.vida >= VEICULOS.carrinho.vida; // inteiro
     if (!feito && E.ev === 'ter') {
       const n = Object.entries(E.itens).reduce((a, [k, q]) => a + Math.min(q, contar(p.mochila, k)), 0);
@@ -937,7 +945,8 @@ export class Simulacao {
     if (!feito && E.ev === 'time') feito = (j.time?.membros.length || 0) >= 2; // alguém no time (a Cecília e o Dario contam)
     if (!feito && E.ev === 'pos' && !j.morto) {
       const [x, z, r, y] = E.pos;
-      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho') && (!E.caverna || !!j.caverna);
+      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho') && (!E.caverna || !!j.caverna)
+        && (!E.navio || j.veiculo === 'navio') && (E.ate == null || (j.y || 0) <= E.ate); // navio; ate: abaixo dessa altura (no túnel da gruta, não no morro em cima)
     }
     if (!feito && E.ev === 'pistas' && !j.morto) {
       E.pontos.forEach(([x, z, nome], i) => {
@@ -981,6 +990,10 @@ export class Simulacao {
     if (!e) return;
     Object.assign(e, { hc: id, nome: C.nome, esc: C.escala, cor: C.cor, vidaMax: Math.round(e.vidaMax * C.vida), dano: Math.round((e.dano || 0) * C.dano) });
     e.vida = e.vidaMax;
+    if (C.skills) { // golpes com aviso no chão (Entrega 5: Arauto, Sentinela, Vesper), no espaço do campo ou da sala da gruta
+      const def = this.cacas[e.sp?.caca]?.def;
+      Object.assign(e, { hcSk: true, skillCd: COMBATE_BOSS.primeiraSkill, skillI: 0, skillSeq: 0, faseI: 0, arena: { x: def?.x ?? e.x, z: def?.z ?? e.z, r: Math.max(def?.r || 8, 8) } });
+    }
     this.evento({ t: 'aviso', para: j.id, texto: `${C.nome} apareceu!` });
   }
   // Chefe da história que para a luta no meio (foge em CHEFES_HISTORIA, o Kael): diz a fala, some na névoa e conta como
@@ -1001,10 +1014,11 @@ export class Simulacao {
   concluirMissao(j, M, diga) {
     const p = j.prog, h = p.hist, i = h.p;
     Object.assign(h, { p: h.p + 1, ac: false, e: 0, n: 0, m: 0, u: M.id }); j.progSujo = true; // u: a última entregue (historia.js histValida)
-    const abre = M.libera.length > 0, P = HISTORIA_PREMIO;
+    const abre = M.libera.length > 0 || !!M.grande, P = HISTORIA_PREMIO; // grande: a última missão vale como a que abre região
     const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro;
     this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
     if (M.presente) this.darItens(j, M.presente);
+    if (M.gravar) this.gravarEstrela(j); // capítulo 15: o Tomás grava a estrela na arma (+1 de reforço)
     if (M.titulo) this.evento({ t: 'aviso', para: j.id, texto: `Título novo: ${M.titulo}` }); // título do ato (histInfo.titulo)
     this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
     for (const k of M.libera) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${nomeLibera(k)}` });
@@ -1017,6 +1031,15 @@ export class Simulacao {
     this.ganharXP(j, Math.round(xpProximo(M.nv) * (abre ? P.xp : P.xpEtapa)));
     const N = missaoAtual(p); if (N && N.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Próxima missão: fale com ${this.nomeNpc(N.npc)}` });
     this.avisarProg(j);
+  }
+  // a estrela na lâmina (história v2, capítulo 15): a melhor arma equipada ganha +1 de reforço de graça (até o máximo)
+  gravarEstrela(j) {
+    const p = j.prog, a = ['espada', 'cajado'].map((l) => p.equip?.[l]).filter(Boolean).sort((x, y) => (y.r | 0) - (x.r | 0))[0];
+    if (!a) return;
+    const max = REFORCO.max[a.r] || 0;
+    if ((a.e | 0) < max) a.e = (a.e | 0) + 1;
+    this.aplicarStatus(j);
+    this.evento({ t: 'aviso', para: j.id, texto: `A estrela de Aurora está gravada: ${nomeItem(a)} +${a.e | 0}` });
   }
   // itens de presente (sem lugar na mochila, o resto cai no baú do correio? não: avisa e perde só o que não coube)
   darItens(j, itens) {
@@ -1040,7 +1063,16 @@ export class Simulacao {
     return txt;
   }
   // para onde o "Ir" do quadrinho leva: { x, z, nome, npc } ou null
+  // "Ir" para dentro de uma caverna do mundo grande (o covil, o selo do fundo): enquanto o herói está fora do túnel, o
+  // alvo é a boca da caverna (a rota pela estrada chega na frente dela; o ponto lá dentro fica debaixo do morro)
   alvoHistoria(j) {
+    const a = this.alvoHistoriaDentro(j); if (!a) return a;
+    const T = TUNEIS.find((C) => C.def?.linha && noTunel(C, a.x, a.z, 1)); if (!T) return a;
+    const dentro = noTunel(T, j.x, j.z, 1); if (dentro && (j.y || 0) < dentro.y + 6) return a;
+    const [bx, bz] = T.def.linha[0];
+    return { x: bx, z: bz, nome: `a entrada da ${T.def.nome || 'caverna'}`, npc: '' };
+  }
+  alvoHistoriaDentro(j) {
     const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M) return null;
     const npcEm = (id) => { const n = (this.mapa.npcs || []).find((o) => o.id === id); return n ? { x: r2(n.x), z: r2(n.z), nome: n.nome.split(',')[0], npc: n.id } : null; };
     if (!h?.ac) return npcEm(M.npc);
@@ -1058,6 +1090,7 @@ export class Simulacao {
       }
       const [tipo, id] = a.split(':');
       if (tipo === 'npc') return npcEm(id);
+      if (tipo === 'totem') { const t = TOTENS.lista.find((o) => o.id === id); return t ? { x: t.x, z: t.z, nome: 'o totem de ' + t.nome, npc: '' } : null; }
       if (tipo === 'estacao') { const E = (this.mapa.estacoes || []).find((o) => o.id === id); return E ? { x: r2(E.x), z: r2(E.z), nome: E.nome, npc: '', estacao: E.id } : null; }
       if (tipo === 'caca') { const c = this.cacaDef(id); return c ? { x: c.x, z: c.z, nome: c.nome || 'o campo', npc: '' } : null; }
       if (tipo === 'veio' || a === 'solto') {
@@ -1086,7 +1119,7 @@ export class Simulacao {
     const E = h.ac ? etapaAtual(p) : null;
     const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' ? E.npc : '';
     const tit = HISTORIA.slice(0, h.p).filter((o) => o.titulo).at(-1)?.titulo || ''; // título do último ato fechado
-    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...(tit ? { titulo: tit } : {}) };
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...(tit ? { titulo: tit } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -1126,11 +1159,12 @@ export class Simulacao {
     this.avisarProg(j);
   }
   // Mestre Ivo (NPC funcao 'resetar', perto de onde o herói nasce): atributos voltam para 3 e os pontos voltam; skills ficam
-  custoReset(j) { return Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
+  // o primeiro reset com a Mestra Iara é de graça, dentro da história (capítulo 10: etapa 'resetar' com gratis)
+  custoReset(j) { const E = etapaAtual(j.prog); return E?.ev === 'resetar' && E.gratis ? 0 : Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
   resetarBuild(id) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    if (!(this.mapa.npcs || []).some((n) => n.funcao === 'resetar' && dist(n, j) < 4.5)) return aviso('Fale com o Mestre Ivo');
+    if (!(this.mapa.npcs || []).some((n) => n.funcao === 'resetar' && dist(n, j) < 4.5)) return aviso('Fale com o Mestre Ivo, na Clareira, ou com a Mestra Iara, no Rio Claro');
     const p = j.prog, gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0), custo = this.custoReset(j);
     if (gastos <= 0) return aviso('Você ainda não gastou nenhum ponto.');
     if (p.ouro < custo) return aviso(`Falta ouro: custa ${custo}`);
@@ -1140,6 +1174,7 @@ export class Simulacao {
     this.aplicarStatus(j);
     this.avisarProg(j);
     aviso(`Build resetada: ${gastos} pontos para distribuir de novo`);
+    this.historia(j, 'resetar');
   }
   // Uma das duas barras (espada ou cajado): 6 botões, só skill que serve nela, sem repetir (null = vazio)
   definirBarra(id, m) {
@@ -2386,6 +2421,59 @@ export class Simulacao {
   pertoDeQuemConserta(j) { return (this.mapa.npcs || []).some((n) => (n.acoes || []).includes('consertar') && dist(n, j) < LOJA_DISTANCIA); }
   pertoDaLoja(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'loja' && dist(n, j) < LOJA_DISTANCIA); }
 
+  // ---------- a Casa do Comércio (shared/leilao.js; história v2, Entrega 3) ----------
+  // Um leilão só para o mundo inteiro: o servidor põe o mesmo em todas as salas (this.leilao) e grava quando muda
+  // (aoLeilao). Sem servidor (teste), cada simulação tem o seu. m = { acao: 'ver' | 'anunciar' | 'comprar' | 'cancelar' |
+  // 'retirar', busca: { tipo, r, ordem, texto }, i (lugar na mochila), preco, horas, id (do anúncio) }
+  pertoDoLeiloeiro(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'leilao' && dist(n, j) < LEILAO.distancia); }
+  leilaoMsg(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.criando || !m || typeof m !== 'object') return;
+    const L = (this.leilao ||= new Leilao()), p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!this.pertoDoLeiloeiro(j)) return aviso('O leilão é com o Otávio, na Casa do Comércio da Vila do Rio Claro');
+    if (j.morto) return;
+    let mudou = L.vencer();
+    const busca = m.busca && typeof m.busca === 'object' ? { tipo: TIPOS_LEILAO[m.busca.tipo] ? m.busca.tipo : undefined, r: Number.isInteger(m.busca.r) && m.busca.r >= 0 && m.busca.r < RARIDADES.length ? m.busca.r : undefined,
+      ordem: ['barato', 'caro', 'novo'].includes(m.busca.ordem) ? m.busca.ordem : 'barato', texto: typeof m.busca.texto === 'string' ? m.busca.texto.slice(0, 24) : undefined } : {};
+    if (m.acao === 'anunciar') {
+      const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null;
+      if (!it) return aviso('Escolha um item da mochila');
+      if (it.cad) return aviso('Item trancado não vai à venda. Abra o cadeado antes');
+      if (ITENS[it.k]?.usar?.veiculo || this.carrinhoFora(j, it)) return aviso('Veículo não vai para o leilão');
+      const r = L.anunciar(j.conta, j.nome, { ...it }, Number(m.preco), Number(m.horas));
+      if (typeof r === 'string') return aviso(r);
+      p.mochila[i] = null; mudou = true;
+      aviso(`${nomeItem(it)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)`);
+      this.historia(j, 'leilao', { de: 'anunciar' });
+    } else if (m.acao === 'comprar' && typeof m.id === 'string') {
+      const a = L.achar(m.id); if (!a) return aviso('Esse anúncio já saiu');
+      if (p.ouro < a.preco) return aviso(`Faltam ${a.preco - p.ouro} de ouro`);
+      const prova = p.mochila.map((o) => (o ? { ...o } : null)); // cabe na mochila?
+      if (!guardar(prova, { ...a.item })) return aviso('Mochila cheia');
+      const r = L.comprar(m.id, j.conta);
+      if (typeof r === 'string') return aviso(r);
+      p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); mudou = mudou || !a.casa;
+      aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro`);
+      this.historia(j, 'leilao', { de: 'comprar' });
+      const avisa = this.aoVendaLeilao || ((c, t) => { const v = this.porConta(c); if (v) this.evento({ t: 'aviso', para: v.id, texto: t }); }); // o servidor avisa em qualquer sala
+      if (!a.casa) avisa(a.conta, `Vendeu ${nomeItem(a.item)} no leilão: ${r.liquido} de ouro com o Otávio${r.taxa ? ` (taxa ${r.taxa})` : ''}`);
+    } else if (m.acao === 'cancelar' && typeof m.id === 'string') {
+      const a = L.cancelar(m.id, j.conta); if (typeof a === 'string') return aviso(a);
+      if (!guardar(p.mochila, a.item)) L.caixaDe(j.conta).itens.push(a.item); // mochila cheia: fica com o Otávio
+      mudou = true;
+      aviso(`Anúncio cancelado: ${nomeItem(a.item)} voltou`);
+    } else if (m.acao === 'retirar') {
+      const cx = L.caixaDe(j.conta); let n = 0;
+      const ouro = cx.ouro; p.ouro += ouro; cx.ouro = 0;
+      while (cx.itens.length && guardar(p.mochila, cx.itens[0])) { cx.itens.shift(); n++; }
+      if (ouro || n) { mudou = true; aviso(`Retirou ${ouro ? ouro + ' de ouro' : ''}${ouro && n ? ' e ' : ''}${n ? n + (n === 1 ? ' item' : ' itens') : ''}${cx.itens.length ? ' (mochila cheia: o resto fica guardado)' : ''}`); this.historia(j, 'leilao', { de: 'retirar' }); }
+      else aviso(cx.itens.length ? 'Mochila cheia' : 'Nada para retirar');
+    }
+    if (mudou) { this.aoLeilao?.(L); this.avisarProg(j); }
+    const cx = L.caixa[j.conta] || { ouro: 0, itens: [] };
+    this.evento({ t: 'leilao', para: id, lista: L.buscar(busca, j.conta).map(anuncioParaApp), meus: L.meus(j.conta).map(anuncioParaApp),
+      caixa: { ouro: cx.ouro, itens: cx.itens }, semTaxa: L.semTaxaDe(j.conta), taxa: LEILAO.taxa, max: LEILAO.max, horas: LEILAO.horas, agora: Date.now() });
+  }
+
   // ---------- Vila dos Lotes: comprar lote, construir e horta (shared/dados.js VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS) ----------
   // Como no Quimera (modo construção com abas Construir e Fazenda), só que cada jogador constrói apenas no lote que comprou.
   loteDe(j) { for (const L of this.lotes.values()) if (L.dono === j.conta) return L; return null; }
@@ -2709,6 +2797,7 @@ export class Simulacao {
     p.ouro -= C.ouro * da;
     this.evento({ t: 'fala', para: j.id, npc: npc.id, texto: da > 1 ? `Pronto: ${da} ${D.nome}. O caldeirão até cansou.` : `Pronto, um ${D.nome} fresquinho. Cuidado que ainda está quente.` });
     aviso(`Recebeu ${da} ${D.nome} (−${C.ouro * da} de ouro)`);
+    this.historia(j, 'sintetizar', { k });
     return true;
   }
   comecarCatalisador(j, m, i, it, aviso) {
@@ -3110,9 +3199,10 @@ export class Simulacao {
   falar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     let npc = null, md = 3.2;
-    for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md) { md = d; npc = n; } }
+    const ve = (n) => !n.depois || npcApareceu(j.prog, n.depois); // NPC que só aparece depois de uma missão (o Kael em Aurora)
+    for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md && ve(n)) { md = d; npc = n; } }
     const quem = m && typeof m === 'object' && typeof m.npc === 'string' ? (this.mapa.npcs || []).find((n) => n.id === m.npc) : null;
-    if (quem && dist(quem, j) < 3.2) npc = quem;
+    if (quem && dist(quem, j) < 3.2 && ve(quem)) npc = quem;
     if (!npc) return;
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
@@ -3139,6 +3229,7 @@ export class Simulacao {
     if (npc.funcao === 'alquimia') return diga('Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário.', { abrir: 'alquimia' });
     if (npc.funcao === 'loja') return diga('Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.', { abrir: 'loja' });
     if (npc.funcao === 'resetar') return diga(npc.falas[0] + ` Custa ${this.custoReset(j)} de ouro.`, { abrir: 'resetar', custo: this.custoReset(j) });
+    if (npc.funcao === 'leilao') { diga(npc.falas[0], { abrir: 'leilao' }); return this.leilaoMsg(id, { acao: 'ver' }); } // Otávio: a Casa do Comércio
     diga(proxima());
   }
   // Inimigo caiu: conta para quem está numa missão contra a horda dele (vale para todos do grupo)
@@ -3775,6 +3866,11 @@ export class Simulacao {
         for (const j of this.inimigosDe(b)) if (this.naArena(b, j, 20)) this.evento({ t: 'aviso', para: j.id, texto: `${b.nome} entrou em fúria!` });
       }
     }
+    if (b.hcSk) { // chefe da história com golpes: a vez da skill corre sempre e as fases mudam pela vida (a Vesper)
+      b.skillCd -= dt;
+      const F = CHEFES_HISTORIA[b.hc]?.fases?.[b.faseI];
+      if (F && b.vida <= b.vidaMax * F.vida) { b.faseI++; this.faseChefe(b, F); }
+    }
     if (b.trava > 0) return;
     const t = TIPOS_INIMIGO[b.tipo];
     const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
@@ -3783,6 +3879,7 @@ export class Simulacao {
     if (alvo && this.mobFechadoPara(b, alvo)) alvo = null; // região fechada para esse herói (André 2026-11-11): não sai atrás dele
     if (alvo && alvo.cenaAte > this.tempo) alvo = null; // vendo uma cena da história (cena()): o monstro deixa ele em paz
     if (b.bm) { if (alvo && !this.naArena(b, alvo, COMBATE_BOSS.solta)) alvo = null; if (this.passoBoss(b, alvo, dt)) return; } // boss de mundo: só briga dentro da arena
+    if (b.hcSk && this.passoChefeSkills(b, alvo, dt)) return; // chefe da história com golpes e fases (CHEFES_HISTORIA.skills)
     b.ataqueCd -= dt;
     const CI = COMBATE_INIMIGO;
     if (b.vez && (!alvo || alvo.id !== b.vez || dist(alvo, b) > 5)) b.vez = null; // largou a vez de bater
@@ -3934,6 +4031,38 @@ export class Simulacao {
     b.skillCd = sk.cd * (b.furia ? COMBATE_BOSS.furiaCd : 1);
     this.lancarSkillBoss(b, sk, alvo);
     return true;
+  }
+  // chefe da história com skills (CHEFES_HISTORIA: Arauto, Sentinela, Vesper): com alguém perto e a vez da skill
+  // chegou (o tempo corre no passoInimigo, mesmo batendo), solta a próxima. true = ocupado (o resto do passoInimigo não roda)
+  passoChefeSkills(b, alvo, dt) {
+    const C = CHEFES_HISTORIA[b.hc]; if (!C?.skills) return false;
+    if (!alvo || b.skillCd > 0 || b.trava > 0) return false;
+    const sk = C.skills[b.skillI++ % C.skills.length];
+    b.skillCd = sk.cd;
+    this.lancarSkillBoss(b, sk, alvo);
+    return true;
+  }
+  // a fase nova (Vesper): 'esquecer' = a Névoa faz o time de quem luta parar (os amigos da IA e os jogadores do time
+  // ficam presos e o app apaga os nomes do time) e depois volta; 'fundir' = cresce, bate mais forte e chama o covil
+  faseChefe(b, F) {
+    const perto = [...this.jogadores.values()].filter((j) => !j.morto && dist(j, b) < 30);
+    if (F.fala) for (const j of perto) if (!j.bot) this.evento({ t: 'aviso', para: j.id, texto: F.fala });
+    if (F.k === 'esquecer') {
+      const ids = new Set();
+      for (const j of perto) for (const id of j.time?.membros || []) ids.add(id);
+      for (const j of perto) if (!j.bot) {
+        const outros = (j.time?.membros || []).filter((id) => id !== j.id);
+        this.evento({ t: 'esquecer', para: j.id, dur: F.dur, ids: outros });
+      }
+      for (const id of ids) {
+        const o = this.jogadores.get(id); if (!o || o.morto) continue;
+        if (o.bot) this.efeitoNoHeroi(o, { atordoa: F.dur }, b); // o amigo da IA para e esquece (não bate em ninguém)
+      }
+      if (F.volta) this.depois(F.dur, () => { for (const j of perto) if (!j.bot && this.jogadores.get(j.id) === j) this.evento({ t: 'aviso', para: j.id, texto: F.volta }); });
+    } else if (F.k === 'fundir') {
+      b.esc = +(b.esc * (F.esc || 1.5)).toFixed(2); b.dano = Math.round(b.dano * (F.dano || 1));
+      if (b.sp?.caca != null) this.invocarDoBoss(b);
+    }
   }
   // ponto dentro da arena (o boss não pula para fora)
   naArenaPonto(b, x, z, folga = 1) { const A = b.arena, d = Math.hypot(x - A.x, z - A.z), m = A.r - folga; return d <= m ? { x, z } : { x: A.x + (x - A.x) / d * m, z: A.z + (z - A.z) / d * m }; }
