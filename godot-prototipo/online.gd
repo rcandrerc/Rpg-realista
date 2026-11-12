@@ -1489,7 +1489,7 @@ func _passo(dt: float) -> void:
 	if _tentar_de_novo > 0.0:
 		_tentar_de_novo -= dt
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":
-			rede.iniciar()
+			rede.religar() # mesma sessão se o servidor ainda segura o herói; senão entra de novo (rede.iniciar)
 	if not ligado:
 		return
 	_ap_t -= dt

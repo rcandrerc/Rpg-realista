@@ -356,6 +356,22 @@ class SalaClareira extends Room {
     for (const id of fantasmas) { this.sim.removerJogador(id); this.visao.esquecer(id); }
   }
 
+  // Religou na mesma sessão (o app guarda o token de reconexão; André 2026-11-12, internet caindo): o herói ficou no
+  // mundo do jeito que estava (buffs, recargas, time, amigos). Durante a queda os eventos se perderam e o app limpou
+  // o que é da sala: manda de novo o progresso, o time, os amigos e os lotes, e a área de interesse recomeça (todos os
+  // corpos perto vêm inteiros). O caminho andado sem internet vale (folgaDaQueda), como na sessão nova. A troca é
+  // desfeita, como sempre foi numa queda (o app já fechou a janela dela).
+  voltouNaMesmaSessao(client) {
+    const id = client.sessionId, j = this.sim.jogadores.get(id); if (!j) return;
+    if (j.troca) this.sim.fecharTroca(j.troca, `${j.nome} perdeu a conexão: a troca foi desfeita`);
+    this.sim.folgaDaQueda(id, (Date.now() - ultimaNoticia(this.sim, j)) / 1000);
+    this.visao.esquecer(id);
+    this.sim.avisarProg(j);
+    if (j.time) this.sim.enviarTime(j.time);
+    this.sim.enviarAmigos(j);
+    this.sim.enviarLotes(id);
+  }
+
   // Cecília na sala para quem pode conversar com ela (shared/amiga.js amigaEntrar)
   entrarAmiga(client, fala = true) {
     for (const ctx of this.sim.amigosIa) { // a Cecília, o Dario e os 20 aventureiros (André 2026-11-11), cada um com o seu save
@@ -387,7 +403,7 @@ class SalaClareira extends Room {
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
     if (!consentiu && !client.userData?.substituido) {
-      try { await this.allowReconnection(client, 20); return; } catch { /* não voltou a tempo */ }
+      try { await this.allowReconnection(client, 20); this.voltouNaMesmaSessao(client); return; } catch { /* não voltou a tempo */ }
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); } // queda: a hora da última notícia

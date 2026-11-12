@@ -38,6 +38,11 @@ var ping_ms := -1.0
 var ult_pacote_ms := 0
 var servidor_pico := -1.0
 var _ping_t := 0.0
+# Religar na mesma sessão (André 2026-11-12, internet caindo): o servidor segura o herói 20 s esperando a volta
+# (allowReconnection). Com o token que ele manda ao entrar, o app volta como o mesmo herói, sem entrar de novo na sala.
+# {processo, sala, id, token, caiu_ms}; vazio = não dá para religar (saiu de propósito, foi trocado, passou do tempo)
+var _volta := {}
+const VOLTA_MAX_MS := 17000 # o servidor espera 20 s a partir de quando ele viu a queda
 
 func _ready() -> void:
 	if OS.get_environment("RPG_SERVIDOR") != "":
@@ -178,6 +183,7 @@ func _sair_google() -> void:
 		Engine.get_singleton("LoginGoogle").sair()
 
 func fechar() -> void:
+	_volta = {} # saiu de propósito: não volta como o mesmo herói
 	if ws:
 		ws.close()
 	ws = null
@@ -210,7 +216,34 @@ func entrar_na_sala() -> void:
 		return
 	var sala: Dictionary = r.dados.room
 	meu_id = str(r.dados.sessionId)
-	var url := servidor.replace("https://", "wss://").replace("http://", "ws://") + "/" + str(sala.processId) + "/" + str(sala.roomId) + "?sessionId=" + meu_id
+	_volta = {"processo": str(sala.processId), "sala": str(sala.roomId), "id": meu_id, "token": "", "caiu_ms": 0}
+	_abrir_ws("")
+
+# volta para a mesma sala como o mesmo herói. false = não dá (o online.gd entra de novo do jeito normal)
+func pode_religar() -> bool:
+	return not _volta.is_empty() and str(_volta.token) != "" and int(_volta.caiu_ms) > 0 and Time.get_ticks_msec() - int(_volta.caiu_ms) < VOLTA_MAX_MS
+
+func religar() -> void:
+	if not pode_religar():
+		_volta = {}
+		iniciar()
+		return
+	estado.emit("Voltando…")
+	var v := _volta
+	var r := await pedir("POST", "/matchmake/reconnect/" + str(v.sala), {"reconnectionToken": str(v.token)})
+	if conectado or ws != null: # já voltou por outro caminho enquanto esperava a resposta
+		return
+	if r.codigo != 200 or not r.dados.has("room") or str(r.dados.get("sessionId", "")) != str(v.id):
+		_volta = {} # o servidor não segura mais o herói (passou dos 20 s ou reiniciou): entra de novo
+		iniciar()
+		return
+	meu_id = str(v.id)
+	_abrir_ws(str(v.token))
+
+func _abrir_ws(token: String) -> void:
+	var url := servidor.replace("https://", "wss://").replace("http://", "ws://") + "/" + str(_volta.processo) + "/" + str(_volta.sala) + "?sessionId=" + meu_id
+	if token != "":
+		url += "&reconnectionToken=" + token.uri_encode()
 	ws = WebSocketPeer.new()
 	ws.inbound_buffer_size = 1 << 20
 	ws.outbound_buffer_size = 1 << 18
@@ -257,8 +290,14 @@ func _passo(dt: float) -> void:
 	ws.poll()
 	var st := ws.get_ready_state()
 	if st == WebSocketPeer.STATE_CLOSED:
-		var motivo := "fechou %d" % ws.get_close_code()
+		var codigo_fim := ws.get_close_code()
+		var motivo := "fechou %d" % codigo_fim
 		ws = null
+		if not _volta.is_empty():
+			if codigo_fim == 1000 or codigo_fim >= 4000: # o servidor fechou de propósito (trocado por outro aparelho, saiu, reiniciou)
+				_volta = {}
+			elif conectado:
+				_volta.caiu_ms = Time.get_ticks_msec()
 		var estava := conectado
 		conectado = false
 		if estava:
@@ -303,6 +342,10 @@ func _receber(p: PackedByteArray) -> void:
 	match codigo:
 		JOIN_ROOM:
 			# [10, token de reconexão, serializador]: responde [10] e passa a valer como dentro da sala
+			var n := b.get_u8() if p.size() > 1 else 0
+			if not _volta.is_empty() and n > 0 and p.size() >= 2 + n:
+				_volta.token = p.slice(2, 2 + n).get_string_from_utf8() # o servidor troca o token a cada entrada
+				_volta.caiu_ms = 0
 			ws.send(PackedByteArray([JOIN_ROOM]))
 			conectado = true
 			estado.emit("Online")
