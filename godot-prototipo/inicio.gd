@@ -49,7 +49,25 @@ var feito_bytes := 0 # já baixado nesta abertura (barra soma todos os arquivos)
 var total_bytes := 0
 var tentar: Button
 
+# Desenho em paralelo (APK 2026-11-12, auditoria de FPS): o project.godot liga a linha de desenho separada
+# (rendering/driver/threads/thread_model = 2) e lê por cima user://motor.cfg (application/config/
+# project_settings_override). O recurso ainda é "experimental" no Godot 4.5, então a trava é pessimista: toda
+# abertura em paralelo já deixa gravado o modo antigo (1) para a próxima e conta uma falha; o jogo (grafico.gd)
+# grava o 2 de volta e zera a conta depois de rodar uns segundos sem cair. Caiu duas vezes seguidas: fica no modo
+# antigo até o jogador ligar de novo em Configurações.
+const MOTOR := "user://motor.cfg"
+
+func _trava_paralelo() -> void:
+	if int(ProjectSettings.get_setting("rendering/driver/threads/thread_model", 1)) != 2:
+		return
+	var cfg := ConfigFile.new()
+	cfg.load(MOTOR)
+	cfg.set_value("aethra", "paralelo_falhas", int(cfg.get_value("aethra", "paralelo_falhas", 0)) + 1)
+	cfg.set_value("rendering", "driver/threads/thread_model", 1)
+	cfg.save(MOTOR)
+
 func _ready() -> void:
+	_trava_paralelo()
 	base = str(ProjectSettings.get_setting("aethra/atualizacao/base", ""))
 	casca = bool(ProjectSettings.get_setting("aethra/atualizacao/casca", false))
 	_montar_tela()

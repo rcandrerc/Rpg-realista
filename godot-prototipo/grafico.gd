@@ -63,6 +63,52 @@ func _init(jogo) -> void:
 	if limite not in LIMITES:
 		limite = -1
 
+# ---------- desenho em paralelo (APK 2026-11-12) ----------
+# A lógica do jogo e o desenho rodam em linhas separadas do processador: o quadro passa a custar o maior dos dois, não a
+# soma. Só vale no APK que traz a opção (project.godot lê user://motor.cfg) e só muda ao abrir o jogo de novo.
+# A trava contra queda fica no inicio.gd (APK): ele grava o modo antigo a cada abertura em paralelo; aqui, depois de
+# PARALELO_OK s jogando sem cair, a escolha do jogador volta a valer.
+const MOTOR := "user://motor.cfg"
+const PARALELO_OK := 15.0
+const PARALELO_FALHAS_MAX := 2
+
+func paralelo_disponivel() -> bool:
+	return str(ProjectSettings.get_setting("application/config/project_settings_override", "")) == MOTOR
+
+func paralelo_agora() -> bool:
+	# no modo antigo a linha principal é a própria linha do desenho (vale também para --render-thread nos testes do PC)
+	return not RenderingServer.is_on_render_thread()
+
+func _motor() -> ConfigFile:
+	var cfg := ConfigFile.new()
+	cfg.load(MOTOR)
+	return cfg
+
+func paralelo_quer() -> bool:
+	return bool(_motor().get_value("aethra", "paralelo", true))
+
+# desligou sozinho porque o jogo fechou sem querer duas vezes seguidas com ele ligado
+func paralelo_caiu() -> bool:
+	return paralelo_quer() and int(_motor().get_value("aethra", "paralelo_falhas", 0)) >= PARALELO_FALHAS_MAX
+
+# main.gd chama depois de PARALELO_OK s de jogo: esta abertura não caiu
+func paralelo_confirmar() -> void:
+	if not paralelo_disponivel():
+		return
+	var cfg := _motor()
+	if paralelo_agora():
+		cfg.set_value("aethra", "paralelo_falhas", 0)
+	var liga: bool = bool(cfg.get_value("aethra", "paralelo", true)) and int(cfg.get_value("aethra", "paralelo_falhas", 0)) < PARALELO_FALHAS_MAX
+	cfg.set_value("rendering", "driver/threads/thread_model", 2 if liga else 1)
+	cfg.save(MOTOR)
+
+func trocar_paralelo(v: bool) -> void:
+	var cfg := _motor()
+	cfg.set_value("aethra", "paralelo", v)
+	cfg.set_value("aethra", "paralelo_falhas", 0) # ligou na mão: tenta de novo do zero
+	cfg.set_value("rendering", "driver/threads/thread_model", 2 if v else 1)
+	cfg.save(MOTOR)
+
 # quantos quadros por segundo valem agora (0 = sem limite)
 func fps_alvo() -> int:
 	return limite if limite >= 0 else int(P.fps)
