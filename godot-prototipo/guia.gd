@@ -10,7 +10,11 @@ extends CanvasLayer
 # mochila, o botão da mochila some atrás do menu e quem pisca é a peça; tocou na peça, aparece o Destruir e ele pisca;
 # fechou tudo no meio, volta a piscar a mochila. Só procura dentro da janela que está por cima (a confirmação, o menu,
 # a conversa...), então nunca pisca um botão tapado por outra janela.
-# Não tem texto novo na tela, só o brilho (o que fazer já está na barrinha da missão). Não pega toque nenhum.
+# Não tem texto novo na tela, só o brilho (o que fazer já está na barrinha da missão).
+# Trava (André 2026-11-12: "quando estivesse fazendo a missão, só conseguisse fazer aquilo que o sistema estava pedindo"):
+# com uma janela aberta (menu, conversa, confirmação, fornalha...) e algo piscando nela, só o que pisca aceita toque; o
+# resto da tela não responde. No jogo (sem janela) não trava: andar, lutar e fugir ficam livres, só o brilho guia.
+# Saída de emergência: se o mesmo botão fica piscando TRAVA_MAX s sem o jogador conseguir, a trava solta (o brilho fica).
 # Leve: uma busca na janela de cima a cada 0,15 s e um desenho só (um Control) enquanto tem algo piscando.
 
 const Menu = preload("res://menu.gd")
@@ -20,6 +24,15 @@ const LONGE := 7.0 # m: mais longe que isto do lugar da etapa, o "Ir" da barrinh
 const LONGE_CAMPO := 30.0 # m: caçar, pistas e coleta (o campo é grande: lá dentro o "Ir" para de piscar)
 const PERTO_NPC := 4.5 # m: do lado do NPC (missao_ativa.gd abre a conversa a 4 m)
 const COR := Color(1.0, 0.86, 0.42) # dourado claro (o mesmo brilho dos botões ativos)
+const TRAVA := true # chave da trava (só o que pisca aceita toque)
+const TRAVA_MAX := 20.0 # s no mesmo botão: a trava solta (nunca prende o jogador de vez)
+const TRAVA_EM := ["menu", "janela", "confirma", "qtd", "conversa", "leilao", "forno", "veiculo", "topo", "mapa"]
+
+# tela inteira que come o toque, menos no buraco (o que pisca): o toque no buraco passa para o botão de baixo
+class Trava extends Control:
+	var buraco := Rect2()
+	func _has_point(p: Vector2) -> bool:
+		return not buraco.has_point(p)
 
 var m # main.gd
 var desenho: Control
@@ -29,12 +42,21 @@ var _circ := Vector3.ZERO # botão redondo da HUD que pisca: x, y = centro, z = 
 var _ret := Rect2() # retângulo solto (painel do herói, totem no mapa)
 var _chave := "" # o que pisca agora (para rolar a lista até ele só uma vez)
 var _grupo_de := {} # cache: o que se cria -> grupo da aba Criar
+var trava: Trava
+var _tipo := "" # janela de cima na última busca
+var _trava_t := 0.0 # s que o mesmo botão está piscando
+var _trava_de := ""
 
 func _init(principal) -> void:
 	m = principal
 	layer = 26 # acima de tudo que tem botão (menu 20, reforço 22, janela de criar 25); abaixo da cena da história (45)
 
 func _ready() -> void:
+	trava = Trava.new()
+	trava.set_anchors_preset(Control.PRESET_FULL_RECT)
+	trava.mouse_filter = Control.MOUSE_FILTER_STOP
+	trava.visible = false
+	add_child(trava)
 	desenho = Control.new()
 	desenho.set_anchors_preset(Control.PRESET_FULL_RECT)
 	desenho.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -49,6 +71,7 @@ func _process(dt: float) -> void:
 		_t = PASSO
 		var tinha: bool = _tem()
 		_procurar()
+		_travar(PASSO)
 		if tinha and not _tem():
 			desenho.queue_redraw() # apaga o último brilho
 	if _tem():
@@ -56,6 +79,29 @@ func _process(dt: float) -> void:
 
 func _tem() -> bool:
 	return (_alvo != null and is_instance_valid(_alvo)) or _circ.z > 0.0 or _ret.has_area()
+
+# a trava segue o que pisca: buraco no lugar dele, só com janela aberta, e solta depois de TRAVA_MAX s no mesmo botão
+func _travar(dt: float) -> void:
+	if _chave != _trava_de:
+		_trava_de = _chave
+		_trava_t = 0.0
+	else:
+		_trava_t += dt
+	var r := _ret_alvo()
+	var pode: bool = TRAVA and LIGADO and _chave != "" and _tipo in TRAVA_EM and r.has_area() and _trava_t < TRAVA_MAX
+	if pode:
+		trava.buraco = r.grow(4.0)
+	if trava.visible != pode:
+		trava.visible = pode
+
+# o retângulo na tela do que pisca (Control ou retângulo solto); vazio = nada (ou só um círculo da HUD)
+func _ret_alvo() -> Rect2:
+	if _alvo != null and is_instance_valid(_alvo):
+		if not _alvo.is_visible_in_tree():
+			return Rect2()
+		var xf: Transform2D = _alvo.get_global_transform_with_canvas()
+		return Rect2(xf.origin, _alvo.size * xf.get_scale())
+	return _ret
 
 func _limpar() -> void:
 	_alvo = null
@@ -234,13 +280,17 @@ var _itens := {} # meta "guia_i" (lugar da mochila) -> Control (mochila do menu,
 func _procurar() -> void:
 	_limpar()
 	if not LIGADO:
+		_chave = ""
 		return
 	var hi := _etapa()
+	_tipo = ""
 	if hi.is_empty():
 		_chave = ""
 		return
 	var J := _janela()
+	_tipo = str(J.get("tipo", ""))
 	if J.get("esconde", false):
+		_chave = ""
 		return
 	var lista := passos(hi)
 	_botoes = []
@@ -267,6 +317,9 @@ func _procurar() -> void:
 				var x = _meta("fechar")
 				if x != null:
 					_alvo = x
+					_chave = "fechar"
+				else:
+					_chave = ""
 				return
 	_chave = ""
 
@@ -656,13 +709,9 @@ func _desenhar() -> void:
 		desenho.draw_arc(c, r + 3.0, 0.0, TAU, 48, Color(COR, 0.6 + 0.4 * pulso), 4.5, true)
 		desenho.draw_arc(c, r + 5.0 + 18.0 * onda, 0.0, TAU, 48, Color(COR, 0.8 * (1.0 - onda)), 3.0, true)
 		return
-	var ret := _ret
+	var ret := _ret_alvo()
 	var raio := 14.0
 	if _alvo != null and is_instance_valid(_alvo):
-		if not _alvo.is_visible_in_tree():
-			return
-		var xf: Transform2D = _alvo.get_global_transform_with_canvas()
-		ret = Rect2(xf.origin, _alvo.size * xf.get_scale())
 		raio = clampf(minf(ret.size.x, ret.size.y) * 0.25, 8.0, 18.0)
 	if not ret.has_area():
 		return

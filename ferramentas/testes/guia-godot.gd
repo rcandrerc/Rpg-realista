@@ -201,6 +201,8 @@ func _initialize() -> void:
 	confere(g.passos(m.P.hist_info)[0] == "topo:mochila", "destruir começa na mochila")
 	g._procurar()
 	confere(g._alvo == b_moch, "1. pisca o ícone da mochila")
+	g._travar(0.0)
+	confere(not g.trava.visible, "no jogo (sem janela) não trava: andar e lutar ficam livres")
 	topo.recolhido = true
 	g._procurar()
 	confere(g._alvo == b_seta, "menu do topo recolhido: pisca a seta")
@@ -226,6 +228,14 @@ func _initialize() -> void:
 	var b_dest := botao(mn.raiz, "Destruir")
 	g._procurar()
 	confere(g._alvo == b_dest, "3. pisca Destruir")
+	b_dest.position = Vector2(200, 100)
+	g._travar(0.0)
+	confere(g.trava.visible, "menu aberto com algo piscando: trava")
+	confere(not g.trava._has_point(Vector2(240, 115)), "trava: o toque no Destruir passa")
+	confere(g.trava._has_point(Vector2(600, 400)), "trava: o toque fora dele não passa")
+	g._travar(12.0)
+	g._travar(12.0)
+	confere(not g.trava.visible, "trava solta depois de 20 s no mesmo botão")
 	var conf := Control.new()
 	raiz.add_child(conf)
 	var b_so := botao(conf, "Só esta")
@@ -233,6 +243,8 @@ func _initialize() -> void:
 	mn._confirma = conf
 	g._procurar()
 	confere(g._alvo == b_so, "4. na confirmação pisca Só esta")
+	g._travar(0.0)
+	confere(g.trava.visible, "botão novo piscando: a trava volta")
 	mn._confirma = null
 	conf.queue_free()
 	b_dest.queue_free()
@@ -322,6 +334,8 @@ func _initialize() -> void:
 	m.P.hist_info = {}
 	g._procurar()
 	confere(not g._tem(), "sem etapa: nada pisca")
+	g._travar(0.0)
+	confere(not g.trava.visible, "sem etapa: sem trava")
 
 	print("guia: %d ok, %d falhas" % [oks, falhas])
 	quit(1 if falhas > 0 else 0)
