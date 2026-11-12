@@ -104,6 +104,38 @@ func paralelo_confirmar() -> void:
 	cfg.set_value("rendering", "driver/threads/thread_model", 2 if liga else 1)
 	cfg.save(MOTOR)
 
+# ---------- linhas de fundo do motor (André 2026-11-12: "o app não abre", APK 2006 / Godot 4.7.1) ----------
+# Na primeira abertura do 4.7 (celular sem nada guardado em user://shader_cache) o motor prepara centenas de shaders.
+# Cada um vira várias tarefas no WorkerThreadPool e, com as linhas padrão (uma por núcleo: 8 no Poco X7), todas ficavam
+# esperando umas pelas outras: o jogo parava antes do primeiro quadro na tela "Procurando atualização…"/"Abrindo…" e só
+# andava depois de muito tempo (André: ~1 hora). Reproduzido no PC com Vulkan e cache vazio: 4 e 8 linhas travam, 32
+# abre. Linha parada não gasta processador, então sobrar linha não pesa. O ajuste vai no user://motor.cfg (o APK lê ao
+# abrir, como o desenho em paralelo) e só vale na próxima abertura; o project.godot já traz o mesmo para o próximo APK.
+const LINHAS := 32
+
+# true = acabou de gravar o ajuste e esta abertura ainda está sem ele (main.gd mostra o aviso e fecha o app)
+static func ajustar_linhas() -> bool:
+	if str(ProjectSettings.get_setting("application/config/project_settings_override", "")) != MOTOR:
+		return false # APK sem o motor.cfg (4.5): não tem o problema e não leria o ajuste
+	if int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) >= LINHAS:
+		return false # já está valendo
+	var cfg := ConfigFile.new()
+	cfg.load(MOTOR)
+	if int(cfg.get_value("threading", "worker_pool/max_threads", -1)) >= LINHAS:
+		return not bool(cfg.get_value("aethra", "linhas_aviso", false)) # gravado, falta abrir de novo
+	cfg.set_value("threading", "worker_pool/max_threads", LINHAS)
+	# as aberturas que travaram contaram como queda do desenho em paralelo; a culpa era daqui: zera a conta
+	cfg.set_value("aethra", "paralelo_falhas", 0)
+	cfg.save(MOTOR)
+	return true
+
+# o aviso de "abra de novo" aparece uma vez só (se o ajuste não pegar, o jogo segue e não fica fechando)
+static func linhas_avisou() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(MOTOR)
+	cfg.set_value("aethra", "linhas_aviso", true)
+	cfg.save(MOTOR)
+
 func trocar_paralelo(v: bool) -> void:
 	var cfg := _motor()
 	cfg.set_value("aethra", "paralelo", v)
