@@ -274,11 +274,10 @@ const ESPERA := 2.5
 const MEDE := 5.0
 
 func _ready() -> void:
-	# Godot 4.7 (André 2026-11-12, "o app não abre"): sem o ajuste das linhas de fundo o jogo trava antes do primeiro
-	# quadro (grafico.gd ajustar_linhas). Gravado agora, só vale ao abrir de novo: avisa e fecha antes de montar o mundo.
+	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
+	# próxima abertura. Não fecha mais o jogo: a trava de verdade era o pré-carregamento em segundo plano (pre_carregar).
 	if Grafico.ajustar_linhas():
-		_abrir_de_novo()
-		return
+		Grafico.linhas_avisou()
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
@@ -4025,7 +4024,14 @@ func criar_aos_poucos() -> void:
 
 # Os modelos grandes (vila, corpos, monstros) começam a carregar todos juntos, em várias linhas do processador, logo no
 # começo. Quando o código chega no load() de cada um, só espera o que ainda falta (antes era um depois do outro).
+#
+# Godot 4.7 (André 2026-11-12, "fica só procurando atualização"): com o cache de shaders vazio (1ª abertura) esses
+# carregamentos em segundo plano disputam as linhas de fundo com o preparo dos shaders e o jogo para antes do primeiro
+# quadro, com ou sem sub-linhas. Testado com o APK 2006 e cache vazio: sem o pré-carregamento abre em ~1 min (no PC de
+# teste, sem placa de vídeo); com ele, nem em 7 min. No 4.7 cada load() carrega na hora, como era antes.
 func pre_carregar() -> void:
+	if Engine.get_version_info().hex >= 0x040700:
+		return
 	var lista := ["res://modelos/vila.glb", "res://modelos/ruiva.glb", "res://treino3d/Dummy.gltf", "res://modelos/arma_espada.glb",
 		"res://armas3d/espada.glb", "res://armas3d/cajado.glb"]
 	for n in mundo.get("npcs", []):
