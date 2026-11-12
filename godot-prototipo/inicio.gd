@@ -110,7 +110,7 @@ func _process(_d: float) -> void:
 		if baixando and http and total_bytes > 0:
 			var agora := feito_bytes + http.get_downloaded_bytes()
 			barra.value = 100.0 * agora / total_bytes
-			detalhe.text = "%s de %s" % [_mb(agora), _mb(total_bytes)]
+			detalhe.text = "%s / %s  (%d%%)%s" % [_mb(agora), _mb(total_bytes), int(barra.value), _velocidade(agora)]
 		return
 	if baixando and http:
 		var total := http.get_body_size()
@@ -565,6 +565,34 @@ func _texto(a: String, b: String) -> void:
 	print("[atualização] ", a, " ", b) # aparece no logcat
 	aviso.text = a
 	detalhe.text = b
+
+# velocidade do download e quanto falta (André 2026-11-12: "mostrar quanto já foi, quanto falta e a velocidade, só
+# para ter noção se está baixando"): mede a cada meio segundo e suaviza; parado 5 s mostra "parado" (internet caiu)
+var _vel := -1.0 # bytes/s
+var _vel_t := 0
+var _vel_b := 0
+var _vel_parado := 0
+func _velocidade(agora: int) -> String:
+	var t := Time.get_ticks_msec()
+	if _vel < 0.0 or agora < _vel_b:
+		_vel = 0.0
+		_vel_t = t
+		_vel_b = agora
+		_vel_parado = t
+		return ""
+	if t - _vel_t >= 500:
+		var v := float(agora - _vel_b) * 1000.0 / float(t - _vel_t)
+		_vel = v if _vel <= 0.0 else lerpf(_vel, v, 0.3)
+		if agora > _vel_b:
+			_vel_parado = t
+		_vel_t = t
+		_vel_b = agora
+	if t - _vel_parado > 5000:
+		return "\nparado, esperando a internet…"
+	if _vel <= 0.0:
+		return ""
+	var falta := int(float(total_bytes - agora) / _vel)
+	return "\n%s/s · falta %s" % [_mb(int(_vel)), ("%d min %02d s" % [falta / 60, falta % 60]) if falta >= 60 else "%d s" % falta]
 
 static func _mb(bytes: int) -> String:
 	return "%.1f MB" % (bytes / 1048576.0)

@@ -274,6 +274,11 @@ const ESPERA := 2.5
 const MEDE := 5.0
 
 func _ready() -> void:
+	# Godot 4.7 (André 2026-11-12, "o app não abre"): sem o ajuste das linhas de fundo o jogo trava antes do primeiro
+	# quadro (grafico.gd ajustar_linhas). Gravado agora, só vale ao abrir de novo: avisa e fecha antes de montar o mundo.
+	if Grafico.ajustar_linhas():
+		_abrir_de_novo()
+		return
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
@@ -3154,6 +3159,39 @@ func direcao_joystick() -> Vector3:
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
 # ---------- quadro a quadro ----------
+# tela de aviso da primeira abertura depois do ajuste do motor (ajustar_linhas): o mundo não é montado
+func _abrir_de_novo() -> void:
+	set_process(false)
+	var cl := CanvasLayer.new()
+	add_child(cl)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0.05, 0.06, 0.09)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cl.add_child(fundo)
+	if ResourceLoader.exists("res://ui/abertura.png"):
+		var capa := TextureRect.new()
+		capa.texture = load("res://ui/abertura.png")
+		capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+		capa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		capa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		cl.add_child(capa)
+	var faixa := ColorRect.new()
+	faixa.color = Color(0, 0, 0, 0.55)
+	faixa.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	faixa.offset_top = -150
+	cl.add_child(faixa)
+	var t := Label.new()
+	t.text = "Ajuste feito.\nAbra o jogo de novo."
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	t.set_anchors_preset(Control.PRESET_FULL_RECT)
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	t.add_theme_constant_override("outline_size", 8)
+	faixa.add_child(t)
+	Grafico.linhas_avisou()
+	get_tree().create_timer(4.0).timeout.connect(func(): get_tree().quit())
+
 # app indo para o fundo ou fechando: grava na hora a cópia do progresso que estava esperando
 func _notification(what: int) -> void:
 	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
