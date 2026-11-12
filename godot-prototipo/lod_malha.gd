@@ -25,6 +25,9 @@ static func pedir(raiz: Node) -> void:
 			continue
 		mi.set_meta("lod_ok", mi.mesh.get_instance_id()) # malha trocada (roupa nova) entra de novo
 		if _precisa(mi.mesh):
+			# a chave sai aqui, junto com a conferência acima: com o desenho em paralelo (APK 2026-11-12) cada leitura da
+			# malha no RenderingServer espera a outra linha terminar; tudo no mesmo quadro = uma espera só
+			mi.set_meta("lod_chave", _chave(mi.mesh))
 			_fila.append(mi)
 
 static func _precisa(am: ArrayMesh) -> bool:
@@ -72,7 +75,9 @@ static func passo() -> void:
 			continue
 		var t0 := Time.get_ticks_usec()
 		var velha: ArrayMesh = mi.mesh
-		var k := _chave(velha)
+		var k: String = mi.get_meta("lod_chave", "") if mi.get_meta("lod_ok", 0) == velha.get_instance_id() else ""
+		if k == "":
+			k = _chave(velha)
 		if _cache.has(k):
 			var nova := _montar(velha, _cache[k])
 			if nova != null:

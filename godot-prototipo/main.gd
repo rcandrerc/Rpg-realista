@@ -264,6 +264,10 @@ func _ready() -> void:
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
+	# desenho em paralelo (APK 2026-11-12): rodou uns segundos sem cair, a escolha do jogador volta a valer (grafico.gd)
+	get_tree().create_timer(Grafico.PARALELO_OK).timeout.connect(func():
+		if is_instance_valid(grafico):
+			grafico.paralelo_confirmar())
 	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
@@ -4210,9 +4214,47 @@ func montar_teste() -> void:
 		{"nome": "Sem monstros", "f": func(): _teste_desligar("monstros")},
 	]
 	get_tree().physics_frame.connect(_q_fisica)
-	get_tree().process_frame.connect(_q_logica)
-	RenderingServer.frame_pre_draw.connect(_q_desenho)
-	RenderingServer.frame_post_draw.connect(_q_fechar)
+	_q_paralelo = grafico != null and grafico.paralelo_agora()
+	if _q_paralelo:
+		# desenho em paralelo (APK 2026-11-12): o desenho roda em outra linha, então o quadro daqui é física + lógica +
+		# espera (a linha principal parada esperando a tela ou a linha do desenho). A lógica acaba no último _process.
+		get_tree().process_frame.connect(_q_par_proc)
+		var ult := _UltimoQ.new()
+		ult.name = "UltimoDoQuadro"
+		ult.process_priority = 1 << 30
+		ult.cb = func(): _q_ult = Time.get_ticks_usec()
+		add_child(ult)
+	else:
+		get_tree().process_frame.connect(_q_logica)
+		RenderingServer.frame_pre_draw.connect(_q_desenho)
+		RenderingServer.frame_post_draw.connect(_q_fechar)
+
+class _UltimoQ extends Node:
+	var cb: Callable
+	func _process(_d: float) -> void:
+		cb.call()
+
+var _q_paralelo := false
+var _q_ult := 0
+var _q_fis_ant := 0
+
+func _q_par_proc() -> void:
+	var agora := Time.get_ticks_usec()
+	var ini: int = _q_fis if _q_fis > 0 and _q_fis <= agora else agora # começo desta volta (física, se teve)
+	if _q_fim > 0 and _q_proc > 0 and _q_ult >= _q_proc:
+		var v := {"quadro": ini - _q_fim, "fisica": _q_fis_ant, "logica": _q_ult - _q_proc, "desenho": 0}
+		v.espera = max(0, v.quadro - v.fisica - v.logica)
+		_q_somar(v)
+	_q_fis_ant = agora - ini
+	_q_fim = ini
+	_q_proc = agora
+	_q_fis = 0
+
+func _q_somar(v: Dictionary) -> void:
+	for k in v:
+		q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
+		if etapa >= 0 and t_etapa > ESPERA:
+			soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
 
 func _q_fisica() -> void:
 	if _q_fis == 0:
@@ -4230,10 +4272,7 @@ func _q_fechar() -> void:
 		var ini: int = _q_fis if _q_fis > _q_fim and _q_fis < _q_proc else _q_proc
 		var v := {"quadro": agora - _q_fim, "fisica": _q_proc - ini, "logica": _q_pre - _q_proc, "desenho": agora - _q_pre}
 		v.espera = v.quadro - v.fisica - v.logica - v.desenho
-		for k in v:
-			q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
-			if etapa >= 0 and t_etapa > ESPERA:
-				soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
+		_q_somar(v)
 	_q_fim = agora
 	_q_fis = 0
 
@@ -4320,7 +4359,8 @@ func restaurar() -> void:
 		grafico.aplicar() # volta para a qualidade gráfica escolhida
 
 func comecar_teste() -> void:
-	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	if not _q_paralelo:
+		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	resultados.clear()
 	botao_teste.visible = false
 	etapa = -1
@@ -4350,20 +4390,28 @@ func atualizar_teste(dt: float) -> void:
 	if online:
 		txt += "\nefeitos %.1f ms · online %.1f ms · rede %.1f ms" % [fx.ms, online.ms, online.rede.ms]
 		txt += " · mato %.1f ms · capas %.1f ms · main %.1f ms" % [mato.ms if mato else 0.0, Armadura.PanoCapa.ms_quadro, ms_main] # auditoria de FPS 2026-11-11
-	txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
+	if _q_paralelo:
+		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + espera %.1f (desenho em paralelo)" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.espera]
+	else:
+		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
 		if t_etapa > ESPERA:
 			quadros += 1
 			soma_proc += proc
-			soma_gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
-			soma_rcpu += RenderingServer.viewport_get_measured_render_time_cpu(get_viewport().get_viewport_rid())
+			if not _q_paralelo: # em paralelo, ler o tempo da placa faz a linha principal esperar o desenho (distorce)
+				soma_gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+				soma_rcpu += RenderingServer.viewport_get_measured_render_time_cpu(get_viewport().get_viewport_rid())
 		txt += "\nTestando %d/%d: %s…" % [etapa + 1, etapas.size(), etapas[etapa].nome]
 		if t_etapa >= ESPERA + MEDE:
 			var q: float = max(1, quadros)
-			resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
-					soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
+			if _q_paralelo:
+				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · espera %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("espera", 0.0) / q])
+			else:
+				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
