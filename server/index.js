@@ -49,8 +49,11 @@ class SalaClareira extends Room {
       // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
       if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
       // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
-      const acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
-      amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
+      let acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
+      // André 2026-11-12: a regra só passa por cima da IA em pedido de verdade (curto e que muda algo); senão vale a fala da IA
+      if (r && acao === regra && regra !== r.assunto && !amg.regraValeSobreIaAmiga(id, regra, msg.texto, r.assunto)) acao = amg.acaoSemEfeitoAmiga(id, r.assunto) ? 'conversa' : r.assunto;
+      if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa'; // "bora!" de quem já está no time: só conversa, com a fala da IA
+      amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
     });
     // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
     if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); });
