@@ -931,6 +931,11 @@ func evento(ev: Dictionary) -> void:
 			if m.sons:
 				m.sons.tocar("pano", -6.0)
 			return
+		"esquecer": # luta da Vesper (história v2, final): a Névoa faz o time esquecer de você por uns segundos
+			if m.amigos:
+				m.amigos.esquecido_ate = m.tempo + float(ev.get("dur", 8))
+				m.amigos._barras.queue_redraw()
+			return
 		"cena": # cena da história (cinematica.gd): o herói já está no lugar ("corrigir" vem antes)
 			if m.cinematica:
 				m.cinematica.tocar(str(ev.get("id", "")))
@@ -1378,6 +1383,10 @@ func _passo(dt: float) -> void:
 func _chefe_historia(e: Dictionary, c: Dictionary) -> void:
 	var hc := str(c.get("hc", "")) if c.get("hc") != null else ""
 	if hc == str(e.get("hc", "")):
+		# o mesmo chefe mudou de tamanho (a Vesper se funde ao Coração na fase 3): só cresce, sem refazer o corpo
+		if hc != "" and e.has("escala0") and is_instance_valid(e.get("no")) and absf(float(c.get("esc", 1.5)) - float(e.get("hc_esc", 0.0))) > 0.01:
+			e.hc_esc = float(c.get("esc", 1.5))
+			e.no.scale = e.escala0 * e.hc_esc
 		return
 	_corpo_humano(e, hc)
 	corpos[str(c.id)] = e.no
@@ -1392,7 +1401,8 @@ func _chefe_historia(e: Dictionary, c: Dictionary) -> void:
 		e.nome0 = nome_l.text
 		e.cor_nome0 = nome_l.modulate
 	if hc != "":
-		e.no.scale = e.escala0 * float(c.get("esc", 1.5))
+		e.hc_esc = float(c.get("esc", 1.5))
+		e.no.scale = e.escala0 * e.hc_esc
 		if nome_l != null:
 			nome_l.text = str(c.get("nome", nome_l.text))
 			nome_l.modulate = Color("ffd76a")

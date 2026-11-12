@@ -54,6 +54,15 @@ func tem_conta() -> bool:
 func feitas() -> int:
 	return int(hist().get("p", 0))
 
+# NPC que só aparece a partir da última etapa da missão id (shared/historia.js npcApareceu: o Kael em Aurora)
+func npc_apareceu(id: String) -> bool:
+	var ms: Array = H.get("missoes", [])
+	var h := hist()
+	for i in ms.size():
+		if str(ms[i].get("id", "")) == id:
+			return int(h.get("p", 0)) > i or (int(h.get("p", 0)) == i and h.get("ac", false) == true and int(h.get("e", 0)) >= int(ms[i].get("total", 1)) - 1)
+	return true
+
 func liberado(k: String, estrito := false) -> bool:
 	if not quem_libera.has(k):
 		return true
@@ -204,6 +213,8 @@ func _process(dt: float) -> void:
 	if _feito_p == feitas():
 		return
 	_feito_p = feitas() # missão entregue (ou o progresso chegou): a névoa da região liberada some, a das fechadas aparece
+	if m.relevo != null: # o fim da história (Entrega 5): a névoa some do céu, o ar fica mais limpo no mundo inteiro
+		m.relevo.ceu_limpo = 0.6 if tem_conta() and quem_libera.has("fim") and liberado("fim", true) else 1.0
 	for id in _malhas.keys():
 		if liberado(id):
 			_malhas[id].queue_free()
