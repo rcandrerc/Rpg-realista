@@ -54,7 +54,7 @@ static func palma(esq: Skeleton3D, mao: int) -> Vector3:
 		if j2 >= 0:
 			p += (esq.get_bone_global_pose(j2).origin - a) * PALMA_DEDO
 	# mão fechada em volta do cajado (mao_fechada.gd): o meio dele vai no furo do punho
-	var furo = esq.get_meta("furo_mao_%d" % mao, null)
+	var furo = esq.get_meta("furo_mao_%d" % mao) if esq.has_meta("furo_mao_%d" % mao) else null
 	if furo is Array and float(furo[1]) > 0.0:
 		p = p.lerp(furo[0], float(furo[1]))
 	return esq.global_transform * p
