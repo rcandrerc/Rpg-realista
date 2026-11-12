@@ -3745,6 +3745,7 @@ func lod_inimigos() -> void:
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)
 			pecinhas_de_perto(n.no)
+	anim_monstros_longe(hp)
 	# FPS (auditoria 2026-11-11): a lista dos monstros perto é refeita a cada 4 quadros (são centenas no mapa; um
 	# monstro que chega a LONGE_INIMIGO entra na lista no máximo 3 quadros depois)
 	if Engine.get_process_frames() % 4 != 0 and not inimigos_perto.is_empty():
@@ -3761,6 +3762,37 @@ func lod_inimigos() -> void:
 			e.no.process_mode = Node.PROCESS_MODE_DISABLED if longe else Node.PROCESS_MODE_INHERIT
 		if not longe:
 			inimigos_perto.append(e)
+
+# FPS (varredura 2026-11-12, preset Alta): monstro além da sombra (MONSTRO_ANIM_PERTO m; a sombra do Alta acaba em
+# 20 m) anima como o NPC longe: a cada 2 quadros (a cada 3 além de MONSTRO_ANIM_LONGE m), no mesmo tempo total, e fora
+# da câmera espera e anda tudo de uma vez ao voltar (como o NPC sem sombra, André 2026-11-12). Perto fica igual.
+const MONSTRO_ANIM_PERTO := 20.0
+const MONSTRO_ANIM_LONGE := 40.0
+func anim_monstros_longe(hp: Vector3) -> void:
+	var dt := get_process_delta_time()
+	var q := Engine.get_process_frames()
+	for i in inimigos_perto.size():
+		var e: Dictionary = inimigos_perto[i]
+		var an = e.get("anim")
+		if an == null or not is_instance_valid(an) or e.get("longe", false):
+			continue
+		var d2: float = e.no.position.distance_squared_to(hp)
+		var esp: bool = d2 > MONSTRO_ANIM_PERTO * MONSTRO_ANIM_PERTO
+		if e.get("anim_esp") != (an if esp else null): # mudou de faixa (ou o corpo foi trocado: chefe da história)
+			e.anim_esp = an if esp else null
+			anim_espacada(an, null, esp)
+			e.anim_acc = 0.0
+		if not esp:
+			continue
+		e.anim_acc = float(e.get("anim_acc", 0.0)) + dt
+		var passo: int = 3 if d2 > MONSTRO_ANIM_LONGE * MONSTRO_ANIM_LONGE else 2
+		if (q + i) % passo != 0:
+			continue
+		if fora_da_tela(e.no.position + Vector3(0, 1, 0)):
+			e.anim_acc = minf(e.anim_acc, FORA_ACC_MAX)
+		else:
+			an.advance(e.anim_acc)
+			e.anim_acc = 0.0
 
 # barra de vida do monstro: some quando ele está com a vida cheia e longe. Nome só do alvo atual (o mais perto, que o
 # golpe pega sozinho) e de quem está em combate (levou ou deu dano nos últimos 5 s): três monstros juntos não encavalam
