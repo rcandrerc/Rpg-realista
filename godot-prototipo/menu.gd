@@ -95,6 +95,14 @@ var cam_palco: Camera3D
 var sel_mochila := -1 # item escolhido na mochila
 var pag_mochila := 0 # página da mochila aberta (0..3; André 2026-11-03: 4 páginas de 10 x 4, compradas com ouro)
 var sel_equip := "" # peça escolhida no corpo (lugar)
+# André 2026-11-12: no celular o cartão do item ficava embaixo da grade e tinha que rolar. Agora o item escolhido abre
+# num painel por cima do boneco (lado esquerdo), com letra maior; o ouro mora ao lado do nome do personagem.
+var painel_item: PanelContainer
+var painel_rolagem: ScrollContainer
+var painel_corpo: VBoxContainer
+var ouro_esq: HBoxContainer
+var ferramentas_bolsa: HBoxContainer # Organizar, Filtro e Vender vários na fileira das abas (só na Mochila)
+var _segurou_ms := -1 # segurar um item (perto de quem compra) liga o Vender vários com ele marcado
 # André 2026-11-04: perto de quem compra (Rosa, Tomás) dá para marcar vários itens, ou Selecionar tudo, e vender de uma vez
 var vendendo := false # modo de marcar itens para vender
 var marcados := {} # lugar da mochila -> true
@@ -113,6 +121,7 @@ var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
 var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
 var _arrasto_dentro := false
 var _arrasto_soma := 0.0
+var _rol_painel := false
 
 func _init(principal) -> void:
 	m = principal
@@ -376,8 +385,14 @@ func montar_esquerda() -> Control:
 	var cab := HBoxContainer.new()
 	cab.add_child(rotulo("PERSONAGEM", 13, OURO))
 	col.add_child(cab)
+	var linha_nome := HBoxContainer.new()
 	titulo_nivel = rotulo("", 20, TEXTO)
-	col.add_child(titulo_nivel)
+	titulo_nivel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linha_nome.add_child(titulo_nivel)
+	ouro_esq = HBoxContainer.new() # ouro do lado do personagem (André 2026-11-12); preenchido em atualizar()
+	ouro_esq.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	linha_nome.add_child(ouro_esq)
+	col.add_child(linha_nome)
 	# manequim: o boneco no meio de tudo e os medalhões soltos em volta, cada um ligado à parte do corpo
 	var meio := Control.new()
 	meio.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -424,6 +439,7 @@ func montar_esquerda() -> Control:
 			q.offset_top = MEDALHAO * 0.5 + 16
 			q.offset_bottom = MEDALHAO * 0.5 + 40
 			meio.add_child(q)
+	meio.add_child(montar_painel_item())
 	var pe := HBoxContainer.new()
 	pe.add_theme_constant_override("separation", 10)
 	var dica := rotulo("Arraste o personagem para girar", 12, APAGADO)
@@ -435,6 +451,40 @@ func montar_esquerda() -> Control:
 	col.add_child(pe)
 	montar_palco()
 	return col
+
+# painel do item escolhido (André 2026-11-12): por cima do boneco, tudo à vista sem rolar a mochila. Enquanto ele está
+# aberto o boneco 3D não é desenhado (o painel cobre ele todo; poupa o celular).
+func montar_painel_item() -> Control:
+	painel_item = PanelContainer.new()
+	painel_item.set_anchors_preset(Control.PRESET_FULL_RECT)
+	painel_item.mouse_filter = Control.MOUSE_FILTER_STOP
+	painel_item.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.062, 0.052, 1), BORDA, 1, 10))
+	painel_item.visible = false
+	painel_rolagem = ScrollContainer.new()
+	painel_rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	painel_item.add_child(painel_rolagem)
+	painel_corpo = VBoxContainer.new()
+	painel_corpo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	painel_rolagem.add_child(painel_corpo)
+	return painel_item
+
+func mostrar_painel(c: Control) -> void:
+	if painel_item == null:
+		return
+	for f in painel_corpo.get_children():
+		painel_corpo.remove_child(f)
+		f.queue_free()
+	painel_item.visible = c != null
+	if c != null:
+		painel_corpo.add_child(c)
+		painel_rolagem.scroll_vertical = 0
+	if aberto():
+		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if c != null else SubViewport.UPDATE_ALWAYS
+
+func fechar_item() -> void:
+	sel_mochila = -1
+	sel_equip = ""
+	atualizar()
 
 # lugar de equipamento: moldura escura com o nome; a arma mostra a que está na mão (o resto vem com a mochila)
 func slot(id: String, nome: String, lado := 1) -> Control:
@@ -677,6 +727,14 @@ func montar_direita() -> Control:
 		b.custom_minimum_size = Vector2(126, 40)
 		botoes_aba[a[0]] = b
 		abas.add_child(b)
+	ferramentas_bolsa = HBoxContainer.new()
+	ferramentas_bolsa.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ferramentas_bolsa.alignment = BoxContainer.ALIGNMENT_END
+	ferramentas_bolsa.add_theme_constant_override("separation", 6)
+	abas.add_child(ferramentas_bolsa)
+	var lugar_x := Control.new() # o X de fechar fica por cima deste canto
+	lugar_x.custom_minimum_size = Vector2(40, 0)
+	abas.add_child(lugar_x)
 	col.add_child(abas)
 	linha_arvores = HBoxContainer.new()
 	linha_arvores.add_theme_constant_override("separation", 6)
@@ -803,6 +861,14 @@ func _input(ev: InputEvent) -> void:
 	if not aberto() or rolagem == null:
 		return
 	var rol: ScrollContainer = janela_rolagem if janela_aberta() and janela_rolagem != null else rolagem
+	if ev is InputEventScreenTouch and ev.pressed and not janela_aberta() and painel_item != null and painel_item.visible \
+			and painel_rolagem.get_global_rect().has_point(ev.position):
+		rol = painel_rolagem
+		_rol_painel = true
+	elif ev is InputEventScreenTouch and ev.pressed:
+		_rol_painel = false
+	if _rol_painel and painel_item != null and painel_item.visible:
+		rol = painel_rolagem
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_arrasto_dentro = rol.get_global_rect().has_point(ev.position)
@@ -835,12 +901,21 @@ func atualizar() -> void:
 		return
 	var P = m.P
 	titulo_nivel.text = "%s  ·  Nível %d" % [m.hud.nome, P.prog.nivel]
+	for c in ouro_esq.get_children():
+		ouro_esq.remove_child(c)
+		c.queue_free()
+	ouro_esq.add_child(linha_ouro(18))
+	for c in ferramentas_bolsa.get_children():
+		ferramentas_bolsa.remove_child(c)
+		c.queue_free()
+	mostrar_painel(null)
 	if aba == "loja" and not m.perto_da_loja():
 		aba = "mochila"
 	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else ABAS_PERSONAGEM)
 	for k in botoes_aba:
 		estilo_botao(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
+		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else 126
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
 	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
 	var est_aqui := estacoes_perto()
@@ -2324,17 +2399,17 @@ func criar_item(e: Dictionary) -> void:
 	m.rede("fabricar", {"k": e.k})
 
 # ---------- mochila e loja ----------
-func linha_ouro() -> Control:
+func linha_ouro(tam := 16) -> Control:
 	var l := HBoxContainer.new()
 	l.add_theme_constant_override("separation", 6)
 	var ic := TextureRect.new()
 	ic.texture = icone_tex("it_ouro")
-	ic.custom_minimum_size = Vector2(22, 22)
+	ic.custom_minimum_size = Vector2(tam + 6, tam + 6)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(ic)
-	l.add_child(rotulo("%d de ouro" % int(m.P.prog.ouro), 16, Color("ffd36a")))
+	l.add_child(rotulo("%d de ouro" % int(m.P.prog.ouro), tam, Color("ffd36a")))
 	return l
 
 # quadradinho de item: moldura e ícone na cor da raridade, quantidade no canto
@@ -2367,7 +2442,7 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 			r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(r)
 		if int(it.get("n", 1)) > 1:
-			var n := rotulo(str(int(it.n)), 12, TEXTO)
+			var n := rotulo(str(int(it.n)), 14 if tam >= 64 else 12, TEXTO)
 			n.add_theme_constant_override("outline_size", 4)
 			n.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 			n.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -2416,69 +2491,82 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 			fn.call())
 	return b
 
+# André 2026-11-12: "no celular o ideal era que ficasse tudo à vista". Organizar, Filtro e Vender vários subiram para
+# a fileira das abas; as páginas viraram botões curtos e, no Vender vários, Selecionar tudo / Vender / Pronto ficam
+# na mesma linha delas; o item escolhido abre no painel da esquerda (por cima do boneco). Nada saiu.
+const CEL_MOCHILA := 64
 func montar_mochila() -> void:
 	var P = m.P
-	var topo := HBoxContainer.new()
-	topo.add_child(linha_ouro())
-	var esp_ := Control.new()
-	esp_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	topo.add_child(esp_)
 	var cheios: int = P.prog.mochila.filter(func(x): return x != null).size()
-	topo.add_child(rotulo("%d / %d" % [cheios, P.prog.mochila.size()], 13, APAGADO))
+	# fileira das abas: Organizar, Filtro e (perto de quem compra) Vender vários
 	# André 2026-11-07: botão Organizar (junta as pilhas e põe em ordem de tipo, raridade e nome; quem decide é o servidor)
-	var org := botao("Organizar", func(): acao_item({"acao": "organizar"}), 14, true)
-	org.custom_minimum_size = Vector2(130, 36)
+	var org := botao("Organizar", func(): acao_item({"acao": "organizar"}), 15, true)
+	org.custom_minimum_size = Vector2(104, 40)
 	org.disabled = cheios == 0 or vendendo
-	topo.add_child(org)
+	ferramentas_bolsa.add_child(org)
 	# André 2026-11-07: filtro de coleta (fica dourado quando tem algo desmarcado)
 	var f_atual := filtro_atual()
 	var fil := botao("Voltar" if filtro_aberto else "Filtro", func():
 		filtro_aberto = not filtro_aberto
 		vendendo = false
 		marcados = {}
-		atualizar(), 14, filtro_aberto or f_atual.r.size() > 0 or f_atual.k.size() > 0)
-	fil.custom_minimum_size = Vector2(110, 36)
+		atualizar(), 15, filtro_aberto or f_atual.r.size() > 0 or f_atual.k.size() > 0)
+	fil.custom_minimum_size = Vector2(84, 40)
 	if not filtro_aberto and (f_atual.r.size() > 0 or f_atual.k.size() > 0):
 		fil.add_theme_color_override("font_color", OURO_CLARO)
-	topo.add_child(fil)
-	conteudo.add_child(topo)
+	ferramentas_bolsa.add_child(fil)
+	var compra: bool = m.perto_de_quem_compra()
+	if not compra:
+		vendendo = false
+		marcados = {}
+	elif not vendendo and not filtro_aberto:
+		var bv := botao("Vender vários", func(): modo_vender(true), 15, true)
+		bv.custom_minimum_size = Vector2(132, 40)
+		ferramentas_bolsa.add_child(bv)
 	if filtro_aberto:
 		montar_filtro()
 		return
-	# páginas: abas 1 a 4; a que ainda não foi comprada mostra o preço e abre o cadeado
+	# páginas: botões curtos 1 a 4; a que ainda não foi comprada mostra o preço e abre o cadeado
 	var por_pag: int = int(P.dados.mochila)
 	var total_pag: int = int(P.dados.get("mochilaPaginas", 1))
 	var tem: int = int(P.prog.get("paginas", 1))
 	pag_mochila = clampi(pag_mochila, 0, total_pag - 1)
-	var abas_pag := HBoxContainer.new()
-	abas_pag.add_theme_constant_override("separation", 6)
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 6)
+	if not vendendo:
+		var tp := rotulo("Página", 15, APAGADO)
+		tp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		linha.add_child(tp)
 	for n in total_pag:
-		var t := "Página %d" % (n + 1) if n < tem else "Página %d · %d" % [n + 1, int(P.dados.paginaPreco[n])]
-		var b := botao(t, func(): trocar_pagina(n), 14, n == pag_mochila)
-		b.custom_minimum_size = Vector2(0, 34)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var t := str(n + 1) if n < tem else "%d · %d" % [n + 1, int(P.dados.paginaPreco[n])]
+		var b := botao(t, func(): trocar_pagina(n), 16, n == pag_mochila)
+		b.custom_minimum_size = Vector2(48, 38)
 		if n >= tem:
 			b.add_theme_color_override("font_color", APAGADO)
 			b.icon = icone_tex("it_ouro")
 			b.expand_icon = false
 			b.add_theme_constant_override("icon_max_width", 18)
-		abas_pag.add_child(b)
-	conteudo.add_child(abas_pag)
-	if m.perto_de_quem_compra():
-		conteudo.add_child(barra_venda())
+		linha.add_child(b)
+	if vendendo:
+		barra_venda(linha)
 	else:
-		vendendo = false
-		marcados = {}
+		var esp_ := Control.new()
+		esp_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		linha.add_child(esp_)
+		var cont := rotulo("%d / %d" % [cheios, P.prog.mochila.size()], 15, APAGADO)
+		cont.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		linha.add_child(cont)
+	conteudo.add_child(linha)
 	if pag_mochila >= tem:
 		conteudo.add_child(pagina_trancada(pag_mochila, tem))
 	else:
 		var g := GridContainer.new()
 		g.columns = 10
 		g.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		g.add_theme_constant_override("h_separation", 5)
-		g.add_theme_constant_override("v_separation", 5)
+		g.add_theme_constant_override("h_separation", 6)
+		g.add_theme_constant_override("v_separation", 6)
 		for i in range(pag_mochila * por_pag, min(P.prog.mochila.size(), (pag_mochila + 1) * por_pag)):
-			g.add_child(celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i)))
+			g.add_child(celula_mochila(i, compra))
 		conteudo.add_child(g)
 		# lugar a mais (só se uma mochila antiga trouxe mais itens do que cabem): aparece no fim da última página
 		if pag_mochila == tem - 1 and P.prog.mochila.size() > tem * por_pag:
@@ -2486,21 +2574,49 @@ func montar_mochila() -> void:
 			g2.columns = 10
 			g2.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			for i in range(tem * por_pag, P.prog.mochila.size()):
-				g2.add_child(celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i)))
+				g2.add_child(celula_mochila(i, compra))
 			conteudo.add_child(g2)
+	var dica := ""
 	if vendendo:
-		var d := rotulo("Toque nos itens para marcar ou desmarcar. Itens em pilha vendem a pilha inteira.", 12, APAGADO)
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		conteudo.add_child(d)
+		dica = "Toque nos itens para marcar ou desmarcar. Itens em pilha vendem a pilha inteira."
 	elif sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
-		conteudo.add_child(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
+		mostrar_painel(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
 	elif sel_equip != "" and janela_lugar == "" and P.prog.equip.get(sel_equip) != null: # com a janela aberta, o cartão não repete o Tirar (direção de arte)
-		conteudo.add_child(detalhe(P.prog.equip[sel_equip], -1, sel_equip))
+		mostrar_painel(detalhe(P.prog.equip[sel_equip], -1, sel_equip))
 	elif janela_lugar == "":
-		var d := rotulo("Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar.", 12, APAGADO)
+		dica = "Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar."
+		if compra:
+			dica = "Toque num item para ver o que ele faz. Segure um item para marcar vários e vender."
+	if dica != "":
+		var d := rotulo(dica, 14, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
 	montar_conjunto()
+
+# célula da mochila: tocar escolhe (ou marca, no Vender vários); segurar perto de quem compra liga o Vender vários
+func celula_mochila(i: int, compra: bool) -> Button:
+	var P = m.P
+	var b := celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func():
+		if Time.get_ticks_msec() - _segurou_ms < 600: # o soltar do segurar não desmarca
+			return
+		tocar_mochila(i), CEL_MOCHILA, marcados.has(i))
+	if compra and not vendendo and P.prog.mochila[i] != null:
+		b.button_down.connect(func():
+			await get_tree().create_timer(0.45).timeout
+			if is_instance_valid(b) and b.button_pressed and not _arrastou and aberto() and not vendendo:
+				segurar_item(i))
+	return b
+
+func segurar_item(i: int) -> void:
+	var it = m.P.prog.mochila[i]
+	_segurou_ms = Time.get_ticks_msec()
+	modo_vender(true)
+	if it != null and it.get("cad", false):
+		m.hud.aviso("Item com cadeado: não vende. Abra o cadeado para vender")
+	elif it != null:
+		marcados[i] = true
+		atualizar()
+	Input.vibrate_handheld(30)
 
 # ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
 # prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }; sem o campo = pega tudo.
@@ -2651,8 +2767,8 @@ func montar_conjunto() -> void:
 			algum = true
 			var l := HBoxContainer.new()
 			l.add_theme_constant_override("separation", 8)
-			l.add_child(rotulo("%s peças %s" % [t, PLURAL[r]], 13, Color(P.dados.raridades[r].cor)))
-			l.add_child(rotulo(P.texto_bonus(r, t), 13, TEXTO))
+			l.add_child(rotulo("%s peças %s" % [t, PLURAL[r]], 15, Color(P.dados.raridades[r].cor)))
+			l.add_child(rotulo(P.texto_bonus(r, t), 15, TEXTO))
 			conteudo.add_child(l)
 	var prox := ""
 	for r in range(1, P.dados.raridades.size()):
@@ -2660,9 +2776,9 @@ func montar_conjunto() -> void:
 			if prox == "" and n[r] < int(t) and ativo[t] < r:
 				prox = "Próximo: %s peças %s (tem %d): %s" % [t, PLURAL[r], n[r], P.texto_bonus(r, t)]
 	if not algum:
-		conteudo.add_child(rotulo("Use 2, 3 ou 6 peças Raras (ou melhores) para ganhar bônus.", 12, APAGADO))
+		conteudo.add_child(rotulo("Use 2, 3 ou 6 peças Raras (ou melhores) para ganhar bônus.", 14, APAGADO))
 	if prox != "":
-		var d := rotulo(prox, 12, APAGADO)
+		var d := rotulo(prox, 14, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
 
@@ -2757,18 +2873,32 @@ func _marca_durabilidade(b: Control, it, tam: int) -> void:
 
 func detalhe(it, i: int, lugar: String) -> Control:
 	var P = m.P
+	# André 2026-11-12: abre no painel da esquerda (por cima do boneco), em pé: ícone e nome em cima, texto maior,
+	# botões que quebram linha sozinhos. Mesmo conteúdo e os mesmos botões de antes.
 	var cx := PanelContainer.new()
+	cx.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), P.cor_item(it).darkened(0.3), 1, 8))
-	var l := HBoxContainer.new()
-	l.add_theme_constant_override("separation", 12)
-	cx.add_child(l)
-	var c := celula(it, false, func(): pass, 84)
-	c.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	l.add_child(c)
 	var txt := VBoxContainer.new()
 	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	txt.add_theme_constant_override("separation", 2)
-	txt.add_child(rotulo(P.nome_item(it), 17, P.cor_item(it)))
+	txt.add_theme_constant_override("separation", 5)
+	cx.add_child(txt)
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	txt.add_child(l)
+	var c := celula(it, false, func(): pass, 76)
+	c.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	l.add_child(c)
+	var cab := VBoxContainer.new()
+	cab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cab.add_theme_constant_override("separation", 2)
+	l.add_child(cab)
+	var fx := botao("✕", fechar_item, 20)
+	fx.custom_minimum_size = Vector2(44, 44)
+	fx.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	l.add_child(fx)
+	var nm := rotulo(P.nome_item(it), 22, P.cor_item(it))
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cab.add_child(nm)
 	var tipo := ""
 	if P.eh_equip(it):
 		var lg: String = P.dados.itens[it.k].lugar
@@ -2780,24 +2910,31 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		tipo = "Material · %d" % int(it.n)
 	else:
 		tipo = "Consumível · %d" % int(it.n)
-	txt.add_child(rotulo(tipo, 12, APAGADO))
+	cab.add_child(rotulo(tipo, 15, APAGADO))
 	if P.eh_equip(it): # durabilidade (André 2026-11-05): cada morte desgasta; quebrada não dá bônus até o Tomás consertar
 		var dmax: int = int(P.morte_dados().durMax)
 		var du: int = P.durab(it)
 		if du <= 0:
-			txt.add_child(rotulo("QUEBRADA · sem bônus até o Tomás consertar (%d ouro)" % P.custo_conserto(it), 12, PIOR))
+			var q := rotulo("QUEBRADA · sem bônus até o Tomás consertar (%d ouro)" % P.custo_conserto(it), 15, PIOR)
+			q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			cab.add_child(q)
 		else:
-			txt.add_child(rotulo("Durabilidade %d/%d" % [du, dmax] + (" · conserto %d ouro" % P.custo_conserto(it) if du < dmax else ""), 12, PIOR if du <= dmax * 0.3 else APAGADO))
-	var d := rotulo(P.texto_item(it), 14, TEXTO)
+			var q := rotulo("Durabilidade %d/%d" % [du, dmax] + (" · conserto %d ouro" % P.custo_conserto(it) if du < dmax else ""), 15, PIOR if du <= dmax * 0.3 else APAGADO)
+			q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			cab.add_child(q)
+	var d := rotulo(P.texto_item(it), 18, TEXTO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(d)
 	if P.eh_equip(it): # reforço (igual ao Quimera, André 2026-11-07): +N de +máx, próxima chance, custo e se falhar
 		txt.add_child(linha_reforco(it))
 	if P.eh_equip(it) and lugar == "":
 		var atual = P.prog.equip.get(P.dados.itens[it.k].lugar)
-		txt.add_child(rotulo(("No corpo: %s (%s)" % [P.nome_item(atual), P.texto_item(atual)]) if atual != null else "Lugar vazio no corpo", 12, APAGADO))
-	var bs := HBoxContainer.new()
-	bs.add_theme_constant_override("separation", 8)
+		var nc := rotulo(("No corpo: %s (%s)" % [P.nome_item(atual), P.texto_item(atual)]) if atual != null else "Lugar vazio no corpo", 15, APAGADO)
+		nc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(nc)
+	var bs := HFlowContainer.new()
+	bs.add_theme_constant_override("h_separation", 8)
+	bs.add_theme_constant_override("v_separation", 8)
 	if lugar != "":
 		bs.add_child(botao_acao("Tirar", {"acao": "tirar", "lugar": lugar}))
 	elif P.eh_equip(it):
@@ -2808,8 +2945,8 @@ func detalhe(it, i: int, lugar: String) -> Control:
 		var por := func():
 			fechar()
 			m.construcao.abrir_com(ob)
-		var bc := botao("Colocar", por, 14, true)
-		bc.custom_minimum_size = Vector2(120, 36)
+		var bc := botao("Colocar", por, 16, true)
+		bc.custom_minimum_size = Vector2(120, 42)
 		bs.add_child(bc)
 	elif it.k == "carrinho" and lugar == "": # Quimera: coloca no chão; no mundo, o mesmo botão traz de volta de onde estiver
 		bs.add_child(botao_acao("Guardar carrinho" if P.carrinho_no_mundo() else "Colocar no chão", {"acao": "usar", "i": i}))
@@ -2818,53 +2955,64 @@ func detalhe(it, i: int, lugar: String) -> Control:
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
 		var onde := {"i": i} if lugar == "" else {"lugar": lugar}
 		# André 2026-11-09: "até cancelar" confundia. Agora: uma tentativa, ou repetir sozinho até o máximo da peça
-		var r1 := botao("Reforçar 1 vez", func(): m.reforco.comecar(onde, false), 14, true)
-		r1.custom_minimum_size = Vector2(140, 36)
+		var r1 := botao("Reforçar 1 vez", func(): m.reforco.comecar(onde, false), 16, true)
+		r1.custom_minimum_size = Vector2(140, 42)
 		bs.add_child(r1)
-		var r2 := botao("Até o máximo", func(): m.reforco.comecar(onde, true), 14)
-		r2.custom_minimum_size = Vector2(140, 36)
+		var r2 := botao("Até o máximo", func(): m.reforco.comecar(onde, true), 16)
+		r2.custom_minimum_size = Vector2(140, 42)
 		r2.tooltip_text = texto_ate_maximo(it)
 		bs.add_child(r2)
-		bs.add_child(dica_ate_maximo(it))
+		var dm := dica_ate_maximo(it)
+		dm.add_theme_font_size_override("font_size", 13)
+		dm.custom_minimum_size = Vector2(300, 0)
+		bs.add_child(dm)
 	var trancado: bool = bool(it.get("cad", false))
 	if it.k == "carrinho" and P.carrinho_no_mundo():
-		txt.add_child(rotulo("No mundo: travado na mochila. Toque em Guardar pra ele voltar de qualquer distância.", 12, APAGADO))
+		var nm2 := rotulo("No mundo: travado na mochila. Toque em Guardar pra ele voltar de qualquer distância.", 15, APAGADO)
+		nm2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(nm2)
 	# cadeado (André 2026-11-07): trancado não vende (nem no Vender vários), não vai para o lixo nem para a troca
-	var cad := botao("Destrancar" if trancado else "Trancar", func(): acao_item({"acao": "cadeado", "i": i} if lugar == "" else {"acao": "cadeado", "lugar": lugar}), 14, false)
+	var cad := botao("Destrancar" if trancado else "Trancar", func(): acao_item({"acao": "cadeado", "i": i} if lugar == "" else {"acao": "cadeado", "lugar": lugar}), 16, false)
 	cad.icon = icone_tex("cadeado")
 	cad.expand_icon = false
 	cad.add_theme_constant_override("icon_max_width", 18)
-	cad.custom_minimum_size = Vector2(130, 36)
+	cad.custom_minimum_size = Vector2(130, 42)
 	bs.add_child(cad)
 	if it.k == "carrinho" and P.carrinho_no_mundo():
 		trancado = true # no mundo: não vende nem joga fora (o servidor também recusa)
 	if i >= 0 and not trancado and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
 	if i >= 0 and not trancado: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
-		var ap := botao("Apagar", func(): perguntar_apagar(i), 14)
-		ap.custom_minimum_size = Vector2(110, 36)
+		var ap := botao("Apagar", func(): perguntar_apagar(i), 16)
+		ap.custom_minimum_size = Vector2(110, 42)
 		ap.add_theme_color_override("font_color", PIOR)
 		ap.add_theme_color_override("font_hover_color", PIOR)
 		bs.add_child(ap)
 	txt.add_child(bs)
 	# catalisador (André 2026-11-07): Evoluir sobe a raridade com catalisador; Destruir dá catalisador (só da mochila)
 	if i >= 0 and P.eh_equip(it) and P.dados.has("catalisador"):
-		var bs2 := HBoxContainer.new()
-		bs2.add_theme_constant_override("separation", 8)
+		var bs2 := HFlowContainer.new()
+		bs2.add_theme_constant_override("h_separation", 8)
 		if int(it.r) < P.dados.raridades.size() - 1:
-			var be := botao("Evoluir", func(): perguntar_evoluir(i), 14, true)
-			be.custom_minimum_size = Vector2(120, 36)
+			var be := botao("Evoluir", func(): perguntar_evoluir(i), 16, true)
+			be.custom_minimum_size = Vector2(120, 42)
 			bs2.add_child(be)
 		if not trancado:
-			var bd := botao("Destruir", func(): perguntar_destruir(i), 14)
-			bd.custom_minimum_size = Vector2(120, 36)
+			var bd := botao("Destruir", func(): perguntar_destruir(i), 16)
+			bd.custom_minimum_size = Vector2(120, 42)
 			bd.add_theme_color_override("font_color", PIOR)
 			bd.add_theme_color_override("font_hover_color", PIOR)
 			bs2.add_child(bd)
 		txt.add_child(bs2)
 	if trancado:
-		txt.add_child(rotulo("Com cadeado: não vende, não vai para o lixo nem para a troca", 12, OURO))
-	l.add_child(txt)
+		var tc := rotulo("Com cadeado: não vende, não vai para o lixo nem para a troca", 15, OURO)
+		tc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.add_child(tc)
+	for fila in [bs, txt.get_child(txt.get_child_count() - 1)]: # botões do painel: letra e altura maiores (dedo no celular)
+		for bt in fila.get_children():
+			if bt is Button:
+				bt.add_theme_font_size_override("font_size", 16)
+				bt.custom_minimum_size.y = max(bt.custom_minimum_size.y, 42)
 	return cx
 
 # ---------- vender vários (André 2026-11-04) ----------
@@ -2887,19 +3035,9 @@ func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
 			raros += 1
 	return [n, ouro, raros]
 
-func barra_venda() -> Control:
+# André 2026-11-12: os botões do modo ficam na linha das páginas (o "Vender vários" de entrar subiu para as abas)
+func barra_venda(l: HBoxContainer) -> void:
 	var P = m.P
-	var l := HBoxContainer.new()
-	l.add_theme_constant_override("separation", 8)
-	if not vendendo:
-		var t := rotulo("Quer vender várias coisas de uma vez?", 13, APAGADO)
-		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		l.add_child(t)
-		var b := botao("Vender vários", func(): modo_vender(true), 14, true)
-		b.custom_minimum_size = Vector2(150, 40)
-		l.add_child(b)
-		return l
 	var cheios: Array = []
 	for i in P.prog.mochila.size():
 		if P.prog.mochila[i] != null and not P.prog.mochila[i].get("cad", false): # com cadeado fica de fora do Selecionar tudo
@@ -2910,20 +3048,19 @@ func barra_venda() -> Control:
 		if not todos:
 			for i in cheios:
 				marcados[i] = true
-		atualizar(), 14)
-	sel.custom_minimum_size = Vector2(150, 40)
+		atualizar(), 15)
+	sel.custom_minimum_size = Vector2(150, 38)
 	l.add_child(sel)
 	var r: Array = preco_marcados()
-	var vb := botao("Vender %d · %d de ouro" % [r[0], r[1]] if r[0] > 0 else "Marque os itens", func(): perguntar_vender_varios(), 14, r[0] > 0)
-	vb.custom_minimum_size = Vector2(0, 40)
+	var vb := botao("Vender %d · %d de ouro" % [r[0], r[1]] if r[0] > 0 else "Marque os itens", func(): perguntar_vender_varios(), 15, r[0] > 0)
+	vb.custom_minimum_size = Vector2(0, 38)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.disabled = r[0] == 0
 	avisar_travado(vb, func(): return "Marque primeiro os itens que quer vender")
 	l.add_child(vb)
-	var pr := botao("Pronto", func(): modo_vender(false), 14)
-	pr.custom_minimum_size = Vector2(100, 40)
+	var pr := botao("Pronto", func(): modo_vender(false), 15)
+	pr.custom_minimum_size = Vector2(90, 38)
 	l.add_child(pr)
-	return l
 
 func modo_vender(ligar: bool) -> void:
 	vendendo = ligar
