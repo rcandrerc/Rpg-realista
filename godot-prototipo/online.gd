@@ -21,12 +21,17 @@ var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
 var para_servidor := {} # o contrário
 var _pos_t := 0.0
+# André 2026-11-12 (rollback): número do último "corrigir" aplicado. Vai em cada posição; o servidor ignora as que saíram
+# antes da correção mais nova (sem cascata) e aqui só vale correção mais nova que esta
+var corr_seq := 0
+const DESLIZA_MAX := 3.0 # m: correção menor que isso desliza na tela em vez de pular (main.gd desliza)
 var _ent_t := 0.0
 var _ultima_entrada := {}
 var _tentar_de_novo := -1.0
 # André (2026-11-07): caiu a conexão no meio do jogo, o jogo segue por até QUEDA_MAX s tentando voltar (e volta para o
 # que o servidor guardou). Passou disso: "Você foi desconectado" e o jogo volta para a tela inicial (entrar de novo).
-const QUEDA_MAX := 5.0
+# André 2026-11-12: ligação no celular derruba a internet móvel por 8 a 20 s e os 5 s de antes jogavam ele na tela inicial
+const QUEDA_MAX := 30.0
 const QUEDA_REINICIO := 60.0 # o servidor avisou que ia reiniciar (reinicio.gd): espera ele ligar de novo (~15 s na Oracle)
 var _queda_t := -1.0
 static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela inicial mostra o aviso
@@ -271,6 +276,8 @@ func atualizar_status(_t := "") -> void:
 # ---------- sala ----------
 func ao_entrar(id: String, conta: Dictionary) -> void:
 	ligado = true
+	if id != meu_id:
+		corr_seq = 0 # herói novo no servidor (entrou de novo): a conta das correções recomeça lá também
 	meu_id = id
 	_queda_t = -1.0
 	_foi_desconectado = false
@@ -321,7 +328,7 @@ func ao_cair(motivo: String) -> void:
 		m.hud.aviso("Caiu a conexão. Tentando voltar…")
 		_tentar_de_novo = 1.0
 		_queda_t = QUEDA_MAX
-	elif _queda_t > 0.0: # ainda dentro dos 5 s: tenta de novo logo
+	elif _queda_t > 0.0: # ainda dentro dos QUEDA_MAX s: tenta de novo logo
 		_tentar_de_novo = 1.0
 	elif motivo == "fora" or motivo == "sala" or motivo.begins_with("fechou"):
 		_tentar_de_novo = 15.0 if rede.sessao != "" else -1.0
@@ -345,7 +352,7 @@ func desligar() -> void:
 				e.estado = "vagar"
 	atualizar_status("")
 
-# passou dos 5 s sem conexão: avisa e mostra a tela inicial (nada do que foi feito sem servidor fica: ao entrar de novo
+# passou dos QUEDA_MAX s sem conexão: avisa e mostra a tela inicial (nada do que foi feito sem servidor fica: ao entrar de novo
 # o servidor manda o progresso e o lugar dele). Sem recarregar a cena: o recarregar sem internet fechava o app (André 2026-11-07).
 func _desconectado() -> void:
 	_foi_desconectado = true
@@ -1059,10 +1066,19 @@ func evento(ev: Dictionary) -> void:
 			m.mostrar_drop(Vector3(x, m.chao_em(x, z), z), int(ev.get("ouro", 0)), ev.get("itens", []))
 			return
 		"corrigir": # o servidor não aceitou a posição: volta para onde ele sabe
+			if ev.has("c"): # numerado: correção velha (chegou depois de uma mais nova) não puxa de novo
+				if int(ev.c) <= corr_seq:
+					return
+				corr_seq = int(ev.c)
+			var antes: Vector3 = m.heroi.position - m.desliza
 			# com a altura que ele mandou: sem ela, dentro da caverna o chão virava o topo da montanha por cima do túnel
 			m.mov.por_em(Vector3(float(ev.x), float(ev.y), float(ev.z)), true)
 			m.mov.ry = float(ev.ry)
-			m.heroi.position = m.mov.posicao()
+			var novo: Vector3 = m.mov.posicao()
+			var dif: Vector3 = antes - novo
+			# correção pequena: o corpo desliza até o lugar certo (a câmera vai junto); grande: pula como antes
+			m.desliza = dif if Vector2(dif.x, dif.z).length() < DESLIZA_MAX and absf(dif.y) < 1.0 else Vector3.ZERO
+			m.heroi.position = novo + m.desliza
 			return
 	if meu: # o que eu fiz já apareceu na hora, aqui no celular
 		return
@@ -1375,12 +1391,12 @@ func _passo(dt: float) -> void:
 	_pos_t -= dt
 	if _pos_t <= 0.0 and m.h.morto <= 0.0:
 		_pos_t = 0.05
-		var p: Vector3 = m.heroi.position
+		var p: Vector3 = m.heroi.position - m.desliza # o lugar de verdade (sem o deslize da correção na tela)
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
 		if m.montaria != null: # montado: vai o passo do lobo (o site e os outros apps põem o lobo andando ou galopando)
 			a = "Run" if m.mov.velocidade() > 4.4 else ("Walk" if m.mov.velocidade() > 0.35 else "Idle")
 		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)
-		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a, "e": 1})
+		rede.enviar("pos", {"x": snappedf(p.x, 0.001), "y": snappedf(p.y, 0.001), "z": snappedf(p.z, 0.001), "ry": snappedf(m.mov.ry, 0.001), "anim": a, "e": 1, "c": corr_seq})
 	# para onde o joystick aponta (o servidor usa no rolamento e no dash)
 	_ent_t -= dt
 	if _ent_t <= 0.0:

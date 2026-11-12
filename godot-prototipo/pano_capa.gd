@@ -165,7 +165,9 @@ func _process_modification() -> void:
 	var topo0 := M * base[COLS / 2]
 	var dcam := cam.global_position.distance_to(topo0) if cam else 0.0
 	var longe := dcam > 30.0
+	var nasceu := false
 	if _p.size() != n or _p[COLS / 2].distance_to(topo0) > 1.5:
+		nasceu = true
 		_topo_ok = false
 		_p.resize(n)
 		_q.resize(n)
@@ -173,6 +175,33 @@ func _process_modification() -> void:
 			_p[k] = M * base[k]
 			_q[k] = _p[k]
 		_acum = 0.0
+	# tranco de pose ao montar e ao descer do lobo (André 2026-11-12: "toda vez que eu vou montar na montaria, a capa
+	# dá uma bugada, ela dá uma esticada e passa"): o quadril pula para a sela e o tronco deita num quadro só; a borda
+	# de cima ia junto, o resto do pano ficava para trás e as pernas abrindo no lombo empurravam a barra para os lados.
+	# Nos quadros logo depois de montar ou descer (o lombo do lobo entra ou sai do esqueleto), se o peito pula mais que
+	# TRANCO m dentro do corpo, o pano vai junto sem ganhar velocidade: subindo, gira junto com o peito (deita nas
+	# costas e cai sobre o lobo); descendo, só abaixa (de pé ele cai sozinho). Fora disso (golpes, rolamento) nada muda.
+	var montado := s.has_meta("pano_extra")
+	if montado != _montado_ant:
+		_montado_ant = montado
+		_janela = 4
+	var pose := s.get_bone_global_pose(osso)
+	if _janela > 0:
+		_janela -= 1
+		if _pose_ok and not nasceu:
+			var G := s.global_transform
+			var desl := G.basis * (pose.origin - _pose_ant.origin)
+			if desl.length() > TRANCO:
+				var D := G * pose * _pose_ant.affine_inverse() * G.affine_inverse()
+				if desl.y < 0.0:
+					D = Transform3D(Basis(), desl)
+				for k in n:
+					_p[k] = D * _p[k]
+					_q[k] = _p[k]
+				_M_ant = M
+				_topo_ok = false
+	_pose_ant = pose
+	_pose_ok = true
 	if longe: # fora da vista: não gasta conta, só acompanha o corpo
 		for k in n:
 			_p[k] = M * base[k]
@@ -210,6 +239,11 @@ var _topo_ok := false
 var _vc := Vector3.ZERO # velocidade do corpo suavizada (m/s, só no chão)
 var _trem := 0.0 # força do tremular (0 parado a 1 correndo)
 var _M_ant_ok := false
+const TRANCO := 0.08 # m que o peito pode pular dentro do corpo num quadro, ao montar ou descer, antes de o pano ir junto
+var _pose_ant := Transform3D() # peito no espaço do esqueleto, no quadro anterior
+var _pose_ok := false
+var _montado_ant := false
+var _janela := 0 # quadros em que ainda vale o tranco de montar/descer
 
 func _ao_fim() -> void:
 	var s := get_parent()
@@ -237,6 +271,9 @@ func _passo(M: Transform3D, esc: float) -> void:
 	alvo.resize(n)
 	for k in n:
 		alvo[k] = M * base[k]
+	_alvo = alvo
+	_M_passo = M
+	_M_passo_inv = M.affine_inverse()
 	# velocidade do peito: o "vento" é o ar parado batendo no pano que anda junto com o corpo
 	for j in LINHAS:
 		for i in COLS:
@@ -290,6 +327,13 @@ func _passo(M: Transform3D, esc: float) -> void:
 
 # cápsulas no mundo, uma vez por quadro (os ossos já estão na pose final)
 var _caps: Array = []
+const LOMBO_CRESCE := 0.35 # s para o lombo do lobo chegar ao tamanho cheio depois de montar
+var _lombo_t0 := {} # esqueleto do lobo -> _t em que apareceu
+var _alvo := PackedVector3Array() # forma de descanso no mundo, do passo atual (para o teto da barra)
+var _M_passo := Transform3D() # malha -> mundo no passo atual
+var _M_passo_inv := Transform3D()
+const COSTAS_LINHAS := 3 # linhas de cima (1 e 2) que nunca passam para a frente do peito
+const COSTAS_FOLGA := 0.04 # m que elas podem chegar mais para a frente que na forma de descanso
 func _capsulas(s: Skeleton3D) -> Array:
 	var g := s.global_transform
 	var esc := g.basis.get_scale().x
@@ -301,7 +345,14 @@ func _capsulas(s: Skeleton3D) -> Array:
 		var e = c[0]
 		if is_instance_valid(e):
 			var ge: Transform3D = e.global_transform
-			caps.append([ge * e.get_bone_global_pose(c[1]).origin + Vector3(0, c[4], 0), ge * e.get_bone_global_pose(c[2]).origin + Vector3(0, c[4], 0), float(c[3])])
+			# o lombo aparece de uma vez dentro do pano que estava pendurado: cresce aos poucos (LOMBO_CRESCE s) e
+			# sempre empurra o pano para CIMA dele (antes empurrava pelo lado mais perto e a ponta da capa podia ir
+			# para baixo da barriga do lobo e esticar até se soltar, André 2026-11-12)
+			if not _lombo_t0.has(e):
+				_lombo_t0.clear()
+				_lombo_t0[e] = _t
+			var cresce := clampf((_t - float(_lombo_t0[e])) / LOMBO_CRESCE, 0.0, 1.0)
+			caps.append([ge * e.get_bone_global_pose(c[1]).origin + Vector3(0, c[4], 0), ge * e.get_bone_global_pose(c[2]).origin + Vector3(0, c[4], 0), float(c[3]) * cresce, true])
 	return caps
 
 func _colidir() -> void:
@@ -310,6 +361,11 @@ func _colidir() -> void:
 		var p := _p[k]
 		# o ar não levanta a barra acima da linha dos ombros (antes, montada, a capa apontava para o céu)
 		var teto := _p[k % COLS].y + 0.04
+		# ...mas nunca abaixo da própria forma de descanso: montada, com o tronco deitado, as linhas dos ombros ficam
+		# mais altas que a borda de cima; o teto as puxava para baixo e o corpo as empurrava de volta, e o pano
+		# esticava (André 2026-11-12: "toda vez que eu vou montar a capa dá uma esticada")
+		if _alvo.size() > k:
+			teto = maxf(teto, _alvo[k].y + 0.04)
 		if p.y > teto:
 			p.y = teto
 		for c in caps:
@@ -321,6 +377,17 @@ func _colidir() -> void:
 			var r: float = c[2]
 			var l2 := d.length_squared()
 			if l2 < r * r:
+				if c.size() > 3 and d.y < 0.0: # lombo do lobo: o pano sai por cima
+					d.y = -d.y
 				var l := sqrt(l2)
 				p = perto + (d / l * r if l > 1e-5 else Vector3.UP * r)
+		# perto dos ombros não há cápsula do corpo (a do tronco acaba no peito): montada, com o tronco deitado, a
+		# gravidade puxava essas linhas por cima dos ombros para a frente do peito e o pano esticava preso lá
+		# (André 2026-11-12). Elas ficam sempre nas costas, no máximo COSTAS_FOLGA à frente do descanso.
+		if k < COLS * COSTAS_LINHAS:
+			var lp := _M_passo_inv * p
+			var zmax: float = base[k].z + COSTAS_FOLGA
+			if lp.z > zmax:
+				lp.z = zmax
+				p = _M_passo * lp
 		_p[k] = p

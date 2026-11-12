@@ -168,7 +168,10 @@ export const HEROI = { vida: 120, mana: 100, manaPorSeg: 7, andar: 1.8, correr: 
 export const MOVIMENTO = { pulo: 6.2, gravidade: 17, dashVel: 11, dashTempo: 0.28, dashCd: 0.9 };
 // Conferência da posição que o celular manda (Simulacao.posicaoCliente): metros guardados para dash/rolamento/avanço
 // e altura máxima acima do chão (pulo duplo, escalada de casa e pedra).
-export const ORCAMENTO = { burst: 10, altura: 9 };
+// silencio (André 2026-11-12, rollback com a internet engasgando): depois de X s sem notícia do celular, as posições que
+// chegam juntas podem somar até X s de corrida (teto); antes a folga parava em burst e 1,5 s de engasgo já virava rollback.
+// correcao: por quantos s o servidor ignora as posições que o celular mandou antes de receber o "corrigir" (sem cascata).
+export const ORCAMENTO = { burst: 10, altura: 9, silencio: 5, correcao: 5 };
 // Montarias (teste): o herói sobe e anda mais rápido. Habilidade, dash, rolar ou escalar fazem descer.
 // modelo: GLB com as animações parado, andar, correr (feito por IA: ferramentas/monstros-ia). escala: tamanho no jogo.
 export const MONTARIAS = {

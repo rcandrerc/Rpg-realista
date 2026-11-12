@@ -747,16 +747,21 @@ func opcoes_mercador(n: Dictionary) -> Array:
 	lista.sort_custom(func(a, b): return a[1] > b[1])
 	for e in lista:
 		fala += "\n · %s: %d de ouro" % [e[0], e[1]]
+	# André 2026-11-12: dois botões separados, sempre na janela. "Criar pack" (a barrinha de criar) e "Entregar pack",
+	# que só acende com um pack nas costas que não foi feito aqui, já com o ouro que vai receber.
+	# [texto, ícone, Callable, aceso]
 	var ops := []
-	ops.append(["Fazer o pack (%d de vigor)" % int(PR.vigor), "it_pack", func(): m.rede("pack", {"acao": "fazer", "npc": n.id})])
-	var entregar := func(pk: Dictionary, de: String, i: int) -> void:
+	ops.append(["Criar pack (%d de vigor)" % int(PR.vigor), "it_pack", func(): m.rede("pack", {"acao": "fazer", "npc": n.id}), true])
+	var entregar := func(pk, de: String, i: int) -> void:
+		var onde: String = {"costas": "", "carrinho": " (carrinho)", "porao": " (porão)"}[de]
 		if not (pk is Dictionary) or not PK.has(str(pk.get("k", ""))):
+			if de == "costas": # sem pack nas costas: o botão fica, apagado
+				ops.append(["Entregar pack", "it_ouro", func(): m.hud.aviso("Traga um pack nas costas feito em outro mercador"), false])
 			return
 		if Vector2(nx - float(pk.ox), nz - float(pk.oz)).length() < float(PR.perto):
-			ops.append(["%s: foi feito aqui" % PK[pk.k].nome, "it_pack", func(): m.hud.aviso("Esse pack foi feito aqui. Leve pra outro mercador: quanto mais longe, mais paga!")])
+			ops.append(["Entregar pack%s (feito aqui)" % onde, "it_ouro", func(): m.hud.aviso("Esse pack foi feito aqui. Leve pra outro mercador: quanto mais longe, mais paga!"), false])
 			return
-		var onde: String = {"costas": "", "carrinho": " (carrinho)", "porao": " (porão)"}[de]
-		ops.append(["Entregar %s%s (+%d)" % [PK[pk.k].nome.replace("Pack de ", ""), onde, preco(pk, nx, nz)], "it_ouro", func(): m.rede("pack", {"acao": "entregar", "npc": n.id, "de": de, "i": i}); m.sons.tocar("moedas", -4.0)])
+		ops.append(["Entregar pack%s · +%d ouro" % [onde, preco(pk, nx, nz)], "it_ouro", func(): m.rede("pack", {"acao": "entregar", "npc": n.id, "de": de, "i": i}); m.sons.tocar("moedas", -4.0), true])
 	entregar.call(p.get("pack"), "costas", 0)
 	var c2 = p.get("carrinho")
 	if c2 is Dictionary and _perto_de(c2.get("chao"), nx, nz, float(V.carrinho.entregar)) or m.mov.veiculo.get("k", "") == "carrinho":
@@ -1225,9 +1230,8 @@ func evento(ev: Dictionary) -> void:
 
 # o "prog" chegou (o servidor é quem sabe): combustível de verdade
 func prog_chegou() -> void:
-	var cv = m.conversa # o pack saiu da barrinha: a mochila mudou, os números do material refazem na janela do mercador
-	if cv and cv.raiz.visible and cv.npc is Dictionary and cv.npc.get("funcao", "") == "pack" and cv.itens_ui.visible:
-		cv._itens_passe(true)
+	if m.conversa: # o pack saiu da barrinha ou foi entregue: material e botões refazem na janela do mercador
+		m.conversa.atualizar_pack()
 	if _jan_carrinho and _jan and is_instance_valid(_jan):
 		abrir_carrinho.call_deferred() # a janela mostra o que o servidor mandou (combustível, packs, vida, nível)
 	var c = m.P.prog.get("carrinho")

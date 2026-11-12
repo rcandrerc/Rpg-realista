@@ -361,6 +361,9 @@ func abrir(n: Dictionary, toque := true) -> void:
 		elif a == "consertar":
 			var custo: int = m.P.custo_conserto_tudo()
 			t = ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)"
+		if a == "pack" and m.transporte: # mercador de pack: "Criar pack" e "Entregar pack" separados (André 2026-11-12)
+			_botoes_pack(n)
+			continue
 		opcoes.add_child(_opcao(t, ACOES[a][1], func(): escolher(a)))
 	if not n.get("amiga", false):
 		opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
@@ -442,6 +445,34 @@ func fechar() -> void:
 	if not m.menu.aberto():
 		m.hud.bloqueado = false
 
+# os botões do mercador de pack (transporte.gd opcoes_mercador): apagado = aparece mas não acende
+var _pack_estado := "" # textos e acesos dos botões que estão na janela: só refaz quando muda
+func _botoes_pack(n: Dictionary) -> void:
+	var r: Array = m.transporte.opcoes_mercador(n)
+	var est := ""
+	for o in r[1]:
+		var fn: Callable = o[2]
+		var aceso: bool = o[3] if o.size() > 3 else true
+		var b := _opcao(str(o[0]), str(o[1]), func(): fn.call(); escolher.call_deferred("pack_volta"))
+		b.disabled = not aceso
+		if not aceso:
+			b.modulate = Color(1, 1, 1, 0.7)
+		opcoes.add_child(b)
+		est += "%s|%s;" % [o[0], aceso]
+	_pack_estado = est
+
+# o progresso chegou (pack feito, entregue, material mudou): refaz o material e os botões se a janela do mercador está aberta
+func atualizar_pack() -> void:
+	if not raiz.visible or not (npc is Dictionary) or npc.get("funcao", "") != "pack" or not m.transporte:
+		return
+	_itens_passe(true)
+	var r: Array = m.transporte.opcoes_mercador(npc)
+	var est := ""
+	for o in r[1]:
+		est += "%s|%s;" % [o[0], o[3] if o.size() > 3 else true]
+	if est != _pack_estado:
+		escolher("pack")
+
 func _opcao(t: String, ic: String, fn: Callable) -> Button:
 	var b := Button.new()
 	b.text = t
@@ -503,9 +534,10 @@ func escolher(a: String) -> void:
 			for c in opcoes.get_children():
 				opcoes.remove_child(c)
 				c.queue_free()
-			for o in r[1]:
-				var fn: Callable = o[2]
-				opcoes.add_child(_opcao(str(o[0]), str(o[1]), func(): fn.call(); escolher.call_deferred("pack_volta")))
+			_btn_missao = null
+			_botao_missao()
+			_botoes_pack(n)
+			opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
 			opcoes.add_child(_opcao("Até logo", "sair", fechar))
 		"pack_volta": # depois de fazer/entregar, a lista refaz quando o servidor responde (o progresso chega um instante depois)
 			await get_tree().create_timer(0.5).timeout
