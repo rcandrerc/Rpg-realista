@@ -557,7 +557,36 @@ func _qualidade_grafica() -> void:
 		dica += " Sugerido para este celular (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
 	_texto(dica, Menu.APAGADO, 13)
 	_limite_fps()
+	_paralelo()
 	_visual_leve()
+
+# Desenho em paralelo (APK 2026-11-12, grafico.gd): só aparece no APK que tem a opção; vale ao abrir o jogo de novo
+func _paralelo() -> void:
+	var G = m.grafico
+	if not G.paralelo_disponivel():
+		return
+	var quer: bool = G.paralelo_quer() and not G.paralelo_caiu()
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var l := Menu.rotulo("Paralelo", 17)
+	l.custom_minimum_size = Vector2(120, 0)
+	linha.add_child(l)
+	for i in 2:
+		var b := _botao(["Ligado", "Desligado"][i], func():
+			if quer != (i == 0):
+				G.trocar_paralelo(i == 0)
+				m.hud.aviso("Vale quando abrir o jogo de novo")
+				montar(), quer == (i == 0))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
+	var t := "Desenho em paralelo: o celular desenha a tela numa linha e roda o jogo em outra (bem mais FPS). Vale ao abrir o jogo de novo."
+	if G.paralelo_caiu():
+		t = "O jogo fechou sozinho duas vezes com o desenho em paralelo, então ele foi desligado. Toque em Ligado para tentar de novo."
+	elif G.paralelo_agora() != quer:
+		t += " Agora: " + ("ligado" if G.paralelo_agora() else "desligado") + "."
+	_texto(t, Menu.APAGADO, 13)
 
 # Limite de FPS (varredura de FPS 2026-11-10): 30, 60 ou sem limite (grafico.gd). Sem escolha, vale o do nível.
 func _limite_fps() -> void:

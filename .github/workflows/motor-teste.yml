@@ -1,0 +1,98 @@
+# Teste rápido da rede do motor (troca do Godot 4.5 -> 4.7, 2026-11-12): roda os pedidos que o jogo faz para entrar
+# (conta, sala, WebSocket) contra o servidor local, no 4.5 e no 4.7, para comparar. Uns 2 minutos, sem exportar nada.
+name: Teste da rede no motor
+
+on:
+  pull_request:
+    paths: ['ferramentas/motor/**', '.github/workflows/motor-teste.yml', 'godot-prototipo/rede.gd']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rede:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ['4.5-stable', '4.7.1-stable']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Godot ${{ matrix.godot }}
+        run: |
+          cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/${{ matrix.godot }}/Godot_v${{ matrix.godot }}_linux.x86_64.zip && unzip -qo godot.zip
+          echo "GODOT_BIN=/tmp/Godot_v${{ matrix.godot }}_linux.x86_64" >> $GITHUB_ENV
+      - name: Servidor local e pedidos do jogo
+        run: |
+          mkdir -p /tmp/srv /tmp/vazio && printf 'config_version=5\n' > /tmp/vazio/project.godot
+          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null | tail -n1) # só a última linha: a conta nova também imprime "Conta nova: ..."
+          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          # o servidor pode ouvir só no IPv6 (::1) na máquina do GitHub: usa o endereço que responde
+          for h in 127.0.0.1 '[::1]'; do curl -s -m 3 "http://$h:2567/saude" > /dev/null && SRV="http://$h:2567" && break; done
+          echo "endereço do servidor: ${SRV:-nenhum}"
+          ss -ltnp | grep 2567 || true; sysctl net.ipv6.conf.all.disable_ipv6 || true; env | grep -i proxy || true
+          RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" timeout 120 $GODOT_BIN --headless --path /tmp/vazio \
+            -s $GITHUB_WORKSPACE/ferramentas/motor/rede_teste.gd 2>&1 | tee /tmp/rede.log | grep -E "^REDE|ERROR"
+          echo "--- servidor ---"; tail -20 /tmp/srv/log.txt
+          grep -q "REDE ws estado=" /tmp/rede.log
+
+  # Vulkan por software no 4.7 (teste do jogo aberto não passava do primeiro quadro): primeiro um projeto vazio,
+  # depois o jogo com --verbose para ver onde para. Usa a importação e os modelos guardados pelo apk.yml.
+  vulkan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache/restore@v4
+        with:
+          path: godot-prototipo/modelos
+          key: modelos-v2-nada
+          restore-keys: modelos-v2-
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            godot-prototipo/.godot
+            godot-prototipo/**/*.import
+          key: godot-import-v2-4.7.1-stable-nada
+          restore-keys: godot-import-v2-4.7.1-stable-
+      - name: Godot 4.7 e Vulkan por software
+        run: |
+          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers > /dev/null
+          cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip && unzip -qo godot.zip
+          echo "GODOT_BIN=/tmp/Godot_v4.7.1-stable_linux.x86_64" >> $GITHUB_ENV
+      - name: Projeto vazio (o Vulkan por software desenha?)
+        run: |
+          mkdir -p /tmp/vazio && printf 'config_version=5\n[rendering]\nrenderer/rendering_method="mobile"\n' > /tmp/vazio/project.godot
+          for modo in safe separate; do
+            /usr/bin/time -f "%e s" timeout 120 xvfb-run -a -s "-screen 0 960x432x24" $GODOT_BIN --path /tmp/vazio --rendering-driver vulkan --resolution 960x432 --render-thread $modo --quit-after 120 2>&1 | grep -vE "ALSA|libpulse" | tail -5
+          done
+      - name: Jogo com --verbose (onde para)
+        run: |
+          cd godot-prototipo && $GODOT_BIN --headless --import > /dev/null 2>&1 || true; cd ..
+          mkdir -p /tmp/srv
+          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null | tail -n1)
+          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          for h in 127.0.0.1 '[::1]'; do curl -s -m 3 "http://$h:2567/saude" > /dev/null && SRV="http://$h:2567" && break; done
+          RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" timeout 600 xvfb-run -a -s "-screen 0 960x432x24" $GODOT_BIN --path godot-prototipo \
+            --rendering-driver vulkan --rendering-method mobile --resolution 960x432 --render-thread safe --verbose \
+            -s $GITHUB_WORKSPACE/ferramentas/motor/fumaca.gd > /tmp/jogo.log 2>&1 || true
+          grep -E "^FUMACA" /tmp/jogo.log | tail -20 || true
+          echo "--- últimas linhas ---"; grep -vE "ALSA|libpulse" /tmp/jogo.log | tail -80

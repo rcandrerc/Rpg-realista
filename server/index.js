@@ -20,7 +20,7 @@ const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
-const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
+const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // queda (André 2026-11-12): conta -> hora (ms) da última posição que o servidor recebeu dela antes de cair. Entrando de novo,
 // o caminho andado sem internet vale (Simulacao.folgaDaQueda), em vez de puxar o herói de volta
@@ -219,7 +219,8 @@ class SalaClareira extends Room {
       this.sim.posicaoCliente(c.sessionId, p);
     });
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
-    this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) c.send('pong', t); });
+    // e o pior passo do servidor nos últimos ~3 s (app Godot: aviso "Servidor lento" no lugar do ping; André 2026-11-12)
+    this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) { c.send('pong', t); if (c.userData?.json) c.send('carga', { pico: Math.round(carga.picoPing) }); } });
     this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador
     // "Pronto" no criador: nome, corpo e aparência ficam gravados na conta e o criador não abre mais
     this.ouvir('pronto', (c, p) => {
@@ -278,7 +279,10 @@ class SalaClareira extends Room {
 
   tick() {
     const t0 = performance.now();
-    try { this.tickDeVerdade(); } finally { const ms = performance.now() - t0; carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms; }
+    try { this.tickDeVerdade(); } finally {
+      const ms = performance.now() - t0, agora = Date.now(); carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms;
+      if (ms > carga.picoPing || agora - carga.picoPingT > 3000) { carga.picoPing = ms; carga.picoPingT = agora; } // janela de ~3 s para o aviso no app
+    }
   }
 
   tickDeVerdade() {
@@ -312,11 +316,12 @@ class SalaClareira extends Room {
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
     if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
     const conta = contas ? client.auth : null;
+    const velhos = [], fantasmas = []; // sessões antigas da mesma conta: o herói novo fica com o time e os amigos delas (trocarSessao)
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
         const vj = this.sim.jogadores.get(outro.sessionId);
-        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); } // o mais novo vale (com o lugar onde ele estava)
+        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
       // o servidor já tinha visto a queda: o herói antigo está no mundo esperando reconexão (allowReconnection, 20 s) e
@@ -325,7 +330,7 @@ class SalaClareira extends Room {
       const vivos = new Set(this.clients.map((o) => o.sessionId));
       for (const vj of [...this.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && vj.id !== client.sessionId && !vivos.has(vj.id)) {
         this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
-        this.sim.removerJogador(vj.id); this.visao.esquecer(vj.id);
+        velhos.push(vj.id); fantasmas.push(vj.id); // sai do mundo logo abaixo, depois de passar o time e os amigos para o novo
       }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
@@ -346,6 +351,9 @@ class SalaClareira extends Room {
     // 2026-11-10: e também quem ativou a conversa com IA (a chave Groq dele); ela fica enquanto tiver um deles na sala
     // André 2026-11-11 ("quero que eles andem sozinhos"): os NPCs vivem no mundo para todos da sala; conversar, só com chave
     this.entrarAmiga(client, conta ? !!(conta.testador || conta.ia) : !this.sim.amiga); // primeira vez: entra já no palco do criador
+    // queda curta (André 2026-11-12): o time e a Cecília/Dario continuam com ele, nada se desfaz
+    for (const id of velhos) this.sim.trocarSessao(id, client.sessionId);
+    for (const id of fantasmas) { this.sim.removerJogador(id); this.visao.esquecer(id); }
   }
 
   // Cecília na sala para quem pode conversar com ela (shared/amiga.js amigaEntrar)

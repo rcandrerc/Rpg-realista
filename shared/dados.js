@@ -3908,3 +3908,53 @@ export const LIBERA_NIVEL = {
 };
 // o que é recurso de missão (libera de HISTORIA que não é zona): o que bloqueia e a frase do aviso
 export const RECURSOS_HISTORIA = { forja: 'a forja e a banca', lobo: 'a montaria', pesca: 'a pescaria', fim: 'o céu sem Névoa' }; // fim: a última missão (o app limpa o céu)
+
+// ---------- Títulos (André 2026-11-12: "títulos com funções" que dão bônus) ----------
+// Cada título sai de um feito. Só um fica em uso por vez (troca a hora que quiser, no menu do personagem, aba Títulos)
+// e o bônus só vale enquanto ele está em uso. O título em uso aparece em cima da cabeça, acima do nome e do nível.
+// r = brilho (0 Comum ... 4 Mítico, as cores de RARIDADES): quanto mais difícil, mais bonito na cabeça.
+// cond: { abates: n } monstros derrubados · { boss: id } venceu o boss de mundo · { hc: id } venceu o chefe da história ·
+//   { hist: id } entregou a missão da história · { prof: k, nv } profissão k no nível nv.
+// b (bônus): critico (+ chance) · dano, vida, defesa, xp (dos monstros), ouro (dos monstros): + fração ·
+//   extra (coleta, pesca e colheita da profissão do título: chance de +1) · raridade (criar na profissão do título:
+//   + chance de subir a raridade) · venda (Mercador: a Rosa e o Tomás pagam mais).
+// Quem decide é o servidor (shared/progresso.js titulosNovos e bonusTitulo; Simulacao.conferirTitulos e acao 'titulo').
+// Títulos por nível do herói ficam para depois (André).
+export const TITULO_BONUS_NOME = { critico: 'crítico', dano: 'dano', vida: 'vida', defesa: 'defesa', xp: 'XP dos monstros', ouro: 'ouro dos monstros', venda: 'na venda' };
+const TITULO_EXTRA = { min: 'minério extra', len: 'lenha extra', pes: 'peixe em dobro', faz: 'colheita extra', fer: 'raridade ao forjar', alf: 'raridade ao costurar' };
+export const textoBonusTitulo = (t) => Object.entries(t.b).map(([k, v]) => `+${Math.round(v * 1000) / 10}% ${(k === 'extra' || k === 'raridade') ? TITULO_EXTRA[t.cond.prof] : TITULO_BONUS_NOME[k]}`.replace('.', ',')).join(', ');
+export const TITULOS = {
+  // caça
+  cacador_novato: { nome: 'Caçador Novato', r: 0, como: 'Derrubou 100 monstros', cond: { abates: 100 }, b: { dano: 0.02 } },
+  cacador: { nome: 'Caçador', r: 1, como: 'Derrubou 1.000 monstros', cond: { abates: 1000 }, b: { dano: 0.04 } },
+  flagelo: { nome: 'Flagelo das Feras', r: 3, como: 'Derrubou 5.000 monstros', cond: { abates: 5000 }, b: { dano: 0.06, critico: 0.03 } },
+  // chefes da história
+  rei_puglin: { nome: 'Destronador de Puglins', r: 0, como: 'Venceu o Gorduncho', cond: { hc: 'gorduncho' }, b: { xp: 0.03 } },
+  alfa_prata: { nome: 'Caçador do Alfa', r: 1, como: 'Venceu a Presa-de-Prata', cond: { hc: 'presa' }, b: { critico: 0.02 } },
+  // bosses de mundo (o da Garra do Abismo só aparece na aba quando o boss entrar no jogo)
+  quebra_golem: { nome: 'Quebra-Golem', r: 2, como: 'Venceu o Brasaferro', cond: { boss: 'brasaferro' }, b: { defesa: 0.06 } },
+  rei_matilha: { nome: 'Rei da Matilha', r: 2, como: 'Venceu o Uivo-Rei', cond: { boss: 'uivo_rei' }, b: { critico: 0.05 } },
+  devorador: { nome: 'Devora-Devorador', r: 2, como: 'Venceu a Mandíbula Velha', cond: { boss: 'mandibula' }, b: { vida: 0.06 } },
+  rompe_couraca: { nome: 'Rompe-Couraça', r: 3, como: 'Venceu o Chifre-de-Ferro', cond: { boss: 'chifre_ferro' }, b: { dano: 0.06 } },
+  abismo: { nome: 'Caçador do Abismo', r: 3, como: 'Venceu a Garra do Abismo', cond: { boss: 'garra_abismo' }, b: { critico: 0.04, dano: 0.04 } },
+  mata_tita: { nome: 'Matador de Titãs', r: 3, como: 'Venceu o Colosso Gélido', cond: { boss: 'colosso_gelido' }, b: { vida: 0.08, defesa: 0.04 } },
+  mata_dragao: { nome: 'Mata-Dragões', r: 4, como: 'Venceu o Dragão de Cinzas', cond: { boss: 'dragao_cinzas' }, b: { critico: 0.08, dano: 0.05 } },
+  // atos da história (os mesmos nomes de HISTORIA[].titulo)
+  sentinela_ordem: { nome: 'Sentinela da Ordem', r: 1, como: 'Fechou o Ato II', cond: { hist: 'b11' }, b: { defesa: 0.04 } },
+  voz_estradas: { nome: 'Voz das Estradas', r: 2, como: 'Fechou o Ato III', cond: { hist: 'c11' }, b: { ouro: 0.08 } },
+  vento_mar: { nome: 'Vento do Mar', r: 2, como: 'Fechou o Ato IV', cond: { hist: 'h13' }, b: { xp: 0.05 } },
+  luz_aurora: { nome: 'Luz de Aurora', r: 3, como: 'Fechou o Ato V', cond: { hist: 'h15' }, b: { vida: 0.06, critico: 0.03 } },
+  estrela_aethra: { nome: 'Estrela de Aethra', r: 4, como: 'Venceu a Vesper', cond: { hist: 'f3' }, b: { dano: 0.06, critico: 0.05, vida: 0.05 } },
+};
+// profissões: Nv 10 (Raro) e Nv 20 (Lendário) de cada uma
+for (const [k, n10, n20, bk, v] of [
+  ['min', 'Minerador Experiente', 'Mestre Minerador', 'extra', 0.05], ['len', 'Lenhador Experiente', 'Mestre Lenhador', 'extra', 0.05],
+  ['pes', 'Pescador Experiente', 'Mestre Pescador', 'extra', 0.05], ['faz', 'Fazendeiro Experiente', 'Mestre da Colheita', 'extra', 0.05],
+  ['fer', 'Ferreiro Experiente', 'Mestre Ferreiro', 'raridade', 0.03], ['alf', 'Alfaiate Experiente', 'Mestre Alfaiate', 'raridade', 0.03],
+  ['coz', 'Cozinheiro Experiente', 'Mestre Cuca', 'vida', 0.03], ['mer', 'Mercador Experiente', 'Grande Mercador', 'venda', 0.05]]) {
+  TITULOS[k + '10'] = { nome: n10, r: 1, como: `${PROFISSOES[k].nome} Nv 10`, cond: { prof: k, nv: 10 }, b: { [bk]: v } };
+  TITULOS[k + '20'] = { nome: n20, r: 3, como: `${PROFISSOES[k].nome} Nv 20`, cond: { prof: k, nv: 20 }, b: { [bk]: v * 2 } };
+}
+for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t); // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
+// título que ainda não dá para ganhar (boss esperando o modelo) não aparece na aba
+export const tituloAtivo = (id) => { const c = TITULOS[id]?.cond; return !!c && !(c.boss && BOSSES_MUNDO[c.boss]?.ativo === false); };

@@ -60,7 +60,10 @@ func achar_rochas(vila: Node3D, solidos: Array) -> void:
 		var raio: float = Vector2(ab.size.x, ab.size.z).length() * 0.5
 		for r in pedras:
 			if Vector2(c.x - r.x, c.z - r.z).length() < max(0.6, r.R * 0.35) and raio < r.R * 1.6 and raio > r.R * 0.35:
-				rochas.append({"tri": mi.mesh.generate_triangle_mesh(), "xf": mi.global_transform, "inv": mi.global_transform.affine_inverse(), "c": c, "r": raio})
+				var tri_r: TriangleMesh = mi.mesh.generate_triangle_mesh()
+				if tri_r == null: # malha vazia (sem tela no teste): não dá para escalar
+					break
+				rochas.append({"tri": tri_r, "xf": mi.global_transform, "inv": mi.global_transform.affine_inverse(), "c": c, "r": raio})
 				break
 	print("encostar: ", rochas.size(), " pedras de escalar")
 

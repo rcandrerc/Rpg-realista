@@ -215,7 +215,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 			var alto: float = 1.25 if i == 0 else rnd.randf_range(0.3, 1.0) * (1.0 - d * 0.8)
 			var base := Vector3(cos(a) * d, 0, sin(a) * d)
 			var y: float = alto_pedra * 0.8
-			var hit: Dictionary = tri.intersect_ray(base + Vector3(0, 3, 0), Vector3.DOWN)
+			var hit: Dictionary = {} if tri == null else tri.intersect_ray(base + Vector3(0, 3, 0), Vector3.DOWN)
 			if not hit.is_empty():
 				y = (hit.position as Vector3).y
 			var p := MeshInstance3D.new()
@@ -252,6 +252,9 @@ func _bloco(rnd: RandomNumberGenerator, raio: float, alto: float) -> ArrayMesh:
 	esf.radial_segments = 7
 	esf.rings = 4
 	var arr := esf.get_mesh_arrays()
+	if arr.size() <= Mesh.ARRAY_INDEX or arr[Mesh.ARRAY_VERTEX] == null: # sem placa de vídeo (teste sem tela no Godot 4.7)
+		push_warning("pedra sem malha (get_mesh_arrays vazio)")
+		return ArrayMesh.new()
 	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 	var puxa := {}
@@ -564,7 +567,7 @@ func _falta(o: Dictionary) -> float:
 
 # raio da pedra do veio na altura h, do lado de onde o herói está (raio contra o bloco principal)
 func _face_veio(o: Dictionary, h: float) -> float:
-	if not o.has("tri") or m.heroi == null:
+	if not o.has("tri") or o.tri == null or m.heroi == null:
 		return 0.62
 	var d: Vector3 = m.heroi.position - o.pos
 	d.y = 0

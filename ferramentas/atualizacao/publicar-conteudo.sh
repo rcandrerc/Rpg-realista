@@ -18,6 +18,12 @@ LIMITE_DELTAS=$((60 * 1024 * 1024))
 PARTE=45M
 TMP=/tmp/conteudo
 rm -rf "$TMP" && mkdir -p "$TMP/antigo" "$TMP/novo"
+# Uma corrente por motor (2026-11-12, Godot 4.5 -> 4.7): pacote de um motor não abre no outro. O 4.5 segue em
+# conteudo.json (parado na última versão dele, para o APK casca antigo continuar abrindo); os outros em
+# conteudo-MAIOR.MENOR.json, que é o que o inicio.gd do APK novo lê. A primeira vez de um motor vira completo.
+MOTOR=$("$GODOT_BIN" --version | head -n1 | cut -d. -f1,2)
+case "$MOTOR" in 4.5) JSON=conteudo.json ;; [0-9]*.[0-9]*) JSON="conteudo-$MOTOR.json" ;; *) echo "::error::versão do Godot não reconhecida: $MOTOR"; exit 1 ;; esac
+echo "Motor $MOTOR: corrente $JSON"
 
 gh release view conteudo > /dev/null 2>&1 || gh release create conteudo --target main --prerelease --title "Conteúdo do APK casca" \
   --notes "Jogo completo em partes + mudanças. O app (APK casca) baixa daqui pelo site. Gerado pelo apk.yml; não mexer à mão."
@@ -26,7 +32,8 @@ sha() { sha256sum "$1" | cut -d' ' -f1; }
 tam() { stat -c%s "$1"; }
 
 rebase=0
-if gh release download conteudo -p conteudo.json -D "$TMP/antigo" --clobber 2>/dev/null; then
+if gh release download conteudo -p "$JSON" -D "$TMP/antigo" --clobber 2>/dev/null; then
+  [ "$JSON" = conteudo.json ] || mv "$TMP/antigo/$JSON" "$TMP/antigo/conteudo.json"
   COMP_ID=$(jq -r '.completo.id' "$TMP/antigo/conteudo.json")
   echo "Completo atual: $COMP_ID; deltas: $(jq -r '[.deltas[].versao] | join(",")' "$TMP/antigo/conteudo.json")"
   for arq in $(jq -r '.completo.partes[].arq' "$TMP/antigo/conteudo.json"); do
@@ -79,10 +86,15 @@ if [ -n "${ORACLE_PAR:-}" ] && [ -n "${ORACLE_URL:-}" ]; then
   jq --arg u "${ORACLE_URL%/}/" '.url_base = $u' "$TMP/novo/conteudo.json" > "$TMP/novo/c.json" && mv "$TMP/novo/c.json" "$TMP/novo/conteudo.json"
 fi
 cat "$TMP/novo/conteudo.json"
+[ "$JSON" = conteudo.json ] || mv "$TMP/novo/conteudo.json" "$TMP/novo/$JSON"
 
-# release: sobe os novos e apaga o que saiu da corrente
+# release: sobe os novos e apaga o que saiu da corrente (de todas as correntes: a do 4.5 fica guardada para o APK antigo)
 gh release upload conteudo "$TMP/novo/"* --clobber
-manter=$(jq -r '"conteudo.json", .completo.partes[].arq, .deltas[].arq' "$TMP/novo/conteudo.json")
+mkdir -p "$TMP/todas"
+manter=$(echo "$JSON"; for j in $(gh release view conteudo --json assets -q '.assets[].name' | grep -E '^conteudo(-[0-9]+\.[0-9]+)?\.json$'); do
+  gh release download conteudo -p "$j" -D "$TMP/todas" --clobber > /dev/null
+  echo "$j"; jq -r '.completo.partes[].arq, .deltas[].arq' "$TMP/todas/$j"
+done)
 for velho in $(gh release view conteudo --json assets -q '.assets[].name'); do
   echo "$manter" | grep -qx "$velho" || gh release delete-asset conteudo "$velho" -y
 done
