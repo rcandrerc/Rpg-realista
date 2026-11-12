@@ -46,6 +46,7 @@ const Troca = preload("res://troca.gd")
 const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
 const Festa = preload("res://festa.gd")
+const Reinicio = preload("res://reinicio.gd")
 const Amigos = preload("res://amigos.gd")
 const Chat = preload("res://chat.gd")
 const Minimapa = preload("res://minimapa.gd")
@@ -147,6 +148,7 @@ var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até 
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
 var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
 var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
+var reinicio # reinicio.gd: faixa "o servidor vai reiniciar" e a contagem de 10 s no alto da tela (André 2026-11-12)
 var festa # festa.gd: comemoração de nível, missão, liberado, reforço e evoluir (faixa, faíscas, coluna de luz, som)
 var chat # chat.gd: chat geral e de amigos (só online; o geral pode ser silenciado)
 var amigos # amigos.gd: lista de amigos (até 20) e time com barras de vida e mana (só online)
@@ -366,6 +368,8 @@ func _ready() -> void:
 	add_child(reforco)
 	festa = Festa.new(self)
 	add_child(festa)
+	reinicio = Reinicio.new(self)
+	add_child(reinicio)
 	hud.festa = festa
 	hud.tocou.connect(troca.tocou_tela) # tocar noutro jogador perto: pedir troca
 	hud.troca = troca

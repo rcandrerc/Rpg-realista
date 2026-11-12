@@ -1309,7 +1309,10 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm', 'time'], respostaTime: 30 }; // time (André 2026-11-11): fala com todos do time de uma vez; os NPCs do time respondem no time por respostaTime segundos
 // Reinício programado do servidor (André 2026-11-11: "a cada 5 horas tem um reset, reinicia automaticamente"):
 // avisa no chat geral antes (minutos), grava o progresso de todos e reinicia; o systemd liga de novo em segundos.
-export const REINICIO = { horas: 5, avisos: [5, 1] };
+// Faixa na tela (André 2026-11-12: "um aviso na tela, em cima, meio grande... servidor está reiniciando em 10, 9, 8"; "primeiro
+// o servidor reiniciará em um minuto, e depois uma contagem de 10 segundos"): vale para o reinício programado e para o servidor
+// novo que chega com o merge. aviso = segundos antes do reinício em que sai "reinicia em 1 minuto"; contagem = a contagem grande.
+export const REINICIO = { horas: 5, avisos: [5, 1], aviso: 60, contagem: 10 };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
