@@ -330,16 +330,18 @@ export const textoReforcoPrecisa = (it, atr, e = it.e | 0) => { const pr = refor
 export const atributoDoReforco = (atr, k) => (k === 'maior' ? Math.max(atr?.for | 0, atr?.int | 0) : atr?.[k] | 0);
 export const nomeAtributoReforco = (k) => (k === 'for' ? 'Força' : k === 'int' ? 'Inteligência' : 'Força ou Inteligência');
 // Uma tentativa (o servidor sorteia). Devolve { ok, de, e, custo } ou { erro: texto }
-export function reforcar(p, it, sorte = Math.random()) {
+// gratis: a etapa da história que ensina a reforçar (shared/kit.js, André 2026-11-12: "o primeiro reforço dessa missão
+// pode até sair grátis") não cobra ouro nem tecido
+export function reforcar(p, it, sorte = Math.random(), gratis = false) {
   if (!it || !ehEquip(it.k)) return { erro: 'Só equipamento se reforça' };
   const max = reforcoMax(it), de = it.e | 0;
   if (!max) return { erro: 'Peça Comum não dá pra reforçar' };
   if (de >= max) return { erro: 'Reforço no máximo!' };
   const pr = reforcoPrecisa(it, de + 1), tem = atributoDoReforco(p.atr, pr.k);
   if (tem < pr.n) return { erro: `Você não pode reforçar mais: não tem atributo suficiente (precisa ${pr.n} de ${nomeAtributoReforco(pr.k)}, você tem ${tem})` };
-  const custo = custoReforco(it);
+  const custo = gratis ? 0 : custoReforco(it);
   if ((p.ouro || 0) < custo) return { erro: `Ouro insuficiente (${p.ouro || 0}/${custo})` };
-  const mat = materialReforco(it), temMat = mat ? contar(p.mochila || [], mat.k) : 0;
+  const mat = gratis ? null : materialReforco(it), temMat = mat ? contar(p.mochila || [], mat.k) : 0;
   if (mat && temMat < mat.n) return { erro: `${ITENS[mat.k].nome} insuficiente (${temMat}/${mat.n})` };
   p.ouro -= custo;
   if (mat) tirar(p.mochila, mat.k, mat.n);

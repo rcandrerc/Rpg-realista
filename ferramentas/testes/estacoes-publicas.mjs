@@ -1,6 +1,6 @@
 // Estações públicas da vila (André 2026-11-11: "não criar no próprio NPC"): o Tomás e a Rosa não criam mais pelo
 // jogador; ele cria na bigorna e no forninho da ferraria e na bancada ao lado da Rosa. Uso: node ferramentas/testes/estacoes-publicas.mjs
-import { Simulacao, MAPA_CLAREIRA, ESTACOES_PUBLICAS, HISTORIA, contar, progressoValido } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, ESTACOES_PUBLICAS, HISTORIA, contar, guardar, progressoValido } from '../../shared/index.js';
 import { avancarForno } from '../../shared/simulacao.js';
 import './_tudo-aberto.mjs';
 const s = new Simulacao(MAPA_CLAREIRA);
@@ -70,6 +70,7 @@ ok(contar(a.prog.mochila, 'barra_cobre') === 12 && (a.prog.prof.fer || 0) > fer,
 ok(a.prog.hist.e === 2, 'a etapa "Funda 2 barras" da missão do Tomás andou');
 // o "Ir" da etapa leva até a estação, não até o NPC
 a.prog.hist.e = 1;
+guardar(a.prog.mochila, { k: 'minerio_cobre', n: 6 }); guardar(a.prog.mochila, { k: 'lenha', n: 2 }); // com o material (sem ele o Ir leva ao veio: shared/kit.js)
 const alvo = s.alvoHistoria(a);
 ok(alvo && Math.abs(alvo.x - f.x) < 0.01 && alvo.npc === '', 'o Ir da missão leva ao forninho ' + JSON.stringify(alvo));
 // longe não mexe

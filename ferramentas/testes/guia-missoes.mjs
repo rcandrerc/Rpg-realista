@@ -7,6 +7,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA } from '../../shared/index.js';
 import { etapasDe } from '../../shared/historia.js';
+import { guardar } from '../../shared/progresso.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const raiz = new URL('../../', import.meta.url).pathname;
 
@@ -25,6 +26,9 @@ const eEvo = etapasDe(a15).findIndex((E) => E.ev === 'evoluir');
 hi = em('a15', eEvo);
 ok(hi.ev === 'evoluir' && hi.min === 1, 'evoluir: traz min (raridade pedida)');
 const a2 = HISTORIA.find((M) => M.id === 'a2');
+hi = em('a2', etapasDe(a2).findIndex((E) => E.ev === 'criar'));
+ok(hi.ev === 'item' && hi.de === 'solto' && hi.k === 'lenha', 'criar sem material: o guia vai pegar o que falta (shared/kit.js)');
+guardar(j.prog.mochila, { k: 'lenha', n: 3 }); guardar(j.prog.mochila, { k: 'pedra', n: 2 });
 hi = em('a2', etapasDe(a2).findIndex((E) => E.ev === 'criar'));
 ok(hi.ev === 'criar' && hi.k === 'machado', 'criar: traz k (machado)');
 hi = em('a2', etapasDe(a2).findIndex((E) => E.ev === 'item' && E.de === 'solto'));
