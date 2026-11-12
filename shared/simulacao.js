@@ -1182,8 +1182,29 @@ export class Simulacao {
     }
     if (E.alvo && typeof E.alvo === 'object') { const k = Object.keys(E.alvo).find((q) => contar(p.mochila, q) < E.itens[q]); return resolve(E.alvo[k || Object.keys(E.alvo)[0]]); }
     if (E.alvo) return resolve(E.alvo);
+    // criar sem alvo escrito (barquinho, carrinho, galão, regador): a estação onde se cria, nunca o NPC da missão
+    // (André 2026-11-12: o barquinho levava ao Nico, e lá o guia piscava "Criar pack")
+    if (E.ev === 'criar' || E.ev === 'construir') { const k = this.estacaoDaEtapa(E); if (k) return this.estacaoMaisPerto(j, k, aberto); }
+    // carrinho no chão (abastecer, consertar): o Ir leva até ele
+    if (E.ev === 'veiculo' && p.carrinho?.chao && j.veiculo !== 'carrinho') return { x: r2(p.carrinho.chao.x), z: r2(p.carrinho.chao.z), nome: 'o seu carrinho', npc: '' };
     if (E.ev === 'matar' && E.campos) { let b = null, md = Infinity; for (const id of E.campos) { const c = this.cacaDef(id); if (c && aberto(c.x, c.z)) { const d = Math.hypot(c.x - j.x, c.z - j.z); if (d < md) { md = d; b = c; } } } return b ? { x: b.x, z: b.z, nome: b.nome || 'o campo', npc: '' } : null; }
     return null;
+  }
+  // a estação que a etapa de criar pede ('' = cria em qualquer lugar)
+  estacaoDaEtapa(E) {
+    const k = String(E.k || '').replace(/^obra_/, '');
+    const F = FERRAMENTAS_FAZENDA[k] || CONSTRUCOES[k];
+    if (F) return F.bancada ? 'bancada' : '';
+    const R = RECEITAS[E.k] || Object.values(RECEITAS).find((o) => o.faz === E.k);
+    return R ? RECEITA_ESTACAO(R) : '';
+  }
+  // a estação mais perto desse tipo: as públicas da vila e as dos terrenos (fornalha e fogão só os do próprio terreno)
+  estacaoMaisPerto(j, k, aberto = () => true) {
+    let b = null, md = Infinity;
+    const ver = (o, nome, id) => { if (!aberto(o.x, o.z)) return; const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; b = { x: r2(o.x), z: r2(o.z), nome, npc: '', ...(id ? { estacao: id } : {}) }; } };
+    for (const o of this.mapa.estacoes || []) if (o.k === k) ver(o, o.nome, o.id);
+    for (const L of this.lotes.values()) for (const o of L.pecas) if (o.k === k && ((k !== 'fornalha' && k !== 'fogao') || (L.dono && L.dono === j.conta))) ver(o, CONSTRUCOES[k]?.nome || k, '');
+    return b;
   }
   cacaDef(id) { return this.cacas.find((c) => c.def.id === id)?.def || null; }
   // o que o app mostra da história (quadrinho da missão, botão Ir, botão "Missão" no NPC certo, marca no chão)
@@ -2818,6 +2839,8 @@ export class Simulacao {
   }
   // bancada construída perto (qualquer terreno): as peças do Quimera com needBench só se criam perto dela
   bancadaPerto(j) {
+    // a bancada pública da vila (atrás da Rosa) também serve: o app já mostrava o barquinho lá e o servidor recusava
+    for (const E of this.mapa.estacoes || []) if (E.k === 'bancada' && dist(E, j) <= LOTE.estacaoDist + 0.6) return E;
     for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === 'bancada' && dist(p, j) <= LOTE.estacaoDist + 0.6) return p;
     return null;
   }
