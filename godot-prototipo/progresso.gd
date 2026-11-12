@@ -351,13 +351,21 @@ func chance_reforco(e: int) -> int:
 	var ch: Array = reforco_dados().chance
 	return int(ch[min(e, ch.size() - 1)])
 
+# a etapa da história que ensina essa ação não cobra (servidor manda gratis em hist_info; shared/kit.js)
+func etapa_gratis(ev: String) -> bool:
+	return str(hist_info.get("ev", "")) == ev and bool(hist_info.get("gratis", false))
+
 func custo_reforco(it) -> int:
+	if etapa_gratis("reforcar"):
+		return 0
 	var C: Dictionary = reforco_dados().custo
 	return int(round((float(C.base) + float(C.porRaridade) * int(it.r)) * pow(float(C.sobe), int(it.get("e", 0)))))
 
 # Tecido que a tentativa gasta (André 2026-11-09, igual a materialReforco em shared/progresso.js): arma não gasta;
 # armadura 1 até +10, 2 até +20... Devolve {"k", "n"} ou {} (não gasta)
 func material_reforco(it) -> Dictionary:
+	if etapa_gratis("reforcar"):
+		return {}
 	var M = reforco_dados().get("material", {"k": "tecido", "porFaixa": 10})
 	var l: String = str(dados.itens[it.k].get("lugar", ""))
 	if M == null or l == "espada" or l == "cajado":
