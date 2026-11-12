@@ -9,6 +9,7 @@ extends Node
 const ESPERA_INICIO := 0.3 # s depois de abrir: o jogo termina de montar a vila
 const QUADROS_NA_TELA := 3 # quadros desenhados com tudo junto (o primeiro já compila; os outros garantem)
 const SUMIDO := 2.0 # s com os efeitos escondidos até acabarem sozinhos (a capa já pode sair)
+const LIMITE := 8.0 # s: aconteça o que acontecer (erro, monstro que não carrega, motor novo), a capa não espera mais que isso
 
 var m # main.gd
 var rodando := false
@@ -16,6 +17,7 @@ var cobre := false # a capa espera (online.gd): só enquanto os efeitos estão n
 var feito := false
 var _fase := 0
 var _t := 0.0
+var _total := 0.0
 var _quadros := 0
 var _corpo: Node3D
 var _mobs: Array = []
@@ -31,11 +33,15 @@ func comecar() -> void:
 	cobre = true
 	_fase = 0
 	_t = 0.0
+	_total = 0.0
 
 func _process(dt: float) -> void:
 	if not rodando:
 		return
 	_t += dt
+	_total += dt
+	if cobre and _total >= LIMITE: # segurança: nunca prende a tela de "Conectando…"
+		cobre = false
 	match _fase:
 		0:
 			if _t >= ESPERA_INICIO:
@@ -45,15 +51,15 @@ func _process(dt: float) -> void:
 		1:
 			_quadros += 1
 			if _quadros >= QUADROS_NA_TELA:
+				_t = 0.0 # primeiro libera a capa: se algo abaixo der erro, ela não fica presa
+				_fase = 2
+				cobre = false
 				m.fx.visible = false # o que ainda está terminando não aparece quando a capa sair
 				for no in _mobs:
 					if is_instance_valid(no):
 						no.queue_free()
 				_mobs.clear()
 				m.combate.aviso_area_fim()
-				_t = 0.0
-				_fase = 2
-				cobre = false
 		2:
 			if _t >= SUMIDO:
 				m.fx.visible = true
