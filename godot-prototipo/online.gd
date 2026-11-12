@@ -262,7 +262,7 @@ func atualizar_status(_t := "") -> void:
 		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
 		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
 		# ms; o ping velho ficava na tela até o pong atrasado chegar com 20000). Servidor com passo lento: "Servidor lento"
-		var calado := (Time.get_ticks_msec() - rede.ult_pacote_ms) / 1000.0 if rede.ult_pacote_ms > 0 else 0.0
+		var calado: float = (Time.get_ticks_msec() - rede.ult_pacote_ms) / 1000.0 if rede.ult_pacote_ms > 0 else 0.0
 		var aviso := ""
 		if calado >= 1.5:
 			aviso = "Internet travada · %d s sem resposta" % int(calado)
