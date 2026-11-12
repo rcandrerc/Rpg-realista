@@ -39,8 +39,7 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   if (!chaveJogador) {
     const hoje = new Date().toISOString().slice(0, 10);
     if (hoje !== dia) { dia = hoje; usadas = 0; }
-    if (usadas >= AMIGA.chat.iaPorDia) return null;
-    usadas++;
+    if (usadas >= AMIGA.chat.iaPorDia) return null; // conta só as respostas que a IA deu (contarIa)
   }
   const modelo = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
   const conversa = ctx.conversa.map((m) => `${m.de === 'ele' ? ctx.amigo : ctx.nome}: ${m.texto}`).join('\n');
@@ -58,39 +57,67 @@ Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caç
 Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá para ir é o jogo; se não der, ele troca a fala). Nunca recuse na fala.
 Devolva só JSON: {"fala": "...", "acao": "nada"}`.replace(/\n{2,}/g, '\n').replace(/ {2,}/g, ' '); // ficha curta: sem linha vazia
   // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
-  // Modelo menor na conversa (André 2026-11-11, entrega 5): gasta menos da chave e responde mais rápido. Se o Groq tirar o
-  // modelo (404/400) ou a resposta vier quebrada, tenta o grande uma vez, dentro dos mesmos 8 s.
+  // André 2026-11-12 ("a IA tá muito burra"): o modelo menor (gpt-oss-20b, entrega 5) respondia mal e, com Cecília e Dario
+  // respondendo juntos no chat de time, o limite POR MINUTO do Groq (429) estourava e quem respondia eram as falas prontas.
+  // Agora: o grande primeiro (o de antes, que era esperto); 429 é por modelo, então passa para o próximo da lista em vez de
+  // desistir; se o Groq pedir para esperar pouco (retry-after), espera e tenta de novo. Tudo dentro de 10 s.
   const groq = chaveJogador || segredo('GROQ_CHAVE');
   if (groq) {
-    const fim = Date.now() + 8000;
+    const fim = Date.now() + 10000;
     for (const modelo of modelosConversa()) {
-      const falta = fim - Date.now(); if (falta < 1500) break;
-      try {
-        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-          body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 400, reasoning_effort: 'low' }),
-          signal: AbortSignal.timeout(falta),
-        });
-        if (r.ok) { const v = lerResposta((await r.json())?.choices?.[0]?.message?.content); if (v) return v; continue; }
-        if (r.status === 429 || r.status === 401) break; // limite do dia ou chave errada: o grande também não vai
-      } catch { /* tempo acabou ou rede: tenta o próximo se ainda der */ }
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
+        const falta = fim - Date.now(); if (falta < 1500) break;
+        let r;
+        try {
+          r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
+            body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 600, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: 'low' } : {}) }),
+            signal: AbortSignal.timeout(falta),
+          });
+        } catch { break; } // tempo acabou ou rede: tenta o próximo modelo se ainda der
+        if (r.ok) {
+          let v = null; try { v = lerResposta((await r.json())?.choices?.[0]?.message?.content); } catch { /* quebrada */ }
+          if (v) { contarIa(chaveJogador); return v; }
+          break; // resposta quebrada: o próximo modelo
+        }
+        if (r.status === 401) return gemini(); // chave errada: nenhum modelo do Groq vai
+        if (r.status === 429) { // limite do minuto (ou do dia) deste modelo
+          const espera = Number(r.headers?.get?.('retry-after')) * 1000;
+          if (tentativa === 0 && espera > 0 && espera <= 3000 && fim - Date.now() > espera + 1500) { await new Promise((ok) => setTimeout(ok, espera)); continue; }
+        }
+        break; // 404/400 (modelo saiu), 429 longo, 5xx: o próximo modelo
+      }
     }
   }
-  if (!chave) return null;
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.9, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } } }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) return null;
-    return lerResposta((await r.json())?.candidates?.[0]?.content?.parts?.[0]?.text);
-  } catch { return null; }
+  return gemini();
+  async function gemini() {
+    if (!chave) return null;
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.9, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } } }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) return null;
+      const v = lerResposta((await r.json())?.candidates?.[0]?.content?.parts?.[0]?.text);
+      if (v) contarIa(chaveJogador);
+      return v;
+    } catch { return null; }
+  }
 }
-// a ordem dos modelos da conversa: o menor primeiro, o grande de reserva (GROQ_MODELO_CONVERSA troca o menor)
+// a ordem dos modelos da conversa (André 2026-11-12): o grande primeiro (o esperto), depois o Llama 70B e o menor de reserva.
+// Cada modelo do Groq tem o seu limite por minuto e por dia, então a reserva segura a conversa quando o primeiro estoura.
+// GROQ_MODELO troca o primeiro; GROQ_MODELO_CONVERSA troca o último.
 export function modelosConversa() {
   const grande = process.env.GROQ_MODELO || 'openai/gpt-oss-120b';
-  return [...new Set([process.env.GROQ_MODELO_CONVERSA || 'openai/gpt-oss-20b', grande])];
+  return [...new Set([grande, 'llama-3.3-70b-versatile', process.env.GROQ_MODELO_CONVERSA || 'openai/gpt-oss-20b'])];
+}
+// as respostas da chave do servidor (contas de teste) contam para o limite do dia; a chave do jogador não conta aqui
+function contarIa(chaveJogador) {
+  if (chaveJogador) return;
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (hoje !== dia) { dia = hoje; usadas = 0; }
+  usadas++;
 }
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {

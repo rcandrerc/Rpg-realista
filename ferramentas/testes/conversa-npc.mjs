@@ -14,10 +14,11 @@ let respostas = [];
 globalThis.fetch = async (url, op) => {
   const b = JSON.parse(op.body); pedidos.push(b);
   const r = respostas.shift() || { status: 200, fala: 'Oi!' };
-  return { ok: r.status === 200, status: r.status, json: async () => ({ choices: [{ message: { content: JSON.stringify({ fala: r.fala, acao: 'nada' }) } }] }) };
+  if (r.status === 200 && r.fala == null) return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ choices: [{ message: { content: '{"fala": "cort' } }] }) };
+  return { ok: r.status === 200, status: r.status, headers: { get: (h) => (h === 'retry-after' ? r.retry ?? null : null) }, json: async () => ({ choices: [{ message: { content: JSON.stringify({ fala: r.fala, acao: 'nada' }) } }] }) };
 };
 
-ok(modelosConversa()[0] === 'openai/gpt-oss-20b' && modelosConversa()[1] === 'openai/gpt-oss-120b', 'menor primeiro, grande de reserva');
+ok(modelosConversa().join() === 'openai/gpt-oss-120b,llama-3.3-70b-versatile,openai/gpt-oss-20b', 'grande primeiro (André 2026-11-12: o menor era burro), Llama 70B e o menor de reserva');
 
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});
@@ -34,18 +35,44 @@ const cc = cec.contextoAmiga('andre');
 ok(cc && !cc.semCasa && cc.mora == null, 'Cecília continua com a casa dela');
 
 let v = await pensarAmiga(cl, 'oi, tudo bem?', 'chave-de-teste');
-ok(v?.fala === 'Oi!' && pedidos.length === 1 && pedidos[0].model === 'openai/gpt-oss-20b', 'conversa usa o modelo menor');
+ok(v?.fala === 'Oi!' && pedidos.length === 1 && pedidos[0].model === 'openai/gpt-oss-120b' && pedidos[0].reasoning_effort === 'low', 'conversa usa o modelo grande');
 const p = pedidos[0].messages[0].content;
 ok(!/casinha e sua horta/.test(p) && /sem casa própria \(mora em a vila\)/.test(p) && !/Casa (pronta|em obra)/.test(p), 'a ficha da aventureira não fala de casa e horta');
 ok(!/\n\n/.test(p), `ficha curta, sem linha vazia (${p.length} letras)`);
 
-pedidos.length = 0; respostas = [{ status: 404 }, { status: 200, fala: 'Pelo grande.' }];
+pedidos.length = 0; respostas = [{ status: 404 }, { status: 200, fala: 'Pelo Llama.' }];
 v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
-ok(v?.fala === 'Pelo grande.' && pedidos.map((b) => b.model).join() === 'openai/gpt-oss-20b,openai/gpt-oss-120b', 'modelo menor sumiu: cai no grande');
+ok(v?.fala === 'Pelo Llama.' && pedidos.map((b) => b.model).join() === 'openai/gpt-oss-120b,llama-3.3-70b-versatile' && !('reasoning_effort' in pedidos[1]), 'grande sumiu: cai no Llama (sem reasoning_effort, que o Llama não aceita)');
 
-pedidos.length = 0; respostas = [{ status: 429 }];
+// André 2026-11-12: o limite por minuto (429) é de cada modelo; antes desistia e respondia com fala pronta
+pedidos.length = 0; respostas = [{ status: 429 }, { status: 429 }, { status: 200, fala: 'Pelo menor.' }];
 v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
-ok(v === null && pedidos.length === 1, 'limite da chave (429): não gasta outra chamada, o jogo responde pelas regras');
+ok(v?.fala === 'Pelo menor.' && pedidos.length === 3, '429 num modelo: tenta o próximo em vez de cair nas falas prontas');
+
+pedidos.length = 0; respostas = [{ status: 429, retry: '1' }, { status: 200, fala: 'Esperei.' }];
+v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
+ok(v?.fala === 'Esperei.' && pedidos.map((b) => b.model).join() === 'openai/gpt-oss-120b,openai/gpt-oss-120b', '429 com espera curta: espera e tenta o mesmo modelo');
+
+pedidos.length = 0; respostas = [{ status: 200 }, { status: 200, fala: 'Inteira.' }];
+v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
+ok(v?.fala === 'Inteira.' && pedidos.length === 2, 'resposta cortada: tenta o próximo modelo');
+
+pedidos.length = 0; respostas = [{ status: 401 }];
+v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
+ok(v === null && pedidos.length === 1, 'chave errada (401): não gasta outra chamada, o jogo responde pelas regras');
+
+pedidos.length = 0; respostas = [{ status: 429 }, { status: 429 }, { status: 429 }];
+v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
+ok(v === null && pedidos.length === 3, 'os 3 modelos no limite: o jogo responde pelas regras');
+
+// a regra só passa por cima da IA em pedido curto que muda algo (André 2026-11-12)
+s.adicionarJogador('b', 'Beto', 'ruiva', {});
+ok(cec.regraValeSobreIaAmiga('andre', 'time', 'bora caçar', 'conversa'), '"bora caçar": pedido curto, vale a regra');
+ok(!cec.regraValeSobreIaAmiga('andre', 'time', 'e aí, como foi aquela missão de ontem lá na caverna do norte?', 'conversa'), 'frase comprida com "missão": vale a IA');
+const cecA = cec.amiga; cecA.time = 'tz'; s.jogadores.get('andre').time = 'tz';
+ok(cec.acaoSemEfeitoAmiga('andre', 'time') && !cec.regraValeSobreIaAmiga('andre', 'time', 'vamos', 'conversa'), 'já no time: "vamos" não é convite, vale a fala da IA');
+ok(!cec.acaoSemEfeitoAmiga('andre', 'sairTime'), 'no time: sair do time muda algo');
+cecA.time = null; s.jogadores.get('andre').time = null;
 
 pedidos.length = 0;
 await pensarAmiga(cc, 'oi', 'chave-de-teste');
