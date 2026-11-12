@@ -5,7 +5,7 @@ import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
 import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
-import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA } from './vilas.js';
+import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -1309,7 +1309,10 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3 }; // amigos, s, s
 export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm', 'time'], respostaTime: 30 }; // time (André 2026-11-11): fala com todos do time de uma vez; os NPCs do time respondem no time por respostaTime segundos
 // Reinício programado do servidor (André 2026-11-11: "a cada 5 horas tem um reset, reinicia automaticamente"):
 // avisa no chat geral antes (minutos), grava o progresso de todos e reinicia; o systemd liga de novo em segundos.
-export const REINICIO = { horas: 5, avisos: [5, 1] };
+// Faixa na tela (André 2026-11-12: "um aviso na tela, em cima, meio grande... servidor está reiniciando em 10, 9, 8"; "primeiro
+// o servidor reiniciará em um minuto, e depois uma contagem de 10 segundos"): vale para o reinício programado e para o servidor
+// novo que chega com o merge. aviso = segundos antes do reinício em que sai "reinicia em 1 minuto"; contagem = a contagem grande.
+export const REINICIO = { horas: 5, avisos: [5, 1], aviso: 60, contagem: 10 };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
@@ -2132,8 +2135,47 @@ export const VILAS_MUNDO = [
     ] },
   { id: 'aurora', nome: 'Aurora', nivel: 64, totem: 'aurora', semCasas: true, jeito: 'Pedra branca e torres apagadas; só a praça tem gente (os bairros são dos terrenos)',
     itens: ['forja'], banca: true, enfeites: [['estandarte', 'praca'], ['estandarte', 'praca'], ['barris', 'praca'], ['mesa', 'praca']],
+    // Aurora viva (André 2026-11-12, esboço aprovado: /mnt/project-files/historia/aurora-viva-v1.jpg): a cidade de pedra
+    // branca nos corredores entre os 4 bairros dos terrenos (nada em cima deles). Peças no lugar do esboço (x, z do mundo;
+    // ry = para onde a porta olha). Escura e vazia até a Vesper cair (acende: a missão que acende as janelas e as torres).
+    cidade: {
+      acende: 'f3',
+      praca: { x: 200, z: 1085, r: 10 }, // Praça das Luzes (calçada branca); a estrada passa no meio dela
+      // ruas de pedra branca: em cima das estradas que já existem (do Portão do Mar à praça, para o leste até o Templo,
+      // para o oeste até a Pousada) e a nova, da praça ao Paço
+      ruas: [['e_aurora', (x, z) => z >= 1024.5 && z < 1084.6 && x > 185 && x < 215], ['e_aurora', (x, z) => z > 1084.6 && z < 1105 && x > 199 && x <= 258],
+        ['e_aurora_n', (x, z) => x >= 136 && x <= 201 && z > 1080 && z < 1100], [[200, 1093], [200, 1146.6]],
+        [[254, 1097.4], [255.8, 1088.6]], [[130.6, 1094.2], [129.4, 1086.8]]], // e os caminhos até a porta do Templo e da Pousada
+      pecas: [
+        { n: 'portao', m: 'aurora_portao', x: 198.3, z: 1023, ry: -0.184 }, // Portão do Mar, na estrada do cais
+        { n: 'fonte', m: 'aurora_fonte', x: 204.5, z: 1079.5, ry: 0 }, // a fonte e a Chama de Aethra, no canto da praça sem estrada
+        // Rua do Mercado, do lado leste da estrada do mar (a estrada encosta no bairro do noroeste)
+        { n: 'padaria', m: 'aurora_sobrado', x: 203.5, z: 1034, ry: -Math.PI / 2 },
+        { n: 'velas', m: 'aurora_sobrado2', x: 203.5, z: 1041, ry: -Math.PI / 2 },
+        { n: 'tecidos', m: 'aurora_sobrado', x: 203.5, z: 1048, ry: -Math.PI / 2 },
+        { n: 'cristais', m: 'aurora_sobrado2', x: 203.5, z: 1055, ry: -Math.PI / 2 },
+        { n: 'comida', m: 'aurora_sobrado', x: 203.5, z: 1062, ry: -Math.PI / 2 },
+        // rua do oeste: a casa da avó da Cecília, a do Kael e a Pousada da Lanterna na entrada da cidade
+        { n: 'avo', m: 'aurora_casa', x: 155, z: 1080, ry: 0 },
+        { n: 'kael', m: 'aurora_casa', x: 174, z: 1080, ry: 0 },
+        { n: 'pousada', m: 'aurora_pousada', x: 130, z: 1080, ry: 0 },
+        // rua do leste: duas casas de moradores e o Templo da Luz no fim da rua, olhando para a praça
+        { n: 'casa_leste1', m: 'aurora_casa', x: 226, z: 1085, ry: 0 },
+        { n: 'casa_leste2', m: 'aurora_casa', x: 246, z: 1086, ry: 0 },
+        { n: 'templo', m: 'aurora_templo', x: 264, z: 1088, ry: -Math.PI / 2 },
+        // rua do sul: o Paço da Guardiã, olhando para a praça, com uma torre de cada lado
+        { n: 'paco', m: 'aurora_paco', x: 200, z: 1154, ry: Math.PI },
+        { n: 'torre_paco_o', m: 'aurora_torre', x: 190, z: 1150, ry: Math.PI },
+        { n: 'torre_paco_l', m: 'aurora_torre', x: 210, z: 1150, ry: Math.PI },
+        // as 4 torres de cristal, nos cantos da cidade (as de oeste e a de sudeste no alto do morro)
+        { n: 'torre_no', m: 'aurora_torre', x: 124, z: 1030, olha: true },
+        { n: 'torre_ne', m: 'aurora_torre', x: 266, z: 1019, olha: true },
+        { n: 'torre_so', m: 'aurora_torre', x: 130, z: 1148, olha: true },
+        { n: 'torre_se', m: 'aurora_torre', x: 270, z: 1146, olha: true },
+      ] },
     npcs: [
-      { id: 'v_elara', nome: 'Guardiã Elara, a chefe de Aurora', visual: 'shibu', onde: 'totem', escala: 1.03, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+      // ate: depois do fim da história ela muda para o Paço da Guardiã (v_elara_paco, Aurora viva)
+      { id: 'v_elara', nome: 'Guardiã Elara, a chefe de Aurora', visual: 'shibu', onde: 'totem', ate: 'f3', escala: 1.03, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
         tinta: { cabelo: 0xd8d8e8, roupa: 0xe8e4d8, calca: 0x5a5a6a }, funcao: 'dica', acoes: [], falas: [
           'Só a praça ainda tem gente. As casas vazias acendem as janelas sozinhas à noite.',
           'Aurora esqueceu de si mesma. A gente só lembra porque não sai de perto da praça.'] },
@@ -2144,10 +2186,49 @@ export const VILAS_MUNDO = [
         'Velas, poções e pão. O resto, a Névoa levou.',
         'Você não é daqui... mas parece que eu te conheço.']),
       // o Kael passa a morar em Aurora depois da missão "Kael" (depois: o app só mostra para quem já fez; Entrega 5)
-      { id: 'v_kael', nome: 'Kael, a Lâmina Cinzenta', visual: 'cabelo_m', onde: 'praca', depois: 'h14', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+      { id: 'v_kael', nome: 'Kael, a Lâmina Cinzenta', visual: 'cabelo_m', onde: 'cidade:kael', depois: 'h14', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
         tinta: { cabelo: 0x9a9aa4, roupa: 0x6a6e78, calca: 0x2e2e34 }, funcao: 'dica', acoes: [], falas: [
           'Eu devo a esta cidade trezentos anos de silêncio. Vou ficar.',
           'O Dario ainda me derruba no treino. Não conte para ninguém.'] },
+      // Aurora viva (André 2026-11-12, esboço aprovado): depois da Vesper (depois: 'f3', a última missão) a cidade tem
+      // gente de novo. A Elara muda para o Paço; o mercado abre; moradores na porta de casa.
+      { id: 'v_elara_paco', nome: 'Guardiã Elara, a chefe de Aurora', visual: 'shibu', onde: 'cidade:paco', depois: 'f3', escala: 1.03, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+        tinta: { cabelo: 0xd8d8e8, roupa: 0xe8e4d8, calca: 0x5a5a6a }, funcao: 'dica', acoes: [], falas: [
+          'As janelas acendem sozinhas de novo. Mas agora tem alguém atrás de cada uma.',
+          'Aurora lembrou o próprio nome. E o seu, Estrela de Aethra.'] },
+      { ...lojaDe('v_iris', 'Íris, a tecelã', 'vivi', { cabelo: 0x6a3a5a, roupa: 0x8a5aa0, calca: 0x3a3048 }, { tunica: 0x8a5aa0, saia: 0x5a3a6a, ate: 'canela', faixa: 0xe8d8a0 }, [
+        'Linho branco de Aurora, tingido de azul da manhã. Faz trezentos anos que eu não tecia.',
+        'O tear lembrou antes de mim. As mãos foram sozinhas.']), onde: 'cidade:tecidos', depois: 'f3' },
+      { ...lojaDe('v_caio', 'Caio, o cristaleiro', 'cabelo_m', { cabelo: 0x3a4a5a, roupa: 0x4a6a8a, calca: 0x2a2e38 }, { tunica: 0x4a6a8a, faixa: 0x9ad0f0 }, [
+        'Cristal de Aurora canta quando está bem lapidado. Escute.',
+        'As torres acenderam e eu chorei. Não conte para a Íris.']), onde: 'cidade:cristais', depois: 'f3' },
+      { ...lojaDe('v_nina', 'Nina, a quitandeira', 'shino', { cabelo: 0x8a4a2a, roupa: 0xb88a4a, calca: 0x4a3a2a }, { tunica: 0xb88a4a, saia: 0x6a4a2a, ate: 'joelho', avental: 0xf0e8d0 }, [
+        'Fruta do pomar do Paço, pão do Olavo, mel da serra. Aurora come bem de novo.',
+        'Leva uma maçã. Por conta da casa, Estrela.']), onde: 'cidade:comida', depois: 'f3' },
+      { id: 'v_olavo', nome: 'Olavo, o padeiro', visual: 'cabelo_m', onde: 'cidade:padaria', depois: 'f3', escala: 1.02, roupa: 'peitoral0,botas0',
+        tinta: { cabelo: 0x5a4a3a, roupa: 0xe8e0d0, calca: 0x4a4038 }, veste: { tunica: 0xe8e0d0, avental: 0xf4efe4 }, funcao: 'dica', acoes: [], falas: [
+          'O forno ficou trezentos anos frio. Hoje o pão saiu dourado na primeira fornada.',
+          'Cheiro de pão é o jeito mais rápido de uma cidade lembrar que está viva.'] },
+      { id: 'v_zelia', nome: 'Dona Zélia, a das velas', visual: 'shino', onde: 'cidade:velas', depois: 'f3', escala: 0.95, roupa: 'peitoral0,botas0,capa1',
+        tinta: { cabelo: 0xe0dcd4, roupa: 0x7a5a8a, calca: 0x3a3040 }, veste: { tunica: 0x7a5a8a, saia: 0x5a4068, ate: 'canela', faixa: 0xf0e0a0 }, funcao: 'dica', acoes: [], falas: [
+          'Eu acendia vela para ninguém, toda noite. Agora acendo para todo mundo.',
+          'Vela de Aurora não apaga com vento. Só com esquecimento.'] },
+      { id: 'v_anselmo', nome: 'Irmão Anselmo, do Templo da Luz', visual: 'cabelo_m', onde: 'cidade:templo', depois: 'f3', escala: 1.0, roupa: 'peitoral0,botas0,capa1', arma: 'cajado',
+        tinta: { cabelo: 0x8a8a8a, roupa: 0xe8e4d8, calca: 0x6a6a7a }, veste: { tunica: 0xe8e4d8, saia: 0xe8e4d8, ate: 'canela', faixa: 0x9ad0f0 }, funcao: 'dica', acoes: [], falas: [
+          'O Templo guardava a luz da estrela. Você devolveu o resto.',
+          'Reze se quiser. Ou só sente um pouco. A luz não cobra nada.'] },
+      { id: 'v_lia', nome: 'Lia, a dona da Pousada da Lanterna', visual: 'vivi', onde: 'cidade:pousada', depois: 'f3', escala: 1.0, roupa: 'peitoral0,botas0',
+        tinta: { cabelo: 0xc87a3a, roupa: 0x5a7a4a, calca: 0x3a3028 }, veste: { tunica: 0x5a7a4a, saia: 0x3a4a30, ate: 'canela', avental: 0xf0e8d8 }, funcao: 'dica', acoes: [], falas: [
+          'Pousada cheia! Gente que nem sabia que era de Aurora voltando para casa.',
+          'A lanterna da porta acendeu sozinha. Por isso o nome.'] },
+      { id: 'v_hugo', nome: 'Hugo, o guarda do Portão do Mar', visual: 'fumiriya', onde: 'cidade:portao', depois: 'f3', escala: 1.05, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0x2a2018, roupa: 0x2e4a7a, calca: 0x2a2a30 }, funcao: 'dica', acoes: [], falas: [
+          'Navio chegando todo dia. Eu tinha esquecido como é bom ter trabalho.',
+          'Bem-vinda a Aurora. É a primeira vez que eu digo isso em trezentos anos.'] },
+      { id: 'v_teo', nome: 'Teo, o menino da praça', visual: 'cabelo_m', onde: 'cidade:fonte', depois: 'f3', escala: 0.82, roupa: 'peitoral0,botas0',
+        tinta: { cabelo: 0x6a4a2a, roupa: 0x4a7aa0, calca: 0x3a3a48 }, veste: { tunica: 0x4a7aa0 }, funcao: 'dica', acoes: [], falas: [
+          'Você é a Estrela! A minha avó disse. Ela lembra de tudo agora!',
+          'Quando eu crescer vou ter uma espada igual a sua.'] },
     ] },
   { id: 'vila_veu', nome: 'Vila do Véu', nivel: 80, totem: 'posto_leste', jeito: 'Forjas de brasa e pedra escura em volta do Posto do Leste',
     itens: ['forja', 'pedra_6x6', 'pedra_4x6', 'pedra_4x6'], banca: true,
@@ -2202,6 +2283,12 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
     V.x = T.x; V.z = T.z;
     const A = arrumarVila(V, amb);
     V.casas = A.casas; V.banca = A.banca; V.enfeites = A.enfeites; V.raio = A.raio;
+    if (V.cidade) { // Aurora viva: as peças da cidade entram como casas da vila (sólidas, terreno nenhum em cima, gente na porta)
+      const C = arrumarCidade(V.cidade, { ...amb, estradasPorId: Object.fromEntries(ESTRADAS_MUNDO.map((e) => [e.id, e.curva])) });
+      A.casas.push(...C.pecas); A.postos.push(...C.postos);
+      V.ruas = C.ruas; V.praca = C.praca;
+      for (const q of C.pisos) MAPA_CLAREIRA.casasMundo.push({ ...q, sobe: 0, piso: true }); // calçamento: chão de andar
+    }
     // casas: o retângulo das paredes vira peça sólida (a cumeeira corre de frente para trás: a peça gira 90 graus, como o
     // telhado de duas águas do terreno.js, que sobe no meio do fundo)
     for (const c of A.casas) {
@@ -2213,6 +2300,11 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
         for (const [sx, sz] of [[1, 1], [-1, 1]]) { const [ex, ez] = naPeca(c, sx * M.w / 2, sz * M.d / 2); obst.push({ x: ex, z: ez, r: 0.16 }); }
         continue;
       }
+      if (M.portao) { // Portão do Mar: os dois pilares de 2 x 2 m (por baixo da ponte de pedra se passa)
+        for (const sx of [-4, 4]) { const [px, pz] = naPeca(c, sx, 0); obst.push({ x: px, z: pz, r: 1.3 }); }
+        continue;
+      }
+      if (M.w == null) { obst.push({ x: c.x, z: c.z, r: M.r, alto: +(c.y + M.alto).toFixed(2) }); continue; } // fonte: a borda da bacia é tampo
       MAPA_CLAREIRA.casasMundo.push({ x: c.x, z: c.z, ry: c.ry + Math.PI / 2, hw: M.d / 2, hd: M.w / 2, y1: c.y + M.alto, sobe: M.sobe });
     }
     for (const e of A.enfeites) { const M = MODELOS_VILA[e.m]; obst.push({ x: e.x, z: e.z, r: M.r || 0.5, ...(M.alto ? { alto: +(e.y + M.alto).toFixed(2) } : {}) }); }
@@ -2239,6 +2331,11 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
       if (onde === 'totem') { const a = Math.atan2(estrada[0] - V.x, estrada[1] - V.z); return [...lugarNaVila(A, V.x + Math.sin(a) * 3.6, V.z + Math.cos(a) * 3.6, 0.6), a]; }
       if (onde === 'forja' && F) return [...perto(-1.15, 0.85, F), F.ry];
       if (onde === 'banca' && A.banca) return [...naPeca(A.banca, 0, -1.15), A.banca.ry];
+      if (onde.startsWith('cidade:')) { // Aurora viva: na frente da porta da peça (a fonte: na beira da bacia, para a praça)
+        const C = A.casas.find((c) => c.n === onde.slice(7)), D = MODELOS_VILA[C.m];
+        if (D.w == null) { const a = Math.atan2(V.cidade.praca.x - C.x, V.cidade.praca.z - C.z); return [...lugarNaVila(A, C.x + Math.sin(a) * (D.r + 0.9), C.z + Math.cos(a) * (D.r + 0.9), 0.5), a]; }
+        return D.portao ? [...perto(-5.3, 2.4, C), C.ry] : [...perto(D.porta + 0.9, D.d / 2 + 1.4, C), C.ry]; // o guarda do portão: do lado do pilar, fora da estrada
+      }
       const [o, q] = onde.split(':');
       const C = o === 'comercio' ? A.casas.find((c) => c.m === 'comercio') : A.casas.filter((c) => c.m !== 'forja')[Number(q) || 0];
       if (C) { const D = MODELOS_VILA[C.m]; return [...perto(o === 'comercio' ? (q === 'e' ? -2.2 : 2.2) : 1.4, D.d / 2 + 1.3, C), C.ry]; }
@@ -2265,6 +2362,22 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
       let r = R + (d % 3);
       while (r < R + 14 && (naEstrada(V.x + ux * r, V.z + uz * r) || VILAS_MUNDO.some((W) => W !== V && Math.hypot(V.x + ux * r - W.x, V.z + uz * r - W.z) < W.raio + 3))) r += 2;
       t.x = +(V.x + ux * r).toFixed(2); t.z = +(V.z + uz * r).toFixed(2); t.y = +alturaMundo(G, t.x, t.z).toFixed(2);
+    }
+  }
+  // Aurora viva: as árvores que caíam numa peça da cidade, na praça ou numa rua de pedra vão para o lado mais perto que
+  // estiver livre (não somem; o "a" de cada uma continua o mesmo)
+  for (const V of VILAS_MUNDO) if (V.cidade) {
+    const ocupado = (x, z) => V.casas.some((c) => { const M = MODELOS_VILA[c.m]; return M.w == null ? Math.hypot(x - c.x, z - c.z) < M.r + 2 : distRet({ x: c.x, z: c.z, ry: c.ry, w: M.w + 3, d: M.d + 3 }, x, z) === 0; })
+      || Math.hypot(x - V.praca.x, z - V.praca.z) < V.praca.r + 2 || distRuas(V.ruas, x, z) < CALCADA.largura / 2 + 1.5
+      || VILAS_MUNDO.some((W) => Math.hypot(x - W.x, z - W.z) < W.raio + 3) || naEstrada(x, z) || !terraEm(G, x, z) || alturaMundo(G, x, z) < mar + 0.5;
+    for (const t of MAPA_CLAREIRA.mata) {
+      if (!t.mundo || Math.abs(t.x - V.praca.x) > 170 || Math.abs(t.z - V.praca.z) > 170 || !ocupado(t.x, t.z)) continue;
+      busca: for (let r = 2; r <= 40; r += 1.5) for (let a = 0; a < 12; a++) {
+        const x = t.x + Math.sin(a * Math.PI / 6) * r, z = t.z + Math.cos(a * Math.PI / 6) * r;
+        if (ocupado(x, z)) continue;
+        t.x = +x.toFixed(2); t.z = +z.toFixed(2); t.y = +alturaMundo(G, t.x, t.z).toFixed(2);
+        break busca;
+      }
     }
   }
 }
@@ -2295,7 +2408,7 @@ for (const V of VILAS_TERRENO) for (const t of TOTENS.lista) if (Math.hypot(t.x 
 // e as peças das mini vilas do mundo grande (ferraria e banca do Porto, banca de Aurora...): terreno nenhum em cima delas
 for (const V of VILAS_TERRENO) for (const W of VILAS_MUNDO) {
   if (Math.hypot(W.x - V.area.x, W.z - V.area.z) > Math.max(V.area.rx, V.area.rz) + W.raio + 6) continue;
-  for (const c of W.casas) { const M = MODELOS_VILA[c.m]; V.estradas.push(praca(c.x, c.z, Math.hypot(M.w, M.d) / 2 + 1)); }
+  for (const c of W.casas) { const M = MODELOS_VILA[c.m]; V.estradas.push(praca(c.x, c.z, (M.w == null ? M.r : Math.hypot(M.w, M.d) / 2) + 1)); }
   if (W.banca) V.estradas.push(praca(W.banca.x, W.banca.z, 3));
   for (const e of W.enfeites) V.estradas.push(praca(e.x, e.z, (MODELOS_VILA[e.m].r || 0.6) + 1));
 }
@@ -2374,6 +2487,11 @@ export const AMIGA = {
   // (depois de 3 desvios no mesmo ponto pula para o próximo); seco: s fora da água para subir de novo no lobo; agua: fundo
   // (m) que já desce do lobo e atravessa a nado; frente: m adiante na rota para ver a água
   viagem: { estrada: 25, chega: 10, olha: 2.4, replanejar: 12, novaEm: 3, preso: 1.5, desvio: 0.8, seco: 0.8, agua: 0.5, frente: 3, folga: 1.6, extra: 60 },
+  // André 2026-11-12 ("ficam caminhando sem sair do lugar o tempo todo, batendo na parede... ou ficam parados, ou ficam
+  // andando de verdade"): querendo andar mas sem sair do lugar por preso s (andou menos que minimo do passo esperado):
+  // passeio à toa é largado (fica parado e escolhe outro); indo para um lugar, desvia de lado por desvio s; depois de
+  // desvios tentativas seguidas sem sair, aparece no ponto (só fora do time e até salto m; no time só desvia)
+  parede: { preso: 1.5, minimo: 0.25, desvio: 0.9, desvios: 3, salto: 30 },
   // o que ela pede ao André (e paga de volta com o que colheu, ou em ouro)
   pedidos: [{ k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'couro', n: 2 }, { k: 'semente_cenoura', n: 3 }, { k: 'minerio_cobre', n: 3 }],
   falas: {
@@ -3631,9 +3749,9 @@ export const HISTORIA = [
     ],
     pronto: 'A Guardiã já sabe de você. E a moça de olhos vermelhos que veio com você... ela anda pelos bairros como se conhecesse cada pedra.' },
   { id: 'e2', cap: 14, nv: 72, npc: 'v_elara', nome: 'A casa da avó', libera: [],
-    pedido: 'A sua amiga Cecília achou uma casa num bairro daqui. Diz que era da avó dela. Uma parede caiu e a janela quebrou. Faça as peças na bancada e traga para mim, que eu levo o pessoal da praça para ajudar.',
+    pedido: 'A sua amiga Cecília achou uma casa na rua do oeste daqui. Diz que era da avó dela. Uma parede caiu e a janela quebrou. Faça as peças na bancada e traga para mim, que eu levo o pessoal da praça para ajudar.',
     etapas: [
-      { ev: 'pos', pos: [168, 1052, 6], txt: 'Ache a casa da avó da Cecília, no bairro do oeste de Aurora', alvo: 'pos',
+      { ev: 'pos', pos: [156, 1084.5, 5], txt: 'Ache a casa da avó da Cecília, na rua do oeste de Aurora', alvo: 'pos', // Aurora viva: a casa de pedra branca dela
         diz: 'Cecília, parada na porta: "Eu conheço essa casa. Eu conheço até o cheiro dela."' },
       { ev: 'criar', k: 'obra_parede', n: 3, txt: 'Crie 3 paredes na bancada', alvo: 'lote' },
       { ev: 'criar', k: 'obra_janela', txt: 'Crie 1 janela na bancada', alvo: 'lote' },

@@ -32,6 +32,7 @@ func _ready() -> void:
 	cartao.custom_minimum_size = Vector2(LARGURA, 0)
 	cartao.size = Vector2(LARGURA, 0)
 	cartao.mouse_filter = Control.MOUSE_FILTER_STOP
+	cartao.gui_input.connect(_toque_cartao) # André 2026-11-12: tocar na barra (fora do "Ir") abre o menu de todas as missões
 	add_child(cartao)
 	# André 2026-11-11: sem tocar para abrir botões e sem o "Missões" aqui: o "Ir" fica sempre do lado da descrição
 	var linha := HBoxContainer.new()
@@ -75,6 +76,32 @@ func _botao(t: String, fn: Callable) -> Button:
 			sb.set_corner_radius_all(10)
 	b.pressed.connect(fn)
 	return b
+
+# André 2026-11-12: "se você clicar na barra em si, você já abre o menu de todas as missões" (como no Quimera e na
+# maioria dos jogos). O "Ir" é um botão por cima e fica com o toque dele; o resto da barra abre a aba Missões (a mesma do
+# menu do topo, menu_topo.gd). Abre ao soltar o dedo, e só se ele não saiu da barra.
+func _toque_cartao(ev: InputEvent) -> void:
+	if not (ev is InputEventMouseButton) or ev.button_index != MOUSE_BUTTON_LEFT or ev.pressed:
+		return
+	if not Rect2(Vector2.ZERO, cartao.size).grow(6).has_point(ev.position) or m.menu == null:
+		return
+	cartao.accept_event()
+	m.menu.abrir("missoes")
+	if m.sons:
+		m.sons.tocar("pano", -10.0)
+
+# a missão acabou de começar no NPC (conversa.gd): a barrinha pisca duas vezes, clareando e voltando. Só um tween curto.
+var _pisca: Tween
+func destacar() -> void:
+	if cartao == null:
+		return
+	if _pisca != null and _pisca.is_valid():
+		_pisca.kill()
+	cartao.modulate = Color.WHITE
+	_pisca = create_tween()
+	for i in 2:
+		_pisca.tween_property(cartao, "modulate", Color(1.6, 1.5, 1.9), 0.18)
+		_pisca.tween_property(cartao, "modulate", Color.WHITE, 0.3)
 
 # hud.gd: toque aqui não vira joystick nem câmera
 func cobre(p: Vector2) -> bool:
@@ -249,7 +276,7 @@ func _abrir_npc(id: String) -> void:
 		return
 	for n in m.npcs:
 		if str(n.get("id", "")) == id:
-			m.conversa.abrir(n)
+			m.conversa.abrir(n, false) # abriu sozinha (Ir): o primeiro toque em Missão já vale
 			return
 
 # ---------- marca no chão (história v2): coluna de luz lilás na pista, no fragmento ou no meio do lago ----------

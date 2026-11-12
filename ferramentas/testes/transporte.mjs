@@ -27,7 +27,16 @@ s.eventos = []; s.pack('P', { acao: 'fazer', npc: 'm_lenha' });
 ok(avisos().some((t) => /Falta material/.test(t)) && !j.prog.pack, 'sem material não faz');
 dar('lenha', 50);
 s.eventos = []; s.pack('P', { acao: 'fazer', npc: 'm_lenha' });
-ok(j.prog.pack?.k === 'lenha' && j.prog.pack.mo === 'm_lenha', 'fez o pack de lenha nas costas');
+ok(!j.prog.pack && j.fabrica?.pk && s.eventos.some((e) => e.t === 'fabricando' && e.k === 'pack' && e.dur >= 3), 'fazer pack abre a barrinha de criar (ainda não saiu)');
+s.eventos = []; s.pack('P', { acao: 'fazer', npc: 'm_lenha' });
+ok(avisos().some((t) => /Já está criando/.test(t)), 'barrinha carregando: não começa outro');
+s.tempo = j.fabrica.fim + 0.01; s.passoFabrica(j);
+ok(j.prog.pack?.k === 'lenha' && j.prog.pack.mo === 'm_lenha' && !j.fabrica, 'barrinha encheu: fez o pack de lenha nas costas');
+// parar no meio: não gasta nada
+{ const p0 = j.prog.pack; j.prog.pack = null; const l0 = j.prog.mochila.filter(Boolean).reduce((a, o) => a + (o.k === 'lenha' ? o.n : 0), 0);
+  s.pack('P', { acao: 'fazer', npc: 'm_lenha' }); s.fabricar('P', { parar: true });
+  const l1 = j.prog.mochila.filter(Boolean).reduce((a, o) => a + (o.k === 'lenha' ? o.n : 0), 0);
+  ok(!j.prog.pack && !j.fabrica && l0 === l1, 'parou a barrinha: nada gasto'); j.prog.pack = p0; }
 s.eventos = []; s.pack('P', { acao: 'fazer', npc: 'm_lenha' });
 ok(avisos().some((t) => /costas já têm/.test(t)), 'costas ocupadas: não faz outro sem carrinho');
 s.eventos = []; s.pack('P', { acao: 'entregar', npc: 'm_lenha', de: 'costas' });

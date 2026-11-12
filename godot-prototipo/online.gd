@@ -27,6 +27,7 @@ var _tentar_de_novo := -1.0
 # André (2026-11-07): caiu a conexão no meio do jogo, o jogo segue por até QUEDA_MAX s tentando voltar (e volta para o
 # que o servidor guardou). Passou disso: "Você foi desconectado" e o jogo volta para a tela inicial (entrar de novo).
 const QUEDA_MAX := 5.0
+const QUEDA_REINICIO := 60.0 # o servidor avisou que ia reiniciar (reinicio.gd): espera ele ligar de novo (~15 s na Oracle)
 var _queda_t := -1.0
 static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela inicial mostra o aviso
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
@@ -273,6 +274,8 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	meu_id = id
 	_queda_t = -1.0
 	_foi_desconectado = false
+	if m.reinicio:
+		m.reinicio.voltou() # servidor de volta: some a faixa do reinício
 	_conta_antes = conta.duplicate()
 	_build_ok = false
 	_lugar_pendente = true
@@ -311,7 +314,10 @@ func ao_cair(motivo: String) -> void:
 	for e in m.inimigos: # inimigos voltam para a cabeça do celular
 		if e.estado != "morto":
 			e.estado = "vagar"
-	if estava:
+	if estava and m.reinicio and m.reinicio.esperado(): # reinício avisado: a faixa já diz "Voltando…"
+		_tentar_de_novo = 1.0
+		_queda_t = QUEDA_REINICIO
+	elif estava:
 		m.hud.aviso("Caiu a conexão. Tentando voltar…")
 		_tentar_de_novo = 1.0
 		_queda_t = QUEDA_MAX
@@ -343,6 +349,8 @@ func desligar() -> void:
 # o servidor manda o progresso e o lugar dele). Sem recarregar a cena: o recarregar sem internet fechava o app (André 2026-11-07).
 func _desconectado() -> void:
 	_foi_desconectado = true
+	if m.reinicio:
+		m.reinicio.voltou() # não voltou a tempo: a tela inicial assume
 	desligar()
 	rede.fechar()
 	_voltar_a_tela_inicial()
@@ -990,6 +998,16 @@ func evento(ev: Dictionary) -> void:
 			if m.troca:
 				m.troca.do_servidor(ev)
 			return
+		"reinicio": # o servidor vai reiniciar (merge ou reinício programado): faixa no alto e contagem (reinicio.gd)
+			if m.reinicio:
+				m.reinicio.do_servidor(int(ev.get("s", 0)))
+			return
+		"anuncio": # boss de mundo apareceu, caiu ou soltou Mítico: faixa na tela que some (festa.gd), fora do chat
+			if m.hud.festa:
+				m.hud.festa.anuncio(str(ev.get("cab", "")), str(ev.get("titulo", "")), str(ev.get("cor", "boss")))
+			else:
+				m.hud.aviso(str(ev.get("titulo", "")))
+			return
 		"chat", "chatHist": # chat geral e de amigos (chat.gd)
 			if m.chat:
 				m.chat.do_servidor(ev)
@@ -1064,7 +1082,7 @@ func evento(ev: Dictionary) -> void:
 			var x := float(ev.x)
 			var z := float(ev.z)
 			var k := str(ev.get("fx", "explosao"))
-			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z))
+			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z), float(ev.get("ry", -999.0))) # ry: Corte Duplo e Esmagador
 		"chuva":
 			fx.chuva(float(ev.x), float(ev.z), float(ev.r), int(ev.ondas), func(_p): pass)
 		"meteoro":

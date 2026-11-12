@@ -101,6 +101,13 @@ func do_aviso(t: String) -> bool:
 		return true
 	return false
 
+# Boss de mundo (André 2026-11-12: "quando renascer, foi até anunciar assim na tela mesmo e depois sumir, mas ficar
+# no chat permanente tá poluindo o visual"): o servidor manda a todos online (evento "anuncio") e aqui vira a janelinha
+# do sistema que abre, fica uns segundos e some. Nada vai para o chat.
+func anuncio(cab: String, titulo: String, tom: String) -> void:
+	var cor: Color = VERMELHO if tom == "boss" else (OURO if tom == "mitico" else SISTEMA)
+	_faixa({"tipo": "pequena", "cab": cab, "titulo": titulo, "cor": cor, "dur": 3.6, "som": "festa_libera" if tom != "caiu" else "festa_sucesso"})
+
 # Subiu de nível (André 2026-11-11: "tem que ser mais pro canto, lá em cima, de maneira que não atrapalhe se o jogador
 # estiver em combate, e já ter um botãozinho de atalho que te leva pra distribuir os pontos"): janelinha do sistema
 # pequena no alto da tela, fora da fila do meio (missão e liberado seguem no meio sem esperar por ela), com o botão

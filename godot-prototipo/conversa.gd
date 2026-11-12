@@ -265,7 +265,7 @@ func _process(dt: float) -> void:
 		elif d <= CHEGOU:
 			var n = indo.npc
 			indo = null
-			abrir(n)
+			abrir(n, false)
 		elif m.tempo - indo.t > 1.2: # a cada 1,2 s precisa ter chegado mais perto (casa ou pedra no meio)
 			if d > indo.d - 0.4:
 				m.hud.aviso("Não achei caminho até %s" % _curto(indo.npc))
@@ -273,6 +273,9 @@ func _process(dt: float) -> void:
 			else:
 				indo.d = d
 				indo.t = m.tempo
+	_reabrir()
+	if npc != null and not is_same(m.P.hist_info, _hi_visto): # chegou progresso novo com a janela aberta
+		_botao_missao()
 	if npc != null:
 		# o NPC vira para o herói enquanto conversa e volta para onde olhava depois
 		var alvo: float = atan2(m.heroi.position.x - npc.no.position.x, m.heroi.position.z - npc.no.position.z)
@@ -288,7 +291,10 @@ func _process(dt: float) -> void:
 func _curto(n: Dictionary) -> String:
 	return str(n.get("nome", "")).get_slice(",", 0)
 
-func abrir(n: Dictionary) -> void:
+# toque = a janela abriu por um toque agora (botão Falar, toque no NPC perto): os toques dos primeiros ESPERA_TOQUE ms
+# são ignorados. Abrindo sozinha (chegou andando, o Ir da missão chegou) não tem toque nenhum para filtrar: antes o
+# primeiro toque em "Missão" logo que a janela aparecia era jogado fora e precisava tocar de novo (robô das missões).
+func abrir(n: Dictionary, toque := true) -> void:
 	if m.menu.aberto():
 		return
 	indo = null
@@ -322,12 +328,12 @@ func abrir(n: Dictionary) -> void:
 		fala_ui.text = "Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário."
 	elif n.funcao == "resetar" and falas.size() > 0:
 		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
-	_itens_passe(n.funcao == "passe")
+	_itens_passe(n.funcao == "passe" or (n.funcao == "pack" and m.transporte != null))
 	if n.funcao == "totem": # totem de teleporte: os destinos com a taxa no lugar das opções
 		_destinos_totem(n)
 		retrato_ui.texture = Menu.icone_tex("salto_arcano")
 		retrato_ui.modulate = Color("8fe2ff") # o traço branco do ícone fica azul das runas
-		_aberto_ms = Time.get_ticks_msec()
+		_aberto_ms = Time.get_ticks_msec() if toque else -ESPERA_TOQUE
 		raiz.visible = true
 		m.hud.bloqueado = true
 		m.hud.esconder_combate = true
@@ -344,9 +350,8 @@ func abrir(n: Dictionary) -> void:
 		opcoes.remove_child(c)
 		c.queue_free()
 	# história v2 (André 2026-11-11): o NPC com quem a missão principal quer falar agora ganha o botão da missão, primeiro
-	var hi: Dictionary = m.P.hist_info
-	if not n.get("amiga", false) and m.on() and str(hi.get("npc", "")) == str(n.id):
-		opcoes.add_child(_opcao("Missão: %s" % str(hi.get("nome", "")), "it_tomo", func(): escolher("historia")))
+	_btn_missao = null
+	_botao_missao()
 	for a in (n.get("acoes", []) if not n.get("amiga", false) else []):
 		if not ACOES.has(a):
 			continue
@@ -362,12 +367,68 @@ func abrir(n: Dictionary) -> void:
 		opcoes.add_child(_opcao("Até logo", "sair", fechar))
 	retrato_ui.texture = _retrato(n)
 	retrato_ui.modulate = Color.WHITE
-	_aberto_ms = Time.get_ticks_msec()
+	_aberto_ms = Time.get_ticks_msec() if toque else -ESPERA_TOQUE
 	raiz.visible = true
 	m.hud.bloqueado = true
 	m.hud.esconder_combate = true
 	m.cam.olhar_conversa(m.heroi.position, n.no.position)
 	m.sons.tocar("pano", -10.0)
+
+# O botão "Missão: ..." (história v2) acompanha o servidor com a janela aberta: o progresso que chega um instante
+# depois de abrir (subiu de nível, terminou a etapa lá fora, rede lenta) faz o botão aparecer ou sumir na hora. Antes
+# ele só mudava fechando e abrindo a janela de novo (robô das missões, André 2026-11-12).
+var _btn_missao: Button = null
+var _hi_visto = null # o hist_info que o botão já mostra (progresso.gd troca o dicionário a cada pacote)
+func _quer_missao() -> String:
+	if npc == null or npc.get("amiga", false) or npc.funcao == "totem" or not m.on():
+		return ""
+	var hi: Dictionary = m.P.hist_info
+	return "Missão: %s" % str(hi.get("nome", "")) if str(hi.get("npc", "")) == str(npc.id) else ""
+
+func _botao_missao() -> void:
+	_hi_visto = m.P.hist_info
+	var t := _quer_missao()
+	if _btn_missao != null and (not is_instance_valid(_btn_missao) or _btn_missao.is_queued_for_deletion() or _btn_missao.get_parent() != opcoes):
+		_btn_missao = null
+	if t == "":
+		if _btn_missao != null:
+			opcoes.remove_child(_btn_missao)
+			_btn_missao.queue_free()
+			_btn_missao = null
+		return
+	if _btn_missao == null:
+		_btn_missao = _opcao(t, "it_tomo", func(): escolher("historia"))
+		opcoes.add_child(_btn_missao)
+		opcoes.move_child(_btn_missao, 0)
+	elif _btn_missao.text != t:
+		_btn_missao.text = t
+
+# Depois do toque em "Missão" a janela fecha (André 2026-11-12). Se a resposta do servidor deixa a próxima conversa com
+# o mesmo NPC (entregou e ele já tem a próxima missão; aceitou e a etapa é entregar a ele), a janela volta sozinha com o
+# botão, em vez de pedir Ir e Missão de novo. Só se o progresso mudou (o "Ainda falta" fica só no aviso).
+var _depois: Dictionary = {}
+var _depois_fala := {} # npc -> o que ele respondeu com a janela fechada (aparece quando ela reabre)
+const REABRE := 2.5 # s esperando a resposta
+
+func _reabrir() -> void:
+	if _depois.is_empty():
+		return
+	var n: Dictionary = _depois.n
+	if m.tempo > float(_depois.ate) or aberto() or m.h.morto > 0.0 or not is_instance_valid(n.get("no")):
+		_depois = {}
+		return
+	if m.menu.aberto() or (m.cinematica and m.cinematica.ativa):
+		return # espera a cena ou o menu (até REABRE)
+	var hi: Dictionary = m.P.hist_info
+	if JSON.stringify(hi) == str(_depois.hi):
+		return # a resposta ainda não chegou
+	_depois = {}
+	var t := str(_depois_fala.get(str(n.id), ""))
+	_depois_fala.clear()
+	if str(hi.get("npc", "")) == str(n.id) and _dist(n) <= 4.0:
+		abrir(n, false)
+		if t != "":
+			fala_ui.text = t
 
 func fechar() -> void:
 	if raiz == null or not raiz.visible:
@@ -438,6 +499,7 @@ func escolher(a: String) -> void:
 		"pack": # FASE 1: as opções do mercador (fazer o pack, entregar o das costas, do carrinho ou do porão)
 			var r: Array = m.transporte.opcoes_mercador(n)
 			fala_ui.text = r[0]
+			_itens_passe(true) # o material do pack em ícones com tem/precisa (refaz depois de fazer/entregar)
 			for c in opcoes.get_children():
 				opcoes.remove_child(c)
 				c.queue_free()
@@ -478,9 +540,12 @@ func escolher(a: String) -> void:
 		"historia": # missão principal: aceitar, cumprir a etapa de falar ou entregar (o servidor responde em fala())
 			m.rede("falar", {"npc": n.id, "missao": true})
 			m.sons.tocar("q_anel_1", -14.0)
+			_missao_iniciada()
 		"missao", "cura":
 			if m.on():
 				m.rede("falar", {"npc": n.id}) # a resposta chega em fala()
+				if a == "missao":
+					_missao_iniciada()
 			elif a == "cura":
 				m.h.vida = m.P.st.vidaMax
 				m.h.mana = m.P.st.manaMax
@@ -497,6 +562,17 @@ func escolher(a: String) -> void:
 					var i: int = (int(_falas.get(n.id, 0)) + 1) % falas.size()
 					_falas[n.id] = i
 					fala_ui.text = str(falas[i])
+
+# André 2026-11-12: "iniciar a missão, fecha, já aparece a barrinha lá". Tocou na missão: a janela do NPC fecha na hora
+# (antes ficava aberta e tocar de novo travava), a resposta do NPC vira aviso na tela (online.gd "fala") e a barrinha da
+# missão ativa (missao_ativa.gd) pisca para mostrar onde está o "Ir".
+func _missao_iniciada() -> void:
+	if npc != null:
+		_depois = {"n": npc, "hi": JSON.stringify(m.P.hist_info), "ate": m.tempo + REABRE}
+		_depois_fala.clear()
+	fechar()
+	if m.missao_ativa != null:
+		m.missao_ativa.destacar()
 
 # Totem de teleporte (André 2026-11-10, totem.gd): os outros totens, cada um com a taxa; o que ainda não foi visitado
 # a pé aparece trancado. Tocar num destino fecha a janela e começa a viagem (volta_vila.gd pedir_totem).
@@ -539,6 +615,8 @@ func _atualizar_consertar() -> void:
 
 # o servidor respondeu ("fala"): se a janela desse NPC está aberta, a fala aparece nela. true = mostrou aqui
 func fala(npc_id: String, texto: String, ev := {}) -> bool:
+	if not _depois.is_empty() and str(_depois.n.id) == npc_id:
+		_depois_fala[npc_id] = texto
 	if npc == null or str(npc.id) != npc_id:
 		return false
 	fala_ui.text = texto
@@ -632,7 +710,7 @@ func _fala_passe() -> String:
 	return "Ninguém passa do selo sem passe. Traga isto e eu faço um. Cada passe abre o selo uma vez."
 
 # os itens do passe em ícones: cada um com "tem/precisa" (verde quando já tem tudo, vermelho quando falta), uma seta
-# e o passe que sai
+# e o passe que sai. Os mercadores de pack usam o mesmo desenho (André 2026-11-12): o material do pack dele e o pack.
 func _itens_passe(mostrar: bool) -> void:
 	for c in itens_ui.get_children():
 		itens_ui.remove_child(c)
@@ -640,7 +718,15 @@ func _itens_passe(mostrar: bool) -> void:
 	itens_ui.visible = mostrar
 	if not mostrar:
 		return
-	var r := _receita_passe()
+	var de_pack: bool = npc != null and npc.get("funcao", "") == "pack" and m.transporte != null
+	var pk: Dictionary = m.transporte.receita_mercador(npc) if de_pack else {}
+	var r: Dictionary = pk.get("custo", {}) if de_pack else _receita_passe()
+	# no mercador o fala tem a lista de preços (comprida): os ícones vão logo acima dela; no Gaspar ficam embaixo
+	var caixa_txt := itens_ui.get_parent()
+	caixa_txt.move_child(itens_ui, mini(fala_ui.get_index(), itens_ui.get_index()) if de_pack else caixa_txt.get_child_count() - 1)
+	if r.is_empty():
+		itens_ui.visible = false
+		return
 	for k in r:
 		var tem := _tenho(k)
 		var precisa := int(r[k])
@@ -648,19 +734,24 @@ func _itens_passe(mostrar: bool) -> void:
 	var seta := Menu.rotulo("›", 26, Menu.OURO_CLARO)
 	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	itens_ui.add_child(seta)
-	itens_ui.add_child(_slot_item("passe_caverna", "x%d" % _tenho("passe_caverna"), Menu.OURO_CLARO))
+	if de_pack:
+		itens_ui.add_child(_slot_item("pack", "x1", Menu.OURO_CLARO, str(pk.get("nome", "Pack"))))
+	else:
+		itens_ui.add_child(_slot_item("passe_caverna", "x%d" % _tenho("passe_caverna"), Menu.OURO_CLARO))
 
-func _slot_item(k: String, conta: String, cor: Color) -> Control:
+func _slot_item(k: String, conta: String, cor: Color, nome := "") -> Control:
+	if nome == "":
+		nome = _nome_item(k)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
-	col.tooltip_text = _nome_item(k)
+	col.tooltip_text = nome
 	var caixa := PanelContainer.new()
 	caixa.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO3, cor.darkened(0.2), 2, 7))
 	caixa.custom_minimum_size = Vector2(54, 50)
 	caixa.mouse_filter = Control.MOUSE_FILTER_STOP # no celular não tem tooltip: tocar mostra o nome (André 2026-11-09)
 	caixa.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
-			Menu.balao_nome(caixa, _nome_item(k)))
+			Menu.balao_nome(caixa, nome))
 	var ic := TextureRect.new()
 	ic.texture = Menu.icone_tex("it_" + k)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

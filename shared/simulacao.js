@@ -16,6 +16,7 @@ import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const FALAR_JANELA = 4.8; // m: toque num botão da janela do NPC (o app fecha a janela a 4,5 m; folga da rede)
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
 const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
@@ -1106,7 +1107,13 @@ export class Simulacao {
     };
     if (E.ev === 'falar') return npcEm(E.npc);
     if (E.ev === 'pistas') { const i = E.pontos.findIndex((q, k) => !(h.m & (1 << k))); const q = E.pontos[Math.max(0, i)]; return { x: q[0], z: q[1], nome: q[2], npc: '' }; }
-    if (E.hc) { const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto); return b ? { x: r2(b.x), z: r2(b.z), nome: C.nome, npc: '' } : c ? { x: c.x, z: c.z, nome: c.nome || C.nome, npc: '' } : null; }
+    if (E.hc) { // chefe da caverna (sala, sem campo) que ainda não apareceu: vale o lugar da etapa (robô das missões: o Ir do Trono não levava a lugar nenhum)
+      const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto);
+      if (b) return { x: r2(b.x), z: r2(b.z), nome: C.nome, npc: '' };
+      if (c) return { x: c.x, z: c.z, nome: c.nome || C.nome, npc: '' };
+      const S = C?.sala && this.dungeon?.salas.find((o) => o.def.id === C.sala)?.def.pontos[0];
+      return E.alvo ? resolve(E.alvo) : S ? { x: r2(S.x), z: r2(S.z), nome: C.nome, npc: '' } : null;
+    }
     if (E.alvo && typeof E.alvo === 'object') { const k = Object.keys(E.alvo).find((q) => contar(p.mochila, q) < E.itens[q]); return resolve(E.alvo[k || Object.keys(E.alvo)[0]]); }
     if (E.alvo) return resolve(E.alvo);
     if (E.ev === 'matar' && E.campos) { let b = null, md = Infinity; for (const id of E.campos) { const c = this.cacaDef(id); if (c && aberto(c.x, c.z)) { const d = Math.hypot(c.x - j.x, c.z - j.z); if (d < md) { md = d; b = c; } } } return b ? { x: b.x, z: b.z, nome: b.nome || 'o campo', npc: '' } : null; }
@@ -1326,7 +1333,7 @@ export class Simulacao {
         const p = this.aFrente(j, h.ponto);
         const hh = t === 'esmagar' ? { ...h, atordoa: 0 } : h;
         for (const o of this.areaQ(j, p, h.area, h.dmg, hh)) if (t === 'esmagar' && !chefe(o) && !o.morto) { o.parado = Math.max(o.parado || 0, this.tempo + h.atordoa); o.ef = 'atordoado'; o.trava = 0; o.acao = null; }
-        this.evento({ t: 'explosao', x: r2(p.x), z: r2(p.z), r: h.area, fx: h.id });
+        this.evento({ t: 'explosao', x: r2(p.x), z: r2(p.z), r: h.area, fx: h.id, ry: r2(j.ry) }); // ry: o app desenha o corte nessa direção
       });
     } else if (t === 'giro' || t === 'pisao') {
       this.tocarQ(j, h.anim, h.dur); j.acao.lamina = true;
@@ -2764,6 +2771,7 @@ export class Simulacao {
     if (j.morto) return this.pararFabrica(j, '');
     if (f.des) return this.passoDestruir(j, f);
     if (f.ev) return this.passoEvoluir(j, f);
+    if (f.pk) { const mot = this.fazerPackUm(j, f.npc); if (mot) return this.pararFabrica(j, mot); f.feito = 1; return this.pararFabrica(j, ''); } // pack do mercador (shared/transporte.js)
     const motivo = f.r ? this.motivoReceita(j, RECEITAS[f.r]).motivo : this.motivoFabricar(j, f.k); if (motivo) return this.pararFabrica(j, motivo);
     if (f.r) this.criarUm(j.id, { r: f.r }); else this.fabricarUm(j.id, f.k);
     f.feito++;
@@ -3199,10 +3207,18 @@ export class Simulacao {
   falar(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     let npc = null, md = 3.2;
-    const ve = (n) => !n.depois || npcApareceu(j.prog, n.depois); // NPC que só aparece depois de uma missão (o Kael em Aurora)
+    // NPC que só aparece depois de uma missão (o Kael em Aurora) ou some depois dela (a Elara muda para o Paço: ate)
+    const ve = (n) => (!n.depois || npcApareceu(j.prog, n.depois)) && (!n.ate || !npcApareceu(j.prog, n.ate));
     for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md && ve(n)) { md = d; npc = n; } }
     const quem = m && typeof m === 'object' && typeof m.npc === 'string' ? (this.mapa.npcs || []).find((n) => n.id === m.npc) : null;
-    if (quem && dist(quem, j) < 3.2 && ve(quem)) npc = quem;
+    // Botão da janela do NPC (o app diz quem): vale até FALAR_JANELA m. O app abre a janela a até 4 m (o Ir da missão,
+    // missao_ativa.gd PERTO_NPC) e só fecha a 4,5 m; antes o servidor só ouvia a 3,2 m e o toque em "Missão" não fazia
+    // nada, ou caía em outro NPC mais perto (robô das missões, André 2026-11-12: "às vezes tem que clicar 3 vezes").
+    if (quem) {
+      if (!ve(quem)) return;
+      if (dist(quem, j) >= FALAR_JANELA) return void this.evento({ t: 'aviso', para: j.id, texto: `Chegue mais perto de ${quem.nome.split(',')[0]}` });
+      npc = quem;
+    }
     if (!npc) return;
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
@@ -3485,7 +3501,7 @@ export class Simulacao {
       });
     } else {
       this.contarMissao(c);
-      if (c.bm) this.bossMorreu(c); // boss de mundo: hora de voltar salva e aviso no chat geral
+      if (c.bm) this.bossMorreu(c); // boss de mundo: hora de voltar salva e faixa na tela de todos
       // XP para quem bateu nele ou estava perto (grupo). Time (André 2026-11-05): quem é do time de quem ganhou também ganha
       // XP e drop se está a até TIME.perto metros e lutou nos últimos TIME.combate segundos (parado longe da luta não ganha),
       // e cada um do time que ganhou soma TIME.bonus de XP para todos eles.
@@ -3972,6 +3988,12 @@ export class Simulacao {
     const msg = { canal: 'geral', c: 'sistema', nome: 'Aethra', texto, hora: Date.now(), sistema: true };
     if (this.aoAnuncio) this.aoAnuncio(msg); else this.receberChat(msg);
   }
+  // bosses de mundo (André 2026-11-12: "ficar no chat permanente tá poluindo o visual"): faixa na tela de todo mundo
+  // online (todas as salas, pelo servidor) que some sozinha; não entra no chat nem no histórico. cor: boss | caiu | mitico
+  anunciarTela(cab, titulo, cor = 'boss') {
+    const ev = { t: 'anuncio', cab, titulo, cor };
+    if (this.aoAnuncioTela) this.aoAnuncioTela(ev); else this.evento(ev);
+  }
   listaBosses() { // para o mapa: [id, vivo (1/0), segundos até voltar]
     const agora = this.agoraMs();
     return this.cacas.filter((c) => c.boss).map((c) => { const e = c.vagas[0].e; return [c.boss.id, e && !e.morto ? 1 : 0, e && !e.morto ? 0 : Math.max(0, Math.round(((this.bossVolta[c.boss.id] || 0) - agora) / 1000))]; });
@@ -3996,7 +4018,7 @@ export class Simulacao {
       if (!this.nascerNaCaca(c, ci, vg)) return;
       this.virarBoss(vg.e, c); mudou = true;
       const B = c.boss.def;
-      this.anunciar(`⚔ ${B.nome}, ${B.titulo}, apareceu em ${B.regiao} (Nv ${B.nivel})!`);
+      this.anunciarTela('BOSS DE MUNDO APARECEU', `${B.nome}, ${B.titulo} · ${B.regiao} · Nv ${B.nivel}`);
     });
     this._bossLista = (this._bossLista ?? 0) - 1;
     if (mudou || this._bossLista <= 0) { this._bossLista = 10; this.evento({ t: 'bosses', l: this.listaBosses() }); }
@@ -4013,7 +4035,7 @@ export class Simulacao {
     this.aoBosses?.({ ...this.bossVolta });
     c.skillSeq++; c.voando = false;
     const quem = [...(c.atacantes || [])].map((id) => this.jogadores.get(id)?.nome).filter(Boolean);
-    this.anunciar(`${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h.`);
+    this.anunciarTela('BOSS DE MUNDO DERROTADO', `${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h`, 'caiu');
     this._bossLista = 0;
   }
   // um passo do boss com alvo (ou sem). true = ele está ocupado (lançou uma skill), o resto do passoInimigo não roda
@@ -4169,7 +4191,7 @@ export class Simulacao {
     por({ k: cat()[D.cat], n: 1 });
     if (Math.random() < D.mitico) {
       por({ k: cat()[3], n: 1 });
-      this.anunciar(`✦ ${j.nome} ganhou um catalisador Mítico de ${B.nome}!`);
+      this.anunciarTela('CATALISADOR MÍTICO', `${j.nome} ganhou um de ${B.nome}!`, 'mitico');
     }
     if (Math.random() < DROP_BOSS.tomo) {
       const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
