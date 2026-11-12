@@ -997,6 +997,23 @@ export const Amiga = {
     for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'elogio', 'casa', 'horta', 'troca', 'oi']) if (tem(k)) return k;
     return 'naoEntendi';
   },
+  // André 2026-11-12 ("tá respondendo coisa sem sentido"): a ação das regras só passa por cima da fala da IA quando é um
+  // pedido de verdade. Não vale quando não muda nada (chamar para o time quem já está no time, mandar sair quem nem está)
+  // nem quando a IA leu como conversa uma frase comprida ("como foi a missão de ontem lá na caverna?" tem "missao" mas
+  // não é convite). Pedido curto e direto ("bora caçar", "vem cá") continua valendo pelas regras.
+  acaoSemEfeitoAmiga(id, assunto) {
+    const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return false;
+    const noTime = !!(a.time && a.time === j.time);
+    return (assunto === 'time' && noTime) || (assunto === 'sairTime' && !noTime);
+  },
+  regraValeSobreIaAmiga(id, assunto, texto, assuntoIa) {
+    if (this.acaoSemEfeitoAmiga(id, assunto)) return false;
+    if (assuntoIa === 'conversa' && ['time', 'vir', 'sairTime'].includes(assunto)) {
+      const palavras = normAmiga(texto).split(' ').filter(Boolean).length;
+      if (palavras > this.AMIGA.chat.pedidoCurto) return false;
+    }
+    return true;
+  },
   // o que a IA precisa saber dela agora (vai no pedido para a IA, junto com as últimas mensagens)
   contextoAmiga(id) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id)) return null;
@@ -1016,7 +1033,7 @@ export const Amiga = {
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       ouro: a.prog.ouro | 0,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
-      conversa: this.chatDeAmiga(j).slice(-6),
+      conversa: this.chatDeAmiga(j).slice(-8), // 8 de novo (André 2026-11-12: com 6 ela perdia o fio da conversa)
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],

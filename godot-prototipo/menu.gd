@@ -393,6 +393,7 @@ func montar_esquerda() -> Control:
 	vp.transparent_bg = true
 	vp.msaa_3d = Viewport.MSAA_2X
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	vp.process_mode = Node.PROCESS_MODE_DISABLED # FPS 2026-11-12: o boneco do menu fechado não anima à toa
 	palco.add_child(vp)
 	meio.add_child(palco)
 	fios = Control.new()
@@ -759,6 +760,7 @@ func abrir(qual := "", sub := "") -> void:
 	raiz.visible = true
 	m.hud.bloqueado = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	vp.process_mode = Node.PROCESS_MODE_INHERIT
 	boneco_modo = ""
 	atualizar()
 
@@ -791,6 +793,7 @@ func fechar() -> void:
 	raiz.visible = false
 	m.hud.bloqueado = false
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	vp.process_mode = Node.PROCESS_MODE_DISABLED # fechado: o boneco para de animar (custava um herói inteiro por quadro)
 
 func aberto() -> bool:
 	return raiz != null and raiz.visible

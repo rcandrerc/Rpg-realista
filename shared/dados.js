@@ -2470,7 +2470,8 @@ export const AMIGA = {
   // e, sem IA, as regras abaixo (palavras -> assunto -> fala + o que ela faz). A IA também só escolhe entre as mesmas ações.
   chat: {
     digitando: [1.2, 3], // segundos até a resposta (parece gente digitando)
-    iaPorDia: 150,
+    pedidoCurto: 7, // palavras: até aqui "vamos"/"missão" é pedido de time mesmo com a IA achando que é conversa; mais longo, vale a IA (André 2026-11-12)
+    iaPorDia: 300, // respostas por dia na chave do servidor (só as que a IA deu); 3 modelos do Groq, cada um com seu limite (André 2026-11-12)
     chamar: { primeiro: [240, 480], entre: [600, 1200], longe: 30, espera: 150 }, combinado: 300, // ela chama o André: s até a 1ª, s entre uma e outra, m de distância, s esperando resposta
     // assunto: palavras que contam (sem acento, minúsculas)
     assuntos: {
