@@ -227,8 +227,8 @@ jobs:
           # Escolhe a versão do Godot conforme a máquina (PC comum x86_64 ou ARM da Oracle).
           case "$(uname -m)" in aarch64|arm64) PLAT=linux.arm64;; *) PLAT=linux.x86_64;; esac
           cd /tmp
-          curl -fsSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip
-          curl -fsSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
+          curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip
+          curl -fsSL --retry 4 --retry-all-errors -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
           rm -rf templates && unzip -qo godot.zip && unzip -qo tpl.tpz
           mkdir -p "$TPL"
           mv templates/* "$TPL"/
