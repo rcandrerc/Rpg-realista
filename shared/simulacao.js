@@ -3485,7 +3485,7 @@ export class Simulacao {
       });
     } else {
       this.contarMissao(c);
-      if (c.bm) this.bossMorreu(c); // boss de mundo: hora de voltar salva e aviso no chat geral
+      if (c.bm) this.bossMorreu(c); // boss de mundo: hora de voltar salva e faixa na tela de todos
       // XP para quem bateu nele ou estava perto (grupo). Time (André 2026-11-05): quem é do time de quem ganhou também ganha
       // XP e drop se está a até TIME.perto metros e lutou nos últimos TIME.combate segundos (parado longe da luta não ganha),
       // e cada um do time que ganhou soma TIME.bonus de XP para todos eles.
@@ -3972,6 +3972,12 @@ export class Simulacao {
     const msg = { canal: 'geral', c: 'sistema', nome: 'Aethra', texto, hora: Date.now(), sistema: true };
     if (this.aoAnuncio) this.aoAnuncio(msg); else this.receberChat(msg);
   }
+  // bosses de mundo (André 2026-11-12: "ficar no chat permanente tá poluindo o visual"): faixa na tela de todo mundo
+  // online (todas as salas, pelo servidor) que some sozinha; não entra no chat nem no histórico. cor: boss | caiu | mitico
+  anunciarTela(cab, titulo, cor = 'boss') {
+    const ev = { t: 'anuncio', cab, titulo, cor };
+    if (this.aoAnuncioTela) this.aoAnuncioTela(ev); else this.evento(ev);
+  }
   listaBosses() { // para o mapa: [id, vivo (1/0), segundos até voltar]
     const agora = this.agoraMs();
     return this.cacas.filter((c) => c.boss).map((c) => { const e = c.vagas[0].e; return [c.boss.id, e && !e.morto ? 1 : 0, e && !e.morto ? 0 : Math.max(0, Math.round(((this.bossVolta[c.boss.id] || 0) - agora) / 1000))]; });
@@ -3996,7 +4002,7 @@ export class Simulacao {
       if (!this.nascerNaCaca(c, ci, vg)) return;
       this.virarBoss(vg.e, c); mudou = true;
       const B = c.boss.def;
-      this.anunciar(`⚔ ${B.nome}, ${B.titulo}, apareceu em ${B.regiao} (Nv ${B.nivel})!`);
+      this.anunciarTela('BOSS DE MUNDO APARECEU', `${B.nome}, ${B.titulo} · ${B.regiao} · Nv ${B.nivel}`);
     });
     this._bossLista = (this._bossLista ?? 0) - 1;
     if (mudou || this._bossLista <= 0) { this._bossLista = 10; this.evento({ t: 'bosses', l: this.listaBosses() }); }
@@ -4013,7 +4019,7 @@ export class Simulacao {
     this.aoBosses?.({ ...this.bossVolta });
     c.skillSeq++; c.voando = false;
     const quem = [...(c.atacantes || [])].map((id) => this.jogadores.get(id)?.nome).filter(Boolean);
-    this.anunciar(`${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h.`);
+    this.anunciarTela('BOSS DE MUNDO DERROTADO', `${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h`, 'caiu');
     this._bossLista = 0;
   }
   // um passo do boss com alvo (ou sem). true = ele está ocupado (lançou uma skill), o resto do passoInimigo não roda
@@ -4169,7 +4175,7 @@ export class Simulacao {
     por({ k: cat()[D.cat], n: 1 });
     if (Math.random() < D.mitico) {
       por({ k: cat()[3], n: 1 });
-      this.anunciar(`✦ ${j.nome} ganhou um catalisador Mítico de ${B.nome}!`);
+      this.anunciarTela('CATALISADOR MÍTICO', `${j.nome} ganhou um de ${B.nome}!`, 'mitico');
     }
     if (Math.random() < DROP_BOSS.tomo) {
       const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);

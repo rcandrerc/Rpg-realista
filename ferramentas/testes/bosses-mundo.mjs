@@ -29,14 +29,16 @@ ok(CACA.filter((c) => c.boss).length === Object.values(BOSSES_MUNDO).filter((B) 
 const s = new Simulacao(MAPA_CLAREIRA);
 let agora = 1e12; s.relogioMs = () => agora;
 let salvo = null; s.aoBosses = (e) => { salvo = e; };
-const chat = []; s.aoAnuncio = (m) => chat.push(m.texto);
+const chat = []; s.aoAnuncio = (m) => chat.push(m.texto); // o chat não recebe mais boss (André 2026-11-12)
+const tela = []; s.aoAnuncioTela = (e) => tela.push(`${e.cab} ${e.titulo}`);
 let ev = [];
 const correr = (seg) => { for (let t = 0; t < seg / 0.05; t++) ev.push(...s.passo(0.05)); };
 correr(1.2);
 const boss = (id) => s.inimigos.find((e) => e.bm === id && !e.morto);
 const b = boss('chifre_ferro');
 ok(!!b && b.vidaMax > 20000, `Chifre-de-Ferro nasceu (vida ${b?.vidaMax})`);
-ok(chat.some((t) => t.includes('Chifre-de-Ferro') && t.includes('apareceu')), 'chat geral avisa que nasceu');
+ok(tela.some((t) => t.includes('Chifre-de-Ferro') && t.includes('APARECEU')), 'faixa na tela avisa que nasceu');
+ok(!chat.length, 'boss não vai mais para o chat geral');
 ok(ev.some((e) => e.t === 'bosses' && e.l.length >= 4), 'lista dos bosses vai para o mapa');
 
 const j = s.adicionarJogador('A', 'Ana');
@@ -84,7 +86,8 @@ ok(b.morto, 'boss morreu');
 ok(cats() > antes && j.prog.ouro > ouro, 'drop: catalisador garantido e ouro');
 const volta = salvo?.chifre_ferro;
 ok(volta && volta - agora >= 4 * 3600e3 - 1 && volta - agora <= 6 * 3600e3, `hora de voltar salva (${((volta - agora) / 3600e3).toFixed(2)} h)`);
-ok(chat.some((t) => t.includes('caiu') && t.includes('Ana')), 'chat geral avisa quem derrubou');
+ok(tela.some((t) => t.includes('caiu') && t.includes('Ana')), 'faixa na tela avisa quem derrubou');
+ok(!chat.length, 'derrota do boss também fora do chat');
 correr(10);
 ok(!boss('chifre_ferro'), 'não nasce antes da hora');
 const s2 = new Simulacao(MAPA_CLAREIRA); s2.relogioMs = () => agora + 3600e3; s2.carregarBosses(salvo);
