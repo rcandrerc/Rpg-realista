@@ -90,6 +90,7 @@ const SEM_CASACO := ["cabelo_m"]
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
 var sol: DirectionalLight3D
+var desliza := Vector3.ZERO # "corrigir" pequeno do servidor (online.gd): o corpo desliza até o lugar certo em vez de pular
 var camera: Camera3D
 var grama: MultiMeshInstance3D
 var mato # mato.gd: capim alto e samambaia perto do herói
@@ -3285,7 +3286,11 @@ func atualizar_heroi(dt: float) -> void:
 		var s_ry := sin(mov.ry)
 		var c_ry := cos(mov.ry)
 		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
-	heroi.position = mov.posicao()
+	if desliza != Vector3.ZERO: # some em ~0,3 s
+		desliza = desliza.lerp(Vector3.ZERO, minf(1.0, dt * 12.0))
+		if desliza.length_squared() < 0.0004:
+			desliza = Vector3.ZERO
+	heroi.position = mov.posicao() + desliza
 	heroi.rotation.y = mov.ry
 	passo_encostar(dt)
 	# nado: entrou ou saiu da água funda

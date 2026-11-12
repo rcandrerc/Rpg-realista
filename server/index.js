@@ -20,7 +20,7 @@ const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
-const carga = { ms: 0, pico: 0 }; // tempo de cada passo da sala (média e pico), aparece em /saude
+const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
 const historicoChat = { geral: [], amigos: [], pm: [], time: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
@@ -206,7 +206,14 @@ class SalaClareira extends Room {
     this.ouvir('vila', (c) => this.sim.voltarVila(c.sessionId)); // botão da casinha: canaliza e volta para a vila (recarga de 10 min)
     this.ouvir('totem', (c, m) => { if (m && typeof m.para === 'string' && m.para.length < 24) this.sim.irTotem(c.sessionId, m.para); }); // totem de teleporte: vai para outro já descoberto (paga a taxa)
     // posição que o celular decidiu (o servidor confere velocidade, altura e limite do mapa: Simulacao.posicaoCliente)
-    this.ouvir('pos', (c, p) => this.sim.posicaoCliente(c.sessionId, p));
+    // medidor (André 2026-11-12, ping de 20000): o maior silêncio entre duas posições e quantos engasgos de mais de 1 s
+    // (aparecem em /saude: se o servidor está folgado e o silêncio é grande, o atraso está na internet ou no celular)
+    this.ouvir('pos', (c, p) => {
+      const agora = Date.now(), u = (c.userData ||= {});
+      if (u.posT) { const gap = agora - u.posT; if (gap > carga.silencioMs) carga.silencioMs = gap; if (gap > 1000) carga.engasgos++; }
+      u.posT = agora;
+      this.sim.posicaoCliente(c.sessionId, p);
+    });
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
     this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) c.send('pong', t); });
     this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador
@@ -385,9 +392,11 @@ app.use((req, res, next) => {
 });
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
 app.get('/saude', (_req, res) => {
-  let jogadores = 0; for (const s of salas) jogadores += s.clients.length;
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576) });
-  carga.pico = 0;
+  let jogadores = 0, correcoes = 0; for (const s of salas) { jogadores += s.clients.length; correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
+  // desde a última leitura: correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um
+  // celular, engasgos = silêncios de mais de 1 s
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos });
+  carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
 // REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
