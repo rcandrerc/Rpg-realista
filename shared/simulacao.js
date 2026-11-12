@@ -13,6 +13,7 @@ import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAt
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
+import { Kit } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -913,7 +914,7 @@ export class Simulacao {
       if (M.recebe) this.darItens(j, M.recebe);
       if (M.cena) this.cena(j, M.cena); // cena ao aceitar a missão
       diga(M.pedido, { missao: M.id });
-      this.checarEtapa(j);
+      if (!this.checarEtapa(j)) this.kitEtapa(j); // shared/kit.js: o que falta para a primeira etapa (só nas que ensinam)
       this.avisarProg(j);
       return true;
     }
@@ -937,6 +938,7 @@ export class Simulacao {
     if (!pediu && npc.funcao && !['missao', 'dica'].includes(npc.funcao)) return false;
     if (M.npc !== npc.id) return false;
     diga(`Primeiro: ${this.textoEtapa(j)}.`, { missao: M.id });
+    if (this.kitEtapa(j)) this.avisarProg(j); // falou de novo com o NPC: o que falta (o evoluir que falhou)
     return true;
   }
   // Cena da história (CENAS em shared/dados.js, godot-prototipo/cinematica.gd): põe o herói no lugar dela, se tiver, e
@@ -976,7 +978,7 @@ export class Simulacao {
     const N = L[h.e];
     if (!N) return this.concluirMissao(j, M, null);
     this.evento({ t: 'etapa', para: j.id, txt: N.txt, e: h.e, total: L.length });
-    if (!this.checarEtapa(j)) this.avisarProg(j);
+    if (!this.checarEtapa(j)) { this.kitEtapa(j); this.avisarProg(j); }
   }
   // a etapa da vez já está feita? (ja: o que o herói já tem; ter: itens na mochila; noite; lugar). Avança se sim.
   checarEtapa(j) {
@@ -1119,6 +1121,7 @@ export class Simulacao {
     if (!h?.ac) return p.nivel < M.nv ? `Libera no Nv ${M.nv} (${this.nomeNpc(M.npc)})` : `Fale com ${this.nomeNpc(M.npc)}`;
     const E = etapaAtual(p); if (!E) return '';
     const t = totalEtapa(E);
+    const f = this.juntaDe(j, E); if (f) return this.textoJunta(E, f); // falta material: "Barquinho: corte Lenha 12/30"
     let txt = E.txt + (t > 1 ? ` ${h.n}/${t}` : '');
     if (E.ev === 'noite') { const hr = horaDoJogo(p.dia); txt += ` · agora são ${String(Math.floor(hr)).padStart(2, '0')}h`; }
     return txt;
@@ -1166,6 +1169,9 @@ export class Simulacao {
       return null;
     };
     if (E.ev === 'falar') return npcEm(E.npc);
+    { const f = this.juntaDe(j, E); if (f && f.fonte) { // falta material (shared/kit.js): o Ir leva à fonte
+      if (f.fonte === 'forno') { let b = null, md = Infinity; for (const o of this.mapa.estacoes || []) if (o.k === 'fornalha' && aberto(o.x, o.z)) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; b = o; } } if (b) return { x: r2(b.x), z: r2(b.z), nome: b.nome, npc: '', estacao: b.id }; }
+      else { const a = resolve(f.fonte); if (a) return a; } } }
     if (E.ev === 'pistas') { const i = E.pontos.findIndex((q, k) => !(h.m & (1 << k))); const q = E.pontos[Math.max(0, i)]; return { x: q[0], z: q[1], nome: q[2], npc: '' }; }
     if (E.hc) { // chefe da caverna (sala, sem campo) que ainda não apareceu: vale o lugar da etapa (robô das missões: o Ir do Trono não levava a lugar nenhum)
       const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto);
@@ -1187,8 +1193,9 @@ export class Simulacao {
     const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' ? E.npc : '';
     const tit = HISTORIA.slice(0, h.p).filter((o) => o.titulo).at(-1)?.titulo || ''; // título do último ato fechado
     // ev/k/min/de: o tipo da etapa, para o guia do app (guia.gd, André 2026-11-12: o botão do próximo toque pisca)
-    const guia = E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}) } : {};
-    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
+    const fj = E ? this.juntaDe(j, E) : null; // juntando material: o guia segue a coleta (shared/kit.js)
+    const guia = fj ? this.guiaJunta(fj) : E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}) } : {};
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -1763,7 +1770,8 @@ export class Simulacao {
       const alvo = it || (typeof m.lugar === 'string' && LUGARES.includes(m.lugar) ? p.equip[m.lugar] : null);
       if (!alvo || !ehEquip(alvo.k)) return;
       { const lib = motivoLibera(p, 'reforcar'); if (lib) return aviso(`Reforçar: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
-      const r = reforcar(p, alvo);
+      const Eh = p.hist?.ac ? etapaAtual(p) : null, gratis = !!(Eh?.ev === 'reforcar' && Eh.gratis); // a etapa que ensina não cobra (shared/kit.js)
+      const r = reforcar(p, alvo, Math.random(), gratis);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
       this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, ...(r.mat ? { mat: r.mat } : {}), nome: nomeItem(alvo) });
       if (r.ok) this.historia(j, 'reforcar', { v: r.e });
@@ -4319,6 +4327,7 @@ export class Simulacao {
 // packs e transportes (FASE 1): as funções de shared/transporte.js entram na Simulacao
 Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
+Object.assign(Simulacao.prototype, Kit);
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;

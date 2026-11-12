@@ -3286,7 +3286,8 @@ export const CHEFES_HISTORIA = {
 //   obra) · 'construir' (k) · 'terreno' · 'vender' · 'comprar' (k) · 'barra' · 'atributo' · 'montar' · 'matar' (campos,
 //   tipos, hc = chefe de CHEFES_HISTORIA) · 'destruir' · 'evoluir' (min = raridade) · 'reforcar' · 'pack_fez' (k) ·
 //   'pack' (npc que recebe) · 'pesca' (k, barco) · 'pos' (pos: [x, z, raio, altura mínima], barco) · 'pistas' (pontos) ·
-//   'noite'. n = quantas vezes; txt = o que aparece no quadrinho; diz = recado ao terminar a etapa; ja = já vale se
+//   'noite'. kit: o NPC dá o que falta para fazer a etapa uma vez (só nas que ensinam; gratis = a ação não cobra) e
+//   criar/construir/pack mostram o material que falta e o Ir leva à fonte (shared/kit.js). n = quantas vezes; txt = o que aparece no quadrinho; diz = recado ao terminar a etapa; ja = já vale se
 //   ('lote', 'peca', 'tem', 'atributos'); alvo = para onde o "Ir" leva ('npc:id', 'caca:id', 'veio:tipo', 'pos', 'lote',
 //   'spot', 'treino' ou { item: alvo } para cada item que falta).
 const lobo = (n) => ({ ev: 'matar', campos: ['caca3'], tipos: ['lobo'], n, txt: 'Derrube lobos na Clareira dos Lobos' });
@@ -3339,7 +3340,7 @@ export const HISTORIA = [
     etapas: [
       { ev: 'criar', k: 'short', txt: 'Costure um short na bancada ao lado da Rosa (Alfaiate)', alvo: 'estacao:pub_bancada' },
       { ev: 'vender', txt: 'Venda qualquer coisa para a Rosa', alvo: 'npc:comerciante' },
-      { ev: 'comprar', k: 'pocao', n: 3, txt: 'Compre 3 poções da Rosa', alvo: 'npc:comerciante' },
+      { ev: 'comprar', k: 'pocao', n: 3, kit: true, txt: 'Compre 3 poções da Rosa', alvo: 'npc:comerciante' },
     ],
     pronto: 'Freguesia boa! Quem sabe vender anda com ouro no bolso. ...Minha carroça de mercadoria já devia ter chegado, sabe? Três semanas de atraso.' },
   { id: 'a6', cap: 2, nv: 3, npc: 'ferreiro', nome: 'Sua própria luta', libera: [],
@@ -3386,14 +3387,14 @@ export const HISTORIA = [
   { id: 'a11', cap: 4, nv: 8, npc: 'm_peixe', nome: 'A primeira vara', libera: ['pesca'], liberaNaEtapa: 0,
     pedido: 'Quer pescar? Primeiro a vara: 3 lenhas e 1 couro, dá para fazer na mochila mesmo. Depois procure a água borbulhando no lago e lance a linha.',
     etapas: [
-      { ev: 'criar', k: 'vara', ja: 'tem', txt: 'Crie a vara de pescar (Mochila > Criar > Ferramentas)' },
+      { ev: 'criar', k: 'vara', ja: 'tem', kit: true, txt: 'Crie a vara de pescar (Mochila > Criar > Ferramentas)' },
       { ev: 'pesca', k: 'lambari', n: 4, txt: 'Pesque lambaris num spot do Lago Grande', alvo: 'spot' },
     ],
     pronto: 'Tem jeito para a coisa! Guarde os lambaris: assados, a Irmã Lúcia faz o caldo do remédio.' },
   { id: 'a12', cap: 4, nv: 8, npc: 'lider', nome: 'Um chão seu', libera: [],
     pedido: 'Você não pode morar no poço para sempre. Tem terra boa nas Terras da Estrada, do lado das casas da Cecília e do Dario. Compre um terreno, monte uma bancada e um fogão, e asse aqueles peixes para a Lúcia.',
     etapas: [
-      { ev: 'terreno', ja: 'lote', txt: 'Compre um terreno nas Terras da Estrada', alvo: 'lote' },
+      { ev: 'terreno', ja: 'lote', kit: true, txt: 'Compre um terreno nas Terras da Estrada', alvo: 'lote' },
       { ev: 'construir', k: 'bancada', ja: 'peca', txt: 'Crie e coloque uma bancada no terreno (martelo)', alvo: 'lote' },
       { ev: 'construir', k: 'fogao', ja: 'peca', txt: 'Crie e coloque um fogão (pede 1 barra de ferro)', alvo: 'lote' },
       { ev: 'criar', k: 'peixe_assado', n: 2, txt: 'Asse 2 peixes no fogão (2 lambaris cada)', alvo: 'lote' },
@@ -3413,7 +3414,7 @@ export const HISTORIA = [
   { id: 'a14', cap: 5, nv: 12, npc: 'm_lenha', nome: 'Mercadoria salva', libera: [],
     pedido: 'A Rosa me contou. Lenha que sobra vira pack! Faça o pack aqui comigo e leve nas costas até a Dona Sálvia, no bosque. Quanto mais longe, mais ela paga.',
     etapas: [
-      { ev: 'pack_fez', k: 'lenha', txt: 'Faça um Pack de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
+      { ev: 'pack_fez', k: 'lenha', kit: true, txt: 'Faça um Pack de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
       { ev: 'pack', npc: 'm_horta', txt: 'Leve o pack nas costas até a Dona Sálvia', alvo: 'npc:m_horta' },
       { ev: 'falar', npc: 'comerciante', txt: 'Conte para a Rosa que a carga foi salva' },
     ],
@@ -3422,9 +3423,9 @@ export const HISTORIA = [
     pedido: 'Peça velha não se joga fora: se destrói, e sai catalisador. Com catalisador a gente evolui uma peça para Rara. E reforço... reforço é a alma do ferro. Toma um Selo Raro para começar.',
     recebe: { selo_raro: 1 },
     etapas: [
-      { ev: 'destruir', txt: 'Destrua uma peça velha (Mochila > peça > Destruir)' },
-      { ev: 'evoluir', min: 1, txt: 'Evolua uma peça para Rara na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
-      { ev: 'reforcar', n: 2, txt: 'Reforce uma peça com sucesso (Mochila > peça > Reforçar)' },
+      { ev: 'destruir', kit: true, txt: 'Destrua uma peça velha (Mochila > peça > Destruir)' },
+      { ev: 'evoluir', min: 1, kit: true, txt: 'Evolua uma peça para Rara na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
+      { ev: 'reforcar', n: 2, kit: true, gratis: true, txt: 'Reforce uma peça com sucesso (Mochila > peça > Reforçar)' },
     ],
     pronto: 'Agora sim você está pronto para o que vem. Toma outro Selo Raro, de reserva.',
     presente: { selo_raro: 1 } },
@@ -3577,7 +3578,7 @@ export const HISTORIA = [
     etapas: [
       { ev: 'leilao', de: 'anunciar', txt: 'Ponha um item seu à venda no leilão (Otávio > Leilão > Vender)', alvo: 'npc:v_otavio' },
       { ev: 'leilao', de: 'comprar', txt: 'Compre um item no leilão (de outro jogador ou da casa)', alvo: 'npc:v_otavio' },
-      { ev: 'leilao', de: 'retirar', txt: 'Quando vender (ou vencer o prazo), retire com o Otávio', alvo: 'npc:v_otavio' },
+      { ev: 'leilao', de: 'retirar', kit: true, txt: 'Quando vender (ou vencer o prazo), retire com o Otávio', alvo: 'npc:v_otavio' },
     ],
     pronto: 'Negócio fechado! Volte sempre: o leilão é de todos, até de quem está do outro lado do mar.', presente: { pocao: 5 } },
   { id: 'c3', cap: 9, nv: 35, npc: 'm_abobora', nome: 'Doce para o norte', libera: [],
@@ -3801,7 +3802,7 @@ export const HISTORIA = [
   { id: 'h14', cap: 14, nv: 80, npc: 'v_elara', nome: 'Kael', libera: ['D2'], liberaNaEtapa: 4,
     pedido: 'A Lâmina Cinzenta entrou na Gruta da Serra de Aurora. Dizem que está quebrando o último selo do oeste. Leve o Dario. E leve o que a Mirela fez.',
     etapas: [
-      { ev: 'ter', itens: { catalisador_memoria: 1 }, txt: 'Leve o Catalisador da Memória na mochila' },
+      { ev: 'ter', itens: { catalisador_memoria: 1 }, kit: true, txt: 'Leve o Catalisador da Memória na mochila' },
       { ev: 'time', txt: 'Chame o Dario (ou um jogador) para o time' },
       { ev: 'matar', campos: ['cav_aurora'], n: 4, txt: 'Entre na Gruta da Serra de Aurora e abra caminho' },
       { ev: 'matar', hc: 'kael4', txt: 'O último duelo com o Kael: com pouca vida, use o Catalisador', cena: 'kael4' },
