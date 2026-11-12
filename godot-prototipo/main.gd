@@ -2112,9 +2112,9 @@ func folhagem_na_frente(dt: float) -> void:
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
 	for f in folhas:
-		var mi: MeshInstance3D = f[0]
-		if not is_instance_valid(mi):
+		if not is_instance_valid(f[0]): # (Godot 4.7) olhar antes de pôr na variável com tipo: nó já apagado dá erro
 			continue
+		var mi: MeshInstance3D = f[0]
 		if f[1] == null:
 			f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
 		var tapa: bool = f[1].intersects_segment(a, b) != null

@@ -252,6 +252,9 @@ func _bloco(rnd: RandomNumberGenerator, raio: float, alto: float) -> ArrayMesh:
 	esf.radial_segments = 7
 	esf.rings = 4
 	var arr := esf.get_mesh_arrays()
+	if arr.size() <= Mesh.ARRAY_INDEX or arr[Mesh.ARRAY_VERTEX] == null: # sem placa de vídeo (teste sem tela no Godot 4.7)
+		push_warning("pedra sem malha (get_mesh_arrays vazio)")
+		return ArrayMesh.new()
 	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 	var puxa := {}

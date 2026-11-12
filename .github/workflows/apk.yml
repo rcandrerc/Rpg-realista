@@ -387,6 +387,7 @@ jobs:
           SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null)
           (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
           for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          echo "servidor: $(curl -s localhost:2567/saude)"; echo "sessão com ${#SESSAO} letras"; tail -20 /tmp/srv/log.txt
           falhou=0
           mkdir -p /tmp/fumaca
           # sem tela primeiro (rápido, pega erro de script); depois com Vulkan por software, em paralelo e junto
@@ -394,13 +395,14 @@ jobs:
             if [ $modo = sem-tela ]; then
               CMD="$GODOT_BIN --headless --path godot-prototipo"
             else
-              CMD="xvfb-run -a -s \"-screen 0 960x432x24\" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --resolution 960x432 --render-thread $modo"
+              CMD="xvfb-run -a -s \"-screen 0 960x432x24\" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile --resolution 960x432 --render-thread $modo"
             fi
             RPG_SERVIDOR=http://127.0.0.1:2567 RPG_SESSAO="$SESSAO" timeout 420 stdbuf -oL -eL bash -c "$CMD -s $GITHUB_WORKSPACE/ferramentas/motor/fumaca.gd" \
               > /tmp/fumaca/$modo.log 2>&1 || falhou=1
             cp /tmp/fumaca/$modo.log /tmp/fumaca-$modo.log
             echo "--- desenho $modo ---"
-            grep -E "^FUMACA" /tmp/fumaca-$modo.log || true
+            grep -E "^FUMACA|pedra sem malha" /tmp/fumaca-$modo.log | grep -v "FUMACA t=" | sort | uniq -c | head -30 || true
+            grep -E "^FUMACA t=" /tmp/fumaca-$modo.log | tail -3 || true
             echo "erros e avisos (repetições):"
             grep -E "^(ERROR|WARNING|SCRIPT ERROR|SHADER ERROR)" /tmp/fumaca-$modo.log | sort | uniq -c | sort -rn | head -25 || true
             if grep -qE "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log; then
@@ -410,6 +412,7 @@ jobs:
             grep -q "^FUMACA ok" /tmp/fumaca-$modo.log || { echo "fim do log:"; tail -40 /tmp/fumaca-$modo.log; falhou=1; }
           done
           cp /tmp/srv/log.txt /tmp/fumaca/servidor.log || true
+          echo "--- servidor (fim do log) ---"; tail -30 /tmp/srv/log.txt || true
           exit $falhou
       - uses: actions/upload-artifact@v4
         if: always() && github.event_name == 'pull_request'

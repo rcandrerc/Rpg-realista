@@ -174,9 +174,9 @@ func levantar(o: Dictionary) -> void:
 		tw.tween_callback(_cresceu_mata.bind(c))
 	else:
 		for par in info.partes_vila:
-			var mi: MeshInstance3D = par[0]
-			if not is_instance_valid(mi):
+			if not is_instance_valid(par[0]): # (Godot 4.7) olhar antes de pôr na variável com tipo
 				continue
+			var mi: MeshInstance3D = par[0]
 			mi.visible = true
 			mi.scale = par[1] * 0.05
 			mi.create_tween().tween_property(mi, "scale", par[1], 0.9).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

@@ -40,6 +40,12 @@ func _process(dt: float) -> bool:
 	if m == null or not ("online" in m) or m.online == null:
 		return false
 	var on = m.online
+	if on.rede and not on.rede.has_meta("fumaca"): # o que a rede diz (Conectando, Servidor fora do ar, pedir login)
+		on.rede.set_meta("fumaca", true)
+		on.rede.estado.connect(func(tx): print("FUMACA rede: ", tx))
+		on.rede.caiu.connect(func(mo): print("FUMACA rede caiu: ", mo))
+		on.rede.precisa_login.connect(func(): print("FUMACA rede pede login (sessão não valeu)"))
+		print("FUMACA servidor ", on.rede.servidor, " sessão com ", on.rede.sessao.length(), " letras")
 	if not apertou and on.b_continuar and on.b_continuar.visible:
 		apertou = true
 		on.b_continuar.pressed.emit()
