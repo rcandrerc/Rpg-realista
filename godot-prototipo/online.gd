@@ -534,8 +534,9 @@ func aplicar_foto(f: Dictionary) -> void:
 		m.pesca.atualizar_spots(f.get("spots", []))
 	if m.transporte and f.has("carga"): # FASE 1: packs no chão, carrinhos, barquinhos e navios
 		m.transporte.atualizar(f.carga)
-	if _cobrindo and not (m.aquecer and m.aquecer.cobre): # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
-		esconder_login()
+	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
+		if not (m.aquecer and m.aquecer.cobre): # efeitos ainda na frente da câmera (aquecer.gd): sai na próxima foto
+			esconder_login()
 
 var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
