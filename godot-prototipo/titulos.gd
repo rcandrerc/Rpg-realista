@@ -54,7 +54,7 @@ func por(no: Node3D, placa: Label3D, id: String) -> Label3D:
 	var r: int = clampi(int(T.get("r", 0)), 0, 4)
 	t.text = enfeite(str(T.nome), r)
 	t.font_size = TAMANHO[r]
-	t.outline_size = 12 if r >= 3 else 9
+	t.outline_size = 9 if r >= 3 else 7
 	t.pixel_size = placa.pixel_size
 	t.modulate = COR[r]
 	t.outline_modulate = CONTORNO[r]
@@ -105,9 +105,9 @@ func _heroi() -> void:
 		_placa.font = m.fonte_nome()
 		_placa.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		_placa.font_size = 72
-		_placa.outline_size = 9
-		_placa.pixel_size = 0.00034
-		_placa.offset = Vector2(0, 40)
+		_placa.outline_size = 7
+		_placa.pixel_size = 0.00034 * 1.5 # do tamanho dos nomes dos NPCs (main.gd nome_legivel): legível no celular
+		_placa.offset = Vector2(0, 52.0 / 1.5)
 		_placa.modulate = Color(1, 0.93, 0.8)
 		_placa.outline_modulate = Color(0.06, 0.05, 0.04, 0.9)
 		_placa.position = Vector3(0, 1.95, 0)

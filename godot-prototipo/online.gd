@@ -596,6 +596,7 @@ func outro(j: Dictionary) -> void:
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
 			no.position = o.alvo
 			o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
+			m.nome_legivel(no) # André 2026-11-12: nome, nível e título dos outros do tamanho dos nomes dos NPCs
 			o.placa = null
 			for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
 				if f is Label3D:
