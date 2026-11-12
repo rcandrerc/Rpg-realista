@@ -21,6 +21,12 @@ var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
 var para_servidor := {} # o contrário
 var _pos_t := 0.0
+# FPS (varredura 2026-11-12, preset Alta): o quadro passava pelos ~420 monstros do mapa inteiro para mexer em uns 20 (os
+# outros são vagas vazias ou mortos escondidos). Agora mexe só nos da lista _mexem: refeita a cada MEXEM_Q quadros, e o
+# monstro que recebe foto do servidor (inimigo()) entra na hora. Mesmo resultado, ~1/20 do trabalho.
+var _mexem: Array = []
+var _mexem_q := -1000
+const MEXEM_Q := 15
 # André 2026-11-12 (rollback): número do último "corrigir" aplicado. Vai em cada posição; o servidor ignora as que saíram
 # antes da correção mais nova (sem cascata) e aqui só vale correção mais nova que esta
 var corr_seq := 0
@@ -316,6 +322,7 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 		e.seq = -1
 		e.uma_vez = 0.0
 		e.alvo = e.no.position
+	_mexem_q = -1000 # todos voltaram a valer: refaz a lista de quem mexe
 
 func ao_cair(motivo: String) -> void:
 	var estava := ligado
@@ -772,6 +779,9 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	_chefe_historia(e, c)
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
+	if not e.get("_mexe", false): # chegou foto: volta a ser mexido já neste quadro (_lista_mexem)
+		e._mexe = true
+		_mexem.append(e)
 	e.ry = float(c.ry)
 	if c.get("_mexeu", true): # área de interesse: monstro parado vem só com o id
 		_amostra(e, e.alvo, e.ry, c.has("_mexeu"))
@@ -1529,7 +1539,8 @@ func _passo(dt: float) -> void:
 			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
 			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
 			o.montaria.passo(dt, o.vel_m)
-	for e in m.inimigos:
+	_lista_mexem()
+	for e in _mexem:
 		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
 			continue
 		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
@@ -1563,6 +1574,19 @@ func _passo(dt: float) -> void:
 	if _status_t <= 0.0:
 		_status_t = 0.5
 		atualizar_status()
+
+# monstros que o quadro mexe (ver _mexem): fora da lista só fica quem está morto e escondido (vaga vazia, longe)
+func _lista_mexem() -> void:
+	var q := Engine.get_process_frames()
+	if q - _mexem_q < MEXEM_Q and q >= _mexem_q:
+		return
+	_mexem_q = q
+	_mexem.clear()
+	for e in m.inimigos:
+		var mexe: bool = not (e.estado == "morto" and not e.no.visible) and e.has("alvo")
+		e._mexe = mexe
+		if mexe:
+			_mexem.append(e)
 
 # Chefe com nome da história (André 2026-11-11, CHEFES_HISTORIA): o servidor transforma um monstro do campo no chefe
 # (hc). Aqui o mesmo modelo cresce (esc), o nome vira o dele em dourado e a barra fica da cor do brilho; quando o corpo
