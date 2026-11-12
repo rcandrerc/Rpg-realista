@@ -1,6 +1,7 @@
 // Conversa dos NPCs (entrega 5, André 2026-11-11): modelo menor do Groq primeiro (o grande de reserva), ficha curta, e
 // os aventureiros sem casa não dizem que têm casinha e horta. Sem rede: o fetch é de mentira.
 // Uso: node ferramentas/testes/conversa-npc.mjs
+import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 import { register } from 'node:module';
 // sem npm install no servidor: '@rpg/shared' aponta para a pasta shared daqui

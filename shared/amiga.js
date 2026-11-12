@@ -52,6 +52,22 @@ export function rotinaDe(id) {
 // a hora do jogo está dentro do horário dele? (volta antes de sai = caça de noite, vira a meia-noite)
 export function naHoraDe(R, hora) { return R.saiDe < R.voltaDe ? hora >= R.saiDe && hora < R.voltaDe : hora >= R.saiDe || hora < R.voltaDe; }
 
+// Progresso do aventureiro que não está no mundo (André 2026-11-12: "só deixa eles independentes quando eu estiver
+// offline"): o mesmo XP lento do offlineAmiga (NPC_VIDA.offline), direto no save, sem corpo no servidor. Nunca passa do
+// teto (o jogador mais alto). Devolve quantos níveis subiu.
+export function xpOfflineNpc(prog, desde, teto = null, agora = Date.now()) {
+  const O = NPC_VIDA.offline; if (!prog || !Number.isFinite(desde)) return 0;
+  const cap = teto ?? Infinity, n0 = prog.nivel | 0;
+  prog.nivel = Math.max(1, prog.nivel | 0); prog.xp = Math.max(0, +prog.xp || 0); prog.pontos = prog.pontos | 0;
+  const horas = Math.min(O.maxDias * 24, Math.max(0, (agora - desde) / 3600000)) * O.horasPorDia / 24;
+  for (let h = horas; h > 0 && prog.nivel < cap; h -= 1) {
+    prog.xp += Math.round(xpProximo(prog.nivel) * O.porHora * Math.min(1, h) / (1 + prog.nivel / O.meio));
+    while (prog.nivel < cap && prog.xp >= xpProximo(prog.nivel)) { prog.xp -= xpProximo(prog.nivel); prog.nivel++; prog.pontos += PONTOS_POR_NIVEL; }
+  }
+  if (prog.nivel >= cap) prog.xp = Math.min(prog.xp, xpProximo(prog.nivel) - 1);
+  return prog.nivel - n0;
+}
+
 // lições da morte vindas do banco: só números dentro do máximo (CEREBRO.morte.max)
 export function licoesValidas(o) {
   const M = CEREBRO.morte, L = {};

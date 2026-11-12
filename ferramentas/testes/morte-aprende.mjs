@@ -2,6 +2,7 @@
 // próprios limites (bebe poção mais cedo, leva mais poção, caça mais baixo, foge antes de ficar cercado, recua do golpe
 // grande). Vale igual para os 22. Subindo de nível, a lição vai passando. Fica salva com o NPC.
 // Uso: node ferramentas/testes/morte-aprende.mjs
+import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 import { Simulacao, MAPA_CLAREIRA, CEREBRO, NPC_VIDA } from '../../shared/index.js';
 import { licoesValidas, textoLicoes } from '../../shared/amiga.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
