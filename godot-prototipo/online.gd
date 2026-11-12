@@ -288,6 +288,7 @@ func atualizar_status(_t := "") -> void:
 # ---------- sala ----------
 func ao_entrar(id: String, conta: Dictionary) -> void:
 	ligado = true
+	_desvio_srv = INF # sala nova ou servidor reiniciado: o relógio do servidor recomeça
 	if id != meu_id:
 		corr_seq = 0 # herói novo no servidor (entrou de novo): a conta das correções recomeça lá também
 	meu_id = id
@@ -463,6 +464,7 @@ func _foto_meio(f: Dictionary) -> void:
 
 func aplicar_foto(f: Dictionary) -> void:
 	_medir_chegada()
+	_marcar_tempo(f)
 	corpos.clear()
 	corpos[meu_id] = m.heroi
 	var vistos := {}
@@ -1200,6 +1202,7 @@ func evento(ev: Dictionary) -> void:
 
 # ---------- interpolação de quem vem do servidor ----------
 const ATRASO := 0.1 # s atrás do servidor: sempre tem duas fotos para andar entre elas
+const SEGUE_MAX := 0.3 # s que um corpo segue andando sozinho quando a próxima foto atrasa (_interpolar)
 
 func _agora() -> float:
 	return Time.get_ticks_usec() / 1000000.0
@@ -1219,10 +1222,27 @@ func _medir_chegada() -> void:
 		_atraso = clampf(ATRASO + _folga * 1.2, ATRASO, ATRASO_MAX)
 	_ult_chegada = agora
 
+# André 2026-11-12 ("os mobs começam a pipocar"): cada amostra leva a hora do SERVIDOR (foto.tempo) passada para o relógio
+# daqui pelo menor atraso já visto. Antes valia a hora em que a foto chegou: fotos que chegavam juntas ficavam com a mesma
+# hora e o monstro andava aos saltos; e a velocidade para seguir andando entre fotos (_interpolar) saía errada.
+var _ts_foto := -1.0
+var _desvio_srv := INF # relógio daqui menos o do servidor, no melhor caso (a foto que chegou mais rápido)
+func _marcar_tempo(f: Dictionary) -> void:
+	var ag := _agora()
+	if not f.has("tempo"):
+		_ts_foto = ag
+		return
+	var d: float = ag - float(f.tempo)
+	if d < _desvio_srv or absf(d - _desvio_srv) > 30.0: # mais rápido que o melhor caso (ou servidor reiniciou): vale este
+		_desvio_srv = d
+	else: # sobe devagar (o relógio do celular e o do servidor andam um pouco diferente)
+		_desvio_srv += (d - _desvio_srv) * 0.002
+	_ts_foto = float(f.tempo) + _desvio_srv
+
 func _amostra(o: Dictionary, p: Vector3, ry: float, aoi := false) -> void:
 	if not o.has("buf"):
 		o.buf = []
-	var ag := _agora()
+	var ag := _ts_foto if _ts_foto > 0.0 else _agora()
 	# área de interesse: parado não manda posição; quando volta a andar, segura onde estava até um instante antes
 	# (senão ele pularia direto para o meio do caminho)
 	if aoi and not o.buf.is_empty() and ag - o.buf[o.buf.size() - 1][0] > 0.15:
@@ -1235,6 +1255,19 @@ func _amostra(o: Dictionary, p: Vector3, ry: float, aoi := false) -> void:
 func _interpolar(o: Dictionary, no: Node3D, dt: float) -> void:
 	var buf: Array = o.get("buf", [])
 	var t := _agora() - _atraso
+	if buf.size() >= 2 and t >= buf[buf.size() - 1][0] and t - buf[buf.size() - 1][0] < SEGUE_MAX:
+		# a próxima foto atrasou um pouco: segue andando na mesma velocidade por até SEGUE_MAX s (antes parava e depois
+		# pulava; André 2026-11-12 "os mobs começam a pipocar")
+		var a0: Array = buf[buf.size() - 2]
+		var b0: Array = buf[buf.size() - 1]
+		var dtb: float = b0[0] - a0[0]
+		if dtb > 0.02 and dtb < 0.5:
+			var vel: Vector3 = ((b0[1] as Vector3) - (a0[1] as Vector3)) / dtb
+			if vel.length() < 15.0:
+				var pe: Vector3 = (b0[1] as Vector3) + vel * (t - b0[0])
+				no.position = no.position.lerp(pe, min(1.0, dt * 20.0))
+				no.rotation.y = lerp_angle(no.rotation.y, b0[2], min(1.0, dt * 15.0))
+				return
 	if buf.size() < 2 or t >= buf[buf.size() - 1][0] or t < buf[0][0]:
 		# sem duas fotos em volta (começo, ou o servidor atrasou): desliza até a última
 		var k: float = min(1.0, dt * 10.0)
