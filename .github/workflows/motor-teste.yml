@@ -1,0 +1,43 @@
+# Teste rápido da rede do motor (troca do Godot 4.5 -> 4.7, 2026-11-12): roda os pedidos que o jogo faz para entrar
+# (conta, sala, WebSocket) contra o servidor local, no 4.5 e no 4.7, para comparar. Uns 2 minutos, sem exportar nada.
+name: Teste da rede no motor
+
+on:
+  pull_request:
+    paths: ['ferramentas/motor/**', '.github/workflows/motor-teste.yml', 'godot-prototipo/rede.gd']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rede:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ['4.5-stable', '4.7.1-stable']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Godot ${{ matrix.godot }}
+        run: |
+          cd /tmp && curl -fsSL -o godot.zip https://github.com/godotengine/godot/releases/download/${{ matrix.godot }}/Godot_v${{ matrix.godot }}_linux.x86_64.zip && unzip -qo godot.zip
+          echo "GODOT_BIN=/tmp/Godot_v${{ matrix.godot }}_linux.x86_64" >> $GITHUB_ENV
+      - name: Servidor local e pedidos do jogo
+        run: |
+          mkdir -p /tmp/srv /tmp/vazio && printf 'config_version=5\n' > /tmp/vazio/project.godot
+          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null)
+          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          RPG_SERVIDOR=http://127.0.0.1:2567 RPG_SESSAO="$SESSAO" timeout 120 $GODOT_BIN --headless --path /tmp/vazio \
+            -s $GITHUB_WORKSPACE/ferramentas/motor/rede_teste.gd 2>&1 | tee /tmp/rede.log | grep -E "^REDE|ERROR"
+          echo "--- servidor ---"; tail -20 /tmp/srv/log.txt
+          grep -q "REDE ws estado=" /tmp/rede.log
