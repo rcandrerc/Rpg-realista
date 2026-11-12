@@ -267,6 +267,11 @@
     { "nome": "Chat de time: NPCs do time recebem a mensagem como no privado (André 2026-11-11)", "arquivo": "server/index.js", "contem": ["falarComAmigoIa(c, amg, msg, viaTime) {", "this.sim.amigosIaNoTime(c.sessionId)"] },
     { "nome": "Chat de time: aba Time e botão Falar com o time (André 2026-11-11)", "arquivo": "godot-prototipo/chat.gd", "contem": ["func abrir_time() -> void:", "func _tem_aba_time() -> bool:"] },
     { "nome": "Chat: mensagem privada (pm) com cada amigo, cada uma numa aba com o nome dele (André 2026-11-06)", "arquivo": "godot-prototipo/chat.gd", "contem": ["func abrir_pm(", "func _abrir_aba_pm(", "func fechar_aba_pm(", "\"abas_pm\""] },
-    { "nome": "Martelo da construção no menu do topo (aceso no terreno)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["[\"construir\", \"Construir\", \"construir\"]", "func _atualizar_construir() -> void:"] }
+    { "nome": "Martelo da construção no menu do topo (aceso no terreno)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["[\"construir\", \"Construir\", \"construir\"]", "func _atualizar_construir() -> void:"] },
+    {"nome": "Skills de espada novas: meia-lua pintada, X do Corte Duplo, anel do Giro, chão rachado e pedras (André 2026-11-12)", "arquivo": "godot-prototipo/golpes.gd", "contem": ["const SH_CORTE :=", "const SH_FENDA :=", "func duplo(", "func giro(", "func esmagar(", "func pisao(", "func estocada(", "func pontas_pedra(", "func pedras_voando("]},
+    {"nome": "Skills de espada passam pelos efeitos novos (golpes.gd) e rastro pintado da lâmina", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const ESPADA_NOVA := true", "const ESPADA_FX :=", "gp.foco(corpo, hab, dur, maos)", "gp.estocada(x, z, y, ry)", "gp.arrancada(corpo)", "gp.acerto(p, ry, forte)", "const SH_FAIXA_TOON :="]},
+    {"nome": "Sons novos das skills de espada (esp_*.ogg, André 2026-11-12)", "arquivo": "godot-prototipo/main.gd", "contem": ["const SOM_ESPADA_NOVO := true", "sons.tem(\"esp_corte\")", "\"esp_vento_forte\" if ultimo else \"esp_vento\"", "func ponta_espada() -> Array:"]},
+    {"nome": "Esmagador e Pisão com efeito próprio", "arquivo": "godot-prototipo/progresso.gd", "contem": ["\"golpe_esmagador\": \"esmagar\"", "\"pisao_sismico\": \"pisao\""]},
+    {"nome": "Explosão das skills manda a direção do herói (corte desenhado na direção certa)", "arquivo": "shared/simulacao.js", "contem": ["fx: h.id, ry: r2(j.ry) }); // ry: o app desenha o corte"]}
   ]
 }

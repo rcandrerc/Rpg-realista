@@ -20,6 +20,10 @@ func _som(nome: String, pos, vol := 0.0, tom := 0.08) -> void:
 const CARGA := {"bola": ["q_carga_fogo", 1.0], "explosao": ["q_carga_fogo", 1.1], "meteoros": ["q_carga_fogo", 0.85],
 	"gelo": ["q_carga_gelo", 1.0], "cura": ["q_carga_cura", 1.0], "raio": ["q_carga_arcano", 1.1], "vortice": ["q_carga_arcano", 0.9]}
 const SOM_AREA := {"explosao": "q_anel", "gelo": "q_gelo", "giro": "q_golpe", "relampago": "q_golpe"}
+# Skills de espada novas (André 2026-11-12: o mesmo revamp das skills de mago, agora nas de corpo a corpo): visual
+# pintado e som próprio de cada uma em golpes.gd (sons/esp_*.ogg). false = volta o visual e os sons antigos (nada foi apagado).
+const ESPADA_NOVA := true
+const ESPADA_FX := ["relampago", "giro", "salto", "esmagar", "pisao", "investida"] # Corte Duplo, Giro, Esmagador, Pisão, Investida
 var _raio_som_t := -9.0
 
 func _som_voz(nome: String, pos, vol := 0.0, tom := 0.03, tom_base := 1.0):
@@ -34,6 +38,7 @@ const FXCOR := {
 	"relampago": ["ffffff", "bcd6f0"], "giro": ["ffffff", "bcd6f0"], "salto": ["ffffff", "bcd6f0"], "investida": ["ffffff", "bcd6f0"],
 	"gelo": ["eafcff", "3fb4ff"], "escudo": ["fff6d6", "ffbf3a"], "vortice": ["f2e6ff", "7a3cff"], "nivel": ["fff6d0", "ffb42a"],
 	"vila": ["fff3da", "f2b552"], # Voltar para a vila: luz quente de lareira (volta_vila)
+	"esmagar": ["fffbe8", "ffd166"], "pisao": ["f0e2c8", "c9a46a"], # Golpe Esmagador (dourado) e Pisão Sísmico (terra), golpes.gd
 }
 const MAGIA := ["bola", "explosao", "meteoros", "cura", "raio", "magia", "gelo", "escudo", "vortice"]
 const ESTILOS := {"fogo": ["fff6c8", "ffa21a", "ff2a06"], "arcano": ["ffffff", "c4a4ff", "5a22ff"]}
@@ -282,6 +287,33 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabl
 uniform vec4 cor = vec4(1.0);
 void fragment() { ALBEDO = mix(cor.rgb, vec3(1.0), 0.3); ALPHA = COLOR.a; }
 """
+# rastro da espada pintado (skills de espada novas, 2026-11-12): fio branco na ponta, aço azul no meio e borda funda
+# por dentro, de borda dura; com a idade o ruído come de dentro para fora. COLOR.r = largura, COLOR.g = idade.
+const SH_FAIXA_TOON := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec4 c0 : source_color = vec4(1.0);
+uniform vec4 c1 : source_color = vec4(0.6, 0.85, 1.0, 1.0);
+uniform vec4 c2 : source_color = vec4(0.17, 0.39, 0.77, 1.0);
+varying vec3 mundo;
+%s
+void vertex() { mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float k = COLOR.r;
+	float idade = COLOR.g;
+	float n = rd(mundo * 7.0);
+	float forma = k - idade * 0.95 - (n - 0.5) * 0.25 * (0.4 + idade);
+	float aa = fwidth(forma) * 1.2 + 0.01;
+	float corpo = smoothstep(0.08 - aa, 0.08 + aa, forma);
+	if (corpo <= 0.01) discard;
+	float meio = smoothstep(0.38 - aa, 0.38 + aa, forma);
+	float fio = smoothstep(0.75 - aa, 0.75 + aa, k - idade * 0.25);
+	vec3 c = mix(c2.rgb, c1.rgb, meio);
+	c = mix(c, c0.rgb, fio * (1.0 - idade));
+	ALBEDO = c;
+	ALPHA = corpo * COLOR.a * mix(0.75, 1.0, meio);
+}
+"""
 
 # rocha do Meteoro: basalto escuro com rachaduras de lava acesas e borda em brasa
 const SH_ROCHA := """
@@ -388,6 +420,7 @@ var FOGO: Lote
 var FUMA: Lote
 # magias novas do cajado com partículas de textura (magias.gd; pedido do André 2026-11-03). As outras skills seguem aqui.
 var mg
+var gp # skills de espada novas (golpes.gd; André 2026-11-12)
 const NOVAS := ["bola", "gelo", "meteoros"]
 
 func _lote(n: int, aditivo: bool) -> Lote:
@@ -691,6 +724,10 @@ func _ready() -> void:
 	mg = load("res://magias.gd").new()
 	mg.fx = self
 	add_child(mg)
+	gp = load("res://golpes.gd").new()
+	gp.fx = self
+	gp.mg = mg
+	add_child(gp)
 	for i in 4:
 		var l := OmniLight3D.new()
 		l.light_energy = 0.0
@@ -701,6 +738,9 @@ func _ready() -> void:
 # ---------------------------------------------------------------- efeitos
 # Começo da habilidade: círculo no chão, coluna de luz, labaredas, fumaça e brasas. corpo = nó do personagem
 func conjura(corpo: Node3D, hab: String, dur: float, maos: Callable = Callable()) -> void:
+	if ESPADA_NOVA and hab in ESPADA_FX: # skill de espada: a lâmina brilha (golpes.gd), sem círculo mágico de mago
+		gp.foco(corpo, hab, dur, maos)
+		return
 	if hab in NOVAS: # Bola de Fogo, Nova de Gelo e Meteoro: runa no chão e a carga nas mãos (magias.gd)
 		mg.conjura(corpo, hab, dur, maos)
 		return
@@ -766,7 +806,20 @@ func area(x: float, z: float, r: float, cores: Array, forte := 1.0, y := 0.0, co
 		part(FOGO, x, y + 0.5 * H, z, 0, 0, 0, 0.3, r * 0.7, r * 1.4, "ffffff", cores[1], 0.6)
 
 # habilidades de área em volta do herói (Explosão, Salto Esmagador, Giro da Lâmina)
-func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0) -> void:
+# ry = para onde o herói olhava (Corte Duplo e Golpe Esmagador desenham o corte nessa direção); -999 = não se sabe
+func explosao_hab(fx: String, x: float, z: float, r: float, y := 0.0, ry := -999.0) -> void:
+	if ESPADA_NOVA and fx in ESPADA_FX:
+		var rr: float = ry if ry > -900.0 else randf() * TAU
+		match fx:
+			"relampago":
+				gp.duplo(x, z, y, rr, r)
+			"giro":
+				gp.giro(x, z, y, r)
+			"pisao":
+				gp.pisao(x, z, y, r)
+			_: # "esmagar" e o "salto" antigo
+				gp.esmagar(x, z, y, r, rr)
+		return
 	if SOM_AREA.has(fx):
 		_som(SOM_AREA[fx], Vector3(x, y, z), -2.0 if fx in ["giro", "relampago"] else 0.0, 0.05)
 	else:
@@ -815,6 +868,9 @@ func anel(x: float, z: float, r: float, cor, dur: float, y := 0.0) -> void:
 
 # Estocada da Investida acertando: corte de luz de pé no alvo, faíscas e clarão
 func impacto(x: float, z: float, ry: float, fx: String, y := 0.0) -> void:
+	if ESPADA_NOVA and fx == "investida":
+		gp.estocada(x, z, y, ry)
+		return
 	_som("q_golpe", Vector3(x, y, z), -1.0, 0.06)
 	var cores := cor_de(fx)
 	var g := Node3D.new()
@@ -1242,7 +1298,10 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, alt
 
 # Dash: rastro de vento atrás do corpo (forte = investida / dash rápido, com faíscas)
 func dash(corpo: Node3D, dur: float, forte: bool) -> void:
-	_som("dash", corpo.global_position, 0.0 if forte else -3.0)
+	if forte and ESPADA_NOVA: # Investida: rajada com som próprio (golpes.gd)
+		gp.arrancada(corpo)
+	else:
+		_som("dash", corpo.global_position, 0.0 if forte else -3.0)
 	var r := trilhos(corpo)
 	r.dash_t = dur
 	r.forte = dur if forte else 0.0
@@ -1559,16 +1618,21 @@ class Faixa:
 	var im: ImmediateMesh
 	var mi: MeshInstance3D
 	var vazia := false
+	var toon := false # rastro pintado da espada (cor = posição na largura e idade, SH_FAIXA_TOON)
 
-func _faixa(n: int, v: int, cor, vida: float) -> Faixa:
+func _faixa(n: int, v: int, cor, vida: float, toon := false) -> Faixa:
 	var f := Faixa.new()
 	f.N = n
 	f.V = v
 	f.vida = vida
+	f.toon = toon
 	f.im = ImmediateMesh.new()
 	f.mi = MeshInstance3D.new()
 	f.mi.mesh = f.im
-	f.mi.material_override = material("faixa_" + str(cor), SH_FAIXA, {"cor": c(cor)})
+	if toon:
+		f.mi.material_override = material("faixa_toon", SH_FAIXA_TOON % RUIDO, {"c0": Color(gp.ACO[0]), "c1": Color(gp.ACO[1]), "c2": Color(gp.ACO[2])})
+	else:
+		f.mi.material_override = material("faixa_" + str(cor), SH_FAIXA, {"cor": c(cor)})
 	f.mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	f.mi.extra_cull_margin = 16384.0
 	add_child(f.mi)
@@ -1596,8 +1660,12 @@ func _faixa_passo(f: Faixa, dt: float, linha, perfil: Array, forca: float) -> vo
 			var q := [[i, j], [i, j + 1], [i + 1, j], [i, j + 1], [i + 1, j + 1], [i + 1, j]]
 			for e in q:
 				var p: Dictionary = f.pts[e[0]]
-				var a: float = max(0.0, 1.0 - p.t / f.vida) * (1.0 - float(e[0]) / f.N) * forca * perfil[e[1]]
-				f.im.surface_set_color(Color(1, 1, 1, a))
+				if f.toon: # r = de dentro (0) para o fio (1); g = idade (0 nova, 1 sumindo); a = força
+					var idade: float = clamp(max(p.t / f.vida, float(e[0]) / f.N), 0.0, 1.0)
+					f.im.surface_set_color(Color(float(e[1]) / (f.V - 1), idade, 0.0, min(1.0, forca * 1.8)))
+				else:
+					var a: float = max(0.0, 1.0 - p.t / f.vida) * (1.0 - float(e[0]) / f.N) * forca * perfil[e[1]]
+					f.im.surface_set_color(Color(1, 1, 1, a))
 				f.im.surface_add_vertex(p.l[e[1]])
 	f.im.surface_end()
 
@@ -1605,7 +1673,7 @@ func trilhos(corpo: Node3D) -> Dictionary:
 	if not rastros.has(corpo):
 		# o rastro fino antigo da espada ("lamina", só 2 pontos de largura) saiu: André aprovou tirar (2026-11-03); fica só o largo
 		rastros[corpo] = {"dash": _faixa(28, 5, "73c7ff", 0.3), "dash_t": 0.0, "forte": 0.0,
-			"lamina2": _faixa(36, 4, "6fbfff", 0.22), "l2_ult": null} # lamina2: brilho largo da espada mágica, curvo, some fazendo a curva do golpe
+			"lamina2": _faixa(36, 4, "6fbfff", 0.26 if ESPADA_NOVA else 0.22, ESPADA_NOVA), "l2_ult": null} # lamina2: brilho largo da espada mágica, curvo, some fazendo a curva do golpe
 	return rastros[corpo]
 
 const PERFIL_DASH := [0.0, 0.55, 1.0, 0.7, 0.0]
@@ -1690,6 +1758,11 @@ func onda_corte(x: float, z: float, y: float) -> void:
 
 # marca do corte da espada no ponto que acertou: meia-lua branca-azulada rápida, na direção do golpe
 func marca_corte(p: Vector3, ry: float, forte: bool) -> void:
+	if ESPADA_NOVA: # corte pintado, estrela e faíscas (golpes.gd); a onda no chão do golpe forte continua
+		gp.acerto(p, ry, forte)
+		if forte:
+			onda_corte(p.x, p.z, p.y - 1.05)
+		return
 	var g := Node3D.new()
 	add_child(g)
 	var l := lua("bfe6ff")

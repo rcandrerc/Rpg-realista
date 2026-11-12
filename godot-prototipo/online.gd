@@ -1064,7 +1064,7 @@ func evento(ev: Dictionary) -> void:
 			var x := float(ev.x)
 			var z := float(ev.z)
 			var k := str(ev.get("fx", "explosao"))
-			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z))
+			fx.explosao_hab(m.P.FX.get(k, k), x, z, float(ev.r), m.chao_em(x, z), float(ev.get("ry", -999.0))) # ry: Corte Duplo e Esmagador
 		"chuva":
 			fx.chuva(float(ev.x), float(ev.z), float(ev.r), int(ev.ondas), func(_p): pass)
 		"meteoro":
