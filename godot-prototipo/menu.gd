@@ -2580,7 +2580,7 @@ func montar_mochila() -> void:
 			conteudo.add_child(g2)
 	var dica := ""
 	if vendendo:
-		dica = "Toque nos itens para marcar ou desmarcar. Itens em pilha vendem a pilha inteira."
+		dica = "Toque para marcar. Pilha vende inteira."
 	elif sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
 		if PAINEL_AO_LADO:
 			mostrar_painel(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
@@ -2594,9 +2594,7 @@ func montar_mochila() -> void:
 			conteudo.add_child(detalhe(P.prog.equip[sel_equip], -1, sel_equip, true))
 			return
 	elif janela_lugar == "":
-		dica = "Toque num item para ver o que ele faz. Toque num lugar do corpo (à esquerda) para ver a peça e tirar."
-		if compra:
-			dica = "Toque num item para ver o que ele faz. Segure um item para marcar vários e vender."
+		dica = "Segure um item para vender vários." if compra else ""
 	if dica != "":
 		var d := rotulo(dica, 14, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -3011,7 +3009,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 			td.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			lv.add_child(td)
 			info.add_child(lv)
-		var nc := rotulo(("Vestida agora: %s (%s)" % [P.nome_item(atual), P.texto_item(atual)]) if atual != null else "Lugar vazio no corpo: é ganho certo", 13 if compacto else 15, APAGADO)
+		var nc := rotulo(("Vestida: %s" % P.nome_item(atual)) if atual != null else "Lugar vazio no corpo", 13 if compacto else 15, APAGADO)
 		nc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.add_child(nc)
 	if lugar != "":
