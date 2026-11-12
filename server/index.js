@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, nomeValido, REINICIO } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -79,6 +79,7 @@ class SalaClareira extends Room {
     // bosses de mundo (André 2026-11-11): a hora de voltar de cada um fica no banco (vale para todas as salas e depois de
     // reiniciar); nasceu, caiu ou soltou Mítico: aviso no chat geral de todo mundo online
     if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
+    if (contas && salas.size === 1) this.npcsForaDoMundo(true); // primeira sala aberta: os aventureiros fora do mundo evoluem pelo tempo vazio
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
     this.sim.aoAnuncio = (msg) => {
       const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
@@ -327,7 +328,21 @@ class SalaClareira extends Room {
     this.sim.enviarLotes(client.sessionId);
   }
 
-  onDispose() { this.salvarProgressos(); salas.delete(this); }
+  onDispose() { this.salvarProgressos(); salas.delete(this); if (contas && !salas.size) this.npcsForaDoMundo(false); }
+  // Aventureiros fora do mundo (NPCS_NO_MUNDO, André 2026-11-12): sem corpo com gente jogando; só evoluem com a sala
+  // vazia. Abrindo a primeira sala: ganha o XP do tempo vazio (xpOfflineNpc) e marca a hora. Fechando a última: só marca
+  // a hora (o tempo com gente jogando não conta). Save sem progresso ainda: só a hora (ao entrar no mundo, começa no nível
+  // da lista e o offlineAmiga conta dali).
+  npcsForaDoMundo(abrindo) {
+    try {
+      for (const d of AMIGOS_VIRTUAIS) {
+        if (npcNoMundo(d) || d.terreno) continue;
+        const k = 'npc:' + d.id, salvo = contas.lerMundo(k) || {};
+        if (abrindo && salvo.prog && Number.isFinite(salvo.t)) xpOfflineNpc(salvo.prog, salvo.t, this.sim.nivelTetoNpc);
+        contas.gravarMundo(k, { ...salvo, t: Date.now() });
+      }
+    } catch (e) { console.warn('npcsForaDoMundo:', e.message); }
+  }
 
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar

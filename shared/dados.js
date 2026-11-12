@@ -2420,7 +2420,10 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 // Quantos aventureiros andam no mundo agora (André 2026-11-11: o ping foi a 29 mil com os 20; "diminui pra 4 e vai
 // aumentando aos poucos"). A lista inteira continua acima; para aumentar é só pôr mais ids aqui (null = todos os 20).
-export const NPCS_NO_MUNDO = { aventureiros: ['lia', 'tome', 'ravi', 'bia'] }; // caça, mina, lenha e pesca
+// André 2026-11-12: "reduz para 2 de volta, Dário e Cecília só... só deixa eles independentes quando eu estiver offline"
+// (picos de atraso). Nenhum aventureiro no mundo com gente jogando; eles evoluem só no tempo em que a sala fica vazia
+// (xpOfflineNpc em shared/amiga.js, chamado pelo servidor ao abrir a sala). Antes: ['lia', 'tome', 'ravi', 'bia'].
+export const NPCS_NO_MUNDO = { aventureiros: [] };
 export const npcNoMundo = (d) => !AVENTUREIROS.includes(d) || NPCS_NO_MUNDO.aventureiros == null || NPCS_NO_MUNDO.aventureiros.includes(d.id);
 
 // Vida própria dos NPCs (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais). Fora do time cada um sai
