@@ -4237,7 +4237,9 @@ func _lugar_forno(titulo: String, lugar: String, barra, marcado: bool) -> VBoxCo
 		elif lugar != "sai":
 			forno_alvo = lugar # lugar vazio: a lenha da mochila passa a ir para cá
 			_montar_forno()
-	v.add_child(m.menu.celula(it, marcado, fn, 64))
+	var cel: Button = m.menu.celula(it, marcado, fn, 64)
+	cel.set_meta("guia", "forno:lugar:" + lugar) # guia.gd: combustível, material ou o pronto
+	v.add_child(cel)
 	if barra != null:
 		if barra.get_parent():
 			barra.get_parent().remove_child(barra)
@@ -4305,7 +4307,9 @@ func _montar_forno() -> void:
 		var fn := func():
 			if not _bau_arrastou:
 				m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
-		grade_forno.add_child(m.menu.celula(it, false, fn, 56))
+		var cel: Button = m.menu.celula(it, false, fn, 56)
+		cel.set_meta("guia_i", i) # guia.gd: o lugar da mochila (lenha, minério...)
+		grade_forno.add_child(cel)
 
 # ---------- fogão a lenha (André 2026-11-07: "que nem a fornalha: coloco o combustível e os itens lá e posso sair") ----------
 # Combustível como a fornalha; na panela vai o prato escolhido (os ingredientes saem da mochila na hora). A conta é do
@@ -4476,6 +4480,7 @@ func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, c
 		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(n)
 	b.pressed.connect(func(): escolher(k))
+	b.set_meta("guia", "cons:" + k) # guia das missões (guia.gd): a peça ou a ação que a missão pede
 	return b
 
 # nome curto embaixo do quadrado

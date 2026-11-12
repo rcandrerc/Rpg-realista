@@ -856,6 +856,7 @@ func abrir_carrinho() -> void:
 	encher.custom_minimum_size = Vector2(96, 36)
 	encher.disabled = comb >= max_comb - 1.0 or na_mochila <= 0
 	encher.pressed.connect(func(): _abastecer(int(C.tanque), comb, max_comb, na_mochila))
+	encher.set_meta("guia", "veiculo:encher") # guia.gd: abastecer o carrinho
 	vc.add_child(encher)
 	vc.add_child(_rotulo("Na mochila: %d" % na_mochila, 12, Color("#a89a80")))
 	var vg := VBoxContainer.new()
@@ -1015,6 +1016,7 @@ func _slot(tam: Vector2, tex: Texture2D, texto: String, cor: Color, fn: Callable
 # botão de ação com ícone grande e o nome embaixo
 func _acao(nome: String, ic: String, fn: Callable) -> Button:
 	var b := _slot(Vector2(84, 74), m.hud.icone(ic), nome, Color(0.85, 0.7, 0.4), fn)
+	b.set_meta("guia", "veiculo:" + nome.to_lower()) # guia das missões (guia.gd): Consertar, Melhorar...
 	return b
 
 func abrir_navio() -> void:

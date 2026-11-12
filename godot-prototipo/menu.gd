@@ -157,6 +157,7 @@ func _ready() -> void:
 	x.offset_right = -12
 	x.offset_bottom = 48
 	x.gui_input.connect(func(ev): if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed): fechar())
+	x.set_meta("guia", "fechar") # guia das missões (guia.gd): pisca quando o menu está no grupo errado
 	moldura.add_child(x)
 
 # ---------- peças de estilo ----------
@@ -1233,8 +1234,13 @@ func linha_skill(id: String) -> Control:
 			bs.add_theme_constant_override("separation", 5)
 			bs.add_child(rotulo("Espada:" if barra == "espada" else "Cajado:", 13, APAGADO))
 			var lista: Array = P.prog.barras[barra]
+			var guia_i := -1 # guia.gd: skill fora da barra -> o primeiro botão vazio (ou o 1) pisca
+			if lista.find(id) < 0 and barra == P.barra_de(m.h.modo):
+				guia_i = maxi(0, lista.find(""))
 			for i in lista.size():
 				var nb := botao(str(i + 1), func(): por_no_botao(id, barra, i), 14, lista[i] == id)
+				if i == guia_i:
+					nb.set_meta("guia", "barra:livre")
 				nb.custom_minimum_size = Vector2(40, 34)
 				bs.add_child(nb)
 			txt.add_child(bs)
@@ -2103,6 +2109,7 @@ func cabeca_grupo(k: String, nome: String, prontas: int, total: int) -> Control:
 	var aberto: bool = grupos_abertos.get(k, false) or busca_criar.strip_edges() != ""
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
+	b.set_meta("guia", "grupo:" + k) # guia.gd: abrir o grupo onde está o que a missão pede
 	b.custom_minimum_size = Vector2(0, 54)
 	var st := caixa(Color(0.16, 0.135, 0.11, 1) if aberto else Color(0.12, 0.103, 0.085, 1), Color(0.34, 0.28, 0.2), 1, 12)
 	for e in ["normal", "hover", "pressed"]:
@@ -2243,6 +2250,8 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
+	if rar == 0: # guia.gd: o Criar que a missão pede (longe da estação: o guia manda fechar e ir até lá)
+		b.set_meta("guia", ("criar:" if aqui else "criar_longe:") + str(e.k))
 	avisar_travado(b, func():
 		if rar > 0 and P.peca_para_evoluir(faz_s, rar) < 0:
 			return "Precisa de %s na mochila (evolui a de baixo)" % P.nome_item({"k": faz_s, "r": rar - 1})
@@ -2382,10 +2391,12 @@ func linha_criavel(e: Dictionary) -> Control:
 		nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		pv.add_child(nl)
 		pl.add_child(pv)
+		pl.set_meta("guia", "criar_longe:" + str(e.k)) # guia.gd: longe da estação, o guia manda fechar e ir até lá
 		l.add_child(pl)
 		return cx
 	var pode: bool = nv_ok and tem and P.vigor() >= custo and motivo == ""
 	var b := botao("Criar", func(): criar_item(e), 14, pode)
+	b.set_meta("guia", "criar:" + str(e.k)) # guia das missões (guia.gd)
 	b.custom_minimum_size = Vector2(96, 40)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.disabled = not pode
@@ -2544,6 +2555,7 @@ func montar_mochila() -> void:
 	for n in total_pag:
 		var t := "Página %d" % (n + 1) if n < tem else "Página %d · %d" % [n + 1, int(P.dados.paginaPreco[n])]
 		var b := botao(t, func(): trocar_pagina(n), 14, n == pag_mochila)
+		b.set_meta("guia", "pag:%d" % n) # guia.gd: a peça pedida está noutra página
 		b.custom_minimum_size = Vector2(0, 34)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if n >= tem:
@@ -2567,7 +2579,9 @@ func montar_mochila() -> void:
 		g.add_theme_constant_override("h_separation", 5)
 		g.add_theme_constant_override("v_separation", 5)
 		for i in range(pag_mochila * por_pag, min(P.prog.mochila.size(), (pag_mochila + 1) * por_pag)):
-			g.add_child(celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i)))
+			var cel := celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i))
+			cel.set_meta("guia_i", i) # guia das missões (guia.gd): qual lugar da mochila é esta célula
+			g.add_child(cel)
 		conteudo.add_child(g)
 		# lugar a mais (só se uma mochila antiga trouxe mais itens do que cabem): aparece no fim da última página
 		if pag_mochila == tem - 1 and P.prog.mochila.size() > tem * por_pag:
@@ -2575,7 +2589,9 @@ func montar_mochila() -> void:
 			g2.columns = 10
 			g2.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			for i in range(tem * por_pag, P.prog.mochila.size()):
-				g2.add_child(celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i)))
+				var cel := celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func(): tocar_mochila(i), 60, marcados.has(i))
+				cel.set_meta("guia_i", i)
+				g2.add_child(cel)
 			conteudo.add_child(g2)
 	if vendendo:
 		var d := rotulo("Toque nos itens para marcar ou desmarcar. Itens em pilha vendem a pilha inteira.", 12, APAGADO)
@@ -3670,6 +3686,7 @@ func montar_loja() -> void:
 		var preco: int = P.preco_compra(o)
 		var pode: bool = int(P.prog.ouro) >= preco
 		var b := botao("Comprar · %d" % preco, func(): escolher_quantidade(i), 14, pode) # André 2026-11-07: escolhe quantos
+		b.set_meta("guia", "loja:" + str(o.k)) # guia.gd: o item que a missão pede
 		b.custom_minimum_size = Vector2(140, 40)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.disabled = not pode
