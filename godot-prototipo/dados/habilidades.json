@@ -24057,5 +24057,413 @@
     ]
    }
   }
+ },
+ "titulos": {
+  "cacador_novato": {
+   "nome": "Caçador Novato",
+   "r": 0,
+   "como": "Derrubou 100 monstros",
+   "txt": "+2% dano",
+   "b": {
+    "dano": 0.02
+   },
+   "cond": {
+    "abates": 100
+   }
+  },
+  "cacador": {
+   "nome": "Caçador",
+   "r": 1,
+   "como": "Derrubou 1.000 monstros",
+   "txt": "+4% dano",
+   "b": {
+    "dano": 0.04
+   },
+   "cond": {
+    "abates": 1000
+   }
+  },
+  "flagelo": {
+   "nome": "Flagelo das Feras",
+   "r": 3,
+   "como": "Derrubou 5.000 monstros",
+   "txt": "+6% dano, +3% crítico",
+   "b": {
+    "dano": 0.06,
+    "critico": 0.03
+   },
+   "cond": {
+    "abates": 5000
+   }
+  },
+  "rei_puglin": {
+   "nome": "Destronador de Puglins",
+   "r": 0,
+   "como": "Venceu o Gorduncho",
+   "txt": "+3% XP dos monstros",
+   "b": {
+    "xp": 0.03
+   },
+   "cond": {
+    "hc": "gorduncho"
+   }
+  },
+  "alfa_prata": {
+   "nome": "Caçador do Alfa",
+   "r": 1,
+   "como": "Venceu a Presa-de-Prata",
+   "txt": "+2% crítico",
+   "b": {
+    "critico": 0.02
+   },
+   "cond": {
+    "hc": "presa"
+   }
+  },
+  "quebra_golem": {
+   "nome": "Quebra-Golem",
+   "r": 2,
+   "como": "Venceu o Brasaferro",
+   "txt": "+6% defesa",
+   "b": {
+    "defesa": 0.06
+   },
+   "cond": {
+    "boss": "brasaferro"
+   }
+  },
+  "rei_matilha": {
+   "nome": "Rei da Matilha",
+   "r": 2,
+   "como": "Venceu o Uivo-Rei",
+   "txt": "+5% crítico",
+   "b": {
+    "critico": 0.05
+   },
+   "cond": {
+    "boss": "uivo_rei"
+   }
+  },
+  "devorador": {
+   "nome": "Devora-Devorador",
+   "r": 2,
+   "como": "Venceu a Mandíbula Velha",
+   "txt": "+6% vida",
+   "b": {
+    "vida": 0.06
+   },
+   "cond": {
+    "boss": "mandibula"
+   }
+  },
+  "rompe_couraca": {
+   "nome": "Rompe-Couraça",
+   "r": 3,
+   "como": "Venceu o Chifre-de-Ferro",
+   "txt": "+6% dano",
+   "b": {
+    "dano": 0.06
+   },
+   "cond": {
+    "boss": "chifre_ferro"
+   }
+  },
+  "mata_tita": {
+   "nome": "Matador de Titãs",
+   "r": 3,
+   "como": "Venceu o Colosso Gélido",
+   "txt": "+8% vida, +4% defesa",
+   "b": {
+    "vida": 0.08,
+    "defesa": 0.04
+   },
+   "cond": {
+    "boss": "colosso_gelido"
+   }
+  },
+  "mata_dragao": {
+   "nome": "Mata-Dragões",
+   "r": 4,
+   "como": "Venceu o Dragão de Cinzas",
+   "txt": "+8% crítico, +5% dano",
+   "b": {
+    "critico": 0.08,
+    "dano": 0.05
+   },
+   "cond": {
+    "boss": "dragao_cinzas"
+   }
+  },
+  "sentinela_ordem": {
+   "nome": "Sentinela da Ordem",
+   "r": 1,
+   "como": "Fechou o Ato II",
+   "txt": "+4% defesa",
+   "b": {
+    "defesa": 0.04
+   },
+   "cond": {
+    "hist": "b11"
+   }
+  },
+  "voz_estradas": {
+   "nome": "Voz das Estradas",
+   "r": 2,
+   "como": "Fechou o Ato III",
+   "txt": "+8% ouro dos monstros",
+   "b": {
+    "ouro": 0.08
+   },
+   "cond": {
+    "hist": "c11"
+   }
+  },
+  "vento_mar": {
+   "nome": "Vento do Mar",
+   "r": 2,
+   "como": "Fechou o Ato IV",
+   "txt": "+5% XP dos monstros",
+   "b": {
+    "xp": 0.05
+   },
+   "cond": {
+    "hist": "h13"
+   }
+  },
+  "luz_aurora": {
+   "nome": "Luz de Aurora",
+   "r": 3,
+   "como": "Fechou o Ato V",
+   "txt": "+6% vida, +3% crítico",
+   "b": {
+    "vida": 0.06,
+    "critico": 0.03
+   },
+   "cond": {
+    "hist": "h15"
+   }
+  },
+  "estrela_aethra": {
+   "nome": "Estrela de Aethra",
+   "r": 4,
+   "como": "Venceu a Vesper",
+   "txt": "+6% dano, +5% crítico, +5% vida",
+   "b": {
+    "dano": 0.06,
+    "critico": 0.05,
+    "vida": 0.05
+   },
+   "cond": {
+    "hist": "f3"
+   }
+  },
+  "min10": {
+   "nome": "Minerador Experiente",
+   "r": 1,
+   "como": "Minerador Nv 10",
+   "txt": "+5% minério extra",
+   "b": {
+    "extra": 0.05
+   },
+   "cond": {
+    "prof": "min",
+    "nv": 10
+   }
+  },
+  "min20": {
+   "nome": "Mestre Minerador",
+   "r": 3,
+   "como": "Minerador Nv 20",
+   "txt": "+10% minério extra",
+   "b": {
+    "extra": 0.1
+   },
+   "cond": {
+    "prof": "min",
+    "nv": 20
+   }
+  },
+  "len10": {
+   "nome": "Lenhador Experiente",
+   "r": 1,
+   "como": "Lenhador Nv 10",
+   "txt": "+5% lenha extra",
+   "b": {
+    "extra": 0.05
+   },
+   "cond": {
+    "prof": "len",
+    "nv": 10
+   }
+  },
+  "len20": {
+   "nome": "Mestre Lenhador",
+   "r": 3,
+   "como": "Lenhador Nv 20",
+   "txt": "+10% lenha extra",
+   "b": {
+    "extra": 0.1
+   },
+   "cond": {
+    "prof": "len",
+    "nv": 20
+   }
+  },
+  "pes10": {
+   "nome": "Pescador Experiente",
+   "r": 1,
+   "como": "Pescador Nv 10",
+   "txt": "+5% peixe em dobro",
+   "b": {
+    "extra": 0.05
+   },
+   "cond": {
+    "prof": "pes",
+    "nv": 10
+   }
+  },
+  "pes20": {
+   "nome": "Mestre Pescador",
+   "r": 3,
+   "como": "Pescador Nv 20",
+   "txt": "+10% peixe em dobro",
+   "b": {
+    "extra": 0.1
+   },
+   "cond": {
+    "prof": "pes",
+    "nv": 20
+   }
+  },
+  "faz10": {
+   "nome": "Fazendeiro Experiente",
+   "r": 1,
+   "como": "Fazendeiro Nv 10",
+   "txt": "+5% colheita extra",
+   "b": {
+    "extra": 0.05
+   },
+   "cond": {
+    "prof": "faz",
+    "nv": 10
+   }
+  },
+  "faz20": {
+   "nome": "Mestre da Colheita",
+   "r": 3,
+   "como": "Fazendeiro Nv 20",
+   "txt": "+10% colheita extra",
+   "b": {
+    "extra": 0.1
+   },
+   "cond": {
+    "prof": "faz",
+    "nv": 20
+   }
+  },
+  "fer10": {
+   "nome": "Ferreiro Experiente",
+   "r": 1,
+   "como": "Ferreiro Nv 10",
+   "txt": "+3% raridade ao forjar",
+   "b": {
+    "raridade": 0.03
+   },
+   "cond": {
+    "prof": "fer",
+    "nv": 10
+   }
+  },
+  "fer20": {
+   "nome": "Mestre Ferreiro",
+   "r": 3,
+   "como": "Ferreiro Nv 20",
+   "txt": "+6% raridade ao forjar",
+   "b": {
+    "raridade": 0.06
+   },
+   "cond": {
+    "prof": "fer",
+    "nv": 20
+   }
+  },
+  "alf10": {
+   "nome": "Alfaiate Experiente",
+   "r": 1,
+   "como": "Alfaiate Nv 10",
+   "txt": "+3% raridade ao costurar",
+   "b": {
+    "raridade": 0.03
+   },
+   "cond": {
+    "prof": "alf",
+    "nv": 10
+   }
+  },
+  "alf20": {
+   "nome": "Mestre Alfaiate",
+   "r": 3,
+   "como": "Alfaiate Nv 20",
+   "txt": "+6% raridade ao costurar",
+   "b": {
+    "raridade": 0.06
+   },
+   "cond": {
+    "prof": "alf",
+    "nv": 20
+   }
+  },
+  "coz10": {
+   "nome": "Cozinheiro Experiente",
+   "r": 1,
+   "como": "Cozinheiro Nv 10",
+   "txt": "+3% vida",
+   "b": {
+    "vida": 0.03
+   },
+   "cond": {
+    "prof": "coz",
+    "nv": 10
+   }
+  },
+  "coz20": {
+   "nome": "Mestre Cuca",
+   "r": 3,
+   "como": "Cozinheiro Nv 20",
+   "txt": "+6% vida",
+   "b": {
+    "vida": 0.06
+   },
+   "cond": {
+    "prof": "coz",
+    "nv": 20
+   }
+  },
+  "mer10": {
+   "nome": "Mercador Experiente",
+   "r": 1,
+   "como": "Mercador Nv 10",
+   "txt": "+5% na venda",
+   "b": {
+    "venda": 0.05
+   },
+   "cond": {
+    "prof": "mer",
+    "nv": 10
+   }
+  },
+  "mer20": {
+   "nome": "Grande Mercador",
+   "r": 3,
+   "como": "Mercador Nv 20",
+   "txt": "+10% na venda",
+   "b": {
+    "venda": 0.1
+   },
+   "cond": {
+    "prof": "mer",
+    "nv": 20
+   }
+  }
  }
 }
