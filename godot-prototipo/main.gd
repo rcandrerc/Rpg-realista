@@ -1952,7 +1952,21 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 		return
 	if on(): # online: quem acerta e quanto tira é o servidor; o tranco, o flash e a congelada saem na hora aqui
 		var forte_on: bool = h.golpe_forte or not (hab is Dictionary and hab.has("combo"))
-		impacto_golpe(e.no.position, forte_on, false, hab is Dictionary and hab.has("combo") and h.modo == "Espada", tiro_basico(hab))
+		# combate otimista (André 2026-11-12: com internet ruim o golpe e a skill "não pegavam"): o número, a barra e a
+		# morte saem na hora com a conta daqui; o servidor confirma depois (online.gd previsto / confirmar_golpe)
+		var crit_on := false
+		if not e.has("boss") and online.prever_golpes:
+			var n: float = dmg * randf_range(0.85, 1.15)
+			crit_on = randf() < P.st.critico
+			if crit_on:
+				n *= 2.0
+			if e.vuln > tempo:
+				n *= 1.0 + e.vuln_k
+			if e.has("nivel"):
+				n *= golpe_heroi_nivel(int(e.nivel))
+			var chave := str(hab.get("nome", hab.get("anim", "golpe"))) if hab is Dictionary else "golpe"
+			online.previsto(e, max(1.0, round(n)), crit_on, chave)
+		impacto_golpe(e.no.position, forte_on, crit_on, hab is Dictionary and hab.has("combo") and h.modo == "Espada", tiro_basico(hab))
 		piscar(e.no)
 		combate.reacao(e.no, de, forte_on)
 		return

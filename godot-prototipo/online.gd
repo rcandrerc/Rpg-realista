@@ -771,8 +771,8 @@ func inimigo(c: Dictionary) -> void:
 	e.vida = float(c.vida)
 	if e.has("boss") and c.has("vidaMax"): # boss de mundo: a vida inteira vem do servidor (barra do topo, boss_mundo.gd)
 		e.vida_max = float(c.vidaMax)
-	if e.barra:
-		e.barra.scale.x = max(0.001, float(c.vida) / max(1.0, float(c.vidaMax)))
+	e.vida_max_srv = float(c.get("vidaMax", e.get("vida_max_srv", 1.0)))
+	_barra_prevista(e)
 	if not e.has("seq"):
 		e.seq = -1
 		e.uma_vez = 0.0
@@ -784,6 +784,8 @@ func inimigo(c: Dictionary) -> void:
 		if m.SOM_MORTE_MOB: # teste do André 2026-11-08 (main.gd)
 			m.sons.tocar("morte", -2.0, 0.1, e.no.position)
 		_barra_visivel(e, false)
+	elif not c.morto and e.estado == "morto" and e.get("morte_prev_ate", 0.0) > m.tempo:
+		return # morreu aqui pelo combate otimista: espera o servidor confirmar (se não confirmar a tempo, volta à vida)
 	elif not c.morto and e.estado == "morto":
 		e.estado = "vivo"
 		e.no.position = e.alvo
@@ -804,6 +806,72 @@ func inimigo(c: Dictionary) -> void:
 		return
 	if not c.morto:
 		animar(e, c)
+
+# ---------- combate otimista (André 2026-11-12) ----------
+# O golpe e a skill que acertam aqui já mostram o número, baixam a barra e, se zerar, derrubam o monstro na hora.
+# Cada golpe previsto fica em e.prev até o servidor mandar o "dano" dele (confirmar_golpe) ou passar PREVISTO_DUR s.
+# A barra mostra a vida do servidor menos o que ainda não foi confirmado. O servidor continua decidindo tudo: golpe que
+# ele não confirmou some da barra e monstro que não morreu lá volta.
+const PREVISTO_DUR := 1.5
+var prever_golpes := true
+# quanto o servidor tirou de verdade em cada golpe/skill (sem crítico): a conta daqui não sabe a arma, os atributos e
+# as skills do Quimera, então depois do primeiro acerto confirmado vale a média do servidor
+var _media_golpe := {}
+func previsto(e: Dictionary, n: float, crit: bool, chave := "golpe") -> void:
+	_limpar_previstos(e)
+	if not e.has("prev"):
+		e.prev = []
+	if _media_golpe.has(chave):
+		n = max(1.0, round(float(_media_golpe[chave]) * randf_range(0.85, 1.15) * (2.0 if crit else 1.0)))
+	e.prev.append([m.tempo, n, chave])
+	e.combate = m.tempo + 5.0
+	m.fx.numero(e.no.position, n, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
+	m.trabalho.combate()
+	_barra_prevista(e)
+	if float(e.get("vida", 1.0)) - _soma_prev(e) <= 0.0 and e.estado != "morto": # zerou: cai na hora
+		e.estado = "morto"
+		e.morte_prev_ate = m.tempo + PREVISTO_DUR + 0.5
+		e.anim.play("morrer", 0.1)
+		e.prep_fim = -1.0
+		m.combate.morreu(e.no)
+		if m.SOM_MORTE_MOB:
+			m.sons.tocar("morte", -2.0, 0.1, e.no.position)
+		_barra_visivel(e, false)
+
+# o servidor mandou o "dano" de um golpe meu neste corpo: tira o mais antigo previsto. true = o número já tinha saído
+func confirmar_golpe(no, n := -1.0, crit := false) -> bool:
+	for e in m.inimigos:
+		if e.no == no:
+			_limpar_previstos(e)
+			if e.get("prev", []).is_empty():
+				return false
+			var p: Array = e.prev.pop_front()
+			if n > 0.0: # aprende quanto esse golpe tira de verdade
+				var base: float = n / 2.0 if crit else n
+				var k := str(p[2])
+				_media_golpe[k] = base if not _media_golpe.has(k) else lerpf(float(_media_golpe[k]), base, 0.3)
+			if e.prev.is_empty():
+				e.morte_prev_ate = 0.0 if e.estado != "morto" else e.get("morte_prev_ate", 0.0)
+			_barra_prevista(e)
+			return true
+	return false
+
+func _soma_prev(e: Dictionary) -> float:
+	var s := 0.0
+	for p in e.get("prev", []):
+		s += float(p[1])
+	return s
+
+func _limpar_previstos(e: Dictionary) -> void:
+	var l: Array = e.get("prev", [])
+	while not l.is_empty() and m.tempo - float(l[0][0]) > PREVISTO_DUR:
+		l.pop_front()
+
+func _barra_prevista(e: Dictionary) -> void:
+	_limpar_previstos(e)
+	if e.barra:
+		var v: float = float(e.get("vida", 0.0)) - _soma_prev(e)
+		e.barra.scale.x = max(0.001, v / max(1.0, float(e.get("vida_max_srv", 1.0))))
 
 func _barra_visivel(e: Dictionary, v: bool) -> void:
 	if e.barra:
@@ -958,6 +1026,8 @@ func evento(ev: Dictionary) -> void:
 				var crit: bool = ev.get("crit", false) == true
 				if ev.has("dot"): # sangramento, veneno ou queimadura de skill de boss: só o número, na cor do efeito
 					fx.numero(no.position, ev.n, m.boss_mundo.cor_dot(str(ev.dot)), false)
+					return
+				if meu and not eu and confirmar_golpe(no, float(ev.n), crit): # combate otimista: o número já saiu na hora do golpe
 					return
 				fx.numero(no.position, ev.n, Color(1, 0.45, 0.4) if eu else Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 				if eu:
