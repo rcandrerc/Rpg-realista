@@ -12,6 +12,7 @@ extends CanvasLayer
 # funciona: tocar num nome marca o lugar, leva o mapa até ele e mostra o "Ir para"; tocar de novo no mesmo nome já vai.
 
 const MapaMundo = preload("res://mapa_mundo.gd")
+const IconesNpc = preload("res://icones_npc.gd") # símbolo de cada NPC e a legenda do mapa (André 2026-11-12)
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
 # o minimapa subiu para não encostar nas skills)
@@ -23,6 +24,7 @@ const COR_MINA := {"cobre": Color("d9822b"), "pedra": Color("a39d92"), "ferro": 
 const COR_FUNDO := Color(0.06, 0.07, 0.05, 0.85)
 
 var m # main.gd
+var icones # icones_npc.gd
 var info: Dictionary # mundo.minimapa: x0, z0, tam (metros) e px
 var textura: Texture2D
 # FASE 3 (2026-11-09): o mundo inteiro (mapa_mundo.gd) embaixo e o desenho de hoje (minimapa.png) por cima, nítido
@@ -49,6 +51,15 @@ var rolar := 0.0 # rolagem da lista quando ela não cabe na tela
 var lista_alt := 0.0 # altura da lista desenhada
 var linhas := [] # [Rect2, lugar] de cada nome da lista (para o toque)
 var selecionado := "" # id do lugar escolhido na lista
+# Lista em sanfona (André 2026-11-12: "separe os spots de caçada, um menu de recursos, um menu de NPCs, mercadores para
+# fazer entrega e o que mais tiver; todos os menus sanfonados para diminuir a quantidade de informação"). Cada seção
+# começa fechada; tocar no título abre ou fecha. O que fica aberto vale até fechar o jogo.
+const SECOES := [
+	["vilas", "Vilas e cidades"], ["totens", "Totens"], ["caca", "Caçada"], ["boss", "Bosses"], ["dungeon", "Dungeons"],
+	["recursos", "Recursos"], ["oficinas", "Oficinas"], ["npcs", "NPCs"], ["mercadores", "Mercadores (entregas)"]]
+var abertas := {} # id da seção -> true quando aberta
+var _cache_lugares: Array = [] # _lugares() montada (refeita ao abrir o mapa e a cada 2 s com ele aberto)
+var _cache_t := -1.0
 var botao_mais := Rect2()
 var botao_menos := Rect2()
 const Z_ABRIR := 1.8 # o mapa já abre maior (André 2026-11-05)
@@ -75,6 +86,7 @@ const COR_PINO := Color("ff6a4a")
 
 func _init(principal) -> void:
 	m = principal
+	icones = IconesNpc.new(principal)
 	layer = 3 # acima da HUD (os botões não passam por cima); o menu do topo (4) e as janelas ficam acima
 
 func _ready() -> void:
@@ -378,12 +390,20 @@ func _toque_no_mapa(pos: Vector2) -> void:
 	if not totem_de.is_empty():
 		_toque_totem(lp, dentro)
 		return
+	if dentro and icones.toque(lp): # abre e fecha a legenda
+		return
 	var pp: Rect2 = _painel()
 	if pp.has_point(pos):
 		var lq: Vector2 = pos - pp.position
 		for ln in linhas:
 			if (ln[0] as Rect2).has_point(lq):
-				_escolher(ln[1])
+				if ln[1].has("secao"): # título da sanfona: abre ou fecha
+					var sid := str(ln[1].secao)
+					abertas[sid] = not abertas.get(sid, false)
+					if m.sons:
+						m.sons.tocar("pano", -16.0)
+				else:
+					_escolher(ln[1])
 				return
 		return # espaço vazio da lista: não fecha
 	if dentro and m.rota:
@@ -397,11 +417,15 @@ func _marcar(w: Vector2) -> void:
 	marcado = previa[previa.size() - 1] if previa.size() > 0 else w
 	marcas_mapa.queue_redraw()
 
+var _npc_ir := "" # NPC escolhido na lista: ao chegar, abre a conversa (como o "Ir" da missão)
 func _ir() -> void:
 	var r: PackedVector2Array = previa
+	var npc := _npc_ir if selecionado != "" else ""
 	fechar()
 	if m.rota:
 		m.rota.ir(r, "Indo pela estrada", m.rota.OLHA, true) # viagem do mapa: vai no lobo; mar no meio não deixa
+		if npc != "" and m.rota.ativo and m.missao_ativa:
+			m.missao_ativa._npc_alvo = npc
 	if m.sons:
 		m.sons.tocar("pano", -10.0)
 
@@ -412,6 +436,13 @@ func _escolher(l: Dictionary) -> void:
 		return
 	selecionado = str(l.id)
 	_marcar(Vector2(float(l.x), float(l.z)))
+	if l.has("antes") and previa.size() >= 2: # NPC ou oficina: para um pouco antes, do lado de onde chega
+		var p := Vector2(float(l.x), float(l.z))
+		var antes: Vector2 = previa[previa.size() - 2]
+		if antes.distance_to(p) > float(l.antes):
+			previa[previa.size() - 1] = p + (antes - p).normalized() * float(l.antes)
+			marcado = previa[previa.size() - 1]
+	_npc_ir = str(l.get("npc", ""))
 	zoom_alvo = max(zoom_alvo, Z_ABRIR)
 	foco_alvo = Vector2(float(l.x), float(l.z))
 	if m.sons:
@@ -477,8 +508,62 @@ func _marca_totem(c: Control, q: Vector2, r: float, aceso: bool) -> void:
 	c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -r), q + Vector2(r * 0.75, 0), q + Vector2(0, r), q + Vector2(-r * 0.75, 0)]), cor)
 	c.draw_circle(q, r * 0.22, Color(1, 1, 1, 0.9) if aceso else Color(0.85, 0.87, 0.9))
 
-# os lugares da lista: as vilas, as clareiras de caça (por nível) e os veios
+# os lugares da lista, já com a seção de cada um (montada uma vez e guardada: a lista é desenhada a cada quadro)
 func _lugares() -> Array:
+	var agora: float = Time.get_ticks_msec() / 1000.0
+	if _cache_t < 0.0 or agora - _cache_t > 2.0:
+		_cache_lugares = _montar_lugares()
+		_cache_t = agora
+	return _cache_lugares
+
+const SECAO_DO_TIPO := {"casa": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "recursos", "mina": "recursos",
+	"oficina": "oficinas", "npc": "npcs", "mercador": "mercadores"}
+
+func _montar_lugares() -> Array:
+	var l := _lugares_base()
+	var hp: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
+	var dist := func(a: Dictionary) -> float: return Vector2(float(a.x) - hp.x, float(a.z) - hp.z).length()
+	# as outras cavernas do mundo grande (mundo_grade lugares "caverna") também são dungeons
+	var gm: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
+	for lm in gm.get("lugares", []):
+		if str(lm.get("tipo", "")) == "caverna":
+			l.append({"id": "cav_%s" % lm.id, "tipo": "caverna", "nome": str(lm.get("nome", "Caverna")), "curto": str(lm.get("nome", "Caverna")), "x": float(lm.x), "z": float(lm.z), "r": 6.0})
+	# oficinas públicas (bigorna, forninho, bancada) e os NPCs: o "Ir para" para do lado e abre a conversa
+	var vila_nome := {}
+	for vm in m.mundo.get("vilasMundo", []):
+		vila_nome[str(vm.id)] = str(vm.nome)
+	var ofs: Array = []
+	for e in m.mundo.get("estacoes", []): # a mesma bigorna em cada vila: o nome leva a vila e a distância (mais perto em cima)
+		var vn: String = vila_nome.get(str(e.get("vila", "")), "Vila da Clareira")
+		ofs.append({"id": "of_%s" % e.id, "tipo": "oficina", "nome": "%s · %s" % [str(e.get("nome", e.id)).split(" da ")[0], vn], "curto": str(e.get("nome", e.id)), "x": float(e.x), "z": float(e.z), "r": 2.0, "antes": 1.4})
+	ofs.sort_custom(func(a, b): return dist.call(a) < dist.call(b))
+	for it in ofs:
+		it.nome = "%s  (%d m)" % [it.nome, int(dist.call(it))]
+		l.append(it)
+	var npcs: Array = []
+	var merc: Array = []
+	var k := 0
+	for n in m.mundo.get("npcs", []):
+		k += 1
+		var pack: bool = str(n.get("funcao", "")) == "pack"
+		var nm := str(n.get("nome", n.id))
+		var it := {"id": "npc_%d_%s" % [k, n.id], "tipo": "mercador" if pack else "npc", "npc": str(n.id), "funcao": str(n.get("funcao", "")),
+			"nome": nm, "curto": nm.split(",")[0], "x": float(n.x), "z": float(n.z), "r": 2.0, "antes": 1.8}
+		(merc if pack else npcs).append(it)
+	npcs.sort_custom(func(a, b): return dist.call(a) < dist.call(b)) # os mais perto em cima
+	merc.sort_custom(func(a, b): return dist.call(a) < dist.call(b))
+	for it in npcs + merc:
+		it.nome = "%s  (%d m)" % [it.nome, int(dist.call(it))]
+		l.append(it)
+	for it in l:
+		if str(it.tipo) == "caca":
+			it.sec = "boss" if it.cc.has("boss") else "caca"
+		else:
+			it.sec = SECAO_DO_TIPO.get(str(it.tipo), "vilas")
+	return l
+
+# os lugares de antes: as vilas, as clareiras de caça (por nível) e os veios
+func _lugares_base() -> Array:
 	var l: Array = []
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno em primeiro: "Ir para" leva para casa
@@ -598,6 +683,8 @@ func abrir() -> void:
 	aberto = true
 	marcado = null
 	selecionado = ""
+	_npc_ir = ""
+	_cache_t = -1.0 # distâncias e "mais perto" de novo a partir de onde o herói está
 	previa = PackedVector2Array()
 	toques = {}
 	ignorar = {}
@@ -745,6 +832,7 @@ func _desenhar_mini() -> void:
 		if q.distance_to(meio) < RAIO - 4.0:
 			c.draw_circle(q, 4.0, Color(0.05, 0.05, 0.1, 0.8))
 			c.draw_circle(q, 3.0, Color("6fb6ff"))
+	icones.desenhar_mini(c, meio, p, k, RAIO) # NPCs: o símbolo da função (ferreiro, alquimista, mercador de pack...)
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno: a casinha, na beirada quando está longe (aponta o caminho de casa)
 		var dc: Vector2 = Vector2(casa.x - p.x, casa.z - p.z) * k
@@ -1051,6 +1139,8 @@ func _desenhar_mapa() -> void:
 		_marca_clareira(c, q, cc, 7.0 if longe else 10.0, true)
 		if not longe:
 			_texto(c, q + Vector2(0, 22), "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
+	if not tm:
+		icones.desenhar_mapa(c, em, _k(), longe, fonte, tam) # NPCs: o símbolo da função e, de perto, nome e título
 	for p in _outros():
 		var q: Vector2 = em.call(p.x, p.z)
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
@@ -1076,6 +1166,7 @@ func _desenhar_mapa() -> void:
 	if not totem_de.is_empty():
 		_desenhar_totens(c, tam, em)
 		return
+	icones.legenda(c, self, fonte, tam) # legenda dos símbolos no canto de baixo à esquerda (André 2026-11-12)
 	# moldura dourada da janela
 	c.draw_rect(Rect2(Vector2(1, 1), tam - Vector2(2, 2)), Color(0.05, 0.04, 0.03, 0.9), false, 3.0)
 	c.draw_rect(Rect2(Vector2(3, 3), tam - Vector2(6, 6)), Color("c9a35a"), false, 1.5)
@@ -1149,49 +1240,57 @@ func _desenhar_grande() -> void:
 	sbp.set_border_width_all(1)
 	sbp.set_corner_radius_all(14)
 	sbp.draw(c.get_canvas_item(), Rect2(base + Vector2(4, 16), Vector2(LARGURA_LISTA - 16.0, pp.size.y - 32.0)))
+	rolar = clamp(rolar, 0.0, max(0.0, lista_alt - pp.size.y)) # fechou uma seção lá embaixo: a lista sobe junto
 	var y: float = base.y + 40.0 - rolar
 	_texto(c, Vector2(x0, y), "Lugares", 24, COR_OURO, false)
 	y += 30.0
 	linhas = []
 	var fim: float = base.y + pp.size.y - 18.0
+	var por_secao := {}
 	for l in _lugares():
-		var lin := Rect2(Vector2(x0 - 6.0, y - 11.0), Vector2(larg, 23.0))
-		if lin.position.y > base.y + 16.0 and lin.end.y < fim: # o que passa da caixa (lista rolada) não aparece
-			var esc: bool = str(l.id) == selecionado
-			if esc:
-				var sl := StyleBoxFlat.new()
-				sl.bg_color = Color(0.32, 0.23, 0.09, 0.95)
-				sl.border_color = COR_OURO
-				sl.set_border_width_all(1)
-				sl.set_corner_radius_all(7)
-				sl.draw(c.get_canvas_item(), lin)
-			var qi := Vector2(x0 + 9.0, y)
-			match str(l.tipo):
-				"caca":
-					_marca_clareira(c, qi, l.cc, 8.0, false)
-				"caverna":
-					_marca_caverna(c, qi, 7.0)
-				"mina":
-					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
-				"casa": # o meu terreno: casinha de telhado vermelho
-					_marca_casa(c, qi + Vector2(0, 1), 6.5)
-				"totem":
-					_marca_totem(c, qi, 6.0, m.totem.descoberto(str(l.id).trim_prefix("totem_")))
-				"lago": # gota d'água azul
-					c.draw_circle(qi + Vector2(0, 2), 5.0, Color("4fa3e0"))
-					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-4.4, 0), qi + Vector2(0, -8), qi + Vector2(4.4, 0)]), Color("4fa3e0"))
-				_: # vila: casinha dourada
-					c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-7, -1), qi + Vector2(0, -8), qi + Vector2(7, -1)]), COR_OURO)
-					c.draw_rect(Rect2(qi + Vector2(-5, -1), Vector2(10, 7)), COR_OURO)
-			var nome: String = str(l.nome)
-			if esc:
-				_texto(c, Vector2(lin.end.x - 8.0 - fonte.get_string_size("Ir para ›", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x, y), "Ir para ›", 14, COR_OURO, false, 3)
-			var max_w: float = larg - 34.0 - (74.0 if esc else 0.0)
-			while nome.length() > 4 and fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x > max_w:
-				nome = nome.substr(0, nome.length() - 2) + "…"
-			_texto(c, Vector2(x0 + 24.0, y), nome, 15, COR_OURO if esc else Color(1, 0.96, 0.88), false)
-			linhas.append([Rect2(lin.position - (pp.position - grande.get_global_rect().position) + Vector2(0, -0.5), lin.size + Vector2(0, 1)), l])
-		y += 23.0
+		var sid := str(l.get("sec", "vilas"))
+		if not por_secao.has(sid):
+			por_secao[sid] = []
+		por_secao[sid].append(l)
+	var dentro := func(r: Rect2) -> bool: return r.position.y > base.y + 16.0 and r.end.y < fim # o que passa da caixa (lista rolada) não aparece
+	var tira: Vector2 = pp.position - grande.get_global_rect().position # do desenho para o toque (relativo ao painel)
+	for sc in SECOES:
+		var sid: String = sc[0]
+		var itens: Array = por_secao.get(sid, [])
+		if itens.is_empty():
+			continue
+		var aberta: bool = abertas.get(sid, false)
+		# título da seção: faixa escura com a setinha (▸ fechada, ▾ aberta), o nome e quantos lugares tem
+		var cab := Rect2(Vector2(x0 - 6.0, y - 14.0), Vector2(larg, 29.0))
+		if dentro.call(cab):
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(0.2, 0.15, 0.07, 0.95) if aberta else Color(0.13, 0.1, 0.06, 0.92)
+			sb.border_color = Color("c9a35a", 0.75 if aberta else 0.4)
+			sb.set_border_width_all(1)
+			sb.set_corner_radius_all(9)
+			sb.draw(c.get_canvas_item(), cab)
+			var q := Vector2(x0 + 7.0, y)
+			if aberta:
+				c.draw_colored_polygon(PackedVector2Array([q + Vector2(-5, -3), q + Vector2(5, -3), q + Vector2(0, 4)]), COR_OURO)
+			else:
+				c.draw_colored_polygon(PackedVector2Array([q + Vector2(-3, -5), q + Vector2(4, 0), q + Vector2(-3, 5)]), COR_OURO)
+			_texto(c, Vector2(x0 + 20.0, y), str(sc[1]), 17, COR_OURO, false)
+			var nt := str(itens.size())
+			var lw: float = fonte.get_string_size(nt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+			var pill := Rect2(Vector2(cab.end.x - lw - 22.0, y - 9.0), Vector2(lw + 14.0, 18.0))
+			var sp := StyleBoxFlat.new()
+			sp.bg_color = Color(0.0, 0.0, 0.0, 0.35)
+			sp.set_corner_radius_all(9)
+			sp.draw(c.get_canvas_item(), pill)
+			_texto(c, Vector2(pill.position.x + 7.0, y), nt, 13, Color(1, 0.92, 0.75), false, 3)
+			linhas.append([Rect2(cab.position - tira + Vector2(0, -1), cab.size + Vector2(0, 2)), {"secao": sid}])
+		y += 33.0
+		if not aberta:
+			continue
+		for l in itens:
+			_linha_lugar(c, l, x0, y, larg, tira, dentro)
+			y += 23.0
+		y += 6.0
 	y += 6.0
 	if y > base.y + 16.0 and y < fim:
 		c.draw_circle(Vector2(x0 + 9.0, y), 6.0, COR_BICHO.chefe)
@@ -1201,11 +1300,63 @@ func _desenhar_grande() -> void:
 		_seta(c, Vector2(x0 + 9.0, y), Vector2(0, -1), 8.0, COR_OURO)
 		_texto(c, Vector2(x0 + 24.0, y), "Você", 14, Color(1, 0.96, 0.88), false)
 	y += 26.0
-	for dica in ["Toque num nome ou no mapa para marcar", "Pinça ou − e + para o zoom"]:
+	for dica in ["Toque num título para abrir ou fechar", "Toque num nome ou no mapa para marcar", "Pinça ou − e + para o zoom"]:
 		if y > base.y + 16.0 and y < fim:
 			_texto(c, Vector2(x0, y), dica, 13, Color(1, 1, 1, 0.6), false)
 		y += 19.0
 	lista_alt = y + rolar - base.y
+
+# uma linha da lista: o símbolo do tipo e o nome; o escolhido fica dourado com "Ir para ›"
+func _linha_lugar(c: Control, l: Dictionary, x0: float, y: float, larg: float, tira: Vector2, dentro: Callable) -> void:
+	var lin := Rect2(Vector2(x0 - 6.0, y - 11.0), Vector2(larg, 23.0))
+	if dentro.call(lin):
+		var esc: bool = str(l.id) == selecionado
+		if esc:
+			var sl := StyleBoxFlat.new()
+			sl.bg_color = Color(0.32, 0.23, 0.09, 0.95)
+			sl.border_color = COR_OURO
+			sl.set_border_width_all(1)
+			sl.set_corner_radius_all(7)
+			sl.draw(c.get_canvas_item(), lin)
+		var qi := Vector2(x0 + 9.0, y)
+		match str(l.tipo):
+			"caca":
+				_marca_clareira(c, qi, l.cc, 8.0, false)
+			"caverna":
+				_marca_caverna(c, qi, 7.0)
+			"mina":
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
+			"casa": # o meu terreno: casinha de telhado vermelho
+				_marca_casa(c, qi + Vector2(0, 1), 6.5)
+			"totem":
+				_marca_totem(c, qi, 6.0, m.totem.descoberto(str(l.id).trim_prefix("totem_")))
+			"lago": # gota d'água azul
+				c.draw_circle(qi + Vector2(0, 2), 5.0, Color("4fa3e0"))
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-4.4, 0), qi + Vector2(0, -8), qi + Vector2(4.4, 0)]), Color("4fa3e0"))
+			"npc": # pessoa: cabeça e ombros claros num círculo azul
+				c.draw_circle(qi, 8.0, Color(0.05, 0.07, 0.1, 0.9))
+				c.draw_circle(qi, 7.0, Color("4f86c6"))
+				c.draw_circle(qi + Vector2(0, -2.2), 2.4, Color(1, 0.95, 0.88))
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-4.2, 4.6), qi + Vector2(-3.2, 1.2), qi + Vector2(3.2, 1.2), qi + Vector2(4.2, 4.6)]), Color(1, 0.95, 0.88))
+			"mercador": # caixote de madeira (o pack)
+				c.draw_rect(Rect2(qi + Vector2(-7, -6), Vector2(14, 12)), Color(0.08, 0.05, 0.03, 0.95))
+				c.draw_rect(Rect2(qi + Vector2(-6, -5), Vector2(12, 10)), Color("b07a3f"))
+				c.draw_line(qi + Vector2(-6, -5), qi + Vector2(6, 5), Color("6e4520"), 1.5)
+				c.draw_line(qi + Vector2(-6, 5), qi + Vector2(6, -5), Color("6e4520"), 1.5)
+			"oficina": # bigorna cinza
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-8, -4), qi + Vector2(6, -4), qi + Vector2(8, -1), qi + Vector2(3, -1), qi + Vector2(2, 2),
+					qi + Vector2(5, 5), qi + Vector2(-5, 5), qi + Vector2(-2, 2), qi + Vector2(-3, -1), qi + Vector2(-6, -1)]), Color("a9b0b8"))
+			_: # vila: casinha dourada
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-7, -1), qi + Vector2(0, -8), qi + Vector2(7, -1)]), COR_OURO)
+				c.draw_rect(Rect2(qi + Vector2(-5, -1), Vector2(10, 7)), COR_OURO)
+		var nome: String = str(l.nome)
+		if esc:
+			_texto(c, Vector2(lin.end.x - 8.0 - fonte.get_string_size("Ir para ›", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x, y), "Ir para ›", 14, COR_OURO, false, 3)
+		var max_w: float = larg - 34.0 - (74.0 if esc else 0.0)
+		while nome.length() > 4 and fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x > max_w:
+			nome = nome.substr(0, nome.length() - 2) + "…"
+		_texto(c, Vector2(x0 + 24.0, y), nome, 15, COR_OURO if esc else Color(1, 0.96, 0.88), false)
+		linhas.append([Rect2(lin.position - tira + Vector2(0, -0.5), lin.size + Vector2(0, 1)), l])
 
 # nome da clareira onde caiu o toque ("Puglins Nv 15"), ou ""
 func _clareira_em(p: Vector2) -> String:

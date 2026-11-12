@@ -90,6 +90,7 @@ const SEM_CASACO := ["cabelo_m"]
 const EXTRAS := ["shibu", "shibu_sombrio", "cabelo_m", "fumiriya", "shino", "vivi", "vita", "victoria", "cabelo_m", "fumiriya"]
 
 var sol: DirectionalLight3D
+var desliza := Vector3.ZERO # "corrigir" pequeno do servidor (online.gd): o corpo desliza até o lugar certo em vez de pular
 var camera: Camera3D
 var grama: MultiMeshInstance3D
 var mato # mato.gd: capim alto e samambaia perto do herói
@@ -1691,6 +1692,7 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 			l.font = load("res://fontes/AlegreyaSans-Bold.ttf")
 			l.pixel_size = 0.00034 * 1.5
 			l.offset = Vector2(0, 52.0 / 1.5)
+	titulo_npc(no, str(info.get("cargo", "")))
 	var ap := {}
 	if (str(info.get("id", "")) in TINGIR_NPC or info.get("vila") != null) and info.get("tinta") is Dictionary:
 		var t: Dictionary = info.tinta
@@ -1708,6 +1710,34 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 			prender(esq_npc, nova_arma(tipo), lugar)
 	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)), "info": info,
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
+
+# título da função embaixo do nome do NPC (André 2026-11-12: "Ferreiro", "Alquimista", "Mercador de pack"...): letra
+# menor e dourada; o nome sobe um pouco para o título caber entre ele e a cabeça. Vem de mundo.json "cargo" (cargoNpc).
+func titulo_npc(no: Node3D, cargo: String) -> void:
+	if cargo == "":
+		return
+	var nome: Label3D = null
+	for l in no.get_children():
+		if l is Label3D:
+			nome = l
+			break
+	if nome == null:
+		return
+	nome.offset = Vector2(0, 0.034 / nome.pixel_size)
+	var t := Label3D.new()
+	t.name = "Titulo"
+	t.text = cargo
+	t.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	t.fixed_size = true
+	t.font = nome.font
+	t.font_size = 72
+	t.outline_size = 14
+	t.pixel_size = 0.00034 * 1.15
+	t.offset = Vector2(0, 0.005 / t.pixel_size)
+	t.modulate = Color(1.0, 0.85, 0.5)
+	t.position = nome.position
+	t.visibility_range_end = nome.visibility_range_end
+	no.add_child(t)
 
 # perto da Rosa, a comerciante? (o servidor confere a mesma distância para comprar e vender)
 func perto_da_loja() -> bool:
@@ -3281,7 +3311,11 @@ func atualizar_heroi(dt: float) -> void:
 		var s_ry := sin(mov.ry)
 		var c_ry := cos(mov.ry)
 		heroi_anim.dir_local = Vector2(mov.vx * c_ry - mov.vz * s_ry, mov.vx * s_ry + mov.vz * c_ry)
-	heroi.position = mov.posicao()
+	if desliza != Vector3.ZERO: # some em ~0,3 s
+		desliza = desliza.lerp(Vector3.ZERO, minf(1.0, dt * 12.0))
+		if desliza.length_squared() < 0.0004:
+			desliza = Vector3.ZERO
+	heroi.position = mov.posicao() + desliza
 	heroi.rotation.y = mov.ry
 	passo_encostar(dt)
 	# nado: entrou ou saiu da água funda

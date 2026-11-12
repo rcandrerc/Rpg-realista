@@ -7,7 +7,7 @@ import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
-import { TUNEIS_MUNDO, VILAS_MUNDO } from '../../shared/dados.js';
+import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc } from '../../shared/dados.js';
 import { CALCADA } from '../../shared/vilas.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
@@ -100,7 +100,7 @@ const mundo = {
   escalada: Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => [k, { dur: r4(DURACAO[e.anim] / e.ts), traj: e.traj }])),
   subida: SUBIDA, parado: PARADO_PAREDE, alturaHeroi: HEROI.altura, movimento: MOVIMENTO,
   // NPCs da vila no mesmo lugar do servidor (a loja só vende perto da Rosa)
-  npcs: (MAPA_CLAREIRA.npcs || []).map((n) => ({ id: n.id, nome: n.nome, x: n.x, z: n.z, ry: n.ry, funcao: n.funcao, tinta: n.tinta, escala: n.escala, roupa: n.roupa, arma: n.arma, anciao: n.anciao, veste: n.veste, esconder: n.esconder, limpar_rosto: n.limpar_rosto, friso: n.friso, visual: n.visual, vila: n.vila, oficio: n.oficio, depois: n.depois, ate: n.ate, acoes: n.acoes || [], merch: n.merch, missao: n.missao ? MISSOES[n.missao]?.nome : undefined, falas: n.falas })),
+  npcs: (MAPA_CLAREIRA.npcs || []).map((n) => ({ id: n.id, nome: n.nome, cargo: cargoNpc(n), icone: iconeNpc(n), x: n.x, z: n.z, ry: n.ry, funcao: n.funcao, tinta: n.tinta, escala: n.escala, roupa: n.roupa, arma: n.arma, anciao: n.anciao, veste: n.veste, esconder: n.esconder, limpar_rosto: n.limpar_rosto, friso: n.friso, visual: n.visual, vila: n.vila, oficio: n.oficio, depois: n.depois, ate: n.ate, acoes: n.acoes || [], merch: n.merch, missao: n.missao ? MISSOES[n.missao]?.nome : undefined, falas: n.falas })),
   // onde se coleta (Parte 3): veios (v0...) com o giro do desenho e as árvores (a0...), com os mesmos ids do servidor
   coletaveis: [...sim.coletaveis.values()].map((c, i) => ({ ...c, r: r4(c.r), ry: c.ry ?? MAPA_CLAREIRA.veios[i]?.ry ?? 0 })),
   // Vila dos Lotes (construção e fazenda): os lotes com a placa e a área (godot-prototipo/construcao.gd)

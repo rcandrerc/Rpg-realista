@@ -670,12 +670,23 @@ export class Simulacao {
     const num = (v) => typeof v === 'number' && Number.isFinite(v);
     if (!p || !num(p.x) || !num(p.y) || !num(p.z) || !num(p.ry)) return false;
     if (p.e === 1) j.ciente = true; // app que conhece a estamina (o Godot): sem fôlego não corre
+    j.vivoT = this.tempo; // o celular está mandando (guiado: o servidor não anda o herói sozinho enquanto ele manda)
+    // c: quantos "corrigir" o celular já aplicou. Posição que saiu antes da correção mais nova chega atrasada: ignora sem
+    // corrigir de novo (antes cada pacote atrasado ganhava o seu "corrigir" e o herói voltava várias vezes; André 2026-11-12)
+    if (Number.isInteger(p.c) && p.c < (j.corrSeq || 0) && this.tempo - (j.corrT ?? -99) < ORCAMENTO.correcao) return false;
     const mont = MONTARIAS[j.montado], vv = this.velVeiculo(j);
     // carrinho, barquinho ou navio: a velocidade dele; pack nas costas: anda mais devagar e não corre (Quimera x0,68)
     const lentoH = j.lentoH && j.lentoH.ate > this.tempo ? 1 - j.lentoH.k * 0.8 : 1; // lentidão de skill de boss (folga de 20% para a rede)
     const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3 * lentoH;
     if (j.orcT == null) { j.orc = ORCAMENTO.burst; j.orcT = this.tempo; }
-    j.orc = Math.min(ORCAMENTO.burst, j.orc + (this.tempo - j.orcT) * vmax); j.orcT = this.tempo;
+    // a folga enche na velocidade máxima. Depois de um silêncio (internet engasgada), as posições guardadas chegam juntas:
+    // o teto cresce com o tempo calado (até ORCAMENTO.silencio s de corrida), e o que sobrar dele vai minguando depois
+    { const dtS = this.tempo - j.orcT;
+      if (dtS > 0) {
+        const teto = ORCAMENTO.burst + vmax * Math.min(dtS, ORCAMENTO.silencio);
+        j.orc = j.orc > teto ? Math.max(teto, j.orc - dtS * vmax * 0.5) : Math.min(teto, j.orc + dtS * vmax);
+      } }
+    j.orcT = this.tempo;
     const T = this.terreno, d = Math.hypot(p.x - j.x, p.z - j.z), chao = T.altura(p.x, p.z, p.y);
     // embaixo: vale o chão mais baixo num palmo em volta (agarrado na parede, o corpo fica rente a ela)
     let baixo = chao; for (const [ox, oz] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) baixo = Math.min(baixo, T.altura(p.x + ox, p.z + oz, p.y));
@@ -687,7 +698,7 @@ export class Simulacao {
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)) // caverna da montanha: do selo para dentro só com o passe usado
       && !this.naNevoa(j, p.x, p.z); // progressão (André 2026-11-10): zona ainda fechada pela névoa, fica na borda
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
-      this.evento({ t: 'corrigir', para: id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry) });
+      this.corrigir(j);
       j.cliente = null;
       return false;
     }
@@ -716,7 +727,19 @@ export class Simulacao {
     j.cliente = { t: this.tempo };
     return true;
   }
-  guiado(j) { return j.tipo === 'jogador' && j.cliente && !j.morto && this.tempo - j.cliente.t < 0.5; }
+  // "corrigir" numerado (c): o celular aplica só o mais novo e manda o número de volta em cada posição
+  corrigir(j) {
+    j.corrSeq = (j.corrSeq || 0) + 1; j.corrT = this.tempo; this.correcoes = (this.correcoes || 0) + 1; // correcoes: /saude
+    this.evento({ t: 'corrigir', para: j.id, x: r2(j.x), y: r2(j.y), z: r2(j.z), ry: r2(j.ry), c: j.corrSeq });
+  }
+  // guiado: o celular move o herói. O app Godot (ciente) que ficou calado (internet engasgada) continua guiado por
+  // ORCAMENTO.silencio s: o servidor espera em vez de andar o herói pelo último joystick (o lugar adivinhado era outro e
+  // virava rollback; André 2026-11-12). Recusou a posição (cliente null): como antes, o servidor anda pelo joystick.
+  guiado(j) {
+    if (j.tipo !== 'jogador' || j.morto) return false;
+    if (j.cliente && this.tempo - j.cliente.t < 0.5) return true;
+    return !!(j.ciente && j.cliente && this.tempo - (j.vivoT ?? -99) < ORCAMENTO.silencio);
+  }
   usarHabilidade(id, i) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.esc || j.criando) return;
     if (j.coleta) this.pararColeta(j);
@@ -887,7 +910,7 @@ export class Simulacao {
     if (C.heroi?.pos) {
       const [x, z] = C.heroi.pos, y = this.terreno.altura(x, z, (j.y || 0) + 2);
       Object.assign(j, { x, z, y, ry: C.heroi.ry ?? j.ry, vy: 0, chao: true, esc: null });
-      this.evento({ t: 'corrigir', para: j.id, x: r2(x), y: r2(y), z: r2(z), ry: r2(j.ry) });
+      this.corrigir(j);
     }
     this.evento({ t: 'cena', para: j.id, id });
     // durante a cena (no meio da luta, do lado dos monstros) ninguém bate no herói: a soma das tomadas e a saída

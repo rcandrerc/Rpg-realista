@@ -173,6 +173,7 @@ func passo(dt: float, vel: float) -> void:
 	var lc := b.inverse() * c
 	pose.lombo = clamp((atan2(lc.y, Vector2(lc.x, lc.z).length()) - _lombo_descanso) * 0.3, -0.15, 0.15)
 	pose.frente_lobo = b.z
+	pose.com_sela = true
 	pose.lado_lobo = b.x
 	pose.cima_lobo = b.y
 	# mãos: juba logo atrás das orelhas, do lado de cada mão; pés: no flanco, atrás e abaixo da sela
