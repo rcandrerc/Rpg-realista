@@ -33,6 +33,10 @@ var _vinculo_ate := 0.0
 var _pedindo := false
 var _tempo := 0.0
 var ping_ms := -1.0
+# André 2026-11-12 (de quem é a culpa do lag?): quando chegou o último pacote do servidor e o pior passo dele nos
+# últimos segundos (mensagem "carga", junto com o pong). online.gd mostra "Internet travada" ou "Servidor lento".
+var ult_pacote_ms := 0
+var servidor_pico := -1.0
 var _ping_t := 0.0
 
 func _ready() -> void:
@@ -262,6 +266,7 @@ func _passo(dt: float) -> void:
 		caiu.emit(motivo)
 		return
 	while ws.get_available_packet_count() > 0:
+		ult_pacote_ms = Time.get_ticks_msec()
 		_receber(ws.get_packet())
 	# André 2026-11-12: depois de um engasgo da internet chegam dezenas de fotos atrasadas juntas. Antes cada uma era
 	# aplicada inteira no mesmo quadro (o jogo travava na volta). Agora só a mais nova é aplicada inteira; as do meio só
@@ -323,5 +328,8 @@ func _receber(p: PackedByteArray) -> void:
 				return
 			if str(tipo) == "pong" and dados is int:
 				ping_ms = Time.get_ticks_msec() - dados
+				return
+			if str(tipo) == "carga" and dados is Dictionary:
+				servidor_pico = float(dados.get("pico", -1))
 				return
 			mensagem.emit(tipo, dados)

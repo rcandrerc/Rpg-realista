@@ -260,10 +260,22 @@ func atualizar_status(_t := "") -> void:
 		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
 		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
 		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
+		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
+		# ms; o ping velho ficava na tela até o pong atrasado chegar com 20000). Servidor com passo lento: "Servidor lento"
+		var calado := (Time.get_ticks_msec() - rede.ult_pacote_ms) / 1000.0 if rede.ult_pacote_ms > 0 else 0.0
+		var aviso := ""
+		if calado >= 1.5:
+			aviso = "Internet travada · %d s sem resposta" % int(calado)
+		elif rede.servidor_pico > 150.0:
+			aviso = "Servidor lento%s" % p
+		if aviso != "":
+			txt = aviso
 		if status.text != txt: # trocar o texto refaz o layout: só quando muda
 			status.text = txt
 			var cor := Color(1, 0.95, 0.85)
-			if rede.ping_ms >= 0:
+			if aviso != "":
+				cor = Color(1.0, 0.5, 0.45) if calado >= 1.5 else Color(1.0, 0.7, 0.35)
+			elif rede.ping_ms >= 0:
 				cor = Color(0.6, 1.0, 0.6) if rede.ping_ms < 100 else (Color(1.0, 0.9, 0.4) if rede.ping_ms < 200 else Color(1.0, 0.5, 0.45))
 			status.add_theme_color_override("font_color", cor)
 	elif _t != "" and _t != "Online":

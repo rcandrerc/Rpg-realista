@@ -20,7 +20,7 @@ const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
-const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
+const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // queda (André 2026-11-12): conta -> hora (ms) da última posição que o servidor recebeu dela antes de cair. Entrando de novo,
 // o caminho andado sem internet vale (Simulacao.folgaDaQueda), em vez de puxar o herói de volta
@@ -219,7 +219,8 @@ class SalaClareira extends Room {
       this.sim.posicaoCliente(c.sessionId, p);
     });
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
-    this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) c.send('pong', t); });
+    // e o pior passo do servidor nos últimos ~3 s (app Godot: aviso "Servidor lento" no lugar do ping; André 2026-11-12)
+    this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) { c.send('pong', t); if (c.userData?.json) c.send('carga', { pico: Math.round(carga.picoPing) }); } });
     this.ouvir('visual', (c, v) => this.sim.trocarVisual(c.sessionId, String(v))); // só vale no criador
     // "Pronto" no criador: nome, corpo e aparência ficam gravados na conta e o criador não abre mais
     this.ouvir('pronto', (c, p) => {
@@ -278,7 +279,10 @@ class SalaClareira extends Room {
 
   tick() {
     const t0 = performance.now();
-    try { this.tickDeVerdade(); } finally { const ms = performance.now() - t0; carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms; }
+    try { this.tickDeVerdade(); } finally {
+      const ms = performance.now() - t0, agora = Date.now(); carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms;
+      if (ms > carga.picoPing || agora - carga.picoPingT > 3000) { carga.picoPing = ms; carga.picoPingT = agora; } // janela de ~3 s para o aviso no app
+    }
   }
 
   tickDeVerdade() {
