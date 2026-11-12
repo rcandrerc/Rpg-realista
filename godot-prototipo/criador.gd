@@ -120,6 +120,7 @@ func _ready() -> void:
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_2X
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	vp.process_mode = Node.PROCESS_MODE_DISABLED # FPS 2026-11-12: o boneco do criador fechado não anima à toa
 	palco.add_child(vp)
 	raiz.add_child(palco)
 	montar_palco()
@@ -669,6 +670,7 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	mostrar_armas("")
 	raiz.visible = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	vp.process_mode = Node.PROCESS_MODE_INHERIT
 	m.hud.bloqueado = true
 	m.get_viewport().disable_3d = true # a vila fica escondida atrás do palco: não desenha (mais leve no celular)
 	rolagem.scroll_vertical = 0
@@ -687,6 +689,7 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 func fechar() -> void:
 	raiz.visible = false
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	vp.process_mode = Node.PROCESS_MODE_DISABLED
 	m.hud.bloqueado = false
 	m.get_viewport().disable_3d = false
 	nome_edit.release_focus()
