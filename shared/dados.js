@@ -2487,6 +2487,11 @@ export const AMIGA = {
   // (depois de 3 desvios no mesmo ponto pula para o próximo); seco: s fora da água para subir de novo no lobo; agua: fundo
   // (m) que já desce do lobo e atravessa a nado; frente: m adiante na rota para ver a água
   viagem: { estrada: 25, chega: 10, olha: 2.4, replanejar: 12, novaEm: 3, preso: 1.5, desvio: 0.8, seco: 0.8, agua: 0.5, frente: 3, folga: 1.6, extra: 60 },
+  // André 2026-11-12 ("ficam caminhando sem sair do lugar o tempo todo, batendo na parede... ou ficam parados, ou ficam
+  // andando de verdade"): querendo andar mas sem sair do lugar por preso s (andou menos que minimo do passo esperado):
+  // passeio à toa é largado (fica parado e escolhe outro); indo para um lugar, desvia de lado por desvio s; depois de
+  // desvios tentativas seguidas sem sair, aparece no ponto (só fora do time e até salto m; no time só desvia)
+  parede: { preso: 1.5, minimo: 0.25, desvio: 0.9, desvios: 3, salto: 30 },
   // o que ela pede ao André (e paga de volta com o que colheu, ou em ouro)
   pedidos: [{ k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'couro', n: 2 }, { k: 'semente_cenoura', n: 3 }, { k: 'minerio_cobre', n: 3 }],
   falas: {
