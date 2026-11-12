@@ -365,7 +365,7 @@ falar('v_odete'); fim('h11');
 subir(49); falar('m_conserva'); ok(missao() === 'c11', 'Dona Marta: conservas');
 s.historia(j, 'plantar', { k: 'batata' }); s.historia(j, 'plantar', { k: 'milho' });
 for (let k = 0; k < 4; k++) s.historia(j, 'pack_fez', { k: 'conserva' });
-entregar('conserva', 'm_abobora', 'carrinho', 4); falar('m_conserva'); fim('c11');
+entregar('conserva', 'm_abobora', 'carrinho', 4); p.mochila.fill(null, 20); falar('m_conserva'); fim('c11'); // lugar para o presente (os kits do comecinho, shared/kit.js, ocupam uns lugares)
 ok(s.histInfo(j).titulo === 'Voz das Estradas' && contar(p.mochila, 'selo_epico') >= 1, 'título Voz das Estradas e o Selo Épico');
 // Capítulo 12
 subir(50); p.dia = { h: 12, t: Date.now() }; falar('m_conserva'); ok(missao() === 'c12', 'a gruta dos Juncos'); correr(0.6); ok(h().e === 0, 'de dia espera');
