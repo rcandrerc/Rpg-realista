@@ -494,6 +494,7 @@ export class Simulacao {
   tocarTotem(j, t) {
     const lista = j.prog.totens || (j.prog.totens = []);
     const novo = !lista.includes(t.id);
+    this.historia(j, 'totem', { k: t.id }); // história v2 (Entrega 4): "toque o totem"
     if (!novo && j.prog.totem === t.id) return;
     if (novo) lista.push(t.id);
     j.prog.totem = t.id; j.progSujo = true;
@@ -541,6 +542,7 @@ export class Simulacao {
     this.avisarProg(j);
     this.evento({ t: 'vila', id: j.id, fase: 'chegou', totem: D.id, x0: r2(x0), z0: r2(z0), x: r2(n.x), y: r2(y), z: r2(n.z) });
     this.evento({ t: 'aviso', para: j.id, texto: `Você chegou em ${D.nome} (-${taxa} de ouro)` });
+    this.historia(j, 'viajar', { k: D.id }); // história v2 (Entrega 4): viagem de totem
   }
   criarInimigo(sp) {
     const t = TIPOS_INIMIGO[sp.tipo], nivel = sp.nivel || 1, st = { ...statusInimigo(sp.tipo, nivel) }; // nível do campo de caça
@@ -926,10 +928,11 @@ export class Simulacao {
       if ((E.n || 1) > 1 && Math.min(q, E.n) > h.n) { h.n = Math.min(q, E.n); j.progSujo = true; this.avisarProg(j); }
       feito = q >= (E.n || 1);
     }
-    else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho');
+    else if (E.ja === 'tem') feito = contar(p.mochila, E.k) > 0 || (E.k === 'barquinho' && j.veiculo === 'barquinho') || (E.k === 'navio' && !!p.navio); // navio já feito (na água ou no porto)
     else if (E.ja === 'atributos') feito = Object.values(p.atr).some((v) => v > 3);
     else if (E.ja === 'passe') feito = contar(p.mochila, 'passe_caverna') > 0; // já tem o Passe da Caverna
     else if (E.ja === 'carrinho') feito = (p.carrinho?.lv || 0) >= (E.min || 1); // carrinho já no nível pedido
+    else if (E.ja === 'totem') feito = (p.totens || []).includes(E.k); // já tocou esse totem antes
     else if (E.ja === 'carro_ok') feito = !!p.carrinho && !p.carrinho.quebrado && p.carrinho.vida >= VEICULOS.carrinho.vida; // inteiro
     if (!feito && E.ev === 'ter') {
       const n = Object.entries(E.itens).reduce((a, [k, q]) => a + Math.min(q, contar(p.mochila, k)), 0);
@@ -940,7 +943,8 @@ export class Simulacao {
     if (!feito && E.ev === 'time') feito = (j.time?.membros.length || 0) >= 2; // alguém no time (a Cecília e o Dario contam)
     if (!feito && E.ev === 'pos' && !j.morto) {
       const [x, z, r, y] = E.pos;
-      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho') && (!E.caverna || !!j.caverna);
+      feito = Math.hypot(j.x - x, j.z - z) <= r && (y == null || (j.y || 0) >= y) && (!E.barco || j.veiculo === 'barquinho') && (!E.caverna || !!j.caverna)
+        && (!E.navio || j.veiculo === 'navio') && (E.ate == null || (j.y || 0) <= E.ate); // navio; ate: abaixo dessa altura (no túnel da gruta, não no morro em cima)
     }
     if (!feito && E.ev === 'pistas' && !j.morto) {
       E.pontos.forEach(([x, z, nome], i) => {
@@ -1043,7 +1047,16 @@ export class Simulacao {
     return txt;
   }
   // para onde o "Ir" do quadrinho leva: { x, z, nome, npc } ou null
+  // "Ir" para dentro de uma caverna do mundo grande (o covil, o selo do fundo): enquanto o herói está fora do túnel, o
+  // alvo é a boca da caverna (a rota pela estrada chega na frente dela; o ponto lá dentro fica debaixo do morro)
   alvoHistoria(j) {
+    const a = this.alvoHistoriaDentro(j); if (!a) return a;
+    const T = TUNEIS.find((C) => C.def?.linha && noTunel(C, a.x, a.z, 1)); if (!T) return a;
+    const dentro = noTunel(T, j.x, j.z, 1); if (dentro && (j.y || 0) < dentro.y + 6) return a;
+    const [bx, bz] = T.def.linha[0];
+    return { x: bx, z: bz, nome: `a entrada da ${T.def.nome || 'caverna'}`, npc: '' };
+  }
+  alvoHistoriaDentro(j) {
     const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M) return null;
     const npcEm = (id) => { const n = (this.mapa.npcs || []).find((o) => o.id === id); return n ? { x: r2(n.x), z: r2(n.z), nome: n.nome.split(',')[0], npc: n.id } : null; };
     if (!h?.ac) return npcEm(M.npc);
@@ -1061,6 +1074,7 @@ export class Simulacao {
       }
       const [tipo, id] = a.split(':');
       if (tipo === 'npc') return npcEm(id);
+      if (tipo === 'totem') { const t = TOTENS.lista.find((o) => o.id === id); return t ? { x: t.x, z: t.z, nome: 'o totem de ' + t.nome, npc: '' } : null; }
       if (tipo === 'estacao') { const E = (this.mapa.estacoes || []).find((o) => o.id === id); return E ? { x: r2(E.x), z: r2(E.z), nome: E.nome, npc: '', estacao: E.id } : null; }
       if (tipo === 'caca') { const c = this.cacaDef(id); return c ? { x: c.x, z: c.z, nome: c.nome || 'o campo', npc: '' } : null; }
       if (tipo === 'veio' || a === 'solto') {
@@ -1089,7 +1103,7 @@ export class Simulacao {
     const E = h.ac ? etapaAtual(p) : null;
     const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' ? E.npc : '';
     const tit = HISTORIA.slice(0, h.p).filter((o) => o.titulo).at(-1)?.titulo || ''; // título do último ato fechado
-    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...(tit ? { titulo: tit } : {}) };
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...(tit ? { titulo: tit } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -1129,7 +1143,8 @@ export class Simulacao {
     this.avisarProg(j);
   }
   // Mestre Ivo (NPC funcao 'resetar', perto de onde o herói nasce): atributos voltam para 3 e os pontos voltam; skills ficam
-  custoReset(j) { return Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
+  // o primeiro reset com a Mestra Iara é de graça, dentro da história (capítulo 10: etapa 'resetar' com gratis)
+  custoReset(j) { const E = etapaAtual(j.prog); return E?.ev === 'resetar' && E.gratis ? 0 : Math.max(RESET_BUILD.minimo, RESET_BUILD.porNivel * j.prog.nivel); }
   resetarBuild(id) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -1143,6 +1158,7 @@ export class Simulacao {
     this.aplicarStatus(j);
     this.avisarProg(j);
     aviso(`Build resetada: ${gastos} pontos para distribuir de novo`);
+    this.historia(j, 'resetar');
   }
   // Uma das duas barras (espada ou cajado): 6 botões, só skill que serve nela, sem repetir (null = vazio)
   definirBarra(id, m) {
@@ -2765,6 +2781,7 @@ export class Simulacao {
     p.ouro -= C.ouro * da;
     this.evento({ t: 'fala', para: j.id, npc: npc.id, texto: da > 1 ? `Pronto: ${da} ${D.nome}. O caldeirão até cansou.` : `Pronto, um ${D.nome} fresquinho. Cuidado que ainda está quente.` });
     aviso(`Recebeu ${da} ${D.nome} (−${C.ouro * da} de ouro)`);
+    this.historia(j, 'sintetizar', { k });
     return true;
   }
   comecarCatalisador(j, m, i, it, aviso) {

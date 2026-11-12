@@ -1704,6 +1704,8 @@ func perto_do_npc(funcao: String, metros: float) -> bool:
 
 # preço do Mestre Ivo (RESET_BUILD de shared/dados.js, o mesmo de Simulacao.custoReset)
 func custo_reset() -> int:
+	if P.hist_info.get("resetGratis", false) == true: # história v2 (capítulo 10): a Mestra Iara reseta de graça uma vez
+		return 0
 	var R: Dictionary = mundo.get("resetBuild", {"minimo": 50, "porNivel": 10})
 	return max(int(R.minimo), int(R.porNivel) * int(P.prog.nivel))
 
