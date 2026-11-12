@@ -145,6 +145,7 @@ func montar() -> void:
 	var guardado: bool = int(cx.get("ouro", 0)) > 0 or not cx.get("itens", []).is_empty()
 	for a in [["comprar", "Comprar"], ["vender", "Vender"], ["meus", "Meus anúncios (%d/%d)" % [meus.size(), int(estado.get("max", 10))]], ["retirar", "Retirar" + (" •" if guardado else "")]]:
 		var b: Button = m.menu.botao(a[1], _aba.bind(a[0]), 14, aba == a[0])
+		b.set_meta("guia", "leilao:aba:" + str(a[0])) # guia das missões (guia.gd)
 		b.custom_minimum_size = Vector2(0, 34)
 		abas_ui.add_child(b)
 	for c in ouro_ui.get_children():
@@ -209,6 +210,7 @@ func _linha(a: Dictionary, botao: String, fn: Callable) -> Control:
 	pr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(pr)
 	var b: Button = m.menu.botao(botao, fn, 14, true)
+	b.set_meta("guia", "leilao:" + botao.to_lower()) # guia.gd: "leilao:comprar"
 	b.custom_minimum_size = Vector2(110, 36)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(b)
@@ -300,6 +302,7 @@ func _vender() -> void:
 	for i in range(pag * por_pag, min(P.prog.mochila.size(), fim)):
 		var it = P.prog.mochila[i]
 		var c: Button = m.menu.celula(it, i == sel, _escolher.bind(i), CEL)
+		c.set_meta("guia_i", i) # guia.gd: o item para anunciar
 		if it != null and it.get("cad", false):
 			c.modulate = Color(1, 1, 1, 0.35) # cadeado: não vai à venda
 		g.add_child(c)

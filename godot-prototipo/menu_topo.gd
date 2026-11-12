@@ -71,6 +71,7 @@ func _ready() -> void:
 		var b := _icone(ITENS[i][2], ITENS[i][1])
 		b.position = Vector2(i * (TAM + ESPACO), 0)
 		var k: String = ITENS[i][0]
+		b.set_meta("guia", "topo:" + k) # guia das missões (guia.gd): este ícone pisca quando é o próximo toque
 		if k == "vila":
 			b.pressed.connect(func(): m.volta.pedir())
 			_recarga_vila(b)
@@ -90,6 +91,7 @@ func _ready() -> void:
 			b.pressed.connect(func(): abrir(k))
 		itens.add_child(b)
 	seta = _icone("topo_seta", "Recolher menu")
+	seta.set_meta("guia", "topo:seta") # menu recolhido: o guia pisca a seta para abrir
 	seta.anchor_left = 1.0
 	seta.anchor_right = 1.0
 	seta.offset_left = -(MARGEM.x + TAM)
