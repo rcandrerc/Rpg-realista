@@ -26,7 +26,9 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  GODOT: 4.5-stable
+  # Godot 4.7 desde 2026-11-12 (André escolheu: desenho em paralelo de verdade, que no 4.5 não rendia). Trocar de
+  # motor pede APK novo: o pacote de um motor não abre no outro (publicar-conteudo.sh guarda uma corrente por motor).
+  GODOT: 4.7.1-stable
 
 jobs:
   # Os modelos (vila, personagens, monstros) saem do Chromium com WebGL por software. No runner ARM da Oracle
@@ -213,26 +215,32 @@ jobs:
           ls godot-prototipo/modelos/*_0.png > /dev/null 2>&1 || rm -f godot-prototipo/modelos/*.import
       - name: Godot e modelos de exportação
         run: |
-          # No runner próprio da Oracle o Godot já vem instalado (GODOT_BIN no .env): pula o download.
-          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ]; then
-            echo "Godot já instalado em $GODOT_BIN; pulando download."
+          # pasta dos modelos de exportação: "4.7.1-stable" -> "4.7.1.stable"
+          TPL=~/.local/share/godot/export_templates/${GODOT/-/.}
+          # No runner próprio da Oracle o Godot já vem instalado (GODOT_BIN no .env): pula o download, mas só se for
+          # o motor certo (o runner pode ter ficado com um Godot antigo depois de uma troca de versão).
+          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ] && [ -d "$TPL" ] \
+            && [ "$("$GODOT_BIN" --version | head -n1 | cut -d. -f1-4)" = "${GODOT/-/.}" ]; then
+            echo "Godot $GODOT já instalado em $GODOT_BIN; pulando download."
             exit 0
           fi
           # Escolhe a versão do Godot conforme a máquina (PC comum x86_64 ou ARM da Oracle).
           case "$(uname -m)" in aarch64|arm64) PLAT=linux.arm64;; *) PLAT=linux.x86_64;; esac
           cd /tmp
-          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip
-          curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
-          unzip -q godot.zip && unzip -q tpl.tpz
-          mkdir -p ~/.local/share/godot/export_templates/4.5.stable
-          mv templates/* ~/.local/share/godot/export_templates/4.5.stable/
+          curl -fsSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip
+          curl -fsSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_export_templates.tpz
+          rm -rf templates && unzip -qo godot.zip && unzip -qo tpl.tpz
+          mkdir -p "$TPL"
+          mv templates/* "$TPL"/
           echo "GODOT_BIN=/tmp/Godot_v${GODOT}_${PLAT}" >> $GITHUB_ENV
       - name: Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35" > /dev/null
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35" "build-tools;36.0.0" "platforms;android-36" > /dev/null
           mkdir -p ~/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > ~/.config/godot/editor_settings-4.5.tres
+          # o arquivo leva a versão do motor no nome (editor_settings-4.7.tres)
+          V=$(echo "$GODOT" | cut -d. -f1,2)
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > ~/.config/godot/editor_settings-$V.tres
       # O aapt2 (empacotador do Android) só existe em x86_64. No runner ARM ele roda emulado. O binfmt-support
       # ignora o QEMU_LD_PREFIX, então o wrapper chama o qemu-x86_64 DIRETO com -L apontando pro sysroot x86_64.
       # Atenção ao usrmerge: os .deb trazem o loader em usr/lib64; o loader precisa ficar em lib64/ e as libs em
@@ -330,6 +338,34 @@ jobs:
         run: |
           $GODOT_BIN --headless --export-pack Android $GITHUB_WORKSPACE/base-$((1000 + ${{ github.run_number }})).pck
           ls -la $GITHUB_WORKSPACE/base-*.pck
+      # Só em PR (troca de motor, 2026-11-12): abre a vila de verdade (servidor local, Vulkan por software), anda ~45 s
+      # com o desenho em paralelo e depois junto, e falha se aparecer erro de script ou de shader. Pega o que o
+      # motor novo quebrar antes de ir para a main. Os números de FPS daqui não valem para o celular.
+      - name: Teste do jogo aberto (só em PR)
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 20
+        run: |
+          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers > /dev/null
+          mkdir -p /tmp/srv
+          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null)
+          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          falhou=0
+          for modo in separate safe; do
+            RPG_SERVIDOR=http://127.0.0.1:2567 RPG_SESSAO="$SESSAO" timeout 480 xvfb-run -a -s "-screen 0 960x432x24" \
+              $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --resolution 960x432 --render-thread $modo \
+              -s $GITHUB_WORKSPACE/ferramentas/motor/fumaca.gd > /tmp/fumaca-$modo.log 2>&1 || falhou=1
+            echo "--- desenho $modo ---"
+            grep -E "^FUMACA" /tmp/fumaca-$modo.log || true
+            echo "erros e avisos (repetições):"
+            grep -E "^(ERROR|WARNING|SCRIPT ERROR|SHADER ERROR)" /tmp/fumaca-$modo.log | sort | uniq -c | sort -rn | head -25 || true
+            if grep -qE "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log; then
+              echo "::error::erro de script ou shader no desenho $modo"; grep -E -A3 "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load script" /tmp/fumaca-$modo.log | head -60
+              falhou=1
+            fi
+            grep -q "^FUMACA ok" /tmp/fumaca-$modo.log || falhou=1
+          done
+          exit $falhou
       - name: Atualização dentro do app (pacote só com o que mudou desde o APK base)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:

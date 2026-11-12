@@ -1069,6 +1069,27 @@ static func anim_espacada(anim: AnimationPlayer, esq: Skeleton3D, espacar: bool)
 	if esq:
 		esq.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL if espacar else Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
 
+# Fora da tela (André 2026-11-12, aprovou a "versão pequena" do item 4 do prompt de performance): quem já está sem
+# sombra (NPC a mais de 10 m, jogador fora dos mais perto) e não aparece na câmera não precisa animar. A conta do tempo
+# continua e a animação anda tudo de uma vez quando ele volta para a tela, então ninguém vê a pausa. Perto (com
+# sombra) fica igual: a sombra de quem está atrás da câmera ainda aparece no chão.
+const FORA_RAIO := 2.0 # m: folga em volta do corpo (braço, arma, capa na beira da tela continuam animando)
+const FORA_ACC_MAX := 0.25 # s: ao voltar para a tela, as molas (cabelo, saia) não recebem um passo grande demais
+var _planos: Array[Plane] = []
+var _planos_q := -1
+
+func fora_da_tela(p: Vector3) -> bool:
+	if camera == null:
+		return false
+	var q := Engine.get_process_frames()
+	if q != _planos_q:
+		_planos_q = q
+		_planos = camera.get_frustum()
+	for pl in _planos:
+		if pl.distance_to(p) > FORA_RAIO:
+			return true
+	return false
+
 static func npc_simples(no: Node, simples: bool) -> void:
 	if _mat_nada == null:
 		var sh := Shader.new()
@@ -3529,10 +3550,13 @@ func lod_inimigos() -> void:
 			n.anim_acc = float(n.get("anim_acc", 0.0)) + get_process_delta_time()
 			var passo_n: int = 3 if dn > NPC_ANIM_LONGE * NPC_ANIM_LONGE else 2
 			if (Engine.get_process_frames() + int(n.fase)) % passo_n == 0:
-				n.anim_p.advance(n.anim_acc)
-				if n.esq_p:
-					n.esq_p.advance(n.anim_acc)
-				n.anim_acc = 0.0
+				if fora_da_tela(n.no.position + Vector3(0, 1, 0)):
+					n.anim_acc = minf(n.anim_acc, FORA_ACC_MAX)
+				else:
+					n.anim_p.advance(n.anim_acc)
+					if n.esq_p:
+						n.esq_p.advance(n.anim_acc)
+					n.anim_acc = 0.0
 		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)

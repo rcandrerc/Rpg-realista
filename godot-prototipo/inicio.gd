@@ -21,6 +21,9 @@ const CENA_JOGO := "res://main.tscn"
 const ESPERA_MANIFESTO := 6.0 # segundos: sem resposta, entra com o que já tem
 
 # ---- APK casca ----
+# Cada motor tem a sua corrente (2026-11-12, troca do Godot 4.5 para o 4.7): pacote feito por um motor não abre no
+# outro. O APK do 4.5 continua lendo conteudo.json (que ficou parado na última versão do 4.5); APK de outro motor lê
+# conteudo-MAIOR.MENOR.json (ex.: conteudo-4.7.json). O publicar-conteudo.sh grava no nome do motor que fez o build.
 const CONTEUDO_JSON := "https://rcandrerc.github.io/Rpg-realista/atualizacao/conteudo.json"
 const PASTA_CONTEUDO := "user://conteudo/"
 const COMPLETO := PASTA_CONTEUDO + "completo.pck"
@@ -43,7 +46,7 @@ var pular: Button
 var baixando := false
 var saindo := false
 var casca := false
-var url_conteudo := CONTEUDO_JSON
+var url_conteudo := _conteudo_do_motor()
 var conteudo := {} # conteudo.json: {"versao", "completo": {"id", "tamanho", "partes": [{"arq", "tamanho", "sha256"}]}, "deltas": [{"versao", "arq", "tamanho", "sha256"}]}
 var feito_bytes := 0 # já baixado nesta abertura (barra soma todos os arquivos)
 var total_bytes := 0
@@ -51,7 +54,8 @@ var tentar: Button
 
 # Desenho em paralelo (APK 2026-11-12, auditoria de FPS): o project.godot liga a linha de desenho separada
 # (rendering/driver/threads/thread_model = 2) e lê por cima user://motor.cfg (application/config/
-# project_settings_override). O recurso ainda é "experimental" no Godot 4.5, então a trava é pessimista: toda
+# project_settings_override). Só vale a partir do Godot 4.6 (no 4.5 o desenho esperava a lógica do mesmo jeito, medido
+# em 2026-11-12). Por segurança a trava é pessimista: toda
 # abertura em paralelo já deixa gravado o modo antigo (1) para a próxima e conta uma falha; o jogo (grafico.gd)
 # grava o 2 de volta e zera a conta depois de rodar uns segundos sem cair. Caiu duas vezes seguidas: fica no modo
 # antigo até o jogador ligar de novo em Configurações.
@@ -65,6 +69,12 @@ func _trava_paralelo() -> void:
 	cfg.set_value("aethra", "paralelo_falhas", int(cfg.get_value("aethra", "paralelo_falhas", 0)) + 1)
 	cfg.set_value("rendering", "driver/threads/thread_model", 1)
 	cfg.save(MOTOR)
+
+static func _conteudo_do_motor() -> String:
+	var v := Engine.get_version_info()
+	if int(v.major) == 4 and int(v.minor) == 5:
+		return CONTEUDO_JSON
+	return CONTEUDO_JSON.get_base_dir() + "/conteudo-%d.%d.json" % [int(v.major), int(v.minor)]
 
 func _ready() -> void:
 	_trava_paralelo()

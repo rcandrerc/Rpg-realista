@@ -23,12 +23,14 @@ const PRESETS := [
 		"fps": 30, "agua_simples": true, "lod": 4.0},
 	{"escala": 0.52, "sombra": true, "sombra_dist": 15.0, "atlas": 1024, "suave": RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,
 		"msaa": Viewport.MSAA_2X, "alcance": 0.78, "grama": 0.75, "grama_qtd": 0.75, "nevoa": 1.25,
-		"fps": 0, "agua_simples": false, "lod": 2.0},
+		"fps": 60, "agua_simples": false, "lod": 2.0},
 	# Alta = os números de hoje (main.gd RESOLUCAO_PADRAO e montar_ambiente, project.godot)
 	{"escala": 0.6, "sombra": true, "sombra_dist": 20.0, "atlas": 2048, "suave": RenderingServer.SHADOW_QUALITY_SOFT_LOW,
 		"msaa": Viewport.MSAA_2X, "alcance": 1.0, "grama": 1.0, "grama_qtd": 1.0, "nevoa": 1.0,
-		"fps": 0, "agua_simples": false, "lod": 1.0},
+		"fps": 60, "agua_simples": false, "lod": 1.0},
 ]
+# André 2026-11-12: Média e Alta travam em 60 por padrão (eram "sem limite": numa tela de 120 Hz o celular esquentava
+# à toa). Quem escolheu outro valor em "Limite FPS" continua com o dele.
 const ENCOLHE_DE := 65.0 # grama.gdshader: a folha encolhe de 65 a 75 m (aqui vezes o fator da grama)
 const ENCOLHE_ATE := 75.0
 
