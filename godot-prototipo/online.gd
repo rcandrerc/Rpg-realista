@@ -619,6 +619,11 @@ func outro(j: Dictionary) -> void:
 	if placa != o.placa_txt and o.placa != null:
 		o.placa_txt = placa
 		o.placa.text = placa
+	# título em uso (André 2026-11-12): em cima do nome, mais brilhante quanto mais difícil (titulos.gd)
+	var tit := str(j.get("tit", "")) if j.get("tit") != null else ""
+	if tit != str(o.get("tit", "")) and m.titulos != null:
+		o.tit = tit
+		m.titulos.por(o.no, o.placa, tit)
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))

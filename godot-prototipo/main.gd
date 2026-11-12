@@ -32,6 +32,7 @@ const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
+const Titulos = preload("res://titulos.gd") # títulos com bônus em cima da cabeça (André 2026-11-12)
 const Trabalho = preload("res://trabalho.gd")
 const Pesca = preload("res://pesca.gd")
 const Transporte = preload("res://transporte.gd") # FASE 1: packs e transportes do Quimera
@@ -166,6 +167,7 @@ var editar_hud # editar_hud.gd: segurar o painel de vida e mana abre o modo de e
 var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
 var criador # criador.gd: criador de personagem (conta nova e botão Aparência do menu)
+var titulos # titulos.gd: nome, nível e título em uso em cima da cabeça
 var aparencia := {} # cores, altura e rosto do herói (a base é sempre a Ruiva)
 var visual := "ruiva" # corpo do herói (criador: a Ruiva e o cabelo_m, CRIADOR.corpos)
 const ARQUIVO_APARENCIA := "user://aparencia.cfg" # última aparência (para jogar sem internet)
@@ -419,6 +421,8 @@ func _ready() -> void:
 	hud.editor = editar_hud
 	retrato_heroi = RetratoHeroi.new(self)
 	add_child(retrato_heroi)
+	titulos = Titulos.new(self)
+	add_child(titulos)
 	grafico.aplicar() # resolução, sombra, névoa e alcance do nível escolhido (Alta = como sempre foi)
 
 # ---------- cenário ----------
