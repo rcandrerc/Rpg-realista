@@ -384,7 +384,7 @@ jobs:
         run: |
           sudo apt-get install -y -qq xvfb mesa-vulkan-drivers > /dev/null
           mkdir -p /tmp/srv
-          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null)
+          SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null | tail -n1) # só a última linha: a conta nova também imprime "Conta nova: ..."
           (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
           for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
           # o servidor pode ouvir só no IPv6 (::1) na máquina do GitHub: usa o endereço que responde
