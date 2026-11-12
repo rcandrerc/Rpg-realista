@@ -16,6 +16,7 @@ import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const FALAR_JANELA = 4.8; // m: toque num botão da janela do NPC (o app fecha a janela a 4,5 m; folga da rede)
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
 const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
@@ -1106,7 +1107,13 @@ export class Simulacao {
     };
     if (E.ev === 'falar') return npcEm(E.npc);
     if (E.ev === 'pistas') { const i = E.pontos.findIndex((q, k) => !(h.m & (1 << k))); const q = E.pontos[Math.max(0, i)]; return { x: q[0], z: q[1], nome: q[2], npc: '' }; }
-    if (E.hc) { const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto); return b ? { x: r2(b.x), z: r2(b.z), nome: C.nome, npc: '' } : c ? { x: c.x, z: c.z, nome: c.nome || C.nome, npc: '' } : null; }
+    if (E.hc) { // chefe da caverna (sala, sem campo) que ainda não apareceu: vale o lugar da etapa (robô das missões: o Ir do Trono não levava a lugar nenhum)
+      const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto);
+      if (b) return { x: r2(b.x), z: r2(b.z), nome: C.nome, npc: '' };
+      if (c) return { x: c.x, z: c.z, nome: c.nome || C.nome, npc: '' };
+      const S = C?.sala && this.dungeon?.salas.find((o) => o.def.id === C.sala)?.def.pontos[0];
+      return E.alvo ? resolve(E.alvo) : S ? { x: r2(S.x), z: r2(S.z), nome: C.nome, npc: '' } : null;
+    }
     if (E.alvo && typeof E.alvo === 'object') { const k = Object.keys(E.alvo).find((q) => contar(p.mochila, q) < E.itens[q]); return resolve(E.alvo[k || Object.keys(E.alvo)[0]]); }
     if (E.alvo) return resolve(E.alvo);
     if (E.ev === 'matar' && E.campos) { let b = null, md = Infinity; for (const id of E.campos) { const c = this.cacaDef(id); if (c && aberto(c.x, c.z)) { const d = Math.hypot(c.x - j.x, c.z - j.z); if (d < md) { md = d; b = c; } } } return b ? { x: b.x, z: b.z, nome: b.nome || 'o campo', npc: '' } : null; }
@@ -3203,7 +3210,14 @@ export class Simulacao {
     const ve = (n) => (!n.depois || npcApareceu(j.prog, n.depois)) && (!n.ate || !npcApareceu(j.prog, n.ate));
     for (const n of this.mapa.npcs || []) { const d = dist(n, j); if (d < md && ve(n)) { md = d; npc = n; } }
     const quem = m && typeof m === 'object' && typeof m.npc === 'string' ? (this.mapa.npcs || []).find((n) => n.id === m.npc) : null;
-    if (quem && dist(quem, j) < 3.2 && ve(quem)) npc = quem;
+    // Botão da janela do NPC (o app diz quem): vale até FALAR_JANELA m. O app abre a janela a até 4 m (o Ir da missão,
+    // missao_ativa.gd PERTO_NPC) e só fecha a 4,5 m; antes o servidor só ouvia a 3,2 m e o toque em "Missão" não fazia
+    // nada, ou caía em outro NPC mais perto (robô das missões, André 2026-11-12: "às vezes tem que clicar 3 vezes").
+    if (quem) {
+      if (!ve(quem)) return;
+      if (dist(quem, j) >= FALAR_JANELA) return void this.evento({ t: 'aviso', para: j.id, texto: `Chegue mais perto de ${quem.nome.split(',')[0]}` });
+      npc = quem;
+    }
     if (!npc) return;
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];

@@ -90,6 +90,19 @@ func _toque_cartao(ev: InputEvent) -> void:
 	if m.sons:
 		m.sons.tocar("pano", -10.0)
 
+# a missão acabou de começar no NPC (conversa.gd): a barrinha pisca duas vezes, clareando e voltando. Só um tween curto.
+var _pisca: Tween
+func destacar() -> void:
+	if cartao == null:
+		return
+	if _pisca != null and _pisca.is_valid():
+		_pisca.kill()
+	cartao.modulate = Color.WHITE
+	_pisca = create_tween()
+	for i in 2:
+		_pisca.tween_property(cartao, "modulate", Color(1.6, 1.5, 1.9), 0.18)
+		_pisca.tween_property(cartao, "modulate", Color.WHITE, 0.3)
+
 # hud.gd: toque aqui não vira joystick nem câmera
 func cobre(p: Vector2) -> bool:
 	return cartao != null and cartao.visible and cartao.get_global_rect().grow(6).has_point(p)
@@ -263,7 +276,7 @@ func _abrir_npc(id: String) -> void:
 		return
 	for n in m.npcs:
 		if str(n.get("id", "")) == id:
-			m.conversa.abrir(n)
+			m.conversa.abrir(n, false) # abriu sozinha (Ir): o primeiro toque em Missão já vale
 			return
 
 # ---------- marca no chão (história v2): coluna de luz lilás na pista, no fragmento ou no meio do lago ----------

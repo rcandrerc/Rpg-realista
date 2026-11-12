@@ -61,10 +61,48 @@ const s = new Simulacao(MAPA_CLAREIRA);
 const j = s.adicionarJogador('A', 'Ana');
 const p = j.prog, h = () => p.hist;
 let ev = [];
-const correr = (seg) => { for (let t = 0; t < seg / 0.05; t++) ev.push(...s.passo(0.05)); };
+// ---------- o robô (André 2026-11-12: "um robô para fazer todas as missões e testar") ----------
+// Em cima da partida inteira abaixo, o robô vê só o que o app vê (o "hi" de cada evento prog: a barrinha da missão, o
+// botão Ir e o botão "Missão" do NPC) e faz o que o jogador faz no celular: Ir até o NPC (o app abre a janela a até
+// PERTO_NPC m, missao_ativa.gd), toca uma vez em "Missão" e a janela fecha (conversa.gd _missao_iniciada). Cada toque
+// que não fez nada, botão que não aparece, Ir que leva para dentro da névoa ou barrinha atrasada vira FALHOU no fim.
+const PERTO_NPC = 4.0, PARA_ANTES = 1.8; // godot-prototipo/missao_ativa.gd
+const cli = { hi: null }, robo = { toques: 0, missoes: new Set(), bugs: new Map() };
+const bug = (k, txt) => { if (!robo.bugs.has(k)) robo.bugs.set(k, txt); };
+const verCliente = (lista) => {
+  let veio = false;
+  for (const e of lista) if (e.t === 'prog' && e.para === 'A') { cli.hi = e.hi; veio = true; }
+  const a = cli.hi?.alvo, M = HISTORIA[h()?.p];
+  // etapa que acontece num lugar sem o Ir: o jogador não sabe para onde ir
+  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar'];
+  if (E && !a && !(semLugar.includes(E.ev) && !E.alvo)) bug(`semIr:${M.id}:${h().e}`, `${M.id} etapa ${h().e + 1} (${E.ev}): o botão Ir não tem para onde levar`);
+  if (a && M && zonaFechadaEm(p, a.x, a.z)) bug(`nevoa:${M.id}:${cli.hi.e}`, `${M.id} etapa ${cli.hi.e + 1}: o Ir leva para dentro da névoa (${a.nome})`);
+  if (cli.hi?.npc && a && a.npc !== cli.hi.npc && !/entrada d/.test(a.nome)) bug(`irnpc:${M?.id}:${cli.hi.e}`, `${M?.id} etapa ${cli.hi.e + 1}: o botão Missão está no ${cli.hi.npc} mas o Ir leva a ${a.nome}`);
+};
+const correr = (seg) => { for (let t = 0; t < seg / 0.05; t++) { const l = s.passo(0.05); ev.push(...l); verCliente(l); } };
 const avisos = () => ev.filter((e) => e.t === 'aviso' && e.para === 'A').map((e) => e.texto).join(' | ');
 const ir = (x, z, y) => Object.assign(j, { x, z, y: y ?? s.terreno.altura(x, z), cliente: null, orcT: null, cenaAte: 0 }); // ir = o tempo passou (a cena de antes acabou)
-const falar = (id) => { const n = npc(id); ir(n.x + 1, n.z); s.falar('A', { npc: id, missao: true }); correr(0.1); };
+// Toque em "Missão" na janela do NPC, como no app. A primeira conversa de cada missão é feita do ponto mais longe em que
+// o app já abre a janela (o Ir: PERTO_NPC); as outras de onde o Ir para (PARA_ANTES), cada vez de um lado.
+let lado = 0;
+const falar = (id) => {
+  const n = npc(id), M0 = HISTORIA[h().p], d = M0 && !robo.missoes.has(M0.id) ? PERTO_NPC - 0.05 : PARA_ANTES, a = (lado++ * 2.4) % (Math.PI * 2);
+  if (M0) robo.missoes.add(M0.id);
+  verCliente(s.eventos); // o que já chegou ao app antes do toque (o teste às vezes mexe direto e toca na hora)
+  ir(n.x + Math.cos(a) * d, n.z + Math.sin(a) * d, s.terreno.altura(n.x, n.z, (n.y || 0) + 2));
+  const botao = cli.hi?.npc === id, antes = JSON.stringify(h()), e0 = ev.length;
+  s.falar('A', { npc: id, missao: true }); correr(0.1); robo.toques++;
+  const mudou = JSON.stringify(h()) !== antes, novos = ev.slice(e0).filter((e) => e.para === 'A');
+  const quem = `${M0?.id || 'fim'} (${M0?.nome || ''}) no ${id}`;
+  if (botao && !mudou && !novos.some((e) => e.t === 'fala' || e.t === 'aviso')) bug(`nada:${quem}`, `${quem}: tocou em Missão a ${d.toFixed(1)} m e nada aconteceu`);
+  if (!botao && mudou) bug(`semBotao:${quem}`, `${quem}: a missão andou num NPC sem o botão Missão na janela`);
+  if (mudou && h().p < HISTORIA.length) { // a barrinha (missao_ativa.gd) já mostra a etapa nova no mesmo pacote
+    const e = h().ac ? h().e : -1;
+    if (cli.hi?.id !== HISTORIA[h().p].id || cli.hi?.e !== e) bug(`barra:${quem}`, `${quem}: a barrinha ficou com a etapa velha (${cli.hi?.id} ${cli.hi?.e} em vez de ${HISTORIA[h().p].id} ${e})`);
+  }
+  // falar de novo com o mesmo NPC logo em seguida (fecha a janela e precisa abrir de novo): o André vê como "3 cliques"
+  if (mudou && h().ac && cli.hi?.npc === id && etapa()?.ev === 'falar' && !etapa().entregar) bug(`deNovo:${quem}`, `${quem}: depois do toque o mesmo NPC pede outra conversa`);
+};
 const missao = () => HISTORIA[h().p]?.id;
 const etapa = () => etapasDe(HISTORIA[h().p])[h().e];
 const dar = (k, n) => guardar(p.mochila, { k, n });
@@ -432,12 +470,35 @@ falar('v_rui'); ok(missao() === 'f3', 'Rui: Vesper');
   correr(8.5); ok(ev.some((e) => e.t === 'aviso' && /Eu prometi que ia lembrar/.test(e.texto)), 'a Cecília lembra primeiro');
   const esc0 = b.esc; b.vida = Math.round(b.vidaMax * 0.2); correr(0.6); ok(b.esc > esc0 && ev.some((e) => e.t === 'aviso' && /se funde ao Coração/.test(e.texto)), 'fase 3: a Vesper se funde ao Coração e cresce');
   ir(b.x + 1, b.z, b.y); b.atacantes = new Set(['A']); s.ferir(b, 1e9, j); correr(0.1); j.vidaMax = j.vida = vm; }
-const coracao = etapa(); ir(coracao.pos[0], coracao.pos[1], chaoGruta('cav_nevoa', coracao.pos[0], coracao.pos[1])); correr(0.6);
+const coracao = etapa(), vm0 = j.vidaMax; j.vidaMax = j.vida = 1e9; // os Maws e Golens que a Vesper chamou ainda estão na gruta (às vezes derrubavam o herói e o teste falhava)
+ir(coracao.pos[0], coracao.pos[1], chaoGruta('cav_nevoa', coracao.pos[0], coracao.pos[1])); correr(0.6); j.vidaMax = j.vida = vm0;
 ok(etapa().npc === 'reset' && ev.some((e) => e.t === 'cena' && e.id === 'final'), 'encostou a marca no Coração: a cena final');
 p.mochila.fill(null, 10); falar('reset');
 ok(ev.some((e) => e.t === 'capitulo' && e.fase === 'fecha' && e.n === 16), 'cartão do fim'); fim('f3');
 ok(liberado(p, 'fim') && s.histInfo(j) === null, 'a história acabou: o céu limpa');
 ok(contar(p.mochila, 'runa_mitica') === 1 && contar(p.mochila, 'selo_mitico') === 1, 'Runa Mítica e Selo Mítico de presente');
+
+// ---------- o que o robô achou ----------
+ok(robo.missoes.size === HISTORIA.length, `robô passou pelas ${robo.missoes.size} de ${HISTORIA.length} missões (${robo.toques} toques em Missão)`);
+for (const t of robo.bugs.values()) ok(false, 'robô: ' + t);
+ok(robo.bugs.size === 0, `robô: ${robo.bugs.size} problemas no fluxo das missões`);
+{ // a janela do NPC: toque em "Missão" a até 4,5 m vale; mais longe avisa; nunca cai em outro NPC do lado
+  const s3 = new Simulacao(MAPA_CLAREIRA), j3 = s3.adicionarJogador('R', 'Robô'), N = npc('lider'), R = npc('comerciante');
+  const ev3 = () => s3.passo(0.05).filter((e) => e.para === 'R');
+  Object.assign(j3, { x: N.x + 4.4, z: N.z, y: s3.terreno.altura(N.x + 4.4, N.z) }); s3.falar('R', { npc: 'lider', missao: true });
+  ok(j3.prog.hist.ac && ev3().some((e) => e.t === 'fala' && e.npc === 'lider'), 'a 4,4 m do Aldo (janela aberta pelo Ir) o toque em Missão vale');
+  const s4 = new Simulacao(MAPA_CLAREIRA), j4 = s4.adicionarJogador('R', 'Robô');
+  Object.assign(j4, { x: R.x + 0.5, z: R.z, y: s4.terreno.altura(R.x + 0.5, R.z) }); s4.falar('R', { npc: 'lider', missao: true });
+  const e4 = s4.passo(0.05).filter((e) => e.para === 'R');
+  ok(!j4.prog.hist.ac && !e4.some((e) => e.t === 'fala') && e4.some((e) => e.t === 'aviso' && /mais perto de Aldo/.test(e.texto)), 'longe do Aldo e do lado da Rosa: avisa "chegue mais perto", a Rosa não responde no lugar dele');
+  // lag: dois toques chegam juntos (a janela ainda não tinha fechado no celular): aceita uma vez e não dá presente duas vezes
+  const s5 = new Simulacao(MAPA_CLAREIRA), j5 = s5.adicionarJogador('R', 'Robô'), i5 = HISTORIA.findIndex((M) => M.recebe);
+  const M5 = HISTORIA[i5]; Object.assign(j5.prog, { nivel: M5.nv }); j5.prog.hist = { v: 2, p: i5, ac: false, e: 0, n: 0, m: 0, u: HISTORIA[i5 - 1].id };
+  const N5 = npc(M5.npc); Object.assign(j5, { x: N5.x + 1.8, z: N5.z, y: s5.terreno.altura(N5.x + 1.8, N5.z) });
+  const [k5, n5] = Object.entries(M5.recebe)[0], antes5 = contar(j5.prog.mochila, k5);
+  s5.falar('R', { npc: M5.npc, missao: true }); s5.falar('R', { npc: M5.npc, missao: true }); s5.passo(0.05);
+  ok(j5.prog.hist.ac && j5.prog.hist.p === i5 && contar(j5.prog.mochila, k5) === antes5 + (typeof n5 === 'number' ? n5 : 1), `${M5.id}: dois toques juntos aceitam uma vez só (${k5} não vem dobrado)`);
+}
 
 // ---------- conta antiga ----------
 const idx = (id) => HISTORIA.findIndex((M) => M.id === id);
