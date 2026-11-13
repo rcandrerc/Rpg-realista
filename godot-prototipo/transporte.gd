@@ -833,6 +833,7 @@ func abrir_carrinho() -> void:
 	x.custom_minimum_size = Vector2(44, 44)
 	x.add_theme_font_size_override("font_size", 20)
 	x.pressed.connect(_fechar_janela)
+	x.add_to_group("guia_saida") # a trava do guia (guia.gd) sempre deixa o X passar
 	topo.add_child(x)
 	# meio: combustível (1 lugar) | carga (lugares por nível)
 	var meio := HBoxContainer.new()
