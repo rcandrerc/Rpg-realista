@@ -336,9 +336,16 @@ function quadro() {
     // aberto pelo app do celular só para fazer o login: entra, liga o app e para por aqui
     const codigoApp = new URLSearchParams(location.search).get('vincular');
     if (codigoApp) {
+      // "Trocar de conta" no app: esquece a conta que este navegador lembrava, para escolher outra no Google
+      if (new URLSearchParams(location.search).get('trocar')) await sairDaConta(servidor);
       msg('Entrando para ligar o app…');
       const r = await ligarApp(servidor, codigoApp);
       msg(r.texto);
+      // versão PC (Windows): não existe o "abrir o app" do Android; o jogo já entra sozinho, é só voltar para ele
+      if (r.ok && !/Android/i.test(navigator.userAgent)) {
+        msg(r.texto.replace('Voltando para o jogo…', 'Pode fechar esta aba e voltar para o jogo.'));
+        return;
+      }
       if (r.ok) {
         location.href = VOLTAR_APP; // abre o app de novo (o Chrome pode pedir um toque: fica o botão)
         const b = document.createElement('a');
