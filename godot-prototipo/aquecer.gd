@@ -127,3 +127,25 @@ func _mostrar_tudo() -> void:
 			m.combate.reacao(e.no, p)
 			m.combate.aviso_area(e.no, 3.0, 0.4, Color(1, 0.3, 0.2))
 		i += 1
+	# gente das mini vilas (corrida de lobo, André 2026-11-13: "a primeira vez travou, depois não travou mais"). O NPC
+	# de vila só nasce de perto (npcs_das_vilas), e o primeiro de cada corpo e roupa montava tudo na hora: carregar o
+	# modelo (~0,6 s no PC), a pele, as peças da armadura e a roupa de ofício (até ~0,7 s). Aqui, atrás da capa, nasce e
+	# some um de cada tipo: o que é montado fica guardado e, na corrida, o NPC sai pronto. Medido na corrida simulada:
+	# pior tranco 690 -> 72 ms no PC; a capa fica ~1,7 s mais (35 tipos).
+	var vistos := {}
+	var t0 := Time.get_ticks_usec()
+	for info in m.npcs_vila:
+		var id := str(m.MODELO_NPC.get(str(info.get("id", "")), str(info.get("visual", "vivi"))))
+		var k := id
+		for c in ["roupa", "veste", "friso", "anciao", "oficio", "limpar_rosto", "arma"]: # o que muda o que é montado
+			k += "|" + JSON.stringify(info.get(c, ""))
+		if vistos.has(k):
+			continue
+		vistos[k] = true
+		var antes: int = m.npcs.size()
+		m.criar_npc(id, Vector3(float(info.x), 0, float(info.z)), "", info)
+		if m.npcs.size() > antes:
+			var n: Dictionary = m.npcs.pop_back()
+			n.no.visible = false
+			n.no.queue_free()
+	print_verbose("aquecer: %d tipos de NPC em %d ms" % [vistos.size(), (Time.get_ticks_usec() - t0) / 1000])
