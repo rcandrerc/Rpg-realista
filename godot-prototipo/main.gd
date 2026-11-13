@@ -3913,7 +3913,10 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	var chao: Array = []
 	# dentro de casa no modo jogo (André 2026-11-05, como no Quimera) a câmera não bate nas paredes nem no telhado da
 	# casa: fica longe como lá fora e a parede que tapa a vista apaga (construcao.gd _telhados_visiveis)
-	var sem_casa: bool = construcao != null and construcao.dentro_de_casa
+	# modo construção (André 2026-11-13): a câmera flutuante também passa pelas peças das casas. Antes, no andar do
+	# telhado, a mira fica logo abaixo do telhado e a linha até a câmera batia nele: a câmera colava nas vigas e o "−"
+	# não afastava; no térreo batia no telhado escondido. De cima e de longe ela não entra na casa.
+	var sem_casa: bool = construcao != null and (construcao.dentro_de_casa or construcao.ativo)
 	# FPS (2026-11-07): só os sólidos das casas de 4 m que a linha cruza (terreno.gd solidos_em), não todos os do mapa
 	# (cada parede e fundação construída é um sólido). Mesmo resultado: quem não toca a linha já ficava de fora.
 	var cand := []
