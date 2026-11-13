@@ -1,0 +1,39 @@
+# Testes do servidor e da simulação (conselho de auditoria, André 2026-11-13): roda ferramentas/testes/*.mjs a cada PR
+# e a cada push na main. Só AVISA (X vermelho no PR): não trava merge nem a atualização do servidor (André não quer trava
+# no GitHub). Antes ninguém rodava: o dificuldade.mjs ficou quebrado dois dias sem ninguém ver.
+name: Testes
+
+on:
+  pull_request:
+    paths: ['shared/**', 'server/**', 'ferramentas/testes/**', '.github/workflows/testes.yml']
+  push:
+    branches: [main]
+    paths: ['shared/**', 'server/**', 'ferramentas/testes/**', '.github/workflows/testes.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Todos os testes (em paralelo; o instável ganha uma segunda chance)
+        run: |
+          mkdir -p /tmp/t
+          INSTAVEIS=" parede-amigos "
+          ls ferramentas/testes/*.mjs | xargs -P 4 -I{} sh -c 'n=$(basename {} .mjs); timeout 600 node {} > /tmp/t/$n.log 2>&1 || { case "'"$INSTAVEIS"'" in *" $n "*) timeout 600 node {} > /tmp/t/$n.log 2>&1 ;; *) false ;; esac; } || echo $n >> /tmp/t/_falhou'
+          if [ -s /tmp/t/_falhou ]; then
+            for n in $(cat /tmp/t/_falhou); do echo "::error title=Teste falhou::$n"; echo "----- $n -----"; tail -n 30 /tmp/t/$n.log; done
+            exit 1
+          fi
+          echo "Todos os $(ls ferramentas/testes/*.mjs | wc -l) testes passaram."
