@@ -97,6 +97,15 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
     } catch { return null; }
   }
 }
+// André 2026-11-13 ("acabou de me negar e duas falas depois me chama pra caçar"): a decisão de caçar/entrar no time já está
+// tomada pelo jogo (decisaoTimeAmiga) e vale por uns minutos; a IA fica sabendo e fala de acordo, sem mudar de ideia.
+const MOTIVOS = { cansada: 'está cansad{o} e com pouca vida', horta: 'a horta precisa de você agora', noite: 'é noite e você prefere não sair', perigo: '{ele} está forte demais pra você acompanhar', vontade: 'não está no clima agora' };
+function humorTime(ctx) {
+  const h = ctx.humor; if (!h) return '';
+  if (h.aceita) return h.combinado ? `Vocês já combinaram de caçar juntos: falta ${ctx.amigo} mandar o convite do time.` : `Agora você está a fim de caçar/entrar no time se ${ctx.amigo} chamar.`;
+  const m = (MOTIVOS[h.motivo] || MOTIVOS.vontade).replace('{o}', ctx.genero === 'm' ? 'o' : 'a').replace('{ele}', ctx.amigo);
+  return `${h.recusou ? `Você ACABOU DE RECUSAR caçar/entrar no time com ${ctx.amigo}` : `Agora você NÃO quer caçar nem entrar no time`} (motivo: ${m}), pelos próximos ${h.min} min. Mantenha essa decisão: se ${ctx.amigo} chamar, recuse do seu jeito e explique; não convide nem sugira caçar, farmar, upar ou DG agora (pode combinar pra depois). Use "nada" como ação.`;
+}
 // ---------- a conversa (André 2026-11-13: "no começo era como falar com o Gemini; agora respondem sem lógica") ----------
 // O que estragou: a ficha cresceu (equipamento, peça mais fraca, mochila, ouro, troca, memória, dicas) num pedido só, com
 // a conversa colada no meio como texto. O modelo passou a achar que tinha de falar de tudo: toda resposta puxava "troca
@@ -125,6 +134,7 @@ export function mensagensConversa(ctx, texto) {
     `Seu nível ${ctx.nivel}, o de ${ctx.amigo} ${ctx.nivelAmigo}. Amizade: ${ctx.amizade} (0 = começo).${ctx.semCasa ? '' : ` Sua casa: ${ctx.casaPronta ? 'pronta' : 'em obra'}.`}`,
     ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : '',
     ctx.chamou ? `Há pouco você chamou ${ctx.amigo} (${ctx.chamou}) e espera a resposta.` : '',
+    humorTime(ctx),
     ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',

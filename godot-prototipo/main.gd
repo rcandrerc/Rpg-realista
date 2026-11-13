@@ -29,7 +29,6 @@ const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
 const Encostar = preload("res://encostar.gd") # escalando, corpo, mãos e pés encostam na pedra (André 2026-11-07)
 const AguaFx = preload("res://agua_fx.gd")
-const VelocidadeFx = preload("res://velocidade_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
@@ -214,7 +213,6 @@ var _quadril := 0.0 # afundada do quadril no pouso (m)
 # dá para lutar. O corpo sobe um pouco para a cabeça e as costas ficarem fora da água (o Mixamo nada mais baixo).
 var _nadando := false
 var agua_fx # agua_fx.gd: espuma em volta, rastro em V e respingo das braçadas
-var velocidade_fx # velocidade_fx.gd: riscos de vento e linhas nas bordas da tela na disparada
 # cajado nas costas nadando (direção de arte 2026-11-06): deitado, a chama passava da cabeça como uma lança; desliza
 # CAJADO_NADO m para os pés (a chama fica na nuca). Boiando de pé fica no lugar.
 const CAJADO_NADO := 0.35
@@ -343,8 +341,6 @@ func _ready() -> void:
 	add_child(boss_mundo)
 	agua_fx = AguaFx.new()
 	add_child(agua_fx)
-	velocidade_fx = VelocidadeFx.new()
-	add_child(velocidade_fx)
 	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
@@ -1137,7 +1133,41 @@ func fora_da_tela(p: Vector3) -> bool:
 			return true
 	return false
 
+# Sombra de mancha (conselho de auditoria 2026-11-13, pacote 3; André "Seguir" no NPC leve): o NPC longe já não faz
+# sombra de verdade (custava desenhar o corpo todo de novo) e parecia flutuar. Agora ganha uma mancha escura no chão,
+# debaixo dos pés: um quadrado só, sem luz, que não entra na sombra nem escreve profundidade. Perto volta a sombra real.
+const MANCHA_LADO := 0.95 # m
+static var _mancha_malha: QuadMesh
+static var _mancha_mat: ShaderMaterial
+static func _mancha(no: Node, ligar: bool) -> void:
+	var mi: MeshInstance3D = no.get_node_or_null("SombraMancha")
+	if not ligar:
+		if mi:
+			mi.visible = false
+		return
+	if mi == null:
+		if _mancha_malha == null:
+			var sh := Shader.new()
+			sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\nvoid fragment() { float d = length(UV - vec2(0.5)) * 2.0; ALBEDO = vec3(0.0); ALPHA = 0.42 * (1.0 - smoothstep(0.35, 1.0, d)); }\n"
+			_mancha_mat = ShaderMaterial.new()
+			_mancha_mat.shader = sh
+			_mancha_mat.render_priority = -1
+			# QuadMesh e material_override: quem percorre as malhas do corpo pula como pula a barra de vida (flash do
+			# golpe, gelo, pele, tinta), então a mancha nunca pisca nem muda de cor
+			_mancha_malha = QuadMesh.new()
+			_mancha_malha.orientation = PlaneMesh.FACE_Y
+			_mancha_malha.size = Vector2(MANCHA_LADO, MANCHA_LADO)
+		mi = MeshInstance3D.new()
+		mi.name = "SombraMancha"
+		mi.mesh = _mancha_malha
+		mi.material_override = _mancha_mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = Vector3(0, 0.04, 0)
+		no.add_child(mi)
+	mi.visible = true
+
 static func npc_simples(no: Node, simples: bool) -> void:
+	_mancha(no, simples)
 	if _mat_nada == null:
 		var sh := Shader.new()
 		sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, shadows_disabled;\nvoid vertex() { POSITION = vec4(2.0, 2.0, 2.0, 1.0); }\nvoid fragment() { ALBEDO = vec3(0.0); }\n"
@@ -3771,9 +3801,6 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			cajado.position = _caj_base + desce * heroi_anim._nada
 	if agua_fx:
 		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
-	if velocidade_fx:
-		var correndo: bool = mov.disparada and montaria == null and not _nadando and mov.esc == null and mov.veiculo.is_empty()
-		velocidade_fx.passo(dt, correndo, vel, mov.vx, mov.vz, heroi, cam.cam if cam else null)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
 	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando and mov.veiculo.is_empty():
 		_passo_dist += vel * dt
