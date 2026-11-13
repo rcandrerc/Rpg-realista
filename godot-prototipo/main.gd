@@ -1274,9 +1274,9 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 	ba.bone_name = lugar.osso
 	esq.add_child(ba)
 	var q := Quaternion(lugar.quat[0], lugar.quat[1], lugar.quat[2], lugar.quat[3])
+	ba.set_meta("de_prender", true)
 	arma.transform = Transform3D(Basis(q).scaled(Vector3.ONE * lugar.escala), Vector3(lugar.pos[0], lugar.pos[1], lugar.pos[2]))
-	if arma.get_parent():
-		arma.get_parent().remove_child(arma)
+	soltar_arma(arma)
 	ba.add_child(arma)
 	if arma.has_meta("cajado"): # Cajado A: 15% menor (pedido do André) e, na mão, preso na palma em pé
 		arma.scale *= Armas.ESCALA_CAJADO
@@ -1285,6 +1285,19 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 		arma.set_meta("afastada", 0.0)
 		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
 	return ba
+
+# tira a arma de onde está. O osso preso que prender() criou e ficou vazio sai junto: antes ele ficava no esqueleto
+# e cada troca de modo (coletar, montar, nadar, escalar, trocar de arma) deixava 2 nós vazios seguindo o osso em
+# todo quadro (800 deles somavam ~0,5 ms por quadro no PC, ~1,5 ms no celular)
+func soltar_arma(arma: Node3D) -> void:
+	var pai := arma.get_parent()
+	if pai == null:
+		return
+	pai.remove_child(arma)
+	if pai is BoneAttachment3D and pai.has_meta("de_prender") and pai.get_child_count() == 0:
+		if pai.get_parent():
+			pai.get_parent().remove_child(pai)
+		pai.queue_free()
 
 # do_heroi: Espada A e Cajado A (armas3d/, armas.gd); os humanos inimigos seguem com a espada antiga
 func nova_arma(nome: String, do_heroi := true) -> Node3D:
@@ -1405,8 +1418,7 @@ func armar(modo: String) -> void:
 	else:
 		colisor_espada(heroi_esq, null)
 		prender(heroi_esq, espada, L.espadaCostas)
-		if cajado.get_parent():
-			cajado.get_parent().remove_child(cajado)
+		soltar_arma(cajado)
 		heroi.add_child(cajado) # na mão: segue a mão mas fica de pé (como no site), ver _process
 
 # Montado: as armas continuam nas costas e giram para acompanhar o tronco deitado (direção de arte 2026-11-03):

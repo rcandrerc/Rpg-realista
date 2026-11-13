@@ -553,13 +553,20 @@ func lugar_de(id: String) -> String:
 	return ("espada" if boneco_modo == "Espada" else "cajado") if id == "arma" else id
 
 # peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
+var _vestido := "" # o que o boneco do menu está vestindo (atualizar_slots)
 func atualizar_slots() -> void:
 	quadradinhos = quadradinhos.filter(func(q): return is_instance_valid(q))
 	for q in quadradinhos:
 		q.marcado = not m.P.prog.get("semCapacete", false)
 		q.queue_redraw()
 	if boneco:
-		Armadura.vestir(boneco, m.P.equip_visivel()) # o boneco veste o mesmo que o herói (capacete escondido também)
+		# o boneco veste o mesmo que o herói (capacete escondido também). Refaz só quando muda a roupa, a aparência
+		# ou o corpo: vestir custava ~4 ms no PC (~13 ms no celular) e rodava 2 vezes a cada abrir
+		var eq: Dictionary = m.P.equip_visivel()
+		var chave := "%d|%s|%s" % [boneco.get_instance_id(), str(eq), str(m.aparencia)]
+		if chave != _vestido:
+			_vestido = chave
+			Armadura.vestir(boneco, eq)
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
