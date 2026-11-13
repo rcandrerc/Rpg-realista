@@ -194,9 +194,13 @@ func montar_tela() -> void:
 		cobrir("Entrando…") # o jogo só aparece quando o servidor mandar o mundo (ou o criador abrir)
 		rede.continuar())
 	col.add_child(b_continuar)
-	b_trocar = _botao("Trocar de conta", Color(0.42, 0.36, 0.5), func(): rede.trocar_conta())
+	b_trocar = _botao("Trocar de conta", Color(0.42, 0.36, 0.5), func():
+		aviso_login.text = "Abrindo o Google…" # André 2026-11-13: o toque precisa mostrar que algo aconteceu
+		rede.trocar_conta())
 	col.add_child(b_trocar)
-	b_google = _botao("Entrar com Google", Color(0.93, 0.62, 0.25), func(): rede.entrar_com_google())
+	b_google = _botao("Entrar com Google", Color(0.93, 0.62, 0.25), func():
+		aviso_login.text = "Abrindo o Google…"
+		rede.entrar_com_google())
 	col.add_child(b_google)
 	col.add_child(_botao("Jogar sozinho", Color(0.3, 0.3, 0.36), func(): esconder_login()))
 	aviso_login = Label.new()
@@ -217,8 +221,22 @@ func _botao(texto: String, cor: Color, fn: Callable) -> Button:
 		s.bg_color = cor.darkened(0.15) if estado == "pressed" else cor
 		s.set_corner_radius_all(27)
 		b.add_theme_stylebox_override(estado, s)
+	# André 2026-11-13 ("clico e parece que não aconteceu nada"): o botão afunda e clareia ao tocar, faz o som da janela
+	# do sistema (sistema_janela.ogg, o mesmo das janelas do jogo) e o celular dá uma vibrada curta, como tecla.
+	b.button_down.connect(func(): _apertar(b, true))
+	b.button_up.connect(func(): _apertar(b, false))
+	b.pressed.connect(func():
+		if m.sons:
+			m.sons.tocar("sistema_janela", -6.0, 0.03)
+		m.vibrar(25))
 	b.pressed.connect(fn)
 	return b
+
+func _apertar(b: Button, baixo: bool) -> void:
+	b.pivot_offset = b.size / 2.0
+	var tw := b.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(b, "scale", Vector2(0.94, 0.94) if baixo else Vector2.ONE, 0.06 if baixo else 0.12)
+	tw.parallel().tween_property(b, "modulate", Color(1.25, 1.2, 1.1) if baixo else Color.WHITE, 0.06 if baixo else 0.12)
 
 func mostrar_login() -> void:
 	_cobrindo = false
@@ -241,14 +259,17 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	_cobrindo = false
 	carregando.visible = false
 	titulo.text = "Bem-vindo de volta"
-	sub.text = "Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % str(conta.get("nome", "sem nome"))
+	var nome := str(conta.get("nome", ""))
+	if nome == "": # o servidor ainda não respondeu: usa o nome guardado no aparelho (rede.nome_salvo)
+		nome = rede.nome_salvo
+	sub.text = ("Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % nome) if nome != "" else "Quer entrar com a conta salva ou usar outra conta Google?"
 	if _foi_desconectado:
 		titulo.text = "Você foi desconectado"
 		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
 	if _foi_trocado:
 		titulo.text = "Conta em outro aparelho"
 		sub.text = "Sua conta entrou em outro aparelho.\nEntre aqui para jogar neste (o outro sai)."
-	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
+	b_continuar.text = ("Entrar como %s" % nome) if nome != "" else "Entrar com a conta salva"
 	b_continuar.visible = true
 	b_trocar.visible = true
 	b_google.visible = false
