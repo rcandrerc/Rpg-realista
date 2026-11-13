@@ -68,7 +68,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -1351,6 +1351,8 @@ func criar_heroi(nascer := true) -> void:
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
 	armar("Espada")
+	armas_guardadas = false # corpo novo começa com a espada na mão
+	_parado_livre = 0.0
 	braco = BracoEspada.new()
 	heroi_esq.add_child(braco)
 	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
@@ -1405,6 +1407,28 @@ func passo_encostar(dt: float) -> void:
 	if _encosta != 0.0 or _encosta_giro != 0.0:
 		heroi.position += Vector3(sin(mov.ry), 0.0, cos(mov.ry)) * _encosta
 		heroi.rotation.y = mov.ry + _encosta_giro
+
+# Mãos livres (André 2026-11-13: "se eu ficar parado, ela guardar e ficar com as duas armas nas costas"): parado fora
+# de combate GUARDAR_DEPOIS s, as duas armas vão para as costas (cruzadas, como na coleta) e o anim_heroi.gd toca as
+# paradas de mãos vazias. Andou, atacou, entrou em combate ou foi montar/escalar/nadar: a arma volta para a mão.
+const GUARDAR_DEPOIS := 1.2 # André: "sem arma nas mãos" (guarda logo)
+var armas_guardadas := false
+var _parado_livre := 0.0
+func passo_maos_livres(dt: float, vel: float) -> void:
+	var pode: bool = heroi_anim.tem_vazia and heroi_anim.pode_soltar and not heroi_anim.em_guarda and acao.is_empty() \
+		and vel < 0.15 and h.morto <= 0.0 and mov.manobra == null and (trabalho == null or trabalho.coletando == null)
+	_parado_livre = _parado_livre + dt if pode else 0.0
+	if pode and not armas_guardadas and _parado_livre >= GUARDAR_DEPOIS:
+		armas_guardadas = true
+		armar("Coleta")
+		sons.tocar("pano", -10.0)
+	elif not pode and armas_guardadas:
+		armas_guardadas = false
+		# escalando, coletando ou pescando quem arruma as armas é quem começou (armar("Escalada") / armar("Coleta"))
+		if mov.esc == null and (trabalho == null or trabalho.coletando == null) and not (pesca != null and pesca.ativo()):
+			armar(h.modo)
+			sons.tocar("pano", -10.0)
+	heroi_anim.maos_livres = armas_guardadas
 
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
@@ -1507,7 +1531,7 @@ func armas_cruzadas(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 
 # cajado na mão (modo magia): não quando escala, monta, nada ou coleta (aí ele vai para as costas)
 func cajado_na_mao() -> bool:
-	return h.modo == "Magia" and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null)
+	return h.modo == "Magia" and not armas_guardadas and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null)
 
 # base com +Y ao longo da arma e o lado chato (+Z) virado para fora das costas
 func _base_arma(y: Vector3, fora: Vector3) -> Basis:
@@ -3673,6 +3697,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	# parada solta fora de combate (André 2026-11-09) só em pé no chão, com as mãos livres
 	heroi_anim.pode_soltar = montaria == null and mov.chao and mov.esc == null and mov.veiculo.is_empty() and not _nadando \
 		and h.modo != "Coleta" and not (pesca != null and pesca.ativo())
+	passo_maos_livres(dt, vel)
 	heroi_anim.atualizar(dt, vel_anim)
 	if expressao:
 		expressao.atualizar(dt)
