@@ -56,6 +56,7 @@ class SalaClareira extends Room {
   // viaTime: veio do chat de time, então a resposta dele também vai para o time
   falarComAmigoIa(c, amg, msg, viaTime) {
     const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
+    if (ctx && viaTime) ctx.time = this.sim.amigosIaNoTime(id).filter((x) => x !== amg).map((x) => x.AMIGA.nome); // conversa em grupo
     amg.ouvirAmiga(id, msg.texto);
     amg.amiga.ia.viaTime = viaTime ? this.sim.tempo + CHAT.respostaTime : 0; // do time: responde no time; do privado: no privado
     // dica de combate (André 2026-11-11): a IA é chamada uma vez e devolve a regra; esquecer/listar dicas vai pelas regras
@@ -70,7 +71,8 @@ class SalaClareira extends Room {
       let acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
       // André 2026-11-12: a regra só passa por cima da IA em pedido de verdade (curto e que muda algo); senão vale a fala da IA
       if (r && acao === regra && regra !== r.assunto && !amg.regraValeSobreIaAmiga(id, regra, msg.texto, r.assunto)) acao = amg.acaoSemEfeitoAmiga(id, r.assunto) ? 'conversa' : r.assunto;
-      if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa'; // "bora!" de quem já está no time: só conversa, com a fala da IA
+      if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa';
+      if (r && ['vir', 'time'].includes(acao) && amg.apelidoAmiga(msg.texto)) acao = 'conversa'; // "me chama de fofinha": apelido, não chamado // "bora!" de quem já está no time: só conversa, com a fala da IA
       amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
     }).catch((e) => console.error('amigo IA: resposta deu erro', e));
     // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
@@ -159,7 +161,10 @@ class SalaClareira extends Room {
       const amg = msg.canal === 'pm' ? this.sim.amigoIaDe(msg.alvo) : null; // Cecília ou Dario (André 2026-11-11), cada um com a sua cabeça
       if (amg && amg.amiga) this.falarComAmigoIa(c, amg, msg, false);
       // chat de time (André 2026-11-11): cada NPC do time (Cecília, Dario, aventureiros) ouve como se fosse no privado (dicas e comandos valem para todos)
-      if (msg.canal === 'time') for (const ctx of this.sim.amigosIaNoTime(c.sessionId)) this.falarComAmigoIa(c, ctx, msg, true);
+      if (msg.canal === 'time') {
+        const chamados = this.sim.amigosIaChamados(c.sessionId, msg.texto);
+        for (const ctx of this.sim.amigosIaNoTime(c.sessionId)) if (chamados.includes(ctx)) this.falarComAmigoIa(c, ctx, msg, true); else ctx.ouvirAmiga(c.sessionId, msg.texto);
+      }
     });
     // "Ativar conversa com IA" (André 2026-11-10): o jogador cria a chave grátis no Groq e cola no jogo uma vez só.
     // O servidor testa e guarda na conta dele (server/contas.js); ninguém precisa mandar chave para o André.

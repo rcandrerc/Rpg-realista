@@ -99,3 +99,22 @@ pedidos.length = 0; respostas = [{ falhou: '{"fala": "Oi, tudo b' }, { status: 2
 v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
 ok(v?.fala === 'Inteira.' && pedidos.length === 2, 'JSON cortado no meio da fala: o próximo modelo, nunca meia frase');
 ok(salvarResposta('{"fala":"Bora!","acao":"time"}')?.assunto === 'time' && salvarResposta('') === null, 'resposta inteira passa normal');
+
+// varredura (André 2026-11-13: "não tem mais coisa bugando eles?")
+ok(!cec.regraValeSobreIaAmiga('andre', 'vir', 'onde você vai caçar hoje?', 'conversa') && !cec.regraValeSobreIaAmiga('andre', 'pescar', 'você gosta de pescar?', 'conversa'), 'pergunta que a IA leu como conversa: vale a IA (não vai até ele nem sorteia recusa)');
+ok(cec.regraValeSobreIaAmiga('andre', 'time', 'bora caçar?', 'conversa') && cec.regraValeSobreIaAmiga('andre', 'vir', 'vem cá', 'conversa'), '"bora caçar?" e "vem cá" seguem valendo pelas regras');
+const dar = s.amigosIa.find((x) => x.AMIGA.id === 'dario');
+const aj = s.jogadores.get('andre'); aj.time = 'tz'; cec.amiga.time = 'tz'; dar.amiga.time = 'tz';
+const so = (t) => s.amigosIaChamados('andre', t).map((x) => x.AMIGA.id).sort().join();
+ok(so('Dario, bora?') === 'dario' && so('cecilia vem cá') === 'cecilia' && so('bora gente') === 'cecilia,dario' && so('e você Cecília, o que acha do Dario?') === 'cecilia', `no time: chamou pelo nome, só ele responde; sem nome, todos (${so('bora gente')})`);
+cec.chatDeAmiga(aj).length = 0; dar.chatDeAmiga(aj).length = 0;
+cec.amiga.ia.viaTime = s.tempo + 30; cec.dizerAmiga('Bora, eu levo as poções!', true, 'andre'); cec.passoChatAmiga(cec.amiga);
+const hd = dar.chatDeAmiga(aj).at(-1);
+ok(hd?.de === 'outro' && hd.nome === 'Cecília' && hd.texto === 'Bora, eu levo as poções!', 'no time, o Dario lê o que a Cecília disse');
+pedidos.length = 0; respostas = [];
+const cd = dar.contextoAmiga('andre'); cd.time = ['Cecília'];
+await pensarAmiga(cd, 'e você, Dario?', 'chave-de-teste');
+const MD = pedidos[0].messages;
+ok(/chat do time com André e Cecília/.test(MD[0].content) && MD.some((m) => m.role === 'user' && /\(Cecília, no chat do time\): Bora, eu levo as poções!/.test(m.content)), 'a IA do Dario sabe que é conversa em grupo e vê a fala da Cecília');
+aj.time = null; cec.amiga.time = null; dar.amiga.time = null; cec.amiga.ia.viaTime = 0;
+ok(cec.apelidoAmiga('pode me cahamr de fofinha') && cec.apelidoAmiga('me chama de chefe') && !cec.apelidoAmiga('te chamo pro time') && !cec.apelidoAmiga('vem cá'), '"me chama de fofinha" é apelido: nunca vira "ir até ele" nem time (print do André 2026-11-13)');
