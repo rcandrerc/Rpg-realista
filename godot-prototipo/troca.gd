@@ -123,10 +123,8 @@ func tocou_tela(pos: Vector2) -> void:
 	var outros: Dictionary = m.online.outros
 	for id in outros:
 		var no: Node3D = outros[id].no
-		if outros[id].get("bot", false): # a Cecília (shared/amiga.js): o dono conversa com ela pela conversa.gd; os outros, nada
-			if str(id) in m.online.amiga_ids: # Cecília ou Dario: com a conversa ativada, tocar abre a conversa
-				continue
-			# sem a conversa com IA ativada: tocar nela só mostra o equipamento (abaixo)
+		# a Cecília e o Dario (shared/amiga.js), André 2026-11-13: com a conversa ativada, o cartão é o de um jogador
+		# (troca, time, mensagem); sem ela, só o equipamento (abaixo). A janela antiga de conversa.gd ficou desligada.
 		if not no.visible or no.position.distance_to(m.heroi.position) > 30.0:
 			continue
 		var pe: Vector3 = no.position
@@ -148,6 +146,22 @@ func tocou_tela(pos: Vector2) -> void:
 	var dist: float = Vector2(outros[achou].no.position.x - m.heroi.position.x, outros[achou].no.position.z - m.heroi.position.z).length()
 	var extras: Array = m.amigos.botoes_para(achou) if m.amigos else [] # amigos.gd: adicionar amigo ou chamar pro time
 	var ver := [["Equipamento", pedir_equip.bind(achou)]] # André 2026-11-10: ver o que qualquer jogador veste (de perto)
+	if outros[achou].get("bot", false) and achou in m.online.amiga_ids: # Cecília/Dario como jogador: troca, time, mensagem
+		var bts: Array = []
+		var longe: bool = dist > perto()
+		if not longe:
+			bts.append(["Pedir troca", _responder.bind("pedir", achou)])
+		if m.amigos and m.amigos.no_meu_time(achou):
+			bts.append(["Tirar do time", func(): esconder_cartao(); m.rede("time", {"acao": "expulsar", "com": achou})])
+		else:
+			bts.append(["Chamar pro time", func(): esconder_cartao(); m.rede("time", {"acao": "convidar", "com": achou})])
+		var conta: String = m.amigos.conta_virtual(achou) if m.amigos else ""
+		if conta != "" and m.chat:
+			bts.append(["Mensagem", func(): esconder_cartao(); m.chat.abrir_pm(conta, nome)])
+		if not longe:
+			bts += ver
+		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)
+		return
 	if outros[achou].get("bot", false): # Cecília para quem ainda não ativou a conversa com IA: só ver o equipamento
 		if dist > perto():
 			m.hud.aviso("Chegue mais perto de %s" % nome)

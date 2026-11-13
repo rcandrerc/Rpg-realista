@@ -35,6 +35,7 @@ const ACOES := {
 	"amiga_troca": ["Quer trocar itens?", "it_ouro"],
 	"amiga_equip": ["Ver equipamento", "basico"],
 }
+const AMIGA_JANELA := false # a janela de conversa com botões de fala da Cecília/Dario (desligada a pedido do André, 2026-11-13)
 const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca", "amiga_equip"]
 var _amiga := {} # id -> a Cecília ou o Dario vistos como NPC da janela (o corpo vem do online.gd, como outro jogador)
 var _amiga_pedido = null # o que ela pediu ({k, n, nome}): aparece o botão Dar
@@ -207,6 +208,8 @@ func _com_amiga() -> Array:
 	if m.totem: # totens de teleporte (totem.gd): a pedra abre a janela como um NPC
 		l = l + m.totem.como_npcs()
 	if not m.on():
+		return l
+	if not AMIGA_JANELA: # André 2026-11-13: Cecília e Dario são como jogadores (cartão do troca.gd + chat), sem botões que falam
 		return l
 	for aid in m.online.amiga_ids: # a Cecília e o Dario (André 2026-11-11)
 		var a = _amiga_npc(str(aid))
