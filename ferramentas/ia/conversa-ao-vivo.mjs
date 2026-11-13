@@ -1,7 +1,7 @@
 // Conversa AO VIVO com a IA dos NPCs (André 2026-11-13: "eles estão respondendo coisa sem lógica").
 // Passa pelo mesmo caminho do servidor (pensarAmiga + regras de server/index.js falarComAmigoIa) e mostra quem respondeu:
 // a IA (qual modelo) ou as falas prontas. Precisa de rede e de uma chave Groq em GROQ_CHAVE.
-// Uso: GROQ_CHAVE=gsk_... node ferramentas/testes/conversa-ao-vivo.mjs [cecilia|dario] [time]
+// Fica fora de ferramentas/testes: o GitHub roda tudo de lá sem chave. Uso: GROQ_CHAVE=gsk_... node ferramentas/ia/conversa-ao-vivo.mjs [cecilia|dario] [time]
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 import { register } from 'node:module';
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));
