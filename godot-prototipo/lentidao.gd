@@ -44,6 +44,41 @@ func _ready() -> void:
 			lista = v
 	_zerar(Time.get_ticks_usec())
 
+# Linha do tempo da entrada (André 2026-11-13, "a tela de carregamento já está um pouco lenta no celular"): ms desde que
+# o app abriu até cada passo (ini = começo do main, pronto = primeiro quadro, escolha = "Entrar como…", toque = tocou em
+# Entrar, conectado, foto = primeira foto do servidor, fila = monstros e NPCs prontos, aquecer = efeitos prontos,
+# capa = o jogo aparece). Vai uma vez por abertura, junto com as lentidões (/lentidao, tipo "entrada").
+var _entrada := {}
+var _entrada_mandada := false
+func marcar(nome: String) -> void:
+	if not _entrada.has(nome):
+		_entrada[nome] = Time.get_ticks_msec()
+
+func _seguir_entrada() -> void:
+	var on = m.online
+	if not _entrada.has("pronto"):
+		_entrada.ini = int(m.t_ready0)
+		marcar("pronto")
+	if on == null:
+		return
+	if on.rede and on.rede.conectado:
+		marcar("conectado")
+	if on.foto_ms > 0:
+		marcar("foto")
+	if m._a_criar.is_empty():
+		marcar("fila")
+	if m.aquecer and m.aquecer.feito:
+		marcar("aquecer")
+	if _entrada.has("toque") and on.ligado and not on._cobrindo and not (on.capa and on.capa.visible):
+		marcar("capa")
+		if not _entrada_mandada and _entrada.has("aquecer"):
+			_entrada_mandada = true
+			var e := _entrada.duplicate()
+			e.tipo = "entrada"
+			e.grafico = int(m.grafico.nivel) if m.grafico else -1
+			e.versao = str(load("res://versao.gd").NUMERO)
+			on.rede.enviar("lentidao", e)
+
 # online.gd: o servidor mandou "corrigir" (d = metros entre onde o herói estava e onde o servidor pôs)
 func corrigiu(d: float) -> void:
 	_corr += 1
@@ -65,6 +100,8 @@ func _zerar(agora: int) -> void:
 	_foto_ms = 0.0
 
 func _process(dt: float) -> void:
+	if not _entrada_mandada:
+		_seguir_entrada()
 	var agora := Time.get_ticks_usec()
 	var q: float = (agora - _ult) / 1000000.0 if _ult > 0 else 0.0
 	_ult = agora

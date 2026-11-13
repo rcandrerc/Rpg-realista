@@ -481,12 +481,22 @@ const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido',
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
+const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico'];
 function guardarLentidao(c, e, sala) {
   if (!e || typeof e !== 'object') return;
+  if (e.tipo === 'entrada') { // linha do tempo da entrada (ms desde que o app abriu), uma por abertura
+    const r = { servidor: Date.now(), tipo: 'entrada' };
+    for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
+    if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    return guardarLinha(r);
+  }
   const r = { servidor: Date.now(), tickPico: Math.round(carga.picoPing), posGap: c.userData?.gapJan ?? null, relogioSrv: sala?.relogio != null ? +sala.relogio.toFixed(3) : null };
   for (const k of LENTIDAO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
   r.montado = e.montado === true;
   if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+  guardarLinha(r);
+}
+function guardarLinha(r) {
   lentidoes.push(r);
   if (lentidoes.length > LENTIDAO_MAX) lentidoes.splice(0, lentidoes.length - LENTIDAO_MAX);
   if (++lentidaoLinhas > 2 * LENTIDAO_MAX) {

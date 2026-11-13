@@ -283,7 +283,9 @@ var botao_teste: Button
 const ESPERA := 2.5
 const MEDE := 5.0
 
+var t_ready0 := 0 # ms (desde que o app abriu) no começo do _ready: a linha do tempo da entrada (lentidao.gd)
 func _ready() -> void:
+	t_ready0 = Time.get_ticks_msec()
 	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
 	# próxima abertura. Não fecha mais o jogo: a trava de verdade era o pré-carregamento em segundo plano (pre_carregar).
 	if Grafico.ajustar_linhas():
@@ -4091,10 +4093,12 @@ var _a_criar: Array = [] # Callables, na ordem em que precisam entrar em inimigo
 # (11 ms) nasciam meio segundo depois, bem quando o herói começava a andar. Agora cada um é um item da fila, a capa
 # espera a fila acabar (online.gd) e, atrás da capa, a fila anda com mais tempo por quadro (ninguém vê o jogo ainda).
 const CRIAR_US := 4000 # µs por quadro com o jogo na tela
-const CRIAR_CAPA_US := 12000 # µs por quadro atrás da capa
+# atrás da capa (a arte de entrada ou o "Conectando…"; André 2026-11-13, entrada mais curta: na tela "Entrar como…" a
+# fila também anda rápido, enquanto ele lê e toca em Entrar)
+const CRIAR_CAPA_US := 12000
 func criar_aos_poucos() -> void:
 	var t0 := Time.get_ticks_usec()
-	var limite: int = CRIAR_CAPA_US if online and online._cobrindo else CRIAR_US
+	var limite: int = CRIAR_CAPA_US if online and (online._cobrindo or (online.capa and online.capa.visible)) else CRIAR_US
 	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < limite:
 		(_a_criar.pop_front() as Callable).call()
 
