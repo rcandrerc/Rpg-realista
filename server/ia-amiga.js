@@ -42,20 +42,8 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
     if (usadas >= AMIGA.chat.iaPorDia) return null; // conta só as respostas que a IA deu (contarIa)
   }
   const modelo = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
-  const conversa = ctx.conversa.map((m) => `${m.de === 'ele' ? ctx.amigo : ctx.nome}: ${m.texto}`).join('\n');
-  const homem = ctx.genero === 'm'; // o Dario (André 2026-11-11): outra pessoa, outro jeito de falar
-  const prompt = `Você é ${ctx.nome}, ${ctx.persona || 'uma guerreira de anime brincalhona num RPG medieval de fantasia'}. Você é ${homem ? 'AMIGO' : 'AMIGA'} de ${ctx.amigo} (de igual para igual, ${homem ? 'não servo' : 'não serva'}): ${ctx.semCasa ? `vive de aventura, ainda sem casa própria (mora em ${ctx.mora || 'a vila'}) e caça ${homem ? 'sozinho' : 'sozinha'} quando ninguém chama` : 'tem sua casinha e sua horta na vila inicial'}, tem vontade própria, pode recusar e pedir favores.
-Responda em português do Brasil, como ${homem ? 'amigo' : 'amiga'} conversando no chat do celular: curta (no máximo 2 frases), divertida, sem emoji demais, sem sair do mundo do jogo (nada de internet, celular ou IA).
-Agora: ${ctx.fazendo}. Amizade com ele: ${ctx.amizade} (0 = começo). Seu nível ${ctx.nivel}, o dele ${ctx.nivelAmigo}. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'} Distância até ele: ${ctx.distancia} m. ${ctx.noite ? 'É noite.' : 'É dia.'}${ctx.semCasa ? '' : ` Casa ${ctx.casaPronta ? 'pronta' : 'em obra'}.`} ${ctx.pedido ? `Você está precisando de ${ctx.pedido}.` : ''} Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? ` e na mochila: ${ctx.mochila}` : ''}. Para trocar, ele toca em você e escolhe Troca (perto). ${ctx.chamou ? `Há pouco você chamou ele (${ctx.chamou}) e espera a resposta.` : ''} ${ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : ''}
-${ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} (de outros dias, use com naturalidade quando fizer sentido):\n- ${ctx.memoria.join('\n- ')}` : ''}
-${ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca}; você adoraria uma melhor (ele pode te dar pela troca).` : ''}` : ''}
-${ctx.regras?.length ? `Dicas que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : ''}
-Conversa até agora:
-${conversa || '(nenhuma)'}
-${ctx.amigo}: ${texto}
-Escolha a ação que a mensagem dele pede: "time" (ele te chama para o time/caçar), "sairTime" (ele quer que você saia do time), "vir" (ele pede para você ir até ele), "ajuda" (ele oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta ao seu chamado), "nada" (só conversa).
-Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá para ir é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
-Devolva só JSON: {"fala": "...", "acao": "nada"}`.replace(/\n{2,}/g, '\n').replace(/ {2,}/g, ' '); // ficha curta: sem linha vazia
+  const mensagens = mensagensConversa(ctx, texto);
+  const prompt = mensagens.map((m) => m.content).join('\n'); // o Gemini (reserva) recebe tudo junto
   // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
   // André 2026-11-12 ("a IA tá muito burra"): o modelo menor (gpt-oss-20b, entrega 5) respondia mal e, com Cecília e Dario
   // respondendo juntos no chat de time, o limite POR MINUTO do Groq (429) estourava e quem respondia eram as falas prontas.
@@ -71,7 +59,7 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`.replace(/\n{2,}/g, '\n').repl
         try {
           r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-            body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 600, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: 'low' } : {}) }),
+            body: JSON.stringify({ model: modelo, messages: mensagens, response_format: { type: 'json_object' }, temperature: 0.8, max_tokens: 900, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: 'low' } : {}) }),
             signal: AbortSignal.timeout(falta),
           });
         } catch { break; } // tempo acabou ou rede: tenta o próximo modelo se ainda der
@@ -81,6 +69,10 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`.replace(/\n{2,}/g, '\n').repl
           break; // resposta quebrada: o próximo modelo
         }
         if (r.status === 401) return gemini(); // chave errada: nenhum modelo do Groq vai
+        if (r.status === 400) { // o modelo escreveu a fala sem o JSON (json_validate_failed): aproveita o texto, não a fala pronta
+          let v = null; try { v = salvarResposta((await r.json())?.error?.failed_generation); } catch { /* sem texto */ }
+          if (v) { contarIa(chaveJogador); return v; }
+        }
         if (r.status === 429) { // limite do minuto (ou do dia) deste modelo
           const espera = Number(r.headers?.get?.('retry-after')) * 1000;
           if (tentativa === 0 && espera > 0 && espera <= 3000 && fim - Date.now() > espera + 1500) { await new Promise((ok) => setTimeout(ok, espera)); continue; }
@@ -105,12 +97,55 @@ Devolva só JSON: {"fala": "...", "acao": "nada"}`.replace(/\n{2,}/g, '\n').repl
     } catch { return null; }
   }
 }
-// a ordem dos modelos da conversa (André 2026-11-12): o grande primeiro (o esperto), depois o Llama 70B e o menor de reserva.
+// ---------- a conversa (André 2026-11-13: "no começo era como falar com o Gemini; agora respondem sem lógica") ----------
+// O que estragou: a ficha cresceu (equipamento, peça mais fraca, mochila, ouro, troca, memória, dicas) num pedido só, com
+// a conversa colada no meio como texto. O modelo passou a achar que tinha de falar de tudo: toda resposta puxava "troca
+// esse peitoral", e às vezes trocava quem disse o quê. Agora é como um chat de verdade: as regras do jeito de falar no
+// "system", a ficha separada como "só para você saber", e a conversa em mensagens de verdade (ele = user, ela = assistant),
+// com a última mensagem dele por último. A ficha continua inteira: ela sabe de tudo, só não fica repetindo.
+export function mensagensConversa(ctx, texto) {
+  const homem = ctx.genero === 'm', o = homem ? 'o' : 'a', amig = homem ? 'amigo' : 'amiga';
+  const sistema = [
+    `Você é ${ctx.nome}, ${ctx.persona || 'uma guerreira de anime brincalhona num RPG medieval de fantasia'}. Você é ${amig} de ${ctx.amigo}, de igual para igual (não ${homem ? 'servo' : 'serva'}): tem vontade própria, opinião, humor, pode recusar e pedir favores.`,
+    ctx.semCasa ? `Vive de aventura, ainda sem casa própria (mora em ${ctx.mora || 'a vila'}) e caça ${homem ? 'sozinho' : 'sozinha'} quando ninguém chama.` : 'Tem sua casinha e sua horta na vila inicial.',
+    `Você está conversando com ${ctx.amigo} pelo chat do jogo, como duas pessoas de verdade.`,
+    'Como conversar:',
+    `- Responda ao que ${ctx.amigo} ACABOU de dizer, no assunto dele. Se ele perguntou, responda a pergunta. Se ele elogiou, brincou ou desabafou, reaja a isso.`,
+    '- Seja natural: conte o que está fazendo ou pensando, dê opinião, faça uma pergunta de volta de vez em quando. Pode ser engraçad' + o + ' e provocar de leve.',
+    '- Use a ficha abaixo só quando ajudar na resposta. NÃO puxe assunto de troca, equipamento, mochila, ouro ou pedido se ele não falou disso; no máximo uma vez a cada várias mensagens e só se encaixar.',
+    '- Não repita frase nem assunto que você já disse na conversa. Lembre do que ele disse antes.',
+    `- Português do Brasil informal, curto como no chat do celular (1 a 2 frases), sem emoji demais. Fique no mundo do jogo (nada de internet, celular ou IA). Você é ${ctx.nome}; quem fala com você é ${ctx.amigo}.`,
+  ];
+  const ficha = [
+    `Agora: ${ctx.fazendo}. ${ctx.noite ? 'É noite.' : 'É dia.'} Distância até ${ctx.amigo}: ${ctx.distancia} m. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'}`,
+    `Seu nível ${ctx.nivel}, o de ${ctx.amigo} ${ctx.nivelAmigo}. Amizade: ${ctx.amizade} (0 = começo).${ctx.semCasa ? '' : ` Sua casa: ${ctx.casaPronta ? 'pronta' : 'em obra'}.`}`,
+    ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : '',
+    ctx.chamou ? `Há pouco você chamou ${ctx.amigo} (${ctx.chamou}) e espera a resposta.` : '',
+    ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
+    `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
+    ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
+    ctx.regras?.length ? `Dicas de combate que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : '',
+  ].filter(Boolean);
+  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar junto), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens).
+Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
+Devolva só JSON: {"fala": "...", "acao": "nada"}`;
+  const msgs = [{ role: 'system', content: `${sistema.join('\n')}\nFicha (só para você saber, não precisa citar):\n- ${ficha.join('\n- ')}\n${acoes}` }];
+  for (const m of ctx.conversa || []) {
+    const role = m.de === 'ele' ? 'user' : 'assistant', ult = msgs[msgs.length - 1];
+    // as falas dela vão no mesmo JSON que ela devolve; em texto solto o modelo imitava e respondia sem JSON (o Groq dava 400)
+    if (role === 'assistant') { if (ult.role === 'assistant') { const j = JSON.parse(ult.content); j.fala += ' ' + m.texto; ult.content = JSON.stringify(j); } else msgs.push({ role, content: JSON.stringify({ fala: m.texto, acao: 'nada' }) }); }
+    else if (ult.role === 'user') ult.content += '\n' + m.texto; else msgs.push({ role, content: m.texto }); // duas seguidas dele: junta
+  }
+  if (msgs[msgs.length - 1].role === 'user') msgs[msgs.length - 1].content += '\n' + texto; else msgs.push({ role: 'user', content: texto });
+  return msgs;
+}
+// a ordem dos modelos da conversa (André 2026-11-12): o grande primeiro (o esperto), depois o Qwen 27B e o menor de reserva.
+// André 2026-11-13: o Llama 3.3 70B saiu do Groq (404), então quando o grande estourava o limite caía direto no menor (o burro).
 // Cada modelo do Groq tem o seu limite por minuto e por dia, então a reserva segura a conversa quando o primeiro estoura.
-// GROQ_MODELO troca o primeiro; GROQ_MODELO_CONVERSA troca o último.
+// GROQ_MODELO troca o primeiro; GROQ_MODELO_RESERVA o do meio; GROQ_MODELO_CONVERSA o último.
 export function modelosConversa() {
   const grande = process.env.GROQ_MODELO || 'openai/gpt-oss-120b';
-  return [...new Set([grande, 'llama-3.3-70b-versatile', process.env.GROQ_MODELO_CONVERSA || 'openai/gpt-oss-20b'])];
+  return [...new Set([grande, process.env.GROQ_MODELO_RESERVA || 'qwen/qwen3.8-27b', process.env.GROQ_MODELO_CONVERSA || 'openai/gpt-oss-20b'])];
 }
 // as respostas da chave do servidor (contas de teste) contam para o limite do dia; a chave do jogador não conta aqui
 function contarIa(chaveJogador) {
@@ -118,6 +153,16 @@ function contarIa(chaveJogador) {
   const hoje = new Date().toISOString().slice(0, 10);
   if (hoje !== dia) { dia = hoje; usadas = 0; }
   usadas++;
+}
+// o Groq recusou o JSON mas mandou o que o modelo escreveu: JSON quebrado ou só a fala ('Tô bem! E você?"}')
+export function salvarResposta(txt) {
+  const t = String(txt || '').trim(); if (!t) return null;
+  const v = lerResposta(t); if (v) return v;
+  const m = t.match(/"fala"\s*:\s*"((?:[^"\\]|\\.)*)"/); // JSON quebrado mas com a fala inteira
+  const fala = (m ? m[1] : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
+  if (!m && /^\{/.test(t)) return null; // JSON cortado no meio da fala: melhor o próximo modelo que meia frase
+  if (fala.length < 2 || /^[{\["]/.test(fala) || /"(fala|acao)"/.test(fala)) return null;
+  return { assunto: 'conversa', fala: fala.slice(0, 300) };
 }
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {
@@ -131,7 +176,7 @@ function lerResposta(txt) {
 // No fim de cada conversa, a IA reescreve o diário dela sobre a pessoa: até AMIGA.memoria.max anotações curtas (junta as
 // velhas com o que aconteceu hoje) e marca as dicas que viraram regra no jogo. Usa um modelo menor do Groq, que tem
 // limite separado do das respostas. dados = { nome, memoria, regras, conversa }.
-const MODELOS_DIARIO = ['llama-3.1-8b-instant', 'openai/gpt-oss-20b'];
+const MODELOS_DIARIO = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b']; // o Llama 3.1 8B saiu do Groq (404, 2026-11-13)
 export async function escreverDiario(dados, chaveJogador = '') {
   const chave = chaveJogador || segredo('GROQ_CHAVE');
   if (!chave || !dados?.conversa?.length) return null;
