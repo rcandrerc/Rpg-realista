@@ -504,7 +504,7 @@ static func _pele_cheia(raiz: Node3D) -> void:
 		# ganha o mesmo tom médio do rosto
 		for rosto in raiz.find_children("*", "MeshInstance3D", true, false):
 			var feito := false
-			for sfc in rosto.mesh.get_surface_count() if rosto.mesh else 0:
+			for sfc in rosto.mesh.get_surface_count() if rosto.mesh is ArrayMesh else 0: # só malha importada tem nome (a mancha e a barra de vida não)
 				var mr = rosto.mesh.surface_get_material(sfc)
 				var nome_r: String = (mr.resource_name if mr else "") + " " + rosto.mesh.surface_get_name(sfc)
 				if mr is BaseMaterial3D and mr.albedo_texture and "Face_00_SKIN" in nome_r and not "Outline" in nome_r:

@@ -1137,7 +1137,41 @@ func fora_da_tela(p: Vector3) -> bool:
 			return true
 	return false
 
+# Sombra de mancha (conselho de auditoria 2026-11-13, pacote 3; André "Seguir" no NPC leve): o NPC longe já não faz
+# sombra de verdade (custava desenhar o corpo todo de novo) e parecia flutuar. Agora ganha uma mancha escura no chão,
+# debaixo dos pés: um quadrado só, sem luz, que não entra na sombra nem escreve profundidade. Perto volta a sombra real.
+const MANCHA_LADO := 0.95 # m
+static var _mancha_malha: QuadMesh
+static var _mancha_mat: ShaderMaterial
+static func _mancha(no: Node, ligar: bool) -> void:
+	var mi: MeshInstance3D = no.get_node_or_null("SombraMancha")
+	if not ligar:
+		if mi:
+			mi.visible = false
+		return
+	if mi == null:
+		if _mancha_malha == null:
+			var sh := Shader.new()
+			sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\nvoid fragment() { float d = length(UV - vec2(0.5)) * 2.0; ALBEDO = vec3(0.0); ALPHA = 0.42 * (1.0 - smoothstep(0.35, 1.0, d)); }\n"
+			_mancha_mat = ShaderMaterial.new()
+			_mancha_mat.shader = sh
+			_mancha_mat.render_priority = -1
+			# QuadMesh e material_override: quem percorre as malhas do corpo pula como pula a barra de vida (flash do
+			# golpe, gelo, pele, tinta), então a mancha nunca pisca nem muda de cor
+			_mancha_malha = QuadMesh.new()
+			_mancha_malha.orientation = PlaneMesh.FACE_Y
+			_mancha_malha.size = Vector2(MANCHA_LADO, MANCHA_LADO)
+		mi = MeshInstance3D.new()
+		mi.name = "SombraMancha"
+		mi.mesh = _mancha_malha
+		mi.material_override = _mancha_mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = Vector3(0, 0.04, 0)
+		no.add_child(mi)
+	mi.visible = true
+
 static func npc_simples(no: Node, simples: bool) -> void:
+	_mancha(no, simples)
 	if _mat_nada == null:
 		var sh := Shader.new()
 		sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, shadows_disabled;\nvoid vertex() { POSITION = vec4(2.0, 2.0, 2.0, 1.0); }\nvoid fragment() { ALBEDO = vec3(0.0); }\n"
