@@ -14,9 +14,67 @@ const EMPURRAO := 0.006 # no máximo 6 mm para fora: o penteado não ganha volum
 static var _cenas := {} # id do modelo -> PackedScene
 static var _feitos := {} # "doador|malha do rosto do alvo" -> [[ArrayMesh, Material], ...]
 static var _materiais := {} # material do doador -> material pintado como o resto do personagem (main.pintar)
+# Travada de quase 1 s quando a Cecília (ou um aventureiro de penteado) entrava na visão (André 2026-11-13, "travadas
+# são inaceitáveis"): carregar o modelo doador era 540 ms no PC (victoria) e montar o cabelo mais ~90 ms, no quadro.
+# Agora o modelo doador pode carregar numa linha de fundo (pedir/pronto, só olhando o andamento: no Godot 4.7 o jogo
+# trava se a linha principal espera um carregamento de fundo, #423) e o aquecer.gd monta os penteados atrás da capa.
+static var _pedidos := {} # doador -> carregamento de fundo pedido
+
+static func _arquivo(doador: String) -> String:
+	return "res://modelos/%s.glb" % doador
+
+# pede o modelo doador numa linha de fundo (não espera)
+static func pedir(doador: String) -> void:
+	if doador == "" or _cenas.has(doador) or _pedidos.has(doador) or not ResourceLoader.exists(_arquivo(doador)):
+		return
+	if ResourceLoader.load_threaded_request(_arquivo(doador)) == OK:
+		_pedidos[doador] = true
+
+# o modelo doador já está na memória? (só olha o andamento do carregamento de fundo, nunca espera)
+static func pronto(doador: String) -> bool:
+	if _cenas.has(doador):
+		return true
+	if not _pedidos.has(doador):
+		return false
+	var st := ResourceLoader.load_threaded_get_status(_arquivo(doador))
+	if st == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		return false
+	_pedidos.erase(doador)
+	if st == ResourceLoader.THREAD_LOAD_LOADED:
+		var c = ResourceLoader.load_threaded_get(_arquivo(doador))
+		if c is PackedScene:
+			_cenas[doador] = c
+			return true
+	return false # falhou: o caminho de sempre (load) carrega quando precisar
+
+# penteado deste corpo já montado (não precisa carregar nem calcular nada)
+static func montado(no: Node3D, doador: String) -> bool:
+	var rosto := _rosto(no)
+	return rosto != null and _feitos.has("%s|%d" % [doador, rosto.mesh.get_instance_id()])
+
+static func _cena(doador: String, esperar: bool) -> PackedScene:
+	if pronto(doador):
+		return _cenas[doador]
+	if not esperar:
+		pedir(doador)
+		return null
+	if _pedidos.has(doador):
+		# carregando no fundo e quem chamou precisa agora (o herói, o criador): uma cópia separada, sem esperar a linha
+		# de fundo (no 4.7 esperar o carregamento de fundo pode travar o jogo, #423)
+		return ResourceLoader.load(_arquivo(doador), "", ResourceLoader.CACHE_MODE_IGNORE_DEEP) as PackedScene
+	_cenas[doador] = load(_arquivo(doador))
+	return _cenas[doador]
 
 # id = modelo doador ("" ou null = o cabelo do próprio corpo)
+# esperar = false (corpos dos outros, online.gd): se o modelo doador ainda não chegou, pede no fundo e fica o cabelo do
+# próprio corpo por enquanto; o corpo ganha a meta "penteado_espera" e quem chamou aplica de novo quando pronto()
 static func aplicar(no: Node3D, id) -> void:
+	_aplicar(no, id, true)
+
+static func aplicar_sem_esperar(no: Node3D, id) -> void:
+	_aplicar(no, id, false)
+
+static func _aplicar(no: Node3D, id, esperar: bool) -> void:
 	var esq := _esqueleto(no)
 	if esq == null:
 		return
@@ -24,6 +82,12 @@ static func aplicar(no: Node3D, id) -> void:
 	if doador == "" or not ResourceLoader.exists("res://modelos/%s.glb" % doador):
 		doador = ""
 	if str(esq.get_meta("penteado", "")) == doador:
+		return
+	if no.has_meta("penteado_espera"):
+		no.remove_meta("penteado_espera")
+	if doador != "" and not esperar and not montado(no, doador) and not pronto(doador):
+		pedir(doador)
+		no.set_meta("penteado_espera", doador)
 		return
 	for filho in esq.get_children():
 		if str(filho.name).begins_with("Penteado"):
@@ -39,7 +103,14 @@ static func aplicar(no: Node3D, id) -> void:
 		return
 	var chave := "%s|%d" % [doador, rosto.mesh.get_instance_id()]
 	if not _feitos.has(chave):
-		_feitos[chave] = _montar(doador, esq, rosto)
+		var feito = _montar(doador, esq, rosto, esperar)
+		if feito == null: # não deu para carregar o doador agora
+			for mi in _cabelos_proprios(no):
+				mi.visible = true
+			esq.set_meta("penteado", "")
+			no.set_meta("penteado_espera", doador)
+			return
+		_feitos[chave] = feito
 	if _feitos[chave].is_empty(): # outro sexo ou modelo sem cabelo: fica o cabelo do próprio corpo
 		for mi in _cabelos_proprios(no):
 			mi.visible = true
@@ -198,10 +269,11 @@ static func _raio(R: PackedFloat32Array, d: Vector3) -> float:
 		return R[clampi(t, 0, GRADE_T - 1) * GRADE_F + posmod(f, GRADE_F)]
 	return lerpf(lerpf(v.call(t0, f0), v.call(t0, f0 + 1), af), lerpf(v.call(t0 + 1, f0), v.call(t0 + 1, f0 + 1), af), at)
 
-static func _montar(doador: String, esq_a: Skeleton3D, rosto_a: MeshInstance3D) -> Array:
-	if not _cenas.has(doador):
-		_cenas[doador] = load("res://modelos/%s.glb" % doador)
-	var no_d: Node3D = _cenas[doador].instantiate()
+static func _montar(doador: String, esq_a: Skeleton3D, rosto_a: MeshInstance3D, esperar := true):
+	var cena := _cena(doador, esperar)
+	if cena == null:
+		return null
+	var no_d: Node3D = cena.instantiate()
 	var esq_d := _esqueleto(no_d)
 	var rosto_d := _rosto(no_d)
 	var saida := []
