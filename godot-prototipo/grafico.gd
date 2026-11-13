@@ -64,8 +64,9 @@ func _init(jogo) -> void:
 	limite = int(cfg.get_value("config", "fps_limite", -1))
 	if limite not in LIMITES:
 		limite = -1
-	# botão Teste e linha do FPS (conselho 2026-11-13): escondidos para quem instala agora (um toque sem querer rodava 90 s
-	# de teste); quem já jogava (André e o irmão) continua vendo. Configurações > Teste e FPS troca.
+	# botão Teste (conselho 2026-11-13): escondido para quem instala agora (um toque sem querer rodava 90 s de teste);
+	# quem já jogava (André e o irmão) continua vendo. Configurações > Botão Teste troca. A linha do FPS tem a chave
+	# própria (Mostrar FPS, menu_topo.gd), que também vem desligada para quem instala agora.
 	teste = bool(cfg.get_value("config", "teste_fps", tem))
 	if not cfg.has_section_key("config", "teste_fps"):
 		cfg.set_value("config", "teste_fps", teste)
@@ -153,7 +154,7 @@ func trocar_paralelo(v: bool) -> void:
 func fps_alvo() -> int:
 	return limite if limite >= 0 else int(P.fps)
 
-var teste := false # botão Teste e FPS à vista
+var teste := false # botão Teste à vista
 
 func trocar_teste(v: bool) -> void:
 	teste = v

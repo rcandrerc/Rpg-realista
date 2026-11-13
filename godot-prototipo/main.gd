@@ -416,7 +416,7 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
-	_tela_teste.visible = grafico.teste # Configurações > Teste e FPS
+	botao_teste.visible = grafico.teste # Configurações > Botão Teste
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
 	lentidao = load("res://lentidao.gd").new(self)
@@ -4839,7 +4839,7 @@ func proxima_etapa() -> void:
 	etapa += 1
 	if etapa >= etapas.size():
 		etapa = -1
-		botao_teste.visible = true
+		botao_teste.visible = grafico.teste
 		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), false)
 		return
 	etapas[etapa].f.call()
@@ -4852,7 +4852,7 @@ func proxima_etapa() -> void:
 	_q_quadros.clear()
 
 func atualizar_teste(dt: float) -> void:
-	if not _tela_teste.visible and etapa < 0: # escondido (Configurações > Teste e FPS): nem monta o texto
+	if not rotulo.visible and etapa < 0: # FPS escondido (Configurações > Mostrar FPS): nem monta o texto
 		return
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
