@@ -30,6 +30,7 @@ var _bloq := 0
 var _corr := 0
 var _corr_m := 0.0
 var _foto_ms := 0.0
+var _proc := 0.0 # ms: o maior tempo de conta do jogo (scripts e física) num quadro do segundo
 var _p_vis = null
 var _p_mov = null
 var _mandadas := 0
@@ -69,9 +70,11 @@ func _seguir_entrada() -> void:
 		marcar("fila")
 	if m.aquecer and m.aquecer.feito:
 		marcar("aquecer")
-	if _entrada.has("toque") and on.ligado and not on._cobrindo and not (on.capa and on.capa.visible):
+	# André 2026-11-13: no celular a linha não chegava. Agora não depende do toque em Entrar nem dos efeitos prontos:
+	# sai quando o jogo aparece e os efeitos ficam prontos, ou 20 s depois disso com o que tiver.
+	if on.ligado and not on._cobrindo and not (on.capa and on.capa.visible):
 		marcar("capa")
-		if not _entrada_mandada and _entrada.has("aquecer"):
+		if not _entrada_mandada and (_entrada.has("aquecer") or Time.get_ticks_msec() - int(_entrada.capa) > 20000):
 			_entrada_mandada = true
 			var e := _entrada.duplicate()
 			e.tipo = "entrada"
@@ -98,6 +101,7 @@ func _zerar(agora: int) -> void:
 	_corr = 0
 	_corr_m = 0.0
 	_foto_ms = 0.0
+	_proc = 0.0
 
 func _process(dt: float) -> void:
 	if not _entrada_mandada:
@@ -113,6 +117,7 @@ func _process(dt: float) -> void:
 	_quadros += 1
 	_jogo += dt
 	_pior = maxf(_pior, q * 1000.0)
+	_proc = maxf(_proc, (Performance.get_monitor(Performance.TIME_PROCESS) + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0)
 	_escala = minf(_escala, Engine.time_scale)
 	_foto_ms = maxf(_foto_ms, float(Time.get_ticks_msec() - on.foto_ms) if on.foto_ms > 0 else 0.0)
 	var pv: Vector3 = m.heroi.position
@@ -135,7 +140,9 @@ func _process(dt: float) -> void:
 		return
 	var relogio: float = _jogo / real
 	var lento_lobo: bool = _pedido > 3.0 and _andou_lobo < _pedido * 0.75
-	if relogio < 0.85 or lento_lobo or _corr > 0 or _pior >= 100.0:
+	# o congelamento do golpe e a câmera lenta de propósito (Engine.time_scale < 1) atrasam o relógio do jogo sem ser
+	# lentidão: nesse segundo só conta quadro travado, puxão e o lobo (eram 4 de cada 10 linhas, e empurravam as de verdade)
+	if (relogio < 0.85 and _escala >= 1.0) or lento_lobo or _corr > 0 or _pior >= 100.0:
 		_anotar(real, relogio)
 	_zerar(agora)
 
@@ -150,6 +157,16 @@ func _anotar(real: float, relogio: float) -> void:
 		"x": roundi(m.heroi.position.x), "z": roundi(m.heroi.position.z), "grafico": int(g.nivel) if g else -1,
 		"limite": Engine.max_fps, "paralelo": int(m._q_paralelo), "versao": str(load("res://versao.gd").NUMERO),
 	}
+	# André 2026-11-13 ("as travadas ficam sendo mapeadas"): quanto do segundo ruim foi conta do jogo (proc) e quanto a
+	# placa desenhava (chamadas, mil triângulos, objetos) e para onde a câmera olhava (rumo, graus). Lido só no segundo
+	# ruim: com o desenho em paralelo, a leitura da placa espera a outra linha, então nunca por quadro.
+	e.proc = roundi(_proc)
+	e.cham = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
+	e.tri = roundi(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0)
+	e.obj = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+	var cam: Camera3D = m.get_viewport().get_camera_3d()
+	if cam:
+		e.rumo = roundi(fposmod(rad_to_deg(cam.global_rotation.y), 360.0))
 	lista.append(e)
 	while lista.size() > GUARDA:
 		lista.pop_front()
