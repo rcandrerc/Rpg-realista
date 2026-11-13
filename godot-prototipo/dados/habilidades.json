@@ -3368,6 +3368,17 @@
   "radar": {
    "mostra": 180,
    "recarga": 60
+  },
+  "mar": {
+   "quantos": {
+    "comum": 8,
+    "raro": 4,
+    "epico": 2
+   },
+   "de": 30,
+   "ate": 160,
+   "margem": 7,
+   "fundo": 1.5
   }
  },
  "packs": {
@@ -3591,8 +3602,8 @@
   },
   "barquinho": {
    "nome": "Barquinho",
-   "vel": 3.2,
-   "giro": 1.15,
+   "vel": 2.1,
+   "giro": 0.65,
    "acelera": 0.8,
    "deriva": 0.45,
    "pessoas": 2,
@@ -20516,7 +20527,7 @@
     "total": 5,
     "etapas": [
      "Evolua uma peça para Épica na bigorna da ferraria (Criar > Evoluir)",
-     "Reforce uma peça até +6 (Mochila > peça > Reforçar)",
+     "Reforce uma peça até +3 (Mochila > peça > Reforçar)",
      "Forje um Colar de Estrela na bigorna da ferraria",
      "Leve 3 Ensopados de carne na mochila (fogão)",
      "Volte e fale com Tomás"
