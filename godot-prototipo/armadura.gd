@@ -340,7 +340,9 @@ static func _roupa_base(raiz: Node3D, esq: Skeleton3D) -> void:
 		partes = ["base_short", "base_calcinha_alta", "base_top"] # top por cima do tronco encaixado
 	for parte in partes:
 		var src := tronco if (parte == "base_top" and tronco) else corpo
-		var chave := "%d:%s" % [src.mesh.get_instance_id(), parte]
+		# o tronco é uma cópia por corpo (_tronco): a chave é o arquivo dele, senão o top era refeito em cada moça nova
+		# (~80 ms no PC a cada corpo, 2026-11-13)
+		var chave := "%s:%s" % [str(src.mesh.get_meta("fonte_malha", src.mesh.get_instance_id())), parte]
 		if not _malhas.has(chave):
 			_malhas[chave] = _casca(src, parte, esq)
 		if _malhas[chave] == null:
@@ -588,6 +590,7 @@ static func _tronco(raiz: Node3D, esq: Skeleton3D) -> MeshInstance3D:
 			continue
 		var copia: ArrayMesh = (load(par[1]) as ArrayMesh).duplicate()
 		copia.surface_set_material(0, _materiais[chave])
+		copia.set_meta("fonte_malha", par[1]) # mesma malha em todo corpo: o top de biquíni (_roupa_base) sai do cache
 		var no := MeshInstance3D.new()
 		no.name = par[0]
 		no.mesh = copia
@@ -3032,9 +3035,12 @@ static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
 		if not com_elmo:
 			mi.mesh = orig
 			continue
-		var chave := "cabelo:%d" % orig.get_instance_id()
+		# corpo que já ganhou LOD (lod_malha.gd) aperta a malha original: a mesma do boneco aquecido atrás da capa
+		# (aquecer.gd), senão cada penteado debaixo do capacete era refeito no quadro (~30 ms, 2026-11-13)
+		var fonte: Mesh = preload("res://lod_malha.gd").original(orig)
+		var chave := "cabelo:%d" % fonte.get_instance_id()
 		if not _malhas.has(chave):
-			_malhas[chave] = _cabelo_apertado(orig, _cabeca(raiz), _bind_cabeca(mi))
+			_malhas[chave] = _cabelo_apertado(fonte, _cabeca(raiz), _bind_cabeca(mi))
 		mi.mesh = _malhas[chave]
 
 static func _malha_cabelo(raiz: Node3D) -> Mesh:

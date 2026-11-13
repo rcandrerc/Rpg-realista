@@ -10,6 +10,8 @@ const ESPERA_INICIO := 0.3 # s depois de abrir: o jogo termina de montar a vila
 const QUADROS_NA_TELA := 3 # quadros desenhados com tudo junto (o primeiro já compila; os outros garantem)
 const SUMIDO := 2.0 # s com os efeitos escondidos até acabarem sozinhos (a capa já pode sair)
 
+const Penteado = preload("res://penteado.gd")
+
 var m # main.gd
 var rodando := false
 var cobre := false # a capa espera (online.gd): só enquanto os efeitos estão na tela
@@ -20,6 +22,19 @@ var _quadros := 0
 var _corpo: Node3D
 var _mobs: Array = []
 var _volume := 0.0
+# Corpos dos outros (André 2026-11-13, "travadas são inaceitáveis"): a Cecília entrando na visão pela primeira vez
+# travava ~1 s no PC (carregar o modelo do penteado 540 ms, montar o cabelo ~90 ms e a armadura ~280 ms, no quadro);
+# os aventureiros de penteado davam o mesmo tranco. Atrás da capa, um boneco escondido de cada corpo do criador veste
+# as peças de armadura (metal e couro) e cada penteado da lista: o que é montado fica guardado e, no jogo, o corpo de
+# quem chega sai pronto. Os modelos dos penteados carregam numa linha de fundo enquanto o resto acontece.
+# calça e short, com e sem capa (com capa o saiote muda), de metal (Raro em diante) e de couro (Comum)
+const ROUPAS_AQUECER := ["chapeu2,peitoral2,calca2,botas2,capa2", "peitoral2,short2,botas2", "calca2", "short2,capa2",
+	"chapeu0,peitoral0,calca0,botas0,capa0", "peitoral0,short0,botas0", "calca0", "short0,capa0"]
+const CORPOS_MAX := 8.0 # s no máximo esperando os modelos dos penteados (depois a capa sai e eles chegam no fundo)
+var _fila_corpos: Array = [] # [tipo, corpo, valor]: um passo por quadro
+var _corpos_t := 0.0
+var _manequins := {}
+var _corpos_us := 0
 
 func _init(principal) -> void:
 	m = principal
@@ -29,10 +44,13 @@ func comecar() -> void:
 		return
 	rodando = true
 	cobre = true
+	_preparar_corpos()
 	_fase = 0
 	_t = 0.0
 
 func _process(dt: float) -> void:
+	if not _fila_corpos.is_empty():
+		_passo_corpos(dt)
 	if not rodando:
 		return
 	_t += dt
@@ -53,7 +71,7 @@ func _process(dt: float) -> void:
 				m.combate.aviso_area_fim()
 				_t = 0.0
 				_fase = 2
-				cobre = false
+				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
 		2:
 			if _t >= SUMIDO:
 				m.fx.visible = true
@@ -149,3 +167,63 @@ func _mostrar_tudo() -> void:
 			n.no.visible = false
 			n.no.queue_free()
 	print_verbose("aquecer: %d tipos de NPC em %d ms" % [vistos.size(), (Time.get_ticks_usec() - t0) / 1000])
+
+func _preparar_corpos() -> void:
+	var cri = m.P.dados.get("criador") if m.P and m.P.dados is Dictionary else null
+	if not (cri is Dictionary):
+		return
+	var pent: Dictionary = cri.get("penteados", {}) if cri.get("penteados") is Dictionary else {}
+	var corpos: Array = []
+	for c in cri.get("corpos", ["ruiva"]):
+		if not str(c) in corpos:
+			corpos.append(str(c))
+	for c in pent:
+		if not str(c) in corpos:
+			corpos.append(str(c))
+	for c in corpos:
+		for d in pent.get(c, []):
+			Penteado.pedir(str(d)) # carrega no fundo enquanto as armaduras montam
+	for c in corpos:
+		_fila_corpos.append(["boneco", c, ""])
+		for r in ROUPAS_AQUECER:
+			_fila_corpos.append(["roupa", c, r])
+		for d in pent.get(c, []):
+			_fila_corpos.append(["penteado", c, str(d)])
+	_fila_corpos.append(["fim", "", ""])
+	_corpos_t = 0.0
+	_corpos_us = 0
+
+func _passo_corpos(dt: float) -> void:
+	_corpos_t += dt
+	var p: Array = _fila_corpos[0]
+	var t0 := Time.get_ticks_usec()
+	match str(p[0]):
+		"boneco":
+			var no: Node3D = m.modelo(str(p[1]))
+			no.visible = false
+			no.process_mode = Node.PROCESS_MODE_DISABLED
+			m.add_child(no)
+			_manequins[p[1]] = no
+		"roupa":
+			var no = _manequins.get(p[1])
+			if is_instance_valid(no):
+				m.Armadura.vestir(no, m.Armadura.de_texto(str(p[2])))
+		"penteado":
+			var no = _manequins.get(p[1])
+			var d := str(p[2])
+			if is_instance_valid(no) and (Penteado.montado(no, d) or Penteado.pronto(d)):
+				Penteado.aplicar(no, d) # já montado (o herói usa este): só põe no boneco
+				m.Armadura.vestir(no, m.Armadura.de_texto("chapeu2")) # o cabelo apertado debaixo do capacete (~30 ms)
+			elif is_instance_valid(no) and _corpos_t < CORPOS_MAX and Penteado._pedidos.has(d):
+				return # ainda carregando no fundo: espera (sem travar) e tenta no próximo quadro
+		"fim":
+			for c in _manequins:
+				if is_instance_valid(_manequins[c]):
+					_manequins[c].queue_free()
+			_manequins.clear()
+	_corpos_us += Time.get_ticks_usec() - t0
+	_fila_corpos.pop_front()
+	if _fila_corpos.is_empty():
+		print_verbose("aquecer: corpos dos outros em %d ms (%.1f s com a espera dos penteados)" % [_corpos_us / 1000, _corpos_t])
+		if _fase >= 2:
+			cobre = false
