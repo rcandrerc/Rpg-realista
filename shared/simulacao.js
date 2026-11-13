@@ -2110,7 +2110,11 @@ export class Simulacao {
     if (m.acao === 'sair') return j.time && this.sairDoTime(j, `${j.nome} saiu do time`);
     // com: id do jogador na sala ou a conta do amigo (lista de amigos)
     const o = this.jogadores.get(String(m.com || '')) || this.porConta(String(m.com || ''));
-    if (o?.bot) return; // a Cecília entra no time pela conversa com ela (shared/amiga.js), não pelo convite
+    // Cecília e Dario (André 2026-11-13, "como se fosse um jogador real"): o botão só convida ou tira do time, sem fala no chat
+    const ctxIa = o?.bot ? this.amigoIaDe(o) : null;
+    if (ctxIa && m.acao === 'convidar') return ctxIa.conviteTimeAmiga(j.id);
+    if (ctxIa && m.acao === 'expulsar') return ctxIa.sairTimeAmiga(j.id);
+    if (o?.bot) return;
     if (m.acao === 'expulsar') {
       const T = j.time; if (!T || T.lider !== j.id || !o || o.time !== T || o === j) return;
       aviso('Você saiu do time', o.id);

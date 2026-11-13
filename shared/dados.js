@@ -2528,6 +2528,8 @@ export const AMIGA = {
     pronta: ['Minha casa ficou pronta! Pode entrar, só não repara a bagunça.', 'Casa pronta, horta plantada. Agora só falta aventura!'],
     horta: ['Essa horta é meu orgulho. Cenoura daqui é outro nível.', 'Plantar é fácil, difícil é não comer tudo antes de colher.'],
     time: ['Bora! Tô no seu time. Vai na frente que eu cuido das suas costas.', 'Fechou! Time formado. Quem cair primeiro paga o jantar!', 'Partiu! Espada afiada e cenoura no bolso.'],
+    // André 2026-11-13 ("como se fosse um jogador real"): no chat ela só topa; quem dá o time é ele, pelo botão
+    timeCombinado: ['Bora! Manda o convite do time.', 'Topo! Me chama pro time que eu vou.', 'Fechou! Manda o time aí.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
     recusa: {
       cansada: 'Ai, tô moída... deixa eu descansar um pouco antes, tá?',
@@ -2603,11 +2605,12 @@ export const AMIGA = {
   troca: { margem: 1.5, porAmizade: 0.05, margemMin: 1.1, pensar: 1.2, longe: 6 },
   falasTroca: {
     abre: ['Bora negociar! Me diz o que você quer ("quero 3 cenouras") ou põe na mesa o que tem pra mim.', 'Troca? Adoro! Fala o que você quer ou mostra o que trouxe.'],
+    topa: ['Bora! Toca em mim e pede a troca.', 'Claro! Chega perto e pede a troca.'], // André 2026-11-13: no chat ela só topa; a troca ele abre
     longe: 'Chega mais perto que a gente troca! Toca em mim e escolhe Troca.',
     ocupada: 'Agora não dá, tô no meio de uma coisa! Daqui a pouco a gente troca.',
     pus: 'Coloquei na mesa: {item}. Sai por {preco} de ouro.',
     naoTenho: 'Hmm, isso eu não tenho aqui na mochila.',
-    oferta: 'Tenho sim: {item}. Não vou usar, te vendo por {preco} de ouro. Chega perto e abre a troca comigo que eu já ponho na mesa!',
+    oferta: 'Tenho sim: {item}. Não vou usar, te vendo por {preco} de ouro. Chega perto e pede a troca comigo que eu já ponho na mesa!',
     preciso: 'Tenho {item}, mas tô precisando. Esse eu não vendo!',
     falta: 'Assim não fecha, hein! Põe mais {falta} de ouro que eu topo.',
     pago: 'Gostei! Te pago {ouro} de ouro por isso.',
@@ -2715,6 +2718,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
     pronta: ['Casa pronta! Simples, mas aguenta qualquer tempestade.', 'Telhado em cima, horta plantada. Agora sim, aventura.'],
     horta: ['A horta me acalma. Batata daqui dá força pra caçada.', 'Plantar dá menos trabalho que matar lobo. Quase.'],
     time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
+    timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
     recusa: {
       cansada: 'Tô moído... deixa eu recuperar o fôlego antes.',
@@ -2746,6 +2750,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
   },
   falasTroca: {
     abre: ['Bora negociar. Me diz o que você quer ("quero 3 batatas") ou põe na mesa o que tem pra mim.', 'Troca? Pode ser. Fala o que quer ou mostra o que trouxe.'],
+    topa: ['Pode ser. Toca em mim e pede a troca.', 'Beleza. Chega perto e pede a troca.'],
     presente: 'Presente? Valeu mesmo, vou guardar.',
     feita: ['Negócio fechado. Bom fazer troca com você.', 'Feito! Volta sempre.'],
     obrigada: 'Obrigado pelo presente! Você é dos bons.',
