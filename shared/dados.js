@@ -3532,10 +3532,13 @@ export const HISTORIA = [
     ],
     pronto: 'Roda boa e lenha boa. Escuta: o de capa cinza voltou ontem, rondando o Ninho. Perguntou de você pelo nome. Tome cuidado.' },
   { id: 'b9', cap: 8, nv: 28, npc: 'ferreiro', nome: 'Prontos para a caçada', libera: [],
-    pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +6. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca.',
+    pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +3. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca. Tome dois Selos Épicos.',
+    recebe: { selo_epico: 2 }, // auditoria 2026-11-13: no Nv28 não havia de onde tirar catalisador Épico (evoluir falha 15%: vão dois)
     etapas: [
+      // auditoria 2026-11-13: +6 pedia 60 de Força ou Inteligência (o máximo no Nv28 é 57); +3 pede 30, que dá com metade
+      // dos pontos num atributo
       { ev: 'evoluir', min: 2, txt: 'Evolua uma peça para Épica na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
-      { ev: 'reforcar', min: 6, txt: 'Reforce uma peça até +6 (Mochila > peça > Reforçar)' },
+      { ev: 'reforcar', min: 3, txt: 'Reforce uma peça até +3 (Mochila > peça > Reforçar)' },
       { ev: 'criar', k: 'colar', ja: 'tem', txt: 'Forje um Colar de Estrela na bigorna da ferraria', alvo: 'estacao:pub_bigorna' },
       { ev: 'ter', itens: { ensopado: 3 }, txt: 'Leve 3 Ensopados de carne na mochila (fogão)', alvo: 'lote' },
     ],

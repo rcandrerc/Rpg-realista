@@ -277,7 +277,7 @@ correr(0.6); ok(etapa().ev === 'falar', 'carrinho inteiro: a etapa de consertar 
 falar('m_couro'); fim('b7');
 falar('ferreiro'); ok(missao() === 'b9', 'Tomás: prontos para a caçada');
 s.historia(j, 'evoluir', { v: 1 }); ok(h().e === 0, 'Rara não vale'); s.historia(j, 'evoluir', { v: 2 });
-s.historia(j, 'reforcar', { v: 5 }); ok(h().e === 1, '+5 não vale'); s.historia(j, 'reforcar', { v: 6 });
+s.historia(j, 'reforcar', { v: 2 }); ok(h().e === 1, '+2 não vale'); s.historia(j, 'reforcar', { v: 3 }); // +3 (auditoria 2026-11-13: +6 não dava no Nv28)
 guardar(p.mochila, { k: 'colar', r: 0 }); dar('ensopado', 3); correr(0.6); falar('ferreiro'); fim('b9');
 subir(30); falar('lider'); ok(missao() === 'h8', 'Warrok, o Carcereiro');
 correr(0.6); ok(h().e === 1, 'o time ainda está junto');

@@ -22,6 +22,15 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
+// '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
+// mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
+const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
+function temChavePerigosa(m, d = 0) {
+  if (typeof m === 'string') return PROIBIDO.has(m);
+  if (!m || typeof m !== 'object' || d > 5) return false;
+  for (const k in m) if (PROIBIDO.has(k) || temChavePerigosa(m[k], d + 1)) return true;
+  return false;
+}
 // queda (André 2026-11-12): conta -> hora (ms) da última posição que o servidor recebeu dela antes de cair. Entrando de novo,
 // o caminho andado sem internet vale (Simulacao.folgaDaQueda), em vez de puxar o herói de volta
 const saidas = new Map();
@@ -60,9 +69,9 @@ class SalaClareira extends Room {
       if (r && acao === regra && regra !== r.assunto && !amg.regraValeSobreIaAmiga(id, regra, msg.texto, r.assunto)) acao = amg.acaoSemEfeitoAmiga(id, r.assunto) ? 'conversa' : r.assunto;
       if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa'; // "bora!" de quem já está no time: só conversa, com a fala da IA
       amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
-    });
+    }).catch((e) => console.error('amigo IA: resposta deu erro', e));
     // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
-    if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); });
+    if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); }).catch((e) => console.error('amigo IA: dica deu erro', e));
     else conversar();
   }
   onCreate() {
@@ -272,14 +281,16 @@ class SalaClareira extends Room {
       b.n = Math.min(LIMITE.max, b.n + ((agora - b.t) / 1000) * LIMITE.porSeg); b.t = agora;
       if (b.n < custo) return;
       b.n -= custo;
+      if (temChavePerigosa(m)) return; // '__proto__' e companhia nunca são dado de jogo (auditoria 2026-11-13)
       // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
-      try { fn(c, m); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
+      try { const r = fn(c, m); if (r && typeof r.catch === 'function') r.catch((e) => console.error(`mensagem ${tipo} deu erro:`, e)); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
     });
   }
 
   tick() {
     const t0 = performance.now();
-    try { this.tickDeVerdade(); } finally {
+    // um erro no passo não derruba o servidor inteiro (auditoria 2026-11-13): registra (no máximo 1 vez a cada 5 s) e segue
+    try { this.tickDeVerdade(); } catch (e) { if (Date.now() - (this.erroTickT || 0) > 5000) { this.erroTickT = Date.now(); console.error('passo da sala deu erro:', e); } } finally {
       const ms = performance.now() - t0, agora = Date.now(); carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms;
       if (ms > carga.picoPing || agora - carga.picoPingT > 3000) { carga.picoPing = ms; carga.picoPingT = agora; } // janela de ~3 s para o aviso no app
     }
@@ -321,7 +332,7 @@ class SalaClareira extends Room {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
         const vj = this.sim.jogadores.get(outro.sessionId);
-        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
+        if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
       // o servidor já tinha visto a queda: o herói antigo está no mundo esperando reconexão (allowReconnection, 20 s) e
@@ -329,7 +340,7 @@ class SalaClareira extends Room {
       // 15 s atrás, e o antigo ficava 20 s no mundo como fantasma)
       const vivos = new Set(this.clients.map((o) => o.sessionId));
       for (const vj of [...this.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && vj.id !== client.sessionId && !vivos.has(vj.id)) {
-        this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
+        this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
         velhos.push(vj.id); fantasmas.push(vj.id); // sai do mundo logo abaixo, depois de passar o time e os amigos para o novo
       }
     }
@@ -538,6 +549,14 @@ app.post('/conta/apagar', (req, res) => {
   res.json({ ok: true });
 });
 
+// rede de segurança (auditoria 2026-11-13): promessa rejeitada sem dono só registra; erro solto grava todo mundo antes de sair
+// (o systemd sobe de novo). Antes, os dois derrubavam o processo sem gravar: até 15 s de progresso perdidos.
+process.on('unhandledRejection', (e) => console.error('promessa sem catch:', e));
+process.on('uncaughtException', (e) => {
+  console.error('erro solto, gravando e saindo:', e);
+  for (const s of salas) { try { s.salvarProgressos(); } catch (e2) { console.error('gravar falhou', e2); } }
+  process.exit(1);
+});
 const servidor = http.createServer(app);
 const gameServer = new Server({ transport: new WebSocketTransport({ server: servidor, pingInterval: 5000, pingMaxRetries: 4 }) });
 gameServer.define('clareira', SalaClareira);
