@@ -11,9 +11,10 @@ import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo } from './
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
+import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
-import { Kit, pedidosDaEtapa } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
+import { Kit, pedidosDaEtapa, soNoMar } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -1144,15 +1145,20 @@ export class Simulacao {
     if (!h?.ac) return npcEm(M.npc);
     const E = etapaAtual(p); if (!E) return null;
     const aberto = (x, z) => !zonaFechadaEm(p, x, z);
-    const resolve = (a) => {
+    const resolve = (a, peixe = E.k) => {
       if (!a) return null;
       if (a === 'pos') { const [x, z] = E.pos; return { x, z, nome: E.txt, npc: '' }; }
       if (a === 'treino') { const t = this.inimigos.find((e) => e.treino); return t ? { x: r2(t.x), z: r2(t.z), nome: 'o espantalho', npc: '' } : null; }
       if (a === 'lote') { const L = this.loteDe(j), d = L?.def || VILAS_TERRENO[0].area; return L ? { x: r2((d.x0 + d.x1) / 2), z: r2((d.z0 + d.z1) / 2), nome: 'o seu terreno', npc: '' } : { x: d.x, z: d.z, nome: 'as Terras da Estrada', npc: '' }; }
-      if (a === 'spot') {
+      if (a === 'spot') { // o spot onde sai o peixe pedido (sardinha só no mar, garoupa só no raro); mar só com o radar ligado
+        const k = typeof peixe === 'string' && ITENS[peixe] ? peixe : null, mar = soNoMar(k);
+        if (mar && !(j.radarAte > this.tempo)) return null;
         let b = null, md = Infinity;
-        for (const v of this.spots) if (v.ativo && v.tipo === 'comum' && aberto(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; b = v; } }
-        return b ? { x: r2(b.x), z: r2(b.z), nome: 'o spot de pesca', npc: '' } : { x: -3, z: 180, nome: 'o Lago Grande', npc: '' };
+        for (const v of this.spots) {
+          if (!v.ativo || !aberto(v.x, v.z) || (k ? !(PESCA.spots[v.tipo].peixes[v.agua] || []).some(([q]) => q === k) : v.tipo !== 'comum')) continue;
+          const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; b = v; }
+        }
+        return b ? { x: r2(b.x), z: r2(b.z), nome: 'o spot de pesca', npc: '' } : mar ? null : { x: -3, z: 180, nome: 'o Lago Grande', npc: '' };
       }
       const [tipo, id] = a.split(':');
       if (tipo === 'npc') return npcEm(id);
@@ -1170,11 +1176,19 @@ export class Simulacao {
       }
       return null;
     };
+    { const f = this.juntaDe(j, E); if (f && f.pre) return f.alvo || null; // passo antes (carrinho, barquinho, radar)
+      if (f && f.fonte) { // falta algo (shared/kit.js): o Ir leva à fonte, até na etapa de entregar ao NPC
+        const F = f.fonte;
+        if (F === 'receita') { const k = this.estacaoDaEtapa({ k: f.k }); if (!k) return null; const a = this.estacaoMaisPerto(j, k, aberto); if (a) return a; if (k === 'fogao' || k === 'fornalha') return resolve('lote'); } // fogão: o do terreno // ferramenta: cria na mochila, aqui mesmo
+        else if (F === 'forno') { let b = null, md = Infinity; for (const o of this.mapa.estacoes || []) if (o.k === 'fornalha' && aberto(o.x, o.z)) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; b = o; } } if (b) return { x: r2(b.x), z: r2(b.z), nome: b.nome, npc: '', estacao: b.id }; }
+        else if (F === 'destruir' || F === 'ouro') return null; // na mochila / o jogo todo dá ouro
+        else if (['lote', 'plantar', 'regar', 'cresce'].includes(F)) return resolve('lote');
+        else if (F === 'loja') return npcEm('comerciante');
+        else if (F === 'sintese') return npcEm('alquimista');
+        else if (F.startsWith('npc:')) return npcEm(F.slice(4));
+        else if (F === 'spot') return resolve('spot', f.k);
+        else { const a = resolve(F); if (a) return a; } } }
     if (E.ev === 'falar') return npcEm(E.npc);
-    { const f = this.juntaDe(j, E); if (f && f.fonte) { // falta material (shared/kit.js): o Ir leva à fonte
-      if (f.fonte === 'receita') { const R = RECEITAS[f.k]?.faz === f.k ? RECEITAS[f.k] : Object.values(RECEITAS).find((o) => o.faz === f.k && !o.r); const a = R && this.estacaoMaisPerto(j, RECEITA_ESTACAO(R), aberto); if (a) return a; }
-      else if (f.fonte === 'forno') { let b = null, md = Infinity; for (const o of this.mapa.estacoes || []) if (o.k === 'fornalha' && aberto(o.x, o.z)) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; b = o; } } if (b) return { x: r2(b.x), z: r2(b.z), nome: b.nome, npc: '', estacao: b.id }; }
-      else { const a = resolve(f.fonte); if (a) return a; } } }
     if (E.ev === 'pistas') { const i = E.pontos.findIndex((q, k) => !(h.m & (1 << k))); const q = E.pontos[Math.max(0, i)]; return { x: q[0], z: q[1], nome: q[2], npc: '' }; }
     if (E.hc) { // chefe da caverna (sala, sem campo) que ainda não apareceu: vale o lugar da etapa (robô das missões: o Ir do Trono não levava a lugar nenhum)
       const C = CHEFES_HISTORIA[E.hc], c = this.cacaDef(C?.campo), b = this.inimigos.find((e) => e.hc === E.hc && !e.morto);
@@ -1218,12 +1232,12 @@ export class Simulacao {
   histInfo(j) {
     const p = j.prog, h = p.hist, M = missaoAtual(p); if (!M || !h) return null;
     const E = h.ac ? etapaAtual(p) : null;
-    const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' ? E.npc : '';
     const tit = HISTORIA.slice(0, h.p).filter((o) => o.titulo).at(-1)?.titulo || ''; // título do último ato fechado
     // ev/k/min/de: o tipo da etapa, para o guia do app (guia.gd, André 2026-11-12: o botão do próximo toque pisca)
     const fj = E ? this.juntaDe(j, E) : null; // juntando material: o guia segue a coleta (shared/kit.js)
+    const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' && !fj ? E.npc : ''; // entregar sem ter tudo: junta antes
     const guia = fj ? this.guiaJunta(fj) : E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}) } : {};
-    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E && !j.bot && (E.ev === 'criar' || E.ev === 'ter' || E.ev === 'pack_fez') ? { livre: [...pedidosDaEtapa(E, p)] } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E && !j.bot ? (() => { const l = [...pedidosDaEtapa(E, p)]; return l.length ? { livre: l } : {}; })() : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -1678,9 +1692,10 @@ export class Simulacao {
       if (it.k === 'radar_pesca') { // Radar de pesca (André 2026-11-08): os spots aparecem no mapa por um tempo; não gasta
         const R = PESCA.radar, falta = (j.radarCd || 0) - this.tempo;
         if (falta > 0) return aviso(`Radar de pesca: pronto em ${Math.ceil(falta)} s`);
-        j.radarCd = this.tempo + R.recarga;
+        j.radarCd = this.tempo + R.recarga; j.radarAte = this.tempo + R.mostra; // a missão de pesca no mar leva ao spot só com o radar ligado
         const n = this.spots.filter((v) => v.ativo).length;
         this.evento({ t: 'radar', para: id, mostra: R.mostra });
+        this.avisarProg(j); // a missão de pesca no mar: o Ir passa a levar ao spot
         return aviso(n ? `Radar: ${n} spots de pesca no mapa por ${Math.round(R.mostra / 60)} min` : 'Radar: nenhum spot de pesca agora. Tente daqui a pouco');
       }
       // peça de construção, estação ou ferramenta não se "usa" (André 2026-11-07: tocar em Usar na bancada desconectava)
@@ -2272,7 +2287,7 @@ export class Simulacao {
     if (C.mao) return this.pegarSolto(j, no, C);
     // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
     if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
-    if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1)) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`);
+    if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1) && !Object.keys(C.da || {}).some((k) => this.livreHistoria(j, k))) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`); // a missão que pede o minério libera o veio
     if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     if (!this.cabeColeta(j.prog, C)) return aviso('Mochila cheia: venda ou guarde algo no baú para coletar');
@@ -2390,7 +2405,7 @@ export class Simulacao {
     if (m.acao !== 'lancar' || f) return;
     const p = j.prog;
     if (contar(p.mochila, 'vara') < 1) return aviso('Você precisa de uma vara de pescar (crie na mochila: Criar > Ferramentas)');
-    if ((noLago(j.x, j.z)?.fundo || 0) > AGUA.peito - 0.2) return aviso('Saia da água pra pescar');
+    if (j.veiculo !== 'barquinho' && j.veiculo !== 'navio' && (noLago(j.x, j.z)?.fundo || 0) > AGUA.peito - 0.2) return aviso('Saia da água pra pescar'); // de barco pesca no fundo (2026-11-13: a pesca no mar e a do barquinho do Nico)
     if (j.esc || j.trava > 0 || j.arrancada) return;
     const x = Number(m.x), z = Number(m.z);
     const d = Math.hypot(x - j.x, z - j.z);
@@ -2449,6 +2464,8 @@ export class Simulacao {
   // vagas de spot: por lago e por tipo (PESCA.spots[tipo].por[água]; lago com pesca: true ganha "grande" comuns)
   criarSpots() {
     const P = PESCA, lista = [];
+    // mar (PESCA.mar): vagas soltas no mar aberto, em volta de um cais sorteado a cada vez que nascem
+    for (const [tipo, n] of Object.entries(P.mar?.quantos || {})) for (let i = 0; i < n; i++) lista.push({ id: `s${lista.length}`, lago: null, agua: 'mar', tipo, ativo: false, nasce: Math.random() * 3, fim: 0, x: 0, z: 0 });
     for (const L of LAGOS) {
       const agua = L.agua || 'doce';
       for (const [tipo, T] of Object.entries(P.spots)) {
@@ -2462,7 +2479,19 @@ export class Simulacao {
     const P = PESCA, sorte = ([a, b]) => a + Math.random() * (b - a);
     for (const v of this.spots) {
       if (v.ativo && this.tempo >= v.fim) { v.ativo = false; v.nasce = this.tempo + sorte(P.spots[v.tipo].volta); }
-      else if (!v.ativo && this.tempo >= v.nasce) {
+      else if (!v.ativo && this.tempo >= v.nasce && !v.lago) { // mar: longe da margem (de barco), perto de algum cais
+        const M = P.mar, cais = LUGARES_MUNDO.filter((o) => o.tipo === 'porto');
+        for (let t = 0; t < 40 && cais.length; t++) {
+          const c = cais[Math.floor(Math.random() * cais.length)], a = Math.random() * Math.PI * 2, r = M.de + Math.random() * (M.ate - M.de);
+          const x = c.x + Math.sin(a) * r, z = c.z + Math.cos(a) * r, q = noLago(x, z);
+          if (!q?.lago?.mar || q.fundo < M.fundo) continue;
+          let terra = false; for (let k = 0; k < 8 && !terra; k++) { const b = k / 8 * Math.PI * 2, w = noLago(x + Math.sin(b) * M.margem, z + Math.cos(b) * M.margem); terra = !w?.lago?.mar; }
+          if (terra || this.spots.some((o) => o !== v && o.ativo && Math.hypot(o.x - x, o.z - z) < P.raioSpot * 4)) continue;
+          Object.assign(v, { ativo: true, x, z, fim: this.tempo + sorte(P.spots[v.tipo].vida) });
+          break;
+        }
+        if (!v.ativo) v.nasce = this.tempo + 5;
+      } else if (!v.ativo && this.tempo >= v.nasce) {
         const L = v.lago, R = Math.max(L.rx, L.rz) * 1.45;
         for (let t = 0; t < 40; t++) { // perto da beira (dá para lançar de terra), água funda e longe dos outros spots
           const a = Math.random() * Math.PI * 2, sx = Math.sin(a), sz = Math.cos(a);

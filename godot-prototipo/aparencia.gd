@@ -66,12 +66,16 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)
-static func aplicar(no: Node3D, ap) -> void:
+# esperar = false (corpos dos outros): o penteado de outro modelo não carrega no quadro (penteado.gd)
+static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	var a: Dictionary = ap if ap is Dictionary else {}
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)
 	# antes das cores: o cabelo trocado também pega a cor de cabelo escolhida
-	preload("res://penteado.gd").aplicar(no, a.get("penteado"))
+	if esperar:
+		preload("res://penteado.gd").aplicar(no, a.get("penteado"))
+	else:
+		preload("res://penteado.gd").aplicar_sem_esperar(no, a.get("penteado"))
 	for mi in no.find_children("*", "MeshInstance3D", true, false):
 		var malha: Mesh = mi.mesh
 		if malha == null:

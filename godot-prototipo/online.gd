@@ -7,6 +7,7 @@ extends Node
 const Rede = preload("res://rede.gd")
 const D = preload("res://dados.gd")
 const Aparencia = preload("res://aparencia.gd")
+const Penteado = preload("res://penteado.gd")
 const Montaria = preload("res://montaria.gd")
 
 var m # main.gd
@@ -708,7 +709,9 @@ func outro(j: Dictionary) -> void:
 	var ap_txt := JSON.stringify(j.get("aparencia"))
 	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
 		o.ap = ap_txt
-		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador))
+		# sem esperar o penteado de outro modelo carregar (era a travada de ~1 s da Cecília, 2026-11-13): _detalhe_outros põe
+		# quando chegar
+		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador), false)
 	if str(j.get("nome", "")) != "":
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
@@ -1456,6 +1459,11 @@ func _detalhe_outros(dt: float) -> void:
 		return
 	_detalhe_t = 0.25
 	var hp: Vector3 = m.heroi.position
+	for id in outros: # penteado que estava carregando no fundo (Penteado.aplicar sem esperar): põe agora, um por vez
+		var oe: Dictionary = outros[id]
+		if is_instance_valid(oe.no) and oe.no.has_meta("penteado_espera") and Penteado.pronto(str(oe.no.get_meta("penteado_espera"))):
+			Aparencia.aplicar(oe.no, Aparencia.valida(JSON.parse_string(str(oe.ap)), m.P.dados.criador), false)
+			break
 	var lista := []
 	for id in outros:
 		lista.append([outros[id].no.position.distance_squared_to(hp), id])

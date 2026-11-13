@@ -118,3 +118,11 @@ const MD = pedidos[0].messages;
 ok(/chat do time com André e Cecília/.test(MD[0].content) && MD.some((m) => m.role === 'user' && /\(Cecília, no chat do time\): Bora, eu levo as poções!/.test(m.content)), 'a IA do Dario sabe que é conversa em grupo e vê a fala da Cecília');
 aj.time = null; cec.amiga.time = null; dar.amiga.time = null; cec.amiga.ia.viaTime = 0;
 ok(cec.apelidoAmiga('pode me cahamr de fofinha') && cec.apelidoAmiga('me chama de chefe') && !cec.apelidoAmiga('te chamo pro time') && !cec.apelidoAmiga('vem cá'), '"me chama de fofinha" é apelido: nunca vira "ir até ele" nem time (print do André 2026-11-13)');
+
+// André 2026-11-13: "linguagem muito fofinha... queria que parecesse mais um jogador mesmo"; Cecília mulher, Dario homem
+pedidos.length = 0; respostas = [];
+await pensarAmiga(cec.contextoAmiga('andre'), 'oi', 'chave-de-teste');
+await pensarAmiga(s.amigosIa.find((x) => x.AMIGA.id === 'dario').contextoAmiga('andre'), 'oi', 'chave-de-teste');
+const [sc, sd] = pedidos.map((b) => b.messages[0].content);
+ok(/jogadora de MMORPG/.test(sc) && /farmar/.test(sc) && /DG/.test(sc) && /Nada de jeito fofinho/.test(sc), 'Cecília fala como jogadora de RPG online (farmar, DG, mob), nada de fofinho');
+ok(/Você é mulher: fale de si no feminino/.test(sc) && /jogador de MMORPG/.test(sd) && /Você é homem: fale de si no masculino/.test(sd), 'Cecília no feminino, Dario no masculino');

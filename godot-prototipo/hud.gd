@@ -151,9 +151,9 @@ func _ready() -> void:
 	# vida em cima, mana embaixo. Contadas do canto de baixo à direita como os outros botões; mostram quantas tem na
 	# bolsa e a recarga; dá para mover no modo de editar a interface. (O jeito "tl", contado de cima à esquerda, continua
 	# valendo em _centro e na zona morta para quem precisar.)
-	_botao("pocao", Vector2(40, 371), 25, "it_pocao", COR_POCAO)
+	_botao("pocao", Vector2(40, 380), 25, "it_pocao", COR_POCAO)
 	botoes[-1].n = 0
-	_botao("pocao_mana", Vector2(40, 311), 25, "it_pocao_mana", COR_POCAO_MANA)
+	_botao("pocao_mana", Vector2(40, 318), 25, "it_pocao_mana", COR_POCAO_MANA)
 	botoes[-1].n = 0
 	# atalho do zoom (André 2026-11-12: "zoom out máximo com um toque só, sem atrapalhar o combate nem poluir a tela"):
 	# botãozinho colado no minimapa, em cima à esquerda dele, longe do polegar das skills. Um toque afasta a câmera ao
@@ -230,7 +230,8 @@ func aviso(t: String) -> void:
 		_destaque_t = 3.2
 		return
 	aviso_txt = t
-	_aviso_t = 2.2
+	# o tempo de ler (Mestra Moldura, conselho 2026-11-13): 2,2 s nos curtos; cerca de 15 letras por segundo nos longos
+	_aviso_t = clampf(1.0 + t.length() / 15.0, 2.2, 8.0)
 
 func _centro(b: Dictionary) -> Vector2:
 	if b.get("mini", false): # colado no minimapa (atalho do zoom)
@@ -316,12 +317,21 @@ func _input(ev: InputEvent) -> void:
 			construcao.arrasto(ev.position, 0)
 			return
 		if ev.pressed:
+			# com dois botões colados (poção de mana e Trocar arma), as áreas de toque (raio x 1,15) se cruzam: ganha o
+			# botão cuja borda está mais perto do dedo, não o primeiro da lista (antes o Trocar arma roubava o toque)
+			var achou = null
+			var melhor := INF
 			for b in botoes:
-				if not modo_construcao and not b.oculto and ev.position.distance_to(_centro(b)) <= b.raio * 1.15:
-					_toques[ev.index] = b.acao
-					b.apertado = true
-					apertou.emit(b.acao)
-					return
+				if not modo_construcao and not b.oculto:
+					var dd: float = ev.position.distance_to(_centro(b))
+					if dd <= b.raio * 1.15 and dd - b.raio < melhor:
+						melhor = dd - b.raio
+						achou = b
+			if achou != null:
+				_toques[ev.index] = achou.acao
+				achou.apertado = true
+				apertou.emit(achou.acao)
+				return
 			# zona morta (André 2026-11-03): dedo perto das skills sem acertar o botão não vira câmera nem pinça
 			if zona_morta(ev.position):
 				_toques[ev.index] = "morto"

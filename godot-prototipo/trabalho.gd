@@ -543,7 +543,8 @@ func tocar_botao() -> void:
 	if fer != "" and m.P.contar(fer) < 1:
 		m.hud.aviso("Precisa de %s (crie na mochila: Criar > Ferramentas, sem bancada)" % str(m.P.dados.itens[fer].nome).to_lower())
 		return
-	if m.P.prof_nivel(str(C.prof)) < int(C.get("nivel", 1)):
+	var da: Array = C.get("da", {}).keys()
+	if not m.P.prof_ok(str(C.prof), int(C.get("nivel", 1)), str(da[0]) if da.size() > 0 else ""): # a missão que pede o minério libera o veio (hi.livre)
 		m.hud.aviso("%s: precisa de %s Nv %d" % [C.nome, m.P.dados.profissoes[C.prof].nome, int(C.nivel)])
 		return
 	if m.P.vigor() < m.P.custo_vigor(str(m.P.dados.coleta[perto.tipo].prof), float(m.P.dados.coleta[perto.tipo].vigor)):

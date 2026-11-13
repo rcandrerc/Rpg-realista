@@ -64,6 +64,12 @@ func _init(jogo) -> void:
 	limite = int(cfg.get_value("config", "fps_limite", -1))
 	if limite not in LIMITES:
 		limite = -1
+	# botão Teste e linha do FPS (conselho 2026-11-13): escondidos para quem instala agora (um toque sem querer rodava 90 s
+	# de teste); quem já jogava (André e o irmão) continua vendo. Configurações > Teste e FPS troca.
+	teste = bool(cfg.get_value("config", "teste_fps", tem))
+	if not cfg.has_section_key("config", "teste_fps"):
+		cfg.set_value("config", "teste_fps", teste)
+		cfg.save(ARQUIVO)
 
 # ---------- desenho em paralelo (APK 2026-11-12) ----------
 # A lógica do jogo e o desenho rodam em linhas separadas do processador: o quadro passa a custar o maior dos dois, não a
@@ -146,6 +152,15 @@ func trocar_paralelo(v: bool) -> void:
 # quantos quadros por segundo valem agora (0 = sem limite)
 func fps_alvo() -> int:
 	return limite if limite >= 0 else int(P.fps)
+
+var teste := false # botão Teste e FPS à vista
+
+func trocar_teste(v: bool) -> void:
+	teste = v
+	var cfg := ConfigFile.new()
+	cfg.load(ARQUIVO)
+	cfg.set_value("config", "teste_fps", v)
+	cfg.save(ARQUIVO)
 
 func trocar_limite(v: int) -> void:
 	limite = v if v in LIMITES else -1

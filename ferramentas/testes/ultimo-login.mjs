@@ -30,10 +30,13 @@ const fim = () => { try { srv.kill(); } catch { /* já saiu */ } fs.rmSync(pasta
 process.on('exit', fim);
 // o servidor pode ouvir só no IPv6 (::1), como na máquina do GitHub: usa o endereço que responde
 let HOST = '';
-for (let i = 0; i < 60 && !HOST; i++) {
+// o servidor leva ~16 s para ligar (mundo, terreno, NPCs) e mais com outros testes rodando juntos: espera até 90 s
+// (antes eram 15 s e o teste falhava com "Invalid URL ws://:porta", 2026-11-13)
+for (let i = 0; i < 360 && !HOST; i++) {
   for (const h of ['127.0.0.1', '[::1]']) { try { if ((await fetch(`http://${h}:${PORTA}/saude`)).ok) { HOST = h; break; } } catch { /* ainda ligando */ } }
   if (!HOST) await esperar(250);
 }
+if (!HOST) { console.error('FALHOU o servidor não ligou em 90 s\n' + log.slice(-2000)); process.exit(1); }
 const cliente = new Client(`ws://${HOST}:${PORTA}`);
 const entrar = async (sessao, extra = {}) => {
   const sala = await cliente.joinOrCreate('clareira', { sessao, nome: 'Teste', json: true, aoi: true, ...extra });

@@ -29,6 +29,7 @@ const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
 const Encostar = preload("res://encostar.gd") # escalando, corpo, mãos e pés encostam na pedra (André 2026-11-07)
 const AguaFx = preload("res://agua_fx.gd")
+const VelocidadeFx = preload("res://velocidade_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
@@ -213,6 +214,7 @@ var _quadril := 0.0 # afundada do quadril no pouso (m)
 # dá para lutar. O corpo sobe um pouco para a cabeça e as costas ficarem fora da água (o Mixamo nada mais baixo).
 var _nadando := false
 var agua_fx # agua_fx.gd: espuma em volta, rastro em V e respingo das braçadas
+var velocidade_fx # velocidade_fx.gd: riscos de vento e linhas nas bordas da tela na disparada
 # cajado nas costas nadando (direção de arte 2026-11-06): deitado, a chama passava da cabeça como uma lança; desliza
 # CAJADO_NADO m para os pés (a chama fica na nuca). Boiando de pé fica no lugar.
 const CAJADO_NADO := 0.35
@@ -286,6 +288,7 @@ const MEDE := 5.0
 var t_ready0 := 0 # ms (desde que o app abriu) no começo do _ready: a linha do tempo da entrada (lentidao.gd)
 func _ready() -> void:
 	t_ready0 = Time.get_ticks_msec()
+	get_tree().quit_on_go_back = false # o Voltar do Android fecha a janela de cima (voltar_android)
 	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
 	# próxima abertura. Não fecha mais o jogo: a trava de verdade era o pré-carregamento em segundo plano (pre_carregar).
 	if Grafico.ajustar_linhas():
@@ -340,6 +343,8 @@ func _ready() -> void:
 	add_child(boss_mundo)
 	agua_fx = AguaFx.new()
 	add_child(agua_fx)
+	velocidade_fx = VelocidadeFx.new()
+	add_child(velocidade_fx)
 	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
@@ -411,6 +416,7 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
+	_tela_teste.visible = grafico.teste # Configurações > Teste e FPS
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
 	lentidao = load("res://lentidao.gd").new(self)
@@ -3228,10 +3234,83 @@ func _abrir_de_novo() -> void:
 
 # app indo para o fundo ou fechando: grava na hora a cópia do progresso que estava esperando
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		voltar_android()
+		return
 	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
 		P.guardar_agora()
 		if volta:
 			volta.guardar(true)
+
+# Botão Voltar do Android (auditoria 2026-11-13): antes fechava o jogo na hora, mesmo com uma janela aberta. Agora fecha
+# a janela de cima, como o X dela; sem janela aberta, avisa e só sai com um segundo toque em até VOLTAR_SAIR s.
+const VOLTAR_SAIR := 2.5
+var _voltar_ms := 0
+func voltar_android() -> void:
+	if _fechar_de_cima():
+		_voltar_ms = 0
+		return
+	var agora := Time.get_ticks_msec()
+	if _voltar_ms > 0 and agora - _voltar_ms < int(VOLTAR_SAIR * 1000.0):
+		if P != null:
+			P.guardar_agora()
+		if volta:
+			volta.guardar(true)
+		get_tree().quit()
+		return
+	_voltar_ms = agora
+	if hud:
+		hud.aviso("Toque Voltar de novo para sair")
+
+# fecha a janela que está por cima (a mesma ordem em que elas se cobrem); false = nenhuma aberta
+func _fechar_de_cima() -> bool:
+	if cinematica and cinematica.ativa:
+		cinematica.pular()
+		return true
+	if criador and criador.aberto():
+		return true # o criador tem os botões dele (conta nova não pode sair dele): o Voltar não faz nada
+	if reforco and reforco.aberta():
+		reforco._fechar()
+		return true
+	if menu and menu._confirma != null and is_instance_valid(menu._confirma):
+		menu.fechar_confirma()
+		return true
+	if troca and troca.aberto():
+		troca.cancelar() # como o X da troca: o servidor desfaz
+		return true
+	if leilao and leilao.aberto():
+		leilao.fechar()
+		return true
+	if construcao and construcao.painel_bau and construcao.painel_bau.visible:
+		construcao.fechar_bau()
+		return true
+	if construcao and construcao.painel_forno and construcao.painel_forno.visible:
+		construcao.fechar_forno()
+		return true
+	if menu and menu.aberto():
+		if menu.janela_aberta():
+			menu.fechar_janela()
+		elif menu.sel_mochila >= 0 or menu.sel_equip != "":
+			menu.fechar_item()
+		else:
+			menu.fechar()
+		return true
+	if conversa and conversa.aberto():
+		conversa.fechar()
+		return true
+	if chat and chat.aberto():
+		chat.fechar()
+		return true
+	if menu_topo and menu_topo.aberto():
+		menu_topo.fechar()
+		return true
+	if minimapa and minimapa.aberto:
+		minimapa.fechar()
+		return true
+	if editar_hud and editar_hud.aberto:
+		editar_hud.fechar()
+		return true
+	return false
 
 func _process(dt: float) -> void:
 	var t0_main := Time.get_ticks_usec()
@@ -3667,6 +3746,9 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			cajado.position = _caj_base + desce * heroi_anim._nada
 	if agua_fx:
 		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
+	if velocidade_fx:
+		var correndo: bool = mov.disparada and montaria == null and not _nadando and mov.esc == null and mov.veiculo.is_empty()
+		velocidade_fx.passo(dt, correndo, vel, mov.vx, mov.vz, heroi, cam.cam if cam else null)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
 	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando and mov.veiculo.is_empty():
 		_passo_dist += vel * dt
@@ -4770,6 +4852,8 @@ func proxima_etapa() -> void:
 	_q_quadros.clear()
 
 func atualizar_teste(dt: float) -> void:
+	if not _tela_teste.visible and etapa < 0: # escondido (Configurações > Teste e FPS): nem monta o texto
+		return
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
 	if online and online.ligado and online.rede.ping_ms >= 0: # André 2026-11-03: ping do servidor sempre à vista

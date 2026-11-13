@@ -20,9 +20,19 @@ for (const [i, M] of HISTORIA.entries()) etapasDe(M).forEach((E, e) => {
     const hi = s.histInfo(j); const a = hi.alvo;
     if (a && zonaFechadaEm(p, a.x, a.z)) { bugs.push(`${tag}: Ir leva para a névoa (${a.nome})`); break; }
     const f = s.juntaDe(j, E);
+    if (f?.pre) { // passo antes (2026-11-13): carrinho, barquinho, radar; faz como o jogador faria
+      deu.push('pre:' + f.pre);
+      if (f.pre === 'radar') j.radarAte = s.tempo + 180;
+      else if (f.pre === 'barco') j.veiculo = 'barquinho';
+      else if (f.pre === 'ir' && a) Object.assign(j, { x: a.x, z: a.z });
+      else { bugs.push(`${tag}: passo antes "${f.pre}" sem jeito de fazer no teste`); break; }
+      continue;
+    }
     if (f) {
       if (!f.fonte) { bugs.push(`${tag}: falta ${f.k} ${f.tem}/${f.n} e o Ir não sabe onde achar`); break; }
-      if (!a) { bugs.push(`${tag}: juntando ${f.k} (${f.fonte}) e o Ir está vazio`); break; }
+      const aqui = f.fonte === 'destruir' || f.fonte === 'ouro' || (f.fonte === 'receita' && !s.estacaoDaEtapa({ k: f.k })); // na mochila, aqui mesmo
+      if (!a && !aqui) { bugs.push(`${tag}: juntando ${f.k} (${f.fonte}) e o Ir está vazio`); break; }
+      if (f.k === 'ouro') { p.ouro = f.n; continue; }
       deu.push(`${f.k}:${f.fonte}`);
       for (let q = f.n - f.tem; q > 0; q -= 50) guardar(p.mochila, { k: f.k, n: Math.min(50, q) }); continue;
     }
