@@ -126,7 +126,12 @@ func _nativo_erro(msg: String) -> void:
 		entrar_pelo_site()
 
 # Login pelo site: abre o navegador e fica esperando o servidor liberar a sessão
-func entrar_pelo_site(trocar := false) -> void:
+# o site sempre esquece a conta que ele mesmo lembrava: quem escolhe a conta é a janela do Google (versão PC 2026-11-13:
+# depois de sair ou de "Trocar de conta", entrava de novo sozinho na mesma conta)
+func entrar_pelo_site() -> void:
+	_abrir_site(true)
+
+func _abrir_site(trocar: bool) -> void:
 	var letras := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	var cripto := Crypto.new()
 	var bytes := cripto.generate_random_bytes(32)
@@ -150,7 +155,7 @@ func trocar_conta() -> void:
 	if _login_nativo or Engine.has_singleton("LoginGoogle"):
 		entrar_com_google()
 	else:
-		entrar_pelo_site(true)
+		_abrir_site(true)
 
 func sair_da_conta() -> void:
 	if _login_nativo:
