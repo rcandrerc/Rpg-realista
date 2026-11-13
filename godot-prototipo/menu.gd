@@ -301,7 +301,16 @@ static func estilo_botao(b: Button, ativo: bool) -> void:
 	b.add_theme_color_override("font_pressed_color", OURO_CLARO)
 	b.add_theme_color_override("font_disabled_color", Color(0.4, 0.37, 0.32))
 
+# Menus (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"): cada abertura refaz o conteúdo e
+# os ícones saíam da memória quando o menu fechava, então toda abertura lia de novo do disco (~9 ms no PC só na
+# Mochila). Agora cada ícone é lido uma vez e fica guardado (são poucos e pequenos).
+static var _icones := {}
 static func icone_tex(nome: String) -> Texture2D:
+	if not _icones.has(nome):
+		_icones[nome] = _icone_tex_ler(nome)
+	return _icones[nome]
+
+static func _icone_tex_ler(nome: String) -> Texture2D:
 	if nome.begins_with("it_") and ResourceLoader.exists("res://icones/itens/%s.png" % nome.substr(3)):
 		return load("res://icones/itens/%s.png" % nome.substr(3)) # item pintado (godot-prototipo/icones/itens)
 	if nome != "" and ResourceLoader.exists("res://icones/pintados/%s.png" % nome):
@@ -820,6 +829,7 @@ func trocar_arvore(k: String) -> void:
 	rolagem.scroll_vertical = 0
 
 func abrir(qual := "", sub := "") -> void:
+	var t0 := Time.get_ticks_usec() # quanto a abertura leva no celular (lentidao.gd, tipo "menu")
 	if m.h.modo == "Magia":
 		arvore = "cajado"
 	if sub != "":
@@ -840,6 +850,8 @@ func abrir(qual := "", sub := "") -> void:
 	vp.process_mode = Node.PROCESS_MODE_INHERIT
 	boneco_modo = ""
 	atualizar()
+	if m.lentidao:
+		m.lentidao.menu_aberto(aba, t0, conteudo.get_child_count())
 
 # botão de ação perto da bancada, bigorna ou fornalha: a aba Criar inteira, aberta no que esta estação faz
 func abrir_estacao() -> void:
@@ -932,7 +944,7 @@ func atualizar() -> void:
 		aba = "mochila"
 	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else ABAS_PERSONAGEM)
 	for k in botoes_aba:
-		estilo_botao(botoes_aba[k], k == aba)
+		_estilo_se_mudou(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
 		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else 126
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
@@ -943,14 +955,14 @@ func atualizar() -> void:
 	botoes_criar.aqui.visible = not est_aqui.is_empty()
 	botoes_criar.aqui.text = str(NOME_ESTACAO[est_aqui[0]]).split(" ")[0] if est_aqui.size() == 1 else "Aqui"
 	for k in botoes_criar:
-		estilo_botao(botoes_criar[k], k == cat_criar)
+		_estilo_se_mudou(botoes_criar[k], k == cat_criar)
 	atualizar_slots()
 	linha_arvores.visible = aba == "habilidades"
 	for k in botoes_arvore:
-		estilo_botao(botoes_arvore[k], k == arvore)
+		_estilo_se_mudou(botoes_arvore[k], k == arvore)
 	linha_prof.visible = aba == "profissoes"
 	for k in botoes_prof:
-		estilo_botao(botoes_prof[k], k == sub_prof)
+		_estilo_se_mudou(botoes_prof[k], k == sub_prof)
 	var y := rolagem.scroll_vertical
 	for c in conteudo.get_children():
 		conteudo.remove_child(c)
@@ -977,6 +989,14 @@ func atualizar() -> void:
 	montar_janela()
 	await get_tree().process_frame
 	rolagem.scroll_vertical = y
+
+# as abas de cima (e as fileiras de baixo delas) só trocam de estilo quando a escolhida muda: refazer as 3 caixas e
+# as cores de uns 15 botões a cada atualizar custava ~4 ms no PC por abertura e por toque dentro do menu
+func _estilo_se_mudou(b: Button, ativo: bool) -> void:
+	if b.get_meta("ativo", null) == ativo:
+		return
+	b.set_meta("ativo", ativo)
+	estilo_botao(b, ativo)
 
 func separador(t: String) -> void:
 	var l := rotulo(t.to_upper(), 12, OURO)
@@ -1341,7 +1361,7 @@ func linha_skill(id: String) -> Control:
 	return cx
 
 # ---------- profissões (Parte 3 do Quimera) ----------
-const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz", "coz": "pf_coz"}
+const ICONE_PROF := {"min": "pf_min", "len": "pf_len", "pes": "pf_pes", "fer": "pf_fer", "alf": "pf_alf", "mer": "pf_mer", "faz": "pf_faz", "coz": "pf_coz"}
 const COR_VIGOR := Color(0.55, 0.8, 0.42)
 
 func icone_redondo(nome: String, tam: float, cor := Color.WHITE, borda := OURO) -> Control:
