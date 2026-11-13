@@ -1984,7 +1984,7 @@ func na_masmorra() -> bool:
 
 # algum monstro vivo a até 15 m bateu ou apanhou nos últimos segundos (a luta continua mesmo se o herói ficou sem bater)
 func luta_perto() -> bool:
-	for e in inimigos:
+	for e in _lista_perto(heroi.position, 15.0):
 		if e.estado != "morto" and e.vida > 0.0 and maxf(float(e.get("combate", 0.0)), float(e.get("luta", 0.0))) > tempo and e.no.position.distance_to(heroi.position) < 15.0:
 			return true
 	return false
@@ -2002,11 +2002,20 @@ func inimigo_em(pos: Vector3, raio: float):
 			return e
 	return null
 
+# FPS (conselho de auditoria 2026-11-13): mais_perto e luta_perto rodam todo quadro e passavam pelos ~413 monstros do
+# mapa. Perto do herói e dentro de LONGE_INIMIGO, a lista dos monstros a até 70 m (inimigos_perto, refeita a cada 4
+# quadros em lod_inimigos) dá o mesmo resultado.
+var _perto_quadro := -100
+func _lista_perto(pos: Vector3, max_d: float) -> Array:
+	if max_d < LONGE_INIMIGO - 2.0 and Engine.get_process_frames() - _perto_quadro <= 8 and heroi and pos.distance_squared_to(heroi.position) < 1.0:
+		return inimigos_perto
+	return inimigos
+
 func mais_perto(pos: Vector3, max_d: float):
 	var melhor = null
 	var md := max_d
-	for e in inimigos:
-		if e.estado == "morto":
+	for e in _lista_perto(pos, max_d):
+		if e.estado == "morto" or not is_instance_valid(e.no):
 			continue
 		var d: float = e.no.position.distance_to(pos)
 		if d < md:
@@ -3777,6 +3786,7 @@ func lod_inimigos() -> void:
 	if Engine.get_process_frames() % 4 != 0 and not inimigos_perto.is_empty():
 		return
 	inimigos_perto.clear()
+	_perto_quadro = Engine.get_process_frames()
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
 		if longe != e.get("longe", false):

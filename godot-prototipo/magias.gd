@@ -197,15 +197,21 @@ func _lote(n: int, soma: bool) -> Lote:
 	L.buf.resize(n * Lote.B)
 	return L
 
+static var _cores := {}
 static func _c(hex) -> Color:
-	return hex if hex is Color else Color(hex)
+	if hex is Color:
+		return hex
+	var k = _cores.get(hex)
+	if k == null:
+		k = Color(hex)
+		_cores[hex] = k
+	return k
 
 # uma partícula. cel = casa do atlas; giro = rad/s; estica = quanto ela alonga na direção do voo (faísca, rastro);
 # plano = deitada no chão; entra = parte da vida em que ela acende (0 = já nasce acesa)
 func p(L: Lote, pos: Vector3, vel: Vector3, vida: float, s0: float, s1: float, c0, c1, a: float, cel: int,
 		grav := 0.0, arrasto := 0.0, giro := 0.0, estica := 0.0, plano := false, entra := 0.1, rot := -1.0, cb := -1.0) -> void:
-	if L.P.size() >= L.n * Lote.S:
-		L.P = L.P.slice(Lote.S) # cheio: tira a mais velha
+	# cheio: a mais velha sai no próximo passo (_passo_lote), uma vez por quadro (conselho de auditoria 2026-11-13)
 	var k0 := _c(c0)
 	var k1 := _c(c1)
 	L.P.append_array(PackedFloat32Array([pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 0.0, vida, s0, s1,
@@ -215,6 +221,7 @@ func p(L: Lote, pos: Vector3, vel: Vector3, vida: float, s0: float, s1: float, c
 func _passo_lote(L: Lote, dt: float) -> void:
 	var S := Lote.S
 	var total := L.P.size() / S
+	var primeiro: int = maxi(0, total - L.n) # passou do lote: as mais velhas saem
 	if total == 0:
 		if L.mm.visible_instance_count != 0:
 			L.mm.visible_instance_count = 0
@@ -226,7 +233,7 @@ func _passo_lote(L: Lote, dt: float) -> void:
 	var vivo := 0
 	var cr := _cam_r
 	var cu := _cam_u
-	for i in total:
+	for i in range(primeiro, total):
 		var o := i * S
 		var t := P[o + 6] + dt
 		var vida := P[o + 7]

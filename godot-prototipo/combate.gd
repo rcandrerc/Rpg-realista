@@ -311,6 +311,17 @@ func passo(dt: float) -> void:
 			_corpos.erase(no)
 			continue
 		var c: Dictionary = _corpos[no]
+		# FPS (conselho de auditoria 2026-11-13): todo monstro que já apanhou fica na lista, e cada quadro mexia na rotação
+		# e nas malhas de todos. Em repouso (sem tranco, brilho, morte nem volta), depois de uma passada que já deixou tudo
+		# no lugar, pula; qualquer golpe, preparo ou morte mexe nesses números e ele volta a ser cuidado no mesmo quadro.
+		var quieto: bool = c.preparo <= 0.0 and c.firme <= 0.0 and c.volta <= 0.0 and float(c.get("firme_txt_t", 0.0)) <= 0.0 \
+				and (c.morto < 0.0 or not no.visible) and c.v.length_squared() < 1e-8 and c.tilt.length_squared() < 1e-8
+		if quieto and c.get("quieto", false):
+			continue
+		c.quieto = quieto
+		if quieto:
+			c.tilt = Vector2.ZERO
+			c.v = Vector2.ZERO
 		# mola do tranco (em passos curtos: quadro lento não explode)
 		var resta := dt
 		while resta > 0.0:

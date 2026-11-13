@@ -445,15 +445,27 @@ func _lote(n: int, aditivo: bool) -> Lote:
 	return L
 
 func part(L: Lote, x: float, y: float, z: float, vx: float, vy: float, vz: float, vida: float, t0: float, t1: float, c0, c1, a: float, sobe := 0.0, arrasto := 0.0) -> void:
-	if L.P.size() >= L.n * Lote.S:
-		L.P = L.P.slice(Lote.S) # cheio: tira a mais velha
-	var k0: Color = (c0 if c0 is Color else Color(c0))
-	var k1: Color = (c1 if c1 is Color else Color(c1))
+	# cheio: a mais velha sai no próximo passo (_lote_passo), uma vez por quadro. Antes era um slice da lista inteira a
+	# cada partícula nova com o lote cheio (conselho de auditoria 2026-11-13)
+	var k0: Color = _cor(c0)
+	var k1: Color = _cor(c1)
 	L.P.append_array(PackedFloat32Array([x, y, z, vx, vy, vz, 0.0, vida, t0, t1, k0.r, k0.g, k0.b, k1.r, k1.g, k1.b, a, sobe, arrasto]))
+
+# cor em texto ("ffd23f") lida uma vez só (Color("…") lê o texto a cada partícula)
+var _cores := {}
+func _cor(c) -> Color:
+	if c is Color:
+		return c
+	var k = _cores.get(c)
+	if k == null:
+		k = Color(c)
+		_cores[c] = k
+	return k
 
 func _lote_passo(L: Lote, dt: float) -> void:
 	var S := Lote.S
 	var total := L.P.size() / S
+	var primeiro: int = maxi(0, total - L.n) # passou do lote: as mais velhas saem (as primeiras da lista)
 	if total == 0: # sem partícula: não manda nada para a placa de vídeo
 		if L.mm.visible_instance_count != 0:
 			L.mm.visible_instance_count = 0
@@ -464,7 +476,7 @@ func _lote_passo(L: Lote, dt: float) -> void:
 	var buf := L.buf
 	L.buf = PackedFloat32Array()
 	var vivo := 0
-	for i in total:
+	for i in range(primeiro, total):
 		var o := i * S
 		var t := P[o + 6] + dt
 		var vida := P[o + 7]
@@ -1249,8 +1261,9 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	var agora := Time.get_ticks_msec() / 1000.0
 	var atraso: float = max(0.0, _prox_numero - agora)
 	_prox_numero = agora + atraso + 0.1
-	l.modulate.a = 0.0 if atraso > 0.0 else 1.0
-	l.outline_modulate.a = l.modulate.a
+	# FPS (conselho de auditoria 2026-11-13): o sumiço é pela transparência do nó; mudar a cor de um Label3D refaz a malha
+	# das letras a cada quadro (muitos números juntos numa luta)
+	l.transparency = 1.0 if atraso > 0.0 else 0.0
 	var y0 := l.global_position.y
 	var tw := create_tween()
 	if atraso > 0.0:
@@ -1258,8 +1271,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 	tw.tween_method(func(t: float):
 		l.global_position.y = y0 + (1.0 - (1.0 - t) * (1.0 - t)) * 0.9 # sobe rápido e desacelera
 		l.scale = Vector3.ONE * escala_final * (1.0 + (pop - 1.0) * max(0.0, 1.0 - t / 0.15))
-		l.modulate.a = 1.0 - smoothstep(0.5, 1.0, t)
-		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 0.8)
+		l.transparency = smoothstep(0.5, 1.0, t), 0.0, 1.0, 0.8)
 	tw.tween_callback(l.queue_free)
 
 # Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
@@ -1270,12 +1282,14 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, alt
 	l.no_depth_test = true
 	l.font_size = 48
 	l.outline_size = 14
-	l.modulate = Color(cor, 0.0)
-	l.outline_modulate = Color(0.06, 0.04, 0.02, 0.0)
+	l.modulate = cor
+	l.outline_modulate = Color(0.06, 0.04, 0.02)
+	l.transparency = 1.0 # aparece e some pela transparência do nó (mudar cor ou pixel_size refaz as letras)
 	l.pixel_size = 0.006 * tam
 	add_child(l)
 	l.global_position = pos + Vector3(0, altura, 0)
 	var y0 := l.global_position.y
+	var ps0 := [0.0] # tamanho fixo na tela: pixel_size uma vez só, depois só a escala acompanha a distância
 	var tw := create_tween()
 	if atraso > 0.0:
 		tw.tween_interval(atraso)
@@ -1287,13 +1301,16 @@ func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, alt
 			var alto: float = get_viewport().get_visible_rect().size.y
 			if px > 0.0: # tamanho fixo na tela (px de altura de letra), perto ou longe da câmera
 				var dist: float = max(0.3, cam.global_position.distance_to(l.global_position))
-				l.pixel_size = px * 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) / alto / float(l.font_size) * 1.35
+				var ps: float = px * 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) / alto / float(l.font_size) * 1.35
+				if ps0[0] <= 0.0:
+					ps0[0] = ps
+					l.pixel_size = ps
+				l.scale = Vector3.ONE * (ps / ps0[0])
 			for _k in 40:
 				if cam.unproject_position(l.global_position).y >= alto * 0.12 + 24.0:
 					break
 				l.global_position.y -= 0.05
-		l.modulate.a = smoothstep(0.0, 0.12, f) * (1.0 - smoothstep(0.7, 1.0, f))
-		l.outline_modulate.a = l.modulate.a, 0.0, 1.0, 1.6)
+		l.transparency = 1.0 - smoothstep(0.0, 0.12, f) * (1.0 - smoothstep(0.7, 1.0, f)), 0.0, 1.0, 1.6)
 	tw.tween_callback(l.queue_free)
 
 # Dash: rastro de vento atrás do corpo (forte = investida / dash rápido, com faíscas)
