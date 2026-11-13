@@ -374,8 +374,8 @@ func evento(ev: Dictionary) -> void:
 			tap = float(ev.get("tap", tap))
 			dec = float(ev.get("dec", dec))
 			briga_max = float(ev.get("max", briga_max))
-			if ev.has("t"):
-				t = float(ev.t)
+			if ev.has("tempo"): # o servidor manda o cronômetro da briga como "tempo" ("t" é o tipo do evento)
+				t = float(ev.tempo)
 		"pegou":
 			st = "pegou"
 			t = 0.0

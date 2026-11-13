@@ -7,7 +7,9 @@ const ok = (c, t) => { if (!c) { console.error('FALHOU', t); process.exit(1); } 
 ok(COMBATE_INIMIGO.aoMesmoTempo >= 99, 'todos os monstros batem juntos');
 ok(Object.values(DROPS).every((d) => d.raridade.slice(2).every((x) => x === 0)), 'monstro só solta Comum ou Rara');
 ok(RARIDADE_CRIAR.ate === 4, 'criação chega até Mítico');
-ok(NIVEL_MAX >= 9999 && xpProximo(30) === Math.round(16 * 30 ** 1.45), 'sem limite de nível e curva igual até o 30');
+// curva de XP (André 2026-11-11, XP_ESCALA): igual à antiga até o Nv10 e mais lenta depois
+ok(NIVEL_MAX >= 9999 && xpProximo(10) === Math.round(16 * 10 ** 1.45), 'sem limite de nível e curva igual até o 10');
+ok(xpProximo(30) === Math.round(16 * 30 ** 1.45 * (1 + 20 / 50)), 'depois do 10 cada nível pede mais (XP_ESCALA)');
 ok(reducaoContra(23, 8, NIVEL_INIMIGO) < reducaoContra(23, 1, NIVEL_INIMIGO), 'a defesa segura menos contra bicho de nível alto');
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('A', 'André', null, { testador: true });

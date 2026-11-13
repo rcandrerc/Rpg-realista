@@ -852,7 +852,9 @@ export class Simulacao {
   progressosParaSalvar() {
     const r = [];
     for (const j of this.jogadores.values()) this.guardarPosicao(j);
-    for (const j of this.jogadores.values()) if (j.progSujo) { j.progSujo = false; r.push({ id: j.id, prog: j.prog }); }
+    for (const j of this.jogadores.values()) this.voltarBarquinho(j); // barquinho que ficou fora da mochila cheia
+    // dirigindo: grava com o veículo estacionado onde ele está (auditoria 2026-11-13: o navio sumia no reinício do servidor)
+    for (const j of this.jogadores.values()) if (j.progSujo || j.veiculo) { j.progSujo = false; r.push({ id: j.id, prog: this.progParaSalvar(j) }); }
     return r;
   }
   ganharXP(j, n) {
@@ -1240,7 +1242,7 @@ export class Simulacao {
   }
   // Ponto livre num atributo (for, des, int, vit)
   distribuirAtributo(id, k) {
-    const j = this.jogadores.get(id); if (!j || !ATRIBUTOS[k] || j.prog.pontos <= 0) return;
+    const j = this.jogadores.get(id); if (!j || !Object.hasOwn(ATRIBUTOS, k) || j.prog.pontos <= 0) return;
     j.prog.atr[k]++; j.prog.pontos--;
     this.aplicarStatus(j);
     this.historia(j, 'atributo');
@@ -1251,7 +1253,7 @@ export class Simulacao {
   distribuirAtributos(id, mapa) {
     const j = this.jogadores.get(id); if (!j || !mapa || typeof mapa !== 'object' || Array.isArray(mapa)) return;
     const p = j.prog, ks = Object.keys(mapa);
-    if (!ks.length || ks.some((k) => !ATRIBUTOS[k] || !Number.isInteger(mapa[k]) || mapa[k] < 0)) return;
+    if (!ks.length || ks.some((k) => !Object.hasOwn(ATRIBUTOS, k) || !Number.isInteger(mapa[k]) || mapa[k] < 0)) return;
     const total = ks.reduce((s, k) => s + mapa[k], 0);
     if (total <= 0 || total > p.pontos) return;
     for (const k of ks) p.atr[k] += mapa[k];
@@ -1667,7 +1669,7 @@ export class Simulacao {
       if (!reforcoOk(it, p.atr)) return aviso(textoReforcoPrecisa(it, p.atr)); // reforço acima do atributo (igual ao Quimera)
       const l = ITENS[it.k].lugar;
       p.mochila[i] = p.equip[l]; p.equip[l] = it;
-    } else if (m.acao === 'tirar' && p.equip[m.lugar]) {
+    } else if (m.acao === 'tirar' && typeof m.lugar === 'string' && LUGARES.includes(m.lugar) && p.equip[m.lugar]) { // só os lugares do corpo (auditoria 2026-11-13: '__proto__' estragava o servidor)
       const v = p.mochila.indexOf(null); if (v < 0) return aviso('Mochila cheia');
       p.mochila[v] = p.equip[m.lugar]; p.equip[m.lugar] = null;
     } else if (m.acao === 'usar' && it && !ehEquip(it.k)) {
@@ -1757,15 +1759,20 @@ export class Simulacao {
       let cabe = 0;
       for (const x of p.mochila) {
         if (x === null) cabe += pilha;
-        else if (!equip && x.k === o.k && x.h === undefined && x.nv === undefined && x.n < pilha) cabe += pilha - x.n;
+        else if (!equip && x.k === o.k && x.h === undefined && x.nv === undefined && !x.cad && x.n < pilha) cabe += pilha - x.n; // pilha com cadeado não junta (guardar)
       }
       if (cabe <= 0) return aviso('Mochila cheia');
-      const n = Math.min(pedido, Math.floor(p.ouro / preco), cabe);
-      for (let falta = n; falta > 0;) {
+      const quer = Math.min(pedido, Math.floor(p.ouro / preco), cabe);
+      // cobra só o que entrou de verdade (auditoria 2026-11-13: mochila cheia com poção trancada cobrava e não entregava)
+      const antes = equip ? 0 : contar(p.mochila, o.k);
+      let n = 0;
+      for (let falta = quer; falta > 0;) {
         const lote = Math.min(falta, pilha);
         if (!guardar(p.mochila, equip ? { k: o.k, r: o.r } : { k: o.k, n: lote })) break;
-        falta -= lote;
+        falta -= lote; n += lote;
       }
+      if (!equip) n = contar(p.mochila, o.k) - antes; // guardar pode pôr só parte do lote
+      if (n <= 0) return aviso('Mochila cheia');
       const total = preco * n;
       p.ouro -= total;
       this.pontosMercador(j, total);
@@ -2363,7 +2370,7 @@ export class Simulacao {
         f.toques.push(this.tempo);
         f.prog = Math.min(1, f.prog + f.tap);
         if (f.prog >= 1) return this.pegarPeixe(j);
-        this.evento({ t: 'pesca', para: id, st: 'briga', prog: r2(f.prog), tap: r2(f.tap), dec: r2(f.dec), max: P.briga.max, t: r2(f.t) });
+        this.evento({ t: 'pesca', para: id, st: 'briga', prog: r2(f.prog), tap: r2(f.tap), dec: r2(f.dec), max: P.briga.max, tempo: r2(f.t) }); // tempo (não t: a chave t repetida apagava o tipo do evento, auditoria 2026-11-13)
       }
       return;
     }

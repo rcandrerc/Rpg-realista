@@ -82,6 +82,8 @@ export const capacidadeCarrinho = (c) => V.carrinho.capacidade * Math.min(V.carr
 export const velCarrinho = (c) => V.carrinho.vel - V.carrinho.perdePorPack * Math.max(0, (c?.packs?.length || 0) - V.carrinho.packsLivres);
 // água funda o bastante em (x, z)? (lago hoje; o mar entra na FASE 3)
 export const fundoAgua = (x, z) => noLago(x, z)?.fundo || 0;
+// barquinho de volta para a mochila; cheia, fica guardado à parte (prog.barcoFora) e volta quando abrir lugar
+export function devolverBarquinho(p) { if (!guardar(p.mochila, { k: 'barquinho', n: 1 })) p.barcoFora = 1; }
 // o ponto mais perto do herói (anéis de 0,5 m, 24 direções, a da frente primeiro) que passa em ok(x, z)
 export function acharPonto(j, ok, raio) {
   for (let r = 0.5; r <= raio + 0.01; r += 0.5) for (let i = 0; i < 24; i++) {
@@ -289,6 +291,7 @@ export const Transporte = {
         if (Math.hypot(sx - j.x, sz - j.z) > (k === 'navio' ? V.navio.cabe + 3 : 4)) return aviso('Chegue mais perto da margem pra descer');
         if (fundoAgua(sx, sz) > AGUA.peito - 0.3) return aviso('Chegue mais perto da margem pra descer');
       }
+      if (k === 'barquinho' && p.mochila.indexOf(null) < 0) return aviso('Mochila cheia: libere um lugar pra guardar o barquinho');
       if (k === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
       else if (k === 'navio') { p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) }; aviso('Navio ancorado. Ele fica aqui até você voltar.'); }
       else if (k === 'barquinho') guardar(p.mochila, { k: 'barquinho', n: 1 });
@@ -413,7 +416,7 @@ export const Transporte = {
     if (p.pack) { this.packNoChao(p.pack, j.x, j.z); p.pack = null; }
     if (j.veiculo === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
     else if (j.veiculo === 'navio') p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-    else if (j.veiculo === 'barquinho') guardar(p.mochila, { k: 'barquinho', n: 1 });
+    else if (j.veiculo === 'barquinho') devolverBarquinho(p);
     j.veiculo = null;
   },
   // saiu do jogo dirigindo: o veículo fica onde ele está
@@ -422,8 +425,24 @@ export const Transporte = {
     const p = j.prog;
     if (j.veiculo === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
     else if (j.veiculo === 'navio') p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-    else if (j.veiculo === 'barquinho') guardar(p.mochila, { k: 'barquinho', n: 1 });
+    else if (j.veiculo === 'barquinho') devolverBarquinho(p);
     j.veiculo = null; j.progSujo = true;
+  },
+  // o que vai para a conta enquanto ele dirige (auditoria 2026-11-13): o veículo entra estacionado onde ele está, como se
+  // tivesse saído agora. Sem isso, um reinício do servidor (todo merge) ou uma sessão nova no leme gravava o navio com
+  // chao = null e fora da mochila: o navio sumia. O herói continua dirigindo; só a cópia gravada muda.
+  progParaSalvar(j) {
+    const p = j.prog; if (!j.veiculo) return p;
+    const s = { ...p }, aqui = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
+    if (j.veiculo === 'navio') s.navio = { ...(p.navio || { porao: [] }), chao: aqui };
+    else if (j.veiculo === 'carrinho') s.carrinho = { ...p.carrinho, chao: aqui };
+    else if (j.veiculo === 'barquinho') { s.mochila = p.mochila.slice(); devolverBarquinho(s); }
+    return s;
+  },
+  // barquinho que ficou fora da mochila cheia: volta assim que abrir um lugar (chamado a cada gravação)
+  voltarBarquinho(j) {
+    const p = j.prog; if (p.barcoFora !== 1 || j.veiculo) return;
+    if (guardar(p.mochila, { k: 'barquinho', n: 1 })) { delete p.barcoFora; j.progSujo = true; this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: 'O barquinho voltou para a mochila' }); }
   },
   // por que não pode teleportar / montar agora ('' = pode)
   motivoCarga(j) {
