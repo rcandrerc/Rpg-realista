@@ -3,7 +3,8 @@
 # Não mexe em nada do celular: não roda no push, não toca no APK nem nas atualizações dentro do app, e as mudanças de
 # PC (texturas de PC, teclado/mouse, preset Windows) só são aplicadas na cópia desta execução (ferramentas/pc/preparar.sh).
 # Usa a mesma máquina do APK (runner da Oracle quando o repositório é privado; senão a do GitHub, de graça em público).
-# Na main: publica no release "pc" (link fixo: releases/download/pc/Aethra-PC.zip). Outro ramo: Artifacts da execução.
+# Na main: publica no release "pc" (link fixo: releases/download/pc/Aethra-PC.zip) e no balde da Oracle (Aethra-PC.zip,
+# pc-Aethra.pck, conteudo-pc.json; abre mesmo com o repositório privado). Outro ramo: Artifacts da execução.
 # Detalhes: ferramentas/pc/LEIAME.md
 name: Versão PC (Windows)
 
@@ -58,12 +59,16 @@ jobs:
       - name: Godot e modelo de exportação do Windows
         run: |
           # no runner da Oracle o Godot já vem instalado (GODOT_BIN no .env)
-          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ] && [ -f ~/.local/share/godot/export_templates/4.7.1.stable/windows_release_x86_64.exe ]; then
+          # mas só vale se for o motor certo: o runner foi instalado com o 4.5 e o jogo é 4.7 (igual ao apk.yml)
+          CERTO=0
+          if [ -n "${GODOT_BIN:-}" ] && [ -x "${GODOT_BIN:-/nao}" ] \
+            && [ "$("$GODOT_BIN" --version | head -n1 | cut -d. -f1-4)" = "${GODOT/-/.}" ]; then CERTO=1; fi
+          if [ "$CERTO" = 1 ] && [ -f ~/.local/share/godot/export_templates/4.7.1.stable/windows_release_x86_64.exe ]; then
             echo "Godot já instalado em $GODOT_BIN"; exit 0
           fi
           case "$(uname -m)" in aarch64|arm64) PLAT=linux.arm64;; *) PLAT=linux.x86_64;; esac
           cd /tmp
-          if [ -z "${GODOT_BIN:-}" ] || [ ! -x "${GODOT_BIN:-/nao}" ]; then
+          if [ "$CERTO" = 0 ]; then
             curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip
             unzip -qo godot.zip
             echo "GODOT_BIN=/tmp/Godot_v${GODOT}_${PLAT}" >> $GITHUB_ENV
@@ -94,6 +99,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
         run: |
           gh release view pc > /dev/null 2>&1 || gh release create pc --target main --prerelease --title "Versão PC (Windows)" --notes "Gerada à mão em Actions > Versão PC (Windows)."
           gh release upload pc Aethra-PC.zip --clobber
@@ -105,6 +112,23 @@ jobs:
           cat conteudo-pc.json
           gh release upload pc Aethra.pck --clobber
           gh release upload pc conteudo-pc.json --clobber
+          # Balde da Oracle (André 2026-11-13): o .exe novo lê daqui, que continua aberto com o repositório privado.
+          # Nomes fixos (o balde não apaga com o link de envio; assim não acumula). Ordem: pacote, confere, depois o índice.
+          ARQ_PAR=ferramentas/atualizacao/oracle-par-envio.txt
+          [ -z "${ORACLE_PAR:-}" ] && [ -f "$ARQ_PAR" ] && ORACLE_PAR="$(head -n1 "$ARQ_PAR")"
+          ORACLE_URL="${ORACLE_URL:-https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/}"
+          if [ -n "${ORACLE_PAR:-}" ]; then
+            curl -fsS --retry 4 --retry-all-errors -X PUT --data-binary @Aethra.pck "${ORACLE_PAR%/}/pc-Aethra.pck" > /dev/null
+            [ "$(curl -fsSL --retry 4 "${ORACLE_URL%/}/pc-Aethra.pck" | sha256sum | cut -d' ' -f1)" = "$SHA" ] \
+              || { echo "::error::pc-Aethra.pck no balde não bate com o build"; exit 1; }
+            jq '.url_base = $u | .completo.partes[0].arq = "pc-Aethra.pck"' --arg u "${ORACLE_URL%/}/" conteudo-pc.json > conteudo-pc-balde.json
+            curl -fsS --retry 4 --retry-all-errors -X PUT --data-binary @conteudo-pc-balde.json "${ORACLE_PAR%/}/conteudo-pc.json" > /dev/null
+            curl -fsS --retry 4 --retry-all-errors -X PUT --data-binary @Aethra-PC.zip "${ORACLE_PAR%/}/Aethra-PC.zip" > /dev/null
+            curl -fsSL "${ORACLE_URL%/}/conteudo-pc.json"; echo
+            echo "Balde: ${ORACLE_URL%/}/Aethra-PC.zip"
+          else
+            echo "::warning::Sem ORACLE_PAR: PC publicado só no release (o .exe novo lê do balde)."
+          fi
           gh release edit pc --notes "Versão PC do jogo (Windows 64 bits). Baixe, extraia a pasta e abra o Aethra.exe. Último build: ${GITHUB_SHA::7} (execução ${{ github.run_number }})."
       - uses: actions/upload-artifact@v4
         if: github.ref != 'refs/heads/main'
