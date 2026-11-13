@@ -414,7 +414,10 @@ func _tampa_seca(corpo: Node3D) -> void:
 		_mt_seco = ShaderMaterial.new()
 		_mt_seco.shader = sh
 		_mt_seco.render_priority = -2
-	var yw := -BARCO_AFUNDA + 0.03 # um tiquinho acima da água (o balanço mexe ~2 cm)
+	# 2026-11-13 (André: "às vezes a textura da água tá sobrepondo o fundo do barco quando eu tô remando"): com 3 cm a
+	# popa afundava a tampa quando a proa sobe na remada e o casco deita na curva (até ~10 cm). Agora 14 cm acima da
+	# água, ainda bem abaixo da amurada (30 cm) e do banco.
+	var yw := -BARCO_AFUNDA + 0.14
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var n := 24

@@ -1866,7 +1866,9 @@ export const VEICULOS = {
     } },
   // 2026-11-09 (André: "o barco tá muito rápido"): 5,6 -> 3,2 m/s, gira mais devagar; acelera só com as pás na água
   // (acelera) e desliza parando de remar (deriva: quanto a água freia por segundo)
-  barquinho: { nome: 'Barquinho', vel: 3.2, giro: 1.15, acelera: 0.8, deriva: 0.45, pessoas: 2, packs: 0, fundo: 0.35, perto: 3.5 },
+  // 2026-11-13 (André: "na velocidade final tá parecendo uma lancha... a curva mais lenta"): 3,2 -> 2,1 m/s (ritmo de
+  // barco a remo de verdade) e giro 1,15 -> 0,65 rad/s; a física (acelera/deriva) fica igual
+  barquinho: { nome: 'Barquinho', vel: 2.1, giro: 0.65, acelera: 0.8, deriva: 0.45, pessoas: 2, packs: 0, fundo: 0.35, perto: 3.5 },
   navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5 },
 };
 // itens: galão de combustível (pilha) e os veículos (um de cada, na mochila)
