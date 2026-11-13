@@ -17,12 +17,18 @@ static var _mats := {}
 # shared/dados.js, mesmo texto do servidor: "peitoral0,capa3") e o Aldo vira o ancião da vila: corpo curvado,
 # barba branca e cajado na mão (a arma vem de main.criar_npc).
 static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
+	_vestir(no, npc_id, info)
+	# peças da armadura juntadas (junta_pecas.gd) só depois da roupa de ofício: ela esconde as placas do peitoral, e a
+	# placa escondida fica de fora da junta
+	if info is Dictionary and str(info.get("roupa", "")) != "":
+		preload("res://junta_pecas.gd").juntar(no)
+
+static func _vestir(no: Node3D, npc_id: String, info = {}) -> void:
 	var esq: Skeleton3D = _esqueleto(no)
 	if esq == null:
 		return
 	if info is Dictionary and str(info.get("roupa", "")) != "":
 		Armadura.vestir(no, Armadura.de_texto(str(info.roupa)))
-		preload("res://junta_pecas.gd").juntar(no) # peças da armadura numa malha por material (junta_pecas.gd)
 	# roupa de ofício (direção de arte 2026-11-05: só quem luta usa couraça e ombreira): túnica, saia, faixa, corpete
 	if info is Dictionary and info.get("veste") is Dictionary:
 		_roupa_de_oficio(no, esq, info.veste)
