@@ -2538,8 +2538,8 @@ func usar(qual: String) -> void:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
-# Desliga tocando de novo, quando a estamina acaba (trabalho.gd) ou quando o herói para de andar.
-var _parado_disparada := 0.0
+# Desliga só tocando de novo ou quando a estamina acaba (trabalho.gd). André 2026-11-13: parar de andar não desliga mais;
+# parado com ela ligada não gasta estamina (trabalho.gd só gasta acima do trote).
 const GUARDA_DEPOIS := 3.0 # s em guarda depois de golpear o ar (sem acertar ninguém não entra em combate)
 var _guarda_ate := 0.0
 func ligar_disparada(v: bool) -> void:
@@ -2550,14 +2550,8 @@ func ligar_disparada(v: bool) -> void:
 	mov.disparada = v
 	hud.ligar_botao("disparada", v)
 
-func passo_disparada(dt: float, forca: float) -> void:
-	if mov.disparada and (forca < 0.15 and mov.velocidade() < 0.5):
-		_parado_disparada += dt
-		if _parado_disparada > 0.6:
-			mov.disparada = false
-	else:
-		_parado_disparada = 0.0
-	hud.ligar_botao("disparada", mov.disparada)
+func passo_disparada(_dt: float, _forca: float) -> void:
+	hud.ligar_botao("disparada", mov.disparada) # o botão acompanha quando a disparada desliga sozinha (sem fôlego)
 
 # tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
 func _tentar(qual: String) -> bool:
