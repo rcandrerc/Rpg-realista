@@ -126,14 +126,16 @@ func _nativo_erro(msg: String) -> void:
 		entrar_pelo_site()
 
 # Login pelo site: abre o navegador e fica esperando o servidor liberar a sessão
-func entrar_pelo_site() -> void:
+func entrar_pelo_site(trocar := false) -> void:
 	var letras := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	var cripto := Crypto.new()
 	var bytes := cripto.generate_random_bytes(32)
 	_codigo = ""
 	for b in bytes:
 		_codigo += letras[b % letras.length()]
-	OS.shell_open(SITE + "?vincular=" + _codigo)
+	# trocar=1: o site esquece a conta que ele mesmo lembrava e mostra a escolha de conta do Google (versão PC, 2026-11-13:
+	# "Trocar de conta" voltava sempre na mesma conta)
+	OS.shell_open(SITE + "?vincular=" + _codigo + ("&trocar=1" if trocar else ""))
 	_vinculo_ate = _tempo + 300.0
 	_espera_vinculo = 2.0
 	estado.emit("Faça o login no navegador e volte para o jogo")
@@ -145,7 +147,10 @@ func continuar() -> void:
 
 func trocar_conta() -> void:
 	sair_da_conta()
-	entrar_com_google()
+	if _login_nativo or Engine.has_singleton("LoginGoogle"):
+		entrar_com_google()
+	else:
+		entrar_pelo_site(true)
 
 func sair_da_conta() -> void:
 	if _login_nativo:
