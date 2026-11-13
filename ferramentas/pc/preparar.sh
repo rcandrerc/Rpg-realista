@@ -52,6 +52,14 @@ pos_secao rendering 'scaling_3d/fsr_sharpness=0.2'
 sed -i 's/^config\/name=.*/config\/name="Aethra"/' project.godot
 printf '\n[autoload]\n\nControlesPC="*res://controles_pc.gd"\n' >> project.godot
 
+# Atualização dentro do jogo (André 2026-11-13): só no build da main (pc.yml passa PC_ID = número da execução). O .exe
+# confere o conteudo-pc.json do release "pc" ao abrir e baixa o jogo novo se tiver (inicio.gd, pc_conteudo/pc_id).
+if [ -n "${PC_ID:-}" ]; then
+  grep -q '^\[aethra\]$' project.godot || printf '\n[aethra]\n' >> project.godot
+  pos_secao aethra "atualizacao/pc_id=$PC_ID"
+  pos_secao aethra 'atualizacao/pc_conteudo="https://github.com/rcandrerc/Rpg-realista/releases/download/pc/conteudo-pc.json"'
+fi
+
 N=$(grep -c '^\[preset\.[0-9]*\]$' export_presets.cfg)
 sed "s/preset\.N/preset.$N/g" ../ferramentas/pc/preset-windows.cfg >> export_presets.cfg
 echo "pronto: preset Windows = preset.$N"
