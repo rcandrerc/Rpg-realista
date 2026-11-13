@@ -1515,10 +1515,14 @@ func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 		terra.mesh = _malha_terra(h)
 		terra.material_override = _mat_terra(mo)
 		terra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		terra.visibility_range_end = TERRA_LONGE
+		terra.visibility_range_end_margin = 8.0
+		terra.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		h.no.add_child(terra)
 		h.mask_feita = h.get("mask", 0)
 	if f >= 0:
 		_desenhar_planta(h.no, h.c, f)
+		_aliviar_planta(h.no.get_child(h.no.get_child_count() - 1), h.c)
 	_info_planta(h, _placa_perto(h.no.position.distance_squared_to(m.heroi.position))) # plantou/regou: a placa já muda
 
 # ---------- placa da planta (André 2026-11-07: "quando eu plantei não mostra nada") ----------
@@ -1815,6 +1819,25 @@ func _mat_terra(molhada: bool) -> StandardMaterial3D:
 	return mt
 
 # planta feita de folhas e fruto nas cores do Quimera (PLANTAS.cor e .folha), maior a cada fase
+# FPS (André 2026-11-13: "juntar tudo como se fosse um desenho só"; as travadas no lobo eram na entrada das Terras da
+# Estrada): cada planta eram 6 a 10 caixinhas soltas, cada uma com sombra e desenhada de qualquer distância (uma chamada
+# de desenho por caixinha, e outra na sombra). Agora a planta vira uma malha só (uma parte por material, o mesmo
+# desenho), as baixinhas ficam sem sombra (o milho, alto, continua com) e de longe a planta não é desenhada.
+const PLANTA_LONGE := 60.0 # m
+const TERRA_LONGE := 100.0 # m: a terra arada some junto com as casas (alcance das paredes)
+func _aliviar_planta(r: Node3D, c: String) -> void:
+	juntar_malhas(r)
+	_longe(r, PLANTA_LONGE)
+	if c != "milho":
+		for g: GeometryInstance3D in r.find_children("*", "GeometryInstance3D", true, false):
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+static func _longe(raiz: Node3D, longe: float) -> void:
+	for g: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
+		g.visibility_range_end = longe
+		g.visibility_range_end_margin = 6.0
+		g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
 func _desenhar_planta(pai: Node3D, c: String, f: int) -> void:
 	var P: Dictionary = D.plantas[c]
 	var folha := _mat_cor(Color(str(P.folha)))
@@ -3225,6 +3248,8 @@ func _por_correio(id: String) -> void:
 	var no: Node3D = _correios.get(id)
 	if no == null:
 		no = _modelo_correio()
+		juntar_malhas(no) # FPS (2026-11-13): 10 caixinhas viram uma malha por material; a bandeirinha fica solta (mexe)
+		_alcance_peca(no, "bau") # de longe não desenha (45 m, como os móveis pequenos)
 		no.name = "Correio"
 		L.raiz.add_child(no)
 		_correios[id] = no
