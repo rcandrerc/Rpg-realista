@@ -2513,10 +2513,10 @@ export const AMIGA = {
   conversa: 25, // segundos parada olhando para o André depois do último botão
   // Fase 2 (André 2026-11-09): time e combate. Ela decide por regras com sorteio (sem IA paga): a vontade começa em
   // base e muda com a amizade, o cansaço, a horta, a noite e a diferença de nível; depois sorteia. Recusou: espera
-  // 'esperaRecusa' s para ser chamada de novo. No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
+  // 'esperaRecusa' s para ser chamada de novo; 'humor' s que a vontade sorteada vale e 'humorRecusa' s que um não continua não (André 2026-11-13: não muda de ideia a cada fala). No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
   // bebe poção com pouca vida e foge para perto dele quando não tem poção.
   time: { base: 0.6, porAmizade: 0.08, amizadeMax: 0.35, cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
-    min: 0.05, max: 0.95, esperaRecusa: 45, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
+    min: 0.05, max: 0.95, esperaRecusa: 45, humor: 90, humorRecusa: 180, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
   // André 2026-11-10 ("ela não se teleporta: entra na montaria e vem até mim, eu vejo ela no mapa vindo, como um jogador
   // normal"; "vai pelas estradas para não travar"): longe do dono (chamada pelo chat ou no time) ela monta no lobo e vem
   // pela rede de estradas (shared/rota.js, a mesma do "Ir para"). estrada: m a partir de quando vai pela estrada; chega: m
