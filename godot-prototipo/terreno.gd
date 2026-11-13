@@ -455,6 +455,36 @@ func altura(x: float, z: float, y := INF) -> float:
 			h = a
 	if not tampos.is_empty():
 		h = maxf(h, tampo_em(x, z))
+	if not moveis.is_empty():
+		h = maxf(h, movel_em(x, z))
+	return h
+
+# Carrinhos no mundo (André 2026-11-13: "não quero passar por dentro dele"; "outras pessoas também podem pular em cima"):
+# transporte.gd põe aqui, a cada quadro, as caixas de cada carrinho perto (menos o que eu dirijo). O topo delas vira chão:
+# o andar.gd não deixa entrar (degrau alto), pula ou escala e fica em cima. Cada um: {x, z, r2, partes: [{c, s, x, z, y,
+# caixas}]} (c/s = cosseno e seno do giro da peça, x/z/y = onde ela está; caixas como shared/transporte.js caixasCarrinho).
+var moveis: Array = []
+func movel_em(x: float, z: float) -> float:
+	var h := -INF
+	for mv in moveis:
+		var ddx: float = x - mv.x
+		var ddz: float = z - mv.z
+		if ddx * ddx + ddz * ddz > mv.r2:
+			continue
+		for pt in mv.partes:
+			h = maxf(h, topo_parte(pt, x, z))
+	return h
+
+# topo de uma peça do carrinho (trator ou carreta) em (x, z); -INF = fora dela
+static func topo_parte(pt: Dictionary, x: float, z: float) -> float:
+	var h := -INF
+	var dx: float = x - pt.x
+	var dz: float = z - pt.z
+	var lx: float = dx * pt.c - dz * pt.s
+	var lz: float = dx * pt.s + dz * pt.c
+	for b in pt.caixas:
+		if lx >= b[0] and lx <= b[1] and lz >= b[2] and lz <= b[3]:
+			h = maxf(h, pt.y + float(b[4]))
 	return h
 
 # Obstáculos baixos com tampo (André 2026-11-05: "pular sobre as mesas de craft"): bancada, bigorna, baú, mesa da Rosa,

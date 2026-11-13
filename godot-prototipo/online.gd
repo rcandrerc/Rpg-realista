@@ -794,10 +794,11 @@ func outro(j: Dictionary) -> void:
 	if modo != o.modo:
 		o.modo = modo
 		var L: Dictionary = m.lugar_armas(o.visual)
-		if o.get("montaria") != null:
+		if o.get("montaria") != null or o.get("sentado", false): # montado, ou dirigindo o carrinho / remando (transporte.gd)
 			m.prender(o.esq, o.espada, L.espadaCostas)
 			m.prender(o.esq, o.cajado, L.cajadoCostas)
-			m.armas_montado(o.esq, o.espada, o.cajado)
+			if o.get("montaria") != null:
+				m.armas_montado(o.esq, o.espada, o.cajado)
 		elif modo == "Espada":
 			m.colisor_espada(o.esq, null)
 			m.prender(o.esq, o.espada, L.espadaMao)
@@ -838,7 +839,7 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 	o.uma_vez = 0.0
 	var nome := str(c.get("anim", "Idle"))
 	# outro jogador parado com o cajado na mão: a mesma guarda de mago do herói (o servidor manda só "parada")
-	if o.get("modo", "") == "Magia" and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
+	if o.get("modo", "") == "Magia" and not o.get("sentado", false) and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
 		nome = "cajado_parada"
 	# outro jogador no lago fundo: nada andando e boia parado, como o herói (o servidor manda andar/parada)
 	if o.has("esq") and an.has_animation("nadar") and m.terreno != null:
