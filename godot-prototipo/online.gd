@@ -185,6 +185,8 @@ func montar_tela() -> void:
 	sub.add_theme_color_override("font_color", Color(0.9, 0.87, 0.82))
 	col.add_child(sub)
 	b_continuar = _botao("Entrar", Color(0.93, 0.62, 0.25), func():
+		if m.lentidao:
+			m.lentidao.marcar("toque")
 		cobrir("Entrando…") # o jogo só aparece quando o servidor mandar o mundo (ou o criador abrir)
 		rede.continuar())
 	col.add_child(b_continuar)
@@ -230,6 +232,8 @@ func mostrar_login() -> void:
 
 # abriu o jogo com conta salva: entra com ela ou troca de conta (pedido do André: perguntar toda vez)
 func mostrar_escolha(conta: Dictionary) -> void:
+	if m.lentidao: # linha do tempo da entrada (lentidao.gd)
+		m.lentidao.marcar("escolha")
 	_cobrindo = false
 	carregando.visible = false
 	titulo.text = "Bem-vindo de volta"
