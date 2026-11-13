@@ -33,3 +33,11 @@ Em 2026-11-13 entrou parada_maleta (André: "poe aquela animacao q baixei"): Mix
 (que continua no arquivo; `anim_heroi.gd` USAR_MALETA). Assada com o FBXLoader do three em módulo e juntada sem o
 outra-pose.mjs: a pose de descanso desse boneco é de braços para baixo, e o delta do outra-pose deixava os braços em T.
 As rotações locais do Mixamo valem direto (mesmo esqueleto); só a posição do quadril muda de escala (alturaQuadril).
+
+No mesmo dia, com o André vendo que com a espada na mão as poses ficavam esquisitas, parado fora de combate as armas vão
+para as costas (main.gd passo_maos_livres) e o anim_heroi.gd reveza as paradas de mãos vazias (VAZIAS): a Maleta e as do
+Quaternius Universal Animation Library 1 e 2 (CC0, `quaternius/ual/` nos fontes). As do Quaternius vêm noutro esqueleto
+(o manequim da Unreal) e passam para o do Mixamo com
+`python3 ferramentas/assar-animacoes/quaternius.py <anims.json.gz atual> <saída.json> <glb:Animação:nome> ...`:
+diferença de rotação de mundo de cada osso em relação à A_TPose do pacote (que é a mesma pose em T do Mixamo),
+virada em rotação local; o quadril muda de escala pela altura.
