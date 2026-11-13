@@ -22,6 +22,9 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
+// a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
+// sua). O próprio aparelho com um socket velho que o servidor ainda não viu cair não conta: esse sai como sempre saiu
+const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some((c) => c.auth?.id === id && c.userData?.sessao !== sessao));
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -320,11 +323,16 @@ class SalaClareira extends Room {
     if (!contas) return true;
     const conta = contas.porSessao(opcoes?.sessao);
     if (!conta) throw new ServerError(401, 'login');
+    // André 2026-11-13 (PC e celular na mesma conta ficavam se derrubando): o último login vale. Entrada automática
+    // (o app tentando voltar sozinho depois de uma queda, volta: true) não derruba o aparelho que entrou depois: é recusada
+    // e o app mostra "Sua conta entrou em outro aparelho" sem tentar de novo. Entrar tocando no botão continua derrubando
+    if (opcoes?.volta === true && contaLigadaEmOutro(conta.id, opcoes.sessao)) throw new ServerError(4001, 'outro_aparelho');
     return conta;
   }
 
   onJoin(client, opcoes) {
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
+    if (typeof opcoes?.sessao === 'string') (client.userData ||= {}).sessao = opcoes.sessao; // de qual aparelho (contaLigadaEmOutro)
     if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
     const conta = contas ? client.auth : null;
     const velhos = [], fantasmas = []; // sessões antigas da mesma conta: o herói novo fica com o time e os amigos delas (trocarSessao)
@@ -335,6 +343,12 @@ class SalaClareira extends Room {
         if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
+      // a mesma conta numa outra sala (salas cheias abrem outra): também sai, e o progresso dela vem junto
+      for (const s of salas) if (s !== this) for (const outro of s.clients) if (outro.auth?.id === conta.id) {
+        const vj = s.sim.jogadores.get(outro.sessionId);
+        if (vj) { s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; }
+        (outro.userData ||= {}).substituido = true; outro.leave(4001);
+      }
       // o servidor já tinha visto a queda: o herói antigo está no mundo esperando reconexão (allowReconnection, 20 s) e
       // o jogo entrou de novo como sessão nova. O novo herda o progresso e o lugar dele (antes vinham do banco, de até
       // 15 s atrás, e o antigo ficava 20 s no mundo como fantasma)
@@ -342,6 +356,9 @@ class SalaClareira extends Room {
       for (const vj of [...this.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && vj.id !== client.sessionId && !vivos.has(vj.id)) {
         this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
         velhos.push(vj.id); fantasmas.push(vj.id); // sai do mundo logo abaixo, depois de passar o time e os amigos para o novo
+        // o aparelho antigo não pode mais voltar como esse herói (André 2026-11-13): sem isso ele religava num herói que
+        // já saiu do mundo; agora a volta falha, ele tenta entrar de novo (volta: true) e o onAuth recusa
+        const espera = this.esperas?.get(vj.id); if (espera) { this.esperas.delete(vj.id); espera.reject(new Error('substituido')); }
       }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
@@ -414,7 +431,9 @@ class SalaClareira extends Room {
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
     if (!consentiu && !client.userData?.substituido) {
-      try { await this.allowReconnection(client, 20); this.voltouNaMesmaSessao(client); return; } catch { /* não voltou a tempo */ }
+      const espera = this.allowReconnection(client, 20);
+      (this.esperas ||= new Map()).set(client.sessionId, espera); // a conta entrou de novo por outro caminho: onJoin desiste da espera
+      try { await espera; this.esperas.delete(client.sessionId); this.voltouNaMesmaSessao(client); return; } catch { this.esperas.delete(client.sessionId); /* não voltou a tempo, ou foi trocado */ }
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); } // queda: a hora da última notícia
@@ -515,6 +534,12 @@ app.post('/conta/entrar', async (req, res) => {
 app.get('/conta/eu', (req, res) => {
   const conta = contas.porSessao(sessaoDe(req));
   conta ? res.json({ conta }) : res.status(401).json({ erro: 'login' });
+});
+// o app vai voltar sozinho depois de uma queda (André 2026-11-13): antes pergunta se a conta já está jogando em outro
+// aparelho. Se está, não entra (entrar derrubaria o outro): mostra "Sua conta entrou em outro aparelho"
+app.get('/conta/ligada', (req, res) => {
+  const s = sessaoDe(req), conta = contas.porSessao(s);
+  conta ? res.json({ ligada: contaLigadaEmOutro(conta.id, s) }) : res.status(401).json({ erro: 'login' });
 });
 app.post('/conta/sair', (req, res) => { contas.sair(sessaoDe(req)); res.json({ ok: true }); });
 // Ligar o app (APK) à conta: o app abre o site com ?vincular=CODIGO; quem fez login no site manda o código aqui
