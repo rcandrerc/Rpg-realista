@@ -4885,6 +4885,15 @@ func comecar_teste() -> void:
 	botao_teste.visible = false
 	etapa = -1
 	proxima_etapa()
+	ver_rotulo()
+
+# os números do teste (André 2026-11-13, tela limpa): à vista só com Mostrar FPS e Números do teste ligados, ou durante
+# o Teste. Escondidos, atualizar_teste nem monta o texto.
+func ver_rotulo() -> void:
+	if rotulo == null:
+		return
+	var mt = menu_topo
+	rotulo.visible = etapa >= 0 or (mt != null and mt.mostrar_fps and mt.detalhes_fps)
 
 func proxima_etapa() -> void:
 	restaurar()
@@ -4892,6 +4901,7 @@ func proxima_etapa() -> void:
 	if etapa >= etapas.size():
 		etapa = -1
 		botao_teste.visible = grafico.teste
+		ver_rotulo()
 		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), false)
 		return
 	etapas[etapa].f.call()
