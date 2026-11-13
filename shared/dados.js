@@ -1855,7 +1855,17 @@ export const VEICULOS = {
     curvaFechada: 1.6, curvaK: 0.3, galao: 160, tanque: 8, capacidade: 2, nivelMax: 4,
     melhorar: [null, null, { lenha: 40, barra_ferro: 8, barra_cobre: 6, couro: 6, ouro: 2000 }, { lenha: 60, barra_ferro: 14, barra_cobre: 10, couro: 10, ouro: 8000 },
       { lenha: 100, barra_ferro: 24, barra_cobre: 16, couro: 16, ouro: 25000 }],
-    golpe: 1.1, heroi: 0.2, consertoQuebrado: { lenha: 8, barra_ferro: 1 }, consertoParcial: { lenha: 4 }, perto: 3.5, entregar: 12, carregar: 8 },
+    golpe: 1.1, heroi: 0.2, consertoQuebrado: { lenha: 8, barra_ferro: 1 }, consertoParcial: { lenha: 4 }, perto: 3.5, entregar: 12, carregar: 8 ,
+    // carrinho sólido (André 2026-11-13: "não quero passar por dentro dele"; "outras pessoas também podem pular em cima"):
+    // caixas [xmin, xmax, zmin, zmax, topo] em metros. trator: no espaço do carrinho (z+ = frente). carreta: no espaço do
+    // engate (gira na curva); cada fileira de engradados é uma caixa (o 2º andar sobe 'andar2'). O topo vira chão
+    // (shared/transporte.js topoCarrinho e godot-prototipo/terreno.gd moveis): não atravessa, pula e fica em cima.
+    solido: {
+      trator: [[-0.42, 0.42, 0.08, 1.32, 1.37], [-0.6, 0.6, 0.7, 1.3, 0.6], [-0.48, 0.48, -0.86, 0.08, 0.63],
+        [-0.35, 0.35, -0.62, -0.23, 0.97], [-0.75, -0.48, -0.86, 0.14, 1.04], [0.48, 0.75, -0.86, 0.14, 1.04]],
+      engate: [0, 0.52, -0.82], lanca: [-0.4, 0.4, -0.55, 0, 0.04], rodas: [-0.88, 0.88, 0.46], // rodas: [xmin, xmax, topo] na caçamba toda
+      cacamba: { meia: 0.7, frente: -0.55, folga: 0.06, fileira: 0.62, topo: 0.68, andar2: 0.58 },
+    } },
   // 2026-11-09 (André: "o barco tá muito rápido"): 5,6 -> 3,2 m/s, gira mais devagar; acelera só com as pás na água
   // (acelera) e desliza parando de remar (deriva: quanto a água freia por segundo)
   // 2026-11-13 (André: "na velocidade final tá parecendo uma lancha... a curva mais lenta"): 3,2 -> 2,1 m/s (ritmo de

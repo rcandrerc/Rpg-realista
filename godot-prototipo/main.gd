@@ -1564,7 +1564,8 @@ func armas_cruzadas(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 
 # cajado na mão (modo magia): não quando escala, monta, nada ou coleta (aí ele vai para as costas)
 func cajado_na_mao() -> bool:
-	return h.modo == "Magia" and not armas_guardadas and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null)
+	return h.modo == "Magia" and not armas_guardadas and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null) \
+		and not sentado_veiculo() # dirigindo o carrinho ou remando: o cajado vai para as costas (André 2026-11-13)
 
 # base com +Y ao longo da arma e o lado chato (+Z) virado para fora das costas
 func _base_arma(y: Vector3, fora: Vector3) -> Basis:
@@ -3725,7 +3726,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		_guarda_ate = tempo + GUARDA_DEPOIS
 	heroi_anim.em_guarda = trabalho.em_combate() or tempo < _guarda_ate
 	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
-	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando
+	heroi_anim.guarda_cajado = h.modo == "Magia" and montaria == null and mov.chao and mov.esc == null and not _nadando and mov.veiculo.is_empty()
 	heroi_anim.nadando = _nadando
 	# parada solta fora de combate (André 2026-11-09) só em pé no chão, com as mãos livres
 	heroi_anim.pode_soltar = montaria == null and mov.chao and mov.esc == null and mov.veiculo.is_empty() and not _nadando \

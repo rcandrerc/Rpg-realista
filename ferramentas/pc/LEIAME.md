@@ -17,6 +17,10 @@ Regra do André (2026-11-06): **nada da versão PC pode mudar o celular**. Por i
 
 Actions > **Versão PC (Windows)** > Run workflow (ramo main). Não roda sozinho em push. Na main publica em
 `https://github.com/rcandrerc/Rpg-realista/releases/download/pc/Aethra-PC.zip`.
+Também vai para o balde da Oracle (abre mesmo com o repositório privado, sem login):
+`https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/Aethra-PC.zip`.
+O .exe se atualiza sozinho lendo `conteudo-pc.json` e `pc-Aethra.pck` do mesmo balde (nomes fixos, sobrescritos a
+cada build). Os .exe gerados antes de 2026-11-13 ainda leem do release "pc", que continua recebendo tudo.
 
 Testar no computador sem CI: rode `bash ferramentas/pc/preparar.sh` numa cópia do repositório (ele altera
 `project.godot` e `export_presets.cfg`; não commite isso) e exporte o preset "Windows" no editor.
