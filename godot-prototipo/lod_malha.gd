@@ -34,6 +34,15 @@ static func pedir(raiz: Node) -> void:
 			mi.set_meta("lod_chave", _chave(mi.mesh))
 			_fila.append(mi)
 
+# uma malha só (a armadura juntada de junta_pecas.gd nasce depois do pedir do corpo)
+static func pedir_malha(mi: MeshInstance3D) -> void:
+	if not ligado or mi == null or not (mi.mesh is ArrayMesh) or mi.get_meta("lod_ok", 0) == mi.mesh.get_instance_id():
+		return
+	mi.set_meta("lod_ok", mi.mesh.get_instance_id())
+	if _precisa(mi.mesh):
+		mi.set_meta("lod_chave", _chave(mi.mesh))
+		_fila.append(mi)
+
 static func _precisa(am: ArrayMesh) -> bool:
 	var tris := 0
 	for i in am.get_surface_count():

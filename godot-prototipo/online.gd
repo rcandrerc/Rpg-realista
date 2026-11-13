@@ -1501,6 +1501,8 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false)
 		m.LodMalha.pedir(o.no) # roupa, cabelo e corpo montados no jogo ganham LOD (lod_malha.gd)
 		m.pecinhas_de_perto(o.no) # olhos, cílios, fivelas: só desenhados de perto
+	else:
+		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false) # a armadura juntada nasce depois (junta_pecas.gd)
 	for mi in o.malhas:
 		if is_instance_valid(mi):
 			mi.lod_bias = [0.2, 0.4, 0.8][nivel]
