@@ -497,7 +497,9 @@ func _process(dt: float) -> void:
 			if b.cd > 0.0 or b.pronto_t > 0.0 or b.nega_t > 0.0 or b.get("ligado", false):
 				anim_comb = true
 			sc.append([b.oculto, b.cor, b.borda, b.travado, b.sem_mana, b.get("n", -1), b.icone, b.apertado, b.raio, b.canto, b.d, b.s])
-		if anim_comb or sc != _sinal_comb:
+		# FPS (conselho de auditoria 2026-11-13): só a animação (recarga, brilho de pronto, tremidinha) redesenha a cada 2
+		# quadros, como as barras; mudança de estado redesenha na hora
+		if sc != _sinal_comb or (anim_comb and (q % 2 == 0 or editando)):
 			_sinal_comb = sc
 			_combate.queue_redraw()
 

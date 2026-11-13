@@ -69,10 +69,18 @@ func por(no: Node3D, placa: Label3D, id: String) -> Label3D:
 		_brilham.erase(t)
 	return t
 
+var _brilho_passo := -1
+
 func _process(dt: float) -> void:
 	_t += dt
 	_heroi()
 	# brilho dos títulos difíceis: o Lendário pulsa (dourado que clareia), o Mítico corre do rosa ao dourado
+	# FPS (conselho de auditoria 2026-11-13): trocar a cor de um Label3D refaz a malha das letras; 15 vezes por segundo
+	# já dá o mesmo pulso a olho
+	var passo := int(_t * 15.0)
+	if passo == _brilho_passo:
+		return
+	_brilho_passo = passo
 	for i in range(_brilham.size() - 1, -1, -1):
 		var l = _brilham[i]
 		if not is_instance_valid(l):
