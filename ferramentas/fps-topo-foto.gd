@@ -31,7 +31,9 @@ func _initialize() -> void:
 	if m.get("dia") != null:
 		m.dia.ajustar(10.0)
 	m.menu_topo.mostrar_fps = true
-	m.menu_topo.detalhes_fps = false
+	var novo: bool = "detalhes_fps" in m.menu_topo # na main antiga (foto do antes) a chave não existe
+	if novo:
+		m.menu_topo.detalhes_fps = false
 	m.menu_topo.aplicar_config()
 	m.botao_teste.visible = true
 	await esperar(60)
@@ -39,6 +41,9 @@ func _initialize() -> void:
 	topo_online()
 	await esperar(5)
 	await foto("1-limpa")
+	if not novo:
+		quit()
+		return
 	m.menu_topo.trocar_detalhes()
 	await esperar(30)
 	topo_online()
