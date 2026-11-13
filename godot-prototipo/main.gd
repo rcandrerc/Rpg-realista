@@ -559,6 +559,11 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 			var m = mi.mesh.surface_get_material(i)
 			if not (m is StandardMaterial3D):
 				continue
+			# a malha é a mesma em todos os corpos do mesmo modelo (e em todas as cópias de uma árvore ou casa): o
+			# material dela já foi pintado no primeiro. Antes cada NPC novo pintava de novo por cima (~30 materiais
+			# novos por NPC, 1800 numa volta pelo mapa) e trocava o material de todos os corpos iguais já na cena
+			if m.has_meta("pintado"):
+				continue
 			var nome_mat: String = m.resource_name + " " + mi.mesh.surface_get_name(i)
 			var chave = [m, ruivo]
 			if not pintados.has(chave):
@@ -596,6 +601,7 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 					n.rim_tint = 0.6
 				if ruivo and "HAIR" in nome_mat:
 					n.albedo_color = Color(0.9, 0.5, 0.36)
+				n.set_meta("pintado", true)
 				pintados[chave] = n
 			mi.mesh.surface_set_material(i, pintados[chave])
 
