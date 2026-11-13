@@ -41,3 +41,6 @@ Quaternius Universal Animation Library 1 e 2 (CC0, `quaternius/ual/` nos fontes)
 `python3 ferramentas/assar-animacoes/quaternius.py <anims.json.gz atual> <saída.json> <glb:Animação:nome> ...`:
 diferença de rotação de mundo de cada osso em relação à A_TPose do pacote (que é a mesma pose em T do Mixamo),
 virada em rotação local; o quadril muda de escala pela altura.
+
+Ainda em 2026-11-13 entraram parada_esticar_bracos e parada_esticar_pescoco (Mixamo Arm Stretching e Neck Stretching,
+baixadas pelo André, `mixamo/movimento/` nos fontes), assadas do mesmo jeito da Maleta, na rotação das paradas de mãos vazias.

@@ -57,8 +57,9 @@ func usar_solta(masculino: bool) -> void:
 # de combate um tempo, quem chama (main.gd) guarda as armas e liga maos_livres; a parada solta vira uma das paradas de
 # mãos vazias, revezando de vez em quando (dois lugares A e B que se misturam). MAOS_LIVRES = false volta ao de antes.
 const MAOS_LIVRES := true
-# André escolheu estas três (2026-11-13); conversando, apoiada e dancinha ficaram de fora
-const VAZIAS := ["parada_maleta", "parada_calma", "parada_bracos"]
+# André escolheu estas três (2026-11-13); conversando, apoiada e dancinha ficaram de fora. Depois mandou as duas
+# espreguiçadas do Mixamo (Arm Stretching e Neck Stretching): "pode anexar as duas a quando ela estiver parada"
+const VAZIAS := ["parada_maleta", "parada_calma", "parada_bracos", "parada_esticar_bracos", "parada_esticar_pescoco"]
 const VAZIA_MIN := 8.0 # s: as curtas repetem até passar disso antes de trocar
 const VAZIA_MISTURA := 0.8 # s
 var tem_vazia := false
