@@ -1095,7 +1095,7 @@ export const Amiga = {
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       ouro: a.prog.ouro | 0,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
-      conversa: this.chatDeAmiga(j).slice(-8), // 8 de novo (André 2026-11-12: com 6 ela perdia o fio da conversa)
+      conversa: this.chatDeAmiga(j).slice(-12), // as 12 guardadas (André 2026-11-13: com menos ela perdia o fio da conversa)
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],
