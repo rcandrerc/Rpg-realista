@@ -48,8 +48,13 @@ var pode_soltar := true # quem chama desliga montado, sentado, escalando, nadand
 var _solta := 0.0
 var _no_solta: AnimationNodeAnimation
 # corpo masculino: parada_solta_m (pernas abertas, peito erguido, braços soltos; André: a de mão na cintura ficou feminina)
+# parada da maleta (André 2026-11-13, Mixamo Standing W_Briefcase Idle): vale para os dois corpos. false = volta para a
+# parada_solta / parada_solta_m de antes (as duas continuam no arquivo).
+const USAR_MALETA := true
 func usar_solta(masculino: bool) -> void:
-	if _no_solta and masculino and player.has_animation("parada_solta_m"):
+	if _no_solta and USAR_MALETA and player.has_animation("parada_maleta"):
+		_no_solta.animation = "parada_maleta"
+	elif _no_solta and masculino and player.has_animation("parada_solta_m"):
 		_no_solta.animation = "parada_solta_m"
 	elif _no_solta:
 		_no_solta.animation = "parada_solta"

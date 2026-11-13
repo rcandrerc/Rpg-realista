@@ -73,6 +73,7 @@ async function principal() {
     cajado_parada: 'cajado_parada', // guarda do cajado parada (Pro Magic Pack, Standing Idle 03)
     parada_solta: 'parada_solta', // parada relaxada fora de combate (André 2026-11-09): peso numa perna, mão na cintura
     parada_solta_m: 'parada_solta_m', // a do corpo masculino: pernas abertas, peito erguido, braços soltos
+    parada_maleta: 'parada_maleta', // parada fora de combate (André 2026-11-13): Mixamo Standing W_Briefcase Idle, os dois corpos
     sentado_chao: 'sentado_chao', levantar: 'levantar', // cena de abertura (André 2026-11-11): senta tonta no chão e levanta (KayKit Character Animations, CC0)
     nadar: 'nadar', boiar: 'boiar', sair_agua: 'saiAgua', // lago fundo (André 2026-11-06): nado, boiando parada e saindo da água
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)

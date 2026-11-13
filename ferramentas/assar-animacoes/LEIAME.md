@@ -27,3 +27,9 @@ Em 2026-11-09 entrou parada_solta (e parada_solta_m, a do corpo masculino, com `
 ferramentas/assar-animacoes/parada-solta.json <saída.json.gz> parada_solta`. O `.json` diz quanto cada osso gira
 (peso na perna direita, joelho esquerdo solto, mão esquerda na cintura, cabeça de lado, quadril balançando devagar).
 As paradas prontas do Pro Magic Pack (standing idle e idle 02) foram testadas antes: são guardas de mago agachadas.
+
+Em 2026-11-13 entrou parada_maleta (André: "poe aquela animacao q baixei"): Mixamo Standing W_Briefcase Idle
+(`mixamo/movimento/parada_maleta.fbx` nos fontes), a parada fora de combate dos dois corpos no lugar da parada_solta
+(que continua no arquivo; `anim_heroi.gd` USAR_MALETA). Assada com o FBXLoader do three em módulo e juntada sem o
+outra-pose.mjs: a pose de descanso desse boneco é de braços para baixo, e o delta do outra-pose deixava os braços em T.
+As rotações locais do Mixamo valem direto (mesmo esqueleto); só a posição do quadril muda de escala (alturaQuadril).
