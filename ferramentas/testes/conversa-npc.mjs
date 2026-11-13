@@ -6,7 +6,7 @@ import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 import { register } from 'node:module';
 // sem npm install no servidor: '@rpg/shared' aponta para a pasta shared daqui
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));
-const { pensarAmiga, modelosConversa } = await import('../../server/ia-amiga.js');
+const { pensarAmiga, modelosConversa, salvarResposta } = await import('../../server/ia-amiga.js');
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 const pedidos = [];
@@ -14,11 +14,12 @@ let respostas = [];
 globalThis.fetch = async (url, op) => {
   const b = JSON.parse(op.body); pedidos.push(b);
   const r = respostas.shift() || { status: 200, fala: 'Oi!' };
+  if (r.falhou != null) return { ok: false, status: 400, headers: { get: () => null }, json: async () => ({ error: { code: 'json_validate_failed', failed_generation: r.falhou } }) };
   if (r.status === 200 && r.fala == null) return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ choices: [{ message: { content: '{"fala": "cort' } }] }) };
   return { ok: r.status === 200, status: r.status, headers: { get: (h) => (h === 'retry-after' ? r.retry ?? null : null) }, json: async () => ({ choices: [{ message: { content: JSON.stringify({ fala: r.fala, acao: 'nada' }) } }] }) };
 };
 
-ok(modelosConversa().join() === 'openai/gpt-oss-120b,llama-3.3-70b-versatile,openai/gpt-oss-20b', 'grande primeiro (André 2026-11-12: o menor era burro), Llama 70B e o menor de reserva');
+ok(modelosConversa().join() === 'openai/gpt-oss-120b,qwen/qwen3.8-27b,openai/gpt-oss-20b', 'grande primeiro (André 2026-11-12: o menor era burro), Qwen 27B (o Llama 70B saiu do Groq) e o menor de reserva');
 
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});
@@ -40,9 +41,9 @@ const p = pedidos[0].messages[0].content;
 ok(!/casinha e sua horta/.test(p) && /sem casa própria \(mora em a vila\)/.test(p) && !/Casa (pronta|em obra)/.test(p), 'a ficha da aventureira não fala de casa e horta');
 ok(!/\n\n/.test(p), `ficha curta, sem linha vazia (${p.length} letras)`);
 
-pedidos.length = 0; respostas = [{ status: 404 }, { status: 200, fala: 'Pelo Llama.' }];
+pedidos.length = 0; respostas = [{ status: 404 }, { status: 200, fala: 'Pelo Qwen.' }];
 v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
-ok(v?.fala === 'Pelo Llama.' && pedidos.map((b) => b.model).join() === 'openai/gpt-oss-120b,llama-3.3-70b-versatile' && !('reasoning_effort' in pedidos[1]), 'grande sumiu: cai no Llama (sem reasoning_effort, que o Llama não aceita)');
+ok(v?.fala === 'Pelo Qwen.' && pedidos.map((b) => b.model).join() === 'openai/gpt-oss-120b,qwen/qwen3.8-27b' && !('reasoning_effort' in pedidos[1]), 'grande sumiu: cai no Qwen (sem reasoning_effort de gpt-oss)');
 
 // André 2026-11-12: o limite por minuto (429) é de cada modelo; antes desistia e respondia com fala pronta
 pedidos.length = 0; respostas = [{ status: 429 }, { status: 429 }, { status: 200, fala: 'Pelo menor.' }];
@@ -77,3 +78,24 @@ cecA.time = null; s.jogadores.get('andre').time = null;
 pedidos.length = 0;
 await pensarAmiga(cc, 'oi', 'chave-de-teste');
 ok(/casinha e sua horta/.test(pedidos[0].messages[0].content), 'Cecília ainda fala da casinha e da horta dela');
+
+// André 2026-11-13 ("no começo era como falar com o Gemini; agora respondem sem lógica"): conversa como chat de verdade
+pedidos.length = 0; respostas = [];
+const cecJ = s.jogadores.get('andre'), hist = cec.chatDeAmiga(cecJ); hist.length = 0;
+hist.push({ de: 'ele', texto: 'e aí, beleza?' }, { de: 'ela', texto: 'Tudo ótimo! E você?' }, { de: 'ele', texto: 'de boa' }, { de: 'ele', texto: 'tô cansado' }, { de: 'ela', texto: 'Ih.' }, { de: 'ela', texto: 'Descansa!' });
+await pensarAmiga(cec.contextoAmiga('andre'), 'pô, tu tá forte hoje', 'chave-de-teste');
+const M = pedidos[0].messages;
+ok(M[0].role === 'system' && /Ficha \(só para você saber/.test(M[0].content) && /NÃO puxe assunto de troca/.test(M[0].content), 'regras do jeito de falar no system, ficha separada, sem empurrar troca');
+ok(M.slice(1).map((m) => m.role).join() === 'user,assistant,user,assistant,user', `a conversa vai em mensagens de verdade (${M.slice(1).map((m) => m.role).join()})`);
+ok(JSON.parse(M[2].content).fala === 'Tudo ótimo! E você?' && JSON.parse(M[4].content).fala === 'Ih. Descansa!', 'as falas dela vão no mesmo JSON que ela devolve (em texto solto o modelo esquecia o JSON)');
+ok(M[3].content === 'de boa\ntô cansado' && M[5].content === 'pô, tu tá forte hoje', 'duas dele seguidas juntam; a última mensagem dele por último');
+ok(cec.contextoAmiga('andre').conversa.length === 6 && (hist.push(...Array(10).fill({ de: 'ele', texto: 'x' })), cec.contextoAmiga('andre').conversa.length === 12), 'lembra as 12 mensagens guardadas');
+hist.length = 0;
+
+pedidos.length = 0; respostas = [{ falhou: 'Descansa então, amanhã a gente encara."}' }];
+v = await pensarAmiga(cl, 'tô cansado hoje', 'chave-de-teste');
+ok(v?.fala === 'Descansa então, amanhã a gente encara.' && v.assunto === 'conversa' && pedidos.length === 1, 'o Groq recusou o JSON (400) mas mandou a fala: aproveita em vez da fala pronta');
+pedidos.length = 0; respostas = [{ falhou: '{"fala": "Oi, tudo b' }, { status: 200, fala: 'Inteira.' }];
+v = await pensarAmiga(cl, 'oi', 'chave-de-teste');
+ok(v?.fala === 'Inteira.' && pedidos.length === 2, 'JSON cortado no meio da fala: o próximo modelo, nunca meia frase');
+ok(salvarResposta('{"fala":"Bora!","acao":"time"}')?.assunto === 'time' && salvarResposta('') === null, 'resposta inteira passa normal');
