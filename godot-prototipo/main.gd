@@ -263,6 +263,15 @@ var _q_pre := 0
 var _q_fim := 0
 var q_ms := {"quadro": 0.0, "fisica": 0.0, "logica": 0.0, "desenho": 0.0, "espera": 0.0}
 var soma_q := {}
+# tranco (conselho de auditoria 2026-11-13): a média esconde a travada. Cada etapa do Teste guarda o tempo de todos os
+# quadros (pior, p99, quantos passaram de 33 ms) e conta as chamadas de desenho, os triângulos e os objetos. Fora do
+# Teste, a linha mostra o pior quadro dos últimos 5 s e quantas travadas (quadro de 100 ms ou mais) já teve desde que abriu.
+var _q_quadros := PackedFloat32Array()
+var _pior_janela := 0.0
+var _pior_mostra := 0.0
+var _pior_t := 0
+var travadas := 0
+const TRAVADA_MS := 100.0
 var _sem_gente := [] # etapa "Sem personagens": [nó, estava visível]
 var _desligados_teste := [] # etapas "Sem interface", "Herói sem animação", "Sem monstros": [objeto, propriedade, valor de antes]
 var _tela_teste: CanvasLayer
@@ -4521,6 +4530,7 @@ func montar_teste() -> void:
 	rotulo.offset_right = -176 # à esquerda do minimapa (minimapa.gd)
 	rotulo.offset_top = 182 # abaixo do botão Teste (o menu do topo fica no canto)
 	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	rotulo.grow_horizontal = Control.GROW_DIRECTION_BEGIN # linha comprida cresce para a esquerda, nunca por baixo do minimapa
 	tela.add_child(rotulo)
 	botao_teste = Button.new()
 	botao_teste.text = "Teste"
@@ -4589,6 +4599,34 @@ func _q_somar(v: Dictionary) -> void:
 		q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
 		if etapa >= 0 and t_etapa > ESPERA:
 			soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
+	var qms: float = v.quadro / 1000.0
+	if etapa >= 0 and t_etapa > ESPERA:
+		_q_quadros.append(qms)
+	if qms >= TRAVADA_MS and not (online and online.capa and online.capa.visible): # atrás da capa (carregando) não conta
+		travadas += 1
+	_pior_janela = max(_pior_janela, qms)
+	var agora := Time.get_ticks_msec()
+	if agora - _pior_t >= 5000:
+		_pior_mostra = _pior_janela
+		_pior_janela = 0.0
+		_pior_t = agora
+
+# pior quadro, p99 e quadros acima de 33 ms da etapa; e o que a placa desenhou no último quadro (lido uma vez por etapa:
+# com o desenho em paralelo, essa leitura espera a outra linha, então nunca por quadro)
+func _resumo_quadros() -> String:
+	var l := _q_quadros.duplicate()
+	l.sort()
+	var n := l.size()
+	var lentos := 0
+	for x in l:
+		if x > 33.4:
+			lentos += 1
+	var pior: float = l[n - 1] if n else 0.0
+	var p99: float = l[mini(n - 1, int(n * 0.99))] if n else 0.0
+	var chamadas := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
+	var tris := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
+	var objs := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+	return " · pior %.0f · p99 %.0f · >33 ms: %d · %d chamadas · %dk tri · %d obj" % [pior, p99, lentos, chamadas, tris / 1000, objs]
 
 func _q_fisica() -> void:
 	if _q_fis == 0:
@@ -4715,6 +4753,7 @@ func proxima_etapa() -> void:
 	soma_gpu = 0.0
 	soma_rcpu = 0.0
 	soma_q.clear()
+	_q_quadros.clear()
 
 func atualizar_teste(dt: float) -> void:
 	var fps := Engine.get_frames_per_second()
@@ -4728,6 +4767,7 @@ func atualizar_teste(dt: float) -> void:
 		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + espera %.1f (desenho em paralelo)" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.espera]
 	else:
 		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
+	txt += " · pior 5 s %.0f ms · travadas %d" % [_pior_mostra, travadas]
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
@@ -4742,10 +4782,10 @@ func atualizar_teste(dt: float) -> void:
 			var q: float = max(1, quadros)
 			if _q_paralelo:
 				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · espera %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
-						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("espera", 0.0) / q])
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("espera", 0.0) / q] + _resumo_quadros())
 			else:
 				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
-						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q] + _resumo_quadros())
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)
