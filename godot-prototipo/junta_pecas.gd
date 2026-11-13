@@ -382,7 +382,7 @@ static func _montar_depois(chave: String, pecas: Array, esq: Skeleton3D) -> void
 	for p in pecas:
 		var mi: MeshInstance3D = p[0]
 		var a := _arrays(mi.mesh)
-		if a.size() < Mesh.ARRAY_MAX or a[Mesh.ARRAY_VERTEX] == null or a[Mesh.ARRAY_INDEX] == null:
+		if a.size() < Mesh.ARRAY_MAX or a[Mesh.ARRAY_VERTEX] == null:
 			_cache_aco[chave] = [] # malha sem dados legíveis: essa roupa fica com as peças soltas
 			return
 		if p[1] == "" and (a[Mesh.ARRAY_BONES] == null or a[Mesh.ARRAY_WEIGHTS] == null):
@@ -395,7 +395,7 @@ static func _montar_depois(chave: String, pecas: Array, esq: Skeleton3D) -> void
 				binds.append([s.get_bind_name(b), s.get_bind_bone(b), s.get_bind_pose(b)])
 		dados.append({"a": a, "skin": mi.skin.get_instance_id() if mi.skin else 0, "binds": binds, "osso": p[1],
 			"xf": mi.transform, "id": float(mini(mats.find(mi.material_override), ACO_MAX - 1)) if mats.has(mi.material_override) else float(ACO_MAX - 1)})
-	var t := WorkerThreadPool.add_task(_montar_aco.bind(chave, dados), false, "Armadura juntada")
+	var t := WorkerThreadPool.add_task(_montar_aco.bind(chave, dados), true, "Armadura juntada") # alta: tarefa curta, não espera a fila de shaders
 	_pendentes[chave] = [t, [weakref(esq)], mats]
 
 # (fora do quadro) as arrays da malha juntada e as binds da skin única; nada de nó nem de recurso da cena aqui
@@ -459,8 +459,13 @@ static func _montar_aco(chave: String, dados: Array) -> void:
 		u.resize(nv)
 		u.fill(Vector2(d.id, 0.0))
 		U.append_array(u)
-		for j in a[Mesh.ARRAY_INDEX]:
-			I.append(v0 + j)
+		var ind = a[Mesh.ARRAY_INDEX]
+		if ind == null: # peça feita em código sem índice: os vértices já vêm de três em três
+			for j in nv:
+				I.append(v0 + j)
+		else:
+			for j in ind:
+				I.append(v0 + j)
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = V
