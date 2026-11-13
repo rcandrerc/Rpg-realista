@@ -206,7 +206,9 @@ func trocar(n: int) -> void:
 # aplica tudo: tela, sombra, névoa e o alcance de tudo que já está na cena
 func aplicar() -> void:
 	var vp: Viewport = m.get_viewport()
-	vp.scaling_3d_scale = P.escala
+	# versão PC (ferramentas/pc/preparar.sh grava aethra/pc_escala): monitor de PC tem bem menos pontos por polegada que
+	# o celular, então a mesma escala ficava com cara de resolução baixa. No celular a opção não existe (x1).
+	vp.scaling_3d_scale = minf(1.0, P.escala * float(ProjectSettings.get_setting("aethra/pc_escala", 1.0)))
 	vp.msaa_3d = P.msaa
 	vp.mesh_lod_threshold = P.lod
 	Engine.max_fps = fps_alvo()
