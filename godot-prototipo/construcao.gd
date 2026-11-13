@@ -1748,6 +1748,21 @@ func _grama_sob_horta(_L = null) -> void:
 		for p in L.pecas:
 			if tipo_peca(p.k) != "telhado" and D.construcoes.has(p.k):
 				tampas.append(ret_peca(p.k, p.x, p.z, p.r).grow(0.15))
+	# samambaias do vila.glb nas Terras (main.gd fetos_terras, André 2026-11-13: "ainda tem planta sobressaindo na
+	# terra arada"): a que encosta num terreno com obra ou horta some; o terreno saiu ou ficou vazio, ela volta
+	var cheios: Array = []
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		if not (L.pecas.is_empty() and L.horta.is_empty()):
+			var l: Dictionary = L.def
+			cheios.append(Rect2(float(l.x0), float(l.z0), float(l.x1) - float(l.x0), float(l.z1) - float(l.z0)))
+	for f in m.get("fetos_terras") if m.get("fetos_terras") != null else []:
+		var tapa := false
+		for R in cheios:
+			if R.intersects(f.r):
+				tapa = true
+				break
+		(f.mm as MultiMesh).set_instance_transform(f.i, Transform3D(Basis().scaled(Vector3.ZERO), f.t.origin) if tapa else f.t)
 	# a grama da vila e a das clareiras da mata (os lotes ficam perto da mata: era a que ainda furava o piso)
 	for g in m.grama_pedacos + m.get("grama_mata") if m.get("grama_mata") != null else m.grama_pedacos:
 		if not is_instance_valid(g) or g.multimesh == null:
