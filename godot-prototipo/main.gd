@@ -67,7 +67,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "parada_conversa", "parada_apoio", "parada_danca", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -1403,7 +1403,7 @@ func passo_encostar(dt: float) -> void:
 # Mãos livres (André 2026-11-13: "se eu ficar parado, ela guardar e ficar com as duas armas nas costas"): parado fora
 # de combate GUARDAR_DEPOIS s, as duas armas vão para as costas (cruzadas, como na coleta) e o anim_heroi.gd toca as
 # paradas de mãos vazias. Andou, atacou, entrou em combate ou foi montar/escalar/nadar: a arma volta para a mão.
-const GUARDAR_DEPOIS := 2.5
+const GUARDAR_DEPOIS := 1.2 # André: "sem arma nas mãos" (guarda logo)
 var armas_guardadas := false
 var _parado_livre := 0.0
 func passo_maos_livres(dt: float, vel: float) -> void:

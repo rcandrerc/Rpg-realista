@@ -75,7 +75,7 @@ async function principal() {
     parada_solta_m: 'parada_solta_m', // a do corpo masculino: pernas abertas, peito erguido, braços soltos
     // paradas de mãos vazias fora de combate, com as armas nas costas (André 2026-11-13): Mixamo Standing W_Briefcase Idle
     // e Quaternius Universal Animation Library 1 e 2 (CC0)
-    parada_maleta: 'parada_maleta', parada_calma: 'parada_calma', parada_bracos: 'parada_bracos', parada_conversa: 'parada_conversa', parada_apoio: 'parada_apoio', parada_danca: 'parada_danca',
+    parada_maleta: 'parada_maleta', parada_calma: 'parada_calma', parada_bracos: 'parada_bracos',
     sentado_chao: 'sentado_chao', levantar: 'levantar', // cena de abertura (André 2026-11-11): senta tonta no chão e levanta (KayKit Character Animations, CC0)
     nadar: 'nadar', boiar: 'boiar', sair_agua: 'saiAgua', // lago fundo (André 2026-11-06): nado, boiando parada e saindo da água
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)

@@ -71,7 +71,7 @@ export const DURACAO = {
   parada_maleta: 13.933,
   // as outras paradas de mãos vazias (armas nas costas): Quaternius Universal Animation Library 1 e 2 (CC0), passadas para
   // o esqueleto do Mixamo por ferramentas/assar-animacoes/quaternius.py
-  parada_calma: 2.5, parada_bracos: 2.5, parada_conversa: 2.933, parada_apoio: 2.5, parada_danca: 1.0,
+  parada_calma: 2.5, parada_bracos: 2.5,
   // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
   // 2H Magic Area Attack 01 e 2H Cast Spell 01
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
