@@ -29,7 +29,6 @@ const Musica = preload("res://musica.gd")
 const Inclinar = preload("res://inclinar.gd")
 const Encostar = preload("res://encostar.gd") # escalando, corpo, mãos e pés encostam na pedra (André 2026-11-07)
 const AguaFx = preload("res://agua_fx.gd")
-const VelocidadeFx = preload("res://velocidade_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
@@ -214,7 +213,6 @@ var _quadril := 0.0 # afundada do quadril no pouso (m)
 # dá para lutar. O corpo sobe um pouco para a cabeça e as costas ficarem fora da água (o Mixamo nada mais baixo).
 var _nadando := false
 var agua_fx # agua_fx.gd: espuma em volta, rastro em V e respingo das braçadas
-var velocidade_fx # velocidade_fx.gd: riscos de vento e linhas nas bordas da tela na disparada
 # cajado nas costas nadando (direção de arte 2026-11-06): deitado, a chama passava da cabeça como uma lança; desliza
 # CAJADO_NADO m para os pés (a chama fica na nuca). Boiando de pé fica no lugar.
 const CAJADO_NADO := 0.35
@@ -343,8 +341,6 @@ func _ready() -> void:
 	add_child(boss_mundo)
 	agua_fx = AguaFx.new()
 	add_child(agua_fx)
-	velocidade_fx = VelocidadeFx.new()
-	add_child(velocidade_fx)
 	combate = Combate.new(self)
 	criar_heroi()
 	for b in BANDO:
@@ -3805,9 +3801,6 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 			cajado.position = _caj_base + desce * heroi_anim._nada
 	if agua_fx:
 		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
-	if velocidade_fx:
-		var correndo: bool = mov.disparada and montaria == null and not _nadando and mov.esc == null and mov.veiculo.is_empty()
-		velocidade_fx.passo(dt, correndo, vel, mov.vx, mov.vz, heroi, cam.cam if cam else null)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)
 	if mov.chao and mov.esc == null and vel > 0.5 and not _nadando and mov.veiculo.is_empty():
 		_passo_dist += vel * dt
