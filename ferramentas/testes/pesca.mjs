@@ -12,9 +12,9 @@ const pesca = () => s.eventos.filter((e) => e.t === 'pesca' && e.para === 'P').m
 // spots nascem nos lagos; pega um do Lago Grande e fica na beira, de frente para ele
 for (let i = 0; i < 40; i++) { s.tempo += 0.1; s.passoSpots(); }
 const L = LAGOS.find((l) => l.id === 'lago_grande');
-const comuns = s.spots.filter((v) => v.ativo);
-ok(comuns.length === s.spots.length && comuns.every((v) => v.tipo === 'comum'), `spots comuns em todos os lagos (${comuns.length}), sem raro/épico sem mar`);
-ok(s.foto().spots.length === comuns.length, 'os spots vão na foto para o celular');
+const comuns = s.spots.filter((v) => v.ativo && v.lago); // nos lagos só comum; raro e épico ficam no mar (2026-11-13, missoes-passo.mjs)
+ok(comuns.length === s.spots.filter((v) => v.lago).length && comuns.every((v) => v.tipo === 'comum'), `spots comuns em todos os lagos (${comuns.length}), raro/épico só no mar`);
+ok(s.foto().spots.length === s.spots.filter((v) => v.ativo).length, 'os spots vão na foto para o celular');
 const sp = comuns.find((v) => v.lago === L);
 const ux = (sp.x - L.x) / Math.hypot(sp.x - L.x, sp.z - L.z), uz = (sp.z - L.z) / Math.hypot(sp.x - L.x, sp.z - L.z);
 let r = 0; while ((noLago(sp.x + ux * r, sp.z + uz * r)?.fundo || 0) > 0.05) r += 0.2;

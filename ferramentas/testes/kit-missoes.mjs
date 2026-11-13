@@ -73,7 +73,12 @@ const npc = (id) => MAPA_CLAREIRA.npcs.find((o) => o.id === id);
   const j = novo('a16', etapa('a16', (E) => E.ev === 'criar' && E.k === 'barquinho')), p = j.prog;
   ok(!s.kitEtapa(j) && contar(p.mochila, 'barquinho') === 0 && contar(p.mochila, 'lenha') === 0, 'barquinho: nada de graça');
   let hi = s.histInfo(j);
-  ok(/^Barquinho: pegue do chão Lenha 0\/30/.test(hi.txt) && hi.ev === 'item' && hi.de === 'solto', `sem machado: pega galho do chão (${hi.txt})`);
+  // sem machado (André 2026-11-13: guiar cada passo): primeiro o machado, com galho e pedrinha do chão
+  ok(/^Machado de pedra: pegue do chão Lenha 0\/3/.test(hi.txt) && hi.ev === 'item' && hi.de === 'solto', `sem machado: o machado antes, galho do chão (${hi.txt})`);
+  guardar(p.mochila, { k: 'lenha', n: 3 }); guardar(p.mochila, { k: 'pedra', n: 2 });
+  hi = s.histInfo(j);
+  ok(/crie Machado de pedra$/.test(hi.txt) && hi.ev === 'criar' && hi.k === 'machado' && !hi.alvo, `com o material: crie o machado aqui mesmo (${hi.txt})`);
+  p.mochila.fill(null);
   guardar(p.mochila, { k: 'machado' });
   hi = s.histInfo(j);
   ok(/^Barquinho: corte Lenha 0\/30/.test(hi.txt) && hi.ev === 'item' && hi.de === 'coleta' && hi.k === 'lenha' && hi.alvo, `com machado: "${hi.txt}", Ir na árvore`);
@@ -97,7 +102,7 @@ const npc = (id) => MAPA_CLAREIRA.npcs.find((o) => o.id === id);
 {
   const j = novo('c15', etapa('c15', (E) => E.ev === 'criar' && E.k === 'navio')), p = j.prog;
   ok(!s.kitEtapa(j) && contar(p.mochila, 'navio') === 0, 'navio: nunca vem de graça');
-  ok(/^Navio mercante: /.test(s.histInfo(j).txt), `navio: diz o que falta (${s.histInfo(j).txt})`);
+  ok(/^(Navio mercante|Machado de pedra|Picareta de pedra): /.test(s.histInfo(j).txt), `navio: diz o que falta (${s.histInfo(j).txt})`);
 }
 // ---------- c2: retirar no leilão sem esperar 24 h ----------
 {
