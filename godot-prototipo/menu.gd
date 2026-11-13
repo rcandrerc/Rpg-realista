@@ -3054,6 +3054,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	var fx := botao("✕", fechar_item, 16 if compacto else 20)
 	fx.custom_minimum_size = Vector2(34, 34) if compacto else Vector2(44, 44)
 	fx.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	fx.add_to_group("guia_saida") # a trava do guia (guia.gd) sempre deixa o X passar
 	var info: VBoxContainer = cab if compacto else txt # onde entram descrição, comparação e avisos
 	var bs: Container
 	if compacto:
@@ -4347,6 +4348,7 @@ class Fechar extends Control:
 	func _ready() -> void:
 		custom_minimum_size = Vector2(40, 40)
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		add_to_group("guia_saida") # a trava do guia (guia.gd) sempre deixa o X passar
 	func _draw() -> void:
 		var c := size * 0.5
 		draw_circle(c, 19, Color(0.12, 0.105, 0.088))

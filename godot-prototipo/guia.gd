@@ -32,7 +32,15 @@ const TRAVA_EM := ["menu", "janela", "confirma", "qtd", "conversa", "leilao", "f
 class Trava extends Control:
 	var buraco := Rect2()
 	func _has_point(p: Vector2) -> bool:
-		return not buraco.has_point(p)
+		if buraco.has_point(p):
+			return false
+		# o X de fechar sempre passa (conselho 2026-11-13: a trava prendia até o X por 20 s); grupo "guia_saida"
+		for x in get_tree().get_nodes_in_group("guia_saida"):
+			if x is Control and x.is_visible_in_tree():
+				var xf: Transform2D = x.get_global_transform_with_canvas()
+				if Rect2(xf.origin, x.size * xf.get_scale()).grow(4.0).has_point(p):
+					return false
+		return true
 
 var m # main.gd
 var desenho: Control
