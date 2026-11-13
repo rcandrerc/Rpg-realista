@@ -229,7 +229,7 @@ ok(ITENS.lenha, 'itens');
   const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
   const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
   c.ia.combinado = s6.tempo + 999;
-  let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo); }
+  let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo && v.lago); } // spot de lago (o do mar é só de barco, 2026-11-13)
   if (sp) {
     sp.fim = s6.tempo + 9999;
     for (const v of s6.spots) if (v !== sp) v.ativo = false; // só este spot
