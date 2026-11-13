@@ -36,6 +36,16 @@ func _initialize() -> void:
 	m.cam.pitch = 0.75
 	m.cam.dist = 7.5
 	await esperar(int(OS.get_environment("FOTO_ESPERA")) if OS.get_environment("FOTO_ESPERA") != "" else 240) # o mato em volta nasce antes de o terreno chegar (como entrando no jogo)
+	if OS.get_environment("FOTO_FETO") != "" and m.get("fetos_terras") != null and not m.fetos_terras.is_empty():
+		# a horta vai em cima de uma samambaia do vila.glb nas Terras (as que ainda saíam da terra arada)
+		var f: Dictionary = m.fetos_terras[int(OS.get_environment("FOTO_FETO")) % m.fetos_terras.size()]
+		var fp: Vector3 = f.t.origin
+		ox = floori(fp.x) - 2 + 11
+		oz = floori(fp.z) - 2 - 67
+		m.mov.por_em(Vector3(-11.0 + ox, 0, 66.5 + oz))
+		m.heroi.position = m.mov.posicao()
+		await esperar(5)
+		print("horta na samambaia ", fp, " de ", m.fetos_terras.size())
 	if OS.get_environment("FOTO_AUTO") != "": # a horta vai para o pedaço com mais mato perto do herói
 		var hp: Vector3 = m.heroi.position
 		var melhor := -1
@@ -96,6 +106,12 @@ func _initialize() -> void:
 				if x > -11.75 + ox and x < -6.75 + ox and z > 66.75 + oz and z < 71.25 + oz:
 					na_terra += 1
 	print("mato no terreno: ", no_lote, " em cima da terra arada: ", na_terra)
+	var fetos_vis := 0
+	for f in m.get("fetos_terras") if m.get("fetos_terras") != null else []:
+		var p: Vector3 = f.t.origin
+		if (f.mm as MultiMesh).get_instance_transform(f.i).basis.get_scale().x > 0.01 and p.x > -14 + ox and p.x < -4 + ox and p.z > 64 + oz and p.z < 74 + oz:
+			fetos_vis += 1
+	print("samambaias da vila no terreno, à vista: ", fetos_vis)
 	m.cam.dist = 3.5
 	await esperar(40)
 	await foto(nome + "-perto")
