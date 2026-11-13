@@ -626,8 +626,8 @@ export const Amiga = {
         if (a.time && a.time === j.time) return diga(sorteia(F.jaNoTime));
         const topou = this.combinouAmiga(a) || (a.ia.chamado?.quer === 'time' && a.ia.chamado.ate > this.tempo);
         if (!topou && (a.ia.recusaAte || 0) > this.tempo) return diga(F.recusa.jaFalei);
-        const v = this.vontadeAmiga(a, j);
-        if (!topou && Math.random() >= v.p) { a.ia.recusaAte = this.tempo + this.AMIGA.time.esperaRecusa; return diga(F.recusa[v.motivo] || F.recusa.vontade); }
+        const v = this.decisaoTimeAmiga(a, j);
+        if (!topou && !v.aceita) { this.recusarTimeAmiga(a, j, v.motivo); return diga(F.recusa[v.motivo] || F.recusa.vontade); }
         if (!this.entrarTimeAmiga(a, j)) { a.ia.recusaAte = this.tempo + 5; return diga(F.recusa.cheio); }
         a.ia.conversaAte = this.tempo + 2;
         return diga(sorteia(F.time), { time: true });
@@ -703,6 +703,22 @@ export const Amiga = {
     contra.sort((x, y) => y[1] - x[1]);
     return { p: Math.max(R.min, Math.min(R.max, p)), motivo: contra[0]?.[0] || 'vontade' };
   },
+  // André 2026-11-13 ("acabou de me negar e duas falas depois me chama pra caçar"): a vontade de caçar é sorteada UMA vez e
+  // vale por um tempo (AMIGA.time.humor s). A IA fica sabendo antes de falar (contextoAmiga.humor) e o jogo usa o mesmo
+  // sorteio quando ele chama: o que ela fala e o que ela faz batem, e ela não muda de ideia a cada mensagem.
+  decisaoTimeAmiga(a, j, guardar = false) {
+    const ia = a.ia, h = ia.humor;
+    // um não dado vale enquanto durar a recusa; o sorteio contado à IA (guardar, de contextoAmiga) vale 'humor' s
+    if (h && h.conta === j.conta && (h.recusa ? (ia.recusaAte || 0) > this.tempo : h.ate > this.tempo)) return h;
+    const v = this.vontadeAmiga(a, j), novo = { ate: this.tempo + (this.AMIGA.time.humor ?? 90), conta: j.conta, aceita: Math.random() < v.p, motivo: v.motivo };
+    if (guardar) ia.humor = novo;
+    return novo;
+  },
+  // recusou: fica recusando por uns minutos (AMIGA.time.humorRecusa), como gente que disse não e não muda a cada fala
+  recusarTimeAmiga(a, j, motivo) {
+    const T = this.AMIGA.time; a.ia.recusaAte = this.tempo + Math.max(T.esperaRecusa, T.humorRecusa ?? 180);
+    a.ia.humor = { ate: a.ia.recusaAte, conta: j.conta, aceita: false, motivo: motivo || a.ia.humor?.motivo || 'vontade', recusa: true };
+  },
   timeCheioAmiga(j) { return !!(j.time && j.time.membros.length >= TIME.max); },
   // André 2026-11-13 ("como se fosse um jogador real"): o botão de time só convida, sem fala nenhuma no chat.
   // Combinou pelo chat (ou ela chamou para o time): entra. Sem combinar: decide como sempre (pode recusar).
@@ -718,7 +734,8 @@ export const Amiga = {
     if (a.morto) return recusa();
     const topou = this.combinouAmiga(a) || (ia.chamado?.quer === 'time' && ia.chamado.ate > this.tempo);
     if (!topou && (ia.recusaAte || 0) > this.tempo) return recusa();
-    if (!topou && Math.random() >= this.vontadeAmiga(a, j).p) { ia.recusaAte = this.tempo + this.AMIGA.time.esperaRecusa; return recusa(); }
+    const dv = this.decisaoTimeAmiga(a, j);
+    if (!topou && !dv.aceita) { this.recusarTimeAmiga(a, j, dv.motivo); return recusa(); }
     if (!this.entrarTimeAmiga(a, j)) return aviso(`O time já tem ${TIME.max} pessoas`);
     const plano = this.AMIGA.atividades[ia.plano] ? ia.plano : null;
     ia.chamado = null; ia.vir = null; ia.plano = null;
@@ -1098,6 +1115,13 @@ export const Amiga = {
       fazendo: sozinho ? sozinho : a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : (this.AMIGA.terreno ? 'descansando na porta de casa' : 'passeando pela vila'),
       casaPronta: !!pronta, noite: ehNoite(horaDoJogo(j.prog.dia)), pedido: a.pedido ? `${a.pedido.n} ${ITENS[a.pedido.k].nome}` : null,
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
+      humor: (() => { // o que ela decidiu sobre caçar/time agora (decisaoTimeAmiga); o mesmo sorteio vale quando ele chamar
+        if (a.time && a.time === j.time) return null;
+        const topou = this.combinouAmiga(a) || (a.ia.chamado?.quer === 'time' && a.ia.chamado.ate > this.tempo);
+        if (topou) return { aceita: true, combinado: true };
+        const h = this.decisaoTimeAmiga(a, j, true);
+        return { aceita: h.aceita, motivo: h.motivo, recusou: (a.ia.recusaAte || 0) > this.tempo, min: Math.max(1, Math.ceil((Math.max(a.ia.recusaAte || 0, h.ate) - this.tempo) / 60)) };
+      })(),
       ouro: a.prog.ouro | 0,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
       conversa: this.chatDeAmiga(j).slice(-12), // as 12 guardadas (André 2026-11-13: com menos ela perdia o fio da conversa)
@@ -1122,8 +1146,8 @@ export const Amiga = {
         if (a.morto) { fala = FA.caiu; break; }
         const pediu = chamado?.quer === 'time' || this.combinouAmiga(a); // ela que chamou ou já topou: aceita sem sorteio
         if (!pediu && (ia.recusaAte || 0) > this.tempo) { fala = FA.recusa.jaFalei; break; }
-        const v = this.vontadeAmiga(a, j);
-        if (!pediu && Math.random() >= v.p) { ia.recusaAte = this.tempo + this.AMIGA.time.esperaRecusa; fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
+        const v = this.decisaoTimeAmiga(a, j);
+        if (!pediu && !v.aceita) { this.recusarTimeAmiga(a, j, v.motivo); fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
         // André 2026-11-13 ("como se fosse um jogador real"): pelo chat ela só topa; ele dá o time no botão (conviteTimeAmiga)
         if (this.timeCheioAmiga(j)) { fala = FA.recusa.cheio; break; }
         ia.chamado = null; ia.vir = null; ia.plano = null;
@@ -1136,8 +1160,8 @@ export const Amiga = {
         if (!noTime) {
           const pediu = chamado?.quer === 'time' || chamado?.quer === r.assunto || this.combinouAmiga(a);
           if (!pediu && (ia.recusaAte || 0) > this.tempo) { fala = FA.recusa.jaFalei; break; }
-          const v = this.vontadeAmiga(a, j);
-          if (!pediu && Math.random() >= v.p) { ia.recusaAte = this.tempo + this.AMIGA.time.esperaRecusa; fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
+          const v = this.decisaoTimeAmiga(a, j);
+          if (!pediu && !v.aceita) { this.recusarTimeAmiga(a, j, v.motivo); fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
           // fora do time: topa e combina; a coleta começa quando ele der o time (André 2026-11-13)
           if (this.timeCheioAmiga(j)) { fala = FA.recusa.cheio; break; }
           ia.chamado = null; ia.vir = null; ia.plano = r.assunto; this.combinarAmiga(a);
@@ -1187,7 +1211,8 @@ export const Amiga = {
     }
     // a IA escreve a fala dela; a ação continua sendo decidida aqui (ela pode recusar mesmo que a IA queira aceitar)
     const recusou = (r.assunto === 'time' && !(a.time && a.time === j.time) && !this.combinouAmiga(a)) || (r.assunto === 'vir' && !ia.vir && !perto && !noTime);
-    if (r.fala && !recusou) fala = r.fala;
+    // a IA já sabia que ia recusar (humor na ficha) e escreveu a recusa do jeito dela: vale a fala dela
+    if (r.fala && (!recusou || r.iaAssunto === 'conversa' || r.iaAssunto === 'nao')) fala = r.fala;
     this.dizerAmiga(fala, false, id);
   },
   // manda a mensagem dela no chat privado depois de uns segundos (fila em ia.chatFila)

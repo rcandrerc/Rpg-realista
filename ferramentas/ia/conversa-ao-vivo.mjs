@@ -22,6 +22,8 @@ for (const x of s.amigosIa) x.amigaEntrar('andre', true);
 const amg = s.amigosIa.find((x) => x.AMIGA.id === quem);
 s.passo(0.05);
 if (noTime) { amg.amiga.time = 'tz'; s.jogadores.get('andre').time = 'tz'; }
+// HUMOR=nao|sim: força o sorteio da vontade de caçar (para testar a coerência depois de recusar)
+if (process.env.HUMOR) amg.amiga.ia.humor = { ate: s.tempo + 1, conta: s.jogadores.get('andre').conta, aceita: process.env.HUMOR === 'sim', motivo: process.env.MOTIVO || 'noite' };
 const frases = (process.env.FRASES || 'e aí, beleza?|o que você tá pensando em fazer hoje?|pô, tu tá forte hoje, hein|tô com equipamento legal, bora caçar monstro?|o que você acha dessa vila?|ontem foi tenso aquela caçada né|e você, tá precisando de alguma coisa?|haha você é engraçada').split('|');
 for (const f of frases) {
   log.length = 0;
@@ -34,7 +36,7 @@ for (const f of frases) {
   if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga('andre', acao)) acao = 'conversa';
   const fila0 = (amg.amiga.ia.chatFila || []).length;
   if (['presente', 'pedirItem'].includes(regra)) amg.respostaAmiga('andre', { assunto: regra });
-  else amg.respostaAmiga('andre', r ? { assunto: acao, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
+  else amg.respostaAmiga('andre', r ? { assunto: acao, iaAssunto: r.assunto, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' || r.assunto === 'nao' ? r.fala : '' } : { assunto: regra });
   const fila = amg.amiga.ia.chatFila || [], resp = fila.slice(fila0).map((e) => e.texto).join(' / ');
   const veio = r ? (resp === r.fala ? 'IA' : 'IA trocada pelas regras') : 'FALA PRONTA';
   console.log(`\nAndré: ${f}\n${amg.AMIGA.nome}: ${resp}\n   [${veio}; ia="${r?.fala || ''}" ação ${r?.assunto || '-'} regra ${regra}; ${ms} ms; ${log.map((l) => `${l.modelo} ${l.status} ${l.ms}ms ${l.tam}c`).join(' | ')}]`);
