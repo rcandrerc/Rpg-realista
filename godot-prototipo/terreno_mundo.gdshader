@@ -30,6 +30,15 @@ uniform sampler2D sombra_mapa : filter_linear, repeat_disable;
 uniform vec4 sombra_area = vec4(0.0, 0.0, 1.0, 1.0);
 uniform float sombra_forca = 0.0;
 varying vec3 mundo;
+// Versão PC no modo OpenGL (Compatibility): a foto chega sem a conversão para linear (mais clara) e as contas de ruído
+// abaixo mudavam (mais rocha e terra). No celular (Mobile) e no Vulkan do PC não muda nada. Igual ao chao.gdshader.
+vec3 brilho_linear(vec3 c) {
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	return pow(c, vec3(2.2));
+#else
+	return c;
+#endif
+}
 // R = copas (com manchinhas de sol entre as folhas, ruído no chão), G = casas (sombra lisa)
 float sp_ruido(vec2 p) {
 	vec2 i = floor(p), f = fract(p);
@@ -90,8 +99,8 @@ void fragment() {
 	b /= b.x + b.y + b.z;
 	float hk = clamp(mundo.y / alto, 0.0, 1.0);
 	float incl = 1.0 - n.y;
-	float ruido = texture(pedra_tex, w / 37.0).g;
-	float ruido2 = texture(pedra_tex, w / 11.0).r;
+	float ruido = brilho_linear(texture(pedra_tex, w / 37.0).rgb).g;
+	float ruido2 = brilho_linear(texture(pedra_tex, w / 11.0).rgb).r;
 	float pr = smoothstep(0.2, 0.36, incl + (ruido - 0.5) * 0.25 + smoothstep(0.45, 0.8, hk) * 0.3);
 	float talus = smoothstep(0.12, 0.25, incl) * (1.0 - smoothstep(0.42, 0.6, incl));
 	float kr = smoothstep(0.25, 0.7, rio + (ruido2 - 0.5) * 0.3);
@@ -126,7 +135,7 @@ void fragment() {
 	if (com_mascara > 0.5) est = texture(mascara_mundo, (mundo.xz - mascara_area.xy) / mascara_area.zw).r;
 	// (leveza 2026-11-10) longe da estrada a terra nem é lida (a borda comida chega a no máximo +0,35)
 	if (est + (ruido2 - 0.5) * 0.4 + 0.15 > 0.3) {
-		float ke = smoothstep(0.3, 0.75, est + (ruido2 - 0.5) * 0.4 + (texture(terra_tex, w / 0.9).g - 0.4) * 0.25);
+		float ke = smoothstep(0.3, 0.75, est + (ruido2 - 0.5) * 0.4 + (brilho_linear(texture(terra_tex, w / 0.9).rgb).g - 0.4) * 0.25);
 		c = mix(c, texture(terra_tex, w / 3.2).rgb * 0.82, ke);
 	}
 	// leito e barranco do rio (Parte 4b): seixo e cascalho molhado, mais escuro no fundo
