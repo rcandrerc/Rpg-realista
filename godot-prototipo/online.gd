@@ -735,6 +735,7 @@ func outro(j: Dictionary) -> void:
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
+		preload("res://junta_pecas.gd").juntar(o.no) # peças da armadura numa malha por material (junta_pecas.gd)
 		o.lod = -1 # peça nova vem com sombra e contorno: o detalhe por distância confere de novo
 	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
 	if roupa.contains("capa") and mexeu:
@@ -1713,6 +1714,7 @@ func _corpo_humano(e: Dictionary, hc: String) -> void:
 	m.inimigos.pop_back() # o corpo novo fica no lugar do da vaga, não vira outro inimigo
 	h.no.rotation = e.no.rotation
 	m.Armadura.vestir(h.no, m.Armadura.de_texto(str(H.get("roupa", ""))))
+	preload("res://junta_pecas.gd").juntar(h.no)
 	e.no.visible = false
 	for k in CAMPOS_CORPO:
 		e.erase(k)

@@ -208,6 +208,7 @@ func _passo_corpos(dt: float) -> void:
 			var no = _manequins.get(p[1])
 			if is_instance_valid(no):
 				m.Armadura.vestir(no, m.Armadura.de_texto(str(p[2])))
+				preload("res://junta_pecas.gd").juntar(no) # a malha juntada das roupas comuns já fica pronta
 		"penteado":
 			var no = _manequins.get(p[1])
 			var d := str(p[2])
