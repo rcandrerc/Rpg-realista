@@ -236,12 +236,30 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		luz.distance_fade_begin = 25.0
 		luz.distance_fade_length = 6.0
 		minerio.add_child(luz)
+	# FPS (André 2026-11-13, "juntar tudo como se fosse um desenho só"; os registros do celular mostraram 1.100 chamadas de
+	# desenho perto das minas): cada pedaço do veio era uma malha solta (4 a 5 blocos com contorno e sombra, 10 a 14
+	# cristais com sombra, 7 pedrinhas do cascalho). Agora cada grupo vira uma malha só, com o mesmo desenho: os blocos
+	# numa, os cristais noutra e o cascalho noutra, e cada grupo continua sumindo e voltando sozinho (corpo, minerio e
+	# entulho são os mesmos nós). O que está escondido não entra na junta, então cada grupo é juntado com o outro à parte.
+	_juntar_veio(o)
 	# FPS (André 2026-11-07, "prefiro perder um pouquinho de qualidade do que ter jogo travando"): o veio (blocos,
 	# contorno, cristais e o cascalho) só é desenhado até 80 m, com fade curtinho, como as pedras grandes do cenário
 	for gi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
 		gi.visibility_range_end = 80.0
 		gi.visibility_range_end_margin = 6.0
 		gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+const Construcao = preload("res://construcao.gd")
+func _juntar_veio(o: Dictionary) -> void:
+	var minerio: Node3D = o.minerio
+	var entulho: Node3D = o.entulho
+	Construcao.juntar_malhas(minerio) # os cristais (a luz fica solta)
+	minerio.visible = false # escondido: fora da junta dos blocos
+	Construcao.juntar_malhas(o.corpo)
+	minerio.visible = true
+	entulho.visible = true
+	Construcao.juntar_malhas(entulho)
+	entulho.visible = false
 
 # bloco facetado: esfera de poucas faces com os vértices puxados para dentro e para fora (pedra lascada), base chata
 # enterrada uns 12 cm, normais chapadas e um tom por face (canal r da cor) para as facetas brilharem diferente
