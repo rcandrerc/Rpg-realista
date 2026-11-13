@@ -4360,7 +4360,7 @@ func _montar_fogao() -> void:
 			if tem < int(ing[k]):
 				falta = true
 		var nv := int(R.get("nivel", 1))
-		var baixo: bool = m.P.prof_nivel("coz") < nv
+		var baixo: bool = not m.P.prof_ok("coz", nv, str(R.get("faz", forno_prato)))
 		var linha := HBoxContainer.new()
 		linha.add_theme_constant_override("separation", 8)
 		caixa_forno.add_child(linha)

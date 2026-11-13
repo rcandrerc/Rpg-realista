@@ -13,7 +13,7 @@ import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAt
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
-import { Kit } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
+import { Kit, pedidosDaEtapa } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -1170,7 +1170,8 @@ export class Simulacao {
     };
     if (E.ev === 'falar') return npcEm(E.npc);
     { const f = this.juntaDe(j, E); if (f && f.fonte) { // falta material (shared/kit.js): o Ir leva à fonte
-      if (f.fonte === 'forno') { let b = null, md = Infinity; for (const o of this.mapa.estacoes || []) if (o.k === 'fornalha' && aberto(o.x, o.z)) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; b = o; } } if (b) return { x: r2(b.x), z: r2(b.z), nome: b.nome, npc: '', estacao: b.id }; }
+      if (f.fonte === 'receita') { const R = RECEITAS[f.k]?.faz === f.k ? RECEITAS[f.k] : Object.values(RECEITAS).find((o) => o.faz === f.k && !o.r); const a = R && this.estacaoMaisPerto(j, RECEITA_ESTACAO(R), aberto); if (a) return a; }
+      else if (f.fonte === 'forno') { let b = null, md = Infinity; for (const o of this.mapa.estacoes || []) if (o.k === 'fornalha' && aberto(o.x, o.z)) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; b = o; } } if (b) return { x: r2(b.x), z: r2(b.z), nome: b.nome, npc: '', estacao: b.id }; }
       else { const a = resolve(f.fonte); if (a) return a; } } }
     if (E.ev === 'pistas') { const i = E.pontos.findIndex((q, k) => !(h.m & (1 << k))); const q = E.pontos[Math.max(0, i)]; return { x: q[0], z: q[1], nome: q[2], npc: '' }; }
     if (E.hc) { // chefe da caverna (sala, sem campo) que ainda não apareceu: vale o lugar da etapa (robô das missões: o Ir do Trono não levava a lugar nenhum)
@@ -1181,6 +1182,10 @@ export class Simulacao {
       return E.alvo ? resolve(E.alvo) : S ? { x: r2(S.x), z: r2(S.z), nome: C.nome, npc: '' } : null;
     }
     if (E.alvo && typeof E.alvo === 'object') { const k = Object.keys(E.alvo).find((q) => contar(p.mochila, q) < E.itens[q]); return resolve(E.alvo[k || Object.keys(E.alvo)[0]]); }
+    if (E.alvo === 'lote' && E.ev === 'criar') { // assar, fundir, criar no terreno: direto na estação dele (não no meio do terreno)
+      const k = this.estacaoDaEtapa(E), L = this.loteDe(j), o = k && L?.pecas.find((q) => q.k === k);
+      if (o) return { x: r2(o.x), z: r2(o.z), nome: CONSTRUCOES[k]?.nome || k, npc: '' };
+    }
     if (E.alvo) return resolve(E.alvo);
     // criar sem alvo escrito (barquinho, carrinho, galão, regador): a estação onde se cria, nunca o NPC da missão
     // (André 2026-11-12: o barquinho levava ao Nico, e lá o guia piscava "Criar pack")
@@ -1216,7 +1221,7 @@ export class Simulacao {
     // ev/k/min/de: o tipo da etapa, para o guia do app (guia.gd, André 2026-11-12: o botão do próximo toque pisca)
     const fj = E ? this.juntaDe(j, E) : null; // juntando material: o guia segue a coleta (shared/kit.js)
     const guia = fj ? this.guiaJunta(fj) : E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}) } : {};
-    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
+    return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E && !j.bot && (E.ev === 'criar' || E.ev === 'ter' || E.ev === 'pack_fez') ? { livre: [...pedidosDaEtapa(E, p)] } : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
   // testes"): escolhe o nível na hora. Os pontos de atributo acompanham; se descer abaixo do que já gastou, os atributos
@@ -2485,7 +2490,7 @@ export class Simulacao {
     // no forninho ou na bancada ao lado dele) ou uma construída num lote (bigorna, fornalha ou bancada)
     const npc = this.estacaoPerto(j, R);
     if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? 'Funda no forninho da ferraria do Tomás ou na fornalha do seu terreno' : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
-    if (profNivel(p.prof[R.prof]) < R.nivel) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
+    if (profNivel(p.prof[R.prof]) < R.nivel && !(!R.r && this.livreHistoria(j, R.faz))) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     { // progressão (André 2026-11-10): Ferreiro e Alfaiate depois da missão do Tomás; cada receita e cada evolução no seu nível
       const lib = (R.prof === 'fer' || R.prof === 'alf') && motivoLibera(p, 'forja') || (R.r ? motivoLibera(p, 'evoluir', R.r) : motivoLibera(p, 'receita', R.faz));
       if (lib) return { motivo: lib };
@@ -3040,6 +3045,7 @@ export class Simulacao {
     this.evento({ t: 'fabricou', para: id, k: m.k, nome: ITENS[item].nome });
     aviso(`Criou ${ITENS[item].nome}!`);
     this.historia(j, 'criar', { k: m.k });
+    if (item !== m.k) this.historia(j, 'criar', { k: item }); // etapa "Crie 3 paredes" pede obra_parede (nunca contava)
     this.avisarProg(j);
   }
   // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar', i }
@@ -3156,7 +3162,7 @@ export class Simulacao {
     const p = j.prog, lugar = m.lugar;
     if (m.acao === 'por' && fogao && lugar === 'ent') {
       const R = C.receitas[m.r]; if (!R) return aviso('Esse prato não se faz no fogão');
-      if (profNivel(p.prof.coz) < R.nivel) return aviso(`Precisa de Cozinheiro Nv ${R.nivel}`);
+      if (profNivel(p.prof.coz) < R.nivel && !this.livreHistoria(j, R.faz)) return aviso(`Precisa de Cozinheiro Nv ${R.nivel}`);
       const atual = F.ent;
       if (atual && atual.k !== R.faz) return aviso('Tire o prato que já está na panela antes');
       const cabe = (ITENS[R.faz].pilha || 20) - (atual ? atual.n : 0);
@@ -3175,7 +3181,7 @@ export class Simulacao {
       if (lugar === 'comb' && !C.combustivel[o.k]) return aviso('Combustível é lenha ou carvão');
       const R = lugar === 'ent' ? C.receitas[o.k] : null;
       if (lugar === 'ent' && !R) return aviso('A fornalha derrete minério de ferro ou de cobre, queima lenha em carvão e faz aço da barra de ferro');
-      if (R && profNivel(p.prof.fer) < R.nivel) return aviso(`Precisa de Ferreiro Nv ${R.nivel}`);
+      if (R && profNivel(p.prof.fer) < R.nivel && !this.livreHistoria(j, R.faz)) return aviso(`Precisa de Ferreiro Nv ${R.nivel}`);
       const atual = F[lugar];
       if (atual && atual.k !== o.k) return aviso('Tire o que já está lá antes');
       const max = ITENS[o.k].pilha || 50, cabe = max - (atual ? atual.n : 0), n = Math.min(cabe, o.n | 0 || 1);
