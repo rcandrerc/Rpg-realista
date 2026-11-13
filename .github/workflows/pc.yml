@@ -1,4 +1,5 @@
-# Gera a versão PC do jogo (Windows .exe). Só roda à mão: Actions > "Versão PC (Windows)" > Run workflow.
+# Gera a versão PC do jogo (Windows .exe). Roda à mão (Actions > "Versão PC (Windows)" > Run workflow) e, desde
+# 2026-11-13, sozinho depois de cada APK da main (o .exe se atualiza ao abrir: baixa o Aethra.pck novo do release "pc").
 # Não mexe em nada do celular: não roda no push, não toca no APK nem nas atualizações dentro do app, e as mudanças de
 # PC (texturas de PC, teclado/mouse, preset Windows) só são aplicadas na cópia desta execução (ferramentas/pc/preparar.sh).
 # Usa a mesma máquina do APK (runner da Oracle quando o repositório é privado; senão a do GitHub, de graça em público).
@@ -8,6 +9,11 @@ name: Versão PC (Windows)
 
 on:
   workflow_dispatch:
+  # depois do APK da main: os modelos do cache já são os da versão nova
+  workflow_run:
+    workflows: ["APK do app Godot"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -21,6 +27,7 @@ env:
 
 jobs:
   windows:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
@@ -67,7 +74,10 @@ jobs:
           cp templates/* ~/.local/share/godot/export_templates/4.7.1.stable/
           rm -f tpl.tpz
       - name: Preparar a cópia para PC (texturas de PC, teclado e mouse, preset Windows)
-        run: bash ferramentas/pc/preparar.sh
+        run: |
+          # na main o .exe ganha a atualização dentro do jogo (número deste build; inicio.gd compara com o release)
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then export PC_ID=${{ github.run_number }}; fi
+          bash ferramentas/pc/preparar.sh
       - name: Importar
         working-directory: godot-prototipo
         run: $GODOT_BIN --headless --import || true
@@ -87,6 +97,14 @@ jobs:
         run: |
           gh release view pc > /dev/null 2>&1 || gh release create pc --target main --prerelease --title "Versão PC (Windows)" --notes "Gerada à mão em Actions > Versão PC (Windows)."
           gh release upload pc Aethra-PC.zip --clobber
+          # atualização dentro do jogo: primeiro o pacote, depois o conteudo-pc.json que aponta para ele
+          N=${{ github.run_number }}
+          cp Aethra/Aethra.pck Aethra.pck
+          TAM=$(stat -c %s Aethra.pck); SHA=$(sha256sum Aethra.pck | cut -d' ' -f1)
+          printf '{"versao": "%s", "completo": {"id": "%s", "tamanho": %s, "partes": [{"arq": "Aethra.pck", "tamanho": %s, "sha256": "%s"}]}, "deltas": []}\n' "$N" "$N" "$TAM" "$TAM" "$SHA" > conteudo-pc.json
+          cat conteudo-pc.json
+          gh release upload pc Aethra.pck --clobber
+          gh release upload pc conteudo-pc.json --clobber
           gh release edit pc --notes "Versão PC do jogo (Windows 64 bits). Baixe, extraia a pasta e abra o Aethra.exe. Último build: ${GITHUB_SHA::7} (execução ${{ github.run_number }})."
       - uses: actions/upload-artifact@v4
         if: github.ref != 'refs/heads/main'

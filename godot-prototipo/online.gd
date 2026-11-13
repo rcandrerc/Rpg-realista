@@ -76,6 +76,10 @@ var carregando: Label # "Conectando…" em cima da capa enquanto ainda não dá 
 var _cobrindo := false # capa na tela sem o painel: esperando o servidor
 var _cobrir_t := 0.0 # segurança: sem resposta em alguns segundos, libera o jogo
 const COBRIR_MAX := 12.0
+# depois da primeira foto, a capa ainda espera os monstros e espantalhos nascerem (main.gd montando), no máximo CRIAR_MAX s
+var _foto_capa := false
+var _criar_t := 0.0
+const CRIAR_MAX := 8.0
 
 func _init(principal) -> void:
 	m = principal
@@ -251,6 +255,8 @@ func cobrir(texto: String) -> void:
 	if m.aquecer: # atrás da capa: cada efeito e monstro aparece uma vez (sem travada no primeiro uso; aquecer.gd)
 		m.aquecer.comecar()
 	_cobrir_t = COBRIR_MAX
+	_foto_capa = false
+	_criar_t = 0.0
 	painel.visible = false
 	capa.visible = true
 	carregando.text = texto
@@ -565,8 +571,16 @@ func aplicar_foto(f: Dictionary) -> void:
 	if m.transporte and f.has("carga"): # FASE 1: packs no chão, carrinhos, barquinhos e navios
 		m.transporte.atualizar(f.carga)
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
-		if not (m.aquecer and m.aquecer.cobre): # efeitos ainda na frente da câmera (aquecer.gd): sai na próxima foto
-			esconder_login()
+		_foto_capa = true
+		_soltar_capa()
+
+# efeitos ainda na frente da câmera (aquecer.gd) ou monstros ainda nascendo (main.gd montando): a capa fica
+func _soltar_capa() -> void:
+	if m.aquecer and m.aquecer.cobre:
+		return
+	if m.montando() and _criar_t < CRIAR_MAX:
+		return
+	esconder_login()
 
 var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
@@ -1507,7 +1521,10 @@ func _process(dt: float) -> void:
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
-	if _cobrindo and not (m.aquecer and m.aquecer.cobre): # preparando os efeitos atrás da capa não conta como espera
+	if _cobrindo and _foto_capa: # o servidor já respondeu: só falta o jogo acabar de montar (não volta para a tela inicial)
+		_criar_t += dt
+		_soltar_capa()
+	elif _cobrindo and not (m.aquecer and m.aquecer.cobre): # preparando os efeitos atrás da capa não conta como espera
 		_cobrir_t -= dt
 		if _cobrir_t <= 0.0: # o servidor não respondeu
 			if rede.sessao != "": # com conta: volta para a tela inicial (André 2026-11-07)

@@ -38,7 +38,8 @@ func _process(dt: float) -> void:
 	_espera -= dt
 	if _espera > 0.0 or vilas.is_empty() or m.heroi == null:
 		return
-	_espera = 1.0
+	# atrás da capa da entrada (online.gd), confere a cada 0,1 s: a vila perto já nasce antes de o jogo aparecer
+	_espera = 0.1 if m.online and m.online._cobrindo else 1.0
 	_acender()
 	var h: Vector3 = m.heroi.position
 	var precisa := false
@@ -56,6 +57,16 @@ func _process(dt: float) -> void:
 	if precisa and not _pedido:
 		_pedido = true
 		ResourceLoader.load_threaded_request(ARQUIVO)
+
+# tem vila perto do herói que ainda não nasceu (a capa da entrada espera: main.gd montando)
+func pendente() -> bool:
+	if vilas.is_empty() or m.heroi == null:
+		return false
+	var h: Vector3 = m.heroi.position
+	for V in vilas:
+		if Vector2(float(V.x) - h.x, float(V.z) - h.z).length() < PERTO and not montadas.has(str(V.id)):
+			return true
+	return false
 
 # o modelo das vilas já está na memória (pede em segundo plano e confere a cada segundo)
 func _carregado() -> bool:
