@@ -353,7 +353,11 @@ static func _juntar_aco(esq: Skeleton3D) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = NOME_ACO
 	mi.set_meta("chave", chave)
-	mi.mesh = par[0]
+	# versão simplificada de longe (LOD, lod_malha.gd), como as peças soltas tinham: a primeira malha juntada de cada
+	# roupa pede; as próximas já pegam a pronta (sem ler a malha de novo da placa de vídeo)
+	var LM = preload("res://lod_malha.gd")
+	var com_lod = LM._pronta(par[0])
+	mi.mesh = com_lod if com_lod != null else par[0]
 	mi.skin = par[1]
 	mi.material_override = par[2]
 	# sombra e LOD como as peças estavam (NPC longe já está sem sombra: main.npc_simples guarda "sombra_perto")
@@ -364,6 +368,10 @@ static func _juntar_aco(esq: Skeleton3D) -> void:
 		mi.set_meta("sombra_perto", p0.get_meta("sombra_perto"))
 	esq.add_child(mi)
 	mi.skeleton = NodePath("..")
+	if com_lod != null:
+		mi.set_meta("lod_ok", com_lod.get_instance_id())
+	else:
+		LM.pedir_malha(mi)
 
 # Monta a malha juntada numa linha do WorkerThreadPool (André odeia travadinha: no PC eram ~12 ms no quadro em que o
 # corpo nascia, no celular seria 3 a 4 vezes isso). Aqui, no quadro, só copia os dados das peças; quando a malha fica
