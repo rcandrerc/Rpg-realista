@@ -198,6 +198,17 @@ func passos(hi: Dictionary) -> Array:
 			return ["topo:multi", "b:Time"]
 		"veiculo":
 			var antes: Array = [] if m.P.carrinho_no_mundo() else bolsa + ["item:k:carrinho", "b:Colocar no chão"]
+			match k: # passos antes que o servidor manda (shared/kit.js antesDe, André 2026-11-13: guiar cada passo)
+				"colocar":
+					return antes
+				"por_pack": # o pack das costas no carrinho
+					return ["hud:veiculo", "m:veiculo:por_pack"]
+				"dirigir":
+					return ["ir", "hud:veiculo", "m:veiculo:dirigir"]
+				"barco": # pesca no mar: o barquinho na água
+					return bolsa + ["item:k:barquinho", "b:Usar"]
+				"radar": # pesca no mar: o radar mostra os spots
+					return bolsa + ["item:k:radar_pesca", "b:Usar"]
 			match k:
 				"abastecer":
 					return antes + ["hud:veiculo", "m:veiculo:encher"]

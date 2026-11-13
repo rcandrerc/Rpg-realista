@@ -878,7 +878,10 @@ func abrir_carrinho() -> void:
 				func(): _tirar_pack(i))
 			grade.add_child(sl)
 		elif i < cap:
-			grade.add_child(_slot(Vector2(72, 72), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_pack()))
+			var vz := _slot(Vector2(72, 72), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_pack())
+			if i == cp.size():
+				vz.set_meta("guia", "veiculo:por_pack") # guia das missões: o pack das costas vai aqui
+			grade.add_child(vz)
 		else:
 			var nv_abre: int = i / int(C.capacidade) + 1
 			var tr := _slot(Vector2(72, 72), m.hud.icone("cadeado"), "Nv %d" % nv_abre, Color(0.32, 0.28, 0.22),

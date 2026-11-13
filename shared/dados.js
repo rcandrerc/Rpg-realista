@@ -1679,6 +1679,10 @@ export const PESCA = {
   },
   // Radar de pesca: usado na mochila, mostra todos os spots no mapa e no minimapa por "mostra" s; recarga "recarga" s
   radar: { mostra: 180, recarga: 60 },
+  // Pesca no mar (André 2026-11-13: "pode inserir a pesca no mar... uma coisa espalhada, vai ter que usar a ferramenta
+  // para localizar... aí vai de barquinho"): spots soltos no mar aberto em volta dos cais, longe da margem (só de barco),
+  // achados com o Radar de pesca. quantos = vagas de cada tipo; de/ate = metros do cais; margem = sem terra a menos disso.
+  mar: { quantos: { comum: 8, raro: 4, epico: 2 }, de: 30, ate: 160, margem: 7, fundo: 1.5 },
 };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
 LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
