@@ -4,7 +4,7 @@ name: Teste da rede no motor
 
 on:
   pull_request:
-    paths: ['ferramentas/motor/**', '.github/workflows/motor-teste.yml', 'godot-prototipo/rede.gd']
+    paths: ['ferramentas/motor/**', '.github/workflows/motor-teste.yml', 'godot-prototipo/rede.gd', 'ferramentas/testes/ultimo-login.mjs']
   workflow_dispatch:
 
 permissions:
@@ -45,6 +45,8 @@ jobs:
             -s $GITHUB_WORKSPACE/ferramentas/motor/rede_teste.gd 2>&1 | tee /tmp/rede.log | grep -E "^REDE|ERROR"
           echo "--- servidor ---"; tail -20 /tmp/srv/log.txt
           grep -q "REDE ws estado=" /tmp/rede.log
+      - name: Último login vale (dois aparelhos na mesma conta)
+        run: ferramentas/motor/trocado.sh && node ferramentas/testes/ultimo-login.mjs
 
   # Vulkan por software no 4.7 (teste do jogo aberto não passava do primeiro quadro): primeiro um projeto vazio,
   # depois o jogo com --verbose para ver onde para. Usa a importação e os modelos guardados pelo apk.yml.

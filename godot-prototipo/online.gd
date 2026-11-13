@@ -41,6 +41,7 @@ const QUEDA_MAX := 30.0
 const QUEDA_REINICIO := 60.0 # o servidor avisou que ia reiniciar (reinicio.gd): espera ele ligar de novo (~15 s na Oracle)
 var _queda_t := -1.0
 static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela inicial mostra o aviso
+static var _foi_trocado := false # saiu porque a conta entrou em outro aparelho (André 2026-11-13): o aviso diz isso
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
 var _pronto := false
@@ -231,6 +232,9 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	if _foi_desconectado:
 		titulo.text = "Você foi desconectado"
 		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
+	if _foi_trocado:
+		titulo.text = "Conta em outro aparelho"
+		sub.text = "Sua conta entrou em outro aparelho.\nEntre aqui para jogar neste (o outro sai)."
 	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
 	b_continuar.visible = true
 	b_trocar.visible = true
@@ -302,6 +306,7 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	meu_id = id
 	_queda_t = -1.0
 	_foi_desconectado = false
+	_foi_trocado = false
 	if m.reinicio:
 		m.reinicio.voltou() # servidor de volta: some a faixa do reinício
 	_conta_antes = conta.duplicate()
@@ -325,6 +330,9 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	_mexem_q = -1000 # todos voltaram a valer: refaz a lista de quem mexe
 
 func ao_cair(motivo: String) -> void:
+	if motivo == "trocado": # a conta entrou em outro aparelho: o último login vale, este não tenta voltar sozinho
+		_trocado()
+		return
 	var estava := ligado
 	if _cobrindo:
 		if rede.sessao != "": # tem conta (André 2026-11-07): sem servidor não entra no jogo, fica na tela inicial
@@ -387,6 +395,20 @@ func _desconectado() -> void:
 	_voltar_a_tela_inicial()
 	aviso_login.text = "Sem conexão com o servidor."
 
+# André 2026-11-13 (PC e celular ficavam se derrubando): outro aparelho entrou com a mesma conta. Volta para a tela
+# inicial com o aviso, sem tentar voltar sozinho. Tocando em "Entrar como…", este volta e o outro é que sai.
+func _trocado() -> void:
+	_foi_desconectado = false
+	_foi_trocado = true
+	if m.reinicio:
+		m.reinicio.voltou()
+	desligar()
+	if m.chat:
+		m.chat.desligou()
+	rede.fechar()
+	_voltar_a_tela_inicial()
+	aviso_login.text = "Sua conta entrou em outro aparelho."
+
 # Apagou o personagem ou saiu da conta (menu do topo): volta para a tela de login sem recarregar a cena.
 # André 2026-11-11: recarregar a cena (reload_current_scene) fechava o app no celular ao apagar o personagem, e só
 # dava para criar outro reabrindo o jogo (o mesmo tranco da queda de conexão, #262). Agora limpa o que era da conta
@@ -411,6 +433,7 @@ func voltar_ao_login(texto := "") -> void:
 	amiga_ids.clear()
 	amiga_papeis.clear()
 	_foi_desconectado = false
+	_foi_trocado = false
 	_conta_antes = {}
 	if m.criador and m.criador.aberto():
 		m.criador.fechar()
