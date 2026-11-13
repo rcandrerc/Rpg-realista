@@ -38,6 +38,17 @@ export function receitaDe(k) {
   return null;
 }
 const nome = (k) => ITENS[k]?.nome || k;
+const receitaQueFaz = (k) => RECEITAS[k]?.faz === k ? RECEITAS[k] : Object.values(RECEITAS).find((o) => o.faz === k && !o.r) || null;
+// tudo que a etapa da vez pede para criar, até o fim da cadeia (barra de aço -> barra de ferro, carvão): o nível da
+// profissão não trava a missão (André 2026-11-12: "não quero ficar descobrindo erro atrás de erro")
+export function pedidosDaEtapa(E, p) {
+  const out = new Set();
+  if (!E) return out;
+  const raiz = E.ev === 'criar' ? [String(E.k)] : E.ev === 'ter' ? Object.keys(E.itens || {}) : E.ev === 'pack_fez' && PACKS[E.k] ? Object.keys(custoPack(E.k, p?.prof?.mer)) : [];
+  const ver = (k, fundo) => { const R = receitaQueFaz(k); if (!R || out.has(k) || fundo > 4) return; out.add(k); for (const i of Object.keys(R.usa || {})) ver(i, fundo + 1); };
+  for (const k of raiz) ver(k, 0);
+  return out;
+}
 const ferramentaDe = (k) => (VEIO[k] ? COLETA[VEIO[k]]?.ferramenta : null);
 
 export const Kit = {
@@ -102,10 +113,11 @@ export const Kit = {
   // 'veio:tipo' · 'solto' (galho e pedrinha, sem machado/picareta) · 'caca:id' · 'spot' · 'lote' · 'forno' · '' (junte)
   juntaDe(j, E = etapaAtual(j.prog)) {
     const p = j.prog, h = p.hist;
-    if (!E || E.junta === false || !['criar', 'construir', 'pack_fez'].includes(E.ev)) return null;
+    if (!E || E.junta === false || !['criar', 'construir', 'pack_fez', 'ter'].includes(E.ev)) return null;
     if (E.ja === 'tem' && contar(p.mochila, E.k) > 0) return null;
     const vezes = Math.max(1, (E.n || 1) - (h?.n || 0));
-    const R = E.ev === 'pack_fez' ? (PACKS[E.k] ? { usa: custoPack(E.k, p.prof.mer), ouro: 0 } : null) : receitaDe(E.k);
+    // ter (leve 3 ensopados na mochila): o que falta, com a cadeia da receita (carne, batata... e o fogão)
+    const R = E.ev === 'ter' ? { usa: E.itens || {}, ouro: 0 } : E.ev === 'pack_fez' ? (PACKS[E.k] ? { usa: custoPack(E.k, p.prof.mer), ouro: 0 } : null) : receitaDe(E.k);
     if (!R) return null;
     const usado = {}; // o que já foi contado para outra parte da receita (a lenha da barra e a do carrinho)
     const plano = (k, q, fundo = 0) => {
@@ -118,11 +130,21 @@ export const Kit = {
         for (const [i, n] of Object.entries(Rr?.usa || {})) { const f = plano(i, n * falta, fundo + 1); if (f) return f; }
         return { k, n: q, tem: livre, fonte: 'forno' };
       }
+      const Rc = receitaQueFaz(k); // feito por receita (o pão de milho do pack de abóbora): o que ela gasta, depois a estação
+      if (Rc && !ehEquip(k) && fundo < 3) {
+        for (const [i, n] of Object.entries(Rc.usa || {})) { const f = plano(i, n * falta, fundo + 1); if (f) return f; }
+        return { k, n: q, tem: livre, fonte: 'receita' };
+      }
       return { k, n: q, tem: livre, fonte: this.fonteDe(j, k) };
     };
-    for (const [k, n] of Object.entries(R.usa)) { const f = plano(k, n * vezes); if (f) return f; }
+    for (const [k, n] of Object.entries(R.usa)) { const f = plano(k, n * vezes); if (f) return E.ev === 'ter' && !f.fonte ? null : f; } // ter de item único (catalisador): o texto da etapa
     if (R.ouro && (p.ouro || 0) < R.ouro) return { k: 'ouro', n: R.ouro, tem: p.ouro || 0, fonte: '' };
     return null;
+  },
+  // a receita que dá o item faz está na etapa da vez: o nível da profissão não trava (servidor e app, hi.livre)
+  livreHistoria(j, faz) {
+    const p = j?.prog; if (!p?.hist?.ac || j.bot) return false;
+    return pedidosDaEtapa(etapaAtual(p), p).has(String(faz));
   },
   fonteDe(j, k) {
     const p = j.prog;
@@ -141,10 +163,10 @@ export const Kit = {
   },
   // texto da etapa enquanto junta ("Barquinho: corte Lenha 12/30")
   textoJunta(E, f) {
-    const verbo = f.k === 'ouro' ? 'junte' : f.fonte === 'forno' ? (f.k === 'carvao' ? 'faça no forninho' : 'funda no forninho')
+    const verbo = f.k === 'ouro' ? 'junte' : f.fonte === 'receita' ? 'faça' : f.fonte === 'forno' ? (f.k === 'carvao' ? 'faça no forninho' : 'funda no forninho')
       : f.fonte === 'veio:arvore' ? 'corte' : f.fonte.startsWith('veio:') ? 'minere' : f.fonte === 'solto' ? 'pegue do chão' : f.fonte.startsWith('caca:') ? 'cace para ter'
       : f.fonte === 'spot' ? 'pesque' : f.fonte === 'lote' ? 'colha' : 'junte';
-    const para = E.ev === 'pack_fez' ? PACKS[E.k]?.nome : nome(String(E.k).replace(/^obra_/, ''));
+    const para = E.ev === 'ter' ? '' : E.ev === 'pack_fez' ? PACKS[E.k]?.nome : nome(String(E.k).replace(/^obra_/, ''));
     return `${para ? para + ': ' : ''}${verbo} ${f.k === 'ouro' ? 'ouro' : nome(f.k)} ${f.tem}/${f.n}`;
   },
   // o tipo da etapa para o guia do app (guia.gd) enquanto junta: o Ir e o botão de coletar / pescar / o forninho
@@ -154,7 +176,7 @@ export const Kit = {
     if (f.fonte.startsWith('caca:')) return { ev: 'matar' };
     if (f.fonte === 'spot') return { ev: 'pesca', k: f.k };
     if (f.fonte === 'lote') return { ev: 'colher', k: f.k };
-    if (f.fonte === 'forno') return { ev: 'criar', k: f.k };
+    if (f.fonte === 'forno' || f.fonte === 'receita') return { ev: 'criar', k: f.k };
     return { ev: 'ter' };
   },
 };

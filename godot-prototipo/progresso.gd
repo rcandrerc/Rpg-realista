@@ -220,6 +220,13 @@ static func prof_nivel_pts(pts: float, maxn: int) -> int:
 func prof_nivel(k: String) -> int:
 	return prof_nivel_pts(float(prog.prof.get(k, 0.0)), int(dados.profMax))
 
+# nível da profissão basta, ou a missão da vez pede essa receita (hi.livre: a missão nunca trava, André 2026-11-12)
+func prof_ok(k: String, nivel: int, faz: String) -> bool:
+	if prof_nivel(k) >= nivel:
+		return true
+	var l = hist_info.get("livre", [])
+	return l is Array and faz in l
+
 static func prof_pontos(nv: int) -> float:
 	return 8.0 * (nv - 1) * (nv - 1)
 

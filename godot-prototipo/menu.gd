@@ -1688,7 +1688,7 @@ func montar_receitas(prof: String) -> void:
 func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 	var P = m.P
 	var faz := {"k": str(R.faz), "r": 0} if P.dados.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
-	var nv_ok: bool = P.prof_nivel(R.prof) >= int(R.nivel)
+	var nv_ok: bool = P.prof_ok(str(R.prof), int(R.nivel), str(R.faz))
 	var custo: float = P.custo_vigor(R.prof, float(R.vigor))
 	var tem := true
 	var cx := PanelContainer.new()
@@ -2243,7 +2243,7 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	var of: Dictionary = D.oficina[str(R0.prof)]
 	var onde: String = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 	var aqui: bool = m.trabalho.perto_oficina(str(R0.prof)) or (cons != null and cons.estacao_perto([est]))
-	var nv_ok: bool = P.prof_nivel(str(R0.prof)) >= int(R.nivel)
+	var nv_ok: bool = P.prof_ok(str(R0.prof), int(R.nivel), faz_s if rar == 0 else "")
 	var custo: float = P.custo_vigor(str(R0.prof), float(R.vigor))
 	var it := {"k": faz_s, "r": rar}
 	var cx := PanelContainer.new()
@@ -2399,7 +2399,7 @@ func linha_criavel(e: Dictionary) -> Control:
 		var of: Dictionary = D.oficina[str(R.prof)]
 		onde = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 		aqui = m.trabalho.perto_oficina(str(R.prof)) or (cons != null and cons.estacao_perto([est]))
-		nv_ok = P.prof_nivel(str(R.prof)) >= int(R.nivel)
+		nv_ok = P.prof_ok(str(R.prof), int(R.nivel), faz_s)
 		custo = P.custo_vigor(str(R.prof), float(R.vigor))
 	else:
 		var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
