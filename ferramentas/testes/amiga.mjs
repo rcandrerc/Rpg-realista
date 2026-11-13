@@ -124,7 +124,7 @@ ok(ITENS.lenha, 'itens');
   Object.assign(d, { x: c.x + 60, z: c.z, y: s3.terreno.altura(c.x + 60, c.z) }); c.ia.conversaAte = 0; c.ia.chamaEm = s3.tempo; c.ia.recusaAte = 0;
   const n0 = falas.length; esperar(1);
   ok(falas.length === n0 + 1 && c.ia.chamado, `ela chama o André: "${falas[n0]?.texto}"`);
-  c.ia.chamado.quer = 'time'; s3.tempo += 2; const rnd3 = Math.random; Math.random = () => 0.999; chat('bora!'); Math.random = rnd3;
+  c.ia.chamado.quer = 'time'; s3.tempo += 2; const rnd3 = Math.random; Math.random = () => 0.999; chat('bora!'); s3.time('andre', { acao: 'convidar', com: c.id }); Math.random = rnd3; // topou no chat, ele dá o time no botão
   ok(c.time && d.time === c.time, 'respondeu "bora" ao chamado e ela entrou no time');
   s3.tempo += 2; chat('pode sair do time'); esperar(1);
   ok(!c.time, 'pelo chat ela sai do time');
@@ -212,7 +212,9 @@ ok(ITENS.lenha, 'itens');
   guardarItem(c, 'lenha', 3); guardarItem(c, 'pedra', 2);
   const lenha0 = contar(c.prog.mochila, 'lenha') - 3, dono0 = contar(d.prog.mochila, 'lenha');
   const rr = Math.random; Math.random = () => 0.01; chat('bora cortar lenha'); Math.random = rr;
-  ok(c.time && c.ia.atividade === 'lenha', 'topou cortar lenha e entrou no time');
+  ok(!c.time && s6.combinouAmiga(c) && c.ia.plano === 'lenha', 'no chat ela só topa cortar lenha (o time ele dá no botão)');
+  s6.time('andre', { acao: 'convidar', com: c.id }); // o botão de time: só convida, sem fala no chat (André 2026-11-13)
+  ok(c.time && c.ia.atividade === 'lenha', 'topou cortar lenha e entrou no time pelo botão');
   esp(90);
   const cortou = contar(c.prog.mochila, 'lenha') - lenha0 + contar(d.prog.mochila, 'lenha') - dono0;
   ok(contar(c.prog.mochila, 'machado') === 1 && cortou > 0, `fez o próprio machado e cortou ${cortou} lenha`);
@@ -227,7 +229,7 @@ ok(ITENS.lenha, 'itens');
   const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
   const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
   c.ia.combinado = s6.tempo + 999;
-  let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo); }
+  let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo && v.lago); } // spot de lago (o do mar é só de barco, 2026-11-13)
   if (sp) {
     sp.fim = s6.tempo + 9999;
     for (const v of s6.spots) if (v !== sp) v.ativo = false; // só este spot
@@ -236,7 +238,7 @@ ok(ITENS.lenha, 'itens');
     Object.assign(d, { x: bx, z: bz, y: s6.terreno.altura(bx, bz) }); Object.assign(c, { x: bx, z: bz, y: s6.terreno.altura(bx, bz) });
     guardarItem(c, 'vara', 1);
     const peixes = () => Object.keys(PESCA.tier).reduce((t, k) => t + contar(c.prog.mochila, k) + contar(d.prog.mochila, k), 0), p0 = peixes();
-    chat('vamos pescar?'); esp(120);
+    chat('vamos pescar?'); s6.time('andre', { acao: 'convidar', com: c.id }); esp(120);
     ok(c.ia.atividade === 'pescar' && peixes() > p0, `pescou ${peixes() - p0} peixe(s) no spot perto do André`);
   } else ok(false, 'nenhum spot de pesca nasceu no teste');
 }
@@ -258,6 +260,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(s7.eventos.some((e) => e.t === 'amigos' && e.virtuais[0]?.ia === false), 'sem chave: a lista mostra ela com o botão de ativar');
   c.amizade = 3;
   const rr = Math.random; Math.random = () => 0.01; s7.respostaAmiga('andre', { assunto: 'time' }); Math.random = rr;
+  s7.time('andre', { acao: 'convidar', com: c.id });
   ok(c.time && c.time === d.time, 'André chamou primeiro: ela entrou no time dele');
   s7.respostaAmiga('irmao', { assunto: 'time' });
   ok(s7.amigaDono === 'andre' && fila().at(-1)?.para === 'irmao' && fila().at(-1).texto.includes('André'), `irmão chamou depois: "${fila().at(-1)?.texto}"`);
@@ -313,6 +316,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(s9.gostoTopoAmiga(d) === 'pescar', 'o que mais fazem juntos vira o convite dela');
   c.ia.chamado = { quer: 'pescar', ate: s9.tempo + 60 }; c.ia.combinado = 0;
   s9.respostaAmiga('andre', { assunto: 'sim' });
+  s9.time('andre', { acao: 'convidar', com: c.id });
   ok(c.ia.atividade === 'pescar', '"sim" ao convite de pescar: ela vai pescar junto');
   // ele sai no meio de outra conversa: o diário é escrito na hora e vai para o terreno mesmo com ela fora da sala
   s9.aoDiarioAmiga = () => new Promise((r) => setTimeout(() => r({ memorias: ['Ele saiu correndo hoje.'], regras: {} }), 5));

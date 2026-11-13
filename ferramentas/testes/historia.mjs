@@ -75,7 +75,8 @@ const verCliente = (lista) => {
   const a = cli.hi?.alvo, M = HISTORIA[h()?.p];
   // etapa que acontece num lugar sem o Ir: o jogador não sabe para onde ir
   const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar'];
-  if (E && !a && !(semLugar.includes(E.ev) && !E.alvo)) bug(`semIr:${M.id}:${h().e}`, `${M.id} etapa ${h().e + 1} (${E.ev}): o botão Ir não tem para onde levar`);
+  const naMochila = semLugar.includes(cli.hi?.ev) || cli.hi?.ev === 'veiculo' || /^(.*: )?junte ouro/.test(cli.hi?.txt || ''); // o que falta se faz na mochila (destruir, criar ferramenta, radar...)
+  if (E && !a && !(semLugar.includes(E.ev) && !E.alvo) && !naMochila) bug(`semIr:${M.id}:${h().e}`, `${M.id} etapa ${h().e + 1} (${E.ev}): o botão Ir não tem para onde levar`);
   if (a && M && zonaFechadaEm(p, a.x, a.z)) bug(`nevoa:${M.id}:${cli.hi.e}`, `${M.id} etapa ${cli.hi.e + 1}: o Ir leva para dentro da névoa (${a.nome})`);
   if (cli.hi?.npc && a && a.npc !== cli.hi.npc && !/entrada d/.test(a.nome)) bug(`irnpc:${M?.id}:${cli.hi.e}`, `${M?.id} etapa ${cli.hi.e + 1}: o botão Missão está no ${cli.hi.npc} mas o Ir leva a ${a.nome}`);
 };
@@ -105,7 +106,7 @@ const falar = (id) => {
 };
 const missao = () => HISTORIA[h().p]?.id;
 const etapa = () => etapasDe(HISTORIA[h().p])[h().e];
-const dar = (k, n) => guardar(p.mochila, { k, n });
+const dar = (k, n) => { guardar(p.mochila, { k, n }); s.avisarProg(j); }; // no jogo, ganhar item manda o progresso ao app
 const subir = (nv) => { while (p.nivel < nv) s.ganharXP(j, xpProximo(p.nivel) - p.xp); correr(0.1); };
 const fim = (id) => { const i = HISTORIA.findIndex((M) => M.id === id); ok(h().p === i + 1 && !h().ac, `${id} entregue (${HISTORIA[i].nome}) | ${avisos()}`); ev = []; };
 const alvoOk = () => { const a = s.histInfo(j).alvo; return !etapa() || ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite'].includes(etapa().ev) && !etapa().alvo || !!a; };
@@ -277,7 +278,7 @@ correr(0.6); ok(etapa().ev === 'falar', 'carrinho inteiro: a etapa de consertar 
 falar('m_couro'); fim('b7');
 falar('ferreiro'); ok(missao() === 'b9', 'Tomás: prontos para a caçada');
 s.historia(j, 'evoluir', { v: 1 }); ok(h().e === 0, 'Rara não vale'); s.historia(j, 'evoluir', { v: 2 });
-s.historia(j, 'reforcar', { v: 5 }); ok(h().e === 1, '+5 não vale'); s.historia(j, 'reforcar', { v: 6 });
+s.historia(j, 'reforcar', { v: 2 }); ok(h().e === 1, '+2 não vale'); s.historia(j, 'reforcar', { v: 3 }); // +3 (auditoria 2026-11-13: +6 não dava no Nv28)
 guardar(p.mochila, { k: 'colar', r: 0 }); dar('ensopado', 3); correr(0.6); falar('ferreiro'); fim('b9');
 subir(30); falar('lider'); ok(missao() === 'h8', 'Warrok, o Carcereiro');
 correr(0.6); ok(h().e === 1, 'o time ainda está junto');

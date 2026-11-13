@@ -5,6 +5,9 @@
 #  - texturas também no formato de PC (S3TC/BPTC). O celular continua só com ETC2/ASTC (project.godot da main).
 #  - se a placa não tem Vulkan/D3D12, cai sozinho para OpenGL 3 (e o zip leva Aethra-OpenGL.bat para forçar).
 #  - nome da janela "Aethra", janela maximizada.
+#  - VSync adaptativo: no monitor de 60 Hz, quadro que passa de 16,7 ms não cai direto para 30 FPS (no celular continua igual).
+#  - mundo 3D ampliado com FSR 1 (AMD, livre) em vez do esticado simples: com a mesma resolução 3D da qualidade escolhida
+#    (Alta 0.6, Média 0.52, Baixa 0.45) a imagem fica bem mais nítida no monitor grande, sem custo que se note.
 #  - controles de teclado e mouse (ferramentas/pc/controles_pc.gd) como autoload.
 #  - preset de exportação "Windows" (ferramentas/pc/preset-windows.cfg) no fim do export_presets.cfg.
 #  - sem [aethra] atualizacao/base: o .exe abre direto com o jogo que traz dentro (inicio.gd, base vazia);
@@ -29,8 +32,33 @@ pos_secao rendering 'rendering_device/fallback_to_opengl3=true'
 pos_secao rendering 'rendering_device/fallback_to_d3d12=true'
 pos_secao rendering 'gl_compatibility/fallback_to_angle=true'
 pos_secao display 'window/size/mode=2'
+# VSync adaptativo (2): sem a trava de 60 -> 30 quando o quadro atrasa um pouco
+sed -i 's/^window\/vsync\/vsync_mode=.*/window\/vsync\/vsync_mode=2/' project.godot
+grep -q '^window/vsync/vsync_mode=2$' project.godot || pos_secao display 'window/vsync/vsync_mode=2'
+# Vulkan primeiro no Windows (2026-11-13). O Godot 4.6+ abre em Direct3D 12 por padrão no Windows e, no PC do André, o
+# chão de grama saiu quase todo de pedra: o chao.gdshader decide grama x pedra pelo brilho da textura em cor linear
+# (source_color) e no D3D12 ela chegou sem a conversão. Sem Vulkan, ainda cai para D3D12 e depois OpenGL (acima).
+pos_secao rendering 'rendering_device/driver.windows="vulkan"'
+# FXAA: tira o serrilhado das bordas quase de graça (o MSAA da qualidade continua igual)
+pos_secao rendering 'anti_aliasing/quality/screen_space_aa=1'
+# Resolução 3D maior no PC (André 2026-11-13: "na Alta parece resolução muito baixa"; no celular fica perfeito porque a
+# tela tem muito mais pontos por polegada). grafico.gd multiplica a escala do nível: Alta 0.6 -> 1.0 (tela cheia),
+# Média 0.52 -> 0.87, Baixa 0.45 -> 0.75.
+grep -q '^\[aethra\]$' project.godot || printf '\n[aethra]\n' >> project.godot
+pos_secao aethra 'pc_escala=1.67'
+# FSR 1 para ampliar o mundo 3D (no modo OpenGL o Godot ignora e usa o esticado simples)
+pos_secao rendering 'scaling_3d/mode=1'
+pos_secao rendering 'scaling_3d/fsr_sharpness=0.2'
 sed -i 's/^config\/name=.*/config\/name="Aethra"/' project.godot
 printf '\n[autoload]\n\nControlesPC="*res://controles_pc.gd"\n' >> project.godot
+
+# Atualização dentro do jogo (André 2026-11-13): só no build da main (pc.yml passa PC_ID = número da execução). O .exe
+# confere o conteudo-pc.json do release "pc" ao abrir e baixa o jogo novo se tiver (inicio.gd, pc_conteudo/pc_id).
+if [ -n "${PC_ID:-}" ]; then
+  grep -q '^\[aethra\]$' project.godot || printf '\n[aethra]\n' >> project.godot
+  pos_secao aethra "atualizacao/pc_id=$PC_ID"
+  pos_secao aethra 'atualizacao/pc_conteudo="https://github.com/rcandrerc/Rpg-realista/releases/download/pc/conteudo-pc.json"'
+fi
 
 N=$(grep -c '^\[preset\.[0-9]*\]$' export_presets.cfg)
 sed "s/preset\.N/preset.$N/g" ../ferramentas/pc/preset-windows.cfg >> export_presets.cfg

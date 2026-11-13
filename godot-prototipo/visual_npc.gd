@@ -17,6 +17,13 @@ static var _mats := {}
 # shared/dados.js, mesmo texto do servidor: "peitoral0,capa3") e o Aldo vira o ancião da vila: corpo curvado,
 # barba branca e cajado na mão (a arma vem de main.criar_npc).
 static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
+	_vestir(no, npc_id, info)
+	# peças da armadura juntadas (junta_pecas.gd) só depois da roupa de ofício: ela esconde as placas do peitoral, e a
+	# placa escondida fica de fora da junta
+	if info is Dictionary and str(info.get("roupa", "")) != "":
+		preload("res://junta_pecas.gd").juntar(no)
+
+static func _vestir(no: Node3D, npc_id: String, info = {}) -> void:
 	var esq: Skeleton3D = _esqueleto(no)
 	if esq == null:
 		return
@@ -753,20 +760,42 @@ static func _roupa_de_oficio(raiz: Node3D, esq: Skeleton3D, v: Dictionary) -> vo
 		_faixa(no, ctx, y_cint - 0.025, y_cint + 0.025, 0.03 if v.has("saia") else 0.012, _toon(cf, _sombra(cf), cf.darkened(0.6), 0.002), true)
 
 # raio do corpo em cada direção numa altura (o mais longe que algum vértice chega), suavizado
+# Corrida de lobo (varredura 2026-11-13): cada anel olhava todos os vértices do corpo (~20 mil) e refazia seno e
+# cosseno por vértice. Saia, avental e faixas pedem dezenas de anéis por NPC: 35 a 60 ms no PC (~150 ms no celular)
+# toda vez que um NPC de vila nascia. Agora os vértices ficam em gavetas de 1 cm de altura (montadas uma vez por
+# corpo) e cada anel só olha as gavetas da sua faixa. O resultado é o mesmo, ponto por ponto.
+const GAVETA_Y := 0.01
+static func _gavetas(ctx: Dictionary) -> Dictionary:
+	if ctx.has("_gavetas"):
+		return ctx._gavetas
+	var g := {}
+	for p in ctx.V:
+		var k := int(floor(p.y / GAVETA_Y))
+		if not g.has(k):
+			g[k] = []
+		g[k].append(p)
+	ctx._gavetas = g
+	return g
+
 static func _contorno_em(ctx: Dictionary, y: float, n: int, faixa := 0.015) -> Array:
 	var r := []
 	r.resize(n)
 	r.fill(0.0)
 	var c: Vector3 = ctx.c
-	for p in ctx.V:
-		if abs(p.y - y) > faixa:
-			continue
-		var d := Vector2(p.x - c.x, p.z - c.z)
-		for i in n:
-			var a := TAU * i / n - PI
-			var proj := d.dot(Vector2(sin(a), cos(a)))
-			if proj > r[i]:
-				r[i] = proj
+	var dirs: Array[Vector2] = []
+	for i in n:
+		var a := TAU * i / n - PI
+		dirs.append(Vector2(sin(a), cos(a)))
+	var g := _gavetas(ctx)
+	for k in range(int(floor((y - faixa) / GAVETA_Y)), int(floor((y + faixa) / GAVETA_Y)) + 1):
+		for p in g.get(k, []):
+			if abs(p.y - y) > faixa:
+				continue
+			var d := Vector2(p.x - c.x, p.z - c.z)
+			for i in n:
+				var proj := d.dot(dirs[i])
+				if proj > r[i]:
+					r[i] = proj
 	var s := []
 	for i in n:
 		s.append(max(0.06, (r[(i - 1 + n) % n] + r[i] * 2.0 + r[(i + 1) % n]) / 4.0))

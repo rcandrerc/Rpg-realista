@@ -190,6 +190,8 @@ func alvo() -> Dictionary:
 	if hi.get("alvo") is Dictionary: # história v2: o servidor diz para onde vai a etapa da vez (NPC, campo, veio, pista...)
 		var a: Dictionary = hi.alvo
 		return {"pos": Vector2(float(a.x), float(a.z)), "nome": str(a.get("nome", "a missão")), "npc": str(a.get("npc", ""))}
+	if hi.has("ev") and int(hi.get("e", -1)) >= 0: # etapa que se faz em qualquer lugar: nada de levar ao NPC da missão (barquinho ia ao Nico)
+		return {}
 	var h: Dictionary = m.nevoa.hist()
 	var npc := _npc(str(M.npc))
 	var hp := Vector2(m.heroi.position.x, m.heroi.position.z)
@@ -240,7 +242,7 @@ func ir() -> void:
 		return
 	var A := alvo()
 	if A.is_empty():
-		m.hud.aviso("Nenhum lugar para ir nesta missão")
+		m.hud.aviso("Dá para fazer aqui mesmo" if not _info(_missao()).is_empty() else "Nenhum lugar para ir nesta missão")
 		return
 	var hp := Vector2(m.heroi.position.x, m.heroi.position.z)
 	var p: Vector2 = A.pos

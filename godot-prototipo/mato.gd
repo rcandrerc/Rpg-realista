@@ -380,27 +380,42 @@ func _conferir_lotes() -> void:
 		return
 	for id in cons.lotes:
 		var L: Dictionary = cons.lotes[id]
-		var s: int = L.pecas.size() * 31 + L.horta.size()
+		var s: int = _sinal_lote(L)
 		var antes: int = _sinais.get(id, -1)
 		_sinais[id] = s
-		if antes == -1 or antes == s:
+		# 2026-11-13 (André: "quando arar o terreno, tem que sumir essa grama alta"): o lote que chega do servidor
+		# depois de o mato em volta já ter nascido (entrar no jogo, chegar perto) também refaz os quadrados dele
+		if antes == s or (antes == -1 and s == 0):
 			continue
 		var d: Dictionary = L.def
 		for j in range(floori((float(d.z0) - 1.0) / CEL), floori((float(d.z1) + 1.0) / CEL) + 1):
 			for i in range(floori((float(d.x0) - 1.0) / CEL), floori((float(d.x1) + 1.0) / CEL) + 1):
 				var k := Vector2i(i, j)
 				_cache.erase(k)
+				if not _fazendo.is_empty() and _fazendo.k == k: # estava sorteando com o lote velho: começa de novo
+					_fazendo = {}
+					if not _fila.has(k):
+						_fila.push_front(k)
 				if _vivos.has(k) and not _refazer.has(k):
 					_refazer[k] = true
 					_fila.push_front(k)
 
 func _sinal_obstaculos() -> int:
-	var s: int = T.solidos.size() * 7919
+	# 2026-11-13: era uma soma, e um canteiro novo num terreno junto com um colhido em outro (a Cecília e o Dario
+	# mexem na horta a toda hora) dava a mesma soma: o mato não era refeito e ficava em cima da terra arada
+	var l: Array = [T.solidos.size()]
 	var cons = m.get("construcao")
 	if cons != null:
 		for id in cons.lotes:
-			s += cons.lotes[id].pecas.size() * 31 + cons.lotes[id].horta.size()
-	return s
+			l.append(_sinal_lote(cons.lotes[id]))
+	return hash(l)
+
+# peças, canteiros e o tamanho do terreno (o dono aumentou o terreno: o mato do pedaço novo também sai)
+func _sinal_lote(L: Dictionary) -> int:
+	if L.pecas.is_empty() and L.horta.is_empty():
+		return 0
+	var d: Dictionary = L.def
+	return L.pecas.size() * 31 + L.horta.size() + absi(hash([float(d.x0), float(d.z0), float(d.x1), float(d.z1)]) ) % 100003
 
 # ---------- montar e soltar os quadrados ----------
 
@@ -436,6 +451,38 @@ func _soltar(k: Vector2i) -> void:
 			_livres.append(g)
 	_vivos.erase(k)
 	_refazer.erase(k)
+
+# Terra arada nova (André 2026-11-13: "quando arar o terreno, tem que sumir essa grama alta"): o capim e a samambaia
+# em cima do canteiro (com a terra solta da borda e o tamanho da touceira) somem na hora, sem esperar o quadrado ser
+# sorteado de novo. Só mexe nos quadrados que encostam no canteiro (umas centenas de touceiras, uma vez por canteiro).
+const FOLGA_TERRA := 0.9 # raio da maior samambaia
+func tirar_em(x0: float, z0: float, x1: float, z1: float) -> void:
+	x0 -= FOLGA_TERRA; z0 -= FOLGA_TERRA; x1 += FOLGA_TERRA; z1 += FOLGA_TERRA
+	for j in range(floori(z0 / CEL), floori(z1 / CEL) + 1):
+		for i in range(floori(x0 / CEL), floori(x1 / CEL) + 1):
+			var k := Vector2i(i, j)
+			_cache.erase(k) # voltando aqui, sorteia de novo (o terreno já tira o mato)
+			if not _fazendo.is_empty() and _fazendo.k == k:
+				_fazendo = {}
+				if not _fila.has(k):
+					_fila.push_front(k)
+			if not _vivos.has(k):
+				continue
+			for g in _vivos[k]:
+				if g == null or g.multimesh == null:
+					continue
+				var mm: MultiMesh = g.multimesh
+				var buf := mm.buffer
+				var mexeu := false
+				for n in mm.instance_count:
+					var x: float = buf[n * 16 + 3]
+					var z: float = buf[n * 16 + 11]
+					if x > x0 and x < x1 and z > z0 and z < z1 and buf[n * 16 + 5] != 0.0:
+						for c in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
+							buf[n * 16 + c] = 0.0
+						mexeu = true
+				if mexeu:
+					mm.buffer = buf
 
 # troca de qualidade ou obstáculo novo: sorteia tudo de novo
 func _limpar(_x := false) -> void:

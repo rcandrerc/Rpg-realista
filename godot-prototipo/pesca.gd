@@ -41,6 +41,18 @@ var _im: ImmediateMesh
 var peixe_no: Node3D
 var _barra: Control
 var _barra_fill: ColorRect
+# visual (André 2026-11-13): a vara enverga com o peixe e no arremesso, a linha é fina, cai com barriga e encosta na água
+const GUIAS := [0.45, 0.75, 1.05, 1.35, 1.62] # passadores, em metros a partir do pé da vara
+const HASTE_N := 12 # pedaços da haste que enverga
+var haste: MeshInstance3D
+var _haste_im: ImmediateMesh
+var guias: Array = []
+var curva := 0.0 # quanto a vara enverga agora (negativo = para trás, no arremesso)
+var _curva_v := 0.0
+var _el_ant := 0.3
+var _folga := 0.0 # barriga da linha (sobe e desce devagar, sem pulo)
+var _boia_pend := Vector3.ZERO # boia pendurada na ponta antes de soltar no arremesso
+var _onda_t := 0.0
 
 func _init(principal) -> void:
 	m = principal
@@ -57,8 +69,9 @@ func _ready() -> void:
 	linha.mesh = _im
 	var ml := StandardMaterial3D.new()
 	ml.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	ml.albedo_color = Color(0.94, 0.94, 0.92, 0.8)
+	ml.albedo_color = Color(0.9, 0.92, 0.9, 0.62) # náilon: claro e meio transparente
 	ml.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ml.cull_mode = BaseMaterial3D.CULL_DISABLED # fita virada para a câmera (_desenhar_linha)
 	linha.material_override = ml
 	linha.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	m.add_child(linha)
@@ -89,25 +102,35 @@ func _cil(r0: float, r1: float, h: float, mt: Material, y: float) -> MeshInstanc
 	mi.position.y = y
 	return mi
 
-# vara: o +Y é o comprimento (pé da vara no 0, ponta em VARA_COMP)
+# vara: o +Y é o comprimento (pé da vara no 0, ponta em VARA_COMP). A haste (a parte que enverga) e os passadores
+# são desenhados à parte, em coordenadas do mundo, seguindo a curva da vara a cada quadro (_desenhar_haste).
 func _montar_vara() -> void:
 	vara = Node3D.new()
-	var madeira := _mat("6e4a2a", 0.55)
-	vara.add_child(_cil(0.017, 0.006, VARA_COMP, madeira, VARA_COMP / 2.0))
+	var madeira := _mat("5a3b22", 0.38) # madeira envernizada: um brilho de leve
+	madeira.clearcoat_enabled = true
+	madeira.clearcoat = 0.4
+	_haste_im = ImmediateMesh.new()
+	haste = MeshInstance3D.new()
+	haste.mesh = _haste_im
+	haste.material_override = madeira
+	haste.top_level = true # some junto com a vara (visible herda do pai), mas a posição é do mundo
+	vara.add_child(haste)
 	vara.add_child(_cil(0.024, 0.022, 0.34, _mat("a8835a", 0.9), 0.2)) # cabo de cortiça
 	var anel_mt := _mat("8c939c", 0.35, 0.8)
-	for f in [0.45, 0.75, 1.05, 1.35, 1.62]: # passadores da linha
+	for i in GUIAS.size(): # passadores da linha, do maior (perto do molinete) ao menor (ponta)
 		var a := MeshInstance3D.new()
 		var tm := TorusMesh.new()
-		tm.inner_radius = 0.008
-		tm.outer_radius = 0.013
+		var r: float = lerpf(0.013, 0.006, float(i) / float(GUIAS.size() - 1))
+		tm.inner_radius = r * 0.62
+		tm.outer_radius = r
 		tm.rings = 8
 		tm.ring_segments = 4
 		a.mesh = tm
 		a.material_override = anel_mt
-		a.position = Vector3(0, f, 0.018)
-		a.rotation.x = PI / 2.0
+		a.top_level = true
+		a.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		vara.add_child(a)
+		guias.append(a)
 	var mol := _cil(0.042, 0.042, 0.04, _mat("7d848c", 0.35, 0.85), 0.0) # molinete
 	mol.rotation.z = PI / 2.0
 	mol.position = Vector3(0, 0.42, 0.06)
@@ -117,7 +140,7 @@ func _montar_vara() -> void:
 	man.position = Vector3(0.03, 0.42, 0.1)
 	vara.add_child(man)
 	for c in vara.get_children():
-		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if c != vara.get_child(0) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if c != haste else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	m.add_child(vara)
 
 # boia: metade de cima vermelha, de baixo branca (igual à do Quimera), com uma anteninha
@@ -333,6 +356,11 @@ func evento(ev: Dictionary) -> void:
 			boia_z = float(ev.z)
 			bel_t = randf_range(0.8, 1.8)
 			mergulho = 0.0
+			curva = 0.0
+			_curva_v = 0.0
+			_folga = 0.0
+			_boia_pend = Vector3.ZERO
+			_el_ant = 0.35
 			m.acao = {"nome": "pesca", "t": 0.0, "dur": 1e9, "hits": [], "feitos": 0, "fn": func(_i): pass}
 			m.h.pend = null
 			m.armar("Coleta") # espada e cajado nas costas, mãos livres para a vara
@@ -374,8 +402,8 @@ func evento(ev: Dictionary) -> void:
 			tap = float(ev.get("tap", tap))
 			dec = float(ev.get("dec", dec))
 			briga_max = float(ev.get("max", briga_max))
-			if ev.has("t"):
-				t = float(ev.t)
+			if ev.has("tempo"): # o servidor manda o cronômetro da briga como "tempo" ("t" é o tipo do evento)
+				t = float(ev.tempo)
 		"pegou":
 			st = "pegou"
 			t = 0.0
@@ -546,12 +574,15 @@ func _process(dt: float) -> void:
 func _elevacao() -> Vector2:
 	match st:
 		"lancando":
+			# vai para trás macio, segura um instante (a vara carrega) e vem para a frente rápido; a boia sai no meio
 			var q: float = clamp(t / float(D.get("lancar", 0.6)), 0.0, 1.0)
-			if q < 0.4:
-				var s: float = q / 0.4
-				return Vector2(0.35 + 1.6 * s * (2.0 - s), s)
-			var r: float = (q - 0.4) / 0.6
-			return Vector2(1.95 - 1.75 * (1.0 - pow(1.0 - r, 3.0)), 1.0 - r)
+			if q < 0.36:
+				var s: float = q / 0.36
+				return Vector2(0.35 + 1.55 * s * (2.0 - s), s)
+			if q < 0.46:
+				return Vector2(1.9 + 0.08 * sin((q - 0.36) / 0.1 * PI * 0.5), 1.0)
+			var r: float = (q - 0.46) / 0.54
+			return Vector2(1.98 - 1.83 * (1.0 - pow(1.0 - r, 3.0)), 1.0 - r)
 		"espera":
 			return Vector2(0.2 + sin(m.tempo * 1.3) * 0.03 + mergulho * 0.08, 0.0)
 		"fisgou":
@@ -577,9 +608,40 @@ func _pose(dt: float) -> void:
 	# vara: +Y da malha no cabo, molinete para baixo
 	var bz: Vector3 = cabo.cross(dir).normalized() # +Z da vara para baixo (molinete embaixo)
 	vara.global_transform = Transform3D(Basis(cabo.cross(bz).normalized(), cabo, bz), pe)
-	var ponta: Vector3 = pe + cabo * VARA_COMP
-	if st == "briga" or st == "fisgou":
-		ponta -= cima * 0.12 # a ponta enverga com o peixe
+	# ---- quanto a vara enverga: o peixe puxa (tensão) e, no arremesso, a ponta atrasa (inércia) e depois chicoteia ----
+	var lancar: float = float(D.get("lancar", 0.6))
+	var tensao := 0.0
+	match st:
+		"espera":
+			tensao = 0.03 + mergulho * 0.12
+		"fisgou":
+			tensao = 0.38 + 0.1 * sin(m.tempo * 32.0)
+		"briga": # o peixe dá trancos: mais forte no começo, quando a barra está baixa
+			tensao = 0.5 + 0.16 * sin(m.tempo * 6.3) + 0.07 * sin(m.tempo * 17.0) + 0.12 * (1.0 - prog)
+		"pegou":
+			var tk: float = clampf(float(tier) / 4.0, 0.0, 1.0)
+			tensao = (0.45 + 0.3 * tk) * (1.0 - clampf((t - 0.35) / 0.4, 0.0, 1.0)) + (0.12 + 0.12 * tk)
+	var el_vel: float = (el - _el_ant) / max(dt, 0.001)
+	_el_ant = el
+	var alvo: float = tensao + clampf(el_vel, -12.0, 12.0) * 0.07 # subindo: a ponta fica para baixo; descendo: para trás
+	var passos := 2 if dt > 0.025 else 1
+	var h_dt: float = dt / passos
+	for _i in passos: # mola com amortecimento: depois do arremesso a ponta ainda balança um pouco
+		_curva_v += (200.0 * (alvo - curva) - 15.0 * _curva_v) * h_dt
+		curva = clampf(curva + _curva_v * h_dt, -0.6, 0.95)
+	# para onde enverga: na direção da linha (o peixe) quando tem tensão; para baixo/trás no arremesso
+	var w: Vector3 = (cima - cabo * cabo.dot(cima)).normalized()
+	var p_boia := Vector3(boia_x, float(m.terreno.agua.nivel), boia_z)
+	var para_linha: Vector3 = (p_boia - pe) - cabo * (p_boia - pe).dot(cabo)
+	var lado_peixe := Vector3.ZERO
+	if st == "briga":
+		lado_peixe = dir * 0.35 * sin(m.tempo * 1.7)
+	var dobra: Vector3 = -w
+	if para_linha.length() > 0.05:
+		dobra = (-w).lerp(para_linha.normalized(), clampf(tensao / 0.3, 0.0, 1.0)).normalized()
+	dobra = (dobra + lado_peixe).normalized()
+	var pts := _desenhar_haste(pe, cabo, dobra, dir)
+	var ponta: Vector3 = pts[HASTE_N]
 	# mãos na vara: a de cima (direita) no molinete, a esquerda no cabo atrás
 	var duas = m.trabalho.duas
 	if duas != null and is_instance_valid(duas):
@@ -600,19 +662,33 @@ func _pose(dt: float) -> void:
 	elif st == "briga":
 		by -= 0.05
 	var bp := Vector3(boia_x, by, boia_z)
+	var solta: float = lancar * 0.5 # a boia sai da ponta no meio da vinda para a frente
 	if st == "lancando":
-		var g: float = clamp((t - 0.24) / 0.36, 0.0, 1.0)
+		var pend: Vector3 = ponta - cima * 0.32
+		if _boia_pend == Vector3.ZERO:
+			_boia_pend = pend
+		_boia_pend = _boia_pend.lerp(pend, clampf(dt * 14.0, 0.0, 1.0)) # pendurada, vem atrasada atrás da ponta
+		var g: float = clampf((t - solta) / (lancar - solta), 0.0, 1.0)
 		if g <= 0.0:
-			bp = ponta - cima * 0.3
-		else:
-			bp = ponta.lerp(Vector3(boia_x, by, boia_z), g) + cima * sin(g * PI) * 1.4
+			bp = _boia_pend
+		else: # voo: anda rápido no começo e freia (o ar segura), sobe num arco e cai na água
+			var hz: float = 1.0 - pow(1.0 - g, 1.7)
+			var ini := _boia_pend
+			var dist: float = Vector2(bp.x - ini.x, bp.z - ini.z).length()
+			bp = Vector3(lerpf(ini.x, bp.x, hz), lerpf(ini.y, by, g) + (0.55 + 0.22 * dist) * 4.0 * g * (1.0 - g), lerpf(ini.z, bp.z, hz))
+			if g >= 1.0:
+				bp = Vector3(boia_x, by, boia_z)
 	elif st == "briga":
 		bp += Vector3(sin(m.tempo * 13.0), 0, cos(m.tempo * 11.0)) * 0.18
+		_onda_t -= dt
+		if _onda_t <= 0.0: # a linha corta a água: marolinhas onde o peixe puxa
+			_onda_t = 0.3
+			m.fx.anel(bp.x, bp.z, 0.22, "eaf7ff", 0.5, nivel - 0.06)
 	elif st == "pegou":
 		var u: float = clamp(t / 0.55, 0.0, 1.0)
 		var s: float = u * u * (3.0 - 2.0 * u)
-		var alvo: Vector3 = ponta - cima * 0.75
-		bp = Vector3(boia_x, by, boia_z).lerp(alvo, s) + cima * sin(u * PI) * 1.3
+		var alvo_p: Vector3 = ponta - cima * 0.75
+		bp = Vector3(boia_x, by, boia_z).lerp(alvo_p, s) + cima * sin(u * PI) * 1.3
 		if u >= 1.0:
 			bp.x += sin(m.tempo * 5.0) * 0.05
 		if peixe_no:
@@ -620,13 +696,98 @@ func _pose(dt: float) -> void:
 			var ry: float = atan2(frente.x, frente.z)
 			peixe_no.rotation = Vector3(-PI / 2.0 + sin(m.tempo * 18.0) * 0.5 * (1.0 - s * 0.6), ry, sin(m.tempo * 14.0) * 0.35)
 	boia.global_position = bp
-	# linha da ponta da vara até a boia, com uma barriga quando está frouxa (esperando)
+	# barriga da linha: frouxa esperando, solta no voo, esticada com o peixe (muda devagar, sem pulo)
+	var folga_alvo := 0.0
+	if st == "espera":
+		folga_alvo = 0.16
+	elif st == "lancando":
+		folga_alvo = 0.22 if t > solta else 0.0
+	_folga = move_toward(_folga, folga_alvo, dt * (3.0 if folga_alvo < _folga else 0.6))
+	_desenhar_linha(pts, bp + cima * 0.05, nivel, dir, st == "briga" or st == "fisgou")
+
+# a haste que enverga: cada pedaço vira um pouco mais que o anterior (o cabo fica reto, a ponta dobra mais).
+# Desenha um tubo afinando (6 lados) e põe os passadores em cima da curva. Devolve os pontos (0 = pé, HASTE_N = ponta).
+func _desenhar_haste(pe: Vector3, cabo: Vector3, dobra: Vector3, dir: Vector3) -> Array:
+	var pts := [pe]
+	var tans := [cabo]
+	var seg: float = VARA_COMP / HASTE_N
+	var p := pe
+	for i in HASTE_N:
+		var s: float = (i + 0.5) / HASTE_N
+		var a: float = curva * 1.5 * pow(maxf(0.0, (s - 0.25) / 0.75), 2.0)
+		var d: Vector3 = (cabo * cos(a) + dobra * sin(a)).normalized()
+		p += d * seg
+		pts.append(p)
+		tans.append(d)
+	_haste_im.clear_surfaces()
+	_haste_im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	const LADOS := 6
+	var aneis := []
+	for i in pts.size():
+		var tg: Vector3 = tans[i] if i == 0 else (tans[i] + tans[mini(i + 1, HASTE_N)]).normalized() if i < HASTE_N else tans[i]
+		var u: Vector3 = (dir - tg * tg.dot(dir)).normalized()
+		var v: Vector3 = tg.cross(u)
+		var r: float = lerpf(0.017, 0.0045, float(i) / HASTE_N)
+		var anel := []
+		for k in LADOS:
+			var ang: float = TAU * k / LADOS
+			var n: Vector3 = u * cos(ang) + v * sin(ang)
+			anel.append([pts[i] + n * r, n])
+		aneis.append(anel)
+	for i in HASTE_N:
+		for k in LADOS:
+			var a0 = aneis[i][k]
+			var a1 = aneis[i][(k + 1) % LADOS]
+			var b0 = aneis[i + 1][k]
+			var b1 = aneis[i + 1][(k + 1) % LADOS]
+			for q in [a0, b0, a1, a1, b0, b1]:
+				_haste_im.surface_set_normal(q[1])
+				_haste_im.surface_add_vertex(q[0])
+	_haste_im.surface_end()
+	# passadores: em pé na curva, do lado do molinete, com o furo na direção da vara
+	for j in guias.size():
+		var f: float = GUIAS[j] / seg
+		var i0: int = mini(int(f), HASTE_N - 1)
+		var pg: Vector3 = (pts[i0] as Vector3).lerp(pts[i0 + 1], f - i0)
+		var tg: Vector3 = tans[i0 + 1]
+		var bz: Vector3 = tg.cross(dir).normalized()
+		var gx: Vector3 = (dir - tg * tg.dot(dir)).normalized()
+		guias[j].global_transform = Transform3D(Basis(gx, tg, gx.cross(tg)), pg + bz * 0.02)
+	return pts
+
+# a linha: sai do molinete, passa pelos passadores, sai da ponta e vai até a boia. Uma fita fina sempre virada para a
+# câmera (fica com uns 1,5 pixel de largura de qualquer distância, sem sumir nem virar traço grosso). Frouxa ela faz
+# barriga e o pedaço que encosta na água fica deitado nela; esticada com o peixe, ela vibra.
+func _desenhar_linha(pts: Array, fim: Vector3, nivel: float, dir: Vector3, tensa: bool) -> void:
+	var cam: Camera3D = m.get_viewport().get_camera_3d()
+	var caminho := []
+	var cabo: Vector3 = ((pts[2] as Vector3) - pts[0]).normalized()
+	var bz0: Vector3 = cabo.cross(dir).normalized()
+	caminho.append(pts[0] + cabo * 0.42 + bz0 * 0.05) # sai do molinete
+	for j in guias.size():
+		caminho.append(guias[j].global_position)
+	var ponta: Vector3 = pts[HASTE_N]
+	caminho.append(ponta)
+	var d: float = ponta.distance_to(fim)
+	var n := 18
+	for i in range(1, n + 1):
+		var f: float = float(i) / n
+		var q: Vector3 = ponta.lerp(fim, f)
+		q.y -= _folga * d * 4.0 * f * (1.0 - f) * 0.5
+		q += dir * sin(m.tempo * 1.1 + f * 3.0) * 0.025 * _folga / 0.16 * sin(f * PI) # o vento balança a linha frouxa
+		if tensa:
+			q += dir * sin(m.tempo * 61.0 + f * 23.0) * 0.006 * sin(f * PI)
+		if i < n:
+			q.y = maxf(q.y, nivel + 0.004) # não afunda: deita na água
+		caminho.append(q)
 	_im.clear_surfaces()
-	_im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	var barriga: float = 0.12 if st == "espera" else 0.0
-	var a: Vector3 = ponta
-	var b: Vector3 = bp + cima * 0.05
-	for i in 9:
-		var f: float = i / 8.0
-		_im.surface_add_vertex(a.lerp(b, f) - cima * barriga * a.distance_to(b) * 0.25 * sin(f * PI))
+	_im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	var olho: Vector3 = cam.global_position if cam else ponta + Vector3.UP * 3.0
+	for i in caminho.size():
+		var p: Vector3 = caminho[i]
+		var tg: Vector3 = ((caminho[mini(i + 1, caminho.size() - 1)] as Vector3) - caminho[maxi(i - 1, 0)]).normalized()
+		var lado: Vector3 = tg.cross(olho - p).normalized()
+		var w: float = clampf(p.distance_to(olho) * 0.0016, 0.0025, 0.03)
+		_im.surface_add_vertex(p - lado * w)
+		_im.surface_add_vertex(p + lado * w)
 	_im.surface_end()

@@ -85,7 +85,10 @@ var modo_construcao := false
 var arrastar_terreno := false
 var esconder_combate := false # janela de um NPC aberta: skills, golpe, joystick e cura somem (fica o painel de vida)
 var caido := false # herói caído (morte.gd): os botões de luta somem até ele levantar
+const BARRA_Q := 1.0 / 512.0
 var _combate: Control # joystick e botões, desenhados por cima de _tela (some com fade)
+var _joy_ctl: Control # o joystick (filho de _combate, desenhado atrás dos botões)
+var _joy_tinha := false
 
 func levou_dano() -> void:
 	_dano_t = 0.35
@@ -102,6 +105,16 @@ func _ready() -> void:
 	_combate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_combate.draw.connect(_desenhar_combate)
 	_tela.add_child(_combate)
+	# FPS (varredura 2026-11-12): o joystick numa camada só dele, atrás dos botões (show_behind_parent: a mesma ordem
+	# de antes). Andando, só ele redesenha a cada quadro; os ~20 botões só quando mudam.
+	_joy_ctl = Control.new()
+	_joy_ctl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_joy_ctl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_joy_ctl.show_behind_parent = true
+	_joy_ctl.draw.connect(func():
+		if _toques.values().has("joy"):
+			desenhar_joystick(_joy_ctl, _joy_centro, mover))
+	_combate.add_child(_joy_ctl)
 	# posições pensadas numa tela de 1280x576 (deitada); contadas a partir do canto de baixo à direita
 	_botao("troca", Vector2(46, 250), 28, "troca", COR_TROCA)
 	# as 6 skills escolhidas no menu do personagem, num arco em volta do golpe
@@ -138,9 +151,9 @@ func _ready() -> void:
 	# vida em cima, mana embaixo. Contadas do canto de baixo à direita como os outros botões; mostram quantas tem na
 	# bolsa e a recarga; dá para mover no modo de editar a interface. (O jeito "tl", contado de cima à esquerda, continua
 	# valendo em _centro e na zona morta para quem precisar.)
-	_botao("pocao", Vector2(40, 371), 25, "it_pocao", COR_POCAO)
+	_botao("pocao", Vector2(40, 380), 25, "it_pocao", COR_POCAO)
 	botoes[-1].n = 0
-	_botao("pocao_mana", Vector2(40, 311), 25, "it_pocao_mana", COR_POCAO_MANA)
+	_botao("pocao_mana", Vector2(40, 318), 25, "it_pocao_mana", COR_POCAO_MANA)
 	botoes[-1].n = 0
 	# atalho do zoom (André 2026-11-12: "zoom out máximo com um toque só, sem atrapalhar o combate nem poluir a tela"):
 	# botãozinho colado no minimapa, em cima à esquerda dele, longe do polegar das skills. Um toque afasta a câmera ao
@@ -217,7 +230,8 @@ func aviso(t: String) -> void:
 		_destaque_t = 3.2
 		return
 	aviso_txt = t
-	_aviso_t = 2.2
+	# o tempo de ler (Mestra Moldura, conselho 2026-11-13): 2,2 s nos curtos; cerca de 15 letras por segundo nos longos
+	_aviso_t = clampf(1.0 + t.length() / 15.0, 2.2, 8.0)
 
 func _centro(b: Dictionary) -> Vector2:
 	if b.get("mini", false): # colado no minimapa (atalho do zoom)
@@ -303,12 +317,21 @@ func _input(ev: InputEvent) -> void:
 			construcao.arrasto(ev.position, 0)
 			return
 		if ev.pressed:
+			# com dois botões colados (poção de mana e Trocar arma), as áreas de toque (raio x 1,15) se cruzam: ganha o
+			# botão cuja borda está mais perto do dedo, não o primeiro da lista (antes o Trocar arma roubava o toque)
+			var achou = null
+			var melhor := INF
 			for b in botoes:
-				if not modo_construcao and not b.oculto and ev.position.distance_to(_centro(b)) <= b.raio * 1.15:
-					_toques[ev.index] = b.acao
-					b.apertado = true
-					apertou.emit(b.acao)
-					return
+				if not modo_construcao and not b.oculto:
+					var dd: float = ev.position.distance_to(_centro(b))
+					if dd <= b.raio * 1.15 and dd - b.raio < melhor:
+						melhor = dd - b.raio
+						achou = b
+			if achou != null:
+				_toques[ev.index] = achou.acao
+				achou.apertado = true
+				apertou.emit(achou.acao)
+				return
 			# zona morta (André 2026-11-03): dedo perto das skills sem acertar o botão não vira câmera nem pinça
 			if zona_morta(ev.position):
 				_toques[ev.index] = "morto"
@@ -465,27 +488,35 @@ func _process(dt: float) -> void:
 	# que respira no selo do nível é lento: 15 vezes por segundo bastam.
 	var q := Engine.get_process_frames()
 	var anim_tela: bool = editando or _aviso_t > 0 or _destaque_t > 0 or _dano_t > 0 or (vida < 0.3 and vida > 0.0) or _combate_a > 0.0 or canal >= 0.0
-	var st := [vida, mana, estamina, vigor, xp, texto_vida, texto_mana, nivel, nome, modo, escudo, sem_folego, canal_vila, canal_vila_txt, painel_d, painel_s, retrato, _tela.size]
-	if anim_tela or st != _sinal_tela or q % 4 == 0:
+	# FPS (varredura 2026-11-12): as barras entram no sinal arredondadas a 1/512 (menos de 1 pixel da barra: a vida e a
+	# mana enchendo devagar redesenhavam o painel todo quadro sem mudar nada na tela). Se só as barras mudaram, o painel
+	# redesenha em quadro par (30 vezes por segundo, como o brilho do selo que já era 15).
+	var st := [snappedf(vida, BARRA_Q), snappedf(mana, BARRA_Q), snappedf(estamina, BARRA_Q), snappedf(vigor, BARRA_Q), snappedf(xp, BARRA_Q),
+		texto_vida, texto_mana, nivel, nome, modo, escudo, sem_folego, canal_vila, canal_vila_txt, painel_d, painel_s, retrato, _tela.size]
+	if anim_tela or q % 4 == 0 or (st != _sinal_tela and (q % 2 == 0 or _sinal_tela.size() != st.size() or st.slice(5) != _sinal_tela.slice(5))):
 		_sinal_tela = st
 		_tela.queue_redraw()
+	var joy: bool = _toques.values().has("joy")
+	if joy or _joy_tinha: # o joystick redesenha sozinho (e uma vez mais ao soltar, para sumir)
+		_joy_ctl.queue_redraw()
+	_joy_tinha = joy
 	if _combate.visible:
-		var anim_comb: bool = editando or _toques.values().has("joy")
+		var anim_comb: bool = editando
 		var sc := [modo_construcao, _combate.size]
 		for b in botoes:
 			if b.cd > 0.0 or b.pronto_t > 0.0 or b.nega_t > 0.0 or b.get("ligado", false):
 				anim_comb = true
 			sc.append([b.oculto, b.cor, b.borda, b.travado, b.sem_mana, b.get("n", -1), b.icone, b.apertado, b.raio, b.canto, b.d, b.s])
-		if anim_comb or sc != _sinal_comb:
+		# FPS (conselho de auditoria 2026-11-13): só a animação (recarga, brilho de pronto, tremidinha) redesenha a cada 2
+		# quadros, como as barras; mudança de estado redesenha na hora
+		if sc != _sinal_comb or (anim_comb and (q % 2 == 0 or editando)):
 			_sinal_comb = sc
 			_combate.queue_redraw()
 
 # joystick e botões (num Control próprio, para sumir com fade quando a janela de um NPC abre)
 func _desenhar_combate() -> void:
 	var f := ThemeDB.fallback_font
-	# joystick
-	if _toques.values().has("joy"):
-		desenhar_joystick(_combate, _joy_centro, mover)
+	# joystick: camada própria (_joy_ctl), atrás dos botões
 	# botões
 	for b in botoes:
 		if (b.oculto or modo_construcao) and not editando: # no modo de edição aparecem todos (Coletar e Falar também)

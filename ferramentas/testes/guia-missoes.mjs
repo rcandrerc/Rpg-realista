@@ -38,6 +38,28 @@ ok(!('ev' in hi) && hi.npc === a2.npc, 'antes de aceitar: só o NPC (o guia pisc
 const c2 = HISTORIA.find((M) => M.id === 'c2');
 if (c2) { hi = em('c2', etapasDe(c2).findIndex((E) => E.ev === 'leilao')); ok(hi.ev === 'leilao' && hi.de === 'anunciar', 'leilão: traz de (anunciar)'); }
 
+// ---------- barquinho (André 2026-11-12): o Ir leva à bancada, nunca ao Nico (NPC do pack de peixe) ----------
+{
+  const a16 = HISTORIA.find((M) => M.id === 'a16'), eB = etapasDe(a16).findIndex((E) => E.k === 'barquinho');
+  j.prog.mochila.fill(null); guardar(j.prog.mochila, { k: 'lenha', n: 30 }); guardar(j.prog.mochila, { k: 'couro', n: 4 });
+  hi = em('a16', eB);
+  const banc = (s.mapa.estacoes || []).find((o) => o.k === 'bancada');
+  ok(hi.ev === 'criar' && hi.alvo && hi.alvo.npc === '' && banc && hi.alvo.estacao === banc.id, 'barquinho com material: Ir vai à bancada, não ao Nico');
+  Object.assign(j, { x: banc.x, z: banc.z });
+  ok(!!s.bancadaPerto(j), 'a bancada pública da vila serve para criar o barquinho');
+  // nenhuma etapa (fora falar e as do próprio NPC) leva ao NPC da missão quando tem material
+  const doNpc = new Set(['falar', 'vender', 'comprar', 'pack', 'pack_fez', 'passe', 'resetar', 'sintetizar', 'leilao', 'viajar', 'barra']);
+  const ruins = [];
+  for (const [i, M] of HISTORIA.entries()) etapasDe(M).forEach((E, e) => {
+    if (doNpc.has(E.ev)) return;
+    j.prog.nivel = M.nv; j.prog.hist = { v: 2, p: i, ac: true, e, n: 0, m: 0 };
+    const a = s.histInfo(j)?.alvo;
+    if (a?.npc && a.npc === M.npc && !E.alvo) ruins.push(`${M.id}#${e} ${E.ev}`);
+  });
+  ok(!ruins.length, `nenhuma etapa manda ao NPC da missão sem motivo (${ruins.join(', ')})`);
+  j.prog.mochila.fill(null);
+}
+
 // ---------- todo tipo de etapa tem guia no app ----------
 const gd = readFileSync(raiz + 'godot-prototipo/guia.gd', 'utf8');
 const passos = gd.slice(gd.indexOf('func passos('), gd.indexOf('func _passos_criar('));

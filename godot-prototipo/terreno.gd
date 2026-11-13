@@ -612,6 +612,16 @@ func _no_tunel_em(tunel: Array, tunel_grade: Dictionary, tunel_caixa: Rect2, x: 
 	return {"s": lerpf(a.s, b.s, mt), "y": lerpf(a.y, b.y, mt) + lerpf(a.incl, b.incl, mt) * lado, "l": lm, "teto": lerpf(a.teto, b.teto, mt), "d": md, "lado": lado}
 
 # chão da caverna para quem está na altura y (NAN fora do túnel ou bem acima do teto dele)
+# alguma caverna (túnel da vila ou do mundo) toca este retângulo? (main.distancia_livre pula a conta passo a passo
+# quando a linha da câmera nem chega perto de caverna: mesmo resultado, a câmera pesava ~1/3 menos)
+func caverna_na_caixa(r: Rect2) -> bool:
+	if not tunel.is_empty() and tunel_caixa.intersects(r, true):
+		return true
+	for t in tuneis_mundo:
+		if not (t.A as Array).is_empty() and (t.caixa as Rect2).intersects(r, true):
+			return true
+	return false
+
 func chao_caverna(x: float, z: float, y := INF) -> float:
 	var c := no_tunel(x, z)
 	if c.is_empty() or not (y < float(c.y) + float(c.teto) - 0.2):

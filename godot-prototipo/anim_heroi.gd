@@ -53,6 +53,44 @@ func usar_solta(masculino: bool) -> void:
 		_no_solta.animation = "parada_solta_m"
 	elif _no_solta:
 		_no_solta.animation = "parada_solta"
+# Mãos livres (André 2026-11-13: "se eu ficar parado, ela guardar e ficar com as duas armas nas costas"): parado fora
+# de combate um tempo, quem chama (main.gd) guarda as armas e liga maos_livres; a parada solta vira uma das paradas de
+# mãos vazias, revezando de vez em quando (dois lugares A e B que se misturam). MAOS_LIVRES = false volta ao de antes.
+const MAOS_LIVRES := true
+# André escolheu estas três (2026-11-13); conversando, apoiada e dancinha ficaram de fora
+const VAZIAS := ["parada_maleta", "parada_calma", "parada_bracos"]
+const VAZIA_MIN := 8.0 # s: as curtas repetem até passar disso antes de trocar
+const VAZIA_MISTURA := 0.8 # s
+var tem_vazia := false
+var maos_livres := false
+var _livre := 0.0 # 0 = parada solta (arma na mão), 1 = parada de mãos vazias
+var _vazias: Array = [] # as de VAZIAS que o corpo tem
+var _vz_nos := [] # AnimationNodeAnimation dos lugares A e B
+var _vz_ab := 0.0
+var _vz_alvo := 0.0
+var _vz_resta := 0.0 # s até trocar de parada
+var _vz_i := -1
+func _vazia_proxima(seek: bool) -> void:
+	if _vazias.is_empty():
+		return
+	var i := _vz_i
+	if _vazias.size() > 1:
+		while i == _vz_i:
+			i = randi() % _vazias.size()
+	else:
+		i = 0
+	_vz_i = i
+	var nome: String = _vazias[i]
+	var lugar := 1 if _vz_alvo < 0.5 else 0 # o que não está tocando agora
+	if not seek:
+		lugar = 0
+	_vz_nos[lugar].animation = nome
+	tree.set("parameters/vz_seek_%d/seek_request" % lugar, 0.0)
+	_vz_alvo = float(lugar)
+	if not seek:
+		_vz_ab = _vz_alvo
+	var dur: float = player.get_animation(nome).length
+	_vz_resta = dur * ceil(VAZIA_MIN / dur) - VAZIA_MISTURA
 var _gcaj := 0.0
 var _mexe := 0.0 # 0 = parado, 1 = andando/correndo
 var _corre := 0.0 # 0 = andar, 1 = corrida
@@ -124,6 +162,25 @@ func _init(p: AnimationPlayer) -> void:
 		bt.connect_node("solta", 1, "parada_solta")
 		parada_no = "solta"
 		_no_solta = bt.get_node("parada_solta")
+		for n in VAZIAS:
+			if player.has_animation(n):
+				player.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+				_vazias.append(n)
+		tem_vazia = MAOS_LIVRES and not _vazias.is_empty()
+		if tem_vazia:
+			for k in 2:
+				var a: AnimationNodeAnimation = anim.call(_vazias[0], "vz_%d" % k, Vector2(-450, 160 + 80 * k))
+				_vz_nos.append(a)
+				bt.add_node("vz_seek_%d" % k, AnimationNodeTimeSeek.new(), Vector2(-320, 160 + 80 * k))
+				bt.connect_node("vz_seek_%d" % k, 0, "vz_%d" % k)
+			bt.add_node("vz_ab", AnimationNodeBlend2.new(), Vector2(-200, 200))
+			bt.connect_node("vz_ab", 0, "vz_seek_0")
+			bt.connect_node("vz_ab", 1, "vz_seek_1")
+			bt.disconnect_node("solta", 1)
+			bt.add_node("livre", AnimationNodeBlend2.new(), Vector2(-60, 120))
+			bt.connect_node("livre", 0, "parada_solta")
+			bt.connect_node("livre", 1, "vz_ab")
+			bt.connect_node("solta", 1, "livre")
 	var idle := AnimationNodeBlend2.new()
 	bt.add_node("idle", idle, Vector2(200, 60))
 	tem_guarda_cajado = player.has_animation("cajado_parada")
@@ -414,6 +471,16 @@ func atualizar(dt: float, vel: float) -> void:
 	_gcaj = move_toward(_gcaj, 1.0 if guarda_cajado and em_guarda else 0.0, dt * (4.0 if em_guarda else 2.0))
 	var solta_alvo := 1.0 if pode_soltar and not em_guarda else 0.0
 	_solta = move_toward(_solta, solta_alvo, dt * (1.2 if solta_alvo > _solta else 5.0)) # entra na guarda rápido, relaxa devagar
+	if tem_vazia:
+		var quer_livre := maos_livres and solta_alvo > 0.0
+		if quer_livre and _livre <= 0.0:
+			_vazia_proxima(false) # começa uma parada nova do zero
+		_livre = move_toward(_livre, 1.0 if quer_livre else 0.0, dt * (2.5 if quer_livre else 6.0))
+		if _livre > 0.0:
+			_vz_resta -= dt
+			if _vz_resta <= 0.0:
+				_vazia_proxima(true)
+		_vz_ab = move_toward(_vz_ab, _vz_alvo, dt / VAZIA_MISTURA)
 	if tem_nado:
 		_nado = move_toward(_nado, 1.0 if nadando else 0.0, dt * 2.5)
 		_nada = move_toward(_nada, smoothstep(0.15, 0.9, vel) if nadando else 0.0, dt * 2.0)
@@ -434,6 +501,9 @@ func _aplicar(_dt: float) -> void:
 		tree.set("parameters/idle_caj/blend_amount", _gcaj)
 	if tem_solta:
 		tree.set("parameters/solta/blend_amount", _solta)
+	if tem_vazia:
+		tree.set("parameters/livre/blend_amount", _livre)
+		tree.set("parameters/vz_ab/blend_amount", _vz_ab)
 	tree.set("parameters/passo/blend_amount", _corre)
 	if tem_trote:
 		tree.set("parameters/rapido/blend_amount", _rapido)

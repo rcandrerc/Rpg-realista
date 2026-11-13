@@ -7,6 +7,7 @@ extends Node
 const Rede = preload("res://rede.gd")
 const D = preload("res://dados.gd")
 const Aparencia = preload("res://aparencia.gd")
+const Penteado = preload("res://penteado.gd")
 const Montaria = preload("res://montaria.gd")
 
 var m # main.gd
@@ -21,6 +22,12 @@ var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
 var para_servidor := {} # o contrário
 var _pos_t := 0.0
+# FPS (varredura 2026-11-12, preset Alta): o quadro passava pelos ~420 monstros do mapa inteiro para mexer em uns 20 (os
+# outros são vagas vazias ou mortos escondidos). Agora mexe só nos da lista _mexem: refeita a cada MEXEM_Q quadros, e o
+# monstro que recebe foto do servidor (inimigo()) entra na hora. Mesmo resultado, ~1/20 do trabalho.
+var _mexem: Array = []
+var _mexem_q := -1000
+const MEXEM_Q := 15
 # André 2026-11-12 (rollback): número do último "corrigir" aplicado. Vai em cada posição; o servidor ignora as que saíram
 # antes da correção mais nova (sem cascata) e aqui só vale correção mais nova que esta
 var corr_seq := 0
@@ -35,6 +42,7 @@ const QUEDA_MAX := 30.0
 const QUEDA_REINICIO := 60.0 # o servidor avisou que ia reiniciar (reinicio.gd): espera ele ligar de novo (~15 s na Oracle)
 var _queda_t := -1.0
 static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela inicial mostra o aviso
+static var _foi_trocado := false # saiu porque a conta entrou em outro aparelho (André 2026-11-13): o aviso diz isso
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
 var _pronto := false
@@ -69,6 +77,10 @@ var carregando: Label # "Conectando…" em cima da capa enquanto ainda não dá 
 var _cobrindo := false # capa na tela sem o painel: esperando o servidor
 var _cobrir_t := 0.0 # segurança: sem resposta em alguns segundos, libera o jogo
 const COBRIR_MAX := 12.0
+# depois da primeira foto, a capa ainda espera os monstros e espantalhos nascerem (main.gd montando), no máximo CRIAR_MAX s
+var _foto_capa := false
+var _criar_t := 0.0
+const CRIAR_MAX := 8.0
 
 func _init(principal) -> void:
 	m = principal
@@ -173,6 +185,8 @@ func montar_tela() -> void:
 	sub.add_theme_color_override("font_color", Color(0.9, 0.87, 0.82))
 	col.add_child(sub)
 	b_continuar = _botao("Entrar", Color(0.93, 0.62, 0.25), func():
+		if m.lentidao:
+			m.lentidao.marcar("toque")
 		cobrir("Entrando…") # o jogo só aparece quando o servidor mandar o mundo (ou o criador abrir)
 		rede.continuar())
 	col.add_child(b_continuar)
@@ -218,6 +232,8 @@ func mostrar_login() -> void:
 
 # abriu o jogo com conta salva: entra com ela ou troca de conta (pedido do André: perguntar toda vez)
 func mostrar_escolha(conta: Dictionary) -> void:
+	if m.lentidao: # linha do tempo da entrada (lentidao.gd)
+		m.lentidao.marcar("escolha")
 	_cobrindo = false
 	carregando.visible = false
 	titulo.text = "Bem-vindo de volta"
@@ -225,6 +241,9 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	if _foi_desconectado:
 		titulo.text = "Você foi desconectado"
 		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
+	if _foi_trocado:
+		titulo.text = "Conta em outro aparelho"
+		sub.text = "Sua conta entrou em outro aparelho.\nEntre aqui para jogar neste (o outro sai)."
 	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
 	b_continuar.visible = true
 	b_trocar.visible = true
@@ -241,6 +260,8 @@ func cobrir(texto: String) -> void:
 	if m.aquecer: # atrás da capa: cada efeito e monstro aparece uma vez (sem travada no primeiro uso; aquecer.gd)
 		m.aquecer.comecar()
 	_cobrir_t = COBRIR_MAX
+	_foto_capa = false
+	_criar_t = 0.0
 	painel.visible = false
 	capa.visible = true
 	carregando.text = texto
@@ -296,6 +317,7 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	meu_id = id
 	_queda_t = -1.0
 	_foi_desconectado = false
+	_foi_trocado = false
 	if m.reinicio:
 		m.reinicio.voltou() # servidor de volta: some a faixa do reinício
 	_conta_antes = conta.duplicate()
@@ -316,8 +338,12 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 		e.seq = -1
 		e.uma_vez = 0.0
 		e.alvo = e.no.position
+	_mexem_q = -1000 # todos voltaram a valer: refaz a lista de quem mexe
 
 func ao_cair(motivo: String) -> void:
+	if motivo == "trocado": # a conta entrou em outro aparelho: o último login vale, este não tenta voltar sozinho
+		_trocado()
+		return
 	var estava := ligado
 	if _cobrindo:
 		if rede.sessao != "": # tem conta (André 2026-11-07): sem servidor não entra no jogo, fica na tela inicial
@@ -380,6 +406,20 @@ func _desconectado() -> void:
 	_voltar_a_tela_inicial()
 	aviso_login.text = "Sem conexão com o servidor."
 
+# André 2026-11-13 (PC e celular ficavam se derrubando): outro aparelho entrou com a mesma conta. Volta para a tela
+# inicial com o aviso, sem tentar voltar sozinho. Tocando em "Entrar como…", este volta e o outro é que sai.
+func _trocado() -> void:
+	_foi_desconectado = false
+	_foi_trocado = true
+	if m.reinicio:
+		m.reinicio.voltou()
+	desligar()
+	if m.chat:
+		m.chat.desligou()
+	rede.fechar()
+	_voltar_a_tela_inicial()
+	aviso_login.text = "Sua conta entrou em outro aparelho."
+
 # Apagou o personagem ou saiu da conta (menu do topo): volta para a tela de login sem recarregar a cena.
 # André 2026-11-11: recarregar a cena (reload_current_scene) fechava o app no celular ao apagar o personagem, e só
 # dava para criar outro reabrindo o jogo (o mesmo tranco da queda de conexão, #262). Agora limpa o que era da conta
@@ -404,6 +444,7 @@ func voltar_ao_login(texto := "") -> void:
 	amiga_ids.clear()
 	amiga_papeis.clear()
 	_foi_desconectado = false
+	_foi_trocado = false
 	_conta_antes = {}
 	if m.criador and m.criador.aberto():
 		m.criador.fechar()
@@ -464,7 +505,9 @@ func _foto_meio(f: Dictionary) -> void:
 				tudo["_mexeu_meio"] = true
 			_srv[id] = tudo
 
+var foto_ms := 0 # quando chegou a última foto (lentidao.gd mede o maior tempo sem foto)
 func aplicar_foto(f: Dictionary) -> void:
+	foto_ms = Time.get_ticks_msec()
 	_medir_chegada()
 	_marcar_tempo(f)
 	corpos.clear()
@@ -535,8 +578,16 @@ func aplicar_foto(f: Dictionary) -> void:
 	if m.transporte and f.has("carga"): # FASE 1: packs no chão, carrinhos, barquinhos e navios
 		m.transporte.atualizar(f.carga)
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
-		if not (m.aquecer and m.aquecer.cobre): # efeitos ainda na frente da câmera (aquecer.gd): sai na próxima foto
-			esconder_login()
+		_foto_capa = true
+		_soltar_capa()
+
+# efeitos ainda na frente da câmera (aquecer.gd) ou monstros ainda nascendo (main.gd montando): a capa fica
+func _soltar_capa() -> void:
+	if m.aquecer and m.aquecer.cobre:
+		return
+	if m.montando() and _criar_t < CRIAR_MAX:
+		return
+	esconder_login()
 
 var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
@@ -617,14 +668,16 @@ func outro(j: Dictionary) -> void:
 	if o == null:
 		# NPC que já passou por aqui (André 2026-11-11, os 20 aventureiros): reaproveita o corpo guardado em vez de montar
 		# um VRoid novo (montar dava um tranco de quase 1 s no celular toda vez que um NPC entrava na visão)
-		var g = _tirar_guardado(vis) if j.has("bot") else null
+		# conselho de auditoria 2026-11-13: o corpo de outro jogador também é reaproveitado (antes ia embora e voltava montado)
+		var g = _tirar_guardado(vis)
 		if g != null:
 			o = {"no": g.no, "visual": vis, "anim": g.anim, "esq": g.esq, "espada": g.espada, "cajado": g.cajado,
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0,
 				"barra": g.barra, "placa": g.placa, "placa_txt": "", "lod": -1, "sumiu": false, "molas": g.get("molas", []), "fase": g.get("fase", 0),
 				# o corpo guardado já está com a cor e a roupa de antes: só pinta e veste de novo se mudou (André 2026-11-11:
 				# "passa alguma coisa, vai pra 22": pintar de novo o corpo e o penteado custava ~120 ms a cada NPC que voltava)
-				"ap": g.get("ap", ""), "roupa": g.get("roupa", "-")}
+				"ap": g.get("ap", ""), "roupa": g.get("roupa", "-"),
+				"tit": g.get("tit", "")} # o título que o corpo ainda mostra: o de quem chega troca ou some (titulos.gd)
 			g.no.position = o.alvo
 			g.no.visible = true
 			g.no.process_mode = Node.PROCESS_MODE_INHERIT
@@ -656,7 +709,9 @@ func outro(j: Dictionary) -> void:
 	var ap_txt := JSON.stringify(j.get("aparencia"))
 	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
 		o.ap = ap_txt
-		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador))
+		# sem esperar o penteado de outro modelo carregar (era a travada de ~1 s da Cecília, 2026-11-13): _detalhe_outros põe
+		# quando chegar
+		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador), false)
 	if str(j.get("nome", "")) != "":
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
@@ -680,6 +735,7 @@ func outro(j: Dictionary) -> void:
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
+		preload("res://junta_pecas.gd").juntar(o.no) # peças da armadura numa malha por material (junta_pecas.gd)
 		o.lod = -1 # peça nova vem com sombra e contorno: o detalhe por distância confere de novo
 	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
 	if roupa.contains("capa") and mexeu:
@@ -772,6 +828,9 @@ func inimigo(c: Dictionary) -> void:
 	corpos[str(c.id)] = e.no
 	_chefe_historia(e, c)
 	e.alvo = Vector3(float(c.x), float(c.y), float(c.z))
+	if not e.get("_mexe", false): # chegou foto: volta a ser mexido já neste quadro (_lista_mexem)
+		e._mexe = true
+		_mexem.append(e)
 	e.ry = float(c.ry)
 	if c.get("_mexeu", true): # área de interesse: monstro parado vem só com o id
 		_amostra(e, e.alvo, e.ry, c.has("_mexeu"))
@@ -1196,6 +1255,8 @@ func evento(ev: Dictionary) -> void:
 			m.mov.ry = float(ev.ry)
 			var novo: Vector3 = m.mov.posicao()
 			var dif: Vector3 = antes - novo
+			if m.lentidao:
+				m.lentidao.corrigiu(dif.length())
 			# correção pequena: o corpo desliza até o lugar certo (a câmera vai junto); grande: pula como antes
 			m.desliza = dif if Vector2(dif.x, dif.z).length() < DESLIZA_MAX and absf(dif.y) < 1.0 else Vector3.ZERO
 			m.heroi.position = novo + m.desliza
@@ -1399,6 +1460,11 @@ func _detalhe_outros(dt: float) -> void:
 		return
 	_detalhe_t = 0.25
 	var hp: Vector3 = m.heroi.position
+	for id in outros: # penteado que estava carregando no fundo (Penteado.aplicar sem esperar): põe agora, um por vez
+		var oe: Dictionary = outros[id]
+		if is_instance_valid(oe.no) and oe.no.has_meta("penteado_espera") and Penteado.pronto(str(oe.no.get_meta("penteado_espera"))):
+			Aparencia.aplicar(oe.no, Aparencia.valida(JSON.parse_string(str(oe.ap)), m.P.dados.criador), false)
+			break
 	var lista := []
 	for id in outros:
 		lista.append([outros[id].no.position.distance_squared_to(hp), id])
@@ -1435,19 +1501,21 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false)
 		m.LodMalha.pedir(o.no) # roupa, cabelo e corpo montados no jogo ganham LOD (lod_malha.gd)
 		m.pecinhas_de_perto(o.no) # olhos, cílios, fivelas: só desenhados de perto
+	else:
+		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false) # a armadura juntada nasce depois (junta_pecas.gd)
 	for mi in o.malhas:
 		if is_instance_valid(mi):
 			mi.lod_bias = [0.2, 0.4, 0.8][nivel]
 	m.anim_espacada(o.anim, o.esq, not cheio)
 	o.anim_acc = 0.0
 
-# saiu da visão: o corpo de NPC fica escondido e parado para ser reaproveitado; o de jogador vai embora como antes
+# saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:
 	if o.get("montaria") != null:
 		o.montaria.remover()
 		o.montaria = null
 	var l: Array = _guardados.get(o.visual, [])
-	if not o.get("bot", false) or l.size() >= GUARDADOS_MAX or not is_instance_valid(o.no):
+	if l.size() >= GUARDADOS_MAX or not is_instance_valid(o.no):
 		if is_instance_valid(o.no):
 			o.no.queue_free()
 		return
@@ -1474,7 +1542,10 @@ func _process(dt: float) -> void:
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
-	if _cobrindo and not (m.aquecer and m.aquecer.cobre): # preparando os efeitos atrás da capa não conta como espera
+	if _cobrindo and _foto_capa: # o servidor já respondeu: só falta o jogo acabar de montar (não volta para a tela inicial)
+		_criar_t += dt
+		_soltar_capa()
+	elif _cobrindo and not (m.aquecer and m.aquecer.cobre): # preparando os efeitos atrás da capa não conta como espera
 		_cobrir_t -= dt
 		if _cobrir_t <= 0.0: # o servidor não respondeu
 			if rede.sessao != "": # com conta: volta para a tela inicial (André 2026-11-07)
@@ -1529,7 +1600,8 @@ func _passo(dt: float) -> void:
 			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
 			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
 			o.montaria.passo(dt, o.vel_m)
-	for e in m.inimigos:
+	_lista_mexem()
+	for e in _mexem:
 		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
 			continue
 		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
@@ -1563,6 +1635,19 @@ func _passo(dt: float) -> void:
 	if _status_t <= 0.0:
 		_status_t = 0.5
 		atualizar_status()
+
+# monstros que o quadro mexe (ver _mexem): fora da lista só fica quem está morto e escondido (vaga vazia, longe)
+func _lista_mexem() -> void:
+	var q := Engine.get_process_frames()
+	if q - _mexem_q < MEXEM_Q and q >= _mexem_q:
+		return
+	_mexem_q = q
+	_mexem.clear()
+	for e in m.inimigos:
+		var mexe: bool = not (e.estado == "morto" and not e.no.visible) and e.has("alvo")
+		e._mexe = mexe
+		if mexe:
+			_mexem.append(e)
 
 # Chefe com nome da história (André 2026-11-11, CHEFES_HISTORIA): o servidor transforma um monstro do campo no chefe
 # (hc). Aqui o mesmo modelo cresce (esc), o nome vira o dele em dourado e a barra fica da cor do brilho; quando o corpo
@@ -1631,6 +1716,7 @@ func _corpo_humano(e: Dictionary, hc: String) -> void:
 	m.inimigos.pop_back() # o corpo novo fica no lugar do da vaga, não vira outro inimigo
 	h.no.rotation = e.no.rotation
 	m.Armadura.vestir(h.no, m.Armadura.de_texto(str(H.get("roupa", ""))))
+	preload("res://junta_pecas.gd").juntar(h.no)
 	e.no.visible = false
 	for k in CAMPOS_CORPO:
 		e.erase(k)

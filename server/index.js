@@ -2,6 +2,7 @@
 // Roda a simulação compartilhada 20 vezes por segundo e manda uma "foto" do mundo para todos.
 import http from 'node:http';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
@@ -19,9 +20,21 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
+// a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
+// sua). O próprio aparelho com um socket velho que o servidor ainda não viu cair não conta: esse sai como sempre saiu
+const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some((c) => c.auth?.id === id && c.userData?.sessao !== sessao));
+// '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
+// mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
+const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
+function temChavePerigosa(m, d = 0) {
+  if (typeof m === 'string') return PROIBIDO.has(m);
+  if (!m || typeof m !== 'object' || d > 5) return false;
+  for (const k in m) if (PROIBIDO.has(k) || temChavePerigosa(m[k], d + 1)) return true;
+  return false;
+}
 // queda (André 2026-11-12): conta -> hora (ms) da última posição que o servidor recebeu dela antes de cair. Entrando de novo,
 // o caminho andado sem internet vale (Simulacao.folgaDaQueda), em vez de puxar o herói de volta
 const saidas = new Map();
@@ -44,6 +57,7 @@ class SalaClareira extends Room {
   // viaTime: veio do chat de time, então a resposta dele também vai para o time
   falarComAmigoIa(c, amg, msg, viaTime) {
     const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
+    if (ctx && viaTime) ctx.time = this.sim.amigosIaNoTime(id).filter((x) => x !== amg).map((x) => x.AMIGA.nome); // conversa em grupo
     amg.ouvirAmiga(id, msg.texto);
     amg.amiga.ia.viaTime = viaTime ? this.sim.tempo + CHAT.respostaTime : 0; // do time: responde no time; do privado: no privado
     // dica de combate (André 2026-11-11): a IA é chamada uma vez e devolve a regra; esquecer/listar dicas vai pelas regras
@@ -58,11 +72,12 @@ class SalaClareira extends Room {
       let acao = ['time', 'sairTime', 'vir', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'naoAcao'].includes(regra) ? regra : r?.assunto === 'conversa' && ['sim', 'nao'].includes(regra) ? regra : r?.assunto;
       // André 2026-11-12: a regra só passa por cima da IA em pedido de verdade (curto e que muda algo); senão vale a fala da IA
       if (r && acao === regra && regra !== r.assunto && !amg.regraValeSobreIaAmiga(id, regra, msg.texto, r.assunto)) acao = amg.acaoSemEfeitoAmiga(id, r.assunto) ? 'conversa' : r.assunto;
-      if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa'; // "bora!" de quem já está no time: só conversa, com a fala da IA
-      amg.respostaAmiga(id, r ? { assunto: acao, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' ? r.fala : '' } : { assunto: regra });
-    });
+      if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa';
+      if (r && ['vir', 'time'].includes(acao) && amg.apelidoAmiga(msg.texto)) acao = 'conversa'; // "me chama de fofinha": apelido, não chamado // "bora!" de quem já está no time: só conversa, com a fala da IA
+      amg.respostaAmiga(id, r ? { assunto: acao, iaAssunto: r.assunto, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' || r.assunto === 'nao' ? r.fala : '' } : { assunto: regra });
+    }).catch((e) => console.error('amigo IA: resposta deu erro', e));
     // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
-    if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); });
+    if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); }).catch((e) => console.error('amigo IA: dica deu erro', e));
     else conversar();
   }
   onCreate() {
@@ -147,7 +162,10 @@ class SalaClareira extends Room {
       const amg = msg.canal === 'pm' ? this.sim.amigoIaDe(msg.alvo) : null; // Cecília ou Dario (André 2026-11-11), cada um com a sua cabeça
       if (amg && amg.amiga) this.falarComAmigoIa(c, amg, msg, false);
       // chat de time (André 2026-11-11): cada NPC do time (Cecília, Dario, aventureiros) ouve como se fosse no privado (dicas e comandos valem para todos)
-      if (msg.canal === 'time') for (const ctx of this.sim.amigosIaNoTime(c.sessionId)) this.falarComAmigoIa(c, ctx, msg, true);
+      if (msg.canal === 'time') {
+        const chamados = this.sim.amigosIaChamados(c.sessionId, msg.texto);
+        for (const ctx of this.sim.amigosIaNoTime(c.sessionId)) if (chamados.includes(ctx)) this.falarComAmigoIa(c, ctx, msg, true); else ctx.ouvirAmiga(c.sessionId, msg.texto);
+      }
     });
     // "Ativar conversa com IA" (André 2026-11-10): o jogador cria a chave grátis no Groq e cola no jogo uma vez só.
     // O servidor testa e guarda na conta dele (server/contas.js); ninguém precisa mandar chave para o André.
@@ -214,10 +232,17 @@ class SalaClareira extends Room {
     // (aparecem em /saude: se o servidor está folgado e o silêncio é grande, o atraso está na internet ou no celular)
     this.ouvir('pos', (c, p) => {
       const agora = Date.now(), u = (c.userData ||= {});
-      if (u.posT) { const gap = agora - u.posT; if (gap > carga.silencioMs) carga.silencioMs = gap; if (gap > 1000) carga.engasgos++; }
+      if (u.posT) {
+        const gap = agora - u.posT; if (gap > carga.silencioMs) carga.silencioMs = gap; if (gap > 1000) carga.engasgos++;
+        if (gap > (u.gapJan || 0) || agora - (u.gapJanT || 0) > 3000) { u.gapJan = gap; u.gapJanT = agora; } // maior silêncio dos últimos ~3 s (/lentidao)
+      }
       u.posT = agora;
       this.sim.posicaoCliente(c.sessionId, p);
     });
+    // lentidão (André 2026-11-13, "slow motion correndo com lobo"): o app anota sozinho o segundo ruim (godot-prototipo/
+    // lentidao.gd) e manda; aqui junta o que o servidor sabia na hora (pior passo dos últimos ~3 s, maior silêncio de
+    // posição desse celular) e guarda para ver em /lentidao. Só números, sem nome nem conta.
+    this.ouvir('lentidao', (c, e) => guardarLentidao(c, e, this));
     // medidor de ping: devolve na hora o número que o jogo mandou (o jogo mede quanto tempo levou a volta)
     // e o pior passo do servidor nos últimos ~3 s (app Godot: aviso "Servidor lento" no lugar do ping; André 2026-11-12)
     this.ouvir('ping', (c, t) => { if (Number.isFinite(t)) { c.send('pong', t); if (c.userData?.json) c.send('carga', { pico: Math.round(carga.picoPing) }); } });
@@ -272,15 +297,19 @@ class SalaClareira extends Room {
       b.n = Math.min(LIMITE.max, b.n + ((agora - b.t) / 1000) * LIMITE.porSeg); b.t = agora;
       if (b.n < custo) return;
       b.n -= custo;
+      if (temChavePerigosa(m)) return; // '__proto__' e companhia nunca são dado de jogo (auditoria 2026-11-13)
       // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
-      try { fn(c, m); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
+      try { const r = fn(c, m); if (r && typeof r.catch === 'function') r.catch((e) => console.error(`mensagem ${tipo} deu erro:`, e)); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
     });
   }
 
   tick() {
     const t0 = performance.now();
-    try { this.tickDeVerdade(); } finally {
+    // um erro no passo não derruba o servidor inteiro (auditoria 2026-11-13): registra (no máximo 1 vez a cada 5 s) e segue
+    try { this.tickDeVerdade(); } catch (e) { if (Date.now() - (this.erroTickT || 0) > 5000) { this.erroTickT = Date.now(); console.error('passo da sala deu erro:', e); } } finally {
       const ms = performance.now() - t0, agora = Date.now(); carga.ms = carga.ms * 0.98 + ms * 0.02; if (ms > carga.pico) carga.pico = ms;
+      // segundos do jogo por segundo de verdade nos últimos ~5 s (vai junto em /lentidao)
+      if (!this.relT) { this.relT = agora; this.relSim = this.sim.tempo; } else if (agora - this.relT >= 5000) { this.relogio = (this.sim.tempo - this.relSim) / ((agora - this.relT) / 1000); this.relT = agora; this.relSim = this.sim.tempo; }
       if (ms > carga.picoPing || agora - carga.picoPingT > 3000) { carga.picoPing = ms; carga.picoPingT = agora; } // janela de ~3 s para o aviso no app
     }
   }
@@ -309,11 +338,16 @@ class SalaClareira extends Room {
     if (!contas) return true;
     const conta = contas.porSessao(opcoes?.sessao);
     if (!conta) throw new ServerError(401, 'login');
+    // André 2026-11-13 (PC e celular na mesma conta ficavam se derrubando): o último login vale. Entrada automática
+    // (o app tentando voltar sozinho depois de uma queda, volta: true) não derruba o aparelho que entrou depois: é recusada
+    // e o app mostra "Sua conta entrou em outro aparelho" sem tentar de novo. Entrar tocando no botão continua derrubando
+    if (opcoes?.volta === true && contaLigadaEmOutro(conta.id, opcoes.sessao)) throw new ServerError(4001, 'outro_aparelho');
     return conta;
   }
 
   onJoin(client, opcoes) {
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
+    if (typeof opcoes?.sessao === 'string') (client.userData ||= {}).sessao = opcoes.sessao; // de qual aparelho (contaLigadaEmOutro)
     if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
     const conta = contas ? client.auth : null;
     const velhos = [], fantasmas = []; // sessões antigas da mesma conta: o herói novo fica com o time e os amigos delas (trocarSessao)
@@ -321,7 +355,13 @@ class SalaClareira extends Room {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
         const vj = this.sim.jogadores.get(outro.sessionId);
-        if (vj) { this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
+        if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
+        (outro.userData ||= {}).substituido = true; outro.leave(4001);
+      }
+      // a mesma conta numa outra sala (salas cheias abrem outra): também sai, e o progresso dela vem junto
+      for (const s of salas) if (s !== this) for (const outro of s.clients) if (outro.auth?.id === conta.id) {
+        const vj = s.sim.jogadores.get(outro.sessionId);
+        if (vj) { s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; }
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
       // o servidor já tinha visto a queda: o herói antigo está no mundo esperando reconexão (allowReconnection, 20 s) e
@@ -329,8 +369,11 @@ class SalaClareira extends Room {
       // 15 s atrás, e o antigo ficava 20 s no mundo como fantasma)
       const vivos = new Set(this.clients.map((o) => o.sessionId));
       for (const vj of [...this.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && vj.id !== client.sessionId && !vivos.has(vj.id)) {
-        this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
+        this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
         velhos.push(vj.id); fantasmas.push(vj.id); // sai do mundo logo abaixo, depois de passar o time e os amigos para o novo
+        // o aparelho antigo não pode mais voltar como esse herói (André 2026-11-13): sem isso ele religava num herói que
+        // já saiu do mundo; agora a volta falha, ele tenta entrar de novo (volta: true) e o onAuth recusa
+        const espera = this.esperas?.get(vj.id); if (espera) { this.esperas.delete(vj.id); espera.reject(new Error('substituido')); }
       }
     }
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
@@ -403,7 +446,9 @@ class SalaClareira extends Room {
   async onLeave(client, consentiu) {
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
     if (!consentiu && !client.userData?.substituido) {
-      try { await this.allowReconnection(client, 20); this.voltouNaMesmaSessao(client); return; } catch { /* não voltou a tempo */ }
+      const espera = this.allowReconnection(client, 20);
+      (this.esperas ||= new Map()).set(client.sessionId, espera); // a conta entrou de novo por outro caminho: onJoin desiste da espera
+      try { await espera; this.esperas.delete(client.sessionId); this.voltouNaMesmaSessao(client); return; } catch { this.esperas.delete(client.sessionId); /* não voltou a tempo, ou foi trocado */ }
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); } // queda: a hora da última notícia
@@ -429,12 +474,49 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+// lentidões anotadas pelos apps (lentidao.gd): as últimas LENTIDAO_MAX na memória e num arquivo da pasta de dados
+const LENTIDAO_MAX = 300;
+const LENTIDAO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao.jsonl');
+const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido', 'andou', 'andou_lobo', 'mov', 'bloq', 'corr', 'corr_m', 'foto_ms', 'ping', 'x', 'z', 'grafico', 'limite', 'paralelo'];
+const lentidoes = [];
+let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
+try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
+const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico'];
+function guardarLentidao(c, e, sala) {
+  if (!e || typeof e !== 'object') return;
+  if (e.tipo === 'entrada') { // linha do tempo da entrada (ms desde que o app abriu), uma por abertura
+    const r = { servidor: Date.now(), tipo: 'entrada' };
+    for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
+    if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    return guardarLinha(r);
+  }
+  const r = { servidor: Date.now(), tickPico: Math.round(carga.picoPing), posGap: c.userData?.gapJan ?? null, relogioSrv: sala?.relogio != null ? +sala.relogio.toFixed(3) : null };
+  for (const k of LENTIDAO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
+  r.montado = e.montado === true;
+  if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+  guardarLinha(r);
+}
+function guardarLinha(r) {
+  lentidoes.push(r);
+  if (lentidoes.length > LENTIDAO_MAX) lentidoes.splice(0, lentidoes.length - LENTIDAO_MAX);
+  if (++lentidaoLinhas > 2 * LENTIDAO_MAX) {
+    lentidaoLinhas = 0;
+    fs.writeFile(LENTIDAO_ARQ, lentidoes.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
+  } else fs.appendFile(LENTIDAO_ARQ, JSON.stringify(r) + '\n', () => {});
+}
+app.get('/lentidao', (_req, res) => res.json(lentidoes.slice(-100)));
+
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
+// relogio (2026-11-13, "slow motion" no lobo): segundos do jogo no servidor por segundo de verdade desde a última leitura.
+// Abaixo de 1, o servidor anda devagar (passos atrasando) e a folga de velocidade do herói enche mais devagar que ele corre.
+const relogioSrv = { sim: null, t: 0 };
 app.get('/saude', (_req, res) => {
   let jogadores = 0, correcoes = 0; for (const s of salas) { jogadores += s.clients.length; correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
+  const s0 = [...salas][0], agoraR = Date.now(); let relogio = null;
+  if (s0) { if (relogioSrv.sim != null && agoraR > relogioSrv.t) relogio = +((s0.sim.tempo - relogioSrv.sim) / ((agoraR - relogioSrv.t) / 1000)).toFixed(3); relogioSrv.sim = s0.sim.tempo; relogioSrv.t = agoraR; }
   // desde a última leitura: correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um
   // celular, engasgos = silêncios de mais de 1 s
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos });
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos, relogio });
   carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
@@ -505,6 +587,12 @@ app.get('/conta/eu', (req, res) => {
   const conta = contas.porSessao(sessaoDe(req));
   conta ? res.json({ conta }) : res.status(401).json({ erro: 'login' });
 });
+// o app vai voltar sozinho depois de uma queda (André 2026-11-13): antes pergunta se a conta já está jogando em outro
+// aparelho. Se está, não entra (entrar derrubaria o outro): mostra "Sua conta entrou em outro aparelho"
+app.get('/conta/ligada', (req, res) => {
+  const s = sessaoDe(req), conta = contas.porSessao(s);
+  conta ? res.json({ ligada: contaLigadaEmOutro(conta.id, s) }) : res.status(401).json({ erro: 'login' });
+});
 app.post('/conta/sair', (req, res) => { contas.sair(sessaoDe(req)); res.json({ ok: true }); });
 // Ligar o app (APK) à conta: o app abre o site com ?vincular=CODIGO; quem fez login no site manda o código aqui
 // e o app busca a sessão nova pelo mesmo código (vale 5 minutos e só uma vez). A senha do Google nunca passa pelo app.
@@ -538,6 +626,14 @@ app.post('/conta/apagar', (req, res) => {
   res.json({ ok: true });
 });
 
+// rede de segurança (auditoria 2026-11-13): promessa rejeitada sem dono só registra; erro solto grava todo mundo antes de sair
+// (o systemd sobe de novo). Antes, os dois derrubavam o processo sem gravar: até 15 s de progresso perdidos.
+process.on('unhandledRejection', (e) => console.error('promessa sem catch:', e));
+process.on('uncaughtException', (e) => {
+  console.error('erro solto, gravando e saindo:', e);
+  for (const s of salas) { try { s.salvarProgressos(); } catch (e2) { console.error('gravar falhou', e2); } }
+  process.exit(1);
+});
 const servidor = http.createServer(app);
 const gameServer = new Server({ transport: new WebSocketTransport({ server: servidor, pingInterval: 5000, pingMaxRetries: 4 }) });
 gameServer.define('clareira', SalaClareira);

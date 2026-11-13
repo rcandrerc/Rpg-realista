@@ -15,6 +15,10 @@ static var _fila: Array = [] # MeshInstance3D esperando
 static var _quadro := -1
 static var _gasto := 0.0
 static var ligado := true
+# malha original -> malha com LOD já montada (2026-11-13): antes cada corpo novo ganhava uma cópia própria da mesma malha
+# (outra cópia na placa de vídeo e mais trabalho no quadro); agora todos os corpos com a mesma malha usam a mesma.
+# Referências fracas: a malha some quando nenhum corpo usa mais.
+static var _prontas := {} # instance id da original -> [WeakRef original, WeakRef com LOD]
 
 # põe as malhas sem LOD deste corpo na fila (chamado quando o corpo de NPC ou de outro jogador aparece ou troca de roupa)
 static func pedir(raiz: Node) -> void:
@@ -29,6 +33,15 @@ static func pedir(raiz: Node) -> void:
 			# malha no RenderingServer espera a outra linha terminar; tudo no mesmo quadro = uma espera só
 			mi.set_meta("lod_chave", _chave(mi.mesh))
 			_fila.append(mi)
+
+# uma malha só (a armadura juntada de junta_pecas.gd nasce depois do pedir do corpo)
+static func pedir_malha(mi: MeshInstance3D) -> void:
+	if not ligado or mi == null or not (mi.mesh is ArrayMesh) or mi.get_meta("lod_ok", 0) == mi.mesh.get_instance_id():
+		return
+	mi.set_meta("lod_ok", mi.mesh.get_instance_id())
+	if _precisa(mi.mesh):
+		mi.set_meta("lod_chave", _chave(mi.mesh))
+		_fila.append(mi)
 
 static func _precisa(am: ArrayMesh) -> bool:
 	var tris := 0
@@ -79,9 +92,14 @@ static func passo() -> void:
 		if k == "":
 			k = _chave(velha)
 		if _cache.has(k):
-			var nova := _montar(velha, _cache[k])
+			var nova: ArrayMesh = _pronta(velha)
+			if nova == null:
+				nova = _montar(velha, _cache[k])
+				if nova != null:
+					nova.custom_aabb = velha.custom_aabb
+					nova.set_meta("lod_de", weakref(velha)) # o cabelo debaixo do capacete (armadura.gd) parte da original
+					_prontas[velha.get_instance_id()] = [weakref(velha), weakref(nova)]
 			if nova != null:
-				nova.custom_aabb = velha.custom_aabb
 				mi.mesh = nova
 				mi.set_meta("lod_ok", nova.get_instance_id())
 		elif _tarefa < 0: # gera este formato na linha de fundo
@@ -95,6 +113,21 @@ static func passo() -> void:
 			adiadas.append(mi) # outro formato: espera a linha de fundo terminar
 		_gasto += (Time.get_ticks_usec() - t0) / 1000.0
 	_fila = adiadas + _fila
+
+static func _pronta(velha: ArrayMesh) -> ArrayMesh:
+	var p = _prontas.get(velha.get_instance_id())
+	if p == null:
+		return null
+	if (p[0] as WeakRef).get_ref() != velha or (p[1] as WeakRef).get_ref() == null:
+		_prontas.erase(velha.get_instance_id())
+		return null
+	return (p[1] as WeakRef).get_ref()
+
+# a malha original de uma malha com LOD montada aqui (ou ela mesma)
+static func original(am: Mesh) -> Mesh:
+	var w = am.get_meta("lod_de", null) if am else null
+	var o = (w as WeakRef).get_ref() if w is WeakRef else null
+	return o if o is Mesh else am
 
 static func _gerar(im: ImporterMesh) -> void:
 	im.generate_lods(25.0, 60.0, [])

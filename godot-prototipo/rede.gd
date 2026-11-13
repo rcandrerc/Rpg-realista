@@ -48,6 +48,16 @@ const VOLTA_MAX_MS := 17000 # o servidor espera 20 s a partir de quando ele viu 
 # reenviar. O servidor manda algo 20 vezes por segundo (o mundo) e o pong a cada 2 s: SILENCIO_MAX_MS sem nada é
 # conexão morta. Larga ela e religa (mesma sessão se o servidor já viu a queda; senão entra de novo, o #408 cuida)
 const SILENCIO_MAX_MS := 6000
+var _trocado := false # o servidor disse que a conta está jogando em outro aparelho (último login vale)
+var _entrando_auto := false # entrando de novo sozinho (queda), ainda sem resposta da sala
+
+# a conta está jogando em outro aparelho agora? (servidor fora ou sem resposta: false, segue o caminho de sempre)
+func _ligada_em_outro() -> bool:
+	var r := await pedir("GET", "/conta/ligada")
+	return r.codigo == 200 and r.dados.get("ligada", false) == true
+
+func _conferir_troca(motivo: String) -> void:
+	caiu.emit("trocado" if await _ligada_em_outro() else motivo)
 
 func _ready() -> void:
 	if OS.get_environment("RPG_SERVIDOR") != "":
@@ -71,7 +81,8 @@ func guardar(s: String) -> void:
 
 # Começo: com sessão guardada, confere e entra (perguntar = abriu o jogo agora: mostra a janela de escolher a conta);
 # sem sessão, pede login
-func iniciar(perguntar := false) -> void:
+# automatico = o app tentando voltar sozinho depois de uma queda: o servidor não deixa essa entrada derrubar outro aparelho
+func iniciar(perguntar := false, automatico := false) -> void:
 	if sessao == "":
 		precisa_login.emit()
 		return
@@ -83,7 +94,7 @@ func iniciar(perguntar := false) -> void:
 			estado.emit("")
 			escolher_conta.emit(conta)
 			return
-		entrar_na_sala()
+		entrar_na_sala(automatico)
 	elif r.codigo == 401:
 		guardar("")
 		precisa_login.emit()
@@ -126,14 +137,21 @@ func _nativo_erro(msg: String) -> void:
 		entrar_pelo_site()
 
 # Login pelo site: abre o navegador e fica esperando o servidor liberar a sessão
+# o site sempre esquece a conta que ele mesmo lembrava: quem escolhe a conta é a janela do Google (versão PC 2026-11-13:
+# depois de sair ou de "Trocar de conta", entrava de novo sozinho na mesma conta)
 func entrar_pelo_site() -> void:
+	_abrir_site(true)
+
+func _abrir_site(trocar: bool) -> void:
 	var letras := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	var cripto := Crypto.new()
 	var bytes := cripto.generate_random_bytes(32)
 	_codigo = ""
 	for b in bytes:
 		_codigo += letras[b % letras.length()]
-	OS.shell_open(SITE + "?vincular=" + _codigo)
+	# trocar=1: o site esquece a conta que ele mesmo lembrava e mostra a escolha de conta do Google (versão PC, 2026-11-13:
+	# "Trocar de conta" voltava sempre na mesma conta)
+	OS.shell_open(SITE + "?vincular=" + _codigo + ("&trocar=1" if trocar else ""))
 	_vinculo_ate = _tempo + 300.0
 	_espera_vinculo = 2.0
 	estado.emit("Faça o login no navegador e volte para o jogo")
@@ -145,7 +163,10 @@ func continuar() -> void:
 
 func trocar_conta() -> void:
 	sair_da_conta()
-	entrar_com_google()
+	if _login_nativo or Engine.has_singleton("LoginGoogle"):
+		entrar_com_google()
+	else:
+		_abrir_site(true)
 
 func sair_da_conta() -> void:
 	if _login_nativo:
@@ -212,9 +233,16 @@ func pedir(metodo: String, caminho: String, corpo = null, com_sessao := true) ->
 	var dados = JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8())
 	return {"codigo": int(res[1]) if res[0] == HTTPRequest.RESULT_SUCCESS else 0, "dados": dados if dados is Dictionary else {}}
 
-func entrar_na_sala() -> void:
+func entrar_na_sala(automatico := false) -> void:
 	estado.emit("Entrando no mundo…")
-	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho"), "json": true, "aoi": true}) # aoi: só o que está perto (server/visao.js)
+	_trocado = false
+	_entrando_auto = automatico
+	if automatico and await _ligada_em_outro(): # a conta já está jogando em outro aparelho: não derruba ele
+		_entrando_auto = false
+		caiu.emit("trocado")
+		return
+	# volta: entrada automática (queda). O servidor recusa se a conta já está jogando em outro aparelho (último login vale)
+	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho"), "json": true, "aoi": true, "volta": automatico}) # aoi: só o que está perto (server/visao.js)
 	if r.codigo != 200 or not r.dados.has("room"):
 		estado.emit("Não deu para entrar na sala")
 		caiu.emit("sala")
@@ -231,7 +259,7 @@ func pode_religar() -> bool:
 func religar() -> void:
 	if not pode_religar():
 		_volta = {}
-		iniciar()
+		iniciar(false, true)
 		return
 	estado.emit("Voltando…")
 	var v := _volta
@@ -243,8 +271,8 @@ func religar() -> void:
 		caiu.emit("fora")
 		return
 	if r.codigo != 200 or not r.dados.has("room") or str(r.dados.get("sessionId", "")) != str(v.id):
-		_volta = {} # o servidor não segura mais o herói (passou dos 20 s ou reiniciou): entra de novo
-		iniciar()
+		_volta = {} # o servidor não segura mais o herói (passou dos 20 s, reiniciou ou a conta entrou em outro aparelho): entra de novo
+		iniciar(false, true)
 		return
 	meu_id = str(v.id)
 	_abrir_ws(str(v.token))
@@ -309,7 +337,17 @@ func _passo(dt: float) -> void:
 	if st == WebSocketPeer.STATE_CLOSED:
 		var codigo_fim := ws.get_close_code()
 		var motivo := "fechou %d" % codigo_fim
+		# André 2026-11-13: a conta entrou em outro aparelho (4001) ou o servidor recusou a volta automática porque ela já
+		# está jogando em outro (erro "outro_aparelho"). Este aparelho sai e não tenta voltar sozinho (online.gd "trocado")
+		if codigo_fim == 4001 or _trocado:
+			motivo = "trocado"
+			_trocado = false
 		ws = null
+		# volta automática recusada antes de entrar (4002: o Godot nem sempre lê o erro que vem junto com o fechamento)
+		if codigo_fim == 4002 and _entrando_auto and not conectado:
+			_entrando_auto = false
+			_conferir_troca(motivo)
+			return
 		if not _volta.is_empty():
 			if codigo_fim == 1000 or codigo_fim >= 4000: # o servidor fechou de propósito (trocado por outro aparelho, saiu, reiniciou)
 				_volta = {}
@@ -366,6 +404,7 @@ func _receber(p: PackedByteArray) -> void:
 			ws.send(PackedByteArray([JOIN_ROOM]))
 			ult_pacote_ms = Time.get_ticks_msec() # o silêncio conta a partir de agora
 			conectado = true
+			_entrando_auto = false
 			estado.emit("Online")
 			entrou.emit(meu_id, conta)
 		ERROR:
@@ -374,6 +413,9 @@ func _receber(p: PackedByteArray) -> void:
 			if str(txt) == "login":
 				guardar("")
 				precisa_login.emit()
+			if str(txt) == "outro_aparelho": # o fechamento vem logo depois: vira caiu("trocado")
+				_trocado = true
+				_volta = {}
 			estado.emit("Servidor recusou: %s" % str(txt))
 			push_warning("erro do servidor %s %s" % [cod, txt])
 		LEAVE_ROOM:

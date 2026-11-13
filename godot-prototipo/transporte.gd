@@ -833,6 +833,7 @@ func abrir_carrinho() -> void:
 	x.custom_minimum_size = Vector2(44, 44)
 	x.add_theme_font_size_override("font_size", 20)
 	x.pressed.connect(_fechar_janela)
+	x.add_to_group("guia_saida") # a trava do guia (guia.gd) sempre deixa o X passar
 	topo.add_child(x)
 	# meio: combustível (1 lugar) | carga (lugares por nível)
 	var meio := HBoxContainer.new()
@@ -878,7 +879,10 @@ func abrir_carrinho() -> void:
 				func(): _tirar_pack(i))
 			grade.add_child(sl)
 		elif i < cap:
-			grade.add_child(_slot(Vector2(72, 72), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_pack()))
+			var vz := _slot(Vector2(72, 72), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_pack())
+			if i == cp.size():
+				vz.set_meta("guia", "veiculo:por_pack") # guia das missões: o pack das costas vai aqui
+			grade.add_child(vz)
 		else:
 			var nv_abre: int = i / int(C.capacidade) + 1
 			var tr := _slot(Vector2(72, 72), m.hud.icone("cadeado"), "Nv %d" % nv_abre, Color(0.32, 0.28, 0.22),

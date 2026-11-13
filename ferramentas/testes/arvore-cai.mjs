@@ -6,6 +6,8 @@ const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana'), b = s.adicionarJogador('B', 'Beto');
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const no = s.coletaveis.get('m5');
+// os monstros da clareira ficam longe: às vezes um matava o B no meio do teste e ele não cortava por estar morto (2026-11-13)
+for (const e of s.inimigos) { e.x += 1e5; e.z += 1e5; }
 for (const j of [a, b]) { j.ciente = true; j.prog.vigor = { v: 999, t: Date.now() }; j.prog.mochila[j.prog.mochila.indexOf(null)] = { k: 'machado', n: 1 }; } // cortar pede o machado (André 2026-11-07)
 const perto = (j, dx) => { j.x = no.x + dx; j.z = no.z; s.passo(0.05); j.x = no.x + dx; j.z = no.z; };
 perto(a, -(no.r + 1)); perto(b, no.r + 1);

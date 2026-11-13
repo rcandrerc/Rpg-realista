@@ -67,7 +67,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -124,6 +124,7 @@ var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
 var aquecer # aquecer.gd: mostra cada efeito e monstro uma vez atrás da capa (sem travada no primeiro uso)
+var lentidao # lentidao.gd: anota sozinho os segundos de câmera lenta, puxão do servidor e travada (manda para o servidor)
 var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
@@ -263,6 +264,15 @@ var _q_pre := 0
 var _q_fim := 0
 var q_ms := {"quadro": 0.0, "fisica": 0.0, "logica": 0.0, "desenho": 0.0, "espera": 0.0}
 var soma_q := {}
+# tranco (conselho de auditoria 2026-11-13): a média esconde a travada. Cada etapa do Teste guarda o tempo de todos os
+# quadros (pior, p99, quantos passaram de 33 ms) e conta as chamadas de desenho, os triângulos e os objetos. Fora do
+# Teste, a linha mostra o pior quadro dos últimos 5 s e quantas travadas (quadro de 100 ms ou mais) já teve desde que abriu.
+var _q_quadros := PackedFloat32Array()
+var _pior_janela := 0.0
+var _pior_mostra := 0.0
+var _pior_t := 0
+var travadas := 0
+const TRAVADA_MS := 100.0
 var _sem_gente := [] # etapa "Sem personagens": [nó, estava visível]
 var _desligados_teste := [] # etapas "Sem interface", "Herói sem animação", "Sem monstros": [objeto, propriedade, valor de antes]
 var _tela_teste: CanvasLayer
@@ -273,7 +283,14 @@ var botao_teste: Button
 const ESPERA := 2.5
 const MEDE := 5.0
 
+var t_ready0 := 0 # ms (desde que o app abriu) no começo do _ready: a linha do tempo da entrada (lentidao.gd)
 func _ready() -> void:
+	t_ready0 = Time.get_ticks_msec()
+	get_tree().quit_on_go_back = false # o Voltar do Android fecha a janela de cima (voltar_android)
+	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
+	# próxima abertura. Não fecha mais o jogo: a trava de verdade era o pré-carregamento em segundo plano (pre_carregar).
+	if Grafico.ajustar_linhas():
+		Grafico.linhas_avisou()
 	get_viewport().scaling_3d_scale = RESOLUCAO_PADRAO
 	grafico = Grafico.new(self) # primeiro: tudo que entra na cena daqui em diante recebe o alcance do nível escolhido
 	add_child(grafico)
@@ -395,8 +412,11 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
+	botao_teste.visible = grafico.teste # Configurações > Botão Teste
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
+	lentidao = load("res://lentidao.gd").new(self)
+	add_child(lentidao)
 	online = Online.new(self)
 	add_child(online)
 	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
@@ -555,6 +575,11 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 			var m = mi.mesh.surface_get_material(i)
 			if not (m is StandardMaterial3D):
 				continue
+			# a malha é a mesma em todos os corpos do mesmo modelo (e em todas as cópias de uma árvore ou casa): o
+			# material dela já foi pintado no primeiro. Antes cada NPC novo pintava de novo por cima (~30 materiais
+			# novos por NPC, 1800 numa volta pelo mapa) e trocava o material de todos os corpos iguais já na cena
+			if m.has_meta("pintado"):
+				continue
 			var nome_mat: String = m.resource_name + " " + mi.mesh.surface_get_name(i)
 			var chave = [m, ruivo]
 			if not pintados.has(chave):
@@ -592,6 +617,7 @@ func pintar(raiz: Node, personagem: bool, ruivo := false) -> void:
 					n.rim_tint = 0.6
 				if ruivo and "HAIR" in nome_mat:
 					n.albedo_color = Color(0.9, 0.5, 0.36)
+				n.set_meta("pintado", true)
 				pintados[chave] = n
 			mi.mesh.surface_set_material(i, pintados[chave])
 
@@ -1107,7 +1133,41 @@ func fora_da_tela(p: Vector3) -> bool:
 			return true
 	return false
 
+# Sombra de mancha (conselho de auditoria 2026-11-13, pacote 3; André "Seguir" no NPC leve): o NPC longe já não faz
+# sombra de verdade (custava desenhar o corpo todo de novo) e parecia flutuar. Agora ganha uma mancha escura no chão,
+# debaixo dos pés: um quadrado só, sem luz, que não entra na sombra nem escreve profundidade. Perto volta a sombra real.
+const MANCHA_LADO := 0.95 # m
+static var _mancha_malha: QuadMesh
+static var _mancha_mat: ShaderMaterial
+static func _mancha(no: Node, ligar: bool) -> void:
+	var mi: MeshInstance3D = no.get_node_or_null("SombraMancha")
+	if not ligar:
+		if mi:
+			mi.visible = false
+		return
+	if mi == null:
+		if _mancha_malha == null:
+			var sh := Shader.new()
+			sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\nvoid fragment() { float d = length(UV - vec2(0.5)) * 2.0; ALBEDO = vec3(0.0); ALPHA = 0.42 * (1.0 - smoothstep(0.35, 1.0, d)); }\n"
+			_mancha_mat = ShaderMaterial.new()
+			_mancha_mat.shader = sh
+			_mancha_mat.render_priority = -1
+			# QuadMesh e material_override: quem percorre as malhas do corpo pula como pula a barra de vida (flash do
+			# golpe, gelo, pele, tinta), então a mancha nunca pisca nem muda de cor
+			_mancha_malha = QuadMesh.new()
+			_mancha_malha.orientation = PlaneMesh.FACE_Y
+			_mancha_malha.size = Vector2(MANCHA_LADO, MANCHA_LADO)
+		mi = MeshInstance3D.new()
+		mi.name = "SombraMancha"
+		mi.mesh = _mancha_malha
+		mi.material_override = _mancha_mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = Vector3(0, 0.04, 0)
+		no.add_child(mi)
+	mi.visible = true
+
 static func npc_simples(no: Node, simples: bool) -> void:
+	_mancha(no, simples)
 	if _mat_nada == null:
 		var sh := Shader.new()
 		sh.code = "shader_type spatial;\nrender_mode unshaded, cull_disabled, shadows_disabled;\nvoid vertex() { POSITION = vec4(2.0, 2.0, 2.0, 1.0); }\nvoid fragment() { ALBEDO = vec3(0.0); }\n"
@@ -1270,9 +1330,9 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 	ba.bone_name = lugar.osso
 	esq.add_child(ba)
 	var q := Quaternion(lugar.quat[0], lugar.quat[1], lugar.quat[2], lugar.quat[3])
+	ba.set_meta("de_prender", true)
 	arma.transform = Transform3D(Basis(q).scaled(Vector3.ONE * lugar.escala), Vector3(lugar.pos[0], lugar.pos[1], lugar.pos[2]))
-	if arma.get_parent():
-		arma.get_parent().remove_child(arma)
+	soltar_arma(arma)
 	ba.add_child(arma)
 	if arma.has_meta("cajado"): # Cajado A: 15% menor (pedido do André) e, na mão, preso na palma em pé
 		arma.scale *= Armas.ESCALA_CAJADO
@@ -1281,6 +1341,19 @@ func prender(esq: Skeleton3D, arma: Node3D, lugar: Dictionary) -> BoneAttachment
 		arma.set_meta("afastada", 0.0)
 		Armadura.costas(esq, arma, esq.get_node_or_null("Armadura_capa") != null)
 	return ba
+
+# tira a arma de onde está. O osso preso que prender() criou e ficou vazio sai junto: antes ele ficava no esqueleto
+# e cada troca de modo (coletar, montar, nadar, escalar, trocar de arma) deixava 2 nós vazios seguindo o osso em
+# todo quadro (800 deles somavam ~0,5 ms por quadro no PC, ~1,5 ms no celular)
+func soltar_arma(arma: Node3D) -> void:
+	var pai := arma.get_parent()
+	if pai == null:
+		return
+	pai.remove_child(arma)
+	if pai is BoneAttachment3D and pai.has_meta("de_prender") and pai.get_child_count() == 0:
+		if pai.get_parent():
+			pai.get_parent().remove_child(pai)
+		pai.queue_free()
 
 # do_heroi: Espada A e Cajado A (armas3d/, armas.gd); os humanos inimigos seguem com a espada antiga
 func nova_arma(nome: String, do_heroi := true) -> Node3D:
@@ -1308,6 +1381,8 @@ func criar_heroi(nascer := true) -> void:
 	espada = nova_arma("espada")
 	cajado = nova_arma("cajado")
 	armar("Espada")
+	armas_guardadas = false # corpo novo começa com a espada na mão
+	_parado_livre = 0.0
 	braco = BracoEspada.new()
 	heroi_esq.add_child(braco)
 	heroi_esq.move_child(braco, 0) # antes das molas do cabelo e da saia
@@ -1363,6 +1438,28 @@ func passo_encostar(dt: float) -> void:
 		heroi.position += Vector3(sin(mov.ry), 0.0, cos(mov.ry)) * _encosta
 		heroi.rotation.y = mov.ry + _encosta_giro
 
+# Mãos livres (André 2026-11-13: "se eu ficar parado, ela guardar e ficar com as duas armas nas costas"): parado fora
+# de combate GUARDAR_DEPOIS s, as duas armas vão para as costas (cruzadas, como na coleta) e o anim_heroi.gd toca as
+# paradas de mãos vazias. Andou, atacou, entrou em combate ou foi montar/escalar/nadar: a arma volta para a mão.
+const GUARDAR_DEPOIS := 1.2 # André: "sem arma nas mãos" (guarda logo)
+var armas_guardadas := false
+var _parado_livre := 0.0
+func passo_maos_livres(dt: float, vel: float) -> void:
+	var pode: bool = heroi_anim.tem_vazia and heroi_anim.pode_soltar and not heroi_anim.em_guarda and acao.is_empty() \
+		and vel < 0.15 and h.morto <= 0.0 and mov.manobra == null and (trabalho == null or trabalho.coletando == null)
+	_parado_livre = _parado_livre + dt if pode else 0.0
+	if pode and not armas_guardadas and _parado_livre >= GUARDAR_DEPOIS:
+		armas_guardadas = true
+		armar("Coleta")
+		sons.tocar("pano", -10.0)
+	elif not pode and armas_guardadas:
+		armas_guardadas = false
+		# escalando, coletando ou pescando quem arruma as armas é quem começou (armar("Escalada") / armar("Coleta"))
+		if mov.esc == null and (trabalho == null or trabalho.coletando == null) and not (pesca != null and pesca.ativo()):
+			armar(h.modo)
+			sons.tocar("pano", -10.0)
+	heroi_anim.maos_livres = armas_guardadas
+
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
 func vestir_heroi() -> void:
@@ -1401,8 +1498,7 @@ func armar(modo: String) -> void:
 	else:
 		colisor_espada(heroi_esq, null)
 		prender(heroi_esq, espada, L.espadaCostas)
-		if cajado.get_parent():
-			cajado.get_parent().remove_child(cajado)
+		soltar_arma(cajado)
 		heroi.add_child(cajado) # na mão: segue a mão mas fica de pé (como no site), ver _process
 
 # Montado: as armas continuam nas costas e giram para acompanhar o tronco deitado (direção de arte 2026-11-03):
@@ -1465,7 +1561,7 @@ func armas_cruzadas(esq: Skeleton3D, esp: Node3D, caj: Node3D) -> void:
 
 # cajado na mão (modo magia): não quando escala, monta, nada ou coleta (aí ele vai para as costas)
 func cajado_na_mao() -> bool:
-	return h.modo == "Magia" and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null)
+	return h.modo == "Magia" and not armas_guardadas and mov.esc == null and montaria == null and not _nadando and (trabalho == null or trabalho.coletando == null)
 
 # base com +Y ao longo da arma e o lado chato (+Z) virado para fora das costas
 func _base_arma(y: Vector3, fora: Vector3) -> Basis:
@@ -1953,7 +2049,7 @@ func na_masmorra() -> bool:
 
 # algum monstro vivo a até 15 m bateu ou apanhou nos últimos segundos (a luta continua mesmo se o herói ficou sem bater)
 func luta_perto() -> bool:
-	for e in inimigos:
+	for e in _lista_perto(heroi.position, 15.0):
 		if e.estado != "morto" and e.vida > 0.0 and maxf(float(e.get("combate", 0.0)), float(e.get("luta", 0.0))) > tempo and e.no.position.distance_to(heroi.position) < 15.0:
 			return true
 	return false
@@ -1971,11 +2067,20 @@ func inimigo_em(pos: Vector3, raio: float):
 			return e
 	return null
 
+# FPS (conselho de auditoria 2026-11-13): mais_perto e luta_perto rodam todo quadro e passavam pelos ~413 monstros do
+# mapa. Perto do herói e dentro de LONGE_INIMIGO, a lista dos monstros a até 70 m (inimigos_perto, refeita a cada 4
+# quadros em lod_inimigos) dá o mesmo resultado.
+var _perto_quadro := -100
+func _lista_perto(pos: Vector3, max_d: float) -> Array:
+	if max_d < LONGE_INIMIGO - 2.0 and Engine.get_process_frames() - _perto_quadro <= 8 and heroi and pos.distance_squared_to(heroi.position) < 1.0:
+		return inimigos_perto
+	return inimigos
+
 func mais_perto(pos: Vector3, max_d: float):
 	var melhor = null
 	var md := max_d
-	for e in inimigos:
-		if e.estado == "morto":
+	for e in _lista_perto(pos, max_d):
+		if e.estado == "morto" or not is_instance_valid(e.no):
 			continue
 		var d: float = e.no.position.distance_to(pos)
 		if d < md:
@@ -2178,7 +2283,8 @@ func folhagem_na_frente(dt: float) -> void:
 	copas_da_mata_na_frente(dt)
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
-	for f in folhas:
+	var cand := _folhas_perto(a, b)
+	for f in cand:
 		if not is_instance_valid(f[0]): # (Godot 4.7) olhar antes de pôr na variável com tipo: nó já apagado dá erro
 			continue
 		var mi: MeshInstance3D = f[0]
@@ -2209,6 +2315,60 @@ func folhagem_na_frente(dt: float) -> void:
 			mi.material_override.albedo_color = Color(cor, cor.a * (1.0 - atual))
 		else:
 			mi.material_override = null
+	_folhas_vivas.clear() # as que ficaram apagadas (ou voltando) são conferidas no próximo quadro mesmo longe da linha
+	for f in cand:
+		if f.size() > 2 and float(f[2]) > 0.0 and is_instance_valid(f[0]):
+			_folhas_vivas.append(f)
+
+# FPS (varredura 2026-11-12, preset Alta): a conta acima passava por todas as copas e troncos da vila e do mapa todo
+# quadro. Agora uma grade de FOLHA_G m diz quais estão perto da linha câmera-herói; só elas (e as que ainda estão
+# apagadas) entram. Mesmo resultado: as de fora nem tocavam a linha e já estavam inteiras. A grade é refeita quando a
+# lista folhas muda de tamanho (só cresce na montagem e só diminui quando um pedaço do cenário sai).
+const FOLHA_G := 8.0
+var _folhas_grade := {}
+var _folhas_n := -1
+var _folhas_vivas: Array = []
+func _folhas_perto(a: Vector3, b: Vector3) -> Array:
+	if folhas.size() != _folhas_n:
+		_folhas_n = folhas.size()
+		_folhas_grade.clear()
+		_folhas_vivas.clear()
+		for f in folhas:
+			if not is_instance_valid(f[0]):
+				continue
+			var mi: MeshInstance3D = f[0]
+			if f[1] == null:
+				f[1] = (mi.global_transform * mi.mesh.get_aabb()).grow(FOLHA_RAIO)
+			if f.size() > 2 and float(f[2]) > 0.0: # apagada agora: volta mesmo se a linha já estiver longe
+				_folhas_vivas.append(f)
+			var bb: AABB = f[1]
+			for i in range(floori(bb.position.x / FOLHA_G), floori(bb.end.x / FOLHA_G) + 1):
+				for j in range(floori(bb.position.z / FOLHA_G), floori(bb.end.z / FOLHA_G) + 1):
+					var k := i * 100003 + j
+					if not _folhas_grade.has(k):
+						_folhas_grade[k] = []
+					_folhas_grade[k].append(f)
+	var folga: float = TRONCO_PERTO + FOLHA_RAIO + 0.5 # o tronco colado na câmera, de lado, também conta
+	var x0: float = minf(a.x, b.x) - folga
+	var x1: float = maxf(a.x, b.x) + folga
+	var z0: float = minf(a.z, b.z) - folga
+	var z1: float = maxf(a.z, b.z) + folga
+	var vistos := {}
+	var r: Array = []
+	for f in _folhas_vivas:
+		if is_instance_valid(f[0]):
+			vistos[f[0].get_instance_id() * 2 + int(f.size() > 3)] = true
+			r.append(f)
+	for i in range(floori(x0 / FOLHA_G), floori(x1 / FOLHA_G) + 1):
+		for j in range(floori(z0 / FOLHA_G), floori(z1 / FOLHA_G) + 1):
+			for f in _folhas_grade.get(i * 100003 + j, []):
+				if not is_instance_valid(f[0]):
+					continue
+				var id: int = f[0].get_instance_id() * 2 + int(f.size() > 3) # a mesma malha pode ser copa e tronco
+				if not vistos.has(id):
+					vistos[id] = true
+					r.append(f)
+	return r
 
 # Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
 # (tronco, galhos e copa) num fade de 0,15 s, sem pontilhado: a cópia dela no MultiMesh encolhe para zero e no lugar
@@ -2440,8 +2600,8 @@ func usar(qual: String) -> void:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
-# Desliga tocando de novo, quando a estamina acaba (trabalho.gd) ou quando o herói para de andar.
-var _parado_disparada := 0.0
+# Desliga só tocando de novo ou quando a estamina acaba (trabalho.gd). André 2026-11-13: parar de andar não desliga mais;
+# parado com ela ligada não gasta estamina (trabalho.gd só gasta acima do trote).
 const GUARDA_DEPOIS := 3.0 # s em guarda depois de golpear o ar (sem acertar ninguém não entra em combate)
 var _guarda_ate := 0.0
 func ligar_disparada(v: bool) -> void:
@@ -2452,14 +2612,8 @@ func ligar_disparada(v: bool) -> void:
 	mov.disparada = v
 	hud.ligar_botao("disparada", v)
 
-func passo_disparada(dt: float, forca: float) -> void:
-	if mov.disparada and (forca < 0.15 and mov.velocidade() < 0.5):
-		_parado_disparada += dt
-		if _parado_disparada > 0.6:
-			mov.disparada = false
-	else:
-		_parado_disparada = 0.0
-	hud.ligar_botao("disparada", mov.disparada)
+func passo_disparada(_dt: float, _forca: float) -> void:
+	hud.ligar_botao("disparada", mov.disparada) # o botão acompanha quando a disparada desliga sozinha (sem fôlego)
 
 # tenta fazer agora. false = ocupado (vale guardar na fila); true = fez, ou não vai dar mesmo (já avisou)
 func _tentar(qual: String) -> bool:
@@ -3099,12 +3253,118 @@ func direcao_joystick() -> Vector3:
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 
 # ---------- quadro a quadro ----------
+# tela de aviso da primeira abertura depois do ajuste do motor (ajustar_linhas): o mundo não é montado
+func _abrir_de_novo() -> void:
+	set_process(false)
+	var cl := CanvasLayer.new()
+	add_child(cl)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0.05, 0.06, 0.09)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cl.add_child(fundo)
+	if ResourceLoader.exists("res://ui/abertura.png"):
+		var capa := TextureRect.new()
+		capa.texture = load("res://ui/abertura.png")
+		capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+		capa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		capa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		cl.add_child(capa)
+	var faixa := ColorRect.new()
+	faixa.color = Color(0, 0, 0, 0.55)
+	faixa.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	faixa.offset_top = -150
+	cl.add_child(faixa)
+	var t := Label.new()
+	t.text = "Ajuste feito.\nAbra o jogo de novo."
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	t.set_anchors_preset(Control.PRESET_FULL_RECT)
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	t.add_theme_constant_override("outline_size", 8)
+	faixa.add_child(t)
+	Grafico.linhas_avisou()
+	get_tree().create_timer(4.0).timeout.connect(func(): get_tree().quit())
+
 # app indo para o fundo ou fechando: grava na hora a cópia do progresso que estava esperando
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		voltar_android()
+		return
 	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
 		P.guardar_agora()
 		if volta:
 			volta.guardar(true)
+
+# Botão Voltar do Android (auditoria 2026-11-13): antes fechava o jogo na hora, mesmo com uma janela aberta. Agora fecha
+# a janela de cima, como o X dela; sem janela aberta, avisa e só sai com um segundo toque em até VOLTAR_SAIR s.
+const VOLTAR_SAIR := 2.5
+var _voltar_ms := 0
+func voltar_android() -> void:
+	if _fechar_de_cima():
+		_voltar_ms = 0
+		return
+	var agora := Time.get_ticks_msec()
+	if _voltar_ms > 0 and agora - _voltar_ms < int(VOLTAR_SAIR * 1000.0):
+		if P != null:
+			P.guardar_agora()
+		if volta:
+			volta.guardar(true)
+		get_tree().quit()
+		return
+	_voltar_ms = agora
+	if hud:
+		hud.aviso("Toque Voltar de novo para sair")
+
+# fecha a janela que está por cima (a mesma ordem em que elas se cobrem); false = nenhuma aberta
+func _fechar_de_cima() -> bool:
+	if cinematica and cinematica.ativa:
+		cinematica.pular()
+		return true
+	if criador and criador.aberto():
+		return true # o criador tem os botões dele (conta nova não pode sair dele): o Voltar não faz nada
+	if reforco and reforco.aberta():
+		reforco._fechar()
+		return true
+	if menu and menu._confirma != null and is_instance_valid(menu._confirma):
+		menu.fechar_confirma()
+		return true
+	if troca and troca.aberto():
+		troca.cancelar() # como o X da troca: o servidor desfaz
+		return true
+	if leilao and leilao.aberto():
+		leilao.fechar()
+		return true
+	if construcao and construcao.painel_bau and construcao.painel_bau.visible:
+		construcao.fechar_bau()
+		return true
+	if construcao and construcao.painel_forno and construcao.painel_forno.visible:
+		construcao.fechar_forno()
+		return true
+	if menu and menu.aberto():
+		if menu.janela_aberta():
+			menu.fechar_janela()
+		elif menu.sel_mochila >= 0 or menu.sel_equip != "":
+			menu.fechar_item()
+		else:
+			menu.fechar()
+		return true
+	if conversa and conversa.aberto():
+		conversa.fechar()
+		return true
+	if chat and chat.aberto():
+		chat.fechar()
+		return true
+	if menu_topo and menu_topo.aberto():
+		menu_topo.fechar()
+		return true
+	if minimapa and minimapa.aberto:
+		minimapa.fechar()
+		return true
+	if editar_hud and editar_hud.aberto:
+		editar_hud.fechar()
+		return true
+	return false
 
 func _process(dt: float) -> void:
 	var t0_main := Time.get_ticks_usec()
@@ -3467,6 +3727,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	# parada solta fora de combate (André 2026-11-09) só em pé no chão, com as mãos livres
 	heroi_anim.pode_soltar = montaria == null and mov.chao and mov.esc == null and mov.veiculo.is_empty() and not _nadando \
 		and h.modo != "Coleta" and not (pesca != null and pesca.ativo())
+	passo_maos_livres(dt, vel)
 	heroi_anim.atualizar(dt, vel_anim)
 	if expressao:
 		expressao.atualizar(dt)
@@ -3652,19 +3913,55 @@ func lod_inimigos() -> void:
 			n.lod_pedido = true
 			LodMalha.pedir(n.no)
 			pecinhas_de_perto(n.no)
+	anim_monstros_longe(hp)
 	# FPS (auditoria 2026-11-11): a lista dos monstros perto é refeita a cada 4 quadros (são centenas no mapa; um
 	# monstro que chega a LONGE_INIMIGO entra na lista no máximo 3 quadros depois)
 	if Engine.get_process_frames() % 4 != 0 and not inimigos_perto.is_empty():
 		return
 	inimigos_perto.clear()
+	_perto_quadro = Engine.get_process_frames()
 	for e in inimigos:
 		var longe: bool = e.no.position.distance_squared_to(hp) > LONGE_INIMIGO * LONGE_INIMIGO
 		if longe != e.get("longe", false):
 			e.longe = longe
 			if e.anim:
 				e.anim.active = not longe
+			# FPS (varredura 2026-11-12, preset Alta): longe, o esqueleto do monstro ainda era conferido todo quadro pelo
+			# motor (uns 120 no mapa, ~10% do quadro). Parado como o NPC longe; perto volta igual (o corpo já nem é desenhado)
+			e.no.process_mode = Node.PROCESS_MODE_DISABLED if longe else Node.PROCESS_MODE_INHERIT
 		if not longe:
 			inimigos_perto.append(e)
+
+# FPS (varredura 2026-11-12, preset Alta): monstro além da sombra (MONSTRO_ANIM_PERTO m; a sombra do Alta acaba em
+# 20 m) anima como o NPC longe: a cada 2 quadros (a cada 3 além de MONSTRO_ANIM_LONGE m), no mesmo tempo total, e fora
+# da câmera espera e anda tudo de uma vez ao voltar (como o NPC sem sombra, André 2026-11-12). Perto fica igual.
+const MONSTRO_ANIM_PERTO := 20.0
+const MONSTRO_ANIM_LONGE := 40.0
+func anim_monstros_longe(hp: Vector3) -> void:
+	var dt := get_process_delta_time()
+	var q := Engine.get_process_frames()
+	for i in inimigos_perto.size():
+		var e: Dictionary = inimigos_perto[i]
+		var an = e.get("anim")
+		if an == null or not is_instance_valid(an) or e.get("longe", false):
+			continue
+		var d2: float = e.no.position.distance_squared_to(hp)
+		var esp: bool = d2 > MONSTRO_ANIM_PERTO * MONSTRO_ANIM_PERTO
+		if e.get("anim_esp") != (an if esp else null): # mudou de faixa (ou o corpo foi trocado: chefe da história)
+			e.anim_esp = an if esp else null
+			anim_espacada(an, null, esp)
+			e.anim_acc = 0.0
+		if not esp:
+			continue
+		e.anim_acc = float(e.get("anim_acc", 0.0)) + dt
+		var passo: int = 3 if d2 > MONSTRO_ANIM_LONGE * MONSTRO_ANIM_LONGE else 2
+		if (q + i) % passo != 0:
+			continue
+		if fora_da_tela(e.no.position + Vector3(0, 1, 0)):
+			e.anim_acc = minf(e.anim_acc, FORA_ACC_MAX)
+		else:
+			an.advance(e.anim_acc)
+			e.anim_acc = 0.0
 
 # barra de vida do monstro: some quando ele está com a vida cheia e longe. Nome só do alvo atual (o mais perto, que o
 # golpe pega sozinho) e de quem está em combate (levou ou deu dano nos últimos 5 s): três monstros juntos não encavalam
@@ -3746,7 +4043,10 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 	var chao: Array = []
 	# dentro de casa no modo jogo (André 2026-11-05, como no Quimera) a câmera não bate nas paredes nem no telhado da
 	# casa: fica longe como lá fora e a parede que tapa a vista apaga (construcao.gd _telhados_visiveis)
-	var sem_casa: bool = construcao != null and construcao.dentro_de_casa
+	# modo construção (André 2026-11-13): a câmera flutuante também passa pelas peças das casas. Antes, no andar do
+	# telhado, a mira fica logo abaixo do telhado e a linha até a câmera batia nele: a câmera colava nas vigas e o "−"
+	# não afastava; no térreo batia no telhado escondido. De cima e de longe ela não entra na casa.
+	var sem_casa: bool = construcao != null and (construcao.dentro_de_casa or construcao.ativo)
 	# FPS (2026-11-07): só os sólidos das casas de 4 m que a linha cruza (terreno.gd solidos_em), não todos os do mapa
 	# (cada parede e fundação construída é um sólido). Mesmo resultado: quem não toca a linha já ficava de fora.
 	var cand := []
@@ -3765,10 +4065,12 @@ func distancia_livre(de: Vector3, dir: Vector3, ate: float, sem_minerio := false
 		if Geometry2D.get_closest_point_to_segment(c, a2, b2).distance_to(c) <= r.R:
 			chao.append(r)
 	var t := 0.35
+	# FPS (varredura 2026-11-12): a conta da caverna só quando a linha passa perto de alguma (era ~4 us por passo)
+	var com_caverna: bool = terreno.caverna_na_caixa(Rect2(a2, Vector2.ZERO).expand(b2).grow(1.0))
 	while t <= ate:
 		var p := de + dir * t
 		var h: float = terreno.altura_montanha(p.x, p.z) # a encosta da montanha também segura a câmera (lago: fica acima da água)
-		var cv: float = terreno.chao_caverna(p.x, p.z, p.y + 0.45) # dentro da caverna: o chão dela (o teto e as paredes seguram)
+		var cv: float = terreno.chao_caverna(p.x, p.z, p.y + 0.45) if com_caverna else NAN # dentro da caverna: o chão dela (o teto e as paredes seguram)
 		if not is_nan(cv) and cv < h:
 			h = cv
 		for r in chao:
@@ -3920,14 +4222,39 @@ func entrou_online(e: Dictionary) -> void:
 # Tela de carregamento mais curta (2026-11-03): o que antes nascia tudo de uma vez no _ready (os 111 monstros dos
 # campos de caça e os espantalhos) entra numa fila e nasce aos poucos, poucos milissegundos por quadro.
 var _a_criar: Array = [] # Callables, na ordem em que precisam entrar em inimigos (o v do servidor)
+# Travada no primeiro passo (André 2026-11-13, "renasci na vila... logo que eu me desloquei, deu uma travada"): a capa
+# saía com a fila ainda andando e os espantalhos (73 ms no PC, todos juntos) e os monstros da Caverna da Montanha
+# (11 ms) nasciam meio segundo depois, bem quando o herói começava a andar. Agora cada um é um item da fila, a capa
+# espera a fila acabar (online.gd) e, atrás da capa, a fila anda com mais tempo por quadro (ninguém vê o jogo ainda).
+const CRIAR_US := 4000 # µs por quadro com o jogo na tela
+# atrás da capa (a arte de entrada ou o "Conectando…"; André 2026-11-13, entrada mais curta: na tela "Entrar como…" a
+# fila também anda rápido, enquanto ele lê e toca em Entrar)
+const CRIAR_CAPA_US := 12000
 func criar_aos_poucos() -> void:
 	var t0 := Time.get_ticks_usec()
-	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < 4000:
+	var limite: int = CRIAR_CAPA_US if online and (online._cobrindo or (online.capa and online.capa.visible)) else CRIAR_US
+	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < limite:
 		(_a_criar.pop_front() as Callable).call()
+
+# ainda tem monstro ou espantalho para nascer (a fila de cima ou os monstros da Caverna da Montanha) ou mini vila perto
+# por montar (vilas_mundo.gd, 6 ms no PC): a capa espera
+func montando() -> bool:
+	if not _a_criar.is_empty():
+		return true
+	if vilas_mundo != null and vilas_mundo.pendente():
+		return true
+	return caverna != null and caverna.monstros_pendentes()
 
 # Os modelos grandes (vila, corpos, monstros) começam a carregar todos juntos, em várias linhas do processador, logo no
 # começo. Quando o código chega no load() de cada um, só espera o que ainda falta (antes era um depois do outro).
+#
+# Godot 4.7 (André 2026-11-12, "fica só procurando atualização"): com o cache de shaders vazio (1ª abertura) esses
+# carregamentos em segundo plano disputam as linhas de fundo com o preparo dos shaders e o jogo para antes do primeiro
+# quadro, com ou sem sub-linhas. Testado com o APK 2006 e cache vazio: sem o pré-carregamento abre em ~1 min (no PC de
+# teste, sem placa de vídeo); com ele, nem em 7 min. No 4.7 cada load() carrega na hora, como era antes.
 func pre_carregar() -> void:
+	if Engine.get_version_info().hex >= 0x040700:
+		return
 	var lista := ["res://modelos/vila.glb", "res://modelos/ruiva.glb", "res://treino3d/Dummy.gltf", "res://modelos/arma_espada.glb",
 		"res://armas3d/espada.glb", "res://armas3d/cajado.glb"]
 	for n in mundo.get("npcs", []):
@@ -4006,12 +4333,16 @@ func passo_cacas(dt: float) -> void:
 # e não dá XP nem item. Online quem decide é o servidor (Simulacao.ferirTreino); aqui é o mesmo sem internet.
 # Modelo: Dummy do Fantasy Props MegaKit (Quaternius, CC0), em treino3d/. O balanço do golpe é a mola de combate.gd.
 const ANIMS_TREINO := ["parada", "espada_parada", "andar", "corrida", "apanhar", "morrer", "golpe1", "golpe2"]
+# um espantalho por item da fila (criar_aos_poucos): todos juntos eram 73 ms num quadro só (no PC)
 func montar_treino() -> void:
 	for t in mundo.get("treino", []):
-		if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
-			push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
-		inimigos.append(criar_espantalho(t))
-		entrou_online(inimigos[-1])
+		_a_criar.append(montar_um_treino.bind(t))
+
+func montar_um_treino(t: Dictionary) -> void:
+	if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
+		push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
+	inimigos.append(criar_espantalho(t))
+	entrou_online(inimigos[-1])
 
 func criar_espantalho(t: Dictionary) -> Dictionary:
 	var no := Node3D.new()
@@ -4347,6 +4678,7 @@ func montar_teste() -> void:
 	rotulo.offset_right = -176 # à esquerda do minimapa (minimapa.gd)
 	rotulo.offset_top = 182 # abaixo do botão Teste (o menu do topo fica no canto)
 	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	rotulo.grow_horizontal = Control.GROW_DIRECTION_BEGIN # linha comprida cresce para a esquerda, nunca por baixo do minimapa
 	tela.add_child(rotulo)
 	botao_teste = Button.new()
 	botao_teste.text = "Teste"
@@ -4415,6 +4747,34 @@ func _q_somar(v: Dictionary) -> void:
 		q_ms[k] = lerp(float(q_ms[k]), v[k] / 1000.0, 0.05)
 		if etapa >= 0 and t_etapa > ESPERA:
 			soma_q[k] = soma_q.get(k, 0.0) + v[k] / 1000.0
+	var qms: float = v.quadro / 1000.0
+	if etapa >= 0 and t_etapa > ESPERA:
+		_q_quadros.append(qms)
+	if qms >= TRAVADA_MS and not (online and online.capa and online.capa.visible): # atrás da capa (carregando) não conta
+		travadas += 1
+	_pior_janela = max(_pior_janela, qms)
+	var agora := Time.get_ticks_msec()
+	if agora - _pior_t >= 5000:
+		_pior_mostra = _pior_janela
+		_pior_janela = 0.0
+		_pior_t = agora
+
+# pior quadro, p99 e quadros acima de 33 ms da etapa; e o que a placa desenhou no último quadro (lido uma vez por etapa:
+# com o desenho em paralelo, essa leitura espera a outra linha, então nunca por quadro)
+func _resumo_quadros() -> String:
+	var l := _q_quadros.duplicate()
+	l.sort()
+	var n := l.size()
+	var lentos := 0
+	for x in l:
+		if x > 33.4:
+			lentos += 1
+	var pior: float = l[n - 1] if n else 0.0
+	var p99: float = l[mini(n - 1, int(n * 0.99))] if n else 0.0
+	var chamadas := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
+	var tris := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
+	var objs := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+	return " · pior %.0f · p99 %.0f · >33 ms: %d · %d chamadas · %dk tri · %d obj" % [pior, p99, lentos, chamadas, tris / 1000, objs]
 
 func _q_fisica() -> void:
 	if _q_fis == 0:
@@ -4531,7 +4891,7 @@ func proxima_etapa() -> void:
 	etapa += 1
 	if etapa >= etapas.size():
 		etapa = -1
-		botao_teste.visible = true
+		botao_teste.visible = grafico.teste
 		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), false)
 		return
 	etapas[etapa].f.call()
@@ -4541,8 +4901,11 @@ func proxima_etapa() -> void:
 	soma_gpu = 0.0
 	soma_rcpu = 0.0
 	soma_q.clear()
+	_q_quadros.clear()
 
 func atualizar_teste(dt: float) -> void:
+	if not rotulo.visible and etapa < 0: # FPS escondido (Configurações > Mostrar FPS): nem monta o texto
+		return
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
 	if online and online.ligado and online.rede.ping_ms >= 0: # André 2026-11-03: ping do servidor sempre à vista
@@ -4554,6 +4917,9 @@ func atualizar_teste(dt: float) -> void:
 		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + espera %.1f (desenho em paralelo)" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.espera]
 	else:
 		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
+	txt += " · pior 5 s %.0f ms · travadas %d" % [_pior_mostra, travadas]
+	if lentidao:
+		txt += " · lentas %d" % lentidao.lentas
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt
@@ -4568,10 +4934,10 @@ func atualizar_teste(dt: float) -> void:
 			var q: float = max(1, quadros)
 			if _q_paralelo:
 				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · espera %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
-						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("espera", 0.0) / q])
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("espera", 0.0) / q] + _resumo_quadros())
 			else:
 				resultados.append("%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms" % [etapas[etapa].nome, quadros / MEDE,
-						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q])
+						soma_q.get("fisica", 0.0) / q, soma_q.get("logica", 0.0) / q, soma_q.get("desenho", 0.0) / q, soma_q.get("espera", 0.0) / q, soma_gpu / q] + _resumo_quadros())
 			proxima_etapa()
 	if not resultados.is_empty():
 		txt += "\n" + "\n".join(resultados)

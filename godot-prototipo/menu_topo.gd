@@ -409,6 +409,7 @@ func montar() -> void:
 			montar_multi()
 		"config":
 			montar_config()
+	_caber()
 
 func _online():
 	return m.online if m.online and m.online.rede else null
@@ -512,8 +513,21 @@ func montar_multi() -> void:
 				fechar()
 				o.mostrar_login()))
 
+# André 2026-11-13: a janela passava da altura da tela e o Paralelo/Sombras ficavam cortados embaixo. Agora são duas
+# colunas (som e conta à esquerda, gráficos à direita) e, se ainda não couber, a caixa encolhe até caber (_caber).
 func montar_config() -> void:
 	_cabeca("topo_config", "Configurações")
+	var principal := conteudo
+	var colunas := HBoxContainer.new()
+	colunas.add_theme_constant_override("separation", 28)
+	principal.add_child(colunas)
+	var esq := VBoxContainer.new()
+	var dir := VBoxContainer.new()
+	for c in [esq, dir]:
+		c.add_theme_constant_override("separation", 10)
+		c.custom_minimum_size = Vector2(416, 0)
+		colunas.add_child(c)
+	conteudo = esq # as funções abaixo põem as linhas em "conteudo": cada coluna na sua vez
 	_barra("Som", volume, func(v):
 		volume = v
 		aplicar_config())
@@ -530,8 +544,55 @@ func montar_config() -> void:
 		mostrar_fps = v
 		aplicar_config()
 		salvar())
-	_qualidade_grafica()
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
+	_chave_ia()
+	conteudo = dir
+	_qualidade_grafica()
+	conteudo = principal
+
+# a caixa nunca passa da tela: se o conteúdo for mais alto, ela encolhe por igual (o toque continua certo)
+func _caber() -> void:
+	await get_tree().process_frame
+	if not janela.visible:
+		return
+	var alto := raiz.get_viewport_rect().size.y - 16.0
+	var k := minf(1.0, alto / maxf(1.0, caixa.size.y))
+	caixa.pivot_offset = caixa.size * 0.5
+	caixa.scale = Vector2(k, k)
+
+# Chave IA dos NPCs (André 2026-11-12): ativar a conversa com a Cecília e o Dario também aqui, sem precisar achar eles.
+# É o mesmo "Ativar conversa com IA" de Multijogador > Amigos virtuais (que continua lá): cria a chave grátis no Groq
+# e cola uma vez só; o servidor testa e guarda na conta (server/index.js 'chaveIa').
+func _chave_ia() -> void:
+	var a = m.amigos
+	if a == null or not m.on() or a.virtuais.is_empty():
+		return
+	var ativa := false
+	var nomes: Array = []
+	for v in a.virtuais:
+		nomes.append(str(v.get("nome", "")))
+		if v.get("ia", false):
+			ativa = true
+	_texto("Chave IA dos NPCs", Menu.TEXTO, 17)
+	if ativa:
+		_texto("Ativada. Você conversa com %s." % " e ".join(nomes), Menu.APAGADO, 13)
+		return
+	_texto("Para conversar com %s:\n1. Crie a chave grátis (conta Google, Create API Key) e copie.\n2. Toque em Colar a chave." % " e ".join(nomes), Menu.APAGADO, 13)
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var b1 := _botao("1. Criar chave", func(): OS.shell_open("https://console.groq.com/keys"), false)
+	var b2 := _botao("2. Colar a chave", func():
+		var chave := DisplayServer.clipboard_get().strip_edges()
+		if not chave.begins_with("gsk_"):
+			m.hud.aviso("Copie a chave no site primeiro (começa com gsk_)")
+			return
+		m.rede("chaveIa", {"chave": chave})
+		m.hud.aviso("Testando a chave..."))
+	for b in [b1, b2]:
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
 
 # Qualidade gráfica (André 2026-11-09, celular da filha): Baixa, Média e Alta (grafico.gd). O escolhido fica dourado.
 func _qualidade_grafica() -> void:
@@ -552,9 +613,9 @@ func _qualidade_grafica() -> void:
 		b.custom_minimum_size = Vector2(0, 40)
 		linha.add_child(b)
 	conteudo.add_child(linha)
-	var dica := "Baixa: mais leve (celular mais fraco ou esquentando). Alta: mais bonito."
+	var dica := "Baixa: mais leve. Alta: mais bonito."
 	if G.placa != "":
-		dica += " Sugerido para este celular (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
+		dica += " Sugerido (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
 	_texto(dica, Menu.APAGADO, 13)
 	_limite_fps()
 	_paralelo()
@@ -581,11 +642,12 @@ func _paralelo() -> void:
 		b.custom_minimum_size = Vector2(0, 40)
 		linha.add_child(b)
 	conteudo.add_child(linha)
-	var t := "Desenho em paralelo: o celular desenha a tela numa linha e roda o jogo em outra (bem mais FPS). Vale ao abrir o jogo de novo."
+	var t := "Desenha a tela em outra linha (mais FPS)."
 	if G.paralelo_caiu():
-		t = "O jogo fechou sozinho duas vezes com o desenho em paralelo, então ele foi desligado. Toque em Ligado para tentar de novo."
+		t = "Desligou sozinho: o jogo fechou 2 vezes. Toque em Ligado para tentar de novo."
 	elif G.paralelo_agora() != quer:
-		t += " Agora: " + ("ligado" if G.paralelo_agora() else "desligado") + "."
+		# a escolha (dourada) só vale ao abrir de novo: diz claro o que está valendo agora
+		t = "Agora está %s. Fica %s quando abrir o jogo de novo." % ["ligado" if G.paralelo_agora() else "desligado", "ligado" if quer else "desligado"]
 	_texto(t, Menu.APAGADO, 13)
 
 # Limite de FPS (varredura de FPS 2026-11-10): 30, 60 ou sem limite (grafico.gd). Sem escolha, vale o do nível.
@@ -606,7 +668,28 @@ func _limite_fps() -> void:
 		b.custom_minimum_size = Vector2(0, 40)
 		linha.add_child(b)
 	conteudo.add_child(linha)
-	_texto("Travar em 30 ou 60 deixa o jogo com ritmo igual e o celular esquenta menos.", Menu.APAGADO, 13)
+	_texto("30 ou 60: ritmo igual e esquenta menos.", Menu.APAGADO, 13)
+	_teste_fps()
+
+# botão Teste (conselho 2026-11-13): à vista ou escondido (grafico.gd teste); a linha do FPS é a chave Mostrar FPS
+func _teste_fps() -> void:
+	var G = m.grafico
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var l := Menu.rotulo("Botão Teste", 17)
+	l.custom_minimum_size = Vector2(120, 0)
+	linha.add_child(l)
+	for i in 2:
+		var b := _botao(["Mostrar", "Esconder"][i], func():
+			if G.teste != (i == 0):
+				G.trocar_teste(i == 0)
+				if m.botao_teste and m.etapa < 0:
+					m.botao_teste.visible = i == 0
+				montar(), G.teste == (i == 0))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
 
 # Visual leve (visual_leve.gd, André 2026-11-10): sombra de verdade só nos personagens e casas + cor da grama
 func _visual_leve() -> void:
@@ -629,7 +712,7 @@ func _visual_leve() -> void:
 			b.custom_minimum_size = Vector2(0, 40)
 			linha.add_child(b)
 		conteudo.add_child(linha)
-	_texto("Sombras leves: sombra de verdade só nas pessoas e monstros; árvores e casas da vila ganham sombra pintada (mais leve).", Menu.APAGADO, 13)
+	_texto("Leves: sombra real só em pessoas e monstros.", Menu.APAGADO, 13)
 
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:
@@ -700,7 +783,8 @@ func carregar() -> void:
 	volume = float(cfg.get_value("config", "volume", 100.0))
 	volume_musica = float(cfg.get_value("config", "musica", 45.0))
 	vibracao = bool(cfg.get_value("config", "vibracao", true))
-	mostrar_fps = bool(cfg.get_value("config", "fps", true))
+	# sem escolha salva: quem já jogava vê o FPS; quem instala agora não (conselho 2026-11-13; grafico.gd teste)
+	mostrar_fps = bool(cfg.get_value("config", "fps", m.grafico.teste if m.grafico else true))
 
 func salvar() -> void:
 	var cfg := ConfigFile.new()

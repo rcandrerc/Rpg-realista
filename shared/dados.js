@@ -66,6 +66,12 @@ export const DURACAO = {
   parada_solta: 9.933,
   // a do corpo masculino (André: a do homem estava feminina demais): pernas abertas, peito erguido, braços soltos
   parada_solta_m: 9.933,
+  // parada fora de combate dos dois corpos (André 2026-11-13: "poe aquela animacao q baixei"): Mixamo Standing W_Briefcase
+  // Idle, mexe o peso, olha em volta e ajeita a mão. A parada_solta e a parada_solta_m continuam no arquivo (anim_heroi.gd).
+  parada_maleta: 13.933,
+  // as outras paradas de mãos vazias (armas nas costas): Quaternius Universal Animation Library 1 e 2 (CC0), passadas para
+  // o esqueleto do Mixamo por ferramentas/assar-animacoes/quaternius.py
+  parada_calma: 2.5, parada_bracos: 2.5,
   // magias novas do cajado: Kevin Iglesias Magic Attack Direct 1H (direita/esquerda) e Mixamo Standing 2H Magic Attack 01,
   // 2H Magic Area Attack 01 e 2H Cast Spell 01
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
@@ -1679,6 +1685,10 @@ export const PESCA = {
   },
   // Radar de pesca: usado na mochila, mostra todos os spots no mapa e no minimapa por "mostra" s; recarga "recarga" s
   radar: { mostra: 180, recarga: 60 },
+  // Pesca no mar (André 2026-11-13: "pode inserir a pesca no mar... uma coisa espalhada, vai ter que usar a ferramenta
+  // para localizar... aí vai de barquinho"): spots soltos no mar aberto em volta dos cais, longe da margem (só de barco),
+  // achados com o Radar de pesca. quantos = vagas de cada tipo; de/ate = metros do cais; margem = sem terra a menos disso.
+  mar: { quantos: { comum: 8, raro: 4, epico: 2 }, de: 30, ate: 160, margem: 7, fundo: 1.5 },
 };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
 LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
@@ -2503,10 +2513,10 @@ export const AMIGA = {
   conversa: 25, // segundos parada olhando para o André depois do último botão
   // Fase 2 (André 2026-11-09): time e combate. Ela decide por regras com sorteio (sem IA paga): a vontade começa em
   // base e muda com a amizade, o cansaço, a horta, a noite e a diferença de nível; depois sorteia. Recusou: espera
-  // 'esperaRecusa' s para ser chamada de novo. No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
+  // 'esperaRecusa' s para ser chamada de novo; 'humor' s que a vontade sorteada vale e 'humorRecusa' s que um não continua não (André 2026-11-13: não muda de ideia a cada fala). No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
   // bebe poção com pouca vida e foge para perto dele quando não tem poção.
   time: { base: 0.6, porAmizade: 0.08, amizadeMax: 0.35, cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
-    min: 0.05, max: 0.95, esperaRecusa: 45, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
+    min: 0.05, max: 0.95, esperaRecusa: 45, humor: 90, humorRecusa: 180, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
   // André 2026-11-10 ("ela não se teleporta: entra na montaria e vem até mim, eu vejo ela no mapa vindo, como um jogador
   // normal"; "vai pelas estradas para não travar"): longe do dono (chamada pelo chat ou no time) ela monta no lobo e vem
   // pela rede de estradas (shared/rota.js, a mesma do "Ir para"). estrada: m a partir de quando vai pela estrada; chega: m
@@ -2528,6 +2538,8 @@ export const AMIGA = {
     pronta: ['Minha casa ficou pronta! Pode entrar, só não repara a bagunça.', 'Casa pronta, horta plantada. Agora só falta aventura!'],
     horta: ['Essa horta é meu orgulho. Cenoura daqui é outro nível.', 'Plantar é fácil, difícil é não comer tudo antes de colher.'],
     time: ['Bora! Tô no seu time. Vai na frente que eu cuido das suas costas.', 'Fechou! Time formado. Quem cair primeiro paga o jantar!', 'Partiu! Espada afiada e cenoura no bolso.'],
+    // André 2026-11-13 ("como se fosse um jogador real"): no chat ela só topa; quem dá o time é ele, pelo botão
+    timeCombinado: ['Bora! Manda o convite do time.', 'Topo! Me chama pro time que eu vou.', 'Fechou! Manda o time aí.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
     recusa: {
       cansada: 'Ai, tô moída... deixa eu descansar um pouco antes, tá?',
@@ -2603,11 +2615,12 @@ export const AMIGA = {
   troca: { margem: 1.5, porAmizade: 0.05, margemMin: 1.1, pensar: 1.2, longe: 6 },
   falasTroca: {
     abre: ['Bora negociar! Me diz o que você quer ("quero 3 cenouras") ou põe na mesa o que tem pra mim.', 'Troca? Adoro! Fala o que você quer ou mostra o que trouxe.'],
+    topa: ['Bora! Toca em mim e pede a troca.', 'Claro! Chega perto e pede a troca.'], // André 2026-11-13: no chat ela só topa; a troca ele abre
     longe: 'Chega mais perto que a gente troca! Toca em mim e escolhe Troca.',
     ocupada: 'Agora não dá, tô no meio de uma coisa! Daqui a pouco a gente troca.',
     pus: 'Coloquei na mesa: {item}. Sai por {preco} de ouro.',
     naoTenho: 'Hmm, isso eu não tenho aqui na mochila.',
-    oferta: 'Tenho sim: {item}. Não vou usar, te vendo por {preco} de ouro. Chega perto e abre a troca comigo que eu já ponho na mesa!',
+    oferta: 'Tenho sim: {item}. Não vou usar, te vendo por {preco} de ouro. Chega perto e pede a troca comigo que eu já ponho na mesa!',
     preciso: 'Tenho {item}, mas tô precisando. Esse eu não vendo!',
     falta: 'Assim não fecha, hein! Põe mais {falta} de ouro que eu topo.',
     pago: 'Gostei! Te pago {ouro} de ouro por isso.',
@@ -2715,6 +2728,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
     pronta: ['Casa pronta! Simples, mas aguenta qualquer tempestade.', 'Telhado em cima, horta plantada. Agora sim, aventura.'],
     horta: ['A horta me acalma. Batata daqui dá força pra caçada.', 'Plantar dá menos trabalho que matar lobo. Quase.'],
     time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
+    timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
     recusa: {
       cansada: 'Tô moído... deixa eu recuperar o fôlego antes.',
@@ -2746,6 +2760,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
   },
   falasTroca: {
     abre: ['Bora negociar. Me diz o que você quer ("quero 3 batatas") ou põe na mesa o que tem pra mim.', 'Troca? Pode ser. Fala o que quer ou mostra o que trouxe.'],
+    topa: ['Pode ser. Toca em mim e pede a troca.', 'Beleza. Chega perto e pede a troca.'],
     presente: 'Presente? Valeu mesmo, vou guardar.',
     feita: ['Negócio fechado. Bom fazer troca com você.', 'Feito! Volta sempre.'],
     obrigada: 'Obrigado pelo presente! Você é dos bons.',
@@ -3532,10 +3547,13 @@ export const HISTORIA = [
     ],
     pronto: 'Roda boa e lenha boa. Escuta: o de capa cinza voltou ontem, rondando o Ninho. Perguntou de você pelo nome. Tome cuidado.' },
   { id: 'b9', cap: 8, nv: 28, npc: 'ferreiro', nome: 'Prontos para a caçada', libera: [],
-    pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +6. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca.',
+    pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +3. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca. Tome dois Selos Épicos.',
+    recebe: { selo_epico: 2 }, // auditoria 2026-11-13: no Nv28 não havia de onde tirar catalisador Épico (evoluir falha 15%: vão dois)
     etapas: [
+      // auditoria 2026-11-13: +6 pedia 60 de Força ou Inteligência (o máximo no Nv28 é 57); +3 pede 30, que dá com metade
+      // dos pontos num atributo
       { ev: 'evoluir', min: 2, txt: 'Evolua uma peça para Épica na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
-      { ev: 'reforcar', min: 6, txt: 'Reforce uma peça até +6 (Mochila > peça > Reforçar)' },
+      { ev: 'reforcar', min: 3, txt: 'Reforce uma peça até +3 (Mochila > peça > Reforçar)' },
       { ev: 'criar', k: 'colar', ja: 'tem', txt: 'Forje um Colar de Estrela na bigorna da ferraria', alvo: 'estacao:pub_bigorna' },
       { ev: 'ter', itens: { ensopado: 3 }, txt: 'Leve 3 Ensopados de carne na mochila (fogão)', alvo: 'lote' },
     ],

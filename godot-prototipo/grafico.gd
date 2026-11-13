@@ -64,6 +64,13 @@ func _init(jogo) -> void:
 	limite = int(cfg.get_value("config", "fps_limite", -1))
 	if limite not in LIMITES:
 		limite = -1
+	# botão Teste (conselho 2026-11-13): escondido para quem instala agora (um toque sem querer rodava 90 s de teste);
+	# quem já jogava (André e o irmão) continua vendo. Configurações > Botão Teste troca. A linha do FPS tem a chave
+	# própria (Mostrar FPS, menu_topo.gd), que também vem desligada para quem instala agora.
+	teste = bool(cfg.get_value("config", "teste_fps", tem))
+	if not cfg.has_section_key("config", "teste_fps"):
+		cfg.set_value("config", "teste_fps", teste)
+		cfg.save(ARQUIVO)
 
 # ---------- desenho em paralelo (APK 2026-11-12) ----------
 # A lógica do jogo e o desenho rodam em linhas separadas do processador: o quadro passa a custar o maior dos dois, não a
@@ -104,6 +111,38 @@ func paralelo_confirmar() -> void:
 	cfg.set_value("rendering", "driver/threads/thread_model", 2 if liga else 1)
 	cfg.save(MOTOR)
 
+# ---------- linhas de fundo do motor (André 2026-11-12: "o app não abre", APK 2006 / Godot 4.7.1) ----------
+# Na primeira abertura do 4.7 (celular sem nada guardado em user://shader_cache) o motor prepara centenas de shaders.
+# Cada um vira várias tarefas no WorkerThreadPool e, com as linhas padrão (uma por núcleo: 8 no Poco X7), todas ficavam
+# esperando umas pelas outras: o jogo parava antes do primeiro quadro na tela "Procurando atualização…"/"Abrindo…" e só
+# andava depois de muito tempo (André: ~1 hora). Reproduzido no PC com Vulkan e cache vazio: 4 e 8 linhas travam, 32
+# abre. Linha parada não gasta processador, então sobrar linha não pesa. O ajuste vai no user://motor.cfg (o APK lê ao
+# abrir, como o desenho em paralelo) e só vale na próxima abertura; o project.godot já traz o mesmo para o próximo APK.
+const LINHAS := 32
+
+# true = acabou de gravar o ajuste e esta abertura ainda está sem ele (main.gd mostra o aviso e fecha o app)
+static func ajustar_linhas() -> bool:
+	if str(ProjectSettings.get_setting("application/config/project_settings_override", "")) != MOTOR:
+		return false # APK sem o motor.cfg (4.5): não tem o problema e não leria o ajuste
+	if int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) >= LINHAS:
+		return false # já está valendo
+	var cfg := ConfigFile.new()
+	cfg.load(MOTOR)
+	if int(cfg.get_value("threading", "worker_pool/max_threads", -1)) >= LINHAS:
+		return not bool(cfg.get_value("aethra", "linhas_aviso", false)) # gravado, falta abrir de novo
+	cfg.set_value("threading", "worker_pool/max_threads", LINHAS)
+	# as aberturas que travaram contaram como queda do desenho em paralelo; a culpa era daqui: zera a conta
+	cfg.set_value("aethra", "paralelo_falhas", 0)
+	cfg.save(MOTOR)
+	return true
+
+# o aviso de "abra de novo" aparece uma vez só (se o ajuste não pegar, o jogo segue e não fica fechando)
+static func linhas_avisou() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(MOTOR)
+	cfg.set_value("aethra", "linhas_aviso", true)
+	cfg.save(MOTOR)
+
 func trocar_paralelo(v: bool) -> void:
 	var cfg := _motor()
 	cfg.set_value("aethra", "paralelo", v)
@@ -114,6 +153,15 @@ func trocar_paralelo(v: bool) -> void:
 # quantos quadros por segundo valem agora (0 = sem limite)
 func fps_alvo() -> int:
 	return limite if limite >= 0 else int(P.fps)
+
+var teste := false # botão Teste à vista
+
+func trocar_teste(v: bool) -> void:
+	teste = v
+	var cfg := ConfigFile.new()
+	cfg.load(ARQUIVO)
+	cfg.set_value("config", "teste_fps", v)
+	cfg.save(ARQUIVO)
 
 func trocar_limite(v: int) -> void:
 	limite = v if v in LIMITES else -1
@@ -174,7 +222,9 @@ func trocar(n: int) -> void:
 # aplica tudo: tela, sombra, névoa e o alcance de tudo que já está na cena
 func aplicar() -> void:
 	var vp: Viewport = m.get_viewport()
-	vp.scaling_3d_scale = P.escala
+	# versão PC (ferramentas/pc/preparar.sh grava aethra/pc_escala): monitor de PC tem bem menos pontos por polegada que
+	# o celular, então a mesma escala ficava com cara de resolução baixa. No celular a opção não existe (x1).
+	vp.scaling_3d_scale = minf(1.0, P.escala * float(ProjectSettings.get_setting("aethra/pc_escala", 1.0)))
 	vp.msaa_3d = P.msaa
 	vp.mesh_lod_threshold = P.lod
 	Engine.max_fps = fps_alvo()

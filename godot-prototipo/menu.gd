@@ -161,10 +161,10 @@ func _ready() -> void:
 	var x := Fechar.new()
 	x.position = Vector2(-50, 8)
 	x.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	x.offset_left = -52
-	x.offset_top = 8
-	x.offset_right = -12
-	x.offset_bottom = 48
+	x.offset_left = -56
+	x.offset_top = 4
+	x.offset_right = -8
+	x.offset_bottom = 52
 	x.gui_input.connect(func(ev): if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed): fechar())
 	x.set_meta("guia", "fechar") # guia das missões (guia.gd): pisca quando o menu está no grupo errado
 	moldura.add_child(x)
@@ -251,10 +251,15 @@ static func balao_nome(alvo: Control, texto: String, cor := OURO_CLARO) -> void:
 	tw.tween_property(bx, "modulate:a", 0.0, 0.25)
 	tw.tween_callback(bx.queue_free)
 
+# letras legíveis no celular (conselho de auditoria 2026-11-13, Mestra Moldura: mais da metade das letras tinha 10 a 14):
+# 10 e 11 sobem 2; 12 e 13 sobem 1; de 14 para cima ficam iguais. Vale para todo rotulo() e botao() do jogo.
+static func legivel(tam: int) -> int:
+	return tam + 2 if tam <= 11 else (tam + 1 if tam <= 13 else tam)
+
 static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", tam)
+	l.add_theme_font_size_override("font_size", legivel(tam))
 	l.add_theme_color_override("font_color", cor)
 	return l
 
@@ -262,7 +267,7 @@ func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 	var b := Button.new()
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", tam)
+	b.add_theme_font_size_override("font_size", legivel(tam))
 	estilo_botao(b, ativo)
 	b.pressed.connect(func():
 		if not _arrastou:
@@ -283,6 +288,10 @@ static func estilo_botao(b: Button, ativo: bool) -> void:
 	var n := caixa(FUNDO3 if ativo else FUNDO2, OURO if ativo else BORDA, 1, 6)
 	var p := caixa(FUNDO3.lightened(0.08), OURO_CLARO, 1, 6)
 	var d := caixa(Color(0.1, 0.09, 0.08, 0.9), Color(0.25, 0.21, 0.16), 1, 6)
+	# botão mais alto para o dedo (conselho 2026-11-13: botões de cerca de 4 mm): 2 px a mais em cima e embaixo
+	for s in [n, p, d]:
+		s.content_margin_top += 2
+		s.content_margin_bottom += 2
 	b.add_theme_stylebox_override("normal", n)
 	b.add_theme_stylebox_override("hover", n)
 	b.add_theme_stylebox_override("pressed", p)
@@ -553,13 +562,20 @@ func lugar_de(id: String) -> String:
 	return ("espada" if boneco_modo == "Espada" else "cajado") if id == "arma" else id
 
 # peças do corpo: ícone com a cor da raridade; vazio = silhueta apagada
+var _vestido := "" # o que o boneco do menu está vestindo (atualizar_slots)
 func atualizar_slots() -> void:
 	quadradinhos = quadradinhos.filter(func(q): return is_instance_valid(q))
 	for q in quadradinhos:
 		q.marcado = not m.P.prog.get("semCapacete", false)
 		q.queue_redraw()
 	if boneco:
-		Armadura.vestir(boneco, m.P.equip_visivel()) # o boneco veste o mesmo que o herói (capacete escondido também)
+		# o boneco veste o mesmo que o herói (capacete escondido também). Refaz só quando muda a roupa, a aparência
+		# ou o corpo: vestir custava ~4 ms no PC (~13 ms no celular) e rodava 2 vezes a cada abrir
+		var eq: Dictionary = m.P.equip_visivel()
+		var chave := "%d|%s|%s" % [boneco.get_instance_id(), str(eq), str(m.aparencia)]
+		if chave != _vestido:
+			_vestido = chave
+			Armadura.vestir(boneco, eq)
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
@@ -736,7 +752,7 @@ func montar_direita() -> Control:
 	ferramentas_bolsa.add_theme_constant_override("separation", 6)
 	abas.add_child(ferramentas_bolsa)
 	var lugar_x := Control.new() # o X de fechar fica por cima deste canto
-	lugar_x.custom_minimum_size = Vector2(40, 0)
+	lugar_x.custom_minimum_size = Vector2(48, 0)
 	abas.add_child(lugar_x)
 	col.add_child(abas)
 	linha_arvores = HBoxContainer.new()
@@ -1688,7 +1704,7 @@ func montar_receitas(prof: String) -> void:
 func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
 	var P = m.P
 	var faz := {"k": str(R.faz), "r": 0} if P.dados.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
-	var nv_ok: bool = P.prof_nivel(R.prof) >= int(R.nivel)
+	var nv_ok: bool = P.prof_ok(str(R.prof), int(R.nivel), str(R.faz))
 	var custo: float = P.custo_vigor(R.prof, float(R.vigor))
 	var tem := true
 	var cx := PanelContainer.new()
@@ -2243,7 +2259,7 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	var of: Dictionary = D.oficina[str(R0.prof)]
 	var onde: String = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 	var aqui: bool = m.trabalho.perto_oficina(str(R0.prof)) or (cons != null and cons.estacao_perto([est]))
-	var nv_ok: bool = P.prof_nivel(str(R0.prof)) >= int(R.nivel)
+	var nv_ok: bool = P.prof_ok(str(R0.prof), int(R.nivel), faz_s if rar == 0 else "")
 	var custo: float = P.custo_vigor(str(R0.prof), float(R.vigor))
 	var it := {"k": faz_s, "r": rar}
 	var cx := PanelContainer.new()
@@ -2399,7 +2415,7 @@ func linha_criavel(e: Dictionary) -> Control:
 		var of: Dictionary = D.oficina[str(R.prof)]
 		onde = NOME_ESTACAO[est] if str(of.npc) == "" else "%s ou %s" % [NOME_ESTACAO[est], str(of.onde).replace("na ", "a ")]
 		aqui = m.trabalho.perto_oficina(str(R.prof)) or (cons != null and cons.estacao_perto([est]))
-		nv_ok = P.prof_nivel(str(R.prof)) >= int(R.nivel)
+		nv_ok = P.prof_ok(str(R.prof), int(R.nivel), faz_s)
 		custo = P.custo_vigor(str(R.prof), float(R.vigor))
 	else:
 		var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
@@ -3047,6 +3063,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	var fx := botao("✕", fechar_item, 16 if compacto else 20)
 	fx.custom_minimum_size = Vector2(34, 34) if compacto else Vector2(44, 44)
 	fx.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	fx.add_to_group("guia_saida") # a trava do guia (guia.gd) sempre deixa o X passar
 	var info: VBoxContainer = cab if compacto else txt # onde entram descrição, comparação e avisos
 	var bs: Container
 	if compacto:
@@ -4338,12 +4355,13 @@ class Quadradinho extends Control:
 
 class Fechar extends Control:
 	func _ready() -> void:
-		custom_minimum_size = Vector2(40, 40)
+		custom_minimum_size = Vector2(48, 48) # conselho 2026-11-13: era 40 (X de cerca de 5 mm); o centro fica no mesmo lugar
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		add_to_group("guia_saida") # a trava do guia (guia.gd) sempre deixa o X passar
 	func _draw() -> void:
 		var c := size * 0.5
-		draw_circle(c, 19, Color(0.12, 0.105, 0.088))
-		draw_arc(c, 19, 0, TAU, 32, Color(0.8, 0.64, 0.36), 1.5, true)
-		var r := 7.0
+		draw_circle(c, 21, Color(0.12, 0.105, 0.088))
+		draw_arc(c, 21, 0, TAU, 32, Color(0.8, 0.64, 0.36), 1.5, true)
+		var r := 7.5
 		draw_line(c + Vector2(-r, -r), c + Vector2(r, r), Color(0.95, 0.82, 0.55), 2.5, true)
 		draw_line(c + Vector2(-r, r), c + Vector2(r, -r), Color(0.95, 0.82, 0.55), 2.5, true)

@@ -266,8 +266,8 @@ func montar_janela(mt) -> void:
 			mt.montar(), false, confirmar), 92))
 		col.add_child(linha)
 		linhas += 1
-	# amigos virtuais: a Cecília (shared/amiga.js). "Msg" abre a conversa privada; "Chamar" e "Time" mandam a mensagem
-	# por ela (o servidor entende e ela decide se vem ou entra no time, como uma pessoa)
+	# amigos virtuais: a Cecília e o Dario (shared/amiga.js). "Msg" abre a conversa privada. André 2026-11-13 ("como se
+	# fosse um jogador real"): "Time" e "Sair do time" só fazem a ação, sem frase no chat por ele; o resto ele fala no chat
 	if not virtuais.is_empty():
 		col.add_child(Menu.rotulo("Amigos virtuais", 18, Color("ff8fc8")))
 		linhas += 1
@@ -309,11 +309,11 @@ func montar_janela(mt) -> void:
 				linha.add_child(_pequeno(mt._botao("Msg", func():
 					mt.fechar()
 					m.chat.abrir_pm(c, nome), false), 64))
-				linha.add_child(_pequeno(mt._botao("Chamar", func(): _falar_virtual(mt, c, nome, "Vem aqui comigo?"), false), 86))
+				var vid := str(v.get("id", "")) if v.get("id") != null else ""
 				if v.get("time", false):
-					linha.add_child(_pequeno(mt._botao("Sair do time", func(): _falar_virtual(mt, c, nome, "Pode sair do time, valeu pela ajuda!"), false), 120))
+					linha.add_child(_pequeno(mt._botao("Sair do time", func(): _time_virtual(mt, "expulsar", vid, c), false), 120))
 				else:
-					linha.add_child(_pequeno(mt._botao("Time", func(): _falar_virtual(mt, c, nome, "Bora pro meu time?")), 70))
+					linha.add_child(_pequeno(mt._botao("Time", func(): _time_virtual(mt, "convidar", vid, c)), 70))
 			col.add_child(linha)
 			linhas += 1
 	rolar.custom_minimum_size = Vector2(416, min(230.0, 26.0 + 40.0 * linhas))
@@ -321,11 +321,18 @@ func montar_janela(mt) -> void:
 	rolar.get_v_scroll_bar().value_changed.connect(func(v): _rolar_y = int(v))
 	rolar.set_deferred("scroll_vertical", _rolar_y)
 
-# manda a mensagem para a amiga virtual e abre a conversa para ver a resposta dela
-func _falar_virtual(mt, c: String, nome: String, texto: String) -> void:
-	m.rede("chat", {"canal": "pm", "para": c, "texto": texto})
-	mt.fechar()
-	m.chat.abrir_pm(c, nome)
+# botão de time do amigo virtual: só a ação, como com um jogador (o servidor decide se ele/ela entra)
+func _time_virtual(mt, acao: String, id: String, c: String) -> void:
+	m.rede("time", {"acao": acao, "com": id if id != "" else c})
+	_lista_t = 0.6 # a lista volta já com o time novo
+	mt.montar()
+
+# a conta (para a mensagem privada) do amigo virtual com este id na sala, ou ""
+func conta_virtual(id: String) -> String:
+	for v in virtuais:
+		if v is Dictionary and str(v.get("id", "")) == id:
+			return str(v.get("c", ""))
+	return ""
 
 func _pequeno(b: Button, largura: float) -> Button:
 	b.custom_minimum_size = Vector2(largura, 34)

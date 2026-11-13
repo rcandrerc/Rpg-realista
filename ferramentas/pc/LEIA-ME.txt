@@ -24,8 +24,12 @@ CONTROLES
   Roda do mouse .......... zoom
   F11 ou Alt+Enter ....... tela cheia
 
+GRÁFICOS
+  Menu > Configurações > Gráficos: Baixa (mais leve), Média ou Alta.
+  Limite FPS: 30, 60 ou sem limite. O botão Teste mostra o FPS.
+
 LOGIN
   "Entrar com Google" abre o navegador. Faça o login lá e volte para o jogo: ele entra sozinho.
 
 ATUALIZAÇÃO
-  A versão PC não se atualiza sozinha. Para a mais nova, baixe de novo o Aethra-PC.zip.
+  O jogo se atualiza sozinho: ao abrir, se tiver versão nova, baixa e entra (barra na tela).

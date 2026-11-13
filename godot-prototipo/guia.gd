@@ -32,7 +32,15 @@ const TRAVA_EM := ["menu", "janela", "confirma", "qtd", "conversa", "leilao", "f
 class Trava extends Control:
 	var buraco := Rect2()
 	func _has_point(p: Vector2) -> bool:
-		return not buraco.has_point(p)
+		if buraco.has_point(p):
+			return false
+		# o X de fechar sempre passa (conselho 2026-11-13: a trava prendia até o X por 20 s); grupo "guia_saida"
+		for x in get_tree().get_nodes_in_group("guia_saida"):
+			if x is Control and x.is_visible_in_tree():
+				var xf: Transform2D = x.get_global_transform_with_canvas()
+				if Rect2(xf.origin, x.size * xf.get_scale()).grow(4.0).has_point(p):
+					return false
+		return true
 
 var m # main.gd
 var desenho: Control
@@ -198,6 +206,17 @@ func passos(hi: Dictionary) -> Array:
 			return ["topo:multi", "b:Time"]
 		"veiculo":
 			var antes: Array = [] if m.P.carrinho_no_mundo() else bolsa + ["item:k:carrinho", "b:Colocar no chão"]
+			match k: # passos antes que o servidor manda (shared/kit.js antesDe, André 2026-11-13: guiar cada passo)
+				"colocar":
+					return antes
+				"por_pack": # o pack das costas no carrinho
+					return ["hud:veiculo", "m:veiculo:por_pack"]
+				"dirigir":
+					return ["ir", "hud:veiculo", "m:veiculo:dirigir"]
+				"barco": # pesca no mar: o barquinho na água
+					return bolsa + ["item:k:barquinho", "b:Usar"]
+				"radar": # pesca no mar: o radar mostra os spots
+					return bolsa + ["item:k:radar_pesca", "b:Usar"]
 			match k:
 				"abastecer":
 					return antes + ["hud:veiculo", "m:veiculo:encher"]
@@ -303,8 +322,12 @@ func _procurar() -> void:
 		for r in [m.menu_topo.raiz if m.menu_topo else null, m.missao_ativa.cartao if m.missao_ativa else null, m.construcao.tela if m.construcao else null]:
 			if r != null:
 				_varrer(r)
+	var fala := lista.find("hud:falar") # os botões da conversa com o NPC só valem depois do "Falar"
 	for i in range(lista.size() - 1, -1, -1):
 		var p := str(lista[i])
+		# André 2026-11-12: no barquinho, o "Criar " do menu achava o "Criar pack" da conversa do Nico e travava nele
+		if tipo == "conversa" and (p.begins_with("b:") or p.begins_with("b^")) and (fala < 0 or i < fala):
+			continue
 		if _achar(p, hi, tipo):
 			if _chave != p:
 				_chave = p

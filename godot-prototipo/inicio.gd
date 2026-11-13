@@ -51,6 +51,11 @@ var conteudo := {} # conteudo.json: {"versao", "completo": {"id", "tamanho", "pa
 var feito_bytes := 0 # já baixado nesta abertura (barra soma todos os arquivos)
 var total_bytes := 0
 var tentar: Button
+# Versão PC (André 2026-11-13: "atualização no próprio cliente, como no celular"). O build do PC (ferramentas/pc/
+# preparar.sh) grava aethra/atualizacao/pc_conteudo (o conteudo-pc.json do release "pc" no GitHub) e pc_id (o número
+# deste build). O .exe já traz o jogo inteiro; aqui ele vira casca: se o release tem um jogo mais novo, baixa (inteiro,
+# com a barra) e abre por cima. Se o mais novo é o que já veio no .exe, entra direto sem baixar nada.
+var pc_id := 0
 
 # Desenho em paralelo (APK 2026-11-12, auditoria de FPS): o project.godot liga a linha de desenho separada
 # (rendering/driver/threads/thread_model = 2) e lê por cima user://motor.cfg (application/config/
@@ -80,6 +85,11 @@ func _ready() -> void:
 	_trava_paralelo()
 	base = str(ProjectSettings.get_setting("aethra/atualizacao/base", ""))
 	casca = bool(ProjectSettings.get_setting("aethra/atualizacao/casca", false))
+	var pc_conteudo := str(ProjectSettings.get_setting("aethra/atualizacao/pc_conteudo", ""))
+	if pc_conteudo != "":
+		casca = true
+		url_conteudo = pc_conteudo
+		pc_id = int(ProjectSettings.get_setting("aethra/atualizacao/pc_id", 0))
 	_montar_tela()
 	if casca:
 		if OS.get_environment("RPG_CONTEUDO") != "": # testes: outro endereço
@@ -110,7 +120,7 @@ func _process(_d: float) -> void:
 		if baixando and http and total_bytes > 0:
 			var agora := feito_bytes + http.get_downloaded_bytes()
 			barra.value = 100.0 * agora / total_bytes
-			detalhe.text = "%s de %s" % [_mb(agora), _mb(total_bytes)]
+			detalhe.text = "%s / %s  (%d%%)%s" % [_mb(agora), _mb(total_bytes), int(barra.value), _velocidade(agora)]
 		return
 	if baixando and http:
 		var total := http.get_body_size()
@@ -232,6 +242,9 @@ func _entrar(pacote: String) -> void:
 
 func _pular() -> void:
 	if casca:
+		if pc_id > 0 and not _casca_tem_jogo():
+			_pc_entrar_embutido()
+			return
 		_casca_entrar()
 		return
 	_entrar(_pacote_valido())
@@ -260,6 +273,9 @@ func _casca_iniciar() -> void:
 	var est := _casca_estado()
 	var comp: Dictionary = m.completo
 	var deltas: Array = m.get("deltas", [])
+	if pc_id > 0 and int(str(comp.id)) <= pc_id:
+		_pc_entrar_embutido() # PC: o jogo mais novo é o que veio no .exe
+		return
 	var tem_completo := str(est.get_value("c", "completo", "")) == str(comp.id) and FileAccess.file_exists(COMPLETO)
 	var aplicados: Array = est.get_value("c", "deltas", []) if tem_completo else []
 	# os deltas são uma corrente: o que está no celular tem que ser o começo da lista do servidor
@@ -281,7 +297,7 @@ func _casca_iniciar() -> void:
 	if total_bytes > 0:
 		baixando = true
 		barra.visible = true
-		pular.visible = tem_completo
+		pular.visible = tem_completo or pc_id > 0 # PC: pula e abre o que já tem
 		_texto("Baixando o jogo (primeira vez)…" if not tem_completo else "Baixando atualização…", "")
 	if not tem_completo and not await _casca_baixar_completo(comp, est):
 		_casca_falhou()
@@ -421,6 +437,11 @@ func _casca_falhou() -> void:
 	baixando = false
 	if saindo:
 		return
+	if pc_id > 0 and not _casca_tem_jogo():
+		_texto("Não deu para baixar agora", "Abrindo a versão que já está no computador.")
+		await get_tree().create_timer(1.5).timeout
+		_pc_entrar_embutido()
+		return
 	if _casca_tem_jogo():
 		_texto("Não deu para baixar agora", "Abrindo a versão que já está no celular.")
 		await get_tree().create_timer(1.5).timeout
@@ -431,6 +452,9 @@ func _casca_falhou() -> void:
 		tentar.visible = true
 
 func _casca_sem_internet() -> void:
+	if pc_id > 0 and not _casca_tem_jogo():
+		_pc_entrar_embutido()
+		return
 	if _casca_tem_jogo():
 		_casca_entrar()
 	else:
@@ -439,7 +463,21 @@ func _casca_sem_internet() -> void:
 
 func _casca_tem_jogo() -> bool:
 	var est := _casca_estado()
-	return str(est.get_value("c", "completo", "")) != "" and FileAccess.file_exists(COMPLETO)
+	var c := str(est.get_value("c", "completo", ""))
+	if pc_id > 0 and int(c) <= pc_id:
+		return false # PC: o baixado é mais velho que o .exe (baixou o zip novo): vale o do .exe
+	return c != "" and FileAccess.file_exists(COMPLETO)
+
+# PC: abre o jogo que veio dentro do .exe (e apaga um baixado mais velho, se tiver)
+func _pc_entrar_embutido() -> void:
+	var est := _casca_estado()
+	if est.get_value("c", "completo", "") != "":
+		est.set_value("c", "completo", "")
+		est.set_value("c", "deltas", [])
+		est.save(ESTADO_CONTEUDO)
+		DirAccess.remove_absolute(COMPLETO)
+	_versao(str(pc_id))
+	_entrar("")
 
 # carrega o completo e os deltas na ordem (cada um por cima do anterior) e abre o jogo
 func _casca_entrar() -> void:
@@ -565,6 +603,34 @@ func _texto(a: String, b: String) -> void:
 	print("[atualização] ", a, " ", b) # aparece no logcat
 	aviso.text = a
 	detalhe.text = b
+
+# velocidade do download e quanto falta (André 2026-11-12: "mostrar quanto já foi, quanto falta e a velocidade, só
+# para ter noção se está baixando"): mede a cada meio segundo e suaviza; parado 5 s mostra "parado" (internet caiu)
+var _vel := -1.0 # bytes/s
+var _vel_t := 0
+var _vel_b := 0
+var _vel_parado := 0
+func _velocidade(agora: int) -> String:
+	var t := Time.get_ticks_msec()
+	if _vel < 0.0 or agora < _vel_b:
+		_vel = 0.0
+		_vel_t = t
+		_vel_b = agora
+		_vel_parado = t
+		return ""
+	if t - _vel_t >= 500:
+		var v := float(agora - _vel_b) * 1000.0 / float(t - _vel_t)
+		_vel = v if _vel <= 0.0 else lerpf(_vel, v, 0.3)
+		if agora > _vel_b:
+			_vel_parado = t
+		_vel_t = t
+		_vel_b = agora
+	if t - _vel_parado > 5000:
+		return "\nparado, esperando a internet…"
+	if _vel <= 0.0:
+		return ""
+	var falta := int(float(total_bytes - agora) / _vel)
+	return "\n%s/s · falta %s" % [_mb(int(_vel)), ("%d min %02d s" % [falta / 60, falta % 60]) if falta >= 60 else "%d s" % falta]
 
 static func _mb(bytes: int) -> String:
 	return "%.1f MB" % (bytes / 1048576.0)
