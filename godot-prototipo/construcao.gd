@@ -782,6 +782,8 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			h.j = int(ij[1])
 			h.no.position = Vector3(h.i + 0.5, m.terreno.altura(h.i + 0.5, h.j + 0.5), h.j + 0.5)
 			L.raiz.add_child(h.no)
+			if m.get("mato") != null and m.mato.has_method("tirar_em"): # o mato alto em cima da terra arada some na hora
+				m.mato.tirar_em(h.i - 0.25, h.j - 0.25, h.i + 1.25, h.j + 1.25)
 			h.fase = -9
 			h.molhada = null
 		L.horta[c] = h
@@ -1494,7 +1496,10 @@ func _molhada(h: Dictionary) -> bool:
 func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	var f := fase(_crescida(h)) if h.c != "" else -1
 	var mo := _molhada(h)
-	if not forcar and f == h.fase and mo == h.molhada:
+	# 2026-11-13 (André: "o terreno arado seco tá com falhas nas conexões, dá pra ver a grama por baixo"): arar o
+	# vizinho muda a emenda (mask), mas a terra seca saía aqui sem refazer a malha e ficava com a borda solta (o
+	# desbotado no chão) virada para o vizinho. A molhada se refazia ao regar, por isso ficava perfeita.
+	if not forcar and f == h.fase and mo == h.molhada and h.get("mask", 0) == h.get("mask_feita", -1):
 		return
 	var mudou_terra: bool = forcar or mo != h.molhada or h.get("mask", 0) != h.get("mask_feita", -1)
 	h.fase = f
