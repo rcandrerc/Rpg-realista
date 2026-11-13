@@ -126,3 +126,22 @@ await pensarAmiga(s.amigosIa.find((x) => x.AMIGA.id === 'dario').contextoAmiga('
 const [sc, sd] = pedidos.map((b) => b.messages[0].content);
 ok(/jogadora de MMORPG/.test(sc) && /farmar/.test(sc) && /DG/.test(sc) && /Nada de jeito fofinho/.test(sc), 'Cecília fala como jogadora de RPG online (farmar, DG, mob), nada de fofinho');
 ok(/Você é mulher: fale de si no feminino/.test(sc) && /jogador de MMORPG/.test(sd) && /Você é homem: fale de si no masculino/.test(sd), 'Cecília no feminino, Dario no masculino');
+
+// André 2026-11-13: "ele acabou de me negar, aí eu falo mais duas palavras, aí do nada ele me chama pra ir caçar"
+{
+  const aj2 = s.jogadores.get('andre'); aj2.time = null; cec.amiga.time = null; cec.amiga.ia.combinado = 0; cec.amiga.ia.chamado = null;
+  cec.amiga.ia.humor = null; cec.amiga.ia.recusaAte = 0;
+  const h1 = cec.decisaoTimeAmiga(cec.amiga, aj2, true), h2 = cec.decisaoTimeAmiga(cec.amiga, aj2);
+  ok(h1 === h2, 'a vontade de caçar é sorteada uma vez e vale por um tempo (não muda a cada fala)');
+  cec.amiga.ia.humor = { ate: s.tempo + 90, conta: aj2.conta, aceita: false, motivo: 'noite' };
+  ok(cec.contextoAmiga('andre').humor?.aceita === false, 'a ficha da IA sabe que ela não quer caçar agora');
+  pedidos.length = 0; respostas = [];
+  await pensarAmiga(cec.contextoAmiga('andre'), 'bora caçar?', 'chave-de-teste');
+  ok(/Agora você NÃO quer caçar nem entrar no time \(motivo: é noite/.test(pedidos[0].messages[0].content) && /não convide nem sugira caçar/.test(pedidos[0].messages[0].content), 'a IA recebe a decisão e o motivo antes de falar');
+  cec.chatDeAmiga(aj2).length = 0; cec.amiga.ia.chatFila = [];
+  cec.respostaAmiga('andre', { assunto: 'time', iaAssunto: 'conversa', fala: 'De noite não, mano. Amanhã a gente farma.' });
+  ok(cec.amiga.ia.chatFila.at(-1)?.texto === 'De noite não, mano. Amanhã a gente farma.' && cec.amiga.ia.recusaAte > s.tempo + 120, 'recusou: vale a fala da IA (não a pronta) e o não dura uns minutos');
+  s.tempo += 100;
+  ok(cec.decisaoTimeAmiga(cec.amiga, aj2).aceita === false && /ACABOU DE RECUSAR/.test((pedidos.length = 0, await pensarAmiga(cec.contextoAmiga('andre'), 'beleza', 'chave-de-teste'), pedidos[0].messages[0].content)), 'duas falas depois ela ainda lembra que recusou');
+  cec.amiga.ia.humor = null; cec.amiga.ia.recusaAte = 0;
+}
