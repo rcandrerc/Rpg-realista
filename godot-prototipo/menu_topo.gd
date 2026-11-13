@@ -669,6 +669,27 @@ func _limite_fps() -> void:
 		linha.add_child(b)
 	conteudo.add_child(linha)
 	_texto("30 ou 60: ritmo igual e esquenta menos.", Menu.APAGADO, 13)
+	_teste_fps()
+
+# botão Teste e linha do FPS e ping (conselho 2026-11-13): à vista ou escondidos (grafico.gd teste)
+func _teste_fps() -> void:
+	var G = m.grafico
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var l := Menu.rotulo("Teste e FPS", 17)
+	l.custom_minimum_size = Vector2(120, 0)
+	linha.add_child(l)
+	for i in 2:
+		var b := _botao(["Mostrar", "Esconder"][i], func():
+			if G.teste != (i == 0):
+				G.trocar_teste(i == 0)
+				if m._tela_teste:
+					m._tela_teste.visible = i == 0
+				montar(), G.teste == (i == 0))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
 
 # Visual leve (visual_leve.gd, André 2026-11-10): sombra de verdade só nos personagens e casas + cor da grama
 func _visual_leve() -> void:

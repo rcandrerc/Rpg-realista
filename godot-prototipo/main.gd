@@ -284,6 +284,7 @@ const ESPERA := 2.5
 const MEDE := 5.0
 
 func _ready() -> void:
+	get_tree().quit_on_go_back = false # o Voltar do Android fecha a janela de cima (voltar_android)
 	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
 	# próxima abertura. Não fecha mais o jogo: a trava de verdade era o pré-carregamento em segundo plano (pre_carregar).
 	if Grafico.ajustar_linhas():
@@ -409,6 +410,7 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
+	_tela_teste.visible = grafico.teste # Configurações > Teste e FPS
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
 	lentidao = load("res://lentidao.gd").new(self)
@@ -3250,10 +3252,83 @@ func _abrir_de_novo() -> void:
 
 # app indo para o fundo ou fechando: grava na hora a cópia do progresso que estava esperando
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		voltar_android()
+		return
 	if (what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE) and P != null:
 		P.guardar_agora()
 		if volta:
 			volta.guardar(true)
+
+# Botão Voltar do Android (auditoria 2026-11-13): antes fechava o jogo na hora, mesmo com uma janela aberta. Agora fecha
+# a janela de cima, como o X dela; sem janela aberta, avisa e só sai com um segundo toque em até VOLTAR_SAIR s.
+const VOLTAR_SAIR := 2.5
+var _voltar_ms := 0
+func voltar_android() -> void:
+	if _fechar_de_cima():
+		_voltar_ms = 0
+		return
+	var agora := Time.get_ticks_msec()
+	if _voltar_ms > 0 and agora - _voltar_ms < int(VOLTAR_SAIR * 1000.0):
+		if P != null:
+			P.guardar_agora()
+		if volta:
+			volta.guardar(true)
+		get_tree().quit()
+		return
+	_voltar_ms = agora
+	if hud:
+		hud.aviso("Toque Voltar de novo para sair")
+
+# fecha a janela que está por cima (a mesma ordem em que elas se cobrem); false = nenhuma aberta
+func _fechar_de_cima() -> bool:
+	if cinematica and cinematica.ativa:
+		cinematica.pular()
+		return true
+	if criador and criador.aberto():
+		return true # o criador tem os botões dele (conta nova não pode sair dele): o Voltar não faz nada
+	if reforco and reforco.aberta():
+		reforco._fechar()
+		return true
+	if menu and menu._confirma != null and is_instance_valid(menu._confirma):
+		menu.fechar_confirma()
+		return true
+	if troca and troca.aberto():
+		troca.cancelar() # como o X da troca: o servidor desfaz
+		return true
+	if leilao and leilao.aberto():
+		leilao.fechar()
+		return true
+	if construcao and construcao.painel_bau and construcao.painel_bau.visible:
+		construcao.fechar_bau()
+		return true
+	if construcao and construcao.painel_forno and construcao.painel_forno.visible:
+		construcao.fechar_forno()
+		return true
+	if menu and menu.aberto():
+		if menu.janela_aberta():
+			menu.fechar_janela()
+		elif menu.sel_mochila >= 0 or menu.sel_equip != "":
+			menu.fechar_item()
+		else:
+			menu.fechar()
+		return true
+	if conversa and conversa.aberto():
+		conversa.fechar()
+		return true
+	if chat and chat.aberto():
+		chat.fechar()
+		return true
+	if menu_topo and menu_topo.aberto():
+		menu_topo.fechar()
+		return true
+	if minimapa and minimapa.aberto:
+		minimapa.fechar()
+		return true
+	if editar_hud and editar_hud.aberto:
+		editar_hud.fechar()
+		return true
+	return false
 
 func _process(dt: float) -> void:
 	var t0_main := Time.get_ticks_usec()
@@ -4791,6 +4866,8 @@ func proxima_etapa() -> void:
 	_q_quadros.clear()
 
 func atualizar_teste(dt: float) -> void:
+	if not _tela_teste.visible and etapa < 0: # escondido (Configurações > Teste e FPS): nem monta o texto
+		return
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
 	if online and online.ligado and online.rede.ping_ms >= 0: # André 2026-11-03: ping do servidor sempre à vista
