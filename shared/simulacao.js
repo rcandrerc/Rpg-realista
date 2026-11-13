@@ -2016,6 +2016,15 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j?.time) return [];
     return this.amigosIa.filter((x) => x.amiga && x.amiga.time === j.time && x.podeAmiga(id));
   }
+  // André 2026-11-13 ("eles respondem coisa sem lógica"): no chat do time, se ele chamou alguém pelo nome ("Dario, bora?"),
+  // só esse responde; sem nome, respondem todos (como antes). Os que não foram chamados ouvem igual (dicas valem para todos).
+  amigosIaChamados(id, texto) {
+    const lista = this.amigosIaNoTime(id), t = ' ' + String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ') + ' ';
+    const nome = (x) => ' ' + String(x.AMIGA.nome).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' ';
+    // "o que acha do Dario?" só fala dele: nome depois de do/da/de/sobre/com... não conta como chamado
+    const chamados = lista.filter((x) => { const n = nome(x); let i = t.indexOf(n); while (i >= 0) { if (!/ (do|da|de|dos|das|o|a|sobre|com|pro|pra|ao|no|na) $/.test(t.slice(0, i + 1))) return true; i = t.indexOf(n, i + 1); } return false; });
+    return chamados.length ? chamados : lista;
+  }
   // entrega a mensagem a quem deve ver nesta sala (o geral para todos; amigos para quem falou e os amigos dele)
   receberChat(msg) {
     for (const o of this.jogadores.values()) {

@@ -1068,11 +1068,16 @@ export const Amiga = {
     const noTime = !!(a.time && a.time === j.time);
     return (assunto === 'time' && noTime) || (assunto === 'sairTime' && !noTime);
   },
+  // "me chama de fofinha" é apelido (André 2026-11-13, print: a Cecília respondeu "Bora, já vou aí!" e foi até ele)
+  apelidoAmiga(texto) { return /\b(cham\w*|cahm\w*|caham\w*)\s+(de|d)\s+\S/.test(normAmiga(texto)); },
   regraValeSobreIaAmiga(id, assunto, texto, assuntoIa) {
     if (this.acaoSemEfeitoAmiga(id, assunto)) return false;
-    if (assuntoIa === 'conversa' && ['time', 'vir', 'sairTime'].includes(assunto)) {
+    if (assuntoIa === 'conversa' && ['time', 'vir', 'sairTime', 'pescar', 'minerar', 'lenha'].includes(assunto)) {
       const palavras = normAmiga(texto).split(' ').filter(Boolean).length;
       if (palavras > this.AMIGA.chat.pedidoCurto) return false;
+      // André 2026-11-13: pergunta que a IA leu como conversa ("onde você vai caçar hoje?", "você gosta de pescar?") não é pedido:
+      // antes ela ia até ele ou sorteava "hoje não tô no clima" no lugar da resposta. "bora caçar?" a IA já marca como time.
+      if (/\?\s*$/.test(String(texto)) && !/^\s*(bora|vamos|vem|partiu|simbora)\b/i.test(normAmiga(texto))) return false;
     }
     return true;
   },
@@ -1095,7 +1100,7 @@ export const Amiga = {
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       ouro: a.prog.ouro | 0,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
-      conversa: this.chatDeAmiga(j).slice(-8), // 8 de novo (André 2026-11-12: com 6 ela perdia o fio da conversa)
+      conversa: this.chatDeAmiga(j).slice(-12), // as 12 guardadas (André 2026-11-13: com menos ela perdia o fio da conversa)
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],
@@ -1247,6 +1252,8 @@ export const Amiga = {
       const T = ia.viaTime > this.tempo && a.time && quem.time === a.time ? a.time : null;
       const msg = T ? { canal: 'time', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), membros: this.contasDoTime(T) } : { canal: 'pm', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), alvo: quem.conta, alvoNome: quem.nome };
       const c = this.chatDeAmiga(quem); c.push({ de: 'ela', texto }); if (c.length > 12) c.shift();
+      // no time, os outros NPCs leem o que ela disse (André 2026-11-13: cada um respondia sem saber do outro)
+      if (T) for (const x of this.amigosIa) if (x !== this && x.amiga && x.amiga.time === T && x.podeAmiga(quem.id)) { const h = x.chatDeAmiga(quem); h.push({ de: 'outro', nome: this.AMIGA.nome, texto }); if (h.length > 12) h.shift(); }
       if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
     }
     // ela chama o André de vez em quando (longe, fora do time, viva, sem conversa esperando)

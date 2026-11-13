@@ -501,7 +501,9 @@ func _foto_meio(f: Dictionary) -> void:
 				tudo["_mexeu_meio"] = true
 			_srv[id] = tudo
 
+var foto_ms := 0 # quando chegou a última foto (lentidao.gd mede o maior tempo sem foto)
 func aplicar_foto(f: Dictionary) -> void:
+	foto_ms = Time.get_ticks_msec()
 	_medir_chegada()
 	_marcar_tempo(f)
 	corpos.clear()
@@ -1248,6 +1250,8 @@ func evento(ev: Dictionary) -> void:
 			m.mov.ry = float(ev.ry)
 			var novo: Vector3 = m.mov.posicao()
 			var dif: Vector3 = antes - novo
+			if m.lentidao:
+				m.lentidao.corrigiu(dif.length())
 			# correção pequena: o corpo desliza até o lugar certo (a câmera vai junto); grande: pula como antes
 			m.desliza = dif if Vector2(dif.x, dif.z).length() < DESLIZA_MAX and absf(dif.y) < 1.0 else Vector3.ZERO
 			m.heroi.position = novo + m.desliza

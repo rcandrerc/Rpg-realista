@@ -124,6 +124,7 @@ var mov # andar.gd: como o herói anda, colide e escala
 var _clip_visto := -1
 var online # online.gd: servidor do Oracle (login, outros jogadores, dano de verdade)
 var aquecer # aquecer.gd: mostra cada efeito e monstro uma vez atrás da capa (sem travada no primeiro uso)
+var lentidao # lentidao.gd: anota sozinho os segundos de câmera lenta, puxão do servidor e travada (manda para o servidor)
 var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
@@ -410,6 +411,8 @@ func _ready() -> void:
 	montar_teste()
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
+	lentidao = load("res://lentidao.gd").new(self)
+	add_child(lentidao)
 	online = Online.new(self)
 	add_child(online)
 	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
@@ -4778,6 +4781,8 @@ func atualizar_teste(dt: float) -> void:
 	else:
 		txt += "\nquadro %.1f ms = física %.1f + lógica %.1f + desenho %.1f + espera %.1f" % [q_ms.quadro, q_ms.fisica, q_ms.logica, q_ms.desenho, q_ms.espera]
 	txt += " · pior 5 s %.0f ms · travadas %d" % [_pior_mostra, travadas]
+	if lentidao:
+		txt += " · lentas %d" % lentidao.lentas
 	if etapa >= 0:
 		var proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 		t_etapa += dt

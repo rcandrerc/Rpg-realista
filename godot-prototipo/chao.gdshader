@@ -21,6 +21,16 @@ uniform vec4 lago_l[32];
 uniform vec4 beira = vec4(0.0, 3.0, 0.3, 0.6);
 // prainhas (direção de arte 2026-11-06): trechos de terra larga numa parte da margem: (x, z, raio da mancha, largura)
 uniform vec4 prainha[2];
+// Versão PC no modo OpenGL (renderizador Compatibility): a foto chega sem a conversão para cor linear, mais clara. As
+// contas de brilho abaixo (onde a pedra e a terra entram na grama) esperam o linear: sem isto, no PC o chão inteiro
+// virava calçamento (André 2026-11-13). No celular (Mobile) e no Vulkan do PC não muda nada.
+vec3 brilho_linear(vec3 c) {
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	return pow(c, vec3(2.2));
+#else
+	return c;
+#endif
+}
 // ruído de valor (de 0 a 1) para a faixa variar ao longo da margem e os tufos de grama entrarem na terra
 float ruido_v(vec2 p) {
 	vec2 i = floor(p), f = fract(p);
@@ -113,9 +123,9 @@ void fragment() {
 	vec2 mk = texture(mascara, (mundo.xz - area.xy) / area.z).rg;
 	// (leveza 2026-11-10) o brilho linear da foto é o mesmo g0/p0 já lido (source_color = a foto em linear): sem ler
 	// a mesma textura duas vezes por ponto
-	float lum = dot(g0, vec3(0.6));
+	float lum = dot(brilho_linear(g0), vec3(0.6));
 	float pt = smoothstep(0.3, 0.62, mk.r + (lum - 0.3) * 1.4);
-	float pp = smoothstep(0.35, 0.6, mk.g + (dot(p0, vec3(0.5)) - 0.15) * 0.8);
+	float pp = smoothstep(0.35, 0.6, mk.g + (dot(brilho_linear(p0), vec3(0.5)) - 0.15) * 0.8);
 	vec3 c = mix(grama, terra, pt);
 	c = mix(c, pedra * 1.6, pp);
 	// estrada do mundo chegando no mapa de hoje: a mesma terra e a mesma borda do chão do mundo
