@@ -2284,7 +2284,8 @@ export class Simulacao {
     this.cancelarVila(j);
     const no = this.coletaveis.get(m.no), aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!no) return;
-    if (j.esc || !j.chao || j.trava > 0 || j.arrancada || j.montado) return;
+    if (j.esc || !j.chao || j.trava > 0 || j.arrancada) return;
+    if (j.montado) j.montado = null; // montado: desce do lobo sozinho e coleta (André 2026-11-13)
     if (dist(no, j) - no.r > COLETA_DISTANCIA || (no.y != null && Math.abs((j.y || 0) - no.y) > 2.5)) return aviso('Chegue mais perto'); // veio de caverna: lá dentro
     const C = COLETA[no.tipo];
     if (C.mao) return this.pegarSolto(j, no, C);
@@ -2839,7 +2840,8 @@ export class Simulacao {
   }
   // conferências comuns: dono do lote, perto o bastante e lugar dentro do lote. Devolve o lote ou null (já avisou)
   loteParaMexer(j, x, z, aviso) {
-    if (j.criando || j.morto || j.montado) return null;
+    if (j.criando || j.morto) return null;
+    if (j.montado) j.montado = null; // montado: desce do lobo sozinho para plantar, colher ou construir (André 2026-11-13)
     const L = this.loteDe(j);
     if (!L) { aviso('Compre um terreno nas Terras da Estrada para construir'); return null; }
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
