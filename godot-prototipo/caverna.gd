@@ -140,6 +140,7 @@ func montar() -> void:
 	if dungeon:
 		_fila.append(_selo)
 	_fila.append(_enfeites)
+	_fila.append(_juntar)
 
 func desmontar() -> void:
 	montada = false
@@ -149,6 +150,7 @@ func desmontar() -> void:
 		c.queue_free()
 	_pedacos.clear()
 	_luzes.clear()
+	_manter = null
 	selo = null
 	selo_mat = null
 
@@ -384,6 +386,90 @@ func _fundo() -> void:
 		_tri(vs, idx, 0, 1 + i, 1 + (i + 1) % pf.size(), dentro)
 	_malha(vs, cs, idx, "Fundo")
 
+# Juntar (2026-11-13, registros do celular: perto das minas a caverna montada eram 191 malhas, ~300 desenhos e 99
+# sombras, todas desenhadas por dentro da montanha): no fim da montagem, tudo o que é parado vira uma malha por
+# material, como os veios de minério (Construcao.juntar_malhas). O túnel inteiro tem ~25 mil triângulos, então
+# desenhar ele de uma vez sai bem mais barato que dezenas de pedaços. Ficam soltos (nó "chama"): as chamas das tochas
+# (cada uma com a sua fase) e o selo (o véu que dissolve). Luzes e cascalho não mudam.
+# Feito aos poucos, pela mesma fila (3 ms por quadro): de uma vez levava ~17 ms no PC, um tranco ao chegar perto.
+var _manter: Node3D
+func _no_manter() -> Node3D:
+	if _manter == null:
+		_manter = Node3D.new()
+		_manter.name = "chama"
+		add_child(_manter)
+	return _manter
+
+func _juntar() -> void:
+	var grupos := {} # sombra -> {material id -> [material, SurfaceTool]}
+	var feitos: Array = []
+	for mi: MeshInstance3D in find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.skin != null or not mi.is_visible_in_tree():
+			continue
+		if _manter and _manter.is_ancestor_of(mi):
+			continue
+		feitos.append(mi)
+	if feitos.size() < 2:
+		return
+	# um passo por malha, depois um por material e por fim a troca (num quadro só, sem piscar)
+	var passos: Array = []
+	for mi in feitos:
+		passos.append(_juntar_uma.bind(mi, grupos))
+	passos.append(_juntar_materiais.bind(grupos))
+	passos.append(_juntar_fim.bind(feitos, grupos))
+	_fila = passos + _fila
+
+func _juntar_materiais(grupos: Dictionary) -> void:
+	var passos: Array = []
+	for sombra in grupos:
+		grupos[sombra]["am"] = ArrayMesh.new()
+		for chave in grupos[sombra]:
+			if chave is int:
+				passos.append(_juntar_material.bind(grupos[sombra], chave))
+	_fila = passos + _fila
+
+func _juntar_material(g: Dictionary, chave: int) -> void:
+	var am: ArrayMesh = g.am
+	(g[chave][1] as SurfaceTool).commit(am)
+	am.surface_set_material(am.get_surface_count() - 1, g[chave][0])
+
+func _juntar_uma(mi: MeshInstance3D, grupos: Dictionary) -> void:
+	var t: Transform3D = global_transform.affine_inverse() * mi.global_transform
+	var sombra: int = mi.cast_shadow
+	if not grupos.has(sombra):
+		grupos[sombra] = {}
+	for i in mi.mesh.get_surface_count():
+		if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+			continue
+		var mt: Material = mi.material_override
+		if mt == null:
+			mt = mi.get_surface_override_material(i)
+		if mt == null:
+			mt = mi.mesh.surface_get_material(i)
+		var chave := mt.get_instance_id() if mt else 0
+		if not grupos[sombra].has(chave):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			grupos[sombra][chave] = [mt, st]
+		(grupos[sombra][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+
+func _juntar_fim(feitos: Array, grupos: Dictionary) -> void:
+	for sombra in grupos:
+		var am: ArrayMesh = grupos[sombra].am
+		if am.get_surface_count() == 0:
+			continue
+		var junto := MeshInstance3D.new()
+		junto.name = "junto_%d" % sombra
+		junto.mesh = am
+		junto.cast_shadow = sombra
+		add_child(junto)
+	for mi: MeshInstance3D in feitos:
+		if mi.get_child_count() == 0:
+			mi.queue_free()
+		else:
+			mi.mesh = null
+	_pedacos.clear()
+
 # ---------- selo, tochas, braseiros, cristais e pedras ----------
 func _ponto_s(s: float, lado := 0.0) -> Dictionary:
 	var k := clampi(int(s), 0, A.size() - 2)
@@ -412,7 +498,7 @@ func _selo() -> void:
 	selo.mesh = pm
 	selo.material_override = selo_mat
 	selo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(selo)
+	_no_manter().add_child(selo)
 	selo.position = q.p + Vector3(0, H / 2.0 - 0.05, 0)
 	selo.rotation.y = atan2(float(q.dx), float(q.dz))
 	# dois pilares de pedra lavrada segurando o selo e uma luz dourada fraca
@@ -504,7 +590,7 @@ func _chama(p: Vector3, tam: float, fase: float) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.set_instance_shader_parameter("fase", fase)
 	mi.position = p
-	add_child(mi)
+	_no_manter().add_child(mi)
 
 var _mat_madeira: StandardMaterial3D
 func _tocha(s: float, lado: float) -> void:
