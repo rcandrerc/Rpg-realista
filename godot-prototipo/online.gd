@@ -141,12 +141,16 @@ func montar_tela() -> void:
 	status.add_theme_constant_override("outline_size", 4)
 	status.anchor_left = 0.5
 	status.anchor_right = 0.5
-	status.offset_left = -170
-	status.offset_right = 170
+	status.offset_left = -210
+	status.offset_right = 210 # cabe o FPS junto do ping
 	status.offset_top = 6
 	status.offset_bottom = 34
 	status.text = "Sozinho · tocar para jogar online"
-	status.pressed.connect(func(): if not ligado: mostrar_login())
+	status.pressed.connect(func():
+		if not ligado:
+			mostrar_login()
+		elif m.menu_topo: # André 2026-11-13: tocar no FPS do topo mostra/esconde os números do teste
+			m.menu_topo.trocar_detalhes())
 	tela.add_child(status)
 
 	painel = PanelContainer.new()
@@ -277,12 +281,19 @@ func esconder_login() -> void:
 	status.visible = true
 	m.hud.set_process_input(true)
 
+# FPS no topo (chave Configurações > Mostrar FPS), saiu do meio da tela
+func _fps_topo() -> String:
+	if m.menu_topo != null and not m.menu_topo.mostrar_fps:
+		return ""
+	return " · %d FPS" % Engine.get_frames_per_second()
+
 func atualizar_status(_t := "") -> void:
 	if ligado:
 		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
 		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
 		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
-		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
+		# André 2026-11-13: o FPS fica aqui no topo junto do ping (chave Mostrar FPS); o resto dos números some da tela
+		var txt := "Online · %d %s%s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", _fps_topo(), p]
 		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
 		# ms; o ping velho ficava na tela até o pong atrasado chegar com 20000). Servidor com passo lento: "Servidor lento"
 		var calado: float = (Time.get_ticks_msec() - rede.ult_pacote_ms) / 1000.0 if rede.ult_pacote_ms > 0 else 0.0
@@ -306,7 +317,9 @@ func atualizar_status(_t := "") -> void:
 		status.text = _t
 	else:
 		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
-		status.text = "Sozinho · tocar para jogar online"
+		var txt := "Sozinho%s · tocar para jogar online" % _fps_topo()
+		if status.text != txt:
+			status.text = txt
 
 # ---------- sala ----------
 func ao_entrar(id: String, conta: Dictionary) -> void:
@@ -1560,6 +1573,11 @@ func _passo(dt: float) -> void:
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":
 			rede.religar() # mesma sessão se o servidor ainda segura o herói; senão entra de novo (rede.iniciar)
 	if not ligado:
+		# sozinho (André 2026-11-13): o FPS também fica no topo, 2 vezes por segundo
+		_status_t -= dt
+		if _status_t <= 0.0 and status.visible and status.text.begins_with("Sozinho"):
+			_status_t = 0.5
+			atualizar_status()
 		return
 	_ap_t -= dt
 	if _ap_mandar != null and _ap_t <= 0.0:
