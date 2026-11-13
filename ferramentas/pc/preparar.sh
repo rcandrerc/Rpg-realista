@@ -35,6 +35,17 @@ pos_secao display 'window/size/mode=2'
 # VSync adaptativo (2): sem a trava de 60 -> 30 quando o quadro atrasa um pouco
 sed -i 's/^window\/vsync\/vsync_mode=.*/window\/vsync\/vsync_mode=2/' project.godot
 grep -q '^window/vsync/vsync_mode=2$' project.godot || pos_secao display 'window/vsync/vsync_mode=2'
+# Vulkan primeiro no Windows (2026-11-13). O Godot 4.6+ abre em Direct3D 12 por padrão no Windows e, no PC do André, o
+# chão de grama saiu quase todo de pedra: o chao.gdshader decide grama x pedra pelo brilho da textura em cor linear
+# (source_color) e no D3D12 ela chegou sem a conversão. Sem Vulkan, ainda cai para D3D12 e depois OpenGL (acima).
+pos_secao rendering 'rendering_device/driver.windows="vulkan"'
+# FXAA: tira o serrilhado das bordas quase de graça (o MSAA da qualidade continua igual)
+pos_secao rendering 'anti_aliasing/quality/screen_space_aa=1'
+# Resolução 3D maior no PC (André 2026-11-13: "na Alta parece resolução muito baixa"; no celular fica perfeito porque a
+# tela tem muito mais pontos por polegada). grafico.gd multiplica a escala do nível: Alta 0.6 -> 1.0 (tela cheia),
+# Média 0.52 -> 0.87, Baixa 0.45 -> 0.75.
+grep -q '^\[aethra\]$' project.godot || printf '\n[aethra]\n' >> project.godot
+pos_secao aethra 'pc_escala=1.67'
 # FSR 1 para ampliar o mundo 3D (no modo OpenGL o Godot ignora e usa o esticado simples)
 pos_secao rendering 'scaling_3d/mode=1'
 pos_secao rendering 'scaling_3d/fsr_sharpness=0.2'
