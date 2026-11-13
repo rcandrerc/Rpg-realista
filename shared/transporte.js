@@ -18,6 +18,37 @@ const r2 = (n) => Math.round(n * 100) / 100;
 const PACK_CHAO_DURA = 1800; // s: pack esquecido no chão some depois de meia hora
 const MAX_CHAO = 200;
 
+// ---------- carrinho sólido (André 2026-11-13: "não quero passar por dentro dele"; "pular em cima dele") ----------
+// As caixas do carrinho de nível nv: { trator: [...], carreta: [...] }, cada uma [xmin, xmax, zmin, zmax, topo] (m).
+// trator no espaço do carrinho, carreta no espaço do engate (ela gira na curva). Mesma conta no app (transporte.gd caixas).
+export function caixasCarrinho(nv) {
+  const S = V.carrinho.solido, K = S.cacamba, fileiras = nv <= 1 ? 1 : 2;
+  const fundo = K.frente - fileiras * K.fileira - 2 * K.folga;
+  const carreta = [S.lanca.slice(), [S.rodas[0], S.rodas[1], fundo, K.frente, S.rodas[2]]];
+  for (let f = 0; f < fileiras; f++) {
+    const andar2 = (nv >= 3 && f === 0) || (nv >= 4 && f === 1);
+    carreta.push([-K.meia, K.meia, f === fileiras - 1 ? fundo : K.frente - K.folga - (f + 1) * K.fileira,
+      f === 0 ? K.frente : K.frente - K.folga - f * K.fileira, K.topo + (andar2 ? K.andar2 : 0)]);
+  }
+  return { trator: S.trator, carreta };
+}
+// topo do carrinho mais alto embaixo de (x, z) (-Infinity = nenhum). O servidor não sabe o giro da carreta: conta ela
+// reta atrás do trator, com 0,3 m de folga (só serve para saber se quem está em cima pisa no chão).
+const _caixas = new Map();
+export function topoCarrinho(carrinhos, x, z) {
+  let h = -Infinity;
+  for (const c of carrinhos) {
+    const dx = x - c.x, dz = z - c.z;
+    if (dx * dx + dz * dz > 16) continue;
+    const co = Math.cos(c.ry), si = Math.sin(c.ry), lx = dx * co - dz * si, lz = dx * si + dz * co;
+    let cx = _caixas.get(c.lv); if (!cx) _caixas.set(c.lv, cx = caixasCarrinho(c.lv));
+    const ez = V.carrinho.solido.engate[2], ey = V.carrinho.solido.engate[1];
+    for (const b of cx.trator) if (lx >= b[0] && lx <= b[1] && lz >= b[2] && lz <= b[3]) h = Math.max(h, c.y + b[4]);
+    for (const b of cx.carreta) if (lx >= b[0] - 0.3 && lx <= b[1] + 0.3 && lz - ez >= b[2] - 0.3 && lz - ez <= b[3] + 0.3) h = Math.max(h, c.y + ey + b[4]);
+  }
+  return h;
+}
+
 // ---------- conta do preço (Quimera UK/VK) ----------
 export function fatorDistancia(d) {
   const D = PR.dist;
@@ -453,6 +484,17 @@ export const Transporte = {
   passoPacks() {
     if (!this.packsChao?.length) return;
     for (let i = this.packsChao.length - 1; i >= 0; i--) if (this.packsChao[i].fim <= this.tempo) this.packsChao.splice(i, 1);
+  },
+  // carrinhos no mundo (parados ou com alguém dirigindo) para o topoCarrinho: { x, z, ry, y, lv }. sem: quem não conta
+  // (o motorista não pisa no próprio carrinho; ele vai sentado)
+  carrinhosNoMundo(sem) {
+    const l = [];
+    for (const j of this.jogadores.values()) {
+      const c = j.prog?.carrinho; if (j === sem || j.criando || !c) continue;
+      const q = c.chao || (j.veiculo === 'carrinho' ? j : null); if (!q) continue;
+      l.push({ x: q.x, z: q.z, ry: q.ry || 0, y: this.terreno.altura(q.x, q.z), lv: c.lv || 1 });
+    }
+    return l;
   },
   // o que vai na foto: packs no chão, carrinhos e navios no mundo (de quem está no jogo)
   fotoCarga() {
