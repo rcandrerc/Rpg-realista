@@ -1220,6 +1220,10 @@ func evento(ev: Dictionary) -> void:
 			m.P.carrinho_no_mundo()
 			m.mov.x = float(ev.x)
 			m.mov.z = float(ev.z)
+			if str(ev.get("k", "")) == "carrinho": # o carrinho agora é sólido: desce do lado da cabine, não dentro dele
+				var lado := _lado_livre(m.mov.x, m.mov.z, m.mov.ry)
+				m.mov.x = lado.x
+				m.mov.z = lado.y
 			m.mov.y = m.terreno.altura(m.mov.x, m.mov.z)
 			m.mov.vy = 0.0
 			comb_local = -1.0
@@ -1258,9 +1262,20 @@ func _process(dt: float) -> void:
 	var hp: Vector3 = m.heroi.position
 	var meu_k: String = m.mov.veiculo.get("k", "")
 	var sentados := {} # id do jogador ("eu" = o herói) -> veículo onde ele está sentado (carrinho e barquinho)
+	# carrinho sólido: as caixas do quadro passado saem do chão enquanto os carrinhos se mexem (o carrinho pisa no relevo,
+	# não em cima dele mesmo) e voltam no fim, nas posições novas
+	var moveis_novos: Array = []
+	m.terreno.moveis = []
+	var a_pe: bool = meu_k == "" and m.mov.chao and m.mov.esc == null and m.mov.vy <= 0.0
 	for chave in veic:
 		var v: Dictionary = veic[chave]
 		var no: Node3D = v.no
+		# em pé em cima dele (André 2026-11-13: "se tiver duas pessoas, um ficar em cima"): o herói vai junto
+		var pisa = null
+		if a_pe and v.tipo == "c" and v.has("partes"):
+			for pt in v.partes:
+				if absf(m.mov.y - Terreno.topo_parte(pt, m.mov.x, m.mov.z)) < 0.08:
+					pisa = pt.qual
 		var alvo := Vector3(v.x, 0, v.z)
 		var ry: float = v.ry
 		var dirigindo_eu: bool = v.eu and v.dirigindo and meu_k == {"c": "carrinho", "b": "barquinho", "n": "navio"}[v.tipo]
@@ -1283,6 +1298,13 @@ func _process(dt: float) -> void:
 			vel = 0.0 # pulou para a posição nova (chegou agora): não é velocidade
 		v.vel = lerpf(float(v.get("vel", 0.0)), vel, minf(1.0, dt * 6.0))
 		v.giro = lerpf(float(v.get("giro", 0.0)), clampf(angle_difference(ry_antes, no.rotation.y) / maxf(dt, 0.001), -3.0, 3.0), minf(1.0, dt * 6.0))
+		if v.tipo == "c":
+			var partes_antes: Array = v.get("partes", [])
+			v.partes = _partes(v)
+			if not dirigindo_eu:
+				moveis_novos.append({"x": no.position.x, "z": no.position.z, "r2": 16.0, "partes": v.partes})
+			if pisa != null:
+				_levar(partes_antes, v.partes, pisa)
 		var corpo: Node3D = no.get_node_or_null("corpo")
 		if corpo:
 			if v.tipo == "c":
@@ -1299,6 +1321,7 @@ func _process(dt: float) -> void:
 				sentados["eu"] = v
 			elif m.online and m.online.outros.has(v.dono):
 				sentados[str(v.dono)] = v
+	m.terreno.moveis = moveis_novos
 	# o herói no veículo: sentado no banco do carrinho ou do barco (sentar.gd), de pé no leme do navio
 	if meu_k != "":
 		var dy := 0.0
@@ -1340,6 +1363,79 @@ func _process(dt: float) -> void:
 					_perto_g = g
 		m.hud.mostrar_botao("pegar_pack", _perto_g != "")
 		_atualizar_painel()
+
+# Carrinho sólido (André 2026-11-13): as caixas de shared/transporte.js caixasCarrinho, no trator e na carreta (que gira
+# no engate). terreno.gd usa o topo delas como chão. A conta da carreta é a mesma do servidor.
+const Terreno = preload("res://terreno.gd")
+var _caixas := {} # nv -> {trator, carreta}
+func caixas(nv: int) -> Dictionary:
+	if _caixas.has(nv):
+		return _caixas[nv]
+	var S: Dictionary = V.carrinho.solido
+	var K: Dictionary = S.cacamba
+	var fileiras: int = 1 if nv <= 1 else 2
+	var fundo: float = float(K.frente) - fileiras * float(K.fileira) - 2.0 * float(K.folga)
+	var carreta: Array = [S.lanca, [S.rodas[0], S.rodas[1], fundo, K.frente, S.rodas[2]]]
+	for f in fileiras:
+		var andar2: bool = (nv >= 3 and f == 0) or (nv >= 4 and f == 1)
+		var z0: float = fundo if f == fileiras - 1 else float(K.frente) - float(K.folga) - (f + 1) * float(K.fileira)
+		var z1: float = float(K.frente) if f == 0 else float(K.frente) - float(K.folga) - f * float(K.fileira)
+		carreta.append([-float(K.meia), float(K.meia), z0, z1, float(K.topo) + (float(K.andar2) if andar2 else 0.0)])
+	_caixas[nv] = {"trator": S.trator, "carreta": carreta}
+	return _caixas[nv]
+
+func _parte(qual: String, n: Node3D, cx: Array) -> Dictionary:
+	var T: Transform3D = n.global_transform
+	var a: float = atan2(T.basis.z.x, T.basis.z.z)
+	return {"qual": qual, "x": T.origin.x, "z": T.origin.z, "y": T.origin.y, "c": cos(a), "s": sin(a), "a": a, "caixas": cx}
+
+func _partes(v: Dictionary) -> Array:
+	var cx: Dictionary = caixas(int(v.nv))
+	var l: Array = [_parte("trator", v.no, cx.trator)]
+	var car: Node3D = v.no.get_node_or_null("carreta")
+	if car:
+		l.append(_parte("carreta", car, cx.carreta))
+	return l
+
+# onde o motorista pisa ao descer: do lado da cabine (o lado com o chão mais baixo, sem parede)
+func _lado_livre(x: float, z: float, ry: float) -> Vector2:
+	var melhor := Vector2(x, z)
+	var hm := INF
+	for lx in [-1.15, 1.15, -1.5, 1.5]:
+		var lz: float = CARRO_BANCO.z
+		var p := Vector2(x + lx * cos(ry) + lz * sin(ry), z - lx * sin(ry) + lz * cos(ry))
+		var h: float = m.terreno.altura(p.x, p.y) - m.terreno.altura(x, z)
+		if h < hm - 0.05:
+			hm = h
+			melhor = p
+	return melhor
+
+# o herói em pé em cima da peça "qual" vai junto com ela (anda, sobe e gira como a peça)
+func _levar(antes: Array, agora: Array, qual: String) -> void:
+	var p0 = null
+	var p1 = null
+	for pt in antes:
+		if pt.qual == qual:
+			p0 = pt
+	for pt in agora:
+		if pt.qual == qual:
+			p1 = pt
+	if p0 == null or p1 == null:
+		return
+	var dx: float = m.mov.x - p0.x
+	var dz: float = m.mov.z - p0.z
+	var lx: float = dx * p0.c - dz * p0.s
+	var lz: float = dx * p0.s + dz * p0.c
+	var nx: float = p1.x + lx * p1.c + lz * p1.s
+	var nz: float = p1.z - lx * p1.s + lz * p1.c
+	if Vector2(nx - m.mov.x, nz - m.mov.z).length() > 1.0:
+		return # o carrinho pulou de lugar (chegou agora na tela): não leva o herói junto
+	var d := Vector3(nx - m.mov.x, p1.y - p0.y, nz - m.mov.z)
+	m.mov.x = nx
+	m.mov.z = nz
+	m.mov.y += d.y
+	m.mov.ry += angle_difference(p0.a, p1.a)
+	m.heroi.position += d # já neste quadro (o main.gd andou o herói antes do carrinho se mexer)
 
 # motor do carrinho (André 2026-11-09: "tremor quando liga e barulho de motor de tratorzinho"): ligado enquanto
 # alguém dirige. Ao ligar toca a partida (manivela, falha, pega) e o tremor vem forte; depois a marcha lenta em laço,
@@ -1631,6 +1727,8 @@ func _poses_sentado(sentados: Dictionary) -> void:
 			poses.erase(id)
 			if id == "eu":
 				m.armar(m.h.modo) # as armas voltam do jeito do modo
+			else:
+				_armas_outro(id, false)
 	for id in sentados:
 		var esq = _esq_de(id)
 		if not (esq is Skeleton3D) or not is_instance_valid(esq):
@@ -1649,7 +1747,17 @@ func _poses_sentado(sentados: Dictionary) -> void:
 			poses[id] = {"pose": pose, "esq": esq}
 			if id == "eu":
 				m.armar(m.h.modo) # sentado: as duas armas nas costas, mãos no volante ou no remo
+			else:
+				_armas_outro(id, true)
 		_alvos_sentado(poses[id].pose, sentados[id])
+
+# outro jogador sentou ou levantou: online.gd arruma as armas de novo (sentado, as duas nas costas; André 2026-11-13:
+# "a arma que está na minha mão tem que sair da minha mão e ir para minhas costas")
+func _armas_outro(id: String, sentado: bool) -> void:
+	if m.online and m.online.outros.has(id):
+		var o: Dictionary = m.online.outros[id]
+		o.sentado = sentado
+		o.modo = "" # o próximo pacote dele arma de novo (online.gd)
 
 func _esq_de(id: String):
 	if id == "eu":
