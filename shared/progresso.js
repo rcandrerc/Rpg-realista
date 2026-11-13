@@ -542,6 +542,7 @@ export function progressoValido(p) {
   { const c = carrinhoValido(p.carrinho); if (c) n.carrinho = c; }
   { const nv = navioValido(p.navio); if (nv) n.navio = nv; }
   if (p.pkD && typeof p.pkD === 'object') { const D = {}; for (const [k, e] of Object.entries(p.pkD).slice(0, 200)) if (typeof k === 'string' && k.length < 40 && Array.isArray(e) && num(e[0]) && num(e[1])) D[k] = [Math.min(1e4, Math.max(0, e[0])), Math.min(agora, e[1])]; n.pkD = D; }
+  if (p.barcoFora === 1) n.barcoFora = 1; // barquinho que não coube na mochila (morreu, saiu ou o servidor reiniciou no barco): volta quando abrir lugar
   if (num(p.vara) && p.vara > 0) n.vara = Math.min(Math.floor(p.vara), 1000); // peixes que a vara de pescar já tirou (PESCA.durabilidade)
   // recarga do Voltar para a vila (relógio do servidor, ms): não zera saindo e entrando
   if (num(p.vilaAte) && p.vilaAte > agora) n.vilaAte = Math.min(p.vilaAte, agora + VOLTA_VILA.cd * 1000);
