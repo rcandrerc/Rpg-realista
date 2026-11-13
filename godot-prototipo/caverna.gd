@@ -832,31 +832,37 @@ func _criar_monstros() -> void:
 		_monstros_feitos = true
 		return
 	_monstros_feitos = true
+	# um monstro por item da fila do main (criar_aos_poucos), na ordem do v: todos juntos eram ~11 ms num quadro (PC)
 	for par in lista:
-		var S: Dictionary = par[0]
-		var q: Dictionary = par[1]
-		var tipo := str(q.tipo)
-		var nv := int(S.nivel)
-		var nome: String = m.NOME_TIPO.get(tipo, "Inimigo") + "  Nv %d" % nv
-		var e: Dictionary = m.criar_inimigo(m.MODELO_TIPO.get(tipo, "puglin"), Vector3(float(q.x), float(q.y), float(q.z)), nome, 1.0)
-		e.tipo = tipo
-		e.nivel = nv
-		for l in e.no.get_children():
-			if l is Label3D:
-				l.modulate = m.cor_nivel(nv)
-				break
-		var st: Dictionary = q.get("status", {})
-		e.vida_max = float(st.get("vida", 200))
-		e.dano = float(st.get("dano", 15))
-		e.vida = e.vida_max
-		e.centro = e.no.position
-		e.caverna = true
-		e.estado = "morto" # escondido até o servidor fazer nascer (com alguém lá dentro)
-		e.no.visible = false
-		m.online._barra_visivel(e, false)
-		e.seq = -1
-		e.uma_vez = 0.0
-		e.alvo = e.no.position
+		m._a_criar.append(_criar_um_monstro.bind(par[0], par[1]))
+
+# o servidor ainda vai mandar estes monstros e o corpo deles não nasceu: a capa da entrada espera (main.gd montando)
+func monstros_pendentes() -> bool:
+	return dungeon and montada and not _monstros_feitos and T.m.get("dungeon") != null
+
+func _criar_um_monstro(S: Dictionary, q: Dictionary) -> void:
+	var tipo := str(q.tipo)
+	var nv := int(S.nivel)
+	var nome: String = m.NOME_TIPO.get(tipo, "Inimigo") + "  Nv %d" % nv
+	var e: Dictionary = m.criar_inimigo(m.MODELO_TIPO.get(tipo, "puglin"), Vector3(float(q.x), float(q.y), float(q.z)), nome, 1.0)
+	e.tipo = tipo
+	e.nivel = nv
+	for l in e.no.get_children():
+		if l is Label3D:
+			l.modulate = m.cor_nivel(nv)
+			break
+	var st: Dictionary = q.get("status", {})
+	e.vida_max = float(st.get("vida", 200))
+	e.dano = float(st.get("dano", 15))
+	e.vida = e.vida_max
+	e.centro = e.no.position
+	e.caverna = true
+	e.estado = "morto" # escondido até o servidor fazer nascer (com alguém lá dentro)
+	e.no.visible = false
+	m.online._barra_visivel(e, false)
+	e.seq = -1
+	e.uma_vez = 0.0
+	e.alvo = e.no.position
 
 # ---------- luz de dentro e o botão do selo ----------
 func _luz_de_dentro(hp: Vector3, dt: float) -> void:

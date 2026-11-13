@@ -4067,10 +4067,26 @@ func entrou_online(e: Dictionary) -> void:
 # Tela de carregamento mais curta (2026-11-03): o que antes nascia tudo de uma vez no _ready (os 111 monstros dos
 # campos de caça e os espantalhos) entra numa fila e nasce aos poucos, poucos milissegundos por quadro.
 var _a_criar: Array = [] # Callables, na ordem em que precisam entrar em inimigos (o v do servidor)
+# Travada no primeiro passo (André 2026-11-13, "renasci na vila... logo que eu me desloquei, deu uma travada"): a capa
+# saía com a fila ainda andando e os espantalhos (73 ms no PC, todos juntos) e os monstros da Caverna da Montanha
+# (11 ms) nasciam meio segundo depois, bem quando o herói começava a andar. Agora cada um é um item da fila, a capa
+# espera a fila acabar (online.gd) e, atrás da capa, a fila anda com mais tempo por quadro (ninguém vê o jogo ainda).
+const CRIAR_US := 4000 # µs por quadro com o jogo na tela
+const CRIAR_CAPA_US := 12000 # µs por quadro atrás da capa
 func criar_aos_poucos() -> void:
 	var t0 := Time.get_ticks_usec()
-	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < 4000:
+	var limite: int = CRIAR_CAPA_US if online and online._cobrindo else CRIAR_US
+	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < limite:
 		(_a_criar.pop_front() as Callable).call()
+
+# ainda tem monstro ou espantalho para nascer (a fila de cima ou os monstros da Caverna da Montanha) ou mini vila perto
+# por montar (vilas_mundo.gd, 6 ms no PC): a capa espera
+func montando() -> bool:
+	if not _a_criar.is_empty():
+		return true
+	if vilas_mundo != null and vilas_mundo.pendente():
+		return true
+	return caverna != null and caverna.monstros_pendentes()
 
 # Os modelos grandes (vila, corpos, monstros) começam a carregar todos juntos, em várias linhas do processador, logo no
 # começo. Quando o código chega no load() de cada um, só espera o que ainda falta (antes era um depois do outro).
@@ -4160,12 +4176,16 @@ func passo_cacas(dt: float) -> void:
 # e não dá XP nem item. Online quem decide é o servidor (Simulacao.ferirTreino); aqui é o mesmo sem internet.
 # Modelo: Dummy do Fantasy Props MegaKit (Quaternius, CC0), em treino3d/. O balanço do golpe é a mola de combate.gd.
 const ANIMS_TREINO := ["parada", "espada_parada", "andar", "corrida", "apanhar", "morrer", "golpe1", "golpe2"]
+# um espantalho por item da fila (criar_aos_poucos): todos juntos eram 73 ms num quadro só (no PC)
 func montar_treino() -> void:
 	for t in mundo.get("treino", []):
-		if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
-			push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
-		inimigos.append(criar_espantalho(t))
-		entrou_online(inimigos[-1])
+		_a_criar.append(montar_um_treino.bind(t))
+
+func montar_um_treino(t: Dictionary) -> void:
+	if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)
+		push_warning("espantalho fora do lugar na lista: %d != %d" % [inimigos.size(), int(t.v)])
+	inimigos.append(criar_espantalho(t))
+	entrou_online(inimigos[-1])
 
 func criar_espantalho(t: Dictionary) -> Dictionary:
 	var no := Node3D.new()
