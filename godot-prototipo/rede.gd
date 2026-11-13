@@ -48,6 +48,10 @@ const VOLTA_MAX_MS := 17000 # o servidor espera 20 s a partir de quando ele viu 
 # reenviar. O servidor manda algo 20 vezes por segundo (o mundo) e o pong a cada 2 s: SILENCIO_MAX_MS sem nada é
 # conexão morta. Larga ela e religa (mesma sessão se o servidor já viu a queda; senão entra de novo, o #408 cuida)
 const SILENCIO_MAX_MS := 6000
+# André 2026-11-13 ("conta sem nome" que entrava como "Ruiva"): o nome da conta fica guardado no aparelho junto com a
+# sessão, para a tela "Entrar como…" mostrar o nome certo mesmo quando o servidor demora a responder na abertura.
+var nome_salvo := ""
+var _abriu_google := false # a janela do Google (ou o navegador) abriu: na volta o jogo esconde de novo a barra do Android
 var _trocado := false # o servidor disse que a conta está jogando em outro aparelho (último login vale)
 var _entrando_auto := false # entrando de novo sozinho (queda), ainda sem resposta da sala
 
@@ -65,6 +69,7 @@ func _ready() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(ARQUIVO) == OK:
 		sessao = str(cfg.get_value("conta", "sessao", ""))
+		nome_salvo = str(cfg.get_value("conta", "nome", "")) if sessao != "" else ""
 	if OS.get_environment("RPG_SESSAO") != "": # só para teste
 		sessao = OS.get_environment("RPG_SESSAO")
 
@@ -72,11 +77,38 @@ func _ready() -> void:
 func _notification(o: int) -> void:
 	if o == NOTIFICATION_APPLICATION_FOCUS_IN or o == NOTIFICATION_APPLICATION_RESUMED:
 		_espera_vinculo = 0.0
+		if _abriu_google:
+			tela_cheia.call_deferred()
+
+# André 2026-11-13: depois da janela do Google a barra do Android ficava aparecendo, como se o jogo tivesse saído.
+# O Godot só esconde a barra quando o modo muda (Godot.kt enableImmersiveMode ignora "tela cheia" de novo), então
+# desliga e liga a tela cheia para ele esconder de verdade. Só no celular e só depois de abrir o login do Google.
+func tela_cheia() -> void:
+	if OS.get_name() != "Android":
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+# a conta chegou do servidor: guarda o nome junto da sessão (tela "Entrar como…")
+func _lembrar_conta(c: Dictionary) -> void:
+	conta = c
+	var n := str(c.get("nome", ""))
+	if n == "" or n == nome_salvo:
+		return
+	nome_salvo = n
+	var cfg := ConfigFile.new()
+	cfg.load(ARQUIVO)
+	cfg.set_value("conta", "nome", n)
+	cfg.save(ARQUIVO)
 
 func guardar(s: String) -> void:
+	if s != sessao: # outra conta (ou saiu): o nome guardado era da conta antiga
+		nome_salvo = ""
 	sessao = s
 	var cfg := ConfigFile.new()
 	cfg.set_value("conta", "sessao", s)
+	if nome_salvo != "":
+		cfg.set_value("conta", "nome", nome_salvo)
 	cfg.save(ARQUIVO)
 
 # Começo: com sessão guardada, confere e entra (perguntar = abriu o jogo agora: mostra a janela de escolher a conta);
@@ -87,9 +119,9 @@ func iniciar(perguntar := false, automatico := false) -> void:
 		precisa_login.emit()
 		return
 	estado.emit("Conectando…")
-	var r := await pedir("GET", "/conta/eu")
+	var r := await _pedir_conta()
 	if r.codigo == 200:
-		conta = r.dados.get("conta", {})
+		_lembrar_conta(r.dados.get("conta", {}))
 		if perguntar:
 			estado.emit("")
 			escolher_conta.emit(conta)
@@ -102,6 +134,19 @@ func iniciar(perguntar := false, automatico := false) -> void:
 		estado.emit("Servidor fora do ar")
 		caiu.emit("fora")
 
+# GET /conta/eu com mais paciência. André 2026-11-13: na abertura o celular está montando o mundo e a primeira
+# resposta às vezes não vinha a tempo; a tela aparecia "sem nome" e o "Entrar" ia para a sala sem os dados da conta
+# (o herói ficava com o nome padrão "Ruiva"). Tenta de novo 3 vezes antes de desistir; 401 (sessão vencida) não insiste.
+func _pedir_conta() -> Dictionary:
+	var r := {"codigo": 0, "dados": {}}
+	for i in 4:
+		r = await pedir("GET", "/conta/eu")
+		if r.codigo == 200 or r.codigo == 401:
+			return r
+		if i < 3:
+			await get_tree().create_timer(1.5 + i).timeout
+	return r
+
 # Botão "Entrar com Google": janela do próprio Google dentro do app (plugin LoginGoogle). Se ela não der
 # (app ainda não cadastrado no Google Cloud, celular sem Play Services), cai no login pelo site.
 const CLIENT_ID_WEB := "21985745474-qfl366rlb5c357rnh8p520sd46al3m48.apps.googleusercontent.com" # o mesmo de shared/conta.js
@@ -113,11 +158,13 @@ func entrar_com_google() -> void:
 			_login_nativo.login_ok.connect(_nativo_ok)
 			_login_nativo.login_erro.connect(_nativo_erro)
 		estado.emit("Entrando…")
+		_abriu_google = true
 		_login_nativo.entrar(CLIENT_ID_WEB)
 	else:
 		entrar_pelo_site()
 
 func _nativo_ok(token: String, _nome: String) -> void:
+	tela_cheia.call_deferred()
 	estado.emit("Entrando…")
 	# "criar" entra na conta que já existe ou cria uma na primeira vez (o servidor confere o crachá do Google)
 	var r := await pedir("POST", "/conta/entrar", {"credencial": token, "modo": "criar"}, false)
@@ -129,6 +176,7 @@ func _nativo_ok(token: String, _nome: String) -> void:
 		precisa_login.emit()
 
 func _nativo_erro(msg: String) -> void:
+	tela_cheia.call_deferred()
 	push_warning("login nativo: " + msg)
 	if msg == "cancelado":
 		estado.emit("Login cancelado")
@@ -151,14 +199,28 @@ func _abrir_site(trocar: bool) -> void:
 		_codigo += letras[b % letras.length()]
 	# trocar=1: o site esquece a conta que ele mesmo lembrava e mostra a escolha de conta do Google (versão PC, 2026-11-13:
 	# "Trocar de conta" voltava sempre na mesma conta)
+	_abriu_google = true
 	OS.shell_open(SITE + "?vincular=" + _codigo + ("&trocar=1" if trocar else ""))
 	_vinculo_ate = _tempo + 300.0
 	_espera_vinculo = 2.0
 	estado.emit("Faça o login no navegador e volte para o jogo")
 
 # janela do começo: entrar com a conta salva, ou sair dela e abrir a escolha de conta do Google
+# Sem os dados da conta (o servidor não tinha respondido na abertura), busca antes de entrar: assim o herói entra com
+# o nome dele e não com o padrão "Ruiva".
 func continuar() -> void:
 	estado.emit("Conectando…")
+	if str(conta.get("nome", "")) == "":
+		var r := await _pedir_conta()
+		if r.codigo == 401:
+			guardar("")
+			precisa_login.emit()
+			return
+		if r.codigo != 200:
+			estado.emit("Servidor fora do ar")
+			caiu.emit("fora")
+			return
+		_lembrar_conta(r.dados.get("conta", {}))
 	entrar_na_sala()
 
 func trocar_conta() -> void:

@@ -141,12 +141,16 @@ func montar_tela() -> void:
 	status.add_theme_constant_override("outline_size", 4)
 	status.anchor_left = 0.5
 	status.anchor_right = 0.5
-	status.offset_left = -170
-	status.offset_right = 170
+	status.offset_left = -210
+	status.offset_right = 210 # cabe o FPS junto do ping
 	status.offset_top = 6
 	status.offset_bottom = 34
 	status.text = "Sozinho · tocar para jogar online"
-	status.pressed.connect(func(): if not ligado: mostrar_login())
+	status.pressed.connect(func():
+		if not ligado:
+			mostrar_login()
+		elif m.menu_topo: # André 2026-11-13: tocar no FPS do topo mostra/esconde os números do teste
+			m.menu_topo.trocar_detalhes())
 	tela.add_child(status)
 
 	painel = PanelContainer.new()
@@ -190,9 +194,13 @@ func montar_tela() -> void:
 		cobrir("Entrando…") # o jogo só aparece quando o servidor mandar o mundo (ou o criador abrir)
 		rede.continuar())
 	col.add_child(b_continuar)
-	b_trocar = _botao("Trocar de conta", Color(0.42, 0.36, 0.5), func(): rede.trocar_conta())
+	b_trocar = _botao("Trocar de conta", Color(0.42, 0.36, 0.5), func():
+		aviso_login.text = "Abrindo o Google…" # André 2026-11-13: o toque precisa mostrar que algo aconteceu
+		rede.trocar_conta())
 	col.add_child(b_trocar)
-	b_google = _botao("Entrar com Google", Color(0.93, 0.62, 0.25), func(): rede.entrar_com_google())
+	b_google = _botao("Entrar com Google", Color(0.93, 0.62, 0.25), func():
+		aviso_login.text = "Abrindo o Google…"
+		rede.entrar_com_google())
 	col.add_child(b_google)
 	col.add_child(_botao("Jogar sozinho", Color(0.3, 0.3, 0.36), func(): esconder_login()))
 	aviso_login = Label.new()
@@ -213,8 +221,22 @@ func _botao(texto: String, cor: Color, fn: Callable) -> Button:
 		s.bg_color = cor.darkened(0.15) if estado == "pressed" else cor
 		s.set_corner_radius_all(27)
 		b.add_theme_stylebox_override(estado, s)
+	# André 2026-11-13 ("clico e parece que não aconteceu nada"): o botão afunda e clareia ao tocar, faz o som da janela
+	# do sistema (sistema_janela.ogg, o mesmo das janelas do jogo) e o celular dá uma vibrada curta, como tecla.
+	b.button_down.connect(func(): _apertar(b, true))
+	b.button_up.connect(func(): _apertar(b, false))
+	b.pressed.connect(func():
+		if m.sons:
+			m.sons.tocar("sistema_janela", -6.0, 0.03)
+		m.vibrar(25))
 	b.pressed.connect(fn)
 	return b
+
+func _apertar(b: Button, baixo: bool) -> void:
+	b.pivot_offset = b.size / 2.0
+	var tw := b.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(b, "scale", Vector2(0.94, 0.94) if baixo else Vector2.ONE, 0.06 if baixo else 0.12)
+	tw.parallel().tween_property(b, "modulate", Color(1.25, 1.2, 1.1) if baixo else Color.WHITE, 0.06 if baixo else 0.12)
 
 func mostrar_login() -> void:
 	_cobrindo = false
@@ -237,14 +259,17 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	_cobrindo = false
 	carregando.visible = false
 	titulo.text = "Bem-vindo de volta"
-	sub.text = "Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % str(conta.get("nome", "sem nome"))
+	var nome := str(conta.get("nome", ""))
+	if nome == "": # o servidor ainda não respondeu: usa o nome guardado no aparelho (rede.nome_salvo)
+		nome = rede.nome_salvo
+	sub.text = ("Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % nome) if nome != "" else "Quer entrar com a conta salva ou usar outra conta Google?"
 	if _foi_desconectado:
 		titulo.text = "Você foi desconectado"
 		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
 	if _foi_trocado:
 		titulo.text = "Conta em outro aparelho"
 		sub.text = "Sua conta entrou em outro aparelho.\nEntre aqui para jogar neste (o outro sai)."
-	b_continuar.text = "Entrar como %s" % str(conta.get("nome", "esta conta"))
+	b_continuar.text = ("Entrar como %s" % nome) if nome != "" else "Entrar com a conta salva"
 	b_continuar.visible = true
 	b_trocar.visible = true
 	b_google.visible = false
@@ -277,12 +302,19 @@ func esconder_login() -> void:
 	status.visible = true
 	m.hud.set_process_input(true)
 
+# FPS no topo (chave Configurações > Mostrar FPS), saiu do meio da tela
+func _fps_topo() -> String:
+	if m.menu_topo != null and not m.menu_topo.mostrar_fps:
+		return ""
+	return " · %d FPS" % Engine.get_frames_per_second()
+
 func atualizar_status(_t := "") -> void:
 	if ligado:
 		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
 		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
 		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
-		var txt := "Online · %d %s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", p]
+		# André 2026-11-13: o FPS fica aqui no topo junto do ping (chave Mostrar FPS); o resto dos números some da tela
+		var txt := "Online · %d %s%s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", _fps_topo(), p]
 		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
 		# ms; o ping velho ficava na tela até o pong atrasado chegar com 20000). Servidor com passo lento: "Servidor lento"
 		var calado: float = (Time.get_ticks_msec() - rede.ult_pacote_ms) / 1000.0 if rede.ult_pacote_ms > 0 else 0.0
@@ -306,7 +338,9 @@ func atualizar_status(_t := "") -> void:
 		status.text = _t
 	else:
 		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
-		status.text = "Sozinho · tocar para jogar online"
+		var txt := "Sozinho%s · tocar para jogar online" % _fps_topo()
+		if status.text != txt:
+			status.text = txt
 
 # ---------- sala ----------
 func ao_entrar(id: String, conta: Dictionary) -> void:
@@ -1501,6 +1535,8 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false)
 		m.LodMalha.pedir(o.no) # roupa, cabelo e corpo montados no jogo ganham LOD (lod_malha.gd)
 		m.pecinhas_de_perto(o.no) # olhos, cílios, fivelas: só desenhados de perto
+	else:
+		o.malhas = o.no.find_children("*", "MeshInstance3D", true, false) # a armadura juntada nasce depois (junta_pecas.gd)
 	for mi in o.malhas:
 		if is_instance_valid(mi):
 			mi.lod_bias = [0.2, 0.4, 0.8][nivel]
@@ -1560,6 +1596,11 @@ func _passo(dt: float) -> void:
 		if _tentar_de_novo <= 0.0 and not ligado and rede.sessao != "":
 			rede.religar() # mesma sessão se o servidor ainda segura o herói; senão entra de novo (rede.iniciar)
 	if not ligado:
+		# sozinho (André 2026-11-13): o FPS também fica no topo, 2 vezes por segundo
+		_status_t -= dt
+		if _status_t <= 0.0 and status.visible and status.text.begins_with("Sozinho"):
+			_status_t = 0.5
+			atualizar_status()
 		return
 	_ap_t -= dt
 	if _ap_mandar != null and _ap_t <= 0.0:

@@ -9,6 +9,7 @@ extends Node
 const ESPERA_INICIO := 0.3 # s depois de abrir: o jogo termina de montar a vila
 const QUADROS_NA_TELA := 3 # quadros desenhados com tudo junto (o primeiro já compila; os outros garantem)
 const SUMIDO := 2.0 # s com os efeitos escondidos até acabarem sozinhos (a capa já pode sair)
+const LIMITE := 15.0 # s: aconteça o que acontecer (erro, modelo que não carrega, motor novo), a capa não espera mais que isso (os corpos já esperam até CORPOS_MAX)
 
 const Penteado = preload("res://penteado.gd")
 
@@ -18,6 +19,7 @@ var cobre := false # a capa espera (online.gd): só enquanto os efeitos estão n
 var feito := false
 var _fase := 0
 var _t := 0.0
+var _total := 0.0
 var _quadros := 0
 var _corpo: Node3D
 var _mobs: Array = []
@@ -47,8 +49,13 @@ func comecar() -> void:
 	_preparar_corpos()
 	_fase = 0
 	_t = 0.0
+	_total = 0.0
 
 func _process(dt: float) -> void:
+	if cobre: # segurança: nunca prende a tela de "Conectando…" (conta mesmo depois dos efeitos, com os corpos montando)
+		_total += dt
+		if _total >= LIMITE:
+			cobre = false
 	if not _fila_corpos.is_empty():
 		_passo_corpos(dt)
 	if not rodando:
@@ -63,15 +70,15 @@ func _process(dt: float) -> void:
 		1:
 			_quadros += 1
 			if _quadros >= QUADROS_NA_TELA:
+				_t = 0.0 # primeiro libera a capa: se algo abaixo der erro, ela não fica presa
+				_fase = 2
+				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
 				m.fx.visible = false # o que ainda está terminando não aparece quando a capa sair
 				for no in _mobs:
 					if is_instance_valid(no):
 						no.queue_free()
 				_mobs.clear()
 				m.combate.aviso_area_fim()
-				_t = 0.0
-				_fase = 2
-				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
 		2:
 			if _t >= SUMIDO:
 				m.fx.visible = true

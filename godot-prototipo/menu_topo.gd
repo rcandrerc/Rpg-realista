@@ -42,6 +42,9 @@ var volume := 100.0 # 0..100 (volume geral do jogo)
 var volume_musica := 45.0 # 0..100 (só a música de fundo, musica.gd)
 var vibracao := true
 var mostrar_fps := true
+# André 2026-11-13 ("jogar com a tela mais limpa"): o FPS e o ping ficam no topo (online.gd); o resto dos números do
+# Teste (efeitos, rede, quadro, travadas...) só aparece com um toque no topo ou na chave abaixo. Escondido não monta o texto.
+var detalhes_fps := false
 
 func _init(principal) -> void:
 	m = principal
@@ -544,6 +547,11 @@ func montar_config() -> void:
 		mostrar_fps = v
 		aplicar_config()
 		salvar())
+	_chave("Números do teste", detalhes_fps, func(v):
+		detalhes_fps = v
+		aplicar_config()
+		salvar())
+	_texto("Ou toque no FPS lá no topo.", Menu.APAGADO, 13)
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
 	_chave_ia()
 	conteudo = dir
@@ -772,8 +780,7 @@ func aplicar_config() -> void:
 	m.vibracao = vibracao
 	if m.musica:
 		m.musica.definir_volume(volume_musica)
-	if m.rotulo:
-		m.rotulo.visible = mostrar_fps
+	m.ver_rotulo()
 
 func carregar() -> void:
 	var cfg := ConfigFile.new()
@@ -785,6 +792,7 @@ func carregar() -> void:
 	vibracao = bool(cfg.get_value("config", "vibracao", true))
 	# sem escolha salva: quem já jogava vê o FPS; quem instala agora não (conselho 2026-11-13; grafico.gd teste)
 	mostrar_fps = bool(cfg.get_value("config", "fps", m.grafico.teste if m.grafico else true))
+	detalhes_fps = bool(cfg.get_value("config", "fps_detalhes", false))
 
 func salvar() -> void:
 	var cfg := ConfigFile.new()
@@ -794,4 +802,13 @@ func salvar() -> void:
 	cfg.set_value("config", "musica", volume_musica)
 	cfg.set_value("config", "vibracao", vibracao)
 	cfg.set_value("config", "fps", mostrar_fps)
+	cfg.set_value("config", "fps_detalhes", detalhes_fps)
 	cfg.save(ARQUIVO)
+
+# toque no FPS do topo (online.gd): mostra ou esconde os números do teste
+func trocar_detalhes() -> void:
+	if not mostrar_fps:
+		return
+	detalhes_fps = not detalhes_fps
+	m.ver_rotulo()
+	salvar()
