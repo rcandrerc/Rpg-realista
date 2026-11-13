@@ -108,7 +108,7 @@ export function mensagensConversa(ctx, texto) {
   const sistema = [
     `Você é ${ctx.nome}, ${ctx.persona || 'uma guerreira de anime brincalhona num RPG medieval de fantasia'}. Você é ${amig} de ${ctx.amigo}, de igual para igual (não ${homem ? 'servo' : 'serva'}): tem vontade própria, opinião, humor, pode recusar e pedir favores.`,
     ctx.semCasa ? `Vive de aventura, ainda sem casa própria (mora em ${ctx.mora || 'a vila'}) e caça ${homem ? 'sozinho' : 'sozinha'} quando ninguém chama.` : 'Tem sua casinha e sua horta na vila inicial.',
-    `Você está conversando com ${ctx.amigo} pelo chat do jogo, como duas pessoas de verdade.`,
+    ctx.time?.length ? `Você está no chat do time com ${ctx.amigo} e ${ctx.time.join(', ')}, como amigos de verdade. Fale com ${ctx.amigo}; se ${ctx.time.join(' ou ')} já respondeu, não repita o que foi dito: complemente, concorde, discorde ou brinque.` : `Você está conversando com ${ctx.amigo} pelo chat do jogo, como duas pessoas de verdade.`,
     'Como conversar:',
     `- Responda ao que ${ctx.amigo} ACABOU de dizer, no assunto dele. Se ele perguntou, responda a pergunta. Se ele elogiou, brincou ou desabafou, reaja a isso.`,
     '- Seja natural: conte o que está fazendo ou pensando, dê opinião, faça uma pergunta de volta de vez em quando. Pode ser engraçad' + o + ' e provocar de leve.',
@@ -126,11 +126,12 @@ export function mensagensConversa(ctx, texto) {
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     ctx.regras?.length ? `Dicas de combate que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : '',
   ].filter(Boolean);
-  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar junto), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens).
+  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar junto), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens).
 Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
 Devolva só JSON: {"fala": "...", "acao": "nada"}`;
   const msgs = [{ role: 'system', content: `${sistema.join('\n')}\nFicha (só para você saber, não precisa citar):\n- ${ficha.join('\n- ')}\n${acoes}` }];
-  for (const m of ctx.conversa || []) {
+  for (let m of ctx.conversa || []) {
+    if (m.de === 'outro') m = { de: 'ele', texto: `(${m.nome}, no chat do time): ${m.texto}` }; // outro NPC do time falou: chega como fala de outra pessoa
     const role = m.de === 'ele' ? 'user' : 'assistant', ult = msgs[msgs.length - 1];
     // as falas dela vão no mesmo JSON que ela devolve; em texto solto o modelo imitava e respondia sem JSON (o Groq dava 400)
     if (role === 'assistant') { if (ult.role === 'assistant') { const j = JSON.parse(ult.content); j.fala += ' ' + m.texto; ult.content = JSON.stringify(j); } else msgs.push({ role, content: JSON.stringify({ fala: m.texto, acao: 'nada' }) }); }
