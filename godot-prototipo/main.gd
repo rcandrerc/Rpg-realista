@@ -67,7 +67,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "parada_esticar_bracos", "parada_esticar_pescoco", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -1438,15 +1438,18 @@ func passo_encostar(dt: float) -> void:
 		heroi.position += Vector3(sin(mov.ry), 0.0, cos(mov.ry)) * _encosta
 		heroi.rotation.y = mov.ry + _encosta_giro
 
-# Mãos livres (André 2026-11-13: "se eu ficar parado, ela guardar e ficar com as duas armas nas costas"): parado fora
-# de combate GUARDAR_DEPOIS s, as duas armas vão para as costas (cruzadas, como na coleta) e o anim_heroi.gd toca as
-# paradas de mãos vazias. Andou, atacou, entrou em combate ou foi montar/escalar/nadar: a arma volta para a mão.
+# Mãos livres (André 2026-11-13: "se eu ficar parado, ela guardar e ficar com as duas armas nas costas"): fora de
+# combate GUARDAR_DEPOIS s, as duas armas vão para as costas (cruzadas, como na coleta), parado, andando ou correndo, e
+# parado o anim_heroi.gd toca as paradas de mãos vazias. Atacou ou entrou em combate: a arma volta para a mão. Montar,
+# escalar, nadar, coletar e pescar arrumam as armas do jeito deles.
 const GUARDAR_DEPOIS := 1.2 # André: "sem arma nas mãos" (guarda logo)
 var armas_guardadas := false
 var _parado_livre := 0.0
-func passo_maos_livres(dt: float, vel: float) -> void:
-	var pode: bool = heroi_anim.tem_vazia and heroi_anim.pode_soltar and not heroi_anim.em_guarda and acao.is_empty() \
-		and vel < 0.15 and h.morto <= 0.0 and mov.manobra == null and (trabalho == null or trabalho.coletando == null)
+func passo_maos_livres(dt: float, _vel: float) -> void:
+	# André 2026-11-13: andando e correndo fora de combate também vão nas costas ("só no combate ... fica com a arma na mão")
+	var pode: bool = heroi_anim.tem_vazia and not heroi_anim.em_guarda and acao.is_empty() and h.morto <= 0.0 \
+		and (trabalho == null or trabalho.coletando == null) and mov.esc == null and montaria == null and not _nadando \
+		and mov.veiculo.is_empty() and not (pesca != null and pesca.ativo())
 	_parado_livre = _parado_livre + dt if pode else 0.0
 	if pode and not armas_guardadas and _parado_livre >= GUARDAR_DEPOIS:
 		armas_guardadas = true
@@ -3393,7 +3396,7 @@ func _passo_main(dt: float) -> void:
 	avisar_zona()
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
-	var quer: float = 1.0 if h.modo == "Espada" and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 and not _nadando else 0.0 # nadando os braços são da braçada
+	var quer: float = 1.0 if h.modo == "Espada" and not armas_guardadas and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 and not _nadando else 0.0 # nadando os braços são da braçada
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	vestir_heroi()
 	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
