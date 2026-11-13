@@ -3076,6 +3076,8 @@ func colocar() -> void:
 		_montar_itens()
 		_atualizar_mira()
 		return
+	if m.montaria != null: # montado no lobo: desce sozinho e faz (André 2026-11-13; o servidor também desce)
+		m.montar_lobo(false)
 	m.rede(str(alvo.tipo), alvo.dados)
 
 func girar() -> void:

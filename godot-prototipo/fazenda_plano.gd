@@ -166,6 +166,8 @@ func comecar() -> void:
 		return
 	if m.trabalho.coletando != null:
 		m.trabalho.parar(true)
+	if m.montaria != null: # montado no lobo: desce sozinho e vai a pé de canteiro em canteiro (André 2026-11-13)
+		m.montar_lobo(false)
 	trabalhando = true
 	_estado = ""
 	m.hud.aviso("Plano salvo: %d tarefas. Mexa no joystick para parar." % fila.size())
