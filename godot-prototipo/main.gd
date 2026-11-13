@@ -892,6 +892,7 @@ func alcance_da_vila(vila: Node3D) -> void:
 # - copas transparentes (somem quando tapam o herói: lista folhas); as samambaias entram nos blocos (veja abaixo)
 # - pedras (encostar.gd lê a forma de cada pedra de escalar) e tudo perto de um sólido que não é casa
 # - o chão e o que é grande (sempre desenhado) e material com shader próprio
+var fetos_terras: Array = [] # samambaias do vila.glb nas Terras {mm, i, t, r}: a construção esconde as que caem num terreno
 const VILA_BLOCO := {45.0: 12.0, 70.0: 20.0, 100.0: 28.0} # distância de sumir -> lado do pedaço de chão (m)
 func juntar_vila(vila: Node3D) -> void:
 	# samambaias (400 e poucas, todas com o mesmo material): entram nos blocos. Saem do apagar da câmera e somem em
@@ -926,6 +927,14 @@ func juntar_vila(vila: Node3D) -> void:
 	for r in terreno.solidos:
 		if not r.get("casa", false):
 			pedras.append(r)
+	# 2026-11-13 (André: "ainda tem planta sobressaindo na terra arada"): as samambaias do vila.glb que caem nas Terras
+	# (área com lotes) ficam fora dos blocos, soltas: a construção esconde as que ficam dentro de um terreno com obra ou
+	# horta (construcao.gd _grama_sob_horta). Umas poucas dezenas, e só desenhadas perto.
+	var areas_lotes: Array = []
+	for ar in mundo.get("areas", []):
+		if ar.get("lotes", false):
+			areas_lotes.append(ar)
+	var fetos_soltos: Array = []
 	var base_inv: Transform3D = vila.global_transform.affine_inverse()
 	var grupos := {} # [lado_x, lado_z, alcance, sombra] -> {material id -> [material, SurfaceTool]}
 	var feitos: Array = []
@@ -950,6 +959,18 @@ func juntar_vila(vila: Node3D) -> void:
 					break
 		if solta:
 			continue
+		if rasteira.has(mi):
+			var nas_terras := false
+			for ar in areas_lotes:
+				var rx: float = float(ar.get("rx", ar.get("r", 0.0))) + 2.0
+				var rz: float = float(ar.get("rz", ar.get("r", 0.0))) + 2.0
+				if pow((c.x - float(ar.x)) / rx, 2.0) + pow((c.y - float(ar.z)) / rz, 2.0) < 1.0:
+					nas_terras = true
+					break
+			if nas_terras:
+				fetos_soltos.append(mi)
+				feitos.append(mi)
+				continue
 		var tem_shader := false
 		for i in mi.mesh.get_surface_count():
 			var mt = mi.get_active_material(i)
@@ -993,13 +1014,40 @@ func juntar_vila(vila: Node3D) -> void:
 		bloco.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		vila.add_child(bloco)
 		n += 1
+	# as samambaias das Terras: um MultiMesh por malha (uma chamada de desenho cada); a construção encolhe para zero a
+	# que cai num terreno
+	var por_malha := {}
+	for mi: MeshInstance3D in fetos_soltos:
+		var k2 := [mi.mesh, rasteira[mi], mi.visibility_range_end]
+		if not por_malha.has(k2):
+			por_malha[k2] = []
+		por_malha[k2].append(mi)
+	for k2 in por_malha:
+		var lista: Array = por_malha[k2]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = k2[0]
+		mm.instance_count = lista.size()
+		for i in lista.size():
+			var mi: MeshInstance3D = lista[i]
+			var t: Transform3D = base_inv * mi.global_transform
+			mm.set_instance_transform(i, t)
+			var fb: AABB = mi.global_transform * mi.get_aabb()
+			fetos_terras.append({"mm": mm, "i": i, "t": t, "r": Rect2(fb.position.x, fb.position.z, fb.size.x, fb.size.z)})
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "samambaias_terras"
+		mmi.multimesh = mm
+		mmi.material_override = k2[1]
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = k2[2]
+		vila.add_child(mmi)
 	for i in range(folhas.size() - 1, -1, -1):
 		if rasteira.has(folhas[i][0]) and feitos.has(folhas[i][0]):
 			folhas.remove_at(i)
 	for mi: MeshInstance3D in feitos:
 		mi.get_parent().remove_child(mi)
 		mi.free()
-	print("vila em blocos: ", feitos.size(), " peças -> ", n, " blocos")
+	print("vila em blocos: ", feitos.size(), " peças -> ", n, " blocos; samambaias soltas nas Terras: ", fetos_terras.size())
 
 # Árvores da mata (mundo.mata, as mesmas do servidor): o vila.glb traz um modelo de cada (mata_tronco_v e mata_copa_v,
 # na origem) e aqui elas viram MultiMesh por pedaços de 32 m, desenhados até 80 m (a neblina esconde o resto).
