@@ -22,6 +22,7 @@ static func vestir(no: Node3D, npc_id: String, info = {}) -> void:
 		return
 	if info is Dictionary and str(info.get("roupa", "")) != "":
 		Armadura.vestir(no, Armadura.de_texto(str(info.roupa)))
+		preload("res://junta_pecas.gd").juntar(no) # peças da armadura numa malha por material (junta_pecas.gd)
 	# roupa de ofício (direção de arte 2026-11-05: só quem luta usa couraça e ombreira): túnica, saia, faixa, corpete
 	if info is Dictionary and info.get("veste") is Dictionary:
 		_roupa_de_oficio(no, esq, info.veste)
