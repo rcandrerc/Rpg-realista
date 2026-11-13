@@ -661,14 +661,16 @@ func outro(j: Dictionary) -> void:
 	if o == null:
 		# NPC que já passou por aqui (André 2026-11-11, os 20 aventureiros): reaproveita o corpo guardado em vez de montar
 		# um VRoid novo (montar dava um tranco de quase 1 s no celular toda vez que um NPC entrava na visão)
-		var g = _tirar_guardado(vis) if j.has("bot") else null
+		# conselho de auditoria 2026-11-13: o corpo de outro jogador também é reaproveitado (antes ia embora e voltava montado)
+		var g = _tirar_guardado(vis)
 		if g != null:
 			o = {"no": g.no, "visual": vis, "anim": g.anim, "esq": g.esq, "espada": g.espada, "cajado": g.cajado,
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0,
 				"barra": g.barra, "placa": g.placa, "placa_txt": "", "lod": -1, "sumiu": false, "molas": g.get("molas", []), "fase": g.get("fase", 0),
 				# o corpo guardado já está com a cor e a roupa de antes: só pinta e veste de novo se mudou (André 2026-11-11:
 				# "passa alguma coisa, vai pra 22": pintar de novo o corpo e o penteado custava ~120 ms a cada NPC que voltava)
-				"ap": g.get("ap", ""), "roupa": g.get("roupa", "-")}
+				"ap": g.get("ap", ""), "roupa": g.get("roupa", "-"),
+				"tit": g.get("tit", "")} # o título que o corpo ainda mostra: o de quem chega troca ou some (titulos.gd)
 			g.no.position = o.alvo
 			g.no.visible = true
 			g.no.process_mode = Node.PROCESS_MODE_INHERIT
@@ -1488,13 +1490,13 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	m.anim_espacada(o.anim, o.esq, not cheio)
 	o.anim_acc = 0.0
 
-# saiu da visão: o corpo de NPC fica escondido e parado para ser reaproveitado; o de jogador vai embora como antes
+# saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:
 	if o.get("montaria") != null:
 		o.montaria.remover()
 		o.montaria = null
 	var l: Array = _guardados.get(o.visual, [])
-	if not o.get("bot", false) or l.size() >= GUARDADOS_MAX or not is_instance_valid(o.no):
+	if l.size() >= GUARDADOS_MAX or not is_instance_valid(o.no):
 		if is_instance_valid(o.no):
 			o.no.queue_free()
 		return
