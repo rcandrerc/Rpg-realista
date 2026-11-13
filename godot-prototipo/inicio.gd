@@ -52,7 +52,7 @@ var feito_bytes := 0 # já baixado nesta abertura (barra soma todos os arquivos)
 var total_bytes := 0
 var tentar: Button
 # Versão PC (André 2026-11-13: "atualização no próprio cliente, como no celular"). O build do PC (ferramentas/pc/
-# preparar.sh) grava aethra/atualizacao/pc_conteudo (o conteudo-pc.json do release "pc" no GitHub) e pc_id (o número
+# preparar.sh) grava aethra/atualizacao/pc_conteudo (o conteudo-pc.json no balde da Oracle; antes, release "pc") e pc_id (o número
 # deste build). O .exe já traz o jogo inteiro; aqui ele vira casca: se o release tem um jogo mais novo, baixa (inteiro,
 # com a barra) e abre por cima. Se o mais novo é o que já veio no .exe, entra direto sem baixar nada.
 var pc_id := 0

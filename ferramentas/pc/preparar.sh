@@ -53,11 +53,15 @@ sed -i 's/^config\/name=.*/config\/name="Aethra"/' project.godot
 printf '\n[autoload]\n\nControlesPC="*res://controles_pc.gd"\n' >> project.godot
 
 # Atualização dentro do jogo (André 2026-11-13): só no build da main (pc.yml passa PC_ID = número da execução). O .exe
-# confere o conteudo-pc.json do release "pc" ao abrir e baixa o jogo novo se tiver (inicio.gd, pc_conteudo/pc_id).
+# confere o conteudo-pc.json ao abrir e baixa o jogo novo se tiver (inicio.gd, pc_conteudo/pc_id).
+# Desde 2026-11-13 (André: "pode publicar o PC lá no balde do Oracle") o .exe lê do balde da Oracle, igual ao celular:
+# com o repositório privado, o release "pc" do GitHub só abre para quem está logado. O release continua recebendo
+# tudo (os .exe antigos ainda leem de lá). PC_CONTEUDO troca o endereço (teste).
 if [ -n "${PC_ID:-}" ]; then
   grep -q '^\[aethra\]$' project.godot || printf '\n[aethra]\n' >> project.godot
   pos_secao aethra "atualizacao/pc_id=$PC_ID"
-  pos_secao aethra 'atualizacao/pc_conteudo="https://github.com/rcandrerc/Rpg-realista/releases/download/pc/conteudo-pc.json"'
+  PC_CONTEUDO="${PC_CONTEUDO:-https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/conteudo-pc.json}"
+  pos_secao aethra "atualizacao/pc_conteudo=\"$PC_CONTEUDO\""
 fi
 
 N=$(grep -c '^\[preset\.[0-9]*\]$' export_presets.cfg)
