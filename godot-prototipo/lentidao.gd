@@ -245,6 +245,8 @@ func _ler_bateria(act) -> void:
 # vmem = da placa, livre = do aparelho), calor e ms da placa/processador no último quadro
 func _comum(e: Dictionary) -> void:
 	e.min = snappedf(Time.get_ticks_msec() / 60000.0, 0.1)
+	if m.grafico and m.grafico.auto: # gráficos no Auto: o degrau de agora (0 = o nível cheio); manual não manda
+		e.auto = int(m.grafico.degrau)
 	var mem := Performance.get_monitor(Performance.MEMORY_STATIC)
 	if mem > 0.0:
 		e.mem = roundi(mem / 1048576.0)

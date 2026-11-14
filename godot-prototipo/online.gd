@@ -302,7 +302,7 @@ func esconder_login() -> void:
 	status.visible = true
 	m.hud.set_process_input(true)
 
-# FPS no topo (chave Configurações > Mostrar FPS), saiu do meio da tela
+# FPS no topo (chave Configurações > FPS e ping), saiu do meio da tela
 func _fps_topo() -> String:
 	if m.menu_topo != null and not m.menu_topo.mostrar_fps:
 		return ""
@@ -313,7 +313,7 @@ func atualizar_status(_t := "") -> void:
 		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
 		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
 		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
-		# André 2026-11-13: o FPS fica aqui no topo junto do ping (chave Mostrar FPS); o resto dos números some da tela
+		# André 2026-11-13: o FPS fica aqui no topo junto do ping (chave FPS e ping); o resto dos números some da tela
 		var txt := "Online · %d %s%s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", _fps_topo(), p]
 		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
 		# ms; o ping velho ficava na tela até o pong atrasado chegar com 20000). Servidor com passo lento: "Servidor lento"

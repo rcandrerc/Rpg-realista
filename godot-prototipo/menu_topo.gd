@@ -549,15 +549,11 @@ func montar_config() -> void:
 		salvar()
 		if v:
 			m.vibrar(40))
-	_chave("Mostrar FPS", mostrar_fps, func(v):
+	# André 2026-11-14: "deixa só fps e ping com chave pra ligar e desligar" (saíram o Botão Teste e os números do teste)
+	_chave("FPS e ping", mostrar_fps, func(v):
 		mostrar_fps = v
 		aplicar_config()
 		salvar())
-	_chave("Números do teste", detalhes_fps, func(v):
-		detalhes_fps = v
-		aplicar_config()
-		salvar())
-	_texto("Ou toque no FPS lá no topo.", Menu.APAGADO, 13)
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
 	_chave_ia()
 	conteudo = dir
@@ -608,69 +604,54 @@ func _chave_ia() -> void:
 		linha.add_child(b)
 	conteudo.add_child(linha)
 
-# Qualidade gráfica (André 2026-11-09, celular da filha): Baixa, Média e Alta (grafico.gd). O escolhido fica dourado.
+# Gráficos (André 2026-11-09, celular da filha; Auto em 2026-11-14): Auto, Baixa, Média e Alta (grafico.gd). O escolhido
+# fica dourado. No Auto o jogo escolhe tudo, até o FPS; no manual o jogador escolhe o nível e o Limite FPS.
+# Saíram (André 2026-11-14, "removemos as outras opções"): Paralelo (fica ligado), Sombras (ficam leves), Cor da grama
+# (fica a atual) e Botão Teste (os registros automáticos já mapeiam o jogo).
 func _qualidade_grafica() -> void:
 	var G = m.grafico
 	if G == null:
 		return
 	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 8)
+	linha.add_theme_constant_override("separation", 6)
 	var l := Menu.rotulo("Gráficos", 17)
-	l.custom_minimum_size = Vector2(120, 0)
+	l.custom_minimum_size = Vector2(96, 0)
 	linha.add_child(l)
+	var b_auto := _botao("Auto", func():
+		if not G.auto:
+			G.trocar_auto()
+			montar(), G.auto)
+	b_auto.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_auto.custom_minimum_size = Vector2(0, 40)
+	linha.add_child(b_auto)
 	for i in G.NOMES.size():
 		var b := _botao(G.NOMES[i], func():
-			if G.nivel != i:
+			if G.auto or G.nivel != i:
 				G.trocar(i)
-				montar(), G.nivel == i)
+				montar(), not G.auto and G.nivel == i)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 40)
 		linha.add_child(b)
 	conteudo.add_child(linha)
+	if G.auto:
+		var agora := "%s, %d FPS" % [G.NOMES[G.nivel], G.fps_alvo()]
+		if G.degrau > 0:
+			agora += ", aliviando %d de %d" % [G.degrau, G.DEGRAUS]
+		_texto("Auto: escolhe sozinho e alivia quando esquenta. Agora: %s." % agora, Menu.APAGADO, 13)
+		return
 	var dica := "Baixa: mais leve. Alta: mais bonito."
 	if G.placa != "":
 		dica += " Sugerido (%s): %s." % [G.placa, G.NOMES[G.sugerido]]
 	_texto(dica, Menu.APAGADO, 13)
 	_limite_fps()
-	_paralelo()
-	_visual_leve()
-
-# Desenho em paralelo (APK 2026-11-12, grafico.gd): só aparece no APK que tem a opção; vale ao abrir o jogo de novo
-func _paralelo() -> void:
-	var G = m.grafico
-	if not G.paralelo_disponivel():
-		return
-	var quer: bool = G.paralelo_quer() and not G.paralelo_caiu()
-	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 8)
-	var l := Menu.rotulo("Paralelo", 17)
-	l.custom_minimum_size = Vector2(120, 0)
-	linha.add_child(l)
-	for i in 2:
-		var b := _botao(["Ligado", "Desligado"][i], func():
-			if quer != (i == 0):
-				G.trocar_paralelo(i == 0)
-				m.hud.aviso("Vale quando abrir o jogo de novo")
-				montar(), quer == (i == 0))
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size = Vector2(0, 40)
-		linha.add_child(b)
-	conteudo.add_child(linha)
-	var t := "Desenha a tela em outra linha (mais FPS)."
-	if G.paralelo_caiu():
-		t = "Desligou sozinho: o jogo fechou 2 vezes. Toque em Ligado para tentar de novo."
-	elif G.paralelo_agora() != quer:
-		# a escolha (dourada) só vale ao abrir de novo: diz claro o que está valendo agora
-		t = "Agora está %s. Fica %s quando abrir o jogo de novo." % ["ligado" if G.paralelo_agora() else "desligado", "ligado" if quer else "desligado"]
-	_texto(t, Menu.APAGADO, 13)
 
 # Limite de FPS (varredura de FPS 2026-11-10): 30, 60 ou sem limite (grafico.gd). Sem escolha, vale o do nível.
 func _limite_fps() -> void:
 	var G = m.grafico
 	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 8)
+	linha.add_theme_constant_override("separation", 6)
 	var l := Menu.rotulo("Limite FPS", 17)
-	l.custom_minimum_size = Vector2(120, 0)
+	l.custom_minimum_size = Vector2(96, 0)
 	linha.add_child(l)
 	var atual: int = G.fps_alvo()
 	for v in G.LIMITES:
@@ -683,50 +664,6 @@ func _limite_fps() -> void:
 		linha.add_child(b)
 	conteudo.add_child(linha)
 	_texto("30 ou 60: ritmo igual e esquenta menos.", Menu.APAGADO, 13)
-	_teste_fps()
-
-# botão Teste (conselho 2026-11-13): à vista ou escondido (grafico.gd teste); a linha do FPS é a chave Mostrar FPS
-func _teste_fps() -> void:
-	var G = m.grafico
-	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 8)
-	var l := Menu.rotulo("Botão Teste", 17)
-	l.custom_minimum_size = Vector2(120, 0)
-	linha.add_child(l)
-	for i in 2:
-		var b := _botao(["Mostrar", "Esconder"][i], func():
-			if G.teste != (i == 0):
-				G.trocar_teste(i == 0)
-				if m.botao_teste and m.etapa < 0:
-					m.botao_teste.visible = i == 0
-				montar(), G.teste == (i == 0))
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size = Vector2(0, 40)
-		linha.add_child(b)
-	conteudo.add_child(linha)
-
-# Visual leve (visual_leve.gd, André 2026-11-10): sombra de verdade só nos personagens e casas + cor da grama
-func _visual_leve() -> void:
-	var V = m.leve
-	if V == null:
-		return
-	for o in [["Sombras", ["Completas", "Leves"], V.sombra_leve, V.trocar_sombra],
-			["Cor da grama", ["Atual", "Natural"], V.grama_natural, V.trocar_grama]]:
-		var linha := HBoxContainer.new()
-		linha.add_theme_constant_override("separation", 8)
-		var l := Menu.rotulo(o[0], 17)
-		l.custom_minimum_size = Vector2(120, 0)
-		linha.add_child(l)
-		for i in 2:
-			var fn: Callable = o[3]
-			var b := _botao(o[1][i], func():
-				fn.call(i == 1)
-				montar(), bool(o[2]) == (i == 1))
-			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			b.custom_minimum_size = Vector2(0, 40)
-			linha.add_child(b)
-		conteudo.add_child(linha)
-	_texto("Leves: sombra real só em pessoas e monstros.", Menu.APAGADO, 13)
 
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:
@@ -798,7 +735,7 @@ func carregar() -> void:
 	vibracao = bool(cfg.get_value("config", "vibracao", true))
 	# sem escolha salva: quem já jogava vê o FPS; quem instala agora não (conselho 2026-11-13; grafico.gd teste)
 	mostrar_fps = bool(cfg.get_value("config", "fps", m.grafico.teste if m.grafico else true))
-	detalhes_fps = bool(cfg.get_value("config", "fps_detalhes", false))
+	detalhes_fps = false # os números do teste saíram (André 2026-11-14): no topo ficam só o FPS e o ping
 
 func salvar() -> void:
 	var cfg := ConfigFile.new()
@@ -813,8 +750,4 @@ func salvar() -> void:
 
 # toque no FPS do topo (online.gd): mostra ou esconde os números do teste
 func trocar_detalhes() -> void:
-	if not mostrar_fps:
-		return
-	detalhes_fps = not detalhes_fps
-	m.ver_rotulo()
-	salvar()
+	pass # André 2026-11-14: no topo ficam só o FPS e o ping (o toque não abre mais os números do teste)
