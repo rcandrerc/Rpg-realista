@@ -239,8 +239,9 @@ export const Kit = {
     const pre = this.antesDe(j, E); if (pre) return pre;
     const N = precisaDe(p, E); if (!N) return null;
     const usado = {}; // o que já foi contado para outra parte da receita (a lenha da barra e a do carrinho)
+    const forno = this.naFornalha(j); // o que está dentro da fornalha também é dele (a lenha no Material, o carvão pronto)
     const plano = (k, q, fundo = 0, para = '') => {
-      const livre = Math.max(0, contar(p.mochila, k) - (usado[k] || 0));
+      const livre = Math.max(0, contar(p.mochila, k) + (forno[k] || 0) - (usado[k] || 0));
       usado[k] = (usado[k] || 0) + Math.min(livre, q);
       if (livre >= q) return null;
       const falta = q - livre, sai = (fonte) => ({ k, n: q, tem: livre, fonte, ...(para ? { para } : {}) });
@@ -353,6 +354,15 @@ export const Kit = {
     }
     return st;
   },
+  // tudo que está nas fornalhas do jogador (a do terreno e o forninho da ferraria): combustível, material e o pronto.
+  // André 2026-11-14: a lenha estava no Material e o guia mandava "corte Lenha 0/4"
+  naFornalha(j) {
+    const out = {}, L = this.loteDe?.(j), p = j.prog;
+    const soma = (F) => { for (const s of ['comb', 'ent', 'sai']) { const o = F?.[s]; if (o?.k && o.n > 0) out[o.k] = (out[o.k] || 0) + o.n; } };
+    for (const [id, F] of Object.entries(L?.fornos || {})) if (L.pecas?.some((o) => o.id === id && o.k === 'fornalha')) soma(F);
+    for (const F of Object.values(p?.fornosPub || {})) soma(F);
+    return out;
+  },
   // pack: antes de fazer o próximo ou de levar de carrinho, o carrinho no chão, o pack das costas nele e subir nele
   antesDe(j, E) {
     const p = j.prog, c = p.carrinho, C = VEICULOS.carrinho;
@@ -396,7 +406,9 @@ export const Kit = {
     return b ? 'caca:' + b.id : '';
   },
   // texto da etapa enquanto junta ("Barquinho: corte Lenha 12/30"); curto (André: textos do jogo bem curtos)
-  textoJunta(E, f) {
+  // anda = o andamento da etapa (" 1/3"): fica no texto enquanto junta, para não parecer que a missão voltou
+  // (André 2026-11-14: "voltava para rabanete, depois voltava para sopa")
+  textoJunta(E, f, anda = '') {
     if (f.pre) return f.txt;
     const n = f.k === 'ouro' ? 'ouro' : nome(f.k), conta = f.n > 1 ? ` ${f.tem}/${f.n}` : '';
     const para = f.para || (E.ev === 'pack_fez' ? PACKS[E.k]?.nome : ['criar', 'construir'].includes(E.ev) ? nome(String(E.k).replace(/^obra_/, ''))
@@ -409,7 +421,7 @@ export const Kit = {
       : `${f.k === 'ouro' ? 'junte' : F === 'receita' ? 'faça' : F === 'forno' ? (f.k === 'carvao' ? 'faça no forninho' : 'funda no forninho')
         : F === 'veio:arvore' ? 'corte' : F.startsWith('veio:') ? 'minere' : F === 'solto' ? 'pegue do chão' : F.startsWith('caca:') ? 'cace para ter'
         : F === 'spot' ? 'pesque' : F === 'lote' ? 'colha' : 'junte'} ${n}${f.k === 'ouro' ? ` ${f.tem}/${f.n}` : conta}`;
-    return `${para ? para + ': ' : ''}${txt}`;
+    return `${para ? para + (f.para ? '' : anda) + ': ' : ''}${txt}`;
   },
   // o tipo da etapa para o guia do app (guia.gd) enquanto junta: o Ir e o botão de coletar / pescar / o forninho
   guiaJunta(f) {

@@ -1553,6 +1553,13 @@ func montar_missoes() -> void:
 	var caps: Array = nv.H.get("capitulos", [])
 	var feitas: int = nv.feitas()
 	var h: Dictionary = nv.hist()
+	if m.P.teste_missoes: # só na conta do André, temporário (2026-11-14): refazer missões sem apagar o personagem
+		var tm := HBoxContainer.new()
+		tm.add_theme_constant_override("separation", 8)
+		tm.add_child(rotulo("Teste:", 14, APAGADO))
+		tm.add_child(botao("Voltar 1 missão", func(): m.rede("missaoTeste", {"acao": "voltar"}), 14))
+		tm.add_child(botao("Zerar missões", func(): m.rede("missaoTeste", {"acao": "zerar"}), 14))
+		conteudo.add_child(tm)
 	var titulo := str(m.P.hist_info.get("titulo", "")) if m.P.hist_info.get("titulo") != null else ""
 	if titulo != "": # título do ato (Ato II: Sentinela da Ordem), vem do servidor (histInfo)
 		conteudo.add_child(rotulo("Título: %s" % titulo, 15, Color("f3d27a")))
