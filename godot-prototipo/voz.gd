@@ -106,7 +106,7 @@ var _escutou := false
 var _erro_t := {}
 func _estado(e: String) -> void:
 	if e == "escutando":
-		_feito = false # frase nova
+		_nova_frase()
 		if not _escutou:
 			_escutou = true
 			m.hud.aviso(tr("Escutando..."))
@@ -180,33 +180,72 @@ static func entender(t: String, mapa_aberto: bool) -> Dictionary:
 # André 2026-11-14 (2229): "Ouvi: frente" aparecia e o herói não andava. O texto do meio da frase chegava, mas o fim
 # da frase muitas vezes não (o Android fecha com "não entendi" quando tem barulho). Agora o comando age já no pedaço,
 # uma vez por frase; o fim da frase só age se o pedaço não agiu. Com o mapa aberto espera o fim (nome de lugar é longo).
-var _feito := false # esta frase já virou ação
+var _feito := false # esta frase já virou ação (com o mapa aberto)
+# Em sequência (André 2026-11-14: "o microfone fica aberto o tempo inteiro, tem que ir pegando todos os comandos na
+# sequência, mesmo que não pare"): cada palavra nova que chega no pedaço da frase é olhada uma vez; a que for comando
+# vira ação na hora. "frente ... gelo ... atacar" numa fala só = andar, gelo e ataque, na ordem.
+var _usadas := 0 # palavras desta frase já olhadas
+var _ultima_acao := "" # a mesma ação duas vezes seguidas na mesma frase ("lança de gelo", o Android corrigindo) vale uma
+static func cmd_palavra(w: String, antes: String) -> Dictionary:
+	if w == "para": # "para" sozinho só vale como parar no fim da frase ("ir para a vila")
+		return {}
+	if w in MAPA and antes in FECHAR: # "fechar mapa"
+		return {}
+	if w in ["voz", "microfone"] and antes in ["desligar", "desliga"]:
+		return {"k": "desligar"}
+	return entender(w, false)
+
+func _sequencia(txt: String, final: bool) -> void:
+	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
+	var w := palavras(t0, false)
+	if final and w.size() == 1 and w[0] == "para" and _usadas == 0:
+		_fazer({"k": "parar"}, t0)
+	var fez := false
+	for i in range(_usadas, w.size()):
+		var e := cmd_palavra(str(w[i]), str(w[i - 1]) if i > 0 else "")
+		if e.is_empty():
+			continue
+		var chave := str(e)
+		if chave == _ultima_acao:
+			continue
+		_ultima_acao = chave
+		_fazer(e, str(w[i]))
+		fez = true
+		if e.k == "mapa": # o resto da frase é o nome do lugar (fim da frase)
+			_usadas = w.size()
+			return
+	_usadas = maxi(_usadas, w.size())
+	if not fez and t0 != "":
+		m.hud.aviso(tr("Ouvi: %s") % t0.right(30))
+
 func _parcial(txt: String) -> void:
 	if not ligado or m.heroi == null:
 		return
-	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
-	if t0 != "" and not _feito:
-		m.hud.aviso(tr("Ouvi: %s") % t0.left(30))
-	if _feito:
+	if m.minimapa != null and m.minimapa.aberto: # mapa aberto: o nome do lugar espera o fim da frase
+		var t0: String = txt.split("\n", false)[0] if txt != "" else ""
+		if t0 != "":
+			m.hud.aviso(tr("Ouvi: %s") % t0.right(30))
+		var e := entender(t0, true)
+		if not e.is_empty() and e.k != "lugar" and not _feito: # "fechar" e "parar" já valem
+			_feito = true
+			_fazer(e, t0)
 		return
-	var aberto: bool = m.minimapa != null and m.minimapa.aberto
-	for t in txt.split("\n", false):
-		var e := entender(t, aberto)
-		if e.is_empty() or e.k == "lugar":
-			continue
-		_feito = true
-		_fazer(e, t)
-		return
+	_sequencia(txt, false)
 
 func _ouviu(txt: String) -> void:
 	if not ligado or m.heroi == null:
 		return
-	if _feito: # o pedaço desta frase já agiu
-		_feito = false
-		return
 	var aberto: bool = m.minimapa != null and m.minimapa.aberto
+	if not aberto:
+		_sequencia(txt, true)
+		_nova_frase()
+		return
+	if _feito:
+		_nova_frase()
+		return
+	_nova_frase()
 	for t in txt.split("\n", false):
-		var e := entender(t, aberto)
+		var e := entender(t, true)
 		if e.is_empty():
 			continue
 		if e.k == "lugar":
@@ -217,13 +256,12 @@ func _ouviu(txt: String) -> void:
 			return
 		_fazer(e, t)
 		return
-	if aberto:
-		m.hud.aviso(tr("Lugar não encontrado"))
-		return
-	# ouviu, mas não é comando: mostra o que entendeu (assim dá para ver se o microfone pega e qual palavra trocar)
-	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
-	if t0 != "":
-		m.hud.aviso(tr("Ouvi: %s") % t0.left(30))
+	m.hud.aviso(tr("Lugar não encontrado"))
+
+func _nova_frase() -> void:
+	_feito = false
+	_usadas = 0
+	_ultima_acao = ""
 
 func _fazer(e: Dictionary, t: String) -> void:
 	if e.k != "parar":
@@ -275,6 +313,9 @@ func _fazer(e: Dictionary, t: String) -> void:
 # faladas; número falado tem que bater (imp 15 não leva aos imps 10). Empate: o mais perto do herói.
 func lugar(faladas: Array) -> Dictionary:
 	if m.minimapa == null:
+		return {}
+	faladas = faladas.filter(func(w): return not (w in MAPA or w in ["abrir", "abre", "abra", "open"])) # "abrir mapa imp 15"
+	if faladas.is_empty():
 		return {}
 	var nums: Array = faladas.filter(func(w): return str(w).is_valid_int())
 	var hp: Vector3 = m.heroi.position
