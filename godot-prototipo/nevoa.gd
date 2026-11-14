@@ -209,9 +209,28 @@ func _process(dt: float) -> void:
 	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
 		Engine.get_meta("lentidao").ev("nevoa", t0_parte)
 
+# Paredes aos poucos (2026-11-14, registro do quadro lento: logo depois de entrar, a névoa levou 141 ms num quadro no
+# PC montando a parede de todas as regiões fechadas de uma vez). Cada região entra numa fila e a parede sai igual,
+# NEVOA_US por quadro (pelo menos uma por quadro). Quem para o herói na borda é a conta (fechado()), não a malha.
+const NEVOA_US := 3000
+var _fila_zonas: Array = []
+func _montar_fila() -> void:
+	var t0 := Time.get_ticks_usec()
+	while not _fila_zonas.is_empty():
+		var Z: Dictionary = _fila_zonas.pop_front()
+		var id := str(Z.id)
+		if not liberado(id) and not _malhas.has(id):
+			var mi := _montar(Z)
+			m.add_child(mi)
+			_malhas[id] = mi
+		if Time.get_ticks_usec() - t0 >= NEVOA_US:
+			break
+
 func _process_parte(dt: float) -> void:
 	if H.is_empty() or m.heroi == null or m.terreno == null:
 		return
+	if not _fila_zonas.is_empty():
+		_montar_fila()
 	_t -= dt
 	if _t > 0.0:
 		return
@@ -227,8 +246,6 @@ func _process_parte(dt: float) -> void:
 			_malhas.erase(id)
 	for Z in H.get("zonas", []):
 		var id := str(Z.id)
-		if Z.get("selo", false) or liberado(id) or _malhas.has(id):
+		if Z.get("selo", false) or liberado(id) or _malhas.has(id) or _fila_zonas.has(Z):
 			continue
-		var mi := _montar(Z)
-		m.add_child(mi)
-		_malhas[id] = mi
+		_fila_zonas.append(Z)
