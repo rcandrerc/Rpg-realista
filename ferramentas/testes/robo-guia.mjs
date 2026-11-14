@@ -56,6 +56,15 @@ function jogar(i) {
     if (!E) { falhou(`${M.id}: sem etapa`); return achados; }
     const vezes = Math.max(1, totalEtapa(E) - h.n);
     // a ação da etapa
+    // etapa de time (André 2026-11-14: "ela recusa e fico preso"): o robô chama a Cecília pelo botão, como o jogador,
+    // sem chave de IA e com o sorteio sempre dizendo não. Na missão ela não pode negar.
+    if (E.ev === 'time' && !j.time) {
+      if (!s.amiga) { s.amigaEntrar('R', false); Object.assign(s.amiga, { x: j.x + 1, z: j.z }); }
+      const rnd = Math.random; Math.random = () => 0.999;
+      s.time('R', { acao: 'convidar', com: s.amiga.id }); Math.random = rnd;
+      if (!j.time) { falhou(`${M.id} etapa ${h.e + 1}: chamou a Cecília para o time e ela recusou (a missão trava)`); return achados; }
+      s.checarEtapa(j); continue;
+    }
     if (E.ev === 'criar' && E.ja === 'tem' && contar(p.mochila, E.k) > 0) { s.checarEtapa(j); continue; }
     if (E.ev === 'criar' && Object.values(RECEITAS).some((R) => R.faz === E.k) && !E.ja) {
       const r = Object.entries(RECEITAS).find(([, R]) => R.faz === E.k)[0];

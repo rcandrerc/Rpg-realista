@@ -19,6 +19,7 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
+import { etapaAtual } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
@@ -157,7 +158,11 @@ export const Amiga = {
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
   },
   // ---------- vários amigos (André 2026-11-10: irmão e irmã com a chave de cada um) ----------
-  podeAmiga(id) { return !!this.amiga && id != null && (id === this.amigaDono || !!this.amigaFalam?.has(id)); },
+  // André 2026-11-14 ("qualquer um pode interagir, só que o único que tem resposta de IA sou eu"): todo jogador da sala
+  // conversa (respostas prontas, das regras), chama para o time e troca. A resposta da IA é só de quem tem a chave
+  // (amigaFalam: quem colou a chave Groq e as contas de teste), ver iaAmiga e server/index.js falarComAmigoIa.
+  podeAmiga(id) { const j = id != null && this.jogadores.get(id); return !!this.amiga && !!j && !j.bot; },
+  iaAmiga(id) { return !!this.amiga && id != null && (!this.iaPorChave ? this.podeAmiga(id) : !!this.amigaFalam?.has(id)); },
   // ocupada com quem ela acompanha agora: no time dele, coletando junto, trocando ou indo até ele
   ocupadaAmiga() {
     const a = this.amiga, dono = this.jogadores.get(this.amigaDono); if (!a || !dono) return false;
@@ -782,9 +787,12 @@ export const Amiga = {
   timeCheioAmiga(j) { return !!(j.time && j.time.membros.length >= TIME.max); },
   // André 2026-11-13 ("como se fosse um jogador real"): o botão de time só convida, sem fala nenhuma no chat.
   // Combinou pelo chat (ou ela chamou para o time): entra. Sem combinar: decide como sempre (pode recusar).
+  // André 2026-11-14 ("só na missão ela não nega"): na etapa da história que pede time, ela sempre aceita, e quem não
+  // jogador também. Fora dessa etapa, tudo igual: pode recusar.
   conviteTimeAmiga(id) {
     const a = this.amiga, j = this.jogadores.get(id), nome = this.AMIGA.nome; if (!a || !j) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    const missao = !j.bot && etapaAtual(j.prog)?.ev === 'time';
     if (!this.podeAmiga(id)) return aviso(`${nome} não pode entrar no seu time agora`);
     if (a.time && a.time === j.time) return aviso(`${nome} já está no seu time`);
     if (a.time) return aviso(`${nome} já está em outro time`);
@@ -792,7 +800,7 @@ export const Amiga = {
     if (!this.trocarDonoAmiga(id)) return aviso(`${nome} está com outra pessoa agora`);
     const ia = a.ia, recusa = () => aviso(`${nome} recusou o convite para o time`);
     if (a.morto) return recusa();
-    const topou = this.combinouAmiga(a) || (ia.chamado?.quer === 'time' && ia.chamado.ate > this.tempo);
+    const topou = missao || this.combinouAmiga(a) || (ia.chamado?.quer === 'time' && ia.chamado.ate > this.tempo);
     if (!topou && (ia.recusaAte || 0) > this.tempo) return recusa();
     const dv = this.decisaoTimeAmiga(a, j);
     if (!topou && !dv.aceita) { this.recusarTimeAmiga(a, j, dv.motivo); return recusa(); }
@@ -1307,7 +1315,7 @@ export const Amiga = {
       d.falas = 0;
       d.novas = 0; d.pensando = true;
       const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
-      if (!this.aoDiarioAmiga) { d.pensando = false; continue; }
+      if (!this.aoDiarioAmiga || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário
       this.aoDiarioAmiga(dados).then((r) => { d.pensando = false; if (r) this.anotarAmiga(conta, r); }, () => { d.pensando = false; });
     }
   },

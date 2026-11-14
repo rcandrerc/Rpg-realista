@@ -19,10 +19,10 @@ ok(Object.keys(L.horta).length === AMIGA.horta.w * AMIGA.horta.d && Object.value
 const f = s.foto().jogadores.find((j) => j.id === AMIGA.id);
 ok(f && f.bot === 1 && f.roupa.includes('capa2') && f.visual === 'ruiva' && f.aparencia?.penteado === 'victoria', 'na foto: bot, corpo da Ruiva com o penteado da Victoria e capa');
 ok(!s.inimigosDe(s.inimigos[0] || { tipo: 'lobo' }).includes(a), 'monstro não mira nela');
-// conversa: o outro não recebe nada; o dono recebe
+// conversa (André 2026-11-14): qualquer jogador conversa com ela (sem chave: respostas prontas)
 const perto = (id) => Object.assign(s.jogadores.get(id), { x: a.x + 1, z: a.z });
 perto('outro'); s.eventos = []; s.conversaAmiga('outro', { acao: 'oi' });
-ok(!s.eventos.some((e) => e.t === 'fala'), 'o outro jogador não conversa com ela');
+ok(s.eventos.some((e) => e.t === 'fala' && e.para === 'outro'), 'o outro jogador também conversa com ela');
 perto('andre'); s.eventos = []; s.conversaAmiga('andre', { acao: 'oi' });
 ok(s.eventos.some((e) => e.t === 'fala' && e.para === 'andre' && e.npc === AMIGA.id), 'o dono conversa');
 // pedido e o Dar: tira da mochila do André, ela paga de volta e a amizade sobe
@@ -34,9 +34,9 @@ s.eventos = []; s.conversaAmiga('andre', { acao: 'dar' });
 const sobrou = dono.prog.mochila.filter((o) => o?.k === 'lenha').reduce((t, o) => t + o.n, 0);
 ok(sobrou === 2 && a.pedido === null && a.amizade === amz0 + 1, 'Dar: 5 lenha saíram, pedido cumprido, amizade +1');
 ok(dono.prog.ouro > ouro0 || dono.prog.mochila.some((o) => o && AMIGA.plantas.includes(o.k)), 'ela pagou de volta (ouro ou colheita)');
-// troca com ela: só o dono (fase 3); o outro jogador é ignorado
+// troca com ela: qualquer jogador pede (André 2026-11-14); ela responde (troca ou "tô com outra pessoa")
 s.troca('outro', { acao: 'pedir', com: AMIGA.id });
-ok(!a.pedidoTroca && !a.troca && !s.eventos.some((e) => e.t === 'troca' && e.para === AMIGA.id), 'o outro jogador não troca com ela');
+ok(a.pedidoTroca || a.troca || s.eventos.some((e) => (e.t === 'troca' || e.t === 'aviso' || e.t === 'fala') && e.para === 'outro'), 'o outro jogador pede troca e ela responde');
 // guarda no terreno e o terreno dela não conta na vaga das Terras
 s.guardarAmiga();
 const salvo = s.lotesParaSalvar().find((l) => l.id === L.def.id);
@@ -250,12 +250,12 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   const d = s7.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 });
   const ir = s7.adicionarJogador('irmao', 'Irmão', 'ruiva', { conta: 2 });
   s7.adicionarJogador('sem', 'Sem Chave', 'ruiva', { conta: 3 });
-  s7.amigaEntrar('andre'); s7.amigaEntrar('irmao');
+  s7.iaPorChave = true; s7.amigaEntrar('andre'); s7.amigaEntrar('irmao');
   const c = s7.amiga, esp = (t) => { for (let i = 0; i < t * 20; i++) s7.passo(0.05); };
   const fila = () => c.ia.chatFila || [];
-  ok(s7.amigaDono === 'andre' && s7.podeAmiga('irmao') && !s7.podeAmiga('sem'), 'os dois com chave conversam; ela acompanha quem chegou primeiro');
+  ok(s7.amigaDono === 'andre' && s7.iaAmiga('irmao') && s7.iaAmiga('andre') && !s7.iaAmiga('sem'), 'os dois com chave têm IA; ela acompanha quem chegou primeiro');
   s7.eventos = []; s7.chat('sem', { canal: 'pm', para: AMIGA.conta, texto: 'oi' });
-  ok(!s7.contextoAmiga('sem') && s7.eventos.some((e) => e.t === 'aviso' && e.para === 'sem'), 'sem chave: vê, mas não conversa');
+  ok(s7.podeAmiga('sem') && !s7.eventos.some((e) => e.t === 'aviso' && e.para === 'sem'), 'sem chave: conversa também (sem IA, respostas prontas)');
   s7.eventos = []; s7.enviarAmigos(s7.jogadores.get('sem'));
   ok(s7.eventos.some((e) => e.t === 'amigos' && e.virtuais[0]?.ia === false), 'sem chave: a lista mostra ela com o botão de ativar');
   c.amizade = 3;
@@ -402,4 +402,31 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s9.amiga.prog.nivel = 3; s9.guardarAmiga(); s9.amigaSair('andre2');
   s9.adicionarJogador('andre3', 'André', 'ruiva', { conta: 1, testador: true }); s9.amigaEntrar('andre3');
   ok(s9.amiga.prog.nivel === 3 && s9.loteDaAmiga().amiga.antes?.prog?.nivel === 44, 'depois do recomeço ela guarda o que joga de novo');
+}
+
+// ---------- missão que pede time: ela não nega (André 2026-11-14, "só na missão ela não nega") ----------
+{
+  const { HISTORIA } = await import('../../shared/index.js');
+  const { etapasDe } = await import('../../shared/historia.js');
+  const i = HISTORIA.findIndex((M) => etapasDe(M).some((E) => E.ev === 'time')), e = etapasDe(HISTORIA[i]).findIndex((E) => E.ev === 'time');
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const d = s5.adicionarJogador('andre', 'André', 'ruiva', {}), sem = s5.adicionarJogador('semchave', 'Sem', 'ruiva', {});
+  s5.iaPorChave = true; s5.amigaEntrar('andre'); s5.amigaEntrar('semchave', false);
+  const c = s5.amiga, rnd = Math.random;
+  Math.random = () => 0.999; // o sorteio sempre diria não
+  s5.time('andre', { acao: 'convidar', com: AMIGA.id });
+  ok(!c.time, 'fora da missão: ela ainda pode recusar');
+  d.prog.hist = { v: 2, p: i, ac: true, e, n: 0, m: 0 };
+  s5.time('andre', { acao: 'convidar', com: AMIGA.id });
+  ok(c.time && c.time === d.time, 'na etapa "chame alguém para o time": ela aceita mesmo depois de ter recusado');
+  s5.time('andre', { acao: 'expulsar', com: AMIGA.id });
+  s5.time('semchave', { acao: 'convidar', com: AMIGA.id });
+  ok(!c.time && s5.eventos.some((ev) => ev.para === 'semchave' && /recusou/.test(ev.texto || '')), 'sem chave e fora da missão: chama, mas ela pode recusar');
+  sem.prog.hist = { v: 2, p: i, ac: true, e, n: 0, m: 0 };
+  s5.time('semchave', { acao: 'convidar', com: AMIGA.id });
+  ok(c.time && c.time === sem.time, 'sem chave de IA, na missão: ela entra no time');
+  s5.checarEtapa(sem);
+  ok((sem.prog.hist.e || 0) > e, 'a etapa do time passou');
+  ok(s5.podeAmiga('semchave') && !s5.iaAmiga('semchave') && s5.iaAmiga('andre'), 'sem chave: interage com ela, mas resposta de IA só para quem tem chave');
+  Math.random = rnd;
 }

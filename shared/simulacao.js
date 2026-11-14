@@ -2128,7 +2128,7 @@ export class Simulacao {
       return { c, nome: o?.nome || nome, id: o ? o.id : null, nivel: o ? o.prog.nivel : null, on: o ? 1 : this.onlineFora?.(c) ? 2 : 0, time: !!(o && j.time && o.time === j.time) };
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
-    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.podeAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais });
   }
   amigo(id, m) {
