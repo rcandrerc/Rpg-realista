@@ -169,6 +169,7 @@ var nevoa # nevoa.gd: zonas que a missão principal ainda não abriu (parede de 
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
+var voz # voz.gd: comando de voz no celular (Configurações > Comando de voz; André 2026-11-14)
 var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
 var editar_hud # editar_hud.gd: segurar o painel de vida e mana abre o modo de editar a interface
 var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
@@ -431,6 +432,8 @@ func _ready() -> void:
 	minimapa = Minimapa.new(self)
 	add_child(minimapa)
 	hud.minimapa = minimapa
+	voz = load("res://voz.gd").new(self) # só faz algo no Android com o plugin VozJogo; começa desligado
+	add_child(voz)
 	volta = VoltaVila.new(self)
 	add_child(volta)
 	totem = Totem.new(self)
@@ -3315,6 +3318,8 @@ func direcao_joystick() -> Vector3:
 	if construcao and construcao.camera_livre(): # modo construção / compra de terreno: o joystick move a mira, o herói fica
 		return Vector3.ZERO
 	if m.length() < 0.15:
+		if voz and voz.andar != Vector2.ZERO: # andando por voz ("frente", "esquerda"...): como o joystick, câmera parada
+			return Vector3(voz.andar.x, 0, voz.andar.y).rotated(Vector3.UP, cam.yaw)
 		if conversa and conversa.indo != null: # tocou num NPC longe: vai até ele
 			return conversa.direcao_auto()
 		if rota and rota.ativo: # "Ir para" do mapa: vai pela estrada
@@ -3609,6 +3614,8 @@ func atualizar_heroi(dt: float) -> void:
 			fila = null
 	var dir := direcao_joystick()
 	var forca: float = 0.0 if construcao and construcao.camera_livre() else hud.mover.length()
+	if voz and voz.andar != Vector2.ZERO and forca < 0.15:
+		forca = 1.0 # voz = joystick todo empurrado (a câmera não vai para as costas: ela olha o hud.mover)
 	# espada: tocou o golpe com o alvo longe, corre até ele e bate quando chega (o joystick cancela)
 	if h.pend != null:
 		var pe: Dictionary = h.pend

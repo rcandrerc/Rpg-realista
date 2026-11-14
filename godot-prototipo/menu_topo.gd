@@ -598,6 +598,12 @@ func montar_config() -> void:
 		aplicar_config()
 		salvar())
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
+	# Comando de voz (André 2026-11-14): só no celular. Ligado, escuta sem tocar em nada; desligado, microfone fechado.
+	# Não fica salvo: o jogo sempre abre com ele desligado.
+	if m.voz and m.voz.existe():
+		_chave("Comando de voz", m.voz.ligado, func(v):
+			m.voz.ligar(v))
+		_texto("Fale: frente, atacar, gelo, vida, mapa...", Menu.APAGADO, 13)
 	_chave_ia()
 	_add(_botao("Créditos e direitos", func():
 		aberta = "creditos"
@@ -821,6 +827,11 @@ func salvar() -> void:
 	cfg.set_value("config", "fps", mostrar_fps)
 	cfg.set_value("config", "fps_detalhes", detalhes_fps)
 	cfg.save(ARQUIVO)
+
+# o Android negou o microfone (ou falou "desligar voz"): a chave das Configurações volta para desligada
+func voz_negada() -> void:
+	if aberta == "config":
+		montar()
 
 # toque no FPS do topo (online.gd): mostra ou esconde os números do teste
 func trocar_detalhes() -> void:
