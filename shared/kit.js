@@ -15,7 +15,7 @@
 //    Nada muda nas etapas gravadas (o índice da etapa é o mesmo): só o texto, o Ir e o guia acompanham o que falta.
 import { ITENS, COLETA, RECEITAS, CONSTRUCOES, FERRAMENTAS_FAZENDA, PACKS, CACA, LOJA, LOTE, PLANTAS, PESCA, DROPS, CATALISADOR, RARIDADES, VEICULOS, CAVERNA_DUNGEON, HORTA, HISTORIA } from './dados.js';
 import { contar, guardar, nomeItem, ehEquip, reforcoMax, custoReforco, materialReforco } from './progresso.js';
-import { missaoAtual, etapaAtual, zonaFechadaEm } from './historia.js';
+import { missaoAtual, etapaAtual, zonaFechadaEm, etapasDe } from './historia.js';
 import { custoPack, capacidadeCarrinho } from './transporte.js';
 import { Leilao } from './leilao.js';
 import { LUGARES_MUNDO } from './mundo.js';
@@ -107,6 +107,38 @@ export function precisaDe(p, E) {
     }
   }
   return null;
+}
+// Horta da missão (André 2026-11-14: "coleta instantânea somente a qtd suficiente pra fazer a missão"): quantas plantas
+// de cada legume a missão M pede, das etapas desde a etapa e. '*' = "plante N sementes" sem dizer qual (das da sopa).
+// Legume das receitas, packs e entregas vira planta pela colheita mínima (PLANTAS.y[0]). O que uma etapa anterior da
+// mesma missão já cria (a sopa que depois se entrega) não conta duas vezes; só o que passar dela.
+const QUALQUER_PLANTA = ['cenoura', 'batata', 'rabanete'];
+const COTA_CACHE = new Map();
+export function plantasDaMissao(M, desde = 0) {
+  if (!M) return {};
+  const ch = M.id + ':' + desde; if (COTA_CACHE.has(ch)) return COTA_CACHE.get(ch);
+  const L = etapasDe(M), leg = {}, cota = {}, feitos = {};
+  const soma = (o, k, n) => { o[k] = (o[k] || 0) + n; };
+  const abre = (k, n, fundo = 0) => {
+    if (PLANTAS[k]) return soma(leg, k, n);
+    const ja = Math.min(n, feitos[k] || 0); feitos[k] = (feitos[k] || 0) - ja; n -= ja; // a etapa de antes já fez
+    if (fundo > 4 || n <= 0) return;
+    const R = receitaItem(k); if (R) for (const [i, q] of Object.entries(R)) abre(i, q * n, fundo + 1);
+  };
+  L.forEach((E, i) => {
+    const conta = i >= desde, n = E.n || 1;
+    if (conta) {
+      if (E.ev === 'plantar') soma(cota, E.k && PLANTAS[E.k] ? E.k : '*', n);
+      else if (E.ev === 'criar' || E.ev === 'construir') abre(String(E.k), n);
+      else if (E.ev === 'pack_fez' && PACKS[E.k]) for (const [k, q] of Object.entries(PACKS[E.k].custo)) abre(k, q * n);
+      else if (E.ev === 'ter') for (const [k, q] of Object.entries(E.itens || {})) abre(k, q);
+      else if (E.ev === 'falar' && E.entregar) for (const [k, q] of Object.entries(E.entregar)) abre(k, q);
+    }
+    if (E.ev === 'criar' || E.ev === 'construir') feitos[String(E.k)] = (feitos[String(E.k)] || 0) + (E.ja === 'tem' ? 1 : n);
+  });
+  for (const [k, q] of Object.entries(leg)) soma(cota, k, Math.ceil(q / PLANTAS[k].y[0]));
+  COTA_CACHE.set(ch, cota);
+  return cota;
 }
 // feito por um NPC (não tem receita): do que é feito, quem faz e o guia
 const DO_NPC = { passe_caverna: { usa: CAVERNA_DUNGEON.passe, npc: 'guardiao', guia: { ev: 'passe', k: 'fazer' } } };
@@ -287,6 +319,30 @@ export const Kit = {
   },
   // a síntese da Mirela já foi ensinada (missão "A tinta das runas")?
   sinteseAberta(p) { const i = HISTORIA.findIndex((M) => M.id === 'c8'); return i >= 0 && (p.hist?.p || 0) >= i; },
+  // Horta da missão: a planta t (do lote do jogador) fica madura agora se a missão da vez ainda usa esse legume e a cota
+  // dela não acabou. A cota (plantasDaMissao da missão inteira) é gasta uma vez por planta e não volta: vender a
+  // colheita e plantar de novo cresce no tempo normal, assim como o que passar da cota e a horta fora das missões.
+  // hist.hz = { m: id da missão, u: { legume: plantas já aceleradas } } (shared/historia.js histValida guarda).
+  acelerarPlanta(j, t) {
+    const p = j?.prog, h = p?.hist; if (!t?.c || !h?.ac || j.bot) return false;
+    const P = PLANTAS[t.c], M = missaoAtual(p); if (!P || !M || (t.g || 0) >= P.G) return false;
+    const total = plantasDaMissao(M), resta = plantasDaMissao(M, h.e || 0), k = t.c;
+    if (!h.hz || h.hz.m !== M.id) h.hz = { m: M.id, u: {} };
+    const u = h.hz.u, livre = (q) => (total[q] || 0) > (u[q] || 0) && (resta[q] || 0) > 0;
+    const E = etapaAtual(p), qualquer = QUALQUER_PLANTA.includes(k) && livre('*');
+    const q = E?.ev === 'plantar' && !E.k && qualquer ? '*' : livre(k) ? k : qualquer ? '*' : '';
+    if (!q) return false;
+    u[q] = (u[q] || 0) + 1; t.g = P.G; j.progSujo = true;
+    return true;
+  },
+  // todas as plantas do lote do jogador que a missão acelera (ao aceitar, a cada etapa nova e no plantar/regar/colher)
+  hortaMissao(j) {
+    const L = this.loteDe?.(j); if (!L || !j?.prog?.hist?.ac) return 0;
+    let n = 0;
+    for (const t of Object.values(L.horta || {})) if (this.acelerarPlanta(j, t)) n++;
+    if (n) { this.evento({ t: 'aviso', para: j.id, texto: 'Missão: pronta pra colher!' }); this.avisarLote?.(L); }
+    return n;
+  },
   // a planta k na horta do jogador: 'madura' · 'seca' (precisa de água) · 'cresce' · '' (nada plantado)
   hortaDe(j, k) {
     const L = this.loteDe?.(j), agora = Date.now(); let st = '';
