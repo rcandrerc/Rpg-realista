@@ -419,7 +419,47 @@ func montar() -> void:
 			montar_multi()
 		"config":
 			montar_config()
+		"creditos":
+			montar_creditos()
 	_caber()
+
+# Créditos e direitos (André 2026-11-14: "all rights reserved, para garantir"). Lista os terceiros que a licença deles
+# pede para citar (Godot MIT, fontes OFL, CC-BY) e o resto que usamos; a lista completa fica no README e no LICENSE.
+const CREDITOS := [
+	"Age of Embers™",
+	"© 2026 André Coutinho. Todos os direitos reservados.",
+	"História, personagens, nome, símbolo, arte e código são protegidos por direitos autorais. Proibido copiar, distribuir ou vender sem autorização.",
+	"Feito com Godot Engine (licença MIT).",
+	"Fontes: Alegreya Sans, Cinzel e Cinzel Decorative (SIL Open Font License 1.1).",
+	"Avatar \"Ruiva\" © 2026 MercuryMaid (水銀メイド), VRoid Hub, VRM Public License 1.0.",
+	"Animações: Mixamo (Adobe).",
+	"Modelos e texturas: Quaternius, KayKit (Kay Lousberg), Kenney, Poly Haven.",
+	"\"Dog running\" de congusbongus, OpenGameArt (CC-BY 3.0).",
+	"Sons: The Audio Horizon SFX, Pixabay (floraphonic, koiroylers).",
+	"Músicas: Kaazoom, Forgotten Hero Records e outros (Pixabay).",
+]
+
+func montar_creditos() -> void:
+	_cabeca("topo_config", "Créditos e direitos")
+	var rolar := ScrollContainer.new()
+	rolar.custom_minimum_size = Vector2(560, 330)
+	rolar.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var lista := VBoxContainer.new()
+	lista.add_theme_constant_override("separation", 8)
+	lista.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rolar.add_child(lista)
+	conteudo.add_child(rolar)
+	var antes := conteudo
+	conteudo = lista
+	for i in CREDITOS.size():
+		var l := _texto(Idioma.frase(CREDITOS[i]), Menu.OURO_CLARO if i < 2 else Menu.TEXTO, 18 if i == 0 else 14)
+		l.custom_minimum_size = Vector2(530, 0)
+	var mit := _texto(Engine.get_license_text(), Menu.APAGADO, 11) # o MIT pede o aviso junto do programa
+	mit.custom_minimum_size = Vector2(530, 0)
+	conteudo = antes
+	_add(_botao("Voltar", func():
+		aberta = "config"
+		montar(), false))
 
 func _online():
 	return m.online if m.online and m.online.rede else null
@@ -558,6 +598,9 @@ func montar_config() -> void:
 		salvar())
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
 	_chave_ia()
+	_add(_botao("Créditos e direitos", func():
+		aberta = "creditos"
+		montar(), false))
 	conteudo = dir
 	_qualidade_grafica()
 	conteudo = principal
