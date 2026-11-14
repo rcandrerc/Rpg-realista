@@ -1274,8 +1274,9 @@ func evento(ev: Dictionary) -> void:
 				m.leilao.do_servidor(ev)
 			return
 		"fala":
-			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), str(ev.texto), ev)): # janela do NPC aberta: a fala aparece nela
-				m.hud.aviso(str(ev.texto))
+			var fala_txt := Idioma.frase(str(ev.texto)) # inglês: a fala do NPC chega em português (a da IA já vem no idioma)
+			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), fala_txt, ev)): # janela do NPC aberta: a fala aparece nela
+				m.hud.aviso(fala_txt)
 			if str(ev.get("abrir", "")) == "resetar":
 				m.menu.perguntar_reset(int(ev.get("custo", 0)))
 			return

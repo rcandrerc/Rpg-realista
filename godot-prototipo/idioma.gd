@@ -81,6 +81,8 @@ static func t(texto: String) -> String:
 # traduzido (nome de item, de missão). Sem modelo, fica como veio.
 static var _modelos: Array = [] # [começo, fim, RegEx, inglês com {n}, várias linhas]
 static var _formato := RegEx.create_from_string("%[-+0-9.]*[sdf]")
+static var _qtd := RegEx.create_from_string("^([+-]?\\d+x? )(\\D.*)$")
+static var _conta := RegEx.create_from_string("^(.+?) (\\d+/\\d+)$")
 
 # "%s · Nv %d" vira "{1} · Nv {2}" (e "%%" vira "%")
 static func _numerar(t: String) -> String:
@@ -122,6 +124,16 @@ static func _frase(texto: String, fundo: int) -> String:
 	var r := _por_modelo(texto, fundo, true) if varias else _por_modelo(texto, fundo, false)
 	if r != "":
 		return r
+	var conta := _conta.search(texto) # etapa com andamento: "Derrube Puglins na Clareira dos Puglins 3/6"
+	if conta != null:
+		var en0 := _frase(conta.get_string(1), fundo + 1)
+		if en0 != conta.get_string(1):
+			return en0 + " " + conta.get_string(2)
+	var qtd := _qtd.search(texto) # quantidade + nome: "3 Lenha", "2x Pão de milho"
+	if qtd != null:
+		var en1 := _frase(qtd.get_string(2), fundo + 1)
+		if en1 != qtd.get_string(2):
+			return qtd.get_string(1) + en1
 	# texto montado aos pedaços (aviso + "Atenção: ...", "Dano 120% · Alcance 3 m", "Perdeu 5 de ouro. O equipamento
 	# desgastou"): cada pedaço por si, do separador mais forte para o mais fraco
 	for sep in SEPARADORES:
