@@ -60,9 +60,10 @@ static func existe() -> bool:
 func _ready() -> void:
 	if existe():
 		plugin = Engine.get_singleton("VozJogo")
-		plugin.ouviu.connect(_ouviu)
-		plugin.parcial.connect(_parcial)
-		plugin.estado.connect(_estado)
+		# adiado: o sinal do Android pode chegar fora da linha principal do jogo; assim a ação roda no quadro, como um toque
+		plugin.ouviu.connect(_ouviu, CONNECT_DEFERRED)
+		plugin.parcial.connect(_parcial, CONNECT_DEFERRED)
+		plugin.estado.connect(_estado, CONNECT_DEFERRED)
 	get_tree().on_request_permissions_result.connect(_permissao)
 
 # Configurações > Comando de voz
@@ -179,6 +180,9 @@ func _parcial(txt: String) -> void:
 	# "parar" age já no pedaço (não espera o fim da frase): andar por voz para na hora
 	if not ligado:
 		return
+	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
+	if t0 != "": # enquanto fala já aparece o que está entendendo (se aparece aqui e a ação não vem, o problema é o fim da frase)
+		m.hud.aviso(tr("Ouvi: %s") % t0.left(30))
 	for t in txt.split("\n", false):
 		var e := entender(t, false)
 		if e.get("k", "") == "parar":
