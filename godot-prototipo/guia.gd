@@ -208,7 +208,8 @@ func passos(hi: Dictionary) -> Array:
 			return base
 		"viajar":
 			return ["ir", "hud:falar", "mapa:totem:" + k]
-		"time": # André 2026-11-14: abre a tela de amigos e ele chama quem quiser (amigo, Cecília, Dario); nada de apontar um só
+		# André 2026-11-14: abre a tela de amigos e ele chama quem quiser (amigo, Cecília, Dario); nada de apontar um só
+		"time":
 			return ["topo:multi"]
 		"veiculo":
 			var antes: Array = [] if m.P.carrinho_no_mundo() else bolsa + ["item:k:carrinho", "b:Colocar no chão"]
