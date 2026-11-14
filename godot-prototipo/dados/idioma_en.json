@@ -3259,5 +3259,7 @@
 "Baixando a voz (32 MB)...": "Downloading voice (32 MB)...",
 "Baixando a voz: {1}%": "Downloading voice: {1}%",
 "Não deu para baixar a voz": "Couldn't download the voice",
-"Travar câmera": "Lock camera"
+"Travar câmera": "Lock camera",
+"A voz baixa 32 MB. Ligue de novo para baixar": "Voice needs 32 MB. Turn on again to download",
+"Instalando a voz...": "Installing voice..."
 }
