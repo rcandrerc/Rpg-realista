@@ -238,6 +238,10 @@ var _feito := false # esta frase já virou ação (com o mapa aberto)
 # sequência, mesmo que não pare"): cada palavra nova que chega no pedaço da frase é olhada uma vez; a que for comando
 # vira ação na hora. "frente ... gelo ... atacar" numa fala só = andar, gelo e ataque, na ordem.
 var _usadas := 0 # palavras desta frase já olhadas
+# O reconhecedor reescreve o pedaço enquanto a pessoa fala ("a" vira "atrás", "abrir nada" vira "abrir mapa"). Antes
+# só as palavras depois da última olhada contavam, e a palavra corrigida no lugar dela passava batida (André
+# 2026-11-14, 2235: "frente andou 2 de 20", "atrás nunca apareceu"). Agora volta até onde o texto mudou.
+var _vistas: Array = []
 var _ultima_acao := "" # a mesma ação duas vezes seguidas na mesma frase ("lança de gelo", o Android corrigindo) vale uma
 static func cmd_palavra(w: String, antes: String) -> Dictionary:
 	if w == "para": # "para" sozinho só vale como parar no fim da frase ("ir para a vila")
@@ -254,7 +258,11 @@ func _sequencia(txt: String, final: bool) -> void:
 	if final and w.size() == 1 and w[0] == "para" and _usadas == 0:
 		_fazer({"k": "parar"}, t0)
 	var fez := false
-	for i in range(_usadas, w.size()):
+	var igual := 0 # palavras do começo que não mudaram desde o último pedaço
+	while igual < mini(w.size(), _vistas.size()) and w[igual] == _vistas[igual]:
+		igual += 1
+	_vistas = w
+	for i in range(mini(_usadas, igual), w.size()):
 		var e := cmd_palavra(str(w[i]), str(w[i - 1]) if i > 0 else "")
 		if e.is_empty():
 			continue
@@ -267,7 +275,7 @@ func _sequencia(txt: String, final: bool) -> void:
 		if e.k == "mapa": # o resto da frase é o nome do lugar (fim da frase)
 			_usadas = w.size()
 			return
-	_usadas = maxi(_usadas, w.size())
+	_usadas = w.size()
 	if not fez and t0 != "":
 		_ouvi(t0)
 
@@ -319,6 +327,7 @@ func _ouviu(txt: String) -> void:
 func _nova_frase() -> void:
 	_feito = false
 	_usadas = 0
+	_vistas = []
 	_ultima_acao = ""
 
 var _voz_t := -10.0 # quando a última ação apareceu ("Voz: ..."): o "Ouvi" não passa por cima dela por 2 s
