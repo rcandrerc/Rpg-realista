@@ -518,7 +518,8 @@ func _montar_tela() -> void:
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(fundo)
 	# capa sem cache: se o pacote trouxer outra capa, o jogo usa a nova
-	var tex = ResourceLoader.load("res://ui/capa_aethra.jpg", "", ResourceLoader.CACHE_MODE_IGNORE)
+	var arq := "res://ui/capa_age_of_embers.jpg" if ResourceLoader.exists("res://ui/capa_age_of_embers.jpg") else "res://ui/capa_aethra.jpg"
+	var tex = ResourceLoader.load(arq, "", ResourceLoader.CACHE_MODE_IGNORE)
 	if tex is Texture2D:
 		var capa := TextureRect.new()
 		capa.texture = tex
