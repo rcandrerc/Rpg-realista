@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # falas dos NPCs em inglês quando o jogador escolhe English
 # Interação com os NPCs (como no Quimera): perto de um NPC aparece o botão Falar (balão); tocar num NPC na tela
 # faz o herói ir até ele sozinho. Os dois abrem a janela do NPC: o nome, a fala e o que dá para fazer com ele
 # (vender itens, comprar, forja, missão, cura, resetar a build...). O que cada um oferece vem de "acoes"
@@ -335,15 +336,15 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 	var falas: Array = n.get("falas", [])
 	fala_ui.text = str(falas[0]) if falas.size() > 0 else "..."
 	if n.funcao == "loja":
-		fala_ui.text = "Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro."
+		fala_ui.text = Idioma.frase("Dá uma olhada no que eu tenho. E se quiser vender algo, eu compro.")
 	elif n.funcao == "passe": # o Gaspar mostra o material do passe em ícones, com quanto você já tem
-		fala_ui.text = _fala_passe()
+		fala_ui.text = Idioma.frase(_fala_passe())
 	elif n.funcao == "pack" and m.transporte: # mercador de pack: material, quanto paga em cada um e o que dá para entregar
-		fala_ui.text = m.transporte.opcoes_mercador(n)[0]
+		fala_ui.text = Idioma.frase(m.transporte.opcoes_mercador(n)[0])
 	elif n.funcao == "alquimia":
-		fala_ui.text = "Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário."
+		fala_ui.text = Idioma.frase("Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário.")
 	elif n.funcao == "resetar" and falas.size() > 0:
-		fala_ui.text = "%s Custa %d de ouro." % [falas[0], m.custo_reset()]
+		fala_ui.text = Idioma.frase("%s Custa %d de ouro." % [falas[0], m.custo_reset()])
 	_itens_passe(n.funcao == "passe" or (n.funcao == "pack" and m.transporte != null))
 	if n.funcao == "totem": # totem de teleporte: os destinos com a taxa no lugar das opções
 		_destinos_totem(n)
@@ -447,7 +448,7 @@ func _reabrir() -> void:
 	if str(hi.get("npc", "")) == str(n.id) and _dist(n) <= 4.0:
 		abrir(n, false)
 		if t != "":
-			fala_ui.text = t
+			fala_ui.text = Idioma.frase(t)
 
 func fechar() -> void:
 	if raiz == null or not raiz.visible:
@@ -536,22 +537,22 @@ func escolher(a: String) -> void:
 		"consertar": # tudo o que desgastou, no corpo e na mochila, de uma vez (online o servidor confere e cobra)
 			var custo: int = m.P.custo_conserto_tudo()
 			if custo <= 0:
-				fala_ui.text = "Seu equipamento está inteiro. Volte quando ele apanhar lá fora."
+				fala_ui.text = Idioma.frase("Seu equipamento está inteiro. Volte quando ele apanhar lá fora.")
 			elif int(m.P.prog.ouro) < custo:
-				fala_ui.text = "Esse conserto sai por %d de ouro. Você tem %d." % [custo, int(m.P.prog.ouro)]
+				fala_ui.text = Idioma.frase("Esse conserto sai por %d de ouro. Você tem %d." % [custo, int(m.P.prog.ouro)])
 			elif m.on():
 				m.rede("item", {"acao": "consertar"})
-				fala_ui.text = "Pronto, ficou como novo. São %d de ouro." % custo
+				fala_ui.text = Idioma.frase("Pronto, ficou como novo. São %d de ouro." % custo)
 				m.sons.tocar("forja", -4.0)
 			else:
 				var r: String = m.P.consertar_tudo()
-				fala_ui.text = "Pronto, ficou como novo. São %d de ouro." % custo
+				fala_ui.text = Idioma.frase("Pronto, ficou como novo. São %d de ouro." % custo)
 				m.hud.aviso(r)
 				m.sons.tocar("forja", -4.0)
 			_atualizar_consertar()
 		"pack": # FASE 1: as opções do mercador (fazer o pack, entregar o das costas, do carrinho ou do porão)
 			var r: Array = m.transporte.opcoes_mercador(n)
-			fala_ui.text = r[0]
+			fala_ui.text = Idioma.frase(r[0])
 			_itens_passe(true) # o material do pack em ícones com tem/precisa (refaz depois de fazer/entregar)
 			for c in opcoes.get_children():
 				opcoes.remove_child(c)
@@ -567,7 +568,7 @@ func escolher(a: String) -> void:
 				escolher("pack")
 		"leilao": # Otávio: a janela da Casa do Comércio abre quando o servidor responde (leilao_ui.gd)
 			if not m.on():
-				fala_ui.text = "Sem conexão com o servidor o leilão fica fechado. Volte depois."
+				fala_ui.text = Idioma.frase("Sem conexão com o servidor o leilão fica fechado. Volte depois.")
 			else:
 				m.leilao.pedir({"acao": "ver"})
 		"alquimia": # Mirela: a lista de sínteses (Selo e Runa, Épico e Lendário) no lugar das opções
@@ -578,9 +579,9 @@ func escolher(a: String) -> void:
 				_lista_alquimia(n, false)
 		"passe": # faz um passe com o material dos monstros (o servidor confere e gasta; a resposta chega em fala())
 			if not m.on():
-				fala_ui.text = "Sem conexão com o servidor eu não posso fazer o passe. Volte depois."
+				fala_ui.text = Idioma.frase("Sem conexão com o servidor eu não posso fazer o passe. Volte depois.")
 			elif _falta_passe() != "":
-				fala_ui.text = "Ainda falta o que está em vermelho. Os monstros carregam isso, é só caçar."
+				fala_ui.text = Idioma.frase("Ainda falta o que está em vermelho. Os monstros carregam isso, é só caçar.")
 			else:
 				m.rede("item", {"acao": "fazer_passe"})
 				m.sons.tocar("forja", -6.0)
@@ -604,9 +605,9 @@ func escolher(a: String) -> void:
 				m.h.vida = m.P.st.vidaMax
 				m.h.mana = m.P.st.manaMax
 				m.fx.cura(m.heroi)
-				fala_ui.text = "Pronto, novinho em folha. Vá com cuidado lá fora."
+				fala_ui.text = Idioma.frase("Pronto, novinho em folha. Vá com cuidado lá fora.")
 			else:
-				fala_ui.text = "As missões só valem online (o progresso fica na sua conta)."
+				fala_ui.text = Idioma.frase("As missões só valem online (o progresso fica na sua conta).")
 		"conversar":
 			if m.on():
 				m.rede("falar", {"npc": n.id, "conversa": true})
@@ -615,7 +616,7 @@ func escolher(a: String) -> void:
 				if falas.size() > 0:
 					var i: int = (int(_falas.get(n.id, 0)) + 1) % falas.size()
 					_falas[n.id] = i
-					fala_ui.text = str(falas[i])
+					fala_ui.text = Idioma.frase(str(falas[i]))
 
 # André 2026-11-12: "iniciar a missão, fecha, já aparece a barrinha lá". Tocou na missão: a janela do NPC fecha na hora
 # (antes ficava aberta e tocar de novo travava), a resposta do NPC vira aviso na tela (online.gd "fala") e a barrinha da
@@ -633,7 +634,7 @@ func _missao_iniciada() -> void:
 func _destinos_totem(n: Dictionary) -> void:
 	var de: Dictionary = n.totem
 	var ouro := int(m.P.prog.get("ouro", 0))
-	fala_ui.text = "As runas brilham. Para onde você quer ir? Você tem %d de ouro." % ouro
+	fala_ui.text = Idioma.frase("As runas brilham. Para onde você quer ir? Você tem %d de ouro." % ouro)
 	for c in opcoes.get_children():
 		opcoes.remove_child(c)
 		c.queue_free()
@@ -655,7 +656,7 @@ func(): _ir_totem(de, tt))
 func _ir_totem(de: Dictionary, para: Dictionary) -> void:
 	var r: String = m.totem.ir(de, para)
 	if r != "":
-		fala_ui.text = r
+		fala_ui.text = Idioma.frase(r)
 
 # depois de consertar o botão mostra o preço novo (online o progresso chega um instante depois)
 func _atualizar_consertar() -> void:
@@ -673,7 +674,7 @@ func fala(npc_id: String, texto: String, ev := {}) -> bool:
 		_depois_fala[npc_id] = texto
 	if npc == null or str(npc.id) != npc_id:
 		return false
-	fala_ui.text = texto
+	fala_ui.text = Idioma.frase(texto)
 	if npc.get("amiga", false): # Cecília: pediu alguma coisa (ou não pede mais) -> o botão Dar aparece ou some
 		var p = ev.get("pedido")
 		var no_time: bool = ev.get("noTime", false) == true
@@ -882,10 +883,10 @@ func _lista_alquimia(n: Dictionary, falar := true) -> void:
 		opcoes.remove_child(c)
 		c.queue_free()
 	if S == null:
-		fala_ui.text = "O caldeirão ainda está frio. Volte depois."
+		fala_ui.text = Idioma.frase("O caldeirão ainda está frio. Volte depois.")
 	else:
 		if falar:
-			fala_ui.text = "Escolha o catalisador. Mostro quanto você tem de cada um. Mítico eu não faço."
+			fala_ui.text = Idioma.frase("Escolha o catalisador. Mostro quanto você tem de cada um. Mítico eu não faço.")
 		for tipo in ["armadura", "arma"]:
 			for r in range(2, int(S.ate) + 1):
 				var custo = S.custo[r]
@@ -912,10 +913,10 @@ func _lista_alquimia(n: Dictionary, falar := true) -> void:
 
 func _sintetizar(n: Dictionary, k: String, da: int) -> void:
 	if not m.on():
-		fala_ui.text = "Sem conexão com o servidor o caldeirão não acende. Volte depois."
+		fala_ui.text = Idioma.frase("Sem conexão com o servidor o caldeirão não acende. Volte depois.")
 		return
 	if da < 1:
-		fala_ui.text = "Ainda não dá: falta catalisador ou ouro. O que está apagado é o que falta."
+		fala_ui.text = Idioma.frase("Ainda não dá: falta catalisador ou ouro. O que está apagado é o que falta.")
 		return
 	var quantos: int = mini(da, int(m.P.dados.catalisador.sintese.lote)) if _alq_max else 1
 	m.rede("item", {"acao": "sintetizar", "k": k, "n": quantos})

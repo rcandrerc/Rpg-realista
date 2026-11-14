@@ -19,6 +19,11 @@ func _init() -> void:
 			"You're near the Furnace and the Anvil: here's everything they make. The other tabs show the rest.",
 		"Destruir 3 peças Raras da mochila?\nPeças com cadeado e as do corpo ficam.":
 			"Destroy 3 Rare pieces from your inventory?\nLocked and equipped pieces are kept.",
+		"Derrube Puglins na Clareira dos Puglins 3/6": "Take down Puglins in Puglin Glade 3/6",
+		"Vendeu 3 Lenha por 12 de ouro": "Sold 3 Firewood for 12 gold",
+		"Pack entregue! +40 de ouro (veio de navio!)": "Pack delivered! +40 gold (came by ship!)",
+		"Tô precisando de Cenoura. Se você me arrumar, fico te devendo uma.": "I need Carrot. If you can get me some, I owe you one.",
+		"Ninguém lembra de onde você veio. Nem você.": "No one remembers where you came from. Not even you.",
 		"Ruiva": "Ruiva",
 		"12": "12",
 	}

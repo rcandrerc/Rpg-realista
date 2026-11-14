@@ -22,10 +22,10 @@ const ruins = [];
 for (const [pt, en] of Object.entries(D || {})) {
   if (pt.startsWith('_')) continue;
   if (typeof en !== 'string' || en === '') { ruins.push(pt + ' (vazio)'); continue; }
-  const n = (pt.replaceAll('%%', '').match(formato) || []).length;
-  if (en.includes('{1}')) { // ordem trocada: {1}..{n} só dos que existem
+  const n = (pt.replaceAll('%%', '').match(formato) || []).length || new Set(pt.match(/\{\d+\}/g) || []).size; // %s/%d ou {1}..{n} (frase que o servidor monta)
+  if (en.includes('{1}') || pt.includes('{1}')) { // ordem trocada: {1}..{n} só dos que existem
     const usa = [...en.matchAll(/\{(\d+)\}/g)].map((r) => +r[1]);
-    if (usa.some((i) => i < 1 || i > n)) ruins.push(pt);
+    if (usa.some((i) => i < 1 || i > n) || (pt.includes('{1}') && new Set(usa).size !== n)) ruins.push(pt);
   } else if (n !== (en.replaceAll('%%', '').match(formato) || []).length) ruins.push(pt);
 }
 ok(ruins.length === 0, `inglês com os mesmos %s/%d do português ${ruins.slice(0, 3).join(' | ')}`);
