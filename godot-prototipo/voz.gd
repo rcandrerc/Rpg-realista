@@ -60,9 +60,10 @@ static func existe() -> bool:
 func _ready() -> void:
 	if existe():
 		plugin = Engine.get_singleton("VozJogo")
-		plugin.ouviu.connect(_ouviu)
-		plugin.parcial.connect(_parcial)
-		plugin.estado.connect(_estado)
+		# adiado: o sinal do Android pode chegar fora da linha principal do jogo; assim a ação roda no quadro, como um toque
+		plugin.ouviu.connect(_ouviu, CONNECT_DEFERRED)
+		plugin.parcial.connect(_parcial, CONNECT_DEFERRED)
+		plugin.estado.connect(_estado, CONNECT_DEFERRED)
 	get_tree().on_request_permissions_result.connect(_permissao)
 
 # Configurações > Comando de voz
@@ -84,6 +85,7 @@ func ligar(v: bool) -> void:
 		m.hud.aviso(tr("Celular sem reconhecimento de voz"))
 		return
 	ligado = true
+	_escutou = false
 	plugin.ligar("en-US" if Idioma.atual == "en" else "pt-BR")
 	m.hud.aviso(tr("Voz ligada"))
 
@@ -98,7 +100,22 @@ func _permissao(nome: String, ok: bool) -> void:
 		if m.menu_topo:
 			m.menu_topo.voz_negada()
 
+# o que o microfone está fazendo aparece na tela (André 2026-11-14: "quais comandos estão valendo? só para eu saber
+# se está funcionando"): "Escutando..." na primeira vez, e o erro do Android (cada número no máximo a cada 8 s)
+var _escutou := false
+var _erro_t := {}
 func _estado(e: String) -> void:
+	if e == "escutando":
+		if not _escutou:
+			_escutou = true
+			m.hud.aviso(tr("Escutando..."))
+		return
+	if e.begins_with("erro:"):
+		var agora := Time.get_ticks_msec() / 1000.0
+		if agora - float(_erro_t.get(e, -100.0)) > 8.0:
+			_erro_t[e] = agora
+			m.hud.aviso(tr("Voz: erro %s") % e.substr(5))
+		return
 	if e == "sem_permissao":
 		ligado = false
 		m.hud.aviso(tr("Sem microfone"))
@@ -163,6 +180,9 @@ func _parcial(txt: String) -> void:
 	# "parar" age já no pedaço (não espera o fim da frase): andar por voz para na hora
 	if not ligado:
 		return
+	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
+	if t0 != "": # enquanto fala já aparece o que está entendendo (se aparece aqui e a ação não vem, o problema é o fim da frase)
+		m.hud.aviso(tr("Ouvi: %s") % t0.left(30))
 	for t in txt.split("\n", false):
 		var e := entender(t, false)
 		if e.get("k", "") == "parar":
@@ -187,8 +207,15 @@ func _ouviu(txt: String) -> void:
 		return
 	if aberto:
 		m.hud.aviso(tr("Lugar não encontrado"))
+		return
+	# ouviu, mas não é comando: mostra o que entendeu (assim dá para ver se o microfone pega e qual palavra trocar)
+	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
+	if t0 != "":
+		m.hud.aviso(tr("Ouvi: %s") % t0.left(30))
 
 func _fazer(e: Dictionary, t: String) -> void:
+	if e.k != "parar":
+		m.hud.aviso(tr("Ouvi: %s") % t.left(30)) # o aviso da própria ação (Parou, Indo...) vem por cima quando tem
 	var agora := Time.get_ticks_msec() / 1000.0
 	if e.k == "parar" and _ultimo == "parar" and agora - _ultimo_t < 1.5:
 		return # o pedaço já parou: a frase final não repete o aviso
