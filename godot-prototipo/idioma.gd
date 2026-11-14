@@ -85,7 +85,7 @@ static func t(texto: String) -> String:
 static var _modelos: Array = [] # [começo, fim, RegEx, inglês com {n}, várias linhas, solto]
 static var _formato := RegEx.create_from_string("%[-+0-9.]*[sdf]")
 static var _qtd := RegEx.create_from_string("^([+-]?\\d+x? )(\\D.*)$")
-static var _conta := RegEx.create_from_string("^(.+?) (\\d+/\\d+)$")
+static var _conta := RegEx.create_from_string("^(.+?) (\\(\\d+/\\d+\\)|\\d+/\\d+)$") # "Derrube Puglins 3/6" ou "(3/6)"
 
 # "%s · Nv %d" vira "{1} · Nv {2}" (e "%%" vira "%")
 static func _numerar(t: String) -> String:

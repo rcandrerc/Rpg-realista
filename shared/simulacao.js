@@ -978,7 +978,7 @@ export class Simulacao {
     const t = totalEtapa(E);
     h.n = Math.min(t, h.n + add); j.progSujo = true;
     if (h.n >= t) return this.proximaEtapa(j);
-    this.evento({ t: 'aviso', para: j.id, texto: `${E.txt}: ${h.n}/${t}` });
+    this.evento({ t: 'aviso', para: j.id, texto: `${E.txt} (${h.n}/${t})` });
     this.avisarProg(j);
   }
   proximaEtapa(j) {
@@ -1139,8 +1139,10 @@ export class Simulacao {
     if (!h?.ac) return p.nivel < M.nv ? `Libera no Nv ${M.nv} (${this.nomeNpc(M.npc)})` : `Fale com ${this.nomeNpc(M.npc)}`;
     const E = etapaAtual(p); if (!E) return '';
     const t = totalEtapa(E);
-    const f = this.juntaDe(j, E); if (f) return this.textoJunta(E, f, t > 1 ? ` ${h.n}/${t}` : ''); // falta material: "Barquinho: corte Lenha 12/30"; "Sopa de legumes 1/3: colha Rabanete 0/2"
-    let txt = E.txt + (t > 1 ? ` ${h.n}/${t}` : '');
+    const f = this.juntaDe(j, E); if (f) return this.textoJunta(E, f, t > 1 ? ` (${h.n}/${t})` : ''); // falta material: "Barquinho: corte Lenha 12/30"; "Sopa de legumes 1/3: colha Rabanete 0/2"
+    // quanto falta da etapa sempre entre parênteses, também quando é 1 (André 2026-11-14: o "6/8" da parte da missão
+    // parecia "fiz 6 barras de ferro"): "Funda 1 barra de aço na fornalha (0/1)"; a parte fica no app ("Parte 7/8 ·")
+    let txt = `${E.txt} (${h.n}/${t})`;
     if (E.ev === 'noite') { const hr = horaDoJogo(p.dia); txt += ` · agora são ${String(Math.floor(hr)).padStart(2, '0')}h`; }
     return txt;
   }
