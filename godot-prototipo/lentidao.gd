@@ -82,6 +82,39 @@ func _seguir_entrada() -> void:
 			e.versao = str(load("res://versao.gd").NUMERO)
 			on.rede.enviar("lentidao", e)
 
+# Menus (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"): cada abertura anota quanto
+# levou montar (abrir, ms), o quadro seguinte (quadro: arrumar e desenhar a tela nova) e o outro depois (quadro2).
+# Vai como tipo "menu" para /lentidao, no máximo MENU_MAX por abertura do jogo.
+const MENU_MAX := 40
+var _menu := {}
+var _menus_mandados := 0
+func menu_aberto(aba: String, t0_us: int, itens: int) -> void:
+	if _menus_mandados >= MENU_MAX:
+		return
+	var agora := Time.get_ticks_usec()
+	_menu = {"tipo": "menu", "aba": aba, "abrir": roundi((agora - t0_us) / 1000.0), "itens": itens, "_t": agora, "_f": Engine.get_process_frames()}
+
+func _seguir_menu() -> void:
+	if Engine.get_process_frames() == int(_menu._f):
+		return # o toque abriu o menu neste mesmo quadro: conta a partir do próximo
+	var agora := Time.get_ticks_usec()
+	var ms := roundi((agora - int(_menu._t)) / 1000.0)
+	_menu._t = agora
+	if not _menu.has("quadro"):
+		_menu.quadro = ms
+		return
+	_menu.quadro2 = ms
+	_menu.erase("_t")
+	_menu.erase("_f")
+	_menu.versao = str(load("res://versao.gd").NUMERO)
+	_menu.limite = Engine.max_fps
+	_menu.grafico = int(m.grafico.nivel) if m.grafico else -1
+	var on = m.online
+	if on and on.rede and on.rede.conectado:
+		_menus_mandados += 1
+		on.rede.enviar("lentidao", _menu)
+	_menu = {}
+
 # online.gd: o servidor mandou "corrigir" (d = metros entre onde o herói estava e onde o servidor pôs)
 func corrigiu(d: float) -> void:
 	_corr += 1
@@ -106,6 +139,8 @@ func _zerar(agora: int) -> void:
 func _process(dt: float) -> void:
 	if not _entrada_mandada:
 		_seguir_entrada()
+	if not _menu.is_empty():
+		_seguir_menu()
 	var agora := Time.get_ticks_usec()
 	var q: float = (agora - _ult) / 1000000.0 if _ult > 0 else 0.0
 	_ult = agora
