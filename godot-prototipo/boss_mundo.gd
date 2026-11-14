@@ -1,4 +1,5 @@
 extends Node
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Bosses de mundo (André 2026-11-11: "uns bosses espalhados pelo mundo... com skills especiais, não só bater").
 # Quem decide tudo é o servidor (shared/simulacao.js passoBosses / lancarSkillBoss; dados em shared/dados.js
 # BOSSES_MUNDO). Aqui só o que se vê:
@@ -387,4 +388,4 @@ func _atualizar_hud() -> void:
 		if l is Label3D:
 			nome = l.text
 			break
-	_nome.text = nome + ("   · FÚRIA" if furia else "")
+	_nome.text = Idioma.frase(nome + ("   · FÚRIA" if furia else ""))

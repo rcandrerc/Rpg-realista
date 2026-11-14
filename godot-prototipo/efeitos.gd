@@ -1,4 +1,5 @@
 extends Node3D
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Efeitos visuais, iguais aos do site (client/src/efeitos.js): círculo mágico com pentagrama e coluna de luz ao conjurar,
 # labaredas, fumaça e brasas, cometa de fogo com cauda, tiro arcano, explosões, raio em zigue-zague, chuva de meteoros,
 # meias-luas do Giro, estocada da Investida, rastro da espada e do dash, e os números de dano.
@@ -1277,7 +1278,7 @@ func numero(pos: Vector3, valor: float, cor := Color.WHITE, critico := false) ->
 # Texto que sobe devagar e some (ouro e itens que caíram); atraso em segundos para não encavalar
 func texto(pos: Vector3, t: String, cor: Color, atraso := 0.0, subir := 1.1, altura := 1.7, tam := 1.0, px := 0.0) -> void:
 	var l := Label3D.new()
-	l.text = t
+	l.text = Idioma.frase(t)
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
 	l.font_size = 48

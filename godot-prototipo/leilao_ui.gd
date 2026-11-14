@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # A Casa do Comércio (história v2, Entrega 3; plano aprovado pelo André 2026-11-11): a janela do leilão do Otávio, no
 # Rio Claro. Só online: quem decide é o servidor (shared/simulacao.js leilaoMsg, shared/leilao.js). Abre quando se fala
 # com o Otávio (a fala dele chega com abrir: "leilao") e cada toque manda um pedido; a resposta (evento "leilao") traz a
@@ -378,7 +379,7 @@ func _horas(hh: int) -> void:
 	var t := preco_ui.text if preco_ui else ""
 	montar()
 	if preco_ui and t != "":
-		preco_ui.text = t
+		preco_ui.text = Idioma.frase(t)
 
 func _anunciar() -> void:
 	var p := int(preco_ui.text.strip_edges()) if preco_ui and preco_ui.text.strip_edges().is_valid_int() else 0

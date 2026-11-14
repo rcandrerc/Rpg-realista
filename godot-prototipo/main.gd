@@ -1905,7 +1905,7 @@ func titulo_npc(no: Node3D, cargo: String) -> void:
 	nome.offset = Vector2(0, 0.034 / nome.pixel_size)
 	var t := Label3D.new()
 	t.name = "Titulo"
-	t.text = cargo
+	t.text = Idioma.frase(cargo)
 	t.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	t.fixed_size = true
 	t.font = nome.font

@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Missão ativa na tela (André 2026-11-11: "a missão ativa tem que ficar aparecendo ali do lado esquerdo embaixo, onde fica
 # o negócio de time"; "eu clicando, quero um botão Ir para... ele faz o autopath até a região"). Fica à esquerda, logo
 # embaixo do painel do herói e das barras do time (amigos.gd). Do lado da descrição fica o botão "Ir" (André
@@ -65,7 +66,8 @@ func _linha(tam: int, cor: Color) -> Label:
 
 func _botao(t: String, fn: Callable) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 15)
 	b.custom_minimum_size = Vector2(BOTAO, 34)
@@ -177,10 +179,10 @@ func _process_parte(dt: float) -> void:
 		return
 	_t = 0.25
 	var tx := textos(M)
-	if l1.text != tx[0]:
-		l1.text = tx[0]
-	if l2.text != tx[1]:
-		l2.text = tx[1]
+	if l1.text != Idioma.frase(tx[0]):
+		l1.text = Idioma.frase(tx[0])
+	if l2.text != Idioma.frase(tx[1]):
+		l2.text = Idioma.frase(tx[1])
 		l2.add_theme_color_override("font_color", Color(1, 0.95, 0.85) if tx[1].begins_with("Pronto") or tx[1].contains("Volte") else Color(0.85, 0.82, 0.78))
 	ir_btn.disabled = int(m.P.prog.nivel) < int(M.nv)
 	cartao.size = Vector2(LARGURA, 0) # encolhe de novo quando o texto fica menor

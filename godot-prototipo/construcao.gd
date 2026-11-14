@@ -1,4 +1,5 @@
 extends Node3D
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Terras da Estrada: construção e fazenda do Quimera (pedido do André 2026-11-03, refeito em 2026-11-04).
 # Não tem lote pronto: numa área de terra livre com uma estrada central, o jogador marca o terreno que quer comprar
 # (toca num canto e arrasta até o outro) e paga por bloco de 1 m². Só constrói e planta dentro do terreno dele.
@@ -2196,16 +2197,17 @@ func _mostrar_qtd() -> void:
 	var t := tempo_custo(custo)
 	var vg := _vigor_qtd()
 	qtd = clampi(qtd, 1, mx)
-	txt_qtd_tit.text = "Criar %s" % _nome_qtd()
+	txt_qtd_tit.text = Idioma.frase("Criar %s" % _nome_qtd())
 	var total := {}
 	for c in custo:
 		total[c] = int(custo[c]) * qtd
 	var cada := custo_txt(custo) + ((" · vigor %s" % str(snappedf(vg, 0.1)).replace(".", ",")) if vg > 0.0 else "")
 	var tudo := custo_txt(total) + ((" · vigor %s" % str(snappedf(vg * qtd, 0.1)).replace(".", ",")) if vg > 0.0 else "")
-	txt_qtd_custo.text = "Cada uma: %s · %s s\nTotal: %s · %s s (dá para %d)" % [cada, str(snappedf(t, 0.1)).replace(".", ","),
-		tudo, str(snappedf(t * qtd, 0.1)).replace(".", ","), mx]
+	txt_qtd_custo.text = Idioma.frase("Cada uma: %s · %s s\nTotal: %s · %s s (dá para %d)" % [cada, str(snappedf(t, 0.1)).replace(".", ","),
+		tudo, str(snappedf(t * qtd, 0.1)).replace(".", ","), mx])
 	txt_qtd_n.text = str(qtd)
-	b_qtd_ok.text = "Criar %d" % qtd
+	b_qtd_ok.set_meta("pt", "Criar %d" % qtd) # o guia das missões acha o botão pelo texto em português
+	b_qtd_ok.text = Idioma.frase(str(b_qtd_ok.get_meta("pt")))
 
 func _mudar_qtd(d: int) -> void:
 	qtd = clampi(qtd + d, 1, _qtd_max(_qtd_k)) if d != 999 else _qtd_max(_qtd_k)
@@ -2235,7 +2237,7 @@ func fabricando(ev: Dictionary) -> void:
 		_fab.feito = int(ev.get("feito", 0))
 		_fab.fim = Time.get_ticks_msec() / 1000.0 + 1.2
 		barra_fab.value = 1.0 if _fab.feito >= int(_fab.n) else barra_fab.value
-		txt_fab.text = ("Pronto: %d %s" % [_fab.feito, nome]) if _fab.feito > 0 else "Parou de criar"
+		txt_fab.text = Idioma.frase(("Pronto: %d %s" % [_fab.feito, nome]) if _fab.feito > 0 else "Parou de criar")
 		if str(ev.get("msg", "")) != "": # destruir/evoluir (catalisador): o resultado fica um pouco mais na barrinha
 			txt_fab.text = str(ev.msg)
 			_fab.fim = Time.get_ticks_msec() / 1000.0 + 3.0
@@ -2975,6 +2977,7 @@ func _atualizar_mira() -> void:
 		if m.P.contar("obra_" + sel) < 1: # não tem a peça pronta: diz o que falta para criar
 			var mc := motivo_criar(sel)
 			if mc != "":
+				mc = Idioma.frase(mc) # inglês: traduz antes de pôr a primeira letra em minúscula
 				mot = "Para criar: " + mc.substr(0, 1).to_lower() + mc.substr(1)
 			elif mot == "":
 				mot = "Toque em Criar primeiro (%s)" % custo_txt(D.construcoes[sel].custo)
@@ -3034,7 +3037,7 @@ func _atualizar_mira() -> void:
 		if mot == "" and plano and plano.planeja(sel):
 			alvo.motivo = plano.dica(dados)
 		_destaque_em(Vector3(i + 0.5, m.terreno.altura(i + 0.5, j + 0.5), j + 0.5), Vector3(1.0, 0.16, 1.0), Color(0.43, 1.0, 0.54, 0.35) if alvo.ok else Color(1, 0.35, 0.29, 0.35))
-	txt_motivo.text = alvo.motivo if alvo.motivo != "" else "Pode colocar aqui"
+	txt_motivo.text = Idioma.frase(alvo.motivo if alvo.motivo != "" else "Pode colocar aqui")
 	txt_motivo.add_theme_color_override("font_color", Color("b8f0a0") if alvo.ok else Color("ffb3a3"))
 	b_ok.disabled = not alvo.ok
 
@@ -3387,10 +3390,12 @@ func _atualizar_compra() -> void:
 	if chave == _chave_compra:
 		return # nada mudou: não repinta (antes era todo quadro)
 	_chave_compra = chave
-	b_recomecar.text = "Desfazer" if (mudando and not _ret.is_empty() and not _igual_ret(_ret, _mudar_ini)) else "Marcar de novo"
+	b_recomecar.set_meta("pt", "Desfazer" if (mudando and not _ret.is_empty() and not _igual_ret(_ret, _mudar_ini)) else "Marcar de novo") # o guia das missões acha o botão pelo texto em português
+	b_recomecar.text = Idioma.frase(str(b_recomecar.get_meta("pt")))
 	b_recomecar.disabled = _ret.is_empty()
-	txt_compra_tit.text = "Mudar o terreno" if mudando else "Comprar terreno"
-	b_comprar.text = "Confirmar" if mudando else "Comprar"
+	txt_compra_tit.text = Idioma.frase("Mudar o terreno" if mudando else "Comprar terreno")
+	b_comprar.set_meta("pt", "Confirmar" if mudando else "Comprar") # o guia das missões acha o botão pelo texto em português
+	b_comprar.text = Idioma.frase(str(b_comprar.get_meta("pt")))
 	if mudando and not _ret.is_empty() and lotes.has(meu):
 		_atualizar_mudar(ouro)
 		return
@@ -3413,7 +3418,7 @@ func _atualizar_compra() -> void:
 	var ok := _ret_motivo == ""
 	txt_compra.text = "%d x %d m = %d blocos · %d de ouro" % [w, d, w * d, preco]
 	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if ok else Color("ffb3a3"))
-	txt_compra_info.text = ("2. Ajuste: toque no + ou - de um lado (1 m) ou arraste um canto dourado · 3. Comprar · você tem %d de ouro" % ouro) if ok else _ret_motivo
+	txt_compra_info.text = Idioma.frase(("2. Ajuste: toque no + ou - de um lado (1 m) ou arraste um canto dourado · 3. Comprar · você tem %d de ouro" % ouro) if ok else _ret_motivo)
 	b_comprar.disabled = not ok
 	_pintar_marcado(ok, "%d x %d m\n%d de ouro" % [w, d, preco])
 
@@ -3443,7 +3448,7 @@ func _pintar_marcado(ok: bool, texto: String) -> void:
 	var cx: float = (float(_ret.x0) + float(_ret.x1)) / 2.0
 	var cz: float = (float(_ret.z0) + float(_ret.z1)) / 2.0
 	_ret_txt.position = Vector3(cx, m.terreno.altura(cx, cz) + 1.4, cz)
-	_ret_txt.text = texto
+	_ret_txt.text = Idioma.frase(texto)
 	_ret_txt.modulate = Color("fff1c8") if ok else Color("ffb3a3")
 	_ret_txt.visible = true
 	_por_alcas()
@@ -3463,9 +3468,9 @@ func _atualizar_mudar(ouro: int) -> void:
 	txt_compra.text = "%d x %d m = %d blocos · %s" % [w, d, w * d, preco_txt]
 	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if (ok or igual) else Color("ffb3a3"))
 	if igual:
-		txt_compra_info.text = "1. Toque no + de um lado para crescer 1 m (- encolhe) ou arraste um canto dourado · 2. Confirmar · aumentar: %d por bloco, diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))]
+		txt_compra_info.text = Idioma.frase("1. Toque no + de um lado para crescer 1 m (- encolhe) ou arraste um canto dourado · 2. Confirmar · aumentar: %d por bloco, diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
 	else:
-		txt_compra_info.text = ("Você tem %d de ouro · cabem %d peças" % [ouro, max_pecas({"def": _ret}, D.lote)]) if ok else _ret_motivo
+		txt_compra_info.text = Idioma.frase(("Você tem %d de ouro · cabem %d peças" % [ouro, max_pecas({"def": _ret}, D.lote)]) if ok else _ret_motivo)
 	b_comprar.disabled = not ok
 	_pintar_marcado(ok or igual, "%d x %d m\n%s" % [w, d, preco_txt])
 
@@ -3628,7 +3633,8 @@ func cobre(p: Vector2) -> bool:
 
 func _botao(t: String, fn: Callable, ativo_ := false, tam := 15) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", tam)
 	b.custom_minimum_size = Vector2(0, 40)
@@ -4011,7 +4017,7 @@ func _montar_bau() -> void:
 		var partes: Array = []
 		for k in bau_prox:
 			partes.append(("%d de ouro" % int(bau_prox[k])) if k == "ouro" else ("%d %s" % [int(bau_prox[k]), m.P.nome_item({"k": k})]))
-		txt_melhorar.text = "Para %d lugares:\n%s" % [bau_prox_slots, ", ".join(partes)]
+		txt_melhorar.text = Idioma.frase("Para %d lugares:\n%s" % [bau_prox_slots, ", ".join(partes)])
 	else:
 		txt_melhorar.text = "Tamanho máximo"
 	bt_melhorar.visible = bau_prox != null
@@ -4023,7 +4029,7 @@ func _montar_bau() -> void:
 			if not _bau_arrastou:
 				m.rede("bau", {"acao": "tirar", "i": i})
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
-	txt_bau.text = "Baú · %d/%d" % [cheios, bau_slots]
+	txt_bau.text = Idioma.frase("Baú · %d/%d" % [cheios, bau_slots])
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
@@ -4411,22 +4417,22 @@ func _montar_forno() -> void:
 	var t := ""
 	var faz := str(forno.get("faz", ""))
 	if str(forno.get("precisa", "")) != "":
-		t = "%s só sai com %s no combustível." % [_nome(faz), _nome(str(forno.precisa)).to_lower()]
+		t = Idioma.frase("%s só sai com %s no combustível." % [_nome(faz), _nome(str(forno.precisa)).to_lower()])
 	elif forno.get("anda", false):
-		t = "Queimando: sai %s a cada %d s. Pode ir embora, ela continua." % [_nome(faz), int(forno.get("dur", 0))]
+		t = Idioma.frase("Queimando: sai %s a cada %d s. Pode ir embora, ela continua." % [_nome(faz), int(forno.get("dur", 0))])
 	elif forno.get("ent") == null:
-		t = "Ponha minério de ferro ou de cobre (3 viram uma barra), lenha (2 viram carvão) ou barra de ferro (vira aço com carvão)."
+		t = Idioma.frase("Ponha minério de ferro ou de cobre (3 viram uma barra), lenha (2 viram carvão) ou barra de ferro (vira aço com carvão).")
 	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
-		t = "Sem fogo: ponha lenha ou carvão no combustível."
+		t = Idioma.frase("Sem fogo: ponha lenha ou carvão no combustível.")
 	elif forno.get("sai") != null and str(forno.sai.k) != faz:
-		t = "Tire o que está pronto para começar outra coisa."
+		t = Idioma.frase("Tire o que está pronto para começar outra coisa.")
 	else:
-		t = "Parada: o lugar de pronto encheu ou falta material."
+		t = Idioma.frase("Parada: o lugar de pronto encheu ou falta material.")
 	if forno_alvo == "comb":
-		t += " A lenha que você tocar vai para o combustível."
+		t += " " + Idioma.frase("A lenha que você tocar vai para o combustível.")
 	else:
-		t += " A lenha que você tocar vira carvão (toque no combustível vazio para mudar)."
-	txt_forno.text = t
+		t += " " + Idioma.frase("A lenha que você tocar vira carvão (toque no combustível vazio para mudar).")
+	txt_forno.text = t # cada frase já saiu traduzida (inglês)
 	# mochila: só o que entra na fornalha
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
@@ -4521,21 +4527,21 @@ func _montar_fogao() -> void:
 		bm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		linha.add_child(bm)
 		if baixo:
-			t = "Precisa de Cozinheiro Nv %d. " % nv
+			t = Idioma.frase("Precisa de Cozinheiro Nv %d." % nv) + " "
 		elif falta:
-			t = "Faltam ingredientes (dá para fazer %d). " % maxi(0, cabe)
+			t = Idioma.frase("Faltam ingredientes (dá para fazer %d)." % maxi(0, cabe)) + " "
 	if forno.get("anda", false):
-		t += "Cozinhando: sai %s a cada %d s. Pode ir embora, o fogão continua." % [_nome(str(forno.get("faz", ""))), int(forno.get("dur", 0))]
+		t += Idioma.frase("Cozinhando: sai %s a cada %d s. Pode ir embora, o fogão continua." % [_nome(str(forno.get("faz", ""))), int(forno.get("dur", 0))])
 	elif na_panela == null:
-		t += "Escolha o prato e toque em +1, +5 ou Máx: os ingredientes vão da mochila para a panela."
+		t += Idioma.frase("Escolha o prato e toque em +1, +5 ou Máx: os ingredientes vão da mochila para a panela.")
 	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
-		t += "Sem fogo: ponha lenha ou carvão no combustível."
+		t += Idioma.frase("Sem fogo: ponha lenha ou carvão no combustível.")
 	elif forno.get("sai") != null and str(forno.sai.k) != str(forno.get("faz", "")):
-		t += "Tire o que está pronto para começar outro prato."
+		t += Idioma.frase("Tire o que está pronto para começar outro prato.")
 	else:
-		t += "Parado: o lugar de pronto encheu."
-	t += " Tocar na panela devolve os ingredientes do que não cozinhou."
-	txt_forno.text = t
+		t += Idioma.frase("Parado: o lugar de pronto encheu.")
+	t += " " + Idioma.frase("Tocar na panela devolve os ingredientes do que não cozinhou.")
+	txt_forno.text = t # cada frase já saiu traduzida (inglês)
 	# mochila: só o que vai no fogo
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
@@ -4649,7 +4655,7 @@ func _montar_itens() -> void:
 		n.queue_free()
 	var L = lotes.get(meu)
 	var pc: Label = linha_abas.get_node("pecas")
-	pc.text = ("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d · Água do regador %d/%d" % [int(m.P.vigor()), agua_regador(), int(D.horta.get("agua", 20))]
+	pc.text = Idioma.frase(("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d · Água do regador %d/%d" % [int(m.P.vigor()), agua_regador(), int(D.horta.get("agua", 20))])
 	var nome := ""
 	if aba == "terreno":
 		if L:
@@ -4658,11 +4664,11 @@ func _montar_itens() -> void:
 			linha_itens.add_child(_slot("mudar", "terreno", "", sel == "mudar", true))
 			linha_itens.add_child(_slot("vender", "it_ouro", "", sel == "vender", true, Color("ffd27a")))
 			if sel == "vender":
-				nome = "Vender para o jogo (volta a metade do preço) · as peças voltam para a mochila"
+				nome = Idioma.frase("Vender para o jogo (volta a metade do preço) · as peças voltam para a mochila")
 			else:
-				nome = "Mudar o tamanho · aumentar: %d de ouro por bloco · diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))]
+				nome = Idioma.frase("Mudar o tamanho · aumentar: %d de ouro por bloco · diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
 			if int(c.valor) > 0:
-				nome += " · conta no correio: %d" % int(c.valor)
+				nome += " · " + Idioma.frase("conta no correio: %d" % int(c.valor))
 	elif aba != "fazenda":
 		# o número é quantas dessa peça já estão criadas na mochila (prontas para colocar)
 		for k in D.construcoes:
@@ -4696,7 +4702,7 @@ func _montar_itens() -> void:
 		var f := _criar_qual()
 		if f != "":
 			nome = "Falta %s · criar: %s%s" % [str(D.itens[f].nome).to_lower(), custo_txt(dados_criar(f).custo), " (bancada perto)" if dados_criar(f).get("bancada", false) else ""]
-	txt_nome.text = nome
+	txt_nome.text = Idioma.frase(nome)
 	var cq := _criar_qual()
 	b_criar.visible = cq != ""
 	b_criar.disabled = cq != "" and motivo_criar(cq) != ""
@@ -4706,14 +4712,16 @@ func _montar_itens() -> void:
 		Menu.estilo_botao(_botoes_andar[a], a == andar)
 	if linha_andares:
 		linha_andares.visible = aba == "casa" or aba == "moveis"
-	b_ok.text = {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")
+	b_ok.set_meta("pt", {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")) # o guia das missões acha o botão pelo texto em português
+	b_ok.text = Idioma.frase(str(b_ok.get_meta("pt")))
 	Menu.estilo_botao(b_ok, true)
 	var n_plano: int = plano.quantos() if plano else 0
 	if aba == "fazenda" and plano and plano.planeja(sel):
 		b_ok.text = "Marcar"
 	if b_salvar:
 		b_salvar.visible = aba == "fazenda" and n_plano > 0
-		b_salvar.text = "Salvar (%d)" % n_plano
+		b_salvar.set_meta("pt", "Salvar (%d)" % n_plano) # o guia das missões acha o botão pelo texto em português
+		b_salvar.text = Idioma.frase(str(b_salvar.get_meta("pt")))
 		b_limpar.visible = b_salvar.visible
 	if aba == "fazenda" and n_plano > 0:
 		txt_nome.text += (" · " if txt_nome.text != "" else "") + "%d marcados: toque em Salvar" % n_plano

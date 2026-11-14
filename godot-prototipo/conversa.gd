@@ -332,7 +332,7 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 	var nome := str(n.get("nome", ""))
 	nome_ui.text = nome.get_slice(",", 0)
 	var papel := nome.get_slice(",", 1).strip_edges() if nome.contains(",") else ""
-	papel_ui.text = (papel.substr(0, 1).to_upper() + papel.substr(1)) if papel != "" else "" # "O ferreiro"
+	papel_ui.text = Idioma.frase((papel.substr(0, 1).to_upper() + papel.substr(1)) if papel != "" else "") # "O ferreiro"
 	var falas: Array = n.get("falas", [])
 	fala_ui.text = str(falas[0]) if falas.size() > 0 else "..."
 	if n.funcao == "loja":
@@ -421,7 +421,8 @@ func _botao_missao() -> void:
 		opcoes.add_child(_btn_missao)
 		opcoes.move_child(_btn_missao, 0)
 	elif _btn_missao.text != t:
-		_btn_missao.text = t
+		_btn_missao.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+		_btn_missao.text = Idioma.frase(str(_btn_missao.get_meta("pt")))
 
 # Depois do toque em "Missão" a janela fecha (André 2026-11-12). Se a resposta do servidor deixa a próxima conversa com
 # o mesmo NPC (entregou e ele já tem a próxima missão; aceitou e a etapa é entregar a ele), a janela volta sozinha com o
@@ -498,7 +499,8 @@ func atualizar_pack() -> void:
 
 func _opcao(t: String, ic: String, fn: Callable) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.focus_mode = Control.FOCUS_NONE
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.custom_minimum_size = Vector2(196, 36)
@@ -666,7 +668,8 @@ func _atualizar_consertar() -> void:
 	for b in opcoes.get_children():
 		if b is Button and str(b.text).begins_with("Consertar"):
 			var custo: int = m.P.custo_conserto_tudo()
-			b.text = ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)"
+			b.set_meta("pt", ("Consertar · %d ouro" % custo) if custo > 0 else "Consertar (tudo inteiro)") # o guia das missões acha o botão pelo texto em português
+			b.text = Idioma.frase(str(b.get_meta("pt")))
 
 # o servidor respondeu ("fala"): se a janela desse NPC está aberta, a fala aparece nela. true = mostrou aqui
 func fala(npc_id: String, texto: String, ev := {}) -> bool:

@@ -1,4 +1,5 @@
 extends Node
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # FASE 1 (André 2026-11-08/09): packs e transportes, cópia do Quimera. Quem decide é o servidor (shared/transporte.js);
 # aqui ficam os modelos (pack nas costas, packs no chão, carrinho, barquinho e navio), o botão do veículo, o painel do
 # pack e do carrinho (como o #packc do Quimera), a janela do mercador e o jeito de dirigir (andar.gd passo_veiculo).
@@ -659,8 +660,8 @@ func _atualizar_painel() -> void:
 	var editando: bool = m.hud.editando
 	if t == "" and editando: # no modo de editar aparece mesmo sem pack, para dar para mover
 		t = "[b][color=#ffe7a8]Pack nas costas[/color][/b]\n[color=#cbbfa8]Aparece aqui quando você carrega um pack[/color]"
-	if _painel_txt.text != t:
-		_painel_txt.text = t
+	if _painel_txt.text != Idioma.frase(t):
+		_painel_txt.text = Idioma.frase(t)
 	_painel.visible = t != "" and (editando or not m.menu.aberto())
 	_largar.visible = pk is Dictionary
 
@@ -917,7 +918,7 @@ func abrir_carrinho() -> void:
 			for it in cu:
 				t.append(("%d de ouro" % int(cu[it])) if it == "ouro" else "%d %s" % [int(cu[it]), m.P.nome_item({"k": it}) if m.P.has_method("nome_item") else it])
 			acoes.add_child(_acao("Melhorar", "cs_bancada", func(): m.rede("veiculo", {"acao": "melhorar"})))
-			custo_txt.text = "Melhorar pro Nv %d (%d packs, na bancada): %s" % [lv + 1, int(C.capacidade) * (lv + 1), ", ".join(t)]
+			custo_txt.text = Idioma.frase("Melhorar pro Nv %d (%d packs, na bancada): %s" % [lv + 1, int(C.capacidade) * (lv + 1), ", ".join(t)])
 		if not dirigindo:
 			acoes.add_child(_acao("Guardar", "topo_mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "carrinho"}); _fechar_janela()))
 	if custo_txt.text != "":
@@ -951,7 +952,7 @@ func _por_pack() -> void:
 
 func _rotulo(t: String, tam: int, cor: Color) -> Label:
 	var l := Label.new()
-	l.text = t
+	l.text = Idioma.frase(t)
 	l.add_theme_font_size_override("font_size", tam)
 	l.add_theme_color_override("font_color", cor)
 	return l
@@ -1078,7 +1079,7 @@ func _janela(titulo: String, ops: Array) -> void:
 	vb.add_theme_constant_override("separation", 6)
 	pc.add_child(vb)
 	var lt := Label.new()
-	lt.text = titulo
+	lt.text = Idioma.frase(titulo)
 	lt.add_theme_font_size_override("font_size", 17)
 	lt.add_theme_color_override("font_color", Color("#ffe7a8"))
 	vb.add_child(lt)

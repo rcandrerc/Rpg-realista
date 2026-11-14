@@ -1,4 +1,5 @@
 extends Node
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Títulos (André 2026-11-12): o título em uso aparece em cima da cabeça, acima do nome e do nível. Quanto mais difícil,
 # mais bonito: Comum (texto simples), Raro (azul com ◇), Épico (roxo com ◆), Lendário (dourado, maior, pulsando) e
 # Mítico (maior ainda, cor que corre do rosa ao dourado). Os títulos vêm de habilidades.json "titulos" (TITULOS em
@@ -52,7 +53,7 @@ func por(no: Node3D, placa: Label3D, id: String) -> Label3D:
 		t.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		no.add_child(t)
 	var r: int = clampi(int(T.get("r", 0)), 0, 4)
-	t.text = enfeite(str(T.nome), r)
+	t.text = Idioma.frase(enfeite(str(T.nome), r))
 	t.font_size = TAMANHO[r]
 	t.outline_size = 9 if r >= 3 else 7
 	t.pixel_size = placa.pixel_size
@@ -132,7 +133,7 @@ func _heroi() -> void:
 	var texto := "%s · Nv %d" % [str(m.hud.nome), int(prog.get("nivel", 1))]
 	if texto != _texto:
 		_texto = texto
-		_placa.text = texto
+		_placa.text = Idioma.frase(texto)
 	var tit = prog.get("tit")
 	var id: String = str(tit.get("uso", "")) if tit is Dictionary else ""
 	if id != _id_heroi:

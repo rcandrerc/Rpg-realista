@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Janelinha do reforço de equipamento (igual ao Quimera, André 2026-11-07; regras em REFORCO de shared/dados.js).
 # Sem o atributo a peça reforçada não equipa e, vestida, não dá bônus (progresso reforco_ok, igual ao Quimera).
 # Na mochila: toque na peça e em "Reforçar 1 vez" ou "Até o máximo" (André 2026-11-09: era "Até cancelar"). A janela mostra a peça, "+e → +e+1 · chance X%",
@@ -192,13 +193,13 @@ func _tentar() -> void:
 	nome_ui.text = P.nome_item(it)
 	nome_ui.add_theme_color_override("font_color", cor)
 	var custo_txt: String = "grátis (missão)" if P.etapa_gratis("reforcar") else "%d de ouro" % P.custo_reforco(it) # shared/kit.js
-	info_ui.text = "+%d → +%d · chance %d%% · %s" % [e, e + 1, P.chance_reforco(e), custo_txt]
+	info_ui.text = Idioma.frase("+%d → +%d · chance %d%% · %s" % [e, e + 1, P.chance_reforco(e), custo_txt])
 	var mat: Dictionary = P.material_reforco(it)
 	if not mat.is_empty():
-		info_ui.text += " · %d de %s" % [int(mat.n), str(P.dados.itens[mat.k].nome)]
+		info_ui.text += (" · %d %s" % [int(mat.n), Idioma.t(str(P.dados.itens[mat.k].nome))]) if Idioma.ingles() else (" · %d de %s" % [int(mat.n), str(P.dados.itens[mat.k].nome)])
 	tentativas += 1
 	auto_ui.visible = auto
-	auto_ui.text = "Automático: tentativa %d · %d de ouro" % [tentativas, ouro0 - int(P.prog.ouro) + P.custo_reforco(it)]
+	auto_ui.text = Idioma.frase("Automático: tentativa %d · %d de ouro" % [tentativas, ouro0 - int(P.prog.ouro) + P.custo_reforco(it)])
 	resultado_ui.text = "Reforçando…"
 	resultado_ui.add_theme_color_override("font_color", Color("e8dcc0"))
 	resultado_ui.add_theme_font_size_override("font_size", 16)
@@ -290,7 +291,7 @@ func _mostrar() -> void:
 	else:
 		resultado_ui.text = "FALHOU…"
 		resultado_ui.add_theme_color_override("font_color", Color("ff8a7a"))
-		resultado2_ui.text = ("Voltou pra +%d" % e) if e < de else ("Continua +%d" % e)
+		resultado2_ui.text = Idioma.frase(("Voltou pra +%d" % e) if e < de else ("Continua +%d" % e))
 		if m.sons:
 			m.sons.tocar("pano", -4.0)
 	toque_ui.visible = true

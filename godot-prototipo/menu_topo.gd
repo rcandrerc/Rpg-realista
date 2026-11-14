@@ -210,8 +210,8 @@ func _atualizar_vila(dt: float) -> void:
 		vila_sombra.k = clamp(f / float(m.volta.V.cd), 0.0, 1.0)
 		vila_sombra.queue_redraw()
 		var txt: String = m.volta.tempo_txt(f)
-		if vila_txt.text != txt:
-			vila_txt.text = txt
+		if vila_txt.text != Idioma.frase(txt):
+			vila_txt.text = Idioma.frase(txt)
 
 # ---------- abrir e recolher (seta) ----------
 func recolher(sim: bool, animar := true) -> void:

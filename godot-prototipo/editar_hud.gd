@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Modo de editar a interface (André 2026-11-06, ideia do Quimera, mas tudo individual e sem janela de ajustes):
 # segurar o painel de vida e mana abre o modo. Nele:
 #  - tocar num elemento (barra de vida, skill, ataque, joystick, chat, minimapa...) escolhe ele; tocar em outro junta os dois
@@ -84,7 +85,8 @@ func _ready() -> void:
 
 func _bt(t: String, fn: Callable, ativo: bool) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(104, 38)
 	b.add_theme_font_size_override("font_size", 15)
@@ -266,7 +268,8 @@ func _padrao() -> void:
 		aplicar(id)
 
 func _atualizar_padrao() -> void:
-	bt_padrao.text = "Padrão (escolhidos)" if not sel.is_empty() else "Padrão (tudo)"
+	bt_padrao.set_meta("pt", "Padrão (escolhidos)" if not sel.is_empty() else "Padrão (tudo)") # o guia das missões acha o botão pelo texto em português
+	bt_padrao.text = Idioma.frase(str(bt_padrao.get_meta("pt")))
 
 # ---------- toque ----------
 func _input(ev: InputEvent) -> void:

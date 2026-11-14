@@ -37,7 +37,10 @@ static func iniciar() -> void:
 				if pt.contains("{1}"):
 					_modelo(pt, en)
 				elif _formato.search(pt) != null: # "Nível %d" vira o modelo "Nível {1}" para a frase já montada
-					_modelo(_numerar(pt), en if en.contains("{1}") else _numerar(en))
+					var numeros := [] # o %d só pega número: "%d de %s" não engole "Minério de cobre"
+					for f in _formato.search_all(pt):
+						numeros.append(not f.get_string().ends_with("s"))
+					_modelo(_numerar(pt), en if en.contains("{1}") else _numerar(en), numeros)
 			_modelos.sort_custom(func(a, b): return a[2].get_pattern().length() > b[2].get_pattern().length())
 	var cfg := ConfigFile.new()
 	cfg.load(ARQUIVO)
@@ -79,7 +82,7 @@ static func t(texto: String) -> String:
 # frase montada (aviso do servidor, faixa de nível, nome com número): primeiro a frase inteira; senão os modelos do
 # dicionário com {1}, {2}... ("Missão cumprida: {1}" = "Quest complete: {1}"); o pedaço que entra no {n} também é
 # traduzido (nome de item, de missão). Sem modelo, fica como veio.
-static var _modelos: Array = [] # [começo, fim, RegEx, inglês com {n}, várias linhas]
+static var _modelos: Array = [] # [começo, fim, RegEx, inglês com {n}, várias linhas, solto]
 static var _formato := RegEx.create_from_string("%[-+0-9.]*[sdf]")
 static var _qtd := RegEx.create_from_string("^([+-]?\\d+x? )(\\D.*)$")
 static var _conta := RegEx.create_from_string("^(.+?) (\\d+/\\d+)$")
@@ -143,6 +146,10 @@ static func _frase(texto: String, fundo: int) -> String:
 		var mudou := false
 		for i in partes.size():
 			var en := _frase(partes[i], fundo + 1)
+			if en == partes[i] and sep == ". " and i < partes.size() - 1: # a frase perdeu o ponto no corte
+				var com_ponto := _frase(partes[i] + ".", fundo + 1)
+				if com_ponto != partes[i] + ".":
+					en = com_ponto.trim_suffix(".")
 			mudou = mudou or en != partes[i]
 			partes[i] = en
 		if mudou:
@@ -158,16 +165,26 @@ static func _por_modelo(texto: String, fundo: int, varias: bool) -> String:
 		if achou == null:
 			continue
 		var r: String = md[3]
+		var serve := true
 		for i in range(1, achou.get_group_count() + 1):
-			r = r.replace("{%d}" % i, _frase(achou.get_string(i), fundo + 1))
-		return r
+			var pedaco := achou.get_string(i)
+			var en := _frase(pedaco, fundo + 1)
+			if md[5] and en == pedaco and not pedaco.is_valid_float():
+				serve = false
+				break
+			r = r.replace("{%d}" % i, en)
+		if serve:
+			return r
 	return ""
 
-static func _modelo(pt: String, en: String) -> void:
+static func _modelo(pt: String, en: String, numeros := []) -> void:
 	var rx := ("(?s)^" if pt.contains("\n") else "^")
 	var resto := pt
 	var comeco := ""
 	var primeiro := true
+	var n := 0
+	var fixo := 0 # letras fora dos {n}
+	var nas_pontas := 0 # {n} de texto no começo e no fim
 	while true:
 		var i := resto.find("{")
 		var j := resto.find("}", i)
@@ -176,12 +193,20 @@ static func _modelo(pt: String, en: String) -> void:
 		if primeiro:
 			comeco = resto.substr(0, i)
 			primeiro = false
-		rx += _escapar(resto.substr(0, i)) + "(.*?)"
+		var numero: bool = n < numeros.size() and numeros[n]
+		if not numero and ((n == 0 and i == 0) or j == resto.length() - 1):
+			nas_pontas += 1
+		fixo += i
+		n += 1
+		rx += _escapar(resto.substr(0, i)) + ("([-+]?\\d[\\d.,]*)" if numero else "(.*?)")
 		resto = resto.substr(j + 1)
 	rx += _escapar(resto) + "$"
+	# "%s e %s", "%s ou %s": texto nas duas pontas e quase nada fixo pegaria qualquer frase ("Toque no carrinho e
+	# abasteça" virava "... and abasteça"); esse modelo "solto" só vale quando todo pedaço tem tradução
+	var solto := nas_pontas >= 2 and fixo + resto.length() < 8
 	var re := RegEx.new()
 	if re.compile(rx) == OK:
-		_modelos.append([comeco, resto, re, en, pt.contains("\n")])
+		_modelos.append([comeco, resto, re, en, pt.contains("\n"), solto])
 
 static func _escapar(t: String) -> String:
 	var r := ""

@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Criador de personagem (igual ao do site: client/src/criador.js e palco.js). A base é sempre a Ruiva (pedido do André:
 # "mantém a ruiva"); muda a cor do cabelo, dos olhos, da pele, da roupa e da calça, a altura e o tamanho dos olhos,
 # do nariz e da boca. O herói fica num palco só dele (mundo 3D próprio, fora do mapa): tablado de pedra com círculo
@@ -505,7 +506,8 @@ func montar_penteados() -> void:
 			continue
 		n += 1
 		var b := Button.new()
-		b.text = "Original" if id == null else "Cabelo %d" % n
+		b.set_meta("pt", "Original" if id == null else "Cabelo %d" % n) # o guia das missões acha o botão pelo texto em português
+		b.text = Idioma.frase(str(b.get_meta("pt")))
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 13)
 		b.custom_minimum_size = Vector2(96, 32)
@@ -578,7 +580,8 @@ func fazer_rostos() -> void:
 
 func botao(t: String, ativo: bool, fn: Callable) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size.y = 44
 	b.add_theme_font_size_override("font_size", 16)
@@ -656,10 +659,11 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	_nome_confirmar = false
 	_texto_b_nome()
 	b_cancelar.visible = not _criacao
-	b_pronto.text = "Pronto" if _criacao else "Salvar"
-	titulo.text = "CRIAR PERSONAGEM" if _criacao else "APARÊNCIA"
-	sub.text = ("Escolha o nome, o corpo, as cores, a altura e o rosto. A aparência dá para mudar depois no menu do personagem; o nome fica travado (trocar custa %s de ouro)." % _ouro_txt(_preco_nome())) if _criacao \
-		else "Mude o corpo, as cores, a altura e o rosto. Para trocar o nome, escreva o novo e toque em Trocar nome."
+	b_pronto.set_meta("pt", "Pronto" if _criacao else "Salvar") # o guia das missões acha o botão pelo texto em português
+	b_pronto.text = Idioma.frase(str(b_pronto.get_meta("pt")))
+	titulo.text = Idioma.frase("CRIAR PERSONAGEM" if _criacao else "APARÊNCIA")
+	sub.text = Idioma.frase(("Escolha o nome, o corpo, as cores, a altura e o rosto. A aparência dá para mudar depois no menu do personagem; o nome fica travado (trocar custa %s de ouro)." % _ouro_txt(_preco_nome())) if _criacao \
+		else "Mude o corpo, as cores, a altura e o rosto. Para trocar o nome, escreva o novo e toque em Trocar nome.")
 	erro.text = ""
 	giro = 0.0
 	rosto = false
@@ -704,7 +708,7 @@ func pronto() -> void:
 	if _criacao:
 		var nome := valido(nome_edit.text)
 		if nome == "":
-			erro.text = "Dê um nome ao personagem: de %d a %d letras ou números." % [int(m.P.dados.nome.min), int(m.P.dados.nome.max)]
+			erro.text = Idioma.frase("Dê um nome ao personagem: de %d a %d letras ou números." % [int(m.P.dados.nome.min), int(m.P.dados.nome.max)])
 			nome_edit.grab_focus()
 			return
 		fechar()
@@ -731,21 +735,23 @@ func _texto_b_nome() -> void:
 	var novo := valido(nome_edit.text)
 	var pode := novo != "" and novo != str(m.hud.nome)
 	if _nome_confirmar:
-		b_nome.text = "Confirmar: pagar %s de ouro" % _ouro_txt(_preco_nome())
+		b_nome.set_meta("pt", "Confirmar: pagar %s de ouro" % _ouro_txt(_preco_nome())) # o guia das missões acha o botão pelo texto em português
+		b_nome.text = Idioma.frase(str(b_nome.get_meta("pt")))
 	else:
-		b_nome.text = "Trocar nome · %s de ouro" % _ouro_txt(_preco_nome())
+		b_nome.set_meta("pt", "Trocar nome · %s de ouro" % _ouro_txt(_preco_nome())) # o guia das missões acha o botão pelo texto em português
+		b_nome.text = Idioma.frase(str(b_nome.get_meta("pt")))
 	Menu.estilo_botao(b_nome, pode)
 
 func trocar_nome() -> void:
 	var novo := valido(nome_edit.text)
 	if novo == "":
-		erro.text = "Nome inválido: de %d a %d letras ou números." % [int(m.P.dados.nome.min), int(m.P.dados.nome.max)]
+		erro.text = Idioma.frase("Nome inválido: de %d a %d letras ou números." % [int(m.P.dados.nome.min), int(m.P.dados.nome.max)])
 		return
 	if novo == str(m.hud.nome):
 		erro.text = "Escreva o nome novo no campo acima."
 		return
 	if int(m.P.prog.get("ouro", 0)) < _preco_nome():
-		erro.text = "Falta ouro: trocar o nome custa %s." % _ouro_txt(_preco_nome())
+		erro.text = Idioma.frase("Falta ouro: trocar o nome custa %s." % _ouro_txt(_preco_nome()))
 		return
 	if not _nome_confirmar: # primeiro toque: mostra o preço; o segundo paga
 		_nome_confirmar = true
@@ -759,7 +765,7 @@ func trocar_nome() -> void:
 # aviso do servidor com o criador aberto (nome de outro jogador, falta ouro...): aparece aqui embaixo também
 func aviso_servidor(t: String) -> void:
 	if b_nome != null and b_nome.visible and b_nome.text == "Trocando...":
-		erro.text = t
+		erro.text = Idioma.frase(t)
 		_texto_b_nome()
 
 # o servidor trocou o nome (online.gd, evento "nome")

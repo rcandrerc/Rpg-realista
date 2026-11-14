@@ -2532,7 +2532,7 @@ func linha_criavel(e: Dictionary) -> Control:
 		return mt if mt != "" else motivo)
 	l.add_child(b)
 	if e.tipo == "obra" and motivo.begins_with("Você já tem"):
-		o.text = motivo
+		o.text = Idioma.frase(motivo)
 	return cx
 
 func criar_item(e: Dictionary) -> void:
@@ -3139,7 +3139,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 		else:
 			var tdu := "Durabilidade %d/%d" % [du, dmax] + (" · conserto %d ouro" % P.custo_conserto(it) if du < dmax else "")
 			if compacto and du > dmax * 0.3: # cheia ou quase: vai na mesma linha do tipo
-				lt.text += " · " + tdu
+				lt.text += " · " + Idioma.frase(tdu)
 			else:
 				var q := rotulo(tdu, 15, PIOR if du <= dmax * 0.3 else APAGADO)
 				q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -4102,7 +4102,8 @@ func mudar_qtd(d: int) -> void:
 # − / + que repetem enquanto o dedo segura (começa de 1 em 1, depois de 5 em 5 e de 10 em 10)
 func botao_repete(t: String, sinal: int) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 28)
 	b.custom_minimum_size = Vector2(64, 56)
