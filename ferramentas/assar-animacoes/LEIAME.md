@@ -49,3 +49,9 @@ baixadas pelo André, `mixamo/movimento/` nos fontes), assadas do mesmo jeito da
 era magro e deixava o braço quase colado no corpo, então a mão entrava na coxa e o antebraço na armadura. Corrigido sem
 trocar a pose com `node ferramentas/assar-animacoes/abrir-bracos.cjs parada_esticar_pescoco 14 10` (braço 14° mais
 aberto e cotovelo 10° dobrado pra frente, quadro a quadro, no espaço do mundo). Rode só uma vez por animação: soma.
+
+2026-11-14 (André: "o ombro tá dentro do peito do personagem"): nas três animações assadas de .fbx de outro personagem
+(Maleta e as duas espreguiçadas) a clavícula vinha caída ~50° (Maleta ~40°) para baixo e para frente, porque o descanso
+da clavícula daquele personagem é outro. `node ferramentas/assar-animacoes/endireitar-ombros.cjs parada_esticar_pescoco
+parada_esticar_bracos parada_maleta` põe a clavícula na linha dos ombros das outras paradas e dá ao braço a rotação
+contrária (o braço fica igual no mundo). Use também em toda animação nova que vier de .fbx de outro personagem.
