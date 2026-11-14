@@ -272,6 +272,9 @@
     {"nome": "Skills de espada passam pelos efeitos novos (golpes.gd) e rastro pintado da lâmina", "arquivo": "godot-prototipo/efeitos.gd", "contem": ["const ESPADA_NOVA := true", "const ESPADA_FX :=", "gp.foco(corpo, hab, dur, maos)", "gp.estocada(x, z, y, ry)", "gp.arrancada(corpo)", "gp.acerto(p, ry, forte)", "const SH_FAIXA_TOON :="]},
     {"nome": "Sons novos das skills de espada (esp_*.ogg, André 2026-11-12)", "arquivo": "godot-prototipo/main.gd", "contem": ["const SOM_ESPADA_NOVO := true", "sons.tem(\"esp_corte\")", "\"esp_vento_forte\" if ultimo else \"esp_vento\"", "func ponta_espada() -> Array:"]},
     {"nome": "Esmagador e Pisão com efeito próprio", "arquivo": "godot-prototipo/progresso.gd", "contem": ["\"golpe_esmagador\": \"esmagar\"", "\"pisao_sismico\": \"pisao\""]},
-    {"nome": "Explosão das skills manda a direção do herói (corte desenhado na direção certa)", "arquivo": "shared/simulacao.js", "contem": ["fx: h.id, ry: r2(j.ry) }); // ry: o app desenha o corte"]}
+    {"nome": "Explosão das skills manda a direção do herói (corte desenhado na direção certa)", "arquivo": "shared/simulacao.js", "contem": ["fx: h.id, ry: r2(j.ry) }); // ry: o app desenha o corte"]},
+    {"nome": "Idioma / Language nas Configurações: Português e English com bandeirinha (André 2026-11-14)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["func _idioma() -> void:", "Idioma.bandeira(cod,"]},
+    {"nome": "Inglês do jogo carregado ao abrir (André 2026-11-14)", "arquivo": "godot-prototipo/main.gd", "contem": ["Idioma.iniciar()"]},
+    {"nome": "Cecília e Dario (IA) respondem em inglês com o jogo em English (André 2026-11-14)", "arquivo": "server/ia-amiga.js", "contem": ["ctx.idioma === 'en'"]}
   ]
 }
