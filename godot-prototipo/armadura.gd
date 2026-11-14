@@ -1,4 +1,5 @@
 extends RefCounted
+const Malhas = preload("res://malhas.gd") # ler malha sem esperar o desenho (malhas.gd arrays)
 # Armadura que aparece no corpo (peitoral com ombreiras e braçadeiras, calça, botas e capa), no estilo da capa do Aethra.
 #
 # As peças de metal e pano não são modelos à parte: nascem da própria malha do VRoid (blusa, pele das pernas,
@@ -321,7 +322,7 @@ static func _saia_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var topo := R.y_cintura - 0.075
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		for i in V.size():
 			var p := V[i]
@@ -398,7 +399,7 @@ static func _roupa_base(raiz: Node3D, esq: Skeleton3D) -> void:
 static func _uv_tronco(orig: ArrayMesh) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var u2 := PackedVector2Array()
 		u2.resize(V.size())
@@ -431,7 +432,7 @@ static func _material_top(raiz: Node3D) -> Material:
 static func _blusa_curta(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var yt := R.y_cintura - 0.075
 		for i in V.size():
@@ -658,7 +659,7 @@ static func _peito_de_pele(raiz: Node3D) -> bool:
 			for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 				if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or not "Body_00" in mi.mesh.surface_get_name(0):
 					continue
-				var a: Array = mi.mesh.surface_get_arrays(0)
+				var a: Array = Malhas.arrays(mi.mesh, 0)
 				var V: PackedVector3Array = _FA(a[Mesh.ARRAY_VERTEX])
 				var U: PackedVector2Array = a[Mesh.ARRAY_TEX_UV]
 				for i in V.size():
@@ -731,7 +732,7 @@ static func _sem_contorno_tronco(raiz: Node3D, esq: Skeleton3D) -> void:
 		if not _malhas.has(chave):
 			var am := ArrayMesh.new()
 			for sfc in orig.get_surface_count():
-				var arr := orig.surface_get_arrays(sfc)
+				var arr := Malhas.arrays(orig, sfc)
 				if not cobre.is_empty() and arr[Mesh.ARRAY_INDEX] != null and arr[Mesh.ARRAY_BONES] != null:
 					var Bs: PackedInt32Array = arr[Mesh.ARRAY_BONES]
 					var Ws: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
@@ -785,7 +786,7 @@ static func _sem_contorno_tronco(raiz: Node3D, esq: Skeleton3D) -> void:
 							V[i] = p - N[i] * 0.012
 					arr[Mesh.ARRAY_VERTEX] = _FA(V)
 				var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
-				am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, orig.surface_get_blend_shape_arrays(sfc), {}, flags)
+				am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, Malhas.formas(orig, sfc), {}, flags)
 				am.surface_set_material(sfc, orig.surface_get_material(sfc))
 				am.surface_set_name(sfc, orig.surface_get_name(sfc))
 			am.set_meta("sem_contorno", true)
@@ -826,9 +827,9 @@ static func _forma_corpo(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 			V[i] = Vector3(p.x * k.x, p.y, 0.005 + (p.z - 0.005) * k.y)
 		return _FA(V)
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		arr[Mesh.ARRAY_VERTEX] = mexe.call(arr[Mesh.ARRAY_VERTEX])
-		var bs := orig.surface_get_blend_shape_arrays(sfc)
+		var bs := Malhas.formas(orig, sfc)
 		for j in bs.size():
 			var b: Array = bs[j]
 			if b.size() > Mesh.ARRAY_VERTEX and b[Mesh.ARRAY_VERTEX] is PackedVector3Array and am.blend_shape_mode == Mesh.BLEND_SHAPE_MODE_NORMALIZED:
@@ -864,9 +865,9 @@ static func _atletico(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	for i in orig.get_blend_shape_count():
 		am.add_blend_shape(orig.get_blend_shape_name(i))
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		arr[Mesh.ARRAY_VERTEX] = mexe.call(arr[Mesh.ARRAY_VERTEX])
-		var bs := orig.surface_get_blend_shape_arrays(sfc)
+		var bs := Malhas.formas(orig, sfc)
 		for j in bs.size():
 			var b: Array = bs[j]
 			if b.size() > Mesh.ARRAY_VERTEX and b[Mesh.ARRAY_VERTEX] is PackedVector3Array and am.blend_shape_mode == Mesh.BLEND_SHAPE_MODE_NORMALIZED:
@@ -904,7 +905,7 @@ static func _fechar_saia(pos: PackedVector3Array, R: Ref, folga := 0.0) -> Packe
 static func _encolher_axila(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		for i in V.size():
 			var p := V[i]
@@ -937,7 +938,7 @@ static func _afinar_tronco(orig: ArrayMesh, R: Ref, corpo: Mesh) -> ArrayMesh:
 	# a pele por baixo do moletom tem poucos vértices (triângulos grandes): amostra a superfície a cada ~8 mm
 	var amostras := PackedVector3Array()
 	if corpo:
-		var ca := corpo.surface_get_arrays(0)
+		var ca := Malhas.arrays(corpo, 0)
 		var CV: PackedVector3Array = _FA(ca[Mesh.ARRAY_VERTEX])
 		var CI: PackedInt32Array = ca[Mesh.ARRAY_INDEX]
 		for t in range(0, CI.size(), 3):
@@ -982,7 +983,7 @@ static func _afinar_tronco(orig: ArrayMesh, R: Ref, corpo: Mesh) -> ArrayMesh:
 	var y_fina := R.y_cintura + 0.06
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var roupa := {}
 		for p in V:
@@ -1045,7 +1046,7 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 	# contorno do corpo (pele) em fatias de 1 cm: a roupa apertada nunca entra na pele (furava em pontos pretos)
 	var fat := {} # fatia -> [x máx, z de trás, z da frente]
 	if corpo:
-		for p in _FA(corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]):
+		for p in _FA(Malhas.vertices(corpo, 0)):
 			if absf(p.x) > 0.2:
 				continue
 			var q := int(round(p.y * 100.0))
@@ -1056,7 +1057,7 @@ static func _apertar_cintura(orig: ArrayMesh, R: Ref, mais := 1.0, corpo: Mesh =
 	var raio_y := maxf(0.06, (junta_peito - R.y_cintura) * 0.5 + 0.03) # a barra da blusa (quadril) quase não mexe
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		for i in V.size():
 			var p := V[i]
@@ -1537,7 +1538,7 @@ static func _soldar(src: MeshInstance3D) -> Solda:
 	var id := src.mesh.get_instance_id()
 	if _soldas.has(id):
 		return _soldas[id]
-	var a := src.mesh.surface_get_arrays(0)
+	var a := Malhas.arrays(src.mesh, 0)
 	var V: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
 	var N: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
 	var B: PackedInt32Array = a[Mesh.ARRAY_BONES]
@@ -1895,7 +1896,7 @@ static func _cinto_em(tops: MeshInstance3D, R: Ref, r: int, ba: Node3D, rest: Tr
 static func _malha_cinto(tops: Mesh, R: Ref, desce := 0.0) -> Array:
 	var y1 := R.y_cintura + (0.02 if R.masc else 0.07) - desce # na parte mais fina da cintura, encostando na ponta do V (o osso fica no quadril)
 	var y0 := y1 - 0.042 # v11: cinto mais largo (4,2 cm), de couro marrom
-	var V: PackedVector3Array = _FA(tops.surface_get_arrays(0)[Mesh.ARRAY_VERTEX])
+	var V: PackedVector3Array = _FA(Malhas.vertices(tops, 0))
 	var zmin := 9.0
 	var zmax := -9.0
 	for p in V:
@@ -1959,7 +1960,7 @@ static func _malha_cinto(tops: Mesh, R: Ref, desce := 0.0) -> Array:
 	var bx := BoxMesh.new()
 	bx.size = Vector3(0.04, 0.034, 0.006)
 	var st2 := SurfaceTool.new()
-	st2.create_from(bx, 0)
+	st2.create_from_arrays(Malhas.arrays(bx, 0)) # = create_from, sem esperar o desenho (malhas.gd)
 	var fv := ArrayMesh.new()
 	var arr := st2.commit_to_arrays()
 	var P: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
@@ -2066,7 +2067,7 @@ static func _cor_pele(raiz: Node3D) -> Color:
 static func _decote(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var u2 := PackedVector2Array()
 		u2.resize(V.size())
@@ -2122,7 +2123,7 @@ static func _manga_justa(orig: ArrayMesh, R: Ref, corpo: Mesh, folga: float) -> 
 	var NB := 32
 	var raio := PackedFloat32Array()
 	raio.resize(NB)
-	var CV: PackedVector3Array = _FA(corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX])
+	var CV: PackedVector3Array = _FA(Malhas.vertices(corpo, 0))
 	for p in CV:
 		var q := Vector3(absf(p.x), p.y, p.z)
 		var e := _eixo_braco(q, R)
@@ -2137,7 +2138,7 @@ static func _manga_justa(orig: ArrayMesh, R: Ref, corpo: Mesh, folga: float) -> 
 				raio[bi] = maxf(raio[maxi(bi - 1, 0)], raio[mini(bi + 1, NB - 1)])
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		for i in V.size():
 			var p := V[i]
@@ -2169,7 +2170,7 @@ static func _manga_justa(orig: ArrayMesh, R: Ref, corpo: Mesh, folga: float) -> 
 static func _sem_capuz(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var y0 := R.y_pescoco - 0.035
 		for i in V.size():
@@ -2221,7 +2222,7 @@ static func _sem_capuz(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 static func _alongar(orig: ArrayMesh, R: Ref, fator: float) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var topo := -INF
 		for p in V:
@@ -2267,7 +2268,7 @@ static func _malha_tabardo(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> Array
 	var fontes := [S.pos]
 	var saia := _fonte(raiz, "Bottoms")
 	if saia and saia.mesh and R.masc: # a saia do VRoid (feminino) é larga e fica escondida: só a pele
-		fontes.append(_FA(saia.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]))
+		fontes.append(_FA(Malhas.vertices(saia.mesh, 0)))
 	var yt := R.y_cintura - (0.02 if R.masc else 0.02) # começa por baixo do cinto de baixo
 	var yb := lerpf(R.y_joelho, R.y_cintura, 0.42) # v11c (ficha técnica): até o meio da coxa
 	var frente := {}
@@ -2416,7 +2417,7 @@ static func _malha_cinto_quadril(corpo: Mesh, R: Ref) -> Array:
 	var yc := R.y_cintura - (0.13 if R.masc else 0.085) # meio da faixa
 	var incl := 0.035 # meia-diferença de altura entre os lados
 	var alt := 0.04
-	var V: PackedVector3Array = _FA(corpo.surface_get_arrays(0)[Mesh.ARRAY_VERTEX])
+	var V: PackedVector3Array = _FA(Malhas.vertices(corpo, 0))
 	var NA := 48
 	var raio := PackedFloat32Array()
 	raio.resize(NA)
@@ -2498,7 +2499,7 @@ static func _caixa(tam: Vector3, t: Transform3D) -> ArrayMesh:
 	var bx := BoxMesh.new()
 	bx.size = tam
 	var st := SurfaceTool.new()
-	st.create_from(bx, 0)
+	st.create_from_arrays(Malhas.arrays(bx, 0)) # = create_from, sem esperar o desenho (malhas.gd)
 	var arr := st.commit_to_arrays()
 	var P: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var N: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
@@ -2568,7 +2569,7 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 	var zb := 0.06
 	if src:
 		var Rb := _ref(esq)
-		for p in _FA(src.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]):
+		for p in _FA(Malhas.vertices(src.mesh, 0)):
 			if absf(p.x - 0.075) < 0.03 and absf(p.y - (Rb.y_pescoco - 0.075)) < 0.03:
 				zb = maxf(zb, p.z)
 	for s in [1.0]:
@@ -2638,7 +2639,7 @@ static func _material_gola(r: int) -> Material:
 
 # pontos da grade do pano (pano_capa.gd): vértices de fora da malha nas colunas 0, 2, ... 14 e linhas 0, 3, ... 18
 static func _grade_capa(m: Mesh) -> PackedVector3Array:
-	var V: PackedVector3Array = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var V: PackedVector3Array = Malhas.vertices(m, 0)
 	var g := PackedVector3Array()
 	var pc: int = PanoCapa.COLS
 	var pl: int = PanoCapa.LINHAS
@@ -3090,7 +3091,7 @@ static func _achar_rabo(h: Cabeca, malha: Mesh) -> void:
 	var soma := Vector3.ZERO
 	var n := 0
 	for sfc in malha.get_surface_count():
-		var V: PackedVector3Array = _FA(malha.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX])
+		var V: PackedVector3Array = _FA(Malhas.vertices(malha, sfc))
 		for p in V:
 			var d := p - h.c
 			if absf(p.y - (h.nuca - 0.03)) < 0.015 and d.z < -h.raio.z * 0.25 and absf(d.x) < 0.08:
@@ -3119,7 +3120,7 @@ static func _cabelo_apertado(orig: Mesh, h: Cabeca, cabeca := -1) -> ArrayMesh:
 	var am := ArrayMesh.new()
 	var dentro := h.raio * 0.93 # bem para dentro do casco: nenhum fio aparece por cima
 	for sfc in orig.get_surface_count():
-		var arr := orig.surface_get_arrays(sfc)
+		var arr := Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
 		var B = arr[Mesh.ARRAY_BONES]
 		var W = arr[Mesh.ARRAY_WEIGHTS]

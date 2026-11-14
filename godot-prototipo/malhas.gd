@@ -13,6 +13,11 @@ extends RefCounted
 class Junta:
 	static var _cache := {} # chave do formato (malhas prontas do Godot) -> listas da superfície
 	static var _cache_am := {} # instance id da ArrayMesh -> [WeakRef, Array de listas por superfície]
+	static var _novas := 0
+	static var _novas_v := 0
+	static var diretas := 0 # leituras de malha feita no jogo (arrays: não guarda), para o registro e testes
+	static var _cache_v := {} # instance id -> [WeakRef, {superfície: [assinatura, vértices]}] (malhas feitas no jogo)
+	static var guardadas := 0 # arrays que achou guardado (não esperou o desenho)
 	static var leituras := 0 # quantas vezes ainda precisou ler da placa (registro e testes)
 
 	var v := PackedVector3Array()
@@ -44,18 +49,36 @@ class Junta:
 				_cache[k] = (m as PrimitiveMesh).get_mesh_arrays()
 				leituras += 1
 			return [_cache[k], Transform3D.IDENTITY]
+		return [_da_malha(m, i), Transform3D.IDENTITY]
+
+	# listas da superfície i de uma ArrayMesh, lidas da placa só na primeira vez. A assinatura (formato e tamanhos,
+	# que a ArrayMesh guarda do lado do processador) muda se alguém refizer a malha: aí lê de novo.
+	static func _da_malha(m: Mesh, i: int) -> Array:
 		var id := m.get_instance_id()
 		var e = _cache_am.get(id)
 		if e == null or (e[0] as WeakRef).get_ref() != m:
-			e = [weakref(m), []]
+			e = [weakref(m), [], []]
 			_cache_am[id] = e
+			_novas += 1
+			if _novas >= 64: # malhas que já saíram do jogo (roupa de NPC que foi embora): solta as listas delas
+				_novas = 0
+				for k in _cache_am.keys():
+					if (_cache_am[k][0] as WeakRef).get_ref() == null:
+						_cache_am.erase(k)
 		var por: Array = e[1]
-		if por.size() < m.get_surface_count():
-			por.resize(m.get_surface_count())
-		if not (por[i] is Array):
+		var sig: Array = e[2]
+		var n := m.get_surface_count()
+		if por.size() < n:
+			por.resize(n)
+			sig.resize(n)
+		var am := m as ArrayMesh
+		var s := [am.surface_get_format(i), am.surface_get_array_len(i), am.surface_get_array_index_len(i)] if am else []
+		if not (por[i] is Array) or sig[i] != s:
 			por[i] = m.surface_get_arrays(i)
+			sig[i] = s
 			leituras += 1
-		return [por[i], Transform3D.IDENTITY]
+		return por[i]
+
 
 	static func _chave_primitiva(m: Mesh) -> String:
 		var k := m.get_class()
@@ -193,3 +216,68 @@ class Junta:
 		if _st != null:
 			_st.commit(am)
 		return am
+
+# Igual a m.surface_get_arrays(i), mas sem fazer o jogo esperar o desenho depois da primeira leitura de cada malha
+# (veja o começo do arquivo). Volta uma cópia inteira (as listas PackedArray do Godot 4 são compartilhadas: sem a
+# cópia, quem mexesse nos vértices estragaria o guardado); copiar leva microssegundos. Guarda só as malhas que vêm de
+# arquivo (corpo, cabelo, roupa do modelo), que são as mesmas para todo NPC e jogador.
+static func arrays(m: Mesh, i: int) -> Array:
+	if m is PrimitiveMesh:
+		var k := Junta._chave_primitiva(m)
+		if not Junta._cache.has(k):
+			Junta._cache[k] = (m as PrimitiveMesh).get_mesh_arrays()
+			Junta.leituras += 1
+		else:
+			Junta.guardadas += 1
+		return (Junta._cache[k] as Array).duplicate(true)
+	if m.resource_path == "": # malha feita no jogo (roupa de um NPC só): lê direto, para não guardar uma cópia de cada
+		Junta.diretas += 1
+		return m.surface_get_arrays(i)
+	var l0 := Junta.leituras
+	var r := Junta._da_malha(m, i).duplicate(true)
+	if Junta.leituras == l0:
+		Junta.guardadas += 1
+	return r
+
+# Só os vértices da superfície i (= surface_get_arrays(i)[Mesh.ARRAY_VERTEX]), lidos da placa uma vez por malha. Vale
+# também para as malhas feitas no jogo (as peças de armadura ficam em cache em armadura.gd e são as mesmas para todo
+# NPC): só os vértices, 12 bytes cada, então guardar não pesa.
+static func vertices(m: Mesh, i: int) -> PackedVector3Array:
+	if m is PrimitiveMesh:
+		return arrays(m, i)[Mesh.ARRAY_VERTEX]
+	if m.resource_path != "": # de arquivo: as listas inteiras já ficam guardadas (arrays)
+		var l0 := Junta.leituras
+		var pv: PackedVector3Array = Junta._da_malha(m, i)[Mesh.ARRAY_VERTEX]
+		if Junta.leituras == l0:
+			Junta.guardadas += 1
+		return pv.duplicate()
+	var id := m.get_instance_id()
+	var e = Junta._cache_v.get(id)
+	if e == null or (e[0] as WeakRef).get_ref() != m:
+		e = [weakref(m), {}]
+		Junta._cache_v[id] = e
+		Junta._novas_v += 1
+		if Junta._novas_v >= 64: # malhas que já saíram do jogo: solta os vértices delas
+			Junta._novas_v = 0
+			for k in Junta._cache_v.keys():
+				if (Junta._cache_v[k][0] as WeakRef).get_ref() == null:
+					Junta._cache_v.erase(k)
+	var am := m as ArrayMesh
+	var sig := [am.surface_get_format(i), am.surface_get_array_len(i)] if am else []
+	var c = e[1].get(i)
+	if c == null or c[0] != sig:
+		Junta.diretas += 1
+		c = [sig, m.surface_get_arrays(i)[Mesh.ARRAY_VERTEX]]
+		e[1][i] = c
+	else:
+		Junta.guardadas += 1
+	return (c[1] as PackedVector3Array).duplicate()
+
+# = m.surface_get_blend_shape_arrays(i), que também lê da placa (espera o desenho) mesmo quando a malha não tem
+# formas (blend shapes): sem formas, volta a lista vazia sem perguntar nada.
+static func formas(m: Mesh, i: int) -> Array[Array]:
+	var am := m as ArrayMesh
+	if am and am.get_blend_shape_count() == 0:
+		var vazia: Array[Array] = []
+		return vazia
+	return am.surface_get_blend_shape_arrays(i) if am else ([] as Array[Array])
