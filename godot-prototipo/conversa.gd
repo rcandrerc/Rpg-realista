@@ -50,7 +50,8 @@ var fala_ui: Label
 var itens_ui: HBoxContainer # material do passe do Gaspar, em ícones (André 2026-11-06: mostrar os itens, não escrever)
 var opcoes: GridContainer
 var retrato_ui: TextureRect
-var _retratos := {} # id do NPC -> SubViewport com o rosto dele
+var _retratos := {} # id do NPC -> foto do rosto dele (ImageTexture), já pronta
+var _retrato_vp := {} # id do NPC -> SubViewport montando o rosto (só na primeira conversa com ele nesta versão)
 var npc = null # o NPC com a janela aberta (dicionário de main.npcs)
 var ry_antes := 0.0 # o NPC vira para o herói e depois volta
 var indo = null # {npc, ate, d, t}: tocou no NPC longe e o herói está indo até ele
@@ -446,8 +447,14 @@ func fechar() -> void:
 	if raiz == null or not raiz.visible:
 		return
 	raiz.visible = false
-	if npc != null and _retratos.has(npc.id):
-		_retratos[npc.id].render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if npc != null and _retrato_vp.has(npc.id): # a cena do retrato some; fica a foto
+		var vp: SubViewport = _retrato_vp[npc.id]
+		_retrato_vp.erase(npc.id)
+		if _retratos.has(npc.id):
+			vp.queue_free()
+		else: # fechou antes de a foto sair: a cena fica guardada parada e tira a foto na próxima conversa
+			vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+			_retrato_vp[npc.id] = vp
 	npc = null
 	m.hud.esconder_combate = false
 	m.cam.soltar_conversa()
@@ -674,10 +681,31 @@ func fala(npc_id: String, texto: String, ev := {}) -> bool:
 
 # rosto do NPC: o modelo dele num palco pequeno (192 px), câmera na altura da cabeça. Fica pronto na
 # primeira conversa e só desenha enquanto a janela dele está aberta.
+# Retrato em foto (André 2026-11-14, "quando vou comprar semente na Rosa ou falar com o Aldo sempre tem um lag alto"):
+# o retrato montava o NPC inteiro numa cena 3D só dele e vestia a roupa na hora da primeira conversa (40 a 94 ms no PC
+# na Rosa e no Aldo, fora os shaders da cena). Agora a cena monta só uma vez por NPC e por versão do jogo: depois de
+# desenhar, vira uma foto guardada em user://retratos e a cena some. Nas outras conversas (e nas outras vezes que o
+# jogo abre) o retrato é só a foto, lida em ~1 ms.
+const RETRATOS := "user://retratos"
+func _arquivo_retrato(n: Dictionary) -> String:
+	var versao := str(load("res://versao.gd").NUMERO)
+	var visual := str([n.get("modelo", "vivi"), n.get("aparencia", {}), n.get("info", {})]).hash()
+	return "%s/%s_%s_%d.png" % [RETRATOS, str(n.id).validate_filename(), versao if versao != "" else "dev", visual]
+
 func _retrato(n: Dictionary) -> Texture2D:
 	if _retratos.has(n.id):
-		_retratos[n.id].render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		return _retratos[n.id].get_texture()
+		return _retratos[n.id]
+	var arq := _arquivo_retrato(n)
+	if FileAccess.file_exists(arq):
+		var img := Image.load_from_file(arq)
+		if img and not img.is_empty():
+			_retratos[n.id] = ImageTexture.create_from_image(img)
+			return _retratos[n.id]
+	if _retrato_vp.has(n.id): # a cena já existe (a conversa fechou antes da foto)
+		var vp0: SubViewport = _retrato_vp[n.id]
+		vp0.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		_tirar_foto(n, vp0, arq)
+		return vp0.get_texture()
 	var vp := SubViewport.new()
 	vp.size = Vector2i(192, 192)
 	vp.own_world_3d = true
@@ -720,8 +748,38 @@ func _retrato(n: Dictionary) -> Texture2D:
 	vp.add_child(c)
 	c.position = cab + Vector3(0.12, 0.03, 0.75)
 	c.look_at_from_position(c.position, cab + Vector3(0, -0.01, 0))
-	_retratos[n.id] = vp
+	_retrato_vp[n.id] = vp
+	_tirar_foto(n, vp, arq)
 	return vp.get_texture()
+
+# espera a cena desenhar (o corpo já na pose) e guarda a foto; a conversa aberta continua mostrando a cena viva
+func _tirar_foto(n: Dictionary, vp: SubViewport, arq: String) -> void:
+	var id = n.id
+	for i in 3:
+		await RenderingServer.frame_post_draw
+	if not is_instance_valid(vp) or vp.render_target_update_mode == SubViewport.UPDATE_DISABLED or _retratos.has(id):
+		return
+	var img := vp.get_texture().get_image()
+	if img == null or img.is_empty():
+		return
+	_retratos[id] = ImageTexture.create_from_image(img)
+	DirAccess.make_dir_recursive_absolute(RETRATOS)
+	_limpar_retratos_velhos(arq)
+	img.save_png(arq)
+	if not _retrato_vp.has(id) or (npc != null and npc.id == id):
+		return # a conversa com ele continua aberta: a cena some quando fechar
+	vp.queue_free()
+
+# fotos de outra versão do jogo não servem mais (a roupa pode ter mudado): saem quando a primeira foto nova é guardada
+var _limpou_retratos := false
+func _limpar_retratos_velhos(arq: String) -> void:
+	if _limpou_retratos:
+		return
+	_limpou_retratos = true
+	var sufixo := "_" + arq.get_file().split("_")[-2] + "_"
+	for f in DirAccess.get_files_at(RETRATOS):
+		if not f.contains(sufixo):
+			DirAccess.remove_absolute(RETRATOS + "/" + f)
 
 # ---------- Gaspar, o guardião da Caverna da Montanha (receita em shared/dados.js CAVERNA_DUNGEON.passe) ----------
 func _receita_passe() -> Dictionary:
