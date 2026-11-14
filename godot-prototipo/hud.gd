@@ -162,6 +162,10 @@ func _ready() -> void:
 	# minimapa quando ele muda de lugar no modo de editar a interface (e dá para mover o botão também).
 	_botao("zoom", Vector2.ZERO, 18, "zoom_longe", COR_FUNDO)
 	botoes[-1].mini = true
+	# microfone do comando de voz (André 2026-11-14, teste): só aparece com Configurações > Comando de voz ligado; um toque
+	# escuta uma fala (voz.gd tocar). Fica à esquerda da poção de vida, longe do polegar das skills.
+	_botao("voz", Vector2(104, 380), 25, "falar", COR_FUNDO)
+	botoes[-1].oculto = true
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,

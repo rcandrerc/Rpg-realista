@@ -74,7 +74,10 @@ func ligar(v: bool) -> void:
 	if not v:
 		ligado = false
 		andar = Vector2.ZERO
+		ouvindo = false
 		plugin.desligar()
+		m.hud.mostrar_botao("voz", false)
+		m.hud.ligar_botao("voz", false)
 		return
 	if not "android.permission.RECORD_AUDIO" in OS.get_granted_permissions():
 		ligado = true # liga quando o Android responder (_permissao)
@@ -86,8 +89,42 @@ func ligar(v: bool) -> void:
 		return
 	ligado = true
 	_escutou = false
-	plugin.ligar("en-US" if Idioma.atual == "en" else "pt-BR")
+	if MODO_BOTAO:
+		m.hud.mostrar_botao("voz", true)
+		m.hud.aviso(tr("Toque no microfone e fale"))
+		return
+	plugin.ligar(_lingua())
 	m.hud.aviso(tr("Voz ligada"))
+
+func _lingua() -> String:
+	return "en-US" if Idioma.atual == "en" else "pt-BR"
+
+# Teste com botão (André 2026-11-14: "a gente testa com um botão de ativar o microfone, só para testar os comandos
+# primeiro"): o reconhecedor do Android fecha e reabre a cada frase e perdia o que se falava no meio. Com o botão,
+# cada toque escuta uma fala (até ESCUTA_MAX s ou o fim da frase); os comandos dela valem em sequência, como antes.
+# Depois a escuta contínua volta com outro reconhecedor (Vosk) e MODO_BOTAO vira false.
+const MODO_BOTAO := true
+const ESCUTA_MAX := 8.0
+var ouvindo := false
+var _ouvindo_ate := 0.0
+func tocar() -> void:
+	if plugin == null or not ligado:
+		return
+	if ouvindo:
+		_parar_escuta()
+		return
+	ouvindo = true
+	_ouvindo_ate = Time.get_ticks_msec() / 1000.0 + ESCUTA_MAX
+	_nova_frase()
+	m.hud.ligar_botao("voz", true)
+	m.hud.aviso(tr("Escutando..."))
+	plugin.ligar(_lingua())
+
+func _parar_escuta() -> void:
+	ouvindo = false
+	m.hud.ligar_botao("voz", false)
+	if plugin:
+		plugin.desligar()
 
 func _permissao(nome: String, ok: bool) -> void:
 	if not nome.ends_with("RECORD_AUDIO") or not ligado:
@@ -216,7 +253,7 @@ func _sequencia(txt: String, final: bool) -> void:
 			return
 	_usadas = maxi(_usadas, w.size())
 	if not fez and t0 != "":
-		m.hud.aviso(tr("Ouvi: %s") % t0.right(30))
+		_ouvi(t0)
 
 func _parcial(txt: String) -> void:
 	if not ligado or m.heroi == null:
@@ -224,7 +261,7 @@ func _parcial(txt: String) -> void:
 	if m.minimapa != null and m.minimapa.aberto: # mapa aberto: o nome do lugar espera o fim da frase
 		var t0: String = txt.split("\n", false)[0] if txt != "" else ""
 		if t0 != "":
-			m.hud.aviso(tr("Ouvi: %s") % t0.right(30))
+			_ouvi(t0)
 		var e := entender(t0, true)
 		if not e.is_empty() and e.k != "lugar" and not _feito: # "fechar" e "parar" já valem
 			_feito = true
@@ -235,6 +272,8 @@ func _parcial(txt: String) -> void:
 func _ouviu(txt: String) -> void:
 	if not ligado or m.heroi == null:
 		return
+	if MODO_BOTAO and ouvindo:
+		call_deferred("_parar_escuta") # uma fala por toque
 	var aberto: bool = m.minimapa != null and m.minimapa.aberto
 	if not aberto:
 		_sequencia(txt, true)
@@ -263,7 +302,13 @@ func _nova_frase() -> void:
 	_usadas = 0
 	_ultima_acao = ""
 
+var _voz_t := -10.0 # quando a última ação apareceu ("Voz: ..."): o "Ouvi" não passa por cima dela por 2 s
+func _ouvi(t: String) -> void:
+	if t != "" and Time.get_ticks_msec() / 1000.0 - _voz_t > 2.0:
+		m.hud.aviso(tr("Ouvi: %s") % t.right(30))
+
 func _fazer(e: Dictionary, t: String) -> void:
+	_voz_t = Time.get_ticks_msec() / 1000.0
 	if e.k != "parar":
 		m.hud.aviso(tr("Voz: %s") % t.left(30)) # "Voz:" = virou ação ("Ouvi:" = só ouviu); Parou, Indo... vêm por cima
 	var agora := Time.get_ticks_msec() / 1000.0
@@ -358,6 +403,8 @@ func _ir_para(l: Dictionary) -> void:
 
 # ---------- quadro a quadro ----------
 func _process(_dt: float) -> void:
+	if ouvindo and Time.get_ticks_msec() / 1000.0 > _ouvindo_ate:
+		_parar_escuta()
 	if andar == Vector2.ZERO:
 		return
 	# o dedo ganha da voz; morrer, conversa, menu ou mapa aberto param a caminhada

@@ -2624,6 +2624,10 @@ var _lupa_zoom := "zoom_longe" # ícone do atalho do zoom agora (troca só quand
 # Botão apertado. Se não dá para fazer agora (golpe ainda no fim, no ar, recarga quase acabando), o botão fica
 # guardado um instante (fila) e sai assim que der: o combo e as skills emendam sem perder toque.
 func usar(qual: String) -> void:
+	if qual == "voz": # microfone do comando de voz (voz.gd): só escuta, não para golpe, coleta nem viagem
+		if voz:
+			voz.tocar()
+		return
 	if qual == "zoom": # atalho do zoom (2026-11-12): só a câmera; não para golpe, coleta, volta nem fila
 		cam.zoom_maximo()
 		return
