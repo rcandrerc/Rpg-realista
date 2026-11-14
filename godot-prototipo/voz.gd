@@ -268,8 +268,8 @@ const ANTES_FRACA := ["", "pra", "pro", "para", "pocao", "potion", "de", "da", "
 static func cmd_palavra(w: String, antes: String) -> Dictionary:
 	if w in FRACAS and not antes in ANTES_FRACA and cmd_palavra(antes, "").is_empty():
 		return {}
-	if w == "para": # "para" sozinho só vale como parar no fim da frase ("ir para a vila")
-		return {}
+	if w == "para": # André 2026-11-14 (2251): "o para não funcionou... deixa para e parar os 2" = parar na hora
+		return {"k": "parar"}
 	if w in MAPA and antes in FECHAR: # "fechar mapa"
 		return {}
 	if w in ["voz", "microfone"] and antes in ["desligar", "desliga"]:
@@ -423,6 +423,7 @@ func _fazer(e: Dictionary, t: String) -> void:
 			if e.a == "basico": # André 2026-11-14: "fala uma vez atacar, ele só vai parar quando mandar parar"
 				atacando = true
 				_ataque_t = 0.0
+				m.hud.aviso(tr("Atacando (fale parar)"))
 				return
 			m.usar(str(e.a))
 
@@ -488,6 +489,12 @@ func _process(_dt: float) -> void:
 			or (m.trabalho != null and m.trabalho.coletando != null) or (m.rota != null and m.rota.ativo)
 		if not ligado or m.h.morto > 0.0 or m.hud.mover.length() > 0.15 or ocupado:
 			atacando = false
+			# André 2026-11-14 (2251): "falei atacar e não funcionou": a tela diz por que o ataque parou
+			var porque := "joystick" if m.hud.mover.length() > 0.15 else ("lobo" if m.montaria != null else ("nadando" if m._nadando \
+				else ("barco" if not m.mov.veiculo.is_empty() else ("coleta" if m.trabalho != null and m.trabalho.coletando != null \
+				else ("mapa" if m.rota != null and m.rota.ativo else "")))))
+			if porque != "":
+				m.hud.aviso(tr("Ataque parou: %s") % porque)
 		elif not m.hud.bloqueado:
 			var agora := Time.get_ticks_msec() / 1000.0
 			if agora - _ataque_t >= 0.2:
