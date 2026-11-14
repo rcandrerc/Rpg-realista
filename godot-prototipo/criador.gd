@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Criador de personagem (igual ao do site: client/src/criador.js e palco.js). A base é sempre a Ruiva (pedido do André:
 # "mantém a ruiva"); muda a cor do cabelo, dos olhos, da pele, da roupa e da calça, a altura e o tamanho dos olhos,
 # do nariz e da boca. O herói fica num palco só dele (mundo 3D próprio, fora do mapa): tablado de pedra com círculo
@@ -862,7 +861,8 @@ func _input(ev: InputEvent) -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("criador", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("criador", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if not aberto():

@@ -37,7 +37,11 @@ var _mandadas := 0
 
 func _init(principal) -> void:
 	m = principal
-	atual = self
+	Engine.set_meta("lentidao", self) # os scripts marcam o quadro lento por aqui (sem preload: os testes soltos não têm este arquivo)
+
+func _exit_tree() -> void:
+	if Engine.get_meta("lentidao", null) == self:
+		Engine.remove_meta("lentidao")
 
 func _ready() -> void:
 	if FileAccess.file_exists(ARQUIVO):
@@ -161,20 +165,13 @@ func ev(nome: String, t0_us: int) -> void:
 
 # Quadro lento (André 2026-11-14: "deslocamento de lobo ainda dá lag spike, nada absurdo mas com frequência"; o
 # registro mostrou um quadro de ~110 ms quase todo segundo no lobo, sem nenhum culpado marcado): o _process de cada
-# script e cada parte do main.gd passam por parte(); passou de PARTE_US, anota. No quadro de QUADRO_LENTO ms ou mais,
+# script e cada parte do main.gd anotam aqui (ev) o que passou de 1 ms. No quadro de QUADRO_LENTO ms ou mais,
 # o registro leva qev = quanto cada parte gastou NAQUELE quadro (o pior do segundo) e qms = o quadro inteiro; o que
 # faltar entre a soma e qms foi fora dos scripts (desenho, espera da placa, física).
-static var atual = null # o registro em uso (os outros scripts chamam Lentidao.parte com o preload)
-const PARTE_US := 1000
 const QUADRO_LENTO := 60.0 # ms
 var _qev := {}
 var _qev_pior := {}
 var _qev_pior_ms := 0.0
-static func parte(nome: String, t0_us: int) -> int:
-	var agora := Time.get_ticks_usec()
-	if atual != null and agora - t0_us >= PARTE_US:
-		atual.ev(nome, t0_us)
-	return agora
 
 func _ev_top(d: Dictionary) -> Dictionary:
 	var ks := d.keys()

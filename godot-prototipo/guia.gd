@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Guia das missões (André 2026-11-12: "assim que você aceita [a missão], o ícone da mochila fica aceso lá, piscando, até
 # que você clica... vai abrir a mochila. Aí o primeiro equipamento lá que tiver, ele vai ficar piscando também. Aí você
 # clica. Aí o botão de destruir vai ficar piscando... Mesma coisa quando for uma missão para construir uma picareta...
@@ -77,7 +76,8 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("guia", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("guia", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	_t -= dt

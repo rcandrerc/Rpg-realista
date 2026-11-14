@@ -1,5 +1,4 @@
 extends Node3D
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Vila da Clareira em Godot: mesma vila, mesmos personagens anime e as mesmas habilidades do jogo HTML (que fica de backup).
 # Por enquanto tudo roda no aparelho (modo solo); o servidor Colyseus entra depois.
 
@@ -3441,12 +3440,18 @@ func _process(dt: float) -> void:
 	_passo_main(dt)
 	ms_main = lerp(ms_main, (Time.get_ticks_usec() - t0_main) / 1000.0, 0.05)
 
-# cada parte passa por Lentidao.parte (quadro lento: lentidao.gd); tp guarda o fim da parte anterior
+# cada parte passa por _parte (quadro lento: lentidao.gd); tp guarda o fim da parte anterior
+func _parte(nome: String, t0_us: int) -> int:
+	var agora := Time.get_ticks_usec()
+	if lentidao and agora - t0_us >= 1000:
+		lentidao.ev(nome, t0_us)
+	return agora
+
 func _passo_main(dt: float) -> void:
 	var tp := Time.get_ticks_usec()
 	if not _a_criar.is_empty():
 		criar_aos_poucos()
-	tp = Lentidao.parte("m:criar", tp)
+	tp = _parte("m:criar", tp)
 	var t_lod := Time.get_ticks_usec()
 	LodMalha.passo() # LOD das malhas montadas no jogo, aos poucos e na linha de fundo
 	if lentidao and Time.get_ticks_usec() - t_lod > 1000:
@@ -3459,33 +3464,33 @@ func _passo_main(dt: float) -> void:
 		Engine.time_scale = _lenta_k if agora_s < _lenta_ate else 1.0
 	tempo += dt
 	P.passo(dt_real) # grava a cópia do progresso fora do quadro (progresso.gd)
-	tp = Lentidao.parte("m:progresso", tp)
+	tp = _parte("m:progresso", tp)
 	volta.passo(dt) # Voltar para a vila (canalização) e o lugar guardado no aparelho
 	for k in recargas.keys():
 		recargas[k] = max(0.0, recargas[k] - dt)
-	tp = Lentidao.parte("m:volta", tp)
+	tp = _parte("m:volta", tp)
 	atualizar_heroi(dt)
-	tp = Lentidao.parte("m:heroi", tp)
+	tp = _parte("m:heroi", tp)
 	lod_inimigos()
-	tp = Lentidao.parte("m:lod_inimigos", tp)
+	tp = _parte("m:lod_inimigos", tp)
 	if not on():
 		atualizar_inimigos(dt)
-	tp = Lentidao.parte("m:inimigos", tp)
+	tp = _parte("m:inimigos", tp)
 	barras_perto()
-	tp = Lentidao.parte("m:barras", tp)
+	tp = _parte("m:barras", tp)
 	avisar_zona()
-	tp = Lentidao.parte("m:zona", tp)
+	tp = _parte("m:zona", tp)
 	# andando ou correndo de espada na mão (sem golpe nem parede): braço direito segura a lâmina baixa e para trás
 	var andando: bool = heroi_anim.current_animation in ["andar", "corrida"] and mov.velocidade() > 0.3
 	var quer: float = 1.0 if h.modo == "Espada" and not armas_guardadas and acao.is_empty() and mov.esc == null and andando and h.morto <= 0.0 and not _nadando else 0.0 # nadando os braços são da braçada
 	braco.peso = move_toward(braco.peso, quer, dt * 6.0)
 	vestir_heroi()
-	tp = Lentidao.parte("m:vestir", tp)
+	tp = _parte("m:vestir", tp)
 	Armadura.vento(heroi, mov.velocidade() if h.morto <= 0.0 else 0.0, dt)
 	_flash_passo(dt_real)
-	tp = Lentidao.parte("m:vento", tp)
+	tp = _parte("m:vento", tp)
 	combate.passo(dt_real)
-	tp = Lentidao.parte("m:combate", tp)
+	tp = _parte("m:combate", tp)
 	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m; de cajado, o alvo travado)
 	if h.alvo_fixo != null and (not vivo(h.alvo_fixo) or h.alvo_fixo.no.position.distance_to(heroi.position) > ALVO_SOLTA):
 		h.alvo_fixo = null # morreu (ou fugiu longe): o próximo ataque pega o mais perto
@@ -3493,14 +3498,14 @@ func _passo_main(dt: float) -> void:
 	if h.modo == "Magia" and h.alvo_fixo != null and h.morto <= 0.0:
 		marcado = h.alvo_fixo
 	combate.marcar(marcado.no if marcado else null, dt_real)
-	tp = Lentidao.parte("m:marcar", tp)
+	tp = _parte("m:marcar", tp)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
 	hud.giro_cam = Vector2.ZERO
 	cam.zoom(hud.zoom_cam) # dois dedos (pinça) ou roda do mouse
 	hud.zoom_cam = 1.0
 	cam.atualizar(min(dt_real, 0.1), g)
-	tp = Lentidao.parte("m:camera", tp)
+	tp = _parte("m:camera", tp)
 	var lupa := "zoom_perto" if cam.longe() else "zoom_longe" # atalho do zoom: − afasta, + volta
 	if lupa != _lupa_zoom:
 		_lupa_zoom = lupa
@@ -3508,7 +3513,7 @@ func _passo_main(dt: float) -> void:
 	if cinematica and cinematica.ativa:
 		cinematica.camera(min(dt_real, 0.1)) # a câmera da cena manda por cima da do jogo
 	folhagem_na_frente(dt_real)
-	tp = Lentidao.parte("m:folhagem", tp)
+	tp = _parte("m:folhagem", tp)
 	# HUD
 	hud.vida = h.vida / P.st.vidaMax
 	hud.mana = h.mana / P.st.manaMax
@@ -3527,7 +3532,7 @@ func _passo_main(dt: float) -> void:
 	# André 2026-11-07: a música não corta enquanto um monstro perto ainda está na luta (preparando golpe, perseguindo)
 	var luta_musica: bool = hud.em_combate or (musica.lutando and luta_perto()) # só segura a luta que já começou
 	musica.combate(luta_musica, dt_real, luta_musica and (luta_com_chefe() or na_masmorra()))
-	tp = Lentidao.parte("m:musica", tp)
+	tp = _parte("m:musica", tp)
 	# FPS (auditoria 2026-11-11): recargas a cada 2 quadros; poções e o botão Falar a cada 6 (mudam devagar)
 	var q_hud := Engine.get_process_frames()
 	var barra: Array = barra_atual() if q_hud % 2 == 0 else []
@@ -3544,13 +3549,13 @@ func _passo_main(dt: float) -> void:
 	# lobo: o botão só aparece depois da missão que amansa o lobo (André 2026-11-11: "tira o botão de montaria enquanto
 	# não tiver liberado"). Montado continua aparecendo, para poder descer.
 	hud.mostrar_botao("montar", montaria != null or nevoa == null or nevoa.liberado("lobo", true)) # estrito: queda de conexão não abre
-	tp = Lentidao.parte("m:hud", tp)
+	tp = _parte("m:hud", tp)
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
 		if menu:
 			menu.atualizar()
-		tp = Lentidao.parte("m:build", tp)
+		tp = _parte("m:build", tp)
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
 	for k in ["pocao", "pocao_mana"]:
 		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
@@ -3560,7 +3565,7 @@ func _passo_main(dt: float) -> void:
 	hud.recarga("rolar", recargas.get("rolar", 0.0), D.HEROI.rolar_cd)
 	tp = Time.get_ticks_usec()
 	atualizar_teste(dt)
-	Lentidao.parte("m:teste", tp)
+	_parte("m:teste", tp)
 
 func atualizar_heroi(dt: float) -> void:
 	if cinematica and cinematica.ativa and h.morto <= 0.0: # cena da história: o herói fica parado (cinematica.gd)

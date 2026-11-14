@@ -1,5 +1,4 @@
 extends Node3D
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Relevo do mapa (pedido do André 2026-11-05: "o negócio está muito reto"): a montanha e os lagos.
 # As alturas vêm do terreno.gd (a mesma conta do servidor, shared/relevo.js); aqui só se desenha:
 # - montanha: malha da grade de alturas, grama nas partes deitadas e pedra (projeção nos 3 eixos) nas encostas;
@@ -40,7 +39,8 @@ var longe_mult := 1.0
 func _process(_dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(_dt)
-	Lentidao.parte("relevo", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("relevo", t0_parte)
 
 func _process_parte(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()

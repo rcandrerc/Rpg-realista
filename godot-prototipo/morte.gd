@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Sensação de estar morrendo e de morrer (pedido do André, 2026-11-05: "morro do nada e simplesmente volto na vila").
 # Tudo é só visual e som no aparelho: quem decide a vida e a hora de levantar continua sendo main.gd (offline) e o
 # servidor (online). Este arquivo só olha h.vida e h.morto a cada quadro.
@@ -141,7 +140,8 @@ func caido() -> bool:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("morte", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("morte", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if m.P == null or m.P.st == null:

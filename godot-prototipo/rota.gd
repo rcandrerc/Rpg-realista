@@ -1,5 +1,4 @@
 extends Node
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # "Ir para" do mapa (pedido do André 2026-11-03): no mapa completo o jogador toca num lugar, aparece o botão "Ir para"
 # e o herói vai sozinho até lá SEMPRE pela estrada, mesmo que exista caminho mais curto pelo meio do mato. Ele só sai
 # da estrada no fim, do ponto da estrada mais perto do lugar marcado até o lugar. Só mexer no joystick cancela
@@ -372,7 +371,8 @@ func direcao_auto() -> Vector3:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("rota", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("rota", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if not ativo or m.heroi == null:

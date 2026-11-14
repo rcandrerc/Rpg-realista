@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Comemoração (André 2026-11-11: "preciso gerar endorfina no jogo... quando você passa de nível parece que nada
 # aconteceu"). Subir de nível, missão cumprida, coisa liberada, skill subindo, reforço e evoluir agora fazem festa:
 # "janela do sistema" estilo anime no meio da tela (painel azul brilhante que abre rápido, texto nítido), faíscas azuis subindo, borda da tela acendendo, som próprio
@@ -331,7 +330,8 @@ func _coluna(cor: Color) -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("festa", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("festa", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if not _atual.is_empty():

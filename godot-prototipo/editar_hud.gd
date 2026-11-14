@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Modo de editar a interface (André 2026-11-06, ideia do Quimera, mas tudo individual e sem janela de ajustes):
 # segurar o painel de vida e mana abre o modo. Nele:
 #  - tocar num elemento (barra de vida, skill, ataque, joystick, chat, minimapa...) escolhe ele; tocar em outro junta os dois
@@ -396,7 +395,8 @@ func _prender(id: String) -> void:
 func _process(_dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(_dt)
-	Lentidao.parte("editar_hud", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("editar_hud", t0_parte)
 
 func _process_parte(_dt: float) -> void:
 	if aberto:

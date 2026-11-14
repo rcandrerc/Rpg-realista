@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Troca entre jogadores com cadeado (como no Quimera, André 2026-11-04). Só online: quem decide é o servidor
 # (shared/simulacao.js troca). Tocar noutro jogador perto pergunta se quer pedir a troca; quem recebe vê o pedido com
 # Aceitar e Recusar. Na janela cada um põe itens da mochila e ouro. "Trancar oferta" (cadeado) quer dizer "aceito o que
@@ -269,7 +268,8 @@ func esconder_cartao() -> void:
 func _process(_dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(_dt)
-	Lentidao.parte("troca", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("troca", t0_parte)
 
 func _process_parte(_dt: float) -> void:
 	if cartao.visible and m.tempo > cartao_ate:

@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Aviso de reinício do servidor (André 2026-11-12: "um aviso na tela, em cima, meio grande. Toda vez que fosse entrar um
 # merge... aparecer uma contagem, servidor está reiniciando em 10, 9, 8"; e depois: "primeiro o servidor reiniciará em um
 # minuto, e depois uma contagem de 10 segundos", para ninguém entrar numa dungeon e levar a contagem de surpresa).
@@ -87,7 +86,8 @@ func _comeca_contagem() -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("reinicio", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("reinicio", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if _falta < 0.0:

@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # HUD do celular, no mesmo arranjo do jogo HTML: joystick que aparece onde o dedo toca (esquerda),
 # golpe grande embaixo à direita, as 4 habilidades do modo em coluna ao lado, Trocar em cima, Cura embaixo
 # e Rolar, Dash e Pular na fileira de baixo. Painel do herói em cima à esquerda. Os botões só mostram símbolos.
@@ -463,7 +462,8 @@ func _notification(what: int) -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("hud", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("hud", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if _painel_dedo >= 0:

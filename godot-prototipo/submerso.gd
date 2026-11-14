@@ -1,5 +1,4 @@
 extends Node
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Debaixo d'água (André 2026-11-07): com a câmera dentro do lago, o mundo fica azul-esverdeado, a neblina fecha
 # (o fundo some a poucos metros), faixas de luz descem da superfície e a borda da tela escurece. Barato para o
 # celular: só um retângulo com shader de tela (sem ler a imagem do jogo) e a neblina que o Environment já tem.
@@ -55,7 +54,8 @@ func _ready() -> void:
 func _process(_dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(_dt)
-	Lentidao.parte("submerso", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("submerso", t0_parte)
 
 func _process_parte(_dt: float) -> void:
 	if m.camera == null or m.terreno == null:

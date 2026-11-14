@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Minimapa (pedido do André 2026-11-03): redondo no canto de cima à direita, com o menu do topo à esquerda dele, com o norte
 # para cima. Mostra a mata, a estrada, as clareiras de caça (bolinha na cor do bicho com o nível), o veio de cobre,
 # os outros jogadores e o herói (seta) com o lado para onde a câmera olha. Tocar nele abre o mapa completo, com o nome
@@ -765,7 +764,8 @@ func _arrumar_grande() -> void:
 func _process(_dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(_dt)
-	Lentidao.parte("minimapa", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("minimapa", t0_parte)
 
 func _process_parte(_dt: float) -> void:
 	if m.heroi == null:

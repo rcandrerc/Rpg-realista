@@ -1,5 +1,4 @@
 extends Node3D
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # As mini vilas do mundo grande (história v2, Entrega 3; André 2026-11-11, esboço aprovado com o totem no meio de cada
 # vila). Onde fica cada casa, a banca e os enfeites vem de mundo.json "vilasMundo" (shared/vilas.js arrumarVila, a mesma
 # conta do servidor, que também faz as paredes e o telhado sólidos). Modelos em res://vilas3d/vilas.glb (CC0, Quaternius
@@ -38,7 +37,8 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("vilas_mundo", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("vilas_mundo", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	_espera -= dt

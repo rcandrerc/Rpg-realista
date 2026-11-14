@@ -1,5 +1,4 @@
 extends CanvasLayer
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Amigos e time (André 2026-11-05: "lista de amigos até 20 e poder dar time pro amigo"; "aparecer barrinha de vida e mana
 # do amigo quando estiver em time"). Só online: quem decide é o servidor (shared/simulacao.js amigo/time); a lista fica
 # gravada na conta. Tocar noutro jogador (troca.gd) oferece "Adicionar amigo" e "Chamar pro time"; a lista e o time ficam
@@ -75,7 +74,8 @@ func pedir_lista() -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("amigos", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("amigos", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if m.menu_topo and m.menu_topo.aberta == "multi":

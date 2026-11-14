@@ -1,5 +1,4 @@
 extends Node
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Rosto do herói no painel de vida e mana (André 2026-11-06: "a foto do meu avatar, e não essa letra A").
 # Foto FIXA, de frente, só o rosto (André 2026-11-06: "quero uma foto fixa de frente e só"): um palco pequeno com mundo
 # próprio, igual ao retrato dos NPCs (conversa.gd). Uma cópia do corpo com a mesma aparência fica parada, a câmera
@@ -50,7 +49,8 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("retrato_heroi", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("retrato_heroi", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if _foto_t >= 0.0:

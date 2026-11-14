@@ -1,5 +1,4 @@
 extends Node3D
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Efeitos visuais, iguais aos do site (client/src/efeitos.js): círculo mágico com pentagrama e coluna de luz ao conjurar,
 # labaredas, fumaça e brasas, cometa de fogo com cauda, tiro arcano, explosões, raio em zigue-zague, chuva de meteoros,
 # meias-luas do Giro, estocada da Investida, rastro da espada e do dash, e os números de dano.
@@ -1799,7 +1798,8 @@ var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("efeitos", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("efeitos", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()

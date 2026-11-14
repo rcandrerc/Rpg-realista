@@ -1,5 +1,4 @@
 extends Node3D
-const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Terras da Estrada: construção e fazenda do Quimera (pedido do André 2026-11-03, refeito em 2026-11-04).
 # Não tem lote pronto: numa área de terra livre com uma estrada central, o jogador marca o terreno que quer comprar
 # (toca num canto e arrasta até o outro) e paga por bloco de 1 m². Só constrói e planta dentro do terreno dele.
@@ -2525,7 +2524,8 @@ func encheu(ev: Dictionary) -> void:
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
-	Lentidao.parte("construcao", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("construcao", t0_parte)
 
 func _process_parte(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
