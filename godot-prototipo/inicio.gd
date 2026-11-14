@@ -517,7 +517,8 @@ func _montar_tela() -> void:
 	fundo.color = Color(0.05, 0.06, 0.09)
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(fundo)
-	# capa sem cache: se o pacote trouxer outra capa, o jogo usa a nova
+	# capa sem cache: se o pacote trouxer outra capa, o jogo usa a nova. André 2026-11-14: o APK casca leva também a capa
+	# Age of Embers (export_presets.cfg), senão a tela de atualização mostrava a do Aethra
 	var arq := "res://ui/capa_age_of_embers.jpg" if ResourceLoader.exists("res://ui/capa_age_of_embers.jpg") else "res://ui/capa_aethra.jpg"
 	var tex = ResourceLoader.load(arq, "", ResourceLoader.CACHE_MODE_IGNORE)
 	if tex is Texture2D:
