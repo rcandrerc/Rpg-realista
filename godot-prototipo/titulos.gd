@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Títulos (André 2026-11-12): o título em uso aparece em cima da cabeça, acima do nome e do nível. Quanto mais difícil,
 # mais bonito: Comum (texto simples), Raro (azul com ◇), Épico (roxo com ◆), Lendário (dourado, maior, pulsando) e
 # Mítico (maior ainda, cor que corre do rosa ao dourado). Os títulos vêm de habilidades.json "titulos" (TITULOS em
@@ -72,6 +73,11 @@ func por(no: Node3D, placa: Label3D, id: String) -> Label3D:
 var _brilho_passo := -1
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("titulos", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	_t += dt
 	_heroi()
 	# brilho dos títulos difíceis: o Lendário pulsa (dourado que clareia), o Mítico corre do rosa ao dourado

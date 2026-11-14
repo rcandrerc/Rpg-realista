@@ -1,4 +1,5 @@
 extends Node3D
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Mato alto de verdade (André 2026-11-10: "os matos crescendo assim, mais mato mesmo, em vez de ser um chão pintado de
 # verde", foto de referência com capim alto, samambaia e moita). A cor continua a do jogo (pintadinha); o que muda é
 # que o chão ganha volume: touceiras de capim com folhas de verdade, umas mais altas, e samambaias soltas.
@@ -156,6 +157,11 @@ func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, ha: float, hb: fl
 
 var ms := 0.0 # tempo do mato por quadro (média), aparece no Teste (André 2026-11-11, auditoria de FPS)
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("mato", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)

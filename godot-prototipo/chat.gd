@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Chat (André 2026-11-06: "cria um chat geral e um de amigos"; "o chat geral ter opção de mutar").
 # Dois canais: Geral (todo mundo que está online, em qualquer mundo) e Amigos (você e os seus amigos online).
 # Quem decide é o servidor (shared/simulacao.js chat): ele limpa o texto, corta no tamanho e segura quem manda rápido demais.
@@ -700,6 +701,11 @@ func do_servidor(ev: Dictionary) -> void:
 				m.sons.tocar("pano", -16.0)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("chat", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	# a caixa de leitura some escrevendo (a janela mostra tudo), com menu aberto, na conversa com NPC e no modo construção
 	var menu_aberto: bool = (m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())
 	var hud_livre: bool = m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao

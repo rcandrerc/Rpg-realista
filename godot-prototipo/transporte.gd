@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # FASE 1 (André 2026-11-08/09): packs e transportes, cópia do Quimera. Quem decide é o servidor (shared/transporte.js);
 # aqui ficam os modelos (pack nas costas, packs no chão, carrinho, barquinho e navio), o botão do veículo, o painel do
 # pack e do carrinho (como o #packc do Quimera), a janela do mercador e o jeito de dirigir (andar.gd passo_veiculo).
@@ -1259,6 +1260,11 @@ func tem_combustivel() -> bool:
 
 # ---------- quadro a quadro ----------
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("transporte", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null or V.is_empty():
 		return
 	# meu veículo segue o herói (o servidor manda a posição dele 20 vezes por segundo; a minha eu já sei)

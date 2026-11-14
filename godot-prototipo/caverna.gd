@@ -1,4 +1,5 @@
 extends Node3D
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Caverna da Montanha, a primeira dungeon (pedido do André 2026-11-06: "eu queria que a dungeon não fosse uma
 # recarrega... que a passagem fosse suave, como se ela fosse uma extensão do mapa").
 #
@@ -94,6 +95,11 @@ func _ready() -> void:
 
 var _t := 0.0
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("caverna", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if A.is_empty() or m.heroi == null:
 		return
 	if not _fila.is_empty(): # um pedaço por quadro

@@ -1,4 +1,5 @@
 extends Node3D
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Parte 3 do Quimera: estamina (a barra amarela), vigor e profissões (Minerador, Lenhador, Ferreiro, Alfaiate, Mercador).
 # Quem decide é o servidor (shared/simulacao.js): a estamina corre aqui junto para o herói responder na hora e acerta
 # pelo valor que o servidor manda; os veios são desenhados aqui; o botão Coletar e o menu Criar só mandam o pedido.
@@ -479,6 +480,11 @@ func esgotado(o: Dictionary) -> bool:
 # ---------- quadro a quadro ----------
 var _t_veios := 0.0
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("trabalho", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null:
 		return
 	_passo_soltos()

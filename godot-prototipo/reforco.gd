@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Janelinha do reforço de equipamento (igual ao Quimera, André 2026-11-07; regras em REFORCO de shared/dados.js).
 # Sem o atributo a peça reforçada não equipa e, vestida, não dá bônus (progresso reforco_ok, igual ao Quimera).
 # Na mochila: toque na peça e em "Reforçar 1 vez" ou "Até o máximo" (André 2026-11-09: era "Até cancelar"). A janela mostra a peça, "+e → +e+1 · chance X%",
@@ -241,6 +242,11 @@ func _pintar(como: String) -> void:
 	caixa.pivot_offset = caixa.size * 0.5
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("reforco", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if fase == "barra":
 		t += dt
 		var dur: float = float(m.P.reforco_dados().get("tempo", 1.6))

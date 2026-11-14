@@ -1,4 +1,5 @@
 extends Node3D
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Magias novas do cajado (pedido do André, 2026-11-03: "skills de mago incríveis, sem cara de amador"):
 # Faísca (básico), Bola de Fogo (dano num alvo), Nova de Gelo (controle) e o portal/fogo do Meteoro.
 # As partículas aqui usam TEXTURA (efeitos/magia_atlas.png, montado do Kenney Particle Pack, CC0): chama de verdade,
@@ -695,6 +696,11 @@ func _tremer(o: Vector3, forca: float, alcance: float) -> void:
 
 # ---------------------------------------------------------------- quadro
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("magias", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam:
 		_cam_r = cam.global_transform.basis.x

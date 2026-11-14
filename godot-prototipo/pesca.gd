@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Pescaria igual à do Quimera (André 2026-11-08). Quem decide é o servidor (shared/simulacao.js pescar); aqui ficam o
 # botão Pescar, a vara nas duas mãos (duas_maos.gd, o mesmo das ferramentas), a boia, a linha, o peixe saindo da água,
 # a barra da briga e os sons. Números em dados/habilidades.json "pesca" (shared/dados.js PESCA).
@@ -529,6 +530,11 @@ func _respingo(r: float, n: int) -> void:
 
 # ---------- quadro a quadro ----------
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("pesca", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null or D.is_empty():
 		return
 	_esperando = max(0.0, _esperando - dt)

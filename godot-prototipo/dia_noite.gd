@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Dia e noite (igual ao Quimera, André 2026-11-07). 1 hora do jogo = 30 s (o dia inteiro em 12 min); o relógio é da conta
 # (progresso.gd hora_do_jogo, regra em shared/progresso.js). Escurece das 18h30 às 20h30 e clareia das 4h30 às 6h30, com o
 # tom alaranjado do pôr e do nascer do sol. De noite: céu azul-escuro com estrelas e lua, luz da lua azulada (com sombra),
@@ -145,6 +146,11 @@ func base() -> Dictionary:
 		"sol": sol, "sol_e": lerpf(_dia.sol_e, NOITE.sol_e, n), "nevoa": nev, "exp": lerpf(_dia.exp, NOITE.exp, n), "por": k}
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("dia_noite", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	_passo_sono(dt)
 	if lanterna and lanterna.visible and m.heroi:
 		# do lado da câmera, acima da cabeça (Us do Quimera): o rosto e a frente do herói ficam visíveis à noite

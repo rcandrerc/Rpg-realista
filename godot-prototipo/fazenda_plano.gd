@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Planejar a fazenda (pedido do André, 2026-11-07): "eu escolho lá tudo que vai ser arado, vai ficar marcado. Quando eu
 # salvo, aí ela começa a trabalhar, como se eu tivesse feito um planejamento de tudo que é pra ela fazer."
 # No modo construção, aba Fazenda, Arar / Plantar / Regar / Colher só MARCAM o quadrado (toque no chão marca, toque de
@@ -244,6 +245,11 @@ func _proxima() -> void:
 	parar("Plano da fazenda terminado!")
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("fazenda_plano", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if not trabalhando or m.heroi == null:
 		return
 	if m.h.morto > 0.0 or c.ativo or c.comprando:

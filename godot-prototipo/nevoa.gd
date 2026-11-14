@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Névoa encantada (progressão até o Nv 100, André 2026-11-10; dados em habilidades.json, chave "historia", feitos por
 # shared/historia.js). O mapa começa fechado: cada zona (campos, grutas, vilas do mundo grande, a Ilha do Meio e
 # Aurora) fica coberta por uma parede de névoa lilás até a missão principal que a abre. O André escolheu "Névoa
@@ -204,6 +205,11 @@ func _montar(Z: Dictionary) -> MeshInstance3D:
 	return mi
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("nevoa", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if H.is_empty() or m.heroi == null or m.terreno == null:
 		return
 	_t -= dt

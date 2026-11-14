@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Debaixo d'água (André 2026-11-07): com a câmera dentro do lago, o mundo fica azul-esverdeado, a neblina fecha
 # (o fundo some a poucos metros), faixas de luz descem da superfície e a borda da tela escurece. Barato para o
 # celular: só um retângulo com shader de tela (sem ler a imagem do jogo) e a neblina que o Environment já tem.
@@ -52,6 +53,11 @@ func _ready() -> void:
 	tela.add_child(_vela)
 
 func _process(_dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(_dt)
+	Lentidao.parte("submerso", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(_dt: float) -> void:
 	if m.camera == null or m.terreno == null:
 		return
 	if _env == null:

@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Cenas da história (André 2026-11-11: "acrescenta cinemáticas em algumas missões"). Não é vídeo gravado: roda dentro do
 # jogo, com a câmera andando em volta do herói de verdade, então ele aparece sempre com a cara, a roupa e a arma de agora.
 # O servidor manda { t: 'cena', id } (shared/simulacao.js cena) e os dados vêm de CENAS (shared/dados.js, exportado em
@@ -126,6 +127,11 @@ func escurecer(seg := 2.0) -> void:
 	_preto.color = Color(0, 0, 0, 1)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("cinematica", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if _espera <= 0.0 or ativa:
 		return
 	_espera -= dt

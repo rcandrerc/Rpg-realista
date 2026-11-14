@@ -1,4 +1,5 @@
 extends Node3D
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Skills de espada novas (André 2026-11-12: "o mesmo revamp que fizemos nas skills de mago, agora nas de melee",
 # "principalmente o som das skills estão péssimos"). Mesmo caminho do magias.gd (PR #89): formas pintadas de borda
 # dura no estilo anime (TOON) no lugar do brilho somado, que no mundo claro virava borrão branco, e um som próprio
@@ -506,6 +507,11 @@ func _passo_pontas(dt: float) -> void:
 
 # ---------------------------------------------------------------- quadro
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("golpes", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	_tempo += dt
 	_passo_cortes(dt)
 	_passo_chaos(dt)

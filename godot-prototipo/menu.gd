@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Menu do personagem (ideia do Quimera, com cara mais adulta): abre tocando no painel de vida.
 # Esquerda: o herói em 3D (arrasta para girar) com os 6 lugares de equipamento (Camisa, Calça, Botas | Arma, Acessório, Capa).
 # Direita: abas Status (nível, XP, pontos de atributo e os números do herói) e Habilidades (Espada, Cajado e Gerais,
@@ -920,6 +921,11 @@ func _input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("menu", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if not aberto():
 		return
 	if boneco:

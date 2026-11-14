@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Missão ativa na tela (André 2026-11-11: "a missão ativa tem que ficar aparecendo ali do lado esquerdo embaixo, onde fica
 # o negócio de time"; "eu clicando, quero um botão Ir para... ele faz o autopath até a região"). Fica à esquerda, logo
 # embaixo do painel do herói e das barras do time (amigos.gd). Do lado da descrição fica o botão "Ir" (André
@@ -144,6 +145,11 @@ func textos(M: Dictionary) -> Array:
 	return ["Missão: %s" % M.nome, l]
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("missao_ativa", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if cartao == null or m.hud == null:
 		return
 	var M := _missao()

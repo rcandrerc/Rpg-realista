@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Interação com os NPCs (como no Quimera): perto de um NPC aparece o botão Falar (balão); tocar num NPC na tela
 # faz o herói ir até ele sozinho. Os dois abrem a janela do NPC: o nome, a fala e o que dá para fazer com ele
 # (vender itens, comprar, forja, missão, cura, resetar a build...). O que cada um oferece vem de "acoes"
@@ -260,6 +261,11 @@ func direcao_auto() -> Vector3:
 	return d.normalized() * (1.0 if d.length() > 6.0 else 0.55) # longe corre, perto anda
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("conversa", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null:
 		return
 	if indo != null:

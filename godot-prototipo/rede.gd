@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Conversa com o servidor do jogo no Oracle (Node.js + Colyseus 0.15, o mesmo do site).
 # Login: o app nunca vê a senha do Google. "Entrar com Google" abre o site com ?vincular=CODIGO; depois do login lá,
 # o servidor guarda uma sessão para este código e o app busca (GET /conta/vinculo/CODIGO). A sessão fica em user://conta.cfg.
@@ -368,6 +369,11 @@ func enviar(tipo: String, dados = null) -> void:
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 var _fila_mundo: Array = [] # fotos do mundo que chegaram neste quadro
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("rede", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)

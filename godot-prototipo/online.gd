@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Modo online: o herói anda no celular e o servidor confere (igual ao site depois do PR #42).
 # Vão para o servidor: posição 20x por segundo, botões (golpe, habilidades, pulo, dash, rolar, troca).
 # Vêm do servidor: vida e mana, inimigos (posição, animação, vida), outros jogadores e o dano de verdade.
@@ -1578,6 +1579,11 @@ func _tirar_guardado(vis: String):
 # ---------- quadro a quadro ----------
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("online", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)

@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Totens de teleporte (André 2026-11-10, escolheu "Só os 7 principais"; TOTENS em shared/dados.js, que vem em
 # habilidades.json). Cada totem é uma plataforma de pedra octogonal com um obelisco de runas azuis e um cristal que
 # flutua em cima. Passar perto a pé descobre o totem (fica na conta, prog.totens) e marca ali o lugar de renascer
@@ -126,6 +127,11 @@ func ir(de: Dictionary, para: Dictionary) -> String:
 
 # ---------- desenho ----------
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("totem", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null or m.terreno == null:
 		return
 	if not _feito:

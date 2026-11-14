@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Visual leve (André 2026-11-10, olhando o Evil Lands: "gráficos simples mas bonitos e o jogo muito leve").
 # Duas escolhas em Configurações (Configurações > Sombras e Cor da grama):
 # - Sombras "Leves": a sombra de verdade (a que a placa desenha de novo todo quadro) só nos personagens (herói, NPCs,
@@ -300,6 +301,11 @@ func crescer(c: Dictionary, k: float) -> void:
 	_repintar.call_deferred(o.x, o.z, 8.0)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("visual_leve", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	_t += dt
 	if _t < 0.5 or not sombra_leve:
 		return

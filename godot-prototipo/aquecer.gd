@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Travada na primeira skill (André 2026-11-12: "quando eu chego num spot de mobs e dou a primeira skill, geralmente dá
 # uma travada. Depois ele vai se acomodando"). Cada efeito (shader próprio, partículas, número de dano) e cada tipo de
 # monstro (shader do monstro, contorno, nome) é montado na placa de vídeo na primeira vez que aparece na tela. Medido
@@ -52,6 +53,11 @@ func comecar() -> void:
 	_total = 0.0
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("aquecer", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	if cobre: # segurança: nunca prende a tela de "Conectando…" (conta mesmo depois dos efeitos, com os corpos montando)
 		_total += dt
 		if _total >= LIMITE:

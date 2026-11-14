@@ -1,4 +1,5 @@
 extends Node3D
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Efeitos visuais, iguais aos do site (client/src/efeitos.js): círculo mágico com pentagrama e coluna de luz ao conjurar,
 # labaredas, fumaça e brasas, cometa de fogo com cauda, tiro arcano, explosões, raio em zigue-zague, chuva de meteoros,
 # meias-luas do Giro, estocada da Investida, rastro da espada e do dash, e os números de dano.
@@ -1796,6 +1797,11 @@ func marca_corte(p: Vector3, ry: float, forte: bool) -> void:
 # ---------------------------------------------------------------- quadro a quadro
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("efeitos", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)

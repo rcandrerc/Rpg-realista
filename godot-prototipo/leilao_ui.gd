@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # A Casa do Comércio (história v2, Entrega 3; plano aprovado pelo André 2026-11-11): a janela do leilão do Otávio, no
 # Rio Claro. Só online: quem decide é o servidor (shared/simulacao.js leilaoMsg, shared/leilao.js). Abre quando se fala
 # com o Otávio (a fala dele chega com abrir: "leilao") e cada toque manda um pedido; a resposta (evento "leilao") traz a
@@ -124,6 +125,11 @@ func progresso_mudou() -> void:
 		montar()
 
 func _process(_dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(_dt)
+	Lentidao.parte("leilao_ui", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(_dt: float) -> void:
 	# andou para longe do Otávio (ou caiu): fecha
 	if aberto() and (m.h.morto > 0.0 or not m.perto_do_npc("leilao", 6.0)):
 		fechar()

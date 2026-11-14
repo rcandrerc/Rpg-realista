@@ -1,4 +1,5 @@
 extends Node
+const Lentidao = preload("res://lentidao.gd") # quadro lento: Lentidao.parte
 # Bosses de mundo (André 2026-11-11: "uns bosses espalhados pelo mundo... com skills especiais, não só bater").
 # Quem decide tudo é o servidor (shared/simulacao.js passoBosses / lancarSkillBoss; dados em shared/dados.js
 # BOSSES_MUNDO). Aqui só o que se vê:
@@ -278,6 +279,11 @@ func _golpe(f: Dictionary, cor: Color, k: String) -> void:
 				m.fx.poeira(px, pz, float(f.l) * 0.6, 10, "b8a080", "6a5a40")
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	Lentidao.parte("boss_mundo", t0_parte) # quadro lento: quanto deste script (lentidao.gd)
+
+func _process_parte(dt: float) -> void:
 	for i in range(avisos.size() - 1, -1, -1):
 		var a: Dictionary = avisos[i]
 		a.t += dt
