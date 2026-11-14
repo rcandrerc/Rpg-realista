@@ -798,9 +798,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		h.mask = _mask_horta(L, h)
 		if h.get("mudou", false):
 			h.erase("mudou")
-			_desenhar_canteiro(h, true)
+			_enfileirar_canteiro(h, true)
 		elif h.mask != h.get("mask_feita", -1):
-			_desenhar_canteiro(h)
+			_enfileirar_canteiro(h)
 	if mudou_pecas or mudou_canteiros:
 		_grama_sob_horta(L)
 	if mudou_pecas:
@@ -1492,6 +1492,32 @@ static func fase(f: float) -> int:
 
 func _molhada(h: Dictionary) -> bool:
 	return h.w > 0.0 and agora_ms() < h.w + float(D.horta.rega) * 3600000.0
+
+# Canteiros aos poucos (2026-11-14, registro das travadas: logo depois de entrar, a lista dos terrenos custou 197 ms
+# no PC, 148 deles desenhando os 36 canteiros; a terra arada sozinha, 114 ms: uns 145 pontos por canteiro, cada um
+# com a altura do chão). Agora o canteiro entra numa fila e sai desenhado igual, CANTEIRO_US por quadro (pelo menos
+# um por quadro). na_fila guarda se é para refazer a terra também (forcar).
+const CANTEIRO_US := 3000
+var _fila_canteiros: Array = []
+func _enfileirar_canteiro(h: Dictionary, forcar := false) -> void:
+	if h.has("na_fila"):
+		h.na_fila = h.na_fila or forcar
+		return
+	h.na_fila = forcar
+	_fila_canteiros.append(h)
+
+func _desenhar_fila_canteiros() -> void:
+	var t0 := Time.get_ticks_usec()
+	while not _fila_canteiros.is_empty():
+		var h: Dictionary = _fila_canteiros.pop_front()
+		var forcar: bool = h.get("na_fila", false)
+		h.erase("na_fila")
+		if h.get("no") != null and is_instance_valid(h.no) and h.no.is_inside_tree():
+			_desenhar_canteiro(h, forcar)
+		if Time.get_ticks_usec() - t0 >= CANTEIRO_US:
+			break
+	if m.lentidao and Time.get_ticks_usec() - t0 > 1000:
+		m.lentidao.ev("canteiros", t0)
 
 func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	var f := fase(_crescida(h)) if h.c != "" else -1
@@ -2498,6 +2524,8 @@ func encheu(ev: Dictionary) -> void:
 func _process(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
 		return
+	if not _fila_canteiros.is_empty():
+		_desenhar_fila_canteiros()
 	var hp: Vector3 = m.heroi.position
 	var vivo: bool = m.h.morto <= 0.0
 	var livre := ativo or comprando
@@ -2552,7 +2580,7 @@ func _process(dt: float) -> void:
 				var h: Dictionary = lotes[id].horta[c]
 				var d2: float = h.no.position.distance_squared_to(hp)
 				if d2 < 3600.0:
-					_desenhar_canteiro(h)
+					_enfileirar_canteiro(h)
 				_info_planta(h, _placa_perto(d2))
 
 func _carregar_recolhidas() -> void:
