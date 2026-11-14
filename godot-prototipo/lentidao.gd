@@ -40,6 +40,9 @@ func _init(principal) -> void:
 	Engine.set_meta("lentidao", self) # os scripts marcam o quadro lento por aqui (sem preload: os testes soltos não têm este arquivo)
 
 func _exit_tree() -> void:
+	if _gravando >= 0: # gravação na linha de fundo ainda rodando: espera acabar
+		WorkerThreadPool.wait_for_task_completion(_gravando)
+		_gravando = -1
 	if Engine.get_meta("lentidao", null) == self:
 		Engine.remove_meta("lentidao")
 
@@ -415,6 +418,12 @@ func _process(dt: float) -> void:
 		ev("registro", ta) # o próprio registro (guardar no aparelho e mandar): aparece no quadro seguinte
 	_zerar(agora)
 
+var _gravando := -1
+static func _gravar(l: Array) -> void:
+	var f := FileAccess.open(ARQUIVO, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(l))
+
 func _anotar(real: float, relogio: float) -> void:
 	lentas += 1
 	var g = m.grafico
@@ -455,9 +464,12 @@ func _anotar(real: float, relogio: float) -> void:
 	lista.append(e)
 	while lista.size() > GUARDA:
 		lista.pop_front()
-	var f := FileAccess.open(ARQUIVO, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(lista))
+	# gravar no aparelho na linha de fundo (conselho 2026-11-14: o próprio registro levava ~100 ms no quadro); uma
+	# gravação por vez, com a lista copiada
+	if _gravando < 0 or WorkerThreadPool.is_task_completed(_gravando):
+		if _gravando >= 0:
+			WorkerThreadPool.wait_for_task_completion(_gravando)
+		_gravando = WorkerThreadPool.add_task(_gravar.bind(lista.duplicate(true)), false, "lentidao")
 	if _mandadas < MANDA_MAX:
 		_mandadas += 1
 		_aparelho(e)

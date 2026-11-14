@@ -2355,10 +2355,13 @@ func achar_troncos(raiz: Node) -> void:
 func folhagem_na_frente(dt: float) -> void:
 	if camera == null or heroi == null:
 		return
+	var tf := Time.get_ticks_usec()
 	copas_da_mata_na_frente(dt)
+	tf = _parte("f:mata", tf) # registro do quadro lento (2026-11-14: m:folhagem 70 a 98 ms quase todo segundo no campo)
 	var a: Vector3 = camera.global_position
 	var b: Vector3 = heroi.global_position + Vector3(0, 1.2, 0)
 	var cand := _folhas_perto(a, b)
+	tf = _parte("f:grade", tf)
 	for f in cand:
 		if not is_instance_valid(f[0]): # (Godot 4.7) olhar antes de pôr na variável com tipo: nó já apagado dá erro
 			continue
@@ -2381,10 +2384,15 @@ func folhagem_na_frente(dt: float) -> void:
 		# alfa de verdade (sem o pontilhado do dither): cópia do material só enquanto a copa está apagando
 		if atual > 0.0:
 			if mi.material_override == null:
-				var base: BaseMaterial3D = mi.mesh.surface_get_material(0)
-				var mt: BaseMaterial3D = base.duplicate()
-				mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-				mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+				# a cópia fica guardada na copa (meta): apagar e soltar a cópia toda vez fazia a placa montar o shader de
+				# novo na próxima vez (nenhum material usava mais aquela combinação)
+				var mt = mi.get_meta("copia_alfa") if mi.has_meta("copia_alfa") else null
+				if mt == null:
+					var base: BaseMaterial3D = mi.mesh.surface_get_material(0)
+					mt = base.duplicate()
+					mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+					mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+					mi.set_meta("copia_alfa", mt)
 				mi.material_override = mt
 			var cor: Color = mi.mesh.surface_get_material(0).albedo_color
 			mi.material_override.albedo_color = Color(cor, cor.a * (1.0 - atual))
@@ -2394,6 +2402,7 @@ func folhagem_na_frente(dt: float) -> void:
 	for f in cand:
 		if f.size() > 2 and float(f[2]) > 0.0 and is_instance_valid(f[0]):
 			_folhas_vivas.append(f)
+	_parte("f:copas", tf)
 
 # FPS (varredura 2026-11-12, preset Alta): a conta acima passava por todas as copas e troncos da vila e do mapa todo
 # quadro. Agora uma grade de FOLHA_G m diz quais estão perto da linha câmera-herói; só elas (e as que ainda estão
@@ -2483,6 +2492,7 @@ func copas_da_mata_na_frente(dt := 0.016) -> void:
 		if f.k <= 0.0 and f.quer == 0.0:
 			_voltar_arvore(pos)
 
+var _mats_mata_livres := {} # "tronco_3" -> cópias com alfa que sobraram (até 8 por tipo)
 func _sumir_arvore(pos: Vector2) -> void:
 	var c: Dictionary = arvores_mata[pos]
 	var no := Node3D.new()
@@ -2496,9 +2506,20 @@ func _sumir_arvore(pos: Vector2) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = mesh
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var mt: BaseMaterial3D = (mesh.surface_get_material(0) as BaseMaterial3D).duplicate()
-		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-		mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+		# cópia com alfa de verdade, reaproveitada de uma árvore que já voltou (_voltar_arvore guarda): soltar a cópia
+		# fazia a placa montar o shader de novo na próxima árvore (conselho 2026-11-14)
+		var chave := "%s_%d" % [parte, c.v]
+		var livres: Array = _mats_mata_livres.get(chave, [])
+		var mt: BaseMaterial3D
+		if livres.is_empty():
+			mt = (mesh.surface_get_material(0) as BaseMaterial3D).duplicate()
+			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+			mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+			mt.set_meta("cor0", mt.albedo_color)
+			mt.set_meta("chave", chave)
+		else:
+			mt = livres.pop_back()
+		mt.albedo_color = mt.get_meta("cor0")
 		if parte == "copa":
 			mt.albedo_color = mt.albedo_color * c.copa[2]
 		mt.set_meta("alfa", mt.albedo_color.a)
@@ -2514,6 +2535,11 @@ func _voltar_arvore(pos: Vector2) -> void:
 	for parte in ["tronco", "copa"]:
 		if c.has(parte):
 			c[parte][0].set_instance_transform(c[parte][1], c.t)
+	for mt in _sumindo[pos].mats: # a cópia volta para o estoque (a próxima árvore usa sem montar shader)
+		var l: Array = _mats_mata_livres.get(mt.get_meta("chave"), [])
+		if l.size() < 8:
+			l.append(mt)
+		_mats_mata_livres[mt.get_meta("chave")] = l
 	_sumindo[pos].no.queue_free()
 	_sumindo.erase(pos)
 
