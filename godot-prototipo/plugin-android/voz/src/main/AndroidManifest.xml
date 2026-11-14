@@ -6,5 +6,6 @@
     </queries>
     <application>
         <meta-data android:name="org.godotengine.plugin.v2.VozJogo" android:value="com.rcandrerc.voz.VozJogo" />
+        <meta-data android:name="org.godotengine.plugin.v2.VozVosk" android:value="com.rcandrerc.voz.VozVosk" />
     </application>
 </manifest>

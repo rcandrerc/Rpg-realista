@@ -64,6 +64,11 @@ func _ready() -> void:
 		plugin.ouviu.connect(_ouviu, CONNECT_DEFERRED)
 		plugin.parcial.connect(_parcial, CONNECT_DEFERRED)
 		plugin.estado.connect(_estado, CONNECT_DEFERRED)
+		if Engine.has_singleton("VozVosk"): # APK com escuta contínua (2026-11-14); APK velho fica no botão
+			vosk = Engine.get_singleton("VozVosk")
+			vosk.ouviu.connect(_ouviu, CONNECT_DEFERRED)
+			vosk.parcial.connect(_parcial, CONNECT_DEFERRED)
+			vosk.estado.connect(_estado, CONNECT_DEFERRED)
 	get_tree().on_request_permissions_result.connect(_permissao)
 
 # Configurações > Comando de voz
@@ -76,6 +81,7 @@ func ligar(v: bool) -> void:
 		andar = Vector2.ZERO
 		ouvindo = false
 		plugin.desligar()
+		_vosk_desligar()
 		m.hud.mostrar_botao("voz", false)
 		m.hud.ligar_botao("voz", false)
 		return
@@ -83,13 +89,18 @@ func ligar(v: bool) -> void:
 		ligado = true # liga quando o Android responder (_permissao)
 		OS.request_permission("android.permission.RECORD_AUDIO")
 		return
+	if _usa_vosk():
+		ligado = true
+		_escutou = false
+		_vosk_ligar()
+		return
 	if not plugin.disponivel():
 		ligado = false
 		m.hud.aviso(tr("Celular sem reconhecimento de voz"))
 		return
 	ligado = true
 	_escutou = false
-	if MODO_BOTAO:
+	if _botao():
 		m.hud.mostrar_botao("voz", true)
 		m.hud.aviso(tr("Toque no microfone e fale"))
 		return
@@ -102,7 +113,7 @@ func _lingua() -> String:
 # Teste com botão (André 2026-11-14: "a gente testa com um botão de ativar o microfone, só para testar os comandos
 # primeiro"): o reconhecedor do Android fecha e reabre a cada frase e perdia o que se falava no meio. Com o botão,
 # cada toque escuta uma fala (até ESCUTA_MAX s ou o fim da frase); os comandos dela valem em sequência, como antes.
-# Depois a escuta contínua volta com outro reconhecedor (Vosk) e MODO_BOTAO vira false.
+# No APK novo (plugin VozVosk) a escuta é contínua e o botão some sozinho (_botao(), lá embaixo).
 const MODO_BOTAO := true
 const ESCUTA_MAX := 8.0
 var ouvindo := false
@@ -142,17 +153,20 @@ func _permissao(nome: String, ok: bool) -> void:
 var _escutou := false
 var _erro_t := {}
 func _estado(e: String) -> void:
+	if e == "carregando":
+		m.hud.aviso(tr("Carregando voz..."))
+		return
 	if e == "escutando":
 		_nova_frase()
 		if not _escutou:
 			_escutou = true
-			m.hud.aviso(tr("Escutando..."))
+			m.hud.aviso(tr("Voz ligada: pode falar") if _usa_vosk() else tr("Escutando..."))
 		return
 	if e.begins_with("erro:"):
 		var agora := Time.get_ticks_msec() / 1000.0
 		if agora - float(_erro_t.get(e, -100.0)) > 8.0:
 			_erro_t[e] = agora
-			m.hud.aviso(tr("Voz: erro %s") % e.substr(5))
+			m.hud.aviso(tr("Voz: erro %s") % e.substr(5).left(40))
 		return
 	if e == "sem_permissao":
 		ligado = false
@@ -179,6 +193,8 @@ static func palavras(t: String, tirar_enche := true) -> Array:
 			p = p.substr(0, p.length() - 2) + "m"
 		elif p.ends_with("s") and p.length() > 3:
 			p = p.substr(0, p.length() - 1)
+		if p == "unk": # "[unk]" do Vosk = barulho ou palavra que não é comando
+			continue
 		if tirar_enche and p in ENCHE:
 			continue
 		r.append(p)
@@ -222,6 +238,10 @@ var _feito := false # esta frase já virou ação (com o mapa aberto)
 # sequência, mesmo que não pare"): cada palavra nova que chega no pedaço da frase é olhada uma vez; a que for comando
 # vira ação na hora. "frente ... gelo ... atacar" numa fala só = andar, gelo e ataque, na ordem.
 var _usadas := 0 # palavras desta frase já olhadas
+# O reconhecedor reescreve o pedaço enquanto a pessoa fala ("a" vira "atrás", "abrir nada" vira "abrir mapa"). Antes
+# só as palavras depois da última olhada contavam, e a palavra corrigida no lugar dela passava batida (André
+# 2026-11-14, 2235: "frente andou 2 de 20", "atrás nunca apareceu"). Agora volta até onde o texto mudou.
+var _vistas: Array = []
 var _ultima_acao := "" # a mesma ação duas vezes seguidas na mesma frase ("lança de gelo", o Android corrigindo) vale uma
 static func cmd_palavra(w: String, antes: String) -> Dictionary:
 	if w == "para": # "para" sozinho só vale como parar no fim da frase ("ir para a vila")
@@ -238,7 +258,11 @@ func _sequencia(txt: String, final: bool) -> void:
 	if final and w.size() == 1 and w[0] == "para" and _usadas == 0:
 		_fazer({"k": "parar"}, t0)
 	var fez := false
-	for i in range(_usadas, w.size()):
+	var igual := 0 # palavras do começo que não mudaram desde o último pedaço
+	while igual < mini(w.size(), _vistas.size()) and w[igual] == _vistas[igual]:
+		igual += 1
+	_vistas = w
+	for i in range(mini(_usadas, igual), w.size()):
 		var e := cmd_palavra(str(w[i]), str(w[i - 1]) if i > 0 else "")
 		if e.is_empty():
 			continue
@@ -251,7 +275,7 @@ func _sequencia(txt: String, final: bool) -> void:
 		if e.k == "mapa": # o resto da frase é o nome do lugar (fim da frase)
 			_usadas = w.size()
 			return
-	_usadas = maxi(_usadas, w.size())
+	_usadas = w.size()
 	if not fez and t0 != "":
 		_ouvi(t0)
 
@@ -272,7 +296,10 @@ func _parcial(txt: String) -> void:
 func _ouviu(txt: String) -> void:
 	if not ligado or m.heroi == null:
 		return
-	if MODO_BOTAO and ouvindo:
+	if txt.strip_edges() == "" or palavras(txt, false).is_empty(): # o Vosk fecha a frase vazia depois do silêncio
+		_nova_frase()
+		return
+	if _botao() and ouvindo:
 		call_deferred("_parar_escuta") # uma fala por toque
 	var aberto: bool = m.minimapa != null and m.minimapa.aberto
 	if not aberto:
@@ -300,6 +327,7 @@ func _ouviu(txt: String) -> void:
 func _nova_frase() -> void:
 	_feito = false
 	_usadas = 0
+	_vistas = []
 	_ultima_acao = ""
 
 var _voz_t := -10.0 # quando a última ação apareceu ("Voz: ..."): o "Ouvi" não passa por cima dela por 2 s
@@ -360,6 +388,7 @@ func lugar(faladas: Array) -> Dictionary:
 	if m.minimapa == null:
 		return {}
 	faladas = faladas.filter(func(w): return not (w in MAPA or w in ["abrir", "abre", "abra", "open"])) # "abrir mapa imp 15"
+	faladas = juntar_numeros(faladas) # o Vosk escreve "quinze": vira "15" como no mapa
 	if faladas.is_empty():
 		return {}
 	var nums: Array = faladas.filter(func(w): return str(w).is_valid_int())
@@ -403,6 +432,8 @@ func _ir_para(l: Dictionary) -> void:
 
 # ---------- quadro a quadro ----------
 func _process(_dt: float) -> void:
+	if _baixando != null:
+		_progresso()
 	if ouvindo and Time.get_ticks_msec() / 1000.0 > _ouvindo_ate:
 		_parar_escuta()
 	if andar == Vector2.ZERO:
@@ -410,3 +441,151 @@ func _process(_dt: float) -> void:
 	# o dedo ganha da voz; morrer, conversa, menu ou mapa aberto param a caminhada
 	if m.hud.mover.length() > 0.15 or m.h.morto > 0.0 or m.hud.bloqueado:
 		andar = Vector2.ZERO
+
+# ---------- escuta contínua (Vosk) ----------
+# André 2026-11-14: "se eu tiver que ficar clicando em botão de microfone, pra mim não compensa. Eu quero é o jogo
+# hands-free por alguns minutos". O reconhecedor do Android fecha e reabre a cada frase e perde o que se fala no meio.
+# O Vosk (plugin VozVosk, Apache 2.0, roda no celular sem internet) deixa o microfone aberto direto e só procura as
+# palavras dos comandos e dos lugares do mapa (gramatica()). Precisa do APK novo; o modelo de voz em português (32 MB)
+# é baixado na primeira vez que liga e fica guardado no celular. Em inglês continua o do Android (com o botão).
+const VOSK_URL := "https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip"
+const VOSK_DIR := "user://voz/"
+const VOSK_MODELO := "user://voz/vosk-model-small-pt-0.3"
+var vosk = null
+var _baixando: HTTPRequest = null
+var _baixa_t := 0.0
+
+func _usa_vosk() -> bool:
+	return vosk != null and Idioma.atual != "en"
+
+func _botao() -> bool: # escuta com o botão: só no APK velho (ou em inglês)
+	return MODO_BOTAO and not _usa_vosk()
+
+func _vosk_ligar() -> void:
+	if FileAccess.file_exists(VOSK_DIR + "pronto") and FileAccess.file_exists(VOSK_MODELO + "/final.mdl"):
+		vosk.ligar(ProjectSettings.globalize_path(VOSK_MODELO), gramatica())
+		return
+	if _baixando != null:
+		return
+	DirAccess.make_dir_recursive_absolute(VOSK_DIR)
+	_baixando = HTTPRequest.new()
+	_baixando.download_file = VOSK_DIR + "modelo.zip"
+	_baixando.timeout = 600.0
+	add_child(_baixando)
+	_baixando.request_completed.connect(_baixou)
+	if _baixando.request(VOSK_URL) != OK:
+		_baixou(HTTPRequest.RESULT_CANT_CONNECT, 0, [], [])
+		return
+	_baixa_t = Time.get_ticks_msec() / 1000.0
+	m.hud.aviso(tr("Baixando a voz (32 MB)..."))
+
+func _progresso() -> void:
+	var agora := Time.get_ticks_msec() / 1000.0
+	if agora - _baixa_t < 4.0:
+		return
+	_baixa_t = agora
+	var total := _baixando.get_body_size()
+	if total > 0:
+		m.hud.aviso(tr("Baixando a voz: %s%%") % str(int(100.0 * _baixando.get_downloaded_bytes() / total)))
+
+func _baixou(res: int, codigo: int, _h, _b) -> void:
+	var zip_path := VOSK_DIR + "modelo.zip"
+	if _baixando != null:
+		_baixando.queue_free()
+		_baixando = null
+	if res != HTTPRequest.RESULT_SUCCESS or codigo != 200 or not _desempacotar(zip_path):
+		DirAccess.remove_absolute(zip_path)
+		if ligado:
+			ligado = false
+			m.hud.aviso(tr("Não deu para baixar a voz"))
+			if m.menu_topo:
+				m.menu_topo.voz_negada()
+		return
+	DirAccess.remove_absolute(zip_path)
+	var f := FileAccess.open(VOSK_DIR + "pronto", FileAccess.WRITE)
+	if f:
+		f.store_string("vosk-model-small-pt-0.3")
+		f.close()
+	if ligado:
+		_vosk_ligar()
+
+func _desempacotar(zip_path: String) -> bool:
+	var z := ZIPReader.new()
+	if z.open(zip_path) != OK:
+		return false
+	for nome in z.get_files():
+		if nome.contains(".."):
+			continue
+		var destino: String = VOSK_DIR + nome
+		if nome.ends_with("/"):
+			DirAccess.make_dir_recursive_absolute(destino)
+			continue
+		DirAccess.make_dir_recursive_absolute(destino.get_base_dir())
+		var f := FileAccess.open(destino, FileAccess.WRITE)
+		if f == null:
+			z.close()
+			return false
+		f.store_buffer(z.read_file(nome))
+		f.close()
+	z.close()
+	return FileAccess.file_exists(VOSK_MODELO + "/final.mdl")
+
+func _vosk_desligar() -> void:
+	if vosk != null:
+		vosk.desligar()
+	if _baixando != null:
+		_baixando.cancel_request()
+		_baixando.queue_free()
+		_baixando = null
+		DirAccess.remove_absolute(VOSK_DIR + "modelo.zip")
+
+# as formas com acento que o modelo conhece (as sem acento das listas acima ficam de fora se ele não conhecer)
+const FALA_EXTRA := ["trás", "atrás", "lança", "explosão", "relâmpago", "fúria", "vórtice", "básico", "básica", "poção",
+	"nível", "abrir", "abre", "desligar", "desliga", "voz", "microfone"]
+const NUMEROS_FALA := ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze",
+	"doze", "treze", "quatorze", "catorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove", "vinte", "trinta",
+	"quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa", "cem", "cento", "duzentos", "trezentos"]
+# depois de palavras() (sem acento, sem o "s" do fim): "três" = "tre", "dois" = "doi", "seis" = "sei"
+const NUM_VAL := {"zero": 0, "doi": 2, "tre": 3, "quatro": 4, "cinco": 5, "sei": 6, "sete": 7, "oito": 8, "nove": 9,
+	"dez": 10, "onze": 11, "doze": 12, "treze": 13, "quatorze": 14, "catorze": 14, "quinze": 15, "dezessei": 16,
+	"dezessete": 17, "dezoito": 18, "dezenove": 19, "vinte": 20, "trinta": 30, "quarenta": 40, "cinquenta": 50,
+	"sessenta": 60, "setenta": 70, "oitenta": 80, "noventa": 90, "cem": 100, "cento": 100, "duzento": 200, "trezento": 300}
+
+# "imp quinze" -> ["imp", "15"]; "vinte cinco" (o "e" já saiu) -> "25"
+static func juntar_numeros(ws: Array) -> Array:
+	var r: Array = []
+	var soma := -1
+	for w in ws:
+		if NUM_VAL.has(w):
+			soma = (0 if soma < 0 else soma) + int(NUM_VAL[w])
+			continue
+		if soma >= 0:
+			r.append(str(soma))
+			soma = -1
+		r.append(w)
+	if soma >= 0:
+		r.append(str(soma))
+	return r
+
+static func _tokens(t: String) -> Array: # palavras de um nome, com acento (como o modelo escreve)
+	var limpo := ""
+	for ch in t.to_lower():
+		limpo += ch if ch.to_upper() != ch.to_lower() else " "
+	return Array(limpo.split(" ", false))
+
+# lista JSON das palavras que o Vosk pode ouvir: comandos, números e os nomes dos lugares do mapa
+func gramatica() -> String:
+	var ws := {}
+	for d in [SKILLS, ANDAR, ACOES]:
+		for k in d:
+			ws[k] = true
+	for a in [PARAR, MAPA, FECHAR, ENCHE, FALA_EXTRA, NUMEROS_FALA]:
+		for k in a:
+			ws[k] = true
+	if m.minimapa != null and m.heroi != null:
+		for l in m.minimapa._lugares():
+			for w in _tokens(str(l.get("curto", ""))) + _tokens(str(l.get("nome", "")).split("  (")[0]):
+				ws[w] = true
+	var r: Array = ws.keys()
+	r.append("[unk]")
+	return JSON.stringify(r)

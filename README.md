@@ -84,6 +84,7 @@ O servidor é quem decide: recarga, mana, dano e posição. O cliente só manda 
 
 | O que | Origem | Licença |
 | --- | --- | --- |
+| Comando de voz contínuo no celular: reconhecedor Vosk (`com.alphacephei:vosk-android` 0.3.75, com JNA 5.18.1) e o modelo de voz em português `vosk-model-small-pt-0.3` (32 MB, baixado pelo jogo na primeira vez que liga a voz; sha256 6e1ce909…93b7) | alphacephei.com/vosk (Maven Central e alphacephei.com/vosk/models) | Apache 2.0 (Vosk e o modelo); JNA Apache 2.0 / LGPL 2.1 |
 | Fonte da HUD, menus e números de dano do app Godot (Alegreya Sans Medium e Bold, `godot-prototipo/fontes/`) | google/fonts (ofl/alegreyasans), guardada em New-Game-Anime-fontes `fontes_texto/alegreya-sans/` | SIL Open Font License 1.1 (uso comercial livre; `OFL.txt` junto) |
 | Heróis anime (Ruiva e 7 amostras VRoid), os NPCs da vila (Fumiriya, Amostra M, Shino e Vivi, com cabelo e roupa repintados no código) | VRoid Hub (Ruiva, de 水銀メイド, ©2026MercuryMaid, licença VRM 1.0 com uso comercial; crédito não obrigatório) e amostras VRoid CC0, repositório New-Game-Anime-fontes | VRM 1.0 / CC0 |
 | Tronco e braços de pele da Ruiva sem roupa (`godot-prototipo/corpo/tronco_ruiva.*`) e pele do quadril limpa (`corpo/pele_ruiva.png`), feitos por `ferramentas/tronco/` | Malha e textura do corpo da Victoria (amostra VRoid CC0, já no jogo) encaixadas nos ossos da Ruiva; textura do corpo da Ruiva (VRoid Hub, ©2026MercuryMaid) repintada | CC0 / VRM 1.0 (uso comercial) |

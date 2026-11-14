@@ -3253,5 +3253,10 @@
 "Voz: erro {1}": "Voice: error {1}",
 "Ouvi: {1}": "Heard: {1}",
 "Voz: {1}": "Voice: {1}",
-"Toque no microfone e fale": "Tap the mic and speak"
+"Toque no microfone e fale": "Tap the mic and speak",
+"Carregando voz...": "Loading voice...",
+"Voz ligada: pode falar": "Voice on: speak",
+"Baixando a voz (32 MB)...": "Downloading voice (32 MB)...",
+"Baixando a voz: {1}%": "Downloading voice: {1}%",
+"Não deu para baixar a voz": "Couldn't download the voice"
 }
