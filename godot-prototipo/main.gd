@@ -5,6 +5,7 @@ extends Node3D
 const D = preload("res://dados.gd")
 const MundoTerreno = preload("res://mundo_terreno.gd") # FASE 3: continentes e mar
 const Hud = preload("res://hud.gd")
+const Idioma = preload("res://idioma.gd") # Português ou English (Configurações > Idioma / Language)
 const Efeitos = preload("res://efeitos.gd")
 const BossMundo = preload("res://boss_mundo.gd")
 const LodMalha = preload("res://lod_malha.gd") # LOD para roupa, cabelo e corpo montados no jogo (NPCs e outros jogadores)
@@ -286,6 +287,7 @@ const MEDE := 5.0
 var t_ready0 := 0 # ms (desde que o app abriu) no começo do _ready: a linha do tempo da entrada (lentidao.gd)
 func _ready() -> void:
 	t_ready0 = Time.get_ticks_msec()
+	Idioma.iniciar() # Português ou English (idioma.gd): antes de montar qualquer texto
 	get_tree().quit_on_go_back = false # o Voltar do Android fecha a janela de cima (voltar_android)
 	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
 	# próxima abertura. Não fecha mais o jogo: a trava de verdade era o pré-carregamento em segundo plano (pre_carregar).

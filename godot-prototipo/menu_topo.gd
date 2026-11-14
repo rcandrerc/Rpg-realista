@@ -7,6 +7,7 @@ extends CanvasLayer
 # a recarga de 10 min (varredura escura e o tempo embaixo).
 
 const Menu = preload("res://menu.gd")
+const Idioma = preload("res://idioma.gd") # Português ou English (Configurações > Idioma / Language)
 const ARQUIVO := "user://config.cfg" # escolhas do jogador (menu recolhido, som, vibração, FPS)
 const TAM := 50.0 # tamanho de cada ícone (igual à barra do jogo HTML)
 const ESPACO := 6.0
@@ -388,7 +389,7 @@ func _texto(t: String, cor := Menu.TEXTO, tam := 16) -> Label:
 
 func _botao(t: String, fn: Callable, principal := true, perigo := false) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.text = Idioma.frase(t)
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(0, 46)
 	b.add_theme_font_size_override("font_size", 17)
@@ -502,7 +503,7 @@ func montar_multi() -> void:
 	var o = _online()
 	if o and o.ligado:
 		var ping := "" if o.rede.ping_ms < 0 else " · %d ms" % o.rede.ping_ms
-		_texto("Online · %d %s%s" % [o.jogadores, "jogador" if o.jogadores == 1 else "jogadores", ping], Menu.VERDE, 18)
+		_texto(tr("Online · %d %s%s") % [o.jogadores, tr("jogador") if o.jogadores == 1 else tr("jogadores"), ping], Menu.VERDE, 18)
 		_texto("Você está no mundo com os outros jogadores. Quem decide golpes, dano e itens é o servidor.", Menu.APAGADO, 14)
 		if m.amigos: # amigos (até 20) e time (amigos.gd)
 			m.amigos.montar_janela(self)
@@ -537,6 +538,7 @@ func montar_config() -> void:
 		c.custom_minimum_size = Vector2(416, 0)
 		colunas.add_child(c)
 	conteudo = esq # as funções abaixo põem as linhas em "conteudo": cada coluna na sua vez
+	_idioma()
 	_barra("Som", volume, func(v):
 		volume = v
 		aplicar_config())
@@ -559,6 +561,34 @@ func montar_config() -> void:
 	conteudo = dir
 	_qualidade_grafica()
 	conteudo = principal
+
+# Idioma / Language (André 2026-11-14): só Português e English, com a bandeirinha (idioma.gd). O escolhido fica dourado.
+# O título fica nos dois idiomas para quem caiu no idioma errado achar.
+func _idioma() -> void:
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var l := Menu.rotulo("Idioma / Language", 17)
+	l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	l.custom_minimum_size = Vector2(150, 0)
+	linha.add_child(l)
+	for cod in Idioma.LISTA:
+		var b := _botao(Idioma.NOMES[cod], func():
+			if Idioma.atual != cod:
+				Idioma.trocar(cod)
+				if m.on():
+					m.rede("idioma", {"codigo": cod}) # a IA dos NPCs amigos passa a responder neste idioma
+				m.hud.aviso("English" if cod == "en" else "Português")
+				montar(), Idioma.atual == cod)
+		b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		b.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var f := Idioma.bandeira(cod, Vector2(30, 21))
+		f.position = Vector2(8, 9.5)
+		b.add_child(f)
+		b.text = "      " + Idioma.NOMES[cod]
+		linha.add_child(b)
+	conteudo.add_child(linha)
 
 # a caixa nunca passa da tela: se o conteúdo for mais alto, ela encolhe por igual (o toque continua certo)
 func _caber() -> void:
@@ -705,7 +735,7 @@ func _barra(t: String, valor: float, fn: Callable) -> void:
 
 func _chave(t: String, ligado: bool, fn: Callable) -> void:
 	var c := CheckButton.new()
-	c.text = t
+	c.text = Idioma.frase(t)
 	c.button_pressed = ligado
 	c.focus_mode = Control.FOCUS_NONE
 	c.custom_minimum_size = Vector2(0, 42)

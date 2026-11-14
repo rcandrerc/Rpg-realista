@@ -57,6 +57,7 @@ class SalaClareira extends Room {
   // viaTime: veio do chat de time, então a resposta dele também vai para o time
   falarComAmigoIa(c, amg, msg, viaTime) {
     const id = c.sessionId, ctx = amg.contextoAmiga(id), conta = this.contaDe?.get(id);
+    if (ctx) ctx.idioma = c.userData?.idioma || 'pt'; // English no jogo (André 2026-11-14): a IA responde em inglês
     if (ctx && viaTime) ctx.time = this.sim.amigosIaNoTime(id).filter((x) => x !== amg).map((x) => x.AMIGA.nome); // conversa em grupo
     amg.ouvirAmiga(id, msg.texto);
     amg.amiga.ia.viaTime = viaTime ? this.sim.tempo + CHAT.respostaTime : 0; // do time: responde no time; do privado: no privado
@@ -167,6 +168,8 @@ class SalaClareira extends Room {
         for (const ctx of this.sim.amigosIaNoTime(c.sessionId)) if (chamados.includes(ctx)) this.falarComAmigoIa(c, ctx, msg, true); else ctx.ouvirAmiga(c.sessionId, msg.texto);
       }
     });
+    // Idioma do jogo (André 2026-11-14, Configurações > Idioma / Language): só muda a língua da IA dos NPCs amigos
+    this.ouvir('idioma', (c, m) => { (c.userData ||= {}).idioma = m?.codigo === 'en' ? 'en' : 'pt'; });
     // "Ativar conversa com IA" (André 2026-11-10): o jogador cria a chave grátis no Groq e cola no jogo uma vez só.
     // O servidor testa e guarda na conta dele (server/contas.js); ninguém precisa mandar chave para o André.
     this.ouvir('chaveIa', async (c, m) => {
