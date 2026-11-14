@@ -1,4 +1,5 @@
 extends RefCounted
+const Malhas = preload("res://malhas.gd") # ler malha sem esperar o desenho (malhas.gd arrays)
 # NPC mais leve, passo 1 (conselho de auditoria 2026-11-13, pacote 3): as peças da armadura de quem não é o herói
 # (NPC da vila, outro jogador, bot, bandido) viram uma malha só por material. Antes cada placa (peitoral, saiote,
 # canela, bota, fivela...) era um objeto separado, e cada um custava 3 chamadas de desenho (peça, contorno e sombra):
@@ -112,7 +113,7 @@ static func _malha(lista: Array, com_osso: bool):
 		return _cache[chave]
 	var fmt: int = lista[0].mesh.surface_get_format(0)
 	var tem := []
-	var base: Array = lista[0].mesh.surface_get_arrays(0)
+	var base: Array = Malhas.arrays(lista[0].mesh, 0)
 	for i in Mesh.ARRAY_MAX:
 		tem.append(base[i] != null)
 	if tem[Mesh.ARRAY_CUSTOM0] or tem[Mesh.ARRAY_CUSTOM1] or tem[Mesh.ARRAY_CUSTOM2] or tem[Mesh.ARRAY_CUSTOM3]:
@@ -149,7 +150,7 @@ static func _malha(lista: Array, com_osso: bool):
 	var W := PackedFloat32Array()
 	var I := PackedInt32Array()
 	for mi in lista:
-		var a: Array = mi.mesh.surface_get_arrays(0)
+		var a: Array = Malhas.arrays(mi.mesh, 0)
 		for i in Mesh.ARRAY_MAX:
 			if i != Mesh.ARRAY_INDEX and (a[i] != null) != tem[i]:
 				return null # formato diferente: não junta
@@ -293,7 +294,7 @@ static func _arrays(mesh: ArrayMesh) -> Array:
 	var id := mesh.get_instance_id()
 	var a = _lidas.get(id)
 	if a == null:
-		a = mesh.surface_get_arrays(0)
+		a = Malhas.arrays(mesh, 0)
 		if _lidas.size() >= LIDAS_MAX:
 			_lidas.clear()
 		_lidas[id] = a

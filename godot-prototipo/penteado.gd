@@ -5,6 +5,7 @@
 # couro cabeludo do herói é empurrado para fora, e esse empurrão some aos poucos longe da cabeça (nada de volume a mais).
 # Quem chama: Aparencia.aplicar ("penteado").
 extends RefCounted
+const Malhas = preload("res://malhas.gd") # ler malha sem esperar o desenho (malhas.gd arrays)
 
 const GRADE_T := 18 # faixas de altura do mapa de raios (de cima para baixo)
 const GRADE_F := 36 # faixas em volta da cabeça
@@ -164,7 +165,7 @@ static func _F(p: Vector3, vira: bool) -> Vector3:
 
 # posição de cada vértice na pose de descanso, no espaço do esqueleto, já virada para a frente (+z)
 static func _descanso(mi: MeshInstance3D, esq: Skeleton3D, sfc: int, vira: bool, pose := false) -> PackedVector3Array:
-	var a: Array = mi.mesh.surface_get_arrays(sfc)
+	var a: Array = Malhas.arrays(mi.mesh, sfc)
 	var V: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
 	var out := PackedVector3Array()
 	out.resize(V.size())
@@ -322,7 +323,7 @@ static func _montar(doador: String, esq_a: Skeleton3D, rosto_a: MeshInstance3D, 
 		var mi: MeshInstance3D = item[0]
 		var sfc: int = item[1]
 		var P: PackedVector3Array = item[2]
-		var a: Array = mi.mesh.surface_get_arrays(sfc)
+		var a: Array = Malhas.arrays(mi.mesh, sfc)
 		var N: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
 		var V2 := PackedVector3Array()
 		var N2 := PackedVector3Array()

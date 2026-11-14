@@ -1,4 +1,5 @@
 extends RefCounted
+const Malhas = preload("res://malhas.gd") # ler malha sem esperar o desenho (malhas.gd arrays)
 # Roupa de ofício dos NPCs, montada em código em cima do corpo VRoid (pedido do André, 2026-11-03, com a direção de arte):
 # o Tomás, o ferreiro, ganha avental de couro (do peito ao joelho, alça no pescoço, queimado embaixo),
 # ombros uns 10% mais largos e martelo na mão direita.
@@ -90,7 +91,7 @@ static func _sem_capuz(raiz: Node3D, tops: MeshInstance3D) -> void:
 	var x_ombro := absf(esq.get_bone_global_rest(braco).origin.x)
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr: Array = orig.surface_get_arrays(sfc)
+		var arr: Array = Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 		var I: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 		# direção de arte (2026-11-06): o decote ficava canoa largo, quase caindo do ombro. A faixa de 9 cm abaixo do
@@ -384,7 +385,7 @@ static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
 	var ossos_c := [] # por vértice do corpo: [[nome do osso, peso], ...] (a pele do VRoid liga os ossos pelo nome)
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh is ArrayMesh and "Body_00_SKIN" in mi.mesh.surface_get_name(0):
-			var arr: Array = mi.mesh.surface_get_arrays(0)
+			var arr: Array = Malhas.arrays(mi.mesh, 0)
 			var VV: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			corpo.append_array(VV)
 			normais.append_array(arr[Mesh.ARRAY_NORMAL])
@@ -408,7 +409,7 @@ static func _colar_no_corpo(raiz: Node3D, tops: MeshInstance3D) -> void:
 		grade[k].append(i)
 	var am := ArrayMesh.new()
 	for sfc in orig.get_surface_count():
-		var arr: Array = orig.surface_get_arrays(sfc)
+		var arr: Array = Malhas.arrays(orig, sfc)
 		var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 		var dentro := 0.0
 		# a blusa dobra com os pesos da pele de baixo: as abas da manga do VRoid ficavam soltas no ombro (Rosa)
@@ -553,7 +554,7 @@ static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 			for sfc in mi.mesh.get_surface_count():
 				var nome: String = mi.mesh.surface_get_name(sfc)
 				if "Face_00_SKIN" in nome and not "Outline" in nome:
-					for p in mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]:
+					for p in Malhas.vertices(mi.mesh, sfc):
 						V.append(Vector3(p.x, p.y, p.z * f))
 	if V.is_empty():
 		return
@@ -562,7 +563,7 @@ static func _barba(raiz: Node3D, esq: Skeleton3D, info: Dictionary) -> void:
 		if mi.mesh is ArrayMesh:
 			for sfc in mi.mesh.get_surface_count():
 				if "FaceMouth" in mi.mesh.surface_get_name(sfc):
-					boca.append_array(mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX])
+					boca.append_array(Malhas.vertices(mi.mesh, sfc))
 	var queixo := Vector3(0, 99, 0)
 	var topo := -99.0
 	for p in V:
@@ -712,7 +713,7 @@ static func _roupa_de_oficio(raiz: Node3D, esq: Skeleton3D, v: Dictionary) -> vo
 			var nome: String = mi.mesh.surface_get_name(sfc)
 			if "Outline" in nome or "HAIR" in nome or "Hair" in nome or "FACE" in nome or "EYE" in nome:
 				continue
-			for p in mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]:
+			for p in Malhas.vertices(mi.mesh, sfc):
 				V.append(Vector3(p.x, p.y, p.z * f))
 	var bp := func(n: String) -> Vector3:
 		var i := esq.find_bone(n)
@@ -950,7 +951,7 @@ static func _vertices_corpo(raiz: Node3D, f: float) -> PackedVector3Array:
 			var nome: String = mi.mesh.surface_get_name(sfc)
 			if "Outline" in nome or "HAIR" in nome or "Hair" in nome or "FACE" in nome or "EYE" in nome:
 				continue
-			for p in mi.mesh.surface_get_arrays(sfc)[Mesh.ARRAY_VERTEX]:
+			for p in Malhas.vertices(mi.mesh, sfc):
 				V.append(Vector3(p.x, p.y, p.z * f))
 	return V
 
