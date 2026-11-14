@@ -28,7 +28,7 @@ const SKILLS_Q := {
 	"pisao": "pisao_sismico", "sismico": "pisao_sismico", "tremor": "pisao_sismico", "investida": "investida",
 	"bola": "bola_fogo", "fogo": "bola_fogo", "cometa": "bola_fogo", "anel": "anel_chamas", "chama": "anel_chamas",
 	"circulo": "anel_chamas", "meteoro": "meteoro", "estrela": "meteoro", "gelo": "nova_gelo", "nova": "nova_gelo",
-	"inverno": "nova_gelo", "raio": "raio_cadeia", "cadeia": "raio_cadeia", "tempestade": "raio_cadeia",
+	"inverno": "nova_gelo", "lanca": "nova_gelo", "raio": "raio_cadeia", "cadeia": "raio_cadeia", "tempestade": "raio_cadeia",
 	"salto": "salto_arcano", "floresta": "cura_floresta", "escudo": "escudo_arcano", "egide": "escudo_arcano",
 	"barreira": "escudo_arcano", "vortice": "vortice", "abraco": "vortice",
 	"ice": "nova_gelo", "meteor": "meteoro", "spin": "giro", "fireball": "bola_fogo", "fire": "bola_fogo",
@@ -209,8 +209,8 @@ static func palavras(t: String, tirar_enche := true) -> Array:
 			p = p.substr(0, p.length() - 2) + "m"
 		elif p.ends_with("s") and p.length() > 3:
 			p = p.substr(0, p.length() - 1)
-		if p == "unk": # "[unk]" do Vosk = barulho ou palavra que não é comando
-			continue
+		if p == "unk" and tirar_enche: # "[unk]" do Vosk = barulho ou palavra fora da lista (fica na sequência: "[unk] vida"
+			continue # de "minha vida" não é comando, a palavra antes dela não era de comando)
 		if tirar_enche and p in ENCHE:
 			continue
 		r.append(p)
@@ -259,7 +259,15 @@ var _usadas := 0 # palavras desta frase já olhadas
 # 2026-11-14, 2235: "frente andou 2 de 20", "atrás nunca apareceu"). Agora volta até onde o texto mudou.
 var _vistas: Array = []
 var _ultima_acao := "" # a mesma ação duas vezes seguidas na mesma frase ("lança de gelo", o Android corrigindo) vale uma
+# Palavras fracas: sinônimos que o reconhecedor trocava ("gente" = frente, "mano"/"humana" = mana) e as que aparecem em
+# conversa ("minha vida"). Conselho 2026-11-14: TV e conversa viravam comando ("a gente", "mano", "minha vida"). Elas
+# só valem no começo da frase ou depois de outro comando ou de palavra de comando ("pra", "poção de", "usar").
+const FRACAS := ["gente", "frete", "mano", "humana", "napa", "vida", "cura", "traz", "atraz", "atra", "tra"]
+const ANTES_FRACA := ["", "pra", "pro", "para", "pocao", "potion", "de", "da", "usar", "usa", "use", "toma", "tomar",
+	"vai", "anda", "andar", "ande", "abrir", "abre", "abra", "open", "go", "drink"]
 static func cmd_palavra(w: String, antes: String) -> Dictionary:
+	if w in FRACAS and not antes in ANTES_FRACA and cmd_palavra(antes, "").is_empty():
+		return {}
 	if w == "para": # "para" sozinho só vale como parar no fim da frase ("ir para a vila")
 		return {}
 	if w in MAPA and antes in FECHAR: # "fechar mapa"
@@ -271,8 +279,9 @@ static func cmd_palavra(w: String, antes: String) -> Dictionary:
 func _sequencia(txt: String, final: bool) -> void:
 	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
 	var w := palavras(t0, false)
-	if final and w.size() == 1 and w[0] == "para" and _usadas == 0:
-		_fazer({"k": "parar"}, t0)
+	if final and w.size() == 1 and w[0] == "para" and not _ultima_acao.begins_with("parar"):
+		_ultima_acao = "parar"
+		_fazer({"k": "parar"}, t0) # "para!" sozinho: o pedaço já tinha olhado a palavra (e ignorado, era "ir para")
 	var fez := false
 	var igual := 0 # palavras do começo que não mudaram desde o último pedaço
 	while igual < mini(w.size(), _vistas.size()) and w[igual] == _vistas[igual]:
@@ -295,6 +304,9 @@ func _sequencia(txt: String, final: bool) -> void:
 	if not fez and t0 != "":
 		_ouvi(t0)
 
+static func sem_unk(t: String) -> String: # "[unk]" do Vosk não aparece na tela
+	return " ".join(t.replace("[unk]", " ").split(" ", false))
+
 func _parcial(txt: String) -> void:
 	if not ligado or m.heroi == null:
 		return
@@ -312,7 +324,7 @@ func _parcial(txt: String) -> void:
 func _ouviu(txt: String) -> void:
 	if not ligado or m.heroi == null:
 		return
-	if txt.strip_edges() == "" or palavras(txt, false).is_empty(): # o Vosk fecha a frase vazia depois do silêncio
+	if sem_unk(txt).strip_edges() == "" or palavras(sem_unk(txt), false).is_empty(): # frase vazia ou só barulho ([unk])
 		_nova_frase()
 		return
 	if _botao() and ouvindo:
@@ -348,6 +360,7 @@ func _nova_frase() -> void:
 
 var _voz_t := -10.0 # quando a última ação apareceu ("Voz: ..."): o "Ouvi" não passa por cima dela por 2 s
 func _ouvi(t: String) -> void:
+	t = sem_unk(t)
 	if t != "" and Time.get_ticks_msec() / 1000.0 - _voz_t > 2.0:
 		m.hud.aviso(tr("Ouvi: %s") % t.right(30))
 
@@ -469,7 +482,11 @@ var atacando := false
 var _ataque_t := 0.0
 func _process(_dt: float) -> void:
 	if atacando:
-		if not ligado or m.h.morto > 0.0:
+		# conselho 2026-11-14: o ataque repetido tirava do lobo, cortava coleta, pesca e "Ir para" e repetia avisos.
+		# Agora desliga sozinho com o dedo no joystick, montado, nadando, no barco, coletando ou indo pelo mapa.
+		var ocupado: bool = m.montaria != null or m._nadando or not m.mov.veiculo.is_empty() \
+			or (m.trabalho != null and m.trabalho.coletando != null) or (m.rota != null and m.rota.ativo)
+		if not ligado or m.h.morto > 0.0 or m.hud.mover.length() > 0.15 or ocupado:
 			atacando = false
 		elif not m.hud.bloqueado:
 			var agora := Time.get_ticks_msec() / 1000.0
@@ -478,6 +495,8 @@ func _process(_dt: float) -> void:
 				m.usar("basico")
 	if _baixando != null:
 		_progresso()
+	if _unzip != null and not _unzip.is_alive():
+		_desempacotou()
 	if ouvindo and Time.get_ticks_msec() / 1000.0 > _ouvindo_ate:
 		_parar_escuta()
 	if andar == Vector2.ZERO:
@@ -498,6 +517,8 @@ const VOSK_MODELO := "user://voz/vosk-model-small-pt-0.3"
 var vosk = null
 var _baixando: HTTPRequest = null
 var _baixa_t := 0.0
+var _pediu_t := -1000.0
+var _unzip: Thread = null # desempacota fora do quadro (conselho 2026-11-14: travava o jogo uns segundos)
 
 func _usa_vosk() -> bool:
 	return vosk != null and Idioma.atual != "en"
@@ -509,7 +530,16 @@ func _vosk_ligar() -> void:
 	if FileAccess.file_exists(VOSK_DIR + "pronto") and FileAccess.file_exists(VOSK_MODELO + "/final.mdl"):
 		vosk.ligar(ProjectSettings.globalize_path(VOSK_MODELO), gramatica())
 		return
-	if _baixando != null:
+	if _baixando != null or _unzip != null:
+		return
+	# conselho 2026-11-14: 32 MB sem perguntar. Na primeira vez avisa; ligar de novo (em até 2 min) baixa.
+	var agora := Time.get_ticks_msec() / 1000.0
+	if agora - _pediu_t > 120.0:
+		_pediu_t = agora
+		ligado = false
+		m.hud.aviso(tr("A voz baixa 32 MB. Ligue de novo para baixar"))
+		if m.menu_topo:
+			m.menu_topo.voz_negada()
 		return
 	DirAccess.make_dir_recursive_absolute(VOSK_DIR)
 	_baixando = HTTPRequest.new()
@@ -537,13 +567,27 @@ func _baixou(res: int, codigo: int, _h, _b) -> void:
 	if _baixando != null:
 		_baixando.queue_free()
 		_baixando = null
-	if res != HTTPRequest.RESULT_SUCCESS or codigo != 200 or not _desempacotar(zip_path):
-		DirAccess.remove_absolute(zip_path)
-		if ligado:
-			ligado = false
-			m.hud.aviso(tr("Não deu para baixar a voz"))
-			if m.menu_topo:
-				m.menu_topo.voz_negada()
+	if res != HTTPRequest.RESULT_SUCCESS or codigo != 200:
+		_falhou(zip_path)
+		return
+	m.hud.aviso(tr("Instalando a voz..."))
+	_unzip = Thread.new()
+	_unzip.start(_desempacotar.bind(zip_path))
+
+func _falhou(zip_path: String) -> void:
+	DirAccess.remove_absolute(zip_path)
+	if ligado:
+		ligado = false
+		m.hud.aviso(tr("Não deu para baixar a voz"))
+		if m.menu_topo:
+			m.menu_topo.voz_negada()
+
+func _desempacotou() -> void:
+	var ok: bool = _unzip.wait_to_finish()
+	_unzip = null
+	var zip_path := VOSK_DIR + "modelo.zip"
+	if not ok:
+		_falhou(zip_path)
 		return
 	DirAccess.remove_absolute(zip_path)
 	var f := FileAccess.open(VOSK_DIR + "pronto", FileAccess.WRITE)

@@ -24,8 +24,10 @@ public class VozVosk extends GodotPlugin {
     private String modeloDir = "";
     private Recognizer rec;
     private SpeechService escuta;
-    private boolean ativo = false, pausado = false;
-    private int geracao = 0; // ligar/desligar rápido: o carregamento velho não abre o microfone
+    private volatile boolean ativo = false, pausado = false;
+    // ligar/desligar rápido: o carregamento velho não abre o microfone. Tudo do microfone (rec, escuta) só mexe na linha
+    // principal do Android; o modelo só dentro do synchronized (conselho 2026-11-14: corrida entre as linhas).
+    private final java.util.concurrent.atomic.AtomicInteger geracao = new java.util.concurrent.atomic.AtomicInteger();
 
     public VozVosk(Godot godot) { super(godot); }
 
@@ -42,30 +44,31 @@ public class VozVosk extends GodotPlugin {
     // dir: pasta do modelo (com final.mdl); gramatica: lista JSON das palavras, ou "" para frase livre
     @UsedByGodot
     public void ligar(final String dir, final String gramatica) {
-        desligar_ja();
         ativo = true;
-        final int g = ++geracao;
+        final int g = geracao.incrementAndGet();
         emitSignal("estado", "carregando");
+        principal.post(this::desligar_ja);
         new Thread(() -> {
             try {
+                Recognizer r;
                 synchronized (VozVosk.this) {
                     if (modelo == null || !modeloDir.equals(dir)) {
                         if (modelo != null) modelo.close();
                         modelo = new Model(dir);
                         modeloDir = dir;
                     }
+                    r = (gramatica == null || gramatica.isEmpty())
+                            ? new Recognizer(modelo, 16000f) : new Recognizer(modelo, 16000f, gramatica);
                 }
-                Recognizer r = (gramatica == null || gramatica.isEmpty())
-                        ? new Recognizer(modelo, 16000f) : new Recognizer(modelo, 16000f, gramatica);
                 principal.post(() -> abrir(g, r));
             } catch (Exception e) {
-                principal.post(() -> { if (g == geracao) { ativo = false; emitSignal("estado", "erro:" + e.getMessage()); } });
+                principal.post(() -> { if (g == geracao.get()) { ativo = false; emitSignal("estado", "erro:" + e.getMessage()); } });
             }
         }, "VozVosk").start();
     }
 
     private void abrir(int g, Recognizer r) {
-        if (g != geracao || !ativo) { r.close(); return; }
+        if (g != geracao.get() || !ativo) { r.close(); return; }
         try {
             rec = r;
             escuta = new SpeechService(rec, 16000f);
@@ -82,8 +85,16 @@ public class VozVosk extends GodotPlugin {
     @UsedByGodot
     public void desligar() {
         ativo = false;
-        geracao++;
-        principal.post(this::desligar_ja);
+        final int g = geracao.incrementAndGet();
+        principal.post(() -> {
+            desligar_ja();
+            // desligado não guarda o modelo (~50 MB) na memória; ligar de novo carrega em uns 2 s
+            new Thread(() -> {
+                synchronized (VozVosk.this) {
+                    if (g == geracao.get() && !ativo && modelo != null) { modelo.close(); modelo = null; modeloDir = ""; }
+                }
+            }, "VozVosk").start();
+        });
     }
 
     private void desligar_ja() {
