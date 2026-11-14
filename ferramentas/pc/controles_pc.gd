@@ -9,7 +9,7 @@ extends Node
 #
 # Teclas:
 #   WASD / setas: andar (Alt segurado: andar devagar)
-#   clique esquerdo ou J: golpe     1..6: habilidades     Espaço: pular    Q: dash    C ou Ctrl: rolar
+#   clique esquerdo ou J: golpe     1..6: habilidades (clicar no número do slot troca a tecla)     Espaço: pular    Q: dash    C ou Ctrl: rolar
 #   Shift: disparada (liga/desliga)  F: cura    R: trocar arma    T: lobo    E: falar / coletar
 #   Tab ou I: menu do personagem      botão direito arrastando: girar a câmera; clique rápido: tocar (NPC, alvo, troca)
 #   roda do mouse: zoom (já era do hud.gd)    F11 ou Alt+Enter: tela cheia
@@ -36,6 +36,12 @@ const DICA := {
 const BARRA_Y := 61.0 # a mesma altura da fileira de baixo
 const BARRA_FIM := 761.0 # centro do slot 6 (a partir da direita): folga antes do Lobo (667)
 const BARRA_PASSO := 76.0
+# trocar a tecla de cada slot (André 2026-11-14: "colocar de alguma maneira que eu possa editar quais botões são
+# cada skill", "ou em configurações ou na própria tela"): clicar no número do slot, depois apertar a tecla nova.
+# Esc cancela. Tecla de outro slot: os dois trocam. Tecla de outra ação (Q, C, F...): não deixa, para nada sumir.
+# Fica em user://config.cfg, seção "pc", chave "teclas_skills" (o mesmo arquivo da HUD e do chat).
+const ARQ_CFG := "user://config.cfg"
+const TECLAS_PADRAO := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6]
 const CLIQUE_RAPIDO_MS := 350
 const CLIQUE_RAPIDO_PX := 22.0
 
@@ -48,6 +54,8 @@ var _dir_hora := -1
 var _dir_andou := 0.0
 var _dicas: Control
 var _barra: Control # moldura da barra, atrás dos botões
+var teclas_hab: Array = TECLAS_PADRAO.duplicate() # tecla de cada slot (hab0..hab5)
+var _gravando := -1 # slot esperando a tecla nova (-1: nenhum)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -67,6 +75,7 @@ func _ready() -> void:
 	_barra.draw.connect(_desenhar_barra)
 	hud._combate.add_child(_barra)
 	_montar_barra()
+	_carregar_teclas()
 
 func _process(_dt: float) -> void:
 	if instalador:
@@ -183,6 +192,11 @@ func _tecla(ev: InputEventKey) -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED if cheia else DisplayServer.WINDOW_MODE_FULLSCREEN)
 		get_viewport().set_input_as_handled()
 		return
+	if _gravando >= 0:
+		if ev.pressed:
+			_gravar_tecla(k)
+		get_viewport().set_input_as_handled()
+		return
 	var chave := "tecla_%d" % k
 	if not ev.pressed:
 		_soltar(chave)
@@ -195,7 +209,9 @@ func _tecla(ev: InputEventKey) -> void:
 			if _pode(a):
 				acao = a
 				break
-	else:
+	elif teclas_hab.has(k):
+		acao = "hab%d" % teclas_hab.find(k)
+	elif not TECLAS_PADRAO.has(k): # 1..6 fora da barra (trocadas por outra tecla) não fazem nada
 		acao = TECLAS.get(k, "")
 	if acao == "" or not _pode(acao):
 		return
@@ -225,6 +241,16 @@ func _area_livre(p: Vector2) -> bool:
 	return true
 
 func _toque_do_mouse(ev: InputEventScreenTouch) -> void:
+	if ev.pressed and not hud.bloqueado:
+		var i := _selo_em(ev.position)
+		if i >= 0 or _gravando >= 0:
+			if i >= 0 and i != _gravando:
+				_gravando = i
+				hud.aviso("Aperte a tecla do slot %d (Esc cancela)" % (i + 1))
+			else:
+				_gravando = -1 # clicou de novo no mesmo número (ou fora): cancela
+			get_viewport().set_input_as_handled()
+			return
 	if ev.pressed:
 		if _mouse_golpe < 0 and _area_livre(ev.position):
 			_mouse_golpe = ev.index
@@ -294,6 +320,62 @@ func _desenhar_barra() -> void:
 		var c: Vector2 = hud._centro(b)
 		_barra.draw_style_box(slot, Rect2(c - Vector2(b.raio + 3, b.raio + 3), Vector2(b.raio * 2 + 6, b.raio * 2 + 6)))
 
+# ---------- trocar a tecla do slot ----------
+
+func _carregar_teclas() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(ARQ_CFG) != OK or not cfg.has_section_key("pc", "teclas_skills"):
+		return
+	var l = cfg.get_value("pc", "teclas_skills", [])
+	if l is Array and l.size() == 6:
+		var ok := true
+		for i in 6:
+			var k := int(l[i])
+			if k <= 0 or (TECLAS.has(k) and not TECLAS_PADRAO.has(k)) or l.count(l[i]) > 1:
+				ok = false
+		if ok:
+			for i in 6:
+				teclas_hab[i] = int(l[i])
+
+func _salvar_teclas() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(ARQ_CFG) # guarda junto do que já está lá (HUD, chat, som)
+	cfg.set_value("pc", "teclas_skills", teclas_hab)
+	cfg.save(ARQ_CFG)
+
+func nome_tecla(k: int) -> String:
+	var t := OS.get_keycode_string(k)
+	return t if t.length() <= 6 else t.substr(0, 6)
+
+func _gravar_tecla(k: int) -> void:
+	var i := _gravando
+	_gravando = -1
+	if k == KEY_ESCAPE:
+		hud.aviso("Tecla mantida")
+		return
+	var outro := teclas_hab.find(k)
+	if outro < 0 and ((TECLAS.has(k) and not TECLAS_PADRAO.has(k)) or k in [KEY_E, KEY_W, KEY_A, KEY_S, KEY_D, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ALT, KEY_F11, KEY_ENTER]):
+		hud.aviso("Tecla %s já tem outra ação" % nome_tecla(k))
+		return
+	if outro >= 0: # era de outro slot: os dois trocam
+		teclas_hab[outro] = teclas_hab[i]
+	teclas_hab[i] = k
+	_salvar_teclas()
+	hud.aviso("Slot %d: tecla %s" % [i + 1, nome_tecla(k)])
+
+# o clique pegou o número (selo) de algum slot da barra?
+func _selo_em(p: Vector2) -> int:
+	for i in 6:
+		var b = _botao("hab%d" % i)
+		if b and not b.oculto and _rect_selo(b, nome_tecla(teclas_hab[i])).grow(4).has_point(p):
+			return i
+	return -1
+
+func _rect_selo(b, txt: String) -> Rect2:
+	var w := ThemeDB.fallback_font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	var p: Vector2 = hud._centro(b) + Vector2(-b.raio - 3.0, -b.raio + 9.0)
+	return Rect2(p + Vector2(-5, -12), Vector2(w + 10, 16))
+
 # ---------- dicas das teclas ----------
 
 func _desenhar_dicas() -> void:
@@ -304,6 +386,10 @@ func _desenhar_dicas() -> void:
 		if b.oculto or not DICA.has(b.acao):
 			continue
 		var txt: String = DICA[b.acao]
+		var slot := -1
+		if str(b.acao).begins_with("hab"):
+			slot = int(str(b.acao).substr(3))
+			txt = "?" if slot == _gravando else nome_tecla(teclas_hab[slot])
 		var tam := 12
 		var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x
 		var c: Vector2 = hud._centro(b)
@@ -315,5 +401,9 @@ func _desenhar_dicas() -> void:
 			p = c + Vector2(-b.raio - 3.0, -b.raio + 9.0)
 		var fundo := Rect2(p + Vector2(-5, -12), Vector2(w + 10, 16))
 		_dicas.draw_rect(fundo, Color(0.1, 0.088, 0.072, 0.78))
+		if slot >= 0 and slot == _gravando: # esperando a tecla: selo aceso piscando
+			var pisca: float = 0.6 + 0.4 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 1.5)
+			_dicas.draw_rect(fundo, Color(0.93, 0.82, 0.32, pisca))
 		_dicas.draw_rect(fundo, Color(0.72, 0.57, 0.32, 0.8), false, 1.0)
-		_dicas.draw_string(f, p, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(0.96, 0.93, 0.86))
+		var cor_txt := Color(0.1, 0.088, 0.072) if slot >= 0 and slot == _gravando else Color(0.96, 0.93, 0.86)
+		_dicas.draw_string(f, p, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, cor_txt)
