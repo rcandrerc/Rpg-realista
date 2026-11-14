@@ -12,7 +12,7 @@
 // Ele nunca negocia, não compra terreno, não conversa (o servidor também barra: ROBO_NAO em server/index.js).
 import fs from 'node:fs';
 import { Client } from 'colyseus.js';
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO } from '../../shared/index.js';
 import { planejarRota } from '../../shared/rota.js';
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
@@ -34,6 +34,8 @@ const geo = new Simulacao(MAPA_CLAREIRA);
 const T = geo.terreno;
 const npcDe = (id) => MAPA_CLAREIRA.npcs.find((n) => n.id === id);
 const NOMES_BOSS = new Set(Object.values(BOSSES_MUNDO).map((b) => b.nome));
+// o espantalho de treino não dá XP: só serve para a missão de treino (André 2026-11-14 viu o robô 1 h batendo nele)
+const NOMES_TREINO = new Set(Object.values(TIPOS_INIMIGO).filter((t) => t.treino).map((t) => t.nome));
 const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // ---------- relatório ----------
@@ -177,10 +179,11 @@ function acao(tipo, dados) { esperaResposta = performance.now(); mandar(tipo, da
 
 // ---------- lutar ----------
 let golpeT = 0, skillT = 0, curaT = 0;
-function alvoPerto(raio = 30) {
+function alvoPerto(raio = 30, treino = false) {
   let b = null, md = raio;
   for (const e of inimigos.values()) {
     if (e.morto || NOMES_BOSS.has(e.nome)) continue; // boss de mundo é dos jogadores de verdade
+    if (NOMES_TREINO.has(e.nome) !== treino) continue; // espantalho só na missão de treino; na de treino, só ele
     const d = d2(eu, e); if (d < md) { md = d; b = e; }
   }
   return b;
@@ -192,7 +195,7 @@ function lutar(e, agora) {
   atacados.add(e.id);
   if (eu.vida < eu.vidaMax * 0.4 && eu.mana >= CURA.mana && agora - curaT > CURA.cd * 1000) { curaT = agora; mandar('habilidade', 9); return; }
   if (agora - skillT > 1500 && prog?.barras?.espada) {
-    const l = prog.barras.espada.filter((k) => k && (HABS[k]?.libera || 0) <= (prog.nivel || 1)); if (l.length) { skillT = agora; mandar('habQ', l[Math.floor(Math.random() * l.length)]); return; }
+    const l = prog.barras.espada.filter((k) => k && (HABS[k]?.libera || 0) <= (prog.nivel || 1) && !(eu.mana < (HABS[k]?.mana || 0))); if (l.length) { skillT = agora; mandar('habQ', l[Math.floor(Math.random() * l.length)]); return; }
   }
   if (agora - golpeT > 450) { golpeT = agora; mandar('habQ', 'espada_basico'); }
 }
@@ -211,7 +214,7 @@ function cacar(agora) {
 }
 
 // ---------- missões ----------
-let etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, naoSabeT = 0;
+let xpGrind = -2, etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, naoSabeT = 0;
 const NAO_SABE = new Set(['dormir', 'plantar', 'regar', 'colher', 'construir', 'terreno', 'pack', 'pack_fez', 'veiculo', 'pesca', 'time', 'leilao', 'sintetizar', 'destruir', 'evoluir', 'reforcar', 'passe', 'resetar', 'arma', 'ter', 'lote']);
 function pular(motivo) {
   if (!prog?.hist) return;
@@ -230,7 +233,11 @@ function missao(agora) {
   const k = `${h.p}:${h.ac}:${h.e}:${h.n}:${h.m}:${hi?.txt}`;
   if (k !== etapaK) { etapaK = k; etapaDesde = agora; correcoesSeguidas = 0; bloqueio = ''; reto = false; coletando = 0; }
   const M = HISTORIA[h.p];
-  if (!h.ac && (prog.nivel || 1) < M.nv) return cacar(agora); // ainda não tem o nível: caça até chegar
+  if (!h.ac && (prog.nivel || 1) < M.nv) { // ainda não tem o nível: caça até chegar
+    if (agora - etapaDesde > 3 * TRAVA_MIN * 60e3 && (prog.xp ?? -1) === xpGrind) { etapaDesde = agora; problema(`Caçando há ${3 * TRAVA_MIN} min sem ganhar XP para chegar ao Nv ${M.nv} (${M.id})`); campoCaca = null; }
+    if ((prog.xp ?? -1) !== xpGrind) { xpGrind = prog.xp ?? -1; etapaDesde = agora; }
+    return cacar(agora);
+  }
   if (agora - etapaDesde > TRAVA_MIN * 60e3) return pular(`ficou ${TRAVA_MIN} min sem andar ("${hi?.txt || ''}"${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''})`);
   if (correcoesSeguidas > 20 && destino && !reto) { reto = true; rota = [{ x: destino.x, z: destino.z }]; } // a estrada passa na névoa: tenta reto
   if (correcoesSeguidas > 40) { correcoesSeguidas = 0; problema(`Posição recusada sem parar indo para ${hi?.alvo?.nome || '?'} (${M.id})${bloqueio ? `, caminho com ${bloqueio}` : ''}`); }
@@ -281,7 +288,7 @@ function missao(agora) {
     acao('item', { acao: 'vender', i, n: 1 }); return;
   }
   if (ev === 'matar' || ev === 'treino') {
-    const e = alvoPerto(a ? 35 : 25);
+    const e = alvoPerto(a ? 35 : 25, ev === 'treino');
     if (e && (!a || d2(e, a) < 45)) return lutar(e, agora);
     if (a && !irPara(a.x, a.z, 3)) return;
     return cacar(agora);
