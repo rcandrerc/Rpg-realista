@@ -849,7 +849,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -969,7 +969,11 @@ export class Simulacao {
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
-    const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E || E.ev === 'falar') return;
+    const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
+    // colheu antes da etapa "Colha" (a horta da missão fica pronta ao plantar, e dá para colher já na etapa de regar):
+    // guarda em hist.cc, e a etapa "Colha" começa com essas (André 2026-11-14: Provisões travada em "Colha 0/6")
+    if (ev === 'colher' && E.ev !== 'colher' && etapasDe(M).some((N, i) => i > h.e && N.ev === 'colher')) { h.cc = (h.cc || 0) + 1; j.progSujo = true; }
+    if (E.ev === 'falar') return;
     const add = casaEtapa(E, ev, d); if (!add) return;
     const t = totalEtapa(E);
     h.n = Math.min(t, h.n + add); j.progSujo = true;
@@ -984,6 +988,8 @@ export class Simulacao {
     h.e++; h.n = 0; h.m = 0; j.progSujo = true;
     const N = L[h.e];
     if (!N) return this.concluirMissao(j, M, null);
+    if (N.ev === 'colher' && h.cc) h.n = Math.min(totalEtapa(N), h.cc); // o que já colheu antes conta
+    delete h.cc;
     this.evento({ t: 'etapa', para: j.id, txt: N.txt, e: h.e, total: L.length });
     this.hortaMissao(j); // etapa nova que usa legume: o que já está plantado fica pronto (só a cota)
     if (!this.checarEtapa(j)) { this.kitEtapa(j); this.avisarProg(j); }
@@ -1011,6 +1017,10 @@ export class Simulacao {
       if (n !== h.n) { h.n = n; j.progSujo = true; this.avisarProg(j); }
       feito = n >= totalEtapa(E);
     }
+    if (!feito && E.ev === 'colher') { // "Colha o que plantou": já colheu tudo, ou não sobrou planta no terreno (nunca trava)
+      const L = this.loteDe?.(j);
+      feito = h.n >= totalEtapa(E) || (!!L && !Object.values(L.horta || {}).some((t) => t?.c));
+    }
     if (!feito && E.ev === 'noite') feito = ehNoite(horaDoJogo(p.dia));
     if (!feito && E.ev === 'time') feito = (j.time?.membros.length || 0) >= 2; // alguém no time (a Cecília e o Dario contam)
     if (!feito && E.ev === 'pos' && !j.morto) {
@@ -1037,7 +1047,7 @@ export class Simulacao {
     for (const j of this.jogadores.values()) {
       if (j.bot || j.criando || !j.prog.hist?.ac) continue;
       const E = etapaAtual(j.prog); if (!E) continue;
-      if (E.ja || ['ter', 'noite', 'pos', 'pistas', 'time'].includes(E.ev)) this.checarEtapa(j);
+      if (E.ja || ['ter', 'noite', 'pos', 'pistas', 'time', 'colher'].includes(E.ev)) this.checarEtapa(j);
       if (E.hc) this.chamarChefe(j, E.hc);
     }
   }
@@ -1129,7 +1139,7 @@ export class Simulacao {
     if (!h?.ac) return p.nivel < M.nv ? `Libera no Nv ${M.nv} (${this.nomeNpc(M.npc)})` : `Fale com ${this.nomeNpc(M.npc)}`;
     const E = etapaAtual(p); if (!E) return '';
     const t = totalEtapa(E);
-    const f = this.juntaDe(j, E); if (f) return this.textoJunta(E, f); // falta material: "Barquinho: corte Lenha 12/30"
+    const f = this.juntaDe(j, E); if (f) return this.textoJunta(E, f, t > 1 ? ` ${h.n}/${t}` : ''); // falta material: "Barquinho: corte Lenha 12/30"; "Sopa de legumes 1/3: colha Rabanete 0/2"
     let txt = E.txt + (t > 1 ? ` ${h.n}/${t}` : '');
     if (E.ev === 'noite') { const hr = horaDoJogo(p.dia); txt += ` · agora são ${String(Math.floor(hr)).padStart(2, '0')}h`; }
     return txt;
@@ -1257,6 +1267,20 @@ export class Simulacao {
     this.aplicarStatus(j, true);
     this.evento({ t: 'nivel', id: j.id, nivel: nv });
     this.evento({ t: 'aviso', para: id, texto: zerar ? `Teste: pontos zerados (nível ${nv})` : `Teste: nível ${nv}` });
+    this.avisarProg(j);
+  }
+  // Só para a conta do André (2026-11-14: "botão pra voltar uma missão ou resetar todas", temporário): acao 'voltar' =
+  // a missão de antes fica para aceitar de novo (a da vez some); 'zerar' = a história toda do começo. Nível, itens e
+  // terreno ficam. Ninguém mais consegue: o servidor confere a conta (j.testador). Desligar: CONTA_TESTE.missoes = false.
+  missaoTeste(id, acao) {
+    const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !CONTA_TESTE.missoes) return;
+    if (acao !== 'voltar' && acao !== 'zerar') return;
+    const p = j.prog, h = p.hist || histNova();
+    const alvo = acao === 'zerar' ? 0 : Math.max(0, (h.p || 0) - (h.ac ? 0 : 1));
+    p.hist = { ...histNova(), p: alvo, ...(alvo > 0 ? { u: HISTORIA[alvo - 1].id } : {}) };
+    j.progSujo = true;
+    const M = HISTORIA[alvo];
+    this.evento({ t: 'aviso', para: id, texto: acao === 'zerar' ? 'Teste: missões zeradas' : `Teste: voltou para ${M ? M.nome : 'a última missão'}` });
     this.avisarProg(j);
   }
   // Ponto livre num atributo (for, des, int, vit)

@@ -12,6 +12,7 @@ var prog := {}
 var st := {} # números do herói: vidaMax, manaMax, defesa, danoFisico...
 var xp_prox := 16
 var teste := false # conta de teste do André: o menu mostra os botões de mudar o nível (o servidor confere)
+var teste_missoes := false # só a conta do André: "Voltar 1 missão" e "Zerar missões" na aba Missões (CONTA_TESTE.missoes)
 var mudou := false # o menu redesenha quando muda
 var hist_info: Dictionary = {} # história v2 (André 2026-11-11): a etapa da vez que o servidor manda (texto, NPC, alvo do Ir)
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
@@ -110,6 +111,7 @@ func do_servidor(ev: Dictionary) -> void:
 		hist_info = ev.hi if ev.hi is Dictionary else {}
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
+	teste_missoes = bool(ev.get("testeMissoes", false))
 	if ev.has("st"):
 		for k in ev.st:
 			st[k] = float(ev.st[k])
