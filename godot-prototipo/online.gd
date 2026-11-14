@@ -313,7 +313,7 @@ func atualizar_status(_t := "") -> void:
 	if ligado:
 		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
 		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
-		var p := " · Ping …" if rede.ping_ms < 0 else tr(" · Ping %d ms") % rede.ping_ms # tr: inglês (idioma.gd)
+		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms # igual em inglês
 		# André 2026-11-13: o FPS fica aqui no topo junto do ping (chave FPS e ping); o resto dos números some da tela
 		var txt := tr("Online · %d %s%s%s") % [jogadores, tr("jogador") if jogadores == 1 else tr("jogadores"), _fps_topo(), p]
 		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
