@@ -123,6 +123,22 @@ func montar_tela() -> void:
 	capa.mouse_filter = Control.MOUSE_FILTER_STOP # os toques não passam para o jogo
 	capa.visible = false
 	tela.add_child(capa)
+	# direitos autorais (André 2026-11-14: "all rights reserved, para garantir"): linha pequena embaixo, some com a capa
+	var direitos := Label.new()
+	direitos.text = "© 2026 André Coutinho. Todos os direitos reservados."
+	direitos.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	direitos.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	direitos.add_theme_font_size_override("font_size", 13)
+	direitos.add_theme_color_override("font_color", Color(1, 0.95, 0.85, 0.8))
+	direitos.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	direitos.add_theme_constant_override("outline_size", 4)
+	direitos.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	direitos.offset_left = 14
+	direitos.offset_top = -30
+	direitos.offset_bottom = -8
+	direitos.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	direitos.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	capa.add_child(direitos)
 	carregando = Label.new()
 	carregando.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	carregando.add_theme_font_size_override("font_size", 20)

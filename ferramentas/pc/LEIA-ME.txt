@@ -1,4 +1,5 @@
 AGE OF EMBERS - VERSÃO PC
+© 2026 André Coutinho. Todos os direitos reservados. All rights reserved.
 
 Abra o Aethra.exe (o arquivo do jogo Age of Embers; o Aethra.pck precisa ficar na mesma pasta).
 Na primeira vez o Windows pode avisar "O Windows protegeu o computador": clique em "Mais informações" e

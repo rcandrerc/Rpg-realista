@@ -3156,5 +3156,16 @@
 "Aperte a tecla do slot %d (Esc cancela)": "Press the key for slot %d (Esc cancels)",
 "Slot %d: tecla %s": "Slot %d: key %s",
 "Tecla %s já tem outra ação": "Key %s is already bound to another action",
-"Tecla mantida": "Key unchanged"
+"Tecla mantida": "Key unchanged",
+"© 2026 André Coutinho. Todos os direitos reservados.": "© 2026 André Coutinho. All rights reserved.",
+"Créditos e direitos": "Credits & legal",
+"História, personagens, nome, símbolo, arte e código são protegidos por direitos autorais. Proibido copiar, distribuir ou vender sem autorização.": "Story, characters, name, logo, art and code are protected by copyright. Do not copy, distribute or sell without permission.",
+"Feito com Godot Engine (licença MIT).": "Made with Godot Engine (MIT license).",
+"Fontes: Alegreya Sans, Cinzel e Cinzel Decorative (SIL Open Font License 1.1).": "Fonts: Alegreya Sans, Cinzel and Cinzel Decorative (SIL Open Font License 1.1).",
+"Avatar \"Ruiva\" © 2026 MercuryMaid (水銀メイド), VRoid Hub, VRM Public License 1.0.": "\"Ruiva\" avatar © 2026 MercuryMaid (水銀メイド), VRoid Hub, VRM Public License 1.0.",
+"Animações: Mixamo (Adobe).": "Animations: Mixamo (Adobe).",
+"Modelos e texturas: Quaternius, KayKit (Kay Lousberg), Kenney, Poly Haven.": "Models and textures: Quaternius, KayKit (Kay Lousberg), Kenney, Poly Haven.",
+"\"Dog running\" de congusbongus, OpenGameArt (CC-BY 3.0).": "\"Dog running\" by congusbongus, OpenGameArt (CC-BY 3.0).",
+"Sons: The Audio Horizon SFX, Pixabay (floraphonic, koiroylers).": "Sounds: The Audio Horizon SFX, Pixabay (floraphonic, koiroylers).",
+"Músicas: Kaazoom, Forgotten Hero Records e outros (Pixabay).": "Music: Kaazoom, Forgotten Hero Records and others (Pixabay)."
 }
