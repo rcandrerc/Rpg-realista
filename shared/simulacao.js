@@ -4153,7 +4153,7 @@ export class Simulacao {
   agoraMs() { return this.relogioMs ? this.relogioMs() : Date.now(); } // os testes trocam o relógio
   naArena(b, o, folga = 0) { const A = b.arena; return Math.hypot(o.x - A.x, o.z - A.z) <= A.r + folga; }
   anunciar(texto) { // chat geral, para todo mundo online (todas as salas, pelo servidor)
-    const msg = { canal: 'geral', c: 'sistema', nome: 'Aethra', texto, hora: Date.now(), sistema: true };
+    const msg = { canal: 'geral', c: 'sistema', nome: 'Age of Embers', texto, hora: Date.now(), sistema: true };
     if (this.aoAnuncio) this.aoAnuncio(msg); else this.receberChat(msg);
   }
   // bosses de mundo (André 2026-11-12: "ficar no chat permanente tá poluindo o visual"): faixa na tela de todo mundo

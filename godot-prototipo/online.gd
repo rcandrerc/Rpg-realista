@@ -115,7 +115,8 @@ func montar_tela() -> void:
 	tela.layer = 5
 	add_child(tela)
 	capa = TextureRect.new()
-	capa.texture = load("res://ui/capa_aethra.jpg")
+	# André 2026-11-14: capa nova com o símbolo AOE e "Age of Embers" (a capa_aethra fica de reserva)
+	capa.texture = load("res://ui/capa_age_of_embers.jpg") if ResourceLoader.exists("res://ui/capa_age_of_embers.jpg") else load("res://ui/capa_aethra.jpg")
 	capa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	capa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -169,7 +170,7 @@ func montar_tela() -> void:
 	painel.add_theme_stylebox_override("panel", caixa)
 	painel.anchor_left = 0.78 # à direita: a heroína da arte fica à esquerda
 	painel.anchor_right = 0.78
-	painel.anchor_top = 0.63 # abaixo do título "Aethra" da arte
+	painel.anchor_top = 0.63 # à direita da arte; o título "Age of Embers" fica à esquerda
 	painel.anchor_bottom = 0.63
 	painel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	painel.grow_vertical = Control.GROW_DIRECTION_BOTH

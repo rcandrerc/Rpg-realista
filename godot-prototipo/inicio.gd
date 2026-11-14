@@ -82,6 +82,10 @@ static func _conteudo_do_motor() -> String:
 	return CONTEUDO_JSON.get_base_dir() + "/conteudo-%d.%d.json" % [int(v.major), int(v.minor)]
 
 func _ready() -> void:
+	# Nome do jogo na janela do PC (André 2026-11-14: o jogo agora se chama Age of Embers). config/name fica "Aethra"
+	# no PC (preparar.sh) porque a pasta de dados do Windows sai dele: trocar apagaria o login e as opções salvas.
+	if OS.has_feature("pc") or OS.has_feature("windows"):
+		DisplayServer.window_set_title("Age of Embers")
 	_trava_paralelo()
 	base = str(ProjectSettings.get_setting("aethra/atualizacao/base", ""))
 	casca = bool(ProjectSettings.get_setting("aethra/atualizacao/casca", false))
@@ -514,7 +518,8 @@ func _montar_tela() -> void:
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(fundo)
 	# capa sem cache: se o pacote trouxer outra capa, o jogo usa a nova
-	var tex = ResourceLoader.load("res://ui/capa_aethra.jpg", "", ResourceLoader.CACHE_MODE_IGNORE)
+	var arq := "res://ui/capa_age_of_embers.jpg" if ResourceLoader.exists("res://ui/capa_age_of_embers.jpg") else "res://ui/capa_aethra.jpg"
+	var tex = ResourceLoader.load(arq, "", ResourceLoader.CACHE_MODE_IGNORE)
 	if tex is Texture2D:
 		var capa := TextureRect.new()
 		capa.texture = tex
