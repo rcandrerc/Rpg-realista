@@ -3248,5 +3248,8 @@
 "Lugar não encontrado": "Place not found",
 "Skill não está na barra": "Skill not on your bar",
 "Não dá para ir até lá": "Can't go there",
-"Indo: {1}": "Going: {1}"
+"Indo: {1}": "Going: {1}",
+"Escutando...": "Listening...",
+"Voz: erro {1}": "Voice: error {1}",
+"Ouvi: {1}": "Heard: {1}"
 }
