@@ -17,6 +17,7 @@ extends CanvasLayer
 
 const Armadura = preload("res://armadura.gd")
 const Titulos = preload("res://titulos.gd") # cores e enfeites dos títulos (aba Títulos)
+const Idioma = preload("res://idioma.gd") # Português ou English (Configurações > Idioma / Language)
 const OURO := Color(0.80, 0.64, 0.36)
 const OURO_CLARO := Color(0.95, 0.82, 0.55)
 const TEXTO := Color(0.93, 0.89, 0.80)
@@ -258,14 +259,14 @@ static func legivel(tam: int) -> int:
 
 static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
 	var l := Label.new()
-	l.text = t
+	l.text = Idioma.frase(t) # inglês (idioma.gd): frase inteira ou modelo com {1}
 	l.add_theme_font_size_override("font_size", legivel(tam))
 	l.add_theme_color_override("font_color", cor)
 	return l
 
 func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 	var b := Button.new()
-	b.text = t
+	b.text = Idioma.frase(t)
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", legivel(tam))
 	estilo_botao(b, ativo)
@@ -937,7 +938,7 @@ func atualizar() -> void:
 	if not aberto():
 		return
 	var P = m.P
-	titulo_nivel.text = "%s  ·  Nível %d" % [m.hud.nome, P.prog.nivel]
+	titulo_nivel.text = tr("%s  ·  Nível %d") % [m.hud.nome, P.prog.nivel]
 	for c in ouro_esq.get_children():
 		ouro_esq.remove_child(c)
 		c.queue_free()
@@ -1005,7 +1006,7 @@ func _estilo_se_mudou(b: Button, ativo: bool) -> void:
 	estilo_botao(b, ativo)
 
 func separador(t: String) -> void:
-	var l := rotulo(t.to_upper(), 12, OURO)
+	var l := rotulo(Idioma.frase(t).to_upper(), 12, OURO)
 	conteudo.add_child(l)
 	var linha := ColorRect.new()
 	linha.color = Color(0.42, 0.33, 0.2, 0.6)
@@ -1172,7 +1173,7 @@ func perguntar_reset(custo: int) -> void:
 	col.add_child(t)
 	var d := Label.new()
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	d.text = ("Seus atributos voltam pro começo e os %d pontos voltam pra você distribuir de novo. As skills não mudam.\nCusta %d de ouro (você tem %d)." % [gastos, custo, int(m.P.prog.get("ouro", 0))]) if gastos > 0 else "Você ainda não gastou nenhum ponto."
+	d.text = Idioma.frase("Seus atributos voltam pro começo e os %d pontos voltam pra você distribuir de novo. As skills não mudam.\nCusta %d de ouro (você tem %d)." % [gastos, custo, int(m.P.prog.get("ouro", 0))]) if gastos > 0 else "Você ainda não gastou nenhum ponto."
 	d.add_theme_font_size_override("font_size", 15)
 	d.add_theme_color_override("font_color", TEXTO)
 	col.add_child(d)
@@ -2241,7 +2242,7 @@ func cabeca_grupo(k: String, nome: String, prontas: int, total: int) -> Control:
 	h.offset_left = 16
 	h.offset_right = -18
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var t := rotulo(("▾  " if aberto else "▸  ") + nome.to_upper(), 18, TEXTO)
+	var t := rotulo(("▾  " if aberto else "▸  ") + Idioma.frase(nome).to_upper(), 18, TEXTO)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	t.size_flags_vertical = Control.SIZE_FILL
@@ -3629,7 +3630,7 @@ func linha_reforco(it) -> Control:
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.visible = false
 	if not P.reforco_ok(it):
-		l.text = "⛔ " + ("Sem bônus: falta atributo" if it in P.prog.equip.values() else "Falta atributo para usar")
+		l.text = "⛔ " + tr("Sem bônus: falta atributo" if it in P.prog.equip.values() else "Falta atributo para usar")
 		l.visible = true
 	return l
 
@@ -3736,7 +3737,7 @@ func texto_diferenca(d: Dictionary) -> RichTextLabel:
 		var v: float = d[c]
 		var txt: String = m.P.texto_st(c, abs(v)).substr(1) # tira o "+" (o sinal vem abaixo)
 		p.append("[color=#%s]%s %s%s[/color]" % [(MELHOR if v > 0 else PIOR).to_html(false), "▲" if v > 0 else "▼", "+" if v > 0 else "−", txt])
-	t.text = "  ".join(p) if not p.is_empty() else "[color=#%s]Mesmos números[/color]" % APAGADO.to_html(false)
+	t.text = "  ".join(p) if not p.is_empty() else "[color=#%s]%s[/color]" % [APAGADO.to_html(false), tr("Mesmos números")]
 	return t
 
 # janela pequena colada no medalhão (André: "o mais enxuta possível, estamos no celular"): a peça vestida em uma linha,
@@ -3808,7 +3809,7 @@ func montar_janela() -> void:
 	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	txt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	txt.add_theme_constant_override("separation", 0)
-	txt.add_child(rotulo(janela_nome.to_upper(), 11, OURO))
+	txt.add_child(rotulo(Idioma.frase(janela_nome).to_upper(), 11, OURO))
 	if atual != null:
 		txt.add_child(rotulo(P.nome_item(atual), 16, P.cor_item(atual)))
 		var d := rotulo(P.texto_item(atual), 12, APAGADO)
@@ -4046,7 +4047,7 @@ func escolher_quantidade(i: int) -> void:
 	linha_q.add_child(maximo)
 	var limite := rotulo("", 12, APAGADO)
 	limite.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	limite.text = "Até %d (%s)" % [_qtd_max, "o que cabe na mochila" if _qtd_max >= cabe else "o que o ouro paga" if _qtd_max < int(P.dados.get("lojaMax", 999)) else "por vez"]
+	limite.text = Idioma.frase("Até %d (%s)" % [_qtd_max, "o que cabe na mochila" if _qtd_max >= cabe else "o que o ouro paga" if _qtd_max < int(P.dados.get("lojaMax", 999)) else "por vez"])
 	col.add_child(limite)
 	# total e botões
 	var linha := HBoxContainer.new()
@@ -4077,8 +4078,8 @@ func escolher_quantidade(i: int) -> void:
 	linha.add_child(ok)
 	var mostrar := func():
 		num.text = str(_qtd)
-		t_total.text = "Total: %d de ouro" % (_qtd * preco)
-		ok.text = "Comprar %d" % _qtd
+		t_total.text = tr("Total: %d de ouro") % (_qtd * preco)
+		ok.text = tr("Comprar %d") % _qtd
 		menos.disabled = _qtd <= 1
 		mais.disabled = _qtd >= _qtd_max
 		maximo.disabled = _qtd >= _qtd_max

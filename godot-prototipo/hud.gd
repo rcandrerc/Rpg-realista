@@ -9,6 +9,7 @@ signal soltou(acao: String)
 signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botões): tocar num NPC vai até ele
 
 const Menu = preload("res://menu.gd")
+const Idioma = preload("res://idioma.gd") # Português ou English (Configurações > Idioma / Language)
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
 const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao menu do personagem
 const COR_GOLPE := Color(0.33, 0.16, 0.12, 0.95)
@@ -226,10 +227,10 @@ func aviso(t: String) -> void:
 	if festa and festa.do_aviso(t): # nível, missão, liberado, skill: vira faixa de comemoração (festa.gd)
 		return
 	if t.begins_with("Nível "):
-		destaque_txt = t
+		destaque_txt = Idioma.frase(t)
 		_destaque_t = 3.2
 		return
-	aviso_txt = t
+	aviso_txt = Idioma.frase(t) # inglês (idioma.gd): o aviso chega em português do servidor ou do jogo
 	# o tempo de ler (Mestra Moldura, conselho 2026-11-13): 2,2 s nos curtos; cerca de 15 letras por segundo nos longos
 	_aviso_t = clampf(1.0 + t.length() / 15.0, 2.2, 8.0)
 
@@ -654,7 +655,7 @@ func _desenhar() -> void:
 	_selo_nivel(p0 + Vector2(68, 70))
 	if _combate_a > 0.0:
 		_selo_combate(p0 + Vector2(24, 70), _combate_a) # 4 px dentro da borda do painel, com o halo
-	_tela.draw_string(f, p0 + Vector2(92, 24), nome.to_upper() + "   " + ("ESPADA MÁGICA" if modo == "Espada" else "MODO MAGIA"), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.75, 0.4))
+	_tela.draw_string(f, p0 + Vector2(92, 24), nome.to_upper() + "   " + Idioma.frase("ESPADA MÁGICA" if modo == "Espada" else "MODO MAGIA"), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.75, 0.4))
 	_barra(p0 + Vector2(92, 31), Vector2(225, 17), vida, Color(0.8, 0.22, 0.2), texto_vida)
 	if escudo: # Escudo Arcano ligado: moldura dourada na vida
 		_tela.draw_rect(Rect2(p0 + Vector2(90, 29), Vector2(229, 21)), Color(1, 0.8, 0.35, 0.9), false, 2.0)
@@ -676,7 +677,7 @@ func _desenhar() -> void:
 		_tela.draw_rect(Rect2(pc, tam), Color(0.05, 0.04, 0.03, 0.7))
 		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(1.0, 0.78, 0.38))
 		_tela.draw_rect(Rect2(pc - Vector2(1, 1), tam + Vector2(2, 2)), Color(0.925, 0.81, 0.55, 0.9), false, 1.0)
-		var tv := canal_vila_txt
+		var tv := Idioma.frase(canal_vila_txt)
 		var wv := f.get_string_size(tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		_tela.draw_string_outline(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 6), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.6))
 		_tela.draw_string(f, Vector2((_tela.size.x - wv) * 0.5, pc.y - 6), tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.68))

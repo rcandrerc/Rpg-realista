@@ -12,6 +12,7 @@ extends CanvasLayer
 # (shader próprio, SH_COLUNA) por festa grande, apagado sozinho em ~2 s, e as faíscas que já existem.
 
 const Efeitos = preload("res://efeitos.gd")
+const Idioma = preload("res://idioma.gd") # faixas em inglês quando o jogador escolhe English
 # coluna de luz da festa: cilindro aditivo sem luz e sem sombra; forte embaixo, some no alto, borda macia, riscos subindo
 const SH_COLUNA := """
 shader_type spatial;
@@ -227,7 +228,7 @@ func falhou() -> void:
 # ---------------------------------------------------------------- fila
 func _faixa(f: Dictionary) -> void:
 	for k in ["sub", "titulo", "cab"]:
-		f[k] = str(f.get(k, ""))
+		f[k] = Idioma.frase(str(f.get(k, ""))) # inglês (idioma.gd): o texto chega em português
 	_fila.append(f)
 	if _atual.is_empty():
 		_proxima()
@@ -521,7 +522,7 @@ func _desenhar_canto(tam: Vector2) -> void:
 	var pisca: float = 1.0 if tt > 0.22 else (0.35 if fmod(tt, 0.08) < 0.04 else 1.0)
 	var at: float = a * clamp(tt / 0.1, 0.0, 1.0) * pisca
 	var cx: float = R.position.x + CANTO_W * 0.5
-	_texto_centro(_espacar("NÍVEL AUMENTOU"), Vector2(cx, R.position.y + 19.0), 12, cor.lerp(Color.WHITE, 0.25), at, 1.0, 0, cor)
+	_texto_centro(_espacar(Idioma.frase("NÍVEL AUMENTOU")), Vector2(cx, R.position.y + 19.0), 12, cor.lerp(Color.WHITE, 0.25), at, 1.0, 0, cor)
 	var esc: float = 1.0 + (1.0 - _volta(clamp(tt / 0.3, 0.0, 1.0))) * 0.12
 	_texto_centro("NÍVEL  %d" % int(_canto.nv), Vector2(cx, R.position.y + 49.0), 27, Color(0.93, 0.98, 1.0), at, esc, 0, cor)
 	var pts := _canto_pontos()
@@ -595,6 +596,7 @@ func _espacar(s: String) -> String:
 
 # texto centrado com brilho (contorno largo e fraco na cor do sistema) e contorno escuro fino
 func _texto_centro(s: String, base: Vector2, tam: int, cor: Color, a: float, escala: float, _contorno: int, brilho: Color) -> void:
+	s = Idioma.frase(s)
 	if a <= 0.01 or s == "":
 		return
 	var w: float = fonte.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x

@@ -6,6 +6,7 @@ extends Node
 
 const Rede = preload("res://rede.gd")
 const D = preload("res://dados.gd")
+const Idioma = preload("res://idioma.gd") # a IA da Cecília e do Dario responde no idioma do jogo
 const Aparencia = preload("res://aparencia.gd")
 const Penteado = preload("res://penteado.gd")
 const Montaria = preload("res://montaria.gd")
@@ -262,14 +263,14 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	var nome := str(conta.get("nome", ""))
 	if nome == "": # o servidor ainda não respondeu: usa o nome guardado no aparelho (rede.nome_salvo)
 		nome = rede.nome_salvo
-	sub.text = ("Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?" % nome) if nome != "" else "Quer entrar com a conta salva ou usar outra conta Google?"
+	sub.text = (tr("Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?") % nome) if nome != "" else "Quer entrar com a conta salva ou usar outra conta Google?"
 	if _foi_desconectado:
 		titulo.text = "Você foi desconectado"
 		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
 	if _foi_trocado:
 		titulo.text = "Conta em outro aparelho"
 		sub.text = "Sua conta entrou em outro aparelho.\nEntre aqui para jogar neste (o outro sai)."
-	b_continuar.text = ("Entrar como %s" % nome) if nome != "" else "Entrar com a conta salva"
+	b_continuar.text = (tr("Entrar como %s") % nome) if nome != "" else "Entrar com a conta salva"
 	b_continuar.visible = true
 	b_trocar.visible = true
 	b_google.visible = false
@@ -312,17 +313,17 @@ func atualizar_status(_t := "") -> void:
 	if ligado:
 		# André 2026-11-03: o ping do servidor sempre na tela, com a palavra "Ping" e cor (verde bom, amarelo médio,
 		# vermelho ruim) para saber na hora se o tranco é da internet/servidor ou do celular
-		var p := " · Ping …" if rede.ping_ms < 0 else " · Ping %d ms" % rede.ping_ms
+		var p := " · Ping …" if rede.ping_ms < 0 else tr(" · Ping %d ms") % rede.ping_ms # tr: inglês (idioma.gd)
 		# André 2026-11-13: o FPS fica aqui no topo junto do ping (chave Mostrar FPS); o resto dos números some da tela
-		var txt := "Online · %d %s%s%s" % [jogadores, "jogador" if jogadores == 1 else "jogadores", _fps_topo(), p]
+		var txt := tr("Online · %d %s%s%s") % [jogadores, tr("jogador") if jogadores == 1 else tr("jogadores"), _fps_topo(), p]
 		# André 2026-11-12: de quem é a culpa. Nada chega do servidor há 1,5 s: a internet travou (o servidor responde em
 		# ms; o ping velho ficava na tela até o pong atrasado chegar com 20000). Servidor com passo lento: "Servidor lento"
 		var calado: float = (Time.get_ticks_msec() - rede.ult_pacote_ms) / 1000.0 if rede.ult_pacote_ms > 0 else 0.0
 		var aviso := ""
 		if calado >= 1.5:
-			aviso = "Internet travada · %d s sem resposta" % int(calado)
+			aviso = tr("Internet travada · %d s sem resposta") % int(calado)
 		elif rede.servidor_pico > 150.0:
-			aviso = "Servidor lento%s" % p
+			aviso = tr("Servidor lento%s") % p
 		if aviso != "":
 			txt = aviso
 		if status.text != txt: # trocar o texto refaz o layout: só quando muda
@@ -338,7 +339,7 @@ func atualizar_status(_t := "") -> void:
 		status.text = _t
 	else:
 		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
-		var txt := "Sozinho%s · tocar para jogar online" % _fps_topo()
+		var txt := tr("Sozinho%s · tocar para jogar online") % _fps_topo()
 		if status.text != txt:
 			status.text = txt
 
@@ -367,6 +368,7 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 	m.hud.nome = str(conta.get("nome", m.hud.nome))
 	m.hud.aviso("Online!")
 	rede.enviar("modo", m.h.modo)
+	rede.enviar("idioma", {"codigo": Idioma.atual}) # Cecília e Dario (IA) respondem em inglês se o jogo está em English
 	for e in m.inimigos:
 		e.estado = "vivo"
 		e.seq = -1
@@ -1611,7 +1613,7 @@ func _passo(dt: float) -> void:
 	if not ligado:
 		# sozinho (André 2026-11-13): o FPS também fica no topo, 2 vezes por segundo
 		_status_t -= dt
-		if _status_t <= 0.0 and status.visible and status.text.begins_with("Sozinho"):
+		if _status_t <= 0.0 and status.visible and status.text.begins_with(tr("Sozinho")):
 			_status_t = 0.5
 			atualizar_status()
 		return

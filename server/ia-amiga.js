@@ -143,7 +143,9 @@ export function mensagensConversa(ctx, texto) {
   const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar junto), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
 Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
 Devolva só JSON: {"fala": "...", "acao": "nada"}`;
-  const msgs = [{ role: 'system', content: `${sistema.join('\n')}\nFicha (só para você saber, não precisa citar):\n- ${ficha.join('\n- ')}\n${acoes}` }];
+  // André 2026-11-14 (jogo em inglês para divulgar fora): quem joga em English recebe a fala em inglês de gamer nativo
+  const ingles = ctx.idioma === 'en' ? `\nIMPORTANT: ${ctx.amigo} plays the game in English. Write "fala" ONLY in natural, casual American English, like a real MMORPG player in chat (lfg, grind, farm, loot, drop, mob, boss, dungeon, party, tank, aggro, respawn, build, cd, buff, nerf, crit, gg, lol, "let's go"), 1 to 2 short sentences, never a word-for-word translation. Names stay the same. Keep the JSON keys and the action words exactly as they are.` : '';
+  const msgs = [{ role: 'system', content: `${sistema.join('\n')}\nFicha (só para você saber, não precisa citar):\n- ${ficha.join('\n- ')}\n${acoes}${ingles}` }];
   for (let m of ctx.conversa || []) {
     if (m.de === 'outro') m = { de: 'ele', texto: `(${m.nome}, no chat do time): ${m.texto}` }; // outro NPC do time falou: chega como fala de outra pessoa
     const role = m.de === 'ele' ? 'user' : 'assistant', ult = msgs[msgs.length - 1];
