@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import { Client } from 'colyseus.js';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS } from '../../shared/index.js';
 import { planejarRota } from '../../shared/rota.js';
-import { liberado } from '../../shared/historia.js';
+import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
 // ---------- opções ----------
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -130,6 +130,7 @@ function lerEvento(e) {
     puladaAgora = false;
     R.missoes.agora = HISTORIA[h?.p] ? `${HISTORIA[h.p].id} ${HISTORIA[h.p].nome}${h.ac ? ` · etapa ${h.e + 1}` : ''}` : 'todas feitas';
   } else if (e.t === 'corrigir') {
+    if (process.env.ROBO_DEPURAR && R.correcoes % 50 === 0) log('corrigido de', eu.x.toFixed(1), eu.z.toFixed(1), eu.y.toFixed(1), 'para', e.x, e.z, e.y, 'rota', JSON.stringify(rota?.slice(0, 2)));
     eu.x = e.x; eu.y = e.y; eu.z = e.z; corrSeq = e.c; R.correcoes++; correcoesSeguidas++;
   } else if (e.t === 'aviso') {
     const k = String(e.texto || '').replace(/\d+/g, '#').slice(0, 70);
@@ -147,12 +148,15 @@ function irPara(x, z, perto = 1.5) {
   destino = { x, z, perto };
   const r = planejarRota(MAPA_CLAREIRA, eu, destino);
   rota = r.pontos ? [...r.pontos] : [{ x, z }]; // outra terra ou mar no meio: tenta reto (o servidor corrige se não der)
+  // a estrada passa por região ainda na névoa (o app desliga esses pontos: rota.gd _desligar_nevoa): vai reto
+  if (prog && rota.some((q) => zonaFechadaEm(prog, q.x, q.z))) rota = [{ x, z }];
   if (r.bloqueio) bloqueio = r.bloqueio;
   if (r.metros > 45 && !eu.montado && prog && liberado(prog, 'lobo')) mandar('montar');
   return d2(eu, destino) <= perto;
 }
 let bloqueio = '', reto = false;
 function andar(dt) {
+  if (coletando && Date.now() - coletando > 25000) coletando = 0; // a coleta acabou sem aviso (etapa pulada, veio esgotado): volta a andar
   if (!rota?.length || eu.morto || coletando) return false;
   let resta = velocidade() * dt;
   while (resta > 0 && rota.length) {
@@ -224,7 +228,7 @@ function missao(agora) {
   if (h.p >= HISTORIA.length) { log('fez a história toda: começa de novo'); mandar('missaoTeste', { acao: 'zerar' }); return; }
   // travou: a mesma etapa, o mesmo andamento e o mesmo texto há TRAVA_MIN minutos
   const k = `${h.p}:${h.ac}:${h.e}:${h.n}:${h.m}:${hi?.txt}`;
-  if (k !== etapaK) { etapaK = k; etapaDesde = agora; correcoesSeguidas = 0; bloqueio = ''; reto = false; }
+  if (k !== etapaK) { etapaK = k; etapaDesde = agora; correcoesSeguidas = 0; bloqueio = ''; reto = false; coletando = 0; }
   const M = HISTORIA[h.p];
   if (!h.ac && (prog.nivel || 1) < M.nv) return cacar(agora); // ainda não tem o nível: caça até chegar
   if (agora - etapaDesde > TRAVA_MIN * 60e3) return pular(`ficou ${TRAVA_MIN} min sem andar ("${hi?.txt || ''}"${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''})`);
@@ -232,7 +236,7 @@ function missao(agora) {
   if (correcoesSeguidas > 40) { correcoesSeguidas = 0; problema(`Posição recusada sem parar indo para ${hi?.alvo?.nome || '?'} (${M.id})${bloqueio ? `, caminho com ${bloqueio}` : ''}`); }
   const a = hi?.alvo;
   if (hi?.npc) { // botão Missão no NPC
-    const n = npcDe(hi.npc); if (!n) return pular(`NPC ${hi.npc} não existe no mapa`);
+    const n = a?.npc === hi.npc ? a : npcDe(hi.npc); if (!n) return pular(`NPC ${hi.npc} não existe no mapa`); // o Ir diz onde o NPC está agora
     if (!irPara(n.x, n.z, 2.5)) return;
     parar();
     if (agora - falarT > 2500) { falarT = agora; acao('falar', { npc: hi.npc, missao: true }); }
