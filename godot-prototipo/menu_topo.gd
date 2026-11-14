@@ -339,6 +339,12 @@ func aberto() -> bool:
 	return janela != null and janela.visible
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("menu_topo", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	_atualizar_vila(dt)
 	_atualizar_construir()
 	if aberta == "multi" or aberta == "conta": # online, jogadores e ping mudam sozinhos

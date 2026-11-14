@@ -156,6 +156,12 @@ func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, ha: float, hb: fl
 
 var ms := 0.0 # tempo do mato por quadro (média), aparece no Teste (André 2026-11-11, auditoria de FPS)
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("mato", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)

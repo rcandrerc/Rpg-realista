@@ -244,6 +244,12 @@ func _proxima() -> void:
 	parar("Plano da fazenda terminado!")
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("fazenda_plano", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if not trabalhando or m.heroi == null:
 		return
 	if m.h.morto > 0.0 or c.ativo or c.comprando:

@@ -695,6 +695,12 @@ func _tremer(o: Vector3, forca: float, alcance: float) -> void:
 
 # ---------------------------------------------------------------- quadro
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("magias", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam:
 		_cam_r = cam.global_transform.basis.x

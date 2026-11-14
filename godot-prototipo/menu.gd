@@ -920,6 +920,12 @@ func _input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("menu", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if not aberto():
 		return
 	if boneco:

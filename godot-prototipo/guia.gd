@@ -74,6 +74,12 @@ func _ready() -> void:
 	_sb2 = _moldura(false, 3)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("guia", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	_t -= dt
 	if _t <= 0.0:
 		_t = PASSO

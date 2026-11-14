@@ -35,6 +35,12 @@ func _ready() -> void:
 	vilas = m.mundo.get("vilasMundo", [])
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("vilas_mundo", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	_espera -= dt
 	if _espera > 0.0 or vilas.is_empty() or m.heroi == null:
 		return

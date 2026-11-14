@@ -260,6 +260,12 @@ func direcao_auto() -> Vector3:
 	return d.normalized() * (1.0 if d.length() > 6.0 else 0.55) # longe corre, perto anda
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("conversa", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null:
 		return
 	if indo != null:

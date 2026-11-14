@@ -368,6 +368,12 @@ func enviar(tipo: String, dados = null) -> void:
 var ms := 0.0 # tempo gasto aqui por quadro (média), aparece no Teste
 var _fila_mundo: Array = [] # fotos do mundo que chegaram neste quadro
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("rede", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)

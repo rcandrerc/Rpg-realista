@@ -762,6 +762,12 @@ func _arrumar_grande() -> void:
 		mapa_hoje.size = Vector2.ONE * float(info.tam) * k
 
 func _process(_dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(_dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("minimapa", t0_parte)
+
+func _process_parte(_dt: float) -> void:
 	if m.heroi == null:
 		return
 	# some junto com a HUD (menu do personagem, criador, conversa com NPC)

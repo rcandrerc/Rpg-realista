@@ -700,6 +700,12 @@ func do_servidor(ev: Dictionary) -> void:
 				m.sons.tocar("pano", -16.0)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("chat", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	# a caixa de leitura some escrevendo (a janela mostra tudo), com menu aberto, na conversa com NPC e no modo construção
 	var menu_aberto: bool = (m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())
 	var hud_livre: bool = m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao

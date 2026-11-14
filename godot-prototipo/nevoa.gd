@@ -204,6 +204,12 @@ func _montar(Z: Dictionary) -> MeshInstance3D:
 	return mi
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("nevoa", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if H.is_empty() or m.heroi == null or m.terreno == null:
 		return
 	_t -= dt

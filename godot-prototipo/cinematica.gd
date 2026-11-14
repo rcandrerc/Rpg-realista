@@ -126,6 +126,12 @@ func escurecer(seg := 2.0) -> void:
 	_preto.color = Color(0, 0, 0, 1)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("cinematica", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if _espera <= 0.0 or ativa:
 		return
 	_espera -= dt

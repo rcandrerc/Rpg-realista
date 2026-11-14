@@ -47,6 +47,12 @@ func _ready() -> void:
 	m.hud.retrato = vp.get_texture()
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("retrato_heroi", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if _foto_t >= 0.0:
 		_foto_t -= dt
 		if _foto_t < 0.0:

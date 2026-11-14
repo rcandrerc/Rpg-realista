@@ -798,9 +798,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		h.mask = _mask_horta(L, h)
 		if h.get("mudou", false):
 			h.erase("mudou")
-			_desenhar_canteiro(h, true)
+			_enfileirar_canteiro(h, true)
 		elif h.mask != h.get("mask_feita", -1):
-			_desenhar_canteiro(h)
+			_enfileirar_canteiro(h)
 	if mudou_pecas or mudou_canteiros:
 		_grama_sob_horta(L)
 	if mudou_pecas:
@@ -1492,6 +1492,32 @@ static func fase(f: float) -> int:
 
 func _molhada(h: Dictionary) -> bool:
 	return h.w > 0.0 and agora_ms() < h.w + float(D.horta.rega) * 3600000.0
+
+# Canteiros aos poucos (2026-11-14, registro das travadas: logo depois de entrar, a lista dos terrenos custou 197 ms
+# no PC, 148 deles desenhando os 36 canteiros; a terra arada sozinha, 114 ms: uns 145 pontos por canteiro, cada um
+# com a altura do chão). Agora o canteiro entra numa fila e sai desenhado igual, CANTEIRO_US por quadro (pelo menos
+# um por quadro). na_fila guarda se é para refazer a terra também (forcar).
+const CANTEIRO_US := 3000
+var _fila_canteiros: Array = []
+func _enfileirar_canteiro(h: Dictionary, forcar := false) -> void:
+	if h.has("na_fila"):
+		h.na_fila = h.na_fila or forcar
+		return
+	h.na_fila = forcar
+	_fila_canteiros.append(h)
+
+func _desenhar_fila_canteiros() -> void:
+	var t0 := Time.get_ticks_usec()
+	while not _fila_canteiros.is_empty():
+		var h: Dictionary = _fila_canteiros.pop_front()
+		var forcar: bool = h.get("na_fila", false)
+		h.erase("na_fila")
+		if h.get("no") != null and is_instance_valid(h.no) and h.no.is_inside_tree():
+			_desenhar_canteiro(h, forcar)
+		if Time.get_ticks_usec() - t0 >= CANTEIRO_US:
+			break
+	if m.lentidao and Time.get_ticks_usec() - t0 > 1000:
+		m.lentidao.ev("canteiros", t0)
 
 func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	var f := fase(_crescida(h)) if h.c != "" else -1
@@ -2496,8 +2522,16 @@ func encheu(ev: Dictionary) -> void:
 
 # ---------- a cada quadro ----------
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("construcao", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
 		return
+	if not _fila_canteiros.is_empty():
+		_desenhar_fila_canteiros()
 	var hp: Vector3 = m.heroi.position
 	var vivo: bool = m.h.morto <= 0.0
 	var livre := ativo or comprando
@@ -2552,7 +2586,7 @@ func _process(dt: float) -> void:
 				var h: Dictionary = lotes[id].horta[c]
 				var d2: float = h.no.position.distance_squared_to(hp)
 				if d2 < 3600.0:
-					_desenhar_canteiro(h)
+					_enfileirar_canteiro(h)
 				_info_planta(h, _placa_perto(d2))
 
 func _carregar_recolhidas() -> void:
@@ -2580,12 +2614,16 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	_alguma_estacao = false
 	var prof := prof_da_estacao()
 	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"])) # o fogão tem o botão da fornalha (2026-11-07)
-	var correio := _meu_correio_perto() and prof == ""
-	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
+	# André 2026-11-14 ("a caixa de correio não aparece mais botão de interagir"): correio e bancada dividem o mesmo
+	# lugar na tela, e qualquer bancada, bigorna ou fornalha de vizinho a 3 m da caixa tomava o lugar dela. Agora fica
+	# o botão da que está mais perto do herói.
+	var d_correio := _dist_meu_correio()
+	var correio := d_correio <= CORREIO_PERTO and (prof == "" or d_correio < _dist_estacao_prof())
+	var com_mesa := not correio and (prof != "" or (no_meu and not mesa_minha.is_empty()))
 	_mostrar_estacao("bancada", com_mesa and vivo and not livre)
 	# estação pública (bigorna da ferraria, bancada da Rosa): o botão aparece mesmo com as estações recolhidas
 	var pub_mesa := publica_perto(["bancada", "bigorna"])
-	if not pub_mesa.is_empty() and vivo and not livre:
+	if not pub_mesa.is_empty() and vivo and not livre and not correio:
 		m.hud.mostrar_botao("bancada", true)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
@@ -3291,9 +3329,36 @@ func _por_correio(id: String) -> void:
 	no.get_node("bandeira").position = Vector3(0.165, 1.28, -0.05) if levantada else Vector3(0.165, 1.08, -0.2)
 	no.get_node("bandeira").rotation.x = 0.0 if levantada else PI / 2.0
 
+const CORREIO_PERTO := 2.6 # m
 func _meu_correio_perto() -> bool:
+	return _dist_meu_correio() <= CORREIO_PERTO
+
+func _dist_meu_correio() -> float:
 	var no: Node3D = _correios.get(meu)
-	return no != null and m.heroi != null and no.global_position.distance_to(m.heroi.position) <= 2.6
+	if no == null or m.heroi == null:
+		return INF
+	return no.global_position.distance_to(m.heroi.position)
+
+# distância da estação que faz prof_da_estacao() dar "fer" ou "alf" (a mesma conta de estacao_perto e
+# _fornalha_de_outro_perto); INF se nenhuma
+func _dist_estacao_prof() -> float:
+	if m.heroi == null:
+		return INF
+	var hp: Vector3 = m.heroi.position
+	var dm := INF
+	var pub := publica_perto(["bigorna", "bancada"])
+	if not pub.is_empty():
+		dm = Vector2(float(pub.x) - hp.x, float(pub.z) - hp.z).length()
+	var lim := float(D.lote.estacaoDist) + 0.3
+	for id in lotes:
+		for p in lotes[id].pecas:
+			var vale: bool = p.k in ["bigorna", "bancada"] or (p.k == "fornalha" and id != meu)
+			if not vale:
+				continue
+			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
+			if d < lim and d < dm and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
+				dm = d
+	return dm
 
 func abrir_correio() -> void:
 	var t0 := Time.get_ticks_usec()

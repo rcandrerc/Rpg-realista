@@ -37,6 +37,12 @@ var nevoa_mult := 1.0
 var ceu_limpo := 1.0 # 0,6 depois da última missão da história (nevoa.gd): a Névoa acabou
 var longe_mult := 1.0
 func _process(_dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(_dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("relevo", t0_parte)
+
+func _process_parte(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if env == null or cam == null:
 		return

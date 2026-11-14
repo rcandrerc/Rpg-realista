@@ -145,6 +145,12 @@ func base() -> Dictionary:
 		"sol": sol, "sol_e": lerpf(_dia.sol_e, NOITE.sol_e, n), "nevoa": nev, "exp": lerpf(_dia.exp, NOITE.exp, n), "por": k}
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("dia_noite", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	_passo_sono(dt)
 	if lanterna and lanterna.visible and m.heroi:
 		# do lado da câmera, acima da cabeça (Us do Quimera): o rosto e a frente do herói ficam visíveis à noite

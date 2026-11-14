@@ -37,6 +37,11 @@ var _mandadas := 0
 
 func _init(principal) -> void:
 	m = principal
+	Engine.set_meta("lentidao", self) # os scripts marcam o quadro lento por aqui (sem preload: os testes soltos não têm este arquivo)
+
+func _exit_tree() -> void:
+	if Engine.get_meta("lentidao", null) == self:
+		Engine.remove_meta("lentidao")
 
 func _ready() -> void:
 	if FileAccess.file_exists(ARQUIVO):
@@ -150,12 +155,23 @@ var _nos0 := 0
 var _res0 := 0
 func ev(nome: String, t0_us: int) -> void:
 	var ms := (Time.get_ticks_usec() - t0_us) / 1000.0
+	_qev[nome] = _qev.get(nome, 0.0) + ms
 	var a = _ev.get(nome)
 	if a == null:
 		_ev[nome] = [1, ms]
 	else:
 		a[0] += 1
 		a[1] += ms
+
+# Quadro lento (André 2026-11-14: "deslocamento de lobo ainda dá lag spike, nada absurdo mas com frequência"; o
+# registro mostrou um quadro de ~110 ms quase todo segundo no lobo, sem nenhum culpado marcado): o _process de cada
+# script e cada parte do main.gd anotam aqui (ev) o que passou de 1 ms. No quadro de QUADRO_LENTO ms ou mais,
+# o registro leva qev = quanto cada parte gastou NAQUELE quadro (o pior do segundo) e qms = o quadro inteiro; o que
+# faltar entre a soma e qms foi fora dos scripts (desenho, espera da placa, física).
+const QUADRO_LENTO := 60.0 # ms
+var _qev := {}
+var _qev_pior := {}
+var _qev_pior_ms := 0.0
 
 func _ev_top(d: Dictionary) -> Dictionary:
 	var ks := d.keys()
@@ -303,6 +319,8 @@ func _zerar(agora: int) -> void:
 	_proc = 0.0
 	_ev0 = _ev
 	_ev = {}
+	_qev_pior = {}
+	_qev_pior_ms = 0.0
 	_nos0 = int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 	_res0 = int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT))
 
@@ -314,6 +332,10 @@ func _process(dt: float) -> void:
 	var agora := Time.get_ticks_usec()
 	var q: float = (agora - _ult) / 1000000.0 if _ult > 0 else 0.0
 	_ult = agora
+	if q * 1000.0 >= QUADRO_LENTO and q * 1000.0 > _qev_pior_ms:
+		_qev_pior_ms = q * 1000.0
+		_qev_pior = _qev.duplicate()
+	_qev.clear()
 	_t_calor -= q
 	if _t_calor <= 0.0:
 		_t_calor = CALOR_S
@@ -363,7 +385,9 @@ func _process(dt: float) -> void:
 	# o congelamento do golpe e a câmera lenta de propósito (Engine.time_scale < 1) atrasam o relógio do jogo sem ser
 	# lentidão: nesse segundo só conta quadro travado, puxão e o lobo (eram 4 de cada 10 linhas, e empurravam as de verdade)
 	if (relogio < 0.85 and _escala >= 1.0) or lento_lobo or _corr > 0 or _pior >= 100.0:
+		var ta := Time.get_ticks_usec()
 		_anotar(real, relogio)
+		ev("registro", ta) # o próprio registro (guardar no aparelho e mandar): aparece no quadro seguinte
 	_zerar(agora)
 
 func _anotar(real: float, relogio: float) -> void:
@@ -392,6 +416,14 @@ func _anotar(real: float, relogio: float) -> void:
 		e.ev = _ev_top(_ev)
 	if not _ev0.is_empty():
 		e.ev0 = _ev_top(_ev0)
+	if _qev_pior_ms > 0.0:
+		e.qms = roundi(_qev_pior_ms)
+		var ks := _qev_pior.keys()
+		ks.sort_custom(func(a, b): return _qev_pior[a] > _qev_pior[b])
+		var qe := {}
+		for k in ks.slice(0, 8):
+			qe[str(k).left(19)] = snappedf(_qev_pior[k], 0.1)
+		e.qev = qe
 	_comum(e)
 	e.dnos = e.nos - _nos0
 	e.dres = int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)) - _res0

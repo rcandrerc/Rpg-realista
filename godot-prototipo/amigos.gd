@@ -72,6 +72,12 @@ func pedir_lista() -> void:
 	m.rede("amigo", {"acao": "lista"})
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("amigos", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if m.menu_topo and m.menu_topo.aberta == "multi":
 		_lista_t -= dt
 		if _lista_t <= 0.0:

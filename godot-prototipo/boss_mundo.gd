@@ -278,6 +278,12 @@ func _golpe(f: Dictionary, cor: Color, k: String) -> void:
 				m.fx.poeira(px, pz, float(f.l) * 0.6, 10, "b8a080", "6a5a40")
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("boss_mundo", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	for i in range(avisos.size() - 1, -1, -1):
 		var a: Dictionary = avisos[i]
 		a.t += dt

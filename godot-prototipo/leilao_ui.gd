@@ -124,6 +124,12 @@ func progresso_mudou() -> void:
 		montar()
 
 func _process(_dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(_dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("leilao_ui", t0_parte)
+
+func _process_parte(_dt: float) -> void:
 	# andou para longe do Otávio (ou caiu): fecha
 	if aberto() and (m.h.morto > 0.0 or not m.perto_do_npc("leilao", 6.0)):
 		fechar()

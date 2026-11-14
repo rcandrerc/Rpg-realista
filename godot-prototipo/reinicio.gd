@@ -84,6 +84,12 @@ func _comeca_contagem() -> void:
 		m.vibrar(60)
 
 func _process(dt: float) -> void:
+	var t0_parte := Time.get_ticks_usec()
+	_process_parte(dt)
+	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+		Engine.get_meta("lentidao").ev("reinicio", t0_parte)
+
+func _process_parte(dt: float) -> void:
 	if _falta < 0.0:
 		set_process(false)
 		return
