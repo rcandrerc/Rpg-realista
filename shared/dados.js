@@ -3500,7 +3500,7 @@ export const HISTORIA = [
       { ev: 'criar', k: 'regador', ja: 'tem', txt: 'Crie o regador (bancada, aba Fazenda)' },
       { ev: 'plantar', n: 6, txt: 'Plante 6 sementes na horta do terreno', alvo: 'lote' },
       { ev: 'regar', n: 3, txt: 'Regue a horta', alvo: 'lote' },
-      { ev: 'colher', n: 6, txt: 'Colha o que plantou (leva alguns dias de jogo)', alvo: 'lote' },
+      { ev: 'colher', n: 6, txt: 'Colha o que plantou', alvo: 'lote' },
       { ev: 'criar', k: 'sopa_legumes', n: 3, txt: 'Cozinhe 3 Sopas de legumes no fogão', alvo: 'lote' },
       { ev: 'criar', k: 'barra_aco', ja: 'tem', txt: 'Funda 1 barra de aço na fornalha', alvo: 'lote' },
       { ev: 'falar', npc: 'guardiao', entregar: { sopa_legumes: 3, barra_aco: 1 }, txt: 'Leve as 3 sopas e a barra de aço ao Gaspar, na montanha' },

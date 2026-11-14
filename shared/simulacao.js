@@ -921,6 +921,7 @@ export class Simulacao {
       if (M.cena) this.cena(j, M.cena); // cena ao aceitar a missão
       diga(M.pedido, { missao: M.id });
       if (!this.checarEtapa(j)) this.kitEtapa(j); // shared/kit.js: o que falta para a primeira etapa (só nas que ensinam)
+      this.hortaMissao(j); // o que já está plantado e a missão usa fica pronto (só a cota)
       this.avisarProg(j);
       return true;
     }
@@ -984,6 +985,7 @@ export class Simulacao {
     const N = L[h.e];
     if (!N) return this.concluirMissao(j, M, null);
     this.evento({ t: 'etapa', para: j.id, txt: N.txt, e: h.e, total: L.length });
+    this.hortaMissao(j); // etapa nova que usa legume: o que já está plantado fica pronto (só a cota)
     if (!this.checarEtapa(j)) { this.kitEtapa(j); this.avisarProg(j); }
   }
   // a etapa da vez já está feita? (ja: o que o herói já tem; ter: itens na mochila; noite; lugar). Avança se sim.
@@ -3299,6 +3301,7 @@ export class Simulacao {
       if (!vigor()) return;
       tirar(p.mochila, 'semente_' + m.s, 1);
       Object.assign(t, { c: m.s, g: 0, u: agora });
+      if (this.acelerarPlanta(j, t)) aviso('Missão: pronta pra colher!'); // shared/kit.js: só a quantidade que a missão pede
       this.historia(j, 'plantar', { k: m.s });
     } else if (m.acao === 'regar') {
       if (!t) return aviso('Precisa arar a terra primeiro');
@@ -3313,6 +3316,7 @@ export class Simulacao {
     } else if (m.acao === 'colher') {
       if (!t || !t.c) return aviso('Não tem nada plantado aqui');
       const P = PLANTAS[t.c];
+      this.acelerarPlanta(j, t); // planta de antes que a missão usa: pronta agora (dentro da cota)
       if (fasePlanta(t.g / P.G) < 4) return aviso(`${P.nome} ainda não está madura` + (t.w && agora < t.w + HORTA.rega * 3600000 ? '' : ' (precisa de água!)'));
       const n = P.y[0] + Math.floor(Math.random() * (P.y[1] - P.y[0] + 1)) + (Math.random() < profBonus(p.prof.faz).extra ? 1 : 0);
       if (!guardar(p.mochila, { k: t.c, n })) return aviso('Mochila cheia');

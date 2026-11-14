@@ -44,3 +44,8 @@ virada em rotação local; o quadril muda de escala pela altura.
 
 Ainda em 2026-11-13 entraram parada_esticar_bracos e parada_esticar_pescoco (Mixamo Arm Stretching e Neck Stretching,
 baixadas pelo André, `mixamo/movimento/` nos fontes), assadas do mesmo jeito da Maleta, na rotação das paradas de mãos vazias.
+
+2026-11-14 (André: "os braços estão entrando muito" na espreguiçada do pescoço, nos dois corpos): o personagem do Mixamo
+era magro e deixava o braço quase colado no corpo, então a mão entrava na coxa e o antebraço na armadura. Corrigido sem
+trocar a pose com `node ferramentas/assar-animacoes/abrir-bracos.cjs parada_esticar_pescoco 14 10` (braço 14° mais
+aberto e cotovelo 10° dobrado pra frente, quadro a quadro, no espaço do mundo). Rode só uma vez por animação: soma.
