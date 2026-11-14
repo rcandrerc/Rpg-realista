@@ -79,9 +79,9 @@ jobs:
           grep -E "^CELULAR" /tmp/cel/sem-tela.log | cut -c1-400 | tail -40
       - name: Jogar com Vulkan por software (metade da tela do X7)
         run: |
-          RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 900)) stdbuf -oL -eL \
+          RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 420)) stdbuf -oL -eL \
             xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
-            --resolution 1356x610 --render-thread separate -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/vulkan.log 2>&1 || true
+            --resolution 1356x610 --render-thread safe -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/vulkan.log 2>&1 || true
           grep -E "^CELULAR" /tmp/cel/vulkan.log | cut -c1-400 | tail -40
       - name: Relatório
         if: always()

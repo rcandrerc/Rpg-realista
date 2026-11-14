@@ -12,7 +12,12 @@ const linhas = (f) => { try { return fs.readFileSync(f, 'utf8').trim().split('\n
 const mediana = (l) => { const a = l.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
 
 const R = { turno: `cel-${process.env.GITHUB_RUN_ID || Date.now()}`, tipo: 'celular', inicio: Number(process.env.INICIO_MS) || Date.now(), ultimo: Date.now(), ativo: false, modos: {}, problemas: [] };
-for (const f of saidas) { const r = ler(f); if (r) R.modos[r.modo] = r; else R.problemas.push(`O app não terminou (${path.basename(f)}): veja o log do GitHub`); }
+for (const f of saidas) {
+  const r = ler(f); if (r) { R.modos[r.modo] = r; continue; }
+  // o Vulkan por software do GitHub às vezes trava no primeiro quadro (limite da máquina da nuvem, não do jogo)
+  if (/vulkan/.test(path.basename(f))) R.problemas.push('Vulkan por software não desenhou desta vez (limite da máquina do GitHub, não do jogo): só a rodada sem tela valeu');
+  else R.problemas.push(`O app não terminou (${path.basename(f)}): veja o log do GitHub`);
+}
 
 // o que o lentidao.gd do jogo anotou (igual ao celular): segundos ruins e o resumo de cada minuto
 const lent = linhas(path.join(pasta, 'lentidao.jsonl')).filter((x) => !x.tipo);
