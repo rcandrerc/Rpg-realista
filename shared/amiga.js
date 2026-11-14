@@ -494,6 +494,8 @@ export const Amiga = {
     if (av.fase === 'voltar') {
       const M = this.pontoVilaAmiga(j), L = this.loteDaAmiga();
       const casa = L ? { x: L.def.x0 + this.AMIGA.porta[0], z: L.def.z0 + this.AMIGA.porta[1] } : M;
+      const canto = L && Math.hypot(casa.x - j.x, casa.z - j.z) < 15 && this.contornoCasa(L, j, casa);
+      if (canto) { j.montado = null; this.irDireto(j, canto.x, canto.z, false); return; } // atrás da casa: dá a volta
       if (!this.irLongeAmiga(j, casa.x, casa.z, dt)) return;
       // na vila: vende o que não usa, conserta no Tomás e compra poção na Rosa (com o ouro dele)
       this.arrumarMochilaAmiga(j); this.pocoesAmiga(j);
@@ -503,12 +505,15 @@ export const Amiga = {
     if (av.fase === 'descansar') {
       if (noite) av.ate = t + (av.espera ??= Math.random() * NPC_VIDA.esperaManha); // abriu o horário: ainda espera um tanto só dele
       if (t < av.ate || noite) { // passeia devagar pela vila, no canto dele (fora do horário fica por ali)
-        const M = this.pontoVilaAmiga(j);
+        // quem tem casa (Cecília, Dario) voltou para ela: passeia na frente da porta, não vai em linha reta até a vila
+        // atravessando a própria casa (era o "andando sem sair do lugar" atrás da casa)
+        const Lc = this.loteDaAmiga(), M = Lc ? { x: Lc.def.x0 + this.AMIGA.porta[0], z: Lc.def.z0 + this.AMIGA.porta[1] + 1.6, r: 2.5 } : this.pontoVilaAmiga(j);
         if (!av.passeio || Math.hypot(av.passeio.x - j.x, av.passeio.z - j.z) < 1) {
           if (Math.random() < 0.02) { const a = Math.random() * Math.PI * 2, r = Math.random() * M.r * 0.6; av.passeio = { x: M.x + Math.cos(a) * r, z: M.z + Math.sin(a) * r }; }
           return this.pararAmiga(j);
         }
-        return this.irDireto(j, av.passeio.x, av.passeio.z, false);
+        const canto = Lc && this.contornoCasa(Lc, j, av.passeio); // atrás da casa: dá a volta até a frente
+        return canto ? this.irDireto(j, canto.x, canto.z, false) : this.irDireto(j, av.passeio.x, av.passeio.z, false);
       }
       if (this.loteDaAmiga()) { ia.av = null; ia.fase = 'pensar'; return; } // quem tem casa volta para a rotina dela
       ia.av = { fase: 'escolher', fora: av.fora, semColeta: av.semColeta };
@@ -629,11 +634,32 @@ export const Amiga = {
     Object.assign(j.ia, { fase: 'andar', rota, chegou, preso: 0, longe: Infinity });
   },
   dentroDaCasa(L, p) { const [a0, b0, a1, b1] = this.AMIGA.dentro; return p.x > L.def.x0 + a0 + 0.2 && p.x < L.def.x0 + a1 - 0.2 && p.z > L.def.z0 + b0 + 0.2 && p.z < L.def.z0 + b1 - 0.2; },
+  // De fora para fora, a linha reta passa pela casa (ela está atrás ou do lado): o canto por onde dá a volta, ou null.
+  // Atrás: primeiro o canto de trás do lado mais perto, depois o da frente; dali a porta fica à vista (André 2026-11-12,
+  // "ficam caminhando sem sair do lugar... batendo na parede lá da casa deles").
+  contornoCasa(L, de, ate) {
+    if (!L?.pecas.some((p) => p.k === 'parede')) return null;
+    const [a0, b0, a1, b1] = this.AMIGA.dentro, M = 0.9, f = 0.3;
+    const X0 = L.def.x0 + a0, X1 = L.def.x0 + a1, Z0 = L.def.z0 + b0, Z1 = L.def.z0 + b1;
+    const naCasa = (x, z) => x > X0 - f && x < X1 + f && z > Z0 - f && z < Z1 + f;
+    if (naCasa(de.x, de.z) || naCasa(ate.x, ate.z)) return null; // entrar e sair é pela porta (irPara)
+    let corta = false;
+    for (let k = 1; k < 24 && !corta; k++) corta = naCasa(de.x + (ate.x - de.x) * k / 24, de.z + (ate.z - de.z) * k / 24);
+    if (!corta) return null;
+    const lado = de.x < (X0 + X1) / 2 ? X0 - M : X1 + M;
+    if (de.z < Z0 && Math.abs(de.x - lado) > 0.4) return { x: lado, z: Z0 - M }; // atrás da casa: o canto de trás
+    if (de.z > Z1) return { x: lado, z: Z1 + M }; // na frente (indo para trás): o canto da frente
+    return ate.z > Z1 ? { x: lado, z: Z1 + M } : { x: lado, z: Z0 - M }; // do lado: o canto do lado de onde quer chegar
+  },
   andarAmiga(j, dt) {
-    const ia = j.ia, alvo = ia.rota[0];
+    const ia = j.ia;
+    { const c = ia.rota[0] && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]); if (c) { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; } } // a casa no caminho: dá a volta
+    const alvo = ia.rota[0];
     if (!alvo) { this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 0.3; const f = ia.chegou; ia.chegou = null; f?.(); return; }
     const dx = alvo.x - j.x, dz = alvo.z - j.z, d = Math.hypot(dx, dz);
     if (d < (ia.rota.length > 1 ? 1.2 : 0.35)) { ia.rota.shift(); ia.preso = 0; ia.longe = Infinity; return; }
+    // a um passo do ponto e sem chegar mais perto (tocha, banco, gente em cima dele): já chegou, não fica rodando em volta
+    if (ia.rota.length === 1 && d < 1 && ia.preso > 0.8) { ia.rota.shift(); ia.preso = 0; ia.longe = Infinity; return; }
     // não chega mais perto (algo no caminho): depois de 3 s aparece no ponto (melhor que ficar empurrando a parede)
     if (d < ia.longe - 0.05) { ia.longe = d; ia.preso = 0; } else if ((ia.preso += dt) > 3) { this.teleportes = (this.teleportes | 0) + 1; Object.assign(j, { x: alvo.x, z: alvo.z, y: this.terreno.altura(alvo.x, alvo.z) }); ia.rota.shift(); ia.preso = 0; ia.longe = Infinity; return; }
     const corre = d + ia.rota.length * 8 > 14;
