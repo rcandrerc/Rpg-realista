@@ -720,7 +720,8 @@ const ROBO_REPO = 'rcandrerc/rpg-realista', ROBO_WORKFLOW = `${ROBO_REPO}/.githu
 async function roboConfere(body) {
   if (process.env.ROBO_TESTE && body?.teste === process.env.ROBO_TESTE) return true;
   const { payload } = await jwtVerify(String(body?.cracha || ''), chavesGithub, { issuer: 'https://token.actions.githubusercontent.com', audience: 'age-of-embers-robo' });
-  return payload.repository === ROBO_REPO && payload.job_workflow_ref === ROBO_WORKFLOW;
+  // o nome no GitHub é 'Rpg-realista' (maiúscula): a conferência não liga para maiúscula
+  return String(payload.repository).toLowerCase() === ROBO_REPO && String(payload.job_workflow_ref).toLowerCase() === ROBO_WORKFLOW;
 }
 let roboT = 0;
 app.post('/conta/robo', async (req, res) => {
