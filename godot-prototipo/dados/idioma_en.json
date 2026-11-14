@@ -3152,5 +3152,9 @@
 "Aurora, Bairro do Nordeste": "Aurora, Northeast District",
 "Aurora, Bairro do Sudoeste": "Aurora, Southwest District",
 "Aurora, Bairro do Sudeste": "Aurora, Southeast District",
-"Runa": "Rune"
+"Runa": "Rune",
+"Aperte a tecla do slot %d (Esc cancela)": "Press the key for slot %d (Esc cancels)",
+"Slot %d: tecla %s": "Slot %d: key %s",
+"Tecla %s já tem outra ação": "Key %s is already bound to another action",
+"Tecla mantida": "Key unchanged"
 }
