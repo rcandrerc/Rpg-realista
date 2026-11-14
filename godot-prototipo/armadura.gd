@@ -147,6 +147,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 	if esq == null:
 		return
 	_orientar(esq)
+	_ombros_largos(esq)
 	# André 2026-11-07: sem peitoral a blusa vira pele (top de biquíni na menina, peito nu no menino), então ela fica
 	# sempre justa como debaixo da armadura (antes, sem peitoral, era a camiseta branca larga)
 	_cintura(raiz, true, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
@@ -188,6 +189,36 @@ static func vestir(raiz: Node3D, equip) -> void:
 			for arma in ba.get_children():
 				costas(esq, arma, capa)
 	preload("res://realista.gd").aplicar(raiz) # pele semi-realista (André 2026-11-07)
+
+# André 2026-11-14: o corpo masculino "parece um magrelinho feio que não trabalha": ombros um pouco mais largos.
+# O osso do braço (UpperArm) sai OMBRO_LARGO para fora, na direção do ombro, depois da animação (modificador do
+# esqueleto, o primeiro da fila). Não mexe na malha nem na escala: a pele, a camisa e a armadura (que nascem da pele,
+# com os mesmos pesos) esticam juntas no ombro, e a ombreira (presa no braço) vai junto. Vale em todas as animações
+# e em todo corpo masculino que veste por aqui (herói, boneco do menu e da Aparência, outros jogadores, NPCs de roupa).
+const OMBRO_LARGO := 0.035 # m para cada lado
+
+static func _ombros_largos(esq: Skeleton3D) -> void:
+	if esq.find_bone("J_Sec_L_Bust1") >= 0 or esq.get_node_or_null("OmbrosLargos") != null:
+		return
+	var mod := OmbrosLargos.new()
+	mod.name = "OmbrosLargos"
+	for nome in ["J_Bip_L_UpperArm", "J_Bip_R_UpperArm"]:
+		var b := esq.find_bone(nome)
+		if b < 0:
+			return
+		var o := esq.get_bone_rest(b).origin
+		mod.ossos[b] = o + o.normalized() * OMBRO_LARGO
+	esq.add_child(mod)
+	esq.move_child(mod, 0)
+
+class OmbrosLargos extends SkeletonModifier3D:
+	var ossos := {} # osso -> posição nova (no espaço do pai)
+	func _process_modification() -> void:
+		var s := get_skeleton()
+		if s == null:
+			return
+		for b in ossos:
+			s.set_bone_pose_position(b, ossos[b])
 
 # André 2026-11-03: "tá gordão, sem cintura". A blusa (Tops) e o cós da saia (Bottoms) do VRoid são largos na
 # cintura (~3 cm de folga de cada lado). Uma cópia das malhas é apertada para o centro do corpo entre o quadril e o
