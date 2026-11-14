@@ -96,7 +96,7 @@ func _andar(m, dt: float) -> void:
 		if etapa_t < dt * 1.5: # chegou: começa a volta de onde está
 			ang = atan2(pos.y - c.y, pos.x - c.x)
 		ang += dt * VEL / d.r
-		var alvo := c + Vector2(cos(ang), sin(ang)) * d.r
+		var alvo: Vector2 = c + Vector2(cos(ang), sin(ang)) * float(d.r)
 		pos = pos.move_toward(alvo, VEL * dt * 1.5)
 		prox = etapa_t >= d.s
 		if d.get("luta", false):
