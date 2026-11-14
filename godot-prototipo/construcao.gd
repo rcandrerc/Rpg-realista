@@ -2608,12 +2608,16 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	_alguma_estacao = false
 	var prof := prof_da_estacao()
 	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"])) # o fogão tem o botão da fornalha (2026-11-07)
-	var correio := _meu_correio_perto() and prof == ""
-	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty() and not correio)
+	# André 2026-11-14 ("a caixa de correio não aparece mais botão de interagir"): correio e bancada dividem o mesmo
+	# lugar na tela, e qualquer bancada, bigorna ou fornalha de vizinho a 3 m da caixa tomava o lugar dela. Agora fica
+	# o botão da que está mais perto do herói.
+	var d_correio := _dist_meu_correio()
+	var correio := d_correio <= CORREIO_PERTO and (prof == "" or d_correio < _dist_estacao_prof())
+	var com_mesa := not correio and (prof != "" or (no_meu and not mesa_minha.is_empty()))
 	_mostrar_estacao("bancada", com_mesa and vivo and not livre)
 	# estação pública (bigorna da ferraria, bancada da Rosa): o botão aparece mesmo com as estações recolhidas
 	var pub_mesa := publica_perto(["bancada", "bigorna"])
-	if not pub_mesa.is_empty() and vivo and not livre:
+	if not pub_mesa.is_empty() and vivo and not livre and not correio:
 		m.hud.mostrar_botao("bancada", true)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
@@ -3319,9 +3323,36 @@ func _por_correio(id: String) -> void:
 	no.get_node("bandeira").position = Vector3(0.165, 1.28, -0.05) if levantada else Vector3(0.165, 1.08, -0.2)
 	no.get_node("bandeira").rotation.x = 0.0 if levantada else PI / 2.0
 
+const CORREIO_PERTO := 2.6 # m
 func _meu_correio_perto() -> bool:
+	return _dist_meu_correio() <= CORREIO_PERTO
+
+func _dist_meu_correio() -> float:
 	var no: Node3D = _correios.get(meu)
-	return no != null and m.heroi != null and no.global_position.distance_to(m.heroi.position) <= 2.6
+	if no == null or m.heroi == null:
+		return INF
+	return no.global_position.distance_to(m.heroi.position)
+
+# distância da estação que faz prof_da_estacao() dar "fer" ou "alf" (a mesma conta de estacao_perto e
+# _fornalha_de_outro_perto); INF se nenhuma
+func _dist_estacao_prof() -> float:
+	if m.heroi == null:
+		return INF
+	var hp: Vector3 = m.heroi.position
+	var dm := INF
+	var pub := publica_perto(["bigorna", "bancada"])
+	if not pub.is_empty():
+		dm = Vector2(float(pub.x) - hp.x, float(pub.z) - hp.z).length()
+	var lim := float(D.lote.estacaoDist) + 0.3
+	for id in lotes:
+		for p in lotes[id].pecas:
+			var vale: bool = p.k in ["bigorna", "bancada"] or (p.k == "fornalha" and id != meu)
+			if not vale:
+				continue
+			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
+			if d < lim and d < dm and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
+				dm = d
+	return dm
 
 func abrir_correio() -> void:
 	var t0 := Time.get_ticks_usec()
