@@ -254,9 +254,9 @@ func trocar_auto() -> void:
 	aplicar()
 
 # ---------- Auto (André 2026-11-14: "opção auto e opção manual low, médio e high, e escolher fps; no auto escolhe tudo") ----------
-# O Auto parte do nível que a detecção escolheu para a placa (sugerido) e, a cada AUTO_S, olha o tempo médio da placa
-# de vídeo e o calor do Android (lentidao.gd: term, folga, bat). Quente ou placa sem folga: desce um degrau. Frio e com
-# a placa sobrando (contando o degrau de cima) por _espera_sobe: sobe um. Se subiu e logo teve de descer, a próxima
+# O Auto parte do nível que a detecção escolheu para a placa (sugerido) e, a cada AUTO_S, olha o FPS de verdade
+# e o calor do Android (lentidao.gd: term, folga, bat). Quente ou FPS bem abaixo do alvo: desce um degrau. Frio e com
+# o FPS no alvo por _espera_sobe: sobe um. Se subiu e logo teve de descer, a próxima
 # subida espera o dobro (não fica indo e voltando). Degraus, um em cima do outro:
 #   1. resolução 3D menor (a interface continua nítida)
 #   2. trava em 30 quadros por segundo (ritmo igual e esquenta bem menos)
@@ -278,13 +278,13 @@ var _espera_sobe := AUTO_SOBE_S
 var _subiu_em := -1000.0
 var _gpu_soma := 0.0
 var _gpu_n := 0
-var _t_amostra := 0.0
 var _janelas := 0 # janelas seguidas com o jogo na tela
 var _quadros := 0
 var _tempo := 0.0
-# o tempo da placa é lido só de AMOSTRA_S em AMOSTRA_S: com o desenho em paralelo, cada leitura faz a linha principal
-# esperar a linha do desenho (main.gd, Teste de FPS); o FPS de verdade é contado todo quadro, de graça
+var _t_amostra := 0.0 # (sem uso desde 2026-11-14: o tempo da placa não é mais lido)
 const AMOSTRA_S := 5.0
+# o tempo da placa não é lido (2026-11-14): com o desenho em paralelo, cada leitura faz a linha do jogo esperar a linha
+# do desenho terminar o quadro (malhas.gd). O Auto usa o FPS de verdade (contado todo quadro, de graça) e o calor.
 
 static func preset_auto(base: Dictionary, d: int) -> Dictionary:
 	var p := base.duplicate()
@@ -313,13 +313,6 @@ func _process(dt: float) -> void:
 	var real := dt / maxf(Engine.time_scale, 0.001) # tempo de verdade (o golpe congela o jogo)
 	_quadros += 1
 	_tempo += real
-	_t_amostra -= real
-	if _t_amostra <= 0.0:
-		_t_amostra = AMOSTRA_S
-		var g := RenderingServer.viewport_get_measured_render_time_gpu(m.get_viewport().get_viewport_rid())
-		if g > 0.0:
-			_gpu_soma += g
-			_gpu_n += 1
 	_t_auto -= real
 	if _t_auto > 0.0:
 		return
@@ -363,13 +356,13 @@ func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.
 	var quente := term >= QUENTE_TERM or folga >= QUENTE_FOLGA or bat >= QUENTE_BAT
 	if quente or gpu > orc * 0.92 or (fps > 0.0 and fps < alvo * 0.8):
 		return mini(d + 1, DEGRAUS)
-	if d == 0 or gpu < 0.0:
+	if d == 0:
 		return d
 	var acima := preset_auto(PRESETS[nivel], d - 1)
 	# a placa trabalha mais ou menos pelo número de pontos desenhados (resolução ao quadrado)
 	var k := pow(float(acima.escala) / float(P.escala), 2.0)
 	var orc_acima := 1000.0 / float(acima.fps) if int(acima.fps) > 0 else 1000.0 / 60.0
-	var frio := term < 1 and folga < QUENTE_FOLGA - 0.15 and bat < QUENTE_BAT - 2.5 and gpu * k < orc_acima * 0.75 \
+	var frio := term < 1 and folga < QUENTE_FOLGA - 0.15 and bat < QUENTE_BAT - 2.5 and (gpu < 0.0 or gpu * k < orc_acima * 0.75) \
 		and (fps < 0.0 or fps >= alvo * 0.95)
 	return d - 1 if frio else d
 
@@ -404,8 +397,6 @@ func aplicar(aos_poucos := false) -> void:
 # a parte leve (o Auto troca só isto nos degraus 1 a 3): resolução, suavização, LOD, FPS e sombra
 func _aplicar_tela() -> void:
 	var vp: Viewport = m.get_viewport()
-	if auto: # o Auto precisa do tempo da placa (lentidao.gd também liga)
-		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 	# versão PC (ferramentas/pc/preparar.sh grava aethra/pc_escala): monitor de PC tem bem menos pontos por polegada que
 	# o celular, então a mesma escala ficava com cara de resolução baixa. No celular a opção não existe (x1).
 	vp.scaling_3d_scale = minf(1.0, P.escala * float(ProjectSettings.get_setting("aethra/pc_escala", 1.0)))

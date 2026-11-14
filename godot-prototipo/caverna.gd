@@ -1,4 +1,5 @@
 extends Node3D
+const Malhas = preload("res://malhas.gd") # juntar malhas sem ler da placa (o jogo não espera o desenho)
 # Caverna da Montanha, a primeira dungeon (pedido do André 2026-11-06: "eu queria que a dungeon não fosse uma
 # recarrega... que a passagem fosse suave, como se ela fosse uma extensão do mapa").
 #
@@ -416,7 +417,7 @@ func _no_manter() -> Node3D:
 	return _manter
 
 func _juntar() -> void:
-	var grupos := {} # sombra -> {material id -> [material, SurfaceTool]}
+	var grupos := {} # sombra -> {material id -> [material, Malhas.Junta]}
 	var feitos: Array = []
 	for mi: MeshInstance3D in find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null or mi.skin != null or not mi.is_visible_in_tree():
@@ -445,8 +446,10 @@ func _juntar_materiais(grupos: Dictionary) -> void:
 
 func _juntar_material(g: Dictionary, chave: int) -> void:
 	var am: ArrayMesh = g.am
-	(g[chave][1] as SurfaceTool).commit(am)
-	am.surface_set_material(am.get_surface_count() - 1, g[chave][0])
+	var n0 := am.get_surface_count()
+	g[chave][1].commit(am)
+	for si in range(n0, am.get_surface_count()):
+		am.surface_set_material(si, g[chave][0])
 
 func _juntar_uma(mi: MeshInstance3D, grupos: Dictionary) -> void:
 	var t: Transform3D = global_transform.affine_inverse() * mi.global_transform
@@ -463,10 +466,8 @@ func _juntar_uma(mi: MeshInstance3D, grupos: Dictionary) -> void:
 			mt = mi.mesh.surface_get_material(i)
 		var chave := mt.get_instance_id() if mt else 0
 		if not grupos[sombra].has(chave):
-			var st := SurfaceTool.new()
-			st.begin(Mesh.PRIMITIVE_TRIANGLES)
-			grupos[sombra][chave] = [mt, st]
-		(grupos[sombra][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+			grupos[sombra][chave] = [mt, Malhas.Junta.new()] # sem ler da placa (malhas.gd)
+		grupos[sombra][chave][1].append_from(mi.mesh, i, t)
 
 func _juntar_fim(feitos: Array, grupos: Dictionary) -> void:
 	for sombra in grupos:

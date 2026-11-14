@@ -8,6 +8,7 @@ const Hud = preload("res://hud.gd")
 const Idioma = preload("res://idioma.gd") # Português ou English (Configurações > Idioma / Language)
 const Efeitos = preload("res://efeitos.gd")
 const BossMundo = preload("res://boss_mundo.gd")
+const Malhas = preload("res://malhas.gd") # juntar malhas sem ler da placa (o jogo não espera o desenho)
 const LodMalha = preload("res://lod_malha.gd") # LOD para roupa, cabelo e corpo montados no jogo (NPCs e outros jogadores)
 const Terreno = preload("res://terreno.gd")
 const Relevo = preload("res://relevo.gd")
@@ -938,7 +939,7 @@ func juntar_vila(vila: Node3D) -> void:
 			areas_lotes.append(ar)
 	var fetos_soltos: Array = []
 	var base_inv: Transform3D = vila.global_transform.affine_inverse()
-	var grupos := {} # [lado_x, lado_z, alcance, sombra] -> {material id -> [material, SurfaceTool]}
+	var grupos := {} # [lado_x, lado_z, alcance, sombra] -> {material id -> [material, Malhas.Junta]}
 	var feitos: Array = []
 	for mi: MeshInstance3D in vila.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null or mi.skin != null or not mi.is_visible_in_tree() or manter.has(mi) or mi.get_child_count() > 0:
@@ -993,18 +994,18 @@ func juntar_vila(vila: Node3D) -> void:
 			var mat: Material = rasteira.get(mi, mi.get_active_material(i))
 			var chave := mat.get_instance_id() if mat else 0
 			if not grupos[k].has(chave):
-				var st := SurfaceTool.new()
-				st.begin(Mesh.PRIMITIVE_TRIANGLES)
-				grupos[k][chave] = [mat, st]
-			(grupos[k][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+				grupos[k][chave] = [mat, Malhas.Junta.new()] # sem ler da placa (malhas.gd)
+			grupos[k][chave][1].append_from(mi.mesh, i, t)
 		feitos.append(mi)
 	var n := 0
 	for k in grupos:
 		var am := ArrayMesh.new()
 		for chave in grupos[k]:
 			var g: Array = grupos[k][chave]
-			(g[1] as SurfaceTool).commit(am)
-			am.surface_set_material(am.get_surface_count() - 1, g[0])
+			var n0 := am.get_surface_count()
+			g[1].commit(am)
+			for si in range(n0, am.get_surface_count()):
+				am.surface_set_material(si, g[0])
 		if am.get_surface_count() == 0:
 			continue
 		var bloco := MeshInstance3D.new()
@@ -3976,8 +3977,12 @@ func npcs_das_vilas(dt: float) -> void:
 func lod_inimigos() -> void:
 	if heroi == null:
 		return
+	# cada pedaço vai para o registro do quadro lento (li:*): no celular esta parte chegou a 243 ms num quadro
+	var tl := Time.get_ticks_usec()
 	materializar_perto(get_process_delta_time())
+	tl = _parte("li:materializar", tl)
 	npcs_das_vilas(get_process_delta_time())
+	tl = _parte("li:npcs_vilas", tl)
 	var hp: Vector3 = heroi.position
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
@@ -3999,6 +4004,7 @@ func lod_inimigos() -> void:
 				n.fase = npcs.find(n)
 			anim_espacada(n.anim_p, n.esq_p, meio_n)
 			n.anim_acc = 0.0
+			tl = _parte("li:npc_simples", tl)
 		# FPS (auditoria 2026-11-11): longe do herói, o NPC anima a cada 2 quadros (a 25 m, a cada 3), no mesmo tempo total
 		if meio_n and not longe_n and n.get("anim_p") != null:
 			n.anim_acc = float(n.get("anim_acc", 0.0)) + get_process_delta_time()
@@ -4013,9 +4019,14 @@ func lod_inimigos() -> void:
 					n.anim_acc = 0.0
 		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			n.lod_pedido = true
+			tl = _parte("li:npcs", tl)
 			LodMalha.pedir(n.no)
+			tl = _parte("li:lod_pedir", tl)
 			pecinhas_de_perto(n.no)
+			tl = _parte("li:pecinhas", tl)
+	tl = _parte("li:npcs", tl)
 	anim_monstros_longe(hp)
+	tl = _parte("li:anim_monstros", tl)
 	# FPS (auditoria 2026-11-11): a lista dos monstros perto é refeita a cada 4 quadros (são centenas no mapa; um
 	# monstro que chega a LONGE_INIMIGO entra na lista no máximo 3 quadros depois)
 	if Engine.get_process_frames() % 4 != 0 and not inimigos_perto.is_empty():
