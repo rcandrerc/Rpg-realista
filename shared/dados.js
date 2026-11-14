@@ -1233,7 +1233,9 @@ export const PAGINA_PRECO = [0, 500, 2000, 6000];
 // nivel = botões −10/−1/+1/+10 e "Zerar pontos" no Status (Simulacao.nivelTeste); paginas = as 4 páginas da mochila de graça.
 // devolver: com paginas desligado, a conta de teste volta a ter só as páginas que precisa UMA vez (marca prog.devPag).
 // Nada some: itens das páginas 2-4 vão para os lugares vazios da página 1; se não couberem, fica a página que precisar.
-export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11' };
+// missoes: botões "Voltar 1 missão" e "Zerar missões" na aba Missões, só na conta do André (André 2026-11-14: "só pra mim
+// e temporário"). Para tirar: missoes: false (o servidor recusa e o app esconde os botões).
+export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11', missoes: true };
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 export const ITENS = {
   // Uma linha só de armadura (serve para espada e magia). Comum é de couro; do Raro em diante, placas de aço.

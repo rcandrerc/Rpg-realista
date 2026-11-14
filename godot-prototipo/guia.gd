@@ -651,7 +651,19 @@ func _achar_forno(p: String) -> bool:
 				return false
 			_alvo = _meta("forno:lugar:sai")
 		"mat":
-			if F.get("ent") != null:
+			var ent = F.get("ent")
+			if ent != null:
+				# outra coisa no Material (a lenha virando carvão quando a etapa é a barra de aço): toque para tirar
+				# (André 2026-11-14: "manda fundir barra mas fica jogando lenha pra mim")
+				if str(ent.get("k", "")) != f[1] and _itens.size() > 0:
+					var serve := false
+					for i in _itens:
+						if moch[i] != null and str(moch[i].k) == f[1]:
+							serve = true
+							break
+					if serve:
+						_alvo = _meta("forno:lugar:ent")
+						return _alvo != null
 				return false
 			for i in _itens:
 				if moch[i] != null and str(moch[i].k) == f[1]:
@@ -660,9 +672,14 @@ func _achar_forno(p: String) -> bool:
 			if f[1] == "lenha" and _alvo != null and cons.forno_alvo == "comb": # lenha vira carvão: o lugar do material primeiro
 				_alvo = _meta("forno:lugar:ent")
 		"comb":
-			if F.get("comb") != null or float(F.get("fogo", 0.0)) > 0.0:
-				return false
 			var fogo: String = f[1] if f.size() > 1 else ""
+			var cb = F.get("comb")
+			# a receita pede fogo de carvão e o combustível é lenha (e não está queimando carvão): toque para tirar
+			if fogo != "" and cb != null and str(cb.get("k", "")) != fogo and not (float(F.get("fogo", 0.0)) > 0.0 and str(F.get("fogoK", "")) == fogo):
+				_alvo = _meta("forno:lugar:comb")
+				return _alvo != null
+			if cb != null or float(F.get("fogo", 0.0)) > 0.0:
+				return false
 			var comb: Dictionary = m.P.dados.get("fornalha", {}).get("combustivel", {})
 			for i in _itens:
 				var it = moch[i]
