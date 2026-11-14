@@ -4,6 +4,7 @@ extends RefCounted
 # sem internet o app usa as mesmas contas, a partir do último progresso da conta (treino: não grava na conta).
 # Os números das skills vêm de dados/habilidades.json (gerado por client/exportar-godot/mundo.mjs).
 
+const Idioma = preload("res://idioma.gd") # inglês: nome da peça com a raridade na frente ("Rare Sword +2")
 const ARQUIVO := "user://progresso.cfg" # última cópia do progresso da conta (para jogar sem internet)
 
 var dados: Dictionary # habilidades.json
@@ -605,10 +606,13 @@ func nome_item(it) -> String:
 	if not (it is Dictionary) or not dados.itens.has(it.k):
 		return ""
 	if eh_equip(it):
-		return "%s %s" % [dados.itens[it.k].nome, dados.raridades[int(it.r)].nome] + (" +%d" % int(it.e) if int(it.get("e", 0)) > 0 else "")
+		var mais := " +%d" % int(it.e) if int(it.get("e", 0)) > 0 else ""
+		if Idioma.ingles():
+			return "%s %s" % [Idioma.t(dados.raridades[int(it.r)].nome), Idioma.t(dados.itens[it.k].nome)] + mais
+		return "%s %s" % [dados.itens[it.k].nome, dados.raridades[int(it.r)].nome] + mais
 	if it.k == "tomo":
-		return "%s %s" % [habs[it.h].tomo, dados.romano[int(it.nv)]]
-	return dados.itens[it.k].nome
+		return "%s %s" % [Idioma.t(habs[it.h].tomo), dados.romano[int(it.nv)]]
+	return Idioma.t(dados.itens[it.k].nome)
 
 const COR_MAT := {"minerio_ferro": "b9b2a6", "minerio_cobre": "d99060", "cristal": "a98cff", "lenha": "c79a62", "barra_ferro": "d6dbe0",
 	"barra_cobre": "e8a06a", "carvao": "4a4644", "pedra": "9a958c", "barra_aco": "9fb0c2", "couro": "b07a4a", "tecido": "c9a6e8"}
@@ -691,8 +695,8 @@ const NOME_ST := {"vida": "Vida", "mana": "Mana", "defesa": "Defesa", "critico":
 	"danoK": "Dano", "areaK": "Área das skills", "regenManaK": "Regeneração de mana"}
 static func texto_st(c: String, v: float) -> String:
 	if c in ["critico", "danoK", "areaK", "regenManaK"]:
-		return "+%s%% %s" % [num(v * 100, 1), NOME_ST[c]]
-	return "+%s %s" % [num(v, 0), NOME_ST[c]]
+		return "+%s%% %s" % [num(v * 100, 1), Idioma.t(NOME_ST[c])]
+	return "+%s %s" % [num(v, 0), Idioma.t(NOME_ST[c])]
 
 # o que a peça dá: "+3 Defesa · +7 Vida"
 func texto_item(it) -> String:
@@ -835,7 +839,7 @@ static func num(v: float, casas := 1) -> String:
 	var s := str(snappedf(v, pow(10, -casas)))
 	if s.ends_with(".0"):
 		s = s.substr(0, s.length() - 2)
-	return s.replace(".", ",")
+	return s if Idioma.ingles() else s.replace(".", ",") # inglês: 1.5 (português: 1,5)
 
 func linha(h: Dictionary) -> String:
 	var p := []

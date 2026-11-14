@@ -15,6 +15,7 @@ const ARQUIVO := "user://config.cfg" # o mesmo do som e dos gráficos (seção "
 const DICIONARIO := "res://dados/idioma_en.json"
 const NOMES := {"pt": "Português", "en": "English"}
 const LISTA := ["pt", "en"]
+const SEPARADORES := ["\n", " · ", "; ", ". ", ": ", ", "]
 
 static var atual := "pt"
 static var _traducao: Translation
@@ -115,17 +116,26 @@ static func frase(texto: String) -> String:
 
 static func _frase(texto: String, fundo: int) -> String:
 	var direto := TranslationServer.translate(texto)
-	if direto != texto or fundo > 3 or texto.is_valid_float():
+	if direto != texto or fundo > 6 or texto.is_valid_float():
 		return direto
 	var varias := texto.contains("\n")
 	var r := _por_modelo(texto, fundo, true) if varias else _por_modelo(texto, fundo, false)
-	if r != "" or not varias:
-		return r if r != "" else texto
-	# texto de várias linhas montado aos pedaços (aviso + "Atenção: ..."): cada linha por si
-	var linhas := texto.split("\n")
-	for i in linhas.size():
-		linhas[i] = _frase(linhas[i], fundo + 1)
-	return "\n".join(linhas)
+	if r != "":
+		return r
+	# texto montado aos pedaços (aviso + "Atenção: ...", "Dano 120% · Alcance 3 m", "Perdeu 5 de ouro. O equipamento
+	# desgastou"): cada pedaço por si, do separador mais forte para o mais fraco
+	for sep in SEPARADORES:
+		if not texto.contains(sep):
+			continue
+		var partes := texto.split(sep)
+		var mudou := false
+		for i in partes.size():
+			var en := _frase(partes[i], fundo + 1)
+			mudou = mudou or en != partes[i]
+			partes[i] = en
+		if mudou:
+			return sep.join(partes)
+	return texto
 
 # modelos de uma linha não pegam texto de várias (um "{1} e {2}" engoliria o aviso inteiro); "" = nenhum serviu
 static func _por_modelo(texto: String, fundo: int, varias: bool) -> String:
