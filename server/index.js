@@ -479,7 +479,7 @@ const LENTIDAO_MAX = 300;
 const LENTIDAO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao.jsonl');
 // min..nos (2026-11-14): minutos de jogo, memória (MB), ms da placa/processador no último quadro, calor do Android
 // (term 0-6, folga, bat °C) e nós na cena; dnos/dres = nós e recursos que entraram ou saíram no segundo ruim
-const COMUM_CAMPOS = ['min', 'mem', 'vmem', 'livre', 'gpu', 'cpu', 'term', 'folga', 'bat', 'nos'];
+const COMUM_CAMPOS = ['min', 'mem', 'vmem', 'livre', 'gpu', 'cpu', 'term', 'folga', 'bat', 'nos', 'auto'];
 const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido', 'andou', 'andou_lobo', 'mov', 'bloq', 'corr', 'corr_m', 'foto_ms', 'ping', 'x', 'z', 'grafico', 'limite', 'paralelo', 'proc', 'cham', 'tri', 'obj', 'rumo', 'pip', ...COMUM_CAMPOS, 'dnos', 'dres', 'qms'];
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)

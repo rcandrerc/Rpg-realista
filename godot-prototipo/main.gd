@@ -412,7 +412,7 @@ func _ready() -> void:
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
-	botao_teste.visible = grafico.teste # Configurações > Botão Teste
+	botao_teste.visible = false # André 2026-11-14: o Botão Teste saiu (os registros automáticos já mapeiam o jogo)
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
 	lentidao = load("res://lentidao.gd").new(self)
@@ -4991,7 +4991,7 @@ func comecar_teste() -> void:
 	proxima_etapa()
 	ver_rotulo()
 
-# os números do teste (André 2026-11-13, tela limpa): à vista só com Mostrar FPS e Números do teste ligados, ou durante
+# os números do teste (André 2026-11-13, tela limpa; a chave saiu em 2026-11-14): à vista só durante
 # o Teste. Escondidos, atualizar_teste nem monta o texto.
 func ver_rotulo() -> void:
 	if rotulo == null:
@@ -5004,7 +5004,7 @@ func proxima_etapa() -> void:
 	etapa += 1
 	if etapa >= etapas.size():
 		etapa = -1
-		botao_teste.visible = grafico.teste
+		botao_teste.visible = false
 		ver_rotulo()
 		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), false)
 		return
@@ -5018,7 +5018,7 @@ func proxima_etapa() -> void:
 	_q_quadros.clear()
 
 func atualizar_teste(dt: float) -> void:
-	if not rotulo.visible and etapa < 0: # FPS escondido (Configurações > Mostrar FPS): nem monta o texto
+	if not rotulo.visible and etapa < 0: # FPS escondido (Configurações > FPS e ping): nem monta o texto
 		return
 	var fps := Engine.get_frames_per_second()
 	var txt := "%d FPS" % fps
