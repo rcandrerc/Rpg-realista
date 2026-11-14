@@ -12,6 +12,7 @@ const SUMIDO := 2.0 # s com os efeitos escondidos até acabarem sozinhos (a capa
 const LIMITE := 15.0 # s: aconteça o que acontecer (erro, modelo que não carrega, motor novo), a capa não espera mais que isso (os corpos já esperam até CORPOS_MAX)
 
 const Penteado = preload("res://penteado.gd")
+const Aparencia = preload("res://aparencia.gd")
 
 var m # main.gd
 var rodando := false
@@ -219,6 +220,7 @@ func _passo_corpos(dt: float) -> void:
 			no.process_mode = Node.PROCESS_MODE_DISABLED
 			m.add_child(no)
 			_manequins[p[1]] = no
+			Aparencia.preparar_medias(no) # as cores do corpo (o primeiro outro jogador não trava, aparencia.gd)
 		"roupa":
 			var no = _manequins.get(p[1])
 			if is_instance_valid(no):
@@ -229,6 +231,7 @@ func _passo_corpos(dt: float) -> void:
 			var d := str(p[2])
 			if is_instance_valid(no) and (Penteado.montado(no, d) or Penteado.pronto(d)):
 				Penteado.aplicar(no, d) # já montado (o herói usa este): só põe no boneco
+				Aparencia.preparar_medias(no) # e as cores do cabelo desse penteado
 				m.Armadura.vestir(no, m.Armadura.de_texto("chapeu2")) # o cabelo apertado debaixo do capacete (~30 ms)
 			elif is_instance_valid(no) and _corpos_t < CORPOS_MAX and Penteado._pedidos.has(d):
 				return # ainda carregando no fundo: espera (sem travar) e tenta no próximo quadro

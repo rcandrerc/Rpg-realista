@@ -119,6 +119,20 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	load("res://armadura.gd").atualizar_pele(no)
 	preload("res://realista.gd").aplicar(no)
 
+# Conselho 2026-11-14 (registros do celular: o primeiro corpo de outro jogador custava 150 a 300 ms num quadro): a média
+# da textura lê a imagem da placa (get_image espera o desenho) e descomprime. aquecer.gd chama isto atrás da capa
+# para cada corpo e penteado do criador; depois o tingido só acha a média pronta.
+static func preparar_medias(no: Node) -> void:
+	for mi in no.find_children("*", "MeshInstance3D", true, false):
+		var malha: Mesh = mi.mesh
+		if malha == null:
+			continue
+		for i in malha.get_surface_count():
+			var base = malha.surface_get_material(i)
+			var parte := _parte(base, malha, i)
+			if parte != "":
+				media(base.albedo_texture, parte == "pele")
+
 static func _parte(base, malha: Mesh, i: int) -> String:
 	if not (base is StandardMaterial3D) or base.albedo_texture == null:
 		return "" # o contorno não tem textura (fica escuro como está)
@@ -257,7 +271,9 @@ static func _tingido(base: StandardMaterial3D, cor: int, parte: String) -> Mater
 # parte clara (a pele de verdade, sem os traços e as sombras desenhadas), senão o corpo, que tem mais traço que o rosto,
 # ficava mais claro que o rosto depois de tingido.
 static func media(tex: Texture2D, claro := false) -> Color:
-	var id := "%d|%s" % [tex.get_instance_id(), claro]
+	# pelo caminho do arquivo quando tem (o corpo do aquecer.gd sai da cena e o modelo pode ser carregado de novo
+	# depois: a média calculada atrás da capa continua valendo)
+	var id := "%s|%s" % [tex.resource_path if tex.resource_path != "" else str(tex.get_instance_id()), claro]
 	if _medias.has(id):
 		return _medias[id]
 	var r := Color(0.5, 0.5, 0.5)
