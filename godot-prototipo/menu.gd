@@ -267,6 +267,7 @@ static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
 func botao(t: String, fn: Callable, tam := 15, ativo := false) -> Button:
 	var b := Button.new()
 	b.text = Idioma.frase(t)
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", legivel(tam))
 	estilo_botao(b, ativo)

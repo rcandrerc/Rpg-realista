@@ -390,6 +390,7 @@ func _texto(t: String, cor := Menu.TEXTO, tam := 16) -> Label:
 func _botao(t: String, fn: Callable, principal := true, perigo := false) -> Button:
 	var b := Button.new()
 	b.text = Idioma.frase(t)
+	b.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(0, 46)
 	b.add_theme_font_size_override("font_size", 17)
