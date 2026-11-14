@@ -686,10 +686,25 @@ func _lote_fora(id: String) -> void:
 	_grama_sob_horta() # a grama volta onde o terreno saiu
 
 # ---------- o que vem do servidor ----------
+# Conselho 2026-11-14 (registros do celular: "lotes" custava 115 a 262 ms logo depois da capa): cada terreno da lista
+# refazia portas, grama e sólidos de TODOS os terrenos (N terrenos = N x N). Na lista, cada um só anota o que precisa
+# e isso é refeito uma vez no fim (o mesmo resultado: as contas olham todos os terrenos de uma vez).
+var _em_lista := false
+var _pede := {}
 func do_servidor_lotes(ev: Dictionary) -> void:
 	meu = str(ev.meu) if ev.get("meu") != null else ""
+	_em_lista = true
+	_pede = {}
 	for d in ev.get("lista", []):
 		do_servidor_lote(d)
+	_em_lista = false
+	if _pede.has("portas"):
+		_achar_portas()
+	if _pede.has("grama"):
+		_grama_sob_horta()
+	if _pede.has("solidos"):
+		_refazer_solidos()
+	_pede = {}
 
 func meu_lote(id: String) -> void:
 	meu = id
@@ -757,7 +772,10 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			L.raiz.add_child(p.no)
 	if mudou_pecas:
 		_refazer_telhado(L)
-		_achar_portas()
+		if _em_lista:
+			_pede.portas = true
+		else:
+			_achar_portas()
 		L.erase("_moveis_chave") # peças mudaram: _moveis_dentro confere de novo
 	# horta
 	var mudou_canteiros := false
@@ -804,9 +822,15 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		elif h.mask != h.get("mask_feita", -1):
 			_enfileirar_canteiro(h)
 	if mudou_pecas or mudou_canteiros:
-		_grama_sob_horta(L)
+		if _em_lista:
+			_pede.grama = true
+		else:
+			_grama_sob_horta(L)
 	if mudou_pecas:
-		_refazer_solidos()
+		if _em_lista:
+			_pede.solidos = true
+		else:
+			_refazer_solidos()
 	_por_correio(id)
 	if id == meu and not _avisou_conta:
 		_avisou_conta = true
@@ -1755,6 +1779,8 @@ func _malha_terra(h: Dictionary) -> ArrayMesh:
 # A grama do chão (main.gd grama_pedacos) não fura a terra arada: as folhas em cima de um canteiro (com a borda solta)
 # ficam com tamanho zero; desarou, voltam. Só mexe nos pedaços que encostam no lote.
 var _grama_original := {} # MultiMeshInstance3D -> buffer de antes
+var _grama_buf0 := {} # MultiMeshInstance3D -> buffer de antes, guardado para não ler da placa de novo
+var _grama_ret := {} # MultiMeshInstance3D -> retângulo no chão (x, z)
 # 2026-11-05 (André: "o chão continua com grama"): cada pedaço de grama (24 m) pega vários terrenos. A conta refazia o
 # pedaço a partir da grama original olhando só o terreno que chegou, e devolvia a grama embaixo das casas dos vizinhos
 # (o último terreno a chegar ganhava). Agora a conta olha todos os terrenos de uma vez, sempre que um deles muda.
@@ -1798,15 +1824,28 @@ func _grama_sob_horta(_L = null) -> void:
 		var n := mm.instance_count
 		if n == 0:
 			continue
-		var bb: AABB = g.global_transform * mm.get_aabb()
-		var rb := Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)
+		# o retângulo e o buffer de antes são lidos da placa uma vez por pedaço (get_aabb e buffer fazem o jogo esperar o
+		# desenho) e ficam guardados; o retângulo de antes vale sempre (a grama tapada encolhe, mas o lugar é o mesmo)
+		var rb: Rect2
+		if _grama_ret.has(g):
+			rb = _grama_ret[g]
+		else:
+			var bb: AABB = g.global_transform * mm.get_aabb()
+			rb = Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)
+			_grama_ret[g] = rb
 		var perto: Array = []
 		for c in caixas:
 			if c.intersects(rb):
 				perto.append(c)
 		if perto.is_empty() and not _grama_original.has(g):
 			continue
-		var orig: PackedFloat32Array = _grama_original.get(g, mm.buffer)
+		var orig: PackedFloat32Array
+		if _grama_buf0.has(g):
+			orig = _grama_buf0[g]
+		else:
+			orig = mm.buffer
+			_grama_buf0[g] = orig
+		var estava := _grama_original.has(g)
 		_grama_original[g] = orig
 		var buf := orig.duplicate()
 		var mexeu := false
@@ -1835,7 +1874,8 @@ func _grama_sob_horta(_L = null) -> void:
 				for c in [0, 1, 2, 4, 5, 6, 8, 9, 10]:
 					buf[i * 16 + c] = 0.0
 				mexeu = true
-		mm.buffer = buf
+		if mexeu or estava: # nada tapado e nada para destapar: não manda o buffer de novo para a placa
+			mm.buffer = buf
 		if not mexeu:
 			_grama_original.erase(g)
 
