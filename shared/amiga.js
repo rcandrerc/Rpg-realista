@@ -133,6 +133,7 @@ export const Amiga = {
       j.amizade = salvo.amizade | 0;
       j.amizades = salvo.amizades && typeof salvo.amizades === 'object' ? { ...salvo.amizades } : {};
       j.donoConta = null;
+      j.amizadeDia = salvo.amizadeDia && typeof salvo.amizadeDia === 'object' ? { ...salvo.amizadeDia } : {}; // conta -> [dia, quanto subiu hoje]
       // memória de cada pessoa (conta -> lista), dicas que viraram regra (conta -> { curaCedo: true }) e o que fazem juntos
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
@@ -176,6 +177,38 @@ export const Amiga = {
     if (j.conta === a.donoConta) return a.amizade | 0;
     if (a.amizades?.[j.conta] != null) return a.amizades[j.conta] | 0;
     return a.amizadeAntiga != null && j.testador ? a.amizadeAntiga | 0 : 0;
+  },
+  // sobe a amizade de quem está na sala (André 2026-11-14: "subir interagindo de qq forma"). Teto AMIGA.amizade.max (quem já
+  // passou do teto não perde nada). diario = conta no limite do dia (conversa, caça, coleta, chefe); presente e pedido não.
+  // Devolve quanto subiu.
+  ganharAmizadeAmiga(j, n, diario = true) {
+    const a = this.amiga, Z = this.AMIGA.amizade; if (!a || !j || j.bot || !j.conta || n <= 0) return 0;
+    const atual = this.amizadeAmiga(j);
+    if (diario) {
+      const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), m = (a.amizadeDia ||= {});
+      const hoje = m[j.conta]?.[0] === dia ? m[j.conta][1] | 0 : 0;
+      n = Math.min(n, Z.porDia - hoje);
+      if (n <= 0) return 0;
+      m[j.conta] = [dia, hoje + n];
+    }
+    const novo = Math.max(atual, Math.min(Z.max, atual + n)), subiu = novo - atual;
+    if (!subiu) return 0;
+    if (j.conta === a.donoConta) a.amizade = novo; else (a.amizades ||= {})[j.conta] = novo;
+    if (j.testador && j.conta !== a.donoConta) a.amizadeAntiga = null; // a antiga (do André) já foi para a conta dele
+    this.evento({ t: 'aviso', para: j.id, texto: Z.aviso.replace('{nome}', this.AMIGA.nome).replace('{n}', subiu) });
+    this.guardarAmiga();
+    return subiu;
+  },
+  // monstro morto (simulacao.js): quem do time dela estava junto conta para a amizade (AMIGA.amizade.caca e .chefe)
+  cacaJuntosAmiga(ganham, c) {
+    const a = this.amiga, Z = this.AMIGA.amizade; if (!a || !a.time || !ganham.has(a)) return;
+    const chefe = c.tipo === 'chefe' || !!TIPOS_INIMIGO[c.tipo]?.chefe || !!c.bm, cont = (a.ia.cacaJuntos ||= {});
+    for (const j of ganham) {
+      if (j === a || j.bot || !j.conta || j.time !== a.time) continue;
+      if (chefe) { this.ganharAmizadeAmiga(j, Z.chefe); continue; }
+      cont[j.conta] = (cont[j.conta] || 0) + 1;
+      if (cont[j.conta] >= Z.caca) { cont[j.conta] = 0; this.ganharAmizadeAmiga(j, 1); }
+    }
   },
   mudarDonoAmiga(id) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return;
@@ -248,7 +281,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -657,7 +690,8 @@ export const Amiga = {
           if (guardar(prova, { k: colheita[0], n })) { j.prog.mochila = prova; tirar(a.prog.mochila, colheita[0], n); paga = `${n} ${ITENS[colheita[0]].nome.toLowerCase()}`; }
         }
         if (!paga) { const ouro = Math.max(5, (ITENS[p.k].venda || 2) * p.n * 2); j.prog.ouro += ouro; paga = `${ouro} de ouro`; }
-        a.amizade = (a.amizade | 0) + 1; a.pedido = null;
+        a.pedido = null;
+        this.ganharAmizadeAmiga(j, 1, false);
         this.guardarAmiga();
         this.avisarProg(j);
         return diga(sorteia(F.obrigada).replace('{paga}', paga));
@@ -1243,6 +1277,8 @@ export const Amiga = {
     for (const [conta, d] of Object.entries(a.ia.diario)) {
       const pronto = d.novas >= M.minimo && (conta === forcar || d.novas >= M.cheia || this.tempo - d.ultima >= M.pausa);
       if (!pronto || d.pensando) continue;
+      if ((d.falas | 0) >= this.AMIGA.amizade.conversa) this.ganharAmizadeAmiga(this.jogadores.get(d.id), 1); // uma conversa de verdade
+      d.falas = 0;
       d.novas = 0; d.pensando = true;
       const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
       if (!this.aoDiarioAmiga) { d.pensando = false; continue; }
@@ -1266,7 +1302,7 @@ export const Amiga = {
   ouvirAmiga(id, texto) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id)) return;
     const c = this.chatDeAmiga(j); c.push({ de: 'ele', texto: String(texto).slice(0, 200) }); if (c.length > 12) c.shift();
-    const d = ((a.ia.diario ||= {})[j.conta] ||= { novas: 0, ultima: 0, id }); d.novas++; d.ultima = this.tempo; d.id = id; d.nome = j.nome;
+    const d = ((a.ia.diario ||= {})[j.conta] ||= { novas: 0, ultima: 0, id }); d.novas++; d.falas = (d.falas | 0) + 1; d.ultima = this.tempo; d.id = id; d.nome = j.nome;
   },
   passoChatAmiga(a) {
     const ia = a.ia, dono = this.jogadores.get(this.amigaDono); if (!dono) return;
@@ -1425,8 +1461,9 @@ export const Amiga = {
     const presente = !eu.itens.length && !eu.ouro && (ele.itens.length || ele.ouro);
     // o que ela pediu chegou pela troca (André 2026-11-13: sem botão Dar, entrega como para um jogador)
     const p = a.pedido, veio = p ? ele.itens.reduce((s, e) => { const it = itemValido(JSON.parse(e.chave)); return s + (it?.k === p.k ? e.n : 0); }, 0) : 0;
-    if (p && veio >= p.n) { a.pedido = null; a.amizade = (a.amizade | 0) + 1; }
-    if (presente) { a.amizade = (a.amizade | 0) + 1; this.falarAmiga(this.AMIGA.falasTroca.obrigada); } else this.falarAmiga(sorteia(this.AMIGA.falasTroca.feita));
+    const quem = this.jogadores.get(T.a === a.id ? T.b : T.a);
+    if (p && veio >= p.n) { a.pedido = null; this.ganharAmizadeAmiga(quem, 1, false); }
+    if (presente) { this.ganharAmizadeAmiga(quem, 1, false); this.falarAmiga(this.AMIGA.falasTroca.obrigada); } else this.falarAmiga(sorteia(this.AMIGA.falasTroca.feita));
     a.ia.trocaT = null; a.ia.trocaViu = null;
     const vestiu = this.vestirMelhorAmiga(a); // ganhou peça melhor: veste na hora
     if (vestiu.length) { this.aplicarStatus(a); this.falarAmiga(this.AMIGA.falasEquip.vestiu.replace('{item}', vestiu.join(' e '))); }
@@ -1504,6 +1541,7 @@ export const Amiga = {
   dividirColetaAmiga(a, fim = false) {
     const ia = a.ia, C = this.AMIGA.coleta, F = this.AMIGA.falasColeta, dono = this.jogadores.get(this.amigaDono);
     const g = this.ganhoColetaAmiga(a), pct = Math.min(C.presenteMax, C.presente + (a.amizade | 0) * C.porAmizade), dados = [];
+    if (dono && Object.values(g).reduce((t, n) => t + n, 0) >= C.dividir) this.ganharAmizadeAmiga(dono, 1); // uma rodada de coleta juntos
     for (const [k, n] of Object.entries(g)) {
       let dar = Math.round(n * pct);
       if (dono && dar > 0) {
