@@ -21,27 +21,22 @@ static var ligado := true
 static var _prontas := {} # instance id da original -> [WeakRef original, WeakRef com LOD]
 
 # põe as malhas sem LOD deste corpo na fila (chamado quando o corpo de NPC ou de outro jogador aparece ou troca de roupa)
+# 2026-11-14 (registros do celular: "lod" 30 a 60 ms por quadro nos primeiros minutos, e o pedido no meio do quadro dos
+# NPCs que aparecem): toda leitura da malha na placa de vídeo (conferir se precisa, a chave, as listas para montar) faz
+# a linha do jogo esperar a linha do desenho terminar o quadro (malhas.gd). Agora o pedido só põe na fila, e conferir,
+# gerar e montar vão todos para a linha de fundo; no quadro só troca a malha pronta.
 static func pedir(raiz: Node) -> void:
 	if not ligado or raiz == null:
 		return
 	for mi: MeshInstance3D in raiz.find_children("*", "MeshInstance3D", true, false):
-		if not (mi.mesh is ArrayMesh) or mi.get_meta("lod_ok", 0) == mi.mesh.get_instance_id():
-			continue
-		mi.set_meta("lod_ok", mi.mesh.get_instance_id()) # malha trocada (roupa nova) entra de novo
-		if _precisa(mi.mesh):
-			# a chave sai aqui, junto com a conferência acima: com o desenho em paralelo (APK 2026-11-12) cada leitura da
-			# malha no RenderingServer espera a outra linha terminar; tudo no mesmo quadro = uma espera só
-			mi.set_meta("lod_chave", _chave(mi.mesh))
-			_fila.append(mi)
+		pedir_malha(mi)
 
 # uma malha só (a armadura juntada de junta_pecas.gd nasce depois do pedir do corpo)
 static func pedir_malha(mi: MeshInstance3D) -> void:
 	if not ligado or mi == null or not (mi.mesh is ArrayMesh) or mi.get_meta("lod_ok", 0) == mi.mesh.get_instance_id():
 		return
-	mi.set_meta("lod_ok", mi.mesh.get_instance_id())
-	if _precisa(mi.mesh):
-		mi.set_meta("lod_chave", _chave(mi.mesh))
-		_fila.append(mi)
+	mi.set_meta("lod_ok", mi.mesh.get_instance_id()) # malha trocada (roupa nova) entra de novo
+	_fila.append(mi)
 
 static func _precisa(am: ArrayMesh) -> bool:
 	var tris := 0
@@ -56,63 +51,104 @@ static func _precisa(am: ArrayMesh) -> bool:
 		tris += int(sd.get("index_count", 0)) / 3
 	return tris >= MIN_TRIS
 
-# chamado todo quadro (main.gd): aplica o LOD já pronto e manda gerar o que falta numa linha de fundo (o cálculo
-# pesado não trava o quadro); no quadro, no máximo POR_QUADRO_MS
+# chamado todo quadro (main.gd): troca o que a linha de fundo já montou e manda a próxima leva (até POR_LEVA malhas
+# diferentes) para lá. Na linha de fundo: confere, gera os níveis (com cache pelo formato) e monta a malha com LOD.
+const POR_LEVA := 8
 static var _tarefa := -1 # WorkerThreadPool
-static var _gerando: ImporterMesh = null
-static var _gerando_k := ""
-static var _esperando: Array = [] # [MeshInstance3D, chave, ImporterMesh] do formato que está sendo gerado
+static var _leva: Array = [] # [{velha, mis: [MeshInstance3D]}] da tarefa em andamento
+static var _na_leva := {} # instance id da malha original -> item da _leva
+static var _res: Array = [] # o que a linha de fundo montou, na ordem da _leva (null = não ganha LOD)
+static var _sem_lod := {} # instance id -> WeakRef das malhas que não ganham LOD (pequena, já tem, dado extra)
 
 static func passo() -> void:
 	var fr := Engine.get_process_frames()
 	if fr != _quadro:
 		_quadro = fr
 		_gasto = 0.0
-	if _tarefa >= 0 and WorkerThreadPool.is_task_completed(_tarefa):
+	if _tarefa >= 0:
+		if not WorkerThreadPool.is_task_completed(_tarefa):
+			_juntar_a_leva() # quem chegou com a mesma malha espera junto
+			return
 		WorkerThreadPool.wait_for_task_completion(_tarefa)
 		_tarefa = -1
-		var lods: Array = []
-		for i in _gerando.get_surface_count():
-			var d := {}
-			for l in _gerando.get_surface_lod_count(i):
-				d[_gerando.get_surface_lod_size(i, l)] = _gerando.get_surface_lod_indices(i, l)
-			lods.append(d)
-		_cache[_gerando_k] = lods
-		_gerando = null
-		_fila = _esperando + _fila # quem esperava por este formato vai primeiro (agora sai do cache)
-		_esperando.clear()
-	var adiadas: Array = []
-	while not _fila.is_empty() and _gasto < POR_QUADRO_MS:
+		for li in _leva.size():
+			var it: Dictionary = _leva[li]
+			var velha: ArrayMesh = it.velha
+			var nova: ArrayMesh = _res[li]
+			if nova == null:
+				_sem_lod[velha.get_instance_id()] = weakref(velha)
+				continue
+			nova.custom_aabb = velha.custom_aabb
+			nova.set_meta("lod_de", weakref(velha)) # o cabelo debaixo do capacete (armadura.gd) parte da original
+			_prontas[velha.get_instance_id()] = [weakref(velha), weakref(nova)]
+			for mi in it.mis:
+				if is_instance_valid(mi) and mi.mesh == velha:
+					mi.mesh = nova
+					mi.set_meta("lod_ok", nova.get_instance_id())
+		_leva = []
+		_na_leva.clear()
+	# a fila: o que já tem pronta troca aqui mesmo; o resto vira a próxima leva
+	var t0 := Time.get_ticks_usec()
+	while not _fila.is_empty() and _leva.size() < POR_LEVA and Time.get_ticks_usec() - t0 < int(POR_QUADRO_MS * 1000.0):
 		var mi = _fila.pop_front()
 		if not is_instance_valid(mi) or not (mi.mesh is ArrayMesh):
 			continue
-		var t0 := Time.get_ticks_usec()
 		var velha: ArrayMesh = mi.mesh
-		var k: String = mi.get_meta("lod_chave", "") if mi.get_meta("lod_ok", 0) == velha.get_instance_id() else ""
-		if k == "":
-			k = _chave(velha)
-		if _cache.has(k):
-			var nova: ArrayMesh = _pronta(velha)
-			if nova == null:
-				nova = _montar(velha, _cache[k])
-				if nova != null:
-					nova.custom_aabb = velha.custom_aabb
-					nova.set_meta("lod_de", weakref(velha)) # o cabelo debaixo do capacete (armadura.gd) parte da original
-					_prontas[velha.get_instance_id()] = [weakref(velha), weakref(nova)]
-			if nova != null:
-				mi.mesh = nova
-				mi.set_meta("lod_ok", nova.get_instance_id())
-		elif _tarefa < 0: # gera este formato na linha de fundo
-			_gerando = _montar_importer(velha, [])
-			_gerando_k = k
-			_esperando.append(mi)
-			_tarefa = WorkerThreadPool.add_task(_gerar.bind(_gerando), false, "LOD das malhas")
-		elif k == _gerando_k:
-			_esperando.append(mi)
+		var nova := _pronta(velha)
+		if nova != null:
+			mi.mesh = nova
+			mi.set_meta("lod_ok", nova.get_instance_id())
+			continue
+		var id := velha.get_instance_id()
+		var sl = _sem_lod.get(id)
+		if sl != null:
+			if (sl as WeakRef).get_ref() == velha:
+				continue
+			_sem_lod.erase(id)
+		if _na_leva.has(id):
+			_na_leva[id].mis.append(mi)
+			continue
+		var it := {"velha": velha, "mis": [mi]}
+		_leva.append(it)
+		_na_leva[id] = it
+	if not _leva.is_empty():
+		var velhas: Array = []
+		for it in _leva:
+			velhas.append(it.velha)
+		_res = []
+		_res.resize(velhas.size())
+		_tarefa = WorkerThreadPool.add_task(_trabalhar.bind(velhas, _res), false, "LOD das malhas")
+
+# enquanto a leva roda: quem chegou com uma malha que já está nela só espera junto (sai da fila)
+static func _juntar_a_leva() -> void:
+	if _fila.is_empty() or _na_leva.is_empty():
+		return
+	var resto: Array = []
+	for mi in _fila:
+		if is_instance_valid(mi) and mi.mesh is ArrayMesh and _na_leva.has(mi.mesh.get_instance_id()):
+			_na_leva[mi.mesh.get_instance_id()].mis.append(mi)
 		else:
-			adiadas.append(mi) # outro formato: espera a linha de fundo terminar
-		_gasto += (Time.get_ticks_usec() - t0) / 1000.0
-	_fila = adiadas + _fila
+			resto.append(mi)
+	_fila = resto
+
+# linha de fundo: tudo que lê a malha da placa fica aqui (a espera pelo desenho é desta linha, não do jogo)
+static func _trabalhar(velhas: Array, res: Array) -> void:
+	for vi in velhas.size():
+		var velha: ArrayMesh = velhas[vi]
+		var k := _chave_se_precisa(velha)
+		if k == "":
+			continue
+		if not _cache.has(k):
+			var im := _montar_importer(velha, [])
+			_gerar(im)
+			var lods: Array = []
+			for i in im.get_surface_count():
+				var d := {}
+				for l in im.get_surface_lod_count(i):
+					d[im.get_surface_lod_size(i, l)] = im.get_surface_lod_indices(i, l)
+				lods.append(d)
+			_cache[k] = lods
+		res[vi] = _montar(velha, _cache[k])
 
 static func _pronta(velha: ArrayMesh) -> ArrayMesh:
 	var p = _prontas.get(velha.get_instance_id())
@@ -128,6 +164,22 @@ static func original(am: Mesh) -> Mesh:
 	var w = am.get_meta("lod_de", null) if am else null
 	var o = (w as WeakRef).get_ref() if w is WeakRef else null
 	return o if o is Mesh else am
+
+# _precisa e _chave numa leitura só de cada superfície (na linha de fundo cada leitura espera um quadro do desenho)
+static func _chave_se_precisa(am: ArrayMesh) -> String:
+	var tris := 0
+	var k := ""
+	for i in am.get_surface_count():
+		if am.surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+			return ""
+		if am.surface_get_format(i) & (Mesh.ARRAY_FORMAT_CUSTOM0 | Mesh.ARRAY_FORMAT_CUSTOM1 | Mesh.ARRAY_FORMAT_CUSTOM2 | Mesh.ARRAY_FORMAT_CUSTOM3):
+			return ""
+		var sd := RenderingServer.mesh_get_surface(am.get_rid(), i)
+		if not (sd.get("lods", []) as Array).is_empty():
+			return ""
+		tris += int(sd.get("index_count", 0)) / 3
+		k += "%d/%d/%d/%d|" % [int(sd.get("vertex_count", 0)), int(sd.get("index_count", 0)), hash(sd.get("index_data", PackedByteArray())), hash(sd.get("vertex_data", PackedByteArray()))]
+	return k if tris >= MIN_TRIS else ""
 
 static func _gerar(im: ImporterMesh) -> void:
 	im.generate_lods(25.0, 60.0, [])

@@ -23,6 +23,7 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado t
 
 const Menu = preload("res://menu.gd")
 const Andar = preload("res://andar.gd")
+const Malhas = preload("res://malhas.gd") # juntar malhas sem ler da placa (o jogo não espera o desenho)
 const FazendaPlano = preload("res://fazenda_plano.gd")
 var plano # fazenda_plano.gd: marcar os canteiros e o herói faz tudo depois do Salvar (André 2026-11-07)
 var b_salvar: Button
@@ -229,7 +230,7 @@ func _carregar_modelos() -> void:
 # a folha da porta (abre), os pilares (escala por giro), a chama da tocha (sem sombra) e o que tiver nome em MANTER.
 const MANTER := ["folha", "pilares", "chama", "bandeira"]
 static func juntar_malhas(raiz: Node3D) -> void:
-	var grupos := {} # sombra -> {material id -> [material, SurfaceTool]}
+	var grupos := {} # sombra -> {material id -> [material, Malhas.Junta]}
 	var feitos := []
 	for mi: MeshInstance3D in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null or mi.skin != null or not mi.visible or _dentro_de_manter(mi, raiz):
@@ -258,10 +259,8 @@ static func juntar_malhas(raiz: Node3D) -> void:
 				mat = mi.mesh.surface_get_material(i)
 			var chave := mat.get_instance_id() if mat else 0
 			if not grupos[sombra].has(chave):
-				var st := SurfaceTool.new()
-				st.begin(Mesh.PRIMITIVE_TRIANGLES)
-				grupos[sombra][chave] = [mat, st]
-			(grupos[sombra][chave][1] as SurfaceTool).append_from(mi.mesh, i, t)
+				grupos[sombra][chave] = [mat, Malhas.Junta.new()] # sem ler da placa (malhas.gd)
+			grupos[sombra][chave][1].append_from(mi.mesh, i, t)
 		feitos.append(mi)
 	if feitos.size() < 2:
 		return # nada a ganhar
@@ -269,8 +268,10 @@ static func juntar_malhas(raiz: Node3D) -> void:
 		var am := ArrayMesh.new()
 		for chave in grupos[sombra]:
 			var g: Array = grupos[sombra][chave]
-			(g[1] as SurfaceTool).commit(am)
-			am.surface_set_material(am.get_surface_count() - 1, g[0])
+			var n0 := am.get_surface_count()
+			g[1].commit(am)
+			for si in range(n0, am.get_surface_count()):
+				am.surface_set_material(si, g[0])
 		if am.get_surface_count() == 0:
 			continue
 		var junto := MeshInstance3D.new()
@@ -1746,9 +1747,8 @@ func _malha_terra(h: Dictionary) -> ArrayMesh:
 	arr[Mesh.ARRAY_COLOR] = C
 	arr[Mesh.ARRAY_TEX_UV] = U
 	arr[Mesh.ARRAY_INDEX] = I
-	var bruto := ArrayMesh.new()
-	bruto.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	st.create_from(bruto, 0)
+	# direto das listas (2026-11-14): criar a malha e ler de volta (create_from) fazia o jogo esperar o desenho (malhas.gd)
+	st.create_from_arrays(arr)
 	st.generate_normals()
 	return st.commit()
 
