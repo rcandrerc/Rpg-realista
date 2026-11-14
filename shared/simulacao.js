@@ -409,7 +409,7 @@ export class Simulacao {
   }
   // opcoes.podeCriar: personagem ainda não foi criado (o criador abre uma vez só); opcoes.aparencia: a que já foi criada
   // opcoes.progresso: nível, atributos e skills guardados na conta (shared/progresso.js)
-  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null, testador = false, conta = null } = {}) {
+  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null, testador = false, conta = null, robo = false } = {}) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
@@ -421,6 +421,7 @@ export class Simulacao {
     if (testador && CONTA_TESTE.paginas) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo
     j.testador = !!testador;
+    if (robo) j.robo = true; // robô de testes (ferramentas/robo): não negocia, não compra terreno, não puxa o nível dos NPCs
     this.nascerOndeSaiu(j);
     this.conferirTitulos(j, true); // conta de antes dos títulos: já ganha os que o progresso merece (sem faixa)
     this.aplicarStatus(j, true);
@@ -1275,7 +1276,10 @@ export class Simulacao {
   // a missão de antes fica para aceitar de novo (a da vez some); 'zerar' = a história toda do começo. Nível, itens e
   // terreno ficam. Ninguém mais consegue: o servidor confere a conta (j.testador). Desligar: CONTA_TESTE.missoes = false.
   missaoTeste(id, acao) {
-    const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !CONTA_TESTE.missoes) return;
+    const j = this.jogadores.get(id); if (!j || j.bot) return;
+    // robô de testes (ferramentas/robo, André 2026-11-14): zera a história e pula a missão que ele ainda não sabe fazer
+    if (j.robo) return this.missaoRobo(j, acao);
+    if (!j.testador || !CONTA_TESTE.missoes) return;
     if (acao !== 'voltar' && acao !== 'zerar') return;
     const p = j.prog, h = p.hist || histNova();
     const alvo = acao === 'zerar' ? 0 : Math.max(0, (h.p || 0) - (h.ac ? 0 : 1));
@@ -1283,6 +1287,17 @@ export class Simulacao {
     j.progSujo = true;
     const M = HISTORIA[alvo];
     this.evento({ t: 'aviso', para: id, texto: acao === 'zerar' ? 'Teste: missões zeradas' : `Teste: voltou para ${M ? M.nome : 'a última missão'}` });
+    this.avisarProg(j);
+  }
+  // Só a conta do robô de testes (j.robo; ferramentas/robo/robo.mjs): 'zerar' = a história do começo (terminou as 59,
+  // joga de novo); 'pular' = a missão da vez fica como feita, sem prêmio (etapa que o robô ainda não sabe fazer: terreno,
+  // horta, barco...). Nível, itens e ouro ficam. Nenhuma outra conta consegue.
+  missaoRobo(j, acao) {
+    if (!j?.robo || (acao !== 'zerar' && acao !== 'pular')) return;
+    const p = j.prog, h = p.hist || histNova();
+    const alvo = acao === 'zerar' ? 0 : Math.min(HISTORIA.length, (h.p || 0) + 1);
+    p.hist = { ...histNova(), p: alvo, ...(alvo > 0 ? { u: HISTORIA[alvo - 1].id } : {}) };
+    j.progSujo = true;
     this.avisarProg(j);
   }
   // Ponto livre num atributo (for, des, int, vit)

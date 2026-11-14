@@ -1,0 +1,47 @@
+# Robô de testes (André 2026-11-14: "quero que ele entre dentro do servidor mesmo e teste real"): joga no servidor da
+# Oracle em turnos de ~5 h 50 (o máximo de um job do GitHub é 6 h), um turno a cada 6 h = o dia todo. Repositório
+# público: os minutos do GitHub Actions são grátis. Sem senha nenhuma: o servidor confere o crachá OIDC que o GitHub
+# assina para este workflow (server/index.js /conta/robo). Relatório: https://163-176-80-126.sslip.io/robo
+# Rodar agora: Actions > Robô de testes > Run workflow.
+name: Robô de testes
+
+on:
+  schedule:
+    - cron: '7 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      minutos:
+        description: 'Quantos minutos jogar (até 350)'
+        default: '350'
+
+permissions:
+  contents: read
+  id-token: write # o crachá OIDC do robô
+
+concurrency:
+  group: robo-de-testes
+  cancel-in-progress: true # turno novo entra, o velho sai (a conta do robô joga uma vez só)
+
+jobs:
+  jogar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Jogar no servidor de verdade
+        run: node ferramentas/robo/robo.mjs --minutos "${{ github.event.inputs.minutos || '350' }}"
+      - name: Guardar o relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robo-relatorio-${{ github.run_id }}
+          path: robo-relatorio.json
+          retention-days: 14
+          if-no-files-found: ignore

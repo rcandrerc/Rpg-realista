@@ -10,6 +10,7 @@ import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 
@@ -21,6 +22,9 @@ const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
+// O robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) joga como um jogador, mas nunca negocia, nunca compra
+// terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
+const ROBO_NAO = new Set(['leilao', 'troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
@@ -302,6 +306,7 @@ class SalaClareira extends Room {
       if (b.n < custo) return;
       b.n -= custo;
       if (temChavePerigosa(m)) return; // '__proto__' e companhia nunca são dado de jogo (auditoria 2026-11-13)
+      if (c.auth?.robo && ROBO_NAO.has(tipo)) return; // robô de testes: não mexe na economia nem fala com ninguém
       // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
       try { const r = fn(c, m); if (r && typeof r.catch === 'function') r.catch((e) => console.error(`mensagem ${tipo} deu erro:`, e)); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
     });
@@ -383,7 +388,7 @@ class SalaClareira extends Room {
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
-    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador, conta: conta?.id ?? null });
+    this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador, conta: conta?.id ?? null, robo: !!conta?.robo });
     // voltou de uma queda (a conta saiu há pouco): o caminho que andou sem internet vale
     if (conta && saidas.has(conta.id)) { const seg = (Date.now() - saidas.get(conta.id)) / 1000; saidas.delete(conta.id); if (seg < 120) this.sim.folgaDaQueda(client.sessionId, seg); }
     if (conta) { const l = contas.loteDoDono('c' + conta.id); this.sim.esquecerLotesDe('c' + conta.id, l?.id); if (l) this.sim.carregarLotes([l]); } // o lote dele como está no banco
@@ -604,7 +609,7 @@ app.get('/saude', (_req, res) => {
 // e no começo da contagem; o celular conta sozinho entre um e outro. No fim grava o progresso de todos e sai (o systemd liga de novo).
 // Com ninguém online, sai na hora. Serve ao servidor novo do merge (server/atualizar.js) e ao reinício programado.
 let reiniciando = null;
-const alguemOnline = () => [...salas].some((s) => s.clients.length);
+const alguemOnline = () => [...salas].some((s) => s.clients.some((c) => !c.auth?.robo)); // o robô de testes não segura o reinício
 function reiniciarComAviso(motivo, segundos = REINICIO.aviso) {
   if (reiniciando) return reiniciando;
   reiniciando = new Promise((pronto) => {
@@ -705,6 +710,64 @@ app.post('/conta/apagar', (req, res) => {
   console.log(`Conta apagada: ${conta.id}`);
   res.json({ ok: true });
 });
+
+// ---------- robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) ----------
+// Quem pode ser o robô: só o workflow .github/workflows/robo.yml deste repositório, na main. O GitHub assina um crachá
+// (OIDC) para aquele workflow e aqui a assinatura é conferida com as chaves públicas do GitHub: nenhuma senha ou segredo
+// fica guardado em lugar nenhum. ROBO_TESTE (só na máquina de quem testa, nunca na Oracle) troca o crachá por um texto.
+const chavesGithub = createRemoteJWKSet(new URL('https://token.actions.githubusercontent.com/.well-known/jwks'));
+const ROBO_REPO = 'rcandrerc/rpg-realista', ROBO_WORKFLOW = `${ROBO_REPO}/.github/workflows/robo.yml@refs/heads/main`;
+async function roboConfere(body) {
+  if (process.env.ROBO_TESTE && body?.teste === process.env.ROBO_TESTE) return true;
+  const { payload } = await jwtVerify(String(body?.cracha || ''), chavesGithub, { issuer: 'https://token.actions.githubusercontent.com', audience: 'age-of-embers-robo' });
+  return payload.repository === ROBO_REPO && payload.job_workflow_ref === ROBO_WORKFLOW;
+}
+let roboT = 0;
+app.post('/conta/robo', async (req, res) => {
+  if (Date.now() - roboT < 5000) return res.status(429).json({ erro: 'devagar' });
+  roboT = Date.now();
+  try {
+    if (!(await roboConfere(req.body))) return res.status(401).json({ erro: 'não é o robô' });
+    res.json(contas.entrarRobo());
+  } catch (e) { console.warn('robô recusado:', e.message); res.status(401).json({ erro: 'crachá do robô inválido' }); }
+});
+// relatórios: o robô manda o turno de tempos em tempos (o mesmo turno é trocado pelo mais novo); ficam os últimos ROBO_MAX
+const ROBO_MAX = 120, ROBO_ARQ = path.resolve(process.env.DADOS || 'dados', 'robo.jsonl');
+const roboTurnos = [];
+try { for (const l of fs.readFileSync(ROBO_ARQ, 'utf8').trim().split('\n').slice(-ROBO_MAX)) if (l) roboTurnos.push(JSON.parse(l)); } catch { /* ainda não tem */ }
+app.post('/robo/relatorio', express.json({ limit: '64kb' }), (req, res) => {
+  const conta = contas?.porSessao(sessaoDe(req));
+  if (!conta?.robo) return res.status(401).json({ erro: 'só o robô' });
+  const r = req.body;
+  if (!r || typeof r !== 'object' || typeof r.turno !== 'string' || r.turno.length > 40) return res.status(400).json({ erro: 'relatório inválido' });
+  r.recebido = Date.now();
+  const i = roboTurnos.findIndex((x) => x.turno === r.turno);
+  if (i >= 0) roboTurnos[i] = r; else roboTurnos.push(r);
+  if (roboTurnos.length > ROBO_MAX) roboTurnos.splice(0, roboTurnos.length - ROBO_MAX);
+  fs.writeFile(ROBO_ARQ, roboTurnos.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
+  res.json({ ok: true });
+});
+app.get('/robo.json', (req, res) => res.json(roboTurnos.slice(-(Number(req.query.n) || 20))));
+app.get('/robo', (_req, res) => res.type('html').send(paginaRobo(roboTurnos.slice(-30).reverse())));
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+function paginaRobo(lista) {
+  const hora = (ms) => (ms ? new Date(ms).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-');
+  const n = (v, u = '') => (v == null ? '-' : `${v}${u}`);
+  const cartao = (r) => {
+    const p = r.ping || {}, s = r.servidor || {}, m = r.missoes || {};
+    const probs = (r.problemas || []).slice(0, 15).map((x) => `<li>${esc(x)}</li>`).join('');
+    return `<section><h2>${r.ativo ? '🟢 Jogando' : '⚪ Terminou'} · ${hora(r.inicio)} até ${hora(r.ultimo)}</h2>
+<p><b>Nível</b> ${n(r.nivel?.de)} → ${n(r.nivel?.ate)} · <b>Missões</b> ${n(m.feitas, '')} feitas, ${n(m.puladas, '')} puladas, agora ${esc(m.agora || '-')}</p>
+<p><b>Ping</b> médio ${n(p.p50, ' ms')} · pior 5% ${n(p.p95, ' ms')} · pior ${n(p.max, ' ms')} · <b>Quedas</b> ${n(r.quedas)} (reinícios do servidor ${n(r.reinicios)})</p>
+<p><b>Servidor</b> passo ${n(s.tickMs, ' ms')}, pico ${n(s.tickPicoMs, ' ms')}, memória ${n(s.memMb, ' MB')} · <b>Fotos atrasadas</b> ${n(r.fotos?.atrasadas)} (pior ${n(r.fotos?.pior, ' ms')}) · <b>Correções de posição</b> ${n(r.correcoes)}</p>
+<p><b>Mortes</b> ${n(r.mortes)} · <b>Monstros</b> ${n(r.abates)} · <b>Coletas</b> ${n(r.coletas)} · <b>Resposta das ações</b> ${n(r.resposta?.p50, ' ms')} (pior ${n(r.resposta?.max, ' ms')})</p>
+${probs ? `<h3>Achados</h3><ul>${probs}</ul>` : '<p>Nenhum problema achado.</p>'}</section>`;
+  };
+  return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Robô de testes</title>
+<style>body{font:15px system-ui,sans-serif;background:#16130f;color:#eee4d2;margin:0;padding:16px;max-width:760px}h1{font-size:20px}h2{font-size:16px;margin:0 0 6px}h3{font-size:14px;margin:8px 0 2px}section{background:#241f18;border:1px solid #4a3d2c;border-radius:10px;padding:12px;margin:12px 0}p{margin:4px 0}ul{margin:4px 0;padding-left:20px}b{color:#f0b35a}</style>
+<h1>Robô de testes · Age of Embers</h1><p>Cada cartão é um turno de até 6 h jogando no servidor de verdade. Horário de Brasília.</p>
+${lista.length ? lista.map(cartao).join('') : '<p>O robô ainda não jogou.</p>'}</html>`;
+}
 
 // rede de segurança (auditoria 2026-11-13): promessa rejeitada sem dono só registra; erro solto grava todo mundo antes de sair
 // (o systemd sobe de novo). Antes, os dois derrubavam o processo sem gravar: até 15 s de progresso perdidos.
