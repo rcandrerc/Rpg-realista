@@ -717,11 +717,13 @@ app.post('/conta/apagar', (req, res) => {
 // fica guardado em lugar nenhum. ROBO_TESTE (só na máquina de quem testa, nunca na Oracle) troca o crachá por um texto.
 const chavesGithub = createRemoteJWKSet(new URL('https://token.actions.githubusercontent.com/.well-known/jwks'));
 const ROBO_REPO = 'rcandrerc/rpg-realista', ROBO_WORKFLOW = `${ROBO_REPO}/.github/workflows/robo.yml@refs/heads/main`;
-async function roboConfere(body) {
+// o robô 2 (o app como no Poco X7, robo-celular.yml) só manda relatório: não pega sessão (a conta é do robô 1)
+const ROBO_CELULAR = `${ROBO_REPO}/.github/workflows/robo-celular.yml@refs/heads/main`;
+async function roboConfere(body, workflows = [ROBO_WORKFLOW]) {
   if (process.env.ROBO_TESTE && body?.teste === process.env.ROBO_TESTE) return true;
   const { payload } = await jwtVerify(String(body?.cracha || ''), chavesGithub, { issuer: 'https://token.actions.githubusercontent.com', audience: 'age-of-embers-robo' });
   // o nome no GitHub é 'Rpg-realista' (maiúscula): a conferência não liga para maiúscula
-  return String(payload.repository).toLowerCase() === ROBO_REPO && String(payload.job_workflow_ref).toLowerCase() === ROBO_WORKFLOW;
+  return String(payload.repository).toLowerCase() === ROBO_REPO && workflows.includes(String(payload.job_workflow_ref).toLowerCase());
 }
 let roboT = 0;
 app.post('/conta/robo', async (req, res) => {
@@ -736,9 +738,12 @@ app.post('/conta/robo', async (req, res) => {
 const ROBO_MAX = 120, ROBO_ARQ = path.resolve(process.env.DADOS || 'dados', 'robo.jsonl');
 const roboTurnos = [];
 try { for (const l of fs.readFileSync(ROBO_ARQ, 'utf8').trim().split('\n').slice(-ROBO_MAX)) if (l) roboTurnos.push(JSON.parse(l)); } catch { /* ainda não tem */ }
-app.post('/robo/relatorio', express.json({ limit: '64kb' }), (req, res) => {
+app.post('/robo/relatorio', express.json({ limit: '64kb' }), async (req, res) => {
   const conta = contas?.porSessao(sessaoDe(req));
-  if (!conta?.robo) return res.status(401).json({ erro: 'só o robô' });
+  // robô 1 manda com a sessão dele; o robô 2 manda com o crachá OIDC do GitHub no lugar da sessão
+  let vale = !!conta?.robo;
+  if (!vale && sessaoDe(req).split('.').length === 3) { try { vale = await roboConfere({ cracha: sessaoDe(req) }, [ROBO_WORKFLOW, ROBO_CELULAR]); } catch { vale = false; } }
+  if (!vale) return res.status(401).json({ erro: 'só o robô' });
   const r = req.body;
   if (!r || typeof r !== 'object' || typeof r.turno !== 'string' || r.turno.length > 40) return res.status(400).json({ erro: 'relatório inválido' });
   r.recebido = Date.now();
@@ -754,7 +759,18 @@ const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function paginaRobo(lista) {
   const hora = (ms) => (ms ? new Date(ms).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-');
   const n = (v, u = '') => (v == null ? '-' : `${v}${u}`);
+  const celular = (r) => { // robô 2: o app de verdade como no Poco X7 (ferramentas/robo/celular.gd)
+    const probs = (r.problemas || []).slice(0, 15).map((x) => `<li>${esc(x)}</li>`).join('');
+    const modos = Object.entries(r.modos || {}).map(([nome, M]) => `<h3>${esc(nome)} · ${esc(M.placa)}</h3>
+<p><b>FPS</b> ${n(M.fps)} · <b>Travadas</b> ${n(M.travadas?.acima100)} acima de 100 ms, ${n(M.travadas?.acima250)} acima de 250 ms, ${n(M.travadas?.acima1000)} acima de 1 s · <b>Memória</b> ${n(M.mem_max, ' MB')}</p>
+<ul>${Object.entries(M.trechos || {}).map(([t, T]) => `<li><b>${esc(t)}</b>: ${n(T.fps)} FPS, quadro ${n(T.p50, ' ms')} (5% piores ${n(T.p95, ' ms')}, pior ${n(T.pior, ' ms')}), scripts ${n(T.proc, ' ms')}, ${n(T.cham)} chamadas, ${n(T.tri)} mil triângulos</li>`).join('')}</ul>`).join('');
+    const real = r.real ? `<p><b>Celulares de verdade (Alta, últimos minutos)</b>: ${n(r.real.fps)} FPS, scripts ${n(r.real.proc, ' ms')}, placa ${n(r.real.gpu, ' ms')}, pior quadro ${n(r.real.pior, ' ms')}</p>` : '';
+    return `<section><h2>📱 Robô 2 (app como no Poco X7) · ${hora(r.inicio)} até ${hora(r.ultimo)}</h2>${modos}${real}
+<p style="opacity:.75">Sem placa de vídeo de celular: "sem tela" mede o processador; o Vulkan por software desenha bem mais devagar que o celular.</p>
+${probs ? `<h3>Achados</h3><ul>${probs}</ul>` : '<p>Nenhum problema achado.</p>'}</section>`;
+  };
   const cartao = (r) => {
+    if (r.tipo === 'celular') return celular(r);
     const p = r.ping || {}, s = r.servidor || {}, m = r.missoes || {};
     const probs = (r.problemas || []).slice(0, 15).map((x) => `<li>${esc(x)}</li>`).join('');
     return `<section><h2>${r.ativo ? '🟢 Jogando' : '⚪ Terminou'} · ${hora(r.inicio)} até ${hora(r.ultimo)}</h2>
@@ -766,7 +782,7 @@ ${probs ? `<h3>Achados</h3><ul>${probs}</ul>` : '<p>Nenhum problema achado.</p>'
   };
   return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Robô de testes</title>
 <style>body{font:15px system-ui,sans-serif;background:#16130f;color:#eee4d2;margin:0;padding:16px;max-width:760px}h1{font-size:20px}h2{font-size:16px;margin:0 0 6px}h3{font-size:14px;margin:8px 0 2px}section{background:#241f18;border:1px solid #4a3d2c;border-radius:10px;padding:12px;margin:12px 0}p{margin:4px 0}ul{margin:4px 0;padding-left:20px}b{color:#f0b35a}</style>
-<h1>Robô de testes · Age of Embers</h1><p>Cada cartão é um turno de até 6 h jogando no servidor de verdade. Horário de Brasília.</p>
+<h1>Robô de testes · Age of Embers</h1><p>Robô 1: turnos de até 6 h jogando no servidor de verdade. Robô 2 (📱): o app de verdade como no Poco X7. Horário de Brasília.</p>
 ${lista.length ? lista.map(cartao).join('') : '<p>O robô ainda não jogou.</p>'}</html>`;
 }
 

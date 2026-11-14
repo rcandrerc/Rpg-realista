@@ -1,0 +1,97 @@
+# Robô 2 (André 2026-11-14: "o robô 2 vai ser mais interessante pra detectar perda de performance, travamentos"): o app
+# Godot de verdade (mesmo motor e modelos do APK), com as opções do Poco X7 (Alta, limite 60), joga sozinho num servidor
+# local: vila, estrada e Clareira dos Puglins com luta. Duas rodadas: sem tela (mede o processador: scripts, física,
+# animação, carregamento) e com Vulkan por software na metade da tela do X7 (1356x610; o desenho é bem mais lento que
+# num celular). Compara com a rodada anterior (perda de desempenho) e com os celulares de verdade (/lentidao/resumo).
+# Relatório: https://163-176-80-126.sslip.io/robo (cartão 📱). 4 vezes por dia, entre os turnos do robô 1. Grátis
+# (repositório público). Rodar agora: Actions > Robô 2 (celular) > Run workflow.
+name: Robô 2 (celular)
+
+on:
+  schedule:
+    - cron: '37 2,8,14,20 * * *'
+  workflow_dispatch:
+    inputs:
+      minutos:
+        description: 'Minutos sem tela (o Vulkan joga a metade)'
+        default: '30'
+  pull_request:
+    paths: ['ferramentas/robo/celular*', '.github/workflows/robo-celular.yml']
+
+permissions:
+  contents: read
+  id-token: write # o crachá OIDC para mandar o relatório
+
+concurrency:
+  group: robo-celular
+  cancel-in-progress: false
+
+jobs:
+  celular:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GODOT: 4.7.1-stable
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Quanto tempo
+        run: |
+          m="${{ github.event.inputs.minutos }}"; [ -z "$m" ] && m=30; [ "${{ github.event_name }}" = pull_request ] && m=4
+          echo "SEM_TELA_S=$((m * 60))" >> $GITHUB_ENV; echo "VULKAN_S=$((m * 30))" >> $GITHUB_ENV; echo "INICIO_MS=$(date +%s%3N)" >> $GITHUB_ENV
+      # os modelos e a importação que o apk.yml guarda (o mesmo jogo do APK)
+      - uses: actions/cache/restore@v4
+        with:
+          path: godot-prototipo/modelos
+          key: modelos-v2-nada
+          restore-keys: modelos-v2-
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            godot-prototipo/.godot
+            godot-prototipo/**/*.import
+          key: godot-import-v2-${{ env.GODOT }}-nada
+          restore-keys: godot-import-v2-${{ env.GODOT }}-
+      - name: Godot e Vulkan por software
+        run: |
+          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers > /dev/null
+          cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_linux.x86_64.zip && unzip -qo godot.zip
+          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_linux.x86_64" >> $GITHUB_ENV
+      - name: Importar o projeto
+        run: cd godot-prototipo && timeout 1500 $GODOT_BIN --headless --import > /tmp/import.log 2>&1 || tail -20 /tmp/import.log
+      - name: Servidor local
+        run: |
+          mkdir -p /tmp/srv /tmp/cel
+          echo "SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null | tail -n1)" >> $GITHUB_ENV
+          (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
+          for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
+          for h in 127.0.0.1 '[::1]'; do curl -s -m 3 "http://$h:2567/saude" > /dev/null && echo "SRV=http://$h:2567" >> $GITHUB_ENV && break; done
+      - name: Jogar sem tela (processador)
+        run: |
+          RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$SEM_TELA_S SAIDA=/tmp/cel/sem-tela.json timeout $((SEM_TELA_S + 600)) stdbuf -oL -eL \
+            $GODOT_BIN --headless --path godot-prototipo -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/sem-tela.log 2>&1 || true
+          grep -E "^CELULAR" /tmp/cel/sem-tela.log | cut -c1-400 | tail -40
+      - name: Jogar com Vulkan por software (metade da tela do X7)
+        run: |
+          RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 900)) stdbuf -oL -eL \
+            xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
+            --resolution 1356x610 --render-thread separate -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/vulkan.log 2>&1 || true
+          grep -E "^CELULAR" /tmp/cel/vulkan.log | cut -c1-400 | tail -40
+      - name: Relatório
+        if: always()
+        run: |
+          cp /tmp/srv/lentidao*.jsonl /tmp/cel/ 2>/dev/null || true
+          LOGS=/tmp/cel/sem-tela.log,/tmp/cel/vulkan.log node ferramentas/robo/celular-relatorio.mjs /tmp/srv /tmp/cel/sem-tela.json /tmp/cel/vulkan.json
+          cp celular-relatorio.json /tmp/cel/ || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: robo-celular-${{ github.run_id }}
+          path: /tmp/cel
+          retention-days: 14
