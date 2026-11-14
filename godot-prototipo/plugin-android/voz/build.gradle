@@ -7,4 +7,7 @@ android {
 }
 dependencies {
     compileOnly 'org.godotengine:godot:4.5.0.stable'
+    // escuta contínua (VozVosk): no APK entra pelo plugin.gd (_get_android_dependencies)
+    compileOnly 'com.alphacephei:vosk-android:0.3.75@aar'
+    compileOnly 'net.java.dev.jna:jna:5.18.1@aar'
 }
