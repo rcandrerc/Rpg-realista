@@ -88,6 +88,7 @@ func _seguir_entrada() -> void:
 			e.tipo = "entrada"
 			e.grafico = int(m.grafico.nivel) if m.grafico else -1
 			e.versao = str(load("res://versao.gd").NUMERO)
+			_aparelho(e)
 			on.rede.enviar("lentidao", e)
 
 # Menus e conversas (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"; "quando vou comprar
@@ -140,6 +141,7 @@ func _seguir_menu() -> void:
 	var on = m.online
 	if on and on.rede and on.rede.conectado:
 		_menus_mandados += 1
+		_aparelho(_menu)
 		on.rede.enviar("lentidao", _menu)
 	_menu = {}
 
@@ -243,6 +245,26 @@ func _ler_bateria(act) -> void:
 
 # campos que vão em todo registro (segundo ruim e resumo): minutos desde que o app abriu, memória (MB: mem = do jogo,
 # vmem = da placa, livre = do aparelho), calor e ms da placa/processador no último quadro
+# De qual celular veio (André 2026-11-14: "vai conseguir ler de todo mundo?"): o modelo do aparelho e um código
+# sorteado na primeira abertura, guardado só no aparelho. Sem nome e sem conta: só separa um celular do outro.
+const ID_ARQ := "user://lentidao_id.txt"
+var _ap := ""
+var _inst := ""
+func _aparelho(e: Dictionary) -> void:
+	if _inst == "":
+		_ap = OS.get_model_name().substr(0, 40)
+		if FileAccess.file_exists(ID_ARQ):
+			var f := FileAccess.open(ID_ARQ, FileAccess.READ)
+			if f:
+				_inst = f.get_as_text().strip_edges().substr(0, 12)
+		if _inst.length() != 8:
+			_inst = "%08x" % (randi() & 0x7fffffff)
+			var f := FileAccess.open(ID_ARQ, FileAccess.WRITE)
+			if f:
+				f.store_string(_inst)
+	e.ap = _ap
+	e.inst = _inst
+
 func _comum(e: Dictionary) -> void:
 	e.min = snappedf(Time.get_ticks_msec() / 60000.0, 0.1)
 	if m.grafico and m.grafico.auto: # gráficos no Auto: o degrau de agora (0 = o nível cheio); manual não manda
@@ -297,6 +319,7 @@ func _resumo(real: float) -> void:
 	var on = m.online
 	if _resumos < RESUMO_MAX and on and on.rede and on.rede.conectado:
 		_resumos += 1
+		_aparelho(e)
 		on.rede.enviar("lentidao", e)
 
 # online.gd: o servidor mandou "corrigir" (d = metros entre onde o herói estava e onde o servidor pôs)
@@ -437,4 +460,5 @@ func _anotar(real: float, relogio: float) -> void:
 		f.store_string(JSON.stringify(lista))
 	if _mandadas < MANDA_MAX:
 		_mandadas += 1
+		_aparelho(e)
 		m.online.rede.enviar("lentidao", e)

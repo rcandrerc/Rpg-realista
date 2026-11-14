@@ -508,19 +508,26 @@ const RESUMO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao-resumo.j
 const resumos = [];
 let resumoLinhas = 0;
 try { for (const l of fs.readFileSync(RESUMO_ARQ, 'utf8').trim().split('\n').slice(-RESUMO_MAX)) if (l) resumos.push(JSON.parse(l)); } catch { /* ainda não tem */ }
+// de qual celular veio (lentidao.gd _aparelho): modelo do aparelho e código sorteado no app, sem nome nem conta
+function aparelhoLentidao(e, r) {
+  if (typeof e.ap === 'string' && e.ap.length <= 40) r.ap = e.ap;
+  if (typeof e.inst === 'string' && /^[0-9a-f]{8}$/.test(e.inst)) r.inst = e.inst;
+  return r;
+}
 function guardarLentidao(c, e, sala) {
   if (!e || typeof e !== 'object') return;
   if (e.tipo === 'entrada') { // linha do tempo da entrada (ms desde que o app abriu), uma por abertura
     const r = { servidor: Date.now(), tipo: 'entrada' };
     for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
-    return guardarLinha(r);
+    return guardarLinha(aparelhoLentidao(e, r));
   }
   if (e.tipo === 'resumo') {
     const r = { servidor: Date.now(), tipo: 'resumo' };
     for (const k of RESUMO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     r.montado = e.montado === true;
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    aparelhoLentidao(e, r);
     resumos.push(r);
     if (resumos.length > RESUMO_MAX) resumos.splice(0, resumos.length - RESUMO_MAX);
     if (++resumoLinhas > 2 * RESUMO_MAX) {
@@ -534,7 +541,7 @@ function guardarLentidao(c, e, sala) {
     for (const k of MENU_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     if (typeof e.aba === 'string' && e.aba.length < 16) r.aba = e.aba;
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
-    return guardarLinha(r);
+    return guardarLinha(aparelhoLentidao(e, r));
   }
   const r = { servidor: Date.now(), tickPico: Math.round(carga.picoPing), posGap: c.userData?.gapJan ?? null, relogioSrv: sala?.relogio != null ? +sala.relogio.toFixed(3) : null };
   for (const k of LENTIDAO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
@@ -550,7 +557,7 @@ function guardarLentidao(c, e, sala) {
     if (Object.keys(q).length) r.qev = q;
   }
   if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
-  guardarLinha(r);
+  guardarLinha(aparelhoLentidao(e, r));
 }
 function guardarLinha(r) {
   lentidoes.push(r);
@@ -560,8 +567,24 @@ function guardarLinha(r) {
     fs.writeFile(LENTIDAO_ARQ, lentidoes.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
   } else fs.appendFile(LENTIDAO_ARQ, JSON.stringify(r) + '\n', () => {});
 }
-app.get('/lentidao', (_req, res) => res.json(lentidoes.slice(-100)));
-app.get('/lentidao/resumo', (_req, res) => res.json(resumos.slice(-200)));
+// ?inst=código (ou ?ap=modelo) mostra só as de um celular (até as últimas LENTIDAO_MAX); sem filtro, as últimas 100
+const doCelular = (lista, q, n) => {
+  const f = lista.filter((x) => (!q.inst || x.inst === q.inst) && (!q.ap || x.ap === q.ap));
+  return f.slice(q.inst || q.ap ? -lista.length : -n);
+};
+app.get('/lentidao', (req, res) => res.json(doCelular(lentidoes, req.query, 100)));
+app.get('/lentidao/resumo', (req, res) => res.json(doCelular(resumos, req.query, 200)));
+// quais celulares mandaram: modelo, código, quantas linhas e a última versão
+app.get('/lentidao/celulares', (_req, res) => {
+  const m = {};
+  for (const x of [...lentidoes, ...resumos]) {
+    if (!x.inst) continue;
+    const c = (m[x.inst] ||= { inst: x.inst, ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 });
+    c.linhas++;
+    if (x.servidor > c.ultima) { c.ultima = x.servidor; c.versao = x.versao; }
+  }
+  res.json(Object.values(m).sort((a, b) => b.ultima - a.ultima));
+});
 
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
 // relogio (2026-11-13, "slow motion" no lobo): segundos do jogo no servidor por segundo de verdade desde a última leitura.
