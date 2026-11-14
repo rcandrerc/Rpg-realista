@@ -4486,11 +4486,12 @@ func _montar_fogao() -> void:
 		var R: Dictionary = rec[forno_prato]
 		var ing: Dictionary = R.get("ing", {})
 		var falta := false
-		var partes := []
+		var mats := HBoxContainer.new() # André 2026-11-14: ingredientes em ícone x/y, igual a tudo que se cria
+		mats.add_theme_constant_override("separation", 6)
 		var cabe := 999
 		for k in ing:
 			var tem: int = m.P.contar(str(k))
-			partes.append("%s %d/%d" % [_nome(str(k)), tem, int(ing[k])])
+			mats.add_child(m.menu.icone_material(str(k), tem, int(ing[k])))
 			cabe = mini(cabe, tem / maxi(1, int(ing[k])))
 			if tem < int(ing[k]):
 				falta = true
@@ -4499,19 +4500,25 @@ func _montar_fogao() -> void:
 		var linha := HBoxContainer.new()
 		linha.add_theme_constant_override("separation", 8)
 		caixa_forno.add_child(linha)
-		var desc := Menu.rotulo("%s (%d s, Nv %d): %s" % [_nome(forno_prato), int(R.get("dur", 0)), nv, ", ".join(partes)], 14, Menu.APAGADO if falta or baixo else Menu.TEXTO)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 2)
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.custom_minimum_size = Vector2(250, 0)
+		linha.add_child(col)
+		var desc := Menu.rotulo("%s (%d s, Nv %d)" % [_nome(forno_prato), int(R.get("dur", 0)), nv], 14, Menu.APAGADO if falta or baixo else Menu.TEXTO)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		desc.custom_minimum_size = Vector2(250, 0)
-		linha.add_child(desc)
+		col.add_child(desc)
+		col.add_child(mats)
 		var por := func(n: int):
 			m.rede("forno", {"acao": "por", "p": forno_id, "lugar": "ent", "r": forno_prato, "n": n})
 		for q in [1, 5]:
 			var b := _botao("+%d" % q, por.bind(q), not falta and not baixo, 16)
 			b.custom_minimum_size = Vector2(56, 42)
+			b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			linha.add_child(b)
 		var bm := _botao("Máx", por.bind(99), not falta and not baixo, 16)
 		bm.custom_minimum_size = Vector2(64, 42)
+		bm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		linha.add_child(bm)
 		if baixo:
 			t = "Precisa de Cozinheiro Nv %d. " % nv
