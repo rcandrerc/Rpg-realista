@@ -48,8 +48,11 @@ func _process(dt: float) -> void:
 		var id := str(V.id)
 		if d < PERTO and not montadas.has(id):
 			precisa = true
+			var t0 := Time.get_ticks_usec()
 			if _carregado():
 				_montar(V)
+				if m.lentidao:
+					m.lentidao.ev("vila", t0)
 				return # uma vila por segundo: nada de travada
 		elif d > LONGE and montadas.has(id):
 			montadas[id].queue_free()

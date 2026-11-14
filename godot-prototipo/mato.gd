@@ -159,6 +159,8 @@ func _process(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+	if m.lentidao and Time.get_ticks_usec() - t0 > 1000: # passou de 1 ms: vai para o registro das travadas
+		m.lentidao.ev("mato", t0)
 
 func _passo(dt: float) -> void:
 	if m.heroi == null:

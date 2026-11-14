@@ -620,10 +620,13 @@ func _lugares_base() -> Array:
 
 # encostou num totem de teleporte (conversa.gd): o mapa abre mostrando todos os totens
 func abrir_totem(de: Dictionary) -> void:
+	var t0 := Time.get_ticks_usec()
 	abrir()
 	totem_de = de
 	totem_alvo = ""
 	_ver_totens()
+	if m.lentidao:
+		m.lentidao.menu_aberto("totem", t0, 0)
 
 # zoom e meio que mostram todos os totens na janela
 func _ver_totens() -> void:
@@ -705,6 +708,12 @@ func _teleportar() -> void:
 	fechar()
 
 func abrir() -> void:
+	var t0 := Time.get_ticks_usec()
+	_abrir()
+	if m.lentidao: # quanto o mapa levou para abrir (lentidao.gd, tipo "menu")
+		m.lentidao.menu_aberto("mapa", t0, 0)
+
+func _abrir() -> void:
 	aberto = true
 	marcado = null
 	selecionado = ""
