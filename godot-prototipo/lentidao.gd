@@ -82,9 +82,24 @@ func _seguir_entrada() -> void:
 			e.versao = str(load("res://versao.gd").NUMERO)
 			on.rede.enviar("lentidao", e)
 
-# Menus (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"): cada abertura anota quanto
+# Menus e conversas (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"; "quando vou comprar
+# semente na Rosa ou falar com o Aldo sempre tem um lag alto"; a conversa vai com aba "npc:<id>"): cada abertura anota quanto
 # levou montar (abrir, ms), o quadro seguinte (quadro: arrumar e desenhar a tela nova) e o outro depois (quadro2).
 # Vai como tipo "menu" para /lentidao, no máximo MENU_MAX por abertura do jogo.
+# Shader montado na placa na primeira vez que algo aparece (a caverna, o retrato de um NPC, uma skill): é o tranco
+# mais comum no celular e não aparece na conta do jogo. pip = quantos pipelines a placa montou desde o registro
+# anterior (lido só junto de um registro: a leitura espera a linha do desenho).
+var _pip_total := -1
+func pipelines_novos() -> int:
+	var t := 0
+	for k in [RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS, RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE, RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION]:
+		t += RenderingServer.get_rendering_info(k)
+	var novos := t - _pip_total if _pip_total >= 0 else 0
+	_pip_total = t
+	return novos
+
 const MENU_MAX := 40
 var _menu := {}
 var _menus_mandados := 0
@@ -92,7 +107,8 @@ func menu_aberto(aba: String, t0_us: int, itens: int) -> void:
 	if _menus_mandados >= MENU_MAX:
 		return
 	var agora := Time.get_ticks_usec()
-	_menu = {"tipo": "menu", "aba": aba, "abrir": roundi((agora - t0_us) / 1000.0), "itens": itens, "_t": agora, "_f": Engine.get_process_frames()}
+	pipelines_novos()
+	_menu = {"tipo": "menu", "aba": aba.left(15), "abrir": roundi((agora - t0_us) / 1000.0), "itens": itens, "_t": agora, "_f": Engine.get_process_frames()}
 
 func _seguir_menu() -> void:
 	if Engine.get_process_frames() == int(_menu._f):
@@ -104,6 +120,7 @@ func _seguir_menu() -> void:
 		_menu.quadro = ms
 		return
 	_menu.quadro2 = ms
+	_menu.pip = pipelines_novos()
 	_menu.erase("_t")
 	_menu.erase("_f")
 	_menu.versao = str(load("res://versao.gd").NUMERO)
@@ -199,6 +216,7 @@ func _anotar(real: float, relogio: float) -> void:
 	e.cham = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
 	e.tri = roundi(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0)
 	e.obj = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+	e.pip = pipelines_novos()
 	var cam: Camera3D = m.get_viewport().get_camera_3d()
 	if cam:
 		e.rumo = roundi(fposmod(rad_to_deg(cam.global_rotation.y), 360.0))

@@ -300,6 +300,12 @@ func _curto(n: Dictionary) -> String:
 func abrir(n: Dictionary, toque := true) -> void:
 	if m.menu.aberto():
 		return
+	var t0 := Time.get_ticks_usec() # quanto a conversa leva para abrir no celular (lentidao.gd, aba "npc:<id>")
+	_abrir(n, toque)
+	if m.lentidao and raiz.visible:
+		m.lentidao.menu_aberto("npc:" + str(n.get("id", "")), t0, opcoes.get_child_count())
+
+func _abrir(n: Dictionary, toque: bool) -> void:
 	indo = null
 	if n.funcao == "totem" and m.minimapa: # totem de teleporte (André 2026-11-11): abre o mapa mundi com os totens acesos
 		m.minimapa.abrir_totem(n.totem)
