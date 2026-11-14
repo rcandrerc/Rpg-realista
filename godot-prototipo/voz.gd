@@ -19,6 +19,22 @@ const SKILLS := { # palavra falada -> skill (HABILIDADES de shared/dados.js); s�
 	"smash": "salto", "wave": "onda", "flame": "chamas", "charge": "investida", "fury": "furia", "slash": "corte",
 	"rift": "fenda", "bolt": "raio", "barrier": "barreira", "vortex": "vortice",
 }
+# As skills de verdade da barra (HABS de shared/progresso.js, as do Quimera). A lista de cima é a antiga (HABILIDADES de
+# shared/dados.js) e fica como segunda tentativa. André 2026-11-14 (2239): "falei meteoro, gelo... disse que a skill não
+# estava na barra": o meteoro da barra é "meteoro" e o gelo é "nova_gelo", não "meteoros" e "lanca".
+const SKILLS_Q := {
+	"corte": "corte_duplo", "duplo": "corte_duplo", "giro": "giro", "redemoinho": "giro",
+	"esmagar": "golpe_esmagador", "esmagador": "golpe_esmagador", "martelo": "golpe_esmagador",
+	"pisao": "pisao_sismico", "sismico": "pisao_sismico", "tremor": "pisao_sismico", "investida": "investida",
+	"bola": "bola_fogo", "fogo": "bola_fogo", "cometa": "bola_fogo", "anel": "anel_chamas", "chama": "anel_chamas",
+	"circulo": "anel_chamas", "meteoro": "meteoro", "estrela": "meteoro", "gelo": "nova_gelo", "nova": "nova_gelo",
+	"inverno": "nova_gelo", "raio": "raio_cadeia", "cadeia": "raio_cadeia", "tempestade": "raio_cadeia",
+	"salto": "salto_arcano", "floresta": "cura_floresta", "escudo": "escudo_arcano", "egide": "escudo_arcano",
+	"barreira": "escudo_arcano", "vortice": "vortice", "abraco": "vortice",
+	"ice": "nova_gelo", "meteor": "meteoro", "spin": "giro", "fireball": "bola_fogo", "fire": "bola_fogo",
+	"lightning": "raio_cadeia", "chain": "raio_cadeia", "shield": "escudo_arcano",
+	"smash": "golpe_esmagador", "charge": "investida", "slash": "corte_duplo", "ring": "anel_chamas", "vortex": "vortice",
+}
 const ANDAR := { # palavra -> direção do joystick (y negativo = para a frente da câmera)
 	"frente": Vector2(0, -1), "gente": Vector2(0, -1), "frete": Vector2(0, -1), "forward": Vector2(0, -1), "front": Vector2(0, -1),
 	"tra": Vector2(0, 1), "atra": Vector2(0, 1), "traz": Vector2(0, 1), "atraz": Vector2(0, 1), "tras": Vector2(0, 1), "back": Vector2(0, 1), "backward": Vector2(0, 1),
@@ -223,8 +239,8 @@ static func entender(t: String, mapa_aberto: bool) -> Dictionary:
 	for w in p:
 		if ANDAR.has(w):
 			return {"k": "andar", "d": ANDAR[w]}
-		if SKILLS.has(w):
-			return {"k": "skill", "s": SKILLS[w]}
+		if SKILLS_Q.has(w) or SKILLS.has(w):
+			return {"k": "skill", "s": str(SKILLS_Q.get(w, SKILLS.get(w, ""))), "s2": str(SKILLS.get(w, ""))}
 		if ACOES.has(w):
 			return {"k": "acao", "a": ACOES[w]}
 	return {}
@@ -266,7 +282,7 @@ func _sequencia(txt: String, final: bool) -> void:
 		var e := cmd_palavra(str(w[i]), str(w[i - 1]) if i > 0 else "")
 		if e.is_empty():
 			continue
-		var chave := str(e)
+		var chave := "%s %s %s %s" % [e.k, e.get("s", ""), e.get("d", ""), e.get("a", "")] # "bola de fogo" = uma vez
 		if chave == _ultima_acao:
 			continue
 		_ultima_acao = chave
@@ -347,6 +363,7 @@ func _fazer(e: Dictionary, t: String) -> void:
 	match e.k:
 		"parar":
 			andar = Vector2.ZERO
+			atacando = false
 			if m.rota and m.rota.ativo:
 				m.rota.parar()
 			m.hud.aviso(tr("Parou"))
@@ -368,6 +385,7 @@ func _fazer(e: Dictionary, t: String) -> void:
 			if m.conversa:
 				m.conversa.indo = null
 			andar = e.d
+			atacando = false # andar tira do ataque contínuo
 			if m.cam and m.cam.travada(): # câmera nas costas: direita/esquerda viram 90°, trás dá meia-volta
 				if e.d.x > 0.0:
 					m.cam.virar(-PI / 2.0)
@@ -380,6 +398,8 @@ func _fazer(e: Dictionary, t: String) -> void:
 			andar = Vector2.ZERO # golpe e skill plantam o pé (andar cortaria a magia concentrada e a corrida até o alvo)
 			var barra: Array = m.barra_atual()
 			var i := barra.find(e.s)
+			if i < 0 and str(e.get("s2", "")) != "":
+				i = barra.find(e.s2)
 			if i < 0:
 				m.hud.aviso(tr("Skill não está na barra"))
 				return
@@ -387,6 +407,10 @@ func _fazer(e: Dictionary, t: String) -> void:
 		"acao":
 			if not e.a in ["rolar", "pular"]: # rolar e pular seguem andando para o mesmo lado
 				andar = Vector2.ZERO
+			if e.a == "basico": # André 2026-11-14: "fala uma vez atacar, ele só vai parar quando mandar parar"
+				atacando = true
+				_ataque_t = 0.0
+				return
 			m.usar(str(e.a))
 
 # ---------- mapa: nome falado -> lugar da lista do mapa ----------
@@ -439,7 +463,19 @@ func _ir_para(l: Dictionary) -> void:
 	m.hud.aviso(tr("Indo: %s") % str(l.get("curto", "")))
 
 # ---------- quadro a quadro ----------
+# ataque básico contínuo: "atacar" liga, "parar" (ou andar, morrer, desligar a voz) desliga. Repete como o dedo
+# segurando o botão (main.gd, a cada 0,2 s); a recarga e o alvo continuam sendo os do botão.
+var atacando := false
+var _ataque_t := 0.0
 func _process(_dt: float) -> void:
+	if atacando:
+		if not ligado or m.h.morto > 0.0:
+			atacando = false
+		elif not m.hud.bloqueado:
+			var agora := Time.get_ticks_msec() / 1000.0
+			if agora - _ataque_t >= 0.2:
+				_ataque_t = agora
+				m.usar("basico")
 	if _baixando != null:
 		_progresso()
 	if ouvindo and Time.get_ticks_msec() / 1000.0 > _ouvindo_ate:
@@ -548,7 +584,7 @@ func _vosk_desligar() -> void:
 		DirAccess.remove_absolute(VOSK_DIR + "modelo.zip")
 
 # as formas com acento que o modelo conhece (as sem acento das listas acima ficam de fora se ele não conhecer)
-const FALA_EXTRA := ["trás", "atrás", "lança", "explosão", "relâmpago", "fúria", "vórtice", "básico", "básica", "poção",
+const FALA_EXTRA := ["pisão", "sísmico", "círculo", "égide", "abraço", "trás", "atrás", "lança", "explosão", "relâmpago", "fúria", "vórtice", "básico", "básica", "poção",
 	"nível", "abrir", "abre", "desligar", "desliga", "voz", "microfone"]
 const NUMEROS_FALA := ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze",
 	"doze", "treze", "quatorze", "catorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove", "vinte", "trinta",
@@ -584,7 +620,7 @@ static func _tokens(t: String) -> Array: # palavras de um nome, com acento (como
 # lista JSON das palavras que o Vosk pode ouvir: comandos, números e os nomes dos lugares do mapa
 func gramatica() -> String:
 	var ws := {}
-	for d in [SKILLS, ANDAR, ACOES]:
+	for d in [SKILLS, SKILLS_Q, ANDAR, ACOES]:
 		for k in d:
 			ws[k] = true
 	for a in [PARAR, MAPA, FECHAR, ENCHE, FALA_EXTRA, NUMEROS_FALA]:
