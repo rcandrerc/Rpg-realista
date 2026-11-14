@@ -463,7 +463,6 @@
 "Trocar": "Swap",
 "Vestir": "Wear",
 "Rosa compra o que você tiver: na Mochila, toque no item e em Vender.": "Rosa buys whatever you have: in your Inventory, tap the item and then Sell.",
-"Rosa compra o que você tiver: na Mochila, toque no item e em Vender. Mercador Nv %d: ela paga +%s%% e cobra -%s%%.": "Rosa buys whatever you have: in your Inventory, tap the item and then Sell. Merchant Lv %d: she pays +%s%% and charges -%s%%.",
 "À venda": "For sale",
 "Mochila cheia": "Inventory full",
 "Ouro insuficiente": "Not enough gold",
@@ -512,5 +511,14 @@
 "O item some para sempre e não dá ouro.": "The item is gone for good and gives no gold.",
 "Libera no nível %d": "Unlocks at level %d",
 "Fale com %s para começar": "Talk to %s to start",
-"· %d FPS": "· %d FPS"
+"· %d FPS": "· %d FPS",
+"FPS e ping": "FPS and ping",
+"Auto: escolhe sozinho e alivia quando esquenta. Agora: %s.": "Auto: picks for you and eases off when the phone heats up. Now: %s.",
+"%s, %d FPS": "%s, %d FPS",
+"%s, %d FPS, aliviando %d de %d": "%s, %d FPS, easing off %d of %d",
+"Baixa: mais leve. Alta: mais bonito. Sugerido (%s): %s.": "Low: lighter. High: prettier. Suggested (%s): %s.",
+"%s Nv %d": "%s Lv %d",
+"Rosa compra o que você tiver: na Mochila, toque no item e em Vender. A banca dela também é a do Alfaiate (Profissões → Alfaiate).": "Rosa buys whatever you have: in your Inventory, tap the item and then Sell. Her stall is also the Tailor's (Professions → Tailor).",
+"Rosa compra o que você tiver: na Mochila, toque no item e em Vender. Mercador Nv %d: ela paga +%s%% e cobra -%s%%. A banca dela também é a do Alfaiate (Profissões → Alfaiate).": "Rosa buys whatever you have: in your Inventory, tap the item and then Sell. Merchant Lv %d: she pays +%s%% and charges -%s%%. Her stall is also the Tailor's (Professions → Tailor).",
+"Mochila cheia: libere um lugar para tirar": "Inventory full: free a slot to unequip"
 }

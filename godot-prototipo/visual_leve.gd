@@ -27,10 +27,10 @@ var _mats := {} # ShaderMaterial -> [parâmetro, valor original]
 func _init(jogo) -> void:
 	m = jogo
 	name = "VisualLeve"
-	var cfg := ConfigFile.new()
-	cfg.load(ARQUIVO)
-	sombra_leve = bool(cfg.get_value("config", "sombra_leve", true)) # André 2026-11-10: o leve é o padrão
-	grama_natural = bool(cfg.get_value("config", "grama_natural", false)) # André preferiu a cor atual (fica a opção)
+	# André 2026-11-14: Sombras e Cor da grama saíram das Configurações e ficam no padrão (sombra leve, grama na cor
+	# atual), mesmo para quem tinha escolhido outro antes
+	sombra_leve = true
+	grama_natural = false
 
 func _enter_tree() -> void:
 	get_tree().node_added.connect(_entrou)

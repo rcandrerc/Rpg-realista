@@ -9,6 +9,8 @@ extends Node
 # - grama: menos folhas e só perto;
 # - água do mar, lagos e rios mais simples (agua.gdshader e rio.gdshader, uniform "simples");
 # - Baixa trava em 30 quadros por segundo (estável e o celular esquenta menos).
+# Auto (André 2026-11-14): parte do nível da placa e alivia sozinho quando esquenta (ver "Auto" mais abaixo); quem
+# instala agora começa nele.
 # Na primeira vez que o jogo abre, escolhe sozinho pela placa de vídeo do aparelho (Mali-G72 do Note 10 Lite: Baixa;
 # Mali-G720 do Poco X7: Alta). Depois vale o que o jogador escolher (fica em user://config.cfg, junto do som).
 
@@ -60,13 +62,24 @@ func _init(jogo) -> void:
 	if not tem: # primeira vez: guarda a escolha automática (o jogador troca quando quiser)
 		cfg.set_value("config", "grafico", nivel)
 		cfg.save(ARQUIVO)
-	P = PRESETS[nivel]
+	# Auto (André 2026-11-14): quem instala agora começa no Auto; quem já jogava continua no nível que escolheu
+	if not cfg.has_section_key("config", "grafico_auto"):
+		cfg.set_value("config", "grafico_auto", not tem)
+		cfg.save(ARQUIVO)
+	auto = bool(cfg.get_value("config", "grafico_auto", false))
+	if auto:
+		nivel = sugerido
+	P = preset_auto(PRESETS[nivel], 0) if auto else PRESETS[nivel]
+	# Paralelo, Sombras e Cor da grama saíram das Configurações (André 2026-11-14, "deixamos como padrão"): o
+	# paralelo fica ligado (quem tinha desligado na mão volta a ligado; a trava contra queda continua valendo)
+	var mc := _motor()
+	if paralelo_disponivel() and mc.has_section_key("aethra", "paralelo") and not bool(mc.get_value("aethra", "paralelo", true)):
+		trocar_paralelo(true)
 	limite = int(cfg.get_value("config", "fps_limite", -1))
 	if limite not in LIMITES:
 		limite = -1
-	# botão Teste (conselho 2026-11-13): escondido para quem instala agora (um toque sem querer rodava 90 s de teste);
-	# quem já jogava (André e o irmão) continua vendo. Configurações > Botão Teste troca. A linha do FPS tem a chave
-	# própria (Mostrar FPS, menu_topo.gd), que também vem desligada para quem instala agora.
+	# botão Teste (conselho 2026-11-13): saiu da tela em 2026-11-14 (André: os registros automáticos já mapeiam o jogo).
+	# "teste" continua só como o padrão da chave FPS e ping (menu_topo.gd): quem já jogava vê, quem instala agora não.
 	teste = bool(cfg.get_value("config", "teste_fps", tem))
 	if not cfg.has_section_key("config", "teste_fps"):
 		cfg.set_value("config", "teste_fps", teste)
@@ -150,8 +163,10 @@ func trocar_paralelo(v: bool) -> void:
 	cfg.set_value("rendering", "driver/threads/thread_model", 2 if v else 1)
 	cfg.save(MOTOR)
 
-# quantos quadros por segundo valem agora (0 = sem limite)
+# quantos quadros por segundo valem agora (0 = sem limite). No Auto quem escolhe é o Auto.
 func fps_alvo() -> int:
+	if auto:
+		return int(P.fps)
 	return limite if limite >= 0 else int(P.fps)
 
 var teste := false # botão Teste à vista
@@ -212,53 +227,222 @@ static func detectar(nome_placa: String, _modelo := "") -> int:
 
 func trocar(n: int) -> void:
 	nivel = clampi(n, BAIXA, ALTA)
+	auto = false
+	degrau = 0
 	P = PRESETS[nivel]
 	var cfg := ConfigFile.new()
 	cfg.load(ARQUIVO)
 	cfg.set_value("config", "grafico", nivel)
+	cfg.set_value("config", "grafico_auto", false)
 	cfg.save(ARQUIVO)
 	aplicar()
 
+func trocar_auto() -> void:
+	auto = true
+	nivel = sugerido
+	degrau = 0
+	_frio_s = 0.0
+	_espera_sobe = AUTO_SOBE_S
+	_t_auto = AUTO_S
+	_gpu_soma = 0.0
+	_gpu_n = 0
+	P = preset_auto(PRESETS[nivel], 0)
+	var cfg := ConfigFile.new()
+	cfg.load(ARQUIVO)
+	cfg.set_value("config", "grafico_auto", true)
+	cfg.save(ARQUIVO)
+	aplicar()
+
+# ---------- Auto (André 2026-11-14: "opção auto e opção manual low, médio e high, e escolher fps; no auto escolhe tudo") ----------
+# O Auto parte do nível que a detecção escolheu para a placa (sugerido) e, a cada AUTO_S, olha o tempo médio da placa
+# de vídeo e o calor do Android (lentidao.gd: term, folga, bat). Quente ou placa sem folga: desce um degrau. Frio e com
+# a placa sobrando (contando o degrau de cima) por _espera_sobe: sobe um. Se subiu e logo teve de descer, a próxima
+# subida espera o dobro (não fica indo e voltando). Degraus, um em cima do outro:
+#   1. resolução 3D menor (a interface continua nítida)
+#   2. trava em 30 quadros por segundo (ritmo igual e esquenta bem menos)
+#   3. resolução 3D menor ainda e sombra mais curta
+#   4. grama mais rala e só perto, vista ao longe mais curta (névoa um pouco mais fechada); a câmera continua livre
+const AUTO_S := 15.0
+const AUTO_SOBE_S := 60.0
+const AUTO_SOBE_MAX := 600.0
+const DEGRAUS := 4
+const ESCALA_MIN := 0.4
+const QUENTE_TERM := 2 # Android: 2 = já freando de leve
+const QUENTE_FOLGA := 0.6 # 1.0 = começa a frear daqui a 10 s
+const QUENTE_BAT := 42.0 # °C
+var auto := false
+var degrau := 0
+var _t_auto := AUTO_S
+var _frio_s := 0.0
+var _espera_sobe := AUTO_SOBE_S
+var _subiu_em := -1000.0
+var _gpu_soma := 0.0
+var _gpu_n := 0
+var _t_amostra := 0.0
+var _janelas := 0 # janelas seguidas com o jogo na tela
+var _quadros := 0
+var _tempo := 0.0
+# o tempo da placa é lido só de AMOSTRA_S em AMOSTRA_S: com o desenho em paralelo, cada leitura faz a linha principal
+# esperar a linha do desenho (main.gd, Teste de FPS); o FPS de verdade é contado todo quadro, de graça
+const AMOSTRA_S := 5.0
+
+static func preset_auto(base: Dictionary, d: int) -> Dictionary:
+	var p := base.duplicate()
+	if d >= 1:
+		p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.88)
+	if d >= 2 and int(base.fps) != 30:
+		p.fps = 30
+	if d >= 3:
+		p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.78)
+		p.sombra_dist = float(base.sombra_dist) * 0.7
+	if d >= 4:
+		p.grama = float(base.grama) * 0.8
+		p.grama_qtd = float(base.grama_qtd) * 0.7
+		p.alcance = float(base.alcance) * 0.85
+		p.nevoa = float(base.nevoa) * 1.15
+	return p
+
+func _process(dt: float) -> void:
+	if _aos_poucos:
+		var t0 := Time.get_ticks_usec()
+		_ajustar_pendentes(AOS_POUCOS_US)
+		if Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
+			Engine.get_meta("lentidao").ev("grafico", t0)
+	if not auto or m.etapa >= 0: # durante o Teste de FPS o Auto espera
+		return
+	var real := dt / maxf(Engine.time_scale, 0.001) # tempo de verdade (o golpe congela o jogo)
+	_quadros += 1
+	_tempo += real
+	_t_amostra -= real
+	if _t_amostra <= 0.0:
+		_t_amostra = AMOSTRA_S
+		var g := RenderingServer.viewport_get_measured_render_time_gpu(m.get_viewport().get_viewport_rid())
+		if g > 0.0:
+			_gpu_soma += g
+			_gpu_n += 1
+	_t_auto -= real
+	if _t_auto > 0.0:
+		return
+	_t_auto = AUTO_S
+	var gpu := _gpu_soma / _gpu_n if _gpu_n > 0 else -1.0
+	var fps := _quadros / _tempo if _tempo > 0.0 else -1.0
+	_gpu_soma = 0.0
+	_gpu_n = 0
+	_quadros = 0
+	_tempo = 0.0
+	# tela de entrada ou de carregamento na frente, ou o jogo acabou de aparecer (a fila de entrada pesa): não conta
+	var on = m.online
+	if m.heroi == null or (on and (on._cobrindo or (on.capa and on.capa.visible))):
+		_janelas = 0
+		return
+	_janelas += 1
+	if _janelas <= 2:
+		return
+	var L = m.lentidao
+	var d := decidir(degrau, gpu, int(L.term) if L else -1, float(L.folga) if L else -1.0, float(L.bat) if L else -1.0, fps)
+	var agora := Time.get_ticks_msec() / 1000.0
+	if d > degrau:
+		_frio_s = 0.0
+		if agora - _subiu_em < AUTO_S * 2.5: # tinha acabado de subir e não aguentou
+			_espera_sobe = minf(_espera_sobe * 2.0, AUTO_SOBE_MAX)
+		_mudar(d)
+	elif d < degrau:
+		_frio_s += AUTO_S
+		if _frio_s >= _espera_sobe:
+			_frio_s = 0.0
+			_subiu_em = agora
+			_mudar(d)
+	else:
+		_frio_s = 0.0
+
+# o degrau que o Auto quer agora (um passo por vez): gpu = ms médios da placa (-1 = sem medida); term/folga/bat -1 = sem leitura
+# fps = quadros por segundo de verdade na janela (-1 = sem conta): bem abaixo do alvo também é "sem folga"
+func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.0) -> int:
+	var alvo := float(P.fps) if int(P.fps) > 0 else 60.0
+	var orc := 1000.0 / alvo
+	var quente := term >= QUENTE_TERM or folga >= QUENTE_FOLGA or bat >= QUENTE_BAT
+	if quente or gpu > orc * 0.92 or (fps > 0.0 and fps < alvo * 0.8):
+		return mini(d + 1, DEGRAUS)
+	if d == 0 or gpu < 0.0:
+		return d
+	var acima := preset_auto(PRESETS[nivel], d - 1)
+	# a placa trabalha mais ou menos pelo número de pontos desenhados (resolução ao quadrado)
+	var k := pow(float(acima.escala) / float(P.escala), 2.0)
+	var orc_acima := 1000.0 / float(acima.fps) if int(acima.fps) > 0 else 1000.0 / 60.0
+	var frio := term < 1 and folga < QUENTE_FOLGA - 0.15 and bat < QUENTE_BAT - 2.5 and gpu * k < orc_acima * 0.75 \
+		and (fps < 0.0 or fps >= alvo * 0.95)
+	return d - 1 if frio else d
+
+func _mudar(d: int) -> void:
+	var antes: Dictionary = P
+	degrau = clampi(d, 0, DEGRAUS)
+	P = preset_auto(PRESETS[nivel], degrau)
+	if P.alcance != antes.alcance or P.grama != antes.grama or P.grama_qtd != antes.grama_qtd or P.nevoa != antes.nevoa:
+		aplicar(true) # degrau 4: confere o alcance de tudo que está na cena, aos poucos
+	else:
+		_aplicar_tela()
+
 # aplica tudo: tela, sombra, névoa e o alcance de tudo que já está na cena
-func aplicar() -> void:
+# aos_poucos (Auto no degrau 4): o alcance de tudo que está na cena é conferido AOS_POUCOS_US por quadro (de uma vez
+# custava ~250 ms no PC: um tranco no meio do jogo)
+const AOS_POUCOS_US := 3000
+var _aos_poucos := false
+
+func aplicar(aos_poucos := false) -> void:
+	_aplicar_tela()
+	RenderingServer.directional_shadow_atlas_set_size(P.atlas, true)
+	RenderingServer.directional_soft_shadow_filter_set_quality(P.suave)
+	if m.relevo: # relevo.gd mexe na névoa e no fim da câmera todo quadro (vista do alto da montanha)
+		m.relevo.nevoa_mult = P.nevoa
+		m.relevo.longe_mult = lerpf(P.alcance, 1.0, 0.25) # a câmera enxerga um pouco além do que some (a névoa apaga)
+	_pend = m.get_tree().root.find_children("*", "GeometryInstance3D", true, false)
+	if aos_poucos:
+		_aos_poucos = true # _process confere um pedaço por quadro
+	else:
+		_ajustar_pendentes()
+
+# a parte leve (o Auto troca só isto nos degraus 1 a 3): resolução, suavização, LOD, FPS e sombra
+func _aplicar_tela() -> void:
 	var vp: Viewport = m.get_viewport()
+	if auto: # o Auto precisa do tempo da placa (lentidao.gd também liga)
+		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 	# versão PC (ferramentas/pc/preparar.sh grava aethra/pc_escala): monitor de PC tem bem menos pontos por polegada que
 	# o celular, então a mesma escala ficava com cara de resolução baixa. No celular a opção não existe (x1).
 	vp.scaling_3d_scale = minf(1.0, P.escala * float(ProjectSettings.get_setting("aethra/pc_escala", 1.0)))
 	vp.msaa_3d = P.msaa
 	vp.mesh_lod_threshold = P.lod
 	Engine.max_fps = fps_alvo()
-	RenderingServer.directional_shadow_atlas_set_size(P.atlas, true)
-	RenderingServer.directional_soft_shadow_filter_set_quality(P.suave)
 	if m.sol:
 		m.sol.shadow_enabled = P.sombra
 		if P.sombra:
 			m.sol.directional_shadow_max_distance = P.sombra_dist
-	if m.relevo: # relevo.gd mexe na névoa e no fim da câmera todo quadro (vista do alto da montanha)
-		m.relevo.nevoa_mult = P.nevoa
-		m.relevo.longe_mult = lerpf(P.alcance, 1.0, 0.25) # a câmera enxerga um pouco além do que some (a névoa apaga)
-	_pend = m.get_tree().root.find_children("*", "GeometryInstance3D", true, false)
-	_ajustar_pendentes()
 
 func _entrou(no: Node) -> void:
 	# FPS (varredura 2026-11-10): na Alta o ajuste não muda nada (alcance x1, grama inteira, água completa) e cada
 	# monstro, magia ou pedaço de mato que entra na cena passava por ele. Trocar de nível chama aplicar(), que
 	# confere de novo tudo que está na cena.
-	if nivel == ALTA:
+	if _cheio():
 		return
 	if no is GeometryInstance3D:
 		_pend.append(no)
-		if not _agendado:
+		if not _agendado and not _aos_poucos:
 			_agendado = true
 			_ajustar_pendentes.call_deferred()
 
-func _ajustar_pendentes() -> void:
+# alcance, grama e água inteiros (Alta, ou o Auto em cima da Alta antes do degrau 4): nada a ajustar no que entra
+func _cheio() -> bool:
+	return float(P.alcance) == 1.0 and float(P.grama) == 1.0 and float(P.grama_qtd) >= 1.0 and not P.agua_simples
+
+func _ajustar_pendentes(limite_us := 0) -> void:
 	_agendado = false
-	var lista := _pend
-	_pend = []
-	for g in lista:
+	var t0 := Time.get_ticks_usec()
+	while not _pend.is_empty():
+		var g = _pend.pop_back()
 		if is_instance_valid(g) and g.is_inside_tree():
 			_ajustar(g)
+		if limite_us > 0 and Time.get_ticks_usec() - t0 >= limite_us:
+			return # o resto fica para o próximo quadro
+	_aos_poucos = false
 	for mat in _mats_agua:
 		mat.set_shader_parameter("simples", P.agua_simples)
 	for mat in _mats_grama:
