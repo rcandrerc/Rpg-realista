@@ -2524,12 +2524,17 @@ export const AMIGA = {
   horta: { x: 2, z: 7, w: 6, d: 3 }, // canteiros de 1 m na frente da casa
   plantas: ['cenoura', 'rabanete', 'batata'],
   passo: { obra: 14, canteiro: 6, passeio: 40 }, // segundos entre uma peça e outra, um canteiro e outro, e quanto passeia
+  // amizade (André 2026-11-14: "deveria subir interagindo de qq forma"): teto 10. Presente (troca sem nada dela na mesa) e o
+  // pedido entregue: +1 cada, fora do limite do dia. Conversa (pelo menos 'conversa' falas dele), 'caca' monstros mortos
+  // juntos no time, uma rodada de coleta junto (coleta.dividir itens) e chefe vencido junto ('chefe'): até 'porDia' por dia.
+  amizade: { max: 10, porDia: 5, conversa: 4, caca: 20, chefe: 2, aviso: '{nome}: amizade +{n}' },
   conversa: 25, // segundos parada olhando para o André depois do último botão
   // Fase 2 (André 2026-11-09): time e combate. Ela decide por regras com sorteio (sem IA paga): a vontade começa em
   // base e muda com a amizade, o cansaço, a horta, a noite e a diferença de nível; depois sorteia. Recusou: espera
   // 'esperaRecusa' s para ser chamada de novo; 'humor' s que a vontade sorteada vale e 'humorRecusa' s que um não continua não (André 2026-11-13: não muda de ideia a cada fala). No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
   // bebe poção com pouca vida e foge para perto dele quando não tem poção.
-  time: { base: 0.6, porAmizade: 0.08, amizadeMax: 0.35, cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
+  time: { base: 0.6, porAmizade: 0.035, amizadeMax: 0.35, // amizade 0 a 10: o máximo chega no 10 (André 2026-11-14; antes 0.08, máximo no 5)
+    cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
     min: 0.05, max: 0.95, esperaRecusa: 45, humor: 90, humorRecusa: 180, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
   // André 2026-11-10 ("ela não se teleporta: entra na montaria e vem até mim, eu vejo ela no mapa vindo, como um jogador
   // normal"; "vai pelas estradas para não travar"): longe do dono (chamada pelo chat ou no time) ela monta no lobo e vem
@@ -2609,7 +2614,8 @@ export const AMIGA = {
       naoChefe: { texto: 'não atacar chefe', naoChefe: true },
     },
   },
-  coleta: { raio: 28, presente: 0.3, porAmizade: 0.03, presenteMax: 0.5, dividir: 10, reacao: [0.25, 0.6], toquesK: 0.8, pedirDeNovo: 90 },
+  coleta: { raio: 28, presente: 0.3, porAmizade: 0.02, presenteMax: 0.5, // 50% no 10 (antes 0.03, máximo no 7)
+    dividir: 10, reacao: [0.25, 0.6], toquesK: 0.8, pedirDeNovo: 90 },
   atividades: {
     pescar: { ferramenta: 'vara', nome: 'pescar', lugar: 'um spot de pesca (água borbulhando)' },
     minerar: { ferramenta: 'picareta', nome: 'minerar', lugar: 'um veio de minério' },
@@ -2626,7 +2632,8 @@ export const AMIGA = {
     fim: 'Foi divertido! Me chama de novo.',
     nada: 'Hoje não rendeu nada... próxima a gente pega mais!',
   },
-  troca: { margem: 1.5, porAmizade: 0.05, margemMin: 1.1, pensar: 1.2, longe: 6 },
+  troca: { margem: 1.5, porAmizade: 0.04, margemMin: 1.1, // preço de amiga mais baixo no 10 (antes 0.05, no 8)
+    pensar: 1.2, longe: 6 },
   falasTroca: {
     abre: ['Bora negociar! Me diz o que você quer ("quero 3 cenouras") ou põe na mesa o que tem pra mim.', 'Troca? Adoro! Fala o que você quer ou mostra o que trouxe.'],
     topa: ['Bora! Toca em mim e pede a troca.', 'Claro! Chega perto e pede a troca.'], // André 2026-11-13: no chat ela só topa; a troca ele abre

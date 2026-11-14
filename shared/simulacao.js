@@ -3683,6 +3683,7 @@ export class Simulacao {
         this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
+      for (const ctx of this.amigosIa) ctx.cacaJuntosAmiga?.(ganham, c); // caçar junto com a Cecília/Dario sobe a amizade (André 2026-11-14)
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       if (c.sp.caverna) { // sala da caverna: o corpo some; a sala volta cheia depois (passoCaverna)
         const S = this.dungeon.salas.find((S) => S.def.id === c.sp.caverna), vg = S?.vagas.find((vg) => vg.e === c);
