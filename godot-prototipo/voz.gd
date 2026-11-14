@@ -20,8 +20,8 @@ const SKILLS := { # palavra falada -> skill (HABILIDADES de shared/dados.js); s�
 	"rift": "fenda", "bolt": "raio", "barrier": "barreira", "vortex": "vortice",
 }
 const ANDAR := { # palavra -> direção do joystick (y negativo = para a frente da câmera)
-	"frente": Vector2(0, -1), "forward": Vector2(0, -1), "front": Vector2(0, -1),
-	"tra": Vector2(0, 1), "atra": Vector2(0, 1), "back": Vector2(0, 1), "backward": Vector2(0, 1),
+	"frente": Vector2(0, -1), "gente": Vector2(0, -1), "frete": Vector2(0, -1), "forward": Vector2(0, -1), "front": Vector2(0, -1),
+	"tra": Vector2(0, 1), "atra": Vector2(0, 1), "traz": Vector2(0, 1), "atraz": Vector2(0, 1), "tras": Vector2(0, 1), "back": Vector2(0, 1), "backward": Vector2(0, 1),
 	"esquerda": Vector2(-1, 0), "left": Vector2(-1, 0),
 	"direita": Vector2(1, 0), "right": Vector2(1, 0),
 }
@@ -34,7 +34,7 @@ const ACOES := { # palavra -> ação do botão (main.usar)
 	"pular": "pular", "pula": "pular", "jump": "pular",
 }
 const PARAR := ["parar", "pare", "parou", "stop", "chega"]
-const MAPA := ["mapa", "map"]
+const MAPA := ["mapa", "map", "napa"]
 const FECHAR := ["fechar", "fecha", "close", "sair"]
 # palavras que não mudam o comando ("usar gelo", "poção de vida", "ir para a vila", "anda pra frente")
 const ENCHE := ["a", "o", "as", "os", "de", "da", "do", "das", "dos", "e", "pra", "pro", "para", "por", "em", "no", "na",
@@ -106,6 +106,7 @@ var _escutou := false
 var _erro_t := {}
 func _estado(e: String) -> void:
 	if e == "escutando":
+		_feito = false # frase nova
 		if not _escutou:
 			_escutou = true
 			m.hud.aviso(tr("Escutando..."))
@@ -160,10 +161,10 @@ static func entender(t: String, mapa_aberto: bool) -> Dictionary:
 	for w in p:
 		if w in PARAR:
 			return {"k": "parar"}
-	if p[0] in MAPA and p.size() == 1:
-		return {"k": "mapa"}
 	if p[0] in FECHAR:
 		return {"k": "fechar"}
+	if p.size() <= 2 and (p[0] in MAPA or p[-1] in MAPA): # "mapa", "abrir mapa", "abre o mapa"
+		return {"k": "mapa"}
 	if mapa_aberto: # com o mapa aberto, o nome de um lugar leva até ele
 		return {"k": "lugar", "p": p}
 	for w in p:
@@ -176,21 +177,32 @@ static func entender(t: String, mapa_aberto: bool) -> Dictionary:
 	return {}
 
 # ---------- frases ----------
+# André 2026-11-14 (2229): "Ouvi: frente" aparecia e o herói não andava. O texto do meio da frase chegava, mas o fim
+# da frase muitas vezes não (o Android fecha com "não entendi" quando tem barulho). Agora o comando age já no pedaço,
+# uma vez por frase; o fim da frase só age se o pedaço não agiu. Com o mapa aberto espera o fim (nome de lugar é longo).
+var _feito := false # esta frase já virou ação
 func _parcial(txt: String) -> void:
-	# "parar" age já no pedaço (não espera o fim da frase): andar por voz para na hora
-	if not ligado:
+	if not ligado or m.heroi == null:
 		return
 	var t0: String = txt.split("\n", false)[0] if txt != "" else ""
-	if t0 != "": # enquanto fala já aparece o que está entendendo (se aparece aqui e a ação não vem, o problema é o fim da frase)
+	if t0 != "" and not _feito:
 		m.hud.aviso(tr("Ouvi: %s") % t0.left(30))
+	if _feito:
+		return
+	var aberto: bool = m.minimapa != null and m.minimapa.aberto
 	for t in txt.split("\n", false):
-		var e := entender(t, false)
-		if e.get("k", "") == "parar":
-			_fazer(e, t)
-			return
+		var e := entender(t, aberto)
+		if e.is_empty() or e.k == "lugar":
+			continue
+		_feito = true
+		_fazer(e, t)
+		return
 
 func _ouviu(txt: String) -> void:
 	if not ligado or m.heroi == null:
+		return
+	if _feito: # o pedaço desta frase já agiu
+		_feito = false
 		return
 	var aberto: bool = m.minimapa != null and m.minimapa.aberto
 	for t in txt.split("\n", false):
@@ -215,7 +227,7 @@ func _ouviu(txt: String) -> void:
 
 func _fazer(e: Dictionary, t: String) -> void:
 	if e.k != "parar":
-		m.hud.aviso(tr("Ouvi: %s") % t.left(30)) # o aviso da própria ação (Parou, Indo...) vem por cima quando tem
+		m.hud.aviso(tr("Voz: %s") % t.left(30)) # "Voz:" = virou ação ("Ouvi:" = só ouviu); Parou, Indo... vêm por cima
 	var agora := Time.get_ticks_msec() / 1000.0
 	if e.k == "parar" and _ultimo == "parar" and agora - _ultimo_t < 1.5:
 		return # o pedaço já parou: a frase final não repete o aviso
