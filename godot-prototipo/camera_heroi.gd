@@ -36,6 +36,17 @@ var dist_cam := 5.2
 var alvo := Vector3.ZERO
 var _vel_alvo := Vector3.ZERO
 var _giro_pend := Vector2.ZERO
+# Travar câmera (André 2026-11-14: "a câmera travada nas costas do personagem, para quando eu virar à direita ficar
+# sempre com a visão nas costas"): chave em Configurações, com ou sem a voz. Andando, a câmera volta sozinha para trás
+# do herói. A voz vira o herói em 90° (virar): o giro anda aos poucos e a câmera vai junto.
+const TRAVA_VEL := 5.0 # quão rápido volta para as costas
+const VIRAR_VEL := 3.5 # rad/s do giro pedido pela voz
+var giro_voz := 0.0 # giro que falta (rad)
+func travada() -> bool:
+	return m.menu_topo != null and m.menu_topo.camera_travada
+
+func virar(a: float) -> void:
+	giro_voz += a
 var _sem_dedo := 9.0
 const SUBMERSO := 0.45 # m de mergulho a partir do qual a cabeça do herói está debaixo d'água
 var trauma := 0.0 # tremida (0 a 1); cai sozinha
@@ -169,6 +180,12 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	_montado_k = move_toward(_montado_k, 1.0 if m.montaria != null else 0.0, dt * 2.0)
 	# correndo e sem mexer na câmera: vai para as costas do herói (mais forte quanto mais rápido)
 	var j: Vector2 = m.hud.mover # só com o joystick para a frente (de lado ele daria voltas em círculo)
+	if giro_voz != 0.0:
+		var passo: float = sign(giro_voz) * min(abs(giro_voz), VIRAR_VEL * dt)
+		yaw += passo
+		giro_voz -= passo
+	elif travada() and not _conversando and foco_livre == null and vel > 0.5 and not m.heroi_anim.mirando and _sem_dedo > 0.6:
+		yaw = lerp_angle(yaw, mov.ry + PI, min(1.0, dt * TRAVA_VEL))
 	# virado para o alvo (mirando, andando de lado): a câmera não persegue o giro do corpo (tremia entre alvo e caminho)
 	if _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and not m.heroi_anim.mirando and j.y < -0.45 and abs(j.x) < 0.6:
 		var atras: float = mov.ry + PI

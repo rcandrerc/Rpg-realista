@@ -43,6 +43,7 @@ var volume := 100.0 # 0..100 (volume geral do jogo)
 var volume_musica := 45.0 # 0..100 (só a música de fundo, musica.gd)
 var vibracao := true
 var mostrar_fps := true
+var camera_travada := false # Travar câmera: nas costas do herói (camera_heroi.gd)
 # André 2026-11-13 ("jogar com a tela mais limpa"): o FPS e o ping ficam no topo (online.gd); o resto dos números do
 # Teste (efeitos, rede, quadro, travadas...) só aparece com um toque no topo ou na chave abaixo. Escondido não monta o texto.
 var detalhes_fps := false
@@ -597,6 +598,9 @@ func montar_config() -> void:
 		mostrar_fps = v
 		aplicar_config()
 		salvar())
+	_chave("Travar câmera", camera_travada, func(v):
+		camera_travada = v
+		salvar())
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
 	# Comando de voz (André 2026-11-14): só no celular. Ligado, escuta sem tocar em nada; desligado, microfone fechado.
 	# Não fica salvo: o jogo sempre abre com ele desligado.
@@ -815,6 +819,7 @@ func carregar() -> void:
 	vibracao = bool(cfg.get_value("config", "vibracao", true))
 	# sem escolha salva: quem já jogava vê o FPS; quem instala agora não (conselho 2026-11-13; grafico.gd teste)
 	mostrar_fps = bool(cfg.get_value("config", "fps", m.grafico.teste if m.grafico else true))
+	camera_travada = bool(cfg.get_value("config", "camera_travada", false))
 	detalhes_fps = false # os números do teste saíram (André 2026-11-14): no topo ficam só o FPS e o ping
 
 func salvar() -> void:
@@ -826,6 +831,7 @@ func salvar() -> void:
 	cfg.set_value("config", "vibracao", vibracao)
 	cfg.set_value("config", "fps", mostrar_fps)
 	cfg.set_value("config", "fps_detalhes", detalhes_fps)
+	cfg.set_value("config", "camera_travada", camera_travada)
 	cfg.save(ARQUIVO)
 
 # o Android negou o microfone (ou falou "desligar voz"): a chave das Configurações volta para desligada

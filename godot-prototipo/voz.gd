@@ -368,6 +368,14 @@ func _fazer(e: Dictionary, t: String) -> void:
 			if m.conversa:
 				m.conversa.indo = null
 			andar = e.d
+			if m.cam and m.cam.travada(): # câmera nas costas: direita/esquerda viram 90°, trás dá meia-volta
+				if e.d.x > 0.0:
+					m.cam.virar(-PI / 2.0)
+				elif e.d.x < 0.0:
+					m.cam.virar(PI / 2.0)
+				elif e.d.y > 0.0:
+					m.cam.virar(PI)
+				andar = Vector2(0, -1)
 		"skill":
 			andar = Vector2.ZERO # golpe e skill plantam o pé (andar cortaria a magia concentrada e a corrida até o alvo)
 			var barra: Array = m.barra_atual()
