@@ -526,10 +526,21 @@ func ao_receber(tipo, dados) -> void:
 		return
 	if str(tipo) != "mundo" or not (dados is Dictionary):
 		return
+	var t0 := Time.get_ticks_usec()
 	if dados.has("foto"):
 		aplicar_foto(dados.foto)
+	t0 = _marca("rx:foto", t0)
 	for ev in dados.get("eventos", []):
 		evento(ev)
+	_marca("rx:eventos", t0)
+
+# Quadro lento (2026-11-14, registros do celular: "rede" e "online" chegavam a 300 a 500 ms num quadro logo depois da
+# capa, sem dizer o quê): cada pedaço que passa de 1 ms vai para o registro (lentidao.gd ev) com o nome dele.
+func _marca(nome: String, t0_us: int) -> int:
+	var agora := Time.get_ticks_usec()
+	if agora - t0_us >= 1000 and m.lentidao:
+		m.lentidao.ev(nome, t0_us)
+	return agora
 
 # corpo que veio pela metade (área de interesse): junta com o que já se sabia dele. "_mexeu" = trouxe posição nova
 func _juntar(c: Dictionary, agora: Dictionary) -> Dictionary:
@@ -573,6 +584,7 @@ func aplicar_foto(f: Dictionary) -> void:
 	var agora := {} # ids que vieram nesta foto (área de interesse)
 	if f.has("mapa"):
 		no_mapa = f.mapa
+	var tf := Time.get_ticks_usec()
 	for j0 in f.get("jogadores", []):
 		var j: Dictionary = _juntar(j0, agora) if aoi and str(j0.get("id", "")) != meu_id else j0
 		if j.get("criando", false):
@@ -610,6 +622,7 @@ func aplicar_foto(f: Dictionary) -> void:
 		if not vistos.has(id):
 			_soltar_corpo(outros[id])
 			outros.erase(id)
+	tf = _marca("rx:jogadores", tf)
 	var com_corpo := {}
 	for e0 in f.get("inimigos", []):
 		var e: Dictionary = _juntar(e0, agora) if aoi else e0
@@ -626,12 +639,15 @@ func aplicar_foto(f: Dictionary) -> void:
 			e.estado = "morto"
 			e.no.visible = false
 			_barra_visivel(e, false)
+	tf = _marca("rx:inimigos", tf)
 	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
 	m.trabalho.veios_comuns(f.get("veios", []))
 	if m.pesca: # spots de pesca na água (pesca.gd): bolhas de perto, no mapa com o Radar
 		m.pesca.atualizar_spots(f.get("spots", []))
+	tf = _marca("rx:veios_pesca", tf)
 	if m.transporte and f.has("carga"): # FASE 1: packs no chão, carrinhos, barquinhos e navios
 		m.transporte.atualizar(f.carga)
+	_marca("rx:carga", tf)
 	if _cobrindo: # primeira foto depois de entrar: o mundo (ou o criador da conta nova) já está pronto
 		_foto_capa = true
 		_soltar_capa()
@@ -1523,11 +1539,13 @@ func _detalhe_outros(dt: float) -> void:
 		return
 	_detalhe_t = 0.25
 	var hp: Vector3 = m.heroi.position
+	var td := Time.get_ticks_usec()
 	for id in outros: # penteado que estava carregando no fundo (Penteado.aplicar sem esperar): põe agora, um por vez
 		var oe: Dictionary = outros[id]
 		if is_instance_valid(oe.no) and oe.no.has_meta("penteado_espera") and Penteado.pronto(str(oe.no.get_meta("penteado_espera"))):
 			Aparencia.aplicar(oe.no, Aparencia.valida(JSON.parse_string(str(oe.ap)), m.P.dados.criador), false)
 			break
+	td = _marca("on:penteado", td)
 	var lista := []
 	for id in outros:
 		lista.append([outros[id].no.position.distance_squared_to(hp), id])
@@ -1548,6 +1566,7 @@ func _detalhe_outros(dt: float) -> void:
 			o.no.visible = not sumiu
 			if o.get("montaria") != null and is_instance_valid(o.montaria.no):
 				o.montaria.no.visible = not sumiu
+	_marca("on:detalhe", td)
 
 func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	var antes := int(o.get("lod", -1))
@@ -1649,6 +1668,7 @@ func _passo(dt: float) -> void:
 	# porque o servidor não para.
 	var dt_pos: float = dt / max(Engine.time_scale, 0.001)
 	_detalhe_outros(dt)
+	var tp := Time.get_ticks_usec()
 	for id in outros:
 		var o: Dictionary = outros[id]
 		var antes: Vector3 = o.no.position
@@ -1674,6 +1694,7 @@ func _passo(dt: float) -> void:
 			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
 			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
 			o.montaria.passo(dt, o.vel_m)
+	tp = _marca("on:outros", tp)
 	_lista_mexem()
 	for e in _mexem:
 		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
@@ -1686,6 +1707,7 @@ func _passo(dt: float) -> void:
 				var pos_a: float = e.anim.current_animation_position
 				e.anim.play(e.anim.current_animation, 0.0, e.prep_v2)
 				e.anim.seek(pos_a, true)
+	_marca("on:inimigos", tp)
 	# minha posição (o servidor confere velocidade e altura)
 	_pos_t -= dt
 	if _pos_t <= 0.0 and m.h.morto <= 0.0:
