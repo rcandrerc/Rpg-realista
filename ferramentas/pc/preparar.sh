@@ -4,7 +4,7 @@
 #
 #  - texturas também no formato de PC (S3TC/BPTC). O celular continua só com ETC2/ASTC (project.godot da main).
 #  - se a placa não tem Vulkan/D3D12, cai sozinho para OpenGL 3 (e o zip leva Aethra-OpenGL.bat para forçar).
-#  - nome da janela "Aethra", janela maximizada.
+#  - config/name "Aethra" (pasta de dados do Windows; não trocar), janela maximizada. A janela mostra "Age of Embers" (inicio.gd).
 #  - VSync adaptativo: no monitor de 60 Hz, quadro que passa de 16,7 ms não cai direto para 30 FPS (no celular continua igual).
 #  - mundo 3D ampliado com FSR 1 (AMD, livre) em vez do esticado simples: com a mesma resolução 3D da qualidade escolhida
 #    (Alta 0.6, Média 0.52, Baixa 0.45) a imagem fica bem mais nítida no monitor grande, sem custo que se note.

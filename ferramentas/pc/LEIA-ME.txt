@@ -1,6 +1,6 @@
-AETHRA - VERSÃO PC
+AGE OF EMBERS - VERSÃO PC
 
-Abra o Aethra.exe (o Aethra.pck precisa ficar na mesma pasta).
+Abra o Aethra.exe (o arquivo do jogo Age of Embers; o Aethra.pck precisa ficar na mesma pasta).
 Na primeira vez o Windows pode avisar "O Windows protegeu o computador": clique em "Mais informações" e
 "Executar assim mesmo". O aviso aparece porque o .exe não tem assinatura paga, não é vírus.
 
