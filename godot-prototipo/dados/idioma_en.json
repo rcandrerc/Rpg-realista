@@ -3237,5 +3237,16 @@
 "faça {1} com a Mirela": "make {1} with Mirela",
 "faça {1} com {2}": "make {1} with {2}",
 "Para {1}": "For {1}",
-"ouro": "gold"
+"ouro": "gold",
+"Comando de voz": "Voice commands",
+"Fale: frente, atacar, gelo, vida, mapa...": "Say: forward, attack, ice, health, map...",
+"Voz ligada": "Voice on",
+"Voz desligada": "Voice off",
+"Sem microfone": "No microphone",
+"Celular sem reconhecimento de voz": "No voice recognition on this phone",
+"Parou": "Stopped",
+"Lugar não encontrado": "Place not found",
+"Skill não está na barra": "Skill not on your bar",
+"Não dá para ir até lá": "Can't go there",
+"Indo: {1}": "Going: {1}"
 }
