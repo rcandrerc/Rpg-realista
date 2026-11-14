@@ -4,6 +4,7 @@
 // Uso: node ferramentas/testes/parede-amigos.mjs
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 import { pecaDaCasa, mesmaPeca } from '../../shared/amiga.js';
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});

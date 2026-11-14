@@ -7,6 +7,7 @@ import { noTunel } from '../../shared/caverna.js';
 import { progressoValido, contar, guardar } from '../../shared/progresso.js';
 import { etapasDe, liberado, zonaFechadaEm, histValida, historiaParaApp } from '../../shared/historia.js';
 import { noLago } from '../../shared/relevo.js';
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const npc = (id) => MAPA_CLAREIRA.npcs.find((n) => n.id === id);
 
@@ -106,7 +107,17 @@ const falar = (id) => {
 };
 const missao = () => HISTORIA[h().p]?.id;
 const etapa = () => etapasDe(HISTORIA[h().p])[h().e];
-const dar = (k, n) => { guardar(p.mochila, { k, n }); s.avisarProg(j); }; // no jogo, ganhar item manda o progresso ao app
+// Ganhar item manda o progresso ao app. Mochila cheia (os chefes deixam roupa sorteada): como o jogador, vende antes
+// uma roupa que caiu e não está vestida (nunca o que a história pede); se nem assim couber, FALHOU.
+const ROUPA = new Set(['cabeca', 'pes', 'acessorio', 'corpo', 'pernas']);
+const dar = (k, n) => {
+  if (!p.mochila.includes(null) && !p.mochila.some((o) => o && o.k === k && o.n + n <= (ITENS[k].pilha || 1))) {
+    const i = p.mochila.findLastIndex((o) => o && ROUPA.has(ITENS[o.k]?.lugar));
+    if (i >= 0) { console.log('mochila cheia: vendeu', p.mochila[i].k, 'para caber', k); p.mochila[i] = null; }
+  }
+  if (!guardar(p.mochila, { k, n })) ok(false, `mochila cheia: não coube ${n} ${k} ${JSON.stringify(p.mochila.map((o) => o && o.k + ':' + o.n))}`);
+  s.avisarProg(j);
+};
 const subir = (nv) => { while (p.nivel < nv) s.ganharXP(j, xpProximo(p.nivel) - p.xp); correr(0.1); };
 const fim = (id) => { const i = HISTORIA.findIndex((M) => M.id === id); ok(h().p === i + 1 && !h().ac, `${id} entregue (${HISTORIA[i].nome}) | ${avisos()}`); ev = []; };
 const alvoOk = () => { const a = s.histInfo(j).alvo; return !etapa() || ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite'].includes(etapa().ev) && !etapa().alvo || !!a; };
