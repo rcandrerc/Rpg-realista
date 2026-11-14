@@ -15,6 +15,7 @@ const ARQUIVO := "user://config.cfg" # o mesmo do som e dos gráficos (seção "
 const DICIONARIO := "res://dados/idioma_en.json"
 const NOMES := {"pt": "Português", "en": "English"}
 const LISTA := ["pt", "en"]
+const SEPARADORES := ["\n", " · ", "; ", ". ", ": ", ", "]
 
 static var atual := "pt"
 static var _traducao: Translation
@@ -80,6 +81,8 @@ static func t(texto: String) -> String:
 # traduzido (nome de item, de missão). Sem modelo, fica como veio.
 static var _modelos: Array = [] # [começo, fim, RegEx, inglês com {n}, várias linhas]
 static var _formato := RegEx.create_from_string("%[-+0-9.]*[sdf]")
+static var _qtd := RegEx.create_from_string("^([+-]?\\d+x? )(\\D.*)$")
+static var _conta := RegEx.create_from_string("^(.+?) (\\d+/\\d+)$")
 
 # "%s · Nv %d" vira "{1} · Nv {2}" (e "%%" vira "%")
 static func _numerar(t: String) -> String:
@@ -115,17 +118,36 @@ static func frase(texto: String) -> String:
 
 static func _frase(texto: String, fundo: int) -> String:
 	var direto := TranslationServer.translate(texto)
-	if direto != texto or fundo > 3 or texto.is_valid_float():
+	if direto != texto or fundo > 6 or texto.is_valid_float():
 		return direto
 	var varias := texto.contains("\n")
 	var r := _por_modelo(texto, fundo, true) if varias else _por_modelo(texto, fundo, false)
-	if r != "" or not varias:
-		return r if r != "" else texto
-	# texto de várias linhas montado aos pedaços (aviso + "Atenção: ..."): cada linha por si
-	var linhas := texto.split("\n")
-	for i in linhas.size():
-		linhas[i] = _frase(linhas[i], fundo + 1)
-	return "\n".join(linhas)
+	if r != "":
+		return r
+	var conta := _conta.search(texto) # etapa com andamento: "Derrube Puglins na Clareira dos Puglins 3/6"
+	if conta != null:
+		var en0 := _frase(conta.get_string(1), fundo + 1)
+		if en0 != conta.get_string(1):
+			return en0 + " " + conta.get_string(2)
+	var qtd := _qtd.search(texto) # quantidade + nome: "3 Lenha", "2x Pão de milho"
+	if qtd != null:
+		var en1 := _frase(qtd.get_string(2), fundo + 1)
+		if en1 != qtd.get_string(2):
+			return qtd.get_string(1) + en1
+	# texto montado aos pedaços (aviso + "Atenção: ...", "Dano 120% · Alcance 3 m", "Perdeu 5 de ouro. O equipamento
+	# desgastou"): cada pedaço por si, do separador mais forte para o mais fraco
+	for sep in SEPARADORES:
+		if not texto.contains(sep):
+			continue
+		var partes := texto.split(sep)
+		var mudou := false
+		for i in partes.size():
+			var en := _frase(partes[i], fundo + 1)
+			mudou = mudou or en != partes[i]
+			partes[i] = en
+		if mudou:
+			return sep.join(partes)
+	return texto
 
 # modelos de uma linha não pegam texto de várias (um "{1} e {2}" engoliria o aviso inteiro); "" = nenhum serviu
 static func _por_modelo(texto: String, fundo: int, varias: bool) -> String:

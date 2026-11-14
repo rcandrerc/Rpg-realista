@@ -24,7 +24,8 @@ const F = s.loteDe(a).fornos[peca.id];
 ok(F.ent && F.ent.k === 'sopa_legumes' && F.ent.n === 3, 'põe 3 sopas (batata só dá 3) ' + avisos(e));
 ok(contar(a.prog.mochila, 'batata') === 0 && contar(a.prog.mochila, 'cenoura') === 2 && contar(a.prog.mochila, 'rabanete') === 1, 'ingredientes saíram da mochila');
 s.forno('A', { acao: 'por', p: peca.id, lugar: 'ent', r: 'carne_assada', n: 1 }); ok(avisos(ev()).includes('Tire o prato'), 'um prato por vez na panela');
-s.forno('A', { acao: 'por', p: peca.id, lugar: 'comb', i: 3 }); ev();
+// relógio parado ao pôr a lenha: na máquina lenta do CI o milissegundo virava no meio da ação e o fogo já acendia (10 -> 9)
+{ const agora = Date.now, t0 = F.t; Date.now = () => t0; s.forno('A', { acao: 'por', p: peca.id, lugar: 'comb', i: 3 }); ev(); Date.now = agora; }
 ok(F.comb && F.comb.k === 'lenha' && F.comb.n === 10, 'lenha no combustível');
 // vai embora: 31 s depois (2 sopas de 15 s, 3 lenhas de 12 s)
 a.x = 0; a.z = 0;

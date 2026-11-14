@@ -13,6 +13,7 @@ const FAIXA := 0.115 # fração da altura da tela de cada faixa preta
 const ENTRA := 0.6 # s das faixas entrando e saindo
 const FOV := 42.0 # graus: mais fechado que o do jogo (52), cara de filme
 const DOURADO := Color("f3d27a")
+const Idioma = preload("res://idioma.gd") # falas em inglês quando o jogador escolhe English
 
 var m # main.gd
 var ativa := false
@@ -247,8 +248,8 @@ func _mostrar_fala(tm: Dictionary) -> void:
 		return
 	var nome: String = str(m.hud.nome)
 	var quem := str(f[0]).replace("{nome}", nome)
-	_quem.text = quem
-	_fala.text = str(f[1]).replace("{nome}", nome)
+	_quem.text = Idioma.frase(quem)
+	_fala.text = Idioma.frase(str(f[1])).replace("{nome}", nome) # inglês (idioma.gd): a fala chega em português
 	_fala.visible_ratio = 0.0
 	# narração (sem quem fala) num tom mais claro, como pensamento
 	_fala.add_theme_color_override("font_color", Color(0.86, 0.84, 1.0) if quem == "" else Color(1, 0.97, 0.92))

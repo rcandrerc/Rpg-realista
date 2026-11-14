@@ -392,7 +392,7 @@ func _botao_texto(t: String, prefixo: bool):
 	for b in _botoes:
 		if not is_instance_valid(b) or b.disabled:
 			continue
-		var s := str(b.text)
+		var s := str(b.get_meta("pt", b.text)) # inglês: o texto em português fica guardado no botão (idioma.gd)
 		if (prefixo and s.begins_with(t)) or (not prefixo and (s == t or s.begins_with(t + " "))):
 			return b
 	return null
