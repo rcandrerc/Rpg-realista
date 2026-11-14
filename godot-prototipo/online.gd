@@ -571,6 +571,8 @@ func _foto_meio(f: Dictionary) -> void:
 				tudo["_mexeu_meio"] = true
 			_srv[id] = tudo
 
+const NOVOS_POR_FOTO := 1
+var _novos_foto := 0 # corpos novos montados nesta foto (outro)
 var foto_ms := 0 # quando chegou a última foto (lentidao.gd mede o maior tempo sem foto)
 func aplicar_foto(f: Dictionary) -> void:
 	foto_ms = Time.get_ticks_msec()
@@ -585,6 +587,7 @@ func aplicar_foto(f: Dictionary) -> void:
 	if f.has("mapa"):
 		no_mapa = f.mapa
 	var tf := Time.get_ticks_usec()
+	_novos_foto = 0
 	for j0 in f.get("jogadores", []):
 		var j: Dictionary = _juntar(j0, agora) if aoi and str(j0.get("id", "")) != meu_id else j0
 		if j.get("criando", false):
@@ -755,6 +758,12 @@ func outro(j: Dictionary) -> void:
 			outros[id] = o
 			_detalhe_t = 0.0 # acerta o detalhe dele já no próximo quadro
 		else:
+			# conselho 2026-11-14 (registros do celular: rx:jogadores 150 a 300 ms num quadro, vários corpos novos de uma
+			# vez logo depois da capa): no máximo um corpo NOVO por foto; o próximo nasce na foto seguinte (0,05 s depois)
+			if _novos_foto >= NOVOS_POR_FOTO:
+				return
+			_novos_foto += 1
+			var tc := Time.get_ticks_usec()
 			var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
 			no.set_meta("pano_outro", true) # capa de outro: pano de verdade só nas mais perto da câmera (pano_capa.gd)
 			var esq: Skeleton3D = m.esqueleto(no)
@@ -776,13 +785,16 @@ func outro(j: Dictionary) -> void:
 			o.molas = _molas_de(esq)
 			o.fase = randi() % 6
 			outros[id] = o
+			_marca("o:corpo", tc)
 	var antes: Vector3 = o.alvo
 	var ap_txt := JSON.stringify(j.get("aparencia"))
 	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
 		o.ap = ap_txt
 		# sem esperar o penteado de outro modelo carregar (era a travada de ~1 s da Cecília, 2026-11-13): _detalhe_outros põe
 		# quando chegar
+		var ta := Time.get_ticks_usec()
 		Aparencia.aplicar(o.no, Aparencia.valida(j.get("aparencia"), m.P.dados.criador), false)
+		_marca("o:aparencia", ta)
 	if str(j.get("nome", "")) != "":
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
@@ -805,8 +817,11 @@ func outro(j: Dictionary) -> void:
 		roupa = ",".join(PackedStringArray(Array(roupa.split(",", false)).filter(func(p): return not str(p).begins_with("chapeu"))))
 	if roupa != o.get("roupa", "-"):
 		o.roupa = roupa
+		var tv := Time.get_ticks_usec()
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
+		tv = _marca("o:vestir", tv)
 		preload("res://junta_pecas.gd").juntar(o.no) # peças da armadura numa malha por material (junta_pecas.gd)
+		_marca("o:juntar", tv)
 		o.lod = -1 # peça nova vem com sombra e contorno: o detalhe por distância confere de novo
 	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
 	if roupa.contains("capa") and mexeu:
