@@ -2,6 +2,7 @@
 import { Simulacao, MAPA_CLAREIRA, FOGAO, contar } from '../../shared/index.js';
 import { avancarForno } from '../../shared/simulacao.js';
 import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
 const b = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 });
