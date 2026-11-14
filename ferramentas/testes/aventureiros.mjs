@@ -63,11 +63,11 @@ const lune = s2.amigosIa.find((x) => x.AMIGA.id === 'lune').amiga, lune0 = salvo
 ok(lune.prog.nivel * 1e6 + lune.prog.xp > lune0.nivel * 1e6 + lune0.xp && lune.prog.nivel <= 12, `2 dias fora: Lune subiu devagar (Nv ${lune0.nivel} -> ${lune.prog.nivel})`);
 ok(s2.amigosIa.every((x) => !x.amiga || x.amiga.prog.nivel <= 12), 'offline também não passa do teto');
 // com chave: conversa, e o aventureiro acompanha quem tem a chave
-const s3 = new Simulacao(MAPA_CLAREIRA);
+const s3 = new Simulacao(MAPA_CLAREIRA); s3.iaPorChave = true;
 s3.adicionarJogador('sem', 'Sem', 'ruiva', {}); s3.adicionarJogador('com', 'Com', 'ruiva', {});
 for (const x of s3.amigosIa) { x.amigaEntrar('sem', false); x.amigaEntrar('com', true); }
 const bia = s3.amigosIa.find((x) => x.AMIGA.id === 'bia');
-ok(bia.podeAmiga('com') && !bia.podeAmiga('sem') && bia.amigaDono === 'com', 'quem tem chave conversa; quem não tem só vê');
+ok(bia.iaAmiga('com') && !bia.iaAmiga('sem') && bia.podeAmiga('sem') && bia.amigaDono === 'com', 'quem tem chave tem IA; quem não tem conversa com respostas prontas (André 2026-11-14)');
 bia.amigaSair('com'); s3.removerJogador('com');
 ok(bia.amiga && bia.amigaDono == null, 'quem tinha a chave saiu: ela continua vivendo no mundo');
 // no celular: no máximo VISAO.maxBots corpos de NPC (os mais perto), o resto fica só no mapa

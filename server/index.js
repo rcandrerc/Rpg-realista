@@ -68,6 +68,8 @@ class SalaClareira extends Room {
     // dica de combate (André 2026-11-11): a IA é chamada uma vez e devolve a regra; esquecer/listar dicas vai pelas regras
     const tipoDica = amg.tipoDicaAmiga(msg.texto), chaveDe = conta && contas ? contas.chaveIa(conta.id) : '';
     if (tipoDica === 'esquecer' || tipoDica === 'listar') { amg.comandoDicaAmiga(id, tipoDica, msg.texto); return; }
+    // André 2026-11-14: todo mundo conversa com eles, mas a resposta da IA é só de quem tem a chave (iaAmiga); o resto, as regras
+    if (!amg.iaAmiga(id)) return amg.respostaAmiga(id, { assunto: amg.assuntoAmiga(msg.texto) });
     // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
     const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
       const regra = amg.assuntoAmiga(msg.texto);
