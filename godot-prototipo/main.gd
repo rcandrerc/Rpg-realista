@@ -1128,7 +1128,10 @@ func montar_mata(vila: Node3D) -> void:
 # ---------- personagens ----------
 func modelo(id: String) -> Node3D:
 	if not cache.has(id):
+		var t0 := Time.get_ticks_usec()
 		cache[id] = load("res://modelos/%s.glb" % id)
+		if lentidao:
+			lentidao.ev("glb:" + id, t0) # a primeira vez que o modelo sai do disco
 	var no: Node3D = cache[id].instantiate()
 	add_child(no)
 	var anim: AnimationPlayer = no.find_child("AnimationPlayer", true, false)
@@ -1669,7 +1672,15 @@ func montar_lobo(v: bool, avisar_servidor := true) -> void:
 	if avisar_servidor:
 		rede("montar")
 
+# quanto cada monstro levou para nascer vai para o registro das travadas (lentidao.gd ev)
 func criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -> Dictionary:
+	var t0 := Time.get_ticks_usec()
+	var e := _criar_inimigo(id, pos, nome, escala)
+	if lentidao:
+		lentidao.ev("mob:" + id, t0)
+	return e
+
+func _criar_inimigo(id: String, pos: Vector3, nome := "Inimigo", escala := 1.0) -> Dictionary:
 	var no := modelo(id)
 	no.position = pos
 	no.scale *= escala
@@ -1841,6 +1852,12 @@ func colorir_niveis() -> void: # quando o herói sobe de nível, os nomes dos mo
 				break
 
 func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
+	var t0 := Time.get_ticks_usec()
+	_criar_npc(id, pos, nome, info)
+	if lentidao:
+		lentidao.ev("npc:" + id, t0)
+
+func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 	var no := modelo(id)
 	no.position = pos
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
@@ -3426,7 +3443,10 @@ func _process(dt: float) -> void:
 func _passo_main(dt: float) -> void:
 	if not _a_criar.is_empty():
 		criar_aos_poucos()
+	var t_lod := Time.get_ticks_usec()
 	LodMalha.passo() # LOD das malhas montadas no jogo, aos poucos e na linha de fundo
+	if lentidao and Time.get_ticks_usec() - t_lod > 1000:
+		lentidao.ev("lod", t_lod)
 	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
 	var agora_s: float = Time.get_ticks_usec() / 1000000.0
@@ -4286,7 +4306,11 @@ func criar_aos_poucos() -> void:
 	var t0 := Time.get_ticks_usec()
 	var limite: int = CRIAR_CAPA_US if online and (online._cobrindo or (online.capa and online.capa.visible)) else CRIAR_US
 	while not _a_criar.is_empty() and Time.get_ticks_usec() - t0 < limite:
-		(_a_criar.pop_front() as Callable).call()
+		var c: Callable = _a_criar.pop_front()
+		var t1 := Time.get_ticks_usec()
+		c.call()
+		if lentidao:
+			lentidao.ev("fila:" + str(c.get_method()), t1)
 
 # ainda tem monstro ou espantalho para nascer (a fila de cima ou os monstros da Caverna da Montanha) ou mini vila perto
 # por montar (vilas_mundo.gd, 6 ms no PC): a capa espera

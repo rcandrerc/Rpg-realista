@@ -2669,6 +2669,7 @@ func abrir() -> void:
 	if m.trabalho.coletando != null:
 		m.trabalho.parar(true)
 	plano.parar() # trabalhando no plano: para; o que falta continua marcado
+	var t0 := Time.get_ticks_usec()
 	ativo = true
 	giro = 0
 	andar = "terreo"
@@ -2682,6 +2683,8 @@ func abrir() -> void:
 	_mostrar_borda(true)
 	_refrescar_placas()
 	m.hud.aviso("Modo construção: o joystick move a câmera e a mira. Toque no chão para mirar.")
+	if m.lentidao: # quanto o modo construção levou para abrir (lentidao.gd, tipo "menu")
+		m.lentidao.menu_aberto("construir", t0, 0)
 
 func sair() -> void:
 	if not ativo:
@@ -3293,6 +3296,12 @@ func _meu_correio_perto() -> bool:
 	return no != null and m.heroi != null and no.global_position.distance_to(m.heroi.position) <= 2.6
 
 func abrir_correio() -> void:
+	var t0 := Time.get_ticks_usec()
+	_abrir_correio()
+	if m.lentidao and lotes.has(meu):
+		m.lentidao.menu_aberto("correio", t0, 0)
+
+func _abrir_correio() -> void:
 	var L = lotes.get(meu)
 	if L == null:
 		return
@@ -3803,9 +3812,11 @@ func _cama_perto() -> Dictionary:
 		return {}
 	return c
 
+var _bau_pedido := 0 # µs do toque em abrir o baú (o registro conta a espera pelo servidor)
 func abrir_bau() -> void:
 	if not m.on():
 		return
+	_bau_pedido = Time.get_ticks_usec()
 	m.rede("bau", {"acao": "abrir"})
 
 # o servidor mandou o baú (ao abrir, ou depois de guardar ou tirar)
@@ -3814,11 +3825,16 @@ func do_bau(ev: Dictionary) -> void:
 	bau_slots = int(ev.get("slots", bau_itens.size() if bau_itens.size() > 0 else 40))
 	bau_prox = ev.get("prox") if ev.get("prox") is Dictionary else null
 	bau_prox_slots = int(ev.get("proxSlots", 0))
-	if ev.get("abrir", false):
+	var t0 := Time.get_ticks_usec()
+	var abriu: bool = ev.get("abrir", false)
+	if abriu:
 		painel_bau.visible = true
 		m.sons.tocar("pano", -6.0)
 	if painel_bau.visible:
 		_montar_bau()
+	if abriu and m.lentidao:
+		m.lentidao.menu_aberto("bau", t0, bau_itens.size(), roundi((t0 - _bau_pedido) / 1000.0) if _bau_pedido > 0 else -1)
+		_bau_pedido = 0
 
 func fechar_bau() -> void:
 	painel_bau.visible = false
@@ -4169,12 +4185,14 @@ func minha_fornalha_perto() -> String:
 				melhor = str(p.id)
 	return melhor
 
+var _forno_pedido := 0 # µs do toque em abrir a fornalha (o registro conta a espera pelo servidor)
 func abrir_forno(id := "") -> void:
 	if id == "":
 		id = minha_fornalha_perto()
 	if id == "" or not m.on():
 		return
 	forno_id = id
+	_forno_pedido = Time.get_ticks_usec()
 	m.rede("forno", {"acao": "abrir", "p": id})
 
 func fechar_forno() -> void:
@@ -4190,11 +4208,16 @@ func do_forno(ev: Dictionary) -> void:
 	if tipo != forno_tipo:
 		forno_tipo = tipo
 		forno_prato = ""
-	if ev.get("abrir", false) and not painel_forno.visible:
+	var t0 := Time.get_ticks_usec()
+	var abriu: bool = ev.get("abrir", false) and not painel_forno.visible
+	if abriu:
 		painel_forno.visible = true
 		m.sons.tocar("pano", -6.0)
 	if painel_forno.visible:
 		_montar_forno()
+	if abriu and m.lentidao:
+		m.lentidao.menu_aberto("forno", t0, 0, roundi((t0 - _forno_pedido) / 1000.0) if _forno_pedido > 0 else -1)
+		_forno_pedido = 0
 
 func _passo_forno(dt: float) -> void:
 	if painel_forno == null or not painel_forno.visible or forno.is_empty():

@@ -302,7 +302,10 @@ func abrir() -> void:
 	m.hud.bloqueado = true
 	m.hud.esconder_combate = true
 	m.sons.tocar("pano", -10.0)
+	var t0 := Time.get_ticks_usec()
 	montar()
+	if m.lentidao: # quanto a troca levou para abrir (lentidao.gd, tipo "menu")
+		m.lentidao.menu_aberto("troca", t0, 0)
 
 func fechar() -> void:
 	estado = {}

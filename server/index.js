@@ -477,12 +477,33 @@ app.use((req, res, next) => {
 // lentidões anotadas pelos apps (lentidao.gd): as últimas LENTIDAO_MAX na memória e num arquivo da pasta de dados
 const LENTIDAO_MAX = 300;
 const LENTIDAO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao.jsonl');
-const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido', 'andou', 'andou_lobo', 'mov', 'bloq', 'corr', 'corr_m', 'foto_ms', 'ping', 'x', 'z', 'grafico', 'limite', 'paralelo', 'proc', 'cham', 'tri', 'obj', 'rumo', 'pip'];
+// min..nos (2026-11-14): minutos de jogo, memória (MB), ms da placa/processador no último quadro, calor do Android
+// (term 0-6, folga, bat °C) e nós na cena; dnos/dres = nós e recursos que entraram ou saíram no segundo ruim
+const COMUM_CAMPOS = ['min', 'mem', 'vmem', 'livre', 'gpu', 'cpu', 'term', 'folga', 'bat', 'nos'];
+const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido', 'andou', 'andou_lobo', 'mov', 'bloq', 'corr', 'corr_m', 'foto_ms', 'ping', 'x', 'z', 'grafico', 'limite', 'paralelo', 'proc', 'cham', 'tri', 'obj', 'rumo', 'pip', ...COMUM_CAMPOS, 'dnos', 'dres'];
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
 const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico'];
-const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip'];
+const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip', 'espera'];
+const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
+// o que pesou no segundo ruim (lentidao.gd ev): {nome: [vezes, ms]}, no máximo 8 nomes curtos
+function eventosLentidao(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const r = {};
+  let n = 0;
+  for (const [k, a] of Object.entries(v)) {
+    if (++n > 8) break;
+    if (typeof k === 'string' && k.length < 20 && Array.isArray(a) && a.length === 2 && Number.isFinite(a[0]) && Number.isFinite(a[1])) r[k] = [a[0], a[1]];
+  }
+  return Object.keys(r).length ? r : null;
+}
+// resumo de cada minuto (lentidao.gd _resumo): fica numa lista só dele, para não empurrar as travadas para fora
+const RESUMO_MAX = 600;
+const RESUMO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao-resumo.jsonl');
+const resumos = [];
+let resumoLinhas = 0;
+try { for (const l of fs.readFileSync(RESUMO_ARQ, 'utf8').trim().split('\n').slice(-RESUMO_MAX)) if (l) resumos.push(JSON.parse(l)); } catch { /* ainda não tem */ }
 function guardarLentidao(c, e, sala) {
   if (!e || typeof e !== 'object') return;
   if (e.tipo === 'entrada') { // linha do tempo da entrada (ms desde que o app abriu), uma por abertura
@@ -490,6 +511,19 @@ function guardarLentidao(c, e, sala) {
     for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
     return guardarLinha(r);
+  }
+  if (e.tipo === 'resumo') {
+    const r = { servidor: Date.now(), tipo: 'resumo' };
+    for (const k of RESUMO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
+    r.montado = e.montado === true;
+    if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    resumos.push(r);
+    if (resumos.length > RESUMO_MAX) resumos.splice(0, resumos.length - RESUMO_MAX);
+    if (++resumoLinhas > 2 * RESUMO_MAX) {
+      resumoLinhas = 0;
+      fs.writeFile(RESUMO_ARQ, resumos.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
+    } else fs.appendFile(RESUMO_ARQ, JSON.stringify(r) + '\n', () => {});
+    return;
   }
   if (e.tipo === 'menu') { // quanto um menu levou para abrir no app (lentidao.gd menu_aberto): ms de montar e dos 2 quadros seguintes
     const r = { servidor: Date.now(), tipo: 'menu' };
@@ -501,6 +535,10 @@ function guardarLentidao(c, e, sala) {
   const r = { servidor: Date.now(), tickPico: Math.round(carga.picoPing), posGap: c.userData?.gapJan ?? null, relogioSrv: sala?.relogio != null ? +sala.relogio.toFixed(3) : null };
   for (const k of LENTIDAO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
   r.montado = e.montado === true;
+  for (const k of ['ev', 'ev0']) {
+    const v = eventosLentidao(e[k]);
+    if (v) r[k] = v;
+  }
   if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
   guardarLinha(r);
 }
@@ -513,6 +551,7 @@ function guardarLinha(r) {
   } else fs.appendFile(LENTIDAO_ARQ, JSON.stringify(r) + '\n', () => {});
 }
 app.get('/lentidao', (_req, res) => res.json(lentidoes.slice(-100)));
+app.get('/lentidao/resumo', (_req, res) => res.json(resumos.slice(-200)));
 
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
 // relogio (2026-11-13, "slow motion" no lobo): segundos do jogo no servidor por segundo de verdade desde a última leitura.

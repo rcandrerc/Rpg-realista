@@ -1014,11 +1014,17 @@ func evento(ev: Dictionary) -> void:
 			return
 		"lotes":
 			if m.construcao:
+				var t0 := Time.get_ticks_usec()
 				m.construcao.do_servidor_lotes(ev)
+				if m.lentidao:
+					m.lentidao.ev("lotes", t0)
 			return
 		"lote":
 			if m.construcao:
+				var t0 := Time.get_ticks_usec()
 				m.construcao.do_servidor_lote(ev)
+				if m.lentidao: # terreno de alguém mudou e foi refeito aqui: vai para o registro das travadas
+					m.lentidao.ev("lote", t0)
 			return
 		"meuLote":
 			if m.construcao:

@@ -99,16 +99,25 @@ func _process(dt: float) -> void:
 	if not _fila.is_empty(): # um pedaço por quadro
 		var t0 := Time.get_ticks_usec()
 		while not _fila.is_empty() and Time.get_ticks_usec() - t0 < 3000:
-			(_fila.pop_front() as Callable).call()
+			var c: Callable = _fila.pop_front()
+			var t1 := Time.get_ticks_usec()
+			c.call()
+			if m.lentidao: # cada pedaço da caverna vai para o registro das travadas
+				m.lentidao.ev("cav:" + str(c.get_method()), t1)
 	var hp: Vector3 = m.heroi.position
 	_t -= dt
 	if _t <= 0.0:
 		_t = 0.25
 		var d := _distancia(hp)
+		var t2 := Time.get_ticks_usec()
 		if not montada and d < PERTO_MONTA:
 			montar()
+			if m.lentidao:
+				m.lentidao.ev("cav:montar", t2)
 		elif montada and d > LONGE_SOME and _fila.is_empty():
 			desmontar()
+			if m.lentidao:
+				m.lentidao.ev("cav:desmontar", t2)
 		if montada:
 			for l in _luzes:
 				l.no.visible = l.p.distance_to(hp) < float(l.get("longe", LUZ_LONGE))
