@@ -3261,5 +3261,7 @@
 "Não deu para baixar a voz": "Couldn't download the voice",
 "Travar câmera": "Lock camera",
 "A voz baixa 32 MB. Ligue de novo para baixar": "Voice needs 32 MB. Turn on again to download",
-"Instalando a voz...": "Installing voice..."
+"Instalando a voz...": "Installing voice...",
+"Ataque parou: {1}": "Attack stopped: {1}",
+"Atacando (fale parar)": "Attacking (say stop)"
 }
