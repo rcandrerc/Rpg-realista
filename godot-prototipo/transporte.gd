@@ -792,6 +792,8 @@ func abrir_carrinho() -> void:
 		return
 	if _jan:
 		_jan.queue_free()
+	if not (_jan and is_instance_valid(_jan)):
+		_aberta_ms = Time.get_ticks_msec() # janela nova (refazer com o "prog" não conta)
 	_jan_carrinho = true
 	var C: Dictionary = V.carrinho
 	var dirigindo: bool = m.mov.veiculo.get("k", "") == "carrinho"
@@ -805,7 +807,7 @@ func abrir_carrinho() -> void:
 	var fundo := ColorRect.new()
 	fundo.color = Color(0, 0, 0, 0.35)
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fundo.gui_input.connect(func(ev): if ev is InputEventMouseButton and ev.pressed: _fechar_janela())
+	fundo.gui_input.connect(_toque_fundo)
 	_jan.add_child(fundo)
 	var pc := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -1049,6 +1051,8 @@ func abrir_navio() -> void:
 # janelinha simples de opções (a mesma cara da janela do NPC)
 var _jan: CanvasLayer
 func _janela(titulo: String, ops: Array) -> void:
+	if not (_jan and is_instance_valid(_jan)):
+		_aberta_ms = Time.get_ticks_msec()
 	_jan_carrinho = false
 	if _jan:
 		_jan.queue_free()
@@ -1058,7 +1062,7 @@ func _janela(titulo: String, ops: Array) -> void:
 	var fundo := ColorRect.new()
 	fundo.color = Color(0, 0, 0, 0.35)
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fundo.gui_input.connect(func(ev): if ev is InputEventMouseButton and ev.pressed: _fechar_janela())
+	fundo.gui_input.connect(_toque_fundo)
 	_jan.add_child(fundo)
 	var pc := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -1097,6 +1101,14 @@ func _janela(titulo: String, ops: Array) -> void:
 	m.hud.bloqueado = true
 	await get_tree().process_frame
 	pc.position = (pc.get_viewport_rect().size - pc.size) * 0.5
+
+# tocar fora da janela fecha. No PC (André 2026-11-14: "no pc qd clico no botao de açao nada acontece") o clique do
+# mouse vira toque (emulate_touch_from_mouse): o toque abre a janela pelo botão da HUD e o mesmo clique, logo depois,
+# cai no fundo novo e fechava na hora. Nos primeiros 0,3 s da janela o fundo não fecha.
+var _aberta_ms := 0
+func _toque_fundo(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and ev.pressed and Time.get_ticks_msec() - _aberta_ms > 300:
+		_fechar_janela()
 
 func _fechar_janela() -> void:
 	_jan_carrinho = false
