@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Sensação de estar morrendo e de morrer (pedido do André, 2026-11-05: "morro do nada e simplesmente volto na vila").
 # Tudo é só visual e som no aparelho: quem decide a vida e a hora de levantar continua sendo main.gd (offline) e o
 # servidor (online). Este arquivo só olha h.vida e h.morto a cada quadro.
@@ -115,7 +116,7 @@ func _ready() -> void:
 
 func _texto(pai: Control, t: String, fonte: Font, tam: int, cor: Color, y: float) -> Label:
 	var l := Label.new()
-	l.text = t
+	l.text = Idioma.frase(t)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.set_anchors_preset(Control.PRESET_FULL_RECT)

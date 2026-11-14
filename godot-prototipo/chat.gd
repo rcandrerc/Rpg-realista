@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Chat (André 2026-11-06: "cria um chat geral e um de amigos"; "o chat geral ter opção de mutar").
 # Dois canais: Geral (todo mundo que está online, em qualquer mundo) e Amigos (você e os seus amigos online).
 # Quem decide é o servidor (shared/simulacao.js chat): ele limpa o texto, corta no tamanho e segura quem manda rápido demais.
@@ -507,7 +508,8 @@ func _refazer_abas() -> void:
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(96 if k == "geral" else 80, 34)
 		b.add_theme_font_size_override("font_size", 15)
-		b.text = it[1] if n == 0 or (k == "geral" and geral_mudo) else "%s (%d)" % [it[1], n]
+		b.set_meta("pt", it[1] if n == 0 or (k == "geral" and geral_mudo) else "%s (%d)" % [it[1], n]) # o guia das missões acha o botão pelo texto em português
+		b.text = Idioma.frase(str(b.get_meta("pt")))
 		Menu.estilo_botao(b, k == aba)
 		if k != "geral":
 			var cor: Color = COR_TIME if k == "time" else COR_PM
@@ -541,7 +543,7 @@ func montar() -> void:
 		dica = "Você saiu do time. Entre num time pelo menu Multijogador para falar com ele."
 	elif mudo:
 		dica = "Chat geral silenciado: as mensagens do geral não aparecem para você. Desligue \"Silenciar geral\" para ver de novo."
-	aviso_l.text = dica
+	aviso_l.text = Idioma.frase(dica)
 	aviso_l.visible = dica != ""
 	var pode: bool = on and not mudo and (aba != "time" or em_time())
 	campo.editable = pode

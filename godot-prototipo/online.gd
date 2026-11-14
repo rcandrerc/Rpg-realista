@@ -94,9 +94,9 @@ func _ready() -> void:
 	rede = Rede.new()
 	add_child(rede)
 	rede.estado.connect(func(t):
-		aviso_login.text = t
+		aviso_login.text = Idioma.frase(t)
 		if _cobrindo and t != "":
-			carregando.text = t
+			carregando.text = Idioma.frase(t)
 		atualizar_status(t))
 	rede.precisa_login.connect(mostrar_login)
 	rede.escolher_conta.connect(mostrar_escolha)
@@ -231,7 +231,8 @@ func montar_tela() -> void:
 
 func _botao(texto: String, cor: Color, fn: Callable) -> Button:
 	var b := Button.new()
-	b.text = texto
+	b.set_meta("pt", texto) # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.custom_minimum_size = Vector2(300, 54)
 	b.add_theme_font_size_override("font_size", 20)
 	for estado in ["normal", "hover", "pressed", "focus"]:
@@ -280,14 +281,15 @@ func mostrar_escolha(conta: Dictionary) -> void:
 	var nome := str(conta.get("nome", ""))
 	if nome == "": # o servidor ainda não respondeu: usa o nome guardado no aparelho (rede.nome_salvo)
 		nome = rede.nome_salvo
-	sub.text = (tr("Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?") % nome) if nome != "" else "Quer entrar com a conta salva ou usar outra conta Google?"
+	sub.text = Idioma.frase((tr("Conta salva: %s\nQuer entrar com ela ou usar outra conta Google?") % nome) if nome != "" else "Quer entrar com a conta salva ou usar outra conta Google?")
 	if _foi_desconectado:
 		titulo.text = "Você foi desconectado"
 		sub.text = "A conexão com o servidor caiu.\nEntre de novo para continuar de onde o servidor salvou."
 	if _foi_trocado:
 		titulo.text = "Conta em outro aparelho"
 		sub.text = "Sua conta entrou em outro aparelho.\nEntre aqui para jogar neste (o outro sai)."
-	b_continuar.text = (tr("Entrar como %s") % nome) if nome != "" else "Entrar com a conta salva"
+	b_continuar.set_meta("pt", (tr("Entrar como %s") % nome) if nome != "" else "Entrar com a conta salva") # o guia das missões acha o botão pelo texto em português
+	b_continuar.text = Idioma.frase(str(b_continuar.get_meta("pt")))
 	b_continuar.visible = true
 	b_trocar.visible = true
 	b_google.visible = false
@@ -307,7 +309,7 @@ func cobrir(texto: String) -> void:
 	_criar_t = 0.0
 	painel.visible = false
 	capa.visible = true
-	carregando.text = texto
+	carregando.text = Idioma.frase(texto)
 	carregando.visible = true
 	status.visible = false
 	m.hud.set_process_input(false)
@@ -344,7 +346,7 @@ func atualizar_status(_t := "") -> void:
 		if aviso != "":
 			txt = aviso
 		if status.text != txt: # trocar o texto refaz o layout: só quando muda
-			status.text = txt
+			status.text = Idioma.frase(txt)
 			var cor := Color(1, 0.95, 0.85)
 			if aviso != "":
 				cor = Color(1.0, 0.5, 0.45) if calado >= 1.5 else Color(1.0, 0.7, 0.35)
@@ -353,12 +355,12 @@ func atualizar_status(_t := "") -> void:
 			status.add_theme_color_override("font_color", cor)
 	elif _t != "" and _t != "Online":
 		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
-		status.text = _t
+		status.text = Idioma.frase(_t)
 	else:
 		status.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
 		var txt := tr("Sozinho%s · tocar para jogar online") % _fps_topo()
-		if status.text != txt:
-			status.text = txt
+		if status.text != Idioma.frase(txt):
+			status.text = Idioma.frase(txt)
 
 # ---------- sala ----------
 func ao_entrar(id: String, conta: Dictionary) -> void:
@@ -502,7 +504,7 @@ func voltar_ao_login(texto := "") -> void:
 	if m.criador and m.criador.aberto():
 		m.criador.fechar()
 	mostrar_login()
-	aviso_login.text = texto
+	aviso_login.text = Idioma.frase(texto)
 
 # tela inicial com a conta salva (Entrar como… / Trocar de conta / Jogar sozinho) e o motivo embaixo
 func _voltar_a_tela_inicial() -> void:
@@ -593,7 +595,7 @@ func aplicar_foto(f: Dictionary) -> void:
 							_visual_mandado = corpo
 							rede.enviar("visual", corpo), m.visual)
 				if _erro_nome != "":
-					m.criador.erro.text = _erro_nome
+					m.criador.erro.text = Idioma.frase(_erro_nome)
 					_erro_nome = ""
 			continue
 		jogadores += 1

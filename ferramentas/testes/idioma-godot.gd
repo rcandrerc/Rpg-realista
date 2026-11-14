@@ -24,6 +24,11 @@ func _init() -> void:
 		"Pack entregue! +40 de ouro (veio de navio!)": "Pack delivered! +40 gold (came by ship!)",
 		"Tô precisando de Cenoura. Se você me arrumar, fico te devendo uma.": "I need Carrot. If you can get me some, I owe you one.",
 		"Ninguém lembra de onde você veio. Nem você.": "No one remembers where you came from. Not even you.",
+		"Sem combustível! Toque no carrinho e abasteça.": "Out of fuel! Tap the cart to refuel.",
+		"Para 16 lugares:\n5 Lenha, 2 Barra de ferro": "For 16 slots:\n5 Firewood, 2 Iron Bar",
+		"Rosa compra o que você tiver: na Mochila, toque no item e em Vender. A banca dela também é a do Alfaiate (Profissões → Alfaiate).":
+			"Rosa buys whatever you have: in your Inventory, tap the item and then Sell. Her stall is also the Tailor's (Professions → Tailor).",
+		"Uma frase nova de teste e sem tradução": "Uma frase nova de teste e sem tradução", # modelo curto ("%s e %s", "%d de %s") não pica a frase
 		"Ruiva": "Ruiva",
 		"12": "12",
 	}

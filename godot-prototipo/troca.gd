@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Troca entre jogadores com cadeado (como no Quimera, André 2026-11-04). Só online: quem decide é o servidor
 # (shared/simulacao.js troca). Tocar noutro jogador perto pergunta se quer pedir a troca; quem recebe vê o pedido com
 # Aceitar e Recusar. Na janela cada um põe itens da mochila e ouro. "Trancar oferta" (cadeado) quer dizer "aceito o que
@@ -189,7 +190,7 @@ func nome_de(id: String) -> String:
 	return str(o.get("nome", "")) if o != null and str(o.get("nome", "")) != "" else "o outro jogador"
 
 func mostrar_cartao(texto: String, botoes: Array, dur: float) -> void:
-	cartao_txt.text = texto
+	cartao_txt.text = Idioma.frase(texto)
 	for c in cartao_botoes.get_children():
 		cartao_botoes.remove_child(c)
 		c.queue_free()
@@ -342,7 +343,7 @@ func montar() -> void:
 	if estado.is_empty():
 		return
 	var outro := str(estado.get("nome", "Outro jogador"))
-	titulo_ui.text = "Troca com %s" % outro
+	titulo_ui.text = Idioma.frase("Troca com %s" % outro)
 	corpo_ui.add_child(coluna_mochila())
 	var dir := VBoxContainer.new()
 	dir.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -578,7 +579,8 @@ func linha_botoes(eu: Dictionary, ele: Dictionary, outro: String) -> Control:
 	var tranca := bool(eu.get("tranca", false))
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
-	b.text = "Trancada · toque para abrir" if tranca else "Trancar oferta"
+	b.set_meta("pt", "Trancada · toque para abrir" if tranca else "Trancar oferta") # o guia das missões acha o botão pelo texto em português
+	b.text = Idioma.frase(str(b.get_meta("pt")))
 	b.add_theme_font_size_override("font_size", 15)
 	b.custom_minimum_size = Vector2(0, 44)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -602,7 +604,7 @@ func linha_botoes(eu: Dictionary, ele: Dictionary, outro: String) -> Control:
 	c.custom_minimum_size = Vector2(0, 44)
 	c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if ok:
-		c.text = "Confirmado · esperando %s" % outro
+		c.text = Idioma.frase("Confirmado · esperando %s" % outro)
 	elif os_dois:
 		c.text = "Confirmar troca"
 	else:
