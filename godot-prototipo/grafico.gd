@@ -380,11 +380,20 @@ func _mudar(d: int) -> void:
 # custava ~250 ms no PC: um tranco no meio do jogo)
 const AOS_POUCOS_US := 3000
 var _aos_poucos := false
+var _atlas_posto = null # o que já foi posto na placa (aplicar)
+var _suave_posto = null
 
 func aplicar(aos_poucos := false) -> void:
 	_aplicar_tela()
-	RenderingServer.directional_shadow_atlas_set_size(P.atlas, true)
-	RenderingServer.directional_soft_shadow_filter_set_quality(P.suave)
+	# Conselho 2026-11-14 (registros do celular: quadros de 282 a 472 ms com 164 a 292 shaders montados ao entrar no
+	# degrau 4 do Auto): trocar a sombra suave, mesmo para o mesmo valor, faz a placa remontar os shaders de tudo que
+	# está na cena. Só chama quando o valor muda de verdade.
+	if P.atlas != _atlas_posto:
+		_atlas_posto = P.atlas
+		RenderingServer.directional_shadow_atlas_set_size(P.atlas, true)
+	if P.suave != _suave_posto:
+		_suave_posto = P.suave
+		RenderingServer.directional_soft_shadow_filter_set_quality(P.suave)
 	if m.relevo: # relevo.gd mexe na névoa e no fim da câmera todo quadro (vista do alto da montanha)
 		m.relevo.nevoa_mult = P.nevoa
 		m.relevo.longe_mult = lerpf(P.alcance, 1.0, 0.25) # a câmera enxerga um pouco além do que some (a névoa apaga)
