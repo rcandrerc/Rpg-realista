@@ -102,5 +102,5 @@ const cels = (z) => { const c = []; for (let i = -27; i <= -22; i++) c.push(i + 
   p.hist.e = eS; p.hist.n = 1; p.mochila.fill(null);
   p.mochila[0] = { k: 'cenoura', n: 2 }; p.mochila[1] = { k: 'batata', n: 2 }; p.mochila[2] = { k: 'rabanete', n: 1 }; p.mochila[3] = { k: 'enxada', n: 1 }; p.mochila[4] = { k: 'regador', n: 1 }; p.mochila[5] = { k: 'semente_rabanete', n: 1 };
   const t = s.textoEtapa(a);
-  ok(/^Sopa de legumes 1\/3: /.test(t), 'falta rabanete: "' + t + '"');
+  ok(/^Sopa de legumes \(1\/3\): /.test(t), 'falta rabanete: "' + t + '"');
 }

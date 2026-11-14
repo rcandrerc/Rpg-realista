@@ -38,6 +38,8 @@ function jogar(i) {
     const hi = s.histInfo(j);
     if (!hi?.txt || /undefined|NaN|null/.test(hi.txt)) falhou(`${M.id} etapa ${h.e + 1}: texto ruim "${hi?.txt}"`);
     const f = s.juntaDe(j, E);
+    // quantidade sempre à vista, entre parênteses (André 2026-11-14: "faça a barra de ferro (0/1)", o "6/8" é a parte)
+    if (!f?.pre && !/\(\d+\/\d+\)/.test(hi.txt)) falhou(`${M.id} etapa ${h.e + 1}: sem a quantidade entre parênteses: "${hi.txt}"`);
     if (f && !f.pre && f.fonte) {
       const ch = `${h.e}:${h.n}:${f.k}:${f.tem}:${f.n}:${f.para || ""}`;
       voltas.set(ch, (voltas.get(ch) || 0) + 1);

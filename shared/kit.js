@@ -410,17 +410,17 @@ export const Kit = {
   // (André 2026-11-14: "voltava para rabanete, depois voltava para sopa")
   textoJunta(E, f, anda = '') {
     if (f.pre) return f.txt;
-    const n = f.k === 'ouro' ? 'ouro' : nome(f.k), conta = f.n > 1 ? ` ${f.tem}/${f.n}` : '';
+    const n = f.k === 'ouro' ? 'ouro' : nome(f.k), conta = ` (${f.tem}/${f.n})`;
     const para = f.para || (E.ev === 'pack_fez' ? PACKS[E.k]?.nome : ['criar', 'construir'].includes(E.ev) ? nome(String(E.k).replace(/^obra_/, ''))
       : E.ev === 'falar' ? `Para ${this.nomeNpc ? this.nomeNpc(E.npc) : E.npc}` : '');
     const F = f.fonte;
-    const txt = FERR.has(f.k) && F === 'receita' ? `crie ${n}`
-      : F === 'cresce' ? `${n} crescendo${conta}` : F === 'regar' ? `regue a horta (${n})` : F === 'plantar' ? `plante ${n}`
-      : F === 'loja' ? `compre ${n}${conta}` : F === 'destruir' ? `destrua peças por ${n}${conta}` : F === 'sintese' ? `faça ${n} com a Mirela`
-      : F.startsWith('npc:') ? `faça ${n} com ${this.nomeNpc ? this.nomeNpc(F.slice(4)) : F.slice(4)}`
+    const txt = FERR.has(f.k) && F === 'receita' ? `crie ${n}${conta}`
+      : F === 'cresce' ? `${n} crescendo${conta}` : F === 'regar' ? `regue a horta: ${n}${conta}` : F === 'plantar' ? `plante ${n}${conta}`
+      : F === 'loja' ? `compre ${n}${conta}` : F === 'destruir' ? `destrua peças por ${n}${conta}` : F === 'sintese' ? `faça ${n} com a Mirela${conta}`
+      : F.startsWith('npc:') ? `faça ${n} com ${this.nomeNpc ? this.nomeNpc(F.slice(4)) : F.slice(4)}${conta}`
       : `${f.k === 'ouro' ? 'junte' : F === 'receita' ? 'faça' : F === 'forno' ? (f.k === 'carvao' ? 'faça no forninho' : 'funda no forninho')
         : F === 'veio:arvore' ? 'corte' : F.startsWith('veio:') ? 'minere' : F === 'solto' ? 'pegue do chão' : F.startsWith('caca:') ? 'cace para ter'
-        : F === 'spot' ? 'pesque' : F === 'lote' ? 'colha' : 'junte'} ${n}${f.k === 'ouro' ? ` ${f.tem}/${f.n}` : conta}`;
+        : F === 'spot' ? 'pesque' : F === 'lote' ? 'colha' : 'junte'} ${n}${conta}`;
     return `${para ? para + (f.para ? '' : anda) + ': ' : ''}${txt}`;
   },
   // o tipo da etapa para o guia do app (guia.gd) enquanto junta: o Ir e o botão de coletar / pescar / o forninho

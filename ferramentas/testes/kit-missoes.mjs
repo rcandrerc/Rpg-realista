@@ -74,17 +74,17 @@ const npc = (id) => MAPA_CLAREIRA.npcs.find((o) => o.id === id);
   ok(!s.kitEtapa(j) && contar(p.mochila, 'barquinho') === 0 && contar(p.mochila, 'lenha') === 0, 'barquinho: nada de graça');
   let hi = s.histInfo(j);
   // sem machado (André 2026-11-13: guiar cada passo): primeiro o machado, com galho e pedrinha do chão
-  ok(/^Machado de pedra: pegue do chão Lenha 0\/3/.test(hi.txt) && hi.ev === 'item' && hi.de === 'solto', `sem machado: o machado antes, galho do chão (${hi.txt})`);
+  ok(/^Machado de pedra: pegue do chão Lenha \(0\/3\)/.test(hi.txt) && hi.ev === 'item' && hi.de === 'solto', `sem machado: o machado antes, galho do chão (${hi.txt})`);
   guardar(p.mochila, { k: 'lenha', n: 3 }); guardar(p.mochila, { k: 'pedra', n: 2 });
   hi = s.histInfo(j);
-  ok(/crie Machado de pedra$/.test(hi.txt) && hi.ev === 'criar' && hi.k === 'machado' && !hi.alvo, `com o material: crie o machado aqui mesmo (${hi.txt})`);
+  ok(/crie Machado de pedra \(0\/1\)$/.test(hi.txt) && hi.ev === 'criar' && hi.k === 'machado' && !hi.alvo, `com o material: crie o machado aqui mesmo (${hi.txt})`);
   p.mochila.fill(null);
   guardar(p.mochila, { k: 'machado' });
   hi = s.histInfo(j);
-  ok(/^Barquinho: corte Lenha 0\/30/.test(hi.txt) && hi.ev === 'item' && hi.de === 'coleta' && hi.k === 'lenha' && hi.alvo, `com machado: "${hi.txt}", Ir na árvore`);
+  ok(/^Barquinho: corte Lenha \(0\/30\)/.test(hi.txt) && hi.ev === 'item' && hi.de === 'coleta' && hi.k === 'lenha' && hi.alvo, `com machado: "${hi.txt}", Ir na árvore`);
   guardar(p.mochila, { k: 'lenha', n: 30 });
   hi = s.histInfo(j);
-  ok(/^Barquinho: cace para ter Couro 0\/4/.test(hi.txt) && hi.ev === 'matar' && hi.alvo, `lenha pronta: "${hi.txt}" (Ir no campo de caça)`);
+  ok(/^Barquinho: cace para ter Couro \(0\/4\)/.test(hi.txt) && hi.ev === 'matar' && hi.alvo, `lenha pronta: "${hi.txt}" (Ir no campo de caça)`);
   guardar(p.mochila, { k: 'couro', n: 4 });
   hi = s.histInfo(j);
   ok(hi.txt.startsWith('Crie o barquinho') && hi.ev === 'criar' && hi.k === 'barquinho', 'tudo junto: volta o "Crie o barquinho"');
@@ -94,10 +94,10 @@ const npc = (id) => MAPA_CLAREIRA.npcs.find((o) => o.id === id);
   guardar(p.mochila, { k: 'machado' }); guardar(p.mochila, { k: 'picareta' }); dar(p, 'lenha', 60);
   ok(!s.kitEtapa(j), 'carrinho: nada de graça');
   let hi = s.histInfo(j);
-  ok(/minere Minério de ferro 0\/18/.test(hi.txt) && hi.k === 'minerio_ferro', `barra de ferro: primeiro o minério (${hi.txt})`);
+  ok(/minere Minério de ferro \(0\/18\)/.test(hi.txt) && hi.k === 'minerio_ferro', `barra de ferro: primeiro o minério (${hi.txt})`);
   dar(p, 'minerio_ferro', 18);
   hi = s.histInfo(j);
-  ok(/funda no forninho Barra de ferro 0\/6/.test(hi.txt) && hi.ev === 'criar' && hi.k === 'barra_ferro' && hi.alvo?.estacao, `com o minério: forninho (${hi.txt})`);
+  ok(/funda no forninho Barra de ferro \(0\/6\)/.test(hi.txt) && hi.ev === 'criar' && hi.k === 'barra_ferro' && hi.alvo?.estacao, `com o minério: forninho (${hi.txt})`);
 }
 {
   const j = novo('c15', etapa('c15', (E) => E.ev === 'criar' && E.k === 'navio')), p = j.prog;

@@ -23,7 +23,7 @@ const ferramentas = (p) => { for (const k of ['machado', 'picareta', 'vara']) da
 {
   const j = novo('h10', 0), p = j.prog; ferramentas(p);
   let hi = s.histInfo(j);
-  ok(hi.npc === '' && /^Para Malaquias: corte Lenha 0\/40/.test(hi.txt) && hi.ev === 'item' && hi.alvo, `sem nada: corta a lenha antes de ir ao Malaquias (${hi.txt})`);
+  ok(hi.npc === '' && /^Para Malaquias: corte Lenha \(0\/40\)/.test(hi.txt) && hi.ev === 'item' && hi.alvo, `sem nada: corta a lenha antes de ir ao Malaquias (${hi.txt})`);
   dar(p, 'lenha', 40);
   hi = s.histInfo(j);
   ok(/minere Minério de ferro/.test(hi.txt), `depois o minério de ferro (${hi.txt})`);

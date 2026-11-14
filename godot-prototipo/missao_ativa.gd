@@ -131,7 +131,7 @@ func textos(M: Dictionary) -> Array:
 		var tot: int = int(M.get("total", 1))
 		var e: int = int(hi.get("e", -1))
 		var cab := "Cap. %d · %s" % [int(M.get("cap", 0)), M.nome] if int(M.get("cap", 0)) > 0 else "Missão: %s" % M.nome
-		return [cab, ("%d/%d · " % [e + 1, tot] if e >= 0 and tot > 1 else "") + str(hi.get("txt", ""))]
+		return [cab, ("Parte %d/%d · " % [e + 1, tot] if e >= 0 and tot > 1 else "") + str(hi.get("txt", ""))] # a parte da missão; a quantidade da etapa vem no texto "(0/1)"
 	var h: Dictionary = m.nevoa.hist()
 	var quem: String = _nome_npc(str(M.npc))
 	var l: String
