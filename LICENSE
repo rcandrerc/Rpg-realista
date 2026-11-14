@@ -1,0 +1,27 @@
+Age of Embers™
+Copyright © 2026 André Coutinho. Todos os direitos reservados. All rights reserved.
+
+PORTUGUÊS
+Este jogo e tudo o que está neste repositório (código, história, personagens, nome, símbolo, arte, textos, mapas,
+sons próprios e ferramentas) são de propriedade exclusiva de André Coutinho e protegidos pela Lei de Direitos Autorais
+(Lei 9.610/98) e por tratados internacionais. Nenhuma licença é concedida. É proibido copiar, modificar, distribuir,
+publicar, vender, alugar ou criar obras derivadas, no todo ou em parte, sem autorização prévia por escrito do autor.
+Ver ou baixar este repositório não dá nenhum direito de uso.
+
+ENGLISH
+This game and everything in this repository (code, story, characters, name, logo, art, text, maps, original sounds
+and tools) are the exclusive property of André Coutinho and are protected by copyright law and international treaties.
+No license is granted. You may not copy, modify, distribute, publish, sell, rent or create derivative works, in whole
+or in part, without the author's prior written permission. Viewing or downloading this repository grants no rights.
+
+TERCEIROS / THIRD PARTIES
+Assets de terceiros continuam com as licenças deles (lista completa na tabela de assets do README.md e em
+godot-prototipo/musica/LICENCAS.md). Third-party assets keep their own licenses, including:
+- Godot Engine: MIT License, © 2014-present Godot Engine contributors, © 2007-2014 Juan Linietsky, Ariel Manzur.
+- Fonts Alegreya Sans, Cinzel and Cinzel Decorative: SIL Open Font License 1.1.
+- "Ruiva" VRoid avatar © 2026 MercuryMaid (水銀メイド), VRM Public License 1.0.
+- Animations: Mixamo (Adobe).
+- 3D models and textures: Quaternius, KayKit (Kay Lousberg), Kenney, Poly Haven (CC0 / their licenses).
+- "Dog running" by congusbongus, OpenGameArt (CC-BY 3.0).
+- Sounds: The Audio Horizon SFX; Pixabay (floraphonic, koiroylers and others).
+- Music: Kaazoom, Forgotten Hero Records and others, via Pixabay (Pixabay Content License).

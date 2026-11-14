@@ -521,5 +521,16 @@
 "%s Nv %d": "%s Lv %d",
 "Rosa compra o que você tiver: na Mochila, toque no item e em Vender. A banca dela também é a do Alfaiate (Profissões → Alfaiate).": "Rosa buys whatever you have: in your Inventory, tap the item and then Sell. Her stall is also the Tailor's (Professions → Tailor).",
 "Rosa compra o que você tiver: na Mochila, toque no item e em Vender. Mercador Nv %d: ela paga +%s%% e cobra -%s%%. A banca dela também é a do Alfaiate (Profissões → Alfaiate).": "Rosa buys whatever you have: in your Inventory, tap the item and then Sell. Merchant Lv %d: she pays +%s%% and charges -%s%%. Her stall is also the Tailor's (Professions → Tailor).",
-"Mochila cheia: libere um lugar para tirar": "Inventory full: free a slot to unequip"
+"Mochila cheia: libere um lugar para tirar": "Inventory full: free a slot to unequip",
+"© 2026 André Coutinho. Todos os direitos reservados.": "© 2026 André Coutinho. All rights reserved.",
+"Créditos e direitos": "Credits & legal",
+"História, personagens, nome, símbolo, arte e código são protegidos por direitos autorais. Proibido copiar, distribuir ou vender sem autorização.": "Story, characters, name, logo, art and code are protected by copyright. Do not copy, distribute or sell without permission.",
+"Feito com Godot Engine (licença MIT).": "Made with Godot Engine (MIT license).",
+"Fontes: Alegreya Sans, Cinzel e Cinzel Decorative (SIL Open Font License 1.1).": "Fonts: Alegreya Sans, Cinzel and Cinzel Decorative (SIL Open Font License 1.1).",
+"Avatar \"Ruiva\" © 2026 MercuryMaid (水銀メイド), VRoid Hub, VRM Public License 1.0.": "\"Ruiva\" avatar © 2026 MercuryMaid (水銀メイド), VRoid Hub, VRM Public License 1.0.",
+"Animações: Mixamo (Adobe).": "Animations: Mixamo (Adobe).",
+"Modelos e texturas: Quaternius, KayKit (Kay Lousberg), Kenney, Poly Haven.": "Models and textures: Quaternius, KayKit (Kay Lousberg), Kenney, Poly Haven.",
+"\"Dog running\" de congusbongus, OpenGameArt (CC-BY 3.0).": "\"Dog running\" by congusbongus, OpenGameArt (CC-BY 3.0).",
+"Sons: The Audio Horizon SFX, Pixabay (floraphonic, koiroylers).": "Sounds: The Audio Horizon SFX, Pixabay (floraphonic, koiroylers).",
+"Músicas: Kaazoom, Forgotten Hero Records e outros (Pixabay).": "Music: Kaazoom, Forgotten Hero Records and others (Pixabay)."
 }
