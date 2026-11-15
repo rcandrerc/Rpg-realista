@@ -20,6 +20,7 @@ signal mensagem(tipo, dados)
 signal caiu(motivo: String)
 signal precisa_login # sem sessão guardada (ou vencida): mostrar o botão Entrar com Google
 signal escolher_conta(conta: Dictionary) # abriu o jogo com conta salva: perguntar se entra com ela ou troca
+signal conta_respondeu(r: Dictionary) # a conferência da conta salva (feita por trás da janela de escolha) voltou
 
 var servidor := SERVIDOR # dá para trocar no teste (variável RPG_SERVIDOR)
 var sessao := ""
@@ -118,6 +119,14 @@ func iniciar(perguntar := false, automatico := false) -> void:
 	if sessao == "":
 		precisa_login.emit()
 		return
+	# André 2026-11-15 ("ainda fica mais alguns segundos até aparecer a janela"): com o nome guardado no aparelho a
+	# janela de escolher a conta abre na hora; a conta é conferida no servidor por trás (_conferir_por_tras). O Entrar
+	# espera essa resposta (continuar), e sessão vencida troca a janela pela do Google, como antes.
+	if perguntar and nome_salvo != "" and str(conta.get("nome", "")) == "":
+		estado.emit("")
+		escolher_conta.emit(conta)
+		_conferir_por_tras()
+		return
 	estado.emit("Conectando…")
 	var r := await _pedir_conta()
 	if r.codigo == 200:
@@ -133,6 +142,19 @@ func iniciar(perguntar := false, automatico := false) -> void:
 	else:
 		estado.emit("Servidor fora do ar")
 		caiu.emit("fora")
+
+var _conta_no_ar := false # a conferência por trás ainda não voltou
+var _continuando := false # o jogador já tocou em Entrar: quem trata a resposta é o continuar
+func _conferir_por_tras() -> void:
+	_conta_no_ar = true
+	var r := await _pedir_conta()
+	_conta_no_ar = false
+	if r.codigo == 200:
+		_lembrar_conta(r.dados.get("conta", {}))
+	elif r.codigo == 401 and not _continuando:
+		guardar("")
+		precisa_login.emit()
+	conta_respondeu.emit(r)
 
 # GET /conta/eu com mais paciência. André 2026-11-13: na abertura o celular está montando o mundo e a primeira
 # resposta às vezes não vinha a tempo; a tela aparecia "sem nome" e o "Entrar" ia para a sala sem os dados da conta
@@ -211,7 +233,9 @@ func _abrir_site(trocar: bool) -> void:
 func continuar() -> void:
 	estado.emit("Conectando…")
 	if str(conta.get("nome", "")) == "":
-		var r := await _pedir_conta()
+		_continuando = true
+		var r: Dictionary = (await conta_respondeu) if _conta_no_ar else (await _pedir_conta())
+		_continuando = false
 		if r.codigo == 401:
 			guardar("")
 			precisa_login.emit()
@@ -281,6 +305,9 @@ func fechar() -> void:
 func pedir(metodo: String, caminho: String, corpo = null, com_sessao := true) -> Dictionary:
 	var http := HTTPRequest.new()
 	http.timeout = 8.0
+	# linha própria (André 2026-11-15): na abertura os quadros estão pesados e, sem ela, a conexão só andava um pouco
+	# por quadro; a resposta da conta chegava 8 a 10 s depois
+	http.use_threads = true
 	add_child(http)
 	var cab := PackedStringArray(["Content-Type: application/json"])
 	if com_sessao and sessao != "":
