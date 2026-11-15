@@ -2140,7 +2140,8 @@ func motivo_criar(k: String) -> String:
 	var C := dados_criar(k)
 	if C.is_empty():
 		return "Isso não se cria"
-	if not D.construcoes.has(k) and m.P.contar(k) > 0:
+	# varios (galão de combustível): empilha, dá para criar quantos quiser (André 2026-11-15: fez 1 e travou nos outros 3)
+	if not D.construcoes.has(k) and not C.get("varios", false) and m.P.contar(k) > 0:
 		return "Você já tem %s" % str(D.itens[k].nome).to_lower()
 	if C.get("bancada", false) and not estacao_perto(["bancada"]):
 		return "Crie perto de uma bancada de trabalho (faça a bancada primeiro)"
@@ -2189,7 +2190,7 @@ func pedir_criar(tipo: String, k: String) -> void:
 		if mot != "":
 			m.hud.aviso(mot)
 			return
-		if not D.construcoes.has(k):
+		if not D.construcoes.has(k) and not dados_criar(k).get("varios", false): # galão: abre a janelinha de quantas
 			m.rede("fabricar", {"k": k, "n": 1})
 			return
 	_qtd_tipo = tipo
@@ -2203,7 +2204,9 @@ func _custo_qtd() -> Dictionary:
 	return D.receitas[_qtd_k].usa if _qtd_tipo == "receita" else dados_criar(_qtd_k).custo
 
 func _nome_qtd() -> String:
-	return str(D.itens[str(D.receitas[_qtd_k].faz)].nome) if _qtd_tipo == "receita" else str(dados_criar(_qtd_k).nome)
+	if _qtd_tipo == "receita":
+		return str(D.itens[str(D.receitas[_qtd_k].faz)].nome)
+	return str(dados_criar(_qtd_k).get("nome", D.itens.get(item_criado(_qtd_k), {}).get("nome", _qtd_k))) # ferramenta (galão) não tem nome próprio
 
 # vigor de uma receita (0 nas peças)
 func _vigor_qtd() -> float:
@@ -2269,7 +2272,7 @@ func fabricando(ev: Dictionary) -> void:
 	var k := str(ev.get("k", ""))
 	var nome := str(ev.get("nome", "")) # receitas mandam o nome
 	if nome == "" and k != "":
-		nome = str(dados_criar(k).get("nome", ""))
+		nome = str(dados_criar(k).get("nome", D.itens.get(item_criado(k), {}).get("nome", ""))) # galão: o nome vem do item
 	if ev.get("fim", false):
 		if _fab.is_empty():
 			return
