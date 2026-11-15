@@ -457,6 +457,11 @@ func _ready() -> void:
 	add_child(lentidao)
 	online = Online.new(self)
 	add_child(online)
+	# corpos de reserva para os jogadores que chegam perto (online.gd reservar_corpo): no fim da fila, atrás da capa
+	var cri = P.dados.get("criador") if P.dados is Dictionary else null
+	for c in (cri.get("corpos", ["ruiva"]) if cri is Dictionary else ["ruiva"]):
+		for i in Online.RESERVA:
+			_a_criar.append(online.reservar_corpo.bind(str(c)))
 	_passo("online")
 	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
 	add_child(chat)

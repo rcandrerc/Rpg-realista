@@ -764,26 +764,7 @@ func outro(j: Dictionary) -> void:
 				return
 			_novos_foto += 1
 			var tc := Time.get_ticks_usec()
-			var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
-			no.set_meta("pano_outro", true) # capa de outro: pano de verdade só nas mais perto da câmera (pano_capa.gd)
-			var esq: Skeleton3D = m.esqueleto(no)
-			var esp: Node3D = m.nova_arma("espada")
-			var caj: Node3D = m.nova_arma("cajado")
-			o = {"no": no, "visual": vis, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
-				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0}
-			no.position = o.alvo
-			o.barra = m.barra_vida(no, str(j.get("nome", "")), Color(0.35, 0.85, 0.4))
-			m.nome_legivel(no) # André 2026-11-12: nome, nível e título dos outros do tamanho dos nomes dos NPCs
-			o.placa = null
-			for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
-				if f is Label3D:
-					o.placa = f
-					break
-			o.placa_txt = ""
-			o.ap = ""
-			o.lod = -1
-			o.molas = _molas_de(esq)
-			o.fase = randi() % 6
+			o = _montar_corpo(vis, Vector3(float(j.x), float(j.y), float(j.z)), float(j.ry), str(j.get("nome", "")))
 			o.nasceu = Engine.get_process_frames()
 			outros[id] = o
 			_marca("o:corpo", tc)
@@ -1609,6 +1590,44 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 			mi.lod_bias = [0.2, 0.4, 0.8][nivel]
 	m.anim_espacada(o.anim, o.esq, not cheio)
 	o.anim_acc = 0.0
+
+# um corpo novo de outro jogador (ou NPC do servidor): o modelo, as armas, a barra e o nome
+func _montar_corpo(vis: String, pos: Vector3, ry: float, nome: String) -> Dictionary:
+	var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
+	no.set_meta("pano_outro", true) # capa de outro: pano de verdade só nas mais perto da câmera (pano_capa.gd)
+	var esq: Skeleton3D = m.esqueleto(no)
+	var esp: Node3D = m.nova_arma("espada")
+	var caj: Node3D = m.nova_arma("cajado")
+	var o := {"no": no, "visual": vis, "anim": no.find_child("AnimationPlayer", true, false), "esq": esq, "espada": esp, "cajado": caj,
+		"alvo": pos, "ry": ry, "seq": -1, "modo": "", "uma_vez": 0.0}
+	no.position = o.alvo
+	o.barra = m.barra_vida(no, nome, Color(0.35, 0.85, 0.4))
+	m.nome_legivel(no) # André 2026-11-12: nome, nível e título dos outros do tamanho dos nomes dos NPCs
+	o.placa = null
+	for f in no.get_children(): # o nome em cima da cabeça (barra_vida põe o Label3D primeiro)
+		if f is Label3D:
+			o.placa = f
+			break
+	o.placa_txt = ""
+	o.ap = ""
+	o.lod = -1
+	o.molas = _molas_de(esq)
+	o.fase = randi() % 6
+	return o
+
+# Corpos prontos de reserva (André 2026-11-15, "dá uma olhada nas travadas"): montar o corpo de um jogador que chega
+# perto levava 100 a 600 ms num quadro no Poco X7 (o:corpo, quase toda volta para a vila). Atrás da capa, na fila da
+# abertura (main.gd criar_aos_poucos), já ficam montados e guardados RESERVA corpos de cada corpo do criador; quem
+# chega usa um deles (_tirar_guardado), como os corpos que saíram da visão.
+const RESERVA := 2
+func reservar_corpo(vis: String) -> void:
+	if _guardados.get(vis, []).size() >= RESERVA or not ResourceLoader.exists("res://modelos/%s.glb" % vis):
+		return
+	var o := _montar_corpo(vis, Vector3(0, -50, 0), 0.0, "")
+	o.sumiu = false
+	o.tit = ""
+	o.roupa = "-"
+	_soltar_corpo(o)
 
 # saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:
