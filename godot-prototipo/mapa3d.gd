@@ -29,6 +29,7 @@ var pronto := false
 var _tarefa := -1
 var _dados: Dictionary = {}
 var _t_abriu := 0
+var _mini_feito := false
 
 var foco := Vector3.ZERO
 var foco_alvo := Vector3.ZERO
@@ -110,9 +111,21 @@ func abrir() -> void:
 	get_viewport().disable_3d = true # o mundo do jogo não é desenhado atrás do mapa
 	if pronto:
 		_ligar()
-	elif _tarefa < 0:
-		_tarefa = WorkerThreadPool.add_task(_montar_dados, false, "mapa3d")
+	else:
+		preparar()
 	marcas.queue_redraw()
+
+# Monta a maquete numa linha de fundo antes do primeiro toque (André 2026-11-15: a primeira vez levava ~4 s para
+# abrir). Começa sozinho uns segundos depois do jogo carregar; tudo pesado (grade, malhas, árvores) fica fora da linha
+# principal, que só encaixa a cena pronta (sem engasgo no jogo). Se abrir antes de acabar, mostra "Montando o mapa…".
+func preparar() -> void:
+	if pronto or _tarefa >= 0 or g.is_empty():
+		return
+	_tarefa = WorkerThreadPool.add_task(_montar_fundo, false, "mapa3d")
+
+func _montar_fundo() -> void:
+	_montar_dados()
+	_montar_cena()
 
 func fechar() -> void:
 	if not visible:
@@ -124,22 +137,35 @@ func fechar() -> void:
 
 func _ligar() -> void:
 	sv.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	if not _mini_feito:
+		_mini_feito = true
+		mini_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_camera()
 	if m.lentidao and _t_abriu > 0: # quanto o mapa 3D levou para abrir (lentidao.gd, tipo "menu")
 		m.lentidao.menu_aberto("mapa3d", _t_abriu, 0)
 		_t_abriu = 0
 
+const PREPARAR_APOS := 12.0 # segundos de jogo antes de montar o mapa 3D em segundo plano
+var _t_jogo := 0.0
+
 func _process(dt: float) -> void:
-	if not visible:
-		return
 	if not pronto:
-		if _tarefa >= 0 and WorkerThreadPool.is_task_completed(_tarefa):
-			WorkerThreadPool.wait_for_task_completion(_tarefa)
-			_tarefa = -1
-			_montar_cena()
-			pronto = true
-			_ligar()
-		marcas.queue_redraw()
+		if _tarefa >= 0:
+			if WorkerThreadPool.is_task_completed(_tarefa):
+				WorkerThreadPool.wait_for_task_completion(_tarefa)
+				_tarefa = -1
+				_encaixar()
+				pronto = true
+				if visible:
+					_ligar()
+		elif not visible and m.heroi != null and mm.get("modo_3d") == true and not g.is_empty():
+			_t_jogo += minf(dt, 0.1) # quadro longo do carregamento não conta
+			if _t_jogo > PREPARAR_APOS:
+				preparar()
+		if visible:
+			marcas.queue_redraw()
+		return
+	if not visible:
 		return
 	var a: float = 1.0 - exp(-12.0 * dt)
 	dist = lerpf(dist, dist_alvo, a)
@@ -393,9 +419,9 @@ func _mat(srgb := true) -> StandardMaterial3D:
 	mat.roughness = 1.0
 	return mat
 
+# roda na linha de fundo: monta a cena fora da árvore (nada entra no SubViewport aqui)
 func _montar_cena() -> void:
 	mundo3d = Node3D.new()
-	sv.add_child(mundo3d)
 	var baixa: bool = m.grafico != null and int(m.grafico.nivel) == 0
 	var sol := DirectionalLight3D.new()
 	sol.rotation_degrees = Vector3(-48, -140, 0)
@@ -419,7 +445,6 @@ func _montar_cena() -> void:
 	cam.near = 4.0
 	cam.far = 4500.0
 	mundo3d.add_child(cam)
-	cam.current = true
 	# terreno
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
@@ -504,11 +529,16 @@ void fragment() {
 	_mata(_dados.arvores)
 	_vilas()
 	_dados = {}
+
+# linha principal: só põe a cena pronta no SubViewport e cria o mapinha
+func _encaixar() -> void:
+	sv.add_child(mundo3d)
+	cam.current = true
 	# mapinha do mundo inteiro: câmera de cima, desenhado uma vez só
 	mini_sv = SubViewport.new()
 	mini_sv.world_3d = sv.find_world_3d()
 	mini_sv.size = Vector2i(240, int(240.0 * (ATE.y - Z0) / (ATE.x - X0)))
-	mini_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+	mini_sv.render_target_update_mode = SubViewport.UPDATE_DISABLED # desenha ao abrir (fechado não pesa no jogo)
 	add_child(mini_sv)
 	var mc := Camera3D.new()
 	mc.projection = Camera3D.PROJECTION_ORTHOGONAL
