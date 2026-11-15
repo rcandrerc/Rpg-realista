@@ -711,10 +711,12 @@ func fala(npc_id: String, texto: String, ev := {}) -> bool:
 # desenhar, vira uma foto guardada em user://retratos e a cena some. Nas outras conversas (e nas outras vezes que o
 # jogo abre) o retrato é só a foto, lida em ~1 ms.
 const RETRATOS := "user://retratos"
+const RETRATO_VERSAO := 2 # suba quando o retrato mudar de jeito (luz, câmera, fundo)
 func _arquivo_retrato(n: Dictionary) -> String:
-	var versao := str(load("res://versao.gd").NUMERO)
+	# antes ia o número da versão do jogo: toda atualização (várias por dia) refazia todos os retratos. Agora só quando
+	# o visual do NPC muda (modelo, cores, roupa) ou quando RETRATO_VERSAO sobe (mudou o jeito de desenhar o retrato)
 	var visual := str([n.get("modelo", "vivi"), n.get("aparencia", {}), n.get("info", {})]).hash()
-	return "%s/%s_%s_%d.png" % [RETRATOS, str(n.id).validate_filename(), versao if versao != "" else "dev", visual]
+	return "%s/%s_r%d_%d.png" % [RETRATOS, str(n.id).validate_filename(), RETRATO_VERSAO, visual]
 
 func _retrato(n: Dictionary) -> Texture2D:
 	if _retratos.has(n.id):
@@ -733,7 +735,9 @@ func _retrato(n: Dictionary) -> Texture2D:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(192, 192)
 	vp.own_world_3d = true
-	vp.msaa_3d = Viewport.MSAA_4X
+	# o mesmo MSAA do mundo (grafico.gd): com 4x a placa montava de novo os shaders de cada pedaço do NPC só para o
+	# retrato (1 a 2 s na primeira conversa no Poco X7, robô e lentidão de 2026-11-14)
+	vp.msaa_3d = get_viewport().msaa_3d
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
 	var amb := WorldEnvironment.new()

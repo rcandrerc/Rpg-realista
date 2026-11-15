@@ -319,8 +319,8 @@ let caindo = false;
 async function cair(code) {
   if (caindo) return; caindo = true; sala = null;
   if (code === 4001 || code === 4002) { log('saiu: a conta entrou em outro lugar (outro turno do robô)'); saiu = true; caindo = false; return; }
-  const reinicio = Date.now() - reinicioT < 180e3;
-  if (reinicio) R.reinicios++; else { R.quedas++; problema(`Caiu da sala (código ${code}) às ${new Date().toISOString().slice(11, 16)} UTC`); }
+  let reinicio = Date.now() - reinicioT < 180e3;
+  const quando = new Date().toISOString().slice(11, 16);
   log('caiu', code, reinicio ? '(reinício do servidor)' : '');
   const t0 = Date.now();
   for (let i = 0; !saiu && Date.now() < FIM; i++) {
@@ -329,7 +329,10 @@ async function cair(code) {
       if (i < 3 && token) { sala = await cliente.reconnect(token); ligar(sala); }
       else await juntar(true);
       const s = Math.round((Date.now() - t0) / 1000);
-      if (!reinicio && s > 30) problema(`Levou ${s} s para voltar depois de cair`);
+      // o servidor se atualiza sozinho depois de cada merge (e derruba todo mundo): ligado há poucos minutos = reinício
+      if (!reinicio) { try { reinicio = (await (await fetch(`${SERVIDOR.replace(/^ws/, 'http')}/saude`, { signal: AbortSignal.timeout(8000) })).json()).ligadoMin <= 3; } catch { /* sem saúde: conta como queda */ } }
+      if (reinicio) { R.reinicios++; log(`reinício do servidor: voltou em ${s} s`); }
+      else { R.quedas++; problema(`Caiu da sala (código ${code}) às ${quando} UTC`); if (s > 30) problema(`Levou ${s} s para voltar depois de cair`); }
       break;
     } catch (e) {
       if (String(e.message).includes('outro_aparelho')) { log('outro turno do robô está jogando: este sai'); saiu = true; break; }
