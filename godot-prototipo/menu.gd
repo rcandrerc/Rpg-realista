@@ -1868,6 +1868,10 @@ func itens_criar(cat: String) -> Array:
 	if cat == "ferramentas":
 		for k in D.get("ferramentas", {}):
 			lista.append({"tipo": "obra", "k": k, "nome": str(D.itens[k].nome), "nivel": 0})
+	if cat == "materiais": # galão de combustível (varios): também em Materiais, sem sair de Ferramentas (André 2026-11-15)
+		for k in D.get("ferramentas", {}):
+			if D.ferramentas[k].get("varios", false):
+				lista.append({"tipo": "obra", "k": k, "nome": str(D.itens[k].nome), "nivel": 0})
 	lista.sort_custom(func(a, b): return a.nivel < b.nivel or (a.nivel == b.nivel and a.nome.naturalnocasecmp_to(b.nome) < 0))
 	return lista
 
