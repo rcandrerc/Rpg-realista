@@ -6,6 +6,7 @@ extends CanvasLayer
 # painel do herói e eles aparecem em verde no minimapa.
 
 const Menu = preload("res://menu.gd")
+const Idioma = preload("res://idioma.gd")
 const COR_TIME := Color("7ee08a") # verde do time (minimapa e barras)
 
 var m # main.gd
@@ -22,6 +23,16 @@ var _remover := "" # conta do amigo esperando o segundo toque em "Remover"
 var _lista_t := 0.0
 var _ativar_ia := false # mostrando os 2 passos de "Ativar conversa com IA" (André 2026-11-10)
 var _rolar_y := 0 # a janela Multijogador refaz a cada 1 s: a lista não volta para o topo
+# adicionar amigo a distância (André 2026-11-15: "adicionar amigo a distância por pesquisa"): Multijogador > Amigos >
+# Adicionar abre a busca pelo nome; "Pedir" manda o pedido, que fica guardado até a pessoa responder (shared/simulacao.js
+# amigoBuscar/amigoPedirConta). Tocar no jogador no mundo continua valendo.
+var pedidos: Array = [] # do servidor: pedidos que chegaram [{c, nome, on}]
+var buscando := false # a janela mostra a busca (o menu do topo não refaz a cada 1 s, senão o teclado fecha)
+var busca_txt := ""
+var busca_res: Array = [] # do servidor: [{c, nome, on, amigo, env, rec}]
+var busca_feita := false
+var _res_box: VBoxContainer
+var _mt # menu_topo.gd (para refazer a janela)
 var esquecido_ate := 0.0 # história v2 (luta da Vesper, fase 2): a Névoa faz o time esquecer de você e os nomes somem
 
 func _init(principal) -> void:
@@ -86,6 +97,7 @@ func _process_parte(dt: float) -> void:
 	else:
 		_lista_t = 0.0
 		_remover = ""
+		buscando = false
 	if em_time() and Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): barras do time 20 vezes por segundo
 		_barras.queue_redraw()
 
@@ -96,7 +108,17 @@ func do_servidor(ev: Dictionary) -> void:
 			lista = ev.get("lista", [])
 			maximo = int(ev.get("max", 20))
 			virtuais = ev.get("virtuais", [])
+			pedidos = ev.get("pedidos", [])
+		"amigoBusca": # resultado da busca pelo nome
+			busca_res = ev.get("lista", [])
+			busca_feita = true
+			_preencher_busca()
 		"amigo": # pedido de amizade
+			if str(ev.get("fase", "")) == "pedidoC": # pedido a distância (busca): também fica na lista em "Pedidos"
+				var c := str(ev.get("c", ""))
+				m.troca.mostrar_cartao("%s quer ser seu amigo" % str(ev.get("nome", "Alguém")), [["Aceitar", func(): _enviar("amigo", {"acao": "aceitarC", "c": c})], ["Recusar", func(): _enviar("amigo", {"acao": "recusarC", "c": c})]], float(ev.get("dur", 30)))
+				m.sons.tocar("pano", -8.0)
+				return
 			var de := str(ev.de)
 			m.troca.mostrar_cartao("%s quer ser seu amigo" % str(ev.get("nome", "Alguém")), [["Aceitar", func(): _enviar("amigo", {"acao": "aceitar", "com": de})], ["Recusar", func(): _enviar("amigo", {"acao": "recusar", "com": de})]], float(ev.get("dur", 30)))
 			m.sons.tocar("pano", -8.0)
@@ -209,6 +231,10 @@ func pontos_time() -> Array:
 # ---------- janela Multijogador (menu_topo.gd) ----------
 # time e amigos numa área que rola (a janela não passa da altura da tela; refaz a cada 1 s sem voltar para o topo)
 func montar_janela(mt) -> void:
+	_mt = mt
+	if buscando:
+		_montar_busca(mt)
+		return
 	var rolar := ScrollContainer.new()
 	rolar.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var col := VBoxContainer.new()
@@ -246,10 +272,38 @@ func montar_janela(mt) -> void:
 		bs.custom_minimum_size = Vector2(0, 38)
 		col.add_child(bs)
 		linhas += 2
-	# amigos
-	col.add_child(Menu.rotulo("Amigos (%d/%d)" % [lista.size(), maximo], 18, Menu.OURO_CLARO))
+	# amigos (o botão "Adicionar" abre a busca pelo nome)
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 8)
+	var titulo := Menu.rotulo("Amigos (%d/%d)" % [lista.size(), maximo], 18, Menu.OURO_CLARO)
+	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cab.add_child(titulo)
+	cab.add_child(_pequeno(mt._botao("Adicionar", func():
+		buscando = true
+		mt.montar()), 120))
+	col.add_child(cab)
+	# pedidos que chegaram (pela busca): aceitar ou recusar daqui mesmo
+	if not pedidos.is_empty():
+		col.add_child(Menu.rotulo("Pedidos (%d)" % pedidos.size(), 15, Menu.OURO_CLARO))
+		linhas += 1
+		for pd in pedidos:
+			var pc := str(pd.c)
+			var lp := HBoxContainer.new()
+			lp.add_theme_constant_override("separation", 8)
+			var ln := Menu.rotulo(str(pd.nome), 15, Menu.TEXTO)
+			ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			ln.clip_text = true
+			lp.add_child(ln)
+			lp.add_child(_pequeno(mt._botao("Aceitar", func():
+				m.rede("amigo", {"acao": "aceitarC", "c": pc})
+				_lista_t = 0.6), 96))
+			lp.add_child(_pequeno(mt._botao("Recusar", func():
+				m.rede("amigo", {"acao": "recusarC", "c": pc})
+				_lista_t = 0.6, false), 96))
+			col.add_child(lp)
+			linhas += 1
 	if lista.is_empty():
-		var dica := Menu.rotulo("Para adicionar um amigo, toque nele aqui no mundo e escolha \"Adicionar amigo\".", 14, Menu.APAGADO)
+		var dica := Menu.rotulo("Toque no jogador no mundo ou use \"Adicionar\".", 14, Menu.APAGADO)
 		dica.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		dica.custom_minimum_size = Vector2(400, 0)
 		col.add_child(dica)
@@ -350,6 +404,106 @@ func montar_janela(mt) -> void:
 	mt.conteudo.add_child(rolar)
 	rolar.get_v_scroll_bar().value_changed.connect(func(v): _rolar_y = int(v))
 	rolar.set_deferred("scroll_vertical", _rolar_y)
+
+# ---------- busca pelo nome (adicionar amigo a distância) ----------
+func _montar_busca(mt) -> void:
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 8)
+	var t := Menu.rotulo("Adicionar amigo", 18, Menu.OURO_CLARO)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cab.add_child(t)
+	cab.add_child(_pequeno(mt._botao("Voltar", func():
+		buscando = false
+		mt.montar(), false), 100))
+	mt.conteudo.add_child(cab)
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	var campo := LineEdit.new()
+	campo.placeholder_text = "Nome do jogador"
+	campo.text = busca_txt
+	campo.max_length = 20
+	campo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	campo.custom_minimum_size = Vector2(0, 42)
+	campo.add_theme_font_size_override("font_size", 16)
+	campo.add_theme_stylebox_override("normal", Menu.caixa(Color(0.035, 0.03, 0.026, 1), Color(0.36, 0.29, 0.19), 1, 10))
+	campo.add_theme_stylebox_override("focus", Menu.caixa(Color(0.035, 0.03, 0.026, 1), Menu.OURO, 1, 10))
+	campo.clear_button_enabled = true
+	campo.text_changed.connect(func(tx: String): busca_txt = tx)
+	campo.text_submitted.connect(func(_tx: String): _buscar(campo))
+	linha.add_child(campo)
+	var b: Button = mt._botao("Buscar", func(): _buscar(campo))
+	b.custom_minimum_size = Vector2(110, 42)
+	linha.add_child(b)
+	mt.conteudo.add_child(linha)
+	var rolar := ScrollContainer.new()
+	rolar.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	rolar.custom_minimum_size = Vector2(416, 200)
+	var margem := MarginContainer.new()
+	margem.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margem.add_theme_constant_override("margin_right", 14)
+	_res_box = VBoxContainer.new()
+	_res_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_res_box.add_theme_constant_override("separation", 6)
+	margem.add_child(_res_box)
+	rolar.add_child(margem)
+	mt.conteudo.add_child(rolar)
+	_preencher_busca()
+	if busca_res.is_empty():
+		campo.call_deferred("grab_focus") # abre o teclado do celular
+
+func _buscar(campo: LineEdit) -> void:
+	busca_txt = campo.text.strip_edges()
+	if busca_txt.length() < 2:
+		m.hud.aviso("Digite ao menos 2 letras")
+		return
+	campo.release_focus() # fecha o teclado para ver o resultado
+	m.rede("amigo", {"acao": "buscar", "nome": busca_txt})
+
+# o resultado entra na caixa sem refazer a janela (o campo continua com o texto)
+func _preencher_busca() -> void:
+	if _res_box == null or not is_instance_valid(_res_box) or _mt == null:
+		return
+	for c in _res_box.get_children():
+		_res_box.remove_child(c)
+		c.queue_free()
+	if not busca_feita:
+		var d := Menu.rotulo("Busque pelo nome do personagem.", 14, Menu.APAGADO)
+		_res_box.add_child(d)
+		return
+	if busca_res.is_empty():
+		_res_box.add_child(Menu.rotulo("Ninguém com esse nome", 14, Menu.APAGADO))
+		return
+	for r in busca_res:
+		var c := str(r.c)
+		var on := int(r.get("on", 0))
+		var linha := HBoxContainer.new()
+		linha.add_theme_constant_override("separation", 8)
+		var ponto := ColorRect.new()
+		ponto.custom_minimum_size = Vector2(8, 8)
+		ponto.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ponto.color = Menu.VERDE if on == 1 else Color(0.85, 0.7, 0.35) if on == 2 else Color(0.4, 0.38, 0.35)
+		linha.add_child(ponto)
+		var est := "aqui" if on == 1 else "em outro mundo" if on == 2 else "offline"
+		var l := Menu.rotulo("%s  (%s)" % [str(r.nome), Idioma.frase(est)], 15, Menu.TEXTO if on > 0 else Menu.APAGADO)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.clip_text = true
+		linha.add_child(l)
+		if r.get("amigo", false):
+			linha.add_child(Menu.rotulo("Amigo", 14, Menu.VERDE))
+		elif r.get("env", false):
+			var be: Button = _pequeno(_mt._botao("Enviado", func(): pass, false), 100)
+			be.disabled = true
+			linha.add_child(be)
+		else:
+			var rr: Dictionary = r
+			linha.add_child(_pequeno(_mt._botao("Aceitar" if r.get("rec", false) else "Pedir", func():
+				m.rede("amigo", {"acao": "pedirC", "c": c})
+				if rr.get("rec", false):
+					rr["amigo"] = true
+				else:
+					rr["env"] = true
+				_preencher_busca()), 100))
+		_res_box.add_child(linha)
 
 # botão de time do amigo virtual: só a ação, como com um jogador (o servidor decide se ele/ela entra)
 func _time_virtual(mt, acao: String, id: String, c: String) -> void:

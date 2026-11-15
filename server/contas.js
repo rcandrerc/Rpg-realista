@@ -71,6 +71,8 @@ export class Contas {
     // coisas do mundo que valem para todas as salas (André 2026-11-11: a hora em que cada boss de mundo volta)
     this.db.exec('CREATE TABLE IF NOT EXISTS mundo (chave TEXT PRIMARY KEY, valor TEXT)');
     this.db.exec('CREATE TABLE IF NOT EXISTS amizades (a INTEGER NOT NULL, b INTEGER NOT NULL, desde INTEGER, PRIMARY KEY (a, b))');
+    // pedido de amizade a distância (André 2026-11-15: "adicionar amigo por pesquisa"): fica guardado até a outra pessoa responder
+    this.db.exec('CREATE TABLE IF NOT EXISTS pedidos_amizade (de INTEGER NOT NULL, para INTEGER NOT NULL, quando INTEGER, PRIMARY KEY (de, para))');
     this.q = {
       porGoogle: this.db.prepare('SELECT * FROM contas WHERE google = ?'),
       criar: this.db.prepare('INSERT INTO contas (google, email, nome, criada, ultimo_acesso) VALUES (?, ?, ?, ?, ?)'),
@@ -104,6 +106,12 @@ export class Contas {
       amizade: this.db.prepare('INSERT OR IGNORE INTO amizades (a, b, desde) VALUES (?, ?, ?)'),
       desamizade: this.db.prepare('DELETE FROM amizades WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)'),
       apagarAmizades: this.db.prepare('DELETE FROM amizades WHERE a = ? OR b = ?'),
+      gravarPedido: this.db.prepare('INSERT OR REPLACE INTO pedidos_amizade (de, para, quando) VALUES (?, ?, ?)'),
+      tirarPedido: this.db.prepare('DELETE FROM pedidos_amizade WHERE de = ? AND para = ?'),
+      pedidosPara: this.db.prepare('SELECT c.id, c.nome FROM pedidos_amizade p JOIN contas c ON c.id = p.de WHERE p.para = ? AND p.quando > ? ORDER BY p.quando DESC'),
+      pedidosDe: this.db.prepare('SELECT c.id, c.nome FROM pedidos_amizade p JOIN contas c ON c.id = p.para WHERE p.de = ? AND p.quando > ?'),
+      velhosPedidos: this.db.prepare('DELETE FROM pedidos_amizade WHERE quando <= ?'),
+      apagarPedidos: this.db.prepare('DELETE FROM pedidos_amizade WHERE de = ? OR para = ?'),
     };
     this.copiar();
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
@@ -214,7 +222,7 @@ export class Contas {
   }
   // Nome trocado pagando (o personagem já existe): a conta e a placa do terreno
   salvarNome(id, nome) { this.q.nome.run(nome, id); this.q.nomeLote.run(nome, 'c' + id); }
-  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
+  apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); this.q.apagarPedidos.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
   // chave Groq do jogador (conversa com a Cecília): nunca vai para o celular nem para o código, só o servidor usa
@@ -231,6 +239,28 @@ export class Contas {
     return true;
   }
   desfazerAmizade(a, b) { this.q.desamizade.run(a, b, b, a); }
+  nAmigos(id) { return this.q.nAmigos.get(id).n; }
+  // busca por nome (André 2026-11-15): pedaço do nome, sem diferença de maiúscula nem de acento ("andre" acha "André").
+  // Só contas com personagem criado; fora o próprio e o robô de testes. Primeiro o nome igual, depois o que começa igual.
+  buscarNomes(termo, eu, max = 8) {
+    const tira = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const k = tira(termo).trim(); if (!k) return [];
+    const achou = [];
+    for (const c of this.db.prepare("SELECT id, nome FROM contas WHERE visual IS NOT NULL AND id != ? AND google NOT LIKE 'robo:%'").iterate(eu ?? -1)) {
+      const n = tira(c.nome); const i = n.indexOf(k);
+      if (i >= 0) achou.push({ id: Number(c.id), nome: String(c.nome || ''), peso: n === k ? 0 : i === 0 ? 1 : 2 });
+    }
+    return achou.sort((a, b) => a.peso - b.peso || a.nome.length - b.nome.length || a.nome.localeCompare(b.nome)).slice(0, max).map(({ id, nome }) => ({ id, nome }));
+  }
+  // pedidos guardados: os que chegaram (rec) e os que mandei (env); os de mais de 'dias' somem
+  pedidos(id, dias = 14) {
+    const desde = Date.now() - dias * 86400000;
+    this.q.velhosPedidos.run(desde);
+    const m = (r) => ({ c: 'c' + r.id, nome: r.nome });
+    return { rec: this.q.pedidosPara.all(id, desde).map(m), env: this.q.pedidosDe.all(id, desde).map(m) };
+  }
+  gravarPedido(de, para) { this.q.gravarPedido.run(de, para, Date.now()); }
+  tirarPedido(de, para) { this.q.tirarPedido.run(de, para); }
 
   // ---------- Vila dos Lotes ----------
   // todos os lotes guardados (formato de Simulacao.carregarLotes)

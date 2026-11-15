@@ -349,7 +349,7 @@ func _process(dt: float) -> void:
 func _process_parte(dt: float) -> void:
 	_atualizar_vila(dt)
 	_atualizar_construir()
-	if aberta == "multi" or aberta == "conta": # online, jogadores e ping mudam sozinhos
+	if (aberta == "multi" and not (m.amigos and m.amigos.buscando)) or aberta == "conta": # online, jogadores e ping mudam sozinhos (na busca de amigo não: o teclado fecharia)
 		_atualizar_t -= dt
 		if _atualizar_t <= 0.0:
 			_atualizar_t = 1.0
