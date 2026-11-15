@@ -9,6 +9,10 @@ func _init() -> void:
 	Idioma.trocar("en")
 	var casos := {
 		"Mochila": "Inventory",
+		# falas prontas da Cecília/Dario no chat (André 2026-11-15: jogando em inglês, vinham em português)
+		"Ei! Que bom que mandou mensagem, tava entediada.": "Hey! Glad you messaged, I was bored.",
+		"Bora pescar! Fica perto que eu acho um lugar.": "Let's go fishing! Stay close and I'll find a spot.",
+		"Agora tô com Bia! Assim que eu terminar aqui, a gente vê isso, tá?": "I'm with Bia right now! As soon as I'm done here, we'll do that, okay?",
 		"Nível 7": "Level 7",
 		"Nível 12! +5 pontos de atributo": "Level 12! +5 attribute points",
 		"Apagar Ruiva?": "Delete Ruiva?",

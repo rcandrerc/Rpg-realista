@@ -635,7 +635,10 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 		s += "[color=#%s][lb]Time][/color] " % COR_TIME.to_html(false)
 	elif pm: # na caixa de baixo: de quem veio ou para quem foi
 		s += "[color=#%s][lb]%s %s][/color] " % [COR_PM.to_html(false), "Para" if x.get("meu", false) == true else "De", _seguro(outro_nome(x))]
-	s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(str(x.get("texto", "")))]
+	var texto := str(x.get("texto", ""))
+	if x.get("meu", false) != true and str(x.get("c", "")).begins_with("a:"): # fala pronta da Cecília, do Dario e dos aventureiros: no idioma do jogo (André 2026-11-15)
+		texto = Idioma.frase(texto)
+	s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(texto)]
 	r.text = s
 	return r
 
