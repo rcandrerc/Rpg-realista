@@ -43,7 +43,8 @@ var volume := 100.0 # 0..100 (volume geral do jogo)
 var volume_musica := 45.0 # 0..100 (só a música de fundo, musica.gd)
 var vibracao := true
 var mostrar_fps := true
-var camera_travada := false # Travar câmera: nas costas do herói (camera_heroi.gd)
+var camera_travada := false # Travar câmera (camera_heroi.gd)
+var camera_tipo := "iso" # travada: "iso" = do alto, estilo Albion (André 2026-11-15); "costas" = nas costas (2026-11-14)
 # André 2026-11-13 ("jogar com a tela mais limpa"): o FPS e o ping ficam no topo (online.gd); o resto dos números do
 # Teste (efeitos, rede, quadro, travadas...) só aparece com um toque no topo ou na chave abaixo. Escondido não monta o texto.
 var detalhes_fps := false
@@ -599,7 +600,10 @@ func montar_config() -> void:
 		salvar())
 	_chave("Travar câmera", camera_travada, func(v):
 		camera_travada = v
-		salvar())
+		salvar()
+		montar())
+	if camera_travada:
+		_tipo_camera()
 	_texto("Fica salvo neste celular.", Menu.APAGADO, 13)
 	# Comando de voz (André 2026-11-14): só no celular. Ligado, escuta sem tocar em nada; desligado, microfone fechado.
 	# Não fica salvo: o jogo sempre abre com ele desligado.
@@ -748,6 +752,24 @@ func _limite_fps() -> void:
 	conteudo.add_child(linha)
 	_texto("30 ou 60: ritmo igual e esquenta menos.", Menu.APAGADO, 13)
 
+# Travar câmera (André 2026-11-15): "Do alto" (visão isométrica fixa, estilo Albion) ou "Costas" (o travado de antes)
+func _tipo_camera() -> void:
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 6)
+	var l := Menu.rotulo("Visão", 17)
+	l.custom_minimum_size = Vector2(96, 0)
+	linha.add_child(l)
+	for o in [["iso", "Do alto"], ["costas", "Costas"]]:
+		var b := _botao(o[1], func():
+			if camera_tipo != o[0]:
+				camera_tipo = o[0]
+				salvar()
+				montar(), camera_tipo == o[0])
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
+
 # barra de 0 a 100% (Som, Música)
 func _barra(t: String, valor: float, fn: Callable) -> void:
 	var linha := HBoxContainer.new()
@@ -819,6 +841,9 @@ func carregar() -> void:
 	# sem escolha salva: quem já jogava vê o FPS; quem instala agora não (conselho 2026-11-13; grafico.gd teste)
 	mostrar_fps = bool(cfg.get_value("config", "fps", m.grafico.teste if m.grafico else true))
 	camera_travada = bool(cfg.get_value("config", "camera_travada", false))
+	camera_tipo = str(cfg.get_value("config", "camera_tipo", "iso"))
+	if camera_tipo not in ["iso", "costas"]:
+		camera_tipo = "iso"
 	detalhes_fps = false # os números do teste saíram (André 2026-11-14): no topo ficam só o FPS e o ping
 
 func salvar() -> void:
@@ -831,6 +856,7 @@ func salvar() -> void:
 	cfg.set_value("config", "fps", mostrar_fps)
 	cfg.set_value("config", "fps_detalhes", detalhes_fps)
 	cfg.set_value("config", "camera_travada", camera_travada)
+	cfg.set_value("config", "camera_tipo", camera_tipo)
 	cfg.save(ARQUIVO)
 
 # o Android negou o microfone (ou falou "desligar voz"): a chave das Configurações volta para desligada

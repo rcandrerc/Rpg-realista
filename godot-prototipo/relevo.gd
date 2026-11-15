@@ -46,13 +46,17 @@ func _process_parte(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if env == null or cam == null:
 		return
-	var k := clampf((cam.global_position.y - 8.0) / 22.0, 0.0, 1.0)
+	# visão do alto do Travar câmera (camera_heroi.gd, André 2026-11-15): a câmera sobe ~10 m só para olhar o herói de
+	# cima; não é "subir a montanha". Sem descontar, ligava a vista de 1200 m e as copas da mata inteira (~1,3 milhão de
+	# triângulos a mais na tela, medido na vila)
+	var sobe: float = float(cam.get_meta("sobe_iso", 0.0))
+	var k := clampf((cam.global_position.y - sobe - 8.0) / 22.0, 0.0, 1.0)
 	k = k * k * (3.0 - 2.0 * k)
 	env.fog_density = NEVOA * nevoa_mult * ceu_limpo * (1.0 - 0.63 * k)
 	cam.far = lerpf(400.0, LONGE_CAMERA, k) * longe_mult
 	# 2026-11-09: no mundo grande o chão sobe; o que conta é a câmera alta em relação ao chão embaixo dela (antes, num
 	# morro, a câmera passava de 7 m e as copas de longe apareciam em cima do herói)
-	var alto: bool = cam.global_position.y - float(T.altura_montanha(cam.global_position.x, cam.global_position.z)) > 9.0
+	var alto: bool = cam.global_position.y - sobe - float(T.altura_montanha(cam.global_position.x, cam.global_position.z)) > 9.0
 	for c in _copas:
 		c.visible = alto
 
