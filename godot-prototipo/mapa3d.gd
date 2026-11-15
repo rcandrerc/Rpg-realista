@@ -44,7 +44,15 @@ var nz := 0
 var hh: PackedFloat32Array
 var X0 := 0.0
 var Z0 := 0.0
-var ATE := Vector2.ZERO # fim do mundo em metros (x, z)
+var ATE := Vector2.ZERO # fim do desenho em metros (x, z), já com a terra de fora
+var J0 := Vector2.ZERO # começo e fim do mundo andável (a grade do servidor)
+var J1 := Vector2.ZERO
+var fora := PackedFloat32Array() # metros de cada ponto até o mundo andável (0 = dentro)
+# Borda natural (André 2026-11-15: "a borda tá um retângulo super perfeito"): só no desenho do mapa, o continente
+# continua além da borda do mundo andável, com morros e mata, cada vez mais apagado até sumir na névoa (terra que
+# ainda não dá para acessar). O mundo do jogo não muda. Quando o mundo crescer, a grade cresce e a névoa vai junto.
+const ALEM := 110 # pontos de 4 m desenhados além da borda (440 m)
+const COR_NEVOA := Color8(140, 154, 162)
 
 var b_x := Rect2()
 var b_2d := Rect2()
@@ -63,7 +71,7 @@ func _init(minimapa) -> void:
 func _ready() -> void:
 	fonte = load("res://fontes/AlegreyaSans-Bold.ttf")
 	var fundo := ColorRect.new()
-	fundo.color = Color8(24, 46, 66)
+	fundo.color = COR_NEVOA
 	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fundo)
@@ -142,8 +150,8 @@ func _process(dt: float) -> void:
 func _camera() -> void:
 	if cam == null:
 		return
-	foco.x = clampf(foco.x, X0, ATE.x)
-	foco.z = clampf(foco.z, Z0, ATE.y)
+	foco.x = clampf(foco.x, J0.x - 150.0, J1.x + 150.0)
+	foco.z = clampf(foco.z, J0.y - 150.0, J1.y + 150.0)
 	var f := Vector3(foco.x, alt(foco.x, foco.z) * 0.5, foco.z)
 	var p := deg_to_rad(INCL + (dist - DIST_MIN) / (DIST_MAX - DIST_MIN) * 10.0) # de longe, um pouco mais de cima
 	cam.look_at_from_position(f + Vector3(0, sin(p), cos(p)) * dist, f, Vector3.UP)
@@ -185,6 +193,7 @@ func _montar_dados() -> void:
 				var j := int(round((float(gm.z0) + b * ps - Z0) / 4.0))
 				if i >= 0 and j >= 0 and i < nx and j < nz:
 					hh[j * nx + i] = maxf(hh[j * nx + i], float(gm.h[b * n + a]))
+	_alem()
 	# praia: só a areia perto do mar (o chão plano do mapa de hoje também é baixo)
 	var praia := PackedByteArray()
 	praia.resize(nx * nz)
@@ -213,6 +222,20 @@ func _montar_dados() -> void:
 		k += 1
 		if k % UMA_ARVORE_EM == 0:
 			arvores.append(Vector2(float(a.x), float(a.z)))
+	# mata da terra de fora (só desenho): manchas onde o ruído diz, nas partes baixas
+	var rm := FastNoiseLite.new()
+	rm.seed = 7
+	rm.frequency = 1.0 / 120.0
+	for j in range(0, nz, 3):
+		for i in range(0, nx, 3):
+			var d: float = fora[j * nx + i]
+			if d < 30.0 or d > ALEM * 4.0 - 80.0:
+				continue
+			var v: float = hh[j * nx + i]
+			var x := X0 + i * 4.0 + fmod(i * 7.13, 3.0)
+			var z := Z0 + j * 4.0 + fmod(j * 5.71, 3.0)
+			if v > 1.5 and v < 35.0 and rm.get_noise_2d(x, z) > 0.15 and fmod(absf(x * 12.9898 + z * 78.233), 1.0) < 0.35:
+				arvores.append(Vector2(x, z))
 	# terreno: facetas planas (low poly), cor por vértice
 	var V := PackedVector3Array()
 	var N := PackedVector3Array()
@@ -232,11 +255,88 @@ func _montar_dados() -> void:
 				var v0: float = hh[cj * nx + ci]
 				var incl := sqrt(maxf(0.0, 1.0 - nn.y * nn.y)) / maxf(nn.y, 0.05)
 				var cor := _cor(v0, incl, dens[mini(cj / PASSO, hq - 1) * w + mini(ci / PASSO, w - 1)], praia[cj * nx + ci] == 1)
+				var df: float = fora[cj * nx + ci]
+				if df > 0.0: # terra sem acesso: mais apagada e sumindo na névoa
+					var kf := clampf((df - 60.0) / (ALEM * 4.0 - 100.0), 0.0, 1.0)
+					var cinza := Color(cor.get_luminance(), cor.get_luminance(), cor.get_luminance())
+					cor = cor.lerp(cinza, 0.15 + 0.35 * kf).darkened(0.06 + 0.1 * kf)
 				for v in [a3, b3, c3]:
 					V.append(v)
 					N.append(nn)
 					C.append(cor)
 	_dados = {"V": V, "N": N, "C": C, "arvores": arvores}
+
+# aumenta a grade para os lados: o que é terra na borda continua (o muro de montanha vai baixando para morros e serras
+# de ruído); o que é mar na borda continua mar
+func _alem() -> void:
+	J0 = Vector2(X0, Z0)
+	J1 = ATE
+	var M := ALEM
+	var enx := nx + 2 * M
+	var enz := nz + 2 * M
+	var hx := PackedFloat32Array()
+	hx.resize(enx * enz)
+	fora.resize(enx * enz)
+	var n1 := FastNoiseLite.new()
+	n1.seed = 3
+	n1.frequency = 1.0 / 320.0
+	n1.fractal_octaves = 3
+	var n2 := FastNoiseLite.new()
+	n2.seed = 5
+	n2.frequency = 1.0 / 90.0
+	for J in enz:
+		for I in enx:
+			var i := I - M
+			var j := J - M
+			var k := J * enx + I
+			if i >= 0 and j >= 0 and i < nx and j < nz:
+				hx[k] = hh[j * nx + i]
+				fora[k] = 0.0
+				continue
+			var ci := clampi(i, 0, nx - 1)
+			var cj := clampi(j, 0, nz - 1)
+			var d := Vector2(i - ci, j - cj).length() * 4.0
+			fora[k] = d
+			var x := X0 + i * 4.0
+			var z := Z0 + j * 4.0
+			var a := n1.get_noise_2d(x, z)
+			var b := n2.get_noise_2d(x, z)
+			var borda: float = _borda_lisa(ci, cj, int(a * d * 0.25)) # o litoral de fora entorta com o ruído
+			if borda < 0.5:
+				hx[k] = borda - d * 0.01 + maxf(0.0, a - 0.35) * 40.0 * minf(1.0, d / 200.0) # mar (às vezes uma ilhota)
+				continue
+			# a serra da borda continua por fora, recortada pelo ruído, e vai baixando para morros com mata
+			var perto := exp(-d / 160.0)
+			var serra := maxf(0.0, a * 0.5 + 0.5 + b * 0.25 - 0.25) * (borda * 1.1 * perto + 70.0 * (1.0 - perto))
+			var morro := 3.0 + 12.0 * (a * 0.5 + 0.5) + 4.0 * b
+			var muro := borda * exp(-d / 45.0)
+			hx[k] = maxf(maxf(muro, morro), serra)
+	hh = hx
+	nx = enx
+	nz = enz
+	X0 -= M * 4.0
+	Z0 -= M * 4.0
+	ATE = Vector2(X0 + (nx - 1) * 4.0, Z0 + (nz - 1) * 4.0)
+
+# altura da borda já alisada ao longo dela (sem isso a terra de fora sai em listras)
+func _borda_lisa(ci: int, cj: int, desloc := 0) -> float:
+	var soma := 0.0
+	var n := 0
+	var lado := ci == 0 or ci == nx - 1
+	if lado:
+		cj = clampi(cj + desloc, 0, nz - 1)
+	else:
+		ci = clampi(ci + desloc, 0, nx - 1)
+	for o in range(-6, 7):
+		var i := ci
+		var j := cj
+		if lado:
+			j = clampi(cj + o * 2, 0, nz - 1)
+		else:
+			i = clampi(ci + o * 2, 0, nx - 1)
+		soma += hh[j * nx + i]
+		n += 1
+	return soma / n
 
 func _ponto(i: int, j: int) -> Vector3:
 	return Vector3(X0 + i * 4.0, _y(hh[j * nx + i]), Z0 + j * 4.0)
@@ -252,6 +352,39 @@ static func _cor(v: float, incl: float, mata: float, praia: bool) -> Color:
 	c = c.lerp(Color8(112, 104, 94), clampf((incl - 0.55) * 2.5, 0.0, 1.0)) # pedra nas encostas
 	c = c.lerp(Color8(220, 224, 232), clampf((v - 95.0) / 20.0, 0.0, 1.0)) # neve nos picos
 	return c
+
+# terreno e árvores: longe do mundo andável a cor vira névoa por igual (a luz sai e a névoa entra como emissão, da
+# mesma cor do fundo), então a terra de fora some sem borda
+var _nevoa_mat: ShaderMaterial
+func _mat_nevoa() -> ShaderMaterial:
+	if _nevoa_mat != null:
+		return _nevoa_mat
+	_nevoa_mat = ShaderMaterial.new()
+	_nevoa_mat.shader = Shader.new()
+	_nevoa_mat.shader.code = """shader_type spatial;
+uniform vec4 jogo;
+uniform float alem0;
+uniform float alem;
+uniform vec3 nevoa;
+varying vec3 pw;
+void vertex() { pw = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 q = max(max(jogo.xy - pw.xz, pw.xz - jogo.zw), vec2(0.0));
+	float dq = length(q);
+	float onda = sin(pw.x * 0.0061) * sin(pw.z * 0.0073 + 1.3) * 70.0 + sin(pw.x * 0.017 + pw.z * 0.013) * 28.0; // borda da névoa torta
+	float k = smoothstep(alem0, alem, dq + onda * smoothstep(0.0, alem0, dq));
+	vec3 c = COLOR.rgb;
+	ALBEDO = c * (1.0 - k);
+	ROUGHNESS = 1.0;
+	SPECULAR = 0.5 * (1.0 - k);
+	EMISSION = nevoa * k;
+}"""
+	_nevoa_mat.set_shader_parameter("jogo", Vector4(J0.x, J0.y, J1.x, J1.y))
+	_nevoa_mat.set_shader_parameter("alem0", 90.0)
+	_nevoa_mat.set_shader_parameter("alem", ALEM * 4.0 - 50.0)
+	var nl := COR_NEVOA.srgb_to_linear()
+	_nevoa_mat.set_shader_parameter("nevoa", Vector3(nl.r, nl.g, nl.b))
+	return _nevoa_mat
 
 func _mat(srgb := true) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
@@ -274,7 +407,7 @@ func _montar_cena() -> void:
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color8(24, 46, 66)
+	env.background_color = COR_NEVOA
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color8(150, 165, 190)
 	env.ambient_light_energy = 0.5
@@ -297,7 +430,7 @@ func _montar_cena() -> void:
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	var ter := MeshInstance3D.new()
 	ter.mesh = am
-	ter.material_override = _mat()
+	ter.material_override = _mat_nevoa()
 	mundo3d.add_child(ter)
 	# mar
 	var pm := PlaneMesh.new()
@@ -305,11 +438,30 @@ func _montar_cena() -> void:
 	var mar := MeshInstance3D.new()
 	mar.mesh = pm
 	mar.position = Vector3((X0 + ATE.x) * 0.5, -0.3, (Z0 + ATE.y) * 0.5)
-	var mt := StandardMaterial3D.new()
-	mt.albedo_color = Color(0.10, 0.30, 0.45, 0.80)
-	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mt.roughness = 0.7
-	mt.metallic_specular = 0.2
+	var mt := ShaderMaterial.new() # o mar também some na névoa longe do mundo andável
+	mt.shader = Shader.new()
+	mt.shader.code = """shader_type spatial;
+render_mode cull_disabled;
+uniform vec4 jogo; // x0, z0, x1, z1 do mundo andável
+uniform float alem;
+uniform vec3 nevoa;
+varying vec3 pw;
+void vertex() { pw = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 q = max(max(jogo.xy - pw.xz, pw.xz - jogo.zw), vec2(0.0));
+	float dq = length(q);
+	float onda = sin(pw.x * 0.0061) * sin(pw.z * 0.0073 + 1.3) * 70.0 + sin(pw.x * 0.017 + pw.z * 0.013) * 28.0;
+	float k = clamp((dq + onda * smoothstep(0.0, 60.0, dq)) / alem, 0.0, 1.0);
+	k = smoothstep(0.15, 1.0, k);
+	ALBEDO = vec3(0.10, 0.30, 0.45) * (1.0 - k);
+	ROUGHNESS = 0.7;
+	SPECULAR = 0.2 * (1.0 - k);
+	EMISSION = nevoa * k;
+	ALPHA = mix(0.8, 1.0, k);
+}"""
+	mt.set_shader_parameter("jogo", Vector4(J0.x, J0.y, J1.x, J1.y))
+	mt.set_shader_parameter("alem", ALEM * 4.0 - 50.0)
+	mt.set_shader_parameter("nevoa", Vector3(COR_NEVOA.srgb_to_linear().r, COR_NEVOA.srgb_to_linear().g, COR_NEVOA.srgb_to_linear().b))
 	mar.material_override = mt
 	mar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mundo3d.add_child(mar)
@@ -403,7 +555,7 @@ func _multi(mesh: Mesh, lista: Array, sobe: float, cor: Color) -> void:
 		mmu.set_instance_color(n, cor.lightened(fmod(absf(p.x + p.y), 1.0) * 0.12))
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mmu
-	mi.material_override = _mat()
+	mi.material_override = _mat_nevoa()
 	mundo3d.add_child(mi)
 
 func _vilas() -> void:
@@ -480,8 +632,8 @@ func entrada(ev: InputEvent) -> void:
 			# metros por px no meio da tela, mais ou menos: anda o mapa junto com o dedo
 			var k: float = dist * tan(deg_to_rad(cam.fov * 0.5)) * 2.0 / maxf(size.y, 1.0)
 			foco_alvo -= Vector3(ev.relative.x * k, 0.0, ev.relative.y * k / sin(deg_to_rad(INCL)))
-			foco_alvo.x = clampf(foco_alvo.x, X0, ATE.x)
-			foco_alvo.z = clampf(foco_alvo.z, Z0, ATE.y)
+			foco_alvo.x = clampf(foco_alvo.x, J0.x - 150.0, J1.x + 150.0)
+			foco_alvo.z = clampf(foco_alvo.z, J0.y - 150.0, J1.y + 150.0)
 			foco = foco_alvo
 
 func _toque(pos: Vector2) -> void:
@@ -522,7 +674,7 @@ func _no_chao(lp: Vector2):
 	while t < 6000.0:
 		var p := o + d * t
 		if p.y <= alt(p.x, p.z):
-			if p.x < X0 or p.x > ATE.x or p.z < Z0 or p.z > ATE.y:
+			if p.x < J0.x or p.x > J1.x or p.z < J0.y or p.z > J1.y: # terra sem acesso não marca
 				return null
 			return Vector2(p.x, p.z)
 		t += passo
