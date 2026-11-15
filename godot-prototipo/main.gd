@@ -4440,6 +4440,8 @@ func montando() -> bool:
 		return true
 	if vilas_mundo != null and vilas_mundo.pendente():
 		return true
+	if nevoa != null and nevoa.pendente():
+		return true
 	return caverna != null and caverna.monstros_pendentes()
 
 # Os modelos grandes (vila, corpos, monstros) começam a carregar todos juntos, em várias linhas do processador, logo no
