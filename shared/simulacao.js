@@ -427,6 +427,7 @@ export class Simulacao {
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
     j.amigos = new Map(); // conta do amigo -> nome (o servidor carrega da conta: definirAmigos)
+    j.pedidosRec = new Map(); j.pedidosEnv = new Map(); // pedidos a distância (busca por nome): recebidos e enviados, conta -> nome
     j.time = null;
     this.jogadores.set(id, j);
     this.avisarProg(j);
@@ -2113,9 +2114,14 @@ export class Simulacao {
   // Time: só com amigo e na mesma sala, até TIME.max pessoas. Quem está no time vê a vida e a mana dos outros (evento 'time')
   // e ganha XP e drop dos monstros que caem perto dele (morrer).
   porConta(c) { for (const j of this.jogadores.values()) if (j.conta === c) return j; return null; }
-  definirAmigos(id, lista) {
+  definirAmigos(id, lista, pedidos) {
     const j = this.jogadores.get(id); if (!j) return;
     j.amigos = new Map((Array.isArray(lista) ? lista : []).slice(0, AMIGOS.max).map((a) => [String(a.c), String(a.nome || '')]));
+    if (pedidos) { // pedidos a distância guardados na conta (server/contas.js pedidos)
+      const mapa = (l) => new Map((Array.isArray(l) ? l : []).filter((a) => !j.amigos.has(String(a.c))).slice(0, 50).map((a) => [String(a.c), String(a.nome || '')]));
+      j.pedidosRec = mapa(pedidos.rec); j.pedidosEnv = mapa(pedidos.env);
+      if (j.pedidosRec.size) this.evento({ t: 'aviso', para: j.id, texto: `Pedidos de amizade: ${j.pedidosRec.size}` });
+    }
     this.enviarAmigos(j);
     for (const o of this.jogadores.values()) if (o !== j && o.amigos?.has(j.conta)) {
       this.evento({ t: 'aviso', para: o.id, texto: `Seu amigo ${j.nome} entrou no jogo` });
@@ -2134,12 +2140,93 @@ export class Simulacao {
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
     const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
-    this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais });
+    const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
+    const pedidos = [...(j.pedidosRec || [])].map(([c, nome]) => ({ c, nome: this.porConta(c)?.nome || nome, on: onde(c) })); // pedidos a distância esperando resposta
+    this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais, pedidos });
+  }
+  // ---------- adicionar amigo a distância, pela busca do nome (André 2026-11-15) ----------
+  // Multijogador > Amigos > Adicionar: busca o nome (em todas as contas, online ou não), "Pedir" manda o pedido. Ele fica
+  // guardado na conta (aoPedidoAmizade) até a outra pessoa aceitar ou recusar, mesmo que ela esteja offline ou em outra
+  // sala. Tocar no jogador no mundo continua valendo (acao 'pedir'). todasSims: as salas abertas (o servidor põe).
+  sims() { return this.todasSims?.() || [this]; }
+  noJogo(c, f) { for (const s of this.sims()) { const o = s.porConta(c); if (o) f(o, s); } }
+  amigoBuscar(j, nome) {
+    const aviso = (texto) => this.evento({ t: 'aviso', para: j.id, texto });
+    const termo = String(nome || '').trim().slice(0, 20);
+    if (termo.length < AMIGOS.buscaMin) return aviso(`Digite ao menos ${AMIGOS.buscaMin} letras`);
+    if ((j.buscaT ?? -99) > this.tempo - AMIGOS.entreBuscas) return;
+    j.buscaT = this.tempo;
+    let achou = this.buscarContas?.(termo, j.conta);
+    if (!Array.isArray(achou)) { // sem banco (teste, servidor local): quem está nas salas abertas
+      const tira = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+      const k = tira(termo); achou = [];
+      for (const s of this.sims()) for (const o of s.jogadores.values()) if (!o.bot && !o.robo && o.conta && o.conta !== j.conta && tira(o.nome).includes(k) && !achou.some((a) => a.c === o.conta)) achou.push({ c: o.conta, nome: o.nome });
+    }
+    achou = achou.filter((a) => a.c !== j.conta).slice(0, AMIGOS.buscaMax);
+    j.busca = new Map(achou.map((a) => [a.c, a.nome])); // só dá para pedir quem apareceu na busca
+    const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
+    const lista = achou.map((a) => ({ c: a.c, nome: a.nome, on: onde(a.c), amigo: j.amigos.has(a.c), env: j.pedidosEnv.has(a.c), rec: j.pedidosRec.has(a.c) }));
+    this.evento({ t: 'amigoBusca', para: j.id, termo, lista });
+  }
+  amigoPedirConta(j, c) {
+    const aviso = (texto, para = j.id) => this.evento({ t: 'aviso', para, texto });
+    if (j.pedidosRec.has(c)) return this.amigoAceitarConta(j, c); // a outra pessoa já tinha pedido: viram amigos
+    const nome = j.busca?.get(c); if (!nome || c === j.conta) return;
+    if (j.amigos.has(c)) return aviso(`${nome} já é seu amigo`);
+    if (j.pedidosEnv.has(c)) return aviso(`Pedido já enviado para ${nome}`);
+    if (j.amigos.size >= AMIGOS.max) return aviso(`Sua lista já tem ${AMIGOS.max} amigos`);
+    let cheia = false; this.noJogo(c, (o) => { if (o.amigos.size >= AMIGOS.max) cheia = true; });
+    if ((j.amigoPedidoT ?? -99) > this.tempo - AMIGOS.entrePedidos) return aviso('Espere um pouquinho para pedir de novo');
+    const r = cheia ? 'cheia' : this.aoPedidoAmizade ? this.aoPedidoAmizade(j.conta, c, true) : true;
+    if (r === 'cheia') return aviso(`A lista de ${nome} já está cheia`);
+    if (r !== true) return aviso('Não deu para enviar o pedido agora');
+    j.amigoPedidoT = this.tempo;
+    j.pedidosEnv.set(c, nome);
+    this.noJogo(c, (o, s) => {
+      o.pedidosRec.set(j.conta, j.nome);
+      s.evento({ t: 'amigo', para: o.id, fase: 'pedidoC', c: j.conta, nome: j.nome, dur: AMIGOS.pedido });
+      s.enviarAmigos(o);
+    });
+    aviso(`Pedido de amizade enviado para ${nome}`);
+  }
+  amigoAceitarConta(j, c) {
+    const aviso = (texto, para = j.id) => this.evento({ t: 'aviso', para, texto });
+    if (!j.pedidosRec.has(c)) return;
+    const nome = j.pedidosRec.get(c);
+    if (j.amigos.size >= AMIGOS.max) return aviso(`Sua lista já tem ${AMIGOS.max} amigos`);
+    let cheia = false; this.noJogo(c, (o) => { if (o.amigos.size >= AMIGOS.max) cheia = true; });
+    if (cheia) return aviso(`A lista de ${nome} já está cheia`);
+    if (this.aoAmizade && !this.aoAmizade(j.conta, c, true)) return aviso('Não deu para salvar a amizade agora');
+    this.tirarPedidos(j.conta, c);
+    j.amigos.set(c, nome);
+    this.noJogo(c, (o, s) => {
+      o.amigos.set(j.conta, j.nome);
+      s.evento({ t: 'aviso', para: o.id, texto: `${j.nome} agora é seu amigo!` });
+      s.enviarAmigos(o);
+    });
+    aviso(`${this.porConta(c)?.nome || nome} agora é seu amigo!`);
+    this.enviarAmigos(j);
+  }
+  amigoRecusarConta(j, c) {
+    if (!j.pedidosRec.has(c)) return;
+    this.tirarPedidos(j.conta, c);
+    this.noJogo(c, (o, s) => { s.evento({ t: 'aviso', para: o.id, texto: `${j.nome} recusou o pedido de amizade` }); s.enviarAmigos(o); });
+    this.enviarAmigos(j);
+  }
+  // os pedidos entre as duas contas (nos dois sentidos) somem do banco e da memória de quem estiver jogando
+  tirarPedidos(a, b) {
+    this.aoPedidoAmizade?.(a, b, false); this.aoPedidoAmizade?.(b, a, false);
+    const limpa = (x, y) => this.noJogo(x, (o) => { o.pedidosRec?.delete(y); o.pedidosEnv?.delete(y); });
+    limpa(a, b); limpa(b, a);
   }
   amigo(id, m) {
     const j = this.jogadores.get(id); if (!j || !m) return;
     const aviso = (texto, para = id) => this.evento({ t: 'aviso', para, texto });
     if (m.acao === 'lista') return this.enviarAmigos(j);
+    if (m.acao === 'buscar') return this.amigoBuscar(j, m.nome);
+    if (m.acao === 'pedirC') return this.amigoPedirConta(j, String(m.c || ''));
+    if (m.acao === 'aceitarC') return this.amigoAceitarConta(j, String(m.c || ''));
+    if (m.acao === 'recusarC') return this.amigoRecusarConta(j, String(m.c || ''));
     if (m.acao === 'remover') {
       const c = String(m.c || ''); if (!j.amigos.has(c)) return;
       const nome = j.amigos.get(c);
@@ -2168,6 +2255,7 @@ export class Simulacao {
       j.pedidoAmigo = null; o.pedidoAmigo = null;
       if (this.aoAmizade && !this.aoAmizade(j.conta, o.conta, true)) return aviso('Não deu para salvar a amizade agora');
       j.amigos.set(o.conta, o.nome); o.amigos.set(j.conta, j.nome);
+      this.tirarPedidos(j.conta, o.conta); // havia pedido a distância entre os dois: some
       aviso(`${o.nome} agora é seu amigo!`); aviso(`${j.nome} agora é seu amigo!`, o.id);
       this.enviarAmigos(j); this.enviarAmigos(o);
       return;

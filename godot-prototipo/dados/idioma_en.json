@@ -3340,5 +3340,21 @@
 "Bora fazer alguma coisa juntos? Me chama pro time.": "Wanna do something together? Invite me to the team.",
 "pescar": "fishing",
 "minerar": "mining",
-"cortar lenha": "chop wood"
+"cortar lenha": "chop wood",
+"Adicionar": "Add",
+"Pedidos (%d)": "Requests (%d)",
+"Toque no jogador no mundo ou use \"Adicionar\".": "Tap a player in the world or use \"Add\".",
+"Nome do jogador": "Player name",
+"Digite ao menos 2 letras": "Type at least 2 letters",
+"Digite ao menos {1} letras": "Type at least {1} letters",
+"Busque pelo nome do personagem.": "Search by character name.",
+"Ninguém com esse nome": "No one by that name",
+"aqui": "here",
+"offline": "offline",
+"Amigo": "Friend",
+"Enviado": "Sent",
+"Pedir": "Request",
+"Pedido já enviado para {1}": "Request already sent to {1}",
+"Não deu para enviar o pedido agora": "Couldn't send the request right now",
+"Pedidos de amizade: {1}": "Friend requests: {1}"
 }
