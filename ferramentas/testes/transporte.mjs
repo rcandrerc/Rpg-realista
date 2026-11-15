@@ -142,6 +142,20 @@ let tx = j.x, tz = j.z; while (fundo(tx, tz) > 0.05) tz -= 0.5;
 j.z = tz + 2; // remou até perto da margem
 s.eventos = []; s.veiculo('P', { acao: 'descer' }); // acha a margem sozinho
 ok(!j.veiculo && j.prog.mochila.some((o) => o?.k === 'barquinho'), 'desceu na margem e o barquinho voltou para a mochila: ' + avisos().join(' | '));
+// cadeado (André 2026-11-15: "travei ele... e sumiu da bag"): o barquinho volta da água ainda trancado
+{ const ib = j.prog.mochila.findIndex((o) => o?.k === 'barquinho'); j.prog.mochila[ib].cad = 1;
+  ir(bx, bz - 1); j.ry = 0; s.veiculo('P', { acao: 'colocar', k: 'barquinho' });
+  ok(j.veiculo === 'barquinho' && !j.prog.mochila.some((o) => o?.k === 'barquinho'), 'trancado também vai para a água');
+  const gravado = progressoValido(s.progParaSalvar(j));
+  ok(gravado.mochila.some((o) => o?.k === 'barquinho' && o.cad), 'gravado no meio do lago (reinício do servidor): volta trancado');
+  ok(j.prog.vcad?.barquinho === 1, 'a cópia gravada não mexe no cadeado de quem está remando');
+  ok(progressoValido({ ...j.prog }).vcad?.barquinho === 1, 'o cadeado do barco na água fica salvo na conta');
+  j.z = tz + 2; s.veiculo('P', { acao: 'descer' });
+  ok(!j.veiculo && j.prog.mochila.some((o) => o?.k === 'barquinho' && o.cad) && !j.prog.vcad, 'desceu: o barquinho volta para a mochila com o cadeado');
+  const i2 = j.prog.mochila.findIndex((o) => o?.k === 'barquinho');
+  delete j.prog.mochila[i2].cad;
+  ir(bx, bz - 1); j.ry = 0; s.veiculo('P', { acao: 'colocar', k: 'barquinho' }); j.z = tz + 2; s.veiculo('P', { acao: 'descer' });
+  ok(j.prog.mochila.some((o) => o?.k === 'barquinho' && !o.cad), 'sem cadeado continua sem cadeado'); }
 // navio: Nv 60 e 40.000 de ouro
 s.eventos = []; j.prog.nivel = 10; j.prog.ouro = 50000;
 ok(/Nv 60/.test(s.motivoFabricar(j, 'navio')), 'navio pede Nv 60');
