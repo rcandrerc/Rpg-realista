@@ -992,7 +992,7 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 	if k == "carrinho":
 		var C: Dictionary = V.carrinho
 		if mag > 0.12:
-			dif = ad(atan2(mx, mz), ry)
+			dif = _volante(atan2(mx, mz))
 			ry += clamp(dif, -float(C.giro) * dt, float(C.giro) * dt) * (0.55 + 0.45 * min(1.0, absf(v) / 2.0 + 0.3))
 		var tem: bool = tr != null and tr.tem_combustivel()
 		var cap = jogo.P.prog.get("carrinho", {})
@@ -1032,14 +1032,14 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 		if k == "navio": # mgNvMv: empuxo pelo cosseno do ângulo, acelera 0,9 m/s²
 			var th := 0.0
 			if mag > 0.12:
-				dif = ad(atan2(mx, mz), ry)
+				dif = _volante(atan2(mx, mz))
 				th = mag * max(0.25, cos(dif))
 				ry += clamp(dif, -1.0, 1.0) * (0.3 + 0.4 * min(1.0, absf(v) / 2.0)) * dt
 			v += clamp(th * float(B.vel) - v, -float(B.acelera) * dt, float(B.acelera) * dt)
 		else: # Oy: remada. 2026-11-09 (André: "o barco tá muito rápido"): mais lento (dados.js), com peso: só ganha
 			# velocidade com as pás na água (transporte.gd _remar manda "empurra") e desliza entre uma remada e outra
 			if mag > 0.12:
-				dif = ad(atan2(mx, mz), ry)
+				dif = _volante(atan2(mx, mz))
 				ry += clamp(dif, -float(B.giro) * dt, float(B.giro) * dt) * (0.4 + 0.6 * min(1.0, absf(v) / 1.5 + 0.25))
 			var rema: float = mag * (1.0 - min(0.55, absf(clamp(dif, -1.2, 1.2)) * 0.45)) if mag > 0.12 else 0.0
 			veiculo.quer = rema
@@ -1066,6 +1066,8 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 		y = float(T.agua.nivel)
 		vy = 0.0
 		chao = true
+	if mag <= 0.12: # soltou o joystick: a próxima curva escolhe o lado de novo
+		_lado_giro = 0.0
 	veiculo.v = v
 	vx = sin(ry) * v
 	vz = cos(ry) * v
@@ -1073,3 +1075,23 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 	anim = ""
 var _sem_comb_t := 0.0
 var _aviso_agua_t := 0.0
+
+# Volante dos veículos (André 2026-11-15: "dando 360 com barco/carrinho o controle buga, muda a direção"). O joystick
+# aponta para onde ir e o veículo vira pelo lado mais curto. Na volta inteira o alvo passa por trás do veículo
+# (perto de 180°): ali o lado mais curto trocava de um quadro para o outro e o barco virava para o outro lado.
+# Agora, já virando para um lado, ele continua para esse lado enquanto o alvo estiver lá atrás (mais de VOLANTE_TRAS
+# do outro lado); só troca quando o joystick aponta claramente para o outro lado, na frente.
+const VOLANTE_TRAS := 2.5 # rad (~143°)
+var _lado_giro := 0.0 # +1 / -1: lado para onde o veículo está virando; 0 = livre (joystick solto ou alinhado)
+func _volante(alvo: float) -> float:
+	var r := volante(ad(alvo, ry), _lado_giro)
+	if absf(r) > 0.05:
+		_lado_giro = signf(r)
+	return r
+
+# dif = ângulo do alvo menos o rumo (-PI..PI); lado = para onde já vinha virando. Devolve quanto falta virar,
+# podendo passar de PI (continua a volta pelo mesmo lado).
+static func volante(dif: float, lado: float) -> float:
+	if lado != 0.0 and signf(dif) != lado and absf(dif) > VOLANTE_TRAS:
+		return dif + lado * TAU
+	return dif

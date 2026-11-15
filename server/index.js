@@ -539,6 +539,12 @@ function guardarLentidao(c, e, sala) {
     const r = { servidor: Date.now(), tipo: 'entrada' };
     for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    // quanto cada parte da abertura levou (main.gd _passo, ms): só números, nomes curtos, no máximo 40
+    if (e.partes && typeof e.partes === 'object' && !Array.isArray(e.partes)) {
+      const p = {};
+      for (const [k, v] of Object.entries(e.partes).slice(0, 40)) if (/^[a-z_:0-9]{1,24}$/.test(k) && Number.isFinite(v)) p[k] = Math.round(v);
+      if (Object.keys(p).length) r.partes = p;
+    }
     return guardarLinha(aparelhoLentidao(e, r));
   }
   if (e.tipo === 'resumo') {
