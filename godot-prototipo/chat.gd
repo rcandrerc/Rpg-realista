@@ -227,7 +227,7 @@ class BotaoChat extends Control:
 			draw_arc(c, r - 2.0, -PI * 0.5, -PI * 0.5 + TAU * k, 32, Color(0.95, 0.82, 0.55), 3.0, true)
 		if dica > 0.0:
 			var f := ThemeDB.fallback_font
-			var t := "Segure para abrir o chat"
+			var t := Idioma.frase("Segure para abrir o chat")
 			var p := Vector2(size.x + 6, c.y + 5)
 			draw_string_outline(f, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.8 * min(1.0, dica)))
 			draw_string(f, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.92, 0.75, min(1.0, dica)))
@@ -553,7 +553,7 @@ func montar() -> void:
 	elif aba == "time":
 		campo.placeholder_text = "Escreva para todo o time…"
 	else:
-		campo.placeholder_text = "Mensagem privada para %s…" % _nome_pm(chave)
+		campo.placeholder_text = Idioma.t("Mensagem privada para %s…") % _nome_pm(chave)
 	for c in lista.get_children():
 		lista.remove_child(c)
 		c.queue_free()

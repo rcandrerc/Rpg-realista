@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Minimapa (pedido do André 2026-11-03): redondo no canto de cima à direita, com o menu do topo à esquerda dele, com o norte
 # para cima. Mostra a mata, a estrada, as clareiras de caça (bolinha na cor do bicho com o nível), o veio de cobre,
 # os outros jogadores e o herói (seta) com o lado para onde a câmera olha. Tocar nele abre o mapa completo, com o nome
@@ -811,6 +812,7 @@ func _seta(c: Control, pos: Vector2, dir: Vector2, tam: float, cor: Color) -> vo
 	c.draw_colored_polygon(pts2, cor)
 
 func _texto(c: Control, pos: Vector2, t: String, tam: int, cor: Color, centro := true, contorno := 5) -> void:
+	t = Idioma.frase(t) # inglês: nome de clareira, "Monsters  Lv 5" (guardado em cache: barato a cada quadro)
 	var w: float = fonte.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x
 	var p := pos - Vector2(w * 0.5 if centro else 0.0, -tam * 0.35)
 	if contorno > 0:

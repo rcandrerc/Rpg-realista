@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
 # Amigos e time (André 2026-11-05: "lista de amigos até 20 e poder dar time pro amigo"; "aparecer barrinha de vida e mana
 # do amigo quando estiver em time"). Só online: quem decide é o servidor (shared/simulacao.js amigo/time); a lista fica
 # gravada na conta. Tocar noutro jogador (troca.gd) oferece "Adicionar amigo" e "Chamar pro time"; a lista e o time ficam
@@ -179,12 +180,12 @@ func _desenhar_barras() -> void:
 		var nome := str(t.get("nome", ""))
 		if m.tempo < esquecido_ate:
 			nome = "· · ·"
-		var cab := "%s%s  Nv %d" % ["★ " if str(t.id) == lider else "", nome, int(t.get("nivel", 1))]
+		var cab := ("%s%s  " + Idioma.t("Nv %d")) % ["★ " if str(t.id) == lider else "", nome, int(t.get("nivel", 1))]
 		_barras.draw_string_outline(f, p + Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, 3, Color(0, 0, 0, 0.7))
 		_barras.draw_string(f, p + Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, COR_TIME if not morto else Color(0.75, 0.6, 0.6))
 		var fv: float = float(t.get("vida", 0)) / max(1.0, float(t.get("vidaMax", 1)))
 		var fm: float = float(t.get("mana", 0)) / max(1.0, float(t.get("manaMax", 1)))
-		_barra(p + Vector2(8, 17), Vector2(tam.x - 16, 10), fv, Color(0.8, 0.22, 0.2), "CAÍDO" if morto else "%d/%d" % [int(t.get("vida", 0)), int(t.get("vidaMax", 0))])
+		_barra(p + Vector2(8, 17), Vector2(tam.x - 16, 10), fv, Color(0.8, 0.22, 0.2), Idioma.t("CAÍDO") if morto else "%d/%d" % [int(t.get("vida", 0)), int(t.get("vidaMax", 0))])
 		_barra(p + Vector2(8, 29), Vector2(tam.x - 16, 4), fm, Color(0.22, 0.45, 0.85), "")
 		y += tam.y + 4.0
 	_barras.draw_set_transform(Vector2.ZERO)

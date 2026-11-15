@@ -59,6 +59,30 @@ static func trocar(codigo: String) -> void:
 	cfg.load(ARQUIVO)
 	cfg.set_value("idioma", "codigo", codigo)
 	cfg.save(ARQUIVO)
+	var arvore := Engine.get_main_loop()
+	if arvore is SceneTree:
+		_refazer((arvore as SceneTree).root)
+
+# André 2026-11-15: trocou para English no meio do jogo e textos já montados (status do topo, dicas, janelas
+# guardadas escondidas) ficavam no idioma de antes até abrir o jogo de novo. Na troca passa uma vez por todo texto
+# na tela: o que é chave inteira o Godot já traduz sozinho; o resto vai pela frase (e volta pelo que ela guardou).
+static var _volta := {} # inglês -> português, das frases já traduzidas
+static func _refazer(n: Node) -> void:
+	if n is Label or n is Button or n is RichTextLabel or n is Label3D:
+		var t: String = n.text
+		if n is Button and n.has_meta("pt"):
+			n.text = frase(str(n.get_meta("pt")))
+		elif t != "" and not t.is_valid_float():
+			var novo := t
+			if atual == "en":
+				if not (n.can_auto_translate() and TranslationServer.translate(t) != t):
+					novo = frase(t)
+			elif _volta.has(t):
+				novo = _volta[t]
+			if novo != t:
+				n.text = novo
+	for f in n.get_children():
+		_refazer(f)
 
 static func ingles() -> bool:
 	return atual == "en"
@@ -117,6 +141,8 @@ static func frase(texto: String) -> String:
 	if _cache.size() > 600:
 		_cache.clear()
 	_cache[texto] = r
+	if r != texto and _volta.size() < 4000:
+		_volta[r] = texto
 	return r
 
 static func _frase(texto: String, fundo: int) -> String:

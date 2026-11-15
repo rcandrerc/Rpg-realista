@@ -1677,7 +1677,7 @@ func _info_planta(h: Dictionary, perto: bool) -> void:
 		cor_barra = Color(0.35, 0.7, 1.0)
 		linha2 = "Regada"
 		txt.modulate = Color(0.85, 0.93, 1.0)
-	txt.text = "%s %d%%\n%s" % [P.nome, int(cr * 100.0), linha2]
+	txt.text = "%s %d%%\n%s" % [Idioma.t(str(P.nome)), int(cr * 100.0), Idioma.t(linha2)]
 	# barra: o pedaço cheio cresce da esquerda (center_offset no espaço da malha acompanha o billboard)
 	var cheio: MeshInstance3D = info.get_node("cheio")
 	var q: QuadMesh = cheio.mesh
@@ -2279,7 +2279,7 @@ func fabricando(ev: Dictionary) -> void:
 		barra_fab.value = 1.0 if _fab.feito >= int(_fab.n) else barra_fab.value
 		txt_fab.text = Idioma.frase(("Pronto: %d %s" % [_fab.feito, nome]) if _fab.feito > 0 else "Parou de criar")
 		if str(ev.get("msg", "")) != "": # destruir/evoluir (catalisador): o resultado fica um pouco mais na barrinha
-			txt_fab.text = str(ev.msg)
+			txt_fab.text = Idioma.frase(str(ev.msg))
 			_fab.fim = Time.get_ticks_msec() / 1000.0 + 3.0
 		return
 	_fab = {"k": k, "nome": nome, "v": str(ev.get("v", "Criando")), "n": int(ev.get("n", 1)), "feito": int(ev.get("feito", 0)), "dur": maxf(0.1, float(ev.get("dur", 3.0))), "ini": Time.get_ticks_msec() / 1000.0}
@@ -2295,7 +2295,7 @@ func _passo_fab() -> void:
 			painel_fab.visible = false
 		return
 	barra_fab.value = clampf((agora - float(_fab.ini)) / float(_fab.dur), 0.0, 1.0)
-	txt_fab.text = "%s %s · %d de %d" % [_fab.get("v", "Criando"), _fab.nome, int(_fab.feito) + 1, int(_fab.n)]
+	txt_fab.text = Idioma.t("%s %s · %d de %d") % [Idioma.frase(str(_fab.get("v", "Criando"))), Idioma.frase(str(_fab.nome)), int(_fab.feito) + 1, int(_fab.n)] # inglês: "Crafting Iron Bar · 2 of 3"
 
 # catalisador (André 2026-11-07): cada peça destruída mostra o que deu ("+1 Selo Raro"), na cor da raridade
 func destruiu(ev: Dictionary) -> void:
@@ -3443,7 +3443,7 @@ func _atualizar_compra() -> void:
 		_mostrar_alcas(false)
 		txt_compra.text = "1. Encoste o dedo no chão e arraste para marcar o terreno"
 		txt_compra.add_theme_color_override("font_color", Menu.TEXTO)
-		txt_compra_info.text = "%d de ouro por bloco de 1 x 1 m · lados de %d a %d m · você tem %d de ouro" % [int(D.lote.precoBloco), int(D.lote.ladoMin), int(D.lote.ladoMax), ouro]
+		txt_compra_info.text = Idioma.t("%d de ouro por bloco de 1 x 1 m · lados de %d a %d m · você tem %d de ouro") % [int(D.lote.precoBloco), int(D.lote.ladoMin), int(D.lote.ladoMax), ouro]
 		b_comprar.disabled = true
 		if _ret_no:
 			_ret_no.visible = false
@@ -3456,7 +3456,7 @@ func _atualizar_compra() -> void:
 	if _ret_motivo == "" and ouro < preco:
 		_ret_motivo = "Faltam %d de ouro" % (preco - ouro)
 	var ok := _ret_motivo == ""
-	txt_compra.text = "%d x %d m = %d blocos · %d de ouro" % [w, d, w * d, preco]
+	txt_compra.text = Idioma.t("%d x %d m = %d blocos · %d de ouro") % [w, d, w * d, preco]
 	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if ok else Color("ffb3a3"))
 	txt_compra_info.text = Idioma.frase(("2. Ajuste: toque no + ou - de um lado (1 m) ou arraste um canto dourado · 3. Comprar · você tem %d de ouro" % ouro) if ok else _ret_motivo)
 	b_comprar.disabled = not ok
@@ -3505,7 +3505,7 @@ func _atualizar_mudar(ouro: int) -> void:
 	var igual: bool = int(_ret.x0) == int(L.def.x0) and int(_ret.z0) == int(L.def.z0) and int(_ret.x1) == int(L.def.x1) and int(_ret.z1) == int(L.def.z1)
 	var ok := _ret_motivo == "" and not igual
 	var preco_txt := ("paga %d de ouro" % custo) if custo > 0 else (("recebe %d de ouro" % -custo) if custo < 0 else "sem custo")
-	txt_compra.text = "%d x %d m = %d blocos · %s" % [w, d, w * d, preco_txt]
+	txt_compra.text = Idioma.t("%d x %d m = %d blocos · %s") % [w, d, w * d, Idioma.frase(preco_txt)]
 	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if (ok or igual) else Color("ffb3a3"))
 	if igual:
 		txt_compra_info.text = Idioma.frase("1. Toque no + de um lado para crescer 1 m (- encolhe) ou arraste um canto dourado · 2. Confirmar · aumentar: %d por bloco, diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
@@ -4764,7 +4764,7 @@ func _montar_itens() -> void:
 		b_salvar.text = Idioma.frase(str(b_salvar.get_meta("pt")))
 		b_limpar.visible = b_salvar.visible
 	if aba == "fazenda" and n_plano > 0:
-		txt_nome.text += (" · " if txt_nome.text != "" else "") + "%d marcados: toque em Salvar" % n_plano
+		txt_nome.text += (" · " if txt_nome.text != "" else "") + Idioma.t("%d marcados: toque em Salvar") % n_plano
 
 # Salvar o plano da fazenda: sai do modo construção e o herói vai fazendo cada tarefa marcada (fazenda_plano.gd)
 func salvar_plano() -> void:

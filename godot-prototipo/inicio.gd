@@ -131,7 +131,7 @@ func _process(_d: float) -> void:
 		var feito := http.get_downloaded_bytes()
 		if total > 0:
 			barra.value = 100.0 * feito / total
-			detalhe.text = "%s de %s" % [_mb(feito), _mb(total)]
+			detalhe.text = ("%s " + _en("de") + " %s") % [_mb(feito), _mb(total)]
 		else:
 			detalhe.text = _mb(feito)
 
@@ -430,7 +430,7 @@ func _casca_versao_instalada() -> String:
 
 func _versao(v: String) -> void:
 	if versao_rot:
-		versao_rot.text = ("versão " + v) if v != "" else ""
+		versao_rot.text = _en("versão " + v) if v != "" else ""
 
 func _casca_estado() -> ConfigFile:
 	var est := ConfigFile.new()
@@ -563,7 +563,7 @@ func _montar_tela() -> void:
 	detalhe = _rotulo(15, Color(TEXTO, 0.75))
 	caixa.add_child(detalhe)
 	pular = Button.new()
-	pular.text = "Jogar sem atualizar"
+	pular.text = _en("Jogar sem atualizar")
 	pular.flat = true
 	pular.visible = false
 	pular.add_theme_color_override("font_color", Color(TEXTO, 0.7))
@@ -579,7 +579,7 @@ func _montar_tela() -> void:
 	pular.offset_bottom = -12
 	add_child(pular)
 	tentar = Button.new()
-	tentar.text = "Tentar de novo"
+	tentar.text = _en("Tentar de novo")
 	tentar.visible = false
 	tentar.add_theme_font_size_override("font_size", 18)
 	tentar.custom_minimum_size = Vector2(220, 44)
@@ -607,8 +607,36 @@ func _rotulo(tam: int, cor: Color) -> Label:
 
 func _texto(a: String, b: String) -> void:
 	print("[atualização] ", a, " ", b) # aparece no logcat
-	aviso.text = a
-	detalhe.text = b
+	aviso.text = _en(a)
+	detalhe.text = _en(b)
+
+# Inglês da abertura (André 2026-11-15: jogando em inglês, a tela de atualização vinha em português). Este arquivo não
+# pode carregar o idioma.gd do jogo (a versão velha ficaria no cache), então o inglês daqui mora aqui mesmo. Lê a
+# escolha das Configurações (user://config.cfg, a mesma do idioma.gd); sem escolha, o idioma do celular.
+const EN := {"Procurando atualização…": "Checking for updates…", "Tem um APK novo do jogo": "There's a new game APK",
+	"Baixe o APK mais recente para receber as próximas atualizações.": "Get the latest APK to keep receiving updates.",
+	"Baixando atualização…": "Downloading update…", "Conferindo…": "Checking…", "Atualizado!": "Updated!",
+	"Não deu para baixar agora": "Couldn't download right now", "Abrindo a versão que já está no celular.": "Opening the version already on your phone.",
+	"Abrindo a versão que já está no computador.": "Opening the version already on your computer.",
+	"Baixando o jogo (primeira vez)…": "Downloading the game (first time)…", "Abrindo…": "Opening…",
+	"Não deu para baixar o jogo": "Couldn't download the game", "Confira a internet e toque em Tentar de novo.": "Check your internet and tap Try again.",
+	"Sem internet": "No internet", "Na primeira vez o jogo precisa ser baixado. Conecte e toque em Tentar de novo.": "The first time, the game needs to download. Connect and tap Try again.",
+	"O jogo baixado veio com defeito": "The download was corrupted", "Toque em Tentar de novo para baixar outra vez.": "Tap Try again to download it again.",
+	"Jogar sem atualizar": "Play without updating", "Tentar de novo": "Try again", "versão": "version", "de": "of", "parado": "stalled"}
+var _ingles = null
+func _en(t: String) -> String:
+	if _ingles == null:
+		var cfg := ConfigFile.new()
+		cfg.load("user://config.cfg")
+		var c := str(cfg.get_value("idioma", "codigo", ""))
+		_ingles = c == "en" or (c == "" and OS.get_locale_language() == "en")
+	if not _ingles or t == "":
+		return t
+	if EN.has(t):
+		return EN[t]
+	if t.begins_with("versão "):
+		return "version " + t.substr(7)
+	return t
 
 # velocidade do download e quanto falta (André 2026-11-12: "mostrar quanto já foi, quanto falta e a velocidade, só
 # para ter noção se está baixando"): mede a cada meio segundo e suaviza; parado 5 s mostra "parado" (internet caiu)
