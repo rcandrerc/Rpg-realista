@@ -868,6 +868,20 @@ const LADO_QUICA := {"ang": -11.0, "giro": 16.0, "pe": Vector3(0.05, 0.9, 0.31),
 # tempos do golpe novo (fração da batida): ergue, desce, bate, quica, volta
 const LADO_T := {"ergue": 0.38, "bate": 0.5, "quica": 0.6, "solta": 0.7}
 
+# molas do molejo: x = valor, v = velocidade. Pouco amortecida para passar um pouco do ponto e voltar.
+const MOLEJO_K := 170.0
+const MOLEJO_AMORT := 13.0
+const MOLEJO_BALANCO := 0.018 # m
+var _molas := {}
+
+func _mola(nome: String, alvo: float, dt: float) -> void:
+	if not _molas.has(nome) or duas.peso < 0.05: # começando: parte do lugar certo
+		_molas[nome] = {"x": alvo, "v": 0.0}
+	var m2: Dictionary = _molas[nome]
+	dt = min(dt, 0.05)
+	m2.v += ((alvo - float(m2.x)) * MOLEJO_K - float(m2.v) * MOLEJO_AMORT) * dt
+	m2.x += float(m2.v) * dt
+
 func _pose_golpe(o: Dictionary) -> Dictionary:
 	return LADO_TRONCO if o.tipo == "arvore" else PEDRA2_GOLPE
 
@@ -950,10 +964,29 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
 	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
 	duas.cabo = cabo
-	duas.curva = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
-	duas.agacha = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
-	duas.avanco = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
-	duas.torcao = deg_to_rad(lerp(float(A.get("tor", 0.0)), float(B.get("tor", 0.0)), k))
+	var alvo_cur: float = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
+	var alvo_ag: float = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
+	var alvo_av: float = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
+	var alvo_tor: float = deg_to_rad(lerp(float(A.get("tor", 0.0)), float(B.get("tor", 0.0)), k))
+	if GOLPE_NOVO:
+		# molejo (André 2026-11-15: "ainda duro, no ArcheAge o corpo tem molejo"): o corpo não copia a ferramenta na
+		# hora, vai atrás dela numa mola. No impacto o joelho afunda um pouco mais e volta, o peito passa do ponto e
+		# o quadril balança com o peso, como um corpo solto de verdade.
+		var dt: float = get_process_delta_time()
+		_mola("cur", alvo_cur, dt)
+		_mola("ag", alvo_ag, dt)
+		_mola("av", alvo_av, dt)
+		_mola("tor", alvo_tor, dt)
+		var balanco: float = sin(f * TAU) * MOLEJO_BALANCO # o peso sobe e desce de leve no ritmo do golpe
+		duas.curva = float(_molas.cur.x)
+		duas.agacha = float(_molas.ag.x) + balanco
+		duas.avanco = float(_molas.av.x)
+		duas.torcao = float(_molas.tor.x)
+	else:
+		duas.curva = alvo_cur
+		duas.agacha = alvo_ag
+		duas.avanco = alvo_av
+		duas.torcao = alvo_tor
 	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som
