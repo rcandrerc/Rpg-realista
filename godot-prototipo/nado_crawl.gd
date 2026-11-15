@@ -15,13 +15,13 @@ var fase_boia := 0.0 # ciclos do boiar
 
 const ROLA := 0.38 # rad que o tronco rola para o lado do braço que puxa
 const BATIDAS := 2.0 # batidas de cada perna por ciclo de braço (André: "pernas rápidas demais, sem fluidez")
-const PERNA_BATE := 0.16 # m que o pé sobe e desce (André: "um pouco mais forte")
+const PERNA_BATE := 0.22 # m que o pé sobe e desce (André: "mais forte", depois "movimentos curtos")
 const PESO_AGUA := 0.4 # quanto a puxada demora a mais que a volta (0 = ritmo igual)
 const PERNA_ABRE := 0.07 # m de cada pé para fora
 # parado na água (André 2026-11-15, pela gravação do ArcheAge): em pé, braços abertos para os lados na linha da
 # água, as mãos varrendo para a frente e para trás devagar (cotovelo meio dobrado) e as pernas pedalando embaixo
 const BOIA_ABRE := 0.42 # m da mão para fora do ombro
-const BOIA_VARRE := 0.16 # m que a mão vai para a frente e para trás
+const BOIA_VARRE := 0.24 # m que a mão vai para a frente e para trás
 const BOIA_PEDALA := 0.12 # m do círculo de cada pé
 
 var _b := {}
@@ -95,11 +95,25 @@ const BRACO := [
 	[0.88, 0.32, 0.16, 0.16],
 ]
 
+const BRACO_REDONDO := true # false volta para o caminho da tabela BRACO
+const BRACO_CENTRO := 0.06 # m do centro da elipse à frente do ombro
+const BRACO_RAIO_FRENTE := 0.5 # m
+const BRACO_RAIO_CIMA := 0.36 # m
+
 # [frente, cima, fora, 0..1 o quanto está na volta por cima]
 func _chave_braco(c: float) -> Array:
-	var r: Array = _curva(BRACO, c)
-	r.append(smoothstep(0.5, 0.62, c) * (1.0 - smoothstep(0.9, 1.0, c)))
-	return r
+	if not BRACO_REDONDO:
+		var r0: Array = _curva(BRACO, c)
+		r0.append(smoothstep(0.5, 0.62, c) * (1.0 - smoothstep(0.9, 1.0, c)))
+		return r0
+	# André 2026-11-15: "movimentos curtos; mais circulares, arredondados, contínuos e pesados". A mão faz uma elipse
+	# grande em volta do ombro: entra lá na frente, desce fundo, empurra até a coxa e volta alta por cima. O
+	# cotovelo dobra sozinho onde a elipse passa perto do ombro (embaixo do peito e em cima).
+	var t: float = c * TAU
+	var fr: float = BRACO_CENTRO + BRACO_RAIO_FRENTE * cos(t)
+	var ci: float = -BRACO_RAIO_CIMA * sin(t) - 0.03
+	var fora: float = 0.1 + 0.1 * max(0.0, -sin(t)) # na volta por cima a mão abre para o lado
+	return [fr, ci, fora, clamp(-sin(t) * 1.6, 0.0, 1.0)]
 
 # nado de peito debaixo d'água (André 2026-11-15: "o nosso sapinho está feio, o do ArcheAge é bem mais natural"): os
 # dois braços juntos deslizam esticados, abrem, puxam para dentro com o cotovelo alto até as mãos se juntarem
@@ -113,8 +127,8 @@ const BRACO_SAPO := [
 	[0.15, 0.5, -0.03, 0.05],
 	[0.4, 0.52, -0.02, 0.06],
 	[0.65, 0.52, -0.02, 0.06],
-	[0.78, 0.35, -0.08, 0.42],
-	[0.88, 0.12, -0.18, 0.3],
+	[0.78, 0.35, -0.1, 0.52],
+	[0.88, 0.1, -0.22, 0.34],
 	[0.95, 0.12, -0.14, 0.0],
 ]
 # pés: [ciclo, quanto da perna vai para trás (fração), cima, fora]
@@ -122,8 +136,8 @@ const PERNA_SAPO := [
 	[0.0, 0.97, -0.02, 0.04],
 	[0.25, 0.96, 0.0, 0.04],
 	[0.42, 0.5, 0.18, 0.12],
-	[0.58, 0.8, 0.0, 0.5],
-	[0.7, 0.88, -0.02, 0.45],
+	[0.58, 0.78, 0.0, 0.58],
+	[0.7, 0.88, -0.02, 0.5],
 	[0.85, 0.97, -0.02, 0.05],
 ]
 
@@ -213,7 +227,7 @@ func _process_modification() -> void:
 		var c: float = fposmod(ciclo + (0.0 if lado > 0.0 else 0.5), 1.0)
 		# peso da água (André: "não é câmera lenta, é pesado, uma força contrária"): a puxada (meio do ciclo) anda
 		# devagar, com esforço, e a volta por cima do ar é mais rápida
-		c = fposmod(c + PESO_AGUA / TAU * sin(TAU * (c + 0.1)), 1.0)
+		c = fposmod(c + PESO_AGUA / TAU * sin(TAU * (c + 0.25)), 1.0)
 		var u: int = _b.R_UpperArm if lado > 0.0 else _b.L_UpperArm
 		var l: int = _b.R_LowerArm if lado > 0.0 else _b.L_LowerArm
 		var h: int = _b.R_Hand if lado > 0.0 else _b.L_Hand
