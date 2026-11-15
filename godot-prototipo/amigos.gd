@@ -7,7 +7,6 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado t
 # painel do herói e eles aparecem em verde no minimapa.
 
 const Menu = preload("res://menu.gd")
-const Idioma = preload("res://idioma.gd")
 const COR_TIME := Color("7ee08a") # verde do time (minimapa e barras)
 
 var m # main.gd
