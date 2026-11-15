@@ -336,6 +336,10 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		fov_alvo = FOV_BASE + FOV_DASH
 	_fov = lerp(_fov, fov_alvo, min(1.0, dt * (9.0 if fov_alvo > _fov else 3.0)))
 	cam.fov = lerpf(_fov, ISO_FOV, s_iso) - soco
+	# relevo.gd: a altura que a visão do alto ganhou não conta como "vista do alto da montanha" (névoa, copas de longe)
+	var sobe_iso: float = maxf(0.0, (cam.position.y - foco_base.y) - sin(0.35) * minf(dist_cam, ZOOM_LONGE)) if s_iso > 0.0 else 0.0
+	if absf(float(cam.get_meta("sobe_iso", 0.0)) - sobe_iso) > 0.01:
+		cam.set_meta("sobe_iso", sobe_iso)
 	_sombra_alto(s_iso)
 	soco = move_toward(soco, 0.0, dt * max(4.0, soco * 3.0))
 

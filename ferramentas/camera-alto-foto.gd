@@ -11,7 +11,12 @@ func numeros(nome: String) -> void:
 	var o := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
 	var d := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
 	var t := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
-	print("NUMEROS ", nome, " objetos ", o, " desenhos ", d, " triangulos ", t, " sombra ", m.sol.directional_shadow_max_distance if m.sol else -1.0)
+	var vp := root.get_viewport()
+	var tv := vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME)
+	var ts := vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME)
+	var dv := vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)
+	var ds := vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)
+	print("NUMEROS ", nome, " objetos ", o, " desenhos ", d, " (tela ", dv, " sombra ", ds, ") triangulos ", t, " (tela ", tv, " sombra ", ts, ") alcance sombra ", m.sol.directional_shadow_max_distance if m.sol else -1.0)
 func foto(nome: String) -> void:
 	await RenderingServer.frame_post_draw
 	numeros(nome)
