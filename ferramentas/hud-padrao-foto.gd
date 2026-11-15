@@ -14,6 +14,7 @@ func foto(nome: String) -> void:
 func _initialize() -> void:
 	var w := int(OS.get_environment("FOTO_W")) if OS.get_environment("FOTO_W") != "" else 1280
 	var h := int(OS.get_environment("FOTO_H")) if OS.get_environment("FOTO_H") != "" else 576
+	DisplayServer.window_set_size(Vector2i(w, h)) # a tela do PC (1366x768) ou do celular
 	root.size = Vector2i(w, h)
 	if OS.get_environment("FOTO_SEM_LOD") != "":
 		load("res://lod_malha.gd")._tarefa = 1 << 40
