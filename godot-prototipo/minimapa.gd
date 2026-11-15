@@ -13,6 +13,7 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado t
 # funciona: tocar num nome marca o lugar, leva o mapa até ele e mostra o "Ir para"; tocar de novo no mesmo nome já vai.
 
 const MapaMundo = preload("res://mapa_mundo.gd")
+const Mapa3D = preload("res://mapa3d.gd") # mapa-múndi 3D estilo Albion (André 2026-11-15); o mapa 2D continua no botão
 const IconesNpc = preload("res://icones_npc.gd") # símbolo de cada NPC e a legenda do mapa (André 2026-11-12)
 const RAIO := 74.0 # px do minimapa na tela (1280 x 576)
 const MARGEM := Vector2(16, 21) # do canto de cima à direita, com 12 px de folga contando o "N" e a moldura; o menu do topo fica à esquerda dele (André 2026-11-03:
@@ -73,6 +74,10 @@ var marcado = null # Vector2 (metros) do lugar tocado no mapa completo, ou null
 var previa := PackedVector2Array() # rota pela estrada até o lugar marcado (rota.planejar)
 var botao_ir := Rect2() # onde está o botão "Ir para" na tela (para o toque)
 var botao_x := Rect2() # X de fechar o mapa
+var botao_3d := Rect2() # "Mapa 3D" no mapa 2D (volta para a maquete)
+var mapa3d # mapa3d.gd (criado no _ready, montado na primeira vez que abre)
+var modo_3d := true # o mapa abre em 3D; o botão "Mapa 2D" troca e a escolha fica gravada
+const CFG_MAPA := "user://mapa.cfg"
 # Mapa do totem (André 2026-11-11): encostar num totem abre este mapa no lugar da lista de destinos. Os totens ficam
 # acesos (os liberados) e tocar num deles mostra "Teleportar" com a taxa; os ainda não visitados aparecem apagados e
 # não respondem ao toque. O botão do canto alterna entre o mapa cheio e uma janela menor no meio da tela.
@@ -221,6 +226,11 @@ void fragment() {
 	marcas_grande.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	marcas_grande.draw.connect(_desenhar_grande)
 	grande.add_child(marcas_grande)
+	mapa3d = Mapa3D.new(self)
+	add_child(mapa3d)
+	var cfg := ConfigFile.new()
+	if cfg.load(CFG_MAPA) == OK:
+		modo_3d = bool(cfg.get_value("mapa", "3d", true))
 
 # o minimapa.png (client/src/minimapa.js) escurece as pontas; por cima do mundo a conta volta à cor de antes
 const VINHETA_HOJE := """
@@ -266,6 +276,11 @@ func posicionar(d: Vector2, s: float) -> void:
 	mini.scale = Vector2(s, s)
 
 func _input(ev: InputEvent) -> void:
+	if aberto and _em_3d():
+		if ev is InputEventScreenTouch or ev is InputEventScreenDrag or ev is InputEventMouseButton:
+			mapa3d.entrada(ev)
+			get_viewport().set_input_as_handled()
+		return
 	if aberto:
 		if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
 			_gesto(ev)
@@ -389,6 +404,9 @@ func _toque_no_mapa(pos: Vector2) -> void:
 		return
 	if dentro and botao_x.has_point(lp):
 		fechar()
+		return
+	if dentro and totem_de.is_empty() and botao_3d.has_point(lp):
+		trocar_modo(true)
 		return
 	if dentro and (botao_mais.has_point(lp) or botao_menos.has_point(lp)):
 		zoom_alvo = clamp(zoom_alvo * (1.45 if botao_mais.has_point(lp) else 1.0 / 1.45), _z_min(), Z_MAX)
@@ -736,8 +754,37 @@ func _abrir() -> void:
 	foco_alvo = foco
 	if m.sons:
 		m.sons.tocar("pano", -8.0) # papel do mapa abrindo
+	if modo_3d and totem_de.is_empty() and mapa3d != null and mapa3d.disponivel(): # o mapa do totem continua 2D
+		grande.visible = false
+		mapa3d.abrir()
+
+func _em_3d() -> bool:
+	return mapa3d != null and mapa3d.visible
+
+# botão "Mapa 2D" (na maquete) ou "Mapa 3D" (no mapa de hoje): troca com o mapa aberto e grava a escolha
+func trocar_modo(para_3d: bool) -> void:
+	modo_3d = para_3d
+	var cfg := ConfigFile.new()
+	cfg.load(CFG_MAPA)
+	cfg.set_value("mapa", "3d", para_3d)
+	cfg.save(CFG_MAPA)
+	toques = {}
+	pinca = {}
+	if para_3d and mapa3d.disponivel():
+		grande.visible = false
+		mapa3d.abrir()
+	else:
+		mapa3d.fechar()
+		grande.visible = true
+		if marcado != null:
+			foco_alvo = marcado
+		_arrumar_grande()
+	if m.sons:
+		m.sons.tocar("pano", -16.0)
 
 func fechar() -> void:
+	if mapa3d != null:
+		mapa3d.fechar()
 	aberto = false
 	totem_de = {}
 	totem_alvo = ""
@@ -779,7 +826,7 @@ func _process_parte(_dt: float) -> void:
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", Vector2.ONE * ALCANCE * 2.0 / mundo_r.size)
 		if Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): marcas do minimapa 20 vezes por segundo
 			marcas.queue_redraw()
-	if aberto:
+	if aberto and not _em_3d():
 		var dt: float = get_process_delta_time()
 		var a: float = 1.0 - exp(-12.0 * dt) # zoom dos botões e ida até o lugar da lista, suave
 		if abs(zoom - zoom_alvo) > 0.001:
@@ -1215,6 +1262,16 @@ func _desenhar_mapa() -> void:
 	# X de fechar no canto do mapa
 	var cx := Vector2(tam.x - 26.0, 26.0)
 	botao_x = Rect2(cx - Vector2(22, 22), Vector2(44, 44))
+	botao_3d = Rect2()
+	if mapa3d != null and mapa3d.disponivel(): # volta para o mapa 3D
+		botao_3d = Rect2(Vector2(tam.x - 166.0, 8.0), Vector2(110, 36))
+		var sb3 := StyleBoxFlat.new()
+		sb3.bg_color = Color(0.08, 0.06, 0.04, 0.88)
+		sb3.border_color = Color("c9a35a")
+		sb3.set_border_width_all(2)
+		sb3.set_corner_radius_all(18)
+		sb3.draw(c.get_canvas_item(), botao_3d)
+		c.draw_string(fonte, Vector2(botao_3d.position.x, botao_3d.position.y + 24.0), Idioma.frase("Mapa 3D"), HORIZONTAL_ALIGNMENT_CENTER, botao_3d.size.x, 17, Color(1, 0.95, 0.85))
 	c.draw_circle(cx, 15.0, Color(0.05, 0.04, 0.03, 0.85))
 	c.draw_arc(cx, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
 	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)
