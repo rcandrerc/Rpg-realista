@@ -175,7 +175,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		corpo.add_child(mi)
 	var alto_pedra: float = principal.get_aabb().end.y
-	o.tri = principal.generate_triangle_mesh() # para achar a face da pedra onde a picareta bate
+	o.malha_tri = principal # a face da pedra onde a picareta bate: o TriangleMesh sai só na primeira batida (_face_veio), não na abertura
 	# sombra de contato: mancha escura e suave no chão em volta da base
 	var sombra := MeshInstance3D.new()
 	var pl := PlaneMesh.new()
@@ -592,6 +592,8 @@ func _falta(o: Dictionary) -> float:
 
 # raio da pedra do veio na altura h, do lado de onde o herói está (raio contra o bloco principal)
 func _face_veio(o: Dictionary, h: float) -> float:
+	if not o.has("tri") and o.get("malha_tri") is Mesh:
+		o.tri = (o.malha_tri as Mesh).generate_triangle_mesh()
 	if not o.has("tri") or o.tri == null or m.heroi == null:
 		return 0.62
 	var d: Vector3 = m.heroi.position - o.pos
