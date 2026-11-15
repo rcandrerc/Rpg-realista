@@ -76,7 +76,7 @@ jobs:
         run: |
           RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$SEM_TELA_S SAIDA=/tmp/cel/sem-tela.json timeout $((SEM_TELA_S + 600)) stdbuf -oL -eL \
             $GODOT_BIN --headless --path godot-prototipo -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/sem-tela.log 2>&1 || true
-          grep -E "^(CELULAR|\[entrada\]|\[npc\])" /tmp/cel/sem-tela.log | cut -c1-400 | tail -80
+          grep -E "^\[entrada\]" /tmp/cel/sem-tela.log | head -40; grep -E "^CELULAR" /tmp/cel/sem-tela.log | cut -c1-400 | tail -40
       - name: Jogar com Vulkan por software (metade da tela do X7)
         run: |
           RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 420)) stdbuf -oL -eL \

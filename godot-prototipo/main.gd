@@ -1902,9 +1902,7 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		lentidao.ev("npc:" + id, t0)
 
 func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
-	var _tq0 := Time.get_ticks_usec() # TEMP medida
 	var no := modelo(id)
-	var _tq1 := Time.get_ticks_usec() # TEMP medida
 	no.position = pos
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
 	no.rotation.y = float(info.get("ry", randf() * TAU))
@@ -1922,9 +1920,7 @@ func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
 		Aparencia.aplicar(no, ap)
 	no.set_meta("pano_outro", true) # capa de NPC: pano de verdade só nas mais perto da câmera (pano_capa.gd)
-	var _tq2 := Time.get_ticks_usec() # TEMP medida
 	VisualNpc.vestir(no, str(info.get("id", "")), info) # roupa de ofício (avental e martelo do ferreiro) e de fantasia
-	var _tq3 := Time.get_ticks_usec() # TEMP medida
 	# arma do NPC (André 2026-11-05: guerreiros e magos, nada moderno): espada ou cajado nas costas, ou cajado na mão
 	var arma := str(info.get("arma", ""))
 	var esq_npc := esqueleto(no)
@@ -1933,7 +1929,6 @@ func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		var lugar = lugar_armas(id).get({"espada": "espadaCostas", "cajado": "cajadoCostas", "cajado_mao": "cajadoMao"}.get(arma, ""))
 		if lugar is Dictionary:
 			prender(esq_npc, nova_arma(tipo), lugar)
-	print("[npc] %s %s modelo %d nome %d vestir %d arma %d" % [str(info.get("id", id)), id, (_tq1 - _tq0) / 1000, (_tq2 - _tq1) / 1000, (_tq3 - _tq2) / 1000, (Time.get_ticks_usec() - _tq3) / 1000]) # TEMP medida
 	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)), "info": info,
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
