@@ -913,9 +913,10 @@ func abrir_carrinho() -> void:
 	var custo_txt := _rotulo("", 12, Color("#cbbfa8"))
 	custo_txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	custo_txt.custom_minimum_size = Vector2(480, 0)
+	var custo_ic: Control = null # André 2026-11-15: o que precisa em ícone tenho/preciso (igual às receitas), não em lista
 	if quebrado:
 		acoes.add_child(_acao("Consertar", "cs_desmontar", func(): m.rede("veiculo", {"acao": "consertar"})))
-		custo_txt.text = "Consertar o quebrado: 8 lenha + 1 barra de ferro"
+		custo_ic = _custo_icones("Consertar o quebrado", C.get("consertoQuebrado", {"lenha": 8, "barra_ferro": 1}))
 	else:
 		if not dirigindo:
 			acoes.add_child(_acao("Dirigir", "it_carrinho", func(): m.rede("veiculo", {"acao": "subir", "k": "carrinho"}); _fechar_janela()))
@@ -923,19 +924,73 @@ func abrir_carrinho() -> void:
 			acoes.add_child(_acao("Consertar", "cs_desmontar", func(): m.rede("veiculo", {"acao": "consertar"})))
 		if lv < int(C.nivelMax):
 			var cu: Dictionary = C.melhorar[lv + 1]
-			var t := PackedStringArray()
-			for it in cu:
-				t.append(("%d de ouro" % int(cu[it])) if it == "ouro" else "%d %s" % [int(cu[it]), m.P.nome_item({"k": it}) if m.P.has_method("nome_item") else it])
 			acoes.add_child(_acao("Melhorar", "cs_bancada", func(): m.rede("veiculo", {"acao": "melhorar"})))
-			custo_txt.text = Idioma.frase("Melhorar pro Nv %d (%d packs, na bancada): %s" % [lv + 1, int(C.capacidade) * (lv + 1), ", ".join(t)])
+			custo_ic = _custo_icones("Melhorar pro Nv %d · %d packs · na bancada" % [lv + 1, int(C.capacidade) * (lv + 1)], cu)
 		if not dirigindo:
 			acoes.add_child(_acao("Guardar", "topo_mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "carrinho"}); _fechar_janela()))
 	if custo_txt.text != "":
 		vb.add_child(custo_txt)
+	if custo_ic:
+		vb.add_child(custo_ic)
 	m.hud.bloqueado = true
 	await get_tree().process_frame
 	if is_instance_valid(pc):
 		pc.position = (pc.get_viewport_rect().size - pc.size) * 0.5
+
+# custo (melhorar/consertar) em ícones no padrão das receitas: moldura verde/vermelha e "tenho/preciso" embaixo;
+# o ouro entra como mais um ícone (moedas). Tocar no ícone mostra o nome (menu.icone_material).
+func _custo_icones(titulo: String, cu: Dictionary) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	var tt := _rotulo(titulo, 13, Color("#cbbfa8"))
+	tt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(tt)
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 8)
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_child(fila)
+	for it in cu:
+		var k := str(it)
+		var precisa := int(cu[it])
+		if k == "ouro":
+			fila.add_child(_icone_ouro(int(m.P.prog.get("ouro", 0)), precisa))
+		elif m.P.dados.itens.has(k):
+			fila.add_child(m.menu.icone_material(k, m.P.contar(k), precisa))
+	return col
+
+func _icone_ouro(tem: int, precisa: int) -> Control:
+	var ok := tem >= precisa
+	var bx := VBoxContainer.new()
+	bx.add_theme_constant_override("separation", 0)
+	var q := Button.new()
+	q.focus_mode = Control.FOCUS_NONE
+	q.custom_minimum_size = Vector2(40, 40)
+	q.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var st: StyleBoxFlat = m.menu.caixa(Color(0.045, 0.04, 0.036, 1), Color(0.45, 0.78, 0.45, 0.8) if ok else Color(0.88, 0.5, 0.42, 0.8), 1, 6)
+	for e in ["normal", "hover", "pressed"]:
+		q.add_theme_stylebox_override(e, st)
+	var ic := _icone(m.menu.icone_tex("it_ouro"), 32)
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 4
+	ic.offset_top = 4
+	ic.offset_right = -4
+	ic.offset_bottom = -4
+	q.add_child(ic)
+	q.pressed.connect(func(): m.menu.balao_nome(q, Idioma.frase("Ouro"), Color("ffd36a")))
+	bx.add_child(q)
+	var n := _rotulo("%s/%s" % [_curto(tem), _curto(precisa)], 11, Color(0.45, 0.78, 0.45) if ok else Color("e0806a"))
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bx.add_child(n)
+	return bx
+
+# 25000 → "25.000" (ouro com ponto de milhar, cabe embaixo do ícone)
+func _curto(v: int) -> String:
+	var t := str(absi(v))
+	var r := ""
+	while t.length() > 3:
+		r = "." + t.substr(t.length() - 3) + r
+		t = t.substr(0, t.length() - 3)
+	return t + r
 
 func _abastecer(n: int, comb: float, max_comb: float, na_mochila: int) -> void:
 	if comb >= max_comb - 1.0:
