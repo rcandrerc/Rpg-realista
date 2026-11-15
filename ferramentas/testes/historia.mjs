@@ -173,7 +173,7 @@ const iv = p.mochila.findIndex((o) => o?.k === 'lenha'); s.item('A', { acao: 've
 p.ouro += 500; s.item('A', { acao: 'comprar', i: 0, n: 3 }); correr(0.1); ok(h().e === 3, 'comprou 3 poções | ' + avisos());
 falar('comerciante'); fim('a5');
 falar('ferreiro'); ok(missao() === 'a6', 'Tomás deu "Sua própria luta"');
-s.definirBarra('A', { barra: 'espada', lista: p.barras.espada }); ok(h().e === 1, 'montou a barra');
+ok(s.histInfo(j).ver === true, 'a etapa da barra aceita só abrir a aba'); s.verBarra('A'); ok(h().e === 1, 'abriu a aba Habilidades e já contou (sem tirar skill)'); // André 2026-11-14
 s.distribuirAtributo('A', 'for'); ok(h().e === 2, 'gastou atributo');
 falar('ferreiro'); fim('a6'); ok(p.mochila.some((o) => o?.k === 'espada' && o.r === 1), 'espada Rara de presente');
 // Capítulo 3
@@ -359,7 +359,8 @@ falar('v_ursula'); fim('c6');
 falar('v_iara'); ok(missao() === 'c7', 'Iara: lutar diferente');
 s.distribuirAtributo('A', 'for'); { const o = npc('v_iara'); ir(o.x + 1, o.z); const ouro0 = p.ouro; s.resetarBuild('A'); correr(0.1);
   ok(h().e === 1 && p.ouro === ouro0, 'resetou de graça com a Iara | ' + avisos()); }
-s.distribuirAtributo('A', 'for'); s.definirBarra('A', { barra: 'espada', lista: p.barras.espada }); matarEm('c_v8', 6);
+s.distribuirAtributo('A', 'for'); { const e0 = h().e; s.verBarra('A'); ok(h().e === e0, 'na Iara só abrir a aba não troca skill'); }
+s.definirBarra('A', { barra: 'espada', lista: p.barras.espada }); matarEm('c_v8', 6);
 falar('v_iara'); fim('c7');
 { const o = npc('v_iara'); ir(o.x + 1, o.z); const ouro0 = p.ouro; s.resetarBuild('A'); ok(p.ouro < ouro0, 'depois da missão o reset cobra'); }
 falar('m_metal'); ok(missao() === 'h10', 'Malaquias: a ponte dos Juncos');

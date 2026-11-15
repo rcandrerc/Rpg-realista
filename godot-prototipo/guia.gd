@@ -183,8 +183,9 @@ func passos(hi: Dictionary) -> Array:
 			return ["ir", "hud:falar", "b:Comprar", "loja:" + k]
 		"atributo":
 			return ["hud:painel", "aba:status", "b:+", "b^Confirmar ("]
+		# ver (André 2026-11-14): só abrir a aba Habilidades já conta; nada pisca para tirar skill do lugar
 		"barra":
-			return ["hud:painel", "aba:habilidades", "m:barra:livre"]
+			return ["hud:painel", "aba:habilidades"] if hi.get("ver", false) == true else ["hud:painel", "aba:habilidades", "m:barra:livre"]
 		# o mercador tem "Criar pack" e "Entregar pack" direto na janela (André 2026-11-12)
 		"pack_fez":
 			return ["ir", "hud:falar", "b^Criar pack"]
