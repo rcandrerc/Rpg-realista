@@ -376,11 +376,16 @@ func _ready() -> void:
 	# antes: o servidor chama cada um pela posição na lista (v). Todos ficam a mais de 70 m de onde o herói nasce.
 	montar_cacas() # só põe na fila
 	_a_criar.append(montar_treino)
+	# André 2026-11-15 ("a tela de login está muito lenta"): os NPCs da vila eram quase metade da montagem com a tela
+	# parada (5,4 s de 12,6 s no robô). Agora nascem na fila (criar_aos_poucos), na frente dos monstros, atrás da capa e
+	# da janela "Entrar como…"; a capa só sai quando a fila acaba (online.gd), então ninguém vê a vila sem eles.
+	var fila_npcs: Array = []
 	for n in mundo.get("npcs", []):
 		if n.get("vila") != null: # gente das mini vilas do mundo grande: o corpo só nasce de perto (npcs_das_vilas)
 			npcs_vila.append(n)
 			continue
-		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
+		fila_npcs.append(criar_npc.bind(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n))
+	_a_criar = fila_npcs + _a_criar # NPC não entra em inimigos: a ordem dos monstros (o v do servidor) não muda
 	camera = Camera3D.new()
 	camera.far = 400
 	add_child(camera)
@@ -403,14 +408,17 @@ func _ready() -> void:
 	mostrar_build()
 	trabalho = Trabalho.new(self)
 	add_child(trabalho)
+	_passo("trabalho")
 	pesca = Pesca.new(self)
 	add_child(pesca)
 	transporte = Transporte.new(self)
 	add_child(transporte)
 	menu = Menu.new(self)
 	add_child(menu)
+	_passo("menu")
 	conversa = Conversa.new(self)
 	add_child(conversa)
+	_passo("conversa")
 	rota = Rota.new(self)
 	add_child(rota)
 	hud.tocou.connect(conversa.tocou_tela)
@@ -418,6 +426,7 @@ func _ready() -> void:
 	add_child(troca)
 	leilao = LeilaoUi.new(self)
 	add_child(leilao)
+	_passo("troca_leilao")
 	reforco = Reforco.new(self)
 	add_child(reforco)
 	festa = Festa.new(self)
@@ -429,6 +438,7 @@ func _ready() -> void:
 	hud.troca = troca
 	amigos = Amigos.new(self)
 	add_child(amigos)
+	_passo("festa_amigos")
 	hud.tocou.connect(tocou_inimigo) # tocar num monstro: vira o alvo travado do mago
 	criador = Criador.new(self)
 	add_child(criador)
@@ -1892,7 +1902,9 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		lentidao.ev("npc:" + id, t0)
 
 func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
+	var _tq0 := Time.get_ticks_usec() # TEMP medida
 	var no := modelo(id)
+	var _tq1 := Time.get_ticks_usec() # TEMP medida
 	no.position = pos
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0
 	no.rotation.y = float(info.get("ry", randf() * TAU))
@@ -1910,7 +1922,9 @@ func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		ap = {"cabelo": t.get("cabelo"), "roupa": t.get("roupa"), "calca": t.get("calca"), "altura": float(info.get("escala", 1.0))}
 		Aparencia.aplicar(no, ap)
 	no.set_meta("pano_outro", true) # capa de NPC: pano de verdade só nas mais perto da câmera (pano_capa.gd)
+	var _tq2 := Time.get_ticks_usec() # TEMP medida
 	VisualNpc.vestir(no, str(info.get("id", "")), info) # roupa de ofício (avental e martelo do ferreiro) e de fantasia
+	var _tq3 := Time.get_ticks_usec() # TEMP medida
 	# arma do NPC (André 2026-11-05: guerreiros e magos, nada moderno): espada ou cajado nas costas, ou cajado na mão
 	var arma := str(info.get("arma", ""))
 	var esq_npc := esqueleto(no)
@@ -1919,6 +1933,7 @@ func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		var lugar = lugar_armas(id).get({"espada": "espadaCostas", "cajado": "cajadoCostas", "cajado_mao": "cajadoMao"}.get(arma, ""))
 		if lugar is Dictionary:
 			prender(esq_npc, nova_arma(tipo), lugar)
+	print("[npc] %s %s modelo %d nome %d vestir %d arma %d" % [str(info.get("id", id)), id, (_tq1 - _tq0) / 1000, (_tq2 - _tq1) / 1000, (_tq3 - _tq2) / 1000, (Time.get_ticks_usec() - _tq3) / 1000]) # TEMP medida
 	npcs.append({"aparencia": ap, "modelo": id, "no": no, "funcao": str(info.get("funcao", "")), "id": str(info.get("id", id)), "info": info,
 		"nome": str(info.get("nome", nome)), "acoes": info.get("acoes", []), "falas": info.get("falas", []), "missao": str(info.get("missao", ""))})
 
