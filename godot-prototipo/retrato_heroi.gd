@@ -23,7 +23,7 @@ func _ready() -> void:
 	vp = SubViewport.new()
 	vp.size = Vector2i(TAM, TAM)
 	vp.own_world_3d = true
-	vp.msaa_3d = Viewport.MSAA_4X
+	vp.msaa_3d = Viewport.MSAA_2X if int(m.get_viewport().msaa_3d) > 0 else Viewport.MSAA_DISABLED # o do mundo: shaders já prontos
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(vp)
 	var amb := WorldEnvironment.new()

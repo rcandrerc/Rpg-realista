@@ -161,7 +161,7 @@ static func _pronta(velha: ArrayMesh) -> ArrayMesh:
 
 # a malha original de uma malha com LOD montada aqui (ou ela mesma)
 static func original(am: Mesh) -> Mesh:
-	var w = am.get_meta("lod_de", null) if am else null
+	var w = am.get_meta("lod_de") if am and am.has_meta("lod_de") else null # get_meta com padrão null imprime erro
 	var o = (w as WeakRef).get_ref() if w is WeakRef else null
 	return o if o is Mesh else am
 

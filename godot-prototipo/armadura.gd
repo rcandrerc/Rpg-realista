@@ -1200,7 +1200,7 @@ static func vento(raiz: Node3D, vel: float, dt: float) -> void:
 	var no := esq.get_node_or_null("Armadura_capa")
 	if no == null:
 		return
-	var mi: MeshInstance3D = no.get_meta("capa_mi", null)
+	var mi: MeshInstance3D = no.get_meta("capa_mi") if no.has_meta("capa_mi") else null
 	if mi == null:
 		return
 	dt = maxf(dt, 0.0001)

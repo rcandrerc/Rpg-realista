@@ -43,7 +43,7 @@ func _exit_tree() -> void:
 	if _gravando >= 0: # gravação na linha de fundo ainda rodando: espera acabar
 		WorkerThreadPool.wait_for_task_completion(_gravando)
 		_gravando = -1
-	if Engine.get_meta("lentidao", null) == self:
+	if Engine.has_meta("lentidao") and Engine.get_meta("lentidao") == self:
 		Engine.remove_meta("lentidao")
 
 func _ready() -> void:

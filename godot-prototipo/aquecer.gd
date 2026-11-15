@@ -218,7 +218,8 @@ func _passo_corpos(dt: float) -> void:
 			var no: Node3D = m.modelo(str(p[1]))
 			no.visible = false
 			no.process_mode = Node.PROCESS_MODE_DISABLED
-			m.add_child(no)
+			if no.get_parent() == null: # m.modelo já põe no Main (pôr de novo dava erro no log, robô 2)
+				m.add_child(no)
 			_manequins[p[1]] = no
 			Aparencia.preparar_medias(no) # as cores do corpo (o primeiro outro jogador não trava, aparencia.gd)
 		"roupa":
