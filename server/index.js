@@ -498,18 +498,20 @@ app.use((req, res, next) => {
   next();
 });
 // lentidões anotadas pelos apps (lentidao.gd): as últimas LENTIDAO_MAX na memória e num arquivo da pasta de dados
-const LENTIDAO_MAX = 300;
+// 2026-11-15: 300 linhas (de todos os celulares) só cobriam um dia; para comparar com os dias em que estava liso,
+// guarda mais (cada linha ~0,6 KB: 2000 linhas ~1,2 MB)
+const LENTIDAO_MAX = 2000;
 const LENTIDAO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao.jsonl');
 // min..nos (2026-11-14): minutos de jogo, memória (MB), ms da placa/processador no último quadro, calor do Android
 // (term 0-6, folga, bat °C) e nós na cena; dnos/dres = nós e recursos que entraram ou saíram no segundo ruim
-const COMUM_CAMPOS = ['min', 'mem', 'vmem', 'livre', 'gpu', 'cpu', 'term', 'folga', 'bat', 'nos', 'auto'];
-const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido', 'andou', 'andou_lobo', 'mov', 'bloq', 'corr', 'corr_m', 'foto_ms', 'ping', 'x', 'z', 'grafico', 'limite', 'paralelo', 'proc', 'cham', 'tri', 'obj', 'rumo', 'pip', ...COMUM_CAMPOS, 'dnos', 'dres', 'qms'];
+const COMUM_CAMPOS = ['min', 'mem', 'vmem', 'livre', 'gpu', 'cpu', 'term', 'folga', 'bat', 'nos', 'auto', 'alto'];
+const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido', 'andou', 'andou_lobo', 'mov', 'bloq', 'corr', 'corr_m', 'foto_ms', 'ping', 'x', 'z', 'grafico', 'limite', 'paralelo', 'proc', 'cham', 'tri', 'obj', 'rumo', 'pip', ...COMUM_CAMPOS, 'dnos', 'dres', 'qms', 'q70', 'lenta'];
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
 const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico'];
 const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip', 'espera'];
-const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
+const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'q50', 'q70', 'lenta', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
 // o que pesou no segundo ruim (lentidao.gd ev): {nome: [vezes, ms]}, no máximo 8 nomes curtos
 function eventosLentidao(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
@@ -522,7 +524,7 @@ function eventosLentidao(v) {
   return Object.keys(r).length ? r : null;
 }
 // resumo de cada minuto (lentidao.gd _resumo): fica numa lista só dele, para não empurrar as travadas para fora
-const RESUMO_MAX = 600;
+const RESUMO_MAX = 3000; // uma linha por minuto de jogo: ~50 horas
 const RESUMO_ARQ = path.resolve(process.env.DADOS || 'dados', 'lentidao-resumo.jsonl');
 const resumos = [];
 let resumoLinhas = 0;
