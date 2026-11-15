@@ -93,6 +93,10 @@ class FakeCons:
 
 class FakeConversa:
 	var raiz: Control
+	var npc = null # NPC da janela aberta
+	var perto = null # quem o Falar da HUD abre agora (conversa.gd npc_falar)
+	func npc_falar():
+		return perto
 	func aberto() -> bool:
 		return raiz.visible
 
@@ -230,12 +234,8 @@ func _initialize() -> void:
 	confere(g._alvo == b_dest, "3. pisca Destruir")
 	b_dest.position = Vector2(200, 100)
 	g._travar(0.0)
-	confere(g.trava.visible, "menu aberto com algo piscando: trava")
-	confere(not g.trava._has_point(Vector2(240, 115)), "trava: o toque no Destruir passa")
-	confere(g.trava._has_point(Vector2(600, 400)), "trava: o toque fora dele não passa")
-	g._travar(12.0)
-	g._travar(12.0)
-	confere(not g.trava.visible, "trava solta depois de 20 s no mesmo botão")
+	# André 2026-11-15: só o brilho, sem trava (com a bolsa cheia o guia prendia na aba Criar)
+	confere(not g.trava.visible, "menu aberto com algo piscando: sem trava, o resto do menu responde")
 	var conf := Control.new()
 	raiz.add_child(conf)
 	var b_so := botao(conf, "Só esta")
@@ -244,7 +244,7 @@ func _initialize() -> void:
 	g._procurar()
 	confere(g._alvo == b_so, "4. na confirmação pisca Só esta")
 	g._travar(0.0)
-	confere(g.trava.visible, "botão novo piscando: a trava volta")
+	confere(not g.trava.visible, "botão novo piscando: continua sem trava")
 	mn._confirma = null
 	conf.queue_free()
 	b_dest.queue_free()
@@ -266,13 +266,45 @@ func _initialize() -> void:
 	m.hud.em_combate = false
 	m.heroi.position = Vector3(48, 0, 0)
 	m.hud.botoes[0].oculto = false
+	cv.perto = {"id": "ferreiro"}
 	g._procurar()
 	confere(g._circ.z > 0.0 and Vector2(g._circ.x, g._circ.y) == Vector2(500, 300), "perto: pisca o botão Falar da HUD")
 	cv.raiz.visible = true
+	cv.npc = {"id": "ferreiro"}
 	var b_outro := botao(cv.raiz, "Conversar")
 	var b_missao := botao(cv.raiz, "Missão: Lâmina e Reforço")
 	g._procurar()
 	confere(g._alvo == b_missao, "na conversa: pisca Missão")
+	cv.raiz.visible = false
+	cv.npc = null
+	# André 2026-11-15: aceitou com um NPC (ele continua do lado, o Falar aparece) e a etapa é falar com outro, longe
+	m.P.hist_info = {"id": "a15", "npc": "alquimista", "ev": "falar"}
+	ma.destino = {"pos": Vector2(50, 0), "npc": "alquimista"}
+	m.heroi.position = Vector3(0, 0, 0)
+	g._procurar()
+	confere(g._circ.z <= 0.0, "do lado do NPC errado: o Falar não pisca")
+	confere(g._alvo == ma.ir_btn, "do lado do NPC errado: pisca o Ir (leva ao NPC certo)")
+	# os dois juntos: o NPC certo a 2 m, mas o Falar abriria o vizinho -> o Ir (que abre a conversa com o certo)
+	m.heroi.position = Vector3(48, 0, 0)
+	g._procurar()
+	confere(g._circ.z <= 0.0 and g._alvo == ma.ir_btn, "NPC certo do lado mas o Falar abre o vizinho: pisca o Ir")
+	cv.perto = {"id": "alquimista"}
+	g._procurar()
+	confere(g._circ.z > 0.0, "o Falar abre o NPC certo: pisca o Falar")
+	# janela aberta com o NPC errado: nada pisca lá dentro
+	cv.raiz.visible = true
+	cv.npc = {"id": "ferreiro"}
+	var b_m2 := botao(cv.raiz, "Missão: Outra")
+	g._procurar()
+	confere(not g._tem(), "conversa com o NPC errado: nada pisca na janela")
+	cv.npc = {"id": "alquimista"}
+	g._procurar()
+	confere(g._alvo in [b_missao, b_m2], "conversa com o NPC certo: pisca Missão")
+	b_m2.queue_free()
+	m.P.hist_info = {"id": "a15", "npc": "ferreiro", "ev": "falar"}
+	ma.destino = {"pos": Vector2(50, 0), "npc": "ferreiro"}
+	cv.perto = {"id": "ferreiro"}
+	cv.npc = null
 	cv.raiz.visible = false
 	m.hud.botoes[0].oculto = true
 
