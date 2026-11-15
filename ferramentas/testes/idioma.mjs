@@ -33,6 +33,18 @@ for (const k of ['Configurações', 'Mochila', 'Missões', 'Nível %d', 'Mestre 
   ok(D?.[k], `traduz "${k}" → "${D?.[k]}"`);
 ok(D?.['Mestre Ivo · Resetar build']?.startsWith('Master Ivo'), 'nome próprio fica, título traduz (Mestre Ivo = Master Ivo)');
 
+// ---------- falas prontas dos amigos virtuais (André 2026-11-15: em inglês, o chat sem IA da Cecília vinha em português) ----------
+{
+  const { AMIGOS_VIRTUAIS } = await import('../../shared/dados.js');
+  const faltam = new Set();
+  const chave = (t) => { let n = 0; return t.replace(/\{[a-z]+\}/gi, () => '{' + ++n + '}'); };
+  const pular = new Set(['assuntos', 'visual', 'aparencia', 'equip', 'nome', 'papel', 'conta', 'id', 'gosto', 'jeito', 'ficha', 'prompt', 'memoria', 'cerebro']);
+  const andar = (o) => { if (typeof o === 'string') { if (/[a-zà-ú]/i.test(o) && o.includes(' ') && !(o in D) && !(chave(o) in D)) faltam.add(o); } else if (Array.isArray(o)) o.forEach(andar); else if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) if (!pular.has(k)) andar(v); };
+  for (const A of AMIGOS_VIRTUAIS) for (const k of ['falas', 'falasColeta', 'falasTroca', 'falasEquip', 'chat']) andar(A?.[k]);
+  ok(faltam.size === 0, `toda fala pronta da Cecília, do Dario e dos aventureiros tem inglês ${[...faltam].slice(0, 3).join(' | ')}`);
+  ok(/begins_with\("a:"\)[\s\S]{0,200}Idioma\.frase\(texto\)/.test(gd('chat.gd')), 'chat: fala dos amigos virtuais sai no idioma do jogo');
+}
+
 // ---------- Configurações > Idioma / Language ----------
 const topo = gd('menu_topo.gd'), id = gd('idioma.gd');
 ok(/func montar_config\(\)[\s\S]*?_idioma\(\)[\s\S]*?_qualidade_grafica\(\)/.test(topo), 'Configurações: linha Idioma / Language');
