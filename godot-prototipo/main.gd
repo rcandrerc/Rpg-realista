@@ -2515,10 +2515,10 @@ func _passo_crawl(dt: float) -> void:
 	var fundo: float = smoothstep(0.25, 0.55, float(mov.mergulho))
 	crawl.peso = float(heroi_anim._nado) if _nadando else move_toward(crawl.peso, 0.0, dt * 4.0)
 	crawl.boia = 1.0 - float(heroi_anim._nada) # parado na água: braços abertos varrendo e pernas pedalando
-	crawl.fase_boia += dt * 0.65
+	crawl.fase_boia += dt * 0.5
 	crawl.sapo = fundo
-	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.9 # de peito: uma braçada por ciclo, com o deslize
-	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.5 # 2 braçadas por ciclo; agua_fx conta 3 por volta
+	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.0 # de peito (mais lento: a água segura, André 2026-11-15): uma braçada por ciclo, com o deslize
+	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.05 # (mais lento, André 2026-11-15) 2 braçadas por ciclo; agua_fx conta 3 por volta
 	crawl.frente = Vector3(sin(mov.ry), 0, cos(mov.ry))
 
 # Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
