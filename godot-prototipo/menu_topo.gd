@@ -546,7 +546,6 @@ func montar_multi() -> void:
 	if o and o.ligado:
 		var ping := "" if o.rede.ping_ms < 0 else " · %d ms" % o.rede.ping_ms
 		_texto(tr("Online · %d %s%s") % [o.jogadores, tr("jogador") if o.jogadores == 1 else tr("jogadores"), ping], Menu.VERDE, 18)
-		_texto("Você está no mundo com os outros jogadores. Quem decide golpes, dano e itens é o servidor.", Menu.APAGADO, 14)
 		if m.amigos: # amigos (até 20) e time (amigos.gd)
 			m.amigos.montar_janela(self)
 		_add(_botao("Jogar sozinho", func():
@@ -671,7 +670,7 @@ func _chave_ia() -> void:
 	if ativa:
 		_texto("Ativada. Você conversa com %s." % " e ".join(nomes), Menu.APAGADO, 13)
 		return
-	_texto("Para conversar com %s:\n1. Crie a chave grátis (conta Google, Create API Key) e copie.\n2. Toque em Colar a chave." % " e ".join(nomes), Menu.APAGADO, 13)
+	_texto("Sem chave, %s respondem com falas prontas. Para respostas com IA:\n1. Crie a chave grátis (conta Google, Create API Key) e copie.\n2. Toque em Colar a chave." % " e ".join(nomes), Menu.APAGADO, 13)
 	var linha := HBoxContainer.new()
 	linha.add_theme_constant_override("separation", 8)
 	var b1 := _botao("1. Criar chave", func(): OS.shell_open("https://console.groq.com/keys"), false)

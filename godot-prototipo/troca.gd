@@ -147,7 +147,8 @@ func tocou_tela(pos: Vector2) -> void:
 	var dist: float = Vector2(outros[achou].no.position.x - m.heroi.position.x, outros[achou].no.position.z - m.heroi.position.z).length()
 	var extras: Array = m.amigos.botoes_para(achou) if m.amigos else [] # amigos.gd: adicionar amigo ou chamar pro time
 	var ver := [["Equipamento", pedir_equip.bind(achou)]] # André 2026-11-10: ver o que qualquer jogador veste (de perto)
-	if outros[achou].get("bot", false) and achou in m.online.amiga_ids: # Cecília/Dario como jogador: troca, time, mensagem
+	# André 2026-11-15: com ou sem a chave de IA, todo mundo troca, chama pro time e manda mensagem (lista de Amigos virtuais)
+	if outros[achou].get("bot", false) and (achou in m.online.amiga_ids or (m.amigos and m.amigos.conta_virtual(achou) != "")): # Cecília/Dario como jogador: troca, time, mensagem
 		var bts: Array = []
 		var longe: bool = dist > perto()
 		if not longe:
@@ -163,7 +164,7 @@ func tocou_tela(pos: Vector2) -> void:
 			bts += ver
 		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)
 		return
-	if outros[achou].get("bot", false): # Cecília para quem ainda não ativou a conversa com IA: só ver o equipamento
+	if outros[achou].get("bot", false): # outro NPC que não é amigo virtual: só ver o equipamento
 		if dist > perto():
 			m.hud.aviso("Chegue mais perto de %s" % nome)
 			return

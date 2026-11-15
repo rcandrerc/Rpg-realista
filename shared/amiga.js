@@ -23,7 +23,16 @@ import { etapaAtual } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
-const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
+// sorteia sem repetir a última da mesma lista (André 2026-11-15: as respostas prontas pareciam de robô)
+const ULTIMA = new WeakMap();
+const sorteia = (l) => {
+  if (!Array.isArray(l) || l.length < 2) return Array.isArray(l) ? l[0] : l;
+  const u = ULTIMA.get(l);
+  let i = Math.floor(Math.random() * (u == null ? l.length : l.length - 1));
+  if (u != null && i >= u) i++;
+  ULTIMA.set(l, i);
+  return l[i];
+};
 const normAmiga = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1, 12]]; // praça, Rosa, ferraria, entrada
 const REGA_MS = HORTA.rega * 3600000;
@@ -152,8 +161,9 @@ export const Amiga = {
       this.amiga = j;
       this.amigaDono = null;
     }
-    if (!fala) return; // só passeia no mundo dele; conversar, só quem tem a chave
-    if (!this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
+    // André 2026-11-15: com ou sem chave, todo mundo toca nele e vê Mensagem/Time (a chave só troca a resposta pela IA).
+    // Acompanhar quem chegou na hora de entrar: só quem tem a chave (sem chave, passa a acompanhar quando falar com ele)
+    if (fala && !this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
     this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null });
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
   },
