@@ -29,7 +29,14 @@ R.lentidao = { segundosRuins: lent.length, resumos: res.length, fps: mediana(res
 for (const f of (process.env.LOGS || '').split(',').filter(Boolean)) {
   let txt = ''; try { txt = fs.readFileSync(f, 'utf8'); } catch { continue; }
   const erros = new Map();
-  for (const l of txt.split('\n')) if (/^(SCRIPT ERROR|SHADER ERROR|ERROR):/.test(l)) erros.set(l.slice(0, 160), (erros.get(l.slice(0, 160)) || 0) + 1);
+  const ls = txt.split('\n');
+  ls.forEach((l, i) => {
+    if (!/^(SCRIPT ERROR|SHADER ERROR|ERROR):/.test(l)) return;
+    // onde: o Godot põe "at: (C++)" e, no 4.5+, "GDScript backtrace ... [0] função (res://x.gd:12)" logo abaixo
+    const prox = ls.slice(i + 1, i + 6), gd = prox.find((x) => /^\s+\[0\] /.test(x)), c = prox.find((x) => /^\s+at: /.test(x));
+    const at = gd ? ` [${gd.trim().slice(4, 120)}]` : c ? ` [${c.trim().slice(4, 110)}]` : '';
+    const k = l.slice(0, 160) + at; erros.set(k, (erros.get(k) || 0) + 1);
+  });
   for (const [l, n] of [...erros].sort((a, b) => b[1] - a[1]).slice(0, 5)) R.problemas.push(`${l}${n > 1 ? ` (${n} vezes)` : ''}`);
 }
 

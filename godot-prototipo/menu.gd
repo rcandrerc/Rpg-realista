@@ -1009,7 +1009,7 @@ func atualizar() -> void:
 # as abas de cima (e as fileiras de baixo delas) só trocam de estilo quando a escolhida muda: refazer as 3 caixas e
 # as cores de uns 15 botões a cada atualizar custava ~4 ms no PC por abertura e por toque dentro do menu
 func _estilo_se_mudou(b: Button, ativo: bool) -> void:
-	if b.get_meta("ativo", null) == ativo:
+	if b.has_meta("ativo") and b.get_meta("ativo") == ativo:
 		return
 	b.set_meta("ativo", ativo)
 	estilo_botao(b, ativo)

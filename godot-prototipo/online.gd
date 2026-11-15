@@ -784,11 +784,15 @@ func outro(j: Dictionary) -> void:
 			o.lod = -1
 			o.molas = _molas_de(esq)
 			o.fase = randi() % 6
+			o.nasceu = Engine.get_process_frames()
 			outros[id] = o
 			_marca("o:corpo", tc)
+	# corpo novo neste quadro: a roupa e as cores ficam para a próxima foto (0,05 s depois). Juntos davam 280 ms num
+	# quadro só no Poco X7 (o:corpo ~150 + o:vestir ~130, registros de 2026-11-14)
+	var recem: bool = int(o.get("nasceu", -1)) == Engine.get_process_frames()
 	var antes: Vector3 = o.alvo
 	var ap_txt := JSON.stringify(j.get("aparencia"))
-	if ap_txt != o.ap: # cores, altura e rosto que o jogador escolheu no criador
+	if ap_txt != o.ap and not recem: # cores, altura e rosto que o jogador escolheu no criador
 		o.ap = ap_txt
 		# sem esperar o penteado de outro modelo carregar (era a travada de ~1 s da Cecília, 2026-11-13): _detalhe_outros põe
 		# quando chegar
@@ -815,7 +819,7 @@ func outro(j: Dictionary) -> void:
 	var roupa := str(j.get("roupa", ""))
 	if j.get("semCapacete", false) == true: # o dono escondeu o capacete
 		roupa = ",".join(PackedStringArray(Array(roupa.split(",", false)).filter(func(p): return not str(p).begins_with("chapeu"))))
-	if roupa != o.get("roupa", "-"):
+	if roupa != o.get("roupa", "-") and not recem:
 		o.roupa = roupa
 		var tv := Time.get_ticks_usec()
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
