@@ -292,7 +292,9 @@ func pedir(metodo: String, caminho: String, corpo = null, com_sessao := true) ->
 		return {"codigo": 0, "dados": {}}
 	var res: Array = await http.request_completed
 	http.queue_free()
-	var dados = JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8())
+	var txt := (res[3] as PackedByteArray).get_string_from_utf8().strip_edges()
+	# resposta vazia ou que não é JSON (servidor reiniciando, página de erro): sem dados, sem erro no log
+	var dados = JSON.parse_string(txt) if txt.begins_with("{") or txt.begins_with("[") else null
 	return {"codigo": int(res[1]) if res[0] == HTTPRequest.RESULT_SUCCESS else 0, "dados": dados if dados is Dictionary else {}}
 
 func entrar_na_sala(automatico := false) -> void:
