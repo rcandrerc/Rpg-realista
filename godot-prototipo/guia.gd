@@ -24,7 +24,9 @@ const LONGE := 7.0 # m: mais longe que isto do lugar da etapa, o "Ir" da barrinh
 const LONGE_CAMPO := 30.0 # m: caçar, pistas e coleta (o campo é grande: lá dentro o "Ir" para de piscar)
 const PERTO_NPC := 4.5 # m: do lado do NPC (missao_ativa.gd abre a conversa a 4 m)
 const COR := Color(1.0, 0.86, 0.42) # dourado claro (o mesmo brilho dos botões ativos)
-const TRAVA := true # chave da trava (só o que pisca aceita toque)
+# André 2026-11-15: "melhor deixar só a marca brilhante sem trava" (craftar a vara com a bolsa cheia: o guia prendia na
+# aba Criar e não deixava abrir a Mochila para liberar espaço). O brilho continua; a trava fica desligada, o código fica.
+const TRAVA := false # chave da trava (true = só o que pisca aceita toque)
 const TRAVA_MAX := 20.0 # s no mesmo botão: a trava solta (nunca prende o jogador de vez)
 const TRAVA_EM := ["menu", "janela", "confirma", "qtd", "conversa", "leilao", "forno", "veiculo", "topo", "mapa"]
 
@@ -336,6 +338,9 @@ func _procurar() -> void:
 		# André 2026-11-12: no barquinho, o "Criar " do menu achava o "Criar pack" da conversa do Nico e travava nele
 		if tipo == "conversa" and (p.begins_with("b:") or p.begins_with("b^")) and (fala < 0 or i < fala):
 			continue
+		# conversa com outro NPC (não o da etapa): nada pisca lá dentro (o X fecha e o "Ir" leva ao certo)
+		if tipo == "conversa" and (p.begins_with("b:") or p.begins_with("b^")) and not _conversa_certa(hi):
+			continue
 		if _achar(p, hi, tipo):
 			if _chave != p:
 				_chave = p
@@ -414,6 +419,8 @@ func _achar(p: String, hi: Dictionary, tipo: String) -> bool:
 		return c != null
 	if p == "ir":
 		return jogo and _achar_ir(str(hi.get("ev", "")))
+	if p == "hud:falar": # o Falar abre o NPC mais perto: só pisca se ele é quem a etapa pede (André 2026-11-15)
+		return jogo and _falar_certo(hi) and _achar_hud("falar")
 	if p.begins_with("hud:"):
 		return jogo and _achar_hud(p.substr(4))
 	if p.begins_with("topo:"):
@@ -487,10 +494,37 @@ func _achar_ir(ev: String) -> bool:
 		return false
 	var hp := Vector2(m.heroi.position.x, m.heroi.position.z)
 	var perto: float = PERTO_NPC if str(A.get("npc", "")) != "" else (LONGE_CAMPO if ev in ["matar", "pistas", "item", "ter", "pesca"] else LONGE)
-	if hp.distance_to(A.pos) <= perto:
+	# do lado do NPC da etapa, mas o Falar abriria outro (dois NPCs juntos): o "Ir" abre a conversa com o certo
+	if hp.distance_to(A.pos) <= perto and (str(A.get("npc", "")) == "" or _falar_certo(m.P.hist_info)):
 		return false
 	_alvo = ma.ir_btn
 	return true
+
+# o NPC que a etapa pede (falar, aceitar, entregar, vender, comprar...): o hi.npc do servidor ou o NPC do "Ir"; "" = nenhum
+func npc_da_etapa(hi: Dictionary) -> String:
+	if str(hi.get("npc", "")) != "":
+		return str(hi.npc)
+	var ma = m.missao_ativa
+	if ma == null:
+		return ""
+	return str(ma.alvo().get("npc", ""))
+
+# André 2026-11-15: "o balão dele fica brilhando mas a missão na vdd, se eu apertar em Ir, é pra falar com outro NPC".
+# O Falar da HUD aparece do lado de QUALQUER NPC (o que deu a missão continua ali do lado). Só vale piscar quando o
+# Falar abre o NPC da etapa.
+func _falar_certo(hi: Dictionary) -> bool:
+	var id := npc_da_etapa(hi)
+	if id == "" or m.conversa == null or not m.conversa.has_method("npc_falar"):
+		return true # etapa sem NPC (totem...): como antes
+	var n = m.conversa.npc_falar()
+	return n != null and str(n.get("id", "")) == id
+
+func _conversa_certa(hi: Dictionary) -> bool:
+	var id := npc_da_etapa(hi)
+	var cv = m.conversa
+	if id == "" or cv == null or cv.get("npc") == null:
+		return true
+	return str(cv.npc.get("id", "")) == id
 
 # botão redondo da HUD (desenhado, não é Control)
 func _achar_hud(acao: String) -> bool:
