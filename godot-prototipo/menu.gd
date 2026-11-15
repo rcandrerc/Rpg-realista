@@ -969,7 +969,7 @@ func atualizar() -> void:
 	if cat_criar == "aqui" and est_aqui.is_empty():
 		cat_criar = "materiais"
 	botoes_criar.aqui.visible = not est_aqui.is_empty()
-	botoes_criar.aqui.text = str(NOME_ESTACAO[est_aqui[0]]).split(" ")[0] if est_aqui.size() == 1 else "Aqui"
+	botoes_criar.aqui.text = Idioma.frase(str(NOME_ESTACAO[est_aqui[0]]).split(" ")[0] if est_aqui.size() == 1 else "Aqui")
 	for k in botoes_criar:
 		_estilo_se_mudou(botoes_criar[k], k == cat_criar)
 	atualizar_slots()
@@ -1735,7 +1735,7 @@ func montar_receitas(prof: String) -> void:
 	# Vila dos Lotes: perto de uma bigorna, fornalha ou bancada construída também dá (cada uma serve para umas receitas)
 	var estacoes := ["bigorna", "fornalha"] if prof == "fer" else ["fogao"] if prof == "coz" else ["bancada"]
 	var na_estacao: bool = not aqui and m.construcao != null and m.construcao.estacao_perto(estacoes)
-	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Você está perto da sua estação: dá para criar o que ela faz.") if na_estacao else ("Para criar, vá %s ou a uma %s construída na Vila dos Lotes." % [str(of.onde).replace("na ", "até a "), " ou ".join(estacoes)]), 13, VERDE if aqui or na_estacao else APAGADO)
+	var st := rotulo(("Você está %s: dá para criar." % of.onde) if aqui else ("Você está perto da sua estação: dá para criar o que ela faz.") if na_estacao else ("Para criar, vá %s ou a uma %s construída na Vila dos Lotes." % [str(of.onde) if Idioma.ingles() else str(of.onde).replace("na ", "até a "), " ou ".join(estacoes.map(func(e): return str(NOME_ESTACAO[e]).to_lower()))]), 13, VERDE if aqui or na_estacao else APAGADO)
 	st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conteudo.add_child(st)
 	separador("Receitas · %s Nv %d" % [P.dados.profissoes[prof].nome, P.prof_nivel(prof)])
@@ -3632,7 +3632,7 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 # na janelinha de reforçar e nos avisos. Aqui só um aviso curto quando a peça reforçada não pode ser usada (Quimera).
 # explica o botão "Até o máximo" (antes "Até cancelar"): tenta de novo sozinho, cada tentativa cobra o ouro
 func texto_ate_maximo(it) -> String:
-	return "Tenta de novo sozinho até +%d, até o ouro acabar ou até você tocar em Cancelar" % int(m.P.reforco_max(it))
+	return Idioma.t("Tenta de novo sozinho até +%d, até o ouro acabar ou até você tocar em Cancelar") % int(m.P.reforco_max(it))
 
 func dica_ate_maximo(it) -> Control:
 	var d := rotulo(texto_ate_maximo(it), 11, APAGADO)

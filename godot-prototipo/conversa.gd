@@ -661,7 +661,7 @@ func _destinos_totem(n: Dictionary) -> void:
 		var ok: bool = m.totem.descoberto(str(t.id))
 		var b := _opcao("%s · %d" % [t.nome, m.totem.taxa(t)] if ok else "%s (visite a pé)" % t.nome, "salto_arcano" if ok else "cadeado",
 func(): _ir_totem(de, tt))
-		b.tooltip_text = str(t.get("faixa", ""))
+		b.tooltip_text = Idioma.frase(str(t.get("faixa", "")))
 		if not ok:
 			b.modulate = Color(1, 1, 1, 0.55)
 		elif m.totem.taxa(t) > ouro:

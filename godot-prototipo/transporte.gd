@@ -657,20 +657,20 @@ func _atualizar_painel() -> void:
 	var t := ""
 	var pk = p.get("pack")
 	if pk is Dictionary and PK.has(str(pk.get("k", ""))):
-		t += "[b][color=#ffe7a8]%s[/color][/b]\n[color=#cbbfa8]Feito em: %s · leve pra longe[/color]" % [PK[pk.k].nome, _onde(pk)]
+		t += ("[b][color=#ffe7a8]%s[/color][/b]\n[color=#cbbfa8]" + Idioma.t("Feito em: %s · leve pra longe") + "[/color]") % [Idioma.frase(str(PK[pk.k].nome)), Idioma.frase(str(_onde(pk)))]
 	var c = p.get("carrinho")
 	if c is Dictionary and m.mov.veiculo.get("k", "") == "carrinho":
 		var gal: float = (comb_local if comb_local >= 0.0 else float(c.get("comb", 0))) / float(V.carrinho.galao)
-		t += ("\n" if t != "" else "") + "[b]Carrinho[/b]\n[color=#cbbfa8]Combustível: %s galão · Vida: %d/%d · Packs: %d/%d[/color]" % [
+		t += ("\n" if t != "" else "") + ("[b]" + Idioma.t("Carrinho") + "[/b]\n[color=#cbbfa8]" + Idioma.t("Combustível: %s galão · Vida: %d/%d · Packs: %d/%d") + "[/color]") % [
 			String.num(snappedf(gal, 0.1)).replace(".", ","), int(c.get("vida", 0)), int(V.carrinho.vida), (c.get("packs", []) as Array).size(), capacidade(c)]
 	var nv = p.get("navio")
 	if nv is Dictionary and m.mov.veiculo.get("k", "") == "navio":
-		t += ("\n" if t != "" else "") + "[b]Navio mercante[/b]\n[color=#cbbfa8]Porão: %d/%d packs[/color]" % [(nv.get("porao", []) as Array).size(), int(V.navio.porao)]
+		t += ("\n" if t != "" else "") + ("[b]" + Idioma.t("Navio mercante") + "[/b]\n[color=#cbbfa8]" + Idioma.t("Porão: %d/%d packs") + "[/color]") % [(nv.get("porao", []) as Array).size(), int(V.navio.porao)]
 	var editando: bool = m.hud.editando
 	if t == "" and editando: # no modo de editar aparece mesmo sem pack, para dar para mover
-		t = "[b][color=#ffe7a8]Pack nas costas[/color][/b]\n[color=#cbbfa8]Aparece aqui quando você carrega um pack[/color]"
-	if _painel_txt.text != Idioma.frase(t):
-		_painel_txt.text = Idioma.frase(t)
+		t = "[b][color=#ffe7a8]" + Idioma.t("Pack nas costas") + "[/color][/b]\n[color=#cbbfa8]" + Idioma.t("Aparece aqui quando você carrega um pack") + "[/color]"
+	if _painel_txt.text != t: # os pedaços já vêm no idioma (a frase inteira com [b][color] não bate com o dicionário)
+		_painel_txt.text = t
 	_painel.visible = t != "" and (editando or not m.menu.aberto())
 	_largar.visible = pk is Dictionary
 

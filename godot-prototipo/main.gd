@@ -2043,7 +2043,7 @@ func nome_legivel(no: Node3D) -> void:
 # nome e barra de vida em cima da cabeça
 func barra_vida(no: Node3D, nome: String, cor: Color) -> MeshInstance3D:
 	var l := Label3D.new()
-	l.text = nome
+	l.text = Idioma.frase(nome) # inglês: "Magma Golem  Lv 28" (o nome chega montado em português)
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	# tamanho fixo na tela (uns 14 px de letra numa tela de 576 de altura), não cresce quando a câmera chega perto
 	l.fixed_size = true
@@ -4802,7 +4802,7 @@ func montar_versao() -> void:
 	add_child(tela)
 	var l := Label.new()
 	var n := str(load("res://versao.gd").NUMERO)
-	l.text = "versão " + (n if n != "" else "dev")
+	l.text = Idioma.frase("versão " + (n if n != "" else "dev"))
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_theme_font_size_override("font_size", 13)
 	l.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))

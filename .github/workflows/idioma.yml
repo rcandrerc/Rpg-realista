@@ -1,0 +1,27 @@
+# Trava do inglês (André 2026-11-15: "joguei em inglês e várias janelas ainda vinham em português"). O Testes só roda
+# quando muda shared/ ou server/; esta roda também quando muda o jogo (godot-prototipo): frase nova em português sem
+# inglês, texto montado sem passar por Idioma ou aviso do servidor sem chave dão X vermelho no PR. Só avisa, não trava.
+name: Idioma
+
+on:
+  pull_request:
+    paths: ['godot-prototipo/**.gd', 'godot-prototipo/dados/idioma_en.json', 'shared/**', 'server/**', 'ferramentas/testes/idioma*', '.github/workflows/idioma.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  idioma:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node ferramentas/testes/idioma.mjs
