@@ -114,7 +114,22 @@ export const velCarrinho = (c) => V.carrinho.vel - V.carrinho.perdePorPack * Mat
 // água funda o bastante em (x, z)? (lago hoje; o mar entra na FASE 3)
 export const fundoAgua = (x, z) => noLago(x, z)?.fundo || 0;
 // barquinho de volta para a mochila; cheia, fica guardado à parte (prog.barcoFora) e volta quando abrir lugar
-export function devolverBarquinho(p) { if (!guardar(p.mochila, { k: 'barquinho', n: 1 })) p.barcoFora = 1; }
+// cadeado (André 2026-11-15: "travei ele... e sumiu da bag"): o barquinho e o navio saem da mochila quando vão para a água e
+// voltavam sem o cadeado; aí o Selecionar tudo / Vender vários pegava junto. prog.vcad lembra quem estava trancado.
+export function tirarVeiculo(p, k) {
+  for (let i = p.mochila.length - 1; i >= 0; i--) {
+    const o = p.mochila[i]; if (!o || o.k !== k) continue;
+    if (o.cad) (p.vcad ||= {})[k] = 1; else if (p.vcad) delete p.vcad[k];
+    p.mochila[i] = null; return true;
+  }
+  return false;
+}
+export function guardarVeiculo(p, k) {
+  if (!guardar(p.mochila, { k, n: 1, ...(p.vcad?.[k] ? { cad: 1 } : {}) })) return false;
+  if (p.vcad) { delete p.vcad[k]; if (!Object.keys(p.vcad).length) delete p.vcad; }
+  return true;
+}
+export function devolverBarquinho(p) { if (!guardarVeiculo(p, 'barquinho')) p.barcoFora = 1; }
 // o ponto mais perto do herói (anéis de 0,5 m, 24 direções, a da frente primeiro) que passa em ok(x, z)
 export function acharPonto(j, ok, raio) {
   for (let r = 0.5; r <= raio + 0.01; r += 0.5) for (let i = 0; i < 24; i++) {
@@ -279,14 +294,14 @@ export const Transporte = {
         aviso('Carrinho no chão! Toque nele pra dirigir, abastecer e carregar. Pra guardar, toque nele na mochila (de qualquer distância).');
       } else if (k === 'barquinho') {
         if (fundoAgua(x, z) < V.barquinho.fundo) return aviso('Chegue na beira da água pra usar o barquinho');
-        tirar(p.mochila, 'barquinho', 1); j.veiculo = 'barquinho'; j.montado = null; j.x = x; j.z = z; j.y = AGUA.nivel;
+        tirarVeiculo(p, 'barquinho'); j.veiculo = 'barquinho'; j.montado = null; j.x = x; j.z = z; j.y = AGUA.nivel;
         this.evento({ t: 'veiculo', para: id, acao: 'subiu', k, x: r2(x), z: r2(z), ry: r2(ry) });
         aviso('No barquinho! Pra descer, chegue na margem e toque no botão do barco.');
       } else if (k === 'navio') {
         if (p.navio?.chao) return aviso('Você já tem um navio na água');
         if (fundoAgua(x, z) < V.navio.fundo) return aviso('Chegue na beira de água funda pra colocar o navio');
         p.navio ||= { porao: [], chao: null }; p.navio.chao = { x: r2(x), z: r2(z), ry: r2(ry) };
-        tirar(p.mochila, 'navio', 1); aviso('Navio na água! Toque nele pra carregar, descarregar e zarpar.');
+        tirarVeiculo(p, 'navio'); aviso('Navio na água! Toque nele pra carregar, descarregar e zarpar.');
       }
       return pronto();
     }
@@ -325,7 +340,7 @@ export const Transporte = {
       if (k === 'barquinho' && p.mochila.indexOf(null) < 0) return aviso('Mochila cheia: libere um lugar pra guardar o barquinho');
       if (k === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
       else if (k === 'navio') { p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) }; aviso('Navio ancorado. Ele fica aqui até você voltar.'); }
-      else if (k === 'barquinho') guardar(p.mochila, { k: 'barquinho', n: 1 });
+      else if (k === 'barquinho') guardarVeiculo(p, 'barquinho');
       j.veiculo = null;
       if (k !== 'carrinho') { j.x = sx; j.z = sz; }
       this.evento({ t: 'veiculo', para: id, acao: 'desceu', k, x: r2(j.x), z: r2(j.z) });
@@ -354,7 +369,7 @@ export const Transporte = {
         c.packs = []; c.chao = null;
       } else if (m.k === 'navio') {
         const n = p.navio; if (!n?.chao || Math.hypot(n.chao.x - j.x, n.chao.z - j.z) > V.navio.perto + 0.5) return aviso('Chegue perto do navio e toque de novo');
-        if (!guardar(p.mochila, { k: 'navio', n: 1 })) return aviso('Mochila cheia');
+        if (!guardarVeiculo(p, 'navio')) return aviso('Mochila cheia');
         n.porao.forEach((pk, i) => this.packNoChao(pk, j.x + (i % 4 - 1.5) * 1.1, j.z + Math.floor(i / 4) * 0.9));
         aviso(n.porao.length ? 'Navio de volta na mochila. Os packs ficaram na margem.' : 'Navio guardado na mochila');
         n.porao = []; n.chao = null;
@@ -467,13 +482,13 @@ export const Transporte = {
     const s = { ...p }, aqui = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
     if (j.veiculo === 'navio') s.navio = { ...(p.navio || { porao: [] }), chao: aqui };
     else if (j.veiculo === 'carrinho') s.carrinho = { ...p.carrinho, chao: aqui };
-    else if (j.veiculo === 'barquinho') { s.mochila = p.mochila.slice(); devolverBarquinho(s); }
+    else if (j.veiculo === 'barquinho') { s.mochila = p.mochila.slice(); if (p.vcad) s.vcad = { ...p.vcad }; devolverBarquinho(s); } // cópia: o cadeado volta só na gravada
     return s;
   },
   // barquinho que ficou fora da mochila cheia: volta assim que abrir um lugar (chamado a cada gravação)
   voltarBarquinho(j) {
     const p = j.prog; if (p.barcoFora !== 1 || j.veiculo) return;
-    if (guardar(p.mochila, { k: 'barquinho', n: 1 })) { delete p.barcoFora; j.progSujo = true; this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: 'O barquinho voltou para a mochila' }); }
+    if (guardarVeiculo(p, 'barquinho')) { delete p.barcoFora; j.progSujo = true; this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: 'O barquinho voltou para a mochila' }); }
   },
   // por que não pode teleportar / montar agora ('' = pode)
   motivoCarga(j) {
