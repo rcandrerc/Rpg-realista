@@ -14,6 +14,7 @@ const DIST_MAX := 2100.0
 const DIST_ABRIR := 330.0
 const INCL := 48.0 # graus da câmera acima do chão
 const COR_OURO := Color("c9a35a")
+const Idioma = preload("res://idioma.gd") # inglês: todo texto desenhado passa por Idioma.frase
 
 var mm # minimapa.gd
 var m # main.gd
@@ -539,7 +540,7 @@ func _desenhar() -> void:
 	var c := marcas
 	var tam := size
 	if not pronto:
-		c.draw_string(fonte, tam * 0.5 + Vector2(-120, 0), "Montando o mapa…", HORIZONTAL_ALIGNMENT_CENTER, 240, 22, Color8(250, 232, 190))
+		c.draw_string(fonte, tam * 0.5 + Vector2(-120, 0), Idioma.frase("Montando o mapa…"), HORIZONTAL_ALIGNMENT_CENTER, 240, 22, Color8(250, 232, 190))
 		_botoes(c, tam)
 		return
 	var perto := dist < 900.0
@@ -586,6 +587,7 @@ func _desenhar() -> void:
 	_botoes(c, tam)
 
 func _fita2d(c: Control, centro: Vector2, txt: String, tam: int, l: Dictionary) -> void:
+	txt = Idioma.frase(txt)
 	var nv := int(l.get("nivel", 0))
 	var rom := _romano(nv) if nv > 0 else ""
 	var w := fonte.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x + 18.0
@@ -639,6 +641,7 @@ func _mapinha(c: Control, tam: Vector2) -> void:
 		c.draw_circle(r.position + Vector2((hp.x - X0) / (ATE.x - X0), (hp.z - Z0) / (ATE.y - Z0)) * r.size, 3.0, Color.WHITE)
 
 func _botao(c: Control, r: Rect2, txt: String, tam := 17) -> void:
+	txt = Idioma.frase(txt)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.06, 0.04, 0.88)
 	sb.border_color = COR_OURO
@@ -649,7 +652,7 @@ func _botao(c: Control, r: Rect2, txt: String, tam := 17) -> void:
 
 func _botoes(c: Control, tam: Vector2) -> void:
 	c.draw_rect(Rect2(0, 0, tam.x, 48), Color(0.08, 0.06, 0.04, 0.78))
-	c.draw_string(fonte, Vector2(18, 32), "Mundo de Aethra", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color8(250, 232, 190))
+	c.draw_string(fonte, Vector2(18, 32), Idioma.frase("Mundo de Aethra"), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color8(250, 232, 190))
 	var cx := Vector2(tam.x - 28.0, 24.0)
 	b_x = Rect2(cx - Vector2(22, 22), Vector2(44, 44))
 	c.draw_circle(cx, 15.0, Color(0.05, 0.04, 0.03, 0.85))
@@ -668,7 +671,7 @@ func _botoes(c: Control, tam: Vector2) -> void:
 	b_ir = Rect2()
 	if mm.marcado != null and m.rota:
 		var metros: float = m.rota.comprimento(mm.previa)
-		var t := "Ir para  (%d m)" % int(round(metros))
+		var t := Idioma.frase("Ir para (%d m)" % int(round(metros)))
 		var w := fonte.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 40.0
 		b_ir = Rect2(Vector2(cz.x - w * 0.5, cz.y - 84.0), Vector2(w, 44))
 		_botao(c, b_ir, t, 20)

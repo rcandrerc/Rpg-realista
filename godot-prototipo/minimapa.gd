@@ -1271,7 +1271,7 @@ func _desenhar_mapa() -> void:
 		sb3.set_border_width_all(2)
 		sb3.set_corner_radius_all(18)
 		sb3.draw(c.get_canvas_item(), botao_3d)
-		c.draw_string(fonte, Vector2(botao_3d.position.x, botao_3d.position.y + 24.0), "Mapa 3D", HORIZONTAL_ALIGNMENT_CENTER, botao_3d.size.x, 17, Color(1, 0.95, 0.85))
+		c.draw_string(fonte, Vector2(botao_3d.position.x, botao_3d.position.y + 24.0), Idioma.frase("Mapa 3D"), HORIZONTAL_ALIGNMENT_CENTER, botao_3d.size.x, 17, Color(1, 0.95, 0.85))
 	c.draw_circle(cx, 15.0, Color(0.05, 0.04, 0.03, 0.85))
 	c.draw_arc(cx, 15.0, 0, TAU, 32, Color("c9a35a"), 1.5, true)
 	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)

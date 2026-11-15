@@ -3401,5 +3401,11 @@
 "Pedir": "Request",
 "Pedido já enviado para {1}": "Request already sent to {1}",
 "Não deu para enviar o pedido agora": "Couldn't send the request right now",
-"Pedidos de amizade: {1}": "Friend requests: {1}"
+"Pedidos de amizade: {1}": "Friend requests: {1}",
+"Mundo de Aethra": "World of Aethra",
+"Mapa 2D": "2D Map",
+"Mapa 3D": "3D Map",
+"Onde estou": "Where am I",
+"Montando o mapa…": "Building the map…",
+"Ir para (%d m)": "Go to ({1} m)"
 }
