@@ -814,6 +814,13 @@ func trocar_aba(a: String) -> void:
 	aba = a
 	atualizar()
 	rolagem.scroll_vertical = 0
+	_viu_barra()
+
+# missão "Confira sua barra de habilidades" (André 2026-11-14): abrir a aba Habilidades já conta; não precisa tirar
+# uma skill que já está no lugar e pôr de novo. Quem decide é o servidor (shared/historia.js, etapa com ver)
+func _viu_barra() -> void:
+	if aba == "habilidades" and str(m.P.hist_info.get("ev", "")) == "barra":
+		m.rede("barra_vista")
 
 func trocar_sub_prof(k: String) -> void:
 	sub_prof = k
@@ -852,6 +859,7 @@ func abrir(qual := "", sub := "") -> void:
 	vp.process_mode = Node.PROCESS_MODE_INHERIT
 	boneco_modo = ""
 	atualizar()
+	_viu_barra()
 	if m.lentidao:
 		m.lentidao.menu_aberto(aba, t0, conteudo.get_child_count())
 

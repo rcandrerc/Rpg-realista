@@ -122,6 +122,21 @@ func desligou() -> void:
 	limpar_time()
 	lista = []
 
+# altura que as barras do time ocupam na tela (missao_ativa.gd põe a missão logo embaixo). No modo de editar com o
+# time vazio aparecem duas barras de modelo (editar_hud.gd), e a missão desce para não ficar presa atrás delas.
+func linhas_barras(editando := false) -> int:
+	var eu := str(m.online.meu_id) if m.online else ""
+	var n := 0
+	for t in time:
+		if str(t.id) != eu:
+			n += 1
+	if n == 0 and editando:
+		return 2
+	return 0 if m.hud.esconder_combate else n
+
+func altura_barras(editando := false) -> float:
+	return linhas_barras(editando) * 40.0 * barras_s
+
 # ---------- barras do time (embaixo do painel do herói) ----------
 func _desenhar_barras() -> void:
 	if time.is_empty() or m.hud.esconder_combate:

@@ -1254,7 +1254,7 @@ export class Simulacao {
     // ev/k/min/de: o tipo da etapa, para o guia do app (guia.gd, André 2026-11-12: o botão do próximo toque pisca)
     const fj = E ? this.juntaDe(j, E) : null; // juntando material: o guia segue a coleta (shared/kit.js)
     const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' && !fj ? E.npc : ''; // entregar sem ter tudo: junta antes
-    const guia = fj ? this.guiaJunta(fj) : E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}) } : {};
+    const guia = fj ? this.guiaJunta(fj) : E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}), ...(E.ver ? { ver: true } : {}) } : {};
     return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E && !j.bot ? (() => { const l = [...pedidosDaEtapa(E, p)]; return l.length ? { livre: l } : {}; })() : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer
@@ -1347,6 +1347,11 @@ export class Simulacao {
     j.prog.barras[m.barra] = b;
     this.historia(j, 'barra');
     this.avisarProg(j);
+  }
+  // abriu a aba Habilidades (André 2026-11-14): a etapa "Confira sua barra" conta sem precisar trocar skill
+  verBarra(id) {
+    const j = this.jogadores.get(id); if (!j) return;
+    this.historia(j, 'barra_vista');
   }
   // ---------- skills do Quimera (cada tipo = uma função do Quimera, com os mesmos números) ----------
   // Números da skill no nível dela, já com o dano em pontos (Força para espada, Inteligência para cajado)

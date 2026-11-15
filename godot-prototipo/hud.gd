@@ -513,7 +513,7 @@ func _process_parte(dt: float) -> void:
 	_joy_tinha = joy
 	if _combate.visible:
 		var anim_comb: bool = editando
-		var sc := [modo_construcao, _combate.size]
+		var sc := [modo_construcao, editando, _combate.size] # editando: ao fechar o modo de editar, os botões ocultos somem na hora (André 2026-11-14)
 		for b in botoes:
 			if b.cd > 0.0 or b.pronto_t > 0.0 or b.nega_t > 0.0 or b.get("ligado", false):
 				anim_comb = true

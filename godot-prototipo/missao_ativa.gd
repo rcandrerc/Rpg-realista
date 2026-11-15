@@ -22,6 +22,13 @@ var l2: Label
 var ir_btn: Button
 var _t := 0.0
 var _npc_alvo := "" # id do NPC para onde o "Ir para" levou: ao chegar, abre a conversa
+# modo de editar a interface (editar_hud.gd id "missao", André 2026-11-14: a barra da missão ficava presa atrás das
+# barras do time e não dava para mexer). Sem lugar guardado ela segue a coluna da esquerda: painel do herói, time,
+# missão e pack, um embaixo do outro, sem encavalar. Com lugar guardado fica onde o jogador deixou (BASE_LIVRE + d).
+const BASE_LIVRE := Vector2(18, 204)
+var _d := Vector2.ZERO
+var _s := 1.0
+var _livre := false
 
 func _init(principal) -> void:
 	m = principal
@@ -105,6 +112,39 @@ func destacar() -> void:
 		_pisca.tween_property(cartao, "modulate", Color(1.6, 1.5, 1.9), 0.18)
 		_pisca.tween_property(cartao, "modulate", Color.WHITE, 0.3)
 
+func posicionar(d: Vector2, s: float, livre: bool) -> void:
+	_d = d
+	_s = s
+	_livre = livre
+	if cartao:
+		cartao.scale = Vector2(s, s)
+		if livre:
+			cartao.position = BASE_LIVRE + d
+
+# lugar da barra agora (editar_hud.gd: para soltar da coluna sem pular quando o jogador começa a arrastar)
+func area() -> Rect2:
+	return cartao.get_global_rect() if cartao != null and cartao.visible else Rect2()
+
+# coluna da esquerda (André 2026-11-14: "o default já é pra ser uma coisa boa, jogável"): logo embaixo das barras do time
+# (ou do painel do herói, sem time) vem a missão e, embaixo dela, o painel do pack (transporte.gd). Quem o jogador já
+# mudou de lugar sai da coluna e fica onde ele deixou.
+func _coluna(mostrar: bool) -> void:
+	var a = m.amigos
+	var x := 18.0
+	var y := 122.0
+	if a != null:
+		x = a.BARRAS.x + a.barras_d.x
+		y = a.BARRAS.y + a.barras_d.y + a.altura_barras(m.hud.editando)
+	var fim := y
+	if not _livre:
+		var p := Vector2(x, y + 2.0)
+		if cartao.position != p:
+			cartao.position = p
+		if mostrar:
+			fim = p.y + cartao.size.y * _s + 2.0
+	if m.transporte:
+		m.transporte.na_coluna(Vector2(x - 2.0, fim + 4.0))
+
 # hud.gd: toque aqui não vira joystick nem câmera
 func cobre(p: Vector2) -> bool:
 	return cartao != null and cartao.visible and cartao.get_global_rect().grow(6).has_point(p)
@@ -155,25 +195,23 @@ func _process_parte(dt: float) -> void:
 	if cartao == null or m.hud == null:
 		return
 	var M := _missao()
-	var mostrar: bool = not M.is_empty() and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
+	var editando: bool = m.hud.editando
+	var mostrar: bool = (not M.is_empty() or editando) and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
 	if cartao.visible != mostrar:
 		cartao.visible = mostrar
 	_chegou_npc()
+	_coluna(mostrar)
 	if not mostrar:
 		return
-	# logo embaixo das barras do time (ou do painel do herói, sem time); acompanha o lugar que o jogador deu a elas
-	var a = m.amigos
-	var y := 122.0
-	var x := 18.0
-	if a != null:
-		var outros := 0
-		var eu := str(m.online.meu_id) if m.online else ""
-		for t in a.time:
-			if str(t.id) != eu:
-				outros += 1
-		x = a.BARRAS.x + a.barras_d.x
-		y = a.BARRAS.y + a.barras_d.y + outros * 40.0 * a.barras_s
-	cartao.position = Vector2(x, y + 2.0)
+	if M.is_empty(): # modo de editar sem missão: aparece um modelo, para dar para mover
+		_t = 0.0
+		var ex := ["Missão da vez", "Aparece aqui quando tiver uma"]
+		if l1.text != Idioma.frase(ex[0]):
+			l1.text = Idioma.frase(ex[0])
+			l2.text = Idioma.frase(ex[1])
+		ir_btn.disabled = true
+		cartao.size = Vector2(LARGURA, 0)
+		return
 	_t -= dt
 	if _t > 0.0:
 		return

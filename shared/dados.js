@@ -3384,7 +3384,9 @@ export const HISTORIA = [
   { id: 'a6', cap: 2, nv: 3, npc: 'ferreiro', nome: 'Sua própria luta', libera: [],
     pedido: 'Lutar todo mundo luta. Lutar do SEU jeito é outra coisa. Monte a sua barra de habilidades aqui comigo, e depois gaste os seus pontos de atributo. O Mestre Ivo tira as dúvidas.',
     etapas: [
-      { ev: 'barra', txt: 'Monte sua barra de habilidades (Tomás > Habilidades)', alvo: 'npc:ferreiro' },
+      // André 2026-11-14: quem já tem as skills na barra não precisa tirar uma e pôr de novo. ver: abrir a aba
+      // Habilidades já conta (o app manda "barra_vista"); trocar uma skill também conta, como antes
+      { ev: 'barra', ver: true, txt: 'Confira sua barra de habilidades (Menu > Habilidades)', alvo: 'npc:ferreiro' },
       { ev: 'atributo', ja: 'atributos', txt: 'Gaste seus pontos de atributo (Menu > Status)' },
     ],
     pronto: 'Agora sim. Toma: forjei pensando em você, uma espada Rara, do melhor ferro que eu tinha. ...Aquela lasca de cristal o Mestre Ivo pediu para ver. Ficou branco quando olhou.',

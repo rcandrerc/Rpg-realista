@@ -595,12 +595,21 @@ const PAINEL_POS := Vector2(16, 150)
 var _painel_d := Vector2.ZERO
 var _painel_s := 1.0
 
-func posicionar(d: Vector2, s: float) -> void:
+var _painel_livre := true # false: segue a coluna da esquerda, embaixo da missão (missao_ativa.gd, André 2026-11-14)
+
+func posicionar(d: Vector2, s: float, livre := true) -> void:
 	_painel_d = d
 	_painel_s = s
+	_painel_livre = livre
 	if _painel:
-		_painel.position = PAINEL_POS + d
+		if livre:
+			_painel.position = PAINEL_POS + d
 		_painel.scale = Vector2(s, s)
+
+# lugar na coluna da esquerda (missao_ativa.gd chama todo quadro); só vale enquanto o jogador não mudou o pack de lugar
+func na_coluna(p: Vector2) -> void:
+	if not _painel_livre and _painel and _painel.position != p:
+		_painel.position = p
 
 func area() -> Rect2:
 	return _painel.get_global_rect() if _painel and _painel.visible else Rect2()
