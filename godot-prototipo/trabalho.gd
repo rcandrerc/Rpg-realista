@@ -662,7 +662,7 @@ func _passo_coleta(dt: float) -> void:
 		_passo_duas(o, f)
 	elif m.heroi_anim.current_animation == "descendente":
 		m.heroi_anim.seek(_tempo_golpe(f), true)
-	if not coletando.get("bateu", true) and f >= ((float(LADO_T.bate) if o.tipo == "arvore" else float(PEDRA_T.bate)) if coletando.get("duas", false) else GOLPE_BATE):
+	if not coletando.get("bateu", true) and f >= ((float(_L_T.bate) if o.tipo == "arvore" else float(_P_T.bate)) if coletando.get("duas", false) else GOLPE_BATE):
 		coletando.bateu = true
 		_impacto(o)
 
@@ -858,6 +858,20 @@ const PEDRA2_GOLPE := {"ang": -52.0, "pe": Vector3(0.0, 0.98, 0.32), "ag": 0.2, 
 const PEDRA_QUICA := {"ang": -36.0, "pe": Vector3(0.0, 1.03, 0.3), "ag": 0.17, "av": 0.07, "tor": -3.0, "cur": 1.0}
 const GOLPE_NOVO := true # false volta para o golpe antigo (DUAS_* e LADO1_*)
 const PEDRA_T := {"ergue": 0.4, "bate": 0.5, "quica": 0.6, "solta": 0.7}
+# picareta v3 (André 2026-11-15, pela gravação do preview de mineração com mocap): a picareta sobe por cima do ombro
+# DIREITO (mãos do lado da cabeça, peito torcido para a direita), não reta no meio; desce na diagonal com o corpo
+# todo, bem curvado e agachado, até a pedra baixa na frente. A v2 (reta acima da cabeça) fica em PEDRA2_*.
+const PEDRA3_PRONTO := {"ang": 42.0, "giro": 18.0, "pe": Vector3(0.08, 0.98, 0.3), "ag": 0.12, "av": 0.0, "tor": 10.0, "cur": 0.3}
+const PEDRA3_ALTO := {"ang": 118.0, "giro": 35.0, "pe": Vector3(0.17, 1.5, 0.06), "ag": 0.06, "av": -0.08, "tor": 34.0, "cur": -0.22}
+const PEDRA3_GOLPE := {"ang": -60.0, "giro": -6.0, "pe": Vector3(-0.02, 0.86, 0.36), "ag": 0.25, "av": 0.12, "tor": -14.0, "cur": 1.4}
+const PEDRA3_QUICA := {"ang": -42.0, "giro": 0.0, "pe": Vector3(0.0, 0.92, 0.33), "ag": 0.21, "av": 0.08, "tor": -9.0, "cur": 1.15}
+const PEDRA3_T := {"ergue": 0.44, "bate": 0.54, "quica": 0.64, "solta": 0.74}
+const PICARETA_OMBRO := true # false volta para a picareta v2 (PEDRA2_*)
+var _P_PRONTO: Dictionary = PEDRA3_PRONTO if PICARETA_OMBRO else PEDRA2_PRONTO
+var _P_ALTO: Dictionary = PEDRA3_ALTO if PICARETA_OMBRO else PEDRA2_ALTO
+var _P_GOLPE: Dictionary = PEDRA3_GOLPE if PICARETA_OMBRO else PEDRA2_GOLPE
+var _P_QUICA: Dictionary = PEDRA3_QUICA if PICARETA_OMBRO else PEDRA_QUICA
+var _P_T: Dictionary = PEDRA3_T if PICARETA_OMBRO else PEDRA_T
 # golpe do machado v2 (André 2026-11-15, segunda gravação do ArcheAge: "não tá natural"): base bem aberta, o
 # machado vai para trás do lado direito na altura do ombro com o peito todo torcido e volta na HORIZONTAL, forte,
 # até a casca na altura do peito/cintura; o fio quica e o corpo volta para a guarda. O diagonal (v1) está em LADO2_*.
@@ -871,6 +885,20 @@ const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(0.0, 1.0, 0.34),
 const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(0.04, 1.02, 0.32), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36}
 # tempos do golpe novo (fração da batida): ergue, desce, bate, quica, volta
 const LADO_T := {"ergue": 0.42, "bate": 0.52, "quica": 0.62, "solta": 0.72}
+# machado v3 (André 2026-11-15, "animação 2" do preview de corte com mocap): o machado sobe quase em pé por cima do
+# ombro direito, o peito torce, e desce na diagonal cruzando o corpo até o tronco na altura do quadril, com o corpo
+# bem curvado e os joelhos dobrados. A horizontal (v2) fica em LADO_*, a diagonal antiga em LADO2_*.
+const LADO3_PRONTO := {"ang": 22.0, "giro": 58.0, "pe": Vector3(0.1, 1.0, 0.26), "ag": 0.12, "av": 0.0, "tor": 14.0, "cur": 0.25}
+const LADO3_ALTO := {"ang": 72.0, "giro": 125.0, "pe": Vector3(0.22, 1.5, 0.02), "ag": 0.08, "av": -0.08, "tor": 50.0, "cur": -0.15}
+const LADO3_TRONCO := {"ang": -24.0, "giro": -18.0, "pe": Vector3(-0.02, 0.92, 0.34), "ag": 0.23, "av": 0.1, "tor": -28.0, "cur": 0.85}
+const LADO3_QUICA := {"ang": -14.0, "giro": -4.0, "pe": Vector3(0.02, 0.95, 0.32), "ag": 0.2, "av": 0.07, "tor": -18.0, "cur": 0.7}
+const LADO3_T := {"ergue": 0.45, "bate": 0.55, "quica": 0.65, "solta": 0.75}
+const MACHADO_OMBRO := true # false volta para o golpe horizontal (LADO_*)
+var _L_PRONTO: Dictionary = LADO3_PRONTO if MACHADO_OMBRO else LADO_PRONTO
+var _L_ALTO: Dictionary = LADO3_ALTO if MACHADO_OMBRO else LADO_ALTO
+var _L_TRONCO: Dictionary = LADO3_TRONCO if MACHADO_OMBRO else LADO_TRONCO
+var _L_QUICA: Dictionary = LADO3_QUICA if MACHADO_OMBRO else LADO_QUICA
+var _L_T: Dictionary = LADO3_T if MACHADO_OMBRO else LADO_T
 
 # molas do molejo: x = valor, v = velocidade. Pouco amortecida para passar um pouco do ponto e voltar.
 const MOLEJO_K := 170.0
@@ -887,7 +915,7 @@ func _mola(nome: String, alvo: float, dt: float) -> void:
 	m2.x += float(m2.v) * dt
 
 func _pose_golpe(o: Dictionary) -> Dictionary:
-	return LADO_TRONCO if o.tipo == "arvore" else PEDRA2_GOLPE
+	return _L_TRONCO if o.tipo == "arvore" else _P_GOLPE
 
 # alcance da cabeça da ferramenta na pose do golpe: quanto ela vai à frente do herói e em que altura
 func _cabeca_golpe(o: Dictionary) -> Vector2:
@@ -903,16 +931,16 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	if fe == null:
 		return
 	var lado: bool = o.tipo == "arvore"
-	var PRONTO: Dictionary = LADO_PRONTO if lado else PEDRA2_PRONTO
-	var ALTO: Dictionary = LADO_ALTO if lado else PEDRA2_ALTO
+	var PRONTO: Dictionary = _L_PRONTO if lado else _P_PRONTO
+	var ALTO: Dictionary = _L_ALTO if lado else _P_ALTO
 	var A: Dictionary = PRONTO
 	var B: Dictionary = ALTO
 	var k := 0.0
 	var curva := 0.0
 	var G: Dictionary = _pose_golpe(o)
 	if GOLPE_NOVO: # golpe novo (machado e picareta), com o quique
-		var T: Dictionary = LADO_T if lado else PEDRA_T
-		var QUICA: Dictionary = LADO_QUICA if lado else PEDRA_QUICA
+		var T: Dictionary = _L_T if lado else _P_T
+		var QUICA: Dictionary = _L_QUICA if lado else _P_QUICA
 		if f < T.ergue: # ergue, ganhando força
 			k = smoothstep(0.0, 1.0, f / T.ergue)
 		elif f < T.bate: # desce rápido na diagonal
