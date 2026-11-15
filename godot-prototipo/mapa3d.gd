@@ -469,10 +469,31 @@ void fragment() {
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r in g.get("rios", []):
-		_fita(st, r.curva, 14.0, Color8(36, 70, 90), 5.0)
-		_fita(st, r.curva, 9.0, Color8(54, 104, 130), 5.3)
+		_fita(st, r.curva, 14.0, Color8(36, 70, 90), 5.0, true)
+		_fita(st, r.curva, 9.0, Color8(54, 104, 130), 5.3, true)
 	for e in g.get("estradas", []):
 		_fita(st, e.curva, 3.5 if str(e.id).begins_with("t_") else 5.5, Color8(128, 96, 62), 2.2)
+	# todas as outras estradas da rede do "Ir para" (rota.gd): caminhos do mapa de hoje e ruas das vilas com terreno
+	# (André 2026-11-15: "queria que todas as estradas aparecessem, para a gente poder se guiar só pelo mapa")
+	var linhas: Array = m.mundo.get("caminhos", [])
+	if linhas.is_empty() and m.mundo.has("estrada"):
+		linhas = [{"pontos": m.mundo.estrada, "largura": 4.0}]
+	var vistas := {}
+	for vt in m.mundo.get("vilasTerreno", []):
+		for e in vt.get("estradas", []):
+			var pts: Array = e.get("pontos", [])
+			if pts.size() < 2:
+				continue
+			var chave := "%s|%s|%d" % [str(pts[0]), str(pts[pts.size() - 1]), pts.size()] # Aurora repete a estrada grande em cada bairro
+			if vistas.has(chave):
+				continue
+			vistas[chave] = true
+			linhas = linhas.duplicate()
+			linhas.append(e)
+	for L in linhas:
+		var pts: Array = L.get("pontos", [])
+		if pts.size() >= 2:
+			_fita(st, pts, clampf(float(L.get("largura", 2.4)) * 1.3, 3.0, 6.0), Color8(128, 96, 62), 2.2)
 	var fitas := MeshInstance3D.new()
 	fitas.mesh = st.commit()
 	var mf := _mat()
@@ -499,12 +520,24 @@ void fragment() {
 	mc.current = true
 	cam.make_current()
 
-func _fita(st: SurfaceTool, curva: Array, largura: float, cor: Color, sobe: float) -> void:
+# o terreno é desenhado em facetas de 8 m: a fita usa o canto mais alto da faceta embaixo dela, senão some no morro
+func _alto_faceta(x: float, z: float) -> float:
+	var i := int(floor((x - X0) / (4.0 * PASSO))) * PASSO
+	var j := int(floor((z - Z0) / (4.0 * PASSO))) * PASSO
+	var v := -100.0
+	for b in [j, j + PASSO]:
+		for a in [i, i + PASSO]:
+			v = maxf(v, hh[clampi(b, 0, nz - 1) * nx + clampi(a, 0, nx - 1)])
+	if v < -99.0:
+		return alt(x, z)
+	return minf(_y(v), alt(x, z) + 6.0)
+
+func _fita(st: SurfaceTool, curva: Array, largura: float, cor: Color, sobe: float, rio := false) -> void:
 	var pts: Array[Vector3] = []
 	for p in curva:
 		var x := float(p[0])
 		var z := float(p[1])
-		pts.append(Vector3(x, alt(x, z) + sobe, z))
+		pts.append(Vector3(x, (alt(x, z) if rio else _alto_faceta(x, z)) + sobe, z))
 	for k in range(pts.size() - 1):
 		var d := pts[k + 1] - pts[k]
 		d.y = 0.0
