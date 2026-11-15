@@ -42,8 +42,30 @@ var _giro_pend := Vector2.ZERO
 const TRAVA_VEL := 5.0 # quão rápido volta para as costas
 const VIRAR_VEL := 3.5 # rad/s do giro pedido pela voz
 var giro_voz := 0.0 # giro que falta (rad)
-func travada() -> bool:
-	return m.menu_topo != null and m.menu_topo.camera_travada
+func travada() -> bool: # nas costas (o jeito de 2026-11-14, ficou como opção "Costas")
+	return m.menu_topo != null and m.menu_topo.camera_travada and m.menu_topo.camera_tipo == "costas"
+
+# Visão do alto (André 2026-11-15, "travar visão isométrica", "estilo Albion Online", "só quando eu travar"): com
+# Travar câmera ligado e a visão "Do alto", a câmera fica alta, inclinada e afastada, sem girar (o dedo não gira; o
+# joystick anda sempre igual na tela), com o herói no meio. Destravada, volta a ser livre 360 como antes.
+# Olhando de cima não aparece o horizonte: entra menos coisa longe na tela. A sombra passa a contar a partir do herói
+# (a câmera está ~13 m longe dele), por isso o alcance dela soma ISO_SOMBRA.
+const ISO_YAW := PI * 0.25 # fixo (45°): a tela não gira
+const ISO_PITCH := 0.87 # rad (~50° olhando para baixo)
+const ISO_DIST := 13.0 # m até o herói
+const ISO_PERTO := 10.0 # pinça no modo do alto
+const ISO_LONGE := 17.0
+const ISO_FOV := 46.0 # um pouco mais fechado: menos deformação nas bordas, cara de isométrica
+const ISO_SOMBRA := 10.0 # m somados ao alcance da sombra do nível de gráficos
+const ISO_VEL := 3.0 # quão rápido entra e sai da visão do alto
+var dist_iso := ISO_DIST
+var _iso_k := 0.0 # 0 = câmera normal, 1 = do alto
+var _sombra_iso := -1.0
+func iso() -> bool:
+	return m.menu_topo != null and m.menu_topo.camera_travada and m.menu_topo.camera_tipo == "iso"
+
+func _iso_ativa() -> bool:
+	return iso() and not _conversando and _conv_k <= 0.0 and foco_livre == null
 
 func virar(a: float) -> void:
 	giro_voz += a
@@ -107,6 +129,9 @@ func zoom(fator: float) -> void:
 	if is_equal_approx(fator, 1.0) or _conversando or _conv_k > 0.0:
 		return
 	_dist_alvo = -1.0 # a pinça manda: o atalho para onde está
+	if _iso_ativa():
+		dist_iso = clamp(dist_iso * fator, ISO_PERTO, ISO_LONGE)
+		return
 	if foco_livre != null: # câmera flutuante do modo construção: afasta mais para ver o terreno inteiro
 		dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), LIVRE_LONGE)
 		return
@@ -122,10 +147,16 @@ var _dist_volta := DIST_PADRAO # onde estava antes de afastar
 var _rapido_t := 0.0 # s em que a câmera acompanha a distância nova sem a volta lenta de depois da parede
 
 func longe() -> bool:
+	if _iso_ativa():
+		return dist_iso >= ISO_LONGE - 0.05
 	return (_dist_alvo if _dist_alvo >= 0.0 else dist) >= ZOOM_LONGE - 0.05
 
 func zoom_maximo() -> void:
 	if _conversando or _conv_k > 0.0 or foco_livre != null:
+		return
+	if _iso_ativa(): # do alto: o atalho alterna entre o padrão e o mais longe da pinça
+		dist_iso = ISO_DIST if dist_iso >= ISO_LONGE - 0.05 else ISO_LONGE
+		_rapido_t = 0.6
 		return
 	var perto_min: float = max(DIST_MIN, ZOOM_PERTO)
 	if not longe():
@@ -168,10 +199,16 @@ var _livre_t := 0.0
 func atualizar(dt: float, giro: Vector2) -> void:
 	_t += dt
 	# dedo: acumula e solta aos poucos
+	var do_alto := _iso_ativa()
+	_iso_k = move_toward(_iso_k, 1.0 if do_alto else 0.0, dt * ISO_VEL)
 	_giro_pend += giro
 	var k: float = min(1.0, dt * SUAVE_DEDO)
 	var usa := _giro_pend * k
 	_giro_pend -= usa
+	if do_alto: # do alto o dedo não gira: a câmera vai e fica no ângulo fixo (o joystick usa este yaw)
+		usa = Vector2.ZERO
+		giro_voz = 0.0
+		yaw = lerp_angle(yaw, ISO_YAW, min(1.0, dt * ISO_VEL * 2.0))
 	yaw -= usa.x * SENS_GIRO
 	pitch = clamp(pitch + usa.y * SENS_PITCH, -0.3, 1.1)
 	_sem_dedo = 0.0 if giro.length() > 0.5 else _sem_dedo + dt
@@ -187,7 +224,7 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	elif travada() and not _conversando and foco_livre == null and vel > 0.5 and not m.heroi_anim.mirando and _sem_dedo > 0.6:
 		yaw = lerp_angle(yaw, mov.ry + PI, min(1.0, dt * TRAVA_VEL))
 	# virado para o alvo (mirando, andando de lado): a câmera não persegue o giro do corpo (tremia entre alvo e caminho)
-	if _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and not m.heroi_anim.mirando and j.y < -0.45 and abs(j.x) < 0.6:
+	if not do_alto and _iso_k <= 0.0 and _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and not m.heroi_anim.mirando and j.y < -0.45 and abs(j.x) < 0.6:
 		var atras: float = mov.ry + PI
 		var d: float = atan2(sin(atras - yaw), cos(atras - yaw))
 		if abs(d) < 2.6: # andando para a câmera (de frente): não gira em volta dele
@@ -234,11 +271,14 @@ func atualizar(dt: float, giro: Vector2) -> void:
 			dist = _dist_alvo
 			_dist_alvo = -1.0
 	_rapido_t = maxf(0.0, _rapido_t - dt)
-	var dir_cam := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
+	var s_iso: float = smoothstep(0.0, 1.0, _iso_k)
+	var pitch_v: float = lerpf(pitch, ISO_PITCH, s_iso)
+	var dist_v: float = lerpf(dist, dist_iso, s_iso)
+	var dir_cam := Vector3(sin(yaw) * cos(pitch_v), sin(pitch_v), cos(yaw) * cos(pitch_v))
 	var foco_base := alvo + Vector3(0, _afunda, 0)
 	# FPS (auditoria 2026-11-11): a conta de parede (passos ao longo da linha da câmera) só é refeita quando o foco,
 	# a direção ou a distância mudaram, ou a cada 0,25 s (árvore caiu, parede nova); parado, ela custava todo quadro
-	var ate_l: float = dist + MONTADO_AFASTA * _montado_k
+	var ate_l: float = dist_v + MONTADO_AFASTA * _montado_k
 	_livre_t -= dt
 	if _livre_t <= 0.0 or foco_base.distance_squared_to(_livre_foco) > 0.0001 or dir_cam.dot(_livre_dir) < 0.99999 or absf(ate_l - _livre_ate) > 0.005:
 		_livre_v = m.distancia_livre(foco_base, dir_cam, ate_l, true)
@@ -247,6 +287,8 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		_livre_ate = ate_l
 		_livre_t = 0.25
 	var livre: float = max(DIST_MIN, _livre_v)
+	if s_iso > 0.0: # do alto a linha até a câmera passa por copas e telhados: não puxa (como no Albion)
+		livre = lerpf(livre, ate_l, s_iso)
 	# bateu em parede, telhado, pedra ou tronco: chega perto na hora; volta devagar quando abre
 	# (no atalho do zoom ela acompanha rápido: afastar ao máximo leva ~0,3 s, não 1 s)
 	dist_cam = livre if livre < dist_cam else lerp(dist_cam, livre, min(1.0, dt * (ZOOM_RAPIDO if _rapido_t > 0.0 else 2.5)))
@@ -293,5 +335,20 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	if mov.arrancada != null or (m.h.lunge != null and m.h.lunge.fantasma):
 		fov_alvo = FOV_BASE + FOV_DASH
 	_fov = lerp(_fov, fov_alvo, min(1.0, dt * (9.0 if fov_alvo > _fov else 3.0)))
-	cam.fov = _fov - soco
+	cam.fov = lerpf(_fov, ISO_FOV, s_iso) - soco
+	_sombra_alto(s_iso)
 	soco = move_toward(soco, 0.0, dt * max(4.0, soco * 3.0))
+
+# do alto a câmera fica longe do herói: a sombra (que conta a partir da câmera) ganha ISO_SOMBRA m para cobrir a tela
+func _sombra_alto(s_iso: float) -> void:
+	if m.sol == null or not m.sol.shadow_enabled:
+		return
+	var base: float = 20.0
+	if m.grafico != null and m.grafico.P != null:
+		base = float(m.grafico.P.sombra_dist)
+	var quer: float = base + ISO_SOMBRA * s_iso
+	if s_iso <= 0.0 and _sombra_iso < 0.0:
+		return # nunca entrou no modo do alto: não mexe (grafico.gd manda)
+	if absf(m.sol.directional_shadow_max_distance - quer) > 0.05:
+		m.sol.directional_shadow_max_distance = quer
+	_sombra_iso = quer if s_iso > 0.0 else -1.0
