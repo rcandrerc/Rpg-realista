@@ -441,7 +441,7 @@ func _desenhar() -> void:
 		var sc: float = m.chat.caixa_s
 		tela.draw_rect(rc, Color(0.04, 0.035, 0.03, 0.22))
 		for i in 3:
-			var tx: String = ["Ruiva: oi, pessoal!", "Tomás: alguém vai caçar lobos?", "(as mensagens do chat aparecem aqui)"][i]
+			var tx: String = Idioma.frase(["Ruiva: oi, pessoal!", "Tomás: alguém vai caçar lobos?", "(as mensagens do chat aparecem aqui)"][i])
 			tela.draw_string_outline(f, rc.position + Vector2(4, rc.size.y - (54 - i * 18) * sc), tx, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * sc), 4, Color(0, 0, 0, 0.8))
 			tela.draw_string(f, rc.position + Vector2(4, rc.size.y - (54 - i * 18) * sc), tx, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * sc), Color(1, 1, 1, 0.6))
 	if m.amigos and m.amigos.time.is_empty():
@@ -475,7 +475,7 @@ func _desenhar() -> void:
 			else:
 				_ret_tracejado(q)
 		if escolhido:
-			var tn := nome(id)
+			var tn := Idioma.frase(nome(id))
 			var w := f.get_string_size(tn, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 			var pt := Vector2(r.get_center().x - w * 0.5, r.position.y - 9)
 			if pt.y < 14:

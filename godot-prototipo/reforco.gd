@@ -285,7 +285,7 @@ func _mostrar() -> void:
 	if ok:
 		resultado_ui.text = "SUCESSO!"
 		resultado_ui.add_theme_color_override("font_color", VERDE)
-		resultado2_ui.text = str(resp.get("nome", ""))
+		resultado2_ui.text = Idioma.frase(str(resp.get("nome", "")))
 		if m.sons:
 			m.sons.tocar("nivel", -4.0)
 	else:
