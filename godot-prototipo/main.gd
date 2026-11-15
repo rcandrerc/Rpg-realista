@@ -287,6 +287,15 @@ const ESPERA := 2.5
 const MEDE := 5.0
 
 var t_ready0 := 0 # ms (desde que o app abriu) no começo do _ready: a linha do tempo da entrada (lentidao.gd)
+# André 2026-11-15 ("a tela de login está muito lenta"): quanto cada parte do _ready levou (ms), vai junto da linha
+# do tempo da entrada (lentidao.gd, campo "partes") para achar o que pesa na abertura do celular
+var t_partes := {}
+var _t_passo := 0
+func _passo(nome: String) -> void:
+	var t := Time.get_ticks_msec()
+	t_partes[nome] = t - (_t_passo if _t_passo > 0 else t_ready0)
+	_t_passo = t
+	print("[entrada] ", nome, " ", t_partes[nome], " ms")
 func _ready() -> void:
 	t_ready0 = Time.get_ticks_msec()
 	Idioma.iniciar() # Português ou English (idioma.gd): antes de montar qualquer texto
@@ -309,6 +318,7 @@ func _ready() -> void:
 	armas_lugar = JSON.parse_string(FileAccess.get_file_as_string("res://modelos/armas.json"))
 	mundo = JSON.parse_string(FileAccess.get_file_as_string("res://dados/mundo.json"))
 	pre_carregar()
+	_passo("dados")
 	terreno = Terreno.new(mundo)
 	mov = Andar.new(terreno, mundo)
 	mov.jogo = self
@@ -316,22 +326,30 @@ func _ready() -> void:
 	if mascara.is_compressed():
 		mascara.decompress()
 	montar_ambiente()
+	_passo("ambiente")
 	var vila: Node3D = load("res://modelos/vila.glb").instantiate()
 	add_child(vila)
 	vila_no = vila
+	_passo("vila_glb")
 	for mi in vila.find_children("*", "MeshInstance3D", true, false):
 		if mi.get_aabb().size.x > 200.0: # o chão do site: troco pelo meu, com as trilhas
 			mi.visible = false
 	pintar(vila, false)
+	_passo("pintar")
 	montar_mata(vila)
+	_passo("mata")
 	cenario = Cenario.new(self)
 	add_child(cenario)
+	_passo("cenario")
 	vilas_mundo = VilasMundo.new(self)
 	add_child(vilas_mundo)
+	_passo("vilas_mundo")
 	alcance_da_vila(vila)
 	achar_troncos(vila)
 	juntar_vila(vila)
+	_passo("juntar_vila")
 	montar_chao()
+	_passo("chao")
 	# André 2026-11-10 ("pode tirar essas plantinhas quadradas que sobraram, todas, no mapa inteiro; deixa só o mato
 	# novo"): as folhinhas de grama antigas (montar_grama, grama.gdshader) não são mais montadas; o capim e a samambaia
 	# do mato.gd ficam. O nó vazio fica para quem ainda fala com a grama (Teste "Sem grama", construcao.gd).
@@ -343,10 +361,12 @@ func _ready() -> void:
 	add_child(fx)
 	boss_mundo = BossMundo.new(self)
 	add_child(boss_mundo)
+	_passo("fx_boss")
 	agua_fx = AguaFx.new()
 	add_child(agua_fx)
 	combate = Combate.new(self)
 	criar_heroi()
+	_passo("heroi")
 	for b in BANDO:
 		var e := criar_inimigo(b.id, Vector3(b.x, 0, b.z), b.get("nome", "Inimigo"), b.get("escala", 1.0))
 		e.tipo = b.tipo
@@ -356,16 +376,22 @@ func _ready() -> void:
 	# antes: o servidor chama cada um pela posição na lista (v). Todos ficam a mais de 70 m de onde o herói nasce.
 	montar_cacas() # só põe na fila
 	_a_criar.append(montar_treino)
+	# André 2026-11-15 ("a tela de login está muito lenta"): os NPCs da vila eram quase metade da montagem com a tela
+	# parada (5,4 s de 12,6 s no robô). Agora nascem na fila (criar_aos_poucos), na frente dos monstros, atrás da capa e
+	# da janela "Entrar como…"; a capa só sai quando a fila acaba (online.gd), então ninguém vê a vila sem eles.
+	var fila_npcs: Array = []
 	for n in mundo.get("npcs", []):
 		if n.get("vila") != null: # gente das mini vilas do mundo grande: o corpo só nasce de perto (npcs_das_vilas)
 			npcs_vila.append(n)
 			continue
-		criar_npc(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n)
+		fila_npcs.append(criar_npc.bind(MODELO_NPC.get(n.id, "vivi"), Vector3(float(n.x), 0, float(n.z)), str(n.nome).get_slice(",", 0), n))
+	_a_criar = fila_npcs + _a_criar # NPC não entra em inimigos: a ordem dos monstros (o v do servidor) não muda
 	camera = Camera3D.new()
 	camera.far = 400
 	add_child(camera)
 	cam = CameraHeroi.new(self, camera)
 	cam.colocar(heroi.position)
+	_passo("bando_npcs")
 	sons = Sons.new()
 	add_child(sons)
 	sons.ouvinte = heroi
@@ -374,6 +400,7 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.apertou.connect(usar)
+	_passo("sons_hud")
 	morte = Morte.new(self)
 	add_child(morte)
 	hud.soltou.connect(func(a): if a == "basico": h.segurando = false)
@@ -381,14 +408,17 @@ func _ready() -> void:
 	mostrar_build()
 	trabalho = Trabalho.new(self)
 	add_child(trabalho)
+	_passo("trabalho")
 	pesca = Pesca.new(self)
 	add_child(pesca)
 	transporte = Transporte.new(self)
 	add_child(transporte)
 	menu = Menu.new(self)
 	add_child(menu)
+	_passo("menu")
 	conversa = Conversa.new(self)
 	add_child(conversa)
+	_passo("conversa")
 	rota = Rota.new(self)
 	add_child(rota)
 	hud.tocou.connect(conversa.tocou_tela)
@@ -396,6 +426,7 @@ func _ready() -> void:
 	add_child(troca)
 	leilao = LeilaoUi.new(self)
 	add_child(leilao)
+	_passo("troca_leilao")
 	reforco = Reforco.new(self)
 	add_child(reforco)
 	festa = Festa.new(self)
@@ -407,15 +438,18 @@ func _ready() -> void:
 	hud.troca = troca
 	amigos = Amigos.new(self)
 	add_child(amigos)
+	_passo("festa_amigos")
 	hud.tocou.connect(tocou_inimigo) # tocar num monstro: vira o alvo travado do mago
 	criador = Criador.new(self)
 	add_child(criador)
+	_passo("menus")
 	var cfg := ConfigFile.new()
 	var tem_cfg := cfg.load(ARQUIVO_APARENCIA) == OK
 	if tem_cfg: # corpo escolhido da última vez (sem internet vale o do celular; online vale o da conta)
 		trocar_corpo(str(cfg.get_value("heroi", "visual", "ruiva")), false)
 	definir_aparencia(JSON.parse_string(str(cfg.get_value("heroi", "aparencia", "{}"))) if tem_cfg else {}, false)
 	montar_teste()
+	_passo("aparencia")
 	botao_teste.visible = false # André 2026-11-14: o Botão Teste saiu (os registros automáticos já mapeiam o jogo)
 	aquecer = Aquecer.new(self)
 	add_child(aquecer)
@@ -423,6 +457,7 @@ func _ready() -> void:
 	add_child(lentidao)
 	online = Online.new(self)
 	add_child(online)
+	_passo("online")
 	chat = Chat.new(self) # antes do menu do topo: o ícone do balão liga o número de não lidas
 	add_child(chat)
 	menu_topo = MenuTopo.new(self)
@@ -449,6 +484,7 @@ func _ready() -> void:
 	hud.missao = missao_ativa
 	cinematica = Cinematica.new(self)
 	add_child(cinematica)
+	_passo("paineis")
 	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
 	construcao = Construcao.new(self)
 	add_child(construcao)
@@ -461,7 +497,9 @@ func _ready() -> void:
 	add_child(retrato_heroi)
 	titulos = Titulos.new(self)
 	add_child(titulos)
+	_passo("fim")
 	grafico.aplicar() # resolução, sombra, névoa e alcance do nível escolhido (Alta = como sempre foi)
+	_passo("grafico")
 
 # ---------- cenário ----------
 func montar_ambiente() -> void:

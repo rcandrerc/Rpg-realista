@@ -66,11 +66,18 @@ func marcar(nome: String) -> void:
 	if not _entrada.has(nome):
 		_entrada[nome] = Time.get_ticks_msec()
 
+static func _soma(d: Dictionary) -> int:
+	var t := 0
+	for v in d.values():
+		t += int(v)
+	return t
+
 func _seguir_entrada() -> void:
 	var on = m.online
 	if not _entrada.has("pronto"):
 		_entrada.ini = int(m.t_ready0)
 		marcar("pronto")
+		m.t_partes["quadro1"] = int(_entrada.pronto) - int(m.t_ready0) - _soma(m.t_partes) # do fim do _ready ao 1º quadro
 	if on == null:
 		return
 	if on.rede and on.rede.conectado:
@@ -91,6 +98,7 @@ func _seguir_entrada() -> void:
 			e.tipo = "entrada"
 			e.grafico = int(m.grafico.nivel) if m.grafico else -1
 			e.versao = str(load("res://versao.gd").NUMERO)
+			e.partes = m.t_partes.duplicate()
 			_aparelho(e)
 			on.rede.enviar("lentidao", e)
 
