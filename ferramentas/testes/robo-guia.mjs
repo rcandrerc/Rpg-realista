@@ -11,6 +11,17 @@ let falhas = 0;
 const falhou = (m) => { falhas++; console.error('FALHOU', m); };
 const npcDe = (id) => MAPA_CLAREIRA.npcs.find((n) => n.id === id);
 
+// O NPC que brilha (o Falar da HUD pisca só do lado dele, guia.gd npc_da_etapa: hi.npc ou o NPC do "Ir") tem que ser o
+// NPC que a etapa pede, e o "Ir" tem que levar a ele (André 2026-11-15: "o balão dele fica brilhando mas a missão, se eu
+// apertar em Ir, é pra falar com outro NPC"). Etapas cujo guia passa pelo Falar (guia.gd passos com "hud:falar"):
+const COM_FALAR = new Set(['falar', 'vender', 'comprar', 'pack_fez', 'pack', 'passe', 'resetar', 'sintetizar', 'leilao']);
+const npcBrilha = (hi) => hi?.npc || hi?.alvo?.npc || '';
+function confereNpc(M, hi, quero, onde) {
+  if (hi?.npc && hi.alvo && hi.alvo.npc !== hi.npc) falhou(`${M.id} ${onde}: brilha ${hi.npc} mas o Ir leva a ${hi.alvo.npc || hi.alvo.nome}`);
+  if (quero && npcBrilha(hi) !== quero) falhou(`${M.id} ${onde}: a etapa pede ${quero} mas brilha "${npcBrilha(hi)}" ("${hi?.txt}")`);
+}
+let conferidas = 0;
+
 function jogar(i) {
   const M = HISTORIA[i], L = etapasDe(M);
   const s = new Simulacao(MAPA_CLAREIRA);
@@ -22,6 +33,7 @@ function jogar(i) {
   for (const k of Object.keys(p.prof || {})) p.prof[k] = 999999; // profissão alta: o nível não é o que se testa aqui
   p.hist = { v: 2, p: i, ac: false, e: 0, n: 0, m: 0, ...(i ? { u: HISTORIA[i - 1].id } : {}) };
   s.estacaoPerto = () => ({}); // está do lado da estação certa (bigorna, fornalha, fogão, bancada)
+  confereNpc(M, s.histInfo(j), M.npc, 'para aceitar'); conferidas++;
   s.falaHistoria(j, npcDe(M.npc), () => {}, true); // aceita a missão com o NPC (o kit da primeira etapa vem junto)
   if (!p.hist.ac) { falhou(`${M.id}: não deu para aceitar`); return []; }
   s.eventos = [];
@@ -38,6 +50,11 @@ function jogar(i) {
     const hi = s.histInfo(j);
     if (!hi?.txt || /undefined|NaN|null/.test(hi.txt)) falhou(`${M.id} etapa ${h.e + 1}: texto ruim "${hi?.txt}"`);
     const f = s.juntaDe(j, E);
+    if (E && !f && COM_FALAR.has(E.ev) && !(E.ev === 'passe' && E.k === 'usar')) { // NPC da etapa: falar = E.npc; o resto = o NPC do alvo
+      const quero = E.ev === 'falar' ? E.npc : (typeof E.alvo === 'string' && E.alvo.startsWith('npc:') ? E.alvo.slice(4) : '');
+      if (!quero) falhou(`${M.id} etapa ${h.e + 1}: etapa "${E.ev}" sem NPC`);
+      confereNpc(M, hi, quero, `etapa ${h.e + 1}`); conferidas++;
+    } else if (hi?.npc) confereNpc(M, hi, '', `etapa ${h.e + 1}`);
     // quantidade sempre à vista, entre parênteses (André 2026-11-14: "faça a barra de ferro (0/1)", o "6/8" é a parte)
     if (!f?.pre && !/\(\d+\/\d+\)/.test(hi.txt)) falhou(`${M.id} etapa ${h.e + 1}: sem a quantidade entre parênteses: "${hi.txt}"`);
     if (f && !f.pre && f.fonte) {
@@ -93,5 +110,7 @@ HISTORIA.forEach((M, i) => {
   const a = jogar(i);
   console.log(`${M.id} Cap ${M.cap} ${M.nome}: ${a.length ? a.join(' · ') : 'ok'}`);
 });
+if (!so && conferidas < HISTORIA.length * 2) falhou(`só ${conferidas} conferências do NPC que brilha`);
+console.log(`NPC que brilha = NPC da etapa: ${conferidas} conferências`);
 console.log(falhas ? `${falhas} falha(s)` : 'robô do guia: todas as missões ok');
 if (falhas) process.exitCode = 1;
