@@ -168,9 +168,23 @@ func npc_perto(metros := PERTO):
 func _dist(n: Dictionary) -> float: # folga: o totem é largo (conta da beira da pedra)
 	return Vector2(n.no.position.x - m.heroi.position.x, n.no.position.z - m.heroi.position.z).length() - float(n.get("folga", 0.0))
 
+# quem o Falar da HUD abre: o NPC da missão, se ele está no alcance; senão o mais perto (André 2026-11-15: com dois NPCs
+# juntos, o Falar abria o vizinho e o balão piscava no NPC errado)
+func npc_falar():
+	var achou = npc_perto()
+	if achou == null or m.guia == null:
+		return achou
+	var id: String = m.guia.npc_da_etapa(m.P.hist_info)
+	if id == "" or str(achou.get("id", "")) == id:
+		return achou
+	for n in _com_amiga():
+		if str(n.get("id", "")) == id and _dist(n) < PERTO and abs(n.no.position.y - m.heroi.position.y) < 2.0:
+			return n
+	return achou
+
 # botão Falar da HUD
 func tocar_botao() -> void:
-	var n = npc_perto()
+	var n = npc_falar()
 	if n != null:
 		abrir(n)
 
