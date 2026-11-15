@@ -225,7 +225,7 @@ var _caj_base = null # posição do cajado nas costas (no osso), guardada ao pre
 var _saindo_agua := 0.0 # segundos que faltam da saída do lago (do nado até ficar de pé)
 var _sobe_agua := 0.0 # metros que o corpo sobe agora
 # André 2026-11-06 (2ª): estava alto demais (peito todo fora). Agora só cabeça e ombros saem da água
-const SOBE_BOIANDO := -0.18 # boiando parado (Treading Water): a água no ombro
+const SOBE_BOIANDO := 0.05 # boiando parado: ombros e braços abertos na linha da água (André 2026-11-15, como no ArcheAge; antes -0.18)
 const SOBE_NADANDO := 0.32 # nadando (Swimming): cabeça e nuca fora, as costas rente à água
 const SAIR_AGUA_RITMO := 1.15
 # molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
@@ -2511,7 +2511,13 @@ func _passo_crawl(dt: float) -> void:
 		crawl = NadoCrawl.new()
 		heroi_esq.add_child(crawl) # por último: depois da animação e da inclinação
 		crawl.preparar(heroi_esq)
-	crawl.peso = float(heroi_anim._nada) if _nadando else move_toward(crawl.peso, 0.0, dt * 4.0)
+	# debaixo d'água volta o nado de peito do Mixamo (André 2026-11-15: "por baixo d'água é o sapinho, por cima o crawl")
+	var fundo: float = smoothstep(0.25, 0.55, float(mov.mergulho))
+	crawl.peso = float(heroi_anim._nado) if _nadando else move_toward(crawl.peso, 0.0, dt * 4.0)
+	crawl.boia = 1.0 - float(heroi_anim._nada) # parado na água: braços abertos varrendo e pernas pedalando
+	crawl.fase_boia += dt * 0.65
+	crawl.sapo = fundo
+	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.9 # de peito: uma braçada por ciclo, com o deslize
 	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.5 # 2 braçadas por ciclo; agua_fx conta 3 por volta
 	crawl.frente = Vector3(sin(mov.ry), 0, cos(mov.ry))
 

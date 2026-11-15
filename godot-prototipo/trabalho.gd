@@ -858,15 +858,19 @@ const PEDRA2_GOLPE := {"ang": -52.0, "pe": Vector3(0.0, 0.98, 0.32), "ag": 0.2, 
 const PEDRA_QUICA := {"ang": -36.0, "pe": Vector3(0.0, 1.03, 0.3), "ag": 0.17, "av": 0.07, "tor": -3.0, "cur": 1.0}
 const GOLPE_NOVO := true # false volta para o golpe antigo (DUAS_* e LADO1_*)
 const PEDRA_T := {"ergue": 0.4, "bate": 0.5, "quica": 0.6, "solta": 0.7}
-# golpe novo do machado (André 2026-11-15, no jeito do corte de árvore do ArcheAge): pernas abertas e joelhos
-# dobrados, o machado sobe alto por trás do ombro direito com o peito bem torcido e desce na diagonal, rápido, até
-# a casca na altura da cintura; o fio quica um pouco para trás no impacto e o corpo volta para a guarda.
-const LADO_PRONTO := {"ang": 18.0, "giro": 62.0, "pe": Vector3(0.1, 1.0, 0.26), "ag": 0.1, "av": 0.0, "tor": 12.0, "cur": 0.22}
-const LADO_ALTO := {"ang": 48.0, "giro": 158.0, "pe": Vector3(0.26, 1.42, -0.04), "ag": 0.08, "av": -0.08, "tor": 55.0, "cur": -0.18}
-const LADO_TRONCO := {"ang": -18.0, "giro": -4.0, "pe": Vector3(0.02, 0.87, 0.34), "ag": 0.2, "av": 0.09, "tor": -22.0, "cur": 0.7}
-const LADO_QUICA := {"ang": -11.0, "giro": 16.0, "pe": Vector3(0.05, 0.9, 0.31), "ag": 0.18, "av": 0.06, "tor": -12.0, "cur": 0.6}
+# golpe do machado v2 (André 2026-11-15, segunda gravação do ArcheAge: "não tá natural"): base bem aberta, o
+# machado vai para trás do lado direito na altura do ombro com o peito todo torcido e volta na HORIZONTAL, forte,
+# até a casca na altura do peito/cintura; o fio quica e o corpo volta para a guarda. O diagonal (v1) está em LADO2_*.
+const LADO2_PRONTO := {"ang": 18.0, "giro": 62.0, "pe": Vector3(0.1, 1.0, 0.26), "ag": 0.1, "av": 0.0, "tor": 12.0, "cur": 0.22}
+const LADO2_ALTO := {"ang": 48.0, "giro": 158.0, "pe": Vector3(0.26, 1.42, -0.04), "ag": 0.08, "av": -0.08, "tor": 55.0, "cur": -0.18}
+const LADO2_TRONCO := {"ang": -18.0, "giro": -4.0, "pe": Vector3(0.02, 0.87, 0.34), "ag": 0.2, "av": 0.09, "tor": -22.0, "cur": 0.7}
+const LADO2_QUICA := {"ang": -11.0, "giro": 16.0, "pe": Vector3(0.05, 0.9, 0.31), "ag": 0.18, "av": 0.06, "tor": -12.0, "cur": 0.6}
+const LADO_PRONTO := {"ang": 14.0, "giro": 60.0, "pe": Vector3(0.12, 1.05, 0.26), "ag": 0.12, "av": 0.0, "tor": 18.0, "cur": 0.15}
+const LADO_ALTO := {"ang": 22.0, "giro": 172.0, "pe": Vector3(0.3, 1.22, -0.06), "ag": 0.14, "av": -0.06, "tor": 75.0, "cur": -0.08}
+const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(0.0, 1.0, 0.34), "ag": 0.2, "av": 0.08, "tor": -32.0, "cur": 0.42}
+const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(0.04, 1.02, 0.32), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36}
 # tempos do golpe novo (fração da batida): ergue, desce, bate, quica, volta
-const LADO_T := {"ergue": 0.38, "bate": 0.5, "quica": 0.6, "solta": 0.7}
+const LADO_T := {"ergue": 0.42, "bate": 0.52, "quica": 0.62, "solta": 0.72}
 
 # molas do molejo: x = valor, v = velocidade. Pouco amortecida para passar um pouco do ponto e voltar.
 const MOLEJO_K := 170.0
