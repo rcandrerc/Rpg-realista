@@ -1202,10 +1202,13 @@ func atualizar(carga) -> void:
 		var nv := int(e[5])
 		if v.is_empty() or int(v.get("nv", 0)) != nv:
 			if not v.is_empty():
-				v.no.queue_free()
-			var no: Node3D = modelo_carrinho(nv) if tipo == "c" else modelo_barquinho() if tipo == "b" else modelo_navio()
-			m.add_child(no)
-			v = {"no": no, "tipo": tipo, "nv": nv, "dono": dono}
+				_guardar_veic(v)
+			v = _tirar_veic(tipo, nv)
+			if v.is_empty():
+				var no: Node3D = modelo_carrinho(nv) if tipo == "c" else modelo_barquinho() if tipo == "b" else modelo_navio()
+				m.add_child(no)
+				v = {"no": no, "tipo": tipo, "nv": nv}
+			v.dono = dono
 			veic[chave] = v
 		v.x = float(e[2])
 		v.z = float(e[3])
@@ -1219,8 +1222,39 @@ func atualizar(carga) -> void:
 			_por_packs(v.no, e[6], 4, Vector2(0.62, 0.55), 0.0)
 	for k in veic.keys():
 		if not vv.has(k):
-			veic[k].no.queue_free()
+			_guardar_veic(veic[k])
 			veic.erase(k)
+
+# Veículos guardados (André 2026-11-15, travadas): montar carrinho, barco ou navio é feito peça por peça aqui no jogo e
+# levava ~240 ms num quadro no Poco X7 toda vez que um aparecia (rx:carga). Quem sai da visão fica escondido e o
+# próximo do mesmo tipo e nível usa o mesmo, como os corpos dos jogadores (online.gd _soltar_corpo).
+const VEIC_GUARDADOS := 2
+var _veic_guardados := {} # "tipo:nv" -> [v]
+func _guardar_veic(v: Dictionary) -> void:
+	if not is_instance_valid(v.get("no")):
+		return
+	var k := "%s:%d" % [str(v.tipo), int(v.nv)]
+	var l: Array = _veic_guardados.get(k, [])
+	if l.size() >= VEIC_GUARDADOS:
+		v.no.queue_free()
+		return
+	v.no.visible = false
+	v.dirigindo = false
+	l.append(v)
+	_veic_guardados[k] = l
+
+func _tirar_veic(tipo: String, nv: int) -> Dictionary:
+	var l: Array = _veic_guardados.get("%s:%d" % [tipo, nv], [])
+	while not l.is_empty():
+		var v: Dictionary = l.pop_back()
+		if is_instance_valid(v.get("no")):
+			v.no.visible = true
+			v.vel = 0.0
+			v.erase("partes") # as caixas do carrinho são refeitas no lugar novo
+			if v.has("pontos"):
+				v.pontos = [] # o rastro do barco começa de novo onde ele aparece
+			return v
+	return {}
 
 func evento(ev: Dictionary) -> void:
 	match str(ev.get("acao", "")):
