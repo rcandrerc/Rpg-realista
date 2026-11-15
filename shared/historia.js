@@ -46,7 +46,8 @@ export function etapasDe(M) {
 }
 // a etapa casa com o que aconteceu? devolve quanto conta (0 = não casa). d: o que o servidor sabe da ação.
 export function casaEtapa(E, ev, d = {}) {
-  if (!E || E.ev !== ev) return 0;
+  if (!E) return 0;
+  if (E.ev !== ev && !(E.ver && E.ev === 'barra' && ev === 'barra_vista')) return 0; // ver: só abrir a aba Habilidades já conta
   if (E.npc && d.npc !== E.npc) return 0;
   if (E.k && ![].concat(E.k).includes(d.k)) return 0;
   if (E.campos && !E.campos.includes(d.campo)) return 0;

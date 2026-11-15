@@ -131,6 +131,7 @@ class SalaClareira extends Room {
     });
     this.ouvir('cancelar', (c) => this.sim.cancelarCanal(c.sessionId)); // andou no meio da magia concentrada
     this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
+    this.ouvir('barra_vista', (c) => this.sim.verBarra(c.sessionId)); // abriu a aba Habilidades (missão "Confira sua barra")
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
     this.ouvir('leilao', (c, m) => this.sim.leilaoMsg(c.sessionId, m)); // Casa do Comércio (Otávio, Rio Claro)
     // troca entre jogadores com cadeado (shared/simulacao.js troca): pedir, aceitar, pôr item e ouro, trancar e confirmar

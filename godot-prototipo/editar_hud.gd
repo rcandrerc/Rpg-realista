@@ -23,7 +23,7 @@ const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens d
 	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
 	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio", "bt:estacoes": "Recolher estações",
 	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana", "bt:zoom": "Zoom rápido",
-	"pack": "Pack nas costas", "bt:veiculo": "Carrinho e barco", "bt:pegar_pack": "Pegar pack"} # pack: André 2026-11-12
+	"pack": "Pack nas costas", "missao": "Missão da vez", "bt:veiculo": "Carrinho e barco", "bt:pegar_pack": "Pegar pack"} # pack: André 2026-11-12
 
 var m # main.gd
 var layout := {} # id -> [dx, dy, escala]; sem a chave = lugar e tamanho de sempre
@@ -96,7 +96,7 @@ func _bt(t: String, fn: Callable, ativo: bool) -> Button:
 
 # ---------- elementos ----------
 func ids() -> Array:
-	var l := ["painel", "joy", "chat", "mapa", "topo", "time", "pack"]
+	var l := ["painel", "joy", "chat", "mapa", "topo", "time", "missao", "pack"] # missao: André 2026-11-14
 	for b in m.hud.botoes:
 		l.append("bt:" + str(b.acao))
 	return l
@@ -120,7 +120,7 @@ func _so_tamanho(id: String) -> bool:
 	return id == "joy" # o joystick nasce onde o dedo toca: só o tamanho muda
 
 func _centro_joy() -> Vector2:
-	return Vector2(250, tela.size.y - 265) # acima da caixa do chat (embaixo à esquerda)
+	return Vector2(450, tela.size.y - 250) # só o modelo (o joystick nasce onde o dedo toca): fora da coluna da esquerda (time, missão, pack) e acima do chat
 
 func rect(id: String) -> Rect2:
 	var h = m.hud
@@ -139,7 +139,10 @@ func rect(id: String) -> Rect2:
 		"time":
 			if not m.amigos:
 				return Rect2()
-			return Rect2(m.amigos.BARRAS + m.amigos.barras_d, Vector2(196, 76) * m.amigos.barras_s)
+			var n: int = max(1, m.amigos.linhas_barras(true)) # o tamanho de verdade: com 4 no time são 4 barras
+			return Rect2(m.amigos.BARRAS + m.amigos.barras_d, Vector2(196, n * 40.0 - 4.0) * m.amigos.barras_s)
+		"missao":
+			return m.missao_ativa.area() if m.missao_ativa else Rect2()
 		"pack":
 			return m.transporte.area() if m.transporte else Rect2()
 	if id.begins_with("bt:"):
@@ -176,12 +179,33 @@ func aplicar(id: String) -> void:
 			if m.amigos:
 				m.amigos.barras_d = d
 				m.amigos.barras_s = s
+		"missao": # sem lugar guardado: segue a coluna da esquerda (embaixo do time)
+			if m.missao_ativa:
+				m.missao_ativa.posicionar(d, s, layout.has(id))
 		"pack":
 			if m.transporte:
-				m.transporte.posicionar(d, s)
+				m.transporte.posicionar(d, s, layout.has(id))
 		_:
 			if id.begins_with("bt:"):
 				h.ajustar_botao(id.substr(3), d, s)
+
+# missão e pack sem lugar guardado andam na coluna da esquerda (missao_ativa.gd). Ao começar a mexer, o lugar de agora
+# vira o lugar guardado, para não pular
+func _soltar_da_coluna(id: String) -> void:
+	if layout.has(id):
+		return
+	var base := Vector2.ZERO
+	var agora := Vector2.ZERO
+	if id == "missao" and m.missao_ativa and m.missao_ativa.cartao:
+		base = m.missao_ativa.BASE_LIVRE
+		agora = m.missao_ativa.cartao.position
+	elif id == "pack" and m.transporte and m.transporte._painel:
+		base = m.transporte.PAINEL_POS
+		agora = m.transporte._painel.position
+	else:
+		return
+	layout[id] = [agora.x - base.x, agora.y - base.y, 1.0]
+	aplicar(id)
 
 func aplicar_tudo() -> void:
 	for id in ids():
@@ -370,12 +394,14 @@ func _mover(delta: Vector2) -> void:
 	for id in sel:
 		if _so_tamanho(id):
 			continue
+		_soltar_da_coluna(id)
 		var v := _valor(id)
 		layout[id] = [v[0] + delta.x, v[1] + delta.y, v[2]]
 		aplicar(id)
 
 func _escalar(f: float) -> void:
 	for id in sel:
+		_soltar_da_coluna(id)
 		var b: Array = _base.get(id, _valor(id))
 		var v := _valor(id)
 		layout[id] = [v[0], v[1], clamp(float(b[2]) * f, S_MIN, S_MAX)]
@@ -383,7 +409,7 @@ func _escalar(f: float) -> void:
 
 # depois de crescer, o elemento volta para dentro da tela se passou da borda
 func _prender(id: String) -> void:
-	if _so_tamanho(id):
+	if _so_tamanho(id) or not layout.has(id): # na coluna: quem cuida do lugar é missao_ativa.gd
 		return
 	var r := rect(id)
 	var t := tela.size
