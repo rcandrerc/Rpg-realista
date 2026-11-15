@@ -203,6 +203,12 @@ func _montar(Z: Dictionary) -> MeshInstance3D:
 	mi.name = "Nevoa_%s" % Z.id
 	return mi
 
+# ainda tem parede para montar ou tirar (a história da conta chegou e mudou o que está fechado): a capa da entrada
+# espera (main.gd montando). André 2026-11-15: a parede montava logo depois da capa sair e dava um tranco de 150 a
+# 340 ms no Poco X7 em toda entrada no jogo.
+func pendente() -> bool:
+	return not _fila_zonas.is_empty() or (not H.is_empty() and m.heroi != null and m.terreno != null and _feito_p != feitas())
+
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
