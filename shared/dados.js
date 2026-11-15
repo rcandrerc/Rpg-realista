@@ -2690,8 +2690,8 @@ export const AMIGA = {
       tchau: ['tchau', 'falou', 'flw', 'ate mais', 'ate logo', 'fui', 'boa noite cecilia', 'vou dormir', 'vou sair'],
     },
     falas: {
-      oi: ['Oii! Tava pensando em você agora mesmo, sério.', 'Ei! Que bom que mandou mensagem, tava entediada.', 'Opa! Fala, aventureiro!'],
-      comoVai: ['Tô ótima! A horta tá linda e eu tô cheia de energia.', 'Tudo certo por aqui! E você, matou muito lobo hoje?', 'Bem! Meio suja de terra, mas feliz.'],
+      oi: ['Oii! Tava pensando em você agora mesmo, sério.', 'Ei! Que bom que mandou mensagem, tava entediada.', 'Opa! Fala, aventureiro!', 'Aeee, apareceu! Tudo certo por aí?', 'Oi oi! Tava aqui arrancando mato da horta.', 'Olha só quem lembrou de mim, hehe.'],
+      comoVai: ['Tô ótima! A horta tá linda e eu tô cheia de energia.', 'Tudo certo por aqui! E você, matou muito lobo hoje?', 'Bem! Meio suja de terra, mas feliz.', 'De boa! Um lobo quase me pegou cedo, mas tô inteira.', 'Tô bem, só com fome. E aí, como tá sua aventura?', 'Melhor agora que você apareceu, hehe.'],
       vir: ['Tô indo aí! Me espera que eu já chego.', 'Já vou! Não sai daí, hein?', 'Partiu! Chego num instante.'],
       chegou: ['Cheguei! Sentiu minha falta?', 'Pronto, tô aqui! Que foi?'],
       // André 2026-11-10: ela vem de lobo pela estrada (nunca aparece do lado); longe avisa que está a caminho
@@ -2705,11 +2705,11 @@ export const AMIGA = {
       chamaRespostaSim: ['Eba! Tô indo aí!', 'Isso! Já tô a caminho.'],
       comOutro: ['Agora tô com {nome}! Assim que eu terminar aqui, a gente vê isso, tá?', 'Opa, tô ocupada com {nome} agora. Me chama daqui a pouco!'], // André 2026-11-10: ela é de todos, mas um de cada vez
       chamaRespostaNao: ['Tudo bem, fica pra próxima!', 'Poxa... tá bom, mais tarde então.'],
-      elogio: ['Para, assim eu fico vermelha!', 'Hehe, você também é demais!', 'Eu sei, eu sei. Mas obrigada mesmo assim!'],
-      obrigado: ['De nada! Amigo é pra isso.', 'Imagina! Você faria o mesmo por mim.'],
+      elogio: ['Para, assim eu fico vermelha!', 'Hehe, você também é demais!', 'Eu sei, eu sei. Mas obrigada mesmo assim!', 'Ai, para! Mas pode continuar, hehe.'],
+      obrigado: ['De nada! Amigo é pra isso.', 'Imagina! Você faria o mesmo por mim.', 'Que nada! Tamo junto.', 'Disponha, sempre!'],
       piada: ['Sabe por que o lobo não joga cartas? Porque sempre tem um lobo na manga... tá, essa foi ruim.', 'Minha cenoura falou que me ama. Ela é bem raiz!', 'Por que o esqueleto não briga? Porque ele não tem estômago pra isso!'],
-      naoEntendi: ['Hmm, não entendi direito. Fala de outro jeito?', 'Hã? Tô aqui regando a horta, me explica melhor!', 'Hehe, você tá falando enigma? Me explica!'],
-      tchau: ['Tchau! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Falou! Vou voltar pra minha horta.'],
+      naoEntendi: ['Hmm, não entendi direito. Fala de outro jeito?', 'Hã? Tô aqui regando a horta, me explica melhor!', 'Hehe, você tá falando enigma? Me explica!', 'Haha, sério? Conta mais!', 'Hmm, faz sentido... acho. Mas me chama pra caçar que eu entendo na hora!', 'Kkk não peguei essa. Quer caçar, pescar ou só bater papo?', 'Tô meio distraída com a horta, repete pra mim?'],
+      tchau: ['Tchau! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Falou! Vou voltar pra minha horta.', 'Vai lá! Não morre pra lobo, hein?', 'Beijo! Amanhã tem mais.'],
       semIa: 'Tô meio cansada de conversar hoje, mas me chama pra caçar que eu topo!',
       // ela chama o André (sozinha, de vez em quando, quando ele está longe e fora do time)
       // convite pelo que vocês mais fazem juntos (memória: gostos)
@@ -2794,8 +2794,8 @@ export const DARIO = mesclarAmigo(AMIGA, {
       elogio: ['lindo', 'bonito', 'legal', 'gosto de voce', 'te adoro', 'melhor amigo', 'incrivel', 'top', 'forte', 'brabo'],
     },
     falas: {
-      oi: ['Fala! Tava afiando a espada aqui.', 'E aí! Bom ver mensagem sua, tava parado demais.', 'Opa! Fala, aventureiro.'],
-      comoVai: ['Tô bem! Treinei cedo e a horta tá firme.', 'Tudo certo. E você, derrubou muito lobo hoje?', 'Bem! Meio sujo de terra, mas inteiro.'],
+      oi: ['Fala! Tava afiando a espada aqui.', 'E aí! Bom ver mensagem sua, tava parado demais.', 'Opa! Fala, aventureiro.', 'Salve! Tudo tranquilo por aí?', 'E aí, parceiro! Sumido, hein.', 'Opa! Acabei de voltar do treino.'],
+      comoVai: ['Tô bem! Treinei cedo e a horta tá firme.', 'Tudo certo. E você, derrubou muito lobo hoje?', 'Bem! Meio sujo de terra, mas inteiro.', 'Tranquilo. Só a espada que tá pedindo briga.', 'Suave! E você, como tá o nível?'],
       vir: ['Tô indo aí. Me espera.', 'Já vou! Não sai daí.', 'Partiu! Chego num instante.'],
       chegou: ['Cheguei. Sentiu minha falta?', 'Pronto, tô aqui. Que foi?'],
       aCaminho: ['Montei no lobo, tô indo pela estrada. Me espera aí.', 'Subi no lobo, já já chego pela estrada.', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
@@ -2807,10 +2807,10 @@ export const DARIO = mesclarAmigo(AMIGA, {
       comOutro: ['Agora tô com {nome}! Quando eu terminar aqui, a gente vê isso.', 'Opa, tô ocupado com {nome} agora. Me chama daqui a pouco.'],
       chamaRespostaNao: ['Tranquilo, fica pra próxima.', 'Beleza, mais tarde então.'],
       elogio: ['Para com isso, assim eu fico sem graça.', 'Hehe, você também é brabo!', 'Eu sei. Mas valeu mesmo assim!'],
-      obrigado: ['De nada! Parceiro é pra isso.', 'Imagina, você faria o mesmo.'],
+      obrigado: ['De nada! Parceiro é pra isso.', 'Imagina, você faria o mesmo.', 'Tamo junto!'],
       piada: ['Sabe por que o lobo perdeu o duelo? Faltou dente pra tanta coragem... tá, essa foi fraca.', 'Minha batata me desafiou. Descasquei ela na hora.', 'Por que o esqueleto não luta? Porque não tem estômago pra isso.'],
-      naoEntendi: ['Hmm, não entendi. Fala de outro jeito?', 'Hã? Tava concentrado na horta, me explica melhor.', 'Isso foi charada? Explica aí.'],
-      tchau: ['Falou! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Tchau! Vou voltar pra minha horta.'],
+      naoEntendi: ['Hmm, não entendi. Fala de outro jeito?', 'Hã? Tava concentrado na horta, me explica melhor.', 'Isso foi charada? Explica aí.', 'Haha, entendi nada, mas tô contigo.', 'Hmm, saquei mais ou menos. Bora caçar que eu entendo melhor!', 'Repete aí, tava amolando a espada.'],
+      tchau: ['Falou! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Tchau! Vou voltar pra minha horta.', 'Vai firme! Qualquer coisa me chama.', 'Falou, parceiro. Até a próxima caçada.'],
       semIa: 'Tô cansado de conversar hoje, mas me chama pra caçar que eu topo!',
       chamaGosto: { time: 'Bora caçar de novo? Tô com a espada coçando.', pescar: 'Bora pescar? Sei que você curte.', minerar: 'Bora minerar? Tô precisando de minério.', lenha: 'Bora cortar lenha? Igual da outra vez.' },
       chama: [

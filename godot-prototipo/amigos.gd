@@ -274,6 +274,7 @@ func montar_janela(mt) -> void:
 		linhas += 1
 	# amigos virtuais: a Cecília e o Dario (shared/amiga.js). "Msg" abre a conversa privada. André 2026-11-13 ("como se
 	# fosse um jogador real"): "Time" e "Sair do time" só fazem a ação, sem frase no chat por ele; o resto ele fala no chat
+	var sem_ia := false # sem a chave Groq: o "Ativar conversa com IA" aparece uma vez, embaixo deles (a chave vale para todos)
 	if not virtuais.is_empty():
 		col.add_child(Menu.rotulo("Amigos virtuais", 18, Color("ff8fc8")))
 		linhas += 1
@@ -288,40 +289,48 @@ func montar_janela(mt) -> void:
 			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			l.clip_text = true
 			linha.add_child(l)
-			if not v.get("ia", true):
-				# sem a chave Groq dele: cria a chave grátis no site e cola aqui uma vez só (o servidor testa e guarda na conta)
-				linha.add_child(_pequeno(mt._botao("Ativar conversa com IA", func():
-					_ativar_ia = not _ativar_ia
-					mt.montar(), _ativar_ia), 200))
-				col.add_child(linha)
-				linhas += 1
-				if _ativar_ia:
-					col.add_child(Menu.rotulo("1. Entre com sua conta Google no site e toque em Create API Key. Copie a chave.\n2. Volte aqui e toque em Colar a chave.", 14, Menu.APAGADO))
-					var passos := HBoxContainer.new()
-					passos.add_theme_constant_override("separation", 8)
-					passos.add_child(_pequeno(mt._botao("1. Criar chave grátis", func(): OS.shell_open("https://console.groq.com/keys"), false), 190))
-					passos.add_child(_pequeno(mt._botao("2. Colar a chave", func():
-						var chave := DisplayServer.clipboard_get().strip_edges()
-						if not chave.begins_with("gsk_"):
-							m.troca.mostrar_cartao("Copie a chave no site do Groq primeiro (começa com gsk_)", [["Ok", func(): pass]], 6.0)
-							return
-						m.rede("chaveIa", {"chave": chave})
-						_ativar_ia = false
-						mt.montar(), false), 170))
-					col.add_child(passos)
-					linhas += 3
-				continue
+			# André 2026-11-15: todo mundo manda mensagem e chama pro time (sem chave, as respostas são as prontas);
+			# a chave Groq só troca as respostas pela IA. "Msg" e "Time" sempre; "Ativar conversa com IA" vem embaixo
 			if m.chat:
 				linha.add_child(_pequeno(mt._botao("Msg", func():
 					mt.fechar()
 					m.chat.abrir_pm(c, nome), false), 64))
-				var vid := str(v.get("id", "")) if v.get("id") != null else ""
-				if v.get("time", false):
-					linha.add_child(_pequeno(mt._botao("Sair do time", func(): _time_virtual(mt, "expulsar", vid, c), false), 120))
-				else:
-					linha.add_child(_pequeno(mt._botao("Time", func(): _time_virtual(mt, "convidar", vid, c)), 70))
+			var vid := str(v.get("id", "")) if v.get("id") != null else ""
+			if v.get("time", false):
+				linha.add_child(_pequeno(mt._botao("Sair do time", func(): _time_virtual(mt, "expulsar", vid, c), false), 120))
+			elif int(v.get("on", 1)) == 1:
+				linha.add_child(_pequeno(mt._botao("Time", func(): _time_virtual(mt, "convidar", vid, c)), 70))
 			col.add_child(linha)
 			linhas += 1
+			if not v.get("ia", true):
+				sem_ia = true
+		if sem_ia:
+			# sem a chave Groq dele: cria a chave grátis no site e cola aqui uma vez só (o servidor testa e guarda na conta)
+			var lia := HBoxContainer.new()
+			lia.add_theme_constant_override("separation", 8)
+			var dica := Menu.rotulo("Respostas com IA (opcional)", 13, Menu.APAGADO)
+			dica.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lia.add_child(dica)
+			lia.add_child(_pequeno(mt._botao("Ativar conversa com IA", func():
+				_ativar_ia = not _ativar_ia
+				mt.montar(), _ativar_ia), 200))
+			col.add_child(lia)
+			linhas += 1
+			if _ativar_ia:
+				col.add_child(Menu.rotulo("1. Entre com sua conta Google no site e toque em Create API Key. Copie a chave.\n2. Volte aqui e toque em Colar a chave.", 14, Menu.APAGADO))
+				var passos := HBoxContainer.new()
+				passos.add_theme_constant_override("separation", 8)
+				passos.add_child(_pequeno(mt._botao("1. Criar chave grátis", func(): OS.shell_open("https://console.groq.com/keys"), false), 190))
+				passos.add_child(_pequeno(mt._botao("2. Colar a chave", func():
+					var chave := DisplayServer.clipboard_get().strip_edges()
+					if not chave.begins_with("gsk_"):
+						m.troca.mostrar_cartao("Copie a chave no site do Groq primeiro (começa com gsk_)", [["Ok", func(): pass]], 6.0)
+						return
+					m.rede("chaveIa", {"chave": chave})
+					_ativar_ia = false
+					mt.montar(), false), 170))
+				col.add_child(passos)
+				linhas += 3
 	rolar.custom_minimum_size = Vector2(416, min(230.0, 26.0 + 40.0 * linhas))
 	mt.conteudo.add_child(rolar)
 	rolar.get_v_scroll_bar().value_changed.connect(func(v): _rolar_y = int(v))

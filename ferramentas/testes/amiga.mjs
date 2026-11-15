@@ -430,3 +430,22 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(s5.podeAmiga('semchave') && !s5.iaAmiga('semchave') && s5.iaAmiga('andre'), 'sem chave: interage com ela, mas resposta de IA só para quem tem chave');
   Math.random = rnd;
 }
+
+// ---------- sem chave: Msg e Time no Multijogador e no toque (André 2026-11-15, "não tem o botãozinho de mandar mensagem e de dar time") ----------
+{
+  const { readFileSync } = await import('node:fs');
+  const s8 = new Simulacao(MAPA_CLAREIRA);
+  s8.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 }); s8.adicionarJogador('sem', 'Sem', 'ruiva', { conta: 3 });
+  s8.iaPorChave = true; s8.eventos = []; s8.amigaEntrar('andre'); s8.amigaEntrar('sem', false);
+  ok(s8.eventos.some((e) => e.t === 'amiga' && e.para === 'sem'), 'sem chave: recebe quem é a Cecília (o toque nela mostra Mensagem e Chamar pro time)');
+  ok(s8.amigaDono === 'andre', 'sem chave: entrar não tira ela de quem tem a chave');
+  const gd = readFileSync(new URL('../../godot-prototipo/amigos.gd', import.meta.url), 'utf8');
+  const bloco = gd.slice(gd.indexOf('for v in virtuais:'), gd.indexOf('rolar.custom_minimum_size'));
+  ok(!/"ia"[^\n]*\n(?:[^\n]*\n){0,25}?\s*continue/.test(bloco) && bloco.indexOf('"Msg"') < bloco.indexOf('if sem_ia:') && bloco.includes('"Time"'), 'Amigos virtuais: Msg e Time para todos; "Ativar conversa com IA" embaixo, à parte');
+  const tr = readFileSync(new URL('../../godot-prototipo/troca.gd', import.meta.url), 'utf8');
+  ok(/amiga_ids or \(m\.amigos and m\.amigos\.conta_virtual\(achou\) != ""\)/.test(tr), 'toque no NPC: amigo virtual da lista ganha os botões mesmo sem chave');
+  // respostas prontas não repetem a mesma frase seguida
+  const F = AMIGA.chat.falas.naoEntendi; let rep = 0, ant = '';
+  for (let k = 0; k < 40; k++) { s8.eventos = []; s8.amiga.ia.chatFila = []; s8.respostaAmiga('sem', { assunto: 'naoEntendi' }); const t = s8.amiga.ia.chatFila[0]?.texto; if (t === ant) rep++; ant = t; }
+  ok(rep === 0 && F.length >= 6, `sem chave: "não entendi" varia (${F.length} frases, nenhuma repetida seguida)`);
+}
