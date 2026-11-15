@@ -37,6 +37,7 @@ const VisualNpc = preload("res://visual_npc.gd")
 const Criador = preload("res://criador.gd")
 const Titulos = preload("res://titulos.gd") # títulos com bônus em cima da cabeça (André 2026-11-12)
 const Trabalho = preload("res://trabalho.gd")
+const NadoCrawl = preload("res://nado_crawl.gd") # braçada de crawl por cima do nado do Mixamo (André 2026-11-15)
 const Pesca = preload("res://pesca.gd")
 const Transporte = preload("res://transporte.gd") # FASE 1: packs e transportes do Quimera
 const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
@@ -215,6 +216,7 @@ var _quadril := 0.0 # afundada do quadril no pouso (m)
 # Nado nos lagos fundos (André 2026-11-06): boiando o herói nada (anim_heroi.gd), as armas vão para as costas e não
 # dá para lutar. O corpo sobe um pouco para a cabeça e as costas ficarem fora da água (o Mixamo nada mais baixo).
 var _nadando := false
+var crawl # nado_crawl.gd: os braços em moinho e a batida de pernas (André 2026-11-15, no jeito do ArcheAge)
 var agua_fx # agua_fx.gd: espuma em volta, rastro em V e respingo das braçadas
 # cajado nas costas nadando (direção de arte 2026-11-06): deitado, a chama passava da cabeça como uma lança; desliza
 # CAJADO_NADO m para os pés (a chama fica na nuca). Boiando de pé fica no lugar.
@@ -223,7 +225,7 @@ var _caj_base = null # posição do cajado nas costas (no osso), guardada ao pre
 var _saindo_agua := 0.0 # segundos que faltam da saída do lago (do nado até ficar de pé)
 var _sobe_agua := 0.0 # metros que o corpo sobe agora
 # André 2026-11-06 (2ª): estava alto demais (peito todo fora). Agora só cabeça e ombros saem da água
-const SOBE_BOIANDO := -0.18 # boiando parado (Treading Water): a água no ombro
+const SOBE_BOIANDO := 0.05 # boiando parado: ombros e braços abertos na linha da água (André 2026-11-15, como no ArcheAge; antes -0.18)
 const SOBE_NADANDO := 0.32 # nadando (Swimming): cabeça e nuca fora, as costas rente à água
 const SAIR_AGUA_RITMO := 1.15
 # molas do peso do corpo (corpo_vivo): ângulo e velocidade do tronco para a frente e para o lado
@@ -2497,6 +2499,28 @@ func _folhas_perto(a: Vector3, b: Vector3) -> Array:
 					r.append(f)
 	return r
 
+# crawl: liga por cima do nado do Mixamo quando o herói nada de verdade (boiando parado fica o Treading Water)
+func _passo_crawl(dt: float) -> void:
+	if heroi_esq == null:
+		return
+	if crawl == null or not is_instance_valid(crawl) or crawl.get_parent() != heroi_esq:
+		if not _nadando:
+			return
+		if crawl != null and is_instance_valid(crawl):
+			crawl.queue_free()
+		crawl = NadoCrawl.new()
+		heroi_esq.add_child(crawl) # por último: depois da animação e da inclinação
+		crawl.preparar(heroi_esq)
+	# debaixo d'água volta o nado de peito do Mixamo (André 2026-11-15: "por baixo d'água é o sapinho, por cima o crawl")
+	var fundo: float = smoothstep(0.25, 0.55, float(mov.mergulho))
+	crawl.peso = float(heroi_anim._nado) if _nadando else move_toward(crawl.peso, 0.0, dt * 4.0)
+	crawl.boia = 1.0 - float(heroi_anim._nada) # parado na água: braços abertos varrendo e pernas pedalando
+	crawl.fase_boia += dt * 0.65
+	crawl.sapo = fundo
+	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.9 # de peito: uma braçada por ciclo, com o deslize
+	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.5 # 2 braçadas por ciclo; agua_fx conta 3 por volta
+	crawl.frente = Vector3(sin(mov.ry), 0, cos(mov.ry))
+
 # Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
 # (tronco, galhos e copa) num fade de 0,15 s, sem pontilhado: a cópia dela no MultiMesh encolhe para zero e no lugar
 # entra uma cópia solta com alfa de verdade, que apaga; quando sai da frente, a cópia volta e a do MultiMesh também.
@@ -3982,6 +4006,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 		if b >= 0:
 			var desce: Vector3 = heroi_esq.get_bone_global_rest(b).basis.inverse() * Vector3(0, -CAJADO_NADO, 0)
 			cajado.position = _caj_base + desce * heroi_anim._nada
+	_passo_crawl(dt)
 	if agua_fx:
 		agua_fx.passo(dt, heroi, heroi_esq, _nadando and mov.mergulho < 0.4, float(terreno.agua.nivel), heroi_anim._nada, vel, mov.ry, heroi_anim.voltas_nado)
 	# passos: um som a cada passada (mais longa correndo), só no chão (nadando não tem passo)

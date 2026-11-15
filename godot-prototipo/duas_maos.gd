@@ -15,9 +15,11 @@ var cabo := Vector3.UP # direção do cabo, da mão para a cabeça da ferramenta
 var agacha := 0.0 # m que o quadril desce (os joelhos dobram, os pés ficam no chão)
 var avanco := 0.0 # m que o quadril vai para a frente (+) ou para trás (-): o peso passando de um pé para o outro
 var torcao := 0.0 # rad que o peito gira para a direita (+) ou para a esquerda (-), em volta do eixo do corpo
-const BASE_ABRE := 0.1 # m que cada pé vai para fora
-const BASE_FRENTE := 0.15 # m do pé esquerdo para a frente
-const BASE_TRAS := 0.1 # m do pé direito para trás
+# André 2026-11-15 ("pés muito juntos, parece que vai cair; precisa de base para fazer força", como no ArcheAge):
+# base bem mais larga. Antes: abre 0.1, frente 0.15, trás 0.1.
+const BASE_ABRE := 0.2 # m que cada pé vai para fora
+const BASE_FRENTE := 0.26 # m do pé esquerdo para a frente
+const BASE_TRAS := 0.2 # m do pé direito para trás
 const BASE_PONTA := 0.3 # rad das pontas dos pés para fora
 const QUADRIL_GIRO := 0.35 # parte da torção que o quadril leva (o resto vai na coluna e no peito)
 

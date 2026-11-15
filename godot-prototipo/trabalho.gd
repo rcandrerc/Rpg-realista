@@ -662,7 +662,7 @@ func _passo_coleta(dt: float) -> void:
 		_passo_duas(o, f)
 	elif m.heroi_anim.current_animation == "descendente":
 		m.heroi_anim.seek(_tempo_golpe(f), true)
-	if not coletando.get("bateu", true) and f >= GOLPE_BATE:
+	if not coletando.get("bateu", true) and f >= ((float(LADO_T.bate) if o.tipo == "arvore" else float(PEDRA_T.bate)) if coletando.get("duas", false) else GOLPE_BATE):
 		coletando.bateu = true
 		_impacto(o)
 
@@ -846,12 +846,48 @@ const DUAS_GIRO := PI / 2.0 # giro da ferramenta em volta do cabo (rad): a ponta
 # machado (pedido do André): golpe de lado, na horizontal, vindo de trás do ombro direito até o tronco, com o fio
 # virado para onde o machado vai. "giro" = para que lado o cabo aponta em volta do herói (graus, 0 = frente,
 # 90 = direita); "ang" = quanto o cabo sobe (graus)
-const LADO_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25), "ag": 0.05, "av": 0.0, "tor": 12.0, "cur": 0.12}
-const LADO_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02), "ag": 0.045, "av": -0.05, "tor": 42.0, "cur": -0.1}
-const LADO_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32), "ag": 0.09, "av": 0.05, "tor": -16.0, "cur": 0.45}
+const LADO1_PRONTO := {"ang": 25.0, "giro": 70.0, "pe": Vector3(0.12, 1.05, 0.25), "ag": 0.05, "av": 0.0, "tor": 12.0, "cur": 0.12}
+const LADO1_ALTO := {"ang": 20.0, "giro": 150.0, "pe": Vector3(0.3, 1.2, -0.02), "ag": 0.045, "av": -0.05, "tor": 42.0, "cur": -0.1}
+const LADO1_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32), "ag": 0.09, "av": 0.05, "tor": -16.0, "cur": 0.45}
+# golpe novo da picareta (André 2026-11-15, no jeito da mineração do ArcheAge): base bem aberta, a picareta sobe
+# reta acima da cabeça (as mãos na frente da testa, nunca na nuca) e desce com o corpo todo, curvado e agachado, na
+# face da pedra; a ponta quica e volta.
+const PEDRA2_PRONTO := {"ang": 50.0, "pe": Vector3(0.0, 1.0, 0.3), "ag": 0.1, "av": 0.0, "tor": 4.0, "cur": 0.3}
+const PEDRA2_ALTO := {"ang": 112.0, "pe": Vector3(0.0, 1.56, 0.2), "ag": 0.02, "av": -0.07, "tor": 10.0, "cur": -0.3}
+const PEDRA2_GOLPE := {"ang": -52.0, "pe": Vector3(0.0, 0.98, 0.32), "ag": 0.2, "av": 0.1, "tor": -5.0, "cur": 1.25}
+const PEDRA_QUICA := {"ang": -36.0, "pe": Vector3(0.0, 1.03, 0.3), "ag": 0.17, "av": 0.07, "tor": -3.0, "cur": 1.0}
+const GOLPE_NOVO := true # false volta para o golpe antigo (DUAS_* e LADO1_*)
+const PEDRA_T := {"ergue": 0.4, "bate": 0.5, "quica": 0.6, "solta": 0.7}
+# golpe do machado v2 (André 2026-11-15, segunda gravação do ArcheAge: "não tá natural"): base bem aberta, o
+# machado vai para trás do lado direito na altura do ombro com o peito todo torcido e volta na HORIZONTAL, forte,
+# até a casca na altura do peito/cintura; o fio quica e o corpo volta para a guarda. O diagonal (v1) está em LADO2_*.
+const LADO2_PRONTO := {"ang": 18.0, "giro": 62.0, "pe": Vector3(0.1, 1.0, 0.26), "ag": 0.1, "av": 0.0, "tor": 12.0, "cur": 0.22}
+const LADO2_ALTO := {"ang": 48.0, "giro": 158.0, "pe": Vector3(0.26, 1.42, -0.04), "ag": 0.08, "av": -0.08, "tor": 55.0, "cur": -0.18}
+const LADO2_TRONCO := {"ang": -18.0, "giro": -4.0, "pe": Vector3(0.02, 0.87, 0.34), "ag": 0.2, "av": 0.09, "tor": -22.0, "cur": 0.7}
+const LADO2_QUICA := {"ang": -11.0, "giro": 16.0, "pe": Vector3(0.05, 0.9, 0.31), "ag": 0.18, "av": 0.06, "tor": -12.0, "cur": 0.6}
+const LADO_PRONTO := {"ang": 14.0, "giro": 60.0, "pe": Vector3(0.12, 1.05, 0.26), "ag": 0.12, "av": 0.0, "tor": 18.0, "cur": 0.15}
+const LADO_ALTO := {"ang": 22.0, "giro": 172.0, "pe": Vector3(0.3, 1.22, -0.06), "ag": 0.14, "av": -0.06, "tor": 75.0, "cur": -0.08}
+const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(0.0, 1.0, 0.34), "ag": 0.2, "av": 0.08, "tor": -32.0, "cur": 0.42}
+const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(0.04, 1.02, 0.32), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36}
+# tempos do golpe novo (fração da batida): ergue, desce, bate, quica, volta
+const LADO_T := {"ergue": 0.42, "bate": 0.52, "quica": 0.62, "solta": 0.72}
+
+# molas do molejo: x = valor, v = velocidade. Pouco amortecida para passar um pouco do ponto e voltar.
+const MOLEJO_K := 170.0
+const MOLEJO_AMORT := 13.0
+const MOLEJO_BALANCO := 0.018 # m
+var _molas := {}
+
+func _mola(nome: String, alvo: float, dt: float) -> void:
+	if not _molas.has(nome) or duas.peso < 0.05: # começando: parte do lugar certo
+		_molas[nome] = {"x": alvo, "v": 0.0}
+	var m2: Dictionary = _molas[nome]
+	dt = min(dt, 0.05)
+	m2.v += ((alvo - float(m2.x)) * MOLEJO_K - float(m2.v) * MOLEJO_AMORT) * dt
+	m2.x += float(m2.v) * dt
 
 func _pose_golpe(o: Dictionary) -> Dictionary:
-	return LADO_TRONCO if o.tipo == "arvore" else DUAS_PEDRA
+	return LADO_TRONCO if o.tipo == "arvore" else PEDRA2_GOLPE
 
 # alcance da cabeça da ferramenta na pose do golpe: quanto ela vai à frente do herói e em que altura
 func _cabeca_golpe(o: Dictionary) -> Vector2:
@@ -867,14 +903,35 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	if fe == null:
 		return
 	var lado: bool = o.tipo == "arvore"
-	var PRONTO: Dictionary = LADO_PRONTO if lado else DUAS_PRONTO
-	var ALTO: Dictionary = LADO_ALTO if lado else DUAS_ALTO
+	var PRONTO: Dictionary = LADO_PRONTO if lado else PEDRA2_PRONTO
+	var ALTO: Dictionary = LADO_ALTO if lado else PEDRA2_ALTO
 	var A: Dictionary = PRONTO
 	var B: Dictionary = ALTO
 	var k := 0.0
 	var curva := 0.0
 	var G: Dictionary = _pose_golpe(o)
-	if f < 0.45: # ergue devagar
+	if GOLPE_NOVO: # golpe novo (machado e picareta), com o quique
+		var T: Dictionary = LADO_T if lado else PEDRA_T
+		var QUICA: Dictionary = LADO_QUICA if lado else PEDRA_QUICA
+		if f < T.ergue: # ergue, ganhando força
+			k = smoothstep(0.0, 1.0, f / T.ergue)
+		elif f < T.bate: # desce rápido na diagonal
+			A = ALTO
+			B = G
+			k = (f - T.ergue) / (T.bate - T.ergue)
+			k = k * k
+		elif f < T.quica: # o fio quica para trás
+			A = G
+			B = QUICA
+			k = sin((f - T.bate) / (T.quica - T.bate) * PI * 0.5)
+		elif f < T.solta: # firma de novo
+			A = QUICA
+			B = QUICA
+		else: # volta para a guarda
+			A = QUICA
+			B = PRONTO
+			k = smoothstep(0.0, 1.0, (f - T.solta) / (1.0 - T.solta))
+	elif f < 0.45: # (golpe antigo, guardado) ergue devagar
 		k = smoothstep(0.0, 1.0, f / 0.45)
 		curva = lerp(0.25, 0.0, k)
 	elif f < GOLPE_BATE: # desce rápido
@@ -911,10 +968,29 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
 	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
 	duas.cabo = cabo
-	duas.curva = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
-	duas.agacha = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
-	duas.avanco = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
-	duas.torcao = deg_to_rad(lerp(float(A.get("tor", 0.0)), float(B.get("tor", 0.0)), k))
+	var alvo_cur: float = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
+	var alvo_ag: float = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
+	var alvo_av: float = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
+	var alvo_tor: float = deg_to_rad(lerp(float(A.get("tor", 0.0)), float(B.get("tor", 0.0)), k))
+	if GOLPE_NOVO:
+		# molejo (André 2026-11-15: "ainda duro, no ArcheAge o corpo tem molejo"): o corpo não copia a ferramenta na
+		# hora, vai atrás dela numa mola. No impacto o joelho afunda um pouco mais e volta, o peito passa do ponto e
+		# o quadril balança com o peso, como um corpo solto de verdade.
+		var dt: float = get_process_delta_time()
+		_mola("cur", alvo_cur, dt)
+		_mola("ag", alvo_ag, dt)
+		_mola("av", alvo_av, dt)
+		_mola("tor", alvo_tor, dt)
+		var balanco: float = sin(f * TAU) * MOLEJO_BALANCO # o peso sobe e desce de leve no ritmo do golpe
+		duas.curva = float(_molas.cur.x)
+		duas.agacha = float(_molas.ag.x) + balanco
+		duas.avanco = float(_molas.av.x)
+		duas.torcao = float(_molas.tor.x)
+	else:
+		duas.curva = alvo_cur
+		duas.agacha = alvo_ag
+		duas.avanco = alvo_av
+		duas.torcao = alvo_tor
 	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som
