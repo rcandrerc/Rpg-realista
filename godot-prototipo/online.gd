@@ -1276,7 +1276,7 @@ func evento(ev: Dictionary) -> void:
 			if m.chat:
 				m.chat.do_servidor(ev)
 			return
-		"amigos", "amigo", "time": # lista de amigos, pedido de amizade e time (amigos.gd)
+		"amigos", "amigo", "time", "amigoBusca": # lista de amigos, pedido de amizade, time e busca pelo nome (amigos.gd)
 			if m.amigos:
 				m.amigos.do_servidor(ev)
 			return

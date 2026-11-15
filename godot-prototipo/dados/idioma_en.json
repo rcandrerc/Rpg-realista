@@ -3380,5 +3380,21 @@
 "Terreno vendido por {1} de ouro (a conta de {2} saiu do valor)": "Plot sold for {1} gold ({2} bill taken out)",
 "Terreno agora com {1} x {2} m (pagou {3} de ouro)": "Plot is now {1} x {2} m (paid {3} gold)",
 "Terreno agora com {1} x {2} m (recebeu {3} de ouro)": "Plot is now {1} x {2} m (got {3} gold)",
-"{1} ainda não está madura (precisa de água!)": "{1} isn't ripe yet (needs water!)"
+"{1} ainda não está madura (precisa de água!)": "{1} isn't ripe yet (needs water!)",
+"Adicionar": "Add",
+"Pedidos (%d)": "Requests (%d)",
+"Toque no jogador no mundo ou use \"Adicionar\".": "Tap a player in the world or use \"Add\".",
+"Nome do jogador": "Player name",
+"Digite ao menos 2 letras": "Type at least 2 letters",
+"Digite ao menos {1} letras": "Type at least {1} letters",
+"Busque pelo nome do personagem.": "Search by character name.",
+"Ninguém com esse nome": "No one by that name",
+"aqui": "here",
+"offline": "offline",
+"Amigo": "Friend",
+"Enviado": "Sent",
+"Pedir": "Request",
+"Pedido já enviado para {1}": "Request already sent to {1}",
+"Não deu para enviar o pedido agora": "Couldn't send the request right now",
+"Pedidos de amizade: {1}": "Friend requests: {1}"
 }
