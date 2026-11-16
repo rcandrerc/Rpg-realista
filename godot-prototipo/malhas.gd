@@ -19,6 +19,7 @@ class Junta:
 	static var _cache_v := {} # instance id -> [WeakRef, {superfície: [assinatura, vértices]}] (malhas feitas no jogo)
 	static var guardadas := 0 # arrays que achou guardado (não esperou o desenho)
 	static var leituras := 0 # quantas vezes ainda precisou ler da placa (registro e testes)
+	static var guardar_listas := false # liga só enquanto o trabalho.gd junta um veio (veios prontos no aparelho)
 
 	var v := PackedVector3Array()
 	var n := PackedVector3Array()
@@ -213,6 +214,10 @@ class Junta:
 				arr[Mesh.ARRAY_TEX_UV2] = uv2
 			arr[Mesh.ARRAY_INDEX] = idx
 			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+			if guardar_listas: # veios prontos (trabalho.gd): guarda o que subiu para a placa, sem ler de volta
+				var l: Array = am.get_meta("listas", [])
+				l.append(arr)
+				am.set_meta("listas", l)
 		if _st != null:
 			_st.commit(am)
 		return am

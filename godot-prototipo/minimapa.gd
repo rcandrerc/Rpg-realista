@@ -391,9 +391,12 @@ func _prender(f: Vector2, z: float) -> Vector2:
 	return f
 
 # onde fica a lista da direita (tela)
+var painel_3d := Rect2() # no mapa 3D a lista fica embaixo da barra de cima (mapa3d.gd), Rect2() = lista fechada
 func _painel() -> Rect2:
 	if not totem_de.is_empty(): # mapa do totem: sem a lista
 		return Rect2()
+	if _em_3d():
+		return painel_3d
 	var g: Rect2 = grande.get_global_rect()
 	return Rect2(g.position + Vector2(g.size.x - LARGURA_LISTA, 0), Vector2(LARGURA_LISTA, g.size.y))
 
@@ -422,25 +425,31 @@ func _toque_no_mapa(pos: Vector2) -> void:
 		return
 	if dentro and icones.toque(lp): # abre e fecha a legenda
 		return
-	var pp: Rect2 = _painel()
-	if pp.has_point(pos):
-		var lq: Vector2 = pos - pp.position
-		for ln in linhas:
-			if (ln[0] as Rect2).has_point(lq):
-				if ln[1].has("secao"): # título da sanfona: abre ou fecha
-					var sid := str(ln[1].secao)
-					abertas[sid] = not abertas.get(sid, false)
-					if m.sons:
-						m.sons.tocar("pano", -16.0)
-				else:
-					_escolher(ln[1])
-				return
-		return # espaço vazio da lista: não fecha
+	if _toque_lista(pos):
+		return
 	if dentro and m.rota:
 		_marcar(_no_mundo(lp))
 		selecionado = ""
 		return
 	fechar()
+
+# toque na lista de Lugares (mapa 2D e 3D): true se foi nela (título abre/fecha a seção, nome marca o lugar)
+func _toque_lista(pos: Vector2) -> bool:
+	var pp: Rect2 = _painel()
+	if not pp.has_point(pos):
+		return false
+	var lq: Vector2 = pos - pp.position
+	for ln in linhas:
+		if (ln[0] as Rect2).has_point(lq):
+			if ln[1].has("secao"): # título da sanfona: abre ou fecha
+				var sid := str(ln[1].secao)
+				abertas[sid] = not abertas.get(sid, false)
+				if m.sons:
+					m.sons.tocar("pano", -16.0)
+			else:
+				_escolher(ln[1])
+			return true
+	return true # espaço vazio da lista: não fecha
 
 func _marcar(w: Vector2) -> void:
 	previa = m.rota.planejar(w) if m.rota else PackedVector2Array([w])
@@ -648,6 +657,12 @@ func abrir_totem(de: Dictionary) -> void:
 	totem_de = de
 	totem_alvo = ""
 	_ver_totens()
+	if _em_3d() and not mapa3d.pronto: # a maquete ainda montando (logo depois de entrar): desta vez o 2D
+		mapa3d.fechar()
+		grande.visible = true
+		_arrumar_grande()
+	elif _em_3d(): # 3D: a câmera mostra todos os totens, acesos e com o "Teleportar" ali mesmo
+		mapa3d.ver_totens()
 	if m.lentidao:
 		m.lentidao.menu_aberto("totem", t0, 0)
 
@@ -707,6 +722,8 @@ func _toque_totem(lp: Vector2, dentro: bool) -> void:
 func guia_totem(k: String) -> Rect2:
 	if not aberto or totem_de.is_empty() or janela == null:
 		return Rect2()
+	if _em_3d():
+		return mapa3d.guia_totem(k)
 	var xf: Transform2D = janela.get_global_transform_with_canvas()
 	if totem_alvo != "" and (k == "" or totem_alvo == k) and botao_tp.has_area():
 		return Rect2(xf * botao_tp.position, botao_tp.size * xf.get_scale())
@@ -758,7 +775,7 @@ func _abrir() -> void:
 	foco_alvo = foco
 	if m.sons:
 		m.sons.tocar("pano", -8.0) # papel do mapa abrindo
-	if modo_3d and totem_de.is_empty() and mapa3d != null and mapa3d.disponivel(): # o mapa do totem continua 2D
+	if modo_3d and mapa3d != null and mapa3d.disponivel(): # o mapa do totem também abre no 3D (André 2026-11-16)
 		grande.visible = false
 		mapa3d.abrir()
 
@@ -1344,11 +1361,16 @@ func _desenhar_mapa() -> void:
 
 # lista da direita (Lugares): cada nome é um botão; o escolhido fica dourado com "Ir para ›"
 func _desenhar_grande() -> void:
-	var c := marcas_grande
+	_desenhar_lista(marcas_grande)
+
+# a lista desenhada em c (o mapa 2D usa marcas_grande; o 3D desenha nas marcas dele, mapa3d.gd)
+func _desenhar_lista(c: Control) -> void:
 	if not totem_de.is_empty(): # mapa do totem: sem a lista
 		return
 	var pp: Rect2 = _painel()
-	var base: Vector2 = pp.position - grande.get_global_rect().position
+	if not pp.has_area():
+		return
+	var base: Vector2 = pp.position - c.get_global_rect().position
 	var x0: float = base.x + 14.0
 	var larg: float = LARGURA_LISTA - 26.0
 	var sbp := StyleBoxFlat.new() # fundo da lista
@@ -1370,7 +1392,7 @@ func _desenhar_grande() -> void:
 			por_secao[sid] = []
 		por_secao[sid].append(l)
 	var dentro := func(r: Rect2) -> bool: return r.position.y > base.y + 16.0 and r.end.y < fim # o que passa da caixa (lista rolada) não aparece
-	var tira: Vector2 = pp.position - grande.get_global_rect().position # do desenho para o toque (relativo ao painel)
+	var tira: Vector2 = pp.position - c.get_global_rect().position # do desenho para o toque (relativo ao painel)
 	for sc in SECOES:
 		var sid: String = sc[0]
 		var itens: Array = por_secao.get(sid, [])

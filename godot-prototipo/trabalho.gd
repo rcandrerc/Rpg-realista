@@ -20,6 +20,7 @@ var soltos: Array = [] # pedras e galhos soltos no chão (André 2026-11-07): pe
 const SOLTO_VE := 11.0 # m: o brilho em cima aparece só de perto
 var caidas: Array = [] # árvores derrubadas (de todos, André 2026-11-04): o _process só olha estas para saber quando voltam
 const QuedaArvore = preload("res://queda_arvore.gd")
+const Malhas = preload("res://malhas.gd")
 var queda # queda_arvore.gd: a árvore tomba, some e cresce de novo
 var grade := {} # Vector2i(casa de 6 m) -> [coletáveis]
 var coletando = null # {c, dur, t, n (golpes dados), prof}
@@ -66,6 +67,11 @@ func _ready() -> void:
 		if not grade.has(k):
 			grade[k] = []
 		grade[k].append(o)
+	_chave_veios = _chave()
+	if FileAccess.file_exists(VEIOS_PRONTOS):
+		_carga_tarefa = WorkerThreadPool.add_task(_ler_prontos) # lê enquanto o resto da abertura monta
+	else:
+		_guardando = true
 	for i in _veios_fila.size():
 		m._a_criar.append(_montar_proximo_veio)
 	queda = QuedaArvore.new(m)
@@ -148,26 +154,26 @@ func _montar_proximo_veio() -> void:
 			melhor = i
 	var o: Dictionary = _veios_fila[melhor]
 	_veios_fila.remove_at(melhor)
-	_montar_veio(o, float(o.ry_veio))
+	_abrir_prontos()
+	var d = _prontos.get(o.id)
+	if d is Array and d.size() == 5:
+		_montar_veio_pronto(o, d)
+	else:
+		_montar_veio(o, float(o.ry_veio))
+	if _veios_fila.is_empty():
+		_prontos = {}
+		if _guardando and _novos.size() == veios.size():
+			WorkerThreadPool.add_task(_salvar_prontos.bind({"chave": _chave_veios, "veios": _novos}))
+		_guardando = false
+		_novos = {}
 	if esgotado(o):
 		o.corpo.visible = false
 		o.entulho.visible = true
 		m.mov.vazios[o.id] = true
 
-func _montar_veio(o: Dictionary, ry: float) -> void:
-	var raiz := Node3D.new()
-	raiz.position = o.pos
-	raiz.rotation.y = ry
-	add_child(raiz)
-	o.no = raiz
-	var rnd := RandomNumberGenerator.new()
-	rnd.seed = hash(o.id)
-	var cor: Color = COR_MINERIO.get(o.tipo, Color.GRAY)
-	var cristal: bool = o.tipo == "cristal"
-	# tamanho da pedra (shared/dados.js TAMANHO_VEIO): o raio sólido do veio já vem multiplicado (0,8 m = cobre)
-	var k: float = float(o.r) / 0.8
-	o.k = k
-	# um material por veio: "cheio" a 0 deixa só este veio cinza quando esgota
+# um material por veio: "cheio" a 0 deixa só este veio cinza quando esgota. A semente é o primeiro número da
+# sorte do veio (rnd com a semente do id), igual na montagem e nos veios prontos
+func _mat_veio(o: Dictionary, rnd: RandomNumberGenerator) -> ShaderMaterial:
 	var B: Dictionary = BLOCO_VEIO.get(o.tipo, BLOCO_VEIO.cristal)
 	var pm := ShaderMaterial.new()
 	pm.shader = load("res://minerio.gdshader")
@@ -183,6 +189,22 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 	cont.grow_amount = 0.012
 	cont.albedo_color = Color(0.08, 0.06, 0.05)
 	pm.next_pass = cont
+	return pm
+
+func _montar_veio(o: Dictionary, ry: float) -> void:
+	var raiz := Node3D.new()
+	raiz.position = o.pos
+	raiz.rotation.y = ry
+	add_child(raiz)
+	o.no = raiz
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = hash(o.id)
+	var cor: Color = COR_MINERIO.get(o.tipo, Color.GRAY)
+	var cristal: bool = o.tipo == "cristal"
+	# tamanho da pedra (shared/dados.js TAMANHO_VEIO): o raio sólido do veio já vem multiplicado (0,8 m = cobre)
+	var k: float = float(o.r) / 0.8
+	o.k = k
+	var pm := _mat_veio(o, rnd)
 	o.pedra_mat = pm
 	# o veio inteiro (blocos e cristais) fica neste nó: some quando esgota e volta crescendo
 	var corpo := Node3D.new()
@@ -207,15 +229,7 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 		corpo.add_child(mi)
 	var alto_pedra: float = principal.get_aabb().end.y
 	o.malha_tri = principal # a face da pedra onde a picareta bate: o TriangleMesh sai só na primeira batida (_face_veio), não na abertura
-	# sombra de contato: mancha escura e suave no chão em volta da base
-	var sombra := MeshInstance3D.new()
-	var pl := PlaneMesh.new()
-	pl.size = Vector2(2.4, 2.4) * k
-	sombra.mesh = pl
-	sombra.material_override = _mat_sombra()
-	sombra.position.y = 0.03
-	sombra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	raiz.add_child(sombra)
+	_sombra_veio(raiz, k)
 	# cristais (somem quando o veio esgota para você)
 	var minerio := Node3D.new()
 	corpo.add_child(minerio)
@@ -258,27 +272,189 @@ func _montar_veio(o: Dictionary, ry: float) -> void:
 			p.rotation = Vector3(incl, -a + PI / 2 + rnd.randf_range(-0.3, 0.3), rnd.randf_range(-0.15, 0.15))
 			p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			minerio.add_child(p)
-		var luz := OmniLight3D.new()
-		luz.light_color = cor
-		luz.light_energy = 1.3
-		luz.omni_range = 4.0
-		luz.position = Vector3(0, alto_pedra + 0.5, 0)
-		luz.distance_fade_enabled = true # FPS (André 2026-11-07): a luz do cristal só acende de perto
-		luz.distance_fade_begin = 25.0
-		luz.distance_fade_length = 6.0
-		minerio.add_child(luz)
+		_luz_veio(minerio, cor, alto_pedra)
 	# FPS (André 2026-11-13, "juntar tudo como se fosse um desenho só"; os registros do celular mostraram 1.100 chamadas de
 	# desenho perto das minas): cada pedaço do veio era uma malha solta (4 a 5 blocos com contorno e sombra, 10 a 14
 	# cristais com sombra, 7 pedrinhas do cascalho). Agora cada grupo vira uma malha só, com o mesmo desenho: os blocos
 	# numa, os cristais noutra e o cascalho noutra, e cada grupo continua sumindo e voltando sozinho (corpo, minerio e
 	# entulho são os mesmos nós). O que está escondido não entra na junta, então cada grupo é juntado com o outro à parte.
+	Malhas.Junta.guardar_listas = _guardando
 	_juntar_veio(o)
-	# FPS (André 2026-11-07, "prefiro perder um pouquinho de qualidade do que ter jogo travando"): o veio (blocos,
-	# contorno, cristais e o cascalho) só é desenhado até 80 m, com fade curtinho, como as pedras grandes do cenário
+	Malhas.Junta.guardar_listas = false
+	if _guardando:
+		_guardar_um(o, principal, alto_pedra)
+	_alcance_veio(raiz)
+
+# sombra de contato: mancha escura e suave no chão em volta da base
+func _sombra_veio(raiz: Node3D, k: float) -> void:
+	var sombra := MeshInstance3D.new()
+	var pl := PlaneMesh.new()
+	pl.size = Vector2(2.4, 2.4) * k
+	sombra.mesh = pl
+	sombra.material_override = _mat_sombra()
+	sombra.position.y = 0.03
+	sombra.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	raiz.add_child(sombra)
+
+func _luz_veio(minerio: Node3D, cor: Color, alto_pedra: float) -> void:
+	var luz := OmniLight3D.new()
+	luz.light_color = cor
+	luz.light_energy = 1.3
+	luz.omni_range = 4.0
+	luz.position = Vector3(0, alto_pedra + 0.5, 0)
+	luz.distance_fade_enabled = true # FPS (André 2026-11-07): a luz do cristal só acende de perto
+	luz.distance_fade_begin = 25.0
+	luz.distance_fade_length = 6.0
+	minerio.add_child(luz)
+
+# FPS (André 2026-11-07, "prefiro perder um pouquinho de qualidade do que ter jogo travando"): o veio (blocos,
+# contorno, cristais e o cascalho) só é desenhado até 80 m, com fade curtinho, como as pedras grandes do cenário
+func _alcance_veio(raiz: Node3D) -> void:
 	for gi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
 		gi.visibility_range_end = 80.0
 		gi.visibility_range_end_margin = 6.0
 		gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+# ---------- veios prontos no aparelho ----------
+# André 2026-11-16 ("por que os minérios demoram tanto pra carregar e as árvores não?"): a árvore é um modelo pronto,
+# carregado uma vez e copiado; o veio era esculpido pedra por pedra a cada abertura (~3.000 pedras, 11 a 17 s no
+# celular). Agora, na primeira abertura, cada veio montado guarda o resultado final (as malhas juntadas, já com os
+# números de cada vértice) em user://veios_prontos.bin; nas próximas, o celular só lê o arquivo (numa linha de fundo)
+# e põe as malhas prontas. O desenho é exatamente o mesmo (mesmos números, mesmos materiais). A chave muda quando
+# muda o mundo (veios, posições), o motor ou os arquivos que desenham o veio: aí monta de novo e guarda outra vez.
+const VEIOS_PRONTOS := "user://veios_prontos.bin"
+const VEIOS_FORMATO := 1 # suba se o desenho do veio mudar por um arquivo que não entra na chave (shaders entram pelo caminho)
+var _guardando := false # montando do zero: guarda cada veio para a próxima abertura
+var _prontos := {} # id -> [corpo, minerio, entulho, listas do bloco principal, altura da pedra] lidos do aparelho
+var _novos := {} # o mesmo, dos veios montados agora (salvo quando o último monta)
+var _chave_veios := ""
+var _carga_tarefa := -1
+var _carga = null
+
+func _chave() -> String:
+	var partes := [VEIOS_FORMATO, Engine.get_version_info().string]
+	for f in ["res://trabalho.gd", "res://malhas.gd", "res://construcao.gd"]:
+		var g: String = f if FileAccess.file_exists(f) else f.replace(".gd", ".gdc") # no APK o script vai compilado
+		partes.append(FileAccess.get_md5(g) if FileAccess.file_exists(g) else "")
+	for o in veios:
+		partes.append([o.id, o.tipo, o.r, o.ry_veio, o.pos])
+	return str(partes).md5_text()
+
+func _ler_prontos() -> void: # linha de fundo: só lê números do arquivo
+	var f := FileAccess.open_compressed(VEIOS_PRONTOS, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
+	if f != null:
+		_carga = f.get_var()
+
+func _salvar_prontos(dados: Dictionary) -> void: # linha de fundo: grava num temporário e troca (nunca fica pela metade)
+	var tmp := VEIOS_PRONTOS + ".tmp"
+	var f := FileAccess.open_compressed(tmp, FileAccess.WRITE, FileAccess.COMPRESSION_ZSTD)
+	if f == null:
+		return
+	f.store_var(dados)
+	f.close()
+	DirAccess.rename_absolute(tmp, VEIOS_PRONTOS)
+
+# primeiro veio da fila: espera a leitura (começou no _ready) e confere se o arquivo vale para este mundo
+func _abrir_prontos() -> void:
+	if _carga_tarefa < 0:
+		return
+	WorkerThreadPool.wait_for_task_completion(_carga_tarefa)
+	_carga_tarefa = -1
+	var d = _carga
+	_carga = null
+	if d is Dictionary and str(d.get("chave", "")) == _chave_veios and d.get("veios") is Dictionary:
+		var v: Dictionary = d.veios
+		var todos := v.size() == veios.size()
+		for o in veios:
+			todos = todos and v.has(o.id)
+		if todos:
+			_prontos = v
+	_guardando = _prontos.is_empty()
+	if Engine.has_meta("lentidao"):
+		print("[entrada] veios prontos: ", "do aparelho" if not _guardando else "montando e guardando")
+
+# as malhas juntadas ("junto_N") que ficaram direto em no, com as listas de cada superfície; null = algo fora do
+# esperado (aí não guarda nada e a próxima abertura monta de novo, como antes)
+func _juntos(no: Node3D, o: Dictionary):
+	var r := []
+	for c in no.get_children():
+		if not (c is MeshInstance3D):
+			continue
+		var mi := c as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		if not str(mi.name).begins_with("junto_") or not (mi.mesh is ArrayMesh):
+			return null
+		var am := mi.mesh as ArrayMesh
+		var listas: Array = am.get_meta("listas", [])
+		if listas.size() != am.get_surface_count():
+			return null
+		var sups := []
+		for i in listas.size():
+			var mat := am.surface_get_material(i)
+			var tag := "pm" if mat == o.pedra_mat else ("cas" if mat == _mat_cas and _mat_cas != null else ("cris" if mat == _mat_cr and _mat_cr != null else ""))
+			if tag == "" or mi.material_override != null:
+				return null
+			sups.append([listas[i], tag])
+		r.append([str(mi.name), int(mi.cast_shadow), sups])
+	return r
+
+func _guardar_um(o: Dictionary, principal: ArrayMesh, alto_pedra: float) -> void:
+	var c = _juntos(o.corpo, o)
+	var mn = _juntos(o.minerio, o)
+	var e = _juntos(o.entulho, o)
+	var pl: Array = principal.get_meta("listas", [])
+	if c == null or mn == null or e == null or pl.size() != 1:
+		_guardando = false
+		_novos = {}
+		return
+	_novos[o.id] = [c, mn, e, pl[0], alto_pedra]
+
+func _por_juntos(no: Node3D, lista: Array, pm: Material) -> void:
+	for j in lista:
+		var am := ArrayMesh.new()
+		for sf in j[2]:
+			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sf[0])
+			am.surface_set_material(am.get_surface_count() - 1, pm if sf[1] == "pm" else (_mat_cascalho() if sf[1] == "cas" else _mat_cristal()))
+		var junto := MeshInstance3D.new()
+		junto.name = str(j[0])
+		junto.mesh = am
+		junto.cast_shadow = int(j[1])
+		no.add_child(junto)
+
+# o mesmo veio do _montar_veio, com as malhas lidas do aparelho (mesma ordem de nós, materiais e alcance)
+func _montar_veio_pronto(o: Dictionary, d: Array) -> void:
+	var raiz := Node3D.new()
+	raiz.position = o.pos
+	raiz.rotation.y = float(o.ry_veio)
+	add_child(raiz)
+	o.no = raiz
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = hash(o.id)
+	var k: float = float(o.r) / 0.8
+	o.k = k
+	var pm := _mat_veio(o, rnd)
+	o.pedra_mat = pm
+	var corpo := Node3D.new()
+	raiz.add_child(corpo)
+	o.corpo = corpo
+	var principal := ArrayMesh.new()
+	principal.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, d[3])
+	o.malha_tri = principal
+	_sombra_veio(raiz, k)
+	var minerio := Node3D.new()
+	corpo.add_child(minerio)
+	o.minerio = minerio
+	var entulho := Node3D.new()
+	entulho.visible = false
+	raiz.add_child(entulho)
+	o.entulho = entulho
+	if o.tipo == "cristal":
+		_luz_veio(minerio, COR_MINERIO.get(o.tipo, Color.GRAY), float(d[4]))
+	_por_juntos(minerio, d[1], pm)
+	_por_juntos(corpo, d[0], pm)
+	_por_juntos(entulho, d[2], pm)
+	_alcance_veio(raiz)
 
 const Construcao = preload("res://construcao.gd")
 func _juntar_veio(o: Dictionary) -> void:
@@ -323,7 +499,11 @@ func _bloco(rnd: RandomNumberGenerator, raio: float, alto: float) -> ArrayMesh:
 			var q: Vector3 = v * puxa[chave]
 			st.add_vertex(Vector3(q.x * raio, (max(q.y, -0.35) + 0.35) * alto - 0.12, q.z * raio))
 	st.generate_normals()
-	return st.commit()
+	var listas := st.commit_to_arrays() # o mesmo que st.commit(), mas as listas ficam (veios prontos no aparelho)
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, listas)
+	am.set_meta("listas", [listas])
+	return am
 
 # cristal: prisma de 6 lados com ponta, normais chapadas; base ciano médio e ponta clara (cor no vértice)
 func _cristal(alto: float, raio: float) -> Mesh:
