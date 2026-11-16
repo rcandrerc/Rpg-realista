@@ -176,7 +176,17 @@ func _process(dt: float) -> void:
 	dist = lerpf(dist, dist_alvo, a)
 	foco = foco.lerp(foco_alvo, a)
 	_camera()
-	marcas.queue_redraw()
+	# as marcas (símbolos, nomes, névoa) só são redesenhadas quando a câmera mexe, ou 4 vezes por segundo para os
+	# jogadores e o herói andando: parado, o mapa quase não gasta
+	_t_marcas += dt
+	var tc: Transform3D = cam.global_transform if cam != null else Transform3D()
+	if _t_marcas > 0.25 or not tc.is_equal_approx(_cam_antes):
+		_t_marcas = 0.0
+		_cam_antes = tc
+		marcas.queue_redraw()
+
+var _t_marcas := 0.0
+var _cam_antes := Transform3D()
 
 func _camera() -> void:
 	if cam == null:
@@ -756,7 +766,12 @@ func entrada(ev: InputEvent) -> void:
 
 func _toque(pos: Vector2) -> void:
 	var lp := pos - get_global_rect().position
+	marcas.queue_redraw() # o toque muda o desenho na hora (pino, filtro, legenda), sem esperar a câmera mexer
 	if mm.filtro.toque(lp): # filtro das camadas (André 2026-11-16)
+		marcas.queue_redraw()
+		return
+	if mm.icones.botao_legenda.has_point(lp): # abre e fecha a legenda
+		legenda_aberta = not legenda_aberta
 		marcas.queue_redraw()
 		return
 	if b_x.has_point(lp):
@@ -817,6 +832,14 @@ func _desenhar() -> void:
 		_botoes(c, tam)
 		return
 	var perto := dist < 900.0
+	var longe := dist > LONGE # de longe, como no 2D afastado: só os símbolos, sem nomes miúdos nem NPCs
+	var em := func(x: float, z: float) -> Vector2: return _em(x, z, 4.0)
+	var k := _px_por_metro()
+	_nevoa(c, tam, longe) # zonas ainda fechadas pela névoa, como no 2D
+	_terras(c, tam, longe)
+	# rota sendo andada (o herói já vai indo): a mesma fita dourada da prévia
+	if m.rota and m.rota.ativo and mm.marcado == null:
+		_rota(c, m.rota.caminho, int(m.rota.i))
 	# rota planejada e pino
 	if mm.marcado != null and mm.previa.size() > 1:
 		var ant = null
@@ -826,22 +849,17 @@ func _desenhar() -> void:
 				c.draw_line(ant, s, Color(0.05, 0.04, 0.03, 0.6), 5.0, true)
 				c.draw_line(ant, s, Color("ffd27a"), 3.0, true)
 			ant = s
+	_simbolos(c, tam, em, k, longe) # tudo o que o mapa 2D mostra: veios, caça, chefes, dungeons, totens, NPCs, casa...
 	for l in mm._lugares():
 		var tipo := str(l.get("tipo", ""))
-		if tipo != "vila" and tipo != "casa" and tipo != "caverna" and tipo != "totem":
+		if tipo != "vila":
 			continue
-		if not mm.filtro.ok({"vila": "vilas", "caverna": "dungeon", "totem": "totens"}.get(tipo, "")) and tipo != "casa":
+		if not mm.filtro.ok("vilas"):
 			continue
 		var s = _na_tela(float(l.x), float(l.z), 8.0)
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
 			continue
-		if tipo == "caverna":
-			c.draw_colored_polygon(PackedVector2Array([s + Vector2(-9, 7), s + Vector2(0, -10), s + Vector2(9, 7)]), Color8(240, 120, 90))
-		elif tipo == "totem":
-			c.draw_circle(s, 6.0, Color8(120, 200, 255))
-			c.draw_arc(s, 6.0, 0, TAU, 16, Color(0, 0, 0, 0.7), 1.5, true)
-		else:
-			_fita2d(c, s - Vector2(0, 20), str(l.get("curto", l.get("nome", ""))), 17 if perto else 13, l)
+		_fita2d(c, s - Vector2(0, 20), str(l.get("curto", l.get("nome", ""))), 17 if perto else 13, l)
 	for v in (m.mundo.get("vilasMundo", []) if mm.filtro.ok("vilas") else []): # as vilas do mundo grande (com o nível)
 		var s = _na_tela(float(v.x), float(v.z), 8.0)
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
@@ -851,6 +869,7 @@ func _desenhar() -> void:
 		var sm = _na_tela(mm.marcado.x, mm.marcado.y, 2.0)
 		if sm != null:
 			mm._pino(c, sm, 1.15)
+	_pessoas(c, em) # jogadores perto, o time e os amigos virtuais
 	# herói
 	if m.heroi != null:
 		var hp: Vector3 = m.heroi.position
@@ -862,7 +881,238 @@ func _desenhar() -> void:
 	_botoes(c, tam)
 	if plantio_mi != null:
 		plantio_mi.visible = mm.filtro.ok("plantio")
+	# a mesma legenda dos símbolos do 2D, embaixo à esquerda; no 3D começa fechada (só o botão "Legenda") para não
+	# tapar a maquete, e lembra se foi aberta (estado próprio, o do 2D não muda)
+	var leg_2d: bool = mm.icones.legenda_aberta
+	mm.icones.legenda_aberta = legenda_aberta
+	mm.icones.legenda(c, mm, fonte, tam)
+	mm.icones.legenda_aberta = leg_2d
 	mm.filtro.desenhar(c, Vector2(12, 58), fonte) # filtro das camadas, embaixo da barra de cima
+
+# ---------- o que o mapa 2D mostra, no 3D (André 2026-11-16: "tudo que tiver no mapa 2D eu quero que apareça no 3D,
+# os spots de monstro e tudo mais, de maneira condizente com o mapa; que fique bonito, mas funcional") ----------
+# Os símbolos são os mesmos do 2D (minimapa.gd e icones_npc.gd), desenhados por cima da maquete no ponto do chão de
+# cada coisa, com uma sombrinha no chão para parecerem pousados no relevo. Barato: só contas de projeção e draw_*,
+# nada novo no mundo 3D; o que está fora da tela nem é desenhado.
+
+var legenda_aberta := false
+const LONGE := 700.0 # câmera mais longe que isto: sem NPCs e sem os nomes pequenos (embolam)
+const FORA := Vector2(-99999, -99999)
+
+# ponto da tela de um lugar do mundo; fora da tela (ou atrás da câmera) devolve FORA, que os desenhos pulam
+func _em(x: float, z: float, sobe := 4.0) -> Vector2:
+	var s = _na_tela(x, z, sobe)
+	return s if s != null else FORA
+
+# px por metro perto do meio da tela (o tamanho dos símbolos e quando os nomes cabem, como o zoom do 2D)
+func _px_por_metro() -> float:
+	var f := Vector3(foco.x, alt(foco.x, foco.z), foco.z)
+	return cam.unproject_position(f).distance_to(cam.unproject_position(f + Vector3(10, 0, 0))) / 10.0
+
+func _na_tela_ok(q: Vector2, tam: Vector2, borda := 40.0) -> bool:
+	return q.x > -borda and q.y > -borda and q.x < tam.x + borda and q.y < tam.y + borda
+
+# sombra oval no chão embaixo do símbolo (achatada como o chão visto de lado)
+func _sombra(c: Control, q: Vector2, r: float) -> void:
+	c.draw_set_transform(q + Vector2(0, r * 0.9), 0.0, Vector2(1.0, 0.42))
+	c.draw_circle(Vector2.ZERO, r * 1.1, Color(0, 0, 0, 0.28))
+	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _rota(c: Control, r: PackedVector2Array, de: int) -> void:
+	var ant = null
+	for i in range(maxi(de - 1, 0), r.size()):
+		var s = _na_tela(r[i].x, r[i].y, 3.0)
+		if s != null and ant != null:
+			c.draw_line(ant, s, Color(0.05, 0.04, 0.03, 0.6), 5.0, true)
+			c.draw_line(ant, s, Color("ffd27a"), 3.0, true)
+		ant = s
+
+# névoa: a mancha lilás de cada região ainda fechada, com o nome e a missão que abre (o mesmo do 2D). O contorno é
+# cortado um pouco à frente da câmera antes de projetar (ponto atrás da câmera não tem lugar na tela).
+const COR_NEVOA_3D := Color(0.78, 0.74, 0.92, 0.4) # a lilás do 2D, mais clara: o relevo aparece por baixo
+func _nevoa(c: Control, tam: Vector2, longe: bool) -> void:
+	if m.get("nevoa") == null:
+		return
+	var cz: float = cam.global_position.z - 30.0
+	var corte := PackedVector2Array([Vector2(-1e5, -1e5), Vector2(1e5, -1e5), Vector2(1e5, cz), Vector2(-1e5, cz)])
+	var tela := Rect2(Vector2(-50, -50), tam + Vector2(100, 100))
+	var perto := Rect2(foco.x - dist * 2.5, foco.z - dist * 3.0, dist * 5.0, dist * 4.0) # o chão que a câmera alcança
+	for Z in m.nevoa.H.get("zonas", []):
+		var id := str(Z.id)
+		if Z.get("selo", false) or m.nevoa.liberado(id):
+			continue
+		var zp: Dictionary = _pol_nevoa(Z)
+		if zp.pol.size() < 3 or not (zp.caixa as Rect2).intersects(perto):
+			continue
+		var soma := Vector2.ZERO
+		var n := 0
+		for pc in Geometry2D.intersect_polygons(zp.pol, corte):
+			var tl := PackedVector2Array()
+			var caixa := Rect2()
+			for w in pc:
+				var s = _na_tela(w.x, w.y, 2.0)
+				if s == null:
+					tl = PackedVector2Array()
+					break
+				tl.append(s)
+				caixa = Rect2(s, Vector2.ZERO) if tl.size() == 1 else caixa.expand(s)
+			if tl.size() < 3 or not caixa.intersects(tela):
+				continue
+			if not Geometry2D.triangulate_polygon(tl).is_empty(): # contorno que se cruza na tela: só a linha
+				c.draw_colored_polygon(tl, COR_NEVOA_3D)
+			c.draw_polyline(tl + PackedVector2Array([tl[0]]), Color(0.93, 0.9, 1.0, 0.7), 1.5, true)
+			var meio := caixa.get_center().clamp(Vector2(80, 70), tam - Vector2(80, 60))
+			if tela.has_point(meio):
+				soma += meio
+				n += 1
+		if n == 0 or longe: # de longe só a mancha (os nomes embolam com os das vilas)
+			continue
+		var M: Dictionary = m.nevoa.H.missoes[int(m.nevoa.quem_libera[id])]
+		var centro := soma / n
+		mm._texto(c, centro, "Névoa: %s" % Z.nome, 14, Color("e6dcff"))
+		mm._texto(c, centro + Vector2(0, 16), "Missão Nv %d (%s)" % [int(M.nv), str(M.get("npcNome", M.npc))], 12, Color(0.85, 0.82, 0.78))
+
+# contorno de cada zona da névoa, simplificado (até ~90 pontos: de longe uma mancha não precisa de mais) e guardado
+var _pols_nevoa := {}
+func _pol_nevoa(Z: Dictionary) -> Dictionary:
+	var id := str(Z.id)
+	if not _pols_nevoa.has(id):
+		var lista = Z.get("poligono")
+		var pol := PackedVector2Array()
+		var caixa := Rect2()
+		if lista is Array and lista.size() >= 3:
+			var passo: int = maxi(1, lista.size() / 90)
+			for i in range(0, lista.size(), passo):
+				var w := Vector2(float(lista[i][0]), float(lista[i][1]))
+				pol.append(w)
+				caixa = Rect2(w, Vector2.ZERO) if pol.size() == 1 else caixa.expand(w)
+		_pols_nevoa[id] = {"pol": pol, "caixa": caixa}
+	return _pols_nevoa[id]
+
+# o nome de cada terra (continente, ilha, Aurora) com a faixa de nível, como no 2D
+func _terras(c: Control, tam: Vector2, longe: bool) -> void:
+	if not mm.filtro.ok("vilas"):
+		return
+	for t in g.get("terras", []):
+		var nv: Array = t.get("niveis", [])
+		var tx: float = float(t.x) if t.has("x") else float(g.x0) + float(g.nx) * float(g.passo) * 0.5
+		var tz: float = float(t.z) - float(t.rz) * 0.97 if t.has("z") else (float(t.costa) - 560.0 if str(t.get("forma", "")) == "norte" else float(t.costa) + 60.0)
+		var q := _em(tx, tz, 12.0)
+		if not _na_tela_ok(q, tam, 0.0):
+			continue
+		mm._texto(c, q, "%s%s" % [str(t.nome), "  (Nv %d-%d)" % [int(nv[0]), int(nv[1])] if nv.size() == 2 else ""], 22 if not longe else 18, Color("f4e6c4"))
+
+func _simbolos(c: Control, tam: Vector2, em: Callable, k: float, longe: bool) -> void:
+	var t: float = clampf(k * 1.6, 7.0, 11.0) # meio tamanho dos símbolos, cresce um pouco de perto
+	# portos e postos do mundo grande (as vilas têm a fita com o nome)
+	if mm.filtro.ok("vilas"):
+		for l in g.get("lugares", []):
+			var tl := str(l.get("tipo", ""))
+			if tl != "porto" and tl != "posto":
+				continue
+			var q := _em(float(l.x), float(l.z))
+			if not _na_tela_ok(q, tam):
+				continue
+			c.draw_circle(q, 5.0, Color(0.05, 0.04, 0.03, 0.85))
+			c.draw_circle(q, 3.6, Color(1, 0.95, 0.85))
+			if not longe:
+				mm._texto(c, q + Vector2(0, -13), str(l.get("nome", "")), 13, Color(1, 0.95, 0.85))
+	# veios de minério: losango na cor do minério; os grandes com o nome de perto
+	for mn in (m.mundo.get("mina", []) if mm.filtro.ok("recursos") else []):
+		var miudo: bool = mn.get("pequeno", false) or mn.get("mundo", false)
+		if longe and miudo:
+			continue
+		var q := _em(float(mn.x), float(mn.z), 2.0)
+		if not _na_tela_ok(q, tam):
+			continue
+		var cm: Color = mm.COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b"))
+		var r := 6.0 if not miudo else 4.5
+		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -r - 1.5), q + Vector2(r + 1.5, 0), q + Vector2(0, r + 1.5), q + Vector2(-r - 1.5, 0)]), Color(0.05, 0.04, 0.03, 0.85))
+		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -r), q + Vector2(r, 0), q + Vector2(0, r), q + Vector2(-r, 0)]), cm)
+		if not miudo and not longe:
+			mm._texto(c, q + Vector2(0, -15), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
+	# spots de pesca (Radar ligado)
+	if m.get("pesca") and m.pesca.radar_ligado():
+		for id in m.pesca.spots:
+			var v: Dictionary = m.pesca.spots[id]
+			var q := _em(v.x, v.z, 1.0)
+			if not _na_tela_ok(q, tam):
+				continue
+			mm._marca_spot(c, q, 7.0, m.pesca.cor_spot(v.tipo))
+			if not longe:
+				mm._texto(c, q + Vector2(0, 18), str(m.P.dados.pesca.spots[v.tipo].nome), 12, m.pesca.cor_spot(v.tipo).lightened(0.3))
+	# dungeons (todas as cavernas da lista do mapa)
+	if mm.filtro.ok("dungeon"):
+		for l in mm._lugares():
+			if str(l.get("tipo", "")) != "caverna":
+				continue
+			var q := _em(float(l.x), float(l.z), 6.0)
+			if not _na_tela_ok(q, tam):
+				continue
+			_sombra(c, q, t)
+			mm._marca_caverna(c, q, t + 1.0)
+			if not longe:
+				mm._texto(c, q + Vector2(0, t + 14.0), str(l.get("curto", l.get("nome", ""))), 14, Color("ffc27a"))
+	# totens de teleporte: o losango azul (cinza se ainda não visitado)
+	if m.get("totem") and mm.filtro.ok("totens"):
+		for tt in m.totem.T.lista:
+			var q := _em(float(tt.x), float(tt.z), 6.0)
+			if not _na_tela_ok(q, tam):
+				continue
+			var aceso: bool = m.totem.descoberto(str(tt.id))
+			_sombra(c, q, t * 0.8)
+			mm._marca_totem(c, q, t, aceso)
+			if not longe:
+				mm._texto(c, q + Vector2(0, t + 10.0), "Totem", 12, Color("9fe6ff") if aceso else Color(0.75, 0.8, 0.85))
+	# a minha casa: o contorno do terreno tracejado no chão e a casinha
+	var casa: Dictionary = mm._minha_casa()
+	if not casa.is_empty() and mm.filtro.ok("vilas"):
+		var cs := [em.call(casa.x0, casa.z0), em.call(casa.x1, casa.z0), em.call(casa.x1, casa.z1), em.call(casa.x0, casa.z1)]
+		if not cs.has(FORA):
+			for i in 4:
+				c.draw_dashed_line(cs[i], cs[(i + 1) % 4], Color(COR_OURO, 0.85), 1.5, 4.0, true)
+		var qa := _em(casa.x, casa.z, 6.0)
+		if _na_tela_ok(qa, tam):
+			_sombra(c, qa, t)
+			mm._marca_casa(c, qa, t + 2.0)
+			mm._texto(c, qa + Vector2(0, t + 16.0), "Sua casa", 15, Color("ffb39a"))
+	# clareiras de caça (bolinha na cor do bicho com o nível) e os chefes do mundo (escudo)
+	for cc in m.mundo.get("caca", []):
+		if not mm.filtro.ok("boss" if cc.has("boss") else "caca"):
+			continue
+		var q := _em(float(cc.x), float(cc.z), 5.0)
+		if not _na_tela_ok(q, tam):
+			continue
+		var r := t if not longe else 7.0
+		_sombra(c, q, r)
+		mm._marca_clareira(c, q, cc, r, true)
+		if not longe:
+			mm._texto(c, q + Vector2(0, r + 13.0), "%s  Nv %d" % [mm.NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
+	# NPCs: o símbolo da função e, de perto, o nome e o título (icones_npc.gd, o mesmo do 2D)
+	if mm.filtro.ok("npcs"):
+		mm.icones.desenhar_mapa(c, em, k * 0.9, longe, fonte, tam)
+
+# jogadores online perto (azul), o time (verde com o nome) e os amigos virtuais (coração), como no 2D
+func _pessoas(c: Control, em: Callable) -> void:
+	for p in mm._outros():
+		var q: Vector2 = em.call(p.x, p.z)
+		if q == FORA:
+			continue
+		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
+		c.draw_circle(q, 4.0, Color("6fb6ff"))
+	for p in mm._time():
+		var q: Vector2 = em.call(p.x, p.z)
+		if q == FORA:
+			continue
+		c.draw_circle(q, 6.0, Color(0.03, 0.08, 0.03, 0.9))
+		c.draw_circle(q, 5.0, m.amigos.COR_TIME)
+		mm._texto(c, q + Vector2(0, -12), p.nome, 13, m.amigos.COR_TIME.lightened(0.3))
+	for ce in mm._amigas():
+		var q: Vector2 = em.call(ce.x, ce.z)
+		if q == FORA:
+			continue
+		mm._coracao(c, q, 7.0)
+		mm._texto(c, q + Vector2(0, -14), ce.nome, 13, mm.COR_AMIGA.lightened(0.3))
 
 func _fita2d(c: Control, centro: Vector2, txt: String, tam: int, l: Dictionary) -> void:
 	txt = Idioma.frase(txt)
