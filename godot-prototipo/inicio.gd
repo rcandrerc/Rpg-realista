@@ -57,6 +57,10 @@ var conteudo := {} # conteudo.json: {"versao", "completo": {"id", "tamanho", "pa
 var feito_bytes := 0 # já baixado nesta abertura (barra soma todos os arquivos)
 var total_bytes := 0
 var tentar: Button
+# por que o download falhou (André 2026-11-16: no Note 10 da filha chegava no finalzinho e dizia só "Não deu para
+# baixar agora"): "espaco" = o celular não tem onde guardar; "defeito" = o arquivo chegou diferente; "" = internet
+var _motivo := ""
+var _falta_mb := 0
 # Versão PC (André 2026-11-13: "atualização no próprio cliente, como no celular"). O build do PC (ferramentas/pc/
 # preparar.sh) grava aethra/atualizacao/pc_conteudo (o conteudo-pc.json no balde da Oracle; antes, release "pc") e pc_id (o número
 # deste build). O .exe já traz o jogo inteiro; aqui ele vira casca: se o release tem um jogo mais novo, baixa (inteiro,
@@ -311,6 +315,20 @@ func _casca_iniciar() -> void:
 		total_bytes += int(d.tamanho)
 	for d in ponte_falta:
 		total_bytes += int(d.tamanho)
+	# espaço: o completo novo é montado do lado do velho (o velho só sai no fim, para dar para jogar se cair no meio),
+	# então precisa caber o que falta baixar + uma parte solta + folga
+	var precisa := total_bytes + 50 * 1024 * 1024
+	if not tem_completo:
+		var maior := 0
+		for p in comp.partes:
+			maior = maxi(maior, int(p.tamanho))
+		precisa += maior
+	var livre := _espaco_livre()
+	if total_bytes > 0 and livre >= 0 and livre < precisa:
+		_motivo = "espaco"
+		_falta_mb = ceili((precisa - livre) / 1048576.0)
+		_casca_falhou()
+		return
 	if total_bytes > 0:
 		baixando = true
 		barra.visible = true
@@ -444,6 +462,7 @@ func _casca_baixar(url: String, destino: String, sha: String) -> bool:
 		return false
 	if sha != "" and FileAccess.get_sha256(destino) != sha:
 		DirAccess.remove_absolute(destino)
+		_motivo = "defeito"
 		return false
 	return true
 
@@ -460,6 +479,9 @@ func _casca_pedir(url: String, arquivo: String, espera: float):
 		return null
 	var res: Array = await http.request_completed
 	if res[0] != HTTPRequest.RESULT_SUCCESS or res[1] != 200:
+		# não deu para gravar o arquivo: quase sempre é o armazenamento do celular cheio
+		if res[0] == HTTPRequest.RESULT_DOWNLOAD_FILE_WRITE_ERROR or res[0] == HTTPRequest.RESULT_DOWNLOAD_FILE_CANT_OPEN:
+			_motivo = "espaco"
 		return null
 	return res[3]
 
@@ -508,14 +530,32 @@ func _casca_falhou() -> void:
 		await get_tree().create_timer(1.5).timeout
 		_pc_entrar_embutido()
 		return
+	if _motivo == "espaco":
+		# fica parado com o aviso: abrir a versão velha sem dizer nada fazia parecer que o jogo não atualiza nunca
+		var mb := _falta_mb if _falta_mb > 0 else 300
+		_texto("Falta espaço no celular", "Libere uns %d MB (fotos, vídeos, apps) e toque em Tentar de novo." % mb)
+		barra.visible = false
+		tentar.visible = true
+		pular.visible = _casca_tem_jogo()
+		_motivo = ""
+		_falta_mb = 0
+		return
 	if _casca_tem_jogo():
-		_texto("Não deu para baixar agora", "Abrindo a versão que já está no celular.")
+		var por_que := "O arquivo chegou com defeito. " if _motivo == "defeito" else ""
+		_motivo = ""
+		_texto("Não deu para baixar agora", por_que + "Abrindo a versão que já está no celular.")
 		await get_tree().create_timer(1.5).timeout
 		_casca_entrar()
 	else:
 		_texto("Não deu para baixar o jogo", "Confira a internet e toque em Tentar de novo.")
 		barra.visible = false
 		tentar.visible = true
+
+# bytes livres onde o jogo guarda os arquivos (-1 = o aparelho não diz)
+func _espaco_livre() -> int:
+	DirAccess.make_dir_recursive_absolute(PASTA_CONTEUDO)
+	var d := DirAccess.open(PASTA_CONTEUDO)
+	return int(d.get_space_left()) if d else -1
 
 func _casca_sem_internet() -> void:
 	if pc_id > 0 and not _casca_tem_jogo():
@@ -684,6 +724,8 @@ const EN := {"Procurando atualização…": "Checking for updates…", "Tem um A
 	"Não deu para baixar o jogo": "Couldn't download the game", "Confira a internet e toque em Tentar de novo.": "Check your internet and tap Try again.",
 	"Sem internet": "No internet", "Na primeira vez o jogo precisa ser baixado. Conecte e toque em Tentar de novo.": "The first time, the game needs to download. Connect and tap Try again.",
 	"O jogo baixado veio com defeito": "The download was corrupted", "Toque em Tentar de novo para baixar outra vez.": "Tap Try again to download it again.",
+	"Falta espaço no celular": "Your phone is out of space",
+	"O arquivo chegou com defeito. Abrindo a versão que já está no celular.": "The file arrived corrupted. Opening the version already on your phone.",
 	"Jogar sem atualizar": "Play without updating", "Tentar de novo": "Try again", "versão": "version", "de": "of", "parado": "stalled"}
 var _ingles = null
 func _en(t: String) -> String:
@@ -696,6 +738,8 @@ func _en(t: String) -> String:
 		return t
 	if EN.has(t):
 		return EN[t]
+	if t.begins_with("Libere uns "): # "Libere uns N MB (...) e toque em Tentar de novo."
+		return "Free up about %s MB (photos, videos, apps) and tap Try again." % t.get_slice(" ", 2)
 	if t.begins_with("versão "):
 		return "version " + t.substr(7)
 	return t
