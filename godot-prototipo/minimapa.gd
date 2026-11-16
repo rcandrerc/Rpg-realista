@@ -1166,13 +1166,16 @@ func _desenhar_mapa() -> void:
 	var tm: bool = not totem_de.is_empty() # mapa do totem: os nomes que importam são os dos totens (os outros embolam)
 	longe = longe or tm
 	_nevoa_mapa(c, em) # zonas ainda fechadas pela névoa (progressão, André 2026-11-10)
-	if not tm and filtro.ok("plantio") and m.plantio: # áreas de plantio (camada do filtro): um ponto amarelo por quadrado de 4 m
-		var tx: ImageTexture = filtro.textura_plantio(m.plantio.quadrados())
-		if tx != null:
-			var rp: Rect2 = filtro.ret_plantio()
-			var a0: Vector2 = em.call(rp.position.x, rp.position.y)
-			var a1: Vector2 = em.call(rp.end.x, rp.end.y)
-			c.draw_texture_rect(tx, Rect2(a0, a1 - a0), false)
+	if not tm and filtro.ok("plantio") and m.plantio: # áreas de plantio (camada do filtro): pinheirinhos (André 2026-11-16, no lugar da mancha amarela)
+		var k_pl := _k()
+		var lado_pl := 28 # metros entre os símbolos; afastado, células maiores para não embolar
+		while lado_pl * k_pl < 34.0 and lado_pl < 2000:
+			lado_pl *= 3
+		var s_pl := clampf(lado_pl * k_pl * 0.42, 11.0, 16.0)
+		for p_pl in filtro.pontos_plantio(m.plantio.quadrados(), lado_pl):
+			var lp_pl: Vector2 = em.call(p_pl.x, p_pl.y)
+			if lp_pl.x > -20.0 and lp_pl.y > -20.0 and lp_pl.x < tam.x + 20.0 and lp_pl.y < tam.y + 30.0:
+				filtro.simbolo_plantio(c, lp_pl, s_pl)
 	var fv: bool = filtro.ok("vilas")
 	# lugares
 	if not tm and fv:
