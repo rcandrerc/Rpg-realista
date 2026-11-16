@@ -82,7 +82,7 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 		if m._sumindo.has(p2): # estava apagada porque tapava a câmera: a cópia apagando sai
 			m._sumindo[p2].no.queue_free()
 			m._sumindo.erase(p2)
-		for parte in ["tronco", "copa"]:
+		for parte in ["tronco", "copa", "longe"]: # "longe": a copa simples de quem olha de longe ou do alto (relevo.gd)
 			if c.has(parte):
 				c[parte][0].set_instance_transform(c[parte][1], Transform3D(Basis().scaled(Vector3.ZERO), c.t.origin))
 		if m.leve: # a sombra pintada (Sombras "Leves") some junto
@@ -97,7 +97,12 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 	var d := Vector3(sin(ang), 0, cos(ang))
 	var eixo := Vector3.UP.cross(d).normalized() # girar em volta dele leva o topo da árvore para d
 	var piv := Node3D.new()
-	piv.position = Vector3(pos.x, 0, pos.z) # na mesma altura da árvore de verdade (o vila.glb e a mata ficam no 0)
+	# na mesma altura da árvore de verdade. André 2026-11-16 ("a animação da árvore caindo sumiu"): a mata agora fica
+	# no relevo (y do mundo.json), e a cópia que cai nascia no 0, enterrada morro abaixo; ninguém via a queda.
+	var chao_y := 0.0
+	if str(o.id).begins_with("m"):
+		chao_y = (m.arvores_mata[Vector2(pos.x, pos.z)].t as Transform3D).origin.y
+	piv.position = Vector3(pos.x, chao_y, pos.z)
 	add_child(piv)
 	info.queda = piv
 	var mats: Array = []
@@ -215,7 +220,7 @@ func levantar(o: Dictionary) -> void:
 		m.fx.surto(pos.x, pos.y + 1.2, pos.z, 14, "b8e07a", "5e8f34", 2.5, 0.07)
 
 func _crescer_mata(k: float, c: Dictionary) -> void:
-	for parte in ["tronco", "copa"]:
+	for parte in ["tronco", "copa", "longe"]:
 		if c.has(parte):
 			c[parte][0].set_instance_transform(c[parte][1], Transform3D(c.t.basis.scaled(Vector3.ONE * k), c.t.origin))
 	if m.leve:
