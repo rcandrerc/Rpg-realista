@@ -2569,9 +2569,13 @@ export const AMIGA = {
   // base e muda com a amizade, o cansaço, a horta, a noite e a diferença de nível; depois sorteia. Recusou: espera
   // 'esperaRecusa' s para ser chamada de novo; 'humor' s que a vontade sorteada vale e 'humorRecusa' s que um não continua não (André 2026-11-13: não muda de ideia a cada fala). No time ela segue o dono, luta de espada (golpe e as 4 skills de espada),
   // bebe poção com pouca vida e foge para perto dele quando não tem poção.
+  // André 2026-11-16: até amizade 4 = 60%; de 4 a 10 sobe até 100% (amizadeBase); cada 5 níveis que ela está ACIMA de quem
+  // chama tira 5% (acimaCada/acimaTira), para ninguém se aproveitar. Aceitando com ele bem mais fraco (acimaFala níveis),
+  // comenta de leve (falas.nivelBaixo). base/porAmizade/amizadeMax ficam para quem não usa a regra nova.
+  amizadeBase: 4, acimaCada: 5, acimaTira: 0.05, acimaFala: 5,
   time: { base: 0.6, porAmizade: 0.035, amizadeMax: 0.35, // amizade 0 a 10: o máximo chega no 10 (André 2026-11-14; antes 0.08, máximo no 5)
     cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
-    min: 0.05, max: 0.95, esperaRecusa: 45, humor: 90, humorRecusa: 180, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
+    min: 0.05, max: 1, esperaRecusa: 45, humor: 90, humorRecusa: 180, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
   // André 2026-11-10 ("ela não se teleporta: entra na montaria e vem até mim, eu vejo ela no mapa vindo, como um jogador
   // normal"; "vai pelas estradas para não travar"): longe do dono (chamada pelo chat ou no time) ela monta no lobo e vem
   // pela rede de estradas (shared/rota.js, a mesma do "Ir para"). estrada: m a partir de quando vai pela estrada; chega: m
@@ -2595,8 +2599,11 @@ export const AMIGA = {
     time: ['Bora! Tô no seu time. Vai na frente que eu cuido das suas costas.', 'Fechou! Time formado. Quem cair primeiro paga o jantar!', 'Partiu! Espada afiada e cenoura no bolso.'],
     // André 2026-11-13 ("como se fosse um jogador real"): no chat ela só topa; quem dá o time é ele, pelo botão
     timeCombinado: ['Bora! Manda o convite do time.', 'Topo! Me chama pro time que eu vou.', 'Fechou! Manda o time aí.'],
+    // aceitou com ele bem mais fraco (André 2026-11-16: "vou te ajudar porque você é meu amigo... mas não tão grosseira")
+    nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
     recusa: {
+      fraco: 'Hoje não, vai... você tá bem abaixo do meu nível e eu queria upar no meu ritmo. Outra hora a gente vai junto!', // André 2026-11-16
       cansada: 'Ai, tô moída... deixa eu descansar um pouco antes, tá?',
       horta: 'Agora não, minha horta tá precisando de mim. Me chama daqui a pouco!',
       noite: 'De noite? Prefiro ficar em casa. Amanhã cedo a gente vai!',
@@ -2792,6 +2799,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
     timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
     recusa: {
+      fraco: 'Hoje não. Cê tá bem abaixo do meu nível e eu queria upar no meu ritmo. Outra hora a gente vai.',
       cansada: 'Tô moído... deixa eu recuperar o fôlego antes.',
       horta: 'Agora não, a horta precisa de mim. Me chama daqui a pouco.',
       noite: 'De noite eu prefiro guardar a casa. Amanhã cedo a gente vai.',
@@ -2922,6 +2930,10 @@ export const NPC_VIDA = {
   ],
   aventura: { chance: 0.6, cacar: [150, 420], campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 160] },
   offline: { horasPorDia: 1.5, porHora: 0.6, meio: 20, maxDias: 14 },
+  // André 2026-11-16 ("senão esses caras vão pegar nível 150 em meio dia"): caça SOZINHO conta no máximo segPorDia s por dia
+  // real (vira às 3h de Brasília). Depois disso ficam ativos sem grindar (coleta, vila, casa). Caçar no time com alguém
+  // não conta. Cecília e Dario não têm mais o teto do jogador mais alto (podem passar de quem não joga há dias).
+  grind: { segPorDia: 7200 },
   // Rotina de cada um (André 2026-11-11: "todos fazendo a mesma coisa... onde eles passam trava tudo"). Cada NPC tem o
   // horário dele (sai/volta em hora do jogo; volta < sai = caça de noite), o campo que prefere (alto = o mais forte que
   // aguenta; medio; baixo = mais seguro; longe = qualquer um, de preferência longe), quanto dura a saída (caca) e a
