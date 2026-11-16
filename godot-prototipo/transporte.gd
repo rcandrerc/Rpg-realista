@@ -46,11 +46,11 @@ func _ready() -> void:
 # ---------- materiais ----------
 func _materiais() -> void:
 	# madeira: a faixa de veio quente do topo do T_WoodTrim (Quaternius, a mesma das casas), recortada e repetida
-	var wt: Image = (load("res://construcao3d/T_WoodTrim_BaseColor.png") as Texture2D).get_image()
+	var wt: Image = preload("res://imagem_cpu.gd").ler(load("res://construcao3d/T_WoodTrim_BaseColor.png")) # pelo arquivo, não pela placa
 	if wt.is_compressed():
 		wt.decompress()
 	var veio := ImageTexture.create_from_image(wt.get_region(Rect2i(0, 8, wt.get_width(), int(wt.get_height() * 0.2))))
-	var wn: Image = (load("res://construcao3d/T_WoodTrim_Normal.png") as Texture2D).get_image()
+	var wn: Image = preload("res://imagem_cpu.gd").ler(load("res://construcao3d/T_WoodTrim_Normal.png")) # pelo arquivo, não pela placa
 	if wn.is_compressed():
 		wn.decompress()
 	var veio_n := ImageTexture.create_from_image(wn.get_region(Rect2i(0, 8, wn.get_width(), int(wn.get_height() * 0.2))))

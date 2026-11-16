@@ -572,6 +572,9 @@ func _foto_meio(f: Dictionary) -> void:
 			_srv[id] = tudo
 
 const NOVOS_POR_FOTO := 1
+const VOLTA_INTEIRA := 50 # fotos (~5 s): de quanto em quanto passa por todas as vagas de monstro do mapa
+var _fotos_desde_volta := VOLTA_INTEIRA # a primeira foto passa por todas
+var _vagas_antes := {} # vagas de monstro que vieram na foto anterior (v -> true)
 var _novos_foto := 0 # corpos novos montados nesta foto (outro)
 var foto_ms := 0 # quando chegou a última foto (lentidao.gd mede o maior tempo sem foto)
 func aplicar_foto(f: Dictionary) -> void:
@@ -635,13 +638,25 @@ func aplicar_foto(f: Dictionary) -> void:
 		for id in _srv.keys():
 			if not agora.has(id):
 				_srv.erase(id)
-	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo
-	for v in m.inimigos.size():
+	# vaga vazia do campo de caça (o corpo já sumiu no servidor): aqui também some, até o servidor fazer nascer de novo.
+	# Celular fraco (André 2026-11-16, Note 10 Lite da filha: rx:inimigos ~40 ms por segundo): passar por todas as
+	# vagas do mapa a cada foto custava 2 a 4 ms. Agora só as que vieram na foto anterior; a volta inteira fica para
+	# a primeira foto e uma vez a cada VOLTA_INTEIRA fotos (o que alguma outra conta tenha deixado vivo).
+	if _cobrindo: # acabou de entrar (ou voltou do jogo sozinho): passa por todas
+		_fotos_desde_volta = VOLTA_INTEIRA
+	_fotos_desde_volta += 1
+	var vagas: Array = range(m.inimigos.size()) if _fotos_desde_volta >= VOLTA_INTEIRA else _vagas_antes.keys()
+	if _fotos_desde_volta >= VOLTA_INTEIRA:
+		_fotos_desde_volta = 0
+	for v in vagas:
+		if v < 0 or v >= m.inimigos.size():
+			continue
 		var e: Dictionary = m.inimigos[v]
 		if not com_corpo.has(v) and e.estado != "morto":
 			e.estado = "morto"
 			e.no.visible = false
 			_barra_visivel(e, false)
+	_vagas_antes = com_corpo
 	tf = _marca("rx:inimigos", tf)
 	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
 	m.trabalho.veios_comuns(f.get("veios", []))
