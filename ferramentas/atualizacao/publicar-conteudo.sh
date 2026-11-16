@@ -5,7 +5,11 @@
 #   - completo: o jogo inteiro de uma versão, em partes de 45 MB (completo-ID.parteNN);
 #   - deltas: só o que mudou depois do completo, um por versão, em ordem (delta-VERSAO.pck).
 # Cada build novo vira um delta (godot --export-patch contra o completo + os deltas anteriores). Quando os deltas
-# passam de LIMITE_DELTAS, o build vira o completo novo e a corrente zera: o app baixa o completo de novo uma vez.
+# passam de LIMITE_DELTAS, o build vira o completo novo e a corrente zera.
+# Ponte (André 2026-11-16, "só baixar o que está faltando"): no completo novo, o conteudo.json leva "ponte" =
+# {completo velho, para: completo novo, deltas: a corrente velha + o delta deste build}. O app novo (inicio.gd
+# _casca_ponte) que tem o completo velho baixa só esses deltas em vez do jogo inteiro. Os arquivos da ponte continuam
+# no release e na Oracle até o próximo completo. APK casca antigo ignora a ponte e baixa o completo, como antes.
 # Tudo fica no release "conteudo" (privado, fonte da verdade) e o pages.yml copia para o site.
 # Com ORACLE_PAR (link pré-autenticado de escrita do balde) e ORACLE_URL (endereço público do balde), os arquivos
 # também sobem para a Oracle e o conteudo.json manda o app baixar de lá (url_base).
@@ -56,13 +60,23 @@ else
 fi
 
 if [ "$rebase" = 1 ]; then
-  echo "Completo novo: $CODIGO (o app baixa o jogo inteiro uma vez)"
+  echo "Completo novo: $CODIGO (o app novo segue pela ponte; só o APK antigo e instalação nova baixam o jogo inteiro)"
+  PONTE=null
+  if [ -f "$TMP/antigo/conteudo.json" ] && [ -f "$TMP/novo/delta-$CODIGO.pck" ]; then
+    d="$TMP/novo/delta-$CODIGO.pck"
+    PONTE=$(jq -c --arg v "$CODIGO" --arg arq "delta-$CODIGO.pck" --arg t "$(tam "$d")" --arg s "$(sha "$d")" \
+      '{completo: .completo.id, para: $v, deltas: (.deltas + [{versao: $v, arq: $arq, tamanho: ($t|tonumber), sha256: $s}])}' \
+      "$TMP/antigo/conteudo.json")
+    mv "$d" "$TMP/ponte-delta.pck"
+    echo "Ponte: completo $(echo "$PONTE" | jq -r .completo) + $(echo "$PONTE" | jq '.deltas | length') deltas = completo $CODIGO"
+  fi
   rm -f "$TMP/novo/"*
+  [ -f "$TMP/ponte-delta.pck" ] && mv "$TMP/ponte-delta.pck" "$TMP/novo/delta-$CODIGO.pck"
   split -b "$PARTE" -d -a 2 "base-$CODIGO.pck" "$TMP/novo/completo-$CODIGO.parte"
   partes=$(for f in "$TMP/novo/completo-$CODIGO.parte"*; do
     printf '{"arq":"%s","tamanho":%s,"sha256":"%s"}\n' "$(basename "$f")" "$(tam "$f")" "$(sha "$f")"; done | jq -s .)
-  jq -n --arg v "$CODIGO" --argjson partes "$partes" --arg t "$(tam "base-$CODIGO.pck")" --arg c "${GITHUB_SHA::7}" \
-    '{versao: $v, commit: $c, completo: {id: $v, tamanho: ($t|tonumber), partes: $partes}, deltas: []}' > "$TMP/novo/conteudo.json"
+  jq -n --arg v "$CODIGO" --argjson partes "$partes" --arg t "$(tam "base-$CODIGO.pck")" --arg c "${GITHUB_SHA::7}" --argjson ponte "$PONTE" \
+    '{versao: $v, commit: $c, completo: {id: $v, tamanho: ($t|tonumber), partes: $partes}, deltas: []} + (if $ponte == null then {} else {ponte: $ponte} end)' > "$TMP/novo/conteudo.json"
 else
   d="$TMP/novo/delta-$CODIGO.pck"
   jq --arg v "$CODIGO" --arg arq "delta-$CODIGO.pck" --arg t "$(tam "$d")" --arg s "$(sha "$d")" --arg c "${GITHUB_SHA::7}" \
@@ -95,7 +109,7 @@ gh release upload conteudo "$TMP/novo/"* --clobber
 mkdir -p "$TMP/todas"
 manter=$(echo "$JSON"; for j in $(gh release view conteudo --json assets -q '.assets[].name' | grep -E '^conteudo(-[0-9]+\.[0-9]+)?\.json$'); do
   gh release download conteudo -p "$j" -D "$TMP/todas" --clobber > /dev/null
-  echo "$j"; jq -r '.completo.partes[].arq, .deltas[].arq' "$TMP/todas/$j"
+  echo "$j"; jq -r '.completo.partes[].arq, .deltas[].arq, (.ponte.deltas[]?.arq)' "$TMP/todas/$j"
 done)
 for velho in $(gh release view conteudo --json assets -q '.assets[].name'); do
   echo "$manter" | grep -qx "$velho" || gh release delete-asset conteudo "$velho" -y

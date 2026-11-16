@@ -30,6 +30,12 @@ const COMPLETO := PASTA_CONTEUDO + "completo.pck"
 const COMPLETO_TMP := PASTA_CONTEUDO + "completo.tmp"
 const PARTE_TMP := PASTA_CONTEUDO + "parte.tmp"
 const ESTADO_CONTEUDO := PASTA_CONTEUDO + "estado.cfg"
+# Ponte (André 2026-11-16: "só baixar o que está faltando, em vez do download completo de vez em quando"): quando o
+# servidor fecha a corrente e faz um completo novo, o conteudo.json traz "ponte": {completo, para, deltas}. Quem tem o
+# completo velho e os deltas dele já tem o mesmo jogo do completo novo: baixa só os deltas da corrente velha que faltam
+# e segue com os deltas novos. Os deltas velhos ficam guardados como "base" (montados logo depois do completo).
+# Quando a base passa de BASE_MAX, o celular baixa o completo inteiro uma vez para limpar as cópias repetidas.
+const BASE_MAX := 300 * 1024 * 1024
 
 const OURO := Color(0.95, 0.80, 0.45)
 const TEXTO := Color(0.96, 0.93, 0.86)
@@ -282,6 +288,11 @@ func _casca_iniciar() -> void:
 		return
 	var tem_completo := str(est.get_value("c", "completo", "")) == str(comp.id) and FileAccess.file_exists(COMPLETO)
 	var aplicados: Array = est.get_value("c", "deltas", []) if tem_completo else []
+	var ponte := [] if tem_completo or pc_id > 0 else _casca_ponte(m, est)
+	var ponte_falta: Array = []
+	if not ponte.is_empty():
+		tem_completo = true # o completo velho + a corrente velha = o completo novo
+		ponte_falta = ponte[1]
 	# os deltas são uma corrente: o que está no celular tem que ser o começo da lista do servidor
 	var faltam: Array = []
 	for i in deltas.size():
@@ -298,14 +309,36 @@ func _casca_iniciar() -> void:
 			total_bytes += int(comp.partes[i].tamanho)
 	for d in faltam:
 		total_bytes += int(d.tamanho)
+	for d in ponte_falta:
+		total_bytes += int(d.tamanho)
 	if total_bytes > 0:
 		baixando = true
 		barra.visible = true
 		pular.visible = tem_completo or pc_id > 0 # PC: pula e abre o que já tem
-		_texto("Baixando o jogo (primeira vez)…" if not tem_completo else "Baixando atualização…", "")
+		_texto("Baixando atualização…" if tem_completo else ("Baixando o jogo completo…" if FileAccess.file_exists(COMPLETO) else "Baixando o jogo (primeira vez)…"), "")
 	if not tem_completo and not await _casca_baixar_completo(comp, est):
 		_casca_falhou()
 		return
+	if not ponte.is_empty():
+		# a corrente velha até o fim (cada delta que chega já vale: se cair no meio, abre a versão velha e continua depois)
+		var feitos: Array = est.get_value("c", "deltas", [])
+		for d in ponte_falta:
+			if saindo:
+				return
+			if not await _casca_baixar(_casca_url_base() + str(d.arq), _casca_delta(d), str(d.sha256)):
+				_casca_falhou()
+				return
+			feito_bytes += int(d.tamanho)
+			feitos.append(str(d.versao))
+			est.set_value("c", "deltas", feitos)
+			est.save(ESTADO_CONTEUDO)
+		var b: Array = est.get_value("c", "base", [])
+		b.append_array(feitos)
+		est.set_value("c", "base", b)
+		est.set_value("c", "base_bytes", ponte[2])
+		est.set_value("c", "completo", str(comp.id))
+		est.set_value("c", "deltas", [])
+		est.save(ESTADO_CONTEUDO)
 	for d in faltam:
 		if saindo:
 			return
@@ -319,7 +352,7 @@ func _casca_iniciar() -> void:
 	baixando = false
 	if saindo:
 		return
-	_limpar_deltas_velhos(aplicados)
+	_limpar_deltas_velhos(aplicados + est.get_value("c", "base", []))
 	_texto("Abrindo…", "versão %s" % str(m.get("versao", "")))
 	_versao(str(m.get("versao", "")))
 	_casca_entrar()
@@ -370,8 +403,37 @@ func _casca_baixar_completo(comp: Dictionary, est: ConfigFile) -> bool:
 	est.set_value("c", "completo", str(comp.id))
 	est.set_value("c", "baixando", "")
 	est.set_value("c", "deltas", [])
+	est.set_value("c", "base", [])
+	est.set_value("c", "base_bytes", 0)
 	est.save(ESTADO_CONTEUDO)
 	return true
+
+# ponte do completo velho para o novo: [deltas da corrente velha em ordem, os que faltam baixar, tamanho da base
+# depois]; [] = sem ponte (baixa o completo novo inteiro)
+func _casca_ponte(m: Dictionary, est: ConfigFile) -> Array:
+	var pt = m.get("ponte")
+	if not (pt is Dictionary) or not FileAccess.file_exists(COMPLETO):
+		return []
+	if str(pt.get("para", "")) != str(m.completo.id) or str(est.get_value("c", "completo", "")) != str(pt.get("completo", "")):
+		return []
+	var pds = pt.get("deltas", [])
+	var feitos: Array = est.get_value("c", "deltas", [])
+	if not (pds is Array) or pds.is_empty() or feitos.size() > pds.size():
+		return []
+	var falta: Array = []
+	var soma := int(est.get_value("c", "base_bytes", 0))
+	for i in pds.size():
+		soma += int(pds[i].tamanho)
+		if i < feitos.size():
+			if str(feitos[i]) != str(pds[i].versao):
+				return [] # corrente diferente da do servidor
+			if FileAccess.file_exists(_casca_delta(pds[i])):
+				continue
+			return [] # delta sumiu do celular no meio da corrente
+		falta.append(pds[i])
+	if soma > BASE_MAX:
+		return [] # cópias repetidas demais guardadas: hora de baixar o completo limpo
+	return [pds, falta, soma]
 
 # baixa um arquivo para destino e confere o sha256
 func _casca_baixar(url: String, destino: String, sha: String) -> bool:
@@ -493,11 +555,11 @@ func _casca_entrar() -> void:
 		http.cancel_request()
 	var est := _casca_estado()
 	var ok := ProjectSettings.load_resource_pack(COMPLETO, true)
-	for v in est.get_value("c", "deltas", []):
+	for v in est.get_value("c", "base", []) + est.get_value("c", "deltas", []):
 		var f := PASTA_CONTEUDO + "delta-%s.pck" % str(v)
 		if ok and FileAccess.file_exists(f):
 			ok = ProjectSettings.load_resource_pack(f, true)
-	print("[atualização] casca: completo ", est.get_value("c", "completo", ""), ", deltas ", est.get_value("c", "deltas", []), ", ok ", ok)
+	print("[atualização] casca: completo ", est.get_value("c", "completo", ""), ", base ", est.get_value("c", "base", []).size(), ", deltas ", est.get_value("c", "deltas", []), ", ok ", ok)
 	if not ok or not ResourceLoader.exists(CENA_JOGO):
 		# pacote estragado: apaga e baixa de novo
 		est.set_value("c", "completo", "")
@@ -618,7 +680,7 @@ const EN := {"Procurando atualização…": "Checking for updates…", "Tem um A
 	"Baixando atualização…": "Downloading update…", "Conferindo…": "Checking…", "Atualizado!": "Updated!",
 	"Não deu para baixar agora": "Couldn't download right now", "Abrindo a versão que já está no celular.": "Opening the version already on your phone.",
 	"Abrindo a versão que já está no computador.": "Opening the version already on your computer.",
-	"Baixando o jogo (primeira vez)…": "Downloading the game (first time)…", "Abrindo…": "Opening…",
+	"Baixando o jogo (primeira vez)…": "Downloading the game (first time)…", "Baixando o jogo completo…": "Downloading the full game…", "Abrindo…": "Opening…",
 	"Não deu para baixar o jogo": "Couldn't download the game", "Confira a internet e toque em Tentar de novo.": "Check your internet and tap Try again.",
 	"Sem internet": "No internet", "Na primeira vez o jogo precisa ser baixado. Conecte e toque em Tentar de novo.": "The first time, the game needs to download. Connect and tap Try again.",
 	"O jogo baixado veio com defeito": "The download was corrupted", "Toque em Tentar de novo para baixar outra vez.": "Tap Try again to download it again.",
