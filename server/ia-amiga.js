@@ -17,7 +17,12 @@ function chaveGemini() {
   try { return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8')).GEMINI_CHAVE || ''; } catch { return ''; }
 }
 
-const ACOES = ['nada', 'time', 'sairTime', 'vir', 'ajuda', 'sim', 'nao'];
+// André 2026-11-16 ("dá mais comandos para eles"): além de time/vir/sim/não, ela pode sair para caçar sozinha (num campo
+// que ela escolhe), voltar para a vila, combinar pescar/minerar/lenha, parar a coleta, topar troca e mostrar o equipamento
+const ACOES = ['nada', 'time', 'sairTime', 'vir', 'ajuda', 'sim', 'nao', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'troca', 'equip'];
+// quanto o modelo grande pensa antes de responder (André 2026-11-16: "não me importava que o limite acabasse mais rápido,
+// mas que fosse mais realista"). 'low' respondia rápido e raso; 'medium' gasta mais do limite do dia e acerta mais.
+const ESFORCO = process.env.GROQ_ESFORCO || 'medium';
 let dia = '', usadas = 0;
 
 export function iaLigada() { return !!(segredo('GROQ_CHAVE') || chaveGemini()); }
@@ -59,7 +64,7 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
         try {
           r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-            body: JSON.stringify({ model: modelo, messages: mensagens, response_format: { type: 'json_object' }, temperature: 0.8, max_tokens: 900, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: 'low' } : {}) }),
+            body: JSON.stringify({ model: modelo, messages: mensagens, response_format: { type: 'json_object' }, temperature: 0.8, max_tokens: 2500, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: ESFORCO } : {}) }),
             signal: AbortSignal.timeout(falta),
           });
         } catch { break; } // tempo acabou ou rede: tenta o próximo modelo se ainda der
@@ -138,14 +143,27 @@ export function mensagensConversa(ctx, texto) {
     ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
+    `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
+    ctx.sozinha ? (ctx.sozinha.ok ? 'Se quiser (ou se ele pedir), você pode sair agora para caçar sozinh' + o + ' (ação "cacar").' : `Sair para caçar sozinh${o} agora não dá: ${ctx.sozinha.motivo}.`) : '',
     ctx.regras?.length ? `Dicas de combate que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : '',
   ].filter(Boolean);
-  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar junto), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
-Se a ação for "time", "vir" ou "sim", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
-Devolva só JSON: {"fala": "...", "acao": "nada"}`;
+  // o que é verdade no jogo (André 2026-11-16: ela inventava lugar e preço)
+  const saber = [
+    ctx.camposDela ? `Campos de caça bons para o seu nível: ${ctx.camposDela}.` : '',
+    ctx.camposDele && ctx.camposDele !== ctx.camposDela ? `Campos bons para o nível de ${ctx.amigo}: ${ctx.camposDele}.` : '',
+    ctx.mapa || '',
+    ctx.loja ? `Loja da vila: ${ctx.loja}.` : '',
+    ctx.missaoDele ? `Missão da história que ${ctx.amigo} está fazendo: ${ctx.missaoDele}.` : '',
+    'Você ainda não faz missões da história nem usa o leilão (casa de leilão): se ele pedir, diga que ainda não mexe com isso.',
+  ].filter(Boolean);
+  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar JUNTO com ele), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "cacar" (pede para você ir caçar SOZINH${o.toUpperCase()}, sem ele; ponha em "lugar" o nome do campo se ele ou você escolheu um da lista), "voltar" (pede para você parar de caçar sozinh${o} e voltar para a vila), "pescar"/"minerar"/"lenha" (chama para pescar, minerar ou cortar lenha junto), "pararAtividade" (quer parar a pesca/mineração/lenha junto), "troca" (quer trocar, comprar ou vender itens com você), "equip" (pergunta o que você está usando), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
+Se ele pedir para caçar sozinh${o} e a ficha disser que não dá, recuse na fala explicando o motivo e use "nada".
+Se a ação for "time", "vir", "sim" ou "cacar", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
+Use só o que está na ficha e no "Jogo de verdade" para lugares, preços, níveis e missões; o que não estiver lá você não sabe: diga que não sabe ou pergunte, nunca invente nome de lugar, preço ou missão.
+Devolva só JSON: {"fala": "...", "acao": "nada", "lugar": ""}`;
   // André 2026-11-14 (jogo em inglês para divulgar fora): quem joga em English recebe a fala em inglês de gamer nativo
   const ingles = ctx.idioma === 'en' ? `\nIMPORTANT: ${ctx.amigo} plays the game in English. Write "fala" ONLY in natural, casual American English, like a real MMORPG player in chat (lfg, grind, farm, loot, drop, mob, boss, dungeon, party, tank, aggro, respawn, build, cd, buff, nerf, crit, gg, lol, "let's go"), 1 to 2 short sentences, never a word-for-word translation. Names stay the same. Keep the JSON keys and the action words exactly as they are.` : '';
-  const msgs = [{ role: 'system', content: `${sistema.join('\n')}\nFicha (só para você saber, não precisa citar):\n- ${ficha.join('\n- ')}\n${acoes}${ingles}` }];
+  const msgs = [{ role: 'system', content: `${sistema.join('\n')}\nFicha (só para você saber, não precisa citar):\n- ${ficha.join('\n- ')}\nJogo de verdade (use quando perguntarem):\n- ${saber.join('\n- ')}\n${acoes}${ingles}` }];
   for (let m of ctx.conversa || []) {
     if (m.de === 'outro') m = { de: 'ele', texto: `(${m.nome}, no chat do time): ${m.texto}` }; // outro NPC do time falou: chega como fala de outra pessoa
     const role = m.de === 'ele' ? 'user' : 'assistant', ult = msgs[msgs.length - 1];
@@ -186,7 +204,8 @@ function lerResposta(txt) {
   let out; try { out = JSON.parse(txt || '{}'); } catch { return null; }
   const fala = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
   if (!fala) return null;
-  return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala };
+  const lugar = typeof out.lugar === 'string' ? out.lugar.slice(0, 60) : '';
+  return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala, ...(lugar ? { lugar } : {}) };
 }
 
 // ---------- memória (André 2026-11-10: ela aprende com o dia a dia) ----------

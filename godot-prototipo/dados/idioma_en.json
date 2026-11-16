@@ -3412,6 +3412,7 @@
 "Onde estou": "Where am I",
 "Montando o mapa…": "Building the map…",
 "Ir para (%d m)": "Go to ({1} m)",
+"Ir para %s (%d m)": "Go to {1} ({2} m)",
 "Plantar árvore só funciona online": "Planting trees only works online",
 "Fique no chão para plantar": "Stay on the ground to plant",
 "{1} plantada! Fica adulta em {2} h": "{1} planted! Fully grown in {2} h",

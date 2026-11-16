@@ -82,6 +82,16 @@ func _process(dt: float) -> void:
 		Engine.get_meta("lentidao").ev("guia", t0_parte)
 
 func _process_parte(dt: float) -> void:
+	# André 2026-11-16: em missão, o brilho aparecia por cima da capa de abertura (a capa é a camada 5, o guia a 26).
+	# Com a capa na tela (abrindo o jogo, entrando, voltando da queda) nada pisca.
+	var on = m.online
+	if on != null and on.capa != null and on.capa.visible:
+		if _tem():
+			_limpar()
+			desenho.queue_redraw()
+		trava.visible = false
+		_t = 0.0
+		return
 	_t -= dt
 	if _t <= 0.0:
 		_t = PASSO
