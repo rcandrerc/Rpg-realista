@@ -3029,7 +3029,10 @@ export const NPC_VIDA = {
   // André 2026-11-16 ("senão esses caras vão pegar nível 150 em meio dia"): caça SOZINHO conta no máximo segPorDia s por dia
   // real (vira às 3h de Brasília). Depois disso ficam ativos sem grindar (coleta, vila, casa). Caçar no time com alguém
   // não conta. Cecília e Dario não têm mais o teto do jogador mais alto (podem passar de quem não joga há dias).
-  grind: { segPorDia: 7200 },
+  grind: { segPorDia: 1800 }, // André 2026-11-16: 30 min por dia (era 2 h)
+  // missões da história de Cecília e Dario (André 2026-11-16): até segPorDia s por dia real fazendo missão (fora o grind);
+  // chance: de cada saída, quantas viram missão; porEtapa: s trabalhando no lugar de cada etapa (sorteia de 60% a 140%)
+  missao: { segPorDia: 3600, chance: 0.5, porEtapa: 120 },
   // Rotina de cada um (André 2026-11-11: "todos fazendo a mesma coisa... onde eles passam trava tudo"). Cada NPC tem o
   // horário dele (sai/volta em hora do jogo; volta < sai = caça de noite), o campo que prefere (alto = o mais forte que
   // aguenta; medio; baixo = mais seguro; longe = qualquer um, de preferência longe), quanto dura a saída (caca) e a

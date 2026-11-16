@@ -40,7 +40,7 @@ export const Diarias = {
     if (p.diarias?.d !== hoje) { p.diarias = { d: hoje, n: {}, r: [] }; j.progSujo = true; }
     return p.diarias;
   },
-  temDiarias(j) { return !!j && !j.bot && (j.prog?.nivel || 0) >= DIARIAS.nivel; },
+  temDiarias(j) { return !!j && (!j.bot || !!j.semTeto) && (j.prog?.nivel || 0) >= DIARIAS.nivel; }, // semTeto: Cecília e Dario também (André 2026-11-16)
   // algo aconteceu (o mesmo ev/d da história): conta nas diárias que casam
   contarDiaria(j, ev, d = {}) {
     if (!this.temDiarias(j)) return;
@@ -67,7 +67,7 @@ export const Diarias = {
   },
   // mensagem do app: { acao: 'receber', id } | { acao: 'ir', id } | { acao: 'ver' } (abriu a aba)
   diaria(id, m) {
-    const j = this.jogadores.get(id); if (!j || j.bot || !m) return;
+    const j = this.jogadores.get(id); if (!j || (j.bot && !j.semTeto) || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (m.acao === 'ver') {
       this.historia(j, 'diaria_vista');
