@@ -47,12 +47,13 @@ export class Visao {
   // onde(id) -> {x, z} do veio ou da árvore (Simulacao.coletaveis). Sem ele, a lista inteira vai para todos (como antes).
   constructor(onde = null) {
     this.vendo = new Map(); // sessionId -> Map(id do corpo -> { m: parte que muda, f: parte fixa }) do que ele já recebeu
+    this.plantasVistas = new Map(); // sessionId -> Set(ids das árvores plantadas que ele já recebeu)
     this.veiosVistos = new Map(); // sessionId -> Map(id do veio -> chave "cargas@hora de voltar") do que ele já recebeu
     this.onde = onde;
     this.passos = 0;
   }
 
-  esquecer(id) { this.vendo.delete(id); this.veiosVistos.delete(id); }
+  esquecer(id) { this.vendo.delete(id); this.veiosVistos.delete(id); this.plantasVistas.delete(id); }
 
   // uma vez por passo: cada corpo e cada evento viram texto JSON uma vez só (depois cada jogador só junta os dele)
   preparar(foto, eventos) {
@@ -93,7 +94,9 @@ export class Visao {
     } else veios = JSON.stringify(foto.veios || []);
     // de 1 em 1 s: quem voltou sai da memória de cada jogador (ids que ainda estão caídos)
     const veiosIds = veiosL && this.passos % 20 === 0 ? new Set(veiosL.map((v) => v.id)) : null;
-    return { veiosIds, foto, pos, jogadores, inimigos, evs, total, mapa, veios, veiosL, spots: JSON.stringify(foto.spots || []), carga: JSON.stringify(foto.carga || { packs: [], veic: [] }) };
+    // árvores plantadas (shared/plantio.js): cada uma vai uma vez para quem chega perto; a que some vai como [id]
+    const plantas = foto.plantadas || [], plantasIds = this.passos % 20 === 0 ? new Set(plantas.map((p) => p.id)) : null;
+    return { plantas, plantasIds, agoraMs: foto.agoraMs || Date.now(), veiosIds, foto, pos, jogadores, inimigos, evs, total, mapa, veios, veiosL, spots: JSON.stringify(foto.spots || []), carga: JSON.stringify(foto.carga || { packs: [], veic: [] }) };
   }
 
   // a mensagem "mundoJ" de um jogador: só o que está perto do herói dele, e de cada corpo só o que mudou
@@ -166,6 +169,15 @@ export class Visao {
       if (ctx.veiosIds) for (const k of vv.keys()) if (!ctx.veiosIds.has(k)) vv.delete(k); // voltou: esquece (o app já fez voltar sozinho)
       veios = '[' + vs.join(',') + ']';
     }
-    return `{"foto":{"tempo":${ctx.foto.tempo},"aoi":1,"total":${ctx.total},"jogadores":[${js.join(',')}],"inimigos":[${is.join(',')}],"veios":${veios},"spots":${ctx.spots},"carga":${ctx.carga}${ctx.mapa ? `,"mapa":${ctx.mapa}` : ''}},"eventos":[${es.join(',')}]}`;
+    let pv = this.plantasVistas.get(id);
+    if (!pv) this.plantasVistas.set(id, (pv = new Set()));
+    const ps = [], r2p = VISAO.veio * VISAO.veio;
+    for (const p of ctx.plantas) {
+      if (pv.has(p.id) || (p.x - px) ** 2 + (p.z - pz) ** 2 > r2p) continue;
+      pv.add(p.id);
+      ps.push(JSON.stringify([...p.a, Math.max(0, Math.round((p.ate - ctx.agoraMs) / 1000))])); // + s até ficar adulta
+    }
+    if (ctx.plantasIds) for (const k of pv) if (!ctx.plantasIds.has(k)) { pv.delete(k); ps.push(JSON.stringify([k])); } // cortada: some
+    return `{"foto":{"tempo":${ctx.foto.tempo},"aoi":1,"total":${ctx.total},"jogadores":[${js.join(',')}],"inimigos":[${is.join(',')}],"veios":${veios},"plantadas":[${ps.join(',')}],"spots":${ctx.spots},"carga":${ctx.carga}${ctx.mapa ? `,"mapa":${ctx.mapa}` : ''}},"eventos":[${es.join(',')}]}`;
   }
 }

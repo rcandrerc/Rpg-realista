@@ -3196,6 +3196,15 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 		var bc := botao("Colocar", por, 16, true)
 		bc.custom_minimum_size = Vector2(120, 42)
 		bs.add_child(bc)
+	elif P.dados.itens.has(it.k) and P.dados.itens[it.k].has("arvore") and lugar == "":
+		# semente de árvore (André 2026-11-16): planta no quadrado livre mais perto, numa área de plantio ou no terreno
+		var arv: String = str(P.dados.itens[it.k].arvore)
+		var pl := func():
+			fechar()
+			m.plantio.plantar(arv)
+		var bp := botao("Plantar", pl, 16, true)
+		bp.custom_minimum_size = Vector2(120, 42)
+		bs.add_child(bp)
 	elif it.k == "carrinho" and lugar == "": # Quimera: coloca no chão; no mundo, o mesmo botão traz de volta de onde estiver
 		bs.add_child(botao_acao("Guardar carrinho" if P.carrinho_no_mundo() else "Colocar no chão", {"acao": "usar", "i": i}))
 	elif not P.eh_mat(it) and (it.k == "tomo" or (P.dados.itens.has(it.k) and P.dados.itens[it.k].has("usar"))):

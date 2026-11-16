@@ -528,6 +528,29 @@ func _process_parte(dt: float) -> void:
 	m.hud.mostrar_botao("coletar", perto != null or coletando != null)
 	m.hud.icone_botao("coletar", ic)
 
+# árvore plantada (plantio.gd, André 2026-11-16): entra e sai da lista de coletáveis com o jogo rodando
+func registrar(o: Dictionary) -> void:
+	coletaveis.append(o)
+	por_id[o.id] = o
+	var k := Vector2i(floori(o.pos.x / 6.0), floori(o.pos.z / 6.0))
+	if not grade.has(k):
+		grade[k] = []
+	grade[k].append(o)
+
+func esquecer(o: Dictionary) -> void:
+	coletaveis.erase(o)
+	por_id.erase(o.id)
+	caidas.erase(o)
+	var k := Vector2i(floori(o.pos.x / 6.0), floori(o.pos.z / 6.0))
+	if grade.has(k):
+		grade[k].erase(o)
+	if perto == o:
+		perto = null
+	if indo != null and indo.o == o:
+		indo = null
+	if coletando != null and coletando.c == o:
+		parar(false)
+
 # coletáveis nas 9 casas da grade em volta do herói (a distância de coleta é bem menor que 6 m)
 func _perto_do_heroi() -> Array:
 	var l: Array = []

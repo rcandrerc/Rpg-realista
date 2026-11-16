@@ -661,8 +661,10 @@ static func icone_item(it) -> String:
 		return "it_minerio"
 	if str(it.k).begins_with("semente_"): # Vila dos Lotes: sementes e o que se colhe na horta (cor de cada planta)
 		return "it_semente"
-	if it.k in COLHEITA:
+	if it.k in COLHEITA or it.k == "maca": # maçã da macieira plantada (2026-11-16): o mesmo desenho, na cor dela
 		return "it_colheita"
+	if it.k == "resina": # resina do pinheiro plantado (2026-11-16)
+		return "it_minerio"
 	if str(it.k).begins_with("obra_"): # peças da construção (criar e colocar, 2026-11-04): o mesmo ícone da barra
 		return "cs_" + str(it.k).substr(5)
 	if it.k == "enxada":

@@ -645,6 +645,8 @@ func aplicar_foto(f: Dictionary) -> void:
 	tf = _marca("rx:inimigos", tf)
 	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
 	m.trabalho.veios_comuns(f.get("veios", []))
+	if m.plantio: # árvores plantadas de perto (shared/plantio.js): cada uma vem uma vez; a cortada vem como [id]
+		m.plantio.atualizar(f.get("plantadas", []))
 	if m.pesca: # spots de pesca na água (pesca.gd): bolhas de perto, no mapa com o Radar
 		m.pesca.atualizar_spots(f.get("spots", []))
 	tf = _marca("rx:veios_pesca", tf)
@@ -1290,6 +1292,10 @@ func evento(ev: Dictionary) -> void:
 			return
 		"coletou":
 			m.trabalho.coletou(ev)
+			return
+		"plantou": # plantei uma árvore (plantio.gd): terra mexida
+			if m.plantio:
+				m.plantio.plantou(ev)
 			return
 		"coletaFim":
 			if str(ev.id) == meu_id:
