@@ -78,6 +78,8 @@ jobs:
             $GODOT_BIN --headless --path godot-prototipo -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/sem-tela.log 2>&1 || true
           grep -E "^\[entrada\]" /tmp/cel/sem-tela.log | head -40; grep -E "^CELULAR" /tmp/cel/sem-tela.log | cut -c1-400 | tail -40
       - name: Jogar com Vulkan por software (metade da tela do X7)
+        env:
+          LP_NUM_THREADS: 3 # o desenho por software deixa um núcleo livre: com todos ocupados a máquina do GitHub perdeu contato (2026-11-16)
         run: |
           RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 420)) stdbuf -oL -eL \
             xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
@@ -87,6 +89,7 @@ jobs:
         if: always()
         run: |
           cp /tmp/srv/lentidao*.jsonl /tmp/cel/ 2>/dev/null || true
+          cp /tmp/srv/log.txt /tmp/cel/servidor.log 2>/dev/null || true # por que uma entrada caiu (o app só diz "não respondeu")
           LOGS=/tmp/cel/sem-tela.log,/tmp/cel/vulkan.log node ferramentas/robo/celular-relatorio.mjs /tmp/srv /tmp/cel/sem-tela.json /tmp/cel/vulkan.json
           cp celular-relatorio.json /tmp/cel/ || true
       - uses: actions/upload-artifact@v4
