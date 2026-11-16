@@ -230,9 +230,9 @@ void fragment() {
 	grande.add_child(marcas_grande)
 	mapa3d = Mapa3D.new(self)
 	add_child(mapa3d)
-	var cfg := ConfigFile.new()
-	if cfg.load(CFG_MAPA) == OK:
-		modo_3d = bool(cfg.get_value("mapa", "3d", true))
+	# só o mapa 3D (André 2026-11-16: "agora eu quero acabar com o 2D"): a escolha antiga gravada não vale mais. O
+	# desenho 2D fica só de reserva, para quando o mundo grande (mundo_grade.json) não existir.
+	modo_3d = true
 
 # o minimapa.png (client/src/minimapa.js) escurece as pontas; por cima do mundo a conta volta à cor de antes
 const VINHETA_HOJE := """
@@ -657,10 +657,8 @@ func abrir_totem(de: Dictionary) -> void:
 	totem_de = de
 	totem_alvo = ""
 	_ver_totens()
-	if _em_3d() and not mapa3d.pronto: # a maquete ainda montando (logo depois de entrar): desta vez o 2D
-		mapa3d.fechar()
-		grande.visible = true
-		_arrumar_grande()
+	if _em_3d() and not mapa3d.pronto: # a maquete ainda montando (logo depois de entrar): mostra os totens quando ficar pronta
+		mapa3d.totens_ao_ficar_pronto = true
 	elif _em_3d(): # 3D: a câmera mostra todos os totens, acesos e com o "Teleportar" ali mesmo
 		mapa3d.ver_totens()
 	if m.lentidao:
