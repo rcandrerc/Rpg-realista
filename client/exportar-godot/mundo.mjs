@@ -151,7 +151,7 @@ const habs = {
   // criador de personagem: cores (número 0xRRGGBB, null = original), altura e formato do rosto; nome de 3 a 16 letras
   criador: CRIADOR, nome: NOME,
   // estamina, vigor e profissões (Parte 3)
-  estamina: ESTAMINA, regen: REGEN, vigor: VIGOR, dia: DIA, cama: CAMA, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA, arvoresPlantio: ARVORES_PLANTIO, plantio: { ...PLANTIO, areas: undefined }, // árvores plantadas (2026-11-16)
+  estamina: ESTAMINA, regen: REGEN, vigor: VIGOR, dia: DIA, cama: CAMA, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA, arvoresPlantio: ARVORES_PLANTIO, plantio: PLANTIO, // árvores plantadas (2026-11-16); as áreas vão junto (filtro do mapa e modo plantio)
   coletaDistancia: COLETA_DISTANCIA, receitas: RECEITAS, oficina: OFICINA, oficinaDistancia: OFICINA_DISTANCIA, raridadeCriar: RARIDADE_CRIAR,
   heroiCorrer: HEROI.correr,
   // nível dos monstros dos campos de caça (XP sobe com o nível do bicho e cai se o herói passou muito dele)

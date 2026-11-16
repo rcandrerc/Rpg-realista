@@ -78,6 +78,8 @@ var botao_3d := Rect2() # "Mapa 3D" no mapa 2D (volta para a maquete)
 var mapa3d # mapa3d.gd (criado no _ready, montado na primeira vez que abre)
 var modo_3d := true # o mapa abre em 3D; o botão "Mapa 2D" troca e a escolha fica gravada
 const CFG_MAPA := "user://mapa.cfg"
+const MapaFiltro = preload("res://mapa_filtro.gd")
+var filtro = MapaFiltro.new() # o que aparece no mapa (André 2026-11-16): camadas marcadas e desmarcadas, gravado
 # Mapa do totem (André 2026-11-11): encostar num totem abre este mapa no lugar da lista de destinos. Os totens ficam
 # acesos (os liberados) e tocar num deles mostra "Teleportar" com a taxa; os ainda não visitados aparecem apagados e
 # não respondem ao toque. O botão do canto alterna entre o mapa cheio e uma janela menor no meio da tela.
@@ -399,6 +401,8 @@ func _painel() -> Rect2:
 func _toque_no_mapa(pos: Vector2) -> void:
 	var lp: Vector2 = pos - janela.get_global_rect().position
 	var dentro: bool = Rect2(Vector2.ZERO, janela.size).has_point(lp)
+	if dentro and totem_de.is_empty() and filtro.toque(lp): # filtro das camadas
+		return
 	if dentro and marcado != null and botao_ir.has_point(lp):
 		_ir()
 		return
@@ -1162,11 +1166,19 @@ func _desenhar_mapa() -> void:
 	var tm: bool = not totem_de.is_empty() # mapa do totem: os nomes que importam são os dos totens (os outros embolam)
 	longe = longe or tm
 	_nevoa_mapa(c, em) # zonas ainda fechadas pela névoa (progressão, André 2026-11-10)
+	if not tm and filtro.ok("plantio") and m.plantio: # áreas de plantio (camada do filtro): um ponto amarelo por quadrado de 4 m
+		var tx: ImageTexture = filtro.textura_plantio(m.plantio.quadrados())
+		if tx != null:
+			var rp: Rect2 = filtro.ret_plantio()
+			var a0: Vector2 = em.call(rp.position.x, rp.position.y)
+			var a1: Vector2 = em.call(rp.end.x, rp.end.y)
+			c.draw_texture_rect(tx, Rect2(a0, a1 - a0), false)
+	var fv: bool = filtro.ok("vilas")
 	# lugares
-	if not tm:
+	if not tm and fv:
 		_texto(c, em.call(-6.0, -30.0), "Vila da Clareira", 17, Color(1, 0.95, 0.85))
 	var vl: Dictionary = m.mundo.get("vilaLotes", {})
-	if not vl.is_empty() and not tm: # Vila dos Lotes (construção e fazenda)
+	if not vl.is_empty() and not tm and fv: # Vila dos Lotes (construção e fazenda)
 		_texto(c, em.call(float(vl.x), float(vl.z) - 20.0), str(vl.nome), 15, Color(1, 0.95, 0.85))
 	# FASE 3: o nome de cada terra (Vael, ilha, Aurora) e as vilas, cais e postos do mundo grande
 	var g: Dictionary = m.terreno.mundo_g if m.terreno != null else {}
@@ -1179,20 +1191,20 @@ func _desenhar_mapa() -> void:
 		_texto(c, em.call(tx, tz), "%s%s" % [str(t.nome), "  (Nv %d-%d)" % [int(nv[0]), int(nv[1])] if nv.size() == 2 else ""], 18, Color("f4e6c4"))
 	for l in g.get("lugares", []):
 		var tl := str(l.get("tipo", ""))
-		if tl == "vila" or tl == "porto" or tl == "posto":
+		if (tl == "vila" or tl == "porto" or tl == "posto") and fv:
 			var q: Vector2 = em.call(float(l.x), float(l.z))
 			c.draw_circle(q, 4.0, Color(0.05, 0.04, 0.03, 0.85))
 			c.draw_circle(q, 3.0, COR_OURO if tl == "vila" else Color(1, 0.95, 0.85))
 			if (tl == "vila" or not longe) and not tm:
 				_texto(c, q + Vector2(0, -12), str(l.get("nome", "")), 15 if tl == "vila" else 12, Color(1, 0.95, 0.85))
-	if m.totem and totem_de.is_empty(): # totens de teleporte: losango azul (apagado = ainda não visitado)
+	if m.totem and totem_de.is_empty() and filtro.ok("totens"): # totens de teleporte: losango azul (apagado = ainda não visitado)
 		for t in m.totem.T.lista:
 			var qt: Vector2 = em.call(float(t.x), float(t.z))
 			var dt: bool = m.totem.descoberto(str(t.id))
 			_marca_totem(c, qt, 8.0, dt)
 			if not longe:
 				_texto(c, qt + Vector2(0, 17), "Totem", 12, Color("9fe6ff") if dt else Color(0.75, 0.8, 0.85))
-	for mn in m.mundo.get("mina", []):
+	for mn in (m.mundo.get("mina", []) if filtro.ok("recursos") else []):
 		if longe and (mn.get("pequeno", false) or mn.get("mundo", false)):
 			continue
 		var q: Vector2 = em.call(float(mn.x), float(mn.z))
@@ -1202,7 +1214,7 @@ func _desenhar_mapa() -> void:
 			continue # veio pequeno (FASE 2): só o losango, sem nome (são muitos); no mapa do totem, nenhum nome
 		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	var cv := _caverna()
-	if not cv.is_empty():
+	if not cv.is_empty() and filtro.ok("dungeon"):
 		var qc: Vector2 = em.call(cv.x, cv.z)
 		_marca_caverna(c, qc, 10.0)
 		if not tm:
@@ -1224,11 +1236,13 @@ func _desenhar_mapa() -> void:
 		if not tm:
 			_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
 	for cc in m.mundo.get("caca", []):
+		if not filtro.ok("boss" if cc.has("boss") else "caca"):
+			continue
 		var q: Vector2 = em.call(float(cc.x), float(cc.z))
 		_marca_clareira(c, q, cc, 7.0 if longe else 10.0, true)
 		if not longe:
 			_texto(c, q + Vector2(0, 22), "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
-	if not tm:
+	if not tm and filtro.ok("npcs"):
 		icones.desenhar_mapa(c, em, _k(), longe, fonte, tam) # NPCs: o símbolo da função e, de perto, nome e título
 	for p in _outros():
 		var q: Vector2 = em.call(p.x, p.z)
@@ -1255,6 +1269,7 @@ func _desenhar_mapa() -> void:
 	if not totem_de.is_empty():
 		_desenhar_totens(c, tam, em)
 		return
+	filtro.desenhar(c, Vector2(14, 10), fonte) # filtro das camadas (André 2026-11-16)
 	icones.legenda(c, self, fonte, tam) # legenda dos símbolos no canto de baixo à esquerda (André 2026-11-12)
 	# moldura dourada da janela
 	c.draw_rect(Rect2(Vector2(1, 1), tam - Vector2(2, 2)), Color(0.05, 0.04, 0.03, 0.9), false, 3.0)
@@ -1356,7 +1371,7 @@ func _desenhar_grande() -> void:
 	for sc in SECOES:
 		var sid: String = sc[0]
 		var itens: Array = por_secao.get(sid, [])
-		if itens.is_empty():
+		if itens.is_empty() or not filtro.ok(sid): # camada desmarcada no filtro: some da lista também
 			continue
 		var aberta: bool = abertas.get(sid, false)
 		# título da seção: faixa escura com a setinha (▸ fechada, ▾ aberta), o nome e quantos lugares tem

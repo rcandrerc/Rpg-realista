@@ -41,7 +41,7 @@ export const Plantio = {
     this.plantioLista = null; // o que vai na foto (refeito só quando muda)
   },
   adultaEm(P) { return P.quando + tempoArvore(P.s) * 1000; },
-  // m = { s: tipo da árvore, x, z: onde o celular mirou (perto do herói) }
+  // m = { s: tipo da árvore, x, z: onde o celular mirou (perto do herói), q: só aquele quadrado (modo plantio do app) }
   plantarArvore(id, m) {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -51,7 +51,7 @@ export const Plantio = {
     if (contar(p.mochila, semente) < 1) return aviso(`Você não tem semente de ${T.nome.toLowerCase()} (a Rosa vende)`);
     let x = Number(m.x), z = Number(m.z);
     if (!Number.isFinite(x) || !Number.isFinite(z) || Math.hypot(x - j.x, z - j.z) > PLANTIO.perto) { x = j.x; z = j.z; }
-    const q = this.quadradoParaPlantar(j, x, z, T, aviso); if (!q) return;
+    const q = this.quadradoParaPlantar(j, x, z, T, aviso, !!m.q); if (!q) return; // q: o quadrado exato que o jogador tocou (modo plantio)
     if (!gastarVigor(p, PLANTIO.vigor)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     if (j.montado) j.montado = null; // desce do lobo sozinho, como na horta
     tirar(p.mochila, semente, 1);
@@ -65,7 +65,7 @@ export const Plantio = {
     this.avisarProg(j);
   },
   // o quadrado mais perto de (x, z) onde dá para plantar ({ i, k, lote? }), ou null (já avisou o motivo)
-  quadradoParaPlantar(j, x, z, T, aviso) {
+  quadradoParaPlantar(j, x, z, T, aviso, exato = false) {
     const grande = !!T.grande, L = this.loteDe ? this.loteDe(j) : null;
     const minhasMudas = () => { let n = 0; const agora = this.agoraMs(); for (const P of this.plantadas.values()) if (P.dono === (j.conta || j.id) && !P.lote && agora < this.adultaEm(P)) n++; return n; };
     const ci = Math.floor(x / Q) - (grande ? 1 : 0), ck = Math.floor(z / Q) - (grande ? 1 : 0), cand = [];
@@ -74,6 +74,7 @@ export const Plantio = {
       cand.push({ i, k, d: Math.hypot(l.x - x, l.z - z), l });
     }
     cand.sort((a, b) => a.d - b.d);
+    if (exato) { const i = Math.floor(x / Q), k = Math.floor(z / Q); cand.length = 0; cand.push({ i, k, d: 0, l: lugarNoQuadrado(i, k, grande) }); }
     let motivo = '';
     const por = (t) => { if (!motivo) motivo = t; return false; };
     const serve = (c) => {
