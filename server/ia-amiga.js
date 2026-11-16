@@ -146,6 +146,7 @@ export function mensagensConversa(ctx, texto) {
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
     ctx.naLista != null ? (ctx.naLista ? `Vocês são amigos na lista de amigos do jogo.` : `Vocês ainda NÃO são amigos na lista do jogo (ele precisa pedir; se ele pedir no chat, ação "amigo").`) : '',
+    ctx.missaoDela ? `Sua missão da história agora: ${ctx.missaoDela}. Você faz as missões e as diárias como qualquer jogador.` : '',
     ctx.grindAcabou ? 'Hoje você já caçou sozinh' + o + ' o bastante (limite do dia): pode conversar, pescar, minerar, cuidar da vila ou caçar no time com amigos.' : '',
     ctx.sozinha ? (ctx.sozinha.ok ? 'Se quiser (ou se ele pedir), você pode sair agora para caçar sozinh' + o + ' (ação "cacar").' : `Sair para caçar sozinh${o} agora não dá: ${ctx.sozinha.motivo}.`) : '',
     ctx.regras?.length ? `Dicas de combate que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : '',
@@ -157,7 +158,7 @@ export function mensagensConversa(ctx, texto) {
     ctx.mapa || '',
     ctx.loja ? `Loja da vila: ${ctx.loja}.` : '',
     ctx.missaoDele ? `Missão da história que ${ctx.amigo} está fazendo: ${ctx.missaoDele}.` : '',
-    'Você ainda não faz missões da história nem usa o leilão (casa de leilão): se ele pedir, diga que ainda não mexe com isso.',
+    'Você ainda não usa o leilão (casa de leilão): se ele pedir, diga que ainda não mexe com isso.',
   ].filter(Boolean);
   const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar JUNTO com ele), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "cacar" (pede para você ir caçar SOZINH${o.toUpperCase()}, sem ele; ponha em "lugar" o nome do campo se ele ou você escolheu um da lista), "voltar" (pede para você parar de caçar sozinh${o} e voltar para a vila), "pescar"/"minerar"/"lenha" (chama para pescar, minerar ou cortar lenha junto), "pararAtividade" (quer parar a pesca/mineração/lenha junto), "troca" (quer trocar, comprar ou vender itens com você), "equip" (pergunta o que você está usando), "amigo" (pede para te adicionar na lista de amigos; o jogo decide e você fala depois), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
 Se ele pedir para caçar sozinh${o} e a ficha disser que não dá, recuse na fala explicando o motivo e use "nada".
