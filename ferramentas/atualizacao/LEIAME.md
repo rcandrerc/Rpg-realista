@@ -11,8 +11,15 @@ Como nos MMOs: o APK (preset **Android casca**, artefato `rpg-realista-casca-apk
 
 `ferramentas/atualizacao/publicar-conteudo.sh` roda em cada push na main: cada build vira um delta novo
 (`godot --export-patch` contra o completo e os deltas anteriores). Quando os deltas somam mais de 150 MB (era 60 MB até 2026-11-16), o build vira
-o completo novo e a corrente zera (o celular baixa o completo de novo uma vez). **Nunca precisa de APK novo por
-tamanho.** APK novo só para mudar `inicio.gd`, `project.godot`, plugins Android ou a versão do Godot.
+o completo novo e a corrente zera. **Nunca precisa de APK novo por tamanho.**
+
+**Ponte** (André 2026-11-16, "por que não baixa só o que está faltando?"): no completo novo, o `conteudo.json` leva
+`ponte` = `{completo: o velho, para: o novo, deltas: a corrente velha + o delta deste build}`. O celular com o
+completo velho baixa só os deltas da ponte que faltam (`inicio.gd` `_casca_ponte`), guarda como `base` no
+`estado.cfg` e passa a seguir a corrente nova por cima. Só baixa o jogo inteiro: instalação nova, celular que ficou
+para trás de duas trocas de completo, ou base passando de 300 MB (`BASE_MAX`; aí troca pelo completo novo, que é
+menor). Os arquivos da ponte ficam no release até o próximo completo. APK casca de antes de 2026-11-16 ignora a ponte
+e baixa o jogo inteiro, como antes. APK novo só para mudar `inicio.gd`, `project.godot`, plugins Android ou a versão do Godot.
 
 Onde fica: release **conteudo** (privado, fonte da verdade) e cópia no site pelo `pages.yml`. Com o secret
 `ORACLE_PAR` (link pré-autenticado de escrita do balde) e a variável `ORACLE_URL` (endereço público do balde
