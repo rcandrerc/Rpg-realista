@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 import { NodeIO, Document, PropertyType } from '@gltf-transform/core';
 import { mergeDocuments, dedup, prune, join, unpartition, weld, transformMesh, simplify } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import { CASAS_VILA, ENFEITES_VILA, CIDADE_AURORA } from './pecas.mjs';
+import { CASAS_VILA, ENFEITES_VILA, CIDADE_AURORA, RIO_CLARO } from './pecas.mjs';
 
 const FONTES = process.env.FONTES || path.resolve('../New-Game-Anime-fontes');
 const AQUI = path.dirname(new URL(import.meta.url).pathname);
@@ -50,6 +50,29 @@ const MAT_AURORA = {}; // nome do material do kit -> material da cidade
   MAT_AURORA['@cristal'] = cor('Cristal_Aurora', [0.55, 0.62, 0.78, 1]);
   MAT_AURORA['@agua'] = cor('Agua_Aurora', [0.22, 0.36, 0.48, 1]);
   MAT_AURORA['@ferro'] = cor('Ferro_Aurora', [0.16, 0.16, 0.18, 1]);
+  // Rio Claro (Casa do Comércio grande): o balcão de madeira, os tapetes e a placa com o nome da casa
+  MAT_AURORA['@madeira'] = comTex('Balcao_Madeira', tex('T_Balcao', fs.readFileSync(path.join(VIL, 'T_WoodTrim_BaseColor.png'))));
+  MAT_AURORA['@pedra'] = comTex('Pedra_Canto', tex('T_PedraCanto', fs.readFileSync(path.join(VIL, 'T_UnevenBrick_BaseColor.png'))));
+  const lin = (c) => c.map((v, i) => (i === 3 ? v : v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); // a cor como se vê (sRGB) -> glTF (linear)
+  MAT_AURORA['@tampo'] = cor('Balcao_Tampo', lin([0.29, 0.17, 0.09, 1]));
+  MAT_AURORA['@vermelho'] = cor('Tapete_Vermelho', lin([0.48, 0.12, 0.12, 1]));
+  MAT_AURORA['@vinho'] = cor('Tapete_Vinho', lin([0.35, 0.16, 0.23, 1]));
+  MAT_AURORA['@roxo'] = cor('Tapete_Roxo', lin([0.24, 0.16, 0.36, 1]));
+  MAT_AURORA['@ouro'] = cor('Tapete_Ouro', lin([0.79, 0.64, 0.23, 1]));
+  const placa = path.join(tmpTex, 'placa.png'); // a placa: madeira escura, moldura e letras douradas (fonte DejaVu Serif, livre)
+  execFileSync('python3', ['-c', `from PIL import Image, ImageDraw, ImageFont\nim=Image.new('RGB',(1024,256),(58,36,20))\nd=ImageDraw.Draw(im)\nd.rectangle([12,12,1011,243],outline=(201,162,58),width=14)\nf=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',86)\nt='CASA DO COMÉRCIO'\nw=d.textlength(t,font=f)\nd.text(((1024-w)/2,74),t,fill=(232,195,90),font=f)\nim.save(r'${placa}')`]);
+  MAT_AURORA['@placa'] = comTex('Placa_Comercio', tex('T_PlacaComercio', fs.readFileSync(placa)));
+}
+// caixa de 1 x 1 x 1 (chão em y = 0, meio em x e z) com a textura inteira em cada face (a escala da peça dá o tamanho)
+function caixa(add, mat, frente = mat) {
+  const F = [[[0, 0, 1], frente], [[0, 0, -1], mat], [[1, 0, 0], mat], [[-1, 0, 0], mat], [[0, 1, 0], mat], [[0, -1, 0], mat]];
+  for (const [[nx, ny, nz], m] of F) {
+    // dois eixos da face (u para a direita de quem olha de fora, v para cima)
+    const u = ny ? [1, 0, 0] : [nz || -0, 0, -nx], v = ny ? [0, 0, -ny] : [0, 1, 0];
+    const c = [nx * 0.5, 0.5 + ny * 0.5, nz * 0.5], P = (a, b) => [c[0] + u[0] * a + v[0] * b, c[1] + u[1] * a + v[1] * b, c[2] + u[2] * a + v[2] * b];
+    const q = [[P(-0.5, -0.5), [0, 1]], [P(0.5, -0.5), [1, 1]], [P(0.5, 0.5), [1, 0]], [P(-0.5, 0.5), [0, 0]]];
+    add(m, q[0], q[1], q[2]); add(m, q[0], q[2], q[3]);
+  }
 }
 // as peças feitas aqui: listas de triângulos [[x,y,z]x3] por material
 function gerar(nome) {
@@ -58,13 +81,23 @@ function gerar(nome) {
   if (nome === '@cristal') { // seis faces, ponta comprida em cima e curta embaixo (altura 2 m, base 0)
     const meio = anel(6, 0.42, 0.55), cima = [0, 2, 0], baixo = [0, 0, 0];
     for (let i = 0; i < 6; i++) { const a = meio[i], b = meio[(i + 1) % 6]; add('@cristal', a, b, cima); add('@cristal', b, a, baixo); }
-  } else if (nome === '@canto') { // pilar de canto de 0,4 x 3,05 m (no lugar do Corner_Exterior_Brick)
-    const q = 0.2, y = 3.05, P = [[-q, -q], [q, -q], [q, q], [-q, q]];
-    for (let i = 0; i < 4; i++) { const [ax, az] = P[i], [bx, bz] = P[(i + 1) % 4]; add('MI_UnevenBrick', [ax, 0, az], [ax, y, az], [bx, y, bz]); add('MI_UnevenBrick', [ax, 0, az], [bx, y, bz], [bx, 0, bz]); }
-    add('MI_UnevenBrick', [-q, y, -q], [q, y, q], [q, y, -q]); add('MI_UnevenBrick', [-q, y, -q], [-q, y, q], [q, y, q]);
+  } else if (nome === '@canto' || nome === '@canto_rio') { // pilar de canto de 0,4 x 3,05 m (no lugar do Corner_Exterior_Brick)
+    const q = 0.2, y = 3.05, P = [[-q, -q], [q, -q], [q, q], [-q, q]], M = nome === '@canto' ? 'MI_UnevenBrick' : '@pedra'; // @pedra: a pedra do kit, sem clarear
+    for (let i = 0; i < 4; i++) { const [ax, az] = P[i], [bx, bz] = P[(i + 1) % 4]; add(M, [ax, 0, az], [ax, y, az], [bx, y, bz]); add(M, [ax, 0, az], [bx, y, bz], [bx, 0, bz]); }
+    add(M, [-q, y, -q], [q, y, q], [q, y, -q]); add(M, [-q, y, -q], [-q, y, q], [q, y, q]);
   } else if (nome === '@agua') { // disco de raio 1
     const r = anel(20, 1, 0);
     for (let i = 0; i < 20; i++) add('@agua', [0, 0, 0], r[i], r[(i + 1) % 20]);
+  } else if (nome === '@balcao') { // balcão: corpo de madeira e tampo escuro (o tampo passa 5 cm de cada lado)
+    const a = (m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] * 0.93, p[2]], t]));
+    caixa(a, '@madeira');
+    caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0] * 1.06, 0.93 + p[1] * 0.07, p[2] * 1.2], t])), '@tampo');
+  } else if (nome.startsWith('@tapete_')) { // tapete com barra dourada
+    const cor = '@' + nome.slice(8);
+    caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] * 0.03, p[2]], t])), cor);
+    caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0] * 1.08, p[1] * 0.02 - 0.004, p[2] * 1.02], t])), '@ouro');
+  } else if (nome === '@placa') {
+    caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] - 0.5, p[2]], t])), '@tampo', '@placa');
   } else if (nome === '@lanterna') { // prisma de vidro (0,3 m) com tampa e base de ferro
     const b0 = anel(6, 0.11, -0.15, Math.PI / 6), b1 = anel(6, 0.11, 0.15, Math.PI / 6), t = anel(6, 0.15, 0.15, Math.PI / 6), f = anel(6, 0.13, -0.17, Math.PI / 6);
     for (let i = 0; i < 6; i++) {
@@ -76,7 +109,9 @@ function gerar(nome) {
   return tri;
 }
 function porGerada(pai, nome, p, ry, s) {
-  for (const [mat, L] of Object.entries(gerar(nome))) {
+  for (let [mat, L] of Object.entries(gerar(nome))) {
+    const comUv = Array.isArray(L[0][0]), T = comUv ? L.map((q) => q[1]) : null;
+    if (comUv) L = L.map((q) => q[0]);
     const pos = new Float32Array(L.flat()), nor = new Float32Array(L.length * 3), uv = new Float32Array(L.length * 2);
     for (let i = 0; i < L.length; i += 3) { // normal da face (flat): cristal facetado
       const [a, b, c] = [L[i], L[i + 1], L[i + 2]], u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -84,7 +119,7 @@ function porGerada(pai, nome, p, ry, s) {
       for (let k = 0; k < 3; k++) { // textura: de cima no chão (água), de lado nas paredes (canto), 2 m por volta
         const P = L[i + k], deLado = Math.abs(n[1] / l) < 0.5;
         nor.set(n.map((q) => q / l), (i + k) * 3);
-        uv.set(deLado ? [(Math.abs(n[0]) > Math.abs(n[2]) ? P[2] : P[0]) / 2 + 0.5, -P[1] / 2] : [P[0] / 2 + 0.5, P[2] / 2 + 0.5], (i + k) * 2);
+        uv.set(T ? T[i + k] : deLado ? [(Math.abs(n[0]) > Math.abs(n[2]) ? P[2] : P[0]) / 2 + 0.5, -P[1] / 2] : [P[0] / 2 + 0.5, P[2] / 2 + 0.5], (i + k) * 2);
       }
     }
     const buf = alvo.getRoot().listBuffers()[0];
@@ -108,7 +143,8 @@ async function lerPeca(nome) {
   const src = await io.read(arq);
   // peça pesada (canto de pedra, caixote, carroça...): menos triângulos, com a mesma silhueta
   const tris = src.getRoot().listMeshes().reduce((a, m) => a + m.listPrimitives().reduce((q, pr) => q + (pr.getIndices()?.getCount() || 0) / 3, 0), 0);
-  if (modo === 'leve') await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: /^Roof_/.test(base) ? 0.35 : 0.1, error: 0.01 })); // Aurora: canto e telhado mais leves
+  if (modo === 'meio') { if (tris > 300) await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: Math.max(0.08, 300 / tris), error: 0.02 })); } // Rio Claro: enfeite, janela e grade mais leves
+  else if (modo === 'leve') await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: /^Roof_/.test(base) ? 0.35 : 0.1, error: 0.01 })); // Aurora: canto e telhado mais leves
   else if (tris > 1200 && !/^Roof_/.test(nome)) await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: Math.max(0.2, 700 / tris), error: 0.004 }));
   lidas.set(nome, src);
   return src;
@@ -128,7 +164,7 @@ async function por(pai, nome, p = [0, 0, 0], ry = 0, s = 1) {
   }
 }
 
-for (const [nome, pecas] of Object.entries({ ...CASAS_VILA, ...ENFEITES_VILA, ...CIDADE_AURORA })) {
+for (const [nome, pecas] of Object.entries({ ...CASAS_VILA, ...ENFEITES_VILA, ...CIDADE_AURORA, ...RIO_CLARO })) {
   const no = alvo.createNode(nome);
   cena.addChild(no);
   for (const [peca, p, ry, s] of pecas) await por(no, peca, p, ry, s);

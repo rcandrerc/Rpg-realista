@@ -18,10 +18,33 @@ export const MODELOS_VILA = {
   aurora_templo: { w: 8, d: 12, alto: 6, sobe: 6, porta: 0 }, aurora_paco: { w: 8, d: 14, alto: 6, sobe: 6, porta: 0 },
   aurora_torre: { w: 4, d: 4, alto: 9, sobe: 0, porta: -1, longe: true }, aurora_portao: { w: 10, d: 2, portao: true, porta: 0 },
   aurora_fonte: { r: 2.6, alto: 0.85 },
+  // Vila do Rio Claro, o centro comercial (André 2026-11-16; ferramentas/vilas/pecas.mjs RIO_CLARO). A Casa do Comércio
+  // grande (com as torres: 24 x 20) não é um bloco: entra-se nela a pé (shared/dados.js faz as paredes, o piso e o balcão
+  // com COMERCIO_GRANDE). Os sobrados são casas fechadas de dois andares.
+  comercio_grande: { w: 24, d: 20, alto: 6, sobe: 6, porta: 0, entra: true },
+  sobrado_4x6: { w: 4, d: 6, alto: 6, sobe: 3.6, porta: 1 }, sobrado_6x6: { w: 6, d: 6, alto: 6, sobe: 4.8, porta: 0 }, sobrado_4x4: { w: 4, d: 4, alto: 6, sobe: 3.6, porta: -1 },
+  banca_frutas: { r: 1.1, alto: 2.6 }, banca_tecidos: { r: 1.3, alto: 2.6 }, banca_peixe: { r: 1.1, alto: 2.6 }, banca_ceramica: { r: 1.3, alto: 2.6 }, banca_temperos: { r: 1.1, alto: 2.6 },
+  carroca_carga: { r: 1.1 }, poste: { r: 0.2 }, cerca: { r: 0.3 }, carga: { r: 1.3, alto: 1.8 },
   banca: { r: 1.0, alto: 2.6 }, banca_carroca: { r: 1.3, alto: 2.6 }, barris: { r: 0.85, alto: 0.9 }, barril: { r: 0.4, alto: 0.9 },
   caixotes: { r: 1.0, alto: 1.8 }, banco: { r: 0.6, alto: 0.53 }, mesa: { r: 1.45, alto: 0.81 }, estandarte: { r: 0.18 },
   carroca: { r: 1.0 }, bigorna_enfeite: { r: 0.6, alto: 0.6 }, armas: { r: 0.7, alto: 1.1 }, fogueira: { r: 0.8, alto: 0.4 },
 };
+// Casa do Comércio grande (no espaço da casa, porta para +z; o desenho é ferramentas/vilas/pecas.mjs casaDoComercio):
+// paredes que se escalam (centro x, z, meia largura, meio fundo, altura), as duas torres, o balcão do Otávio e os
+// pilares dos arcos entre o salão e os corredores (círculos que não deixam passar). A entrada são os dois arcos do meio da
+// frente (x de -2 a 2).
+export const COMERCIO_GRANDE = {
+  paredes: [[0, -10, 8, 0.2, 6.1], [-8, 0, 0.2, 10, 6.1], [8, 0, 0.2, 10, 6.1], [-6, 10, 2, 0.2, 6.1], [6, 10, 2, 0.2, 6.1], [-3, 10, 1, 0.2, 6.1], [3, 10, 1, 0.2, 6.1],
+    [-10, 8, 2, 2, 9.1], [10, 8, 2, 2, 9.1]],
+  balcao: [0, -5.5, 3.25, 0.5, 1.15],
+  pilares: [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8].flatMap((z) => [[-4, z], [4, z]]),
+  moveis: [[6, -6.5, 0.5], [6.6, -3, 0.6], [-6.2, -7.5, 0.35], [-6.4, -5.4, 0.35], [-7.4, -3.2, 0.5], [-2.2, -9.6, 0.6], [2.2, -9.6, 0.6], [0, -9.1, 0.6],
+    [-3.3, -8.2, 0.5], [3.3, -8.6, 0.5], [-6.5, 4, 0.4], [-6.5, 7, 0.4], [7.0, 8.9, 0.8], [7.3, 6.6, 0.4], [7.2, 3.4, 0.5], [6.0, 1.2, 0.6]],
+};
+// o cavalo da carroça de carga fica entre os varais (a caçamba é o fundo da peça, z de -3,15 a -1,7; os varais vão
+// até +0,9) e olha para +z
+export const CAVALO_CARROCA = [0, 0.1];
+export const CACAMBA_CARROCA = [0, -2.4]; // a caçamba também é sólida (o círculo da peça só pega os varais)
 const ALICERCE = 2.3; // o alicerce de pedra cobre até isso de diferença entre o canto mais alto e o mais baixo
 
 // distância do ponto (x, z) até o retângulo girado R ({ x, z, ry, w, d }), 0 dentro
@@ -59,7 +82,7 @@ function distLinha(R, L) {
 export function arrumarVila(V, amb) {
   const { G, alturaMundo, terraEm, mar } = amb;
   const chao = (x, z) => alturaMundo(G, x, z);
-  const postos = []; // retângulos já ocupados (com folga)
+  const postos = [...(V.ocupado || [])]; // retângulos já ocupados (com folga); V.ocupado: as peças fixas da vila (Rio Claro)
   const casas = [];
   const livre = (R, folgaEstrada = 3.2, casa = true) => {
     for (const [x, z] of cantos(R, 0.9)) {
@@ -187,9 +210,18 @@ export function arrumarCidade(C, amb) {
   for (let t = -C.praca.r + 1; t < C.praca.r; t += 2) pisos.push({ x: C.praca.x, z: C.praca.z + t, ry: 0, hw: +Math.sqrt(C.praca.r ** 2 - t * t).toFixed(2), hd: 1.05, y1: +(praca.y + CALCADA.sobePraca).toFixed(2) });
   for (const L of ruas) for (let i = 0; i + 1 < L.length; i += 2) {
     const a = L[i], b = L[Math.min(i + 2, L.length - 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    pisos.push({ x: +((a[0] + b[0]) / 2).toFixed(2), z: +((a[1] + b[1]) / 2).toFixed(2), ry: +Math.atan2(b[0] - a[0], b[1] - a[1]).toFixed(4), hw: CALCADA.largura / 2, hd: +(len / 2 + 0.3).toFixed(2), y1: +(Math.max(a[2], b[2]) + CALCADA.sobe).toFixed(2) });
+    pisos.push({ x: +((a[0] + b[0]) / 2).toFixed(2), z: +((a[1] + b[1]) / 2).toFixed(2), ry: +Math.atan2(b[0] - a[0], b[1] - a[1]).toFixed(4), hw: (C.largura || CALCADA.largura) / 2, hd: +(len / 2 + 0.3).toFixed(2), y1: +(Math.max(a[2], b[2]) + CALCADA.sobe).toFixed(2) });
   }
-  return { pecas, ruas, praca, pisos, postos };
+  // Rio Claro: enfeites (bancas do mercado, carroças, postes...) e a banca da loja no lugar fixo, no chão como ele é
+  const enfeites = [], baixo = (R) => +Math.min(...cantos(R, 0).map(([x, z]) => chao(x, z))).toFixed(2);
+  for (const E of C.enfeites || []) {
+    const M = MODELOS_VILA[E.m], R = { x: E.x, z: E.z, ry: E.ry, w: 2 * (M.r || 0.5), d: 2 * (M.r || 0.5) };
+    enfeites.push({ m: E.m, ...(E.n ? { n: E.n } : {}), x: E.x, z: E.z, ry: +E.ry.toFixed(4), y: baixo(R) });
+    postos.push(R);
+  }
+  let banca = null;
+  if (C.banca) { const R = { x: C.banca.x, z: C.banca.z, ry: C.banca.ry, w: 2.2, d: 3.4 }; banca = { x: R.x, z: R.z, ry: +R.ry.toFixed(4), y: baixo(R) }; postos.push(R); }
+  return { pecas, ruas, praca, pisos, postos, enfeites, banca };
 }
 // distância do ponto às ruas da cidade (para tirar as árvores de cima)
 export function distRuas(ruas, x, z) {
