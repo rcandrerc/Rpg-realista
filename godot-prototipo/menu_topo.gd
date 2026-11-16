@@ -332,11 +332,18 @@ func abrir(qual: String) -> void:
 	montar()
 
 func fechar() -> void:
+	var era := aberta
 	janela.visible = false
 	aberta = ""
+	# André 2026-11-16: a etapa "chame alguém para o time" ensina pela tela de amigos, mas não trava. Fechou sem time: segue sozinho
+	if era == "multi" and _etapa_time() and not (m.amigos and m.amigos.time.size() > 1):
+		m.rede("time", {"acao": "sozinho"})
 	_confirmar_apagar = false # "Voltar ao jogo" na confirmação vale como "Não, manter"
 	if not (m.menu and m.menu.aberto()) and not (m.chat and m.chat.aberto()):
 		m.hud.bloqueado = false
+
+func _etapa_time() -> bool:
+	return m.P != null and m.P.hist_info is Dictionary and str(m.P.hist_info.get("ev", "")) == "time"
 
 func aberto() -> bool:
 	return janela != null and janela.visible
@@ -547,6 +554,8 @@ func montar_multi() -> void:
 	if o and o.ligado:
 		var ping := "" if o.rede.ping_ms < 0 else " · %d ms" % o.rede.ping_ms
 		_texto(tr("Online · %d %s%s") % [o.jogadores, tr("jogador") if o.jogadores == 1 else tr("jogadores"), ping], Menu.VERDE, 18)
+		if _etapa_time(): # missão de time: ensina a chamar, mas sozinho também dá (André 2026-11-16)
+			_texto("Sem ninguém? Feche e vá sozinho.", Menu.OURO_CLARO, 17)
 		if m.amigos: # amigos (até 20) e time (amigos.gd)
 			m.amigos.montar_janela(self)
 		_add(_botao("Jogar sozinho", func():
