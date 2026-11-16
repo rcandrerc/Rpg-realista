@@ -463,6 +463,8 @@ func _ready() -> void:
 	add_child(lentidao)
 	online = Online.new(self)
 	add_child(online)
+	if not preload("res://robo_celular.gd").config().is_empty(): # celular de teste (Firebase Test Lab): joga sozinho
+		add_child(preload("res://robo_celular.gd").new(self))
 	# corpos de reserva para os jogadores que chegam perto (online.gd reservar_corpo): no fim da fila, atrás da capa
 	var cri = P.dados.get("criador") if P.dados is Dictionary else null
 	for c in (cri.get("corpos", ["ruiva"]) if cri is Dictionary else ["ruiva"]):

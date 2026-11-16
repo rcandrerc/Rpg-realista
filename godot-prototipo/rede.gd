@@ -91,6 +91,9 @@ func _ready() -> void:
 		nome_salvo = str(cfg.get_value("conta", "nome", "")) if sessao != "" else ""
 	if OS.get_environment("RPG_SESSAO") != "": # só para teste
 		sessao = OS.get_environment("RPG_SESSAO")
+	var robo: Dictionary = preload("res://robo_celular.gd").config() # celular de teste (Firebase Test Lab): conta do robô
+	if robo.has("sessao"):
+		sessao = robo.sessao
 
 # voltou para o app (o site abre o jogo depois do login): busca a sessão na hora
 func _notification(o: int) -> void:
