@@ -554,6 +554,9 @@ try { for (const l of fs.readFileSync(RESUMO_ARQ, 'utf8').trim().split('\n').sli
 function aparelhoLentidao(e, r) {
   if (typeof e.ap === 'string' && e.ap.length <= 40) r.ap = e.ap;
   if (typeof e.inst === 'string' && /^[0-9a-f]{8}$/.test(e.inst)) r.inst = e.inst;
+  // placa de vídeo e motor de desenho (vulkan / opengl3): qual celular caiu no OpenGL e qual placa dá problema
+  if (typeof e.placa === 'string' && e.placa.length <= 40 && /^[\w .()+\-/]*$/.test(e.placa)) r.placa = e.placa;
+  if (typeof e.drv === 'string' && /^[a-z0-9_]{1,16}$/.test(e.drv)) r.drv = e.drv;
   return r;
 }
 function guardarLentidao(c, e, sala) {
@@ -629,6 +632,8 @@ app.get('/lentidao/celulares', (_req, res) => {
     if (!x.inst) continue;
     const c = (m[x.inst] ||= { inst: x.inst, ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 });
     c.linhas++;
+    if (x.placa) c.placa = x.placa;
+    if (x.drv) c.drv = x.drv;
     if (x.servidor > c.ultima) { c.ultima = x.servidor; c.versao = x.versao; }
   }
   res.json(Object.values(m).sort((a, b) => b.ultima - a.ultima));
