@@ -265,13 +265,19 @@ export const Kit = {
         for (const [i, n] of Object.entries(RECEITAS[k]?.usa || {})) { const f = plano(i, n * falta, fundo + 1, para); if (f) return f; }
         return sai('forno');
       }
-      if (PLANTAS[k]) { // horta: compra a semente, planta, rega e colhe
+      if (PLANTAS[k]) { // horta: compra TODAS as sementes, planta todas, rega e colhe
+        // André 2026-11-16: "não fala a quantidade, então eu compro um... é pra plantar 8": a compra pede o total de
+        // sementes (falta / colheita mínima, menos o que já está plantado) e o plantar conta sementes, não legumes
+        const precisa = Math.max(1, Math.ceil(falta / PLANTAS[k].y[0])), pl = this.plantadasDe(j, k);
+        if (pl < precisa) {
+          { const f = plano('enxada', 1, fundo + 1); if (f) return f; }
+          { const f = plano('semente_' + k, precisa - pl, fundo + 1, para); if (f) return f; }
+          return { k, n: precisa, tem: pl, fonte: 'plantar', ...(para ? { para } : {}) };
+        }
         const st = this.hortaDe(j, k);
-        if (st === 'madura') return sai('lote');
-        if (st) { if (st === 'seca') { const f = plano('regador', 1, fundo + 1); if (f) return f; } return sai(st); }
-        { const f = plano('enxada', 1, fundo + 1); if (f) return f; }
-        if (contar(p.mochila, 'semente_' + k) < 1) { const f = plano('semente_' + k, Math.max(1, Math.ceil(falta / PLANTAS[k].y[0])), fundo + 1, para); if (f) return f; }
-        return sai('plantar');
+        if (st === 'madura' || !st) return sai('lote');
+        if (st === 'seca') { const f = plano('regador', 1, fundo + 1); if (f) return f; }
+        return sai(st);
       }
       if (PEIXES.has(k)) {
         const f = plano('vara', 1, fundo + 1); if (f) return f;
@@ -342,6 +348,12 @@ export const Kit = {
     let n = 0;
     for (const t of Object.values(L.horta || {})) if (this.acelerarPlanta(j, t)) n++;
     if (n) { this.evento({ t: 'aviso', para: j.id, texto: 'Missão: pronta pra colher!' }); this.avisarLote?.(L); }
+    return n;
+  },
+  // quantas plantas de k estão na horta do jogador (plantadas, crescendo ou maduras)
+  plantadasDe(j, k) {
+    let n = 0;
+    for (const t of Object.values(this.loteDe?.(j)?.horta || {})) if (t?.c === k) n++;
     return n;
   },
   // a planta k na horta do jogador: 'madura' · 'seca' (precisa de água) · 'cresce' · '' (nada plantado)
@@ -434,7 +446,7 @@ export const Kit = {
     if (F === 'lote') return { ev: 'colher', k: f.k };
     if (F === 'plantar') return { ev: 'plantar', k: f.k };
     if (F === 'regar') return { ev: 'regar' };
-    if (F === 'loja') return { ev: 'comprar', k: f.k };
+    if (F === 'loja') return { ev: 'comprar', k: f.k, qtd: Math.max(1, f.n - f.tem) }; // o app já abre a compra com essa quantidade
     if (F === 'destruir') return { ev: 'destruir' };
     if (F === 'sintese') return { ev: 'sintetizar' };
     if (F.startsWith('npc:')) return DO_NPC[f.k]?.guia || { ev: 'ter' };
