@@ -30,7 +30,8 @@ ok(a.time && b.time && a.time === d.time && b.time === d.time && d.time.membros.
 const amzA = a.amizade; dario.gostoAmiga(d, 'pescar');
 ok(a.amizade === amzA && !(a.gostos?.[d.conta]?.pescar) && b.gostos[d.conta].pescar === 1, 'gostos de cada um');
 // "Amigos virtuais" mostra os dois depois que ele pediu e os dois aceitaram (André 2026-11-16: amizade conquistada)
-{ const rr = Math.random; Math.random = () => 0; s.amigo('andre', { acao: 'pedir', com: a.id }); s.amigo('andre', { acao: 'pedir', com: b.id }); Math.random = rr; }
+// (o pedido tocando neles está em amizade-conquistada.mjs; aqui no time eles podem estar lutando, então já vêm aceitos)
+a.amigosDe = { [d.conta]: 1 }; b.amigosDe = { [d.conta]: 1 };
 const ev0 = s.eventos.length; s.enviarAmigos(d);
 const am = s.eventos.slice(ev0).find((e) => e.t === 'amigos' && e.para === 'andre');
 ok(am?.virtuais?.length >= 2 && am.virtuais.some((v) => v.c === DARIO.conta && v.time) && am.virtuais.some((v) => v.c === 'a:cecilia'), 'os dois em "Amigos virtuais" (com os aventureiros), Dario no time');
