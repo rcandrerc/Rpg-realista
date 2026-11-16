@@ -25,6 +25,11 @@ export const VISAO = {
   meiaVelocidade: 40, // m: corpo mais longe que isso atualiza 10 vezes por segundo em vez de 20 (o app desliza entre as fotos)
   evento: 100, // efeito, número de dano e magia mais longe que isso não vão (ninguém veria)
   mapaCada: 10, // a cada 10 fotos (0,5 s) vai a lista leve de onde está todo mundo (mapa grande e minimapa)
+  // árvores cortadas e veios batidos (André 2026-11-16, árvores plantadas): antes a lista inteira ia em toda foto
+  // para todo mundo (1.000 árvores cortadas = ~22 KB por foto, ~430 KB/s por jogador). Agora vai só o que está a
+  // menos de veio m do herói, e cada um só uma vez (de novo só se mudar). O app já faz a árvore voltar sozinho
+  // no tempo certo (trabalho.gd), então quem sai da lista não precisa de aviso.
+  veio: 140,
 };
 
 // o que muda quase toda foto
@@ -39,16 +44,21 @@ const pedaco = (o, ks) => { let s = ''; for (const k of ks) if (o[k] !== undefin
 const r1 = (n) => Math.round(n * 10) / 10;
 
 export class Visao {
-  constructor() {
+  // onde(id) -> {x, z} do veio ou da árvore (Simulacao.coletaveis). Sem ele, a lista inteira vai para todos (como antes).
+  constructor(onde = null) {
     this.vendo = new Map(); // sessionId -> Map(id do corpo -> { m: parte que muda, f: parte fixa }) do que ele já recebeu
+    this.veiosVistos = new Map(); // sessionId -> Map(id do veio -> chave "cargas@hora de voltar") do que ele já recebeu
+    this.onde = onde;
     this.passos = 0;
   }
 
-  esquecer(id) { this.vendo.delete(id); }
+  esquecer(id) { this.vendo.delete(id); this.veiosVistos.delete(id); }
 
   // uma vez por passo: cada corpo e cada evento viram texto JSON uma vez só (depois cada jogador só junta os dele)
   preparar(foto, eventos) {
     this.passos++;
+    // de 30 em 30 s os veios de perto vão de novo (seguro barato: o app ignora o que já sabia; cobre um app que refez a mata)
+    if (this.passos % 600 === 0) for (const vv of this.veiosVistos.values()) vv.clear();
     const pos = new Map(); // id -> {x, z} (para achar onde aconteceu o evento que só diz "id" ou "alvo")
     const jogadores = [];
     let total = 0;
@@ -72,7 +82,18 @@ export class Visao {
       ? JSON.stringify(foto.jogadores.filter((j) => !j.criando).map((j) => [j.id, r1(j.x), r1(j.z)]))
       : null;
     // spots de pesca e carga (packs no chão, carrinhos e navios: FASE 1) vão iguais para todos
-    return { foto, pos, jogadores, inimigos, evs, total, mapa, veios: JSON.stringify(foto.veios || []), spots: JSON.stringify(foto.spots || []), carga: JSON.stringify(foto.carga || { packs: [], veic: [] }) };
+    // veios: com onde(), cada um leva o lugar e a chave (muda quando outro bate ou quando a hora de voltar muda)
+    let veios = null, veiosL = null;
+    if (this.onde) {
+      veiosL = [];
+      for (const v of foto.veios || []) {
+        const c = this.onde(v[0]);
+        if (c) veiosL.push({ id: v[0], x: c.x, z: c.z, k: v[1] + '@' + Math.round(foto.tempo + v[2]), s: JSON.stringify(v) });
+      }
+    } else veios = JSON.stringify(foto.veios || []);
+    // de 1 em 1 s: quem voltou sai da memória de cada jogador (ids que ainda estão caídos)
+    const veiosIds = veiosL && this.passos % 20 === 0 ? new Set(veiosL.map((v) => v.id)) : null;
+    return { veiosIds, foto, pos, jogadores, inimigos, evs, total, mapa, veios, veiosL, spots: JSON.stringify(foto.spots || []), carga: JSON.stringify(foto.carga || { packs: [], veic: [] }) };
   }
 
   // a mensagem "mundoJ" de um jogador: só o que está perto do herói dele, e de cada corpo só o que mudou
@@ -133,6 +154,18 @@ export class Visao {
       if (ev.para) { if (ev.para === id) es.push(ev.s); continue; }
       if (ev.x === null || (ev.x - px) ** 2 + (ev.z - pz) ** 2 <= r2ev) es.push(ev.s);
     }
-    return `{"foto":{"tempo":${ctx.foto.tempo},"aoi":1,"total":${ctx.total},"jogadores":[${js.join(',')}],"inimigos":[${is.join(',')}],"veios":${ctx.veios},"spots":${ctx.spots},"carga":${ctx.carga}${ctx.mapa ? `,"mapa":${ctx.mapa}` : ''}},"eventos":[${es.join(',')}]}`;
+    let veios = ctx.veios;
+    if (ctx.veiosL) { // só os de perto que ele ainda não recebeu assim
+      let vv = this.veiosVistos.get(id);
+      if (!vv) this.veiosVistos.set(id, (vv = new Map()));
+      const r2v = VISAO.veio * VISAO.veio, vs = [];
+      for (const v of ctx.veiosL) {
+        if (vv.get(v.id) === v.k || (v.x - px) ** 2 + (v.z - pz) ** 2 > r2v) continue;
+        vv.set(v.id, v.k); vs.push(v.s);
+      }
+      if (ctx.veiosIds) for (const k of vv.keys()) if (!ctx.veiosIds.has(k)) vv.delete(k); // voltou: esquece (o app já fez voltar sozinho)
+      veios = '[' + vs.join(',') + ']';
+    }
+    return `{"foto":{"tempo":${ctx.foto.tempo},"aoi":1,"total":${ctx.total},"jogadores":[${js.join(',')}],"inimigos":[${is.join(',')}],"veios":${veios},"spots":${ctx.spots},"carga":${ctx.carga}${ctx.mapa ? `,"mapa":${ctx.mapa}` : ''}},"eventos":[${es.join(',')}]}`;
   }
 }
