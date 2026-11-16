@@ -104,10 +104,11 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
 }
 // André 2026-11-13 ("acabou de me negar e duas falas depois me chama pra caçar"): a decisão de caçar/entrar no time já está
 // tomada pelo jogo (decisaoTimeAmiga) e vale por uns minutos; a IA fica sabendo e fala de acordo, sem mudar de ideia.
-const MOTIVOS = { cansada: 'está cansad{o} e com pouca vida', horta: 'a horta precisa de você agora', noite: 'é noite e você prefere não sair', perigo: '{ele} está forte demais pra você acompanhar', vontade: 'não está no clima agora' };
+const MOTIVOS = { cansada: 'está cansad{o} e com pouca vida', horta: 'a horta precisa de você agora', noite: 'é noite e você prefere não sair', perigo: '{ele} está forte demais pra você acompanhar', fraco: '{ele} está bem abaixo do seu nível e você quer upar no seu ritmo', vontade: 'não está no clima agora' };
 function humorTime(ctx) {
   const h = ctx.humor; if (!h) return '';
-  if (h.aceita) return h.combinado ? `Vocês já combinaram de caçar juntos: falta ${ctx.amigo} mandar o convite do time.` : `Agora você está a fim de caçar/entrar no time se ${ctx.amigo} chamar.`;
+  const fraco = ctx.acima >= 5 ? ` ${ctx.amigo} está ${ctx.acima} níveis abaixo de você: se for junto, comente isso de leve e com carinho de amigo (sem grosseria), tipo "vou porque você é meu amigo, mas bora te upar".` : '';
+  if (h.aceita) return (h.combinado ? `Vocês já combinaram de caçar juntos: falta ${ctx.amigo} mandar o convite do time.` : `Agora você está a fim de caçar/entrar no time se ${ctx.amigo} chamar.`) + fraco;
   const m = (MOTIVOS[h.motivo] || MOTIVOS.vontade).replace('{o}', ctx.genero === 'm' ? 'o' : 'a').replace('{ele}', ctx.amigo);
   return `${h.recusou ? `Você ACABOU DE RECUSAR caçar/entrar no time com ${ctx.amigo}` : `Agora você NÃO quer caçar nem entrar no time`} (motivo: ${m}), pelos próximos ${h.min} min. Mantenha essa decisão: se ${ctx.amigo} chamar, recuse do seu jeito e explique; não convide nem sugira caçar, farmar, upar ou DG agora (pode combinar pra depois). Use "nada" como ação.`;
 }
@@ -145,6 +146,7 @@ export function mensagensConversa(ctx, texto) {
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
     ctx.naLista != null ? (ctx.naLista ? `Vocês são amigos na lista de amigos do jogo.` : `Vocês ainda NÃO são amigos na lista do jogo (ele precisa pedir; se ele pedir no chat, ação "amigo").`) : '',
+    ctx.grindAcabou ? 'Hoje você já caçou sozinh' + o + ' o bastante (limite do dia): pode conversar, pescar, minerar, cuidar da vila ou caçar no time com amigos.' : '',
     ctx.sozinha ? (ctx.sozinha.ok ? 'Se quiser (ou se ele pedir), você pode sair agora para caçar sozinh' + o + ' (ação "cacar").' : `Sair para caçar sozinh${o} agora não dá: ${ctx.sozinha.motivo}.`) : '',
     ctx.regras?.length ? `Dicas de combate que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : '',
   ].filter(Boolean);
