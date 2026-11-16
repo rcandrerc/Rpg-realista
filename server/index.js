@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -94,6 +94,7 @@ class SalaClareira extends Room {
     // (15 s do Colyseus). Celular fraco montando o mundo atrás da capa pode passar disso; 45 s não muda nada para quem entra rápido.
     this.setSeatReservationTime(45);
     this.sim = new Simulacao(MAPA_CLAREIRA);
+    this.sim.aoCaixa = (l) => { lancarCaixa(livroCaixa, l); caixaSujo = true; }; // livro-caixa: todas as salas no mesmo livro
     this.visao = new Visao((id) => this.sim.coletaveis.get(id)); // veios e árvores: só os de perto (onde está cada um); cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
     // Vila dos Lotes: dono, peças e horta guardados no servidor; a compra confere no banco (vale entre salas)
     if (contas) {
@@ -795,6 +796,30 @@ app.post('/robo/relatorio', express.json({ limit: '64kb' }), async (req, res) =>
   fs.writeFile(ROBO_ARQ, roboTurnos.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
   res.json({ ok: true });
 });
+// Livro-caixa da economia (André 2026-11-16, shared/economia.js): o ouro que entra e sai por fonte, faixa de nível e dia,
+// de todas as salas juntas. Grava a cada minuto (o servidor reinicia com as atualizações) e guarda CAIXA.dias dias.
+const CAIXA_ARQ = path.resolve(process.env.DADOS || 'dados', 'economia.json');
+let livroCaixa = {}, caixaSujo = false;
+try { livroCaixa = JSON.parse(fs.readFileSync(CAIXA_ARQ, 'utf8')) || {}; } catch { /* ainda não tem */ }
+setInterval(() => {
+  if (!caixaSujo) return;
+  caixaSujo = false;
+  const dias = Object.keys(livroCaixa).sort();
+  for (const d of dias.slice(0, Math.max(0, dias.length - CAIXA.dias))) delete livroCaixa[d];
+  fs.writeFile(CAIXA_ARQ, JSON.stringify(livroCaixa), () => {});
+}, 60e3).unref();
+app.get('/economia.json', (_req, res) => res.json(resumoCaixa(livroCaixa)));
+app.get('/economia', (_req, res) => res.type('html').send(paginaEconomia(resumoCaixa(livroCaixa))));
+function paginaEconomia(r) {
+  const n = (x) => (x == null ? '–' : Number(x).toLocaleString('pt-BR'));
+  const lista = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${n(v)}`).join(' · ') || '–';
+  const dias = Object.keys(r).sort().reverse().map((dia) => Object.entries(r[dia]).map(([quem, F]) => `<h2>${esc(dia)} · ${quem === 'robo' ? 'robô' : 'jogadores'}</h2>
+<table><tr><th>Nível</th><th>Jogadores</th><th>Horas</th><th>Abates/h</th><th>Entrou/h</th><th>Saiu/h</th><th>Guardado médio</th><th>De onde veio</th><th>Para onde foi</th></tr>
+${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]) => `<tr><td>${esc(fx)}</td><td>${f.jogadores}</td><td>${f.horas}</td><td>${n(f.abatesHora)}</td><td>${n(f.entrouHora)}</td><td>${n(f.saiuHora)}</td><td>${n(f.guardadoMedio)}</td><td>${lista(f.entradas)}</td><td>${lista(f.saidas)}</td></tr>`).join('\n')}</table>`).join('')).join('');
+  return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Economia</title>
+<style>body{font:14px system-ui;margin:16px;background:#14110e;color:#eee}table{border-collapse:collapse;width:100%;margin-bottom:18px}td,th{border:1px solid #444;padding:4px 6px;text-align:left;vertical-align:top}th{background:#2a241d}h2{font-size:16px;margin:18px 0 6px}</style>
+<h1>Livro-caixa do ouro</h1><p>Ouro que entrou e saiu por faixa de nível, por dia (horário de Brasília). Sem nome de jogador.</p>${dias || '<p>Ainda sem dados.</p>'}</html>`;
+}
 app.get('/robo.json', (req, res) => res.json(roboTurnos.slice(-(Number(req.query.n) || 20))));
 app.get('/robo', (_req, res) => res.type('html').send(paginaRobo(roboTurnos.slice(-30).reverse())));
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

@@ -271,7 +271,7 @@ export const durab = (it) => (it && Number.isInteger(it.d) ? it.d : MORTE.durMax
 export const quebrado = (it) => !!it && ehEquip(it.k) && durab(it) <= 0;
 // ouro para deixar a peça inteira de novo
 export const custoConserto = (it) => (it && ehEquip(it.k) && durab(it) < MORTE.durMax
-  ? Math.max(1, Math.ceil((MORTE.durMax - durab(it)) / MORTE.durMax * VENDA_EQUIP[it.r] * MORTE.conserto)) : 0);
+  ? Math.max(1, Math.ceil((MORTE.durMax - durab(it)) / MORTE.durMax * (MORTE.consertoTabela ? MORTE.consertoTabela[it.r] : VENDA_EQUIP[it.r] * MORTE.conserto))) : 0);
 // peças que o Tomás conserta: as do corpo e as da mochila. Devolve [{ onde: 'equip' | 'mochila', l | i, custo }]
 export function pecasGastas(p) {
   const r = [];

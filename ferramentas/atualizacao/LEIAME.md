@@ -10,7 +10,7 @@ Como nos MMOs: o APK (preset **Android casca**, artefato `rpg-realista-casca-apk
 - **deltas**: só o que mudou depois do completo, um por versão (`delta-VERSAO.pck`), carregados em ordem por cima.
 
 `ferramentas/atualizacao/publicar-conteudo.sh` roda em cada push na main: cada build vira um delta novo
-(`godot --export-patch` contra o completo e os deltas anteriores). Quando os deltas somam mais de 60 MB, o build vira
+(`godot --export-patch` contra o completo e os deltas anteriores). Quando os deltas somam mais de 150 MB (era 60 MB até 2026-11-16), o build vira
 o completo novo e a corrente zera (o celular baixa o completo de novo uma vez). **Nunca precisa de APK novo por
 tamanho.** APK novo só para mudar `inicio.gd`, `project.godot`, plugins Android ou a versão do Godot.
 
