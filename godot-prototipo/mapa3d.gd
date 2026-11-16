@@ -61,7 +61,7 @@ var b_mais := Rect2()
 var b_menos := Rect2()
 var b_eu := Rect2()
 var b_ir := Rect2()
-# áreas de plantio (camada do filtro do mapa, André 2026-11-16): um quadradinho amarelo por quadrado de 4 m
+# áreas de plantio (camada do filtro do mapa, André 2026-11-16): pinheirinhos em fileiras (antes quadradinhos amarelos)
 var _quads_plantio := {} # lido na linha principal antes de montar no fundo
 var plantio_mi: MultiMeshInstance3D
 
@@ -661,29 +661,49 @@ func _vilas() -> void:
 func _plantio() -> void:
 	if _quads_plantio.is_empty():
 		return
-	var pl := PlaneMesh.new()
-	pl.size = Vector2(3.6, 3.6)
-	var mmu := MultiMesh.new()
-	mmu.transform_format = MultiMesh.TRANSFORM_3D
-	mmu.mesh = pl
-	mmu.instance_count = _quads_plantio.size()
-	var n := 0
+	# André 2026-11-16: pinheirinhos verde-claro em fileiras (cara de plantação) no lugar dos quadrados amarelos.
+	# Um a cada 12 m (3 x 3 quadrados) que tenha ao menos 3 quadrados de área; a mata de verdade é escura e solta.
+	var cel := {}
 	for q in _quads_plantio:
-		var x: float = (q.x + 0.5) * 4.0
-		var z: float = (q.y + 0.5) * 4.0
-		mmu.set_instance_transform(n, Transform3D(Basis(), Vector3(x, alt(x, z) + 0.9, z)))
-		n += 1
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(1.0, 0.77, 0.08, 0.8)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	plantio_mi = MultiMeshInstance3D.new()
-	plantio_mi.multimesh = mmu
-	plantio_mi.material_override = mat
-	plantio_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mundo3d.add_child(plantio_mi)
+		var c := Vector2i(floori(q.x / 3.0), floori(q.y / 3.0))
+		cel[c] = int(cel.get(c, 0)) + 1
+	var pontos := []
+	for c in cel:
+		if int(cel[c]) >= 3:
+			pontos.append(Vector2((c.x + 0.5) * 12.0, (c.y + 0.5) * 12.0))
 	_quads_plantio = {}
+	if pontos.is_empty():
+		return
+	var folhas := CylinderMesh.new()
+	folhas.top_radius = 0.0
+	folhas.bottom_radius = 2.4
+	folhas.height = 6.5
+	folhas.radial_segments = 6
+	folhas.rings = 1
+	var tronco := CylinderMesh.new()
+	tronco.top_radius = 0.35
+	tronco.bottom_radius = 0.45
+	tronco.height = 2.0
+	tronco.radial_segments = 5
+	tronco.rings = 1
+	plantio_mi = MultiMeshInstance3D.new()
+	plantio_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for parte in [[folhas, 5.0, Color8(96, 170, 72)], [tronco, 1.0, Color8(96, 66, 40)]]:
+		var mmu := MultiMesh.new()
+		mmu.transform_format = MultiMesh.TRANSFORM_3D
+		mmu.use_colors = true
+		mmu.mesh = parte[0]
+		mmu.instance_count = pontos.size()
+		for n in pontos.size():
+			var p: Vector2 = pontos[n]
+			mmu.set_instance_transform(n, Transform3D(Basis(), Vector3(p.x, alt(p.x, p.y) + parte[1], p.y)))
+			mmu.set_instance_color(n, (parte[2] as Color).lightened(fmod(absf(p.x * 0.37 + p.y * 0.21), 1.0) * 0.08))
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = mmu
+		mi.material_override = _mat_nevoa()
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		plantio_mi.add_child(mi)
+	mundo3d.add_child(plantio_mi)
 
 # ---------- toque ----------
 

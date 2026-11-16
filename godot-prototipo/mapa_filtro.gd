@@ -10,7 +10,6 @@ const CAMADAS := [["vilas", "Vilas e cidades"], ["totens", "Totens"], ["caca", "
 	["mercadores", "Mercadores"], ["plantio", "Áreas de plantio"]]
 const CFG := "user://mapa.cfg"
 const OURO := Color("c9a35a")
-const AMARELO := Color(1.0, 0.77, 0.08)
 
 var mostra := {} # camada -> false quando escondida (o que não está aqui aparece)
 var aberto := false
@@ -19,8 +18,8 @@ var caixa := Rect2()
 var _linhas := [] # [Rect2, camada]
 var _tudo := Rect2()
 var _nada := Rect2()
-var _tex_plantio: ImageTexture
-var _ret_plantio := Rect2() # metros (x, z) que a textura das áreas cobre
+var _pontos_plantio := {} # lado da célula (m) -> [Vector2]: onde vai um símbolo de pinheirinhos (feito uma vez por lado)
+const VERDE_PL := Color(0.55, 0.85, 0.45)
 
 func _init() -> void:
 	var cfg := ConfigFile.new()
@@ -74,7 +73,7 @@ func desenhar(c: Control, canto: Vector2, fonte: Font) -> void:
 		sb.draw(c.get_canvas_item(), q)
 		if on:
 			c.draw_polyline(PackedVector2Array([q.position + Vector2(4, 11), q.position + Vector2(9, 16), q.position + Vector2(18, 5)]), Color.WHITE, 3.0, true)
-		var cor := AMARELO if cm[0] == "plantio" else Color(0.95, 0.91, 0.84)
+		var cor := VERDE_PL if cm[0] == "plantio" else Color(0.95, 0.91, 0.84)
 		c.draw_string(fonte, r.position + Vector2(40, 22), Idioma.frase(cm[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, cor)
 		y += 34.0
 	_tudo = Rect2(Vector2(caixa.position.x + 12, y + 8), Vector2((lw - 36) * 0.5, 34))
@@ -118,26 +117,41 @@ func toque(lp: Vector2) -> bool:
 func cobre(lp: Vector2) -> bool:
 	return botao.grow(6).has_point(lp) or (aberto and caixa.has_point(lp))
 
-# camada das áreas de plantio no mapa 2D: uma textura com um ponto por quadrado de 4 m (feita uma vez)
-func textura_plantio(quads: Dictionary) -> ImageTexture:
-	if _tex_plantio != null or quads.is_empty():
-		return _tex_plantio
-	var i0 := 1 << 30
-	var k0 := 1 << 30
-	var i1 := -(1 << 30)
-	var k1 := -(1 << 30)
+# André 2026-11-16: no lugar da mancha amarela, pinheirinhos ("bate o olho e já sabe: ali é área de plantar árvore").
+# Um símbolo por célula de `lado` metros que tem pelo menos 1/6 dela em área de plantio, no meio dos quadrados dela.
+func pontos_plantio(quads: Dictionary, lado: int) -> Array:
+	if _pontos_plantio.has(lado):
+		return _pontos_plantio[lado]
+	var cel := {} # Vector2i -> [soma x, soma z, n]
+	var por := float(lado) / 4.0
 	for q in quads:
-		i0 = mini(i0, q.x)
-		k0 = mini(k0, q.y)
-		i1 = maxi(i1, q.x)
-		k1 = maxi(k1, q.y)
-	var img := Image.create(i1 - i0 + 1, k1 - k0 + 1, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	for q in quads:
-		img.set_pixel(q.x - i0, q.y - k0, Color(AMARELO, 0.8))
-	_tex_plantio = ImageTexture.create_from_image(img)
-	_ret_plantio = Rect2(i0 * 4.0, k0 * 4.0, (i1 - i0 + 1) * 4.0, (k1 - k0 + 1) * 4.0)
-	return _tex_plantio
+		var c := Vector2i(floori(q.x / por), floori(q.y / por))
+		var v: Array = cel.get(c, [0.0, 0.0, 0])
+		v[0] += (q.x + 0.5) * 4.0
+		v[1] += (q.y + 0.5) * 4.0
+		v[2] += 1
+		cel[c] = v
+	var minimo := maxi(4, int(por * por / 6.0))
+	var r := []
+	for c in cel:
+		var v: Array = cel[c]
+		if v[2] >= minimo:
+			r.append(Vector2(v[0] / v[2], v[1] / v[2]))
+	_pontos_plantio[lado] = r
+	return r
 
-func ret_plantio() -> Rect2:
-	return _ret_plantio
+# um pinheirinho: tronco e três andares de folhas (s = altura em pixels)
+static func pinho(c: CanvasItem, p: Vector2, s: float, cor: Color) -> void:
+	var escuro := Color(0.08, 0.2, 0.09)
+	c.draw_rect(Rect2(p + Vector2(-s * 0.12, -s * 0.05), Vector2(s * 0.24, s * 0.33)), Color(0.43, 0.29, 0.16))
+	for a in [[0.55, 0.08, -0.42], [0.45, -0.22, -0.72], [0.33, -0.5, -1.0]]:
+		var t := PackedVector2Array([p + Vector2(-a[0] * s, a[1] * s), p + Vector2(a[0] * s, a[1] * s), p + Vector2(0, a[2] * s)])
+		c.draw_colored_polygon(t, cor)
+		t.append(t[0])
+		c.draw_polyline(t, escuro, 1.0, true)
+
+# o símbolo das áreas de plantio no mapa 2D: três pinheirinhos juntos (o do meio maior)
+static func simbolo_plantio(c: CanvasItem, p: Vector2, s: float) -> void:
+	pinho(c, p + Vector2(-s * 0.62, s * 0.1), s * 0.8, Color(0.29, 0.6, 0.25))
+	pinho(c, p + Vector2(s * 0.62, s * 0.1), s * 0.8, Color(0.29, 0.6, 0.25))
+	pinho(c, p + Vector2(0, -s * 0.05), s, Color(0.18, 0.5, 0.21))
