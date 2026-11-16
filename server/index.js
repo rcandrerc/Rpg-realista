@@ -89,6 +89,9 @@ class SalaClareira extends Room {
   }
   onCreate() {
     salas.add(this);
+    // 2026-11-16 (ronda dos robôs): o robô 2 com placa lenta caiu na primeira entrada com "seat reservation expired"
+    // (15 s do Colyseus). Celular fraco montando o mundo atrás da capa pode passar disso; 45 s não muda nada para quem entra rápido.
+    this.setSeatReservationTime(45);
     this.sim = new Simulacao(MAPA_CLAREIRA);
     this.visao = new Visao((id) => this.sim.coletaveis.get(id)); // veios e árvores: só os de perto (onde está cada um); cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
     // Vila dos Lotes: dono, peças e horta guardados no servidor; a compra confere no banco (vale entre salas)
