@@ -4168,7 +4168,10 @@ export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 };
     return h % (vilas.some((v) => Math.hypot(x - v.x, z - v.z) < v.r + NATIVAS.pertoVila) ? NATIVAS.umEmPerto : NATIVAS.umEmLonge) === 0;
   };
   const nativas = [], vivas = new Set();
-  MAPA_CLAREIRA.mata.forEach((a, n) => { if (fica(a)) { nativas.push({ ...a, n }); vivas.add(a); } });
+  // Rio Claro (2026-11-16): a vila nova é maior e empurra as árvores de perto para outro lugar; o sorteio acima sai da
+  // posição, então estas 18 (as que ficavam antes) seguem no mapa, só um pouco mais para fora (nada some)
+  const ficamRio = new Set([6538,6595,6599,6600,6602,6737,6738,6849,6852,6893,6988,6993,7213,7214,7292,7293,7537,7738]);
+  MAPA_CLAREIRA.mata.forEach((a, n) => { if (fica(a) || ficamRio.has(n)) { nativas.push({ ...a, n }); vivas.add(a); } });
   NATIVAS.antes = MAPA_CLAREIRA.mata.length;
   MAPA_CLAREIRA.mata = nativas;
   // orelha-de-pau grudada em árvore que saiu ficava flutuando no ar (André 2026-11-16): sai junto com a árvore.
