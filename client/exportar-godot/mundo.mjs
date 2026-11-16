@@ -111,9 +111,9 @@ const mundo = {
   estacoes: MAPA_CLAREIRA.estacoes || [], // estações públicas da vila (bigorna e forninho da ferraria, bancada da Rosa; 2026-11-11)
   // história v2, Entrega 3: as mini vilas do mundo grande (shared/vilas.js): casas, banca e enfeites que vilas_mundo.gd desenha
   // Aurora viva: a cidade de pedra branca (as peças vão junto com as casas; ruas e praça de calçada; acende: a missão
-  // que acende as janelas, as torres e a Chama de Aethra)
+  // que acende as janelas, as torres e a Chama de Aethra). Rio Claro (2026-11-16): chão de tijolo (rio_chao) e rua mais larga
   vilasMundo: VILAS_MUNDO.map((V) => ({ id: V.id, nome: V.nome, nivel: V.nivel, x: V.x, z: V.z, raio: V.raio, casas: V.casas, banca: V.banca, enfeites: V.enfeites,
-    ...(V.cidade ? { cidade: { acende: V.cidade.acende, praca: V.praca, ruas: V.ruas, largura: CALCADA.largura, sobe: CALCADA.sobe, sobePraca: CALCADA.sobePraca } } : {}) })),
+    ...(V.cidade ? { cidade: { acende: V.cidade.acende, chao: V.cidade.chao || 'aurora_chao', praca: V.praca, ruas: V.ruas, largura: V.cidade.largura || CALCADA.largura, sobe: CALCADA.sobe, sobePraca: CALCADA.sobePraca } } : {}) })),
   cais: MAPA_CLAREIRA.cais || [], // FASE 3, Parte 7b: cais de madeira dos portos (andar.gd anda por cima; mundo_terreno.gd desenha)
   // FASE 3, Parte 7b: todas as vilas de terreno (a primeira é a de cima), com as estradas que o terreno não pode pegar
   vilasTerreno: VILAS_TERRENO.map((V) => ({ id: V.id, nome: V.nome, x: V.area.x, z: V.area.z, area: V.area, max: V.max, mundo: !!V.mundo, bairro: !!V.bairro,

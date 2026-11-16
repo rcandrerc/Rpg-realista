@@ -63,7 +63,7 @@ func _ready() -> void:
 	_malha_capim = _touceira_capim()
 	_malha_samambaia = _touceira_samambaia()
 	if not T.mundo_g.is_empty() and ResourceLoader.exists("res://relevo/mundo_mascara.png"):
-		_mascara = load("res://relevo/mundo_mascara.png").get_image()
+		_mascara = preload("res://imagem_cpu.gd").ler(load("res://relevo/mundo_mascara.png")) # pelo arquivo, não pela placa (Mali-G72)
 		if _mascara.is_compressed():
 			_mascara.decompress()
 		_masc_area = Vector4(float(T.mundo_g.x0) - 0.5, float(T.mundo_g.z0) - 0.5,

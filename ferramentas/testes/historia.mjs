@@ -336,7 +336,7 @@ falar('v_otavio'); ok(missao() === 'c2', 'Otávio: a Casa do Comércio');
   s.leilaoMsg('A', { acao: 'retirar' }); correr(0.1); }
 falar('v_otavio'); fim('c2');
 subir(35); falar('m_abobora'); ok(missao() === 'c3' && contar(p.mochila, 'semente_abobora') >= 2, 'Abel deu as sementes');
-for (const k of ['abobora', 'milho', 'rabanete']) s.historia(j, 'plantar', { k });
+for (const [k, n] of [['abobora', 4], ['milho', 4], ['rabanete', 6]]) for (let q = 0; q < n; q++) s.historia(j, 'plantar', { k }); // "Plante 4 sementes de abóbora"...
 s.historia(j, 'criar', { k: 'pao_milho', n: 2 }); s.historia(j, 'pack_fez', { k: 'abobora' }); s.historia(j, 'pack_fez', { k: 'abobora' });
 p.carrinho = { lv: 3, vida: 600, comb: 0, packs: [] }; correr(0.6); ok(etapa().ev === 'pack', 'carrinho já no Nv 3');
 entregar('abobora', 'm_pedra', 'costas'); ok(h().n === 0, 'pack nas costas não vale');
@@ -381,7 +381,7 @@ subir(48); falar('lider'); ok(missao() === 'h11' && !liberado(p, 'B4'), 'O Porto
 chefe('maira'); ok(liberado(p, 'B4'), 'Maíra caiu: o sul abre na etapa');
 falar('v_odete'); fim('h11');
 subir(49); falar('m_conserva'); ok(missao() === 'c11', 'Dona Marta: conservas');
-s.historia(j, 'plantar', { k: 'batata' }); s.historia(j, 'plantar', { k: 'milho' });
+for (let q = 0; q < 7; q++) s.historia(j, 'plantar', { k: 'batata' }); for (let q = 0; q < 8; q++) s.historia(j, 'plantar', { k: 'milho' });
 for (let k = 0; k < 4; k++) s.historia(j, 'pack_fez', { k: 'conserva' });
 entregar('conserva', 'm_abobora', 'carrinho', 4); p.mochila.fill(null, 20); falar('m_conserva'); fim('c11'); // lugar para o presente (os kits do comecinho, shared/kit.js, ocupam uns lugares)
 ok(s.histInfo(j).titulo === 'Voz das Estradas' && contar(p.mochila, 'selo_epico') >= 1, 'título Voz das Estradas e o Selo Épico');

@@ -153,8 +153,8 @@ var _cam_u := Vector3.UP
 
 func _ready() -> void:
 	# mipmaps feitos aqui (o .import do Godot não sabe que a textura vai para 3D): partícula longe não pisca
-	var img: Image = load(ATLAS).get_image()
-	img.decompress()
+	var img: Image = preload("res://imagem_cpu.gd").ler(load(ATLAS)) # pelo arquivo, não pela placa (cores erradas no Mali-G72)
+	img.clear_mipmaps()
 	img.generate_mipmaps()
 	_tex = ImageTexture.create_from_image(img)
 	LUZ = _lote(700, true)

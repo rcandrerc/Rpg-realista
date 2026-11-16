@@ -21,6 +21,7 @@ function confereNpc(M, hi, quero, onde) {
   if (quero && npcBrilha(hi) !== quero) falhou(`${M.id} ${onde}: a etapa pede ${quero} mas brilha "${npcBrilha(hi)}" ("${hi?.txt}")`);
 }
 let conferidas = 0, vezesTime = 0;
+const vezesDe = (E, h) => Math.max(1, totalEtapa(E) - h.n);
 
 function jogar(i) {
   const M = HISTORIA[i], L = etapasDe(M);
@@ -89,8 +90,11 @@ function jogar(i) {
         p.vigor = { v: 999, t: Date.now() };
         if (!s.loteDe(j).horta[c]) s.horta('R', { acao: 'arar', c });
         s.horta('R', { acao: 'plantar', c, s: f.k }); s.checarEtapa(j);
+        // André 2026-11-16: "itens de plantação da missão ficassem prontos imediatamente": a planta da missão nasce madura
+        const t = s.loteDe(j).horta[c]; if (t?.c === f.k && t.g < PLANTAS[f.k].G) falhou(`${M.id} etapa ${h.e + 1}: plantou ${f.k} e não ficou pronta na hora ("${hi.txt}")`);
         continue;
       }
+      if ((f.fonte === 'cresce' || f.fonte === 'regar') && PLANTAS[f.k]) falhou(`${M.id} etapa ${h.e + 1}: a horta da missão espera crescer ("${hi.txt}")`);
       if (f.fonte === 'lote' && PLANTAS[f.k]) {
         const c = celulas.find((x) => s.loteDe(j).horta[x]?.c === f.k && s.loteDe(j).horta[x].g >= PLANTAS[f.k].G);
         if (c) { p.vigor = { v: 999, t: Date.now() }; s.horta('R', { acao: 'colher', c }); s.checarEtapa(j); continue; }
@@ -134,7 +138,19 @@ function jogar(i) {
       if (p.hist.e === a && p.hist.p === i) { falhou(`${M.id} etapa ${h.e + 1}: falou com ${E.npc} e nada ("${hi.txt}")`); return achados; }
       continue;
     }
-    if (E.ev === 'colher' || E.ev === 'plantar' || E.ev === 'regar') { s.historia(j, E.ev, { k: E.k }); continue; }
+    // "Plante 6 sementes de rabanete" (André 2026-11-16: comprou 1 e já mandava plantar): o guia só manda plantar com todas
+    // as sementes na mochila; o robô planta de verdade no lote, e cada uma tem que nascer pronta (cota da missão)
+    if (E.ev === 'plantar') {
+      const ks = E.k ? [E.k] : ['cenoura', 'batata', 'rabanete'], sem = ks.reduce((a, k) => a + contar(p.mochila, 'semente_' + k), 0);
+      if (sem < vezesDe(E, h)) falhou(`${M.id} etapa ${h.e + 1}: "${hi.txt}" manda plantar ${vezesDe(E, h)} com ${sem} semente(s)`);
+      const k = ks.find((q) => contar(p.mochila, 'semente_' + q) > 0); if (!k) { s.historia(j, E.ev, { k: E.k }); continue; }
+      const c = celulas.find((x) => !s.loteDe(j).horta[x]?.c); if (!c) { falhou(`${M.id}: lote cheio`); return achados; }
+      if (!s.loteDe(j).horta[c]) s.horta('R', { acao: 'arar', c });
+      s.horta('R', { acao: 'plantar', c, s: k }); s.checarEtapa(j);
+      const t = s.loteDe(j).horta[c]; if (t?.c === k && t.g < PLANTAS[k].G) falhou(`${M.id} etapa ${h.e + 1}: plantou ${k} e não ficou pronta na hora`);
+      continue;
+    }
+    if (E.ev === 'colher' || E.ev === 'regar') { s.historia(j, E.ev, { k: E.k }); continue; }
     // diárias (André 2026-11-16, missão da Rosa): abre a aba como o app e planta as sementes que ela deu, de verdade,
     // numa área de plantio (o Ir da diária); se travar, a diária de plantar não serve para a missão
     if (E.ev === 'diaria_vista') { s.diaria('R', { acao: 'ver' }); continue; }

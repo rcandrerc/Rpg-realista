@@ -22,7 +22,7 @@ for (const V of VILAS_MUNDO) {
   for (const c of V.casas) {
     const M = MODELOS_VILA[c.m];
     if (M.aberta) { ok(Math.abs(T.altura(c.x, c.z, c.y + 0.5) - (c.y + 0.03)) < 0.1, `${V.id}: piso da ferraria`); continue; }
-    if (M.w == null || M.portao) continue; // fonte e portão de Aurora: conferidos lá embaixo
+    if (M.w == null || M.portao || M.entra) continue; // fonte e portão de Aurora e a Casa do Comércio grande: conferidos lá embaixo
     const h = T.altura(c.x, c.z, 50);
     ok(Math.abs(h - (c.y + M.alto + M.sobe)) < 0.05, `${V.id} ${c.m}: cumeeira sólida (${h.toFixed(2)})`);
     const baixo = Math.min(...[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => alturaMundo(G, c.x + a * M.w / 2 * Math.cos(c.ry) + b * M.d / 2 * Math.sin(c.ry), c.z - a * M.w / 2 * Math.sin(c.ry) + b * M.d / 2 * Math.cos(c.ry))));
@@ -32,7 +32,7 @@ for (const V of VILAS_MUNDO) {
   // gente e estações fora das casas, perto da praça
   for (const n of MAPA_CLAREIRA.npcs.filter((o) => o.vila === V.id)) {
     const naCidade = V.cidade && V.casas.some((c) => c.n && Math.hypot(n.x - c.x, n.z - c.z) < 12);
-    ok(V.casas.every((c) => MODELOS_VILA[c.m].aberta || MODELOS_VILA[c.m].w == null || !dentro(c, n.x, n.z, 0.3)) && (Math.hypot(n.x - V.x, n.z - V.z) < V.raio + 3 || naCidade), `${V.id}: ${n.nome} fora das casas e na vila`);
+    ok(V.casas.every((c) => MODELOS_VILA[c.m].aberta || MODELOS_VILA[c.m].entra || MODELOS_VILA[c.m].w == null || !dentro(c, n.x, n.z, 0.3)) && (Math.hypot(n.x - V.x, n.z - V.z) < V.raio + 3 || naCidade), `${V.id}: ${n.nome} fora das casas e na vila`);
     ok(Math.abs(T.altura(n.x, n.z, 50) - alturaMundo(G, n.x, n.z)) < 0.6, `${V.id}: ${n.nome} no chão (não em cima de nada)`);
   }
   for (const E of ESTACOES_PUBLICAS.filter((e) => e.vila === V.id)) ok(V.casas.every((c) => MODELOS_VILA[c.m].aberta || !dentro(c, E.x, E.z, 0.5)), `${V.id}: ${E.nome} fora das casas`);
@@ -44,10 +44,41 @@ for (const id of ['rio_claro', 'pouso_serra', 'juncal', 'vila_mare', 'vila_veu']
 }
 ok(MAPA_CLAREIRA.npcs.find((n) => n.id === 'alquimista').vila === 'rio_claro', 'a Mirela mudou para o Rio Claro');
 // monstro não atravessa casa da vila
-const C = VILAS_MUNDO[0].casas.find((c) => !MODELOS_VILA[c.m].aberta);
+const C = VILAS_MUNDO[0].casas.find((c) => !MODELOS_VILA[c.m].aberta && !MODELOS_VILA[c.m].entra);
 const bicho = { tipo: 'lobo', x: C.x, z: C.z, y: 0 };
 s.colidir(bicho);
 ok(!dentro(C, bicho.x, bicho.z, 0.2), 'monstro é empurrado para fora da casa');
+
+// Vila do Rio Claro, o centro comercial (André 2026-11-16): a Casa do Comércio grande se entra a pé, o Otávio fica atrás
+// do balcão e a Iara e a Mirela nos corredores; Rua do Mercado com sobrados, bancas e vendedores; nada de antes sumiu
+{
+  const V = VILAS_MUNDO.find((v) => v.id === 'rio_claro'), K = V.casas.find((c) => c.m === 'comercio_grande');
+  const em = (lx, lz) => [K.x + lx * Math.cos(K.ry) + lz * Math.sin(K.ry), K.z - lx * Math.sin(K.ry) + lz * Math.cos(K.ry)];
+  ok(K && K.n === 'comercio', 'Rio Claro: a Casa do Comércio grande está na vila');
+  for (const m of ['forja', 'casa_4x6', 'casa_4x4', 'casa_6x6']) ok(V.casas.some((c) => c.m === m), `Rio Claro: ${m} continua`);
+  ok(V.casas.filter((c) => c.m === 'casa_4x4').length === 2, 'Rio Claro: as duas casas 4 x 4 continuam');
+  ok(V.casas.filter((c) => c.m.startsWith('sobrado_')).length === 8, 'Rio Claro: 8 sobrados na Rua do Mercado');
+  ok(V.enfeites.filter((e) => e.m.startsWith('banca_')).length === 5 && V.enfeites.filter((e) => e.m === 'carroca_carga').length === 4, 'Rio Claro: 5 bancas e 4 carroças com cavalo');
+  for (const m of ['barris', 'caixotes', 'carroca', 'mesa', 'banco']) ok(V.enfeites.some((e) => e.m === m), `Rio Claro: o enfeite ${m} continua`);
+  ok(V.enfeites.filter((e) => e.m === 'estandarte').length === 2, 'Rio Claro: os dois estandartes continuam');
+  ok(V.banca && Math.hypot(V.banca.x - V.x, V.banca.z - V.z) < 13, 'Rio Claro: a banca da Dália na praça');
+  // entra a pé: da praça, pela porta, até o balcão, o chão sobe no máximo um degrau
+  let y = T.altura(...em(0, 13), 50), passou = true;
+  for (let lz = 12.5; lz >= -4.6; lz -= 0.25) { const h = T.altura(...em(0, lz), y + 0.5); if (h - y > 0.45) passou = false; y = h; }
+  ok(passou, 'Rio Claro: dá para entrar andando na Casa do Comércio');
+  ok(Math.abs(T.altura(...em(0, 0), K.y + 1) - (K.y + 0.03)) < 0.05, 'Rio Claro: dentro o chão é o piso de tábua');
+  ok(T.altura(...em(-6, 10), K.y + 1) > K.y + 5, 'Rio Claro: a parede da frente é sólida');
+  ok(T.altura(...em(0, -5.5), K.y + 1) > K.y + 1, 'Rio Claro: o balcão é sólido');
+  ok(T.altura(...em(10, 8), 50) > K.y + 8.5, 'Rio Claro: as torres são sólidas');
+  const N = (id) => MAPA_CLAREIRA.npcs.find((n) => n.id === id), lc = (n) => { const dx = n.x - K.x, dz = n.z - K.z; return [dx * Math.cos(K.ry) - dz * Math.sin(K.ry), dx * Math.sin(K.ry) + dz * Math.cos(K.ry)]; };
+  const [ox, oz] = lc(N('v_otavio'));
+  ok(Math.abs(ox) < 1 && oz < -6, 'Rio Claro: o Otávio está atrás do balcão');
+  ok(Math.hypot(...em(0, -4.6).map((v, i) => v - [N('v_otavio').x, N('v_otavio').z][i])) < 4, 'Rio Claro: do lado de cá do balcão dá para falar com o Otávio');
+  ok(lc(N('v_iara'))[0] < -4 && lc(N('alquimista'))[0] > 4, 'Rio Claro: a Iara e a Mirela nos corredores, uma de cada lado');
+  ok(['v_rosalina', 'v_benedito', 'v_marisa', 'v_anibal', 'v_jurema'].every((id) => N(id)?.vila === 'rio_claro' && N(id).funcao === 'dica'), 'Rio Claro: os 5 vendedores da Rua do Mercado');
+  ok(MAPA_CLAREIRA.mata.every((a) => distRet({ x: K.x, z: K.z, ry: K.ry, w: 26, d: 22 }, a.x, a.z) > 0 && distRuas(V.ruas, a.x, a.z) > 4 && Math.hypot(a.x - V.praca.x, a.z - V.praca.z) > V.praca.r + 1), 'Rio Claro: nenhuma árvore na casa, na praça ou na rua');
+  ok(ESTRADAS_MUNDO.every((e) => e.curva.every(([x, z]) => distRet({ x: K.x, z: K.z, ry: K.ry, w: 24, d: 20 }, x, z) > 2.6)), 'Rio Claro: a Casa do Comércio fora da estrada');
+}
 
 // Aurora viva (André 2026-11-12, esboço aprovado): a cidade de pedra branca nos corredores entre os bairros
 {

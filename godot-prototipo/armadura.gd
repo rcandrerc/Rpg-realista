@@ -517,12 +517,9 @@ static func _pele_cheia(raiz: Node3D) -> void:
 		m.set_meta("pele_cheia", true)
 		var chave := "pele_cheia:%d" % m.albedo_texture.get_instance_id()
 		if not _malhas.has(chave):
-			var img: Image = m.albedo_texture.get_image()
+			var img: Image = preload("res://imagem_cpu.gd").ler(m.albedo_texture) # pelo arquivo, não pela placa (rosa no Mali-G72)
 			if img == null:
 				continue
-			img = img.duplicate()
-			if img.is_compressed():
-				img.decompress()
 			img.clear_mipmaps()
 			img.convert(Image.FORMAT_RGBA8)
 			var fundo := Image.create(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8)
@@ -530,7 +527,10 @@ static func _pele_cheia(raiz: Node3D) -> void:
 			fundo.fill(Color(c.r, c.g, c.b, 1.0))
 			fundo.blend_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO)
 			fundo.generate_mipmaps()
-			_malhas[chave] = ImageTexture.create_from_image(fundo)
+			var it := ImageTexture.create_from_image(fundo)
+			# quem ler esta textura depois (média da pele) remonta pelo arquivo, sem a placa e sem guardar 16 MB a mais
+			it.set_meta("imagem_cpu_fundo", [m.albedo_texture, Color(c.r, c.g, c.b, 1.0)])
+			_malhas[chave] = it
 		m.albedo_texture = _malhas[chave]
 		# André 2026-11-07 ("o rosto com uma cor e o corpo com outra"): sem camisa aparece muito mais corpo; ele
 		# ganha o mesmo tom médio do rosto
@@ -648,11 +648,9 @@ static func _peito_de_pele(raiz: Node3D) -> bool:
 	var ok := false
 	var m = corpo.mesh.surface_get_material(0)
 	if m is BaseMaterial3D and m.albedo_texture:
-		var img: Image = m.albedo_texture.get_image()
+		var img: Image = preload("res://imagem_cpu.gd").ler(m.albedo_texture) # pelo arquivo, não pela placa (rosa no Mali-G72)
 		if img:
 			img = img.duplicate()
-			if img.is_compressed():
-				img.decompress()
 			var ref: Color = preload("res://aparencia.gd").media(m.albedo_texture, true)
 			var n := 0
 			var bons := 0
