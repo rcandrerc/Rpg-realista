@@ -43,8 +43,11 @@ func registrar_partes(x: float, z: float, partes: Array) -> void:
 	_vila[_chave(x, z)] = partes
 
 # a árvore plantada saiu do servidor (cortada inteira): o toco afunda e some, e o lugar fica livre
-func tirar(id: String, x: float, z: float) -> void:
-	_vila.erase(_chave(x, z))
+func tirar(id: String, x: float, z: float, partes = null) -> void:
+	var k := _chave(x, z)
+	var atual = _vila.get(k)
+	if partes == null or (atual is Array and atual == partes): # outra já plantada no mesmo lugar fica
+		_vila.erase(k)
 	var info = _caidas.get(id)
 	if info == null:
 		return

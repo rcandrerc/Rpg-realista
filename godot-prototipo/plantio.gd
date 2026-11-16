@@ -11,6 +11,7 @@ var _mats := {} # "copa_tipo" / "tronco_tipo" -> material
 var _t := 0.0
 const ESCALA_FASE := [0.2, 0.55, 1.0] # muda, jovem, adulta
 const LONGE := 80.0 # m: como a mata
+const TOCO_FICA := 9.0 # s do corte até o toco sumir (a queda leva ~5 s)
 
 func _init(principal) -> void:
 	m = principal
@@ -88,13 +89,23 @@ func _material(parte: String, s: String, T: Dictionary, mesh: Mesh) -> Material:
 			_mats[k] = base
 	return _mats[k]
 
+# cortada (o servidor manda [id]): cai como as outras, o toco fica uns segundos e some (André 2026-11-16: "não é
+# simplesmente sumir"). Se o [id] chegou antes do evento da queda, ela cai aqui mesmo.
 func tirar(id: String) -> void:
 	var a = arvores.get(id)
 	if a == null:
 		return
 	arvores.erase(id)
+	var q = m.trabalho.queda
+	if not q.caida(id):
+		q.derrubar(a.o, null, true)
+	a.o.cargas = 0 # sem botão de cortar enquanto o toco está lá
+	a.o.volta_ate = m.tempo + 1e9
+	get_tree().create_timer(TOCO_FICA).timeout.connect(_sumir.bind(a))
+
+func _sumir(a: Dictionary) -> void:
 	m.trabalho.esquecer(a.o)
-	m.trabalho.queda.tirar(id, a.o.pos.x, a.o.pos.z)
+	m.trabalho.queda.tirar(a.o.id, a.o.pos.x, a.o.pos.z, a.partes)
 	a.no.queue_free()
 
 # muda vira jovem e jovem vira adulta: confere de 2 em 2 s
