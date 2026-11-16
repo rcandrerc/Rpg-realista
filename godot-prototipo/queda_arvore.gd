@@ -7,7 +7,7 @@ extends Node3D
 # do vila.glb, uma cópia por árvore).
 
 var m # main.gd
-var _vila := {} # Vector2i(x*10, z*10) -> [MeshInstance3D] (tronco e copa de cada árvore a0... do vila.glb)
+var _vila := {} # Vector2i(x*100, z*100) -> [MeshInstance3D] (tronco e copa de cada árvore a0... do vila.glb)
 var _caidas := {} # id -> {toco: Node3D, queda: Node3D ou null, partes_vila: [[mi, escala]]}
 var _mat_toco: StandardMaterial3D
 var _mat_corte: StandardMaterial3D
@@ -58,8 +58,11 @@ func tirar(id: String, x: float, z: float, partes = null) -> void:
 		tt.tween_property(toco, "scale", Vector3(1, 0.05, 1), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		tt.tween_callback(toco.queue_free)
 
+# em centímetros. André 2026-11-16 ("fica o toquinho e o resto dela em cima"): em décimos, 7 das 87 árvores da vila
+# (a4, a18, a25, a27, a61, a65, a79) caíam bem na metade (ex.: x,x5) e o arredondamento do vila.glb (float32) ia para um
+# lado e o do mundo.json para o outro: a árvore não era achada, o toco nascia e ela ficava em pé por cima.
 func _chave(x: float, z: float) -> Vector2i:
-	return Vector2i(roundi(x * 10.0), roundi(z * 10.0))
+	return Vector2i(roundi(x * 100.0), roundi(z * 100.0))
 
 func caida(id: String) -> bool:
 	return _caidas.has(id)
