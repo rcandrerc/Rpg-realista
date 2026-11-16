@@ -160,6 +160,8 @@ func tocou_tela(pos: Vector2) -> void:
 		var conta: String = m.amigos.conta_virtual(achou) if m.amigos else ""
 		if conta != "" and m.chat:
 			bts.append(["Mensagem", func(): esconder_cartao(); m.chat.abrir_pm(conta, nome)])
+		elif conta == "": # ainda não é amigo (André 2026-11-16): pede e o NPC decide na hora
+			bts.append(["Adicionar amigo", func(): esconder_cartao(); m.rede("amigo", {"acao": "pedir", "com": achou})])
 		if not longe:
 			bts += ver
 		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)

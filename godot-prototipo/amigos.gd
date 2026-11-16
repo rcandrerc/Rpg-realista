@@ -354,7 +354,8 @@ func montar_janela(mt) -> void:
 			linha.add_theme_constant_override("separation", 8)
 			var coracao := Menu.rotulo("♥", 15, Color("ff8fc8"))
 			linha.add_child(coracao)
-			var l := Menu.rotulo("%s  (Nv %d · amizade %d)" % [nome, int(v.get("nivel", 1)), int(v.get("amizade", 0))], 15, Menu.TEXTO)
+			# André 2026-11-16: só aparece quem ele adicionou e o NPC aceitou; o selo "NPC" mostra que não é gente
+			var l := Menu.rotulo("%s  [NPC]  (Nv %d · amizade %d)" % [nome, int(v.get("nivel", 1)), int(v.get("amizade", 0))], 15, Menu.TEXTO)
 			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			l.clip_text = true
 			linha.add_child(l)
@@ -369,6 +370,14 @@ func montar_janela(mt) -> void:
 				linha.add_child(_pequeno(mt._botao("Sair do time", func(): _time_virtual(mt, "expulsar", vid, c), false), 120))
 			elif int(v.get("on", 1)) == 1:
 				linha.add_child(_pequeno(mt._botao("Time", func(): _time_virtual(mt, "convidar", vid, c)), 70))
+			var conf_v := _remover == c # desfazer a amizade com o NPC: dois toques, como com gente
+			linha.add_child(_pequeno(mt._botao("Certeza?" if conf_v else "Remover", func():
+				if _remover == c:
+					_remover = ""
+					m.rede("amigo", {"acao": "remover", "c": c})
+				else:
+					_remover = c
+				mt.montar(), false, conf_v), 92))
 			col.add_child(linha)
 			linhas += 1
 			if not v.get("ia", true):
@@ -484,11 +493,16 @@ func _preencher_busca() -> void:
 		ponto.color = Menu.VERDE if on == 1 else Color(0.85, 0.7, 0.35) if on == 2 else Color(0.4, 0.38, 0.35)
 		linha.add_child(ponto)
 		var est := "aqui" if on == 1 else "em outro mundo" if on == 2 else "offline"
-		var l := Menu.rotulo("%s  (%s)" % [str(r.nome), Idioma.frase(est)], 15, Menu.TEXTO if on > 0 else Menu.APAGADO)
+		var npc := bool(r.get("npc", false)) # Cecília/Dario (André 2026-11-16): pedem-se pela busca também e respondem na hora
+		var l := Menu.rotulo(("%s  [NPC]" % str(r.nome)) if npc else ("%s  (%s)" % [str(r.nome), Idioma.frase(est)]), 15, Menu.TEXTO if on > 0 else Menu.APAGADO)
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		l.clip_text = true
 		linha.add_child(l)
-		if r.get("amigo", false):
+		if npc and not r.get("amigo", false):
+			linha.add_child(_pequeno(_mt._botao("Pedir", func():
+				m.rede("amigo", {"acao": "pedirC", "c": c})
+				_lista_t = 0.6), 100))
+		elif r.get("amigo", false):
 			linha.add_child(Menu.rotulo("Amigo", 14, Menu.VERDE))
 		elif r.get("env", false):
 			var be: Button = _pequeno(_mt._botao("Enviado", func(): pass, false), 100)
