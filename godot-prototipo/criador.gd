@@ -96,6 +96,12 @@ var _arrastou := false
 var _arrasto_dentro := false
 var _arrasto_soma := 0.0
 var corpo := "ruiva" # corpo escolhido (CRIADOR.corpos)
+# André 2026-11-16: quadradinho "Ver equipado" na Aparência (marcado = prévia com a roupa e a armadura de agora;
+# desmarcado = sem equipamento, como antes). Só na Aparência; na conta nova não tem equipamento
+var ver_equip := false
+var linha_equip: Control
+var q_equip: Control # Menu.Quadradinho
+var _vestido_previa := ""
 var corpos_ui := {} # corpo -> botão com o rosto
 var penteados_fl: HFlowContainer # botões de penteado do corpo escolhido (CRIADOR.penteados, penteado.gd)
 var penteados_ui := [] # [botão, id do penteado ou null]
@@ -290,6 +296,7 @@ func montar_boneco(id: String) -> void:
 	esq = m.esqueleto(boneco)
 	# André 2026-11-03: a prévia usa o mesmo corpo do jogo (cintura fina e roupa de baixo branca), sem armadura
 	Armadura.vestir(boneco, {})
+	_vestido_previa = "%d|-" % boneco.get_instance_id()
 	cabeca = -1
 	for i in esq.get_bone_count():
 		var n := esq.get_bone_name(i)
@@ -331,6 +338,8 @@ func montar_painel() -> Control:
 	sub = Menu.rotulo("", 13, APAGADO)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(sub)
+	linha_equip = linha_ver_equip()
+	col.add_child(linha_equip)
 	rolagem = ScrollContainer.new()
 	rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rolagem.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -449,6 +458,53 @@ func montar_painel() -> Control:
 	baixo.add_child(b_pronto)
 	col.add_child(baixo)
 	return p
+
+# linha inteira é um botão: toca para marcar ou desmarcar "Ver equipado"
+func linha_ver_equip() -> Control:
+	var b := Button.new()
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size.y = 36
+	var vazio := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(st, vazio)
+	var h := HBoxContainer.new()
+	h.set_anchors_preset(Control.PRESET_FULL_RECT)
+	h.add_theme_constant_override("separation", 8)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(h)
+	var q := Menu.Quadradinho.new()
+	q.lado = 22
+	q.marcado = ver_equip
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(q)
+	q_equip = q
+	var t := Menu.rotulo("Ver equipado", 15, TEXTO)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(t)
+	b.pressed.connect(func():
+		if _arrastou:
+			return
+		ver_equip = not ver_equip
+		q_equip.marcado = ver_equip
+		q_equip.queue_redraw()
+		vestir_previa())
+	return b
+
+# veste a prévia com o equipamento de agora (capacete escondido também) ou sem nada. Refaz só quando muda
+# a roupa, a aparência, o corpo ou o quadradinho (vestir custa ~13 ms no celular)
+func vestir_previa() -> void:
+	if boneco == null:
+		return
+	var eq: Dictionary = m.P.equip_visivel() if ver_equip and not _criacao else {}
+	var chave := "%d|%s|%s" % [boneco.get_instance_id(), str(eq), str(ap)]
+	if eq.is_empty():
+		chave = "%d|-" % boneco.get_instance_id() # sem nada: o boneco já nasce assim (montar_boneco)
+	if chave == _vestido_previa:
+		return
+	_vestido_previa = chave
+	Armadura.vestir(boneco, eq)
 
 # botão redondo com o rosto do corpo (sem nome); aceso com aro dourado quando é o escolhido
 func botao_corpo(id: String) -> Control:
@@ -659,6 +715,7 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	_nome_confirmar = false
 	_texto_b_nome()
 	b_cancelar.visible = not _criacao
+	linha_equip.visible = not _criacao
 	b_pronto.set_meta("pt", "Pronto" if _criacao else "Salvar") # o guia das missões acha o botão pelo texto em português
 	b_pronto.text = Idioma.frase(str(b_pronto.get_meta("pt")))
 	titulo.text = Idioma.frase("CRIAR PERSONAGEM" if _criacao else "APARÊNCIA")
@@ -687,6 +744,7 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	anim.play("parada")
 	marcar()
 	Aparencia.aplicar(boneco, ap)
+	vestir_previa()
 	_colocar_camera(1.0)
 	fazer_rostos()
 
@@ -800,6 +858,7 @@ func mudou() -> void:
 	ap = Aparencia.valida(ap, criador)
 	marcar()
 	Aparencia.aplicar(boneco, ap)
+	vestir_previa()
 	if _ao_mudar.is_valid():
 		_ao_mudar.call(ap.duplicate(), corpo)
 
