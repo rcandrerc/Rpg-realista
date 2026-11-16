@@ -1426,7 +1426,7 @@ func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 	if mm.marcado != null and m.rota:
 		var metros: float = m.rota.comprimento(mm.previa)
 		var lugar := _nome_marcado()
-		var t := Idioma.frase("Ir para %s(%d m)" % [lugar + " " if lugar != "" else "", int(round(metros))])
+		var t := Idioma.frase("Ir para %s (%d m)" % [lugar, int(round(metros))]) if lugar != "" else Idioma.frase("Ir para (%d m)" % int(round(metros)))
 		var w := fonte.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 40.0
 		b_ir = Rect2(Vector2(cz.x - w * 0.5, cz.y - 84.0), Vector2(w, 44))
 		_botao(c, b_ir, t, 20)
