@@ -52,7 +52,13 @@ func _ready() -> void:
 			_montar_solto(o, float(c.get("ry", 0.0)))
 			soltos.append(o)
 		elif o.tipo != "arvore":
-			_montar_veio(o, float(c.get("ry", 0.0)))
+			# André 2026-11-16 ("o jogo tá demorando muito para abrir"): montar as pedras dos 263 veios levava 11 a 17 s
+			# no celular com a tela parada (registros da entrada, parte "trabalho"; 1,5 s no PC). Agora cada veio entra
+			# na fila de montagem (main.gd criar_aos_poucos), o mais perto do herói primeiro, atrás da capa e da janela
+			# "Entrar como…"; a capa só sai quando a fila acaba. Até montar, o veio já existe para o servidor e a colisão.
+			o.k = float(o.r) / 0.8
+			o.ry_veio = float(c.get("ry", 0.0))
+			_veios_fila.append(o)
 			veios.append(o)
 		coletaveis.append(o)
 		por_id[o.id] = o
@@ -60,6 +66,8 @@ func _ready() -> void:
 		if not grade.has(k):
 			grade[k] = []
 		grade[k].append(o)
+	for i in _veios_fila.size():
+		m._a_criar.append(_montar_proximo_veio)
 	queda = QuedaArvore.new(m)
 	add_child(queda)
 	ferramentas["min"] = _ferramenta("res://ferramentas3d/Pickaxe_Bronze.gltf")
@@ -123,6 +131,29 @@ func do_servidor(v: float) -> void:
 
 # ---------- veios e árvores ----------
 # a pedra dos veios é a mesma das rochas de musgo da vila (Poly Haven), já pintada no estilo do jogo
+var _veios_fila: Array = [] # veios ainda sem pedra (montam um por vez na fila do main.gd)
+
+# monta a pedra do veio mais perto do herói; se o servidor já disse que ele está esgotado, nasce só o cascalho
+func _montar_proximo_veio() -> void:
+	if _veios_fila.is_empty():
+		return
+	var h: Vector3 = m.heroi.position if m.heroi else Vector3.ZERO
+	var melhor := 0
+	var dmin := INF
+	for i in _veios_fila.size():
+		var p: Vector3 = _veios_fila[i].pos
+		var d := Vector2(p.x - h.x, p.z - h.z).length_squared()
+		if d < dmin:
+			dmin = d
+			melhor = i
+	var o: Dictionary = _veios_fila[melhor]
+	_veios_fila.remove_at(melhor)
+	_montar_veio(o, float(o.ry_veio))
+	if esgotado(o):
+		o.corpo.visible = false
+		o.entulho.visible = true
+		m.mov.vazios[o.id] = true
+
 func _montar_veio(o: Dictionary, ry: float) -> void:
 	var raiz := Node3D.new()
 	raiz.position = o.pos
@@ -263,13 +294,16 @@ func _juntar_veio(o: Dictionary) -> void:
 
 # bloco facetado: esfera de poucas faces com os vértices puxados para dentro e para fora (pedra lascada), base chata
 # enterrada uns 12 cm, normais chapadas e um tom por face (canal r da cor) para as facetas brilharem diferente
+static var _esfera: Array = []
 func _bloco(rnd: RandomNumberGenerator, raio: float, alto: float) -> ArrayMesh:
-	var esf := SphereMesh.new()
-	esf.radius = 1.0
-	esf.height = 2.0
-	esf.radial_segments = 7
-	esf.rings = 4
-	var arr := esf.get_mesh_arrays()
+	if _esfera.is_empty(): # a esfera base é sempre a mesma: calcula uma vez só (antes, uma vez por bloco, ~3.000 vezes)
+		var esf := SphereMesh.new()
+		esf.radius = 1.0
+		esf.height = 2.0
+		esf.radial_segments = 7
+		esf.rings = 4
+		_esfera = esf.get_mesh_arrays()
+	var arr := _esfera
 	if arr.size() <= Mesh.ARRAY_INDEX or arr[Mesh.ARRAY_VERTEX] == null: # sem placa de vídeo (teste sem tela no Godot 4.7)
 		push_warning("pedra sem malha (get_mesh_arrays vazio)")
 		return ArrayMesh.new()
