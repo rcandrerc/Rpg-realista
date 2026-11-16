@@ -72,11 +72,11 @@ func _process(dt: float) -> bool:
 		return false
 	var on = m.online
 	# o que a tela de entrada diz (para saber onde parou se não entrar)
-	var est := "%s | %s | botão=%s capa=%s" % [on.carregando.text if on.carregando.visible else "", on.aviso_login.text, on.b_continuar.visible if on.b_continuar else "-", on.capa.visible]
-	if est != ultimo_estado:
+	var est := "%s | %s | botão=%s capa=%s" % [on.carregando.text if on.carregando.visible else "", on.aviso_login.text, on.b_continuar.is_visible_in_tree() if on.b_continuar else "-", on.capa.visible]
+	if entrou_t < 0.0 and est != ultimo_estado:
 		ultimo_estado = est
 		print("CELULAR tela t=%.1f s: %s" % [t, est])
-	if on.b_continuar and on.b_continuar.visible and t - apertou_t > 3.0:
+	if entrou_t < 0.0 and on.b_continuar and on.b_continuar.is_visible_in_tree() and t - apertou_t > 3.0:
 		apertou = true
 		apertou_t = t
 		n_toques += 1

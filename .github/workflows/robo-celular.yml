@@ -87,6 +87,7 @@ jobs:
         if: always()
         run: |
           cp /tmp/srv/lentidao*.jsonl /tmp/cel/ 2>/dev/null || true
+          cp /tmp/srv/log.txt /tmp/cel/servidor.log 2>/dev/null || true # por que uma entrada caiu (o app só diz "não respondeu")
           LOGS=/tmp/cel/sem-tela.log,/tmp/cel/vulkan.log node ferramentas/robo/celular-relatorio.mjs /tmp/srv /tmp/cel/sem-tela.json /tmp/cel/vulkan.json
           cp celular-relatorio.json /tmp/cel/ || true
       - uses: actions/upload-artifact@v4
