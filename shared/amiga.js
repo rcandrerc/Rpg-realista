@@ -145,6 +145,8 @@ export const Amiga = {
       j.amizades = salvo.amizades && typeof salvo.amizades === 'object' ? { ...salvo.amizades } : {};
       j.donoConta = null;
       j.amizadeDia = salvo.amizadeDia && typeof salvo.amizadeDia === 'object' ? { ...salvo.amizadeDia } : {}; // conta -> [dia, quanto subiu hoje]
+      // quem a adicionou na lista de amigos e ela aceitou (André 2026-11-16: "eu queria ter que adicionar ele"): conta -> 1
+      j.amigosDe = salvo.amigosDe && typeof salvo.amigosDe === 'object' ? Object.fromEntries(Object.keys(salvo.amigosDe).slice(0, 500).map((k) => [k, 1])) : {};
       // memória de cada pessoa (conta -> lista), dicas que viraram regra (conta -> { curaCedo: true }) e o que fazem juntos
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
@@ -186,6 +188,34 @@ export const Amiga = {
     if (this.ocupadaAmiga()) return false;
     this.mudarDonoAmiga(id);
     return true;
+  },
+  // ---------- amizade conquistada (André 2026-11-16) ----------
+  // "Eu queria ter que adicionar ele na lista de amigos, não que ele aparecesse na minha lista como já aparece... se eles
+  // não quiserem, eles vivem a vida deles e eu chamo quando precisa". Ela só entra na lista (Amigos virtuais, com o ♥ da
+  // amizade) depois que a pessoa pede (tocando nela ou pela busca do nome) e ela aceita. Pode recusar: ocupada (caçando
+  // longe, lutando, com outra pessoa) diz para pedir depois; sem conhecer a pessoa, às vezes quer conversar antes.
+  ehAmigoAmiga(j) { return !!(j && this.amiga?.amigosDe?.[j.conta]); },
+  pedidoAmizadeAmiga(id, viaChat = false) {
+    const a = this.amiga, j = this.jogadores.get(id), P = this.AMIGA.amigoLista; if (!a || !j || j.bot || !j.conta) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto }), nome = this.AMIGA.nome;
+    if (this.ehAmigoAmiga(j)) return aviso(`${nome} já é seu amigo`);
+    if ((a.ia.amigoNao?.[j.conta] || 0) > this.tempo) return aviso(`${nome} pediu para você esperar um pouco`);
+    const fala = (t) => (viaChat ? this.dizerAmiga(t, false, id) : this.evento({ t: 'fala', para: id, npc: this.AMIGA.id, texto: `${nome}: ${t}` }));
+    const nao = (t, s) => { (a.ia.amigoNao ||= {})[j.conta] = this.tempo + s; fala(t); };
+    // ocupada: caçando sozinha, lutando, no time de outra pessoa ou caída
+    const lutando = a.ia.cer?.alvo || (a.ia.av && a.ia.av.fase === 'cacar'), outro = a.time && a.time !== j.time;
+    if (a.morto || lutando || outro) return nao(sorteia(P.ocupada).replace('{o}', this.AMIGA.genero === 'm' ? 'o' : 'a'), P.esperaOcupada);
+    const amz = this.amizadeAmiga(j), chance = Math.min(1, P.base + amz * P.porAmizade);
+    if (Math.random() >= chance) return nao(sorteia(P.antes), P.esperaRecusa);
+    (a.amigosDe ||= {})[j.conta] = 1;
+    this.guardarAmiga();
+    fala(sorteia(P.aceita));
+    aviso(`${nome} agora é seu amigo!`);
+    this.enviarAmigos(j);
+  },
+  desfazerAmizadeAmiga(j) {
+    const a = this.amiga; if (!a || !this.ehAmigoAmiga(j)) return false;
+    delete a.amigosDe[j.conta]; this.guardarAmiga(); return true;
   },
   // a amizade de cada conta (a de quem ela acompanha fica em a.amizade, que o resto do código já usa)
   amizadeAmiga(j) {
@@ -297,7 +327,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -1229,7 +1259,7 @@ export const Amiga = {
       loja: `para ${j.nome} (nível ${j.prog.nivel}): poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa (para você, ${preco('pocao', a.prog.nivel)}); peça de armadura comum ${precoLoja(LOJA.find((o) => o.r === 0), j.prog.nivel) || 60} e rara ${precoLoja(LOJA.find((o) => o.r === 1), j.prog.nivel) || 240}; o preço sobe com o nível de quem compra; conserto no Tomás (ferreiro)`,
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
       vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: a.modo === 'Magia' ? 'cajado (magia)' : 'espada',
-      sozinha: this.podeSairAmiga(a, j),
+      sozinha: this.podeSairAmiga(a, j), naLista: this.ehAmigoAmiga(j),
     };
   },
   // todos os campos de caça e chefes, curtinho (mesmo nome junta os níveis): "onde upar no 10?" tem resposta certa
@@ -1346,6 +1376,9 @@ export const Amiga = {
       case 'nivel': { const S = this.saberAmiga(a, j); fala = `Tô nível ${a.prog.nivel}, de ${S.arma}. E você tá no ${j.prog.nivel}, né?`; break; }
       case 'ondeUpar': { const S = this.saberAmiga(a, j); fala = S.camposDele ? `Pro seu nível: ${S.camposDele.split('; ').slice(0, 2).map((x) => x.replace(/,.*$/, ')')).join(' ou ')}.` : 'Sei não, pergunta na vila!'; break; }
       case 'missao': { const S = this.saberAmiga(a, j); fala = S.missaoDele ? `Sua missão: ${S.missaoDele}.` : 'Acho que você já fez todas, monstro!'; break; }
+      case 'amigo': { // "me adiciona?" pelo chat: o mesmo pedido de tocar nela (ela decide e avisa)
+        this.pedidoAmizadeAmiga(id, true); return;
+      }
       case 'cacar': { // André 2026-11-16: "vai lá caçar sozinha" agora é feito de verdade
         const v = this.sairCacarAmiga(a, j, r.lugar);
         if (!v.ok) { fala = v.ja ? 'Já tô caçando, kkk. Depois te conto!' : `Agora não dá, ${v.fala}.`; r = { ...r, fala: v.ja ? r.fala : '' }; }
@@ -1441,6 +1474,7 @@ export const Amiga = {
     if (ia.chamaEm == null) ia.chamaEm = this.tempo + sorte(C.primeiro);
     if (this.tempo < ia.chamaEm) return;
     ia.chamaEm = this.tempo + sorte(C.entre);
+    if (!this.ehAmigoAmiga(dono)) return; // só chama quem é amigo dela de verdade (André 2026-11-16)
     if (a.morto || a.time || ia.vir || (ia.chamado && ia.chamado.ate > this.tempo) || Math.hypot(a.x - dono.x, a.z - dono.z) < C.longe) return;
     if (dono.morto || dono.criando) return;
     const g = this.gostoTopoAmiga(dono), M = this.AMIGA.memoria;

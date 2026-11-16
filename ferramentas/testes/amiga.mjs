@@ -102,11 +102,15 @@ ok(ITENS.lenha, 'itens');
   const falas = []; s3.aoChatAmiga = (msg) => falas.push(msg);
   const chat = (texto) => { const msg = s3.chat('andre', { canal: 'pm', para: AMIGA.conta, texto }); if (msg) { s3.ouvirAmiga('andre', texto); s3.respostaAmiga('andre', { assunto: s3.assuntoAmiga(texto) }); } return msg; };
   const esperar = (s) => { for (let i = 0; i < s * 20; i++) s3.passo(0.05); };
+  // André 2026-11-16 (amizade conquistada): só entra na lista depois de pedir e ela aceitar
+  { const e0 = s3.eventos.length; s3.enviarAmigos(d); const a0 = s3.eventos.slice(e0).find((e) => e.t === 'amigos' && e.para === 'andre'); ok(!a0?.virtuais?.some((v) => v.c === AMIGA.conta), 'sem pedir, ela não está em "Amigos virtuais"'); }
+  ok(!s3.chat('andre', { canal: 'pm', para: AMIGA.conta, texto: 'oi' }), 'sem ser amigo, não manda mensagem privada');
+  { const rr = Math.random; Math.random = () => 0; s3.amigo('andre', { acao: 'pedir', com: s3.amiga.id }); Math.random = rr; s3.jogadores.get('andre').chatT = -99; }
   const ev0 = s3.eventos.length; s3.enviarAmigos(d);
   const am = s3.eventos.slice(ev0).find((e) => e.t === 'amigos' && e.para === 'andre');
-  ok(am?.virtuais?.[0]?.c === AMIGA.conta, 'ela aparece em "Amigos virtuais" do dono');
+  ok(am?.virtuais?.[0]?.c === AMIGA.conta, 'pediu tocando nela e ela aceitou: aparece em "Amigos virtuais"');
   ok(s3.assuntoAmiga('Vem cá!') === 'vir' && s3.assuntoAmiga('bora pro meu time?') === 'time' && s3.assuntoAmiga('Pode sair do time') === 'sairTime' && s3.assuntoAmiga('oi, tudo bem?') === 'comoVai' && s3.assuntoAmiga('xyz qwe') === 'naoEntendi', 'entende o assunto pelas palavras');
-  ok(chat('Oi Cecília!'), 'o dono manda mensagem privada para ela sem ser amigo de lista');
+  ok(chat('Oi Cecília!'), 'amigo dela manda mensagem privada (sem estar na lista de amigos de gente)');
   esperar(6);
   ok(falas.length === 1 && falas[0].c === AMIGA.conta && falas[0].alvo === d.conta && falas[0].canal === 'pm', `ela responde no privado: "${falas[0]?.texto}"`);
   // vem cá de longe: ela vai até ele
@@ -255,6 +259,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   const c = s7.amiga, esp = (t) => { for (let i = 0; i < t * 20; i++) s7.passo(0.05); };
   const fila = () => c.ia.chatFila || [];
   ok(s7.amigaDono === 'andre' && s7.iaAmiga('irmao') && s7.iaAmiga('andre') && !s7.iaAmiga('sem'), 'os dois com chave têm IA; ela acompanha quem chegou primeiro');
+  c.amigosDe = { [d.conta]: 1, [ir.conta]: 1, [s7.jogadores.get('sem').conta]: 1 }; // os três já adicionaram ela (André 2026-11-16)
   s7.eventos = []; s7.chat('sem', { canal: 'pm', para: AMIGA.conta, texto: 'oi' });
   ok(s7.podeAmiga('sem') && !s7.eventos.some((e) => e.t === 'aviso' && e.para === 'sem'), 'sem chave: conversa também (sem IA, respostas prontas)');
   s7.eventos = []; s7.enviarAmigos(s7.jogadores.get('sem'));

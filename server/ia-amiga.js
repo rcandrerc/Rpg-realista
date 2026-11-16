@@ -19,7 +19,7 @@ function chaveGemini() {
 
 // André 2026-11-16 ("dá mais comandos para eles"): além de time/vir/sim/não, ela pode sair para caçar sozinha (num campo
 // que ela escolhe), voltar para a vila, combinar pescar/minerar/lenha, parar a coleta, topar troca e mostrar o equipamento
-const ACOES = ['nada', 'time', 'sairTime', 'vir', 'ajuda', 'sim', 'nao', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'troca', 'equip'];
+const ACOES = ['nada', 'time', 'sairTime', 'vir', 'ajuda', 'sim', 'nao', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'troca', 'equip', 'amigo'];
 // quanto o modelo grande pensa antes de responder (André 2026-11-16: "não me importava que o limite acabasse mais rápido,
 // mas que fosse mais realista"). 'low' respondia rápido e raso; 'medium' gasta mais do limite do dia e acerta mais.
 const ESFORCO = process.env.GROQ_ESFORCO || 'medium';
@@ -144,6 +144,7 @@ export function mensagensConversa(ctx, texto) {
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
+    ctx.naLista != null ? (ctx.naLista ? `Vocês são amigos na lista de amigos do jogo.` : `Vocês ainda NÃO são amigos na lista do jogo (ele precisa pedir; se ele pedir no chat, ação "amigo").`) : '',
     ctx.sozinha ? (ctx.sozinha.ok ? 'Se quiser (ou se ele pedir), você pode sair agora para caçar sozinh' + o + ' (ação "cacar").' : `Sair para caçar sozinh${o} agora não dá: ${ctx.sozinha.motivo}.`) : '',
     ctx.regras?.length ? `Dicas de combate que ${ctx.amigo} te ensinou e você segue: ${ctx.regras.join('; ')}.` : '',
   ].filter(Boolean);
@@ -156,7 +157,7 @@ export function mensagensConversa(ctx, texto) {
     ctx.missaoDele ? `Missão da história que ${ctx.amigo} está fazendo: ${ctx.missaoDele}.` : '',
     'Você ainda não faz missões da história nem usa o leilão (casa de leilão): se ele pedir, diga que ainda não mexe com isso.',
   ].filter(Boolean);
-  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar JUNTO com ele), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "cacar" (pede para você ir caçar SOZINH${o.toUpperCase()}, sem ele; ponha em "lugar" o nome do campo se ele ou você escolheu um da lista), "voltar" (pede para você parar de caçar sozinh${o} e voltar para a vila), "pescar"/"minerar"/"lenha" (chama para pescar, minerar ou cortar lenha junto), "pararAtividade" (quer parar a pesca/mineração/lenha junto), "troca" (quer trocar, comprar ou vender itens com você), "equip" (pergunta o que você está usando), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
+  const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar JUNTO com ele), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "cacar" (pede para você ir caçar SOZINH${o.toUpperCase()}, sem ele; ponha em "lugar" o nome do campo se ele ou você escolheu um da lista), "voltar" (pede para você parar de caçar sozinh${o} e voltar para a vila), "pescar"/"minerar"/"lenha" (chama para pescar, minerar ou cortar lenha junto), "pararAtividade" (quer parar a pesca/mineração/lenha junto), "troca" (quer trocar, comprar ou vender itens com você), "equip" (pergunta o que você está usando), "amigo" (pede para te adicionar na lista de amigos; o jogo decide e você fala depois), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
 Se ele pedir para caçar sozinh${o} e a ficha disser que não dá, recuse na fala explicando o motivo e use "nada".
 Se a ação for "time", "vir", "sim" ou "cacar", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
 Use só o que está na ficha e no "Jogo de verdade" para lugares, preços, níveis e missões; o que não estiver lá você não sabe: diga que não sabe ou pergunte, nunca invente nome de lugar, preço ou missão.
