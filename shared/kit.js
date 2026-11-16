@@ -137,7 +137,8 @@ export function plantasDaMissao(M, desde = 0) {
     }
     if (E.ev === 'criar' || E.ev === 'construir') feitos[String(E.k)] = (feitos[String(E.k)] || 0) + (E.ja === 'tem' ? 1 : n);
   });
-  for (const [k, q] of Object.entries(leg)) soma(cota, k, Math.ceil(q / PLANTAS[k].y[0]));
+  // "Plante 6 sementes de rabanete" já é a semente do que vem depois (o pack): conta o maior, não os dois somados
+  for (const [k, q] of Object.entries(leg)) cota[k] = Math.max(cota[k] || 0, Math.ceil(q / PLANTAS[k].y[0]));
   COTA_CACHE.set(ch, cota);
   return cota;
 }
