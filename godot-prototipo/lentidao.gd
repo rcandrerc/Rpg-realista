@@ -278,6 +278,8 @@ func _aparelho(e: Dictionary) -> void:
 
 func _comum(e: Dictionary) -> void:
 	e.min = snappedf(Time.get_ticks_msec() / 60000.0, 0.1)
+	if m.cam and "_iso_k" in m.cam: # visão do alto do Travar câmera (camera_heroi.gd): 1 = do alto
+		e.alto = roundi(float(m.cam._iso_k))
 	if m.grafico and m.grafico.auto: # gráficos no Auto: o degrau de agora (0 = o nível cheio); manual não manda
 		e.auto = int(m.grafico.degrau)
 	var mem := Performance.get_monitor(Performance.MEMORY_STATIC)
@@ -308,9 +310,22 @@ var _r_pior := 0.0
 var _r_proc := 0.0
 var _r_lentas := 0
 var _resumos := 0
+# André 2026-11-15 ("delayzinhos, tipo slow motion", não chega a travar): quantos quadros passaram de 50 e de 70 ms
+# (a 30 FPS o normal é 33) e quanto tempo de verdade o jogo ficou em câmera lenta de propósito (golpe que acerta,
+# Esquiva, último monstro: Engine.time_scale < 1), para separar uma coisa da outra
+const QUADRO_DELAY := 70.0 # ms: quadro que passou do dobro do normal a 30 FPS
+const DELAYS_SEGUNDO := 3 # quadros assim num segundo: o segundo vai para o registro
+var _q70 := 0
+var _lenta_s := 0.0
+var _r_q50 := 0
+var _r_q70 := 0
+var _r_lenta := 0.0
 func _r_zerar(agora: int) -> void:
 	_r_t0 = agora
 	_r_quadros = 0
+	_r_q50 = 0
+	_r_q70 = 0
+	_r_lenta = 0.0
 	_r_pior = 0.0
 	_r_proc = 0.0
 	_r_lentas = lentas
@@ -319,7 +334,7 @@ func _resumo(real: float) -> void:
 	var g = m.grafico
 	var e := {
 		"tipo": "resumo", "fps": snappedf(_r_quadros / real, 0.1), "pior": roundi(_r_pior), "proc": roundi(_r_proc),
-		"lentas": lentas - _r_lentas, "x": roundi(m.heroi.position.x), "z": roundi(m.heroi.position.z),
+		"lentas": lentas - _r_lentas, "q50": _r_q50, "q70": _r_q70, "lenta": snappedf(_r_lenta, 0.01), "x": roundi(m.heroi.position.x), "z": roundi(m.heroi.position.z),
 		"montado": m.montaria != null, "grafico": int(g.nivel) if g else -1, "limite": Engine.max_fps,
 		"versao": str(load("res://versao.gd").NUMERO),
 	}
@@ -353,6 +368,8 @@ func _zerar(agora: int) -> void:
 	_corr_m = 0.0
 	_foto_ms = 0.0
 	_proc = 0.0
+	_q70 = 0
+	_lenta_s = 0.0
 	_ev0 = _ev
 	_ev = {}
 	_qev_pior = {}
@@ -388,6 +405,14 @@ func _process(dt: float) -> void:
 	_quadros += 1
 	_jogo += dt
 	_pior = maxf(_pior, q * 1000.0)
+	if q * 1000.0 >= 50.0:
+		_r_q50 += 1
+	if q * 1000.0 >= QUADRO_DELAY:
+		_q70 += 1
+		_r_q70 += 1
+	if Engine.time_scale < 1.0:
+		_lenta_s += q
+		_r_lenta += q
 	_proc = maxf(_proc, (Performance.get_monitor(Performance.TIME_PROCESS) + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0)
 	_r_quadros += 1
 	_r_pior = maxf(_r_pior, q * 1000.0)
@@ -420,7 +445,7 @@ func _process(dt: float) -> void:
 	var lento_lobo: bool = _pedido > 3.0 and _andou_lobo < _pedido * 0.75
 	# o congelamento do golpe e a câmera lenta de propósito (Engine.time_scale < 1) atrasam o relógio do jogo sem ser
 	# lentidão: nesse segundo só conta quadro travado, puxão e o lobo (eram 4 de cada 10 linhas, e empurravam as de verdade)
-	if (relogio < 0.85 and _escala >= 1.0) or lento_lobo or _corr > 0 or _pior >= 100.0:
+	if (relogio < 0.85 and _escala >= 1.0) or lento_lobo or _corr > 0 or _pior >= 100.0 or _q70 >= DELAYS_SEGUNDO:
 		var ta := Time.get_ticks_usec()
 		_anotar(real, relogio)
 		ev("registro", ta) # o próprio registro (guardar no aparelho e mandar): aparece no quadro seguinte
@@ -438,6 +463,7 @@ func _anotar(real: float, relogio: float) -> void:
 	var e := {
 		"quando": int(Time.get_unix_time_from_system()), "fps": snappedf(_quadros / real, 0.1), "pior": roundi(_pior),
 		"relogio": snappedf(relogio, 0.01), "escala": snappedf(_escala, 0.01), "pedido": snappedf(_pedido, 0.1),
+		"q70": _q70, "lenta": snappedf(_lenta_s, 0.01),
 		"andou": snappedf(_andou, 0.1), "andou_lobo": snappedf(_andou_lobo, 0.1), "mov": snappedf(_mov, 0.1), "bloq": _bloq, "corr": _corr, "corr_m": snappedf(_corr_m, 0.1),
 		"foto_ms": roundi(_foto_ms), "ping": roundi(float(m.online.rede.ping_ms)), "montado": m.montaria != null,
 		"x": roundi(m.heroi.position.x), "z": roundi(m.heroi.position.z), "grafico": int(g.nivel) if g else -1,
