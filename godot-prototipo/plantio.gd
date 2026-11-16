@@ -198,7 +198,7 @@ func _sumir(a: Dictionary) -> void:
 
 # muda vira jovem e jovem vira adulta: confere de 2 em 2 s (o modo plantio e a ida até a área, a cada quadro)
 func _process(dt: float) -> void:
-	if modo or indo_area != null:
+	if modo or indo_area != null or _alvo_terreno != null:
 		_modo_passo()
 	_t -= dt
 	if _t > 0.0:
@@ -315,8 +315,23 @@ func plantar(s: String) -> void:
 		m.rota.ir(m.rota.planejar(alvo), "Indo para a área de plantio")
 		indo_area = alvo
 
+# barra da Fazenda no terreno (construcao.gd): o herói anda até o quadrado escolhido e planta ali (André 2026-11-16)
+var _alvo_terreno = null # Vector2i do quadrado (o de cima à esquerda na árvore antiga)
+func plantar_no_quadrado(s: String, q: Vector2i) -> void:
+	sair_modo()
+	indo_area = null
+	semente = s
+	_alvo_terreno = q
+
+func _destino() -> Vector2:
+	if _alvo_terreno != null:
+		var grande: bool = bool(tipos().get(semente, {}).get("grande", false))
+		return Vector2(_alvo_terreno.x + 1, _alvo_terreno.y + 1) * Q if grande else _meio(_alvo_terreno)
+	return _meio(sel)
+
 func abrir_modo() -> void:
 	indo_area = null
+	_alvo_terreno = null
 	modo = true
 	sel = null
 	_ir_quadrado = false
@@ -340,6 +355,14 @@ func _modo_passo() -> void:
 	if m.heroi == null:
 		return
 	var hp := Vector2(m.heroi.position.x, m.heroi.position.z)
+	if _alvo_terreno != null:
+		if m.hud.mover.length() > 0.15: # mexeu no joystick: para de ir
+			_alvo_terreno = null
+		elif hp.distance_to(_destino()) < 1.4:
+			var c := _meio(_alvo_terreno)
+			_alvo_terreno = null
+			m.rede("plantarArvore", {"s": semente, "x": c.x, "z": c.y, "q": 1})
+		return
 	if indo_area != null and m.rota and not m.rota.ativo: # a ida pela estrada acabou: chegou (ou o jogador andou)
 		var chegou: bool = hp.distance_to(indo_area) < 14.0
 		indo_area = null
@@ -360,10 +383,10 @@ func _modo_passo() -> void:
 
 # o herói vai até o quadrado escolhido (main.direcao_joystick)
 func andando() -> bool:
-	return modo and _ir_quadrado and sel != null
+	return _alvo_terreno != null or (modo and _ir_quadrado and sel != null)
 
 func direcao_auto() -> Vector3:
-	var a: Vector2 = _meio(sel) - Vector2(m.heroi.position.x, m.heroi.position.z)
+	var a: Vector2 = _destino() - Vector2(m.heroi.position.x, m.heroi.position.z)
 	if a.length() < 0.05:
 		return Vector3.ZERO
 	return Vector3(a.x, 0, a.y).normalized() * (0.5 if a.length() > 0.8 else 0.3)
