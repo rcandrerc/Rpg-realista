@@ -222,7 +222,44 @@ func ajustar(alvo: Vector2) -> Vector2:
 
 # A névoa (André 2026-11-11, "Ir para" da missão ativa): a rota não passa por estrada que está numa região ainda fechada
 # (nevoa.gd). Os pontos da rede dentro da névoa ficam desligados no AStar; refaz só quando uma missão abre região.
+# Travada do primeiro "Ir" (lentidão de 2026-11-16: 450 a 570 ms no Poco X7 em cada abertura do jogo, 370 ms no PC):
+# perguntar nevoa.fechado() para os 10 mil pontos da rede, zona por zona. Agora a conta de que ponto fica em que zona
+# (só a geometria, que não muda) sai numa linha paralela logo depois de abrir; no "Ir" só liga e desliga os pontos
+# das zonas fechadas. O resultado é o mesmo de antes: ponto dentro de zona fechada fica desligado.
 var _nevoa_p := -1
+var _zonas_pts := {} # id da zona -> PackedInt64Array dos pontos da rede dentro dela
+var _zonas_tarefa := -1
+var _desligados := PackedInt64Array()
+
+func _zonas_comecar() -> void:
+	var nv = m.nevoa
+	if _zonas_tarefa != -1 or nv == null or nv.H.is_empty():
+		return
+	var zonas: Array = []
+	for Z in nv.H.get("zonas", []):
+		var pol: PackedVector2Array = nv._pol(Z)
+		if pol.size() >= 3:
+			zonas.append({"id": str(Z.id), "pol": pol, "caixa": nv._caixas[str(Z.id)]})
+	var ids := astar.get_point_ids()
+	var pos := PackedVector2Array()
+	pos.resize(ids.size())
+	for k in ids.size():
+		pos[k] = astar.get_point_position(ids[k])
+	_zonas_tarefa = WorkerThreadPool.add_task(_zonas_calc.bind(zonas, ids, pos), false, "rota: pontos por zona")
+
+# linha paralela: só os dados copiados (nada da cena)
+func _zonas_calc(zonas: Array, ids: PackedInt64Array, pos: PackedVector2Array) -> void:
+	var r := {}
+	for z in zonas:
+		var cx: Rect2 = z.caixa
+		var pol: PackedVector2Array = z.pol
+		var dentro := PackedInt64Array()
+		for k in pos.size():
+			if cx.has_point(pos[k]) and Geometry2D.is_point_in_polygon(pos[k], pol):
+				dentro.append(ids[k])
+		r[z.id] = dentro
+	_zonas_pts = r
+
 func _desligar_nevoa() -> void:
 	var nv = m.nevoa
 	if nv == null:
@@ -231,9 +268,20 @@ func _desligar_nevoa() -> void:
 	if p == _nevoa_p:
 		return
 	_nevoa_p = p
-	for id in astar.get_point_ids():
-		var q: Vector2 = astar.get_point_position(id)
-		astar.set_point_disabled(id, nv.fechado(q.x, q.y))
+	_zonas_comecar()
+	if _zonas_tarefa >= 0:
+		WorkerThreadPool.wait_for_task_completion(_zonas_tarefa) # só espera se o "Ir" vier logo ao abrir
+		_zonas_tarefa = -2 # pronta (não começa de novo)
+	for id in _desligados:
+		astar.set_point_disabled(id, false)
+	_desligados = PackedInt64Array()
+	for Z in nv.H.get("zonas", []): # as mesmas zonas fechadas de nevoa.fechada_em
+		if Z.get("selo", false) or nv.liberado(str(Z.id)):
+			continue
+		for id in _zonas_pts.get(str(Z.id), PackedInt64Array()):
+			if not astar.is_point_disabled(id):
+				astar.set_point_disabled(id, true)
+				_desligados.append(id)
 
 # rota pela estrada até o lugar (o último ponto é o lugar)
 func planejar(alvo: Vector2) -> PackedVector2Array:
@@ -375,6 +423,11 @@ func _process(dt: float) -> void:
 		Engine.get_meta("lentidao").ev("rota", t0_parte)
 
 func _process_parte(dt: float) -> void:
+	if _zonas_tarefa == -1:
+		_zonas_comecar()
+	elif _zonas_tarefa >= 0 and WorkerThreadPool.is_task_completed(_zonas_tarefa):
+		WorkerThreadPool.wait_for_task_completion(_zonas_tarefa)
+		_zonas_tarefa = -2
 	if not ativo or m.heroi == null:
 		return
 	# só o joystick tira do "Ir para" (André 2026-11-06): mochila, mapa, chat, menus e janelas ficam abertos

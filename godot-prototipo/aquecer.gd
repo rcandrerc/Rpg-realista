@@ -95,6 +95,8 @@ func _process_parte(dt: float) -> void:
 				_fase = 2
 				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
 				m.fx.visible = false # o que ainda está terminando não aparece quando a capa sair
+				if m.minimapa and m.minimapa.has_method("aquecer_fechar"):
+					m.minimapa.aquecer_fechar()
 				for no in _mobs:
 					if is_instance_valid(no):
 						no.queue_free()
@@ -133,6 +135,8 @@ func _mostrar_tudo() -> void:
 	m.add_child(_corpo)
 	_corpo.global_position = p
 	var maos := func(): return [p + Vector3(0, 1.2, 0)]
+	if m.minimapa and m.minimapa.has_method("aquecer_abrir"): # o mapa (minimapa.gd aquecer_abrir), embaixo da capa
+		m.minimapa.aquecer_abrir()
 	preload("res://junta_pecas.gd").aquecer_em(_corpo, m.esqueleto(m.heroi) if m.heroi else null) # shader da armadura juntada dos NPCs (junta_pecas.gd)
 	m._mancha(_corpo, true) # sombra de mancha do NPC longe (main.gd npc_simples)
 	# skills de espada e de cajado (o círculo/carga e a explosão de cada uma), golpe comum e números de dano

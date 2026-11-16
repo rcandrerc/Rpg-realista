@@ -736,6 +736,27 @@ func abrir() -> void:
 	if m.lentidao: # quanto o mapa levou para abrir (lentidao.gd, tipo "menu")
 		m.lentidao.menu_aberto("mapa", t0, 0)
 
+# Travada da primeira vez que o mapa abre (lentidão de 2026-11-16: o primeiro quadro do mapa levava 300 a 900 ms no
+# Poco X7, com uns 11 pipelines novos; da segunda vez em diante 20 a 100 ms): a placa monta o desenho do mapa (textos,
+# cantos arredondados, a textura do mundo) na primeira vez que ele aparece. O aquecer.gd abre o mapa uma vez atrás da
+# capa ("Entrando…", camada 5): aqui ele fica na camada 4, embaixo dela, sem trocar a escolha 2D/3D do jogador.
+var _aq_bloqueado := false
+func aquecer_abrir() -> void:
+	if aberto or m.heroi == null or m.hud == null:
+		return
+	var m3 := modo_3d
+	modo_3d = false
+	_aq_bloqueado = m.hud.bloqueado
+	_abrir()
+	modo_3d = m3
+	layer = 4
+
+func aquecer_fechar() -> void:
+	if not aberto or layer != 4:
+		return
+	fechar()
+	m.hud.bloqueado = _aq_bloqueado
+
 func _abrir() -> void:
 	aberto = true
 	marcado = null
