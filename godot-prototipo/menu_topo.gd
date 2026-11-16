@@ -1,5 +1,5 @@
 extends CanvasLayer
-# Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Conta, Multijogador e Configurações
+# Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Multijogador e Configurações (a Conta é aba de Configurações)
 # e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
 # Regra do André: no topo só entram conta, multijogador e configurações (e, pedido dele em 2026-11-04, a mochila, primeiro da fila). Pedido dele (2026-11-03): a casinha do Voltar
@@ -16,7 +16,9 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["conta", "Conta", "topo_conta"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+# André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
+# ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
 
 var m # main.gd
@@ -34,7 +36,8 @@ var _anim: Tween
 var janela: Control
 var caixa: PanelContainer
 var conteudo: VBoxContainer
-var aberta := "" # "conta", "multi" ou "config" ("" = fechada)
+var aberta := "" # "multi", "config" ou "creditos" ("" = fechada); a conta é uma aba de "config"
+var aba_config := "ajustes" # Configurações: "ajustes" (som, câmera, gráficos...) ou "conta"
 var _atualizar_t := 0.0
 var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo confirmação
 var _apagando := false
@@ -320,6 +323,11 @@ func montar_janela() -> void:
 	caixa.add_child(conteudo)
 
 func abrir(qual: String) -> void:
+	if qual == "conta": # a conta agora é aba de Configurações
+		qual = "config"
+		aba_config = "conta"
+	elif qual == "config" and not (janela.visible and aberta == qual):
+		aba_config = "ajustes" # o ícone de Configurações abre sempre na primeira aba
 	if janela.visible and aberta == qual:
 		fechar()
 		return
@@ -357,11 +365,14 @@ func _process(dt: float) -> void:
 func _process_parte(dt: float) -> void:
 	_atualizar_vila(dt)
 	_atualizar_construir()
-	if (aberta == "multi" and not (m.amigos and m.amigos.buscando)) or aberta == "conta": # online, jogadores e ping mudam sozinhos (na busca de amigo não: o teclado fecharia)
+	if (aberta == "multi" and not (m.amigos and m.amigos.buscando)) or _na_conta(): # online, jogadores e ping mudam sozinhos (na busca de amigo não: o teclado fecharia)
 		_atualizar_t -= dt
 		if _atualizar_t <= 0.0:
 			_atualizar_t = 1.0
 			montar()
+
+func _na_conta() -> bool:
+	return aberta == "conta" or (aberta == "config" and aba_config == "conta")
 
 func _limpar() -> void:
 	for c in conteudo.get_children():
@@ -475,7 +486,8 @@ func _online():
 	return m.online if m.online and m.online.rede else null
 
 func montar_conta() -> void:
-	_cabeca("topo_conta", "Conta")
+	if aberta == "conta":
+		_cabeca("topo_conta", "Conta")
 	var o = _online()
 	if _confirmar_apagar and o != null and o.rede.sessao != "":
 		montar_apagar(o)
@@ -578,6 +590,13 @@ func montar_multi() -> void:
 # colunas (som e conta à esquerda, gráficos à direita) e, se ainda não couber, a caixa encolhe até caber (_caber).
 func montar_config() -> void:
 	_cabeca("topo_config", "Configurações")
+	_abas_config()
+	if aba_config == "conta":
+		var largura := Control.new() # mesma largura das duas colunas de Ajustes: a janela não pula ao trocar de aba
+		largura.custom_minimum_size = Vector2(860, 0)
+		conteudo.add_child(largura)
+		montar_conta()
+		return
 	var principal := conteudo
 	var colunas := HBoxContainer.new()
 	colunas.add_theme_constant_override("separation", 28)
@@ -627,6 +646,22 @@ func montar_config() -> void:
 	conteudo = dir
 	_qualidade_grafica()
 	conteudo = principal
+
+# abas de Configurações (André 2026-11-16): Ajustes e Conta. A escolhida fica dourada, como no Idioma.
+func _abas_config() -> void:
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 8)
+	for a in [["ajustes", "Ajustes"], ["conta", "Conta"]]:
+		var k: String = a[0]
+		var b := _botao(a[1], func():
+			if aba_config != k:
+				aba_config = k
+				_confirmar_apagar = false
+				montar(), aba_config == k)
+		b.set_meta("guia", "config:" + k)
+		b.custom_minimum_size = Vector2(150, 40)
+		linha.add_child(b)
+	conteudo.add_child(linha)
 
 # Idioma / Language (André 2026-11-14): só Português e English, com a bandeirinha (idioma.gd). O escolhido fica dourado.
 # O título fica nos dois idiomas para quem caiu no idioma errado achar.
