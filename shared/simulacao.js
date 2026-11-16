@@ -2282,6 +2282,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !m) return;
     const aviso = (texto, para = id) => this.evento({ t: 'aviso', para, texto });
     if (m.acao === 'sair') return j.time && this.sairDoTime(j, `${j.nome} saiu do time`);
+    if (m.acao === 'sozinho') return this.timeSozinho(j);
     // com: id do jogador na sala ou a conta do amigo (lista de amigos)
     const o = this.jogadores.get(String(m.com || '')) || this.porConta(String(m.com || ''));
     // Cecília e Dario (André 2026-11-13, "como se fosse um jogador real"): o botão só convida ou tira do time, sem fala no chat
@@ -2321,6 +2322,14 @@ export class Simulacao {
     o.conviteTime = { de: j.id, ate: this.tempo + TIME.convite };
     this.evento({ t: 'time', para: o.id, fase: 'convite', de: j.id, nome: j.nome, dur: TIME.convite });
     aviso(`Convite para o time enviado para ${o.nome}`);
+  }
+  // Etapa "chame alguém para o time" nunca trava (André 2026-11-16: "se não tiver ninguém, ela faz sozinha, só vai sofrer mais"):
+  // o app ensina a chamar pela tela de amigos; quem fecha a tela sem time segue a missão sozinho.
+  timeSozinho(j) {
+    if (!j.prog.hist?.ac || j.time) return;
+    const E = etapaAtual(j.prog); if (E?.ev !== 'time') return;
+    this.evento({ t: 'aviso', para: j.id, texto: 'Sozinho: vai ser mais difícil!' });
+    this.proximaEtapa(j);
   }
   sairDoTime(j, texto) {
     const T = j.time; if (!T) return;
