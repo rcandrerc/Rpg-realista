@@ -1129,10 +1129,13 @@ const LADO2_PRONTO := {"ang": 18.0, "giro": 62.0, "pe": Vector3(0.1, 1.0, 0.26),
 const LADO2_ALTO := {"ang": 48.0, "giro": 158.0, "pe": Vector3(0.26, 1.42, -0.04), "ag": 0.08, "av": -0.08, "tor": 55.0, "cur": -0.18}
 const LADO2_TRONCO := {"ang": -18.0, "giro": -4.0, "pe": Vector3(0.02, 0.87, 0.34), "ag": 0.2, "av": 0.09, "tor": -22.0, "cur": 0.7}
 const LADO2_QUICA := {"ang": -11.0, "giro": 16.0, "pe": Vector3(0.05, 0.9, 0.31), "ag": 0.18, "av": 0.06, "tor": -12.0, "cur": 0.6}
-const LADO_PRONTO := {"ang": 14.0, "giro": 60.0, "pe": Vector3(0.12, 1.05, 0.26), "ag": 0.12, "av": 0.0, "tor": 18.0, "cur": 0.15, "mao": 0.5}
+# André 2026-11-16 ("o braço entra dentro do peito"): o pé do cabo mais à frente, mais baixo e para a esquerda na
+# guarda, no golpe e no quique, para os antebraços passarem na frente do peito. Antes: pe (0.12, 1.05, 0.26),
+# (0.0, 1.0, 0.34) e (0.04, 1.02, 0.32).
+const LADO_PRONTO := {"ang": 14.0, "giro": 60.0, "pe": Vector3(0.0, 0.9, 0.46), "ag": 0.12, "av": 0.0, "tor": 18.0, "cur": 0.15, "mao": 0.5}
 const LADO_ALTO := {"ang": 22.0, "giro": 172.0, "pe": Vector3(0.3, 1.22, -0.06), "ag": 0.14, "av": -0.06, "tor": 75.0, "cur": -0.08, "mao": 0.15}
-const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(0.0, 1.0, 0.34), "ag": 0.2, "av": 0.08, "tor": -32.0, "cur": 0.42, "mao": 0.28}
-const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(0.04, 1.02, 0.32), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36, "mao": 0.32}
+const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(-0.08, 0.95, 0.44), "ag": 0.2, "av": 0.08, "tor": -32.0, "cur": 0.42, "mao": 0.28}
+const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(-0.04, 0.97, 0.42), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36, "mao": 0.32}
 # tempos do golpe novo (fração da batida): ergue, desce, bate, quica, volta
 const LADO_T := {"ergue": 0.42, "bate": 0.52, "quica": 0.62, "solta": 0.72}
 
