@@ -4028,6 +4028,10 @@ func escolher_quantidade(i: int) -> void:
 		m.hud.aviso("Mochila cheia" if cabe <= 0 else "Ouro insuficiente")
 		return
 	_qtd = 1
+	# missão pede comprar N (André 2026-11-16: "não fala a quantidade, então eu compro um"): já abre com o que falta
+	var hi_q: Dictionary = m.P.hist_info
+	if not equip and str(hi_q.get("ev", "")) == "comprar" and str(hi_q.get("k", "")) == str(o.k):
+		_qtd = clampi(int(hi_q.get("qtd", 1)), 1, _qtd_max)
 	fechar_confirma()
 	_confirma = Control.new()
 	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
