@@ -884,10 +884,13 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 		if m.terreno.agua_no_corpo(p.x, p.z, p.y) >= float(m.terreno.agua.peito) - 0.12:
 			var anda: bool = animacao(nome) in ["andar", "trote", "corrida"]
 			nome = "nadar" if anda else "boiar"
+			# nado do ActorCore (anim_heroi.gd NADO_AC): crawl e boiar_ac quando o corpo tem
+			if m.heroi_anim != null and m.heroi_anim.NADO_AC and an.has_animation("crawl") and an.has_animation("boiar_ac"):
+				nome = "crawl" if anda else "boiar_ac"
 			o.sobe_alvo = m.SOBE_NADANDO if anda else m.SOBE_BOIANDO
 		else:
 			o.sobe_alvo = 0.0
-	tocar(an, nome, 1.2 if nome == "nadar" else (m.ritmo(animacao(nome)) if o.has("esq") else 1.0)) # outros jogadores: passo no ritmo da corrida
+	tocar(an, nome, 1.2 if nome == "nadar" else (1.15 if nome == "crawl" else (m.ritmo(animacao(nome)) if o.has("esq") else 1.0))) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:
 	var v := int(c.get("v", -1))

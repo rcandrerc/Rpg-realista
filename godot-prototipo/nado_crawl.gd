@@ -14,13 +14,14 @@ var boia := 0.0 # 1 = parado na água (boiando em pé), 0 = nadando
 var fase_boia := 0.0 # ciclos do boiar
 
 const ROLA := 0.38 # rad que o tronco rola para o lado do braço que puxa
-const BATIDAS := 3.0 # batidas de cada perna por ciclo de braço (crawl de 6 batidas)
-const PERNA_BATE := 0.16 # m que o pé sobe e desce (André: "um pouco mais forte")
+const BATIDAS := 2.0 # batidas de cada perna por ciclo de braço (André: "pernas rápidas demais, sem fluidez")
+const PERNA_BATE := 0.22 # m que o pé sobe e desce (André: "mais forte", depois "movimentos curtos")
+const PESO_AGUA := 0.4 # quanto a puxada demora a mais que a volta (0 = ritmo igual)
 const PERNA_ABRE := 0.07 # m de cada pé para fora
 # parado na água (André 2026-11-15, pela gravação do ArcheAge): em pé, braços abertos para os lados na linha da
 # água, as mãos varrendo para a frente e para trás devagar (cotovelo meio dobrado) e as pernas pedalando embaixo
 const BOIA_ABRE := 0.42 # m da mão para fora do ombro
-const BOIA_VARRE := 0.16 # m que a mão vai para a frente e para trás
+const BOIA_VARRE := 0.24 # m que a mão vai para a frente e para trás
 const BOIA_PEDALA := 0.12 # m do círculo de cada pé
 
 var _b := {}
@@ -94,11 +95,25 @@ const BRACO := [
 	[0.88, 0.32, 0.16, 0.16],
 ]
 
+const BRACO_REDONDO := true # false volta para o caminho da tabela BRACO
+const BRACO_CENTRO := 0.06 # m do centro da elipse à frente do ombro
+const BRACO_RAIO_FRENTE := 0.5 # m
+const BRACO_RAIO_CIMA := 0.36 # m
+
 # [frente, cima, fora, 0..1 o quanto está na volta por cima]
 func _chave_braco(c: float) -> Array:
-	var r: Array = _curva(BRACO, c)
-	r.append(smoothstep(0.5, 0.62, c) * (1.0 - smoothstep(0.9, 1.0, c)))
-	return r
+	if not BRACO_REDONDO:
+		var r0: Array = _curva(BRACO, c)
+		r0.append(smoothstep(0.5, 0.62, c) * (1.0 - smoothstep(0.9, 1.0, c)))
+		return r0
+	# André 2026-11-15: "movimentos curtos; mais circulares, arredondados, contínuos e pesados". A mão faz uma elipse
+	# grande em volta do ombro: entra lá na frente, desce fundo, empurra até a coxa e volta alta por cima. O
+	# cotovelo dobra sozinho onde a elipse passa perto do ombro (embaixo do peito e em cima).
+	var t: float = c * TAU
+	var fr: float = BRACO_CENTRO + BRACO_RAIO_FRENTE * cos(t)
+	var ci: float = -BRACO_RAIO_CIMA * sin(t) - 0.03
+	var fora: float = 0.1 + 0.1 * max(0.0, -sin(t)) # na volta por cima a mão abre para o lado
+	return [fr, ci, fora, clamp(-sin(t) * 1.6, 0.0, 1.0)]
 
 # nado de peito debaixo d'água (André 2026-11-15: "o nosso sapinho está feio, o do ArcheAge é bem mais natural"): os
 # dois braços juntos deslizam esticados, abrem, puxam para dentro com o cotovelo alto até as mãos se juntarem
@@ -112,8 +127,8 @@ const BRACO_SAPO := [
 	[0.15, 0.5, -0.03, 0.05],
 	[0.4, 0.52, -0.02, 0.06],
 	[0.65, 0.52, -0.02, 0.06],
-	[0.78, 0.35, -0.08, 0.42],
-	[0.88, 0.12, -0.18, 0.3],
+	[0.78, 0.35, -0.1, 0.52],
+	[0.88, 0.1, -0.22, 0.34],
 	[0.95, 0.12, -0.14, 0.0],
 ]
 # pés: [ciclo, quanto da perna vai para trás (fração), cima, fora]
@@ -121,8 +136,8 @@ const PERNA_SAPO := [
 	[0.0, 0.97, -0.02, 0.04],
 	[0.25, 0.96, 0.0, 0.04],
 	[0.42, 0.5, 0.18, 0.12],
-	[0.58, 0.8, 0.0, 0.5],
-	[0.7, 0.88, -0.02, 0.45],
+	[0.58, 0.78, 0.0, 0.58],
+	[0.7, 0.88, -0.02, 0.5],
 	[0.85, 0.97, -0.02, 0.05],
 ]
 
@@ -157,6 +172,39 @@ func _dedo(s: Skeleton3D, h: int) -> Vector3:
 		_dedos[h] = e
 	return _dedos[h]
 
+var _lados := {}
+# eixo do dedo mínimo até o indicador (no espaço do osso da mão): diz para onde a palma vira
+func _lado_mao(s: Skeleton3D, h: int) -> Vector3:
+	if not _lados.has(h):
+		var ind := Vector3.ZERO
+		var mini := Vector3.ZERO
+		for f in range(s.get_bone_count()):
+			if s.get_bone_parent(f) == h:
+				if "Index" in s.get_bone_name(f):
+					ind = s.get_bone_rest(f).origin
+				elif "Little" in s.get_bone_name(f):
+					mini = s.get_bone_rest(f).origin
+		_lados[h] = ind - mini
+	return _lados[h]
+
+func _base(a: Vector3, b: Vector3) -> Basis:
+	var x := a.normalized()
+	var y := (b - x * b.dot(x)).normalized()
+	return Basis(x, y, x.cross(y))
+
+# mão inteira orientada (André: "a mão parece bugada"): os dedos para "dedos" e o indicador para o lado "indicador",
+# assim a palma não fica torta nem gira sozinha
+func _mao(s: Skeleton3D, h: int, pai_global: Transform3D, dedos: Vector3, indicador: Vector3, w: float) -> void:
+	var lado: Vector3 = _lado_mao(s, h)
+	var fl: Vector3 = _dedo(s, h)
+	if lado.length() < 1e-4 or dedos.length() < 1e-5 or abs(dedos.normalized().dot(indicador.normalized())) > 0.97:
+		_apontar(s, h, pai_global, fl, dedos, w)
+		return
+	var pose := s.get_bone_pose(h)
+	var g: Basis = _base(dedos, indicador) * _base(fl, lado).inverse()
+	var alvo_local := (pai_global.basis.orthonormalized().inverse() * g).get_rotation_quaternion()
+	s.set_bone_pose_rotation(h, pose.basis.get_rotation_quaternion().slerp(alvo_local, w))
+
 func _process_modification() -> void:
 	var s := get_skeleton()
 	if s == null or peso <= 0.001 or not pronto():
@@ -177,6 +225,9 @@ func _process_modification() -> void:
 	# braços: o direito no começo do ciclo, o esquerdo meio ciclo depois
 	for lado in [1.0, -1.0]:
 		var c: float = fposmod(ciclo + (0.0 if lado > 0.0 else 0.5), 1.0)
+		# peso da água (André: "não é câmera lenta, é pesado, uma força contrária"): a puxada (meio do ciclo) anda
+		# devagar, com esforço, e a volta por cima do ar é mais rápida
+		c = fposmod(c + PESO_AGUA / TAU * sin(TAU * (c + 0.25)), 1.0)
 		var u: int = _b.R_UpperArm if lado > 0.0 else _b.L_UpperArm
 		var l: int = _b.R_LowerArm if lado > 0.0 else _b.L_LowerArm
 		var h: int = _b.R_Hand if lado > 0.0 else _b.L_Hand
@@ -198,8 +249,11 @@ func _process_modification() -> void:
 			alvo = alvo.lerp(alvo_b, boia)
 			polo = polo.lerp(-ci * 0.6 - fr * 0.5 + di * lado * 0.3, boia) # cotovelo para baixo e para trás
 		var r: Array = _ik(s, u, l, h, alvo, polo)
-		# mão: reta com o antebraço (a palma empurra a água)
-		_apontar(s, h, r[0], _dedo(s, h), (r[1] as Vector3) - (r[2] as Vector3), peso)
+		# mão: reta com o antebraço, palma virada para trás/baixo (empurra a água), o polegar para dentro; boiando, a
+		# palma fica para baixo com o indicador para a frente
+		var ante: Vector3 = (r[1] as Vector3) - (r[2] as Vector3)
+		var ind: Vector3 = (-di * lado + ci * 0.2).lerp(fr, boia)
+		_mao(s, h, r[0], ante, ind, peso)
 	# pernas: esticadas para trás, juntas, batendo alternadas de leve; os pés apontados (ponta para trás)
 	for lado in [1.0, -1.0]:
 		var u: int = _b.R_UpperLeg if lado > 0.0 else _b.L_UpperLeg

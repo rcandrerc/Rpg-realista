@@ -70,7 +70,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "parada_esticar_bracos", "parada_esticar_pescoco", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "parada_esticar_bracos", "parada_esticar_pescoco", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "crawl", "boiar_ac", "golfinho", "afundar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -2503,6 +2503,15 @@ func _folhas_perto(a: Vector3, b: Vector3) -> Array:
 func _passo_crawl(dt: float) -> void:
 	if heroi_esq == null:
 		return
+	# nado do ActorCore (anim_heroi.gd NADO_AC): as animações já fazem tudo; a braçada em código fica desligada
+	if heroi_anim != null and heroi_anim.tem_nado_ac:
+		heroi_anim.fundo = smoothstep(0.25, 0.55, float(mov.mergulho))
+		var mg: float = float(mov.mergulho)
+		heroi_anim.descendo = float(mov.mergulho_dir) > 0.0 and mg > heroi_anim.mergulho_ant + 0.0005 # só enquanto desce mesmo
+		heroi_anim.mergulho_ant = mg
+		if crawl != null and is_instance_valid(crawl):
+			crawl.peso = 0.0
+		return
 	if crawl == null or not is_instance_valid(crawl) or crawl.get_parent() != heroi_esq:
 		if not _nadando:
 			return
@@ -2515,10 +2524,10 @@ func _passo_crawl(dt: float) -> void:
 	var fundo: float = smoothstep(0.25, 0.55, float(mov.mergulho))
 	crawl.peso = float(heroi_anim._nado) if _nadando else move_toward(crawl.peso, 0.0, dt * 4.0)
 	crawl.boia = 1.0 - float(heroi_anim._nada) # parado na água: braços abertos varrendo e pernas pedalando
-	crawl.fase_boia += dt * 0.65
+	crawl.fase_boia += dt * 0.5
 	crawl.sapo = fundo
-	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.9 # de peito: uma braçada por ciclo, com o deslize
-	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.5 # 2 braçadas por ciclo; agua_fx conta 3 por volta
+	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.0 # de peito (mais lento: a água segura, André 2026-11-15): uma braçada por ciclo, com o deslize
+	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.05 # (mais lento, André 2026-11-15) 2 braçadas por ciclo; agua_fx conta 3 por volta
 	crawl.frente = Vector3(sin(mov.ry), 0, cos(mov.ry))
 
 # Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
