@@ -27,6 +27,7 @@ var _mobs: Array = []
 var _veics: Array = [] # carrinho, barquinho e navio de aquecimento (transporte.gd aquecer_em): vão para a guarda
 var _volume := 0.0
 var _mapa_aquecendo := false # mapa3d.aquecer() chamado: cancela quando a capa sai
+var _montou := false # subiu no lobo atrás da capa: desce no fim
 # Corpos dos outros (André 2026-11-13, "travadas são inaceitáveis"): a Cecília entrando na visão pela primeira vez
 # travava ~1 s no PC (carregar o modelo do penteado 540 ms, montar o cabelo ~90 ms e a armadura ~280 ms, no quadro);
 # os aventureiros de penteado davam o mesmo tranco. Atrás da capa, um boneco escondido de cada corpo do criador veste
@@ -100,6 +101,9 @@ func _process_parte(dt: float) -> void:
 				_fase = 2
 				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
 				m.fx.visible = false # o que ainda está terminando não aparece quando a capa sair
+				if _montou:
+					_montou = false
+					m.montar_lobo(false, false)
 				for no in _mobs:
 					if is_instance_valid(no):
 						no.queue_free()
@@ -141,6 +145,11 @@ func _mostrar_tudo() -> void:
 	m.add_child(_corpo)
 	_corpo.global_position = p
 	var maos := func(): return [p + Vector3(0, 1.2, 0)]
+	# a primeira subida no lobo de cada abertura travava ~0,4 s no Poco X7 (registros de 2026-11-16, 15:38 a 18:32, sempre
+	# no primeiro "Ir"): o herói sobe e desce atrás da capa (sem avisar o servidor) e o lobo fica guardado (montaria.gd)
+	if m.montaria == null and m.heroi != null and m.has_method("montar_lobo"):
+		m.montar_lobo(true, false)
+		_montou = true
 	# o mapa 3D (lentidão de 2026-11-16: a 1ª abertura levou 3,5 s no 1º quadro, 27 pipelines): monta a maquete no fundo
 	# (se ainda não montou) e a desenha uma vez escondida, atrás da capa (mapa3d.gd aquecer)
 	var m3 = m.minimapa.mapa3d if m.minimapa else null
