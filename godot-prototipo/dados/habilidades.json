@@ -660,7 +660,7 @@
    "usar": {
     "vida": 0.35
    },
-   "preco": 15,
+   "preco": 20,
    "venda": 5,
    "desc": "Recupera 35% da vida."
   },
@@ -670,7 +670,7 @@
    "usar": {
     "mana": 0.4
    },
-   "preco": 18,
+   "preco": 24,
    "venda": 6,
    "desc": "Recupera 40% da mana."
   },
@@ -1415,9 +1415,9 @@
  "mochilaPaginas": 4,
  "paginaPreco": [
   0,
-  500,
-  2000,
-  6000
+  1000,
+  5000,
+  15000
  ],
  "conjunto": [
   null,
@@ -1479,13 +1479,13 @@
   }
  ],
  "vendaEquip": [
-  20,
-  80,
+  6,
+  25,
   250,
   700,
   2000
  ],
- "vendaTomo": 30,
+ "vendaTomo": 15,
  "romano": [
   "",
   "I",
@@ -1502,101 +1502,103 @@
  "loja": [
   {
    "k": "pocao",
-   "preco": 15
+   "preco": 20,
+   "porNivel": 2
   },
   {
    "k": "pocao_mana",
-   "preco": 18
+   "preco": 24,
+   "porNivel": 2.4
   },
   {
    "k": "chapeu",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "chapeu",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "peitoral",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "peitoral",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "calca",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "calca",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "short",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "short",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "botas",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "botas",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "capa",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "capa",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "colar",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "colar",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "espada",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "espada",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "cajado",
    "r": 0,
-   "preco": 60
+   "preco": 150
   },
   {
    "k": "cajado",
    "r": 1,
-   "preco": 240
+   "preco": 900
   },
   {
    "k": "semente_rabanete",
@@ -2573,7 +2575,7 @@
   "vida": 0.16,
   "dano": 0.32,
   "xp": 0.5,
-  "ouro": 0.15,
+  "ouro": 0.06,
   "folga": 5,
   "perde": 0.15,
   "min": 0.1,
@@ -3393,7 +3395,14 @@
   "desgaste": 10,
   "durMax": 100,
   "conserto": 0.3,
-  "xp": 0.05
+  "xp": 0.05,
+  "consertoTabela": [
+   30,
+   120,
+   450,
+   1500,
+   4500
+  ]
  },
  "reforco": {
   "max": [
@@ -3929,7 +3938,7 @@
   }
  },
  "packRegras": {
-  "k": 1.4,
+  "k": 2.4,
   "extra": 1.2,
   "perto": 40,
   "vigor": 12,
@@ -3956,7 +3965,8 @@
     4.3,
     5.9
    ],
-   "raio": 60
+   "raio": 60,
+   "forte": 250
   },
   "mercado": {
    "livres": 4,

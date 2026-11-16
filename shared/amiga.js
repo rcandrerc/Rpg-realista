@@ -19,6 +19,7 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
+import { LOJA, precoLoja } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -746,7 +747,7 @@ export const Amiga = {
   // completa as poções dela até this.AMIGA.time.pocoes (ela passa na Rosa quando volta para casa)
   pocoesAmiga(j) { // compra na Rosa com o ouro dela, pelo preço da loja (André 2026-11-09: nada de poção de graça)
     this.consertoAmiga(j); // antes da poção: equipamento gasto passa no Tomás
-    const preco = ITENS.pocao.preco || 15;
+    const preco = precoLoja(LOJA.find((o) => o.k === 'pocao'), j.prog.nivel) || ITENS.pocao.preco || 15; // mesmo preço da Rosa (sobe com o nível)
     const falta = Math.min(this.AMIGA.time.pocoes + (j.licoes?.pocoes || 0) - contar(j.prog.mochila, 'pocao'), Math.floor(j.prog.ouro / preco));
     if (falta > 0 && guardar(j.prog.mochila, { k: 'pocao', n: falta })) j.prog.ouro -= falta * preco;
   },
