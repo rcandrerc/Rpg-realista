@@ -1522,7 +1522,7 @@ export const COLETA = {
   pedra: { nome: 'Veio de pedra', prof: 'min', vigor: 1, tempo: 2.0, cargas: 4, volta: 90, da: { pedra: 2 }, raro: { pedra: 0.5, minerio_cobre: 0.03 } },
   cobre: { nome: 'Veio de cobre', prof: 'min', vigor: 1.5, tempo: 2.2, cargas: 3, volta: 90, da: { minerio_cobre: 1 }, raro: { cristal: 0.04, pedra: 0.5 } },
   cristal: { nome: 'Veio de cristal', prof: 'min', nivel: 8, vigor: 3, tempo: 2.8, cargas: 2, volta: 150, da: { cristal: 1 }, raro: { cristal: 0.1, pedra: 0.4 } },
-  arvore: { nome: 'Árvore', esgotado: 'esgotada', prof: 'len', vigor: 1, tempo: 2.0, cargas: 3, volta: 60, da: { lenha: 1 }, raro: { lenha: 0.25 } },
+  arvore: { nome: 'Árvore', esgotado: 'esgotada', prof: 'len', vigor: 1, tempo: 2.0, cargas: 3, volta: 86400, da: { lenha: 1 }, raro: { lenha: 0.25 } },
 };
 export const COLETA_DISTANCIA = 2.4; // metros da borda do veio ou do tronco
 // Onde ficam os veios (fora da vila e longe do acampamento dos monstros). As árvores do mapa todas dão lenha.
@@ -4002,3 +4002,21 @@ for (const [k, n10, n20, bk, v] of [
 for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t); // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
 // título que ainda não dá para ganhar (boss esperando o modelo) não aparece na aba
 export const tituloAtivo = (id) => { const c = TITULOS[id]?.cond; return !!c && !(c.boss && BOSSES_MUNDO[c.boss]?.ativo === false); };
+
+// Mata nativa (André 2026-11-16, árvores plantadas, mapa v6 aprovado; "remoção aprovada" no PR): o mundo fica só com
+// ~1.150 das 14.794 árvores. Perto das vilas e bairros (raio + 55 m) fica 1 em 40 ("senão ninguém planta"); no resto,
+// 1 em 12. As que ficam renascem em 24 h (COLETA.arvore.volta); a madeira passa a vir do plantio (entrega 3) e, para
+// quem está começando, dos galhos soltos no chão. O sorteio sai da posição (o mesmo do mapa v6), e cada árvore guarda o
+// número de antes (n): o id m<n> continua o mesmo (o que já estava cortado e gravado no banco não muda de árvore).
+export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 };
+{
+  const vilas = [{ x: 0, z: 0, r: 34 }, ...VILAS_TERRENO.map((V) => ({ x: V.area.x, z: V.area.z, r: Math.max(V.area.rx, V.area.rz) }))];
+  const fica = (a) => {
+    const x = Math.round(a.x), z = Math.round(a.z), h = ((Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0) >>> 7;
+    return h % (vilas.some((v) => Math.hypot(x - v.x, z - v.z) < v.r + NATIVAS.pertoVila) ? NATIVAS.umEmPerto : NATIVAS.umEmLonge) === 0;
+  };
+  const nativas = [];
+  MAPA_CLAREIRA.mata.forEach((a, n) => { if (fica(a)) nativas.push({ ...a, n }); });
+  NATIVAS.antes = MAPA_CLAREIRA.mata.length;
+  MAPA_CLAREIRA.mata = nativas;
+}
