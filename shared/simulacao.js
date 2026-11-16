@@ -873,12 +873,12 @@ export class Simulacao {
   ganharXP(j, n) {
     const p = j.prog; if (p.nivel >= NIVEL_MAX) return;
     // NPC (André 2026-11-11): nunca passa do jogador mais alto do servidor (nivelTetoNpc vem do banco; sem banco, sem teto)
-    if (j.bot && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
+    if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
     const nivelAntes = p.nivel;
     p.xp += n;
     let subiu = false;
-    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
-    if (j.bot && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
+    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
+    if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
     if (!j.bot && this.nivelTetoNpc != null && p.nivel > this.nivelTetoNpc) this.nivelTetoNpc = p.nivel; // jogador subiu: o teto sobe junto
     if (p.nivel >= NIVEL_MAX) p.xp = 0;
     if (subiu) {
