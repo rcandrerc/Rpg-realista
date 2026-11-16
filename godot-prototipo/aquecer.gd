@@ -24,6 +24,7 @@ var _total := 0.0
 var _quadros := 0
 var _corpo: Node3D
 var _mobs: Array = []
+var _veics: Array = [] # carrinho, barquinho e navio de aquecimento (transporte.gd aquecer_em): vão para a guarda
 var _volume := 0.0
 var _mapa_aquecendo := false # mapa3d.aquecer() chamado: cancela quando a capa sai
 # Corpos dos outros (André 2026-11-13, "travadas são inaceitáveis"): a Cecília entrando na visão pela primeira vez
@@ -103,6 +104,9 @@ func _process_parte(dt: float) -> void:
 					if is_instance_valid(no):
 						no.queue_free()
 				_mobs.clear()
+				if m.transporte != null and not _veics.is_empty():
+					m.transporte.guardar_aquecidos(_veics) # escondidos, esperando o primeiro que aparecer no jogo
+				_veics.clear()
 				m.combate.aviso_area_fim()
 		2:
 			if _t >= SUMIDO:
@@ -190,6 +194,8 @@ func _mostrar_tudo() -> void:
 	# modelo (~0,6 s no PC), a pele, as peças da armadura e a roupa de ofício (até ~0,7 s). Aqui, atrás da capa, nasce e
 	# some um de cada tipo: o que é montado fica guardado e, na corrida, o NPC sai pronto. Medido na corrida simulada:
 	# pior tranco 690 -> 72 ms no PC; a capa fica ~1,7 s mais (35 tipos).
+	if m.transporte != null and m.transporte.has_method("aquecer_em"):
+		_veics = m.transporte.aquecer_em(p + frente * 6.0, frente.cross(Vector3.UP))
 	var vistos := {}
 	var t0 := Time.get_ticks_usec()
 	for info in m.npcs_vila:
