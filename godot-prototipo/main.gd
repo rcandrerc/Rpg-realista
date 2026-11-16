@@ -500,6 +500,8 @@ func _ready() -> void:
 	construcao = Construcao.new(self)
 	add_child(construcao)
 	hud.construcao = construcao
+	hud.plantio = plantio # modo plantio: o painel não vira joystick nem câmera; tocar no chão escolhe o quadrado
+	hud.tocou.connect(plantio.tocou_tela)
 	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
 	editar_hud = EditarHud.new(self) # por último: lê o layout guardado e passa para todos os elementos
 	add_child(editar_hud)
@@ -3436,6 +3438,8 @@ func direcao_joystick() -> Vector3:
 			return rota.direcao_auto()
 		if construcao and construcao.plano and construcao.plano.andando(): # plano da fazenda: vai até o próximo canteiro
 			return construcao.plano.direcao_auto()
+		if plantio and plantio.andando(): # modo plantio: vai até o quadrado escolhido (plantio.gd)
+			return plantio.direcao_auto()
 		return trabalho.direcao_auto() if trabalho else Vector3.ZERO
 	return Vector3(m.x, 0, m.y).rotated(Vector3.UP, cam.yaw)
 

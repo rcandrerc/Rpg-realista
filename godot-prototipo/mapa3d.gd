@@ -61,6 +61,9 @@ var b_mais := Rect2()
 var b_menos := Rect2()
 var b_eu := Rect2()
 var b_ir := Rect2()
+# áreas de plantio (camada do filtro do mapa, André 2026-11-16): um quadradinho amarelo por quadrado de 4 m
+var _quads_plantio := {} # lido na linha principal antes de montar no fundo
+var plantio_mi: MultiMeshInstance3D
 
 func _init(minimapa) -> void:
 	mm = minimapa
@@ -121,6 +124,8 @@ func abrir() -> void:
 func preparar() -> void:
 	if pronto or _tarefa >= 0 or g.is_empty():
 		return
+	if m.plantio:
+		_quads_plantio = m.plantio.quadrados().duplicate()
 	_tarefa = WorkerThreadPool.add_task(_montar_fundo, false, "mapa3d")
 
 func _montar_fundo() -> void:
@@ -528,6 +533,7 @@ void fragment() {
 	mundo3d.add_child(fitas)
 	_mata(_dados.arvores)
 	_vilas()
+	_plantio()
 	_dados = {}
 
 # linha principal: só põe a cena pronta no SubViewport e cria o mapinha
@@ -652,6 +658,33 @@ func _vilas() -> void:
 		mi.material_override = _mat()
 		mundo3d.add_child(mi)
 
+func _plantio() -> void:
+	if _quads_plantio.is_empty():
+		return
+	var pl := PlaneMesh.new()
+	pl.size = Vector2(3.6, 3.6)
+	var mmu := MultiMesh.new()
+	mmu.transform_format = MultiMesh.TRANSFORM_3D
+	mmu.mesh = pl
+	mmu.instance_count = _quads_plantio.size()
+	var n := 0
+	for q in _quads_plantio:
+		var x: float = (q.x + 0.5) * 4.0
+		var z: float = (q.y + 0.5) * 4.0
+		mmu.set_instance_transform(n, Transform3D(Basis(), Vector3(x, alt(x, z) + 0.9, z)))
+		n += 1
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1.0, 0.77, 0.08, 0.8)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	plantio_mi = MultiMeshInstance3D.new()
+	plantio_mi.multimesh = mmu
+	plantio_mi.material_override = mat
+	plantio_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mundo3d.add_child(plantio_mi)
+	_quads_plantio = {}
+
 # ---------- toque ----------
 
 func entrada(ev: InputEvent) -> void:
@@ -682,6 +715,8 @@ func entrada(ev: InputEvent) -> void:
 			return
 		var td: Dictionary = toques[ev.index]
 		td.p = ev.position
+		if mm.filtro.cobre(td.ini - get_global_rect().position): # dedo no filtro não arrasta o mapa
+			return
 		if toques.size() >= 2 and not pinca.is_empty():
 			var ks: Array = toques.keys()
 			var d := (toques[ks[0]].p as Vector2).distance_to(toques[ks[1]].p)
@@ -701,6 +736,9 @@ func entrada(ev: InputEvent) -> void:
 
 func _toque(pos: Vector2) -> void:
 	var lp := pos - get_global_rect().position
+	if mm.filtro.toque(lp): # filtro das camadas (André 2026-11-16)
+		marcas.queue_redraw()
+		return
 	if b_x.has_point(lp):
 		mm.fechar()
 		return
@@ -772,6 +810,8 @@ func _desenhar() -> void:
 		var tipo := str(l.get("tipo", ""))
 		if tipo != "vila" and tipo != "casa" and tipo != "caverna" and tipo != "totem":
 			continue
+		if not mm.filtro.ok({"vila": "vilas", "caverna": "dungeon", "totem": "totens"}.get(tipo, "")) and tipo != "casa":
+			continue
 		var s = _na_tela(float(l.x), float(l.z), 8.0)
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
 			continue
@@ -782,7 +822,7 @@ func _desenhar() -> void:
 			c.draw_arc(s, 6.0, 0, TAU, 16, Color(0, 0, 0, 0.7), 1.5, true)
 		else:
 			_fita2d(c, s - Vector2(0, 20), str(l.get("curto", l.get("nome", ""))), 17 if perto else 13, l)
-	for v in m.mundo.get("vilasMundo", []): # as vilas do mundo grande (com o nível)
+	for v in (m.mundo.get("vilasMundo", []) if mm.filtro.ok("vilas") else []): # as vilas do mundo grande (com o nível)
 		var s = _na_tela(float(v.x), float(v.z), 8.0)
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
 			continue
@@ -800,6 +840,9 @@ func _desenhar() -> void:
 			mm._seta(c, sh, mm._frente_heroi() * Vector2(1, sin(deg_to_rad(INCL))), 11.0, COR_OURO)
 	_mapinha(c, tam)
 	_botoes(c, tam)
+	if plantio_mi != null:
+		plantio_mi.visible = mm.filtro.ok("plantio")
+	mm.filtro.desenhar(c, Vector2(12, 58), fonte) # filtro das camadas, embaixo da barra de cima
 
 func _fita2d(c: Control, centro: Vector2, txt: String, tam: int, l: Dictionary) -> void:
 	txt = Idioma.frase(txt)

@@ -3451,5 +3451,12 @@
 "Maçã": "Apple",
 "Da macieira. Recupera 6% da vida ou vende para a Rosa.": "From the apple tree. Restores 6% health or sell it to Rosa.",
 "Resina": "Resin",
-"Do pinheiro. Vende para a Rosa.": "From the pine. Sell it to Rosa."
+"Do pinheiro. Vende para a Rosa.": "From the pine. Sell it to Rosa.",
+"Mostrar no mapa": "Show on map",
+"Mercadores": "Merchants",
+"Áreas de plantio": "Planting areas",
+"Indo para a área de plantio": "Heading to the planting area",
+"Nenhuma área de plantio livre": "No free planting area",
+"Toque num quadrado amarelo": "Tap a yellow square",
+"Plantar %s aqui": "Plant %s here"
 }

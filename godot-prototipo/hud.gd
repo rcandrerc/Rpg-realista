@@ -52,6 +52,7 @@ var canal_vila_txt := "Voltando para a vila" # ou "Viajando para ..." (totem de 
 var bloqueado := false # menu do personagem aberto: a tela de jogo não recebe toque
 var menu_topo # menu_topo.gd: toque nos ícones do canto de cima não vira joystick nem câmera
 var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira câmera)
+var plantio # plantio.gd: painel do modo plantio (árvores) não vira joystick nem câmera
 var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 var troca # troca.gd: o cartão do pedido de troca não vira joystick nem câmera
 var missao # missao_ativa.gd: o cartão da missão ativa (e o "Ir para") não vira joystick nem câmera
@@ -303,6 +304,8 @@ func _input(ev: InputEvent) -> void:
 		if ev.pressed and minimapa and minimapa.cobre(ev.position) and not _no_zoom(ev.position): # tocar no minimapa abre o mapa (minimapa.gd)
 			return
 		if ev.pressed and construcao and construcao.cobre(ev.position): # barra do modo construção (construcao.gd)
+			return
+		if ev.pressed and plantio and plantio.cobre(ev.position): # painel do modo plantio (plantio.gd)
 			return
 		if ev.pressed and troca and troca.cobre(ev.position): # cartão do pedido de troca (troca.gd)
 			return

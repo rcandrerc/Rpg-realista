@@ -18,7 +18,7 @@ const ir = (j, x, z) => { j.x = x; j.z = z; s.passo(0.05); j.x = x; j.z = z; };
 // dados: 6 tipos, sementes na loja, áreas do mapa v6
 ok(Object.keys(ARVORES_PLANTIO).length === 6, '6 tipos de árvore');
 ok(Object.keys(ARVORES_PLANTIO).every((k) => LOJA.some((l) => l.k === 'semente_' + k) && ITENS['semente_' + k]), 'as 6 sementes estão na loja da Rosa');
-ok(PLANTIO.areas.length === 27 && QUADRADOS_PLANTIO.size > 3000, `${PLANTIO.areas.length} áreas de plantio, ${QUADRADOS_PLANTIO.size} quadrados de 4 m`);
+ok(PLANTIO.areas.length >= 48 && QUADRADOS_PLANTIO.size > 7500, `${PLANTIO.areas.length} áreas de plantio, ${QUADRADOS_PLANTIO.size} quadrados de 4 m`);
 // nenhum quadrado em cima de árvore nativa ou pedra (o plantio nunca fica impossível de cara em muitos lugares)
 {
   let presos = 0;
@@ -111,4 +111,19 @@ ok(f.some((x) => x.length === 1 && x[0] === P.id), 'quem tinha recebido recebe [
   ok(s2.plantioProx > Math.max(...[...s.plantadas.keys()].map((k) => +k.slice(1))), 'o próximo id não repete');
   s2.carregarPlantio([[99, 'nada', 0, 0], [100, 'betula', P3.x, P3.z]]);
   ok(!s2.plantadas.has('p99') && !s2.plantadas.has('p100'), 'ignora tipo que não existe e quadrado já ocupado');
+}
+
+// modo plantio do app (André 2026-11-16 14:04): o quadrado tocado, exato; ocupado não vai para o vizinho
+{
+  const e = s.adicionarJogador('E', 'Edu'); e.ciente = true; e.prog.vigor = { v: 999, t: Date.now() }; dar(e, 'semente_betula', 5);
+  const area = PLANTIO.areas.find((A) => A.id === 'f20') || PLANTIO.areas[PLANTIO.areas.length - 1];
+  const livres = [...QUADRADOS_PLANTIO].filter(([k, id]) => id === area.id && !s.plantioQ.has(k)).map(([k]) => k.split(',').map(Number))
+    .filter(([i, k]) => { const l = lugarNoQuadrado(i, k); return !s.pertoNaMata(l.x, l.z).some((o) => Math.hypot(o.x - l.x, o.z - l.z) < o.r + PLANTIO.folga + 1); });
+  const [i, k] = livres[0], cx = i * 4 + 2, cz = k * 4 + 2;
+  ir(e, cx + 1, cz); s.eventos = [];
+  s.plantarArvore('E', { s: 'betula', x: cx, z: cz, q: 1 });
+  ok(s.plantioQ.has(i + ',' + k), 'modo plantio: planta no quadrado tocado (área nova ' + area.id + ')');
+  const n0 = s.plantadas.size; s.eventos = [];
+  s.plantarArvore('E', { s: 'betula', x: cx, z: cz, q: 1 });
+  ok(s.plantadas.size === n0 && avisos(s.eventos, 'E').some((t) => /Já tem árvore/.test(t)), 'quadrado tocado ocupado: não planta no vizinho');
 }
