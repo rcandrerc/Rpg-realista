@@ -66,6 +66,15 @@ func marcar(nome: String) -> void:
 	if not _entrada.has(nome):
 		_entrada[nome] = Time.get_ticks_msec()
 
+# Ronda 2026-11-16 (celular da Luísa: 45 s do toque em Entrar até conectar; André 15 s): quantos toques em Entrar, quantas
+# vezes voltou para a tela inicial e por quê (motivo da última queda antes de entrar), e quando a sala respondeu
+func somar(nome: String) -> void:
+	_entrada[nome] = int(_entrada.get(nome, 0)) + 1
+
+func anotar(nome: String, valor) -> void:
+	if not _entrada_mandada:
+		_entrada[nome] = valor
+
 static func _soma(d: Dictionary) -> int:
 	var t := 0
 	for v in d.values():
