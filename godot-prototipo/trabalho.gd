@@ -29,6 +29,8 @@ var perto = null # coletável mais perto (para o botão)
 var indo = null # {o, ate}: tocou em Coletar longe e o herói está andando até encostar
 const DuasMaos = preload("res://duas_maos.gd")
 var duas # duas_maos.gd: as duas mãos no cabo da picareta e do machado
+const MaoFechadaT = preload("res://mao_fechada.gd")
+var dedos := [] # mao_fechada.gd (só os dedos), direita e esquerda: os dedos fecham em volta do cabo
 
 # cores de cada veio (minerio.gdshader): o bloco inteiro é o minério bruto, facetado, como a referência do André
 const BLOCO_VEIO := {
@@ -1028,6 +1030,9 @@ func parar(avisar_servidor := false) -> void:
 		m.acao = {}
 	if duas != null and is_instance_valid(duas):
 		duas.peso = 0.0
+	for d in dedos:
+		if is_instance_valid(d):
+			d.peso = 0.0
 	for k in ferramentas:
 		ferramentas[k].visible = false
 		if ferramentas[k].get_parent() != m:
@@ -1061,6 +1066,21 @@ func _preparar_duas() -> bool:
 		duas = DuasMaos.new()
 		m.heroi_esq.add_child(duas) # por último: depois da animação, do braço da espada e da inclinação
 		duas.preparar(m.heroi_esq)
+		# dedos fechados nas duas mãos, depois do duas (o pulso fica do jeito que o duas pôs)
+		for d in dedos:
+			if is_instance_valid(d):
+				d.queue_free()
+		dedos.clear()
+		if PEGADA_NOVA:
+			for lado in ["R", "L"]:
+				var osso: int = m.heroi_esq.find_bone("J_Bip_%s_Hand" % lado)
+				if osso >= 0:
+					var d = MaoFechadaT.new()
+					d.so_dedos = true
+					m.heroi_esq.add_child(d)
+					d.preparar(m.heroi_esq, osso)
+					dedos.append(d)
+					duas.furo_local[osso] = d.furo_local(m.heroi_esq)
 	return duas.pronto()
 
 # ---------- golpe com as duas mãos ----------
@@ -1077,7 +1097,14 @@ const DUAS_ALTO := {"ang": 118.0, "pe": Vector3(0.0, 1.5, 0.24), "ag": 0.035, "a
 const DUAS_PEDRA := {"ang": -45.0, "pe": Vector3(0.0, 1.05, 0.3), "ag": 0.12, "av": 0.06, "tor": -4.0, "cur": 1.0} # picareta: de cima para baixo na face da pedra
 const DUAS_TRONCO := {"ang": -6.0, "pe": Vector3(0.0, 1.12, 0.3)} # machado: quase reto no tronco, na altura do peito
 const DUAS_MAO_BAIXO := 0.04 # m do pé do cabo até a mão esquerda
-const DUAS_MAO_CIMA := 0.2 # até a mão direita
+const DUAS_MAO_CIMA := 0.2 # até a mão direita (pegada antiga: mãos quase juntas, guardada)
+# pegada de verdade (André 2026-11-16: "a mão esquerda fica quase embaixo, no final do cabo, e a outra no meio do
+# cabo, para ter balanço"): a esquerda no pé do cabo e a direita no meio dele, com alavanca.
+const PEGADA_NOVA := true # false volta para as mãos quase juntas (DUAS_MAO_CIMA)
+const PEGADA_MEIO := 0.5 # onde fica a mão direita: fração do cabo (0 = pé, 1 = encosta na cabeça da ferramenta)
+const PEGADA_JUNTA := 0.13 # m mínimos do pé do cabo até a mão direita (um punho de distância da esquerda)
+const PEGADA_PUNHO := 0.05 # m do pulso até o meio do punho fechado (o cabo passa ali)
+const PEGADA_CABECA := 0.13 # m da ponta de cima que é a cabeça (machado ou picareta), fora do cabo
 const DUAS_GIRO := PI / 2.0 # giro da ferramenta em volta do cabo (rad): a ponta da picareta e o fio do machado para a frente
 
 # machado (pedido do André): golpe de lado, na horizontal, vindo de trás do ombro direito até o tronco, com o fio
@@ -1089,10 +1116,10 @@ const LADO1_TRONCO := {"ang": -4.0, "giro": 8.0, "pe": Vector3(0.04, 1.05, 0.32)
 # golpe novo da picareta (André 2026-11-15, no jeito da mineração do ArcheAge): base bem aberta, a picareta sobe
 # reta acima da cabeça (as mãos na frente da testa, nunca na nuca) e desce com o corpo todo, curvado e agachado, na
 # face da pedra; a ponta quica e volta.
-const PEDRA2_PRONTO := {"ang": 50.0, "pe": Vector3(0.0, 1.0, 0.3), "ag": 0.1, "av": 0.0, "tor": 4.0, "cur": 0.3}
-const PEDRA2_ALTO := {"ang": 112.0, "pe": Vector3(0.0, 1.56, 0.2), "ag": 0.02, "av": -0.07, "tor": 10.0, "cur": -0.3}
-const PEDRA2_GOLPE := {"ang": -52.0, "pe": Vector3(0.0, 0.98, 0.32), "ag": 0.2, "av": 0.1, "tor": -5.0, "cur": 1.25}
-const PEDRA_QUICA := {"ang": -36.0, "pe": Vector3(0.0, 1.03, 0.3), "ag": 0.17, "av": 0.07, "tor": -3.0, "cur": 1.0}
+const PEDRA2_PRONTO := {"ang": 50.0, "pe": Vector3(0.0, 1.0, 0.3), "ag": 0.1, "av": 0.0, "tor": 4.0, "cur": 0.3, "mao": 0.55}
+const PEDRA2_ALTO := {"ang": 112.0, "pe": Vector3(0.0, 1.56, 0.2), "ag": 0.02, "av": -0.07, "tor": 10.0, "cur": -0.3, "mao": 0.12}
+const PEDRA2_GOLPE := {"ang": -52.0, "pe": Vector3(0.0, 0.98, 0.32), "ag": 0.2, "av": 0.1, "tor": -5.0, "cur": 1.25, "mao": 0.3}
+const PEDRA_QUICA := {"ang": -36.0, "pe": Vector3(0.0, 1.03, 0.3), "ag": 0.17, "av": 0.07, "tor": -3.0, "cur": 1.0, "mao": 0.33}
 const GOLPE_NOVO := true # false volta para o golpe antigo (DUAS_* e LADO1_*)
 const PEDRA_T := {"ergue": 0.4, "bate": 0.5, "quica": 0.6, "solta": 0.7}
 # golpe do machado v2 (André 2026-11-15, segunda gravação do ArcheAge: "não tá natural"): base bem aberta, o
@@ -1102,10 +1129,13 @@ const LADO2_PRONTO := {"ang": 18.0, "giro": 62.0, "pe": Vector3(0.1, 1.0, 0.26),
 const LADO2_ALTO := {"ang": 48.0, "giro": 158.0, "pe": Vector3(0.26, 1.42, -0.04), "ag": 0.08, "av": -0.08, "tor": 55.0, "cur": -0.18}
 const LADO2_TRONCO := {"ang": -18.0, "giro": -4.0, "pe": Vector3(0.02, 0.87, 0.34), "ag": 0.2, "av": 0.09, "tor": -22.0, "cur": 0.7}
 const LADO2_QUICA := {"ang": -11.0, "giro": 16.0, "pe": Vector3(0.05, 0.9, 0.31), "ag": 0.18, "av": 0.06, "tor": -12.0, "cur": 0.6}
-const LADO_PRONTO := {"ang": 14.0, "giro": 60.0, "pe": Vector3(0.12, 1.05, 0.26), "ag": 0.12, "av": 0.0, "tor": 18.0, "cur": 0.15}
-const LADO_ALTO := {"ang": 22.0, "giro": 172.0, "pe": Vector3(0.3, 1.22, -0.06), "ag": 0.14, "av": -0.06, "tor": 75.0, "cur": -0.08}
-const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(0.0, 1.0, 0.34), "ag": 0.2, "av": 0.08, "tor": -32.0, "cur": 0.42}
-const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(0.04, 1.02, 0.32), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36}
+# André 2026-11-16 ("o braço entra dentro do peito"): o pé do cabo mais à frente, mais baixo e para a esquerda na
+# guarda, no golpe e no quique, para os antebraços passarem na frente do peito. Antes: pe (0.12, 1.05, 0.26),
+# (0.0, 1.0, 0.34) e (0.04, 1.02, 0.32).
+const LADO_PRONTO := {"ang": 14.0, "giro": 60.0, "pe": Vector3(0.0, 0.9, 0.46), "ag": 0.12, "av": 0.0, "tor": 18.0, "cur": 0.15, "mao": 0.5}
+const LADO_ALTO := {"ang": 22.0, "giro": 172.0, "pe": Vector3(0.3, 1.22, -0.06), "ag": 0.14, "av": -0.06, "tor": 75.0, "cur": -0.08, "mao": 0.15}
+const LADO_TRONCO := {"ang": -3.0, "giro": -12.0, "pe": Vector3(-0.08, 0.95, 0.44), "ag": 0.2, "av": 0.08, "tor": -32.0, "cur": 0.42, "mao": 0.28}
+const LADO_QUICA := {"ang": 2.0, "giro": 8.0, "pe": Vector3(-0.04, 0.97, 0.42), "ag": 0.19, "av": 0.05, "tor": -20.0, "cur": 0.36, "mao": 0.32}
 # tempos do golpe novo (fração da batida): ergue, desce, bate, quica, volta
 const LADO_T := {"ergue": 0.42, "bate": 0.52, "quica": 0.62, "solta": 0.72}
 
@@ -1134,6 +1164,13 @@ func _cabeca_golpe(o: Dictionary) -> Vector2:
 	var a: float = deg_to_rad(float(P.ang))
 	var g: float = deg_to_rad(float(P.get("giro", 0.0)))
 	return Vector2(P.pe.z + cos(a) * cos(g) * comp, P.pe.y + sin(a) * comp)
+
+# onde a mão direita segura, em m a partir do pé do cabo
+func _mao_cima(fe: Node3D, frac := PEGADA_MEIO) -> float:
+	if not PEGADA_NOVA:
+		return DUAS_MAO_CIMA
+	var cabo_m: float = float(fe.get_meta("topo", 0.8)) - float(fe.get_meta("base", 0.0)) - PEGADA_CABECA
+	return max(PEGADA_JUNTA, DUAS_MAO_BAIXO + (cabo_m - DUAS_MAO_BAIXO) * frac)
 
 func _passo_duas(o: Dictionary, f: float) -> void:
 	var fe: Node3D = ferramentas.get(coletando.prof)
@@ -1203,8 +1240,12 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 	var b := Basis(cabo.cross(bz), cabo, bz).orthonormalized() * Basis(Vector3.UP, DUAS_GIRO)
 	fe.global_transform = Transform3D(b, P0 - cabo * float(fe.get_meta("base", 0.0)))
 	duas.mao_e = P0 + cabo * DUAS_MAO_BAIXO
-	duas.mao_d = P0 + cabo * DUAS_MAO_CIMA
+	# a mão de cima desliza pelo cabo como nas referências (Vanilla Loop, 2026-11-15): no meio do cabo na guarda,
+	# desce até perto da esquerda com a ferramenta erguida e volta um pouco no golpe
+	var frac: float = lerp(float(A.get("mao", PEGADA_MEIO)), float(B.get("mao", PEGADA_MEIO)), k)
+	duas.mao_d = P0 + cabo * _mao_cima(fe, frac)
 	duas.cabo = cabo
+	duas.punho = PEGADA_PUNHO if PEGADA_NOVA else 0.0
 	var alvo_cur: float = lerp(float(A.get("cur", curva)), float(B.get("cur", curva)), k)
 	var alvo_ag: float = lerp(float(A.get("ag", 0.0)), float(B.get("ag", 0.0)), k)
 	var alvo_av: float = lerp(float(A.get("av", 0.0)), float(B.get("av", 0.0)), k)
@@ -1229,6 +1270,8 @@ func _passo_duas(o: Dictionary, f: float) -> void:
 		duas.avanco = alvo_av
 		duas.torcao = alvo_tor
 	duas.peso = move_toward(duas.peso, 1.0, get_process_delta_time() * 8.0)
+	for d in dedos:
+		d.peso = duas.peso
 
 # criou uma peça na oficina: faíscas na bigorna (ou linha na banca da Rosa) e o som
 func criou(ev: Dictionary) -> void:

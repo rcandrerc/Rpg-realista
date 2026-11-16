@@ -132,6 +132,8 @@ func _grupo_de_copas(lista: Array, malha: Mesh, sh: Shader, _sem_arvore: bool, v
 	for i in lista.size():
 		mm.set_instance_transform(i, lista[i].t)
 		mm.set_instance_color(i, lista[i].copa[2])
+		if not _sem_arvore: # a árvore de verdade sabe onde está a copa de longe dela: cortada, a copa de longe some junto
+			lista[i]["longe"] = [mm, i]
 	var g := MultiMeshInstance3D.new()
 	g.multimesh = mm
 	g.material_override = mat
