@@ -704,6 +704,32 @@ static func _roupa_de_oficio(raiz: Node3D, esq: Skeleton3D, v: Dictionary) -> vo
 	var quadril := esq.find_bone("J_Bip_C_Hips")
 	if quadril < 0:
 		return
+	var chave := "oficio:%s:%s" % [JSON.stringify(v), _assinatura(raiz, esq, f)]
+	if _pronto.has(chave): # NPC igual a um que já nasceu: as mesmas malhas (_pronto)
+		var no0 := Node3D.new()
+		no0.name = "Oficio"
+		var ba0 := BoneAttachment3D.new()
+		ba0.bone_idx = quadril
+		esq.add_child(ba0)
+		ba0.add_child(no0)
+		var pele: Skin = null
+		for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+			if mi.skin and mi.mesh is ArrayMesh and "Body_00_SKIN" in mi.mesh.surface_get_name(0):
+				pele = mi.skin
+				break
+		for e in _pronto[chave]:
+			var mi := MeshInstance3D.new()
+			mi.mesh = e.mesh
+			mi.material_override = e.mat
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			if e.pele and pele != null:
+				mi.name = "Oficio_saia"
+				esq.add_child(mi)
+				mi.skin = pele
+				mi.skeleton = mi.get_path_to(esq)
+			else:
+				no0.add_child(mi)
+		return
 	# corpo na pose de descanso (espaço canônico, +z = frente): pele, blusa e as peças da armadura que estão à mostra
 	var V := PackedVector3Array()
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
@@ -747,18 +773,38 @@ static func _roupa_de_oficio(raiz: Node3D, esq: Skeleton3D, v: Dictionary) -> vo
 					ctx[par[1]] = bi
 		ctx.xl = esq.get_bone_global_rest(esq.find_bone("J_Bip_L_UpperLeg")).origin.x
 		ctx.xr = esq.get_bone_global_rest(esq.find_bone("J_Bip_R_UpperLeg")).origin.x
+	var feitas: Array[MeshInstance3D] = []
 	if v.has("saia"):
 		var c := _cor(v.saia)
-		_saia(no, ctx, y_cint, y_fim, 0.03, -PI, PI, _toon(c, _sombra(c), c.darkened(0.6), 0.003), true)
+		feitas.append(_saia(no, ctx, y_cint, y_fim, 0.03, -PI, PI, _toon(c, _sombra(c), c.darkened(0.6), 0.003), true))
 		if v.has("avental"):
 			var ca := _cor(v.avental)
-			_saia(no, ctx, y_cint - 0.01, y_fim + 0.07, 0.03, -0.85, 0.85, _toon(ca, _sombra(ca), ca.darkened(0.6), 0.002), false)
+			feitas.append(_saia(no, ctx, y_cint - 0.01, y_fim + 0.07, 0.03, -0.85, 0.85, _toon(ca, _sombra(ca), ca.darkened(0.6), 0.002), false))
 	if v.has("corpete"):
 		var cc := _cor(v.corpete)
-		_faixa(no, ctx, y_cint - 0.02, Armadura.junta_peito + 0.01, 0.008, _toon(cc, _sombra(cc), cc.darkened(0.6), 0.002), false)
+		feitas.append(_faixa(no, ctx, y_cint - 0.02, Armadura.junta_peito + 0.01, 0.008, _toon(cc, _sombra(cc), cc.darkened(0.6), 0.002), false))
 	if v.has("faixa"):
 		var cf := _cor(v.faixa)
-		_faixa(no, ctx, y_cint - 0.025, y_cint + 0.025, 0.03 if v.has("saia") else 0.012, _toon(cf, _sombra(cf), cf.darkened(0.6), 0.002), true)
+		feitas.append(_faixa(no, ctx, y_cint - 0.025, y_cint + 0.025, 0.03 if v.has("saia") else 0.012, _toon(cf, _sombra(cf), cf.darkened(0.6), 0.002), true))
+	var lista := []
+	for mi in feitas:
+		lista.append({"mesh": mi.mesh, "mat": mi.material_override, "pele": mi.skin != null})
+	_pronto[chave] = lista
+
+# NPCs iguais nascem iguais (lentidão de 2026-11-16: npc:shibu 107 ms, cabelo_m 119, shino 123 no Poco X7 ao chegar
+# nas mini vilas; no PC a roupa de ofício levava 17 a 45 ms e o friso dourado 28 ms em cada NPC). As malhas da saia,
+# do avental, das faixas e do friso só dependem das malhas do corpo à mostra (as mesmas no mesmo modelo com a mesma
+# armadura), dos ossos e das cores: a primeira vez monta e guarda; as outras usam a mesma malha. Nada muda no desenho.
+static var _pronto := {}
+static func _assinatura(raiz: Node3D, esq: Skeleton3D, f: float) -> String:
+	var s := "%s:%d" % [f, esq.get_bone_count()]
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if not (mi.mesh is ArrayMesh) or not _visivel(mi, raiz) or str(mi.name) == "Barba":
+			continue
+		s += ":%d" % mi.mesh.get_instance_id()
+		if mi.skin:
+			s += "s%d" % mi.skin.get_instance_id()
+	return s
 
 # raio do corpo em cada direção numa altura (o mais longe que algum vértice chega), suavizado
 # Corrida de lobo (varredura 2026-11-13): cada anel olhava todos os vértices do corpo (~20 mil) e refazia seno e
@@ -804,7 +850,7 @@ static func _contorno_em(ctx: Dictionary, y: float, n: int, faixa := 0.015) -> A
 
 # saia (ou avental, quando a0..a1 não dá a volta): anéis da cintura até a barra, nunca entra depois do quadril,
 # abre um pouco para baixo e tem dobras que crescem perto da barra
-static func _saia(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: float, a0: float, a1: float, mat: Material, volta: bool) -> void:
+static func _saia(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: float, a0: float, a1: float, mat: Material, volta: bool) -> MeshInstance3D:
 	var n := 40
 	var niveis := 16
 	var aneis := []
@@ -882,9 +928,10 @@ static func _saia(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: floa
 		mi.skeleton = mi.get_path_to(esq)
 	else:
 		no.add_child(mi)
+	return mi
 
 # faixa de pano em volta do corpo entre duas alturas (cinta da túnica ou corpete); com ponta caída do lado esquerdo
-static func _faixa(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: float, mat: Material, ponta: bool) -> void:
+static func _faixa(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: float, mat: Material, ponta: bool) -> MeshInstance3D:
 	var n := 40
 	var niveis := 4
 	var st := SurfaceTool.new()
@@ -926,6 +973,7 @@ static func _faixa(no: Node3D, ctx: Dictionary, y0: float, y1: float, folga: flo
 	mi.mesh = st.commit()
 	mi.material_override = mat
 	no.add_child(mi)
+	return mi
 
 # visível até a raiz do modelo (funciona fora da árvore também); a capa não conta como corpo
 static func _visivel(n: Node, raiz: Node) -> bool:
@@ -957,10 +1005,26 @@ static func _vertices_corpo(raiz: Node3D, f: float) -> PackedVector3Array:
 
 static func _friso_dourado(raiz: Node3D, esq: Skeleton3D) -> void:
 	var f := _frente(esq)
+	var chave := "friso:" + _assinatura(raiz, esq, f)
+	var mat := _toon(OURO, OURO_SOMBRA, Color("4a2e10"), 0.002)
+	if _pronto.has(chave): # o mesmo corpo com a mesma armadura: as mesmas malhas (_pronto)
+		for e in _pronto[chave]:
+			var i0 := esq.find_bone(e.osso)
+			var ba0 := BoneAttachment3D.new()
+			ba0.bone_idx = i0
+			esq.add_child(ba0)
+			var n0 := Node3D.new()
+			n0.name = "Friso"
+			ba0.add_child(n0)
+			var mi := MeshInstance3D.new()
+			mi.mesh = e.mesh
+			mi.material_override = mat
+			n0.add_child(mi)
+		return
 	var V := _vertices_corpo(raiz, f)
 	if V.is_empty():
 		return
-	var mat := _toon(OURO, OURO_SOMBRA, Color("4a2e10"), 0.002)
+	var lista := []
 	var bp := func(n: String) -> Vector3:
 		var i := esq.find_bone(n)
 		var o := esq.get_bone_global_rest(i).origin if i >= 0 else Vector3.ZERO
@@ -981,7 +1045,7 @@ static func _friso_dourado(raiz: Node3D, esq: Skeleton3D) -> void:
 		if Vector2(p.x - pesc.x, p.z - pesc.z).length() < 0.12:
 			perto.append(p)
 	var g = prender.call("J_Bip_C_UpperChest")
-	_faixa(g[0], {"V": perto, "c": pesc, "f": f, "inv": g[1]}, pesc.y - 0.035, pesc.y - 0.002, 0.005, mat, false)
+	lista.append({"osso": "J_Bip_C_UpperChest", "mesh": _faixa(g[0], {"V": perto, "c": pesc, "f": f, "inv": g[1]}, pesc.y - 0.035, pesc.y - 0.002, 0.005, mat, false).mesh})
 	# barra do gibão: faixa na cintura, por cima do cinto (um anel na barra da túnica abraçava as duas pernas)
 	var quadril: Vector3 = bp.call("J_Bip_C_Hips")
 	var y_c: float = bp.call("J_Bip_C_Spine").y + 0.02
@@ -990,17 +1054,18 @@ static func _friso_dourado(raiz: Node3D, esq: Skeleton3D) -> void:
 		if Vector2(p.x - quadril.x, p.z - quadril.z).length() < 0.2:
 			tronco.append(p)
 	var h = prender.call("J_Bip_C_Hips")
-	_faixa(h[0], {"V": tronco, "c": quadril, "f": f, "inv": h[1]}, y_c - 0.015, y_c + 0.015, 0.006, mat, false)
+	lista.append({"osso": "J_Bip_C_Hips", "mesh": _faixa(h[0], {"V": tronco, "c": quadril, "f": f, "inv": h[1]}, y_c - 0.015, y_c + 0.015, 0.006, mat, false).mesh})
 	# punhos: anel em volta do antebraço, logo antes da mão (os braços ficam abertos em T na pose de descanso)
 	for lado in ["L", "R"]:
 		var mao: Vector3 = bp.call("J_Bip_%s_Hand" % lado)
 		var cot: Vector3 = bp.call("J_Bip_%s_LowerArm" % lado)
 		var eixo := (mao - cot).normalized()
 		var a = prender.call("J_Bip_%s_LowerArm" % lado)
-		_anel_braco(a[0], V, mao - eixo * 0.05, eixo, 0.035, f, a[1], mat)
+		lista.append({"osso": "J_Bip_%s_LowerArm" % lado, "mesh": _anel_braco(a[0], V, mao - eixo * 0.05, eixo, 0.035, f, a[1], mat).mesh})
+	_pronto[chave] = lista
 
 # anel em volta de um eixo (braço): raio de cada direção = o vértice mais longe naquela fatia, mais 6 mm
-static func _anel_braco(no: Node3D, V: PackedVector3Array, centro: Vector3, eixo: Vector3, alt: float, f: float, inv: Transform3D, mat: Material) -> void:
+static func _anel_braco(no: Node3D, V: PackedVector3Array, centro: Vector3, eixo: Vector3, alt: float, f: float, inv: Transform3D, mat: Material) -> MeshInstance3D:
 	var n := 24
 	var u := eixo.cross(Vector3.FORWARD).normalized()
 	var w := eixo.cross(u).normalized()
@@ -1040,3 +1105,4 @@ static func _anel_braco(no: Node3D, V: PackedVector3Array, centro: Vector3, eixo
 	mi.mesh = st.commit()
 	mi.material_override = mat
 	no.add_child(mi)
+	return mi

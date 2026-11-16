@@ -154,6 +154,38 @@ func _ligar() -> void:
 		m.lentidao.menu_aberto("mapa3d", _t_abriu, 0)
 		_t_abriu = 0
 
+# Aquecer (achado da linha de desempenho nos registros do André, 2026-11-16: a 1ª abertura do mapa 3D levou 3,5 s no
+# 1º quadro, 27 pipelines da placa compiladas na hora). aquecer() monta a maquete (se ainda não montou) e a desenha uma
+# vez escondida, com a câmera no herói: as pipelines compilam ali (atrás da capa de abertura, quem chama escolhe a hora)
+# e a primeira abertura de verdade já sai pronta. Escondido o mapa não aparece nem pega toque.
+var _aquecer := false
+func aquecer() -> void:
+	if g.is_empty():
+		return
+	if pronto:
+		if not visible:
+			_desenhar_escondido()
+		return
+	_aquecer = true
+	preparar()
+
+# a capa saiu antes da maquete ficar pronta: não desenha escondido no meio do jogo (seria o engasgo que se quer evitar)
+func cancelar_aquecer() -> void:
+	_aquecer = false
+
+func _desenhar_escondido() -> void:
+	_aquecer = false
+	if m.heroi != null:
+		foco = Vector3(m.heroi.position.x, 0, m.heroi.position.z)
+		foco_alvo = foco
+	dist = DIST_ABRIR
+	dist_alvo = DIST_ABRIR
+	_camera()
+	sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+	if not _mini_feito:
+		_mini_feito = true
+		mini_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+
 const PREPARAR_APOS := 12.0 # segundos de jogo antes de montar o mapa 3D em segundo plano
 var _t_jogo := 0.0
 
@@ -170,6 +202,8 @@ func _process(dt: float) -> void:
 					if totens_ao_ficar_pronto and not mm.totem_de.is_empty():
 						ver_totens()
 				totens_ao_ficar_pronto = false
+				if _aquecer and not visible:
+					_desenhar_escondido()
 		elif not visible and m.heroi != null and not g.is_empty():
 			_t_jogo += minf(dt, 0.1) # quadro longo do carregamento não conta
 			if _t_jogo > PREPARAR_APOS:

@@ -25,6 +25,7 @@ var _quadros := 0
 var _corpo: Node3D
 var _mobs: Array = []
 var _volume := 0.0
+var _mapa_aquecendo := false # mapa3d.aquecer() chamado: cancela quando a capa sai
 # Corpos dos outros (André 2026-11-13, "travadas são inaceitáveis"): a Cecília entrando na visão pela primeira vez
 # travava ~1 s no PC (carregar o modelo do penteado 540 ms, montar o cabelo ~90 ms e a armadura ~280 ms, no quadro);
 # os aventureiros de penteado davam o mesmo tranco. Atrás da capa, um boneco escondido de cada corpo do criador veste
@@ -73,6 +74,9 @@ func _esperando_botao() -> bool:
 func _process_parte(dt: float) -> void:
 	if _esperando_botao():
 		return
+	if _mapa_aquecendo and m.online != null and m.online.capa != null and not m.online.capa.visible:
+		_mapa_aquecendo = false # a capa saiu antes da maquete ficar pronta: nada de desenhar escondido no meio do jogo
+		m.minimapa.mapa3d.cancelar_aquecer()
 	if cobre: # segurança: nunca prende a tela de "Conectando…" (conta mesmo depois dos efeitos, com os corpos montando)
 		_total += dt
 		if _total >= LIMITE:
@@ -133,6 +137,12 @@ func _mostrar_tudo() -> void:
 	m.add_child(_corpo)
 	_corpo.global_position = p
 	var maos := func(): return [p + Vector3(0, 1.2, 0)]
+	# o mapa 3D (lentidão de 2026-11-16: a 1ª abertura levou 3,5 s no 1º quadro, 27 pipelines): monta a maquete no fundo
+	# (se ainda não montou) e a desenha uma vez escondida, atrás da capa (mapa3d.gd aquecer)
+	var m3 = m.minimapa.mapa3d if m.minimapa else null
+	if m3 != null and m3.has_method("aquecer"):
+		m3.aquecer()
+		_mapa_aquecendo = true
 	preload("res://junta_pecas.gd").aquecer_em(_corpo, m.esqueleto(m.heroi) if m.heroi else null) # shader da armadura juntada dos NPCs (junta_pecas.gd)
 	m._mancha(_corpo, true) # sombra de mancha do NPC longe (main.gd npc_simples)
 	# skills de espada e de cajado (o círculo/carga e a explosão de cada uma), golpe comum e números de dano
