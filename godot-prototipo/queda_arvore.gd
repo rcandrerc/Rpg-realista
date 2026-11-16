@@ -105,16 +105,15 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = p.mesh
 		mi.transform = p.t
-		var mt: BaseMaterial3D = (p.mat as BaseMaterial3D).duplicate() if p.mat is BaseMaterial3D else null
-		if mt != null:
-			mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
-			if p.has("cor"):
-				mt.albedo_color = mt.albedo_color * p.cor
-			mt.set_meta("alfa", mt.albedo_color.a)
-			mi.material_override = mt
-			mats.append(mt)
-		elif p.mat != null:
-			mi.material_override = p.mat
+		if p.has("mats"): # modelo com casca e folha separadas (árvores plantadas): um material por superfície
+			for i in p.mats.size():
+				var ms = _mat_queda(p.mats[i], null, mats)
+				if ms != null:
+					mi.set_surface_override_material(i, ms)
+		else:
+			var mt = _mat_queda(p.mat, p.get("cor"), mats)
+			if mt != null:
+				mi.material_override = mt
 		piv.add_child(mi)
 	var alto: float = 7.0 * float(o.r) / 0.32 # ~7 m de árvore por escala 1 (raio do tronco 0,32)
 	# som (Pixabay, André 2026-11-07): um só, já com o rangido, o estalo grande (~0,5 s), os galhos quebrando na queda
@@ -134,6 +133,18 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 	tw.tween_callback(_transparente.bind(mats))
 	tw.tween_method(_apagar.bind(piv, mats), 0.0, 1.0, SOME)
 	tw.tween_callback(_sumiu.bind(info, piv))
+
+# cópia do material para a árvore que cai (apaga no fim): sem sumir pela distância, com a cor da copa
+func _mat_queda(mat, cor, mats: Array):
+	if not (mat is BaseMaterial3D):
+		return mat
+	var mt: BaseMaterial3D = (mat as BaseMaterial3D).duplicate()
+	mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+	if cor != null:
+		mt.albedo_color = mt.albedo_color * cor
+	mt.set_meta("alfa", mt.albedo_color.a)
+	mats.append(mt)
+	return mt
 
 func _girar(a: float, piv: Node3D, eixo: Vector3) -> void:
 	piv.basis = Basis(eixo, a)
@@ -238,6 +249,12 @@ func _partes(o: Dictionary) -> Array:
 		for mi in _vila.get(_chave(pos.x, pos.z), []):
 			var gt: Transform3D = mi.global_transform
 			gt.origin -= base
+			if mi.material_override == null and mi.mesh.get_surface_count() > 1:
+				var ms: Array = []
+				for i in mi.mesh.get_surface_count():
+					ms.append(mi.get_active_material(i))
+				l.append({"mesh": mi.mesh, "t": gt, "mats": ms})
+				continue
 			var mat = mi.material_override if mi.material_override != null else mi.mesh.surface_get_material(0)
 			l.append({"mesh": mi.mesh, "t": gt, "mat": mat})
 	return l
