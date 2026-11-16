@@ -61,6 +61,9 @@ var b_mais := Rect2()
 var b_menos := Rect2()
 var b_eu := Rect2()
 var b_ir := Rect2()
+var b_lista := Rect2()
+var b_tp := Rect2() # "Teleportar" do totem escolhido
+var lista_aberta := true # lista de Lugares na direita (como no 2D); o botão no alto esconde
 # áreas de plantio (camada do filtro do mapa, André 2026-11-16): pinheirinhos em fileiras (antes quadradinhos amarelos)
 var _quads_plantio := {} # lido na linha principal antes de montar no fundo
 var plantio_mi: MultiMeshInstance3D
@@ -180,7 +183,7 @@ func _process(dt: float) -> void:
 	# jogadores e o herói andando: parado, o mapa quase não gasta
 	_t_marcas += dt
 	var tc: Transform3D = cam.global_transform if cam != null else Transform3D()
-	if _t_marcas > 0.25 or not tc.is_equal_approx(_cam_antes):
+	if _t_marcas > 0.25 or not tc.is_equal_approx(_cam_antes) or not mm.totem_de.is_empty():
 		_t_marcas = 0.0
 		_cam_antes = tc
 		marcas.queue_redraw()
@@ -719,6 +722,10 @@ func _plantio() -> void:
 
 func entrada(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton and ev.pressed and (ev.button_index == MOUSE_BUTTON_WHEEL_UP or ev.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		if mm._painel().has_point(ev.position): # roda em cima da lista (PC): rola a lista
+			mm.rolar = clampf(mm.rolar + (-40.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 40.0), 0.0, maxf(0.0, mm.lista_alt - mm._painel().size.y))
+			marcas.queue_redraw()
+			return
 		dist_alvo = clampf(dist_alvo * (1.0 / 1.15 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 1.15), DIST_MIN, DIST_MAX)
 		return
 	if ev is InputEventScreenTouch:
@@ -746,6 +753,13 @@ func entrada(ev: InputEvent) -> void:
 		var td: Dictionary = toques[ev.index]
 		td.p = ev.position
 		if mm.filtro.cobre(td.ini - get_global_rect().position): # dedo no filtro não arrasta o mapa
+			return
+		if mm._painel().has_point(td.ini): # dedo na lista: rola a lista
+			if ev.position.distance_to(td.ini) > 12.0:
+				arrastou = true
+			if arrastou:
+				mm.rolar = clampf(mm.rolar - ev.relative.y, 0.0, maxf(0.0, mm.lista_alt - mm._painel().size.y))
+				marcas.queue_redraw()
 			return
 		if toques.size() >= 2 and not pinca.is_empty():
 			var ks: Array = toques.keys()
@@ -779,6 +793,26 @@ func _toque(pos: Vector2) -> void:
 		return
 	if b_2d.has_point(lp):
 		mm.trocar_modo(false)
+		return
+	if not mm.totem_de.is_empty(): # mapa do totem: escolher o totem e teleportar
+		if b_mais.has_point(lp) or b_menos.has_point(lp):
+			dist_alvo = clampf(dist_alvo * (1.0 / 1.45 if b_mais.has_point(lp) else 1.45), DIST_MIN, DIST_MAX)
+		elif b_eu.has_point(lp):
+			ver_totens()
+		else:
+			_toque_totem(lp)
+		return
+	if b_lista.has_point(lp):
+		lista_aberta = not lista_aberta
+		_arrumar_lista(false)
+		if m.sons:
+			m.sons.tocar("pano", -16.0)
+		return
+	var sel_antes: String = mm.selecionado
+	if mm._toque_lista(pos): # lista de Lugares: marca o lugar e leva a câmera até ele
+		if mm.aberto and mm.selecionado != "" and mm.selecionado != sel_antes:
+			foco_alvo = Vector3(mm.foco_alvo.x, 0.0, mm.foco_alvo.y)
+			dist_alvo = minf(dist_alvo, DIST_ABRIR)
 		return
 	if mm.marcado != null and b_ir.has_point(lp):
 		mm._ir()
@@ -831,12 +865,16 @@ func _desenhar() -> void:
 		c.draw_string(fonte, tam * 0.5 + Vector2(-120, 0), Idioma.frase("Montando o mapa…"), HORIZONTAL_ALIGNMENT_CENTER, 240, 22, Color8(250, 232, 190))
 		_botoes(c, tam)
 		return
+	var tm: bool = not mm.totem_de.is_empty() # encostou num totem: o mapa mostra os totens para viajar
+	_arrumar_lista(tm)
+	var lw: float = mm.LARGURA_LISTA if mm.painel_3d.has_area() else 0.0 # a lista de Lugares ocupa a direita
 	var perto := dist < 900.0
 	var longe := dist > LONGE # de longe, como no 2D afastado: só os símbolos, sem nomes miúdos nem NPCs
 	var em := func(x: float, z: float) -> Vector2: return _em(x, z, 4.0)
 	var k := _px_por_metro()
-	_nevoa(c, tam, longe) # zonas ainda fechadas pela névoa, como no 2D
-	_terras(c, tam, longe)
+	if not tm:
+		_nevoa(c, tam, longe) # zonas ainda fechadas pela névoa, como no 2D
+		_terras(c, tam, longe)
 	# rota sendo andada (o herói já vai indo): a mesma fita dourada da prévia
 	if m.rota and m.rota.ativo and mm.marcado == null:
 		_rota(c, m.rota.caminho, int(m.rota.i))
@@ -849,8 +887,9 @@ func _desenhar() -> void:
 				c.draw_line(ant, s, Color(0.05, 0.04, 0.03, 0.6), 5.0, true)
 				c.draw_line(ant, s, Color("ffd27a"), 3.0, true)
 			ant = s
-	_simbolos(c, tam, em, k, longe) # tudo o que o mapa 2D mostra: veios, caça, chefes, dungeons, totens, NPCs, casa...
-	for l in mm._lugares():
+	if not tm:
+		_simbolos(c, tam, em, k, longe) # tudo o que o mapa 2D mostra: veios, caça, chefes, dungeons, totens, NPCs, casa...
+	for l in (mm._lugares() if not tm else []): # no mapa do totem só os nomes dos totens (os outros embolam)
 		var tipo := str(l.get("tipo", ""))
 		if tipo != "vila":
 			continue
@@ -860,7 +899,7 @@ func _desenhar() -> void:
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
 			continue
 		_fita2d(c, s - Vector2(0, 20), str(l.get("curto", l.get("nome", ""))), 17 if perto else 13, l)
-	for v in (m.mundo.get("vilasMundo", []) if mm.filtro.ok("vilas") else []): # as vilas do mundo grande (com o nível)
+	for v in (m.mundo.get("vilasMundo", []) if mm.filtro.ok("vilas") and not tm else []): # as vilas do mundo grande (com o nível)
 		var s = _na_tela(float(v.x), float(v.z), 8.0)
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
 			continue
@@ -869,7 +908,8 @@ func _desenhar() -> void:
 		var sm = _na_tela(mm.marcado.x, mm.marcado.y, 2.0)
 		if sm != null:
 			mm._pino(c, sm, 1.15)
-	_pessoas(c, em) # jogadores perto, o time e os amigos virtuais
+	if not tm:
+		_pessoas(c, em) # jogadores perto, o time e os amigos virtuais
 	# herói
 	if m.heroi != null:
 		var hp: Vector3 = m.heroi.position
@@ -877,10 +917,17 @@ func _desenhar() -> void:
 		if sh != null:
 			c.draw_circle(sh, 13.0, Color(1, 0.85, 0.4, 0.22))
 			mm._seta(c, sh, mm._frente_heroi() * Vector2(1, sin(deg_to_rad(INCL))), 11.0, COR_OURO)
-	_mapinha(c, tam)
-	_botoes(c, tam)
+	if tm:
+		_totens(c, tam, em)
+	_mapinha(c, Vector2(tam.x - lw, tam.y))
+	_botoes(c, tam, lw, tm)
 	if plantio_mi != null:
-		plantio_mi.visible = mm.filtro.ok("plantio")
+		plantio_mi.visible = mm.filtro.ok("plantio") and not tm
+	if tm:
+		_botao_teleportar(c, tam, em)
+		return
+	if lw > 0.0:
+		mm._desenhar_grande(c) # a lista de Lugares do 2D, a mesma (sanfona, toque marca, de novo vai)
 	# a mesma legenda dos símbolos do 2D, embaixo à esquerda; no 3D começa fechada (só o botão "Legenda") para não
 	# tapar a maquete, e lembra se foi aberta (estado próprio, o do 2D não muda)
 	var leg_2d: bool = mm.icones.legenda_aberta
@@ -1114,6 +1161,180 @@ func _pessoas(c: Control, em: Callable) -> void:
 		mm._coracao(c, q, 7.0)
 		mm._texto(c, q + Vector2(0, -14), ce.nome, 13, mm.COR_AMIGA.lightened(0.3))
 
+# ---------- lista de Lugares e totens no 3D (André 2026-11-16: "quando encosto no totem abre o mapa 3D, mas não
+# aparece totem nenhum; tenho que mudar pro 2D". A ideia dele é ficar só com o 3D: tudo do 2D precisa funcionar aqui) ----
+
+# onde fica a lista (a mesma do 2D, minimapa.gd): na direita, embaixo da barra de cima
+func _arrumar_lista(tm: bool) -> void:
+	if tm or not lista_aberta or not pronto:
+		mm.painel_3d = Rect2()
+		return
+	var g := get_global_rect()
+	mm.painel_3d = Rect2(g.position + Vector2(g.size.x - mm.LARGURA_LISTA, 44.0), Vector2(mm.LARGURA_LISTA, g.size.y - 44.0))
+
+# nome do lugar marcado para o "Ir para": o da lista ou a clareira embaixo do pino
+func _nome_marcado() -> String:
+	if mm.selecionado != "":
+		for l in mm._lugares():
+			if str(l.id) == mm.selecionado:
+				return str(l.get("curto", l.get("nome", "")))
+	return mm._clareira_em(mm.marcado)
+
+# a câmera mostra todos os totens (abre assim quando o herói encosta num totem)
+func ver_totens() -> void:
+	var r := Rect2()
+	var primeiro := true
+	for t in m.totem.T.lista:
+		var p := Vector2(float(t.x), float(t.z))
+		r = Rect2(p, Vector2.ZERO) if primeiro else r.expand(p)
+		primeiro = false
+	if primeiro:
+		return
+	r = r.grow(60.0)
+	foco_alvo = Vector3(r.get_center().x, 0.0, r.get_center().y - r.size.y * 0.04)
+	foco = foco_alvo
+	dist_alvo = clampf(maxf(r.size.x / 1.5, r.size.y / 0.85) * 1.1, DIST_MIN, DIST_MAX)
+	dist = dist_alvo
+	_camera()
+	marcas.queue_redraw()
+
+# os totens grandes: acesos pulsando (dá para tocar), apagados (visite a pé), o daqui com "Você está aqui"
+func _totens(c: Control, tam: Vector2, em: Callable) -> void:
+	var ouro := int(m.P.prog.get("ouro", 0))
+	var pulso: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
+	for t in m.totem.T.lista:
+		var id := str(t.id)
+		var q := _em(float(t.x), float(t.z), 8.0)
+		if not _na_tela_ok(q, tam, 60.0):
+			continue
+		var aqui: bool = id == str(mm.totem_de.get("id", ""))
+		var ok: bool = m.totem.descoberto(id)
+		_sombra(c, q, 12.0)
+		if ok and not aqui:
+			c.draw_circle(q, 20.0 + pulso * 5.0, Color(0.35, 0.85, 1.0, 0.14 + pulso * 0.1))
+			c.draw_circle(q, 15.0, Color(0.35, 0.85, 1.0, 0.24))
+		if id == mm.totem_alvo:
+			c.draw_arc(q, 21.0, 0, TAU, 40, COR_OURO, 2.5, true)
+		mm._marca_totem(c, q, 12.0, ok)
+		var sub := ""
+		var cor_sub := Color("9fe6ff")
+		if aqui:
+			sub = "Você está aqui"
+			cor_sub = COR_OURO
+			c.draw_arc(q, 19.0, 0, TAU, 40, COR_OURO, 2.0, true)
+		elif ok:
+			sub = "%d de ouro" % m.totem.taxa(t)
+			if m.totem.taxa(t) > ouro:
+				cor_sub = Color(1, 0.62, 0.55)
+		else:
+			sub = "visite a pé"
+			cor_sub = Color(0.72, 0.75, 0.8)
+		mm._texto(c, q + Vector2(0, -24), str(t.nome), 16, Color(1, 0.96, 0.88) if ok else Color(0.78, 0.8, 0.84))
+		mm._texto(c, q + Vector2(0, 26), sub, 13, cor_sub)
+	# título: o totem daqui e o ouro, embaixo da barra de cima
+	var t1 := "Totem de teleporte · %s" % str(mm.totem_de.get("nome", ""))
+	var t2 := "Você tem %d de ouro. Toque num totem aceso para viajar." % ouro
+	var wt: float = maxf(fonte.get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x) + 40.0
+	var rt := Rect2(Vector2(14.0, tam.y - 66.0), Vector2(wt, 52.0)) # embaixo à esquerda: não tapa os totens do norte
+	var sbt := StyleBoxFlat.new()
+	sbt.bg_color = Color(0.08, 0.06, 0.04, 0.9)
+	sbt.border_color = COR_OURO
+	sbt.set_border_width_all(2)
+	sbt.set_corner_radius_all(16)
+	sbt.shadow_color = Color(0, 0, 0, 0.4)
+	sbt.shadow_size = 5
+	sbt.draw(c.get_canvas_item(), rt)
+	mm._texto(c, rt.position + Vector2(wt * 0.5, 18.0), t1, 20, COR_OURO, true, 4)
+	mm._texto(c, rt.position + Vector2(wt * 0.5, 39.0), t2, 14, Color(1, 0.96, 0.88, 0.9), true, 3)
+
+# "Teleportar" ao lado do totem escolhido, ligado por uma linha dourada
+func _botao_teleportar(c: Control, tam: Vector2, em: Callable) -> void:
+	b_tp = Rect2()
+	if mm.totem_alvo == "":
+		return
+	var alvo: Dictionary = m.totem.dados(mm.totem_alvo)
+	if alvo.is_empty():
+		return
+	var qa := _em(float(alvo.x), float(alvo.z), 8.0)
+	if qa == FORA:
+		return
+	var ouro := int(m.P.prog.get("ouro", 0))
+	var custo: int = m.totem.taxa(alvo)
+	var falta: int = custo - ouro
+	var b1 := "Teleportar"
+	var b2 := "%d de ouro" % custo if falta <= 0 else "Faltam %d de ouro" % falta
+	var w: float = maxf(fonte.get_string_size(b1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(b2, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 40.0
+	# à direita ou à esquerda do totem: o lado que cabe na tela e não cobre outro totem
+	var y: float = clampf(qa.y - 27.0, 56.0, tam.y - 130.0)
+	var bt := Rect2()
+	for x in [qa.x + 34.0, qa.x - 34.0 - w, qa.x - w * 0.5]:
+		var r := Rect2(Vector2(x, y if x != qa.x - w * 0.5 else clampf(qa.y + 40.0, 56.0, tam.y - 130.0)), Vector2(w, 54.0))
+		if r.position.x < 12.0 or r.end.x > tam.x - 12.0:
+			continue
+		var cobre := false
+		for t in m.totem.T.lista:
+			if str(t.id) != mm.totem_alvo and r.grow(14.0).has_point(_em(float(t.x), float(t.z), 8.0)):
+				cobre = true
+				break
+		if not cobre or bt == Rect2():
+			bt = r
+		if not cobre:
+			break
+	b_tp = bt.grow(8.0)
+	var borda := Vector2(clampf(qa.x, bt.position.x, bt.end.x), clampf(qa.y, bt.position.y, bt.end.y))
+	c.draw_line(qa + (borda - qa).normalized() * 14.0, borda, Color(0.05, 0.04, 0.03, 0.6), 3.0, true)
+	c.draw_line(qa + (borda - qa).normalized() * 14.0, borda, COR_OURO, 1.2, true)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.1, 0.14, 0.95) if falta <= 0 else Color(0.14, 0.07, 0.06, 0.95)
+	sb.border_color = Color("5ad8ff") if falta <= 0 else Color(1, 0.62, 0.55)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(16)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 6
+	sb.draw(c.get_canvas_item(), bt)
+	mm._texto(c, bt.position + Vector2(w * 0.5, 19.0), b1, 20, Color("9fe6ff") if falta <= 0 else Color(1, 0.8, 0.75), true, 4)
+	mm._texto(c, bt.position + Vector2(w * 0.5, 39.0), b2, 13, Color(1, 0.96, 0.88, 0.85) if falta <= 0 else Color(1, 0.62, 0.55), true, 3)
+
+# toque no mapa do totem: o botão viaja; um totem aceso (até 34 px) é escolhido; o mesmo de novo já viaja
+func _toque_totem(lp: Vector2) -> void:
+	if mm.totem_alvo != "" and b_tp.has_point(lp):
+		mm._teleportar()
+		return
+	var melhor := ""
+	var menor := 34.0
+	for t in m.totem.T.lista:
+		var q := _em(float(t.x), float(t.z), 8.0)
+		var d: float = q.distance_to(lp)
+		if d < menor:
+			menor = d
+			melhor = str(t.id)
+	if melhor == "" or melhor == str(mm.totem_de.get("id", "")) or not m.totem.descoberto(melhor):
+		mm.totem_alvo = ""
+		return
+	if melhor == mm.totem_alvo:
+		mm._teleportar()
+		return
+	mm.totem_alvo = melhor
+	if m.sons:
+		m.sons.tocar("pano", -14.0)
+
+# guia das missões (guia.gd): onde está, na tela, o totem de destino ou o botão "Teleportar" (Rect2() = não aparece)
+func guia_totem(k: String) -> Rect2:
+	var g := get_global_rect().position
+	if mm.totem_alvo != "" and (k == "" or mm.totem_alvo == k) and b_tp.has_area():
+		return Rect2(g + b_tp.position, b_tp.size)
+	if not pronto:
+		return Rect2()
+	for t in m.totem.T.lista:
+		var id := str(t.id)
+		if id == str(mm.totem_de.get("id", "")) or not m.totem.descoberto(id) or (k != "" and id != k):
+			continue
+		var q := _em(float(t.x), float(t.z), 8.0)
+		if not _na_tela_ok(q, size, 0.0):
+			continue
+		return Rect2(g + q - Vector2(20, 20), Vector2(40, 40))
+	return Rect2()
+
 func _fita2d(c: Control, centro: Vector2, txt: String, tam: int, l: Dictionary) -> void:
 	txt = Idioma.frase(txt)
 	var nv := int(l.get("nivel", 0))
@@ -1147,7 +1368,8 @@ static func _cor_nivel(nv: int) -> Color:
 func _mapinha(c: Control, tam: Vector2) -> void:
 	if mini_sv == null:
 		return
-	var ms := Vector2(mini_sv.size) * minf(1.0, tam.y * 0.42 / float(mini_sv.size.y))
+	var alto: float = 0.42 if not mm.painel_3d.has_area() else 0.3 # com a lista aberta, o mapinha fica menor
+	var ms := Vector2(mini_sv.size) * minf(1.0, tam.y * alto / float(mini_sv.size.y))
 	var r := Rect2(Vector2(tam.x - ms.x - 18.0, tam.y - ms.y - 18.0), ms)
 	c.draw_rect(r.grow(4.0), Color8(20, 32, 44))
 	c.draw_texture_rect(mini_sv.get_texture(), r, false)
@@ -1178,7 +1400,7 @@ func _botao(c: Control, r: Rect2, txt: String, tam := 17) -> void:
 	sb.draw(c.get_canvas_item(), r)
 	c.draw_string(fonte, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + tam * 0.35), txt, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, tam, Color(1, 0.95, 0.85))
 
-func _botoes(c: Control, tam: Vector2) -> void:
+func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 	c.draw_rect(Rect2(0, 0, tam.x, 48), Color(0.08, 0.06, 0.04, 0.78))
 	c.draw_string(fonte, Vector2(18, 32), Idioma.frase("Mundo de Aethra"), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color8(250, 232, 190))
 	var cx := Vector2(tam.x - 28.0, 24.0)
@@ -1191,7 +1413,11 @@ func _botoes(c: Control, tam: Vector2) -> void:
 	_botao(c, b_2d, "Mapa 2D")
 	b_eu = Rect2(Vector2(tam.x - 300.0, 6.0), Vector2(118, 36))
 	_botao(c, b_eu, "Onde estou")
-	var cz := Vector2(tam.x * 0.5, tam.y - 34.0)
+	b_lista = Rect2()
+	if not tm and pronto: # mostra e esconde a lista de Lugares
+		b_lista = Rect2(Vector2(tam.x - 420.0, 6.0), Vector2(108, 36))
+		_botao(c, b_lista, "Esconder lista" if lista_aberta else "Lugares", 15 if lista_aberta else 17)
+	var cz := Vector2((tam.x - lw) * 0.5, tam.y - 34.0)
 	b_menos = Rect2(cz - Vector2(62, 22), Vector2(58, 44))
 	b_mais = Rect2(cz + Vector2(4, -22), Vector2(58, 44))
 	_botao(c, b_menos, "−", 26)
@@ -1199,7 +1425,8 @@ func _botoes(c: Control, tam: Vector2) -> void:
 	b_ir = Rect2()
 	if mm.marcado != null and m.rota:
 		var metros: float = m.rota.comprimento(mm.previa)
-		var t := Idioma.frase("Ir para (%d m)" % int(round(metros)))
+		var lugar := _nome_marcado()
+		var t := Idioma.frase("Ir para %s(%d m)" % [lugar + " " if lugar != "" else "", int(round(metros))])
 		var w := fonte.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 40.0
 		b_ir = Rect2(Vector2(cz.x - w * 0.5, cz.y - 84.0), Vector2(w, 44))
 		_botao(c, b_ir, t, 20)
