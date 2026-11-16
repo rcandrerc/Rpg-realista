@@ -2451,6 +2451,26 @@ export class Simulacao {
   // é de todos? Os veios das zonas de mineração e, desde 2026-11-04 (pedido do André), as árvores: a árvore cortada
   // cai, some para todo mundo (fica o toco) e volta depois de COLETA.arvore.volta s
   comum(no) { return !!no.mina || no.tipo === 'arvore'; }
+  // Árvores cortadas e veios batidos sobrevivem ao reinício do servidor (André 2026-11-16: a árvore nativa vai voltar só
+  // em 24 h e o servidor reinicia a cada 5 h). No banco vai a hora de voltar em hora de verdade (ms); o que já voltou não entra.
+  carregarVeios(est) {
+    if (!est || typeof est !== 'object') return;
+    const agora = this.agoraMs();
+    for (const [id, v] of Object.entries(est)) {
+      const no = this.coletaveis.get(id);
+      if (!no || !this.comum(no) || !Array.isArray(v) || !(v[1] > agora)) continue;
+      this.veiosComuns.set(id, { n: Math.max(0, Number(v[0]) || 0), volta: this.tempo + (v[1] - agora) / 1000 });
+    }
+  }
+  // o que gravar (null: nada mudou desde a última vez)
+  veiosParaSalvar() {
+    const agora = this.agoraMs(), o = {}, ids = [];
+    for (const [id, v] of this.veiosComuns) if (v.volta > this.tempo + 1) { o[id] = [v.n, Math.round(agora + (v.volta - this.tempo) * 1000)]; ids.push(id + ':' + v.n + ':' + Math.round(v.volta)); }
+    const chave = ids.sort().join();
+    if (chave === this.veiosSalvos) return null;
+    this.veiosSalvos = chave;
+    return o;
+  }
   // veio esgotado (André 2026-11-06: "continuam sendo barreiras invisíveis"): a pedra sumiu, então não bloqueia mais
   // ninguém até voltar. Veio comum: para todos; veio de cada um: só para quem esgotou (c.coletas)
   veioVazio(id, c) {

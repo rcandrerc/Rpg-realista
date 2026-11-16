@@ -90,7 +90,7 @@ class SalaClareira extends Room {
   onCreate() {
     salas.add(this);
     this.sim = new Simulacao(MAPA_CLAREIRA);
-    this.visao = new Visao(); // cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
+    this.visao = new Visao((id) => this.sim.coletaveis.get(id)); // veios e árvores: só os de perto (onde está cada um); cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
     // Vila dos Lotes: dono, peças e horta guardados no servidor; a compra confere no banco (vale entre salas)
     if (contas) {
       this.sim.carregarLotes(contas.lotes());
@@ -112,6 +112,7 @@ class SalaClareira extends Room {
     if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
     if (contas && salas.size === 1) this.npcsForaDoMundo(true); // primeira sala aberta: os aventureiros fora do mundo evoluem pelo tempo vazio
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
+    if (contas) this.sim.carregarVeios(contas.lerMundo('veios')); // árvores cortadas e veios batidos: o tempo de voltar continua depois do reinício
     // leilão: o mesmo em todas as salas; mudou, grava. Vendeu: avisa o dono, esteja em que sala estiver
     this.sim.leilao = leilao;
     if (contas) this.sim.aoLeilao = (L) => contas.gravarMundo('leilao', L.estado());
@@ -309,6 +310,7 @@ class SalaClareira extends Room {
     }
     for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); // lotes que mudaram (compra, peça, horta)
     for (const n of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + n.id, n.dados); // aventureiros sem casa
+    { const v = this.sim.veiosParaSalvar(); if (v) contas.gravarMundo('veios', v); } // árvores cortadas e veios batidos (só quando mudou)
   }
 
   // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
