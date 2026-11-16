@@ -27,6 +27,20 @@ var montadas := {} # id da vila -> Node3D
 var malhas := {} # nome do modelo -> [[Mesh, Transform3D], ...]
 var _pedido := false
 var _espera := 0.0
+# Rio Claro (André 2026-11-16): a Casa do Comércio grande é de entrar. Por fora é comercio_grande + comercio_grande_cima
+# (andar de cima e telhados); lá dentro, comercio_grande_dentro (balcão, estantes, caldeirão: sem sombra, só de perto).
+# Com o herói lá dentro e a câmera no alto (visão "Do alto"), o andar de cima some para ver o salão, como a casa do lote.
+const SALAO_W := 8.2 # meia largura do salão (shared/vilas.js COMERCIO_GRANDE: paredes em x = ±8, z = ±10)
+const SALAO_D := 10.2
+const SALAO_ALTO := 5.6 # câmera acima disto (do piso do salão) esconde o telhado
+var saloes: Array = [] # [{no, t: Transform3D, cima: [GeometryInstance3D]}]
+# carroças paradas com o cavalo (Quaternius Lowpoly Animated Animals, CC0): mexe só de perto
+const CAVALO := "res://vilas3d/cavalo.glb"
+const CAVALO_LOCAL := Vector3(0, 0, -2.0) # shared/vilas.js CAVALO_CARROCA (o servidor põe o obstáculo no mesmo lugar)
+const CAVALO_ESCALA := 0.24
+const CAVALO_PERTO := 70.0
+var cavalos: Array = [] # [{no: Node3D, anim: AnimationPlayer, vila: String}]
+var _cavalo_cena: PackedScene
 
 func _init(principal) -> void:
 	m = principal
@@ -42,6 +56,8 @@ func _process(dt: float) -> void:
 
 func _process_parte(dt: float) -> void:
 	_espera -= dt
+	if not saloes.is_empty() and m.heroi != null:
+		_telhado_salao()
 	if _espera > 0.0 or vilas.is_empty() or m.heroi == null:
 		return
 	# atrás da capa da entrada (online.gd), confere a cada 0,1 s: a vila perto já nasce antes de o jogo aparecer
@@ -63,6 +79,9 @@ func _process_parte(dt: float) -> void:
 		elif d > LONGE and montadas.has(id):
 			montadas[id].queue_free()
 			montadas.erase(id)
+			saloes = saloes.filter(func(s): return is_instance_valid(s.no) and not s.no.is_queued_for_deletion())
+			cavalos = cavalos.filter(func(c): return c.vila != id)
+	_cavalos_perto(h)
 	if precisa and not _pedido:
 		_pedido = true
 		ResourceLoader.load_threaded_request(ARQUIVO)
@@ -130,14 +149,23 @@ func _montar(V: Dictionary) -> void:
 	montadas[str(V.id)] = no
 	var grupos := {} # modelo -> [Transform3D]
 	var casa := {}
+	var salao_ts: Array = []
 	for c in V.get("casas", []):
 		_por(grupos, str(c.m), c)
 		casa[str(c.m)] = true
+		if str(c.m) == "comercio_grande":
+			_por(grupos, "comercio_grande_cima", c)
+			casa["comercio_grande_cima"] = true
+			_por(grupos, "comercio_grande_dentro", c) # sem sombra, some de longe (enfeite)
+			salao_ts.append(Transform3D(Basis(Vector3.UP, float(c.ry)), Vector3(float(c.x), float(c.y), float(c.z))))
 	if V.get("banca") is Dictionary:
 		_por(grupos, "banca", V.banca)
 		casa["banca"] = true
 	for e in V.get("enfeites", []):
 		_por(grupos, str(e.m), e)
+		if str(e.m) == "carroca_carga":
+			_cavalo(no, str(V.id), e)
+	var cima: Array = []
 	for nome in grupos:
 		var ts: Array = grupos[nome]
 		for par in malhas.get(nome, []):
@@ -156,14 +184,66 @@ func _montar(V: Dictionary) -> void:
 			g.visibility_range_end_margin = 8.0
 			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			no.add_child(g)
+			if nome == "comercio_grande_cima":
+				cima.append(g)
+	for t in salao_ts:
+		saloes.append({"no": no, "t": t, "cima": cima})
 	if V.get("cidade") is Dictionary:
 		_calcada(no, V.cidade)
+
+# herói dentro do salão e câmera no alto: esconde o andar de cima e o telhado (volta ao sair ou com a câmera baixa)
+func _telhado_salao() -> void:
+	var cam: Camera3D = m.get_viewport().get_camera_3d()
+	var h: Vector3 = m.heroi.position
+	for S in saloes:
+		if not is_instance_valid(S.no):
+			continue
+		var t: Transform3D = S.t
+		var l: Vector3 = t.affine_inverse() * h
+		var dentro := absf(l.x) < SALAO_W and absf(l.z) < SALAO_D and l.y > -1.0 and l.y < SALAO_ALTO
+		var esconde: bool = dentro and cam != null and cam.global_position.y > t.origin.y + SALAO_ALTO
+		for g in S.cima:
+			if g.visible == esconde:
+				g.visible = not esconde
+
+# o cavalo parado na frente da carroça de carga, com a animação de ficar parado (pausa de longe)
+func _cavalo(no: Node3D, vila: String, e: Dictionary) -> void:
+	if _cavalo_cena == null:
+		_cavalo_cena = load(CAVALO)
+		if _cavalo_cena == null:
+			return
+	var c: Node3D = _cavalo_cena.instantiate()
+	var t := Transform3D(Basis(Vector3.UP, float(e.ry)), Vector3(float(e.x), float(e.y), float(e.z)))
+	c.transform = t * Transform3D(Basis(Vector3.UP, PI).scaled(Vector3.ONE * CAVALO_ESCALA), CAVALO_LOCAL)
+	no.add_child(c)
+	m.pintar(c, false)
+	var anim: AnimationPlayer = c.find_child("AnimationPlayer", true, false)
+	if anim != null and anim.has_animation("Armature|Idle"):
+		anim.get_animation("Armature|Idle").loop_mode = Animation.LOOP_LINEAR
+		anim.play("Armature|Idle")
+		anim.seek(randf() * anim.current_animation_length, true) # cada cavalo num passo do balanço
+		anim.pause() # anda só quando o herói chega perto (_cavalos_perto)
+	c.visible = false
+	cavalos.append({"no": c, "anim": anim, "vila": vila})
+
+func _cavalos_perto(h: Vector3) -> void:
+	for C in cavalos:
+		if not is_instance_valid(C.no):
+			continue
+		var perto: bool = C.no.global_position.distance_to(h) < CAVALO_PERTO
+		if C.no.visible != perto:
+			C.no.visible = perto
+			if C.anim != null:
+				if perto:
+					C.anim.play()
+				else:
+					C.anim.pause()
 
 # Praça das Luzes (disco) e ruas de pedra branca (faixas que seguem as estradas), um pouco acima do chão (o mesmo
 # CALCADA de shared/vilas.js: o servidor tem o piso de andar na mesma altura). Textura no mundo: 2 m por ladrilho.
 func _calcada(no: Node3D, C: Dictionary) -> void:
 	var mat: Material = null
-	for par in malhas.get("aurora_chao", []):
+	for par in malhas.get(str(C.get("chao", "aurora_chao")), []): # Rio Claro: tijolo (rio_chao)
 		mat = par[0].surface_get_material(0)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -210,7 +290,7 @@ func _acender() -> void:
 		return
 	var acende := ""
 	for V in vilas:
-		if V.get("cidade") is Dictionary:
+		if V.get("cidade") is Dictionary and V.cidade.get("acende") != null: # só Aurora acende (Rio Claro não)
 			acende = str(V.cidade.acende)
 	var agora := 1 if acende != "" and m.nevoa.tem_conta() and not m.nevoa.H.is_empty() and m.nevoa.npc_apareceu(acende) else 0
 	if agora == aceso:

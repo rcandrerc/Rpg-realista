@@ -5,7 +5,7 @@ import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
 import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
-import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA } from './vilas.js';
+import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -2123,23 +2123,86 @@ export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x)
 const ROUPA_OFICIO = 'peitoral0,calca0,botas0';
 const ferreiroDe = (id, nome, visual, tinta, veste, falas, extra = {}) => ({ id, nome, visual, onde: 'forja', roupa: ROUPA_OFICIO, tinta, veste, oficio: visual === 'cabelo_m',
   funcao: 'ferreiro', acoes: ['vender', 'forja', 'consertar'], falas, ...extra });
+// vendedor de enfeite da Rua do Mercado (Rio Claro): atrás da banca b, virado para a rua, só conversa
+const vendedor = (id, nome, cargo, visual, b, tinta, veste, fala) => ({ id, nome, cargo, visual, onde: `peca:${b}:0:-1.1:0`, escala: 1.0, roupa: 'peitoral0,botas0', tinta, veste,
+  funcao: 'dica', acoes: [], falas: [fala] });
 const lojaDe = (id, nome, visual, tinta, veste, falas) => ({ id, nome, visual, onde: 'banca', roupa: 'peitoral0,botas0', tinta, veste, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas });
 export const VILAS_MUNDO = [
-  { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 30, totem: 'rio_claro', jeito: 'Cidade de madeira na estrada do rio, com a Casa do Comércio no meio',
-    itens: ['comercio', 'forja', 'casa_4x6', 'casa_4x4', 'casa_6x6', 'casa_4x4'], banca: true,
-    enfeites: [['barris', 'casa'], ['caixotes', 'casa'], ['estandarte', 'praca'], ['mesa', 'praca'], ['carroca', 'casa'], ['banco', 'praca'], ['estandarte', 'praca']],
+  { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 30, totem: 'rio_claro', jeito: 'O centro comercial de Aethra: a Casa do Comércio grande, a praça de pedra e a Rua do Mercado',
+    // André 2026-11-16 ("a casa de leilão tinha que ser uma casa grande que a gente pudesse entrar... não uma vila tipo
+    // acampamento, o centro comercial de Aethra"; esboço: /mnt/project-files/vila-comercio/). Tudo no lugar fixo (x, z do
+    // mundo; ry = para onde a porta olha): a Casa do Comércio grande (o Otávio atrás do balcão, a Mestra Iara e a Mirela
+    // nos corredores), a praça de pedra com o totem, a Rua do Mercado com sobrados e bancas (vendedores de enfeite), o
+    // Pátio das Caravanas com carroças e cavalos. A ferraria, as quatro casas, a banca da Dália e os enfeites de antes
+    // continuam (só mudaram de lugar). A casinha antiga do comércio (6 x 10) deu lugar à grande, como o André pediu.
+    itens: [], banca: true,
+    enfeites: [['estandarte', 'praca'], ['mesa', 'praca'], ['banco', 'praca'], ['estandarte', 'praca']],
+    cidade: {
+      fixa: true, chao: 'rio_chao', largura: 6,
+      praca: { x: -234, z: 85, r: 13 }, // Praça do Comércio (a estrada passa no lado oeste dela)
+      ruas: [[[-221.5, 85], [-178, 85]], [[-226, 96], [-226, 99.6]]], // Rua do Mercado e a entrada da Casa do Comércio
+      banca: { x: -225, z: 78, ry: 2.513 }, // a banca da Dália
+      pecas: [
+        { n: 'comercio', m: 'comercio_grande', x: -226, z: 109, ry: Math.PI },
+        { m: 'forja', x: -240, z: 69, ry: 0 },
+        { m: 'casa_4x6', x: -231, z: 67, ry: 0 },
+        { m: 'casa_4x4', x: -223, z: 68, ry: 0 },
+        { m: 'casa_6x6', x: -256, z: 81, ry: Math.PI / 2 },
+        { m: 'casa_4x4', x: -255, z: 92, ry: Math.PI / 2 },
+        { m: 'sobrado_4x6', x: -213, z: 74, ry: 0 },
+        { m: 'sobrado_6x6', x: -205, z: 74, ry: 0 },
+        { m: 'sobrado_4x4', x: -197, z: 75, ry: 0 },
+        { m: 'sobrado_4x6', x: -190, z: 74, ry: 0 },
+        { m: 'sobrado_4x6', x: -207, z: 96, ry: Math.PI },
+        { m: 'sobrado_6x6', x: -199, z: 96, ry: Math.PI },
+        { m: 'sobrado_4x4', x: -191, z: 95, ry: Math.PI },
+        { m: 'sobrado_4x6', x: -184, z: 96, ry: Math.PI },
+      ],
+      enfeites: [
+        { n: 'b1', m: 'banca_frutas', x: -214, z: 80.5, ry: 0 },
+        { n: 'b2', m: 'banca_tecidos', x: -206, z: 89.5, ry: Math.PI },
+        { n: 'b3', m: 'banca_peixe', x: -200, z: 80.5, ry: 0 },
+        { n: 'b4', m: 'banca_ceramica', x: -192, z: 89.5, ry: Math.PI },
+        { n: 'b5', m: 'banca_temperos', x: -187, z: 80.5, ry: 0 },
+        { m: 'carroca_carga', x: -173, z: 79, ry: 0.2 },
+        { m: 'carroca_carga', x: -170, z: 86, ry: -0.1 },
+        { m: 'carroca_carga', x: -174, z: 92, ry: 0.4 },
+        { m: 'carroca_carga', x: -237, z: 94.5, ry: -0.6 },
+        { m: 'carga', x: -168, z: 76, ry: 0 },
+        { m: 'barris', x: -219.5, z: 68, ry: 0.3 },
+        { m: 'caixotes', x: -235.5, z: 67.5, ry: 0 },
+        { m: 'carroca', x: -248, z: 65, ry: 1.2 },
+        { m: 'poste', x: -218, z: 81.6, ry: 0 },
+        { m: 'poste', x: -210, z: 88.4, ry: 0 },
+        { m: 'poste', x: -202, z: 81.6, ry: 0 },
+        { m: 'poste', x: -194, z: 88.4, ry: 0 },
+        { m: 'poste', x: -186, z: 81.6, ry: 0 },
+        { m: 'poste', x: -244, z: 75, ry: 0 },
+        { m: 'poste', x: -220, z: 75, ry: 0 },
+        { m: 'poste', x: -244, z: 96, ry: 0 },
+        { m: 'cerca', x: -164, z: 75.0, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 77.5, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 80.0, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 82.5, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 85.0, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 87.5, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 90.0, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 92.5, ry: Math.PI / 2 },
+        { m: 'cerca', x: -164, z: 95.0, ry: Math.PI / 2 },
+      ],
+    },
     npcs: [
       { id: 'v_heitor', nome: 'Capitão Heitor, o chefe do Rio Claro', visual: 'cabelo_m', onde: 'totem', escala: 1.06, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
         tinta: { cabelo: 0x3a2a1e, roupa: 0x2e4a6a, calca: 0x2a2a30 }, funcao: 'dica', acoes: [], falas: [
           'Faz anos que ninguém chega do leste. Seja bem-vindo à cidade da ponte.',
           'Tudo que é raro passa por esta estrada. E a Névoa também.',
           'Tem manhã em que o rio amanhece cinza. Os velhos dizem que é mau sinal.'] },
-      { id: 'v_otavio', nome: 'Otávio, o leiloeiro', visual: 'cabelo_m', onde: 'comercio:e', escala: 1.0, roupa: ROUPA_OFICIO, veste: { tunica: 0x2f5a3a, faixa: 0xd4a84a },
+      { id: 'v_otavio', nome: 'Otávio, o leiloeiro', visual: 'cabelo_m', onde: 'peca:comercio:0:-7:0', escala: 1.0, roupa: ROUPA_OFICIO, veste: { tunica: 0x2f5a3a, faixa: 0xd4a84a },
         tinta: { cabelo: 0x1e1a18, roupa: 0x2f5a3a, calca: 0x2a2620 }, funcao: 'leilao', acoes: ['leilao'], falas: [
           'Aqui o mundo inteiro vende e compra. Quem sabe negociar não precisa caçar tudo.',
           'Ponha à venda, escolha o preço e o prazo. Quando vender, o ouro fica comigo até você vir buscar.',
           'A casa fica com cinco por cento de cada venda. Justo, não acha?'] },
-      { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'comercio:d', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+      { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'peca:comercio:-5.2:-4.5:1.5708', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
         tinta: { cabelo: 0x1a1a22, roupa: 0x5a2a3a, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
           'Quer lutar de outro jeito? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.'] },
       ferreiroDe('v_galdino', 'Galdino, o ferreiro', 'cabelo_m', { cabelo: 0x2a1a10, roupa: 0x5a3a22, calca: 0x2f2a24 }, { tunica: 0x8a6a4a }, [
@@ -2148,6 +2211,18 @@ export const VILAS_MUNDO = [
       lojaDe('v_dalia', 'Dália, a comerciante', 'vivi', { cabelo: 0xc8a060, roupa: 0x6a8a3a, calca: 0x3c3a52 }, { tunica: 0x6a8a3a, corpete: 0x4a6a2a, saia: 0x5a4030, ate: 'joelho', avental: 0xe8dfc8 }, [
         'Poção, lenha, pedra... o que a estrada pede, eu tenho.',
         'A bancada aqui do lado é de todos, se quiser costurar.']),
+      // os vendedores da Rua do Mercado (André 2026-11-16: "uns vendedores ambulantes que não fazem nada"): de enfeite,
+      // atrás das bancas, só conversam
+      vendedor('v_rosalina', 'Rosalina, a fruteira', 'Vendedora de frutas', 'shino', 'b1', { cabelo: 0x6a2a1a, roupa: 0xa85a3a, calca: 0x4a3a2a }, { tunica: 0xa85a3a, saia: 0x6a4a2a, ate: 'canela', avental: 0xf0e8d0 },
+        'Maçã do vale, fresquinha. Leva duas, que a estrada é longa.'),
+      vendedor('v_benedito', 'Benedito, o tecelão', 'Vendedor de tecidos', 'cabelo_m', 'b2', { cabelo: 0x3a3a3a, roupa: 0x5a3a7a, calca: 0x2a2a38 }, { tunica: 0x5a3a7a, faixa: 0xd4a84a },
+        'Linho, lã e seda do leste. Toque, pode tocar.'),
+      vendedor('v_marisa', 'Marisa, a peixeira', 'Vendedora de peixe', 'vivi', 'b3', { cabelo: 0x1a1a1a, roupa: 0x3a6a8a, calca: 0x2a3040 }, { tunica: 0x3a6a8a, saia: 0x2a4a5a, ate: 'joelho', avental: 0xe8e8e0 },
+        'Peixe do Rio Claro, pescado hoje cedo. Juro pela minha avó.'),
+      vendedor('v_anibal', 'Aníbal, o oleiro', 'Vendedor de cerâmica', 'fumiriya', 'b4', { cabelo: 0x5a4a3a, roupa: 0x8a6a4a, calca: 0x3a3028 }, { tunica: 0x8a6a4a, faixa: 0xc8b070 },
+        'Pote de barro do Rio Claro não racha nem no inverno.'),
+      vendedor('v_jurema', 'Jurema, a dos temperos', 'Vendedora de temperos', 'shibu', 'b5', { cabelo: 0x2a1a10, roupa: 0x9a7a2a, calca: 0x3a3020 }, { tunica: 0x9a7a2a, saia: 0x6a5020, ate: 'canela', faixa: 0x8a2a1a },
+        'Pimenta, cravo e erva-doce. Comida sem tempero é castigo.'),
     ] },
   { id: 'pouso_serra', nome: 'Pouso da Serra', nivel: 38, totem: 'pouso_serra', jeito: 'Pedra, peles e fogueira grande, ao pé da serra',
     itens: ['forja', 'pedra_6x6', 'pedra_4x6', 'pedra_4x6'], banca: true,
@@ -2343,7 +2418,7 @@ export const VILAS_MUNDO = [
 ];
 // Mirela, a alquimista, muda para o Rio Claro (André 2026-11-11, plano aprovado: "a alquimia passa a ser lá"; a casa
 // dela na Clareira continua de pé, como o laboratório antigo). Fica na porta da casa grande, perto da Casa do Comércio.
-const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
+const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'peca:comercio:4.9:-5.2:-1.5708' } }; // 2026-11-16: dentro da Casa do Comércio grande
 {
   const G = gradeDoMundo(), mar = -0.05;
   const totem = (id) => TOTENS.lista.find((t) => t.id === id);
@@ -2360,11 +2435,16 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
   for (const V of VILAS_MUNDO) {
     const T = totem(V.totem);
     V.x = T.x; V.z = T.z;
+    // Aurora viva e Rio Claro: as peças da cidade entram como casas da vila (sólidas, terreno nenhum em cima, gente na
+    // porta). Rio Claro (fixa) tem tudo no lugar: o que ainda se arruma sozinho (banca, enfeites da praça) foge das peças.
+    const C = V.cidade && arrumarCidade(V.cidade, { ...amb, estradasPorId: Object.fromEntries(ESTRADAS_MUNDO.map((e) => [e.id, e.curva])) });
+    if (C && V.cidade.fixa) V.ocupado = [...C.postos];
     const A = arrumarVila(V, amb);
+    delete V.ocupado;
     V.casas = A.casas; V.banca = A.banca; V.enfeites = A.enfeites; V.raio = A.raio;
-    if (V.cidade) { // Aurora viva: as peças da cidade entram como casas da vila (sólidas, terreno nenhum em cima, gente na porta)
-      const C = arrumarCidade(V.cidade, { ...amb, estradasPorId: Object.fromEntries(ESTRADAS_MUNDO.map((e) => [e.id, e.curva])) });
-      A.casas.push(...C.pecas); A.postos.push(...C.postos);
+    if (C) {
+      A.casas.push(...C.pecas); A.enfeites.push(...C.enfeites); if (C.banca) V.banca = A.banca = C.banca;
+      if (!V.cidade.fixa) A.postos.push(...C.postos);
       V.ruas = C.ruas; V.praca = C.praca;
       for (const q of C.pisos) MAPA_CLAREIRA.casasMundo.push({ ...q, sobe: 0, piso: true }); // calçamento: chão de andar
     }
@@ -2379,6 +2459,14 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
         for (const [sx, sz] of [[1, 1], [-1, 1]]) { const [ex, ez] = naPeca(c, sx * M.w / 2, sz * M.d / 2); obst.push({ x: ex, z: ez, r: 0.16 }); }
         continue;
       }
+      if (M.entra) { // Casa do Comércio grande (Rio Claro): piso de tábua, paredes, torres, balcão e os pilares dos arcos
+        const [px, pz] = naPeca(c, 0, 0), K = COMERCIO_GRANDE;
+        MAPA_CLAREIRA.casasMundo.push({ x: px, z: pz, ry: c.ry, hw: 8.1, hd: 10.1, y1: c.y + 0.03, sobe: 0, piso: true });
+        for (const [lx, lz, hw, hd, alto] of [...K.paredes, K.balcao]) { const [x, z] = naPeca(c, lx, lz); MAPA_CLAREIRA.casasMundo.push({ x, z, ry: c.ry, hw, hd, y1: +(c.y + alto).toFixed(2), sobe: 0 }); }
+        for (const [lx, lz] of K.pilares) { const [x, z] = naPeca(c, lx, lz); obst.push({ x, z, r: 0.3 }); }
+        for (const [lx, lz, r] of K.moveis) { const [x, z] = naPeca(c, lx, lz); obst.push({ x, z, r, alto: +(c.y + 0.9).toFixed(2) }); }
+        continue;
+      }
       if (M.portao) { // Portão do Mar: os dois pilares de 2 x 2 m (por baixo da ponte de pedra se passa)
         for (const sx of [-4, 4]) { const [px, pz] = naPeca(c, sx, 0); obst.push({ x: px, z: pz, r: 1.3 }); }
         continue;
@@ -2387,6 +2475,7 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
       MAPA_CLAREIRA.casasMundo.push({ x: c.x, z: c.z, ry: c.ry + Math.PI / 2, hw: M.d / 2, hd: M.w / 2, y1: c.y + M.alto, sobe: M.sobe });
     }
     for (const e of A.enfeites) { const M = MODELOS_VILA[e.m]; obst.push({ x: e.x, z: e.z, r: M.r || 0.5, ...(M.alto ? { alto: +(e.y + M.alto).toFixed(2) } : {}) }); }
+    for (const e of A.enfeites) if (e.m === 'carroca_carga') { const [x, z] = naPeca(e, ...CAVALO_CARROCA); obst.push({ x, z, r: 0.7 }); } // o cavalo parado na frente da carroça
     if (A.banca) obst.push({ x: A.banca.x, z: A.banca.z, r: MODELOS_VILA.banca.r, alto: +(A.banca.y + MODELOS_VILA.banca.alto).toFixed(2) });
     // estações públicas: bigorna e forninho na ferraria, bancada ao lado da banca (qualquer um usa, como as da Clareira)
     const F = A.casas.find((c) => c.m === 'forja');
@@ -2410,6 +2499,10 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
       if (onde === 'totem') { const a = Math.atan2(estrada[0] - V.x, estrada[1] - V.z); return [...lugarNaVila(A, V.x + Math.sin(a) * 3.6, V.z + Math.cos(a) * 3.6, 0.6), a]; }
       if (onde === 'forja' && F) return [...perto(-1.15, 0.85, F), F.ry];
       if (onde === 'banca' && A.banca) return [...naPeca(A.banca, 0, -1.15), A.banca.ry];
+      if (onde.startsWith('peca:')) { // no lugar exato dentro de uma peça (n) da vila: x, z e giro no espaço dela (Rio Claro)
+        const [, n, lx, lz, lry] = onde.split(':'), P = A.casas.find((c) => c.n === n) || A.enfeites.find((c) => c.n === n);
+        return [...naPeca(P, +lx, +lz), P.ry + Number(lry)];
+      }
       if (onde.startsWith('cidade:')) { // Aurora viva: na frente da porta da peça (a fonte: na beira da bacia, para a praça)
         const C = A.casas.find((c) => c.n === onde.slice(7)), D = MODELOS_VILA[C.m];
         if (D.w == null) { const a = Math.atan2(V.cidade.praca.x - C.x, V.cidade.praca.z - C.z); return [...lugarNaVila(A, C.x + Math.sin(a) * (D.r + 0.9), C.z + Math.cos(a) * (D.r + 0.9), 0.5), a]; }
@@ -2447,7 +2540,7 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'casa:2' } };
   // estiver livre (não somem; o "a" de cada uma continua o mesmo)
   for (const V of VILAS_MUNDO) if (V.cidade) {
     const ocupado = (x, z) => V.casas.some((c) => { const M = MODELOS_VILA[c.m]; return M.w == null ? Math.hypot(x - c.x, z - c.z) < M.r + 2 : distRet({ x: c.x, z: c.z, ry: c.ry, w: M.w + 3, d: M.d + 3 }, x, z) === 0; })
-      || Math.hypot(x - V.praca.x, z - V.praca.z) < V.praca.r + 2 || distRuas(V.ruas, x, z) < CALCADA.largura / 2 + 1.5
+      || Math.hypot(x - V.praca.x, z - V.praca.z) < V.praca.r + 2 || distRuas(V.ruas, x, z) < (V.cidade.largura || CALCADA.largura) / 2 + 1.5
       || VILAS_MUNDO.some((W) => Math.hypot(x - W.x, z - W.z) < W.raio + 3) || naEstrada(x, z) || !terraEm(G, x, z) || alturaMundo(G, x, z) < mar + 0.5;
     for (const t of MAPA_CLAREIRA.mata) {
       if (!t.mundo || Math.abs(t.x - V.praca.x) > 170 || Math.abs(t.z - V.praca.z) > 170 || !ocupado(t.x, t.z)) continue;

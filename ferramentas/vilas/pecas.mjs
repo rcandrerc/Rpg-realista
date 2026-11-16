@@ -150,3 +150,125 @@ export const CIDADE_AURORA = {
   aurora_chao: [['Floor_Brick', [0, 0, 0], 0]],
 };
 for (const k of Object.keys(CIDADE_AURORA)) CIDADE_AURORA[k] = leve(CIDADE_AURORA[k]);
+
+// Vila do Rio Claro, o centro comercial de Aethra (André 2026-11-16: "uma casa grande que a gente pudesse entrar, com
+// um balcão e o leiloeiro atrás; nos corredores o NPC de resetar build e a alquimista"; esboço:
+// /mnt/project-files/vila-comercio/). A Casa do Comércio grande: nave de 8 x 20 m com dois andares (6 m) e os arcos
+// abertos para os dois corredores de 4 x 20 m (3 m), duas torres de pedra de 9 m na frente, sacada e placa. Entra-se a pé
+// pelos dois arcos do meio da frente. Porta virada para +z, como as outras casas. Sai em dois modelos: comercio_grande
+// (térreo e chão), comercio_grande_dentro (balcão, móveis e tapetes: só aparece de perto e não faz sombra) e
+// comercio_grande_cima (andar de cima, galeria, lustres, telhados e o alto das torres): com o herói lá dentro e a câmera
+// lá no alto (visão do alto), o de cima some (vilas_mundo.gd), como o telhado da casa do jogador.
+function casaDoComercio() {
+  const base = [], cima = [], dentro = [];
+  const P = { p: 'Wall_UnevenBrick_Straight', j: 'Wall_UnevenBrick_Window_Wide_Round', J: 'Wall_UnevenBrick_Window_Thin_Round', a: 'Wall_Plaster_Door_RoundInset',
+    g: 'Wall_Plaster_WoodGrid', W: 'Wall_Plaster_Window_Wide_Round' };
+  // um lado: centro (cx, cz), giro ry, n módulos de 2 m, tipos da esquerda para a direita (de fora), altura y
+  const lado = (L, cx, cz, ry, n, tipos, y = 0) => {
+    const ux = Math.cos(ry), uz = -Math.sin(ry), fx = Math.sin(ry) * 0.024, fz = Math.cos(ry) * 0.024;
+    for (let i = 0; i < n; i++) {
+      const o = -n + 1 + i * 2, x = cx + ux * o, z = cz + uz * o, k = tipos[i] || 'p';
+      L.push([P[k], [x, y, z], ry]);
+      if (!y && k !== 'a') L.push(['Wall_UnevenBrick_Straight', [x, ALICERCE, z], ry]);
+      if (k === 'j' || k === 'W') { L.push([y ? 'Window_Wide_Flat1' : 'Window_Wide_Round1', [x, y, z], ry]); if (!y) L.push(['WindowShutters_Wide_Round_Open', [x + fx, y, z + fz], ry]); }
+      if (k === 'J') L.push(['Window_Thin_Round1', [x, y, z], ry]);
+    }
+  };
+  // térreo: nave (frente com os dois arcos abertos no meio), arcos para os corredores e as paredes de fora
+  lado(base, 0, 10, 0, 4, 'paap');
+  lado(base, 0, -10, PI, 4, 'pppp');
+  lado(base, 4, 0, PI / 2, 10, 'aaaaaaaaaa');
+  lado(base, -4, 0, -PI / 2, 10, 'aaaaaaaaaa');
+  for (const sx of [-6, 6]) { lado(base, sx, 10, 0, 2, 'jj'); lado(base, sx, -10, PI, 2, 'pp'); }
+  lado(base, 8, 0, PI / 2, 10, 'pjpjppjpjp');
+  lado(base, -8, 0, -PI / 2, 10, 'pjpjppjpjp');
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) base.push(['Corner_Exterior_Brick', [sx * 8, 0, sz * 10], 0]);
+  for (const sx of [-1, 1]) base.push(['Corner_Exterior_Brick', [sx * 4, 0, 10], 0]);
+  // andar de cima da nave: reboco com enxaimel e as janelas altas que iluminam o salão
+  lado(cima, 0, 10, 0, 4, 'WggW', 3);
+  lado(cima, 0, -10, PI, 4, 'gWWg', 3);
+  lado(cima, 4, 0, PI / 2, 10, 'gWgWgWgWgW', 3);
+  lado(cima, -4, 0, -PI / 2, 10, 'WgWgWgWgWg', 3);
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) cima.push(['Corner_Exterior_Wood', [sx * 4, 3, sz * 10], 0]);
+  // as duas torres (4 x 4 m, três andares) nas pontas da frente, com telhado de torre e estandarte
+  for (const sx of [-10, 10]) {
+    const s = Math.sign(sx);
+    for (const y of [0, 3, 6]) {
+      const L = y ? cima : base;
+      lado(L, sx, 10, 0, 2, y === 6 ? 'JJ' : y ? 'pJ' : 'pp', y);
+      lado(L, sx, 6, PI, 2, y === 6 ? 'JJ' : 'pp', y);
+      lado(L, sx + s * 2, 8, s * PI / 2, 2, y ? 'Jp' : 'pp', y);
+      if (y) lado(L, sx - s * 2, 8, -s * PI / 2, 2, 'pp', y);
+      for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) L.push(['Corner_Exterior_Brick', [sx + a * 2, y, 8 + b * 2], 0]);
+    }
+    cima.push(['Roof_Tower_RoundTiles', [sx, 9, 8], 0], ['Banner_2_Cloth', [sx, 8.4, 10.2], 0, 1.4]);
+  }
+  // sacada de madeira na frente, com a placa da casa no meio; estandartes e lanternas na fachada
+  for (let i = 0; i < 4; i++) cima.push(['Balcony_Simple_Straight', [-3 + i * 2, 3, 9.1], 0]);
+  cima.push(['@placa', [0, 3.55, 10.35], 0, [3.6, 0.9, 0.08]]);
+  cima.push(['Banner_1_Cloth', [-2.6, 5.7, 10.2], 0], ['Banner_1_Cloth', [2.6, 5.7, 10.2], 0]);
+  base.push(['Banner_2_Cloth', [-6, 2.8, 10.2], 0], ['Banner_2_Cloth', [6, 2.8, 10.2], 0], ['Lantern_Wall', [-2.6, 1.9, 10.1], 0], ['Lantern_Wall', [2.6, 1.9, 10.1], 0]);
+  // galeria de madeira em volta do salão, na altura do andar de cima, com grade
+  for (const sx of [-3, 3]) for (let z = -9; z <= 9; z += 2) cima.push(['Floor_WoodDark', [sx, 3.0, z], 0], ['Balcony_Simple_Straight', [sx - Math.sign(sx) * 1.9, 3.0, z], Math.sign(sx) * PI / 2]);
+  // telhados: a nave (8 x 20, duas peças de 8 x 10) e os corredores um pouco para fora e mais estreitos (a beira de
+  // dentro não entra no salão)
+  cima.push(['Roof_RoundTiles_8x10', [0, 6, 5], 0], ['Roof_RoundTiles_8x10', [0, 6, -5], 0], ['Roof_Front_Brick8', [0, 6, 10], 0], ['Roof_Front_Brick8', [0, 6, -10], PI]);
+  for (const sx of [-6.6, 6.6]) {
+    const e = [0.82, 1, 1];
+    cima.push(['Roof_RoundTiles_4x8', [sx, 3, 6], 0, e], ['Roof_RoundTiles_4x6', [sx, 3, -1], 0, e], ['Roof_RoundTiles_4x6', [sx, 3, -7], 0, e],
+      ['Roof_Front_Brick4', [sx, 3, 10], 0, e], ['Roof_Front_Brick4', [sx, 3, -10], PI, e]);
+  }
+  cima.push(['Prop_Chimney2', [6.6, 4.6, -8], 0], ['Chandelier', [0, 5.6, -2], 0, 1.6], ['Chandelier', [0, 5.6, 5], 0, 1.6]);
+  // chão de tábua escura no salão todo e pedra na soleira
+  for (let x = -7; x <= 7; x += 2) for (let z = -9; z <= 9; z += 2) base.push(['Floor_WoodDark', [x, 0.02, z], 0]);
+  for (const x of [-1, 1]) base.push(['Floor_UnevenBrick', [x, 0.03, 11], 0]);
+  // DENTRO: o balcão do Otávio atravessa a nave no fundo (shared/vilas.js COMERCIO_GRANDE.balcao tem o mesmo tamanho)
+  dentro.push(['@balcao', [0, 0, -5.5], 0, [6.4, 1.1, 0.9]]);
+  dentro.push(['Coin_Pile', [-1.6, 1.12, -5.4], 0, 2.2], ['Coin_Pile_2', [1.8, 1.12, -5.5], 0.6, 2], ['Scroll_1', [0.4, 1.12, -5.4], 0.3, 1.4],
+    ['CandleStick_Triple', [-2.8, 1.12, -5.6], 0], ['CandleStick_Triple', [2.8, 1.12, -5.6], 0]);
+  // atrás do Otávio: estantes, cofre com moedas, caixotes e o estandarte da casa
+  dentro.push(['Bookcase_2', [-2.2, 0, -9.6], 0], ['Bookcase_2', [2.2, 0, -9.6], 0], ['Chest_Wood', [0, 0, -9.1], 0], ['Coin_Pile', [-0.3, 0.7, -9.1], 0, 2.5],
+    ['Chest_Wood', [-3.3, 0, -8.2], PI / 2], ['Crate_Wooden', [3.3, 0, -8.6], 0.2], ['Crate_Wooden', [3.2, 0.93, -8.6], 0.6], ['Banner_1_Cloth', [0, 5.3, -9.75], 0, 1.6]);
+  // corredor oeste: a Mestra Iara (resetar build), com bonecos de treino, armas e o livro
+  dentro.push(['Dummy', [-6.2, 0, -7.5], 0.3], ['Dummy', [-6.4, 0, -5.4], -0.2], ['WeaponStand', [-7.4, 0, -3.2], PI / 2], ['BookStand', [-5.2, 0, -2.4], 0.6],
+    ['Banner_2_Cloth', [-7.85, 2.7, -4.5], PI / 2], ['@tapete_vinho', [-6, 0.04, -4.5], 0, [2.8, 1, 4.2]]);
+  // corredor leste: a Mirela (alquimia), com o caldeirão, estantes de frascos e a bancada
+  dentro.push(['Cauldron', [6, 0, -6.5], 0], ['Shelf_Small_Bottles', [7.7, 1.2, -5.0], -PI / 2], ['Shelf_Small_Bottles', [7.7, 1.9, -5.0], -PI / 2], ['Shelf_Small_Bottles', [7.7, 1.2, -7.6], -PI / 2],
+    ['Workbench', [6.6, 0, -3.0], -PI / 2], ['Potion_1', [6.5, 0.9, -3.2], 0], ['Potion_2', [6.7, 0.9, -2.7], 0], ['SmallBottles_1', [6.5, 0.9, -3.6], 0],
+    ['CandleStick_Stand', [5.0, 0, -8.6], 0], ['Banner_2_Cloth', [7.85, 2.7, -6], -PI / 2], ['@tapete_roxo', [6, 0.04, -5], 0, [2.8, 1, 4.6]]);
+  // o salão: tapete vermelho da entrada até o balcão, bancos e mercadoria nos corredores da frente
+  dentro.push(['@tapete_vermelho', [0, 0.04, 2.5], 0, [2.6, 1, 14]]);
+  dentro.push(['Bench', [-6.5, 0, 4], PI / 2], ['Bench', [-6.5, 0, 7], PI / 2], ['Barrel', [7.2, 0, 8.8], 0], ['Barrel_Apples', [6.4, 0, 9], 0], ['FarmCrate_Apple', [7.3, 0, 6.6], 1.2],
+    ['Crate_Wooden', [7.2, 0, 3.4], 0.3], ['Chest_Wood', [6.0, 0, 1.2], 0.1]);
+  return { comercio_grande: base, comercio_grande_cima: cima, comercio_grande_dentro: dentro };
+}
+// sobrados de enfeite (dois andares, sacada): ninguém mora, só deixam a rua com cara de cidade
+// mais leve para o celular (a vila tem ~15 prédios e o salão grande): canto de pedra vira pilar simples, sem postigo,
+// telhado, janela, grade e enfeites simplificados (montar.mjs: "@leve" e "@meio" saem com menos triângulos)
+const leveRio = (L) => L.filter(([n]) => !n.startsWith('WindowShutters')).map(([n, p, ry, s]) => {
+  if (n === 'Corner_Exterior_Brick') n = '@canto_rio';
+  else if (n === 'Balcony_Simple_Straight') n = 'Balcony_Cross_Straight@meio';
+  else if (/^Roof_(RoundTiles|Tower)/.test(n)) n += '@leve';
+  else if (!n.startsWith('@') && !/^(Wall_|Floor_|Roof_Front|Corner_Exterior_Wood|Banner_)/.test(n)) n += '@meio';
+  return [n, p, ry, s];
+});
+export const RIO_CLARO = {
+  ...casaDoComercio(),
+  sobrado_4x6: [...casa(4, 6, { frente: 'jd', fundo: 'pp', esq: 'jgj', dir: 'jgj', andares: 2, cima: { frente: 'jj', fundo: 'gg', esq: 'jgj', dir: 'jgj' }, chamine: [-1, 3.3, -2.2] }), ...sacada(4, 6, [0, 1])],
+  sobrado_6x6: [...casa(6, 6, { estilo: 'pedra', frente: 'jdj', fundo: 'pJp', esq: 'jpj', dir: 'jpj', andares: 2, cima: { frente: 'jjj', fundo: 'pjp', esq: 'jpj', dir: 'jpj' }, chamine: [1.8, 3.6, -1.6] }), ...sacada(6, 6, [1])],
+  sobrado_4x4: casa(4, 4, { frente: 'dj', fundo: 'pJ', esq: 'jp', dir: 'pj', andares: 2, cima: { frente: 'gj', fundo: 'Jg', esq: 'gj', dir: 'jg' } }),
+  // bancas da Rua do Mercado com a mercadoria (os vendedores são NPCs de enfeite: shared/dados.js)
+  banca_frutas: [['Stall_Empty', [0, 0, 0], 0], ['FarmCrate_Apple', [-0.4, 0.98, 0.15], 0.3], ['Barrel_Apples', [0.9, 0, 0.9], 0]],
+  banca_tecidos: [['Stall_Cart_Empty', [0, 0, 0], 0], ['Bag', [-0.4, 0.98, 0.15], 0.3], ['Bag', [0.9, 0, 0.9], 0]],
+  banca_peixe: [['Stall_Empty', [0, 0, 0], 0], ['Bucket_Wooden_1', [-0.4, 0.98, 0.15], 0.3], ['Barrel', [0.9, 0, 0.9], 0]],
+  banca_ceramica: [['Stall_Cart_Empty', [0, 0, 0], 0], ['Vase_2', [-0.4, 0.98, 0.15], 0.3], ['Pot_1', [0.9, 0, 0.9], 0]],
+  banca_temperos: [['Stall_Empty', [0, 0, 0], 0], ['FarmCrate_Carrot', [-0.4, 0.98, 0.15], 0.3], ['Bag', [0.9, 0, 0.9], 0]],
+  // carroça de carga parada (o cavalo é o modelo animado res://animais/cavalo.glb, posto pelo jogo na frente dela)
+  carroca_carga: [['Prop_Wagon', [0, 0, 0], 0], ['Crate_Wooden', [0, 0.55, 1.6], 0.3], ['Barrel', [0.2, 0.55, 2.8], 0]],
+  // poste de lanterna e a pilha de carga do pátio das caravanas
+  poste: [['Corner_Exterior_Wood', [0, 0, 0], 0], ['Lantern_Wall', [0, 2.4, 0.18], 0]],
+  carga: [['Crate_Wooden', [0, 0, 0], 0], ['Crate_Wooden', [1, 0, 0.2], 0.4], ['Crate_Wooden', [0.5, 0.93, 0.1], 0.2], ['Barrel', [-1.2, 0, 0.6], 0], ['Barrel', [-1.4, 0, -0.4], 0]],
+  // só para o jogo pegar o material da calçada de pedra (vilas_mundo.gd faz a praça e a Rua do Mercado com ele)
+  rio_chao: [['Floor_Brick', [0, 0, 0], 0]],
+};
+for (const k of Object.keys(RIO_CLARO)) RIO_CLARO[k] = leveRio(RIO_CLARO[k]);
