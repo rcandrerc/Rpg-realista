@@ -321,10 +321,8 @@ func montar_janela(mt) -> void:
 		var est := "aqui" if on == 1 else "em outro mundo" if on == 2 else "offline"
 		if on == 1 and a.get("nivel") != null:
 			est = "Nv %d · aqui" % int(a.nivel)
-		var l := Menu.rotulo("%s  (%s)" % [str(a.nome), est], 15, Menu.TEXTO if on > 0 else Menu.APAGADO)
-		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		l.clip_text = true
-		linha.add_child(l)
+		# André 2026-11-16: nome em cima e o resto embaixo (os botões cobriam o fim da linha), igual à Cecília e ao Dario
+		linha.add_child(_nome_e_info(str(a.nome), est, Menu.TEXTO if on > 0 else Menu.APAGADO))
 		if on == 1 and not a.get("time", false):
 			linha.add_child(_pequeno(mt._botao("Time", func(): m.rede("time", {"acao": "convidar", "com": c})), 70))
 		if m.chat: # mensagem privada (chat.gd, aba Amigos)
@@ -355,10 +353,8 @@ func montar_janela(mt) -> void:
 			var coracao := Menu.rotulo("♥", 15, Color("ff8fc8"))
 			linha.add_child(coracao)
 			# André 2026-11-16: só aparece quem ele adicionou e o NPC aceitou; o selo "NPC" mostra que não é gente
-			var l := Menu.rotulo("%s  [NPC]  (Nv %d · amizade %d)" % [nome, int(v.get("nivel", 1)), int(v.get("amizade", 0))], 15, Menu.TEXTO)
-			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			l.clip_text = true
-			linha.add_child(l)
+			# André 2026-11-16: o botão "Msg" cobria a amizade; agora nome em cima, nível e amizade embaixo
+			linha.add_child(_nome_e_info("%s  [NPC]" % nome, "Nv %d · ♥ %d" % [int(v.get("nivel", 1)), int(v.get("amizade", 0))], Menu.TEXTO))
 			# André 2026-11-15: todo mundo manda mensagem e chama pro time (sem chave, as respostas são as prontas);
 			# a chave Groq só troca as respostas pela IA. "Msg" e "Time" sempre; "Ativar conversa com IA" vem embaixo
 			if m.chat:
@@ -536,3 +532,18 @@ func _pequeno(b: Button, largura: float) -> Button:
 	b.custom_minimum_size = Vector2(largura, 34)
 	b.add_theme_font_size_override("font_size", 14)
 	return b
+
+# nome em cima e a informação (nível, amizade, onde está) embaixo, menor: cabe ao lado dos botões sem ser cortado
+func _nome_e_info(nome: String, info: String, cor: Color) -> Control:
+	var caixa := VBoxContainer.new()
+	caixa.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	caixa.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	caixa.add_theme_constant_override("separation", 0)
+	var l := Menu.rotulo(nome, 15, cor)
+	l.clip_text = true
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	caixa.add_child(l)
+	var i := Menu.rotulo(info, 13, Menu.APAGADO if cor == Menu.APAGADO else Color("ffc8e4"))
+	i.clip_text = true
+	caixa.add_child(i)
+	return caixa

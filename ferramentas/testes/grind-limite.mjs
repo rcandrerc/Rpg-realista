@@ -24,9 +24,9 @@ const fala = (b.ia.chatFila || []).slice(f0).map((x) => x.texto).join(' ');
 ok(b.time && b.time === d.time && /12 níveis/.test(fala), `aceitou o time e comentou: "${fala}"`);
 s.sairDoTime(b, 'teste'); b.ia.noTime = false;
 // grind sozinho: no máximo NPC_VIDA.grind.segPorDia por dia real
-ok(NPC_VIDA.grind.segPorDia === 7200, 'limite: 2 h de caça sozinho por dia');
+ok(NPC_VIDA.grind.segPorDia === 1800, 'limite: 30 min de caça sozinho por dia');
 ok(dario.podeSairAmiga(b, d).ok, 'antes do limite: pode sair caçar');
-dario.grindHojeAmiga(b); b.grind.seg = 7200;
+dario.grindHojeAmiga(b); b.grind.seg = 1800;
 ok(!dario.podeSairAmiga(b, d).ok && /amanhã/.test(dario.podeSairAmiga(b, d).fala), 'no limite: não sai caçar sozinho');
 b.ia.av = { fase: 'escolher' }; b.ia.fase = 'pensar';
 for (let i = 0; i < 40; i++) s.passo(0.05);
