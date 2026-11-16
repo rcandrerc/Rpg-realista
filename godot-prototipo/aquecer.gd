@@ -31,7 +31,10 @@ var _volume := 0.0
 # as peças de armadura (metal e couro) e cada penteado da lista: o que é montado fica guardado e, no jogo, o corpo de
 # quem chega sai pronto. Os modelos dos penteados carregam numa linha de fundo enquanto o resto acontece.
 # calça e short, com e sem capa (com capa o saiote muda), de metal (Raro em diante) e de couro (Comum)
-const ROUPAS_AQUECER := ["chapeu2,peitoral2,calca2,botas2,capa2", "peitoral2,short2,botas2", "calca2", "short2,capa2",
+# registros do celular 2026-11-16 (o:vestir 178 ms quando um jogador apareceu): o corpo masculino sem roupa nenhuma
+# (jogador novo) e só de botas montava pele e pernas na hora (no PC 79 e 55 ms na 1ª vez, depois 2 ms). Vêm primeiro:
+# só valem com o boneco ainda sem nada vestido
+const ROUPAS_AQUECER := ["", "botas2", "chapeu2,peitoral2,calca2,botas2,capa2", "peitoral2,short2,botas2", "calca2", "short2,capa2",
 	"chapeu0,peitoral0,calca0,botas0,capa0", "peitoral0,short0,botas0", "calca0", "short0,capa0"]
 const CORPOS_MAX := 8.0 # s no máximo esperando os modelos dos penteados (depois a capa sai e eles chegam no fundo)
 var _fila_corpos: Array = [] # [tipo, corpo, valor]: um passo por quadro
