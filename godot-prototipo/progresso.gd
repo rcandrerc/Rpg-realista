@@ -15,6 +15,8 @@ var xp_prox := 16
 var teste := false # conta de teste do André: o menu mostra os botões de mudar o nível (o servidor confere)
 var teste_missoes := false # só a conta do André: "Voltar 1 missão" e "Zerar missões" na aba Missões (CONTA_TESTE.missoes)
 var mudou := false # o menu redesenha quando muda
+var diarias: Dictionary = {} # missões diárias (André 2026-11-16): o resumo do servidor (shared/diarias.js diariasInfo)
+var diarias_t := 0 # Time.get_ticks_msec() de quando chegou (o relógio "Novas em" conta daí)
 var hist_info: Dictionary = {} # história v2 (André 2026-11-11): a etapa da vez que o servidor manda (texto, NPC, alvo do Ir)
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
@@ -110,6 +112,9 @@ func do_servidor(ev: Dictionary) -> void:
 	definir(ev.prog)
 	if ev.has("hi"):
 		hist_info = ev.hi if ev.hi is Dictionary else {}
+	if ev.has("di"):
+		diarias = ev.di if ev.di is Dictionary else {}
+		diarias_t = Time.get_ticks_msec()
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	teste_missoes = bool(ev.get("testeMissoes", false))

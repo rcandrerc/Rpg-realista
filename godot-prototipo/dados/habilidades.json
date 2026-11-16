@@ -20830,6 +20830,22 @@
     ]
    },
    {
+    "id": "d1",
+    "cap": 5,
+    "nv": 12,
+    "npc": "comerciante",
+    "npcNome": "Rosa",
+    "nome": "Tarefas do dia",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Abra Missões > Diárias",
+     "Termine 1 diária",
+     "Volte e fale com Rosa"
+    ]
+   },
+   {
     "id": "a15",
     "cap": 5,
     "nv": 12,

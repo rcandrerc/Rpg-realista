@@ -47,7 +47,7 @@ const MEDALHAO := 52.0
 # André 2026-11-12: aba Títulos (títulos com bônus; um em uso por vez)
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
-const ABAS_MISSOES := ["missoes"]
+const ABAS_MISSOES := ["missoes", "diarias"] # História e Diárias (André 2026-11-16)
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
@@ -751,7 +751,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "Missões"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -815,12 +815,18 @@ func trocar_aba(a: String) -> void:
 	atualizar()
 	rolagem.scroll_vertical = 0
 	_viu_barra()
+	_viu_diarias()
 
 # missão "Confira sua barra de habilidades" (André 2026-11-14): abrir a aba Habilidades já conta; não precisa tirar
 # uma skill que já está no lugar e pôr de novo. Quem decide é o servidor (shared/historia.js, etapa com ver)
 func _viu_barra() -> void:
 	if aba == "habilidades" and str(m.P.hist_info.get("ev", "")) == "barra":
 		m.rede("barra_vista")
+
+# missão "Tarefas do dia" (Rosa): abrir a aba Diárias conta. Quem decide é o servidor (shared/diarias.js, acao "ver")
+func _viu_diarias() -> void:
+	if aba == "diarias" and str(m.P.hist_info.get("ev", "")) in ["diaria_vista", "diaria"]:
+		m.rede("diaria", {"acao": "ver"})
 
 func trocar_sub_prof(k: String) -> void:
 	sub_prof = k
@@ -845,6 +851,8 @@ func abrir(qual := "", sub := "") -> void:
 		sub_prof = sub
 	if qual != "":
 		aba = qual
+		if qual == "diarias":
+			_viu_diarias.call_deferred()
 	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
@@ -964,6 +972,7 @@ func atualizar() -> void:
 		botoes_aba[k].visible = k in grupo
 		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else 126
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
+	_bolinha_diarias()
 	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
 	var est_aqui := estacoes_perto()
 	if cat_criar == "aqui" and est_aqui.is_empty():
@@ -993,6 +1002,8 @@ func atualizar() -> void:
 		montar_criar()
 	elif aba == "missoes":
 		montar_missoes()
+	elif aba == "diarias":
+		montar_diarias()
 	elif aba == "titulos":
 		montar_titulos()
 	elif aba == "profissoes":
@@ -1551,6 +1562,110 @@ func card_titulo(id: String, T: Dictionary, ganho: bool, em_uso: bool) -> Contro
 # agrupados por ato. Capítulo feito: a página do Diário (o que aconteceu) e os rumores ouvidos. Capítulo da vez: as
 # missões dele, e na missão da vez cada etapa (feita, a da vez com o andamento, as próximas) e o "Ir para". Capítulo
 # que ainda não chegou: só o número e o nível (o nome aparece quando o herói chega no nível dele).
+# ---------- Diárias (André 2026-11-16) ----------
+# As 4 diárias de hoje (o servidor manda o resumo no progresso: shared/diarias.js diariasInfo). Cada uma: o que pede, o
+# prêmio, a barra e o botão (Ir enquanto falta; Receber quando terminou). Embaixo, o bônus de fazer as 4. O dia vira à
+# meia-noite de Brasília: o relógio "Novas em" conta a partir de quando o resumo chegou.
+const VERDE_DIARIA := Color(0.6, 0.9, 0.55)
+var _bolinha: PanelContainer = null
+func diarias_prontas() -> int:
+	var n := 0
+	for d in m.P.diarias.get("l", []):
+		if int(d.n) >= int(d.t) and not d.get("r", false):
+			n += 1
+	return n
+
+# bolinha vermelha na aba Diárias: quantas estão prontas para receber
+func _bolinha_diarias() -> void:
+	var b: Button = botoes_aba.get("diarias")
+	if b == null:
+		return
+	if _bolinha == null:
+		_bolinha = PanelContainer.new()
+		_bolinha.add_theme_stylebox_override("panel", caixa(Color(0.85, 0.24, 0.2), Color(1, 0.85, 0.8), 1, 10))
+		_bolinha.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var l := rotulo("0", 11, Color.WHITE)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.custom_minimum_size = Vector2(16, 0)
+		_bolinha.add_child(l)
+		b.add_child(_bolinha)
+		_bolinha.position = Vector2(b.custom_minimum_size.x - 18, -6)
+	var n := diarias_prontas()
+	_bolinha.visible = n > 0 and b.visible
+	var lb := _bolinha.get_child(0) as Label
+	if lb.text != str(n):
+		lb.text = str(n)
+
+func montar_diarias() -> void:
+	var D: Dictionary = m.P.diarias
+	if D.is_empty() or not D.has("l"):
+		conteudo.add_child(rotulo("Diárias abrem no Nv %d." % 8, 14, APAGADO))
+		return
+	var falta := maxf(0.0, float(D.get("fim", 0)) - float(Time.get_ticks_msec() - m.P.diarias_t))
+	conteudo.add_child(rotulo("Novas em %d h %d min" % [int(falta / 3600000.0), int(fmod(falta, 3600000.0) / 60000.0)], 13, APAGADO))
+	var feitas := 0
+	for d in D.l:
+		var ok: bool = int(d.n) >= int(d.t)
+		var recebida: bool = d.get("r", false) == true
+		if recebida:
+			feitas += 1
+		var pc := PanelContainer.new()
+		pc.add_theme_stylebox_override("panel", caixa(FUNDO2, VERDE_DIARIA if ok and not recebida else Color(0.3, 0.26, 0.2), 2 if ok and not recebida else 1, RAIO_JANELA))
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 10)
+		pc.add_child(h)
+		var v := VBoxContainer.new()
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 3)
+		h.add_child(v)
+		var nome := rotulo(str(d.txt), 16, VERDE_DIARIA if ok else TEXTO)
+		if ok:
+			nome.text = "✓ " + nome.text
+		v.add_child(nome)
+		v.add_child(rotulo("Prêmio: %d ouro · %d XP" % [int(D.get("ouro", 0)), int(D.get("xp", 0))], 12, OURO))
+		var linha := HBoxContainer.new()
+		linha.add_theme_constant_override("separation", 8)
+		var bp := barra_prog(clampf(float(d.n) / maxf(1.0, float(d.t)), 0.0, 1.0), VERDE_DIARIA if ok else LILAS, 10.0)
+		bp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		linha.add_child(bp)
+		linha.add_child(rotulo("%d/%d" % [int(d.n), int(d.t)], 13, TEXTO))
+		v.add_child(linha)
+		var id := str(d.id)
+		var bt: Button
+		if recebida:
+			bt = botao("Recebida", func(): pass, 15)
+			bt.disabled = true
+		elif ok:
+			bt = botao("Receber", func(): m.rede("diaria", {"acao": "receber", "id": id}), 15, true)
+		else:
+			bt = botao("Ir", func(): m.rede("diaria", {"acao": "ir", "id": id}), 15)
+		bt.custom_minimum_size = Vector2(110, 44)
+		bt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(bt)
+		conteudo.add_child(pc)
+	var pb := PanelContainer.new()
+	var b_ok: bool = D.get("b", false) == true
+	pb.add_theme_stylebox_override("panel", caixa(Color(0.14, 0.115, 0.08, 1), VERDE_DIARIA if b_ok else OURO, 1, RAIO_JANELA))
+	var vb := VBoxContainer.new()
+	pb.add_child(vb)
+	var lb := rotulo("Faça as 4: bônus de %d ouro" % int(D.get("bonus", 0)), 15, VERDE_DIARIA if b_ok else OURO_CLARO)
+	if b_ok:
+		lb.text = "✓ " + lb.text
+	vb.add_child(lb)
+	vb.add_child(rotulo("%d de %d feitas hoje" % [feitas, D.l.size()], 12, APAGADO))
+	conteudo.add_child(pb)
+
+# o servidor respondeu o "Ir" de uma diária (evento diaria_ir): fecha o menu e vai pela estrada, como o Ir da missão
+func ir_diaria(ev: Dictionary) -> void:
+	var a = ev.get("alvo")
+	if not (a is Dictionary) or m.rota == null or m.heroi == null:
+		return
+	var r: PackedVector2Array = m.rota.planejar(Vector2(float(a.x), float(a.z)))
+	if r.is_empty():
+		return
+	fechar()
+	m.rota.ir(r, "Indo até %s" % str(a.get("nome", "")), m.rota.OLHA, true)
+
 const LILAS := Color(0.72, 0.62, 0.95)
 func montar_missoes() -> void:
 	var nv = m.nevoa

@@ -75,7 +75,7 @@ const verCliente = (lista) => {
   for (const e of lista) if (e.t === 'prog' && e.para === 'A') { cli.hi = e.hi; veio = true; }
   const a = cli.hi?.alvo, M = HISTORIA[h()?.p];
   // etapa que acontece num lugar sem o Ir: o jogador não sabe para onde ir
-  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar'];
+  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar', 'diaria_vista', 'diaria'];
   const naMochila = semLugar.includes(cli.hi?.ev) || cli.hi?.ev === 'veiculo' || /^(.*: )?junte ouro/.test(cli.hi?.txt || ''); // o que falta se faz na mochila (destruir, criar ferramenta, radar...)
   if (E && !a && !(semLugar.includes(E.ev) && !E.alvo) && !naMochila) bug(`semIr:${M.id}:${h().e}`, `${M.id} etapa ${h().e + 1} (${E.ev}): o botão Ir não tem para onde levar`);
   if (a && M && zonaFechadaEm(p, a.x, a.z)) bug(`nevoa:${M.id}:${cli.hi.e}`, `${M.id} etapa ${cli.hi.e + 1}: o Ir leva para dentro da névoa (${a.nome})`);
@@ -216,6 +216,11 @@ chefe('sombra'); falar('comerciante'); fim('a13');
 falar('m_lenha'); ok(missao() === 'a14', 'Joca deu o pack');
 s.historia(j, 'pack_fez', { k: 'lenha' }); s.historia(j, 'pack', { k: 'lenha', npc: 'm_pedra' }); ok(h().e === 1, 'pack no mercador errado não conta');
 s.historia(j, 'pack', { k: 'lenha', npc: 'm_horta' }); falar('comerciante'); fim('a14');
+// Tarefas do dia (André 2026-11-16): a Rosa mostra a aba Diárias; abrir a aba e terminar 1 diária
+falar('comerciante'); ok(missao() === 'd1' && h().ac && contar(p.mochila, 'semente_betula') >= 4, 'Rosa deu as sementes das Diárias');
+s.diaria('A', { acao: 'ver' }); ok(etapa().ev === 'diaria', 'abriu a aba Diárias');
+for (let k = 0; k < 5; k++) s.historia(j, 'pesca', { k: 'lambari', n: 1 });
+falar('comerciante'); fim('d1');
 falar('ferreiro'); ok(missao() === 'a15' && contar(p.mochila, 'selo_raro') >= 1, 'Tomás deu o Selo Raro');
 s.historia(j, 'destruir', {}); s.historia(j, 'evoluir', { v: 0 }); ok(h().e === 1, 'evoluir para Comum não conta');
 s.historia(j, 'evoluir', { v: 1 }); s.historia(j, 'reforcar', { v: 1 }); s.historia(j, 'reforcar', { v: 2 }); falar('ferreiro'); fim('a15');
