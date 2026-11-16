@@ -2079,6 +2079,7 @@ export class Simulacao {
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
     const ctxPm = canal === 'pm' ? this.amigosIa.find((x) => x.AMIGA.conta === para) : null; // Cecília ou Dario
+    if (canal === 'pm' && ctxPm && !ctxPm.ehAmigoAmiga(j)) return aviso(`Adicione ${ctxPm.AMIGA.nome} como amigo para mandar mensagem`); // André 2026-11-16: amizade conquistada
     if (canal === 'pm' && !j.amigos.has(para) && !(ctxPm && ctxPm.podeAmiga(id))) return aviso(ctxPm ? `Ative a conversa com IA para falar com ${ctxPm.AMIGA.nome}` : 'Só dá para mandar mensagem privada para amigo'); // a Cecília: quem tem a chave Groq (shared/amiga.js)
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
     j.chatT = this.tempo;
@@ -2150,7 +2151,8 @@ export class Simulacao {
       return { c, nome: o?.nome || nome, id: o ? o.id : null, nivel: o ? o.prog.nivel : null, on: o ? 1 : this.onlineFora?.(c) ? 2 : 0, time: !!(o && j.time && o.time === j.time) };
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
-    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    // André 2026-11-16: só quem ela aceitou como amigo (pedido tocando nela ou pela busca); o ♥ e o selo de NPC ficam
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
     const pedidos = [...(j.pedidosRec || [])].map(([c, nome]) => ({ c, nome: this.porConta(c)?.nome || nome, on: onde(c) })); // pedidos a distância esperando resposta
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais, pedidos });
@@ -2173,14 +2175,21 @@ export class Simulacao {
       const k = tira(termo); achou = [];
       for (const s of this.sims()) for (const o of s.jogadores.values()) if (!o.bot && !o.robo && o.conta && o.conta !== j.conta && tira(o.nome).includes(k) && !achou.some((a) => a.c === o.conta)) achou.push({ c: o.conta, nome: o.nome });
     }
+    { // os amigos virtuais (Cecília, Dario) aparecem na busca pelo nome, com o selo de NPC (André 2026-11-16)
+      const tira = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR'), k = tira(termo);
+      for (const x of this.amigosIa) if (x.amiga && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
+    }
     achou = achou.filter((a) => a.c !== j.conta).slice(0, AMIGOS.buscaMax);
     j.busca = new Map(achou.map((a) => [a.c, a.nome])); // só dá para pedir quem apareceu na busca
     const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
-    const lista = achou.map((a) => ({ c: a.c, nome: a.nome, on: onde(a.c), amigo: j.amigos.has(a.c), env: j.pedidosEnv.has(a.c), rec: j.pedidosRec.has(a.c) }));
+    const npc = (c) => this.amigosIa.find((x) => x.amiga && x.AMIGA.conta === c);
+    const lista = achou.map((a) => { const x = npc(a.c); return x ? { c: a.c, nome: a.nome, on: 1, npc: 1, amigo: x.ehAmigoAmiga(j), env: false, rec: false } : { c: a.c, nome: a.nome, on: onde(a.c), amigo: j.amigos.has(a.c), env: j.pedidosEnv.has(a.c), rec: j.pedidosRec.has(a.c) }; });
     this.evento({ t: 'amigoBusca', para: j.id, termo, lista });
   }
   amigoPedirConta(j, c) {
     const aviso = (texto, para = j.id) => this.evento({ t: 'aviso', para, texto });
+    const npc = this.amigosIa.find((x) => x.amiga && x.AMIGA.conta === c);
+    if (npc) return j.busca?.has(c) ? npc.pedidoAmizadeAmiga(j.id) : undefined; // Cecília/Dario respondem na hora (André 2026-11-16)
     if (j.pedidosRec.has(c)) return this.amigoAceitarConta(j, c); // a outra pessoa já tinha pedido: viram amigos
     const nome = j.busca?.get(c); if (!nome || c === j.conta) return;
     if (j.amigos.has(c)) return aviso(`${nome} já é seu amigo`);
@@ -2239,7 +2248,9 @@ export class Simulacao {
     if (m.acao === 'aceitarC') return this.amigoAceitarConta(j, String(m.c || ''));
     if (m.acao === 'recusarC') return this.amigoRecusarConta(j, String(m.c || ''));
     if (m.acao === 'remover') {
-      const c = String(m.c || ''); if (!j.amigos.has(c)) return;
+      const c = String(m.c || ''), npc = this.amigosIa.find((x) => x.AMIGA.conta === c);
+      if (npc && npc.desfazerAmizadeAmiga(j)) { this.enviarAmigos(j); return aviso(`${npc.AMIGA.nome} saiu da sua lista de amigos`); }
+      if (!j.amigos.has(c)) return;
       const nome = j.amigos.get(c);
       j.amigos.delete(c);
       const o = this.porConta(c);
@@ -2249,7 +2260,10 @@ export class Simulacao {
       return aviso(`${nome} saiu da sua lista de amigos`);
     }
     const o = this.jogadores.get(String(m.com || ''));
-    if (o?.bot) return; // a Cecília não entra na lista de amigos pelo botão
+    if (o?.bot) { // Cecília/Dario: pedido de amizade tocando neles, e eles decidem (André 2026-11-16)
+      const npc = this.amigoIaDe(o); if (npc && m.acao === 'pedir') npc.pedidoAmizadeAmiga(id);
+      return;
+    }
     if (m.acao === 'recusar') {
       const p = j.pedidoAmigo; if (!p || p.de !== String(m.com)) return;
       j.pedidoAmigo = null;

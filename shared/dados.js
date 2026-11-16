@@ -2555,6 +2555,15 @@ export const AMIGA = {
   // pedido entregue: +1 cada, fora do limite do dia. Conversa (pelo menos 'conversa' falas dele), 'caca' monstros mortos
   // juntos no time, uma rodada de coleta junto (coleta.dividir itens) e chefe vencido junto ('chefe'): até 'porDia' por dia.
   amizade: { max: 10, porDia: 5, conversa: 4, caca: 20, chefe: 2, aviso: '{nome}: amizade +{n}' },
+  // Lista de amigos conquistada (André 2026-11-16): a pessoa pede (tocando no NPC ou pela busca) e ele decide. Chance de
+  // aceitar = base + amizade x porAmizade (amizade 4 já aceita sempre). Ocupado (lutando, caçando, no time de outro): pede
+  // para esperar 'esperaOcupada' s; sem clima: 'esperaRecusa' s. Falas neutras (valem para a Cecília e o Dario).
+  amigoLista: {
+    base: 0.6, porAmizade: 0.1, esperaOcupada: 60, esperaRecusa: 180,
+    aceita: ['Fechou, te add! Agora me chama quando quiser.', 'Bora, aceito sim! Tmj.', 'Aceito! Me chama pra upar qualquer hora.'],
+    ocupada: ['Tô no meio de uma luta aqui, me pede de novo daqui a pouco!', 'Agora tô ocupad{o}, depois a gente vê isso!'],
+    antes: ['Calma, a gente mal se conhece kkk. Bora jogar junto um pouco antes?', 'Hmm, deixa eu te conhecer melhor primeiro. Me chama pra caçar!'],
+  },
   conversa: 25, // segundos parada olhando para o André depois do último botão
   // Fase 2 (André 2026-11-09): time e combate. Ela decide por regras com sorteio (sem IA paga): a vontade começa em
   // base e muda com a amizade, o cansaço, a horta, a noite e a diferença de nível; depois sorteia. Recusou: espera
