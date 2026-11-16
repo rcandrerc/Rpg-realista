@@ -286,6 +286,9 @@ func _npc(id: String) -> Dictionary:
 func ir() -> void:
 	if m.rota == null or m.heroi == null:
 		return
+	if str(_info(_missao()).get("ev", "")) in ["diaria_vista", "diaria"]: # missão da Rosa: o Ir abre a aba Diárias
+		m.menu.abrir("diarias")
+		return
 	var A := alvo()
 	if A.is_empty():
 		m.hud.aviso("Dá para fazer aqui mesmo" if not _info(_missao()).is_empty() else "Nenhum lugar para ir nesta missão")

@@ -93,6 +93,7 @@ async function entrarConta() {
 
 // ---------- o que o app sabe ----------
 const eu = { x: 0, y: 0, z: 0, ry: 0, vida: 1, vidaMax: 1, mana: 0, morto: false, montado: null, pronto: false };
+let di = null, diariaIr = null, diariaT = 0, sementesAntes = -1; // missões diárias (André 2026-11-16): o resumo do servidor e o Ir da diária de plantar
 let prog = null, hi = null, corrSeq = 0, ultimaFoto = 0, sala = null, reinicioT = 0;
 const inimigos = new Map(); // id -> corpo (a foto com área de interesse manda só o que mudou: junta, como online.gd _juntar)
 const atacados = new Set();
@@ -125,7 +126,7 @@ function lerEvento(e) {
   if (e.para && esperaResposta && ['fala', 'aviso', 'prog', 'coletou', 'fabricando', 'compra'].includes(e.t)) { const ms = performance.now() - esperaResposta; if (ms < 5000) respostas.push(ms); if (respostas.length > 5000) respostas.shift(); esperaResposta = 0; }
   if (e.t === 'prog') {
     const antes = prog?.hist;
-    prog = e.prog; hi = e.hi || null;
+    prog = e.prog; hi = e.hi || null; if ('di' in e) di = e.di || null;
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
     R.nivel.ate = prog.nivel;
     const h = prog.hist;
@@ -147,6 +148,27 @@ function lerEvento(e) {
   } else if (e.t === 'leilao') leilaoInfo = e;
   else if (e.t === 'pesca') { pescaT = Date.now(); pescaSt = e.st === 'fim' || e.st === 'pegou' ? '' : e.st; if (e.st === 'pegou') { R.peixes = (R.peixes || 0) + 1; falarT = Date.now(); } if (e.st === 'fim') falarT = Date.now(); }
   else if (e.t === 'reinicio') reinicioT = Date.now();
+  else if (e.t === 'diaria_ir') diariaIr = e.alvo || null;
+  else if (e.t === 'diaria') { R.diarias ||= { feitas: 0, recebidas: 0 }; if (e.feita) R.diarias.feitas++; if (e.recebeu) R.diarias.recebidas++; }
+}
+// ---------- diárias (André 2026-11-16) ----------
+// Recebe toda diária pronta (o botão Receber da aba). A de monstros anda sozinha com a caça; na missão da Rosa
+// ("Tarefas do dia") ele abre a aba e planta as 4 sementes que ela dá numa área de plantio (o Ir da diária).
+const qtd = (k) => (prog?.mochila || []).reduce((n, o) => n + (o && o.k === k ? o.n : 0), 0);
+function receberDiarias(agora) {
+  const D = di?.l?.find((d) => d.n >= d.t && !d.r); if (!D || agora - diariaT < 3000) return false;
+  diariaT = agora; acao('diaria', { acao: 'receber', id: D.id }); return true;
+}
+function plantarDiaria(agora) {
+  if (!diariaIr) { if (agora - diariaT > 4000) { diariaT = agora; acao('diaria', { acao: 'ir', id: 'arvores' }); } return; }
+  if (!irPara(diariaIr.x, diariaIr.z, 1)) return;
+  parar();
+  if (agora - diariaT < 3000) return;
+  const n = qtd('semente_betula');
+  // a última tentativa não plantou (quadrado ocupado, árvore perto): anda 4 m pela área e tenta de novo
+  if (sementesAntes === n) diariaIr = { ...diariaIr, x: diariaIr.x + 4 };
+  sementesAntes = n; diariaT = agora;
+  acao('plantarArvore', { s: 'betula', x: +eu.x.toFixed(2), z: +eu.z.toFixed(2) });
 }
 
 // ---------- andar ----------
@@ -352,6 +374,8 @@ function missao(agora) {
   const ev = hi?.ev || '';
   if (NAO_SABE.has(ev)) { if (!naoSabeT) naoSabeT = agora; if (agora - naoSabeT > 8000) { naoSabeT = 0; pular(`o robô ainda não sabe fazer "${ev}"`); } return; }
   naoSabeT = 0;
+  if (ev === 'diaria_vista') { if (agora - diariaT > 3000) { diariaT = agora; acao('diaria', { acao: 'ver' }); } return; }
+  if (ev === 'diaria') { if (qtd('semente_betula') > 0 && !(di?.l?.find((d) => d.id === 'arvores')?.n >= 4)) return plantarDiaria(agora); return cacar(agora); }
   if (ev === 'atributo' || prog.pontos > 0) { const n = prog.pontos | 0; if (n > 0) { const f = Math.ceil(n / 2); acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; } if (ev === 'atributo') return; }
   if (ev === 'viajar' && a) { // "use o totem para ir a...": chega perto do totem e pede a viagem (canaliza parado)
     // sem destino ("vá a outro e volte ao Juncal", 2026-11-16 travou 15 min): do totem da etapa vai ao aberto mais
@@ -490,7 +514,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vender(agora)) missao(agora); } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vender(agora) && !receberDiarias(agora)) missao(agora); } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);
@@ -506,7 +530,7 @@ async function main() {
 }
 function resumoNoGithub() {
   const f = process.env.GITHUB_STEP_SUMMARY; if (!f) return;
-  const l = [`## Robô de testes · turno ${TURNO}`, '', `- Nível ${R.nivel.de} → ${R.nivel.ate}; missões feitas ${R.missoes.feitas}, puladas ${R.missoes.puladas}; agora: ${R.missoes.agora}`,
+  const l = [`## Robô de testes · turno ${TURNO}`, '', `- Nível ${R.nivel.de} → ${R.nivel.ate}; missões feitas ${R.missoes.feitas}, puladas ${R.missoes.puladas}; agora: ${R.missoes.agora}`, `- Diárias feitas ${R.diarias?.feitas || 0}, recebidas ${R.diarias?.recebidas || 0}`,
     `- Ping médio ${R.ping.p50} ms, pior 5% ${R.ping.p95} ms, pior ${R.ping.max} ms`, `- Quedas ${R.quedas}, reinícios do servidor ${R.reinicios}, correções de posição ${R.correcoes}`,
     `- Fotos atrasadas ${R.fotos.atrasadas} (pior ${R.fotos.pior} ms); passo do servidor ${R.servidor.tickMs} ms (pico ${R.servidor.tickPicoMs} ms)`, '', '### Achados', ...(R.problemas.length ? R.problemas.map((p) => `- ${p}`) : ['- nenhum'])];
   try { fs.appendFileSync(f, l.join('\n') + '\n'); } catch { /* sem resumo */ }

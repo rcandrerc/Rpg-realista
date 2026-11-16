@@ -16,6 +16,7 @@ import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vi
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
 import { Kit, pedidosDaEtapa, soNoMar } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
+import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -855,7 +856,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -920,7 +921,7 @@ export class Simulacao {
     const h = p.hist || (p.hist = histNova());
     if (!h.ac) {
       if (M.npc !== npc.id || p.nivel < M.nv) return false; // ainda cedo: o NPC fala o de sempre
-      Object.assign(h, { ac: true, e: 0, n: 0, m: 0 }); j.progSujo = true;
+      Object.assign(h, { ac: true, e: 0, n: 0, m: 0, at: M.id }); j.progSujo = true; // at: a missão aceita (missão nova no meio da lista não herda a etapa de outra)
       if (primeiraDoCap(h.p)) { const C = capituloDe(M); if (C) this.evento({ t: 'capitulo', para: j.id, fase: 'abre', n: C.n, nome: C.nome, frase: C.frase, ato: C.ato }); }
       this.evento({ t: 'aviso', para: j.id, texto: 'Missão nova: ' + M.nome });
       if (M.recebe) this.darItens(j, M.recebe);
@@ -974,6 +975,7 @@ export class Simulacao {
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
+    if (ev !== 'diaria' && ev !== 'diaria_vista') this.contarDiaria(j, ev, d); // as diárias contam pelo mesmo funil (shared/diarias.js)
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
     // colheu antes da etapa "Colha" (a horta da missão fica pronta ao plantar, e dá para colher já na etapa de regar):
@@ -2523,6 +2525,7 @@ export class Simulacao {
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
+    if (ganhou.length) this.contarDiaria(j, 'coleta', { tipo: no.tipo }); // diária "Corte ou minere": uma por batida
     if (!ganhou.length) return this.pararColeta(j, null);
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
@@ -4580,6 +4583,7 @@ Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
+Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;
