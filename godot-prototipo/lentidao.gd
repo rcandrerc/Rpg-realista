@@ -261,6 +261,8 @@ func _ler_bateria(act) -> void:
 const ID_ARQ := "user://lentidao_id.txt"
 var _ap := ""
 var _inst := ""
+var _placa := ""
+var _drv := ""
 func _aparelho(e: Dictionary) -> void:
 	if _inst == "":
 		_ap = OS.get_model_name().substr(0, 40)
@@ -275,6 +277,13 @@ func _aparelho(e: Dictionary) -> void:
 				f.store_string(_inst)
 	e.ap = _ap
 	e.inst = _inst
+	# placa de vídeo e o motor de desenho de verdade (André 2026-11-16, Note 10 da filha com rosto rosa): sem placa
+	# boa de Vulkan o Godot cai para o OpenGL e o jogo fica diferente; assim se vê qual celular caiu em qual
+	if _placa == "":
+		_placa = RenderingServer.get_video_adapter_name().substr(0, 40)
+		_drv = RenderingServer.get_current_rendering_driver_name().substr(0, 16)
+	e.placa = _placa
+	e.drv = _drv
 
 func _comum(e: Dictionary) -> void:
 	e.min = snappedf(Time.get_ticks_msec() / 60000.0, 0.1)
