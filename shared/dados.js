@@ -1720,6 +1720,9 @@ export const ORGANIZAR = ['equip', 'consumivel', 'tomo', 'ferramenta', 'obra', '
 // Mato e pedras soltas da mata (pedido do André 2026-11-03, junto com os marcos do CENARIO): sorteio fixo em volta das
 // árvores (cogumelo no pé, orelha-de-pau no tronco, arbusto e samambaia entre elas) e pedras na beira da estrada.
 // O Godot desenha em MultiMesh por pedaços (godot-prototipo/cenario.gd); só as pedras maiores são sólidas.
+// orelha-de-pau -> a árvore em que está grudada (André 2026-11-16, "cogumelos flutuando"): quando a árvore sai do mundo
+// (mata nativa, NATIVAS lá embaixo), a orelha sai junto; fica de fora do JSON (não vai pela rede)
+const ORELHA_DA_ARVORE = new WeakMap();
 function sortearEnfeites(arvores) {
   let sem = 9157; const rnd = (a, b) => { sem = (sem * 16807) % 2147483647; return a + (sem / 2147483647) * (b - a); };
   const lista = [], solidos = [], r2 = (n) => +n.toFixed(2);
@@ -1734,7 +1737,10 @@ function sortearEnfeites(arvores) {
       }
     } else if (sorte < 0.13) { // orelha-de-pau grudada no tronco, virada para fora
       const d = 0.32 * a.s * 0.75;
-      lista.push({ m: 'orelha_de_pau', x: r2(a.x + sa * d), z: r2(a.z + ca * d), y: r2(rnd(0.3, 0.9)), ry: r2(Math.atan2(sa, ca)), s: r2(rnd(0.4, 0.6)) });
+      // altura no tronco: até o alto do toco (0,42 x tamanho, queda_arvore.gd), senão fica no ar quando a árvore é cortada
+      const o = { m: 'orelha_de_pau', x: r2(a.x + sa * d), z: r2(a.z + ca * d), y: r2(Math.min(rnd(0.3, 0.9), 0.42 * a.s * 0.75)), ry: r2(Math.atan2(sa, ca)), s: r2(rnd(0.4, 0.6)) };
+      ORELHA_DA_ARVORE.set(o, a);
+      lista.push(o);
     }
     const outra = rnd(0, 1), d = rnd(1.6, 2.8), x = a.x + Math.cos(ang + 2) * d, z = a.z + Math.sin(ang + 2) * d;
     if (!longeDoCaminho(x, z, 3.2)) continue;
@@ -4047,10 +4053,15 @@ export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 };
     const x = Math.round(a.x), z = Math.round(a.z), h = ((Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0) >>> 7;
     return h % (vilas.some((v) => Math.hypot(x - v.x, z - v.z) < v.r + NATIVAS.pertoVila) ? NATIVAS.umEmPerto : NATIVAS.umEmLonge) === 0;
   };
-  const nativas = [];
-  MAPA_CLAREIRA.mata.forEach((a, n) => { if (fica(a)) nativas.push({ ...a, n }); });
+  const nativas = [], vivas = new Set();
+  MAPA_CLAREIRA.mata.forEach((a, n) => { if (fica(a)) { nativas.push({ ...a, n }); vivas.add(a); } });
   NATIVAS.antes = MAPA_CLAREIRA.mata.length;
   MAPA_CLAREIRA.mata = nativas;
+  // orelha-de-pau grudada em árvore que saiu ficava flutuando no ar (André 2026-11-16): sai junto com a árvore.
+  // O resto do mato (cogumelo no pé, samambaia, arbusto) está no chão e fica.
+  const C = MAPA_CLAREIRA.cenario, antes = C.enfeites.length;
+  C.enfeites = C.enfeites.filter((e) => !ORELHA_DA_ARVORE.has(e) || vivas.has(ORELHA_DA_ARVORE.get(e)));
+  NATIVAS.orelhasFora = antes - C.enfeites.length;
 }
 
 // Árvores plantadas (André 2026-11-16, entrega 3; regras em shared/plantio.js). Semente só na loja da Rosa; sem regar,
