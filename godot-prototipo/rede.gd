@@ -23,6 +23,11 @@ signal escolher_conta(conta: Dictionary) # abriu o jogo com conta salva: pergunt
 signal conta_respondeu(r: Dictionary) # a conferência da conta salva (feita por trás da janela de escolha) voltou
 
 var servidor := SERVIDOR # dá para trocar no teste (variável RPG_SERVIDOR)
+# Caminho reserva (André 2026-11-16: o celular dele parou de abrir qualquer endereço *.sslip.io, no Wi-Fi e no 5G, com
+# ERR_SSL_PROTOCOL_ERROR; o servidor abria normal no resto do mundo). Se o nome falha, o app vai direto no IP do servidor
+# e manda o nome dentro do TLS (o certificado é o mesmo); o servidor pediu ao Caddy para aceitar o IP (server/caddy-reserva.js).
+# Deu certo pelo IP: fica pelo IP até fechar o app.
+var _reserva := false
 var sessao := ""
 var conta := {}
 var meu_id := ""
@@ -57,6 +62,19 @@ var _trocado := false # o servidor disse que a conta está jogando em outro apar
 var _entrando_auto := false # entrando de novo sozinho (queda), ainda sem resposta da sala
 
 # a conta está jogando em outro aparelho agora? (servidor fora ou sem resposta: false, segue o caminho de sempre)
+# "163-176-80-126.sslip.io" (o nome que está no certificado) e "163.176.80.126" (o IP que ele traz)
+func _nome_servidor() -> String:
+	return servidor.trim_prefix("https://").trim_prefix("http://").get_slice("/", 0)
+
+func _ip_reserva() -> String:
+	if not servidor.begins_with("https://"):
+		return ""
+	var n := _nome_servidor()
+	if not n.ends_with(".sslip.io"):
+		return ""
+	var ip := n.trim_suffix(".sslip.io").replace("-", ".")
+	return ip if ip.is_valid_ip_address() else ""
+
 func _ligada_em_outro() -> bool:
 	var r := await pedir("GET", "/conta/ligada")
 	return r.codigo == 200 and r.dados.get("ligada", false) == true
@@ -313,12 +331,27 @@ func pedir(metodo: String, caminho: String, corpo = null, com_sessao := true) ->
 	if com_sessao and sessao != "":
 		cab.append("Authorization: Bearer " + sessao)
 	var m := HTTPClient.METHOD_POST if metodo == "POST" else HTTPClient.METHOD_GET
-	var erro := http.request(servidor + caminho, cab, m, JSON.stringify(corpo) if corpo != null else "")
+	var base := servidor
+	if _reserva and _ip_reserva() != "":
+		base = "https://" + _ip_reserva()
+		http.set_tls_options(TLSOptions.client(null, _nome_servidor()))
+		cab.append("Host: " + _nome_servidor())
+	var erro := http.request(base + caminho, cab, m, JSON.stringify(corpo) if corpo != null else "")
 	if erro != OK:
 		http.queue_free()
 		return {"codigo": 0, "dados": {}}
 	var res: Array = await http.request_completed
 	http.queue_free()
+	# o nome do servidor não abriu (bloqueado, não achou, TLS estranho): tenta uma vez pelo IP
+	if not _reserva and _ip_reserva() != "" and int(res[0]) in [HTTPRequest.RESULT_CANT_RESOLVE, HTTPRequest.RESULT_CANT_CONNECT,
+			HTTPRequest.RESULT_CONNECTION_ERROR, HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR, HTTPRequest.RESULT_TIMEOUT]:
+		_reserva = true
+		var r2 := await pedir(metodo, caminho, corpo, com_sessao)
+		if r2.codigo == 0: # pelo IP também não: volta a tentar pelo nome na próxima
+			_reserva = false
+		else:
+			print("rede: servidor pelo caminho reserva (IP)")
+		return r2
 	var txt := (res[3] as PackedByteArray).get_string_from_utf8().strip_edges()
 	# resposta vazia ou que não é JSON (servidor reiniciando, página de erro): sem dados, sem erro no log
 	var dados = JSON.parse_string(txt) if txt.begins_with("{") or txt.begins_with("[") else null
@@ -369,14 +402,15 @@ func religar() -> void:
 	_abrir_ws(str(v.token))
 
 func _abrir_ws(token: String) -> void:
-	var url := servidor.replace("https://", "wss://").replace("http://", "ws://") + "/" + str(_volta.processo) + "/" + str(_volta.sala) + "?sessionId=" + meu_id
+	var base := "https://" + _ip_reserva() if _reserva and _ip_reserva() != "" else servidor
+	var url := base.replace("https://", "wss://").replace("http://", "ws://") + "/" + str(_volta.processo) + "/" + str(_volta.sala) + "?sessionId=" + meu_id
 	if token != "":
 		url += "&reconnectionToken=" + token.uri_encode()
 	ws = WebSocketPeer.new()
 	ws.inbound_buffer_size = 1 << 20
 	ws.outbound_buffer_size = 1 << 18
 	ws.max_queued_packets = 4096
-	if ws.connect_to_url(url) != OK:
+	if ws.connect_to_url(url, TLSOptions.client(null, _nome_servidor()) if _reserva and _ip_reserva() != "" else null) != OK:
 		ws = null
 		caiu.emit("ws")
 
