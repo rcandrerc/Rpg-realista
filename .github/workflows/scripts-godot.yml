@@ -1,0 +1,49 @@
+# Todo .gd do jogo compila? (André 2026-11-16, depois da tela cinza da versão 2293: um `const` repetido no amigos.gd,
+# vindo de dois PRs, quebrou o main.gd e ninguém viu, porque o Godot sai com código 0 mesmo com erro de script.)
+# Uns 2 minutos. Só AVISA (X vermelho no PR), não trava merge (André não quer trava no GitHub).
+name: Scripts do Godot
+
+on:
+  pull_request:
+    paths: ['godot-prototipo/**', 'ferramentas/testes/scripts_godot.gd', '.github/workflows/scripts-godot.yml']
+  push:
+    branches: [main]
+    paths: ['godot-prototipo/**', 'ferramentas/testes/scripts_godot.gd', '.github/workflows/scripts-godot.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GODOT: 4.7.1-stable
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      # a importação que o apk.yml guarda (o class_name, como Expressao, só existe depois de importar)
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            godot-prototipo/.godot
+            godot-prototipo/**/*.import
+          key: godot-import-v2-${{ env.GODOT }}-nada
+          restore-keys: godot-import-v2-${{ env.GODOT }}-
+      - name: Godot
+        run: |
+          cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_linux.x86_64.zip && unzip -qo godot.zip
+          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_linux.x86_64" >> $GITHUB_ENV
+      - name: Importar o projeto
+        run: cd godot-prototipo && timeout 1200 $GODOT_BIN --headless --import > /tmp/import.log 2>&1 || tail -20 /tmp/import.log
+      - name: Todo script compila
+        run: |
+          timeout 300 $GODOT_BIN --headless --path godot-prototipo -s $GITHUB_WORKSPACE/ferramentas/testes/scripts_godot.gd > /tmp/scripts.log 2>&1 && ok=1 || ok=0
+          grep -E "^(SCRIPTS|QUEBRADO|ERRO)" /tmp/scripts.log | head -60
+          if [ $ok = 0 ]; then
+            for p in $(grep "^QUEBRADO" /tmp/scripts.log | cut -d' ' -f2); do echo "::error title=Script não compila::$p"; done
+            grep -q "^SCRIPTS" /tmp/scripts.log || tail -30 /tmp/scripts.log
+            exit 1
+          fi

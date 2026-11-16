@@ -64,10 +64,16 @@ jobs:
           cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_linux.x86_64.zip && unzip -qo godot.zip
           echo "GODOT_BIN=/tmp/Godot_v${GODOT}_linux.x86_64" >> $GITHUB_ENV
       - name: Importar o projeto
-        run: cd godot-prototipo && timeout 1500 $GODOT_BIN --headless --import > /tmp/import.log 2>&1 || tail -20 /tmp/import.log
+        run: mkdir -p /tmp/cel && cd godot-prototipo && timeout 1500 $GODOT_BIN --headless --import > /tmp/import.log 2>&1 || tail -20 /tmp/import.log
+      # o Godot sai com código 0 mesmo com erro de script (a tela cinza da 2293 passou verde aqui): confere todos antes
+      - name: Todo script compila
+        run: |
+          timeout 300 $GODOT_BIN --headless --path godot-prototipo -s $GITHUB_WORKSPACE/ferramentas/testes/scripts_godot.gd > /tmp/cel/scripts.log 2>&1 \
+            && echo "SCRIPTS_OK=1" >> $GITHUB_ENV || echo "SCRIPTS_OK=0" >> $GITHUB_ENV
+          grep -E "^(SCRIPTS|QUEBRADO|ERRO)" /tmp/cel/scripts.log | head -40
       - name: Servidor local
         run: |
-          mkdir -p /tmp/srv /tmp/cel
+          mkdir -p /tmp/srv
           echo "SESSAO=$(node ferramentas/motor/sessao.mjs /tmp/srv 2>/dev/null | tail -n1)" >> $GITHUB_ENV
           (cd server && DADOS=/tmp/srv PORT=2567 nohup node index.js > /tmp/srv/log.txt 2>&1 &)
           for i in $(seq 1 30); do curl -s localhost:2567/saude > /dev/null && break; sleep 1; done
@@ -90,7 +96,7 @@ jobs:
         run: |
           cp /tmp/srv/lentidao*.jsonl /tmp/cel/ 2>/dev/null || true
           cp /tmp/srv/log.txt /tmp/cel/servidor.log 2>/dev/null || true # por que uma entrada caiu (o app só diz "não respondeu")
-          LOGS=/tmp/cel/sem-tela.log,/tmp/cel/vulkan.log node ferramentas/robo/celular-relatorio.mjs /tmp/srv /tmp/cel/sem-tela.json /tmp/cel/vulkan.json
+          LOGS=/tmp/cel/scripts.log,/tmp/cel/sem-tela.log,/tmp/cel/vulkan.log node ferramentas/robo/celular-relatorio.mjs /tmp/srv /tmp/cel/sem-tela.json /tmp/cel/vulkan.json
           cp celular-relatorio.json /tmp/cel/ || true
       - uses: actions/upload-artifact@v4
         if: always()
@@ -98,3 +104,9 @@ jobs:
           name: robo-celular-${{ github.run_id }}
           path: /tmp/cel
           retention-days: 14
+      - name: Falhar se algum script não compila
+        if: always()
+        run: |
+          [ "$SCRIPTS_OK" != 0 ] && exit 0
+          for p in $(grep "^QUEBRADO" /tmp/cel/scripts.log | cut -d' ' -f2); do echo "::error title=Script não compila::$p"; done
+          exit 1

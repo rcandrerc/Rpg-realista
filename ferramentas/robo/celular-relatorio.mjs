@@ -25,6 +25,9 @@ const res = linhas(path.join(pasta, 'lentidao-resumo.jsonl'));
 R.lentidao = { segundosRuins: lent.length, resumos: res.length, fps: mediana(res.map((x) => x.fps)), proc: mediana(res.map((x) => x.proc)), cpu: mediana(res.map((x) => x.cpu)),
   partes: Object.entries(lent.reduce((s, x) => { for (const [k, v] of Object.entries(x.qev || {})) s[k] = Math.max(s[k] || 0, v); return s; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 8) };
 
+// scripts que não compilam (ferramentas/testes/scripts_godot.gd): o app abre com tela cinza, então vai primeiro
+try { for (const l of fs.readFileSync('/tmp/cel/scripts.log', 'utf8').split('\n')) if (l.startsWith('QUEBRADO ')) R.problemas.unshift(`Script não compila (o jogo não abre): ${l.slice(9)}`); } catch { /* sem conferência */ }
+
 // erros de script no log do app
 for (const f of (process.env.LOGS || '').split(',').filter(Boolean)) {
   let txt = ''; try { txt = fs.readFileSync(f, 'utf8'); } catch { continue; }
