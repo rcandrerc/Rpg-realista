@@ -66,16 +66,31 @@ func _colisores_tronco(esq: Skeleton3D) -> void:
 	for i in sim.setting_count:
 		sim.set_enable_all_child_collisions(i, true)
 
+# Lobo guardado (lentidão de 2026-11-16, André: "aperto o Ir, vou rápido de lobo e dá umas picotadas"): cada subida
+# montava o lobo do zero (modelo, pintura, molas, contorno: 81 ms no Poco X7 dentro do "Ir") e cada descida jogava
+# fora. Agora o lobo que desce fica guardado fora da cena e a próxima subida (do herói ou de outro jogador) usa o mesmo.
+const GUARDA_MAX := 3
+static var _guardados := {} # modelo -> Array de Node3D fora da cena
+
 func _init(m, id: String, cavaleiro: Node3D, cav_esq: Skeleton3D) -> void:
 	d = DADOS.get(id, DADOS.lobo)
 	cav = cavaleiro
-	no = m.modelo(d.modelo)
-	no.get_parent().remove_child(no)
-	cav.add_child(no) # vai junto com o corpo (some, aparece e é apagado com ele)
+	var lista: Array = _guardados.get(d.modelo, [])
+	while not lista.is_empty() and no == null:
+		var g0 = lista.pop_back()
+		if is_instance_valid(g0) and g0.get_parent() == null:
+			no = g0
+	if no != null:
+		no.visible = true
+		cav.add_child(no)
+	else:
+		no = m.modelo(d.modelo)
+		no.get_parent().remove_child(no)
+		cav.add_child(no) # vai junto com o corpo (some, aparece e é apagado com ele)
+		m.contorno(no, 0.012)
+		for g in no.find_children("*", "GeometryInstance3D", true, false):
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_assentar()
-	m.contorno(no, 0.012)
-	for g in no.find_children("*", "GeometryInstance3D", true, false):
-		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	anim = no.find_child("AnimationPlayer", true, false)
 	esq = m.esqueleto(no)
 	for n in ["coluna", "peito", "cabeca"]:
@@ -187,8 +202,21 @@ func passo(dt: float, vel: float) -> void:
 func remover() -> void:
 	if is_instance_valid(_cav_esq) and _cav_esq.has_meta("pano_extra"):
 		_cav_esq.remove_meta("pano_extra")
+	if is_instance_valid(_rabo):
+		if _rabo.get_parent():
+			_rabo.get_parent().remove_child(_rabo)
+		_rabo.queue_free() # o próximo que subir põe a mola do rabo de novo
 	if is_instance_valid(no):
-		no.queue_free()
+		var lista: Array = _guardados.get(d.modelo, [])
+		if lista.size() < GUARDA_MAX and not no.is_queued_for_deletion():
+			if no.get_parent():
+				no.get_parent().remove_child(no)
+			if anim:
+				anim.stop()
+			lista.append(no)
+			_guardados[d.modelo] = lista
+		else:
+			no.queue_free()
 	if is_instance_valid(pose):
 		pose.queue_free()
 	for c in _colisores:

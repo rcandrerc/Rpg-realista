@@ -1304,6 +1304,28 @@ func _guardar_veic(v: Dictionary) -> void:
 	l.append(v)
 	_veic_guardados[k] = l
 
+# Registros do Poco X7 (2026-11-16, versão 2420, porto em -403,67): mesmo com a guarda acima, o PRIMEIRO barco ou navio
+# visto ainda montava peça por peça num quadro (rx:carga 330 ms). Atrás da capa (aquecer.gd) nasce um de cada (o
+# carrinho no nível do seu), aparece na frente da câmera (os materiais ficam prontos) e vai direto para a guarda.
+func aquecer_em(p: Vector3, lado: Vector3) -> Array:
+	var l: Array = []
+	var nv := 1
+	var c = m.P.prog.get("carrinho") if m.P and m.P.prog is Dictionary else null
+	if c is Dictionary:
+		nv = maxi(1, int(c.get("lv", 1)))
+	var i := 0
+	for par in [["c", nv], ["b", 1], ["n", 1]]:
+		var no: Node3D = modelo_carrinho(par[1]) if par[0] == "c" else modelo_barquinho() if par[0] == "b" else modelo_navio()
+		m.add_child(no)
+		no.global_position = p + lado * (float(i) - 1.0) * 4.0
+		l.append({"no": no, "tipo": par[0], "nv": par[1]})
+		i += 1
+	return l
+
+func guardar_aquecidos(l: Array) -> void:
+	for v in l:
+		_guardar_veic(v)
+
 func _tirar_veic(tipo: String, nv: int) -> Dictionary:
 	var l: Array = _veic_guardados.get("%s:%d" % [tipo, nv], [])
 	while not l.is_empty():

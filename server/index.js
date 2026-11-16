@@ -530,7 +530,7 @@ const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido',
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
-const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico'];
+const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico', 'toques', 'voltas', 'sala', 'sala_erro']; // toques/voltas/sala: ronda 2026-11-16 (Entrar que falha no 1º toque)
 const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip', 'espera'];
 const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'q50', 'q70', 'lenta', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
 // o que pesou no segundo ruim (lentidao.gd ev): {nome: [vezes, ms]}, no máximo 8 nomes curtos
@@ -565,6 +565,7 @@ function guardarLentidao(c, e, sala) {
     const r = { servidor: Date.now(), tipo: 'entrada' };
     for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    if (typeof e.motivo === 'string' && /^[a-z_]{1,16}$/.test(e.motivo)) r.motivo = e.motivo; // por que voltou para a tela inicial
     // quanto cada parte da abertura levou (main.gd _passo, ms): só números, nomes curtos, no máximo 40
     if (e.partes && typeof e.partes === 'object' && !Array.isArray(e.partes)) {
       const p = {};
@@ -825,6 +826,24 @@ ${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]
 <style>body{font:14px system-ui;margin:16px;background:#14110e;color:#eee}table{border-collapse:collapse;width:100%;margin-bottom:18px}td,th{border:1px solid #444;padding:4px 6px;text-align:left;vertical-align:top}th{background:#2a241d}h2{font-size:16px;margin:18px 0 6px}</style>
 <h1>Livro-caixa do ouro</h1><p>Ouro que entrou e saiu por faixa de nível, por dia (horário de Brasília). Sem nome de jogador.</p>${dias || '<p>Ainda sem dados.</p>'}</html>`;
 }
+// NPCs com IA (André 2026-11-16: "relatórios de Dário e de Cecília" na ronda diária): o que cada um fez hoje, só números
+// do jogo (nível, ouro, missão, minutos de caça e de missão). Nada de conversa, memória ou de quem é amigo deles.
+app.get('/npcs.json', (_req, res) => {
+  const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
+  for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, { a: ctx.amiga, ctx });
+  const l = [];
+  for (const D of AMIGOS_VIRTUAIS) {
+    const v = vivos.get(D.id);
+    let d = v?.a;
+    if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
+    if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
+    const p = d.prog || {}, h = p.hist || {};
+    l.push({ nome: D.nome, id: D.id, noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
+      cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
+      salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null, ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
+  }
+  res.json({ dia, npcs: l });
+});
 app.get('/robo.json', (req, res) => res.json(roboTurnos.slice(-(Number(req.query.n) || 20))));
 app.get('/robo', (_req, res) => res.type('html').send(paginaRobo(roboTurnos.slice(-30).reverse())));
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
