@@ -2307,6 +2307,7 @@
 "Precisa de {1} (crie na mochila: Criar > Ferramentas, sem bancada)": "You need {1} (craft it in your inventory: Craft > Tools, no workbench)",
 "{1}: precisa de {2} Nv {3}": "{1}: needs {2} Lv {3}",
 "{1}: {2}, volta em {3} s": "{1}: {2}, back in {3} s",
+"{1}: {2}, volta em {3}": "{1}: {2}, back in {3}",
 "Mochila cheia: venda ou guarde algo no baú para coletar": "Inventory full: sell or stash something in a chest to gather",
 "{1}: já pegou, volta em {2} s": "{1}: already taken, back in {2} s",
 "Precisa de {1}": "You need {1}",

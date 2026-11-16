@@ -21,6 +21,8 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const FALAR_JANELA = 4.8; // m: toque num botão da janela do NPC (o app fecha a janela a 4,5 m; folga da rede)
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
+// quanto falta para voltar, curto (André 2026-11-16: a árvore volta em 24 h; "volta em 86312 s" não dava para ler)
+const quantoFalta = (s) => (s < 120 ? `${Math.ceil(s)} s` : s < 5400 ? `${Math.ceil(s / 60)} min` : `${Math.round(s / 3600)} h`);
 const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
 // ---------- Fornalha (shared/dados.js FORNALHA): queima sozinha pelo relógio, mesmo com o dono fora do jogo ----------
 // F = { comb, ent, sai: {k, n} | null, fogo: s de fogo que sobra da unidade acesa, fogoK: o que está queimando,
@@ -309,7 +311,7 @@ export class Simulacao {
       ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), ...(v.mina ? { mina: v.mina } : {}), ...(v.y != null ? { y: v.y } : {}) }]),
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
-      ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      ...(mapa.mata || []).map((a, i) => ['m' + (a.n ?? i), { id: 'm' + (a.n ?? i), tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // pedras e galhos soltos no chão (André 2026-11-07): pega com a mão; não são sólidos (s0, s1...)
       ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
@@ -2428,7 +2430,7 @@ export class Simulacao {
     // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
     if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1) && !Object.keys(C.da || {}).some((k) => this.livreHistoria(j, k))) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`); // a missão que pede o minério libera o veio
-    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${quantoFalta((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)}`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     if (!this.cabeColeta(j.prog, C)) return aviso('Mochila cheia: venda ou guarde algo no baú para coletar');
     this.virarPara(j, no);

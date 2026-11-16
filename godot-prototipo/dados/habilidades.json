@@ -1571,7 +1571,11 @@
  "amigos": {
   "max": 20,
   "pedido": 30,
-  "entrePedidos": 3
+  "entrePedidos": 3,
+  "buscaMin": 2,
+  "buscaMax": 8,
+  "entreBuscas": 1,
+  "pedidoDias": 14
  },
  "time": {
   "max": 5,
@@ -1882,7 +1886,7 @@
    "vigor": 1,
    "tempo": 2,
    "cargas": 3,
-   "volta": 60,
+   "volta": 86400,
    "da": {
     "lenha": 1
    },
