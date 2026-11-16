@@ -340,7 +340,7 @@ class SalaClareira extends Room {
       if (b.n < custo) return;
       b.n -= custo;
       if (temChavePerigosa(m)) return; // '__proto__' e companhia nunca são dado de jogo (auditoria 2026-11-13)
-      if (c.auth?.robo && ROBO_NAO.has(tipo)) return; // robô de testes: não mexe na economia nem fala com ninguém
+      if (c.auth?.robo && ROBO_NAO.has(tipo) && !(tipo === 'time' && m?.acao === 'sozinho')) return; // robô de testes: não mexe na economia nem fala com ninguém (seguir sozinho na etapa de time pode)
       // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
       try { const r = fn(c, m); if (r && typeof r.catch === 'function') r.catch((e) => console.error(`mensagem ${tipo} deu erro:`, e)); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
     });
