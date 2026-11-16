@@ -5,6 +5,9 @@ extends SkeletonModifier3D
 # Serve para VRoid (J_Bip_R_Index1...) e para o soldado do Mixamo (RightHandIndex1...). peso 0 = animação pura.
 
 var peso := 0.0
+# só os dedos (picareta e machado com as duas mãos, André 2026-11-16): o pulso fica com quem levou a mão ao cabo
+# (duas_maos.gd) e o furo do punho não vai para o cajado
+var so_dedos := false
 var _ossos := [] # [{"i": osso, "q": rotação da mão fechada (local)}]
 var _mao := -1
 var _lado_local := Vector3.ZERO # do indicador ao mindinho, no espaço do osso da mão
@@ -110,17 +113,19 @@ func _process_modification() -> void:
 	if s == null or _mao < 0:
 		return
 	if peso <= 0.001:
-		s.set_meta("furo_mao_%d" % _mao, [Vector3.ZERO, 0.0])
+		if not so_dedos:
+			s.set_meta("furo_mao_%d" % _mao, [Vector3.ZERO, 0.0])
 		return
 	# pulso: o furo do punho (do indicador ao mindinho) fica em pé, com o indicador em cima, como quem segura um
 	# cajado com o braço solto: os dedos apontam para a frente e o cajado passa de cima a baixo por dentro da mão
-	var pai := s.get_bone_parent(_mao)
-	var gp: Transform3D = s.get_bone_global_pose(pai) if pai >= 0 else Transform3D()
-	var gm: Basis = (gp * s.get_bone_pose(_mao)).basis
-	var lado: Vector3 = (gm.orthonormalized() * _lado_local).normalized()
-	var giro := Quaternion(lado, -_cima).slerp(Quaternion(), 1.0 - peso * GIRO_MAO) if lado.dot(-_cima) > -0.99 else Quaternion()
-	var nova: Basis = Basis(giro) * gm.orthonormalized()
-	s.set_bone_pose_rotation(_mao, (gp.basis.orthonormalized().inverse() * nova).get_rotation_quaternion())
+	if not so_dedos:
+		var pai := s.get_bone_parent(_mao)
+		var gp: Transform3D = s.get_bone_global_pose(pai) if pai >= 0 else Transform3D()
+		var gm: Basis = (gp * s.get_bone_pose(_mao)).basis
+		var lado: Vector3 = (gm.orthonormalized() * _lado_local).normalized()
+		var giro := Quaternion(lado, -_cima).slerp(Quaternion(), 1.0 - peso * GIRO_MAO) if lado.dot(-_cima) > -0.99 else Quaternion()
+		var nova: Basis = Basis(giro) * gm.orthonormalized()
+		s.set_bone_pose_rotation(_mao, (gp.basis.orthonormalized().inverse() * nova).get_rotation_quaternion())
 	for b in _ossos:
 		s.set_bone_pose_rotation(b.i, s.get_bone_pose_rotation(b.i).slerp(b.q, peso))
 	# polegar (direção de arte): fecha por cima do cabo, apontando para a 2ª falange do indicador, nunca "joinha"
@@ -139,7 +144,7 @@ func _process_modification() -> void:
 			var nova1: Basis = Basis(q) * g1.basis.orthonormalized()
 			s.set_bone_pose_rotation(t1, (gpt.basis.orthonormalized().inverse() * nova1).get_rotation_quaternion())
 	# onde fica o furo do punho (espaço do esqueleto): Armas.palma põe o meio do cajado aqui
-	if _meio[2] >= 0:
+	if _meio[2] >= 0 and not so_dedos:
 		var a: Vector3 = s.get_bone_global_pose(_meio[0]).origin
 		var b2: Vector3 = s.get_bone_global_pose(_meio[1]).origin
 		var c3: Vector3 = s.get_bone_global_pose(_meio[2]).origin

@@ -9,6 +9,9 @@ var curva := 0.0 # 0 = em pé, 1 = tronco curvado para a frente no golpe
 var mao_d := Vector3.ZERO # onde a mão direita segura o cabo (mundo)
 var mao_e := Vector3.ZERO # onde a mão esquerda segura (mundo)
 var cabo := Vector3.UP # direção do cabo, da mão para a cabeça da ferramenta (mundo)
+# m que o pulso fica antes do cabo (André 2026-11-16, dedos fechados): o cabo passa por dentro do punho, não pelo
+# pulso. 0 = o pulso vai em cima do cabo (como era)
+var punho := 0.0
 # corpo inteiro no golpe (pedido do André, 2026-11-03: "corpo duro, pés juntos, parece um robô"). Por baixo toca a
 # pose "parada", de pés juntos; aqui as pernas abrem numa base de trabalho (pé esquerdo à frente, direito atrás,
 # pontas para fora), o quadril desce e vai para a frente e para trás com o peso, e o tronco gira no golpe de lado.
@@ -69,6 +72,11 @@ func _braco(s: Skeleton3D, u: int, l: int, h: int, alvo: Vector3, eixo_cabo: Vec
 	var S: Vector3 = gu.origin
 	var a: float = gu.origin.distance_to(gl.origin)
 	var b: float = gl.origin.distance_to(gh.origin)
+	if punho > 0.0: # o pulso recua, para o lado de onde vêm os dedos, e o punho fechado fica em volta do cabo
+		var de: Vector3 = -_dir * lado
+		de = de - eixo_cabo * de.dot(eixo_cabo)
+		if de.length() > 0.01:
+			alvo -= de.normalized() * punho * peso
 	var st: Vector3 = alvo - S
 	var d: float = clamp(st.length(), 0.05, (a + b) * 0.995)
 	var n: Vector3 = st.normalized()
