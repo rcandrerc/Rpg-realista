@@ -11,6 +11,8 @@ import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo } from './
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
+import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
+import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
@@ -566,7 +568,7 @@ export class Simulacao {
     j.vila = null;
     const taxa = taxaTotem(D);
     if ((j.prog.ouro || 0) < taxa) { this.evento({ t: 'vila', id: j.id, fase: 'cancela' }); return this.evento({ t: 'aviso', para: j.id, texto: 'Ouro insuficiente: viagem cancelada' }); }
-    j.prog.ouro -= taxa;
+    j.prog.ouro -= taxa; this.caixa(j, 'totem', -taxa);
     const x0 = j.x, z0 = j.z, n = this.ladoDoTotem(D), y = this.terreno.altura(n.x, n.z);
     Object.assign(j, { x: n.x, y, z: n.z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
     j.cliente = null; j.orcT = null;
@@ -674,7 +676,7 @@ export class Simulacao {
     if (nome === j.nome) return aviso('Esse já é o seu nome');
     if (j.prog.ouro < NOME.troca) return aviso(`Falta ouro: trocar o nome custa ${NOME.troca.toLocaleString('pt-BR')}`);
     if (!livre(nome)) return aviso(`O nome ${nome} já é de outro jogador`);
-    j.prog.ouro -= NOME.troca;
+    j.prog.ouro -= NOME.troca; this.caixa(j, 'nome', -NOME.troca);
     j.nome = nome;
     for (const o of this.jogadores.values()) if (o.amigos?.has(j.conta)) o.amigos.set(j.conta, nome); // listas de amigos de quem está na sala
     const L = this.loteDe(j); if (L) { L.nomeDono = nome; this.avisarLote(L); } // placa do terreno
@@ -1103,7 +1105,7 @@ export class Simulacao {
     const p = j.prog, h = p.hist, i = h.p;
     Object.assign(h, { p: h.p + 1, ac: false, e: 0, n: 0, m: 0, u: M.id }); j.progSujo = true; // u: a última entregue (historia.js histValida)
     const abre = M.libera.length > 0 || !!M.grande, P = HISTORIA_PREMIO; // grande: a última missão vale como a que abre região
-    const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro;
+    const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro; this.caixa(j, 'missao', ouro);
     this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
     if (M.presente) this.darItens(j, M.presente);
     if (M.gravar) this.gravarEstrela(j); // capítulo 15: o Tomás grava a estrela na arma (+1 de reforço)
@@ -1340,7 +1342,7 @@ export class Simulacao {
     const p = j.prog, gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0), custo = this.custoReset(j);
     if (gastos <= 0) return aviso('Você ainda não gastou nenhum ponto.');
     if (p.ouro < custo) return aviso(`Falta ouro: custa ${custo}`);
-    p.ouro -= custo;
+    p.ouro -= custo; this.caixa(j, 'reset', -custo);
     for (const k of Object.keys(p.atr)) p.atr[k] = 3;
     p.pontos += gastos;
     this.aplicarStatus(j);
@@ -1795,7 +1797,7 @@ export class Simulacao {
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
       const preco = precoVenda(it, mercador(p.prof.mer).venda + bonusTituloProf(p, 'mer', 'venda'));
       if (it.n > 1) it.n--; else p.mochila[i] = null;
-      p.ouro += preco;
+      p.ouro += preco; this.caixa(j, ehEquip(it.k) ? 'vendaEquip' : it.k === 'tomo' ? 'vendaTomo' : 'venda', preco);
       this.pontosMercador(j, preco);
       aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
       this.historia(j, 'vender', { k: it.k });
@@ -1812,7 +1814,7 @@ export class Simulacao {
         ouro += precoVenda(v, merc) * q; n += q;
         p.mochila[x] = null;
       }
-      p.ouro += ouro;
+      p.ouro += ouro; this.caixa(j, 'venda', ouro); // vários de uma vez: tudo junto (o "venda" de um só separa peça e Tomo)
       this.pontosMercador(j, ouro);
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
       this.historia(j, 'vender', {});
@@ -1848,7 +1850,7 @@ export class Simulacao {
       if (!equip) n = contar(p.mochila, o.k) - antes; // guardar pode pôr só parte do lote
       if (n <= 0) return aviso('Mochila cheia');
       const total = preco * n;
-      p.ouro -= total;
+      p.ouro -= total; this.caixa(j, o.k === 'pocao' || o.k === 'pocao_mana' ? 'lojaPocao' : equip ? 'lojaEquip' : 'loja', -total);
       this.pontosMercador(j, total);
       const novo = equip ? { k: o.k, r: o.r } : { k: o.k, n };
       const nome = nomeItem(novo);
@@ -1861,7 +1863,7 @@ export class Simulacao {
       if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
       const preco = PAGINA_PRECO[tem];
       if (p.ouro < preco) return aviso(`Faltam ${preco - p.ouro} de ouro para a página ${tem + 1}`);
-      p.ouro -= preco;
+      p.ouro -= preco; this.caixa(j, 'pagina', -preco);
       liberarPaginas(p, tem + 1);
       aviso(`Página ${tem + 1} da mochila liberada (+${MOCHILA} lugares)`);
     } else if (m.acao === 'consertar') {
@@ -1870,6 +1872,7 @@ export class Simulacao {
       const r = consertarTudo(p);
       if (!r) return aviso('Nada para consertar: está tudo inteiro');
       if (r.falta) return aviso(`O conserto custa ${r.custo} de ouro (faltam ${r.falta})`);
+      this.caixa(j, 'conserto', -r.custo);
       aviso(`Tomás consertou ${r.n} ${r.n === 1 ? 'peça' : 'peças'} por ${r.custo} de ouro`);
     } else if (m.acao === 'reforcar') {
       // reforço de equipamento (igual ao Quimera, REFORCO em shared/dados.js): peça da mochila (i) ou do corpo (lugar).
@@ -1880,6 +1883,7 @@ export class Simulacao {
       const Eh = p.hist?.ac ? etapaAtual(p) : null, gratis = !!(Eh?.ev === 'reforcar' && Eh.gratis); // a etapa que ensina não cobra (shared/kit.js)
       const r = reforcar(p, alvo, Math.random(), gratis);
       if (r.erro) return this.evento({ t: 'reforco', para: id, erro: r.erro }); // a janelinha mostra o aviso
+      if (r.custo) this.caixa(j, 'reforco', -r.custo);
       this.evento({ t: 'reforco', para: id, ok: r.ok, de: r.de, e: r.e, custo: r.custo, ...(r.mat ? { mat: r.mat } : {}), nome: nomeItem(alvo) });
       if (r.ok) this.historia(j, 'reforcar', { v: r.e });
     } else if (m.acao === 'filtro') {
@@ -2388,7 +2392,7 @@ export class Simulacao {
     for (const ctx of this.amigosIa) if (ctx.amiga && (a === ctx.amiga || b === ctx.amiga)) ctx.trocaFeitaAmiga(T);
     this.aoTrocar?.(); // o servidor grava as duas contas na hora (nada fica só na memória)
   }
-  precoCompra(j, o) { return Math.max(1, Math.round(o.preco * (1 - mercador(j.prog.prof.mer).compra))); }
+  precoCompra(j, o) { return Math.max(1, Math.round(precoLoja(o, j.prog.nivel) * (1 - mercador(j.prog.prof.mer).compra))); } // poção sobe com o nível (André 2026-11-16)
   pontosMercador(j, ouro) { this.pontosProf(j, 'mer', ouro / MERCADOR.pontoOuro); }
   // Pontos numa profissão (sobe de nível sozinha, como no Quimera)
   pontosProf(j, k, n) {
@@ -2790,7 +2794,7 @@ export class Simulacao {
       if (!guardar(prova, { ...a.item })) return aviso('Mochila cheia');
       const r = L.comprar(m.id, j.conta);
       if (typeof r === 'string') return aviso(r);
-      p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); mudou = mudou || !a.casa;
+      p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); mudou = mudou || !a.casa; this.caixa(j, a.casa ? 'leilaoCasa' : 'leilaoCompra', -a.preco);
       aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro`);
       this.historia(j, 'leilao', { de: 'comprar' });
       const avisa = this.aoVendaLeilao || ((c, t) => { const v = this.porConta(c); if (v) this.evento({ t: 'aviso', para: v.id, texto: t }); }); // o servidor avisa em qualquer sala
@@ -2802,7 +2806,7 @@ export class Simulacao {
       aviso(`Anúncio cancelado: ${nomeItem(a.item)} voltou`);
     } else if (m.acao === 'retirar') {
       const cx = L.caixaDe(j.conta); let n = 0;
-      const ouro = cx.ouro; p.ouro += ouro; cx.ouro = 0;
+      const ouro = cx.ouro; p.ouro += ouro; cx.ouro = 0; if (ouro) this.caixa(j, 'leilaoVenda', ouro);
       while (cx.itens.length && guardar(p.mochila, cx.itens[0])) { cx.itens.shift(); n++; }
       if (ouro || n) { mudou = true; aviso(`Retirou ${ouro ? ouro + ' de ouro' : ''}${ouro && n ? ' e ' : ''}${n ? n + (n === 1 ? ' item' : ' itens') : ''}${cx.itens.length ? ' (mochila cheia: o resto fica guardado)' : ''}`); this.historia(j, 'leilao', { de: 'retirar' }); }
       else aviso(cx.itens.length ? 'Mochila cheia' : 'Nada para retirar');
@@ -2921,7 +2925,7 @@ export class Simulacao {
     if (j.prog.ouro < preco) return aviso(`Faltam ${preco - j.prog.ouro} de ouro (o terreno custa ${preco})`);
     const lid = 't' + String(j.conta).replace(/[^\w]/g, '').slice(0, 14);
     if (this.aoComprarLote && !this.aoComprarLote(lid, j.conta, j.nome, R)) return aviso('Esse pedaço acabou de ser vendido em outra sala');
-    j.prog.ouro -= preco;
+    j.prog.ouro -= preco; this.caixa(j, 'terreno', -preco);
     const L = { def: { id: lid, nome: 'Terreno', ...R }, dono: j.conta, nomeDono: j.nome, pecas: [], horta: {}, prox: 1, taxa: Date.now() };
     this.lotesSoltos.delete(lid);
     this.lotes.set(lid, L);
@@ -2955,7 +2959,7 @@ export class Simulacao {
     const valor = Math.max(0, vendaTerreno(w, d) - c.valor);
     if (this.aoVenderLote) this.aoVenderLote(L.def.id);
     j.prog.mochila = prova;
-    j.prog.ouro += valor;
+    j.prog.ouro += valor; this.caixa(j, 'terrenoVenda', valor);
     this.lotes.delete(L.def.id);
     this.lotesMudados.delete(L.def.id);
     this.lotesSoltos.add(L.def.id);
@@ -2984,7 +2988,7 @@ export class Simulacao {
     const custo = depois > antes ? (depois - antes) * LOTE.precoBloco : -Math.floor((antes - depois) * LOTE.precoBloco * LOTE.venda);
     if (custo > j.prog.ouro) return aviso(`Faltam ${custo - j.prog.ouro} de ouro (os blocos novos custam ${custo})`);
     if (this.aoMudarLote && !this.aoMudarLote(L.def.id, j.conta, R)) return aviso('Esse pedaço acabou de ser vendido em outra sala');
-    j.prog.ouro -= custo;
+    j.prog.ouro -= custo; this.caixa(j, 'terreno', -custo);
     Object.assign(L.def, R);
     this.refazerSolidosLotes();
     aviso(`Terreno agora com ${R.x1 - R.x0} x ${R.z1 - R.z0} m` + (custo > 0 ? ` (pagou ${custo} de ouro)` : custo < 0 ? ` (recebeu ${-custo} de ouro)` : ''));
@@ -3001,7 +3005,7 @@ export class Simulacao {
     const c = contaTerreno(L.def, L.taxa, Date.now());
     if (c.valor <= 0) return aviso('Nenhuma conta para pagar');
     if (j.prog.ouro < c.valor) return aviso(`Faltam ${c.valor - j.prog.ouro} de ouro para pagar a conta (${c.valor})`);
-    j.prog.ouro -= c.valor;
+    j.prog.ouro -= c.valor; this.caixa(j, 'taxaTerreno', -c.valor);
     L.taxa = (Number(L.taxa) || Date.now()) + c.semanas * LOTE.taxaDias * 86400000;
     aviso(`Conta do terreno paga: ${c.valor} de ouro`);
     this.avisarLote(L);
@@ -3137,7 +3141,7 @@ export class Simulacao {
     }
     tirar(p.mochila, de, C.n * da);
     if (!guardar(p.mochila, { k, n: da })) { guardar(p.mochila, { k: de, n: C.n * da }); aviso('Mochila cheia'); return false; }
-    p.ouro -= C.ouro * da;
+    p.ouro -= C.ouro * da; this.caixa(j, 'sintese', -C.ouro * da);
     this.evento({ t: 'fala', para: j.id, npc: npc.id, texto: da > 1 ? `Pronto: ${da} ${D.nome}. O caldeirão até cansou.` : `Pronto, um ${D.nome} fresquinho. Cuidado que ainda está quente.` });
     aviso(`Recebeu ${da} ${D.nome} (−${C.ouro * da} de ouro)`);
     this.historia(j, 'sintetizar', { k });
@@ -3268,7 +3272,7 @@ export class Simulacao {
     for (const [k, n] of Object.entries(C.custo)) tirar(prova, k, n);
     if (!guardar(prova, { k: item, n: 1 })) return aviso('Mochila cheia');
     p.mochila = prova;
-    if (C.ouro) p.ouro -= C.ouro; // navio mercante: 40.000 de ouro (Quimera)
+    if (C.ouro) { p.ouro -= C.ouro; this.caixa(j, 'navio', -C.ouro); } // navio mercante: 40.000 de ouro (Quimera)
     if (m.k === 'carrinho') p.carrinho = carrinhoNovo(); // carrinho novo: Nv 1, tanque vazio
     if (m.k === 'navio') p.navio = { porao: [], chao: null };
     this.evento({ t: 'fabricou', para: id, k: m.k, nome: ITENS[item].nome });
@@ -3305,7 +3309,7 @@ export class Simulacao {
       if (!custo) return aviso('O baú já está no tamanho máximo');
       const falta = Object.entries(custo).filter(([k, n]) => (k === 'ouro' ? p.ouro : contar(p.mochila, k)) < n).map(([k, n]) => `${n} ${k === 'ouro' ? 'de ouro' : nomeItem({ k })}`);
       if (falta.length) return aviso(`Para melhorar o baú falta: ${falta.join(', ')}`);
-      for (const [k, n] of Object.entries(custo)) if (k === 'ouro') p.ouro -= n; else tirar(p.mochila, k, n);
+      for (const [k, n] of Object.entries(custo)) if (k === 'ouro') { p.ouro -= n; this.caixa(j, 'bau', -n); } else tirar(p.mochila, k, n);
       L.bauNv = nv;
       L.bau = [...L.bau, ...Array(Math.max(0, bauLugares(nv) - L.bau.length)).fill(null)];
       aviso(`Baú melhorado: agora tem ${L.bau.length} lugares`);
@@ -3509,13 +3513,14 @@ export class Simulacao {
   }
   // Monstro caiu: cada herói que ganhou XP tira a sua sorte (ouro, poções, peça, Tomo de uma skill que ele já tem)
   soltarDrops(c, j) {
+    this.caixa(j, null, 0, { abates: 1 }); // livro-caixa: abates por hora (shared/economia.js)
     if (c.bm) return this.dropBoss(c, j); // boss de mundo: catalisador garantido e a chance do Mítico
     const d = DROPS[c.tipo]; if (!d) return;
     const p = j.prog, ganhou = [];
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
     const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
-    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0)));
-    p.ouro += ouro;
+    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0)));
+    p.ouro += ouro; this.caixa(j, 'monstro', ouro);
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
     for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch) por({ k, n });
@@ -3826,7 +3831,7 @@ export class Simulacao {
       if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde parte do ouro e o equipamento desgasta
-      const pen = penalidadeMorte(c.prog); c.progSujo = true;
+      const pen = penalidadeMorte(c.prog); c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
@@ -4131,6 +4136,7 @@ export class Simulacao {
     this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
+    this.passoCaixa(dt); // livro-caixa da economia (André 2026-11-16)
     this.passoBosses(dt); // bosses de mundo (André 2026-11-11)
     this.passoHistoria(dt); // história com etapas (André 2026-11-11)
     this.passoCaverna(dt);
@@ -4542,7 +4548,7 @@ export class Simulacao {
     const B = BOSSES_MUNDO[c.bm], D = B.drop, p = j.prog, ganhou = [];
     const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
     const ouro = Math.round((c.nivel || 1) * (DROP_BOSS.ouro[0] + Math.random() * (DROP_BOSS.ouro[1] - DROP_BOSS.ouro[0])));
-    p.ouro += ouro;
+    p.ouro += ouro; this.caixa(j, 'boss', ouro);
     por({ k: 'pocao', n: DROP_BOSS.pocao[0] + Math.floor(Math.random() * (DROP_BOSS.pocao[1] - DROP_BOSS.pocao[0] + 1)) });
     const pecas = Object.keys(ITENS).filter(ehEquip);
     por({ k: pecas[Math.floor(Math.random() * pecas.length)], r: 1 }); // monstro só solta até Rara (André 2026-11-06)
@@ -4593,6 +4599,7 @@ Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
+Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;

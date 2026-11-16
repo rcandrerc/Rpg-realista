@@ -87,9 +87,9 @@ export const Diarias = {
     if (st.r.includes(D.id)) return aviso('Já recebeu esta hoje');
     st.r.push(D.id); j.progSujo = true;
     const p = j.prog, pr = premioDiaria(p.nivel);
-    p.ouro += pr.ouro;
+    p.ouro += pr.ouro; this.caixa?.(j, 'diaria', pr.ouro);
     let txt = `+${pr.ouro} ouro`;
-    if (st.r.length === DIARIAS.lista.length && st.b !== 1) { st.b = 1; p.ouro += DIARIAS.bonus; txt += ` · bônus das 4: +${DIARIAS.bonus} ouro`; }
+    if (st.r.length === DIARIAS.lista.length && st.b !== 1) { st.b = 1; p.ouro += DIARIAS.bonus; this.caixa?.(j, 'diaria', DIARIAS.bonus); txt += ` · bônus das 4: +${DIARIAS.bonus} ouro`; }
     if (pr.xp) this.ganharXP(j, pr.xp);
     aviso(`Diária recebida: ${txt}${pr.xp ? ` · +${pr.xp} XP` : ''}`);
     this.evento({ t: 'diaria', para: id, id: D.id, recebeu: true });

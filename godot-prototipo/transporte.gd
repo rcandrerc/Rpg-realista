@@ -700,11 +700,17 @@ func _fator_dist(d: float) -> float:
 func _fator_area(x: float, z: float) -> float:
 	var nv := 1
 	var dm: float = float(PR.areas.raio)
+	var forte: float = float(PR.areas.get("forte", 0)) # André 2026-11-16: o campo mais forte a até forte m (shared/transporte.js)
+	var nv_forte := 0
 	for c in m.mundo.get("caca", []):
 		var d := Vector2(float(c.x) - x, float(c.z) - z).length()
 		if d < dm:
 			dm = d
 			nv = int(c.get("nivel", 1))
+		if forte > 0.0 and d < forte:
+			nv_forte = maxi(nv_forte, int(c.get("nivel", 1)))
+	if forte > 0.0:
+		nv = maxi(1, nv_forte)
 	var f := 1.0
 	var A: Dictionary = PR.areas
 	for i in (A.niveis as Array).size():
