@@ -51,6 +51,7 @@ var ativo := false
 var aba := "casa" # "casa", "moveis", "fazenda" ou "terreno" (as duas primeiras são de construir; terreno = mudar e vender)
 var sel := "fundacao" # peça (CONSTRUCOES), "desmontar" ou ação da fazenda ("arar", "plantar", "regar", "colher", "tirar")
 var semente := "rabanete"
+var arvore := "" # muda de árvore escolhida na barra da Fazenda (André 2026-11-16: "padronizar")
 var giro := 0 # 0..3 (x 90°)
 var mira := Vector3.ZERO # onde a câmera flutuante olha e onde o fantasma fica
 var alvo := {} # o que o botão Colocar vai fazer agora: {ok, motivo, msg (tipo, dados), x, z}
@@ -3064,6 +3065,36 @@ func _atualizar_mira() -> void:
 		else:
 			alvo = {"ok": false, "motivo": "Mire numa peça sua para desmontar"}
 			_destaque_em(null)
+	elif sel == "arvore":
+		# muda de árvore: quadrado de 4 m da grade do mundo (2 x 2 na árvore antiga); o herói vai até lá e planta
+		var Q: float = m.plantio.Q if m.plantio else 4.0
+		var grande: bool = bool(m.plantio.tipos().get(arvore, {}).get("grande", false)) if m.plantio else false
+		var n := 2 if grande else 1
+		var q := Vector2i(floori(p.x / Q), floori(p.z / Q))
+		var R := Rect2(q.x * Q, q.y * Q, Q * n, Q * n)
+		var mot := ""
+		if m.plantio == null or not m.on():
+			mot = "Plantar árvore só funciona online"
+		elif m.P.contar("semente_" + arvore) < 1:
+			mot = "Sem semente de %s (a Rosa vende)" % str(m.plantio.tipos().get(arvore, {}).get("nome", "")).to_lower()
+		elif _fora_do_lote(R, L.def):
+			mot = "Só dá para plantar dentro do seu terreno"
+		else:
+			var oc: Dictionary = m.plantio._ocupados()
+			for di in n:
+				for dk in n:
+					if oc.has(q + Vector2i(di, dk)):
+						mot = "Já tem árvore nesse quadrado"
+			for o in L.pecas:
+				if mot == "" and _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
+					mot = "Tem construção nesse quadrado"
+			for h in L.horta:
+				var ab: PackedStringArray = str(h).split(",")
+				if mot == "" and R.has_point(Vector2(float(ab[0]) + 0.5, float(ab[1]) + 0.5)):
+					mot = "Tem horta nesse quadrado"
+		alvo = {"ok": mot == "", "motivo": mot if mot != "" else "O herói vai até o quadrado e planta", "tipo": "arvore", "dados": {"s": arvore, "q": q}}
+		var cc := R.get_center()
+		_destaque_em(Vector3(cc.x, m.terreno.altura(cc.x, cc.y), cc.y), Vector3(R.size.x - 0.2, 0.16, R.size.y - 0.2), Color(1.0, 0.77, 0.08, 0.4) if alvo.ok else Color(1, 0.35, 0.29, 0.35))
 	else:
 		# horta: quadrado de 1 m
 		var i := floori(p.x)
@@ -3177,6 +3208,11 @@ func colocar() -> void:
 		plano.alternar(alvo.dados)
 		_montar_itens()
 		_atualizar_mira()
+		return
+	if alvo.tipo == "arvore": # sai da construção e o herói anda até o quadrado (plantio.gd)
+		var d: Dictionary = alvo.dados
+		sair()
+		m.plantio.plantar_no_quadrado(str(d.s), d.q)
 		return
 	if m.montaria != null: # montado no lobo: desce sozinho e faz (André 2026-11-13; o servidor também desce)
 		m.montar_lobo(false)
@@ -4679,6 +4715,8 @@ func _nome_slot(k: String) -> String:
 	if k.begins_with("plantar:"):
 		var pl = D.plantas.get(k.substr(8))
 		return str(pl.nome) if pl else "Plantar"
+	if k.begins_with("arvore:") and m.plantio:
+		return str(m.plantio.tipos().get(k.substr(7), {}).get("nome", "Árvore")).split(" ")[0]
 	if D.construcoes.has(k): # nome comprido ("Fundação de pedra"): só a primeira palavra cabe no quadrado
 		var nome := str(D.construcoes[k].nome)
 		return nome.split(" ")[0] if nome.length() > 11 else nome
@@ -4736,12 +4774,20 @@ func _montar_itens() -> void:
 			linha_itens.add_child(_slot("plantar:" + k, "it_semente_" + k, str(n_sem), sel == "plantar" and semente == k, n_sem > 0, Color(str(D.plantas[k].cor)).lightened(0.25)))
 		if not alguma:
 			linha_itens.add_child(_slot("plantar:" + semente, "it_semente_" + semente, "0", false, false))
+		if m.plantio: # mudas de árvore (as que tem na mochila), quadrado de 4 m
+			var TA: Dictionary = m.plantio.tipos()
+			for k in TA:
+				var n_a: int = m.P.contar("semente_" + k)
+				if n_a > 0 or (sel == "arvore" and arvore == k):
+					linha_itens.add_child(_slot("arvore:" + k, "it_semente_" + k, str(n_a), sel == "arvore" and arvore == k, n_a > 0, Color(str(TA[k].get("copa", "#7aa04a"))).lightened(0.15)))
 		linha_itens.add_child(_slot("regar", "cs_regar", "", sel == "regar", m.P.contar("regador") > 0))
 		linha_itens.add_child(_slot("colher", "it_colheita", "", sel == "colher", true))
 		linha_itens.add_child(_slot("tirar", "desfazer", "", sel == "tirar", true))
 		nome = {"arar": "Arar a terra", "regar": "Regar (a terra fica molhada %d h)" % int(D.horta.rega), "colher": "Colher", "tirar": "Desfazer a terra arada"}.get(sel, "")
 		if sel == "plantar":
 			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(D.plantas[semente].nome).to_lower(), m.P.contar("semente_" + semente)]
+		elif sel == "arvore" and m.plantio:
+			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(m.plantio.tipos().get(arvore, {}).get("nome", "")).to_lower(), m.P.contar("semente_" + arvore)]
 		var f := _criar_qual()
 		if f != "":
 			nome = "Falta %s · criar: %s%s" % [str(D.itens[f].nome).to_lower(), custo_txt(dados_criar(f).custo), " (bancada perto)" if dados_criar(f).get("bancada", false) else ""]
@@ -4755,7 +4801,7 @@ func _montar_itens() -> void:
 		Menu.estilo_botao(_botoes_andar[a], a == andar)
 	if linha_andares:
 		linha_andares.visible = aba == "casa" or aba == "moveis"
-	b_ok.set_meta("pt", {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")) # o guia das missões acha o botão pelo texto em português
+	b_ok.set_meta("pt", {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "arvore": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")) # o guia das missões acha o botão pelo texto em português
 	b_ok.text = Idioma.frase(str(b_ok.get_meta("pt")))
 	Menu.estilo_botao(b_ok, true)
 	var n_plano: int = plano.quantos() if plano else 0
@@ -4785,6 +4831,9 @@ func escolher(k: String) -> void:
 	if k.begins_with("plantar:"):
 		semente = k.substr(8)
 		k = "plantar"
+	elif k.begins_with("arvore:"):
+		arvore = k.substr(7)
+		k = "arvore"
 	sel = k
 	if D.construcoes.has(k):
 		andar = "telhado" if tipo_peca(k) == "telhado" else "terreo"
