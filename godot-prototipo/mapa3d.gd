@@ -43,6 +43,7 @@ var g: Dictionary # terreno.mundo_g
 var nx := 0
 var nz := 0
 var hh: PackedFloat32Array
+var hv: PackedFloat32Array # alturas da malha do chão: hh com o leito dos rios cavado (só o desenho; alt() e estradas usam hh)
 var X0 := 0.0
 var Z0 := 0.0
 var ATE := Vector2.ZERO # fim do desenho em metros (x, z), já com a terra de fora
@@ -276,6 +277,7 @@ func _montar_dados() -> void:
 				if i >= 0 and j >= 0 and i < nx and j < nz:
 					hh[j * nx + i] = maxf(hh[j * nx + i], float(gm.h[b * n + a]))
 	_alem()
+	_cavar_rios()
 	# praia: só a areia perto do mar (o chão plano do mapa de hoje também é baixo)
 	var praia := PackedByteArray()
 	praia.resize(nx * nz)
@@ -421,7 +423,31 @@ func _borda_lisa(ci: int, cj: int, desloc := 0) -> float:
 	return soma / n
 
 func _ponto(i: int, j: int) -> Vector3:
-	return Vector3(X0 + i * 4.0, _y(hh[j * nx + i]), Z0 + j * 4.0)
+	return Vector3(X0 + i * 4.0, _y(hv[j * nx + i]), Z0 + j * 4.0)
+
+# Rios no mapa 3D (André 2026-11-16: "os lagos e rios não estão aparecendo no mapa 3D"). O leito tem uns 8 m e as
+# facetas do chão têm 8 m: a faceta pulava o leito e ligava um barranco no outro, cobrindo a fita do rio. Aqui a malha
+# do chão desce até o leito em volta da água do rio (grade "rio" >= 8, a mesma do terreno.gd), e a fita fica por cima.
+# Só o desenho muda: alt() e as estradas continuam na altura de verdade (a estrada passa por cima, como ponte).
+const RIO_AGUA := 8
+const RIO_VOLTA := 2 # pontos de 4 m em volta da água que descem junto (o fundo do vale fica mais largo que a fita)
+func _cavar_rios() -> void:
+	hv = hh.duplicate()
+	var rio: String = g.get("rio", "")
+	var gx := int(g.nx)
+	var gz := int(g.nz)
+	if rio.length() != gx * gz:
+		return
+	var di := int(round((float(g.x0) - X0) / 4.0)) # a grade do mapa tem a terra de fora em volta (_alem)
+	var dj := int(round((float(g.z0) - Z0) / 4.0))
+	for j in gz:
+		for i in gx:
+			if rio.unicode_at(j * gx + i) - 48 < RIO_AGUA:
+				continue
+			var fundo: float = hh[(j + dj) * nx + i + di]
+			for b in range(maxi(0, j + dj - RIO_VOLTA), mini(nz, j + dj + RIO_VOLTA + 1)):
+				for a in range(maxi(0, i + di - RIO_VOLTA), mini(nx, i + di + RIO_VOLTA + 1)):
+					hv[b * nx + a] = minf(hv[b * nx + a], fundo)
 
 static func _cor(v: float, incl: float, mata: float, praia: bool) -> Color:
 	if v < 0.0:
@@ -546,12 +572,24 @@ void fragment() {
 	mar.material_override = mt
 	mar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mundo3d.add_child(mar)
-	# rios e estradas (fitas por cima do chão, todas numa malha só)
+	# estradas (fitas por cima do chão, todas numa malha só)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# rios e lagos numa malha própria que não recebe sombra (no fundo do vale a sombra do barranco apagava o rio)
+	var sa := SurfaceTool.new()
+	sa.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r in g.get("rios", []):
-		_fita(st, r.curva, 14.0, Color8(36, 70, 90), 5.0, true)
-		_fita(st, r.curva, 9.0, Color8(54, 104, 130), 5.3, true)
+		_fita(sa, r.curva, 16.0, COR_AGUA_BEIRA, 0.6, true)
+		_fita(sa, r.curva, 11.0, COR_AGUA, 0.9, true)
+	_lagos(sa)
+	var agua := MeshInstance3D.new()
+	agua.mesh = sa.commit()
+	var ma := _mat()
+	ma.cull_mode = BaseMaterial3D.CULL_DISABLED
+	ma.disable_receive_shadows = true
+	agua.material_override = ma
+	agua.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mundo3d.add_child(agua)
 	for e in g.get("estradas", []):
 		_fita(st, e.curva, 3.5 if str(e.id).begins_with("t_") else 5.5, Color8(128, 96, 62), 2.2)
 	# todas as outras estradas da rede do "Ir para" (rota.gd): caminhos do mapa de hoje e ruas das vilas com terreno
@@ -624,7 +662,10 @@ func _fita(st: SurfaceTool, curva: Array, largura: float, cor: Color, sobe: floa
 	for p in curva:
 		var x := float(p[0])
 		var z := float(p[1])
-		pts.append(Vector3(x, (alt(x, z) if rio else _alto_faceta(x, z)) + sobe, z))
+		var y := _alto_faceta(x, z)
+		if rio: # a água do rio (3º número da curva) por cima do leito cavado (_cavar_rios)
+			y = maxf(_y(float(p[2])) if p.size() > 2 else alt(x, z), _fundo_cavado(x, z))
+		pts.append(Vector3(x, y + sobe, z))
 	for k in range(pts.size() - 1):
 		var d := pts[k + 1] - pts[k]
 		d.y = 0.0
@@ -633,8 +674,59 @@ func _fita(st: SurfaceTool, curva: Array, largura: float, cor: Color, sobe: floa
 		var s := Vector3(-d.z, 0.0, d.x).normalized() * largura * 0.5
 		st.set_color(cor)
 		st.set_normal(Vector3.UP)
-		for v in [pts[k] - s, pts[k] + s, pts[k + 1] + s, pts[k] - s, pts[k + 1] + s, pts[k + 1] - s]:
+		var tri := [pts[k] - s, pts[k] + s, pts[k + 1] + s, pts[k] - s, pts[k + 1] + s, pts[k + 1] - s]
+		if rio: # água de frente para cima (de costas a luz vinha de baixo e o rio saía quase preto)
+			tri.reverse()
+		for v in tri:
 			st.add_vertex(v)
+
+const COR_AGUA := Color8(48, 104, 140)
+const COR_AGUA_BEIRA := Color8(30, 64, 84)
+
+# chão cavado mais alto em volta de (x, z), para a fita do rio não sumir dentro da faceta
+func _fundo_cavado(x: float, z: float) -> float:
+	var i := int(floor((x - X0) / (4.0 * PASSO))) * PASSO
+	var j := int(floor((z - Z0) / (4.0 * PASSO))) * PASSO
+	var v := -100.0
+	for b in [j, j + PASSO]:
+		for a in [i, i + PASSO]:
+			v = maxf(v, hv[clampi(b, 0, nz - 1) * nx + clampi(a, 0, nx - 1)])
+	return _y(v)
+
+# Lagos do mapa de hoje (Lago Grande, Lago Fundo...): no mundo eles são um buraco no chão (terreno.gd, no_lago), mas a
+# grade do mapa tem o chão do mapa de hoje todo plano, então o 3D não tinha lago nenhum. Aqui cada lago vira uma
+# lâmina de água com a mesma forma do jogo (elipse com lobos, terreno.margem_lago), com a beira mais escura em volta.
+func _lagos(st: SurfaceTool) -> void:
+	for l in m.mundo.get("lagos", []):
+		var L := {"x": float(l.x), "z": float(l.z), "rx": float(l.rx), "rz": float(l.rz), "lobos": l.get("lobos", []),
+			"c": cos(float(l.get("giro", 0.0))), "s": sin(float(l.get("giro", 0.0)))}
+		# altura: acima do chão mais alto embaixo do lago (as facetas de 8 m são maiores que os lagos pequenos)
+		var y := -100.0
+		var R := maxf(L.rx, L.rz) * 1.3
+		for dz in range(-1, 2):
+			for dx in range(-1, 2):
+				y = maxf(y, _alto_faceta(L.x + dx * R, L.z + dz * R))
+		_lamina(st, L, 1.0 + 3.5 / minf(L.rx, L.rz), y + 0.6, COR_AGUA_BEIRA)
+		_lamina(st, L, 1.0, y + 0.9, COR_AGUA)
+
+func _lamina(st: SurfaceTool, L: Dictionary, escala: float, y: float, cor: Color) -> void:
+	const N := 40
+	var c := Vector3(L.x, y, L.z)
+	var borda: Array[Vector3] = []
+	for n in N:
+		var t := TAU * n / N
+		var k := 1.0
+		for lb in L.lobos:
+			k *= 1.0 + float(lb[1]) * sin(float(lb[0]) * t + float(lb[2]))
+		var u: float = cos(t) * L.rx * k * escala
+		var v: float = sin(t) * L.rz * k * escala
+		borda.append(Vector3(L.x + u * L.c - v * L.s, y, L.z + u * L.s + v * L.c))
+	st.set_color(cor)
+	st.set_normal(Vector3.UP)
+	for n in N:
+		st.add_vertex(c)
+		st.add_vertex(borda[n])
+		st.add_vertex(borda[(n + 1) % N])
 
 func _mata(lista: Array) -> void:
 	var pinheiro := CylinderMesh.new()
