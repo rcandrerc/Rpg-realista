@@ -185,7 +185,7 @@ function mandar(tipo, dados) { try { sala?.send(tipo, dados); } catch { /* caiu:
 function acao(tipo, dados) { esperaResposta = performance.now(); mandar(tipo, dados); }
 
 // ---------- lutar ----------
-let golpeT = 0, skillT = 0, curaT = 0;
+let golpeT = 0, skillT = 0, curaT = 0, pocaoT = 0;
 function alvoPerto(raio = 30, treino = false) {
   let b = null, md = raio;
   for (const e of inimigos.values()) {
@@ -201,6 +201,8 @@ function lutar(e, agora) {
   eu.ry = Math.atan2(e.x - eu.x, e.z - eu.z);
   atacados.add(e.id);
   if (eu.vida < eu.vidaMax * 0.4 && eu.mana >= CURA.mana && agora - curaT > CURA.cd * 1000) { curaT = agora; mandar('habilidade', 9); return; }
+  // 2026-11-16: morreu 40 vezes num turno (perdeu milhares de ouro no Pedra-Viva) sem tomar poção nenhuma
+  if (eu.vida < eu.vidaMax * 0.35 && agora - pocaoT > 6000) { const i = (prog?.mochila || []).findIndex((o) => o && o.k === 'pocao'); if (i >= 0) { pocaoT = agora; acao('item', { acao: 'usar', i }); return; } }
   if (agora - skillT > 1500 && prog?.barras?.espada) {
     const l = prog.barras.espada.filter((k) => k && (HABS[k]?.libera || 0) <= (prog.nivel || 1) && !(eu.mana < (HABS[k]?.mana || 0))); if (l.length) { skillT = agora; mandar('habQ', l[Math.floor(Math.random() * l.length)]); return; }
   }
@@ -223,7 +225,7 @@ function cacar(agora) {
 // ---------- mochila cheia: vende com o vendedor aberto mais perto (André 2026-11-16: o robô passava o turno com a
 // mochila cheia, 10 mil avisos "Mochila cheia"). Fica com poções, ferramentas, veículos, itens trancados e o que a
 // etapa pede; vende as peças de equipamento e as pilhas repetidas; se ainda faltar lugar, as pilhas mais baratas.
-let cheioT = 0, vendaAte = 0, vendaT = 0;
+let cheioT = 0, vendaAte = 0, vendaT = 0, vendaPausa = 0;
 const tem = (k) => (prog?.mochila || []).some((o) => o && o.k === k);
 function protegido(o) {
   if (!o || o.cad) return true;
@@ -251,6 +253,7 @@ function vendedorPerto() {
 function vender(agora) {
   const m = prog?.mochila; if (!m) return false;
   if (!vendaAte) {
+    if (agora < vendaPausa) return false; // acabou de vender: espera o servidor mandar a mochila nova
     if (m.some((o) => !o) && m.filter((o) => !o).length >= 2 && agora - cheioT > 60e3) return false;
     if (!listaVenda(m).length) return false;
     vendaAte = agora + 6 * 60e3; vendaT = 0; log('mochila cheia: vai vender');
@@ -262,8 +265,8 @@ function vender(agora) {
   if (agora - vendaT < 3000) return true;
   vendaT = agora;
   const l = listaVenda(m);
-  if (l.length) { acao('item', { acao: 'vender_varios', lista: l }); R.vendas = (R.vendas || 0) + 1; }
-  vendaAte = 0; cheioT = 0;
+  if (l.length) { acao('item', { acao: 'vender_varios', lista: l }); R.vendas = (R.vendas || 0) + 1; for (const i of l) m[i] = null; }
+  vendaAte = 0; cheioT = 0; vendaPausa = agora + 30e3; // 2026-11-16: vendia os mesmos lugares de novo ("Nada para vender", 127 vezes)
   return true;
 }
 
@@ -351,11 +354,21 @@ function missao(agora) {
   naoSabeT = 0;
   if (ev === 'atributo' || prog.pontos > 0) { const n = prog.pontos | 0; if (n > 0) { const f = Math.ceil(n / 2); acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; } if (ev === 'atributo') return; }
   if (ev === 'viajar' && a) { // "use o totem para ir a...": chega perto do totem e pede a viagem (canaliza parado)
-    if (!irPara(a.x, a.z, 3)) return;
+    // sem destino ("vá a outro e volte ao Juncal", 2026-11-16 travou 15 min): do totem da etapa vai ao aberto mais
+    // perto; de outro totem, volta ao da etapa
+    let para = hi.k, ir = a;
+    if (!para) {
+      const casa = TOTENS.lista.find((t) => Math.hypot(t.x - a.x, t.z - a.z) < 1);
+      const aqui = TOTENS.lista.map((t) => [t, Math.hypot(t.x - eu.x, t.z - eu.z)]).sort((x, y) => x[1] - y[1])[0];
+      if (aqui && aqui[1] < 8 && casa && aqui[0].id !== casa.id) { para = casa.id; ir = aqui[0]; }
+      else para = (prog.totens || []).map((id) => TOTENS.lista.find((t) => t.id === id)).filter((t) => t && t.id !== casa?.id && !zonaFechadaEm(prog, t.x, t.z)).sort((x, y) => d2(a, x) - d2(a, y))[0]?.id;
+      if (!para) return pular('nenhum outro totem aberto para a viagem');
+    }
+    if (!irPara(ir.x, ir.z, 3)) return;
     parar();
     if (agora < viajandoAte || agora - falarT < 3000) return;
     falarT = agora; viajandoAte = agora + (TOTENS.canal + 3) * 1000;
-    acao('totem', { para: hi.k }); return;
+    acao('totem', { para }); return;
   }
   if (ev === 'leilao') return leilao(agora);
   if (ev === 'pesca') {
@@ -373,6 +386,8 @@ function missao(agora) {
   if (ev === 'montar') { if (!eu.montado && agora - falarT > 3000) { falarT = agora; acao('montar'); } return; }
   if (ev === 'barra') { if (agora - falarT > 3000) { falarT = agora; acao('barra', { barra: 'espada', lista: prog.barras?.espada || [] }); } return; }
   if (ev === 'item' && a) { // coletar: o veio, a árvore ou a pedrinha mais perto do Ir
+    const bicho = alvoPerto(6); // 2026-11-16: "Atacado! A coleta parou" 75 vezes e a etapa travou: luta antes de coletar
+    if (bicho) { coletando = 0; return lutar(bicho, agora); }
     if (coletando && agora - coletando < 25000) return;
     if (!irPara(a.x, a.z, 1.6)) return;
     parar();
