@@ -530,7 +530,7 @@ const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido',
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
-const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico'];
+const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico', 'toques', 'voltas', 'sala', 'sala_erro']; // toques/voltas/sala: ronda 2026-11-16 (Entrar que falha no 1º toque)
 const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip', 'espera'];
 const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'q50', 'q70', 'lenta', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
 // o que pesou no segundo ruim (lentidao.gd ev): {nome: [vezes, ms]}, no máximo 8 nomes curtos
@@ -565,6 +565,7 @@ function guardarLentidao(c, e, sala) {
     const r = { servidor: Date.now(), tipo: 'entrada' };
     for (const k of ENTRADA_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    if (typeof e.motivo === 'string' && /^[a-z_]{1,16}$/.test(e.motivo)) r.motivo = e.motivo; // por que voltou para a tela inicial
     // quanto cada parte da abertura levou (main.gd _passo, ms): só números, nomes curtos, no máximo 40
     if (e.partes && typeof e.partes === 'object' && !Array.isArray(e.partes)) {
       const p = {};

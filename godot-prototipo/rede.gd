@@ -368,11 +368,15 @@ func entrar_na_sala(automatico := false) -> void:
 	# volta: entrada automática (queda). O servidor recusa se a conta já está jogando em outro aparelho (último login vale)
 	var r := await pedir("POST", "/matchmake/joinOrCreate/clareira", {"sessao": sessao, "nome": conta.get("nome", "Andarilho"), "json": true, "aoi": true, "volta": automatico}) # aoi: só o que está perto (server/visao.js)
 	if r.codigo != 200 or not r.dados.has("room"):
+		if Engine.has_meta("lentidao"):
+			Engine.get_meta("lentidao").anotar("sala_erro", r.codigo)
 		estado.emit("Não deu para entrar na sala")
 		caiu.emit("sala")
 		return
 	var sala: Dictionary = r.dados.room
 	meu_id = str(r.dados.sessionId)
+	if Engine.has_meta("lentidao"):
+		Engine.get_meta("lentidao").marcar("sala") # a sala respondeu (registro da entrada)
 	_volta = {"processo": str(sala.processId), "sala": str(sala.roomId), "id": meu_id, "token": "", "caiu_ms": 0}
 	_abrir_ws("")
 

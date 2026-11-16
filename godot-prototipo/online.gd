@@ -209,6 +209,7 @@ func montar_tela() -> void:
 	b_continuar = _botao("Entrar", Color(0.93, 0.62, 0.25), func():
 		if m.lentidao:
 			m.lentidao.marcar("toque")
+			m.lentidao.somar("toques")
 		cobrir("Entrando…") # o jogo só aparece quando o servidor mandar o mundo (ou o criador abrir)
 		rede.continuar())
 	col.add_child(b_continuar)
@@ -400,6 +401,8 @@ func ao_cair(motivo: String) -> void:
 		_trocado()
 		return
 	var estava := ligado
+	if m.lentidao and not ligado:
+		m.lentidao.anotar("motivo", motivo) # registro da entrada (lentidao.gd somar/anotar)
 	if _cobrindo:
 		if rede.sessao != "": # tem conta (André 2026-11-07): sem servidor não entra no jogo, fica na tela inicial
 			_tentar_de_novo = -1.0
@@ -508,6 +511,8 @@ func voltar_ao_login(texto := "") -> void:
 
 # tela inicial com a conta salva (Entrar como… / Trocar de conta / Jogar sozinho) e o motivo embaixo
 func _voltar_a_tela_inicial() -> void:
+	if m.lentidao:
+		m.lentidao.somar("voltas")
 	var conta: Dictionary = rede.conta if rede.conta is Dictionary and not rede.conta.is_empty() else _conta_antes
 	mostrar_escolha(conta)
 	if aviso_login.text == "" or aviso_login.text.ends_with("…"):
