@@ -5,7 +5,7 @@ import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
 import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
-import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA } from './vilas.js';
+import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA, CACAMBA_CARROCA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
@@ -2140,7 +2140,7 @@ export const VILAS_MUNDO = [
     cidade: {
       fixa: true, chao: 'rio_chao', largura: 6,
       praca: { x: -234, z: 85, r: 13 }, // Praça do Comércio (a estrada passa no lado oeste dela)
-      ruas: [[[-221.5, 85], [-178, 85]], [[-226, 96], [-226, 99.6]]], // Rua do Mercado e a entrada da Casa do Comércio
+      ruas: [[[-221.5, 85], [-166, 85]], [[-226, 96], [-226, 99.6]]], // Rua do Mercado e a entrada da Casa do Comércio
       banca: { x: -225, z: 78, ry: 2.513 }, // a banca da Dália
       pecas: [
         { n: 'comercio', m: 'comercio_grande', x: -226, z: 109, ry: Math.PI },
@@ -2475,7 +2475,10 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'peca:comercio:4
       MAPA_CLAREIRA.casasMundo.push({ x: c.x, z: c.z, ry: c.ry + Math.PI / 2, hw: M.d / 2, hd: M.w / 2, y1: c.y + M.alto, sobe: M.sobe });
     }
     for (const e of A.enfeites) { const M = MODELOS_VILA[e.m]; obst.push({ x: e.x, z: e.z, r: M.r || 0.5, ...(M.alto ? { alto: +(e.y + M.alto).toFixed(2) } : {}) }); }
-    for (const e of A.enfeites) if (e.m === 'carroca_carga') { const [x, z] = naPeca(e, ...CAVALO_CARROCA); obst.push({ x, z, r: 0.7 }); } // o cavalo parado na frente da carroça
+    for (const e of A.enfeites) if (e.m === 'carroca_carga') {
+      const [x, z] = naPeca(e, ...CAVALO_CARROCA), [cx, cz] = naPeca(e, ...CACAMBA_CARROCA);
+      obst.push({ x, z, r: 0.75 }, { x: cx, z: cz, r: 1.0, alto: +(e.y + 1.5).toFixed(2) }); // o cavalo entre os varais e a caçamba com a carga
+    }
     if (A.banca) obst.push({ x: A.banca.x, z: A.banca.z, r: MODELOS_VILA.banca.r, alto: +(A.banca.y + MODELOS_VILA.banca.alto).toFixed(2) });
     // estações públicas: bigorna e forninho na ferraria, bancada ao lado da banca (qualquer um usa, como as da Clareira)
     const F = A.casas.find((c) => c.m === 'forja');

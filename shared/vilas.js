@@ -41,8 +41,10 @@ export const COMERCIO_GRANDE = {
   moveis: [[6, -6.5, 0.5], [6.6, -3, 0.6], [-6.2, -7.5, 0.35], [-6.4, -5.4, 0.35], [-7.4, -3.2, 0.5], [-2.2, -9.6, 0.6], [2.2, -9.6, 0.6], [0, -9.1, 0.6],
     [-3.3, -8.2, 0.5], [3.3, -8.6, 0.5], [-6.5, 4, 0.4], [-6.5, 7, 0.4], [7.0, 8.9, 0.8], [7.3, 6.6, 0.4], [7.2, 3.4, 0.5], [6.0, 1.2, 0.6]],
 };
-// o cavalo da carroça de carga fica na frente dela, entre os varais (no espaço da carroça)
-export const CAVALO_CARROCA = [0, -2.0];
+// o cavalo da carroça de carga fica entre os varais (a caçamba é o fundo da peça, z de -3,15 a -1,7; os varais vão
+// até +0,9) e olha para +z
+export const CAVALO_CARROCA = [0, 0.1];
+export const CACAMBA_CARROCA = [0, -2.4]; // a caçamba também é sólida (o círculo da peça só pega os varais)
 const ALICERCE = 2.3; // o alicerce de pedra cobre até isso de diferença entre o canto mais alto e o mais baixo
 
 // distância do ponto (x, z) até o retângulo girado R ({ x, z, ry, w, d }), 0 dentro

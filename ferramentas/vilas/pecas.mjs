@@ -264,7 +264,7 @@ export const RIO_CLARO = {
   banca_ceramica: [['Stall_Cart_Empty', [0, 0, 0], 0], ['Vase_2', [-0.4, 0.98, 0.15], 0.3], ['Pot_1', [0.9, 0, 0.9], 0]],
   banca_temperos: [['Stall_Empty', [0, 0, 0], 0], ['FarmCrate_Carrot', [-0.4, 0.98, 0.15], 0.3], ['Bag', [0.9, 0, 0.9], 0]],
   // carroça de carga parada (o cavalo é o modelo animado res://animais/cavalo.glb, posto pelo jogo na frente dela)
-  carroca_carga: [['Prop_Wagon', [0, 0, 0], 0], ['Crate_Wooden', [0, 0.55, 1.6], 0.3], ['Barrel', [0.2, 0.55, 2.8], 0]],
+  carroca_carga: [['Prop_Wagon', [0, 0, 0], 0], ['Crate_Wooden', [-0.1, 0.62, -2.75], 0.3], ['Barrel', [0.3, 0.62, -2.05], 0]], // a carga em cima da caçamba
   // poste de lanterna e a pilha de carga do pátio das caravanas
   poste: [['Corner_Exterior_Wood', [0, 0, 0], 0], ['Lantern_Wall', [0, 2.4, 0.18], 0]],
   carga: [['Crate_Wooden', [0, 0, 0], 0], ['Crate_Wooden', [1, 0, 0.2], 0.4], ['Crate_Wooden', [0.5, 0.93, 0.1], 0.2], ['Barrel', [-1.2, 0, 0.6], 0], ['Barrel', [-1.4, 0, -0.4], 0]],

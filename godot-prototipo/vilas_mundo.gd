@@ -36,8 +36,9 @@ const SALAO_ALTO := 5.6 # câmera acima disto (do piso do salão) esconde o telh
 var saloes: Array = [] # [{no, t: Transform3D, cima: [GeometryInstance3D]}]
 # carroças paradas com o cavalo (Quaternius Lowpoly Animated Animals, CC0): mexe só de perto
 const CAVALO := "res://vilas3d/cavalo.glb"
-const CAVALO_LOCAL := Vector3(0, 0, -2.0) # shared/vilas.js CAVALO_CARROCA (o servidor põe o obstáculo no mesmo lugar)
+const CAVALO_LOCAL := Vector3(0, 0, 0.1) # shared/vilas.js CAVALO_CARROCA (o servidor põe o obstáculo no mesmo lugar)
 const CAVALO_ESCALA := 0.24
+const CAVALO_GIRO := 0.0 # o cavalo olha para +z, para longe da caçamba
 const CAVALO_PERTO := 70.0
 var cavalos: Array = [] # [{no: Node3D, anim: AnimationPlayer, vila: String}]
 var _cavalo_cena: PackedScene
@@ -214,7 +215,7 @@ func _cavalo(no: Node3D, vila: String, e: Dictionary) -> void:
 			return
 	var c: Node3D = _cavalo_cena.instantiate()
 	var t := Transform3D(Basis(Vector3.UP, float(e.ry)), Vector3(float(e.x), float(e.y), float(e.z)))
-	c.transform = t * Transform3D(Basis(Vector3.UP, PI).scaled(Vector3.ONE * CAVALO_ESCALA), CAVALO_LOCAL)
+	c.transform = t * Transform3D(Basis(Vector3.UP, CAVALO_GIRO).scaled(Vector3.ONE * CAVALO_ESCALA), CAVALO_LOCAL)
 	no.add_child(c)
 	m.pintar(c, false)
 	var anim: AnimationPlayer = c.find_child("AnimationPlayer", true, false)

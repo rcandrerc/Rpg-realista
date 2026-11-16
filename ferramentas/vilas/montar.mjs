@@ -53,11 +53,12 @@ const MAT_AURORA = {}; // nome do material do kit -> material da cidade
   // Rio Claro (Casa do Comércio grande): o balcão de madeira, os tapetes e a placa com o nome da casa
   MAT_AURORA['@madeira'] = comTex('Balcao_Madeira', tex('T_Balcao', fs.readFileSync(path.join(VIL, 'T_WoodTrim_BaseColor.png'))));
   MAT_AURORA['@pedra'] = comTex('Pedra_Canto', tex('T_PedraCanto', fs.readFileSync(path.join(VIL, 'T_UnevenBrick_BaseColor.png'))));
-  MAT_AURORA['@tampo'] = cor('Balcao_Tampo', [0.29, 0.17, 0.09, 1]);
-  MAT_AURORA['@vermelho'] = cor('Tapete_Vermelho', [0.48, 0.12, 0.12, 1]);
-  MAT_AURORA['@vinho'] = cor('Tapete_Vinho', [0.35, 0.16, 0.23, 1]);
-  MAT_AURORA['@roxo'] = cor('Tapete_Roxo', [0.24, 0.16, 0.36, 1]);
-  MAT_AURORA['@ouro'] = cor('Tapete_Ouro', [0.79, 0.64, 0.23, 1]);
+  const lin = (c) => c.map((v, i) => (i === 3 ? v : v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); // a cor como se vê (sRGB) -> glTF (linear)
+  MAT_AURORA['@tampo'] = cor('Balcao_Tampo', lin([0.29, 0.17, 0.09, 1]));
+  MAT_AURORA['@vermelho'] = cor('Tapete_Vermelho', lin([0.48, 0.12, 0.12, 1]));
+  MAT_AURORA['@vinho'] = cor('Tapete_Vinho', lin([0.35, 0.16, 0.23, 1]));
+  MAT_AURORA['@roxo'] = cor('Tapete_Roxo', lin([0.24, 0.16, 0.36, 1]));
+  MAT_AURORA['@ouro'] = cor('Tapete_Ouro', lin([0.79, 0.64, 0.23, 1]));
   const placa = path.join(tmpTex, 'placa.png'); // a placa: madeira escura, moldura e letras douradas (fonte DejaVu Serif, livre)
   execFileSync('python3', ['-c', `from PIL import Image, ImageDraw, ImageFont\nim=Image.new('RGB',(1024,256),(58,36,20))\nd=ImageDraw.Draw(im)\nd.rectangle([12,12,1011,243],outline=(201,162,58),width=14)\nf=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',86)\nt='CASA DO COMÉRCIO'\nw=d.textlength(t,font=f)\nd.text(((1024-w)/2,74),t,fill=(232,195,90),font=f)\nim.save(r'${placa}')`]);
   MAT_AURORA['@placa'] = comTex('Placa_Comercio', tex('T_PlacaComercio', fs.readFileSync(placa)));
