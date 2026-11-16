@@ -20,7 +20,7 @@ import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
-import { etapaAtual } from './historia.js';
+import { etapaAtual, missaoAtual } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
@@ -1149,6 +1149,7 @@ export const Amiga = {
     let negou = false;
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) { if (!negado(k)) return k; negou = true; } // "vamos pescar" é pescar, não caçar
     if (tem('equip')) return 'equip'; // "o que você tá usando?" (André 2026-11-10)
+    for (const k of ['ondeUpar', 'nivel', 'missao']) if (A[k] && tem(k)) return k; // perguntas com resposta de verdade (André 2026-11-16), antes de "upar/missão" = time
     for (const k of ['sairTime', 'vir', 'time']) if (tem(k)) { if (!negado(k)) return k; negou = true; }
     if (negou) return 'naoAcao'; // "não vamos caçar", "nem vem": não faz nada
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
@@ -1168,6 +1169,8 @@ export const Amiga = {
   apelidoAmiga(texto) { return /\b(cham\w*|cahm\w*|caham\w*)\s+(de|d)\s+\S/.test(normAmiga(texto)); },
   regraValeSobreIaAmiga(id, assunto, texto, assuntoIa) {
     if (this.acaoSemEfeitoAmiga(id, assunto)) return false;
+    // André 2026-11-16: "vai lá caçar sozinha" tem "caçar" (regra = time), mas a IA entendeu que é para ir sem ele
+    if (['cacar', 'voltar'].includes(assuntoIa) && ['time', 'vir', 'sairTime'].includes(assunto)) return false;
     if (assuntoIa === 'conversa' && ['time', 'vir', 'sairTime', 'pescar', 'minerar', 'lenha'].includes(assunto)) {
       const palavras = normAmiga(texto).split(' ').filter(Boolean).length;
       if (palavras > this.AMIGA.chat.pedidoCurto) return false;
@@ -1206,15 +1209,69 @@ export const Amiga = {
       conversa: this.chatDeAmiga(j).slice(-12), // as 12 guardadas (André 2026-11-13: com menos ela perdia o fio da conversa)
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
+      ...this.saberAmiga(a, j), // André 2026-11-16 ("eles são muito burros"): o que ela sabe do jogo de verdade, para não inventar
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],
     };
+  },
+  // ---------- o que ela sabe (André 2026-11-16: "eles estão muito limitados para um NPC que usa IA") ----------
+  // Ao vivo ela inventava ("campo de treinos perto da floresta", "poção a 12") e não sabia a missão dele. Agora a ficha leva
+  // dados reais do jogo: campos de caça bons para o nível dela e o dele, preço da loja, a missão dele, a vida e as poções
+  // dela, e se ela pode sair para caçar sozinha agora (o mesmo que o passoSozinhoAmiga confere).
+  saberAmiga(a, j) {
+    const campos = (n) => this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + 2)
+      .sort((x, y) => (y.nivel || 1) - (x.nivel || 1)).slice(0, 3)
+      .map((c) => `${c.nome} (nível ${c.nivel || 1}, ${Math.round(Math.hypot(c.x - a.x, c.z - a.z))} m de você)`).join('; ');
+    const preco = (k, nv = j.prog.nivel) => precoLoja(LOJA.find((o) => o.k === k && !o.r), nv) || ITENS[k]?.preco; // sobe com o nível de quem compra (economia 2026-11-16)
+    const E = !j.bot && etapaAtual(j.prog), M = !j.bot && missaoAtual(j.prog);
+    const vida = Math.round(100 * (a.vida || 0) / Math.max(1, a.vidaMax || 1));
+    return {
+      camposDela: campos(a.prog.nivel | 0), camposDele: campos(j.prog.nivel | 0), mapa: this.mapaAmiga(),
+      loja: `para ${j.nome} (nível ${j.prog.nivel}): poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa (para você, ${preco('pocao', a.prog.nivel)}); peça de armadura comum ${precoLoja(LOJA.find((o) => o.r === 0), j.prog.nivel) || 60} e rara ${precoLoja(LOJA.find((o) => o.r === 1), j.prog.nivel) || 240}; o preço sobe com o nível de quem compra; conserto no Tomás (ferreiro)`,
+      missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
+      vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: a.modo === 'Magia' ? 'cajado (magia)' : 'espada',
+      sozinha: this.podeSairAmiga(a, j),
+    };
+  },
+  // todos os campos de caça e chefes, curtinho (mesmo nome junta os níveis): "onde upar no 10?" tem resposta certa
+  mapaAmiga() {
+    if (this._mapaAmiga) return this._mapaAmiga;
+    const g = new Map(), defs = this.cacas.map((c) => c.def);
+    for (const c of defs.filter((c) => !c.boss)) { const k = c.nome.replace(/ \((.*)\)$/, ' em $1'); const v = g.get(k) || { n: [] }; v.n.push(c.nivel || 1); g.set(k, v); }
+    const campos = [...g].sort((x, y) => Math.min(...x[1].n) - Math.min(...y[1].n)).map(([k, v]) => `${k} nv ${[...new Set(v.n)].sort((a, b) => a - b).join('/')}`).join('; ');
+    const chefes = defs.filter((c) => c.boss).map((c) => `${c.nome} nv ${c.nivel}`).join('; ');
+    return (this._mapaAmiga = `Campos (nível dos monstros): ${campos}. Clareiras ficam perto da vila inicial; Vael, Ilha do Meio e Aurora são outras terras (barco). Chefes do mundo: ${chefes}.`);
+  },
+  // dá para sair caçar sozinha agora? { ok, motivo } (fora do time, viva, no horário dela, com poção ou ouro para comprar)
+  podeSairAmiga(a, j) {
+    if (a.morto) return { ok: false, motivo: 'você caiu e está renascendo', fala: 'acabei de cair, tô renascendo' };
+    if (a.time && a.time === j.time) return { ok: false, motivo: 'você está no time dele caçando junto', fala: 'tô no seu time, bora caçar junto' };
+    if (a.ia.av && ['ir', 'cacar'].includes(a.ia.av.fase)) return { ok: false, motivo: 'você já está caçando', ja: true };
+    if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return { ok: false, motivo: 'está fora do seu horário de caçar (de noite você fica na vila até amanhecer)', fala: 'de noite eu não saio, só quando amanhecer' };
+    if (!contar(a.prog.mochila, 'pocao') && a.prog.ouro < (precoLoja(LOJA.find((o) => o.k === 'pocao'), a.prog.nivel) || 15)) return { ok: false, motivo: 'você está sem poção e sem ouro', fala: 'tô sem poção e sem ouro' };
+    return { ok: true };
+  },
+  // a IA decidiu que ela vai caçar sozinha (ele pediu ou ela quis): sai agora; lugar = nome do campo que ela disse, se der
+  sairCacarAmiga(a, j, lugar) {
+    const v = this.podeSairAmiga(a, j); if (!v.ok) return v;
+    const n = normAmiga(lugar || '').replace(/^(a|o|na|no|da|do|para|pra) /, ''), A = NPC_VIDA.aventura;
+    const pedido = n.length >= 4 && this.cacas.map((x) => x.def).filter((x) => !x.boss && !x.tunel && normAmiga(x.nome).includes(n)).sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
+    // o campo pedido no nível dela (o mais forte que ela aguenta); pesado demais: vai no campo dela e avisa
+    const cabe = pedido && pedido.filter((x) => (x.nivel || 1) <= (a.prog.nivel | 0) + A.campoAcima - (a.licoes?.acima || 0));
+    let c = cabe?.length ? cabe[cabe.length - 1] : null, forte = null;
+    if (!c && pedido?.length) { forte = pedido[0].nome; c = this.campoAmiga(a); }
+    if (a.ia.fase === 'trabalhar') { a.ia.fase = 'pensar'; a.acao = null; }
+    a.ia.conversaAte = this.tempo + 2; a.ia.vir = null;
+    a.ia.av = c ? { fase: 'ir', c, coleta: null, ate: this.tempo + (A.cacar[0] + Math.random() * (A.cacar[1] - A.cacar[0])) * this.rotinaAmiga().caca } : { fase: 'escolher' };
+    if (!contar(a.prog.mochila, 'pocao')) this.pocoesAmiga(a); // passa na Rosa antes
+    a.ia.viagem = null;
+    return { ok: true, c, forte };
   },
   // a resposta: r = { assunto } (regras) ou { assunto: ação da IA, fala } (IA). Faz a ação e responde.
   respostaAmiga(id, r) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id) || !r) return;
     // livre: passa a acompanhar quem falou; com outro amigo: conversa, mas ação só depois (André 2026-11-10)
     const mesmoTime = !!(a.time && a.time === j.time) && ['time', 'vir'].includes(r.assunto); // no time de todos: "bora pro time" e "vem cá" valem
-    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
+    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
     const F = this.AMIGA.chat.falas, FA = this.AMIGA.falas, ia = a.ia, noTime = !!(a.time && a.time === j.time);
     const perto = Math.hypot(a.x - j.x, a.z - j.z) < 6;
     const chamado = ia.chamado && ia.chamado.ate > this.tempo ? ia.chamado : null;
@@ -1285,6 +1342,23 @@ export const Amiga = {
       case 'troca': fala = a.troca ? sorteia(this.AMIGA.falasTroca.abre) : sorteia(this.AMIGA.falasTroca.topa); break; // só topa: a troca ele abre (André 2026-11-13)
       case 'presente': case 'pedirItem': { const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele'); fala = this.pedidoTrocaAmiga(r.assunto, ult?.texto || ''); r = { ...r, fala: '' }; break; }
       case 'equip': fala = this.falaEquipAmiga(); break;
+      // chat básico (sem IA) com resposta de verdade (André 2026-11-16): nível, onde upar, a missão dele
+      case 'nivel': { const S = this.saberAmiga(a, j); fala = `Tô nível ${a.prog.nivel}, de ${S.arma}. E você tá no ${j.prog.nivel}, né?`; break; }
+      case 'ondeUpar': { const S = this.saberAmiga(a, j); fala = S.camposDele ? `Pro seu nível: ${S.camposDele.split('; ').slice(0, 2).map((x) => x.replace(/,.*$/, ')')).join(' ou ')}.` : 'Sei não, pergunta na vila!'; break; }
+      case 'missao': { const S = this.saberAmiga(a, j); fala = S.missaoDele ? `Sua missão: ${S.missaoDele}.` : 'Acho que você já fez todas, monstro!'; break; }
+      case 'cacar': { // André 2026-11-16: "vai lá caçar sozinha" agora é feito de verdade
+        const v = this.sairCacarAmiga(a, j, r.lugar);
+        if (!v.ok) { fala = v.ja ? 'Já tô caçando, kkk. Depois te conto!' : `Agora não dá, ${v.fala}.`; r = { ...r, fala: v.ja ? r.fala : '' }; }
+        else if (v.forte) { fala = `${v.forte} é pesado pra mim ainda, vou na ${v.c?.nome || 'clareira do meu nível'}. Depois te conto!`; r = { ...r, fala: '' }; }
+        else fala = v.c ? `Partiu ${v.c.nome}! Depois te conto.` : 'Partiu caçar! Depois te conto como foi.';
+        break;
+      }
+      case 'voltar': { // volta para a vila (ou para casa) e larga a caçada sozinha
+        if (noTime) { fala = 'Tô no seu time! Se quiser que eu vá, me tira do time.'; r = { ...r, fala: '' }; break; }
+        if (ia.av && ['ir', 'cacar', 'escolher'].includes(ia.av.fase)) { if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null); Object.assign(ia.av, { fase: 'voltar', c: null, coleta: null }); ia.viagem = null; }
+        fala = 'Beleza, tô voltando pra vila.';
+        break;
+      }
       case 'horta': case 'dungeon': fala = sorteia(FA[r.assunto]); break;
       default: fala = sorteia(F[r.assunto] || F.naoEntendi);
     }
