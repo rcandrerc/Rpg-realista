@@ -10,6 +10,9 @@ extends SceneTree
 var t := 0.0
 var entrou_t := -1.0
 var apertou := false
+var apertou_t := -99.0 # o Entrar volta a aparecer se a entrada demorar (online.gd _voltar_a_tela_inicial): toca de novo
+var n_toques := 0
+var ultimo_estado := ""
 var dur := 600.0
 var saida := ""
 var modo := "sem tela"
@@ -68,8 +71,16 @@ func _process(dt: float) -> bool:
 	if m == null or not ("online" in m) or m.online == null:
 		return false
 	var on = m.online
-	if not apertou and on.b_continuar and on.b_continuar.visible:
+	# o que a tela de entrada diz (para saber onde parou se não entrar)
+	var est := "%s | %s | botão=%s capa=%s" % [on.carregando.text if on.carregando.visible else "", on.aviso_login.text, on.b_continuar.visible if on.b_continuar else "-", on.capa.visible]
+	if est != ultimo_estado:
+		ultimo_estado = est
+		print("CELULAR tela t=%.1f s: %s" % [t, est])
+	if on.b_continuar and on.b_continuar.visible and t - apertou_t > 3.0:
 		apertou = true
+		apertou_t = t
+		n_toques += 1
+		print("CELULAR toque %d em Entrar (t=%.1f s)" % [n_toques, t])
 		on.b_continuar.pressed.emit()
 	if entrou_t < 0.0 and on.rede and on.rede.conectado:
 		entrou_t = t
