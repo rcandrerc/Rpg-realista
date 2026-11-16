@@ -1360,9 +1360,11 @@ func _desenhar_mapa() -> void:
 		_texto(c, bt.position + Vector2(w * 0.5, 39.0), t2, 13, Color(1, 0.96, 0.88, 0.85), true, 3)
 
 # lista da direita (Lugares): cada nome é um botão; o escolhido fica dourado com "Ir para ›"
-func _desenhar_grande(c: Control = null) -> void:
-	if c == null:
-		c = marcas_grande
+func _desenhar_grande() -> void:
+	_desenhar_lista(marcas_grande)
+
+# a lista desenhada em c (o mapa 2D usa marcas_grande; o 3D desenha nas marcas dele, mapa3d.gd)
+func _desenhar_lista(c: Control) -> void:
 	if not totem_de.is_empty(): # mapa do totem: sem a lista
 		return
 	var pp: Rect2 = _painel()

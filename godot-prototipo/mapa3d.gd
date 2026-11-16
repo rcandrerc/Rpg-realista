@@ -927,7 +927,7 @@ func _desenhar() -> void:
 		_botao_teleportar(c, tam, em)
 		return
 	if lw > 0.0:
-		mm._desenhar_grande(c) # a lista de Lugares do 2D, a mesma (sanfona, toque marca, de novo vai)
+		mm._desenhar_lista(c) # a lista de Lugares do 2D, a mesma (sanfona, toque marca, de novo vai)
 	# a mesma legenda dos símbolos do 2D, embaixo à esquerda; no 3D começa fechada (só o botão "Legenda") para não
 	# tapar a maquete, e lembra se foi aberta (estado próprio, o do 2D não muda)
 	var leg_2d: bool = mm.icones.legenda_aberta
