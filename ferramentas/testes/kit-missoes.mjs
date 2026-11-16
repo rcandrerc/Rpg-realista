@@ -3,7 +3,7 @@
 // primeiro pack, ouro da primeira compra e do terreno), o primeiro reforço é grátis. Junta: carrinho, barquinho, navio e
 // toda criação nunca vêm de graça; a etapa vira "Corte Lenha: 0/30" e o Ir leva à fonte.
 // Uso: node ferramentas/testes/kit-missoes.mjs
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, LOJA, precoLoja } from '../../shared/index.js';
 import { etapasDe } from '../../shared/historia.js';
 import { contar, guardar } from '../../shared/progresso.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
@@ -48,7 +48,7 @@ const npc = (id) => MAPA_CLAREIRA.npcs.find((o) => o.id === id);
 {
   const j = novo('a5', etapa('a5', (E) => E.ev === 'comprar'));
   s.kitEtapa(j);
-  ok(j.prog.ouro === 45, `primeira compra sem ouro: a Rosa dá o das 3 poções (${j.prog.ouro})`);
+  ok(j.prog.ouro === 3 * precoLoja(LOJA.find((o) => o.k === 'pocao'), j.prog.nivel), `primeira compra sem ouro: a Rosa dá o das 3 poções (${j.prog.ouro})`); // poção sobe com o nível (2026-11-16)
 }
 // ---------- a11: a vara (material) e a pesca (a vara, no comecinho) ----------
 {

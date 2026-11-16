@@ -18,7 +18,8 @@ import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORT
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
-import { HISTORIA, LOJA } from './dados.js';
+import { HISTORIA } from './dados.js';
+import { LOJA, precoLoja } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -746,7 +747,7 @@ export const Amiga = {
   // completa as poções dela até this.AMIGA.time.pocoes (ela passa na Rosa quando volta para casa)
   pocoesAmiga(j) { // compra na Rosa com o ouro dela, pelo preço da loja (André 2026-11-09: nada de poção de graça)
     this.consertoAmiga(j); // antes da poção: equipamento gasto passa no Tomás
-    const preco = ITENS.pocao.preco || 15;
+    const preco = precoLoja(LOJA.find((o) => o.k === 'pocao'), j.prog.nivel) || ITENS.pocao.preco || 15; // mesmo preço da Rosa (sobe com o nível)
     const falta = Math.min(this.AMIGA.time.pocoes + (j.licoes?.pocoes || 0) - contar(j.prog.mochila, 'pocao'), Math.floor(j.prog.ouro / preco));
     if (falta > 0 && guardar(j.prog.mochila, { k: 'pocao', n: falta })) j.prog.ouro -= falta * preco;
   },
@@ -1220,12 +1221,12 @@ export const Amiga = {
     const campos = (n) => this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + 2)
       .sort((x, y) => (y.nivel || 1) - (x.nivel || 1)).slice(0, 3)
       .map((c) => `${c.nome} (nível ${c.nivel || 1}, ${Math.round(Math.hypot(c.x - a.x, c.z - a.z))} m de você)`).join('; ');
-    const preco = (k) => LOJA.find((o) => o.k === k && !o.r)?.preco ?? ITENS[k]?.preco;
+    const preco = (k, nv = j.prog.nivel) => precoLoja(LOJA.find((o) => o.k === k && !o.r), nv) || ITENS[k]?.preco; // sobe com o nível de quem compra (economia 2026-11-16)
     const E = !j.bot && etapaAtual(j.prog), M = !j.bot && missaoAtual(j.prog);
     const vida = Math.round(100 * (a.vida || 0) / Math.max(1, a.vidaMax || 1));
     return {
       camposDela: campos(a.prog.nivel | 0), camposDele: campos(j.prog.nivel | 0), mapa: this.mapaAmiga(),
-      loja: `poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa; peça de armadura comum ${LOJA.find((o) => o.r === 0)?.preco || 60} e rara ${LOJA.find((o) => o.r === 1)?.preco || 240}; conserto no Tomás (ferreiro)`,
+      loja: `para ${j.nome} (nível ${j.prog.nivel}): poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa (para você, ${preco('pocao', a.prog.nivel)}); peça de armadura comum ${precoLoja(LOJA.find((o) => o.r === 0), j.prog.nivel) || 60} e rara ${precoLoja(LOJA.find((o) => o.r === 1), j.prog.nivel) || 240}; o preço sobe com o nível de quem compra; conserto no Tomás (ferreiro)`,
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
       vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: a.modo === 'Magia' ? 'cajado (magia)' : 'espada',
       sozinha: this.podeSairAmiga(a, j),
@@ -1246,7 +1247,7 @@ export const Amiga = {
     if (a.time && a.time === j.time) return { ok: false, motivo: 'você está no time dele caçando junto', fala: 'tô no seu time, bora caçar junto' };
     if (a.ia.av && ['ir', 'cacar'].includes(a.ia.av.fase)) return { ok: false, motivo: 'você já está caçando', ja: true };
     if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return { ok: false, motivo: 'está fora do seu horário de caçar (de noite você fica na vila até amanhecer)', fala: 'de noite eu não saio, só quando amanhecer' };
-    if (!contar(a.prog.mochila, 'pocao') && a.prog.ouro < (ITENS.pocao.preco || 15)) return { ok: false, motivo: 'você está sem poção e sem ouro', fala: 'tô sem poção e sem ouro' };
+    if (!contar(a.prog.mochila, 'pocao') && a.prog.ouro < (precoLoja(LOJA.find((o) => o.k === 'pocao'), a.prog.nivel) || 15)) return { ok: false, motivo: 'você está sem poção e sem ouro', fala: 'tô sem poção e sem ouro' };
     return { ok: true };
   },
   // a IA decidiu que ela vai caçar sozinha (ele pediu ou ela quis): sai agora; lugar = nome do campo que ela disse, se der

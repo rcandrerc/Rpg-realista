@@ -265,8 +265,9 @@ func contar(k: String) -> int:
 			n += int(o.get("n", 1))
 	return n
 
-func preco_compra(o: Dictionary) -> int:
-	return max(1, int(round(float(o.preco) * (1.0 - mercador().compra))))
+func preco_compra(o: Dictionary) -> int: # poção: preco + porNivel x nível (shared/dados.js precoLoja, André 2026-11-16)
+	var base := float(round(float(o.preco) + float(o.get("porNivel", 0)) * float(maxi(1, int(prog.get("nivel", 1))))))
+	return max(1, int(round(base * (1.0 - mercador().compra))))
 
 # ---------- mochila e equipamento (igual a shared/progresso.js; os dados vêm de shared/dados.js) ----------
 static func item_int(it):
@@ -481,7 +482,8 @@ func custo_conserto(it) -> int:
 	var M := morte_dados()
 	if not eh_equip(it) or durab(it) >= int(M.durMax):
 		return 0
-	return max(1, int(ceil(float(int(M.durMax) - durab(it)) / float(M.durMax) * float(dados.vendaEquip[int(it.r)]) * float(M.conserto))))
+	var inteira: float = float(M.consertoTabela[int(it.r)]) if M.has("consertoTabela") else float(dados.vendaEquip[int(it.r)]) * float(M.conserto) # André 2026-11-16
+	return max(1, int(ceil(float(int(M.durMax) - durab(it)) / float(M.durMax) * inteira)))
 
 # ouro para consertar tudo (corpo e mochila)
 func custo_conserto_tudo() -> int:

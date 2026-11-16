@@ -14,6 +14,7 @@
 //    de metal vira "minere o minério" e depois "funda no forninho". Juntou tudo, volta o texto da etapa (crie, construa).
 //    Nada muda nas etapas gravadas (o índice da etapa é o mesmo): só o texto, o Ir e o guia acompanham o que falta.
 import { ITENS, COLETA, RECEITAS, CONSTRUCOES, FERRAMENTAS_FAZENDA, PACKS, CACA, LOJA, LOTE, PLANTAS, PESCA, DROPS, CATALISADOR, RARIDADES, VEICULOS, CAVERNA_DUNGEON, HORTA, HISTORIA } from './dados.js';
+import { precoLoja } from './dados.js';
 import { contar, guardar, nomeItem, ehEquip, reforcoMax, custoReforco, materialReforco } from './progresso.js';
 import { missaoAtual, etapaAtual, zonaFechadaEm, etapasDe } from './historia.js';
 import { custoPack, capacidadeCarrinho } from './transporte.js';
@@ -197,7 +198,7 @@ export const Kit = {
         const serve = (o) => o && ehEquip(o.k) && reforcoMax(o) > (o.e | 0);
         if (!p.mochila.some(serve) && !Object.values(p.equip || {}).some(serve)) pecas.push({ k: KIT.peca, r: 1 });
       }
-      if (E.ev === 'comprar') { const o = LOJA.find((x) => x.k === E.k && x.r == null); if (o) ouro = Math.max(0, o.preco * (E.n || 1) - (p.ouro || 0)); }
+      if (E.ev === 'comprar') { const o = LOJA.find((x) => x.k === E.k && x.r == null); if (o) ouro = Math.max(0, precoLoja(o, p.nivel) * (E.n || 1) - (p.ouro || 0)); }
       if (E.ev === 'terreno') ouro = Math.max(0, LOTE.ladoMin * LOTE.ladoMin * LOTE.precoBloco - (p.ouro || 0)); // o menor terreno
       if (E.ev === 'pack_fez' && PACKS[E.k]) for (const [k, n] of Object.entries(custoPack(E.k, p.prof.mer))) falta(k, n);
       if (E.ev === 'criar') { const R = receitaDe(E.k); for (const [k, n] of Object.entries(R?.usa || {})) falta(k, n * (E.n || 1)); }

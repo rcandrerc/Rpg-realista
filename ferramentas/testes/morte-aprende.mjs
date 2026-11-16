@@ -3,7 +3,7 @@
 // grande). Vale igual para os 22. Subindo de nível, a lição vai passando. Fica salva com o NPC.
 // Uso: node ferramentas/testes/morte-aprende.mjs
 import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
-import { Simulacao, MAPA_CLAREIRA, CEREBRO, NPC_VIDA } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, CEREBRO, NPC_VIDA, LOJA, precoLoja } from '../../shared/index.js';
 import { licoesValidas, textoLicoes } from '../../shared/amiga.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const M = CEREBRO.morte;
@@ -46,7 +46,7 @@ s.morrer(j); s.passo(0.05);
 ok(j.licoes.pocoes === 1 && j.licoes.recuar === M.passo.recuar && j.licoes.mortes === 2, `sem poção: leva mais; golpe de chefe: recua antes (${JSON.stringify(j.licoes)})`);
 ok(j.licoes.acima === 1, 'chefe não conta como "monstro forte demais" (caça normal continua)');
 const pocoes = j.prog.mochila.filter((o) => o?.k === 'pocao').reduce((a, o) => a + (o.n || 1), 0);
-ok(pocoes === ctx.AMIGA.time.pocoes + 1 || j.prog.ouro < 15, `comprou ${pocoes} poções (uma a mais que antes)`);
+ok(pocoes === ctx.AMIGA.time.pocoes + 1 || j.prog.ouro < precoLoja(LOJA.find((o) => o.k === 'pocao'), j.prog.nivel), `comprou ${pocoes} poções (uma a mais que antes)`);
 
 // 3) não passa do máximo
 for (let i = 0; i < 20; i++) { j.morto = false; j.vida = j.vidaMax; s.passo(0.05); j.ia.ultS = { pertoDeMim: 5, preparoChefe: true }; j.golpeDe = { tipo: 'lobo', nivel: n + 9 }; s.morrer(j); s.passo(0.05); }

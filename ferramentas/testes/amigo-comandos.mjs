@@ -2,7 +2,7 @@
 // A IA pode mandar a Cecília/Dario caçar sozinhos num campo, voltar para a vila, e a ficha leva o jogo de verdade
 // (campos, chefes, loja, missão dele) para ela não inventar. Sem chave: testa o jogo, não a IA.
 // Uso: node ferramentas/testes/amigo-comandos.mjs
-import { Simulacao, MAPA_CLAREIRA, DARIO } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, DARIO, LOJA, precoLoja } from '../../shared/index.js';
 import { register } from 'node:module';
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));
 const { mensagensConversa } = await import('../../server/ia-amiga.js');
@@ -18,7 +18,8 @@ const ultima = () => (b.ia.chatFila || []).at(-1)?.texto || '';
 dia();
 const ctx = dario.contextoAmiga('andre');
 ok(ctx.mapa.includes('Clareira dos Lobos') && ctx.mapa.includes('Dragão de Cinzas'), 'ficha: campos e chefes do mundo');
-ok(/poção de vida 15/.test(ctx.loja), 'ficha: preço certo da poção (15)');
+const pPocao = precoLoja(LOJA.find((o) => o.k === 'pocao'), d.prog.nivel);
+ok(new RegExp(`poção de vida ${pPocao} `).test(ctx.loja), `ficha: preço certo da poção para o nível dele (${pPocao})`);
 ok(ctx.missaoDele && ctx.sozinha?.ok === true, `ficha: missão dele (${ctx.missaoDele}) e pode sair caçar de dia`);
 const msgs = mensagensConversa(ctx, 'onde upar?');
 ok(/Jogo de verdade/.test(msgs[0].content) && /"cacar"/.test(msgs[0].content) && /nunca invente/.test(msgs[0].content), 'prompt: manual do jogo, ação cacar e não inventar');

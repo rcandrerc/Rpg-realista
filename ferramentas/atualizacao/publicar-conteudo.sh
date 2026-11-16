@@ -14,7 +14,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 CODIGO="$1"
-LIMITE_DELTAS=$((60 * 1024 * 1024))
+# André 2026-11-16 (pediu): era 60 MB e a corrente enchia quase todo dia, e aí todo mundo baixava o jogo inteiro
+# (254 MB) de novo. Com 150 MB, o download inteiro vem a cada poucos dias; o celular guarda até ~90 MB a mais.
+LIMITE_DELTAS=$((150 * 1024 * 1024))
 PARTE=45M
 TMP=/tmp/conteudo
 rm -rf "$TMP" && mkdir -p "$TMP/antigo" "$TMP/novo"

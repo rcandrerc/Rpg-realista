@@ -56,10 +56,11 @@ export function fatorDistancia(d) {
   return Math.min(D.max, D.maxCurto + (d - D.curto) * D.porMLongo);
 }
 // fator da área: nível do campo de caça mais perto (até PR.areas.raio m); longe de todos = 1
+// André 2026-11-16 (estudo da economia): com areas.forte, vale o campo mais forte a até forte m (Aurora pagava área 1)
 export function fatorArea(x, z) {
-  let melhor = null, dm = PR.areas.raio;
-  for (const c of CACA) { const d = Math.hypot(c.x - x, c.z - z); if (d < dm) { dm = d; melhor = c; } }
-  const nv = melhor ? melhor.nivel || 1 : 1, A = PR.areas;
+  let melhor = null, dm = PR.areas.raio, forte = 0;
+  for (const c of CACA) { const d = Math.hypot(c.x - x, c.z - z); if (d < dm) { dm = d; melhor = c; } if (PR.areas.forte && d < PR.areas.forte) forte = Math.max(forte, c.nivel || 1); }
+  const nv = PR.areas.forte ? forte || 1 : melhor ? melhor.nivel || 1 : 1, A = PR.areas;
   let f = 1; for (let i = 0; i < A.niveis.length; i++) if (nv >= A.niveis[i]) f = A.fator[i];
   return f;
 }
@@ -213,7 +214,7 @@ export const Transporte = {
       const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k));
       if (lista) lista.splice(i, 1); else p.pack = null;
       mercadoConta(p, n.id, pk.k, agora);
-      p.ouro = (p.ouro || 0) + preco;
+      p.ouro = (p.ouro || 0) + preco; this.caixa?.(j, 'pack', preco);
       this.pontosProf(j, 'mer', preco / 10);
       this.evento({ t: 'pack', para: id, acao: 'entregou', k: pk.k, ouro: preco, navio: (pk.nav || 0) >= PR.navioMin });
       this.historia(j, 'pack', { k: pk.k, npc: n.id, de: m.de });
@@ -409,7 +410,7 @@ export const Transporte = {
       const tem = (k) => (k === 'ouro' ? p.ouro || 0 : contar(p.mochila, k));
       const falta = Object.entries(custo).filter(([k, q]) => tem(k) < q);
       if (falta.length) return aviso('Falta: ' + falta.map(([k, q]) => `${k === 'ouro' ? 'ouro' : ITENS[k].nome} ${tem(k)}/${q}`).join(', '));
-      for (const [k, q] of Object.entries(custo)) if (k === 'ouro') p.ouro -= q; else tirar(p.mochila, k, q);
+      for (const [k, q] of Object.entries(custo)) if (k === 'ouro') { p.ouro -= q; this.caixa?.(j, 'carrinho', -q); } else tirar(p.mochila, k, q);
       c.lv = n; aviso(`Carrinho Nv ${n}! Agora leva ${capacidadeCarrinho(c)} packs.`);
       this.historia(j, 'veiculo', { k: 'melhorar', v: n });
       return pronto();

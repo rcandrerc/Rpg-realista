@@ -412,7 +412,9 @@ export const CACA = [
 // André 2026-11-07 ("mexe no dano dos bichos, pode aumentar mais; a defesa do equipamento igual ao Quimera"): a defesa
 // segue a conta do Quimera (Gl: def / (def + 10 + 3 x nível do monstro), sem teto), o dano cresce 0.32 por nível como
 // no Quimera (era 0.18) e forca 1.8 (era 1.5). Simulador: Nv5 com Rara aguenta 3 Puglins Nv5, com 5 morre.
-export const NIVEL_INIMIGO = { forca: 1.8, resistencia: 1.6, defesaBase: 10, defesaNivel: 3, defesaMax: 1, vida: 0.16, dano: 0.32, xp: 0.5, ouro: 0.15, folga: 5, perde: 0.15, min: 0.1,
+// ouro (André 2026-11-16, estudo da economia): era 0.15 por nível; agora 0.06 (o ouro dos monstros crescia demais e o pack
+// não compensava). A base também cai: ECONOMIA.ouroMonstro.
+export const NIVEL_INIMIGO = { forca: 1.8, resistencia: 1.6, defesaBase: 10, defesaNivel: 3, defesaMax: 1, vida: 0.16, dano: 0.32, xp: 0.5, ouro: 0.06, folga: 5, perde: 0.15, min: 0.1,
   danoAcima: 0.06, danoAbaixo: 0.05, danoAbaixoMin: 0.55, teto: 0.3, tetoChefe: 0.45,
   golpeFolga: 3, golpeCai: 0.06, golpeMin: 0.6, golpeSobe: 0.04, golpeMax: 1.4,
   xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, xpAlemDe: 7, xpAlem: 0.9, corFacil: -3, corForte: 2 };
@@ -725,7 +727,7 @@ const naMina = (x, z, folga = 2.5) => MINA.some((m) => m.id !== 'cobre1' && !m.p
 const naTrilhaLago = (x, z) => pertoDaLinha(TRILHA_LAGO.pontos, x, z).d < 2.4;
 // NPC de resetar a build (o Mestre Ivo do Quimera): devolve os pontos de atributo; as skills ficam (sobem usando).
 // Preço do Quimera: max(500, 50 x nível); aqui o ouro é mais curto, então max(minimo, porNivel x nível).
-export const RESET_BUILD = { minimo: 50, porNivel: 10 };
+export const RESET_BUILD = { minimo: 150, porNivel: 30 }; // André 2026-11-16 (estudo da economia): era 50 e 10
 // Voltar para a vila (André 2026-11-03): botão da casinha no menu do topo. Canalização lenta (canal s, parado; andar,
 // atacar ou levar dano cancela) e o herói aparece na praça. Recarga de cd s (10 min, como no Quimera), guardada na conta:
 // sair e entrar de novo não zera. Dentro da vila (raio vila m do centro) não precisa.
@@ -1231,7 +1233,7 @@ export const MOCHILA = 40; // lugares de UMA página da mochila: 10 x 4 (André 
 // Páginas da mochila (André 2026-11-03): começa com 1 e compra as outras com ouro, uma de cada vez, até 4.
 // PAGINA_PRECO[n] = ouro para liberar a página n+1 (a primeira é de graça). Compra em qualquer lugar, pelo menu.
 export const MOCHILA_PAGINAS = 4;
-export const PAGINA_PRECO = [0, 500, 2000, 6000];
+export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo da economia): era 500, 2000 e 6000
 // Atalhos de teste da conta do André (André 2026-11-11: "quero ser um player normal"). Desligados, o código fica:
 // nivel = botões −10/−1/+1/+10 e "Zerar pontos" no Status (Simulacao.nivelTeste); paginas = as 4 páginas da mochila de graça.
 // devolver: com paginas desligado, a conta de teste volta a ter só as páginas que precisa UMA vez (marca prog.devPag).
@@ -1251,8 +1253,8 @@ export const ITENS = {
   colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6] } },
   espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14] } },
   cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14] } },
-  pocao: { nome: 'Poção de vida', pilha: 20, usar: { vida: 0.35 }, preco: 15, venda: 5, desc: 'Recupera 35% da vida.' },
-  pocao_mana: { nome: 'Poção de mana', pilha: 20, usar: { mana: 0.4 }, preco: 18, venda: 6, desc: 'Recupera 40% da mana.' },
+  pocao: { nome: 'Poção de vida', pilha: 20, usar: { vida: 0.35 }, preco: 20, venda: 5, desc: 'Recupera 35% da vida.' },
+  pocao_mana: { nome: 'Poção de mana', pilha: 20, usar: { mana: 0.4 }, preco: 24, venda: 6, desc: 'Recupera 40% da mana.' },
   tomo: { nome: 'Tomo', pilha: 20, desc: 'Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia.' },
   // materiais (Parte 3: profissões). mat = não se usa, serve para criar coisas (RECEITAS) ou vender
   minerio_ferro: { nome: 'Minério de ferro', mat: true, pilha: 50, venda: 2, desc: 'Sai dos veios de ferro. Na forja, 3 viram uma barra.' },
@@ -1291,11 +1293,15 @@ export const ITENS = {
 };
 // Recarga das poções (André 2026-11-06): segundos entre uma poção e outra do mesmo tipo (vida e mana contam separado).
 export const POCAO_RECARGA = 10;
-export const VENDA_EQUIP = [20, 80, 250, 700, 2000]; // quanto a loja paga por raridade
+// André 2026-11-16 (estudo da economia): a Rosa pagava 20 e 80 por Comum e Rara (vindas dos monstros); agora 6 e 25.
+// Épico para cima só sai criando e fica igual. O conserto não usa mais esta tabela (MORTE.consertoTabela).
+export const VENDA_EQUIP = [6, 25, 250, 700, 2000]; // quanto a loja paga por raridade
 // Penalidade de morte (André 2026-11-05): quem cai perde `ouro` do ouro que carrega e cada peça equipada perde `desgaste`
 // de durabilidade (de durMax). Peça com 0 fica Quebrada: continua no corpo, mas não dá bônus (nem conta para o conjunto)
 // até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
-export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3, xp: 0.05 }; // xp (André 2026-11-11): perde 5% do XP que já tem no nível atual (nunca cai de nível)
+// consertoTabela (André 2026-11-16, estudo da economia): ouro da peça inteira por raridade, no lugar de VENDA_EQUIP x conserto
+// (conserto 0.3 fica para quem não tiver a tabela)
+export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3, xp: 0.05, consertoTabela: [30, 120, 450, 1500, 4500] }; // xp (André 2026-11-11): perde 5% do XP que já tem no nível atual (nunca cai de nível)
 // Reforço de equipamento (igual ao Quimera, André 2026-11-07): toque na peça e em "Reforçar". Cada tentativa custa ouro e
 // pode falhar. Números do Quimera (index.html: Sh = chance, Th = custo, Rh = bônus, mgGNeed = atributo):
 // - max: até onde cada raridade vai, igual ao Quimera (André 2026-11-07: "faz igual Quimera"): Comum não reforça,
@@ -1316,7 +1322,7 @@ export const REFORCO = {
   // 1 até o +10, 2 até o +20, 3 até o +30, 4 até o +40 (porFaixa: de quantos em quantos + sobe 1).
   material: { k: 'tecido', porFaixa: 10 },
 };
-export const VENDA_TOMO = 30; // x nível do Tomo
+export const VENDA_TOMO = 15; // x nível do Tomo (André 2026-11-16: era 30)
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 // Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
 // 2 peças: vida e mana; 3: dano (e defesa); 6: crítico, área das skills e regeneração de mana. Vale o melhor de cada.
@@ -1328,10 +1334,18 @@ export const CONJUNTO = [
   { 2: { vida: 70, mana: 60 }, 3: { danoK: 0.3, defesa: 30 }, 6: { critico: 0.08, areaK: 0.35, regenManaK: 0.7 } },
 ];
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
+// André 2026-11-16 (estudo da economia: tudo custava menos que poucos minutos de caça): poção 15 e 18 viram
+// preco + porNivel x nível de quem compra (precoLoja); peça Comum 60 -> 150 e Rara 240 -> 900.
 export const LOJA = [
-  { k: 'pocao', preco: 15 }, { k: 'pocao_mana', preco: 18 },
-  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 60 }, { k, r: 1, preco: 240 }]),
+  { k: 'pocao', preco: 20, porNivel: 2 }, { k: 'pocao_mana', preco: 24, porNivel: 2.4 },
+  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 150 }, { k, r: 1, preco: 900 }]),
 ];
+// preço de um item da loja para quem está no nível nv (antes do desconto do Mercador)
+export const precoLoja = (o, nv = 1) => Math.round((o?.preco || 0) + (o?.porNivel || 0) * Math.max(1, nv | 0));
+// Economia (André 2026-11-16, estudo em claude.ai/artifact/UWEQY9d7iWXwipr7pdXYKd): ouroMonstro = parte do ouro de base
+// dos monstros (DROPS) que cai (era tudo); o resto da proposta está nos próprios números (NIVEL_INIMIGO.ouro,
+// VENDA_EQUIP, VENDA_TOMO, LOJA, MORTE.consertoTabela, RESET_BUILD, PAGINA_PRECO, PACK_REGRAS.k e areas.forte).
+export const ECONOMIA = { ouroMonstro: 0.6 };
 export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 export const LOJA_MAX = 999; // compra várias de uma vez (André 2026-11-07): até quantas por toque em Comprar
 // Troca entre jogadores (como no Quimera, André 2026-11-04): pedir perto, cada um põe itens e ouro, tranca a oferta
@@ -1839,10 +1853,12 @@ export const PACKS = {
 // "cai" por entrega, no mínimo "minimo". mercador: Nv 20 de Mercador = -15% de material e +25% no preço.
 // vigor: o que custa fazer um pack. navio: entrega que atravessou o mar no porão do navio (regra do André: a troca mais
 // cara do jogo) vale "navio" vezes mais; conta se o navio andou ao menos "navioMin" m com o pack no porão.
+// k (André 2026-11-16, estudo da economia: o pack tem que render mais que caçar): era 1.4. areas.forte: a área do mercador
+// vira a do campo de caça mais forte a até forte m (antes: o mais perto a até raio m; Aurora pagava área 1).
 export const PACK_REGRAS = {
-  k: 1.4, extra: 1.2, perto: 40, vigor: 12,
+  k: 2.4, extra: 1.2, perto: 40, vigor: 12,
   dist: { curto: 462, a: 0.3, porM: 1 / 140, maxCurto: 3.6, porMLongo: 1 / 500, max: 6 },
-  areas: { niveis: [1, 10, 30, 50, 70], fator: [1, 1.8, 2.9, 4.3, 5.9], raio: 60 },
+  areas: { niveis: [1, 10, 30, 50, 70], fator: [1, 1.8, 2.9, 4.3, 5.9], raio: 60, forte: 250 },
   mercado: { livres: 4, cai: 0.03, minimo: 0.5, volta: 360 },
   mercador: { material: 0.15, preco: 0.25 },
   navio: 1.5, navioMin: 30,
