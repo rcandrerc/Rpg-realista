@@ -63,6 +63,7 @@ var b_eu := Rect2()
 var b_ir := Rect2()
 var b_lista := Rect2()
 var b_tp := Rect2() # "Teleportar" do totem escolhido
+var totens_ao_ficar_pronto := false # encostou no totem com a maquete ainda montando
 var lista_aberta := true # lista de Lugares na direita (como no 2D); o botão no alto esconde
 # áreas de plantio (camada do filtro do mapa, André 2026-11-16): pinheirinhos em fileiras (antes quadradinhos amarelos)
 var _quads_plantio := {} # lido na linha principal antes de montar no fundo
@@ -166,7 +167,10 @@ func _process(dt: float) -> void:
 				pronto = true
 				if visible:
 					_ligar()
-		elif not visible and m.heroi != null and mm.get("modo_3d") == true and not g.is_empty():
+					if totens_ao_ficar_pronto and not mm.totem_de.is_empty():
+						ver_totens()
+				totens_ao_ficar_pronto = false
+		elif not visible and m.heroi != null and not g.is_empty():
 			_t_jogo += minf(dt, 0.1) # quadro longo do carregamento não conta
 			if _t_jogo > PREPARAR_APOS:
 				preparar()
@@ -1409,13 +1413,12 @@ func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 	c.draw_arc(cx, 15.0, 0, TAU, 32, COR_OURO, 1.5, true)
 	c.draw_line(cx + Vector2(-6, -6), cx + Vector2(6, 6), Color(1, 0.95, 0.85), 2.5, true)
 	c.draw_line(cx + Vector2(6, -6), cx + Vector2(-6, 6), Color(1, 0.95, 0.85), 2.5, true)
-	b_2d = Rect2(Vector2(tam.x - 170.0, 6.0), Vector2(110, 36))
-	_botao(c, b_2d, "Mapa 2D")
-	b_eu = Rect2(Vector2(tam.x - 300.0, 6.0), Vector2(118, 36))
+	b_2d = Rect2() # sem o botão "Mapa 2D": só o 3D (André 2026-11-16, "remoção aprovada")
+	b_eu = Rect2(Vector2(tam.x - 180.0, 6.0), Vector2(118, 36))
 	_botao(c, b_eu, "Onde estou")
 	b_lista = Rect2()
 	if not tm and pronto: # mostra e esconde a lista de Lugares
-		b_lista = Rect2(Vector2(tam.x - 420.0, 6.0), Vector2(108, 36))
+		b_lista = Rect2(Vector2(tam.x - 300.0, 6.0), Vector2(108, 36))
 		_botao(c, b_lista, "Esconder lista" if lista_aberta else "Lugares", 15 if lista_aberta else 17)
 	var cz := Vector2((tam.x - lw) * 0.5, tam.y - 34.0)
 	b_menos = Rect2(cz - Vector2(62, 22), Vector2(58, 44))
