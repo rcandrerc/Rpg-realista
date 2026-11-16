@@ -856,8 +856,8 @@ function paginaRobo(lista) {
 <p><b>FPS</b> ${n(M.fps)} · <b>Travadas</b> ${n(M.travadas?.acima100)} acima de 100 ms, ${n(M.travadas?.acima250)} acima de 250 ms, ${n(M.travadas?.acima1000)} acima de 1 s · <b>Memória</b> ${n(M.mem_max, ' MB')}</p>
 <ul>${Object.entries(M.trechos || {}).map(([t, T]) => `<li><b>${esc(t)}</b>: ${n(T.fps)} FPS, quadro ${n(T.p50, ' ms')} (5% piores ${n(T.p95, ' ms')}, pior ${n(T.pior, ' ms')}), scripts ${n(T.proc, ' ms')}, ${n(T.cham)} chamadas, ${n(T.tri)} mil triângulos</li>`).join('')}</ul>`).join('');
     const real = r.real ? `<p><b>Celulares de verdade (Alta, últimos minutos)</b>: ${n(r.real.fps)} FPS, scripts ${n(r.real.proc, ' ms')}, placa ${n(r.real.gpu, ' ms')}, pior quadro ${n(r.real.pior, ' ms')}</p>` : '';
-    return `<section><h2>📱 Robô 2 (app como no Poco X7) · ${hora(r.inicio)} até ${hora(r.ultimo)}</h2>${modos}${real}
-<p style="opacity:.75">Sem placa de vídeo de celular: "sem tela" mede o processador; o Vulkan por software desenha bem mais devagar que o celular.</p>
+    return `<section><h2>📱 ${r.fisico ? 'Celular de verdade (Firebase Test Lab)' : 'Robô 2 (app como no Poco X7)'} · ${hora(r.inicio)} até ${hora(r.ultimo)}</h2>${modos}${real}
+${r.fisico ? '' : '<p style="opacity:.75">Sem placa de vídeo de celular: "sem tela" mede o processador; o Vulkan por software desenha bem mais devagar que o celular.</p>'}
 ${probs ? `<h3>Achados</h3><ul>${probs}</ul>` : '<p>Nenhum problema achado.</p>'}</section>`;
   };
   const cartao = (r) => {

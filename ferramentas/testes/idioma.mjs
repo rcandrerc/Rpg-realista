@@ -55,7 +55,7 @@ ok(D?.['Mestre Ivo · Resetar build']?.startsWith('Master Ivo'), 'nome próprio 
   const PT = /[ãõçáéíóúâêôà]|\b(de|do|da|dos|das|para|com|não|você|seu|sua|uma|que|ao|no|na|em|pra|sem|aqui|toque|fale)\b/i;
   // fora da trava: abertura do APK (tem o inglês dela em inicio.gd), comandos de voz (palavras que o jogador fala),
   // logs de carregamento e o painel "Teste" de desempenho (só do André, números por quadro)
-  const PULAR_ARQ = new Set(['inicio.gd', 'voz.gd', 'aquecer.gd', 'idioma.gd', 'lentidao.gd']);
+  const PULAR_ARQ = new Set(['inicio.gd', 'voz.gd', 'aquecer.gd', 'idioma.gd', 'lentidao.gd', 'robo_celular.gd']); // robo_celular.gd: só o robô de teste lê (log e página /robo)
   const PULAR = new Set(['Cecília', 'Português', 'LOD das malhas', 'Resolução cheia 1.0x', 'Sem sombra', 'Sem grama', 'Resolução menor 0.45x',
     'Sem mato alto', 'Sem personagens', 'Sem limite de FPS', 'Sem interface', 'Herói sem animação', 'Sem monstros',
     '%s: %.0f FPS · física %.1f · lógica %.1f · espera %.1f ms', '%s: %.0f FPS · física %.1f · lógica %.1f · desenho %.1f · espera %.1f · placa %.1f ms']);
