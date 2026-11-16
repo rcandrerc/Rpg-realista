@@ -222,6 +222,46 @@ func _partes(o: Dictionary) -> Array:
 			l.append({"mesh": mi.mesh, "t": gt, "mat": mat})
 	return l
 
+# Tocos (André 2026-11-16, árvores que voltam em 24 h): agora ficam muitos no mundo ao mesmo tempo. As malhas são
+# feitas uma vez por tamanho e repartidas por todos os tocos (antes cada toco fazia as suas 5), e o toco longe não é
+# desenhado (TOCO_LONGE).
+const TOCO_LONGE := 60.0 # m
+var _malhas_tocos := {} # tamanho (x10) -> [casca, corte, raiz]
+func _malhas_do_toco(s: float) -> Array:
+	var k := roundi(s * 10.0)
+	if _malhas_tocos.has(k):
+		return _malhas_tocos[k]
+	s = k / 10.0
+	var casca := CylinderMesh.new()
+	casca.top_radius = 0.24 * s
+	casca.bottom_radius = 0.33 * s
+	casca.height = 0.42 * s
+	casca.radial_segments = 10
+	casca.rings = 1
+	casca.cap_top = false
+	var corte := CylinderMesh.new()
+	corte.top_radius = 0.235 * s
+	corte.bottom_radius = 0.235 * s
+	corte.height = 0.03
+	corte.radial_segments = 10
+	corte.rings = 1
+	var r := CylinderMesh.new()
+	r.top_radius = 0.03 * s
+	r.bottom_radius = 0.09 * s
+	r.height = 0.45 * s
+	r.radial_segments = 6
+	r.rings = 1
+	_malhas_tocos[k] = [casca, corte, r]
+	return _malhas_tocos[k]
+
+func _peca_toco(mesh: Mesh, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.visibility_range_end = TOCO_LONGE
+	mi.visibility_range_end_margin = 4.0
+	return mi
+
 # toco: casca por fora, madeira clara no corte (o tronco continua ocupando o chão)
 func _toco(o: Dictionary) -> Node3D:
 	if _mat_toco == null:
@@ -240,42 +280,18 @@ func _toco(o: Dictionary) -> Node3D:
 	raiz.rotation.y = float(hash(o.id) % 628) / 100.0
 	add_child(raiz)
 	var alto := 0.42 * s
-	var casca := CylinderMesh.new()
-	casca.top_radius = 0.24 * s
-	casca.bottom_radius = 0.33 * s
-	casca.height = alto
-	casca.radial_segments = 10
-	casca.rings = 1
-	casca.cap_top = false
-	var mc := MeshInstance3D.new()
-	mc.mesh = casca
-	mc.material_override = _mat_toco
+	var ms: Array = _malhas_do_toco(s)
+	var mc := _peca_toco(ms[0], _mat_toco)
 	mc.position.y = alto * 0.5 - 0.05
 	raiz.add_child(mc)
 	# o corte, um pouco inclinado (machadada de lado)
-	var corte := CylinderMesh.new()
-	corte.top_radius = 0.235 * s
-	corte.bottom_radius = 0.235 * s
-	corte.height = 0.03
-	corte.radial_segments = 10
-	corte.rings = 1
-	var mt := MeshInstance3D.new()
-	mt.mesh = corte
-	mt.material_override = _mat_corte
+	var mt := _peca_toco(ms[1], _mat_corte)
 	mt.position.y = alto - 0.05
 	mt.rotation.x = deg_to_rad(6.0)
 	raiz.add_child(mt)
 	# três raízes saindo do pé
 	for i in 3:
-		var r := CylinderMesh.new()
-		r.top_radius = 0.03 * s
-		r.bottom_radius = 0.09 * s
-		r.height = 0.45 * s
-		r.radial_segments = 6
-		r.rings = 1
-		var mr := MeshInstance3D.new()
-		mr.mesh = r
-		mr.material_override = _mat_toco
+		var mr := _peca_toco(ms[2], _mat_toco)
 		var a := i * TAU / 3.0 + 0.4
 		mr.position = Vector3(cos(a) * 0.3 * s, 0.03, sin(a) * 0.3 * s)
 		mr.rotation = Vector3(0, -a, deg_to_rad(-110.0)) # grossa no pé do toco, fina entrando no chão

@@ -12,7 +12,8 @@
 // Ele nunca negocia, não compra terreno, não conversa (o servidor também barra: ROBO_NAO em server/index.js).
 import fs from 'node:fs';
 import { Client } from 'colyseus.js';
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
+import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
@@ -138,7 +139,13 @@ function lerEvento(e) {
     const k = String(e.texto || '').replace(/\d+/g, '#').slice(0, 70);
     R.avisos[k] = (R.avisos[k] || 0) + 1;
     ultimoAviso = e.texto;
+    if (/^Mochila cheia/.test(String(e.texto || ''))) cheioT = Date.now();
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
+  else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
+    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; R.viagens = (R.viagens || 0) + 1; }
+    else if (e.fase === 'cancela') viajandoAte = 0;
+  } else if (e.t === 'leilao') leilaoInfo = e;
+  else if (e.t === 'pesca') { pescaT = Date.now(); pescaSt = e.st === 'fim' || e.st === 'pegou' ? '' : e.st; if (e.st === 'pegou') { R.peixes = (R.peixes || 0) + 1; falarT = Date.now(); } if (e.st === 'fim') falarT = Date.now(); }
   else if (e.t === 'reinicio') reinicioT = Date.now();
 }
 
@@ -213,9 +220,99 @@ function cacar(agora) {
   if (irPara(campoCaca.x + (Math.random() - 0.5) * 6, campoCaca.z + (Math.random() - 0.5) * 6, 4)) parar();
 }
 
+// ---------- mochila cheia: vende com o vendedor aberto mais perto (André 2026-11-16: o robô passava o turno com a
+// mochila cheia, 10 mil avisos "Mochila cheia"). Fica com poções, ferramentas, veículos, itens trancados e o que a
+// etapa pede; vende as peças de equipamento e as pilhas repetidas; se ainda faltar lugar, as pilhas mais baratas.
+let cheioT = 0, vendaAte = 0, vendaT = 0;
+const tem = (k) => (prog?.mochila || []).some((o) => o && o.k === k);
+function protegido(o) {
+  if (!o || o.cad) return true;
+  if (FERRAMENTAS_FAZENDA[o.k] || ITENS[o.k]?.usar?.veiculo || o.k === 'pocao' || o.k === 'pocao_mana') return true;
+  return !!hi?.k && o.k === hi.k;
+}
+function listaVenda(m) {
+  const vistos = new Set(), l = [];
+  m.forEach((o, i) => { if (protegido(o)) return; if (ehEquip(o.k) || vistos.has(o.k)) l.push(i); else vistos.add(o.k); });
+  if (m.filter((o) => !o).length + l.length < 4) {
+    const resto = m.map((o, i) => [o, i]).filter(([o, i]) => o && !protegido(o) && !l.includes(i)).sort((a, b) => (ITENS[a[0].k]?.venda || 0) - (ITENS[b[0].k]?.venda || 0));
+    for (const [, i] of resto.slice(0, 6)) l.push(i);
+  }
+  return l;
+}
+function vendedorPerto() {
+  let b = null, md = Infinity;
+  for (const n of MAPA_CLAREIRA.npcs) {
+    if (n.funcao !== 'loja' && !(n.acoes || []).includes('vender')) continue;
+    if (prog && zonaFechadaEm(prog, n.x, n.z)) continue;
+    const d = d2(eu, n); if (d < md) { md = d; b = n; }
+  }
+  return b;
+}
+function vender(agora) {
+  const m = prog?.mochila; if (!m) return false;
+  if (!vendaAte) {
+    if (m.some((o) => !o) && m.filter((o) => !o).length >= 2 && agora - cheioT > 60e3) return false;
+    if (!listaVenda(m).length) return false;
+    vendaAte = agora + 6 * 60e3; vendaT = 0; log('mochila cheia: vai vender');
+  }
+  if (agora > vendaAte) { vendaAte = 0; cheioT = 0; problema('Mochila cheia: não conseguiu chegar num vendedor em 6 min'); return false; }
+  const v = vendedorPerto(); if (!v) { vendaAte = 0; return false; }
+  if (!irPara(v.x, v.z, 2.5)) return true;
+  parar();
+  if (agora - vendaT < 3000) return true;
+  vendaT = agora;
+  const l = listaVenda(m);
+  if (l.length) { acao('item', { acao: 'vender_varios', lista: l }); R.vendas = (R.vendas || 0) + 1; }
+  vendaAte = 0; cheioT = 0;
+  return true;
+}
+
+// ---------- pesca: fica na beira seca, a uns 4 m do spot, lança no meio dele, puxa quando fisga ----------
+let pescaSt = '', pescaT = 0, beira = null, puxarT = 0;
+function acharBeira(sx, sz) {
+  let b = null, md = Infinity;
+  for (const r of [3.4, 4, 4.6]) for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2, x = sx + Math.cos(a) * r, z = sz + Math.sin(a) * r;
+    if ((noLago(x, z)?.fundo || 0) > 0.05) continue;
+    const d = Math.hypot(x - eu.x, z - eu.z); if (d < md) { md = d; b = { x, z, sx, sz }; }
+  }
+  return b;
+}
+function passoPesca(agora) { // a cada tick: o peixe fisgado tem menos de 1 s de janela
+  if (pescaSt && agora - pescaT > 30e3) { pescaSt = ''; beira = null; } // o servidor recusou o lançamento (aviso) ou a linha sumiu
+  if (pescaSt === 'fisgou') { pescaSt = 'puxou'; mandar('pescar', { acao: 'puxar' }); }
+  else if (pescaSt === 'briga' && agora - puxarT > 95) { puxarT = agora; mandar('pescar', { acao: 'puxar' }); }
+}
+
+// ---------- leilão (Casa do Comércio): o robô não mexe na economia de ninguém. Anuncia pelo preço máximo e cancela
+// logo em seguida (ninguém compra), compra só dos anúncios da casa e retira o ouro que o Otávio deixa na caixa ----------
+let leilaoInfo = null;
+function leilao(agora) {
+  const a = hi?.alvo;
+  if (a && !irPara(a.x, a.z, 2.5)) return;
+  parar();
+  if (agora - falarT < 3500) return;
+  falarT = agora;
+  const meu = leilaoInfo?.meus?.[0];
+  if (meu) { acao('leilao', { acao: 'cancelar', id: meu.id }); return; }
+  if (hi.de === 'anunciar') {
+    const m = prog.mochila || [];
+    let i = m.findIndex((o) => o && !protegido(o) && !ehEquip(o.k)); if (i < 0) i = m.findIndex((o) => o && !protegido(o));
+    if (i < 0) return pular('nada na mochila para anunciar no leilão');
+    acao('leilao', { acao: 'anunciar', i, preco: LEILAO.precoMax, horas: LEILAO.horas[0] }); return;
+  }
+  if (hi.de === 'comprar') {
+    if (!leilaoInfo) { acao('leilao', { acao: 'ver' }); return; }
+    const l = (leilaoInfo.lista || []).filter((x) => x.casa && x.preco <= (prog.ouro || 0)).sort((x, y) => x.preco - y.preco);
+    if (!l.length) { leilaoInfo = null; return pular(`sem ouro para comprar da casa no leilão (${prog.ouro || 0} de ouro)`); }
+    acao('leilao', { acao: 'comprar', id: l[0].id }); leilaoInfo = null; return;
+  }
+  acao('leilao', { acao: 'retirar' });
+}
+
 // ---------- missões ----------
-let xpGrind = -2, etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, naoSabeT = 0;
-const NAO_SABE = new Set(['dormir', 'plantar', 'regar', 'colher', 'construir', 'terreno', 'pack', 'pack_fez', 'veiculo', 'pesca', 'time', 'leilao', 'sintetizar', 'destruir', 'evoluir', 'reforcar', 'passe', 'resetar', 'arma', 'ter', 'lote']);
+let xpGrind = -2, etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, naoSabeT = 0, viajandoAte = 0;
+const NAO_SABE = new Set(['dormir', 'plantar', 'regar', 'colher', 'construir', 'terreno', 'pack', 'pack_fez', 'veiculo', 'time', 'sintetizar', 'destruir', 'evoluir', 'reforcar', 'passe', 'resetar', 'arma', 'ter', 'lote']);
 function pular(motivo) {
   if (!prog?.hist) return;
   const M = HISTORIA[prog.hist.p];
@@ -253,6 +350,26 @@ function missao(agora) {
   if (NAO_SABE.has(ev)) { if (!naoSabeT) naoSabeT = agora; if (agora - naoSabeT > 8000) { naoSabeT = 0; pular(`o robô ainda não sabe fazer "${ev}"`); } return; }
   naoSabeT = 0;
   if (ev === 'atributo' || prog.pontos > 0) { const n = prog.pontos | 0; if (n > 0) { const f = Math.ceil(n / 2); acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; } if (ev === 'atributo') return; }
+  if (ev === 'viajar' && a) { // "use o totem para ir a...": chega perto do totem e pede a viagem (canaliza parado)
+    if (!irPara(a.x, a.z, 3)) return;
+    parar();
+    if (agora < viajandoAte || agora - falarT < 3000) return;
+    falarT = agora; viajandoAte = agora + (TOTENS.canal + 3) * 1000;
+    acao('totem', { para: hi.k }); return;
+  }
+  if (ev === 'leilao') return leilao(agora);
+  if (ev === 'pesca') {
+    if (!tem('vara')) { if (agora - falarT > 5000) { falarT = agora; acao('fabricar', { k: 'vara', n: 1 }); } return; }
+    if (!a) return cacar(agora); // spot do mar sem radar: o servidor ainda não diz onde
+    if (pescaSt) return; // linha na água
+    if (!beira || beira.sx !== a.x || beira.sz !== a.z) beira = acharBeira(a.x, a.z);
+    if (!beira) return pular('não achou beira seca perto do spot de pesca');
+    if (!irPara(beira.x, beira.z, 0.5)) return;
+    parar();
+    if (agora - falarT < 2500) return;
+    falarT = agora; pescaSt = 'lancou'; pescaT = agora;
+    acao('pescar', { acao: 'lancar', x: a.x, z: a.z }); return;
+  }
   if (ev === 'montar') { if (!eu.montado && agora - falarT > 3000) { falarT = agora; acao('montar'); } return; }
   if (ev === 'barra') { if (agora - falarT > 3000) { falarT = agora; acao('barra', { barra: 'espada', lista: prog.barras?.espada || [] }); } return; }
   if (ev === 'item' && a) { // coletar: o veio, a árvore ou a pedrinha mais perto do Ir
@@ -358,7 +475,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) missao(agora); } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vender(agora)) missao(agora); } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);

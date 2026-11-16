@@ -1329,6 +1329,8 @@
 "Consertar o quebrado: 8 lenha + 1 barra de ferro": "Repair the broken cart: 8 firewood + 1 iron bar",
 "Dirigir": "Drive",
 "Melhorar pro Nv %d (%d packs, na bancada): %s": "Upgrade to Lv %d (%d packs, at the workbench): %s",
+"Melhorar pro Nv %d · %d packs · na bancada": "Upgrade to Lv %d · %d packs · at the workbench",
+"Consertar o quebrado": "Repair the broken cart",
 "Guardar": "Store",
 "Tanque cheio": "Tank full",
 "Sem combustível na mochila (crie na bancada: 2 carvão + 1 tecido)": "No fuel in your inventory (craft at the workbench: 2 charcoal + 1 cloth)",
@@ -3263,6 +3265,9 @@
 "Baixando a voz: {1}%": "Downloading voice: {1}%",
 "Não deu para baixar a voz": "Couldn't download the voice",
 "Travar câmera": "Lock camera",
+"Visão": "View",
+"Do alto": "Top-down",
+"Costas": "Behind",
 "A voz baixa 32 MB. Ligue de novo para baixar": "Voice needs 32 MB. Turn on again to download",
 "Instalando a voz...": "Installing voice...",
 "Ataque parou: {1}": "Attack stopped: {1}",
@@ -3396,5 +3401,11 @@
 "Pedir": "Request",
 "Pedido já enviado para {1}": "Request already sent to {1}",
 "Não deu para enviar o pedido agora": "Couldn't send the request right now",
-"Pedidos de amizade: {1}": "Friend requests: {1}"
+"Pedidos de amizade: {1}": "Friend requests: {1}",
+"Mundo de Aethra": "World of Aethra",
+"Mapa 2D": "2D Map",
+"Mapa 3D": "3D Map",
+"Onde estou": "Where am I",
+"Montando o mapa…": "Building the map…",
+"Ir para (%d m)": "Go to ({1} m)"
 }

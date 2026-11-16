@@ -205,6 +205,20 @@ func _preparar_corpos() -> void:
 			_fila_corpos.append(["roupa", c, r])
 		for d in pent.get(c, []):
 			_fila_corpos.append(["penteado", c, str(d)])
+	# registros do celular 2026-11-15: o Velado Caçador (chefe humano, corpo shibu_sombrio) travava o jogo ~1 s quando
+	# aparecia (rx:inimigos 970 a 1510 ms): a primeira roupa num corpo novo monta as peças (no PC 534 ms; depois 7 ms).
+	# Atrás da capa, cada corpo de chefe humano da história veste a roupa dele uma vez.
+	var chefes = m.P.dados.get("historia", {}).get("chefes", {}) if m.P and m.P.dados is Dictionary else {}
+	if chefes is Dictionary:
+		for hc in chefes:
+			var H = chefes[hc].get("humano") if chefes[hc] is Dictionary else null
+			if not (H is Dictionary) or not ResourceLoader.exists("res://modelos/%s.glb" % str(H.get("modelo", ""))):
+				continue
+			var mod := str(H.modelo)
+			if not mod in corpos:
+				corpos.append(mod)
+				_fila_corpos.append(["boneco", mod, ""])
+			_fila_corpos.append(["roupa", mod, str(H.get("roupa", ""))])
 	_fila_corpos.append(["fim", "", ""])
 	_corpos_t = 0.0
 	_corpos_us = 0
