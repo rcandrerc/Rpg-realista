@@ -3,6 +3,7 @@
 import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
+import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -552,6 +553,7 @@ export function progressoValido(p) {
   if (TOTENS.lista.some((t) => t.id === p.totem)) n.totem = p.totem;
   // missões principais (André 2026-11-10, shared/historia.js): conta de antes da progressão ganha as missões até o nível dela
   n.hist = histValida(p.hist, n.nivel);
+  { const d = diariasValidas(p.diarias); if (d) n.diarias = d; } // missões diárias de hoje (shared/diarias.js)
   // títulos (André 2026-11-12): os ganhos e o em uso; e quantos monstros já derrubou (títulos de caça)
   n.tit = titValido(p.tit);
   n.abates = int(p.abates, 0, 1e9, 0);

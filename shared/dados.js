@@ -3462,6 +3462,15 @@ export const HISTORIA = [
       { ev: 'falar', npc: 'comerciante', txt: 'Conte para a Rosa que a carga foi salva' },
     ],
     pronto: 'Você fez isso por mim? ...Fique com o ouro do pack, você mereceu. Quando eu tiver carroça de novo, a casa te paga.' },
+  // Diárias (André 2026-11-16): a Rosa apresenta a aba Diárias; quem já passou daqui vê a aba do mesmo jeito (Nv 8)
+  { id: 'd1', cap: 5, nv: 12, npc: 'comerciante', nome: 'Tarefas do dia', libera: [],
+    pedido: 'A vila precisa de mãos todo dia! Veja as Diárias no menu de Missões. Toma estas sementes: plantar árvore também conta.',
+    recebe: { semente_betula: 4 },
+    etapas: [
+      { ev: 'diaria_vista', txt: 'Abra Missões > Diárias' },
+      { ev: 'diaria', txt: 'Termine 1 diária' },
+    ],
+    pronto: 'Viu? Todo dia tem trabalho e prêmio. Volte amanhã: as Diárias se renovam à meia-noite.' },
   { id: 'a15', cap: 5, nv: 12, npc: 'ferreiro', nome: 'Melhor que novo', libera: [],
     pedido: 'Peça velha não se joga fora: se destrói, e sai catalisador. Com catalisador a gente evolui uma peça para Rara. E reforço... reforço é a alma do ferro. Toma um Selo Raro para começar.',
     recebe: { selo_raro: 1 },
@@ -4028,6 +4037,16 @@ export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 };
 // só o tempo (h = horas até ficar adulta). lenha = quanto dá a árvore inteira (as 3 machadadas dão 1 cada e a última
 // dá o resto); da = o que sai junto; raro = chance de algo a mais. v e copa: modelo e cor da copa no celular (provisório:
 // as 3 árvores da mata, até o André escolher os modelos novos na foto lado a lado). s = tamanho da adulta.
+// Missões diárias (André 2026-11-16): as 4 valem uma vez por dia e viram à meia-noite de Brasília (fuso -3 h, sem
+// horário de verão). Aparecem a partir do Nv nivel (a pesca já existe). Prêmio de cada uma: ouro (ouro + ouroNv x nível)
+// e uma fração do XP do nível (xp). Fazendo as 4 no dia: bônus de ouro. ev: o que conta (Simulacao.historia);
+// tipos: só esses coletáveis contam (corte e minério, sem galho nem pedra solta); ir: para onde o "Ir" leva.
+export const DIARIAS = { nivel: 8, fuso: -3, ouro: 30, ouroNv: 3, xp: 0.08, bonus: 100, lista: [
+  { id: 'arvores', ev: 'arvore', n: 4, txt: 'Plante 4 árvores', ir: 'plantio' },
+  { id: 'monstros', ev: 'matar', n: 20, txt: 'Derrube 20 monstros', ir: 'caca' },
+  { id: 'peixes', ev: 'pesca', n: 5, txt: 'Pesque 5 peixes', ir: 'pesca' },
+  { id: 'coleta', ev: 'coleta', n: 15, tipos: ['arvore', 'pedra', 'cobre', 'ferro', 'cristal'], txt: 'Corte ou minere 15 vezes', ir: 'coleta' },
+] };
 export const ARVORES_PLANTIO = {
   betula: { nome: 'Bétula', h: 4, semente: 3, lenha: 5, v: 1, copa: '#c4dc7c', tronco: '#e6e0d2', s: 0.85, desc: 'Tronco branco. Cresce rápido.' },
   carvalho: { nome: 'Carvalho', h: 8, semente: 5, lenha: 8, v: 0, copa: '#6a9a40', s: 1.05, desc: 'A comum, de copa larga.' },

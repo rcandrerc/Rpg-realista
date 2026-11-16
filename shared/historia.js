@@ -102,13 +102,15 @@ export function histValida(h, nivel) {
     if (i >= 0 && i + 1 !== p) return { ...histNova(), p: i + 1, u }; // a missão que estava fazendo começa de novo
   }
   p = Math.min(HISTORIA.length, p);
-  const M = HISTORIA[p], L = M ? etapasDe(M) : [], ac = !!M && h.ac === true;
+  // a missão aceita (at) não é a desta posição (entrou missão nova no meio da lista): começa a desta do zero. Conta de
+  // antes do at que estava no meio da a15 quando a d1 (Diárias, 2026-11-16) entrou na frente dela: idem.
+  const M = HISTORIA[p], L = M ? etapasDe(M) : [], ac = !!M && h.ac === true && (typeof h.at === 'string' ? h.at === M.id : M.id !== 'd1');
   const e = ac && Number.isInteger(h.e) ? Math.max(0, Math.min(L.length - 1, h.e)) : 0, E = L[e];
   const max = E ? (E.itens ? Object.values(E.itens).reduce((a, n) => a + n, 0) : E.pontos ? E.pontos.length : E.n || 1) : 0;
   // hz: plantas da horta que a missão já deixou prontas (shared/kit.js acelerarPlanta); só vale para a mesma missão
   const hz = ac && M && h.hz && h.hz.m === M.id && h.hz.u && typeof h.hz.u === 'object'
     ? { hz: { m: M.id, u: Object.fromEntries(Object.entries(h.hz.u).filter(([k, q]) => typeof k === 'string' && Number.isInteger(q) && q > 0).map(([k, q]) => [k, Math.min(q, 999)])) } } : {};
-  return { v: 2, p, ac, e, n: ac && Number.isInteger(h.n) ? Math.max(0, Math.min(max, h.n)) : 0, m: ac && Number.isInteger(h.m) ? h.m & 0xffff : 0, ...(ac && Number.isInteger(h.cc) && h.cc > 0 ? { cc: Math.min(h.cc, 999) } : {}), ...(p > 0 ? { u: HISTORIA[p - 1].id } : {}), ...hz };
+  return { v: 2, p, ac, e, n: ac && Number.isInteger(h.n) ? Math.max(0, Math.min(max, h.n)) : 0, m: ac && Number.isInteger(h.m) ? h.m & 0xffff : 0, ...(ac && Number.isInteger(h.cc) && h.cc > 0 ? { cc: Math.min(h.cc, 999) } : {}), ...(p > 0 ? { u: HISTORIA[p - 1].id } : {}), ...(ac ? { at: M.id } : {}), ...hz };
 }
 const histDe = (p) => p.hist || histNova();
 // a zona ou o recurso k já está liberado para a conta p? (liberaNaEtapa: o recurso abre no meio da própria missão)

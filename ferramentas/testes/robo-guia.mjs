@@ -135,6 +135,21 @@ function jogar(i) {
       continue;
     }
     if (E.ev === 'colher' || E.ev === 'plantar' || E.ev === 'regar') { s.historia(j, E.ev, { k: E.k }); continue; }
+    // diárias (André 2026-11-16, missão da Rosa): abre a aba como o app e planta as sementes que ela deu, de verdade,
+    // numa área de plantio (o Ir da diária); se travar, a diária de plantar não serve para a missão
+    if (E.ev === 'diaria_vista') { s.diaria('R', { acao: 'ver' }); continue; }
+    if (E.ev === 'diaria') {
+      s.eventos = []; s.diaria('R', { acao: 'ir', id: 'arvores' });
+      const a = s.eventos.find((x) => x.t === 'diaria_ir')?.alvo;
+      if (!a) { falhou(`${M.id} etapa ${h.e + 1}: a diária de plantar sem Ir`); return achados; }
+      if (contar(p.mochila, 'semente_betula') < 4) { falhou(`${M.id} etapa ${h.e + 1}: a Rosa não deu as 4 sementes`); return achados; }
+      const e0 = h.e;
+      for (let t = 0; t < 40 && p.hist.e === e0 && p.hist.p === i; t++) { j.x = a.x + (t % 8) * 4; j.z = a.z + Math.floor(t / 8) * 4; j.chao = true; p.vigor = { v: 999, t: Date.now() }; s.plantarArvore('R', { s: 'betula', x: j.x, z: j.z }); }
+      if (p.hist.e === e0 && p.hist.p === i) { falhou(`${M.id} etapa ${h.e + 1}: plantou e a diária não fechou (${JSON.stringify(s.diariasInfo(j)?.l?.[0])})`); return achados; }
+      s.eventos = []; s.diaria('R', { acao: 'receber', id: 'arvores' });
+      if (!s.diariasInfo(j)?.l?.[0]?.r) falhou(`${M.id}: não deu para receber a diária de plantar`);
+      continue;
+    }
     const d = { k: [].concat(E.k ?? [])[0], npc: E.npc, campo: E.campos?.[0], sala: E.salas?.[0], tipo: E.tipos?.[0], hc: E.hc, de: E.de, skill: true, barco: true, v: E.min, n: vezes };
     const a = `${p.hist.e}:${p.hist.n}`; s.historia(j, E.ev, d);
     if (`${p.hist.e}:${p.hist.n}` === a && p.hist.p === i) { s.checarEtapa(j); if (`${p.hist.e}:${p.hist.n}` === a && p.hist.p === i) s.proximaEtapa(j); }

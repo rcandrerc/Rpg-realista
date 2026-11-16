@@ -1293,6 +1293,10 @@ func evento(ev: Dictionary) -> void:
 		"coletou":
 			m.trabalho.coletou(ev)
 			return
+		"diaria_ir": # o "Ir" de uma diária (menu.gd, aba Diárias): para onde o servidor mandou
+			if m.menu:
+				m.menu.ir_diaria(ev)
+			return
 		"plantou": # plantei uma árvore (plantio.gd): terra mexida
 			if m.plantio:
 				m.plantio.plantou(ev)

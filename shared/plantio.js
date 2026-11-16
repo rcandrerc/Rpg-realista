@@ -62,6 +62,7 @@ export const Plantio = {
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, PLANTIO.xp);
     this.evento({ t: 'plantou', para: id, s: m.s, x: r2(L.x), z: r2(L.z) });
     aviso(`${T.nome} plantada! Fica adulta em ${T.h} h`);
+    this.historia(j, 'arvore', { k: m.s }); // diária "Plante 4 árvores" (shared/diarias.js)
     this.avisarProg(j);
   },
   // o quadrado mais perto de (x, z) onde dá para plantar ({ i, k, lote? }), ou null (já avisou o motivo)
