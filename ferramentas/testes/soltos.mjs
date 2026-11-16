@@ -28,7 +28,7 @@ const j = s.adicionarJogador('A', 'Ana'); j.ciente = true; j.prog.vigor = { v: 9
 const avisos = () => s.eventos.filter((e) => e.t === 'aviso' && e.para === 'A').map((e) => e.texto);
 const ir = (no) => Object.assign(j, { x: no.x + no.r + 1, z: no.z, chao: true, trava: 0, esc: null, arrancada: null, coleta: null });
 
-const veio = [...s.coletaveis.values()].find((c) => c.tipo === 'pedra'), arvore = s.coletaveis.get('m5');
+const veio = [...s.coletaveis.values()].find((c) => c.tipo === 'pedra'), arvore = s.coletaveis.get('m' + M.mata[5].n); // uma nativa (2026-11-16)
 ir(veio); s.eventos = []; s.coletar('A', { no: veio.id });
 ok(!j.coleta && avisos().some((t) => /picareta de pedra/.test(t)), 'sem picareta não minera: ' + avisos()[0]);
 ir(arvore); s.eventos = []; s.coletar('A', { no: arvore.id });

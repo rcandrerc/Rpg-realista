@@ -645,6 +645,8 @@ func aplicar_foto(f: Dictionary) -> void:
 	tf = _marca("rx:inimigos", tf)
 	# veios das zonas de mineração (o minério é de todos): quem já foi batido e quanto falta para voltar
 	m.trabalho.veios_comuns(f.get("veios", []))
+	if m.plantio: # árvores plantadas de perto (shared/plantio.js): cada uma vem uma vez; a cortada vem como [id]
+		m.plantio.atualizar(f.get("plantadas", []))
 	if m.pesca: # spots de pesca na água (pesca.gd): bolhas de perto, no mapa com o Radar
 		m.pesca.atualizar_spots(f.get("spots", []))
 	tf = _marca("rx:veios_pesca", tf)
@@ -884,10 +886,13 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 		if m.terreno.agua_no_corpo(p.x, p.z, p.y) >= float(m.terreno.agua.peito) - 0.12:
 			var anda: bool = animacao(nome) in ["andar", "trote", "corrida"]
 			nome = "nadar" if anda else "boiar"
+			# nado do ActorCore (anim_heroi.gd NADO_AC): crawl e boiar_ac quando o corpo tem
+			if m.heroi_anim != null and m.heroi_anim.NADO_AC and an.has_animation("crawl") and an.has_animation("boiar_ac"):
+				nome = "crawl" if anda else "boiar_ac"
 			o.sobe_alvo = m.SOBE_NADANDO if anda else m.SOBE_BOIANDO
 		else:
 			o.sobe_alvo = 0.0
-	tocar(an, nome, 1.2 if nome == "nadar" else (m.ritmo(animacao(nome)) if o.has("esq") else 1.0)) # outros jogadores: passo no ritmo da corrida
+	tocar(an, nome, 1.2 if nome == "nadar" else (1.15 if nome == "crawl" else (m.ritmo(animacao(nome)) if o.has("esq") else 1.0))) # outros jogadores: passo no ritmo da corrida
 
 func inimigo(c: Dictionary) -> void:
 	var v := int(c.get("v", -1))
@@ -1287,6 +1292,10 @@ func evento(ev: Dictionary) -> void:
 			return
 		"coletou":
 			m.trabalho.coletou(ev)
+			return
+		"plantou": # plantei uma árvore (plantio.gd): terra mexida
+			if m.plantio:
+				m.plantio.plantou(ev)
 			return
 		"coletaFim":
 			if str(ev.id) == meu_id:

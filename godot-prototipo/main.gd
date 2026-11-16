@@ -39,6 +39,7 @@ const Titulos = preload("res://titulos.gd") # títulos com bônus em cima da cab
 const Trabalho = preload("res://trabalho.gd")
 const NadoCrawl = preload("res://nado_crawl.gd") # braçada de crawl por cima do nado do Mixamo (André 2026-11-15)
 const Pesca = preload("res://pesca.gd")
+const Plantio = preload("res://plantio.gd") # árvores plantadas pelos jogadores (André 2026-11-16)
 const Transporte = preload("res://transporte.gd") # FASE 1: packs e transportes do Quimera
 const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
 var cenario # cenario.gd
@@ -70,7 +71,7 @@ const Morte = preload("res://morte.gd") # sensação de morrer: vida baixa (verm
 
 const RAIO := 34.0
 const RESOLUCAO_PADRAO := 0.6 # mesma nitidez do site (1.75x numa tela de ~904 pontos de largura)
-const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "parada_esticar_bracos", "parada_esticar_pescoco", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "sentado_chao"]
+const LACOS := ["parada", "parada_solta", "parada_solta_m", "parada_maleta", "parada_calma", "parada_bracos", "parada_esticar_bracos", "parada_esticar_pescoco", "andar", "trote", "corrida", "lado_e_andar", "lado_d_andar", "tras_andar", "lado_e_correr", "lado_d_correr", "tras_correr", "espada_parada", "cajado_parada", "queda", "parede_agarrado", "parede_beirada", "parede_balanca", "nadar", "boiar", "crawl", "boiar_ac", "golfinho", "afundar", "sentado_chao"]
 
 # inimigos: monstros do Bestiário (modelos/puglin.glb e imp.glb), nunca dentro da vila. Os do acampamento do leste
 # saíram (pedido do André 2026-11-02): agora ficam no campo de caça lá fora (mundo.caca, regra do Quimera, veja passo_cacas)
@@ -132,6 +133,7 @@ var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
 var transporte # transporte.gd: packs, carrinho, barquinho e navio mercante (FASE 1, cópia do Quimera)
+var plantio # plantio.gd: árvores plantadas pelos jogadores (muda, jovem, adulta), André 2026-11-16
 var pesca # pesca.gd: pescaria igual à do Quimera (André 2026-11-08): botão Pescar, vara, boia, linha e a briga
 
 # ---------- herói ----------
@@ -413,6 +415,8 @@ func _ready() -> void:
 	_passo("trabalho")
 	pesca = Pesca.new(self)
 	add_child(pesca)
+	plantio = Plantio.new(self)
+	add_child(plantio)
 	transporte = Transporte.new(self)
 	add_child(transporte)
 	menu = Menu.new(self)
@@ -2503,6 +2507,15 @@ func _folhas_perto(a: Vector3, b: Vector3) -> Array:
 func _passo_crawl(dt: float) -> void:
 	if heroi_esq == null:
 		return
+	# nado do ActorCore (anim_heroi.gd NADO_AC): as animações já fazem tudo; a braçada em código fica desligada
+	if heroi_anim != null and heroi_anim.tem_nado_ac:
+		heroi_anim.fundo = smoothstep(0.25, 0.55, float(mov.mergulho))
+		var mg: float = float(mov.mergulho)
+		heroi_anim.descendo = float(mov.mergulho_dir) > 0.0 and mg > heroi_anim.mergulho_ant + 0.0005 # só enquanto desce mesmo
+		heroi_anim.mergulho_ant = mg
+		if crawl != null and is_instance_valid(crawl):
+			crawl.peso = 0.0
+		return
 	if crawl == null or not is_instance_valid(crawl) or crawl.get_parent() != heroi_esq:
 		if not _nadando:
 			return
@@ -2515,10 +2528,10 @@ func _passo_crawl(dt: float) -> void:
 	var fundo: float = smoothstep(0.25, 0.55, float(mov.mergulho))
 	crawl.peso = float(heroi_anim._nado) if _nadando else move_toward(crawl.peso, 0.0, dt * 4.0)
 	crawl.boia = 1.0 - float(heroi_anim._nada) # parado na água: braços abertos varrendo e pernas pedalando
-	crawl.fase_boia += dt * 0.65
+	crawl.fase_boia += dt * 0.5
 	crawl.sapo = fundo
-	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.9 # de peito: uma braçada por ciclo, com o deslize
-	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.5 # 2 braçadas por ciclo; agua_fx conta 3 por volta
+	crawl.fase_sapo += dt * float(heroi_anim.voltas_nado) * 2.0 # de peito (mais lento: a água segura, André 2026-11-15): uma braçada por ciclo, com o deslize
+	crawl.fase += dt * float(heroi_anim.voltas_nado) * 1.05 # (mais lento, André 2026-11-15) 2 braçadas por ciclo; agua_fx conta 3 por volta
 	crawl.frente = Vector3(sin(mov.ry), 0, cos(mov.ry))
 
 # Mata (direção de arte): árvore a menos de 2,5 m da câmera, ou com a copa entre a câmera e o herói, some INTEIRA
@@ -4079,6 +4092,7 @@ func npcs_das_vilas(dt: float) -> void:
 
 # monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
 # Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
+const NPC_TROCAS_QUADRO := 2
 func lod_inimigos() -> void:
 	if heroi == null:
 		return
@@ -4089,6 +4103,7 @@ func lod_inimigos() -> void:
 	npcs_das_vilas(get_process_delta_time())
 	tl = _parte("li:npcs_vilas", tl)
 	var hp: Vector3 = heroi.position
+	var trocas_detalhe := 0 # NPCs que trocaram de detalhe neste quadro (NPC_TROCAS_QUADRO)
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
 	for n in npcs:
@@ -4100,7 +4115,11 @@ func lod_inimigos() -> void:
 			n.no.process_mode = Node.PROCESS_MODE_DISABLED if longe_n else Node.PROCESS_MODE_INHERIT
 		# André 2026-11-07 (escolheu "as duas" no FPS da vila): NPC a mais de 15 m fica sem sombra e sem contorno
 		var meio_n: bool = dn > NPC_DETALHE_SAI * NPC_DETALHE_SAI if n.get("simples", false) else dn > NPC_DETALHE * NPC_DETALHE
-		if meio_n != n.get("simples", false):
+		# registros do celular 2026-11-16: entrando na cidade de lobo, vários NPCs passavam de 15 m no mesmo quadro e a
+		# troca (sombra, contorno, animação) somava 300-370 ms num segundo (li:npc_simples). No máximo
+		# NPC_TROCAS_QUADRO por quadro; os outros trocam nos quadros seguintes (alguns centésimos de segundo depois)
+		if meio_n != n.get("simples", false) and trocas_detalhe < NPC_TROCAS_QUADRO:
+			trocas_detalhe += 1
 			n.simples = meio_n
 			npc_simples(n.no, meio_n)
 			if not n.has("anim_p"):
@@ -4111,7 +4130,7 @@ func lod_inimigos() -> void:
 			n.anim_acc = 0.0
 			tl = _parte("li:npc_simples", tl)
 		# FPS (auditoria 2026-11-11): longe do herói, o NPC anima a cada 2 quadros (a 25 m, a cada 3), no mesmo tempo total
-		if meio_n and not longe_n and n.get("anim_p") != null:
+		if n.get("simples", false) and not longe_n and n.get("anim_p") != null: # (a troca pode ter ficado para o próximo quadro)
 			n.anim_acc = float(n.get("anim_acc", 0.0)) + get_process_delta_time()
 			var passo_n: int = 3 if dn > NPC_ANIM_LONGE * NPC_ANIM_LONGE else 2
 			if (Engine.get_process_frames() + int(n.fase)) % passo_n == 0:
@@ -4122,7 +4141,9 @@ func lod_inimigos() -> void:
 					if n.esq_p:
 						n.esq_p.advance(n.anim_acc)
 					n.anim_acc = 0.0
-		if not longe_n and not n.has("lod_pedido"): # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
+		# (registros 2026-11-16, li:npcs 345 ms num segundo entrando na cidade): um NPC por quadro
+		if not longe_n and not n.has("lod_pedido") and trocas_detalhe < NPC_TROCAS_QUADRO + 1: # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
+			trocas_detalhe = NPC_TROCAS_QUADRO + 1
 			n.lod_pedido = true
 			tl = _parte("li:npcs", tl)
 			LodMalha.pedir(n.no)

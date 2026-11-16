@@ -15,12 +15,15 @@ import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em 
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
 import { Kit, pedidosDaEtapa, soNoMar } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
+import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const FALAR_JANELA = 4.8; // m: toque num botão da janela do NPC (o app fecha a janela a 4,5 m; folga da rede)
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
+// quanto falta para voltar, curto (André 2026-11-16: a árvore volta em 24 h; "volta em 86312 s" não dava para ler)
+const quantoFalta = (s) => (s < 120 ? `${Math.ceil(s)} s` : s < 5400 ? `${Math.ceil(s / 60)} min` : `${Math.round(s / 3600)} h`);
 const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
 // ---------- Fornalha (shared/dados.js FORNALHA): queima sozinha pelo relógio, mesmo com o dono fora do jogo ----------
 // F = { comb, ent, sai: {k, n} | null, fogo: s de fogo que sobra da unidade acesa, fogoK: o que está queimando,
@@ -309,7 +312,7 @@ export class Simulacao {
       ...(mapa.veios || []).map((v, i) => ['v' + i, { id: 'v' + i, tipo: v.tipo, x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), ...(v.mina ? { mina: v.mina } : {}), ...(v.y != null ? { y: v.y } : {}) }]),
       ...vila.arvores.map((a, i) => ['a' + i, { id: 'a' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // todas as árvores da mata também dão lenha (pedido do André 2026-11-03): m0, m1...
-      ...(mapa.mata || []).map((a, i) => ['m' + i, { id: 'm' + i, tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
+      ...(mapa.mata || []).map((a, i) => ['m' + (a.n ?? i), { id: 'm' + (a.n ?? i), tipo: 'arvore', x: a.x, z: a.z, r: 0.32 * a.s }]),
       // pedras e galhos soltos no chão (André 2026-11-07): pega com a mão; não são sólidos (s0, s1...)
       ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
@@ -358,6 +361,7 @@ export class Simulacao {
     // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
+    this.iniciarPlantio(); // árvores plantadas pelos jogadores (shared/plantio.js)
     this.packsChao = []; // packs largados no chão (shared/transporte.js)
     this.spots = this.criarSpots(); // spots de pesca (PESCA.spots): cada vaga nasce num lago, dura e volta noutro lugar
     // Vila dos Lotes (construção e fazenda): dono, peças e horta de cada lote. O servidor põe o que está salvo
@@ -2425,10 +2429,11 @@ export class Simulacao {
     if (dist(no, j) - no.r > COLETA_DISTANCIA || (no.y != null && Math.abs((j.y || 0) - no.y) > 2.5)) return aviso('Chegue mais perto'); // veio de caverna: lá dentro
     const C = COLETA[no.tipo];
     if (C.mao) return this.pegarSolto(j, no, C);
+    if (no.plantada) { const r = this.motivoCortarPlantada(j, no); if (r) return aviso(r); } // muda e jovem ninguém corta (shared/plantio.js)
     // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
     if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1) && !Object.keys(C.da || {}).some((k) => this.livreHistoria(j, k))) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`); // a missão que pede o minério libera o veio
-    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${Math.ceil((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)} s`);
+    if (this.cargas(j, no) <= 0) return aviso(`${C.nome}: ${C.esgotado || 'esgotado'}, volta em ${quantoFalta((this.comum(no) ? this.veiosComuns.get(no.id) : j.coletas[no.id]).volta - this.tempo)}`);
     if (vigorAgora(j.prog.vigor) < this.custoVigor(j, C)) return aviso('Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     if (!this.cabeColeta(j.prog, C)) return aviso('Mochila cheia: venda ou guarde algo no baú para coletar');
     this.virarPara(j, no);
@@ -2512,6 +2517,7 @@ export class Simulacao {
       this.evento({ t: 'veio', no: no.id, cargas: s.n, volta, ...(no.tipo === 'arvore' && s.n <= 0 ? { dir: r2(Math.atan2(no.x - j.x, no.z - j.z)) } : {}) });
     }
     else j.coletas[no.id] = s;
+    if (no.plantada && s.n <= 0) this.cortouPlantada(j, no, por); // árvore plantada: o resto do que ela dá, e ela some
     this.pontosProf(j, C.prof, C.vigor);
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
@@ -4559,6 +4565,8 @@ export class Simulacao {
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
+      // árvores plantadas (shared/plantio.js): server/visao.js manda só as de perto, uma vez, com o tempo para ficar adulta
+      plantadas: this.fotoPlantadas(), agoraMs: this.agoraMs(),
       // spots de pesca que estão na água agora: [id, tipo (comum/raro/epico), x, z]
       spots: this.spots.filter((v) => v.ativo).map((v) => [v.id, v.tipo, r2(v.x), r2(v.z)]),
       // FASE 1: packs no chão [g, tipo, x, z] e veículos ['c'|'n'|'b', dono, x, z, ry, nv, packs, quebrado, dirigindo]
@@ -4570,6 +4578,7 @@ export class Simulacao {
 Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
+Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;

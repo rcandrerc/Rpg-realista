@@ -55,3 +55,13 @@ aberto e cotovelo 10° dobrado pra frente, quadro a quadro, no espaço do mundo)
 da clavícula daquele personagem é outro. `node ferramentas/assar-animacoes/endireitar-ombros.cjs parada_esticar_pescoco
 parada_esticar_bracos parada_maleta` põe a clavícula na linha dos ombros das outras paradas e dá ao braço a rotação
 contrária (o braço fica igual no mundo). Use também em toda animação nova que vier de .fbx de outro personagem.
+
+2026-11-16: nado do ActorCore que o André comprou (Freestyle SLE, Above Water Float Idle, Dolphin Kick Idle e Submerge SLE,
+`actorcore/natacao/` nos fontes; baixadas para Blender, 30 FPS, Move in Place). O esqueleto é o CC_Base do Character
+Creator, Z para cima, em pose T como a do Mixamo. `node ferramentas/assar-animacoes/actorcore.mjs <anims.json.gz atual>
+<saída.json> <arquivo.fbx:nome> ...` (precisa do three 0.170 instalado na pasta de onde roda) faz como o quaternius.py:
+diferença de rotação de mundo de cada osso em relação à pose de descanso do .fbx, virada para Y para cima. Depois a altura do
+quadril foi acertada à mão: o ActorCore nada com o quadril a ~2,3 m (a água dele é mais alta), então crawl e golfinho
+ficaram com o quadril a 72 cm (igual ao nadar do Mixamo), boiar_ac a 100 cm (igual ao boiar) e afundar sem subir nem descer
+(quem desce é o jogo). Nomes no jogo: crawl_ini, crawl, crawl_fim, boiar_ac, golfinho, afundar_ini, afundar, afundar_fim
+(anim_heroi.gd NADO_AC).

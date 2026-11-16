@@ -6,7 +6,10 @@
     {"nome": "Casinha do Voltar para a vila no menu do topo, com a recarga por cima (André 2026-11-03)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["[\"vila\", \"Voltar para a vila\", \"topo_vila\"]", "b.pressed.connect(func(): m.volta.pedir())"]},
     {"nome": "App entra no lugar guardado e mostra a canalização do Voltar para a vila (André 2026-11-03)", "arquivo": "godot-prototipo/online.gd", "contem": ["m.volta.colocar(Vector3(float(j.x), float(j.y), float(j.z)), float(j.ry))", "\"vila\": # Voltar para a vila"]},
     { "nome": "Monstros do Mixamo com golpes, andar, correr, apanhar e morrer de monstro (André 2026-11-04)", "arquivo": "client/exportar-bestiario-godot.html", "contem": ["assets/monstros/mixamo/golpes.json.gz", "const GOLPES = {", "const cortar = (a, ini, fim)"] },
-    { "nome": "Todas as árvores da mata dão lenha (ids m0...) e o botão procura pela grade (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["(mapa.mata || []).map((a, i) => ['m' + i", "for (const o of mapa.cenario?.solidos || [])"] },
+    { "nome": "Mata nativa: só ~1.150 árvores, 1 em 40 perto das vilas e 1 em 12 longe, voltam em 24 h (André 2026-11-16, remoção aprovada)", "arquivo": "shared/dados.js", "contem": ["export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 }", "volta: 86400"] },
+    { "nome": "Árvores plantadas: 6 sementes da Rosa, quadrado de 4 m nas áreas de plantio ou no terreno, muda não se corta (André 2026-11-16)", "arquivo": "shared/plantio.js", "contem": ["plantarArvore(id, m)", "quadradoParaPlantar(", "cortouPlantada(", "plantioParaSalvar("] },
+    { "nome": "Godot: árvore plantada cresce (muda, jovem, adulta) e botão Plantar na semente (André 2026-11-16)", "arquivo": "godot-prototipo/plantio.gd", "contem": ["func atualizar(", "const ESCALA_FASE", "func plantar("] },
+    { "nome": "Todas as árvores da mata dão lenha (ids m0...) e o botão procura pela grade (André 2026-11-03)", "arquivo": "shared/simulacao.js", "contem": ["(mapa.mata || []).map((a, i) => ['m' + (a.n ?? i)", "for (const o of mapa.cenario?.solidos || [])"] },
     { "nome": "Cenário da mata: marcos (ruínas, portal, santuário, rochedos, troncos caídos, árvore morta, acampamento) e mato solto (André 2026-11-03)", "arquivo": "shared/dados.js", "contem": ["const CONJUNTOS = {", "function montarCenario(", "function sortearEnfeites(", "MAPA_CLAREIRA.cenario = {"] },
     { "nome": "Godot desenha o cenário da mata em MultiMesh e colide com ele", "arquivo": "godot-prototipo/cenario.gd", "contem": ["func _malhas(", "func _lugar(", "res://cenario3d/%s.glb"] },
     { "nome": "Mapa aberto: mata andável liga a vila, o campo de fora e as Terras, sem ilha nem parede invisível (André 2026-11-04)", "arquivo": "shared/dados.js", "contem": ["const LIGACOES = [", "(function costurarBordas() {"] },
@@ -275,6 +278,7 @@
     {"nome": "Explosão das skills manda a direção do herói (corte desenhado na direção certa)", "arquivo": "shared/simulacao.js", "contem": ["fx: h.id, ry: r2(j.ry) }); // ry: o app desenha o corte"]},
     {"nome": "Idioma / Language nas Configurações: Português e English com bandeirinha (André 2026-11-14)", "arquivo": "godot-prototipo/menu_topo.gd", "contem": ["func _idioma() -> void:", "Idioma.bandeira(cod,"]},
     {"nome": "Inglês do jogo carregado ao abrir (André 2026-11-14)", "arquivo": "godot-prototipo/main.gd", "contem": ["Idioma.iniciar()"]},
-    {"nome": "Cecília e Dario (IA) respondem em inglês com o jogo em English (André 2026-11-14)", "arquivo": "server/ia-amiga.js", "contem": ["ctx.idioma === 'en'"]}
+    {"nome": "Cecília e Dario (IA) respondem em inglês com o jogo em English (André 2026-11-14)", "arquivo": "server/ia-amiga.js", "contem": ["ctx.idioma === 'en'"]},
+    {"nome": "Quadradinho Ver equipado na Aparência: prévia com ou sem o equipamento (André 2026-11-16)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func linha_ver_equip() -> Control:", "func vestir_previa() -> void:", "\"Ver equipado\""]}
   ]
 }
