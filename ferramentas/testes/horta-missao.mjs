@@ -13,7 +13,7 @@ const M = (id) => HISTORIA.find((o) => o.id === id), idx = (id) => HISTORIA.find
 // cotas das missões que plantam
 const b2 = plantasDaMissao(M('b2')), c3 = plantasDaMissao(M('c3'));
 ok(b2['*'] === 6 && b2.cenoura === 2 && b2.batata === 1 && b2.rabanete === 2, 'Provisões: 6 sementes + o da sopa (sem contar a sopa entregue duas vezes) ' + JSON.stringify(b2));
-ok(c3.abobora >= 4 && c3.milho >= 5 && c3.rabanete >= 6, 'Doce para o norte: abóbora, milho e rabanete do pack ' + JSON.stringify(c3));
+ok(c3.abobora >= 4 && c3.milho >= 4 && c3.rabanete >= 6, 'Doce para o norte: abóbora, milho e rabanete do pack ' + JSON.stringify(c3));
 ok(Object.keys(plantasDaMissao(M('a1'))).length === 0, 'missão sem horta: cota zero');
 
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });

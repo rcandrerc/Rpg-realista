@@ -50,8 +50,22 @@ const ferramentas = (p) => { for (const k of ['machado', 'picareta', 'vara']) da
   const j = novo('c3', 0), p = j.prog; dar(p, 'enxada'); p.ouro = 100;
   const hi = s.histInfo(j);
   ok(/compre Semente de abóbora/.test(hi.txt) && hi.ev === 'comprar' && hi.k === 'semente_abobora' && hi.alvo?.npc === 'comerciante', `sem semente: compre com a Rosa (${hi.txt})`);
+  ok(hi.qtd === 4 && /\(0\/4\)/.test(hi.txt), `compra todas as sementes da etapa de uma vez: 4 (${hi.txt}, qtd ${hi.qtd})`);
   dar(p, 'semente_abobora');
-  ok(s.histInfo(j).txt.startsWith('Plante abóbora'), 'com a semente: plante');
+  const h1 = s.histInfo(j);
+  ok(/compre Semente de abóbora \(1\/4\)/.test(h1.txt) && h1.qtd === 3, `com 1 semente ainda não manda plantar: compre as 3 que faltam (${h1.txt})`);
+  dar(p, 'semente_abobora', 3);
+  ok(s.histInfo(j).txt.startsWith('Plante 4 sementes de abóbora'), 'com as 4 sementes: plante');
+}
+// ---------- André 2026-11-16: "tem que pedir para farmar ele completo para depois jogar para a próxima fase" ----------
+// toda etapa "Plante X" pede as sementes do X que a missão inteira ainda vai usar (pack, receita), não só 1
+{
+  const { plantasDaMissao } = await import('../../shared/kit.js');
+  for (const M of HISTORIA) etapasDe(M).forEach((E, i) => {
+    if (E.ev !== 'plantar' || !E.k) return;
+    const precisa = plantasDaMissao({ ...M, id: M.id + '#sem' + i, etapas: etapasDe(M).map((x, q) => (q === i ? { ...x, n: 0 } : x)) }, i)[E.k] || 0;
+    ok((E.n || 1) >= precisa, `${M.id} "${E.txt}": planta ${E.n || 1}, a missão usa ${precisa}`);
+  });
 }
 // ---------- sem ferramenta: cria antes ----------
 {

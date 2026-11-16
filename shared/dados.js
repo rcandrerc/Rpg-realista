@@ -3690,9 +3690,9 @@ export const HISTORIA = [
     pedido: 'Meu doce de abóbora vende até no norte, mas a serra está fechada e eu não tenho rodas. Plante, asse e faça o pack comigo. Depois leve no carrinho até o Mestre Pedrão, na Clareira: viagem longa paga muito. Tome as sementes.',
     recebe: { semente_abobora: 2, semente_milho: 2, semente_rabanete: 6 },
     etapas: [
-      { ev: 'plantar', k: 'abobora', txt: 'Plante abóbora na horta', alvo: 'lote' },
-      { ev: 'plantar', k: 'milho', txt: 'Plante milho', alvo: 'lote' },
-      { ev: 'plantar', k: 'rabanete', txt: 'Plante rabanete', alvo: 'lote' },
+      { ev: 'plantar', k: 'abobora', n: 4, txt: 'Plante 4 sementes de abóbora', alvo: 'lote' },
+      { ev: 'plantar', k: 'milho', n: 4, txt: 'Plante 4 sementes de milho', alvo: 'lote' },
+      { ev: 'plantar', k: 'rabanete', n: 6, txt: 'Plante 6 sementes de rabanete', alvo: 'lote' },
       { ev: 'criar', k: 'pao_milho', n: 2, txt: 'Asse 2 Pães de milho no fogão', alvo: 'lote' },
       { ev: 'pack_fez', k: 'abobora', n: 2, txt: 'Faça 2 Packs de Doce de Abóbora com o Seu Abel', alvo: 'npc:m_abobora' },
       { ev: 'veiculo', k: 'melhorar', min: 3, ja: 'carrinho', txt: 'Melhore o carrinho para o Nv 3 (perto de uma bancada)', alvo: 'lote' },
@@ -3789,8 +3789,8 @@ export const HISTORIA = [
     pedido: 'Carta da terra! E agora que a estrada abriu, a minha conserva pode viajar de novo. Plante batata e milho, faça os packs comigo e leve no carrinho até o Seu Abel, lá no oeste.',
     recebe: { semente_batata: 3, semente_milho: 3 },
     etapas: [
-      { ev: 'plantar', k: 'batata', txt: 'Plante batata', alvo: 'lote' },
-      { ev: 'plantar', k: 'milho', txt: 'Plante milho', alvo: 'lote' },
+      { ev: 'plantar', k: 'batata', n: 7, txt: 'Plante 7 sementes de batata', alvo: 'lote' },
+      { ev: 'plantar', k: 'milho', n: 8, txt: 'Plante 8 sementes de milho', alvo: 'lote' },
       { ev: 'pack_fez', k: 'conserva', n: 4, txt: 'Faça 4 Packs de Conservas com a Dona Marta', alvo: 'npc:m_conserva' },
       { ev: 'pack', k: 'conserva', npc: 'm_abobora', de: 'carrinho', n: 4, txt: 'Leve os 4 packs de carrinho até o Seu Abel', alvo: 'npc:m_abobora' },
     ],
