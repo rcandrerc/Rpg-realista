@@ -1,7 +1,7 @@
 // Cecília, a amiga (shared/amiga.js, André 2026-11-09): entra com o dono, levanta a casa inteira, cuida da horta,
 // só o dono conversa, pede ajuda e paga de volta, guarda tudo no terreno e não ocupa vaga nas Terras.
 // Uso: node ferramentas/testes/amiga.mjs
-import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS, LOJA, precoLoja } from '../../shared/index.js';
 import { contar, guardar } from '../../shared/progresso.js';
 import { PESCA } from '../../shared/dados.js';
 import { noLago } from '../../shared/relevo.js';
@@ -189,8 +189,9 @@ ok(ITENS.lenha, 'itens');
   const c = s5.amiga, d = s5.jogadores.get('andre');
   const f5 = s5.foto().jogadores.find((j) => j.id === AMIGA.id);
   ok(Object.keys(AMIGA.equip).every((l) => c.prog.equip[l]?.r === AMIGA.justa.raridade) && f5.roupa.includes('capa2'), `peças de verdade Comuns (${Object.values(c.prog.equip).filter(Boolean).map((o) => o.k + o.r).join(',')}) e a aparência continua o look B (${f5.roupa})`);
-  c.prog.mochila = c.prog.mochila.map(() => null); c.prog.ouro = 40; s5.pocoesAmiga(c);
-  ok(contar(c.prog.mochila, 'pocao') === 2 && c.prog.ouro === 40 - 2 * ITENS.pocao.preco, `poção custa o ouro dela: comprou 2 e ficou com ${c.prog.ouro}`);
+  const pc = precoLoja(LOJA.find((o) => o.k === 'pocao'), c.prog.nivel); // preço da Rosa no nível dela (André 2026-11-16: sobe com o nível)
+  c.prog.mochila = c.prog.mochila.map(() => null); c.prog.ouro = 2 * pc + 10; s5.pocoesAmiga(c);
+  ok(contar(c.prog.mochila, 'pocao') === 2 && c.prog.ouro === 10, `poção custa o ouro dela: comprou 2 e ficou com ${c.prog.ouro}`);
   // a Cura passa para o parceiro do time, mais fraca
   s5.entrarTimeAmiga(c, d);
   Object.assign(d, { x: c.x + 2, z: c.z }); d.vida = Math.round(d.vidaMax * 0.3); const v0 = d.vida; c.mana = c.manaMax; c.vida = c.vidaMax;
