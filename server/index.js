@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO } from '@rpg/shared';
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -24,7 +24,7 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
 // O robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) joga como um jogador, mas nunca negocia, nunca compra
 // terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
-const ROBO_NAO = new Set(['leilao', 'troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip']);
+const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
@@ -134,7 +134,16 @@ class SalaClareira extends Room {
     this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
     this.ouvir('barra_vista', (c) => this.sim.verBarra(c.sessionId)); // abriu a aba Habilidades (missão "Confira sua barra")
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
-    this.ouvir('leilao', (c, m) => this.sim.leilaoMsg(c.sessionId, m)); // Casa do Comércio (Otávio, Rio Claro)
+    this.ouvir('leilao', (c, m) => { // Casa do Comércio (Otávio, Rio Claro)
+      // robô de testes (André 2026-11-16: "conserta os dois robôs"): faz a missão do leilão sem mexer na economia de
+      // ninguém. Anuncia só pelo preço máximo (e cancela logo depois) e compra só os anúncios da casa.
+      if (c.auth?.robo) {
+        if (!m || typeof m !== 'object' || !['ver', 'anunciar', 'cancelar', 'retirar', 'comprar'].includes(m.acao)) return;
+        if (m.acao === 'comprar' && !/^casa\d+$/.test(String(m.id))) return;
+        if (m.acao === 'anunciar') m = { ...m, preco: LEILAO.precoMax }; // ninguém compra o anúncio de teste
+      }
+      this.sim.leilaoMsg(c.sessionId, m);
+    });
     // troca entre jogadores com cadeado (shared/simulacao.js troca): pedir, aceitar, pôr item e ouro, trancar e confirmar
     this.ouvir('troca', (c, m) => {
       if (!m || typeof m.acao !== 'string' || m.acao.length > 12) return;
