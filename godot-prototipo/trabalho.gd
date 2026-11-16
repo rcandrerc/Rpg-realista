@@ -1080,6 +1080,7 @@ func _preparar_duas() -> bool:
 					m.heroi_esq.add_child(d)
 					d.preparar(m.heroi_esq, osso)
 					dedos.append(d)
+					duas.furo_local[osso] = d.furo_local(m.heroi_esq)
 	return duas.pronto()
 
 # ---------- golpe com as duas mãos ----------

@@ -150,3 +150,24 @@ func _process_modification() -> void:
 		var c3: Vector3 = s.get_bone_global_pose(_meio[2]).origin
 		var furo := (a + b2 + c3 + c3 + (c3 - b2) * 0.8) / 4.0
 		s.set_meta("furo_mao_%d" % _mao, [furo, peso])
+
+# onde o cabo passa dentro do punho fechado, no espaço do osso da mão (o mesmo furo de cima, calculado pela pose
+# fechada dos dedos e não pela pose de agora): duas_maos.gd põe o pulso de modo que este ponto caia no cabo
+func furo_local(esq: Skeleton3D) -> Vector3:
+	if _mao < 0 or _meio.size() < 3 or int(_meio[2]) < 0:
+		return Vector3.ZERO
+	var q := {}
+	for b in _ossos:
+		q[b.i] = b.q
+	var t := Transform3D()
+	var p := []
+	for k in 3:
+		var o: int = _meio[k]
+		var r: Transform3D = esq.get_bone_rest(o)
+		var rot: Quaternion = q.get(o, r.basis.get_rotation_quaternion())
+		t = t * Transform3D(Basis(rot), r.origin)
+		p.append(t.origin)
+	var a: Vector3 = p[0]
+	var b2: Vector3 = p[1]
+	var c3: Vector3 = p[2]
+	return (a + b2 + c3 + c3 + (c3 - b2) * 0.8) / 4.0

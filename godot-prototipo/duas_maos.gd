@@ -43,6 +43,8 @@ func preparar(esq: Skeleton3D) -> void:
 	var dedo := esq.find_bone("J_Bip_R_ToeBase")
 	if pe_d >= 0 and dedo >= 0 and (esq.get_bone_global_rest(dedo).origin - esq.get_bone_global_rest(pe_d).origin).dot(_frente) < 0.0:
 		_frente = -_frente
+	if pronto():
+		_preparar_maos(esq)
 
 func pronto() -> bool:
 	for k in _b:
@@ -72,11 +74,50 @@ func _braco(s: Skeleton3D, u: int, l: int, h: int, alvo: Vector3, eixo_cabo: Vec
 	var S: Vector3 = gu.origin
 	var a: float = gu.origin.distance_to(gl.origin)
 	var b: float = gl.origin.distance_to(gh.origin)
-	if punho > 0.0: # o pulso recua, para o lado de onde vêm os dedos, e o punho fechado fica em volta do cabo
-		var de: Vector3 = -_dir * lado
-		de = de - eixo_cabo * de.dot(eixo_cabo)
-		if de.length() > 0.01:
-			alvo -= de.normalized() * punho * peso
+	# pegada fechada (André 2026-11-16: "as mãos estão tortas, não pegam direito"): a mão continua o antebraço, os
+	# nós dos dedos atravessam o cabo e o indicador fica do lado da cabeça da ferramenta. O pulso recua para o punho
+	# fechado (não o pulso) ficar em volta do cabo.
+	var F := Vector3.ZERO
+	var quer := Basis()
+	var tem_mao: bool = punho > 0.0 and _mao_local.has(h)
+	var grip: Vector3 = alvo
+	if punho > 0.0 and not tem_mao: # (sem os ossos dos dedos) só recua o pulso
+		var ante: Vector3 = alvo - S
+		F = ante - eixo_cabo * ante.dot(eixo_cabo)
+		if F.length() > 0.01:
+			alvo -= (F.normalized() * punho + _palma_mundo(F.normalized(), eixo_cabo, lado) * PUNHO_PALMA) * peso
+		F = Vector3.ZERO
+	var ET: Array = _resolver(S, a, b, alvo, lado)
+	if tem_mao:
+		# duas voltas: a mão segue o antebraço, e o pulso vai para onde o furo do punho fechado cai em cima do cabo
+		for volta in 2:
+			var antebraco: Vector3 = ((ET[1] as Vector3) - (ET[0] as Vector3)).normalized() if volta > 0 else (grip - S).normalized()
+			var Fm: Vector3 = antebraco - eixo_cabo * antebraco.dot(eixo_cabo)
+			if Fm.length() < 0.05:
+				break
+			F = Fm.normalized()
+			var ml: Array = _mao_local[h]
+			quer = _base(F, -eixo_cabo) * _base(ml[0], ml[1]).inverse() # global da mão
+			var furo: Vector3 = furo_local.get(h, ml[0].normalized() * punho)
+			alvo = grip - (quer * furo) * peso
+			ET = _resolver(S, a, b, alvo, lado)
+	var E: Vector3 = ET[0]
+	var T: Vector3 = ET[1]
+	var gu2 := _apontar(s, u, gp, s.get_bone_pose(l).origin, E - S, peso)
+	var gl2 := _apontar(s, l, gu2, s.get_bone_pose(h).origin, T - E, peso)
+	if F != Vector3.ZERO:
+		# mão inteira: dedos ao longo do antebraço (só o que fica de lado do cabo) e o indicador para a cabeça
+		var loc: Quaternion = (gl2.basis.orthonormalized().inverse() * quer).get_rotation_quaternion()
+		s.set_bone_pose_rotation(h, s.get_bone_pose_rotation(h).slerp(loc, peso))
+		return
+	# mão: os dedos fecham em volta do cabo, atravessando para o outro lado do corpo
+	var dedos: Vector3 = -_dir * lado
+	dedos = (dedos - eixo_cabo * dedos.dot(eixo_cabo))
+	if dedos.length() > 0.01:
+		_apontar(s, h, gl2, _eixo_mao(s, h), dedos, peso)
+
+# ombro S, braço a e antebraço b: devolve [cotovelo, pulso] para o pulso chegar em "alvo"
+func _resolver(S: Vector3, a: float, b: float, alvo: Vector3, lado: float) -> Array:
 	var st: Vector3 = alvo - S
 	var d: float = clamp(st.length(), 0.05, (a + b) * 0.995)
 	var n: Vector3 = st.normalized()
@@ -88,15 +129,43 @@ func _braco(s: Skeleton3D, u: int, l: int, h: int, alvo: Vector3, eixo_cabo: Vec
 	polo = (polo - n * polo.dot(n)).normalized()
 	var ao_longo: float = (a * a + d * d - b * b) / (2.0 * d)
 	var alto: float = sqrt(max(0.0, a * a - ao_longo * ao_longo))
-	var E: Vector3 = S + n * ao_longo + polo * alto
-	var T: Vector3 = S + n * d
-	var gu2 := _apontar(s, u, gp, s.get_bone_pose(l).origin, E - S, peso)
-	var gl2 := _apontar(s, l, gu2, s.get_bone_pose(h).origin, T - E, peso)
-	# mão: os dedos fecham em volta do cabo, atravessando para o outro lado do corpo
-	var dedos: Vector3 = -_dir * lado
-	dedos = (dedos - eixo_cabo * dedos.dot(eixo_cabo))
-	if dedos.length() > 0.01:
-		_apontar(s, h, gl2, _eixo_mao(s, h), dedos, peso)
+	return [S + n * ao_longo + polo * alto, S + n * d]
+
+var furo_local := {} # osso da mão -> onde o cabo passa dentro do punho fechado (espaço do osso), de mao_fechada.gd
+const PUNHO_PALMA := 0.02 # m que o cabo fica para dentro da palma (a palma encosta nele)
+var _mao_local := {} # osso da mão -> [dedos, lado do indicador para o mindinho] no espaço do osso (descanso)
+
+# base ortonormal com x = dedos e y = lado (o z sai do produto)
+static func _base(dedos: Vector3, lado_v: Vector3) -> Basis:
+	var x: Vector3 = dedos.normalized()
+	var y: Vector3 = (lado_v - x * lado_v.dot(x)).normalized()
+	return Basis(x, y, x.cross(y))
+
+# para onde a palma olha (espaço do esqueleto) com os dedos em F e o indicador para a cabeça da ferramenta
+func _palma_mundo(F: Vector3, eixo_cabo: Vector3, lado: float) -> Vector3:
+	var p: Vector3 = F.cross(-eixo_cabo).normalized()
+	var ref: int = _b.R_Hand if lado > 0.0 else _b.L_Hand
+	if _palma_sinal.has(ref):
+		p *= float(_palma_sinal[ref])
+	return p
+var _palma_sinal := {} # osso da mão -> +1/-1: a palma é dedos x lado ou o contrário
+
+func _preparar_maos(esq: Skeleton3D) -> void:
+	for k in ["R_Hand", "L_Hand"]:
+		var h: int = int(_b[k])
+		var g: Basis = esq.get_bone_global_rest(h).basis.orthonormalized()
+		var o := func(n: String) -> Vector3: return esq.get_bone_global_rest(esq.find_bone(n)).origin
+		var pre: String = "J_Bip_" + String(k).substr(0, 1) + "_"
+		if esq.find_bone(pre + "Index1") < 0 or esq.find_bone(pre + "Little1") < 0 or esq.find_bone(pre + "Middle1") < 0:
+			continue
+		var punho0: Vector3 = esq.get_bone_global_rest(h).origin
+		var dedos_w: Vector3 = (o.call(pre + "Middle1") as Vector3) - punho0
+		var lado_w: Vector3 = (o.call(pre + "Little1") as Vector3) - (o.call(pre + "Index1") as Vector3)
+		_mao_local[h] = [g.inverse() * dedos_w, g.inverse() * lado_w]
+		# palma: na pose T a palma olha para baixo (para longe da cabeça)
+		var x: Vector3 = dedos_w.normalized()
+		var p: Vector3 = x.cross((lado_w - x * lado_w.dot(x)).normalized())
+		_palma_sinal[h] = 1.0 if p.dot(_cima) < 0.0 else -1.0
 
 var _eixo_cache := {}
 # eixo do osso da mão até o dedo médio (no espaço do osso)
@@ -145,8 +214,32 @@ func _process_modification() -> void:
 			var q: Quaternion = pose.basis.get_rotation_quaternion() * Quaternion(eixo_local.normalized(), -0.3 * curva * peso)
 			s.set_bone_pose_rotation(o, q)
 	var ec: Vector3 = (inv.basis * cabo).normalized()
-	_braco(s, _b.R_UpperArm, _b.R_LowerArm, _b.R_Hand, inv * mao_d, ec, 1.0)
+	var md: Vector3 = inv * mao_d
+	if punho > 0.0: # mão de cima longe demais (ferramenta erguida): escorrega pelo cabo até o braço alcançar
+		md = _alcancavel(s, md, inv * mao_e)
+	_braco(s, _b.R_UpperArm, _b.R_LowerArm, _b.R_Hand, md, ec, 1.0)
 	_braco(s, _b.L_UpperArm, _b.L_LowerArm, _b.L_Hand, inv * mao_e, ec, -1.0)
+
+# ponto mais alto do cabo, entre a mão de cima (md) e a de baixo (me), que o braço direito alcança com folga
+func _alcancavel(s: Skeleton3D, md: Vector3, me: Vector3) -> Vector3:
+	var u: int = _b.R_UpperArm
+	var gu := s.get_bone_global_pose(s.get_bone_parent(u)) * s.get_bone_pose(u)
+	var gl := gu * s.get_bone_pose(_b.R_LowerArm)
+	var gh := gl * s.get_bone_pose(_b.R_Hand)
+	var alcance: float = (gu.origin.distance_to(gl.origin) + gl.origin.distance_to(gh.origin) + punho) * 0.96
+	if gu.origin.distance_to(md) <= alcance:
+		return md
+	var a := 0.0 # 0 = md, 1 = me
+	var b := 1.0
+	if gu.origin.distance_to(me) > alcance:
+		return md.lerp(me, 0.6)
+	for i in 12:
+		var c := (a + b) * 0.5
+		if gu.origin.distance_to(md.lerp(me, c)) > alcance:
+			a = c
+		else:
+			b = c
+	return md.lerp(me, b)
 
 # gira o osso em volta de um eixo do espaço do esqueleto (rad), por cima da pose de agora
 func _girar(s: Skeleton3D, o: int, eixo: Vector3, a: float) -> void:
