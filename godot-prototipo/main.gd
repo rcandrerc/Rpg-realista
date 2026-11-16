@@ -39,6 +39,7 @@ const Titulos = preload("res://titulos.gd") # títulos com bônus em cima da cab
 const Trabalho = preload("res://trabalho.gd")
 const NadoCrawl = preload("res://nado_crawl.gd") # braçada de crawl por cima do nado do Mixamo (André 2026-11-15)
 const Pesca = preload("res://pesca.gd")
+const Plantio = preload("res://plantio.gd") # árvores plantadas pelos jogadores (André 2026-11-16)
 const Transporte = preload("res://transporte.gd") # FASE 1: packs e transportes do Quimera
 const Cenario = preload("res://cenario.gd") # ruínas, rochedos, troncos caídos e mato da mata (2026-11-03)
 var cenario # cenario.gd
@@ -132,6 +133,7 @@ var mascara: Image
 var vila_no: Node3D # a vila (vila.glb): de onde sai a pedra dos veios
 var trabalho # trabalho.gd: estamina, veios, coleta e criação (Parte 3 do Quimera)
 var transporte # transporte.gd: packs, carrinho, barquinho e navio mercante (FASE 1, cópia do Quimera)
+var plantio # plantio.gd: árvores plantadas pelos jogadores (muda, jovem, adulta), André 2026-11-16
 var pesca # pesca.gd: pescaria igual à do Quimera (André 2026-11-08): botão Pescar, vara, boia, linha e a briga
 
 # ---------- herói ----------
@@ -413,6 +415,8 @@ func _ready() -> void:
 	_passo("trabalho")
 	pesca = Pesca.new(self)
 	add_child(pesca)
+	plantio = Plantio.new(self)
+	add_child(plantio)
 	transporte = Transporte.new(self)
 	add_child(transporte)
 	menu = Menu.new(self)

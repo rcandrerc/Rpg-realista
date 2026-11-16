@@ -15,6 +15,7 @@ import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em 
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
 import { Kit, pedidosDaEtapa, soNoMar } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
+import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -360,6 +361,7 @@ export class Simulacao {
     // zonas de mineração (MINA): o minério de cada pedra é de todos (cargas e hora de voltar por veio)
     this.minas = new Map((mapa.mina || []).map((z) => [z.id, z]));
     this.veiosComuns = new Map();
+    this.iniciarPlantio(); // árvores plantadas pelos jogadores (shared/plantio.js)
     this.packsChao = []; // packs largados no chão (shared/transporte.js)
     this.spots = this.criarSpots(); // spots de pesca (PESCA.spots): cada vaga nasce num lago, dura e volta noutro lugar
     // Vila dos Lotes (construção e fazenda): dono, peças e horta de cada lote. O servidor põe o que está salvo
@@ -2427,6 +2429,7 @@ export class Simulacao {
     if (dist(no, j) - no.r > COLETA_DISTANCIA || (no.y != null && Math.abs((j.y || 0) - no.y) > 2.5)) return aviso('Chegue mais perto'); // veio de caverna: lá dentro
     const C = COLETA[no.tipo];
     if (C.mao) return this.pegarSolto(j, no, C);
+    if (no.plantada) { const r = this.motivoCortarPlantada(j, no); if (r) return aviso(r); } // muda e jovem ninguém corta (shared/plantio.js)
     // picareta para minerar e machado para cortar (André 2026-11-07), como a enxada para arar
     if (C.ferramenta && contar(j.prog.mochila, C.ferramenta) < 1) return aviso(`Precisa de ${ITENS[C.ferramenta].nome.toLowerCase()} (crie na mochila: Criar > Ferramentas, sem bancada)`);
     if (profNivel(j.prog.prof[C.prof]) < (C.nivel || 1) && !Object.keys(C.da || {}).some((k) => this.livreHistoria(j, k))) return aviso(`${C.nome}: precisa de ${PROFISSOES[C.prof].nome} Nv ${C.nivel}`); // a missão que pede o minério libera o veio
@@ -2514,6 +2517,7 @@ export class Simulacao {
       this.evento({ t: 'veio', no: no.id, cargas: s.n, volta, ...(no.tipo === 'arvore' && s.n <= 0 ? { dir: r2(Math.atan2(no.x - j.x, no.z - j.z)) } : {}) });
     }
     else j.coletas[no.id] = s;
+    if (no.plantada && s.n <= 0) this.cortouPlantada(j, no, por); // árvore plantada: o resto do que ela dá, e ela some
     this.pontosProf(j, C.prof, C.vigor);
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
@@ -4561,6 +4565,8 @@ export class Simulacao {
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
+      // árvores plantadas (shared/plantio.js): server/visao.js manda só as de perto, uma vez, com o tempo para ficar adulta
+      plantadas: this.fotoPlantadas(), agoraMs: this.agoraMs(),
       // spots de pesca que estão na água agora: [id, tipo (comum/raro/epico), x, z]
       spots: this.spots.filter((v) => v.ativo).map((v) => [v.id, v.tipo, r2(v.x), r2(v.z)]),
       // FASE 1: packs no chão [g, tipo, x, z] e veículos ['c'|'n'|'b', dono, x, z, ry, nv, packs, quebrado, dirigindo]
@@ -4572,6 +4578,7 @@ export class Simulacao {
 Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
+Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;

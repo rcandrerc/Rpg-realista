@@ -38,6 +38,23 @@ func _ready() -> void:
 				_vila[k] = []
 			_vila[k].append(mi)
 
+# árvore plantada (plantio.gd, André 2026-11-16): as malhas dela caem como as da vila (a cópia tomba, o toco fica)
+func registrar_partes(x: float, z: float, partes: Array) -> void:
+	_vila[_chave(x, z)] = partes
+
+# a árvore plantada saiu do servidor (cortada inteira): o toco afunda e some, e o lugar fica livre
+func tirar(id: String, x: float, z: float) -> void:
+	_vila.erase(_chave(x, z))
+	var info = _caidas.get(id)
+	if info == null:
+		return
+	_caidas.erase(id)
+	var toco: Node3D = info.toco
+	if is_instance_valid(toco):
+		var tt := create_tween()
+		tt.tween_property(toco, "scale", Vector3(1, 0.05, 1), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tt.tween_callback(toco.queue_free)
+
 func _chave(x: float, z: float) -> Vector2i:
 	return Vector2i(roundi(x * 10.0), roundi(z * 10.0))
 
