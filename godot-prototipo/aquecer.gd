@@ -61,7 +61,18 @@ func _process(dt: float) -> void:
 	if Time.get_ticks_usec() - t0_parte >= 1000 and Engine.has_meta("lentidao"): # quadro lento (lentidao.gd)
 		Engine.get_meta("lentidao").ev("aquecer", t0_parte)
 
+# André 2026-11-16 ("aperto o Entrar e não acontece nada, nem barulho, e a música não toca; do nada conecta"): desde que
+# a janela da conta salva abre na hora (#520), o preparo rodava com os botões na tela. Cada passo pesa de 0,1 a 2 s no
+# celular (registros: 15 s de preparo com o Entrar e o Trocar de conta à mostra) e o som ficava mudo até acabar. Com a
+# janela de entrar ou de escolher a conta aberta, espera; o preparo roda atrás do "Entrando…", junto com a conexão.
+# Os penteados continuam carregando na linha de fundo enquanto isso.
+func _esperando_botao() -> bool:
+	var on = m.online
+	return on != null and on.painel != null and on.painel.visible
+
 func _process_parte(dt: float) -> void:
+	if _esperando_botao():
+		return
 	if cobre: # segurança: nunca prende a tela de "Conectando…" (conta mesmo depois dos efeitos, com os corpos montando)
 		_total += dt
 		if _total >= LIMITE:
