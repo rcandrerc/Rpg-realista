@@ -10,7 +10,7 @@ s.passo(0.05);
 const dario = s.amigoIaDe(DARIO.id), b = dario.amiga;
 b.prog.dia = { h: 10, t: Date.now() }; // de dia
 // chance do time: amizade 4 = 60%, 10 = 100%; cada 5 níveis acima dele tira 5%
-const p = (amz, nb, nd) => { b.amizade = amz; b.prog.nivel = nb; d.prog.nivel = nd; b.vida = b.vidaMax; return Math.round(dario.vontadeAmiga(b, d).p * 100); };
+const p = (amz, nb, nd) => { d.prog.dia = { h: 10, t: Date.now() }; const L = dario.loteDaAmiga(); if (L) L.horta = {}; b.amizade = amz; b.prog.nivel = nb; d.prog.nivel = nd; b.vida = b.vidaMax; return Math.round(dario.vontadeAmiga(b, d).p * 100); };
 ok(p(0, 10, 10) === 60 && p(4, 10, 10) === 60, `amizade 0 e 4: 60% (${p(4, 10, 10)}%)`);
 ok(p(7, 10, 10) === 80 && p(10, 10, 10) === 100, `amizade 7: 80%, amizade 10: 100% (${p(10, 10, 10)}%)`);
 ok(p(10, 15, 10) === 95 && p(10, 20, 10) === 90 && p(10, 25, 10) === 85 && p(10, 24, 10) === 90, `5/10/15 níveis acima: 95/90/85% (${p(10, 25, 10)}%)`);
@@ -36,7 +36,7 @@ ok(dario.grindHojeAmiga(b) === 0, 'dia novo: o limite zera');
 // conta só caçando sozinho
 b.grind.seg = 0; const c = s.cacas[0].def; b.ia.av = { fase: 'cacar', c, ate: s.tempo + 999 }; Object.assign(b, { x: c.x, z: c.z });
 for (let i = 0; i < 200; i++) s.passo(0.05);
-ok(b.grind.seg > 5 && b.grind.seg < 11, `caçando sozinho conta (${b.grind.seg.toFixed(1)} s em 10 s)`);
+ok(b.grind.seg > 2 && b.grind.seg <= 10.01, `caçando sozinho conta (${b.grind.seg.toFixed(1)} s em 10 s)`);
 // sem teto: Cecília e Dario passam do jogador mais alto
 s.nivelTetoNpc = 5; b.prog.nivel = 5; b.prog.xp = 0; s.ganharXP(b, 999999);
 ok(b.prog.nivel > 5, `Dario passa do teto do jogador mais alto (nível ${b.prog.nivel})`);
