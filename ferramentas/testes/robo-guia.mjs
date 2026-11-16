@@ -20,7 +20,7 @@ function confereNpc(M, hi, quero, onde) {
   if (hi?.npc && hi.alvo && hi.alvo.npc !== hi.npc) falhou(`${M.id} ${onde}: brilha ${hi.npc} mas o Ir leva a ${hi.alvo.npc || hi.alvo.nome}`);
   if (quero && npcBrilha(hi) !== quero) falhou(`${M.id} ${onde}: a etapa pede ${quero} mas brilha "${npcBrilha(hi)}" ("${hi?.txt}")`);
 }
-let conferidas = 0;
+let conferidas = 0, vezesTime = 0;
 
 function jogar(i) {
   const M = HISTORIA[i], L = etapasDe(M);
@@ -105,6 +105,13 @@ function jogar(i) {
     // a ação da etapa
     // etapa de time (André 2026-11-14: "ela recusa e fico preso"): o robô chama a Cecília pelo botão, como o jogador,
     // sem chave de IA e com o sorteio sempre dizendo não. Na missão ela não pode negar.
+    // André 2026-11-16: sem ninguém, fecha a tela e vai sozinho. Uma etapa de time sim, outra não, o robô vai sozinho
+    // (a missão e a caverna depois têm que dar certo sem time)
+    if (E.ev === 'time' && !j.time && (vezesTime++ % 2 === 0)) {
+      const e0 = h.e, p0 = h.p; s.time('R', { acao: 'sozinho' });
+      if (p.hist.e === e0 && p.hist.p === p0) { falhou(`${M.id} etapa ${h.e + 1}: fechou a tela de amigos e não seguiu sozinho (a missão trava)`); return achados; }
+      continue;
+    }
     if (E.ev === 'time' && !j.time) {
       if (!s.amiga) { s.amigaEntrar('R', false); Object.assign(s.amiga, { x: j.x + 1, z: j.z }); }
       const rnd = Math.random; Math.random = () => 0.999;

@@ -315,7 +315,7 @@ function leilao(agora) {
 
 // ---------- missões ----------
 let xpGrind = -2, etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, naoSabeT = 0, viajandoAte = 0;
-const NAO_SABE = new Set(['dormir', 'plantar', 'regar', 'colher', 'construir', 'terreno', 'pack', 'pack_fez', 'veiculo', 'time', 'sintetizar', 'destruir', 'evoluir', 'reforcar', 'passe', 'resetar', 'arma', 'ter', 'lote']);
+const NAO_SABE = new Set(['dormir', 'plantar', 'regar', 'colher', 'construir', 'terreno', 'pack', 'pack_fez', 'veiculo', 'sintetizar', 'destruir', 'evoluir', 'reforcar', 'passe', 'resetar', 'arma', 'ter', 'lote']);
 function pular(motivo) {
   if (!prog?.hist) return;
   const M = HISTORIA[prog.hist.p];
@@ -352,6 +352,8 @@ function missao(agora) {
   const ev = hi?.ev || '';
   if (NAO_SABE.has(ev)) { if (!naoSabeT) naoSabeT = agora; if (agora - naoSabeT > 8000) { naoSabeT = 0; pular(`o robô ainda não sabe fazer "${ev}"`); } return; }
   naoSabeT = 0;
+  // etapa "chame alguém para o time" (André 2026-11-16): o robô não tem amigo; faz como o jogador sem ninguém, fecha a tela e vai sozinho
+  if (ev === 'time') { if (agora - falarT > 2500) { falarT = agora; acao('time', { acao: 'sozinho' }); } return; }
   if (ev === 'atributo' || prog.pontos > 0) { const n = prog.pontos | 0; if (n > 0) { const f = Math.ceil(n / 2); acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; } if (ev === 'atributo') return; }
   if (ev === 'viajar' && a) { // "use o totem para ir a...": chega perto do totem e pede a viagem (canaliza parado)
     // sem destino ("vá a outro e volte ao Juncal", 2026-11-16 travou 15 min): do totem da etapa vai ao aberto mais
