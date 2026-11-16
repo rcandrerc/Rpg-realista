@@ -79,6 +79,9 @@ export const DURACAO = {
   mg_basico_d: 1.2, mg_basico_e: 1.2, mg_bola: 2.667, mg_gelo: 2.967, mg_meteoro: 2.167,
   // nado nos lagos fundos (André 2026-11-06): Mixamo Swimming, Treading Water e Swimming To Edge
   nadar: 4.533, boiar: 3, sair_agua: 5,
+  // nado do ActorCore (André comprou 2026-11-16): Freestyle (começo, volta e fim), Above Water Float Idle, Dolphin Kick Idle e
+  // Submerge (começo, volta e fim), passadas para o esqueleto do Mixamo por ferramentas/assar-animacoes/actorcore.mjs
+  crawl_ini: 1.067, crawl: 4.4, crawl_fim: 2.3, boiar_ac: 4.667, golfinho: 3, afundar_ini: 2.2, afundar: 3.233, afundar_fim: 2.3,
 };
 
 // Pedaços de animação: [arquivo, início, fim] em fração da duração. O combo de espada do Mixamo

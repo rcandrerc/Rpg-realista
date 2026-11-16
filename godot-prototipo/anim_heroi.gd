@@ -131,6 +131,18 @@ var _nado := 0.0 # 0 = locomoção de terra, 1 = na água
 var _nada := 0.0 # 0 = boiando, 1 = nadando
 var _len_nadar := 1.0
 var voltas_nado := 0.0 # voltas por segundo do Swimming agora (agua_fx.gd: respingo a cada braçada)
+# Nado do ActorCore (André comprou 2026-11-16): na superfície o Freestyle (crawl) andando e o Above Water Float Idle
+# (boiar_ac) parado; debaixo d'água o Dolphin Kick Idle (golfinho); segurando Afundar, o Submerge (afundar). Com estas
+# animações no corpo, o nado do Mixamo e a braçada feita em código (nado_crawl.gd) ficam desligados; sem elas, é o de antes.
+const NADO_AC := true
+const NADO_VOLTA_AC := 6.5 # metros por volta inteira do Freestyle (4,4 s, 3 braçadas): a 1,7 m/s toca a ~1,15x (pesado)
+var tem_nado_ac := false
+var fundo := 0.0 # quem chama (main.gd): 0 = na superfície, 1 = debaixo d'água
+var descendo := false # quem chama: segurando Afundar
+var mergulho_ant := 0.0 # quem chama: mergulho do quadro anterior (para saber se ainda desce)
+var _fundo := 0.0
+var _desce := 0.0
+var _len_golfinho := 1.0
 
 func _init(p: AnimationPlayer) -> void:
 	player = p
@@ -283,10 +295,13 @@ func _init(p: AnimationPlayer) -> void:
 		bt.connect_node("ab" + parte, 1, "seek%s1" % parte)
 	bt.add_node("corpo", AnimationNodeBlend2.new(), Vector2(660, 300))
 	tem_nado = player.has_animation("nadar") and player.has_animation("boiar")
+	tem_nado_ac = NADO_AC and player.has_animation("crawl") and player.has_animation("boiar_ac") and player.has_animation("golfinho") and player.has_animation("afundar")
+	if tem_nado_ac:
+		tem_nado = true
 	if tem_nado:
-		anim.call("boiar", "boiar", Vector2(0, 2300))
-		anim.call("nadar", "nadar", Vector2(0, 2420))
-		_len_nadar = player.get_animation("nadar").length
+		anim.call("boiar_ac" if tem_nado_ac else "boiar", "boiar", Vector2(0, 2300))
+		anim.call("crawl" if tem_nado_ac else "nadar", "nadar", Vector2(0, 2420))
+		_len_nadar = player.get_animation("crawl" if tem_nado_ac else "nadar").length
 		bt.add_node("ts_nadar", AnimationNodeTimeScale.new(), Vector2(150, 2420))
 		bt.connect_node("ts_nadar", 0, "nadar")
 		bt.add_node("nada", AnimationNodeBlend2.new(), Vector2(320, 2360))
@@ -294,7 +309,22 @@ func _init(p: AnimationPlayer) -> void:
 		bt.connect_node("nada", 1, "ts_nadar")
 		bt.add_node("agua", AnimationNodeBlend2.new(), Vector2(560, 240))
 		bt.connect_node("agua", 0, "mexe")
-		bt.connect_node("agua", 1, "nada")
+		if tem_nado_ac:
+			# debaixo d'água: golfinho (no ritmo da velocidade) e, segurando Afundar, o Submerge
+			anim.call("golfinho", "golfinho", Vector2(0, 2540))
+			anim.call("afundar", "afundar", Vector2(0, 2660))
+			_len_golfinho = player.get_animation("golfinho").length
+			bt.add_node("ts_golfinho", AnimationNodeTimeScale.new(), Vector2(150, 2540))
+			bt.connect_node("ts_golfinho", 0, "golfinho")
+			bt.add_node("desce", AnimationNodeBlend2.new(), Vector2(320, 2600))
+			bt.connect_node("desce", 0, "ts_golfinho")
+			bt.connect_node("desce", 1, "afundar")
+			bt.add_node("fundo", AnimationNodeBlend2.new(), Vector2(440, 2420))
+			bt.connect_node("fundo", 0, "nada")
+			bt.connect_node("fundo", 1, "desce")
+			bt.connect_node("agua", 1, "fundo")
+		else:
+			bt.connect_node("agua", 1, "nada")
 		bt.connect_node("corpo", 0, "agua")
 	else:
 		bt.connect_node("corpo", 0, "mexe")
@@ -487,6 +517,12 @@ func atualizar(dt: float, vel: float) -> void:
 		_nada = move_toward(_nada, smoothstep(0.15, 0.9, vel) if nadando else 0.0, dt * 2.0)
 		# braçada no ritmo da velocidade, entre 0,7x e 1,5x (mais rápido que isso parece afobado)
 		var ts_nado: float = clamp(vel * _len_nadar / NADO_VOLTA, 0.7, 1.5)
+		if tem_nado_ac:
+			ts_nado = clamp(vel * _len_nadar / NADO_VOLTA_AC, 0.75, 1.3)
+			_fundo = move_toward(_fundo, fundo if nadando else 0.0, dt * 2.0)
+			_desce = move_toward(_desce, 1.0 if descendo and nadando else 0.0, dt * 2.5)
+			# golfinho parado bate as pernas devagar; nadando, no ritmo da velocidade
+			tree.set("parameters/ts_golfinho/scale", clamp(0.6 + vel * 0.35, 0.6, 1.3))
 		tree.set("parameters/ts_nadar/scale", ts_nado)
 		voltas_nado = ts_nado / _len_nadar
 	if arrancando > 0.0:
@@ -512,6 +548,9 @@ func _aplicar(_dt: float) -> void:
 	if tem_nado:
 		tree.set("parameters/agua/blend_amount", _nado)
 		tree.set("parameters/nada/blend_amount", _nada)
+		if tem_nado_ac:
+			tree.set("parameters/fundo/blend_amount", _fundo)
+			tree.set("parameters/desce/blend_amount", _desce)
 	if tem_lado:
 		tree.set("parameters/v_lado_e/blend_amount", _corre)
 		tree.set("parameters/v_lado_d/blend_amount", _corre)
