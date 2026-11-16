@@ -34,6 +34,13 @@ const LISTA = {
   estatua: [PH + 'gothic_statue/gothic_statue_1k.gltf', 0.12, 512, 'stacked_stone_wall'],
   fogueira: [PH + 'stone_fire_pit/stone_fire_pit_1k.gltf', 0.4, 512, 'stacked_stone_wall'],
   toco2: [PH + 'tree_stump_02/tree_stump_02_1k.gltf', 0.03, 512, 'bark_brown_02'],
+  // árvores plantadas (André 2026-11-16 escolheu na foto lado a lado; rampa por textura: casca e folha com cor própria)
+  arv_betula: [NAT + 'CommonTree_3.gltf', 0.6, 512, { Bark: 'tinta:6e6a64,cfc9bd,f2eee6', Leaves: 'tinta:4c6a1a,8aae34,c4dc6a' }],
+  arv_carvalho: [NAT + 'CommonTree_1.gltf', 0.6, 512],
+  arv_pinheiro: [NAT + 'Pine_2.gltf', 0.6, 512],
+  arv_macieira: [NAT + 'CommonTree_5.gltf', 0.6, 512, { Leaves: 'tinta:1e4a1e,3c7c30,72ae48' }],
+  arv_cerejeira: [NAT + 'CommonTree_2.gltf', 0.6, 512, { Leaves: 'tinta:8a3a5c,e589b0,fcd2e2' }],
+  arv_antiga: [NAT + 'TwistedTree_1.gltf', 0.5, 512, { Leaves: 'tinta:2a4a20,4c7e34,8ab45a' }],
 };
 
 // paredes de ruína: sem reboco nem viga de madeira (era casa; agora é pedra velha)
@@ -66,7 +73,8 @@ for (const [nome, [arq, ratio, lado, rampa]] of Object.entries(LISTA)) {
     const ent = path.join(tmp, 'e' + ext), sai = path.join(tmp, 's' + ext);
     fs.writeFileSync(ent, Buffer.from(t.getImage()));
     for (const f of ['s.png', 's.jpg']) fs.rmSync(path.join(tmp, f), { force: true });
-    execFileSync('python3', [path.join(AQUI, 'textura.py'), ent, sai, String(lado), ...(rampa ? [rampa] : [])]);
+    const rp = rampa && typeof rampa === 'object' ? Object.entries(rampa).find(([k]) => t.getName().includes(k))?.[1] : rampa;
+    execFileSync('python3', [path.join(AQUI, 'textura.py'), ent, sai, String(lado), ...(rp ? [rp] : [])]);
     const feito = fs.existsSync(path.join(tmp, 's.png')) ? 's.png' : 's.jpg';
     t.setImage(fs.readFileSync(path.join(tmp, feito))).setMimeType(feito.endsWith('png') ? 'image/png' : 'image/jpeg').setURI(nome + '_' + t.getName() + (feito.endsWith('png') ? '.png' : '.jpg'));
   }
