@@ -1260,6 +1260,7 @@ export class Simulacao {
     const fj = E ? this.juntaDe(j, E) : null; // juntando material: o guia segue a coleta (shared/kit.js)
     const npc = !h.ac ? (p.nivel >= M.nv ? M.npc : '') : E?.ev === 'falar' && !fj ? E.npc : ''; // entregar sem ter tudo: junta antes
     const guia = fj ? this.guiaJunta(fj) : E ? { ev: E.ev, ...(E.k != null ? { k: E.k } : {}), ...(E.min != null ? { min: E.min } : {}), ...(E.de != null ? { de: E.de } : {}), ...(E.skill ? { skill: true } : {}), ...(E.barco ? { barco: true } : {}), ...(E.ver ? { ver: true } : {}) } : {};
+    if (guia.ev === 'comprar' && !guia.qtd && E?.ev === 'comprar') guia.qtd = Math.max(1, (E.n || 1) - (h.n || 0)); // "Compre 3 poções": a compra abre com 3
     return { id: M.id, cap: M.cap, nome: M.nome, txt: this.textoEtapa(j), e: h.ac ? h.e : -1, npc, alvo: this.alvoHistoria(j), marca: !!E?.marca || E?.ev === 'pistas', ...guia, ...(tit ? { titulo: tit } : {}), ...(h.ac && E && !j.bot ? (() => { const l = [...pedidosDaEtapa(E, p)]; return l.length ? { livre: l } : {}; })() : {}), ...(h.ac && E?.ev === 'resetar' && E.gratis ? { resetGratis: true } : {}), ...(h.ac && E?.gratis && !fj ? { gratis: true } : {}) }; // resetGratis: a Mestra Iara não cobra (main.gd custo_reset)
   }
   // Só para a conta de teste do André (2026-11-06: "um hackzinho de XP para eu aumentar ou diminuir meu nível para fazer

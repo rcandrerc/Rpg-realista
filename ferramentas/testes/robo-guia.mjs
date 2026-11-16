@@ -3,7 +3,7 @@
 // o texto pede, cria, colhe, fala. Falha se: a etapa ou o andamento voltam para trás; o guia pede de novo a mesma coisa
 // sem andar (vai-e-volta); o texto fica vazio; a missão não termina; a etapa com lugar fica sem "Ir".
 // Uso: node ferramentas/testes/robo-guia.mjs [id da missão]
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, RECEITAS, PLANTAS } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, RECEITAS, PLANTAS, LOJA } from '../../shared/index.js';
 import { guardar, contar } from '../../shared/progresso.js';
 import { etapasDe, totalEtapa } from '../../shared/historia.js';
 const so = process.argv[2];
@@ -38,6 +38,8 @@ function jogar(i) {
   if (!p.hist.ac) { falhou(`${M.id}: não deu para aceitar`); return []; }
   s.eventos = [];
   let ultimo = { e: 0, n: 0 }, voltas = new Map(), achados = [];
+  const comprados = new Set(), celulas = [];
+  for (let a = -27; a <= -21; a++) for (let b = 56; b <= 62; b++) celulas.push(a + ',' + b);
   const nota = (m) => { if (!achados.includes(m)) achados.push(m); };
   for (let it = 0; it < 3000; it++) {
     const h = p.hist;
@@ -64,6 +66,34 @@ function jogar(i) {
       if (voltas.get(ch) > 2) { falhou(`${M.id} etapa ${h.e + 1}: o guia pede "${hi.txt}" e não anda`); return achados; }
       if (['veio:arvore', 'solto', 'lote', 'spot', 'loja', 'plantar', 'cresce', 'regar'].includes(f.fonte) || f.fonte.startsWith('veio:') || f.fonte.startsWith('caca:')) {
         if (!hi.alvo && f.fonte !== 'loja') nota(`etapa ${h.e + 1} "${hi.txt}": sem Ir`);
+      }
+      // horta e loja de verdade (André 2026-11-16: "não fala a quantidade, então eu compro um... é pra plantar 8"): o
+      // robô compra a quantidade com que o app abre a compra (hi.qtd), ara, planta e colhe no lote; se depois o guia
+      // pede de novo a mesma semente, a compra pediu pouco
+      if (f.fonte === 'loja' && LOJA.some((o) => o.k === f.k && !(o.r > 0))) {
+        const q = Math.max(1, hi.qtd | 0);
+        if (hi.ev !== 'comprar' || hi.k !== f.k || !hi.qtd) falhou(`${M.id} etapa ${h.e + 1}: "${hi.txt}" sem a quantidade para a compra (qtd)`);
+        if (q < f.n - f.tem) falhou(`${M.id} etapa ${h.e + 1}: "${hi.txt}" mas a compra abre com ${q}`);
+        if (comprados.has(`${h.e}:${f.k}`) && /^semente_/.test(f.k)) { falhou(`${M.id} etapa ${h.e + 1}: comprou ${f.k} e o guia manda comprar de novo ("${hi.txt}")`); return achados; }
+        comprados.add(`${h.e}:${f.k}`);
+        const rosa = MAPA_CLAREIRA.npcs.find((n) => n.funcao === 'loja'), x = j.x, z = j.z;
+        j.x = rosa.x + 1; j.z = rosa.z; p.ouro = 999999;
+        s.item('R', { acao: 'comprar', i: LOJA.findIndex((o) => o.k === f.k && !(o.r > 0)), n: q });
+        j.x = x; j.z = z; p.ouro = 0;
+        continue;
+      }
+      if (f.fonte === 'plantar' && PLANTAS[f.k]) {
+        if (f.n > contar(p.mochila, 'semente_' + f.k) + f.tem) falhou(`${M.id} etapa ${h.e + 1}: "${hi.txt}" mas só tem ${contar(p.mochila, 'semente_' + f.k)} semente(s)`);
+        const c = celulas.find((x) => !s.loteDe(j).horta[x]?.c);
+        if (!c) { falhou(`${M.id}: lote cheio`); return achados; }
+        p.vigor = { v: 999, t: Date.now() };
+        if (!s.loteDe(j).horta[c]) s.horta('R', { acao: 'arar', c });
+        s.horta('R', { acao: 'plantar', c, s: f.k }); s.checarEtapa(j);
+        continue;
+      }
+      if (f.fonte === 'lote' && PLANTAS[f.k]) {
+        const c = celulas.find((x) => s.loteDe(j).horta[x]?.c === f.k && s.loteDe(j).horta[x].g >= PLANTAS[f.k].G);
+        if (c) { p.vigor = { v: 999, t: Date.now() }; s.horta('R', { acao: 'colher', c }); s.checarEtapa(j); continue; }
       }
       if (f.k === 'ouro') p.ouro = f.n; else if (ITENS[f.k]) guardar(p.mochila, { k: f.k, n: f.n - f.tem });
       else { falhou(`${M.id}: item desconhecido ${f.k}`); return achados; }
