@@ -2699,6 +2699,10 @@ export const AMIGA = {
       horta: ['horta', 'planta', 'cenoura', 'rabanete', 'batata', 'colheita', 'fazenda'],
       ajuda: ['precisa de algo', 'precisa de alguma', 'quer alguma coisa', 'posso ajudar', 'te ajudo', 'precisa de ajuda', 'quer ajuda'],
       dungeon: ['dungeon', 'caverna', 'masmorra', 'chefe', 'boss', 'warrok'],
+      // André 2026-11-16: perguntas que o chat básico responde com o jogo de verdade (vêm antes de "upar"/"missão" = time)
+      ondeUpar: ['onde upar', 'onde da pra upar', 'onde eu upo', 'onde upo', 'onde farmar', 'onde cacar', 'onde da pra cacar', 'onde eu caco', 'lugar pra upar', 'lugar bom pra upar'],
+      nivel: ['seu nivel', 'que nivel voce', 'qual nivel voce', 'qual seu nivel', 'qual o seu nivel', 'que nivel vc', 'qual nivel vc', 'ce ta nivel', 'voce ta nivel', 'vc ta nivel', 'tu ta nivel'],
+      missao: ['minha missao', 'qual missao', 'que missao', 'qual a missao', 'qual e a missao', 'missao agora'],
       equip: ['equipamento', 'equipamentos', 'equipada', 'usando', 'vestindo', 'armadura', 'sua roupa', 'seu peitoral', 'sua espada', 'seu capacete', 'suas botas'], // André 2026-11-10
       troca: ['troca', 'trocar', 'vende', 'vender', 'compra', 'comprar', 'item', 'tem '],
       // só valem com a janela de troca aberta (fase 3)

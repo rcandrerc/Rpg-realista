@@ -36,7 +36,7 @@ const cc = cec.contextoAmiga('andre');
 ok(cc && !cc.semCasa && cc.mora == null, 'Cecília continua com a casa dela');
 
 let v = await pensarAmiga(cl, 'oi, tudo bem?', 'chave-de-teste');
-ok(v?.fala === 'Oi!' && pedidos.length === 1 && pedidos[0].model === 'openai/gpt-oss-120b' && pedidos[0].reasoning_effort === 'low', 'conversa usa o modelo grande');
+ok(v?.fala === 'Oi!' && pedidos.length === 1 && pedidos[0].model === 'openai/gpt-oss-120b' && pedidos[0].reasoning_effort === 'medium', 'conversa usa o modelo grande, pensando mais (André 2026-11-16: "mais realista")');
 const p = pedidos[0].messages[0].content;
 ok(!/casinha e sua horta/.test(p) && /sem casa própria \(mora em a vila\)/.test(p) && !/Casa (pronta|em obra)/.test(p), 'a ficha da aventureira não fala de casa e horta');
 ok(!/\n\n/.test(p), `ficha curta, sem linha vazia (${p.length} letras)`);
