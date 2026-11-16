@@ -474,12 +474,10 @@ static func _limpar_rosto(raiz: Node3D) -> void:
 				continue
 			var chave: int = m.get_instance_id()
 			if not _rostos.has(chave):
-				var img: Image = m.albedo_texture.get_image()
+				var img: Image = preload("res://imagem_cpu.gd").ler(m.albedo_texture) # pelo arquivo, não pela placa (rosa no Mali-G72)
 				if img == null:
 					continue
 				img = img.duplicate()
-				if img.is_compressed():
-					img.decompress()
 				img.convert(Image.FORMAT_RGBA8)
 				var pele := img.get_pixel(img.get_width() / 2, int(img.get_height() * 0.62))
 				for y in img.get_height():

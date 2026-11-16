@@ -277,11 +277,10 @@ static func media(tex: Texture2D, claro := false) -> Color:
 	if _medias.has(id):
 		return _medias[id]
 	var r := Color(0.5, 0.5, 0.5)
-	var img := tex.get_image()
+	# pelo arquivo, sem ler da placa (imagem_cpu.gd: no Mali-G72 a leitura da placa voltava com a cor errada e a pele
+	# tingida ficava rosa-choque). A imagem inteira: num mipmap pequeno a borda transparente mistura e a média muda.
+	var img: Image = preload("res://imagem_cpu.gd").ler(tex)
 	if img != null:
-		img = img.duplicate()
-		if img.is_compressed():
-			img.decompress()
 		if not img.is_compressed():
 			img.convert(Image.FORMAT_RGBA8)
 			img.resize(48, 48, Image.INTERPOLATE_BILINEAR)

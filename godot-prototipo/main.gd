@@ -326,7 +326,7 @@ func _ready() -> void:
 	terreno = Terreno.new(mundo)
 	mov = Andar.new(terreno, mundo)
 	mov.jogo = self
-	mascara = load("res://modelos/mascara_vila.png").get_image()
+	mascara = preload("res://imagem_cpu.gd").ler(load("res://modelos/mascara_vila.png")) # pelo arquivo, não pela placa (Mali-G72)
 	if mascara.is_compressed():
 		mascara.decompress()
 	montar_ambiente()
