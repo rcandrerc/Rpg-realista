@@ -42,6 +42,14 @@ const CAVALO_GIRO := 0.0 # o cavalo olha para +z, para longe da caçamba
 const CAVALO_PERTO := 70.0
 var cavalos: Array = [] # [{no: Node3D, anim: AnimationPlayer, vila: String}]
 var _cavalo_cena: PackedScene
+# lampiões do Rio Claro (André 2026-11-17: "postes luminários bonitinhos" para a cidade à noite). Sem luz de verdade
+# (cada luz pesa no celular): de noite o vidro das lanternas brilha (material Vidro_Rio do vilas.glb), cada lanterna
+# ganha um halo e o chão embaixo uma mancha de luz quente; os halos e as manchas são dois MultiMesh por vila.
+const LAMPIAO_LANTERNAS := [Vector3(-0.56, 2.71, 0), Vector3(0.56, 2.71, 0)] # pecas.mjs @lampiao
+var mats_rio: Array = [] # Vidro_Rio
+var mat_halo: StandardMaterial3D
+var mat_poca: StandardMaterial3D
+var luz_rio := -1.0 # força do brilho já aplicada (0 = dia)
 
 func _init(principal) -> void:
 	m = principal
@@ -64,6 +72,7 @@ func _process_parte(dt: float) -> void:
 	# atrás da capa da entrada (online.gd), confere a cada 0,1 s: a vila perto já nasce antes de o jogo aparecer
 	_espera = 0.1 if m.online and m.online._cobrindo else 1.0
 	_acender()
+	_lampioes()
 	var h: Vector3 = m.heroi.position
 	var precisa := false
 	for V in vilas:
@@ -123,6 +132,8 @@ func _carregado() -> bool:
 		for par in l: # os materiais que acendem (os mesmos em todas as peças da cidade)
 			for i in par[0].get_surface_count():
 				var mt = par[0].surface_get_material(i)
+				if mt is StandardMaterial3D and mt.resource_name == "Vidro_Rio" and not mats_rio.has(mt):
+					mats_rio.append(mt)
 				if mt is StandardMaterial3D and mt.resource_name in ["Vidro_Aurora", "Cristal_Aurora", "Agua_Aurora"]:
 					if not mats_aurora.has(mt.resource_name):
 						mats_aurora[mt.resource_name] = []
@@ -151,6 +162,7 @@ func _montar(V: Dictionary) -> void:
 	var grupos := {} # modelo -> [Transform3D]
 	var casa := {}
 	var salao_ts: Array = []
+	var lampioes: Array = []
 	for c in V.get("casas", []):
 		_por(grupos, str(c.m), c)
 		casa[str(c.m)] = true
@@ -164,6 +176,8 @@ func _montar(V: Dictionary) -> void:
 		casa["banca"] = true
 	for e in V.get("enfeites", []):
 		_por(grupos, str(e.m), e)
+		if str(e.m) == "lampiao":
+			lampioes.append(Transform3D(Basis(Vector3.UP, float(e.ry)), Vector3(float(e.x), float(e.y), float(e.z))))
 		if str(e.m) == "carroca_carga":
 			_cavalo(no, str(V.id), e)
 	var cima: Array = []
@@ -187,6 +201,8 @@ func _montar(V: Dictionary) -> void:
 			no.add_child(g)
 			if nome == "comercio_grande_cima":
 				cima.append(g)
+	if not lampioes.is_empty():
+		_luz_lampioes(no, lampioes)
 	for t in salao_ts:
 		saloes.append({"no": no, "t": t, "cima": cima})
 	if V.get("cidade") is Dictionary:
@@ -339,3 +355,73 @@ func _por(grupos: Dictionary, nome: String, p: Dictionary) -> void:
 	if not grupos.has(nome):
 		grupos[nome] = []
 	grupos[nome].append(Transform3D(Basis(Vector3.UP, float(p.ry)), Vector3(float(p.x), float(p.y), float(p.z))))
+
+# halos (um por lanterna, virado para a câmera) e manchas de luz no chão (uma por lampião): somem de dia
+func _luz_lampioes(no: Node3D, ts: Array) -> void:
+	if mat_halo == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1.0, 0.8, 0.45, 1.0))
+		g.set_color(1, Color(1.0, 0.6, 0.25, 0.0))
+		var tx := GradientTexture2D.new()
+		tx.gradient = g
+		tx.fill = GradientTexture2D.FILL_RADIAL
+		tx.fill_from = Vector2(0.5, 0.5)
+		tx.fill_to = Vector2(0.5, 0.0)
+		tx.width = 64
+		tx.height = 64
+		mat_halo = StandardMaterial3D.new()
+		mat_halo.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat_halo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat_halo.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat_halo.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat_halo.no_depth_test = false
+		mat_halo.albedo_texture = tx
+		mat_poca = mat_halo.duplicate()
+		mat_poca.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+		mat_poca.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var halo := QuadMesh.new()
+	halo.size = Vector2(1.1, 1.1)
+	halo.material = mat_halo
+	var poca := PlaneMesh.new()
+	poca.size = Vector2(6.0, 6.0)
+	poca.material = mat_poca
+	for par in [[halo, LAMPIAO_LANTERNAS.size()], [poca, 1]]:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = par[0]
+		mm.instance_count = ts.size() * int(par[1])
+		var j := 0
+		for t in ts:
+			if par[0] == halo:
+				for l in LAMPIAO_LANTERNAS:
+					mm.set_instance_transform(j, Transform3D(Basis(), t * l))
+					j += 1
+			else:
+				var c: Vector3 = t.origin
+				var y: float = m.terreno.altura_montanha(c.x, c.z) if m.terreno != null else c.y
+				mm.set_instance_transform(j, Transform3D(Basis(), Vector3(c.x, maxf(c.y, y) + 0.12, c.z)))
+				j += 1
+		var g2 := MultiMeshInstance3D.new()
+		g2.multimesh = mm
+		g2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g2.visibility_range_end = VE_CASA
+		g2.add_to_group("luz_lampiao")
+		g2.visible = luz_rio > 0.0
+		no.add_child(g2)
+
+func _lampioes() -> void:
+	if m.get("dia") == null or m.dia == null:
+		return
+	var k := clampf((float(m.dia.noite) - 0.15) / 0.5, 0.0, 1.0)
+	if absf(k - luz_rio) < 0.02:
+		return
+	luz_rio = k
+	for mt in mats_rio:
+		mt.emission_enabled = k > 0.0
+		mt.emission = Color(1.0, 0.72, 0.36)
+		mt.emission_energy_multiplier = 1.4 * k
+	if mat_halo != null:
+		mat_halo.albedo_color = Color(1, 1, 1, 0.9 * k)
+		mat_poca.albedo_color = Color(1, 1, 1, 0.45 * k)
+	for g in get_tree().get_nodes_in_group("luz_lampiao"):
+		g.visible = k > 0.0
