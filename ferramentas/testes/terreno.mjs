@@ -1,6 +1,6 @@
 // Teste do terreno (André 2026-11-05): mínimo 6 x 6, sem frestinha, vender, mudar o tamanho e a conta do correio.
 // Uso: node ferramentas/testes/terreno.mjs
-import { Simulacao, MAPA_CLAREIRA, motivoTerreno, LOTE, contaTerreno } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, motivoTerreno, LOTE, contaTerreno, taxaSemanaTerreno } from '../../shared/index.js';
 import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 }), b = s.adicionarJogador('B', 'Beto', undefined, { conta: 2 });
@@ -21,10 +21,12 @@ s.mudarLote('A', { x0: -28, z0: 52, x1: -20, z1: 63 }); ok(LA.def.z0 === 52 && a
 s.mudarLote('A', { x0: -28, z0: 55, x1: -20, z1: 63 }); ok(LA.def.z0 === 55 && a.prog.ouro === ouro0 - 24 * 4 + 48, 'diminuiu e recebeu metade ' + avisos());
 // conta do correio
 LA.taxa = Date.now() - 15 * 86400000;
-const c = contaTerreno(LA.def, LA.taxa, Date.now()); ok(c.semanas === 2 && c.valor === 128, 'duas contas de 64 ' + JSON.stringify(c));
+const c = contaTerreno(LA.def, LA.taxa, Date.now(), LA.pecas.length); ok(c.semanas === 2 && c.terreno === 1195 && c.porPecas === 20 && c.valor === 2430, 'duas contas de 1.215 (8x8 = 1.195 + 1 peça x 20) ' + JSON.stringify(c));
+ok(taxaSemanaTerreno(36) === 504 && taxaSemanaTerreno(100) === 2333 && taxaSemanaTerreno(300) === 12124, 'taxa escala com o tamanho');
+a.prog.ouro += 5000;
 a.prog.mochila[0] = { k: 'obra_bancada', n: 1 };
 s.construir('A', { k: 'bancada', x: -23, z: 60.5, r: 0 }); ok(LA.pecas.length === 1, 'conta atrasada trava: ' + avisos());
-const o1 = a.prog.ouro; s.pagarTaxa('A'); ok(a.prog.ouro === o1 - 128 && contaTerreno(LA.def, LA.taxa, Date.now()).semanas === 0, 'pagou ' + avisos());
+const o1 = a.prog.ouro; s.pagarTaxa('A'); ok(a.prog.ouro === o1 - 2430 && contaTerreno(LA.def, LA.taxa, Date.now()).semanas === 0, 'pagou ' + avisos());
 s.construir('A', { k: 'bancada', x: -23, z: 60.5, r: 0 }); ok(LA.pecas.length === 2, 'depois de pagar constrói ' + avisos());
 // vender
 let soltou = ''; s.aoVenderLote = (id) => { soltou = id; };

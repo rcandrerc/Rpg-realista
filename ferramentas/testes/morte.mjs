@@ -25,6 +25,7 @@ s.item('A', { acao: 'consertar' });
 ok(s.eventos.some((e) => /Conserte com o Tomás/.test(e.texto || '')), 'longe do Tomás não conserta');
 const tomas = MAPA_CLAREIRA.npcs.find((n) => n.id === 'ferreiro');
 j.x = tomas.x + 1; j.z = tomas.z;
+j.prog.ouro += 1000; // conserto mais caro (André 2026-11-17): 180 já não paga uma Rara quebrada
 const antes = j.prog.ouro;
 s.eventos = [];
 s.item('A', { acao: 'consertar' });

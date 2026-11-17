@@ -776,13 +776,18 @@ export const LOTES_ANTIGOS = {
 // encosta ou deixa pelo menos 'fresta' m (um caminho); ao marcar, a borda gruda (ímã) na estrada e no vizinho a até 'ima' m.
 export const LOTE = { preco: 400, placaDist: 3, precoBloco: 4, ladoMin: 6, ladoMax: 20, areaMax: 300, folgaRua: 0.6, folgaBorda: 1.5,
   alcance: 6, pecasPorBloco: 0.4, pecasMin: 12, maxPecas: 120, estacaoDist: 3,
-  venda: 0.5, taxaBloco: 1, taxaDias: 7, taxaTrava: 2, fresta: 3, ima: 1.5 };
+  venda: 0.5, taxaBloco: 14, taxaCurva: 0.5, taxaPeca: 20, taxaDias: 7, taxaTrava: 2, fresta: 3, ima: 1.5 };
+// taxa (André 2026-11-17: "aluguel deve subir e escalável, lote pequeno tanto, maior mais caro"): era 1 por bloco por semana.
+// Agora taxaBloco x blocos x (blocos / 36)^taxaCurva por semana: 6x6 = 504, 10x10 = 2.333, 15x15 = 7.875, 300 blocos = 12.124,
+// mais taxaPeca por peça construída no terreno (André 2026-11-17: "depende de quantos itens você tenha no terreno").
+export const taxaSemanaTerreno = (blocos) => Math.round(blocos * LOTE.taxaBloco * Math.pow(Math.max(1, blocos) / 36, LOTE.taxaCurva || 0));
 export const vendaTerreno = (w, d) => Math.floor(Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco * LOTE.venda);
 // conta do correio: semanas fechadas desde 'taxa' (ms do começo da conta em aberto), valor e quando chega a próxima
-export function contaTerreno(def, taxa, agora) {
+export function contaTerreno(def, taxa, agora, pecas = 0) {
   const sem = LOTE.taxaDias * 86400000, ini = Number(taxa) || agora, n = Math.max(0, Math.floor((agora - ini) / sem));
   const blocos = Math.round(def.x1 - def.x0) * Math.round(def.z1 - def.z0);
-  return { semanas: n, valor: n * blocos * LOTE.taxaBloco, porSemana: blocos * LOTE.taxaBloco, proxima: ini + (n + 1) * sem };
+  const terreno = taxaSemanaTerreno(blocos), nP = Math.max(0, pecas | 0), porPecas = nP * (LOTE.taxaPeca || 0), porSemana = terreno + porPecas;
+  return { semanas: n, valor: n * porSemana, porSemana, blocos, terreno, pecas: nP, porPecas, proxima: ini + (n + 1) * sem };
 }
 export const precoTerreno = (w, d) => Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco;
 export const maxPecasTerreno = (w, d) => Math.max(LOTE.pecasMin, Math.min(LOTE.maxPecas, Math.round(w * d * LOTE.pecasPorBloco)));
@@ -1310,7 +1315,7 @@ export const VENDA_EQUIP = [6, 25, 250, 700, 2000]; // quanto a loja paga por ra
 // até o Tomás consertar. Conserto: o que falta da durabilidade x VENDA_EQUIP da raridade x `conserto` (em ouro).
 // consertoTabela (André 2026-11-16, estudo da economia): ouro da peça inteira por raridade, no lugar de VENDA_EQUIP x conserto
 // (conserto 0.3 fica para quem não tiver a tabela)
-export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3, xp: 0.05, consertoTabela: [30, 120, 450, 1500, 4500] }; // xp (André 2026-11-11): perde 5% do XP que já tem no nível atual (nunca cai de nível)
+export const MORTE = { ouro: 0.1, desgaste: 10, durMax: 100, conserto: 0.3, xp: 0.05, consertoTabela: [50, 400, 2000, 8000, 30000] }; // André 2026-11-17: "pesar no bolso" (era 30 / 120 / 450 / 1500 / 4500) // xp (André 2026-11-11): perde 5% do XP que já tem no nível atual (nunca cai de nível)
 // Reforço de equipamento (igual ao Quimera, André 2026-11-07): toque na peça e em "Reforçar". Cada tentativa custa ouro e
 // pode falhar. Números do Quimera (index.html: Sh = chance, Th = custo, Rh = bônus, mgGNeed = atributo):
 // - max: até onde cada raridade vai, igual ao Quimera (André 2026-11-07: "faz igual Quimera"): Comum não reforça,
@@ -1366,7 +1371,10 @@ export const precoLoja = (o, nv = 1) => Math.round((o?.preco || 0) + (o?.porNive
 // Economia (André 2026-11-16, estudo em claude.ai/artifact/UWEQY9d7iWXwipr7pdXYKd): ouroMonstro = parte do ouro de base
 // dos monstros (DROPS) que cai (era tudo); o resto da proposta está nos próprios números (NIVEL_INIMIGO.ouro,
 // VENDA_EQUIP, VENDA_TOMO, LOJA, MORTE.consertoTabela, RESET_BUILD, PAGINA_PRECO, PACK_REGRAS.k e areas.forte).
-export const ECONOMIA = { ouroMonstro: 0.6 };
+// André 2026-11-17 (remoção aprovada: "Mob não dropa mais Gold... se você quiser fazer Gold, é vendendo os equipamentos,
+// fazendo pack"): ouroMonstro 0.6 -> 0 e ouroBoss 0 (boss de mundo também). semente: as sementes da Rosa custam
+// semente x PLANTAS/ARVORES_PLANTIO.semente ("tá muito barato").
+export const ECONOMIA = { ouroMonstro: 0, ouroBoss: 0, semente: 2.5 };
 export const LOJA_DISTANCIA = 4; // metros da Rosa para comprar e vender
 export const LOJA_MAX = 999; // compra várias de uma vez (André 2026-11-07): até quantas por toque em Comprar
 // Troca entre jogadores (como no Quimera, André 2026-11-04): pedir perto, cada um põe itens e ouro, tranca a oferta
@@ -1676,7 +1684,7 @@ for (const [k, p] of Object.entries(PLANTAS)) {
     desc: `Plante na terra arada do seu lote (modo construção, aba Fazenda). Fica madura com ${p.G < 1 ? Math.round(p.G * 60) + ' min' : p.G + ' h'} de rega.` };
   ITENS[k] = { nome: p.nome, pilha: 50, usar: { vida: p.cura }, venda: p.venda, cor: p.cor, colheita: true,
     desc: `Da horta. Recupera ${Math.round(p.cura * 100)}% da vida ou vende para a Rosa.` };
-  LOJA.push({ k: 'semente_' + k, preco: p.semente });
+  LOJA.push({ k: 'semente_' + k, preco: Math.round(p.semente * ECONOMIA.semente) }); // André 2026-11-17: x2,5
 }
 // Fazendeiro (o Quimera tem; chegou com a horta): arar, plantar, regar e colher dão pontos
 PROFISSOES.faz = { nome: 'Fazendeiro', grupo: 'Coleta', desc: 'Arar, plantar, regar e colher na horta do seu lote' };
@@ -1733,7 +1741,7 @@ export const PESCA = {
   mar: { quantos: { comum: 8, raro: 4, epico: 2 }, de: 30, ate: 160, margem: 7, fundo: 1.5 },
 };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
-LOJA.push({ k: 'lenha', preco: 3 }, { k: 'pedra', preco: 4 });
+LOJA.push({ k: 'lenha', preco: 80 }, { k: 'pedra', preco: 80 }); // André 2026-11-17: "uns 80, se não ninguém corta ou cata pedra" (eram 3 e 4)
 // Botão "Organizar" da mochila e do baú (André 2026-11-07): junta as pilhas pela metade e põe em ordem de tipo (esta
 // lista), depois raridade (a melhor primeiro), reforço e nome. Equipamento segue a ordem dos lugares do corpo (LUGARES).
 export const ORGANIZAR = ['equip', 'consumivel', 'tomo', 'ferramenta', 'obra', 'semente', 'material', 'outro'];
@@ -1883,7 +1891,7 @@ export const PACKS = {
 // k (André 2026-11-16, estudo da economia: o pack tem que render mais que caçar): era 1.4. areas.forte: a área do mercador
 // vira a do campo de caça mais forte a até forte m (antes: o mais perto a até raio m; Aurora pagava área 1).
 export const PACK_REGRAS = {
-  k: 2.4, extra: 1.2, perto: 40, vigor: 12,
+  k: 2.88, extra: 1.2, perto: 40, vigor: 12,
   dist: { curto: 462, a: 0.3, porM: 1 / 140, maxCurto: 3.6, porMLongo: 1 / 500, max: 6 },
   areas: { niveis: [1, 10, 30, 50, 70], fator: [1, 1.8, 2.9, 4.3, 5.9], raio: 60, forte: 250 },
   mercado: { livres: 4, cai: 0.03, minimo: 0.5, volta: 360 },
@@ -4189,7 +4197,7 @@ export const TITULOS = {
   mata_dragao: { nome: 'Mata-Dragões', r: 4, como: 'Venceu o Dragão de Cinzas', cond: { boss: 'dragao_cinzas' }, b: { critico: 0.08, dano: 0.05 } },
   // atos da história (os mesmos nomes de HISTORIA[].titulo)
   sentinela_ordem: { nome: 'Sentinela da Ordem', r: 1, como: 'Fechou o Ato II', cond: { hist: 'b11' }, b: { defesa: 0.04 } },
-  voz_estradas: { nome: 'Voz das Estradas', r: 2, como: 'Fechou o Ato III', cond: { hist: 'c11' }, b: { ouro: 0.08 } },
+  voz_estradas: { nome: 'Voz das Estradas', r: 2, como: 'Fechou o Ato III', cond: { hist: 'c11' }, b: { venda: 0.08 } }, // André 2026-11-17: era +8% ouro dos monstros (que não soltam mais ouro)
   vento_mar: { nome: 'Vento do Mar', r: 2, como: 'Fechou o Ato IV', cond: { hist: 'h13' }, b: { xp: 0.05 } },
   luz_aurora: { nome: 'Luz de Aurora', r: 3, como: 'Fechou o Ato V', cond: { hist: 'h15' }, b: { vida: 0.06, critico: 0.03 } },
   estrela_aethra: { nome: 'Estrela de Aethra', r: 4, como: 'Venceu a Vesper', cond: { hist: 'f3' }, b: { dano: 0.06, critico: 0.05, vida: 0.05 } },
@@ -4316,5 +4324,5 @@ ITENS.resina = { nome: 'Resina', mat: true, pilha: 50, venda: 3, cor: '#d89a2a',
 for (const [k, T] of Object.entries(ARVORES_PLANTIO)) {
   ITENS['semente_' + k] = { nome: 'Semente de ' + T.nome.toLowerCase(), mat: true, pilha: 50, venda: Math.max(1, Math.floor(T.semente / 2)), cor: T.copa, arvore: k,
     desc: `${T.desc} Plante numa área de plantio ou no seu terreno. Fica adulta em ${T.h} h.` };
-  LOJA.push({ k: 'semente_' + k, preco: T.semente });
+  LOJA.push({ k: 'semente_' + k, preco: Math.round(T.semente * ECONOMIA.semente) }); // André 2026-11-17: x2,5
 }
