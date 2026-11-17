@@ -163,7 +163,7 @@ func tocou_tela(pos: Vector2) -> void:
 		elif conta == "": # ainda não é amigo (André 2026-11-16): pede e o NPC decide na hora
 			bts.append(["Adicionar amigo", func(): esconder_cartao(); m.rede("amigo", {"acao": "pedir", "com": achou})])
 		if not longe:
-			bts += ver
+			bts += duelo_bt(achou) + ver
 		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)
 		return
 	if outros[achou].get("bot", false): # outro NPC que não é amigo virtual: só ver o equipamento
@@ -178,7 +178,13 @@ func tocou_tela(pos: Vector2) -> void:
 			return
 		mostrar_cartao(nome, extras + [["Agora não", esconder_cartao]], 8.0)
 		return
-	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + ver + [["Agora não", esconder_cartao]], 8.0)
+	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + duelo_bt(achou) + ver + [["Agora não", esconder_cartao]], 8.0)
+
+# botão "Duelo" (André 2026-11-17, duelo.gd): de perto, com jogador, Cecília e Dario; some durante um duelo
+func duelo_bt(id: String) -> Array:
+	if m.duelo == null or m.duelo.ativo():
+		return []
+	return [["Duelo", m.duelo.pedir.bind(id)]]
 
 # botão do cartão: pedir, aceitar ou recusar a troca
 func _responder(acao: String, com: String) -> void:
@@ -238,6 +244,8 @@ func mostrar_equip(ev: Dictionary) -> void:
 	col.add_theme_constant_override("separation", 6)
 	equip_jan.add_child(col)
 	col.add_child(Menu.rotulo("Equipamento de %s  (Nv %d)" % [str(ev.get("nome", "")), int(ev.get("nivel", 1))], 18, Menu.OURO_CLARO))
+	if ev.get("duelos") is Dictionary: # placar de duelos (André 2026-11-17)
+		col.add_child(Menu.rotulo("Duelos: %d vitórias e %d derrotas" % [int(ev.duelos.get("v", 0)), int(ev.duelos.get("d", 0))], 14, Menu.TEXTO))
 	var grade := GridContainer.new()
 	grade.columns = 2
 	grade.add_theme_constant_override("h_separation", 16)

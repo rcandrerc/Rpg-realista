@@ -1372,6 +1372,12 @@ export const LOJA_MAX = 999; // compra várias de uma vez (André 2026-11-07): a
 // Troca entre jogadores (como no Quimera, André 2026-11-04): pedir perto, cada um põe itens e ouro, tranca a oferta
 // (cadeado) e, com as duas trancadas, os dois confirmam. Qualquer mudança destranca as duas. Quem decide é o servidor.
 export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedidos: 3 }; // metros, metros, itens, s, s
+// Duelo (André 2026-11-17: "opção pra chamar duelo tanto contra Dario e Cecília qt contra jogadores"), shared/duelo.js.
+// perto: m para chamar; pedido: s para aceitar; contagem: 3, 2, 1; raio: círculo (sair = perde); fim: fração da vida que
+// encerra (ninguém morre); max: s (depois vence quem tem mais vida em %); travar: atordoar/congelar vale essa fração do tempo.
+// npc: vontade da Cecília e do Dario (base + por ponto de amizade; menos cansado, de noite). humor: s que o sim/não vale.
+export const DUELO = { perto: 6, pedido: 15, entrePedidos: 4, contagem: 3, raio: 20, fim: 0.1, max: 120, travar: 0.5,
+  npc: { base: 0.65, porAmizade: 0.03, cansada: 0.45, noite: 0.2, min: 0.05, max: 0.95, humor: 90 } };
 // Amigos e time (André 2026-11-05): até 20 amigos na conta; o time junta até 5 amigos da mesma sala.
 // XP e drop dos monstros valem para quem do time está a até 'perto' metros do monstro que caiu e lutou há pouco.
 export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
@@ -2723,6 +2729,14 @@ export const AMIGA = {
     // aceitou com ele bem mais fraco (André 2026-11-16: "vou te ajudar porque você é meu amigo... mas não tão grosseira")
     nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
+    // duelo (André 2026-11-17, shared/duelo.js): topa ou não pelo humor; depois comenta o resultado
+    duelo: {
+      sim: ['Duelo? Bora! Vou pegar leve... mentira.', 'Aceito! Depois não chora, hein.', 'Fechou! Quem perder paga o jantar.'],
+      nao: { ocupada: 'Agora não, tô ocupada. Depois a gente duela!', cansada: 'Agora não, tô cansada. Deixa eu recuperar a vida antes.', noite: 'De noite? Amanhã a gente duela, tá?', vontade: 'Hoje não tô no clima de duelo. Outra hora!', jaFalei: 'Já falei que agora não, guerreiro!' },
+      ganhei: ['Ganhei! Treina mais e volta, tá?', 'Haha, essa foi minha! Revanche quando quiser.'],
+      perdi: ['Ai, você me pegou! Quero revanche.', 'Tá, essa foi sua. Mas da próxima eu ganho!'],
+      empate: ['Empate! Ninguém paga o jantar hoje.'],
+    },
     // André 2026-11-17: quando a IA dela acaba no dia ("vai descansar, já jogou demais"); depois, só "tô ocupada"
     apeloSim: ['Tá bom, tá bom... se é tão importante assim, eu vou. Manda o convite!', 'Ai, assim você me pega... beleza, eu vou. Manda o time!', 'Falando desse jeito não tem como dizer não. Bora, manda o convite!'],
     apeloNao: ['Poxa, desculpa mesmo... hoje não dá. Amanhã eu compenso, prometo.', 'Sei que é importante, mas agora não consigo mesmo. Me perdoa?'],
@@ -2935,6 +2949,13 @@ export const DARIO = mesclarAmigo(AMIGA, {
     time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
     timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
+    duelo: {
+      sim: ['Duelo? Fechado. Mostra o que sabe.', 'Bora. Espada na mão e sem chorar depois.', 'Aceito. Quem perder paga a janta.'],
+      nao: { ocupada: 'Agora não, tô ocupado. Depois a gente duela.', cansada: 'Agora não, tô moído. Deixa eu recuperar a vida antes.', noite: 'De noite não. Amanhã a gente duela.', vontade: 'Hoje não tô a fim de duelo. Outra hora.', jaFalei: 'Já falei que agora não, parceiro.' },
+      ganhei: ['Essa foi minha. Treina mais e volta.', 'Boa luta. Mas a espada aqui ainda é mais rápida.'],
+      perdi: ['Boa, você me pegou. Quero revanche.', 'Tá, essa foi sua. Da próxima eu levo.'],
+      empate: ['Empate. Ninguém paga a janta hoje.'],
+    },
     apeloSim: ['Tá, tá... se é importante assim, eu vou. Manda o convite.', 'Desse jeito não tem como negar. Bora, manda o time.'],
     apeloNao: ['Foi mal, parceiro... hoje não dá mesmo. Amanhã eu compenso.', 'Sei que é importante, mas agora não consigo. Desculpa.'],
     cansouIa: ['Joguei demais hoje. Vou dar uma pausa, depois a gente se fala.', 'Chega por hoje, tô moído. Mais tarde a gente conversa.'],

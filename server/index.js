@@ -25,7 +25,7 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, plantarArvore: 3, diaria: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
 // O robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) joga como um jogador, mas nunca negocia, nunca compra
 // terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
-const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip']);
+const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
@@ -176,6 +176,7 @@ class SalaClareira extends Room {
     this.ouvir('verEquip', (c, m) => { if (m && typeof m.com === 'string' && m.com.length < 40) this.sim.verEquip(c.sessionId, { com: m.com }); }); // ver o equipamento de quem está perto
     this.ouvir('amigo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.amigo(c.sessionId, { acao: m.acao, com: texto(m.com), c: texto(m.c), nome: texto(m.nome) }); });
     this.ouvir('time', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.time(c.sessionId, { acao: m.acao, com: texto(m.com) }); });
+    this.ouvir('duelo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.duelo(c.sessionId, { acao: m.acao, com: texto(m.com) }); }); // duelo (shared/duelo.js, André 2026-11-17)
     // amizade feita ou desfeita: grava na conta (as duas pontas); desfeita, avisa também as outras salas
     const idConta = (k) => (/^c\d+$/.test(k) ? Number(k.slice(1)) : null);
     this.sim.aoAmizade = (a, b, junta) => {
