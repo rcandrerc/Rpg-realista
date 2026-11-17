@@ -101,7 +101,19 @@ jobs:
               c=$(basename "$d"); echo "### $c"
               log=$(gcloud storage ls "gs://$BALDE/robo-real/${{ github.run_id }}/$c/**/logcat" 2>/dev/null | head -1)
               [ -z "$log" ] && { echo "sem log"; continue; }
-              gcloud storage cat "$log" | grep -a "CELULAR" | grep -av "CELULAR fim" | tail -25 | sed 's/^/    /'
+              gcloud storage cat "$log" > "$d/logcat.txt"
+              grep -a "CELULAR" "$d/logcat.txt" | grep -av "CELULAR fim" | tail -25 | sed 's/^/    /'
+              # o que derrubou o app ou o teste (fechou sozinho, travou, falta de memória)
+              echo "Erros e quedas:"
+              grep -a -E "FATAL|AndroidRuntime|Fatal signal|SIGSEGV|SIGABRT|backtrace|lowmemorykiller|ANR in|SCRIPT ERROR|USER ERROR|ERROR:|am_crash|am_anr|am_kill.*rpgprototipo|Process com.rcandrerc.rpgprototipo .*(died|has died)" "$d/logcat.txt" | head -40 | cut -c1-260 | sed 's/^/    /'
+              echo "Últimas linhas do jogo:"
+              grep -a " godot " "$d/logcat.txt" | tail -15 | cut -c1-260 | sed 's/^/    /'
               gcloud storage cat "$log" | grep -a "CELULAR fim" | sed 's/.*CELULAR fim //' | jq -r '"FPS \(.fps) (mínimo \(.fps_min)), travadas >100 ms: \(.travadas.acima100), placa \(.placa), \(.aparelho) \(.erro)" + (if .missoes then "\nMissões: \(.missoes.feitas) feitas, \(.missoes.puladas) travaram, nível \(.missoes.nivel_de) → \(.missoes.nivel_ate), agora: \(.missoes.agora)" else "" end)' 2>/dev/null || echo "o robô não terminou"
             done
           } | tee -a $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logcat-celulares
+          path: cel/*/logcat.txt
+          retention-days: 7
