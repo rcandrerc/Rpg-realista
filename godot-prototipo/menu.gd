@@ -3500,8 +3500,89 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 				bt.custom_minimum_size.y = alto
 				if compacto:
 					bt.custom_minimum_size.x = 118
+	if compacto:
+		_limpar_botoes(bs, l, trancado, it)
 	l.add_child(fx)
 	return cx
+
+# André 2026-11-17 ("é muito botão numa janela só"): na ficha deitada ficam à vista só a ação principal e o Reforçar;
+# Até o máximo, Evoluir, Apagar e Destruir vão para o "Mais" e o cadeado vira um ícone ao lado do X. Nada some.
+const BOTOES_NO_MAIS := ["Até o máximo", "Evoluir", "Apagar", "Destruir"]
+func _limpar_botoes(bs: Container, l: HBoxContainer, trancado: bool, it) -> void:
+	var gb := bs as GridContainer
+	gb.columns = 2
+	var guardados: Array = []
+	for bt in bs.get_children():
+		if not (bt is Button):
+			continue
+		var pt := str(bt.get_meta("pt", bt.text))
+		if pt in ["Trancar", "Destrancar"]: # cadeado: ícone quadrado ao lado do X (dourado = trancado)
+			bs.remove_child(bt)
+			bt.text = ""
+			bt.tooltip_text = Idioma.frase(pt)
+			bt.custom_minimum_size = Vector2(34, 34)
+			bt.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			bt.add_theme_constant_override("icon_max_width", 20)
+			bt.modulate = Color(1.25, 1.05, 0.6) if trancado else Color(0.75, 0.72, 0.66)
+			l.add_child(bt)
+		elif pt in BOTOES_NO_MAIS:
+			bs.remove_child(bt)
+			guardados.append(bt)
+	if guardados.is_empty():
+		return
+	guardados.sort_custom(func(a, b): return BOTOES_NO_MAIS.find(str(a.get_meta("pt", ""))) < BOTOES_NO_MAIS.find(str(b.get_meta("pt", ""))))
+	var mais := botao("Mais ▾", func(): pass, 14)
+	mais.custom_minimum_size = Vector2(118, 34)
+	mais.pressed.connect(func():
+		if not _arrastou:
+			_abrir_mais(mais, guardados))
+	mais.tree_exiting.connect(func():
+		for b in guardados:
+			if is_instance_valid(b) and b.get_parent() == null:
+				b.queue_free())
+	bs.add_child(mais)
+
+var _mais_aberto: Control
+func _abrir_mais(origem: Control, botoes: Array) -> void:
+	if _mais_aberto and is_instance_valid(_mais_aberto):
+		_mais_aberto.queue_free()
+	var capa := Control.new()
+	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+	(self if is_inside_tree() else origem.get_tree().root).add_child(capa) # fora da árvore: só na foto (ferramentas)
+	_mais_aberto = capa
+	var fundo := ColorRect.new() # tocar fora fecha
+	fundo.color = Color(0, 0, 0, 0.25)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.gui_input.connect(func(ev):
+		if toque(ev):
+			_fechar_mais(botoes))
+	capa.add_child(fundo)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.15), 1, 8, 8))
+	capa.add_child(cx)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	cx.add_child(v)
+	for b in botoes:
+		if b.get_parent():
+			b.get_parent().remove_child(b)
+		b.custom_minimum_size = Vector2(170, 40)
+		if not b.has_meta("fecha_mais"):
+			b.set_meta("fecha_mais", true)
+			b.pressed.connect(func(): _fechar_mais.call_deferred(botoes))
+		v.add_child(b)
+	cx.reset_size()
+	var r := origem.get_global_rect()
+	var tam := cx.get_combined_minimum_size()
+	cx.position = Vector2(clampf(r.position.x + r.size.x - tam.x, 8, origem.get_viewport_rect().size.x - tam.x - 8), maxf(8, r.position.y - tam.y - 6))
+
+func _fechar_mais(botoes: Array) -> void:
+	for b in botoes:
+		if is_instance_valid(b) and b.get_parent():
+			b.get_parent().remove_child(b)
+	if _mais_aberto and is_instance_valid(_mais_aberto):
+		_mais_aberto.queue_free()
+	_mais_aberto = null
 
 # ---------- vender vários (André 2026-11-04) ----------
 # fora do modo: botão "Vender vários". No modo: Selecionar tudo / Desmarcar, Vender N · ouro e Pronto.
