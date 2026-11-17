@@ -2644,6 +2644,7 @@ export { RIOS_MUNDO, PONTES_MUNDO };
 export const RECOMECO = { data: '2026-11-11' };
 export const AMIGA = {
   id: 'cecilia', nome: 'Cecília', conta: 'a:cecilia', papel: 'a guerreira',
+  puxaAssunto: true,
   // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
   // zera de novo; o save anterior fica em 'antes' no terreno dela.
   recomeco: RECOMECO.data,
@@ -2717,8 +2718,12 @@ export const AMIGA = {
     // aceitou com ele bem mais fraco (André 2026-11-16: "vou te ajudar porque você é meu amigo... mas não tão grosseira")
     nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
+    // André 2026-11-17: quando a IA dela acaba no dia ("vai descansar, já jogou demais"); depois, só "tô ocupada"
+    cansouIa: ['Ufa, joguei demais hoje... vou dar uma descansada. Depois a gente se fala!', 'Chega por hoje, tô exausta de tanto jogar. Vou descansar um pouco, mais tarde a gente conversa!'],
+    ocupadaIa: ['Tô meio ocupada agora, depois a gente conversa!', 'Agora não dá, tô no meu canto. Mais tarde?', 'Tô de boa aqui no meu ritmo agora. Depois a gente fala!'],
     recusa: {
       fraco: 'Hoje não, vai... você tá bem abaixo do meu nível e eu queria upar no meu ritmo. Outra hora a gente vai junto!', // André 2026-11-16
+      ocupada: 'Tô meio ocupada agora... outra hora a gente vai, tá?', // a IA dela acabou por hoje (André 2026-11-17)
       cansada: 'Ai, tô moída... deixa eu descansar um pouco antes, tá?',
       horta: 'Agora não, minha horta tá precisando de mim. Me chama daqui a pouco!',
       noite: 'De noite? Prefiro ficar em casa. Amanhã cedo a gente vai!',
@@ -2764,7 +2769,10 @@ export const AMIGA = {
     pior: '{item} não serve pra mim, o que eu uso é melhor. Por isso eu não pago, tá?',
     vestiu: 'Vesti {item}! Ficou bom em mim? Valeu demais!',
   },
-  memoria: { max: 15, tamanho: 120, pausa: 180, minimo: 2, cheia: 10, gostoMin: 3, gostoChance: 0.5,
+  // fatos (André 2026-11-17: "se eu falar que meu pai morreu, que trabalho no restaurante... ela guarda?"): lista à parte que
+  // só cresce (a IA não reescreve), salva no banco e vai em toda conversa
+  fatos: { max: 80, tamanho: 140 },
+  memoria: { max: 30, tamanho: 140, pausa: 180, minimo: 2, cheia: 10, gostoMin: 3, gostoChance: 0.5,
     regras: { // dica que ele ensinou -> o que muda nela (no time de quem ensinou)
       curaCedo: { texto: 'curar ele mais cedo', curaDono: 0.65 },
       pocaoCedo: { texto: 'beber poção mais cedo', pocao: 0.6 },
@@ -2816,6 +2824,12 @@ export const AMIGA = {
     digitando: [1.2, 3], // segundos até a resposta (parece gente digitando)
     pedidoCurto: 7, // palavras: até aqui "vamos"/"missão" é pedido de time mesmo com a IA achando que é conversa; mais longo, vale a IA (André 2026-11-12)
     iaPorDia: 300, // respostas por dia na chave do servidor (só as que a IA deu); 3 modelos do Groq, cada um com seu limite (André 2026-11-12)
+    // André 2026-11-17 ("armazenar mais do que poucas linhas"; "ela mesmo reclamar... perguntar coisas pessoais"; "não quero
+    // que ela fique me pentelhando"): a conversa guardada (e salva no banco) por pessoa; quanto ela pensa; e ela puxa
+    // assunto pela IA de vez em quando: quieto s sem ninguém falar, entre [min, max] s entre uma e outra, evento [min, max] s
+    // depois de ele subir de nível ou cair (respeitando eventoMin s desde a última)
+    historico: 40, esforco: 'high', semIa: 3 * 3600, // semIa: s (de verdade) que ela fica "ocupada" depois que a IA acaba
+    puxar: { quieto: 240, entre: [900, 1800], evento: [30, 90], eventoMin: 300 },
     chamar: { primeiro: [240, 480], entre: [600, 1200], longe: 30, espera: 150 }, combinado: 300, // ela chama o André: s até a 1ª, s entre uma e outra, m de distância, s esperando resposta
     // assunto: palavras que contam (sem acento, minúsculas)
     assuntos: {
@@ -2898,6 +2912,7 @@ function mesclarAmigo(base, muda) {
 }
 export const DARIO = mesclarAmigo(AMIGA, {
   id: 'dario', nome: 'Dario', conta: 'a:dario', papel: 'o guerreiro', genero: 'm',
+  puxaAssunto: false, // André 2026-11-17: quem puxa assunto pela IA é só a Cecília (o Dario responde)
   persona: 'um guerreiro de anime num RPG medieval de fantasia: calmo, confiante, leal, de humor seco e provocador com os amigos, competitivo nas caçadas e orgulhoso da espada',
   visual: 'cabelo_m',
   // visual B (cabelo preto rebelde, olhos dourados, capa roxo-escura); só aparência, as peças de verdade começam Comuns
@@ -2913,8 +2928,11 @@ export const DARIO = mesclarAmigo(AMIGA, {
     time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
     timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
+    cansouIa: ['Joguei demais hoje. Vou dar uma pausa, depois a gente se fala.', 'Chega por hoje, tô moído. Mais tarde a gente conversa.'],
+    ocupadaIa: ['Tô ocupado agora. Depois a gente fala.', 'Agora não, parceiro. Mais tarde.', 'Tô no meu ritmo aqui. Depois a gente troca ideia.'],
     recusa: {
       fraco: 'Hoje não. Cê tá bem abaixo do meu nível e eu queria upar no meu ritmo. Outra hora a gente vai.',
+      ocupada: 'Tô meio ocupado agora. Outra hora a gente vai.',
       cansada: 'Tô moído... deixa eu recuperar o fôlego antes.',
       horta: 'Agora não, a horta precisa de mim. Me chama daqui a pouco.',
       noite: 'De noite eu prefiro guardar a casa. Amanhã cedo a gente vai.',
@@ -3015,7 +3033,7 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
   id, nome, conta: 'a:' + id, papel: g === 'm' ? 'o aventureiro' : 'a aventureira', genero: g,
   persona: `${g === 'm' ? 'um aventureiro' : 'uma aventureira'} de anime num RPG medieval de fantasia: ${jeito}`,
   visual: g === 'm' ? 'cabelo_m' : 'ruiva', aparencia: { cabelo, olhos, pele, roupa, calca, altura, penteado }, // penteado null = o cabelo do próprio corpo
-  terreno: null, nivelInicial: nivel, gosto,
+  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false,
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
