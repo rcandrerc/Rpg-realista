@@ -565,6 +565,11 @@ func _foto_meio(f: Dictionary) -> void:
 		return
 	if f.has("mapa"):
 		no_mapa = f.mapa
+	# árvores plantadas e veios vêm UMA vez só (server/visao.js): numa foto do meio não podem se perder (André
+	# 2026-11-17: a muda de outro jogador não aparecia, o quadrado ficava livre e só lá dizia "Já tem árvore")
+	m.trabalho.veios_comuns(f.get("veios", []))
+	if m.plantio:
+		m.plantio.atualizar(f.get("plantadas", []))
 	for lista in [f.get("jogadores", []), f.get("inimigos", [])]:
 		for c in lista:
 			var id := str(c.get("id", ""))

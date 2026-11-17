@@ -10,12 +10,16 @@ extends Node
 # Uma ação por quadrado: arar tudo, Salvar; depois plantar tudo, Salvar (a conta é com a terra como está agora).
 
 const Menu = preload("res://menu.gd")
-const ACOES := ["arar", "plantar", "regar", "colher"]
-const DUR := {"arar": 1.6, "plantar": 1.2, "regar": 1.4, "colher": 1.2} # s de cada tarefa
-const LONGE := {"arar": 1.0, "plantar": 0.6, "regar": 0.75, "colher": 0.6} # m do herói até o meio do quadrado
-const COR := {"arar": Color(0.86, 0.66, 0.38), "plantar": Color(0.45, 0.9, 0.42), "regar": Color(0.4, 0.72, 1.0), "colher": Color(1.0, 0.84, 0.35)}
+# Mudas de árvore (André 2026-11-17: "se quiser plantar várias sementes de árvore pode setar e depois salva e ele sai
+# plantando tudo como as sementes normais"): ação "arvore", quadrado de 4 m (chave "a:i,k"), no terreno ou na área de
+# plantio; no fim manda "plantarArvore" no quadrado exato (q:1).
+const ACOES := ["arar", "plantar", "regar", "colher", "arvore"]
+const DUR := {"arar": 1.6, "plantar": 1.2, "regar": 1.4, "colher": 1.2, "arvore": 1.4} # s de cada tarefa
+const LONGE := {"arar": 1.0, "plantar": 0.6, "regar": 0.75, "colher": 0.6, "arvore": 1.0} # m do herói até o meio do quadrado
+const COR := {"arar": Color(0.86, 0.66, 0.38), "plantar": Color(0.45, 0.9, 0.42), "regar": Color(0.4, 0.72, 1.0), "colher": Color(1.0, 0.84, 0.35), "arvore": Color(0.55, 0.85, 0.4)}
 # cores da moldura de luz (marca_fazenda.gdshader): tons quentes e suaves, nada de verde-marca-texto
-const COR_MOLDURA := {"arar": Color(1.0, 0.78, 0.5), "plantar": Color(1.0, 0.9, 0.58), "regar": Color(0.62, 0.86, 1.0), "colher": Color(1.0, 0.8, 0.42)}
+const COR_MOLDURA := {"arar": Color(1.0, 0.78, 0.5), "plantar": Color(1.0, 0.9, 0.58), "regar": Color(0.62, 0.86, 1.0), "colher": Color(1.0, 0.8, 0.42), "arvore": Color(0.8, 1.0, 0.55)}
+const QA := 4.0 # m do quadrado das árvores (plantio.gd)
 const SHADER_MARCA := preload("res://marca_fazenda.gdshader")
 const TEMPO_IR := 6.0 # s para chegar a um quadrado; não chegou: pula (avisa)
 
@@ -59,7 +63,9 @@ func motivo_marcar(_L: Dictionary, dados: Dictionary, mot: String) -> String:
 		if k == dados.c:
 			continue
 		n += 1
-		if fila[k].acao == "plantar" and fila[k].get("s", "") == dados.get("s", ""):
+		if dados.acao == "arvore" and fila[k].acao == "arvore" and _quadrados(fila[k]).any(func(q): return q in _quadrados(dados)):
+			return "Já tem muda marcada nesse quadrado"
+		if fila[k].acao == dados.acao and (dados.acao == "plantar" or dados.acao == "arvore") and fila[k].get("s", "") == dados.get("s", ""):
 			sem += 1
 		elif fila[k].acao == "regar":
 			regas += 1
@@ -67,9 +73,29 @@ func motivo_marcar(_L: Dictionary, dados: Dictionary, mot: String) -> String:
 		return "Sem vigor para mais tarefas: o plano já usa %d de vigor" % int(ceil(_custo_vigor() * n))
 	if dados.acao == "plantar" and m.P.contar("semente_" + str(dados.s)) <= sem:
 		return "As sementes de %s já estão todas no plano" % str(c.D.plantas[dados.s].nome).to_lower()
+	if dados.acao == "arvore" and m.P.contar("semente_" + str(dados.s)) <= sem:
+		return "As sementes de %s já estão todas no plano" % str(m.plantio.tipos().get(str(dados.s), {}).get("nome", "")).to_lower()
 	if dados.acao == "regar" and m.P.contar("regador") > 0 and c.agua_regador() <= regas:
 		return "A água do regador dá só para %d regas: encha no poço ou no lago" % c.agua_regador()
 	return ""
+
+# quadrados de 4 m que a muda ocupa (2 x 2 na árvore antiga)
+func _quadrados(d: Dictionary) -> Array:
+	var q := Vector2i(int(d.i), int(d.k))
+	if not _grande(d):
+		return [q]
+	return [q, q + Vector2i(1, 0), q + Vector2i(0, 1), q + Vector2i(1, 1)]
+
+func _grande(d: Dictionary) -> bool:
+	return d.acao == "arvore" and m.plantio != null and bool(m.plantio.tipos().get(str(d.get("s", "")), {}).get("grande", false))
+
+# meio do quadrado da tarefa (m): 1 m da horta ou 4 m da muda
+func _centro(d: Dictionary) -> Vector2:
+	if d.acao == "arvore":
+		var n := 2.0 if _grande(d) else 1.0
+		return Vector2(float(d.i) + n * 0.5, float(d.k) + n * 0.5) * QA
+	var ij := str(d.c).split(",")
+	return Vector2(float(ij[0]) + 0.5, float(ij[1]) + 0.5)
 
 # texto da mira quando dá
 func dica(dados: Dictionary) -> String:
@@ -116,7 +142,7 @@ func _mat_moldura(acao: String) -> ShaderMaterial:
 	return _mats[k]
 
 func _icone(acao: String, s: String) -> String:
-	return {"arar": "cs_arar", "plantar": "it_semente_" + s, "regar": "cs_regar", "colher": "it_colheita"}[acao]
+	return {"arar": "cs_arar", "plantar": "it_semente_" + s, "regar": "cs_regar", "colher": "it_colheita", "arvore": "it_semente_" + s}[acao]
 
 func _refazer_marca(k: String) -> void:
 	if _marcas.has(k):
@@ -125,15 +151,16 @@ func _refazer_marca(k: String) -> void:
 	if not fila.has(k):
 		return
 	var d: Dictionary = fila[k]
-	var ij := k.split(",")
-	var x := float(ij[0]) + 0.5
-	var z := float(ij[1]) + 0.5
+	var cc := _centro(d)
+	var x := cc.x
+	var z := cc.y
+	var lado := (QA * (2.0 if _grande(d) else 1.0) - 0.3) if d.acao == "arvore" else 0.92
 	var raiz := Node3D.new()
 	raiz.position = Vector3(x, m.terreno.altura(x, z) + 0.12, z)
 	add_child(raiz)
 	var q := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(0.92, 0.92)
+	pm.size = Vector2(lado, lado)
 	q.mesh = pm
 	q.material_override = _mat_moldura(str(d.acao)) # antes: _mat(COR[...]), quadrado chapado
 	q.position.y = -0.07
@@ -144,9 +171,10 @@ func _refazer_marca(k: String) -> void:
 	ic.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	ic.shaded = false
 	ic.render_priority = 1
+	var grande_ic: bool = d.acao == "arvore"
 	ic.position = Vector3(0, 0.38, 0)
 	if ic.texture:
-		ic.pixel_size = 0.26 / float(ic.texture.get_width())
+		ic.pixel_size = (0.5 if grande_ic else 0.26) / float(ic.texture.get_width())
 	ic.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	raiz.add_child(ic)
 	# o ícone flutua devagar, subindo e descendo (cada canteiro num tempo diferente)
@@ -186,19 +214,17 @@ func andando() -> bool:
 	return trabalhando and _estado == "indo"
 
 func _alvo_pe(d: Dictionary) -> Vector2:
-	var ij := str(d.c).split(",")
-	var meio := Vector2(float(ij[0]) + 0.5, float(ij[1]) + 0.5)
+	var meio := _centro(d)
 	var h := Vector2(m.heroi.position.x, m.heroi.position.z)
 	var v := h - meio
 	if v.length() < 0.05:
 		v = Vector2(0, -1)
-	return meio + v.normalized() * float(LONGE[d.acao])
+	# árvore antiga: mais perto do meio (o servidor quer o herói a até 4 m do primeiro quadrado)
+	return meio + v.normalized() * (0.6 if _grande(d) else float(LONGE[d.acao]))
 
 func _meio(d: Dictionary) -> Vector3:
-	var ij := str(d.c).split(",")
-	var x := float(ij[0]) + 0.5
-	var z := float(ij[1]) + 0.5
-	return Vector3(x, m.terreno.altura(x, z), z)
+	var cc := _centro(d)
+	return Vector3(cc.x, m.terreno.altura(cc.x, cc.y), cc.y)
 
 # direção para main.direcao_joystick (andando, devagar)
 func direcao_auto() -> Vector3:
@@ -211,23 +237,25 @@ func direcao_auto() -> Vector3:
 
 func _proxima() -> void:
 	var L = c.lotes.get(c.meu)
-	if L == null:
-		parar()
-		return
 	# a mais perto do herói primeiro
 	var h := Vector2(m.heroi.position.x, m.heroi.position.z)
 	while not fila.is_empty():
 		var melhor := ""
 		var md := INF
 		for k in fila:
-			var ij: PackedStringArray = k.split(",")
-			var dd := h.distance_squared_to(Vector2(float(ij[0]) + 0.5, float(ij[1]) + 0.5))
+			var dd := h.distance_squared_to(_centro(fila[k]))
 			if dd < md:
 				md = dd
 				melhor = k
 		var d: Dictionary = fila[melhor]
-		var ij2 := melhor.split(",")
-		var mot: String = c.motivo_fazenda(L, d.acao, int(ij2[0]), int(ij2[1]), str(d.get("s", c.semente)))
+		var mot := ""
+		if d.acao == "arvore":
+			mot = c.motivo_arvore(Vector2i(int(d.i), int(d.k)), str(d.s), bool(d.get("area", false)))
+		elif L == null:
+			mot = "Chegue no seu terreno para a horta"
+		else:
+			var ij2 := melhor.split(",")
+			mot = c.motivo_fazenda(L, d.acao, int(ij2[0]), int(ij2[1]), str(d.get("s", c.semente)))
 		if mot == "":
 			_atual = d.duplicate()
 			_atual.pe = _alvo_pe(d)
@@ -280,10 +308,13 @@ func _process_parte(dt: float) -> void:
 	var dur: float = DUR[_atual.acao]
 	_animar(clampf(_t / dur, 0.0, 1.0), dt)
 	if _t >= dur:
-		var d: Dictionary = {"acao": _atual.acao, "c": _atual.c}
-		if _atual.acao == "plantar":
-			d.s = _atual.get("s", c.semente)
-		m.rede("horta", d)
+		if _atual.acao == "arvore": # o quadrado exato (o de cima à esquerda na árvore antiga)
+			m.rede("plantarArvore", {"s": str(_atual.s), "x": (float(_atual.i) + 0.5) * QA, "z": (float(_atual.k) + 0.5) * QA, "q": 1})
+		else:
+			var d: Dictionary = {"acao": _atual.acao, "c": _atual.c}
+			if _atual.acao == "plantar":
+				d.s = _atual.get("s", c.semente)
+			m.rede("horta", d)
 		fila.erase(_atual.c)
 		_refazer_marca(_atual.c)
 		_fim_tarefa()
@@ -412,7 +443,7 @@ func _animar(f: float, dt: float) -> void:
 	du.torcao = 0.0
 	if f >= 0.5 and _golpe != 1:
 		_golpe = 1
-		if _atual.acao == "plantar":
+		if _atual.acao == "plantar" or _atual.acao == "arvore":
 			m.fx.surto(meio.x, meio.y + 0.1, meio.z, 8, "8a6a4a", "c9a27a", 1.6, 0.06)
 			m.sons.tocar("passo", -8.0, 0.1, meio)
 		else:
