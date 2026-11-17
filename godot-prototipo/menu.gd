@@ -3198,6 +3198,13 @@ func lista_conjunto(r: int, compacto := false) -> Control:
 	if r < cc.size() and cc[r] != null:
 		for t in ["2", "4", "6"]:
 			linhas.append([int(t), "%s, +%d Dano crítico" % [P.texto_st("critico", float(cc[r][t].critico)), int(cc[r][t].danoCritico)]])
+	# mesma quantidade numa linha só (André 2026-11-17: "2 peças" aparecia duas vezes)
+	var junta := {}
+	for l in linhas:
+		junta[l[0]] = (junta[l[0]] + ", " + l[1]) if junta.has(l[0]) else l[1]
+	linhas = []
+	for t in junta:
+		linhas.append([t, junta[t]])
 	linhas.sort_custom(func(a, b): return a[0] < b[0])
 	for l in linhas:
 		var ok: bool = n >= int(l[0])
