@@ -1345,13 +1345,14 @@ export const CONJUNTO = [
 ];
 // Conjunto (André 2026-11-17, no lugar do CONJUNTO antigo): 2, 4 e 6 peças da mesma raridade (ou melhor). Só a
 // raridade conta (o reforço não aumenta). Cada nível SOMA com o anterior; em cada nível vale a melhor raridade que tem
-// as peças. danoCritico = número somado no golpe crítico. Com 6 Míticas: +50 vida, +6% crítico, +48 dano crítico, +10% dano.
+// as peças. danoCritico = número somado no golpe crítico. André: "total 10% de crítico e 20% de dano" no Mítico, com
+// vida e mana (o guerreiro precisa de mana para as skills sem gastar tanto ponto em Inteligência).
 export const CONJUNTO_CRITICO = [
   null,
-  { 2: { vida: 10 }, 4: { critico: 0.01, danoCritico: 5 }, 6: { critico: 0.01, danoCritico: 10, danoK: 0.03 } },
-  { 2: { vida: 20 }, 4: { critico: 0.015, danoCritico: 8 }, 6: { critico: 0.015, danoCritico: 15, danoK: 0.05 } },
-  { 2: { vida: 35 }, 4: { critico: 0.02, danoCritico: 12 }, 6: { critico: 0.02, danoCritico: 22, danoK: 0.07 } },
-  { 2: { vida: 50 }, 4: { critico: 0.03, danoCritico: 18 }, 6: { critico: 0.03, danoCritico: 30, danoK: 0.1 } },
+  { 2: { vida: 15, mana: 15 }, 4: { critico: 0.015, danoK: 0.03, danoCritico: 5 }, 6: { critico: 0.015, danoK: 0.03, danoCritico: 10 } },
+  { 2: { vida: 25, mana: 25 }, 4: { critico: 0.025, danoK: 0.05, danoCritico: 8 }, 6: { critico: 0.025, danoK: 0.05, danoCritico: 15 } },
+  { 2: { vida: 35, mana: 35 }, 4: { critico: 0.035, danoK: 0.07, danoCritico: 12 }, 6: { critico: 0.035, danoK: 0.07, danoCritico: 22 } },
+  { 2: { vida: 50, mana: 50 }, 4: { critico: 0.05, danoK: 0.1, danoCritico: 18 }, 6: { critico: 0.05, danoK: 0.1, danoCritico: 30 } },
 ];
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
 // André 2026-11-16 (estudo da economia: tudo custava menos que poucos minutos de caça): poção 15 e 18 viram

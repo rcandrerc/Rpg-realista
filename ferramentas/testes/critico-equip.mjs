@@ -9,10 +9,11 @@ const mit = (k, e = 0) => ({ k, r: 4, ...(e ? { e } : {}) });
 const tudo = { cabeca: mit('chapeu', 40), corpo: mit('peitoral', 40), pernas: mit('calca', 40), pes: mit('botas', 40),
   capa: mit('capa', 40), acessorio: mit('colar', 40), espada: mit('espada', 40) };
 const b = bonusEquip(tudo);
-quase(b.critico, 0.008 * 9 + 0.06, 'crítico: arma 7,2% + conjunto 6%');
+quase(b.critico, 0.008 * 9 + 0.1, 'crítico: arma 7,2% + conjunto 10%');
 quase(b.danoCritico, 12 * 9 * 2 + 48, 'dano crítico: capacete e botas +108 cada + conjunto +48');
 quase(b.vida, [20, 46, 27, 27, 60].reduce((a, v) => a + v * 17, 0) + 50, 'vida: peças + 50 do conjunto');
-quase(b.danoK, 0.013 * 17 + 0.1, 'dano %: colar + conjunto');
+quase(b.danoK, 0.013 * 17 + 0.2, 'dano %: colar + conjunto 20%');
+quase(b.mana, [20, 14, 30].reduce((a, v) => a + v * 17, 0) + 50, 'mana: peças + 50 do conjunto');
 assert.equal(b.areaK, 0, 'área do conjunto antigo não vale mais');
 // 2 Raras: só vida
 assert.deepEqual(conjuntoAtivo([7, 2, 0, 0, 0]).map((x) => [x.t, x.r]), [[2, 1]]);

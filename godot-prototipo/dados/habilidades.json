@@ -1524,58 +1524,66 @@
   null,
   {
    "2": {
-    "vida": 10
+    "vida": 15,
+    "mana": 15
    },
    "4": {
-    "critico": 0.01,
+    "critico": 0.015,
+    "danoK": 0.03,
     "danoCritico": 5
    },
    "6": {
-    "critico": 0.01,
-    "danoCritico": 10,
-    "danoK": 0.03
+    "critico": 0.015,
+    "danoK": 0.03,
+    "danoCritico": 10
    }
   },
   {
    "2": {
-    "vida": 20
+    "vida": 25,
+    "mana": 25
    },
    "4": {
-    "critico": 0.015,
+    "critico": 0.025,
+    "danoK": 0.05,
     "danoCritico": 8
    },
    "6": {
-    "critico": 0.015,
-    "danoCritico": 15,
-    "danoK": 0.05
+    "critico": 0.025,
+    "danoK": 0.05,
+    "danoCritico": 15
    }
   },
   {
    "2": {
-    "vida": 35
+    "vida": 35,
+    "mana": 35
    },
    "4": {
-    "critico": 0.02,
+    "critico": 0.035,
+    "danoK": 0.07,
     "danoCritico": 12
    },
    "6": {
-    "critico": 0.02,
-    "danoCritico": 22,
-    "danoK": 0.07
+    "critico": 0.035,
+    "danoK": 0.07,
+    "danoCritico": 22
    }
   },
   {
    "2": {
-    "vida": 50
+    "vida": 50,
+    "mana": 50
    },
    "4": {
-    "critico": 0.03,
+    "critico": 0.05,
+    "danoK": 0.1,
     "danoCritico": 18
    },
    "6": {
-    "critico": 0.03,
-    "danoCritico": 30,
-    "danoK": 0.1
+    "critico": 0.05,
+    "danoK": 0.1,
+    "danoCritico": 30
    }
   }
  ],
