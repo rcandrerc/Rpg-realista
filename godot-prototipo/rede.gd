@@ -98,8 +98,16 @@ func _ready() -> void:
 		if robo.has("sessao"):
 			sessao = robo.sessao
 
+# André 2026-11-17: voltou do segundo plano (o serviço do fundo segura o app vivo, plugin FundoJogo). A conexão caída logo
+# depois volta em silêncio, sem o aviso "Caiu a conexão" (online.gd)
+var voltou_ms := -100000
+func voltou_agora() -> bool:
+	return Time.get_ticks_msec() - voltou_ms < 15000
+
 # voltou para o app (o site abre o jogo depois do login): busca a sessão na hora
 func _notification(o: int) -> void:
+	if o == NOTIFICATION_APPLICATION_RESUMED:
+		voltou_ms = Time.get_ticks_msec()
 	if o == NOTIFICATION_APPLICATION_FOCUS_IN or o == NOTIFICATION_APPLICATION_RESUMED:
 		_espera_vinculo = 0.0
 		if _abriu_google:
