@@ -539,14 +539,53 @@ func slot(id: String, nome: String, lado := 1) -> Control:
 	l.offset_bottom = 18
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(l)
-	# reforço da peça vestida (André 2026-11-09: "+N" para saber qual é qual)
-	var rf := rotulo("", 13, OURO_CLARO)
-	rf.add_theme_constant_override("outline_size", 5)
+	# durabilidade da peça vestida (André 2026-11-17): filete no pé do medalhão e o número "70/100" embaixo, só depois
+	# da primeira pancada. Quebrada: medalhão vermelho com "QUEBRADA" (antes só a mochila mostrava)
+	var veu := Panel.new()
+	veu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	veu.add_theme_stylebox_override("panel", caixa(Color(0.6, 0.05, 0.03, 0.42), Color("e0452e"), 2, int(MEDALHAO * 0.5)))
+	veu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	veu.visible = false
+	c.add_child(veu)
+	var qb := rotulo("QUEBRADA", 9, Color("ffd2c8"))
+	qb.add_theme_constant_override("outline_size", 4)
+	qb.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	qb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	qb.position = Vector2(-10, MEDALHAO * 0.5 - 8)
+	qb.size = Vector2(MEDALHAO + 20, 16)
+	qb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	qb.visible = false
+	c.add_child(qb)
+	var df := ColorRect.new()
+	df.color = Color(0, 0, 0, 0.7)
+	df.position = Vector2(MEDALHAO * 0.24, MEDALHAO - 9)
+	df.size = Vector2(MEDALHAO * 0.56, 5)
+	df.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	df.visible = false
+	c.add_child(df)
+	var db := ColorRect.new()
+	db.position = df.position + Vector2(1, 1)
+	db.size = Vector2(df.size.x - 2, 3)
+	db.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	db.visible = false
+	c.add_child(db)
+	var dn := rotulo("", 11, TEXTO)
+	dn.add_theme_constant_override("outline_size", 4)
+	dn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	dn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	dn.position = Vector2(-10, MEDALHAO - 23)
+	dn.size = Vector2(MEDALHAO + 20, 14)
+	dn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(dn)
+	# reforço da peça vestida (André 2026-11-09: "+N" para saber qual é qual; 2026-11-17: "tá muito pequeno")
+	var rf := rotulo("", 18, OURO_CLARO)
+	rf.add_theme_constant_override("outline_size", 6)
 	rf.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	rf.position = Vector2(MEDALHAO * 0.62, -4)
+	rf.position = Vector2(MEDALHAO * 0.6, -9)
 	rf.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(rf)
-	slots_ui[id] = {"icone": ic, "painel": p, "no": c, "reforco": rf}
+	slots_ui[id] = {"icone": ic, "painel": p, "no": c, "reforco": rf, "dur_veu": veu, "dur_quebrada": qb, "dur_fundo": df,
+		"dur_barra": db, "dur_num": dn}
 	if id == "arma":
 		slot_arma = slots_ui[id]
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -593,17 +632,39 @@ func atualizar_slots() -> void:
 		var escolhido: bool = (sel_equip != "" and sel_equip == lugar_de(id)) or (janela_lugar != "" and janela_lugar == lugar_de(id))
 		if u.has("reforco"):
 			u.reforco.text = "+%d" % int(it.get("e", 0)) if it != null and int(it.get("e", 0)) > 0 else ""
+		if u.has("dur_num"):
+			_durabilidade_slot(u, it)
 		if it != null:
 			var c: Color = m.P.cor_item(it)
 			u.icone.texture = icone_tex(m.P.icone_item(it))
 			u.icone.modulate = c if u.icone.texture and u.icone.texture.resource_path.ends_with(".svg") else Color.WHITE
 			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
-			moldurar(u.painel, c, escolhido, true, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
+			moldurar(u.painel, PIOR if m.P.quebrado(it) else c, escolhido, true, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
 		else:
 			u.icone.texture = icone_tex("basico" if id == "arma" and boneco_modo == "Espada" else "magia" if id == "arma" else "eq_" + id)
 			u.icone.modulate = Color(0.85, 0.75, 0.55, 0.45 if id == "arma" else 0.25)
 			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
 			moldurar(u.painel, BORDA, escolhido, false, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
+
+# durabilidade no medalhão (só aparece depois da primeira pancada; quebrada fica vermelha mesmo vestida)
+func _durabilidade_slot(u: Dictionary, it) -> void:
+	var P = m.P
+	var mx := int(P.morte_dados().durMax)
+	var gasta: bool = it != null and P.eh_equip(it) and P.durab(it) < mx
+	var du: int = P.durab(it) if gasta else mx
+	var k: float = clamp(float(du) / float(mx), 0.0, 1.0)
+	var quebrada: bool = gasta and du <= 0
+	u.dur_veu.visible = quebrada
+	u.dur_quebrada.visible = quebrada
+	u.dur_fundo.visible = gasta and not quebrada
+	u.dur_barra.visible = gasta and not quebrada
+	var cor: Color = Color("ff6a50") if k <= 0.3 else Color("f0c060")
+	u.dur_barra.color = cor
+	u.dur_barra.size.x = (u.dur_fundo.size.x - 2) * k
+	var t := "%d/%d" % [du, mx] if gasta and not quebrada else ""
+	if u.dur_num.text != t:
+		u.dur_num.text = t
+	u.dur_num.add_theme_color_override("font_color", Color("ff6a50") if quebrada else cor)
 
 func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
@@ -2735,7 +2796,7 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 			b.add_child(n)
 	if it != null and P.eh_equip(it) and P.durab(it) < int(P.morte_dados().durMax):
 		_marca_durabilidade(b, it, tam)
-	moldurar(b, cor, escolhido, it != null)
+	moldurar(b, PIOR if it != null and P.quebrado(it) else cor, escolhido, it != null) # quebrada: moldura vermelha (André 2026-11-17)
 	if it != null and it.get("cad", false): # cadeado (André 2026-11-07): cadeadinho dourado no canto de baixo
 		var cd := TextureRect.new()
 		cd.texture = icone_tex("cadeado")
@@ -2746,10 +2807,10 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 		cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(cd)
 	if it != null and P.eh_equip(it) and int(it.get("e", 0)) > 0: # reforço "+N" no canto de cima (André 2026-11-09)
-		var rf := rotulo("+%d" % int(it.e), 11 if tam < 56 else 12, OURO_CLARO)
-		rf.add_theme_constant_override("outline_size", 4)
-		rf.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		rf.position = Vector2(4, 1)
+		var rf := rotulo("+%d" % int(it.e), 14 if tam < 56 else 16 if tam < 70 else 19, OURO_CLARO) # maior (André 2026-11-17)
+		rf.add_theme_constant_override("outline_size", 5)
+		rf.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		rf.position = Vector2(3, -2)
 		rf.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(rf)
 	if it != null and marcado:
@@ -3172,32 +3233,43 @@ func _marca_durabilidade(b: Control, it, tam: int) -> void:
 	var k: float = clamp(float(P.durab(it)) / float(P.morte_dados().durMax), 0.0, 1.0)
 	if k <= 0.0:
 		var veu := ColorRect.new()
-		veu.color = Color(0.55, 0.05, 0.03, 0.38)
-		veu.set_anchors_preset(Control.PRESET_FULL_RECT)
+		veu.color = Color(0.6, 0.05, 0.03, 0.45)
+		veu.position = Vector2.ZERO
+		veu.size = Vector2(tam, tam)
 		veu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(veu)
 		var x := rotulo("QUEBRADA", 9 if tam < 70 else 12, Color("ffd2c8"))
 		x.add_theme_constant_override("outline_size", 4)
 		x.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		x.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		x.set_anchors_preset(Control.PRESET_CENTER)
-		x.position = Vector2(0, tam * 0.5 - 8)
-		x.size = Vector2(tam, 16)
+		x.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		x.position = Vector2(-4, tam * 0.5 - 8) # sem âncora no centro: a célula ainda não tem tamanho e o texto ia parar no canto
+		x.size = Vector2(tam + 8, 16)
 		x.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(x)
 		return
 	var fundo := ColorRect.new()
-	fundo.color = Color(0, 0, 0, 0.6)
-	fundo.position = Vector2(tam * 0.14, tam - 7)
-	fundo.size = Vector2(tam * 0.72, 3)
+	fundo.color = Color(0, 0, 0, 0.7)
+	fundo.position = Vector2(tam * 0.14, tam - 9)
+	fundo.size = Vector2(tam * 0.72, 5)
 	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(fundo)
 	var barra := ColorRect.new()
-	barra.color = Color("e0452e") if k <= 0.3 else Color("e8b14a")
-	barra.position = fundo.position
-	barra.size = Vector2(tam * 0.72 * k, 3)
+	barra.color = Color("ff6a50") if k <= 0.3 else Color("f0c060")
+	barra.position = fundo.position + Vector2(1, 1)
+	barra.size = Vector2((tam * 0.72 - 2) * k, 3)
 	barra.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(barra)
+	# número (André 2026-11-17: "pode ser número tipo 100/200 mas que fique mais visível"), em cima do filete
+	var mx := int(P.morte_dados().durMax)
+	var nu := rotulo("%d/%d" % [P.durab(it), mx], 10 if tam < 56 else 11 if tam < 70 else 13, barra.color)
+	nu.add_theme_constant_override("outline_size", 4)
+	nu.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	nu.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nu.position = Vector2(0, tam - 9 - (14 if tam < 70 else 17))
+	nu.size = Vector2(tam, 14 if tam < 70 else 17)
+	nu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(nu)
 
 func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	var P = m.P
@@ -3258,24 +3330,22 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 		tipo = "Consumível · %d" % int(it.n)
 	var lt := rotulo(tipo, 14 if compacto else 15, APAGADO)
 	cab.add_child(lt)
+	# atributos da peça um por linha (André 2026-11-17: "Def x / Vida x / Durabilidade x/x"), a durabilidade por último
+	var d := rotulo(P.texto_item(it).replace(" · ", "\n") if P.eh_equip(it) else P.texto_item(it), 16 if compacto else 18, TEXTO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_child(d)
 	if P.eh_equip(it): # durabilidade (André 2026-11-05): cada morte desgasta; quebrada não dá bônus até o Tomás consertar
 		var dmax: int = int(P.morte_dados().durMax)
 		var du: int = P.durab(it)
 		if du <= 0:
-			var q := rotulo("QUEBRADA · sem bônus até o Tomás consertar (%d ouro)" % P.custo_conserto(it), 15, PIOR)
+			var q := rotulo("QUEBRADA · sem bônus até o Tomás consertar (%d ouro)" % P.custo_conserto(it), 16 if compacto else 18, PIOR)
 			q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			cab.add_child(q)
+			info.add_child(q)
 		else:
 			var tdu := "Durabilidade %d/%d" % [du, dmax] + (" · conserto %d ouro" % P.custo_conserto(it) if du < dmax else "")
-			if compacto and du > dmax * 0.3: # cheia ou quase: vai na mesma linha do tipo
-				lt.text += " · " + Idioma.frase(tdu)
-			else:
-				var q := rotulo(tdu, 15, PIOR if du <= dmax * 0.3 else APAGADO)
-				q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				cab.add_child(q)
-	var d := rotulo(P.texto_item(it), 16 if compacto else 18, TEXTO)
-	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.add_child(d)
+			var q := rotulo(tdu, 16 if compacto else 18, PIOR if du <= dmax * 0.3 else TEXTO if du < dmax else APAGADO)
+			q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			info.add_child(q)
 	if P.eh_equip(it): # reforço (igual ao Quimera, André 2026-11-07): +N de +máx, próxima chance, custo e se falhar
 		info.add_child(linha_reforco(it))
 	if P.eh_equip(it) and lugar == "":
