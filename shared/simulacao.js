@@ -19,6 +19,7 @@ import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a
 import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
+import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -598,7 +599,9 @@ export class Simulacao {
   inimigosDe(c) {
     // caverna da montanha: quem está lá dentro só enxerga quem também está (nada atravessa a rocha do teto)
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
-    return (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
+    const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
+    if (c.tipo === 'jogador' && c.duelo?.luta) { const o = this.oponenteDuelo(c); if (o && !o.morto) l.push(o); } // duelo (shared/duelo.js): o outro vira alvo
+    return l;
   }
   maisPerto(c, max = 22) {
     let melhor = null, md = max;
@@ -1924,7 +1927,7 @@ export class Simulacao {
     if (Math.hypot(o.x - j.x, o.z - j.z) > TROCA.perto + 2) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${o.nome}` });
     const equip = {};
     for (const l of LUGARES) { const it = o.prog.equip?.[l]; if (it) equip[l] = { k: it.k, r: it.r | 0, ...(it.e ? { e: it.e | 0 } : {}) }; }
-    this.evento({ t: 'equipVer', para: id, de: o.id, nome: o.nome, nivel: o.prog.nivel, equip });
+    this.evento({ t: 'equipVer', para: id, de: o.id, nome: o.nome, nivel: o.prog.nivel, equip, ...(o.prog.duelos ? { duelos: o.prog.duelos } : {}) }); // duelos: placar (André 2026-11-17)
   }
   troca(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object') return;
@@ -3755,6 +3758,8 @@ export class Simulacao {
   ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
     if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
+    const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador'; // jogador em jogador: só no duelo (shared/duelo.js)
+    if (duelo && !this.duelando(alvo, de)) return;
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n = n * 2 + (de.st.danoCritico || 0); crit = true; } } // como no Quimera: ±15% e crítico ×2 (+ dano crítico do equipamento, André 2026-11-17)
@@ -3786,6 +3791,7 @@ export class Simulacao {
     if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; alvo.lutouT = this.tempo; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
     if (de?.tipo === 'jogador') { de.combateAte = this.tempo + ESTAMINA.combate; de.lutouT = this.tempo; } // lutouT: time só ganha XP de quem lutou nos últimos TIME.combate s
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : h?.dot ? { t: 'dano', alvo: alvo.id, n, dot: h.dot } : { t: 'dano', alvo: alvo.id, n });
+    if (duelo) { if (!this.golpeDuelo(alvo, de)) { if (h) this.efeitoDuelo(alvo, h); if (!(alvo.trava > 0) && !alvo.esc) this.tocar(alvo, A.hit, 1.4); } return; } // duelo: ninguém morre (para em DUELO.fim)
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
     const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe || !!alvo.bm; // fora do if: o golpe final também usa
     if (h && alvo.tipo !== 'jogador' && alvo.vida > 0) {
@@ -4150,6 +4156,7 @@ export class Simulacao {
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
+    this.passoDuelos(); // duelo (André 2026-11-17)
     this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
@@ -4617,6 +4624,7 @@ Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
+Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;

@@ -1372,6 +1372,12 @@ export const LOJA_MAX = 999; // compra várias de uma vez (André 2026-11-07): a
 // Troca entre jogadores (como no Quimera, André 2026-11-04): pedir perto, cada um põe itens e ouro, tranca a oferta
 // (cadeado) e, com as duas trancadas, os dois confirmam. Qualquer mudança destranca as duas. Quem decide é o servidor.
 export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedidos: 3 }; // metros, metros, itens, s, s
+// Duelo (André 2026-11-17: "opção pra chamar duelo tanto contra Dario e Cecília qt contra jogadores"), shared/duelo.js.
+// perto: m para chamar; pedido: s para aceitar; contagem: 3, 2, 1; raio: círculo (sair = perde); fim: fração da vida que
+// encerra (ninguém morre); sem limite de tempo (André 2026-11-17); travar: atordoar/congelar vale essa fração do tempo (igual chefe).
+// npc: vontade da Cecília e do Dario (base + por ponto de amizade; menos cansado, de noite). humor: s que o sim/não vale.
+export const DUELO = { perto: 6, pedido: 15, entrePedidos: 4, contagem: 3, raio: 20, fim: 0.1, travar: 0.5,
+  npc: { base: 0.65, porAmizade: 0.03, cansada: 0.45, noite: 0.2, min: 0.05, max: 0.95, humor: 90 } };
 // Amigos e time (André 2026-11-05): até 20 amigos na conta; o time junta até 5 amigos da mesma sala.
 // XP e drop dos monstros valem para quem do time está a até 'perto' metros do monstro que caiu e lutou há pouco.
 export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
