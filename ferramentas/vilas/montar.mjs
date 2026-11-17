@@ -58,6 +58,8 @@ const MAT_AURORA = {}; // nome do material do kit -> material da cidade
   MAT_AURORA['@vermelho'] = cor('Tapete_Vermelho', lin([0.48, 0.12, 0.12, 1]));
   MAT_AURORA['@vinho'] = cor('Tapete_Vinho', lin([0.35, 0.16, 0.23, 1]));
   MAT_AURORA['@roxo'] = cor('Tapete_Roxo', lin([0.24, 0.16, 0.36, 1]));
+  MAT_AURORA['@ferro_rio'] = cor('Ferro_Rio', lin([0.17, 0.16, 0.15, 1])); // ferro escuro dos lampiões
+  MAT_AURORA['@vidro_rio'] = cor('Vidro_Rio', lin([0.92, 0.78, 0.5, 1])); // vidro das lanternas do Rio Claro (acende de noite)
   MAT_AURORA['@ouro'] = cor('Tapete_Ouro', lin([0.79, 0.64, 0.23, 1]));
   const placa = path.join(tmpTex, 'placa.png'); // a placa: madeira escura, moldura e letras douradas (fonte DejaVu Serif, livre)
   execFileSync('python3', ['-c', `from PIL import Image, ImageDraw, ImageFont\nim=Image.new('RGB',(1024,256),(58,36,20))\nd=ImageDraw.Draw(im)\nd.rectangle([12,12,1011,243],outline=(201,162,58),width=14)\nf=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',86)\nt='CASA DO COMÉRCIO'\nw=d.textlength(t,font=f)\nd.text(((1024-w)/2,74),t,fill=(232,195,90),font=f)\nim.save(r'${placa}')`]);
@@ -98,6 +100,34 @@ function gerar(nome) {
     caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0] * 1.08, p[1] * 0.02 - 0.004, p[2] * 1.02], t])), '@ouro');
   } else if (nome === '@placa') {
     caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] - 0.5, p[2]], t])), '@tampo', '@placa');
+  } else if (nome === '@lampiao') { // poste de rua do Rio Claro (André 2026-11-17): pé de pedra, haste de ferro, braço
+    // com duas lanternas penduradas (vidro Vidro_Rio: acende de noite, vilas_mundo.gd) e a ponta em cima. Altura 3,4 m.
+    const prisma = (m, n, r0, r1, y0, y1) => { const a = anel(n, r0, y0, Math.PI / n), b = anel(n, r1, y1, Math.PI / n);
+      for (let i = 0; i < n; i++) { const j = (i + 1) % n; add(m, a[i], a[j], b[j]); add(m, a[i], b[j], b[i]); }
+      if (r1 > 0.001) for (let i = 0; i < n; i++) add(m, b[i], b[(i + 1) % n], [0, y1, 0]); };
+    // bloco com textura (pedra: [ponto, uv]) ou de cor só (ferro: só o ponto; cada material tem um jeito só na lista)
+    const bloco = (m, x0, x1, y0, y1, z0, z1, uv = m !== '@ferro_rio') => caixa((mm, ...v) => add(mm, ...v.map(([q, t]) => { const P = [x0 + (q[0] + 0.5) * (x1 - x0), y0 + q[1] * (y1 - y0), z0 + (q[2] + 0.5) * (z1 - z0)]; return uv ? [P, t] : P; })), m);
+    bloco('@pedra', -0.24, 0.24, 0, 0.5, -0.24, 0.24);
+    bloco('@pedra', -0.3, 0.3, 0.5, 0.58, -0.3, 0.3);
+    prisma('@ferro_rio', 6, 0.11, 0.11, 0.58, 0.68); prisma('@ferro_rio', 6, 0.065, 0.055, 0.68, 3.0);
+    prisma('@ferro_rio', 6, 0.09, 0.09, 2.96, 3.06); prisma('@ferro_rio', 6, 0.05, 0, 3.06, 3.4);
+    const v = (m, ...q) => add(m, ...q);
+    for (const s of [-1, 1]) {
+      const x0 = s * 0.06, x1 = s * 0.62; // braço com um arco por baixo
+      const B = [[x0, 3.0, -0.03], [x1, 3.0, -0.03], [x1, 3.05, -0.03], [x0, 3.05, -0.03], [x0, 3.0, 0.03], [x1, 3.0, 0.03], [x1, 3.05, 0.03], [x0, 3.05, 0.03]];
+      for (const [a, b, c, d] of [[0, 1, 2, 3], [5, 4, 7, 6], [4, 0, 3, 7], [1, 5, 6, 2], [3, 2, 6, 7], [4, 5, 1, 0]]) { v('@ferro_rio', B[a], B[b], B[c]); v('@ferro_rio', B[a], B[c], B[d]); }
+      const arco = Array.from({ length: 5 }, (_, i) => { const t = i / 4; return [x0 + (x1 - x0) * t * 0.8, 2.72 + 0.28 * Math.sin(t * Math.PI / 2), 0]; });
+      for (let i = 0; i < 4; i++) { const a = arco[i], b = arco[i + 1]; v('@ferro_rio', [a[0], a[1], -0.02], [b[0], b[1], -0.02], [b[0], b[1], 0.02]); v('@ferro_rio', [a[0], a[1], -0.02], [b[0], b[1], 0.02], [a[0], a[1], 0.02]);
+        v('@ferro_rio', [a[0], a[1], 0.02], [b[0], b[1], 0.02], [b[0], b[1], -0.02]); v('@ferro_rio', [a[0], a[1], 0.02], [b[0], b[1], -0.02], [a[0], a[1], -0.02]); }
+      const cx = s * 0.56; // a lanterna pendurada: gancho, tampa, vidro e base
+      const sh = (q) => [q[0] + cx, q[1], q[2]];
+      bloco('@ferro_rio', cx - 0.012, cx + 0.012, 2.9, 3.0, -0.012, 0.012);
+      const t0 = anel(6, 0.17, 2.86, Math.PI / 6).map(sh), topo = [cx, 2.98, 0], g0 = anel(6, 0.12, 2.56, Math.PI / 6).map(sh), g1 = anel(6, 0.14, 2.86, Math.PI / 6).map(sh), f0 = anel(6, 0.1, 2.52, Math.PI / 6).map(sh);
+      for (let i = 0; i < 6; i++) { const j = (i + 1) % 6;
+        v('@ferro_rio', t0[i], t0[j], topo); v('@ferro_rio', t0[j], t0[i], [cx, 2.86, 0]);
+        v('@vidro_rio', g0[i], g0[j], g1[j]); v('@vidro_rio', g0[i], g1[j], g1[i]);
+        v('@ferro_rio', f0[i], f0[j], g0[j]); v('@ferro_rio', f0[i], g0[j], g0[i]); v('@ferro_rio', f0[j], f0[i], [cx, 2.52, 0]); }
+    }
   } else if (nome === '@lanterna') { // prisma de vidro (0,3 m) com tampa e base de ferro
     const b0 = anel(6, 0.11, -0.15, Math.PI / 6), b1 = anel(6, 0.11, 0.15, Math.PI / 6), t = anel(6, 0.15, 0.15, Math.PI / 6), f = anel(6, 0.13, -0.17, Math.PI / 6);
     for (let i = 0; i < 6; i++) {
