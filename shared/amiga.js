@@ -1378,6 +1378,7 @@ export const Amiga = {
   // a resposta: r = { assunto } (regras) ou { assunto: ação da IA, fala } (IA). Faz a ação e responde.
   respostaAmiga(id, r) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id) || !r) return;
+    if (r.assunto !== 'time' && this.apeloAmiga(a, j)) r = { ...r, assunto: 'time', fala: '' }; // pediu com jeito depois do não: ela reconsidera
     // livre: passa a acompanhar quem falou; com outro amigo: conversa, mas ação só depois (André 2026-11-10)
     const mesmoTime = !!(a.time && a.time === j.time) && ['time', 'vir'].includes(r.assunto); // no time de todos: "bora pro time" e "vem cá" valem
     if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
@@ -1390,6 +1391,17 @@ export const Amiga = {
         if (noTime) { fala = sorteia(FA.jaNoTime); break; }
         if (a.morto) { fala = FA.caiu; break; }
         const pediu = chamado?.quer === 'time' || this.combinouAmiga(a); // ela que chamou ou já topou: aceita sem sorteio
+        // André 2026-11-17: "se eu pedisse tipo 'por favor, preciso da sua ajuda, é importante' ela reconsiderasse; mas se eu
+        // só pedir de novo ela responde igual". Uma vez por recusa: sorteia de novo com bem mais chance (AMIGA.time.apelo)
+        if (!pediu && (ia.recusaAte || 0) > this.tempo && this.apeloAmiga(a, j)) {
+          const A = this.AMIGA.time.apelo, p = Math.min(A.max, this.vontadeAmiga(a, j).p + A.soma);
+          ia.apelou = ia.recusaAte;
+          if (this.semIaAmiga(a, j) || Math.random() >= p) { fala = sorteia(FA.apeloNao); break; }
+          ia.recusaAte = 0; ia.humor = null;
+          if (this.timeCheioAmiga(j)) { fala = FA.recusa.cheio; break; }
+          ia.chamado = null; ia.vir = null; ia.plano = null;
+          this.combinarAmiga(a); fala = sorteia(FA.apeloSim); break;
+        }
         if (!pediu && (ia.recusaAte || 0) > this.tempo) { fala = FA.recusa.jaFalei; break; }
         const v = this.decisaoTimeAmiga(a, j);
         if (!pediu && !v.aceita) { this.recusarTimeAmiga(a, j, v.motivo); fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
@@ -1580,6 +1592,14 @@ export const Amiga = {
   // ---------- a IA de quem conversa acabou no dia (André 2026-11-17: "ela dizer que não tá mais a fim no momento, que vai
   // descansar, que já jogou demais... pode continuar jogando solo, mas não aceita mais jogar comigo, só diz que tá meio ocupada")
   // Fica chat.semIa s (tempo de verdade) assim com essa pessoa: a primeira vez avisa; depois responde "tô ocupada" e recusa o time.
+  // a última mensagem dele é um pedido sincero ("por favor", "preciso muito", "é importante") e ela recusou há pouco (e
+  // ainda não reconsiderou essa recusa)
+  apeloAmiga(a, j) {
+    if (!a || !j || !((a.ia.recusaAte || 0) > this.tempo) || a.ia.apelou === a.ia.recusaAte || (a.ia.humor && a.ia.humor.conta !== j.conta)) return false;
+    const ult = [...this.chatDeAmiga(j)].reverse().find((m) => m.de === 'ele'); if (!ult) return false;
+    const t = ' ' + normAmiga(ult.texto) + ' ';
+    return this.AMIGA.time.apelo.palavras.some((w) => t.includes(' ' + w + ' '));
+  },
   semIaAmiga(a, j) { const t = a?.semIa?.[j?.conta]; return !!t && Date.now() < t; },
   cansouIaAmiga(id, regra = 'conversa') {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return;
