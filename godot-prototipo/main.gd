@@ -2218,11 +2218,16 @@ func mais_perto(pos: Vector3, max_d: float):
 		if d < md:
 			md = d
 			melhor = e
+	# duelo (André 2026-11-17: "não consegui atacar ela no duelo"): o outro também é alvo do golpe e das skills; sem
+	# isso o app dizia "Nenhum inimigo por perto" e nem mandava o golpe. O dano quem decide é o servidor (shared/duelo.js).
+	var o = duelo.alvo() if duelo else null
+	if o != null and o.no.position.distance_to(pos) < md:
+		melhor = o
 	return melhor
 
 # hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir
 func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
-	if e.estado == "morto":
+	if e.estado == "morto" or e.get("duelo", false): # duelo: o número e a barra vêm do servidor (evento "dano")
 		return
 	if on(): # online: quem acerta e quanto tira é o servidor; o tranco, o flash e a congelada saem na hora aqui
 		var forte_on: bool = h.golpe_forte or not (hab is Dictionary and hab.has("combo"))
