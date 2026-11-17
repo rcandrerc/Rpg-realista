@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Voltar do segundo plano (André 2026-11-17): com o jogo no fundo, um serviço na frente segura o app vivo por
+         até 10 min, para o Android não fechar a partida enquanto ele vê uma mensagem -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <application>
+        <meta-data android:name="org.godotengine.plugin.v2.FundoJogo" android:value="com.rcandrerc.fundo.FundoJogo" />
+        <service
+            android:name="com.rcandrerc.fundo.ServicoFundo"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Mantém a partida online aberta por alguns minutos enquanto o jogador vê outro app" />
+        </service>
+    </application>
+</manifest>

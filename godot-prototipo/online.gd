@@ -426,7 +426,8 @@ func ao_cair(motivo: String) -> void:
 		_tentar_de_novo = 1.0
 		_queda_t = QUEDA_REINICIO
 	elif estava:
-		m.hud.aviso("Caiu a conexão. Tentando voltar…")
+		if not rede.voltou_agora(): # voltando do segundo plano: reconecta em silêncio
+			m.hud.aviso("Caiu a conexão. Tentando voltar…")
 		_tentar_de_novo = 1.0
 		_queda_t = QUEDA_MAX
 	elif _queda_t > 0.0: # ainda dentro dos QUEDA_MAX s: tenta de novo logo

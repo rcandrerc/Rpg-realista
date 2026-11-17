@@ -126,6 +126,8 @@ func _entrada_retomada(e: Dictionary) -> void:
 	e.pip = pipelines_total()
 	if m.aquecer:
 		e.aq = m.aquecer.tempos.duplicate()
+	# APK com o serviço do fundo (plugin FundoJogo): 1 = tem, 0 = APK antigo
+	e.fundo = 1 if Engine.has_singleton("FundoJogo") else 0
 
 # Menus e conversas (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"; "quando vou comprar
 # semente na Rosa ou falar com o Aldo sempre tem um lag alto"; a conversa vai com aba "npc:<id>"): cada abertura anota quanto
