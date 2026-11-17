@@ -377,6 +377,15 @@ export const Kit = {
     if (n) { this.evento({ t: 'aviso', para: j.id, texto: `Missão: pronta em ${HORTA.missaoSeg} s` }); this.avisarLote?.(L); }
     return n;
   },
+  // planta da missão que acabou os segundos dela: o servidor avisa o lote (o celular que não conta mi/mf sozinho, app
+  // antigo, só via a planta pronta quando outra coisa mexia no lote; André 2026-11-17: "o milho não cresceu em 8 s")
+  hortaMissaoPronta(j) {
+    const L = this.loteDe?.(j); if (!L) return 0;
+    const agora = Date.now(); let n = 0;
+    for (const t of Object.values(L.horta || {})) if (t?.mf && agora >= t.mf) { t.g = Math.max(t.g || 0, PLANTAS[t.c]?.G || 0); delete t.mi; delete t.mf; t.u = agora; n++; }
+    if (n) { j.progSujo = true; this.avisarLote?.(L); }
+    return n;
+  },
   // quantas plantas de k estão na horta do jogador (plantadas, crescendo ou maduras)
   plantadasDe(j, k) {
     let n = 0;
