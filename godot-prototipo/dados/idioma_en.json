@@ -3579,5 +3579,13 @@
 "O pedido de duelo já expirou": "The duel request has expired",
 "{1} recusou o duelo": "{1} declined the duel",
 "Duelo: chamado enviado para {1}": "Duel: challenge sent to {1}",
-"Duelo: saia do círculo para encerrar": "Duel: leave the ring to end it"
+"Duelo: saia do círculo para encerrar": "Duel: leave the ring to end it",
+"Tem %d": "You have %d",
+"Tudo (%d)": "All (%d)",
+"Guardar %d": "Store %d",
+"Tirar %d": "Take %d",
+"Escolher %d": "Pick %d",
+"Pôr": "Add",
+"Escolher": "Pick",
+"Escolha um item da mochila.": "Pick an item from your bag."
 }

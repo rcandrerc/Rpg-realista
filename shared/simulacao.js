@@ -2802,10 +2802,14 @@ export class Simulacao {
       if (!it) return aviso('Escolha um item da mochila');
       if (it.cad) return aviso('Item trancado não vai à venda. Abra o cadeado antes');
       if (ITENS[it.k]?.usar?.veiculo || this.carrinhoFora(j, it)) return aviso('Veículo não vai para o leilão');
-      const r = L.anunciar(j.conta, j.nome, { ...it }, Number(m.preco), Number(m.horas));
+      // quantos da pilha vão à venda (André 2026-11-17: escolher Tudo ou um número); sem n vai a pilha inteira
+      const tem = it.n || 1, n = it.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
+      const vai = it.n ? { ...it, n } : { ...it };
+      const r = L.anunciar(j.conta, j.nome, vai, Number(m.preco), Number(m.horas));
       if (typeof r === 'string') return aviso(r);
-      p.mochila[i] = null; mudou = true;
-      aviso(`${nomeItem(it)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)`);
+      if (n < tem) p.mochila[i] = { ...it, n: tem - n }; else p.mochila[i] = null;
+      mudou = true;
+      aviso(`${nomeItem(vai)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)`);
       this.historia(j, 'leilao', { de: 'anunciar' });
     } else if (m.acao === 'comprar' && typeof m.id === 'string') {
       const a = L.achar(m.id); if (!a) return aviso('Esse anúncio já saiu');
@@ -3302,7 +3306,8 @@ export class Simulacao {
     this.avisarProg(j);
   }
   // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar', i }
-  // guardar: a pilha do lugar i da mochila vai inteira para o baú; tirar: a pilha do lugar i do baú volta para a mochila
+  // guardar: a pilha do lugar i da mochila vai para o baú; tirar: a pilha do lugar i do baú volta para a mochila.
+  // m.n (André 2026-11-17): quantos da pilha passam (Tudo ou um número); sem n passa a pilha inteira
   bau(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -3314,14 +3319,16 @@ export class Simulacao {
       const o = p.mochila[i]; if (!o) return;
       // o.h do Tomo é a habilidade dele, não lugar rápido (André 2026-11-07: Tomo não entrava no baú)
       if (o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
+      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
       const bau = L.bau.map((q) => (q ? { ...q } : null));
-      if (!guardar(bau, { ...o })) return aviso('O baú está cheio');
-      L.bau = bau; p.mochila[i] = null;
+      if (!guardar(bau, o.n ? { ...o, n } : { ...o })) return aviso('O baú está cheio');
+      L.bau = bau; p.mochila[i] = n < tem ? { ...o, n: tem - n } : null;
     } else if (m.acao === 'tirar') {
       const o = L.bau[i]; if (!o) return;
+      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
       const prova = p.mochila.map((q) => (q ? { ...q } : null));
-      if (!guardar(prova, { ...o })) return aviso('Mochila cheia');
-      p.mochila = prova; L.bau[i] = null;
+      if (!guardar(prova, o.n ? { ...o, n } : { ...o })) return aviso('Mochila cheia');
+      p.mochila = prova; L.bau[i] = n < tem ? { ...o, n: tem - n } : null;
     } else if (m.acao === 'organizar') { // botão Organizar do baú (André 2026-11-07), igual ao da mochila
       L.bau = organizar(L.bau);
     } else if (m.acao === 'melhorar') { // André 2026-11-07: 40 → 60 → 80 lugares, os itens ficam dentro
@@ -3437,7 +3444,9 @@ export class Simulacao {
       if (R && profNivel(p.prof.fer) < R.nivel && !this.livreHistoria(j, R.faz)) return aviso(`Precisa de Ferreiro Nv ${R.nivel}`);
       const atual = F[lugar];
       if (atual && atual.k !== o.k) return aviso('Tire o que já está lá antes');
-      const max = ITENS[o.k].pilha || 50, cabe = max - (atual ? atual.n : 0), n = Math.min(cabe, o.n | 0 || 1);
+      // m.n (André 2026-11-17): quantos da pilha vão (Tudo ou um número); sem n vai o que couber
+      const quer = Number.isInteger(m.n) && m.n > 0 ? m.n : Infinity;
+      const max = ITENS[o.k].pilha || 50, cabe = max - (atual ? atual.n : 0), n = Math.min(cabe, o.n | 0 || 1, quer);
       if (n <= 0) return aviso('Esse lugar já está cheio');
       F[lugar] = { k: o.k, n: (atual ? atual.n : 0) + n };
       if ((o.n | 0) > n) o.n -= n; else p.mochila[m.i | 0] = null; // o que não coube fica na mochila

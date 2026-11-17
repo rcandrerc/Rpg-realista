@@ -18,7 +18,7 @@ var cartao_txt: Label
 var cartao_botoes: HBoxContainer
 var cartao_ate := 0.0
 var estado := {} # o que o servidor mandou ("estado"): com, nome, eu, ele
-var sel := -1 # lugar da mochila escolhido (pilha: escolhe quantos)
+var sel := -1 # lugar da mochila marcado na grade (a quantidade sai na janelinha do menu.gd pedir_qtd)
 var pag := 0
 var ouro_ui: LineEdit
 
@@ -423,38 +423,14 @@ func coluna_mochila() -> Control:
 			c.modulate = Color(1, 1, 1, 0.35) # tudo dele já está na oferta, ou tem cadeado (não vai para troca)
 		g.add_child(c)
 	v.add_child(g)
-	# escolher quantos de uma pilha
-	if sel >= 0 and sel < P.prog.mochila.size() and P.prog.mochila[sel] != null:
-		var it = P.prog.mochila[sel]
-		var resta := int(it.get("n", 1)) - posto(sel)
-		var l := HBoxContainer.new()
-		l.add_theme_constant_override("separation", 6)
-		var nome := Menu.rotulo("%s · %d" % [P.nome_item(it), resta], 13, P.cor_item(it))
-		nome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		l.add_child(nome)
-		for q in [1, 10]:
-			if resta > q:
-				l.add_child(_mini("Pôr %d" % q, {"acao": "por", "i": sel, "n": q}))
-		if resta > 0:
-			l.add_child(_mini("Pôr tudo (%d)" % resta, {"acao": "por", "i": sel, "n": resta}))
-		v.add_child(l)
-	else:
-		v.add_child(Menu.rotulo("Toque num item seu para pôr na troca.", 12, Menu.APAGADO))
+	# quantos de uma pilha: a janelinha do menu (menu.gd pedir_qtd, André 2026-11-17: Tudo ou um número)
+	v.add_child(Menu.rotulo("Toque num item seu para pôr na troca.", 12, Menu.APAGADO))
 	return v
 
 func _pagina(n: int) -> void:
 	pag = n
 	sel = -1
 	montar()
-
-func _por(msg: Dictionary) -> void:
-	sel = -1
-	mandar(msg)
-
-func _mini(t: String, msg: Dictionary) -> Button:
-	var b: Button = m.menu.botao(t, _por.bind(msg), 13)
-	b.custom_minimum_size = Vector2(0, 30)
-	return b
 
 func tocar_item(i: int) -> void:
 	var it = m.P.prog.mochila[i]
@@ -470,12 +446,8 @@ func tocar_item(i: int) -> void:
 	if resta <= 0:
 		m.hud.aviso("Você já pôs tudo desse item")
 		return
-	if resta == 1: # peça ou um só: vai direto
-		sel = -1
-		mandar({"acao": "por", "i": i, "n": 1})
-		return
-	sel = -1 if sel == i else i
-	montar()
+	# pilha: escolhe Tudo ou quantos (menu.gd pedir_qtd); peça ou um só vai direto
+	m.menu.pedir_qtd(it, resta, "Pôr", func(n: int): mandar({"acao": "por", "i": i, "n": n}))
 
 func eu_tranquei() -> bool:
 	return bool(estado.get("eu", {}).get("tranca", false))
