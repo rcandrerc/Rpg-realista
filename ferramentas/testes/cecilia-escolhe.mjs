@@ -82,12 +82,12 @@ const novo = () => {
   const { zonaFechadaEm } = await import('../../shared/historia.js');
   ok(v.ok && zonaFechadaEm(j.prog, v.c.x, v.c.z), `ela caça num campo que ele ainda não liberou (${v.c.nome})`);
   const ctx = c.contextoAmiga('andre');
-  ok(ctx.fechadoDele && ctx.fechadoDele.includes('não liberou') && ctx.fechadoDele.includes('missão'), `a ficha avisa a IA: ${ctx.fechadoDele}`);
+  ok(ctx.fechadoDele && !/miss/.test(ctx.fechadoDele), `a ficha diz à IA só qual campo não dá pra ele: ${ctx.fechadoDele}`);
   ok(ctx.camposJuntos && !ctx.camposJuntos.includes(`(nível ${v.c.nivel},`), `campos para os dois só os abertos para ele: ${ctx.camposJuntos}`);
   a.ia.chatFila = [];
   c.respostaAmiga('andre', { assunto: 'time', iaAssunto: 'time', fala: 'Claro, vem! Te mandei o time.' });
   const dito = a.ia.chatFila.at(-1)?.texto || '';
-  ok(dito.includes('você ainda não liberou') && dito.includes('missão'), `ela avisa no chat: "${dito}"`);
+  ok(dito.startsWith('Lá ainda não dá pra você') && !/miss[aã]o|liber/i.test(dito), `ela avisa curto, sem explicar: "${dito}"`);
   s.time('andre', { acao: 'aceitar', com: a.id });
   const L = a.ia.seguido?.c;
   ok(a.time === j.time && L && !zonaFechadaEm(j.prog, L.x, L.z) && !zonaFechadaEm(a.prog, L.x, L.z), `leva ele para um campo que os dois podem ir (${L?.nome})`);

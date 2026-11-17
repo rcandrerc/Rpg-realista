@@ -184,8 +184,9 @@ export function mensagensConversa(ctx, texto) {
     ctx.camposDela ? `Campos de caça bons para o seu nível: ${ctx.camposDela}.` : '',
     ctx.camposDele && ctx.camposDele !== ctx.camposDela ? `Campos bons para o nível de ${ctx.amigo}: ${ctx.camposDele}.` : '',
     // André 2026-11-17: "e se o lugar não tiver sido destravado por mim ele teria como avisar?"
-    ctx.camposJuntos ? `Para caçar JUNTO com ${ctx.amigo}, proponha só um destes (abertos para os dois na história): ${ctx.camposJuntos}. Campo fora dessa lista ele pode ainda não ter liberado (névoa): não chame ele para lá.` : '',
-    ctx.fechadoDele ? `ATENÇÃO: o campo onde você está caçando está FECHADO para ${ctx.amigo} (${ctx.fechadoDele}). Se ele quiser ir junto, avise isso com essas palavras e proponha um campo da lista de vocês dois.` : '',
+    // André 2026-11-17: "ela sempre naturalmente já lê e oferece somente o que eu posso ir, assim não percebo que ela sabe de tudo"
+    ctx.camposJuntos ? `Para caçar JUNTO com ${ctx.amigo}, proponha só um destes: ${ctx.camposJuntos}. Nunca chame ele para outro campo e nunca explique o porquê (nada de missão, névoa ou liberar).` : '',
+    ctx.fechadoDele ? `O campo onde você está (${ctx.fechadoDele}) ainda não dá para ${ctx.amigo}. Se ele quiser ir junto, responda curto e natural, sem explicar motivo nem citar missão (ex.: "lá ainda não dá pra você, bora na X?"), com X da lista de vocês dois.` : '',
     ctx.mapa || '',
     ctx.loja ? `Loja da vila: ${ctx.loja}.` : '',
     ctx.missaoDele ? `Missão da história que ${ctx.amigo} está fazendo: ${ctx.missaoDele}.` : '',
