@@ -3166,15 +3166,6 @@ func montar_conjunto() -> void:
 		for t in ["2", "3", "6"]:
 			if prox == "" and n[r] < int(t) and ativo[t] < r:
 				prox = "Próximo: %s peças %s (tem %d): %s" % [t, PLURAL[r], n[r], P.texto_bonus(r, t)]
-	# conjunto de crítico (André 2026-11-17): 2, 4 ou 6 peças da mesma raridade; vale o maior
-	var cc: Dictionary = P.conjunto_critico()
-	if not cc.is_empty():
-		algum = true
-		var lc := HBoxContainer.new()
-		lc.add_theme_constant_override("separation", 8)
-		lc.add_child(rotulo("%s peças %s" % [cc.t, PLURAL[int(cc.r)]], 15, Color(P.dados.raridades[int(cc.r)].cor)))
-		lc.add_child(rotulo("%s · +%d Dano crítico" % [P.texto_st("critico", float(cc.critico)), int(cc.danoCritico)], 15, TEXTO))
-		conteudo.add_child(lc)
 	if not algum:
 		conteudo.add_child(rotulo("Use 2, 3 ou 6 peças Raras (ou melhores) para ganhar bônus.", 14, APAGADO))
 	if prox != "":
@@ -3191,13 +3182,14 @@ func lista_conjunto(r: int, compacto := false) -> Control:
 	v.add_theme_constant_override("separation", 0)
 	var tam := 13 if compacto else 14
 	v.add_child(rotulo("Conjunto %s · %d vestidas" % [P.dados.raridades[r].nome, n], tam, Color(P.dados.raridades[r].cor)))
-	var linhas := []
-	for t in ["2", "3", "6"]:
-		linhas.append([int(t), P.texto_bonus(r, t)])
+	var linhas := [] # só o conjunto de crítico (o antigo saiu, André 2026-11-17)
 	var cc: Array = P.dados.get("conjuntoCritico", [])
 	if r < cc.size() and cc[r] != null:
 		for t in ["2", "4", "6"]:
-			linhas.append([int(t), "%s, +%d Dano crítico" % [P.texto_st("critico", float(cc[r][t].critico)), int(cc[r][t].danoCritico)]])
+			var p := []
+			for c in cc[r][t]:
+				p.append(P.texto_st(c, float(cc[r][t][c])))
+			linhas.append([int(t), ", ".join(p)])
 	# mesma quantidade numa linha só (André 2026-11-17: "2 peças" aparecia duas vezes)
 	var junta := {}
 	for l in linhas:

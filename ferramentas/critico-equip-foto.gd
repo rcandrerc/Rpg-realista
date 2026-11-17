@@ -1,6 +1,6 @@
 extends SceneTree
 # Foto do atributo extra das peças e do conjunto de crítico (André 2026-11-17): cartões do capacete, das botas, da
-# espada e da capa Míticas, e o quadro "Conjunto" com 6 peças Míticas. Usa o código do menu sem abrir o jogo inteiro.
+# espada Míticas, com o conjunto no cartão. Usa o código do menu sem abrir o jogo inteiro.
 # Uso: FOTO_SAIDA=/pasta xvfb-run -a godot --path godot-prototipo --rendering-driver opengl3 --render-thread safe \
 #   -s ../ferramentas/critico-equip-foto.gd
 var saida := OS.get_environment("FOTO_SAIDA") if OS.get_environment("FOTO_SAIDA") != "" else "/tmp"
@@ -43,18 +43,10 @@ func _initialize() -> void:
 		det.custom_minimum_size.x = 395
 		pn.add_child(det)
 		cartoes.add_child(pn)
-	var cx := PanelContainer.new()
-	cx.add_theme_stylebox_override("panel", M.caixa(Color(0.05, 0.045, 0.04, 0.97), Color(0.35, 0.3, 0.22), 1, 8))
-	cx.position = Vector2(10, 590)
-	cx.custom_minimum_size = Vector2(820, 0)
-	M.conteudo = VBoxContainer.new()
-	cx.add_child(M.conteudo)
-	tela.add_child(cx)
-	M.montar_conjunto()
 	P.st = P.calcular_status()
 	var st = P.st
 	var r = M.rotulo("Status: Crítico %s%% · Dano crítico +%d" % [P.num(st.critico * 100, 1), int(st.danoCritico)], 20, Color(0.95, 0.82, 0.55))
-	r.position = Vector2(850, 600)
+	r.position = Vector2(20, 590)
 	tela.add_child(r)
 	for i in 20:
 		await process_frame

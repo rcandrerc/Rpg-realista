@@ -167,23 +167,20 @@ export function bonusEquip(equip = {}, atr = null) {
     for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st);
   }
   const n = pecasDoConjunto(equip || {});
-  for (const t of [2, 3, 6]) {
-    let melhor = 0;
-    for (let r = 1; r < CONJUNTO.length; r++) if (n[r] >= t) melhor = r;
-    if (melhor) for (const [c, v] of Object.entries(CONJUNTO[melhor][t])) b[c] += v;
-  }
-  const cc = conjuntoCritico(n); // conjunto de crítico (André 2026-11-17): vale o maior
-  if (cc) { b.critico += cc.critico; b.danoCritico += cc.danoCritico; }
+  // o CONJUNTO antigo (vida/mana, dano, área...) não vale mais (André 2026-11-17, remoção aprovada: "remove os bônus
+  // antigos... tá dando muita coisa"): só o conjunto de crítico. Para voltar: somar CONJUNTO[r][2|3|6] aqui.
+  for (const { bon } of conjuntoAtivo(n)) for (const [c, v] of Object.entries(bon)) b[c] += v; // conjunto (André 2026-11-17)
   return b;
 }
-// conjunto de crítico: o maior entre 2, 4 e 6 peças (CONJUNTO_CRITICO); devolve { r, t, critico, danoCritico } ou null
-export function conjuntoCritico(n) {
-  let m = null;
-  for (let r = 1; r < CONJUNTO_CRITICO.length; r++) for (const t of [2, 4, 6]) {
-    const v = CONJUNTO_CRITICO[r][t];
-    if (n[r] >= t && (!m || v.critico > m.critico || (v.critico === m.critico && v.danoCritico > m.danoCritico))) m = { r, t, ...v };
+// conjunto (CONJUNTO_CRITICO): para 2, 4 e 6 peças, a melhor raridade que tem as peças; os níveis somam
+export function conjuntoAtivo(n) {
+  const out = [];
+  for (const t of [2, 4, 6]) {
+    let melhor = 0;
+    for (let r = 1; r < CONJUNTO_CRITICO.length; r++) if (n[r] >= t) melhor = r;
+    if (melhor) out.push({ t, r: melhor, bon: CONJUNTO_CRITICO[melhor][t] });
   }
-  return m;
+  return out;
 }
 // Item na mochila: { k, r } peça (r = raridade 0..4) · { k, n } poção · { k: 'tomo', h, nv, n } Tomo da skill h
 const ANTIGOS = { manto: 'peitoral', oculos: 'colar' }; // André 2026-11-03: sem Óculos (era do Quimera); quem tinha ganha um Colar da mesma raridade

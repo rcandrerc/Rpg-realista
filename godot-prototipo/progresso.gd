@@ -342,29 +342,19 @@ func bonus_equip() -> Dictionary:
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
 			b[c] += float(st[c][int(it.r)]) * reforco_k(it, c)
-	var ativo := conjunto_ativo()
-	for t in ativo:
-		if ativo[t] > 0:
-			var bon: Dictionary = dados.conjunto[ativo[t]][t]
+	# o conjunto antigo (dados.conjunto) não vale mais (André 2026-11-17, remoção aprovada): só o de crítico
+	var tab: Array = dados.get("conjuntoCritico", []) # conjunto (André 2026-11-17): níveis 2, 4 e 6 somam
+	var n := pecas_conjunto()
+	for t in ["2", "4", "6"]:
+		var melhor := 0
+		for r in range(1, tab.size()):
+			if n[r] >= int(t):
+				melhor = r
+		if melhor > 0:
+			var bon: Dictionary = tab[melhor][t]
 			for c in bon:
 				b[c] += float(bon[c])
-	var cc := conjunto_critico() # conjunto de crítico (André 2026-11-17): vale o maior
-	if not cc.is_empty():
-		b.critico += float(cc.critico)
-		b.danoCritico += float(cc.danoCritico)
 	return b
-
-# conjunto de crítico (CONJUNTO_CRITICO de shared/dados.js): o maior entre 2, 4 e 6 peças; {} = nenhum
-func conjunto_critico() -> Dictionary:
-	var tab: Array = dados.get("conjuntoCritico", [])
-	var n := pecas_conjunto()
-	var m := {}
-	for r in range(1, tab.size()):
-		for t in ["2", "4", "6"]:
-			var v: Dictionary = tab[r][t]
-			if n[r] >= int(t) and (m.is_empty() or float(v.critico) > float(m.critico) or (float(v.critico) == float(m.critico) and float(v.danoCritico) > float(m.danoCritico))):
-				m = {"r": r, "t": t, "critico": v.critico, "danoCritico": v.danoCritico}
-	return m
 
 # ---------- reforço de equipamento (igual a shared/progresso.js; REFORCO em shared/dados.js, como no Quimera) ----------
 func reforco_dados() -> Dictionary:

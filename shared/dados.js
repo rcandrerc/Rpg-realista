@@ -1334,6 +1334,7 @@ export const REFORCO = {
 export const VENDA_TOMO = 15; // x nível do Tomo (André 2026-11-16: era 30)
 export const ROMANO = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 // Bônus de conjunto (Set de Bruxa): peças da mesma raridade ou melhor (a Arma conta se a espada ou o cajado for)
+// DESLIGADO (André 2026-11-17, remoção aprovada): não soma mais no herói; vale só o CONJUNTO_CRITICO. Fica aqui para voltar.
 // 2 peças: vida e mana; 3: dano (e defesa); 6: crítico, área das skills e regeneração de mana. Vale o melhor de cada.
 export const CONJUNTO = [
   null,
@@ -1342,15 +1343,15 @@ export const CONJUNTO = [
   { 2: { vida: 40, mana: 35 }, 3: { danoK: 0.2, defesa: 15 }, 6: { critico: 0.06, areaK: 0.25, regenManaK: 0.55 } },
   { 2: { vida: 70, mana: 60 }, 3: { danoK: 0.3, defesa: 30 }, 6: { critico: 0.08, areaK: 0.35, regenManaK: 0.7 } },
 ];
-// Conjunto de crítico (André 2026-11-17): 2, 4 e 6 peças da mesma raridade (ou melhor) dão chance de crítico e dano
-// crítico (número somado no golpe crítico). Só a raridade conta (o reforço não aumenta) e vale o maior: 6 substitui 4,
-// que substitui 2. Soma com o CONJUNTO de cima.
+// Conjunto (André 2026-11-17, no lugar do CONJUNTO antigo): 2, 4 e 6 peças da mesma raridade (ou melhor). Só a
+// raridade conta (o reforço não aumenta). Cada nível SOMA com o anterior; em cada nível vale a melhor raridade que tem
+// as peças. danoCritico = número somado no golpe crítico. Com 6 Míticas: +50 vida, +6% crítico, +48 dano crítico, +10% dano.
 export const CONJUNTO_CRITICO = [
   null,
-  { 2: { critico: 0.01, danoCritico: 5 }, 4: { critico: 0.02, danoCritico: 10 }, 6: { critico: 0.03, danoCritico: 20 } },
-  { 2: { critico: 0.015, danoCritico: 8 }, 4: { critico: 0.03, danoCritico: 16 }, 6: { critico: 0.05, danoCritico: 30 } },
-  { 2: { critico: 0.02, danoCritico: 12 }, 4: { critico: 0.04, danoCritico: 25 }, 6: { critico: 0.07, danoCritico: 45 } },
-  { 2: { critico: 0.03, danoCritico: 20 }, 4: { critico: 0.06, danoCritico: 40 }, 6: { critico: 0.1, danoCritico: 70 } },
+  { 2: { vida: 10 }, 4: { critico: 0.01, danoCritico: 5 }, 6: { critico: 0.01, danoCritico: 10, danoK: 0.03 } },
+  { 2: { vida: 20 }, 4: { critico: 0.015, danoCritico: 8 }, 6: { critico: 0.015, danoCritico: 15, danoK: 0.05 } },
+  { 2: { vida: 35 }, 4: { critico: 0.02, danoCritico: 12 }, 6: { critico: 0.02, danoCritico: 22, danoK: 0.07 } },
+  { 2: { vida: 50 }, 4: { critico: 0.03, danoCritico: 18 }, 6: { critico: 0.03, danoCritico: 30, danoK: 0.1 } },
 ];
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
 // André 2026-11-16 (estudo da economia: tudo custava menos que poucos minutos de caça): poção 15 e 18 viram
