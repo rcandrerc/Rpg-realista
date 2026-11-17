@@ -160,6 +160,9 @@ export function mensagensConversa(ctx, texto) {
     `Seu nível ${ctx.nivel}, o de ${ctx.amigo} ${ctx.nivelAmigo}. Amizade: ${ctx.amizade} (0 = começo).${ctx.semCasa ? '' : ` Sua casa: ${ctx.casaPronta ? 'pronta' : 'em obra'}.`}`,
     ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : '',
     ctx.chamou ? `Há pouco você chamou ${ctx.amigo} (${ctx.chamou}) e espera a resposta.` : '',
+    // André 2026-11-17: "quando eu voltar, desculpa tava ocupado, ela continua normal"
+    ctx.ignorada ? `Sua última mensagem ficou um tempo sem resposta (${ctx.amigo} devia estar ocupado). Responda normal, numa boa: NÃO cobre, não reclame da demora nem faça drama; no máximo um "de boa" e segue o papo.` : '',
+    ctx.seguindo ? `${ctx.amigo} está te seguindo agora (você vai na frente e escolhe o caminho).` : '',
     humorTime(ctx),
     ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
@@ -203,9 +206,23 @@ Devolva só JSON: {"fala": "...", "acao": "nada", "lugar": ""}`;
   return msgs;
 }
 // ela puxa assunto (André 2026-11-17): a "mensagem" é uma instrução entre parênteses; não entra na conversa guardada
+// André 2026-11-17: "mais variado o jeito dela chegar em mim". Ela não repete nenhum dos últimos TEMAS_SEM_REPETIR temas
+// (ctx.temas é a lista guardada nela, shared/amiga.js contextoAmiga; aqui só anota o sorteado)
+export const TEMAS_SEM_REPETIR = 5;
+export function temasPuxar(amigo) {
+  return [
+    'conte algo que aconteceu com você hoje', 'reclame de alguma coisa sua (do seu jeito)', `pergunte algo pessoal da vida de ${amigo} fora do jogo`,
+    `retome algo que vocês conversaram antes ou algo que ${amigo} te contou`, 'comente o que você está fazendo agora', 'dê uma opinião sobre algo do jogo ou da vila',
+    'mande uma zoeira ou piada curta do seu jeito', 'conte um plano ou vontade sua (algo que quer fazer, comprar ou conseguir no jogo)',
+    `pergunte como foi o dia de ${amigo}`, 'conte uma fofoca leve de alguém da vila (Rosa, Tomás, outros NPCs)', 'conte algo engraçado ou estranho que você viu por aí',
+    `peça a opinião de ${amigo} sobre alguma dúvida sua`, 'mande só um oi curtinho do seu jeito, sem pergunta', `diga que lembrou de ${amigo} por causa de algo que viu`,
+  ];
+}
 export function puxarAssunto(ctx, evento) {
-  const temas = ['conte algo que aconteceu com você hoje', 'reclame de alguma coisa sua (do seu jeito)', `pergunte algo pessoal da vida de ${ctx.amigo} fora do jogo`, `retome algo que vocês conversaram antes ou algo que ${ctx.amigo} te contou`, 'comente o que você está fazendo agora', 'dê uma opinião sobre algo do jogo ou da vila'];
-  const tema = evento ? `comente isto: ${evento}` : temas[Math.floor(Math.random() * temas.length)];
+  const temas = temasPuxar(ctx.amigo), recentes = Array.isArray(ctx.temas) ? ctx.temas : [];
+  const livres = temas.map((_, i) => i).filter((i) => !recentes.includes(i)), i = (livres.length ? livres : temas.map((_, k) => k))[Math.floor(Math.random() * (livres.length || temas.length))];
+  if (!evento && Array.isArray(ctx.temas)) { ctx.temas.push(i); while (ctx.temas.length > TEMAS_SEM_REPETIR) ctx.temas.shift(); }
+  const tema = evento ? `comente isto: ${evento}` : temas[i];
   return `(${ctx.amigo} não está falando nada faz um tempo. Puxe um assunto SEU, natural, como amig${ctx.genero === 'm' ? 'o' : 'a'} que manda mensagem do nada: ${tema}. 1 ou 2 frases. Não chame para caçar nem para o time, e não repita nada que já disse. Ação "nada".)`;
 }
 // a ordem dos modelos da conversa (André 2026-11-12): o grande primeiro (o esperto), depois o Qwen 27B e o menor de reserva.
