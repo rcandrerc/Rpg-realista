@@ -407,7 +407,7 @@ export const Amiga = {
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
     // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
-    if (j.morto) { if (!ia.caiu) { ia.caiu = true; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
@@ -1446,7 +1446,7 @@ export const Amiga = {
         ia.viagem = { bloqueio: r.bloqueio, fx: dono.x, fz: dono.z, novaEm: this.tempo + 5 };
         j.montado = null; this.pararAmiga(j); return true;
       }
-      if (aviso && !dono.solo && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; this.dizerAmiga(sorteia(this.AMIGA.chat.falas.aCaminho)); }
+      if (aviso && !dono.solo && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; if (this.tempo - (ia.aCaminhoT ?? -1e9) > 600) { ia.aCaminhoT = this.tempo; const L = this.AMIGA.chat.falas.aCaminho, t = sorteia(L.length > 1 ? L.filter((x) => x !== ia.aCaminhoUlt) : L); ia.aCaminhoUlt = t; this.dizerAmiga(t); } } // André 2026-11-17 (ronda): "Tô montando no lobo" 3x: no máximo 1 vez a cada 10 min e nunca a mesma seguida
       v = ia.viagem = { rota: r.pontos, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1 };
       // a chamada pelo chat espera o tempo da viagem (lobo no galope + folga)
       if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + r.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
@@ -1552,6 +1552,10 @@ export const Amiga = {
       comOutro: id !== this.amigaDono && this.ocupadaAmiga() ? this.jogadores.get(this.amigaDono)?.nome || null : null, nivel: a.prog.nivel, nivelAmigo: j.prog.nivel,
       noTime: !!(a.time && a.time === j.time), distancia: Math.round(Math.hypot(a.x - j.x, a.z - j.z)),
       fazendo: sozinho ? sozinho : a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : (this.AMIGA.terreno ? 'descansando na porta de casa' : 'passeando pela vila'),
+      // André 2026-11-17 (ronda): "morreu também?" e ela "não, ainda tô de pé" (a ficha não dizia que ela tinha caído)
+      morta: !!a.morto, caiuHa: a.ia.caiuT != null && this.tempo - a.ia.caiuT < 1800 ? Math.round((this.tempo - a.ia.caiuT) / 60) : null,
+      // "o barquinho você pode fazer" e ela disse 3 vezes que não conseguia: ela sabe a receita e o que tem
+      barco: contar(a.prog.mochila, 'barquinho') ? 'você já tem um' : `faz na bancada com ${Object.entries(FERRAMENTAS_FAZENDA.barquinho.custo).map(([k, n]) => `${n} ${ITENS[k].nome.toLowerCase()}`).join(' e ')} (você tem ${Object.keys(FERRAMENTAS_FAZENDA.barquinho.custo).map((k) => `${contar(a.prog.mochila, k)} ${ITENS[k].nome.toLowerCase()}`).join(' e ')})`,
       casaPronta: !!pronta, noite: ehNoite(horaDoJogo(j.prog.dia)), pedido: a.pedido ? `${a.pedido.n} ${ITENS[a.pedido.k].nome}` : null,
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       humor: (() => { // o que ela decidiu sobre caçar/time agora (decisaoTimeAmiga); o mesmo sorteio vale quando ele chamar
@@ -1924,7 +1928,9 @@ export const Amiga = {
     if (Array.isArray(r.fatos)) {
       const F = this.AMIGA.fatos, l = ((a.fatos ||= {})[conta] ||= []), chave = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
       const tem = new Set(l.map(chave));
-      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k)) continue; tem.add(k); l.push(f); }
+      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k)) continue;
+        // André 2026-11-17 (ronda): "ele está na missão desgrama" (gíria virou missão): fato de missão só com nome de missão de verdade
+        if (/miss[aã]o|quest/i.test(f) && !HISTORIA.some((M) => k.includes(chave(M.nome)))) continue; tem.add(k); l.push(f); }
       if (l.length > F.max) l.splice(0, l.length - F.max);
     }
     if (r.regras && typeof r.regras === 'object') {
