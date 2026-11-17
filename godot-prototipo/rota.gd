@@ -65,6 +65,18 @@ func _montar() -> void:
 		for vt in vts:
 			for e in vt.get("estradas", []):
 				linhas.append({"pontos": e.get("pontos", [])})
+	# ruas de calçada das cidades do mundo grande (Rio Claro, Aurora; mundo.vilasMundo[].cidade.ruas, pontos [x, z, y]):
+	# o "Ir" até a banca do Rio Claro vai pela rua do mercado, não pelo meio das bancas (André 2026-11-17)
+	for vm in m.mundo.get("vilasMundo", []):
+		var cid = vm.get("cidade")
+		if cid == null:
+			continue
+		linhas = linhas.duplicate()
+		var pr = cid.get("praca", vm)
+		for rua in cid.get("ruas", []):
+			linhas.append({"pontos": rua})
+			if not rua.is_empty(): # da praça até o começo da rua (a estrada que chega na cidade termina na praça)
+				linhas.append({"pontos": [[float(pr.x), float(pr.z)], rua[0]]})
 	var por_linha: Array = []
 	for L in linhas:
 		var pts: Array = L.get("pontos", [])
@@ -291,7 +303,7 @@ func planejar(alvo: Vector2) -> PackedVector2Array:
 	var r := PackedVector2Array()
 	if h.distance_to(alvo) < PERTO or astar.get_point_count() == 0:
 		r.append(alvo)
-		return r
+		return _contornar(r)
 	var a := astar.get_closest_point(h)
 	var b := astar.get_closest_point(alvo)
 	r = astar.get_point_path(a, b)
@@ -304,7 +316,7 @@ func planejar(alvo: Vector2) -> PackedVector2Array:
 	if r.size() >= 2 and alvo.distance_to(r[r.size() - 2]) < r[r.size() - 1].distance_to(r[r.size() - 2]):
 		r.remove_at(r.size() - 1)
 	r.append(alvo)
-	return r
+	return _contornar(r)
 
 # Todo autopath vai pelos caminhos (André 2026-11-12: "qualquer coisa que seja no autopath eu tenho que ir pelos
 # caminhos, por mais que seja mais longo; a única forma de cortar caminho é no controle manual"). Antes, quando o AStar
@@ -329,6 +341,343 @@ func _alcancavel_mais_perto(a: int, alvo: Vector2) -> int:
 				md = d
 				melhor = v
 	return melhor
+
+# Contorno (André 2026-11-17: "o caminho pro Pedrão no AutoPath de carrinho tá horrível, de lobo também; eles ficam se
+# batendo nas casinhas e não conseguem ir de jeito nenhum. Quero que qualquer NPC a gente consiga chegar de AutoPath").
+# O trecho fora da estrada (do herói até a estrada e da estrada até o lugar) era uma linha reta: com o NPC a 30 m da rua
+# (Pedrão, Malaquias, as bancas do Rio Claro) ela passava por cima de casa, pedra e árvore, e o herói ficava empurrando a
+# parede. A rede também passa pelo meio do poço da praça (as ruas das casas acabam no centro dela). Agora cada trecho
+# da rota que bate em algo vira um desvio: uma grade pequena (DESVIO_CEL m) em volta do trecho, sem as casas, pedras
+# altas, árvores, obstáculos, borda do mapa e névoa fechada, e o caminho mais curto por ela (AStarGrid2D), com folga
+# para o lobo e o carrinho (DESVIO_FOLGA m; se não passa, tenta com a folga de quem anda a pé). Nada preso ao mapa de
+# hoje: vale para qualquer NPC, lugar e estrada nova.
+const DESVIO_FOLGA := 0.95 # m do centro do herói até a borda do que bate (o carrinho tem ~0,9 m de meia largura)
+const DESVIO_FOLGA_PE := 0.45 # m: a pé (e na estrada, que já é limpa: só o poço e afins pegam)
+const DESVIO_CEL := 0.9 # m: lado de cada quadrado da grade do desvio
+const DESVIO_MARGEM := 7.0 # m em volta do trecho que a grade cobre
+const DESVIO_MAX := 4000 # quadrados no máximo (trecho longo: a grade fica mais grossa)
+const PERTO_DESVIO := 3.0 # m: o desvio que não chega no lugar exato ainda vale se parar até aqui dele
+const OLHA_DESVIO := 1.1 # m: no desvio o herói mira mais perto (não corta o canto da casa)
+var _justo := PackedByteArray() # 1 = ponto da rota que é do desvio (direcao_auto mira mais perto)
+var _planejada := PackedVector2Array() # a última rota de planejar (outra rota no ir: sem a mira curta)
+var _alvo_livre := Vector2.INF
+var _degrau := 0.45
+var _carrinho := false # dirigindo o carrinho: até a água rasa é parede
+var _h_ult := NAN # _livre: chão no ponto quando tem sólido perto (NAN = só o relevo) # o lugar marcado (o NPC é obstáculo, mas o fim do trecho sempre vale)
+
+# dá para passar com o centro do herói em p, com folga r até a borda do que bate. Chamada milhares de vezes por rota:
+# só olha as casas das grades de perto (andar.gd obst e mata, terreno.gd solidos_em), sem criar lista nova
+const _VOLTA5 := [Vector2.ZERO, Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
+func _livre(p: Vector2, r: float) -> bool:
+	var mv = m.mov
+	var T = m.terreno
+	if not _dentro_do_mapa(p):
+		return false
+	if m.nevoa and m.nevoa.fechado(p.x, p.y):
+		return false
+	# água funda: o carrinho não entra (andar.gd passo_veiculo: lago com mais de 0,3 m para); a pé e de lobo dá a volta
+	# pela margem quando tem (André 2026-11-17: "qualquer autopath que cruze o grande lago me joga pra nadar podendo dar a
+	# volta e ir beirando o lago"). Se não tem volta por terra perto, a rota segue pela água como antes (nada a nado).
+	var L: Dictionary = m.terreno.no_lago(p.x, p.y)
+	if not L.is_empty() and float(L.fundo) > (0.25 if _carrinho else 0.5) and not m.terreno.na_ponte(p.x, p.y) and not m.terreno.na_cais(p.x, p.y):
+		return false
+	var perto_alvo := p.distance_squared_to(_alvo_livre) < 2.56
+	for k in mv.perto_obstaculos(p.x, p.y):
+		if perto_alvo and float(k.r) <= 0.31: # o próprio NPC (e quem está do lado dele)
+			continue
+		var rr: float = float(k.r) + r
+		if Vector2(float(k.x), float(k.z)).distance_squared_to(p) < rr * rr:
+			if k.has("veio") and mv.vazios.has(k.veio):
+				continue
+			return false
+	if not mv.mata.is_empty():
+		var ci := floori(p.x / 6.0)
+		var cj := floori(p.y / 6.0)
+		for a in range(ci - 1, ci + 2):
+			for b in range(cj - 1, cj + 2):
+				var c = mv.mata.get(Vector2i(a, b))
+				if c == null:
+					continue
+				for k in c:
+					var rr: float = float(k.r) + r
+					if Vector2(float(k.x), float(k.z)).distance_squared_to(p) < rr * rr:
+						return false
+	# casa, parede e pedra alta: debaixo do herói o chão não pode ter degrau maior que um passo (a beira da parede, da
+	# casa ou da pedra). O piso de dentro da Casa do Comércio é chão: plano, entra-se pela porta (o A* confere o degrau
+	# entre um quadrado e o outro). A ponte também é chão.
+	_h_ult = NAN
+	var tem := false
+	for d in _VOLTA5:
+		if not T.solidos_em(p.x + d.x * r, p.y + d.y * r).is_empty():
+			tem = true
+			break
+	if not tem or T.na_ponte(p.x, p.y):
+		return true
+	var lo := INF
+	var hi := -INF
+	var h0 := 0.0
+	for d in _VOLTA5:
+		var h := _chao_em(p.x + d.x * r, p.y + d.y * r)
+		if d == Vector2.ZERO:
+			h0 = h
+		lo = minf(lo, h)
+		hi = maxf(hi, h)
+	if hi - lo > _degrau:
+		return false
+	_h_ult = h0
+	return true
+
+# _livre guardado por ponto da grade (o mundo parado: refaz quando a névoa abre ou um veio esgota/volta)
+var _cache := {} # Vector3(x, z, folga) -> chão (NAN = só relevo) ou INF (não passa)
+var _cache_ver := ""
+func _livre_cache(p: Vector2, r: float) -> bool:
+	var ver := "%d|%d|%s" % [m.nevoa.feitas() if m.nevoa else 0, m.mov.vazios.size(), _carrinho]
+	if ver != _cache_ver or _cache.size() > 150000:
+		_cache = {}
+		_cache_ver = ver
+	var k := Vector3(p.x, p.y, r)
+	var v = _cache.get(k)
+	if v != null:
+		_h_ult = NAN if is_inf(v) else v
+		return not is_inf(v)
+	var ok := _livre(p, r)
+	_cache[k] = _h_ult if ok else INF
+	return ok
+
+# borda do mapa numa grade de 1 m (andar.gd dentro_do_mapa com a folga de 2,2 m custa bastante e não muda)
+var _dentro := {}
+func _dentro_do_mapa(p: Vector2) -> bool:
+	var k := Vector2i(floori(p.x), floori(p.y))
+	var v = _dentro.get(k)
+	if v == null:
+		v = m.mov.dentro_do_mapa(k.x + 0.5, k.y + 0.5, 2.2)
+		_dentro[k] = v
+	return v
+
+# chão em (x, z): o relevo ou o topo do sólido (casa, pedra, piso) mais alto ali
+func _chao_em(x: float, z: float) -> float:
+	var T = m.terreno
+	var h: float = T.chao_relevo(x, z)
+	for so in T.solidos_em(x, z):
+		h = maxf(h, T.altura_na(so, x, z))
+	return h
+
+func _reto_livre(a: Vector2, b: Vector2, r: float) -> bool:
+	var n: int = max(1, ceili(a.distance_to(b) / 0.4))
+	for s in range(1, n + 1):
+		if not _livre(a.lerp(b, float(s) / n), r):
+			return false
+	return true
+
+# caminho de a até b pela grade do desvio, sem o a e com o b; vazio se não tem. A* com os quadrados conferidos só
+# quando ele chega neles (no campo aberto ele quase não sai da linha reta: poucos quadrados para conferir)
+const _VIZ8 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
+func _desvio(a: Vector2, b: Vector2, r: float, margem := DESVIO_MARGEM) -> PackedVector2Array:
+	var cel := DESVIO_CEL
+	var lo := Vector2(minf(a.x, b.x), minf(a.y, b.y)) - Vector2(margem, margem)
+	var hi := Vector2(maxf(a.x, b.x), maxf(a.y, b.y)) + Vector2(margem, margem)
+	while ((hi.x - lo.x) / cel) * ((hi.y - lo.y) / cel) > DESVIO_MAX:
+		cel *= 1.25
+	lo = (lo / cel).floor() * cel # grade presa no mundo: o mesmo quadrado tem a mesma conta em todo desvio (_cache)
+	var nx: int = ceili((hi.x - lo.x) / cel) + 1
+	var nz: int = ceili((hi.y - lo.y) / cel) + 1
+	var ia := Vector2i(clampi(roundi((a.x - lo.x) / cel), 0, nx - 1), clampi(roundi((a.y - lo.y) / cel), 0, nz - 1))
+	var ib := Vector2i(clampi(roundi((b.x - lo.x) / cel), 0, nx - 1), clampi(roundi((b.y - lo.y) / cel), 0, nz - 1))
+	var livre := {ia: true, ib: true} # quadrado -> passa (conferido uma vez só)
+	var alt := {} # quadrado -> chão (só onde tem sólido perto; os outros são relevo)
+	var g := {ia: 0.0}
+	var de := {}
+	var fechado := {}
+	var hf := func(c: Vector2i) -> float: return Vector2(c - ib).length()
+	var heap_f := PackedFloat32Array([hf.call(ia)])
+	var heap_c: Array[Vector2i] = [ia]
+	var abertos := 0
+	var melhor := ia # quadrado mais perto do fim que deu para alcançar (NPC atrás do balcão: chega na frente dele)
+	var melhor_h: float = hf.call(ia)
+	while not heap_c.is_empty() and abertos < DESVIO_MAX:
+		# tira o menor
+		var u: Vector2i = heap_c[0]
+		var n_ult := heap_c.size() - 1
+		heap_f[0] = heap_f[n_ult]
+		heap_c[0] = heap_c[n_ult]
+		heap_f.resize(n_ult)
+		heap_c.resize(n_ult)
+		var k := 0
+		while true:
+			var l := 2 * k + 1
+			var rr := l + 1
+			var mn := k
+			if l < n_ult and heap_f[l] < heap_f[mn]:
+				mn = l
+			if rr < n_ult and heap_f[rr] < heap_f[mn]:
+				mn = rr
+			if mn == k:
+				break
+			var tf := heap_f[k]
+			heap_f[k] = heap_f[mn]
+			heap_f[mn] = tf
+			var tc: Vector2i = heap_c[k]
+			heap_c[k] = heap_c[mn]
+			heap_c[mn] = tc
+			k = mn
+		if fechado.has(u):
+			continue
+		fechado[u] = true
+		abertos += 1
+		if u == ib:
+			break
+		var hu_b: float = hf.call(u)
+		if hu_b < melhor_h:
+			melhor_h = hu_b
+			melhor = u
+			if melhor_h * cel <= 1.3: # já está do lado (NPC dentro da banca): não precisa procurar mais
+				break
+		var gu: float = g[u]
+		for dv in _VIZ8:
+			var v: Vector2i = u + dv
+			if v.x < 0 or v.y < 0 or v.x >= nx or v.y >= nz or fechado.has(v):
+				continue
+			if not livre.has(v):
+				livre[v] = _livre_cache(lo + Vector2(v) * cel, r)
+				if not is_nan(_h_ult):
+					alt[v] = _h_ult
+			if not livre[v]:
+				continue
+			# degrau entre os dois quadrados (subir no piso alto, no telhado ou na pedra não vale)
+			if alt.has(u) or alt.has(v):
+				var pu: Vector2 = lo + Vector2(u) * cel
+				var pv: Vector2 = lo + Vector2(v) * cel
+				var hu: float = alt[u] if alt.has(u) else m.terreno.chao_relevo(pu.x, pu.y)
+				var hv: float = alt[v] if alt.has(v) else m.terreno.chao_relevo(pv.x, pv.y)
+				if absf(hv - hu) > _degrau:
+					continue
+			if dv.x != 0 and dv.y != 0: # diagonal só sem quina no meio
+				var c1 := Vector2i(u.x + dv.x, u.y)
+				var c2 := Vector2i(u.x, u.y + dv.y)
+				if not livre.has(c1):
+					livre[c1] = _livre_cache(lo + Vector2(c1) * cel, r)
+				if not livre.has(c2):
+					livre[c2] = _livre_cache(lo + Vector2(c2) * cel, r)
+				if not livre[c1] or not livre[c2]:
+					continue
+			var ng: float = gu + (1.41421 if dv.x != 0 and dv.y != 0 else 1.0)
+			if ng < float(g.get(v, INF)):
+				g[v] = ng
+				de[v] = u
+				# põe no monte
+				var pos := heap_c.size()
+				heap_c.append(v)
+				heap_f.append(ng + hf.call(v))
+				while pos > 0:
+					var pai := (pos - 1) >> 1
+					if heap_f[pai] <= heap_f[pos]:
+						break
+					var tf2 := heap_f[pai]
+					heap_f[pai] = heap_f[pos]
+					heap_f[pos] = tf2
+					var tc2: Vector2i = heap_c[pai]
+					heap_c[pai] = heap_c[pos]
+					heap_c[pos] = tc2
+					pos = pai
+	var fim := ib
+	if not de.has(ib):
+		# não chega no lugar exato: vai até o mais perto que dá, se for perto (o resto o herói tenta e para ali)
+		if melhor == ia or melhor_h * cel > PERTO_DESVIO:
+			return PackedVector2Array()
+		fim = melhor
+	var ids: Array[Vector2i] = [fim]
+	while ids[ids.size() - 1] != ia:
+		ids.append(de[ids[ids.size() - 1]])
+	ids.reverse()
+	# puxa o fio: de cada ponto, vai reto até o mais longe que dá sem bater
+	var pts: Array = [a]
+	for k in range(1, ids.size() - 1):
+		pts.append(lo + Vector2(ids[k]) * cel)
+	if fim != ib:
+		pts.append(lo + Vector2(fim) * cel)
+	pts.append(b)
+	var out := PackedVector2Array()
+	var k0 := 0
+	while k0 < pts.size() - 1:
+		var k1: int = k0 + 1
+		while k1 + 1 < pts.size() and _reto_livre(pts[k0], pts[k1 + 1], r * 0.9):
+			k1 += 1
+		# pontos a cada ~1 m: com a mira curta o herói segue a linha (não corta o canto)
+		var A: Vector2 = pts[k0]
+		var B: Vector2 = pts[k1]
+		var n: int = max(1, ceili(A.distance_to(B) / 1.0))
+		for s in range(1, n + 1):
+			out.append(A.lerp(B, float(s) / n))
+		k0 = k1
+	return out
+
+# troca cada trecho da rota que bate em algo pelo desvio (o primeiro trecho sai do herói)
+func _contornar(r: PackedVector2Array) -> PackedVector2Array:
+	_justo = PackedByteArray()
+	if r.is_empty() or m.heroi == null or m.mov == null or m.terreno == null:
+		_justo.resize(r.size())
+		return r
+	_alvo_livre = r[r.size() - 1]
+	_degrau = float(m.mundo.get("subida", {}).get("degrau", 0.45))
+	_carrinho = str(m.mov.veiculo.get("k", "")) == "carrinho"
+	var T = m.terreno
+	var h0 := _heroi()
+	var ta: int = T.terra_id(h0.x, h0.y) if not T.mundo_g.is_empty() else 0
+	var tb: int = T.terra_id(_alvo_livre.x, _alvo_livre.y) if not T.mundo_g.is_empty() else 0
+	if ta > 0 and tb > 0 and ta != tb: # outro continente: o "Ir" nem sai (bloqueio)
+		_justo.resize(r.size())
+		return r
+	var t0 := Time.get_ticks_usec()
+	var out := PackedVector2Array()
+	var justo := PackedByteArray()
+	var a := _heroi()
+	var ultimo := r.size() - 1
+	var pulou := false
+	for k in r.size():
+		var b: Vector2 = r[k]
+		# ponto da rede dentro de algo (as ruas das casas acabam no meio do poço da praça): pula, o desvio dá a volta
+		if k < ultimo and Time.get_ticks_usec() - t0 < 150000 and not _livre(b, DESVIO_FOLGA_PE):
+			pulou = true
+			continue
+		# fora da estrada (o primeiro e o último trecho, ou um pulo longo): folga do carrinho; na estrada, a de quem anda
+		var fora: bool = pulou or k == 0 or k == ultimo or a.distance_to(b) > PASSO * 1.6
+		pulou = false
+		var feito := false
+		# na estrada (pontos a 2 m) só o ponto conta (acima): a linha entre dois pontos da rua não precisa de conferência
+		if fora and Time.get_ticks_usec() - t0 < 150000: # 0,15 s no máximo para a rota toda (rota enorme: o resto fica como era)
+			for folga in ([DESVIO_FOLGA, DESVIO_FOLGA_PE] if fora else [DESVIO_FOLGA_PE]):
+				if _reto_livre(a, b, folga):
+					break
+				var d := _desvio(a, b, folga)
+				if d.is_empty() and folga == DESVIO_FOLGA_PE: # nem a pé: a volta é maior (a porta da casa fica do outro lado)
+					d = _desvio(a, b, folga, DESVIO_MARGEM * 2.5)
+				if not d.is_empty():
+					for q in d:
+						out.append(q)
+						justo.append(1)
+					feito = true
+					break
+		if not feito:
+			out.append(b)
+			justo.append(0)
+		a = b
+	# vai e volta (a rota chega na ponta da rua de uma casa e volta): corta o bico se o atalho está livre
+	var mexeu := true
+	while mexeu and out.size() >= 3 and Time.get_ticks_usec() - t0 < 200000:
+		mexeu = false
+		var k := 1
+		while k < out.size() - 1:
+			var ida: Vector2 = out[k] - out[k - 1]
+			var volta: Vector2 = out[k + 1] - out[k]
+			if ida.dot(volta) < 0.0 and _reto_livre(out[k - 1], out[k + 1], DESVIO_FOLGA_PE):
+				out.remove_at(k)
+				justo.remove_at(k)
+				mexeu = true
+			else:
+				k += 1
+	_justo = justo
+	_planejada = out
+	return out
 
 # metros da rota a partir do herói (para o botão mostrar)
 func comprimento(r: PackedVector2Array, de := 0) -> float:
@@ -373,6 +722,8 @@ func ir(r: PackedVector2Array, aviso := "Indo pela estrada", olha_ := OLHA, viag
 	_seco = SECO_MONTA # a viagem já começa no lobo (se der)
 	_confere_agua = 0.0
 	caminho = r
+	if r.size() != _planejada.size() or (r.size() > 1 and r[0] != _planejada[0]): # outra rota (a missão só muda o fim)
+		_justo = PackedByteArray()
 	i = 0
 	ativo = true
 	_t = 0.0
@@ -407,8 +758,10 @@ func direcao_auto() -> Vector3:
 		return Vector3.ZERO
 	var p := _heroi()
 	var ultimo := caminho.size() - 1
-	while i < ultimo and p.distance_to(caminho[i]) < olha:
+	var mira: float = minf(olha, OLHA_DESVIO) if i < _justo.size() and _justo[i] == 1 else olha
+	while i < ultimo and p.distance_to(caminho[i]) < mira:
 		i += 1
+		mira = minf(olha, OLHA_DESVIO) if i < _justo.size() and _justo[i] == 1 else olha
 	var d: Vector2 = caminho[i] - p
 	if d.length() < 0.05:
 		return Vector3.ZERO
