@@ -50,6 +50,7 @@ const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Troca = preload("res://troca.gd")
 const Duelo = preload("res://duelo.gd") # duelo (André 2026-11-17, shared/duelo.js)
+const AlvoQuadro = preload("res://alvo_quadro.gd") # quadro do alvo (André 2026-11-17, como no Quimera)
 const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
 const Festa = preload("res://festa.gd")
@@ -160,6 +161,8 @@ var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
 var duelo # duelo.gd: duelo entre jogadores e com a Cecília/Dario (botão no cartão da troca)
+var alvo_atual = null # quem a marca no chão aponta (monstro, chefe ou o outro do duelo)
+var alvo_quadro # alvo_quadro.gd: nome, nível e vida do alvo, à esquerda
 var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
 var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var reinicio # reinicio.gd: faixa "o servidor vai reiniciar" e a contagem de 10 s no alto da tela (André 2026-11-12)
@@ -440,6 +443,8 @@ func _ready() -> void:
 	add_child(troca)
 	duelo = Duelo.new(self)
 	add_child(duelo)
+	alvo_quadro = AlvoQuadro.new(self)
+	add_child(alvo_quadro)
 	leilao = LeilaoUi.new(self)
 	add_child(leilao)
 	_passo("troca_leilao")
@@ -3635,6 +3640,7 @@ func _passo_main(dt: float) -> void:
 	if h.modo == "Magia" and h.alvo_fixo != null and h.morto <= 0.0:
 		marcado = h.alvo_fixo
 	combate.marcar(marcado.no if marcado else null, dt_real)
+	alvo_atual = marcado # quadro do alvo à esquerda (alvo_quadro.gd)
 	tp = _parte("m:marcar", tp)
 	# câmera em volta do herói (arrastar o dedo do lado direito gira): camera_heroi.gd
 	var g: Vector2 = hud.giro_cam
