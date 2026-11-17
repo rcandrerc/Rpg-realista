@@ -2661,6 +2661,11 @@ export const RECOMECO = { data: '2026-11-11' };
 export const AMIGA = {
   id: 'cecilia', nome: 'Cecília', conta: 'a:cecilia', papel: 'a guerreira',
   puxaAssunto: true,
+  // André 2026-11-17: "se eu não responder ela não manda mais mensagem até eu falar com ela ou relogar" (só a Cecília)
+  naoInsiste: true,
+  // André 2026-11-17: botão Seguir no cartão dela; ela escolhe para onde vai e o herói segue. No time ela vai na frente
+  // até o campo (espera ele quando passa de espera m de distância); dura até ate s ou até ele parar
+  seguivel: true, lidera: { espera: 15, ate: 1800, perto: 8 },
   // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
   // zera de novo; o save anterior fica em 'antes' no terreno dela.
   recomeco: RECOMECO.data,
@@ -2915,8 +2920,22 @@ export const AMIGA = {
         { texto: 'Tô precisando de uma ajudinha... passa aqui?', quer: 'ajuda' },
         { texto: 'Cadê você? Faz tempo que não aparece!', quer: 'vir' },
         { texto: 'Bora fazer alguma coisa juntos? Me chama pro time!', quer: 'time' },
+        // André 2026-11-17: "mais variado o jeito dela chegar em mim"
+        { texto: 'Ô sumido! Tá vivo aí?', quer: 'vir' },
+        { texto: 'Acabei de colher umas cenouras. Quer?', quer: 'vir' },
+        { texto: 'Tô a fim de sair da vila hoje. Topa?', quer: 'time' },
+        { texto: 'Fiquei pensando em você agora. Tá fazendo o quê?', quer: 'vir' },
+        { texto: 'Sozinha aqui de novo... aparece!', quer: 'vir' },
+        { texto: 'Me dá uma força rapidinho? Juro que é rápido.', quer: 'ajuda' },
+        { texto: 'Afiei a espada hoje cedo. Bora testar?', quer: 'time' },
       ],
     },
+  },
+  falasLeva: { // botão Seguir (André 2026-11-17): ela diz para onde vai
+    campo: ['Bora! Destino: {lugar}. Cola em mim.', 'Vem comigo, bora caçar. Destino: {lugar}.', 'Segue eu! Sei de um lugar bom: {lugar}.'],
+    solo: ['Tô indo caçar. Destino: {lugar}. Vem atrás!', 'Próxima parada: {lugar}. Cola aí.'],
+    casa: ['Tô indo pra casa agora. Vem junto?', 'Vou passar em casa. Me acompanha?'],
+    junto: ['Vem comigo, vou dar uma volta.', 'Segue eu, já te mostro.'],
   },
 };
 
@@ -2934,6 +2953,7 @@ function mesclarAmigo(base, muda) {
 export const DARIO = mesclarAmigo(AMIGA, {
   id: 'dario', nome: 'Dario', conta: 'a:dario', papel: 'o guerreiro', genero: 'm',
   puxaAssunto: false, // André 2026-11-17: quem puxa assunto pela IA é só a Cecília (o Dario responde)
+  naoInsiste: false, seguivel: false, // André 2026-11-17: "o Dario deixa como está"
   persona: 'um guerreiro de anime num RPG medieval de fantasia: calmo, confiante, leal, de humor seco e provocador com os amigos, competitivo nas caçadas e orgulhoso da espada',
   visual: 'cabelo_m',
   // visual B (cabelo preto rebelde, olhos dourados, capa roxo-escura); só aparência, as peças de verdade começam Comuns
@@ -3056,7 +3076,7 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
   id, nome, conta: 'a:' + id, papel: g === 'm' ? 'o aventureiro' : 'a aventureira', genero: g,
   persona: `${g === 'm' ? 'um aventureiro' : 'uma aventureira'} de anime num RPG medieval de fantasia: ${jeito}`,
   visual: g === 'm' ? 'cabelo_m' : 'ruiva', aparencia: { cabelo, olhos, pele, roupa, calca, altura, penteado }, // penteado null = o cabelo do próprio corpo
-  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false,
+  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false, naoInsiste: false, seguivel: false,
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];

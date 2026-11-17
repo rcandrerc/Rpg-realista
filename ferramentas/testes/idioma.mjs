@@ -40,7 +40,7 @@ ok(D?.['Mestre Ivo · Resetar build']?.startsWith('Master Ivo'), 'nome próprio 
   const chave = (t) => { let n = 0; return t.replace(/\{[a-z]+\}/gi, () => '{' + ++n + '}'); };
   const pular = new Set(['assuntos', 'visual', 'aparencia', 'equip', 'nome', 'papel', 'conta', 'id', 'gosto', 'jeito', 'ficha', 'prompt', 'memoria', 'cerebro']);
   const andar = (o) => { if (typeof o === 'string') { if (/[a-zà-ú]/i.test(o) && o.includes(' ') && !(o in D) && !(chave(o) in D)) faltam.add(o); } else if (Array.isArray(o)) o.forEach(andar); else if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) if (!pular.has(k)) andar(v); };
-  for (const A of AMIGOS_VIRTUAIS) for (const k of ['falas', 'falasColeta', 'falasTroca', 'falasEquip', 'chat']) andar(A?.[k]);
+  for (const A of AMIGOS_VIRTUAIS) for (const k of ['falas', 'falasColeta', 'falasTroca', 'falasEquip', 'chat', 'falasLeva']) andar(A?.[k]);
   ok(faltam.size === 0, `toda fala pronta da Cecília, do Dario e dos aventureiros tem inglês ${[...faltam].slice(0, 3).join(' | ')}`);
   ok(/begins_with\("a:"\)[\s\S]{0,200}Idioma\.frase\(texto\)/.test(gd('chat.gd')), 'chat: fala dos amigos virtuais sai no idioma do jogo');
 }
