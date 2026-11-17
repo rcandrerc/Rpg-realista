@@ -24,7 +24,7 @@ export const MODELOS_VILA = {
   comercio_grande: { w: 24, d: 20, alto: 6, sobe: 6, porta: 0, entra: true },
   sobrado_4x6: { w: 4, d: 6, alto: 6, sobe: 3.6, porta: 1 }, sobrado_6x6: { w: 6, d: 6, alto: 6, sobe: 4.8, porta: 0 }, sobrado_4x4: { w: 4, d: 4, alto: 6, sobe: 3.6, porta: -1 },
   banca_frutas: { r: 1.1, alto: 2.6 }, banca_tecidos: { r: 1.3, alto: 2.6 }, banca_peixe: { r: 1.1, alto: 2.6 }, banca_ceramica: { r: 1.3, alto: 2.6 }, banca_temperos: { r: 1.1, alto: 2.6 },
-  carroca_carga: { r: 1.1 }, poste: { r: 0.2 }, cerca: { r: 0.3 }, carga: { r: 1.3, alto: 1.8 },
+  carroca_carga: { r: 1.1 }, poste: { r: 0.2 }, lampiao: { r: 0.3 }, cerca: { r: 0.3 }, carga: { r: 1.3, alto: 1.8 },
   banca: { r: 1.0, alto: 2.6 }, banca_carroca: { r: 1.3, alto: 2.6 }, barris: { r: 0.85, alto: 0.9 }, barril: { r: 0.4, alto: 0.9 },
   caixotes: { r: 1.0, alto: 1.8 }, banco: { r: 0.6, alto: 0.53 }, mesa: { r: 1.45, alto: 0.81 }, estandarte: { r: 0.18 },
   carroca: { r: 1.0 }, bigorna_enfeite: { r: 0.6, alto: 0.6 }, armas: { r: 0.7, alto: 1.1 }, fogueira: { r: 0.8, alto: 0.4 },

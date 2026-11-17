@@ -267,6 +267,8 @@ export const RIO_CLARO = {
   carroca_carga: [['Prop_Wagon', [0, 0, 0], 0], ['Crate_Wooden', [-0.1, 0.62, -2.75], 0.3], ['Barrel', [0.3, 0.62, -2.05], 0]], // a carga em cima da caçamba
   // poste de lanterna e a pilha de carga do pátio das caravanas
   poste: [['Corner_Exterior_Wood', [0, 0, 0], 0], ['Lantern_Wall', [0, 2.4, 0.18], 0]],
+  // lampião de rua (André 2026-11-17: "postes luminários bonitinhos" para a cidade à noite), todo feito no montar.mjs
+  lampiao: [['@lampiao', [0, 0, 0], 0]],
   carga: [['Crate_Wooden', [0, 0, 0], 0], ['Crate_Wooden', [1, 0, 0.2], 0.4], ['Crate_Wooden', [0.5, 0.93, 0.1], 0.2], ['Barrel', [-1.2, 0, 0.6], 0], ['Barrel', [-1.4, 0, -0.4], 0]],
   // só para o jogo pegar o material da calçada de pedra (vilas_mundo.gd faz a praça e a Rua do Mercado com ele)
   rio_chao: [['Floor_Brick', [0, 0, 0], 0]],
