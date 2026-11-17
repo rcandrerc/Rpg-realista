@@ -77,5 +77,21 @@ const n = dario.diariasAmiga(b);
 ok(n >= 1 && dario.diariasDe(b).r.includes(D.id), `recebeu a diária "${D.nome || D.id}" sozinho`);
 ok(b.prog.ouro >= ouro0, 'prêmio entrou');
 ok(dario.diariasAmiga(b) === 0, 'não recebe duas vezes');
+// diária de plantar de verdade (André 2026-11-17: "até pra gente ter gente pra reflorestar esse mapa"): compra semente na
+// Rosa, vai até uma área de plantio e planta 4 árvores que crescem no mapa
+{
+  const sp = new Simulacao(MAPA_CLAREIRA); sp.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });
+  for (const x of sp.amigosIa) x.amigaEntrar('andre', true); sp.passo(0.05);
+  const dp = sp.amigoIaDe(DARIO.id), bp = dp.amiga;
+  bp.prog.nivel = Math.max(DIARIAS.nivel, 10); bp.prog.ouro = 500; bp.prog.dia = { h: 10, t: Date.now() };
+  const rr = Math.random; Math.random = () => 0.1;
+  ok(dp.diariaQueFaltaAmiga(bp) === 'plantar', 'falta a diária de plantar e ele tem ouro: vai plantar');
+  Math.random = rr;
+  bp.ia.av = { fase: 'plantar', n: 0, tentou: 0 };
+  for (let i = 0; i < 20 * 600 && bp.ia.av.fase === 'plantar'; i++) { dp.passoSozinhoAmiga(bp, 0.05); sp.passo(0.05); }
+  const meu = [...sp.plantadas.values()].filter((P) => P.dono === bp.conta);
+  ok((dp.diariasDe(bp).n.arvores || 0) >= 4 && meu.length >= 4 && bp.prog.ouro < 500, `plantou ${meu.length} árvores de verdade numa área de plantio (diária ${dp.diariasDe(bp).n.arvores}/4)`);
+  Math.random = () => 0.1; ok(dp.diariaQueFaltaAmiga(bp) !== 'plantar', 'diária de plantar feita: não planta de novo hoje'); Math.random = rr;
+}
 // saberAmiga leva a missão dele para a IA
 ok(typeof dario.saberAmiga(b, s.jogadores.get('andre')).missaoDela === 'string', 'a IA sabe a missão dele');

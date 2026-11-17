@@ -20,7 +20,8 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
-import { LOJA, precoLoja } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { LOJA, precoLoja, PLANTIO } from './dados.js';
+import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -537,6 +538,14 @@ export const Amiga = {
       const cansouGrind = this.grindAcabouAmiga(j); // André 2026-11-16: grind sozinho limitado por dia real
       // missão da história (André 2026-11-16: "pra liberar o mapa ele tem que fazer missão, igual a gente")
       if (this.querMissaoAmiga(j)) { Object.assign(av, { fase: 'missao', c: null, coleta: null, alvo: null }); ia.viagem = null; return; }
+      // diárias (André 2026-11-17: "tanto ela quanto o Dario façam as missões diárias... até pra gente ter gente pra
+      // reflorestar esse mapa"): plantar árvore numa área de plantio, pescar ou cortar/minerar quando faltar a diária
+      const dia = this.diariaQueFaltaAmiga(j);
+      if (dia === 'plantar') { Object.assign(av, { fase: 'plantar', c: null, coleta: null, alvo: null, n: 0, tentou: 0 }); ia.viagem = null; return; }
+      if (dia) {
+        const c = this.lugarColetaAmiga(j, dia);
+        if (c) { Object.assign(av, { fase: 'ir', c, coleta: dia, ate: t + sorte(A.cacar, R.caca) }); ia.viagem = null; ia.alvoColeta = null; return; }
+      }
       // quem gosta de pescar, minerar ou cortar lenha vai fazer isso (com vigor); senão, caça
       const gosto = this.AMIGA.gosto, Ativ = this.AMIGA.atividades?.[gosto];
       if (Ativ && !av.semColeta && Math.random() < R.coleta && vigorAgora(j.prog.vigor) >= 1 && contar(j.prog.mochila, Ativ.ferramenta) > 0) {
@@ -552,6 +561,7 @@ export const Amiga = {
       return;
     }
     if (av.fase === 'missao') return this.missaoSozinhoAmiga(j, av, noite, voltar, dt);
+    if (av.fase === 'plantar') return this.plantarSozinhoAmiga(j, av, noite, voltar, dt);
     if (av.coleta && (av.fase === 'ir' || av.fase === 'cacar')) return this.coletaSozinhoAmiga(j, av, noite, livres, voltar, dt);
     if (av.fase === 'ir' || av.fase === 'cacar') {
       const c = av.c;
@@ -1460,6 +1470,53 @@ export const Amiga = {
   chegouMissaoAmiga(j, x, z, dt) {
     if (j.ia.viagem?.bloqueio) { j.ia.viagem = null; return true; }
     return this.irLongeAmiga(j, x, z, dt);
+  },
+  // a diária que falta e que ele sabe fazer agora: 'plantar' | 'pescar' | 'lenha' | 'minerar' | null (caçar conta sozinho)
+  diariaQueFaltaAmiga(j) {
+    if (!j.semTeto || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return null;
+    const st = this.diariasDe(j), falta = (id) => { const D = DIARIAS.lista.find((x) => x.id === id); return D && (st.n[id] || 0) < D.n; };
+    const tem = (f) => contar(j.prog.mochila, f) > 0;
+    const op = [];
+    if (falta('arvores') && (this.sementePlantioAmiga(j) || j.prog.ouro >= this.precoSementeAmiga() * 4)) op.push('plantar');
+    if (falta('peixes') && tem('vara')) op.push('pescar');
+    if (falta('coleta')) { if (tem('machado')) op.push('lenha'); else if (tem('picareta')) op.push('minerar'); }
+    return op.length && Math.random() < NPC_VIDA.diaria.chance ? sorteia(op) : null;
+  },
+  sementePlantioAmiga(j) { return NPC_VIDA.diaria.arvores.find((s) => contar(j.prog.mochila, 'semente_' + s) > 0) || null; },
+  precoSementeAmiga() { const s = NPC_VIDA.diaria.arvores[0]; return precoLoja(LOJA.find((o) => o.k === 'semente_' + s), 1) || 10; },
+  // um quadrado livre de área de plantio perto da casa dele (fora da névoa da história dele), ou null
+  quadradoPlantioAmiga(j, ruins) {
+    const M = this.moradiaAmiga(j), Q = PLANTIO.quadrado; let melhor = null, md = Infinity;
+    for (const key of QUADRADOS_PLANTIO.keys()) {
+      if (this.plantioQ?.has(key) || ruins?.has(key)) continue;
+      const [i, k] = key.split(',').map(Number), x = i * Q + Q / 2, z = k * Q + Q / 2, d = Math.hypot(x - M.x, z - M.z);
+      if (d >= md || d > NPC_VIDA.diaria.raio) continue;
+      if (j.semTeto && zonaFechadaEm(j.prog, x, z)) continue;
+      md = d; melhor = { key, i, k, ...lugarNoQuadrado(i, k) };
+    }
+    return melhor;
+  },
+  // planta as árvores da diária: compra semente na Rosa se não tem, vai até um quadrado livre e planta (o mesmo
+  // plantarArvore do jogador: gasta vigor, conta a diária, cresce no mapa para todo mundo)
+  plantarSozinhoAmiga(j, av, noite, voltar, dt) {
+    const D = DIARIAS.lista.find((x) => x.id === 'arvores'), st = this.diariasDe(j);
+    if (noite || !D || (st.n.arvores || 0) >= D.n || vigorAgora(j.prog.vigor) < 1 || av.tentou > 12) {
+      if (av.tentou > 12) j.ia.diariaFalhou = this.tempo + 1800; // não deu: tenta outra coisa por meia hora
+      return voltar();
+    }
+    let s = this.sementePlantioAmiga(j);
+    if (!s) { // passa na Rosa: o que falta da diária, pelo preço da loja
+      const n = D.n - (st.n.arvores || 0), preco = this.precoSementeAmiga();
+      if (j.prog.ouro < preco * n || !guardar(j.prog.mochila, { k: 'semente_' + NPC_VIDA.diaria.arvores[0], n })) { j.ia.diariaFalhou = this.tempo + 1800; return voltar(); }
+      j.prog.ouro -= preco * n; s = NPC_VIDA.diaria.arvores[0];
+    }
+    if (!av.alvo) { av.alvo = this.quadradoPlantioAmiga(j, (av.ruins ||= new Set())); if (!av.alvo) { j.ia.diariaFalhou = this.tempo + 1800; return voltar(); } }
+    if (!this.chegouMissaoAmiga(j, av.alvo.x, av.alvo.z, dt)) return;
+    this.pararAmiga(j);
+    const n0 = st.n.arvores || 0; av.tentou++;
+    this.plantarArvore(j.id, { s, x: av.alvo.x, z: av.alvo.z, q: true });
+    if ((this.diariasDe(j).n.arvores || 0) > n0) av.n++; else av.ruins.add(av.alvo.key);
+    av.alvo = null; this.guardarAmiga();
   },
   // diárias (shared/diarias.js): caçando, pescando e coletando sozinho elas contam; na vila recebe o que terminou
   diariasAmiga(j) {

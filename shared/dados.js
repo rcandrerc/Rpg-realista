@@ -3117,6 +3117,9 @@ export const NPC_VIDA = {
   // missões da história de Cecília e Dario (André 2026-11-16): até segPorDia s por dia real fazendo missão (fora o grind);
   // chance: de cada saída, quantas viram missão; porEtapa: s trabalhando no lugar de cada etapa (sorteia de 60% a 140%)
   missao: { segPorDia: 3600, chance: 0.5, porEtapa: 120, atrasado: { niveis: 10, x: 3 } }, // atrasado: a missão pede 10+ níveis a menos que o dele = 3x o tempo do dia (André 2026-11-17)
+  // diárias da Cecília e do Dario (André 2026-11-17: "até pra gente ter gente pra reflorestar esse mapa"): chance de ir fazer
+  // uma que falta ao escolher o que fazer; árvores que eles plantam (a primeira é a que compram na Rosa); raio m da casa
+  diaria: { chance: 0.6, arvores: ['carvalho', 'pinheiro', 'betula'], raio: 600 },
   // Rotina de cada um (André 2026-11-11: "todos fazendo a mesma coisa... onde eles passam trava tudo"). Cada NPC tem o
   // horário dele (sai/volta em hora do jogo; volta < sai = caça de noite), o campo que prefere (alto = o mais forte que
   // aguenta; medio; baixo = mais seguro; longe = qualquer um, de preferência longe), quanto dura a saída (caca) e a
