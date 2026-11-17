@@ -2691,7 +2691,10 @@ export const AMIGA = {
   // chama tira 5% (acimaCada/acimaTira), para ninguém se aproveitar. Aceitando com ele bem mais fraco (acimaFala níveis),
   // comenta de leve (falas.nivelBaixo). base/porAmizade/amizadeMax ficam para quem não usa a regra nova.
   amizadeBase: 4, acimaCada: 5, acimaTira: 0.05, acimaFala: 5,
-  time: { base: 0.6, porAmizade: 0.035, amizadeMax: 0.35, // amizade 0 a 10: o máximo chega no 10 (André 2026-11-14; antes 0.08, máximo no 5)
+  time: {
+    // pediu com jeito depois do não (André 2026-11-17): uma vez por recusa, chance = vontade + soma (até max)
+    apelo: { soma: 0.45, max: 0.95, palavras: ['por favor', 'pfv', 'pfvr', 'pls', 'plis', 'preciso muito', 'to precisando', 'tô precisando', 'precisando muito', 'e importante', 'eh importante', 'muito importante', 'realmente importante', 'importante', 'te imploro', 'serio', 'de verdade', 'faz isso por mim', 'por mim', 'me ajuda', 'preciso da sua ajuda', 'preciso de voce', 'preciso de vc'] },
+    base: 0.6, porAmizade: 0.035, amizadeMax: 0.35, // amizade 0 a 10: o máximo chega no 10 (André 2026-11-14; antes 0.08, máximo no 5)
     cansada: 0.35, horta: 0.2, noite: 0.2, nivelLivre: 6, porNivel: 0.05, perigoMax: 0, // André 2026-11-09: ele dá "powerlevel" nela; nível alto dele não pesa mais contra (antes 0.4)
     min: 0.05, max: 1, esperaRecusa: 45, humor: 90, humorRecusa: 180, seguir: 2.6, correr: 6, longe: 45, ajudar: 12, pocao: 0.4, fugir: 0.2, skill: 5, pocoes: 3 },
   // André 2026-11-10 ("ela não se teleporta: entra na montaria e vem até mim, eu vejo ela no mapa vindo, como um jogador
@@ -2721,6 +2724,8 @@ export const AMIGA = {
     nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
     // André 2026-11-17: quando a IA dela acaba no dia ("vai descansar, já jogou demais"); depois, só "tô ocupada"
+    apeloSim: ['Tá bom, tá bom... se é tão importante assim, eu vou. Manda o convite!', 'Ai, assim você me pega... beleza, eu vou. Manda o time!', 'Falando desse jeito não tem como dizer não. Bora, manda o convite!'],
+    apeloNao: ['Poxa, desculpa mesmo... hoje não dá. Amanhã eu compenso, prometo.', 'Sei que é importante, mas agora não consigo mesmo. Me perdoa?'],
     cansouIa: ['Ufa, joguei demais hoje... vou dar uma descansada. Depois a gente se fala!', 'Chega por hoje, tô exausta de tanto jogar. Vou descansar um pouco, mais tarde a gente conversa!'],
     ocupadaIa: ['Tô meio ocupada agora, depois a gente conversa!', 'Agora não dá, tô no meu canto. Mais tarde?', 'Tô de boa aqui no meu ritmo agora. Depois a gente fala!'],
     recusa: {
@@ -2930,6 +2935,8 @@ export const DARIO = mesclarAmigo(AMIGA, {
     time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
     timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
+    apeloSim: ['Tá, tá... se é importante assim, eu vou. Manda o convite.', 'Desse jeito não tem como negar. Bora, manda o time.'],
+    apeloNao: ['Foi mal, parceiro... hoje não dá mesmo. Amanhã eu compenso.', 'Sei que é importante, mas agora não consigo. Desculpa.'],
     cansouIa: ['Joguei demais hoje. Vou dar uma pausa, depois a gente se fala.', 'Chega por hoje, tô moído. Mais tarde a gente conversa.'],
     ocupadaIa: ['Tô ocupado agora. Depois a gente fala.', 'Agora não, parceiro. Mais tarde.', 'Tô no meu ritmo aqui. Depois a gente troca ideia.'],
     recusa: {
