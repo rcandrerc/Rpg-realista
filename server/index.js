@@ -859,6 +859,7 @@ ${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]
 }
 // NPCs com IA (André 2026-11-16: "relatórios de Dário e de Cecília" na ronda diária): o que cada um fez hoje, só números
 // do jogo (nível, ouro, missão, minutos de caça e de missão). Nada de conversa, memória ou de quem é amigo deles.
+// evolucao (André 2026-11-17): cada nível, missão entregue, queda, etapa travada, reforço e evolução, com a hora.
 app.get('/npcs.json', (_req, res) => {
   const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
   for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, { a: ctx.amiga, ctx });
@@ -871,7 +872,8 @@ app.get('/npcs.json', (_req, res) => {
     const p = d.prog || {}, h = p.hist || {};
     l.push({ nome: D.nome, id: D.id, noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
-      salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null, ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
+      salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
+      evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
   res.json({ dia, npcs: l });
 });

@@ -3120,6 +3120,11 @@ export const NPC_VIDA = {
   // diárias da Cecília e do Dario (André 2026-11-17: "até pra gente ter gente pra reflorestar esse mapa"): chance de ir fazer
   // uma que falta ao escolher o que fazer; árvores que eles plantam (a primeira é a que compram na Rosa); raio m da casa
   diaria: { chance: 0.6, arvores: ['carvalho', 'pinheiro', 'betula'], raio: 600 },
+  // reforço sozinha (André 2026-11-17): na vila, com o próprio ouro, guardando reserva + o preço das poções do time;
+  // até `tentativas` por volta e no máximo até +max (o resto fica para quando ela tiver mais ouro)
+  reforco: { reserva: 150, tentativas: 6, max: 40 },
+  // diário de evolução (André 2026-11-17): guarda as últimas `max` coisas; etapa parada mais de `travou` s de missão = travou
+  evolucao: { max: 120, travou: 1200 },
   // Rotina de cada um (André 2026-11-11: "todos fazendo a mesma coisa... onde eles passam trava tudo"). Cada NPC tem o
   // horário dele (sai/volta em hora do jogo; volta < sai = caça de noite), o campo que prefere (alto = o mais forte que
   // aguenta; medio; baixo = mais seguro; longe = qualquer um, de preferência longe), quanto dura a saída (caca) e a
