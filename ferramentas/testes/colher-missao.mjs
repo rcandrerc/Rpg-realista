@@ -6,6 +6,7 @@ import { Simulacao, MAPA_CLAREIRA, HISTORIA, contar } from '../../shared/index.j
 import { etapasDe, histValida } from '../../shared/historia.js';
 import { CONTA_TESTE } from '../../shared/dados.js';
 import './_tudo-aberto.mjs';
+import { passarMissao } from './_horta-rapida.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const ev = () => { const e = s.eventos; s.eventos = []; return e; };
@@ -31,6 +32,7 @@ const cels = (z) => { const c = []; for (let i = -27; i <= -22; i++) c.push(i + 
   const a = novo('A', 1, 59), cel = cels(59);
   for (const c of cel) { V(a); s.horta('A', { acao: 'arar', c }); }
   ['cenoura', 'batata', 'rabanete', 'cenoura', 'batata', 'rabanete'].forEach((k, i) => { V(a); s.horta('A', { acao: 'plantar', c: cel[i], s: k }); });
+  passarMissao(s); // os segundos da planta da missão
   for (const c of cel) { V(a); s.horta('A', { acao: 'colher', c }); }
   ok(a.prog.hist.e === eP + 1 && a.prog.hist.cc === 6, 'colheu cedo (na etapa de regar): guardou 6 ' + JSON.stringify(a.prog.hist));
   ok(histValida(JSON.parse(JSON.stringify(a.prog.hist)), a.prog.nivel).cc === 6, 'cc fica guardado ao salvar');
@@ -56,6 +58,7 @@ const cels = (z) => { const c = []; for (let i = -27; i <= -22; i++) c.push(i + 
   for (const c of cel.slice(0, 3)) { V(a); s.horta('C', { acao: 'regar', c }); }
   s.passoHistoria(1);
   ok(a.prog.hist.e === eC && a.prog.hist.n === 0, 'normal: na etapa "Colha 0/6" com as plantas lá');
+  passarMissao(s);
   for (const c of cel) { V(a); s.horta('C', { acao: 'colher', c }); }
   ok(a.prog.hist.e === eS, 'colheu as 6: vai para a sopa');
 }

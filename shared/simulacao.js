@@ -16,7 +16,7 @@ import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
-import { Kit, pedidosDaEtapa, soNoMar } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
+import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 
@@ -96,6 +96,7 @@ export function crescerPlanta(t, agora) {
   const ini = Math.max(t.u || agora, t.w || 0), fim = Math.min(agora, (t.w || 0) + HORTA.rega * 3600000);
   if (fim > ini) t.g = (t.g || 0) + (fim - ini) / 3600000;
   t.u = agora;
+  if (t.mf) { const G = PLANTAS[t.c]?.G || 1; t.g = Math.max(t.g, gMissao(t, agora, G)); if (agora >= t.mf) { t.g = Math.max(t.g, G); delete t.mi; delete t.mf; } } // planta da missão
 }
 // retângulo da peça no chão [x0, z0, x1, z1]; r = giro de 90 em 90 graus (o modelo gira r x 90° no eixo y)
 export function retPeca(p) {
@@ -1059,6 +1060,8 @@ export class Simulacao {
       const E = etapaAtual(j.prog); if (!E) continue;
       if (E.ja || ['ter', 'noite', 'pos', 'pistas', 'time', 'colher'].includes(E.ev)) this.checarEtapa(j);
       if (E.hc) this.chamarChefe(j, E.hc);
+      // horta da missão (André 2026-11-17): planta que a missão ainda precisa fica pronta sem precisar tocar nela
+      if (!(j.hortaT > this.tempo)) { j.hortaT = this.tempo + 5; this.hortaMissao(j); }
     }
   }
   // Chefe com nome (CHEFES_HISTORIA): um monstro vivo do campo vira o chefe quando o herói da etapa está a menos de 60 m
@@ -2849,7 +2852,7 @@ export class Simulacao {
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
     const { x0, z0, x1, z1 } = L.def;
     return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
-      horta: Object.entries(L.horta).map(([c, t]) => [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null };
+      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null };
   }
   avisarLote(L) {
     this.lotesMudados.add(L.def.id);
@@ -2878,7 +2881,7 @@ export class Simulacao {
       L.pecas = (Array.isArray(d.pecas) ? d.pecas : []).filter((p) => p && CONSTRUCOES[p.k] && Number.isFinite(p.x) && Number.isFinite(p.z))
         .map((p) => ({ id: String(p.id), k: p.k, x: p.x, z: p.z, r: (p.r | 0) & 3, lote: L.def.id }));
       L.horta = {};
-      for (const [c, t] of Object.entries(d.horta || {})) if (/^-?\d+,-?\d+$/.test(c) && t) L.horta[c] = { c: PLANTAS[t.c] ? t.c : '', g: +t.g || 0, w: +t.w || 0, u: +t.u || 0 };
+      for (const [c, t] of Object.entries(d.horta || {})) if (/^-?\d+,-?\d+$/.test(c) && t) L.horta[c] = { c: PLANTAS[t.c] ? t.c : '', g: +t.g || 0, w: +t.w || 0, u: +t.u || 0, ...(+t.mf > 0 && +t.mi > 0 ? { mi: +t.mi, mf: +t.mf } : {}) };
       L.prox = Math.max(1, d.prox | 0, ...L.pecas.map((p) => (+String(p.id).slice(1) || 0) + 1));
       L.bauNv = Math.max(0, Math.min(BAU.niveis.length - 1, d.bauNv | 0)); // baú melhorado (André 2026-11-07): 0 = 40, 1 = 60, 2 = 80
       L.bau = Array.isArray(d.bau) ? Array.from({ length: bauLugares(L.bauNv) }, (_, i) => (d.bau[i] ? itemValido(d.bau[i]) || null : null)) : null;
@@ -3491,8 +3494,8 @@ export class Simulacao {
       if (contar(p.mochila, 'semente_' + m.s) < 1) return aviso(`Você não tem semente de ${P.nome.toLowerCase()} (a Rosa vende)`);
       if (!vigor()) return;
       tirar(p.mochila, 'semente_' + m.s, 1);
-      Object.assign(t, { c: m.s, g: 0, u: agora });
-      if (this.acelerarPlanta(j, t)) aviso('Missão: pronta pra colher!'); // shared/kit.js: só a quantidade que a missão pede
+      Object.assign(t, { c: m.s, g: 0, u: agora }); delete t.mi; delete t.mf;
+      if (this.acelerarPlanta(j, t)) aviso(`Missão: pronta em ${HORTA.missaoSeg} s`); // shared/kit.js: só a quantidade que a missão pede
       this.historia(j, 'plantar', { k: m.s });
     } else if (m.acao === 'regar') {
       if (!t) return aviso('Precisa arar a terra primeiro');
@@ -3516,7 +3519,7 @@ export class Simulacao {
       this.evento({ t: 'colheu', para: id, c: m.c, nome: P.nome, n });
       if (p.nivel < NIVEL_MAX) this.ganharXP(j, 1);
       this.historia(j, 'colher', { k: t.c });
-      Object.assign(t, { c: '', g: 0, u: agora });
+      Object.assign(t, { c: '', g: 0, u: agora }); delete t.mi; delete t.mf;
     } else if (m.acao === 'tirar') {
       if (!t) return;
       if (t.c) return aviso('Colha a planta antes de desfazer a terra');

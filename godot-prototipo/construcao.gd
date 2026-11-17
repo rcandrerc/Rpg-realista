@@ -794,6 +794,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		h.g = float(t[2]) if t[2] != null else 0.0
 		h.w = float(t[3]) if t[3] != null else 0.0 # terra recém-arada ainda não foi regada (null)
 		h.u = float(t[4]) if t[4] != null else 0.0
+		# planta da missão (André 2026-11-17): cresce de mi a mf (ms, relógio do servidor) em poucos segundos
+		h.mi = float(t[5]) if t.size() > 6 and t[5] != null else 0.0
+		h.mf = float(t[6]) if t.size() > 6 and t[6] != null else 0.0
 		# só o canteiro que mudou de verdade (plantou, colheu, regou) é desenhado de novo na marra; o crescimento
 		# (g) muda a cada aviso e o desenho normal (_desenhar_canteiro sem forçar) já troca a fase quando precisa
 		if antes_c != h.c or antes_w != h.w:
@@ -1515,7 +1518,10 @@ func _crescida(h: Dictionary) -> float:
 	var fim: float = min(ag, h.w + rega)
 	if fim > ini:
 		g += (fim - ini) / 3600000.0
-	return g / float(D.plantas[h.c].G)
+	var G := float(D.plantas[h.c].G)
+	if h.get("mf", 0.0) > 0.0: # planta da missão: anda de 0 a 100% em poucos segundos
+		g = maxf(g, G if ag >= h.mf else G * maxf(0.0, ag - h.mi) / maxf(1.0, h.mf - h.mi))
+	return g / G
 
 static func fase(f: float) -> int:
 	return 4 if f >= 1.0 else 0 if f < 0.03 else 1 if f < 0.4 else 2 if f < 0.75 else 3
@@ -1673,6 +1679,10 @@ func _info_planta(h: Dictionary, perto: bool) -> void:
 		cor_barra = Color(0.45, 0.9, 0.35)
 		linha2 = "Pronta!"
 		txt.modulate = Color(0.6, 1.0, 0.5)
+	elif h.get("mf", 0.0) > 0.0: # planta da missão: "Missão · 6 s"
+		cor_barra = Color(1.0, 0.82, 0.3)
+		linha2 = Idioma.t("Missão") + " · %d s" % maxi(1, int(ceil((h.mf - agora_ms()) / 1000.0)))
+		txt.modulate = Color(1.0, 0.92, 0.6)
 	elif not mo:
 		cor_barra = Color(0.85, 0.7, 0.3)
 		linha2 = "Precisa regar"
@@ -2637,6 +2647,8 @@ func _process_parte(dt: float) -> void:
 				if d2 < 3600.0:
 					_enfileirar_canteiro(h)
 				_info_planta(h, _placa_perto(d2))
+				if h.get("mf", 0.0) > agora_ms() - 2000.0:
+					_t_horta = 0.5 # planta da missão crescendo: a barrinha e os segundos andam de meio em meio segundo
 
 func _carregar_recolhidas() -> void:
 	var cfg := ConfigFile.new()
@@ -3222,7 +3234,7 @@ func motivo_fazenda(L: Dictionary, acao: String, i: int, j: int, s: String) -> S
 			if h == null or h.c == "":
 				mot = "Não tem nada plantado aqui"
 			elif fase(_crescida(h)) < 4:
-				mot = "%s: %d%% crescida%s" % [D.plantas[h.c].nome, int(_crescida(h) * 100), "" if _molhada(h) else " (precisa de água!)"]
+				mot = "%s: %d%% crescida%s" % [D.plantas[h.c].nome, int(_crescida(h) * 100), "" if _molhada(h) or h.get("mf", 0.0) > 0.0 else " (precisa de água!)"]
 		"tirar":
 			if h == null:
 				mot = "Aqui não tem terra arada"
