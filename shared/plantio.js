@@ -97,9 +97,13 @@ export const Plantio = {
     const ok = cand.find(serve);
     if (!ok) { aviso(motivo || 'Não dá para plantar aqui'); return null; }
     if (ok.lote && this.loteTravado(this.lotes.get(ok.lote), aviso)) return null;
+    // limite do mundo (André 2026-11-17: no máximo 8-9 mil árvores no total): cheio, só planta quando alguém cortar uma
+    if (!ok.lote && this.plantadasNasAreas() >= PLANTIO.maxMundo) { aviso('As áreas de plantio estão cheias. Corte uma árvore adulta para abrir espaço'); return null; }
     if (!ok.lote && minhasMudas() >= PLANTIO.mudasMax) { aviso(`Você já tem ${PLANTIO.mudasMax} mudas crescendo nas áreas de plantio`); return null; }
     return ok;
   },
+  // árvores plantadas fora dos terrenos (as que contam no PLANTIO.maxMundo)
+  plantadasNasAreas() { let n = 0; for (const P of this.plantadas.values()) if (!P.lote) n++; return n; },
   botarPlantada(P) {
     const T = AP[P.s], [i, k] = quadradoDoTronco(P.x, P.z, !!T.grande);
     this.plantadas.set(P.id, P);
