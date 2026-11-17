@@ -12,7 +12,13 @@ const UMA_ARVORE_EM := 9 # do mata do mundo, 1 a cada 9 vira árvore grande (o A
 const DIST_MIN := 120.0
 const DIST_MAX := 2100.0
 const DIST_ABRIR := 330.0
-const INCL := 48.0 # graus da câmera acima do chão
+const INCL := 48.0 # graus da câmera acima do chão (o ângulo de quando abre)
+# Girar e inclinar (André 2026-11-17): dois dedos girando giram o mapa em 360°; dois dedos arrastando juntos para cima
+# ou para baixo inclinam, da vista de cima (quase 2D) até INCL_MIN. Mais deitado que isso aparece terra longe demais
+# (pesa) e a borda vazia do mundo; o limite saiu da medição de quadros por ângulo. A bússola volta ao norte e ao INCL.
+const INCL_MIN := 35.0 # o mais deitado de perto (55° a partir da vista de cima; André 2026-11-17 escolheu 35): 30° custava +15% e 25° +30% por quadro
+const INCL_MIN_LONGE := 45.0 # de longe não deita tanto: senão aparece a ponta do mar e o fundo vazio
+const INCL_MAX := 89.0
 const COR_OURO := Color("c9a35a")
 const Idioma = preload("res://idioma.gd") # inglês: todo texto desenhado passa por Idioma.frase
 
@@ -35,6 +41,11 @@ var foco := Vector3.ZERO
 var foco_alvo := Vector3.ZERO
 var dist := DIST_ABRIR
 var dist_alvo := DIST_ABRIR
+var giro := 0.0 # radianos; 0 = norte para cima
+var giro_alvo := 0.0
+var incl := INCL
+var incl_alvo := INCL
+var b_bussola := Rect2()
 var toques := {}
 var arrastou := false
 var pinca := {}
@@ -120,6 +131,10 @@ func abrir() -> void:
 	foco = foco_alvo
 	dist = DIST_ABRIR
 	dist_alvo = DIST_ABRIR
+	giro = 0.0
+	giro_alvo = 0.0
+	incl = INCL
+	incl_alvo = INCL
 	get_viewport().disable_3d = true # o mundo do jogo não é desenhado atrás do mapa
 	if pronto:
 		_ligar()
@@ -221,6 +236,8 @@ func _process(dt: float) -> void:
 	var a: float = 1.0 - exp(-12.0 * dt)
 	dist = lerpf(dist, dist_alvo, a)
 	foco = foco.lerp(foco_alvo, a)
+	giro = lerp_angle(giro, giro_alvo, a)
+	incl = lerpf(incl, incl_alvo, a)
 	_camera()
 	# as marcas (símbolos, nomes, névoa) só são redesenhadas quando a câmera mexe, ou 4 vezes por segundo para os
 	# jogadores e o herói andando: parado, o mapa quase não gasta
@@ -240,8 +257,11 @@ func _camera() -> void:
 	foco.x = clampf(foco.x, J0.x - 150.0, J1.x + 150.0)
 	foco.z = clampf(foco.z, J0.y - 150.0, J1.y + 150.0)
 	var f := Vector3(foco.x, alt(foco.x, foco.z) * 0.5, foco.z)
-	var p := deg_to_rad(INCL + (dist - DIST_MIN) / (DIST_MAX - DIST_MIN) * 10.0) # de longe, um pouco mais de cima
-	cam.look_at_from_position(f + Vector3(0, sin(p), cos(p)) * dist, f, Vector3.UP)
+	var fz := (dist - DIST_MIN) / (DIST_MAX - DIST_MIN)
+	var p := deg_to_rad(clampf(incl + fz * 10.0, lerpf(INCL_MIN, INCL_MIN_LONGE, fz), INCL_MAX)) # de longe, um pouco mais de cima
+	var pos := f + Vector3(sin(giro) * cos(p), sin(p), cos(giro) * cos(p)) * dist
+	pos.y = maxf(pos.y, alt(pos.x, pos.z) + 15.0) # deitada, a câmera não entra no morro
+	cam.look_at_from_position(pos, f, Vector3.UP)
 
 # ---------- montagem (linha de fundo: só contas; a cena é criada na linha principal) ----------
 
@@ -324,7 +344,16 @@ func _montar_dados() -> void:
 			var z := Z0 + j * 4.0 + fmod(j * 5.71, 3.0)
 			if v > 1.5 and v < 35.0 and rm.get_noise_2d(x, z) > 0.15 and fmod(absf(x * 12.9898 + z * 78.233), 1.0) < 0.35:
 				arvores.append(Vector2(x, z))
-	# terreno: facetas planas (low poly), cor por vértice
+	# terreno: facetas planas (low poly), cor por vértice. Manchas claras e escuras e grama seca (André 2026-11-17):
+	# ruído só aqui na montagem (linha de fundo), vira a cor do vértice; desenhar não custa nada a mais
+	var mancha := FastNoiseLite.new()
+	mancha.seed = 21
+	mancha.frequency = 1.0 / 260.0
+	mancha.fractal_octaves = 3
+	var seco := FastNoiseLite.new()
+	seco.seed = 5
+	seco.frequency = 1.0 / 170.0
+	seco.fractal_octaves = 1
 	var V := PackedVector3Array()
 	var N := PackedVector3Array()
 	var C := PackedColorArray()
@@ -332,6 +361,10 @@ func _montar_dados() -> void:
 		for i in range(0, nx - PASSO, PASSO):
 			var P: Array[Vector3] = [_ponto(i, j), _ponto(i + PASSO, j), _ponto(i + PASSO, j + PASSO), _ponto(i, j + PASSO)]
 			var tris: Array = [[0, 1, 2], [0, 2, 3]] if (i / PASSO + j / PASSO) % 2 == 0 else [[0, 1, 3], [1, 2, 3]]
+			var mx := X0 + (i + 1) * 4.0 # o ruído uma vez por quadrado de 8 m (os dois triângulos usam o mesmo)
+			var mz := Z0 + (j + 1) * 4.0
+			var k1 := mancha.get_noise_2d(mx, mz)
+			var k2 := seco.get_noise_2d(mx, mz)
 			for t in tris:
 				var a3: Vector3 = P[t[0]]
 				var b3: Vector3 = P[t[1]]
@@ -343,6 +376,8 @@ func _montar_dados() -> void:
 				var v0: float = hh[cj * nx + ci]
 				var incl := sqrt(maxf(0.0, 1.0 - nn.y * nn.y)) / maxf(nn.y, 0.05)
 				var cor := _cor(v0, incl, dens[mini(cj / PASSO, hq - 1) * w + mini(ci / PASSO, w - 1)], praia[cj * nx + ci] == 1)
+				if v0 >= 0.0:
+					cor = _manchar(cor, k1, k2, cx, incl, v0)
 				var df: float = fora[cj * nx + ci]
 				if df > 0.0: # terra sem acesso: mais apagada e sumindo na névoa
 					var kf := clampf((df - 60.0) / (ALEM * 4.0 - 100.0), 0.0, 1.0)
@@ -464,6 +499,15 @@ static func _cor(v: float, incl: float, mata: float, praia: bool) -> Color:
 	c = c.lerp(Color8(112, 104, 94), clampf((incl - 0.55) * 2.5, 0.0, 1.0)) # pedra nas encostas
 	c = c.lerp(Color8(220, 224, 232), clampf((v - 95.0) / 20.0, 0.0, 1.0)) # neve nos picos
 	return c
+
+# k1 (-1..1) clareia ou escurece em manchas grandes; k2 puxa a grama para seca (amarelada) ou viçosa; cada faceta ainda
+# varia um pouquinho (o low poly aparece). Na pedra e na neve a mancha é mais fraca
+static func _manchar(c: Color, k1: float, k2: float, cx: Vector3, incl: float, v: float) -> Color:
+	var grama := clampf(1.0 - (incl - 0.55) * 2.5, 0.0, 1.0) * clampf(1.0 - (v - 95.0) / 20.0, 0.0, 1.0)
+	c = c.lerp(Color8(150, 140, 76), clampf(k2 * 1.6, 0.0, 1.0) * 0.3 * grama) # grama seca
+	c = c.lerp(Color8(58, 92, 40), clampf(-k2 * 1.6, 0.0, 1.0) * 0.3 * grama) # grama viçosa, mais escura
+	var luz := 1.0 + k1 * (0.24 * grama + 0.1) * (0.55 if k1 > 0.0 else 1.0) + (fmod(absf(cx.x * 12.9898 + cx.z * 78.233), 1.0) - 0.5) * 0.05
+	return Color(clampf(c.r * luz, 0.0, 1.0), clampf(c.g * luz, 0.0, 1.0), clampf(c.b * luz, 0.0, 1.0))
 
 # terreno e árvores: longe do mundo andável a cor vira névoa por igual (a luz sai e a névoa entra como emissão, da
 # mesma cor do fundo), então a terra de fora some sem borda
@@ -862,6 +906,12 @@ func entrada(ev: InputEvent) -> void:
 			return
 		dist_alvo = clampf(dist_alvo * (1.0 / 1.15 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 1.15), DIST_MIN, DIST_MAX)
 		return
+	if ev is InputEventMouseMotion and (ev.button_mask & MOUSE_BUTTON_MASK_RIGHT): # PC: botão direito gira e inclina
+		giro_alvo -= ev.relative.x * 0.006
+		giro = giro_alvo
+		incl_alvo = clampf(incl_alvo + ev.relative.y * 0.25, INCL_MIN, INCL_MAX)
+		incl = incl_alvo
+		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			if toques.is_empty():
@@ -869,7 +919,10 @@ func entrada(ev: InputEvent) -> void:
 			toques[ev.index] = {"p": ev.position, "ini": ev.position}
 			if toques.size() == 2:
 				var ks: Array = toques.keys()
-				pinca = {"d": (toques[ks[0]].p as Vector2).distance_to(toques[ks[1]].p), "dist": dist}
+				var p0: Vector2 = toques[ks[0]].p
+				var p1: Vector2 = toques[ks[1]].p
+				pinca = {"d": p0.distance_to(p1), "dist": dist, "ang": (p1 - p0).angle(), "giro": giro_alvo,
+					"meio": (p0 + p1) * 0.5, "incl": incl_alvo, "modo": ""}
 			return
 		var t = toques.get(ev.index)
 		toques.erase(ev.index)
@@ -896,10 +949,7 @@ func entrada(ev: InputEvent) -> void:
 				marcas.queue_redraw()
 			return
 		if toques.size() >= 2 and not pinca.is_empty():
-			var ks: Array = toques.keys()
-			var d := (toques[ks[0]].p as Vector2).distance_to(toques[ks[1]].p)
-			dist = clampf(float(pinca.dist) * float(pinca.d) / maxf(d, 1.0), DIST_MIN, DIST_MAX)
-			dist_alvo = dist
+			_dois_dedos()
 			arrastou = true
 			return
 		if not arrastou and ev.position.distance_to(td.ini) > 12.0:
@@ -907,10 +957,38 @@ func entrada(ev: InputEvent) -> void:
 		if arrastou and cam != null:
 			# metros por px no meio da tela, mais ou menos: anda o mapa junto com o dedo
 			var k: float = dist * tan(deg_to_rad(cam.fov * 0.5)) * 2.0 / maxf(size.y, 1.0)
-			foco_alvo -= Vector3(ev.relative.x * k, 0.0, ev.relative.y * k / sin(deg_to_rad(INCL)))
+			var dx: float = ev.relative.x * k
+			var dz: float = ev.relative.y * k / sin(deg_to_rad(incl))
+			foco_alvo -= Vector3(dx * cos(giro) + dz * sin(giro), 0.0, -dx * sin(giro) + dz * cos(giro)) # girado junto
 			foco_alvo.x = clampf(foco_alvo.x, J0.x - 150.0, J1.x + 150.0)
 			foco_alvo.z = clampf(foco_alvo.z, J0.y - 150.0, J1.y + 150.0)
 			foco = foco_alvo
+
+# dois dedos: pinça aproxima, girar gira, os dois arrastando juntos na vertical inclinam. O gesto escolhe o modo no
+# começo (inclinar fica sozinho; aproximar e girar andam juntos, como no mapa do celular)
+func _dois_dedos() -> void:
+	var ks: Array = toques.keys()
+	var p0: Vector2 = toques[ks[0]].p
+	var p1: Vector2 = toques[ks[1]].p
+	var d := p0.distance_to(p1)
+	var da := wrapf((p1 - p0).angle() - float(pinca.ang), -PI, PI)
+	var dm: Vector2 = (p0 + p1) * 0.5 - (pinca.meio as Vector2)
+	var dd: float = d - float(pinca.d)
+	if pinca.modo == "":
+		if absf(dm.y) > 24.0 and absf(dd) < 30.0 and absf(da) < 0.12:
+			pinca.modo = "inclinar"
+		elif absf(da) > 0.14 or absf(dd) > 24.0:
+			pinca.modo = "girar"
+		else:
+			return
+	if pinca.modo == "inclinar":
+		incl_alvo = clampf(float(pinca.incl) + dm.y * 0.22, INCL_MIN, INCL_MAX)
+		incl = incl_alvo
+		return
+	dist = clampf(float(pinca.dist) * float(pinca.d) / maxf(d, 1.0), DIST_MIN, DIST_MAX)
+	dist_alvo = dist
+	giro_alvo = float(pinca.giro) + da
+	giro = giro_alvo
 
 func _toque(pos: Vector2) -> void:
 	var lp := pos - get_global_rect().position
@@ -958,6 +1036,12 @@ func _toque(pos: Vector2) -> void:
 		return
 	if b_mais.has_point(lp) or b_menos.has_point(lp):
 		dist_alvo = clampf(dist_alvo * (1.0 / 1.45 if b_mais.has_point(lp) else 1.45), DIST_MIN, DIST_MAX)
+		if m.sons:
+			m.sons.tocar("pano", -16.0)
+		return
+	if b_bussola.has_point(lp): # volta ao norte e ao ângulo de quando abre
+		giro_alvo = 0.0
+		incl_alvo = INCL
 		if m.sons:
 			m.sons.tocar("pano", -16.0)
 		return
@@ -1056,7 +1140,9 @@ func _desenhar() -> void:
 		var sh = _na_tela(hp.x, hp.z, 3.0)
 		if sh != null:
 			c.draw_circle(sh, 13.0, Color(1, 0.85, 0.4, 0.22))
-			mm._seta(c, sh, mm._frente_heroi() * Vector2(1, sin(deg_to_rad(INCL))), 11.0, COR_OURO)
+			var fr: Vector2 = mm._frente_heroi()
+			var sf = _na_tela(hp.x + fr.x * 6.0, hp.z + fr.y * 6.0, 3.0) # a seta segue o giro e a inclinação
+			mm._seta(c, sh, (sf - sh).normalized() if sf != null and sf != sh else fr, 11.0, COR_OURO)
 	if tm:
 		_totens(c, tam, em)
 	_mapinha(c, Vector2(tam.x - lw, tam.y))
@@ -1094,7 +1180,8 @@ func _em(x: float, z: float, sobe := 4.0) -> Vector2:
 # px por metro perto do meio da tela (o tamanho dos símbolos e quando os nomes cabem, como o zoom do 2D)
 func _px_por_metro() -> float:
 	var f := Vector3(foco.x, alt(foco.x, foco.z), foco.z)
-	return cam.unproject_position(f).distance_to(cam.unproject_position(f + Vector3(10, 0, 0))) / 10.0
+	var lado := cam.global_transform.basis.x # o mapa pode estar girado: mede na horizontal da tela
+	return cam.unproject_position(f).distance_to(cam.unproject_position(f + Vector3(lado.x, 0, lado.z).normalized() * 10.0)) / 10.0
 
 func _na_tela_ok(q: Vector2, tam: Vector2, borda := 40.0) -> bool:
 	return q.x > -borda and q.y > -borda and q.x < tam.x + borda and q.y < tam.y + borda
@@ -1530,6 +1617,22 @@ func _mapinha(c: Control, tam: Vector2) -> void:
 		var hp: Vector3 = m.heroi.position
 		c.draw_circle(r.position + Vector2((hp.x - X0) / (ATE.x - X0), (hp.z - Z0) / (ATE.y - Z0)) * r.size, 3.0, Color.WHITE)
 
+# bússola ao lado do "+": a ponta vermelha mostra o norte (gira com o mapa); tocar volta ao norte e ao ângulo de abrir
+func _bussola(c: Control, p: Vector2) -> void:
+	b_bussola = Rect2(p - Vector2(24, 24), Vector2(48, 48))
+	c.draw_circle(p, 21.0, Color(0.08, 0.06, 0.04, 0.88))
+	c.draw_arc(p, 21.0, 0, TAU, 40, COR_OURO, 2.0, true)
+	var n := Vector2(0, -1)
+	if cam != null and pronto:
+		var a = _na_tela(foco.x, foco.z)
+		var b = _na_tela(foco.x, foco.z - 40.0)
+		if a != null and b != null and (b - a).length() > 0.5:
+			n = (b - a).normalized()
+	var lado := Vector2(-n.y, n.x) * 5.5
+	c.draw_colored_polygon(PackedVector2Array([p + n * 15.0, p + lado, p - lado]), Color8(220, 50, 45))
+	c.draw_colored_polygon(PackedVector2Array([p - n * 15.0, p + lado, p - lado]), Color8(235, 225, 205))
+	c.draw_string(fonte, p + n * 27.0 + Vector2(-6, 6), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color8(250, 232, 190))
+
 func _botao(c: Control, r: Rect2, txt: String, tam := 17) -> void:
 	txt = Idioma.frase(txt)
 	var sb := StyleBoxFlat.new()
@@ -1565,6 +1668,7 @@ func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 	b_mais = Rect2(cz + Vector2(4, -22), Vector2(58, 44))
 	_botao(c, b_menos, "−", 26)
 	_botao(c, b_mais, "+", 26)
+	_bussola(c, cz + Vector2(92, 0))
 	b_ir = Rect2()
 	if mm.marcado != null and m.rota:
 		var metros: float = m.rota.comprimento(mm.previa)
