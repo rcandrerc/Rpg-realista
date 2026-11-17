@@ -1,0 +1,42 @@
+# Conversas da Cecília e do Dário para a ronda diária (André 2026-11-17). O servidor só entrega para este workflow
+# (crachá OIDC do GitHub, sem senha). As conversas são de jogadores: o arquivo sai CIFRADO com a chave pública que quem
+# rodou passou em "chave" (só quem tem a chave privada abre). Sem chave, nada é guardado.
+name: Conversas da Cecília
+
+on:
+  workflow_dispatch:
+    inputs:
+      chave:
+        description: 'Chave pública RSA (PEM em base64) de quem vai ler'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Baixar e cifrar
+        env:
+          CHAVE: ${{ github.event.inputs.chave }}
+        run: |
+          set -eu
+          mkdir -p saida
+          echo "$CHAVE" | base64 -d > pub.pem
+          openssl pkey -pubin -in pub.pem -noout
+          tk=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=age-of-embers-robo" | jq -r .value)
+          echo "::add-mask::$tk"
+          curl -sf --retry 3 -H "Authorization: Bearer $tk" https://163-176-80-126.sslip.io/npcs/conversas.json -o c.json
+          echo "conversas: $(jq '[.npcs[] | (.conversas // {} | length)] ' -c c.json) pessoas por NPC"
+          openssl rand -out k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:k.bin -in c.json -out saida/conversas.bin
+          openssl pkeyutl -encrypt -pubin -inkey pub.pem -pkeyopt rsa_padding_mode:oaep -in k.bin -out saida/chave.bin
+          shred -u c.json k.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: conversas-cifradas
+          path: saida/
+          retention-days: 1
