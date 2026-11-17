@@ -16,9 +16,8 @@ const CHEGOU := 2.2 # andando sozinho: para a esta distância e abre a janela
 const ACOES := {
 	"comprar": ["Comprar", "loja"],
 	"vender": ["Vender itens", "it_ouro"],
-	"forja": ["Bigorna e forninho (você cria)", "pf_fer"], # 2026-11-11: leva até a estação pública, o NPC não cria
+	# "forja" e "alfaiate" saíram (André 2026-11-17, remoção aprovada): NPC não cria nada; bigorna, forninho e bancada ficam no mundo
 	"consertar": ["Consertar", "cs_bigorna"], # durabilidade (penalidade de morte, André 2026-11-05)
-	"alfaiate": ["Bancada de costura (você cria)", "pf_alf"],
 	"habilidades": ["Habilidades", "basico"],
 	"missao": ["Missão", "it_tomo"],
 	"cura": ["Curar", "cura"],
@@ -541,12 +540,6 @@ func escolher(a: String) -> void:
 			m.menu.abrir("mochila")
 			m.menu.modo_vender(true)
 			m.hud.aviso("%s compra: marque os itens ou Selecionar tudo" % _curto(n))
-		"forja": # André 2026-11-11 ("não criar no próprio NPC"): vai até a bigorna da ferraria e cria lá
-			fechar()
-			m.construcao.ir_publica("fer")
-		"alfaiate": # e a bancada ao lado da Rosa
-			fechar()
-			m.construcao.ir_publica("alf")
 		"habilidades":
 			fechar()
 			m.menu.abrir("habilidades")
