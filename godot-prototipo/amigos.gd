@@ -55,6 +55,13 @@ func eh_amigo_id(id: String) -> bool:
 			return true
 	return false
 
+# a conta de um amigo da lista que está nesta sala (para a Mensagem do cartão, troca.gd)
+func conta_amigo(id: String) -> String:
+	for a in lista:
+		if str(a.get("id", "")) == id:
+			return str(a.get("c", ""))
+	return ""
+
 func no_meu_time(id: String) -> bool:
 	for t in time:
 		if str(t.id) == id:

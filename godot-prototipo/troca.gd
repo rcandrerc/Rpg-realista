@@ -145,50 +145,57 @@ func tocou_tela(pos: Vector2) -> void:
 		return
 	var nome := nome_de(achou)
 	var dist: float = Vector2(outros[achou].no.position.x - m.heroi.position.x, outros[achou].no.position.z - m.heroi.position.z).length()
-	var extras: Array = m.amigos.botoes_para(achou) if m.amigos else [] # amigos.gd: adicionar amigo ou chamar pro time
 	var ver := [["Equipamento", pedir_equip.bind(achou)]] # André 2026-11-10: ver o que qualquer jogador veste (de perto)
+	var bot: bool = outros[achou].get("bot", false)
 	# André 2026-11-15: com ou sem a chave de IA, todo mundo troca, chama pro time e manda mensagem (lista de Amigos virtuais)
-	if outros[achou].get("bot", false) and (achou in m.online.amiga_ids or (m.amigos and m.amigos.conta_virtual(achou) != "")): # Cecília/Dario como jogador: troca, time, mensagem
-		var bts: Array = []
-		var longe: bool = dist > perto()
-		if not longe:
-			bts.append(["Pedir troca", _responder.bind("pedir", achou)])
-		if m.amigos and m.amigos.no_meu_time(achou):
-			bts.append(["Tirar do time", func(): esconder_cartao(); m.rede("time", {"acao": "expulsar", "com": achou})])
-		else:
-			bts.append(["Chamar pro time", func(): esconder_cartao(); m.rede("time", {"acao": "convidar", "com": achou})])
-		var conta: String = m.amigos.conta_virtual(achou) if m.amigos else ""
-		if conta != "" and m.chat:
-			bts.append(["Mensagem", func(): esconder_cartao(); m.chat.abrir_pm(conta, nome)])
-		elif conta == "": # ainda não é amigo (André 2026-11-16): pede e o NPC decide na hora
-			bts.append(["Adicionar amigo", func(): esconder_cartao(); m.rede("amigo", {"acao": "pedir", "com": achou})])
-		if not longe:
-			bts += seguir_bt(achou) + duelo_bt(achou) + ver
-		elif m.seguir and m.seguir.segue(achou): # seguindo e ela longe: dá para parar pelo cartão também
-			bts += seguir_bt(achou)
-		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)
-		return
-	if outros[achou].get("bot", false): # outro NPC que não é amigo virtual: só ver o equipamento
-		if dist > perto():
-			m.hud.aviso("Chegue mais perto de %s" % nome)
-			return
-		mostrar_cartao(nome, ver + [["Agora não", esconder_cartao]], 8.0)
-		return
-	if dist > perto():
-		if extras.is_empty():
+	# André 2026-11-17: "Troca, seguir, conversar, duelo, tudo é igualzinho para um jogador e para ela": o mesmo cartão
+	# (cartao_acoes) para outro jogador e para a Cecília/Dario
+	if not bot or achou in m.online.amiga_ids or (m.amigos and m.amigos.conta_virtual(achou) != ""):
+		var bts := cartao_acoes(achou, nome, dist > perto(), bot)
+		if bts.is_empty():
 			m.hud.aviso("Chegue mais perto de %s para trocar" % nome)
 			return
-		mostrar_cartao(nome, extras + [["Agora não", esconder_cartao]], 8.0)
+		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)
 		return
-	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + duelo_bt(achou) + ver + [["Agora não", esconder_cartao]], 8.0)
+	# outro NPC que não é amigo virtual: só ver o equipamento
+	if dist > perto():
+		m.hud.aviso("Chegue mais perto de %s" % nome)
+		return
+	mostrar_cartao(nome, ver + [["Agora não", esconder_cartao]], 8.0)
 
-# botão "Seguir" (André 2026-11-17, seguir.gd): só a Cecília (o servidor manda "segue" no evento "amiga"); seguindo, vira
-# "Parar de seguir"
-func seguir_bt(id: String) -> Array:
-	if m.seguir == null or not m.online.amiga_segue.get(id, false):
+# o cartão de ações, igual para jogador e para Cecília/Dario (André 2026-11-17): Pedir troca, time, Mensagem (ou Adicionar
+# amigo), Seguir, Duelo e Equipamento. De longe, só time e mensagem (e Parar de seguir, se estiver seguindo).
+func cartao_acoes(achou: String, nome: String, longe: bool, bot: bool) -> Array:
+	var bts: Array = []
+	if not longe:
+		bts.append(["Pedir troca", _responder.bind("pedir", achou)])
+	var A = m.amigos
+	var amigo: bool = A != null and (bot or A.eh_amigo_id(achou))
+	if A and A.no_meu_time(achou):
+		if bot or A.sou_lider(): # tirar outro jogador só o líder (o servidor confere)
+			bts.append(["Tirar do time", func(): esconder_cartao(); m.rede("time", {"acao": "expulsar", "com": achou})])
+	elif amigo and (bot or m.on()):
+		bts.append(["Chamar pro time", func(): esconder_cartao(); m.rede("time", {"acao": "convidar", "com": achou})])
+	var conta: String = (A.conta_virtual(achou) if bot else A.conta_amigo(achou)) if A else ""
+	if conta != "" and m.chat:
+		bts.append(["Mensagem", func(): esconder_cartao(); m.chat.abrir_pm(conta, nome)])
+	elif conta == "" and (bot or (m.on() and A and not A.eh_amigo_id(achou))): # ainda não é amigo (André 2026-11-16): pede e o outro decide
+		bts.append(["Adicionar amigo", func(): esconder_cartao(); m.rede("amigo", {"acao": "pedir", "com": achou})])
+	if not longe:
+		bts += seguir_bt(achou, bot) + duelo_bt(achou) + [["Equipamento", pedir_equip.bind(achou)]]
+	elif m.seguir and m.seguir.segue(achou): # seguindo e longe: dá para parar pelo cartão também
+		bts += seguir_bt(achou, bot)
+	return bts
+
+# botão "Seguir" (André 2026-11-17, seguir.gd): outro jogador ou a Cecília (o servidor manda "segue" no evento "amiga"; o
+# Dario fica sem); seguindo, vira "Parar de seguir"
+func seguir_bt(id: String, bot := true) -> Array:
+	if m.seguir == null or (bot and not m.online.amiga_segue.get(id, false)):
 		return []
 	if m.seguir.segue(id):
 		return [["Parar de seguir", func(): esconder_cartao(); m.seguir.parar()]]
+	if not bot: # outro jogador: só o app segue (o servidor não precisa saber)
+		return [["Seguir", func(): esconder_cartao(); m.seguir.comecar(id, nome_de(id), false)]]
 	return [["Seguir", func(): esconder_cartao(); m.rede("amiga", {"acao": "seguir", "id": id})]]
 
 # botão "Duelo" (André 2026-11-17, duelo.gd): de perto, com jogador, Cecília e Dario; some durante um duelo

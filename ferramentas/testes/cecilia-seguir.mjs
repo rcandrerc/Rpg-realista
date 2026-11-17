@@ -112,6 +112,11 @@ a.amigosDe = { [j.conta]: 1 };
 {
   const t = gd('troca.gd'), sg = gd('seguir.gd'), on = gd('online.gd'), mn = gd('main.gd');
   ok(/func seguir_bt/.test(t) && /\["Seguir",/.test(t) && /\["Parar de seguir",/.test(t) && /amiga_segue/.test(t), 'cartão: botão Seguir (e Parar de seguir) só para quem o servidor marca');
+  // André 2026-11-17: "tudo é igualzinho para um jogador e para ela" (troca, seguir, conversar, duelo)
+  const ca = t.slice(t.indexOf('func cartao_acoes'), t.indexOf('func seguir_bt'));
+  ok(/if not bot or achou in m\.online\.amiga_ids/.test(t) && /cartao_acoes\(achou, nome, dist > perto\(\), bot\)/.test(t), 'o mesmo cartão para outro jogador e para a Cecília');
+  ok(['"Pedir troca"', '"Tirar do time"', '"Chamar pro time"', '"Mensagem"', '"Adicionar amigo"', 'seguir_bt(achou, bot)', 'duelo_bt(achou)', '"Equipamento"'].every((b) => ca.includes(b)), 'cartão: troca, time, mensagem, seguir, duelo e equipamento');
+  ok(/if not bot:[\s\S]{0,120}m\.seguir\.comecar\(id, nome_de\(id\), false\)/.test(t) && /avisa_servidor/.test(sg), 'seguir outro jogador: só o app segue (sem avisar o servidor)');
   ok(/"seguir":/.test(on) && /m\.seguir\.comecar/.test(on) && /amiga_segue\[aid\] = true/.test(on), 'app: evento "seguir" começa a seguir');
   ok(/m\.rota\.ir\(m\.rota\.planejar\(mira\)/.test(sg) && /hud\.mover\.length\(\) > 0\.15/.test(sg) && /"naoSegue"/.test(sg), 'seguir.gd: vai pela rota, joystick para e avisa o servidor');
   ok(/Seguir = preload\("res:\/\/seguir\.gd"\)/.test(mn) && /seguir = Seguir\.new\(self\)/.test(mn), 'main.gd cria o seguir');

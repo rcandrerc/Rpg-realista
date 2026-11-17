@@ -1,9 +1,11 @@
 extends Node
-# Seguir a Cecília (André 2026-11-17: "um botão seguir quando eu estiver perto dela... ela escolhe pra onde vai, eu aperto
+# Seguir a Cecília ou outro jogador (André 2026-11-17: "um botão seguir quando eu estiver perto dela... ela escolhe pra onde vai, eu aperto
 # Seguir e meu personagem segue ela automaticamente"). O botão fica no cartão dela (troca.gd); o servidor responde com o
 # evento "seguir" (shared/amiga.js seguirAmiga) e daí o herói vai atrás dela pelo "Ir para" (rota.gd), replanejando a
 # rota conforme ela anda. Perto dela, para; ela se afastou de novo, volta a andar. Como no "Ir para", só o joystick
 # (ou morrer, ou ela sair do mundo) para de seguir; ao parar, avisa o servidor (ela deixa de ir na frente).
+# André 2026-11-17: "tudo é igualzinho para um jogador e para ela": outro jogador também; aí só o app segue (o servidor
+# não precisa saber) e o herói vai atrás dele do mesmo jeito.
 
 const PARA := 3.5 # m: chegou perto dela, o herói para
 const ANDA := 5.5 # m: parado perto, só volta a andar quando ela passar disto
@@ -15,6 +17,7 @@ const LOBO := 30.0 # m: mais longe que isto vai de lobo (viagem do rota.gd); ela
 var m # main.gd
 var alvo := "" # id dela (na rede) enquanto segue; "" = não está seguindo
 var nome := ""
+var avisa_servidor := false # Cecília: o servidor sabe (ela vai na frente); outro jogador: só aqui
 var _t := 0.0
 var _ult := Vector2.INF
 
@@ -27,12 +30,15 @@ func ativo() -> bool:
 func segue(id: String) -> bool:
 	return alvo != "" and alvo == id
 
-# o servidor topou (evento "seguir")
-func comecar(id: String, nome_: String) -> void:
+# o servidor topou (evento "seguir", Cecília) ou o jogador tocou Seguir num jogador
+func comecar(id: String, nome_: String, servidor := true) -> void:
 	if id == "" or m.online == null or m.online.outros.get(id) == null:
 		return
+	if alvo != "" and alvo != id:
+		parar(false)
 	alvo = id
 	nome = nome_
+	avisa_servidor = servidor
 	_t = REPLANEJA
 	_ult = Vector2.INF
 	m.hud.aviso("Seguindo %s" % nome)
@@ -47,7 +53,7 @@ func parar(aviso := true) -> void:
 		m.rota.parar()
 	if aviso:
 		m.hud.aviso("Parou de seguir %s" % nome)
-	if m.online:
+	if m.online and avisa_servidor:
 		m.rede("amiga", {"acao": "naoSegue", "id": id})
 
 func _process(dt: float) -> void:
