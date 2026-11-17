@@ -880,7 +880,8 @@ export const FORNALHA = {
 // Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
 // a terra regada fica molhada por "rega" horas; sem água a planta não cresce)
 // agua (André 2026-11-07): o regador cheio dá 20 regas; enche no poço da praça (poco) ou na beira de um lago, ou nadando
-export const HORTA = { rega: 24, vigor: 1, agua: 20, poco: { x: PRACA.x, z: PRACA.z, r: 3.2 }, beira: 2.5 };
+export const HORTA = { rega: 24, vigor: 1, agua: 20, poco: { x: PRACA.x, z: PRACA.z, r: 3.2 }, beira: 2.5,
+  missaoSeg: 8 }; // missaoSeg: planta da missão cresce nesses segundos, com a barrinha andando (André 2026-11-17: "5 ou 10 segundos... n ficar pronto imediato")
 export const PLANTAS = {
   rabanete: { nome: 'Rabanete', G: 0.5, y: [2, 3], semente: 2, venda: 2, cura: 0.05, cor: '#e8486a', folha: '#5fae4a' },
   cenoura: { nome: 'Cenoura', G: 2, y: [2, 4], semente: 4, venda: 3, cura: 0.08, cor: '#ff8a2a', folha: '#4f9a44' },

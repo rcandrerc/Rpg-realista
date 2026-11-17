@@ -170,7 +170,11 @@ export function pedidosDaEtapa(E, p) {
 }
 const ferramentaDe = (k) => (VEIO[k] ? COLETA[VEIO[k]]?.ferramenta : null);
 // planta: quanto já cresceu (horas de terra molhada), sem mexer no lote (o mesmo de crescerPlanta)
-const gAgora = (t, agora) => { const ini = Math.max(t.u || agora, t.w || 0), fim = Math.min(agora, (t.w || 0) + HORTA.rega * 3600000); return (t.g || 0) + Math.max(0, fim - ini) / 3600000; };
+// planta da missão (t.mi início, t.mf fim, em ms): cresce de 0 ao fim em HORTA.missaoSeg segundos; null = planta normal
+export function gMissao(t, agora, G) { return t?.mf ? (agora >= t.mf ? G : G * Math.max(0, agora - t.mi) / Math.max(1, t.mf - t.mi)) : null; }
+// a planta começa a crescer pela missão agora (gMissao)
+function crescerMissao(t) { t.mi = Date.now(); t.mf = t.mi + HORTA.missaoSeg * 1000; }
+const gAgora = (t, agora) => { const ini = Math.max(t.u || agora, t.w || 0), fim = Math.min(agora, (t.w || 0) + HORTA.rega * 3600000); return Math.max((t.g || 0) + Math.max(0, fim - ini) / 3600000, gMissao(t, agora, PLANTAS[t.c]?.G || 1) ?? 0); };
 const NA_LOJA = new Set(LOJA.filter((o) => o.r == null).map((o) => o.k));
 
 export const Kit = {
@@ -337,22 +341,40 @@ export const Kit = {
   // hist.hz = { m: id da missão, u: { legume: plantas já aceleradas } } (shared/historia.js histValida guarda).
   acelerarPlanta(j, t) {
     const p = j?.prog, h = p?.hist; if (!t?.c || !h?.ac || j.bot) return false;
-    const P = PLANTAS[t.c], M = missaoAtual(p); if (!P || !M || (t.g || 0) >= P.G) return false;
+    const P = PLANTAS[t.c], M = missaoAtual(p); if (!P || !M || t.mf || (t.g || 0) >= P.G) return false; // t.mf: já está crescendo pela missão
     const total = plantasDaMissao(M), resta = plantasDaMissao(M, h.e || 0), k = t.c;
     if (!h.hz || h.hz.m !== M.id) h.hz = { m: M.id, u: {} };
     const u = h.hz.u, livre = (q) => (total[q] || 0) > (u[q] || 0) && (resta[q] || 0) > 0;
     const E = etapaAtual(p), qualquer = QUALQUER_PLANTA.includes(k) && livre('*');
     const q = E?.ev === 'plantar' && !E.k && qualquer ? '*' : livre(k) ? k : qualquer ? '*' : '';
-    if (!q) return false;
-    u[q] = (u[q] || 0) + 1; t.g = P.G; j.progSujo = true;
+    if (!q) { // cota gasta: ainda acelera se a missão ainda precisa desse legume (abaixo)
+      if (!this.faltaPlantaMissao(j, t, resta[k] || 0)) return false;
+      crescerMissao(t); j.progSujo = true;
+      return true;
+    }
+    u[q] = (u[q] || 0) + 1; crescerMissao(t); j.progSujo = true;
     return true;
+  },
+  // André 2026-11-17: "falei pra sempre passar o tempo de plantio pra auto em qualquer plantação de missão" (plantou 2,
+  // comprou mais 2 e ficou "Abóbora crescendo 2/4"). Além da cota, a planta fica pronta enquanto o que a missão ainda
+  // pede desse legume (das etapas daqui pra frente, e os packs que ela manda fazer de novo) passa do que ele já tem:
+  // plantas maduras no lote e o legume na mochila (pela colheita mínima). Nunca passa do que falta.
+  faltaPlantaMissao(j, t, precisa) {
+    const p = j.prog, k = t.c, P = PLANTAS[k], E = etapaAtual(p);
+    const refaz = E?.ev === 'pack' ? this.packsRefazer?.(j, E) : null;
+    if (refaz?.usa?.[k]) precisa += Math.ceil(refaz.usa[k] / P.y[0]);
+    if (precisa <= 0) return false;
+    if (E?.ev === 'plantar' && E.k === k && (p.hist.n || 0) < totalEtapa(E)) return true; // "Plante 4 sementes de abóbora": as 4 da etapa
+    let maduras = 0;
+    for (const o of Object.values(this.loteDe?.(j)?.horta || {})) if (o !== t && o?.c === k && (o.mf || (o.g || 0) >= P.G)) maduras++; // pronta ou crescendo pela missão
+    return maduras + Math.floor(contar(p.mochila, k) / P.y[0]) < precisa;
   },
   // todas as plantas do lote do jogador que a missão acelera (ao aceitar, a cada etapa nova e no plantar/regar/colher)
   hortaMissao(j) {
     const L = this.loteDe?.(j); if (!L || !j?.prog?.hist?.ac) return 0;
     let n = 0;
     for (const t of Object.values(L.horta || {})) if (this.acelerarPlanta(j, t)) n++;
-    if (n) { this.evento({ t: 'aviso', para: j.id, texto: 'Missão: pronta pra colher!' }); this.avisarLote?.(L); }
+    if (n) { this.evento({ t: 'aviso', para: j.id, texto: `Missão: pronta em ${HORTA.missaoSeg} s` }); this.avisarLote?.(L); }
     return n;
   },
   // quantas plantas de k estão na horta do jogador (plantadas, crescendo ou maduras)

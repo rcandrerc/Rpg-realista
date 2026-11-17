@@ -6,6 +6,7 @@
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, RECEITAS, PLANTAS, LOJA } from '../../shared/index.js';
 import { guardar, contar } from '../../shared/progresso.js';
 import { etapasDe, totalEtapa } from '../../shared/historia.js';
+import { passarMissao } from './_horta-rapida.mjs';
 const so = process.argv[2];
 let falhas = 0;
 const falhou = (m) => { falhas++; console.error('FALHOU', m); };
@@ -91,7 +92,7 @@ function jogar(i) {
         if (!s.loteDe(j).horta[c]) s.horta('R', { acao: 'arar', c });
         s.horta('R', { acao: 'plantar', c, s: f.k }); s.checarEtapa(j);
         // André 2026-11-16: "itens de plantação da missão ficassem prontos imediatamente": a planta da missão nasce madura
-        const t = s.loteDe(j).horta[c]; if (t?.c === f.k && t.g < PLANTAS[f.k].G) falhou(`${M.id} etapa ${h.e + 1}: plantou ${f.k} e não ficou pronta na hora ("${hi.txt}")`);
+        passarMissao(s); const t = s.loteDe(j).horta[c]; if (t?.c === f.k && t.g < PLANTAS[f.k].G) falhou(`${M.id} etapa ${h.e + 1}: plantou ${f.k} e não ficou pronta na hora ("${hi.txt}")`);
         continue;
       }
       if ((f.fonte === 'cresce' || f.fonte === 'regar') && PLANTAS[f.k]) falhou(`${M.id} etapa ${h.e + 1}: a horta da missão espera crescer ("${hi.txt}")`);
@@ -147,7 +148,7 @@ function jogar(i) {
       const c = celulas.find((x) => !s.loteDe(j).horta[x]?.c); if (!c) { falhou(`${M.id}: lote cheio`); return achados; }
       if (!s.loteDe(j).horta[c]) s.horta('R', { acao: 'arar', c });
       s.horta('R', { acao: 'plantar', c, s: k }); s.checarEtapa(j);
-      const t = s.loteDe(j).horta[c]; if (t?.c === k && t.g < PLANTAS[k].G) falhou(`${M.id} etapa ${h.e + 1}: plantou ${k} e não ficou pronta na hora`);
+      passarMissao(s); const t = s.loteDe(j).horta[c]; if (t?.c === k && t.g < PLANTAS[k].G) falhou(`${M.id} etapa ${h.e + 1}: plantou ${k} e não ficou pronta na hora`);
       continue;
     }
     if (E.ev === 'colher' || E.ev === 'regar') { s.historia(j, E.ev, { k: E.k }); continue; }
