@@ -6,6 +6,8 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado t
 # uma barrinha dourada que enche em 1,6 s ("Reforçando…") e depois SUCESSO! (verde) ou FALHOU… (vermelho, com "Voltou pra +N"
 # ou "Continua +N"). Toque para continuar (ou fecha sozinha em 1,8 s). No automático tenta de novo até chegar no máximo,
 # acabar o ouro ou tocar em Cancelar ("Vai parar depois deste"); embaixo fica a fila de +N que deram certo e errado.
+# André 2026-11-17: um botão "Reforçar" só abre esta janela; nela, "1 vez" à esquerda, "Até o máximo" à direita e
+# "Cancelar" embaixo. A janela fica aberta entre as tentativas, com a barrinha e a fila de acertos e falhas.
 # Online quem cobra e sorteia é o servidor (item: { acao: 'reforcar' }, resposta no evento 'reforco'); sem internet, aqui.
 
 const Menu = preload("res://menu.gd")
@@ -27,6 +29,9 @@ var resultado2_ui: Label
 var toque_ui: Label
 var cancelar_ui: Button
 var fila_ui: HFlowContainer
+var botoes_ui: HBoxContainer
+var uma_ui: Button
+var max_ui: Button
 
 var onde := {} # {"i": lugar da mochila} ou {"lugar": lugar do corpo}
 var fase := "" # "" fechada · "barra" enchendo · "resultado" mostrando
@@ -63,7 +68,8 @@ func _ready() -> void:
 	estilo.content_margin_bottom = 16
 	caixa.add_theme_stylebox_override("panel", estilo)
 	caixa.custom_minimum_size = Vector2(340, 0)
-	caixa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caixa.mouse_filter = Control.MOUSE_FILTER_STOP # tocar na caixa não fecha; o resultado continua com toque em qualquer lugar
+	caixa.gui_input.connect(_tocou_caixa)
 	centro.add_child(caixa)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
@@ -122,17 +128,42 @@ func _ready() -> void:
 	fila_ui.add_theme_constant_override("v_separation", 4)
 	fila_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(fila_ui)
+	botoes_ui = HBoxContainer.new()
+	botoes_ui.add_theme_constant_override("separation", 10)
+	v.add_child(botoes_ui)
+	uma_ui = _botao("1 vez", true)
+	uma_ui.pressed.connect(func(): _iniciar(false))
+	botoes_ui.add_child(uma_ui)
+	max_ui = _botao("Até o máximo", false)
+	max_ui.tooltip_text = "Tenta de novo sozinho até o máximo da peça, até o ouro acabar ou até tocar em Cancelar"
+	max_ui.pressed.connect(func(): _iniciar(true))
+	botoes_ui.add_child(max_ui)
 	cancelar_ui = Button.new()
-	cancelar_ui.text = "⏹ Cancelar"
+	cancelar_ui.text = "Cancelar"
 	cancelar_ui.focus_mode = Control.FOCUS_NONE
 	cancelar_ui.add_theme_font_size_override("font_size", 14)
 	cancelar_ui.custom_minimum_size = Vector2(0, 38)
 	Menu.estilo_botao(cancelar_ui, false)
 	cancelar_ui.pressed.connect(func():
+		if fase == "pronta": # parada: Cancelar fecha a janela
+			_fechar()
+			return
+		if not auto: # 1 vez: deixa terminar esta tentativa
+			return
 		parar = true
-		cancelar_ui.text = "Vai parar depois deste"
+		cancelar_ui.text = Idioma.frase("Vai parar depois deste")
 		cancelar_ui.disabled = true)
 	v.add_child(cancelar_ui)
+
+func _botao(t: String, ativo: bool) -> Button:
+	var b := Button.new()
+	b.text = Idioma.frase(t)
+	b.focus_mode = Control.FOCUS_NONE
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.custom_minimum_size = Vector2(0, 42)
+	b.add_theme_font_size_override("font_size", 16)
+	Menu.estilo_botao(b, ativo)
+	return b
 
 func _rot(s: String, tam: int, cor: Color, centro := false) -> Label:
 	var l := Menu.rotulo(s, tam, cor)
@@ -152,26 +183,79 @@ func peca():
 		return P.prog.mochila[i] if i >= 0 and i < P.prog.mochila.size() else null
 	return P.prog.equip.get(str(onde.get("lugar", "")))
 
-# começa: uma vez (automatico = false) ou até cancelar
-func comecar(lugar_onde: Dictionary, automatico: bool) -> void:
+# abre a janela parada, com "1 vez", "Até o máximo" e "Cancelar" (botão "Reforçar" da mochila, do medalhão e da bancada)
+func abrir(lugar_onde: Dictionary) -> void:
 	if aberta():
 		return
 	onde = lugar_onde
-	auto = automatico
-	parar = false
-	tentativas = 0
-	ouro0 = int(m.P.prog.ouro)
-	var it = peca()
-	if it == null:
+	if peca() == null:
 		return
-	e0 = int(it.get("e", 0))
+	tentativas = 0
 	for c in fila_ui.get_children():
 		c.queue_free()
-	fila_ui.visible = auto
-	cancelar_ui.visible = auto
-	cancelar_ui.disabled = false
-	cancelar_ui.text = "⏹ Cancelar"
+	_preparar()
+
+# abre e já começa: uma vez (automatico = false) ou até o máximo
+func comecar(lugar_onde: Dictionary, automatico: bool) -> void:
+	abrir(lugar_onde)
+	if fase == "pronta":
+		_iniciar(automatico)
+
+func _iniciar(automatico: bool) -> void:
+	if fase != "pronta":
+		return
+	var it = peca()
+	if it == null:
+		_fechar()
+		return
+	auto = automatico
+	parar = false
+	if auto: # o resumo do automático conta desta rodada
+		tentativas = 0
+		ouro0 = int(m.P.prog.ouro)
+		e0 = int(it.get("e", 0))
 	_tentar()
+
+# parada esperando o toque: mostra a peça, a chance e o custo da próxima; os botões só valem se dá para reforçar
+func _preparar() -> void:
+	var P = m.P
+	var it = peca()
+	if it == null:
+		_fechar()
+		return
+	fase = "pronta"
+	veu.visible = true
+	_info(it)
+	auto_ui.visible = false
+	barra.size = Vector2(0, 12)
+	barra.color = Color("ffd76a")
+	_pintar("")
+	var erro: String = P.reforco_erro(it)
+	resultado_ui.add_theme_font_size_override("font_size", 16)
+	resultado_ui.add_theme_color_override("font_color", Color("ff8a7a") if erro != "" else Color("e8dcc0"))
+	resultado_ui.text = Idioma.frase(erro) if erro != "" else ""
+	toque_ui.visible = false
+	uma_ui.disabled = erro != ""
+	max_ui.disabled = erro != ""
+	cancelar_ui.disabled = false
+	cancelar_ui.text = Idioma.frase("Cancelar")
+	fila_ui.visible = fila_ui.get_child_count() > 0
+
+func _info(it) -> void:
+	var P = m.P
+	var e := int(it.get("e", 0))
+	var cor: Color = P.cor_item(it)
+	icone.texture = Menu.icone_tex(P.icone_item(it))
+	nome_ui.text = P.nome_item(it)
+	nome_ui.add_theme_color_override("font_color", cor)
+	if e >= P.reforco_max(it):
+		info_ui.text = Idioma.frase("+%d · no máximo da peça" % e)
+		return
+	var custo_txt: String = "grátis (missão)" if P.etapa_gratis("reforcar") else "%d de ouro" % P.custo_reforco(it) # shared/kit.js
+	info_ui.text = Idioma.frase("+%d → +%d · chance %d%% · %s" % [e, e + 1, P.chance_reforco(e), custo_txt])
+	var mat: Dictionary = P.material_reforco(it)
+	if not mat.is_empty():
+		info_ui.text += (" · %d %s" % [int(mat.n), Idioma.t(str(P.dados.itens[mat.k].nome))]) if Idioma.ingles() else (" · %d de %s" % [int(mat.n), str(P.dados.itens[mat.k].nome)])
 
 func _tentar() -> void:
 	var P = m.P
@@ -185,18 +269,9 @@ func _tentar() -> void:
 		m.hud.aviso(_resumo(erro) if auto and tentativas > 0 else erro)
 		if m.sons:
 			m.sons.tocar("pano", -8.0)
-		_fechar()
+		_preparar()
 		return
-	var e := int(it.get("e", 0))
-	var cor: Color = P.cor_item(it)
-	icone.texture = Menu.icone_tex(P.icone_item(it))
-	nome_ui.text = P.nome_item(it)
-	nome_ui.add_theme_color_override("font_color", cor)
-	var custo_txt: String = "grátis (missão)" if P.etapa_gratis("reforcar") else "%d de ouro" % P.custo_reforco(it) # shared/kit.js
-	info_ui.text = Idioma.frase("+%d → +%d · chance %d%% · %s" % [e, e + 1, P.chance_reforco(e), custo_txt])
-	var mat: Dictionary = P.material_reforco(it)
-	if not mat.is_empty():
-		info_ui.text += (" · %d %s" % [int(mat.n), Idioma.t(str(P.dados.itens[mat.k].nome))]) if Idioma.ingles() else (" · %d de %s" % [int(mat.n), str(P.dados.itens[mat.k].nome)])
+	_info(it)
 	tentativas += 1
 	auto_ui.visible = auto
 	auto_ui.text = Idioma.frase("Automático: tentativa %d · %d de ouro" % [tentativas, ouro0 - int(P.prog.ouro) + P.custo_reforco(it)])
@@ -208,6 +283,11 @@ func _tentar() -> void:
 	_pintar("")
 	barra.color = Color("ffd76a")
 	barra.size = Vector2(0, 12)
+	uma_ui.disabled = true
+	max_ui.disabled = true
+	cancelar_ui.disabled = not auto
+	cancelar_ui.text = Idioma.frase("⏹ Cancelar" if auto else "Cancelar")
+	fila_ui.visible = true
 	resp = null
 	fase = "barra"
 	t = 0.0
@@ -256,7 +336,7 @@ func _process_parte(dt: float) -> void:
 			_mostrar()
 		elif t > 7.0: # o servidor não respondeu
 			m.hud.aviso("O servidor não respondeu. Tente de novo")
-			_fechar()
+			_preparar()
 	elif fase == "resultado":
 		t += dt
 		if t >= 1.8:
@@ -271,7 +351,7 @@ func _mostrar() -> void:
 	var P = m.P
 	if resp.has("erro"):
 		m.hud.aviso(str(resp.erro))
-		_fechar()
+		_preparar()
 		return
 	var ok: bool = resp.get("ok", false) == true
 	var de := int(resp.get("de", 0))
@@ -297,7 +377,7 @@ func _mostrar() -> void:
 	toque_ui.visible = true
 	if m.festa: # comemoração (festa.gd): faíscas e borda dourada; a cada +5, festa grande; falhou, borda vermelha
 		m.festa.reforco(ok, e, str(resp.get("nome", "")))
-	if auto:
+	if true: # fila de acertos e falhas (André 2026-11-17: também no 1 vez, a janela fica aberta)
 		var chip := PanelContainer.new()
 		chip.add_theme_stylebox_override("panel", Menu.caixa(Color(0.5, 0.86, 0.41, 0.25) if ok else Color(1, 0.43, 0.35, 0.2), Color(0, 0, 0, 0), 0, 6))
 		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -307,6 +387,13 @@ func _mostrar() -> void:
 		m.menu.atualizar()
 
 func _tocou(ev: InputEvent) -> void:
+	var tq: bool = (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)
+	if tq and fase == "resultado":
+		_continuar()
+	elif tq and fase == "pronta": # parada: tocar fora fecha
+		_fechar()
+
+func _tocou_caixa(ev: InputEvent) -> void:
 	if fase == "resultado" and ((ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
 		_continuar()
 
@@ -318,7 +405,8 @@ func _continuar() -> void:
 		return
 	if auto and tentativas > 0:
 		m.hud.aviso(_resumo("cancelado" if parar else "a peça chegou no máximo"))
-	_fechar()
+	auto = false
+	_preparar() # a janela fica aberta: dá para tentar de novo ou tocar em Cancelar
 
 # "Reforço automático (chegou no máximo da peça): +0 → +5 · 9 tentativas · 230 de ouro"
 func _resumo(por: String) -> String:
