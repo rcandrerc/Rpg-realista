@@ -1,0 +1,104 @@
+# Robô nos celulares de verdade (André 2026-11-16: "testa no Motorola, no Samsung, todos os aparelhos intermediários";
+# 2026-11-17: "faz a 1 2 3", ligar o GitHub no projeto age-of-embers-testes). O Firebase Test Lab (plano grátis Spark,
+# ~5 testes em celular físico por dia) instala o APK da main num celular de verdade e põe um robo.cfg na pasta do app;
+# com ele o jogo entra sozinho (godot-prototipo/robo_celular.gd), anda pela vila e pela estrada, luta na Clareira e mede
+# cada quadro com a placa de vídeo do celular. O relatório vai para https://163-176-80-126.sslip.io/robo (cartão 📱
+# "Celular de verdade") e o resumo aparece no fim desta rodada.
+# Sem chave guardada: o GitHub entra no Google pelo crachá OIDC (Workload Identity, pool "github", só este repositório)
+# como test-lab@age-of-embers-testes. Cada celular joga com a sua conta (robo:celular1..5), separada do robô 1.
+# Rodar: Actions > Robô nos celulares de verdade > Run workflow.
+name: Robô nos celulares de verdade
+
+on:
+  workflow_dispatch:
+    inputs:
+      celulares:
+        description: 'Modelos do Test Lab (a15 = Galaxy A15, a14m = A14, starlte = Galaxy S9 com o chip do Note 10 Lite, cancunf = Moto G54, fogorow = Moto G24)'
+        default: 'a15,cancunf,starlte'
+      minutos:
+        description: 'Minutos jogando em cada celular'
+        default: '4'
+
+permissions:
+  contents: read
+  actions: read # baixar o APK da última execução do apk.yml na main
+  id-token: write # crachá OIDC: entrar no Google e pegar as contas do robô
+
+concurrency:
+  group: robo-celular-real
+  cancel-in-progress: false
+
+env:
+  PROJETO: age-of-embers-testes
+  BALDE: test-lab-8aq3t0ah1h0wm-ix5v4f7xxzktc
+  SERVIDOR: https://163-176-80-126.sslip.io
+  PASTA_APP: /sdcard/Android/data/com.rcandrerc.rpgprototipo/files
+
+jobs:
+  real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.PROJETO }}
+          workload_identity_provider: projects/803551951520/locations/global/workloadIdentityPools/github/providers/github
+          service_account: test-lab@age-of-embers-testes.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      # o APK com o jogo inteiro dentro, da última execução boa do apk.yml na main (guardado 14 dias); sem ele, a casca
+      # 2505, que baixa o jogo da main ao abrir (por isso o robô espera até 7 min para entrar)
+      - name: APK da main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh run list -R ${{ github.repository }} -w apk.yml -b main -e push -s success -L 1 --json databaseId -q '.[0].databaseId')
+          if [ -n "$id" ] && gh run download "$id" -R ${{ github.repository }} -n rpg-realista-apk -D apk; then mv apk/rpg-realista.apk .; echo "APK da execução $id"
+          else curl -fsSL --retry 4 -o rpg-realista.apk https://media.githubusercontent.com/media/rcandrerc/Rpg-realista/claude/project-thread-mtjcjj/godot-prototipo/apk/age-of-embers-casca-2505.apk; echo "casca 2505"; fi
+          ls -la rpg-realista.apk
+      - name: Celulares e tempo
+        run: |
+          m="${{ github.event.inputs.minutos }}"; [ -z "$m" ] && m=4
+          echo "DURACAO=$((m * 60))" >> $GITHUB_ENV
+          # o robô do Test Lab só espera (WAIT): quem joga é o robô de dentro do jogo. Entrar leva até 7 min no pior caso.
+          ESPERA=$((m + 5)); echo "TEMPO=$((ESPERA + 3))m" >> $GITHUB_ENV
+          python3 -c "import json; json.dump([{'eventType': 'WAIT', 'delayTime': 60000}] * $ESPERA, open('espera.json', 'w'))"
+          echo "TURNO=tl-${{ github.run_id }}" >> $GITHUB_ENV
+          lista=""
+          for c in $(echo "${{ github.event.inputs.celulares }}" | tr ',' ' '); do
+            v=$(gcloud firebase test android models describe "$c" --format='value(supportedVersionIds)' | tr ';,' '\n\n' | sort -n | tail -1)
+            [ -z "$v" ] && { echo "::warning::celular $c não existe no Test Lab"; continue; }
+            lista="$lista $c:$v"
+          done
+          echo "LISTA=$lista" >> $GITHUB_ENV; echo "Celulares:$lista"
+      - name: Robô joga em cada celular (ao mesmo tempo)
+        run: |
+          pedir() { curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=age-of-embers-robo" | jq -r .value; }
+          n=0
+          for cv in $LISTA; do
+            n=$((n + 1)); c=${cv%%:*}; v=${cv##*:}
+            [ $n -gt 1 ] && sleep 6 # o servidor dá uma conta de robô a cada 5 s
+            sessao=$(jq -n --arg c "$(pedir)" --argjson n $n '{cracha: $c, n: $n}' | curl -sS -X POST -H 'Content-Type: application/json' -d @- "$SERVIDOR/conta/robo" | jq -r '.sessao // empty')
+            [ -z "$sessao" ] && { echo "::error::o servidor não deu a conta do robô $n"; exit 1; }
+            echo "::add-mask::$sessao"
+            mkdir -p "cel/$c"; printf '[robo]\nsessao="%s"\nduracao=%s\nturno="%s"\n' "$sessao" "$DURACAO" "$TURNO" > "cel/$c/robo.cfg"
+            gcloud firebase test android run --type robo --app rpg-realista.apk --robo-script espera.json \
+              --other-files "$PASTA_APP/robo.cfg=cel/$c/robo.cfg" --device "model=$c,version=$v,locale=pt_BR,orientation=landscape" \
+              --timeout "$TEMPO" --results-bucket "$BALDE" --results-dir "robo-real/${{ github.run_id }}/$c" --results-history-name 'Robô celular' \
+              > "cel/$c/gcloud.txt" 2>&1 &
+          done
+          wait || true
+          for d in cel/*/; do echo "== $d"; tail -15 "$d/gcloud.txt"; done
+      - name: Resultado (log do Android)
+        if: always()
+        run: |
+          {
+            echo "## Robô nos celulares de verdade"
+            echo "Relatório completo: $SERVIDOR/robo"
+            for d in cel/*/; do
+              c=$(basename "$d"); echo "### $c"
+              log=$(gcloud storage ls "gs://$BALDE/robo-real/${{ github.run_id }}/$c/**/logcat" 2>/dev/null | head -1)
+              [ -z "$log" ] && { echo "sem log"; continue; }
+              gcloud storage cat "$log" | grep -a "CELULAR" | grep -av "CELULAR fim" | tail -25 | sed 's/^/    /'
+              gcloud storage cat "$log" | grep -a "CELULAR fim" | sed 's/.*CELULAR fim //' | jq -r '"FPS \(.fps) (mínimo \(.fps_min)), travadas >100 ms: \(.travadas.acima100), placa \(.placa), \(.aparelho) \(.erro)"' 2>/dev/null || echo "o robô não terminou"
+            done
+          } | tee -a $GITHUB_STEP_SUMMARY
