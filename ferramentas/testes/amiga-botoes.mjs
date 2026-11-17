@@ -26,7 +26,9 @@ ok(pmDele().length === 0 && !(c.ia.chatFila || []).length, 'o botão não escrev
 c.ia.recusaAte = 0;
 Math.random = () => 0.01; chat('bora caçar?'); Math.random = rr;
 ok(!c.time && s.combinouAmiga(c), 'no chat ela só topa (não entra no time sozinha)');
-ok((c.ia.chatFila || []).some((x) => AMIGA.falas.timeCombinado.includes(x.texto)), 'e pede o convite: "' + (c.ia.chatFila || []).at(-1)?.texto + '"');
+// André 2026-11-17 ("posso ir com você? Ela: claro, vem. Me dá time. Aí eu aceito"): a Cecília (AMIGA.convida) manda ela
+// mesma o convite do time; quem não convida (Dario, aventureiros) pede o convite como antes
+ok((c.ia.chatFila || []).some((x) => (AMIGA.convida ? AMIGA.falas.timeConvidou : AMIGA.falas.timeCombinado).includes(x.texto)) && (!AMIGA.convida || s.eventos.some((e) => e.t === 'time' && e.fase === 'convite' && e.para === 'andre')), (AMIGA.convida ? 'e manda o convite do time: "' : 'e pede o convite: "') + (c.ia.chatFila || []).at(-1)?.texto + '"');
 const n0 = pmDele().length;
 Math.random = () => 0.9999; s.time('andre', { acao: 'convidar', com: c.id }); Math.random = rr; // combinou: entra mesmo com sorteio ruim
 ok(c.time && c.time === d.time, 'combinou no chat: o botão dá o time na hora');

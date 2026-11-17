@@ -190,9 +190,11 @@ export function mensagensConversa(ctx, texto) {
   ].filter(Boolean);
   const acoes = `Junto com a fala, escolha a ação que a última mensagem de ${ctx.amigo} pede: "time" (chama para o time, para caçar ou lutar JUNTO com ele), "sairTime" (quer que você saia do time), "vir" (pede para você ir até ele; "me chama de X" é apelido, não pedido para ir), "cacar" (pede para você ir caçar SOZINH${o.toUpperCase()}, sem ele; ponha em "lugar" o nome do campo se ele ou você escolheu um da lista), "voltar" (pede para você parar de caçar sozinh${o} e voltar para a vila), "pescar"/"minerar"/"lenha" (chama para pescar, minerar ou cortar lenha junto), "pararAtividade" (quer parar a pesca/mineração/lenha junto), "troca" (quer trocar, comprar ou vender itens com você), "equip" (pergunta o que você está usando), "amigo" (pede para te adicionar na lista de amigos; o jogo decide e você fala depois), "ajuda" (oferece ajuda ou pergunta se você precisa de algo), "sim"/"nao" (resposta a um chamado seu), "nada" (só conversa: a maioria das mensagens). A ação é o que ${ctx.amigo} PEDIU na última mensagem: se foi você que sugeriu caçar ou chamou, a ação é "nada".
 Se ele pedir para caçar sozinh${o} e a ficha disser que não dá, recuse na fala explicando o motivo e use "nada".
-Se a ação for "time", "vir", "sim" ou "cacar", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou. Troca também: ele abre a troca tocando em você.
+Se a ação for "time", "vir", "sim" ou "cacar", a fala ACEITA com alegria (quem decide se dá é o jogo; se não der, ele troca a fala). Nunca recuse na fala. ${ctx.convida ? 'Fora do time, aceitar o time (ou ir junto na sua caçada) é você mandar o convite do time para ele: diga algo como "claro, vem! te mandei o time"; não diga que ele já entrou.' : 'Fora do time, aceitar o time é só topar: peça para ele mandar o convite do time (é ele quem dá o time pelo botão, como entre jogadores); não diga que já entrou.'} Troca também: ele abre a troca tocando em você.
+Se ele pedir para VOCÊ escolher o que fazer ("escolhe aí", "o que vamos fazer?"), escolha UMA coisa que existe no jogo: caçar junto num campo da lista do nível de vocês (diga o nome e o nível), pescar, minerar ou cortar lenha. Nunca invente atividade (passear, pegar ervas, ver a loja). Ao só propor, não diga que mandou convite nem que já está indo: espere ele topar. Quando a SUA fala propõe fazer algo junto, ponha em "sugere": "time" (caçar junto; nome do campo em "lugar"), "pescar", "minerar" ou "lenha"; senão "".
+Se ele perguntar o que você está fazendo, conte o que a ficha diz ("fazendo"), com o nome e o nível do campo se estiver caçando.
 Use só o que está na ficha e no "Jogo de verdade" para lugares, preços, níveis e missões; o que não estiver lá você não sabe: diga que não sabe ou pergunte, nunca invente nome de lugar, preço ou missão.
-Devolva só JSON: {"fala": "...", "acao": "nada", "lugar": ""}`;
+Devolva só JSON: {"fala": "...", "acao": "nada", "lugar": "", "sugere": ""}`;
   // André 2026-11-14 (jogo em inglês para divulgar fora): quem joga em English recebe a fala em inglês de gamer nativo
   const ingles = ctx.idioma === 'en' ? `\nIMPORTANT: ${ctx.amigo} plays the game in English. Write "fala" ONLY in natural, casual American English, like a real MMORPG player in chat (lfg, grind, farm, loot, drop, mob, boss, dungeon, party, tank, aggro, respawn, build, cd, buff, nerf, crit, gg, lol, "let's go"), 1 to 2 short sentences, never a word-for-word translation. Names stay the same. Keep the JSON keys and the action words exactly as they are.` : '';
   // as últimas falas dela, em lista (o modelo copiava o próprio jeito de antes): nada disso de novo
@@ -260,7 +262,8 @@ function lerResposta(txt) {
   const fala = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
   if (!fala) return null;
   const lugar = typeof out.lugar === 'string' ? out.lugar.slice(0, 60) : '';
-  return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala, ...(lugar ? { lugar } : {}) };
+  const sugere = ['time', 'pescar', 'minerar', 'lenha'].includes(out.sugere) ? out.sugere : ''; // o que ELA propôs (André 2026-11-17)
+  return { assunto: ACOES.includes(out.acao) ? (out.acao === 'nada' ? 'conversa' : out.acao) : 'conversa', fala, ...(lugar ? { lugar } : {}), ...(sugere ? { sugere } : {}) };
 }
 
 // ---------- memória (André 2026-11-10: ela aprende com o dia a dia) ----------

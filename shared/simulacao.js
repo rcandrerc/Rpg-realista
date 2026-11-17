@@ -2308,6 +2308,8 @@ export class Simulacao {
     // Cecília e Dario (André 2026-11-13, "como se fosse um jogador real"): o botão só convida ou tira do time, sem fala no chat
     const ctxIa = o?.bot ? this.amigoIaDe(o) : null;
     if (ctxIa && m.acao === 'convidar') return ctxIa.conviteTimeAmiga(j.id);
+    if (ctxIa && m.acao === 'aceitar') return ctxIa.aceitouConviteAmiga(j.id); // ela mandou o convite (André 2026-11-17)
+    if (ctxIa && m.acao === 'recusar') return ctxIa.recusouConviteAmiga(j.id);
     if (ctxIa && m.acao === 'expulsar') return ctxIa.sairTimeAmiga(j.id);
     if (o?.bot) return;
     if (m.acao === 'expulsar') {
