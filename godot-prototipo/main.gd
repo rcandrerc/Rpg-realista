@@ -2227,7 +2227,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 			var n: float = dmg * randf_range(0.85, 1.15)
 			crit_on = randf() < P.st.critico
 			if crit_on:
-				n *= 2.0
+				n = n * 2.0 + float(P.st.get("danoCritico", 0)) # + dano crítico do equipamento (André 2026-11-17)
 			if e.vuln > tempo:
 				n *= 1.0 + e.vuln_k
 			if e.has("nivel"):
@@ -2245,7 +2245,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	dmg *= randf_range(0.85, 1.15) # como no Quimera: ±15% e crítico ×2
 	var crit: bool = randf() < P.st.critico
 	if crit:
-		dmg *= 2.0
+		dmg = dmg * 2.0 + float(P.st.get("danoCritico", 0)) # + dano crítico do equipamento (André 2026-11-17)
 	if e.vuln > tempo:
 		dmg *= 1.0 + e.vuln_k
 	if e.has("nivel"): # diferença de nível (Quimera)
@@ -4633,7 +4633,7 @@ func ferir_treino(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	dmg *= randf_range(0.85, 1.15)
 	var crit: bool = randf() < P.st.critico
 	if crit:
-		dmg *= 2.0
+		dmg = dmg * 2.0 + float(P.st.get("danoCritico", 0)) # + dano crítico do equipamento (André 2026-11-17)
 	if e.vuln > tempo:
 		dmg *= 1.0 + e.vuln_k
 	if h.get("contra_ate", 0.0) > tempo:

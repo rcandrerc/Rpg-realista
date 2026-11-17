@@ -1187,6 +1187,7 @@ func montar_status() -> void:
 	var itens := [
 		["Vida", "%d / %d" % [ceil(m.h.vida), st.vidaMax]], ["Mana", "%d / %d" % [floor(m.h.mana), st.manaMax]],
 		["Defesa", "%d (-%s%% de dano)" % [st.defesa, P.num(st.reducao * 100, 0)]], ["Crítico", "%s%%" % P.num(st.critico * 100, 1)],
+		["Dano crítico", "+%d" % int(round(float(st.get("danoCritico", 0))))], # André 2026-11-17: número somado no golpe crítico
 		["Dano físico", P.num(st.danoFisico, 1)], ["Dano mágico", P.num(st.danoMagico, 1)],
 		["Recarga", "-%s%%" % P.num(st.recarga * 100, 0)], ["Regeneração", "%s vida/s · %s mana/s (fora de luta)" % [P.num(st.regenVida, 1), P.num(st.regenMana, 1)]],
 		["Estamina", "%d / %d" % [floor(m.trabalho.sta), m.trabalho.sta_max()]], ["Vigor", "%d / %d" % [floor(P.vigor()), int(P.dados.vigor.max)]],
@@ -2945,7 +2946,8 @@ func montar_mochila() -> void:
 		var d := rotulo(dica, 14, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
-	montar_conjunto()
+	# quadro "Conjunto" embaixo da mochila saiu (André 2026-11-17, remoção aprovada: "pode apagar esse conjunto lá
+	# embaixo"); o bônus agora aparece no cartão de cada peça (lista_conjunto). montar_conjunto() fica para quem quiser voltar
 
 # célula da mochila: tocar escolhe (ou marca, no Vender vários); segurar perto de quem compra liga o Vender vários
 func celula_mochila(i: int, compra: bool) -> Button:
@@ -3171,6 +3173,38 @@ func montar_conjunto() -> void:
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
 
+# bônus de conjunto de uma raridade no cartão da peça: verde quando já tem as peças vestidas (dessa raridade ou
+# melhor), cinza quando ainda falta. Os de vida/dano/área (2, 3, 6) e os de crítico (2, 4, 6)
+func lista_conjunto(r: int, compacto := false) -> Control:
+	var P = m.P
+	var n: int = P.pecas_conjunto()[r]
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	var tam := 13 if compacto else 14
+	v.add_child(rotulo("Conjunto %s · %d vestidas" % [P.dados.raridades[r].nome, n], tam, Color(P.dados.raridades[r].cor)))
+	var linhas := [] # só o conjunto de crítico (o antigo saiu, André 2026-11-17)
+	var cc: Array = P.dados.get("conjuntoCritico", [])
+	if r < cc.size() and cc[r] != null:
+		for t in ["2", "4", "6"]:
+			var p := []
+			for c in cc[r][t]:
+				p.append(P.texto_st(c, float(cc[r][t][c])))
+			linhas.append([int(t), ", ".join(p)])
+	# mesma quantidade numa linha só (André 2026-11-17: "2 peças" aparecia duas vezes)
+	var junta := {}
+	for l in linhas:
+		junta[l[0]] = (junta[l[0]] + ", " + l[1]) if junta.has(l[0]) else l[1]
+	linhas = []
+	for t in junta:
+		linhas.append([t, junta[t]])
+	linhas.sort_custom(func(a, b): return a[0] < b[0])
+	for l in linhas:
+		var ok: bool = n >= int(l[0])
+		var rt := rotulo("%d peças: %s" % [l[0], l[1]], tam, MELHOR if ok else CINZA_FALTA)
+		rt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(rt)
+	return v
+
 func trocar_pagina(n: int) -> void:
 	pag_mochila = n
 	sel_mochila = -1
@@ -3320,7 +3354,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	var tipo := ""
 	if P.eh_equip(it):
 		var lg: String = P.dados.itens[it.k].lugar
-		tipo = {"corpo": "Camisa", "pernas": "Calça", "capa": "Capa", "pes": "Botas", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
+		tipo = {"cabeca": "Capacete", "corpo": "Camisa", "pernas": "Calça", "capa": "Capa", "pes": "Botas", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
 		tipo += " · No corpo" if lugar != "" else ""
 	elif it.k == "tomo":
 		tipo = "Tomo de %s" % P.habs[it.h].nome
@@ -3346,6 +3380,8 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 			var q := rotulo(tdu, 16 if compacto else 18, PIOR if du <= dmax * 0.3 else TEXTO if du < dmax else APAGADO)
 			q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			info.add_child(q)
+	if P.eh_equip(it) and int(it.r) >= 1: # bônus de conjunto da raridade (André 2026-11-17): verde = já vale, cinza = falta
+		info.add_child(lista_conjunto(int(it.r), compacto))
 	if P.eh_equip(it): # reforço (igual ao Quimera, André 2026-11-07): +N de +máx, próxima chance, custo e se falhar
 		info.add_child(linha_reforco(it))
 	if P.eh_equip(it) and lugar == "":
@@ -3861,10 +3897,11 @@ func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 # (verde = melhor, vermelho = pior), as melhores primeiro; Trocar veste e a vestida vai para o lugar dela na mochila
 # (por isso trocar funciona mesmo com a mochila cheia). Online quem decide é o servidor (mensagem "item").
 const MELHOR := Color(0.5, 0.86, 0.45)
+const CINZA_FALTA := Color(0.46, 0.44, 0.41) # bônus de conjunto que ainda falta (André 2026-11-17)
 const PIOR := Color(0.92, 0.42, 0.36)
 # peso de cada número só para pôr a lista em ordem (melhor primeiro); o que aparece na tela são os números de verdade
 const PESO_ST := {"vida": 1.0 / 20.0, "mana": 1.0 / 20.0, "defesa": 1.0 / 5.0, "danoFisico": 1.0 / 5.0, "danoMagico": 1.0 / 5.0,
-	"critico": 1.0 / 0.01, "danoK": 1.0 / 0.05, "areaK": 1.0 / 0.05, "regenManaK": 1.0 / 0.05}
+	"critico": 1.0 / 0.01, "danoCritico": 1.0 / 5.0, "danoK": 1.0 / 0.05, "areaK": 1.0 / 0.05, "regenManaK": 1.0 / 0.05}
 
 # quadradinho "Mostrar capacete": toca em qualquer parte da linha para marcar ou desmarcar (o bônus da peça continua)
 func linha_mostrar_capacete(tam := 13) -> Control:

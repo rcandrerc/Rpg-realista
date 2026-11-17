@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
@@ -79,6 +79,7 @@ export function calcularStatus(p, passivas = {}) {
     danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0)),
     danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0)),
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0)),
+    danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
     areaK: eq.areaK, // área das skills a mais (conjunto de 6 peças)
     estaminaMax: Math.round(ESTAMINA.base + ESTAMINA.porNivel * n + ESTAMINA.porDes * a.des),
@@ -158,20 +159,28 @@ export function pecasDoConjunto(equip = {}) {
 }
 // Soma das peças e do bônus de conjunto (o melhor de 2, 3 e 6 peças)
 export function bonusEquip(equip = {}, atr = null) {
-  const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
+  const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoCritico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
   for (const l of LUGARES) {
     const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
     if (atr && !reforcoOk(it, atr)) continue; // como no Quimera: reforçada além do seu atributo não dá bônus
     const rk = reforcoK(it);
-    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' ? rk.critico : rk.st);
+    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st);
   }
   const n = pecasDoConjunto(equip || {});
-  for (const t of [2, 3, 6]) {
-    let melhor = 0;
-    for (let r = 1; r < CONJUNTO.length; r++) if (n[r] >= t) melhor = r;
-    if (melhor) for (const [c, v] of Object.entries(CONJUNTO[melhor][t])) b[c] += v;
-  }
+  // o CONJUNTO antigo (vida/mana, dano, área...) não vale mais (André 2026-11-17, remoção aprovada: "remove os bônus
+  // antigos... tá dando muita coisa"): só o conjunto de crítico. Para voltar: somar CONJUNTO[r][2|3|6] aqui.
+  for (const { bon } of conjuntoAtivo(n)) for (const [c, v] of Object.entries(bon)) b[c] += v; // conjunto (André 2026-11-17)
   return b;
+}
+// conjunto (CONJUNTO_CRITICO): para 2, 4 e 6 peças, a melhor raridade que tem as peças; os níveis somam
+export function conjuntoAtivo(n) {
+  const out = [];
+  for (const t of [2, 4, 6]) {
+    let melhor = 0;
+    for (let r = 1; r < CONJUNTO_CRITICO.length; r++) if (n[r] >= t) melhor = r;
+    if (melhor) out.push({ t, r: melhor, bon: CONJUNTO_CRITICO[melhor][t] });
+  }
+  return out;
 }
 // Item na mochila: { k, r } peça (r = raridade 0..4) · { k, n } poção · { k: 'tomo', h, nv, n } Tomo da skill h
 const ANTIGOS = { manto: 'peitoral', oculos: 'colar' }; // André 2026-11-03: sem Óculos (era do Quimera); quem tinha ganha um Colar da mesma raridade
