@@ -361,8 +361,22 @@ export const Kit = {
   // plantas maduras no lote e o legume na mochila (pela colheita mínima). Nunca passa do que falta.
   faltaPlantaMissao(j, t, precisa) {
     const p = j.prog, k = t.c, P = PLANTAS[k], E = etapaAtual(p);
+    // levar o pack sem pack (packsRefazer): o legume do pack, direto (abóbora) ou pela receita (o milho do pão de milho;
+    // André 2026-11-17: "milho continua em 25%"). O que já está feito na mochila (os pães) não pede legume de novo.
     const refaz = E?.ev === 'pack' ? this.packsRefazer?.(j, E) : null;
-    if (refaz?.usa?.[k]) precisa += Math.ceil(refaz.usa[k] / P.y[0]);
+    if (refaz?.usa) {
+      let un = 0;
+      const abre = (i, q, fundo) => {
+        if (q <= 0 || fundo > 4) return;
+        if (i === k) { un += q; return; }
+        if (PLANTAS[i]) return;
+        const R = receitaItem(i); if (!R) return;
+        const falta = Math.max(0, q - (fundo ? 0 : contar(p.mochila, i)));
+        for (const [x, n] of Object.entries(R)) abre(x, n * falta, fundo + 1);
+      };
+      for (const [i, q] of Object.entries(refaz.usa)) abre(i, q, 0);
+      precisa += Math.ceil(un / P.y[0]);
+    }
     if (precisa <= 0) return false;
     if (E?.ev === 'plantar' && E.k === k && (p.hist.n || 0) < totalEtapa(E)) return true; // "Plante 4 sementes de abóbora": as 4 da etapa
     let maduras = 0;

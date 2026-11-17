@@ -135,3 +135,22 @@ if (L2) {
     ok(h && h[2] >= PLANTAS.milho.G && !t.mf, `passados os segundos, o lote vai pronto para o celular (${JSON.stringify(h)})`);
   } else ok(false, 'quarto lote');
 }
+
+// André 2026-11-17 ("milho continua em 25%"): levar o pack sem pack, refazendo: o milho do pão de milho do pack também
+// cresce pela missão (antes só o legume que o pack pede direto, a abóbora)
+{
+  const j5 = s.adicionarJogador('E', 'Edu', undefined, { conta: 5 }); ev();
+  j5.criando = false; j5.x = -24; j5.z = 111; j5.prog.ouro = 5000;
+  s.comprarLote('E', { x0: -28, z0: 107, x1: -20, z1: 115 }); ev();
+  const L5 = s.loteDe(j5), p5 = j5.prog;
+  if (L5) {
+    p5.mochila.fill(null); p5.mochila[0] = { k: 'enxada', n: 1 }; p5.mochila[1] = { k: 'semente_milho', n: 6 };
+    p5.hist = { v: 2, p: idx('c3'), ac: true, e: etapasDe(M('c3')).findIndex((E) => E.ev === 'pack'), n: 0, m: 0, hz: { m: 'c3', u: { abobora: 4, milho: 4, rabanete: 6 } } };
+    const cs = ['-27,109', '-26,109', '-25,109', '-24,109', '-23,109', '-22,109'];
+    for (const c of cs) { p5.vigor = { v: 999, t: Date.now() }; s.horta('E', { acao: 'arar', c }); p5.vigor = { v: 999, t: Date.now() }; s.horta('E', { acao: 'plantar', c, s: 'milho' }); }
+    ev(); passarMissao(s);
+    const prontas = cs.filter((c) => L5.horta[c].g >= PLANTAS.milho.G).length;
+    // 2 packs refeitos: 4 pães de milho = 8 milhos = 4 pés (colheita mínima 2); o 5º e o 6º crescem normal
+    ok(prontas === 4, `refazendo os packs: o milho dos pães cresce pela missão, só o que falta (${prontas}/6)`);
+  } else ok(false, 'quinto lote');
+}
