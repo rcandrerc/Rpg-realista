@@ -12,7 +12,7 @@
 // Ele nunca negocia, não compra terreno, não conversa (o servidor também barra: ROBO_NAO em server/index.js).
 import fs from 'node:fs';
 import { Client } from 'colyseus.js';
-import { xpProximo } from '../../shared/progresso.js';
+import { xpProximo, reforcoOk } from '../../shared/progresso.js';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
@@ -245,12 +245,17 @@ function lutar(e, agora) {
 // ---------- caçar (sem missão para o nível dele, ou esperando) ----------
 let campoCaca = null, campoT = 0;
 function cacar(agora) {
-  const e = alvoPerto(campoCaca ? 40 : 18);
+  // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
+  // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
+  let e = alvoPerto(campoCaca ? 40 : 18);
+  if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
   if (e) return lutar(e, agora);
   if (CAMPO) campoCaca = CAMPO;
   else if (!campoCaca || agora - campoT > 20 * 60e3) {
     const nv = prog?.nivel || 1;
-    const bons = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && (c.nivel || 1) >= nv - 6).sort((a, b) => d2(eu, a) - d2(eu, b));
+    // ronda 2026-11-17: no Nv 47 (h11) o robô passou 2 turnos sem XP indo para o campo Nv 42, que está na névoa, e para o
+    // covil da gruta. Só campo aberto e fora das grutas
+    const bons = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && (c.nivel || 1) >= nv - 6 && !/^Covil/.test(c.nome || '') && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => d2(eu, a) - d2(eu, b));
     campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || CACA[0]; campoT = agora;
   }
   if (irPara(campoCaca.x + (Math.random() - 0.5) * 6, campoCaca.z + (Math.random() - 0.5) * 6, 4)) parar();
@@ -283,6 +288,19 @@ function vendedorPerto() {
     const d = d2(eu, n); if (d < md) { md = d; b = n; }
   }
   return b;
+}
+// ---------- vestir (ronda 2026-11-17: o robô jogava sem nada no corpo e vendia toda peça que caía) ----------
+// a peça da mochila melhor que a do corpo no mesmo lugar (raridade, depois reforço) e que o atributo deixa usar
+let vestirT = 0;
+const notaPeca = (o) => (o ? (o.r | 0) * 100 + (o.e | 0) : -1);
+function vestir(agora) {
+  if (!prog?.mochila || !prog.equip || agora - vestirT < 4000) return false;
+  for (let i = 0; i < prog.mochila.length; i++) {
+    const o = prog.mochila[i]; if (!o || !ehEquip(o.k) || !reforcoOk(o, prog.atr)) continue;
+    const l = ITENS[o.k]?.lugar; if (!l || !(l in prog.equip)) continue;
+    if (notaPeca(o) > notaPeca(prog.equip[l])) { vestirT = agora; R.vestiu = (R.vestiu || 0) + 1; acao('item', { acao: 'equipar', i }); return true; }
+  }
+  return false;
 }
 function vender(agora) {
   const m = prog?.mochila; if (!m) return false;
@@ -528,7 +546,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vender(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);

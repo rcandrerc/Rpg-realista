@@ -86,9 +86,11 @@ jobs:
       - name: Jogar com Vulkan por software (metade da tela do X7)
         env:
           LP_NUM_THREADS: 3 # o desenho por software deixa um núcleo livre: com todos ocupados a máquina do GitHub perdeu contato (2026-11-16)
+          # 2026-11-17 (ronda): ainda perdeu contato uma vez (rodada das 23:29). O jogo roda com prioridade baixa (nice) para
+          # o programa do GitHub que conversa com a máquina sempre ter vez
         run: |
           RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 420)) stdbuf -oL -eL \
-            xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
+            nice -n 15 xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
             --resolution 1356x610 --render-thread safe -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/vulkan.log 2>&1 || true
           grep -E "^CELULAR" /tmp/cel/vulkan.log | cut -c1-400 | tail -40
       - name: Relatório

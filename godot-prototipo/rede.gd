@@ -328,6 +328,7 @@ func _sair_google() -> void:
 
 func fechar() -> void:
 	_volta = {} # saiu de propósito: não volta como o mesmo herói
+	_parar_linha_ws()
 	if ws:
 		ws.close()
 	ws = null
@@ -431,6 +432,39 @@ func _abrir_ws(token: String) -> void:
 	if ws.connect_to_url(url, TLSOptions.client(null, _nome_servidor()) if _reserva and _ip_reserva() != "" else null) != OK:
 		ws = null
 		caiu.emit("ws")
+		return
+	_ligar_linha_ws(ws)
+
+# Ronda 2026-11-17 (registros do Poco X7 do André, 22 entradas): a sala respondia em 0,3 a 2 s depois do toque em Entrar,
+# mas a conexão com ela (TLS + WebSocket) levava mais 13 a 20 s. O robô entra na mesma sala em 2 s: no celular a conexão
+# só andava um passo por quadro (ws.poll no _process), e atrás da capa os quadros são pesados. Igual ao HTTP
+# (pedir: use_threads), uma linha própria cuida da conexão até ela abrir (ou falhar); depois volta tudo para o quadro.
+var _linha_ws: Thread = null
+var _linha_ws_parar := false
+func _ligar_linha_ws(peer: WebSocketPeer) -> void:
+	_parar_linha_ws()
+	if OS.has_feature("web"):
+		return
+	_linha_ws_parar = false
+	_linha_ws = Thread.new()
+	_linha_ws.start(_conectar_na_linha.bind(peer))
+
+func _conectar_na_linha(peer: WebSocketPeer) -> void:
+	var fim := Time.get_ticks_msec() + 30000
+	while not _linha_ws_parar and Time.get_ticks_msec() < fim:
+		peer.poll()
+		if peer.get_ready_state() != WebSocketPeer.STATE_CONNECTING:
+			return
+		OS.delay_msec(4)
+
+func _parar_linha_ws() -> void:
+	if _linha_ws != null:
+		_linha_ws_parar = true
+		_linha_ws.wait_to_finish()
+		_linha_ws = null
+
+func _exit_tree() -> void:
+	_parar_linha_ws()
 
 # Manda uma mensagem para a sala (igual a room.send(tipo, dados) do site)
 func enviar(tipo: String, dados = null) -> void:
@@ -473,6 +507,13 @@ func _passo(dt: float) -> void:
 			_buscar_vinculo()
 	if ws == null:
 		return
+	if _linha_ws != null: # a linha da conexão ainda está abrindo o WebSocket: o quadro não mexe nele
+		if _linha_ws.is_alive():
+			return
+		_linha_ws.wait_to_finish()
+		_linha_ws = null
+		if Engine.has_meta("lentidao"):
+			Engine.get_meta("lentidao").marcar("ws") # o WebSocket abriu (registro da entrada)
 	ws.poll()
 	var st := ws.get_ready_state()
 	if conectado and st == WebSocketPeer.STATE_OPEN and ws.get_available_packet_count() == 0 and ult_pacote_ms > 0 and Time.get_ticks_msec() - ult_pacote_ms > SILENCIO_MAX_MS:
