@@ -878,27 +878,21 @@ export const Amiga = {
     if (plano) { if (ia.atividade && ia.atividade !== plano) this.fimAtividadeAmiga(a, true); this.comecarAtividadeAmiga(a, plano); }
   },
   // ---------- duelo (André 2026-11-17: "chamar duelo tanto contra Dario e Cecília qt contra jogadores") ----------
-  // Chamou pelo botão "Duelo": topa ou não na hora, pelo humor (sorteio que vale DUELO.npc.humor s para essa pessoa),
-  // pela vida, pela noite e pela IA do dia (acabou = "tô ocupada"). true = aceitou (a Simulacao começa o duelo).
+  // Chamou pelo botão "Duelo": aceita ou recusa na hora, como um jogador (André: "o botão de aceitar e recusar, sem chat
+  // pronto"). Decide pelo humor (sorteio que vale DUELO.npc.humor s para essa pessoa), pela vida, pela noite e pela IA
+  // do dia (acabou = recusa). true = aceitou (a Simulacao começa o duelo).
   pedidoDueloAmiga(j) {
-    const a = this.amiga, FD = this.AMIGA.falas.duelo || {}, N = DUELO.npc; if (!a || !j) return false;
-    const nao = (k) => { this.dizerAmiga(FD.nao?.[k] || FD.nao?.vontade, true, j.id); this.evento({ t: 'aviso', para: j.id, texto: `${this.AMIGA.nome} recusou o duelo` }); return false; };
-    if (this.semIaAmiga(a, j) || a.troca || (a.time && !a.time.membros.includes(j.id) && this.emCombate(a))) return nao('ocupada');
+    const a = this.amiga, N = DUELO.npc; if (!a || !j) return false;
+    const nao = () => { this.evento({ t: 'aviso', para: j.id, texto: `${this.AMIGA.nome} recusou o duelo` }); return false; };
+    if (this.semIaAmiga(a, j) || a.troca || (a.time && !a.time.membros.includes(j.id) && this.emCombate(a))) return nao();
     const ia = a.ia, h = ia.dueloHumor;
-    let dv = h && h.conta === j.conta && h.ate > this.tempo ? h : null;
-    if (dv && !dv.aceita) return nao('jaFalei');
-    if (!dv) {
-      const contra = [];
-      if (a.vida < a.vidaMax * 0.5) contra.push(['cansada', N.cansada]);
-      if (ehNoite(horaDoJogo(j.prog.dia))) contra.push(['noite', N.noite]);
-      let p = N.base + Math.min(10, this.amizadeAmiga(j) || 0) * N.porAmizade;
-      for (const [, n] of contra) p -= n;
-      contra.sort((x, y) => y[1] - x[1]);
-      dv = ia.dueloHumor = { ate: this.tempo + N.humor, conta: j.conta, aceita: Math.random() < Math.max(N.min, Math.min(N.max, p)), motivo: contra[0]?.[0] || 'vontade' };
-      if (!dv.aceita) return nao(dv.motivo);
-    }
-    ia.dueloHumor = null; // aceitou: o próximo pedido sorteia de novo
-    this.dizerAmiga(sorteia(FD.sim), true, j.id);
+    if (h && h.conta === j.conta && h.ate > this.tempo && !h.aceita) return nao();
+    let p = N.base + Math.min(10, this.amizadeAmiga(j) || 0) * N.porAmizade;
+    if (a.vida < a.vidaMax * 0.5) p -= N.cansada;
+    if (ehNoite(horaDoJogo(j.prog.dia))) p -= N.noite;
+    const aceita = Math.random() < Math.max(N.min, Math.min(N.max, p));
+    ia.dueloHumor = aceita ? null : { ate: this.tempo + N.humor, conta: j.conta, aceita: false };
+    if (!aceita) return nao();
     ia.cer = null; ia.viagem = null;
     return true;
   },
@@ -914,12 +908,8 @@ export const Amiga = {
     const c = { s: { pertoDeMim: 1, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
     this.atacarAmiga(j, o, c);
   },
-  // o duelo acabou: comenta no chat (ganhou, perdeu ou empatou) para quem duelou com ela
-  fimDueloAmiga(j, o, ganhou) {
-    const FD = this.AMIGA.falas.duelo; if (!FD || !o || o.bot) return;
-    this.pararAmiga(j); j.ia.cer = null;
-    this.dizerAmiga(sorteia(ganhou === true ? FD.ganhei : ganhou === false ? FD.perdi : FD.empate), false, o.id);
-  },
+  // o duelo acabou: para e volta para o que fazia (sem fala pronta)
+  fimDueloAmiga(j) { this.pararAmiga(j); j.ia.cer = null; },
   sairTimeAmiga(id) { // tirar do time pelo botão (sem fala)
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !(a.time && a.time === j.time)) return;
     a.ia.noTime = false; this.sairDoTime(a, `${this.AMIGA.nome} saiu do time`); a.ia.fase = 'pensar'; this.pocoesAmiga(a);

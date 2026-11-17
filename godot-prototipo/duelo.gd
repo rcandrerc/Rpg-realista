@@ -3,7 +3,7 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd)
 const Menu = preload("res://menu.gd")
 # Duelo (André 2026-11-17: "opção pra chamar duelo tanto contra Dario e Cecília qt contra jogadores"). Quem decide tudo
 # é o servidor (shared/duelo.js): aqui só o botão do cartão (troca.gd), o pedido com Aceitar/Recusar, o círculo no chão,
-# a contagem, o tempo que falta, o nome e a barra do outro em vermelho e o resultado no fim.
+# a contagem, o nome e a barra do outro em vermelho e o resultado no fim.
 
 var m # main.gd
 var com := "" # id do outro no duelo ("" = sem duelo)
@@ -11,10 +11,9 @@ var nome := ""
 var centro := Vector3.ZERO
 var raio := 20.0
 var luta_em := 0.0 # m.tempo em que a luta começa (fim da contagem)
-var ate := 0.0 # m.tempo em que acaba pelo tempo
 var anel: MeshInstance3D
 var _mat: StandardMaterial3D
-var rotulo: Label # contagem (3, 2, 1) e o tempo que falta
+var rotulo: Label # contagem (3, 2, 1) e depois "Duelo" (sem limite de tempo: sair do círculo encerra)
 var _cor := {} # cor de antes da barra e do nome do outro
 var _aviso_t := 0.0
 
@@ -56,7 +55,6 @@ func _inicio(ev: Dictionary) -> void:
 	var z := float(ev.get("z", m.heroi.position.z))
 	centro = Vector3(x, m.chao_em(x, z), z)
 	luta_em = m.tempo + float(ev.get("conta", 3))
-	ate = luta_em + float(ev.get("max", 120))
 	_montar_anel()
 	_pintar_outro(true)
 	if m.hud.festa:
@@ -165,9 +163,8 @@ func _process(_dt: float) -> void:
 		r.add_theme_font_size_override("font_size", 56)
 		r.text = Idioma.frase("Lutem!")
 	else:
-		var s := int(max(0.0, ate - m.tempo))
 		r.add_theme_font_size_override("font_size", 22)
-		r.text = "%s  %d:%02d" % [Idioma.frase("Duelo"), s / 60, s % 60]
+		r.text = Idioma.frase("Duelo: saia do círculo para encerrar")
 	if _mat != null: # o círculo pulsa de leve
 		_mat.albedo_color.a = 0.65 + 0.25 * sin(m.tempo * 4.0)
 	# perto da borda: avisa uma vez a cada 2 s (sair = perde)

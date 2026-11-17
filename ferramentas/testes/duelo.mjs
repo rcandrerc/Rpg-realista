@@ -40,6 +40,11 @@ correr(DUELO.contagem + 0.1);
 ok(a.duelo?.luta && s.inimigosDe(a).includes(b), 'depois da contagem o outro vira alvo');
 s.ferir(b, 30, a, { q: 1 });
 ok(b.vida < v0, 'no duelo o golpe fere');
+{ // dano como no jogo normal: a defesa de quem apanha vale, sem igualar nível (André 2026-11-17)
+  const st = b.st, red = st.reducao, v1 = b.vida; st.reducao = 0.5; b.prog.nivel = 50;
+  s.ferir(b, 40, a); ok(v1 - b.vida === 20, 'defesa do outro vale (40 com 50% de defesa = 20), sem ajuste de nível');
+  st.reducao = red; b.prog.nivel = 1;
+}
 // atordoar pega com metade do tempo
 s.ferir(b, 1, a, { atordoa: 2 });
 ok(b.presoAte > s.tempo && b.presoAte - s.tempo <= 2 * DUELO.travar + 0.01, 'atordoar vale metade do tempo');
@@ -64,27 +69,22 @@ perto(a, a.duelo.x + DUELO.raio + 2, a.duelo.z);
 correr(0.1);
 ok(!a.duelo && evs((e) => e.t === 'duelo' && e.fase === 'fim' && e.para === 'a' && e.ganhou === false && e.motivo === 'fora').length, 'saiu do círculo: perdeu');
 
-// tempo esgotado: vence quem tem mais vida
-perto(a, 0, 4); perto(b, 2, 4);
-a.dueloPedidoT = -99; s.duelo('a', { acao: 'pedir', com: 'b' }); s.duelo('b', { acao: 'aceitar', com: 'a' });
-correr(DUELO.contagem + 0.1);
-s.ferir(a, 40, b, { q: 1 });
-s.eventos.length = 0; vistos = [];
-a.duelo.ate = s.tempo; correr(0.1);
-ok(evs((e) => e.t === 'duelo' && e.fase === 'fim' && e.para === 'b' && e.ganhou === true && e.motivo === 'tempo').length, 'tempo acabou: vence quem tem mais vida');
-
 // não dá montado no barco nem trocando
 b.troca = {}; a.dueloPedidoT = -99; s.eventos.length = 0; vistos = [];
 s.duelo('a', { acao: 'pedir', com: 'b' });
 ok(!a.duelo && evs((e) => e.t === 'aviso' && /numa troca/.test(e.texto)).length, 'trocando: não duela');
 b.troca = null;
 
-// Cecília e Dario decidem na hora
+// Cecília e Dario aceitam ou recusam como um jogador, sem fala pronta (André 2026-11-17)
+perto(a, 0, 4);
 const cec = s.amiga, dario = s.amigoIaDe(DARIO.id), dar = dario.amiga;
 perto(cec, 1, 6); perto(dar, -1, 6);
+const fila = (o) => (o.ia.chatFila || []).length;
+const f0 = fila(cec);
 a.dueloPedidoT = -99; s.eventos.length = 0; vistos = [];
 sorte(0.99, () => s.duelo('a', { acao: 'pedir', com: cec.id }));
 ok(!cec.duelo && evs((e) => e.t === 'aviso' && /Cecília recusou o duelo/.test(e.texto)).length, 'Cecília sem vontade: recusa');
+ok(fila(cec) === f0, 'recusa sem mensagem pronta no chat');
 a.dueloPedidoT = -99;
 sorte(0, () => s.duelo('a', { acao: 'pedir', com: cec.id }));
 ok(!cec.duelo, 'logo depois de recusar, mantém o não (humor)');
@@ -92,15 +92,15 @@ cec.ia.dueloHumor = null; a.dueloPedidoT = -99;
 s.semIaAmiga = () => true; // a IA do dia acabou
 sorte(0, () => s.duelo('a', { acao: 'pedir', com: cec.id }));
 delete s.semIaAmiga;
-ok(!cec.duelo && cec.ia.chatFila?.some((m) => /ocupad/.test(m.texto)), 'IA do dia acabou: "tô ocupada"');
+ok(!cec.duelo, 'IA do dia acabou: recusa');
 cec.ia.dueloHumor = null; a.dueloPedidoT = -99;
+const d0 = fila(dar);
 sorte(0, () => s.duelo('a', { acao: 'pedir', com: dar.id }));
-ok(dar.duelo && dar.duelo === a.duelo, 'Dario com vontade: aceita');
+ok(dar.duelo && dar.duelo === a.duelo && fila(dar) === d0, 'Dario com vontade: aceita, sem fala pronta');
 correr(DUELO.contagem + 0.1);
 const vA = a.vida;
 correr(6);
 ok(a.vida < vA || !a.duelo, 'o Dario luta de verdade no duelo');
+ok(!a.duelo || a.duelo.ate === undefined, 'sem limite de tempo');
 if (a.duelo) s.duelo('a', { acao: 'desistir' });
-ok(!a.duelo && !dar.duelo && dar.vida === dar.vidaMax, 'desistir encerra e ele volta inteiro');
-ok(dar.ia.chatFila?.some((m) => DARIO.falas.duelo.ganhei.includes(m.texto)), 'o Dario comenta que ganhou');
-ok(AMIGA.falas.duelo && DARIO.falas.duelo.sim[0] !== AMIGA.falas.duelo.sim[0], 'Cecília e Dario têm falas próprias de duelo');
+ok(!a.duelo && !dar.duelo && dar.vida === dar.vidaMax && fila(dar) === d0, 'desistir encerra, ele volta inteiro e não comenta no chat');

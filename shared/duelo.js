@@ -7,7 +7,7 @@
 // - Contagem (DUELO.contagem s) e luta dentro de um círculo de DUELO.raio m: sair dele = perde.
 // - Só os dois se batem (inimigosDe põe o outro na lista de alvos). Monstros continuam valendo como sempre.
 // - Acaba quando um chega a DUELO.fim da vida (ninguém morre), quando alguém sai, cai para um monstro ou desiste;
-//   depois de DUELO.max s vence quem tem mais vida em %.
+//   sem limite de tempo (André 2026-11-17: "quem quiser encerrar só sai do círculo").
 // - Sem castigo: não perde ouro, item nem XP, e o equipamento não desgasta (só a morte desgasta, e no duelo ninguém morre).
 //   Não dá XP nem drop. No fim os dois voltam com vida e mana cheias. O placar (prog.duelos) fica na conta.
 import { DUELO, HEROI } from './dados.js';
@@ -75,7 +75,7 @@ export const Duelo = {
   },
 
   comecarDuelo(a, b) {
-    const D = { a: a.id, b: b.id, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, inicio: this.tempo + DUELO.contagem, ate: this.tempo + DUELO.contagem + DUELO.max, luta: false };
+    const D = { a: a.id, b: b.id, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, inicio: this.tempo + DUELO.contagem, luta: false };
     a.duelo = b.duelo = D;
     (this.duelos ||= new Set()).add(D);
     for (const j of [a, b]) {
@@ -84,7 +84,7 @@ export const Duelo = {
       if (j.pesca) this.pararPesca(j, null);
       this.cancelarVila(j, null);
       const o = j === a ? b : a;
-      this.evento({ t: 'duelo', para: j.id, fase: 'inicio', com: o.id, nome: o.nome, x: Math.round(D.x * 100) / 100, z: Math.round(D.z * 100) / 100, r: DUELO.raio, conta: DUELO.contagem, max: DUELO.max });
+      this.evento({ t: 'duelo', para: j.id, fase: 'inicio', com: o.id, nome: o.nome, x: Math.round(D.x * 100) / 100, z: Math.round(D.z * 100) / 100, r: DUELO.raio, conta: DUELO.contagem });
     }
   },
 
@@ -101,10 +101,6 @@ export const Duelo = {
       if (!D.luta && this.tempo >= D.inicio) {
         D.luta = true;
         for (const j of [a, b]) this.evento({ t: 'duelo', para: j.id, fase: 'luta' });
-      }
-      if (this.tempo >= D.ate) {
-        const pa = a.vida / a.vidaMax, pb = b.vida / b.vidaMax;
-        this.fimDuelo(D, Math.abs(pa - pb) < 0.005 ? null : pa > pb ? a : b, 'tempo');
       }
     }
   },
@@ -127,7 +123,7 @@ export const Duelo = {
     if (h.vulneravel) alvo.vuln = { k: h.vulneravel.k * k, ate: this.tempo + h.vulneravel.dur };
   },
 
-  // vencedor: corpo ou null (empate / ninguém). motivo: vida, fora, tempo, caiu, saiu, desistiu
+  // vencedor: corpo ou null (empate / ninguém). motivo: vida, fora, caiu, saiu, desistiu
   fimDuelo(D, vencedor, motivo) {
     if (!D || !this.duelos?.has(D)) return;
     this.duelos.delete(D);
@@ -150,7 +146,7 @@ export const Duelo = {
       const o = this.jogadores.get(j.id === D.a ? D.b : D.a);
       const ganhou = vencedor ? vencedor === j : null;
       this.evento({ t: 'duelo', para: j.id, fase: 'fim', com: o?.id ?? null, ganhou, vencedor: nomeV, motivo, placar: j.prog.duelos || { v: 0, d: 0 } });
-      if (j.bot && o) this.amigoIaDe(j)?.fimDueloAmiga(j, o, ganhou, motivo);
+      if (j.bot) this.amigoIaDe(j)?.fimDueloAmiga(j);
     }
   },
 };
