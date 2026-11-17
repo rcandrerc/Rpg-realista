@@ -1414,6 +1414,7 @@ func _process_parte(dt: float) -> void:
 	# não em cima dele mesmo) e voltam no fim, nas posições novas
 	var moveis_novos: Array = []
 	m.terreno.moveis = []
+	var meu_no: Node3D = null # o carrinho/barco que eu dirijo
 	var a_pe: bool = meu_k == "" and m.mov.chao and m.mov.esc == null and m.mov.vy <= 0.0
 	for chave in veic:
 		var v: Dictionary = veic[chave]
@@ -1436,10 +1437,15 @@ func _process_parte(dt: float) -> void:
 			ry = o.no.rotation.y
 		var agua: bool = v.tipo != "c"
 		alvo.y = float(m.terreno.agua.nivel) - (0.25 if v.tipo == "n" else 0.0) if agua else m.terreno.altura(alvo.x, alvo.z)
+		if v.tipo == "c": # tira a altura que o _inclinar_carrinho somou no quadro passado (a conta segue do chão do meio)
+			no.position.y -= float(v.get("incl_dy", 0.0))
+			v.incl_dy = 0.0
 		var antes := no.position
 		var ry_antes := no.rotation.y
 		no.position = alvo if dirigindo_eu or no.position.distance_to(alvo) > 6.0 else no.position.lerp(alvo, minf(1.0, dt * 12.0))
 		no.rotation.y = lerp_angle(no.rotation.y, ry, minf(1.0, dt * 12.0))
+		if v.tipo == "c":
+			_inclinar_carrinho(v, no, dt)
 		# velocidade e giro de verdade (servem para o meu e para o dos outros: rodas, volante e remada)
 		var vel: float = Vector2(no.position.x - antes.x, no.position.z - antes.z).length() / maxf(dt, 0.001)
 		if vel > 12.0:
@@ -1467,6 +1473,7 @@ func _process_parte(dt: float) -> void:
 		if v.dirigindo and v.tipo != "n":
 			if dirigindo_eu:
 				sentados["eu"] = v
+				meu_no = no
 			elif m.online and m.online.outros.has(v.dono):
 				sentados[str(v.dono)] = v
 	m.terreno.moveis = moveis_novos
@@ -1483,7 +1490,11 @@ func _process_parte(dt: float) -> void:
 		else: # no convés, na frente do castelo de popa (o leme)
 			dy = 0.33
 			atras = -2.3
-		m.heroi.position.y = (float(m.terreno.agua.nivel) if meu_k != "carrinho" else m.heroi.position.y) + dy
+		if meu_k == "carrinho" and meu_no != null: # no banco do trator, deitado junto com ele na ladeira e na ponte
+			m.heroi.position = meu_no.transform * Vector3(0, dy, atras)
+			atras = 0.0
+		else:
+			m.heroi.position.y = (float(m.terreno.agua.nivel) if meu_k != "carrinho" else m.heroi.position.y) + dy
 		if atras != 0.0:
 			m.heroi.position.x += sin(m.mov.ry) * atras
 			m.heroi.position.z += cos(m.mov.ry) * atras
@@ -1585,6 +1596,69 @@ func _levar(antes: Array, agora: Array, qual: String) -> void:
 	m.mov.ry += angle_difference(p0.a, p1.a)
 	m.heroi.position += d # já neste quadro (o main.gd andou o herói antes do carrinho se mexer)
 
+# Carrinho acompanha o chão (André 2026-11-17: "numa descida ele fica com as rodas da frente meio flutuando; queria que
+# acompanhasse"): o trator deita para a frente/trás pelo chão embaixo do eixo da frente e do de trás e para o lado pelo
+# chão embaixo das rodas da esquerda e da direita; a altura é a da linha entre os eixos (as rodas encostam). Na lombada
+# o meio não afunda no chão. Suave (mola curta), e só refaz a conta quando ele se mexe (parado não custa nada).
+const CARRO_EIXO_F := 1.0 # z do eixo da frente (rodas pequenas)
+const CARRO_EIXO_T := -0.36 # z do eixo de trás (rodas grandes)
+const CARRO_BITOLA := 0.56 # meia distância entre as rodas (esquerda/direita)
+const CARRO_INCL_MAX := 0.5 # rad (~29°): mais que isso nem estrada de montanha tem
+func _chao_xz(no: Node3D, lx: float, lz: float) -> float:
+	var s := sin(no.rotation.y)
+	var c := cos(no.rotation.y)
+	return m.terreno.altura(no.position.x + lx * c + lz * s, no.position.z - lx * s + lz * c)
+
+func _inclinar_carrinho(v: Dictionary, no: Node3D, dt: float) -> void:
+	var chave := Vector3(no.position.x, no.rotation.y, no.position.z)
+	var alvo: Vector3 = v.get("incl_alvo", Vector3.ZERO) # x = frente (rad), y = altura, z = lado (rad)
+	if not v.has("incl_chave") or (v.incl_chave as Vector3).distance_squared_to(chave) > 0.0004:
+		v.incl_chave = chave
+		var hf: float = (_chao_xz(no, -CARRO_BITOLA, CARRO_EIXO_F) + _chao_xz(no, CARRO_BITOLA, CARRO_EIXO_F)) * 0.5
+		var hte: float = _chao_xz(no, -CARRO_BITOLA, CARRO_EIXO_T)
+		var htd: float = _chao_xz(no, CARRO_BITOLA, CARRO_EIXO_T)
+		var ht: float = (hte + htd) * 0.5
+		var entre: float = CARRO_EIXO_F - CARRO_EIXO_T
+		var y: float = ht + (hf - ht) * (-CARRO_EIXO_T / entre) # a linha entre os eixos, no z = 0 do trator
+		y = maxf(y, no.position.y - 0.12) # lombada: o chassi não entra no chão
+		alvo = Vector3(clampf(-atan2(hf - ht, entre), -CARRO_INCL_MAX, CARRO_INCL_MAX), y - no.position.y,
+			clampf(atan2(htd - hte, CARRO_BITOLA * 2.0), -CARRO_INCL_MAX, CARRO_INCL_MAX))
+		v.incl_alvo = alvo
+	var atual: Vector3 = v.get("incl", alvo)
+	if (v.get("incl_pos", no.position) as Vector3).distance_to(no.position) > 6.0:
+		atual = alvo # chegou agora ou pulou de lugar: já deitado certo
+	atual = atual.lerp(alvo, minf(1.0, dt * 10.0))
+	v.incl = atual
+	v.incl_pos = no.position
+	no.rotation.x = atual.x
+	no.rotation.z = atual.z
+	no.position.y += atual.y
+	v.incl_dy = atual.y
+
+# a carreta deita sozinha pelo chão embaixo do eixo dela (presa no engate do trator, que já deitou)
+func _inclinar_carreta(v: Dictionary, no: Node3D, car: Node3D, rel: float, dt: float) -> void:
+	var L: float = float(no.get_meta("carreta_eixo", 1.0))
+	var H: Vector3 = no.global_transform * CARRO_ENGATE
+	var eixo: Vector3 = v.get("eixo", H)
+	var a: float = no.rotation.y + rel
+	var lx := Vector3(cos(a), 0, -sin(a)) * 0.76
+	var hl: float = m.terreno.altura(eixo.x - lx.x, eixo.z - lx.z)
+	var hr: float = m.terreno.altura(eixo.x + lx.x, eixo.z + lx.z)
+	var hA: float = (hl + hr) * 0.5
+	# eixo da carreta: 0,07 abaixo e L atrás do engate; a roda (raio 0,45) encosta no chão
+	var sobe: float = clampf((hA + 0.45 - H.y + 0.07) / maxf(L, 0.1), -0.9, 0.9)
+	var frente: float = asin(sobe) # + = traseira mais alta que o engate: a frente da carreta desce
+	var lado: float = atan2(hr - hl, 1.52)
+	# já vem deitada do trator: só o que falta
+	var cr := cos(rel)
+	var sr := sin(rel)
+	var alvo := Vector2(clampf(frente - (no.rotation.x * cr - no.rotation.z * sr), -0.6, 0.6), clampf(lado - (no.rotation.z * cr + no.rotation.x * sr), -0.5, 0.5))
+	var at: Vector2 = v.get("incl_car", alvo)
+	at = at.lerp(alvo, minf(1.0, dt * 10.0))
+	v.incl_car = at
+	car.rotation.x = at.x
+	car.rotation.z = at.y + (-0.1 if v.quebrado else 0.0)
+
 # motor do carrinho (André 2026-11-09: "tremor quando liga e barulho de motor de tratorzinho"): ligado enquanto
 # alguém dirige. Ao ligar toca a partida (manivela, falha, pega) e o tremor vem forte; depois a marcha lenta em laço,
 # com o tom e o tremor subindo com a velocidade, e baforadas de fumaça na chaminé a cada batida. Som 3D no carrinho
@@ -1676,7 +1750,7 @@ func _rodas_volante(v: Dictionary, no: Node3D, corpo: Node3D, dt: float) -> void
 		var rel: float = clampf(angle_difference(no.rotation.y, atan2(d.x, d.z)), -1.3, 1.3)
 		car.rotation.y = rel
 		v.eixo = H - Vector3(sin(no.rotation.y + rel), 0, cos(no.rotation.y + rel)) * L
-		car.rotation.z = -0.1 if v.quebrado else 0.0
+		_inclinar_carreta(v, no, car, rel, dt)
 
 # barco na água (2026-11-09, André: "parece que o barco tá voando"): sobe e desce devagar com a ondinha (duas ondas
 # misturadas, não um vaivém de relógio), a proa sobe um pouco com a velocidade e dá um tranco a cada remada, e o
