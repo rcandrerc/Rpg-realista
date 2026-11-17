@@ -29,6 +29,10 @@ func _initialize() -> void:
 		m.online.esconder_login()
 	if m.get("dia") != null:
 		m.dia.ajustar(10.0)
+	load("res://idioma.gd").trocar("pt")
+	# sem servidor o jogo abre tudo; para a foto, a conta finge estar na missão 3 (o resto do mapa fica na névoa)
+	m.P.prog["hist"] = {"p": int(OS.get_environment("FOTO_MISSAO")) if OS.get_environment("FOTO_MISSAO") != "" else 3, "ac": false, "n": 0}
+	m.online.ligado = true
 	await esperar(30)
 	m.minimapa.abrir()
 	var m3 = m.minimapa.mapa3d
@@ -37,6 +41,11 @@ func _initialize() -> void:
 		if m3.pronto:
 			break
 	m3.lista_aberta = false
+	var fechadas := 0
+	for Z in m.nevoa.H.get("zonas", []):
+		if not Z.get("selo", false) and not m.nevoa.liberado(str(Z.id)):
+			fechadas += 1
+	print("regiões na névoa: ", fechadas)
 	m3.dist_alvo = float(OS.get_environment("FOTO_DIST")) if OS.get_environment("FOTO_DIST") != "" else m3.dist_alvo * 2.2
 	await esperar(90)
 	m3.marcas.queue_redraw()
@@ -54,4 +63,5 @@ func _initialize() -> void:
 	await esperar(10)
 	print("segundo toque: ", m3.nevoa_no_mapa)
 	await foto("3-nevoa-de-volta")
+	m.online.ligado = false
 	quit()
