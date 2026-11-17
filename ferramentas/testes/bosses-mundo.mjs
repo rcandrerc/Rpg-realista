@@ -83,7 +83,7 @@ const cats = () => [...CATALISADOR.arma, ...CATALISADOR.armadura].reduce((n, k) 
 const antes = cats(), ouro = j.prog.ouro;
 b.atacantes = new Set(['A']); s.ferir(b, b.vida + 10, j);
 ok(b.morto, 'boss morreu');
-ok(cats() > antes && j.prog.ouro > ouro, 'drop: catalisador garantido e ouro');
+ok(cats() > antes && j.prog.ouro === ouro, 'drop: catalisador garantido e sem ouro (André 2026-11-17)');
 const volta = salvo?.chifre_ferro;
 ok(volta && volta - agora >= 4 * 3600e3 - 1 && volta - agora <= 6 * 3600e3, `hora de voltar salva (${((volta - agora) / 3600e3).toFixed(2)} h)`);
 ok(tela.some((t) => t.includes('caiu') && t.includes('Ana')), 'faixa na tela avisa quem derrubou');

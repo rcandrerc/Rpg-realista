@@ -1711,59 +1711,59 @@
   },
   {
    "k": "semente_rabanete",
-   "preco": 2
+   "preco": 5
   },
   {
    "k": "semente_cenoura",
-   "preco": 4
-  },
-  {
-   "k": "semente_batata",
-   "preco": 4
-  },
-  {
-   "k": "semente_tomate",
-   "preco": 8
-  },
-  {
-   "k": "semente_milho",
-   "preco": 8
-  },
-  {
-   "k": "semente_abobora",
-   "preco": 20
-  },
-  {
-   "k": "lenha",
-   "preco": 3
-  },
-  {
-   "k": "pedra",
-   "preco": 4
-  },
-  {
-   "k": "semente_betula",
-   "preco": 3
-  },
-  {
-   "k": "semente_carvalho",
-   "preco": 5
-  },
-  {
-   "k": "semente_pinheiro",
-   "preco": 5
-  },
-  {
-   "k": "semente_macieira",
-   "preco": 8
-  },
-  {
-   "k": "semente_cerejeira",
    "preco": 10
   },
   {
-   "k": "semente_antiga",
+   "k": "semente_batata",
+   "preco": 10
+  },
+  {
+   "k": "semente_tomate",
    "preco": 20
+  },
+  {
+   "k": "semente_milho",
+   "preco": 20
+  },
+  {
+   "k": "semente_abobora",
+   "preco": 50
+  },
+  {
+   "k": "lenha",
+   "preco": 80
+  },
+  {
+   "k": "pedra",
+   "preco": 80
+  },
+  {
+   "k": "semente_betula",
+   "preco": 8
+  },
+  {
+   "k": "semente_carvalho",
+   "preco": 13
+  },
+  {
+   "k": "semente_pinheiro",
+   "preco": 13
+  },
+  {
+   "k": "semente_macieira",
+   "preco": 20
+  },
+  {
+   "k": "semente_cerejeira",
+   "preco": 25
+  },
+  {
+   "k": "semente_antiga",
+   "preco": 50
   }
  ],
  "lojaDistancia": 4,
@@ -2812,7 +2812,9 @@
   "maxPecas": 120,
   "estacaoDist": 3,
   "venda": 0.5,
-  "taxaBloco": 1,
+  "taxaBloco": 14,
+  "taxaCurva": 0.5,
+  "taxaPeca": 0,
   "taxaDias": 7,
   "taxaTrava": 2,
   "fresta": 3,
@@ -3234,7 +3236,8 @@
    "z": -14,
    "r": 3.2
   },
-  "beira": 2.5
+  "beira": 2.5,
+  "missaoSeg": 8
  },
  "ferramentas": {
   "enxada": {
@@ -3506,11 +3509,11 @@
   "conserto": 0.3,
   "xp": 0.05,
   "consertoTabela": [
-   30,
-   120,
-   450,
-   1500,
-   4500
+   50,
+   400,
+   2000,
+   8000,
+   30000
   ]
  },
  "reforco": {
@@ -4047,7 +4050,7 @@
   }
  },
  "packRegras": {
-  "k": 2.4,
+  "k": 2.88,
   "extra": 1.2,
   "perto": 40,
   "vigor": 12,
@@ -24857,9 +24860,9 @@
    "nome": "Voz das Estradas",
    "r": 2,
    "como": "Fechou o Ato III",
-   "txt": "+8% ouro dos monstros",
+   "txt": "+8% na venda",
    "b": {
-    "ouro": 0.08
+    "venda": 0.08
    },
    "cond": {
     "hist": "c11"
