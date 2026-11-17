@@ -16,6 +16,18 @@ var _mat: StandardMaterial3D
 var rotulo: Label # contagem (3, 2, 1) e depois "Duelo" (sem limite de tempo: sair do círculo encerra)
 var _cor := {} # cor de antes da barra e do nome do outro
 var _aviso_t := 0.0
+var _alvo := {} # o outro como alvo do golpe (main.gd mais_perto): {no, estado, duelo}
+
+# o outro do duelo como alvo (só depois da contagem); null = sem duelo ou ele não está à vista
+func alvo():
+	if com == "" or m.tempo < luta_em or m.online == null:
+		return null
+	var o = m.online.outros.get(com)
+	if o == null or not is_instance_valid(o.no) or not o.no.visible:
+		return null
+	if _alvo.is_empty() or _alvo.no != o.no:
+		_alvo = {"no": o.no, "estado": "vivo", "duelo": true, "id": com}
+	return _alvo
 
 func _init(principal) -> void:
 	m = principal
@@ -79,6 +91,9 @@ func _fim(ev: Dictionary) -> void:
 
 func _limpar() -> void:
 	_pintar_outro(false)
+	if not _alvo.is_empty():
+		_alvo.estado = "morto" # o alvo travado do mago solta (main.gd vivo)
+		_alvo = {}
 	com = ""
 	if anel != null:
 		anel.queue_free()
