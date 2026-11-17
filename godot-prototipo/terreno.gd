@@ -181,7 +181,7 @@ func altura_casa(c: Dictionary, x: float, z: float) -> float:
 	var lz: float = dx * c.sen + dz * c.cos
 	if abs(lx) > c.hw or abs(lz) > c.hd:
 		return -1.0
-	return c.y1 + c.sobe * (1.0 - abs(lz) / c.hd)
+	return c.y1 + c.sobe * (1.0 - abs(lz) / c.hd) + float(c.get("incl", 0.0)) * lz # incl: rampa da ponte (shared/terreno.js)
 
 # telhado das casas que o jogador constrói (construcao.gd _refazer_pisos): a mesma conta do servidor
 # (shared/terreno.js alturaTelhado). Sobe com a distância até a borda de fora, com beiral.
