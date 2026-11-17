@@ -115,12 +115,15 @@ export class Terreno {
     // FASE 3, Parte 7b: os cais de madeira dos portos do mundo grande (mapa.cais, shared/dados.js): um tablado plano
     // por cima do mar, onde se anda até o barco. Mesma peça das casas (topo plano), no app vem junto em mundo.json.
     // Parte 4b: as pontes de madeira (mapa.pontes) seguem a rampa da estrada (ya numa ponta, yb na outra): viram
-    // pedaços de 2 m, cada um na altura do meio dele (degrau de no máximo uns 0,2 m, o carrinho passa).
+    // pedaços de 2 m, cada um na altura do meio dele e inclinado como a rampa (incl: metros por metro ao longo da
+    // ponte). Antes era degrau de uns 0,2 m a cada 2 m: o herói, o lobo e o carrinho ficavam pulando na ponte
+    // (André 2026-11-17: "na ponte ele fica pulando, tentando se ajustar ao terreno").
     for (const c of [...(mapa.cais || []), ...(mapa.pontes || [])]) {
       const cos = Math.cos(c.ry), sen = Math.sin(c.ry), n = c.ya != null ? Math.max(1, Math.round(c.d / 2)) : 1;
+      const incl = c.ya != null && c.d > 0 ? (c.yb - c.ya) / c.d : 0;
       for (let k = 0; k < n; k++) {
         const u = -c.d / 2 + (k + 0.5) * c.d / n, y1 = c.ya != null ? c.ya + (c.yb - c.ya) * (k + 0.5) / n : c.y1;
-        this.casas.push({ casa: true, x: c.x + sen * u, z: c.z + cos * u, cos, sen, hw: c.w / 2, hd: c.d / n / 2, sobe: 0, y1, base: 0, R: Math.hypot(c.w / 2, c.d / n / 2) });
+        this.casas.push({ casa: true, x: c.x + sen * u, z: c.z + cos * u, cos, sen, hw: c.w / 2, hd: c.d / n / 2, sobe: 0, y1, base: 0, R: Math.hypot(c.w / 2, c.d / n / 2), ...(incl ? { incl } : {}) });
       }
     }
     // Entrega 3 da história: as casas das mini vilas do mundo grande (shared/vilas.js, dados.js VILAS_MUNDO): paredes que
@@ -169,7 +172,7 @@ export class Terreno {
     if (dx * dx + dz * dz > c.R * c.R) return -1;
     const lx = dx * c.cos - dz * c.sen, lz = dx * c.sen + dz * c.cos;
     if (Math.abs(lx) > c.hw || Math.abs(lz) > c.hd) return -1;
-    return c.y1 + c.sobe * (1 - Math.abs(lz) / c.hd);
+    return c.y1 + c.sobe * (1 - Math.abs(lz) / c.hd) + (c.incl || 0) * lz; // incl: rampa da ponte
   }
   // para onde olhar ao agarrar a parede de uma casa (de frente para a parede mais perto)
   deFrentePara(c, x, z) {

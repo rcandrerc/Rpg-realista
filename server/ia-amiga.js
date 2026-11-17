@@ -162,7 +162,11 @@ export function mensagensConversa(ctx, texto) {
     ctx.chamou ? `Há pouco você chamou ${ctx.amigo} (${ctx.chamou}) e espera a resposta.` : '',
     // André 2026-11-17: "quando eu voltar, desculpa tava ocupado, ela continua normal"
     ctx.ignorada ? `Sua última mensagem ficou um tempo sem resposta (${ctx.amigo} devia estar ocupado). Responda normal, numa boa: NÃO cobre, não reclame da demora nem faça drama; no máximo um "de boa" e segue o papo.` : '',
-    ctx.seguindo ? `${ctx.amigo} está te seguindo agora (você vai na frente e escolhe o caminho).` : '',
+    // André 2026-11-17 (print): ela chamou "cola em mim", ele deu Seguir e disse "bora"; ela respondeu "bora pra onde? me
+    // chama no time" (achou que era convite dele, e eles já estavam no time)
+    ctx.seguindo ? `${ctx.amigo} está te SEGUINDO agora${ctx.seguindoPara ? ` e vocês estão indo para ${ctx.seguindoPara}` : ''} (você vai na frente e escolhe o caminho; foi você quem chamou). Se ele disser algo curto como "bora", "vamos", "sim", "ok", "partiu", é ele topando o SEU convite: responda como quem já está indo junto (ex.: "isso, cola aí"), sem perguntar pra onde e sem pedir time.` : '',
+    ctx.noTime ? `Vocês JÁ estão no mesmo time: nunca peça para ${ctx.amigo} te chamar pro time.` : '',
+    ctx.chamou ? `Se a resposta dele for curta ("bora", "sim", "vamos", "pode ser"), ele está aceitando o que VOCÊ chamou; não trate como convite dele.` : '',
     humorTime(ctx),
     ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,

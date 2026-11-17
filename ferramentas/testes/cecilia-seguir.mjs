@@ -83,8 +83,16 @@ a.amigosDe = { [j.conta]: 1 };
   a.ia.chatFila = []; cec.conversaAmiga('andre', { acao: 'seguir' });
   const S = a.ia.seguido, e = evs.find((x) => x.t === 'seguir');
   ok(S && S.id === 'andre' && S.c && e && e.para === 'andre' && e.npc === a.id && e.lugar === S.c.nome, `topou: vai pro ${S?.c?.nome} e o app recebe "seguir"`);
-  ok(AMIGA.falasLeva.campo.some((f) => f.replace('{lugar}', S.c.nome) === a.ia.chatFila.at(-1)?.texto), `ela diz para onde vai ("${a.ia.chatFila.at(-1)?.texto}")`);
-  ok(cec.contextoAmiga('andre').seguindo, 'a IA sabe que ele está seguindo');
+  const lugar = S.c.nome.replace(/\s*\([^)]*\)\s*$/, '');
+  ok(AMIGA.falasLeva.campo.some((f) => f.replace('{lugar}', lugar) === a.ia.chatFila.at(-1)?.texto) && !/Destino|\(/.test(a.ia.chatFila.at(-1)?.texto), `ela diz para onde vai, sem "Destino:" nem região entre parênteses ("${a.ia.chatFila.at(-1)?.texto}")`);
+  const cs = cec.contextoAmiga('andre');
+  ok(cs.seguindo && cs.seguindoPara === lugar, 'a IA sabe que ele está seguindo e para onde');
+  // André 2026-11-17 (print): ele respondeu "bora" e ela achou que era convite dele ("me chama no time", já no time)
+  const sis = mensagensConversa(cs, 'bora')[0].content;
+  ok(/está te SEGUINDO/.test(sis) && /"bora"/.test(sis) && /topando o SEU convite/.test(sis), 'o prompt diz que "bora" é ele topando o convite dela');
+  ok(/JÁ estão no mesmo time: nunca peça/.test(sis), 'no time: não pede para chamar pro time');
+  a.ia.chatFila = []; cec.respostaAmiga('andre', { assunto: 'conversa', fala: 'Isso, já tô pronto, cola aí!' });
+  ok(a.ia.chatFila.at(-1)?.texto === 'Isso, já tô pronta, cola aí!', `gênero certo na fala da IA ("${a.ia.chatFila.at(-1)?.texto}")`);
   // ela vai na frente: anda em direção ao campo (não fica atrás dele)
   const d0 = Math.hypot(S.c.x - a.x, S.c.z - a.z);
   for (let i = 0; i < 200; i++) { s.passo(0.05); j.x = a.x - 2; j.z = a.z; } // ele vai colado atrás (ela fica uns s olhando para ele antes)

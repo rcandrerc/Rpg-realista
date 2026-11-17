@@ -3,7 +3,9 @@
 // Uso: node ferramentas/testes/amiga.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS, LOJA, precoLoja } from '../../shared/index.js';
 import { contar, guardar } from '../../shared/progresso.js';
-import { PESCA } from '../../shared/dados.js';
+import { PESCA, HISTORIA } from '../../shared/dados.js';
+// estes testes são de pesca, estrada e time; a história dela (que agora começa do zero, André 2026-11-17) fica aberta aqui
+const historiaFeita = (c) => { c.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 }; };
 import { noLago } from '../../shared/relevo.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
@@ -232,6 +234,7 @@ ok(ITENS.lenha, 'itens');
   s6.adicionarJogador('andre', 'André', 'ruiva', {});
   s6.amigaEntrar('andre');
   const c = s6.amiga, d = s6.jogadores.get('andre'), esp = (t) => { for (let i = 0; i < t * 20; i++) s6.passo(0.05); };
+  historiaFeita(c);
   const chat = (texto) => { s6.ouvirAmiga('andre', texto); s6.respostaAmiga('andre', { assunto: s6.assuntoAmiga(texto) }); };
   c.ia.combinado = s6.tempo + 999;
   let sp = null; for (let i = 0; i < 400 && !sp; i++) { s6.passoSpots(); s6.tempo += 1; sp = s6.spots.find((v) => v.ativo && v.lago); } // spot de lago (o do mar é só de barco, 2026-11-13)
@@ -376,6 +379,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
     const s12 = new Simulacao(MAPA_CLAREIRA);
     s12.adicionarJogador('andre', 'André', 'ruiva', {}); s12.amigaEntrar('andre');
     const c = s12.amiga, d = s12.jogadores.get('andre'), L = LUGARES_MUNDO.find((l) => l.id === lugar);
+    historiaFeita(c);
     for (let i = 0; i < 40; i++) s12.passo(0.05);
     const ditos = []; const dz0 = s12.dizerAmiga.bind(s12); s12.dizerAmiga = (t, ...r) => { ditos.push(t); dz0(t, ...r); };
     const aqui = () => Object.assign(d, { x: L.x, z: L.z, y: s12.terreno.altura(L.x, L.z), vila: null, vida: d.vidaMax });
