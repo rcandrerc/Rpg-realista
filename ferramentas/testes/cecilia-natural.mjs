@@ -51,6 +51,7 @@ ok(puxou.length === 1 && puxou[0].quem === 'cecilia', 'quieto há 4 min: ela pux
 await new Promise((r) => setTimeout(r, 0)); // a IA respondeu
 s.tempo += 120; s.passo(0.05);
 ok(puxou.length === 1, 'não puxa de novo logo em seguida');
+cec.ouvirAmiga('andre', 'opa'); // ele respondeu (sem resposta ela não insiste: cecilia-seguir.mjs)
 j.prog.nivel += 1; s.passo(0.05); s.tempo += AMIGA.chat.puxar.eventoMin + 100; s.passo(0.05);
 ok(puxou.length === 2 && /subir para o nível/.test(puxou[1].ev || ''), `subiu de nível: ela comenta (${puxou[1]?.ev})`);
 ok(/subir para o nível/.test(puxarAssunto(ctx, puxou[1]?.ev)) && /Não chame para caçar/.test(puxarAssunto(ctx, null)), 'o pedido de assunto é sem chamar para caçar');

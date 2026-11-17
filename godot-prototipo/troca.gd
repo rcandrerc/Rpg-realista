@@ -163,7 +163,9 @@ func tocou_tela(pos: Vector2) -> void:
 		elif conta == "": # ainda não é amigo (André 2026-11-16): pede e o NPC decide na hora
 			bts.append(["Adicionar amigo", func(): esconder_cartao(); m.rede("amigo", {"acao": "pedir", "com": achou})])
 		if not longe:
-			bts += duelo_bt(achou) + ver
+			bts += seguir_bt(achou) + duelo_bt(achou) + ver
+		elif m.seguir and m.seguir.segue(achou): # seguindo e ela longe: dá para parar pelo cartão também
+			bts += seguir_bt(achou)
 		mostrar_cartao(nome, bts + [["Agora não", esconder_cartao]], 8.0)
 		return
 	if outros[achou].get("bot", false): # outro NPC que não é amigo virtual: só ver o equipamento
@@ -179,6 +181,15 @@ func tocou_tela(pos: Vector2) -> void:
 		mostrar_cartao(nome, extras + [["Agora não", esconder_cartao]], 8.0)
 		return
 	mostrar_cartao(("Trocar itens com %s?" % nome) if extras.is_empty() else nome, [["Pedir troca", _responder.bind("pedir", achou)]] + extras + duelo_bt(achou) + ver + [["Agora não", esconder_cartao]], 8.0)
+
+# botão "Seguir" (André 2026-11-17, seguir.gd): só a Cecília (o servidor manda "segue" no evento "amiga"); seguindo, vira
+# "Parar de seguir"
+func seguir_bt(id: String) -> Array:
+	if m.seguir == null or not m.online.amiga_segue.get(id, false):
+		return []
+	if m.seguir.segue(id):
+		return [["Parar de seguir", func(): esconder_cartao(); m.seguir.parar()]]
+	return [["Seguir", func(): esconder_cartao(); m.rede("amiga", {"acao": "seguir", "id": id})]]
 
 # botão "Duelo" (André 2026-11-17, duelo.gd): de perto, com jogador, Cecília e Dario; some durante um duelo
 func duelo_bt(id: String) -> Array:
