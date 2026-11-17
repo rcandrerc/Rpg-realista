@@ -7,7 +7,13 @@ extends Node
 # vai para a página /robo e para o log do Android ("CELULAR fim {...}").
 # Sem o arquivo (todo celular de jogador) nada disto liga.
 #
-# robo.cfg (ConfigFile): [robo] sessao="...", duracao=240, turno="tl-..."
+# Missões (André 2026-11-17: "queria q fizessem missoes combates e tudo mais pra verificar tudo, como primeiro robo"):
+# no modo "missoes" (o normal) ele joga como uma pessoa: segue o brilho do guia das missões (guia.gd) e toca na tela
+# naquele ponto (toque de verdade, o mesmo caminho do dedo), aperta o "Ir", fala com os NPCs, cria, coleta; sem nada
+# piscando ele luta com o monstro mais perto (golpe, habilidades e poção). Etapa parada TRAVA_S s vira "travou": anota e
+# pula (missaoTeste, só a conta de robô). O modo "passeio" é o de antes: volta na vila, estrada e luta na Clareira.
+#
+# robo.cfg (ConfigFile): [robo] sessao="...", duracao=240, turno="tl-...", modo="missoes"|"passeio"
 # No PC dá para testar com a variável RPG_ROBO_CFG=/caminho/robo.cfg.
 
 const PASTAS := [
@@ -18,6 +24,9 @@ const AQUECE := 20.0 # s depois de entrar (shaders, NPCs chegando) antes de medi
 const ESPERA_MAX := 420.0 # s até entrar no servidor (o celular novo baixa o jogo inteiro antes)
 const VEL := 5.0 # m/s, correndo
 const RELATORIO := "https://163-176-80-126.sslip.io/robo/relatorio"
+const TRAVA_S := 300.0 # s na mesma etapa = travou (anota e pula)
+const PASSO_JOGO := 0.4 # s entre uma decisão e outra
+const LUTA_LONGE := 40.0 # m: monstro mais longe que isto não é procurado
 
 static var _cfg = null # null = ainda não leu; {} = não é robô
 
@@ -71,10 +80,30 @@ var amostra_t := 0.0
 var mem_max := 0.0
 var nos_max := 0
 var fps_min := 999.0
+# modo missões
+var modo := "missoes"
+var jogar_t := 0.0
+var soltar_t := -1.0
+var toque_pos := Vector2.ZERO
+var n_toque := 0
+var alvo_e = null # monstro que ele está caçando
+var hab_t := 0.0
+var hab_i := 0
+var pocao_t := 0.0
+var etapa_k := ""
+var etapa_desde := 0.0
+var hist_p := -1
+var pulou := false
+var feitas := 0
+var puladas := 0
+var nivel_de := -1
+var problemas: Array = []
+var morto_t := 0.0
 
 func _init(main) -> void:
 	m = main
 	dur = config().get("duracao", 240.0)
+	modo = str(config().get("modo", "missoes"))
 	name = "RoboCelular"
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
@@ -104,7 +133,10 @@ func _process(dt: float) -> void:
 			pos = Vector2(m.heroi.position.x, m.heroi.position.z)
 			print("CELULAR entrou no servidor em %.1f s" % t)
 		return
-	_andar(dt)
+	if modo == "passeio":
+		_andar(dt)
+	else:
+		_jogar(dt)
 	if t - entrou_t < AQUECE:
 		return
 	_medir(dt)
@@ -137,8 +169,122 @@ func _andar(dt: float) -> void:
 		etapa = (etapa + 1) % passeio.size()
 		etapa_t = 0.0
 
+# ---------- missões: joga como uma pessoa ----------
+func _jogar(dt: float) -> void:
+	if soltar_t >= 0.0: # o dedo sai da tela um instante depois de encostar (o botão age ao soltar)
+		soltar_t -= dt
+		if soltar_t < 0.0:
+			_dedo(false)
+	if m.heroi == null or m.P == null:
+		return
+	_lutar(dt)
+	jogar_t -= dt
+	if jogar_t > 0.0:
+		return
+	jogar_t = PASSO_JOGO
+	_etapa_da_vez()
+	if m.h.morto > 0.0:
+		morto_t += PASSO_JOGO
+		alvo_e = null
+		return
+	var vmax: float = float(m.P.st.get("vidaMax", 100.0))
+	pocao_t -= PASSO_JOGO
+	if m.h.vida < vmax * 0.4 and pocao_t <= 0.0:
+		pocao_t = 4.0
+		m.usar("pocao")
+	# o que o guia pisca: toca ali
+	var G = m.guia
+	if G != null and soltar_t < 0.0 and G._tem():
+		var c := Vector2(-1, -1)
+		var r: Rect2 = G._ret_alvo()
+		if r.has_area():
+			c = r.get_center()
+		elif G._circ.z > 0.0:
+			c = Vector2(G._circ.x, G._circ.y)
+		if c.x >= 0.0:
+			alvo_e = null
+			_tocar(c)
+			return
+	if m.rota != null and m.rota.ativo:
+		alvo_e = null # indo sozinho pelo "Ir": só espera
+		return
+	if alvo_e == null or alvo_e.estado == "morto" or not is_instance_valid(alvo_e.no):
+		alvo_e = m.mais_perto(m.heroi.position, LUTA_LONGE)
+
+# anda até o monstro e bate (golpe a cada 0,6 s, uma habilidade a cada 3 s)
+func _lutar(dt: float) -> void:
+	if alvo_e == null or m.h.morto > 0.0 or (m.rota != null and m.rota.ativo):
+		return
+	if alvo_e.estado == "morto" or not is_instance_valid(alvo_e.no):
+		alvo_e = null
+		return
+	var hp: Vector3 = m.heroi.position
+	var ep: Vector3 = alvo_e.no.position
+	var d := Vector2(hp.x, hp.z).distance_to(Vector2(ep.x, ep.z))
+	if d > LUTA_LONGE * 1.5:
+		alvo_e = null
+		return
+	if d > 1.8:
+		var p := Vector2(hp.x, hp.z).move_toward(Vector2(ep.x, ep.z), VEL * dt)
+		m.mov.por_em(Vector3(p.x, hp.y, p.y))
+		return
+	golpe_t -= dt
+	if golpe_t <= 0.0:
+		golpe_t = 0.6
+		m.usar("basico")
+	hab_t -= dt
+	if hab_t <= 0.0:
+		hab_t = 3.0
+		hab_i = (hab_i + 1) % 6
+		m.usar("hab%d" % hab_i)
+
+# toque de verdade na tela (o mesmo caminho do dedo: o Godot também gera o clique para os botões)
+func _tocar(c: Vector2) -> void:
+	toque_pos = c
+	n_toque += 1
+	_dedo(true)
+	soltar_t = 0.08
+
+func _dedo(apertou: bool) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = 0
+	ev.position = toque_pos
+	ev.pressed = apertou
+	Input.parse_input_event(ev)
+
+# a etapa da vez: conta as missões feitas e pula a que travou
+func _etapa_da_vez() -> void:
+	var prog: Dictionary = m.P.prog
+	if nivel_de < 0 and prog.has("nivel"):
+		nivel_de = int(prog.nivel)
+	var h = prog.get("hist", {})
+	var p: int = int(h.get("p", -1)) if h is Dictionary else -1
+	if hist_p >= 0 and p > hist_p:
+		if not pulou:
+			feitas += 1
+			print("CELULAR missão feita (%d) t=%.0f s" % [feitas, t - entrou_t])
+		pulou = false
+	hist_p = p
+	var hi: Dictionary = m.P.hist_info
+	var k := "%d|%s|%s|%s" % [p, str(hi.get("id", "")), str(hi.get("ev", "")), str(hi.get("texto", ""))]
+	if k != etapa_k:
+		etapa_k = k
+		etapa_desde = t
+		print("CELULAR etapa: %s (%s)" % [str(hi.get("texto", "")), str(hi.get("ev", ""))])
+		return
+	if t - etapa_desde > TRAVA_S and not hi.is_empty():
+		var txt := "Travou %d s na etapa \"%s\" (%s, missão %s)" % [roundi(TRAVA_S), str(hi.get("texto", "")), str(hi.get("ev", "")), str(hi.get("id", ""))]
+		print("CELULAR ", txt)
+		if problemas.size() < 30:
+			problemas.append(txt)
+		puladas += 1
+		pulou = true
+		etapa_desde = t
+		alvo_e = null
+		m.rede("missaoTeste", {"acao": "pular"})
+
 func _medir(dt: float) -> void:
-	var nome: String = passeio[etapa][0]
+	var nome: String = passeio[etapa][0] if modo == "passeio" else ("vila" if Vector2(m.heroi.position.x, m.heroi.position.z).length() < 30.0 else "fora da vila")
 	if not trechos.has(nome):
 		trechos[nome] = {"q": 0, "s": 0.0, "dts": PackedFloat32Array(), "pior": 0.0, "cham": 0, "tri": 0, "obj": 0, "proc": 0.0, "fis": 0.0}
 	var T: Dictionary = trechos[nome]
@@ -203,11 +349,15 @@ func _terminar(erro: String) -> void:
 		"fps": snappedf(q / max(s, 0.001), 0.1), "fps_min": snappedf(fps_min, 1.0) if fps_min < 999.0 else null, "segundos": roundi(s), "quadros": q,
 		"travadas": {"acima100": n100, "acima250": n250, "acima1000": n1000, "piores": travadas}, "trechos": tr,
 		"mem_max": roundi(mem_max), "nos_max": nos_max, "erro": erro}
+	if modo != "passeio":
+		var hi: Dictionary = m.P.hist_info if m.P else {}
+		r["missoes"] = {"feitas": feitas, "puladas": puladas, "toques": n_toque, "agora": str(hi.get("texto", "")),
+			"nivel_de": nivel_de, "nivel_ate": int(m.P.prog.get("nivel", 0)) if m.P else null, "morto_s": roundi(morto_t)}
 	print("CELULAR fim ", JSON.stringify(r))
 	var agora := int(Time.get_unix_time_from_system() * 1000.0)
 	var rel := {"turno": str(config().get("turno", "tl")).substr(0, 40), "tipo": "celular", "fisico": true,
 		"inicio": agora - int(t * 1000.0), "ultimo": agora, "ativo": false,
-		"modos": {_aparelho(): r}, "problemas": [erro] if erro != "" else []}
+		"modos": {_aparelho(): r}, "problemas": ([erro] if erro != "" else []) + problemas.map(func(x): return _aparelho() + ": " + x)}
 	var h := HTTPRequest.new()
 	h.timeout = 20.0
 	add_child(h)
