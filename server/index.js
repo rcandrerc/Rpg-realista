@@ -11,7 +11,7 @@ import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, 
 import { Contas, verificadorGoogle } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
+import { iaEsgotada, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 import { reserva, vigiarReserva } from './caddy-reserva.js'; // caminho reserva pelo IP (André 2026-11-16, sslip.io bloqueado no celular)
 
@@ -71,9 +71,12 @@ class SalaClareira extends Room {
     if (tipoDica === 'esquecer' || tipoDica === 'listar') { amg.comandoDicaAmiga(id, tipoDica, msg.texto); return; }
     // André 2026-11-14: todo mundo conversa com eles, mas a resposta da IA é só de quem tem a chave (iaAmiga); o resto, as regras
     if (!amg.iaAmiga(id)) return amg.respostaAmiga(id, { assunto: amg.assuntoAmiga(msg.texto) });
+    // a IA dele acabou hoje (André 2026-11-17): ela está "ocupada" e nem gasta pedido
+    if (amg.semIaAmiga(amg.amiga, this.sim.jogadores.get(id))) return amg.cansouIaAmiga(id, amg.assuntoAmiga(msg.texto));
     // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
     const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
       const regra = amg.assuntoAmiga(msg.texto);
+      if (!r && iaEsgotada(chaveDe)) return amg.cansouIaAmiga(id, regra); // acabou o limite do dia agora
       // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
       if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
       // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
@@ -111,6 +114,17 @@ class SalaClareira extends Room {
         for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l);
         return null;
       }); // a Cecília aparece na lista para todos; quem não tem chave vê "Ativar conversa com IA"
+      // ela puxa assunto pela IA (André 2026-11-17), com a chave de quem vai ouvir; a fala chega como uma mensagem dela
+      this.sim.aoPuxarAmiga = (id, evento, amg) => {
+        amg ||= this.sim;
+        const ctx = amg.contextoAmiga(id), c = this.clients.find((x) => x.sessionId === id), conta = this.contaDe?.get(id);
+        if (!ctx) return null;
+        ctx.idioma = c?.userData?.idioma || 'pt';
+        return pensarAmiga(ctx, puxarAssunto(ctx, evento), conta ? contas.chaveIa(conta.id) : '').then((r) => {
+          if (r?.fala) amg.respostaAmiga(id, { assunto: 'conversa', fala: r.fala });
+          else if (!r && iaEsgotada(conta ? contas.chaveIa(conta.id) : '')) amg.cansouIaAmiga(id); // acabou: avisa que vai descansar
+        }).catch((e) => console.error('amigo IA: puxar assunto deu erro', e));
+      };
     }
     // bosses de mundo (André 2026-11-11): a hora de voltar de cada um fica no banco (vale para todas as salas e depois de
     // reiniciar); nasceu, caiu ou soltou Mítico: aviso no chat geral de todo mundo online

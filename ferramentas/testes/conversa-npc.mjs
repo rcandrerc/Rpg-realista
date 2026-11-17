@@ -89,7 +89,7 @@ ok(M[0].role === 'system' && /Ficha \(só para você saber/.test(M[0].content) &
 ok(M.slice(1).map((m) => m.role).join() === 'user,assistant,user,assistant,user', `a conversa vai em mensagens de verdade (${M.slice(1).map((m) => m.role).join()})`);
 ok(JSON.parse(M[2].content).fala === 'Tudo ótimo! E você?' && JSON.parse(M[4].content).fala === 'Ih. Descansa!', 'as falas dela vão no mesmo JSON que ela devolve (em texto solto o modelo esquecia o JSON)');
 ok(M[3].content === 'de boa\ntô cansado' && M[5].content === 'pô, tu tá forte hoje', 'duas dele seguidas juntam; a última mensagem dele por último');
-ok(cec.contextoAmiga('andre').conversa.length === 6 && (hist.push(...Array(10).fill({ de: 'ele', texto: 'x' })), cec.contextoAmiga('andre').conversa.length === 12), 'lembra as 12 mensagens guardadas');
+ok(cec.contextoAmiga('andre').conversa.length === 6 && (hist.push(...Array(50).fill({ de: 'ele', texto: 'x' })), cec.contextoAmiga('andre').conversa.length === 40), 'lembra as 40 mensagens guardadas (André 2026-11-17)');
 hist.length = 0;
 
 pedidos.length = 0; respostas = [{ falhou: 'Descansa então, amanhã a gente encara."}' }];

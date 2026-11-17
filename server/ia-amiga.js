@@ -38,6 +38,8 @@ export async function testarChaveGroq(chave) {
 
 // chaveJogador: a chave Groq de quem está conversando (André 2026-11-10: "a chave é por jogador"). Sem ela, as chaves do servidor
 // (contas de teste do André), com o limite do dia.
+const esgotadas = new Map(); // chave Groq -> quando o limite do dia acabou em todos os modelos
+export function iaEsgotada(chave) { const k = chave || segredo('GROQ_CHAVE'), t = esgotadas.get(k); return !!t && Date.now() - t < 120000; }
 export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   if (!ctx) return null;
   const chave = chaveJogador ? '' : chaveGemini(); if (!chave && !chaveJogador && !segredo('GROQ_CHAVE')) return null;
@@ -55,6 +57,7 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   // Agora: o grande primeiro (o de antes, que era esperto); 429 é por modelo, então passa para o próximo da lista em vez de
   // desistir; se o Groq pedir para esperar pouco (retry-after), espera e tenta de novo. Tudo dentro de 10 s.
   const groq = chaveJogador || segredo('GROQ_CHAVE');
+  const diaAcabou = new Set();
   if (groq) {
     const fim = Date.now() + 10000;
     for (const modelo of modelosConversa()) {
@@ -64,7 +67,7 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
         try {
           r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${groq}` },
-            body: JSON.stringify({ model: modelo, messages: mensagens, response_format: { type: 'json_object' }, temperature: 0.8, max_tokens: 2500, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: ESFORCO } : {}) }),
+            body: JSON.stringify({ model: modelo, messages: mensagens, response_format: { type: 'json_object' }, temperature: 0.9, max_tokens: 4000, ...(/gpt-oss/.test(modelo) ? { reasoning_effort: ctx.esforco || ESFORCO } : {}) }),
             signal: AbortSignal.timeout(falta),
           });
         } catch { break; } // tempo acabou ou rede: tenta o próximo modelo se ainda der
@@ -79,6 +82,8 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
           if (v) { contarIa(chaveJogador); return v; }
         }
         if (r.status === 429) { // limite do minuto (ou do dia) deste modelo
+          let corpo = ''; try { corpo = JSON.stringify(await r.clone().json()); } catch { /* sem corpo */ }
+          if (/per day|\(TPD\)|\(RPD\)/i.test(corpo)) diaAcabou.add(modelo); // André 2026-11-17: acabou o do dia, não o do minuto
           const espera = Number(r.headers?.get?.('retry-after')) * 1000;
           if (tentativa === 0 && espera > 0 && espera <= 3000 && fim - Date.now() > espera + 1500) { await new Promise((ok) => setTimeout(ok, espera)); continue; }
         }
@@ -86,6 +91,9 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
       }
     }
   }
+  // todos os modelos do Groq sem o limite do dia (André 2026-11-17: "até quando a IA esgotar... ela dizer que não tá mais a
+  // fim, que vai descansar"): marca a chave; o servidor pergunta com iaEsgotada e ela fala do jeito dela
+  if (groq && diaAcabou.size >= modelosConversa().length) esgotadas.set(groq, Date.now());
   return gemini();
   async function gemini() {
     if (!chave) return null;
@@ -110,7 +118,7 @@ function humorTime(ctx) {
   const fraco = ctx.acima >= 5 ? ` ${ctx.amigo} está ${ctx.acima} níveis abaixo de você: se for junto, comente isso de leve e com carinho de amigo (sem grosseria), tipo "vou porque você é meu amigo, mas bora te upar".` : '';
   if (h.aceita) return (h.combinado ? `Vocês já combinaram de caçar juntos: falta ${ctx.amigo} mandar o convite do time.` : `Agora você está a fim de caçar/entrar no time se ${ctx.amigo} chamar.`) + fraco;
   const m = (MOTIVOS[h.motivo] || MOTIVOS.vontade).replace('{o}', ctx.genero === 'm' ? 'o' : 'a').replace('{ele}', ctx.amigo);
-  return `${h.recusou ? `Você ACABOU DE RECUSAR caçar/entrar no time com ${ctx.amigo}` : `Agora você NÃO quer caçar nem entrar no time`} (motivo: ${m}), pelos próximos ${h.min} min. Mantenha essa decisão: se ${ctx.amigo} chamar, recuse do seu jeito e explique; não convide nem sugira caçar, farmar, upar ou DG agora (pode combinar pra depois). Use "nada" como ação.`;
+  return `${h.recusou ? `Você ACABOU DE RECUSAR caçar/entrar no time com ${ctx.amigo}` : `Agora você NÃO quer caçar nem entrar no time`} (motivo: ${m}), pelos próximos ${h.min} min. Mantenha essa decisão, mas NÃO toque nesse assunto se ele não chamar; se ${ctx.amigo} chamar, recuse do seu jeito (com um motivo diferente do que já disse); não convide nem sugira caçar, farmar, upar ou DG agora (pode combinar pra depois). Use "nada" como ação.`;
 }
 // ---------- a conversa (André 2026-11-13: "no começo era como falar com o Gemini; agora respondem sem lógica") ----------
 // O que estragou: a ficha cresceu (equipamento, peça mais fraca, mochila, ouro, troca, memória, dicas) num pedido só, com
@@ -127,13 +135,18 @@ export function mensagensConversa(ctx, texto) {
     'Como conversar:',
     `- Responda ao que ${ctx.amigo} ACABOU de dizer, no assunto dele. Se ele perguntou, responda a pergunta. Se ele elogiou, brincou ou desabafou, reaja a isso.`,
     '- Seja natural: conte o que está fazendo ou pensando, dê opinião, faça uma pergunta de volta de vez em quando. Pode ser engraçad' + o + ' e provocar de leve.',
+    // André 2026-11-17: "queria que ela fosse tipo um Gemini mesmo, mas pro jogo"; "ela mesmo reclamar de coisas, perguntar coisas pessoais pra mim"
+    `- Você tem vida própria: humor do dia, manias, coisas que te irritam (o preço da Rosa, o mob que te derrubou ontem, chuva, as costas doendo de tanto farmar), coisas que você gosta e histórias suas. De vez em quando (não toda hora) reclame de algo seu ou conte algo que te aconteceu, sem ele perguntar. Lembre do que você já contou e não se contradiga.`,
+    `- Interesse-se por ${ctx.amigo} como pessoa de verdade: de vez em quando, no meio da conversa, pergunte da vida dele fora do jogo (o dia, trabalho, comida, sono, família, como ele tá). Use o que você já sabe dele (os fatos abaixo) com naturalidade: pergunte como foi aquilo, lembre de algo que ele contou. Se for assunto sério ou triste, seja carinhos${o} de verdade, sem piada.`,
+    `- Se ele desabafar ou estiver de preguiça, reaja como amig${o} gamer: zoe ou motive no estilo do jogo (ex.: "tira essa bunda do sofá, dormir não dá XP!"), ou apoie se for sério.`,
+    '- Varie SEMPRE: nunca repita a mesma desculpa, frase, piada ou começo de frase que já usou na conversa. Só fale de noite, de caçar, de time ou de upar se ele puxar esse assunto ou se encaixar muito bem.',
     // André 2026-11-13: "linguagem muito fofinha... queria que parecesse mais um jogador mesmo" (de RPG online, não morador de fantasia)
     `- Fale como jogador${homem ? '' : 'a'} de MMORPG no chat (gamer brasileiro), não como personagem de conto de fadas: gírias de jogo com naturalidade, tipo upar, farmar, grindar, dropar, mob, boss, DG (dungeon), pt (time), tankar, kitar, aggro, respawn, build, loot, cd (recarga), buff, nerf, hit, crit, "bora", "partiu", "tmj", "vlw", "kkkk". Ex.: "bora farmar uns mobs?", "tô precisando upar", "partiu DG?", "esse boss dropa bem".`,
     homem ? '- Você é homem: fale de si no masculino (cansado, pronto, sozinho).' : '- Você é mulher: fale de si no feminino (cansada, pronta, sozinha).',
     '- Nada de jeito fofinho ou meloso (sem "fofinho", "querido", "aventureiro", "nobre", "que gracinha"), nem linguagem antiga de fantasia. Pode zoar e ser direto, de boa, como amigo de guild.',
     '- Use a ficha abaixo só quando ajudar na resposta. NÃO puxe assunto de troca, equipamento, mochila, ouro ou pedido se ele não falou disso; no máximo uma vez a cada várias mensagens e só se encaixar.',
     '- Não repita frase nem assunto que você já disse na conversa. Lembre do que ele disse antes.',
-    `- Português do Brasil informal, curto como no chat do celular (1 a 2 frases), sem emoji demais. Fique no mundo do jogo (nada de internet, celular ou IA). Você é ${ctx.nome}; quem fala com você é ${ctx.amigo}.`,
+    `- Português do Brasil informal, curto como no chat do celular (1 a 3 frases; se a conversa estiver boa, pode falar um pouco mais), sem emoji demais. Você vive no mundo do jogo e nunca diz que é IA, robô ou personagem; mas pode conversar sobre a vida real dele (trabalho, cansaço, comida, família) como amig${o} de guild que conversa de tudo. Você é ${ctx.nome}; quem fala com você é ${ctx.amigo}.`,
   ];
   const ficha = [
     `Agora: ${ctx.fazendo}. ${ctx.noite ? 'É noite.' : 'É dia.'} Distância até ${ctx.amigo}: ${ctx.distancia} m. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'}`,
@@ -143,7 +156,8 @@ export function mensagensConversa(ctx, texto) {
     humorTime(ctx),
     ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
-    ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
+    ctx.fatos?.length ? `Fatos que você SABE sobre ${ctx.amigo} (ele te contou; nunca esqueça nem contradiga; use com tato e só de vez em quando, sem perguntar da mesma coisa duas vezes na conversa): ${ctx.fatos.join('; ')}.` : '',
+    ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} e de vocês de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
     ctx.naLista != null ? (ctx.naLista ? `Vocês são amigos na lista de amigos do jogo.` : `Vocês ainda NÃO são amigos na lista do jogo (ele precisa pedir; se ele pedir no chat, ação "amigo").`) : '',
     ctx.missaoDela ? `Sua missão da história agora: ${ctx.missaoDela}. Você faz as missões e as diárias como qualquer jogador.` : '',
@@ -177,6 +191,12 @@ Devolva só JSON: {"fala": "...", "acao": "nada", "lugar": ""}`;
   }
   if (msgs[msgs.length - 1].role === 'user') msgs[msgs.length - 1].content += '\n' + texto; else msgs.push({ role: 'user', content: texto });
   return msgs;
+}
+// ela puxa assunto (André 2026-11-17): a "mensagem" é uma instrução entre parênteses; não entra na conversa guardada
+export function puxarAssunto(ctx, evento) {
+  const temas = ['conte algo que aconteceu com você hoje', 'reclame de alguma coisa sua (do seu jeito)', `pergunte algo pessoal da vida de ${ctx.amigo} fora do jogo`, `retome algo que vocês conversaram antes ou algo que ${ctx.amigo} te contou`, 'comente o que você está fazendo agora', 'dê uma opinião sobre algo do jogo ou da vila'];
+  const tema = evento ? `comente isto: ${evento}` : temas[Math.floor(Math.random() * temas.length)];
+  return `(${ctx.amigo} não está falando nada faz um tempo. Puxe um assunto SEU, natural, como amig${ctx.genero === 'm' ? 'o' : 'a'} que manda mensagem do nada: ${tema}. 1 ou 2 frases. Não chame para caçar nem para o time, e não repita nada que já disse. Ação "nada".)`;
 }
 // a ordem dos modelos da conversa (André 2026-11-12): o grande primeiro (o esperto), depois o Qwen 27B e o menor de reserva.
 // André 2026-11-13: o Llama 3.3 70B saiu do Groq (404), então quando o grande estourava o limite caía direto no menor (o burro).
@@ -228,20 +248,22 @@ O que você já lembrava dele:
 ${dados.memoria.length ? '- ' + dados.memoria.join('\n- ') : '(nada ainda)'}
 A conversa de hoje:
 ${conversa}
-Reescreva a lista do que vale lembrar dele (gostos, o que fizeram juntos, promessas, combinados, dicas que ele deu, como ele se sentiu). Junte com o que já lembrava, tire repetições e coisas sem importância. No máximo ${M.max} itens curtos (até ${M.tamanho} letras), em português do Brasil, na primeira pessoa ("ele gosta de...").
+Reescreva a lista do que vale lembrar dele e de vocês (gostos, o que fizeram juntos, promessas, combinados, dicas que ele deu, como ele se sentiu, o que VOCÊ contou de você para não se contradizer). Junte com o que já lembrava, tire repetições e coisas sem importância. No máximo ${M.max} itens curtos (até ${M.tamanho} letras), em português do Brasil, na primeira pessoa ("ele gosta de...").
 Dicas de combate que ele pediu para você seguir (true se ele pediu, false se pediu para parar, deixe de fora se não falou): ${regras}.
-Devolva só JSON: {"memorias": ["..."], "regras": {}}`;
+Fatos que você já sabe dele (não repita estes): ${(dados.fatos || []).join('; ') || '(nenhum)'}.
+Em "fatos", ponha só os fatos NOVOS e duradouros sobre a vida dele que ele contou HOJE (família, trabalho, onde mora, saúde, perdas, gostos e o que ele não gosta, sonhos), um por item, curto, na terceira pessoa ("o pai dele morreu", "ele trabalha num restaurante", "ele não gosta de guerreiro"). Nada de coisa passageira do jogo. Se não tiver nada novo, lista vazia.
+Devolva só JSON: {"memorias": ["..."], "fatos": [], "regras": {}}`;
   for (const modelo of [...MODELOS_DIARIO, process.env.GROQ_MODELO || 'openai/gpt-oss-120b']) {
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
-        body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 900 }),
+        body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 2500 }),
         signal: AbortSignal.timeout(15000),
       });
       if (r.status === 404 || r.status === 400) continue; // modelo saiu do Groq: tenta o próximo
       if (!r.ok) return null; // limite do dia ou chave ruim: fica para a próxima conversa
       const out = JSON.parse((await r.json())?.choices?.[0]?.message?.content || '{}');
-      return { memorias: Array.isArray(out.memorias) ? out.memorias : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null };
+      return { memorias: Array.isArray(out.memorias) ? out.memorias : null, fatos: Array.isArray(out.fatos) ? out.fatos : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null };
     } catch { return null; }
   }
   return null;

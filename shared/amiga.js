@@ -153,6 +153,7 @@ export const Amiga = {
       // memória de cada pessoa (conta -> lista), dicas que viraram regra (conta -> { curaCedo: true }) e o que fazem juntos
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
+      j.fatos = porConta(salvo.fatos); j.semIa = porConta(salvo.semIa); j.conversasSalvas = porConta(salvo.conversas); // André 2026-11-17: fatos e a conversa recente
       // dicas que viraram regra do cérebro (entrega 2, André 2026-11-11): valem para todo mundo; o banco é conferido de novo
       j.dicas = Array.isArray(salvo.dicas) ? salvo.dicas.map((d) => validarRegra(d, CEREBRO)).filter(Boolean).slice(-CEREBRO.dicas.max) : [];
       j.licoes = licoesValidas(salvo.licoes); // o que aprendeu caindo (entrega 4)
@@ -331,7 +332,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -829,6 +830,7 @@ export const Amiga = {
   // sorteio quando ele chama: o que ela fala e o que ela faz batem, e ela não muda de ideia a cada mensagem.
   decisaoTimeAmiga(a, j, guardar = false) {
     const ia = a.ia, h = ia.humor;
+    if (this.semIaAmiga(a, j)) return { ate: this.tempo + 300, conta: j.conta, aceita: false, motivo: 'ocupada' }; // a IA dela acabou hoje: "tô meio ocupada"
     // um não dado vale enquanto durar a recusa; o sorteio contado à IA (guardar, de contextoAmiga) vale 'humor' s
     if (h && h.conta === j.conta && (h.recusa ? (ia.recusaAte || 0) > this.tempo : h.ate > this.tempo)) return h;
     const v = this.vontadeAmiga(a, j), novo = { ate: this.tempo + (this.AMIGA.time.humor ?? 90), conta: j.conta, aceita: Math.random() < v.p, motivo: v.motivo };
@@ -862,6 +864,7 @@ export const Amiga = {
     if (!this.trocarDonoAmiga(id)) return aviso(`${nome} está com outra pessoa agora`);
     const ia = a.ia, recusa = () => aviso(`${nome} recusou o convite para o time`);
     if (a.morto) return recusa();
+    if (this.semIaAmiga(a, j)) { this.dizerAmiga(this.AMIGA.falas.recusa.ocupada, false, id); return recusa(); } // a IA dela acabou hoje (André 2026-11-17)
     const topou = missao || this.combinouAmiga(a) || (ia.chamado?.quer === 'time' && ia.chamado.ate > this.tempo);
     if (!topou && (ia.recusaAte || 0) > this.tempo) return recusa();
     const dv = this.decisaoTimeAmiga(a, j);
@@ -1258,8 +1261,9 @@ export const Amiga = {
       })(),
       ouro: a.prog.ouro | 0,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
-      conversa: this.chatDeAmiga(j).slice(-12), // as 12 guardadas (André 2026-11-13: com menos ela perdia o fio da conversa)
+      conversa: this.chatDeAmiga(j).slice(-this.histAmiga()), // André 2026-11-13: com menos ela perdia o fio; 2026-11-17: 40 e salvas no banco
       memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
+      fatos: (a.fatos?.[j.conta] || []).slice(-this.AMIGA.fatos.max), esforco: this.AMIGA.puxaAssunto ? this.AMIGA.chat.esforco || null : null, // só a Cecília pensa mais (André 2026-11-17)
       equip: this.listaEquipAmiga(), pecaFraca: this.pecaFracaAmiga() ? nomeDoItem(this.pecaFracaAmiga().it) : null,
       ...this.saberAmiga(a, j), acima: (a.prog.nivel | 0) - (j.prog.nivel | 0), grindAcabou: this.grindAcabouAmiga(a), // André 2026-11-16 ("eles são muito burros"): o que ela sabe do jogo de verdade, para não inventar
       regras: [...Object.keys(a.regras?.[j.conta] || {}).filter((k) => a.regras[j.conta][k] && this.AMIGA.memoria.regras[k]).map((k) => this.AMIGA.memoria.regras[k].texto), ...(a.dicas || []).map((d) => d.texto), ...textoLicoes(a.licoes)],
@@ -1484,7 +1488,14 @@ export const Amiga = {
     (a.ia.chatFila ||= []).push({ t: agora ? this.tempo : ultimo + d0 + Math.random() * (d1 - d0) + Math.min(2, texto.length / 60), texto: String(texto).slice(0, 300), para });
   },
   // a conversa do chat com cada amigo fica separada (a IA lê só a de quem está falando)
-  chatDeAmiga(j) { const c = (this.amiga.ia.conversas ||= {}); return (c[j.conta] ||= []); },
+  chatDeAmiga(j) { const a = this.amiga, c = (a.ia.conversas ||= {}); return (c[j.conta] ||= (a.conversasSalvas?.[j.conta] || []).slice(-this.histAmiga())); },
+  histAmiga() { return this.AMIGA.chat.historico || 12; },
+  // a conversa recente de cada pessoa vai para o banco junto com ela (voltar ao jogo amanhã: ela lembra do fio)
+  conversasParaSalvarAmiga(j) {
+    const r = { ...(j.conversasSalvas || {}) }, n = this.histAmiga();
+    for (const [k, l] of Object.entries(j.ia?.conversas || {})) if (Array.isArray(l) && l.length) r[k] = l.slice(-n).map((m) => ({ de: m.de, texto: String(m.texto).slice(0, 300), ...(m.nome ? { nome: m.nome } : {}) }));
+    j.conversasSalvas = r; return r;
+  },
   // ---------- memória (André 2026-11-10: ela aprende com o dia a dia, cada pessoa tem a sua história com ela) ----------
   // dica que quem ela acompanha ensinou (this.AMIGA.memoria.regras); undefined = o normal
   regraAmiga(campo) {
@@ -1507,7 +1518,7 @@ export const Amiga = {
       if ((d.falas | 0) >= this.AMIGA.amizade.conversa) this.ganharAmizadeAmiga(this.jogadores.get(d.id), 1); // uma conversa de verdade
       d.falas = 0;
       d.novas = 0; d.pensando = true;
-      const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
+      const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], fatos: [...(a.fatos?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
       if (!this.aoDiarioAmiga || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário
       this.aoDiarioAmiga(dados).then((r) => { d.pensando = false; if (r) this.anotarAmiga(conta, r); }, () => { d.pensando = false; });
     }
@@ -1519,6 +1530,13 @@ export const Amiga = {
       const lista = r.memorias.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.replace(/\s+/g, ' ').trim().slice(0, M.tamanho)).slice(0, M.max);
       if (lista.length) (a.memorias ||= {})[conta] = lista;
     }
+    // fatos novos (André 2026-11-17): só somam; o mesmo fato (sem acento e caixa) não entra de novo; cheio sai o mais velho
+    if (Array.isArray(r.fatos)) {
+      const F = this.AMIGA.fatos, l = ((a.fatos ||= {})[conta] ||= []), chave = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      const tem = new Set(l.map(chave));
+      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k)) continue; tem.add(k); l.push(f); }
+      if (l.length > F.max) l.splice(0, l.length - F.max);
+    }
     if (r.regras && typeof r.regras === 'object') {
       const atual = ((a.regras ||= {})[conta] ||= {});
       for (const k of Object.keys(M.regras)) if (typeof r.regras[k] === 'boolean') { if (r.regras[k]) atual[k] = true; else delete atual[k]; }
@@ -1528,7 +1546,7 @@ export const Amiga = {
   // o André escreveu para ela (o servidor chama depois de entregar a mensagem dele)
   ouvirAmiga(id, texto) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id)) return;
-    const c = this.chatDeAmiga(j); c.push({ de: 'ele', texto: String(texto).slice(0, 200) }); if (c.length > 12) c.shift();
+    const c = this.chatDeAmiga(j); c.push({ de: 'ele', texto: String(texto).slice(0, 200) }); if (c.length > this.histAmiga()) c.shift();
     const d = ((a.ia.diario ||= {})[j.conta] ||= { novas: 0, ultima: 0, id }); d.novas++; d.falas = (d.falas | 0) + 1; d.ultima = this.tempo; d.id = id; d.nome = j.nome;
   },
   passoChatAmiga(a) {
@@ -1539,11 +1557,13 @@ export const Amiga = {
       // falaram com ela no chat de time (André 2026-11-11): a resposta vai para o time todo, não para o privado
       const T = ia.viaTime > this.tempo && a.time && quem.time === a.time ? a.time : null;
       const msg = T ? { canal: 'time', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), membros: this.contasDoTime(T) } : { canal: 'pm', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), alvo: quem.conta, alvoNome: quem.nome };
-      const c = this.chatDeAmiga(quem); c.push({ de: 'ela', texto }); if (c.length > 12) c.shift();
+      ia.ultimaFala = this.tempo;
+      const c = this.chatDeAmiga(quem); c.push({ de: 'ela', texto }); if (c.length > this.histAmiga()) c.shift();
       // no time, os outros NPCs leem o que ela disse (André 2026-11-13: cada um respondia sem saber do outro)
-      if (T) for (const x of this.amigosIa) if (x !== this && x.amiga && x.amiga.time === T && x.podeAmiga(quem.id)) { const h = x.chatDeAmiga(quem); h.push({ de: 'outro', nome: this.AMIGA.nome, texto }); if (h.length > 12) h.shift(); }
+      if (T) for (const x of this.amigosIa) if (x !== this && x.amiga && x.amiga.time === T && x.podeAmiga(quem.id)) { const h = x.chatDeAmiga(quem); h.push({ de: 'outro', nome: this.AMIGA.nome, texto }); if (h.length > x.histAmiga()) h.shift(); }
       if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
     }
+    if (this.puxarAssuntoAmiga(a, dono)) return;
     // ela chama o André de vez em quando (longe, fora do time, viva, sem conversa esperando)
     const C = this.AMIGA.chat.chamar, sorte = ([x, y]) => x + Math.random() * (y - x);
     if (ia.chamaEm == null) ia.chamaEm = this.tempo + sorte(C.primeiro);
@@ -1556,6 +1576,42 @@ export const Amiga = {
     const ch = g && Math.random() < M.gostoChance ? { texto: this.AMIGA.chat.falas.chamaGosto[g], quer: g } : sorteia(this.AMIGA.chat.falas.chama); // o que vocês mais fazem juntos
     ia.chamado = { quer: ch.quer, ate: this.tempo + C.espera };
     this.dizerAmiga(ch.texto, true);
+  },
+  // ---------- a IA de quem conversa acabou no dia (André 2026-11-17: "ela dizer que não tá mais a fim no momento, que vai
+  // descansar, que já jogou demais... pode continuar jogando solo, mas não aceita mais jogar comigo, só diz que tá meio ocupada")
+  // Fica chat.semIa s (tempo de verdade) assim com essa pessoa: a primeira vez avisa; depois responde "tô ocupada" e recusa o time.
+  semIaAmiga(a, j) { const t = a?.semIa?.[j?.conta]; return !!t && Date.now() < t; },
+  cansouIaAmiga(id, regra = 'conversa') {
+    const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return;
+    const FA = this.AMIGA.falas, ja = this.semIaAmiga(a, j);
+    if (!ja) (a.semIa ||= {})[j.conta] = Date.now() + (this.AMIGA.chat.semIa || 10800) * 1000;
+    const pedido = ['time', 'vir', 'pescar', 'minerar', 'lenha', 'troca', 'cacar', 'sim'].includes(regra);
+    this.dizerAmiga(!ja ? sorteia(FA.cansouIa) : pedido ? FA.recusa.ocupada : sorteia(FA.ocupadaIa), false, id);
+  },
+  // ---------- ela puxa assunto pela IA (André 2026-11-17: "ela mesmo reclamar de coisas, perguntar coisas pessoais pra mim
+  // no meio da conversa"; "não quero que ela fique me pentelhando toda hora") ----------
+  // Só a Cecília (AMIGA.puxaAssunto), só com quem tem a IA e é amigo dela, sem ninguém falar há chat.puxar.quieto s, e no
+  // máximo uma vez a cada chat.puxar.entre s. Depois de ele subir de nível ou cair, comenta disso (evento). true = puxou.
+  puxarAssuntoAmiga(a, dono) {
+    const P = this.AMIGA.chat.puxar, ia = a.ia; if (!this.AMIGA.puxaAssunto || !P || !this.aoPuxarAmiga) return false;
+    if (!this.iaAmiga(dono.id) || !this.ehAmigoAmiga(dono) || dono.criando || this.semIaAmiga(a, dono)) return false;
+    const sorte = ([x, y]) => x + Math.random() * (y - x), nv = dono.prog.nivel | 0;
+    // o que aconteceu com ele (vira assunto)
+    if (ia.nivelVisto != null && nv > ia.nivelVisto) ia.evento = { txt: `${dono.nome} acabou de subir para o nível ${nv}`, t: this.tempo + sorte(P.evento) };
+    ia.nivelVisto = nv;
+    if (dono.morto && !ia.viuMorto) ia.evento = { txt: `${dono.nome} acabou de morrer${dono.matouNome ? ` para ${dono.matouNome}` : ''}`, t: this.tempo + sorte(P.evento) };
+    ia.viuMorto = !!dono.morto;
+    if (ia.puxaEm == null) ia.puxaEm = this.tempo + sorte(P.entre) * 0.5;
+    if (ia.pensandoPuxar || ia.chatFila?.length) return false;
+    const d = a.ia.diario?.[dono.conta], quieto = this.tempo - Math.max(d?.ultima || 0, ia.ultimaFala || 0);
+    const ev = ia.evento && this.tempo >= ia.evento.t && this.tempo - (ia.puxou || -1e9) >= P.eventoMin ? ia.evento : null;
+    if (ia.evento && this.tempo - ia.evento.t > 600) ia.evento = null; // velho: perdeu a graça
+    if (!ev && (this.tempo < ia.puxaEm || quieto < P.quieto)) return false;
+    ia.evento = null; ia.puxou = this.tempo; ia.puxaEm = this.tempo + sorte(P.entre);
+    ia.chamaEm = Math.max(ia.chamaEm || 0, this.tempo + 600); // a chamada pronta não vem logo atrás
+    ia.pensandoPuxar = true;
+    Promise.resolve(this.aoPuxarAmiga(dono.id, ev?.txt || null, this)).finally(() => { ia.pensandoPuxar = false; });
+    return true;
   },
   // indo até o André: perto anda/corre; longe vem de lobo pela estrada (longeAmiga), como no time
   virAmiga(j, dono, dt) {
