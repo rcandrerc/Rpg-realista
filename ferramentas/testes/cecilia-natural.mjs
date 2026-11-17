@@ -69,3 +69,20 @@ ok(cec.decisaoTimeAmiga(a, j).motivo === 'ocupada' && !cec.decisaoTimeAmiga(a, j
 ok(!cec.puxarAssuntoAmiga(a, j), 'e não puxa assunto');
 a.semIa[j.conta] = Date.now() - 1;
 ok(!cec.semIaAmiga(a, j), 'passado o tempo, volta ao normal');
+// pediu com jeito depois do não (André 2026-11-17): reconsidera uma vez; pedir seco de novo dá a mesma resposta
+{
+  a.semIa = {}; a.time = null; j.time = null; a.morto = false;
+  const fala = () => a.ia.chatFila.at(-1)?.texto, rr = Math.random;
+  const recusar = () => { a.ia.chatFila = []; a.ia.apelou = null; cec.recusarTimeAmiga(a, j, 'vontade'); a.ia.combinado = null; };
+  const diz = (t, assunto) => { cec.ouvirAmiga('andre', t); cec.respostaAmiga('andre', { assunto: assunto ?? cec.assuntoAmiga(t) }); return fala(); };
+  recusar();
+  ok(diz('bora pro time?', 'time') === AMIGA.falas.recusa.jaFalei, 'pedir seco de novo: mesma resposta');
+  Math.random = () => 0.5;
+  const f1 = diz('por favor, preciso muito da sua ajuda, é importante', 'conversa');
+  ok(AMIGA.falas.apeloSim.includes(f1) && cec.combinouAmiga(a), `pediu com jeito: reconsiderou e topou ("${f1}")`);
+  recusar(); Math.random = () => 0.999;
+  const f2 = diz('pfv vem comigo, é sério', 'conversa');
+  ok(AMIGA.falas.apeloNao.includes(f2), `pediu com jeito e ela ainda não pode: desculpa de verdade ("${f2}")`);
+  ok(diz('por favor!!', 'time') === AMIGA.falas.recusa.jaFalei, 'implorar de novo na mesma recusa não sorteia outra vez');
+  Math.random = rr;
+}

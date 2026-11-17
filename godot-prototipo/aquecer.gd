@@ -44,6 +44,11 @@ var _fila_corpos: Array = [] # [tipo, corpo, valor]: um passo por quadro
 var _corpos_t := 0.0
 var _manequins := {}
 var _corpos_us := 0
+# registro da entrada (lentidao.gd, retomada.gd): ms desde que o app abriu quando o preparo começou de verdade (ini) e
+# acabou (fim), ms montando tudo na frente da câmera (mostrar), ms dos quadros com tudo na tela (tela = a placa montando
+# os pipelines) e dos corpos dos outros (corpos)
+var tempos := {}
+var _tela_t0 := 0
 
 func _init(principal) -> void:
 	m = principal
@@ -88,15 +93,21 @@ func _process_parte(dt: float) -> void:
 	if not rodando:
 		return
 	_t += dt
+	if not tempos.has("ini"):
+		tempos.ini = Time.get_ticks_msec()
 	match _fase:
 		0:
 			if _t >= ESPERA_INICIO:
+				var t0 := Time.get_ticks_msec()
 				_mostrar_tudo()
+				_tela_t0 = Time.get_ticks_msec()
+				tempos.mostrar = _tela_t0 - t0
 				_fase = 1
 				_quadros = 0
 		1:
 			_quadros += 1
 			if _quadros >= QUADROS_NA_TELA:
+				tempos.tela = Time.get_ticks_msec() - _tela_t0
 				_t = 0.0 # primeiro libera a capa: se algo abaixo der erro, ela não fica presa
 				_fase = 2
 				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
@@ -121,6 +132,7 @@ func _process_parte(dt: float) -> void:
 					m.sons.volume_geral = _volume
 				rodando = false
 				feito = true
+				tempos.fim = Time.get_ticks_msec()
 
 func _mostrar_tudo() -> void:
 	var cam := m.get_viewport().get_camera_3d() as Camera3D
@@ -297,6 +309,8 @@ func _passo_corpos(dt: float) -> void:
 	_corpos_us += Time.get_ticks_usec() - t0
 	_fila_corpos.pop_front()
 	if _fila_corpos.is_empty():
+		tempos.corpos = _corpos_us / 1000
+		tempos.corpos_s = snappedf(_corpos_t, 0.1)
 		print_verbose("aquecer: corpos dos outros em %d ms (%.1f s com a espera dos penteados)" % [_corpos_us / 1000, _corpos_t])
 		if _fase >= 2:
 			cobre = false
