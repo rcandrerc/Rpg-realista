@@ -18,6 +18,7 @@ var meu_id := ""
 var amiga_id := "" # a Cecília (shared/amiga.js): o servidor só manda para o dono dela, que pode conversar
 var amiga_ids: Array = [] # todos os amigos virtuais com quem posso conversar: Cecília e Dario (André 2026-11-11)
 var amiga_papeis := {} # id -> "a guerreira" / "o guerreiro" (o título na janela de conversa)
+var amiga_segue := {} # id -> true: dá para seguir (botão Seguir no cartão; só a Cecília, AMIGA.seguivel)
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
@@ -502,6 +503,7 @@ func voltar_ao_login(texto := "") -> void:
 	amiga_id = ""
 	amiga_ids.clear()
 	amiga_papeis.clear()
+	amiga_segue.clear()
 	_foi_desconectado = false
 	_foi_trocado = false
 	_conta_antes = {}
@@ -1079,6 +1081,12 @@ func evento(ev: Dictionary) -> void:
 			if aid != "" and not aid in amiga_ids:
 				amiga_ids.append(aid)
 			amiga_papeis[aid] = str(ev.get("papel", "a guerreira"))
+			if ev.get("segue", false):
+				amiga_segue[aid] = true
+			return
+		"seguir": # botão Seguir (seguir.gd, André 2026-11-17): ela topou, o herói vai atrás dela
+			if m.seguir:
+				m.seguir.comecar(str(ev.get("npc", "")), str(ev.get("nome", "")))
 			return
 		"lotes":
 			if m.construcao:
