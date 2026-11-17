@@ -23,7 +23,8 @@ const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens d
 	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
 	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:correio": "Correio", "bt:estacoes": "Recolher estações",
 	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana", "bt:zoom": "Zoom rápido",
-	"pack": "Pack nas costas", "missao": "Missão da vez", "bt:veiculo": "Carrinho e barco", "bt:pegar_pack": "Pegar pack"} # pack: André 2026-11-12
+	"pack": "Pack nas costas", "missao": "Missão da vez", "bt:veiculo": "Carrinho e barco", "bt:pegar_pack": "Pegar pack",
+	"alvo": "Alvo marcado"} # alvo: André 2026-11-17 # pack: André 2026-11-12
 
 var m # main.gd
 var layout := {} # id -> [dx, dy, escala]; sem a chave = lugar e tamanho de sempre
@@ -96,7 +97,7 @@ func _bt(t: String, fn: Callable, ativo: bool) -> Button:
 
 # ---------- elementos ----------
 func ids() -> Array:
-	var l := ["painel", "joy", "chat", "mapa", "topo", "time", "missao", "pack"] # missao: André 2026-11-14
+	var l := ["painel", "joy", "chat", "mapa", "topo", "time", "missao", "pack", "alvo"] # missao: André 2026-11-14; alvo: 2026-11-17
 	for b in m.hud.botoes:
 		l.append("bt:" + str(b.acao))
 	return l
@@ -145,6 +146,8 @@ func rect(id: String) -> Rect2:
 			return m.missao_ativa.area() if m.missao_ativa else Rect2()
 		"pack":
 			return m.transporte.area() if m.transporte else Rect2()
+		"alvo": # quadro do alvo (alvo_quadro.gd): no modo de editar aparece um modelo mesmo sem alvo
+			return m.alvo_quadro.area() if m.alvo_quadro and m.alvo_quadro.tela and m.alvo_quadro.tela.visible else Rect2()
 	if id.begins_with("bt:"):
 		var b: Dictionary = h.botao(id.substr(3))
 		if b.is_empty():
@@ -185,6 +188,9 @@ func aplicar(id: String) -> void:
 		"pack":
 			if m.transporte:
 				m.transporte.posicionar(d, s, layout.has(id))
+		"alvo": # sem lugar guardado: segue a coluna da esquerda (embaixo do time)
+			if m.alvo_quadro:
+				m.alvo_quadro.posicionar(d, s, layout.has(id))
 		_:
 			if id.begins_with("bt:"):
 				h.ajustar_botao(id.substr(3), d, s)
@@ -202,6 +208,9 @@ func _soltar_da_coluna(id: String) -> void:
 	elif id == "pack" and m.transporte and m.transporte._painel:
 		base = m.transporte.PAINEL_POS
 		agora = m.transporte._painel.position
+	elif id == "alvo" and m.alvo_quadro and m.alvo_quadro.tela:
+		base = m.alvo_quadro.BASE_LIVRE
+		agora = m.alvo_quadro.tela.position
 	else:
 		return
 	layout[id] = [agora.x - base.x, agora.y - base.y, 1.0]
