@@ -2745,7 +2745,11 @@ func _mover_mira(dt: float) -> void:
 		var A: Dictionary = terras.area
 		mira.x = clampf(mira.x, float(A.x) - float(A.rx) - 2.0, float(A.x) + float(A.rx) + 2.0)
 		mira.z = clampf(mira.z, float(A.z) - float(A.rz) - 2.0, float(A.z) + float(A.rz) + 2.0)
-	mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
+	if na_area: # área de plantio (André 2026-11-17: em Rio Claro a câmera ia para debaixo da cidade): o chão de verdade,
+		# com relevo e calçada; o _piso só conhece o chão do terreno (0 fora das vilas do mundo grande)
+		mira.y = m.terreno.altura(mira.x, mira.z)
+	else:
+		mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
 	if andar == "telhado" and lotes.has(meu): # mexendo no telhado (André 2026-11-05): a câmera sobe até o alto das paredes
 		mira.y = maxf(mira.y, _topo_parede(mira.x, mira.z) - 0.6)
 	m.cam.entrar_livre(mira)
