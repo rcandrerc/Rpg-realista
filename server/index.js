@@ -546,7 +546,7 @@ const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
 const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico', 'toques', 'voltas', 'sala', 'sala_erro',
-  'pso0', 'pso1', 'pip', 'vtex', 'vbuf', 'fundo']; // toques/voltas/sala: ronda 2026-11-16 (Entrar que falha no 1º toque); pso/pip/vtex/vbuf: voltar do fundo (2026-11-17, retomada.gd)
+  'pso0', 'pso1', 'pip', 'vtex', 'vbuf', 'fundo', 'ws']; // toques/voltas/sala: ronda 2026-11-16 (Entrar que falha no 1º toque); pso/pip/vtex/vbuf: voltar do fundo (2026-11-17, retomada.gd)
 const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip', 'espera'];
 const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'q50', 'q70', 'lenta', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
 // o que pesou no segundo ruim (lentidao.gd ev): {nome: [vezes, ms]}, no máximo 8 nomes curtos

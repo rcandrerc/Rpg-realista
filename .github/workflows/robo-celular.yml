@@ -86,10 +86,23 @@ jobs:
       - name: Jogar com Vulkan por software (metade da tela do X7)
         env:
           LP_NUM_THREADS: 3 # o desenho por software deixa um núcleo livre: com todos ocupados a máquina do GitHub perdeu contato (2026-11-16)
+          # 2026-11-17 (ronda): ainda perdeu contato uma vez (rodada das 23:29). O jogo roda com prioridade baixa (nice) para
+          # o programa do GitHub que conversa com a máquina sempre ter vez
         run: |
+          # vigia (ronda 2026-11-17: desde a noite de 16/11 a máquina do GitHub cai uns 4 min depois de começar este passo,
+          # 3 rodadas seguidas, também na main): anota memória e processador a cada 5 s e fecha o Godot se a memória
+          # livre ficar perto do fim, para a máquina não cair e o registro chegar
+          (set +e; while true; do
+            m=$(free -m | awk 'NR==2{print $3" usada "$7" livre"}'); c=$(cut -d' ' -f1 /proc/loadavg); g=$(ps -C Godot_v${GODOT}_linux.x86_64 -o rss= 2>/dev/null | awk '{s+=$1} END{print int(s/1024)}')
+            echo "$(date +%T) mem $m MB, carga $c, godot ${g:-0} MB" >> /tmp/cel/vigia.log
+            livre=$(free -m | awk 'NR==2{print $7}'); if [ "$livre" -lt 1500 ]; then echo "VIGIA: memória livre $livre MB, fechando o Godot" >> /tmp/cel/vigia.log; pkill -9 -f Godot_v; fi
+            sleep 5; done) &
+          VIGIA=$!
           RPG_SERVIDOR="$SRV" RPG_SESSAO="$SESSAO" DURACAO=$VULKAN_S SAIDA=/tmp/cel/vulkan.json timeout $((VULKAN_S + 420)) stdbuf -oL -eL \
-            xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
+            nice -n 15 xvfb-run -a -s "-screen 0 1356x610x24" $GODOT_BIN --path godot-prototipo --rendering-driver vulkan --rendering-method mobile \
             --resolution 1356x610 --render-thread safe -s $GITHUB_WORKSPACE/ferramentas/robo/celular.gd > /tmp/cel/vulkan.log 2>&1 || true
+          kill $VIGIA 2>/dev/null || true
+          echo "--- vigia (memória e carga)"; awk 'NR%6==1' /tmp/cel/vigia.log | tail -30; grep VIGIA /tmp/cel/vigia.log || true
           grep -E "^CELULAR" /tmp/cel/vulkan.log | cut -c1-400 | tail -40
       - name: Relatório
         if: always()
