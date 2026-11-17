@@ -2669,6 +2669,9 @@ export const AMIGA = {
   // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
   // zera de novo; o save anterior fica em 'antes' no terreno dela.
   recomeco: RECOMECO.data,
+  // André 2026-11-17 (a história deles estava marcada como toda feita por bug): recomeça só o jogo (nível, peças, ouro,
+  // bolsa, história); amizades e lembranças ficam. Trocar a data recomeça de novo. Vale para a Cecília e o Dario.
+  recomecoJogo: '2026-11-17',
   // André 2026-11-11: todas as moças no corpo da Ruiva (a armadura foi ajustada para ele); o cabelo da Victoria vira penteado
   visual: 'ruiva',
   aparencia: { cabelo: 0x1c1a1f, olhos: 0xc02a2a, roupa: 0x6e1e2a, calca: 0x222226, altura: 1, penteado: 'victoria' },
@@ -2932,8 +2935,9 @@ export const AMIGA = {
     },
   },
   falasLeva: { // botão Seguir (André 2026-11-17): ela diz para onde vai
-    campo: ['Bora! Destino: {lugar}. Cola em mim.', 'Vem comigo, bora caçar. Destino: {lugar}.', 'Segue eu! Sei de um lugar bom: {lugar}.'],
-    solo: ['Tô indo caçar. Destino: {lugar}. Vem atrás!', 'Próxima parada: {lugar}. Cola aí.'],
+    // André 2026-11-17 (print): "Destino: ..." soava robô
+    campo: ['Segue eu! Conheço um lugar bom de caçar: {lugar}.', '{lugar}, é pra lá que eu vou. Cola em mim!', 'Vem comigo, sei onde tem bicho bom: {lugar}.'],
+    solo: ['Tô indo caçar ali, {lugar}. Vem atrás!', '{lugar}, é pra lá que eu tô indo. Cola aí!'],
     casa: ['Tô indo pra casa agora. Vem junto?', 'Vou passar em casa. Me acompanha?'],
     junto: ['Vem comigo, vou dar uma volta.', 'Segue eu, já te mostro.'],
   },
@@ -3076,7 +3080,7 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
   id, nome, conta: 'a:' + id, papel: g === 'm' ? 'o aventureiro' : 'a aventureira', genero: g,
   persona: `${g === 'm' ? 'um aventureiro' : 'uma aventureira'} de anime num RPG medieval de fantasia: ${jeito}`,
   visual: g === 'm' ? 'cabelo_m' : 'ruiva', aparencia: { cabelo, olhos, pele, roupa, calca, altura, penteado }, // penteado null = o cabelo do próprio corpo
-  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false, naoInsiste: false, seguivel: false,
+  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false, naoInsiste: false, seguivel: false, recomecoJogo: null, // o recomeço de 2026-11-17 é só da Cecília e do Dario
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
@@ -3112,7 +3116,10 @@ export const NPC_VIDA = {
   grind: { segPorDia: 1800 }, // André 2026-11-16: 30 min por dia (era 2 h)
   // missões da história de Cecília e Dario (André 2026-11-16): até segPorDia s por dia real fazendo missão (fora o grind);
   // chance: de cada saída, quantas viram missão; porEtapa: s trabalhando no lugar de cada etapa (sorteia de 60% a 140%)
-  missao: { segPorDia: 3600, chance: 0.5, porEtapa: 120 },
+  missao: { segPorDia: 3600, chance: 0.5, porEtapa: 120, atrasado: { niveis: 10, x: 3 } }, // atrasado: a missão pede 10+ níveis a menos que o dele = 3x o tempo do dia (André 2026-11-17)
+  // diárias da Cecília e do Dario (André 2026-11-17: "até pra gente ter gente pra reflorestar esse mapa"): chance de ir fazer
+  // uma que falta ao escolher o que fazer; árvores que eles plantam (a primeira é a que compram na Rosa); raio m da casa
+  diaria: { chance: 0.6, arvores: ['carvalho', 'pinheiro', 'betula'], raio: 600 },
   // Rotina de cada um (André 2026-11-11: "todos fazendo a mesma coisa... onde eles passam trava tudo"). Cada NPC tem o
   // horário dele (sai/volta em hora do jogo; volta < sai = caça de noite), o campo que prefere (alto = o mais forte que
   // aguenta; medio; baixo = mais seguro; longe = qualquer um, de preferência longe), quanto dura a saída (caca) e a
