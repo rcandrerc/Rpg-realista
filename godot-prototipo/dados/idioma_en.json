@@ -3599,13 +3599,14 @@
 "Sozinha aqui de novo... aparece!": "Alone here again... come by!",
 "Me dá uma força rapidinho? Juro que é rápido.": "Can you help me real quick? I swear it's fast.",
 "Afiei a espada hoje cedo. Bora testar?": "Sharpened my sword this morning. Wanna test it?",
-"Bora! Destino: {1}. Cola em mim.": "Let's go! Heading to {1}. Stick with me.",
-"Vem comigo, bora caçar. Destino: {1}.": "Come with me, let's hunt. Heading to {1}.",
 "Segue eu! Sei de um lugar bom: {1}.": "Follow me! I know a good spot: {1}.",
-"Tô indo caçar. Destino: {1}. Vem atrás!": "Going hunting. Heading to {1}. Come along!",
-"Próxima parada: {1}. Cola aí.": "Next stop: {1}. Tag along.",
 "Tô indo pra casa agora. Vem junto?": "I'm heading home now. Coming?",
 "Vou passar em casa. Me acompanha?": "Gonna stop by my place. Walk with me?",
 "Vem comigo, vou dar uma volta.": "Come with me, I'm going for a walk.",
-"Segue eu, já te mostro.": "Follow me, I'll show you."
+"Segue eu, já te mostro.": "Follow me, I'll show you.",
+"{1}, é pra lá que eu vou. Cola em mim!": "{1}, that's where I'm headed. Stick with me!",
+"Vem comigo, sei onde tem bicho bom: {1}.": "Come with me, I know where the good mobs are: {1}.",
+"Tô indo caçar ali, {1}. Vem atrás!": "I'm going hunting over at {1}. Come along!",
+"{1}, é pra lá que eu tô indo. Cola aí!": "{1}, that's where I'm going. Tag along!",
+"Segue eu! Conheço um lugar bom de caçar: {1}.": "Follow me! I know a good hunting spot: {1}."
 }
