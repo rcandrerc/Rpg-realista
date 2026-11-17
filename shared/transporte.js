@@ -12,7 +12,7 @@
 import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
-import { motivoLibera } from './historia.js'; // progressão (André 2026-11-10)
+import { motivoLibera, missaoAtual, etapasDe } from './historia.js'; // progressão (André 2026-11-10)
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const PACK_CHAO_DURA = 1800; // s: pack esquecido no chão some depois de meia hora
@@ -187,6 +187,17 @@ export const Transporte = {
     j.progSujo = true; this.avisarProg(j);
     return '';
   },
+  // o pack do tipo k é da missão (uma etapa daqui pra frente leva esse pack a outro NPC) e entregar em npcId deixaria a
+  // missão sem ele? Devolve o NPC da missão, ou ''. André 2026-11-17: ficou só com o carrinho na etapa do Pedrão.
+  packDaMissao(j, k, npcId) {
+    const p = j.prog, h = p.hist; if (!h?.ac || j.bot) return '';
+    const M = missaoAtual(p); if (!M) return '';
+    const E = etapasDe(M).slice(h.e || 0).find((o) => o.ev === 'pack' && o.k === k);
+    if (!E || E.npc === npcId) return '';
+    const ok = (o) => o?.k === k, tem = (ok(p.pack) ? 1 : 0) + (p.carrinho?.packs || []).filter(ok).length + (p.navio?.porao || []).filter(ok).length;
+    const precisa = (E.n || 1) - (etapasDe(M)[h.e || 0] === E ? h.n || 0 : 0);
+    return tem <= precisa ? E.npc : '';
+  },
   // m = { acao, npc, de, i, g }
   pack(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando || !m) return;
@@ -211,6 +222,7 @@ export const Transporte = {
       else return;
       const pk = lista ? lista[i] : p.pack; if (!pk) return;
       if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PR.perto) return aviso('Esse pack foi feito aqui. Leve pra outro mercador: quanto mais longe, mais paga!');
+      { const dono = this.packDaMissao(j, pk.k, n.id); if (dono) return aviso(`Esse pack é da missão: leve até ${this.nomeNpc ? this.nomeNpc(dono) : dono}`); }
       const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k));
       if (lista) lista.splice(i, 1); else p.pack = null;
       mercadoConta(p, n.id, pk.k, agora);
