@@ -3529,5 +3529,8 @@
 "Agora não, parceiro. Mais tarde.": "Not now, buddy. Later.",
 "Tô no meu ritmo aqui. Depois a gente troca ideia.": "Doing my own thing here. We'll chat later.",
 "Tô meio ocupado agora. Outra hora a gente vai.": "Kinda busy right now. We'll go some other time.",
-"Mais ▾": "More ▾"
+"Mais ▾": "More ▾",
+"1 vez": "Once",
+"+%d · no máximo da peça": "+%d · piece at max",
+"Tenta de novo sozinho até o máximo da peça, até o ouro acabar ou até tocar em Cancelar": "Keeps trying on its own until the piece is maxed, gold runs out or you tap Cancel"
 }

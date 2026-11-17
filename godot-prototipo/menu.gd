@@ -2220,7 +2220,7 @@ func montar_melhorar_aqui(ests: Array, so_tipo := "", so_reforco := false) -> bo
 			bs.add_child(be)
 		if pode_reforcar:
 			var onde := {"i": p[1]} if p[1] >= 0 else {"lugar": p[2]}
-			var rf := botao("Reforçar", func(): m.reforco.comecar(onde, false), 14, not pode_evoluir)
+			var rf := botao("Reforçar", func(): m.reforco.abrir(onde), 14, not pode_evoluir) # abre a janela (1 vez / Até o máximo)
 			rf.custom_minimum_size = Vector2(120, 36)
 			bs.add_child(rf)
 		l.add_child(bs)
@@ -3432,19 +3432,10 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
 		var onde := {"i": i} if lugar == "" else {"lugar": lugar}
-		# André 2026-11-09: "até cancelar" confundia. Agora: uma tentativa, ou repetir sozinho até o máximo da peça
-		var r1 := botao("Reforçar 1 vez", func(): m.reforco.comecar(onde, false), 16, true)
+		# André 2026-11-17: um botão só; ele abre a janela do reforço com "1 vez", "Até o máximo" e "Cancelar"
+		var r1 := botao("Reforçar", func(): m.reforco.abrir(onde), 16, true)
 		r1.custom_minimum_size = Vector2(140, 42)
 		bs.add_child(r1)
-		var r2 := botao("Até o máximo", func(): m.reforco.comecar(onde, true), 16)
-		r2.custom_minimum_size = Vector2(140, 42)
-		r2.tooltip_text = texto_ate_maximo(it)
-		bs.add_child(r2)
-		var dm := dica_ate_maximo(it)
-		dm.add_theme_font_size_override("font_size", 12 if compacto else 13)
-		dm.custom_minimum_size = Vector2(0 if compacto else 300, 0)
-		if not compacto: # deitada não cabe: o texto fica no toque longo/tooltip do botão "Até o máximo"
-			bs.add_child(dm)
 	var trancado: bool = bool(it.get("cad", false))
 	if it.k == "carrinho" and P.carrinho_no_mundo():
 		var nm2 := rotulo("No mundo: travado na mochila. Toque em Guardar pra ele voltar de qualquer distância.", 15, APAGADO)
@@ -3506,8 +3497,9 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	return cx
 
 # André 2026-11-17 ("é muito botão numa janela só"): na ficha deitada ficam à vista só a ação principal e o Reforçar;
-# Até o máximo, Evoluir, Apagar e Destruir vão para o "Mais" e o cadeado vira um ícone ao lado do X. Nada some.
-const BOTOES_NO_MAIS := ["Até o máximo", "Evoluir", "Apagar", "Destruir"]
+# Evoluir, Apagar e Destruir vão para o "Mais" e o cadeado vira um ícone ao lado do X. Nada some ("Até o máximo"
+# ficou na janela do reforço, André 2026-11-17).
+const BOTOES_NO_MAIS := ["Evoluir", "Apagar", "Destruir"]
 func _limpar_botoes(bs: Container, l: HBoxContainer, trancado: bool, it) -> void:
 	var gb := bs as GridContainer
 	gb.columns = 2
@@ -4164,17 +4156,11 @@ func montar_janela() -> void:
 	linha.add_child(txt)
 	var cheia: bool = P.prog.mochila.find(null) < 0
 	if atual != null and int(atual.get("e", 0)) < P.reforco_max(atual): # reforçar a peça vestida (igual ao Quimera)
-		var rv := VBoxContainer.new() # uma vez ou até cancelar (para sozinho no limite da peça, do atributo ou do ouro)
-		rv.add_theme_constant_override("separation", 4)
-		rv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var rf := botao("Reforçar 1 vez", func(): m.reforco.comecar({"lugar": l}, false), 14, true)
-		rf.custom_minimum_size = Vector2(140, 38)
-		rv.add_child(rf)
-		var ra := botao("Até o máximo", func(): m.reforco.comecar({"lugar": l}, true), 14)
-		ra.custom_minimum_size = Vector2(140, 38)
-		rv.add_child(ra)
-		rv.add_child(dica_ate_maximo(atual))
-		linha.add_child(rv)
+		# André 2026-11-17: um botão só; a janela do reforço tem "1 vez", "Até o máximo" e "Cancelar"
+		var rf := botao("Reforçar", func(): m.reforco.abrir({"lugar": l}), 15, true)
+		rf.custom_minimum_size = Vector2(110, 44)
+		rf.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		linha.add_child(rf)
 	if atual != null:
 		var b := botao("Tirar", func(): acao_item({"acao": "tirar", "lugar": l}), 15, not cheia)
 		b.custom_minimum_size = Vector2(96, 44)

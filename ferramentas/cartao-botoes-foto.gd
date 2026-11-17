@@ -14,7 +14,7 @@ func _initialize() -> void:
 	fundo.size = Vector2(w, h)
 	root.add_child(fundo)
 	var sc := GDScript.new()
-	sc.source_code = "extends Node\nvar P\nvar reforco\nfunc perto_de_quem_compra(): return false\n"
+	sc.source_code = "extends Node\nvar P\nvar reforco\nvar menu\nvar sons\nvar festa\nvar hud = self\nfunc perto_de_quem_compra(): return false\nfunc on(): return false\nfunc aviso(t): print('aviso: ', t)\n"
 	sc.reload()
 	var falso := Node.new()
 	falso.set_script(sc)
@@ -25,7 +25,9 @@ func _initialize() -> void:
 	M.boneco_modo = "Espada"
 	var P = falso.P
 	P.prog["equip"] = {"corpo": {"k": "peitoral", "r": 2}, "pernas": {"k": "calca", "r": 2}}
-	P.prog.mochila = [{"k": "peitoral", "r": 2, "e": 7, "d": 100}]
+	P.prog.mochila = [{"k": "peitoral", "r": 2, "e": 7, "d": 100}, {"k": "tecido", "n": 50}]
+	P.prog.ouro = 999999
+	P.prog.atr = {"for": 400, "des": 3, "int": 400, "vit": 3}
 	var tela := Control.new()
 	tela.size = Vector2(w, h)
 	root.add_child(tela)
@@ -54,4 +56,31 @@ func _initialize() -> void:
 			await process_frame
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png(saida + "/" + pre + "mais.png")
+		M._fechar_mais([])
+	# a janela do reforço: parada, depois de algumas tentativas (fila de acertos e falhas)
+	var R = load("res://reforco.gd").new(falso)
+	falso.reforco = R
+	root.add_child(R)
+	if R.has_method("abrir"):
+		R.abrir({"i": 0})
+		for i in 10:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(saida + "/" + pre + "reforco-parada.png")
+		seed(7)
+		for k in 7:
+			R._iniciar(false)
+			while R.fase == "barra":
+				await process_frame
+			if k == 6:
+				for i in 5:
+					await process_frame
+				await RenderingServer.frame_post_draw
+				root.get_texture().get_image().save_png(saida + "/" + pre + "reforco-resultado.png")
+			R._continuar()
+			await process_frame
+		for i in 10:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(saida + "/" + pre + "reforco-depois.png")
 	quit()
