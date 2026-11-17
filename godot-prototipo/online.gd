@@ -846,6 +846,10 @@ func outro(j: Dictionary) -> void:
 	corpos[id] = o.no
 	if o.barra:
 		o.barra.scale.x = max(0.001, float(j.vida) / max(1.0, float(j.vidaMax)))
+	o.vida = float(j.get("vida", o.get("vida", 0.0))) # cartão do oponente no duelo (duelo.gd)
+	o.vida_max = float(j.get("vidaMax", o.get("vida_max", 1.0)))
+	if j.has("nivel"):
+		o.nivel = int(j.nivel)
 	o.pack_k = j.get("pack") # pack nas costas (transporte.gd desenha)
 	# montado no lobo (Simulacao.montar): o lobo embaixo, o corpo agachado na sela e as armas nas costas
 	var montado: bool = j.get("montado") != null and not j.get("morto", false)
