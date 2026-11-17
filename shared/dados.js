@@ -2666,6 +2666,9 @@ export const AMIGA = {
   // André 2026-11-17: botão Seguir no cartão dela; ela escolhe para onde vai e o herói segue. No time ela vai na frente
   // até o campo (espera ele quando passa de espera m de distância); dura até ate s ou até ele parar
   seguivel: true, lidera: { espera: 15, ate: 1800, perto: 8 },
+  // André 2026-11-17: "posso ir com você? Ela: claro, vem. Me dá time. Aí eu aceito": topou pelo chat, ELA manda o convite
+  // do time (o cartão Entrar/Recusar de qualquer jogador); com o campo dela, ele aceita e vai atrás dela até lá
+  convida: true,
   // André 2026-11-11: ele recomeça do zero e ela também (nível, peças, ouro, bolsa, amizades, diário). Trocar este texto
   // zera de novo; o save anterior fica em 'antes' no terreno dela.
   recomeco: RECOMECO.data,
@@ -2742,6 +2745,7 @@ export const AMIGA = {
     time: ['Bora! Tô no seu time. Vai na frente que eu cuido das suas costas.', 'Fechou! Time formado. Quem cair primeiro paga o jantar!', 'Partiu! Espada afiada e cenoura no bolso.'],
     // André 2026-11-13 ("como se fosse um jogador real"): no chat ela só topa; quem dá o time é ele, pelo botão
     timeCombinado: ['Bora! Manda o convite do time.', 'Topo! Me chama pro time que eu vou.', 'Fechou! Manda o time aí.'],
+    timeConvidou: ['Claro, vem! Te mandei o convite do time.', 'Bora! Mandei o time, aceita aí.', 'Vem comigo! Já te chamei pro time.'], // ela manda o convite (convida)
     // aceitou com ele bem mais fraco (André 2026-11-16: "vou te ajudar porque você é meu amigo... mas não tão grosseira")
     nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
@@ -2957,7 +2961,7 @@ function mesclarAmigo(base, muda) {
 export const DARIO = mesclarAmigo(AMIGA, {
   id: 'dario', nome: 'Dario', conta: 'a:dario', papel: 'o guerreiro', genero: 'm',
   puxaAssunto: false, // André 2026-11-17: quem puxa assunto pela IA é só a Cecília (o Dario responde)
-  naoInsiste: false, seguivel: false, // André 2026-11-17: "o Dario deixa como está"
+  naoInsiste: false, seguivel: false, convida: false, // André 2026-11-17: "o Dario deixa como está"
   persona: 'um guerreiro de anime num RPG medieval de fantasia: calmo, confiante, leal, de humor seco e provocador com os amigos, competitivo nas caçadas e orgulhoso da espada',
   visual: 'cabelo_m',
   // visual B (cabelo preto rebelde, olhos dourados, capa roxo-escura); só aparência, as peças de verdade começam Comuns
@@ -3080,7 +3084,7 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
   id, nome, conta: 'a:' + id, papel: g === 'm' ? 'o aventureiro' : 'a aventureira', genero: g,
   persona: `${g === 'm' ? 'um aventureiro' : 'uma aventureira'} de anime num RPG medieval de fantasia: ${jeito}`,
   visual: g === 'm' ? 'cabelo_m' : 'ruiva', aparencia: { cabelo, olhos, pele, roupa, calca, altura, penteado }, // penteado null = o cabelo do próprio corpo
-  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false, naoInsiste: false, seguivel: false, recomecoJogo: null, // o recomeço de 2026-11-17 é só da Cecília e do Dario
+  terreno: null, nivelInicial: nivel, gosto, puxaAssunto: false, naoInsiste: false, seguivel: false, convida: false, recomecoJogo: null, // o recomeço de 2026-11-17 é só da Cecília e do Dario
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
