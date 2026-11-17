@@ -272,6 +272,7 @@ func trocar_auto() -> void:
 const AUTO_S := 15.0
 const AUTO_SOBE_S := 60.0
 const AUTO_SOBE_MAX := 600.0
+const DEGRAUS := 8 # degraus do Auto na Média e na Alta (a Baixa tem menos: degraus())
 const ESCADA_FPS := [55, 50, 45, 40]
 const LENTO := 0.9 # FPS de verdade abaixo de 90% do limite: o celular não chega lá
 const CALOR_BAT_S := 45.0
