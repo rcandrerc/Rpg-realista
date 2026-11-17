@@ -188,6 +188,7 @@ func calcular_status() -> Dictionary:
 		"danoFisico": (10.0 * nivel_k * (1 + 0.06 * (a["for"] - 3)) + eq.danoFisico) * (1.0 + eq.danoK),
 		"danoMagico": (10.0 * nivel_k * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1.0 + eq.danoK),
 		"critico": min(1.0, 0.0455 + 0.0015 * a.des + (0.02 if passiva("sorte_arcana") else 0.0) + eq.critico),
+		"danoCritico": eq.danoCritico, # somado no golpe crítico (André 2026-11-17)
 		"recarga": min(0.4, 0.0133 * a.des),
 		"areaK": eq.areaK,
 		"estaminaMax": round(float(dados.estamina.base) + float(dados.estamina.porNivel) * n + float(dados.estamina.porDes) * a.des),
@@ -329,7 +330,7 @@ func conjunto_ativo() -> Dictionary:
 	return r
 
 func bonus_equip() -> Dictionary:
-	var b := {"vida": 0.0, "mana": 0.0, "defesa": 0.0, "critico": 0.0, "danoFisico": 0.0, "danoMagico": 0.0, "danoK": 0.0, "areaK": 0.0, "regenManaK": 0.0}
+	var b := {"vida": 0.0, "mana": 0.0, "defesa": 0.0, "critico": 0.0, "danoCritico": 0.0, "danoFisico": 0.0, "danoMagico": 0.0, "danoK": 0.0, "areaK": 0.0, "regenManaK": 0.0}
 	if not prog.has("equip"):
 		return b
 	for l in dados.lugares:
@@ -347,7 +348,23 @@ func bonus_equip() -> Dictionary:
 			var bon: Dictionary = dados.conjunto[ativo[t]][t]
 			for c in bon:
 				b[c] += float(bon[c])
+	var cc := conjunto_critico() # conjunto de crítico (André 2026-11-17): vale o maior
+	if not cc.is_empty():
+		b.critico += float(cc.critico)
+		b.danoCritico += float(cc.danoCritico)
 	return b
+
+# conjunto de crítico (CONJUNTO_CRITICO de shared/dados.js): o maior entre 2, 4 e 6 peças; {} = nenhum
+func conjunto_critico() -> Dictionary:
+	var tab: Array = dados.get("conjuntoCritico", [])
+	var n := pecas_conjunto()
+	var m := {}
+	for r in range(1, tab.size()):
+		for t in ["2", "4", "6"]:
+			var v: Dictionary = tab[r][t]
+			if n[r] >= int(t) and (m.is_empty() or float(v.critico) > float(m.critico) or (float(v.critico) == float(m.critico) and float(v.danoCritico) > float(m.danoCritico))):
+				m = {"r": r, "t": t, "critico": v.critico, "danoCritico": v.danoCritico}
+	return m
 
 # ---------- reforço de equipamento (igual a shared/progresso.js; REFORCO em shared/dados.js, como no Quimera) ----------
 func reforco_dados() -> Dictionary:
@@ -358,7 +375,7 @@ func reforco_dados() -> Dictionary:
 func reforco_k(it, c: String) -> float:
 	var e := int(it.get("e", 0)) if it is Dictionary else 0
 	var R := reforco_dados()
-	return 1.0 + float(R.bonusCritico if c == "critico" else R.bonus) * e
+	return 1.0 + float(R.bonusCritico if c == "critico" or c == "danoCritico" else R.bonus) * e
 
 func reforco_max(it) -> int:
 	return int(reforco_dados().max[int(it.r)]) if eh_equip(it) else 0
@@ -702,7 +719,7 @@ func preco_venda(it) -> int:
 		v = int(dados.itens[it.k].get("venda", 1))
 	return int(round(v * (1.0 + mercador().venda)))
 
-const NOME_ST := {"vida": "Vida", "mana": "Mana", "defesa": "Defesa", "critico": "Crítico", "danoFisico": "Dano físico", "danoMagico": "Dano mágico",
+const NOME_ST := {"vida": "Vida", "mana": "Mana", "defesa": "Defesa", "critico": "Crítico", "danoCritico": "Dano crítico", "danoFisico": "Dano físico", "danoMagico": "Dano mágico",
 	"danoK": "Dano", "areaK": "Área das skills", "regenManaK": "Regeneração de mana"}
 static func texto_st(c: String, v: float) -> String:
 	if c in ["critico", "danoK", "areaK", "regenManaK"]:

@@ -235,6 +235,8 @@
 "Defesa": "Defense",
 "%d (-%s%% de dano)": "%d (-%s%% damage)",
 "Crítico": "Critical",
+"Dano crítico": "Critical damage",
+"%s · +%d Dano crítico": "%s · +%d Critical damage",
 "Dano físico": "Physical damage",
 "Dano mágico": "Magic damage",
 "Recarga": "Cooldown",

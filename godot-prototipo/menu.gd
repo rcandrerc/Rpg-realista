@@ -1187,6 +1187,7 @@ func montar_status() -> void:
 	var itens := [
 		["Vida", "%d / %d" % [ceil(m.h.vida), st.vidaMax]], ["Mana", "%d / %d" % [floor(m.h.mana), st.manaMax]],
 		["Defesa", "%d (-%s%% de dano)" % [st.defesa, P.num(st.reducao * 100, 0)]], ["Crítico", "%s%%" % P.num(st.critico * 100, 1)],
+		["Dano crítico", "+%d" % int(round(float(st.get("danoCritico", 0))))], # André 2026-11-17: número somado no golpe crítico
 		["Dano físico", P.num(st.danoFisico, 1)], ["Dano mágico", P.num(st.danoMagico, 1)],
 		["Recarga", "-%s%%" % P.num(st.recarga * 100, 0)], ["Regeneração", "%s vida/s · %s mana/s (fora de luta)" % [P.num(st.regenVida, 1), P.num(st.regenMana, 1)]],
 		["Estamina", "%d / %d" % [floor(m.trabalho.sta), m.trabalho.sta_max()]], ["Vigor", "%d / %d" % [floor(P.vigor()), int(P.dados.vigor.max)]],
@@ -3164,6 +3165,15 @@ func montar_conjunto() -> void:
 		for t in ["2", "3", "6"]:
 			if prox == "" and n[r] < int(t) and ativo[t] < r:
 				prox = "Próximo: %s peças %s (tem %d): %s" % [t, PLURAL[r], n[r], P.texto_bonus(r, t)]
+	# conjunto de crítico (André 2026-11-17): 2, 4 ou 6 peças da mesma raridade; vale o maior
+	var cc: Dictionary = P.conjunto_critico()
+	if not cc.is_empty():
+		algum = true
+		var lc := HBoxContainer.new()
+		lc.add_theme_constant_override("separation", 8)
+		lc.add_child(rotulo("%s peças %s" % [cc.t, PLURAL[int(cc.r)]], 15, Color(P.dados.raridades[int(cc.r)].cor)))
+		lc.add_child(rotulo("%s · +%d Dano crítico" % [P.texto_st("critico", float(cc.critico)), int(cc.danoCritico)], 15, TEXTO))
+		conteudo.add_child(lc)
 	if not algum:
 		conteudo.add_child(rotulo("Use 2, 3 ou 6 peças Raras (ou melhores) para ganhar bônus.", 14, APAGADO))
 	if prox != "":
@@ -3320,7 +3330,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	var tipo := ""
 	if P.eh_equip(it):
 		var lg: String = P.dados.itens[it.k].lugar
-		tipo = {"corpo": "Camisa", "pernas": "Calça", "capa": "Capa", "pes": "Botas", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
+		tipo = {"cabeca": "Capacete", "corpo": "Camisa", "pernas": "Calça", "capa": "Capa", "pes": "Botas", "acessorio": "Acessório", "espada": "Arma · espada", "cajado": "Arma · cajado"}[lg]
 		tipo += " · No corpo" if lugar != "" else ""
 	elif it.k == "tomo":
 		tipo = "Tomo de %s" % P.habs[it.h].nome
@@ -3864,7 +3874,7 @@ const MELHOR := Color(0.5, 0.86, 0.45)
 const PIOR := Color(0.92, 0.42, 0.36)
 # peso de cada número só para pôr a lista em ordem (melhor primeiro); o que aparece na tela são os números de verdade
 const PESO_ST := {"vida": 1.0 / 20.0, "mana": 1.0 / 20.0, "defesa": 1.0 / 5.0, "danoFisico": 1.0 / 5.0, "danoMagico": 1.0 / 5.0,
-	"critico": 1.0 / 0.01, "danoK": 1.0 / 0.05, "areaK": 1.0 / 0.05, "regenManaK": 1.0 / 0.05}
+	"critico": 1.0 / 0.01, "danoCritico": 1.0 / 5.0, "danoK": 1.0 / 0.05, "areaK": 1.0 / 0.05, "regenManaK": 1.0 / 0.05}
 
 # quadradinho "Mostrar capacete": toca em qualquer parte da linha para marcar ou desmarcar (o bônus da peça continua)
 func linha_mostrar_capacete(tam := 13) -> Control:

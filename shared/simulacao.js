@@ -3757,7 +3757,7 @@ export class Simulacao {
     if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
-    if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n *= 2; crit = true; } } // como no Quimera: ±15% e crítico ×2
+    if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n = n * 2 + (de.st.danoCritico || 0); crit = true; } } // como no Quimera: ±15% e crítico ×2 (+ dano crítico do equipamento, André 2026-11-17)
     if (alvo.vuln && alvo.vuln.ate > this.tempo) n *= 1 + alvo.vuln.k;
     // diferença de nível (Quimera): monstro x herói nos dois sentidos; o espantalho de treino fica de fora
     const nvM = de && de.tipo !== 'jogador' && alvo.tipo === 'jogador' && de.nivel ? de.nivel : 0;

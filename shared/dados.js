@@ -1249,17 +1249,19 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // e temporário"). Para tirar: missoes: false (o servidor recusa e o app esconde os botões).
 export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11', missoes: true };
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
+// André 2026-11-17: um atributo a mais por peça (capacete e botas: dano crítico em número; arma: chance de crítico;
+// capa: regeneração de mana; colar: dano %). Sobe com raridade e reforço (danoCritico sobe como o crítico, bonusCritico).
 export const ITENS = {
   // Uma linha só de armadura (serve para espada e magia). Comum é de couro; do Raro em diante, placas de aço.
   peitoral: { nome: 'Peitoral', lugar: 'corpo', st: { defesa: [4, 7, 10, 14, 20], vida: [10, 15, 22, 32, 46], mana: [4, 7, 10, 14, 20] } },
-  chapeu: { nome: 'Capacete', lugar: 'cabeca', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20] } }, // a chave antiga 'chapeu' continua: contas antigas não perdem a peça
+  chapeu: { nome: 'Capacete', lugar: 'cabeca', st: { defesa: [2, 3, 4, 6, 8], vida: [4, 7, 10, 14, 20], danoCritico: [2, 4, 6, 9, 12] } }, // a chave antiga 'chapeu' continua: contas antigas não perdem a peça
   short: { nome: 'Short', lugar: 'pernas', st: { defesa: [1, 2, 3, 4, 6], vida: [4, 7, 10, 14, 20], mana: [4, 6, 9, 13, 18] } }, // mais leve que a calça: menos defesa, mais mana
   calca: { nome: 'Calça', lugar: 'pernas', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27], mana: [3, 5, 7, 10, 14] } },
-  capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30] } },
-  botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27] } },
-  colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6] } },
-  espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14] } },
-  cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14] } },
+  capa: { nome: 'Capa', lugar: 'capa', st: { defesa: [1, 2, 2, 3, 5], mana: [7, 10, 14, 21, 30], regenManaK: [0.01, 0.015, 0.02, 0.03, 0.04] } },
+  botas: { nome: 'Botas', lugar: 'pes', st: { defesa: [2, 3, 4, 6, 8], vida: [6, 9, 13, 19, 27], danoCritico: [2, 4, 6, 9, 12] } },
+  colar: { nome: 'Colar de Estrela', lugar: 'acessorio', st: { vida: [15, 22, 30, 42, 60], defesa: [1, 2, 3, 4, 6], danoK: [0.003, 0.005, 0.007, 0.01, 0.013] } },
+  espada: { nome: 'Espada', lugar: 'espada', st: { danoFisico: [3, 5, 7, 10, 14], critico: [0.002, 0.003, 0.004, 0.006, 0.008] } },
+  cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14], critico: [0.002, 0.003, 0.004, 0.006, 0.008] } },
   pocao: { nome: 'Poção de vida', pilha: 20, usar: { vida: 0.35 }, preco: 20, venda: 5, desc: 'Recupera 35% da vida.' },
   pocao_mana: { nome: 'Poção de mana', pilha: 20, usar: { mana: 0.4 }, preco: 24, venda: 6, desc: 'Recupera 40% da mana.' },
   tomo: { nome: 'Tomo', pilha: 20, desc: 'Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia.' },
@@ -1339,6 +1341,16 @@ export const CONJUNTO = [
   { 2: { vida: 20, mana: 20 }, 3: { danoK: 0.12 }, 6: { critico: 0.04, areaK: 0.15, regenManaK: 0.4 } },
   { 2: { vida: 40, mana: 35 }, 3: { danoK: 0.2, defesa: 15 }, 6: { critico: 0.06, areaK: 0.25, regenManaK: 0.55 } },
   { 2: { vida: 70, mana: 60 }, 3: { danoK: 0.3, defesa: 30 }, 6: { critico: 0.08, areaK: 0.35, regenManaK: 0.7 } },
+];
+// Conjunto de crítico (André 2026-11-17): 2, 4 e 6 peças da mesma raridade (ou melhor) dão chance de crítico e dano
+// crítico (número somado no golpe crítico). Só a raridade conta (o reforço não aumenta) e vale o maior: 6 substitui 4,
+// que substitui 2. Soma com o CONJUNTO de cima.
+export const CONJUNTO_CRITICO = [
+  null,
+  { 2: { critico: 0.01, danoCritico: 5 }, 4: { critico: 0.02, danoCritico: 10 }, 6: { critico: 0.03, danoCritico: 20 } },
+  { 2: { critico: 0.015, danoCritico: 8 }, 4: { critico: 0.03, danoCritico: 16 }, 6: { critico: 0.05, danoCritico: 30 } },
+  { 2: { critico: 0.02, danoCritico: 12 }, 4: { critico: 0.04, danoCritico: 25 }, 6: { critico: 0.07, danoCritico: 45 } },
+  { 2: { critico: 0.03, danoCritico: 20 }, 4: { critico: 0.06, danoCritico: 40 }, 6: { critico: 0.1, danoCritico: 70 } },
 ];
 // Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
 // André 2026-11-16 (estudo da economia: tudo custava menos que poucos minutos de caça): poção 15 e 18 viram
