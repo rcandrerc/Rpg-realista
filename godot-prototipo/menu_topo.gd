@@ -767,7 +767,7 @@ func _qualidade_grafica() -> void:
 	if G.auto:
 		var agora := "%s, %d FPS" % [G.NOMES[G.nivel], G.fps_alvo()]
 		if G.degrau > 0:
-			agora += ", aliviando %d de %d" % [G.degrau, G.DEGRAUS]
+			agora += ", aliviando %d de %d" % [G.degrau, G.degraus()]
 		_texto("Auto: escolhe sozinho e alivia quando esquenta. Agora: %s." % agora, Menu.APAGADO, 13)
 		return
 	var dica := "Baixa: mais leve. Alta: mais bonito."

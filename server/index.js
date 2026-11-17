@@ -84,8 +84,11 @@ class SalaClareira extends Room {
       // André 2026-11-12: a regra só passa por cima da IA em pedido de verdade (curto e que muda algo); senão vale a fala da IA
       if (r && acao === regra && regra !== r.assunto && !amg.regraValeSobreIaAmiga(id, regra, msg.texto, r.assunto)) acao = amg.acaoSemEfeitoAmiga(id, r.assunto) ? 'conversa' : r.assunto;
       if (r && acao === r.assunto && amg.acaoSemEfeitoAmiga(id, acao)) acao = 'conversa';
-      if (r && ['vir', 'time'].includes(acao) && amg.apelidoAmiga(msg.texto)) acao = 'conversa'; // "me chama de fofinha": apelido, não chamado // "bora!" de quem já está no time: só conversa, com a fala da IA
-      amg.respostaAmiga(id, r ? { assunto: acao, iaAssunto: r.assunto, lugar: r.lugar, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' || r.assunto === 'nao' ? r.fala : '' } : { assunto: regra });
+      if (r && ['vir', 'time'].includes(acao) && amg.apelidoAmiga(msg.texto)) acao = 'conversa';
+      // André 2026-11-17 ("vamos fazer alguma coisa, escolhe aí"): ela respondeu PROPONDO algo (sugere); o "vamos" dele não é
+      // aceite ainda. Vira o chamado dela e o próximo "bora" aceita (respostaAmiga)
+      if (r?.sugere && r.assunto === 'conversa' && ['time', 'vir', 'pescar', 'minerar', 'lenha'].includes(acao) && !amg.chamouAmiga(r.sugere)) acao = 'conversa'; // "me chama de fofinha": apelido, não chamado // "bora!" de quem já está no time: só conversa, com a fala da IA
+      amg.respostaAmiga(id, r ? { assunto: acao, iaAssunto: r.assunto, lugar: r.lugar, sugere: r.sugere, fala: acao === r.assunto || acao === 'conversa' || r.assunto === 'conversa' || r.assunto === 'nao' ? r.fala : '' } : { assunto: regra });
     }).catch((e) => console.error('amigo IA: resposta deu erro', e));
     // parecia dica mas a IA não montou regra (ou era só conversa com "se"/"perto"): responde como conversa normal
     if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); }).catch((e) => console.error('amigo IA: dica deu erro', e));
@@ -261,8 +264,8 @@ class SalaClareira extends Room {
     this.ouvir('pack', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 16) this.sim.pack(c.sessionId, { acao: m.acao, npc: String(m.npc || '').slice(0, 24), de: String(m.de || '').slice(0, 10), i: Number.isInteger(m.i) ? m.i : 0, g: String(m.g || '').slice(0, 12) }); });
     this.ouvir('veiculo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.veiculo(c.sessionId, { acao: m.acao, k: String(m.k || '').slice(0, 12), x: Number(m.x), z: Number(m.z), ry: Number(m.ry) }); });
     this.ouvir('dormir', (c) => this.sim.dormir(c.sessionId)); // dormir na cama do meu terreno (dia e noite do Quimera)
-    this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1 }); });
-    this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1, r: String(m.r || '').slice(0, 20), n: Number.isInteger(m.n) ? Math.max(1, Math.min(m.n, 99)) : 1 }); });
+    this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1, n: Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, 9999) : undefined }); });
+    this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1, r: String(m.r || '').slice(0, 20), n: Number.isInteger(m.n) ? Math.max(1, Math.min(m.n, 9999)) : undefined }); });
     // árvores plantadas (André 2026-11-16): semente da Rosa numa área de plantio ou no terreno (shared/plantio.js)
     this.ouvir('plantarArvore', (c, m) => { if (m && typeof m.s === 'string' && m.s.length < 16) this.sim.plantarArvore(c.sessionId, { s: m.s, x: Number(m.x), z: Number(m.z) }); });
     this.ouvir('horta', (c, m) => { if (m && typeof m.acao === 'string' && typeof m.c === 'string' && m.c.length < 12) this.sim.horta(c.sessionId, { acao: m.acao, c: m.c, s: typeof m.s === 'string' ? m.s.slice(0, 16) : '' }); });
@@ -859,6 +862,7 @@ ${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]
 }
 // NPCs com IA (André 2026-11-16: "relatórios de Dário e de Cecília" na ronda diária): o que cada um fez hoje, só números
 // do jogo (nível, ouro, missão, minutos de caça e de missão). Nada de conversa, memória ou de quem é amigo deles.
+// evolucao (André 2026-11-17): cada nível, missão entregue, queda, etapa travada, reforço e evolução, com a hora.
 app.get('/npcs.json', (_req, res) => {
   const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
   for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, { a: ctx.amiga, ctx });
@@ -871,7 +875,8 @@ app.get('/npcs.json', (_req, res) => {
     const p = d.prog || {}, h = p.hist || {};
     l.push({ nome: D.nome, id: D.id, noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
-      salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null, ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
+      salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
+      evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
   res.json({ dia, npcs: l });
 });

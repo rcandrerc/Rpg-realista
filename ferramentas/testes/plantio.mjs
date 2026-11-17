@@ -18,12 +18,14 @@ const ir = (j, x, z) => { j.x = x; j.z = z; s.passo(0.05); j.x = x; j.z = z; };
 // dados: 6 tipos, sementes na loja, áreas do mapa v6
 ok(Object.keys(ARVORES_PLANTIO).length === 6, '6 tipos de árvore');
 ok(Object.keys(ARVORES_PLANTIO).every((k) => LOJA.some((l) => l.k === 'semente_' + k) && ITENS['semente_' + k]), 'as 6 sementes estão na loja da Rosa');
-ok(PLANTIO.areas.length >= 48 && QUADRADOS_PLANTIO.size > 7500, `${PLANTIO.areas.length} áreas de plantio, ${QUADRADOS_PLANTIO.size} quadrados de 4 m`);
+ok(PLANTIO.areas.length >= 130 && QUADRADOS_PLANTIO.size > 11500, `${PLANTIO.areas.length} áreas de plantio, ${QUADRADOS_PLANTIO.size} quadrados de 4 m`);
 // nenhum quadrado em cima de árvore nativa ou pedra (o plantio nunca fica impossível de cara em muitos lugares)
 {
   let presos = 0;
   for (const key of QUADRADOS_PLANTIO.keys()) { const [i, k] = key.split(',').map(Number), l = lugarNoQuadrado(i, k); if (s.pertoNaMata(l.x, l.z).some((o) => Math.hypot(o.x - l.x, o.z - l.z) < o.r + PLANTIO.folga)) presos++; }
-  ok(presos < QUADRADOS_PLANTIO.size * 0.05, `poucos quadrados presos por árvore nativa ou pedra (${presos})`);
+  // 2026-11-17: as nativas novas que o André pediu dentro das áreas (poucas) e dos bosques soltos (mais) ocupam ~800
+  // quadrados de propósito; antes eram 5%
+  ok(presos < QUADRADOS_PLANTIO.size * 0.1, `poucos quadrados presos por árvore nativa ou pedra (${presos})`);
 }
 // um quadrado livre de uma área
 const livre = [...QUADRADOS_PLANTIO.keys()].map((k) => k.split(',').map(Number)).find(([i, k]) => { const l = lugarNoQuadrado(i, k); return !s.pertoNaMata(l.x, l.z).some((o) => Math.hypot(o.x - l.x, o.z - l.z) < o.r + PLANTIO.folga + 3); });
@@ -88,6 +90,18 @@ ok(f.some((x) => x.length === 1 && x[0] === P.id), 'quem tinha recebido recebe [
   for (const [i, k] of qs) { if (plantou > PLANTIO.mudasMax + 2) break; const l = lugarNoQuadrado(i, k); const n0 = s.plantadas.size; ir(c, l.x, l.z); s.plantarArvore('C', { s: 'carvalho', x: l.x, z: l.z }); if (s.plantadas.size > n0) plantou++; else if (avisos(s.eventos, 'C').some((t) => /mudas crescendo/.test(t))) break; }
   ok(plantou === PLANTIO.mudasMax, `para em ${PLANTIO.mudasMax} mudas crescendo (plantou ${plantou})`);
 }
+// limite do mundo (André 2026-11-17: no máximo 8-9 mil árvores no total): cheio, ninguém planta nas áreas
+{
+  const e = s.adicionarJogador('E', 'Eva'); e.ciente = true; e.prog.vigor = { v: 999, t: Date.now() }; dar(e, 'semente_betula', 3);
+  const max = PLANTIO.maxMundo; PLANTIO.maxMundo = s.plantadasNasAreas();
+  const [i, k] = [...QUADRADOS_PLANTIO.keys()].map((q) => q.split(',').map(Number)).find(([i, k]) => !s.plantioQ.has(i + ',' + k) && (() => { const l = lugarNoQuadrado(i, k); return !s.pertoNaMata(l.x, l.z).some((o) => Math.hypot(o.x - l.x, o.z - l.z) < o.r + 3); })());
+  const l = lugarNoQuadrado(i, k), n0 = s.plantadas.size;
+  ir(e, l.x, l.z); s.plantarArvore('E', { s: 'betula', x: l.x, z: l.z });
+  ok(s.plantadas.size === n0 && avisos(s.eventos, 'E').some((t) => /estão cheias/.test(t)), `mundo cheio (${PLANTIO.maxMundo}): não planta e avisa`);
+  PLANTIO.maxMundo = max; s.passo(0.05); ir(e, l.x, l.z); s.plantarArvore('E', { s: 'betula', x: l.x, z: l.z });
+  ok(s.plantadas.size === n0 + 1, 'com espaço no limite, planta de novo');
+}
+ok(PLANTIO.maxMundo + MAPA_CLAREIRA.mata.length <= 9000, `nativas (${MAPA_CLAREIRA.mata.length}) + limite de plantadas (${PLANTIO.maxMundo}) no máximo 9 mil`);
 // árvore antiga ocupa 2 x 2
 {
   const d = s.adicionarJogador('D', 'Davi'); d.ciente = true; d.prog.vigor = { v: 999, t: Date.now() }; dar(d, 'semente_antiga', 2);

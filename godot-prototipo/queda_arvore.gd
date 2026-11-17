@@ -73,7 +73,7 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 		return
 	var pos: Vector3 = o.pos
 	var partes := _partes(o)
-	var info := {"toco": _toco(o), "queda": null, "partes_vila": []}
+	var info := {"toco": _toco(o, partes), "queda": null, "partes_vila": []}
 	_caidas[o.id] = info
 	if partes.is_empty():
 		return
@@ -105,23 +105,29 @@ func derrubar(o: Dictionary, dir, animar: bool) -> void:
 	var chao_y := 0.0
 	if str(o.id).begins_with("m"):
 		chao_y = (m.arvores_mata[Vector2(pos.x, pos.z)].t as Transform3D).origin.y
-	piv.position = Vector3(pos.x, chao_y, pos.z)
+	# André 2026-11-17 ("cai a árvore inteira, a raiz inteira, e fica o toco por cima"): cai só o que está acima do
+	# corte, e gira em volta do corte (em cima do toco), não do pé da árvore
+	var corte := _altura_corte(partes)
+	piv.position = Vector3(pos.x, chao_y + corte, pos.z)
+	piv.set_meta("y0", piv.position.y)
 	add_child(piv)
 	info.queda = piv
 	var mats: Array = []
+	_mats_toco()
 	for p in partes:
+		var f := _fatia(p, true)
+		if f.mesh == null:
+			continue
 		var mi := MeshInstance3D.new()
-		mi.mesh = p.mesh
-		mi.transform = p.t
-		if p.has("mats"): # modelo com casca e folha separadas (árvores plantadas): um material por superfície
-			for i in p.mats.size():
-				var ms = _mat_queda(p.mats[i], null, mats)
-				if ms != null:
-					mi.set_surface_override_material(i, ms)
-		else:
-			var mt = _mat_queda(p.mat, p.get("cor"), mats)
-			if mt != null:
-				mi.material_override = mt
+		mi.mesh = f.mesh
+		mi.transform = Transform3D(Basis(), Vector3(0, -corte, 0)) * p.t
+		# um material por superfície (modelo com casca e folha separadas: árvores plantadas); -1 = o corte (madeira)
+		for j in f.mapa.size():
+			var orig: int = f.mapa[j]
+			var base = _mat_corte if orig < 0 else (p.mats[orig] if p.has("mats") else p.mat)
+			var ms = _mat_queda(base, null if orig < 0 else p.get("cor"), mats)
+			if ms != null:
+				mi.set_surface_override_material(j, ms)
 		piv.add_child(mi)
 	var alto: float = 7.0 * float(o.r) / 0.32 # ~7 m de árvore por escala 1 (raio do tronco 0,32)
 	# som (Pixabay, André 2026-11-07): um só, já com o rangido, o estalo grande (~0,5 s), os galhos quebrando na queda
@@ -172,7 +178,7 @@ func _transparente(mats: Array) -> void:
 func _apagar(k: float, piv: Node3D, mats: Array) -> void:
 	for mt in mats:
 		mt.albedo_color.a = (1.0 - k) * float(mt.get_meta("alfa", 1.0))
-	piv.position.y = -k * 0.3 # afunda um pouco enquanto some
+	piv.position.y = float(piv.get_meta("y0", 0.0)) - k * 0.3 # afunda um pouco enquanto some (do lugar dela: no relevo)
 
 func _sumiu(info: Dictionary, piv: Node3D) -> void:
 	piv.queue_free()
@@ -307,8 +313,41 @@ func _peca_toco(mesh: Mesh, mat: Material) -> MeshInstance3D:
 	mi.visibility_range_end_margin = 4.0
 	return mi
 
-# toco: casca por fora, madeira clara no corte (o tronco continua ocupando o chão)
-func _toco(o: Dictionary) -> Node3D:
+# Toco feito do próprio tronco (André 2026-11-17: "corto uma árvore branca e nasce um toco marrom"): o pé da malha
+# da árvore, cortado na altura CORTE_Y, com a mesma casca e cor, e o corte em madeira clara por cima. A parte de cima
+# (a que cai) é o resto da mesma malha (_fatia). As duas metades são feitas uma vez por malha e repartidas.
+func _toco(o: Dictionary, partes: Array = []) -> Node3D:
+	_mats_toco()
+	var pos: Vector3 = o.pos
+	var raiz: Node3D = null
+	for p in partes:
+		var f := _fatia(p, false)
+		if f.mesh == null:
+			continue
+		if raiz == null:
+			raiz = Node3D.new()
+			var chao_y := 0.0
+			if str(o.id).begins_with("m"):
+				chao_y = (m.arvores_mata[Vector2(pos.x, pos.z)].t as Transform3D).origin.y
+			raiz.position = Vector3(pos.x, chao_y, pos.z)
+			add_child(raiz)
+		var mi := MeshInstance3D.new()
+		mi.mesh = f.mesh
+		mi.transform = p.t
+		mi.visibility_range_end = TOCO_LONGE
+		mi.visibility_range_end_margin = 4.0
+		for j in f.mapa.size():
+			var orig: int = f.mapa[j]
+			if orig >= 0:
+				var mt = p.mats[orig] if p.has("mats") else p.mat
+				if mt != null:
+					mi.set_surface_override_material(j, mt)
+		raiz.add_child(mi)
+	if raiz != null:
+		return raiz
+	return _toco_simples(o)
+
+func _mats_toco() -> void:
 	if _mat_toco == null:
 		_mat_toco = StandardMaterial3D.new()
 		_mat_toco.albedo_color = Color("6b4e36")
@@ -318,6 +357,11 @@ func _toco(o: Dictionary) -> Node3D:
 		_mat_corte.albedo_color = Color("d9b98a")
 		_mat_corte.roughness = 0.9
 		_mat_corte.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_mat_corte.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+# o toco de antes (cilindro marrom com raízes): só quando a árvore não tem malha para cortar
+func _toco_simples(o: Dictionary) -> Node3D:
+	_mats_toco()
 	var s: float = float(o.r) / 0.32
 	var pos: Vector3 = o.pos
 	var raiz := Node3D.new()
@@ -342,3 +386,173 @@ func _toco(o: Dictionary) -> Node3D:
 		mr.rotation = Vector3(0, -a, deg_to_rad(-110.0)) # grossa no pé do toco, fina entrando no chão
 		raiz.add_child(mr)
 	return raiz
+
+# ---------- corte da malha (toco embaixo, o resto cai) ----------
+const CORTE_Y := 0.42 # altura do corte no espaço da malha (o toco de antes tinha 0,42 por escala 1)
+var _fatias_cima := {} # Mesh -> {mesh, mapa}
+var _fatias_baixo := {}
+
+# as partes que nascem no chão (tronco); a copa e as maçãs ficam inteiras na parte que cai
+func _no_chao(p: Dictionary) -> bool:
+	var ab: AABB = (p.mesh as Mesh).get_aabb()
+	return ab.position.y < CORTE_Y and ab.end.y > CORTE_Y
+
+# altura do corte (no espaço da base da árvore) da primeira parte cortada; 0 se nenhuma
+func _altura_corte(partes: Array) -> float:
+	for p in partes:
+		if _no_chao(p):
+			return (p.t * Vector3(0, CORTE_Y, 0)).y
+	return 0.0
+
+# p: parte (_partes). cima: a metade acima do corte (a que cai) ou a de baixo (o toco). mapa[j] = superfície da malha
+# original da superfície j (-1 = o corte, madeira clara)
+func _fatia(p: Dictionary, cima: bool) -> Dictionary:
+	var mesh: Mesh = p.mesh
+	if not _no_chao(p):
+		var tudo := []
+		for i in mesh.get_surface_count():
+			tudo.append(i)
+		return {"mesh": mesh if cima else null, "mapa": tudo}
+	var cache: Dictionary = _fatias_cima if cima else _fatias_baixo
+	if cache.has(mesh):
+		return cache[mesh]
+	var t0 := Time.get_ticks_usec()
+	var r := _cortar(mesh, cima)
+	cache[mesh] = r
+	if m.get("lentidao"):
+		m.lentidao.ev("toco_malha", t0)
+	return r
+
+func _cortar(mesh: Mesh, cima: bool) -> Dictionary:
+	var am := ArrayMesh.new()
+	var mapa := []
+	var bordas := PackedVector3Array() # pares de pontos no plano do corte
+	var sinal := 1.0 if cima else -1.0
+	for s in mesh.get_surface_count():
+		if mesh.surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
+			continue
+		var a := mesh.surface_get_arrays(s)
+		var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var ns = a[Mesh.ARRAY_NORMAL]
+		var tg = a[Mesh.ARRAY_TANGENT]
+		var cs = a[Mesh.ARRAY_COLOR]
+		var uv = a[Mesh.ARRAY_TEX_UV]
+		var uv2 = a[Mesh.ARRAY_TEX_UV2]
+		var idx = a[Mesh.ARRAY_INDEX]
+		# superfície toda de um lado (a folhagem, quase sempre): vai inteira ou fica de fora, sem passar triângulo por
+		# triângulo (a bétula plantada: de 16 para 8 ms no PC, uma vez por espécie)
+		var lados := 0
+		for v in vs:
+			lados |= 1 if (v.y - CORTE_Y) * sinal >= 0.0 else 2
+			if lados == 3:
+				break
+		if lados == 2:
+			continue
+		if lados == 1:
+			var inteira := []
+			inteira.resize(Mesh.ARRAY_MAX)
+			for q in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_COLOR, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_TEX_UV2, Mesh.ARRAY_INDEX]:
+				inteira[q] = a[q]
+			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, inteira)
+			am.surface_set_material(am.get_surface_count() - 1, mesh.surface_get_material(s))
+			mapa.append(s)
+			continue
+		var ov := PackedVector3Array()
+		var on := PackedVector3Array()
+		var otg := PackedFloat32Array()
+		var ocs := PackedColorArray()
+		var ouv := PackedVector2Array()
+		var ouv2 := PackedVector2Array()
+		var n_tri: int = (idx.size() if idx != null else vs.size()) / 3
+		var tri := [0, 0, 0]
+		var d := [0.0, 0.0, 0.0]
+		for k in n_tri:
+			var dentro := 0
+			for q in 3:
+				tri[q] = idx[k * 3 + q] if idx != null else k * 3 + q
+				d[q] = (vs[tri[q]].y - CORTE_Y) * sinal
+				if d[q] >= 0.0:
+					dentro += 1
+			if dentro == 0:
+				continue
+			var poli := [] # [i, j, t]: o ponto entre os vértices i e j
+			if dentro == 3:
+				poli = [[tri[0], tri[0], 0.0], [tri[1], tri[1], 0.0], [tri[2], tri[2], 0.0]]
+			else:
+				for q in 3:
+					var i0: int = tri[q]
+					var i1: int = tri[(q + 1) % 3]
+					var d0: float = d[q]
+					var d1: float = d[(q + 1) % 3]
+					if d0 >= 0.0:
+						poli.append([i0, i0, 0.0])
+					if (d0 >= 0.0) != (d1 >= 0.0):
+						var tt := d0 / (d0 - d1)
+						poli.append([i0, i1, tt])
+						bordas.append(vs[i0].lerp(vs[i1], tt))
+			for q in range(1, poli.size() - 1):
+				for e in [poli[0], poli[q], poli[q + 1]]:
+					var i: int = e[0]
+					var j: int = e[1]
+					var w: float = e[2]
+					ov.append(vs[i].lerp(vs[j], w))
+					if ns != null:
+						on.append((ns[i] as Vector3).lerp(ns[j], w).normalized())
+					if tg != null:
+						for c in 4:
+							otg.append(lerpf(tg[i * 4 + c], tg[j * 4 + c], w))
+					if cs != null:
+						ocs.append((cs[i] as Color).lerp(cs[j], w))
+					if uv != null:
+						ouv.append((uv[i] as Vector2).lerp(uv[j], w))
+					if uv2 != null:
+						ouv2.append((uv2[i] as Vector2).lerp(uv2[j], w))
+		if ov.is_empty():
+			continue
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = ov
+		if ns != null:
+			arr[Mesh.ARRAY_NORMAL] = on
+		if tg != null:
+			arr[Mesh.ARRAY_TANGENT] = otg
+		if cs != null:
+			arr[Mesh.ARRAY_COLOR] = ocs
+		if uv != null:
+			arr[Mesh.ARRAY_TEX_UV] = ouv
+		if uv2 != null:
+			arr[Mesh.ARRAY_TEX_UV2] = ouv2
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		am.surface_set_material(am.get_surface_count() - 1, mesh.surface_get_material(s))
+		mapa.append(s)
+	# o corte: um leque do meio do tronco até cada pedaço da borda (para cima no toco, para baixo no que cai)
+	if bordas.size() >= 6:
+		var centro := Vector3.ZERO
+		for b in bordas:
+			centro += b
+		centro /= float(bordas.size())
+		var nrm := Vector3.DOWN if cima else Vector3.UP
+		var tv := PackedVector3Array()
+		var tn := PackedVector3Array()
+		for i in range(0, bordas.size() - 1, 2):
+			var b0 := bordas[i]
+			var b1 := bordas[i + 1]
+			if (b0 - centro).cross(b1 - centro).dot(nrm) > 0.0: # Godot: a frente é no sentido horário
+				var x := b0
+				b0 = b1
+				b1 = x
+			tv.append(centro)
+			tv.append(b0)
+			tv.append(b1)
+			for q in 3:
+				tn.append(nrm)
+		var ta := []
+		ta.resize(Mesh.ARRAY_MAX)
+		ta[Mesh.ARRAY_VERTEX] = tv
+		ta[Mesh.ARRAY_NORMAL] = tn
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ta)
+		am.surface_set_material(am.get_surface_count() - 1, _mat_corte)
+		mapa.append(-1)
+	if am.get_surface_count() == 0:
+		return {"mesh": null, "mapa": []}
+	return {"mesh": am, "mapa": mapa}

@@ -441,7 +441,7 @@ func coluna_mochila() -> Control:
 			c.modulate = Color(1, 1, 1, 0.35) # tudo dele já está na oferta, ou tem cadeado (não vai para troca)
 		g.add_child(c)
 	v.add_child(g)
-	# escolher quantos de uma pilha
+	# escolher quantos de uma pilha (a fileira continua; André 2026-11-17: tocar também abre a janelinha menu.gd pedir_qtd)
 	if sel >= 0 and sel < P.prog.mochila.size() and P.prog.mochila[sel] != null:
 		var it = P.prog.mochila[sel]
 		var resta := int(it.get("n", 1)) - posto(sel)
@@ -494,6 +494,9 @@ func tocar_item(i: int) -> void:
 		return
 	sel = -1 if sel == i else i
 	montar()
+	# pilha: a janelinha Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17); a fileira Pôr 1/10/tudo fica embaixo
+	if sel == i:
+		m.menu.pedir_qtd(it, resta, "Pôr", func(n: int): _por({"acao": "por", "i": i, "n": n}))
 
 func eu_tranquei() -> bool:
 	return bool(estado.get("eu", {}).get("tranca", false))

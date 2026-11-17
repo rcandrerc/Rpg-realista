@@ -124,6 +124,7 @@ func pontos_plantio(quads: Dictionary, lado: int) -> Array:
 		return _pontos_plantio[lado]
 	var cel := {} # Vector2i -> [soma x, soma z, n]
 	var por := float(lado) / 4.0
+	var da_area := {} # id da área -> {célula: quadrados dela ali}
 	for q in quads:
 		var c := Vector2i(floori(q.x / por), floori(q.y / por))
 		var v: Array = cel.get(c, [0.0, 0.0, 0])
@@ -131,11 +132,26 @@ func pontos_plantio(quads: Dictionary, lado: int) -> Array:
 		v[1] += (q.y + 0.5) * 4.0
 		v[2] += 1
 		cel[c] = v
-	var minimo := maxi(4, int(por * por / 6.0))
+		var A: Dictionary = da_area.get(quads[q], {})
+		A[c] = int(A.get(c, 0)) + 1
+		da_area[quads[q]] = A
+	# André 2026-11-17 ("o mapa mostre todas as áreas novas"): as faixas da beira da estrada são finas (2 a 5
+	# quadrados), então a célula conta pelo comprido da faixa (por * 1,2) e não pela área; e toda área ganha ao menos
+	# o símbolo da célula onde ela tem mais quadrados, em qualquer zoom.
+	var minimo := maxi(3, int(minf(por * por / 12.0, por * 1.2)))
+	var sempre := {}
+	for id in da_area:
+		var melhor := Vector2i.ZERO
+		var n := -1
+		for c in da_area[id]:
+			if int(da_area[id][c]) > n:
+				n = int(da_area[id][c])
+				melhor = c
+		sempre[melhor] = true
 	var r := []
 	for c in cel:
 		var v: Array = cel[c]
-		if v[2] >= minimo:
+		if v[2] >= minimo or sempre.has(c):
 			r.append(Vector2(v[0] / v[2], v[1] / v[2]))
 	_pontos_plantio[lado] = r
 	return r

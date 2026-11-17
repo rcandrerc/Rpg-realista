@@ -187,3 +187,4 @@ func _process(_dt: float) -> void:
 	if d > raio - 2.5 and m.tempo - _aviso_t > 2.0:
 		_aviso_t = m.tempo
 		m.hud.aviso("Volte pro círculo ou perde o duelo!")
+

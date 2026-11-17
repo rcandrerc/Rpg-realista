@@ -257,15 +257,25 @@ func trocar_auto() -> void:
 # O Auto parte do nível que a detecção escolheu para a placa (sugerido) e, a cada AUTO_S, olha o FPS de verdade
 # e o calor do Android (lentidao.gd: term, folga, bat). Quente ou FPS bem abaixo do alvo: desce um degrau. Frio e com
 # o FPS no alvo por _espera_sobe: sobe um. Se subiu e logo teve de descer, a próxima
-# subida espera o dobro (não fica indo e voltando). Degraus, um em cima do outro:
-#   1. resolução 3D menor (a interface continua nítida)
-#   2. trava em 30 quadros por segundo (ritmo igual e esquenta bem menos)
-#   3. resolução 3D menor ainda e sombra mais curta
-#   4. grama mais rala e só perto, vista ao longe mais curta (névoa um pouco mais fechada); a câmera continua livre
+# subida espera o dobro (não fica indo e voltando).
+# André 2026-11-17: "a minha ideia era ir baixando o FPS à medida que fosse necessário... não já travar em 30". Antes o
+# degrau 2 já era 30 FPS e o Poco X7 Pro, que faz uns 40 a 50 na Alta, caía para 30 em 2 a 5 minutos (registros de
+# 17/11: term 0, bateria abaixo de 42 °C; foi o "FPS abaixo de 48", não o calor). Agora a escada (escada()) é:
+#   1 a 4. limite de 55, 50, 45 e 40 FPS (a qualidade fica igual)
+#   5. resolução 3D menor (a interface continua nítida)
+#   6. resolução 3D menor ainda e sombra mais curta
+#   7. grama mais rala e só perto, vista ao longe mais curta (névoa um pouco mais fechada); a câmera continua livre
+#   8. 30 FPS: só em último caso
+# FPS abaixo do limite (o celular não chega lá): desce direto para o limite que ele aguenta, só no FPS (ex.: fazendo
+# 46 com limite 60 vai para 45 e fica). Quente: desce um degrau; se o único sinal é a bateria (esquenta e esfria
+# devagar), espera CALOR_BAT_S entre um degrau e outro.
 const AUTO_S := 15.0
 const AUTO_SOBE_S := 60.0
 const AUTO_SOBE_MAX := 600.0
-const DEGRAUS := 4
+const DEGRAUS := 8 # degraus do Auto na Média e na Alta (a Baixa tem menos: degraus())
+const ESCADA_FPS := [55, 50, 45, 40]
+const LENTO := 0.9 # FPS de verdade abaixo de 90% do limite: o celular não chega lá
+const CALOR_BAT_S := 45.0
 const ESCALA_MIN := 0.4
 const QUENTE_TERM := 2 # Android: 2 = já freando de leve
 const QUENTE_FOLGA := 0.6 # 1.0 = começa a frear daqui a 10 s
@@ -276,6 +286,8 @@ var _t_auto := AUTO_S
 var _frio_s := 0.0
 var _espera_sobe := AUTO_SOBE_S
 var _subiu_em := -1000.0
+var _desceu_em := -1000.0
+var _motivo := "" # por que decidir() quis descer: "lento", "quente" ou "bateria"
 var _gpu_soma := 0.0
 var _gpu_n := 0
 var _janelas := 0 # janelas seguidas com o jogo na tela
@@ -286,21 +298,44 @@ const AMOSTRA_S := 5.0
 # o tempo da placa não é lido (2026-11-14): com o desenho em paralelo, cada leitura faz a linha do jogo esperar a linha
 # do desenho terminar o quadro (malhas.gd). O Auto usa o FPS de verdade (contado todo quadro, de graça) e o calor.
 
-static func preset_auto(base: Dictionary, d: int) -> Dictionary:
-	var p := base.duplicate()
-	if d >= 1:
-		p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.88)
-	if d >= 2 and int(base.fps) != 30:
+# os degraus do Auto para um nível (0 = o nível cheio). Degrau que não mudaria nada fica de fora (a Baixa já é 30
+# FPS: começa direto na resolução).
+static func escada(base: Dictionary) -> Array:
+	var lista: Array = [base]
+	var p: Dictionary = base
+	for f in ESCADA_FPS:
+		if int(base.fps) <= 0 or f < int(base.fps):
+			p = p.duplicate()
+			p.fps = f
+			lista.append(p)
+	p = p.duplicate()
+	p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.88)
+	if p != lista.back():
+		lista.append(p)
+	p = p.duplicate()
+	p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.78)
+	p.sombra_dist = float(base.sombra_dist) * 0.7
+	if p != lista.back():
+		lista.append(p)
+	p = p.duplicate()
+	p.grama = float(base.grama) * 0.8
+	p.grama_qtd = float(base.grama_qtd) * 0.7
+	p.alcance = float(base.alcance) * 0.85
+	p.nevoa = float(base.nevoa) * 1.15
+	lista.append(p)
+	if int(base.fps) != 30:
+		p = p.duplicate()
 		p.fps = 30
-	if d >= 3:
-		p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.78)
-		p.sombra_dist = float(base.sombra_dist) * 0.7
-	if d >= 4:
-		p.grama = float(base.grama) * 0.8
-		p.grama_qtd = float(base.grama_qtd) * 0.7
-		p.alcance = float(base.alcance) * 0.85
-		p.nevoa = float(base.nevoa) * 1.15
-	return p
+		lista.append(p)
+	return lista
+
+static func preset_auto(base: Dictionary, d: int) -> Dictionary:
+	var e := escada(base)
+	return e[clampi(d, 0, e.size() - 1)]
+
+# quantos degraus o Auto tem no nível de agora (menu_topo.gd mostra "aliviando 2 de 8")
+func degraus() -> int:
+	return escada(PRESETS[nivel]).size() - 1
 
 func _process(dt: float) -> void:
 	if _aos_poucos:
@@ -336,8 +371,11 @@ func _process(dt: float) -> void:
 	var agora := Time.get_ticks_msec() / 1000.0
 	if d > degrau:
 		_frio_s = 0.0
+		if _motivo == "bateria" and agora - _desceu_em < CALOR_BAT_S:
+			return # a bateria demora a responder ao degrau de antes: espera mais um pouco
 		if agora - _subiu_em < AUTO_S * 2.5: # tinha acabado de subir e não aguentou
 			_espera_sobe = minf(_espera_sobe * 2.0, AUTO_SOBE_MAX)
+		_desceu_em = agora
 		_mudar(d)
 	elif d < degrau:
 		_frio_s += AUTO_S
@@ -351,14 +389,28 @@ func _process(dt: float) -> void:
 # o degrau que o Auto quer agora (um passo por vez): gpu = ms médios da placa (-1 = sem medida); term/folga/bat -1 = sem leitura
 # fps = quadros por segundo de verdade na janela (-1 = sem conta): bem abaixo do alvo também é "sem folga"
 func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.0) -> int:
+	var esc := escada(PRESETS[nivel])
+	var n := esc.size() - 1
+	d = clampi(d, 0, n)
 	var alvo := float(P.fps) if int(P.fps) > 0 else 60.0
 	var orc := 1000.0 / alvo
-	var quente := term >= QUENTE_TERM or folga >= QUENTE_FOLGA or bat >= QUENTE_BAT
-	if quente or gpu > orc * 0.92 or (fps > 0.0 and fps < alvo * 0.8):
-		return mini(d + 1, DEGRAUS)
+	_motivo = ""
+	if fps > 0.0 and fps < alvo * LENTO and d < n:
+		# não chega no limite: desce só o FPS até o limite que ele aguenta (para no 40; dali para baixo, um por vez)
+		_motivo = "lento"
+		var j := d + 1
+		while j < n and int(esc[j].fps) > fps * 1.05 and int(esc[j + 1].fps) < int(esc[j].fps) and int(esc[j + 1].fps) > 30:
+			j += 1
+		return j
+	if term >= QUENTE_TERM or folga >= QUENTE_FOLGA or gpu > orc * 0.92:
+		_motivo = "quente"
+		return mini(d + 1, n)
+	if bat >= QUENTE_BAT:
+		_motivo = "bateria"
+		return mini(d + 1, n)
 	if d == 0:
 		return d
-	var acima := preset_auto(PRESETS[nivel], d - 1)
+	var acima: Dictionary = esc[d - 1]
 	# a placa trabalha mais ou menos pelo número de pontos desenhados (resolução ao quadrado)
 	var k := pow(float(acima.escala) / float(P.escala), 2.0)
 	var orc_acima := 1000.0 / float(acima.fps) if int(acima.fps) > 0 else 1000.0 / 60.0
@@ -368,15 +420,15 @@ func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.
 
 func _mudar(d: int) -> void:
 	var antes: Dictionary = P
-	degrau = clampi(d, 0, DEGRAUS)
+	degrau = clampi(d, 0, degraus())
 	P = preset_auto(PRESETS[nivel], degrau)
 	if P.alcance != antes.alcance or P.grama != antes.grama or P.grama_qtd != antes.grama_qtd or P.nevoa != antes.nevoa:
-		aplicar(true) # degrau 4: confere o alcance de tudo que está na cena, aos poucos
+		aplicar(true) # degrau da vista: confere o alcance de tudo que está na cena, aos poucos
 	else:
 		_aplicar_tela()
 
 # aplica tudo: tela, sombra, névoa e o alcance de tudo que já está na cena
-# aos_poucos (Auto no degrau 4): o alcance de tudo que está na cena é conferido AOS_POUCOS_US por quadro (de uma vez
+# aos_poucos (Auto no degrau da vista): o alcance de tudo que está na cena é conferido AOS_POUCOS_US por quadro (de uma vez
 # custava ~250 ms no PC: um tranco no meio do jogo)
 const AOS_POUCOS_US := 3000
 var _aos_poucos := false
@@ -403,7 +455,7 @@ func aplicar(aos_poucos := false) -> void:
 	else:
 		_ajustar_pendentes()
 
-# a parte leve (o Auto troca só isto nos degraus 1 a 3): resolução, suavização, LOD, FPS e sombra
+# a parte leve (o Auto troca só isto nos degraus de FPS, resolução e sombra): resolução, suavização, LOD, FPS e sombra
 func _aplicar_tela() -> void:
 	var vp: Viewport = m.get_viewport()
 	# versão PC (ferramentas/pc/preparar.sh grava aethra/pc_escala): monitor de PC tem bem menos pontos por polegada que
@@ -429,7 +481,7 @@ func _entrou(no: Node) -> void:
 			_agendado = true
 			_ajustar_pendentes.call_deferred()
 
-# alcance, grama e água inteiros (Alta, ou o Auto em cima da Alta antes do degrau 4): nada a ajustar no que entra
+# alcance, grama e água inteiros (Alta, ou o Auto em cima da Alta antes do degrau da vista): nada a ajustar no que entra
 func _cheio() -> bool:
 	return float(P.alcance) == 1.0 and float(P.grama) == 1.0 and float(P.grama_qtd) >= 1.0 and not P.agua_simples
 
