@@ -2508,7 +2508,19 @@ func conta_terreno(L: Dictionary) -> Dictionary:
 		ini = agora
 	var n := maxi(0, floori((agora - ini) / sem))
 	var blocos := int(round(float(L.def.x1) - float(L.def.x0))) * int(round(float(L.def.z1) - float(L.def.z0)))
-	return {"semanas": n, "valor": n * blocos * int(D.lote.taxaBloco), "porSemana": blocos * int(D.lote.taxaBloco), "proxima": ini + (n + 1) * sem}
+	# André 2026-11-17: taxa escala com o tamanho (mesma conta de taxaSemanaTerreno em shared/dados.js)
+	var terreno := int(round(blocos * float(D.lote.taxaBloco) * pow(max(1.0, float(blocos)) / 36.0, float(D.lote.get("taxaCurva", 0.0)))))
+	var n_pecas: int = (L.get("pecas", []) as Array).size()
+	var por_pecas := n_pecas * int(D.lote.get("taxaPeca", 0))
+	var por_semana := terreno + por_pecas
+	return {"semanas": n, "valor": n * por_semana, "porSemana": por_semana, "blocos": blocos, "terreno": terreno, "pecas": n_pecas, "porPecas": por_pecas, "proxima": ini + (n + 1) * sem}
+
+# a conta da taxa explicada (André 2026-11-17: "lote tamanho tal, preço semanal tal, itens tantos, total tanto")
+func taxa_txt(L: Dictionary, c: Dictionary) -> String:
+	var t := "Taxa do terreno por semana:\nTerreno %d x %d (%d blocos): %d" % [int(round(float(L.def.x1) - float(L.def.x0))), int(round(float(L.def.z1) - float(L.def.z0))), int(c.blocos), int(c.terreno)]
+	if int(D.lote.get("taxaPeca", 0)) > 0:
+		t += "\nPeças construídas: %d x %d = %d" % [int(c.pecas), int(D.lote.taxaPeca), int(c.porPecas)]
+	return t + "\nTotal por semana: %d" % int(c.porSemana)
 
 func venda_terreno(R: Dictionary) -> int:
 	return int(floor((float(R.x1) - float(R.x0)) * (float(R.z1) - float(R.z0)) * float(D.lote.precoBloco) * float(D.lote.venda)))
@@ -3545,12 +3557,12 @@ func _abrir_correio() -> void:
 	var dias := maxf(0.0, (float(c.proxima) - agora_ms()) / 86400000.0)
 	var prox := ("a próxima chega em %d dia%s" % [ceili(dias), "" if ceili(dias) == 1 else "s"]) if dias >= 1.0 else "a próxima chega hoje"
 	if int(c.valor) > 0:
-		var txt := "Conta do terreno: %d de ouro (%d semana%s de %d)." % [int(c.valor), int(c.semanas), "" if int(c.semanas) == 1 else "s", int(c.porSemana)]
+		var txt := "Conta do terreno: %d de ouro (%d semana%s de %d).\n\n%s" % [int(c.valor), int(c.semanas), "" if int(c.semanas) == 1 else "s", int(c.porSemana), taxa_txt(L, c)]
 		if int(c.semanas) >= int(D.lote.taxaTrava):
 			txt += "\nAtrasada: sem pagar não dá para construir nem plantar."
 		m.troca.mostrar_cartao(txt, [["Pagar", func(): m.troca.esconder_cartao(); m.rede("pagarTaxa", {})], ["Fechar", func(): m.troca.esconder_cartao()]], 20.0)
 	else:
-		m.troca.mostrar_cartao("Correio vazio. A taxa do terreno é %d de ouro por semana (%d por bloco); %s." % [int(c.porSemana), int(D.lote.taxaBloco), prox], [["Fechar", func(): m.troca.esconder_cartao()]], 12.0)
+		m.troca.mostrar_cartao("Correio vazio; %s.\n\n%s" % [prox, taxa_txt(L, c)], [["Fechar", func(): m.troca.esconder_cartao()]], 12.0)
 
 func _atualizar_compra() -> void:
 	var ouro := int(m.P.prog.get("ouro", 0))
@@ -4850,6 +4862,10 @@ func _montar_itens() -> void:
 				nome = Idioma.frase("Vender para o jogo (volta a metade do preço) · as peças voltam para a mochila")
 			else:
 				nome = Idioma.frase("Mudar o tamanho · aumentar: %d de ouro por bloco · diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
+			if int(c.porPecas) > 0:
+				nome += " · " + Idioma.frase("taxa por semana: terreno %d + peças %d = %d" % [int(c.terreno), int(c.porPecas), int(c.porSemana)])
+			else:
+				nome += " · " + Idioma.frase("taxa por semana: %d" % int(c.porSemana))
 			if int(c.valor) > 0:
 				nome += " · " + Idioma.frase("conta no correio: %d" % int(c.valor))
 	elif aba != "fazenda":

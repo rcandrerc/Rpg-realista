@@ -1801,7 +1801,7 @@ export class Simulacao {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Toque nele na mochila pra guardar antes');
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const preco = precoVenda(it, mercador(p.prof.mer).venda + bonusTituloProf(p, 'mer', 'venda'));
+      const preco = precoVenda(it, mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0)); // título de Mercador ou Voz das Estradas
       if (it.n > 1) it.n--; else p.mochila[i] = null;
       p.ouro += preco; this.caixa(j, ehEquip(it.k) ? 'vendaEquip' : it.k === 'tomo' ? 'vendaTomo' : 'venda', preco);
       this.pontosMercador(j, preco);
@@ -1813,7 +1813,7 @@ export class Simulacao {
       // item com cadeado (André 2026-11-07) fica de fora, mesmo que venha na lista
       const lugares = [...new Set(m.lista.filter((x) => Number.isInteger(x) && x >= 0 && x < p.mochila.length && p.mochila[x] && !p.mochila[x].cad && !this.carrinhoFora(j, p.mochila[x])))];
       if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
-      const merc = mercador(p.prof.mer).venda + bonusTituloProf(p, 'mer', 'venda');
+      const merc = mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0);
       let ouro = 0, n = 0;
       for (const x of lugares) {
         const v = p.mochila[x], q = ehEquip(v.k) ? 1 : Math.max(1, v.n || 1);
@@ -2958,7 +2958,7 @@ export class Simulacao {
   // ---------- vender, mudar o tamanho e a taxa do correio (André 2026-11-05) ----------
   // conta do correio atrasada: com LOTE.taxaTrava contas sem pagar não dá para construir nem plantar (colher e regar dá)
   loteTravado(L, aviso) {
-    const c = contaTerreno(L.def, L.taxa, Date.now());
+    const c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
     if (c.semanas < LOTE.taxaTrava) return false;
     aviso(`Conta do terreno atrasada (${c.valor} de ouro): pague no correio para construir e plantar`);
     return true;
@@ -2975,7 +2975,7 @@ export class Simulacao {
     if (Object.values(L.fornos || {}).some(fornoTemCoisa)) return aviso('Esvazie a fornalha e o fogão antes de vender');
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
     for (const p of L.pecas) if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: as peças do terreno não cabem');
-    const w = L.def.x1 - L.def.x0, d = L.def.z1 - L.def.z0, c = contaTerreno(L.def, L.taxa, Date.now());
+    const w = L.def.x1 - L.def.x0, d = L.def.z1 - L.def.z0, c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
     const valor = Math.max(0, vendaTerreno(w, d) - c.valor);
     if (this.aoVenderLote) this.aoVenderLote(L.def.id);
     j.prog.mochila = prova;
@@ -2997,7 +2997,7 @@ export class Simulacao {
     const L = this.loteDe(j); if (!L) return aviso('Você não tem terreno');
     const R = retTerreno(m); if (!R) return;
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
-    const conta = contaTerreno(L.def, L.taxa, Date.now());
+    const conta = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
     if (conta.semanas > 0) return aviso(`Pague a conta do correio (${conta.valor} de ouro) antes de mudar o terreno`);
     const motivo = motivoTerreno(R, [...this.lotes.values()].filter((o) => o.dono && o !== L).map((o) => o.def)); if (motivo) return aviso(motivo);
     if (L.pecas.some((p) => foraDoLote(retPeca(p), R))) return aviso('Tem peça fora do terreno novo: desmonte ou marque maior');
@@ -3022,7 +3022,7 @@ export class Simulacao {
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return;
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu correio');
-    const c = contaTerreno(L.def, L.taxa, Date.now());
+    const c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
     if (c.valor <= 0) return aviso('Nenhuma conta para pagar');
     if (j.prog.ouro < c.valor) return aviso(`Faltam ${c.valor - j.prog.ouro} de ouro para pagar a conta (${c.valor})`);
     j.prog.ouro -= c.valor; this.caixa(j, 'taxaTerreno', -c.valor);
@@ -3540,7 +3540,7 @@ export class Simulacao {
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
     const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
     const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0)));
-    p.ouro += ouro; this.caixa(j, 'monstro', ouro);
+    if (ouro) { p.ouro += ouro; this.caixa(j, 'monstro', ouro); }
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
     for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch) por({ k, n });
@@ -4571,8 +4571,8 @@ export class Simulacao {
   dropBoss(c, j) {
     const B = BOSSES_MUNDO[c.bm], D = B.drop, p = j.prog, ganhou = [];
     const por = (it) => { if (filtrado(p, it)) return; if (guardar(p.mochila, it)) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); else this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
-    const ouro = Math.round((c.nivel || 1) * (DROP_BOSS.ouro[0] + Math.random() * (DROP_BOSS.ouro[1] - DROP_BOSS.ouro[0])));
-    p.ouro += ouro; this.caixa(j, 'boss', ouro);
+    const ouro = Math.round((c.nivel || 1) * (DROP_BOSS.ouro[0] + Math.random() * (DROP_BOSS.ouro[1] - DROP_BOSS.ouro[0])) * (ECONOMIA.ouroBoss ?? 1));
+    if (ouro) { p.ouro += ouro; this.caixa(j, 'boss', ouro); }
     por({ k: 'pocao', n: DROP_BOSS.pocao[0] + Math.floor(Math.random() * (DROP_BOSS.pocao[1] - DROP_BOSS.pocao[0] + 1)) });
     const pecas = Object.keys(ITENS).filter(ehEquip);
     por({ k: pecas[Math.floor(Math.random() * pecas.length)], r: 1 }); // monstro só solta até Rara (André 2026-11-06)
