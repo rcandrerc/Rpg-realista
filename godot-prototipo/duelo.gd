@@ -17,6 +17,8 @@ var rotulo: Label # contagem (3, 2, 1) e depois "Duelo" (sem limite de tempo: sa
 var _cor := {} # cor de antes da barra e do nome do outro
 var _aviso_t := 0.0
 var _alvo := {} # o outro como alvo do golpe (main.gd mais_perto): {no, estado, duelo}
+var cartao: Control # vida do outro, à esquerda embaixo das barras do time (André 2026-11-17: "pra eu ver se vou ganhar")
+var _cartao_v := -1.0
 
 # o outro do duelo como alvo (só depois da contagem); null = sem duelo ou ele não está à vista
 func alvo():
@@ -100,6 +102,8 @@ func _limpar() -> void:
 		anel = null
 	if rotulo != null:
 		rotulo.visible = false
+	if cartao != null:
+		cartao.visible = false
 
 # o nome e a barra de vida do outro ficam vermelhos (só para os dois duelistas)
 func _pintar_outro(liga: bool) -> void:
@@ -168,6 +172,7 @@ func _rotulo() -> Label:
 func _process(_dt: float) -> void:
 	if com == "":
 		return
+	_atualizar_cartao()
 	var r := _rotulo()
 	r.visible = true
 	var falta: float = luta_em - m.tempo
@@ -187,3 +192,53 @@ func _process(_dt: float) -> void:
 	if d > raio - 2.5 and m.tempo - _aviso_t > 2.0:
 		_aviso_t = m.tempo
 		m.hud.aviso("Volte pro círculo ou perde o duelo!")
+
+# ---------- cartão da vida do outro (como o cartão do time, em vermelho, embaixo das barras do time) ----------
+func _atualizar_cartao() -> void:
+	if cartao == null:
+		cartao = Control.new()
+		cartao.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cartao.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cartao.draw.connect(_desenhar_cartao)
+		m.hud.add_child(cartao)
+	cartao.visible = not m.hud.esconder_combate
+	var o = m.online.outros.get(com) if m.online else null
+	var v: float = float(o.get("vida", 0.0)) if o != null else -2.0
+	if v != _cartao_v:
+		_cartao_v = v
+		cartao.queue_redraw()
+
+func _desenhar_cartao() -> void:
+	var o = m.online.outros.get(com) if m.online and com != "" else null
+	if o == null:
+		return
+	var A = m.amigos
+	var base := Vector2(18, 122)
+	var s := 1.0
+	if A:
+		base = A.BARRAS + A.barras_d + Vector2(0, A.altura_barras())
+		s = A.barras_s
+	cartao.draw_set_transform(base, 0.0, Vector2(s, s))
+	var tam := Vector2(196, 36)
+	var f := ThemeDB.fallback_font
+	var sb := StyleBoxFlat.new()
+	sb.anti_aliasing = true
+	sb.set_corner_radius_all(10)
+	sb.bg_color = Color(0.1, 0.05, 0.04, 0.78)
+	sb.border_color = Color(0.95, 0.35, 0.25, 0.8)
+	sb.set_border_width_all(1)
+	sb.draw(cartao.get_canvas_item(), Rect2(Vector2.ZERO, tam))
+	var vm: float = max(1.0, float(o.get("vida_max", 1.0)))
+	var v: float = clamp(float(o.get("vida", vm)), 0.0, vm)
+	var cab := "%s  %s" % [nome, Idioma.t("Nv %d") % int(o.get("nivel", 1))]
+	cartao.draw_string_outline(f, Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, 3, Color(0, 0, 0, 0.7))
+	cartao.draw_string(f, Vector2(8, 13), cab, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 14, 13, Color(1.0, 0.55, 0.45))
+	var bp := Vector2(8, 18)
+	var bt := Vector2(tam.x - 16, 12)
+	cartao.draw_rect(Rect2(bp, bt), Color(0, 0, 0, 0.5))
+	cartao.draw_rect(Rect2(bp, Vector2(bt.x * v / vm, bt.y)), Color(0.85, 0.2, 0.16))
+	var txt := "%d/%d" % [int(v), int(vm)]
+	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+	cartao.draw_string_outline(f, bp + Vector2((bt.x - w) * 0.5, bt.y - 2), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.7))
+	cartao.draw_string(f, bp + Vector2((bt.x - w) * 0.5, bt.y - 2), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color.WHITE)
+	cartao.draw_set_transform(Vector2.ZERO)
