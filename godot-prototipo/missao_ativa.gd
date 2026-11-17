@@ -135,6 +135,8 @@ func _coluna(mostrar: bool) -> void:
 	if a != null:
 		x = a.BARRAS.x + a.barras_d.x
 		y = a.BARRAS.y + a.barras_d.y + a.altura_barras(m.hud.editando)
+	if m.alvo_quadro != null: # quadro do alvo (alvo_quadro.gd) fica entre as barras do time e a missão
+		y += m.alvo_quadro.altura()
 	var fim := y
 	if not _livre:
 		var p := Vector2(x, y + 2.0)
