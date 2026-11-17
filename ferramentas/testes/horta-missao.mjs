@@ -114,3 +114,24 @@ if (L2) {
     ok(!(L3.horta['-21,83'].g >= PLANTAS.abobora.G), 'a 7ª abóbora (a missão já tem as que precisa) cresce no tempo normal');
   } else ok(false, 'terceiro lote');
 }
+
+// André 2026-11-17 (milho da c3): passados os segundos, o servidor manda o lote com a planta pronta (sem esperar outra mexida)
+{
+  const j4 = s.adicionarJogador('D', 'Duda', undefined, { conta: 4 }); ev();
+  j4.criando = false; j4.x = -24; j4.z = 98; j4.prog.ouro = 5000;
+  s.comprarLote('D', { x0: -28, z0: 94, x1: -20, z1: 102 }); ev();
+  const L4 = s.loteDe(j4), p4 = j4.prog;
+  if (L4) {
+    p4.mochila.fill(null); p4.mochila[0] = { k: 'enxada', n: 1 }; p4.mochila[1] = { k: 'semente_milho', n: 4 };
+    p4.hist = { v: 2, p: idx('c3'), ac: true, e: 1, n: 0, m: 0, hz: { m: 'c3', u: { abobora: 4 } } };
+    p4.vigor = { v: 999, t: Date.now() }; s.horta('D', { acao: 'arar', c: '-27,96' });
+    p4.vigor = { v: 999, t: Date.now() }; s.horta('D', { acao: 'plantar', c: '-27,96', s: 'milho' }); ev();
+    const t = L4.horta['-27,96'];
+    ok(t.mf > 0, 'milho da etapa "Plante 4 sementes de milho" cresce pela missão');
+    t.mi -= 9000; t.mf -= 9000; // os 8 s passaram
+    const vistos = []; for (let k = 0; k < 30; k++) vistos.push(...(s.passo(0.05) || []));
+    const e = [...vistos, ...ev()].filter((x) => x.t === 'lote' && x.lote === L4.def.id);
+    const h = e.at(-1)?.horta?.find((o) => o[0] === '-27,96');
+    ok(h && h[2] >= PLANTAS.milho.G && !t.mf, `passados os segundos, o lote vai pronto para o celular (${JSON.stringify(h)})`);
+  } else ok(false, 'quarto lote');
+}

@@ -1061,7 +1061,7 @@ export class Simulacao {
       if (E.ja || ['ter', 'noite', 'pos', 'pistas', 'time', 'colher'].includes(E.ev)) this.checarEtapa(j);
       if (E.hc) this.chamarChefe(j, E.hc);
       // horta da missão (André 2026-11-17): planta que a missão ainda precisa fica pronta sem precisar tocar nela
-      if (!(j.hortaT > this.tempo)) { j.hortaT = this.tempo + 5; this.hortaMissao(j); }
+      if (!(j.hortaT > this.tempo)) { j.hortaT = this.tempo + 1; this.hortaMissao(j); this.hortaMissaoPronta(j); }
     }
   }
   // Chefe com nome (CHEFES_HISTORIA): um monstro vivo do campo vira o chefe quando o herói da etapa está a menos de 60 m
