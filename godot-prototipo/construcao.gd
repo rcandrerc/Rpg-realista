@@ -4862,7 +4862,10 @@ func _montar_itens() -> void:
 				nome = Idioma.frase("Vender para o jogo (volta a metade do preço) · as peças voltam para a mochila")
 			else:
 				nome = Idioma.frase("Mudar o tamanho · aumentar: %d de ouro por bloco · diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
-			nome += " · " + Idioma.frase("taxa por semana: terreno %d + peças %d = %d" % [int(c.terreno), int(c.porPecas), int(c.porSemana)])
+			if int(c.porPecas) > 0:
+				nome += " · " + Idioma.frase("taxa por semana: terreno %d + peças %d = %d" % [int(c.terreno), int(c.porPecas), int(c.porSemana)])
+			else:
+				nome += " · " + Idioma.frase("taxa por semana: %d" % int(c.porSemana))
 			if int(c.valor) > 0:
 				nome += " · " + Idioma.frase("conta no correio: %d" % int(c.valor))
 	elif aba != "fazenda":

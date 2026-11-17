@@ -776,10 +776,10 @@ export const LOTES_ANTIGOS = {
 // encosta ou deixa pelo menos 'fresta' m (um caminho); ao marcar, a borda gruda (ímã) na estrada e no vizinho a até 'ima' m.
 export const LOTE = { preco: 400, placaDist: 3, precoBloco: 4, ladoMin: 6, ladoMax: 20, areaMax: 300, folgaRua: 0.6, folgaBorda: 1.5,
   alcance: 6, pecasPorBloco: 0.4, pecasMin: 12, maxPecas: 120, estacaoDist: 3,
-  venda: 0.5, taxaBloco: 14, taxaCurva: 0.5, taxaPeca: 20, taxaDias: 7, taxaTrava: 2, fresta: 3, ima: 1.5 };
+  venda: 0.5, taxaBloco: 14, taxaCurva: 0.5, taxaPeca: 0, taxaDias: 7, taxaTrava: 2, fresta: 3, ima: 1.5 };
 // taxa (André 2026-11-17: "aluguel deve subir e escalável, lote pequeno tanto, maior mais caro"): era 1 por bloco por semana.
 // Agora taxaBloco x blocos x (blocos / 36)^taxaCurva por semana: 6x6 = 504, 10x10 = 2.333, 15x15 = 7.875, 300 blocos = 12.124,
-// mais taxaPeca por peça construída no terreno (André 2026-11-17: "depende de quantos itens você tenha no terreno").
+// mais taxaPeca por peça construída no terreno (André 2026-11-17 perguntou; escolheu "só pelo tamanho": fica 0).
 export const taxaSemanaTerreno = (blocos) => Math.round(blocos * LOTE.taxaBloco * Math.pow(Math.max(1, blocos) / 36, LOTE.taxaCurva || 0));
 export const vendaTerreno = (w, d) => Math.floor(Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco * LOTE.venda);
 // conta do correio: semanas fechadas desde 'taxa' (ms do começo da conta em aberto), valor e quando chega a próxima

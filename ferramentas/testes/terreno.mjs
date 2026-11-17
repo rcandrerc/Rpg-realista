@@ -21,12 +21,12 @@ s.mudarLote('A', { x0: -28, z0: 52, x1: -20, z1: 63 }); ok(LA.def.z0 === 52 && a
 s.mudarLote('A', { x0: -28, z0: 55, x1: -20, z1: 63 }); ok(LA.def.z0 === 55 && a.prog.ouro === ouro0 - 24 * 4 + 48, 'diminuiu e recebeu metade ' + avisos());
 // conta do correio
 LA.taxa = Date.now() - 15 * 86400000;
-const c = contaTerreno(LA.def, LA.taxa, Date.now(), LA.pecas.length); ok(c.semanas === 2 && c.terreno === 1195 && c.porPecas === 20 && c.valor === 2430, 'duas contas de 1.215 (8x8 = 1.195 + 1 peça x 20) ' + JSON.stringify(c));
+const c = contaTerreno(LA.def, LA.taxa, Date.now(), LA.pecas.length); ok(c.semanas === 2 && c.terreno === 1195 && c.porPecas === 0 && c.valor === 2390, 'duas contas de 1.195 (8x8, só pelo tamanho) ' + JSON.stringify(c));
 ok(taxaSemanaTerreno(36) === 504 && taxaSemanaTerreno(100) === 2333 && taxaSemanaTerreno(300) === 12124, 'taxa escala com o tamanho');
 a.prog.ouro += 5000;
 a.prog.mochila[0] = { k: 'obra_bancada', n: 1 };
 s.construir('A', { k: 'bancada', x: -23, z: 60.5, r: 0 }); ok(LA.pecas.length === 1, 'conta atrasada trava: ' + avisos());
-const o1 = a.prog.ouro; s.pagarTaxa('A'); ok(a.prog.ouro === o1 - 2430 && contaTerreno(LA.def, LA.taxa, Date.now()).semanas === 0, 'pagou ' + avisos());
+const o1 = a.prog.ouro; s.pagarTaxa('A'); ok(a.prog.ouro === o1 - 2390 && contaTerreno(LA.def, LA.taxa, Date.now()).semanas === 0, 'pagou ' + avisos());
 s.construir('A', { k: 'bancada', x: -23, z: 60.5, r: 0 }); ok(LA.pecas.length === 2, 'depois de pagar constrói ' + avisos());
 // vender
 let soltou = ''; s.aoVenderLote = (id) => { soltou = id; };

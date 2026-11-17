@@ -1056,6 +1056,7 @@
 "\nPeças construídas: %d x %d = %d": "\nBuilt pieces: %d x %d = %d",
 "\nTotal por semana: %d": "\nTotal per week: %d",
 "taxa por semana: terreno %d + peças %d = %d": "weekly fee: plot %d + pieces %d = %d",
+"taxa por semana: %d": "weekly fee: %d",
 "Marcar de novo": "Mark again",
 "Mudar o terreno": "Resize plot",
 "Comprar terreno": "Buy plot",

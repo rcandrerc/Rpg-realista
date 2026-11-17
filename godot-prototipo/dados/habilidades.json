@@ -2814,7 +2814,7 @@
   "venda": 0.5,
   "taxaBloco": 14,
   "taxaCurva": 0.5,
-  "taxaPeca": 20,
+  "taxaPeca": 0,
   "taxaDias": 7,
   "taxaTrava": 2,
   "fresta": 3,
