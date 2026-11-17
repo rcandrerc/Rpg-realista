@@ -3015,10 +3015,12 @@ func tocou_tela(pos: Vector2) -> void:
 	if not ativo or cobre(pos):
 		return
 	var p = _chao_na_tela(pos)
+	var vale := false
 	if p != null and na_area:
-		if Vector2(p.x - m.heroi.position.x, p.z - m.heroi.position.z).length() <= m.plantio.RAIO_MODO:
-			mira = p
+		vale = Vector2(p.x - m.heroi.position.x, p.z - m.heroi.position.z).length() <= m.plantio.RAIO_MODO
 	elif p != null and lotes.has(meu) and dist_ret(lotes[meu].def, p.x, p.z) <= 1.5:
+		vale = true
+	if vale:
 		mira = p
 		if aba == "fazenda" and plano and plano.planeja(sel): # fazenda: tocar no canteiro já marca (ou desmarca)
 			_atualizar_mira()
@@ -3120,42 +3122,20 @@ func _atualizar_mira() -> void:
 			alvo = {"ok": false, "motivo": "Mire numa peça sua para desmontar"}
 			_destaque_em(null)
 	elif sel == "arvore":
-		# muda de árvore: quadrado de 4 m da grade do mundo (2 x 2 na árvore antiga); o herói vai até lá e planta
+		# muda de árvore (André 2026-11-17: igual às sementes da horta): quadrado de 4 m da grade do mundo (2 x 2 na
+		# árvore antiga); toque marca, toque de novo desmarca, e o Salvar põe o herói para plantar todas (fazenda_plano.gd)
 		var Q: float = m.plantio.Q if m.plantio else 4.0
 		var grande: bool = bool(m.plantio.tipos().get(arvore, {}).get("grande", false)) if m.plantio else false
 		var n := 2 if grande else 1
 		var q := Vector2i(floori(p.x / Q), floori(p.z / Q))
 		var R := Rect2(q.x * Q, q.y * Q, Q * n, Q * n)
-		var mot := ""
-		if m.plantio == null or not m.on():
-			mot = "Plantar árvore só funciona online"
-		elif m.P.contar("semente_" + arvore) < 1:
-			mot = "Sem semente de %s (a Rosa vende)" % str(m.plantio.tipos().get(arvore, {}).get("nome", "")).to_lower()
-		elif na_area:
-			var qs: Dictionary = m.plantio.quadrados()
-			var area = qs.get(q)
-			for di in n:
-				for dk in n:
-					if mot == "" and (area == null or qs.get(q + Vector2i(di, dk)) != area):
-						mot = "A árvore antiga precisa de 2 x 2 quadrados livres da área de plantio" if grande and area != null else "Mire num quadrado amarelo da área de plantio"
-					elif mot == "" and m.plantio._ocupados().has(q + Vector2i(di, dk)):
-						mot = "Já tem árvore nesse quadrado"
-		elif _fora_do_lote(R, L.def):
-			mot = "Só dá para plantar dentro do seu terreno"
-		else:
-			var oc: Dictionary = m.plantio._ocupados()
-			for di in n:
-				for dk in n:
-					if oc.has(q + Vector2i(di, dk)):
-						mot = "Já tem árvore nesse quadrado"
-			for o in L.pecas:
-				if mot == "" and _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
-					mot = "Tem construção nesse quadrado"
-			for h in L.horta:
-				var ab: PackedStringArray = str(h).split(",")
-				if mot == "" and R.has_point(Vector2(float(ab[0]) + 0.5, float(ab[1]) + 0.5)):
-					mot = "Tem horta nesse quadrado"
-		alvo = {"ok": mot == "", "motivo": mot if mot != "" else "O herói vai até o quadrado e planta", "tipo": "arvore", "dados": {"s": arvore, "q": q}}
+		var dados := {"acao": "arvore", "c": "a:%d,%d" % [q.x, q.y], "s": arvore, "i": q.x, "k": q.y, "area": na_area}
+		var mot := motivo_arvore(q, arvore, na_area)
+		if plano:
+			mot = plano.motivo_marcar(L if L != null else {}, dados, mot)
+		alvo = {"ok": mot == "", "motivo": mot, "tipo": "horta", "dados": dados}
+		if mot == "" and plano:
+			alvo.motivo = plano.dica(dados)
 		var cc := R.get_center()
 		_destaque_em(Vector3(cc.x, m.terreno.altura(cc.x, cc.y), cc.y), Vector3(R.size.x - 0.2, 0.16, R.size.y - 0.2), Color(1.0, 0.77, 0.08, 0.4) if alvo.ok else Color(1, 0.35, 0.29, 0.35))
 	else:
@@ -3177,6 +3157,45 @@ func _atualizar_mira() -> void:
 	txt_motivo.text = Idioma.frase(alvo.motivo if alvo.motivo != "" else "Pode colocar aqui")
 	txt_motivo.add_theme_color_override("font_color", Color("b8f0a0") if alvo.ok else Color("ffb3a3"))
 	b_ok.disabled = not alvo.ok
+
+# por que a muda s não pode ser plantada no quadrado q de 4 m ('' = pode): no meu terreno, ou numa área de plantio
+# (area = Fazenda aberta na área). Usado na mira e no plano (fazenda_plano.gd)
+func motivo_arvore(q: Vector2i, s: String, area: bool) -> String:
+	if m.plantio == null or not m.on():
+		return "Plantar árvore só funciona online"
+	var T: Dictionary = m.plantio.tipos().get(s, {})
+	if m.P.contar("semente_" + s) < 1:
+		return "Sem semente de %s (a Rosa vende)" % str(T.get("nome", "")).to_lower()
+	var Q: float = m.plantio.Q
+	var grande := bool(T.get("grande", false))
+	var n := 2 if grande else 1
+	var oc: Dictionary = m.plantio._ocupados()
+	for di in n:
+		for dk in n:
+			if oc.has(q + Vector2i(di, dk)):
+				return "Já tem árvore nesse quadrado"
+	if area:
+		var qs: Dictionary = m.plantio.quadrados()
+		var a = qs.get(q)
+		if a == null:
+			return "Mire num quadrado amarelo da área de plantio"
+		for di in n:
+			for dk in n:
+				if qs.get(q + Vector2i(di, dk)) != a:
+					return "A árvore antiga precisa de 2 x 2 quadrados livres da área de plantio"
+		return ""
+	var L = lotes.get(meu)
+	var R := Rect2(q.x * Q, q.y * Q, Q * n, Q * n)
+	if L == null or _fora_do_lote(R, L.def):
+		return "Só dá para plantar dentro do seu terreno"
+	for o in L.pecas:
+		if _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
+			return "Tem construção nesse quadrado"
+	for h in L.horta:
+		var ab: PackedStringArray = str(h).split(",")
+		if R.has_point(Vector2(float(ab[0]) + 0.5, float(ab[1]) + 0.5)):
+			return "Tem horta nesse quadrado"
+	return ""
 
 # por que a ação da fazenda não pode ser feita no quadrado (i, j) ('' = pode). Usado na mira e no plano (fazenda_plano.gd)
 func motivo_fazenda(L: Dictionary, acao: String, i: int, j: int, s: String) -> String:
@@ -3271,11 +3290,6 @@ func colocar() -> void:
 		plano.alternar(alvo.dados)
 		_montar_itens()
 		_atualizar_mira()
-		return
-	if alvo.tipo == "arvore": # sai da construção e o herói anda até o quadrado (plantio.gd)
-		var d: Dictionary = alvo.dados
-		sair()
-		m.plantio.plantar_no_quadrado(str(d.s), d.q)
 		return
 	if m.montaria != null: # montado no lobo: desce sozinho e faz (André 2026-11-13; o servidor também desce)
 		m.montar_lobo(false)
