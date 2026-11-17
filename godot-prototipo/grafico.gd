@@ -69,7 +69,8 @@ func _init(jogo) -> void:
 	auto = bool(cfg.get_value("config", "grafico_auto", false))
 	if auto:
 		nivel = sugerido
-	P = preset_auto(PRESETS[nivel], 0) if auto else PRESETS[nivel]
+	hz = ler_hz()
+	P = preset_auto(PRESETS[nivel], 0, hz) if auto else PRESETS[nivel]
 	# Paralelo, Sombras e Cor da grama saíram das Configurações (André 2026-11-14, "deixamos como padrão"): o
 	# paralelo fica ligado (quem tinha desligado na mão volta a ligado; a trava contra queda continua valendo)
 	var mc := _motor()
@@ -246,7 +247,8 @@ func trocar_auto() -> void:
 	_t_auto = AUTO_S
 	_gpu_soma = 0.0
 	_gpu_n = 0
-	P = preset_auto(PRESETS[nivel], 0)
+	hz = ler_hz()
+	P = preset_auto(PRESETS[nivel], 0, hz)
 	var cfg := ConfigFile.new()
 	cfg.load(ARQUIVO)
 	cfg.set_value("config", "grafico_auto", true)
@@ -261,7 +263,7 @@ func trocar_auto() -> void:
 # André 2026-11-17: "a minha ideia era ir baixando o FPS à medida que fosse necessário... não já travar em 30". Antes o
 # degrau 2 já era 30 FPS e o Poco X7 Pro, que faz uns 40 a 50 na Alta, caía para 30 em 2 a 5 minutos (registros de
 # 17/11: term 0, bateria abaixo de 42 °C; foi o "FPS abaixo de 48", não o calor). Agora a escada (escada()) é:
-#   1 a 4. limite de 55, 50, 45 e 40 FPS (a qualidade fica igual)
+#   1 a 4. limite de 55, 50, 45 e 40 FPS (a qualidade fica igual; só os que dividem a frequência da tela, ver abaixo)
 #   5. resolução 3D menor (a interface continua nítida)
 #   6. resolução 3D menor ainda e sombra mais curta
 #   7. grama mais rala e só perto, vista ao longe mais curta (névoa um pouco mais fechada); a câmera continua livre
@@ -269,12 +271,20 @@ func trocar_auto() -> void:
 # FPS abaixo do limite (o celular não chega lá): desce direto para o limite que ele aguenta, só no FPS (ex.: fazendo
 # 46 com limite 60 vai para 45 e fica). Quente: desce um degrau; se o único sinal é a bateria (esquenta e esfria
 # devagar), espera CALOR_BAT_S entre um degrau e outro.
+# 2026-11-17 noite (registros do Poco X7 Pro, versões 2540 a 2581: 4 h a 30 FPS sem esquentar): com a sincronia da tela
+# ligada (project.godot vsync), o quadro só aparece na batida da tela. Numa tela a 60 Hz um limite de 55, 50, 45 ou 40
+# vira 30 de verdade (o quadro de 20 a 25 ms espera a batida de 33 ms), a conta via "não chega no limite" e descia
+# até o 30. Agora só entram os limites que dividem a frequência da tela (hz): 120 Hz tem 60, 40 e 30; 90 Hz tem 45
+# e 30; 60 Hz só 60 e 30. Sem limite intermediário, "não chega no limite" não desce mais para o 30 enquanto o celular
+# faz mais de 33 (60 Hz fazendo 46 fica no 60, a qualidade inteira); o calor continua descendo um degrau por vez.
+# E o tranco de carregamento (quadro de mais de TRANCO_S) não entra na conta do FPS da janela.
 const AUTO_S := 15.0
 const AUTO_SOBE_S := 60.0
 const AUTO_SOBE_MAX := 600.0
 const DEGRAUS := 8 # degraus do Auto na Média e na Alta (a Baixa tem menos: degraus())
 const ESCADA_FPS := [55, 50, 45, 40]
 const LENTO := 0.9 # FPS de verdade abaixo de 90% do limite: o celular não chega lá
+const TRANCO_S := 0.25 # quadro maior que isto (carregamento) fica fora da conta do FPS do Auto
 const CALOR_BAT_S := 45.0
 const ESCALA_MIN := 0.4
 const QUENTE_TERM := 2 # Android: 2 = já freando de leve
@@ -282,6 +292,7 @@ const QUENTE_FOLGA := 0.6 # 1.0 = começa a frear daqui a 10 s
 const QUENTE_BAT := 42.0 # °C
 var auto := false
 var degrau := 0
+var hz := 60 # frequência da tela agora (DisplayServer): os limites de FPS do Auto dividem ela
 var _t_auto := AUTO_S
 var _frio_s := 0.0
 var _espera_sobe := AUTO_SOBE_S
@@ -293,17 +304,26 @@ var _gpu_n := 0
 var _janelas := 0 # janelas seguidas com o jogo na tela
 var _quadros := 0
 var _tempo := 0.0
+var _tranco_n := 0 # quadros de tranco na janela (fora da conta do FPS)
+var _tranco_t := 0.0
 var _t_amostra := 0.0 # (sem uso desde 2026-11-14: o tempo da placa não é mais lido)
 const AMOSTRA_S := 5.0
 # o tempo da placa não é lido (2026-11-14): com o desenho em paralelo, cada leitura faz a linha do jogo esperar a linha
 # do desenho terminar o quadro (malhas.gd). O Auto usa o FPS de verdade (contado todo quadro, de graça) e o calor.
 
+# a frequência da tela de agora (Hz inteiros; sem leitura: 60)
+static func ler_hz() -> int:
+	var r := roundi(DisplayServer.screen_get_refresh_rate())
+	return r if r >= 30 else 60
+
 # os degraus do Auto para um nível (0 = o nível cheio). Degrau que não mudaria nada fica de fora (a Baixa já é 30
-# FPS: começa direto na resolução).
-static func escada(base: Dictionary) -> Array:
+# FPS: começa direto na resolução). Limite de FPS só os que dividem a frequência da tela (h).
+static func escada(base: Dictionary, h := 60) -> Array:
 	var lista: Array = [base]
 	var p: Dictionary = base
 	for f in ESCADA_FPS:
+		if h % f != 0:
+			continue
 		if int(base.fps) <= 0 or f < int(base.fps):
 			p = p.duplicate()
 			p.fps = f
@@ -329,13 +349,13 @@ static func escada(base: Dictionary) -> Array:
 		lista.append(p)
 	return lista
 
-static func preset_auto(base: Dictionary, d: int) -> Dictionary:
-	var e := escada(base)
+static func preset_auto(base: Dictionary, d: int, h := 60) -> Dictionary:
+	var e := escada(base, h)
 	return e[clampi(d, 0, e.size() - 1)]
 
-# quantos degraus o Auto tem no nível de agora (menu_topo.gd mostra "aliviando 2 de 8")
+# quantos degraus o Auto tem no nível de agora (menu_topo.gd mostra "aliviando 2 de 5")
 func degraus() -> int:
-	return escada(PRESETS[nivel]).size() - 1
+	return escada(PRESETS[nivel], hz).size() - 1
 
 func _process(dt: float) -> void:
 	if _aos_poucos:
@@ -348,16 +368,26 @@ func _process(dt: float) -> void:
 	var real := dt / maxf(Engine.time_scale, 0.001) # tempo de verdade (o golpe congela o jogo)
 	_quadros += 1
 	_tempo += real
+	if real > TRANCO_S:
+		_tranco_n += 1
+		_tranco_t += real
 	_t_auto -= real
 	if _t_auto > 0.0:
 		return
 	_t_auto = AUTO_S
 	var gpu := _gpu_soma / _gpu_n if _gpu_n > 0 else -1.0
-	var fps := _quadros / _tempo if _tempo > 0.0 else -1.0
+	var t_bom := _tempo - _tranco_t
+	var fps := (_quadros - _tranco_n) / t_bom if t_bom > AUTO_S * 0.5 else -1.0
 	_gpu_soma = 0.0
 	_gpu_n = 0
 	_quadros = 0
 	_tempo = 0.0
+	_tranco_n = 0
+	_tranco_t = 0.0
+	# a tela pode trocar de frequência (economia de bateria do Android): refaz a escada no mesmo limite de FPS
+	var h := ler_hz()
+	if h != hz:
+		_trocar_hz(h)
 	# tela de entrada ou de carregamento na frente, ou o jogo acabou de aparecer (a fila de entrada pesa): não conta
 	var on = m.online
 	if m.heroi == null or (on and (on._cobrindo or (on.capa and on.capa.visible))):
@@ -389,19 +419,27 @@ func _process(dt: float) -> void:
 # o degrau que o Auto quer agora (um passo por vez): gpu = ms médios da placa (-1 = sem medida); term/folga/bat -1 = sem leitura
 # fps = quadros por segundo de verdade na janela (-1 = sem conta): bem abaixo do alvo também é "sem folga"
 func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.0) -> int:
-	var esc := escada(PRESETS[nivel])
+	var esc := escada(PRESETS[nivel], hz)
 	var n := esc.size() - 1
 	d = clampi(d, 0, n)
 	var alvo := float(P.fps) if int(P.fps) > 0 else 60.0
 	var orc := 1000.0 / alvo
 	_motivo = ""
 	if fps > 0.0 and fps < alvo * LENTO and d < n:
-		# não chega no limite: desce só o FPS até o limite que ele aguenta (para no 40; dali para baixo, um por vez)
-		_motivo = "lento"
+		# não chega no limite: desce só o FPS até o limite que ele aguenta (40 numa tela de 120 Hz, 45 na de 90). Sem
+		# limite de FPS abaixo (tela de 60 Hz), só desce se nem 33 ele faz: dali, um degrau por vez até o 30
 		var j := d + 1
-		while j < n and int(esc[j].fps) > fps * 1.05 and int(esc[j + 1].fps) < int(esc[j].fps) and int(esc[j + 1].fps) > 30:
-			j += 1
-		return j
+		if j < n and int(esc[j].fps) < int(esc[d].fps) and float(esc[j].escala) == float(esc[d].escala):
+			if fps >= float(esc[j].fps) * 1.15:
+				return d # faz bem mais que o limite de baixo (ex.: 50 com limite 60 numa tela de 120 Hz): fica
+			_motivo = "lento"
+			while j + 1 < n and int(esc[j].fps) > fps * 1.05 and int(esc[j + 1].fps) < int(esc[j].fps) \
+					and float(esc[j + 1].escala) == float(esc[d].escala):
+				j += 1
+			return j
+		if fps < 33.0:
+			_motivo = "lento"
+			return j
 	if term >= QUENTE_TERM or folga >= QUENTE_FOLGA or gpu > orc * 0.92:
 		_motivo = "quente"
 		return mini(d + 1, n)
@@ -418,10 +456,22 @@ func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.
 		and (fps < 0.0 or fps >= alvo * 0.95)
 	return d - 1 if frio else d
 
+# a tela trocou de frequência: fica no degrau da nova escada com o mesmo jeito (mesma qualidade, limite que divide)
+func _trocar_hz(h: int) -> void:
+	var antes: Dictionary = P
+	hz = h
+	var esc := escada(PRESETS[nivel], hz)
+	var novo := esc.size() - 1
+	for i in esc.size():
+		if float(esc[i].escala) == float(antes.escala) and float(esc[i].alcance) == float(antes.alcance) and int(esc[i].fps) <= int(antes.fps):
+			novo = i
+			break
+	_mudar(novo)
+
 func _mudar(d: int) -> void:
 	var antes: Dictionary = P
 	degrau = clampi(d, 0, degraus())
-	P = preset_auto(PRESETS[nivel], degrau)
+	P = preset_auto(PRESETS[nivel], degrau, hz)
 	if P.alcance != antes.alcance or P.grama != antes.grama or P.grama_qtd != antes.grama_qtd or P.nevoa != antes.nevoa:
 		aplicar(true) # degrau da vista: confere o alcance de tudo que está na cena, aos poucos
 	else:
