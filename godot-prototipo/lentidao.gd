@@ -322,6 +322,8 @@ func _comum(e: Dictionary) -> void:
 		e.alto = roundi(float(m.cam._iso_k))
 	if m.grafico and m.grafico.auto: # gráficos no Auto: o degrau de agora (0 = o nível cheio); manual não manda
 		e.auto = int(m.grafico.degrau)
+	if m.grafico: # frequência da tela (Hz): com a sincronia ligada, o FPS de verdade é ela dividida por 1, 2, 3...
+		e.hz = int(m.grafico.hz)
 	var mem := Performance.get_monitor(Performance.MEMORY_STATIC)
 	if mem > 0.0:
 		e.mem = roundi(mem / 1048576.0)
