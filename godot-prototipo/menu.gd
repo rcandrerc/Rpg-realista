@@ -2946,7 +2946,8 @@ func montar_mochila() -> void:
 		var d := rotulo(dica, 14, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conteudo.add_child(d)
-	montar_conjunto()
+	# quadro "Conjunto" embaixo da mochila saiu (André 2026-11-17, remoção aprovada: "pode apagar esse conjunto lá
+	# embaixo"); o bônus agora aparece no cartão de cada peça (lista_conjunto). montar_conjunto() fica para quem quiser voltar
 
 # célula da mochila: tocar escolhe (ou marca, no Vender vários); segurar perto de quem compra liga o Vender vários
 func celula_mochila(i: int, compra: bool) -> Button:
