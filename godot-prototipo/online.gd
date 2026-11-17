@@ -1293,6 +1293,10 @@ func evento(ev: Dictionary) -> void:
 			if m.troca:
 				m.troca.do_servidor(ev)
 			return
+		"duelo": # duelo (duelo.gd, André 2026-11-17): pedido, início com o círculo, luta, fim
+			if m.duelo:
+				m.duelo.do_servidor(ev)
+			return
 		"reinicio": # o servidor vai reiniciar (merge ou reinício programado): faixa no alto e contagem (reinicio.gd)
 			if m.reinicio:
 				m.reinicio.do_servidor(int(ev.get("s", 0)))

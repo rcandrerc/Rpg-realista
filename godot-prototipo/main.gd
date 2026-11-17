@@ -49,6 +49,7 @@ const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
 const Troca = preload("res://troca.gd")
+const Duelo = preload("res://duelo.gd") # duelo (André 2026-11-17, shared/duelo.js)
 const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
 const Festa = preload("res://festa.gd")
@@ -157,6 +158,7 @@ var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
+var duelo # duelo.gd: duelo entre jogadores e com a Cecília/Dario (botão no cartão da troca)
 var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
 var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var reinicio # reinicio.gd: faixa "o servidor vai reiniciar" e a contagem de 10 s no alto da tela (André 2026-11-12)
@@ -432,6 +434,8 @@ func _ready() -> void:
 	hud.tocou.connect(conversa.tocou_tela)
 	troca = Troca.new(self)
 	add_child(troca)
+	duelo = Duelo.new(self)
+	add_child(duelo)
 	leilao = LeilaoUi.new(self)
 	add_child(leilao)
 	_passo("troca_leilao")
@@ -2214,11 +2218,16 @@ func mais_perto(pos: Vector3, max_d: float):
 		if d < md:
 			md = d
 			melhor = e
+	# duelo (André 2026-11-17: "não consegui atacar ela no duelo"): o outro também é alvo do golpe e das skills; sem
+	# isso o app dizia "Nenhum inimigo por perto" e nem mandava o golpe. O dano quem decide é o servidor (shared/duelo.js).
+	var o = duelo.alvo() if duelo else null
+	if o != null and o.no.position.distance_to(pos) < md:
+		melhor = o
 	return melhor
 
 # hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir
 func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
-	if e.estado == "morto":
+	if e.estado == "morto" or e.get("duelo", false): # duelo: o número e a barra vêm do servidor (evento "dano")
 		return
 	if on(): # online: quem acerta e quanto tira é o servidor; o tranco, o flash e a congelada saem na hora aqui
 		var forte_on: bool = h.golpe_forte or not (hab is Dictionary and hab.has("combo"))

@@ -566,6 +566,7 @@ export function progressoValido(p) {
   // títulos (André 2026-11-12): os ganhos e o em uso; e quantos monstros já derrubou (títulos de caça)
   n.tit = titValido(p.tit);
   n.abates = int(p.abates, 0, 1e9, 0);
+  { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
   if (typeof p.devPag === 'string' && p.devPag.length < 20) n.devPag = p.devPag; // páginas de teste já devolvidas (CONTA_TESTE)
   return n;
 }
@@ -577,3 +578,11 @@ export function barraValida(lista, barra) {
   return lista.map((k) => { if (typeof k !== 'string' || !cabeNaBarra(k, barra) || vistos.has(k)) return null; vistos.add(k); return k; });
 }
 export const passivasDe = (p) => Object.fromEntries(Object.entries(PASSIVAS).map(([k, v]) => [k, p.nivel >= v.libera]));
+
+// placar de duelos vindo da conta (prog.duelos, shared/duelo.js): só números inteiros
+export function placarDueloValido(o) {
+  if (!o || typeof o !== 'object') return null;
+  const n = (v) => (Number.isInteger(v) && v >= 0 && v <= 1e7 ? v : 0);
+  const r = { v: n(o.v), d: n(o.d) };
+  return r.v || r.d ? r : null;
+}
