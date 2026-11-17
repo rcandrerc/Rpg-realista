@@ -3610,5 +3610,9 @@
 "Vem comigo, sei onde tem bicho bom: {1}.": "Come with me, I know where the good mobs are: {1}.",
 "Tô indo caçar ali, {1}. Vem atrás!": "I'm going hunting over at {1}. Come along!",
 "{1}, é pra lá que eu tô indo. Cola aí!": "{1}, that's where I'm going. Tag along!",
-"Segue eu! Conheço um lugar bom de caçar: {1}.": "Follow me! I know a good hunting spot: {1}."
+"Segue eu! Conheço um lugar bom de caçar: {1}.": "Follow me! I know a good hunting spot: {1}.",
+"Bora! Destino: {1}. Cola em mim.": "Let's go! Heading to {1}. Stick with me.",
+"Vem comigo, bora caçar. Destino: {1}.": "Come with me, let's hunt. Heading to {1}.",
+"Tô indo caçar. Destino: {1}. Vem atrás!": "Going hunting. Heading to {1}. Come along!",
+"Próxima parada: {1}. Cola aí.": "Next stop: {1}. Tag along."
 }
