@@ -302,6 +302,8 @@ func _passo(nome: String) -> void:
 	print("[entrada] ", nome, " ", t_partes[nome], " ms")
 func _ready() -> void:
 	t_ready0 = Time.get_ticks_msec()
+	# preparo da placa guardado mesmo quando o Android mata o app no fundo (retomada.gd)
+	preload("res://retomada.gd").ajustar()
 	Idioma.iniciar() # Português ou English (idioma.gd): antes de montar qualquer texto
 	get_tree().quit_on_go_back = false # o Voltar do Android fecha a janela de cima (voltar_android)
 	# Godot 4.7 (André 2026-11-12, "o app não abre"): mais linhas de fundo (grafico.gd ajustar_linhas), gravado para a
