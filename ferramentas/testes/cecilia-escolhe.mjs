@@ -40,6 +40,7 @@ const novo = () => {
 {
   const { s, j, c, a } = novo();
   a.prog.hist = { v: 2, p: 999, ac: false, e: 0, n: 0, m: 0 }; a.prog.nivel = 36; j.prog.nivel = 36;
+  j.prog.hist = { v: 2, p: 999, ac: false, e: 0, n: 0, m: 0 }; // ele já liberou tudo
   const v = c.sairCacarAmiga(a, j, 'imps');
   ok(v.ok, 'ela saiu para caçar sozinha');
   const ctx = c.contextoAmiga('andre');
@@ -71,4 +72,23 @@ const novo = () => {
   for (const x of s.amigosIa) if (x !== d) x.amiga && (x.amiga.time = null);
   d.amigaEntrar?.('andre', true);
   ok(DARIO.convida === false && !d.convidarTimeAmiga(d.amiga, j, null), 'Dario não manda convite');
+}
+// 6) André 2026-11-17: "e se o lugar não tiver sido destravado por mim ele teria como avisar? pois já aconteceu comigo"
+{
+  const { s, j, c, a } = novo();
+  a.prog.hist = { v: 2, p: 999, ac: false, e: 0, n: 0, m: 0 }; a.prog.nivel = 36; j.prog.nivel = 36;
+  j.prog.hist = { v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 }; // ele ainda está na primeira missão
+  const v = c.sairCacarAmiga(a, j, 'imps');
+  const { zonaFechadaEm } = await import('../../shared/historia.js');
+  ok(v.ok && zonaFechadaEm(j.prog, v.c.x, v.c.z), `ela caça num campo que ele ainda não liberou (${v.c.nome})`);
+  const ctx = c.contextoAmiga('andre');
+  ok(ctx.fechadoDele && ctx.fechadoDele.includes('não liberou') && ctx.fechadoDele.includes('missão'), `a ficha avisa a IA: ${ctx.fechadoDele}`);
+  ok(ctx.camposJuntos && !ctx.camposJuntos.includes(`(nível ${v.c.nivel},`), `campos para os dois só os abertos para ele: ${ctx.camposJuntos}`);
+  a.ia.chatFila = [];
+  c.respostaAmiga('andre', { assunto: 'time', iaAssunto: 'time', fala: 'Claro, vem! Te mandei o time.' });
+  const dito = a.ia.chatFila.at(-1)?.texto || '';
+  ok(dito.includes('você ainda não liberou') && dito.includes('missão'), `ela avisa no chat: "${dito}"`);
+  s.time('andre', { acao: 'aceitar', com: a.id });
+  const L = a.ia.seguido?.c;
+  ok(a.time === j.time && L && !zonaFechadaEm(j.prog, L.x, L.z) && !zonaFechadaEm(a.prog, L.x, L.z), `leva ele para um campo que os dois podem ir (${L?.nome})`);
 }

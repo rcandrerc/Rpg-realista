@@ -22,7 +22,7 @@ import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
-import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera } from './historia.js';
+import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
@@ -1049,6 +1049,19 @@ export const Amiga = {
     this.dizerAmiga(sorteia(F).replace('{n}', n), false, j.id); return true;
   },
   timeCheioAmiga(j) { return !!(j.time && j.time.membros.length >= TIME.max); },
+  // o campo c ainda está fechado na história de j? texto curto com a missão que abre, ou '' (aberto)
+  fechadoParaAmiga(j, c) {
+    const Z = c && !j.bot && zonaFechadaEm(j.prog, c.x, c.z); if (!Z) return '';
+    const M = HISTORIA[QUEM_LIBERA[Z.id]];
+    return `a ${nomeLugarAmiga(c.nome)} nível ${c.nivel || 1} você ainda não liberou${M ? ` (falta a missão "${M.nome}")` : ''}`;
+  },
+  // campo para caçar junto: aberto para os dois e no nível do mais fraco (o mais forte que cabe), ou null
+  campoJuntoAmiga(a, j) {
+    const n = Math.min(a.prog.nivel | 0, j.prog.nivel | 0) + NPC_VIDA.aventura.campoAcima;
+    const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && !zonaFechadaEm(a.prog, c.x, c.z) && !zonaFechadaEm(j.prog, c.x, c.z))
+      .sort((x, y) => (x.nivel || 1) - (y.nivel || 1) || Math.hypot(x.x - j.x, x.z - j.z) - Math.hypot(y.x - j.x, y.z - j.z));
+    return l.filter((c) => (c.nivel || 1) <= n).at(-1) || l[0] || null;
+  },
   // ela está esperando resposta de um chamado dela para isso (time, pescar...)? (o "bora" dele é aceitar)
   chamouAmiga(quer) { const c = this.amiga?.ia.chamado; return !!(c && c.ate > this.tempo && c.quer === quer); },
   // campo de caça pelo nome que ela ou ele disse (o mais forte do nome que cabe no nível dela) ou null
@@ -1065,6 +1078,9 @@ export const Amiga = {
     if (!this.AMIGA.convida || j.bot || a.morto || (a.time && a.time === j.time) || this.timeCheioAmiga(j)) return false;
     const av = a.ia.av;
     c ||= av && ['ir', 'cacar'].includes(av.fase) && !av.coleta ? av.c : null;
+    // André 2026-11-17: campo que ele ainda não liberou: avisa e leva num que os dois podem ir
+    const fechado = this.fechadoParaAmiga(j, c);
+    if (fechado) { const outro = this.campoJuntoAmiga(a, j); a.ia.avisoFechado = `Ah, ${fechado}. ${outro ? `Bora na ${nomeLugarAmiga(outro.nome)} nível ${outro.nivel || 1}, que você já pode.` : 'Bora num lugar que você já pode.'}`; c = outro; }
     j.conviteTime = { de: a.id, ate: this.tempo + TIME.convite };
     a.ia.convidou = { id: j.id, c: c || null, ate: this.tempo + TIME.convite };
     this.evento({ t: 'time', para: j.id, fase: 'convite', de: a.id, nome: this.AMIGA.nome, dur: TIME.convite });
@@ -1085,7 +1101,8 @@ export const Amiga = {
     ia.chamado = null; ia.vir = null; ia.plano = null;
     this.gostoAmiga(j, plano || 'time');
     if (plano) { if (ia.atividade && ia.atividade !== plano) this.fimAtividadeAmiga(a, true); this.comecarAtividadeAmiga(a, plano); return; }
-    const c = C.c || this.campoAmiga(a);
+    let c = C.c || this.campoAmiga(a);
+    if (this.fechadoParaAmiga(j, c)) c = this.campoJuntoAmiga(a, j); // ela não leva ele para onde a névoa barra
     if (c && this.AMIGA.seguivel && this.AMIGA.lidera) { // ela vai na frente até o campo e o app dele segue ela
       ia.seguido = { id, c, chegou: false, ate: this.tempo + this.AMIGA.lidera.ate }; ia.viagemSeguida = null;
       this.evento({ t: 'seguir', para: id, npc: a.id, nome: this.AMIGA.nome, lugar: nomeLugarAmiga(c.nome) });
@@ -1562,14 +1579,19 @@ export const Amiga = {
   // dados reais do jogo: campos de caça bons para o nível dela e o dele, preço da loja, a missão dele, a vida e as poções
   // dela, e se ela pode sair para caçar sozinha agora (o mesmo que o passoSozinhoAmiga confere).
   saberAmiga(a, j) {
-    const campos = (n) => this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + 2)
+    // André 2026-11-17 ("e se o lugar não tiver sido destravado por mim?"): só entra campo aberto na história de quem vai
+    const aberto = (c, ...ps) => ps.every((p) => !zonaFechadaEm(p, c.x, c.z));
+    const campos = (n, ...ps) => this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + 2 && aberto(c, ...ps))
       .sort((x, y) => (y.nivel || 1) - (x.nivel || 1)).slice(0, 3)
       .map((c) => `${c.nome} (nível ${c.nivel || 1}, ${Math.round(Math.hypot(c.x - a.x, c.z - a.z))} m de você)`).join('; ');
     const preco = (k, nv = j.prog.nivel) => precoLoja(LOJA.find((o) => o.k === k && !o.r), nv) || ITENS[k]?.preco; // sobe com o nível de quem compra (economia 2026-11-16)
     const E = !j.bot && etapaAtual(j.prog), M = !j.bot && missaoAtual(j.prog);
     const vida = Math.round(100 * (a.vida || 0) / Math.max(1, a.vidaMax || 1));
     return {
-      camposDela: campos(a.prog.nivel | 0), camposDele: campos(j.prog.nivel | 0), mapa: this.mapaAmiga(),
+      camposDela: campos(a.prog.nivel | 0, a.prog), camposDele: campos(j.prog.nivel | 0, j.prog), mapa: this.mapaAmiga(),
+      camposJuntos: j.bot ? null : campos(Math.min(a.prog.nivel | 0, j.prog.nivel | 0), a.prog, j.prog),
+      // o campo onde ela está caçando ainda fechado para ele (a missão que abre)
+      fechadoDele: !j.bot && a.ia.av?.c && ['ir', 'cacar'].includes(a.ia.av.fase) ? this.fechadoParaAmiga(j, a.ia.av.c) : null,
       loja: `para ${j.nome} (nível ${j.prog.nivel}): poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa (para você, ${preco('pocao', a.prog.nivel)}); peça de armadura comum ${precoLoja(LOJA.find((o) => o.r === 0), j.prog.nivel) || 60} e rara ${precoLoja(LOJA.find((o) => o.r === 1), j.prog.nivel) || 240}; o preço sobe com o nível de quem compra; conserto no Tomás (ferreiro)`,
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
       vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: a.modo === 'Magia' ? 'cajado (magia)' : 'espada',
@@ -1841,6 +1863,8 @@ export const Amiga = {
     const recusou = (r.assunto === 'time' && !(a.time && a.time === j.time) && !this.combinouAmiga(a)) || (r.assunto === 'vir' && !ia.vir && !perto && !noTime);
     // a IA já sabia que ia recusar (humor na ficha) e escreveu a recusa do jeito dela: vale a fala dela
     if (r.fala && (!recusou || r.iaAssunto === 'conversa' || r.iaAssunto === 'nao')) fala = r.fala;
+    // o campo que ela ia levar está fechado para ele: avisa (se a IA já não avisou do jeito dela)
+    if (ia.avisoFechado) { if (!/liber|n[eé]voa|miss[aã]o/i.test(fala)) fala = `${ia.avisoFechado} ${fala}`; ia.avisoFechado = null; }
     this.dizerAmiga(fala, false, id);
   },
   // manda a mensagem dela no chat privado depois de uns segundos (fila em ia.chatFila)

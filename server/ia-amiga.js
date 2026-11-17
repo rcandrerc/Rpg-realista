@@ -183,6 +183,9 @@ export function mensagensConversa(ctx, texto) {
   const saber = [
     ctx.camposDela ? `Campos de caça bons para o seu nível: ${ctx.camposDela}.` : '',
     ctx.camposDele && ctx.camposDele !== ctx.camposDela ? `Campos bons para o nível de ${ctx.amigo}: ${ctx.camposDele}.` : '',
+    // André 2026-11-17: "e se o lugar não tiver sido destravado por mim ele teria como avisar?"
+    ctx.camposJuntos ? `Para caçar JUNTO com ${ctx.amigo}, proponha só um destes (abertos para os dois na história): ${ctx.camposJuntos}. Campo fora dessa lista ele pode ainda não ter liberado (névoa): não chame ele para lá.` : '',
+    ctx.fechadoDele ? `ATENÇÃO: o campo onde você está caçando está FECHADO para ${ctx.amigo} (${ctx.fechadoDele}). Se ele quiser ir junto, avise isso com essas palavras e proponha um campo da lista de vocês dois.` : '',
     ctx.mapa || '',
     ctx.loja ? `Loja da vila: ${ctx.loja}.` : '',
     ctx.missaoDele ? `Missão da história que ${ctx.amigo} está fazendo: ${ctx.missaoDele}.` : '',
