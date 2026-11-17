@@ -16,7 +16,7 @@ const INCL := 48.0 # graus da câmera acima do chão (o ângulo de quando abre)
 # Girar e inclinar (André 2026-11-17): dois dedos girando giram o mapa em 360°; dois dedos arrastando juntos para cima
 # ou para baixo inclinam, da vista de cima (quase 2D) até INCL_MIN. Mais deitado que isso aparece terra longe demais
 # (pesa) e a borda vazia do mundo; o limite saiu da medição de quadros por ângulo. A bússola volta ao norte e ao INCL.
-const INCL_MIN := 30.0 # o mais deitado de perto (60° a partir da vista de cima): medido, 25° já custava +30% por quadro
+const INCL_MIN := 35.0 # o mais deitado de perto (55° a partir da vista de cima; André 2026-11-17 escolheu 35): 30° custava +15% e 25° +30% por quadro
 const INCL_MIN_LONGE := 45.0 # de longe não deita tanto: senão aparece a ponta do mar e o fundo vazio
 const INCL_MAX := 89.0
 const COR_OURO := Color("c9a35a")
