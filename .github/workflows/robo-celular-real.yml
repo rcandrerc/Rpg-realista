@@ -16,8 +16,11 @@ on:
         description: 'Modelos do Test Lab (a15 = Galaxy A15, a14m = A14, starlte = Galaxy S9 com o chip do Note 10 Lite, cancunf = Moto G54, fogorow = Moto G24)'
         default: 'a15,cancunf,starlte'
       minutos:
-        description: 'Minutos jogando em cada celular'
-        default: '4'
+        description: 'Minutos jogando em cada celular (o plano grátis segura uns 15)'
+        default: '10'
+      modo:
+        description: 'missoes = faz as missões como uma pessoa (segue o guia e toca na tela); passeio = só anda, luta e mede'
+        default: 'missoes'
 
 permissions:
   contents: read
@@ -57,7 +60,7 @@ jobs:
           ls -la rpg-realista.apk
       - name: Celulares e tempo
         run: |
-          m="${{ github.event.inputs.minutos }}"; [ -z "$m" ] && m=4
+          m="${{ github.event.inputs.minutos }}"; [ -z "$m" ] && m=10
           echo "DURACAO=$((m * 60))" >> $GITHUB_ENV
           # o robô do Test Lab só espera (WAIT): quem joga é o robô de dentro do jogo. Entrar leva até 7 min no pior caso.
           ESPERA=$((m + 5)); echo "TEMPO=$((ESPERA + 3))m" >> $GITHUB_ENV
@@ -80,7 +83,7 @@ jobs:
             sessao=$(jq -n --arg c "$(pedir)" --argjson n $n '{cracha: $c, n: $n}' | curl -sS -X POST -H 'Content-Type: application/json' -d @- "$SERVIDOR/conta/robo" | jq -r '.sessao // empty')
             [ -z "$sessao" ] && { echo "::error::o servidor não deu a conta do robô $n"; exit 1; }
             echo "::add-mask::$sessao"
-            mkdir -p "cel/$c"; printf '[robo]\nsessao="%s"\nduracao=%s\nturno="%s"\n' "$sessao" "$DURACAO" "$TURNO" > "cel/$c/robo.cfg"
+            mkdir -p "cel/$c"; printf '[robo]\nsessao="%s"\nduracao=%s\nturno="%s"\nmodo="%s"\n' "$sessao" "$DURACAO" "$TURNO" "${{ github.event.inputs.modo || 'missoes' }}" > "cel/$c/robo.cfg"
             gcloud firebase test android run --type robo --app rpg-realista.apk --robo-script espera.json \
               --other-files "$PASTA_APP/robo.cfg=cel/$c/robo.cfg" --device "model=$c,version=$v,locale=pt_BR,orientation=landscape" \
               --timeout "$TEMPO" --results-bucket "$BALDE" --results-dir "robo-real/${{ github.run_id }}/$c" --results-history-name 'Robô celular' \
@@ -98,7 +101,19 @@ jobs:
               c=$(basename "$d"); echo "### $c"
               log=$(gcloud storage ls "gs://$BALDE/robo-real/${{ github.run_id }}/$c/**/logcat" 2>/dev/null | head -1)
               [ -z "$log" ] && { echo "sem log"; continue; }
-              gcloud storage cat "$log" | grep -a "CELULAR" | grep -av "CELULAR fim" | tail -25 | sed 's/^/    /'
-              gcloud storage cat "$log" | grep -a "CELULAR fim" | sed 's/.*CELULAR fim //' | jq -r '"FPS \(.fps) (mínimo \(.fps_min)), travadas >100 ms: \(.travadas.acima100), placa \(.placa), \(.aparelho) \(.erro)"' 2>/dev/null || echo "o robô não terminou"
+              gcloud storage cat "$log" > "$d/logcat.txt"
+              grep -a "CELULAR" "$d/logcat.txt" | grep -av "CELULAR fim" | tail -25 | sed 's/^/    /'
+              # o que derrubou o app ou o teste (fechou sozinho, travou, falta de memória)
+              echo "Erros e quedas:"
+              grep -a -E "FATAL|AndroidRuntime|Fatal signal|SIGSEGV|SIGABRT|backtrace|lowmemorykiller|ANR in|SCRIPT ERROR|USER ERROR|ERROR:|am_crash|am_anr|am_kill.*rpgprototipo|Process com.rcandrerc.rpgprototipo .*(died|has died)" "$d/logcat.txt" | head -40 | cut -c1-260 | sed 's/^/    /'
+              echo "Últimas linhas do jogo:"
+              grep -a " godot " "$d/logcat.txt" | tail -15 | cut -c1-260 | sed 's/^/    /'
+              gcloud storage cat "$log" | grep -a "CELULAR fim" | sed 's/.*CELULAR fim //' | jq -r '"FPS \(.fps) (mínimo \(.fps_min)), travadas >100 ms: \(.travadas.acima100), placa \(.placa), \(.aparelho) \(.erro)" + (if .missoes then "\nMissões: \(.missoes.feitas) feitas, \(.missoes.puladas) travaram, nível \(.missoes.nivel_de) → \(.missoes.nivel_ate), agora: \(.missoes.agora)" else "" end)' 2>/dev/null || echo "o robô não terminou"
             done
           } | tee -a $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logcat-celulares
+          path: cel/*/logcat.txt
+          retention-days: 7

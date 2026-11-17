@@ -920,6 +920,7 @@ function paginaRobo(lista) {
   const celular = (r) => { // robô 2: o app de verdade como no Poco X7 (ferramentas/robo/celular.gd)
     const probs = (r.problemas || []).slice(0, 15).map((x) => `<li>${esc(x)}</li>`).join('');
     const modos = Object.entries(r.modos || {}).map(([nome, M]) => `<h3>${esc(nome)} · ${esc(M.placa)}</h3>
+${M.missoes ? `<p><b>Missões</b> ${n(M.missoes.feitas)} feitas, ${n(M.missoes.puladas)} puladas (travou) · nível ${n(M.missoes.nivel_de)} → ${n(M.missoes.nivel_ate)} · ${n(M.missoes.toques)} toques na tela · agora: ${esc(M.missoes.agora)}</p>` : ''}
 <p><b>FPS</b> ${n(M.fps)} · <b>Travadas</b> ${n(M.travadas?.acima100)} acima de 100 ms, ${n(M.travadas?.acima250)} acima de 250 ms, ${n(M.travadas?.acima1000)} acima de 1 s · <b>Memória</b> ${n(M.mem_max, ' MB')}</p>
 <ul>${Object.entries(M.trechos || {}).map(([t, T]) => `<li><b>${esc(t)}</b>: ${n(T.fps)} FPS, quadro ${n(T.p50, ' ms')} (5% piores ${n(T.p95, ' ms')}, pior ${n(T.pior, ' ms')}), scripts ${n(T.proc, ' ms')}, ${n(T.cham)} chamadas, ${n(T.tri)} mil triângulos</li>`).join('')}</ul>`).join('');
     const real = r.real ? `<p><b>Celulares de verdade (Alta, últimos minutos)</b>: ${n(r.real.fps)} FPS, scripts ${n(r.real.proc, ' ms')}, placa ${n(r.real.gpu, ' ms')}, pior quadro ${n(r.real.pior, ' ms')}</p>` : '';
