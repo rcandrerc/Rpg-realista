@@ -377,6 +377,10 @@ export const Kit = {
       for (const [i, q] of Object.entries(refaz.usa)) abre(i, q, 0);
       precisa += Math.ceil(un / P.y[0]);
     }
+    // o que o guia da etapa está esperando desse legume ("Pack...: milho crescendo (2/8)"), qualquer que seja a etapa
+    // (André 2026-11-17: dez pés de milho em 0% e 45% e a missão parada): conta pela colheita mínima
+    const f = E ? this.juntaDe?.(j, E) : null;
+    if (f && !f.pre && f.k === k && ['cresce', 'regar', 'lote', 'plantar'].includes(f.fonte)) precisa = Math.max(precisa, f.fonte === 'plantar' ? f.n : Math.ceil(f.n / P.y[0])); // plantar: f.n já é de plantas
     if (precisa <= 0) return false;
     if (E?.ev === 'plantar' && E.k === k && (p.hist.n || 0) < totalEtapa(E)) return true; // "Plante 4 sementes de abóbora": as 4 da etapa
     let maduras = 0;
