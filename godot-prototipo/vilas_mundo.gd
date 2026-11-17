@@ -252,31 +252,52 @@ func _calcada(no: Node3D, C: Dictionary) -> void:
 		st.set_normal(Vector3.UP)
 		st.set_uv(Vector2(p.x * 0.5, p.z * 0.5))
 		st.add_vertex(p)
+	# cada ponto fica um pouco acima do chão desenhado ali (André 2026-11-17: nas beiradas a grama passava por cima da
+	# calçada, porque a altura era só a do meio da rua e o terreno sobe para os lados). Calçada em grade de ~2 m.
+	var T = m.terreno
+	var assenta := func(p: Vector3, sobe: float) -> Vector3:
+		if T != null: # o ponto e a volta (1 m): o chão é desenhado em triângulos maiores que a grade da calçada
+			var h: float = T.altura_montanha(p.x, p.z)
+			for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+				h = maxf(h, T.altura_montanha(p.x + d.x, p.z + d.y))
+			p.y = maxf(p.y, h + sobe + 0.05)
+		return p
+	var quad := func(a: Vector3, b: Vector3, c2: Vector3, d: Vector3) -> void: # a-b-c2-d em volta
+		pt.call(a); pt.call(b); pt.call(c2)
+		pt.call(a); pt.call(c2); pt.call(d)
 	var P: Dictionary = C.praca
-	var c := Vector3(float(P.x), float(P.y) + float(C.sobePraca), float(P.z))
+	var sp := float(C.sobePraca)
+	var c := Vector3(float(P.x), float(P.y) + sp, float(P.z))
 	var r := float(P.r)
 	var n := 40
+	var aneis := maxi(1, int(ceil(r / 2.0)))
+	var anel := func(j: int, i: int) -> Vector3:
+		var a := TAU * i / n
+		return assenta.call(c + Vector3(sin(a), 0, cos(a)) * (r * j / aneis), sp)
+	var meio: Vector3 = assenta.call(c, sp)
 	for i in n:
-		var a0 := TAU * i / n
-		var a1 := TAU * (i + 1) / n
-		pt.call(c)
-		pt.call(c + Vector3(sin(a1), 0, cos(a1)) * r)
-		pt.call(c + Vector3(sin(a0), 0, cos(a0)) * r)
+		pt.call(meio); pt.call(anel.call(1, i + 1)); pt.call(anel.call(1, i))
+		for j in range(1, aneis):
+			quad.call(anel.call(j, i), anel.call(j, i + 1), anel.call(j + 1, i + 1), anel.call(j + 1, i))
 	var meia := float(C.largura) / 2.0
+	var sr := float(C.sobe)
+	var faixas := maxi(1, int(ceil(meia * 2.0 / 1.5)))
 	for L in C.ruas:
 		var k: int = L.size()
-		var esq: Array = []
-		var dir: Array = []
+		var lin: Array = [] # lin[i][f]: da esquerda para a direita
 		for i in k:
 			var a: Array = L[maxi(i - 1, 0)]
 			var b: Array = L[mini(i + 1, k - 1)]
 			var t := Vector2(float(b[0]) - float(a[0]), float(b[1]) - float(a[1])).normalized() # direção da rua (dx, dz); cada ponto é [x, z, y]
-			var q := Vector3(float(L[i][0]), float(L[i][2]) + float(C.sobe), float(L[i][1]))
-			esq.append(q + Vector3(-t.y, 0, t.x) * meia)
-			dir.append(q + Vector3(t.y, 0, -t.x) * meia)
+			var q := Vector3(float(L[i][0]), float(L[i][2]) + sr, float(L[i][1]))
+			var lado := Vector3(t.y, 0, -t.x)
+			var fila: Array = []
+			for f in faixas + 1:
+				fila.append(assenta.call(q + lado * (-meia + 2.0 * meia * f / faixas), sr))
+			lin.append(fila)
 		for i in k - 1:
-			pt.call(esq[i]); pt.call(dir[i]); pt.call(dir[i + 1])
-			pt.call(esq[i]); pt.call(dir[i + 1]); pt.call(esq[i + 1])
+			for f in faixas:
+				quad.call(lin[i][f], lin[i][f + 1], lin[i + 1][f + 1], lin[i + 1][f])
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	if mat != null:
