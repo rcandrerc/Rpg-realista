@@ -256,8 +256,11 @@ func _calcada(no: Node3D, C: Dictionary) -> void:
 	# calçada, porque a altura era só a do meio da rua e o terreno sobe para os lados). Calçada em grade de ~2 m.
 	var T = m.terreno
 	var assenta := func(p: Vector3, sobe: float) -> Vector3:
-		if T != null:
-			p.y = maxf(p.y, T.altura_montanha(p.x, p.z) + sobe + 0.05)
+		if T != null: # o ponto e a volta (1 m): o chão é desenhado em triângulos maiores que a grade da calçada
+			var h: float = T.altura_montanha(p.x, p.z)
+			for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+				h = maxf(h, T.altura_montanha(p.x + d.x, p.z + d.y))
+			p.y = maxf(p.y, h + sobe + 0.05)
 		return p
 	var quad := func(a: Vector3, b: Vector3, c2: Vector3, d: Vector3) -> void: # a-b-c2-d em volta
 		pt.call(a); pt.call(b); pt.call(c2)
