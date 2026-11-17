@@ -1067,7 +1067,7 @@ export const MAPA_CLAREIRA = {
       'Andarilho, monstros apareceram no leste. Derrube quatro deles e a vila te deve uma.',
       'A praça foi construída pelos nossos avós. Enquanto eu viver, ela fica de pé.',
     ] },
-    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, roupa: 'peitoral0,calca0,botas0', veste: { tunica: 0xb9a47e }, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'forja', 'consertar', 'habilidades'], falas: [
+    { id: 'ferreiro', nome: 'Tomás, o ferreiro', x: 1.5, z: -4.2, ry: -1.25, visual: 'cabelo_m', escala: 1.08, roupa: 'peitoral0,calca0,botas0', veste: { tunica: 0xb9a47e }, tinta: { cabelo: 0x4a2f1c, roupa: 0x6b4a2e, calca: 0x2f2a24 }, funcao: 'habilidades', acoes: ['vender', 'consertar', 'habilidades'], falas: [
       'Essa espada corta e conjura. Fale comigo para escolher os seus golpes e magias.',
       'Bigorna boa é bigorna quente. Volte quando quiser trocar a build.',
     ] },
@@ -1080,7 +1080,7 @@ export const MAPA_CLAREIRA = {
       'A escada na rocha menor é o jeito fácil. Na grande, só escalando.',
       'Pedra baixa você sobe andando. Na alta, agarre e vá subindo. Correndo contra ela, dá até para correr pela parede.',
     ] },
-    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', roupa: 'peitoral0,botas0', veste: { tunica: 0xc47a3a, corpete: 0xa9622c, saia: 0x6b4a2e, ate: 'joelho', avental: 0xe8dfc8 }, tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas: [
+    { id: 'comerciante', nome: 'Rosa, a comerciante', x: -9.6, z: -11.2, ry: 0.9, visual: 'vivi', roupa: 'peitoral0,botas0', veste: { tunica: 0xc47a3a, corpete: 0xa9622c, saia: 0x6b4a2e, ate: 'joelho', avental: 0xe8dfc8 }, tinta: { cabelo: 0x5a1e24, roupa: 0xa0563c, calca: 0x3c3a52 }, funcao: 'loja', acoes: ['comprar', 'vender'], falas: [
       'Minha carroça chega em breve com mercadoria da cidade.',
       'Tenho de tudo um pouco... quer dizer, vou ter.',
     ] },
@@ -2128,11 +2128,11 @@ export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x)
 // esquerda e à direita da porta), 'casa:n' (na porta da casa n). oficio: o avental e o martelo do ferreiro (visual_npc.gd).
 const ROUPA_OFICIO = 'peitoral0,calca0,botas0';
 const ferreiroDe = (id, nome, visual, tinta, veste, falas, extra = {}) => ({ id, nome, visual, onde: 'forja', roupa: ROUPA_OFICIO, tinta, veste, oficio: visual === 'cabelo_m',
-  funcao: 'ferreiro', acoes: ['vender', 'forja', 'consertar'], falas, ...extra });
+  funcao: 'ferreiro', acoes: ['vender', 'consertar'], falas, ...extra });
 // vendedor de enfeite da Rua do Mercado (Rio Claro): atrás da banca b, virado para a rua, só conversa
 const vendedor = (id, nome, cargo, visual, b, tinta, veste, fala) => ({ id, nome, cargo, visual, onde: `peca:${b}:0:-1.1:0`, escala: 1.0, roupa: 'peitoral0,botas0', tinta, veste,
   funcao: 'dica', acoes: [], falas: [fala] });
-const lojaDe = (id, nome, visual, tinta, veste, falas) => ({ id, nome, visual, onde: 'banca', roupa: 'peitoral0,botas0', tinta, veste, funcao: 'loja', acoes: ['comprar', 'vender', 'alfaiate'], falas });
+const lojaDe = (id, nome, visual, tinta, veste, falas) => ({ id, nome, visual, onde: 'banca', roupa: 'peitoral0,botas0', tinta, veste, funcao: 'loja', acoes: ['comprar', 'vender'], falas });
 export const VILAS_MUNDO = [
   { id: 'rio_claro', nome: 'Vila do Rio Claro', nivel: 30, totem: 'rio_claro', jeito: 'O centro comercial de Aethra: a Casa do Comércio grande, a praça de pedra e a Rua do Mercado',
     // André 2026-11-16 ("a casa de leilão tinha que ser uma casa grande que a gente pudesse entrar... não uma vila tipo
