@@ -1080,7 +1080,10 @@ export const Amiga = {
     c ||= av && ['ir', 'cacar'].includes(av.fase) && !av.coleta ? av.c : null;
     // André 2026-11-17: campo que ele ainda não liberou: avisa e leva num que os dois podem ir
     const fechado = this.fechadoParaAmiga(j, c);
-    if (fechado) { const outro = this.campoJuntoAmiga(a, j); a.ia.avisoFechado = `Ah, ${fechado}. ${outro ? `Bora na ${nomeLugarAmiga(outro.nome)} nível ${outro.nivel || 1}, que você já pode.` : 'Bora num lugar que você já pode.'}`; c = outro; }
+    // André 2026-11-17 ("não precisa explicar tanto, dá aspecto de bot"): curto e natural, sem citar missão
+    if (fechado) {
+      const outro = this.campoJuntoAmiga(a, j); const mesmo = outro && c && nomeLugarAmiga(outro.nome) === nomeLugarAmiga(c.nome); // dois campos com o mesmo nome: diz o nível
+      a.ia.avisoFechado = outro ? `Lá ainda não dá pra você, bora na ${nomeLugarAmiga(outro.nome)}${mesmo ? ` de nível ${outro.nivel || 1}` : ''}? Te mandei o time.` : 'Lá ainda não dá pra você. Te mandei o time.'; c = outro; }
     j.conviteTime = { de: a.id, ate: this.tempo + TIME.convite };
     a.ia.convidou = { id: j.id, c: c || null, ate: this.tempo + TIME.convite };
     this.evento({ t: 'time', para: j.id, fase: 'convite', de: a.id, nome: this.AMIGA.nome, dur: TIME.convite });
@@ -1591,7 +1594,7 @@ export const Amiga = {
       camposDela: campos(a.prog.nivel | 0, a.prog), camposDele: campos(j.prog.nivel | 0, j.prog), mapa: this.mapaAmiga(),
       camposJuntos: j.bot ? null : campos(Math.min(a.prog.nivel | 0, j.prog.nivel | 0), a.prog, j.prog),
       // o campo onde ela está caçando ainda fechado para ele (a missão que abre)
-      fechadoDele: !j.bot && a.ia.av?.c && ['ir', 'cacar'].includes(a.ia.av.fase) ? this.fechadoParaAmiga(j, a.ia.av.c) : null,
+      fechadoDele: !j.bot && a.ia.av?.c && ['ir', 'cacar'].includes(a.ia.av.fase) && this.fechadoParaAmiga(j, a.ia.av.c) ? nomeLugarAmiga(a.ia.av.c.nome) : null, // só o nome: ela não explica (André 2026-11-17)
       loja: `para ${j.nome} (nível ${j.prog.nivel}): poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa (para você, ${preco('pocao', a.prog.nivel)}); peça de armadura comum ${precoLoja(LOJA.find((o) => o.r === 0), j.prog.nivel) || 60} e rara ${precoLoja(LOJA.find((o) => o.r === 1), j.prog.nivel) || 240}; o preço sobe com o nível de quem compra; conserto no Tomás (ferreiro)`,
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
       vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: a.modo === 'Magia' ? 'cajado (magia)' : 'espada',
@@ -1864,7 +1867,7 @@ export const Amiga = {
     // a IA já sabia que ia recusar (humor na ficha) e escreveu a recusa do jeito dela: vale a fala dela
     if (r.fala && (!recusou || r.iaAssunto === 'conversa' || r.iaAssunto === 'nao')) fala = r.fala;
     // o campo que ela ia levar está fechado para ele: avisa (se a IA já não avisou do jeito dela)
-    if (ia.avisoFechado) { if (!/liber|n[eé]voa|miss[aã]o/i.test(fala)) fala = `${ia.avisoFechado} ${fala}`; ia.avisoFechado = null; }
+    if (ia.avisoFechado) { if (!/liber|n[eé]voa|miss[aã]o|n[aã]o d[aá] pra voc/i.test(fala)) fala = ia.avisoFechado; ia.avisoFechado = null; }
     this.dizerAmiga(fala, false, id);
   },
   // manda a mensagem dela no chat privado depois de uns segundos (fila em ia.chatFila)
