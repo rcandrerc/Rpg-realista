@@ -880,6 +880,27 @@ app.get('/npcs.json', (_req, res) => {
   }
   res.json({ dia, npcs: l });
 });
+// Conversas da Cecília e do Dário para a ronda diária (André 2026-11-17: "a mesma coisa que você faz com os erros do jogo,
+// fazer com o chat dela"). São conversas de jogadores: só o workflow cecilia-conversas.yml (crachá OIDC do GitHub, na main)
+// lê, e ele cifra tudo com a chave pública de quem pediu antes de guardar. Nada de chave de IA de ninguém.
+const CONVERSAS_WORKFLOW = `${ROBO_REPO}/.github/workflows/cecilia-conversas.yml@refs/heads/main`;
+app.get('/npcs/conversas.json', async (req, res) => {
+  let vale = false;
+  try { vale = await roboConfere({ cracha: sessaoDe(req), teste: req.query.teste }, [CONVERSAS_WORKFLOW]); } catch { vale = false; }
+  if (!vale) return res.status(401).json({ erro: 'só a ronda' });
+  const vivos = new Map(), l = [];
+  for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, ctx.amiga);
+  for (const D of AMIGOS_VIRTUAIS) {
+    let d = vivos.get(D.id);
+    const vivo = !!d;
+    if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
+    if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
+    const conversas = { ...(d.conversasSalvas || d.conversas || {}) };
+    for (const [k, c] of Object.entries(d.ia?.conversas || {})) if (Array.isArray(c) && c.length) conversas[k] = c.map((m) => ({ de: m.de, texto: String(m.texto).slice(0, 300), ...(m.nome ? { nome: m.nome } : {}) }));
+    l.push({ nome: D.nome, id: D.id, noMundo: vivo, conversas, fatos: d.fatos || {}, memorias: d.memorias || {} });
+  }
+  res.json({ t: Date.now(), npcs: l });
+});
 app.get('/robo.json', (req, res) => res.json(roboTurnos.slice(-(Number(req.query.n) || 20))));
 app.get('/robo', (_req, res) => res.type('html').send(paginaRobo(roboTurnos.slice(-30).reverse())));
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
