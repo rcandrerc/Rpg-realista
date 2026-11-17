@@ -161,7 +161,7 @@ func passos(hi: Dictionary) -> Array:
 		"evoluir":
 			return ["ir"] + bolsa + ["item:evoluir:%d" % mn, "b:Evoluir"] # a janelinha também tem "Evoluir"
 		"reforcar":
-			return bolsa + ["item:reforco", "b:Reforçar 1 vez"]
+			return bolsa + ["item:reforco", "b:Reforçar", "b:1 vez"] # "Reforçar" abre a janela; nela, "1 vez"
 		"arma":
 			return bolsa + ["item:arma:%d" % mn, "b:Equipar"]
 		"criar":
@@ -281,8 +281,8 @@ func _janela() -> Dictionary:
 	var cons = m.construcao
 	if cons != null and cons.painel_qtd != null and cons.painel_qtd.visible:
 		return {"raiz": cons.painel_qtd, "tipo": "qtd"}
-	if m.reforco != null and m.reforco.aberta():
-		return {"esconde": true}
+	if m.reforco != null and m.reforco.aberta(): # janela do reforço: só o "1 vez" pisca (parada)
+		return {"raiz": m.reforco.caixa, "tipo": "reforco"}
 	var mn = m.menu
 	if mn != null:
 		if mn._reset != null and is_instance_valid(mn._reset) and mn._reset.is_inside_tree():
@@ -290,6 +290,8 @@ func _janela() -> Dictionary:
 		if mn._confirma != null and is_instance_valid(mn._confirma):
 			return {"raiz": mn._confirma, "tipo": "confirma"}
 		if mn.aberto():
+			if mn._mais_aberto != null and is_instance_valid(mn._mais_aberto): # o "Mais" da ficha (Evoluir, Apagar, Destruir)
+				return {"raiz": mn._mais_aberto, "tipo": "menu"}
 			if mn.janela_aberta():
 				return {"raiz": mn.janela, "tipo": "janela"}
 			return {"raiz": mn.raiz, "tipo": "menu"}
@@ -422,6 +424,8 @@ func _achar(p: String, hi: Dictionary, tipo: String) -> bool:
 	var jogo := tipo == "jogo"
 	if p.begins_with("b:") or p.begins_with("b^"):
 		var b = _botao_texto(p.substr(2), p.begins_with("b^"))
+		if b == null and tipo == "menu" and p.substr(2) in m.menu.BOTOES_NO_MAIS: # guardado no "Mais": pisca o Mais
+			b = _botao_texto("Mais ▾", false)
 		if b != null:
 			_alvo = b
 		return b != null
