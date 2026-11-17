@@ -73,6 +73,7 @@ const GUARDA_MAX := 3
 static var _guardados := {} # modelo -> Array de Node3D fora da cena
 
 func _init(m, id: String, cavaleiro: Node3D, cav_esq: Skeleton3D) -> void:
+	_m = m
 	d = DADOS.get(id, DADOS.lobo)
 	cav = cavaleiro
 	var lista: Array = _guardados.get(d.modelo, [])
@@ -128,9 +129,35 @@ func _lombo_na_capa(cav_esq: Skeleton3D) -> void:
 	if q >= 0 and p >= 0:
 		cav_esq.set_meta("pano_extra", [[esq, q, p, LOMBO_RAIO, -LOMBO_DESCE]])
 
-# no chão embaixo do corpo, no giro dele; o lobo não cresce junto com a altura que o jogador escolheu
+# no chão embaixo do corpo, no giro dele; o lobo não cresce junto com a altura que o jogador escolheu.
+# Na ladeira (André 2026-11-17: "não acompanham a inclinação") o lobo deita para a frente ou para trás pelo chão embaixo
+# das patas da frente e das de trás (o herói vai junto: a sela e a frente vêm dos ossos do lobo).
 func _assentar() -> void:
-	no.transform = Transform3D(Basis().scaled(Vector3.ONE * float(d.escala) / float(d.glb) / max(0.01, cav.scale.x)), Vector3.ZERO)
+	no.transform = Transform3D(Basis(Vector3.RIGHT, _incl) * Basis().scaled(Vector3.ONE * float(d.escala) / float(d.glb) / max(0.01, cav.scale.x)), Vector3.ZERO)
+
+var _m # main.gd (terreno)
+var _incl := 0.0 # rad, - = focinho para cima (subida)
+var _incl_pos := Vector3.INF
+var _incl_alvo := 0.0
+const PATAS := 0.75 # m do meio até as patas da frente e até as de trás (lobo de 1,9 m)
+func _inclinar(dt: float) -> void:
+	if _m == null or _m.terreno == null or not cav.is_inside_tree():
+		return
+	var p: Vector3 = cav.global_position
+	var ry: float = cav.global_rotation.y
+	var chave := Vector3(p.x, ry, p.z)
+	if chave.distance_squared_to(_incl_pos) > 0.0004:
+		_incl_pos = chave
+		var f := Vector3(sin(ry), 0, cos(ry)) * PATAS
+		var T = _m.terreno
+		var hc: float = T.altura(p.x, p.z, p.y + 0.3)
+		if p.y - hc > 0.35: # no ar (pulo, queda): reto
+			_incl_alvo = 0.0
+		else:
+			var hf: float = T.altura(p.x + f.x, p.z + f.z, p.y + 0.6)
+			var ht: float = T.altura(p.x - f.x, p.z - f.z, p.y + 0.6)
+			_incl_alvo = clampf(-atan2(hf - ht, PATAS * 2.0), -0.45, 0.45)
+	_incl = lerpf(_incl, _incl_alvo, minf(1.0, dt * 8.0))
 
 func tocar(nome: String) -> void:
 	if atual == nome or not anim.has_animation(nome):
@@ -146,6 +173,7 @@ func _osso(i: int) -> Vector3:
 func passo(dt: float, vel: float) -> void:
 	if dt <= 0.0:
 		return
+	_inclinar(dt)
 	_assentar()
 	var a := "parada"
 	if vel > 4.4:
