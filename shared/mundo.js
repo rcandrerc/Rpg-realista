@@ -163,6 +163,7 @@ export function montarMundo(mapaHoje) {
   cobrirCavernas(G, dist);
   // por último: o chão de antes fica guardado para as árvores do mundo (shared/dados.js) sortearem igual (nenhuma muda de índice)
   G.hAntesArenas = Float32Array.from(h);
+  morroNasBocas(G, dist);
   aplainarArenas(G, dist);
   return G;
 }
@@ -732,6 +733,81 @@ function cobrirCavernas(G, dist) {
         const lw = larg + F.folga + 2, t = Math.min(1, Math.max(0, (md - lw) / 14)), w = (1 - t * t * (3 - 2 * t)) * Math.min(1, Math.max(0, (ms - 3.5) / 2));
         if (w > 0 && h[k] < alvo) h[k] += (alvo - h[k]) * w;
       }
+  }
+}
+
+// Morro suave em volta da boca de cada caverna (André 2026-11-17, Cap. 10 "A gruta que canta": "a entrada da caverna é
+// muito alta, quando você entra quase que por debaixo da terra e depois aparece por cima... pode fazer uma montanha,
+// mas suavizando, para eu conseguir subir"). Antes, dos lados e logo atrás da boca o chão ficava baixo (1 a 3 m acima
+// da frente) enquanto o paredão da boca (godot-prototipo/caverna.gd _paredao) tem uns 8 a 10 m: quem andava ali subia
+// por dentro da pedra e depois saía em cima dela. Agora o chão em volta do túnel vira um morro: em cima do túnel fica a
+// rocha dele (teto + ~2 m), e dali desce em rampa reta de MORRO_BOCA.rampa m por m para os lados e para a frente, até
+// encontrar o chão de antes (só sobe, nunca rebaixa). A frente da boca (o lugar plano) não muda; dentro da largura do
+// paredão o morro só começa uns metros atrás da cara dele (a rocha do paredão cobre a frente). Feito depois de
+// hAntesArenas: as árvores do mundo sorteiam igual (shared/dados.js só ajusta a altura das que ficam no morro).
+export const MORRO_BOCA = { rampa: 0.5, cobre: 2.2, paredao: 3.8, atras: 4, largo: [8, 16], alcance: 36 };
+function morroNasBocas(G, dist) {
+  const F = CAVERNA_MUNDO_FORMA, M = MORRO_BOCA, { nx, nz, h, passo } = G, subiu = new Map();
+  const suave = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+  for (const D of CAVERNAS_MUNDO) {
+    if (!D.linha) continue;
+    const L = LUGARES_MUNDO.find((l) => l.id === D.id), C = curva(D.linha), S = [0];
+    for (let i = 1; i < C.length; i++) S.push(S[i - 1] + Math.hypot(C[i][0] - C[i - 1][0], C[i][1] - C[i - 1][1]));
+    const total = S[S.length - 1];
+    const u0 = Math.hypot(C[1][0] - C[0][0], C[1][1] - C[0][1]) || 1, fx = (C[1][0] - C[0][0]) / u0, fz = (C[1][1] - C[0][1]) / u0;
+    const Wf = F.boca.l + F.folga + M.paredao; // meia largura do paredão da boca (caverna.gd: W + 3.8)
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const [x, z] of C) { x0 = Math.min(x0, x - M.alcance); x1 = Math.max(x1, x + M.alcance); z0 = Math.min(z0, z - M.alcance); z1 = Math.max(z1, z + M.alcance); }
+    for (let j = Math.max(0, Math.floor((z0 - G.z0) / passo)); j <= Math.min(nz - 1, Math.ceil((z1 - G.z0) / passo)); j++)
+      for (let i = Math.max(0, Math.floor((x0 - G.x0) / passo)); i <= Math.min(nx - 1, Math.ceil((x1 - G.x0) / passo)); i++) {
+        const k = j * nx + i, x = G.x0 + i * passo, z = G.z0 + j * passo;
+        if (dist[k] === 0 || G.estrada[k] || (G.rio && G.rio[k] > 0) || !G.terra[k]) continue;
+        const f = (x - C[0][0]) * fx + (z - C[0][1]) * fz; // metros para dentro da linha da boca
+        if (f < 0) continue; // a frente da boca fica como está (o lugar plano)
+        let md = Infinity, ms = 0;
+        for (let q = 0; q < C.length - 1; q++) {
+          const ax = C[q][0], az = C[q][1], vx = C[q + 1][0] - ax, vz = C[q + 1][1] - az, l2 = vx * vx + vz * vz || 1;
+          const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)), d = Math.hypot(x - ax - vx * t, z - az - vz * t);
+          if (d < md) { md = d; ms = S[q] + (S[q + 1] - S[q]) * t; }
+        }
+        // largura e teto do túnel ali (como shared/caverna.js amostrar), e o chão dele
+        let larg = F.corredor.l, teto = F.corredor.teto;
+        const b = 1 - suave(0, 3, ms);
+        larg += (F.boca.l - larg) * b; teto += (F.boca.teto - teto) * b;
+        for (const Sa of F.salas) { const k2 = 1 - suave(Sa.r, Sa.r + 5, Math.abs(ms - Sa.s)); larg = Math.max(larg, F.corredor.l + (Sa.l - F.corredor.l) * k2); teto = Math.max(teto, F.corredor.teto + (Sa.teto - F.corredor.teto) * k2); }
+        const chao = L.y - F.desce * suave(3, total, ms);
+        const topo = chao + teto + M.cobre + F.folga, lw = larg + F.folga + 1.5;
+        const morro = topo - M.rampa * Math.max(0, md - lw);
+        // de frente: rampa a partir da linha da boca; atrás da cara do paredão (dentro da largura dele) a rocha sobe logo
+        // (no meio, na frente do vão do arco, a rocha só sobe uns metros para dentro: a grade é de 4 m e o chão da frente
+        // da boca não pode subir junto, senão tapa a entrada)
+        const lado = suave(F.boca.l + F.folga - 1, F.boca.l + F.folga + 0.5, md);
+        const sobe = M.rampa * f + Math.max(0, Wf + 1 - md) * 4 * (lado * suave(1.5, M.atras, f) + (1 - lado) * suave(3, M.atras + 1.5, f));
+        const frente = L.y + sobe * (lado + (1 - lado) * suave(2, M.atras + 1, f));
+        // o morro só vai até uns 20 m do túnel (perto do mar ou de um vale ele não vira um aterro largo): o quanto ele
+        // levanta some aos poucos de lw + 8 a lw + 16 m
+        const alvo = Math.min(morro, frente);
+        if (alvo > h[k]) {
+          if (!subiu.has(k)) subiu.set(k, { antes: h[k], livre: md > Wf + 1.5 });
+          h[k] += (alvo - h[k]) * (1 - suave(lw + M.largo[0], lw + M.largo[1], md));
+        }
+      }
+  }
+  // a beira do morro nunca fica mais íngreme que a rampa (perto do mar ou de um vale, onde o chão de antes já desce):
+  // cada ponto levantado (menos a rocha logo em volta da boca) fica no máximo rampa x distância acima do vizinho mais
+  // baixo, e nunca abaixo do chão de antes
+  const viz = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [-1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, -1, Math.SQRT2]];
+  for (let volta = 0; volta < 16; volta++) {
+    let mexeu = false;
+    for (const [k, q] of subiu) {
+      if (!q.livre) continue;
+      const i = k % nx, j = (k - i) / nx;
+      let lim = Infinity;
+      for (const [di, dj, d] of viz) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < nx && jj < nz) lim = Math.min(lim, h[jj * nx + ii] + M.rampa * 1.2 * d * passo); }
+      const v = Math.max(q.antes, lim);
+      if (h[k] > v + 1e-4) { h[k] = v; mexeu = true; }
+    }
+    if (!mexeu) break;
   }
 }
 

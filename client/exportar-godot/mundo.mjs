@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, VILAS_TERRENO, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, TOTENS, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, PESCA, PACKS, PACK_REGRAS, VEICULOS, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA, ARVORES_PLANTIO, PLANTIO } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
-import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos } from '../../shared/relevo.js';
+import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos, gradeDoMundo } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo } from '../../shared/dados.js';
 import { CALCADA } from '../../shared/vilas.js';
@@ -123,8 +123,12 @@ fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo.json', import.meta.u
 fs.writeFileSync(new URL('../../godot-prototipo/relevo/longe.png', import.meta.url), gerarLonge());
 // FASE 3, Parte 2: a grade do mundo (2 continentes, mar central e ilha; shared/mundo.js). Altura em decímetros e a
 // terra de cada ponto (0 = mar, 1 = Vael, 2 = ilha, 3 = Aurora) num texto de dígitos.
+// 2026-11-17 (André, Cap. 10: "a entrada da caverna é muito alta"): a grade é a mesma que o servidor usa (a que
+// shared/dados.js montou). Montar de novo aqui dava outro chão em volta das cavernas: na segunda vez as cavernas já
+// estão em LUGARES_MUNDO e a montanha abaixava perto delas (pertoDeQuem), então no app a frente da boca ficava até 3,5 m
+// abaixo do chão da caverna (e do chão do servidor).
 {
-  const G = montarMundo(MAPA_CLAREIRA);
+  const G = gradeDoMundo();
   fs.writeFileSync(new URL('../../godot-prototipo/dados/mundo_grade.json', import.meta.url), JSON.stringify({ x0: G.x0, z0: G.z0, passo: G.passo, nx: G.nx, nz: G.nz,
     mar: MUNDO.mar, terras: TERRAS, h: Array.from(G.h, (v) => Math.round(v * 10)), terra: Array.from(G.terra).join(''), estrada: Array.from(G.estrada).join(''),
     lugares: LUGARES_MUNDO, estradas: ESTRADAS_MUNDO.map((e) => ({ id: e.id, curva: e.curva })),

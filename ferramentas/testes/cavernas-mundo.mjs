@@ -55,3 +55,32 @@ for (const C of TUNEIS_MUNDO) {
   }
   ok(ok1 && ok2, 'árvore em cima da montanha não segura quem passa na caverna embaixo (e segura quem está lá em cima)');
 }
+
+// Cap. 10 "A gruta que canta" (André 2026-11-17: "a entrada da caverna é muito alta, quando você entra quase que por
+// debaixo da terra e depois aparece por cima... pode fazer uma montanha, mas suavizando, para eu conseguir subir")
+{
+  const fs = await import('node:fs');
+  const MB = (await import('../../shared/mundo.js')).MORRO_BOCA;
+  // o app usa a MESMA grade do servidor (antes o exportador montava de novo e a frente da boca ficava 3,5 m mais baixa)
+  const GA = JSON.parse(fs.readFileSync(new URL('../../godot-prototipo/dados/mundo_grade.json', import.meta.url)));
+  let dif = 0; for (let k = 0; k < G.h.length; k++) if (Math.abs(GA.h[k] / 10 - G.h[k]) > 0.06) dif++;
+  ok(GA.nx === G.nx && GA.nz === G.nz && dif === 0, `chão do app = chão do servidor (${dif} pontos diferentes; rode node client/exportar-godot/mundo.mjs)`);
+  for (const C of TUNEIS_MUNDO) {
+    const a0 = C.amostras[0], L = LUGARES_MUNDO.find((l) => l.id === C.id);
+    ok(Math.abs(alturaMundo(G, a0.x - a0.dx * 2, a0.z - a0.dz * 2) - a0.y) < 0.3, `${C.id}: a boca fica no nível do chão da frente`);
+    // dos lados da boca, logo atrás da cara do paredão, é rocha (não dá para sair andando do túnel e subir por dentro da pedra)
+    let baixo = 0;
+    for (let s2 = 3; s2 <= 8; s2 += 0.5) for (const k of [-1, 1]) { const p = pontoDoTunel(s2, k * (C.amostras[Math.round(s2)].l + 1.5), C); if (!noTunel(C, p.x, p.z) && alturaMundo(G, p.x, p.z) < a0.y + 2.5) baixo++; }
+    ok(baixo === 0, `${C.id}: dos lados do túnel, perto da boca, a rocha passa de 2,5 m (${baixo} pontos baixos)`);
+    // o morro novo dos lados sobe suave: de 4 a 10 m para dentro, de 10 a 26 m para o lado (fora da rocha do paredão), nenhum metro do chão novo mais
+    // íngreme que o de antes ou que 2x a rampa (folga da grade de 4 m)
+    let pior = 0;
+    const GA = { ...G, h: G.hAntesArenas };
+    for (const k of [-1, 1]) for (let s2 = 4; s2 <= 10; s2 += 2) for (let l = 10; l <= 26; l += 1) {
+      const p = pontoDoTunel(s2, k * l, C), q = pontoDoTunel(s2, k * (l + 1), C);
+      const novo = Math.abs(alturaMundo(G, p.x, p.z) - alturaMundo(G, q.x, q.z)), antes = Math.abs(alturaMundo(GA, p.x, p.z) - alturaMundo(GA, q.x, q.z));
+      if (novo > antes + 0.15) pior = Math.max(pior, novo);
+    }
+    ok(pior <= MB.rampa * 2 + 0.05, `${C.id}: encosta do lado da boca dá para subir (pior ${pior.toFixed(2)} m por m)`);
+  }
+}
