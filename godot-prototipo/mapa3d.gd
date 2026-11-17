@@ -63,8 +63,12 @@ var b_menos := Rect2()
 var b_eu := Rect2()
 var b_ir := Rect2()
 var b_lista := Rect2()
+var b_nevoa := Rect2() # tira e põe a névoa no mapa (André 2026-11-17)
 var b_tp := Rect2() # "Teleportar" do totem escolhido
 var totens_ao_ficar_pronto := false # encostou no totem com a maquete ainda montando
+# André 2026-11-17: "opção para eu tirar a neblina... e botasse de volta para eu ver o que estava liberado". Só o
+# desenho do mapa: o mundo continua fechado do mesmo jeito (o servidor decide) e o minimapa segue com a névoa.
+var nevoa_no_mapa := true
 var lista_aberta := true # lista de Lugares na direita (como no 2D); o botão no alto esconde
 # áreas de plantio (camada do filtro do mapa, André 2026-11-16): pinheirinhos em fileiras (antes quadradinhos amarelos)
 var _quads_plantio := {} # lido na linha principal antes de montar no fundo
@@ -932,6 +936,11 @@ func _toque(pos: Vector2) -> void:
 		else:
 			_toque_totem(lp)
 		return
+	if b_nevoa.has_point(lp):
+		nevoa_no_mapa = not nevoa_no_mapa
+		if m.sons:
+			m.sons.tocar("pano", -16.0)
+		return
 	if b_lista.has_point(lp):
 		lista_aberta = not lista_aberta
 		_arrumar_lista(false)
@@ -1003,7 +1012,8 @@ func _desenhar() -> void:
 	var em := func(x: float, z: float) -> Vector2: return _em(x, z, 4.0)
 	var k := _px_por_metro()
 	if not tm:
-		_nevoa(c, tam, longe) # zonas ainda fechadas pela névoa, como no 2D
+		if nevoa_no_mapa:
+			_nevoa(c, tam, longe) # zonas ainda fechadas pela névoa, como no 2D
 		_terras(c, tam, longe)
 	# rota sendo andada (o herói já vai indo): a mesma fita dourada da prévia
 	if m.rota and m.rota.ativo and mm.marcado == null:
@@ -1546,6 +1556,10 @@ func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 	if not tm and pronto: # mostra e esconde a lista de Lugares
 		b_lista = Rect2(Vector2(tam.x - 300.0, 6.0), Vector2(108, 36))
 		_botao(c, b_lista, "Esconder lista" if lista_aberta else "Lugares", 15 if lista_aberta else 17)
+	b_nevoa = Rect2()
+	if not tm and pronto and m.get("nevoa") != null: # tira e põe a névoa das regiões fechadas
+		b_nevoa = Rect2(Vector2(tam.x - 420.0, 6.0), Vector2(112, 36))
+		_botao(c, b_nevoa, "Tirar névoa" if nevoa_no_mapa else "Pôr névoa", 15)
 	var cz := Vector2((tam.x - lw) * 0.5, tam.y - 34.0)
 	b_menos = Rect2(cz - Vector2(62, 22), Vector2(58, 44))
 	b_mais = Rect2(cz + Vector2(4, -22), Vector2(58, 44))
