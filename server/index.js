@@ -544,7 +544,8 @@ const LENTIDAO_CAMPOS = ['quando', 'fps', 'pior', 'relogio', 'escala', 'pedido',
 const lentidoes = [];
 let lentidaoLinhas = 0; // linhas no arquivo desde a última reescrita (passou de 2x o máximo: reescreve só as últimas)
 try { for (const l of fs.readFileSync(LENTIDAO_ARQ, 'utf8').trim().split('\n').slice(-LENTIDAO_MAX)) if (l) lentidoes.push(JSON.parse(l)); } catch { /* ainda não tem */ }
-const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico', 'toques', 'voltas', 'sala', 'sala_erro']; // toques/voltas/sala: ronda 2026-11-16 (Entrar que falha no 1º toque)
+const ENTRADA_CAMPOS = ['ini', 'pronto', 'escolha', 'toque', 'conectado', 'foto', 'fila', 'aquecer', 'capa', 'grafico', 'toques', 'voltas', 'sala', 'sala_erro',
+  'pso0', 'pso1', 'pip', 'vtex', 'vbuf', 'fundo']; // toques/voltas/sala: ronda 2026-11-16 (Entrar que falha no 1º toque); pso/pip/vtex/vbuf: voltar do fundo (2026-11-17, retomada.gd)
 const MENU_CAMPOS = ['abrir', 'quadro', 'quadro2', 'itens', 'limite', 'grafico', 'pip', 'espera'];
 const RESUMO_CAMPOS = ['fps', 'pior', 'proc', 'lentas', 'q50', 'q70', 'lenta', 'x', 'z', 'grafico', 'limite', 'cham', 'tri', 'obj', ...COMUM_CAMPOS];
 // o que pesou no segundo ruim (lentidao.gd ev): {nome: [vezes, ms]}, no máximo 8 nomes curtos
@@ -586,6 +587,21 @@ function guardarLentidao(c, e, sala) {
       for (const [k, v] of Object.entries(e.partes).slice(0, 40)) if (/^[a-z_:0-9]{1,24}$/.test(k) && Number.isFinite(v)) p[k] = Math.round(v);
       if (Object.keys(p).length) r.partes = p;
     }
+    // voltar do segundo plano (retomada.gd, 2026-11-17): por que o Android fechou o app da última vez e as partes do
+    // preparo dos efeitos (aquecer.gd tempos). Só números, mais a descrição curta do Android
+    const numeros = (o, max) => {
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+      const p = {};
+      for (const [k, v] of Object.entries(o).slice(0, max)) if (/^[a-z_0-9]{1,16}$/.test(k) && Number.isFinite(v)) p[k] = v;
+      return Object.keys(p).length ? p : null;
+    };
+    const saida = numeros(e.saida, 8);
+    if (saida) {
+      if (typeof e.saida.desc === 'string') saida.desc = e.saida.desc.slice(0, 60).replace(/[^\w .,:;()=\-/]/g, '');
+      r.saida = saida;
+    }
+    const aq = numeros(e.aq, 8);
+    if (aq) r.aq = aq;
     return guardarLinha(aparelhoLentidao(e, r));
   }
   if (e.tipo === 'resumo') {
