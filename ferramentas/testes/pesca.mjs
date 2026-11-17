@@ -18,7 +18,9 @@ ok(s.foto().spots.length === s.spots.filter((v) => v.ativo).length, 'os spots vÃ
 const sp = comuns.find((v) => v.lago === L);
 const ux = (sp.x - L.x) / Math.hypot(sp.x - L.x, sp.z - L.z), uz = (sp.z - L.z) / Math.hypot(sp.x - L.x, sp.z - L.z);
 let r = 0; while ((noLago(sp.x + ux * r, sp.z + uz * r)?.fundo || 0) > 0.05) r += 0.2;
-const px = sp.x + ux * (r + 0.3), pz = sp.z + uz * (r + 0.3);
+// pelo menos 1,6 m do spot: a boia precisa de 1,5 m (pescar em shared/simulacao.js); spot a 1,2 m da beira dava 1,4999 m
+// por arredondamento e o teste falhava de vez em quando (CI do #626, 2026-11-17)
+const dp = Math.max(r + 0.3, 1.6), px = sp.x + ux * dp, pz = sp.z + uz * dp;
 console.log('  spot a', r.toFixed(1), 'm da beira');
 j.x = px; j.z = pz; j.y = 0;
 const boia = { x: sp.x, z: sp.z };
