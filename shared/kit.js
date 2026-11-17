@@ -16,7 +16,7 @@
 import { ITENS, COLETA, RECEITAS, CONSTRUCOES, FERRAMENTAS_FAZENDA, PACKS, CACA, LOJA, LOTE, PLANTAS, PESCA, DROPS, CATALISADOR, RARIDADES, VEICULOS, CAVERNA_DUNGEON, HORTA, HISTORIA } from './dados.js';
 import { precoLoja } from './dados.js';
 import { contar, guardar, nomeItem, ehEquip, reforcoMax, custoReforco, materialReforco } from './progresso.js';
-import { missaoAtual, etapaAtual, zonaFechadaEm, etapasDe } from './historia.js';
+import { missaoAtual, etapaAtual, zonaFechadaEm, etapasDe, totalEtapa } from './historia.js';
 import { custoPack, capacidadeCarrinho } from './transporte.js';
 import { Leilao } from './leilao.js';
 import { LUGARES_MUNDO } from './mundo.js';
@@ -238,8 +238,10 @@ export const Kit = {
   juntaDe(j, E = etapaAtual(j.prog)) {
     const p = j.prog;
     if (!E || E.junta === false || j.bot) return null;
-    const pre = this.antesDe(j, E); if (pre) return pre;
-    const N = precisaDe(p, E); if (!N) return null;
+    // levar o pack sem ter os packs da missão: pega o que caiu no chão ou faz de novo com o mercador (packsRefazer)
+    const refaz = this.packsRefazer(j, E); if (refaz?.pre) return refaz;
+    const pre = refaz ? null : this.antesDe(j, E); if (pre) return pre;
+    const N = refaz ? { usa: refaz.usa } : precisaDe(p, E); if (!N) return null;
     const usado = {}; // o que já foi contado para outra parte da receita (a lenha da barra e a do carrinho)
     const forno = this.naFornalha(j); // o que está dentro da fornalha também é dele (a lenha no Material, o carvão pronto)
     const plano = (k, q, fundo = 0, para = '') => {
@@ -299,8 +301,9 @@ export const Kit = {
       return sai(this.fonteDe(j, k));
     };
     for (const t of N.ferr || []) { const f = plano(t, 1); if (f) return f.fonte || f.pre ? f : null; }
-    const daFerr = E.ev === 'criar' && FERR.has(String(E.k)) ? nome(E.k) : ''; // criar a ferramenta: o material vem do chão
+    const daFerr = E.ev === 'criar' && FERR.has(String(E.k)) ? nome(E.k) : refaz ? PACKS[E.k].nome : ''; // criar a ferramenta: o material vem do chão
     for (const [k, n] of Object.entries(N.usa || {})) { const f = plano(k, n, 0, daFerr); if (f) return f.fonte || f.pre ? f : null; } // item único sem fonte (catalisador da memória): o texto da etapa
+    if (refaz) return this.antesDe(j, { ev: 'pack_fez' }) || refaz.fazer; // tem o material: ao mercador fazer o pack
     if (N.ouro && (p.ouro || 0) < N.ouro) return { k: 'ouro', n: N.ouro, tem: p.ouro || 0, fonte: 'ouro' };
     if (E.ev === 'pesca' && soNoMar(E.k)) return this.marAntes(j, !!E.barco, plano);
     return null;
@@ -398,6 +401,29 @@ export const Kit = {
       }
     }
     return null;
+  },
+  // Etapa "Leve os 2 packs até o Pedrão" sem os packs (André 2026-11-17: "só estou com o carrinho e não tenho pack", e o
+  // Ir mandava direto ao Pedrão): conta os packs desse tipo nas costas, no carrinho e no porão. Faltando, o guia leva ao
+  // pack que caiu no chão (carrinho guardado, quebrado, morte: some em meia hora) ou faz de novo: junta o material e
+  // vai ao mercador que faz esse pack. null = tem os packs (segue o antesDe de sempre). { pre } = passo antes;
+  // { usa, fazer } = o material de quantos faltam e o passo de fazer no mercador.
+  packsRefazer(j, E) {
+    if (E?.ev !== 'pack' || !E.k || !PACKS[E.k]) return null;
+    const p = j.prog, k = E.k, ok = (o) => o?.k === k;
+    const tem = (ok(p.pack) ? 1 : 0) + (p.carrinho?.packs || []).filter(ok).length + (p.navio?.porao || []).filter(ok).length;
+    const precisa = Math.max(0, totalEtapa(E) - (p.hist?.n || 0)), falta = precisa - tem;
+    if (falta <= 0) return null;
+    const r = (v) => Math.round(v * 100) / 100, nomePack = PACKS[k].nome;
+    let g = null, md = 400; // o pack desse tipo largado no chão mais perto (até 400 m)
+    for (const o of this.packsChao || []) { if (!ok(o)) continue; const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; g = o; } }
+    if (g && !p.pack) return { pre: 'ir', txt: `Pegue o ${nomePack} que ficou no chão`, alvo: { x: r(g.x), z: r(g.z), nome: 'o pack no chão', npc: '' }, guia: { ev: 'pos' } };
+    const n = (this.mapa?.npcs || []).find((o) => o.merch === k);
+    if (!n) return null;
+    const quem = this.nomeNpc ? this.nomeNpc(n.id) : n.nome;
+    const usa = Object.fromEntries(Object.entries(custoPack(k, p.prof?.mer)).map(([i, q]) => [i, q * falta]));
+    const fazer = { pre: 'fazer', txt: `${nomePack}: faça mais ${falta} com ${quem} (${tem}/${precisa})`,
+      alvo: { x: r(n.x), z: r(n.z), nome: quem, npc: n.id }, guia: { ev: 'pack_fez', k } };
+    return { usa, fazer };
   },
   // a receita que dá o item faz está na etapa da vez: o nível da profissão não trava (servidor e app, hi.livre)
   livreHistoria(j, faz) {

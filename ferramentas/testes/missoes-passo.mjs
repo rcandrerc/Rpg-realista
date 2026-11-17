@@ -101,6 +101,37 @@ const ferramentas = (p) => { for (const k of ['machado', 'picareta', 'vara']) da
   hi = s.histInfo(j);
   ok(hi.txt.startsWith('Leve os 2 packs') && hi.alvo?.npc === 'm_peixe', 'dirigindo: o Ir leva ao Nico');
 }
+// ---------- levar os packs sem ter pack (André 2026-11-17: c3, "só estou com o carrinho e não tenho pack") ----------
+{
+  const j = novo('c3', etapa('c3', (E) => E.ev === 'pack')), p = j.prog;
+  const abel = MAPA_CLAREIRA.npcs.find((o) => o.id === 'm_abobora'), pedrao = MAPA_CLAREIRA.npcs.find((o) => o.id === 'm_pedra');
+  dar(p, 'carrinho'); dar(p, 'enxada'); p.carrinho = { lv: 3, comb: 500, vida: 600, quebrado: false, packs: [], chao: null };
+  let hi = s.histInfo(j);
+  ok(!/Pedrão/.test(hi.txt) && hi.alvo?.npc !== 'm_pedra' && /Pack de Doce de Abóbora/.test(hi.txt), `sem pack: não manda ao Pedrão, junta o material do pack (${hi.txt} -> ${hi.alvo?.nome})`);
+  dar(p, 'abobora', 10); dar(p, 'rabanete', 20); dar(p, 'pao_milho', 10);
+  hi = s.histInfo(j);
+  ok(hi.txt.startsWith('Pack de Doce de Abóbora: faça mais 2 com Seu Abel') && hi.txt.endsWith('(0/2)') && hi.alvo?.npc === 'm_abobora' && hi.ev === 'pack_fez', `com o material: faça os 2 com o Abel (${hi.txt})`);
+  // o pack que caiu no chão (carrinho guardado): o Ir leva até ele
+  s.packNoChao({ k: 'abobora', ox: Math.round(abel.x), oz: Math.round(abel.z), mo: 'm_abobora' }, j.x + 5, j.z);
+  hi = s.histInfo(j);
+  ok(/ficou no chão/.test(hi.txt) && hi.alvo && Math.abs(hi.alvo.x - (j.x + 5)) < 0.1, `pack no chão: o Ir leva a ele (${hi.txt})`);
+  s.packsChao.length = 0;
+  // um no carrinho: falta só mais 1
+  p.carrinho.packs.push({ k: 'abobora', ox: Math.round(abel.x), oz: Math.round(abel.z), mo: 'm_abobora' });
+  hi = s.histInfo(j);
+  ok(hi.txt.startsWith('Pack de Doce de Abóbora: faça mais 1 com') && hi.txt.endsWith('(1/2)'), `um no carrinho: falta mais 1 (${hi.txt})`);
+  // não deixa vender o pack da missão para outro mercador
+  const outro = MAPA_CLAREIRA.npcs.find((o) => o.merch && o.merch !== 'abobora' && o.id !== 'm_pedra');
+  p.carrinho.chao = { x: outro.x + 1, z: outro.z, ry: 0 }; Object.assign(j, { x: outro.x + 1, z: outro.z });
+  const e0 = s.eventos.length; s.pack(j.id, { acao: 'entregar', npc: outro.id, de: 'carrinho', i: 0 });
+  ok(p.carrinho.packs.length === 1 && s.eventos.slice(e0).some((e) => e.t === 'aviso' && /da missão/.test(e.texto)), 'pack da missão não sai para outro mercador');
+  // com os 2: volta o caminho de sempre (subir no carrinho e levar ao Pedrão)
+  p.carrinho.packs.push({ k: 'abobora', ox: Math.round(abel.x), oz: Math.round(abel.z), mo: 'm_abobora' });
+  j.veiculo = 'carrinho'; p.carrinho.chao = null;
+  hi = s.histInfo(j);
+  ok(hi.txt.startsWith('Leve os 2 packs') && hi.alvo?.npc === 'm_pedra', `com os 2 no carrinho: o Ir leva ao Pedrão (${hi.txt})`);
+  ok(pedrao, 'Pedrão existe');
+}
 // ---------- pesca no mar (André 2026-11-13): spots espalhados, só de barco, achados com o radar ----------
 {
   for (let t = 0; t < 200; t++) s.passo(0.05);
