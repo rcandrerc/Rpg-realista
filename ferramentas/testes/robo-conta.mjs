@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA } from '../../shared/index.js';
-import { Contas } from '../../server/contas.js';
+import { Contas, roboCel } from '../../server/contas.js';
 let falhas = 0;
 const ok = (c, m) => { if (!c) { falhas++; console.error('FALHOU', m); } else console.log('ok', m); };
 
@@ -31,6 +31,10 @@ s.missaoTeste('R', 'zerar');
 ok(r.prog.hist.p === 0, 'robô zera a história');
 s.missaoTeste('G', 'pular');
 ok(!g.prog.hist?.p, 'jogador comum não pula missão');
+// celulares de verdade (Firebase Test Lab): uma conta por celular, sem derrubar o robô 1 nem um ao outro
+const r1 = contas.entrarRobo(), c1 = contas.entrarRobo(roboCel(1)), c2 = contas.entrarRobo(roboCel(2));
+ok(c1.conta.robo && c2.conta.robo && c1.conta.id !== c2.conta.id && c1.conta.id !== r1.conta.id, 'celulares têm conta de robô própria');
+ok(!!contas.porSessao(r1.sessao) && !!contas.porSessao(c1.sessao) && !!contas.porSessao(c2.sessao), 'celulares e robô 1 jogam juntos');
 fs.rmSync(pasta, { recursive: true, force: true });
 if (falhas) { console.error(`${falhas} falha(s)`); process.exit(1); }
 console.log('robô: tudo certo');

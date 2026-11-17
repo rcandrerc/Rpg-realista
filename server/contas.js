@@ -20,6 +20,9 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 const TESTADORES = new Set(['33e46272579a8148b16df7e1c429d644cb3e590d43337f83a88670f88e2cac48']);
 // a conta do robô de testes (entrarRobo): nunca é de uma pessoa
 export const ROBO = { google: 'robo:testes', nome: 'Robô de teste', visual: 'cabelo_m' };
+// as contas do robô nos celulares de verdade (Firebase Test Lab, robo-celular-real.yml): uma por celular (eles jogam ao
+// mesmo tempo) e separadas do robô 1, para um não derrubar o outro
+export const roboCel = (n) => ({ google: `robo:celular${n}`, nome: `Robô celular ${n}`, visual: 'cabelo_m' });
 const testador = (email) => !!email && TESTADORES.has(crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex'));
 
 // Confere o ID token do Google: assinatura, emissor, validade e se foi feito para o nosso Client ID
@@ -167,16 +170,16 @@ export class Contas {
 
   // Robô de testes (ferramentas/robo, André 2026-11-14): uma conta só, sem Google ('robo:testes'), com o personagem já
   // criado. Cada turno pede uma sessão nova e as antigas saem (dois robôs nunca jogam juntos). Devolve { sessao, conta }.
-  entrarRobo() {
+  entrarRobo(R = ROBO) {
     const agora = Date.now();
-    let c = this.q.porGoogle.get(ROBO.google);
+    let c = this.q.porGoogle.get(R.google);
     if (!c) {
-      let nome = ROBO.nome;
-      for (let i = 2; !this.nomeLivre(nome); i++) nome = `${ROBO.nome} ${i}`;
-      this.q.criar.run(ROBO.google, null, nome, agora, agora);
-      c = this.q.porGoogle.get(ROBO.google);
-      this.q.personagem.run(nome, ROBO.visual, 'null', c.id);
-      c = this.q.porGoogle.get(ROBO.google);
+      let nome = R.nome;
+      for (let i = 2; !this.nomeLivre(nome); i++) nome = `${R.nome} ${i}`;
+      this.q.criar.run(R.google, null, nome, agora, agora);
+      c = this.q.porGoogle.get(R.google);
+      this.q.personagem.run(nome, R.visual, 'null', c.id);
+      c = this.q.porGoogle.get(R.google);
       console.log(`Conta do robô de testes: ${c.id} (${nome})`);
     } else this.q.tocar.run(null, agora, c.id);
     this.q.apagarSessoes.run(c.id);
@@ -267,8 +270,8 @@ export class Contas {
   // o nível do jogador mais alto do servidor (André 2026-11-11: os NPCs nunca passam dele)
   // null (sem teto) se não deu para ler: melhor sem teto do que todos parados no Nv 1
   nivelMaisAlto() {
-    try { return this.db.prepare("SELECT MAX(CAST(json_extract(progresso, '$.nivel') AS INTEGER)) AS n FROM contas WHERE progresso IS NOT NULL AND google != 'robo:testes'").get()?.n || null; } catch {
-      try { let n = 0; for (const r of this.db.prepare("SELECT progresso FROM contas WHERE progresso IS NOT NULL AND google != 'robo:testes'").all()) { try { n = Math.max(n, JSON.parse(r.progresso)?.nivel | 0); } catch { /* conta com progresso estragado */ } } return n || null; } catch { return null; }
+    try { return this.db.prepare("SELECT MAX(CAST(json_extract(progresso, '$.nivel') AS INTEGER)) AS n FROM contas WHERE progresso IS NOT NULL AND google NOT LIKE 'robo:%'").get()?.n || null; } catch {
+      try { let n = 0; for (const r of this.db.prepare("SELECT progresso FROM contas WHERE progresso IS NOT NULL AND google NOT LIKE 'robo:%'").all()) { try { n = Math.max(n, JSON.parse(r.progresso)?.nivel | 0); } catch { /* conta com progresso estragado */ } } return n || null; } catch { return null; }
     }
   }
   lerMundo(chave) { try { const r = this.db.prepare('SELECT valor FROM mundo WHERE chave = ?').get(chave); return r ? JSON.parse(r.valor) : null; } catch { return null; } }
@@ -339,5 +342,5 @@ function publica(c) {
   try { aparencia = c.aparencia ? aparenciaValida(JSON.parse(c.aparencia)) : null; } catch { /* inválida: usa a padrão */ }
   let progresso = null;
   try { progresso = c.progresso ? progressoValido(JSON.parse(c.progresso)) : null; } catch { /* inválido: começa do nível 1 */ }
-  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email), ia: !!c.ia_chave, ...(c.google === ROBO.google ? { robo: true } : {}) };
+  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email), ia: !!c.ia_chave, ...(String(c.google).startsWith('robo:') ? { robo: true } : {}) };
 }

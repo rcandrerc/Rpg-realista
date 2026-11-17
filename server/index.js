@@ -8,7 +8,7 @@ import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
-import { Contas, verificadorGoogle } from './contas.js';
+import { Contas, verificadorGoogle, roboCel } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -802,6 +802,8 @@ const chavesGithub = createRemoteJWKSet(new URL('https://token.actions.githubuse
 const ROBO_REPO = 'rcandrerc/rpg-realista', ROBO_WORKFLOW = `${ROBO_REPO}/.github/workflows/robo.yml@refs/heads/main`;
 // o robô 2 (o app como no Poco X7, robo-celular.yml) só manda relatório: não pega sessão (a conta é do robô 1)
 const ROBO_CELULAR = `${ROBO_REPO}/.github/workflows/robo-celular.yml@refs/heads/main`;
+// celulares de verdade (Firebase Test Lab, robo-celular-real.yml): conta própria por celular, 'robo:celular1'..5 (o robô 1 segue jogando)
+const ROBO_REAL = `${ROBO_REPO}/.github/workflows/robo-celular-real.yml@refs/heads/main`;
 async function roboConfere(body, workflows = [ROBO_WORKFLOW]) {
   if (process.env.ROBO_TESTE && body?.teste === process.env.ROBO_TESTE) return true;
   const { payload } = await jwtVerify(String(body?.cracha || ''), chavesGithub, { issuer: 'https://token.actions.githubusercontent.com', audience: 'age-of-embers-robo' });
@@ -813,8 +815,9 @@ app.post('/conta/robo', async (req, res) => {
   if (Date.now() - roboT < 5000) return res.status(429).json({ erro: 'devagar' });
   roboT = Date.now();
   try {
-    if (!(await roboConfere(req.body))) return res.status(401).json({ erro: 'não é o robô' });
-    res.json(contas.entrarRobo());
+    if (await roboConfere(req.body)) return res.json(contas.entrarRobo());
+    if (await roboConfere(req.body, [ROBO_REAL])) return res.json(contas.entrarRobo(roboCel(Math.min(5, Math.max(1, req.body?.n | 0)))));
+    return res.status(401).json({ erro: 'não é o robô' });
   } catch (e) { console.warn('robô recusado:', e.message); res.status(401).json({ erro: 'crachá do robô inválido' }); }
 });
 // relatórios: o robô manda o turno de tempos em tempos (o mesmo turno é trocado pelo mais novo); ficam os últimos ROBO_MAX
@@ -825,12 +828,19 @@ app.post('/robo/relatorio', express.json({ limit: '64kb' }), async (req, res) =>
   const conta = contas?.porSessao(sessaoDe(req));
   // robô 1 manda com a sessão dele; o robô 2 manda com o crachá OIDC do GitHub no lugar da sessão
   let vale = !!conta?.robo;
-  if (!vale && sessaoDe(req).split('.').length === 3) { try { vale = await roboConfere({ cracha: sessaoDe(req) }, [ROBO_WORKFLOW, ROBO_CELULAR]); } catch { vale = false; } }
+  if (!vale && sessaoDe(req).split('.').length === 3) { try { vale = await roboConfere({ cracha: sessaoDe(req) }, [ROBO_WORKFLOW, ROBO_CELULAR, ROBO_REAL]); } catch { vale = false; } }
   if (!vale) return res.status(401).json({ erro: 'só o robô' });
   const r = req.body;
   if (!r || typeof r !== 'object' || typeof r.turno !== 'string' || r.turno.length > 40) return res.status(400).json({ erro: 'relatório inválido' });
   r.recebido = Date.now();
   const i = roboTurnos.findIndex((x) => x.turno === r.turno);
+  // celulares de verdade da mesma rodada mandam o mesmo turno, um aparelho cada: junta os aparelhos num cartão só
+  if (i >= 0 && r.fisico && roboTurnos[i].fisico) {
+    const a = roboTurnos[i];
+    r.modos = { ...(a.modos || {}), ...(r.modos || {}) };
+    r.problemas = [...(a.problemas || []), ...(r.problemas || [])].slice(-40);
+    r.inicio = Math.min(a.inicio || r.inicio, r.inicio || a.inicio);
+  }
   if (i >= 0) roboTurnos[i] = r; else roboTurnos.push(r);
   if (roboTurnos.length > ROBO_MAX) roboTurnos.splice(0, roboTurnos.length - ROBO_MAX);
   fs.writeFile(ROBO_ARQ, roboTurnos.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
