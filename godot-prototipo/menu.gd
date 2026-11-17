@@ -4065,9 +4065,16 @@ func montar_janela() -> void:
 	txt.add_child(rotulo(Idioma.frase(janela_nome).to_upper(), 11, OURO))
 	if atual != null:
 		txt.add_child(rotulo(P.nome_item(atual), 16, P.cor_item(atual)))
-		var d := rotulo(P.texto_item(atual), 12, APAGADO)
+		# um por linha, durabilidade e conjunto (André 2026-11-17: igual ao cartão da mochila)
+		var d := rotulo(P.texto_item(atual).replace(" · ", "\n"), 13, TEXTO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		txt.add_child(d)
+		var dmax: int = int(P.morte_dados().durMax)
+		var du: int = P.durab(atual)
+		var tdu := ("QUEBRADA · conserto %d ouro" % P.custo_conserto(atual)) if du <= 0 else ("Durabilidade %d/%d" % [du, dmax])
+		txt.add_child(rotulo(tdu, 13, PIOR if du <= dmax * 0.3 else TEXTO if du < dmax else APAGADO))
+		if int(atual.r) >= 1:
+			txt.add_child(lista_conjunto(int(atual.r), true))
 		txt.add_child(linha_reforco(atual))
 	else:
 		txt.add_child(rotulo("Nada vestido", 16, APAGADO))
