@@ -28,6 +28,7 @@ func _initialize() -> void:
 	root.add_child(falso)
 	var M = load("res://menu.gd").new(falso)
 	M.m = falso
+	M.boneco_modo = "Espada" # a Arma mostra a espada vestida
 	var P = falso.P
 	P.prog["equip"] = {"corpo": {"k": "peitoral", "r": 3, "d": 0, "e": 2}, "pernas": {"k": "calca", "r": 2, "d": 60, "e": 1},
 		"pes": {"k": "botas", "r": 3, "d": 20}, "capa": {"k": "capa", "r": 3, "e": 3}, "espada": {"k": "espada", "r": 2, "d": 90, "e": 4},
