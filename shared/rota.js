@@ -4,7 +4,7 @@
 // as estradas e trilhas do mundo grande (shared/mundo.js ESTRADAS_MUNDO, .curva), picadas a cada PASSO m e ligadas nas
 // junções com as mesmas regras do app (pontas, cruzamentos no meio, emendas dos pedaços soltos na mesma terra sem
 // passar no mar). Monta uma vez só, na primeira viagem. A rota é o caminho mais curto POR ELAS (A*).
-import { VILA_LOTES } from './dados.js';
+import { VILA_LOTES, VILAS_MUNDO } from './dados.js';
 import { ESTRADAS_MUNDO, terraEm } from './mundo.js';
 import { gradeDoMundo } from './relevo.js';
 
@@ -30,6 +30,8 @@ class Rede {
     if (VILA_LOTES?.estrada) linhas.push(VILA_LOTES.estrada);
     for (const r of VILA_LOTES?.ruas || []) if (r.pontos) linhas.push(r.pontos);
     if (gradeDoMundo()) for (const E of ESTRADAS_MUNDO) if (E.curva) linhas.push(E.curva);
+    // ruas de calçada das cidades do mundo grande (Rio Claro, Aurora), as mesmas do app (rota.gd, mundo.vilasMundo[].cidade.ruas)
+    for (const V of VILAS_MUNDO || []) if (V.cidade) for (const r of V.ruas || []) { linhas.push(r); if (r.length) linhas.push([[(V.praca || V).x, (V.praca || V).z], r[0]]); }
     const porLinha = [];
     for (const pts of linhas) {
       const ids = [];

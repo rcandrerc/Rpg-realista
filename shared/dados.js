@@ -897,6 +897,12 @@ CAMINHOS.push({ largura: 2.4, pontos: VILA_LOTES.estrada }, ...VILA_LOTES.ruas);
 CAMINHOS.push(...TRILHAS_MINA); // trilhas dos veios de pedra e de ferro (2026-11-05)
 CAMINHOS.push(TRILHA_CAVERNA); // trilha da caverna da montanha (2026-11-06)
 CAMINHOS.push(TRILHA_LAGO); // trilha das Terras até o Lago Grande (2026-11-06)
+// Estrada do Mercador (André 2026-11-17, esboço aprovado: /mnt/project-files/estrada-pedrao/1-antes-e-depois.png):
+// o Mestre Pedrão, primeiro mercador de pack, não tinha estrada e o "Ir" de carrinho e de lobo batia nas casas. Sai da
+// rua da praça e contorna a vila por fora, entre as casas e as pedras (folga de 1,5 m), até o Pedrão. No fim da lista:
+// nenhuma árvore, pedra ou solto muda de lugar (nada disso olha os caminhos).
+CAMINHOS.push({ largura: 2.2, pontos: [[-1.5, -4], [-4.5, -6.6], [-8, -7.3], [-11.5, -6], [-14.5, -3.8], [-18.5, -3.6], [-22.5, -6], [-27, -10],
+  [-31.5, -14.5], [-35.5, -19], [-38.5, -23.5], [-39.6, -27.6]] });
 
 // Mapa aberto (André 2026-11-04): onde ainda sobra uma fresta entre a borda da vila, do campo de fora ou das Terras e a
 // mata andável (parede invisível logo depois da borda), um círculo pequeno de mata costura os dois. Vêm por último.
