@@ -1,10 +1,11 @@
 // Horta da missão (André 2026-11-14: "coleta instantânea somente a qtd suficiente pra fazer a missão pra o cara não
 // ficar esperando um dia"). Planta de legume que a missão usa fica pronta ao plantar, só até a cota da missão; o resto,
 // a horta fora da missão e o replantio depois de vender crescem no tempo normal. Uso: node ferramentas/testes/horta-missao.mjs
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, PLANTAS, contar } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, PLANTAS, HORTA, contar } from '../../shared/index.js';
 import { plantasDaMissao } from '../../shared/kit.js';
 import { etapasDe, histValida } from '../../shared/historia.js';
 import './_tudo-aberto.mjs';
+import { passarMissao } from './_horta-rapida.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const ev = () => { const e = s.eventos; s.eventos = []; return e; };
@@ -29,7 +30,7 @@ for (let i = -27; i <= -22; i++) for (let k = 56; k <= 58; k++) cel.push(i + ','
 const arar = (c) => { p.vigor = { v: 999, t: Date.now() }; s.horta('A', { acao: 'arar', c }); };
 const plantar = (c, sm) => { p.vigor = { v: 999, t: Date.now() }; s.horta('A', { acao: 'plantar', c, s: sm }); };
 const colher = (c) => { p.vigor = { v: 999, t: Date.now() }; s.horta('A', { acao: 'colher', c }); };
-const pronta = (c) => { const t = L.horta[c]; return !!t?.c && t.g >= PLANTAS[t.c].G; };
+const pronta = (c) => { passarMissao(s); const t = L.horta[c]; return !!t?.c && t.g >= PLANTAS[t.c].G; };
 for (const c of cel) arar(c);
 ok(Object.keys(L.horta).length === cel.length, 'arou ' + cel.length + ' quadrados');
 
@@ -45,7 +46,7 @@ const seis = cel.slice(1, 7);
 seis.forEach((c, i) => plantar(c, ['cenoura', 'batata', 'rabanete'][i % 3]));
 let e = ev();
 ok(seis.every(pronta), 'as 6 sementes da missão ficaram prontas na hora');
-ok(e.some((x) => x.t === 'aviso' && x.texto === 'Missão: pronta pra colher!'), 'aviso curto');
+ok(e.some((x) => x.t === 'aviso' && /^Missão: pronta em \d+ s$/.test(x.texto)), 'aviso curto');
 ok(p.hist.e === eP + 1, 'a etapa plantar contou as 6');
 // regar ainda ensina (planta pronta aceita água) e colher conta
 p.hist.hz && ok(p.hist.hz.u['*'] === 6, 'cota "*" gasta: 6');
@@ -81,6 +82,35 @@ if (L2) {
   for (const c of ['-27,70', '-26,70']) { p2.vigor = { v: 999, t: Date.now() }; s.horta('B', { acao: 'arar', c }); p2.vigor = { v: 999, t: Date.now() }; s.horta('B', { acao: 'plantar', c, s: 'milho' }); }
   ok(!L2.horta['-27,70'].g, 'milho plantado antes da missão: crescendo');
   p2.hist = { v: 2, p: idx('c3'), ac: true, e: etapasDe(M('c3')).findIndex((E) => E.ev === 'criar'), n: 0, m: 0 };
-  s.hortaMissao(j2); ev();
+  s.hortaMissao(j2); ev(); passarMissao(s);
   ok(L2.horta['-27,70'].g >= PLANTAS.milho.G && L2.horta['-26,70'].g >= PLANTAS.milho.G, 'o milho de antes ficou pronto quando a etapa do pão começou');
 } else ok(false, 'segundo lote');
+
+// André 2026-11-17 (c3 depois de "Voltar 1 missão"): abóboras velhas crescendo gastaram a cota ao aceitar; plantou 2,
+// comprou mais 2 e ficou "Abóbora crescendo 2/4". Agora: toda planta que a missão ainda precisa cresce pela missão, em
+// HORTA.missaoSeg segundos (não na hora: a barrinha anda), e nunca passa do que falta.
+{
+  const j3 = s.adicionarJogador('C', 'Caio', undefined, { conta: 3 }); ev();
+  j3.criando = false; j3.x = -24; j3.z = 85; j3.prog.ouro = 5000;
+  s.comprarLote('C', { x0: -28, z0: 81, x1: -20, z1: 89 }); ev();
+  const L3 = s.loteDe(j3), p3 = j3.prog;
+  if (L3) {
+    p3.mochila.fill(null); p3.mochila[0] = { k: 'enxada', n: 1 }; p3.mochila[1] = { k: 'semente_abobora', n: 20 };
+    const cs = []; for (let i = -27; i <= -22; i++) cs.push(i + ',83');
+    const V3 = () => { p3.vigor = { v: 999, t: Date.now() }; };
+    for (const c of cs) { V3(); s.horta('C', { acao: 'arar', c }); }
+    const pl = (c) => { V3(); s.horta('C', { acao: 'plantar', c, s: 'abobora' }); };
+    pl(cs[0]); pl(cs[1]); // as velhas, antes de aceitar: crescem normal
+    p3.hist = { v: 2, p: idx('c3'), ac: true, e: 0, n: 0, m: 0 };
+    s.hortaMissao(j3); ev(); // aceitou: as velhas viram da missão (gastam a cota)
+    pl(cs[2]); pl(cs[3]); pl(cs[4]); pl(cs[5]);
+    const t2 = L3.horta[cs[2]];
+    ok(t2.mf && t2.g < PLANTAS.abobora.G, 'planta da missão não fica pronta na hora: cresce em segundos');
+    ok(t2.mf - t2.mi === HORTA.missaoSeg * 1000 && HORTA.missaoSeg >= 5 && HORTA.missaoSeg <= 10, `cresce em ${HORTA.missaoSeg} s`);
+    passarMissao(s);
+    const prontas = cs.filter((c) => L3.horta[c].g >= PLANTAS.abobora.G).length;
+    ok(prontas === 6, `as 4 plantadas depois da cota também ficam prontas (plante 4 + as 2 velhas): ${prontas}/6`);
+    V3(); s.horta('C', { acao: 'arar', c: '-21,83' }); pl('-21,83'); passarMissao(s);
+    ok(!(L3.horta['-21,83'].g >= PLANTAS.abobora.G), 'a 7ª abóbora (a missão já tem as que precisa) cresce no tempo normal');
+  } else ok(false, 'terceiro lote');
+}
