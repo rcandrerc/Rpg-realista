@@ -25,6 +25,14 @@ for (const [i, M] of HISTORIA.entries()) etapasDe(M).forEach((E, e) => {
       if (f.pre === 'radar') j.radarAte = s.tempo + 180;
       else if (f.pre === 'barco') j.veiculo = 'barquinho';
       else if (f.pre === 'ir' && a) Object.assign(j, { x: a.x, z: a.z });
+      else if (f.pre === 'fazer' && a?.npc) { // levar o pack sem ter (André 2026-11-17): faz de verdade no mercador do Ir
+        Object.assign(j, { x: a.x + 1.5, z: a.z, y: s.terreno.altura(a.x, a.z) }); p.vigor = null;
+        const antes = (p.carrinho?.packs || []).length;
+        s.pack('A', { acao: 'fazer', npc: a.npc }); for (let t = 0; t < 200; t++) s.passo(0.05);
+        if (!p.pack) { bugs.push(`${tag}: no mercador do Ir (${a.nome}) o pack não saiu`); break; }
+        p.carrinho ||= { lv: 4, comb: 500, vida: 600, quebrado: false, packs: [], chao: null }; p.carrinho.packs.push(p.pack); p.pack = null; // o carrinho leva
+        if (p.carrinho.packs.length <= antes) break;
+      }
       else { bugs.push(`${tag}: passo antes "${f.pre}" sem jeito de fazer no teste`); break; }
       continue;
     }
@@ -37,6 +45,11 @@ for (const [i, M] of HISTORIA.entries()) etapasDe(M).forEach((E, e) => {
       for (let q = f.n - f.tem; q > 0; q -= 50) guardar(p.mochila, { k: f.k, n: Math.min(50, q) }); continue;
     }
     break;
+  }
+  if (E.ev === 'pack' && E.k && E.npc) { // com os packs da missão: o Ir leva ao NPC da entrega
+    const a = s.histInfo(j).alvo;
+    if (!deu.includes('pre:fazer')) bugs.push(`${tag}: sem pack nenhum, não mandou fazer o pack`);
+    if (a?.npc !== E.npc && !s.juntaDe(j, E)?.pre) bugs.push(`${tag}: com os packs, o Ir não leva a ${E.npc} (${a?.nome})`);
   }
   if (E.ev === 'ter') { // juntou tudo: a etapa passa sozinha
     s.checarEtapa(j); if (p.hist.e === e && !E.kit) bugs.push(`${tag}: com tudo na mochila a etapa não passou`);
