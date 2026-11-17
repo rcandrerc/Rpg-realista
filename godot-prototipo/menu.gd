@@ -4422,6 +4422,110 @@ func mudar_qtd(d: int) -> void:
 	if _confirma and _confirma.has_meta("mostrar"):
 		(_confirma.get_meta("mostrar") as Callable).call()
 
+# ---------- quantos passam (André 2026-11-17: "escolher tudo ou a quantidade específica") ----------
+# Troca, leilão, baú, fornalha e fogão: tocar numa pilha abre esta janelinha. "Tudo (N)" passa a pilha inteira na hora;
+# ou escolhe o número (− e + seguram e aceleram, ou digita no campo) e toca no botão da direita. Um item só vai direto.
+# feito recebe o número escolhido; quem decide é o servidor (nunca passa mais do que tem).
+var _qtd_campo: LineEdit
+
+func pedir_qtd(it: Dictionary, maximo: int, verbo: String, feito: Callable) -> void:
+	if maximo <= 1:
+		feito.call(maxi(1, maximo))
+		return
+	var P = m.P
+	_qtd_max = maximo
+	_qtd = 1
+	fechar_confirma()
+	_confirma = Control.new()
+	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_confirma)
+	var escuro := ColorRect.new()
+	escuro.color = Color(0, 0, 0, 0.5)
+	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	escuro.gui_input.connect(func(ev): if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed): fechar_confirma())
+	_confirma.add_child(escuro)
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 10, 16))
+	cx.set_anchors_preset(Control.PRESET_CENTER)
+	cx.custom_minimum_size = Vector2(440, 0)
+	cx.position = Vector2(-220, -120)
+	_confirma.add_child(cx)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	cx.add_child(col)
+	# o item: ícone, nome e quantos tem
+	var mostra := it.duplicate()
+	if mostra.has("n"):
+		mostra.n = maximo
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 12)
+	topo.add_child(celula(mostra, false, func(): pass, 56))
+	var nomes := VBoxContainer.new()
+	nomes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nomes.alignment = BoxContainer.ALIGNMENT_CENTER
+	nomes.add_child(rotulo(P.nome_item(it), 18, P.cor_item(it)))
+	nomes.add_child(rotulo(tr("Tem %d") % maximo, 13, APAGADO))
+	topo.add_child(nomes)
+	col.add_child(topo)
+	# − número + (o número dá para digitar)
+	var linha_q := HBoxContainer.new()
+	linha_q.alignment = BoxContainer.ALIGNMENT_CENTER
+	linha_q.add_theme_constant_override("separation", 10)
+	col.add_child(linha_q)
+	var menos := botao_repete("−", -1)
+	linha_q.add_child(menos)
+	_qtd_campo = LineEdit.new()
+	_qtd_campo.text = "1"
+	_qtd_campo.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_qtd_campo.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+	_qtd_campo.select_all_on_focus = true
+	_qtd_campo.max_length = 5
+	_qtd_campo.custom_minimum_size = Vector2(120, 56)
+	_qtd_campo.add_theme_font_size_override("font_size", 28)
+	_qtd_campo.add_theme_color_override("font_color", OURO_CLARO)
+	_qtd_campo.add_theme_stylebox_override("normal", caixa(Color(0.04, 0.035, 0.03, 1), OURO, 1, 8, 6))
+	_qtd_campo.add_theme_stylebox_override("focus", caixa(Color(0.04, 0.035, 0.03, 1), OURO_CLARO, 2, 8, 6))
+	_qtd_campo.text_changed.connect(func(t: String):
+		if t.strip_edges().is_valid_int():
+			_qtd = clampi(int(t.strip_edges()), 1, _qtd_max)
+			(_confirma.get_meta("mostrar") as Callable).call())
+	linha_q.add_child(_qtd_campo)
+	var mais := botao_repete("+", 1)
+	linha_q.add_child(mais)
+	# Cancelar, Tudo e o número escolhido
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 10)
+	col.add_child(linha)
+	var nao := botao("Cancelar", fechar_confirma, 15)
+	nao.custom_minimum_size = Vector2(110, 48)
+	linha.add_child(nao)
+	var tudo := botao("Tudo (%d)" % maximo, func():
+		fechar_confirma()
+		feito.call(maximo), 16)
+	tudo.set_meta("pt", "Tudo (%d)" % maximo) # o guia das missões pisca o Tudo
+	tudo.text = tr("Tudo (%d)") % maximo
+	tudo.custom_minimum_size = Vector2(0, 48)
+	tudo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linha.add_child(tudo)
+	var ok := botao(verbo, func():
+		var n := _qtd
+		fechar_confirma()
+		feito.call(n), 16, true)
+	ok.custom_minimum_size = Vector2(0, 48)
+	ok.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linha.add_child(ok)
+	_qtd_campo.text_submitted.connect(func(_t): ok.pressed.emit())
+	var mostrar := func():
+		var t := _qtd_campo.text.strip_edges()
+		if not (t.is_valid_int() and int(t) == _qtd) and not (t == "" and _qtd_campo.has_focus()):
+			_qtd_campo.text = str(_qtd)
+			_qtd_campo.caret_column = _qtd_campo.text.length()
+		ok.text = tr(verbo + " %d") % _qtd
+		menos.disabled = _qtd <= 1
+		mais.disabled = _qtd >= _qtd_max
+	_confirma.set_meta("mostrar", mostrar)
+	mostrar.call()
+
 # − / + que repetem enquanto o dedo segura (começa de 1 em 1, depois de 5 em 5 e de 10 em 10)
 func botao_repete(t: String, sinal: int) -> Button:
 	var b := Button.new()

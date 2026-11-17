@@ -216,7 +216,7 @@ func passos(hi: Dictionary) -> Array:
 			var base := ["ir", "hud:falar", "b^Leilão"]
 			match str(hi.get("de", "")):
 				"anunciar":
-					return base + ["leilao:aba:vender", "leilao:item", "b:Anunciar"]
+					return base + ["leilao:aba:vender", "leilao:item", "b^Tudo (", "b:Anunciar"] # pilha: a janelinha da quantidade (Tudo)
 				"comprar":
 					return base + ["leilao:aba:comprar", "m:leilao:comprar"]
 				"retirar":
@@ -256,7 +256,8 @@ func _passos_criar(k: String) -> Array:
 	var forn: Dictionary = D.get("fornalha", {}).get("receitas", {})
 	for ent in forn:
 		if str(forn[ent].get("faz", "")) == k:
-			return ["ir", "hud:forno", "forno:comb:" + str(forn[ent].get("fogo", "")), "forno:mat:" + str(ent), "forno:sai:" + k]
+			# "b^Tudo (": a pilha tocada abre a janelinha da quantidade (menu.gd pedir_qtd, André 2026-11-17); pisca o Tudo
+			return ["ir", "hud:forno", "forno:comb:" + str(forn[ent].get("fogo", "")), "b^Tudo (", "forno:mat:" + str(ent), "b^Tudo (", "forno:sai:" + k]
 	var chave := k.trim_prefix("obra_") if k.begins_with("obra_") else k
 	if not D.get("receitas", {}).has(chave): # receita pelo que ela faz (colar, short, peixe assado...)
 		for r in D.get("receitas", {}):

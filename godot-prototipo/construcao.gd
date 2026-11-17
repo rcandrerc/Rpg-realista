@@ -4098,6 +4098,8 @@ func fechar_bau() -> void:
 func _input(ev: InputEvent) -> void:
 	if not ((painel_bau != null and painel_bau.visible) or (painel_forno != null and painel_forno.visible)):
 		return
+	if m.menu != null and m.menu._confirma != null: # a janelinha da quantidade (menu.gd pedir_qtd) está por cima
+		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_bau_dentro = null
@@ -4210,8 +4212,8 @@ func _montar_bau() -> void:
 		if it != null:
 			cheios += 1
 		var fn := func():
-			if not _bau_arrastou:
-				m.rede("bau", {"acao": "tirar", "i": i})
+			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
+				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Tirar", func(n: int): m.rede("bau", {"acao": "tirar", "i": i, "n": n}))
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
 	txt_bau.text = Idioma.frase("Baú · %d/%d" % [cheios, bau_slots])
 	var moch: Array = m.P.prog.get("mochila", [])
@@ -4220,8 +4222,8 @@ func _montar_bau() -> void:
 		if it == null:
 			continue
 		var fn := func():
-			if not _bau_arrastou:
-				m.rede("bau", {"acao": "guardar", "i": i})
+			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
+				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Guardar", func(n: int): m.rede("bau", {"acao": "guardar", "i": i, "n": n}))
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
 
 # ---------- tocar numa estação (André 2026-11-07): o herói vai andando até o lado dela e só aí abre ----------
@@ -4631,10 +4633,23 @@ func _montar_forno() -> void:
 		var lugar := forno_alvo if e_comb and e_mat else ("comb" if e_comb else "ent")
 		var fn := func():
 			if not _bau_arrastou:
-				m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
+				_por_forno(it, lugar, i)
 		var cel: Button = m.menu.celula(it, false, fn, 56)
 		cel.set_meta("guia_i", i) # guia.gd: o lugar da mochila (lenha, minério...)
 		grade_forno.add_child(cel)
+
+# pôr na fornalha ou no fogão (André 2026-11-17: "escolher tudo ou a quantidade"): pilha abre a janelinha do menu.gd
+# (pedir_qtd) com o máximo que cabe no lugar; cheio ou um só vai direto (o servidor avisa se não couber)
+func _por_forno(it: Dictionary, lugar: String, i: int) -> void:
+	var tem := int(it.get("n", 1))
+	var atual = forno.get(lugar)
+	if atual != null and str(atual.get("k", "")) == str(it.k):
+		var pilha := int(D.get("itens", {}).get(str(it.k), {}).get("pilha", 50))
+		tem = mini(tem, pilha - int(atual.get("n", 0)))
+	if tem <= 1:
+		m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
+		return
+	m.menu.pedir_qtd(it, tem, "Pôr", func(n: int): m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i, "n": n}))
 
 # ---------- fogão a lenha (André 2026-11-07: "que nem a fornalha: coloco o combustível e os itens lá e posso sair") ----------
 # Combustível como a fornalha; na panela vai o prato escolhido (os ingredientes saem da mochila na hora). A conta é do
@@ -4734,7 +4749,7 @@ func _montar_fogao() -> void:
 			continue
 		var fn := func():
 			if not _bau_arrastou:
-				m.rede("forno", {"acao": "por", "p": forno_id, "lugar": "comb", "i": i})
+				_por_forno(it, "comb", i)
 		grade_forno.add_child(m.menu.celula(it, false, fn, 56))
 	# os pratos na hora (aba Criar, como antes) continuam aqui
 	var na_hora := _botao("Cozinhar na hora (aba Criar)", func():
