@@ -108,8 +108,24 @@ func _seguir_entrada() -> void:
 			e.grafico = int(m.grafico.nivel) if m.grafico else -1
 			e.versao = str(load("res://versao.gd").NUMERO)
 			e.partes = m.t_partes.duplicate()
+			_entrada_retomada(e)
 			_aparelho(e)
 			on.rede.enviar("lentidao", e)
+
+# Voltar do segundo plano (André 2026-11-17, retomada.gd): o preparo da placa ficou guardado entre aberturas (pso0 =
+# KB guardados quando o app abriu, pso1 = agora), por que o Android fechou o app da última vez (saida), quantos pipelines a
+# placa montou até o jogo aparecer (pip) e as partes do preparo dos efeitos (aquecer.gd tempos)
+func _entrada_retomada(e: Dictionary) -> void:
+	var R = preload("res://retomada.gd")
+	e.pso0 = R.pso0
+	e.pso1 = R.pso_kb()
+	var s: Dictionary = R.saida_anterior()
+	if not s.is_empty():
+		e.saida = s
+	e.merge(R.memoria_placa())
+	e.pip = pipelines_total()
+	if m.aquecer:
+		e.aq = m.aquecer.tempos.duplicate()
 
 # Menus e conversas (André 2026-11-13: "quando abro os menus tem um lag grande, tipo um delay"; "quando vou comprar
 # semente na Rosa ou falar com o Aldo sempre tem um lag alto"; a conversa vai com aba "npc:<id>"): cada abertura anota quanto
@@ -119,12 +135,16 @@ func _seguir_entrada() -> void:
 # mais comum no celular e não aparece na conta do jogo. pip = quantos pipelines a placa montou desde o registro
 # anterior (lido só junto de um registro: a leitura espera a linha do desenho).
 var _pip_total := -1
-func pipelines_novos() -> int:
+func pipelines_total() -> int: # desde que o app abriu
 	var t := 0
 	for k in [RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS, RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH,
 			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE, RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW,
 			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION]:
 		t += RenderingServer.get_rendering_info(k)
+	return t
+
+func pipelines_novos() -> int:
+	var t := pipelines_total()
 	var novos := t - _pip_total if _pip_total >= 0 else 0
 	_pip_total = t
 	return novos
