@@ -2207,6 +2207,7 @@
   "perto": 4,
   "folga": 1.6,
   "mudasMax": 15,
+  "maxMundo": 6000,
   "xp": 3,
   "len": 3,
   "vigor": 1,
