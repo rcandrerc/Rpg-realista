@@ -21,6 +21,7 @@ var estado := {} # o último evento "leilao" do servidor
 var aba := "comprar"
 var busca := {"tipo": "", "r": -1, "ordem": "barato"}
 var sel := -1 # lugar da mochila escolhido para vender
+var sel_n := 0 # quantos dessa pilha vão à venda (André 2026-11-17: Tudo ou um número, menu.gd pedir_qtd)
 var pag := 0
 var horas := 24
 var preco_ui: LineEdit
@@ -320,8 +321,11 @@ func _vender() -> void:
 	d.add_theme_constant_override("separation", 8)
 	h.add_child(d)
 	var it = P.prog.mochila[sel] if sel >= 0 and sel < P.prog.mochila.size() else null
+	if it != null and it.has("n"): # a parte da pilha que vai à venda
+		it = it.duplicate()
+		it.n = clampi(sel_n if sel_n > 0 else int(it.n), 1, int(it.n))
 	if it == null:
-		d.add_child(Menu.rotulo("Escolha um item da mochila. Pilha vai inteira.", 14, Menu.APAGADO))
+		d.add_child(Menu.rotulo("Escolha um item da mochila.", 14, Menu.APAGADO))
 	else:
 		var l := HBoxContainer.new()
 		l.add_theme_constant_override("separation", 10)
@@ -371,8 +375,15 @@ func _escolher(i: int) -> void:
 	if it.get("cad", false):
 		m.hud.aviso("Item com cadeado não vai à venda. Abra o cadeado na mochila")
 		return
-	sel = -1 if sel == i else i
-	montar()
+	if sel == i:
+		sel = -1
+		montar()
+		return
+	# pilha: Tudo ou quantos vão à venda (menu.gd pedir_qtd); peça ou um só vai direto
+	m.menu.pedir_qtd(it, int(it.get("n", 1)), "Escolher", func(n: int):
+		sel = i
+		sel_n = n
+		montar())
 
 func _horas(hh: int) -> void:
 	horas = hh
@@ -387,8 +398,13 @@ func _anunciar() -> void:
 		m.hud.aviso("Escreva o preço em ouro")
 		return
 	m.sons.tocar("moedas", -8.0)
-	pedir({"acao": "anunciar", "i": sel, "preco": p, "horas": horas})
+	var msg := {"acao": "anunciar", "i": sel, "preco": p, "horas": horas}
+	var it = m.P.prog.mochila[sel] if sel >= 0 and sel < m.P.prog.mochila.size() else null
+	if it != null and it.has("n") and sel_n > 0:
+		msg.n = mini(sel_n, int(it.n))
+	pedir(msg)
 	sel = -1
+	sel_n = 0
 
 # ---------- meus anúncios e retirar ----------
 func _meus() -> void:
