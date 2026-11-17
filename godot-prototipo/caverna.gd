@@ -288,7 +288,9 @@ func _paredao() -> void:
 	var H: float = float(a.teto)
 	var cy := H * 0.35
 	var Wf := W + 3.8
-	var atras := 3.0 if dungeon else 7.0 # no mundo grande a rocha por cima da boca começa uns metros para dentro
+	# no mundo grande a rocha por cima da boca começa uns metros para dentro (7 m até 2026-11-17; com o morro em volta da
+	# boca, shared/mundo.js morroNasBocas, 4 m: o paredão não fica mais alto que a encosta logo atrás dele)
+	var atras := 3.0 if dungeon else 4.0
 	var topo := maxf(T.altura(O.x + d.x * atras, O.z + d.z * atras), O.y + H + 2.2) + 0.6 # um pouco acima da rocha de trás
 	var Hf := topo - O.y - cy
 	var pf := _perfil(a)

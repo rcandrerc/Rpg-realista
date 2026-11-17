@@ -3,7 +3,7 @@
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
-import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA } from './mundo.js';
+import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA, CAVERNAS_MUNDO, MORRO_BOCA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
 import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA, CACAMBA_CARROCA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
@@ -2113,6 +2113,12 @@ for (const n of MERCADORES_MUNDO) {
     const d = Math.hypot(t.x - A.x, t.z - A.z);
     if (d > A.r + 20) continue;
     if (d < A.r + 4) { const k = (A.r + 4 + (d % 3)) / (d || 1); t.x = +(A.x + (t.x - A.x) * k + (d ? 0 : A.r + 4)).toFixed(2); t.z = +(A.z + (t.z - A.z) * k).toFixed(2); }
+    t.y = +alturaMundo(GR, t.x, t.z).toFixed(2);
+  }
+  // o morro em volta da boca das cavernas (shared/mundo.js morroNasBocas, 2026-11-17) também vem depois do sorteio: a
+  // árvore que ficou nele acompanha o chão novo (não muda de lugar nem de índice)
+  for (const t of novas) {
+    if (!CAVERNAS_MUNDO.some((D) => D.linha && D.linha.some(([px, pz]) => Math.hypot(px - t.x, pz - t.z) < MORRO_BOCA.alcance + 12))) continue;
     t.y = +alturaMundo(GR, t.x, t.z).toFixed(2);
   }
   MAPA_CLAREIRA.mata.push(...novas);
