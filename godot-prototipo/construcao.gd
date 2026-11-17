@@ -52,6 +52,9 @@ var aba := "casa" # "casa", "moveis", "fazenda" ou "terreno" (as duas primeiras 
 var sel := "fundacao" # peça (CONSTRUCOES), "desmontar" ou ação da fazenda ("arar", "plantar", "regar", "colher", "tirar")
 var semente := "rabanete"
 var arvore := "" # muda de árvore escolhida na barra da Fazenda (André 2026-11-16: "padronizar")
+# Fazenda aberta numa área de plantio (André 2026-11-16 23:54: "o menu de árvore e o menu de plantação fossem iguais"):
+# a mesma barra da Fazenda, só com as mudas; a mira fica a até 16 m do herói e marca o quadrado de 4 m da área
+var na_area := false
 var giro := 0 # 0..3 (x 90°)
 var mira := Vector3.ZERO # onde a câmera flutuante olha e onde o fantasma fica
 var alvo := {} # o que o botão Colocar vai fazer agora: {ok, motivo, msg (tipo, dados), x, z}
@@ -2592,7 +2595,7 @@ func _process_parte(dt: float) -> void:
 	m.hud.mostrar_botao("lote", meu == "" and dentro_das_terras(hp.x, hp.z, -2.0) and vivo and not livre)
 	var no_meu := meu != "" and lotes.has(meu) and dist_ret(lotes[meu].def, hp.x, hp.z) <= float(D.lote.alcance)
 	m.hud.mostrar_botao("construir", false) # André 2026-11-06: o martelo foi para o menu do topo (menu_topo.gd), aceso aqui
-	_pode_aqui = no_meu and vivo and not comprando
+	_pode_aqui = (no_meu or (m.plantio != null and m.plantio.area_perto(Vector2(hp.x, hp.z)))) and vivo and not comprando
 	# estação do terreno perto: um botão só (o André tirou o botão da forja da HUD; a forja do Tomás fica no Falar)
 	# 2026-11-07 (André): no meu terreno os botões da mesa, do baú e da fornalha aparecem já ao chegar perto da casa;
 	# tocar faz o herói ir andando até o lado da estação (entra pela porta) e só aí ela abre (tocar_estacao)
@@ -2705,7 +2708,12 @@ func _mover_mira(dt: float) -> void:
 	var j: Vector2 = m.hud.mover
 	if j.length() > 0.12:
 		mira += Vector3(j.x, 0, j.y).rotated(Vector3.UP, m.cam.yaw) * VEL_MIRA * minf(dt, 0.1) * minf(1.0, j.length() * 1.2)
-	if ativo and lotes.has(meu):
+	if ativo and na_area:
+		var hpm: Vector3 = m.heroi.position
+		var dv := Vector2(mira.x - hpm.x, mira.z - hpm.z).limit_length(m.plantio.RAIO_MODO)
+		mira.x = hpm.x + dv.x
+		mira.z = hpm.z + dv.y
+	elif ativo and lotes.has(meu):
 		var l: Dictionary = lotes[meu].def
 		mira.x = clampf(mira.x, float(l.x0) - 1.5, float(l.x1) + 1.5)
 		mira.z = clampf(mira.z, float(l.z0) - 1.5, float(l.z1) + 1.5)
@@ -2747,6 +2755,11 @@ func abrir() -> void:
 	if not m.on():
 		m.hud.aviso("Construir só funciona online (o terreno fica guardado no servidor)")
 		return
+	var hp0: Vector3 = m.heroi.position
+	var perto_lote: bool = meu != "" and lotes.has(meu) and dist_ret(lotes[meu].def, hp0.x, hp0.z) <= float(D.lote.alcance)
+	if not perto_lote and m.plantio and m.plantio.area_perto(Vector2(hp0.x, hp0.z)):
+		abrir_area(arvore)
+		return
 	if meu == "" or not lotes.has(meu):
 		m.hud.aviso("Compre um terreno nas Terras da Estrada para construir")
 		return
@@ -2770,10 +2783,46 @@ func abrir() -> void:
 	if m.lentidao: # quanto o modo construção levou para abrir (lentidao.gd, tipo "menu")
 		m.lentidao.menu_aberto("construir", t0, 0)
 
+# Fazenda numa área de plantio: só as mudas (s = a muda já escolhida, se tiver)
+func abrir_area(s := "") -> void:
+	if not m.on():
+		m.hud.aviso("Plantar árvore só funciona online")
+		return
+	if ativo:
+		sair()
+	if m.trabalho.coletando != null:
+		m.trabalho.parar(true)
+	plano.parar()
+	na_area = true
+	ativo = true
+	aba = "fazenda"
+	sel = "arvore"
+	arvore = s
+	if arvore == "" or m.P.contar("semente_" + arvore) < 1:
+		for k in m.plantio.tipos():
+			if m.P.contar("semente_" + k) > 0:
+				arvore = k
+				break
+	andar = "terreo"
+	var hp: Vector3 = m.heroi.position
+	var ry: float = m.mov.ry
+	mira = hp + Vector3(sin(ry), 0, cos(ry)) * 3.0
+	painel.visible = true
+	painel_acoes.visible = true
+	for k in _botoes_abas:
+		_botoes_abas[k].visible = k == "fazenda"
+	_montar_itens()
+	m.plantio.mostrar_quadrados(true)
+
 func sair() -> void:
 	if not ativo:
 		return
 	ativo = false
+	if na_area:
+		na_area = false
+		for k in _botoes_abas:
+			_botoes_abas[k].visible = true
+		m.plantio.mostrar_quadrados(false)
 	painel.visible = false
 	painel_acoes.visible = false
 	if fantasma:
@@ -2966,7 +3015,10 @@ func tocou_tela(pos: Vector2) -> void:
 	if not ativo or cobre(pos):
 		return
 	var p = _chao_na_tela(pos)
-	if p != null and lotes.has(meu) and dist_ret(lotes[meu].def, p.x, p.z) <= 1.5:
+	if p != null and na_area:
+		if Vector2(p.x - m.heroi.position.x, p.z - m.heroi.position.z).length() <= m.plantio.RAIO_MODO:
+			mira = p
+	elif p != null and lotes.has(meu) and dist_ret(lotes[meu].def, p.x, p.z) <= 1.5:
 		mira = p
 		if aba == "fazenda" and plano and plano.planeja(sel): # fazenda: tocar no canteiro já marca (ou desmarca)
 			_atualizar_mira()
@@ -2975,10 +3027,12 @@ func tocou_tela(pos: Vector2) -> void:
 func _atualizar_mira() -> void:
 	var p: Vector3 = mira
 	var L = lotes.get(meu)
-	if L == null:
+	if L == null and not na_area:
 		sair()
 		return
 	alvo = {"ok": false, "motivo": ""}
+	if na_area:
+		sel = "arvore"
 	if aba == "fazenda" or aba == "terreno" or sel == "desmontar":
 		_mostrar_fantasma("")
 	if aba == "terreno":
@@ -3077,6 +3131,15 @@ func _atualizar_mira() -> void:
 			mot = "Plantar árvore só funciona online"
 		elif m.P.contar("semente_" + arvore) < 1:
 			mot = "Sem semente de %s (a Rosa vende)" % str(m.plantio.tipos().get(arvore, {}).get("nome", "")).to_lower()
+		elif na_area:
+			var qs: Dictionary = m.plantio.quadrados()
+			var area = qs.get(q)
+			for di in n:
+				for dk in n:
+					if mot == "" and (area == null or qs.get(q + Vector2i(di, dk)) != area):
+						mot = "A árvore antiga precisa de 2 x 2 quadrados livres da área de plantio" if grande and area != null else "Mire num quadrado amarelo da área de plantio"
+					elif mot == "" and m.plantio._ocupados().has(q + Vector2i(di, dk)):
+						mot = "Já tem árvore nesse quadrado"
 		elif _fora_do_lote(R, L.def):
 			mot = "Só dá para plantar dentro do seu terreno"
 		else:
@@ -4738,7 +4801,20 @@ func _montar_itens() -> void:
 	var pc: Label = linha_abas.get_node("pecas")
 	pc.text = Idioma.frase(("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d · Água do regador %d/%d" % [int(m.P.vigor()), agua_regador(), int(D.horta.get("agua", 20))])
 	var nome := ""
-	if aba == "terreno":
+	if na_area: # Fazenda na área de plantio: só as mudas de árvore
+		pc.text = Idioma.t("Área de plantio · Vigor %d") % int(m.P.vigor())
+		var TA: Dictionary = m.plantio.tipos()
+		var alguma := false
+		for k in TA:
+			var n_a: int = m.P.contar("semente_" + k)
+			if n_a > 0 or arvore == k:
+				alguma = true
+				linha_itens.add_child(_slot("arvore:" + k, "it_semente_" + k, str(n_a), arvore == k, n_a > 0, Color(str(TA[k].get("copa", "#7aa04a"))).lightened(0.15)))
+		if alguma:
+			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(TA.get(arvore, {}).get("nome", "")).to_lower(), m.P.contar("semente_" + arvore)]
+		else:
+			nome = "Sem semente de árvore (a Rosa vende)"
+	elif aba == "terreno":
 		if L:
 			var c := conta_terreno(L)
 			pc.text = "%d x %d m" % [int(L.def.x1 - L.def.x0), int(L.def.z1 - L.def.z0)]

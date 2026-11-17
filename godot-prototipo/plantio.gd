@@ -76,7 +76,7 @@ func botar(id: String, s: String, x: float, z: float, ry: float, sc: float, falt
 	m.trabalho.registrar(o)
 	m.trabalho.queda.registrar_partes(x, z, partes)
 	_fase(a)
-	if modo:
+	if mostrando:
 		_refazer_marcas()
 
 # muda e jovem: o botão de cortar não aparece (o coletável fica "esgotado" até a hora de ficar adulta)
@@ -182,7 +182,7 @@ func tirar(id: String) -> void:
 	if a == null:
 		return
 	arvores.erase(id)
-	if modo:
+	if mostrando:
 		_refazer_marcas.call_deferred()
 	var q = m.trabalho.queda
 	if not q.caida(id):
@@ -196,9 +196,9 @@ func _sumir(a: Dictionary) -> void:
 	m.trabalho.queda.tirar(a.o.id, a.o.pos.x, a.o.pos.z, a.partes)
 	a.no.queue_free()
 
-# muda vira jovem e jovem vira adulta: confere de 2 em 2 s (o modo plantio e a ida até a área, a cada quadro)
+# muda vira jovem e jovem vira adulta: confere de 2 em 2 s (a ida até a área ou o quadrado, a cada quadro)
 func _process(dt: float) -> void:
-	if modo or indo_area != null or _alvo_terreno != null:
+	if mostrando or indo_area != null or _alvo_terreno != null:
 		_modo_passo()
 	_t -= dt
 	if _t > 0.0:
@@ -215,30 +215,24 @@ func plantou(ev: Dictionary) -> void:
 	m.fx.poeira(x, z, 0.6, 6, "7a5c3e", "a88a62")
 	m.sons.tocar("pano", -6.0, 0.05, Vector3(x, m.terreno.altura(x, z), z))
 
-# ---------- onde plantar (André 2026-11-16 14:04, esboço aprovado) ----------
-# Plantar na semente: no seu terreno planta ali mesmo, como antes. Perto de uma área de plantio, abre o modo plantio;
-# longe, o herói vai sozinho pela estrada até a área mais perto (andar cancela, como no "Ir para") e lá abre o modo
-# plantio. No modo plantio os quadrados de 4 m aparecem no chão: amarelo livre, vermelho com árvore. Tocar num escolhe
-# e Plantar leva o herói até ele e planta. Nunca planta sozinho.
-const Menu = preload("res://menu.gd")
-const Idioma = preload("res://idioma.gd")
+# ---------- onde plantar (André 2026-11-16) ----------
+# Um jeito só de plantar (André 23:54: "o menu de árvore e o menu de plantação fossem iguais"): na área de plantio abre
+# o mesmo menu da Fazenda do terreno (construcao.gd, só com as mudas); escolhe a muda, mira o quadrado de 4 m e o
+# Plantar leva o herói até ele e planta. O botão Plantar da semente, longe, leva o herói pela estrada até a área mais
+# perto (andar cancela, como no "Ir para") e lá abre a Fazenda. No terreno, o botão da semente planta perto do herói.
+# Com a Fazenda aberta na área, os quadrados de 4 m aparecem no chão: amarelo livre, vermelho com árvore.
 const SHADER_MARCA := preload("res://marca_fazenda.gdshader")
 const Q := 4.0 # m do quadrado (PLANTIO.quadrado)
-const RAIO_MODO := 16.0 # m em volta do herói com os quadrados desenhados
-const PERTO_AREA := 10.0 # m: com um quadrado livre tão perto, abre o modo plantio sem andar
-const COR_Q := {"livre": Color(1.0, 0.86, 0.45), "ocupado": Color(1.0, 0.42, 0.36), "sel": Color(0.75, 1.0, 0.6)}
+const RAIO_MODO := 16.0 # m em volta do herói com os quadrados desenhados (e até onde a mira vai na área)
+const PERTO_AREA := 10.0 # m: com um quadrado livre tão perto, abre a Fazenda sem andar
+const COR_Q := {"livre": Color(1.0, 0.86, 0.45), "ocupado": Color(1.0, 0.42, 0.36)}
 var _quads := {} # Vector2i(i, k) -> id da área (habilidades.json, plantio.areas: "k:i0~i1,i2;...")
-var modo := false
+var mostrando := false # quadrados no chão (Fazenda aberta numa área de plantio)
 var semente := ""
-var sel = null # Vector2i do quadrado escolhido
 var indo_area = null # Vector2 (m) do quadrado de destino, andando pela estrada
-var _ir_quadrado := false # apertou Plantar: o herói vai até o quadrado escolhido
 var _marcas := {} # Vector2i -> MeshInstance3D
 var _centro_marcas := Vector2(INF, INF)
 var _mats_q := {}
-var tela: CanvasLayer
-var painel: PanelContainer
-var titulo: Label
 
 func quadrados() -> Dictionary:
 	if _quads.is_empty():
@@ -307,49 +301,42 @@ func plantar(s: String) -> void:
 		m.hud.aviso("Nenhuma área de plantio livre")
 		return
 	var alvo := _meio(q)
+	_alvo_terreno = null
 	if alvo.distance_to(hp) <= PERTO_AREA:
-		abrir_modo()
+		indo_area = null
+		m.construcao.abrir_area(s)
 		return
-	sair_modo()
 	if m.rota:
 		m.rota.ir(m.rota.planejar(alvo), "Indo para a área de plantio")
 		indo_area = alvo
 
-# barra da Fazenda no terreno (construcao.gd): o herói anda até o quadrado escolhido e planta ali (André 2026-11-16)
+# tem quadrado de área de plantio perto do ponto? (o martelo do topo abre a Fazenda aqui)
+func area_perto(p: Vector2, raio := PERTO_AREA) -> bool:
+	var qs := quadrados()
+	var n := int(ceil(raio / Q))
+	var c0 := Vector2i(floori(p.x / Q), floori(p.y / Q))
+	for di in range(-n, n + 1):
+		for dk in range(-n, n + 1):
+			var q := c0 + Vector2i(di, dk)
+			if qs.has(q) and _meio(q).distance_to(p) <= raio:
+				return true
+	return false
+
+# Fazenda do terreno ou da área (construcao.gd): o herói anda até o quadrado escolhido e planta ali
 var _alvo_terreno = null # Vector2i do quadrado (o de cima à esquerda na árvore antiga)
 func plantar_no_quadrado(s: String, q: Vector2i) -> void:
-	sair_modo()
 	indo_area = null
 	semente = s
 	_alvo_terreno = q
 
 func _destino() -> Vector2:
-	if _alvo_terreno != null:
-		var grande: bool = bool(tipos().get(semente, {}).get("grande", false))
-		return Vector2(_alvo_terreno.x + 1, _alvo_terreno.y + 1) * Q if grande else _meio(_alvo_terreno)
-	return _meio(sel)
+	var grande: bool = bool(tipos().get(semente, {}).get("grande", false))
+	return Vector2(_alvo_terreno.x + 1, _alvo_terreno.y + 1) * Q if grande else _meio(_alvo_terreno)
 
-func abrir_modo() -> void:
-	indo_area = null
-	_alvo_terreno = null
-	modo = true
-	sel = null
-	_ir_quadrado = false
-	_montar_tela()
-	_atualizar_titulo()
-	painel.visible = true
+func mostrar_quadrados(v: bool) -> void:
+	mostrando = v
 	_centro_marcas = Vector2(INF, INF)
 	_refazer_marcas()
-
-func sair_modo() -> void:
-	modo = false
-	sel = null
-	_ir_quadrado = false
-	if painel:
-		painel.visible = false
-	for q in _marcas:
-		_marcas[q].queue_free()
-	_marcas.clear()
 
 func _modo_passo() -> void:
 	if m.heroi == null:
@@ -362,28 +349,17 @@ func _modo_passo() -> void:
 			var c := _meio(_alvo_terreno)
 			_alvo_terreno = null
 			m.rede("plantarArvore", {"s": semente, "x": c.x, "z": c.y, "q": 1})
-		return
 	if indo_area != null and m.rota and not m.rota.ativo: # a ida pela estrada acabou: chegou (ou o jogador andou)
 		var chegou: bool = hp.distance_to(indo_area) < 14.0
 		indo_area = null
 		if chegou:
-			abrir_modo()
-		return
-	if not modo:
-		return
-	if hp.distance_to(_centro_marcas) > 3.0:
+			m.construcao.abrir_area(semente)
+	if mostrando and hp.distance_to(_centro_marcas) > 3.0:
 		_refazer_marcas()
-	if _ir_quadrado:
-		if m.hud.mover.length() > 0.15: # mexeu no joystick: para de ir
-			_ir_quadrado = false
-		elif sel != null and hp.distance_to(_meio(sel)) < 1.4:
-			_ir_quadrado = false
-			var c := _meio(sel)
-			m.rede("plantarArvore", {"s": semente, "x": c.x, "z": c.y, "q": 1})
 
 # o herói vai até o quadrado escolhido (main.direcao_joystick)
 func andando() -> bool:
-	return _alvo_terreno != null or (modo and _ir_quadrado and sel != null)
+	return _alvo_terreno != null
 
 func direcao_auto() -> Vector3:
 	var a: Vector2 = _destino() - Vector2(m.heroi.position.x, m.heroi.position.z)
@@ -403,7 +379,7 @@ func _refazer_marcas() -> void:
 	for q in _marcas:
 		_marcas[q].queue_free()
 	_marcas.clear()
-	if not modo or m.heroi == null:
+	if not mostrando or m.heroi == null:
 		return
 	var hp := Vector2(m.heroi.position.x, m.heroi.position.z)
 	_centro_marcas = hp
@@ -421,84 +397,8 @@ func _refazer_marcas() -> void:
 			var pm := PlaneMesh.new()
 			pm.size = Vector2(Q * 0.94, Q * 0.94)
 			mi.mesh = pm
-			mi.material_override = _mat_q("sel" if q == sel else ("ocupado" if oc.has(q) else "livre"))
+			mi.material_override = _mat_q("ocupado" if oc.has(q) else "livre")
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.position = Vector3(c.x, m.terreno.altura(c.x, c.y) + 0.06, c.y)
 			add_child(mi)
 			_marcas[q] = mi
-
-# toque na tela (hud.tocou) no modo plantio: escolhe o quadrado debaixo do dedo
-func tocou_tela(pos: Vector2) -> void:
-	if not modo or m.camera == null or m.heroi == null or cobre(pos):
-		return
-	var o: Vector3 = m.camera.project_ray_origin(pos)
-	var d: Vector3 = m.camera.project_ray_normal(pos)
-	if absf(d.y) < 0.01:
-		return
-	var y: float = m.heroi.position.y
-	var p := Vector3.ZERO
-	for i in 3: # plano na altura do herói, refinado pelo relevo
-		var t: float = (y - o.y) / d.y
-		if t <= 0.0:
-			return
-		p = o + d * t
-		y = m.terreno.altura(p.x, p.z)
-	var q := Vector2i(floori(p.x / Q), floori(p.z / Q))
-	if not _marcas.has(q):
-		return
-	if _ocupados().has(q):
-		m.hud.aviso("Já tem árvore nesse quadrado")
-		return
-	sel = q
-	_ir_quadrado = false
-	_refazer_marcas()
-	_atualizar_titulo()
-
-func _apertou_plantar() -> void:
-	if sel == null:
-		m.hud.aviso("Toque num quadrado amarelo")
-		return
-	_ir_quadrado = true
-
-func _atualizar_titulo() -> void:
-	if titulo == null:
-		return
-	var nome: String = str(tipos().get(semente, {}).get("nome", ""))
-	var t := Idioma.frase("Toque num quadrado amarelo") if sel == null else Idioma.frase("Plantar %s aqui") % Idioma.frase(nome)
-	titulo.text = t
-
-func cobre(p: Vector2) -> bool:
-	return painel != null and painel.visible and painel.get_global_rect().grow(6).has_point(p)
-
-func _montar_tela() -> void:
-	if tela != null:
-		return
-	tela = CanvasLayer.new()
-	tela.layer = 2
-	add_child(tela)
-	painel = PanelContainer.new()
-	painel.add_theme_stylebox_override("panel", Menu.caixa(Color(Menu.FUNDO, 0.93), Menu.OURO.darkened(0.25), 2, 10, 10))
-	painel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	painel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	painel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	painel.offset_bottom = -12
-	painel.visible = false
-	tela.add_child(painel)
-	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 10)
-	painel.add_child(linha)
-	titulo = Label.new()
-	titulo.add_theme_font_size_override("font_size", 16)
-	titulo.add_theme_color_override("font_color", Menu.OURO_CLARO)
-	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	linha.add_child(titulo)
-	for par in [["Plantar", _apertou_plantar, true], ["Sair", sair_modo, false]]:
-		var b := Button.new()
-		b.set_meta("pt", par[0])
-		b.text = Idioma.frase(par[0])
-		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", 16)
-		b.custom_minimum_size = Vector2(96, 42)
-		Menu.estilo_botao(b, par[2])
-		b.pressed.connect(par[1])
-		linha.add_child(b)
