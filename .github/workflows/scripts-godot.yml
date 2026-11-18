@@ -16,7 +16,9 @@ permissions:
 
 jobs:
   scripts:
-    runs-on: ubuntu-latest
+    # Repositório PRIVADO: roda na Oracle (vaga de testes; sem ela, no runner dos builds), sem gastar a cota do GitHub.
+    # Público: máquina do GitHub, como antes. Ver ferramentas/runner/LEIAME.md.
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
       GODOT: 4.7.1-stable
@@ -34,8 +36,9 @@ jobs:
           restore-keys: godot-import-v2-${{ env.GODOT }}-
       - name: Godot
         run: |
-          cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_linux.x86_64.zip && unzip -qo godot.zip
-          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_linux.x86_64" >> $GITHUB_ENV
+          case "$(uname -m)" in aarch64|arm64) PLAT=linux.arm64;; *) PLAT=linux.x86_64;; esac; echo "PLAT=$PLAT" >> $GITHUB_ENV # ARM na Oracle
+          cd /tmp && curl -fsSL --retry 4 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/$GODOT/Godot_v${GODOT}_${PLAT}.zip && unzip -qo godot.zip
+          echo "GODOT_BIN=/tmp/Godot_v${GODOT}_${PLAT}" >> $GITHUB_ENV
       - name: Importar o projeto
         run: cd godot-prototipo && timeout 1200 $GODOT_BIN --headless --import > /tmp/import.log 2>&1 || tail -20 /tmp/import.log
       - name: Todo script compila
