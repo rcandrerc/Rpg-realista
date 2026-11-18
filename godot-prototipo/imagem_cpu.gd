@@ -17,6 +17,8 @@ const PNG := 1
 const WEBP := 2
 
 static var _caminhos := {} # caminho da textura -> caminho do .ctex ("" = não dá para ler pelo arquivo)
+# de onde veio cada leitura (André 2026-11-18, filha rosa de novo na 2629): vai no registro de lentidão (lentidao.gd)
+static var origem := {"arq": 0, "gpu": 0, "nulo": 0}
 
 # Imagem da textura (descomprimida). menor_lado > 0: devolve o menor nível de mipmap que ainda tem pelo menos esse
 # tamanho (para a média de cor basta uma imagem pequena: abre bem mais rápido).
@@ -36,10 +38,13 @@ static func ler(tex: Texture2D, menor_lado := 0) -> Image:
 		fundo.blend_rect(src, Rect2i(Vector2i.ZERO, src.get_size()), Vector2i.ZERO)
 		return fundo
 	var img := _do_arquivo(tex.resource_path, menor_lado)
-	if img == null:
+	if img != null:
+		origem.arq += 1
+	else:
 		img = tex.get_image()
 		if img != null:
 			img = img.duplicate()
+		origem["gpu" if img != null else "nulo"] += 1
 	if img != null and img.is_compressed():
 		img.decompress()
 	return img
